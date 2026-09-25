@@ -1,0 +1,64 @@
+src/app/(site)/reserva/page.tsx(25,20): error TS2322: Type '({ services: { id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; ... 5 more ...; categoryId: string | null; }[]; box: { ...; } | null; } & { ...; })[]' is not assignable to type 'Professional[]'.
+  Type '{ services: { id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; ... 5 more ...; categoryId: string | null; }[]; box: { ...; } | null; } & { ...; }' is not assignable to type 'Professional'.
+    Types of property 'services' are incompatible.
+      Type '{ id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; durationMin: number; ... 4 more ...; categoryId: string | null; }[]' is not assignable to type 'Service[]'.
+        Type '{ id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; durationMin: number; ... 4 more ...; categoryId: string | null; }' is not assignable to type 'Service'.
+          Types of property 'depositAmount' are incompatible.
+            Type 'Decimal | null' is not assignable to type 'number | null'.
+              Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/catalogo/page.tsx(147,11): error TS2322: Type '({ products: ({ product: { id: string; name: string; createdAt: Date; updatedAt: Date; price: number | null; pricePerKg: number | null; stock: number; tenantId: string; unit: string; ... 4 more ...; trackStock: boolean; }; } & { ...; })[]; resources: ({ ...; } & { ...; })[]; category: { ...; } | null; } & { ...; })[]' is not assignable to type 'Service[]'.
+  Type '{ products: ({ product: { id: string; name: string; createdAt: Date; updatedAt: Date; price: number | null; pricePerKg: number | null; stock: number; tenantId: string; unit: string; ... 4 more ...; trackStock: boolean; }; } & { ...; })[]; resources: ({ ...; } & { ...; })[]; category: { ...; } | null; } & { ...; }' is not assignable to type 'Service'.
+    Types of property 'depositAmount' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/pedidos/page.tsx(196,13): error TS2322: Type '({ services: { id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; ... 5 more ...; categoryId: string | null; }[]; box: { ...; } | null; } & { ...; })[]' is not assignable to type 'Professional[]'.
+  Type '{ services: { id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; ... 5 more ...; categoryId: string | null; }[]; box: { ...; } | null; } & { ...; }' is not assignable to type 'Professional'.
+    Types of property 'services' are incompatible.
+      Type '{ id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; durationMin: number; ... 4 more ...; categoryId: string | null; }[]' is not assignable to type 'Service[]'.
+        Type '{ id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; durationMin: number; ... 4 more ...; categoryId: string | null; }' is not assignable to type 'Service'.
+          Types of property 'depositAmount' are incompatible.
+            Type 'Decimal | null' is not assignable to type 'number | null'.
+              Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/turnos/lista/page.tsx(153,9): error TS2322: Type '({ services: { id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; ... 5 more ...; categoryId: string | null; }[]; box: { ...; } | null; } & { ...; })[]' is not assignable to type 'Professional[]'.
+  Type '{ services: { id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; ... 5 more ...; categoryId: string | null; }[]; box: { ...; } | null; } & { ...; }' is not assignable to type 'Professional'.
+    Types of property 'services' are incompatible.
+      Type '{ id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; durationMin: number; ... 4 more ...; categoryId: string | null; }[]' is not assignable to type 'Service[]'.
+        Type '{ id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; durationMin: number; ... 4 more ...; categoryId: string | null; }' is not assignable to type 'Service'.
+          Types of property 'depositAmount' are incompatible.
+            Type 'Decimal | null' is not assignable to type 'number | null'.
+              Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/turnos/lista/page.tsx(169,42): error TS2322: Type '{ id: string; startsAt: Date; status: AppointmentStatus; professionalId: string; serviceId: string; priceAtBooking: number | null; notes: string | null; client: { ...; }; ... 4 more ...; collections: CobroDelTurno[]; }' is not assignable to type 'Appointment'.
+  The types of 'service.depositAmount' are incompatible between these types.
+    Type 'Decimal | null' is not assignable to type 'number | null | undefined'.
+      Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/turnos/lista/page.tsx(184,40): error TS2322: Type '{ id: string; startsAt: Date; status: AppointmentStatus; professionalId: string; serviceId: string; priceAtBooking: number | null; notes: string | null; client: { ...; }; ... 4 more ...; collections: CobroDelTurno[]; }' is not assignable to type 'Appointment'.
+  The types of 'service.depositAmount' are incompatible between these types.
+    Type 'Decimal | null' is not assignable to type 'number | null | undefined'.
+      Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/turnos/lista/page.tsx(195,42): error TS2322: Type '{ id: string; startsAt: Date; status: AppointmentStatus; professionalId: string; serviceId: string; priceAtBooking: number | null; notes: string | null; client: { ...; }; ... 4 more ...; collections: CobroDelTurno[]; }' is not assignable to type 'Appointment'.
+  The types of 'service.depositAmount' are incompatible between these types.
+    Type 'Decimal | null' is not assignable to type 'number | null | undefined'.
+      Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/turnos/page.tsx(165,9): error TS2322: Type '{ id: string; startsAt: Date; endsAt: Date; status: "PENDING" | "CONFIRMED" | "COMPLETED"; professionalId: string; serviceId: string; priceAtBooking: number; notes: string | null; ... 4 more ...; payment: { ...; } | null; }[] | ({ ...; } & ... 1 more ... & { ...; })[]' is not assignable to type 'Appointment[]'.
+  Type '({ box: { id: string; name: string; createdAt: Date; updatedAt: Date; tenantId: string; active: boolean; deletedAt: Date | null; }; professional: { id: string; name: string; createdAt: Date; ... 8 more ...; boxId: string | null; }; service: { ...; }; client: { ...; }; payment: { ...; } | null; } & { ...; } & { ...; ...' is not assignable to type 'Appointment[]'.
+    Type '{ box: { id: string; name: string; createdAt: Date; updatedAt: Date; tenantId: string; active: boolean; deletedAt: Date | null; }; professional: { id: string; name: string; createdAt: Date; ... 8 more ...; boxId: string | null; }; service: { ...; }; client: { ...; }; payment: { ...; } | null; } & { ...; } & { ...; }' is not assignable to type 'Appointment'.
+      The types of 'service.depositAmount' are incompatible between these types.
+        Type 'Decimal | null' is not assignable to type 'number | null | undefined'.
+          Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/vender/page.tsx(73,9): error TS2322: Type '({ services: { id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; ... 5 more ...; categoryId: string | null; }[]; box: { ...; } | null; } & { ...; })[]' is not assignable to type 'Professional[]'.
+  Type '{ services: { id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; ... 5 more ...; categoryId: string | null; }[]; box: { ...; } | null; } & { ...; }' is not assignable to type 'Professional'.
+    Types of property 'services' are incompatible.
+      Type '{ id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; durationMin: number; ... 4 more ...; categoryId: string | null; }[]' is not assignable to type 'Service[]'.
+        Type '{ id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; durationMin: number; ... 4 more ...; categoryId: string | null; }' is not assignable to type 'Service'.
+          Types of property 'depositAmount' are incompatible.
+            Type 'Decimal | null' is not assignable to type 'number | null'.
+              Type 'Decimal' is not assignable to type 'number'.
+src/lib/client-actions.ts(196,5): error TS2322: Type '{ id: string; name: string; services: { id: string; name: string; price: number; durationMin: number; residentPrice: number | null; depositAmount: Decimal | null; }[]; }[] | { id: string; name: string; services: { ...; }[]; }[]' is not assignable to type 'BookingGroup[]'.
+  Type '{ id: string; name: string; services: { id: string; name: string; price: number; durationMin: number; residentPrice: number | null; depositAmount: Decimal | null; }[]; }[]' is not assignable to type 'BookingGroup[]'.
+    Type '{ id: string; name: string; services: { id: string; name: string; price: number; durationMin: number; residentPrice: number | null; depositAmount: Decimal | null; }[]; }' is not assignable to type 'BookingGroup'.
+      Types of property 'services' are incompatible.
+        Type '{ id: string; name: string; price: number; durationMin: number; residentPrice: number | null; depositAmount: Decimal | null; }[]' is not assignable to type 'BookingService[]'.
+          Type '{ id: string; name: string; price: number; durationMin: number; residentPrice: number | null; depositAmount: Decimal | null; }' is not assignable to type 'BookingService'.
+            Types of property 'depositAmount' are incompatible.
+              Type 'Decimal | null' is not assignable to type 'number | null'.
+                Type 'Decimal' is not assignable to type 'number'.

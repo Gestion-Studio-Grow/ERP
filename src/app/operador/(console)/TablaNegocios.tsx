@@ -6,10 +6,23 @@
 // (`?orden=`) y lo aplica el servidor. En el celular, cada fila son dos líneas.
 //
 // Recibe filas ya filtradas, ordenadas y dichas en palabras (negocios-core.ts): no decide nada.
+//
+// Con `buscador`, el celular tiene arriba de la lista su campo «Buscar un negocio» (en la PC está
+// en la cabecera): filtra mientras se escribe con la misma regla que el servidor (coincideNegocio)
+// y con Enter es un GET a /operador?q= como siempre, así anda también sin JavaScript.
 
+import { useState } from "react";
 import Link from "next/link";
 import { Tabla, type ColumnaTabla } from "@/components/ui/Tabla";
 import { Marca, RielDeEstados, type TipoMarca } from "@/components/ui/Marca";
+import { coincideNegocio } from "./negocios-core";
+
+/** Lo que ya se buscó (la URL) y los filtros que el GET tiene que conservar. */
+export interface BuscadorNegocios {
+  q: string;
+  vista: string | null;
+  orden: string | null;
+}
 
 export interface FilaNegocio {
   id: string;
@@ -45,7 +58,20 @@ function Listo({ f }: { f: FilaNegocio }) {
   );
 }
 
-export default function TablaNegocios({ filas, total, vacio }: { filas: FilaNegocio[]; total: number; vacio: React.ReactNode }) {
+export default function TablaNegocios({
+  filas,
+  total,
+  vacio,
+  buscador,
+}: {
+  filas: FilaNegocio[];
+  total: number;
+  vacio: React.ReactNode;
+  buscador?: BuscadorNegocios;
+}) {
+  const [texto, setTexto] = useState(buscador?.q ?? "");
+  const visibles = buscador ? filas.filter((f) => coincideNegocio(f, texto)) : filas;
+  const filtraEnVivo = buscador !== undefined && visibles.length === 0 && filas.length > 0;
   const columnas: ColumnaTabla<FilaNegocio>[] = [
     {
       clave: "nombre",
@@ -144,17 +170,54 @@ export default function TablaNegocios({ filas, total, vacio }: { filas: FilaNego
     },
   ];
 
+  const barra = buscador && (
+    <form
+      id="buscar-negocio"
+      role="search"
+      action="/operador"
+      method="get"
+      className="flex min-w-0 flex-1 gap-2 lg:hidden"
+    >
+      <label className="min-w-0 flex-1">
+        <span className="sr-only">Buscar un negocio por nombre, slug o link</span>
+        <input
+          name="q"
+          type="search"
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          placeholder="Buscar un negocio"
+          autoComplete="off"
+          spellCheck={false}
+          enterKeyHint="search"
+          className="h-11 w-full rounded-md border border-line-strong bg-surface-raised px-3 text-base text-strong placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        />
+      </label>
+      {buscador.vista && <input type="hidden" name="estado" value={buscador.vista} />}
+      {buscador.orden && <input type="hidden" name="orden" value={buscador.orden} />}
+    </form>
+  );
+
   return (
     <Tabla
       titulo="Negocios de la plataforma"
-      filas={filas}
+      filas={visibles}
       clave={(f) => f.id}
       columnas={columnas}
       enlace={(f) => `/operador/tenants/${f.id}`}
-      vacio={vacio}
+      barra={barra || undefined}
+      vacio={
+        filtraEnVivo ? (
+          <>
+            Ningún negocio de esta lista coincide con «{texto.trim()}». Tocá «Buscar» en el teclado para buscar en
+            todos.
+          </>
+        ) : (
+          vacio
+        )
+      }
       cuenta={
         <>
-          {cifra(filas.length)} de {cifra(total)} {total === 1 ? "negocio" : "negocios"}
+          {cifra(visibles.length)} de {cifra(total)} {total === 1 ? "negocio" : "negocios"}
         </>
       }
     />

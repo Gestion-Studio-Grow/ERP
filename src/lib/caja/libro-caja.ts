@@ -24,7 +24,7 @@ import { COMPRA_ACTOR_PREFIX, REINTEGRO_ACTOR_PREFIX, esEgresoDeCompra, esIngres
 import { COMISION_ACTOR_PREFIX, esEgresoDeComision } from "@/lib/comision-liquidacion";
 import { ANULACION_TURNO_ACTOR_PREFIX, esEgresoDeAnulacion } from "@/lib/turnos/anulacion";
 import { ANULACION_VENTA_ACTOR_PREFIX } from "@/lib/order-anulacion";
-import { ARQUEO_TURNO_ACTOR_PREFIX, CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marca";
+import { APERTURA_TURNO_ACTOR_PREFIX, ARQUEO_TURNO_ACTOR_PREFIX, CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marca";
 import { CORTE_INICIAL_ACTOR_PREFIX } from "@/lib/caja/corte-inicial";
 import { IMPORT_ACTOR_PREFIX } from "@/lib/caja/import-caja";
 // Ciclo de imports: asiento-libro → cierre-diario → este archivo. Por eso la marca de cuenta
@@ -196,6 +196,8 @@ function marcasDelSistema(): readonly {
     { prefijo: ANULACION_TURNO_ACTOR_PREFIX, origen: "anulacion", referenciaEnMarca: false },
     { prefijo: CIERRE_DIARIO_ACTOR_PREFIX, origen: "diferencia-caja", referenciaEnMarca: true }, // día
     { prefijo: ARQUEO_TURNO_ACTOR_PREFIX, origen: "diferencia-caja", referenciaEnMarca: true }, // sessionId
+    // La diferencia entre el fondo contado al abrir un turno y el libro (ADR-101).
+    { prefijo: APERTURA_TURNO_ACTOR_PREFIX, origen: "diferencia-caja", referenciaEnMarca: true }, // sessionId
     { prefijo: CORTE_INICIAL_ACTOR_PREFIX, origen: "corte-importacion", referenciaEnMarca: true }, // día
     { prefijo: IMPORT_ACTOR_PREFIX, origen: "corte-importacion", referenciaEnMarca: true }, // hash del CSV
   ];
@@ -279,6 +281,11 @@ export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string
   // sumar): sin este candado quedaría borrable y el saldo se desataría del conteo del cajón.
   if (marca.startsWith(ARQUEO_TURNO_ACTOR_PREFIX)) {
     return "Ese movimiento es la diferencia que dejó el arqueo de un turno. No se borra: si estuvo mal, va una corrección con la fecha de hoy.";
+  }
+  // La diferencia al ABRIR un turno (ADR-101): borrarla desataría el libro del fondo contado y el
+  // cierre del día volvería a esperar plata que no estaba.
+  if (marca.startsWith(APERTURA_TURNO_ACTOR_PREFIX)) {
+    return "Ese movimiento es la diferencia que se encontró al abrir un turno, entre lo contado en el cajón y el libro. No se borra: si estuvo mal, va una corrección con la fecha de hoy.";
   }
   // La reversa de un cobro anulado: borrarla le devolvería al libro plata que el sistema ya
   // decidió que NO entró.

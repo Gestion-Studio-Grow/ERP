@@ -1,0 +1,450 @@
+TAP version 13
+# Subtest: el día largo lleva mayúscula sólo en la primera letra
+ok 1 - el día largo lleva mayúscula sólo en la primera letra
+  ---
+  duration_ms: 1.177881
+  type: 'test'
+  ...
+# Subtest: el día corto: «jue 24/09»
+ok 2 - el día corto: «jue 24/09»
+  ---
+  duration_ms: 0.331909
+  type: 'test'
+  ...
+# Subtest: vecinos de un día, cruzando el mes y el año
+ok 3 - vecinos de un día, cruzando el mes y el año
+  ---
+  duration_ms: 0.448792
+  type: 'test'
+  ...
+# Subtest: relativo a hoy
+ok 4 - relativo a hoy
+  ---
+  duration_ms: 0.225403
+  type: 'test'
+  ...
+# Subtest: el mes: «Septiembre 2026»
+ok 5 - el mes: «Septiembre 2026»
+  ---
+  duration_ms: 0.311272
+  type: 'test'
+  ...
+# Subtest: Caja del día abierta, en el navegador
+    # Subtest: el día abierto dice cuánto hay por medio, sólo de los medios que se movieron, y lo que entró hoy
+    ok 1 - el día abierto dice cuánto hay por medio, sólo de los medios que se movieron, y lo que entró hoy
+      ---
+      duration_ms: 807.593712
+      type: 'test'
+      ...
+    # Subtest: si el turno arrancó sin fondo y el libro arrastra efectivo, una sola cifra se llama «en el cajón» y la diferencia se explica
+    ok 2 - si el turno arrancó sin fondo y el libro arrastra efectivo, una sola cifra se llama «en el cajón» y la diferencia se explica
+      ---
+      duration_ms: 521.834863
+      type: 'test'
+      ...
+    # Subtest: 412 px con el CSS real y la piel: sin scroll horizontal y las teclas de 44 px
+    ok 3 - 412 px con el CSS real y la piel: sin scroll horizontal y las teclas de 44 px
+      ---
+      duration_ms: 745.923581
+      type: 'test'
+      ...
+    1..3
+ok 6 - Caja del día abierta, en el navegador
+  ---
+  duration_ms: 6441.410211
+  type: 'suite'
+  ...
+# Subtest: Caja en el navegador
+    # Subtest: cierre del día entero con el teclado: contar, anotar la diferencia, revisar, Escape, confirmar
+    ok 1 - cierre del día entero con el teclado: contar, anotar la diferencia, revisar, Escape, confirmar
+      ---
+      duration_ms: 1178.743666
+      type: 'test'
+      ...
+    # Subtest: cierre: sin efectivo, Enter lleva al efectivo y lo dice; lo ilegible se marca en su campo
+    ok 2 - cierre: sin efectivo, Enter lleva al efectivo y lo dice; lo ilegible se marca en su campo
+      ---
+      duration_ms: 824.463267
+      type: 'test'
+      ...
+    # Subtest: cierre: se corta la señal al confirmar → lo contado queda y se dice cómo saber si se cerró
+    ok 3 - cierre: se corta la señal al confirmar → lo contado queda y se dice cómo saber si se cerró
+      ---
+      duration_ms: 621.835627
+      type: 'test'
+      ...
+    # Subtest: cerrar el turno de cajero pide confirmación con el faltante; Enter confirma
+    ok 4 - cerrar el turno de cajero pide confirmación con el faltante; Enter confirma
+      ---
+      duration_ms: 629.596074
+      type: 'test'
+      ...
+    # Subtest: abrir la caja sin señal: se dice qué pasó y el fondo tipeado queda
+    ok 5 - abrir la caja sin señal: se dice qué pasó y el fondo tipeado queda
+      ---
+      duration_ms: 539.060979
+      type: 'test'
+      ...
+    # Subtest: libro: sin señal al guardar, lo cargado queda y se dice cómo saber si se guardó
+    ok 6 - libro: sin señal al guardar, lo cargado queda y se dice cómo saber si se guardó
+      ---
+      duration_ms: 715.190914
+      type: 'test'
+      ...
+    # Subtest: libro vacío: «Cargar un movimiento» deja el foco en el Detalle, listo para tipear
+    ok 7 - libro vacío: «Cargar un movimiento» deja el foco en el Detalle, listo para tipear
+      ---
+      duration_ms: 473.333658
+      type: 'test'
+      ...
+    # Subtest: 412 px con el CSS real: el cierre entra sin scroll horizontal y sus botones son de 44 px
+    ok 8 - 412 px con el CSS real: el cierre entra sin scroll horizontal y sus botones son de 44 px
+      ---
+      duration_ms: 584.285801
+      type: 'test'
+      ...
+    1..8
+ok 7 - Caja en el navegador
+  ---
+  duration_ms: 9521.003969
+  type: 'suite'
+  ...
+# Subtest: lee los tres medios en el orden de la caja, con lo no conciliado en null
+ok 8 - lee los tres medios en el orden de la caja, con lo no conciliado en null
+  ---
+  duration_ms: 2.585013
+  type: 'test'
+  ...
+# Subtest: la diferencia del día suma sólo lo conciliado
+ok 9 - la diferencia del día suma sólo lo conciliado
+  ---
+  duration_ms: 0.503458
+  type: 'test'
+  ...
+# Subtest: una fila rara no inventa números: null
+ok 10 - una fila rara no inventa números: null
+  ---
+  duration_ms: 0.264869
+  type: 'test'
+  ...
+# Subtest: sin diferencia guardada, se calcula contado menos esperado
+ok 11 - sin diferencia guardada, se calcula contado menos esperado
+  ---
+  duration_ms: 0.180707
+  type: 'test'
+  ...
+# Subtest: sin efectivo no se cierra: el foco va al efectivo con el motivo
+ok 12 - sin efectivo no se cierra: el foco va al efectivo con el motivo
+  ---
+  duration_ms: 1.825135
+  type: 'test'
+  ...
+# Subtest: un importe ilegible se marca en SU campo, no se toma como 'sin contar'
+ok 13 - un importe ilegible se marca en SU campo, no se toma como 'sin contar'
+  ---
+  duration_ms: 0.305097
+  type: 'test'
+  ...
+# Subtest: con diferencia y sin nota, el foco va a la nota
+ok 14 - con diferencia y sin nota, el foco va a la nota
+  ---
+  duration_ms: 0.48269
+  type: 'test'
+  ...
+# Subtest: todo cargado: la confirmación dice medio por medio lo que se asienta
+ok 15 - todo cargado: la confirmación dice medio por medio lo que se asienta
+  ---
+  duration_ms: 6.583306
+  type: 'test'
+  ...
+# Subtest: cuadra justo: se cierra sin nota
+ok 16 - cuadra justo: se cierra sin nota
+  ---
+  duration_ms: 0.482577
+  type: 'test'
+  ...
+# Subtest: las diferencias se redondean como el servidor y lo vacío es 'sin contar'
+ok 17 - las diferencias se redondean como el servidor y lo vacío es 'sin contar'
+  ---
+  duration_ms: 0.273405
+  type: 'test'
+  ...
+# Subtest: libro de caja: ninguna tabla impone un ancho mínimo en móvil
+ok 18 - libro de caja: ninguna tabla impone un ancho mínimo en móvil
+  ---
+  duration_ms: 3.43995
+  type: 'test'
+  ...
+# Subtest: libro de caja: las tablas apilan como tarjeta en móvil
+ok 19 - libro de caja: las tablas apilan como tarjeta en móvil
+  ---
+  duration_ms: 0.672366
+  type: 'test'
+  ...
+# Subtest: libro de caja: el encabezado de tabla se esconde en móvil
+ok 20 - libro de caja: el encabezado de tabla se esconde en móvil
+  ---
+  duration_ms: 0.413494
+  type: 'test'
+  ...
+# Subtest: cierre de caja: ninguna tabla impone un ancho mínimo en móvil
+ok 21 - cierre de caja: ninguna tabla impone un ancho mínimo en móvil
+  ---
+  duration_ms: 0.375152
+  type: 'test'
+  ...
+# Subtest: cierre de caja: las tablas apilan como tarjeta en móvil
+ok 22 - cierre de caja: las tablas apilan como tarjeta en móvil
+  ---
+  duration_ms: 0.249959
+  type: 'test'
+  ...
+# Subtest: cierre de caja: el encabezado de tabla se esconde en móvil
+ok 23 - cierre de caja: el encabezado de tabla se esconde en móvil
+  ---
+  duration_ms: 0.248116
+  type: 'test'
+  ...
+# Subtest: cierre de caja: la pantalla tiene margen lateral propio
+ok 24 - cierre de caja: la pantalla tiene margen lateral propio
+  ---
+  duration_ms: 2.818175
+  type: 'test'
+  ...
+# Subtest: compras: «Quitar línea» llega al piso táctil de 24px
+ok 25 - compras: «Quitar línea» llega al piso táctil de 24px
+  ---
+  duration_ms: 0.652876
+  type: 'test'
+  ...
+# Subtest: inicio: la fila de la agenda apila en móvil y el cliente no se come a 0px
+ok 26 - inicio: la fila de la agenda apila en móvil y el cliente no se come a 0px
+  ---
+  duration_ms: 1.651113
+  type: 'test'
+  ...
+# Subtest: la fila deja pasar de a N, en orden de llegada, y un lugar se suelta una sola vez
+ok 27 - la fila deja pasar de a N, en orden de llegada, y un lugar se suelta una sola vez
+  ---
+  duration_ms: 16.55378
+  type: 'test'
+  ...
+# Subtest: techo de espera: el que no consigue lugar a tiempo se rinde y sale de la fila
+ok 28 - techo de espera: el que no consigue lugar a tiempo se rinde y sale de la fila
+  ---
+  duration_ms: 0.922093
+  type: 'test'
+  ...
+# Subtest: el tope de 1,5 s mide la consulta, no el turno: esperar en la fila no es tardar
+ok 29 - el tope de 1,5 s mide la consulta, no el turno: esperar en la fila no es tardar
+  ---
+  duration_ms: 77.010764
+  type: 'test'
+  ...
+# Subtest: si el tope vence, el lugar sigue ocupado hasta que la consulta termina (la conexión sigue en uso)
+ok 30 - si el tope vence, el lugar sigue ocupado hasta que la consulta termina (la conexión sigue en uso)
+  ---
+  duration_ms: 61.783791
+  type: 'test'
+  ...
+# Subtest: un número que se rinde en la fila no consulta y queda con '—', logueado como 'fila'
+ok 31 - un número que se rinde en la fila no consulta y queda con '—', logueado como 'fila'
+  ---
+  duration_ms: 0.589106
+  type: 'test'
+  ...
+# Subtest: el caso del laboratorio: 30 números contra un pool de 5 → sin fila hay topes, con fila del pool ninguno
+ok 32 - el caso del laboratorio: 30 números contra un pool de 5 → sin fila hay topes, con fila del pool ninguno
+  ---
+  duration_ms: 214.349366
+  type: 'test'
+  ...
+# Subtest: dos Inicios a la vez contra el MISMO pool: con una fila por request hay topes, con la de la instancia ninguno
+ok 33 - dos Inicios a la vez contra el MISMO pool: con una fila por request hay topes, con la de la instancia ninguno
+  ---
+  duration_ms: 493.590396
+  type: 'test'
+  ...
+# Subtest: la fila toma el tamaño del pool de la misma variable y con el mismo default (5)
+ok 34 - la fila toma el tamaño del pool de la misma variable y con el mismo default (5)
+  ---
+  duration_ms: 0.357287
+  type: 'test'
+  ...
+# Subtest: cada loader hace UNA consulta (salvo las excepciones declaradas) y todas filtran por el negocio
+ok 35 - cada loader hace UNA consulta (salvo las excepciones declaradas) y todas filtran por el negocio
+  ---
+  duration_ms: 53.615592
+  type: 'test'
+  ...
+# Subtest: Etiquetas con algo pendiente: 2 consultas (la excepción declarada), las dos con el negocio
+ok 36 - Etiquetas con algo pendiente: 2 consultas (la excepción declarada), las dos con el negocio
+  ---
+  duration_ms: 2.378761
+  type: 'test'
+  ...
+# Subtest: Pedidos: '3 abiertos' con el where de la bandeja, y los entregados sin cobrar en alerta
+ok 37 - Pedidos: '3 abiertos' con el where de la bandeja, y los entregados sin cobrar en alerta
+  ---
+  duration_ms: 1.130982
+  type: 'test'
+  ...
+# Subtest: 'Ventas de hoy' cuenta sólo lo cobrado (paid=true CON medio: sin ventas a cuenta), sin anuladas, desde las 00:00 del negocio
+ok 38 - 'Ventas de hoy' cuenta sólo lo cobrado (paid=true CON medio: sin ventas a cuenta), sin anuladas, desde las 00:00 del negocio
+  ---
+  duration_ms: 0.844086
+  type: 'test'
+  ...
+# Subtest: Caja del día: abierta con su hora o cerrada; en servicios no lleva número
+ok 39 - Caja del día: abierta con su hora o cerrada; en servicios no lleva número
+  ---
+  duration_ms: 2.781623
+  type: 'test'
+  ...
+# Subtest: Cierre del día: días entre el último cierre y hoy; nunca cerrado no es alerta
+ok 40 - Cierre del día: días entre el último cierre y hoy; nunca cerrado no es alerta
+  ---
+  duration_ms: 0.723617
+  type: 'test'
+  ...
+# Subtest: Cierre del día: lee la frontera de la pantalla (corte inicial y último cierre) con el db del tile
+ok 41 - Cierre del día: lee la frontera de la pantalla (corte inicial y último cierre) con el db del tile
+  ---
+  duration_ms: 0.772357
+  type: 'test'
+  ...
+# Subtest: Stock: bajo el mínimo (sólo lo que controla stock) y sin costo, con las reglas y el where de la pantalla
+ok 42 - Stock: bajo el mínimo (sólo lo que controla stock) y sin costo, con las reglas y el where de la pantalla
+  ---
+  duration_ms: 1.693552
+  type: 'test'
+  ...
+# Subtest: Reportes: el período y el where de la pantalla; en un mostrador, las ventas cobradas del período
+ok 43 - Reportes: el período y el where de la pantalla; en un mostrador, las ventas cobradas del período
+  ---
+  duration_ms: 1.439271
+  type: 'test'
+  ...
+# Subtest: Facturación: el mes de la facturación automática y del contador, con los rechazados aparte
+ok 44 - Facturación: el mes de la facturación automática y del contador, con los rechazados aparte
+  ---
+  duration_ms: 0.97286
+  type: 'test'
+  ...
+# Subtest: Campañas: si la tabla no está en la base, '—' con el motivo; cualquier otro error sube
+ok 45 - Campañas: si la tabla no está en la base, '—' con el motivo; cualquier otro error sube
+  ---
+  duration_ms: 0.701902
+  type: 'test'
+  ...
+# Subtest: cobertura: qué KPI del registro tienen loader, y qué loader espera su app
+ok 46 - cobertura: qué KPI del registro tienen loader, y qué loader espera su app
+  ---
+  duration_ms: 0.323255
+  type: 'test'
+  ...
+# Subtest: los seis botones dicen lo mismo con la pregunta compartida que con la suelta, y consultan una vez
+ok 47 - los seis botones dicen lo mismo con la pregunta compartida que con la suelta, y consultan una vez
+  ---
+  duration_ms: 12.561472
+  type: 'test'
+  ...
+# Subtest: dos negocios en el mismo pedido no comparten la respuesta
+ok 48 - dos negocios en el mismo pedido no comparten la respuesta
+  ---
+  duration_ms: 0.851044
+  type: 'test'
+  ...
+# Subtest: el loader real (fuera de un render, sin memoria de pedido) sigue preguntando con el negocio en el where
+ok 49 - el loader real (fuera de un render, sin memoria de pedido) sigue preguntando con el negocio en el where
+  ---
+  duration_ms: 0.528507
+  type: 'test'
+  ...
+# Subtest: los montos no aparecen sin reports:read: recepción ve la caja abierta, no la plata
+ok 50 - los montos no aparecen sin reports:read: recepción ve la caja abierta, no la plata
+  ---
+  duration_ms: 3.841601
+  type: 'test'
+  ...
+# Subtest: un número que es todo plata (Reportes) no se calcula para quien no tiene reports:read
+ok 51 - un número que es todo plata (Reportes) no se calcula para quien no tiene reports:read
+  ---
+  duration_ms: 0.435676
+  type: 'test'
+  ...
+# Subtest: un loader que falla deja su tile en '— No se pudo calcular ahora' y lo loguea con los ms
+ok 52 - un loader que falla deja su tile en '— No se pudo calcular ahora' y lo loguea con los ms
+  ---
+  duration_ms: 0.539131
+  type: 'test'
+  ...
+# Subtest: tope: un número que no llega a tiempo se rinde y no frena al resto
+ok 53 - tope: un número que no llega a tiempo se rinde y no frena al resto
+  ---
+  duration_ms: 23.161538
+  type: 'test'
+  ...
+# Subtest: el tope de verdad es 1,5 s y conTope deja pasar lo que llega a tiempo
+ok 54 - el tope de verdad es 1,5 s y conTope deja pasar lo que llega a tiempo
+  ---
+  duration_ms: 27.819084
+  type: 'test'
+  ...
+# Subtest: si leer el negocio falla, falla ese tile y nada más (no tira)
+ok 55 - si leer el negocio falla, falla ese tile y nada más (no tira)
+  ---
+  duration_ms: 0.740713
+  type: 'test'
+  ...
+# Subtest: falla forzada (QA): el tile muestra el error sin tocar el loader
+ok 56 - falla forzada (QA): el tile muestra el error sin tocar el loader
+  ---
+  duration_ms: 0.920752
+  type: 'test'
+  ...
+# Subtest: sin dato: '—' con el motivo, nunca un 0
+ok 57 - sin dato: '—' con el motivo, nunca un 0
+  ---
+  duration_ms: 0.37796
+  type: 'test'
+  ...
+# Subtest: sin número: app sin KPI, KPI sin loader todavía, o loader que dice que acá no aplica
+ok 58 - sin número: app sin KPI, KPI sin loader todavía, o loader que dice que acá no aplica
+  ---
+  duration_ms: 0.903519
+  type: 'test'
+  ...
+# Subtest: la alerta pasa tal cual: es lo que sube a 'Para atender hoy'
+ok 59 - la alerta pasa tal cual: es lo que sube a 'Para atender hoy'
+  ---
+  duration_ms: 0.66353
+  type: 'test'
+  ...
+# Subtest: pluralDe: el sustantivo del rubro en plural
+ok 60 - pluralDe: el sustantivo del rubro en plural
+  ---
+  duration_ms: 0.187419
+  type: 'test'
+  ...
+# Subtest: src/apps/kpis no usa unstable_cache, 'use cache', tenantTransaction ni clientes sin candado
+ok 61 - src/apps/kpis no usa unstable_cache, 'use cache', tenantTransaction ni clientes sin candado
+  ---
+  duration_ms: 6.965496
+  type: 'test'
+  ...
+# Subtest: el veto de verdad detecta lo que prohíbe (no pasa en vacío)
+ok 62 - el veto de verdad detecta lo que prohíbe (no pasa en vacío)
+  ---
+  duration_ms: 0.459306
+  type: 'test'
+  ...
+1..62
+# tests 71
+# suites 2
+# pass 71
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10185.168466

@@ -286,7 +286,7 @@ test("Facturación: el mes de la facturación automática y del contador, con lo
     valor: "12",
     detalle: "comprobantes este mes · 1 rechazado por ARCA",
   });
-  assert.deepEqual(llamadas[0].args.where, { tenantId: "t-qa", ...filtrosFacturacionMes(ahora).cupo });
+  assert.deepEqual(llamadas[0].args.where, { tenantId: "t-qa", ...filtrosFacturacionMes(ahora).emitido });
 });
 
 test("Campañas: si la tabla no está en la base, '—' con el motivo; cualquier otro error sube", async () => {

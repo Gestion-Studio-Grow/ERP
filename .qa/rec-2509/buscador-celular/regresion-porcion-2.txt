@@ -1,0 +1,238 @@
+TAP version 13
+# Subtest: las vistas cuentan cada estado y los pendientes para abrir
+ok 1 - las vistas cuentan cada estado y los pendientes para abrir
+  ---
+  duration_ms: 2.75869
+  type: 'test'
+  ...
+# Subtest: una vista que no existe cae en «Todos»; una pestaña que no existe, en «Puesta en marcha»
+ok 2 - una vista que no existe cae en «Todos»; una pestaña que no existe, en «Puesta en marcha»
+  ---
+  duration_ms: 0.281303
+  type: 'test'
+  ...
+# Subtest: la vista «en producción» deja sólo los negocios vivos
+ok 3 - la vista «en producción» deja sólo los negocios vivos
+  ---
+  duration_ms: 0.385474
+  type: 'test'
+  ...
+# Subtest: la vista «con pendientes» deja los que no están listos para abrir
+ok 4 - la vista «con pendientes» deja los que no están listos para abrir
+  ---
+  duration_ms: 0.190715
+  type: 'test'
+  ...
+# Subtest: buscar encuentra por nombre, slug o link sin mayúsculas ni acentos
+ok 5 - buscar encuentra por nombre, slug o link sin mayúsculas ni acentos
+  ---
+  duration_ms: 0.40177
+  type: 'test'
+  ...
+# Subtest: el buscador de la lista en el celular usa la misma regla que el servidor
+ok 6 - el buscador de la lista en el celular usa la misma regla que el servidor
+  ---
+  duration_ms: 0.55597
+  type: 'test'
+  ...
+# Subtest: ordenar por actividad de mayor a menor pone arriba al que más operó
+ok 7 - ordenar por actividad de mayor a menor pone arriba al que más operó
+  ---
+  duration_ms: 10.497448
+  type: 'test'
+  ...
+# Subtest: un orden que no se entiende no reordena
+ok 8 - un orden que no se entiende no reordena
+  ---
+  duration_ms: 0.227304
+  type: 'test'
+  ...
+# Subtest: el estado se dice en palabras, con su forma
+ok 9 - el estado se dice en palabras, con su forma
+  ---
+  duration_ms: 0.38154
+  type: 'test'
+  ...
+# Subtest: el plan sale del catálogo nuevo (provisional), de uno viejo, o dice «Sin plan»
+ok 10 - el plan sale del catálogo nuevo (provisional), de uno viejo, o dice «Sin plan»
+  ---
+  duration_ms: 0.59255
+  type: 'test'
+  ...
+# Subtest: el rubro se lee sin el prefijo del blueprint
+ok 11 - el rubro se lee sin el prefijo del blueprint
+  ---
+  duration_ms: 0.234639
+  type: 'test'
+  ...
+# Subtest: cada pendiente abre la pestaña de la ficha que lo resuelve
+ok 12 - cada pendiente abre la pestaña de la ficha que lo resuelve
+  ---
+  duration_ms: 0.127812
+  type: 'test'
+  ...
+# Subtest: la bandeja pone primero al que más debe y no pide nada a un suspendido
+ok 13 - la bandeja pone primero al que más debe y no pide nada a un suspendido
+  ---
+  duration_ms: 0.368694
+  type: 'test'
+  ...
+# Subtest: con un solo pendiente la bandeja dice cuál y su dato
+ok 14 - con un solo pendiente la bandeja dice cuál y su dato
+  ---
+  duration_ms: 0.124194
+  type: 'test'
+  ...
+# Subtest: el riel de «listo para abrir» cuenta sólo lo que aplica, los listos primero
+ok 15 - el riel de «listo para abrir» cuenta sólo lo que aplica, los listos primero
+  ---
+  duration_ms: 0.188719
+  type: 'test'
+  ...
+# Subtest: orden en la URL: `total` sube, `-total` baja, lo que no es ordenable no ordena
+ok 16 - orden en la URL: `total` sube, `-total` baja, lo que no es ordenable no ordena
+  ---
+  duration_ms: 2.452274
+  type: 'test'
+  ...
+# Subtest: filtros en la URL: se cambian sin perder los otros, y un filtro nuevo vuelve a la primera página
+ok 17 - filtros en la URL: se cambian sin perder los otros, y un filtro nuevo vuelve a la primera página
+  ---
+  duration_ms: 0.74984
+  type: 'test'
+  ...
+# Subtest: página por cursor: se piden N+1; si vino una de más hay siguiente y su cursor es la última mostrada
+ok 18 - página por cursor: se piden N+1; si vino una de más hay siguiente y su cursor es la última mostrada
+  ---
+  duration_ms: 0.293493
+  type: 'test'
+  ...
+# Subtest: selección: alternar, rango con Mayúsculas en el orden de la pantalla, y la casilla de todas
+ok 19 - selección: alternar, rango con Mayúsculas en el orden de la pantalla, y la casilla de todas
+  ---
+  duration_ms: 0.482109
+  type: 'test'
+  ...
+# Subtest: teclado: j/k y flechas mueven, x selecciona, Enter abre, ⇧A todo, Esc limpia, la letra de contexto ejecuta
+ok 20 - teclado: j/k y flechas mueven, x selecciona, Enter abre, ⇧A todo, Esc limpia, la letra de contexto ejecuta
+  ---
+  duration_ms: 0.3752
+  type: 'test'
+  ...
+# Subtest: abrir una fila: con ficha va a la ficha; sin ficha, la abre en el cajón de la pantalla; sin ninguna de las dos, nada
+ok 21 - abrir una fila: con ficha va a la ficha; sin ficha, la abre en el cajón de la pantalla; sin ninguna de las dos, nada
+  ---
+  duration_ms: 0.198584
+  type: 'test'
+  ...
+# Subtest: la búsqueda se recorta y exige de 2 a 60 letras; lo que no es texto no se busca
+ok 22 - la búsqueda se recorta y exige de 2 a 60 letras; lo que no es texto no se busca
+  ---
+  duration_ms: 3.371053
+  type: 'test'
+  ...
+# Subtest: los mensajes de una búsqueda inválida no nombran tablas, campos ni tipos
+ok 23 - los mensajes de una búsqueda inválida no nombran tablas, campos ni tipos
+  ---
+  duration_ms: 0.506652
+  type: 'test'
+  ...
+# Subtest: un número (con \# o separadores) se lee como número de pedido y como teléfono
+ok 24 - un número (con \# o separadores) se lee como número de pedido y como teléfono
+  ---
+  duration_ms: 0.518061
+  type: 'test'
+  ...
+# Subtest: el número de pedido «47» cubre el 47 y los que empiezan con 47 (470-479, 4700-4799…), sin pasarse del tope
+ok 25 - el número de pedido «47» cubre el 47 y los que empiezan con 47 (470-479, 4700-4799…), sin pasarse del tope
+  ---
+  duration_ms: 0.41127
+  type: 'test'
+  ...
+# Subtest: tres grupos en orden fijo: clientes, productos, pedidos; como mucho 5 por grupo
+ok 26 - tres grupos en orden fijo: clientes, productos, pedidos; como mucho 5 por grupo
+  ---
+  duration_ms: 11.726651
+  type: 'test'
+  ...
+# Subtest: clientes: primero los que empiezan con lo tipeado, después palabra que empieza, después contiene; sin tildes
+ok 27 - clientes: primero los que empiezan con lo tipeado, después palabra que empieza, después contiene; sin tildes
+  ---
+  duration_ms: 0.467691
+  type: 'test'
+  ...
+# Subtest: clientes encontrados por el teléfono van después de los encontrados por el nombre
+ok 28 - clientes encontrados por el teléfono van después de los encontrados por el nombre
+  ---
+  duration_ms: 0.38225
+  type: 'test'
+  ...
+# Subtest: productos: activos antes que pausados; el precio sólo para quien ve plata
+ok 29 - productos: activos antes que pausados; el precio sólo para quien ve plata
+  ---
+  duration_ms: 11.683952
+  type: 'test'
+  ...
+# Subtest: cajero con Vender y sin Catálogo: encuentra el producto con su nombre y su precio de venta, y lo lleva a Vender
+ok 30 - cajero con Vender y sin Catálogo: encuentra el producto con su nombre y su precio de venta, y lo lleva a Vender
+  ---
+  duration_ms: 1.013639
+  type: 'test'
+  ...
+# Subtest: cajero sin Catálogo: lo pausado y lo sin precio no aparece (en Vender no se puede cobrar)
+ok 31 - cajero sin Catálogo: lo pausado y lo sin precio no aparece (en Vender no se puede cobrar)
+  ---
+  duration_ms: 0.712267
+  type: 'test'
+  ...
+# Subtest: con Catálogo manda la ficha del catálogo aunque también tenga Vender
+ok 32 - con Catálogo manda la ficha del catálogo aunque también tenga Vender
+  ---
+  duration_ms: 0.355516
+  type: 'test'
+  ...
+# Subtest: SEGURIDAD: sin Vender ni Catálogo no se dibujan productos aunque lleguen filas
+ok 33 - SEGURIDAD: sin Vender ni Catálogo no se dibujan productos aunque lleguen filas
+  ---
+  duration_ms: 0.17973
+  type: 'test'
+  ...
+# Subtest: pedidos: el número exacto primero y después los más nuevos; abierto al tablero, cerrado a las ventas de ese día
+ok 34 - pedidos: el número exacto primero y después los más nuevos; abierto al tablero, cerrado a las ventas de ese día
+  ---
+  duration_ms: 0.742586
+  type: 'test'
+  ...
+# Subtest: pedidos sin permiso de ver plata: sin montos y, cerrados, a las ventas de hoy (otro día no lo pueden abrir)
+ok 35 - pedidos sin permiso de ver plata: sin montos y, cerrados, a las ventas de hoy (otro día no lo pueden abrir)
+  ---
+  duration_ms: 0.24238
+  type: 'test'
+  ...
+# Subtest: un pedido cerrado sin la app Ventas del día va a la bandeja de pedidos; sin ninguna de las dos no se muestra
+ok 36 - un pedido cerrado sin la app Ventas del día va a la bandeja de pedidos; sin ninguna de las dos no se muestra
+  ---
+  duration_ms: 0.359484
+  type: 'test'
+  ...
+# Subtest: SEGURIDAD: un grupo sin permiso no se dibuja aunque le lleguen filas
+ok 37 - SEGURIDAD: un grupo sin permiso no se dibuja aunque le lleguen filas
+  ---
+  duration_ms: 0.189986
+  type: 'test'
+  ...
+# Subtest: los ids son únicos entre grupos (un cliente y un producto con el mismo id no chocan en la lista)
+ok 38 - los ids son únicos entre grupos (un cliente y un producto con el mismo id no chocan en la lista)
+  ---
+  duration_ms: 0.185104
+  type: 'test'
+  ...
+1..38
+# tests 38
+# suites 0
+# pass 38
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 544.168826

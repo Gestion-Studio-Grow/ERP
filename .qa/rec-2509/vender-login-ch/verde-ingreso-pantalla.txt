@@ -1,0 +1,47 @@
+TAP version 13
+# Subtest: Ingreso en el navegador
+    # Subtest: vista de siempre: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+    ok 1 - vista de siempre: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+      ---
+      duration_ms: 501.60582
+      type: 'test'
+      ...
+    # Subtest: diseño nuevo: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+    ok 2 - diseño nuevo: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+      ---
+      duration_ms: 471.533904
+      type: 'test'
+      ...
+    # Subtest: vista de siempre: lo que se tipea mientras espera la respuesta no se pierde al volver con el error
+    ok 3 - vista de siempre: lo que se tipea mientras espera la respuesta no se pierde al volver con el error
+      ---
+      duration_ms: 428.508979
+      type: 'test'
+      ...
+    # Subtest: vista de siempre: segunda clave equivocada (la pantalla no se rearma) → el email queda, la clave se vacía
+    ok 4 - vista de siempre: segunda clave equivocada (la pantalla no se rearma) → el email queda, la clave se vacía
+      ---
+      duration_ms: 471.324245
+      type: 'test'
+      ...
+    # Subtest: vista de siempre: entrando sin error, el email no aparece solo (se borra lo guardado)
+    ok 5 - vista de siempre: entrando sin error, el email no aparece solo (se borra lo guardado)
+      ---
+      duration_ms: 342.067449
+      type: 'test'
+      ...
+    1..5
+ok 1 - Ingreso en el navegador
+  ---
+  duration_ms: 3288.534181
+  type: 'suite'
+  ...
+1..1
+# tests 5
+# suites 1
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3811.675665

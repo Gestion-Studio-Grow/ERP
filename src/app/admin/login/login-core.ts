@@ -45,3 +45,28 @@ const FECHA_AR = new Intl.DateTimeFormat("es-AR", {
 export function folioDelDia(ahora: Date): string {
   return FECHA_AR.format(ahora).replace(",", "");
 }
+
+// ── DESPUÉS DE UNA CLAVE EQUIVOCADA ─────────────────────────────────────────
+//
+// `login()` (src/lib/auth-actions.ts) redirige a `?error=1` y la página se arma de nuevo: el
+// campo del email volvía vacío y lo que la persona tipeaba mientras decía «Entrando…» se perdía.
+// El email se guarda en la pestaña (sessionStorage) mientras se escribe y vuelve al campo sólo
+// con el error y sólo si el campo está vacío. La contraseña NUNCA se guarda: vuelve vacía.
+
+/** Dónde se guarda el email tipeado, en la pestaña (se va al cerrarla). Sólo el email. */
+export const CLAVE_EMAIL_DEL_INGRESO = "gsg:ingreso:email";
+
+/**
+ * El email que hay que poner en el campo al armarse la pantalla, o `null` para no tocarlo.
+ * Sin error no se completa nada (entrada normal); lo ya tipeado no se pisa nunca.
+ */
+export function emailAlMontar(p: { conError: boolean; enCampo: string; guardado: string | null }): string | null {
+  if (!p.conError || p.enCampo !== "") return null;
+  const guardado = p.guardado?.trim() ?? "";
+  return guardado === "" ? null : guardado;
+}
+
+/** Con el email de vuelta, el cursor va a la contraseña (lo único que hay que volver a tipear). */
+export function campoParaElCursor(p: { conError: boolean; email: string }): "login-email" | "login-password" {
+  return p.conError && p.email.trim() !== "" ? "login-password" : "login-email";
+}

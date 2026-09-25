@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: una línea con producto y cantidad vacía (0) es la que falta
+ok 1 - una línea con producto y cantidad vacía (0) es la que falta
+  ---
+  duration_ms: 1.876593
+  type: 'test'
+  ...
+# Subtest: la línea en blanco (sin producto) no frena: es el renglón para el próximo producto
+ok 2 - la línea en blanco (sin producto) no frena: es el renglón para el próximo producto
+  ---
+  duration_ms: 0.230744
+  type: 'test'
+  ...
+# Subtest: una cantidad ilegible no se cuenta acá: tiene su propio aviso («cantidad inválida»)
+ok 3 - una cantidad ilegible no se cuenta acá: tiene su propio aviso («cantidad inválida»)
+  ---
+  duration_ms: 0.140863
+  type: 'test'
+  ...
+# Subtest: cantidad negativa o no numérica tampoco viaja: frena igual que la vacía
+ok 4 - cantidad negativa o no numérica tampoco viaja: frena igual que la vacía
+  ---
+  duration_ms: 0.176288
+  type: 'test'
+  ...
+# Subtest: devuelve la PRIMERA que falta, en el orden del ticket
+ok 5 - devuelve la PRIMERA que falta, en el orden del ticket
+  ---
+  duration_ms: 0.225361
+  type: 'test'
+  ...
+# Subtest: todas con cantidad: no hay nada que frenar
+ok 6 - todas con cantidad: no hay nada que frenar
+  ---
+  duration_ms: 0.134399
+  type: 'test'
+  ...
+# Subtest: el motivo usa la palabra de la balanza para lo que va por kilo y dice cuál
+ok 7 - el motivo usa la palabra de la balanza para lo que va por kilo y dice cuál
+  ---
+  duration_ms: 0.884926
+  type: 'test'
+  ...
+# Subtest: sin el producto a mano (salió del catálogo), el motivo igual dice qué falta
+ok 8 - sin el producto a mano (salió del catálogo), el motivo igual dice qué falta
+  ---
+  duration_ms: 0.184351
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 614.659133

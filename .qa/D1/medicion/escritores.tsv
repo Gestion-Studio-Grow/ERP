@@ -1,0 +1,182 @@
+AuditLog	(spread)	src/app/operador/(console)/tenants/[id]/negocio.server.ts:162	create	call@161	spread audit
+Service	price	src/blueprints/agenda/index.ts:59	create	call@53	s.price
+WorkingHours	(indirecto)	src/blueprints/agenda/index.ts:73	create>workingHours.create	call@67	MONDAY_TO_SATURDAY.map((w) => ({ tenantId, ...w }))
+Product	pricePerKg	src/blueprints/gastronomia/index.ts:31	create	call@30	item.pricePerKg
+Product	price	src/blueprints/gastronomia/index.ts:35	create	call@34	item.price
+Service	price	src/blueprints/generico.ts:38	create	call@37	0
+Service	price	src/blueprints/generico.ts:41	create	call@40	0
+Product	price	src/blueprints/generico.ts:46	create	call@45	0
+Product	price	src/blueprints/generico.ts:49	create	call@48	0
+Service	price	src/blueprints/oficios/index.ts:51	create	call@45	s.price
+WorkingHours	(indirecto)	src/blueprints/oficios/index.ts:63	create>workingHours.create	call@58	MONDAY_TO_SATURDAY.map((w) => ({ tenantId, ...w }))
+Product	pricePerKg	src/blueprints/retail/index.ts:31	create	call@30	c.pricePerKg
+Product	price	src/blueprints/retail/index.ts:35	create	call@34	c.price
+Service	price	src/blueprints/servicios.ts:26	create	call@20	0
+Service	price	src/blueprints/servicios.ts:35	create	call@29	0
+WorkingHours	(indirecto)	src/blueprints/servicios.ts:50	create>workingHours.create	call@44	mondayToSaturday
+Appointment	priceAtBooking	src/lib/actions.ts:361	create	call@351	Math.max(0, basePrice - discountAmount)
+Appointment	discountAmount	src/lib/actions.ts:364	create	call@351	(shorthand)
+MovimientoImportado	(indirecto)	src/lib/bancos-actions.ts:235	createMany	call@235	filas
+ImportacionBancaria	(spread)	src/lib/bancos-actions.ts:242	updateMany	call@237	spread (reproceso ? { estado: "confirmada" } : {})
+Tenant	bancosUmbralIdentificacion	src/lib/bancos-actions.ts:582	update	call@579	umbral
+CashMovement	amount	src/lib/caja/cash-sale.ts:151	create	call@145	elig.amount
+CashMovement	amount	src/lib/caja/cobro-turno.ts:149	create	call@143	elig.amount
+CashSession	openingFloat	src/lib/caja-actions.ts:138	create	call@133	(shorthand)
+CashMovement	amount	src/lib/caja-actions.ts:143	create>movements.create	call@133	openingFloat
+CashSession	closingExpected	src/lib/caja-actions.ts:241	update	call@236	arqueo.expected
+CashSession	closingCounted	src/lib/caja-actions.ts:242	update	call@236	arqueo.counted
+CashSession	closingDiff	src/lib/caja-actions.ts:243	update	call@236	arqueo.diff
+CashMovement	(spread)	src/lib/caja-actions.ts:264	create	call@264	spread ajuste
+LeadCampania	(spread)	src/lib/campania-actions.ts:86	upsert.update	call@70	spread (acepta ? { consentimientoEn: new Date() } : {})
+Tenant	(spread)	src/lib/cartera-actions.ts:199	updateMany	call@197	spread data
+Tenant	(spread)	src/lib/cartera-actions.ts:199	updateMany	call@197	spread (pv !== null ? { arcaPuntoVenta: pv } : {})
+Service	price	src/lib/catalog-actions.ts:175	create	call@169	(shorthand)
+Service	residentPrice	src/lib/catalog-actions.ts:176	create	call@169	(shorthand)
+Service	depositAmount	src/lib/catalog-actions.ts:177	create	call@169	(shorthand)
+Service	price	src/lib/catalog-actions.ts:209	update	call@207	(shorthand)
+Service	residentPrice	src/lib/catalog-actions.ts:209	update	call@207	(shorthand)
+Service	depositAmount	src/lib/catalog-actions.ts:209	update	call@207	(shorthand)
+Product	(indirecto)	src/lib/catalog-actions.ts:410	updateMany	call@410	data
+Product	(indirecto)	src/lib/catalog-actions.ts:417	updateMany	call@417	data
+Professional	(indirecto)	src/lib/catalog-actions.ts:522	update	call@522	data
+Professional	(indirecto)	src/lib/catalog-actions.ts:529	update	call@529	sinFlag
+Product	(indirecto)	src/lib/catalogo/planilla-core.ts:604	createManyAndReturn	call@603	plan.altas.map((a) => ({ tenantId, ...a.data }))
+AuditLog	(indirecto)	src/lib/catalogo/precios-actions.ts:134	createMany	call@133	filasEtiquetaImpresa({ tenantId, actor, plantilla, etiquetas: salen.map((e) => ({ productI
+AuditLog	(indirecto)	src/lib/catalogo/precios-auditoria.ts:93	createMany	call@93	data
+CashMovement	(indirecto)	src/lib/cierre-diario-actions.ts:454	createMany	call@453	filas.map((f) => ({ tenantId, sessionId: null, type: f.type, method: f.method, amount: f.a
+Client	(indirecto)	src/lib/client-actions.ts:320	update	call@320	despues
+CommissionPayout	amount	src/lib/commission-actions.ts:196	create	call@192	(shorthand)
+CashMovement	amount	src/lib/commission-actions.ts:263	create	call@257	egreso.amount
+Coupon	value	src/lib/coupon-actions.ts:67	create	call@62	(shorthand)
+Client	(indirecto)	src/lib/crm/unificar-en-tx.ts:71	updateMany	call@71	plan.cambios
+AuditLog	(spread)	src/lib/crm-actions.ts:68	create	call@67	spread entrada
+AccountPayable	amount	src/lib/debts/payable-service.ts:45	create	call@41	(shorthand)
+PayableCheque	amount	src/lib/debts/payable-service.ts:122	create	call@116	v.monto
+Collection	amount	src/lib/debts/payable-service.ts:218	create	call@213	cheque.amount
+AccountReceivable	amount	src/lib/debts/receivable-service.ts:51	create	call@47	(shorthand)
+TenantFiscalCredential	(spread)	src/lib/fiscal/tenant-cert.ts:119	upsert.create	call@117	spread reg
+TenantFiscalCredential	(spread)	src/lib/fiscal/tenant-cert.ts:120	upsert.update	call@117	spread reg
+Invoice	(spread)	src/lib/invoice-core.ts:143	create	call@140	spread originLink
+Invoice	neto	src/lib/invoice-core.ts:149	create	call@140	input.neto
+Invoice	iva	src/lib/invoice-core.ts:152	create	call@140	round2(input.iva.reduce((s, x) => s + x.importe, 0))
+Invoice	total	src/lib/invoice-core.ts:154	create	call@140	input.total
+CashMovement	amount	src/lib/libro-caja-actions.ts:407	create	call@401	(shorthand)
+MovimientoImportado	monto	src/lib/mercadopago-auto.ts:151	upsert.create	call@144	pago?.monto ?? 0
+MovimientoImportado	(spread)	src/lib/mercadopago-auto.ts:163	upsert.update	call@144	spread (extra.invoiceId ? { invoiceId: extra.invoiceId } : {})
+AuditLog	(indirecto)	src/lib/operador/interruptores-escritura.server.ts:56	create	call@56	fila
+Tenant	(indirecto)	src/lib/operator-actions.ts:119	update	call@119	data
+AuditLog	(spread)	src/lib/operator-actions.ts:417	create	call@416	spread entry
+CashMovement	amount	src/lib/order-anulacion.ts:430	create	call@424	round2(asiento.amount)
+OrderItem	(indirecto)	src/lib/order-anulacion.ts:885	createMany	call@883	...lines.map((l) => ({ tenantId, orderId: id, productId: l.productId, name: l.name, saleUn
+OrderItem	(indirecto)	src/lib/order-anulacion.ts:895	createMany	call@883	...aMano.map((l) => ({ tenantId, orderId: id, productId: null, name: l.name, saleUnit: l.s
+Order	subtotal	src/lib/order-anulacion.ts:913	updateMany	call@911	t.subtotal
+Order	discount	src/lib/order-anulacion.ts:913	updateMany	call@911	t.descuento
+Order	total	src/lib/order-anulacion.ts:913	updateMany	call@911	t.total
+Order	(spread)	src/lib/order-core.ts:684	create	call@675	spread (d.clientId ? { clientId: d.clientId } : {})
+Order	subtotal	src/lib/order-core.ts:690	create	call@675	d.subtotal
+Order	discount	src/lib/order-core.ts:691	create	call@675	d.descuento
+Order	total	src/lib/order-core.ts:692	create	call@675	d.total
+Order	(spread)	src/lib/order-core.ts:701	create	call@675	spread (d.writeKey ? { idempotencyKey: d.writeKey } : {})
+OrderItem	(indirecto)	src/lib/order-core.ts:704	create>items.create	call@675	...d.lines.map((l) => ({ tenantId, productId: l.productId, name: l.name, saleUnit: l.saleU
+OrderItem	(indirecto)	src/lib/order-core.ts:715	create>items.create	call@675	...d.aMano.map((l) => ({ tenantId, productId: null, name: l.nombre, saleUnit: "UNIT" as co
+OrderItem	(indirecto)	src/lib/order-core.ts:726	create>items.create	call@675	...(d.envio && d.envio > 0 ? [ { tenantId, productId: null, name: NOMBRE_LINEA_ENVIO, sale
+BusinessSettings	(spread)	src/lib/settings-actions.ts:76	upsert.create	call@73	spread data
+BusinessSettings	(indirecto)	src/lib/settings-actions.ts:75	upsert.update	call@73	data
+Collection	amount	src/lib/settlement/collection-repo.ts:104	create	call@97	v.amount
+CashMovement	amount	src/lib/settlement/collection-repo.ts:177	create	call@170	res.amount
+Product	(indirecto)	src/lib/stock/alta-producto.ts:87	create	call@87	plan.producto
+StockMovement	unitCost	src/lib/stock/ledger.ts:193	create	call@187	(shorthand)
+StockMovement	unitCost	src/lib/stock/ledger.ts:228	create	call@222	args.unitCost ?? null
+StockPurchase	totalCost	src/lib/stock/purchase-core.ts:412	create	call@404	(shorthand)
+StockPurchaseItem	(indirecto)	src/lib/stock/purchase-core.ts:415	create>items.create	call@404	lines.map((l) => ({ tenantId, productId: l.productId, name: l.name, unit: l.unit, quantity
+CashMovement	amount	src/lib/stock/purchase-core.ts:519	create	call@513	e.amount
+CashMovement	amount	src/lib/stock/supplier-return.ts:314	create	call@308	total
+Supplier	(spread)	src/lib/suppliers/supplier-repo.ts:40	create	call@39	spread v.value
+Supplier	(indirecto)	src/lib/suppliers/supplier-repo.ts:56	updateMany	call@54	v.value
+Collection	amount	src/lib/turnos/anulacion.ts:397	create	call@389	round2(-montoOriginal)
+Collection	(spread)	src/lib/turnos/anulacion.ts:401	create	call@389	spread (args.withSchema ? { idempotencyKey: claveAnulacion(args.col
+Payment	amount	src/lib/turnos/anulacion.ts:412	updateMany	call@409	cobradoDespues
+CashMovement	amount	src/lib/turnos/anulacion.ts:483	create	call@477	input.monto
+Collection	amount	src/lib/turnos/anulacion.ts:568	create	call@562	plan.monto
+Collection	(spread)	src/lib/turnos/anulacion.ts:572	create	call@562	spread (args.withSchema ? { idempotencyKey: claveCondonacion(args.a
+Collection	amount	src/lib/turnos/cobro-turno-repo.ts:205	create	call@199	round2(pagoLegado.amount)
+Collection	(spread)	src/lib/turnos/cobro-turno-repo.ts:209	create	call@199	spread (args.withSchema ? { idempotencyKey: `legado:${args.appointm
+Collection	amount	src/lib/turnos/cobro-turno-repo.ts:223	create	call@217	v.monto
+Collection	(spread)	src/lib/turnos/cobro-turno-repo.ts:227	create	call@217	spread (args.withSchema && args.idempotencyKey ? { idempotencyKey: 
+Payment	amount	src/lib/turnos/cobro-turno-repo.ts:261	upsert.create	call@259	(shorthand)
+Payment	amount	src/lib/turnos/cobro-turno-repo.ts:262	upsert.update	call@259	(shorthand)
+Appointment	priceAtBooking	src/lib/waitlist-actions.ts:300	create	call@290	(shorthand)
+CashMovement	amount	prisma/rls/aislamiento-capa-app.ts:240	create	call@239	monto
+Product	(indirecto)	prisma/rls/aislamiento-capa-app.ts:360	update	call@360	data
+Product	(spread)	prisma/rls/aislamiento-capa-app.ts:361	create	call@361	spread data
+Product	pricePerKg	prisma/seed-magra.ts:126	create	call@118	c.pricePerKg
+Product	price	prisma/seed-magra.ts:127	create	call@118	null
+StockPurchase	totalCost	prisma/seed-magra.ts:148	create	call@145	0
+StockPurchaseItem	unitCost	prisma/seed-magra.ts:151	create>items.create	call@145	12000
+StockPurchaseItem	lineTotal	prisma/seed-magra.ts:151	create>items.create	call@145	240000
+StockPurchaseItem	unitCost	prisma/seed-magra.ts:152	create>items.create	call@145	11000
+StockPurchaseItem	lineTotal	prisma/seed-magra.ts:152	create>items.create	call@145	275000
+StockPurchaseItem	unitCost	prisma/seed-magra.ts:153	create>items.create	call@145	7500
+StockPurchaseItem	lineTotal	prisma/seed-magra.ts:153	create>items.create	call@145	300000
+StockPurchase	totalCost	prisma/seed-magra.ts:161	create	call@158	0
+StockPurchaseItem	unitCost	prisma/seed-magra.ts:164	create>items.create	call@158	8400
+StockPurchaseItem	lineTotal	prisma/seed-magra.ts:164	create>items.create	call@158	252000
+StockPurchaseItem	unitCost	prisma/seed-magra.ts:165	create>items.create	call@158	2700
+StockPurchaseItem	lineTotal	prisma/seed-magra.ts:165	create>items.create	call@158	67500
+Order	subtotal	prisma/seed-magra.ts:194	create	call@191	34000
+Order	discount	prisma/seed-magra.ts:194	create	call@191	0
+Order	total	prisma/seed-magra.ts:194	create	call@191	34000
+OrderItem	unitPrice	prisma/seed-magra.ts:196	create>items.create	call@191	16900
+OrderItem	lineTotal	prisma/seed-magra.ts:196	create>items.create	call@191	33800
+Order	subtotal	prisma/seed-magra.ts:203	create	call@199	115000
+Order	discount	prisma/seed-magra.ts:203	create	call@199	0
+Order	total	prisma/seed-magra.ts:203	create	call@199	115000
+OrderItem	unitPrice	prisma/seed-magra.ts:204	create>items.create	call@199	11500
+OrderItem	lineTotal	prisma/seed-magra.ts:204	create>items.create	call@199	115000
+AccountPayable	amount	prisma/seed-magra.ts:213	create	call@211	815000
+PayableCheque	amount	prisma/seed-magra.ts:221	create	call@218	400000
+AccountPayable	amount	prisma/seed-magra.ts:226	create	call@224	319500
+Collection	amount	prisma/seed-magra.ts:232	create	call@231	100000
+AccountReceivable	amount	prisma/seed-magra.ts:238	create	call@236	115000
+Collection	amount	prisma/seed-magra.ts:243	create	call@242	40000
+AccountReceivable	amount	prisma/seed-magra.ts:247	create	call@245	8500
+Tenant	(spread)	prisma/seed-qa-tenants.ts:61	upsert.create	call@61	spread base
+Tenant	(indirecto)	prisma/seed-qa-tenants.ts:61	upsert.update	call@61	base
+Product	pricePerKg	prisma/seed-qa-tenants.ts:93	create	call@84	it.sale === "kg" ? it.pricePerKg : null
+Product	price	prisma/seed-qa-tenants.ts:94	create	call@84	it.sale === "u" ? it.price : null
+Order	subtotal	prisma/seed-qa-tenants.ts:114	create	call@110	total
+Order	discount	prisma/seed-qa-tenants.ts:114	create	call@110	0
+Order	total	prisma/seed-qa-tenants.ts:114	create	call@110	(shorthand)
+OrderItem	unitPrice	prisma/seed-qa-tenants.ts:115	create>items.create	call@110	(shorthand)
+OrderItem	lineTotal	prisma/seed-qa-tenants.ts:115	create>items.create	call@110	total
+Service	price	prisma/seed-qa-tenants.ts:142	create	call@142	12000
+Service	price	prisma/seed-qa-tenants.ts:143	create	call@143	28000
+Appointment	priceAtBooking	prisma/seed-qa-tenants.ts:154	create	call@151	12000
+Service	price	prisma/seed.ts:50	create	call@49	15000
+Service	price	prisma/seed.ts:53	create	call@52	18000
+Service	price	prisma/seed.ts:56	create	call@55	20000
+Service	price	prisma/seed.ts:59	create	call@58	22000
+Service	price	prisma/seed.ts:62	create	call@61	25000
+WorkingHours	(indirecto)	prisma/seed.ts:80	create>workingHours.create	call@73	mondayToSaturday
+WorkingHours	(indirecto)	prisma/seed.ts:91	create>workingHours.create	call@84	mondayToSaturday
+WorkingHours	(indirecto)	prisma/seed.ts:104	create>workingHours.create	call@95	mondayToSaturday
+CashMovement	(indirecto)	scripts/corte-inicial.ts:312	createMany	call@311	filas.map((f) => ({ id: f.id, tenantId, sessionId: null, type: f.type, method: f.method, a
+StockPurchase	totalCost	scripts/demo.mts:143	create	call@136	(shorthand)
+StockPurchaseItem	(indirecto)	scripts/demo.mts:146	create>items.create	call@136	mine.map(({ _supplier, ...it }) => it)
+Order	subtotal	scripts/demo.mts:239	create	call@229	(shorthand)
+Order	discount	scripts/demo.mts:240	create	call@229	0
+Order	total	scripts/demo.mts:241	create	call@229	subtotal
+OrderItem	(indirecto)	scripts/demo.mts:244	create>items.create	call@229	lines as never
+BusinessSettings	(indirecto)	scripts/fix-magra-data-2026-07-07.ts:164	update	call@164	settingsChanges
+Product	price	scripts/fix-magra-data-2026-07-07.ts:175	update	call@169	u.to.price ?? null
+Product	pricePerKg	scripts/fix-magra-data-2026-07-07.ts:176	update	call@169	u.to.pricePerKg ?? null
+Product	price	scripts/fix-magra-data-2026-07-07.ts:189	create	call@183	c.price ?? null
+Product	pricePerKg	scripts/fix-magra-data-2026-07-07.ts:190	create	call@183	c.pricePerKg ?? null
+CashMovement	(indirecto)	scripts/import-caja-historica.ts:438	createMany	call@438	data
+Tenant	(spread)	scripts/provision-tenant.ts:223	upsert.create	call@215	spread (plat.status ? { status: plat.status } : {})
+Tenant	(spread)	scripts/provision-tenant.ts:224	upsert.create	call@215	spread (plat.plan !== undefined ? { plan: plat.plan } : {})
+Tenant	(spread)	scripts/provision-tenant.ts:225	upsert.create	call@215	spread (plat.subdomain !== undefined ? { subdomain: plat.subdomain 
+Tenant	(spread)	scripts/provision-tenant.ts:231	upsert.create	call@215	spread (plat.accentPreset !== undefined ? { accentPreset: plat.acce
+Tenant	(spread)	scripts/provision-tenant.ts:232	upsert.create	call@215	spread (plat.frontTheme !== undefined ? { frontTheme: plat.frontThe
+Tenant	(indirecto)	scripts/set-tenant-meta.ts:56	update	call@56	data
+Appointment	priceAtBooking	scripts/test-public-scope.ts:78	create	call@68	service.price

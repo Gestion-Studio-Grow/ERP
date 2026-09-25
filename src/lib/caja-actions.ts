@@ -5,9 +5,9 @@
 // order-actions.ts: requireCapability al tope, getCurrentTenantId (fail-closed
 // ADR-015) en cada write, audit + revalidatePath al terminar.
 //
-// La ARITMÉTICA del arqueo NO vive acá: vive pura y testeable en
-// src/lib/caja/cash-register.ts. Estas acciones solo orquestan la persistencia y
-// delegan el cálculo del esperado/diferencia en `reconcileCash`.
+// La ARITMÉTICA del arqueo NO vive acá: el esperado es el saldo en efectivo del libro
+// (src/lib/caja/saldo-cajon.ts, ADR-101) y la diferencia de apertura es pura en
+// src/lib/caja/cierre-marca.ts. Estas acciones solo orquestan la persistencia.
 //
 // Reusa la capability `orders:manage` (mostrador): abrir/cerrar caja y registrar
 // movimientos es trabajo de mostrador del mismo tenor que tomar y cobrar pedidos.
@@ -24,19 +24,15 @@ import { auditAdmin } from "@/lib/audit-core";
 // $2.400 contados a −$5.300. O sea: el sistema decía "este día está congelado" en una
 // pantalla y lo movía desde otra. La frontera es una sola y ahora la miran las dos.
 import { lastClosedDay } from "@/lib/caja/frontera-cierre";
-import { ajusteDeArqueoTurno } from "@/lib/caja/cierre-marca";
+import { ajusteDeArqueoTurno, diferenciaDeApertura } from "@/lib/caja/cierre-marca";
+import { arqueoContraElLibro, finDelDiaDelNegocio, saldoEfectivoDelLibro } from "@/lib/caja/saldo-cajon";
+import { CAMPO_ESPERADO_CONFIRMADO, esperadoConfirmadoVigente } from "@/lib/caja/esperado-del-cajon";
 import { isFrozenDay, frozenDayMessage } from "@/lib/caja/cierre-diario";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { tenantTransaction } from "@/lib/rls";
 import { Prisma } from "@/generated/prisma/client";
-import {
-  reconcileCash,
-  type CashMethod,
-  type CashMovementLike,
-  type CashMovementType,
-} from "@/lib/caja/cash-register";
 import { isDemoSandbox, getDemoCajaData, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
 import { leerImporte } from "@/lib/pos-peso";
 
@@ -72,7 +68,7 @@ function parseAmount(raw: FormDataEntryValue | null): number {
 // últimas sesiones cerradas para el histórico. Guard de lectura por `orders:read`.
 export async function getCajaData() {
   await requireCapability("orders:read");
-  if (isDemoSandbox()) return getDemoCajaData();
+  if (isDemoSandbox()) return { ...getDemoCajaData(), esperadoEnElCajon: null };
   const tenantId = await getCurrentTenantId();
   const [open, recentClosed] = await Promise.all([
     prisma.cashSession.findFirst({
@@ -86,13 +82,24 @@ export async function getCajaData() {
       take: 10,
     }),
   ]);
-  return { open, recentClosed };
+  // El MISMO número con el que `openCashSession` y `closeCashSession` comparan el conteo
+  // (ADR-101): el saldo en efectivo del libro. Las pantallas lo muestran como «Efectivo esperado
+  // en el cajón» (`esperadoDelCajon`, esperado-del-cajon.ts) y el formulario lo devuelve al
+  // grabar, así lo confirmado y lo asentado son el mismo número. Con o sin turno abierto: al
+  // abrir también se cuenta contra él.
+  const esperadoEnElCajon: number | null = await tenantTransaction(
+    (tx) => saldoEfectivoDelLibro(tx, tenantId, finDelDiaDelNegocio(new Date())),
+    { tenantId },
+  );
+  return { open, recentClosed, esperadoEnElCajon };
 }
 
 // --- Abrir turno de caja ---
 //
 // Crea la sesión OPEN con el fondo inicial declarado y materializa un movimiento
-// APERTURA (para que el ledger del turno arranque completo). Falla si ya hay una
+// APERTURA (para que el ledger del turno arranque completo). El fondo es un CONTEO del cajón:
+// si no coincide con el saldo en efectivo del libro, la diferencia se asienta ACÁ, una vez, con
+// la marca del turno (ADR-101). Así libro, turno y cierre del día parten del mismo número. Falla si ya hay una
 // sesión abierta: un solo mostrador por tenant (invariante de dominio, no de
 // schema). Todo dentro de una transacción tenant-aware.
 //
@@ -120,7 +127,7 @@ export async function openCashSession(
   const congelado = await rechazarSiElDiaEstaCerrado(tenantId);
   if (congelado) return congelado;
 
-  let session: { id: string };
+  let session: { id: string; saldoDelLibro: number; diferenciaDeApertura: number };
   try {
     session = await tenantTransaction(async (tx) => {
       const already = await tx.cashSession.findFirst({
@@ -130,24 +137,44 @@ export async function openCashSession(
       if (already) {
         throw new Error("Ya hay una caja abierta. Cerrá el turno actual antes de abrir otro.");
       }
-      return tx.cashSession.create({
+      const ahora = new Date();
+      // Leído en la MISMA transacción Serializable: una venta que entre en paralelo aborta una
+      // de las dos y el reintento vuelve a leer, así la diferencia nunca se calcula sobre un
+      // saldo viejo.
+      const saldoDelLibro = await saldoEfectivoDelLibro(tx, tenantId, finDelDiaDelNegocio(ahora));
+      // Lo que la cajera vio antes de confirmar tiene que ser lo que se asienta: si el libro se
+      // movió mientras contaba, no se abre y se le dice el número nuevo.
+      const vigente = esperadoConfirmadoVigente(formData.get(CAMPO_ESPERADO_CONFIRMADO), saldoDelLibro);
+      if (!vigente.ok) throw new Error(vigente.error);
+      const creada = await tx.cashSession.create({
         data: {
           tenantId,
           status: "OPEN",
           openedBy: actor,
           openingFloat,
+          openedAt: ahora,
           movements: {
             create: {
               tenantId,
               type: "APERTURA",
               amount: openingFloat,
               reason: "Fondo inicial de caja",
+              occurredAt: ahora,
               createdBy: actor,
             },
           },
         },
         select: { id: true },
       });
+      // `sessionId` NULL a propósito: la diferencia ya está adentro del fondo contado, y el
+      // esperado en vivo de la pantalla (fondo + movimientos del turno) la contaría dos veces.
+      // El rastro al turno va en la marca (`apertura-turno:<id>`): quién es su `openedBy`.
+      const diferencia = diferenciaDeApertura(openingFloat, saldoDelLibro, creada.id);
+      if (diferencia) {
+        await tx.cashMovement.create({ data: { tenantId, sessionId: null, occurredAt: ahora, ...diferencia } });
+      }
+      const conSigno = diferencia ? (diferencia.type === "INGRESO" ? diferencia.amount : -diferencia.amount) : 0;
+      return { id: creada.id, saldoDelLibro, diferenciaDeApertura: conSigno };
     }, { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (err) {
     return toActionError(err);
@@ -157,7 +184,7 @@ export async function openCashSession(
     action: "open",
     entity: "CashSession",
     entityId: session.id,
-    changes: { openingFloat },
+    changes: { openingFloat, saldoDelLibro: session.saldoDelLibro, diferenciaDeApertura: session.diferenciaDeApertura },
   });
   revalidatePath(CAJA_PATH);
   return { ok: true };
@@ -185,8 +212,9 @@ async function rechazarSiElDiaEstaCerrado(tenantId: string): Promise<CajaActionS
 
 // --- Cerrar turno de caja (arqueo) ---
 //
-// Toma el efectivo CONTADO declarado, calcula el esperado con la aritmética pura
-// (reconcileCash sobre el fondo inicial + los movimientos del turno) y CONGELA el
+// Toma el efectivo CONTADO declarado, lo arquea contra el saldo en efectivo del LIBRO (el
+// mismo esperado que el cierre del día, ADR-101; antes era `reconcileCash` sobre el fondo
+// tipeado + los movimientos del turno, y los dos esperados se separaban) y CONGELA el
 // arqueo en la sesión (closingExpected/closingCounted/closingDiff). El histórico
 // queda inmutable: no recalcula después aunque se toque algo.
 export async function closeCashSession(
@@ -211,27 +239,26 @@ export async function closeCashSession(
   const diaCerrado = await rechazarSiElDiaEstaCerrado(tenantId);
   if (diaCerrado) return diaCerrado;
 
-  let result: { id: string } & ReturnType<typeof reconcileCash>;
+  let result: { id: string } & ReturnType<typeof arqueoContraElLibro>;
   try {
     result = await tenantTransaction(async (tx) => {
       const session = await tx.cashSession.findFirst({
         where: { tenantId, status: "OPEN" },
-        // `method` es OBLIGATORIO acá: `summarizeMovements` cuenta SÓLO los movimientos
-        // EFECTIVO (el arqueo cuenta el cajón). Si no se selecciona, llega `undefined`,
-        // que la aritmética interpreta como EFECTIVO por compatibilidad hacia atrás — y
-        // entonces un ingreso por MP enganchado a este turno infla el efectivo esperado
-        // y produce un faltante fantasma al cerrar.
-        include: { movements: { select: { type: true, amount: true, method: true } } },
+        select: { id: true },
       });
       if (!session) {
         throw new Error("No hay una caja abierta para cerrar.");
       }
-      const movements: CashMovementLike[] = session.movements.map((m) => ({
-        type: m.type as CashMovementType,
-        amount: m.amount,
-        method: m.method as CashMethod,
-      }));
-      const arqueo = reconcileCash(session.openingFloat, movements, counted);
+      // UN SOLO ESPERADO (ADR-101): el saldo en efectivo del libro hasta el final de hoy, con la
+      // misma cuenta y el mismo borde que el cierre del día. Incluye el efectivo que no pasó por
+      // el turno (una reversa de un cobro de otro turno, un asiento sin turno): sale del cajón
+      // igual, y si el turno no lo ve, el día lo asienta como faltante.
+      const saldoDelLibro = await saldoEfectivoDelLibro(tx, tenantId, finDelDiaDelNegocio(new Date()));
+      // El esperado que el cajero confirmó en la pantalla («Contaste X y se esperaba Y») tiene
+      // que ser este mismo: si no, no se cierra (entró un movimiento mientras contaba).
+      const vigente = esperadoConfirmadoVigente(formData.get(CAMPO_ESPERADO_CONFIRMADO), saldoDelLibro);
+      if (!vigente.ok) throw new Error(vigente.error);
+      const arqueo = arqueoContraElLibro(saldoDelLibro, counted);
 
       await tx.cashSession.update({
         where: { id: session.id },
@@ -265,7 +292,7 @@ export async function closeCashSession(
       }
 
       return { id: session.id, ...arqueo };
-    }, { tenantId });
+    }, { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (err) {
     return toActionError(err);
   }

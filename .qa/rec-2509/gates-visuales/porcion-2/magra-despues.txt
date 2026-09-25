@@ -1,0 +1,3 @@
+    ok 1 - magra-demo: ningún botón chico, texto legible y sin scroll de costado
+# pass 1
+# fail 0

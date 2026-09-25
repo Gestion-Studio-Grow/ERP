@@ -154,7 +154,7 @@ export default async function AjustesPage({
         <p className="text-muted mb-8">
           Lo que se venció, se rompió, se decomisó o se consumió: cargalo acá y el stock baja. Queda registrado quién lo
           cargó y cuánto costaba ese día. Para contar una góndola entera usá el{" "}
-          <Link href="/admin/ajustes/recuento" className="font-medium text-accent underline underline-offset-2">
+          <Link href="/admin/ajustes/recuento" className="font-medium text-accent-ink underline underline-offset-2">
             recuento
           </Link>
           .

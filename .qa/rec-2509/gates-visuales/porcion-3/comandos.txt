@@ -1,0 +1,23 @@
+gates-visuales · porción 3 · 2026-09-25
+Objetivo: los 4 toques del gate visual-aa (run 36133219110, HEAD 76a5e2d) que quedaban sin ubicar (64 de 68).
+Sin código nuevo en esta porción: no se encontró un defecto comprobable y no se tocó nada a ciegas.
+
+1) Rutas que mide el gate (rutasDelRegistro + RUTAS_FIJAS de scripts/qa/visual-audit.mjs) -> rutas-del-gate.txt (53 del registro).
+   Base del gate: seed-qa-tenants + seed-magra; interruptor «Trabaja por apps» prendido en magra/padel/velas, estética apagada;
+   «diseño nuevo» apagado en los 4 (estadoDesdeFilas arranca todo apagado, src/cambios/interruptores-core.ts:60).
+2) Barrido estático de <button>/<select>/<summary> sin alto de 44 px en src/app/admin y src/components -> barrido-estatico-panel.txt (62 marcas).
+   Revisadas a mano y DESCARTADAS (miden 44 px en el celular, están ocultas a 412 px o no se ven al cargar):
+   - login a 76a5e2d (botón «Entrar» lg; «Mostrar» min-h-11)                         src/app/admin/login/CampoClave.tsx:30
+   - Inicio por apps: alfiler size-11, limpiar h-11 w-11, barra inferior h-14, cerrar size-11  inicio/BotonFijar.tsx:18, BuscadorApps.tsx:184, BarraInferior.tsx:71,93,166
+   - Turnos (CH): grilla oculta bajo lg; en el celular AppointmentRow con max-sm:min-h-11    turnos/CalendarGrid.tsx:109,125; AppointmentRow.tsx:85
+   - Auditoría: summaries min-h-11 (sm:min-h-7/8 sólo desde 640 px)                    auditoria/partes.tsx:175,291,304
+   - no-disponible «Cerrar sesión» min-h-11                                             src/app/admin/no-disponible/page.tsx:150
+   - Apariencia FILA min-h-[52px]                                                       apariencia/AparienciaControls.tsx:18
+   - Chip, PasoDePeriodo, Button sm (h-11 en celular), MenuMas h-11 w-11, Field h-11     src/components/ui/*
+   - Switch role="switch" h-6 (24 px): SÍ fallaría, pero sólo se usa en /operador/diseno, que el gate no mide.  src/components/ui/Switch.tsx:33
+   - «Cerrar sesión» y «Ver sitio público» del menú lateral (py-1.5 text-xs): van en el cajón, oculto al cargar.  AdminShell.tsx:390
+3) Tests de lo hecho en porciones 1 y 2, re-corridos sobre el árbol compartido actual:
+   node --import tsx --test src/app/tienda/vidriera-toque.test.ts src/app/tienda/magra-toque.test.ts \
+     "src/app/(site)/sitio-toque.test.ts" "src/app/admin/(dashboard)/enlaces-sobre-el-fondo-aa.test.ts" \
+     "src/app/admin/(dashboard)/inicio/gate-visual.test.ts"   -> tests.txt : 17/17 verde, 0 omitidos.
+Conclusión: los 4 restantes no se pueden ubicar sin el report.json del gate (el log vive en un blob que el proxy bloquea).

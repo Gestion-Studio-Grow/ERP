@@ -108,7 +108,7 @@ export default async function CierreCajaPage({
             Hoy
           </Link>
         )}
-        <Link href="/admin/caja/libro" className="ml-auto inline-flex min-h-11 items-center text-sm text-accent hover:underline sm:min-h-0">
+        <Link href="/admin/caja/libro" className="ml-auto inline-flex min-h-11 items-center text-sm text-accent-ink hover:underline sm:min-h-0">
           Ver el libro del mes →
         </Link>
       </nav>

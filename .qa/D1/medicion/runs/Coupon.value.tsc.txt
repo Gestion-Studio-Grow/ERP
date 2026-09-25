@@ -1,0 +1,47 @@
+src/app/admin/(dashboard)/catalogo/page.tsx(169,25): error TS2322: Type '{ id: string; createdAt: Date; updatedAt: Date; tenantId: string; active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; }[]' is not assignable to type 'Coupon[]'.
+  Type '{ id: string; createdAt: Date; updatedAt: Date; tenantId: string; active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; }' is not assignable to type 'Coupon'.
+    Types of property 'value' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/promociones/page.tsx(50,23): error TS2322: Type '{ id: string; createdAt: Date; updatedAt: Date; tenantId: string; active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; }[]' is not assignable to type 'Coupon[]'.
+  Type '{ id: string; createdAt: Date; updatedAt: Date; tenantId: string; active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; }' is not assignable to type 'Coupon'.
+    Types of property 'value' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/actions.ts(342,63): error TS2362: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.
+src/lib/actions.ts(342,95): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'number'.
+src/lib/coupon-actions.ts(136,17): error TS2322: Type 'Prisma__CouponClient<{ id: string; createdAt: Date; updatedAt: Date; tenantId: string; active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; } | null, null, DefaultArgs, { ...; }>' is not assignable to type 'Promise<Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount"> | null>'.
+  Types of property 'then' are incompatible.
+    Type '<TResult1 = { id: string; createdAt: Date; updatedAt: Date; tenantId: string; active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; } | null, TResult2 = never>(onfulfilled?: ((value: { ...; } | null) => TResult1 | PromiseLike<...>) | ... 1...' is not assignable to type '<TResult1 = Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount"> | null, TResult2 = never>(onfulfilled?: ((value: Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount"> | null) => TResult1 | PromiseLike<...>) | null | undefined, onrejected?: ((reason: any) => TResult2 | ...'.
+      Types of parameters 'onfulfilled' and 'onfulfilled' are incompatible.
+        Types of parameters 'value' and 'value' are incompatible.
+          Type '{ id: string; createdAt: Date; updatedAt: Date; tenantId: string; active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; } | null' is not assignable to type 'Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount"> | null'.
+            Type '{ id: string; createdAt: Date; updatedAt: Date; tenantId: string; active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; }' is not assignable to type 'Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount">'.
+              Types of property 'value' are incompatible.
+                Type 'Decimal' is not assignable to type 'number'.
+src/lib/coupon-actions.ts(144,27): error TS2339: Property 'type' does not exist on type 'Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount">'.
+src/lib/coupon-actions.ts(145,45): error TS2339: Property 'code' does not exist on type 'Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount">'.
+src/lib/coupon-actions.ts(145,64): error TS2339: Property 'type' does not exist on type 'Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount">'.
+src/lib/coupon-actions.ts(179,30): error TS2322: Type '{ active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; } | null' is not assignable to type 'CuponLeido | null'.
+  Type '{ active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; }' is not assignable to type 'CuponLeido'.
+    Types of property 'value' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/coupon-actions.ts(181,56): error TS2322: Type 'Decimal' is not assignable to type 'number'.
+src/lib/coupon-actions.ts(192,5): error TS2322: Type '() => Prisma__CouponClient<{ active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; } | null, null, DefaultArgs, { ...; }>' is not assignable to type '() => Promise<Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount"> | null>'.
+  Call signature return types 'Prisma__CouponClient<{ active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; } | null, null, DefaultArgs, { ...; }>' and 'Promise<Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount"> | null>' are incompatible.
+    The types of 'then' are incompatible between these types.
+      Type '<TResult1 = { active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; } | null, TResult2 = never>(onfulfilled?: ((value: { ...; } | null) => TResult1 | PromiseLike<...>) | null | undefined, onrejected?: ((reason: any) => TResult2 | PromiseLi...' is not assignable to type '<TResult1 = Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount"> | null, TResult2 = never>(onfulfilled?: ((value: Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount"> | null) => TResult1 | PromiseLike<...>) | null | undefined, onrejected?: ((reason: any) => TResult2 | ...'.
+        Types of parameters 'onfulfilled' and 'onfulfilled' are incompatible.
+          Types of parameters 'value' and 'value' are incompatible.
+            Type '{ active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; } | null' is not assignable to type 'Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount"> | null'.
+              Type '{ active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; }' is not assignable to type 'Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount">'.
+                Types of property 'value' are incompatible.
+                  Type 'Decimal' is not assignable to type 'number'.
+src/lib/coupon-actions.ts(197,28): error TS2739: Type 'Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount">' is missing the following properties from type 'CuponLeido': code, type
+src/lib/coupon-actions.ts(203,48): error TS2339: Property 'type' does not exist on type 'Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "value" | "usedCount">'.
+src/lib/order-core.ts(398,30): error TS2322: Type '{ id: string; active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; } | null' is not assignable to type 'CuponLeido | null'.
+  Type '{ id: string; active: boolean; code: string; type: CouponType; expiresAt: Date | null; maxUses: number | null; value: Decimal; usedCount: number; }' is not assignable to type 'CuponLeido'.
+    Types of property 'value' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-core.ts(405,7): error TS2322: Type 'T & { descuento: number; total: number; cuponAplicado: string; cuponDelPedido: { codigo: string; tipo: "PERCENT" | "FIXED"; valor: Decimal; cuponId: string; }; }' is not assignable to type 'T & { cuponAplicado?: string | undefined; cuponDelPedido?: CuponDelPedido | undefined; }'.
+  Type 'T & { descuento: number; total: number; cuponAplicado: string; cuponDelPedido: { codigo: string; tipo: "PERCENT" | "FIXED"; valor: Decimal; cuponId: string; }; }' is not assignable to type '{ cuponAplicado?: string | undefined; cuponDelPedido?: CuponDelPedido | undefined; }'.
+    The types of 'cuponDelPedido.valor' are incompatible between these types.
+      Type 'Decimal' is not assignable to type 'number'.

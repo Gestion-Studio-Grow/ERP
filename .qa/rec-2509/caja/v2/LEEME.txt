@@ -1,0 +1,17 @@
+ADR-101 caja — segunda vuelta (corrección del refutador) — 2026-09-25
+Defecto 1: las dos pantallas del turno mostraban y hacían confirmar fondo + efectivo del turno; el servidor asentaba el saldo del libro.
+Defecto 2: el arreglo "MAGRA" se presentaba como que el faltante desaparecía; asienta el mismo monto, en otro momento.
+
+01-rojo-puro.txt              esperado-del-cajon.test.ts antes de existir el módulo: falla.
+02-verde-puro.txt             9/9 reglas puras (esperado que se muestra; guarda de esperado confirmado).
+03-pg-*.txt                   4 archivos contra Postgres con RLS (acciones reales, negocios A y B): 4/4, ~4 s cada uno (no saltados).
+                              pantalla: abre $4.000, devolución $200 sin turno, cuenta $3.300 → pantalla 3.800 = closingExpected 3.800, diferencia −500 = la confirmada; pantalla vieja (4.000) no cierra.
+04-tsc.txt / 12-tsc.txt       tsc --noEmit del proyecto: exit 0.
+05-navegador-renglon.txt      Chromium: 5/5 (devolución fuera del turno: se muestra $61.865, se confirma «faltante $500» contra $61.865, se manda esperadoConfirmado=61865; apertura con diferencia pide confirmación; apertura que coincide no pregunta).
+06-mutacion-*.txt             MUTACIÓN: pantalla con el esperado del turno → navegador 1 falla, Postgres 1 falla. Restaurado.
+07-mutacion-guarda-*.txt      MUTACIÓN: servidor sin la guarda de esperado confirmado → apertura y pantalla fallan. Restaurado.
+08-suite-caja.txt             primera pasada 350/354 (4 esperadas por el cambio: teclado + dos unitarios con la cifra de MAGRA quitada).
+09-teclado-y-puros.txt        17/17 tras actualizar esas expectativas.
+10-suite-caja.txt             32 archivos de caja y vecinos (08-archivos.txt): 354/354.
+11-eslint.txt                 eslint --max-warnings=0 de los 13 archivos tocados: exit 0.
+Postgres local: /tmp/pgrun puerto 5433 (ya estaba arriba).

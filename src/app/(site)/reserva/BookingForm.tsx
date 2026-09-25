@@ -38,7 +38,8 @@ function StepLabel({ n, id, children }: { n: number; id?: string; children: Reac
   );
 }
 
-const inputClass = "w-full px-3 py-2.5 text-sm bg-transparent";
+// min-h-11: 44 px, el piso táctil de la casa (el gate «visual-aa» mide los desplegables en el celular).
+const inputClass = "w-full min-h-11 px-3 py-2.5 text-sm bg-transparent";
 const inputStyle = { border: "1px solid var(--line)", color: "var(--text-strong)" };
 
 export default function BookingForm({
@@ -234,7 +235,7 @@ export default function BookingForm({
                     type="button"
                     aria-pressed={isSelected}
                     onClick={() => setSelectedSlot(slot)}
-                    className="px-3 py-2 text-sm transition-colors"
+                    className="min-h-11 px-3 py-2 text-sm transition-colors"
                     style={
                       isSelected
                         ? { background: "var(--surface-inverted)", border: "1px solid var(--surface-inverted)", color: "var(--text-on-accent)" }

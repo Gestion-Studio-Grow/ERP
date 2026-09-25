@@ -1,0 +1,15 @@
+gates-visuales · porción 1 · 2026-09-25
+Gate CI «visual-aa» (run 36133219110, job 108065550721): 72 defectos (contraste 4 · toque 68).
+El log completo del job no se pudo bajar (vive en un host de almacenamiento que el proxy no deja pasar);
+se reprodujo la medición con la MISMA función del gate (auditInPage) en Chromium, sin servidor.
+
+1) Línea base (antes del arreglo), vidriera genérica Storefront a 412 px:
+   node --import tsx --test src/app/tienda/vidriera-toque.test.ts   -> antes-vidriera.txt
+   velas: 11 botones chicos (10 «+» de 34x34 y «WhatsApp» del pie 66x25) = el «touch:11» del gate
+   padel: 11 iguales. home y /tienda son la misma pantalla (redirect) => 44 de los 68.
+2) Después:
+   node --import tsx --test src/app/tienda/vidriera-toque.test.ts "src/app/admin/(dashboard)/enlaces-sobre-el-fondo-aa.test.ts" -> tests-despues.txt (7/7)
+   control: el acento ámbar crudo como texto sobre #f5f5f7 mide ~4,33:1 (el número del gate) y el test lo detecta.
+3) Suites vecinas: tienda, vidriera, tenants, gate-visual, enlaces -> tests-final.txt (55/55)
+4) npx tsc --noEmit -p .  -> tsc.txt (0 errores)
+5) npx eslint <archivos tocados> -> eslint.txt (limpio)

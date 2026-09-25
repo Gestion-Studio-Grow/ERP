@@ -1,0 +1,19 @@
+rec-2509 / vender-login-ch — porción 1 (25/09)
+
+ROJO ANTES (tests escritos antes del cambio):
+  node --import tsx --test vender/linea-sin-cantidad.test.ts          -> rojo-antes-regla.txt (8 fallan: la regla no existía)
+  node --import tsx --test --test-name-pattern=... vender-pantalla    -> rojo-antes.txt: 2 fallan (vista de siempre y POS: no aparece «Falta la cantidad de Crema»),
+                                                                         2 pasan (red caída en el POS: ya conservaba todo; quedan como guarda)
+  node --import tsx --test login/login-core.test.ts                   -> rojo-antes-login-core.txt (6 fallan)
+  node --import tsx --test login/ingreso-pantalla.test.ts             -> rojo-antes-ingreso-pantalla.txt (5 de 5 fallan: el email vuelve vacío)
+
+VERDE DESPUÉS:
+  linea-sin-cantidad.test.ts           -> verde-regla.txt              8/8
+  vender-pantalla.test.ts (Chromium)   -> verde-vender-pantalla.txt    56/56 (52 de antes + 4 nuevos)
+  login-core.test.ts                   -> verde-login-core.txt         11/11
+  ingreso-pantalla.test.ts (Chromium)  -> verde-ingreso-pantalla.txt   5/5
+  Suites relacionadas juntas (login, vender, pedidos, pie-pegado, raices-ch, buscador-teclado)
+                                       -> suite-mis-archivos.txt       231/231, 0 saltados
+  npx tsc --noEmit                     -> tsc.txt                      0 errores (salida vacía)
+  npx eslint login/ vender/ PosForm    -> eslint.txt                   0 problemas
+Base previa: antes-vender-pantalla.txt 52/52.

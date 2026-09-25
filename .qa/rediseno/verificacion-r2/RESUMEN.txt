@@ -1,0 +1,7 @@
+magra-390 exit=1
+magra-1440 exit=1
+ch-apagar exit=0
+ch-off exit=0
+ch-prender exit=0
+consola-390 exit=1
+shine-adosmanos exit=1

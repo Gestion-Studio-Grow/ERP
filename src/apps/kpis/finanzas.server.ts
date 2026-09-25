@@ -112,7 +112,9 @@ function diasEntre(desde: string, hasta: string): number {
  * "12 comprobantes este mes · 1 rechazado por ARCA", y en alerta las ventas ANULADAS que
  * tienen factura y ninguna nota de crédito. "Este mes" es el MISMO corte que usan la
  * facturación automática y la cartera del contador (`filtrosFacturacionMes`, bancos-glue.ts:
- * lo emitido por `createdAt` en el mes del negocio), así que los tres cuentan lo mismo.
+ * lo emitido por `createdAt` en el mes del negocio), así que los tres cuentan lo mismo. Acá va
+ * `emitido` (todo estado, para poder decir cuántos rechazó ARCA), no `cupo`, que desde ENG-329
+ * deja afuera los rechazados.
  *
  * Un rechazo no va a "Para atender hoy": queda en el mes aunque ya se haya vuelto a emitir, y
  * una alerta que no se apaga deja de leerse. La anulada con factura SÍ: pide una acción (la
@@ -133,14 +135,14 @@ function diasEntre(desde: string, hasta: string): number {
  * índice y salen en paralelo.
  */
 export const facturacion: LoaderKpi = async ({ db, tenantId, ahora }) => {
-  const { cupo } = filtrosFacturacionMes(ahora);
+  const { emitido } = filtrosFacturacionMes(ahora);
   const [grupos, anuladas] = await Promise.all([
     db.invoice.groupBy({
       by: ["status"],
-      where: { tenantId, ...cupo },
+      where: { tenantId, ...emitido },
       _count: { _all: true },
     }),
-    db.invoice.count({ where: whereAnuladasConFactura(tenantId, cupo) }),
+    db.invoice.count({ where: whereAnuladasConFactura(tenantId, emitido) }),
   ]);
   const total = grupos.reduce((s, g) => s + g._count._all, 0);
   const rechazados = grupos.find((g) => g.status === "REJECTED")?._count._all ?? 0;

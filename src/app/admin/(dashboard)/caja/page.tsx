@@ -5,13 +5,8 @@ import { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { fmtShortDate } from "@/lib/datetime";
-import {
-  expectedCash,
-  summarizeMovements,
-  type CashMethod,
-  type CashMovementLike,
-  type CashMovementType,
-} from "@/lib/caja/cash-register";
+import type { CashMethod } from "@/lib/caja/cash-register";
+import { esperadoDelCajon } from "@/lib/caja/esperado-del-cajon";
 import { Card, CardHeader, CardTitle, CardDescription, Badge, fmtMoneyARS, type BadgeProps } from "@/components/ui";
 import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { frozenDayMessage } from "@/lib/caja/cierre-diario";
@@ -343,7 +338,7 @@ function TurnoDeCajero({ caja }: { caja: Awaited<ReturnType<typeof getCajaData>>
         .
       </p>
 
-      {open ? <OpenSession session={open} /> : <ClosedState />}
+      {open ? <OpenSession session={open} esperadoDelLibro={caja.esperadoEnElCajon} /> : <ClosedState esperado={caja.esperadoEnElCajon} />}
 
       {recentClosed.length > 0 && (
         <div className="mt-8">
@@ -377,7 +372,7 @@ function TurnoDeCajero({ caja }: { caja: Awaited<ReturnType<typeof getCajaData>>
 }
 
 // --- Estado vacío: no hay caja abierta → apertura ---
-function ClosedState() {
+function ClosedState({ esperado }: { esperado: number | null }) {
   return (
     <Card>
       <CardHeader>
@@ -391,7 +386,7 @@ function ClosedState() {
           Caja cerrada
         </Badge>
       </CardHeader>
-      <OpenCajaForm />
+      <OpenCajaForm esperado={esperado} />
     </Card>
   );
 }
@@ -399,7 +394,10 @@ function ClosedState() {
 // --- Caja abierta → resumen en vivo + ledger + registrar movimiento + cierre ---
 function OpenSession({
   session,
+  esperadoDelLibro,
 }: {
+  /** `getCajaData().esperadoEnElCajon`: el número con el que el servidor arquea (ADR-101). */
+  esperadoDelLibro: number | null;
   session: {
     id: string;
     openingFloat: number;
@@ -415,17 +413,10 @@ function OpenSession({
     }[];
   };
 }) {
-  // `method` va SIEMPRE: el esperado en vivo cuenta sólo el efectivo del cajón, igual
-  // que el cierre. Sin él, un ingreso por MP del turno inflaría el número que el
-  // mostrador mira para contar la plata.
-  const movs: CashMovementLike[] = session.movements.map((m) => ({
-    type: m.type as CashMovementType,
-    amount: m.amount,
-    method: (m.method ?? "EFECTIVO") as CashMethod,
-  }));
-  // Esperado EN VIVO (mismo cálculo que usa el cierre) + desglose por categoría.
-  const expected = expectedCash(session.openingFloat, movs);
-  const breakdown = summarizeMovements(movs);
+  // UN SOLO ESPERADO (ADR-101): el total es el saldo en efectivo del libro, el mismo número con el
+  // que `closeCashSession` arquea y que el formulario devuelve al cerrar. El desglose es el del
+  // turno (sólo efectivo: `method` va siempre) y lo que el turno no vio va en su propio renglón.
+  const { desglose: breakdown, fueraDelTurno, esperado: expected } = esperadoDelCajon(session, esperadoDelLibro);
   const expectedLabel = fmtMoneyARS(expected);
 
   // Filas del desglose: se muestran solo las categorías con monto (el fondo y el
@@ -435,6 +426,8 @@ function OpenSession({
     { label: "Otros ingresos", value: breakdown.cashIn, sign: "+" as const },
     { label: "Egresos", value: breakdown.cashOut, sign: "−" as const },
     { label: "Retiros", value: breakdown.withdrawals, sign: "−" as const },
+    // Efectivo del libro que no pasó por el turno (una devolución o un gasto sin turno).
+    { label: "Fuera del turno", value: Math.abs(fueraDelTurno), sign: fueraDelTurno < 0 ? ("−" as const) : ("+" as const) },
   ].filter((r) => r.value > 0);
 
   return (

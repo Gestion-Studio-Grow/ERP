@@ -1,0 +1,22 @@
+src/app/admin/(dashboard)/pedidos/page.tsx(137,67): error TS2365: Operator '>' cannot be applied to types 'Decimal' and 'number'.
+src/app/admin/(dashboard)/pedidos/page.tsx(321,23): error TS2322: Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/ventas/page.tsx(314,42): error TS2345: Argument of type '{ id: string; createdAt: Date; status: OrderStatus; code: number; items: { name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: number; productId: string | null; unitPrice: number; }[]; ... 7 more ...; paid: boolean; }' is not assignable to parameter of type 'OrdenParaTicket'.
+  Types of property 'discount' are incompatible.
+    Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/ventas/page.tsx(323,34): error TS2345: Argument of type '{ id: string; createdAt: Date; status: OrderStatus; code: number; items: { name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: number; productId: string | null; unitPrice: number; }[]; ... 7 more ...; paid: boolean; }' is not assignable to parameter of type '{ id: string; subtotal: number; discount: number; }'.
+  Types of property 'discount' are incompatible.
+    Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-actions.ts(511,27): error TS2345: Argument of type '{ id: string; createdAt: Date; status: OrderStatus; code: number; items: { name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: number; productId: string | null; unitPrice: number; }[]; ... 6 more ...; paid: boolean; }' is not assignable to parameter of type 'OrdenParaTicket'.
+  Types of property 'discount' are incompatible.
+    Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-actions.ts(679,7): error TS2322: Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-anulacion.ts(834,5): error TS2365: Operator '>' cannot be applied to types 'Decimal' and 'number'.
+src/lib/order-anulacion.ts(910,46): error TS2322: Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-anulacion.ts(919,28): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'number'.
+src/lib/order-core.ts(214,7): error TS2322: Type 'Decimal' is not assignable to type 'number'.
+src/lib/respuesta-al-reintento.ts(60,31): error TS2345: Argument of type '{ cupon: string | null; reglaDelCupon: CuponDelPedido | null; id: string; createdAt: Date; status: OrderStatus; notes: string | null; code: number; ... 12 more ...; clientId: string | null; }' is not assignable to parameter of type 'OrdenParaTicket'.
+  Types of property 'discount' are incompatible.
+    Type 'Decimal' is not assignable to type 'number'.
+src/lib/respuesta-al-reintento.ts(78,58): error TS2345: Argument of type '{ cupon: string | null; reglaDelCupon: CuponDelPedido | null; id: string; createdAt: Date; status: OrderStatus; notes: string | null; code: number; ... 12 more ...; clientId: string | null; }' is not assignable to parameter of type 'VentaGrabadaLeida'.
+  Types of property 'discount' are incompatible.
+    Type 'Decimal' is not assignable to type 'number'.

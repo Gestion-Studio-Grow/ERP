@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: contra Postgres: los días cerrados no se tocan; la diferencia real al abrir y la del arqueo quedan una vez cada una; lo que no pasó por el turno también cuenta
+ok 1 - contra Postgres: los días cerrados no se tocan; la diferencia real al abrir y la del arqueo quedan una vez cada una; lo que no pasó por el turno también cuenta
+  ---
+  duration_ms: 7771.052488
+  type: 'test'
+  ...
+# Subtest: contra Postgres: el caso MAGRA — el turno cuadra y el día ya no inventa el faltante; la diferencia al abrir queda una vez, con quién y cuándo; B no se mezcla
+ok 2 - contra Postgres: el caso MAGRA — el turno cuadra y el día ya no inventa el faltante; la diferencia al abrir queda una vez, con quién y cuándo; B no se mezcla
+  ---
+  duration_ms: 8118.202591
+  type: 'test'
+  ...
+# Subtest: contra Postgres: una apertura que coincide con el libro no escribe diferencia (cambio de turno sin plata en juego)
+ok 3 - contra Postgres: una apertura que coincide con el libro no escribe diferencia (cambio de turno sin plata en juego)
+  ---
+  duration_ms: 7515.236236
+  type: 'test'
+  ...
+# Subtest: fondo contado igual al libro ⇒ la apertura no escribe diferencia
+ok 4 - fondo contado igual al libro ⇒ la apertura no escribe diferencia
+  ---
+  duration_ms: 1.417594
+  type: 'test'
+  ...
+# Subtest: el cajón tiene menos que el libro ⇒ faltante al abrir (EGRESO en efectivo), con la marca del turno
+ok 5 - el cajón tiene menos que el libro ⇒ faltante al abrir (EGRESO en efectivo), con la marca del turno
+  ---
+  duration_ms: 1.757068
+  type: 'test'
+  ...
+# Subtest: el cajón tiene más que el libro ⇒ sobrante al abrir (INGRESO en efectivo)
+ok 6 - el cajón tiene más que el libro ⇒ sobrante al abrir (INGRESO en efectivo)
+  ---
+  duration_ms: 0.207159
+  type: 'test'
+  ...
+# Subtest: un libro en negativo (datos viejos) se corrige hasta el conteo
+ok 7 - un libro en negativo (datos viejos) se corrige hasta el conteo
+  ---
+  duration_ms: 0.162879
+  type: 'test'
+  ...
+# Subtest: montos ilegibles no escriben nada
+ok 8 - montos ilegibles no escriben nada
+  ---
+  duration_ms: 1.524021
+  type: 'test'
+  ...
+# Subtest: la marca de apertura no se confunde con la del arqueo
+ok 9 - la marca de apertura no se confunde con la del arqueo
+  ---
+  duration_ms: 0.25407
+  type: 'test'
+  ...
+# Subtest: el saldo en efectivo del libro: entra VENTA/INGRESO, sale EGRESO/RETIRO, la APERTURA no mueve, los otros medios no cuentan
+ok 10 - el saldo en efectivo del libro: entra VENTA/INGRESO, sale EGRESO/RETIRO, la APERTURA no mueve, los otros medios no cuentan
+  ---
+  duration_ms: 0.537951
+  type: 'test'
+  ...
+# Subtest: el arqueo del turno se hace contra el libro: contado − saldo, al centavo
+ok 11 - el arqueo del turno se hace contra el libro: contado − saldo, al centavo
+  ---
+  duration_ms: 0.232502
+  type: 'test'
+  ...
+# Subtest: en el libro, la diferencia de apertura es una diferencia de caja del turno y no se borra
+ok 12 - en el libro, la diferencia de apertura es una diferencia de caja del turno y no se borra
+  ---
+  duration_ms: 1.32081
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9384.579402

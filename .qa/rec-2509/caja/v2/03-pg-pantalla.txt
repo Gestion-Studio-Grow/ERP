@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: contra Postgres: lo que la pantalla muestra como esperado es lo que el cierre asienta; una pantalla vieja no cierra
+ok 1 - contra Postgres: lo que la pantalla muestra como esperado es lo que el cierre asienta; una pantalla vieja no cierra
+  ---
+  duration_ms: 3616.317037
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4259.773128

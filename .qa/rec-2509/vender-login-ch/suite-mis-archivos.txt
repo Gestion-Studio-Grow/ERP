@@ -1,0 +1,1417 @@
+TAP version 13
+# Subtest: hoy la acción no devuelve nada: no hay rechazo que mostrar (la bandeja se redibuja con el estado que quedó)
+ok 1 - hoy la acción no devuelve nada: no hay rechazo que mostrar (la bandeja se redibuja con el estado que quedó)
+  ---
+  duration_ms: 0.938989
+  type: 'test'
+  ...
+# Subtest: un rechazo devuelto se muestra con su texto entero
+ok 2 - un rechazo devuelto se muestra con su texto entero
+  ---
+  duration_ms: 0.188258
+  type: 'test'
+  ...
+# Subtest: un rechazo sin texto no queda mudo: dice cómo seguir
+ok 3 - un rechazo sin texto no queda mudo: dice cómo seguir
+  ---
+  duration_ms: 0.240178
+  type: 'test'
+  ...
+# Subtest: sin respuesta: nombra el paso y el pedido, y dice que reintentar es seguro
+ok 4 - sin respuesta: nombra el paso y el pedido, y dice que reintentar es seguro
+  ---
+  duration_ms: 0.256048
+  type: 'test'
+  ...
+# Subtest: con señal, falló el servidor: no se manda a revisar la conexión
+ok 5 - con señal, falló el servidor: no se manda a revisar la conexión
+  ---
+  duration_ms: 0.174871
+  type: 'test'
+  ...
+# Subtest: cobrar manda el id y el medio, vacío si no se eligió (lo rechaza el servidor con su texto)
+ok 6 - cobrar manda el id y el medio, vacío si no se eligió (lo rechaza el servidor con su texto)
+  ---
+  duration_ms: 54.365691
+  type: 'test'
+  ...
+# Subtest: entregar sin cobrar manda lo mismo que el formulario viejo, en los tres casos
+ok 7 - entregar sin cobrar manda lo mismo que el formulario viejo, en los tres casos
+  ---
+  duration_ms: 0.522544
+  type: 'test'
+  ...
+# Subtest: entregar lo ya cobrado manda sólo el id (el formulario de un toque)
+ok 8 - entregar lo ya cobrado manda sólo el id (el formulario de un toque)
+  ---
+  duration_ms: 0.20884
+  type: 'test'
+  ...
+# Subtest: anular manda id, motivo y, sólo tildada, que la mercadería no volvió
+ok 9 - anular manda id, motivo y, sólo tildada, que la mercadería no volvió
+  ---
+  duration_ms: 0.187505
+  type: 'test'
+  ...
+# Subtest: los nombres de los campos son los que leen las acciones del servidor
+ok 10 - los nombres de los campos son los que leen las acciones del servidor
+  ---
+  duration_ms: 0.622592
+  type: 'test'
+  ...
+# Subtest: la tecla de la entrega dice lo que va a pasar
+ok 11 - la tecla de la entrega dice lo que va a pasar
+  ---
+  duration_ms: 0.593819
+  type: 'test'
+  ...
+# Subtest: sin Mercado Pago conectado no se ofrece un link de mentira; con el simulador, sí (marcado de prueba)
+ok 12 - sin Mercado Pago conectado no se ofrece un link de mentira; con el simulador, sí (marcado de prueba)
+  ---
+  duration_ms: 1.106955
+  type: 'test'
+  ...
+# Subtest: sin el módulo de Mercado Pago en el negocio no hay link, aunque el despliegue tenga Mercado Pago real
+ok 13 - sin el módulo de Mercado Pago en el negocio no hay link, aunque el despliegue tenga Mercado Pago real
+  ---
+  duration_ms: 0.357331
+  type: 'test'
+  ...
+# Subtest: el último link de cada pedido sale de la auditoría; una fila rara no tira nada
+ok 14 - el último link de cada pedido sale de la auditoría; una fila rara no tira nada
+  ---
+  duration_ms: 1.856573
+  type: 'test'
+  ...
+# Subtest: el WhatsApp del link dice el pedido, el monto y el link
+ok 15 - el WhatsApp del link dice el pedido, el monto y el link
+  ---
+  duration_ms: 19.768055
+  type: 'test'
+  ...
+# Subtest: el riel de un comercio tiene cuatro pasos físicos y el cobro no es uno de ellos
+ok 16 - el riel de un comercio tiene cuatro pasos físicos y el cobro no es uno de ellos
+  ---
+  duration_ms: 4.270703
+  type: 'test'
+  ...
+# Subtest: en un negocio de servicios el riel conserva el paso Confirmado
+ok 17 - en un negocio de servicios el riel conserva el paso Confirmado
+  ---
+  duration_ms: 0.481889
+  type: 'test'
+  ...
+# Subtest: listo y avisado lo dice con la hora del aviso
+ok 18 - listo y avisado lo dice con la hora del aviso
+  ---
+  duration_ms: 0.206668
+  type: 'test'
+  ...
+# Subtest: entregado sin cobrar pide atención; entregado y cobrado está hecho
+ok 19 - entregado sin cobrar pide atención; entregado y cobrado está hecho
+  ---
+  duration_ms: 0.186403
+  type: 'test'
+  ...
+# Subtest: una sola tecla: el verbo de siempre para avanzar
+ok 20 - una sola tecla: el verbo de siempre para avanzar
+  ---
+  duration_ms: 0.284355
+  type: 'test'
+  ...
+# Subtest: listo sin avisar ofrece avisar; avisado (o sin teléfono) ofrece entregar
+ok 21 - listo sin avisar ofrece avisar; avisado (o sin teléfono) ofrece entregar
+  ---
+  duration_ms: 0.199914
+  type: 'test'
+  ...
+# Subtest: entregado sin cobrar ofrece cobrar; cerrado no ofrece nada
+ok 22 - entregado sin cobrar ofrece cobrar; cerrado no ofrece nada
+  ---
+  duration_ms: 0.275001
+  type: 'test'
+  ...
+# Subtest: los filtros de la URL: lo desconocido es sin filtro
+ok 23 - los filtros de la URL: lo desconocido es sin filtro
+  ---
+  duration_ms: 0.491182
+  type: 'test'
+  ...
+# Subtest: los chips cuentan lo que muestran, con el canal aplicado
+ok 24 - los chips cuentan lo que muestran, con el canal aplicado
+  ---
+  duration_ms: 0.839551
+  type: 'test'
+  ...
+# Subtest: filtrar por estado, canal y búsqueda
+ok 25 - filtrar por estado, canal y búsqueda
+  ---
+  duration_ms: 1.122836
+  type: 'test'
+  ...
+# Subtest: la búsqueda no distingue tildes ni mayúsculas
+ok 26 - la búsqueda no distingue tildes ni mayúsculas
+  ---
+  duration_ms: 0.356433
+  type: 'test'
+  ...
+# Subtest: sin orden: el más nuevo primero; por entrega: los que tienen horario primero
+ok 27 - sin orden: el más nuevo primero; por entrega: los que tienen horario primero
+  ---
+  duration_ms: 10.846813
+  type: 'test'
+  ...
+# Subtest: en lote se agrupa por verbo y se avisa sólo a los listos con teléfono
+ok 28 - en lote se agrupa por verbo y se avisa sólo a los listos con teléfono
+  ---
+  duration_ms: 0.463337
+  type: 'test'
+  ...
+# Subtest: el resumen del lote dice cuántos salieron y, si uno no, por qué
+ok 29 - el resumen del lote dice cuántos salieron y, si uno no, por qué
+  ---
+  duration_ms: 0.516532
+  type: 'test'
+  ...
+# Subtest: la línea del tablero: la plata por cobrar sólo para quien ve los números
+ok 30 - la línea del tablero: la plata por cobrar sólo para quien ve los números
+  ---
+  duration_ms: 0.336134
+  type: 'test'
+  ...
+# Subtest: cuándo se tomó: la hora si es de hoy, «ayer», o el día corto
+ok 31 - cuándo se tomó: la hora si es de hoy, «ayer», o el día corto
+  ---
+  duration_ms: 0.162936
+  type: 'test'
+  ...
+# Subtest: el aviso de un paso dice cómo quedó el pedido
+ok 32 - el aviso de un paso dice cómo quedó el pedido
+  ---
+  duration_ms: 0.138361
+  type: 'test'
+  ...
+# Subtest: pedido online de 0,5 kg pesado a 1,240: el total pasa de $6.250 a $15.500 y el stock baja 0,74
+ok 33 - pedido online de 0,5 kg pesado a 1,240: el total pasa de $6.250 a $15.500 y el stock baja 0,74
+  ---
+  duration_ms: 3.664702
+  type: 'test'
+  ...
+# Subtest: pesar un pedido de la tienda con envío y cupón: el envío no es base del descuento (camino del servidor)
+ok 34 - pesar un pedido de la tienda con envío y cupón: el envío no es base del descuento (camino del servidor)
+  ---
+  duration_ms: 0.68089
+  type: 'test'
+  ...
+# Subtest: ya cobrado no se pesa: se anula y se rehace
+ok 35 - ya cobrado no se pesa: se anula y se rehace
+  ---
+  duration_ms: 0.152509
+  type: 'test'
+  ...
+# Subtest: el ajuste conserva las líneas con precio a mano y el descuento; lo nuevo entra al precio de hoy sólo si se vende
+ok 36 - el ajuste conserva las líneas con precio a mano y el descuento; lo nuevo entra al precio de hoy sólo si se vende
+  ---
+  duration_ms: 0.491272
+  type: 'test'
+  ...
+# Subtest: recepción: 10 kg con el 10 % pesados a 1 kg quedan con el 10 % ($1.250), no en $0
+ok 37 - recepción: 10 kg con el 10 % pesados a 1 kg quedan con el 10 % ($1.250), no en $0
+  ---
+  duration_ms: 0.698502
+  type: 'test'
+  ...
+# Subtest: el descuento del ajuste: sube con el pedido al mismo %, nunca pasa del subtotal ni se inventa
+ok 38 - el descuento del ajuste: sube con el pedido al mismo %, nunca pasa del subtotal ni se inventa
+  ---
+  duration_ms: 0.277829
+  type: 'test'
+  ...
+# Subtest: cupón FIJO de $2.000 en 1,6 kg de vacío: pesado a 2,4 kg o a 0,8 kg sigue descontando $2.000
+ok 39 - cupón FIJO de $2.000 en 1,6 kg de vacío: pesado a 2,4 kg o a 0,8 kg sigue descontando $2.000
+  ---
+  duration_ms: 0.754019
+  type: 'test'
+  ...
+# Subtest: cupón FIJO con envío: el envío no es base, el cupón no se pasa de la compra y crece hasta su valor
+ok 40 - cupón FIJO con envío: el envío no es base, el cupón no se pasa de la compra y crece hasta su valor
+  ---
+  duration_ms: 0.356769
+  type: 'test'
+  ...
+# Subtest: cupón de %: sigue siendo el mismo % de lo que se compra
+ok 41 - cupón de %: sigue siendo el mismo % de lo que se compra
+  ---
+  duration_ms: 0.598141
+  type: 'test'
+  ...
+# Subtest: la vista previa dice de dónde sale el descuento: el cupón fijo no es «el X % de la venta»
+ok 42 - la vista previa dice de dónde sale el descuento: el cupón fijo no es «el X % de la venta»
+  ---
+  duration_ms: 5.444308
+  type: 'test'
+  ...
+# Subtest: la regla del cupón que escribe el alta se lee igual; una fila rota no inventa un cupón
+ok 43 - la regla del cupón que escribe el alta se lee igual; una fila rota no inventa un cupón
+  ---
+  duration_ms: 0.502209
+  type: 'test'
+  ...
+# Subtest: ajustarPedidoInTx: el pedido de 10 kg con el 10 % pesado a 1 kg guarda 12.500 / 1.250 / 11.250 y devuelve 9 kg
+ok 44 - ajustarPedidoInTx: el pedido de 10 kg con el 10 % pesado a 1 kg guarda 12.500 / 1.250 / 11.250 y devuelve 9 kg
+  ---
+  duration_ms: 1.445171
+  type: 'test'
+  ...
+# Subtest: ajustarPedidoInTx: 0,5 kg pesado a 1,240 sale como VENTA de 0,74 que puede dejar el stock en negativo (por peso)
+ok 45 - ajustarPedidoInTx: 0,5 kg pesado a 1,240 sale como VENTA de 0,74 que puede dejar el stock en negativo (por peso)
+  ---
+  duration_ms: 0.627393
+  type: 'test'
+  ...
+# Subtest: ajustarPedidoInTx: con plata en el libro no toca nada, aunque el pedido diga que no se cobró
+ok 46 - ajustarPedidoInTx: con plata en el libro no toca nada, aunque el pedido diga que no se cobró
+  ---
+  duration_ms: 0.787411
+  type: 'test'
+  ...
+# Subtest: ajustarPedidoInTx: el pedido de la tienda con el cupón FIJO de $2.000 pesado a 2,4 kg guarda 30.000 / 2.000 / 28.000
+ok 47 - ajustarPedidoInTx: el pedido de la tienda con el cupón FIJO de $2.000 pesado a 2,4 kg guarda 30.000 / 2.000 / 28.000
+  ---
+  duration_ms: 0.630698
+  type: 'test'
+  ...
+# Subtest: ajustarPedidoInTx: sin fila de cupón el descuento es a mano (conserva el %); sin descuento no se busca
+ok 48 - ajustarPedidoInTx: sin fila de cupón el descuento es a mano (conserva el %); sin descuento no se busca
+  ---
+  duration_ms: 0.749255
+  type: 'test'
+  ...
+# Subtest: un corte que ya estaba en el pedido se pesa aunque hoy se haya dejado de vender
+ok 49 - un corte que ya estaba en el pedido se pesa aunque hoy se haya dejado de vender
+  ---
+  duration_ms: 0.163525
+  type: 'test'
+  ...
+# Subtest: en comercio, Nuevo pasa directo a Preparando; en servicios (CH) sigue pasando por Confirmado
+ok 50 - en comercio, Nuevo pasa directo a Preparando; en servicios (CH) sigue pasando por Confirmado
+  ---
+  duration_ms: 0.266973
+  type: 'test'
+  ...
+# Subtest: el horario del pedido se lee en la zona del negocio, no en la del servidor
+ok 51 - el horario del pedido se lee en la zona del negocio, no en la del servidor
+  ---
+  duration_ms: 2.956545
+  type: 'test'
+  ...
+# Subtest: aviso de pedido listo: armado, 1 a 1 al número del cliente, sin inventar datos del local
+ok 52 - aviso de pedido listo: armado, 1 a 1 al número del cliente, sin inventar datos del local
+  ---
+  duration_ms: 0.713764
+  type: 'test'
+  ...
+# Subtest: recepción NO anula una venta cobrada ayer, y no se mueve nada
+ok 53 - recepción NO anula una venta cobrada ayer, y no se mueve nada
+  ---
+  duration_ms: 2.853293
+  type: 'test'
+  ...
+# Subtest: recepción anula una venta de HOY SIN motivo → rechazo, y no se mueve nada
+ok 54 - recepción anula una venta de HOY SIN motivo → rechazo, y no se mueve nada
+  ---
+  duration_ms: 0.404134
+  type: 'test'
+  ...
+# Subtest: recepción anula una venta de hoy CON motivo: egreso asentado, firmado y con el motivo
+ok 55 - recepción anula una venta de hoy CON motivo: egreso asentado, firmado y con el motivo
+  ---
+  duration_ms: 1.2374
+  type: 'test'
+  ...
+# Subtest: el dueño anula una venta de ayer si ese día no está cerrado
+ok 56 - el dueño anula una venta de ayer si ese día no está cerrado
+  ---
+  duration_ms: 0.461452
+  type: 'test'
+  ...
+# Subtest: el dueño tampoco anula un día ya cerrado
+ok 57 - el dueño tampoco anula un día ya cerrado
+  ---
+  duration_ms: 0.33236
+  type: 'test'
+  ...
+# Subtest: recepción con venta de ayer en un día cerrado: gana el día cerrado (no la manda al dueño)
+ok 58 - recepción con venta de ayer en un día cerrado: gana el día cerrado (no la manda al dueño)
+  ---
+  duration_ms: 0.393532
+  type: 'test'
+  ...
+# Subtest: el dueño sin motivo: se anula y queda escrito que no hubo motivo
+ok 59 - el dueño sin motivo: se anula y queda escrito que no hubo motivo
+  ---
+  duration_ms: 0.783311
+  type: 'test'
+  ...
+# Subtest: el dueño con un motivo de 3 letras: rechazo (si lo escribe, que explique algo)
+ok 60 - el dueño con un motivo de 3 letras: rechazo (si lo escribe, que explique algo)
+  ---
+  duration_ms: 0.238991
+  type: 'test'
+  ...
+# Subtest: el profesional no anula nada
+ok 61 - el profesional no anula nada
+  ---
+  duration_ms: 0.307753
+  type: 'test'
+  ...
+# Subtest: recepción SÍ anula un pedido sin cobrar de ayer: no hay plata que mover, sólo vuelve el stock
+ok 62 - recepción SÍ anula un pedido sin cobrar de ayer: no hay plata que mover, sólo vuelve el stock
+  ---
+  duration_ms: 0.76853
+  type: 'test'
+  ...
+# Subtest: un «Cobrar» que entra mientras se anula no deja la plata sin contrapartida
+ok 63 - un «Cobrar» que entra mientras se anula no deja la plata sin contrapartida
+  ---
+  duration_ms: 0.608162
+  type: 'test'
+  ...
+# Subtest: con la venta leída de entrada, la caja no se relee (el camino de todos los días no suma consultas)
+ok 64 - con la venta leída de entrada, la caja no se relee (el camino de todos los días no suma consultas)
+  ---
+  duration_ms: 0.574337
+  type: 'test'
+  ...
+# Subtest: planDeEntrega: sin cobrar, entregar exige medio o «queda a cobrar»
+ok 65 - planDeEntrega: sin cobrar, entregar exige medio o «queda a cobrar»
+  ---
+  duration_ms: 1.598823
+  type: 'test'
+  ...
+# Subtest: planDeEntrega: ya cobrado se entrega directo; lo que no está listo, no
+ok 66 - planDeEntrega: ya cobrado se entrega directo; lo que no está listo, no
+  ---
+  duration_ms: 0.37462
+  type: 'test'
+  ...
+# Subtest: entregar sin medio ni «queda a cobrar» → bloqueado, y no se mueve nada
+ok 67 - entregar sin medio ni «queda a cobrar» → bloqueado, y no se mueve nada
+  ---
+  duration_ms: 22.91087
+  type: 'test'
+  ...
+# Subtest: entregar con «queda a cobrar» → entregado sin cobrar, y SIGUE en la bandeja
+ok 68 - entregar con «queda a cobrar» → entregado sin cobrar, y SIGUE en la bandeja
+  ---
+  duration_ms: 1.617035
+  type: 'test'
+  ...
+# Subtest: entregar eligiendo el medio → se cobra UNA vez y se entrega
+ok 69 - entregar eligiendo el medio → se cobra UNA vez y se entrega
+  ---
+  duration_ms: 5.27253
+  type: 'test'
+  ...
+# Subtest: doble toque en «Cobrar y entregar», uno detrás del otro → un solo cobro
+ok 70 - doble toque en «Cobrar y entregar», uno detrás del otro → un solo cobro
+  ---
+  duration_ms: 0.961265
+  type: 'test'
+  ...
+# Subtest: doble toque SIMULTÁNEO en «Cobrar y entregar» → un solo cobro, una sola entrega
+ok 71 - doble toque SIMULTÁNEO en «Cobrar y entregar» → un solo cobro, una sola entrega
+  ---
+  duration_ms: 1.318141
+  type: 'test'
+  ...
+# Subtest: si el cobro se rechaza (día cerrado), la mercadería NO se da por entregada
+ok 72 - si el cobro se rechaza (día cerrado), la mercadería NO se da por entregada
+  ---
+  duration_ms: 0.581772
+  type: 'test'
+  ...
+# Subtest: ya cobrado: se entrega de un toque y no se vuelve a cobrar
+ok 73 - ya cobrado: se entrega de un toque y no se vuelve a cobrar
+  ---
+  duration_ms: 0.507104
+  type: 'test'
+  ...
+# Subtest: otro medio elegido sobre un pedido que otra pestaña ya cobró → no se entrega y se dice con qué quedó
+ok 74 - otro medio elegido sobre un pedido que otra pestaña ya cobró → no se entrega y se dice con qué quedó
+  ---
+  duration_ms: 0.712857
+  type: 'test'
+  ...
+# Subtest: con 101 tickets de mostrador, el pedido abierto de ayer SIGUE en la bandeja
+ok 75 - con 101 tickets de mostrador, el pedido abierto de ayer SIGUE en la bandeja
+  ---
+  duration_ms: 4.831229
+  type: 'test'
+  ...
+# Subtest: abiertos y cerrados se reparten TODO sin repetir, y nunca cruzan de negocio
+ok 76 - abiertos y cerrados se reparten TODO sin repetir, y nunca cruzan de negocio
+  ---
+  duration_ms: 0.981221
+  type: 'test'
+  ...
+# Subtest: cada estado cae donde tiene que caer
+ok 77 - cada estado cae donde tiene que caer
+  ---
+  duration_ms: 0.237797
+  type: 'test'
+  ...
+# Subtest: doble toque en «Enviar pedido», uno detrás del otro → un solo pedido, stock descontado una vez
+ok 78 - doble toque en «Enviar pedido», uno detrás del otro → un solo pedido, stock descontado una vez
+  ---
+  duration_ms: 6.153767
+  type: 'test'
+  ...
+# Subtest: doble toque SIMULTÁNEO en «Enviar pedido» → un solo pedido, stock descontado una vez
+ok 79 - doble toque SIMULTÁNEO en «Enviar pedido» → un solo pedido, stock descontado una vez
+  ---
+  duration_ms: 0.759596
+  type: 'test'
+  ...
+# Subtest: sin clave —lo que mandaban tres de las cuatro tiendas— el doble toque creaba DOS pedidos
+ok 80 - sin clave —lo que mandaban tres de las cuatro tiendas— el doble toque creaba DOS pedidos
+  ---
+  duration_ms: 0.564652
+  type: 'test'
+  ...
+# Subtest: con la bolsa cambiada la clave es otra: es otro pedido, no el viejo reciclado
+ok 81 - con la bolsa cambiada la clave es otra: es otro pedido, no el viejo reciclado
+  ---
+  duration_ms: 0.669052
+  type: 'test'
+  ...
+# Subtest: Pies pegados en el iPhone: la zona segura una sola vez
+    # Subtest: Vender con el diseño nuevo, con la cápsula: el pie se apoya en ella sin franja vacía
+    ok 1 - Vender con el diseño nuevo, con la cápsula: el pie se apoya en ella sin franja vacía
+      ---
+      duration_ms: 272.794133
+      type: 'test'
+      ...
+    # Subtest: Vender con el diseño nuevo, sin cápsula: el pie deja la zona segura una vez
+    ok 2 - Vender con el diseño nuevo, sin cápsula: el pie deja la zona segura una vez
+      ---
+      duration_ms: 233.028593
+      type: 'test'
+      ...
+    # Subtest: Vender, con la barra de espacios: el pie no vuelve a sumar la zona segura
+    ok 3 - Vender, con la barra de espacios: el pie no vuelve a sumar la zona segura
+      ---
+      duration_ms: 204.334949
+      type: 'test'
+      ...
+    # Subtest: Vender, sin barra (fuera del piloto): el pie deja la zona segura una vez
+    ok 4 - Vender, sin barra (fuera del piloto): el pie deja la zona segura una vez
+      ---
+      duration_ms: 206.686403
+      type: 'test'
+      ...
+    # Subtest: Recuento, con la barra de espacios: el pie no vuelve a sumar la zona segura
+    ok 5 - Recuento, con la barra de espacios: el pie no vuelve a sumar la zona segura
+      ---
+      duration_ms: 208.574922
+      type: 'test'
+      ...
+    # Subtest: Recuento, sin barra (fuera del piloto): el pie deja la zona segura una vez
+    ok 6 - Recuento, sin barra (fuera del piloto): el pie deja la zona segura una vez
+      ---
+      duration_ms: 188.269064
+      type: 'test'
+      ...
+    1..6
+ok 82 - Pies pegados en el iPhone: la zona segura una sola vez
+  ---
+  duration_ms: 3711.302086
+  type: 'suite'
+  ...
+# Subtest: con señal, antes de cobrar no hay nada que decir
+ok 83 - con señal, antes de cobrar no hay nada que decir
+  ---
+  duration_ms: 1.279263
+  type: 'test'
+  ...
+# Subtest: sin señal: no se cobró, lo cargado sigue, y el botón pasa a reintentar
+ok 84 - sin señal: no se cobró, lo cargado sigue, y el botón pasa a reintentar
+  ---
+  duration_ms: 0.409265
+  type: 'test'
+  ...
+# Subtest: sin señal y la señal volvió: no hay duda que aclarar, sólo tocar el botón
+ok 85 - sin señal y la señal volvió: no hay duda que aclarar, sólo tocar el botón
+  ---
+  duration_ms: 0.294566
+  type: 'test'
+  ...
+# Subtest: se cortó a mitad: no se afirma que no se grabó, y se promete lo que el servidor cumple
+ok 86 - se cortó a mitad: no se afirma que no se grabó, y se promete lo que el servidor cumple
+  ---
+  duration_ms: 0.279801
+  type: 'test'
+  ...
+# Subtest: un rechazo del servidor se muestra entero y NO convierte el botón en reintentar
+ok 87 - un rechazo del servidor se muestra entero y NO convierte el botón en reintentar
+  ---
+  duration_ms: 0.254703
+  type: 'test'
+  ...
+# Subtest: la clave del ticket: el reintento reusa la misma; un ticket nuevo estrena una
+ok 88 - la clave del ticket: el reintento reusa la misma; un ticket nuevo estrena una
+  ---
+  duration_ms: 0.182547
+  type: 'test'
+  ...
+# Subtest: las etiquetas del botón
+ok 89 - las etiquetas del botón
+  ---
+  duration_ms: 0.15693
+  type: 'test'
+  ...
+# Subtest: después del corte: sólo es la misma venta si la plata y el stock son los mismos
+ok 90 - después del corte: sólo es la misma venta si la plata y el stock son los mismos
+  ---
+  duration_ms: 1.139961
+  type: 'test'
+  ...
+# Subtest: si cambió después del corte: se dice el total de la cortada y cómo salir, sin reintentar
+ok 91 - si cambió después del corte: se dice el total de la cortada y cómo salir, sin reintentar
+  ---
+  duration_ms: 0.42532
+  type: 'test'
+  ...
+# Subtest: corte → reintento sin señal → se suma un corte → vuelve la señal: frenado, nunca 'no se cobró'
+ok 92 - corte → reintento sin señal → se suma un corte → vuelve la señal: frenado, nunca 'no se cobró'
+  ---
+  duration_ms: 2.134343
+  type: 'test'
+  ...
+# Subtest: sin nada mandado antes, «sin señal» sí es seguro que no salió
+ok 93 - sin nada mandado antes, «sin señal» sí es seguro que no salió
+  ---
+  duration_ms: 0.164358
+  type: 'test'
+  ...
+# Subtest: un rechazo después de un corte no afirma que la cortada no se grabó
+ok 94 - un rechazo después de un corte no afirma que la cortada no se grabó
+  ---
+  duration_ms: 0.237934
+  type: 'test'
+  ...
+# Subtest: R1/R2/R4: la firma incluye a QUIÉN (por la clave de la ficha), CÓMO se descontó y la entrega; NO el nombre
+ok 95 - R1/R2/R4: la firma incluye a QUIÉN (por la clave de la ficha), CÓMO se descontó y la entrega; NO el nombre
+  ---
+  duration_ms: 1.999872
+  type: 'test'
+  ...
+# Subtest: R3: el cobro tiene tope de espera; la respuesta a tiempo pasa, la que no llega es 'sin respuesta'
+ok 96 - R3: el cobro tiene tope de espera; la respuesta a tiempo pasa, la que no llega es 'sin respuesta'
+  ---
+  duration_ms: 13.494917
+  type: 'test'
+  ...
+# Subtest: R4/R5: la duda sobrevive a recargar, por negocio; lo ilegible no se inventa; el almacén que tira no rompe
+ok 97 - R4/R5: la duda sobrevive a recargar, por negocio; lo ilegible no se inventa; el almacén que tira no rompe
+  ---
+  duration_ms: 2.873427
+  type: 'test'
+  ...
+# Subtest: la duda guardada vence a las 12 h, es de quien la dejó y el cierre de sesión la borra
+ok 98 - la duda guardada vence a las 12 h, es de quien la dejó y el cierre de sesión la borra
+  ---
+  duration_ms: 0.930633
+  type: 'test'
+  ...
+# Subtest: R5: la duda restaurada lo dice, con el total, la FECHA y la hora, y ofrece reintentar la MISMA
+ok 99 - R5: la duda restaurada lo dice, con el total, la FECHA y la hora, y ofrece reintentar la MISMA
+  ---
+  duration_ms: 0.314065
+  type: 'test'
+  ...
+# Subtest: tras un rechazo de negocio la clave se renueva SÓLO si no hay un envío en duda
+ok 100 - tras un rechazo de negocio la clave se renueva SÓLO si no hay un envío en duda
+  ---
+  duration_ms: 0.122331
+  type: 'test'
+  ...
+# Subtest: «ya grabada»: la salida depende de qué cambió (de más, otra cosa, anulada); el pedido con sus palabras
+ok 101 - «ya grabada»: la salida depende de qué cambió (de más, otra cosa, anulada); el pedido con sus palabras
+  ---
+  duration_ms: 5.128899
+  type: 'test'
+  ...
+# Subtest: M3: la firma de lo cargado guardado es la que arma la pantalla (a cuenta, cupón, descuento, pedido)
+ok 102 - M3: la firma de lo cargado guardado es la que arma la pantalla (a cuenta, cupón, descuento, pedido)
+  ---
+  duration_ms: 1.191266
+  type: 'test'
+  ...
+# Subtest: M7 y M5: lo que falta con un producto fuera del catálogo no se ofrece; lo grabado ahora por otro total se dice
+ok 103 - M7 y M5: lo que falta con un producto fuera del catálogo no se ofrece; lo grabado ahora por otro total se dice
+  ---
+  duration_ms: 0.604665
+  type: 'test'
+  ...
+# Subtest: la regla del cupón: % sobre lo que se compra, fijo sin pasarse, y los rechazos con su porqué
+ok 104 - la regla del cupón: % sobre lo que se compra, fijo sin pasarse, y los rechazos con su porqué
+  ---
+  duration_ms: 7.698367
+  type: 'test'
+  ...
+# Subtest: cupón en la venta: se consume con compare-and-set y el total queda con el descuento
+ok 105 - cupón en la venta: se consume con compare-and-set y el total queda con el descuento
+  ---
+  duration_ms: 1.779744
+  type: 'test'
+  ...
+# Subtest: la regla del cupón (% o FIJO) se escribe en la transacción del alta, en la fila del pedido; sin cupón, nada
+ok 106 - la regla del cupón (% o FIJO) se escribe en la transacción del alta, en la fila del pedido; sin cupón, nada
+  ---
+  duration_ms: 0.836308
+  type: 'test'
+  ...
+# Subtest: cupón al máximo de usos → rechazo; y el último uso no lo gastan dos ventas a la vez
+ok 107 - cupón al máximo de usos → rechazo; y el último uso no lo gastan dos ventas a la vez
+  ---
+  duration_ms: 0.931773
+  type: 'test'
+  ...
+# Subtest: un cupón y un descuento a mano no se suman
+ok 108 - un cupón y un descuento a mano no se suman
+  ---
+  duration_ms: 0.363838
+  type: 'test'
+  ...
+# Subtest: a cuenta: el pedido queda saldado SIN medio y el libro no asienta nada
+ok 109 - a cuenta: el pedido queda saldado SIN medio y el libro no asienta nada
+  ---
+  duration_ms: 6.850904
+  type: 'test'
+  ...
+# Subtest: anular una venta a cuenta anula su deuda en la misma transacción; con cobros o de otro día (recepción), no
+ok 110 - anular una venta a cuenta anula su deuda en la misma transacción; con cobros o de otro día (recepción), no
+  ---
+  duration_ms: 0.863442
+  type: 'test'
+  ...
+# Subtest: anular una venta a cuenta (el camino entero): la venta, su deuda y el stock en la misma transacción; la caja no se toca
+ok 111 - anular una venta a cuenta (el camino entero): la venta, su deuda y el stock en la misma transacción; la caja no se toca
+  ---
+  duration_ms: 5.188634
+  type: 'test'
+  ...
+# Subtest: anular una venta a cuenta con cobros: se rechaza y NADA queda anulado (ni la venta ni el stock)
+ok 112 - anular una venta a cuenta con cobros: se rechaza y NADA queda anulado (ni la venta ni el stock)
+  ---
+  duration_ms: 0.752177
+  type: 'test'
+  ...
+# Subtest: recepción no anula una venta a cuenta de ayer (no hay asiento que la frene: la frena la deuda), y vuelve todo atrás
+ok 113 - recepción no anula una venta a cuenta de ayer (no hay asiento que la frene: la frena la deuda), y vuelve todo atrás
+  ---
+  duration_ms: 2.111886
+  type: 'test'
+  ...
+# Subtest: con cuentas corrientes apagadas, anular no mira deudas
+ok 114 - con cuentas corrientes apagadas, anular no mira deudas
+  ---
+  duration_ms: 0.572258
+  type: 'test'
+  ...
+# Subtest: precio a mano de recepción: hasta 10 % menos que la lista, nunca por kilo con precio, y hasta $50.000 sin producto
+ok 115 - precio a mano de recepción: hasta 10 % menos que la lista, nunca por kilo con precio, y hasta $50.000 sin producto
+  ---
+  duration_ms: 1.570187
+  type: 'test'
+  ...
+# Subtest: el tope se controla DENTRO de la transacción, con el catálogo leído ahí
+ok 116 - el tope se controla DENTRO de la transacción, con el catálogo leído ahí
+  ---
+  duration_ms: 0.431392
+  type: 'test'
+  ...
+# Subtest: una línea con producto y cantidad vacía (0) es la que falta
+ok 117 - una línea con producto y cantidad vacía (0) es la que falta
+  ---
+  duration_ms: 1.991525
+  type: 'test'
+  ...
+# Subtest: la línea en blanco (sin producto) no frena: es el renglón para el próximo producto
+ok 118 - la línea en blanco (sin producto) no frena: es el renglón para el próximo producto
+  ---
+  duration_ms: 0.347086
+  type: 'test'
+  ...
+# Subtest: una cantidad ilegible no se cuenta acá: tiene su propio aviso («cantidad inválida»)
+ok 119 - una cantidad ilegible no se cuenta acá: tiene su propio aviso («cantidad inválida»)
+  ---
+  duration_ms: 0.229533
+  type: 'test'
+  ...
+# Subtest: cantidad negativa o no numérica tampoco viaja: frena igual que la vacía
+ok 120 - cantidad negativa o no numérica tampoco viaja: frena igual que la vacía
+  ---
+  duration_ms: 0.26002
+  type: 'test'
+  ...
+# Subtest: devuelve la PRIMERA que falta, en el orden del ticket
+ok 121 - devuelve la PRIMERA que falta, en el orden del ticket
+  ---
+  duration_ms: 0.259363
+  type: 'test'
+  ...
+# Subtest: todas con cantidad: no hay nada que frenar
+ok 122 - todas con cantidad: no hay nada que frenar
+  ---
+  duration_ms: 0.250717
+  type: 'test'
+  ...
+# Subtest: el motivo usa la palabra de la balanza para lo que va por kilo y dice cuál
+ok 123 - el motivo usa la palabra de la balanza para lo que va por kilo y dice cuál
+  ---
+  duration_ms: 0.307007
+  type: 'test'
+  ...
+# Subtest: sin el producto a mano (salió del catálogo), el motivo igual dice qué falta
+ok 124 - sin el producto a mano (salió del catálogo), el motivo igual dice qué falta
+  ---
+  duration_ms: 0.183299
+  type: 'test'
+  ...
+# Subtest: Vender en el navegador
+    # Subtest: Vacío 1,240 + Entraña 0,950 con los botones rápidos, efectivo, pagó con $50.000 → vuelto $17.875
+    ok 1 - Vacío 1,240 + Entraña 0,950 con los botones rápidos, efectivo, pagó con $50.000 → vuelto $17.875
+      ---
+      duration_ms: 853.627664
+      type: 'test'
+      ...
+    # Subtest: descuento: 15 % con recepción frena el cobro; 10 % pasa y el vuelto se recalcula sobre el total
+    ok 2 - descuento: 15 % con recepción frena el cobro; 10 % pasa y el vuelto se recalcula sobre el total
+      ---
+      duration_ms: 1224.914873
+      type: 'test'
+      ...
+    # Subtest: la dueña no tiene tope: 15 % pasa
+    ok 3 - la dueña no tiene tope: 15 % pasa
+      ---
+      duration_ms: 621.794223
+      type: 'test'
+      ...
+    # Subtest: cupón en el mostrador: sin «Aplicar» no se cobra; aplicado, viaja el código y no un descuento a mano
+    ok 4 - cupón en el mostrador: sin «Aplicar» no se cobra; aplicado, viaja el código y no un descuento a mano
+      ---
+      duration_ms: 858.326346
+      type: 'test'
+      ...
+    # Subtest: a cuenta: sin la ficha del cliente no se deja; con la ficha viaja aCuenta=1 y ningún medio
+    ok 5 - a cuenta: sin la ficha del cliente no se deja; con la ficha viaja aCuenta=1 y ningún medio
+      ---
+      duration_ms: 734.530703
+      type: 'test'
+      ...
+    # Subtest: sin cuentas corrientes, «A cuenta» no se ofrece
+    ok 6 - sin cuentas corrientes, «A cuenta» no se ofrece
+      ---
+      duration_ms: 488.246977
+      type: 'test'
+      ...
+    # Subtest: Facturar con la facturación apagada: la venta queda «Sin factura», con el porqué, y se ofrece reintentar
+    ok 7 - Facturar con la facturación apagada: la venta queda «Sin factura», con el porqué, y se ofrece reintentar
+      ---
+      duration_ms: 606.330693
+      type: 'test'
+      ...
+    # Subtest: cliente por teléfono: la ficha se encuentra con el número escrito de otra forma
+    ok 8 - cliente por teléfono: la ficha se encuentra con el número escrito de otra forma
+      ---
+      duration_ms: 505.729105
+      type: 'test'
+      ...
+    # Subtest: pesar y ajustar: el pedido de 0,5 kg se guarda con 1,240 y el total nuevo se ve antes de guardar
+    ok 9 - pesar y ajustar: el pedido de 0,5 kg se guarda con 1,240 y el total nuevo se ve antes de guardar
+      ---
+      duration_ms: 512.686239
+      type: 'test'
+      ...
+    # Subtest: pesar y ajustar con descuento: 10 kg con el 10 % pesados a 1 kg quedan con el 10 %, no en $0
+    ok 10 - pesar y ajustar con descuento: 10 kg con el 10 % pesados a 1 kg quedan con el 10 %, no en $0
+      ---
+      duration_ms: 471.223773
+      type: 'test'
+      ...
+    # Subtest: tomar un pedido: si el servidor rechaza, horario, dirección y nota quedan escritos
+    ok 11 - tomar un pedido: si el servidor rechaza, horario, dirección y nota quedan escritos
+      ---
+      duration_ms: 599.72544
+      type: 'test'
+      ...
+    # Subtest: anular en la bandeja: el rechazo del servidor y el corte de señal se ven en la fila, sin tirar la pantalla
+    ok 12 - anular en la bandeja: el rechazo del servidor y el corte de señal se ven en la fila, sin tirar la pantalla
+      ---
+      duration_ms: 554.638254
+      type: 'test'
+      ...
+    # Subtest: precio a mano con recepción: un producto del catálogo no se esquiva a mano, y hay un máximo
+    ok 13 - precio a mano con recepción: un producto del catálogo no se esquiva a mano, y hay un máximo
+      ---
+      duration_ms: 645.78552
+      type: 'test'
+      ...
+    # Subtest: sin ningún producto con precio, el formulario sigue: se cobra con precio a mano
+    ok 14 - sin ningún producto con precio, el formulario sigue: se cobra con precio a mano
+      ---
+      duration_ms: 675.14607
+      type: 'test'
+      ...
+    # Subtest: celular 412 px: 2 cortes en 7 toques o menos, con el botón de cobrar a la vista sin bajar
+    ok 15 - celular 412 px: 2 cortes en 7 toques o menos, con el botón de cobrar a la vista sin bajar
+      ---
+      duration_ms: 1691.110129
+      type: 'test'
+      ...
+    # Subtest: se corta la señal a mitad del cobro: lo cargado queda, se reintenta con la misma venta y no se cobra dos veces
+    ok 16 - se corta la señal a mitad del cobro: lo cargado queda, se reintenta con la misma venta y no se cobra dos veces
+      ---
+      duration_ms: 809.945424
+      type: 'test'
+      ...
+    # Subtest: se corta y el cajero suma un corte: no se reintenta con la clave de la cortada; «Es otra venta» estrena clave
+    ok 17 - se corta y el cajero suma un corte: no se reintenta con la clave de la cortada; «Es otra venta» estrena clave
+      ---
+      duration_ms: 976.646486
+      type: 'test'
+      ...
+    # Subtest: se corta, se reintenta sin señal y se suma un corte: sigue frenado, y al volver la señal no dice 'no se cobró'
+    ok 18 - se corta, se reintenta sin señal y se suma un corte: sigue frenado, y al volver la señal no dice 'no se cobró'
+      ---
+      duration_ms: 845.96149
+      type: 'test'
+      ...
+    # Subtest: sin señal antes de cobrar: no se manda nada, se dice, y al volver la señal se cobra
+    ok 19 - sin señal antes de cobrar: no se manda nada, se dice, y al volver la señal se cobra
+      ---
+      duration_ms: 667.107168
+      type: 'test'
+      ...
+    # Subtest: el rechazo del servidor queda escrito al lado del botón (no en un aviso que se va) y se puede cerrar
+    ok 20 - el rechazo del servidor queda escrito al lado del botón (no en un aviso que se va) y se puede cerrar
+      ---
+      duration_ms: 639.048117
+      type: 'test'
+      ...
+    # Subtest: R1 a cuenta: se corta y se cambia el CLIENTE → no se reintenta con la clave de la cortada
+    ok 21 - R1 a cuenta: se corta y se cambia el CLIENTE → no se reintenta con la clave de la cortada
+      ---
+      duration_ms: 863.313021
+      type: 'test'
+      ...
+    # Subtest: «ya grabada» con OTRA cosa (el medio): no se ofrece cobrar nada aparte; se deja así o se anula y se vuelve a consultar
+    ok 22 - «ya grabada» con OTRA cosa (el medio): no se ofrece cobrar nada aparte; se deja así o se anula y se vuelve a consultar
+      ---
+      duration_ms: 923.891299
+      type: 'test'
+      ...
+    # Subtest: «ya grabada» y lo único distinto es DE MÁS: «Cobrar sólo lo que falta» carga SÓLO eso, con su total
+    ok 23 - «ya grabada» y lo único distinto es DE MÁS: «Cobrar sólo lo que falta» carga SÓLO eso, con su total
+      ---
+      duration_ms: 790.664944
+      type: 'test'
+      ...
+    # Subtest: la venta con esa clave está ANULADA: se dice, no se muestra como cobrada, y se ofrece cobrarla como otra
+    ok 24 - la venta con esa clave está ANULADA: se dice, no se muestra como cobrada, y se ofrece cobrarla como otra
+      ---
+      duration_ms: 824.969915
+      type: 'test'
+      ...
+    # Subtest: R2 pedido: se corta y se cambia la dirección → frenado; y la respuesta «ya registrado» habla de pedido, no de cobro
+    ok 25 - R2 pedido: se corta y se cambia la dirección → frenado; y la respuesta «ya registrado» habla de pedido, no de cobro
+      ---
+      duration_ms: 743.008448
+      type: 'test'
+      ...
+    # Subtest: R3 el servidor no contesta: a los 25 s deja «Cobrando…» y dice que no sabemos; el reintento lleva la misma clave
+    ok 26 - R3 el servidor no contesta: a los 25 s deja «Cobrando…» y dice que no sabemos; el reintento lleva la misma clave
+      ---
+      duration_ms: 754.329889
+      type: 'test'
+      ...
+    # Subtest: R4 se corta con cupón y se lo cambia por un 10 % a mano del mismo monto → no es la misma venta
+    ok 27 - R4 se corta con cupón y se lo cambia por un 10 % a mano del mismo monto → no es la misma venta
+      ---
+      duration_ms: 857.97597
+      type: 'test'
+      ...
+    # Subtest: R5 se corta y se vuelve a Vender (remonta) o se recarga: la duda vuelve con lo cargado y la MISMA clave
+    ok 28 - R5 se corta y se vuelve a Vender (remonta) o se recarga: la duda vuelve con lo cargado y la MISMA clave
+      ---
+      duration_ms: 910.691652
+      type: 'test'
+      ...
+    # Subtest: un error del servidor que no es un rechazo de negocio: 'no sabemos', y el reintento con la misma clave lo encuentra
+    ok 29 - un error del servidor que no es un rechazo de negocio: 'no sabemos', y el reintento con la misma clave lo encuentra
+      ---
+      duration_ms: 646.834841
+      type: 'test'
+      ...
+    # Subtest: tras un rechazo de negocio sin corte, lo corregido viaja con otra clave (con esa no se grabó nada)
+    ok 30 - tras un rechazo de negocio sin corte, lo corregido viaja con otra clave (con esa no se grabó nada)
+      ---
+      duration_ms: 723.576084
+      type: 'test'
+      ...
+    # Subtest: la duda que dejó OTRA persona en la pestaña no se restaura: se avisa sin cliente ni lo cargado
+    ok 31 - la duda que dejó OTRA persona en la pestaña no se restaura: se avisa sin cliente ni lo cargado
+      ---
+      duration_ms: 776.612789
+      type: 'test'
+      ...
+    # Subtest: con un envío en duda siempre se puede «Empezar de nuevo», después del aviso de revisar Ventas del día
+    ok 32 - con un envío en duda siempre se puede «Empezar de nuevo», después del aviso de revisar Ventas del día
+      ---
+      duration_ms: 894.252633
+      type: 'test'
+      ...
+    # Subtest: POS de la bandeja: «ya grabada con otra cosa» se muestra y se sale con «Empezar de nuevo» (antes quedaba trabado)
+    ok 33 - POS de la bandeja: «ya grabada con otra cosa» se muestra y se sale con «Empezar de nuevo» (antes quedaba trabado)
+      ---
+      duration_ms: 871.91277
+      type: 'test'
+      ...
+    # Subtest: RF precio: se recarga con el precio de catálogo NUEVO y la duda sigue siendo la misma venta (se reintenta)
+    ok 34 - RF precio: se recarga con el precio de catálogo NUEVO y la duda sigue siendo la misma venta (se reintenta)
+      ---
+      duration_ms: 829.592892
+      type: 'test'
+      ...
+    # Subtest: RF2 stock: el envío en duda se llevó la última unidad; al recargar el reintento NO lo frena el stock de la pantalla
+    ok 35 - RF2 stock: el envío en duda se llevó la última unidad; al recargar el reintento NO lo frena el stock de la pantalla
+      ---
+      duration_ms: 893.361653
+      type: 'test'
+      ...
+    # Subtest: RF3 «Cobrar sólo lo que falta» borra «Pagó con»: el vuelto no sale de la venta entera
+    ok 36 - RF3 «Cobrar sólo lo que falta» borra «Pagó con»: el vuelto no sale de la venta entera
+      ---
+      duration_ms: 760.474938
+      type: 'test'
+      ...
+    # Subtest: el teléfono se compara como la ficha: «+54 9 11 4000-0000» es el mismo cliente que «11 4000 0000»
+    ok 37 - el teléfono se compara como la ficha: «+54 9 11 4000-0000» es el mismo cliente que «11 4000 0000»
+      ---
+      duration_ms: 771.477479
+      type: 'test'
+      ...
+    # Subtest: POS de la bandeja: si lo distinto es DE MÁS, «Cargar sólo lo que falta» lo deja para cobrarlo aparte
+    ok 38 - POS de la bandeja: si lo distinto es DE MÁS, «Cargar sólo lo que falta» lo deja para cobrarlo aparte
+      ---
+      duration_ms: 985.691766
+      type: 'test'
+      ...
+    # Subtest: M3 una duda guardada por la versión ANTERIOR (v2, firma vieja) se restaura con su clave, no se pierde
+    ok 39 - M3 una duda guardada por la versión ANTERIOR (v2, firma vieja) se restaura con su clave, no se pierde
+      ---
+      duration_ms: 841.160659
+      type: 'test'
+      ...
+    # Subtest: M3 una duda guardada que no se puede leer no se descarta en silencio: se avisa revisar Ventas del día
+    ok 40 - M3 una duda guardada que no se puede leer no se descarta en silencio: se avisa revisar Ventas del día
+      ---
+      duration_ms: 597.486728
+      type: 'test'
+      ...
+    # Subtest: M1 un producto que salió del catálogo entre el corte y la recarga sigue en el reintento (y la \#42 vuelve)
+    ok 41 - M1 un producto que salió del catálogo entre el corte y la recarga sigue en el reintento (y la \#42 vuelve)
+      ---
+      duration_ms: 891.122419
+      type: 'test'
+      ...
+    # Subtest: M7 lo que falta trae un producto que ya no está en el catálogo: no se ofrece cargarlo solo
+    ok 42 - M7 lo que falta trae un producto que ya no está en el catálogo: no se ofrece cargarlo solo
+      ---
+      duration_ms: 948.240642
+      type: 'test'
+      ...
+    # Subtest: M4 la duda no estaba grabada y el servidor rechaza por stock: 'no se cobró', sin el 'puede que ya se grabó'
+    ok 43 - M4 la duda no estaba grabada y el servidor rechaza por stock: 'no se cobró', sin el 'puede que ya se grabó'
+      ---
+      duration_ms: 836.996106
+      type: 'test'
+      ...
+    # Subtest: M5 la duda no estaba grabada y se graba AHORA a precio de hoy: se dice que quedó por otro total
+    ok 44 - M5 la duda no estaba grabada y se graba AHORA a precio de hoy: se dice que quedó por otro total
+      ---
+      duration_ms: 838.599044
+      type: 'test'
+      ...
+    # Subtest: M6 POS de la bandeja: en un PEDIDO lo que falta se registra aparte (no se 'cobra'), y «Empezar de nuevo» es un botón visible
+    ok 45 - M6 POS de la bandeja: en un PEDIDO lo que falta se registra aparte (no se 'cobra'), y «Empezar de nuevo» es un botón visible
+      ---
+      duration_ms: 707.370824
+      type: 'test'
+      ...
+    # Subtest: vista de siempre: una línea con producto y sin cantidad frena el cobro y dice cuál (no se cae callada)
+    ok 46 - vista de siempre: una línea con producto y sin cantidad frena el cobro y dice cuál (no se cae callada)
+      ---
+      duration_ms: 707.580786
+      type: 'test'
+      ...
+    # Subtest: POS de la bandeja: una línea con producto y sin cantidad frena el cobro y dice cuál
+    ok 47 - POS de la bandeja: una línea con producto y sin cantidad frena el cobro y dice cuál
+      ---
+      duration_ms: 710.456613
+      type: 'test'
+      ...
+    # Subtest: POS de la bandeja: si se corta la red, no se vacía nada (productos, cantidades, medio, cliente) y se reintenta igual
+    ok 48 - POS de la bandeja: si se corta la red, no se vacía nada (productos, cantidades, medio, cliente) y se reintenta igual
+      ---
+      duration_ms: 788.427376
+      type: 'test'
+      ...
+    # Subtest: POS de la bandeja: un pedido con la red caída conserva los datos del cliente y lo cargado
+    ok 49 - POS de la bandeja: un pedido con la red caída conserva los datos del cliente y lo cargado
+      ---
+      duration_ms: 799.463422
+      type: 'test'
+      ...
+    # Subtest: ticket: la misma venta que la vista de siempre viaja IDÉNTICA al servidor
+    ok 50 - ticket: la misma venta que la vista de siempre viaja IDÉNTICA al servidor
+      ---
+      duration_ms: 1385.05537
+      type: 'test'
+      ...
+    # Subtest: ticket: cada línea dice kilos × precio = importe, se saca con «−», y el total grande es el del botón
+    ok 51 - ticket: cada línea dice kilos × precio = importe, se saca con «−», y el total grande es el del botón
+      ---
+      duration_ms: 721.311304
+      type: 'test'
+      ...
+    # Subtest: ticket: el teclado del mostrador — / busca, Alt+1 es efectivo, F2 cobra, Esc limpia
+    ok 52 - ticket: el teclado del mostrador — / busca, Alt+1 es efectivo, F2 cobra, Esc limpia
+      ---
+      duration_ms: 634.717104
+      type: 'test'
+      ...
+    # Subtest: ticket: una línea con producto y sin cantidad frena el cobro y dice cuál; lo que va por unidad entra con 1
+    ok 53 - ticket: una línea con producto y sin cantidad frena el cobro y dice cuál; lo que va por unidad entra con 1
+      ---
+      duration_ms: 788.362958
+      type: 'test'
+      ...
+    # Subtest: ticket: después de cargar el peso el foco vuelve al buscador SIN abrir la lista (un toque no cae sobre otro corte)
+    ok 54 - ticket: después de cargar el peso el foco vuelve al buscador SIN abrir la lista (un toque no cae sobre otro corte)
+      ---
+      duration_ms: 601.589321
+      type: 'test'
+      ...
+    # Subtest: ticket: se corta la señal a mitad del cobro y el reintento es la MISMA venta (misma clave)
+    ok 55 - ticket: se corta la señal a mitad del cobro y el reintento es la MISMA venta (misma clave)
+      ---
+      duration_ms: 653.518418
+      type: 'test'
+      ...
+    # Subtest: ticket en el celular (412 px) con la piel: el botón de cobrar a la vista, arriba de la cápsula, sin scroll de costado
+    ok 56 - ticket en el celular (412 px) con la piel: el botón de cobrar a la vista, arriba de la cápsula, sin scroll de costado
+      ---
+      duration_ms: 865.619587
+      type: 'test'
+      ...
+    1..56
+ok 125 - Vender en el navegador
+  ---
+  duration_ms: 47145.676464
+  type: 'suite'
+  ...
+# Subtest: Vacío 1,240 + Entraña 0,950, efectivo, pagó con $50.000 → vuelto $17.875
+ok 126 - Vacío 1,240 + Entraña 0,950, efectivo, pagó con $50.000 → vuelto $17.875
+  ---
+  duration_ms: 3.779708
+  type: 'test'
+  ...
+# Subtest: descuento del 10 % sobre $32.125: $3.212,50 y total $28.912,50, también para recepción
+ok 127 - descuento del 10 % sobre $32.125: $3.212,50 y total $28.912,50, también para recepción
+  ---
+  duration_ms: 0.593742
+  type: 'test'
+  ...
+# Subtest: descuento del 15 % con recepción → rechazo que dice hasta cuánto y a quién pedírselo
+ok 128 - descuento del 15 % con recepción → rechazo que dice hasta cuánto y a quién pedírselo
+  ---
+  duration_ms: 4.809685
+  type: 'test'
+  ...
+# Subtest: descuento imposible: más que la venta, más del 100 % o negativo → rechazo; vacío o 0 → sin descuento
+ok 129 - descuento imposible: más que la venta, más del 100 % o negativo → rechazo; vacío o 0 → sin descuento
+  ---
+  duration_ms: 0.784852
+  type: 'test'
+  ...
+# Subtest: descuento del 10 %: el pedido guarda subtotal, descuento y total, y el LIBRO asienta el total
+ok 130 - descuento del 10 %: el pedido guarda subtotal, descuento y total, y el LIBRO asienta el total
+  ---
+  duration_ms: 1.389498
+  type: 'test'
+  ...
+# Subtest: el alta rechaza el 15 % de recepción antes de abrir la transacción; la tienda nace pendiente
+ok 131 - el alta rechaza el 15 % de recepción antes de abrir la transacción; la tienda nace pendiente
+  ---
+  duration_ms: 0.896576
+  type: 'test'
+  ...
+# Subtest: pedido sin cobrar o de la vidriera: no toca el libro
+ok 132 - pedido sin cobrar o de la vidriera: no toca el libro
+  ---
+  duration_ms: 0.561703
+  type: 'test'
+  ...
+# Subtest: precio a mano: la línea va sin producto, no mueve stock y suma al total del libro
+ok 133 - precio a mano: la línea va sin producto, no mueve stock y suma al total del libro
+  ---
+  duration_ms: 0.540355
+  type: 'test'
+  ...
+# Subtest: precio a mano sin motivo → rechazo; y una línea mala rechaza la venta entera
+ok 134 - precio a mano sin motivo → rechazo; y una línea mala rechaza la venta entera
+  ---
+  duration_ms: 1.421954
+  type: 'test'
+  ...
+# Subtest: los 8 más vendidos: sin líneas a mano ni productos que ya no se venden, de más a menos
+ok 135 - los 8 más vendidos: sin líneas a mano ni productos que ya no se venden, de más a menos
+  ---
+  duration_ms: 0.777095
+  type: 'test'
+  ...
+# Subtest: el primer día, sin ventas, las teclas del mostrador salen del catálogo y dicen «Tus productos»
+ok 136 - el primer día, sin ventas, las teclas del mostrador salen del catálogo y dicen «Tus productos»
+  ---
+  duration_ms: 0.262824
+  type: 'test'
+  ...
+# Subtest: con pocas ventas, los vendidos van primero y el catálogo completa sin repetir
+ok 137 - con pocas ventas, los vendidos van primero y el catálogo completa sin repetir
+  ---
+  duration_ms: 0.12488
+  type: 'test'
+  ...
+# Subtest: con ocho más vendidos o más, las teclas son los más vendidos y el catálogo no se mete
+ok 138 - con ocho más vendidos o más, las teclas son los más vendidos y el catálogo no se mete
+  ---
+  duration_ms: 0.130435
+  type: 'test'
+  ...
+# Subtest: si el catálogo no suma nada nuevo, el rótulo sigue siendo «Más vendidos»
+ok 139 - si el catálogo no suma nada nuevo, el rótulo sigue siendo «Más vendidos»
+  ---
+  duration_ms: 0.173705
+  type: 'test'
+  ...
+# Subtest: ticket: kilos con coma, descuento, vuelto y 'No válido como factura'; la venta anónima no dice 'Mostrador'
+ok 140 - ticket: kilos con coma, descuento, vuelto y 'No válido como factura'; la venta anónima no dice 'Mostrador'
+  ---
+  duration_ms: 2.021825
+  type: 'test'
+  ...
+# Subtest: ticket impreso: 58 mm y el texto que tipeó una persona va escapado
+ok 141 - ticket impreso: 58 mm y el texto que tipeó una persona va escapado
+  ---
+  duration_ms: 1.359095
+  type: 'test'
+  ...
+# Subtest: Ingreso en el navegador
+    # Subtest: vista de siempre: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+    ok 1 - vista de siempre: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+      ---
+      duration_ms: 666.761624
+      type: 'test'
+      ...
+    # Subtest: diseño nuevo: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+    ok 2 - diseño nuevo: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+      ---
+      duration_ms: 554.946063
+      type: 'test'
+      ...
+    # Subtest: vista de siempre: lo que se tipea mientras espera la respuesta no se pierde al volver con el error
+    ok 3 - vista de siempre: lo que se tipea mientras espera la respuesta no se pierde al volver con el error
+      ---
+      duration_ms: 528.978319
+      type: 'test'
+      ...
+    # Subtest: vista de siempre: segunda clave equivocada (la pantalla no se rearma) → el email queda, la clave se vacía
+    ok 4 - vista de siempre: segunda clave equivocada (la pantalla no se rearma) → el email queda, la clave se vacía
+      ---
+      duration_ms: 600.713136
+      type: 'test'
+      ...
+    # Subtest: vista de siempre: entrando sin error, el email no aparece solo (se borra lo guardado)
+    ok 5 - vista de siempre: entrando sin error, el email no aparece solo (se borra lo guardado)
+      ---
+      duration_ms: 434.254538
+      type: 'test'
+      ...
+    1..5
+ok 142 - Ingreso en el navegador
+  ---
+  duration_ms: 4455.723586
+  type: 'suite'
+  ...
+# Subtest: sin error en la dirección, el ingreso no muestra aviso
+ok 143 - sin error en la dirección, el ingreso no muestra aviso
+  ---
+  duration_ms: 2.014379
+  type: 'test'
+  ...
+# Subtest: clave equivocada: un solo mensaje que no revela si el email existe
+ok 144 - clave equivocada: un solo mensaje que no revela si el email existe
+  ---
+  duration_ms: 0.749229
+  type: 'test'
+  ...
+# Subtest: el aviso de bloqueo dice los intentos y los minutos de la regla real del login
+ok 145 - el aviso de bloqueo dice los intentos y los minutos de la regla real del login
+  ---
+  duration_ms: 0.357391
+  type: 'test'
+  ...
+# Subtest: si la regla cambia, el texto cambia con ella (nunca promete otro tiempo)
+ok 146 - si la regla cambia, el texto cambia con ella (nunca promete otro tiempo)
+  ---
+  duration_ms: 0.291493
+  type: 'test'
+  ...
+# Subtest: el folio del día es la fecha de la Argentina, no la del servidor en UTC
+ok 147 - el folio del día es la fecha de la Argentina, no la del servidor en UTC
+  ---
+  duration_ms: 0.353873
+  type: 'test'
+  ...
+# Subtest: con error, el email guardado vuelve al campo vacío
+ok 148 - con error, el email guardado vuelve al campo vacío
+  ---
+  duration_ms: 0.225211
+  type: 'test'
+  ...
+# Subtest: lo que ya está tipeado en el campo no se pisa con el guardado
+ok 149 - lo que ya está tipeado en el campo no se pisa con el guardado
+  ---
+  duration_ms: 0.346309
+  type: 'test'
+  ...
+# Subtest: sin error (entrada normal) el email no se completa solo
+ok 150 - sin error (entrada normal) el email no se completa solo
+  ---
+  duration_ms: 0.24955
+  type: 'test'
+  ...
+# Subtest: con error y nada guardado (otra pestaña), el campo queda como está
+ok 151 - con error y nada guardado (otra pestaña), el campo queda como está
+  ---
+  duration_ms: 0.567123
+  type: 'test'
+  ...
+# Subtest: con el email de vuelta, el cursor va a la contraseña; sin email, al email
+ok 152 - con el email de vuelta, el cursor va a la contraseña; sin email, al email
+  ---
+  duration_ms: 0.764384
+  type: 'test'
+  ...
+# Subtest: lo que se guarda en la pestaña es sólo el email: la clave no tiene clave de guardado
+ok 153 - lo que se guarda en la pestaña es sólo el email: la clave no tiene clave de guardado
+  ---
+  duration_ms: 0.370374
+  type: 'test'
+  ...
+# Subtest: Enter con una búsqueda sin resultados: no elige y NO deja pasar el envío del formulario
+ok 154 - Enter con una búsqueda sin resultados: no elige y NO deja pasar el envío del formulario
+  ---
+  duration_ms: 5.128374
+  type: 'test'
+  ...
+# Subtest: Enter con el campo recién enfocado y vacío: no elige el primero del catálogo
+ok 155 - Enter con el campo recién enfocado y vacío: no elige el primero del catálogo
+  ---
+  duration_ms: 0.231831
+  type: 'test'
+  ...
+# Subtest: Enter con la lista cerrada: tampoco llega al formulario
+ok 156 - Enter con la lista cerrada: tampoco llega al formulario
+  ---
+  duration_ms: 0.382374
+  type: 'test'
+  ...
+# Subtest: Enter con lo tipeado: elige la resaltada (el flujo de mostrador 'vac' + Enter)
+ok 157 - Enter con lo tipeado: elige la resaltada (el flujo de mostrador 'vac' + Enter)
+  ---
+  duration_ms: 0.208415
+  type: 'test'
+  ...
+# Subtest: Enter sin texto pero recorriendo con las flechas: elige la que se resaltó
+ok 158 - Enter sin texto pero recorriendo con las flechas: elige la que se resaltó
+  ---
+  duration_ms: 0.142871
+  type: 'test'
+  ...
+# Subtest: Enter mientras el teclado compone una palabra: no elige, y tampoco envía
+ok 159 - Enter mientras el teclado compone una palabra: no elige, y tampoco envía
+  ---
+  duration_ms: 0.23413
+  type: 'test'
+  ...
+# Subtest: todo Enter se previene, en cualquier estado
+ok 160 - todo Enter se previene, en cualquier estado
+  ---
+  duration_ms: 0.947204
+  type: 'test'
+  ...
+# Subtest: flechas: abren en la primera, recorren sin salirse y no rompen sin resultados
+ok 161 - flechas: abren en la primera, recorren sin salirse y no rompen sin resultados
+  ---
+  duration_ms: 0.610663
+  type: 'test'
+  ...
+# Subtest: Escape cierra; cualquier otra tecla sigue su curso (tipear no se frena)
+ok 162 - Escape cierra; cualquier otra tecla sigue su curso (tipear no se frena)
+  ---
+  duration_ms: 0.72501
+  type: 'test'
+  ...
+# Subtest: BuscadorCombo aplica la decisión en cada tecla
+ok 163 - BuscadorCombo aplica la decisión en cada tecla
+  ---
+  duration_ms: 0.992862
+  type: 'test'
+  ...
+# Subtest: la decisión: sólo la última fila válida de la consola prende el diseño nuevo
+ok 164 - la decisión: sólo la última fila válida de la consola prende el diseño nuevo
+  ---
+  duration_ms: 1.996991
+  type: 'test'
+  ...
+# Subtest: ConDiseno apagado devuelve el mismo hijo (ni hoja, ni provider, ni un nodo de más)
+ok 165 - ConDiseno apagado devuelve el mismo hijo (ni hoja, ni provider, ni un nodo de más)
+  ---
+  duration_ms: 7.851391
+  type: 'test'
+  ...
+# Subtest: ConDiseno prendido pide la hoja versionada una vez y deja el contenido igual
+ok 166 - ConDiseno prendido pide la hoja versionada una vez y deja el contenido igual
+  ---
+  duration_ms: 2.689278
+  type: 'test'
+  ...
+# Subtest: cada raíz de un negocio: el atributo sólo con el interruptor, la piel de siempre intacta
+ok 167 - cada raíz de un negocio: el atributo sólo con el interruptor, la piel de siempre intacta
+  ---
+  duration_ms: 1.098878
+  type: 'test'
+  ...
+1..167
+# tests 231
+# suites 3
+# pass 231
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 50442.008778

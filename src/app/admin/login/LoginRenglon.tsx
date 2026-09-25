@@ -9,9 +9,10 @@
 
 import { login } from "@/lib/auth-actions";
 import SubmitButton from "@/components/SubmitButton";
-import { Input, Rotulo, buttonClasses } from "@/components/ui";
+import { Rotulo, buttonClasses } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 import { CampoClave } from "./CampoClave";
+import { CampoEmail } from "./CampoEmail";
 import HojaDeIngreso from "./HojaDeIngreso";
 import type { AvisoDeIngreso } from "./login-core";
 
@@ -63,18 +64,7 @@ export default function LoginRenglon({
           <label htmlFor="login-email" data-ui="rotulo" className={ROTULO_CAMPO}>
             Email
           </label>
-          <Input
-            id="login-email"
-            type="email"
-            name="email"
-            required
-            autoFocus
-            autoComplete="username"
-            inputMode="email"
-            autoCapitalize="none"
-            spellCheck={false}
-            className="min-h-11"
-          />
+          <CampoEmail conError={aviso !== null} className="min-h-11" />
         </div>
         <div className={RENGLON_CAMPO}>
           <label htmlFor="login-password" data-ui="rotulo" className={ROTULO_CAMPO}>

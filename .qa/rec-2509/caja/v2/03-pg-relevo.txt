@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: contra Postgres: una apertura que coincide con el libro no escribe diferencia (cambio de turno sin plata en juego)
+ok 1 - contra Postgres: una apertura que coincide con el libro no escribe diferencia (cambio de turno sin plata en juego)
+  ---
+  duration_ms: 4609.150095
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5328.580388

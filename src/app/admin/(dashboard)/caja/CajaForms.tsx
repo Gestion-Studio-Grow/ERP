@@ -10,8 +10,13 @@
 // se reinicia (el `<form action>` de React los vaciaba también cuando volvía un error).
 //
 // Cerrar el turno es irreversible (congela el arqueo): lleva confirmación, con lo que se va a
-// asentar —cuadra, faltante o sobrante— antes de «Sí, cerrar caja». Abrir, no: es de todos los
-// días y se corrige cerrando.
+// asentar —cuadra, faltante o sobrante— antes de «Sí, cerrar caja». Abrir lleva confirmación sólo
+// cuando el fondo contado no coincide con el libro, porque esa diferencia queda asentada (ADR-101).
+//
+// UN SOLO ESPERADO (ADR-101): los dos formularios reciben el esperado que muestra la pantalla
+// (`esperadoDelCajon`, el saldo en efectivo del libro) y lo mandan al grabar
+// (`esperadoConfirmado`). El servidor compara contra el libro con ESE número y, si el libro se
+// movió mientras se contaba, no graba: lo que se confirma acá es lo que queda asentado.
 //
 // Son client components finos: la carga de datos y el arqueo en vivo viven en el server
 // component (page.tsx). Acá solo va la interacción del formulario.
@@ -21,6 +26,7 @@ import { useRouter } from "next/navigation";
 import { openCashSession, closeCashSession, type CajaActionState } from "@/lib/caja-actions";
 import { round2 } from "@/lib/round";
 import { leerImporte } from "@/lib/pos-peso";
+import { CAMPO_ESPERADO_CONFIRMADO, esperadoParaElFormulario } from "@/lib/caja/esperado-del-cajon";
 import { Field, Input, buttonClasses, fmtMoneyARS } from "@/components/ui";
 
 // Mensaje de error del formulario. `role="alert"` → el lector de pantalla lo
@@ -59,15 +65,31 @@ async function correr(
 }
 
 // --- Apertura de turno (estado sin caja abierta) ---
-export function OpenCajaForm() {
+// `esperado`: lo que el libro dice que hay en el cajón (`getCajaData().esperadoEnElCajon`).
+// `null` sólo en la demo.
+export function OpenCajaForm({ esperado }: { esperado: number | null }) {
   const router = useRouter();
   const [fondo, setFondo] = useState("0");
   const [error, setError] = useState<string | null>(null);
+  const [confirmando, setConfirmando] = useState(false);
   const [pending, startTransition] = useTransition();
+  const diferencia = esperado === null ? null : previewArqueo(fondo, esperado);
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    if (pending) return;
+    // Un fondo que no coincide con el libro deja asentada la diferencia: primero se muestra.
+    if (!confirmando && diferencia && diferencia.diff !== 0) {
+      setConfirmando(true);
+      return;
+    }
+    abrir();
+  }
+
+  function abrir() {
+    const fd = new FormData();
+    fd.set("openingFloat", fondo);
+    fd.set(CAMPO_ESPERADO_CONFIRMADO, esperadoParaElFormulario(esperado ?? 0));
     startTransition(async () => {
       const err = await correr(
         openCashSession,
@@ -75,13 +97,23 @@ export function OpenCajaForm() {
         "No se pudo abrir la caja: revisá la conexión y volvé a intentar. Si al recargar la caja aparece abierta, ya se abrió.",
       );
       setError(err);
+      setConfirmando(false);
       router.refresh();
     });
   }
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-      <Field label="Fondo inicial" htmlFor="openingFloat" required hint="Efectivo con el que arranca el cajón.">
+      <Field
+        label="Fondo inicial"
+        htmlFor="openingFloat"
+        required
+        hint={
+          esperado === null
+            ? "Efectivo con el que arranca el cajón."
+            : `Contá el efectivo del cajón. Según el libro tendría que haber ${fmtMoneyARS(esperado)}.`
+        }
+      >
         <Input
           id="openingFloat"
           // Texto, no `number`: Chromium tira la coma al tipear ("12,5" → 125) y lee
@@ -93,6 +125,7 @@ export function OpenCajaForm() {
           onChange={(e) => {
             setFondo(e.target.value);
             setError(null);
+            setConfirmando(false);
           }}
           required
           inputMode="decimal"
@@ -101,11 +134,42 @@ export function OpenCajaForm() {
         />
       </Field>
       <FormError error={error} />
-      <div>
-        <button type="submit" disabled={pending} className={buttonClasses("solid", "md")}>
-          {pending ? "Abriendo…" : "Abrir caja"}
-        </button>
-      </div>
+      {confirmando && diferencia && esperado !== null ? (
+        <div
+          role="group"
+          aria-labelledby="abrir-caja-titulo"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setConfirmando(false);
+            }
+          }}
+          className="space-y-3 rounded-md border border-line bg-surface-sunken p-3"
+        >
+          <p id="abrir-caja-titulo" className="text-sm font-medium text-strong">
+            ¿Abrir con {fmtMoneyARS(round2(diferencia.diff + esperado))}? Según el libro tendría que haber {fmtMoneyARS(esperado)}: queda
+            asentado un {diferencia.diff < 0 ? "faltante" : "sobrante"} de {fmtMoneyARS(Math.abs(diferencia.diff))} al abrir el turno.
+          </p>
+          <p className="text-xs text-muted">
+            Si el libro está mal (plata que nunca estuvo en el cajón), abrí igual y después corregilo en el Libro de caja con un movimiento con
+            la fecha de hoy.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" autoFocus onClick={abrir} disabled={pending} className={buttonClasses("solid", "md")}>
+              {pending ? "Abriendo…" : "Sí, abrir caja"}
+            </button>
+            <button type="button" onClick={() => setConfirmando(false)} disabled={pending} className={buttonClasses("ghost", "md")}>
+              Volver
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <button type="submit" disabled={pending} className={buttonClasses("solid", "md")}>
+            {pending ? "Abriendo…" : "Abrir caja"}
+          </button>
+        </div>
+      )}
     </form>
   );
 }
@@ -191,6 +255,8 @@ export function CloseCajaForm({ expected }: { expected: number }) {
     const fd = new FormData();
     fd.set("counted", counted);
     fd.set("note", note);
+    // El esperado que se mostró y se confirmó: el servidor no cierra si el libro ya dice otro.
+    fd.set(CAMPO_ESPERADO_CONFIRMADO, esperadoParaElFormulario(expected));
     startTransition(async () => {
       const err = await correr(
         closeCashSession,

@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { login } from "@/lib/auth-actions";
-import { Field, Input, buttonClasses } from "@/components/ui";
 import { getTenantBrand, resolveAccent } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import { getProductoContexto } from "@/lib/producto";
@@ -9,6 +7,7 @@ import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { PIEL_RENGLON } from "@/lib/diseno/diseno";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
 import LoginRenglon from "./LoginRenglon";
+import FormularioDeSiempre from "./FormularioDeSiempre";
 import { RAIZ_HOJA_DE_INGRESO } from "./HojaDeIngreso";
 import { avisoDeIngreso, folioDelDia } from "./login-core";
 import type { CSSProperties } from "react";
@@ -155,35 +154,7 @@ export default async function LoginPage({
               </p>
             ) : null}
 
-            <form action={login} className="space-y-4">
-              <input type="hidden" name="next" value={next ?? "/admin"} />
-              <Field label="Email" htmlFor="login-email">
-                <Input
-                  id="login-email"
-                  type="email"
-                  name="email"
-                  required
-                  autoFocus
-                  autoComplete="username"
-                  inputMode="email"
-                  spellCheck={false}
-                  placeholder="tu@email.com"
-                />
-              </Field>
-              <Field label="Contraseña" htmlFor="login-password">
-                <Input
-                  id="login-password"
-                  type="password"
-                  name="password"
-                  required
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                />
-              </Field>
-              <button type="submit" className={buttonClasses("solid", "lg", "w-full mt-1")}>
-                Ingresar
-              </button>
-            </form>
+            <FormularioDeSiempre next={next ?? "/admin"} conError={Boolean(error)} />
           </section>
 
           {/* Tagline del producto — cierra la primera impresión. Solo con identidad. */}

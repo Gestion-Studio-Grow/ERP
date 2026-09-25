@@ -1,0 +1,65 @@
+--- CASO 1: CH sin cambios (su producto sigue igual)
+ id  | groupId | sku 
+-----+---------+-----
+ ch1 |         | 
+(1 row)
+
+--- CASO 2 (debe fallar): SKU repetido en el mismo negocio
+psql:variantes-borrador.sql:26: ERROR:  duplicate key value violates unique constraint "Product_tenantId_sku_key"
+DETAIL:  Key ("tenantId", sku)=(adosmanos, ZP-42-N) already exists.
+--- CASO 3 (debe pasar): mismo SKU en otro negocio
+--- CASO 4 (debe fallar): combinación repetida en el modelo
+psql:variantes-borrador.sql:30: ERROR:  duplicate key value violates unique constraint "Product_groupId_opcion1_opcion2_key"
+DETAIL:  Key ("groupId", opcion1, opcion2)=(g1, 42, Negro) already exists.
+--- CASO 5 (debe fallar): combinación repetida con el segundo eje vacío (NULLS NOT DISTINCT)
+psql:variantes-borrador.sql:33: ERROR:  duplicate key value violates unique constraint "Product_groupId_opcion1_opcion2_key"
+DETAIL:  Key ("groupId", opcion1, opcion2)=(gm, Chico, null) already exists.
+--- CASO 6 (debe fallar): producto de magra colgado de un modelo de adosmanos (FK compuesta, como dueño y sin RLS)
+psql:variantes-borrador.sql:35: ERROR:  insert or update on table "Product" violates foreign key constraint "Product_groupId_tenantId_fkey"
+DETAIL:  Key (groupId, tenantId)=(g1, magra) is not present in table "ProductGroup".
+--- CASO 7 (debe fallar): variante sin opcion1
+psql:variantes-borrador.sql:37: ERROR:  new row for relation "Product" violates check constraint "Product_variante_completa"
+DETAIL:  Failing row contains (x5, adosmanos, sin talle, 0, g1, null, null, null).
+--- CASO 8 (debe fallar): borrar un modelo con variantes
+psql:variantes-borrador.sql:39: ERROR:  update or delete on table "ProductGroup" violates foreign key constraint "Product_groupId_tenantId_fkey" on table "Product"
+DETAIL:  Key (id, tenantId)=(g1, adosmanos) is still referenced from table "Product".
+--- CASO 9: RLS como rol sin BYPASSRLS con el negocio magra: ve 1 modelo (el suyo) y no puede crear uno de adosmanos
+ set_config 
+------------
+ magra
+(1 row)
+
+ id | tenantId 
+----+----------
+ gm | magra
+(1 row)
+
+psql:variantes-borrador.sql:43: ERROR:  new row violates row-level security policy for table "ProductGroup"
+--- CASO 10: stock del modelo calculado (suma de variantes)
+     name      | stock_modelo 
+---------------+--------------
+ Zapatilla Pro |            7
+(1 row)
+
+--- CASO 11: tras la vuelta atrás, las variantes quedan como productos sueltos con su stock
+  id  |  tenantId  |            name            | stock 
+------+------------+----------------------------+-------
+ ch1  | beauty-spa | Crema                      |     3
+ m1   | magra      | Kit chico                  |     0
+ p42n | adosmanos  | Zapatilla Pro — 42 · Negro |     2
+ p43n | adosmanos  | Zapatilla Pro — 43 · Negro |     5
+ x2   | magra      | Otro                       |     0
+(5 rows)
+
+                    Table "public.Product"
+  Column  |       Type       | Collation | Nullable | Default 
+----------+------------------+-----------+----------+---------
+ id       | text             |           | not null | 
+ tenantId | text             |           | not null | 
+ name     | text             |           | not null | 
+ stock    | double precision |           | not null | 0
+Indexes:
+    "Product_pkey" PRIMARY KEY, btree (id)
+Foreign-key constraints:
+    "Product_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"(id)
+

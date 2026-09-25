@@ -1,0 +1,47 @@
+TAP version 13
+# Subtest: Enlaces de texto del panel sobre el fondo: AA con los 7 acentos de marca
+    # Subtest: el acento crudo como texto NO llega con ámbar (el caso del gate: 4,33:1)
+    ok 1 - el acento crudo como texto NO llega con ámbar (el caso del gate: 4,33:1)
+      ---
+      duration_ms: 190.586868
+      type: 'test'
+      ...
+    # Subtest: /admin/proveedores (compras/page.tsx) se lee con todos los acentos
+    ok 2 - /admin/proveedores (compras/page.tsx) se lee con todos los acentos
+      ---
+      duration_ms: 1010.199401
+      type: 'test'
+      ...
+    # Subtest: /admin/compras/sugerido (compras/page.tsx) se lee con todos los acentos
+    ok 3 - /admin/compras/sugerido (compras/page.tsx) se lee con todos los acentos
+      ---
+      duration_ms: 1001.702977
+      type: 'test'
+      ...
+    # Subtest: /admin/ajustes/recuento (ajustes/page.tsx) se lee con todos los acentos
+    ok 4 - /admin/ajustes/recuento (ajustes/page.tsx) se lee con todos los acentos
+      ---
+      duration_ms: 1119.183883
+      type: 'test'
+      ...
+    # Subtest: /admin/caja/libro (caja/cierre/page.tsx) se lee con todos los acentos
+    ok 5 - /admin/caja/libro (caja/cierre/page.tsx) se lee con todos los acentos
+      ---
+      duration_ms: 1114.559262
+      type: 'test'
+      ...
+    1..5
+ok 1 - Enlaces de texto del panel sobre el fondo: AA con los 7 acentos de marca
+  ---
+  duration_ms: 6390.361934
+  type: 'suite'
+  ...
+1..1
+# tests 5
+# suites 1
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7017.954673

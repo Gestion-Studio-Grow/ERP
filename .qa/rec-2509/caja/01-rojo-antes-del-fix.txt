@@ -1,0 +1,89 @@
+TAP version 13
+# Subtest: contra Postgres: el caso MAGRA — el turno cuadra y el día ya no inventa el faltante; la diferencia al abrir queda una vez, con quién y cuándo; B no se mezcla
+not ok 1 - contra Postgres: el caso MAGRA — el turno cuadra y el día ya no inventa el faltante; la diferencia al abrir queda una vez, con quién y cuándo; B no se mezcla
+  ---
+  duration_ms: 17679.986928
+  type: 'test'
+  location: '/home/user/erp/src/lib/caja/un-solo-esperado-postgres.test.ts:2:3730'
+  failureType: 'testCodeFailure'
+  error: |-
+    la diferencia de apertura se asienta una sola vez
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/caja/un-solo-esperado-postgres.test.ts:95:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: contra Postgres: los días cerrados no se tocan; la diferencia real al abrir y la del arqueo quedan una vez cada una; lo que no pasó por el turno también cuenta
+not ok 2 - contra Postgres: los días cerrados no se tocan; la diferencia real al abrir y la del arqueo quedan una vez cada una; lo que no pasó por el turno también cuenta
+  ---
+  duration_ms: 3385.434361
+  type: 'test'
+  location: '/home/user/erp/src/lib/caja/un-solo-esperado-postgres.test.ts:2:7060'
+  failureType: 'testCodeFailure'
+  error: |-
+    
+    Invalid `c.operatorPrisma.cashMovement.createMany()` invocation in
+    /home/user/erp/src/lib/caja/un-solo-esperado-postgres.test.ts:143:39
+    
+      140 const c = await preparar(laBase);
+      141 const { a, b } = laBase;
+      142 
+    → 143 await c.operatorPrisma.cashMovement.createMany(
+    Database `erp_test_2430_4c381156` does not exist on the database server
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    zr.handleRequestError (/home/user/erp/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    zr.handleAndLogRequestError (/home/user/erp/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    zr.request (/home/user/erp/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async a (/home/user/erp/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/caja/un-solo-esperado-postgres.test.ts:143:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: contra Postgres: una apertura que coincide con el libro no escribe diferencia (cambio de turno sin plata en juego)
+not ok 3 - contra Postgres: una apertura que coincide con el libro no escribe diferencia (cambio de turno sin plata en juego)
+  ---
+  duration_ms: 2698.767966
+  type: 'test'
+  location: '/home/user/erp/src/lib/caja/un-solo-esperado-postgres.test.ts:2:9907'
+  failureType: 'testCodeFailure'
+  error: |-
+    
+    Invalid `c.operatorPrisma.cashMovement.create()` invocation in
+    /home/user/erp/src/lib/caja/un-solo-esperado-postgres.test.ts:203:39
+    
+      200 if (!laBase) return;
+      201 const c = await preparar(laBase);
+      202 const { a } = laBase;
+    → 203 await c.operatorPrisma.cashMovement.create(
+    Database `erp_test_2430_4c381156` does not exist on the database server
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    zr.handleRequestError (/home/user/erp/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    zr.handleAndLogRequestError (/home/user/erp/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    zr.request (/home/user/erp/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async a (/home/user/erp/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/caja/un-solo-esperado-postgres.test.ts:203:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 0
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 25337.402193

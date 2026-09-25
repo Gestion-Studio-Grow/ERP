@@ -1,0 +1,8 @@
+    not ok 1 - home: el «Reservar» del encabezado mide 44 px en el celular
+        Reservar 94×37
+        0: 'Reservar 94×37'
+    not ok 2 - /reserva: los desplegables del formulario miden 44 px en el celular
+        Seleccioná un profesionalCarla — Box 1Ju 412×40
+        0: 'Seleccioná un profesionalCarla — Box 1Ju 412×40'
+# pass 0
+# fail 2

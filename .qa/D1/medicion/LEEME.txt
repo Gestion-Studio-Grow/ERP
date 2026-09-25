@@ -1,0 +1,8 @@
+Evidencia de la medición de D1 (plan rev. 1), traída del scratchpad de la sesión (objeción 3 de ENG-011).
+Origen: /tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/d1 (=$D1 en D1-PLAN.md §1).
+Copiado 2026-09-25 sin node_modules, sin las copias del repo (copia/, nueva/) y sin los bundles salida*.js.
+Los scripts todavía nombran $D1: para volver a correrlos, D1=/home/user/erp/.qa/D1/medicion.
+proto/p*_*.sql y *.reversa.sql son la plantilla EN EL LUGAR (rev. 1), reemplazada en la rev. 2 por
+expandir y contraer: se conservan como historia. proto/m1-*.sql y expandir.sql son el prototipo de
+expandir/contraer DESCARTADO en la rev. 1 (columna nueva con DEFAULT 0: el alta de $100 quedaba en $0).
+El prototipo vigente (rev. 2) está en .qa/rec-2509/disenos-variantes-d1/.

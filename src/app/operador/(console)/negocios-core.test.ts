@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import type { ItemApertura, ResultadoApertura } from "@/lib/operador/checklist-apertura";
 import {
   bandejaDeNegocios,
+  coincideNegocio,
   contarVistas,
   filtrarNegocios,
   leerPestana,
@@ -109,6 +110,21 @@ test("buscar encuentra por nombre, slug o link sin mayúsculas ni acentos", () =
   assert.deepEqual(filtrarNegocios(TODOS, null, "CHESTE").map((n) => n.id), ["beauty-spa"]);
   assert.deepEqual(filtrarNegocios(TODOS, null, "lanús").map((n) => n.id), ["estudio-lanus"]);
   assert.deepEqual(filtrarNegocios(TODOS, "estudios", "magra"), []);
+});
+
+test("el buscador de la lista en el celular usa la misma regla que el servidor", () => {
+  // Lo que la tabla filtra mientras se escribe tiene que dar lo mismo que la búsqueda con Enter.
+  for (const q of ["", "  ", "estetica", "CHESTE", "lanús", "magra", "no-existe"]) {
+    assert.deepEqual(
+      TODOS.filter((n) => coincideNegocio(n, q)).map((n) => n.id),
+      filtrarNegocios(TODOS, null, q).map((n) => n.id),
+      `con «${q}»`,
+    );
+  }
+  // Alcanza con nombre, slug y link: la fila de la tabla no trae más.
+  assert.equal(coincideNegocio({ nombre: "CH Estética", slug: "beauty-spa", subdominio: null }, "ch est"), true);
+  assert.equal(coincideNegocio({ nombre: "CH Estética", slug: "beauty-spa", subdominio: null }, "BEAUTY"), true);
+  assert.equal(coincideNegocio({ nombre: "CH Estética", slug: "beauty-spa", subdominio: null }, "velas"), false);
 });
 
 test("ordenar por actividad de mayor a menor pone arriba al que más operó", () => {

@@ -1,0 +1,485 @@
+TAP version 13
+# Subtest: cada número sube a su objetivo, escrito como tarea y con su tecla
+ok 1 - cada número sube a su objetivo, escrito como tarea y con su tecla
+  ---
+  duration_ms: 3.534065
+  type: 'test'
+  ...
+# Subtest: la alerta abre la app que RESUELVE si la ve (Recuento), y si no, la que mide (Movimientos)
+ok 2 - la alerta abre la app que RESUELVE si la ve (Recuento), y si no, la que mide (Movimientos)
+  ---
+  duration_ms: 0.753264
+  type: 'test'
+  ...
+# Subtest: una alerta de una app sin regla no se pierde: va a Revisar con la app que la mide
+ok 3 - una alerta de una app sin regla no se pierde: va a Revisar con la app que la mide
+  ---
+  duration_ms: 0.507925
+  type: 'test'
+  ...
+# Subtest: la bandeja pide pocos números: ninguna app repetida y todas con regla
+ok 4 - la bandeja pide pocos números: ninguna app repetida y todas con regla
+  ---
+  duration_ms: 0.205251
+  type: 'test'
+  ...
+# Subtest: la línea del día: sólo lo que se pudo leer, en palabras
+ok 5 - la línea del día: sólo lo que se pudo leer, en palabras
+  ---
+  duration_ms: 0.467927
+  type: 'test'
+  ...
+# Subtest: el título con la fecha del negocio, mayúscula sólo donde va; Mis apps de fábrica por rubro; montos
+ok 6 - el título con la fecha del negocio, mayúscula sólo donde va; Mis apps de fábrica por rubro; montos
+  ---
+  duration_ms: 25.574016
+  type: 'test'
+  ...
+# Subtest: el sugerido de compra dice la cantidad en la tarea y lleva una palabra de folio (no un número suelto)
+ok 7 - el sugerido de compra dice la cantidad en la tarea y lleva una palabra de folio (no un número suelto)
+  ---
+  duration_ms: 0.971571
+  type: 'test'
+  ...
+# Subtest: con la caja cerrada el Inicio ofrece «Abrir la caja»; abierta, o sin la app Caja, no dice nada
+ok 8 - con la caja cerrada el Inicio ofrece «Abrir la caja»; abierta, o sin la app Caja, no dice nada
+  ---
+  duration_ms: 0.516149
+  type: 'test'
+  ...
+# Subtest: un negocio que nunca cerró un día ve «Para arrancar» con precios, caja y primer cierre
+ok 9 - un negocio que nunca cerró un día ve «Para arrancar» con precios, caja y primer cierre
+  ---
+  duration_ms: 0.586897
+  type: 'test'
+  ...
+# Subtest: los pasos resueltos quedan tildados, y con el primer cierre «Para arrancar» se va solo
+ok 10 - los pasos resueltos quedan tildados, y con el primer cierre «Para arrancar» se va solo
+  ---
+  duration_ms: 0.519558
+  type: 'test'
+  ...
+# Subtest: cada paso sale sólo si la persona ve la app que lo resuelve
+ok 11 - cada paso sale sólo si la persona ve la app que lo resuelve
+  ---
+  duration_ms: 0.187205
+  type: 'test'
+  ...
+# Subtest: «Para arrancar» avisa la facturación sin configurar sólo a quien ve Facturación y sin inventar
+ok 12 - «Para arrancar» avisa la facturación sin configurar sólo a quien ve Facturación y sin inventar
+  ---
+  duration_ms: 0.492092
+  type: 'test'
+  ...
+# Subtest: «Para arrancar» avisa que la vidriera no tiene WhatsApp, sólo a quien ve Pedidos y Datos del negocio
+ok 13 - «Para arrancar» avisa que la vidriera no tiene WhatsApp, sólo a quien ve Pedidos y Datos del negocio
+  ---
+  duration_ms: 0.328367
+  type: 'test'
+  ...
+# Subtest: Números del negocio en el celular, en el navegador
+    # Subtest: a 390 px el nombre de la app entra entero y ocupa al menos la mitad del renglón
+    ok 1 - a 390 px el nombre de la app entra entero y ocupa al menos la mitad del renglón
+      ---
+      duration_ms: 500.220457
+      type: 'test'
+      ...
+    # Subtest: en la PC la cifra usa su columna de siempre y el nombre va en una línea
+    ok 2 - en la PC la cifra usa su columna de siempre y el nombre va en una línea
+      ---
+      duration_ms: 542.625102
+      type: 'test'
+      ...
+    1..2
+ok 14 - Números del negocio en el celular, en el navegador
+  ---
+  duration_ms: 3679.331037
+  type: 'suite'
+  ...
+# Subtest: fijar 'Vender': queda guardada para esa persona y aparece en Mis apps
+ok 15 - fijar 'Vender': queda guardada para esa persona y aparece en Mis apps
+  ---
+  duration_ms: 5.661488
+  type: 'test'
+  ...
+# Subtest: la cookie es de UNA persona: si en la misma computadora entra otra, no hereda las fijadas
+ok 16 - la cookie es de UNA persona: si en la misma computadora entra otra, no hereda las fijadas
+  ---
+  duration_ms: 0.337563
+  type: 'test'
+  ...
+# Subtest: sin cookie (otro navegador de la misma persona) no hay fijadas: es lo esperado
+ok 17 - sin cookie (otro navegador de la misma persona) no hay fijadas: es lo esperado
+  ---
+  duration_ms: 0.254029
+  type: 'test'
+  ...
+# Subtest: una cookie editada a mano no hace aparecer apps que la persona no ve
+ok 18 - una cookie editada a mano no hace aparecer apps que la persona no ve
+  ---
+  duration_ms: 0.658653
+  type: 'test'
+  ...
+# Subtest: las pantallas que no se ofrecen (App no disponible) no se pueden fijar
+ok 19 - las pantallas que no se ofrecen (App no disponible) no se pueden fijar
+  ---
+  duration_ms: 0.385389
+  type: 'test'
+  ...
+# Subtest: tope de 8: la novena no entra y el mensaje dice cómo seguir
+ok 20 - tope de 8: la novena no entra y el mensaje dice cómo seguir
+  ---
+  duration_ms: 1.176762
+  type: 'test'
+  ...
+# Subtest: fijar dos veces no duplica, y quitar la saca aunque ya no se vea
+ok 21 - fijar dos veces no duplica, y quitar la saca aunque ya no se vea
+  ---
+  duration_ms: 0.583188
+  type: 'test'
+  ...
+# Subtest: una app que se dejó de ver sale de Mis apps y libera su lugar en el tope
+ok 22 - una app que se dejó de ver sale de Mis apps y libera su lugar en el tope
+  ---
+  duration_ms: 0.510085
+  type: 'test'
+  ...
+# Subtest: los números se piden en orden de pantalla: Mis apps primero, sin repetir
+ok 23 - los números se piden en orden de pantalla: Mis apps primero, sin repetir
+  ---
+  duration_ms: 1.540955
+  type: 'test'
+  ...
+# Subtest: barra de abajo: los 4 primeros espacios de la persona, con rótulo corto, y el buscador aparte
+ok 24 - barra de abajo: los 4 primeros espacios de la persona, con rótulo corto, y el buscador aparte
+  ---
+  duration_ms: 1.035122
+  type: 'test'
+  ...
+# Subtest: barra de abajo en una estética: el primero es Recepción, con la agenda de ícono
+ok 25 - barra de abajo en una estética: el primero es Recepción, con la agenda de ícono
+  ---
+  duration_ms: 0.370046
+  type: 'test'
+  ...
+# Subtest: la barra marca el espacio de la pantalla actual; el Inicio no marca ninguno
+ok 26 - la barra marca el espacio de la pantalla actual; el Inicio no marca ninguno
+  ---
+  duration_ms: 0.651251
+  type: 'test'
+  ...
+# Subtest: la barra busca el espacio igual que appDeRuta, sin llevar el registro al navegador
+ok 27 - la barra busca el espacio igual que appDeRuta, sin llevar el registro al navegador
+  ---
+  duration_ms: 6.05928
+  type: 'test'
+  ...
+# Subtest: toda app lista con ruta fija está en el gate; las en preparación y las de [id] no
+ok 28 - toda app lista con ruta fija está en el gate; las en preparación y las de [id] no
+  ---
+  duration_ms: 55.946123
+  type: 'test'
+  ...
+# Subtest: cada app se mide en los negocios de su rubro
+ok 29 - cada app se mide en los negocios de su rubro
+  ---
+  duration_ms: 7.242527
+  type: 'test'
+  ...
+# Subtest: lo que el gate ya medía sigue medido (y la pantalla de rechazos también)
+ok 30 - lo que el gate ya medía sigue medido (y la pantalla de rechazos también)
+  ---
+  duration_ms: 4.464877
+  type: 'test'
+  ...
+# Subtest: el celular del gate es el de 412 px de la casa
+ok 31 - el celular del gate es el de 412 px de la casa
+  ---
+  duration_ms: 1.433739
+  type: 'test'
+  ...
+# Subtest: una app que no está en ese negocio se omite (no se mide la pantalla de rechazo en su lugar)
+ok 32 - una app que no está en ese negocio se omite (no se mide la pantalla de rechazo en su lugar)
+  ---
+  duration_ms: 5.821414
+  type: 'test'
+  ...
+# Subtest: sólo puede faltar una app con módulo, rubro o edición: una del núcleo que rebota FALLA
+ok 33 - sólo puede faltar una app con módulo, rubro o edición: una del núcleo que rebota FALLA
+  ---
+  duration_ms: 2.082673
+  type: 'test'
+  ...
+# Subtest: el tile de Auditoría abre la pantalla filtrada a hoy; el resto, su ruta
+ok 34 - el tile de Auditoría abre la pantalla filtrada a hoy; el resto, su ruta
+  ---
+  duration_ms: 1.237319
+  type: 'test'
+  ...
+# Subtest: el número de Auditoría cuenta con el MISMO where que la pantalla abierta desde el tile
+ok 35 - el número de Auditoría cuenta con el MISMO where que la pantalla abierta desde el tile
+  ---
+  duration_ms: 27.144321
+  type: 'test'
+  ...
+# Subtest: OWNER de MAGRA ve Mostrador, Caja, Clientes, Catálogo y precios, Stock y compras, Finanzas y Administración
+ok 36 - OWNER de MAGRA ve Mostrador, Caja, Clientes, Catálogo y precios, Stock y compras, Finanzas y Administración
+  ---
+  duration_ms: 5.021533
+  type: 'test'
+  ...
+# Subtest: RECEPTION de MAGRA ve Mostrador, Caja, Clientes y Stock y compras (el encargado cuenta y mira movimientos)
+ok 37 - RECEPTION de MAGRA ve Mostrador, Caja, Clientes y Stock y compras (el encargado cuenta y mira movimientos)
+  ---
+  duration_ms: 0.467744
+  type: 'test'
+  ...
+# Subtest: PROFESSIONAL no tiene Inicio de apps (su casa es la agenda)
+ok 38 - PROFESSIONAL no tiene Inicio de apps (su casa es la agenda)
+  ---
+  duration_ms: 0.218333
+  type: 'test'
+  ...
+# Subtest: en un negocio de servicios el primer espacio se llama Recepción
+ok 39 - en un negocio de servicios el primer espacio se llama Recepción
+  ---
+  duration_ms: 0.332112
+  type: 'test'
+  ...
+# Subtest: los espacios que no van en el Inicio nunca son sección (el propio Inicio no es un botón)
+ok 40 - los espacios que no van en el Inicio nunca son sección (el propio Inicio no es un botón)
+  ---
+  duration_ms: 1.158012
+  type: 'test'
+  ...
+# Subtest: escribir 'fact' y Enter abre Facturación (la primera coincidencia)
+ok 41 - escribir 'fact' y Enter abre Facturación (la primera coincidencia)
+  ---
+  duration_ms: 1.19321
+  type: 'test'
+  ...
+# Subtest: 'Para atender hoy' junta sólo lo que está en alerta, y avisa lo que no se pudo revisar
+ok 42 - 'Para atender hoy' junta sólo lo que está en alerta, y avisa lo que no se pudo revisar
+  ---
+  duration_ms: 0.398574
+  type: 'test'
+  ...
+# Subtest: listaDeNombres arma la frase del aviso
+ok 43 - listaDeNombres arma la frase del aviso
+  ---
+  duration_ms: 0.192788
+  type: 'test'
+  ...
+# Subtest: las vistas cuentan cada estado y los pendientes para abrir
+ok 44 - las vistas cuentan cada estado y los pendientes para abrir
+  ---
+  duration_ms: 2.46914
+  type: 'test'
+  ...
+# Subtest: una vista que no existe cae en «Todos»; una pestaña que no existe, en «Puesta en marcha»
+ok 45 - una vista que no existe cae en «Todos»; una pestaña que no existe, en «Puesta en marcha»
+  ---
+  duration_ms: 0.268184
+  type: 'test'
+  ...
+# Subtest: la vista «en producción» deja sólo los negocios vivos
+ok 46 - la vista «en producción» deja sólo los negocios vivos
+  ---
+  duration_ms: 0.26682
+  type: 'test'
+  ...
+# Subtest: la vista «con pendientes» deja los que no están listos para abrir
+ok 47 - la vista «con pendientes» deja los que no están listos para abrir
+  ---
+  duration_ms: 0.188013
+  type: 'test'
+  ...
+# Subtest: buscar encuentra por nombre, slug o link sin mayúsculas ni acentos
+ok 48 - buscar encuentra por nombre, slug o link sin mayúsculas ni acentos
+  ---
+  duration_ms: 0.399322
+  type: 'test'
+  ...
+# Subtest: el buscador de la lista en el celular usa la misma regla que el servidor
+ok 49 - el buscador de la lista en el celular usa la misma regla que el servidor
+  ---
+  duration_ms: 0.540178
+  type: 'test'
+  ...
+# Subtest: ordenar por actividad de mayor a menor pone arriba al que más operó
+ok 50 - ordenar por actividad de mayor a menor pone arriba al que más operó
+  ---
+  duration_ms: 10.210726
+  type: 'test'
+  ...
+# Subtest: un orden que no se entiende no reordena
+ok 51 - un orden que no se entiende no reordena
+  ---
+  duration_ms: 0.179964
+  type: 'test'
+  ...
+# Subtest: el estado se dice en palabras, con su forma
+ok 52 - el estado se dice en palabras, con su forma
+  ---
+  duration_ms: 0.427326
+  type: 'test'
+  ...
+# Subtest: el plan sale del catálogo nuevo (provisional), de uno viejo, o dice «Sin plan»
+ok 53 - el plan sale del catálogo nuevo (provisional), de uno viejo, o dice «Sin plan»
+  ---
+  duration_ms: 0.567498
+  type: 'test'
+  ...
+# Subtest: el rubro se lee sin el prefijo del blueprint
+ok 54 - el rubro se lee sin el prefijo del blueprint
+  ---
+  duration_ms: 3.038249
+  type: 'test'
+  ...
+# Subtest: cada pendiente abre la pestaña de la ficha que lo resuelve
+ok 55 - cada pendiente abre la pestaña de la ficha que lo resuelve
+  ---
+  duration_ms: 0.204611
+  type: 'test'
+  ...
+# Subtest: la bandeja pone primero al que más debe y no pide nada a un suspendido
+ok 56 - la bandeja pone primero al que más debe y no pide nada a un suspendido
+  ---
+  duration_ms: 0.401579
+  type: 'test'
+  ...
+# Subtest: con un solo pendiente la bandeja dice cuál y su dato
+ok 57 - con un solo pendiente la bandeja dice cuál y su dato
+  ---
+  duration_ms: 4.99187
+  type: 'test'
+  ...
+# Subtest: el riel de «listo para abrir» cuenta sólo lo que aplica, los listos primero
+ok 58 - el riel de «listo para abrir» cuenta sólo lo que aplica, los listos primero
+  ---
+  duration_ms: 0.309551
+  type: 'test'
+  ...
+# Subtest: contra Postgres (app_rls + RLS): el cajero con Vender encuentra productos con su precio de venta, sin costo y sólo de su negocio
+ok 59 - contra Postgres (app_rls + RLS): el cajero con Vender encuentra productos con su precio de venta, sin costo y sólo de su negocio
+  ---
+  duration_ms: 4552.576439
+  type: 'test'
+  ...
+# Subtest: contra Postgres (app_rls + RLS): el buscador sólo encuentra lo del negocio y lo que la persona puede abrir
+ok 60 - contra Postgres (app_rls + RLS): el buscador sólo encuentra lo del negocio y lo que la persona puede abrir
+  ---
+  duration_ms: 4895.894482
+  type: 'test'
+  ...
+# Subtest: la búsqueda se recorta y exige de 2 a 60 letras; lo que no es texto no se busca
+ok 61 - la búsqueda se recorta y exige de 2 a 60 letras; lo que no es texto no se busca
+  ---
+  duration_ms: 2.838923
+  type: 'test'
+  ...
+# Subtest: los mensajes de una búsqueda inválida no nombran tablas, campos ni tipos
+ok 62 - los mensajes de una búsqueda inválida no nombran tablas, campos ni tipos
+  ---
+  duration_ms: 0.460141
+  type: 'test'
+  ...
+# Subtest: un número (con \# o separadores) se lee como número de pedido y como teléfono
+ok 63 - un número (con \# o separadores) se lee como número de pedido y como teléfono
+  ---
+  duration_ms: 0.394857
+  type: 'test'
+  ...
+# Subtest: el número de pedido «47» cubre el 47 y los que empiezan con 47 (470-479, 4700-4799…), sin pasarse del tope
+ok 64 - el número de pedido «47» cubre el 47 y los que empiezan con 47 (470-479, 4700-4799…), sin pasarse del tope
+  ---
+  duration_ms: 0.505001
+  type: 'test'
+  ...
+# Subtest: tres grupos en orden fijo: clientes, productos, pedidos; como mucho 5 por grupo
+ok 65 - tres grupos en orden fijo: clientes, productos, pedidos; como mucho 5 por grupo
+  ---
+  duration_ms: 10.890631
+  type: 'test'
+  ...
+# Subtest: clientes: primero los que empiezan con lo tipeado, después palabra que empieza, después contiene; sin tildes
+ok 66 - clientes: primero los que empiezan con lo tipeado, después palabra que empieza, después contiene; sin tildes
+  ---
+  duration_ms: 0.35982
+  type: 'test'
+  ...
+# Subtest: clientes encontrados por el teléfono van después de los encontrados por el nombre
+ok 67 - clientes encontrados por el teléfono van después de los encontrados por el nombre
+  ---
+  duration_ms: 0.2961
+  type: 'test'
+  ...
+# Subtest: productos: activos antes que pausados; el precio sólo para quien ve plata
+ok 68 - productos: activos antes que pausados; el precio sólo para quien ve plata
+  ---
+  duration_ms: 9.664109
+  type: 'test'
+  ...
+# Subtest: cajero con Vender y sin Catálogo: encuentra el producto con su nombre y su precio de venta, y lo lleva a Vender
+ok 69 - cajero con Vender y sin Catálogo: encuentra el producto con su nombre y su precio de venta, y lo lleva a Vender
+  ---
+  duration_ms: 0.831036
+  type: 'test'
+  ...
+# Subtest: cajero sin Catálogo: lo pausado y lo sin precio no aparece (en Vender no se puede cobrar)
+ok 70 - cajero sin Catálogo: lo pausado y lo sin precio no aparece (en Vender no se puede cobrar)
+  ---
+  duration_ms: 0.622494
+  type: 'test'
+  ...
+# Subtest: con Catálogo manda la ficha del catálogo aunque también tenga Vender
+ok 71 - con Catálogo manda la ficha del catálogo aunque también tenga Vender
+  ---
+  duration_ms: 0.292887
+  type: 'test'
+  ...
+# Subtest: SEGURIDAD: sin Vender ni Catálogo no se dibujan productos aunque lleguen filas
+ok 72 - SEGURIDAD: sin Vender ni Catálogo no se dibujan productos aunque lleguen filas
+  ---
+  duration_ms: 0.155763
+  type: 'test'
+  ...
+# Subtest: pedidos: el número exacto primero y después los más nuevos; abierto al tablero, cerrado a las ventas de ese día
+ok 73 - pedidos: el número exacto primero y después los más nuevos; abierto al tablero, cerrado a las ventas de ese día
+  ---
+  duration_ms: 0.702948
+  type: 'test'
+  ...
+# Subtest: pedidos sin permiso de ver plata: sin montos y, cerrados, a las ventas de hoy (otro día no lo pueden abrir)
+ok 74 - pedidos sin permiso de ver plata: sin montos y, cerrados, a las ventas de hoy (otro día no lo pueden abrir)
+  ---
+  duration_ms: 0.230548
+  type: 'test'
+  ...
+# Subtest: un pedido cerrado sin la app Ventas del día va a la bandeja de pedidos; sin ninguna de las dos no se muestra
+ok 75 - un pedido cerrado sin la app Ventas del día va a la bandeja de pedidos; sin ninguna de las dos no se muestra
+  ---
+  duration_ms: 0.397019
+  type: 'test'
+  ...
+# Subtest: SEGURIDAD: un grupo sin permiso no se dibuja aunque le lleguen filas
+ok 76 - SEGURIDAD: un grupo sin permiso no se dibuja aunque le lleguen filas
+  ---
+  duration_ms: 0.147112
+  type: 'test'
+  ...
+# Subtest: los ids son únicos entre grupos (un cliente y un producto con el mismo id no chocan en la lista)
+ok 77 - los ids son únicos entre grupos (un cliente y un producto con el mismo id no chocan en la lista)
+  ---
+  duration_ms: 0.188646
+  type: 'test'
+  ...
+1..77
+# tests 78
+# suites 1
+# pass 78
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7294.009006

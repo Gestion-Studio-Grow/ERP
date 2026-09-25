@@ -13,6 +13,7 @@ import {
   avisoDeCantidad,
   formatearCantidad,
 } from "@/lib/pos-peso";
+import { lineaSinCantidad, motivoDeLineaSinCantidad } from "../vender/reglas-venta";
 import { useToast } from "../ToastProvider";
 
 // Producto vendible que llega del loader (getPosData): ya viene con precio.
@@ -218,6 +219,9 @@ export default function PosForm({
   // dejara pasar valiendo 0, la línea desaparecería del ticket sin que nadie se entere y se
   // cobraría de menos.
   const hasCantidadInvalida = leidas.some((l) => l.productId && l.invalida);
+  // Una línea con producto y SIN cantidad también frena, y el botón dice cuál: sus campos ocultos
+  // no viajan (sólo salen con cantidad) y el ticket se cobraría sin ella. La misma regla que Vender.
+  const sinCantidad = lineaSinCantidad(leidas);
 
   // Cobra y, si salió bien, limpia el ticket: dejar las líneas cargadas después de cobrar es
   // invitar a cobrar dos veces lo mismo. Si falló, el ticket queda como estaba para corregir.
@@ -607,10 +611,14 @@ export default function PosForm({
           </span>
         </div>
         <CobrarSubmit
-          disabled={!hasValidLine || hasShortfall || hasCantidadInvalida || faltaMedio || yaGrabada !== null}
+          disabled={
+            !hasValidLine || hasShortfall || hasCantidadInvalida || sinCantidad !== undefined || faltaMedio || yaGrabada !== null
+          }
           label={
             yaGrabada
               ? `Revisá ${yaGrabada.esPedido ? "el pedido" : "la venta"} #${yaGrabada.code}`
+              : sinCantidad && hasValidLine
+                ? motivoDeLineaSinCantidad(byId.get(sinCantidad.productId))
               : faltaMedio
                 ? "Elegí cómo pagó"
                 : isOrder

@@ -1,0 +1,160 @@
+TAP version 13
+# Subtest: sin texto: las primeras acciones y todas las apps, en ese orden
+ok 1 - sin texto: las primeras acciones y todas las apps, en ese orden
+  ---
+  duration_ms: 2.515568
+  type: 'test'
+  ...
+# Subtest: con texto: acciones primero, después apps; «ca» trae Cargar una merma y Caja/Catálogo
+ok 2 - con texto: acciones primero, después apps; «ca» trae Cargar una merma y Caja/Catálogo
+  ---
+  duration_ms: 1.136684
+  type: 'test'
+  ...
+# Subtest: resaltar marca lo tipeado sin tildes ni mayúsculas, en las posiciones del nombre
+ok 3 - resaltar marca lo tipeado sin tildes ni mayúsculas, en las posiciones del nombre
+  ---
+  duration_ms: 0.434488
+  type: 'test'
+  ...
+# Subtest: la paleta poda lo flojo: una palabra de búsqueda cuenta si EMPIEZA con lo tipeado; con dos letras, el nombre también
+ok 4 - la paleta poda lo flojo: una palabra de búsqueda cuenta si EMPIEZA con lo tipeado; con dos letras, el nombre también
+  ---
+  duration_ms: 0.431926
+  type: 'test'
+  ...
+# Subtest: registros: van después de acciones y apps, tal como llegan (no se vuelven a filtrar), con su ícono
+ok 5 - registros: van después de acciones y apps, tal como llegan (no se vuelven a filtrar), con su ícono
+  ---
+  duration_ms: 0.338937
+  type: 'test'
+  ...
+# Subtest: registros: sin texto no se muestran (la paleta vacía es la de siempre)
+ok 6 - registros: sin texto no se muestran (la paleta vacía es la de siempre)
+  ---
+  duration_ms: 0.190696
+  type: 'test'
+  ...
+# Subtest: contra Postgres (app_rls + RLS): el cajero con Vender encuentra productos con su precio de venta, sin costo y sólo de su negocio
+ok 7 - contra Postgres (app_rls + RLS): el cajero con Vender encuentra productos con su precio de venta, sin costo y sólo de su negocio
+  ---
+  duration_ms: 12235.182969
+  type: 'test'
+  ...
+# Subtest: contra Postgres (app_rls + RLS): el buscador sólo encuentra lo del negocio y lo que la persona puede abrir
+ok 8 - contra Postgres (app_rls + RLS): el buscador sólo encuentra lo del negocio y lo que la persona puede abrir
+  ---
+  duration_ms: 12306.566616
+  type: 'test'
+  ...
+# Subtest: la búsqueda se recorta y exige de 2 a 60 letras; lo que no es texto no se busca
+ok 9 - la búsqueda se recorta y exige de 2 a 60 letras; lo que no es texto no se busca
+  ---
+  duration_ms: 3.118672
+  type: 'test'
+  ...
+# Subtest: los mensajes de una búsqueda inválida no nombran tablas, campos ni tipos
+ok 10 - los mensajes de una búsqueda inválida no nombran tablas, campos ni tipos
+  ---
+  duration_ms: 0.478291
+  type: 'test'
+  ...
+# Subtest: un número (con \# o separadores) se lee como número de pedido y como teléfono
+ok 11 - un número (con \# o separadores) se lee como número de pedido y como teléfono
+  ---
+  duration_ms: 0.549518
+  type: 'test'
+  ...
+# Subtest: el número de pedido «47» cubre el 47 y los que empiezan con 47 (470-479, 4700-4799…), sin pasarse del tope
+ok 12 - el número de pedido «47» cubre el 47 y los que empiezan con 47 (470-479, 4700-4799…), sin pasarse del tope
+  ---
+  duration_ms: 0.399477
+  type: 'test'
+  ...
+# Subtest: tres grupos en orden fijo: clientes, productos, pedidos; como mucho 5 por grupo
+ok 13 - tres grupos en orden fijo: clientes, productos, pedidos; como mucho 5 por grupo
+  ---
+  duration_ms: 12.183582
+  type: 'test'
+  ...
+# Subtest: clientes: primero los que empiezan con lo tipeado, después palabra que empieza, después contiene; sin tildes
+ok 14 - clientes: primero los que empiezan con lo tipeado, después palabra que empieza, después contiene; sin tildes
+  ---
+  duration_ms: 0.457499
+  type: 'test'
+  ...
+# Subtest: clientes encontrados por el teléfono van después de los encontrados por el nombre
+ok 15 - clientes encontrados por el teléfono van después de los encontrados por el nombre
+  ---
+  duration_ms: 0.338057
+  type: 'test'
+  ...
+# Subtest: productos: activos antes que pausados; el precio sólo para quien ve plata
+ok 16 - productos: activos antes que pausados; el precio sólo para quien ve plata
+  ---
+  duration_ms: 12.439596
+  type: 'test'
+  ...
+# Subtest: cajero con Vender y sin Catálogo: encuentra el producto con su nombre y su precio de venta, y lo lleva a Vender
+ok 17 - cajero con Vender y sin Catálogo: encuentra el producto con su nombre y su precio de venta, y lo lleva a Vender
+  ---
+  duration_ms: 1.10839
+  type: 'test'
+  ...
+# Subtest: cajero sin Catálogo: lo pausado y lo sin precio no aparece (en Vender no se puede cobrar)
+ok 18 - cajero sin Catálogo: lo pausado y lo sin precio no aparece (en Vender no se puede cobrar)
+  ---
+  duration_ms: 0.727434
+  type: 'test'
+  ...
+# Subtest: con Catálogo manda la ficha del catálogo aunque también tenga Vender
+ok 19 - con Catálogo manda la ficha del catálogo aunque también tenga Vender
+  ---
+  duration_ms: 0.371223
+  type: 'test'
+  ...
+# Subtest: SEGURIDAD: sin Vender ni Catálogo no se dibujan productos aunque lleguen filas
+ok 20 - SEGURIDAD: sin Vender ni Catálogo no se dibujan productos aunque lleguen filas
+  ---
+  duration_ms: 0.225339
+  type: 'test'
+  ...
+# Subtest: pedidos: el número exacto primero y después los más nuevos; abierto al tablero, cerrado a las ventas de ese día
+ok 21 - pedidos: el número exacto primero y después los más nuevos; abierto al tablero, cerrado a las ventas de ese día
+  ---
+  duration_ms: 0.614819
+  type: 'test'
+  ...
+# Subtest: pedidos sin permiso de ver plata: sin montos y, cerrados, a las ventas de hoy (otro día no lo pueden abrir)
+ok 22 - pedidos sin permiso de ver plata: sin montos y, cerrados, a las ventas de hoy (otro día no lo pueden abrir)
+  ---
+  duration_ms: 0.269149
+  type: 'test'
+  ...
+# Subtest: un pedido cerrado sin la app Ventas del día va a la bandeja de pedidos; sin ninguna de las dos no se muestra
+ok 23 - un pedido cerrado sin la app Ventas del día va a la bandeja de pedidos; sin ninguna de las dos no se muestra
+  ---
+  duration_ms: 0.35594
+  type: 'test'
+  ...
+# Subtest: SEGURIDAD: un grupo sin permiso no se dibuja aunque le lleguen filas
+ok 24 - SEGURIDAD: un grupo sin permiso no se dibuja aunque le lleguen filas
+  ---
+  duration_ms: 0.138628
+  type: 'test'
+  ...
+# Subtest: los ids son únicos entre grupos (un cliente y un producto con el mismo id no chocan en la lista)
+ok 25 - los ids son únicos entre grupos (un cliente y un producto con el mismo id no chocan en la lista)
+  ---
+  duration_ms: 0.17766
+  type: 'test'
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 25
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12890.747509

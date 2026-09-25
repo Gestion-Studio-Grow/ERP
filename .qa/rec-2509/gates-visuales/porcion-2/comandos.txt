@@ -1,0 +1,17 @@
+gates-visuales · porción 2 · 2026-09-25
+Fuente: run CI 36133219110 (HEAD 76a5e2d), job visual-aa 108065550721. Por API se ven jobs y artefactos,
+pero el log y report.json viven en productionresultssa0.blob.core.windows.net: el proxy lo bloquea (403).
+Se identificaron los toques que faltaban midiendo con la MISMA función del gate (auditInPage) en Chromium a 412 px.
+
+1) MAGRA (home y /tienda = MagraFront, slug magra-demo de prisma/seed-magra.ts):
+   node --import tsx --test src/app/tienda/magra-toque.test.ts
+   antes: «+» de la grilla 40x40 (uno por corte fuera de los 2 destacados) y «Hacer pedido →» 121x28 (x3).
+   Con el catálogo del seed (8 cortes): 6 + 3 = 9 por pantalla, x2 pantallas = 18 del gate.
+   después: 1/1 verde.
+2) Estética (home y /reserva de estetica-demo = la landing de CH):
+   node --import tsx --test "src/app/(site)/sitio-toque.test.ts"
+   antes: «Reservar» del encabezado 94x37; desplegable «Profesional» 412x40  => 2 del gate.
+   después: 3/3 verde (incluye que en la PC el «Reservar» sigue en 37 px).
+3) Suites vecinas (tienda, (site), tenants, enlaces AA, gate-visual): 49/49. Tests que tocan lo cambiado: 91/91.
+4) tsc 0 errores; eslint limpio en los 5 archivos tocados.
+Identificados en total: 44 (porción 1) + 18 + 2 = 64 de 68 toques. Faltan 4 sin identificar.

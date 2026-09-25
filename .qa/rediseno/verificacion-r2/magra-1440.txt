@@ -1,0 +1,32 @@
+OK   Entrar: clave equivocada muestra error (972 ms) mensaje="El email o la contraseña no coinciden. Revisá los dos y probá de nuevo. Con 5 intentos fal" · email conservado="nadie-qa@magra.lab"
+OK   Entrar como dueño (Enter) (1020 ms) h1="Hoy, viernes 25 de septiembre" diseno=renglon sx360=0 chicos<44=17
+OK   Recuento con diferencia (repone Vacío y Pollo entero) (2663 ms) Vacío: sistema 3.04, alcanza · Pollo entero: sistema 5, alcanza
+OK   Stock antes de vender (1902 ms) Vacío="3,04 kg" · Pollo="5 u"
+OK   Inicio → Vender (2053 ms) h1="Vender" diseno=renglon sx360=0 chicos<44=4
+OK   Vender por peso: Vacío, 1,240 + Enter (716 ms) foco→peso, Enter→buscador, lista cerrada; línea="Vacío 1,24 kg × $22.200 / kg kg $27.528,00 −"
+OK   Pollo entero sin cantidad → Cobrar bloqueado (1102 ms) botón="Falta la cantidad de Pollo entero orgánico (~2 kg) F2" bloqueado
+OK   Cantidad 1 y cobrar en efectivo (774 ms) Alt+1 eligió Efectivo · botón "Cobrar $47.028,00 F2" → Venta #503 $47.028,00; ticket nuevo con 0 línea(s) vacía(s)
+OK   Persistencia: la venta está en Ventas tras recargar (2661 ms) #503 listada · diseno=renglon sx360=0 chicos<44=45
+OK   Persistencia: el stock bajó (1893 ms) Vacío: "3,04 kg" → "1,8 kg" · Pollo: "5 u" → "4 u"
+FALLA Inicio → Pedidos para preparar → Preparar (31631 ms) locator.innerText: Timeout 30000ms exceeded.
+OK   Inicio → Caja del día → Cerrar el turno (3920 ms) esperado=$929.163,25 · vista previa="Cuadra" · <dialog> abierto=1 · Escape cierra (sin cerrar el turno en esta corrida) · diseno=renglon sx360=0 chicos<44=4
+OK   Cierre del día: contar y revisar (3766 ms) contado=Efectivo=929163,25 ; Mercado Pago y transferencias=20727355,99 · deslizador habilitado (NO se desliza: congelaría el día compartido) · diseno=renglon sx360=0 chicos<44=4
+OK   Clientes: búsqueda sin resultados (estado vacío) (3138 ms) vacío="Situación Todas 0 Clientes ÚLTIMA VEZ CLIENTE TELÉFONO SITUACIÓN COMPRAS Nadie coincide con «zzqqxxsinnadie». Ver todos ¿Cómo se calcula la situación?"
+OK   Clientes → Nueva ficha → buscarla → abrir ficha (8884 ms) tras crear: /admin/clientes/cmuh6kknf000p967d399beuit aviso="QA Recorrido 1440 37429" · ficha "QA Recorrido 1440 37429" en /admin/clientes/cmuh6kknf000p967d399beuit · diseno=renglon sx360=0 chicos<44=1
+OK   Ficha de un cliente con compras (1809 ms) h1="Catalina Rodríguez" · ← Clientes Catalina Rodríguez 11 5555-2271 Cuenta corriente al día 10 pedidos 1 pedido sin cobrar Compró por última vez hace 2 días WhatsApp
+OK   Stock → Contar → Recuento de un corte (7557 ms) Asado de tira: contado 14 con «Guardar recuento (1)» → tras recargar "Asado de tira sistema 14 kg · contado hoy" · fila="Asado de tira sistema 14 kg · contado hoy" · aviso="Recuento guardado: 1 producto contado, todos coinciden con el sistema."  · movimientos="Movimientos de stock los 200 más recientes · Volver a Stock Producto Tipo Todos Venta Compra Reposición Consumo en un se" · diseno=renglon sx360=0 chicos<44=6 · diseno=renglon sx360=0 chicos<44=6
+OK   Traslado entre locales (8742 ms) sin stock: "En MAGRA hay 1,8 kg: no alcanza." + Trasladar bloqueado · destino="Adrogué QA" · remitos 16 → 17 · aviso="Listo: 1 producto salió de MAGRA y entró en Adrogué QA. Remito T-B7D6E7D4. Ver e" · remito="Traslados entre locales Remito interno T-B7D6E7D4 25/09/2026 13:34 MAGRA → Adrogué QA Sale de MAGRA (CUIT 30-71765432-9)" · diseno=renglon sx360=0 chicos<44=7
+OK   Ctrl+K: buscar un cliente y abrirlo con Enter (3131 ms) opciones=["Catalina García 11 5555-2125 Enter","Catalina Rodríguez 11 5555-2271"] (Catalina en #0) → h1="Catalina García"
+OK   Ctrl+K: acción «cerrar el día» y Escape (1992 ms) «pollo» → ["Pollo entero orgánico (~2 kg) Por unidad","Pechuga de pollo orgánico Por kilo · $12"]; Escape cierra
+OK   Permisos del encargado (RECEPTION) (10378 ms) /admin→200⇒/admin/vender「Vender」 · /admin/vender→200「Vender」 · /admin/pedidos→200「Pedidos para preparar」 · /admin/caja→200「Caja del día」 · /admin/caja/cierre→200「Cierre del día」 · /admin/clientes→200「Clientes」 · /admin/inventario→200「Stock」 · /admin/ajustes/recuento→200「Recuento」 · /admin/locales/traslados→200「Traslados entre locales」 · /admin/usuarios→200⇒/admin/no-disponible「Usuarios y permisos no está disponible」 · /admin/reportes→200⇒/admin/no-disponible「Reportes no está disponible」
+
+PASOS: 20/21 bien · errores de consola: 0
+medida Inicio /admin diseno=renglon scrollX@360=0 <44px(17)=Preparar:36|Preparar:36|Preparar:36|Ver los 12 en Pedidos →:24|Cerrar el mes:36|Pedir:36
+medida Vender /admin/vender diseno=renglon scrollX@360=0 <44px(4)=Buscá un corte o un producto:36|Venta:32|Pedido:32|paid:20
+medida Ventas /admin/ventas diseno=renglon scrollX@360=0 <44px(45)=‹ 24/09:36|Vender:36|Todos los medios:32|Efectivo:32|Mercado Pago:32|Transferencia:32
+medida Caja del día /admin/caja diseno=renglon scrollX@360=0 <44px(4)=Cargar un gasto o retiro:36|Cerrar el día:36|Libro de caja:14|Cerrar el turno:36
+medida Cierre del día /admin/caja/cierre diseno=renglon scrollX@360=0 <44px(4)=‹ 24/09:36|INPUT:36|INPUT:36|Contar igual:36
+medida Ficha de cliente /admin/clientes/cmuh6kknf000p967d399beuit diseno=renglon scrollX@360=0 <44px(1)=Editar datos:36
+medida Stock /admin/inventario diseno=renglon scrollX@360=0 <44px(6)=Todos 19:32|Stock bajo 5:32|Sin costo 1:32|STOCK:17|CORTE:17|VALOR:17
+medida Recuento /admin/ajustes/recuento diseno=renglon scrollX@360=0 <44px(6)=Vaca 0/9:32|Cerdo 0/2:32|Pollo 0/2:32|Preparados 0/2:32|Gourmet 0/4:32|INPUT:20
+medida Traslados /admin/locales/traslados diseno=renglon scrollX@360=0 <44px(7)=MAGRA (la casa) Adrogué QA C:36|Elegí el local Adrogué QA Ca:36|Buscá el producto:36|Ej: 10,5:36|Agregar otro producto:36|nota:36

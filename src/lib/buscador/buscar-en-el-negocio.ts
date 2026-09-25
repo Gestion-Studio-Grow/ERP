@@ -12,7 +12,8 @@
 //   · Sesión: `requireUser` (sin sesión, al login; una cookie de otro negocio no abre éste).
 //   · Permisos: cada grupo con la MISMA regla que la guardia de su listado (`requireApp` →
 //     `appPermitida`: rol, módulo, rubro y edición). Sin la app Clientes no se LEEN clientes;
-//     no es que se lean y se escondan. Los montos, sólo con reports:read.
+//     no es que se lean y se escondan. Los montos, sólo con reports:read; salvo el precio de
+//     venta para quien tiene Vender (lo ve igual al cobrar). El costo nunca se lee.
 //   · Negocio: las lecturas van dentro de `tenantTransaction` (src/lib/rls.ts): RLS con el
 //     negocio puesto y, además, el candado de la app (`scopeTxClient`) en cada `where`.
 //   · Entrada: `leerBusqueda` (2 a 60 letras, recortada). Los errores dicen qué hacer, nunca
@@ -61,6 +62,9 @@ export async function buscarEnElNegocio(q: unknown): Promise<ResultadoDeBusqueda
     clientes: appPermitida(appPorId("clientes"), negocio),
     // El catálogo de productos es el del mostrador; en servicios la pantalla lista servicios.
     productos: rubro.isRetail && appPermitida(appPorId("catalogo"), negocio),
+    // Quien cobra (Vender) encuentra lo que Vender le deja cobrar, en cualquier rubro: la misma
+    // lista de `cargarVender` (vender/datos.ts). Nombre y precio de venta; el costo no se lee.
+    vender: appPermitida(appPorId("vender"), negocio),
     pedidos: appPermitida(appPorId("pedidos"), negocio),
     ventas: appPermitida(appPorId("ventas-del-dia"), negocio),
     verPlata: roleHasCapability(user.role, "reports:read"),
@@ -86,19 +90,25 @@ export async function buscarEnElNegocio(q: unknown): Promise<ResultadoDeBusqueda
           ).map((c) => ({ id: c.id, nombre: c.name, telefono: c.phone }))
         : [];
 
-      const productos: ProductoLeido[] = permisos.productos
-        ? (
-            await tx.product.findMany({
-              where: { deletedAt: null, name: { contains: texto, mode: "insensitive" } },
-              orderBy: { name: "asc" },
-              take: FILAS_A_LEER,
-              select: { id: true, name: true, active: true, saleUnit: true, price: true, pricePerKg: true },
+      const productos: ProductoLeido[] =
+        permisos.productos || permisos.vender
+          ? (
+              await tx.product.findMany({
+                where: {
+                  deletedAt: null,
+                  name: { contains: texto, mode: "insensitive" },
+                  // Sin el Catálogo, sólo lo que se puede cobrar: ni pausados ni sin precio.
+                  ...(permisos.productos ? {} : { active: true, OR: [{ price: { not: null } }, { pricePerKg: { not: null } }] }),
+                },
+                orderBy: { name: "asc" },
+                take: FILAS_A_LEER,
+                select: { id: true, name: true, active: true, saleUnit: true, price: true, pricePerKg: true },
+              })
+            ).map((p) => {
+              const porPeso = p.saleUnit === "WEIGHT";
+              return { id: p.id, nombre: p.name, activo: p.active, porPeso, precio: (porPeso ? p.pricePerKg : p.price) ?? null };
             })
-          ).map((p) => {
-            const porPeso = p.saleUnit === "WEIGHT";
-            return { id: p.id, nombre: p.name, activo: p.active, porPeso, precio: (porPeso ? p.pricePerKg : p.price) ?? null };
-          })
-        : [];
+          : [];
 
       let pedidos: PedidoLeido[] = [];
       if ((permisos.pedidos || permisos.ventas) && codigo !== null) {

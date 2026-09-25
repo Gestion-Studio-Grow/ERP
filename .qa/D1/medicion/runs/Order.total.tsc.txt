@@ -1,0 +1,77 @@
+src/app/admin/(dashboard)/clientes/[id]/FichaUnica.tsx(247,51): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'string | number | null | undefined'.
+src/app/admin/(dashboard)/pedidos/page.tsx(237,21): error TS2322: Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/pedidos/page.tsx(301,34): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'string | number | null | undefined'.
+src/app/admin/(dashboard)/pedidos/page.tsx(346,23): error TS2322: Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/pedidos/page.tsx(365,23): error TS2322: Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/pedidos/page.tsx(405,82): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'string | number | null | undefined'.
+src/app/admin/(dashboard)/pedidos/page.tsx(421,27): error TS2322: Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/ventas/page.tsx(165,35): error TS2345: Argument of type '{ id: string; createdAt: Date; status: OrderStatus; code: number; items: { name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: number; productId: string | null; unitPrice: number; }[]; ... 7 more ...; paid: boolean; }[]' is not assignable to parameter of type 'readonly { total: number; }[]'.
+  Type '{ id: string; createdAt: Date; status: OrderStatus; code: number; items: { name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: number; productId: string | null; unitPrice: number; }[]; ... 7 more ...; paid: boolean; }' is not assignable to type '{ total: number; }'.
+    Types of property 'total' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/ventas/page.tsx(166,34): error TS2345: Argument of type '{ id: string; createdAt: Date; status: OrderStatus; code: number; items: { name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: number; productId: string | null; unitPrice: number; }[]; ... 7 more ...; paid: boolean; }[]' is not assignable to parameter of type 'readonly { total: number; paid?: boolean | undefined; paymentMethod: string | null; }[]'.
+  Type '{ id: string; createdAt: Date; status: OrderStatus; code: number; items: { name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: number; productId: string | null; unitPrice: number; }[]; ... 7 more ...; paid: boolean; }' is not assignable to type '{ total: number; paid?: boolean | undefined; paymentMethod: string | null; }'.
+    Types of property 'total' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/ventas/page.tsx(314,42): error TS2345: Argument of type '{ id: string; createdAt: Date; status: OrderStatus; code: number; items: { name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: number; productId: string | null; unitPrice: number; }[]; ... 7 more ...; paid: boolean; }' is not assignable to parameter of type 'OrdenParaTicket'.
+  Types of property 'total' are incompatible.
+    Type 'Decimal' is not assignable to type 'number'.
+src/apps/kpis/finanzas.server.ts(258,26): error TS2345: Argument of type '0 | Decimal' is not assignable to parameter of type 'string | number | null | undefined'.
+  Type 'Decimal' is not assignable to type 'string | number | null | undefined'.
+src/apps/kpis/logistica.server.ts(150,47): error TS2345: Argument of type '0 | Decimal' is not assignable to parameter of type 'number'.
+  Type 'Decimal' is not assignable to type 'number'.
+src/apps/kpis/mostrador.server.ts(120,24): error TS2345: Argument of type '0 | Decimal' is not assignable to parameter of type 'string | number | null | undefined'.
+  Type 'Decimal' is not assignable to type 'string | number | null | undefined'.
+src/lib/actions.ts(2101,48): error TS2365: Operator '+' cannot be applied to types 'number' and 'Decimal'.
+src/lib/actions.ts(2102,46): error TS2365: Operator '+' cannot be applied to types 'number' and 'Decimal'.
+src/lib/cobros-actions.ts(158,24): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'number'.
+src/lib/crm/cargas.server.ts(156,5): error TS2322: Type '{ id: string; status: OrderStatus; createdAt: Date; total: Decimal; paid: boolean; paymentMethod: PaymentMethod | null; }[]' is not assignable to type 'readonly PedidoDeFicha[]'.
+  Type '{ id: string; status: OrderStatus; createdAt: Date; total: Decimal; paid: boolean; paymentMethod: PaymentMethod | null; }' is not assignable to type 'PedidoDeFicha'.
+    Types of property 'total' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/crm/lecturas.ts(85,3): error TS2322: Type '{ id: string; name: string; orders: { id: string; createdAt: Date; total: Decimal; }[]; phone: string; birthDate: Date | null; }[]' is not assignable to type 'FichaCruda[]'.
+  Type '{ id: string; name: string; orders: { id: string; createdAt: Date; total: Decimal; }[]; phone: string; birthDate: Date | null; }' is not assignable to type 'FichaCruda'.
+    Types of property 'orders' are incompatible.
+      Type '{ id: string; createdAt: Date; total: Decimal; }[]' is not assignable to type 'readonly PedidoCrudo[]'.
+        Type '{ id: string; createdAt: Date; total: Decimal; }' is not assignable to type 'PedidoCrudo'.
+          Types of property 'total' are incompatible.
+            Type 'Decimal' is not assignable to type 'number'.
+src/lib/invoice-from-order.ts(36,5): error TS2322: Type 'Prisma__OrderClient<{ total: Decimal; } | null, null, DefaultArgs, { omit: GlobalOmitConfig | undefined; }>' is not assignable to type 'Promise<{ total: number; } | null>'.
+  Types of property 'then' are incompatible.
+    Type '<TResult1 = { total: Decimal; } | null, TResult2 = never>(onfulfilled?: ((value: { total: Decimal; } | null) => TResult1 | PromiseLike<TResult1>) | null | undefined, onrejected?: ((reason: any) => TResult2 | PromiseLike<...>) | ... 1 more ... | undefined) => Promise<...>' is not assignable to type '<TResult1 = { total: number; } | null, TResult2 = never>(onfulfilled?: ((value: { total: number; } | null) => TResult1 | PromiseLike<TResult1>) | null | undefined, onrejected?: ((reason: any) => TResult2 | PromiseLike<...>) | ... 1 more ... | undefined) => Promise<...>'.
+      Types of parameters 'onfulfilled' and 'onfulfilled' are incompatible.
+        Types of parameters 'value' and 'value' are incompatible.
+          Type '{ total: Decimal; } | null' is not assignable to type '{ total: number; } | null'.
+            Type '{ total: Decimal; }' is not assignable to type '{ total: number; }'.
+              Types of property 'total' are incompatible.
+                Type 'Decimal' is not assignable to type 'number'.
+src/lib/libros/libro-iva-loader.ts(134,9): error TS2322: Type '({ clave: string; fecha: string; tipo: string; numero: string; cliente: string; total: Decimal; } | { clave: string; fecha: string; tipo: string; numero: string; cliente: string; total: number; })[]' is not assignable to type 'VentaSinComprobanteRow[]'.
+  Type '{ clave: string; fecha: string; tipo: string; numero: string; cliente: string; total: Decimal; } | { clave: string; fecha: string; tipo: string; numero: string; cliente: string; total: number; }' is not assignable to type 'VentaSinComprobanteRow'.
+    Type '{ clave: string; fecha: string; tipo: string; numero: string; cliente: string; total: Decimal; }' is not assignable to type 'VentaSinComprobanteRow'.
+      Types of property 'total' are incompatible.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-actions.ts(511,27): error TS2345: Argument of type '{ id: string; createdAt: Date; status: OrderStatus; code: number; items: { name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: number; productId: string | null; unitPrice: number; }[]; ... 6 more ...; paid: boolean; }' is not assignable to parameter of type 'OrdenParaTicket'.
+  Types of property 'total' are incompatible.
+    Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-actions.ts(680,7): error TS2322: Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-actions.ts(1187,63): error TS2322: Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-anulacion.ts(918,19): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'number'.
+src/lib/order-core.ts(213,7): error TS2322: Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-core.ts(1083,5): error TS2322: Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-core.ts(1086,70): error TS2322: Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-core.ts(1151,5): error TS2322: Type 'Prisma__OrderClient<{ status: OrderStatus; code: number; total: Decimal; paid: boolean; } | null, null, DefaultArgs, { omit: GlobalOmitConfig | undefined; }>' is not assignable to type 'Promise<{ code: number; total: number; paid: boolean; status: string; } | null>'.
+  Types of property 'then' are incompatible.
+    Type '<TResult1 = { status: OrderStatus; code: number; total: Decimal; paid: boolean; } | null, TResult2 = never>(onfulfilled?: ((value: { status: OrderStatus; code: number; total: Decimal; paid: boolean; } | null) => TResult1 | PromiseLike<...>) | null | undefined, onrejected?: ((reason: any) => TResult2 | PromiseLike<.....' is not assignable to type '<TResult1 = { code: number; total: number; paid: boolean; status: string; } | null, TResult2 = never>(onfulfilled?: ((value: { code: number; total: number; paid: boolean; status: string; } | null) => TResult1 | PromiseLike<TResult1>) | null | undefined, onrejected?: ((reason: any) => TResult2 | PromiseLike<...>) | ....'.
+      Types of parameters 'onfulfilled' and 'onfulfilled' are incompatible.
+        Types of parameters 'value' and 'value' are incompatible.
+          Type '{ status: OrderStatus; code: number; total: Decimal; paid: boolean; } | null' is not assignable to type '{ code: number; total: number; paid: boolean; status: string; } | null'.
+            Type '{ status: OrderStatus; code: number; total: Decimal; paid: boolean; }' is not assignable to type '{ code: number; total: number; paid: boolean; status: string; }'.
+              Types of property 'total' are incompatible.
+                Type 'Decimal' is not assignable to type 'number'.
+src/lib/respuesta-al-reintento.ts(60,31): error TS2345: Argument of type '{ cupon: string | null; reglaDelCupon: CuponDelPedido | null; id: string; createdAt: Date; status: OrderStatus; notes: string | null; code: number; ... 12 more ...; clientId: string | null; }' is not assignable to parameter of type 'OrdenParaTicket'.
+  Types of property 'total' are incompatible.
+    Type 'Decimal' is not assignable to type 'number'.
+src/lib/respuesta-al-reintento.ts(78,58): error TS2345: Argument of type '{ cupon: string | null; reglaDelCupon: CuponDelPedido | null; id: string; createdAt: Date; status: OrderStatus; notes: string | null; code: number; ... 12 more ...; clientId: string | null; }' is not assignable to parameter of type 'VentaGrabadaLeida'.
+  Types of property 'total' are incompatible.
+    Type 'Decimal' is not assignable to type 'number'.
+src/lib/respuesta-al-reintento.ts(87,5): error TS2322: Type 'Decimal' is not assignable to type 'number'.

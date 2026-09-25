@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: el esperado que se muestra es el del libro, aunque el turno sume otra cosa
+ok 1 - el esperado que se muestra es el del libro, aunque el turno sume otra cosa
+  ---
+  duration_ms: 3.075721
+  type: 'test'
+  ...
+# Subtest: si el libro y el turno coinciden, no hay renglón de efectivo fuera del turno
+ok 2 - si el libro y el turno coinciden, no hay renglón de efectivo fuera del turno
+  ---
+  duration_ms: 0.298148
+  type: 'test'
+  ...
+# Subtest: sin el número del libro (la demo), se muestra el del turno y no se inventa diferencia
+ok 3 - sin el número del libro (la demo), se muestra el del turno y no se inventa diferencia
+  ---
+  duration_ms: 0.177095
+  type: 'test'
+  ...
+# Subtest: los centavos no dejan un renglón fantasma: 0,1 + 0,2 contra 0,3
+ok 4 - los centavos no dejan un renglón fantasma: 0,1 + 0,2 contra 0,3
+  ---
+  duration_ms: 0.171231
+  type: 'test'
+  ...
+# Subtest: un movimiento sin medio (la demo) cuenta como efectivo, igual que antes
+ok 5 - un movimiento sin medio (la demo) cuenta como efectivo, igual que antes
+  ---
+  duration_ms: 0.212366
+  type: 'test'
+  ...
+# Subtest: el esperado que el cajero confirmó vale si es el mismo que el del libro al grabar
+ok 6 - el esperado que el cajero confirmó vale si es el mismo que el del libro al grabar
+  ---
+  duration_ms: 0.212638
+  type: 'test'
+  ...
+# Subtest: si el libro cambió mientras el cajero contaba, no se graba y se dice el número nuevo
+ok 7 - si el libro cambió mientras el cajero contaba, no se graba y se dice el número nuevo
+  ---
+  duration_ms: 19.303366
+  type: 'test'
+  ...
+# Subtest: sin esperado confirmado se rechaza: el cierre y la apertura siempre dicen contra qué número se contó
+ok 8 - sin esperado confirmado se rechaza: el cierre y la apertura siempre dicen contra qué número se contó
+  ---
+  duration_ms: 0.28194
+  type: 'test'
+  ...
+# Subtest: un libro que da el cajón en rojo también se puede confirmar: es lo que se mostró
+ok 9 - un libro que da el cajón en rojo también se puede confirmar: es lo que se mostró
+  ---
+  duration_ms: 0.328589
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 539.99962

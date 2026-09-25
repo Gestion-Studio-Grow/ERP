@@ -1,0 +1,774 @@
+TAP version 13
+# Subtest: la página de la consola no arma su propio formulario de búsqueda para el celular
+not ok 1 - la página de la consola no arma su propio formulario de búsqueda para el celular
+  ---
+  duration_ms: 4.137395
+  type: 'test'
+  location: '/home/user/erp/src/app/operador/(console)/consola-un-buscador.test.ts:2:1141'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input was expected to not match the regular expression /id="buscar-negocio"/. Input:
+    
+    'import Link from "next/link";\n' +
+      'import { operatorPrisma } from "@/lib/operator-db";\n' +
+      'import { requireSesionOperador } from "@/lib/operator-session";\n' +
+      'import { getBlueprint } from "@/blueprints";\n' +
+      'import { modoDesdeEnv } from "@/plugins/arca";\n' +
+      'import {\n' +
+      '  Bloque,\n' +
+      '  LineaDeEstado,\n' +
+      '  Marca,\n' +
+      '  Pestanas,\n' +
+      '  Renglon,\n' +
+      '  atributosBoton,\n' +
+      '} from "@/components/ui";\n' +
+      'import { cargarAperturas } from "./aperturas.server";\n' +
+      'import { requiereOkDelDuenio } from "./tenants/[id]/apps-del-negocio";\n' +
+      'import {\n' +
+      '  bandejaDeNegocios,\n' +
+      '  contarVistas,\n' +
+      '  esCasaDeRed,\n' +
+      '  esEstudio,\n' +
+      '  estadoEnPalabras,\n' +
+      '  filtrarNegocios,\n' +
+      '  leerVista,\n' +
+      '  ordenarNegocios,\n' +
+      '  pendientesDe,\n' +
+      '  planEnPalabras,\n' +
+      '  rielDeApertura,\n' +
+      '  rubroEnPalabras,\n' +
+      '  type EstadoTenant,\n' +
+      '  type NegocioParaLista,\n' +
+      '  type VistaNegocios,\n' +
+      '} from "./negocios-core";\n' +
+      'import TablaNegocios, { type FilaNegocio } from "./TablaNegocios";\n' +
+      '\n' +
+      'export const dynamic = "force-dynamic";\n' +
+      '\n' +
+      '// NEGOCIOS — la casa de la consola GSG. Lo que el dueño de GSG mira primero: qué negocio le pide\n' +
+      '// algo hoy para poder abrir, y la lista de todos con lo que importa de cada uno.\n' +
+      '//\n' +
+      '// Lee CROSS-TENANT por la conexión de operador (operatorPrisma), sólo metadatos y conteos: nunca\n' +
+      '// una fila de negocio de un cliente (ADR-021). «Listo para abrir» sale de la misma regla que la\n' +
+      '// ficha y el tablero (checklist-apertura.ts), en lote (aperturas.server.ts).\n' +
+      '//\n' +
+      '// Vista, búsqueda y orden viven en la URL (`?estado=`, `?q=`, `?orden=`): la cabecera de la consola\n' +
+      '// las ofrece y esta página las aplica (negocios-core.ts). Una vista vacía dice por qué.\n' +
+      '//\n' +
+      '// El «resetear las contraseñas de todos los dueños» que vivía acá se sacó: la action está\n' +
+      '// deshabilitada a propósito (operator-actions.ts, resetAllOwnerPasswords) y el botón sólo podía\n' +
+      '// fallar. El reseteo es de a uno, en la ficha de cada negocio (pestaña Personas).\n' +
+      '\n' +
+      'const uno = (v: string | string[] | undefined) =>\n' +
+      '  (Array.isArray(v) ? v[0] : v) ?? "";\n' +
+      '\n' +
+      'function rubroDe(id: string | null): string | null {\n' +
+      '  if (!id) return null;\n' +
+      '  try {\n' +
+      '    return getBlueprint(id).label;\n' +
+      '  } catch {\n' +
+      '    return id;\n' +
+      '  }\n' +
+      '}\n' +
+      '\n' +
+      'const VACIO: Record<Exclude<VistaNegocios, null> | "todos", string> = {\n' +
+      '  todos: "Todavía no hay negocios dados de alta.",\n' +
+      '  produccion: "Ningún negocio está en producción todavía.",\n' +
+      '  prueba: "No hay negocios en prueba.",\n' +
+      '  pendientes: "Ningún negocio tiene pendientes para abrir: todos están listos.",\n' +
+      '  estudios: "Todavía no hay estudios contables dados de alta.",\n' +
+      '};\n' +
+      '\n' +
+      '/** Cuántos renglones muestra «Para atender» antes de mandar a la vista «Con pendientes». */\n' +
+      'const EN_LA_BANDEJA = 5;\n' +
+      '\n' +
+      'const VISTA_TITULO: Record<Exclude<VistaNegocios, null>, string> = {\n' +
+      '  produccion: "En producción",\n' +
+      '  prueba: "En prueba",\n' +
+      '  pendientes: "Con pendientes para abrir",\n' +
+      '  estudios: "Estudios contables",\n' +
+      '};\n' +
+      '\n' +
+      'export default async function Negocios({\n' +
+      '  searchParams,\n' +
+      '}: {\n' +
+      '  searchParams: Promise<Record<string, string | string[] | undefined>>;\n' +
+      '}) {\n' +
+      '  // Guardia en la página, no sólo en el layout (el layout no se vuelve a ejecutar al navegar).\n' +
+      '  await requireSesionOperador();\n' +
+      '  const sp = await searchParams;\n' +
+      '  const vista = leerVista(sp.estado);\n' +
+      '  const q = uno(sp.q).slice(0, 80);\n' +
+      '  const orden = uno(sp.orden) || null;\n' +
+      '\n' +
+      '  const [tenants, aperturas, vinculos] = await Promise.all([\n' +
+      '    operatorPrisma.tenant.findMany({\n' +
+      '      orderBy: { createdAt: "asc" },\n' +
+      '      select: {\n' +
+      '        id: true,\n' +
+      '        name: true,\n' +
+      '        slug: true,\n' +
+      '        status: true,\n' +
+      '        plan: true,\n' +
+      '        blueprintId: true,\n' +
+      '        subdomain: true,\n' +
+      '        modules: true,\n' +
+      '        arcaHomologacion: true,\n' +
+      '        _count: { select: { users: true, appointments: true, orders: true } },\n' +
+      '      },\n' +
+      '    }),\n' +
+      '    cargarAperturas().catch(() => null),\n' +
+      '    // Quién es local o cliente de quién (la red de locales y la cartera guardan su vínculo acá).\n' +
+      '    operatorPrisma.carteraCliente\n' +
+      '      .findMany({\n' +
+      '        where: { estado: { not: "baja" } },\n' +
+      '        select: { tenantId: true, clienteTenantId: true },\n' +
+      '      })\n' +
+      '      .catch(() => []),\n' +
+      '  ]);\n' +
+      '\n' +
+      '  const aperturaDe = new Map((aperturas ?? []).map((a) => [a.id, a]));\n' +
+      '  const nombreDe = new Map(tenants.map((t) => [t.id, t.name]));\n' +
+      '  const modulosDe = new Map(tenants.map((t) => [t.id, t.modules]));\n' +
+      '\n' +
+      '  const negocios: NegocioParaLista[] = tenants.map((t) => ({\n' +
+      '    id: t.id,\n' +
+      '    nombre: t.name,\n' +
+      '    slug: t.slug,\n' +
+      '    subdominio: t.subdomain,\n' +
+      '    estado: t.status as EstadoTenant,\n' +
+      '    plan: t.plan,\n' +
+      '    rubro: rubroDe(t.blueprintId),\n' +
+      '    modulos: t.modules,\n' +
+      '    personas: t._count.users,\n' +
+      '    operaciones: t._count.appointments + t._count.orders,\n' +
+      '    apertura: aperturaDe.get(t.id) ?? null,\n' +
+      '    conCandado: requiereOkDelDuenio(t.slug),\n' +
+      '  }));\n' +
+      '\n' +
+      '  // El papel de cada uno en una red o una cartera, en palabras.\n' +
+      '  const papelDe = (n: NegocioParaLista): string | null => {\n' +
+      '    if (esCasaDeRed(n)) return "casa de la red";\n' +
+      '    if (esEstudio(n)) return "estudio contable";\n' +
+      '    const v = vinculos.find((x) => x.clienteTenantId === n.id);\n' +
+      '    if (!v) return null;\n' +
+      '    const dueno = nombreDe.get(v.tenantId) ?? "otro negocio";\n' +
+      '    return (modulosDe.get(v.tenantId) ?? []).includes("cartera")\n' +
+      '      ? `cliente de ${dueno}`\n' +
+      '      : `local de ${dueno}`;\n' +
+      '  };\n' +
+      '\n' +
+      '  const cuenta = contarVistas(negocios);\n' +
+      '  const visibles = ordenarNegocios(filtrarNegocios(negocios, vista, q), orden);\n' +
+      '  const bandeja = bandejaDeNegocios(negocios);\n' +
+      '  const filas: FilaNegocio[] = visibles.map((n) => {\n' +
+      '    const riel = rielDeApertura(n.apertura);\n' +
+      '    return {\n' +
+      '      id: n.id,\n' +
+      '      nombre: n.nombre,\n' +
+      '      slug: n.slug,\n' +
+      '      subdominio: n.subdominio,\n' +
+      '      papel: papelDe(n),\n' +
+      '      estado: estadoEnPalabras(n.estado),\n' +
+      '      plan: planEnPalabras(n.plan),\n' +
+      '      rubro: rubroEnPalabras(n.rubro),\n' +
+      '      personas: n.personas,\n' +
+      '      listo: riel ? { ...riel, pendientes: pendientesDe(n) } : null,\n' +
+      '      actividad: n.operaciones,\n' +
+      '      conCandado: n.conCandado,\n' +
+      '    };\n' +
+      '  });\n' +
+      '\n' +
+      '  // La plataforma en palabras: lo que el dueño tiene que saber antes de abrir un negocio más.\n' +
+      '  const aislamiento =\n' +
+      '    process.env.RLS_ENFORCEMENT?.trim().toLowerCase() === "on";\n' +
+      '  const modoArca = modoDesdeEnv();\n' +
+      '  const conValidezFiscal =\n' +
+      '    modoArca === "real" ? tenants.filter((t) => !t.arcaHomologacion).length : 0;\n' +
+      '  const candados = negocios.filter((n) => n.conCandado);\n' +
+      '\n' +
+      '  return (\n' +
+      '    <div className="space-y-8">\n' +
+      '      <header>\n' +
+      '        <h1 className="text-2xl font-bold text-strong">Negocios</h1>\n' +
+      '        <LineaDeEstado\n' +
+      '          datos={[\n' +
+      '            <>\n' +
+      '              <strong>{cuenta.todos}</strong>{" "}\n' +
+      '              {cuenta.todos === 1 ? "negocio" : "negocios"}\n' +
+      '            </>,\n' +
+      '            `${cuenta.produccion} en producción`,\n' +
+      '            `${cuenta.prueba} en prueba`,\n' +
+      '            cuenta.suspendidos > 0 ? `${cuenta.suspendidos} suspendidos` : null,\n' +
+      '            cuenta.pendientes > 0\n' +
+      '              ? `${cuenta.pendientes} con pendientes para abrir`\n' +
+      '              : "todos listos para abrir",\n' +
+      '          ]}\n' +
+      '        />\n' +
+      '        <ul\n' +
+      '          className="mt-3 flex flex-wrap gap-x-6 gap-y-1"\n' +
+      '          aria-label="La plataforma"\n' +
+      '        >\n' +
+      '          <li>\n' +
+      '            <Marca tipo={aislamiento ? "hecho" : "atencion"}>\n' +
+      '              {aislamiento\n' +
+      '                ? "Aislamiento entre negocios: prendido"\n' +
+      '                : "Aislamiento entre negocios: apagado en este entorno"}\n' +
+      '            </Marca>\n' +
+      '          </li>\n' +
+      '          {candados.map((n) => (\n' +
+      '            <li key={n.id}>\n' +
+      '              <Marca tipo="hecho">\n' +
+      '                {n.nombre} con candado: cambia sólo con el OK del dueño\n' +
+      '              </Marca>\n' +
+      '            </li>\n' +
+      '          ))}\n' +
+      '          <li>\n' +
+      '            <Marca tipo={conValidezFiscal > 0 ? "hecho" : "atencion"}>\n' +
+      '              {modoArca === "real"\n' +
+      '                ? conValidezFiscal > 0\n' +
+      '                  ? `Facturación real: ${conValidezFiscal} ${conValidezFiscal === 1 ? "negocio" : "negocios"}`\n' +
+      '                  : "Facturación real: ningún negocio todavía"\n' +
+      '                : modoArca === "homologacion"\n' +
+      '                  ? "ARCA en homologación: ninguna factura tiene validez fiscal"\n' +
+      '                  : "ARCA simulado en este entorno: no se emite nada"}\n' +
+      '            </Marca>\n' +
+      '          </li>\n' +
+      '        </ul>\n' +
+      '      </header>\n' +
+      '\n' +
+      '      {bandeja.length > 0 && !q && (\n' +
+      '        <Bloque\n' +
+      '          id="para-atender"\n' +
+      '          titulo="Para atender"\n' +
+      '          cuenta={bandeja.length}\n' +
+      '          nota={\n' +
+      '            bandeja.length > EN_LA_BANDEJA ? (\n' +
+      '              <Link\n' +
+      '                href="/operador?estado=pendientes"\n' +
+      '                className="text-accent underline-offset-2 hover:underline"\n' +
+      '              >\n' +
+      '                Ver los {bandeja.length} con pendientes\n' +
+      '              </Link>\n' +
+      '            ) : (\n' +
+      '              "Cada uno se va cuando queda listo para abrir"\n' +
+      '            )\n' +
+      '          }\n' +
+      '        >\n' +
+      '          {bandeja.slice(0, EN_LA_BANDEJA).map((r) => (\n' +
+      '            <Renglon\n' +
+      '              key={r.id}\n' +
+      '              folio={\n' +
+      '                <Marca tipo="atencion">\n' +
+      '                  {r.pendientes}{" "}\n' +
+      '                  {r.pendientes === 1 ? "pendiente" : "pendientes"}\n' +
+      '                </Marca>\n' +
+      '              }\n' +
+      '              titulo={r.negocio}\n' +
+      '              detalle={r.detalle}\n' +
+      '              tecla={\n' +
+      '                <Link\n' +
+      '                  href={r.tecla.href}\n' +
+      '                  {...atributosBoton("outline", "sm")}\n' +
+      '                  className="inline-flex items-center whitespace-nowrap"\n' +
+      '                >\n' +
+      '                  {r.tecla.etiqueta}\n' +
+      '                  <span className="sr-only"> de {r.negocio}</span>\n' +
+      '                </Link>\n' +
+      '              }\n' +
+      '            />\n' +
+      '          ))}\n' +
+      '        </Bloque>\n' +
+      '      )}\n' +
+      '\n' +
+      '      <section aria-labelledby="todos-titulo" className="space-y-3">\n' +
+      '        <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-line-strong pb-2">\n' +
+      '          <h2\n' +
+      '            id="todos-titulo"\n' +
+      '            className="text-[15px] font-semibold text-strong"\n' +
+      '          >\n' +
+      '            {vista ? VISTA_TITULO[vista] : "Todos los negocios"}\n' +
+      '          </h2>\n' +
+      '          {q && (\n' +
+      '            <p className="text-[13px] text-muted">\n' +
+      '              Buscando «{q}» ·{" "}\n' +
+      '              <Link\n' +
+      '                href={vista ? `/operador?estado=${vista}` : "/operador"}\n' +
+      '        '... 3206 more characters
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    import Link from "next/link";
+    import { operatorPrisma } from "@/lib/operator-db";
+    import { requireSesionOperador } from "@/lib/operator-session";
+    import { getBlueprint } from "@/blueprints";
+    import { modoDesdeEnv } from "@/plugins/arca";
+    import {
+      Bloque,
+      LineaDeEstado,
+      Marca,
+      Pestanas,
+      Renglon,
+      atributosBoton,
+    } from "@/components/ui";
+    import { cargarAperturas } from "./aperturas.server";
+    import { requiereOkDelDuenio } from "./tenants/[id]/apps-del-negocio";
+    import {
+      bandejaDeNegocios,
+      contarVistas,
+      esCasaDeRed,
+      esEstudio,
+      estadoEnPalabras,
+      filtrarNegocios,
+      leerVista,
+      ordenarNegocios,
+      pendientesDe,
+      planEnPalabras,
+      rielDeApertura,
+      rubroEnPalabras,
+      type EstadoTenant,
+      type NegocioParaLista,
+      type VistaNegocios,
+    } from "./negocios-core";
+    import TablaNegocios, { type FilaNegocio } from "./TablaNegocios";
+    
+    export const dynamic = "force-dynamic";
+    
+    // NEGOCIOS — la casa de la consola GSG. Lo que el dueño de GSG mira primero: qué negocio le pide
+    // algo hoy para poder abrir, y la lista de todos con lo que importa de cada uno.
+    //
+    // Lee CROSS-TENANT por la conexión de operador (operatorPrisma), sólo metadatos y conteos: nunca
+    // una fila de negocio de un cliente (ADR-021). «Listo para abrir» sale de la misma regla que la
+    // ficha y el tablero (checklist-apertura.ts), en lote (aperturas.server.ts).
+    //
+    // Vista, búsqueda y orden viven en la URL (`?estado=`, `?q=`, `?orden=`): la cabecera de la consola
+    // las ofrece y esta página las aplica (negocios-core.ts). Una vista vacía dice por qué.
+    //
+    // El «resetear las contraseñas de todos los dueños» que vivía acá se sacó: la action está
+    // deshabilitada a propósito (operator-actions.ts, resetAllOwnerPasswords) y el botón sólo podía
+    // fallar. El reseteo es de a uno, en la ficha de cada negocio (pestaña Personas).
+    
+    const uno = (v: string | string[] | undefined) =>
+      (Array.isArray(v) ? v[0] : v) ?? "";
+    
+    function rubroDe(id: string | null): string | null {
+      if (!id) return null;
+      try {
+        return getBlueprint(id).label;
+      } catch {
+        return id;
+      }
+    }
+    
+    const VACIO: Record<Exclude<VistaNegocios, null> | "todos", string> = {
+      todos: "Todavía no hay negocios dados de alta.",
+      produccion: "Ningún negocio está en producción todavía.",
+      prueba: "No hay negocios en prueba.",
+      pendientes: "Ningún negocio tiene pendientes para abrir: todos están listos.",
+      estudios: "Todavía no hay estudios contables dados de alta.",
+    };
+    
+    /** Cuántos renglones muestra «Para atender» antes de mandar a la vista «Con pendientes». */
+    const EN_LA_BANDEJA = 5;
+    
+    const VISTA_TITULO: Record<Exclude<VistaNegocios, null>, string> = {
+      produccion: "En producción",
+      prueba: "En prueba",
+      pendientes: "Con pendientes para abrir",
+      estudios: "Estudios contables",
+    };
+    
+    export default async function Negocios({
+      searchParams,
+    }: {
+      searchParams: Promise<Record<string, string | string[] | undefined>>;
+    }) {
+      // Guardia en la página, no sólo en el layout (el layout no se vuelve a ejecutar al navegar).
+      await requireSesionOperador();
+      const sp = await searchParams;
+      const vista = leerVista(sp.estado);
+      const q = uno(sp.q).slice(0, 80);
+      const orden = uno(sp.orden) || null;
+    
+      const [tenants, aperturas, vinculos] = await Promise.all([
+        operatorPrisma.tenant.findMany({
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            status: true,
+            plan: true,
+            blueprintId: true,
+            subdomain: true,
+            modules: true,
+            arcaHomologacion: true,
+            _count: { select: { users: true, appointments: true, orders: true } },
+          },
+        }),
+        cargarAperturas().catch(() => null),
+        // Quién es local o cliente de quién (la red de locales y la cartera guardan su vínculo acá).
+        operatorPrisma.carteraCliente
+          .findMany({
+            where: { estado: { not: "baja" } },
+            select: { tenantId: true, clienteTenantId: true },
+          })
+          .catch(() => []),
+      ]);
+    
+      const aperturaDe = new Map((aperturas ?? []).map((a) => [a.id, a]));
+      const nombreDe = new Map(tenants.map((t) => [t.id, t.name]));
+      const modulosDe = new Map(tenants.map((t) => [t.id, t.modules]));
+    
+      const negocios: NegocioParaLista[] = tenants.map((t) => ({
+        id: t.id,
+        nombre: t.name,
+        slug: t.slug,
+        subdominio: t.subdomain,
+        estado: t.status as EstadoTenant,
+        plan: t.plan,
+        rubro: rubroDe(t.blueprintId),
+        modulos: t.modules,
+        personas: t._count.users,
+        operaciones: t._count.appointments + t._count.orders,
+        apertura: aperturaDe.get(t.id) ?? null,
+        conCandado: requiereOkDelDuenio(t.slug),
+      }));
+    
+      // El papel de cada uno en una red o una cartera, en palabras.
+      const papelDe = (n: NegocioParaLista): string | null => {
+        if (esCasaDeRed(n)) return "casa de la red";
+        if (esEstudio(n)) return "estudio contable";
+        const v = vinculos.find((x) => x.clienteTenantId === n.id);
+        if (!v) return null;
+        const dueno = nombreDe.get(v.tenantId) ?? "otro negocio";
+        return (modulosDe.get(v.tenantId) ?? []).includes("cartera")
+          ? `cliente de ${dueno}`
+          : `local de ${dueno}`;
+      };
+    
+      const cuenta = contarVistas(negocios);
+      const visibles = ordenarNegocios(filtrarNegocios(negocios, vista, q), orden);
+      const bandeja = bandejaDeNegocios(negocios);
+      const filas: FilaNegocio[] = visibles.map((n) => {
+        const riel = rielDeApertura(n.apertura);
+        return {
+          id: n.id,
+          nombre: n.nombre,
+          slug: n.slug,
+          subdominio: n.subdominio,
+          papel: papelDe(n),
+          estado: estadoEnPalabras(n.estado),
+          plan: planEnPalabras(n.plan),
+          rubro: rubroEnPalabras(n.rubro),
+          personas: n.personas,
+          listo: riel ? { ...riel, pendientes: pendientesDe(n) } : null,
+          actividad: n.operaciones,
+          conCandado: n.conCandado,
+        };
+      });
+    
+      // La plataforma en palabras: lo que el dueño tiene que saber antes de abrir un negocio más.
+      const aislamiento =
+        process.env.RLS_ENFORCEMENT?.trim().toLowerCase() === "on";
+      const modoArca = modoDesdeEnv();
+      const conValidezFiscal =
+        modoArca === "real" ? tenants.filter((t) => !t.arcaHomologacion).length : 0;
+      const candados = negocios.filter((n) => n.conCandado);
+    
+      return (
+        <div className="space-y-8">
+          <header>
+            <h1 className="text-2xl font-bold text-strong">Negocios</h1>
+            <LineaDeEstado
+              datos={[
+                <>
+                  <strong>{cuenta.todos}</strong>{" "}
+                  {cuenta.todos === 1 ? "negocio" : "negocios"}
+                </>,
+                `${cuenta.produccion} en producción`,
+                `${cuenta.prueba} en prueba`,
+                cuenta.suspendidos > 0 ? `${cuenta.suspendidos} suspendidos` : null,
+                cuenta.pendientes > 0
+                  ? `${cuenta.pendientes} con pendientes para abrir`
+                  : "todos listos para abrir",
+              ]}
+            />
+            <ul
+              className="mt-3 flex flex-wrap gap-x-6 gap-y-1"
+              aria-label="La plataforma"
+            >
+              <li>
+                <Marca tipo={aislamiento ? "hecho" : "atencion"}>
+                  {aislamiento
+                    ? "Aislamiento entre negocios: prendido"
+                    : "Aislamiento entre negocios: apagado en este entorno"}
+                </Marca>
+              </li>
+              {candados.map((n) => (
+                <li key={n.id}>
+                  <Marca tipo="hecho">
+                    {n.nombre} con candado: cambia sólo con el OK del dueño
+                  </Marca>
+                </li>
+              ))}
+              <li>
+                <Marca tipo={conValidezFiscal > 0 ? "hecho" : "atencion"}>
+                  {modoArca === "real"
+                    ? conValidezFiscal > 0
+                      ? `Facturación real: ${conValidezFiscal} ${conValidezFiscal === 1 ? "negocio" : "negocios"}`
+                      : "Facturación real: ningún negocio todavía"
+                    : modoArca === "homologacion"
+                      ? "ARCA en homologación: ninguna factura tiene validez fiscal"
+                      : "ARCA simulado en este entorno: no se emite nada"}
+                </Marca>
+              </li>
+            </ul>
+          </header>
+    
+          {bandeja.length > 0 && !q && (
+            <Bloque
+              id="para-atender"
+              titulo="Para atender"
+              cuenta={bandeja.length}
+              nota={
+                bandeja.length > EN_LA_BANDEJA ? (
+                  <Link
+                    href="/operador?estado=pendientes"
+                    className="text-accent underline-offset-2 hover:underline"
+                  >
+                    Ver los {bandeja.length} con pendientes
+                  </Link>
+                ) : (
+                  "Cada uno se va cuando queda listo para abrir"
+                )
+              }
+            >
+              {bandeja.slice(0, EN_LA_BANDEJA).map((r) => (
+                <Renglon
+                  key={r.id}
+                  folio={
+                    <Marca tipo="atencion">
+                      {r.pendientes}{" "}
+                      {r.pendientes === 1 ? "pendiente" : "pendientes"}
+                    </Marca>
+                  }
+                  titulo={r.negocio}
+                  detalle={r.detalle}
+                  tecla={
+                    <Link
+                      href={r.tecla.href}
+                      {...atributosBoton("outline", "sm")}
+                      className="inline-flex items-center whitespace-nowrap"
+                    >
+                      {r.tecla.etiqueta}
+                      <span className="sr-only"> de {r.negocio}</span>
+                    </Link>
+                  }
+                />
+              ))}
+            </Bloque>
+          )}
+    
+          <section aria-labelledby="todos-titulo" className="space-y-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-line-strong pb-2">
+              <h2
+                id="todos-titulo"
+                className="text-[15px] font-semibold text-strong"
+              >
+                {vista ? VISTA_TITULO[vista] : "Todos los negocios"}
+              </h2>
+              {q && (
+                <p className="text-[13px] text-muted">
+                  Buscando «{q}» ·{" "}
+                  <Link
+                    href={vista ? `/operador?estado=${vista}` : "/operador"}
+                    className="text-accent underline"
+                  >
+                    Ver todos
+                  </Link>
+                </p>
+              )}
+            </div>
+            {/* En el celular, las vistas y el buscador viven acá (la cabecera de la PC no se ve). */}
+            <div className="lg:hidden">
+              <Pestanas
+                etiqueta="Vistas de Negocios"
+                conRaya
+                pestanas={[
+                  {
+                    href: "/operador",
+                    etiqueta: "Todos",
+                    actual: vista === null,
+                    conteo: cuenta.todos,
+                  },
+                  {
+                    href: "/operador?estado=produccion",
+                    etiqueta: "En producción",
+                    actual: vista === "produccion",
+                    conteo: cuenta.produccion,
+                  },
+                  {
+                    href: "/operador?estado=prueba",
+                    etiqueta: "En prueba",
+                    actual: vista === "prueba",
+                    conteo: cuenta.prueba,
+                  },
+                  {
+                    href: "/operador?estado=pendientes",
+                    etiqueta: "Con pendientes",
+                    actual: vista === "pendientes",
+                    conteo: cuenta.pendientes,
+                  },
+                  {
+                    href: "/operador?estado=estudios",
+                    etiqueta: "Estudios",
+                    actual: vista === "estudios",
+                    conteo: cuenta.estudios,
+                  },
+                ]}
+              />
+            </div>
+            <form
+              id="buscar-negocio"
+              role="search"
+              action="/operador"
+              method="get"
+              className="flex gap-2 lg:hidden"
+            >
+              {vista && <input type="hidden" name="estado" value={vista} />}
+              <label htmlFor="q-movil" className="sr-only">
+                Buscar un negocio
+              </label>
+              <input
+                id="q-movil"
+                name="q"
+                type="search"
+                defaultValue={q}
+                placeholder="Buscar un negocio"
+                data-ui="input"
+                className="h-11 min-w-0 flex-1 rounded border border-line-strong bg-surface-raised px-3 text-base text-strong"
+              />
+              <button
+                type="submit"
+                {...atributosBoton("outline", "md")}
+                className="inline-flex items-center"
+              >
+                Buscar
+              </button>
+            </form>
+            <TablaNegocios
+              filas={filas}
+              total={cuenta.todos}
+              vacio={
+                <span className="flex flex-wrap items-center gap-3">
+                  {q
+                    ? `Ningún negocio coincide con «${q}».`
+                    : VACIO[vista ?? "todos"]}
+                  <Link
+                    href="/operador/alta"
+                    {...atributosBoton("outline", "sm")}
+                    className="inline-flex items-center"
+                  >
+                    Dar de alta un negocio
+                  </Link>
+                </span>
+              }
+            />
+            {aperturas === null && (
+              <p role="status" className="text-[13px] text-warning">
+                No se pudo leer «Listo para abrir» de los negocios: la columna dice
+                «No se pudo leer». Recargá la página.
+              </p>
+            )}
+          </section>
+        </div>
+      );
+    }
+    
+  operator: 'doesNotMatch'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/app/operador/(console)/consola-un-buscador.test.ts:18:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: la lista de negocios recibe la búsqueda, el filtro y el orden actuales
+not ok 2 - la lista de negocios recibe la búsqueda, el filtro y el orden actuales
+  ---
+  duration_ms: 0.621292
+  type: 'test'
+  location: '/home/user/erp/src/app/operador/(console)/consola-un-buscador.test.ts:2:1386'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /buscador=\{\{\s*q,\s*vista,\s*orden\s*\}\}/. Input:
+    
+    '<TablaNegocios\n' +
+      '          filas={filas}\n' +
+      '          total={cuenta.todos}\n' +
+      '          vacio={\n' +
+      '            <span className="flex flex-wrap items-center gap-3">\n' +
+      '              {q\n' +
+      '                ? `Ningún negocio coincide con «${q}».`\n' +
+      '                : VACIO[vista ?? "todos"]}\n' +
+      '              <Link\n' +
+      '                href="/operador/alta"\n' +
+      '                {...atributosBoton("outline", "sm")}\n' +
+      '                className="inline-flex items-center"\n' +
+      '              >\n' +
+      '                Dar de alta un negocio\n' +
+      '              </Link>\n' +
+      '            </span>\n' +
+      '          }\n' +
+      '        />'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    <TablaNegocios
+              filas={filas}
+              total={cuenta.todos}
+              vacio={
+                <span className="flex flex-wrap items-center gap-3">
+                  {q
+                    ? `Ningún negocio coincide con «${q}».`
+                    : VACIO[vista ?? "todos"]}
+                  <Link
+                    href="/operador/alta"
+                    {...atributosBoton("outline", "sm")}
+                    className="inline-flex items-center"
+                  >
+                    Dar de alta un negocio
+                  </Link>
+                </span>
+              }
+            />
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/app/operador/(console)/consola-un-buscador.test.ts:25:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: el único \#buscar-negocio es el de la lista
+ok 3 - el único \#buscar-negocio es el de la lista
+  ---
+  duration_ms: 0.371698
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 1
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 496.330992

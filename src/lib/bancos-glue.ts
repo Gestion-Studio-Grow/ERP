@@ -82,10 +82,11 @@ export function toNum(v: unknown): number {
 // Hay DOS relojes y responden preguntas distintas, así que viven separados:
 //
 //  - `rangoMesActual` → el CUPO del plan (regla comercial: N facturas automáticas por
-//    mes). Cuenta por instante de EMISIÓN (`Invoice.createdAt`) y cuenta todo lo emitido,
-//    rechazados incluidos: esa semántica NO cambia acá, sólo los bordes. Lo usan el
-//    bloqueo al emitir (`emitirPropuestas`), Facturita, el automático de Mercado Pago y
-//    la pantalla de bancos.
+//    mes). Cuenta por instante de EMISIÓN (`Invoice.createdAt`). Desde ENG-329 (decisión
+//    del dueño, 25/09) el cupo NO cuenta lo que ARCA rechazó: un rechazo no tiene CAE y
+//    no le gasta un lugar al negocio (`filtrosFacturacionMes().cupo`). Lo usan el bloqueo
+//    al emitir (`emitirPropuestas`), Facturita, el automático de Mercado Pago, la pantalla
+//    de bancos y la cartera del contador.
 //  - `rangoFiscalMes` → cuánto se FACTURÓ en el período fiscal. Filtra por la fecha del
 //    comprobante (`Invoice.fecha`, AAAAMMDD), que es con lo que se declara.
 //
@@ -131,10 +132,18 @@ export function rangoFiscalMes(ahora: Date = new Date()): { gte: string; lt: str
   return { gte: `${y}${dosCifras(m)}01`, lt: `${sy}${dosCifras(sm)}01` };
 }
 
-/** Los tres cortes de `Invoice` del mes, cada uno con su reloj. Se arman en UN lugar. */
+/** Los cortes de `Invoice` del mes, cada uno con su reloj. Se arman en UN lugar. */
 export interface FiltrosFacturacionMes {
-  /** Cupo del plan: TODO lo emitido en el mes por `createdAt`, rechazados incluidos (hoy consumen cupo). */
-  cupo: { createdAt: { gte: Date; lt: Date } };
+  /**
+   * Todo lo emitido en el mes por `createdAt`, en cualquier estado. Es el "N comprobantes este
+   * mes · M rechazados" del Inicio (apps/kpis/finanzas.server.ts), no el cupo.
+   */
+  emitido: { createdAt: { gte: Date; lt: Date } };
+  /**
+   * Cupo del plan (ENG-329): lo emitido en el mes que ARCA NO rechazó. La pendiente cuenta (va a
+   * tener CAE o va a volver rechazada, y ahí devuelve el lugar); la autorizada cuenta.
+   */
+  cupo: { createdAt: { gte: Date; lt: Date }; status: { not: "REJECTED" } };
   /** Facturado: sólo con CAE (`AUTHORIZED`), por la fecha del comprobante. */
   facturado: { fecha: { gte: string; lt: string }; status: "AUTHORIZED" };
   /**
@@ -153,7 +162,8 @@ export interface FiltrosFacturacionMes {
 export function filtrosFacturacionMes(ahora: Date = new Date()): FiltrosFacturacionMes {
   const emitido = rangoMesActual(ahora);
   return {
-    cupo: { createdAt: emitido },
+    emitido: { createdAt: emitido },
+    cupo: { createdAt: emitido, status: { not: "REJECTED" } },
     facturado: { fecha: rangoFiscalMes(ahora), status: "AUTHORIZED" },
     rechazado: { createdAt: emitido, status: "REJECTED" },
   };
@@ -515,10 +525,15 @@ export function crearYaProcesado(
 // quedan como wrappers finos (capability + tenant actual + revalidate) con el
 // MISMO comportamiento de siempre.
 
-/** Facturas del tenant creadas este mes (todas las vías). tenantId explícito. */
+/**
+ * Lugares del cupo del plan usados este mes: facturas del tenant emitidas este mes por
+ * cualquier vía (banco, Mercado Pago, Facturita, turnos), SIN las rechazadas por ARCA
+ * (ENG-329). Mismo `where` que la pantalla de bancos y la cartera (`filtrosFacturacionMes`).
+ * tenantId explícito.
+ */
 export async function contarFacturasDelMes(tenantId: string): Promise<number> {
   return tenantTransaction(
-    (tx) => tx.invoice.count({ where: { tenantId, createdAt: rangoMesActual() } }),
+    (tx) => tx.invoice.count({ where: { tenantId, ...filtrosFacturacionMes().cupo } }),
     { tenantId },
   );
 }
@@ -533,7 +548,7 @@ export interface ImportacionVista {
 }
 
 export interface KpisFacturacionBancaria {
-  /** Facturas del tenant creadas este mes (todas las vías: banco, MP, turnos). Reloj del CUPO. */
+  /** Lugares del cupo usados este mes: lo emitido por todas las vías (banco, MP, turnos) sin las rechazadas por ARCA (ENG-329). */
   facturasMes: number;
   capFacturasMes: number;
   capRestante: number;

@@ -1,0 +1,120 @@
+src/app/admin/(dashboard)/clientes/[id]/page.tsx(49,25): error TS2365: Operator '+' cannot be applied to types 'number' and 'number | Decimal'.
+src/app/admin/(dashboard)/turnos/lista/page.tsx(128,7): error TS2322: Type '{ method: PaymentMethod; comprobanteNro: string | null; amount: Decimal; status: PaymentStatus; } | null' is not assignable to type 'PagoLegado'.
+  Type '{ method: PaymentMethod; comprobanteNro: string | null; amount: Decimal; status: PaymentStatus; }' is not assignable to type 'PagoLegado'.
+    Types of property 'amount' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/turnos/lista/page.tsx(169,42): error TS2322: Type '{ id: string; startsAt: Date; status: AppointmentStatus; professionalId: string; serviceId: string; priceAtBooking: number | null; notes: string | null; client: { ...; }; ... 4 more ...; collections: CobroDelTurno[]; }' is not assignable to type 'Appointment'.
+  Types of property 'payment' are incompatible.
+    Type '{ method: PaymentMethod; comprobanteNro: string | null; amount: Decimal; status: PaymentStatus; } | null' is not assignable to type '{ method: string; comprobanteNro: string | null; amount?: number | undefined; status?: string | undefined; } | null'.
+      Type '{ method: PaymentMethod; comprobanteNro: string | null; amount: Decimal; status: PaymentStatus; }' is not assignable to type '{ method: string; comprobanteNro: string | null; amount?: number | undefined; status?: string | undefined; }'.
+        Types of property 'amount' are incompatible.
+          Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/turnos/lista/page.tsx(184,40): error TS2322: Type '{ id: string; startsAt: Date; status: AppointmentStatus; professionalId: string; serviceId: string; priceAtBooking: number | null; notes: string | null; client: { ...; }; ... 4 more ...; collections: CobroDelTurno[]; }' is not assignable to type 'Appointment'.
+  Types of property 'payment' are incompatible.
+    Type '{ method: PaymentMethod; comprobanteNro: string | null; amount: Decimal; status: PaymentStatus; } | null' is not assignable to type '{ method: string; comprobanteNro: string | null; amount?: number | undefined; status?: string | undefined; } | null'.
+      Type '{ method: PaymentMethod; comprobanteNro: string | null; amount: Decimal; status: PaymentStatus; }' is not assignable to type '{ method: string; comprobanteNro: string | null; amount?: number | undefined; status?: string | undefined; }'.
+        Types of property 'amount' are incompatible.
+          Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/turnos/lista/page.tsx(195,42): error TS2322: Type '{ id: string; startsAt: Date; status: AppointmentStatus; professionalId: string; serviceId: string; priceAtBooking: number | null; notes: string | null; client: { ...; }; ... 4 more ...; collections: CobroDelTurno[]; }' is not assignable to type 'Appointment'.
+  Types of property 'payment' are incompatible.
+    Type '{ method: PaymentMethod; comprobanteNro: string | null; amount: Decimal; status: PaymentStatus; } | null' is not assignable to type '{ method: string; comprobanteNro: string | null; amount?: number | undefined; status?: string | undefined; } | null'.
+      Type '{ method: PaymentMethod; comprobanteNro: string | null; amount: Decimal; status: PaymentStatus; }' is not assignable to type '{ method: string; comprobanteNro: string | null; amount?: number | undefined; status?: string | undefined; }'.
+        Types of property 'amount' are incompatible.
+          Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/turnos/page.tsx(165,9): error TS2322: Type '{ id: string; startsAt: Date; endsAt: Date; status: "PENDING" | "CONFIRMED" | "COMPLETED"; professionalId: string; serviceId: string; priceAtBooking: number; notes: string | null; ... 4 more ...; payment: { ...; } | null; }[] | ({ ...; } & ... 1 more ... & { ...; })[]' is not assignable to type 'Appointment[]'.
+  Type '({ box: { id: string; name: string; createdAt: Date; updatedAt: Date; tenantId: string; active: boolean; deletedAt: Date | null; }; professional: { id: string; name: string; createdAt: Date; ... 8 more ...; boxId: string | null; }; service: { ...; }; client: { ...; }; payment: { ...; } | null; } & { ...; } & { ...; ...' is not assignable to type 'Appointment[]'.
+    Type '{ box: { id: string; name: string; createdAt: Date; updatedAt: Date; tenantId: string; active: boolean; deletedAt: Date | null; }; professional: { id: string; name: string; createdAt: Date; ... 8 more ...; boxId: string | null; }; service: { ...; }; client: { ...; }; payment: { ...; } | null; } & { ...; } & { ...; }' is not assignable to type 'Appointment'.
+      Types of property 'payment' are incompatible.
+        Type '{ id: string; createdAt: Date; updatedAt: Date; status: PaymentStatus; tenantId: string; amount: Decimal; method: PaymentMethod; appointmentId: string; mpPaymentId: string | null; mpPreferenceId: string | null; comprobanteNro: string | null; } | null' is not assignable to type '{ method: string; comprobanteNro: string | null; amount?: number | undefined; status?: string | undefined; } | null'.
+          Type '{ id: string; createdAt: Date; updatedAt: Date; status: PaymentStatus; tenantId: string; amount: Decimal; method: PaymentMethod; appointmentId: string; mpPaymentId: string | null; mpPreferenceId: string | null; comprobanteNro: string | null; }' is not assignable to type '{ method: string; comprobanteNro: string | null; amount?: number | undefined; status?: string | undefined; }'.
+            Types of property 'amount' are incompatible.
+              Type 'Decimal' is not assignable to type 'number'.
+src/apps/kpis/finanzas.server.ts(268,24): error TS2345: Argument of type '0 | Decimal' is not assignable to parameter of type 'string | number | null | undefined'.
+  Type 'Decimal' is not assignable to type 'string | number | null | undefined'.
+src/lib/actions.ts(1450,5): error TS2345: Argument of type '{ amount: Decimal; cobradoEn: Date; profesional: string; servicio: string; }[]' is not assignable to parameter of type 'readonly PagoParaReporte[]'.
+  Type '{ amount: Decimal; cobradoEn: Date; profesional: string; servicio: string; }' is not assignable to type 'PagoParaReporte'.
+    Types of property 'amount' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/actions.ts(1489,9): error TS2322: Type '{ status: AppointmentStatus; startsAt: Date; endsAt: Date; clientId: string; professionalName: string; payment: { amount: Decimal; method: PaymentMethod; } | null; }[]' is not assignable to type 'KpiAppointment[]'.
+  Type '{ status: AppointmentStatus; startsAt: Date; endsAt: Date; clientId: string; professionalName: string; payment: { amount: Decimal; method: PaymentMethod; } | null; }' is not assignable to type 'KpiAppointment'.
+    Types of property 'payment' are incompatible.
+      Type '{ amount: Decimal; method: PaymentMethod; } | null' is not assignable to type '{ amount: number; method: KpiPaymentMethod; } | null'.
+        Type '{ amount: Decimal; method: PaymentMethod; }' is not assignable to type '{ amount: number; method: KpiPaymentMethod; }'.
+          Types of property 'amount' are incompatible.
+            Type 'Decimal' is not assignable to type 'number'.
+src/lib/actions.ts(1546,9): error TS2322: Type '{ status: AppointmentStatus; startsAt: Date; endsAt: Date; clientId: string; professionalName: string; payment: { amount: Decimal; method: PaymentMethod; } | null; }[]' is not assignable to type 'KpiAppointment[]'.
+  Type '{ status: AppointmentStatus; startsAt: Date; endsAt: Date; clientId: string; professionalName: string; payment: { amount: Decimal; method: PaymentMethod; } | null; }' is not assignable to type 'KpiAppointment'.
+    Types of property 'payment' are incompatible.
+      Type '{ amount: Decimal; method: PaymentMethod; } | null' is not assignable to type '{ amount: number; method: KpiPaymentMethod; } | null'.
+        Type '{ amount: Decimal; method: PaymentMethod; }' is not assignable to type '{ amount: number; method: KpiPaymentMethod; }'.
+          Types of property 'amount' are incompatible.
+            Type 'Decimal' is not assignable to type 'number'.
+src/lib/actions.ts(1680,54): error TS2322: Type '{ status: PaymentStatus; amount: Decimal; } | null' is not assignable to type 'PagoLegado'.
+  Type '{ status: PaymentStatus; amount: Decimal; }' is not assignable to type 'PagoLegado'.
+    Types of property 'amount' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/actions.ts(1856,5): error TS2345: Argument of type '{ clientId: string; status: AppointmentStatus; startsAt: Date; precio: number; servicio: string; profesional: string; cobros: CobroDelTurno[]; pagoLegado: { ...; } | null; }[]' is not assignable to parameter of type 'readonly TurnoCompletado[]'.
+  Type '{ clientId: string; status: AppointmentStatus; startsAt: Date; precio: number; servicio: string; profesional: string; cobros: CobroDelTurno[]; pagoLegado: { ...; } | null; }' is not assignable to type 'TurnoCompletado'.
+    Types of property 'pagoLegado' are incompatible.
+      Type '{ status: PaymentStatus; amount: Decimal; } | null' is not assignable to type 'PagoLegado'.
+        Type '{ status: PaymentStatus; amount: Decimal; }' is not assignable to type 'PagoLegado'.
+          Types of property 'amount' are incompatible.
+            Type 'Decimal' is not assignable to type 'number'.
+src/lib/actions.ts(2061,50): error TS2365: Operator '+' cannot be applied to types 'number' and 'Decimal'.
+src/lib/cierre-diario-actions.ts(325,11): error TS2322: Type '{ status: PaymentStatus; amount: Decimal; } | null' is not assignable to type 'PagoLegado'.
+  Type '{ status: PaymentStatus; amount: Decimal; }' is not assignable to type 'PagoLegado'.
+    Types of property 'amount' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/cierre-mes/lectura.ts(136,13): error TS2345: Argument of type '{ professionalId: string; serviceId: string; precio: number; cobros: { amount: number; method: PaymentMethod; }[]; pagoLegado: { status: PaymentStatus; amount: Decimal; } | null; }[]' is not assignable to parameter of type 'readonly TurnoSinLiquidar[]'.
+  Type '{ professionalId: string; serviceId: string; precio: number; cobros: { amount: number; method: PaymentMethod; }[]; pagoLegado: { status: PaymentStatus; amount: Decimal; } | null; }' is not assignable to type 'TurnoSinLiquidar'.
+    Types of property 'pagoLegado' are incompatible.
+      Type '{ status: PaymentStatus; amount: Decimal; } | null' is not assignable to type 'PagoLegado'.
+        Type '{ status: PaymentStatus; amount: Decimal; }' is not assignable to type 'PagoLegado'.
+          Types of property 'amount' are incompatible.
+            Type 'Decimal' is not assignable to type 'number'.
+src/lib/commission-actions.ts(179,162): error TS2322: Type '{ id: string; createdAt: Date; updatedAt: Date; status: PaymentStatus; tenantId: string; amount: Decimal; method: PaymentMethod; appointmentId: string; mpPaymentId: string | null; mpPreferenceId: string | null; comprobanteNro: string | null; }' is not assignable to type 'PagoLegado'.
+  Types of property 'amount' are incompatible.
+    Type 'Decimal' is not assignable to type 'number'.
+src/lib/commission-actions.ts(181,60): error TS2322: Type 'Decimal' is not assignable to type 'number'.
+src/lib/crm/cargas.server.ts(146,5): error TS2322: Type '{ id: string; status: AppointmentStatus; startsAt: Date; precio: number; cobros: CobroDelTurno[]; pagoLegado: { status: PaymentStatus; amount: Decimal; } | null; servicio: string; profesional: string; }[]' is not assignable to type 'readonly TurnoDeFicha[]'.
+  Type '{ id: string; status: AppointmentStatus; startsAt: Date; precio: number; cobros: CobroDelTurno[]; pagoLegado: { status: PaymentStatus; amount: Decimal; } | null; servicio: string; profesional: string; }' is not assignable to type 'TurnoDeFicha'.
+    Types of property 'pagoLegado' are incompatible.
+      Type '{ status: PaymentStatus; amount: Decimal; } | null' is not assignable to type 'PagoLegado'.
+        Type '{ status: PaymentStatus; amount: Decimal; }' is not assignable to type 'PagoLegado'.
+          Types of property 'amount' are incompatible.
+            Type 'Decimal' is not assignable to type 'number'.
+src/lib/invoice-from-appointment.ts(43,5): error TS2322: Type 'Prisma__AppointmentClient<({ service: { id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; ... 5 more ...; categoryId: string | null; }; payment: { ...; } | null; } & { ...; }) | null, null, DefaultArgs, { ...' is not assignable to type 'Promise<TurnoAFacturar | null>'.
+  Types of property 'then' are incompatible.
+    Type '<TResult1 = ({ service: { id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; ... 5 more ...; categoryId: string | null; }; payment: { ...; } | null; } & { ...; }) | null, TResult2 = never>(onfulfilled?: ((v...' is not assignable to type '<TResult1 = TurnoAFacturar | null, TResult2 = never>(onfulfilled?: ((value: TurnoAFacturar | null) => TResult1 | PromiseLike<TResult1>) | null | undefined, onrejected?: ((reason: any) => TResult2 | PromiseLike<...>) | ... 1 more ... | undefined) => Promise<...>'.
+      Types of parameters 'onfulfilled' and 'onfulfilled' are incompatible.
+        Types of parameters 'value' and 'value' are incompatible.
+          Type '({ service: { id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; ... 5 more ...; categoryId: string | null; }; payment: { ...; } | null; } & { ...; }) | null' is not assignable to type 'TurnoAFacturar | null'.
+            Type '{ service: { id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; ... 5 more ...; categoryId: string | null; }; payment: { ...; } | null; } & { ...; }' is not assignable to type 'TurnoAFacturar | null'.
+              Type '{ service: { id: string; name: string; createdAt: Date; updatedAt: Date; price: number; tenantId: string; active: boolean; deletedAt: Date | null; description: string | null; ... 5 more ...; categoryId: string | null; }; payment: { ...; } | null; } & { ...; }' is not assignable to type 'TurnoAFacturar'.
+                Types of property 'payment' are incompatible.
+                  Type '{ id: string; createdAt: Date; updatedAt: Date; status: PaymentStatus; tenantId: string; amount: Decimal; method: PaymentMethod; appointmentId: string; mpPaymentId: string | null; mpPreferenceId: string | null; comprobanteNro: string | null; } | null' is not assignable to type '{ id: string; amount: number; status: string; comprobanteNro: string | null; } | null'.
+                    Type '{ id: string; createdAt: Date; updatedAt: Date; status: PaymentStatus; tenantId: string; amount: Decimal; method: PaymentMethod; appointmentId: string; mpPaymentId: string | null; mpPreferenceId: string | null; comprobanteNro: string | null; }' is not assignable to type '{ id: string; amount: number; status: string; comprobanteNro: string | null; }'.
+                      Types of property 'amount' are incompatible.
+                        Type 'Decimal' is not assignable to type 'number'.
+src/lib/libros/libro-iva-loader.ts(134,9): error TS2322: Type '({ clave: string; fecha: string; tipo: string; numero: string; cliente: string; total: number; } | { clave: string; fecha: string; tipo: string; numero: string; cliente: string; total: Decimal; })[]' is not assignable to type 'VentaSinComprobanteRow[]'.
+  Type '{ clave: string; fecha: string; tipo: string; numero: string; cliente: string; total: number; } | { clave: string; fecha: string; tipo: string; numero: string; cliente: string; total: Decimal; }' is not assignable to type 'VentaSinComprobanteRow'.
+    Type '{ clave: string; fecha: string; tipo: string; numero: string; cliente: string; total: Decimal; }' is not assignable to type 'VentaSinComprobanteRow'.
+      Types of property 'total' are incompatible.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/turnos/anulacion.ts(558,5): error TS2322: Type '{ status: PaymentStatus; amount: Decimal; } | null' is not assignable to type 'PagoLegado'.
+  Type '{ status: PaymentStatus; amount: Decimal; }' is not assignable to type 'PagoLegado'.
+    Types of property 'amount' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/turnos/cobro-turno-repo.ts(191,83): error TS2322: Type '{ id: string; status: PaymentStatus; amount: Decimal; method: PaymentMethod; } | null' is not assignable to type 'PagoLegado'.
+  Type '{ id: string; status: PaymentStatus; amount: Decimal; method: PaymentMethod; }' is not assignable to type 'PagoLegado'.
+    Types of property 'amount' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/turnos/cobro-turno-repo.ts(198,49): error TS2345: Argument of type '{ id: string; status: PaymentStatus; amount: Decimal; method: PaymentMethod; } | null' is not assignable to parameter of type 'PagoLegado'.
+  Type '{ id: string; status: PaymentStatus; amount: Decimal; method: PaymentMethod; }' is not assignable to type 'PagoLegado'.
+    Types of property 'amount' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/turnos/cobro-turno-repo.ts(205,24): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'number'.
+src/lib/turnos/cobro-turno-repo.ts(213,34): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'number'.
+src/lib/turnos/cobro-turno-repo.ts(280,77): error TS2322: Type '{ id: string; amount: Decimal; }' is not assignable to type '{ id: string; amount: number; }'.
+  Types of property 'amount' are incompatible.
+    Type 'Decimal' is not assignable to type 'number'.

@@ -1,0 +1,354 @@
+TAP version 13
+# Subtest: Enlaces de texto del panel sobre el fondo: AA con los 7 acentos de marca
+    # Subtest: el acento crudo como texto NO llega con ámbar (el caso del gate: 4,33:1)
+    ok 1 - el acento crudo como texto NO llega con ámbar (el caso del gate: 4,33:1)
+      ---
+      duration_ms: 497.562304
+      type: 'test'
+      ...
+    # Subtest: /admin/proveedores (compras/page.tsx) se lee con todos los acentos
+    ok 2 - /admin/proveedores (compras/page.tsx) se lee con todos los acentos
+      ---
+      duration_ms: 1524.257823
+      type: 'test'
+      ...
+    # Subtest: /admin/compras/sugerido (compras/page.tsx) se lee con todos los acentos
+    ok 3 - /admin/compras/sugerido (compras/page.tsx) se lee con todos los acentos
+      ---
+      duration_ms: 1223.31341
+      type: 'test'
+      ...
+    # Subtest: /admin/ajustes/recuento (ajustes/page.tsx) se lee con todos los acentos
+    ok 4 - /admin/ajustes/recuento (ajustes/page.tsx) se lee con todos los acentos
+      ---
+      duration_ms: 975.175944
+      type: 'test'
+      ...
+    1..4
+ok 1 - Enlaces de texto del panel sobre el fondo: AA con los 7 acentos de marca
+  ---
+  duration_ms: 6721.269026
+  type: 'suite'
+  ...
+# Subtest: toda app lista con ruta fija está en el gate; las en preparación y las de [id] no
+ok 2 - toda app lista con ruta fija está en el gate; las en preparación y las de [id] no
+  ---
+  duration_ms: 56.810874
+  type: 'test'
+  ...
+# Subtest: cada app se mide en los negocios de su rubro
+ok 3 - cada app se mide en los negocios de su rubro
+  ---
+  duration_ms: 8.525263
+  type: 'test'
+  ...
+# Subtest: lo que el gate ya medía sigue medido (y la pantalla de rechazos también)
+ok 4 - lo que el gate ya medía sigue medido (y la pantalla de rechazos también)
+  ---
+  duration_ms: 1.988512
+  type: 'test'
+  ...
+# Subtest: el celular del gate es el de 412 px de la casa
+ok 5 - el celular del gate es el de 412 px de la casa
+  ---
+  duration_ms: 1.495413
+  type: 'test'
+  ...
+# Subtest: una app que no está en ese negocio se omite (no se mide la pantalla de rechazo en su lugar)
+ok 6 - una app que no está en ese negocio se omite (no se mide la pantalla de rechazo en su lugar)
+  ---
+  duration_ms: 7.542004
+  type: 'test'
+  ...
+# Subtest: sólo puede faltar una app con módulo, rubro o edición: una del núcleo que rebota FALLA
+ok 7 - sólo puede faltar una app con módulo, rubro o edición: una del núcleo que rebota FALLA
+  ---
+  duration_ms: 2.07874
+  type: 'test'
+  ...
+# Subtest: pedir más stock del que hay: el aviso va en la línea y no dice cuánto queda
+ok 8 - pedir más stock del que hay: el aviso va en la línea y no dice cuánto queda
+  ---
+  duration_ms: 2.770324
+  type: 'test'
+  ...
+# Subtest: sin stock, dado de baja o sin precio: cada línea dice lo suyo; sin control de stock, se vende
+ok 9 - sin stock, dado de baja o sin precio: cada línea dice lo suyo; sin control de stock, se vende
+  ---
+  duration_ms: 0.466535
+  type: 'test'
+  ...
+# Subtest: la vidriera dice 'Sin stock' o 'Últimas unidades', nunca el número
+ok 10 - la vidriera dice 'Sin stock' o 'Últimas unidades', nunca el número
+  ---
+  duration_ms: 0.31012
+  type: 'test'
+  ...
+# Subtest: envío $3.500: el servidor lo calcula con la tarifa de la marca y el pedido de la bandeja lo suma
+ok 11 - envío $3.500: el servidor lo calcula con la tarifa de la marca y el pedido de la bandeja lo suma
+  ---
+  duration_ms: 1.548886
+  type: 'test'
+  ...
+# Subtest: retiro en el local o compra desde $25.000: sin envío y sin línea
+ok 12 - retiro en el local o compra desde $25.000: sin envío y sin línea
+  ---
+  duration_ms: 0.383272
+  type: 'test'
+  ...
+# Subtest: MAGRA: envío gratis (su tarifa no existe) y sin promesa de débito ni crédito
+ok 13 - MAGRA: envío gratis (su tarifa no existe) y sin promesa de débito ni crédito
+  ---
+  duration_ms: 0.414873
+  type: 'test'
+  ...
+# Subtest: MAGRA: la franja de su vidriera editorial (magra-content.ts) deja de prometer crédito y débito
+ok 14 - MAGRA: la franja de su vidriera editorial (magra-content.ts) deja de prometer crédito y débito
+  ---
+  duration_ms: 0.709625
+  type: 'test'
+  ...
+# Subtest: el nombre de la línea de envío no se puede usar como precio a mano (dejaría de marcarse)
+ok 15 - el nombre de la línea de envío no se puede usar como precio a mano (dejaría de marcarse)
+  ---
+  duration_ms: 0.737315
+  type: 'test'
+  ...
+# Subtest: «Pedir por WhatsApp»: el mensaje sale con el número del pedido y lo que quedó grabado
+ok 16 - «Pedir por WhatsApp»: el mensaje sale con el número del pedido y lo que quedó grabado
+  ---
+  duration_ms: 4.84046
+  type: 'test'
+  ...
+# Subtest: reintento con la MISMA clave después de llevarse el último kilo: devuelve el pedido ya tomado, no 'no nos alcanza'
+ok 17 - reintento con la MISMA clave después de llevarse el último kilo: devuelve el pedido ya tomado, no 'no nos alcanza'
+  ---
+  duration_ms: 1.486184
+  type: 'test'
+  ...
+# Subtest: la carrera: la bolsa pasó, otra compra se llevó lo último y el alta abortó → el aviso vuelve en la línea
+ok 18 - la carrera: la bolsa pasó, otra compra se llevó lo último y el alta abortó → el aviso vuelve en la línea
+  ---
+  duration_ms: 0.368401
+  type: 'test'
+  ...
+# Subtest: cupón rechazado, rechazo del alta y error de base: cada uno sale por su lado
+ok 19 - cupón rechazado, rechazo del alta y error de base: cada uno sale por su lado
+  ---
+  duration_ms: 0.828525
+  type: 'test'
+  ...
+# Subtest: pesar y ajustar un pedido con envío y cupón: el envío no es base del descuento
+ok 20 - pesar y ajustar un pedido con envío y cupón: el envío no es base del descuento
+  ---
+  duration_ms: 0.453251
+  type: 'test'
+  ...
+# Subtest: la clave que manda un anónimo: sólo con la forma de las que genera la tienda, y siempre en el espacio web:
+ok 21 - la clave que manda un anónimo: sólo con la forma de las que genera la tienda, y siempre en el espacio web:
+  ---
+  duration_ms: 0.336765
+  type: 'test'
+  ...
+# Subtest: la guarda de la tienda no busca una clave de otro espacio: toma un pedido nuevo en vez de devolver el ajeno
+ok 22 - la guarda de la tienda no busca una clave de otro espacio: toma un pedido nuevo en vez de devolver el ajeno
+  ---
+  duration_ms: 0.305619
+  type: 'test'
+  ...
+# Subtest: M2: todas las vidrieras generan la clave con nuevaClaveDePedido, y el servidor acepta lo que generan
+ok 23 - M2: todas las vidrieras generan la clave con nuevaClaveDePedido, y el servidor acepta lo que generan
+  ---
+  duration_ms: 5.14183
+  type: 'test'
+  ...
+# Subtest: La vidriera en el celular: todo lo que se toca mide 44 px o más
+    # Subtest: vidriera de velas-demo: ningún botón chico, texto legible y sin scroll de costado
+    ok 1 - vidriera de velas-demo: ningún botón chico, texto legible y sin scroll de costado
+      ---
+      duration_ms: 353.824143
+      type: 'test'
+      ...
+    # Subtest: vidriera de padel-demo: ningún botón chico, texto legible y sin scroll de costado
+    ok 2 - vidriera de padel-demo: ningún botón chico, texto legible y sin scroll de costado
+      ---
+      duration_ms: 242.582115
+      type: 'test'
+      ...
+    # Subtest: vidriera de adosmanos: ningún botón chico, texto legible y sin scroll de costado
+    ok 3 - vidriera de adosmanos: ningún botón chico, texto legible y sin scroll de costado
+      ---
+      duration_ms: 273.383096
+      type: 'test'
+      ...
+    1..3
+ok 24 - La vidriera en el celular: todo lo que se toca mide 44 px o más
+  ---
+  duration_ms: 4765.995893
+  type: 'suite'
+  ...
+# Subtest: MAGRA reparte su carta en vaca, cerdo, pollo y gourmet por el nombre
+ok 25 - MAGRA reparte su carta en vaca, cerdo, pollo y gourmet por el nombre
+  ---
+  duration_ms: 1.3324
+  type: 'test'
+  ...
+# Subtest: A Dos Manos: palas, zapatillas y todo lo demás en accesorios (el protector de pala no es una pala)
+ok 26 - A Dos Manos: palas, zapatillas y todo lo demás en accesorios (el protector de pala no es una pala)
+  ---
+  duration_ms: 1.094574
+  type: 'test'
+  ...
+# Subtest: la vidriera de cada negocio: MAGRA y Shine por su front, A Dos Manos por su marca, el resto genérica
+ok 27 - la vidriera de cada negocio: MAGRA y Shine por su front, A Dos Manos por su marca, el resto genérica
+  ---
+  duration_ms: 0.181831
+  type: 'test'
+  ...
+# Subtest: buscar: sin tildes, sin mayúsculas, palabras en cualquier orden
+ok 28 - buscar: sin tildes, sin mayúsculas, palabras en cualquier orden
+  ---
+  duration_ms: 0.401726
+  type: 'test'
+  ...
+# Subtest: la carta con «bife»: sólo el grupo que tiene algo, y dice cuántos de cuántos
+ok 29 - la carta con «bife»: sólo el grupo que tiene algo, y dice cuántos de cuántos
+  ---
+  duration_ms: 2.004805
+  type: 'test'
+  ...
+# Subtest: la carta por sección y por precio: cerdo de menor a mayor
+ok 30 - la carta por sección y por precio: cerdo de menor a mayor
+  ---
+  duration_ms: 0.578667
+  type: 'test'
+  ...
+# Subtest: los chips cuentan con la búsqueda de ahora y sin la sección elegida
+ok 31 - los chips cuentan con la búsqueda de ahora y sin la sección elegida
+  ---
+  duration_ms: 0.390669
+  type: 'test'
+  ...
+# Subtest: filtros en la URL: se leen sólo los válidos y se escriben sin ruido, conservando la ficha abierta
+ok 32 - filtros en la URL: se leen sólo los válidos y se escriben sin ruido, conservando la ficha abierta
+  ---
+  duration_ms: 0.649293
+  type: 'test'
+  ...
+# Subtest: la marca y el modelo de una pala salen del nombre con la lista de marcas del copy; si no está, no se inventa
+ok 33 - la marca y el modelo de una pala salen del nombre con la lista de marcas del copy; si no está, no se inventa
+  ---
+  duration_ms: 0.657253
+  type: 'test'
+  ...
+# Subtest: la bolsa: un cuarto kilo por toque en lo que va por peso, una unidad en lo demás; sin stock no suma
+ok 34 - la bolsa: un cuarto kilo por toque en lo que va por peso, una unidad en lo demás; sin stock no suma
+  ---
+  duration_ms: 0.564883
+  type: 'test'
+  ...
+# Subtest: líneas e importes: 1,5 kg de asado a $20.100 son $30.150; 2 hamburguesas, dos piezas
+ok 35 - líneas e importes: 1,5 kg de asado a $20.100 son $30.150; 2 hamburguesas, dos piezas
+  ---
+  duration_ms: 0.419337
+  type: 'test'
+  ...
+# Subtest: cantidades y plata como se dicen acá
+ok 36 - cantidades y plata como se dicen acá
+  ---
+  duration_ms: 21.133517
+  type: 'test'
+  ...
+# Subtest: la bolsa guardada en el navegador no se cree: sólo ids publicados, con stock y cantidades sanas
+ok 37 - la bolsa guardada en el navegador no se cree: sólo ids publicados, con stock y cantidades sanas
+  ---
+  duration_ms: 0.368963
+  type: 'test'
+  ...
+# Subtest: el envío dice lo cierto de cada marca: con tarifa la tarifa, sin tarifa «Sin cargo» sólo si el local no lo cobra
+ok 38 - el envío dice lo cierto de cada marca: con tarifa la tarifa, sin tarifa «Sin cargo» sólo si el local no lo cobra
+  ---
+  duration_ms: 0.346626
+  type: 'test'
+  ...
+# Subtest: las palabras de cada rubro: en velas y pádel no se habla de cortes ni de kilos
+ok 39 - las palabras de cada rubro: en velas y pádel no se habla de cortes ni de kilos
+  ---
+  duration_ms: 0.357231
+  type: 'test'
+  ...
+# Subtest: en la ficha, para comparar: los de la misma sección con precio parecido y el puesto de su precio
+ok 40 - en la ficha, para comparar: los de la misma sección con precio parecido y el puesto de su precio
+  ---
+  duration_ms: 0.582796
+  type: 'test'
+  ...
+# Subtest: shinevelas resuelve su copy propio (voz de marca)
+ok 41 - shinevelas resuelve su copy propio (voz de marca)
+  ---
+  duration_ms: 1.347367
+  type: 'test'
+  ...
+# Subtest: shinevelas trae config de envío real (fijo $3.500, gratis desde $25.000)
+ok 42 - shinevelas trae config de envío real (fijo $3.500, gratis desde $25.000)
+  ---
+  duration_ms: 2.970488
+  type: 'test'
+  ...
+# Subtest: shinevelas trae la VISIÓN experiencial: ritual + sets de regalo + deco
+ok 43 - shinevelas trae la VISIÓN experiencial: ritual + sets de regalo + deco
+  ---
+  duration_ms: 0.464521
+  type: 'test'
+  ...
+# Subtest: magra sigue sin experiencia extendida (retrocompatible)
+ok 44 - magra sigue sin experiencia extendida (retrocompatible)
+  ---
+  duration_ms: 0.140356
+  type: 'test'
+  ...
+# Subtest: slug desconocido → sin copy (cae al wording del rubro)
+ok 45 - slug desconocido → sin copy (cae al wording del rubro)
+  ---
+  duration_ms: 0.187487
+  type: 'test'
+  ...
+# Subtest: adosmanos resuelve su copy propio (2 líneas + marcas reales del modelo)
+ok 46 - adosmanos resuelve su copy propio (2 líneas + marcas reales del modelo)
+  ---
+  duration_ms: 0.195336
+  type: 'test'
+  ...
+# Subtest: adosmanos NO inventa datos: sin reviews, sin experiencia de velas, sin envío falso
+ok 47 - adosmanos NO inventa datos: sin reviews, sin experiencia de velas, sin envío falso
+  ---
+  duration_ms: 0.198828
+  type: 'test'
+  ...
+# Subtest: shinevelas ya no trae reseñas fabricadas (compliance DX-5)
+ok 48 - shinevelas ya no trae reseñas fabricadas (compliance DX-5)
+  ---
+  duration_ms: 0.115736
+  type: 'test'
+  ...
+# Subtest: shinevelas mapea al rubro `velas` y su catálogo es visual, por unidad
+ok 49 - shinevelas mapea al rubro `velas` y su catálogo es visual, por unidad
+  ---
+  duration_ms: 0.540355
+  type: 'test'
+  ...
+# Subtest: el catálogo del rubro velas cubre las 4 secciones (velas/aromas/deco/accesorios)
+ok 50 - el catálogo del rubro velas cubre las 4 secciones (velas/aromas/deco/accesorios)
+  ---
+  duration_ms: 1.208539
+  type: 'test'
+  ...
+1..50
+# tests 55
+# suites 2
+# pass 55
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7580.085775

@@ -1,0 +1,63 @@
+TAP version 13
+# Subtest: Caja del día abierta, en el navegador
+    # Subtest: el día abierto dice cuánto hay por medio, sólo de los medios que se movieron, y lo que entró hoy
+    ok 1 - el día abierto dice cuánto hay por medio, sólo de los medios que se movieron, y lo que entró hoy
+      ---
+      duration_ms: 526.261733
+      type: 'test'
+      ...
+    # Subtest: con una devolución que no pasó por el turno, se muestra, se confirma y se manda el esperado del libro
+    not ok 2 - con una devolución que no pasó por el turno, se muestra, se confirma y se manda el esperado del libro
+      ---
+      duration_ms: 333.921108
+      type: 'test'
+      location: '/home/user/erp/src/app/admin/(dashboard)/caja/caja-renglon.test.ts:27:8996'
+      failureType: 'testCodeFailure'
+      error: 'lo que el turno no vio va en su renglón'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected:
+      actual: 'Turno de cajero Abierto Fondo inicialAbierto 24/09/2026 · 15:05$25.000,00 Ventas en efectivo$37.065,00 Efectivo esperado en el cajón$62.065,00 Cerrar el turno Últimos turnos cerrados›'
+      operator: 'match'
+      stack: |-
+        TestContext.<anonymous> (/home/user/erp/src/app/admin/(dashboard)/caja/caja-renglon.test.ts:285:12)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: sin turno abierto, el fondo se cuenta contra el libro y una diferencia se muestra antes de abrir
+    ok 3 - sin turno abierto, el fondo se cuenta contra el libro y una diferencia se muestra antes de abrir
+      ---
+      duration_ms: 484.026854
+      type: 'test'
+      ...
+    # Subtest: sin turno abierto, un fondo que coincide con el libro abre sin preguntar
+    ok 4 - sin turno abierto, un fondo que coincide con el libro abre sin preguntar
+      ---
+      duration_ms: 419.258312
+      type: 'test'
+      ...
+    # Subtest: 412 px con el CSS real y la piel: sin scroll horizontal y las teclas de 44 px
+    ok 5 - 412 px con el CSS real y la piel: sin scroll horizontal y las teclas de 44 px
+      ---
+      duration_ms: 464.782625
+      type: 'test'
+      ...
+    1..5
+not ok 1 - Caja del día abierta, en el navegador
+  ---
+  duration_ms: 4345.419232
+  type: 'suite'
+  location: '/home/user/erp/src/app/admin/(dashboard)/caja/caja-renglon.test.ts:27:3434'
+  failureType: 'subtestsFailed'
+  error: '1 subtest failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 5
+# suites 1
+# pass 4
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4848.19545

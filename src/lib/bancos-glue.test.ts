@@ -95,16 +95,18 @@ test("rangoFiscalMes: {gte:'AAAAMM01', lt:'AAAAMM+1 01'} y deja afuera el 1° de
   assert.equal(dentro("20260131"), false);
 });
 
-test("filtrosFacturacionMes: facturado = sólo AUTHORIZED por fecha fiscal; el cupo sigue contando todo por createdAt", () => {
+test("filtrosFacturacionMes: facturado = sólo AUTHORIZED por fecha fiscal; el cupo cuenta por createdAt sin los rechazados (ENG-329)", () => {
   const ahora = new Date("2026-09-01T01:30:00.000Z");
   const f = filtrosFacturacionMes(ahora);
   assert.deepEqual(f.facturado, { fecha: { gte: "20260801", lt: "20260901" }, status: "AUTHORIZED" });
-  // El cupo no filtra por estado: un rechazado hoy consume cupo (regla comercial, sin cambios).
-  assert.deepEqual(Object.keys(f.cupo), ["createdAt"]);
-  assert.equal(f.cupo.createdAt.gte.toISOString(), "2026-08-01T03:00:00.000Z");
-  assert.equal(f.cupo.createdAt.lt.toISOString(), "2026-09-01T03:00:00.000Z");
+  // Lo emitido: todo estado, por createdAt en el mes del negocio.
+  assert.deepEqual(Object.keys(f.emitido), ["createdAt"]);
+  assert.equal(f.emitido.createdAt.gte.toISOString(), "2026-08-01T03:00:00.000Z");
+  assert.equal(f.emitido.createdAt.lt.toISOString(), "2026-09-01T03:00:00.000Z");
+  // El cupo: el mismo reloj, sin lo que ARCA rechazó (un rechazo no gasta un lugar del plan).
+  assert.deepEqual(f.cupo, { createdAt: f.emitido.createdAt, status: { not: "REJECTED" } });
   // Los rechazados van con el reloj de EMISIÓN, el mismo del cupo.
-  assert.deepEqual(f.rechazado, { createdAt: f.cupo.createdAt, status: "REJECTED" });
+  assert.deepEqual(f.rechazado, { createdAt: f.emitido.createdAt, status: "REJECTED" });
 });
 
 // Aplica un `where` de `filtrosFacturacionMes` a una factura con la semántica de Prisma

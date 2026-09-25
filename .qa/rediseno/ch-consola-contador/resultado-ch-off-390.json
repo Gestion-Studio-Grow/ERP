@@ -6,49 +6,49 @@
       "paso": "CH (apagado) · entrar",
       "ok": true,
       "det": "llegó a /admin",
-      "ms": 1681,
+      "ms": 1872,
       "errs": []
     },
     {
       "paso": "CH (apagado) · /admin con la vista de siempre",
       "ok": true,
       "det": "h1=Inicio · diseno=null sx360=0 chicos<44=1",
-      "ms": 2027,
+      "ms": 2152,
       "errs": []
     },
     {
       "paso": "CH (apagado) · /admin/turnos con la vista de siempre",
       "ok": true,
       "det": "h1=Agenda · diseno=null sx360=0 chicos<44=0",
-      "ms": 3303,
+      "ms": 3961,
       "errs": []
     },
     {
       "paso": "CH (apagado) · /admin/turnos/lista?nuevo=1 con la vista de siempre",
       "ok": true,
       "det": "h1=Agenda · diseno=null sx360=0 chicos<44=0",
-      "ms": 16574,
+      "ms": 22923,
       "errs": []
     },
     {
       "paso": "CH (apagado) · /admin/caja/cierre con la vista de siempre",
       "ok": true,
       "det": "h1=Cierre de caja · diseno=null sx360=0 chicos<44=2",
-      "ms": 1928,
+      "ms": 2253,
       "errs": []
     },
     {
       "paso": "CH (apagado) · /admin/clientes con la vista de siempre",
       "ok": true,
       "det": "h1=Clientes · diseno=null sx360=0 chicos<44=0",
-      "ms": 3334,
+      "ms": 5240,
       "errs": []
     },
     {
       "paso": "CH (apagado) · F1 no hace nada nuevo",
       "ok": true,
       "det": "se queda donde está (como hoy)",
-      "ms": 3944,
+      "ms": 4617,
       "errs": []
     }
   ],

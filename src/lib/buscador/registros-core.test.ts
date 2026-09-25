@@ -11,7 +11,9 @@ import {
   type ProductoLeido,
 } from "./registros-core";
 
-const PERMISOS_TODO = { clientes: true, productos: true, pedidos: true, ventas: true, verPlata: true } as const;
+const PERMISOS_TODO = { clientes: true, productos: true, vender: true, pedidos: true, ventas: true, verPlata: true } as const;
+/** El cajero: Vender, Clientes y Pedidos, sin Catálogo y sin reports:read. */
+const PERMISOS_CAJERO = { clientes: true, productos: false, vender: true, pedidos: true, ventas: true, verPlata: false } as const;
 
 const cli = (id: string, nombre: string, telefono = ""): ClienteLeido => ({ id, nombre, telefono });
 const prod = (id: string, nombre: string, extra: Partial<ProductoLeido> = {}): ProductoLeido => ({
@@ -144,6 +146,50 @@ test("productos: activos antes que pausados; el precio sólo para quien ve plata
   assert.doesNotMatch(sinPlata.items.map((p) => p.segunda).join(" "), /\$/);
 });
 
+test("cajero con Vender y sin Catálogo: encuentra el producto con su nombre y su precio de venta, y lo lleva a Vender", () => {
+  const b = leerBusqueda("vac");
+  assert.ok(b.ok);
+  const leidos = {
+    clientes: [],
+    productos: [prod("v", "Vacío", { porPeso: true, precio: 12500.5 }), prod("u", "Vacío envasado", { precio: 9800 })],
+    pedidos: [],
+  };
+  const [g] = armarRegistros(leidos, b, PERMISOS_CAJERO);
+  assert.equal(g.grupo, "productos");
+  assert.deepEqual(g.items.map((p) => p.nombre), ["Vacío", "Vacío envasado"]);
+  // El precio de venta aunque no tenga reports:read: es el mismo que ve en Vender para cobrar.
+  assert.match(g.items[0].segunda ?? "", /^Por kilo · \$\s?12\.500,50 el kilo$/);
+  assert.match(g.items[1].segunda ?? "", /^Por unidad · \$\s?9\.800,00$/);
+  // A Vender, no a la ficha del catálogo (que no puede abrir).
+  assert.ok(g.items.every((p) => p.href === "/admin/vender"));
+});
+
+test("cajero sin Catálogo: lo pausado y lo sin precio no aparece (en Vender no se puede cobrar)", () => {
+  const b = leerBusqueda("vac");
+  assert.ok(b.ok);
+  const leidos = {
+    clientes: [],
+    productos: [prod("x", "Vacío pausado", { activo: false, precio: 9000 }), prod("s", "Vacío sin precio"), prod("v", "Vacío", { precio: 100 })],
+    pedidos: [],
+  };
+  const [g] = armarRegistros(leidos, b, PERMISOS_CAJERO);
+  assert.deepEqual(g.items.map((p) => p.id), ["producto-v"]);
+});
+
+test("con Catálogo manda la ficha del catálogo aunque también tenga Vender", () => {
+  const b = leerBusqueda("vac");
+  assert.ok(b.ok);
+  const [g] = armarRegistros({ clientes: [], productos: [prod("v", "Vacío", { precio: 100 })], pedidos: [] }, b, PERMISOS_TODO);
+  assert.equal(g.items[0].href, "/admin/catalogo?editar=v");
+});
+
+test("SEGURIDAD: sin Vender ni Catálogo no se dibujan productos aunque lleguen filas", () => {
+  const b = leerBusqueda("vac");
+  assert.ok(b.ok);
+  const r = armarRegistros({ clientes: [], productos: [prod("v", "Vacío", { precio: 100 })], pedidos: [] }, b, { ...PERMISOS_CAJERO, vender: false });
+  assert.deepEqual(r, []);
+});
+
 test("pedidos: el número exacto primero y después los más nuevos; abierto al tablero, cerrado a las ventas de ese día", () => {
   const b = leerBusqueda("#12");
   assert.ok(b.ok);
@@ -194,7 +240,7 @@ test("SEGURIDAD: un grupo sin permiso no se dibuja aunque le lleguen filas", () 
   const r = armarRegistros(
     { clientes: [cli("1", "Ana")], productos: [prod("p", "Anana")], pedidos: [] },
     b,
-    { clientes: false, productos: false, pedidos: false, ventas: false, verPlata: false },
+    { clientes: false, productos: false, vender: false, pedidos: false, ventas: false, verPlata: false },
   );
   assert.deepEqual(r, []);
 });

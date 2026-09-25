@@ -1,0 +1,224 @@
+TAP version 13
+# Subtest: Ingreso en el navegador
+    # Subtest: vista de siempre: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+    not ok 1 - vista de siempre: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+      ---
+      duration_ms: 30602.284148
+      type: 'test'
+      location: '/home/user/erp/src/app/admin/login/ingreso-pantalla.test.ts:28:3036'
+      failureType: 'testCodeFailure'
+      error: 'page.waitForFunction: Timeout 30000ms exceeded.'
+      code: 'ERR_TEST_FAILURE'
+      name: 'TimeoutError'
+      stack: |-
+        TestContext.<anonymous> (/home/user/erp/src/app/admin/login/ingreso-pantalla.test.ts:166:18)
+      ...
+    # Subtest: diseño nuevo: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+    not ok 2 - diseño nuevo: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+      ---
+      duration_ms: 30601.128671
+      type: 'test'
+      location: '/home/user/erp/src/app/admin/login/ingreso-pantalla.test.ts:28:3036'
+      failureType: 'testCodeFailure'
+      error: 'page.waitForFunction: Timeout 30000ms exceeded.'
+      code: 'ERR_TEST_FAILURE'
+      name: 'TimeoutError'
+      stack: |-
+        TestContext.<anonymous> (/home/user/erp/src/app/admin/login/ingreso-pantalla.test.ts:166:18)
+      ...
+    # Subtest: vista de siempre: lo que se tipea mientras espera la respuesta no se pierde al volver con el error
+    not ok 3 - vista de siempre: lo que se tipea mientras espera la respuesta no se pierde al volver con el error
+      ---
+      duration_ms: 30603.242642
+      type: 'test'
+      location: '/home/user/erp/src/app/admin/login/ingreso-pantalla.test.ts:28:4053'
+      failureType: 'testCodeFailure'
+      error: 'page.waitForFunction: Timeout 30000ms exceeded.'
+      code: 'ERR_TEST_FAILURE'
+      name: 'TimeoutError'
+      stack: |-
+        TestContext.<anonymous> (/home/user/erp/src/app/admin/login/ingreso-pantalla.test.ts:190:16)
+      ...
+    # Subtest: vista de siempre: segunda clave equivocada (la pantalla no se rearma) → el email queda, la clave se vacía
+    not ok 4 - vista de siempre: segunda clave equivocada (la pantalla no se rearma) → el email queda, la clave se vacía
+      ---
+      duration_ms: 28253.697132
+      type: 'test'
+      location: '/home/user/erp/src/app/admin/login/ingreso-pantalla.test.ts:28:5003'
+      failureType: 'testCodeFailure'
+      error: 'page.waitForFunction: Target page, context or browser has been closed'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        TestContext.<anonymous> (/home/user/erp/src/app/admin/login/ingreso-pantalla.test.ts:207:16)
+      ...
+    # Subtest: vista de siempre: entrando sin error, el email no aparece solo (se borra lo guardado)
+    not ok 5 - vista de siempre: entrando sin error, el email no aparece solo (se borra lo guardado)
+      ---
+      duration_ms: 48.614699
+      type: 'test'
+      location: '/home/user/erp/src/app/admin/login/ingreso-pantalla.test.ts:28:6073'
+      failureType: 'testCodeFailure'
+      error: |-
+        browser.newPage: Target page, context or browser has been closed
+        Browser logs:
+        
+        <launching> /opt/pw-browsers/chromium-1194/chrome-linux/chrome --disable-field-trial-config --disable-background-networking --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-back-forward-cache --disable-breakpad --disable-client-side-phishing-detection --disable-component-extensions-with-background-pages --disable-component-update --no-default-browser-check --disable-default-apps --disable-dev-shm-usage --disable-edgeupdater --disable-extensions --disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,BoundaryEventDispatchTracksNodeRemoval,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,Translate,AutoDeElevate,RenderDocument,OptimizationHints,msForceBrowserSignIn,msEdgeUpdateLaunchServicesPreferredVersion --enable-features=CDPScreenshotNewSurface --allow-pre-commit-input --disable-hang-monitor --disable-ipc-flooding-protection --disable-popup-blocking --disable-prompt-on-repost --disable-renderer-backgrounding --force-color-profile=srgb --metrics-recording-only --no-first-run --password-store=basic --use-mock-keychain --no-service-autorun --export-tagged-pdf --disable-search-engine-choice-screen --unsafely-disable-devtools-self-xss-warnings --edge-skip-compat-layer-relaunch --disable-infobars --disable-search-engine-choice-screen --disable-sync --enable-unsafe-swiftshader --headless --hide-scrollbars --mute-audio --blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4 --no-sandbox --user-data-dir=/tmp/playwright_chromiumdev_profile-fuRUk9 --remote-debugging-pipe --no-startup-window
+        <launched> pid=13773
+        [pid=13773][err] [13773:13787:0925/151527.198454:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or directory
+        [pid=13773][err] [13773:13787:0925/151527.207667:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+        [pid=13773][err] [13773:13787:0925/151527.208333:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or directory
+        [pid=13773][err] [13773:13787:0925/151527.208760:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or directory
+        [pid=13773][err] [13773:13787:0925/151527.254944:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+        [pid=13773][err] [13773:13773:0925/151527.271046:ERROR:dbus/object_proxy.cc:573] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+        [pid=13773][err] [13773:13787:0925/151527.276520:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+        [pid=13773][err] [13773:13787:0925/151527.276547:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+        [pid=13773][err] [13773:13787:0925/151527.276556:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+        [pid=13773][err] [13773:13787:0925/151527.276562:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+        [pid=13773][err] [13773:13787:0925/151527.276568:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+        [pid=13773][err] [13773:13773:0925/151527.281680:ERROR:dbus/object_proxy.cc:573] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+        [pid=13773][err] [13773:13773:0925/151527.286695:ERROR:dbus/object_proxy.cc:573] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+        [pid=13773][err] [13773:13773:0925/151527.286825:ERROR:dbus/object_proxy.cc:573] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+        [pid=13773][err] [13773:13787:0925/151527.288277:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or directory
+        [pid=13773][err] [13773:13787:0925/151527.288304:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or directory
+        [pid=13773][err] [13773:13773:0925/151527.288614:ERROR:dbus/object_proxy.cc:573] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type: 
+        [pid=13773][err] [13803:13839:0925/151527.494068:ERROR:net/socket/socket_posix.cc:99] CreatePlatformSocket() failed: Address family not supported by protocol (97)
+        [pid=13773][err] [13803:13839:0925/151527.771135:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151528.114037:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151528.400537:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151528.894537:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151529.303874:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151530.130613:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151532.196233:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151532.355643:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151532.356687:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151532.358923:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151532.359013:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151532.655294:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151533.189945:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151533.302891:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151533.336170:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151533.341737:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151534.406513:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151534.619382:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151534.763457:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151534.819999:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151536.269275:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151536.701665:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151536.734878:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151536.736115:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151536.834999:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151539.403351:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151539.911942:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151540.107615:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151540.108249:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151541.264443:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151544.195967:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151544.400133:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151544.655000:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151544.753893:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151545.233539:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151551.128492:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151551.284633:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151551.529125:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151552.209711:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151557.928878:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151558.091576:ERROR:net/socket/socket_posix.cc:99] CreatePlatformSocket() failed: Address family not supported by protocol (97)
+        [pid=13773][err] [13803:13839:0925/151558.694571:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151558.834821:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151558.976413:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151559.802059:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151600.299557:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151600.830938:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151601.189805:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151601.574905:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151601.902267:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151602.393635:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151603.166423:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151603.582852:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151605.475316:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151606.992082:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151608.128616:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151608.452488:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151610.192058:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151615.533762:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151615.633665:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151615.833869:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151617.103065:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151617.198003:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151618.420363:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151618.891268:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151627.080856:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151628.594349:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151628.679599:ERROR:net/socket/socket_posix.cc:99] CreatePlatformSocket() failed: Address family not supported by protocol (97)
+        [pid=13773][err] [13803:13839:0925/151629.269783:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151629.522739:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151629.562477:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151630.370359:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151630.829780:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151631.453891:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151632.756515:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151633.419680:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151635.636093:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151637.240042:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151637.257072:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151637.511008:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151637.604052:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151637.814588:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151639.922122:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151640.375023:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151641.315057:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151644.429295:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151647.852104:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151648.625862:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151648.648654:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151659.090000:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151659.173678:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151659.224081:ERROR:net/socket/socket_posix.cc:99] CreatePlatformSocket() failed: Address family not supported by protocol (97)
+        [pid=13773][err] [13803:13839:0925/151659.761919:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151700.125559:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151700.170397:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151700.968991:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151701.511951:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151702.279545:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151703.402003:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151703.454299:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151703.678799:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151705.010540:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151706.715967:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151707.874888:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151708.713442:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151709.299446:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151711.478477:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151713.204720:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151713.627276:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151716.300352:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151717.210997:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151718.576983:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151718.884257:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151719.606483:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773][err] [13803:13839:0925/151722.155303:ERROR:net/socket/ssl_client_socket_impl.cc:902] handshake failed; returned -1, SSL error code 1, net_error -202
+        [pid=13773] <gracefully close start>
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        abrir (/home/user/erp/src/app/admin/login/ingreso-pantalla.test.ts:134:33)
+        TestContext.<anonymous> (/home/user/erp/src/app/admin/login/ingreso-pantalla.test.ts:219:37)
+      ...
+    1..5
+not ok 1 - Ingreso en el navegador
+  ---
+  duration_ms: 121349.809197
+  type: 'suite'
+  location: '/home/user/erp/src/app/admin/login/ingreso-pantalla.test.ts:28:570'
+  failureType: 'testTimeoutFailure'
+  error: 'test timed out after 120000ms'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 5
+# suites 1
+# pass 0
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 122053.241739

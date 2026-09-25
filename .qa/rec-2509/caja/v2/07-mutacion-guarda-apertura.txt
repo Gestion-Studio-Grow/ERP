@@ -1,0 +1,33 @@
+TAP version 13
+# Subtest: contra Postgres: la diferencia al abrir se muestra, se confirma y queda una vez, con quién y cuándo; el día no la repite; B no se mezcla
+not ok 1 - contra Postgres: la diferencia al abrir se muestra, se confirma y queda una vez, con quién y cuándo; el día no la repite; B no se mezcla
+  ---
+  duration_ms: 3519.78829
+  type: 'test'
+  location: '/home/user/erp/src/lib/caja/un-solo-esperado-apertura-postgres.test.ts:2:1014'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/caja/un-solo-esperado-apertura-postgres.test.ts:39:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4376.84435

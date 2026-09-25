@@ -67,7 +67,7 @@ window.__montar = (cual) =>
         : cual === "turno"
         ? createElement(CloseCajaForm, { expected: 10000 })
         : cual === "abrir"
-        ? createElement(OpenCajaForm)
+        ? createElement(OpenCajaForm, { esperado: 15000 })
         : createElement("div", null,
             createElement(AddLibroEntryForm, { defaultDate: "2026-09-23", viewMonth: "2026-09" }),
             // El botón del mes vacío (libro/page.tsx), debajo del formulario como en la página.
@@ -278,7 +278,8 @@ describe("Caja en el navegador", { timeout: 120_000 }, () => {
     assert.equal((await envios(page)).length, 0);
     await page.keyboard.press("Enter");
     await page.waitForFunction(() => (window as unknown as Ventana).__envios.length >= 1);
-    assert.deepEqual((await envios(page))[0], { counted: ["9.500"], note: [""] });
+    // Con el esperado que se mostró y se confirmó: el servidor no cierra si el libro ya dice otro (ADR-101).
+    assert.deepEqual((await envios(page))[0], { counted: ["9.500"], note: [""], esperadoConfirmado: ["10000"] });
     assert.deepEqual(errores, []);
     await page.close();
   });

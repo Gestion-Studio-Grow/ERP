@@ -28,8 +28,9 @@ import { buildCierreDiario, type CierreMovement } from "../../../../lib/caja/cie
 const RAIZ = fileURLToPath(new URL("../../../../../", import.meta.url));
 
 const ACCIONES_FALSAS = `
-export async function openCashSession() { return { ok: true }; }
-export async function closeCashSession() { return { ok: true }; }
+const anotar = (accion, fd) => { (window.__enviado ??= []).push({ accion, ...Object.fromEntries(fd.entries()) }); return { ok: true }; };
+export async function openCashSession(_prev, fd) { return anotar("abrir", fd); }
+export async function closeCashSession(_prev, fd) { return anotar("cerrar", fd); }
 export async function addLibroEntry() { return { ok: true, message: "Guardado." }; }
 export async function deleteLibroEntry() { return { ok: true }; }
 export async function cerrarDia() { return { ok: true }; }`;
@@ -51,6 +52,7 @@ window.__montar = (dia, caja) => {
   const turno = caja && {
     open: caja.open && { ...caja.open, openedAt: fecha(caja.open.openedAt) },
     recentClosed: caja.recentClosed.map((s) => ({ ...s, closedAt: fecha(s.closedAt) })),
+    esperadoEnElCajon: caja.esperadoEnElCajon ?? null,
   };
   createRoot(document.getElementById("root")).render(createElement(ToastProvider, null, createElement(CajaRenglon, { dia, caja: turno })));
 };
@@ -99,11 +101,33 @@ const TURNO = {
     ],
   },
   recentClosed: [{ id: "s1", closedAt: "2026-09-24T18:04:13.736Z", closingCounted: 299220, closingExpected: 299220.3, closingDiff: -0.3 }],
+  // `getCajaData().esperadoEnElCajon`: el saldo en efectivo del libro (ADR-101). Acá coincide con el turno.
+  esperadoEnElCajon: 62065,
 };
+
+// El mismo día con una devolución de $200 en efectivo que NO pasó por el turno (sin `sessionId`):
+// el libro espera $61.865; el turno solo ve $62.065. Es el caso en que la pantalla hacía confirmar
+// un número y el servidor asentaba otro.
+const FILAS_CON_DEVOLUCION = [
+  ...FILAS,
+  { id: "m5", occurredAt: aLas("18:30"), type: "EGRESO" as const, method: "EFECTIVO" as const, amount: 200, detail: "Devolución de la venta #822", origin: "manual" as const },
+];
+const DIA_CON_DEVOLUCION = {
+  ...DIA_ABIERTO,
+  preview: buildCierreDiario({
+    day: DIA,
+    since: DIA,
+    previous: [{ id: "prev-0", occurredAt: aLas("00:00"), type: "INGRESO", method: "EFECTIVO", amount: 25000, detail: "" }],
+    movements: FILAS_CON_DEVOLUCION,
+    declared: { EFECTIVO: null, MP: null, TARJETA: null },
+  }),
+  movements: FILAS_CON_DEVOLUCION.map((m) => ({ id: m.id, day: DIA, type: m.type, method: m.method, amount: m.amount, detail: m.detail, origin: m.origin })),
+};
+const TURNO_CON_DEVOLUCION = { ...TURNO, esperadoEnElCajon: 61865 };
 
 // ── El navegador ────────────────────────────────────────────────────────────
 
-type Ventana = { __montar: (dia: unknown, caja: unknown) => void };
+type Ventana = { __montar: (dia: unknown, caja: unknown) => void; __enviado?: Record<string, string>[] };
 
 function rutaDeChromium(porDefecto: () => string): string | null {
   try {
@@ -195,7 +219,7 @@ describe("Caja del día abierta, en el navegador", { timeout: 180_000 }, () => {
     await browser?.close();
   });
 
-  async function montar(ancho: number, conCss: boolean, turno: unknown = TURNO): Promise<{ page: Page; errores: string[] }> {
+  async function montar(ancho: number, conCss: boolean, turno: unknown = TURNO, dia: unknown = DIA_ABIERTO): Promise<{ page: Page; errores: string[] }> {
     const movil = ancho < 600;
     const page = await browser!.newPage({ viewport: { width: ancho, height: movil ? 915 : 900 }, deviceScaleFactor: movil ? 2 : 1, locale: "es-AR", timezoneId: "America/Argentina/Buenos_Aires" });
     const errores: string[] = [];
@@ -204,7 +228,7 @@ describe("Caja del día abierta, en el navegador", { timeout: 180_000 }, () => {
       `<!doctype html><html lang="es"><head>${conCss ? `<style>${css}</style>` : ""}</head><body><div id="root" data-skin="fable" data-diseno="renglon" data-theme="light" data-density="lite" class="min-h-dvh bg-surface"></div></body></html>`,
     );
     await page.addScriptTag({ content: bundle });
-    await page.evaluate(([d, c]) => (window as unknown as Ventana).__montar(d, c), [JSON.parse(JSON.stringify(DIA_ABIERTO)), turno] as const);
+    await page.evaluate(([d, c]) => (window as unknown as Ventana).__montar(d, c), [JSON.parse(JSON.stringify(dia)), turno] as const);
     await page.getByRole("heading", { name: "Caja del día" }).waitFor();
     return { page, errores };
   }
@@ -249,23 +273,67 @@ describe("Caja del día abierta, en el navegador", { timeout: 180_000 }, () => {
     const turno = (await page.locator('section[aria-labelledby="turno-cajero"]').innerText()).replace(/\s+/g, " ");
     assert.match(turno, /Fondo inicial.*\$ ?25\.000/);
     assert.match(turno, /Efectivo esperado en el cajón ?\$ ?62\.065/, "el turno y el día cuentan el mismo efectivo");
-    assert.doesNotMatch(turno, /El libro del día cuenta/, "si coinciden, no hay nada que explicar");
+    assert.doesNotMatch(turno, /Efectivo que no pasó por el turno/, "si el libro y el turno coinciden, no hay renglón aparte");
     assert.deepEqual(errores, []);
     await page.close();
   });
 
-  test("si el turno arrancó sin fondo y el libro arrastra efectivo, una sola cifra se llama «en el cajón» y la diferencia se explica", async (t) => {
+  test("con una devolución que no pasó por el turno, se muestra, se confirma y se manda el esperado del libro", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
-    // El caso de MAGRA: el libro arrastra 25.000 de antes, el turno se abrió con $0.
-    const sinFondo = { ...TURNO, open: { ...TURNO.open, openingFloat: 0 } };
-    const { page, errores } = await montar(1440, false, sinFondo);
-    const efectivo = (await page.locator('section[aria-labelledby="hay-ahora"] tbody tr').first().innerText()).replace(/\s+/g, " ");
-    assert.match(efectivo, /según el libro del día.*\$ ?62\.065/);
-    assert.doesNotMatch(efectivo, /en el cajón/, "la fila del libro ya no se llama igual que la del turno");
+    const { page, errores } = await montar(1440, false, TURNO_CON_DEVOLUCION, DIA_CON_DEVOLUCION);
     const turno = (await page.locator('section[aria-labelledby="turno-cajero"]').innerText()).replace(/\s+/g, " ");
-    assert.match(turno, /Efectivo esperado en el cajón ?\$ ?37\.065/);
-    assert.match(turno, /El libro del día cuenta \$ ?25\.000(,00)? más de efectivo que este turno/);
-    assert.match(turno, /cargala como retiro con «Cargar un gasto o retiro»/, "dice con qué tecla se resuelve");
+    assert.match(turno, /Efectivo que no pasó por el turno.*una devolución.*−\$ ?200/, "lo que el turno no vio va en su renglón");
+    assert.match(turno, /Efectivo esperado en el cajón ?\$ ?61\.865/, "el total es el del libro, no fondo + turno (62.065)");
+    assert.doesNotMatch(turno, /62\.065/, "el número del turno solo no aparece como esperado");
+    const efectivo = (await page.locator('section[aria-labelledby="hay-ahora"] tbody tr').first().innerText()).replace(/\s+/g, " ");
+    assert.match(efectivo, /según el libro del día.*\$ ?61\.865/, "el libro del día y el turno dicen lo mismo");
+    // Cierra contando $61.365: la pantalla hace confirmar un faltante de $500 contra $61.865…
+    await page.getByRole("button", { name: "Cerrar el turno" }).click();
+    const dialogo = page.locator("dialog[open]");
+    await dialogo.getByLabel("Efectivo contado").fill("61.365");
+    await dialogo.getByRole("button", { name: "Cerrar caja" }).click();
+    const pregunta = (await dialogo.locator("#cerrar-caja-titulo").innerText()).replace(/\s+/g, " ");
+    assert.match(pregunta, /Contaste \$ ?61\.365,00 y se esperaba \$ ?61\.865,00: faltante \$ ?500,00\./);
+    await dialogo.getByRole("button", { name: "Sí, cerrar caja" }).click();
+    // …y manda ESE esperado: el servidor arquea contra él o no cierra (un-solo-esperado-pantalla-postgres.test.ts).
+    await page.waitForFunction(() => ((window as unknown as Ventana).__enviado ?? []).length > 0);
+    const enviado = await page.evaluate(() => (window as unknown as Ventana).__enviado);
+    assert.deepEqual(enviado, [{ accion: "cerrar", counted: "61.365", note: "", esperadoConfirmado: "61865" }]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("sin turno abierto, el fondo se cuenta contra el libro y una diferencia se muestra antes de abrir", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const sinTurno = { open: null, recentClosed: TURNO.recentClosed, esperadoEnElCajon: 25000 };
+    const { page, errores } = await montar(1440, false, sinTurno);
+    const seccion = page.locator('section[aria-labelledby="turno-cajero"]');
+    assert.match((await seccion.innerText()).replace(/\s+/g, " "), /Según el libro tendría que haber \$ ?25\.000,00/);
+    await seccion.getByLabel("Fondo inicial").fill("24.000");
+    await seccion.getByRole("button", { name: "Abrir caja" }).click();
+    const pregunta = (await seccion.locator("#abrir-caja-titulo").innerText()).replace(/\s+/g, " ");
+    assert.match(pregunta, /¿Abrir con \$ ?24\.000,00\? Según el libro tendría que haber \$ ?25\.000,00: queda asentado un faltante de \$ ?1\.000,00 al abrir el turno\./);
+    assert.equal(await page.evaluate(() => (window as unknown as Ventana).__enviado ?? null), null, "no se abrió sin confirmar");
+    await seccion.getByRole("button", { name: "Sí, abrir caja" }).click();
+    await page.waitForFunction(() => ((window as unknown as Ventana).__enviado ?? []).length > 0);
+    assert.deepEqual(await page.evaluate(() => (window as unknown as Ventana).__enviado), [
+      { accion: "abrir", openingFloat: "24.000", esperadoConfirmado: "25000" },
+    ]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("sin turno abierto, un fondo que coincide con el libro abre sin preguntar", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar(1440, false, { open: null, recentClosed: [], esperadoEnElCajon: 25000 });
+    const seccion = page.locator('section[aria-labelledby="turno-cajero"]');
+    await seccion.getByLabel("Fondo inicial").fill("25.000");
+    await seccion.getByRole("button", { name: "Abrir caja" }).click();
+    await page.waitForFunction(() => ((window as unknown as Ventana).__enviado ?? []).length > 0);
+    assert.deepEqual(await page.evaluate(() => (window as unknown as Ventana).__enviado), [
+      { accion: "abrir", openingFloat: "25.000", esperadoConfirmado: "25000" },
+    ]);
+    assert.equal(await seccion.locator("#abrir-caja-titulo").count(), 0);
     assert.deepEqual(errores, []);
     await page.close();
   });

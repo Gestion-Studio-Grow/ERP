@@ -1,0 +1,51 @@
+TAP version 13
+# [
+#  {
+#   "cols": "247.938px 94.0625px",
+#   "fila": 358,
+#   "asunto": 248,
+#   "titulo": 248,
+#   "plata": 94,
+#   "tecla": 94,
+#   "ws": "normal",
+#   "ov": "ellipsis",
+#   "alto": 21
+#  },
+#  {
+#   "cols": "126.562px 215.438px",
+#   "fila": 358,
+#   "asunto": 127,
+#   "titulo": 127,
+#   "plata": 215,
+#   "tecla": 215,
+#   "ws": "normal",
+#   "ov": "ellipsis",
+#   "alto": 21
+#  },
+#  {
+#   "cols": "276.156px 65.8438px",
+#   "fila": 358,
+#   "asunto": 276,
+#   "titulo": 276,
+#   "plata": 0,
+#   "tecla": 66,
+#   "ws": "normal",
+#   "ov": "ellipsis",
+#   "alto": 21
+#  }
+# ]
+# Subtest: medir
+ok 1 - medir
+  ---
+  duration_ms: 2495.540338
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2991.152378

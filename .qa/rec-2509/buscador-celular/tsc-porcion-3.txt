@@ -1,0 +1,2 @@
+src/lib/caja/un-solo-esperado-apertura-postgres.test.ts(39,16): error TS18047: 'vieja' is possibly 'null'.
+src/lib/caja/un-solo-esperado-pantalla-postgres.test.ts(44,16): error TS18047: 'vieja' is possibly 'null'.

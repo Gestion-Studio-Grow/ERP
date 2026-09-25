@@ -198,7 +198,7 @@ window.__montar = (cual, tope, extra) =>
   createRoot(document.getElementById("root")).render(
     createElement(ToastProvider, null,
       cual === "pos"
-        ? createElement(PosForm, { products: productos, stockById: stock })
+        ? createElement(PosForm, { products: productos, stockById: stock, ...(extra || {}) })
         : cual === "anular"
         ? createElement(AnularPedidoForm, { id: "ord_7", code: 7, paid: true, total: 15500, motivoObligatorio: true })
         : cual === "sin-precios"
@@ -1698,6 +1698,130 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     assert.doesNotMatch((await empezar.getAttribute("class")) ?? "", /text-muted/, "no es un texto gris");
     await empezar.click();
     assert.equal(await aviso.count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  // ── Línea con producto y sin cantidad (pendiente #17): la vista de siempre y el POS ─────────
+  // Antes, esa línea no viajaba (los campos ocultos sólo salen con cantidad) y «Cobrar» seguía
+  // habilitado: el ticket se grababa sin ella, cobrado de menos. Ahora frena y dice cuál falta,
+  // con la MISMA regla del diseño nuevo (`lineaSinCantidad`, reglas-venta.ts).
+  const CREMA = { id: "p_crema", name: "Crema", saleUnit: "UNIT", price: 9000, pricePerKg: null, unit: "u" };
+  const CON_CREMA = {
+    products: [{ id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", price: null, pricePerKg: 12500, unit: "kg" }, CREMA],
+    stockById: { p_vacio: { stock: 30, trackStock: true }, p_crema: { stock: 5, trackStock: true } },
+  };
+
+  test("vista de siempre: una línea con producto y sin cantidad frena el cobro y dice cuál (no se cae callada)", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, { ...CON_CREMA, rapidos: ["p_vacio", "p_crema"] });
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    // La Crema, elegida y sin cantidad (la vista de siempre no la carga con 1).
+    await page.getByRole("button", { name: "Crema" }).click();
+    const frenado = page.getByRole("button", { name: "Falta la cantidad de Crema" });
+    await frenado.waitFor();
+    assert.equal(await frenado.isDisabled(), true, "antes decía «Cobrar $15.500,00» y cobraba sin la Crema");
+    await page.keyboard.type("2");
+    // Por kilo, sin el peso: lo mismo, con la palabra de la balanza.
+    await page.locator("#qty-1").fill("");
+    const frenadoPeso = page.getByRole("button", { name: "Falta el peso de Vacío" });
+    await frenadoPeso.waitFor();
+    assert.equal(await frenadoPeso.isDisabled(), true);
+    assert.equal(await page.evaluate(() => (window as unknown as Ventana).__envios.length), 0, "frenado, no viaja nada");
+    await page.locator("#qty-1").fill("1,240");
+    await page.getByRole("button", { name: "Cobrar $33.500,00" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const envio = await page.evaluate(() => (window as unknown as Ventana).__envios[0]);
+    assert.deepEqual(envio.productId, ["p_vacio", "p_crema"]);
+    assert.deepEqual(envio.quantity, ["1.24", "2"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("POS de la bandeja: una línea con producto y sin cantidad frena el cobro y dice cuál", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("pos", 10, CON_CREMA);
+    await page.locator("#prod-1").fill("Vac");
+    await page.getByRole("option", { name: /Vacío/ }).first().click();
+    await page.locator("#qty-1").fill("1");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.getByRole("button", { name: "+ Agregar producto" }).click();
+    await page.locator("#prod-2").fill("Crem");
+    await page.getByRole("option", { name: /Crema/ }).first().click();
+    const frenado = page.getByRole("button", { name: "Falta la cantidad de Crema" });
+    await frenado.waitFor();
+    assert.equal(await frenado.isDisabled(), true, "antes decía «Cobrar» y cobraba sólo el Vacío");
+    await page.locator("#qty-2").fill("2");
+    await page.locator("#qty-1").fill("");
+    const frenadoPeso = page.getByRole("button", { name: "Falta el peso de Vacío" });
+    await frenadoPeso.waitFor();
+    assert.equal(await frenadoPeso.isDisabled(), true);
+    assert.equal(await page.evaluate(() => (window as unknown as Ventana).__envios.length), 0, "frenado, no viaja nada");
+    await page.locator("#qty-1").fill("1");
+    await page.getByRole("button", { name: "Cobrar" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    const envio = await page.evaluate(() => (window as unknown as Ventana).__envios[0]);
+    assert.deepEqual(envio.productId, ["p_vacio", "p_crema"]);
+    assert.deepEqual(envio.quantity, ["1", "2"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("POS de la bandeja: si se corta la red, no se vacía nada (productos, cantidades, medio, cliente) y se reintenta igual", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("pos", 10, CON_CREMA);
+    // Mostrador: dos productos y el medio.
+    await page.locator("#prod-1").fill("Vac");
+    await page.getByRole("option", { name: /Vacío/ }).first().click();
+    await page.locator("#qty-1").fill("1,5");
+    await page.getByRole("button", { name: "+ Agregar producto" }).click();
+    await page.locator("#prod-2").fill("Crem");
+    await page.getByRole("option", { name: /Crema/ }).first().click();
+    await page.locator("#qty-2").fill("2");
+    await page.getByRole("radio", { name: "Mercado Pago" }).click();
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Cobrar" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    await page.getByText("No se pudo registrar la venta. Revisá la conexión").first().waitFor();
+    assert.match(await page.inputValue("#prod-1"), /Vacío/);
+    assert.match(await page.inputValue("#prod-2"), /Crema/);
+    assert.equal(await page.inputValue("#qty-1"), "1,5");
+    assert.equal(await page.inputValue("#qty-2"), "2");
+    assert.equal(await page.getByRole("radio", { name: "Mercado Pago" }).getAttribute("aria-checked"), "true");
+    // El reintento viaja con lo mismo y la misma clave: se encuentra la grabada, no se cobra dos veces.
+    await page.getByRole("button", { name: "Cobrar" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 2);
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.deepEqual(envios[1].productId, envios[0].productId);
+    assert.deepEqual(envios[1].quantity, envios[0].quantity);
+    assert.deepEqual(envios[1].idempotencyKey, envios[0].idempotencyKey);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("POS de la bandeja: un pedido con la red caída conserva los datos del cliente y lo cargado", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("pos", 10, CON_CREMA);
+    await page.getByRole("button", { name: "Pedido (retiro / envío)" }).click();
+    await page.locator("#prod-1").fill("Vac");
+    await page.getByRole("option", { name: /Vacío/ }).first().click();
+    await page.locator("#qty-1").fill("2");
+    await page.getByPlaceholder("Nombre y apellido").fill("María Pérez");
+    await page.getByPlaceholder("Ej.: cortar en milanesas, sin grasa").fill("en bifes");
+    await page.evaluate(() => {
+      (window as unknown as Ventana).__respuestaPerdida = true;
+    });
+    await page.getByRole("button", { name: "Registrar pedido" }).click();
+    await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+    await page.getByText("No se pudo registrar el pedido. Revisá la conexión").first().waitFor();
+    assert.equal(await page.getByPlaceholder("Nombre y apellido").inputValue(), "María Pérez");
+    assert.equal(await page.getByPlaceholder("Ej.: cortar en milanesas, sin grasa").inputValue(), "en bifes");
+    assert.equal(await page.inputValue("#qty-1"), "2");
+    assert.match(await page.inputValue("#prod-1"), /Vacío/);
     assert.deepEqual(errores, []);
     await page.close();
   });

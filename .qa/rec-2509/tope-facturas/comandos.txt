@@ -1,0 +1,9 @@
+ENG-329 · tope mensual de facturas sin las rechazadas · 2026-09-25
+Comandos (desde /home/user/erp) y resultado:
+1. node --import tsx --test src/lib/tope-facturas-postgres.test.ts   (ANTES del cambio) -> rojo-antes.txt: 2 tests, 0 pass, 2 fail (esperado 2 / real 3; esperado 3 / real 4: contaba la rechazada)
+2. node --import tsx --test src/lib/tope-facturas-postgres.test.ts   (DESPUES) -> verde-postgres.txt: 2 tests, 2 pass
+3. node --import tsx --test src/lib/bancos-glue.test.ts src/lib/monitor-core.test.ts src/apps/kpis/loaders.test.ts src/lib/cierre-mes/kpis-finanzas.test.ts src/lib/cartera-core.test.ts src/lib/facturita-core.test.ts src/lib/mercadopago-auto.test.ts src/planes/limites.test.ts -> unitarios.txt: 142 tests, 142 pass
+4. node --import tsx --test src/lib/umbral-en-los-seis-caminos-postgres.test.ts -> umbral-seis-caminos-postgres.txt: 7 tests, 7 pass
+5. npx tsc --noEmit -p . -> tsc.txt: exit 0, 0 errores
+6. npx eslint (7 archivos tocados) -> eslint.txt: exit 0, sin avisos
+Postgres: local efimero (src/test/base-efimera.ts, /tmp/pgrun:5433). Ninguna base real tocada.

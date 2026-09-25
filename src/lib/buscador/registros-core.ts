@@ -10,7 +10,9 @@
 // SEGURIDAD: `armarRegistros` sólo dibuja un grupo si el permiso de ese grupo vino en `true`,
 // aunque le lleguen filas: la action ya no las lee sin permiso, y esto es la segunda llave.
 // Los montos (precio, total del pedido) sólo con `verPlata` (reports:read), como el resto del
-// panel (DIRECCION §4.4: «sin montos para quien no tiene reports:read»).
+// panel (DIRECCION §4.4: «sin montos para quien no tiene reports:read»). EXCEPCIÓN: quien cobra
+// con Vender y no tiene el Catálogo ve el PRECIO DE VENTA del producto (el mismo que le muestra
+// Vender para cobrar), nunca el costo: el costo ni se lee (ProductoLeido no lo tiene).
 
 import { normalizarBusqueda, rangoCoincidencia } from "@/modules/nav-search";
 import { fmtMoneyARS } from "@/components/ui/format";
@@ -109,7 +111,10 @@ export interface RegistrosLeidos {
 /** Qué puede abrir quien busca: la MISMA guardia de cada listado (`puedeAbrirApp`). */
 export interface PermisosDeBusqueda {
   clientes: boolean;
+  /** El Catálogo: la ficha del producto, pausados incluidos. */
   productos: boolean;
+  /** Vender (sin Catálogo): sólo lo que se puede cobrar, con nombre y precio de venta. */
+  vender: boolean;
   /** Pedidos para preparar (el tablero). */
   pedidos: boolean;
   /** Ventas del día. */
@@ -163,7 +168,16 @@ function clientes(filas: readonly ClienteLeido[], b: Extract<Busqueda, { ok: tru
   }));
 }
 
-function productos(filas: readonly ProductoLeido[], b: Extract<Busqueda, { ok: true }>, verPlata: boolean): RegistroEncontrado[] {
+const precioDeVenta = (p: ProductoLeido): string =>
+  p.precio === null ? "sin precio" : `${fmtMoneyARS(p.precio)}${p.porPeso ? " el kilo" : ""}`;
+
+/**
+ * El Catálogo manda si lo tiene (la ficha, con pausados). Si sólo tiene Vender, lo que Vender
+ * puede cobrar (activo y con precio, como `cargarVender`) y el enlace va a Vender.
+ */
+function productos(filas: readonly ProductoLeido[], b: Extract<Busqueda, { ok: true }>, permisos: PermisosDeBusqueda): RegistroEncontrado[] {
+  if (!permisos.productos) return productosParaCobrar(filas, b);
+  const verPlata = permisos.verPlata;
   const q = normalizarBusqueda(b.texto);
   // Los pausados, después de todos los activos.
   const rango = (p: ProductoLeido) => {
@@ -172,7 +186,7 @@ function productos(filas: readonly ProductoLeido[], b: Extract<Busqueda, { ok: t
   };
   return porRango(filas, rango, alfabetico).map((p) => {
     const partes = [p.activo ? null : "Pausado", p.porPeso ? "Por kilo" : "Por unidad"];
-    if (verPlata) partes.push(p.precio === null ? "sin precio" : `${fmtMoneyARS(p.precio)}${p.porPeso ? " el kilo" : ""}`);
+    if (verPlata) partes.push(precioDeVenta(p));
     return {
       id: `producto-${p.id}`,
       grupo: "productos",
@@ -181,6 +195,18 @@ function productos(filas: readonly ProductoLeido[], b: Extract<Busqueda, { ok: t
       href: `/admin/catalogo?editar=${encodeURIComponent(p.id)}`,
     };
   });
+}
+
+function productosParaCobrar(filas: readonly ProductoLeido[], b: Extract<Busqueda, { ok: true }>): RegistroEncontrado[] {
+  const q = normalizarBusqueda(b.texto);
+  const rango = (p: ProductoLeido) => (p.activo && p.precio !== null ? rangoCoincidencia({ href: "", label: p.nombre }, q) : null);
+  return porRango(filas, rango, alfabetico).map((p) => ({
+    id: `producto-${p.id}`,
+    grupo: "productos",
+    nombre: p.nombre,
+    segunda: `${p.porPeso ? "Por kilo" : "Por unidad"} · ${precioDeVenta(p)}`,
+    href: "/admin/vender",
+  }));
 }
 
 function pedidos(filas: readonly PedidoLeido[], b: Extract<Busqueda, { ok: true }>, permisos: PermisosDeBusqueda): RegistroEncontrado[] {
@@ -212,7 +238,7 @@ function pedidos(filas: readonly PedidoLeido[], b: Extract<Busqueda, { ok: true 
 export function armarRegistros(leidos: RegistrosLeidos, b: Extract<Busqueda, { ok: true }>, permisos: PermisosDeBusqueda): GrupoDeRegistros[] {
   const grupos: GrupoDeRegistros[] = [
     { grupo: "clientes", nombre: NOMBRE_REGISTRO.clientes, items: permisos.clientes ? clientes(leidos.clientes, b) : [] },
-    { grupo: "productos", nombre: NOMBRE_REGISTRO.productos, items: permisos.productos ? productos(leidos.productos, b, permisos.verPlata) : [] },
+    { grupo: "productos", nombre: NOMBRE_REGISTRO.productos, items: permisos.productos || permisos.vender ? productos(leidos.productos, b, permisos) : [] },
     {
       grupo: "pedidos",
       nombre: NOMBRE_REGISTRO.pedidos,

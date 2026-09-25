@@ -1,0 +1,41 @@
+TAP version 13
+# Subtest: La lista en el celular, en el navegador
+    # Subtest: en el celular, el renglón vacío ocupa todo el ancho (con y sin casillas)
+    ok 1 - en el celular, el renglón vacío ocupa todo el ancho (con y sin casillas)
+      ---
+      duration_ms: 733.958258
+      type: 'test'
+      ...
+    # Subtest: en la PC el renglón vacío sigue siendo una celda de tabla a lo ancho
+    ok 2 - en la PC el renglón vacío sigue siendo una celda de tabla a lo ancho
+      ---
+      duration_ms: 324.599424
+      type: 'test'
+      ...
+    # Subtest: consola a 390: se busca un negocio desde la lista, mientras se escribe y con Enter
+    ok 3 - consola a 390: se busca un negocio desde la lista, mientras se escribe y con Enter
+      ---
+      duration_ms: 798.331942
+      type: 'test'
+      ...
+    # Subtest: consola en la PC: el buscador de la lista no aparece (está en la cabecera) y sin `buscador` no cambia nada
+    ok 4 - consola en la PC: el buscador de la lista no aparece (está en la cabecera) y sin `buscador` no cambia nada
+      ---
+      duration_ms: 734.39087
+      type: 'test'
+      ...
+    1..4
+ok 1 - La lista en el celular, en el navegador
+  ---
+  duration_ms: 4596.054339
+  type: 'suite'
+  ...
+1..1
+# tests 4
+# suites 1
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5166.190284

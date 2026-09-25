@@ -1,0 +1,62 @@
+src/app/admin/(dashboard)/AdminShell.tsx:285 <button> "absolute right-1.5 top-1/2 -translate-y-1/2 px-1.5 text-lg leading-none text-faint hover:text-strong"
+src/app/admin/(dashboard)/AdminShell.tsx:390 <button> "w-full text-left rounded-md px-2 py-1.5 text-xs text-muted hover:text-accent hover:bg-surface-sunken"
+src/app/admin/(dashboard)/facturacion/bancos/RevisarEnCajon.tsx:42 <button> "max-w-full truncate text-left font-semibold text-strong hover:underline"
+src/app/admin/(dashboard)/apariencia/AparienciaControls.tsx:48 <button> {FILA}>
+src/app/admin/(dashboard)/apariencia/AparienciaControls.tsx:74 <button> {`rounded-xl border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 foc
+src/app/admin/(dashboard)/apariencia/AparienciaControls.tsx:168 <button> {FILA}
+src/app/admin/(dashboard)/apariencia/AparienciaControls.tsx:204 <button> {`flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-colors focus-visible:outline-2 focus-vis
+src/app/admin/(dashboard)/armazon/ArmazonNuevo.tsx:90 <button> (sin className)
+src/app/admin/(dashboard)/armazon/ArmazonNuevo.tsx:151 <button> (sin className)
+src/app/admin/(dashboard)/armazon/ArmazonNuevo.tsx:255 <button> (sin className)
+src/app/admin/(dashboard)/armazon/ArmazonNuevo.tsx:260 <button> (sin className)
+src/app/admin/(dashboard)/armazon/ArmazonNuevo.tsx:297 <button> (sin className)
+src/app/admin/(dashboard)/armazon/ArmazonNuevo.tsx:303 <button> (sin className)
+src/app/admin/(dashboard)/armazon/ArmazonNuevo.tsx:334 <button> (sin className)
+src/app/admin/(dashboard)/armazon/ArmazonNuevo.tsx:353 <button> (sin className)
+src/app/admin/(dashboard)/pedidos/AvanzarPedidoForm.tsx:64 <button> {className}>
+src/app/admin/(dashboard)/pedidos/MostradorTabs.tsx:68 <button> {cn(
+src/app/admin/(dashboard)/pedidos/TableroPedidos.tsx:151 <button> (sin className)
+src/app/admin/(dashboard)/pedidos/TableroPedidos.tsx:160 <button> (sin className)
+src/app/admin/(dashboard)/pedidos/TableroPedidos.tsx:165 <button> (sin className)
+src/app/admin/(dashboard)/pedidos/TableroPedidos.tsx:170 <button> (sin className)
+src/app/admin/(dashboard)/pedidos/TableroPedidos.tsx:421 <button> "max-w-full truncate text-left font-semibold text-strong hover:underline"
+src/app/admin/(dashboard)/lotes/LotesClient.tsx:73 <button> {clase} data-peligro={peligro || undefined}>
+src/app/admin/(dashboard)/clientes/ClientesRenglon.tsx:199 <button> (sin className)
+src/app/admin/(dashboard)/clientes/ClientesRenglon.tsx:204 <button> (sin className)
+src/app/admin/(dashboard)/turnos/CalendarGrid.tsx:157 <button> {`border-r last:border-r-0 border-b m-0.5 rounded-md border px-2 py-1 text-left text-xs leading-tight ${
+src/app/admin/(dashboard)/turnos/AppointmentRow.tsx:101 <select> {selectClasses} defaultValue={defaultValue} required aria-label="Medio de pago">
+src/app/admin/(dashboard)/turnos/AppointmentRow.tsx:228 <button> {
+src/app/admin/(dashboard)/turnos/AppointmentRow.tsx:271 <button> {`text-muted hover:underline ${TOQUE_CEL} max-sm:min-w-11 max-sm:px-3`} onClick={() => { setAbierto(false); se
+src/app/admin/(dashboard)/turnos/_agenda/MesaDeTurnos.tsx:257 <button> (sin className)
+src/app/admin/(dashboard)/resenas/EliminarResena.tsx:19 <button> {`${CHIP} chip-btn-danger`}>
+src/app/admin/(dashboard)/resenas/EliminarResena.tsx:37 <button> {CHIP}>
+src/app/admin/(dashboard)/resenas/MasDeResena.tsx:17 <button> (sin className)
+src/app/admin/(dashboard)/catalogo/PlanillaCortes.tsx:198 <summary> "cursor-pointer py-2 text-muted"
+src/app/admin/(dashboard)/catalogo/ProductsSection.tsx:228 <select> (sin className)
+src/app/admin/(dashboard)/catalogo/AsignacionSection.tsx:79 <button> "flex w-full items-center justify-between gap-2 px-3 py-3 text-left text-sm"
+src/app/admin/(dashboard)/catalogo/ServicesSection.tsx:383 <summary> {`flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none list-none ${
+src/app/admin/(dashboard)/catalogo/CortesSection.tsx:122 <select> (sin className)
+src/app/admin/(dashboard)/catalogo/CortesSection.tsx:137 <select> {inputClass}>
+src/app/admin/(dashboard)/catalogo/CortesSection.tsx:167 <select> {inputClass}
+src/app/admin/(dashboard)/catalogo/CatalogoServiciosRenglon.tsx:228 <button> (sin className)
+src/app/admin/(dashboard)/catalogo/CatalogoServiciosRenglon.tsx:231 <button> (sin className)
+src/app/admin/(dashboard)/catalogo/CatalogoServiciosRenglon.tsx:498 <button> (sin className)
+src/app/admin/(dashboard)/catalogo/CatalogoServiciosRenglon.tsx:501 <button> (sin className)
+src/app/admin/(dashboard)/catalogo/CatalogoServiciosRenglon.tsx:654 <button> (sin className)
+src/app/admin/(dashboard)/catalogo/CatalogoServiciosRenglon.tsx:755 <button> (sin className)
+src/app/admin/(dashboard)/catalogo/ProfessionalsSection.tsx:435 <button> {editingComisiones ? chipBtnActive : chipBtn}
+src/app/admin/(dashboard)/catalogo/ProfessionalsSection.tsx:441 <button> {editingHours ? chipBtnActive : chipBtn}
+src/app/admin/(dashboard)/catalogo/ProfessionalsSection.tsx:447 <button> {editingNovedades ? chipBtnActive : chipBtn}
+src/app/admin/(dashboard)/catalogo/ProfessionalsSection.tsx:458 <button> {chipBtn}>
+src/app/admin/(dashboard)/catalogo/ProfessionalsSection.tsx:474 <button> {`${chipBtn} text-danger border-danger/40`}>
+src/app/admin/(dashboard)/catalogo/CatalogoRenglon.tsx:234 <button> (sin className)
+src/app/admin/(dashboard)/catalogo/CatalogoRenglon.tsx:237 <button> (sin className)
+src/app/admin/(dashboard)/espera/QuitarDeEspera.tsx:16 <button> (sin className)
+src/components/whatsapp-cta.tsx:111 <button> (sin className)
+src/components/SubmitButton.tsx:32 <button> {`${className ?? ""} disabled:opacity-50`}>
+src/components/ui/Field.tsx:27 <select> {cn(control, "pr-8", className)} {...props} />
+src/components/ui/MenuMas.tsx:12 <button> (sin className)
+src/components/ui/BuscadorCombo.tsx:3 <select> (sin className)
+src/components/ui/DataTable.tsx:90 <button> "chip-btn min-h-[var(--tap-min)] gap-1.5"
+src/components/ui/DataTable.tsx:122 <button> {cn(
+src/components/ui/Chip.tsx:27 <button> {cn(clases, className)} {...props}>

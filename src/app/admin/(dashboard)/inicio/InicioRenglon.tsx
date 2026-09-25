@@ -35,6 +35,7 @@ import { espacioNav } from "@/apps/espacios";
 import type { AppDescriptor } from "@/apps/contract";
 import { cargarKpi, llevaNumero, type ResultadoKpi } from "@/apps/kpis/index.server";
 import { IconoApp } from "@/components/iconos-apps";
+import { CifraDeRenglon } from "./CifraDeRenglon";
 import { Bloque, DosColumnas, LineaDeEstado, Marca, MenuMas, Plata, Renglon, Rotulo } from "@/components/ui";
 import { armarNavegacion, type NavDelArmazon } from "../armazon/navegacion";
 import { hrefDelEspacio, puestoDe, type AppDeNav, type EspacioDeNav } from "../armazon/armazon-core";
@@ -646,17 +647,5 @@ async function PaginaDelEspacio({ espacio, ctx }: { espacio: EspacioDeNav; ctx: 
 
 async function NumeroDeRenglon({ appId, role }: { appId: string; role: Role }) {
   const r = await cargarKpi(appId, role);
-  if (!r) return null;
-  if (r.estado !== "ok") return <span className="text-[13px] text-muted">{r.motivo}</span>;
-  const monto = montoANumero(r.monto) ?? montoANumero(r.valor);
-  return (
-    <span className="grid justify-items-end">
-      {monto !== null ? <Plata valor={monto} sinCentavos tono={monto < 0 ? "peligro" : undefined} /> : <span data-ui="plata">{r.valor}</span>}
-      {r.alerta ? (
-        <Marca tipo="atencion">{r.alerta.texto}</Marca>
-      ) : (
-        r.detalle && <span className="text-[12px] text-muted">{r.detalle}</span>
-      )}
-    </span>
-  );
+  return r ? <CifraDeRenglon r={r} /> : null;
 }

@@ -78,15 +78,23 @@ export function contarVistas(filas: readonly NegocioParaLista[]) {
   };
 }
 
-export function filtrarNegocios(filas: readonly NegocioParaLista[], vista: VistaNegocios, q: string): NegocioParaLista[] {
+/**
+ * Si el negocio coincide con lo buscado: por nombre, slug o link, sin mayúsculas ni acentos.
+ * La misma regla en el servidor (`?q=`) y en la tabla mientras se escribe en el celular.
+ */
+export function coincideNegocio(n: Pick<NegocioParaLista, "nombre" | "slug" | "subdominio">, q: string): boolean {
   const buscado = plano(q);
+  if (!buscado) return true;
+  return [n.nombre, n.slug, n.subdominio ?? ""].some((t) => plano(t).includes(buscado));
+}
+
+export function filtrarNegocios(filas: readonly NegocioParaLista[], vista: VistaNegocios, q: string): NegocioParaLista[] {
   return filas.filter((n) => {
     if (vista === "produccion" && n.estado !== "ACTIVE") return false;
     if (vista === "prueba" && n.estado !== "TRIAL") return false;
     if (vista === "pendientes" && pendientesDe(n) === 0) return false;
     if (vista === "estudios" && !esEstudio(n)) return false;
-    if (!buscado) return true;
-    return [n.nombre, n.slug, n.subdominio ?? ""].some((t) => plano(t).includes(buscado));
+    return coincideNegocio(n, q);
   });
 }
 

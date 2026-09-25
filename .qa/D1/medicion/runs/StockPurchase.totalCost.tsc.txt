@@ -1,0 +1,10 @@
+src/app/admin/(dashboard)/compras/page.tsx(135,36): error TS2345: Argument of type 'number | Decimal' is not assignable to parameter of type 'string | number | null | undefined'.
+  Type 'Decimal' is not assignable to type 'string | number | null | undefined'.
+src/app/admin/(dashboard)/proveedores/[id]/page.tsx(124,71): error TS2365: Operator '>' cannot be applied to types 'Decimal' and 'number'.
+src/app/admin/(dashboard)/proveedores/[id]/page.tsx(124,101): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'string | number | null | undefined'.
+src/apps/kpis/logistica.server.ts(171,5): error TS2365: Operator '+=' cannot be applied to types 'number' and 'number | Decimal'.
+src/lib/libros/libro-iva-loader.ts(153,9): error TS2322: Type '{ clave: string; fecha: string; proveedor: string; doc: string; numero: string; total: Decimal; }[]' is not assignable to type 'CompraRow[]'.
+  Type '{ clave: string; fecha: string; proveedor: string; doc: string; numero: string; total: Decimal; }' is not assignable to type 'CompraRow'.
+    Types of property 'total' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/suppliers/supplier-repo.ts(173,26): error TS2362: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.

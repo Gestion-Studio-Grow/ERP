@@ -60,6 +60,8 @@ import {
   calcularVuelto,
   controlarPrecioAMano,
   descuentoDelFormulario,
+  lineaSinCantidad as primeraLineaSinCantidad,
+  motivoDeLineaSinCantidad,
   validarLineaAMano,
   type ResultadoDescuento,
   type TipoDescuento,
@@ -454,9 +456,10 @@ function FormularioVender({
   const hayLineaValida = leidas.some(enviable) || manualesLeidas.some((m) => m.valida);
   const hayFaltante = leidas.some((l) => faltanteDe(l)?.bloquea === true);
   const hayCantidadInvalida = leidas.some((l) => l.productId && l.invalida);
-  // Diseño nuevo: una línea con producto y SIN cantidad frena el cobro. Si no, esa línea no viaja
-  // (no es `enviable`) y el ticket sale sin ella, cobrado de menos y sin que nadie lo note.
-  const lineaSinCantidad = nuevo ? leidas.find((l) => l.productId !== "" && !l.invalida && l.qty <= 0) : undefined;
+  // Una línea con producto y SIN cantidad frena el cobro, en las DOS vistas (antes, sólo con
+  // «Diseño nuevo»; en la de siempre esa línea no viajaba —no es `enviable`— y el ticket salía
+  // sin ella, cobrado de menos). La regla es una sola: `lineaSinCantidad` (reglas-venta.ts).
+  const lineaSinCantidad = primeraLineaSinCantidad(leidas);
   // Una línea a mano abierta y a medio llenar frena el cobro: si se dejara pasar, se cobraría
   // de menos sin que nadie se entere. Vacía del todo, se ignora.
   const hayManualInvalida = manualesLeidas.some((m) => m.error !== null);
@@ -530,7 +533,7 @@ function FormularioVender({
         ? "Revisá el pedido cortado"
         : "Revisá la venta cortada"
       : lineaSinCantidad
-      ? `Falta ${byId.get(lineaSinCantidad.productId)?.saleUnit === "WEIGHT" ? "el peso" : "la cantidad"} de ${byId.get(lineaSinCantidad.productId)?.name ?? "un producto"}`
+      ? motivoDeLineaSinCantidad(byId.get(lineaSinCantidad.productId))
       : !descuento.ok
       ? "Revisá el descuento"
       : cuponSinAplicar

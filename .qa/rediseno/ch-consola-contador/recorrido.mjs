@@ -139,16 +139,19 @@ if (fase === "consola") {
   });
   await paso("operador · entrar", async () => { await entrarOperador(); return await medir("consola-lista"); });
   await paso("operador · buscar un negocio en la lista", async () => {
-    const campo = p.getByPlaceholder(/Buscar un negocio/i).first();
+    // A 390 hay dos campos con ese placeholder (el de la cabecera de PC, oculto, y el de la
+    // lista): se toma el VISIBLE. Los dos buscan al enviar (GET /operador?q=): se envía con Enter
+    // y se espera la URL, así el paso prueba la búsqueda y no que CH ya estuviera en la lista.
+    const campo = p.getByPlaceholder(/Buscar un negocio/i).filter({ visible: true }).first();
     const hay = await campo.count();
-    if (!hay) return "sin campo de búsqueda en la lista";
+    if (!hay) return "sin campo de búsqueda visible";
     await campo.click();
-    await p.keyboard.type("CH");
-    await p.waitForTimeout(800);
+    await campo.fill("CH");
+    await campo.press("Enter");
+    await p.waitForURL(/[?&]q=CH/, { timeout: T });
     const t = await texto("body");
     afirmar(/CH Estética/.test(t), "no aparece CH");
-    await p.keyboard.press("Escape");
-    return "CH aparece";
+    return "busca con Enter y CH aparece";
   });
   await paso("operador · abrir la ficha de CH desde la lista", async () => {
     await ir(`${OP}/operador`);

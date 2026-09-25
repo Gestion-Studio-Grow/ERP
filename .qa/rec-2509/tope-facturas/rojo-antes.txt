@@ -1,0 +1,56 @@
+TAP version 13
+# Subtest: tope del mes: autorizada y pendiente cuentan, rechazada no, lo del mes anterior no; A y B no se mezclan
+not ok 1 - tope del mes: autorizada y pendiente cuentan, rechazada no, lo del mes anterior no; A y B no se mezclan
+  ---
+  duration_ms: 4545.72269
+  type: 'test'
+  location: '/home/user/erp/src/lib/tope-facturas-postgres.test.ts:7:647'
+  failureType: 'testCodeFailure'
+  error: |-
+    A: la autorizada y la pendiente; la rechazada no
+    
+    3 !== 2
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 2
+  actual: 3
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/tope-facturas-postgres.test.ts:97:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: camino real: emitir suma un lugar del tope y el rechazo de ARCA lo devuelve
+not ok 2 - camino real: emitir suma un lugar del tope y el rechazo de ARCA lo devuelve
+  ---
+  duration_ms: 139.984894
+  type: 'test'
+  location: '/home/user/erp/src/lib/tope-facturas-postgres.test.ts:7:2418'
+  failureType: 'testCodeFailure'
+  error: |-
+    rechazada por ARCA: el lugar vuelve
+    
+    4 !== 3
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 3
+  actual: 4
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/tope-facturas-postgres.test.ts:146:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6311.399857

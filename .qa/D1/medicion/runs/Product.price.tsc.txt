@@ -1,0 +1,155 @@
+prisma/seed-qa-tenants.ts(109,30): error TS2362: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.
+prisma/seed-qa-tenants.ts(115,90): error TS2322: Type 'number | Decimal' is not assignable to type 'number'.
+  Type 'Decimal' is not assignable to type 'number'.
+scripts/demo.mts(215,37): error TS2345: Argument of type '{ id: string; name: string; price: Decimal | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; }' is not assignable to parameter of type '{ saleUnit: string; price: number | null; pricePerKg: number | null; }'.
+  Types of property 'price' are incompatible.
+    Type 'Decimal | null' is not assignable to type 'number | null'.
+      Type 'Decimal' is not assignable to type 'number'.
+scripts/fix-magra-mock-prices-2026-07-07.ts(86,47): error TS2322: Type 'number | Decimal | null' is not assignable to type 'number | null'.
+  Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/catalogo/page.tsx(49,11): error TS2322: Type '{ name: string; unit: string; stock: number; lowStockAt: number; active: boolean; saleUnit: "UNIT" | "WEIGHT"; price: Decimal | null; pricePerKg: number | null; cost: number | null; ... 4 more ...; id: string; }[]' is not assignable to type 'Corte[]'.
+  Type '{ name: string; unit: string; stock: number; lowStockAt: number; active: boolean; saleUnit: "UNIT" | "WEIGHT"; price: Decimal | null; pricePerKg: number | null; cost: number | null; ... 4 more ...; id: string; }' is not assignable to type 'Corte'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/catalogo/page.tsx(73,7): error TS2345: Argument of type '{ id: string; name: string; createdAt: Date; updatedAt: Date; price: Decimal | null; pricePerKg: number | null; stock: number; tenantId: string; unit: string; lowStockAt: number; active: boolean; deletedAt: Date | null; saleUnit: ProductSaleUnit; trackStock: boolean; }[]' is not assignable to parameter of type 'readonly { id: string; saleUnit: string; price: number | null; pricePerKg: number | null; }[]'.
+  Type '{ id: string; name: string; createdAt: Date; updatedAt: Date; price: Decimal | null; pricePerKg: number | null; stock: number; tenantId: string; unit: string; lowStockAt: number; active: boolean; deletedAt: Date | null; saleUnit: ProductSaleUnit; trackStock: boolean; }' is not assignable to type '{ id: string; saleUnit: string; price: number | null; pricePerKg: number | null; }'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/catalogo/page.tsx(153,26): error TS2322: Type '{ id: string; name: string; createdAt: Date; updatedAt: Date; price: Decimal | null; pricePerKg: number | null; stock: number; tenantId: string; unit: string; lowStockAt: number; active: boolean; deletedAt: Date | null; saleUnit: ProductSaleUnit; trackStock: boolean; }[]' is not assignable to type 'Product[]'.
+  Type '{ id: string; name: string; createdAt: Date; updatedAt: Date; price: Decimal | null; pricePerKg: number | null; stock: number; tenantId: string; unit: string; lowStockAt: number; active: boolean; deletedAt: Date | null; saleUnit: ProductSaleUnit; trackStock: boolean; }' is not assignable to type 'Product'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/catalogo/planilla/route.ts(38,41): error TS2345: Argument of type '(p: { id: string; name: string; unit: string; stock: number; active: boolean; saleUnit: string; price: number | null; pricePerKg: number | null; trackStock: boolean; }) => ProductoDelCatalogo' is not assignable to parameter of type '(value: { id: string; name: string; price: Decimal | null; pricePerKg: number | null; stock: number; unit: string; active: boolean; saleUnit: ProductSaleUnit; trackStock: boolean; }, index: number, array: { ...; }[]) => ProductoDelCatalogo'.
+  Types of parameters 'p' and 'value' are incompatible.
+    Type '{ id: string; name: string; price: Decimal | null; pricePerKg: number | null; stock: number; unit: string; active: boolean; saleUnit: ProductSaleUnit; trackStock: boolean; }' is not assignable to type '{ id: string; name: string; unit: string; stock: number; active: boolean; saleUnit: string; price: number | null; pricePerKg: number | null; trackStock: boolean; }'.
+      Types of property 'price' are incompatible.
+        Type 'Decimal | null' is not assignable to type 'number | null'.
+          Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/despiece/page.tsx(62,34): error TS2345: Argument of type '{ id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; price: Decimal | null; pricePerKg: number | null; stock: number; unit: string; saleUnit: ProductSaleUnit; purchaseItems: { ...; }[]; }' is not assignable to parameter of type '{ saleUnit?: string | null | undefined; unit?: string | null | undefined; price?: number | null | undefined; pricePerKg?: number | null | undefined; }'.
+  Types of property 'price' are incompatible.
+    Type 'Decimal | null' is not assignable to type 'number | null | undefined'.
+      Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/pedidos/page.tsx(194,13): error TS2322: Type '{ id: string; name: string; price: Decimal | null; pricePerKg: number | null; unit: string; saleUnit: ProductSaleUnit; }[]' is not assignable to type 'SellableProduct[]'.
+  Type '{ id: string; name: string; price: Decimal | null; pricePerKg: number | null; unit: string; saleUnit: ProductSaleUnit; }' is not assignable to type 'SellableProduct'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/vender/page.tsx(92,15): error TS2322: Type '{ id: string; name: string; price: Decimal | null; pricePerKg: number | null; unit: string; saleUnit: ProductSaleUnit; }[]' is not assignable to type 'SellableProduct[]'.
+  Type '{ id: string; name: string; price: Decimal | null; pricePerKg: number | null; unit: string; saleUnit: ProductSaleUnit; }' is not assignable to type 'SellableProduct'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/app/operador/(console)/cockpit/page.tsx(107,7): error TS2322: Type '{ name: string; price: Decimal | null; pricePerKg: number | null; tenantId: string; }[]' is not assignable to type 'ProductoApertura[]'.
+  Type '{ name: string; price: Decimal | null; pricePerKg: number | null; tenantId: string; }' is not assignable to type 'ProductoApertura'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/app/operador/(console)/tenants/[id]/page.tsx(255,5): error TS2322: Type 'never[] | { name: string; price: Decimal | null; pricePerKg: number | null; }[]' is not assignable to type 'ProductoApertura[]'.
+  Type '{ name: string; price: Decimal | null; pricePerKg: number | null; }[]' is not assignable to type 'ProductoApertura[]'.
+    Type '{ name: string; price: Decimal | null; pricePerKg: number | null; }' is not assignable to type 'ProductoApertura'.
+      Types of property 'price' are incompatible.
+        Type 'Decimal | null' is not assignable to type 'number | null'.
+          Type 'Decimal' is not assignable to type 'number'.
+src/app/tienda/page.tsx(104,9): error TS2322: Type '{ disponibilidad: Disponibilidad; id: string; name: string; price: Decimal | null; pricePerKg: number | null; unit: string; saleUnit: ProductSaleUnit; }[]' is not assignable to type 'Product[]'.
+  Type '{ disponibilidad: Disponibilidad; id: string; name: string; price: Decimal | null; pricePerKg: number | null; unit: string; saleUnit: ProductSaleUnit; }' is not assignable to type 'Product'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/app/tienda/page.tsx(121,9): error TS2322: Type '{ disponibilidad: Disponibilidad; id: string; name: string; price: Decimal | null; pricePerKg: number | null; unit: string; saleUnit: ProductSaleUnit; }[]' is not assignable to type 'Product[]'.
+  Type '{ disponibilidad: Disponibilidad; id: string; name: string; price: Decimal | null; pricePerKg: number | null; unit: string; saleUnit: ProductSaleUnit; }' is not assignable to type 'Product'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/app/tienda/page.tsx(152,75): error TS2322: Type '{ disponibilidad: Disponibilidad; id: string; name: string; price: Decimal | null; pricePerKg: number | null; unit: string; saleUnit: ProductSaleUnit; }[]' is not assignable to type 'Product[]'.
+  Type '{ disponibilidad: Disponibilidad; id: string; name: string; price: Decimal | null; pricePerKg: number | null; unit: string; saleUnit: ProductSaleUnit; }' is not assignable to type 'Product'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/app/tienda/page.tsx(161,7): error TS2322: Type '{ disponibilidad: Disponibilidad; id: string; name: string; price: Decimal | null; pricePerKg: number | null; unit: string; saleUnit: ProductSaleUnit; }[]' is not assignable to type 'Product[]'.
+  Type '{ disponibilidad: Disponibilidad; id: string; name: string; price: Decimal | null; pricePerKg: number | null; unit: string; saleUnit: ProductSaleUnit; }' is not assignable to type 'Product'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/apps/kpis/precios.server.ts(50,29): error TS2345: Argument of type '{ id: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; price: Decimal | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; purchaseItems: { ...; }[]; }[]' is not assignable to parameter of type 'readonly { id: string; saleUnit: string; price: number | null; pricePerKg: number | null; }[]'.
+  Type '{ id: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; price: Decimal | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; purchaseItems: { ...; }[]; }' is not assignable to type '{ id: string; saleUnit: string; price: number | null; pricePerKg: number | null; }'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/apps/kpis/precios.server.ts(129,11): error TS2345: Argument of type '{ id: string; price: Decimal | null; pricePerKg: number | null; deletedAt: Date | null; saleUnit: ProductSaleUnit; }[]' is not assignable to parameter of type 'readonly ProductoDeEtiqueta[]'.
+  Type '{ id: string; price: Decimal | null; pricePerKg: number | null; deletedAt: Date | null; saleUnit: ProductSaleUnit; }' is not assignable to type 'ProductoDeEtiqueta'.
+    Type '{ id: string; price: Decimal | null; pricePerKg: number | null; deletedAt: Date | null; saleUnit: ProductSaleUnit; }' is not assignable to type 'Pick<ProductoParaPrecios, "price" | "pricePerKg" | "saleUnit">'.
+      Types of property 'price' are incompatible.
+        Type 'Decimal | null' is not assignable to type 'number | null'.
+          Type 'Decimal' is not assignable to type 'number'.
+src/lib/carniceria/despiece-registro.ts(62,109): error TS2345: Argument of type '{ id: string; name: string; price: Decimal | null; pricePerKg: number | null; stock: number; unit: string; saleUnit: ProductSaleUnit; }' is not assignable to parameter of type '{ saleUnit?: string | null | undefined; unit?: string | null | undefined; price?: number | null | undefined; pricePerKg?: number | null | undefined; }'.
+  Types of property 'price' are incompatible.
+    Type 'Decimal | null' is not assignable to type 'number | null | undefined'.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/catalog-actions.ts(420,98): error TS2345: Argument of type '{ saleUnit: "UNIT" | "WEIGHT"; price: Decimal | null; pricePerKg: number | null; }' is not assignable to parameter of type '{ saleUnit: "UNIT" | "WEIGHT"; price: number | null; pricePerKg: number | null; }'.
+  Types of property 'price' are incompatible.
+    Type 'Decimal | null' is not assignable to type 'number | null'.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/catalogo/planilla-actions.ts(71,20): error TS2345: Argument of type '(p: { id: string; name: string; unit: string; stock: number; active: boolean; saleUnit: string; price: number | null; pricePerKg: number | null; trackStock: boolean; }) => ProductoDelCatalogo' is not assignable to parameter of type '(value: { id: string; name: string; price: Decimal | null; pricePerKg: number | null; stock: number; unit: string; active: boolean; saleUnit: ProductSaleUnit; trackStock: boolean; }, index: number, array: { ...; }[]) => ProductoDelCatalogo'.
+  Types of parameters 'p' and 'value' are incompatible.
+    Type '{ id: string; name: string; price: Decimal | null; pricePerKg: number | null; stock: number; unit: string; active: boolean; saleUnit: ProductSaleUnit; trackStock: boolean; }' is not assignable to type '{ id: string; name: string; unit: string; stock: number; active: boolean; saleUnit: string; price: number | null; pricePerKg: number | null; trackStock: boolean; }'.
+      Types of property 'price' are incompatible.
+        Type 'Decimal | null' is not assignable to type 'number | null'.
+          Type 'Decimal' is not assignable to type 'number'.
+src/lib/catalogo/planilla-core.ts(607,5): error TS2322: Type '{ saleUnit: "UNIT" | "WEIGHT"; id: string; name: string; price: Decimal | null; pricePerKg: number | null; }[]' is not assignable to type 'ProductoCreado[]'.
+  Type '{ saleUnit: "UNIT" | "WEIGHT"; id: string; name: string; price: Decimal | null; pricePerKg: number | null; }' is not assignable to type 'ProductoCreado'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/catalogo/precios-actions.ts(129,52): error TS2322: Type 'Decimal | null' is not assignable to type 'number | null'.
+  Type 'Decimal' is not assignable to type 'number'.
+src/lib/catalogo/precios-tx.ts(63,3): error TS2322: Type '{ saleUnit: "UNIT" | "WEIGHT"; category: string | null; id: string; name: string; price: Decimal | null; pricePerKg: number | null; unit: string; active: boolean; }[]' is not assignable to type 'ProductoConUnidad[]'.
+  Type '{ saleUnit: "UNIT" | "WEIGHT"; category: string | null; id: string; name: string; price: Decimal | null; pricePerKg: number | null; unit: string; active: boolean; }' is not assignable to type 'ProductoConUnidad'.
+    Type '{ saleUnit: "UNIT" | "WEIGHT"; category: string | null; id: string; name: string; price: Decimal | null; pricePerKg: number | null; unit: string; active: boolean; }' is not assignable to type 'ProductoParaPrecios'.
+      Types of property 'price' are incompatible.
+        Type 'Decimal | null' is not assignable to type 'number | null'.
+          Type 'Decimal' is not assignable to type 'number'.
+src/lib/multilocal/catalogo-marca-core.ts(166,20): error TS2345: Argument of type '(p: { id: string; name: string; unit: string; stock: number; active: boolean; saleUnit: string; price: number | null; pricePerKg: number | null; trackStock: boolean; }) => ProductoDelCatalogo' is not assignable to parameter of type '(value: { id: string; name: string; price: Decimal | null; pricePerKg: number | null; stock: number; unit: string; active: boolean; saleUnit: ProductSaleUnit; trackStock: boolean; }, index: number, array: { ...; }[]) => ProductoDelCatalogo'.
+  Types of parameters 'p' and 'value' are incompatible.
+    Type '{ id: string; name: string; price: Decimal | null; pricePerKg: number | null; stock: number; unit: string; active: boolean; saleUnit: ProductSaleUnit; trackStock: boolean; }' is not assignable to type '{ id: string; name: string; unit: string; stock: number; active: boolean; saleUnit: string; price: number | null; pricePerKg: number | null; trackStock: boolean; }'.
+      Types of property 'price' are incompatible.
+        Type 'Decimal | null' is not assignable to type 'number | null'.
+          Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-actions.ts(646,29): error TS2345: Argument of type '{ id: string; price: Decimal | null; pricePerKg: number | null; stock: number; active: boolean; deletedAt: Date | null; saleUnit: ProductSaleUnit; trackStock: boolean; }[]' is not assignable to parameter of type 'readonly ProductoParaBolsa[]'.
+  Type '{ id: string; price: Decimal | null; pricePerKg: number | null; stock: number; active: boolean; deletedAt: Date | null; saleUnit: ProductSaleUnit; trackStock: boolean; }' is not assignable to type 'ProductoParaBolsa'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-anulacion.ts(817,5): error TS2345: Argument of type '{ vendible: boolean; id: string; name: string; price: Decimal | null; pricePerKg: number | null; active: boolean; deletedAt: Date | null; saleUnit: ProductSaleUnit; trackStock: boolean; }[]' is not assignable to parameter of type 'readonly ProductoDelAjuste[]'.
+  Type '{ vendible: boolean; id: string; name: string; price: Decimal | null; pricePerKg: number | null; active: boolean; deletedAt: Date | null; saleUnit: ProductSaleUnit; trackStock: boolean; }' is not assignable to type 'ProductoDelAjuste'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-core.ts(463,45): error TS2322: Type '{ name: string; price: Decimal | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; }[]' is not assignable to type 'readonly ProductoDeLista[]'.
+  Type '{ name: string; price: Decimal | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; }' is not assignable to type 'ProductoDeLista'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-core.ts(502,47): error TS2322: Type '{ id: string; name: string; price: Decimal | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; trackStock: boolean; }[]' is not assignable to type 'OrderProduct[]'.
+  Type '{ id: string; name: string; price: Decimal | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; trackStock: boolean; }' is not assignable to type 'OrderProduct'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/reports/margen-lectura.ts(77,45): error TS2345: Argument of type '{ id: string; name: string; saleUnit: SaleUnit; price: Decimal | null; pricePerKg: number | null; }[]' is not assignable to parameter of type 'readonly MarginProductInput[]'.
+  Type '{ id: string; name: string; saleUnit: SaleUnit; price: Decimal | null; pricePerKg: number | null; }' is not assignable to type 'MarginProductInput'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/reports/margen-lectura.ts(78,43): error TS2365: Operator '>' cannot be applied to types 'number | Decimal' and 'number'.
+src/lib/reports/margen-lectura.ts(80,42): error TS2345: Argument of type '{ id: string; name: string; saleUnit: SaleUnit; price: Decimal | null; pricePerKg: number | null; }[]' is not assignable to parameter of type 'readonly MarginProductInput[]'.
+  Type '{ id: string; name: string; saleUnit: SaleUnit; price: Decimal | null; pricePerKg: number | null; }' is not assignable to type 'MarginProductInput'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/reports/margin-loader.ts(50,5): error TS2345: Argument of type '{ id: string; name: string; saleUnit: SaleUnit; price: Decimal | null; pricePerKg: number | null; }[]' is not assignable to parameter of type 'readonly MarginProductInput[]'.
+  Type '{ id: string; name: string; saleUnit: SaleUnit; price: Decimal | null; pricePerKg: number | null; }' is not assignable to type 'MarginProductInput'.
+    Types of property 'price' are incompatible.
+      Type 'Decimal | null' is not assignable to type 'number | null'.
+        Type 'Decimal' is not assignable to type 'number'.

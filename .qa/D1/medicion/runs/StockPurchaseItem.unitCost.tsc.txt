@@ -1,0 +1,94 @@
+src/app/admin/(dashboard)/compras/page.tsx(145,37): error TS2365: Operator '>' cannot be applied to types 'number | Decimal' and 'number'.
+src/app/admin/(dashboard)/compras/page.tsx(147,40): error TS2345: Argument of type 'number | Decimal' is not assignable to parameter of type 'string | number | null | undefined'.
+  Type 'Decimal' is not assignable to type 'string | number | null | undefined'.
+src/app/admin/(dashboard)/despiece/page.tsx(57,35): error TS2345: Argument of type '{ id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; price: number | null; pricePerKg: number | null; stock: number; unit: string; saleUnit: ProductSaleUnit; purchaseItems: { ...; }[]; }[]' is not assignable to parameter of type 'readonly (IngresosLeidos & { id: string; })[]'.
+  Type '{ id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; price: number | null; pricePerKg: number | null; stock: number; unit: string; saleUnit: ProductSaleUnit; purchaseItems: { ...; }[]; }' is not assignable to type 'IngresosLeidos & { id: string; }'.
+    Type '{ id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; price: number | null; pricePerKg: number | null; stock: number; unit: string; saleUnit: ProductSaleUnit; purchaseItems: { ...; }[]; }' is not assignable to type 'IngresosLeidos'.
+      Types of property 'purchaseItems' are incompatible.
+        Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }[]' is not assignable to type 'readonly { unitCost: number; purchase: { createdAt: Date; }; }[]'.
+          Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }' is not assignable to type '{ unitCost: number; purchase: { createdAt: Date; }; }'.
+            Types of property 'unitCost' are incompatible.
+              Type 'Decimal' is not assignable to type 'number'.
+src/apps/kpis/logistica.server.ts(64,63): error TS2345: Argument of type '{ id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; stock: number; unit: string; lowStockAt: number; trackStock: boolean; purchaseItems: { unitCost: Decimal; purchase: { ...; }; }[]; }[]' is not assignable to parameter of type 'readonly (IngresosLeidos & { id: string; })[]'.
+  Type '{ id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; stock: number; unit: string; lowStockAt: number; trackStock: boolean; purchaseItems: { unitCost: Decimal; purchase: { ...; }; }[]; }' is not assignable to type 'IngresosLeidos & { id: string; }'.
+    Type '{ id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; stock: number; unit: string; lowStockAt: number; trackStock: boolean; purchaseItems: { unitCost: Decimal; purchase: { ...; }; }[]; }' is not assignable to type 'IngresosLeidos'.
+      Types of property 'purchaseItems' are incompatible.
+        Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }[]' is not assignable to type 'readonly { unitCost: number; purchase: { createdAt: Date; }; }[]'.
+          Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }' is not assignable to type '{ unitCost: number; purchase: { createdAt: Date; }; }'.
+            Types of property 'unitCost' are incompatible.
+              Type 'Decimal' is not assignable to type 'number'.
+src/apps/kpis/precios.server.ts(50,57): error TS2345: Argument of type '{ id: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; price: number | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; purchaseItems: { ...; }[]; }[]' is not assignable to parameter of type 'readonly (IngresosLeidos & { id: string; })[]'.
+  Type '{ id: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; price: number | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; purchaseItems: { ...; }[]; }' is not assignable to type 'IngresosLeidos & { id: string; }'.
+    Type '{ id: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; price: number | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; purchaseItems: { ...; }[]; }' is not assignable to type 'IngresosLeidos'.
+      Types of property 'purchaseItems' are incompatible.
+        Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }[]' is not assignable to type 'readonly { unitCost: number; purchase: { createdAt: Date; }; }[]'.
+          Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }' is not assignable to type '{ unitCost: number; purchase: { createdAt: Date; }; }'.
+            Types of property 'unitCost' are incompatible.
+              Type 'Decimal' is not assignable to type 'number'.
+src/lib/catalogo/precios-lectura.ts(74,39): error TS2345: Argument of type '{ id: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; purchaseItems: { unitCost: Decimal; purchase: { createdAt: Date; }; }[]; }[]' is not assignable to parameter of type 'readonly (IngresosLeidos & { id: string; })[]'.
+  Type '{ id: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; purchaseItems: { unitCost: Decimal; purchase: { createdAt: Date; }; }[]; }' is not assignable to type 'IngresosLeidos & { id: string; }'.
+    Type '{ id: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; purchaseItems: { unitCost: Decimal; purchase: { createdAt: Date; }; }[]; }' is not assignable to type 'IngresosLeidos'.
+      Types of property 'purchaseItems' are incompatible.
+        Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }[]' is not assignable to type 'readonly { unitCost: number; purchase: { createdAt: Date; }; }[]'.
+          Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }' is not assignable to type '{ unitCost: number; purchase: { createdAt: Date; }; }'.
+            Types of property 'unitCost' are incompatible.
+              Type 'Decimal' is not assignable to type 'number'.
+src/lib/devoluciones/loader.ts(43,3): error TS2322: Type '{ id: string; label: string; proveedor: string; fecha: Date; items: { id: string; productId: string | null; name: string; unit: string; purchased: number; unitCost: Decimal; }[]; }[]' is not assignable to type 'PurchaseOption[]'.
+  Type '{ id: string; label: string; proveedor: string; fecha: Date; items: { id: string; productId: string | null; name: string; unit: string; purchased: number; unitCost: Decimal; }[]; }' is not assignable to type 'PurchaseOption'.
+    Types of property 'items' are incompatible.
+      Type '{ id: string; productId: string | null; name: string; unit: string; purchased: number; unitCost: Decimal; }[]' is not assignable to type 'PurchaseItemOption[]'.
+        Type '{ id: string; productId: string | null; name: string; unit: string; purchased: number; unitCost: Decimal; }' is not assignable to type 'PurchaseItemOption'.
+          Types of property 'unitCost' are incompatible.
+            Type 'Decimal' is not assignable to type 'number'.
+src/lib/inventory/inventory-loader.ts(73,27): error TS2345: Argument of type '{ id: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; purchaseItems: { unitCost: Decimal; purchase: { createdAt: Date; }; }[]; }[]' is not assignable to parameter of type 'readonly (IngresosLeidos & { id: string; })[]'.
+  Type '{ id: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; purchaseItems: { unitCost: Decimal; purchase: { createdAt: Date; }; }[]; }' is not assignable to type 'IngresosLeidos & { id: string; }'.
+    Type '{ id: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; purchaseItems: { unitCost: Decimal; purchase: { createdAt: Date; }; }[]; }' is not assignable to type 'IngresosLeidos'.
+      Types of property 'purchaseItems' are incompatible.
+        Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }[]' is not assignable to type 'readonly { unitCost: number; purchase: { createdAt: Date; }; }[]'.
+          Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }' is not assignable to type '{ unitCost: number; purchase: { createdAt: Date; }; }'.
+            Types of property 'unitCost' are incompatible.
+              Type 'Decimal' is not assignable to type 'number'.
+src/lib/inventory/inventory-loader.ts(103,64): error TS2345: Argument of type '{ id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; stock: number; unit: string; lowStockAt: number; trackStock: boolean; purchaseItems: { unitCost: Decimal; purchase: { ...; }; }[]; }[]' is not assignable to parameter of type 'readonly (IngresosLeidos & { id: string; })[]'.
+  Type '{ id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; stock: number; unit: string; lowStockAt: number; trackStock: boolean; purchaseItems: { unitCost: Decimal; purchase: { ...; }; }[]; }' is not assignable to type 'IngresosLeidos & { id: string; }'.
+    Type '{ id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; stock: number; unit: string; lowStockAt: number; trackStock: boolean; purchaseItems: { unitCost: Decimal; purchase: { ...; }; }[]; }' is not assignable to type 'IngresosLeidos'.
+      Types of property 'purchaseItems' are incompatible.
+        Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }[]' is not assignable to type 'readonly { unitCost: number; purchase: { createdAt: Date; }; }[]'.
+          Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }' is not assignable to type '{ unitCost: number; purchase: { createdAt: Date; }; }'.
+            Types of property 'unitCost' are incompatible.
+              Type 'Decimal' is not assignable to type 'number'.
+src/lib/reports/margen-lectura.ts(67,35): error TS2345: Argument of type 'readonly { id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; price: number | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; purchaseItems: { ...; }[]; }[]' is not assignable to parameter of type 'readonly (IngresosLeidos & { id: string; })[]'.
+  Type '{ id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; price: number | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; purchaseItems: { ...; }[]; }' is not assignable to type 'IngresosLeidos & { id: string; }'.
+    Type '{ id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; price: number | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; purchaseItems: { ...; }[]; }' is not assignable to type 'IngresosLeidos'.
+      Types of property 'purchaseItems' are incompatible.
+        Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }[]' is not assignable to type 'readonly { unitCost: number; purchase: { createdAt: Date; }; }[]'.
+          Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }' is not assignable to type '{ unitCost: number; purchase: { createdAt: Date; }; }'.
+            Types of property 'unitCost' are incompatible.
+              Type 'Decimal' is not assignable to type 'number'.
+src/lib/reports/margin-loader.ts(45,35): error TS2345: Argument of type '{ id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; price: number | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; purchaseItems: { ...; }[]; }[]' is not assignable to parameter of type 'readonly (IngresosLeidos & { id: string; })[]'.
+  Type '{ id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; price: number | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; purchaseItems: { ...; }[]; }' is not assignable to type 'IngresosLeidos & { id: string; }'.
+    Type '{ id: string; name: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; price: number | null; pricePerKg: number | null; saleUnit: ProductSaleUnit; purchaseItems: { ...; }[]; }' is not assignable to type 'IngresosLeidos'.
+      Types of property 'purchaseItems' are incompatible.
+        Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }[]' is not assignable to type 'readonly { unitCost: number; purchase: { createdAt: Date; }; }[]'.
+          Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }' is not assignable to type '{ unitCost: number; purchase: { createdAt: Date; }; }'.
+            Types of property 'unitCost' are incompatible.
+              Type 'Decimal' is not assignable to type 'number'.
+src/lib/reports/resultado-lectura.ts(157,37): error TS2345: Argument of type '{ id: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; purchaseItems: { unitCost: Decimal; purchase: { createdAt: Date; }; }[]; }[]' is not assignable to parameter of type 'readonly (IngresosLeidos & { id: string; })[]'.
+  Type '{ id: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; purchaseItems: { unitCost: Decimal; purchase: { createdAt: Date; }; }[]; }' is not assignable to type 'IngresosLeidos & { id: string; }'.
+    Type '{ id: string; stockMovements: { createdAt: Date; unitCost: number | null; }[]; purchaseItems: { unitCost: Decimal; purchase: { createdAt: Date; }; }[]; }' is not assignable to type 'IngresosLeidos'.
+      Types of property 'purchaseItems' are incompatible.
+        Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }[]' is not assignable to type 'readonly { unitCost: number; purchase: { createdAt: Date; }; }[]'.
+          Type '{ unitCost: Decimal; purchase: { createdAt: Date; }; }' is not assignable to type '{ unitCost: number; purchase: { createdAt: Date; }; }'.
+            Types of property 'unitCost' are incompatible.
+              Type 'Decimal' is not assignable to type 'number'.
+src/lib/stock/purchase-core.ts(385,66): error TS2322: Type '{ quantity: number; unitCost: Decimal; productId: string | null; }[]' is not assignable to type 'readonly { productId: string | null; quantity: number; unitCost: number; }[]'.
+  Type '{ quantity: number; unitCost: Decimal; productId: string | null; }' is not assignable to type '{ productId: string | null; quantity: number; unitCost: number; }'.
+    Types of property 'unitCost' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/stock/supplier-return.ts(246,41): error TS2345: Argument of type '{ name: string; unit: string; quantity: number; unitCost: Decimal; productId: string | null; }[]' is not assignable to parameter of type 'readonly { productId: string | null; name: string; unit: string; quantity: number; unitCost: number; }[]'.
+  Type '{ name: string; unit: string; quantity: number; unitCost: Decimal; productId: string | null; }' is not assignable to type '{ productId: string | null; name: string; unit: string; quantity: number; unitCost: number; }'.
+    Types of property 'unitCost' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/suppliers/devoluciones.ts(83,40): error TS2345: Argument of type '{ name: string; unit: string; quantity: number; unitCost: Decimal; productId: string | null; }[]' is not assignable to parameter of type 'readonly { productId: string | null; name: string; unit: string; quantity: number; unitCost: number; }[]'.
+  Type '{ name: string; unit: string; quantity: number; unitCost: Decimal; productId: string | null; }' is not assignable to type '{ productId: string | null; name: string; unit: string; quantity: number; unitCost: number; }'.
+    Types of property 'unitCost' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.

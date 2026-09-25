@@ -1,0 +1,160 @@
+TAP version 13
+# Subtest: una línea con producto y cantidad vacía (0) es la que falta
+not ok 1 - una línea con producto y cantidad vacía (0) es la que falta
+  ---
+  duration_ms: 1.386434
+  type: 'test'
+  location: '/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:2:1093'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_reglas_venta.lineaSinCantidad) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:14:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: la línea en blanco (sin producto) no frena: es el renglón para el próximo producto
+not ok 2 - la línea en blanco (sin producto) no frena: es el renglón para el próximo producto
+  ---
+  duration_ms: 0.27125
+  type: 'test'
+  location: '/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:2:1342'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_reglas_venta.lineaSinCantidad) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:18:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: una cantidad ilegible no se cuenta acá: tiene su propio aviso («cantidad inválida»)
+not ok 3 - una cantidad ilegible no se cuenta acá: tiene su propio aviso («cantidad inválida»)
+  ---
+  duration_ms: 0.145912
+  type: 'test'
+  location: '/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:2:1572'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_reglas_venta.lineaSinCantidad) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:22:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cantidad negativa o no numérica tampoco viaja: frena igual que la vacía
+not ok 4 - cantidad negativa o no numérica tampoco viaja: frena igual que la vacía
+  ---
+  duration_ms: 0.140674
+  type: 'test'
+  location: '/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:2:1803'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_reglas_venta.lineaSinCantidad) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:26:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: devuelve la PRIMERA que falta, en el orden del ticket
+not ok 5 - devuelve la PRIMERA que falta, en el orden del ticket
+  ---
+  duration_ms: 0.115584
+  type: 'test'
+  location: '/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:2:2144'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_reglas_venta.lineaSinCantidad) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:31:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: todas con cantidad: no hay nada que frenar
+not ok 6 - todas con cantidad: no hay nada que frenar
+  ---
+  duration_ms: 0.113791
+  type: 'test'
+  location: '/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:2:2348'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_reglas_venta.lineaSinCantidad) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:35:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: el motivo usa la palabra de la balanza para lo que va por kilo y dice cuál
+not ok 7 - el motivo usa la palabra de la balanza para lo que va por kilo y dice cuál
+  ---
+  duration_ms: 0.195569
+  type: 'test'
+  location: '/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:2:2606'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_reglas_venta.motivoDeLineaSinCantidad) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:40:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: sin el producto a mano (salió del catálogo), el motivo igual dice qué falta
+not ok 8 - sin el producto a mano (salió del catálogo), el motivo igual dice qué falta
+  ---
+  duration_ms: 0.120404
+  type: 'test'
+  location: '/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:2:3001'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_reglas_venta.motivoDeLineaSinCantidad) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts:45:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 0
+# fail 8
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 529.113039

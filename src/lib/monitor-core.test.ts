@@ -653,7 +653,10 @@ test("recolectarCliente: volumen y hechos en una pasada, con los relojes correct
   // Facturado = sólo AUTHORIZED, por fecha fiscal. El cupo cuenta por createdAt.
   const agg = llamadas.find((l) => l.modelo === "invoice" && l.op === "aggregate")!;
   assert.deepEqual(agg.args.where, { tenantId: "cli-1", status: "AUTHORIZED", fecha: { gte: "20260801", lt: "20260901" } });
-  const cupo = llamadas.find((l) => l.modelo === "invoice" && l.op === "count" && !l.args.where?.status)!;
+  // El cupo (ENG-329): por createdAt y sin los rechazados por ARCA.
+  const cupo = llamadas.find(
+    (l) => l.modelo === "invoice" && l.op === "count" && (l.args.where?.status as { not?: string } | undefined)?.not === "REJECTED",
+  )!;
   assert.ok((cupo.args.where as { createdAt?: unknown }).createdAt, "el cupo filtra por createdAt");
   // Los rechazados, con el MISMO reloj del cupo (emisión) y no por fecha del comprobante.
   const rech = llamadas.find((l) => l.modelo === "invoice" && l.op === "count" && l.args.where?.status === "REJECTED")!;

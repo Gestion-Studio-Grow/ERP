@@ -329,37 +329,10 @@ export default async function Negocios({
             ]}
           />
         </div>
-        <form
-          id="buscar-negocio"
-          role="search"
-          action="/operador"
-          method="get"
-          className="flex gap-2 lg:hidden"
-        >
-          {vista && <input type="hidden" name="estado" value={vista} />}
-          <label htmlFor="q-movil" className="sr-only">
-            Buscar un negocio
-          </label>
-          <input
-            id="q-movil"
-            name="q"
-            type="search"
-            defaultValue={q}
-            placeholder="Buscar un negocio"
-            data-ui="input"
-            className="h-11 min-w-0 flex-1 rounded border border-line-strong bg-surface-raised px-3 text-base text-strong"
-          />
-          <button
-            type="submit"
-            {...atributosBoton("outline", "md")}
-            className="inline-flex items-center"
-          >
-            Buscar
-          </button>
-        </form>
         <TablaNegocios
           filas={filas}
           total={cuenta.todos}
+          buscador={{ q, vista, orden }}
           vacio={
             <span className="flex flex-wrap items-center gap-3">
               {q

@@ -58,3 +58,26 @@ adosmanos v9us4
 /admin/resultado chicos(2)=Cargá el costo en el Catálog:20|Verlos en el libro:14
 desborde360: ninguno
 
+shinevelas 6nsya
+/admin chicos(0)=
+/admin/pedidos chicos(21)=QA Recorrido 6nsya:24|QA Recorrido 6nsya:24|QA Recorrido v9us4:24|QA Recorrido v9us4:24|QA Recorrido pyn83:24
+/admin/vender chicos(0)=
+/admin/catalogo chicos(1)=INPUT:1
+/admin/compras chicos(0)=
+/admin/compras/sugerido chicos(0)=
+/admin/reportes chicos(0)=
+/admin/reportes/margen chicos(0)=
+/admin/resultado chicos(2)=Cargá el costo en el Catálog:20|Verlos en el libro:14
+desborde360: ninguno
+
+adosmanos 6nsya
+/admin chicos(0)=
+/admin/vender chicos(0)=
+/admin/catalogo chicos(1)=INPUT:1
+/admin/compras chicos(0)=
+/admin/compras/sugerido chicos(0)=
+/admin/reportes chicos(0)=
+/admin/reportes/margen chicos(0)=
+/admin/resultado chicos(2)=Cargá el costo en el Catálog:20|Verlos en el libro:14
+desborde360: ninguno
+

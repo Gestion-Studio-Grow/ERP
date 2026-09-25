@@ -1,0 +1,1 @@
+tsc exit 0 (0 errores); eslint 0 en TablaNegocios.tsx negocios-core(.test).ts tabla-negocios-celular.test.ts Tabla.tsx

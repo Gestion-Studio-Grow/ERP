@@ -7,8 +7,8 @@
     "Se re-genera como subproducto del ritual (Gate/retro): node scripts/adr-graph.mjs."
   ],
   "query": "dependents[X] responde '¿qué se cae / qué depende si cambio X?'",
-  "count": 87,
-  "adrCount": 81,
+  "count": 92,
+  "adrCount": 86,
   "amendmentCount": 6,
   "nodes": [
     {
@@ -72,7 +72,8 @@
         "ADR-061",
         "ADR-064",
         "ADR-073",
-        "ADR-074"
+        "ADR-074",
+        "ADR-102"
       ]
     },
     {
@@ -357,7 +358,8 @@
       "dependents": [
         "ADR-019",
         "ADR-020",
-        "ADR-021"
+        "ADR-021",
+        "ADR-098"
       ]
     },
     {
@@ -470,7 +472,8 @@
         "ADR-057",
         "ADR-064",
         "ADR-066",
-        "ADR-075"
+        "ADR-075",
+        "ADR-100"
       ]
     },
     {
@@ -999,7 +1002,8 @@
         "ADR-073",
         "ADR-075",
         "ADR-076",
-        "ADR-089"
+        "ADR-089",
+        "ADR-098"
       ]
     },
     {
@@ -1022,7 +1026,8 @@
         "ADR-075",
         "ADR-076",
         "ADR-077",
-        "ADR-089"
+        "ADR-089",
+        "ADR-098"
       ]
     },
     {
@@ -1094,7 +1099,9 @@
       "dependents": [
         "ADR-069",
         "ADR-072",
-        "ADR-089"
+        "ADR-089",
+        "ADR-098",
+        "ADR-099"
       ]
     },
     {
@@ -1181,7 +1188,9 @@
         "ADR-024",
         "ADR-057"
       ],
-      "dependents": []
+      "dependents": [
+        "ADR-100"
+      ]
     },
     {
       "id": "ADR-065",
@@ -1315,7 +1324,8 @@
       ],
       "dependents": [
         "ADR-073",
-        "ADR-079"
+        "ADR-079",
+        "ADR-099"
       ]
     },
     {
@@ -1438,7 +1448,8 @@
         "ADR-080"
       ],
       "dependents": [
-        "ADR-080"
+        "ADR-080",
+        "ADR-099"
       ]
     },
     {
@@ -1455,7 +1466,8 @@
         "ADR-079"
       ],
       "dependents": [
-        "ADR-079"
+        "ADR-079",
+        "ADR-099"
       ]
     },
     {
@@ -1471,6 +1483,80 @@
         "ADR-058",
         "ADR-059",
         "ADR-076"
+      ],
+      "dependents": [
+        "ADR-098"
+      ]
+    },
+    {
+      "id": "ADR-098",
+      "title": "ADR-098 — El panel trabaja por apps: registro único, gate por negocio y guardia en cada página",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-017",
+        "ADR-054",
+        "ADR-055",
+        "ADR-059",
+        "ADR-089"
+      ],
+      "dependents": [
+        "ADR-099"
+      ]
+    },
+    {
+      "id": "ADR-099",
+      "title": "ADR-099 — Diseño nuevo «Renglón»: una piel acotada que se prende por negocio, con su armazón, su navegación, el Inicio y Vender",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-059",
+        "ADR-072",
+        "ADR-079",
+        "ADR-080",
+        "ADR-098"
+      ],
+      "dependents": []
+    },
+    {
+      "id": "ADR-100",
+      "title": "ADR-100 — El dinero se guarda y se calcula en decimal, con moneda: `numeric(14,2)` en la base y el Decimal de Prisma en el código",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-022",
+        "ADR-064"
+      ],
+      "dependents": [
+        "ADR-102"
+      ]
+    },
+    {
+      "id": "ADR-101",
+      "title": "ADR-101 — Caja: un solo esperado. El cajón debe tener lo que dice el libro; el fondo tipeado es un conteo",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [],
+      "dependents": []
+    },
+    {
+      "id": "ADR-102",
+      "title": "ADR-102 — Variantes de producto (talle, color): cada variante es un producto; el «modelo» las agrupa",
+      "nivel": "evolutiva",
+      "dominio": [
+        "(sin clasificar)"
+      ],
+      "depends_on": [
+        "ADR-002",
+        "ADR-100"
       ],
       "dependents": []
     },

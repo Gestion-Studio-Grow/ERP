@@ -1,0 +1,5 @@
+    ok 1 - home: el «Reservar» del encabezado mide 44 px en el celular
+    ok 2 - home: en la PC el «Reservar» del encabezado queda como siempre (37 px, sólo crece en el celular)
+    ok 3 - /reserva: los desplegables del formulario miden 44 px en el celular
+# pass 3
+# fail 0

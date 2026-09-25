@@ -1,0 +1,37 @@
+src/app/admin/(dashboard)/pedidos/page.tsx(291,38): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'string | number | null | undefined'.
+src/app/admin/(dashboard)/pedidos/page.tsx(323,23): error TS2322: Type '{ productId: string | null; name: string; saleUnit: ProductSaleUnit; quantity: number; unitPrice: number; lineTotal: Decimal; }[]' is not assignable to type 'Linea[]'.
+  Type '{ productId: string | null; name: string; saleUnit: ProductSaleUnit; quantity: number; unitPrice: number; lineTotal: Decimal; }' is not assignable to type 'Linea'.
+    Types of property 'lineTotal' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/app/admin/(dashboard)/ventas/page.tsx(314,42): error TS2345: Argument of type '{ id: string; createdAt: Date; status: OrderStatus; code: number; items: { name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: Decimal; productId: string | null; unitPrice: number; }[]; ... 7 more ...; paid: boolean; }' is not assignable to parameter of type 'OrdenParaTicket'.
+  Types of property 'items' are incompatible.
+    Type '{ name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: Decimal; productId: string | null; unitPrice: number; }[]' is not assignable to type 'readonly { productId: string | null; name: string; saleUnit: string; quantity: number; unitPrice: number; lineTotal: number; }[]'.
+      Type '{ name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: Decimal; productId: string | null; unitPrice: number; }' is not assignable to type '{ productId: string | null; name: string; saleUnit: string; quantity: number; unitPrice: number; lineTotal: number; }'.
+        Types of property 'lineTotal' are incompatible.
+          Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-actions.ts(511,27): error TS2345: Argument of type '{ id: string; createdAt: Date; status: OrderStatus; code: number; items: { name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: Decimal; productId: string | null; unitPrice: number; }[]; ... 6 more ...; paid: boolean; }' is not assignable to parameter of type 'OrdenParaTicket'.
+  Types of property 'items' are incompatible.
+    Type '{ name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: Decimal; productId: string | null; unitPrice: number; }[]' is not assignable to type 'readonly { productId: string | null; name: string; saleUnit: string; quantity: number; unitPrice: number; lineTotal: number; }[]'.
+      Type '{ name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: Decimal; productId: string | null; unitPrice: number; }' is not assignable to type '{ productId: string | null; name: string; saleUnit: string; quantity: number; unitPrice: number; lineTotal: number; }'.
+        Types of property 'lineTotal' are incompatible.
+          Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-actions.ts(678,7): error TS2322: Type '{ name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: Decimal; productId: string | null; }[]' is not assignable to type 'readonly LineaDelPedido[]'.
+  Type '{ name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: Decimal; productId: string | null; }' is not assignable to type 'LineaDelPedido'.
+    Types of property 'lineTotal' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-anulacion.ts(816,5): error TS2345: Argument of type '{ name: string; product: { trackStock: boolean; } | null; saleUnit: ProductSaleUnit; quantity: number; lineTotal: Decimal; productId: string | null; unitPrice: number; }[]' is not assignable to parameter of type 'readonly LineaGuardada[]'.
+  Type '{ name: string; product: { trackStock: boolean; } | null; saleUnit: ProductSaleUnit; quantity: number; lineTotal: Decimal; productId: string | null; unitPrice: number; }' is not assignable to type 'LineaGuardada'.
+    Types of property 'lineTotal' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/respuesta-al-reintento.ts(60,31): error TS2345: Argument of type '{ cupon: string | null; reglaDelCupon: CuponDelPedido | null; id: string; createdAt: Date; status: OrderStatus; notes: string | null; code: number; ... 12 more ...; clientId: string | null; }' is not assignable to parameter of type 'OrdenParaTicket'.
+  Types of property 'items' are incompatible.
+    Type '{ name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: Decimal; productId: string | null; unitPrice: number; }[]' is not assignable to type 'readonly { productId: string | null; name: string; saleUnit: string; quantity: number; unitPrice: number; lineTotal: number; }[]'.
+      Type '{ name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: Decimal; productId: string | null; unitPrice: number; }' is not assignable to type '{ productId: string | null; name: string; saleUnit: string; quantity: number; unitPrice: number; lineTotal: number; }'.
+        Types of property 'lineTotal' are incompatible.
+          Type 'Decimal' is not assignable to type 'number'.
+src/lib/respuesta-al-reintento.ts(78,58): error TS2345: Argument of type '{ cupon: string | null; reglaDelCupon: CuponDelPedido | null; id: string; createdAt: Date; status: OrderStatus; notes: string | null; code: number; ... 12 more ...; clientId: string | null; }' is not assignable to parameter of type 'VentaGrabadaLeida'.
+  Types of property 'items' are incompatible.
+    Type '{ name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: Decimal; productId: string | null; unitPrice: number; }[]' is not assignable to type 'readonly { productId: string | null; name: string; saleUnit: string; quantity: number; unitPrice: number; lineTotal?: number | undefined; }[]'.
+      Type '{ name: string; saleUnit: ProductSaleUnit; quantity: number; lineTotal: Decimal; productId: string | null; unitPrice: number; }' is not assignable to type '{ productId: string | null; name: string; saleUnit: string; quantity: number; unitPrice: number; lineTotal?: number | undefined; }'.
+        Types of property 'lineTotal' are incompatible.
+          Type 'Decimal' is not assignable to type 'number'.

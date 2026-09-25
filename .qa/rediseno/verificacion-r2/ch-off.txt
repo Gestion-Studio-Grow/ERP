@@ -1,0 +1,11 @@
+OK   CH (apagado) · entrar (1872 ms) llegó a /admin
+OK   CH (apagado) · /admin con la vista de siempre (2152 ms) h1=Inicio · diseno=null sx360=0 chicos<44=1
+OK   CH (apagado) · /admin/turnos con la vista de siempre (3961 ms) h1=Agenda · diseno=null sx360=0 chicos<44=0
+OK   CH (apagado) · /admin/turnos/lista?nuevo=1 con la vista de siempre (22923 ms) h1=Agenda · diseno=null sx360=0 chicos<44=0
+OK   CH (apagado) · /admin/caja/cierre con la vista de siempre (2253 ms) h1=Cierre de caja · diseno=null sx360=0 chicos<44=2
+OK   CH (apagado) · /admin/clientes con la vista de siempre (5240 ms) h1=Clientes · diseno=null sx360=0 chicos<44=0
+OK   CH (apagado) · F1 no hace nada nuevo (4617 ms) se queda donde está (como hoy)
+
+ch-off 390: 7/7 pasos OK · errores de consola 0 · callejones 0
+MEDIDA off/admin /admin sx360=0 chicos: Ver agenda completa →:20
+MEDIDA off/admin/caja/cierre /admin/caja/cierre sx360=0 chicos: Bajar el libro de este día:20, Bajar el mes completo:20

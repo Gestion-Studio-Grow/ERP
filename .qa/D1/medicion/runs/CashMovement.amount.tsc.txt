@@ -1,0 +1,82 @@
+scripts/corte-inicial.ts(146,3): error TS2322: Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: Decimal; detail: string; createdAt: Date; }[]' is not assignable to type 'CorteMovement[]'.
+  Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: Decimal; detail: string; createdAt: Date; }' is not assignable to type 'CorteMovement'.
+    Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: Decimal; detail: string; createdAt: Date; }' is not assignable to type 'LibroMovement'.
+      Types of property 'amount' are incompatible.
+        Type 'Decimal' is not assignable to type 'number'.
+scripts/corte-inicial.ts(180,108): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'number'.
+scripts/import-caja-historica.ts(221,20): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'number'.
+scripts/import-caja-historica.ts(266,113): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'number'.
+src/app/admin/(dashboard)/caja/page.tsx(333,28): error TS2322: Type '{ id: string; openingFloat: number; openedAt: Date; openedBy: string; movements: { id: string; type: string; amount: number; reason: string | null; createdAt: Date; }[]; } | ({ movements: { ...; }[]; } & { ...; })' is not assignable to type '{ id: string; openingFloat: number; openedAt: Date; openedBy: string; movements: { id: string; type: string; amount: number; method?: string | null | undefined; reason: string | null; createdAt: Date; }[]; }'.
+  Type '{ movements: { id: string; createdAt: Date; tenantId: string; createdBy: string; amount: Decimal; method: CashMethod; orderId: string | null; type: CashMovementType; ... 4 more ...; collectionId: string | null; }[]; } & { ...; }' is not assignable to type '{ id: string; openingFloat: number; openedAt: Date; openedBy: string; movements: { id: string; type: string; amount: number; method?: string | null | undefined; reason: string | null; createdAt: Date; }[]; }'.
+    Types of property 'movements' are incompatible.
+      Type '{ id: string; createdAt: Date; tenantId: string; createdBy: string; amount: Decimal; method: CashMethod; orderId: string | null; type: CashMovementType; ... 4 more ...; collectionId: string | null; }[]' is not assignable to type '{ id: string; type: string; amount: number; method?: string | null | undefined; reason: string | null; createdAt: Date; }[]'.
+        Type '{ id: string; createdAt: Date; tenantId: string; createdBy: string; amount: Decimal; method: CashMethod; orderId: string | null; type: CashMovementType; ... 4 more ...; collectionId: string | null; }' is not assignable to type '{ id: string; type: string; amount: number; method?: string | null | undefined; reason: string | null; createdAt: Date; }'.
+          Types of property 'amount' are incompatible.
+            Type 'Decimal' is not assignable to type 'number'.
+src/lib/caja-actions.ts(229,13): error TS2322: Type '{ type: CashMovementType; amount: Decimal; method: CashMethod; }[]' is not assignable to type 'CashMovementLike[]'.
+  Type '{ type: CashMovementType; amount: Decimal; method: CashMethod; }' is not assignable to type 'CashMovementLike'.
+    Types of property 'amount' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/cierre-diario-actions.ts(229,9): error TS2322: Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: number | Decimal; detail: string; }[]' is not assignable to type 'LibroMovement[]'.
+  Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: number | Decimal; detail: string; }' is not assignable to type 'LibroMovement'.
+    Types of property 'amount' are incompatible.
+      Type 'number | Decimal' is not assignable to type 'number'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/cierre-diario-actions.ts(238,9): error TS2322: Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: Decimal; detail: string; collectionId: string | null; collectionOrigin: CollectionOriginType | null; }[]' is not assignable to type 'CierreMovement[]'.
+  Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: Decimal; detail: string; collectionId: string | null; collectionOrigin: CollectionOriginType | null; }' is not assignable to type 'CierreMovement'.
+    Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: Decimal; detail: string; collectionId: string | null; collectionOrigin: CollectionOriginType | null; }' is not assignable to type 'LibroMovement'.
+      Types of property 'amount' are incompatible.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/cierre-diario-actions.ts(255,5): error TS2322: Type '{ id: string; day: string; type: CashMovementType; method: CashMethod; amount: Decimal; detail: string; origin: LibroOrigin; }[]' is not assignable to type '{ id: string; day: string; type: CashMovementType; method: CashMethod; amount: number; detail: string; origin: "pos" | "manual" | "turno"; }[]'.
+  Type '{ id: string; day: string; type: CashMovementType; method: CashMethod; amount: Decimal; detail: string; origin: LibroOrigin; }' is not assignable to type '{ id: string; day: string; type: CashMovementType; method: CashMethod; amount: number; detail: string; origin: "pos" | "manual" | "turno"; }'.
+    Types of property 'amount' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/cierre-diario-actions.ts(427,11): error TS2322: Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: number | Decimal; detail: string; }[]' is not assignable to type 'readonly LibroMovement[]'.
+  Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: number | Decimal; detail: string; }' is not assignable to type 'LibroMovement'.
+    Types of property 'amount' are incompatible.
+      Type 'number | Decimal' is not assignable to type 'number'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/cierre-diario-actions.ts(435,11): error TS2322: Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: Decimal; detail: string; collectionId: string | null; collectionOrigin: CollectionOriginType | null; }[]' is not assignable to type 'readonly CierreMovement[]'.
+  Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: Decimal; detail: string; collectionId: string | null; collectionOrigin: CollectionOriginType | null; }' is not assignable to type 'CierreMovement'.
+    Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: Decimal; detail: string; collectionId: string | null; collectionOrigin: CollectionOriginType | null; }' is not assignable to type 'LibroMovement'.
+      Types of property 'amount' are incompatible.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/cierre-mes/paquete-lectura.ts(70,5): error TS2345: Argument of type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: number | Decimal; detail: string; }[]' is not assignable to parameter of type 'readonly LibroMovement[]'.
+  Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: number | Decimal; detail: string; }' is not assignable to type 'LibroMovement'.
+    Types of property 'amount' are incompatible.
+      Type 'number | Decimal' is not assignable to type 'number'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/cierre-mes/paquete-lectura.ts(81,42): error TS2345: Argument of type '{ type: CashMovementType; method: CashMethod; id: string; createdBy: string; amount: Decimal; orderId: string | null; reason: string | null; occurredAt: Date; }' is not assignable to parameter of type 'FilaLedger'.
+  Types of property 'amount' are incompatible.
+    Type 'Decimal' is not assignable to type 'number'.
+src/lib/libro-caja-actions.ts(173,5): error TS2345: Argument of type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: number | Decimal; detail: string; }[]' is not assignable to parameter of type 'readonly LibroMovement[]'.
+  Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: number | Decimal; detail: string; }' is not assignable to type 'LibroMovement'.
+    Types of property 'amount' are incompatible.
+      Type 'number | Decimal' is not assignable to type 'number'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/libro-caja-actions.ts(244,3): error TS2322: Type '{ collectionId: string | null; paymentId: string | null; id: string; createdBy: string; amount: Decimal; method: CashMethod; orderId: string | null; type: CashMovementType; reason: string | null; occurredAt: Date; }[]' is not assignable to type 'FilaLibroDb[]'.
+  Type '{ collectionId: string | null; paymentId: string | null; id: string; createdBy: string; amount: Decimal; method: CashMethod; orderId: string | null; type: CashMovementType; reason: string | null; occurredAt: Date; }' is not assignable to type 'FilaLibroDb'.
+    Types of property 'amount' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/libro-caja-actions.ts(495,5): error TS2322: Type '{ type: CashMovementType; method: CashMethod; amount: Decimal; reason: string | null; }' is not assignable to type '{ type: string; method: string; amount: number; reason: string | null; }'.
+  Types of property 'amount' are incompatible.
+    Type 'Decimal' is not assignable to type 'number'.
+src/lib/multilocal/multilocal-actions.ts(417,7): error TS2352: Conversion of type '{ createdBy: string; amount: Decimal; method: CashMethod; orderId: string | null; type: CashMovementType; occurredAt: Date; }[]' to type 'FilaCaja[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ createdBy: string; amount: Decimal; method: CashMethod; orderId: string | null; type: CashMovementType; occurredAt: Date; }' is not comparable to type 'FilaCaja'.
+    Types of property 'amount' are incompatible.
+      Type 'Decimal' is not comparable to type 'number'.
+src/lib/multilocal/multilocal-core.ts(474,17): error TS2352: Conversion of type '{ createdBy: string; amount: Decimal; method: CashMethod; orderId: string | null; type: CashMovementType; occurredAt: Date; }[]' to type 'FilaCaja[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ createdBy: string; amount: Decimal; method: CashMethod; orderId: string | null; type: CashMovementType; occurredAt: Date; }' is not comparable to type 'FilaCaja'.
+    Types of property 'amount' are incompatible.
+      Type 'Decimal' is not comparable to type 'number'.
+src/lib/multilocal/multilocal-core.ts(496,11): error TS2322: Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: number | Decimal; detail: string; }[]' is not assignable to type 'LibroMovement[]'.
+  Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: number | Decimal; detail: string; }' is not assignable to type 'LibroMovement'.
+    Types of property 'amount' are incompatible.
+      Type 'number | Decimal' is not assignable to type 'number'.
+        Type 'Decimal' is not assignable to type 'number'.
+src/lib/multilocal/multilocal-core.ts(504,11): error TS2322: Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: Decimal; detail: string; }[]' is not assignable to type 'LibroMovement[]'.
+  Type '{ id: string; occurredAt: Date; type: CashMovementType; method: CashMethod; amount: Decimal; detail: string; }' is not assignable to type 'LibroMovement'.
+    Types of property 'amount' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.
+src/lib/order-anulacion.ts(430,24): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'number'.
+src/lib/order-anulacion.ts(439,29): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'number'.

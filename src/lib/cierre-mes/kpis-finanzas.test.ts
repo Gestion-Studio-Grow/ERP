@@ -64,9 +64,9 @@ test("Facturación: las ventas anuladas con factura sin nota de crédito van en 
     detalle: "comprobantes este mes · 1 rechazado por ARCA",
     alerta: { valor: "2", texto: "ventas anuladas con factura sin nota de crédito" },
   });
-  const { cupo } = filtrosFacturacionMes(AHORA);
-  assert.deepEqual(llamadas[0].args.where, { tenantId: "t-qa", ...cupo }, "el mes de la pantalla de facturación");
-  assert.deepEqual(llamadas[1].args.where, whereAnuladasConFactura("t-qa", cupo), "el mismo where del paso del cierre");
+  const { emitido } = filtrosFacturacionMes(AHORA);
+  assert.deepEqual(llamadas[0].args.where, { tenantId: "t-qa", ...emitido }, "el mes de la pantalla de facturación");
+  assert.deepEqual(llamadas[1].args.where, whereAnuladasConFactura("t-qa", emitido), "el mismo where del paso del cierre");
   assert.equal(llamadas.length, 2);
 
   const sinAnuladas = dbFalsa({ "invoice.groupBy": [{ status: "AUTHORIZED", _count: { _all: 1 } }] });

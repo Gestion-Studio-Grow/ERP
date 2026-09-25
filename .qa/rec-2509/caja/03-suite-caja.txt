@@ -1,0 +1,1998 @@
+TAP version 13
+# Subtest: Caja del día abierta, en el navegador
+    # Subtest: el día abierto dice cuánto hay por medio, sólo de los medios que se movieron, y lo que entró hoy
+    ok 1 - el día abierto dice cuánto hay por medio, sólo de los medios que se movieron, y lo que entró hoy
+      ---
+      duration_ms: 1205.359057
+      type: 'test'
+      ...
+    # Subtest: si el turno arrancó sin fondo y el libro arrastra efectivo, una sola cifra se llama «en el cajón» y la diferencia se explica
+    ok 2 - si el turno arrancó sin fondo y el libro arrastra efectivo, una sola cifra se llama «en el cajón» y la diferencia se explica
+      ---
+      duration_ms: 642.969922
+      type: 'test'
+      ...
+    # Subtest: 412 px con el CSS real y la piel: sin scroll horizontal y las teclas de 44 px
+    ok 3 - 412 px con el CSS real y la piel: sin scroll horizontal y las teclas de 44 px
+      ---
+      duration_ms: 765.377367
+      type: 'test'
+      ...
+    1..3
+ok 1 - Caja del día abierta, en el navegador
+  ---
+  duration_ms: 6512.658119
+  type: 'suite'
+  ...
+# Subtest: Caja en el navegador
+    # Subtest: cierre del día entero con el teclado: contar, anotar la diferencia, revisar, Escape, confirmar
+    ok 1 - cierre del día entero con el teclado: contar, anotar la diferencia, revisar, Escape, confirmar
+      ---
+      duration_ms: 1711.683357
+      type: 'test'
+      ...
+    # Subtest: cierre: sin efectivo, Enter lleva al efectivo y lo dice; lo ilegible se marca en su campo
+    ok 2 - cierre: sin efectivo, Enter lleva al efectivo y lo dice; lo ilegible se marca en su campo
+      ---
+      duration_ms: 798.029435
+      type: 'test'
+      ...
+    # Subtest: cierre: se corta la señal al confirmar → lo contado queda y se dice cómo saber si se cerró
+    ok 3 - cierre: se corta la señal al confirmar → lo contado queda y se dice cómo saber si se cerró
+      ---
+      duration_ms: 661.269467
+      type: 'test'
+      ...
+    # Subtest: cerrar el turno de cajero pide confirmación con el faltante; Enter confirma
+    ok 4 - cerrar el turno de cajero pide confirmación con el faltante; Enter confirma
+      ---
+      duration_ms: 599.963013
+      type: 'test'
+      ...
+    # Subtest: abrir la caja sin señal: se dice qué pasó y el fondo tipeado queda
+    ok 5 - abrir la caja sin señal: se dice qué pasó y el fondo tipeado queda
+      ---
+      duration_ms: 681.56171
+      type: 'test'
+      ...
+    # Subtest: libro: sin señal al guardar, lo cargado queda y se dice cómo saber si se guardó
+    ok 6 - libro: sin señal al guardar, lo cargado queda y se dice cómo saber si se guardó
+      ---
+      duration_ms: 740.753047
+      type: 'test'
+      ...
+    # Subtest: libro vacío: «Cargar un movimiento» deja el foco en el Detalle, listo para tipear
+    ok 7 - libro vacío: «Cargar un movimiento» deja el foco en el Detalle, listo para tipear
+      ---
+      duration_ms: 579.727333
+      type: 'test'
+      ...
+    # Subtest: 412 px con el CSS real: el cierre entra sin scroll horizontal y sus botones son de 44 px
+    ok 8 - 412 px con el CSS real: el cierre entra sin scroll horizontal y sus botones son de 44 px
+      ---
+      duration_ms: 818.508891
+      type: 'test'
+      ...
+    1..8
+ok 2 - Caja en el navegador
+  ---
+  duration_ms: 10495.64179
+  type: 'suite'
+  ...
+# Subtest: sin efectivo no se cierra: el foco va al efectivo con el motivo
+ok 3 - sin efectivo no se cierra: el foco va al efectivo con el motivo
+  ---
+  duration_ms: 1.710559
+  type: 'test'
+  ...
+# Subtest: un importe ilegible se marca en SU campo, no se toma como 'sin contar'
+ok 4 - un importe ilegible se marca en SU campo, no se toma como 'sin contar'
+  ---
+  duration_ms: 0.294392
+  type: 'test'
+  ...
+# Subtest: con diferencia y sin nota, el foco va a la nota
+ok 5 - con diferencia y sin nota, el foco va a la nota
+  ---
+  duration_ms: 0.430625
+  type: 'test'
+  ...
+# Subtest: todo cargado: la confirmación dice medio por medio lo que se asienta
+ok 6 - todo cargado: la confirmación dice medio por medio lo que se asienta
+  ---
+  duration_ms: 15.04634
+  type: 'test'
+  ...
+# Subtest: cuadra justo: se cierra sin nota
+ok 7 - cuadra justo: se cierra sin nota
+  ---
+  duration_ms: 0.547363
+  type: 'test'
+  ...
+# Subtest: las diferencias se redondean como el servidor y lo vacío es 'sin contar'
+ok 8 - las diferencias se redondean como el servidor y lo vacío es 'sin contar'
+  ---
+  duration_ms: 0.282579
+  type: 'test'
+  ...
+# Subtest: navItemForPath: Inicio solo matchea /admin exacto (no absorbe sub-rutas)
+ok 9 - navItemForPath: Inicio solo matchea /admin exacto (no absorbe sub-rutas)
+  ---
+  duration_ms: 1.497725
+  type: 'test'
+  ...
+# Subtest: navItemForPath: sub-ruta cae en su ítem padre
+ok 10 - navItemForPath: sub-ruta cae en su ítem padre
+  ---
+  duration_ms: 0.393509
+  type: 'test'
+  ...
+# Subtest: navItemForPath: query/hash no rompen el match
+ok 11 - navItemForPath: query/hash no rompen el match
+  ---
+  duration_ms: 0.190179
+  type: 'test'
+  ...
+# Subtest: navItemForPath: ruta fuera del set del backoffice no matchea
+ok 12 - navItemForPath: ruta fuera del set del backoffice no matchea
+  ---
+  duration_ms: 0.157553
+  type: 'test'
+  ...
+# Subtest: Comerciante: Inicio y config (sin módulo) SIEMPRE permitidos
+ok 13 - Comerciante: Inicio y config (sin módulo) SIEMPRE permitidos
+  ---
+  duration_ms: 0.22083
+  type: 'test'
+  ...
+# Subtest: Comerciante: rutas de SUS módulos permitidas (facturación/clientes/reportes)
+ok 14 - Comerciante: rutas de SUS módulos permitidas (facturación/clientes/reportes)
+  ---
+  duration_ms: 0.203443
+  type: 'test'
+  ...
+# Subtest: Comerciante: módulos que NO tiene → bloqueados (la deuda del UAT)
+ok 15 - Comerciante: módulos que NO tiene → bloqueados (la deuda del UAT)
+  ---
+  duration_ms: 0.184341
+  type: 'test'
+  ...
+# Subtest: Comerciante: las tres cajas pasan el gate de módulos (son core, como Ajustes)
+ok 16 - Comerciante: las tres cajas pasan el gate de módulos (son core, como Ajustes)
+  ---
+  duration_ms: 0.148243
+  type: 'test'
+  ...
+# Subtest: Comerciante: ruta fuera del backoffice (inventario/libros) → bloqueada
+ok 17 - Comerciante: ruta fuera del backoffice (inventario/libros) → bloqueada
+  ---
+  duration_ms: 0.428506
+  type: 'test'
+  ...
+# Subtest: las tres cajas NO se gatean por módulo: todo negocio maneja plata
+ok 18 - las tres cajas NO se gatean por módulo: todo negocio maneja plata
+  ---
+  duration_ms: 0.609598
+  type: 'test'
+  ...
+# Subtest: la Caja la ven los tres rubros: no lleva retailOnly
+ok 19 - la Caja la ven los tres rubros: no lleva retailOnly
+  ---
+  duration_ms: 0.16279
+  type: 'test'
+  ...
+# Subtest: buscar "arqueo" lleva al cierre del día, no a la Caja
+ok 20 - buscar "arqueo" lleva al cierre del día, no a la Caja
+  ---
+  duration_ms: 1.587967
+  type: 'test'
+  ...
+# Subtest: los tres ítems de caja no comparten el mismo ícono
+ok 21 - los tres ítems de caja no comparten el mismo ícono
+  ---
+  duration_ms: 0.202925
+  type: 'test'
+  ...
+# Subtest: cuadra → no escribe nada
+ok 22 - cuadra → no escribe nada
+  ---
+  duration_ms: 1.129378
+  type: 'test'
+  ...
+# Subtest: faltante (contado < esperado) → EGRESO por el valor absoluto
+ok 23 - faltante (contado < esperado) → EGRESO por el valor absoluto
+  ---
+  duration_ms: 0.266101
+  type: 'test'
+  ...
+# Subtest: sobrante (contado > esperado) → INGRESO
+ok 24 - sobrante (contado > esperado) → INGRESO
+  ---
+  duration_ms: 0.166439
+  type: 'test'
+  ...
+# Subtest: el signo sigue al conteo físico, no al revés
+ok 25 - el signo sigue al conteo físico, no al revés
+  ---
+  duration_ms: 0.150968
+  type: 'test'
+  ...
+# Subtest: la marca identifica el turno y NO colisiona con la del cierre diario
+ok 26 - la marca identifica el turno y NO colisiona con la del cierre diario
+  ---
+  duration_ms: 0.206971
+  type: 'test'
+  ...
+# Subtest: el ajuste es de un tipo que el libro suma → el candado tiene que ser el prefijo
+ok 27 - el ajuste es de un tipo que el libro suma → el candado tiene que ser el prefijo
+  ---
+  duration_ms: 0.124251
+  type: 'test'
+  ...
+# Subtest: un diff no finito no escribe una fila rota
+ok 28 - un diff no finito no escribe una fila rota
+  ---
+  duration_ms: 0.206761
+  type: 'test'
+  ...
+# Subtest: M-1 · BUG (ReadCommitted): dos aperturas simultáneas → DOS turnos OPEN
+ok 29 - M-1 · BUG (ReadCommitted): dos aperturas simultáneas → DOS turnos OPEN
+  ---
+  duration_ms: 1.083017
+  type: 'test'
+  ...
+# Subtest: M-1 · FIX (Serializable + reintento): la 2ª apertura aborta, reintenta y da error de dominio
+ok 30 - M-1 · FIX (Serializable + reintento): la 2ª apertura aborta, reintenta y da error de dominio
+  ---
+  duration_ms: 0.368399
+  type: 'test'
+  ...
+# Subtest: M-1 · aperturas SECUENCIALES legítimas: cerrar y reabrir sigue funcionando
+ok 31 - M-1 · aperturas SECUENCIALES legítimas: cerrar y reabrir sigue funcionando
+  ---
+  duration_ms: 0.183914
+  type: 'test'
+  ...
+# Subtest: movementSign: ingresos suman, egresos/retiros restan, apertura es neutra
+ok 32 - movementSign: ingresos suman, egresos/retiros restan, apertura es neutra
+  ---
+  duration_ms: 2.074993
+  type: 'test'
+  ...
+# Subtest: summarizeMovements agrupa por categoría e ignora la apertura
+ok 33 - summarizeMovements agrupa por categoría e ignora la apertura
+  ---
+  duration_ms: 7.199304
+  type: 'test'
+  ...
+# Subtest: summarizeMovements descarta montos no positivos o no finitos
+ok 34 - summarizeMovements descarta montos no positivos o no finitos
+  ---
+  duration_ms: 0.409227
+  type: 'test'
+  ...
+# Subtest: expectedCash = inicial + ventas + ingresos − egresos − retiros
+ok 35 - expectedCash = inicial + ventas + ingresos − egresos − retiros
+  ---
+  duration_ms: 0.546205
+  type: 'test'
+  ...
+# Subtest: expectedCash sin movimientos = solo el fondo inicial
+ok 36 - expectedCash sin movimientos = solo el fondo inicial
+  ---
+  duration_ms: 0.182414
+  type: 'test'
+  ...
+# Subtest: expectedCash trata un fondo inicial inválido como 0
+ok 37 - expectedCash trata un fondo inicial inválido como 0
+  ---
+  duration_ms: 0.253795
+  type: 'test'
+  ...
+# Subtest: expectedCash no arrastra error de coma flotante
+ok 38 - expectedCash no arrastra error de coma flotante
+  ---
+  duration_ms: 0.283154
+  type: 'test'
+  ...
+# Subtest: reconcileCash: caja que cuadra da diferencia 0
+ok 39 - reconcileCash: caja que cuadra da diferencia 0
+  ---
+  duration_ms: 0.225581
+  type: 'test'
+  ...
+# Subtest: reconcileCash: faltante da diferencia negativa
+ok 40 - reconcileCash: faltante da diferencia negativa
+  ---
+  duration_ms: 0.545366
+  type: 'test'
+  ...
+# Subtest: reconcileCash: sobrante da diferencia positiva
+ok 41 - reconcileCash: sobrante da diferencia positiva
+  ---
+  duration_ms: 1.358883
+  type: 'test'
+  ...
+# Subtest: reconcileCash devuelve el desglose del turno
+ok 42 - reconcileCash devuelve el desglose del turno
+  ---
+  duration_ms: 0.276706
+  type: 'test'
+  ...
+# Subtest: round2 redondea a dos decimales
+ok 43 - round2 redondea a dos decimales
+  ---
+  duration_ms: 0.118659
+  type: 'test'
+  ...
+# Subtest: un ingreso por MP no infla el efectivo esperado
+ok 44 - un ingreso por MP no infla el efectivo esperado
+  ---
+  duration_ms: 0.122164
+  type: 'test'
+  ...
+# Subtest: un egreso por MP no baja el efectivo esperado
+ok 45 - un egreso por MP no baja el efectivo esperado
+  ---
+  duration_ms: 0.094133
+  type: 'test'
+  ...
+# Subtest: sin `method` todo se sigue leyendo como EFECTIVO (compatibilidad hacia atrás)
+ok 46 - sin `method` todo se sigue leyendo como EFECTIVO (compatibilidad hacia atrás)
+  ---
+  duration_ms: 0.115331
+  type: 'test'
+  ...
+# Subtest: el desglose del turno tampoco mezcla medios
+ok 47 - el desglose del turno tampoco mezcla medios
+  ---
+  duration_ms: 0.118314
+  type: 'test'
+  ...
+# Subtest: un arqueo cuyo turno solo tuvo cobros por MP cuadra con el fondo inicial
+ok 48 - un arqueo cuyo turno solo tuvo cobros por MP cuadra con el fondo inicial
+  ---
+  duration_ms: 0.199194
+  type: 'test'
+  ...
+# Subtest: I7 · venta efectivo con caja abierta → asienta el movimiento en la tx del llamador, enganchado al turno
+ok 49 - I7 · venta efectivo con caja abierta → asienta el movimiento en la tx del llamador, enganchado al turno
+  ---
+  duration_ms: 1.686531
+  type: 'test'
+  ...
+# Subtest: I7 · sin caja abierta → asienta IGUAL, suelto (sessionId null), sin lanzar: el libro lo ve
+ok 50 - I7 · sin caja abierta → asienta IGUAL, suelto (sessionId null), sin lanzar: el libro lo ve
+  ---
+  duration_ms: 0.316325
+  type: 'test'
+  ...
+# Subtest: I7 · idempotencia por orderId: si ya se imputó, no duplica
+ok 51 - I7 · idempotencia por orderId: si ya se imputó, no duplica
+  ---
+  duration_ms: 1.60301
+  type: 'test'
+  ...
+# Subtest: I7 · MP → asienta en la columna MP (antes se descartaba: el libro era efectivo puro)
+ok 52 - I7 · MP → asienta en la columna MP (antes se descartaba: el libro era efectivo puro)
+  ---
+  duration_ms: 0.369375
+  type: 'test'
+  ...
+# Subtest: I7 · transferencia → misma columna MP; sin medio → no se asienta (unsupported-method)
+ok 53 - I7 · transferencia → misma columna MP; sin medio → no se asienta (unsupported-method)
+  ---
+  duration_ms: 0.240737
+  type: 'test'
+  ...
+# Subtest: I7 · idempotencia por orderId no mira el medio: re-cobrar por MP lo que ya entró en efectivo no duplica
+ok 54 - I7 · idempotencia por orderId no mira el medio: re-cobrar por MP lo que ya entró en efectivo no duplica
+  ---
+  duration_ms: 0.177612
+  type: 'test'
+  ...
+# Subtest: I7 · BUG (caja en 2ª tx): un fallo de caja deja la venta cobrada SIN movimiento → arqueo descuadra
+ok 55 - I7 · BUG (caja en 2ª tx): un fallo de caja deja la venta cobrada SIN movimiento → arqueo descuadra
+  ---
+  duration_ms: 0.299875
+  type: 'test'
+  ...
+# Subtest: I7 · FIX (una sola tx): un fallo de caja revierte TODA la venta → no queda estado parcial
+ok 56 - I7 · FIX (una sola tx): un fallo de caja revierte TODA la venta → no queda estado parcial
+  ---
+  duration_ms: 0.16765
+  type: 'test'
+  ...
+# Subtest: I7 · FIX (una sola tx): venta OK → orden y movimiento de caja quedan JUNTOS
+ok 57 - I7 · FIX (una sola tx): venta OK → orden y movimiento de caja quedan JUNTOS
+  ---
+  duration_ms: 0.336057
+  type: 'test'
+  ...
+# Subtest: A-5 · pre-check secuencial: si ya hay un VENTA para el pedido, no crea otro
+ok 58 - A-5 · pre-check secuencial: si ya hay un VENTA para el pedido, no crea otro
+  ---
+  duration_ms: 3.308138
+  type: 'test'
+  ...
+# Subtest: A-5 · carrera: pre-check pasa pero el @@unique dispara → InTx propaga P2002 (lo traduce el llamador)
+ok 59 - A-5 · carrera: pre-check pasa pero el @@unique dispara → InTx propaga P2002 (lo traduce el llamador)
+  ---
+  duration_ms: 1.378959
+  type: 'test'
+  ...
+# Subtest: A-5 · frontera: BUG(sin unique) crea 2 asientos; FIX(unique + traducción) deja 1
+ok 60 - A-5 · frontera: BUG(sin unique) crea 2 asientos; FIX(unique + traducción) deja 1
+  ---
+  duration_ms: 0.241299
+  type: 'test'
+  ...
+# Subtest: venta cobrada en efectivo es elegible, devuelve el monto y va a la columna EFECTIVO
+ok 61 - venta cobrada en efectivo es elegible, devuelve el monto y va a la columna EFECTIVO
+  ---
+  duration_ms: 2.534095
+  type: 'test'
+  ...
+# Subtest: venta no cobrada no es elegible
+ok 62 - venta no cobrada no es elegible
+  ---
+  duration_ms: 0.259308
+  type: 'test'
+  ...
+# Subtest: cobro con MercadoPago SÍ entra al libro, en la columna MP
+ok 63 - cobro con MercadoPago SÍ entra al libro, en la columna MP
+  ---
+  duration_ms: 0.169287
+  type: 'test'
+  ...
+# Subtest: cobro por transferencia entra al libro en la misma columna MP (como lo lleva el negocio)
+ok 64 - cobro por transferencia entra al libro en la misma columna MP (como lo lleva el negocio)
+  ---
+  duration_ms: 0.186638
+  type: 'test'
+  ...
+# Subtest: cobrado sin método (null) no se asienta: no hay columna donde ponerlo
+ok 65 - cobrado sin método (null) no se asienta: no hay columna donde ponerlo
+  ---
+  duration_ms: 0.13075
+  type: 'test'
+  ...
+# Subtest: un método que el libro no sabe traducir no se adivina
+ok 66 - un método que el libro no sabe traducir no se adivina
+  ---
+  duration_ms: 0.258181
+  type: 'test'
+  ...
+# Subtest: total no positivo no genera movimiento (nada que imputar)
+ok 67 - total no positivo no genera movimiento (nada que imputar)
+  ---
+  duration_ms: 0.154159
+  type: 'test'
+  ...
+# Subtest: total no finito no genera movimiento
+ok 68 - total no finito no genera movimiento
+  ---
+  duration_ms: 0.24588
+  type: 'test'
+  ...
+# Subtest: el orden de las guardas: primero 'cobrado', luego 'medio', luego 'monto'
+ok 69 - el orden de las guardas: primero 'cobrado', luego 'medio', luego 'monto'
+  ---
+  duration_ms: 0.355621
+  type: 'test'
+  ...
+# Subtest: una VENTA por MP en el ledger NO mueve el efectivo esperado del arqueo (el cajón sigue idéntico)
+ok 70 - una VENTA por MP en el ledger NO mueve el efectivo esperado del arqueo (el cajón sigue idéntico)
+  ---
+  duration_ms: 0.760108
+  type: 'test'
+  ...
+# Subtest: faltante real de marzo: cerrar con $154.500 de menos lo asienta y abril abre con lo contado
+ok 71 - faltante real de marzo: cerrar con $154.500 de menos lo asienta y abril abre con lo contado
+  ---
+  duration_ms: 29.947652
+  type: 'test'
+  ...
+# Subtest: agosto 2026 real: cerrar el mes con los sobrantes de la dueña asienta 69.190 y 16.723 y el arrastre cierra
+ok 72 - agosto 2026 real: cerrar el mes con los sobrantes de la dueña asienta 69.190 y 16.723 y el arrastre cierra
+  ---
+  duration_ms: 12.875843
+  type: 'test'
+  ...
+# Subtest: un día sin movimientos: el esperado es la apertura y si se cuenta lo mismo, cuadra
+ok 73 - un día sin movimientos: el esperado es la apertura y si se cuenta lo mismo, cuadra
+  ---
+  duration_ms: 0.376717
+  type: 'test'
+  ...
+# Subtest: un día sin movimientos y sin nada declarado no es un cierre todavía
+ok 74 - un día sin movimientos y sin nada declarado no es un cierre todavía
+  ---
+  duration_ms: 0.436587
+  type: 'test'
+  ...
+# Subtest: un día con los tres medios separa ingresos y egresos por medio y el total es la suma
+ok 75 - un día con los tres medios separa ingresos y egresos por medio y el total es la suma
+  ---
+  duration_ms: 0.496415
+  type: 'test'
+  ...
+# Subtest: diferencia positiva: sobra plata → estado SOBRANTE y un INGRESO de ajuste por el sobrante
+ok 76 - diferencia positiva: sobra plata → estado SOBRANTE y un INGRESO de ajuste por el sobrante
+  ---
+  duration_ms: 0.39252
+  type: 'test'
+  ...
+# Subtest: diferencia negativa: falta plata → estado FALTANTE y un EGRESO de ajuste por el faltante
+ok 77 - diferencia negativa: falta plata → estado FALTANTE y un EGRESO de ajuste por el faltante
+  ---
+  duration_ms: 0.25944
+  type: 'test'
+  ...
+# Subtest: sobra en un medio y falta en otro → MIXTO (el cobro se anotó en el medio equivocado)
+ok 78 - sobra en un medio y falta en otro → MIXTO (el cobro se anotó en el medio equivocado)
+  ---
+  duration_ms: 0.237693
+  type: 'test'
+  ...
+# Subtest: el signo de cada ajuste sale de la ÚNICA tabla de signos del sistema (movementSign)
+ok 79 - el signo de cada ajuste sale de la ÚNICA tabla de signos del sistema (movementSign)
+  ---
+  duration_ms: 1.119007
+  type: 'test'
+  ...
+# Subtest: los ajustes se redondean a 2 decimales y no arrastran error binario
+ok 80 - los ajustes se redondean a 2 decimales y no arrastran error binario
+  ---
+  duration_ms: 0.596646
+  type: 'test'
+  ...
+# Subtest: una seña es un ingreso del día que entró, por el medio que entró: cuenta una vez y no deja deuda
+ok 81 - una seña es un ingreso del día que entró, por el medio que entró: cuenta una vez y no deja deuda
+  ---
+  duration_ms: 0.281536
+  type: 'test'
+  ...
+# Subtest: dos señas iguales el mismo día son dos filas y suman dos veces (no se deduplican por aritmética)
+ok 82 - dos señas iguales el mismo día son dos filas y suman dos veces (no se deduplican por aritmética)
+  ---
+  duration_ms: 0.190888
+  type: 'test'
+  ...
+# Subtest: un cobro que vino de cuentas a cobrar entra al esperado UNA vez y se reporta aparte como cobro de cartera
+ok 83 - un cobro que vino de cuentas a cobrar entra al esperado UNA vez y se reporta aparte como cobro de cartera
+  ---
+  duration_ms: 0.224994
+  type: 'test'
+  ...
+# Subtest: un COBRO DE TURNO no se cuenta como cobro de cartera, aunque tenga rastro a un cobro
+ok 84 - un COBRO DE TURNO no se cuenta como cobro de cartera, aunque tenga rastro a un cobro
+  ---
+  duration_ms: 0.209233
+  type: 'test'
+  ...
+# Subtest: un movimiento con rastro pero sin origen conocido no se rotula (fail-closed del rótulo)
+ok 85 - un movimiento con rastro pero sin origen conocido no se rotula (fail-closed del rótulo)
+  ---
+  duration_ms: 0.193225
+  type: 'test'
+  ...
+# Subtest: un egreso con collectionId (pago a proveedor de cuentas a pagar) no se cuenta como cobro de cartera
+ok 86 - un egreso con collectionId (pago a proveedor de cuentas a pagar) no se cuenta como cobro de cartera
+  ---
+  duration_ms: 10.440626
+  type: 'test'
+  ...
+# Subtest: la traducción PaymentMethod → CashMethod es una sola y frena ante lo desconocido
+ok 87 - la traducción PaymentMethod → CashMethod es una sola y frena ante lo desconocido
+  ---
+  duration_ms: 0.29555
+  type: 'test'
+  ...
+# Subtest: el arrastre entre días cierra: la apertura del día N+1 es exactamente lo declarado el día N
+ok 88 - el arrastre entre días cierra: la apertura del día N+1 es exactamente lo declarado el día N
+  ---
+  duration_ms: 0.554344
+  type: 'test'
+  ...
+# Subtest: un día sin cierre propio queda absorbido por el cierre siguiente (arqueo desde el último cierre)
+ok 89 - un día sin cierre propio queda absorbido por el cierre siguiente (arqueo desde el último cierre)
+  ---
+  duration_ms: 0.286404
+  type: 'test'
+  ...
+# Subtest: la apertura derivada del historial coincide con openingAfterCierre aunque haya medios sin declarar
+ok 90 - la apertura derivada del historial coincide con openingAfterCierre aunque haya medios sin declarar
+  ---
+  duration_ms: 0.338659
+  type: 'test'
+  ...
+# Subtest: isFrozenDay congela todo lo fechado hasta el último cierre inclusive
+ok 91 - isFrozenDay congela todo lo fechado hasta el último cierre inclusive
+  ---
+  duration_ms: 9.173755
+  type: 'test'
+  ...
+# Subtest: el mensaje del día congelado manda al primer día abierto, no a hoy
+ok 92 - el mensaje del día congelado manda al primer día abierto, no a hoy
+  ---
+  duration_ms: 0.242546
+  type: 'test'
+  ...
+# Subtest: un día absorbido por un cierre posterior lo dice con esas palabras, no 'ya está cerrado'
+ok 93 - un día absorbido por un cierre posterior lo dice con esas palabras, no 'ya está cerrado'
+  ---
+  duration_ms: 0.213456
+  type: 'test'
+  ...
+# Subtest: no se puede cerrar un día ya cerrado ni un día que todavía no pasó
+ok 94 - no se puede cerrar un día ya cerrado ni un día que todavía no pasó
+  ---
+  duration_ms: 0.541838
+  type: 'test'
+  ...
+# Subtest: validateCierre devuelve todos los errores juntos y rechaza una fecha inválida
+ok 95 - validateCierre devuelve todos los errores juntos y rechaza una fecha inválida
+  ---
+  duration_ms: 0.255206
+  type: 'test'
+  ...
+# Subtest: un declarado no numérico (NaN) se trata como no declarado y la validación lo pide
+ok 96 - un declarado no numérico (NaN) se trata como no declarado y la validación lo pide
+  ---
+  duration_ms: 0.191515
+  type: 'test'
+  ...
+# Subtest: un movimiento con monto no usable no mueve el esperado (mismo blindaje que el libro)
+ok 97 - un movimiento con monto no usable no mueve el esperado (mismo blindaje que el libro)
+  ---
+  duration_ms: 0.222674
+  type: 'test'
+  ...
+# Subtest: isDayKey acepta fechas reales y rechaza el resto
+ok 98 - isDayKey acepta fechas reales y rechaza el resto
+  ---
+  duration_ms: 0.170879
+  type: 'test'
+  ...
+# Subtest: compareDayKeys, nextDayKey y formatDayLabel
+ok 99 - compareDayKeys, nextDayKey y formatDayLabel
+  ---
+  duration_ms: 0.23022
+  type: 'test'
+  ...
+# Subtest: ajustesAsMovements produce filas válidas del libro (LibroMovement) con ids estables
+ok 100 - ajustesAsMovements produce filas válidas del libro (LibroMovement) con ids estables
+  ---
+  duration_ms: 0.200052
+  type: 'test'
+  ...
+# Subtest: cuenta el arqueo en castellano, medio por medio
+ok 101 - cuenta el arqueo en castellano, medio por medio
+  ---
+  duration_ms: 7.350032
+  type: 'test'
+  ...
+# Subtest: un sobrante se dice sobrante
+ok 102 - un sobrante se dice sobrante
+  ---
+  duration_ms: 0.872297
+  type: 'test'
+  ...
+# Subtest: sin nota, no inventa una
+ok 103 - sin nota, no inventa una
+  ---
+  duration_ms: 1.048874
+  type: 'test'
+  ...
+# Subtest: deriva la diferencia si falta en el JSON (filas viejas)
+ok 104 - deriva la diferencia si falta en el JSON (filas viejas)
+  ---
+  duration_ms: 0.536808
+  type: 'test'
+  ...
+# Subtest: un changes que no es un cierre devuelve null (la pantalla cae al volcado)
+ok 105 - un changes que no es un cierre devuelve null (la pantalla cae al volcado)
+  ---
+  duration_ms: 0.202445
+  type: 'test'
+  ...
+# Subtest: pago APPROVED en efectivo → elegible, columna EFECTIVO, monto tal cual
+ok 106 - pago APPROVED en efectivo → elegible, columna EFECTIVO, monto tal cual
+  ---
+  duration_ms: 2.986212
+  type: 'test'
+  ...
+# Subtest: Mercado Pago y transferencia caen juntas en la columna MP, como lo lleva el negocio
+ok 107 - Mercado Pago y transferencia caen juntas en la columna MP, como lo lleva el negocio
+  ---
+  duration_ms: 0.283107
+  type: 'test'
+  ...
+# Subtest: un pago que no está APPROVED no es plata que entró: no se asienta
+ok 108 - un pago que no está APPROVED no es plata que entró: no se asienta
+  ---
+  duration_ms: 0.261794
+  type: 'test'
+  ...
+# Subtest: medio desconocido o vacío → no se adivina la columna
+ok 109 - medio desconocido o vacío → no se adivina la columna
+  ---
+  duration_ms: 0.267695
+  type: 'test'
+  ...
+# Subtest: monto no positivo o no finito → nada que asentar
+ok 110 - monto no positivo o no finito → nada que asentar
+  ---
+  duration_ms: 0.3254
+  type: 'test'
+  ...
+# Subtest: el detalle se reconoce a simple vista entre las filas tipeadas a mano
+ok 111 - el detalle se reconoce a simple vista entre las filas tipeadas a mano
+  ---
+  duration_ms: 0.603302
+  type: 'test'
+  ...
+# Subtest: cobro en efectivo con turno de caja abierto → VENTA EFECTIVO enganchada al turno
+ok 112 - cobro en efectivo con turno de caja abierto → VENTA EFECTIVO enganchada al turno
+  ---
+  duration_ms: 1.11159
+  type: 'test'
+  ...
+# Subtest: sin turno de caja abierto (CH no usa turnos) → asienta igual, suelto: el libro lo ve
+ok 113 - sin turno de caja abierto (CH no usa turnos) → asienta igual, suelto: el libro lo ve
+  ---
+  duration_ms: 1.688886
+  type: 'test'
+  ...
+# Subtest: idempotencia secuencial: confirmar dos veces deja UN asiento (already-recorded)
+ok 114 - idempotencia secuencial: confirmar dos veces deja UN asiento (already-recorded)
+  ---
+  duration_ms: 0.659745
+  type: 'test'
+  ...
+# Subtest: idempotencia no mira el medio: re-confirmar por MP lo que ya entró en efectivo no duplica
+ok 115 - idempotencia no mira el medio: re-confirmar por MP lo que ya entró en efectivo no duplica
+  ---
+  duration_ms: 0.704968
+  type: 'test'
+  ...
+# Subtest: carrera: el pre-check pasa pero el @@unique dispara → InTx propaga P2002 (lo clasifica el llamador)
+ok 116 - carrera: el pre-check pasa pero el @@unique dispara → InTx propaga P2002 (lo clasifica el llamador)
+  ---
+  duration_ms: 0.858763
+  type: 'test'
+  ...
+# Subtest: no elegible (pago PENDING) → no toca la DB y no lanza
+ok 117 - no elegible (pago PENDING) → no toca la DB y no lanza
+  ---
+  duration_ms: 0.189639
+  type: 'test'
+  ...
+# Subtest: una VENTA de turno por MP no mueve el efectivo esperado del arqueo del cajón
+ok 118 - una VENTA de turno por MP no mueve el efectivo esperado del arqueo del cajón
+  ---
+  duration_ms: 0.411456
+  type: 'test'
+  ...
+# Subtest: columna migrada: cobro + asiento en una sola pasada (outcome ok)
+ok 119 - columna migrada: cobro + asiento en una sola pasada (outcome ok)
+  ---
+  duration_ms: 0.276667
+  type: 'test'
+  ...
+# Subtest: schema-ahead (P2022 en paymentId): la tx con puente aborta y se reintenta SIN puente → el turno se cobra igual
+ok 120 - schema-ahead (P2022 en paymentId): la tx con puente aborta y se reintenta SIN puente → el turno se cobra igual
+  ---
+  duration_ms: 6.150554
+  type: 'test'
+  ...
+# Subtest: un P2022 de OTRA columna no se disfraza de schema-ahead: se propaga
+ok 121 - un P2022 de OTRA columna no se disfraza de schema-ahead: se propaga
+  ---
+  duration_ms: 0.815663
+  type: 'test'
+  ...
+# Subtest: carrera del doble submit (P2002 en paymentId): outcome race, sin reintento ni error
+ok 122 - carrera del doble submit (P2002 en paymentId): outcome race, sin reintento ni error
+  ---
+  duration_ms: 0.48977
+  type: 'test'
+  ...
+# Subtest: un P2002 de OTRO índice (orderId) no es la carrera del turno: se propaga
+ok 123 - un P2002 de OTRO índice (orderId) no es la carrera del turno: se propaga
+  ---
+  duration_ms: 0.342006
+  type: 'test'
+  ...
+# Subtest: cualquier otro error de DB se propaga: el cobro no queda a medias porque la tx entera se revirtió
+ok 124 - cualquier otro error de DB se propaga: el cobro no queda a medias porque la tx entera se revirtió
+  ---
+  duration_ms: 0.301666
+  type: 'test'
+  ...
+# Subtest: BUG (antes): confirmar el pago dejaba Payment sin fila de caja → el libro no ve la plata
+ok 125 - BUG (antes): confirmar el pago dejaba Payment sin fila de caja → el libro no ve la plata
+  ---
+  duration_ms: 0.278533
+  type: 'test'
+  ...
+# Subtest: FIX: cada Payment produce exactamente UNA fila de caja, aun confirmando dos veces
+ok 126 - FIX: cada Payment produce exactamente UNA fila de caja, aun confirmando dos veces
+  ---
+  duration_ms: 0.246497
+  type: 'test'
+  ...
+# Subtest: caso real CH: el histórico decía X, se cuenta Y, la diferencia queda asentada y el día siguiente arranca de Y
+ok 127 - caso real CH: el histórico decía X, se cuenta Y, la diferencia queda asentada y el día siguiente arranca de Y
+  ---
+  duration_ms: 13.996753
+  type: 'test'
+  ...
+# Subtest: caso real marzo: el histórico decía 652.534 en efectivo, se cuentan 498.034 → EGRESO de 154.500 asentado, no al margen
+ok 128 - caso real marzo: el histórico decía 652.534 en efectivo, se cuentan 498.034 → EGRESO de 154.500 asentado, no al margen
+  ---
+  duration_ms: 0.749203
+  type: 'test'
+  ...
+# Subtest: el saldo operativo después del corte es EXACTAMENTE el declarado, diga lo que diga el histórico
+ok 129 - el saldo operativo después del corte es EXACTAMENTE el declarado, diga lo que diga el histórico
+  ---
+  duration_ms: 4.572429
+  type: 'test'
+  ...
+# Subtest: un tenant sin histórico arranca de lo contado: el ajuste es un INGRESO por todo el arqueo
+ok 130 - un tenant sin histórico arranca de lo contado: el ajuste es un INGRESO por todo el arqueo
+  ---
+  duration_ms: 0.421966
+  type: 'test'
+  ...
+# Subtest: un histórico con MP NEGATIVO (el −8.933,99 de abril) se corrige con un solo ajuste al saldo real
+ok 131 - un histórico con MP NEGATIVO (el −8.933,99 de abril) se corrige con un solo ajuste al saldo real
+  ---
+  duration_ms: 0.461576
+  type: 'test'
+  ...
+# Subtest: la diferencia contra el histórico se asienta como fila del libro, con el signo de movementSign
+ok 132 - la diferencia contra el histórico se asienta como fila del libro, con el signo de movementSign
+  ---
+  duration_ms: 0.875567
+  type: 'test'
+  ...
+# Subtest: los ajustes del corte son filas válidas del libro con ids estables y fechadas al final del día de corte
+ok 133 - los ajustes del corte son filas válidas del libro con ids estables y fechadas al final del día de corte
+  ---
+  duration_ms: 4.532218
+  type: 'test'
+  ...
+# Subtest: un mes histórico anterior al corte sigue mostrando sus propios números después del corte
+ok 134 - un mes histórico anterior al corte sigue mostrando sus propios números después del corte
+  ---
+  duration_ms: 0.600704
+  type: 'test'
+  ...
+# Subtest: el mes del corte muestra el histórico de ese mes Y el ajuste, separados por tramo
+ok 135 - el mes del corte muestra el histórico de ese mes Y el ajuste, separados por tramo
+  ---
+  duration_ms: 0.714516
+  type: 'test'
+  ...
+# Subtest: un movimiento cargado con fecha anterior al corte ROMPE el invariante y verificarInvarianteCorte lo detecta
+ok 136 - un movimiento cargado con fecha anterior al corte ROMPE el invariante y verificarInvarianteCorte lo detecta
+  ---
+  duration_ms: 3.535683
+  type: 'test'
+  ...
+# Subtest: un retroactivo con su contra-asiento NO mueve el saldo operativo y el mes histórico SÍ lo muestra
+ok 137 - un retroactivo con su contra-asiento NO mueve el saldo operativo y el mes histórico SÍ lo muestra
+  ---
+  duration_ms: 0.729637
+  type: 'test'
+  ...
+# Subtest: el contra-asiento cubre VENTA y RETIRO, y no existe para APERTURA ni para montos no usables
+ok 138 - el contra-asiento cubre VENTA y RETIRO, y no existe para APERTURA ni para montos no usables
+  ---
+  duration_ms: 0.350644
+  type: 'test'
+  ...
+# Subtest: un movimiento fechado DESPUÉS del corte no entra al cálculo y se informa como posterior
+ok 139 - un movimiento fechado DESPUÉS del corte no entra al cálculo y se informa como posterior
+  ---
+  duration_ms: 0.396495
+  type: 'test'
+  ...
+# Subtest: los tres medios se declaran; tarjeta en 0 con histórico en 0 no produce ajuste pero queda declarada
+ok 140 - los tres medios se declaran; tarjeta en 0 con histórico en 0 no produce ajuste pero queda declarada
+  ---
+  duration_ms: 7.65595
+  type: 'test'
+  ...
+# Subtest: tarjeta en 0 con histórico en tarjeta ≠ 0 → se asienta el EGRESO que lo lleva a 0 (no se arrastra la planilla)
+ok 141 - tarjeta en 0 con histórico en tarjeta ≠ 0 → se asienta el EGRESO que lo lleva a 0 (no se arrastra la planilla)
+  ---
+  duration_ms: 6.055392
+  type: 'test'
+  ...
+# Subtest: un medio sin declarar (NaN) no inventa un número y la validación lo rechaza
+ok 142 - un medio sin declarar (NaN) no inventa un número y la validación lo rechaza
+  ---
+  duration_ms: 0.581439
+  type: 'test'
+  ...
+# Subtest: validateCorteInicial: nota obligatoria siempre, aunque cuadre
+ok 143 - validateCorteInicial: nota obligatoria siempre, aunque cuadre
+  ---
+  duration_ms: 0.303235
+  type: 'test'
+  ...
+# Subtest: validateCorteInicial: no puede haber un cierre anterior — el corte es el PRIMER cierre
+ok 144 - validateCorteInicial: no puede haber un cierre anterior — el corte es el PRIMER cierre
+  ---
+  duration_ms: 0.31483
+  type: 'test'
+  ...
+# Subtest: validateCorteInicial: hereda las reglas del cierre (fecha futura, negativo, efectivo) y las devuelve todas juntas
+ok 145 - validateCorteInicial: hereda las reglas del cierre (fecha futura, negativo, efectivo) y las devuelve todas juntas
+  ---
+  duration_ms: 0.399628
+  type: 'test'
+  ...
+# Subtest: el desvío y los ajustes se redondean a 2 decimales y no arrastran error binario
+ok 146 - el desvío y los ajustes se redondean a 2 decimales y no arrastran error binario
+  ---
+  duration_ms: 1.019611
+  type: 'test'
+  ...
+# Subtest: resumenCorte arma la tabla por medio y el total con la misma aritmética
+ok 147 - resumenCorte arma la tabla por medio y el total con la misma aritmética
+  ---
+  duration_ms: 0.650597
+  type: 'test'
+  ...
+# Subtest: gana el día más grande entre el corte inicial y el último cierre
+ok 148 - gana el día más grande entre el corte inicial y el último cierre
+  ---
+  duration_ms: 1.503931
+  type: 'test'
+  ...
+# Subtest: si sólo hay una fuente, esa manda
+ok 149 - si sólo hay una fuente, esa manda
+  ---
+  duration_ms: 0.329877
+  type: 'test'
+  ...
+# Subtest: sin ninguna fuente no hay congelamiento
+ok 150 - sin ninguna fuente no hay congelamiento
+  ---
+  duration_ms: 0.264473
+  type: 'test'
+  ...
+# Subtest: basura en la marca no congela nada (fail-open a propósito: mejor dejar operar que trabar la caja por un dato roto)
+ok 151 - basura en la marca no congela nada (fail-open a propósito: mejor dejar operar que trabar la caja por un dato roto)
+  ---
+  duration_ms: 0.186734
+  type: 'test'
+  ...
+# Subtest: el ajuste de un cierre se reconoce por su marca
+ok 152 - el ajuste de un cierre se reconoce por su marca
+  ---
+  duration_ms: 0.389845
+  type: 'test'
+  ...
+# Subtest: la entidad exenta de la purga es exactamente la del cierre
+ok 153 - la entidad exenta de la purga es exactamente la del cierre
+  ---
+  duration_ms: 0.287658
+  type: 'test'
+  ...
+# Subtest: la purga excluye las filas del cierre diario
+ok 154 - la purga excluye las filas del cierre diario
+  ---
+  duration_ms: 2.027422
+  type: 'test'
+  ...
+# Subtest: parseCsv: comillas, comas y comillas escapadas dentro del campo
+ok 155 - parseCsv: comillas, comas y comillas escapadas dentro del campo
+  ---
+  duration_ms: 2.926473
+  type: 'test'
+  ...
+# Subtest: parseCsv: CRLF, BOM y salto de línea dentro de comillas
+ok 156 - parseCsv: CRLF, BOM y salto de línea dentro de comillas
+  ---
+  duration_ms: 0.29816
+  type: 'test'
+  ...
+# Subtest: parseCsv: última línea sin salto final también cuenta
+ok 157 - parseCsv: última línea sin salto final también cuenta
+  ---
+  duration_ms: 0.29524
+  type: 'test'
+  ...
+# Subtest: parseCsv: comilla sin cerrar es error, no una fila inventada
+ok 158 - parseCsv: comilla sin cerrar es error, no una fila inventada
+  ---
+  duration_ms: 0.471351
+  type: 'test'
+  ...
+# Subtest: parseCents: acepta hasta 2 decimales con punto; rechaza coma, signo, cero y 3 decimales
+ok 159 - parseCents: acepta hasta 2 decimales con punto; rechaza coma, signo, cero y 3 decimales
+  ---
+  duration_ms: 0.420293
+  type: 'test'
+  ...
+# Subtest: normalizeDetail: colapsa espacios y respeta tildes, ñ y mayúsculas
+ok 160 - normalizeDetail: colapsa espacios y respeta tildes, ñ y mayúsculas
+  ---
+  duration_ms: 0.314736
+  type: 'test'
+  ...
+# Subtest: parseCajaCsv: fila completa con detalle entre comillas, coma y ñ
+ok 161 - parseCajaCsv: fila completa con detalle entre comillas, coma y ñ
+  ---
+  duration_ms: 0.79183
+  type: 'test'
+  ...
+# Subtest: parseCajaCsv: columnas en otro orden se aceptan; columna faltante frena todo
+ok 162 - parseCajaCsv: columnas en otro orden se aceptan; columna faltante frena todo
+  ---
+  duration_ms: 0.391797
+  type: 'test'
+  ...
+# Subtest: parseCajaCsv: cada fila inválida va a rechazadas con línea y motivos, el resto sigue
+ok 163 - parseCajaCsv: cada fila inválida va a rechazadas con línea y motivos, el resto sigue
+  ---
+  duration_ms: 0.734434
+  type: 'test'
+  ...
+# Subtest: applyDudosoPolicy: excluir separa las dudosas; incluir las deja pasar
+ok 164 - applyDudosoPolicy: excluir separa las dudosas; incluir las deja pasar
+  ---
+  duration_ms: 0.748045
+  type: 'test'
+  ...
+# Subtest: dedupKey: sólo contenido contable — origen, confianza y nota no cambian la clave
+ok 165 - dedupKey: sólo contenido contable — origen, confianza y nota no cambian la clave
+  ---
+  duration_ms: 0.381765
+  type: 'test'
+  ...
+# Subtest: planImport: base vacía → todo se inserta, en orden de CSV
+ok 166 - planImport: base vacía → todo se inserta, en orden de CSV
+  ---
+  duration_ms: 0.429901
+  type: 'test'
+  ...
+# Subtest: planImport: dos filas legítimas iguales el mismo día entran las dos
+ok 167 - planImport: dos filas legítimas iguales el mismo día entran las dos
+  ---
+  duration_ms: 0.25539
+  type: 'test'
+  ...
+# Subtest: planImport: segunda corrida sobre lo ya insertado no inserta nada (idempotente)
+ok 168 - planImport: segunda corrida sobre lo ya insertado no inserta nada (idempotente)
+  ---
+  duration_ms: 0.317925
+  type: 'test'
+  ...
+# Subtest: planImport: multiconjunto — CSV trae 2, la base tiene 1 → inserta exactamente 1 (la última del CSV)
+ok 169 - planImport: multiconjunto — CSV trae 2, la base tiene 1 → inserta exactamente 1 (la última del CSV)
+  ---
+  duration_ms: 0.312088
+  type: 'test'
+  ...
+# Subtest: planImport: una fila cargada A MANO con la misma clave cuenta como existente (no se duplica)
+ok 170 - planImport: una fila cargada A MANO con la misma clave cuenta como existente (no se duplica)
+  ---
+  duration_ms: 0.368822
+  type: 'test'
+  ...
+# Subtest: planImport: distinto monto/medio/tipo/fecha/detalle → clave distinta → se inserta
+ok 171 - planImport: distinto monto/medio/tipo/fecha/detalle → clave distinta → se inserta
+  ---
+  duration_ms: 0.241397
+  type: 'test'
+  ...
+# Subtest: planImport: filas marcadas de un CSV anterior que ya no están en el CSV se reportan como huérfanas
+ok 172 - planImport: filas marcadas de un CSV anterior que ya no están en el CSV se reportan como huérfanas
+  ---
+  duration_ms: 0.246987
+  type: 'test'
+  ...
+# Subtest: importMarker / importRowId: determinísticos, distintos por archivo y por línea
+ok 173 - importMarker / importRowId: determinísticos, distintos por archivo y por línea
+  ---
+  duration_ms: 0.229418
+  type: 'test'
+  ...
+# Subtest: aggregate: mes × medio × tipo en centavos, sin errores de coma flotante
+ok 174 - aggregate: mes × medio × tipo en centavos, sin errores de coma flotante
+  ---
+  duration_ms: 0.342916
+  type: 'test'
+  ...
+# Subtest: reconcile: vacío cuando cierran; lista cada clave que difiere, incluidas las que faltan de un lado
+ok 175 - reconcile: vacío cuando cierran; lista cada clave que difiere, incluidas las que faltan de un lado
+  ---
+  duration_ms: 0.656183
+  type: 'test'
+  ...
+# Subtest: coveredByCsv: toma de la base como mucho tantas filas por clave como trae el CSV
+ok 176 - coveredByCsv: toma de la base como mucho tantas filas por clave como trae el CSV
+  ---
+  duration_ms: 1.017591
+  type: 'test'
+  ...
+# Subtest: centsOf / fmtCents: ida y vuelta de la plata
+ok 177 - centsOf / fmtCents: ida y vuelta de la plata
+  ---
+  duration_ms: 0.662571
+  type: 'test'
+  ...
+# Subtest: ningún campo de plata de la caja es type=number
+ok 178 - ningún campo de plata de la caja es type=number
+  ---
+  duration_ms: 2.401085
+  type: 'test'
+  ...
+# Subtest: las acciones de caja leen la plata con leerImporte, no con Number(replace)
+ok 179 - las acciones de caja leen la plata con leerImporte, no con Number(replace)
+  ---
+  duration_ms: 1.408648
+  type: 'test'
+  ...
+# Subtest: hoja "Agosto 2026" real: el libro reproduce al peso el RESUMEN de la planilla
+ok 180 - hoja "Agosto 2026" real: el libro reproduce al peso el RESUMEN de la planilla
+  ---
+  duration_ms: 6.422523
+  type: 'test'
+  ...
+# Subtest: hoja "Agosto 2026" real: el saldo corrido de la última fila cierra contra el SALDO ACTUAL
+ok 181 - hoja "Agosto 2026" real: el saldo corrido de la última fila cierra contra el SALDO ACTUAL
+  ---
+  duration_ms: 1.416491
+  type: 'test'
+  ...
+# Subtest: el saldo corrido arranca en el total del saldo inicial y acumula fila a fila
+ok 182 - el saldo corrido arranca en el total del saldo inicial y acumula fila a fila
+  ---
+  duration_ms: 1.684703
+  type: 'test'
+  ...
+# Subtest: dos movimientos del mismo día desempatan por id → saldo corrido estable
+ok 183 - dos movimientos del mismo día desempatan por id → saldo corrido estable
+  ---
+  duration_ms: 0.370698
+  type: 'test'
+  ...
+# Subtest: el monto con signo es + para ingreso y − para egreso
+ok 184 - el monto con signo es + para ingreso y − para egreso
+  ---
+  duration_ms: 0.470001
+  type: 'test'
+  ...
+# Subtest: la APERTURA no cuenta como ingreso del período (si no, el arrastre se duplica)
+ok 185 - la APERTURA no cuenta como ingreso del período (si no, el arrastre se duplica)
+  ---
+  duration_ms: 0.196699
+  type: 'test'
+  ...
+# Subtest: el saldo inicial se deriva del historial anterior, por medio
+ok 186 - el saldo inicial se deriva del historial anterior, por medio
+  ---
+  duration_ms: 0.305443
+  type: 'test'
+  ...
+# Subtest: el saldo de arrastre puede ser negativo (se gastó más de lo que entró por ese medio)
+ok 187 - el saldo de arrastre puede ser negativo (se gastó más de lo que entró por ese medio)
+  ---
+  duration_ms: 0.177125
+  type: 'test'
+  ...
+# Subtest: el libro de un mes sin movimientos deja el saldo inicial intacto
+ok 188 - el libro de un mes sin movimientos deja el saldo inicial intacto
+  ---
+  duration_ms: 0.457201
+  type: 'test'
+  ...
+# Subtest: un monto no usable (0, negativo o NaN) no mueve el saldo
+ok 189 - un monto no usable (0, negativo o NaN) no mueve el saldo
+  ---
+  duration_ms: 0.621051
+  type: 'test'
+  ...
+# Subtest: splitByMethod separa entradas de salidas sin mezclar medios
+ok 190 - splitByMethod separa entradas de salidas sin mezclar medios
+  ---
+  duration_ms: 0.21507
+  type: 'test'
+  ...
+# Subtest: los decimales se redondean a 2 y no arrastran error binario
+ok 191 - los decimales se redondean a 2 y no arrastran error binario
+  ---
+  duration_ms: 0.173588
+  type: 'test'
+  ...
+# Subtest: parseMonth acepta YYYY-MM válido y rechaza el resto
+ok 192 - parseMonth acepta YYYY-MM válido y rechaza el resto
+  ---
+  duration_ms: 0.41178
+  type: 'test'
+  ...
+# Subtest: shiftMonth cruza el año en ambas direcciones
+ok 193 - shiftMonth cruza el año en ambas direcciones
+  ---
+  duration_ms: 0.18679
+  type: 'test'
+  ...
+# Subtest: las etiquetas del período son estables y en español
+ok 194 - las etiquetas del período son estables y en español
+  ---
+  duration_ms: 0.147386
+  type: 'test'
+  ...
+# Subtest: dateBelongsToMonth atrapa el año mal tipeado y la fila que caería en otro mes
+ok 195 - dateBelongsToMonth atrapa el año mal tipeado y la fila que caería en otro mes
+  ---
+  duration_ms: 0.221459
+  type: 'test'
+  ...
+# Subtest: dateBelongsToMonth no advierte cuando no hay con qué comparar
+ok 196 - dateBelongsToMonth no advierte cuando no hay con qué comparar
+  ---
+  duration_ms: 0.152778
+  type: 'test'
+  ...
+# Subtest: origen: VENTA con pedido = mostrador, VENTA sin pedido = turno cobrado, el resto es manual
+ok 197 - origen: VENTA con pedido = mostrador, VENTA sin pedido = turno cobrado, el resto es manual
+  ---
+  duration_ms: 0.202576
+  type: 'test'
+  ...
+# Subtest: gemela del sistema: un ingreso manual del mismo día, medio y monto que un turno cobrado queda marcado
+ok 198 - gemela del sistema: un ingreso manual del mismo día, medio y monto que un turno cobrado queda marcado
+  ---
+  duration_ms: 0.450554
+  type: 'test'
+  ...
+# Subtest: gemela del sistema: no se marca si cambia el día, el medio o el monto
+ok 199 - gemela del sistema: no se marca si cambia el día, el medio o el monto
+  ---
+  duration_ms: 0.27323
+  type: 'test'
+  ...
+# Subtest: gemela del sistema: un EGRESO manual nunca es gemela de una venta, y sin filas del sistema no se marca nada
+ok 200 - gemela del sistema: un EGRESO manual nunca es gemela de una venta, y sin filas del sistema no se marca nada
+  ---
+  duration_ms: 0.294524
+  type: 'test'
+  ...
+# Subtest: gemela del sistema: la marca no cambia la aritmética del libro (avisa, no resta)
+ok 201 - gemela del sistema: la marca no cambia la aritmética del libro (avisa, no resta)
+  ---
+  duration_ms: 0.247746
+  type: 'test'
+  ...
+# Subtest: el origen viaja hasta la fila que se pinta
+ok 202 - el origen viaja hasta la fila que se pinta
+  ---
+  duration_ms: 0.138069
+  type: 'test'
+  ...
+# Subtest: no se borra desde el libro lo que asentó el sistema; lo tipeado a mano, sí
+ok 203 - no se borra desde el libro lo que asentó el sistema; lo tipeado a mano, sí
+  ---
+  duration_ms: 0.801627
+  type: 'test'
+  ...
+# Subtest: el CSV lleva el resumen arriba y después los movimientos
+ok 204 - el CSV lleva el resumen arriba y después los movimientos
+  ---
+  duration_ms: 13.912944
+  type: 'test'
+  ...
+# Subtest: los importes usan COMA decimal para que Excel es-AR los sume
+ok 205 - los importes usan COMA decimal para que Excel es-AR los sume
+  ---
+  duration_ms: 0.915629
+  type: 'test'
+  ...
+# Subtest: el medio centavo sube, con la misma regla que el resto de la plata: $4,185 sale 4,19
+ok 206 - el medio centavo sube, con la misma regla que el resto de la plata: $4,185 sale 4,19
+  ---
+  duration_ms: 0.98004
+  type: 'test'
+  ...
+# Subtest: un detalle con punto y coma no parte la fila
+ok 207 - un detalle con punto y coma no parte la fila
+  ---
+  duration_ms: 1.958523
+  type: 'test'
+  ...
+# Subtest: un detalle con comillas las duplica (RFC 4180)
+ok 208 - un detalle con comillas las duplica (RFC 4180)
+  ---
+  duration_ms: 0.971256
+  type: 'test'
+  ...
+# Subtest: ingreso y egreso van en columnas distintas y el saldo acompaña
+ok 209 - ingreso y egreso van en columnas distintas y el saldo acompaña
+  ---
+  duration_ms: 1.326234
+  type: 'test'
+  ...
+# Subtest: la fecha va en ISO, que ordena bien en cualquier planilla
+ok 210 - la fecha va en ISO, que ordena bien en cualquier planilla
+  ---
+  duration_ms: 0.669142
+  type: 'test'
+  ...
+# Subtest: un mes sin movimientos exporta el resumen y lo dice
+ok 211 - un mes sin movimientos exporta el resumen y lo dice
+  ---
+  duration_ms: 0.275005
+  type: 'test'
+  ...
+# Subtest: una fila de cada marca: las columnas 0 a 5 no cambian y Origen/Referencia van al final
+ok 212 - una fila de cada marca: las columnas 0 a 5 no cambian y Origen/Referencia van al final
+  ---
+  duration_ms: 8.075232
+  type: 'test'
+  ...
+# Subtest: ningún campo del CSV lleva el actor 'user:<id>' (el archivo sale hacia el estudio)
+ok 213 - ningún campo del CSV lleva el actor 'user:<id>' (el archivo sale hacia el estudio)
+  ---
+  duration_ms: 5.242454
+  type: 'test'
+  ...
+# Subtest: una marca que terminaría en un actor no se usa como referencia
+ok 214 - una marca que terminaría en un actor no se usa como referencia
+  ---
+  duration_ms: 1.880682
+  type: 'test'
+  ...
+# Subtest: el RESUMEN abre los egresos por origen y por medio, y suman lo mismo que 'Egresos (-)'
+ok 215 - el RESUMEN abre los egresos por origen y por medio, y suman lo mismo que 'Egresos (-)'
+  ---
+  duration_ms: 3.079507
+  type: 'test'
+  ...
+# Subtest: sin clasificación del loader (demo, fixtures) el origen sale del tipo, nunca vacío
+ok 216 - sin clasificación del loader (demo, fixtures) el origen sale del tipo, nunca vacío
+  ---
+  duration_ms: 1.193064
+  type: 'test'
+  ...
+# Subtest: con las dos columnas de referencia migradas se lee una sola vez, con las dos
+ok 217 - con las dos columnas de referencia migradas se lee una sola vez, con las dos
+  ---
+  duration_ms: 5.647401
+  type: 'test'
+  ...
+# Subtest: el estado intermedio del runbook (sin collectionId): se relee sin ella y el libro sale
+ok 218 - el estado intermedio del runbook (sin collectionId): se relee sin ella y el libro sale
+  ---
+  duration_ms: 0.579255
+  type: 'test'
+  ...
+# Subtest: sin ninguna de las dos migraciones: se sacan de a una y el libro sale igual
+ok 219 - sin ninguna de las dos migraciones: se sacan de a una y el libro sale igual
+  ---
+  duration_ms: 0.34738
+  type: 'test'
+  ...
+# Subtest: un error que no es de una columna de referencia sube tal cual (no se tapa)
+ok 220 - un error que no es de una columna de referencia sube tal cual (no se tapa)
+  ---
+  duration_ms: 1.282666
+  type: 'test'
+  ...
+# Subtest: un detalle con saltos de línea sale en UNA línea: el archivo usa sólo CRLF
+ok 221 - un detalle con saltos de línea sale en UNA línea: el archivo usa sólo CRLF
+  ---
+  duration_ms: 0.997516
+  type: 'test'
+  ...
+# Subtest: cobrada y SIN medio: rechaza con mensaje, en los dos canales
+ok 222 - cobrada y SIN medio: rechaza con mensaje, en los dos canales
+  ---
+  duration_ms: 1.848314
+  type: 'test'
+  ...
+# Subtest: COUNTER + cobrada + null: el caso del sábado a la mañana, rechaza y dice qué hacer
+ok 223 - COUNTER + cobrada + null: el caso del sábado a la mañana, rechaza y dice qué hacer
+  ---
+  duration_ms: 2.091272
+  type: 'test'
+  ...
+# Subtest: ONLINE + cobrado + sin medio: además ofrece la salida de dejarlo sin cobrar
+ok 224 - ONLINE + cobrado + sin medio: además ofrece la salida de dejarlo sin cobrar
+  ---
+  duration_ms: 0.211938
+  type: 'test'
+  ...
+# Subtest: cobrada con un medio válido: pasa con ESE medio, en los dos canales
+ok 225 - cobrada con un medio válido: pasa con ESE medio, en los dos canales
+  ---
+  duration_ms: 0.279478
+  type: 'test'
+  ...
+# Subtest: MERCADOPAGO no se convierte en EFECTIVO (era lo que hacía setOrderPaidCore con lo desconocido)
+ok 226 - MERCADOPAGO no se convierte en EFECTIVO (era lo que hacía setOrderPaidCore con lo desconocido)
+  ---
+  duration_ms: 0.328075
+  type: 'test'
+  ...
+# Subtest: no cobrada: pasa SIN medio, llegue lo que llegue (ONLINE sin cobrar no pide nada)
+ok 227 - no cobrada: pasa SIN medio, llegue lo que llegue (ONLINE sin cobrar no pide nada)
+  ---
+  duration_ms: 0.390438
+  type: 'test'
+  ...
+# Subtest: desde la bandeja (contexto cobro): sin medio rechaza con el mensaje de la bandeja
+ok 228 - desde la bandeja (contexto cobro): sin medio rechaza con el mensaje de la bandeja
+  ---
+  duration_ms: 0.252005
+  type: 'test'
+  ...
+# Subtest: leerMedioDeCobro: sólo los tres valores exactos; recorta espacios, no adivina mayúsculas
+ok 229 - leerMedioDeCobro: sólo los tres valores exactos; recorta espacios, no adivina mayúsculas
+  ---
+  duration_ms: 0.136853
+  type: 'test'
+  ...
+# Subtest: cada chip cae en una columna del libro (ninguno queda fuera de la caja)
+ok 230 - cada chip cae en una columna del libro (ninguno queda fuera de la caja)
+  ---
+  duration_ms: 0.439472
+  type: 'test'
+  ...
+# Subtest: el chip de MP dice «Mercado Pago» a secas: sin «tarjeta» (CH concilia MP contra el extracto)
+ok 231 - el chip de MP dice «Mercado Pago» a secas: sin «tarjeta» (CH concilia MP contra el extracto)
+  ---
+  duration_ms: 0.586306
+  type: 'test'
+  ...
+# Subtest: ya cobrado con el MISMO medio: se informa y no es error
+ok 232 - ya cobrado con el MISMO medio: se informa y no es error
+  ---
+  duration_ms: 0.226637
+  type: 'test'
+  ...
+# Subtest: ya cobrado con OTRO medio: se avisa como error, diciendo cuál quedó
+ok 233 - ya cobrado con OTRO medio: se avisa como error, diciendo cuál quedó
+  ---
+  duration_ms: 0.210491
+  type: 'test'
+  ...
+# Subtest: createOrder y setOrderPaidCore llaman a medioDeCobroRequerido y cortan si rechaza
+ok 234 - createOrder y setOrderPaidCore llaman a medioDeCobroRequerido y cortan si rechaza
+  ---
+  duration_ms: 0.374731
+  type: 'test'
+  ...
+# Subtest: insertOrder (vidriera + ingesta externa) NO llama a la regla
+ok 235 - insertOrder (vidriera + ingesta externa) NO llama a la regla
+  ---
+  duration_ms: 0.162866
+  type: 'test'
+  ...
+# Subtest: ya no queda ningún relleno con EFECTIVO en las acciones de cobro
+ok 236 - ya no queda ningún relleno con EFECTIVO en las acciones de cobro
+  ---
+  duration_ms: 0.237036
+  type: 'test'
+  ...
+# Subtest: el cobro de un pedido (botón «Cobrar» y aviso de Mercado Pago) cobra sólo lo que no estaba cobrado (updateMany con paid:false)
+ok 237 - el cobro de un pedido (botón «Cobrar» y aviso de Mercado Pago) cobra sólo lo que no estaba cobrado (updateMany con paid:false)
+  ---
+  duration_ms: 0.233472
+  type: 'test'
+  ...
+# Subtest: @@unique([tenantId, orderId, type]) en CashMovement — sin él, una venta de mostrador asienta dos veces en el libro
+ok 238 - @@unique([tenantId, orderId, type]) en CashMovement — sin él, una venta de mostrador asienta dos veces en el libro
+  ---
+  duration_ms: 1.775405
+  type: 'test'
+  ...
+# Subtest: @@unique([tenantId, paymentId, type]) en CashMovement — sin él, un pago de turno asienta dos veces en el libro
+ok 239 - @@unique([tenantId, paymentId, type]) en CashMovement — sin él, un pago de turno asienta dos veces en el libro
+  ---
+  duration_ms: 0.309423
+  type: 'test'
+  ...
+# Subtest: @@unique([tenantId, collectionId, type]) en CashMovement — sin él, un cobro parcial asienta dos veces en el libro
+ok 240 - @@unique([tenantId, collectionId, type]) en CashMovement — sin él, un cobro parcial asienta dos veces en el libro
+  ---
+  duration_ms: 0.178617
+  type: 'test'
+  ...
+# Subtest: @@unique([tenantId, idempotencyKey]) en Collection — sin él, un doble submit cobra dos veces el mismo saldo
+ok 241 - @@unique([tenantId, idempotencyKey]) en Collection — sin él, un doble submit cobra dos veces el mismo saldo
+  ---
+  duration_ms: 0.23735
+  type: 'test'
+  ...
+# Subtest: @@unique([tenantId, idempotencyKey]) en Order — sin él, un reintento de la vidriera crea dos pedidos
+ok 242 - @@unique([tenantId, idempotencyKey]) en Order — sin él, un reintento de la vidriera crea dos pedidos
+  ---
+  duration_ms: 0.285515
+  type: 'test'
+  ...
+# Subtest: @@unique([tenantId, orderId]) en Invoice — sin él, se emiten DOS comprobantes fiscales por el mismo pedido y hay que hacer nota de crédito
+ok 243 - @@unique([tenantId, orderId]) en Invoice — sin él, se emiten DOS comprobantes fiscales por el mismo pedido y hay que hacer nota de crédito
+  ---
+  duration_ms: 0.209533
+  type: 'test'
+  ...
+# Subtest: @@unique([tenantId, mpPaymentId]) en Invoice — sin él, un reintento del webhook de Mercado Pago factura dos veces el mismo pago
+ok 244 - @@unique([tenantId, mpPaymentId]) en Invoice — sin él, un reintento del webhook de Mercado Pago factura dos veces el mismo pago
+  ---
+  duration_ms: 0.182504
+  type: 'test'
+  ...
+# Subtest: no hay claves de idempotencia en el schema que esta lista no conozca
+ok 245 - no hay claves de idempotencia en el schema que esta lista no conozca
+  ---
+  duration_ms: 2.04099
+  type: 'test'
+  ...
+# Subtest: contra Postgres: los días cerrados no se tocan; la diferencia real al abrir y la del arqueo quedan una vez cada una; lo que no pasó por el turno también cuenta
+ok 246 - contra Postgres: los días cerrados no se tocan; la diferencia real al abrir y la del arqueo quedan una vez cada una; lo que no pasó por el turno también cuenta
+  ---
+  duration_ms: 5036.839366
+  type: 'test'
+  ...
+# Subtest: contra Postgres: el caso MAGRA — el turno cuadra y el día ya no inventa el faltante; la diferencia al abrir queda una vez, con quién y cuándo; B no se mezcla
+ok 247 - contra Postgres: el caso MAGRA — el turno cuadra y el día ya no inventa el faltante; la diferencia al abrir queda una vez, con quién y cuándo; B no se mezcla
+  ---
+  duration_ms: 4969.871802
+  type: 'test'
+  ...
+# Subtest: contra Postgres: una apertura que coincide con el libro no escribe diferencia (cambio de turno sin plata en juego)
+ok 248 - contra Postgres: una apertura que coincide con el libro no escribe diferencia (cambio de turno sin plata en juego)
+  ---
+  duration_ms: 4753.278485
+  type: 'test'
+  ...
+# Subtest: fondo contado igual al libro ⇒ la apertura no escribe diferencia
+ok 249 - fondo contado igual al libro ⇒ la apertura no escribe diferencia
+  ---
+  duration_ms: 1.309956
+  type: 'test'
+  ...
+# Subtest: el cajón tiene menos que el libro ⇒ faltante al abrir (EGRESO en efectivo), con la marca del turno
+ok 250 - el cajón tiene menos que el libro ⇒ faltante al abrir (EGRESO en efectivo), con la marca del turno
+  ---
+  duration_ms: 1.701145
+  type: 'test'
+  ...
+# Subtest: el cajón tiene más que el libro ⇒ sobrante al abrir (INGRESO en efectivo)
+ok 251 - el cajón tiene más que el libro ⇒ sobrante al abrir (INGRESO en efectivo)
+  ---
+  duration_ms: 0.186314
+  type: 'test'
+  ...
+# Subtest: un libro en negativo (datos viejos) se corrige hasta el conteo
+ok 252 - un libro en negativo (datos viejos) se corrige hasta el conteo
+  ---
+  duration_ms: 0.139303
+  type: 'test'
+  ...
+# Subtest: montos ilegibles no escriben nada
+ok 253 - montos ilegibles no escriben nada
+  ---
+  duration_ms: 0.262288
+  type: 'test'
+  ...
+# Subtest: la marca de apertura no se confunde con la del arqueo
+ok 254 - la marca de apertura no se confunde con la del arqueo
+  ---
+  duration_ms: 0.245317
+  type: 'test'
+  ...
+# Subtest: el saldo en efectivo del libro: entra VENTA/INGRESO, sale EGRESO/RETIRO, la APERTURA no mueve, los otros medios no cuentan
+ok 255 - el saldo en efectivo del libro: entra VENTA/INGRESO, sale EGRESO/RETIRO, la APERTURA no mueve, los otros medios no cuentan
+  ---
+  duration_ms: 0.509723
+  type: 'test'
+  ...
+# Subtest: el arqueo del turno se hace contra el libro: contado − saldo, al centavo
+ok 256 - el arqueo del turno se hace contra el libro: contado − saldo, al centavo
+  ---
+  duration_ms: 0.228422
+  type: 'test'
+  ...
+# Subtest: en el libro, la diferencia de apertura es una diferencia de caja del turno y no se borra
+ok 257 - en el libro, la diferencia de apertura es una diferencia de caja del turno y no se borra
+  ---
+  duration_ms: 0.913954
+  type: 'test'
+  ...
+# Subtest: el override por servicio gana sobre el % general del profesional
+ok 258 - el override por servicio gana sobre el % general del profesional
+  ---
+  duration_ms: 1.44584
+  type: 'test'
+  ...
+# Subtest: sin override, cae al % general
+ok 259 - sin override, cae al % general
+  ---
+  duration_ms: 0.203547
+  type: 'test'
+  ...
+# Subtest: un override de 0 GANA sobre el general: es cómo se declara 'este servicio no paga'
+ok 260 - un override de 0 GANA sobre el general: es cómo se declara 'este servicio no paga'
+  ---
+  duration_ms: 0.149848
+  type: 'test'
+  ...
+# Subtest: el monto se redondea a pesos con round2, no se guarda el float crudo
+ok 261 - el monto se redondea a pesos con round2, no se guarda el float crudo
+  ---
+  duration_ms: 0.330278
+  type: 'test'
+  ...
+# Subtest: los bordes del redondeo son los del sistema (medio hacia arriba, epsilon-safe)
+ok 262 - los bordes del redondeo son los del sistema (medio hacia arriba, epsilon-safe)
+  ---
+  duration_ms: 0.163586
+  type: 'test'
+  ...
+# Subtest: pct 0, negativo o base 0 no generan monto; pct 100 da toda la base
+ok 263 - pct 0, negativo o base 0 no generan monto; pct 100 da toda la base
+  ---
+  duration_ms: 0.269512
+  type: 'test'
+  ...
+# Subtest: entradas no finitas no propagan NaN al comprobante
+ok 264 - entradas no finitas no propagan NaN al comprobante
+  ---
+  duration_ms: 0.334236
+  type: 'test'
+  ...
+# Subtest: acumula varios turnos, mezcla override y general, y devuelve el período
+ok 265 - acumula varios turnos, mezcla override y general, y devuelve el período
+  ---
+  duration_ms: 2.138416
+  type: 'test'
+  ...
+# Subtest: un turno de un servicio con 0% no entra: ni suma, ni cuenta, ni corre el período
+ok 266 - un turno de un servicio con 0% no entra: ni suma, ni cuenta, ni corre el período
+  ---
+  duration_ms: 0.483249
+  type: 'test'
+  ...
+# Subtest: sin turnos liquidables: todo en cero y sin período (el llamador aborta con esto)
+ok 267 - sin turnos liquidables: todo en cero y sin período (el llamador aborta con esto)
+  ---
+  duration_ms: 0.445021
+  type: 'test'
+  ...
+# Subtest: el total no arrastra ruido de float: redondea por turno y de nuevo al final
+ok 268 - el total no arrastra ruido de float: redondea por turno y de nuevo al final
+  ---
+  duration_ms: 0.298706
+  type: 'test'
+  ...
+# Subtest: la pantalla de pendientes y la liquidación dan EXACTAMENTE lo mismo
+ok 269 - la pantalla de pendientes y la liquidación dan EXACTAMENTE lo mismo
+  ---
+  duration_ms: 0.263111
+  type: 'test'
+  ...
+# Subtest: la marca identifica la liquidación y se reconoce con esEgresoDeComision
+ok 270 - la marca identifica la liquidación y se reconoce con esEgresoDeComision
+  ---
+  duration_ms: 0.244199
+  type: 'test'
+  ...
+# Subtest: el egreso sale como EGRESO, por el monto liquidado y marcado con el payout
+ok 271 - el egreso sale como EGRESO, por el monto liquidado y marcado con el payout
+  ---
+  duration_ms: 0.414145
+  type: 'test'
+  ...
+# Subtest: sin medio informado asume EFECTIVO pero LO DICE en el detalle de la fila
+ok 272 - sin medio informado asume EFECTIVO pero LO DICE en el detalle de la fila
+  ---
+  duration_ms: 0.15262
+  type: 'test'
+  ...
+# Subtest: con medio informado no hay aclaración y el medio es el que se eligió
+ok 273 - con medio informado no hay aclaración y el medio es el que se eligió
+  ---
+  duration_ms: 0.14339
+  type: 'test'
+  ...
+# Subtest: si hoy está cerrado, el asiento se imputa al día abierto y NO se pierde la fecha real
+ok 274 - si hoy está cerrado, el asiento se imputa al día abierto y NO se pierde la fecha real
+  ---
+  duration_ms: 0.142942
+  type: 'test'
+  ...
+# Subtest: un período de un solo día no se escribe dos veces
+ok 275 - un período de un solo día no se escribe dos veces
+  ---
+  duration_ms: 0.196297
+  type: 'test'
+  ...
+# Subtest: un nombre larguísimo se recorta: el detalle se lee en una tabla angosta
+ok 276 - un nombre larguísimo se recorta: el detalle se lee en una tabla angosta
+  ---
+  duration_ms: 0.202654
+  type: 'test'
+  ...
+# Subtest: monto 0 o negativo no inventa una fila en el libro
+ok 277 - monto 0 o negativo no inventa una fila en el libro
+  ---
+  duration_ms: 0.15766
+  type: 'test'
+  ...
+# Subtest: parseCashMethod no confía en el borde
+ok 278 - parseCashMethod no confía en el borde
+  ---
+  duration_ms: 0.142515
+  type: 'test'
+  ...
+# Subtest: settleCommissions asienta el EGRESO DENTRO de la misma transacción que el payout
+ok 279 - settleCommissions asienta el EGRESO DENTRO de la misma transacción que el payout
+  ---
+  duration_ms: 0.324141
+  type: 'test'
+  ...
+# Subtest: el asiento queda atado a la liquidación por la marca en createdBy
+ok 280 - el asiento queda atado a la liquidación por la marca en createdBy
+  ---
+  duration_ms: 0.310864
+  type: 'test'
+  ...
+# Subtest: la fórmula de la comisión ya no está escrita a mano en ninguna de las dos puntas
+ok 281 - la fórmula de la comisión ya no está escrita a mano en ninguna de las dos puntas
+  ---
+  duration_ms: 0.657053
+  type: 'test'
+  ...
+# Subtest: la base de la comisión es lo COBRADO, nunca el precio de lista
+ok 282 - la base de la comisión es lo COBRADO, nunca el precio de lista
+  ---
+  duration_ms: 0.514913
+  type: 'test'
+  ...
+# Subtest: el egreso de una liquidación NO se borra desde el libro de caja
+ok 283 - el egreso de una liquidación NO se borra desde el libro de caja
+  ---
+  duration_ms: 0.547912
+  type: 'test'
+  ...
+# Subtest: el formulario de liquidación pregunta por qué medio se le pagó
+ok 284 - el formulario de liquidación pregunta por qué medio se le pagó
+  ---
+  duration_ms: 0.42626
+  type: 'test'
+  ...
+# Subtest: agosto: ventas − costo de lo vendido − gastos, sin contar compras, pagos de deuda ni retiros
+ok 285 - agosto: ventas − costo de lo vendido − gastos, sin contar compras, pagos de deuda ni retiros
+  ---
+  duration_ms: 3.258873
+  type: 'test'
+  ...
+# Subtest: la compra de mercadería y el retiro del dueño no mueven el resultado
+ok 286 - la compra de mercadería y el retiro del dueño no mueven el resultado
+  ---
+  duration_ms: 0.90756
+  type: 'test'
+  ...
+# Subtest: un Responsable Inscripto ve las ventas sin IVA (21%, como factura el sistema)
+ok 287 - un Responsable Inscripto ve las ventas sin IVA (21%, como factura el sistema)
+  ---
+  duration_ms: 0.400486
+  type: 'test'
+  ...
+# Subtest: un MOSTRADOR inscripto: el IVA NO se saca con un 21% que no es de todo lo vendido, y se dice
+ok 288 - un MOSTRADOR inscripto: el IVA NO se saca con un 21% que no es de todo lo vendido, y se dice
+  ---
+  duration_ms: 0.479195
+  type: 'test'
+  ...
+# Subtest: servicios inscripto (CH) sigue igual: 21%, la alícuota general de los servicios
+ok 289 - servicios inscripto (CH) sigue igual: 21%, la alícuota general de los servicios
+  ---
+  duration_ms: 1.934519
+  type: 'test'
+  ...
+# Subtest: turnos cobrados e insumos consumidos: el resultado de un negocio de servicios
+ok 290 - turnos cobrados e insumos consumidos: el resultado de un negocio de servicios
+  ---
+  duration_ms: 0.307076
+  type: 'test'
+  ...
+# Subtest: un mes sin nada no tiene resultado que dar
+ok 291 - un mes sin nada no tiene resultado que dar
+  ---
+  duration_ms: 0.349066
+  type: 'test'
+  ...
+# Subtest: qué es cada movimiento del libro: por su marca, no por el tipo
+ok 292 - qué es cada movimiento del libro: por su marca, no por el tipo
+  ---
+  duration_ms: 0.25467
+  type: 'test'
+  ...
+# Subtest: costo de lo vendido: guardado primero, el de hoy si la venta no lo guardó, y nunca un $0 inventado
+ok 293 - costo de lo vendido: guardado primero, el de hoy si la venta no lo guardó, y nunca un $0 inventado
+  ---
+  duration_ms: 0.54488
+  type: 'test'
+  ...
+# Subtest: qué pedido es venta: cobrado, o a cuenta; uno saldado con cuenta es venta A CUENTA, una vez
+ok 294 - qué pedido es venta: cobrado, o a cuenta; uno saldado con cuenta es venta A CUENTA, una vez
+  ---
+  duration_ms: 0.572742
+  type: 'test'
+  ...
+# Subtest: una compra pagada asienta un EGRESO por el total, con el medio informado
+ok 295 - una compra pagada asienta un EGRESO por el total, con el medio informado
+  ---
+  duration_ms: 1.827171
+  type: 'test'
+  ...
+# Subtest: el monto se redondea a 2 decimales: el libro no arrastra centavos binarios
+ok 296 - el monto se redondea a 2 decimales: el libro no arrastra centavos binarios
+  ---
+  duration_ms: 0.435825
+  type: 'test'
+  ...
+# Subtest: MP y TARJETA viajan tal cual: el medio lo decide quien pagó, no este módulo
+ok 297 - MP y TARJETA viajan tal cual: el medio lo decide quien pagó, no este módulo
+  ---
+  duration_ms: 0.282635
+  type: 'test'
+  ...
+# Subtest: una REPOSICIÓN no asienta egreso: no es una compra, no salió plata
+ok 298 - una REPOSICIÓN no asienta egreso: no es una compra, no salió plata
+  ---
+  duration_ms: 0.181643
+  type: 'test'
+  ...
+# Subtest: una compra A CUENTA CORRIENTE no asienta egreso: la plata sale cuando se paga
+ok 299 - una compra A CUENTA CORRIENTE no asienta egreso: la plata sale cuando se paga
+  ---
+  duration_ms: 0.230976
+  type: 'test'
+  ...
+# Subtest: sin costo no hay nada que asentar (0, negativo o basura)
+ok 300 - sin costo no hay nada que asentar (0, negativo o basura)
+  ---
+  duration_ms: 0.274627
+  type: 'test'
+  ...
+# Subtest: sin medio informado asume efectivo y lo DICE en el detalle
+ok 301 - sin medio informado asume efectivo y lo DICE en el detalle
+  ---
+  duration_ms: 0.536725
+  type: 'test'
+  ...
+# Subtest: PAGO_POR_DEFECTO es el que aplica cuando el llamador no manda nada, y viene marcado
+ok 302 - PAGO_POR_DEFECTO es el que aplica cuando el llamador no manda nada, y viene marcado
+  ---
+  duration_ms: 0.25126
+  type: 'test'
+  ...
+# Subtest: si hoy ya está cerrado, el egreso se imputa al PRIMER DÍA ABIERTO y lo aclara
+ok 303 - si hoy ya está cerrado, el egreso se imputa al PRIMER DÍA ABIERTO y lo aclara
+  ---
+  duration_ms: 0.587938
+  type: 'test'
+  ...
+# Subtest: diaContableDelEgreso: sin cierre y con cierre viejo, el día es hoy
+ok 304 - diaContableDelEgreso: sin cierre y con cierre viejo, el día es hoy
+  ---
+  duration_ms: 0.455208
+  type: 'test'
+  ...
+# Subtest: diaContableDelEgreso: un cierre que abarca hoy empuja al día siguiente, cruzando el mes
+ok 305 - diaContableDelEgreso: un cierre que abarca hoy empuja al día siguiente, cruzando el mes
+  ---
+  duration_ms: 0.161192
+  type: 'test'
+  ...
+# Subtest: la marca identifica la compra y se reconoce con esEgresoDeCompra
+ok 306 - la marca identifica la compra y se reconoce con esEgresoDeCompra
+  ---
+  duration_ms: 0.246143
+  type: 'test'
+  ...
+# Subtest: un proveedor larguísimo se recorta: el detalle se lee en una tabla angosta
+ok 307 - un proveedor larguísimo se recorta: el detalle se lee en una tabla angosta
+  ---
+  duration_ms: 0.227432
+  type: 'test'
+  ...
+# Subtest: el egreso se escribe DENTRO de la única tenantTransaction de insertStockPurchase
+ok 308 - el egreso se escribe DENTRO de la única tenantTransaction de insertStockPurchase
+  ---
+  duration_ms: 0.406079
+  type: 'test'
+  ...
+# Subtest: insertStockPurchase pre-chequea la marca antes de crear el egreso (idempotencia)
+ok 309 - insertStockPurchase pre-chequea la marca antes de crear el egreso (idempotencia)
+  ---
+  duration_ms: 0.43267
+  type: 'test'
+  ...
+# Subtest: el libro NO deja borrar el egreso que asentó una compra (dirección única)
+ok 310 - el libro NO deja borrar el egreso que asentó una compra (dirección única)
+  ---
+  duration_ms: 0.596378
+  type: 'test'
+  ...
+# Subtest: el libro AVISA si alguien tipea a mano un egreso que la compra ya asentó
+ok 311 - el libro AVISA si alguien tipea a mano un egreso que la compra ya asentó
+  ---
+  duration_ms: 0.308083
+  type: 'test'
+  ...
+# Subtest: el formulario de compras pregunta cómo se pagó y no deja registrar sin elegirlo
+ok 312 - el formulario de compras pregunta cómo se pagó y no deja registrar sin elegirlo
+  ---
+  duration_ms: 0.335467
+  type: 'test'
+  ...
+# Subtest: la Server Action pasa el medio elegido a insertStockPurchase
+ok 313 - la Server Action pasa el medio elegido a insertStockPurchase
+  ---
+  duration_ms: 0.383616
+  type: 'test'
+  ...
+# Subtest: la Server Action AUDITA el asiento de caja de la compra
+ok 314 - la Server Action AUDITA el asiento de caja de la compra
+  ---
+  duration_ms: 0.309324
+  type: 'test'
+  ...
+# Subtest: el aviso de duplicado de un egreso del sistema NO exige que coincida el medio
+ok 315 - el aviso de duplicado de un egreso del sistema NO exige que coincida el medio
+  ---
+  duration_ms: 0.382714
+  type: 'test'
+  ...
+# Subtest: una línea de '12,5' kg a '$6.543' asienta un egreso de $81.787,50
+ok 316 - una línea de '12,5' kg a '$6.543' asienta un egreso de $81.787,50
+  ---
+  duration_ms: 1.616032
+  type: 'test'
+  ...
+# Subtest: lo que asentaba el camino viejo con lo que entregaba el navegador: diez veces más
+ok 317 - lo que asentaba el camino viejo con lo que entregaba el navegador: diez veces más
+  ---
+  duration_ms: 0.152571
+  type: 'test'
+  ...
+# Subtest: un costo ilegible frena la compra con mensaje en vez de asentar un egreso de menos
+ok 318 - un costo ilegible frena la compra con mensaje en vez de asentar un egreso de menos
+  ---
+  duration_ms: 0.673922
+  type: 'test'
+  ...
+# Subtest: la Server Action de compras lee con las funciones de pos-peso, no con Number()
+ok 319 - la Server Action de compras lee con las funciones de pos-peso, no con Number()
+  ---
+  duration_ms: 0.412182
+  type: 'test'
+  ...
+# Subtest: el formulario de compras no usa type=number y manda la forma canónica
+ok 320 - el formulario de compras no usa type=number y manda la forma canónica
+  ---
+  duration_ms: 0.554235
+  type: 'test'
+  ...
+1..320
+# tests 329
+# suites 2
+# pass 329
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 19931.409185

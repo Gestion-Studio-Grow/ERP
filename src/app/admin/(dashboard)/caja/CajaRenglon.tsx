@@ -16,7 +16,7 @@
 import Link from "next/link";
 import type { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import type { getCajaData } from "@/lib/caja-actions";
-import { expectedCash, summarizeMovements, type CashMethod, type CashMovementLike, type CashMovementType } from "@/lib/caja/cash-register";
+import { esperadoDelCajon } from "@/lib/caja/esperado-del-cajon";
 import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { frozenDayMessage } from "@/lib/caja/cierre-diario";
 import { fmtShortDate, fmtTime } from "@/lib/datetime";
@@ -240,55 +240,30 @@ function MovimientosDeHoy({ dia }: { dia: Dia }) {
   );
 }
 
-/**
- * El libro del día y el turno cuentan el efectivo desde puntos distintos: el libro arrastra todo lo
- * que quedó de antes (y lo cobrado sin turno abierto); el turno arranca en su fondo. Las dos cifras
- * convivían con el mismo nombre («en el cajón») y no coincidían. Acá sólo se DICE la diferencia; las
- * dos cuentas son las de siempre (`preview.porMedio` y `expectedCash`).
- */
-function DiferenciaConElLibro({ libro, turno }: { libro: number; turno: number }) {
-  const dif = redondo(libro - turno);
-  if (Math.abs(dif) < 0.01) return null;
-  return (
-    <p role="note" className="mt-3 border-l-2 border-line-strong pl-3 text-[13px] text-body">
-      {dif > 0 ? (
-        <>
-          El libro del día cuenta <Plata valor={dif} /> más de efectivo que este turno: es plata que no pasó por él (lo que quedó de
-          otros días, de un turno anterior o lo cobrado sin turno abierto). Para contar el cajón vale la cifra del turno; si esa plata ya no está, cargala
-          como retiro con «Cargar un gasto o retiro».
-        </>
-      ) : (
-        <>
-          Este turno cuenta <Plata valor={-dif} /> más de efectivo que el libro del día: hay movimientos del turno de otro día. Para
-          contar el cajón vale la cifra del turno.
-        </>
-      )}
-    </p>
-  );
-}
-
-function TurnoDeCajero({ caja, libro, className = "mt-8" }: { caja: Turno; libro?: number; className?: string }) {
-  const { open, recentClosed } = caja;
+function TurnoDeCajero({ caja, className = "mt-8" }: { caja: Turno; className?: string }) {
+  const { open, recentClosed, esperadoEnElCajon } = caja;
   let cuerpo: React.ReactNode;
   if (!open) {
     cuerpo = (
       <div className="pt-3">
         <p className="mb-3 text-sm text-muted">No hay un turno abierto. Abrilo con el efectivo con el que arranca el cajón.</p>
         <div className="max-w-sm">
-          <OpenCajaForm />
+          <OpenCajaForm esperado={esperadoEnElCajon} />
         </div>
       </div>
     );
   } else {
-    // El esperado en vivo cuenta SÓLO el efectivo del cajón (mismo cálculo que el arqueo).
-    const movs: CashMovementLike[] = open.movements.map((m) => ({
-      type: m.type as CashMovementType,
-      amount: m.amount,
-      // Un movimiento del demo no trae medio: es efectivo (el mismo relleno que la pantalla de siempre).
-      method: ("method" in m && m.method ? m.method : "EFECTIVO") as CashMethod,
-    }));
-    const esperado = expectedCash(open.openingFloat, movs);
-    const b = summarizeMovements(movs);
+    // UN SOLO ESPERADO (ADR-101): el total es el saldo en efectivo del libro, el mismo número con
+    // el que `closeCashSession` arquea y que el formulario devuelve al cerrar. Lo que el turno no
+    // vio (una devolución o un gasto sin turno) va en su propio renglón, así el desglose suma el total.
+    const { desglose: b, fueraDelTurno, esperado } = esperadoDelCajon(
+      {
+        openingFloat: open.openingFloat,
+        // Un movimiento del demo no trae medio: es efectivo (el mismo relleno que la pantalla de siempre).
+        movements: open.movements.map((m) => ({ type: m.type, amount: m.amount, method: "method" in m ? m.method : null })),
+      },
+      esperadoEnElCajon,
+    );
     cuerpo = (
       <div className="pt-1">
         <LineaDeCuenta
@@ -300,8 +275,18 @@ function TurnoDeCajero({ caja, libro, className = "mt-8" }: { caja: Turno; libro
         {b.cashIn > 0 && <LineaDeCuenta concepto="Otros ingresos" importe={<Plata valor={b.cashIn} />} />}
         {b.cashOut > 0 && <LineaDeCuenta concepto="Gastos" importe={<Plata valor={-b.cashOut} />} />}
         {b.withdrawals > 0 && <LineaDeCuenta concepto="Retiros" importe={<Plata valor={-b.withdrawals} />} />}
+        {fueraDelTurno !== 0 && (
+          <LineaDeCuenta
+            concepto="Efectivo que no pasó por el turno"
+            detalle={
+              fueraDelTurno < 0
+                ? "Salió del cajón sin pasar por este turno: una devolución o un gasto cargado sin turno."
+                : "Entró al cajón sin pasar por este turno: lo que quedó de antes o lo cobrado sin turno abierto."
+            }
+            importe={<Plata valor={fueraDelTurno} />}
+          />
+        )}
         <LineaDeCuenta total concepto="Efectivo esperado en el cajón" importe={<Plata valor={esperado} />} />
-        {libro !== undefined && <DiferenciaConElLibro libro={libro} turno={esperado} />}
         <div className="mt-3">
           <CerrarTurno esperado={esperado} />
         </div>
@@ -415,7 +400,7 @@ export default function CajaRenglon({ dia, caja }: { dia: Dia; caja: Turno | nul
             <MovimientosDeHoy dia={dia} />
           </div>
           <div className="min-w-0">
-            {caja && <TurnoDeCajero caja={caja} libro={dia.preview.porMedio.EFECTIVO.expected} className="mt-8 lg:mt-0" />}
+            {caja && <TurnoDeCajero caja={caja} className="mt-8 lg:mt-0" />}
           </div>
         </div>
       )}

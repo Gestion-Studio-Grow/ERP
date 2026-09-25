@@ -1,0 +1,60 @@
+TAP version 13
+# Subtest: Números del negocio en el celular, en el navegador
+    # Subtest: a 390 px el nombre de la app entra entero y ocupa al menos la mitad del renglón
+    ok 1 - a 390 px el nombre de la app entra entero y ocupa al menos la mitad del renglón
+      ---
+      duration_ms: 936.555239
+      type: 'test'
+      ...
+    # Subtest: en la PC la cifra usa su columna de siempre y el nombre va en una línea
+    ok 2 - en la PC la cifra usa su columna de siempre y el nombre va en una línea
+      ---
+      duration_ms: 431.610801
+      type: 'test'
+      ...
+    1..2
+ok 1 - Números del negocio en el celular, en el navegador
+  ---
+  duration_ms: 4523.80227
+  type: 'suite'
+  ...
+# Subtest: La lista en el celular, en el navegador
+    # Subtest: en el celular, el renglón vacío ocupa todo el ancho (con y sin casillas)
+    ok 1 - en el celular, el renglón vacío ocupa todo el ancho (con y sin casillas)
+      ---
+      duration_ms: 1390.096193
+      type: 'test'
+      ...
+    # Subtest: en la PC el renglón vacío sigue siendo una celda de tabla a lo ancho
+    ok 2 - en la PC el renglón vacío sigue siendo una celda de tabla a lo ancho
+      ---
+      duration_ms: 483.277083
+      type: 'test'
+      ...
+    # Subtest: consola a 390: se busca un negocio desde la lista, mientras se escribe y con Enter
+    ok 3 - consola a 390: se busca un negocio desde la lista, mientras se escribe y con Enter
+      ---
+      duration_ms: 863.987501
+      type: 'test'
+      ...
+    # Subtest: consola en la PC: el buscador de la lista no aparece (está en la cabecera) y sin `buscador` no cambia nada
+    ok 4 - consola en la PC: el buscador de la lista no aparece (está en la cabecera) y sin `buscador` no cambia nada
+      ---
+      duration_ms: 878.823226
+      type: 'test'
+      ...
+    1..4
+ok 2 - La lista en el celular, en el navegador
+  ---
+  duration_ms: 6455.462006
+  type: 'suite'
+  ...
+1..2
+# tests 6
+# suites 2
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6971.14116

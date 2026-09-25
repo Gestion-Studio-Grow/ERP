@@ -177,7 +177,7 @@ export default async function ComprasPage({
           <>
             {" "}
             Si cargás tus{" "}
-            <Link href="/admin/proveedores" className="font-medium text-accent underline underline-offset-2">
+            <Link href="/admin/proveedores" className="font-medium text-accent-ink underline underline-offset-2">
               proveedores
             </Link>
             , los elegís de una lista y cada compra queda en su ficha.
@@ -187,7 +187,7 @@ export default async function ComprasPage({
           <>
             {" "}
             Para saber qué pedir y a quién, mirá el{" "}
-            <Link href="/admin/compras/sugerido" className="font-medium text-accent underline underline-offset-2">
+            <Link href="/admin/compras/sugerido" className="font-medium text-accent-ink underline underline-offset-2">
               sugerido de compra
             </Link>
             .

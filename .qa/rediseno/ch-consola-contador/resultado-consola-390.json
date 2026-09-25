@@ -6,63 +6,63 @@
       "paso": "operador · clave equivocada avisa",
       "ok": true,
       "det": "avisa «Nombre o clave incorrectos»",
-      "ms": 1488,
+      "ms": 1669,
       "errs": []
     },
     {
       "paso": "operador · entrar",
       "ok": true,
       "det": "diseno=renglon sx360=0 chicos<44=0",
-      "ms": 2138,
+      "ms": 2393,
       "errs": []
     },
     {
       "paso": "operador · buscar un negocio en la lista",
-      "ok": false,
-      "det": "locator.click: Timeout 30000ms exceeded.",
-      "ms": 30514,
+      "ok": true,
+      "det": "busca con Enter y CH aparece",
+      "ms": 756,
       "errs": []
     },
     {
       "paso": "operador · abrir la ficha de CH desde la lista",
       "ok": true,
       "det": "CH Estética · diseno=renglon sx360=0 chicos<44=0",
-      "ms": 2589,
+      "ms": 2784,
       "errs": []
     },
     {
       "paso": "operador · pestaña Plan y apps → interruptores",
       "ok": true,
       "det": "Prendido Diseño nuevo El diseño nuevo en su panel: botones, cifras y pantallas renovados, con las mismas apps y los mismos datos. Apagado, se ve como siempre. Si lo apagás, en la próxima carga se ve c · diseno=renglon sx360=0 chicos<44=0",
-      "ms": 1936,
+      "ms": 2169,
       "errs": []
     },
     {
       "paso": "operador · recargar conserva la pestaña",
       "ok": true,
       "det": "url=?pestana=plan visible=true",
-      "ms": 1393,
+      "ms": 1594,
       "errs": []
     },
     {
       "paso": "operador · galería de diseño (desde el menú)",
       "ok": true,
       "det": "Renglón · diseno=renglon sx360=0 chicos<44=0",
-      "ms": 3524,
+      "ms": 4174,
       "errs": []
     },
     {
       "paso": "operador · galería: pieza viva de teclado y diálogo",
       "ok": true,
       "det": "botones=154 dialogo=2",
-      "ms": 1778,
+      "ms": 2202,
       "errs": []
     },
     {
       "paso": "operador · negocio inexistente (error)",
       "ok": false,
       "det": "http=404 · ",
-      "ms": 31228,
+      "ms": 31290,
       "errs": [
         "[operador · negocio inexistente (error)] Failed to load resource: the server responded with a status of 404 (Not Found)"
       ]
@@ -71,11 +71,11 @@
       "paso": "operador · sin sesión no entra",
       "ok": true,
       "det": "manda al login",
-      "ms": 1222,
+      "ms": 1355,
       "errs": []
     }
   ],
-  "fallas": 2,
+  "fallas": 1,
   "errores": [
     "[operador · negocio inexistente (error)] Failed to load resource: the server responded with a status of 404 (Not Found)"
   ],

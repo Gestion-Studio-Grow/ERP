@@ -1,0 +1,21 @@
+rec-2509 / integracion — 2026-09-25 (Principal Architect)
+
+Aplicado de los necesita_fuera:
+- caja: la pantalla del turno ya mostraba esperadoEnElCajon (vuelta 2 del frente caja, .qa/rec-2509/caja/v2/); verificado, no se tocó.
+- caja/cierre/page.tsx:111  text-accent -> text-accent-ink («Ver el libro del mes →»).
+    01-aa-rojo.txt   enlace sumado a ENLACES de enlaces-sobre-el-fondo-aa.test.ts: 4/5, falla el nuevo (antes del arreglo)
+    02-aa-verde.txt  5/5 con los 7 acentos (Chromium, CSS real)
+- consola del operador: se borra el <form id="buscar-negocio" lg:hidden> de page.tsx; TablaNegocios recibe buscador={{ q, vista, orden }}.
+    03-consola-rojo.txt   consola-un-buscador.test.ts: 1/3 antes del cambio
+    04-consola-verde.txt  3/3 después
+- .qa/rediseno/ch-consola-contador/recorrido.mjs: toma el campo VISIBLE, envía con Enter y espera ?q=CH (node --check ok; no se corrió: no hay servidor).
+- docs/adr/INDEX.md: fila 100 (método: expandir y contraer, rev. 2; verificado en DECISIONS.md:194-203 y ADR-100:10-11), filas 101 y 102.
+    05-adr-graph.txt  node scripts/adr-graph.mjs: 92 nodos, frontmatter agregado 0; graph.json suma ADR-098..102.
+    Numeración: 0 colisiones de ADR-101/102 ni ENG-340..353 en las 86 ramas remotas conocidas (sin fetch).
+- docs/agent/BACKLOG.md: ENG-349 (caja, con lo de MAGRA dicho como es), ENG-350 (cantidad 0, pide decisión), ENG-351 (gate AA a 0), ENG-352 (molde Chromium), ENG-353 (login sin rearmar).
+
+Verificación del árbol completo:
+- 06-tsc.txt       npx tsc --noEmit -p .  -> exit 0, 0 errores
+- 07-npm-test.txt  npm test -> 4078 tests, 4074 pass, 4 fail (los 4 conocidos del stub de xlsx: 3728, 3751, 3752, 3753), 0 saltados
+- 08-eslint.txt    eslint --max-warnings=0 sobre los 63 archivos de src tocados (08-eslint-archivos.txt) -> exit 0
+Postgres: local efímero (src/test/base-efimera.ts, /tmp/pgrun:5433). Ninguna base real tocada. Sin commit ni push.

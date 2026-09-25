@@ -1,0 +1,10 @@
+ADR-101 caja: un solo esperado (porción 1) — 2026-09-25
+01-rojo-antes-del-fix.txt   tests Postgres nuevos ANTES de tocar acciones: 3/3 fallan (no se asienta diferencia de apertura). Tests 2 y 3 fallaron además por compartir proceso; se separaron en 3 archivos.
+02-verde-tests-nuevos.txt   12/12 verdes (9 puros + 3 contra Postgres con RLS, acciones reales, negocios A y B).
+03-suite-caja.txt           28 archivos de caja y vecinos: 329/329.
+04-tsc.txt                  tsc --noEmit: 0 errores (exit 0).
+05-eslint.txt               eslint de los archivos tocados: exit 0.
+06-pantallas-y-vecinos.txt  tests de pantallas de caja y movil-plata: 71/71.
+07-npm-test.txt             suite entera: 4022/4026; las 4 que fallan son src/plugins/bancos/parser/xlsx.test.ts ("stub local de xlsx (CDN de sheetjs bloqueado en este entorno)"), ajenas.
+08-eslint-pantalla.txt      eslint de CajaRenglon.tsx (sólo texto): exit 0.
+Postgres local: estaba caído; se levantó con pg_ctl sobre /tmp/pgdata (puerto 5433, socket /tmp/pgrun).

@@ -1,0 +1,47 @@
+TAP version 13
+# Subtest: Caja del día abierta, en el navegador
+    # Subtest: el día abierto dice cuánto hay por medio, sólo de los medios que se movieron, y lo que entró hoy
+    ok 1 - el día abierto dice cuánto hay por medio, sólo de los medios que se movieron, y lo que entró hoy
+      ---
+      duration_ms: 569.422462
+      type: 'test'
+      ...
+    # Subtest: con una devolución que no pasó por el turno, se muestra, se confirma y se manda el esperado del libro
+    ok 2 - con una devolución que no pasó por el turno, se muestra, se confirma y se manda el esperado del libro
+      ---
+      duration_ms: 498.645293
+      type: 'test'
+      ...
+    # Subtest: sin turno abierto, el fondo se cuenta contra el libro y una diferencia se muestra antes de abrir
+    ok 3 - sin turno abierto, el fondo se cuenta contra el libro y una diferencia se muestra antes de abrir
+      ---
+      duration_ms: 464.848193
+      type: 'test'
+      ...
+    # Subtest: sin turno abierto, un fondo que coincide con el libro abre sin preguntar
+    ok 4 - sin turno abierto, un fondo que coincide con el libro abre sin preguntar
+      ---
+      duration_ms: 404.061094
+      type: 'test'
+      ...
+    # Subtest: 412 px con el CSS real y la piel: sin scroll horizontal y las teclas de 44 px
+    ok 5 - 412 px con el CSS real y la piel: sin scroll horizontal y las teclas de 44 px
+      ---
+      duration_ms: 466.316482
+      type: 'test'
+      ...
+    1..5
+ok 1 - Caja del día abierta, en el navegador
+  ---
+  duration_ms: 4409.448407
+  type: 'suite'
+  ...
+1..1
+# tests 5
+# suites 1
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5101.038086

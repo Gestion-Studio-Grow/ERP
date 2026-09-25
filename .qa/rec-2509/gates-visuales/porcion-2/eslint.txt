@@ -1,0 +1,1 @@
+eslint (5 archivos tocados): exit 0, sin avisos

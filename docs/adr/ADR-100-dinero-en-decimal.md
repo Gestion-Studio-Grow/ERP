@@ -7,10 +7,13 @@ depends_on: [ADR-022, ADR-064]
 
 # ADR-100 — El dinero se guarda y se calcula en decimal, con moneda: `numeric(14,2)` en la base y el Decimal de Prisma en el código
 
-**Estado:** Fondo aceptado; **método de migración pendiente del OK del dueño** (2026-09-25, integración
-D1-D4): el cambio en el lugar del punto 6 contradice `docs/agent/DECISIONS.md` §5.0 D1 («expandir y
-contraer, con reversa probada»), que es una decisión del dueño. Hasta que el dueño elija, no corre ninguna
-porción con migración; las objeciones abiertas de la revisión del plan están en `BACKLOG.md` ENG-011.
+**Estado:** Aceptado, fondo y método (revisión 2, 2026-09-25). El método de migración es el del
+dueño, **expandir y contraer con reversa probada** (`docs/agent/DECISIONS.md` §5.0, `:201-203`); el
+dueño aprobó mantenerlo el 25/09. La revisión 1 lo había reemplazado por un cambio de tipo en el
+lugar; la revisión 2 vuelve al método del dueño y responde las objeciones que la rev. 1 le hacía
+(punto 6 y «Sub-decisión de migración»). Las siete objeciones abiertas de ENG-011 quedan
+respondidas en `BACKLOG.md`. Nada aplicado en ninguna base real: cada expansión y la contracción
+llevan su OK del dueño en el momento.
 **Revisión 1 (2026-09-25)**. La decisión de fondo la tomó el
 dueño el 2026-09-24 (D1 → A, `docs/agent/DECISIONS.md` §5.0); este ADR fija el cómo. Dos
 revisiones refutaron la primera versión: la reversa de la migración deshacía cobros hechos
@@ -117,21 +120,21 @@ redondeo único falla por sí solo, y los puntos 2 y 4 que la regla no está en 
    `MovimientoImportado` (el importador no sabe la moneda de la cuenta: un `DEFAULT 'ARS'`
    rotularía pesos un extracto en dólares). Las dos van al ADR que habilite otra moneda, igual que
    la conversión en el libro IVA, que hoy lee los importes de `Invoice` sin convertir.
-6. **Migración en el lugar, por porción, con respaldo aditivo.** Antes de cada porción, un chequeo
-   de sólo lectura en Neon es obligatorio (rev. 1). Cada porción agrega `<campo>_float` (copia
-   exacta de la Float), cambia el tipo y verifica **cada fila contra su valor de antes** (la Float
-   leída como decimal), no contra su propio redondeo (rev. 1), dentro de un solo bloque: si algo
-   no coincide, no queda nada hecho. **Una fila con más decimales de los que entran frena la
-   migración** hasta que el dueño la autoriza por su id: redondearla es alterar un dato de un
-   cliente (la primera versión la redondeaba sin avisar). El bloque apaga `row_security`, así un
-   rol que migra sujeto a RLS falla en vez de verificar sólo lo que ve (reproducido). **La
-   reversa** va como migración nueva (así `_prisma_migrations` y `predeploy-check` siguen de
-   acuerdo con la base) y usa el respaldo **sólo si la fila sigue valiendo lo mismo**; si CH la
-   reescribió después de migrar, conserva el valor vigente (rev. 1: la primera versión devolvía
-   la seña de $3.000 de un turno ya cobrado por $12.000, con la caja en $12.000; reproducido y
-   corregido). Los respaldos se borran al final, en una migración destructiva con su propio OK.
-   No hay doble escritura: el código viejo y el nuevo leen y escriben la misma columna aunque
-   cambie de tipo (medido en las dos direcciones). El detalle está en `D1-PLAN.md` §5.
+6. **(rev. 2) Migración: expandir y contraer, por porción.** Antes de cada porción, un chequeo de
+   sólo lectura en Neon es obligatorio. **E (expandir):** una migración aditiva por porción agrega
+   `<campo>_num numeric(14,2)` (`numeric(18,6)` los costos unitarios), **nula y sin valor por
+   defecto**, y un trigger `d1_espejo` que mantiene las dos columnas iguales mientras conviven
+   (alta del código nuevo: la `Float` copia la nueva; alta o cambio del código viejo: la nueva es el
+   redondeo de la `Float`; NaN o infinito: error). En el mismo bloque rellena la nueva sin tocar la
+   `Float` (bit por bit), verifica cada fila contra su valor de antes y la vuelve obligatoria. **Una
+   fila con más decimales de los que entran frena la expansión** hasta que el dueño autoriza su
+   valor (tabla, columna, id, valor). El bloque apaga `row_security`: un rol sujeto a RLS falla en
+   vez de rellenar sólo lo que ve. **L (leer desde la nueva):** el código de la porción, en un PR
+   aparte y después de E, usa `Decimal @map("<campo>_num")`; la `Float` sale del schema y el espejo
+   la mantiene al día. **Vuelta atrás hasta la contracción: sólo el código** (revertir L o *Instant
+   Rollback*); la reversa de E, si hace falta, borra la columna nueva y el espejo y no reescribe
+   ningún importe. **C (contraer):** al final, con su propio OK, se borran el espejo y las 24 `Float`.
+   Detalle y prototipo medido: `D1-PLAN.md` §5 y `.qa/rec-2509/disenos-variantes-d1/`.
 7. **Fuera de este ADR:** las 9 columnas `Float` que no son plata (cantidades, kilos y
    porcentajes) siguen `Float` y entran al módulo por la regla de las 15 cifras.
 
@@ -155,28 +158,21 @@ dos veces, una para el tipo y otra para la unidad. ADR-057 la descartó por lo m
 (pesos), es el mismo tipo que Prisma ya devuelve para las 9 columnas decimales y el que ARCA
 entiende (texto decimal). El precio asumido está abajo.
 
-**Sub-decisión de migración · expandir y contraer con doble escritura por trigger.** Se
-construyó y se probó en local: columnas nuevas al lado, un trigger que copia en los dos
-sentidos, copia con verificación y borrado final. Anda, pero se descarta:
-- **El trigger es una segunda escritura en el camino de la plata**, justo lo que este sistema
-  aprendió a temer. Con un `DEFAULT 0` en la columna nueva (el que tiene la Float de
-  `Order.total`), un alta del código viejo por $100 queda en $0 en las dos columnas (medido).
-- Obliga a `@map` en `schema.prisma`, y `scripts/predeploy-check.mts:95-116` compara columnas por
-  el nombre del campo: con `@map`, el build de producción frenaría por una diferencia falsa.
-  Hoy hay 0 `@map` en el schema.
-- Después del borrado final, el código viejo ya no arranca ("The column `CashMovement.amount`
-  does not exist", medido): volver al código de antes queda prohibido desde ese día. Con el
-  cambio en el lugar, el código de antes anda antes y después, porque lee la columna `numeric`
-  como `number` (medido). Se vuelve a él revirtiendo el commit; el *Instant Rollback* sirve sólo
-  si es el deploy inmediatamente anterior, porque en Hobby no llega más atrás
-  (`docs/runbooks/migracion-caja-neon.md:153-154`; rev. 1).
-- Son 24 columnas, 13 triggers y un paso más con OK del dueño, para lograr lo que el cambio de
-  tipo verificado logra en un solo bloque atómico.
-
-Esto reemplaza el método "expandir y contraer" que anotó `DECISIONS.md` §5.0 para D1. Lo que ese
-método cuidaba se mantiene: primero se agrega (el respaldo), cada paso tiene reversa probada, se
-verifica por negocio y fila por fila, y el borrado de las Float va al final con su propio OK
-(`D1-PLAN.md` §5.1).
+**Sub-decisión de migración (rev. 2) · cambio de tipo en el lugar, con respaldo aditivo.** Lo
+propuso la rev. 1 y se probó en local (`.qa/D1/rev1/`, `.qa/D1/medicion/proto/p*_*.sql`): el código
+viejo y el nuevo leen y escriben la misma columna aunque cambie de tipo. Se descarta:
+- **Contradice la decisión del dueño** (`DECISIONS.md` §5.0) y el estándar (§2: «aditivas primero,
+  destructivas después»): el cambio de tipo reescribe la columna viva en el mismo paso.
+- **Su reversa reescribe importes:** tiene que decidir fila por fila si devuelve el respaldo o se
+  queda con el valor vigente. La primera versión se equivocó (devolvía la seña de $3.000 de un turno
+  cobrado por $12.000, reproducido). Con expandir y contraer, la reversa no reescribe nada: la
+  `Float` quedó al día.
+- Las tres razones con que la rev. 1 descartó expandir y contraer eran defectos del prototipo: la
+  columna nueva con `DEFAULT 0` (el alta de $100 que quedaba en $0; ahora nace sin default y queda
+  $100, medido), `predeploy-check` sin `@map` (se corrige en P0, criterio 12) y que el código viejo
+  no arranca después de contraer (cierto de toda contracción: por eso va última y con su OK).
+- El precio asumido de expandir y contraer: 13 triggers y una función durante la transición, un
+  deploy de código más por porción (E y L separados) y un `@map` permanente por columna.
 
 ## Consecuencias
 
@@ -216,9 +212,14 @@ verifica por negocio y fila por fila, y el borrado de las Float va al final con 
   nunca recibe un tipo de Prisma: recibe números. Es la regla que hoy se cumple (0 de 125
   Client Components importan `generated/prisma` en `08b4563`, 0 de 156 en el árbol de trabajo) y
   pasa a ser obligatoria.
-- **(−) Asumido: cada porción cambia el tipo con la tabla bloqueada** mientras se reescribe:
-  1,5 s en local para las 5 porciones juntas (38.284 importes); 0,22 s una tabla de 120.000
-  filas. En Neon no está medido: se aplica con el local cerrado.
+- **(−) Asumido (rev. 2): cada expansión toma la tabla en exclusiva** mientras agrega, rellena y
+  verifica. Con el cambio en el lugar se midió 1,5 s para las 5 porciones juntas en local; con el
+  espejo no está medido (criterio M7 de cada porción, sobre el seed de 50.000). En Neon no está
+  medido: se aplica con el local cerrado.
+- **(−) Asumido (rev. 2): durante la transición hay una segunda escritura en la base** (el espejo),
+  una sola función con tests (`D1-PLAN.md` P0 criterio 16), que se borra en la contracción. Es el
+  costo de que el código viejo y el nuevo convivan durante cada deploy sin buscar a mano los 64
+  escritores de las 24 columnas.
 - **(−) Asumido: durante la transición conviven tipos.** Un camino que lee una columna ya
   convertida y otra todavía `Float` convierte en el borde, con `desdeNumero`. Se termina cuando
   cierra la última porción.

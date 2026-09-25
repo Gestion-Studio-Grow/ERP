@@ -1,0 +1,29 @@
+Encargo disenos-variantes-d1, porción 1 (2026-09-25). Sólo documentos + prototipos SQL en Postgres local efímero.
+
+Base: Postgres 16.13 local (socket /tmp/pgrun, puerto 5433), una base nueva por corrida, borrada al terminar.
+  P="psql -X -q -h /tmp/pgrun -p 5433 -U postgres"; DB=erp_rec2509_<x>_$$
+  $P -d postgres -c "CREATE DATABASE $DB" && $P -d $DB -f <script>.sql > <script>.salida.txt 2>&1; $P -d postgres -c "DROP DATABASE $DB"
+
+1) variantes-borrador.sql  -> variantes-borrador.salida.txt   (ADR-102, borrador de migración)
+   11 casos, todos como se esperaba: CH sin cambios; SKU repetido mismo negocio rebota / otro negocio pasa;
+   combinación repetida rebota (también con eje 2 vacío, NULLS NOT DISTINCT); FK compuesta rebota un producto
+   de magra en un modelo de adosmanos (como dueño, sin RLS); CHECK variante sin opcion1; RESTRICT al borrar
+   un modelo con variantes; RLS con rol NOBYPASSRLS ve sólo lo suyo y no crea en otro negocio; stock del
+   modelo calculado = 7; vuelta atrás deja las variantes como productos sueltos con su stock.
+
+2) d1-expandir-contraer.sql (+ d1-expandir-bloque.sql) -> d1-expandir-contraer.salida.txt   (D1-PLAN rev. 2 §5)
+   E1 sin autorizar la fila con 1851,8505: frena "D1: … (ids: c)", 0 columnas nuevas.
+   E2 autorizada (tabla, columna, id, valor): pasa; Float intacta bit por bit (huella float8send igual).
+   T1 alta vieja $100 -> 100/100.00 (el caso que el prototipo descartado dejaba en $0).
+   T2 alta vieja sin importe -> 0/0.00.  T3 alta nueva sólo con la nueva -> Float 0.3.
+   T3b alta nueva con Float NOT NULL sin default -> pasa (7.25/7.25).
+   T4 increment viejo 0.30000000000000004+0.1 -> 0.4/0.40.  T5 seña 3000 + 9000 nuevo -> 12000/12000.00.
+   T6 update sin plata: nada.  T7 NaN -> error "D1: Order.subtotal no es un importe".
+   T8 fracción en vivo 10,005 -> nueva 10.01, el informe la lista.  T9 como rol NOBYPASSRLS con RLS: anda.
+   Reversa (DROP TRIGGER + DROP COLUMN): la Float tiene todo lo escrito en el medio.
+   Barrido 1.000.000 de x,xx5 en [0; 10.000): 0 hacia abajo con round(float8::numeric, 2).
+   Errores en la salida: 2, ambos esperados (E1 y T7).
+
+3) npx tsc --noEmit -> exit 0, 0 líneas (no se tocó código de la app).
+
+4) Evidencia de D1 rev. 1 traída del scratchpad a .qa/D1/medicion/ (objeción 3 de ENG-011); ver LEEME.txt.

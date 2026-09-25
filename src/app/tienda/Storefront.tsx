@@ -659,7 +659,7 @@ function StorefrontContent({
           </div>
           <div style={{ fontSize: 13, lineHeight: 1.9, opacity: 0.82 }}>
             <div style={foothead}>Contacto</div>
-            <div><button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer una consulta.`)} style={{ ...footlink, background: "none", border: "none", padding: 0, font: "inherit", cursor: "pointer" }}>WhatsApp</button></div>
+            <div><button type="button" onClick={() => requestWhatsApp(`¡Hola ${name}! Quiero hacer una consulta.`)} style={{ ...footlink, background: "none", border: "none", padding: 0, font: "inherit", cursor: "pointer", display: "inline-flex", alignItems: "center", minHeight: 44 }}>WhatsApp</button></div>
             {branding?.instagram && <div><a href={igUrl(branding.instagram)} target="_blank" rel="noopener noreferrer" style={footlink}>{igHandle(branding.instagram)}</a></div>}
             {branding?.email && <div><a href={`mailto:${branding.email}`} style={footlink}>{branding.email}</a></div>}
           </div>
@@ -790,16 +790,17 @@ const eyebrowStyle: CSSProperties = { fontSize: 12, letterSpacing: 3, textTransf
 function cta(bg: string, color: string, border?: string): CSSProperties {
   return { display: "grid", placeItems: "center", padding: "0 22px", borderRadius: 12, border: border ?? "none", background: bg, color, fontWeight: 700, fontSize: 15, cursor: "pointer", textDecoration: "none", height: 46 };
 }
-// display:inline-flex + minHeight 24 = área táctil AA (WCAG 2.5.8) sin cambiar el look
-// del CTA de texto ("Hacer pedido →" / "Lo quiero →"). Antes medían ~21px de alto.
-const linkCta: CSSProperties = { fontSize: 14, fontWeight: 700, textDecoration: "none", marginTop: 2, display: "inline-flex", alignItems: "center", minHeight: 24 };
+// display:inline-flex + minHeight 44 = el piso táctil de la casa (h-11, gate «visual-aa») sin
+// cambiar el look del CTA de texto ("Hacer pedido →" / "Lo quiero →"): crece el área, no la letra.
+const linkCta: CSSProperties = { fontSize: 14, fontWeight: 700, textDecoration: "none", marginTop: 2, display: "inline-flex", alignItems: "center", minHeight: 44 };
 
 function qtyBtn(bg: string, color: string): CSSProperties {
-  return { height: 34, minWidth: 34, borderRadius: 10, border: "none", background: bg, color, fontWeight: 700, fontSize: 16, cursor: "pointer" };
+  // 44 px: el «+» de cada producto es lo que más se toca desde el celular (antes 34 px).
+  return { height: 44, minWidth: 44, borderRadius: 10, border: "none", background: bg, color, fontWeight: 700, fontSize: 16, cursor: "pointer" };
 }
 const lbl: CSSProperties = { display: "grid", gap: 4, fontSize: 13 };
 const lblT: CSSProperties = { color: "var(--text-muted)" };
-const inp: CSSProperties = { border: "1px solid var(--line-strong)", borderRadius: 10, padding: "10px 12px", fontSize: 14, background: "var(--surface-raised)", color: "var(--text-strong)" };
+const inp: CSSProperties = { minHeight: 44, border: "1px solid var(--line-strong)", borderRadius: 10, padding: "10px 12px", fontSize: 14, background: "var(--surface-raised)", color: "var(--text-strong)" };
 const foothead: CSSProperties = { fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", opacity: 0.55, marginBottom: 8, fontWeight: 600 };
 const footlink: CSSProperties = { color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 };
 

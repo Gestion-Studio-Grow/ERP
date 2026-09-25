@@ -43,3 +43,21 @@ adosmanos
 /admin/usuarios → 200 /admin/no-disponible «Usuarios y permisos no está disponible»
 /admin/cierre-mes → 200 /admin/no-disponible «Cierre del mes no está disponible»
 
+shinevelas
+/admin/vender → 200 /admin/vender «Vender»
+/admin/catalogo?agregar=1 → 200 /admin/no-disponible «Catálogo no está disponible» formAlta=0
+/admin/compras → 200 /admin/compras «Recibir mercadería»
+/admin/reportes → 200 /admin/no-disponible «Reportes no está disponible»
+/admin/resultado → 200 /admin/no-disponible «Resultado del mes no está disponible»
+/admin/usuarios → 200 /admin/no-disponible «Usuarios y permisos no está disponible»
+/admin/cierre-mes → 200 /admin/no-disponible «Cierre del mes no está disponible»
+
+adosmanos
+/admin/vender → 200 /admin/vender «Vender»
+/admin/catalogo?agregar=1 → 200 /admin/no-disponible «Catálogo no está disponible» formAlta=0
+/admin/compras → 200 /admin/compras «Recibir mercadería»
+/admin/reportes → 200 /admin/no-disponible «Reportes no está disponible»
+/admin/resultado → 200 /admin/no-disponible «Resultado del mes no está disponible»
+/admin/usuarios → 200 /admin/no-disponible «Usuarios y permisos no está disponible»
+/admin/cierre-mes → 200 /admin/no-disponible «Cierre del mes no está disponible»
+

@@ -1,0 +1,53 @@
+/admin TODOS 
+/admin/auditoria TODOS 
+/admin/usuarios TODOS 
+/admin/localizacion TODOS 
+/admin/apariencia TODOS 
+/admin/turnos servicios puedeFaltar
+/admin/turnos/manana servicios puedeFaltar
+/admin/clientes TODOS puedeFaltar
+/admin/espera servicios puedeFaltar
+/admin/clientes/hoy TODOS puedeFaltar
+/admin/clientes/recuperar TODOS puedeFaltar
+/admin/clientes/duplicadas TODOS puedeFaltar
+/admin/resenas servicios puedeFaltar
+/admin/recordatorios servicios puedeFaltar
+/admin/campania TODOS puedeFaltar
+/admin/vender TODOS puedeFaltar
+/admin/pedidos TODOS puedeFaltar
+/admin/ventas TODOS puedeFaltar
+/admin/catalogo TODOS puedeFaltar
+/admin/catalogo/precios velas+padel+carniceria puedeFaltar
+/admin/catalogo/etiquetas velas+padel+carniceria puedeFaltar
+/admin/promociones TODOS puedeFaltar
+/admin/inventario velas+padel+carniceria puedeFaltar
+/admin/inventario/movimientos velas+padel+carniceria puedeFaltar
+/admin/ajustes/recuento velas+padel+carniceria puedeFaltar
+/admin/compras TODOS puedeFaltar
+/admin/ajustes TODOS puedeFaltar
+/admin/proveedores TODOS puedeFaltar
+/admin/compras/sugerido velas+padel+carniceria puedeFaltar
+/admin/lotes carniceria puedeFaltar
+/admin/despiece carniceria puedeFaltar
+/admin/devoluciones-proveedor TODOS puedeFaltar
+/admin/caja TODOS 
+/admin/caja/libro TODOS 
+/admin/caja/cierre TODOS 
+/admin/facturacion TODOS puedeFaltar
+/admin/facturacion/bancos TODOS puedeFaltar
+/admin/cierre-mes TODOS 
+/admin/reportes TODOS puedeFaltar
+/admin/cuentas-a-pagar TODOS puedeFaltar
+/admin/cuentas-a-cobrar TODOS puedeFaltar
+/admin/libros TODOS puedeFaltar
+/admin/reportes/margen TODOS puedeFaltar
+/admin/resultado TODOS puedeFaltar
+/admin/flujo TODOS puedeFaltar
+/admin/retenciones TODOS puedeFaltar
+/admin/comisiones servicios puedeFaltar
+/admin/locales TODOS puedeFaltar
+/admin/locales/ventas TODOS puedeFaltar
+/admin/locales/cajas TODOS puedeFaltar
+/admin/locales/stock velas+padel+carniceria puedeFaltar
+/admin/locales/catalogo velas+padel+carniceria puedeFaltar
+/admin/locales/traslados velas+padel+carniceria puedeFaltar

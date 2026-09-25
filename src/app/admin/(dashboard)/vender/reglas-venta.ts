@@ -69,6 +69,28 @@ export function calcularVuelto(total: number, pagoConRaw: string | null | undefi
   return { estado: "ok", vuelto: dif };
 }
 
+// ── LÍNEA SIN CANTIDAD: frena el cobro ───────────────────────────────────────
+//
+// Una línea con producto elegido y sin cantidad (vacía, 0 o negativa) NO viaja al servidor: los
+// campos ocultos de la línea sólo salen con cantidad, y el alta sólo cuenta las líneas con
+// cantidad positiva. Si el botón dejara cobrar, el ticket saldría sin ella, cobrado de menos y
+// sin que nadie lo note (pendiente #17). La usan las tres pantallas de venta: Vender (las dos
+// vistas) y el POS de la bandeja. La cantidad ILEGIBLE («1kg2») no entra acá: tiene su propio
+// aviso en la fila y su propio freno. La línea en blanco (sin producto) tampoco: es el renglón
+// para el próximo producto.
+
+/** La primera línea del ticket con producto y sin cantidad que valga, o `undefined`. */
+export function lineaSinCantidad<L extends { productId: string; qty: number; invalida: boolean }>(
+  lineas: readonly L[],
+): L | undefined {
+  return lineas.find((l) => l.productId !== "" && !l.invalida && !(l.qty > 0));
+}
+
+/** Lo que dice el botón de cobrar frenado: qué falta y de cuál («Falta el peso de Vacío»). */
+export function motivoDeLineaSinCantidad(producto: { name: string; saleUnit: "UNIT" | "WEIGHT" } | undefined): string {
+  return `Falta ${producto?.saleUnit === "WEIGHT" ? "el peso" : "la cantidad"} de ${producto?.name ?? "un producto"}`;
+}
+
 // ── MÁS VENDIDOS: los 8 botones rápidos ──────────────────────────────────────
 
 export const BOTONES_RAPIDOS = 8;

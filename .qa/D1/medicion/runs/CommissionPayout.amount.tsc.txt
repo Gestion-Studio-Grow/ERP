@@ -1,0 +1,4 @@
+src/lib/commission-actions.ts(114,9): error TS2322: Type '{ id: string; professionalName: string; amount: Decimal; appointmentCount: number; periodStart: Date; periodEnd: Date; note: string | null; createdAt: Date; }[]' is not assignable to type 'PayoutHistoryRow[]'.
+  Type '{ id: string; professionalName: string; amount: Decimal; appointmentCount: number; periodStart: Date; periodEnd: Date; note: string | null; createdAt: Date; }' is not assignable to type 'PayoutHistoryRow'.
+    Types of property 'amount' are incompatible.
+      Type 'Decimal' is not assignable to type 'number'.

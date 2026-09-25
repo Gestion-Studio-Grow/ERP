@@ -1,0 +1,76 @@
+TAP version 13
+# Subtest: sin error en la dirección, el ingreso no muestra aviso
+ok 1 - sin error en la dirección, el ingreso no muestra aviso
+  ---
+  duration_ms: 1.451709
+  type: 'test'
+  ...
+# Subtest: clave equivocada: un solo mensaje que no revela si el email existe
+ok 2 - clave equivocada: un solo mensaje que no revela si el email existe
+  ---
+  duration_ms: 0.518518
+  type: 'test'
+  ...
+# Subtest: el aviso de bloqueo dice los intentos y los minutos de la regla real del login
+ok 3 - el aviso de bloqueo dice los intentos y los minutos de la regla real del login
+  ---
+  duration_ms: 0.335113
+  type: 'test'
+  ...
+# Subtest: si la regla cambia, el texto cambia con ella (nunca promete otro tiempo)
+ok 4 - si la regla cambia, el texto cambia con ella (nunca promete otro tiempo)
+  ---
+  duration_ms: 0.184424
+  type: 'test'
+  ...
+# Subtest: el folio del día es la fecha de la Argentina, no la del servidor en UTC
+ok 5 - el folio del día es la fecha de la Argentina, no la del servidor en UTC
+  ---
+  duration_ms: 0.228662
+  type: 'test'
+  ...
+# Subtest: con error, el email guardado vuelve al campo vacío
+ok 6 - con error, el email guardado vuelve al campo vacío
+  ---
+  duration_ms: 0.148356
+  type: 'test'
+  ...
+# Subtest: lo que ya está tipeado en el campo no se pisa con el guardado
+ok 7 - lo que ya está tipeado en el campo no se pisa con el guardado
+  ---
+  duration_ms: 0.258777
+  type: 'test'
+  ...
+# Subtest: sin error (entrada normal) el email no se completa solo
+ok 8 - sin error (entrada normal) el email no se completa solo
+  ---
+  duration_ms: 0.118256
+  type: 'test'
+  ...
+# Subtest: con error y nada guardado (otra pestaña), el campo queda como está
+ok 9 - con error y nada guardado (otra pestaña), el campo queda como está
+  ---
+  duration_ms: 0.307172
+  type: 'test'
+  ...
+# Subtest: con el email de vuelta, el cursor va a la contraseña; sin email, al email
+ok 10 - con el email de vuelta, el cursor va a la contraseña; sin email, al email
+  ---
+  duration_ms: 0.488677
+  type: 'test'
+  ...
+# Subtest: lo que se guarda en la pestaña es sólo el email: la clave no tiene clave de guardado
+ok 11 - lo que se guarda en la pestaña es sólo el email: la clave no tiene clave de guardado
+  ---
+  duration_ms: 0.270013
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 703.878254

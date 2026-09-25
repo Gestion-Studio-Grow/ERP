@@ -247,42 +247,57 @@ se lo referencia y sólo se agregan los criterios del estándar que le faltan.
   de cupón de hace 19 meses, `purgeAuditLogs` en modo prueba cuenta 0 para borrar; el test falla
   si se saca la exención. (Alternativa válida: tablas propias con `tenantId` y RLS, Gate 2.)
 
-### ENG-011 · Dinero en decimal y con moneda · L · Gate 2 · **fondo decidido (D1 → A); plan en `D1-PLAN.md`, NO ejecutable todavía**
-- **Estado (2026-09-25, integración D1-D4).** Plan: `docs/agent/D1-PLAN.md` (revisión 1) y
-  `docs/adr/ADR-100-dinero-en-decimal.md`, partido en P0, PF, P1, P2a, P2b, P3, P4, P5 y M-D1-F.
-  P0 = ENG-109 (su criterio 2 usa el patrón ampliado de P0 c3). PF entra en la tanda de D4
-  después de ENG-020 y ENG-021. El criterio 4 se enmienda: `CarniceriaRubro.sql:37` y `:62` van a
-  `numeric(18,6)` (costos unitarios), `:109` a `numeric(14,2)`. **Frenos antes de P1:**
-  (a) el método de migración (en el lugar, por porción) contradice `DECISIONS.md` §5.0 D1
-  (`:177-180`, «expandir y contraer»): decide el dueño; (b) seis objeciones abiertas de la
-  revisión del plan, sin resolver:
-  1. La reversa queda bloqueada: `D1-PLAN.md` §5.6.3 y §5.6.6 (`:854-865`) mandan revertir el
-     commit de la migración, y `scripts/predeploy-check.mts:223-231` rechaza toda migración aplicada
-     que no esté en el repo (reproducido: `LOTE RECHAZADO … 20260930000000_d1_p1_caja_y_cobros`, exit 1).
-     Arreglo: el revert del código conserva `prisma/migrations/<d1>` y su línea en `lote-deploy.txt`;
-     sumar ese recorrido a M4 (`.qa/D1/rev1/probar-prisma.sh`) y decir cuándo se saca
-     `MIGRATE_DATABASE_URL` (§5.6.5).
-  2. Falta la guarda de escritura: Prisma acepta `number` en campos Decimal
-     (`src/generated/prisma/models/Invoice.ts:525-527`), así que «tsc los obliga»
-     (`D1-PLAN.md:921-923`) es falso y la base redondearía sin avisar (contra R2, `:409`). Criterio
-     nuevo: test, extensión de Prisma o regla de lint que rechace un `number` en campos Decimal.
-  3. La evidencia del plan vive en el scratchpad (`D1-PLAN.md:69`, tabla `:76-82`): llevarla a
-     `.qa/D1/` antes de ejecutar (§7.4, §11).
-  4. Sumas de plata en float que ningún criterio de P5 detecta (72 `reduce(... + ...)` en `src`;
-     p. ej. `libros/LibrosClient.tsx:110`, `caja/libro/LibroRenglon.tsx:241-242`,
-     `inicio/InicioRenglon.tsx:260`, `facturacion/bancos/page.tsx:135`, `reportes/margen/page.tsx:77-78`).
-  5. §5.7 consulta 2 (`:885-894`, con `:708` y `:721`): una fila autorizada con fracción queda en
-     `round(x,2)` y puede diferir 1 centavo de la factura con CAE (`fiscal.ts:286-291`, `round2`
-     baja empates) y del movimiento de caja. La consulta tiene que traer factura, CashMovement y
-     día cerrado (`caja/frontera-cierre.ts:48`) y proponer el valor ya facturado o cobrado.
-  6. P5 criterio 3 (`D1-PLAN.md:1193-1194`, «resultado = caja al centavo») contradice
-     `src/lib/reports/resultado.ts:6-32`: reemplazarlo por (a) cada movimiento del libro cae en una
-     sola categoría y la suma da el neto del libro; (b) ventas del resultado = Order.total +
-     Payment.amount del mes con el mismo reloj que Reportes.
-  Cuando la porción de `Invoice` agregue `moneda` y `cotizacion`, el trigger de ENG-022
-  (`20260925150000_comprobante_autorizado_inmutable`) las tiene que proteger en la misma migración.
-  Mediciones de sólo lectura en Neon que el plan necesita (§5.7, §3.4, cupones de CH en el
-  mostrador, `CarniceriaRubro.sql` y `lote-deploy.txt`): van con ENG-204.
+### ENG-011 · Dinero en decimal y con moneda · L · Gate 2 · **fondo y método decididos (D1 → A, expandir y contraer); P0 listo para arrancar; P1 en adelante, cada expansión con OK del dueño**
+- **Estado (2026-09-25, D1-PLAN revisión 2).** Plan: `docs/agent/D1-PLAN.md` (rev. 2) y
+  `docs/adr/ADR-100-dinero-en-decimal.md`, partido en P0, PF, P1, P2a, P2b, P3, P4, P5 y M-D1-C.
+  P0 = ENG-109 + criterios 12 a 16 del plan (sin migración: **listo para arrancar**). PF entra en la
+  tanda de D4 después de ENG-020 y ENG-021. El criterio 4 se enmienda: `CarniceriaRubro.sql:37` y
+  `:62` van a `numeric(18,6)` (costos unitarios), `:109` a `numeric(14,2)`. Prototipo del método,
+  medido en Postgres 16.13 local: `.qa/rec-2509/disenos-variantes-d1/d1-expandir-contraer.salida.txt`
+  (E1, E2, T1 a T9, T3b y el barrido de 1.000.000 de x,xx5: 0 hacia abajo).
+  **Las siete objeciones que frenaban P1, resueltas:**
+  - **(a) El método contradecía `DECISIONS.md` §5.0** (`:201-203`). → Vuelve el del dueño: expandir
+    (columna `numeric` nueva, nula y sin default, + espejo en la base + relleno verificable), leer
+    desde la nueva en un deploy aparte (`@map`), contraer al final con su OK (`D1-PLAN.md` §5.1-§5.4,
+    ADR-100 punto 6). Las tres razones de la rev. 1 contra el método eran del prototipo: el alta de
+    $100 que quedaba en $0 venía del `DEFAULT 0` de la columna nueva (`.qa/D1/medicion/proto/m1-expandir.sql:23`;
+    sin default queda $100, T1); el `@map` se arregla en `predeploy-check` (P0 criterio 12); y que
+    el código viejo no arranque tras contraer vale para toda contracción (M-D1-C va última, con OK).
+  1. **La reversa quedaba bloqueada por `scripts/predeploy-check.mts:223-231`.** → La expansión viaja
+     en un PR propio y el código (L) en otro, después (`D1-PLAN.md` §5.6 paso 3): revertir el código
+     nunca saca `prisma/migrations/<d1>` ni su línea de `lote-deploy.txt`, y hasta M-D1-C volver atrás
+     es sólo el código (la `Float` está al día por el espejo, T5). El recorrido E → L → revertir L →
+     `predeploy-check` en modo lote pasa es el criterio M4 (se suma a `.qa/D1/rev1/probar-prisma.sh`).
+     `MIGRATE_DATABASE_URL` se saca apenas termina el build que aplicó E, antes de publicar L (§5.6
+     paso 5).
+  2. **Faltaba la guarda de escritura** (Prisma acepta `number` en `Decimal`,
+     `src/generated/prisma/models/Invoice.ts:525-527`). → P0 criterio 13: extensión de Prisma en la
+     cadena de `tenant-scope` que rechaza un `number` que la columna redondearía (más decimales que
+     su escala), NaN o infinito, en escrituras anidadas incluidas; frena en test y desarrollo, avisa
+     en producción hasta P5 (criterio 6), que la pasa a frenar.
+  3. **La evidencia vivía en el scratchpad** (`D1-PLAN.md` §1). → Copiada a `.qa/D1/medicion/`
+     (27 corridas de `tsc`, `escritores.tsv`, prototipos; `LEEME.txt` dice qué es historia) y §1 la
+     cita; P0 criterio 15.
+  4. **Sumas de plata en float que P5 no detectaba.** → P0 criterio 14: cerrojo por test con lista
+     `PENDIENTES` (100 líneas con `reduce(... => a + …)` en `src` sin tests, medido 2026-09-25, con
+     las cinco de la revisión adentro: `libros/LibrosClient.tsx:110`, `caja/libro/LibroRenglon.tsx:241-242`,
+     `inicio/InicioRenglon.tsx:260`, `facturacion/bancos/page.tsx:135`, `reportes/margen/page.tsx:77-78`);
+     cada porción saca las suyas y P5 criterio 6 exige la lista vacía.
+  5. **§5.7 consulta 2: una fila con fracción podía quedar 1 centavo lejos de la factura con CAE**
+     (`src/lib/fiscal.ts:286-291`). → La consulta trae factura (con o sin CAE), lo que entró a la caja
+     (`CashMovement.paymentId`) y el día cerrado (`src/lib/caja/frontera-cierre.ts:48`), y propone el
+     valor ya facturado o cobrado; la autorización pasa a ser por (tabla, columna, id, **valor**) y la
+     `Float` de esa fila no se toca (E2, huella igual).
+  6. **P5 criterio 3 («resultado = caja al centavo») contradecía `src/lib/reports/resultado.ts:6-32`.**
+     → Reemplazado: (a) cada movimiento del libro cae en una sola categoría del resultado y la suma da
+     el neto del libro; (b) ventas del resultado = `Order.total` + `Payment.amount` del mes, con el
+     mismo reloj que Reportes.
+  Sigue vigente: cuando PF agregue `moneda` y `cotizacion` a `Invoice`, el trigger de ENG-022
+  (`20260925150000_comprobante_autorizado_inmutable`) las protege en la misma migración (D1-PLAN §5.3,
+  M-D1-0). Mediciones de sólo lectura en Neon que el plan necesita (§5.7, §3.4, cupones de CH en el
+  mostrador, `CarniceriaRubro.sql`, `lote-deploy.txt` y la versión de Postgres): van con ENG-204.
+  **Qué decide el dueño, y cuándo:** el OK de cada expansión (M-D1-1 a M-D1-5), con el chequeo previo
+  de §5.7 a la vista y las filas con fracción una por una; y el OK de M-D1-C, al final.
 - **Qué.** Los importes pasan de Float a `Decimal(14,2)` con moneda explícita; el código usa un
   tipo decimal de punta a punta.
 - **Por qué.** 24 de 33 campos de importe son Float y 9 son `Decimal(14,2)`; 0 columnas de moneda
@@ -742,7 +757,13 @@ Formato corto: qué · evidencia · criterio · tamaño. Van después de las ALT
 - **ENG-326 · Guardar la clase A que ARCA le asignó al inscripto y la condición de IVA del negocio · S · fiscal · necesita migración (estacionada).** Desde COMPROBANTE el tipo sale de `decidirComprobante` (`plugins/arca/domain/comprobante.ts`, `decidirDelEvento`): un Responsable Inscripto sin `regimenFacturaA` no emite ninguna A sola (va rechazada con el motivo REGIMEN_A_A_CONFIRMAR). `Tenant` no tiene `arcaCondicionIva` ni el régimen (`lib/fiscal.ts:241-245` sólo lee CUIT, punto de venta y homologación), así que hoy todo negocio emite como Monotributo (C). *Criterio:* columnas aditivas con reversa probada; `fiscal.ts` las lee; `invoice-core` las pone en el evento (`EmisorEvento.regimenFacturaA`); test que emite A con régimen "A" y rechaza con "M". Origen: COMPROBANTE, porción 1.
 - **ENG-327 · El impreso lleva las leyendas de la decisión (RG 5003/2021, Ley 27.743) · S · fiscal.** `ComprobanteArca.leyendas` las trae (A a monotributista: la de la Ley 27.618), pero el impreso y el PDF no las muestran. *Criterio:* test del impreso de una A a monotributista con el texto exacto. Origen: COMPROBANTE, porción 1.
 - **ENG-328 · Una factura de Mercado Pago de un pedido no frena la anulación del pedido · S · fiscal · sin medir.** `invoice-from-mp.ts` factura con origen `mpPaymentId`; `tomarPedidoNoAnulado` (`invoice-core.ts`) y `leerFactura` (`order-anulacion.ts:388-391`) sólo miran `orderId`. `grep -n "orderId\|external_reference" src/lib/invoice-from-mp.ts src/lib/mercadopago-auto.ts` = 0: la facturación automática de MP no sabe si el pago es de un pedido. *Criterio:* medir si un pago de checkout de un pedido entra a la conciliación automática; si entra, excluirlo o enlazarlo al pedido, con test en Postgres que anule el pedido con la factura de MP viva y se rechace. Origen: revisión de COMPROBANTE, vuelta 1.
-- **ENG-329 · El tope mensual de facturas cuenta las rechazadas · S · planes (decisión del dueño).** `contarFacturasDelMes` (`bancos-glue.ts:518-523`) cuenta todas las facturas del mes, también las REJECTED, que no tienen CAE. Desde COMPROBANTE el despacho rechaza por umbral, ventana de fechas e IVA por producto, y cada rechazo le gasta un cupo al usuario (una de Facturita no tiene origen y no se puede volver a facturar). *Criterio:* con la decisión del dueño, `status: { not: "REJECTED" }` y test que emite una rechazada y el cupo no baja. Origen: revisión de COMPROBANTE, vuelta 1.
+- **ENG-329 · El tope mensual de facturas cuenta las rechazadas · S · planes (decisión del dueño) · CERRADO 2026-09-25 (sin commitear).** `contarFacturasDelMes` (`bancos-glue.ts:518-523`) cuenta todas las facturas del mes, también las REJECTED, que no tienen CAE. Desde COMPROBANTE el despacho rechaza por umbral, ventana de fechas e IVA por producto, y cada rechazo le gasta un cupo al usuario (una de Facturita no tiene origen y no se puede volver a facturar). *Criterio:* con la decisión del dueño, `status: { not: "REJECTED" }` y test que emite una rechazada y el cupo no baja. Origen: revisión de COMPROBANTE, vuelta 1.
+- **ENG-349 · Caja: un solo esperado (ADR-101) · M · plata · CERRADO en el código 2026-09-25 (sin commitear ni desplegar).** El turno se abría y cerraba contra fondo + efectivo del turno y el cierre del día contra el libro: dos esperados para el mismo cajón. Ahora `openCashSession`/`closeCashSession` (`src/lib/caja-actions.ts:147`, `:259`) comparan contra `saldoEfectivoDelLibro` y las dos pantallas muestran y hacen confirmar ese número (`src/lib/caja/esperado-del-cajon.ts`), con el renglón del efectivo fuera del turno; si el libro cambia mientras se cuenta, no se graba. *Evidencia:* `.qa/rec-2509/caja/v2/` (4 archivos contra Postgres con RLS, Chromium 5/5, mutaciones que fallan). *Queda:* (a) al desplegar, la primera apertura de cada negocio con cajón (MAGRA, shinevelas, adosmanos) asienta una vez la diferencia acumulada entre libro y cajón; (b) el faltante de MAGRA de $146.578,25 NO se corrige con esto: se asienta el mismo monto, al abrir en lugar de al cerrar. La causa real no está reproducida con datos de MAGRA (el test siembra la cifra); si el negocio lo confirma falso, se corrige con un ingreso fechado hoy desde el libro. Lo decide el negocio.
+- **ENG-350 · Una línea con producto y cantidad 0 no se descarta en silencio · S · ventas · pide decisión.** `pedidasValidas` (`src/lib/order-core.ts:309-311`, usado en `:490`) ignora las líneas con cantidad ≤ 0 o no numérica si hay otras válidas. Las pantallas de venta ya lo frenan; la vidriera y la API no. *Propuesta:* en `decidirAlta`, antes de `pedidasValidas`, `RechazoDeDominio("Falta la cantidad de un producto: cargala o sacá la línea.")` si alguna línea con producto no tiene cantidad > 0, con test de dominio. *Decisión pendiente:* cambia la respuesta de la vidriera y de la API (hoy ignora; pasaría a rechazar el pedido entero).
+- **ENG-351 · El gate visual AA baja a 0 · S · sin medir.** Tras corregir el contraste de «Ver el libro del mes →» (`caja/cierre/page.tsx:111`, `text-accent-ink`, test `enlaces-sobre-el-fondo-aa.test.ts`), quedan 4 toques chicos sin ubicar del run 36133219110. *Criterio:* bajar el `report.json` del artefacto «visual-aa-screenshots» (o correr `npm run gate:visual:aa` con build y servidor), filtrar `touchFails` (`scripts/qa/visual-audit.mjs:392`), arreglarlos y ver el gate en 0.
+- **ENG-352 · Un solo molde de Chromium para los tests de pantalla · S.** `rutaDeChromium`/`prepararNavegador` se repiten en caja-teclado, caja-renglon, vender-pantalla, ingreso-pantalla, recuento-pantalla, alta-producto y pie-pegado-zona-segura. *Criterio:* todos usan `src/test/navegador.ts` / `src/test/navegador-componentes.ts`; 0 copias de `rutaDeChromium` fuera de `src/test/`.
+- **ENG-353 · Login sin rearmar la pantalla · S · opcional.** `login()` (`src/lib/auth-actions.ts:38`) redirige a `?error=1`; devolver `{ error }` y usar `useActionState` conserva lo tipeado. Sin cambio de seguridad ni del limitador. *Criterio:* test del formulario que falla la clave y conserva el usuario.
+  *Cierre (decisión del dueño 25/09: cuentan las no rechazadas).* El cupo vive en UN lugar: `filtrosFacturacionMes().cupo` (`bancos-glue.ts`) = emitidas en el mes por `createdAt` con `status: { not: "REJECTED" }`; `contarFacturasDelMes` usa ese mismo `where`, así que el bloqueo de `emitirPropuestas`, Facturita, el automático de Mercado Pago, la pantalla de bancos, el Inicio de facturación automática y la cartera/monitor del contador (`cartera-core.ts:303`) cuentan igual. Nuevo corte `emitido` (todo estado) para el tile "N comprobantes este mes · M rechazados" (`apps/kpis/finanzas.server.ts`), que no cambia. *Evidencia:* `.qa/rec-2509/tope-facturas/` — `rojo-antes.txt` (2/2 fallan antes del cambio: contaba la rechazada), `verde-postgres.txt` (2/2 contra Postgres efímero con RLS: autorizada y pendiente cuentan, rechazada y mes anterior no, A y B no se mezclan, camino real `createInvoice` → `markInvoiceRejected` devuelve el lugar), `unitarios.txt` (142/142), `umbral-seis-caminos-postgres.txt` (7/7), `tsc.txt` (0 errores), `eslint.txt` (limpio). Pendiente fuera de este slice: el límite `comprobantesMes` del catálogo de planes (`planes/limites.ts`) todavía no tiene contador; cuando se escriba, que use `filtrosFacturacionMes().cupo` y su texto "Comprobantes emitidos en el mes calendario" diga "sin contar los rechazados por ARCA".
 - **ENG-330 · Los códigos 600 y 601 de ARCA (credencial) se reintentan como pasajeros · S · fiscal.** `plugins/arca/domain/errores-arca.ts:20-21` los pone en `CODIGOS_PASAJEROS_ARCA`: un token vencido o de otro CUIT se reintenta sin mostrarse como error de configuración. *Criterio:* 600 renueva el token y reintenta una vez; 601 deja el envío en espera con "revisá la credencial de ARCA" visible al dueño, sin rechazar la factura; test de contrato con la respuesta armada desde la especificación (provisional a confirmar). Origen: revisión de COMPROBANTE, vuelta 1.
 - **ENG-331 · TRUNCATE de `Invoice` saltea la protección de ENG-022 · S · fiscal.** El trigger de `20260925150000_comprobante_autorizado_inmutable` es por fila y TRUNCATE no lo dispara. `app_rls` no tiene TRUNCATE (`prisma/rls/0002_app_role.sql:58`), el dueño de las tablas sí (y también puede `DISABLE TRIGGER`). *Criterio:* migración aditiva con un trigger `BEFORE TRUNCATE ... FOR EACH STATEMENT` que falla si hay alguna fila con CAE; test contra Postgres que el TRUNCATE con una autorizada falla y sin autorizadas pasa; reversa probada. Además, el guion de reset de datos transaccionales (si se escribe) excluye las facturas con CAE, salvo las de homologación (según la revisión fiscal de la vuelta 1, con la facturación apagada en producción los CAE de hoy son de prueba; confirmar contra `isInvoicingEnabled` antes de escribir el guion): ese paso se escribe con `DISABLE TRIGGER` explícito, acta y quién lo autoriza (el dueño). En el mismo documento, el procedimiento para corregir el registro LOCAL de una autorizada que no coincide con ARCA (p. ej. una adopción de ENG-020 mal grabada): nunca se toca ARCA, se corrige con `DISABLE TRIGGER` dentro de una transacción, con auditoría. Origen: ENG-022 (revisión fiscal, vuelta 1).
 - **ENG-332 · Una factura enviada a ARCA sin respuesta todavía se puede borrar · S · fiscal.** El trigger de ENG-022 protege sólo filas con CAE o AUTHORIZED. Si ARCA autorizó y la respuesta se perdió, la fila queda PENDING sin CAE y se puede borrar a nivel base; la venta se volvería a facturar y quedaría un comprobante vivo en ARCA sin registro local. Hoy ningún camino del código borra facturas (`.qa/ENG-022/caminos-del-codigo.txt`), por eso no es regresión. *Criterio:* el DELETE de toda factura que tenga un envío a ARCA (evento del outbox procesado o con intentos) falla en la base; test contra Postgres como `app_rls`; reversa probada. Origen: ENG-022 (revisión fiscal, vuelta 1).
@@ -779,6 +800,65 @@ Formato corto: qué · evidencia · criterio · tamaño. Van después de las ALT
 - **ENG-133 · Reglas de negocio duplicadas · S.** "Turno vivo" en 6 lugares; la cancelación pública usa otra regla que la página (`reserva/turno/[id]/page.tsx:37` vs `client-actions.ts:79-87`); las reglas del cierre reescritas en el cliente (`src/app/admin/(dashboard)/caja/cierre/revisar-cierre.ts:15-18`). *Criterio:* un solo predicado por regla, usado por la página y por las acciones (test de igualdad).
 
 ---
+
+### Variantes de producto (talle, color) · ADR-102 · A Dos Manos primero
+
+Diseño en `docs/adr/ADR-102-variantes-de-producto.md`: cada variante es un `Product` (su stock, precio,
+costo y SKU en su fila); un modelo nuevo, `ProductGroup`, las agrupa y no tiene precio ni stock.
+Ningún camino de plata ni de stock cambia. Borrador de la migración probado en Postgres local
+(11 casos, `.qa/rec-2509/disenos-variantes-d1/variantes-borrador.salida.txt`). Orden: 340 → 341 →
+343 → 342 → 344 → 345 → 346 → 347 → 348. Todo criterio de integración corre en la base efímera
+(`src/test/base-efimera.ts`) como `app_rls`. **Para CH nada cambia:** ninguno de estos slices
+modifica un producto sin `groupId`, y cada uno lleva un test que lo demuestra.
+
+- **ENG-340 · El modelo y las variantes en la base · M · migración aditiva (OK del dueño para Neon).**
+  `ProductGroup` + `Product.groupId/sku/opcion1/opcion2`, FK compuesta (`groupId`, `tenantId`), SKU
+  único por negocio, combinación única con `NULLS NOT DISTINCT`, RLS `tenant_isolation`, sin DELETE
+  para `app_rls`. *Criterios:* (1) la migración sube, baja y vuelve a subir en la base efímera; los
+  productos, su stock y sus ventas quedan iguales después de bajar (huella); (2) aislamiento: como
+  `app_rls` con el negocio A, un modelo de B no se lee, no se edita y crearlo con `tenantId` de B
+  rebota; como dueño y sin RLS, colgar un producto de A de un modelo de B rebota por la FK; (3) SKU
+  repetido en el mismo negocio rebota y en otro pasa; combinación repetida rebota, también con el
+  segundo eje vacío; (4) `predeploy-check` verde con la columna nueva; (5) los productos de
+  `beauty-spa` se leen igual antes y después (test); (6) versión de Postgres de Neon medida (ENG-204):
+  si es menor que 15, el índice va con `COALESCE("opcion2", '')`.
+- **ENG-341 · Crear un modelo con su grilla, en Catálogo · M.** Dominio puro `armarGrilla(ejes,
+  valores, precio)` y `nombreDeVariante` (`src/lib/catalogo/variantes.ts`); acción de servidor con
+  la capability de catálogo, una transacción, auditoría. *Criterios:* (1) 8 talles × 3 colores = 24
+  variantes con nombre «Modelo — 42 · Negro», sin repetidas, tope 100 (*provisional a confirmar*);
+  (2) renombrar el modelo renombra sus 24 variantes en una transacción, y si una falla no cambia
+  ninguna; (3) sacar una variante del modelo escribe `groupId: null` (nunca `disconnect`, que
+  pondría `tenantId` en nulo); (4) test de la acción con otro negocio: rebota sin revelar si el
+  modelo existe; (5) Catálogo agrupa las variantes bajo su modelo, con stock total calculado;
+  recorrido en el navegador a 1440 y 390 px sin errores de consola.
+- **ENG-342 · El precio del modelo en una sola acción · S · plata.** Pone un precio a todas (o a las
+  elegidas) por `src/lib/catalogo/precios-tx.ts`, con `precios-auditoria.ts`: no es un escritor nuevo
+  de `Product.price` (D1 P2b lo migra con el resto). *Criterios:* 24 variantes cambian en una
+  transacción serializable; una fila de auditoría por variante; si una falla, ninguna cambia; la
+  pantalla muestra el rango mínimo–máximo cuando alguna tiene precio propio.
+- **ENG-343 · La vidriera con selector de talle y color · M · lo que ve el cliente final.**
+  `src/app/tienda/vidriera/catalogo-core.ts` agrupa por `groupId`. *Criterios:* (1) test de dominio:
+  un modelo de 24 variantes es una tarjeta; la combinación sin stock (con `trackStock`) queda
+  deshabilitada; el precio mostrado es el de la variante elegida; (2) el carrito lleva el
+  `productId` de la variante y el pedido y el mensaje de WhatsApp muestran el nombre completo; (3)
+  una vidriera sin modelos se ve igual que hoy (test con los productos de magra y de Shine);
+  (4) recorrido E2E: elegir talle y color, agregar, pedir, a 1440 y 390 px.
+- **ENG-344 · Vender busca por SKU · S.** *Criterios:* el SKU exacto encuentra su variante; un
+  lector de código de barras (texto + Enter) la agrega al ticket; el SKU de otro negocio no aparece
+  (test de aislamiento).
+- **ENG-345 · Compra por curva de talles · S · stock.** *Criterios:* la grilla talle × cantidad arma
+  N renglones en la misma compra; el stock de cada variante sube por `recordMovement`
+  (`src/lib/stock/ledger.ts:144`), no por otro camino; test en Postgres con dos compras a la vez
+  sobre la misma variante: stock final = suma de las dos.
+- **ENG-346 · Stock y «más vendidos» por modelo · S.** *Criterios:* stock del modelo = Σ variantes
+  (calculado, nunca guardado); «más vendidos» por modelo = Σ renglones de sus variantes; una variante
+  dada de baja (`deletedAt`) sigue sumando sus ventas al modelo.
+- **ENG-347 · La planilla de catálogo con SKU y modelo · S.** `catalogo/planilla-core.ts` exporta e
+  importa SKU, modelo, opción 1 y opción 2. *Criterios:* ida y vuelta de una planilla con 2 modelos
+  y 30 variantes sin diferencias; una fila con SKU repetido se rechaza con el número de fila.
+- **ENG-348 · La réplica de marca copia el modelo · S · sin medir.** `multilocal/catalogo-marca-core.ts`
+  copia productos entre locales. *Criterios:* medir cómo copia hoy; si replica variantes, el local
+  recibe también su modelo (con su `tenantId`) y la FK compuesta no rebota; test con 2 locales.
 
 ## 6. Slices que habilitan mediciones ("sin medir" en HEALTH.md)
 

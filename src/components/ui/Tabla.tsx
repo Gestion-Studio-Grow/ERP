@@ -323,7 +323,12 @@ export function Tabla<T>({
         <tbody ref={cuerpo}>
           {filas.length === 0 && (
             <tr data-parte="vacio">
-              <td colSpan={columnas.length + (seleccion ? 1 : 0)}>{vacio ?? "No hay nada con estos filtros."}</td>
+              {/* En el celular el renglón es una grilla de tres columnas y este td no tiene lugar
+                  propio: sin gridColumn caía en la primera (ancho 0) y salía una palabra por renglón.
+                  En la PC es una celda de tabla y la regla no hace nada. */}
+              <td colSpan={columnas.length + (seleccion ? 1 : 0)} style={{ gridColumn: "1 / -1" }}>
+                {vacio ?? "No hay nada con estos filtros."}
+              </td>
             </tr>
           )}
           {filas.map((f, i) => {

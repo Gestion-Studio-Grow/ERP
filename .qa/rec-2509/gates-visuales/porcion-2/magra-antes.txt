@@ -1,0 +1,17 @@
+    not ok 1 - magra-demo: ningún botón chico, texto legible y sin scroll de costado
+        Hacer pedido → 121×28
+        Hacer pedido → 121×28
+        Hacer pedido → 121×28
+        0: '+ 40×40'
+        1: '+ 40×40'
+        2: '+ 40×40'
+        3: '+ 40×40'
+        4: '+ 40×40'
+        5: '+ 40×40'
+        6: '+ 40×40'
+        7: '+ 40×40'
+        8: 'Hacer pedido → 121×28'
+        9: 'Hacer pedido → 121×28'
+        10: 'Hacer pedido → 121×28'
+# pass 0
+# fail 1

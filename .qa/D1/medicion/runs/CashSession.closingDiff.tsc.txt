@@ -1,0 +1,4 @@
+src/app/admin/(dashboard)/caja/page.tsx(341,73): error TS2365: Operator '<' cannot be applied to types 'number | Decimal' and 'number'.
+src/app/admin/(dashboard)/caja/page.tsx(342,53): error TS2365: Operator '<' cannot be applied to types 'number | Decimal' and 'number'.
+src/app/admin/(dashboard)/caja/page.tsx(354,61): error TS2345: Argument of type 'number | Decimal' is not assignable to parameter of type 'number'.
+  Type 'Decimal' is not assignable to type 'number'.

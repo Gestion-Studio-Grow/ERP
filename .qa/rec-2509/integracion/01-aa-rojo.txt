@@ -1,0 +1,79 @@
+TAP version 13
+# Subtest: Enlaces de texto del panel sobre el fondo: AA con los 7 acentos de marca
+    # Subtest: el acento crudo como texto NO llega con ámbar (el caso del gate: 4,33:1)
+    ok 1 - el acento crudo como texto NO llega con ámbar (el caso del gate: 4,33:1)
+      ---
+      duration_ms: 226.389328
+      type: 'test'
+      ...
+    # Subtest: /admin/proveedores (compras/page.tsx) se lee con todos los acentos
+    ok 2 - /admin/proveedores (compras/page.tsx) se lee con todos los acentos
+      ---
+      duration_ms: 1075.057477
+      type: 'test'
+      ...
+    # Subtest: /admin/compras/sugerido (compras/page.tsx) se lee con todos los acentos
+    ok 3 - /admin/compras/sugerido (compras/page.tsx) se lee con todos los acentos
+      ---
+      duration_ms: 991.129315
+      type: 'test'
+      ...
+    # Subtest: /admin/ajustes/recuento (ajustes/page.tsx) se lee con todos los acentos
+    ok 4 - /admin/ajustes/recuento (ajustes/page.tsx) se lee con todos los acentos
+      ---
+      duration_ms: 1048.075227
+      type: 'test'
+      ...
+    # Subtest: /admin/caja/libro (caja/cierre/page.tsx) se lee con todos los acentos
+    not ok 5 - /admin/caja/libro (caja/cierre/page.tsx) se lee con todos los acentos
+      ---
+      duration_ms: 979.321805
+      type: 'test'
+      location: '/home/user/erp/src/app/admin/(dashboard)/enlaces-sobre-el-fondo-aa.test.ts:2:3278'
+      failureType: 'testCodeFailure'
+      error: |-
+        texto por debajo de AA:
+        celeste: «enlace de prueba» 4.34:1
+        ambar: «enlace de prueba» 4.33:1
+        azul: «enlace de prueba» 4.31:1
+        + actual - expected
+        
+        + [
+        +   'celeste: «enlace de prueba» 4.34:1',
+        +   'ambar: «enlace de prueba» 4.33:1',
+        +   'azul: «enlace de prueba» 4.31:1'
+        + ]
+        - []
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected:
+      actual:
+        0: 'celeste: «enlace de prueba» 4.34:1'
+        1: 'ambar: «enlace de prueba» 4.33:1'
+        2: 'azul: «enlace de prueba» 4.31:1'
+      operator: 'deepStrictEqual'
+      stack: |-
+        TestContext.<anonymous> (/home/user/erp/src/app/admin/(dashboard)/enlaces-sobre-el-fondo-aa.test.ts:78:14)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    1..5
+not ok 1 - Enlaces de texto del panel sobre el fondo: AA con los 7 acentos de marca
+  ---
+  duration_ms: 6203.536134
+  type: 'suite'
+  location: '/home/user/erp/src/app/admin/(dashboard)/enlaces-sobre-el-fondo-aa.test.ts:2:2244'
+  failureType: 'subtestsFailed'
+  error: '1 subtest failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 5
+# suites 1
+# pass 4
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6910.619204

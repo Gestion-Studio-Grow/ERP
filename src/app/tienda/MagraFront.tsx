@@ -802,7 +802,7 @@ const CSS = `
 .magra .mf-stepper button:hover:not(:disabled){border-color:var(--oro);color:var(--oro)}
 .magra .mf-stepper button:disabled{opacity:.4;cursor:not-allowed}
 .magra .mf-stepper .mf-q{font-size:19px;min-width:44px;text-align:center;color:var(--crema)}
-.magra .mf-stepper-sm button{width:40px;height:40px;font-size:18px}
+.magra .mf-stepper-sm button{width:44px;height:44px;font-size:18px}
 .magra .mf-stepper-sm .mf-q{font-size:17px;min-width:36px}
 
 /* GRID */
@@ -827,7 +827,7 @@ const CSS = `
 .magra .mf-vcard-body{padding:22px}
 .magra .mf-vcard-h3{font-size:26px;color:var(--crema);text-transform:uppercase;margin-bottom:8px}
 .magra .mf-vcard-p{color:var(--acero);font-size:14.5px;line-height:1.55;margin-bottom:14px}
-.magra .mf-linkcta{background:none;border:none;padding:0;color:var(--oro);font-family:var(--f-body);font-weight:700;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;min-height:28px}
+.magra .mf-linkcta{background:none;border:none;padding:0;color:var(--oro);font-family:var(--f-body);font-weight:700;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;min-height:44px}
 .magra .mf-linkcta:hover{color:var(--oro-hi)}
 
 /* GOURMET */

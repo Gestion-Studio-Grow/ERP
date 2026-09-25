@@ -1,0 +1,80 @@
+TAP version 13
+1..0
+# Subtest: src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts
+ok 1 - src/app/admin/(dashboard)/vender/linea-sin-cantidad.test.ts
+  ---
+  duration_ms: 647.973062
+  type: 'test'
+  ...
+# Subtest: Vender en el navegador
+    # Subtest: vista de siempre: una línea con producto y sin cantidad frena el cobro y dice cuál (no se cae callada)
+    not ok 1 - vista de siempre: una línea con producto y sin cantidad frena el cobro y dice cuál (no se cae callada)
+      ---
+      duration_ms: 30949.214214
+      type: 'test'
+      location: '/home/user/erp/src/app/admin/(dashboard)/vender/vender-pantalla.test.ts:185:72916'
+      failureType: 'testCodeFailure'
+      error: |-
+        locator.waitFor: Timeout 30000ms exceeded.
+        Call log:
+        [2m  - waiting for getByRole('button', { name: 'Falta la cantidad de Crema' }) to be visible[22m
+        
+      code: 'ERR_TEST_FAILURE'
+      name: 'TimeoutError'
+      stack: |-
+        TestContext.<anonymous> (/home/user/erp/src/app/admin/(dashboard)/vender/vender-pantalla.test.ts:1724:19)
+      ...
+    # Subtest: POS de la bandeja: una línea con producto y sin cantidad frena el cobro y dice cuál
+    not ok 2 - POS de la bandeja: una línea con producto y sin cantidad frena el cobro y dice cuál
+      ---
+      duration_ms: 30644.187528
+      type: 'test'
+      location: '/home/user/erp/src/app/admin/(dashboard)/vender/vender-pantalla.test.ts:185:74389'
+      failureType: 'testCodeFailure'
+      error: |-
+        locator.waitFor: Timeout 30000ms exceeded.
+        Call log:
+        [2m  - waiting for getByRole('button', { name: 'Falta la cantidad de Crema' }) to be visible[22m
+        
+      code: 'ERR_TEST_FAILURE'
+      name: 'TimeoutError'
+      stack: |-
+        TestContext.<anonymous> (/home/user/erp/src/app/admin/(dashboard)/vender/vender-pantalla.test.ts:1754:19)
+      ...
+    # Subtest: POS de la bandeja: si se corta la red, no se vacía nada (productos, cantidades, medio, cliente) y se reintenta igual
+    ok 3 - POS de la bandeja: si se corta la red, no se vacía nada (productos, cantidades, medio, cliente) y se reintenta igual
+      ---
+      duration_ms: 779.614491
+      type: 'test'
+      ...
+    # Subtest: POS de la bandeja: un pedido con la red caída conserva los datos del cliente y lo cargado
+    ok 4 - POS de la bandeja: un pedido con la red caída conserva los datos del cliente y lo cargado
+      ---
+      duration_ms: 659.353757
+      type: 'test'
+      ...
+    # Subtest: ticket: una línea con producto y sin cantidad frena el cobro y dice cuál; lo que va por unidad entra con 1
+    ok 5 - ticket: una línea con producto y sin cantidad frena el cobro y dice cuál; lo que va por unidad entra con 1
+      ---
+      duration_ms: 782.163995
+      type: 'test'
+      ...
+    1..5
+not ok 2 - Vender en el navegador
+  ---
+  duration_ms: 66114.01548
+  type: 'suite'
+  location: '/home/user/erp/src/app/admin/(dashboard)/vender/vender-pantalla.test.ts:185:1139'
+  failureType: 'subtestsFailed'
+  error: '2 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..2
+# tests 6
+# suites 1
+# pass 4
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 66910.841392

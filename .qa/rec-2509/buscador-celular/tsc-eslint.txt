@@ -1,0 +1,2 @@
+npx tsc --noEmit -p tsconfig.json -> 1 error, ajeno: src/app/tienda/vidriera-toque.test.ts(27,1) TS2578; 0 en src/lib/buscador
+npx eslint src/lib/buscador/ -> exit 0, sin avisos
