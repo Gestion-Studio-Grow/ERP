@@ -72,7 +72,7 @@ export default function MostradorTabs({
             aria-selected={tab === id}
             onClick={() => setTab(id)}
             className={cn(
-              "rounded-md px-4 py-1.5 text-sm transition-colors",
+              "rounded-md px-4 py-1.5 text-sm transition-colors max-sm:min-h-11",
               tab === id ? "bg-surface-raised font-medium text-strong shadow-xs" : "text-muted hover:text-strong",
             )}
           >

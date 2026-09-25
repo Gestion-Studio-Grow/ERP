@@ -150,7 +150,7 @@ export default async function CampaniaPage() {
       {leads.length === 0 ? (
         <p
           className="rounded-md px-5 py-8 text-center"
-          style={{ background: "var(--color-surface-sunken)", color: "var(--text-muted)" }}
+          style={{ background: "var(--color-surface-sunken)", color: "var(--text)" }}
         >
           Todavía no se anotó nadie. En cuanto alguien complete el formulario, aparece acá.
         </p>

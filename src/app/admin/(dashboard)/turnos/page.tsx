@@ -158,7 +158,7 @@ export default async function TurnosCalendarPage({
             aria-label="Ir a una fecha"
             className="rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 text-sm text-strong focus:border-accent max-sm:h-11"
           />
-          <button type="submit" className={buttonClasses("outline", "sm")}>
+          <button type="submit" className={`${buttonClasses("outline", "sm")} max-sm:h-11 max-sm:min-w-11`}>
             Ir
           </button>
         </form>
