@@ -1,0 +1,38 @@
+TAP version 13
+# Subtest: anularVenta: con factura autorizada o en camino se rechaza y el pedido no se anula; con la rechazada se anula; B no la toca
+ok 1 - anularVenta: con factura autorizada o en camino se rechaza y el pedido no se anula; con la rechazada se anula; B no la toca
+  ---
+  duration_ms: 2796.572133
+  type: 'test'
+  ...
+# Subtest: anularCobroTurno: con factura autorizada del turno se rechaza y el cobro sigue en pie; rechazada la factura, se anula
+not ok 2 - anularCobroTurno: con factura autorizada del turno se rechaza y el cobro sigue en pie; rechazada la factura, se anula
+  ---
+  duration_ms: 156.365996
+  type: 'test'
+  location: '/home/user/erp/src/lib/anular-venta-facturada-postgres.test.ts:2:4855'
+  failureType: 'testCodeFailure'
+  error: 'Un comprobante con CAE no se puede editar (cae, numero, status): se anula con una nota de crédito.'
+  code: 'ERR_TEST_FAILURE'
+  name: 'DriverAdapterError'
+  stack: |-
+    PrismaPgAdapter.onError (/home/user/erp/node_modules/@prisma/adapter-pg/dist/index.js:678:11)
+    PrismaPgAdapter.performIO (/home/user/erp/node_modules/@prisma/adapter-pg/dist/index.js:673:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async PrismaPgAdapter.queryRaw (/home/user/erp/node_modules/@prisma/adapter-pg/dist/index.js:604:30)
+    async e.interpretNode (/home/user/erp/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:186:26)
+    async e.interpretNode (/home/user/erp/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:213:41)
+    async e.interpretNode (/home/user/erp/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:128:29)
+    async e.interpretNode (/home/user/erp/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:272:41)
+    async e.run (/home/user/erp/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:94:23)
+    async e.execute (/home/user/erp/node_modules/@prisma/client/src/runtime/core/engines/client/LocalExecutor.ts:81:12)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 1
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3331.604528

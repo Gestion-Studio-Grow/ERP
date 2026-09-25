@@ -1,0 +1,235 @@
+TAP version 13
+# Subtest: anular una venta cobrada asienta el EGRESO y devuelve los kilos
+ok 1 - anular una venta cobrada asienta el EGRESO y devuelve los kilos
+  ---
+  duration_ms: 3.76499
+  type: 'test'
+  ...
+# Subtest: la contrapartida va con la FECHA DEL ASIENTO ORIGINAL, no con la de hoy
+ok 2 - la contrapartida va con la FECHA DEL ASIENTO ORIGINAL, no con la de hoy
+  ---
+  duration_ms: 2.516658
+  type: 'test'
+  ...
+# Subtest: la contrapartida queda FIRMADA para que el libro no la deje borrar
+ok 3 - la contrapartida queda FIRMADA para que el libro no la deje borrar
+  ---
+  duration_ms: 1.133151
+  type: 'test'
+  ...
+# Subtest: si el día del asiento ya está cerrado, NO se escribe absolutamente nada
+ok 4 - si el día del asiento ya está cerrado, NO se escribe absolutamente nada
+  ---
+  duration_ms: 0.738053
+  type: 'test'
+  ...
+# Subtest: el mensaje del día cerrado dice qué hacer, no sólo que no se puede
+ok 5 - el mensaje del día cerrado dice qué hacer, no sólo que no se puede
+  ---
+  duration_ms: 0.2441
+  type: 'test'
+  ...
+# Subtest: un pedido SIN cobrar se anula aunque el día esté cerrado: no hay plata que mover
+ok 6 - un pedido SIN cobrar se anula aunque el día esté cerrado: no hay plata que mover
+  ---
+  duration_ms: 0.345681
+  type: 'test'
+  ...
+# Subtest: dos clics en Anular devuelven el stock UNA sola vez
+ok 7 - dos clics en Anular devuelven el stock UNA sola vez
+  ---
+  duration_ms: 0.427954
+  type: 'test'
+  ...
+# Subtest: una venta con factura autorizada no se anula mientras no exista la nota de crédito
+ok 8 - una venta con factura autorizada no se anula mientras no exista la nota de crédito
+  ---
+  duration_ms: 0.145392
+  type: 'test'
+  ...
+# Subtest: una venta con la factura en camino a ARCA tampoco: el CAE puede llegar después
+ok 9 - una venta con la factura en camino a ARCA tampoco: el CAE puede llegar después
+  ---
+  duration_ms: 0.25076
+  type: 'test'
+  ...
+# Subtest: la factura se responde antes que el día cerrado: sin nota de crédito, ni el dueño la anula
+ok 10 - la factura se responde antes que el día cerrado: sin nota de crédito, ni el dueño la anula
+  ---
+  duration_ms: 0.324088
+  type: 'test'
+  ...
+# Subtest: anular una venta con factura autorizada se rechaza y no escribe nada
+ok 11 - anular una venta con factura autorizada se rechaza y no escribe nada
+  ---
+  duration_ms: 0.601087
+  type: 'test'
+  ...
+# Subtest: la factura rechazada por ARCA no frena la anulación: no tiene CAE
+ok 12 - la factura rechazada por ARCA no frena la anulación: no tiene CAE
+  ---
+  duration_ms: 0.337565
+  type: 'test'
+  ...
+# Subtest: la factura de otro negocio con el mismo id de pedido no frena la anulación
+ok 13 - la factura de otro negocio con el mismo id de pedido no frena la anulación
+  ---
+  duration_ms: 0.429756
+  type: 'test'
+  ...
+# Subtest: una factura confirmada mientras se anulaba se ve después del bloqueo y la anulación se cae entera
+not ok 14 - una factura confirmada mientras se anulaba se ve después del bloqueo y la anulación se cae entera
+  ---
+  duration_ms: 3.900521
+  type: 'test'
+  location: '/home/user/erp/src/lib/order-anulacion.test.ts:2:11653'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (/home/user/erp/src/lib/order-anulacion.test.ts:349:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: una venta ENTREGADA se puede anular: es la corrección diaria de una carnicería
+ok 15 - una venta ENTREGADA se puede anular: es la corrección diaria de una carnicería
+  ---
+  duration_ms: 0.125173
+  type: 'test'
+  ...
+# Subtest: el doble clic contesta 'ya está', no 'no se puede' — aunque el día esté cerrado
+ok 16 - el doble clic contesta 'ya está', no 'no se puede' — aunque el día esté cerrado
+  ---
+  duration_ms: 0.078521
+  type: 'test'
+  ...
+# Subtest: la frontera del día cerrado sólo frena la venta que ESCRIBE en la caja
+ok 17 - la frontera del día cerrado sólo frena la venta que ESCRIBE en la caja
+  ---
+  duration_ms: 3.139878
+  type: 'test'
+  ...
+# Subtest: la venta COBRADA de un día ya cerrado se rechaza — el arqueo firmado no se toca
+ok 18 - la venta COBRADA de un día ya cerrado se rechaza — el arqueo firmado no se toca
+  ---
+  duration_ms: 0.311005
+  type: 'test'
+  ...
+# Subtest: el pedido SIN cobrar entra igual con el día cerrado: no escribe en la caja
+ok 19 - el pedido SIN cobrar entra igual con el día cerrado: no escribe en la caja
+  ---
+  duration_ms: 0.154052
+  type: 'test'
+  ...
+# Subtest: sin ningún cierre hecho, el mostrador opera exactamente como antes
+ok 20 - sin ningún cierre hecho, el mostrador opera exactamente como antes
+  ---
+  duration_ms: 0.129479
+  type: 'test'
+  ...
+# Subtest: cobrar un pedido ya tomado tiene la MISMA frontera que el alta
+ok 21 - cobrar un pedido ya tomado tiene la MISMA frontera que el alta
+  ---
+  duration_ms: 0.117279
+  type: 'test'
+  ...
+# Subtest: con el día de hoy todavía ABIERTO, la venta cobrada pasa
+ok 22 - con el día de hoy todavía ABIERTO, la venta cobrada pasa
+  ---
+  duration_ms: 0.078838
+  type: 'test'
+  ...
+# Subtest: un pedido sin cobrar se edita; uno cobrado NO
+ok 23 - un pedido sin cobrar se edita; uno cobrado NO
+  ---
+  duration_ms: 0.272249
+  type: 'test'
+  ...
+# Subtest: si hay asiento en el libro no se edita, aunque el pedido diga que no está cobrado
+ok 24 - si hay asiento en el libro no se edita, aunque el pedido diga que no está cobrado
+  ---
+  duration_ms: 0.138296
+  type: 'test'
+  ...
+# Subtest: un pedido entregado o anulado no se edita
+ok 25 - un pedido entregado o anulado no se edita
+  ---
+  duration_ms: 0.082858
+  type: 'test'
+  ...
+# Subtest: el peso real mueve SÓLO la diferencia: de 1,240 a 1,310 salen 70 gramos
+ok 26 - el peso real mueve SÓLO la diferencia: de 1,240 a 1,310 salen 70 gramos
+  ---
+  duration_ms: 0.20756
+  type: 'test'
+  ...
+# Subtest: si el paquete pesó menos, la diferencia vuelve al stock
+ok 27 - si el paquete pesó menos, la diferencia vuelve al stock
+  ---
+  duration_ms: 0.090125
+  type: 'test'
+  ...
+# Subtest: producto sacado del pedido: vuelve todo; producto agregado: sale todo
+ok 28 - producto sacado del pedido: vuelve todo; producto agregado: sale todo
+  ---
+  duration_ms: 0.813415
+  type: 'test'
+  ...
+# Subtest: mismo peso = ningún movimiento de stock (no se ensucia el ledger al guardar sin cambios)
+ok 29 - mismo peso = ningún movimiento de stock (no se ensucia el ledger al guardar sin cambios)
+  ---
+  duration_ms: 0.10667
+  type: 'test'
+  ...
+# Subtest: los productos sin control de stock no entran al delta
+ok 30 - los productos sin control de stock no entran al delta
+  ---
+  duration_ms: 0.053874
+  type: 'test'
+  ...
+# Subtest: sólo el rubro MOSTRADOR nace DELIVERED: la estética conserva su bandeja
+ok 31 - sólo el rubro MOSTRADOR nace DELIVERED: la estética conserva su bandeja
+  ---
+  duration_ms: 0.356624
+  type: 'test'
+  ...
+# Subtest: anular una venta con cupón devuelve el uso a ESE cupón, y anular otra vez no devuelve otro
+ok 32 - anular una venta con cupón devuelve el uso a ESE cupón, y anular otra vez no devuelve otro
+  ---
+  duration_ms: 0.707351
+  type: 'test'
+  ...
+# Subtest: una fila de cupón vieja (sin id) devuelve por código, dentro del negocio y sin bajar de cero
+ok 33 - una fila de cupón vieja (sin id) devuelve por código, dentro del negocio y sin bajar de cero
+  ---
+  duration_ms: 0.284919
+  type: 'test'
+  ...
+# Subtest: fila vieja (sin id) y el cupón se borró y se recreó DESPUÉS del pedido con el mismo código: no se le devuelve un uso al nuevo
+ok 34 - fila vieja (sin id) y el cupón se borró y se recreó DESPUÉS del pedido con el mismo código: no se le devuelve un uso al nuevo
+  ---
+  duration_ms: 0.572976
+  type: 'test'
+  ...
+# Subtest: una venta sin cupón se anula igual y no toca ningún cupón
+ok 35 - una venta sin cupón se anula igual y no toca ningún cupón
+  ---
+  duration_ms: 0.271545
+  type: 'test'
+  ...
+# Subtest: si la anulación no pasa (día cerrado), el cupón tampoco vuelve
+ok 36 - si la anulación no pasa (día cerrado), el cupón tampoco vuelve
+  ---
+  duration_ms: 0.233476
+  type: 'test'
+  ...
+1..36
+# tests 36
+# suites 0
+# pass 35
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 503.048454

@@ -1,0 +1,12 @@
+# Integración D1-D4 (2026-09-25) — comandos desde /home/user/erp
+npm test                                          > (scratchpad) npmtest.txt  → resumen en npm-test-resumen.txt (la salida entera pesa ~900 KB)
+psql ".../postgres?host=/tmp/pgrun" -Atc "select count(*) from pg_database where datname like 'erp\_test\_%'" > bases-erp_test-antes.txt / -despues.txt
+npx tsc --noEmit -p .                             > tsc.txt
+npx eslint --max-warnings=0 $(cat eslint-archivos.txt)   > eslint.txt   (115 archivos .ts/.tsx/.mts de D1-D4 + paridad-menu)
+node --import tsx --test src/apps/paridad-menu.test.ts   > paridad-menu.txt
+node --import tsx --test <tests que leen docs>    > tests-que-leen-docs-despues-de-editar.txt (después de tocar INDEX, ADR-100, BACKLOG)
+node --import tsx --test <cada test de los slices cerrados> → tests-de-los-cerrados.txt
+grep -rn processArcaOutbox src (sin tests)        > eng012-criterio1-grep.txt
+# Documentos tocados por la integración: docs/adr/INDEX.md (fila 057 reemplazada, fila 100 nueva),
+# docs/adr/ADR-100-dinero-en-decimal.md (sólo el Estado), docs/agent/BACKLOG.md, docs/agent/HEALTH.md §0 y §1.
+# No se tocó docs/agent/DECISIONS.md §5.0: el método de migración de D1 es decisión del dueño.

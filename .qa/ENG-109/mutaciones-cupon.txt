@@ -1,0 +1,5 @@
+empate al peso hacia abajo: # fail 4
+empate del porcentaje hacia abajo: # fail 5
+porcentaje en binario sin cuenta entera: # fail 1
+doble redondeo (centavo y despues peso): # fail 1 (con el caso de $100.000.000.004,95 agregado; sin él daba 0)
+menos cero en peso: # fail 1

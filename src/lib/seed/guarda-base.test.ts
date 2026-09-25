@@ -32,9 +32,9 @@ test("el parámetro host manda sobre el host de la URL, como en libpq", () => {
 test("el seed acepta un Postgres local por TCP o por socket", () => {
   for (const url of [
     "postgresql://postgres@localhost:5432/erp",
-    "postgresql://postgres:postgres@127.0.0.1:5433/erp_lab",
+    "postgresql://postgres:postgres@127.0.0.1:5433/erp_local",
     "postgresql://postgres@[::1]:5432/erp",
-    "postgresql://postgres@localhost:5433/erp_lab?host=/tmp/pgrun",
+    "postgresql://postgres@localhost:5433/erp_local?host=/tmp/pgrun",
     "postgresql:///erp?host=/var/run/postgresql",
   ]) {
     assert.equal(baseLocalParaSeed(url).ok, true, url);

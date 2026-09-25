@@ -19,6 +19,7 @@
 //
 // PURO: lo usan la pantalla (vista previa e impresión) y los tests.
 
+import { centavosDe } from "@/lib/dinero/redondeo";
 import type { FormaDeVenta } from "./planilla-core";
 
 export type PlantillaId = "a4" | "rollo";
@@ -52,7 +53,7 @@ export type DatosEtiqueta = {
 
 /** Precio sin centavos si es redondo, con centavos si los tiene: "$12.500", "$1.234,50". */
 export function precioDeEtiqueta(n: number): string {
-  const centavos = Math.round(n * 100);
+  const centavos = centavosDe(n);
   const conCentavos = centavos % 100 !== 0;
   return (
     "$" +

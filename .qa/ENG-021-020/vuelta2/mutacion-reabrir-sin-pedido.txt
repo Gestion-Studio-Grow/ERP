@@ -1,0 +1,107 @@
+TAP version 13
+# Subtest: ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+ok 1 - ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+  ---
+  duration_ms: 2429.686089
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 2 - ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 92.80851
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 3 - ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 63.82349
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 4 - ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 31.538854
+  type: 'test'
+  ...
+# Subtest: ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 5 - ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 40.95094
+  type: 'test'
+  ...
+# Subtest: ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 6 - ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 75.23621
+  type: 'test'
+  ...
+# Subtest: ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 7 - ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 39.019784
+  type: 'test'
+  ...
+# Subtest: ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 8 - ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 31.699903
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+not ok 9 - ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+  ---
+  duration_ms: 40.951202
+  type: 'test'
+  location: '/home/user/erp/src/lib/arca-dispatch-postgres.test.ts:2:7084'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'PENDING'
+    - 'REJECTED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'REJECTED'
+  actual: 'PENDING'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/arca-dispatch-postgres.test.ts:162:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+ok 10 - ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+  ---
+  duration_ms: 43.32542
+  type: 'test'
+  ...
+# Subtest: aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+ok 11 - aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+  ---
+  duration_ms: 97.209335
+  type: 'test'
+  ...
+# Subtest: ENG-020 · dos ventas iguales a consumidor final: la que perdió el pedido no adopta el CAE de la otra; cada una con su número
+ok 12 - ENG-020 · dos ventas iguales a consumidor final: la que perdió el pedido no adopta el CAE de la otra; cada una con su número
+  ---
+  duration_ms: 120.903226
+  type: 'test'
+  ...
+# Subtest: ENG-020/021 · la consulta del número anotado falla con un código desconocido: la factura sigue pendiente (no se rechaza) y un solo CAE
+ok 13 - ENG-020/021 · la consulta del número anotado falla con un código desconocido: la factura sigue pendiente (no se rechaza) y un solo CAE
+  ---
+  duration_ms: 83.353842
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 12
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3650.201117

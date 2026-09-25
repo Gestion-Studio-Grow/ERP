@@ -5,11 +5,13 @@
  */
 
 import { TipoComprobante } from '../domain/catalogos';
-import { ComprobanteArca } from '../domain/comprobante';
+import { ComprobanteArca, ivaInformadoAArca } from '../domain/comprobante';
 import { validarComprobante } from '../domain/validacion';
+import { centavosDe } from '@/lib/dinero/redondeo';
 import {
   AfipClient,
   ArcaRechazoError,
+  ComprobanteConsultado,
   EmisorConfig,
   ResultadoCae,
 } from './port';
@@ -21,6 +23,8 @@ function clave(puntoVenta: number, tipo: TipoComprobante): string {
 
 export class StubAfipClient implements AfipClient {
   private contadores = new Map<string, number>();
+  /** Lo autorizado, por `puntoVenta:tipo:numero`, para `consultarComprobante` (ENG-020). */
+  private autorizados = new Map<string, ComprobanteConsultado>();
 
   /**
    * @param config  emisor (se usa solo para simular; `homologacion` se ignora).
@@ -64,12 +68,30 @@ export class StubAfipClient implements AfipClient {
     }
     this.contadores.set(k, numero);
 
-    return {
-      cae: this.genCae(comp, numero),
-      caeVencimiento: comp.fecha, // el stub no calcula vencimiento real
-      numero,
+    const cae = this.genCae(comp, numero);
+    const caeVencimiento = comp.fecha; // el stub no calcula vencimiento real
+    this.autorizados.set(`${k}:${numero}`, {
       puntoVenta: comp.puntoVenta,
       tipo: comp.tipo,
-    };
+      numero,
+      cae,
+      caeVencimiento,
+      fecha: comp.fecha,
+      docTipo: comp.docTipo,
+      docNro: comp.docNro,
+      totalCentavos: centavosDe(comp.total),
+      netoCentavos: centavosDe(comp.neto),
+      ivaCentavos: centavosDe(ivaInformadoAArca(comp)),
+      concepto: comp.concepto,
+    });
+    return { cae, caeVencimiento, numero, puntoVenta: comp.puntoVenta, tipo: comp.tipo };
+  }
+
+  async consultarComprobante(
+    puntoVenta: number,
+    tipo: TipoComprobante,
+    numero: number,
+  ): Promise<ComprobanteConsultado | null> {
+    return this.autorizados.get(`${clave(puntoVenta, tipo)}:${numero}`) ?? null;
   }
 }

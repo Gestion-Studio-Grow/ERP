@@ -27,7 +27,15 @@ después de ENG-000 (DECISIONS.md DEC-010). Los comandos de la corrección está
 
 | Slice | Cierre | Evidencia | Tendencia |
 |---|---|---|---|
+| ENG-000 · arnés de integración (base efímera y Server Action real con sesión) | construido 2026-09-25; criterio 1 (log de CI) sin medir | `.qa/ENG-000/`: `npm test` 3.527 tests, 0 saltados (antes, con base y Chromium local: 3 saltados), las mismas 14 fallas previas; igual con `CI=true` por TCP; 0 bases `erp_test_` al terminar; 8 archivos y 14 tests contra su propia base; 1 Server Action real con sesión | Tests saltados en local: mejor (3 → 0); en CI: sin medir |
 | ENG-001 · el seed no borra datos de negocios reales | 2026-09-24 | `.qa/ENG-001/`: 10 tests nuevos en verde (9 dentro de la suite completa `npm test` (3.493 tests, 14 fallas previas y ajenas: Caja en el navegador ×8, pies pegados ×2, xlsx ×4); y 1 agregado después en `tests-seed.txt`); mutación con el seed viejo: el otro negocio pasa de 1 box y 2 clientes a 0 | Deuda ALTA: mejor (27 → 26) |
+| ENG-012 · cada negocio procesa sólo sus envíos a ARCA | 2026-09-25 (integración D1-D4) | `.qa/ENG-019-012-027/`; hoy `.qa/D1-D4/tests-de-los-cerrados.txt`: `arca-envios-por-negocio-postgres` 2 de 2 (Server Action real, Postgres con RLS); criterio 1: `processArcaOutbox` sólo lo llama `api/cron/arca-outbox/route.ts:39` (`.qa/D1-D4/eng012-criterio1-grep.txt`) | Deuda ALTA: mejor (26 → 25) |
+| ENG-027 · sin conexión del operador, el procesador de ARCA avisa | 2026-09-25 (integración D1-D4) | `.qa/ENG-019-012-027/`; hoy `arca-procesador-sin-operador-postgres` 3 de 3 | Deuda ALTA: mejor (25 → 24) |
+| ENG-022 · comprobante autorizado inmutable en la base | 2026-09-25 en el código; **la migración no está aplicada en Neon** (la aplica el dueño) | `.qa/ENG-022/` y `vuelta2/`: rojo sin la migración 4 de 5, mutaciones M1-M7 en rojo (M8 sobrevive, documentada), reversa probada en base efímera; hoy `comprobante-autorizado-inmutable-postgres` 6 de 6 | Deuda ALTA: mejor en el código (24 → 23); en producción igual hasta aplicarla |
+| ENG-023 · anular una venta facturada no deja la factura viva (criterio 1; el 2 viaja con R4-F2) | 2026-09-25 (integración D1-D4) | `.qa/COMPROBANTE/eng023-*`: con la regla apagada 2 de 2 en rojo; hoy `anular-venta-facturada-postgres` 2 de 2, `facturar-venta-anulada-postgres` 3 de 3, `facturar-turno-con-cobro-anulado-postgres` 3 de 3, `factura-viva` 8 de 8 | Deuda ALTA: mejor (23 → 22) |
+| ENG-316 · la letra del comprobante coincide con la condición de IVA del receptor | 2026-09-25 (integración D1-D4) | `.qa/COMPROBANTE/rojo-antes.txt`, `verde-1.txt`; hoy `tipo-segun-la-rg` 28 de 28 | Deuda BAJA: mejor (1 menos) |
+| Suite completa al integrar D1-D4 | 2026-09-25 | `.qa/D1-D4/npm-test-resumen.txt`: 3.982 tests, 3.977 pasan, 0 saltados, 5 fallas: xlsx ×4 (previas) y 1 nueva, la guarda de redondeos a mano (`redondeos-locales.test.ts`) que marca dos pantallas del rediseño sin commit (`caja/CajaRenglon.tsx:51`, `locales/LocalesRenglon.tsx:52`); 0 bases `erp_test_` al terminar; `tsc` 0 errores; eslint 0 sobre 115 archivos de D1-D4; `paridad-menu` 4 de 4 | Fallas: mejor (14 → 5; Caja en el navegador ×8 y pies pegados ×2 ya pasan), pero con 1 falla nueva que es del rediseño |
+| **No cierran** (quedan abiertos con evidencia parcial) | — | ENG-000 (falta el log del job `tests` en CI), ENG-011 (plan D1 con 6 objeciones abiertas y método de migración sin OK del dueño), ENG-019 (criterio 3: cron cada 15 min pide plan de Vercel), ENG-020 y ENG-021 (falta el test de `invoice-core.ts:219-227`: la mutación sobrevive), ENG-024 (criterio 1 en Facturita, bancos y API externa pide la migración de ENG-326), ENG-109 (unidad del cupón y 53 redondeos a mano) | igual |
 
 ## 1. Deuda abierta
 
@@ -41,7 +49,7 @@ sólo el negocio de muestra y lo hace en una transacción (`prisma/seed.ts`, `sr
 
 | Severidad | Slices abiertos | Hallazgos antes de deduplicar | Tendencia |
 |---|---|---|---|
-| ALTA | 26 (ENG-002 a ENG-027) + 1 habilitante (ENG-000) | 33 | mejor (ENG-001 cerrado) |
+| ALTA | 22 (ENG-002 a ENG-027 menos ENG-012, 022, 023 y 027) + 1 habilitante (ENG-000) | 33 | mejor (26 → 22 el 2026-09-25; ENG-022 falta aplicarlo en Neon) |
 | MEDIA | 35 (ENG-101 a ENG-135) | 87 | línea base |
 | BAJA | 10 (ENG-301 a ENG-310) | 29 | línea base |
 | Habilitan mediciones | 5 (ENG-201 a ENG-205) | — | línea base |
@@ -76,6 +84,10 @@ ENG-023 (R4-F2), ENG-024 (R0-F4, R1-F5, R2-F2).
   archivos: `PLAYWRIGHT_BROWSERS_PATH=/nonexistent-pw node --import tsx --test <los 5>` → 77 tests,
   67 saltados (`$AUD/correccion/chromium-ausente.txt`). La corrida "como CI" usa Node 22; CI usa
   Node 20. El log real de GitHub Actions: sin medir (ENG-000).
+- **Medido después (ENG-000):** con Node 20, `npm test` no corre ningún test: `node --test` recién
+  expande `"src/**/*.test.ts"` desde Node 21 y sale "Could not find '/home/user/erp/src/**/*.test.ts'"
+  con código 1 (`/opt/node20/bin/node` 20.20.2, `.qa/ENG-000/npmtest-node20-como-ci-antes.txt`). El
+  job `tests` pasó a Node 22, con Postgres y Chromium.
 - Tests desactivados (`test.skip`, `.only`, `.todo`): 0 (`grep`).
 
 ### 2.2 Por tipo
@@ -94,7 +106,8 @@ cada archivo cuenta en la primera categoría que coincide).
 | **Total** | **293** | **2.961** |
 
 - Tests que ejecutan una Server Action real: **0 de 205** (ningún `*.test.ts` importa y ejecuta un
-  módulo `"use server"`; `$AUD/tenancy-auth/actions-guards.tsv`).
+  módulo `"use server"`; `$AUD/tenancy-auth/actions-guards.tsv`). Después de ENG-000: **1 de 205**
+  (`getClients`, `src/test/accion-de-servidor.test.ts`); la plantilla para el resto es ENG-016.
 - Tests con escrituras simultáneas contra Postgres: **0** (ninguno de los 4 de integración usa
   `Promise.all`).
 - Tests que cuentan consultas (detección de N+1): **13 archivos, todos contra un doble de la base**
@@ -164,6 +177,8 @@ Contra Postgres con `app_rls` y RLS encendido. Ninguno de estos casos tiene test
 | 10 y 20 altas simultáneas de pedidos | 28 % y 45 % fallan por choque de número | `N=10 RONDAS=5 node --import tsx scripts/aud/correlativo.mts` |
 | Dos cierres de caja a la vez, series de 20 corridas | **de 15 a 19 de 20** asientan el ajuste dos veces (5 series: 15; 19 en la refutación; 18, 19 y 19 en la corrección). El resultado cambia entre series. El script copia el cuerpo de `closeCashSession` (`caja-actions.ts:216-268`), no ejecuta la acción real, que necesita la sesión de Next | `BARRERA=0 CORRIDAS=20 node --import tsx auditoria/carrera-cierre-turno.mts` en `$AUD/copia-tesoreria` (`$AUD/correccion/carrera-cierre-turno-3x20.out`) |
 | Mismo envío a ARCA procesado dos veces, 50 corridas | **15 de 50** con 2 CAE para 1 factura | `AUD_N=50 npx tsx $AUD/aud-arca-concurrencia.ts` |
+| Envíos a ARCA con reserva (ENG-019, 2026-09-25): 4 procesos de Node a la vez sobre 12 pendientes de dos negocios, 3 series; y 50 iteraciones de 2+1 ventas con 3 despachos a la vez | **12 CAE por serie, 0 de más, 0 fallidos, números de ARCA = base** en las 3 series (3 vueltas del archivo); **50 de 50** iteraciones sin CAE de más. Mejor que la línea de arriba (15 de 50), contra el simulador | `node --import tsx --test src/lib/arca-envios-concurrencia-postgres.test.ts` (`.qa/ENG-019-012-027/tests-vuelta*.txt`, `series-procesos.json`) |
+| Acción de un negocio sobre envíos de otro (ENG-012) y procesador sin conexión del operador (ENG-027), 2026-09-25 | A no toca ni cuenta los de B (Server Action real, operador = rol dueño); sin `OPERATOR_DATABASE_URL`: error de configuración, cron 500, `/api/ready` 503 | `src/lib/arca-envios-por-negocio-postgres.test.ts`, `src/lib/arca-procesador-sin-operador-postgres.test.ts` |
 | Reserva del mismo horario (2, 20, 50 a la vez) | 1 turno en los tres casos | `$AUD/clientes-agenda-admin/medir-caa/doble-reserva.ts` |
 
 ## 3. Seguridad
@@ -283,7 +298,7 @@ Estimación con esbuild por componente de cliente: 125 componentes, el mayor `Ve
 | Migraciones con reversa / total | 7 / 45 (15,6 %) | `find prisma/migrations -name rollback.sql` |
 | Reversas probadas en el repo | 0 | `grep -r rollback.sql src scripts` |
 | Reversas probadas por la auditoría | 7 / 7 corren; 5 / 7 permiten volver a subir | `$AUD/rollback-prueba.txt` |
-| Triggers en la base | 0 (una factura autorizada se puede editar y borrar como `app_rls`) | `grep -r "CREATE TRIGGER" prisma`; `$AUD/inmutabilidad-out.txt` |
+| Triggers en la base | 0 en Neon (una factura autorizada se puede editar y borrar como `app_rls`) · **1 en el árbol, sin aplicar en Neon** (2026-09-25, ENG-022: con CAE, UPDATE fiscal, desligar de la venta a mano y DELETE fallan, como `app_rls` y como dueño; mejor) | `grep -r "CREATE TRIGGER" prisma`; `$AUD/inmutabilidad-out.txt`; `.qa/ENG-022/verde-1.txt`; `.qa/ENG-022/vuelta2/verde.txt` |
 | Modelos con auditoría / total | 28 / 45 | `$AUD/aud-ent.txt` contra `modelos.txt` |
 | Auditoría fuera / dentro de la transacción | 101 / 23 | `grep` |
 
@@ -307,7 +322,7 @@ Estimación con esbuild por componente de cliente: 125 componentes, el mayor `Ve
 | p95 de los 5 endpoints más usados en modo producción | `next build` + `next start`, seed de 50.000, carga | ENG-201 |
 | LCP de la pantalla principal y bundle inicial | `next build` + Playwright | ENG-202 |
 | Tendencia comparable entre cierres | scripts de medición en el repo | ENG-203 |
-| Resultado del job `tests` en GitHub Actions | leer el log de un run real | ENG-000 |
+| Resultado del job `tests` en GitHub Actions | un push y leer el log (el job ya levanta Postgres, instala Chromium y exige `# skipped 0`) | ENG-000 |
 | RLS, migraciones y variables en producción (entre ellas `OPERATOR_DATABASE_URL` y el rol de `DATABASE_URL`); latencia Vercel-Neon; datos personales ya escritos en los logs de Vercel | lectura de Neon y Vercel con autorización | ENG-204 |
 | Qué rol tiene el `DATABASE_URL` del `.env` de quien corre `npm run seed` | preguntar a cada persona con acceso o leer esos `.env` | ENG-001 |
 | Región de Neon | la dicen `docs/runbooks/deploy-vercel.md:175` y `RUNBOOK-ROTACION-SECRETOS.md:48` (`sa-east-1`); el código no la fija | ENG-204 |

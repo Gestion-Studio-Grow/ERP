@@ -1,0 +1,53 @@
+src/components/OwnerPanel.tsx:39: const v = Math.round(n * 100);
+src/components/ui/display-core.ts:45: const redondo = Math.round(Math.abs(valor) * factor + Number.EPSILON * factor);
+src/components/ui/deslizar-core.ts:31: return Math.min(1, Math.round((avance + PASO_TECLADO) * 100) / 100);
+src/components/ui/deslizar-core.ts:34: return Math.max(0, Math.round((avance - PASO_TECLADO) * 100) / 100);
+src/components/ui/Deslizar.tsx:88: aria-valuenow={Math.round(avance * 100)}
+src/components/ui/Deslizar.tsx:89: aria-valuetext={estado === "hecho" ? textoHecho : `${Math.round(avance * 100)} %: llevala hasta el final para 
+src/app/admin/(dashboard)/page.tsx:308: ? `${Math.round((confirmedToday / data.todayAppointments.length) * 100)}%`
+src/app/admin/(dashboard)/facturacion/bancos/MapeoPreview.tsx:148: const pctConfianza = Math.round(mapeo.confianza * 100);
+src/app/admin/(dashboard)/facturacion/bancos/MapeoPreview.tsx:197: {Math.round(confianzaCampo * 100)}%
+src/app/admin/(dashboard)/facturacion/bancos/page.tsx:48: const pct = confianza != null ? `${Math.round(confianza * 100)}%` : null;
+src/app/admin/(dashboard)/facturacion/bancos/page.tsx:142: const pct = kpis.capFacturasMes > 0 ? Math.round((kpis.facturasMes / kpis.capFacturasMes) * 100) : 0;
+src/app/admin/(dashboard)/facturacion/bancos/page.tsx:230: ? `columnas a confirmar (${Math.round(confianza * 100)} % seguro)`
+src/app/admin/(dashboard)/facturacion/bancos/page.tsx:231: : `columnas detectadas${confianza != null ? ` (${Math.round(confianza * 100)} % seguro)` : ""}`
+src/app/admin/(dashboard)/facturacion/bancos/KpisBancos.tsx:36: const pct = tope > 0 ? Math.min(100, Math.round((usado / tope) * 100)) : 0;
+src/app/admin/(dashboard)/cuentas-a-cobrar/bandeja-cuentas.ts:83: return { clave, titulo: TITULOS[tipo][clave], cuentas: lista, suma: Math.round(lista.reduce((s, c) => s + c.sa
+src/app/admin/(dashboard)/caja/cierre/comprobante.ts:40: diferencia: dec === null ? null : esNumero(diferencia) ? diferencia : Math.round((dec - esperado) * 100) / 100
+src/app/admin/(dashboard)/caja/cierre/comprobante.ts:48: return Math.round(medios.reduce((s, m) => s + (m.diferencia ?? 0), 0) * 100) / 100;
+src/app/admin/(dashboard)/caja/cierre/ContarYCerrar.tsx:79: const diferencia = Math.round(contados.reduce((s, m) => s + (diffs[m] ?? 0), 0) * 100) / 100;
+src/app/admin/(dashboard)/reportes/tira-core.ts:209: const p = Math.round((parte / total) * 100);
+src/app/admin/(dashboard)/locales/page.tsx:136: : `${cambio >= 0 ? "+" : "−"}${fmtNumberAR(Math.round(Math.abs(cambio) * 100))} % frente a la anterior, hasta 
+src/app/admin/(dashboard)/recordatorios/page.tsx:31: const pct = c.total > 0 ? Math.round((c.avisados / c.total) * 100) : null;
+src/app/admin/(dashboard)/pedidos/pedidos-core.ts:347: return { abiertos: pedidos.length, paraHoy, sinAvisar, porCobrar: verPlata ? Math.round(porCobrar * 100) / 100
+src/app/admin/(dashboard)/flujo/page.tsx:150: style={{ width: `${Math.max(2, Math.round((Math.abs(s.saldoAlCierre) / tope) * 100))}%` }}
+src/app/admin/(dashboard)/turnos/agenda-core.ts:319: const entero = Math.round(n * 100) % 100 === 0;
+src/app/admin/(dashboard)/turnos/_agenda/CobrarTurno.tsx:25: return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(".", ",");
+src/app/admin/(dashboard)/despiece/DespieceClient.tsx:37: const pct = (n: number) => `${Math.round(n * 100)}%`;
+src/app/admin/(dashboard)/despiece/page.tsx:108: value={rendimiento === null ? "—" : `${Math.round(rendimiento * 100)}%`}
+src/app/admin/(dashboard)/catalogo/CortesSection.tsx:265: {Math.round(m.pct * 100)}%
+src/app/admin/(dashboard)/catalogo/CatalogoRenglon.tsx:90: const pct = Math.round(m * 100);
+src/app/admin/(dashboard)/catalogo/precios/ActualizarPrecios.tsx:43: const pesos = (n: number) => fmtMoneyARS(n, Math.round(n * 100) % 100 === 0 ? 0 : 2);
+src/app/tienda/MagraFront.tsx:119: const q = Math.max(0, Math.round(((s[p.id] ?? 0) + dir * step) * 100) / 100);
+src/app/tienda/SiteReplica.tsx:88: const q = Math.max(0, Math.round(((c[p.id] ?? 0) + d * step) * 100) / 100);
+src/app/tienda/Storefront.tsx:165: setQty(p.id, Math.max(0, Math.round((cur + dir * step) * 100) / 100));
+src/app/tienda/Storefront.tsx:525: <div style={{ height: "100%", width: `${Math.round(freeShippingProgress * 100)}%`, background: "var(--accent)"
+src/app/tienda/vidriera/Ficha.tsx:64: const importe = Math.round(q * precioDe(p) * 100) / 100;
+src/app/tienda/vidriera/Vidriera.tsx:479: width: `${Math.round((precioDe(p) / max) * 100)}%`,
+src/app/tienda/vidriera/catalogo-core.ts:54: const r = Math.round(n * 100) / 100;
+src/app/tienda/vidriera/catalogo-core.ts:292: if (p && q > 0) out.push({ p, q, importe: Math.round(q * precioDe(p) * 100) / 100 });
+src/app/tienda/vidriera/catalogo-core.ts:300: subtotal: Math.round(ls.reduce((s, l) => s + l.importe, 0) * 100) / 100,
+src/app/operador/(console)/direccion/panel.generated.ts:4: export const PANEL_HTML: string = "<meta charset=\"utf-8\">\n<title>GSG Lab — Centro de Rendimiento · Célula d
+src/app/operador/(console)/diseno/page.tsx:176: {m.razon.toFixed(2).replace(".", ",")}:1 <span className="text-muted">/ {String(m.par.minimo).replace(".", ","
+src/app/contador/CarteraPanel.tsx:25: const pct = limite > 0 ? Math.min(100, Math.round((usado / limite) * 100)) : 0;
+src/lib/fiscal/decidir-comprobante.ts:457: const aCentavos = (n: number) => Math.round(Number(n.toFixed(2)) * 100);
+src/lib/contador-wa/mensajes.ts:85: const centavos = Math.round(Math.abs(n) * 100);
+src/lib/stock/supplier-return.ts:102: unitCost: a.comprado > 0 ? Math.round((a.pagado / a.comprado) * 1e6) / 1e6 : 0,
+src/apps/kpis/locales.server.ts:99: const pct = Math.round(Math.abs(cambio) * 100);
+src/plugins/bancos/domain/reglas.ts:74: this.claves = new Set(facturados.map((f) => `${f.fecha}|${f.monto.toFixed(2)}`));
+src/plugins/bancos/domain/reglas.ts:78: return this.claves.has(`${fecha}|${monto.toFixed(2)}`);
+src/plugins/bancos/domain/valores.ts:19: return Math.round((n + Number.EPSILON) * 100) / 100;
+src/plugins/bancos/domain/valores.ts:145: .update(`${fecha}|${monto.toFixed(2)}|${normalizarTexto(descripcion)}`)
+src/plugins/mercadopago/stub.ts:44: comision: Math.round(monto * 0.05 * 100) / 100,
+src/plugins/mercadopago/http.ts:219: return Math.round(total * 100) / 100;
+src/plugins/mercadopago/cobros/http.ts:92: unit_price: Math.round(s.monto * 100) / 100,

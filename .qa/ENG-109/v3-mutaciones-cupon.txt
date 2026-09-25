@@ -1,0 +1,6 @@
+== M1 la reserva gasta el uso aunque no descuente: # fail 1 ; not ok 1 - contra Postgres (app_rls + RLS): la reserva de turno y su vista previa descuent|
+== M2 aplicarCupon acepta un descuento de 0: # fail 2 ; not ok 1 - contra Postgres (app_rls + RLS): la reserva de turno y su vista previa descuent|not ok 13 - un cupón válido que no llega a descontar nada se rechaza con el motivo, no s|
+== M3 la venta vuelve al peso: # fail 5 ; not ok 2 - hasta que el dueño decida la unidad, cada camino conserva la suya: turnos al p|not ok 3 - en la venta y la tienda 10 % de $12.345 sigue siendo $1.234,50, como antes de E|not ok 5 - la venta, contra la cuenta de antes, sólo cambia el medio centavo que bajaba, |not ok 6 - la venta con precios enteros de $1 a $100.000 no cambia en ningún caso (la rev|not ok 13 - un cupón válido que no llega a descontar nada se rechaza con el motivo, no s|
+== M4 la vista previa de turnos al centavo: # fail 1 ; not ok 1 - contra Postgres (app_rls + RLS): la reserva de turno y su vista previa descuent|
+== M5 la reserva no lee el cupon: # fail 1 ; not ok 1 - contra Postgres (app_rls + RLS): la reserva de turno y su vista previa descuent|
+== M6 el cupón en 0 sin motivo: # fail 1

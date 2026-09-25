@@ -24,6 +24,7 @@
 //   (`importMarker`) y el `--rollback` del script, que la usa para deshacer.
 
 import { round2 } from "@/lib/round";
+import { centavosDe } from "@/lib/dinero/redondeo";
 import type { CashMethod, CashMovementType } from "@/lib/caja/cash-register";
 
 export const CSV_COLUMNS = [
@@ -244,7 +245,7 @@ export function dedupKey(r: KeyFields): string {
 export type ExistingRow = KeyFields & { id: string; createdBy: string };
 
 export function centsOf(amount: number): number {
-  return Math.round(round2(amount) * 100);
+  return centavosDe(amount);
 }
 
 export type ImportPlan = {

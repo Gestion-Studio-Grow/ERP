@@ -1,0 +1,94 @@
+TAP version 13
+# Subtest: ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan intactos y el resumen cuenta sólo los de A
+not ok 1 - ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan intactos y el resumen cuenta sólo los de A
+  ---
+  duration_ms: 2598.406975
+  type: 'test'
+  location: '/home/user/erp/src/lib/arca-envios-por-negocio-postgres.test.ts:2:2806'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   autorizados: 2,
+    -   autorizados: 1,
+        descartados: 0,
+    +   fallidos: 1,
+    +   procesados: 2,
+    -   fallidos: 0,
+    -   procesados: 1,
+        rechazados: 0
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    procesados: 1
+    autorizados: 1
+    rechazados: 0
+    fallidos: 0
+    descartados: 0
+  actual:
+    procesados: 2
+    autorizados: 2
+    rechazados: 0
+    fallidos: 1
+    descartados: 0
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/arca-envios-por-negocio-postgres.test.ts:71:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: ENG-012 · la acción de A no toma un envío de B aunque sea el único pendiente (0 procesados, B sin intentos)
+not ok 2 - ENG-012 · la acción de A no toma un envío de B aunque sea el único pendiente (0 procesados, B sin intentos)
+  ---
+  duration_ms: 49.153056
+  type: 'test'
+  location: '/home/user/erp/src/lib/arca-envios-por-negocio-postgres.test.ts:2:4484'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+        autorizados: 0,
+        descartados: 0,
+    +   fallidos: 1,
+    -   fallidos: 0,
+        procesados: 0,
+        rechazados: 0
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    procesados: 0
+    autorizados: 0
+    rechazados: 0
+    fallidos: 0
+    descartados: 0
+  actual:
+    procesados: 0
+    autorizados: 0
+    rechazados: 0
+    fallidos: 1
+    descartados: 0
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/arca-envios-por-negocio-postgres.test.ts:102:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3051.416597

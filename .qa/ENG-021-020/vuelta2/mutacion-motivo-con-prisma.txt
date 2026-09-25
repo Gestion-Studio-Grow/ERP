@@ -1,0 +1,101 @@
+TAP version 13
+# Subtest: clientePara: sin ARCA_MODO devuelve el stub aunque haya config del tenant
+ok 1 - clientePara: sin ARCA_MODO devuelve el stub aunque haya config del tenant
+  ---
+  duration_ms: 1.407832
+  type: 'test'
+  ...
+# Subtest: clientePara: tenant sin config fiscal cae a un stub cuit:0 (inofensivo)
+ok 2 - clientePara: tenant sin config fiscal cae a un stub cuit:0 (inofensivo)
+  ---
+  duration_ms: 0.28181
+  type: 'test'
+  ...
+# Subtest: clientePara: stub NO resuelve credencial (ni toca el store)
+ok 3 - clientePara: stub NO resuelve credencial (ni toca el store)
+  ---
+  duration_ms: 0.211487
+  type: 'test'
+  ...
+# Subtest: clientePara: ARCA_MODO=real sin credencial cargada → propaga el error (no emite falso)
+ok 4 - clientePara: ARCA_MODO=real sin credencial cargada → propaga el error (no emite falso)
+  ---
+  duration_ms: 0.639402
+  type: 'test'
+  ...
+# Subtest: 🔒 ADR-066: ARCA_MODO=real con credencial del CUIT correcto → SOAP real por tenant
+ok 5 - 🔒 ADR-066: ARCA_MODO=real con credencial del CUIT correcto → SOAP real por tenant
+  ---
+  duration_ms: 161.813572
+  type: 'test'
+  ...
+# Subtest: 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed en el factory)
+ok 6 - 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed en el factory)
+  ---
+  duration_ms: 36.36557
+  type: 'test'
+  ...
+# Subtest: clientePara (stub): NO toca el store del TA
+ok 7 - clientePara (stub): NO toca el store del TA
+  ---
+  duration_ms: 0.253707
+  type: 'test'
+  ...
+# Subtest: clientePara (homologación): carga el TA persistido del tenant (ticketInicial)
+ok 8 - clientePara (homologación): carga el TA persistido del tenant (ticketInicial)
+  ---
+  duration_ms: 18.050509
+  type: 'test'
+  ...
+# Subtest: clientePara: en modo real, tenant sin CUIT válido LANZA (no despacha con cuit:0)
+ok 9 - clientePara: en modo real, tenant sin CUIT válido LANZA (no despacha con cuit:0)
+  ---
+  duration_ms: 0.625801
+  type: 'test'
+  ...
+# Subtest: clientePara: en modo homologación, tenant sin config fiscal también LANZA
+ok 10 - clientePara: en modo homologación, tenant sin config fiscal también LANZA
+  ---
+  duration_ms: 0.443476
+  type: 'test'
+  ...
+# Subtest: ENG-021 · el motivo que queda en el envío no filtra la estructura interna de un error de la base
+not ok 11 - ENG-021 · el motivo que queda en el envío no filtra la estructura interna de un error de la base
+  ---
+  duration_ms: 8.115998
+  type: 'test'
+  location: '/home/user/erp/src/lib/arca-dispatch.test.ts:2:5961'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /P2002/. Input:
+    
+    'Invalid `tx.invoice.updateMany()` invocation in\n' +
+      '/home/user/erp/src/lib/invoice-core.ts:236:25\n' +
+      '\n' +
+      '  233 const res = await tenantTransaction(\n' +
+      'Unique constraint failed on the fields: (`tenantId`,`puntoVenta`,`tipoComprobante`,`numero`)'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    Invalid `tx.invoice.updateMany()` invocation in
+    /home/user/erp/src/lib/invoice-core.ts:236:25
+    
+      233 const res = await tenantTransaction(
+    Unique constraint failed on the fields: (`tenantId`,`puntoVenta`,`tipoComprobante`,`numero`)
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/arca-dispatch.test.ts:154:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 10
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1117.640658

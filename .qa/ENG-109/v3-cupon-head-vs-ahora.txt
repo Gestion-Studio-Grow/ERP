@@ -1,0 +1,3 @@
+venta, precios enteros $1..$100.000 x {5,10,15,20,25,30,50}: cambian 0 de 700000; positivos que pasan a 0: 0
+venta, precios $0,01..$20.000,00 (cada centavo) x 1..99 %: cambian 364530 de 198000000; máximo 0.0100
+turno, precios enteros $1..$300.000 x 1..100 %: cambian 13704 de 30000000; positivos que pasan a 0: 0

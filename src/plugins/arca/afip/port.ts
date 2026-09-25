@@ -43,6 +43,47 @@ export class ArcaRechazoError extends Error {
 }
 
 /**
+ * ENG-021 · Error que no depende del comprobante: ARCA no contestó a tiempo, contestó con una
+ * falla interna (5xx), el token no sirvió, WSAA está caído o la respuesta llegó cortada. La
+ * factura NO se rechaza: queda pendiente y se reintenta. Si la respuesta se perdió después de
+ * que ARCA autorizó, el reintento lo descubre consultando (ENG-020) y no pide otro CAE.
+ */
+export class ArcaPasajeroError extends Error {
+  constructor(
+    message: string,
+    readonly observaciones: ObservacionArca[] = [],
+    options?: { cause?: unknown },
+  ) {
+    super(message, options);
+    this.name = 'ArcaPasajeroError';
+  }
+}
+
+/**
+ * ENG-020 · Un comprobante que ARCA ya tiene autorizado, tal como lo devuelve
+ * `FECompConsultar`. Sirve para reconocer el propio cuando la respuesta se perdió.
+ */
+export interface ComprobanteConsultado {
+  puntoVenta: number;
+  tipo: TipoComprobante;
+  numero: number;
+  /** El CAE (`CodAutorizacion`). */
+  cae: string;
+  /** Vencimiento del CAE (`FchVto`), `AAAAMMDD`. */
+  caeVencimiento: string;
+  fecha: string;
+  docTipo: number;
+  docNro: number;
+  /** `ImpTotal` en centavos enteros (leído del texto, sin pasar por float). */
+  totalCentavos: number;
+  /** `ImpNeto` en centavos enteros. */
+  netoCentavos: number;
+  /** `ImpIVA` en centavos enteros. */
+  ivaCentavos: number;
+  concepto: number;
+}
+
+/**
  * Cliente de ARCA. Un adapter lo implementa contra los web services reales
  * (WSAA + WSFEv1); el stub lo implementa en memoria para dev/test.
  */
@@ -56,4 +97,15 @@ export interface AfipClient {
    * lo rechaza.
    */
   solicitarCae(comp: ComprobanteArca): Promise<ResultadoCae>;
+
+  /**
+   * ENG-020 · El comprobante (puntoVenta, tipo, numero) tal como lo tiene ARCA, o `null` si
+   * ARCA no lo tiene autorizado. Lanza `ArcaPasajeroError` si no se pudo averiguar: en ese
+   * caso NO se puede pedir otro CAE.
+   */
+  consultarComprobante(
+    puntoVenta: number,
+    tipo: TipoComprobante,
+    numero: number,
+  ): Promise<ComprobanteConsultado | null>;
 }

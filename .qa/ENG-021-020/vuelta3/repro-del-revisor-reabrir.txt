@@ -1,0 +1,20 @@
+TAP version 13
+# ENVIOS PENDIENTES PARA LA FACTURA: 1
+# SEGUNDA CORRIDA: {"procesados":1,"autorizados":1,"rechazados":0,"fallidos":0,"descartados":0}
+# FACTURA: AUTHORIZED total 2420 numero 1 cae SIM00000000001
+# ARCA: [{"n":1,"total":"2420.00","cae":"SIM00000000001"}]
+# Subtest: REPRO · envío viejo sin cerrar + reapertura: dos CAE para una factura, y el registrado es el de los importes viejos
+ok 1 - REPRO · envío viejo sin cerrar + reapertura: dos CAE para una factura, y el registrado es el de los importes viejos
+  ---
+  duration_ms: 2252.221304
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2774.335993

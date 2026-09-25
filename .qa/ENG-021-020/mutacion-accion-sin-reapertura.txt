@@ -1,0 +1,35 @@
+TAP version 13
+# Subtest: facturarVenta sobre una venta con factura rechazada: la misma factura se reabre y termina autorizada; B no la ve
+not ok 1 - facturarVenta sobre una venta con factura rechazada: la misma factura se reabre y termina autorizada; B no la ve
+  ---
+  duration_ms: 4200.743413
+  type: 'test'
+  location: '/home/user/erp/src/lib/facturar-venta-rechazada-postgres.test.ts:2:1086'
+  failureType: 'testCodeFailure'
+  error: |-
+    ARCA rechazó la factura: 600: ValidacionDeToken: token invalido. Revisalo en Facturación.
+    + actual - expected
+    
+    + 'rechazada'
+    - 'facturada'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'facturada'
+  actual: 'rechazada'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/facturar-venta-rechazada-postgres.test.ts:67:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4654.904213

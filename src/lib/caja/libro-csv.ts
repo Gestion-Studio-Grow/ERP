@@ -11,6 +11,7 @@
 // agrega la ruta al servir, mismo criterio que el otro export.
 
 import { csvField } from "@/lib/report-csv";
+import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import type { CashMethod } from "@/lib/caja/cash-register";
 import {
   CASH_METHODS,
@@ -40,8 +41,9 @@ const row = (...f: (string | number)[]) => f.map((v) => csvField(enUnaLinea(v)))
 // Los importes van con COMA decimal y sin separador de miles: es lo que Excel es-AR
 // interpreta como número. Con punto quedarían como texto y no se podrían sumar —
 // que es lo primero que hace quien recibe el archivo.
+// Al centavo con la regla única de la plata (ENG-109): el medio centavo sube.
 function money(n: number): string {
-  return n.toFixed(2).replace(".", ",");
+  return textoAlCentavo(n).replace(".", ",");
 }
 
 // Fecha ISO (YYYY-MM-DD) a propósito: es la que ordena bien en cualquier planilla,

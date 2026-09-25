@@ -1,0 +1,267 @@
+TAP version 13
+# Subtest: ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+ok 1 - ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+  ---
+  duration_ms: 2989.558646
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 2 - ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 197.250175
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 3 - ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 135.601496
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 4 - ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 142.063633
+  type: 'test'
+  ...
+# Subtest: ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 5 - ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 197.75205
+  type: 'test'
+  ...
+# Subtest: ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 6 - ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 181.476438
+  type: 'test'
+  ...
+# Subtest: ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 7 - ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 98.101765
+  type: 'test'
+  ...
+# Subtest: ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 8 - ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 57.284062
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+ok 9 - ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+  ---
+  duration_ms: 177.033399
+  type: 'test'
+  ...
+# Subtest: ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+ok 10 - ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+  ---
+  duration_ms: 125.037519
+  type: 'test'
+  ...
+# Subtest: aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+ok 11 - aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+  ---
+  duration_ms: 209.567998
+  type: 'test'
+  ...
+# Subtest: ENG-020 · dos ventas iguales a consumidor final: la que perdió el pedido no adopta el CAE de la otra; cada una con su número
+ok 12 - ENG-020 · dos ventas iguales a consumidor final: la que perdió el pedido no adopta el CAE de la otra; cada una con su número
+  ---
+  duration_ms: 164.681789
+  type: 'test'
+  ...
+# Subtest: ENG-020/021 · la consulta del número anotado falla con un código desconocido: la factura sigue pendiente (no se rechaza) y un solo CAE
+ok 13 - ENG-020/021 · la consulta del número anotado falla con un código desconocido: la factura sigue pendiente (no se rechaza) y un solo CAE
+  ---
+  duration_ms: 142.250275
+  type: 'test'
+  ...
+# Subtest: ENG-021 · volver a facturar con un envío viejo sin cerrar (corte entre el rechazo y el cierre): un solo envío vivo, un CAE, y el CAE es el de los importes nuevos
+ok 14 - ENG-021 · volver a facturar con un envío viejo sin cerrar (corte entre el rechazo y el cierre): un solo envío vivo, un CAE, y el CAE es el de los importes nuevos
+  ---
+  duration_ms: 98.516311
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un despacho viejo que obtiene el CAE DESPUÉS de que la venta se volvió a facturar no lo registra en la factura reabierta
+ok 15 - ENG-021 · un despacho viejo que obtiene el CAE DESPUÉS de que la venta se volvió a facturar no lo registra en la factura reabierta
+  ---
+  duration_ms: 85.144816
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un despacho viejo que recibe un rechazo DESPUÉS de que la venta se volvió a facturar no rechaza la factura reabierta
+ok 16 - ENG-021 · un despacho viejo que recibe un rechazo DESPUÉS de que la venta se volvió a facturar no rechaza la factura reabierta
+  ---
+  duration_ms: 173.900039
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un envío que quedó abierto para una factura ya rechazada se cierra sin volver a pedirle nada a ARCA
+ok 17 - ENG-021 · un envío que quedó abierto para una factura ya rechazada se cierra sin volver a pedirle nada a ARCA
+  ---
+  duration_ms: 120.253899
+  type: 'test'
+  ...
+# Subtest: ENG-019 · mientras un despacho tiene el envío, otro no lo toma ni le pide nada a ARCA; ARCA termina con un CAE
+ok 18 - ENG-019 · mientras un despacho tiene el envío, otro no lo toma ni le pide nada a ARCA; ARCA termina con un CAE
+  ---
+  duration_ms: 52.312585
+  type: 'test'
+  ...
+# Subtest: ENG-019 · un despacho que perdió la reserva (se colgó más que ella) no anota ni pide el CAE: lo hace el que la tomó
+ok 19 - ENG-019 · un despacho que perdió la reserva (se colgó más que ella) no anota ni pide el CAE: lo hace el que la tomó
+  ---
+  duration_ms: 42.020703
+  type: 'test'
+  ...
+# Subtest: clientePara: sin ARCA_MODO devuelve el stub aunque haya config del tenant
+ok 20 - clientePara: sin ARCA_MODO devuelve el stub aunque haya config del tenant
+  ---
+  duration_ms: 0.99973
+  type: 'test'
+  ...
+# Subtest: clientePara: tenant sin config fiscal cae a un stub cuit:0 (inofensivo)
+ok 21 - clientePara: tenant sin config fiscal cae a un stub cuit:0 (inofensivo)
+  ---
+  duration_ms: 0.363202
+  type: 'test'
+  ...
+# Subtest: clientePara: stub NO resuelve credencial (ni toca el store)
+ok 22 - clientePara: stub NO resuelve credencial (ni toca el store)
+  ---
+  duration_ms: 0.231119
+  type: 'test'
+  ...
+# Subtest: clientePara: ARCA_MODO=real sin credencial cargada → propaga el error (no emite falso)
+ok 23 - clientePara: ARCA_MODO=real sin credencial cargada → propaga el error (no emite falso)
+  ---
+  duration_ms: 0.658891
+  type: 'test'
+  ...
+# Subtest: 🔒 ADR-066: ARCA_MODO=real con credencial del CUIT correcto → SOAP real por tenant
+ok 24 - 🔒 ADR-066: ARCA_MODO=real con credencial del CUIT correcto → SOAP real por tenant
+  ---
+  duration_ms: 215.187401
+  type: 'test'
+  ...
+# Subtest: 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed en el factory)
+ok 25 - 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed en el factory)
+  ---
+  duration_ms: 47.027133
+  type: 'test'
+  ...
+# Subtest: clientePara (stub): NO toca el store del TA
+ok 26 - clientePara (stub): NO toca el store del TA
+  ---
+  duration_ms: 1.114814
+  type: 'test'
+  ...
+# Subtest: clientePara (homologación): carga el TA persistido del tenant (ticketInicial)
+ok 27 - clientePara (homologación): carga el TA persistido del tenant (ticketInicial)
+  ---
+  duration_ms: 25.742087
+  type: 'test'
+  ...
+# Subtest: clientePara: en modo real, tenant sin CUIT válido LANZA (no despacha con cuit:0)
+ok 28 - clientePara: en modo real, tenant sin CUIT válido LANZA (no despacha con cuit:0)
+  ---
+  duration_ms: 0.384348
+  type: 'test'
+  ...
+# Subtest: clientePara: en modo homologación, tenant sin config fiscal también LANZA
+ok 29 - clientePara: en modo homologación, tenant sin config fiscal también LANZA
+  ---
+  duration_ms: 0.354676
+  type: 'test'
+  ...
+# Subtest: ENG-021 · el motivo que queda en el envío no filtra la estructura interna de un error de la base
+ok 30 - ENG-021 · el motivo que queda en el envío no filtra la estructura interna de un error de la base
+  ---
+  duration_ms: 7.670212
+  type: 'test'
+  ...
+# \# EVIDENCIA [{"serie":1,"porProceso":[{"modo":"cron","cuentas":{"procesados":4,"autorizados":4,"rechazados":0,"fallidos":0,"descartados":0,"corridas":11}},{"modo":"cron","cuentas":{"procesados":3,"autorizados":3,"rechazados":0,"fallidos":0,"descartados":0,"corridas":14}},{"modo":"negocio:A","cuentas":{"procesados":3,"autorizados":3,"rechazados":0,"fallidos":0,"descartados":0,"corridas":12}},{"modo":"negocio:B","cuentas":{"procesados":2,"autorizados":2,"rechazados":0,"fallidos":0,"descartados":0,"corridas":14}}],"A":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[1,2,3,4,5,6],"numerosEsperados":[1,2,3,4,5,6],"enviosAbiertos":0},"B":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[1,2,3,4,5,6],"numerosEsperados":[1,2,3,4,5,6],"enviosAbiertos":0}},{"serie":2,"porProceso":[{"modo":"cron","cuentas":{"procesados":3,"autorizados":3,"rechazados":0,"fallidos":0,"descartados":0,"corridas":7}},{"modo":"cron","cuentas":{"procesados":3,"autorizados":3,"rechazados":0,"fallidos":0,"descartados":0,"corridas":6}},{"modo":"negocio:A","cuentas":{"procesados":2,"autorizados":2,"rechazados":0,"fallidos":0,"descartados":0,"corridas":8}},{"modo":"negocio:B","cuentas":{"procesados":4,"autorizados":4,"rechazados":0,"fallidos":0,"descartados":0,"corridas":5}}],"A":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[7,8,9,10,11,12],"numerosEsperados":[7,8,9,10,11,12],"enviosAbiertos":0},"B":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[7,8,9,10,11,12],"numerosEsperados":[7,8,9,10,11,12],"enviosAbiertos":0}},{"serie":3,"porProceso":[{"modo":"cron","cuentas":{"procesados":3,"autorizados":3,"rechazados":0,"fallidos":0,"descartados":0,"corridas":7}},{"modo":"cron","cuentas":{"procesados":1,"autorizados":1,"rechazados":0,"fallidos":0,"descartados":0,"corridas":12}},{"modo":"negocio:A","cuentas":{"procesados":4,"autorizados":4,"rechazados":0,"fallidos":0,"descartados":0,"corridas":4}},{"modo":"negocio:B","cuentas":{"procesados":4,"autorizados":4,"rechazados":0,"fallidos":0,"descartados":0,"corridas":7}}],"A":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[13,14,15,16,17,18],"numerosEsperados":[13,14,15,16,17,18],"enviosAbiertos":0},"B":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[13,14,15,16,17,18],"numerosEsperados":[13,14,15,16,17,18],"enviosAbiertos":0}}]
+# Subtest: ENG-019 · 4 procesos a la vez sobre 12 pendientes de dos negocios, 3 series seguidas: 12 CAE por serie, ninguno de más, números de ARCA = base
+ok 31 - ENG-019 · 4 procesos a la vez sobre 12 pendientes de dos negocios, 3 series seguidas: 12 CAE por serie, ninguno de más, números de ARCA = base
+  ---
+  duration_ms: 5358.155085
+  type: 'test'
+  ...
+# Subtest: ENG-019 · 50 de 50 iteraciones: dos ventas simultáneas de A y una de B con tres despachos a la vez → 0 CAE de más, 0 rechazadas con CAE, números de ARCA = base
+ok 32 - ENG-019 · 50 de 50 iteraciones: dos ventas simultáneas de A y una de B con tres despachos a la vez → 0 CAE de más, 0 rechazadas con CAE, números de ARCA = base
+  ---
+  duration_ms: 3034.290623
+  type: 'test'
+  ...
+# Subtest: ENG-019 · 20 envíos de A que fallan y 1 de B: B queda autorizada en la PRIMERA corrida
+ok 33 - ENG-019 · 20 envíos de A que fallan y 1 de B: B queda autorizada en la PRIMERA corrida
+  ---
+  duration_ms: 398.529012
+  type: 'test'
+  ...
+# Subtest: ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan intactos y el resumen cuenta sólo los de A
+ok 34 - ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan intactos y el resumen cuenta sólo los de A
+  ---
+  duration_ms: 4417.509699
+  type: 'test'
+  ...
+# Subtest: ENG-012 · la acción de A no toma un envío de B aunque sea el único pendiente (0 procesados, B sin intentos)
+ok 35 - ENG-012 · la acción de A no toma un envío de B aunque sea el único pendiente (0 procesados, B sin intentos)
+  ---
+  duration_ms: 25.96296
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T06:17:38.173Z","level":"error","scope":"arca","msg":"el cron de ARCA no ve los envíos de todos los negocios","err":{"name":"ProcesadorArcaSinAccesoError","message":"procesador de ARCA sin acceso: falta OPERATOR_DATABASE_URL y la conexión de la app (rol app_rls) no ve los envíos de todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño.","stack":"ProcesadorArcaSinAccesoError: procesador de ARCA sin acceso: falta OPERATOR_DATABASE_URL y la conexión de la app (rol app_rls) no ve los envíos de todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño.\\n    at verificarAccesoDelOperador (/home/user/erp/src/lib/arca-reserva.ts:244:9)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async processArcaOutbox (/home/user/erp/src/lib/arca-dispatch.ts:261:3)\\n    at async GET (/home/user/erp/src/app/api/cron/arca-outbox/route.ts:39:21)\\n    at async TestContext.<anonymous> (/home/user/erp/src/lib/arca-procesador-sin-operador-postgres.test.ts:83:14)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)"}}
+# {"ts":"2026-09-25T06:17:38.185Z","level":"error","scope":"ready","msg":"el procesador de ARCA no ve los envíos de todos los negocios","requestId":"373bc17f-9a10-492b-9d42-5fe7f64ae5ac","err":{"name":"ProcesadorArcaSinAccesoError","message":"procesador de ARCA sin acceso: falta OPERATOR_DATABASE_URL y la conexión de la app (rol app_rls) no ve los envíos de todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño.","stack":"ProcesadorArcaSinAccesoError: procesador de ARCA sin acceso: falta OPERATOR_DATABASE_URL y la conexión de la app (rol app_rls) no ve los envíos de todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño.\\n    at verificarAccesoDelOperador (/home/user/erp/src/lib/arca-reserva.ts:244:9)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async <anonymous> (/home/user/erp/src/app/api/ready/route.ts:34:9)\\n    at async <anonymous> (/home/user/erp/src/lib/request-context.ts:96:19)\\n    at async TestContext.<anonymous> (/home/user/erp/src/lib/arca-procesador-sin-operador-postgres.test.ts:89:14)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)"}}
+# Subtest: ENG-027 · sin OPERATOR_DATABASE_URL (app_rls): el procesador lanza un error de configuración, el cron responde error y /api/ready 503; con el rol dueño procesa los dos negocios
+ok 36 - ENG-027 · sin OPERATOR_DATABASE_URL (app_rls): el procesador lanza un error de configuración, el cron responde error y /api/ready 503; con el rol dueño procesa los dos negocios
+  ---
+  duration_ms: 2667.612763
+  type: 'test'
+  ...
+# Subtest: ENG-027 · con la facturación apagada /api/ready no mira el procesador (sigue 200 aunque falte el operador)
+ok 37 - ENG-027 · con la facturación apagada /api/ready no mira el procesador (sigue 200 aunque falte el operador)
+  ---
+  duration_ms: 45.643794
+  type: 'test'
+  ...
+# Subtest: ENG-027 · un rol que no es dueño ni tiene BYPASSRLS, puesto como OPERATOR_DATABASE_URL, también es error de configuración
+ok 38 - ENG-027 · un rol que no es dueño ni tiene BYPASSRLS, puesto como OPERATOR_DATABASE_URL, también es error de configuración
+  ---
+  duration_ms: 55.576881
+  type: 'test'
+  ...
+# (node:6197) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: facturarOrden: la venta de las 23:30 del 31/08 sale con fecha 20260831
+ok 39 - facturarOrden: la venta de las 23:30 del 31/08 sale con fecha 20260831
+  ---
+  duration_ms: 11.663389
+  type: 'test'
+  ...
+# Subtest: facturarAppointment: el turno cobrado a las 23:30 del 31/08 sale con fecha y servicio del 31/08
+ok 40 - facturarAppointment: el turno cobrado a las 23:30 del 31/08 sale con fecha y servicio del 31/08
+  ---
+  duration_ms: 0.45603
+  type: 'test'
+  ...
+# Subtest: facturarPagoMP: sin fecha de acreditación, el día del negocio; con fecha, la de Mercado Pago
+ok 41 - facturarPagoMP: sin fecha de acreditación, el día del negocio; con fecha, la de Mercado Pago
+  ---
+  duration_ms: 0.532876
+  type: 'test'
+  ...
+# Subtest: a la medianoche argentina ya es el día siguiente
+ok 42 - a la medianoche argentina ya es el día siguiente
+  ---
+  duration_ms: 0.331699
+  type: 'test'
+  ...
+1..42
+# tests 42
+# suites 0
+# pass 42
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9342.614143

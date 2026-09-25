@@ -27,9 +27,10 @@ function evento(over: Partial<InvoiceCreatedEvent> = {}): InvoiceCreatedEvent {
     concepto: Concepto.Productos,
     fecha: "20260705",
     emisor: {
-      cuit: 20304050607,
+      cuit: 20304050609,
       condicionIva: CondicionIva.ResponsableInscripto,
       puntoVenta: 3,
+      regimenFacturaA: "A",
     },
     receptor: {
       docTipo: TipoDocumento.ConsumidorFinal,
@@ -83,7 +84,7 @@ test("emisor RI + receptor RI ⇒ Factura A", () => {
     evento({
       receptor: {
         docTipo: TipoDocumento.CUIT,
-        docNro: 27111222333,
+        docNro: 30712345671,
         condicionIva: CondicionIva.ResponsableInscripto,
       },
     }),
@@ -96,23 +97,24 @@ test("emisor RI + receptor consumidor final ⇒ Factura B", () => {
   assert.equal(c.tipo, TipoComprobante.FacturaB);
 });
 
-test("emisor RI + receptor monotributo ⇒ Factura B (no A)", () => {
+test("emisor RI + receptor monotributo ⇒ Factura A (RG 5003/2021, con la leyenda de la Ley 27.618)", () => {
   const c = construirComprobante(
     evento({
       receptor: {
         docTipo: TipoDocumento.CUIT,
-        docNro: 20999888777,
+        docNro: 20111111112,
         condicionIva: CondicionIva.Monotributo,
       },
     }),
   );
-  assert.equal(c.tipo, TipoComprobante.FacturaB);
+  assert.equal(c.tipo, TipoComprobante.FacturaA);
+  assert.ok(c.leyendas?.some((l) => l.codigo === "RG5003_MONOTRIBUTISTA"));
 });
 
 test("emisor monotributo ⇒ Factura C (sin importar el receptor)", () => {
   const c = construirComprobante(
     evento({
-      emisor: { cuit: 20304050607, condicionIva: CondicionIva.Monotributo, puntoVenta: 3 },
+      emisor: { cuit: 20304050609, condicionIva: CondicionIva.Monotributo, puntoVenta: 3 },
     }),
   );
   assert.equal(c.tipo, TipoComprobante.FacturaC);
@@ -121,7 +123,7 @@ test("emisor monotributo ⇒ Factura C (sin importar el receptor)", () => {
 test("emisor exento ⇒ Factura C", () => {
   const c = construirComprobante(
     evento({
-      emisor: { cuit: 20304050607, condicionIva: CondicionIva.Exento, puntoVenta: 3 },
+      emisor: { cuit: 20304050609, condicionIva: CondicionIva.Exento, puntoVenta: 3 },
     }),
   );
   assert.equal(c.tipo, TipoComprobante.FacturaC);
@@ -139,7 +141,7 @@ test("emisor consumidor final no puede emitir: lanza", () => {
           },
         }),
       ),
-    /no puede emitir/,
+    /no emite facturas/,
   );
 });
 
@@ -187,8 +189,24 @@ test("totalIva suma los importes de todas las alícuotas", () => {
   assert.equal(totalIva(comp), 42);
 });
 
+test("totalIva suma al centavo, como viaja ImpIVA: $0,10 + $0,20 da $0,30 y no 0,30000000000000004 (ENG-109)", () => {
+  const comp: ComprobanteArca = construirComprobante(
+    evento({
+      iva: [
+        { alicuotaId: AlicuotaIvaId.VeintiUno, base: 0.48, importe: 0.1 },
+        { alicuotaId: AlicuotaIvaId.DiezCinco, base: 1.9, importe: 0.2 },
+      ],
+      neto: 2.38,
+      total: 2.68,
+    }),
+  );
+  assert.equal(0.1 + 0.2 === 0.3, false, "la suma en binario no da 0,30");
+  assert.equal(totalIva(comp), 0.3);
+});
+
 test("totalIva de un comprobante sin IVA es 0", () => {
-  const comp = construirComprobante(evento({ iva: [], neto: 0, total: 0 }));
+  // Un total de $0 no se construye (la decisión lo frena): se mira sólo la suma sobre un comprobante sin alícuotas.
+  const comp = { ...construirComprobante(evento()), iva: [] };
   assert.equal(totalIva(comp), 0);
 });
 

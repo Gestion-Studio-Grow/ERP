@@ -1,0 +1,332 @@
+MUTACIÓN sin-control-de-autorizacion-tardia en src/plugins/arca/handler.ts
+TAP version 13
+# Subtest: contrato · autoriza: CAE y número 1, y FECompConsultar devuelve ese mismo comprobante
+ok 1 - contrato · autoriza: CAE y número 1, y FECompConsultar devuelve ese mismo comprobante
+  ---
+  duration_ms: 44.530503
+  type: 'test'
+  ...
+# Subtest: contrato · rechaza (Resultado R con una observación del comprobante): ArcaRechazoError, 0 CAE
+ok 2 - contrato · rechaza (Resultado R con una observación del comprobante): ArcaRechazoError, 0 CAE
+  ---
+  duration_ms: 3.032637
+  type: 'test'
+  ...
+# Subtest: contrato · timeout ANTES de autorizar: pasajero y ARCA no tiene nada (consultar da null)
+ok 3 - contrato · timeout ANTES de autorizar: pasajero y ARCA no tiene nada (consultar da null)
+  ---
+  duration_ms: 43.692606
+  type: 'test'
+  ...
+# Subtest: contrato · timeout DESPUÉS de autorizar: pasajero, pero ARCA ya emitió el CAE del número 1
+ok 4 - contrato · timeout DESPUÉS de autorizar: pasajero, pero ARCA ya emitió el CAE del número 1
+  ---
+  duration_ms: 42.235648
+  type: 'test'
+  ...
+# Subtest: contrato · respuesta cortada después de autorizar: pasajero, nunca rechazo
+ok 5 - contrato · respuesta cortada después de autorizar: pasajero, nunca rechazo
+  ---
+  duration_ms: 1.186527
+  type: 'test'
+  ...
+# Subtest: contrato · WSAA caído (HTTP 503 con SOAP Fault): pasajero y no se llega a pedir el CAE
+ok 6 - contrato · WSAA caído (HTTP 503 con SOAP Fault): pasajero y no se llega a pedir el CAE
+  ---
+  duration_ms: 1.868976
+  type: 'test'
+  ...
+# Subtest: contrato · WSAA sin red: pasajero
+ok 7 - contrato · WSAA sin red: pasajero
+  ---
+  duration_ms: 0.511891
+  type: 'test'
+  ...
+# Subtest: contrato · WSAA contesta cortado (sin token): pasajero
+ok 8 - contrato · WSAA contesta cortado (sin token): pasajero
+  ---
+  duration_ms: 0.770988
+  type: 'test'
+  ...
+# Subtest: contrato · WSFEv1 caído (HTTP 503) al pedir el CAE: pasajero
+ok 9 - contrato · WSFEv1 caído (HTTP 503) al pedir el CAE: pasajero
+  ---
+  duration_ms: 0.916879
+  type: 'test'
+  ...
+# Subtest: contrato · <Errors> 500 al pedir el CAE: pasajero con el código a la vista
+ok 10 - contrato · <Errors> 500 al pedir el CAE: pasajero con el código a la vista
+  ---
+  duration_ms: 1.474122
+  type: 'test'
+  ...
+# Subtest: contrato · <Errors> 501 al pedir el CAE: pasajero con el código a la vista
+ok 11 - contrato · <Errors> 501 al pedir el CAE: pasajero con el código a la vista
+  ---
+  duration_ms: 0.78431
+  type: 'test'
+  ...
+# Subtest: contrato · <Errors> 502 al pedir el CAE: pasajero con el código a la vista
+ok 12 - contrato · <Errors> 502 al pedir el CAE: pasajero con el código a la vista
+  ---
+  duration_ms: 0.700375
+  type: 'test'
+  ...
+# Subtest: contrato · <Errors> 600 al pedir el CAE: pasajero con el código a la vista
+ok 13 - contrato · <Errors> 600 al pedir el CAE: pasajero con el código a la vista
+  ---
+  duration_ms: 0.446202
+  type: 'test'
+  ...
+# Subtest: contrato · token que ARCA ya no reconoce: el simulador contesta 600 y es pasajero
+ok 14 - contrato · token que ARCA ya no reconoce: el simulador contesta 600 y es pasajero
+  ---
+  duration_ms: 0.829692
+  type: 'test'
+  ...
+# Subtest: contrato · número que no es el próximo (10016): pasajero, 0 CAE
+ok 15 - contrato · número que no es el próximo (10016): pasajero, 0 CAE
+  ---
+  duration_ms: 0.72545
+  type: 'test'
+  ...
+# Subtest: contrato · FECompConsultar de un número que no existe (602): null, no error
+ok 16 - contrato · FECompConsultar de un número que no existe (602): null, no error
+  ---
+  duration_ms: 0.497308
+  type: 'test'
+  ...
+# Subtest: contrato · FECompConsultar sin respuesta a tiempo: lanza pasajero (no contesta "no existe")
+ok 17 - contrato · FECompConsultar sin respuesta a tiempo: lanza pasajero (no contesta "no existe")
+  ---
+  duration_ms: 41.018965
+  type: 'test'
+  ...
+# Subtest: el importe de ARCA se lee a centavos sin float: "1210" → 121000, "0.1" → 10, "1.005" no se adopta
+# (node:21445) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+ok 18 - el importe de ARCA se lee a centavos sin float: "1210" → 121000, "0.1" → 10, "1.005" no se adopta
+  ---
+  duration_ms: 0.35338
+  type: 'test'
+  ...
+# Subtest: el transporte real corta a los 15 s: a los 14,999 s sigue esperando, a los 15 s es pasajero
+ok 19 - el transporte real corta a los 15 s: a los 14,999 s sigue esperando, a los 15 s es pasajero
+  ---
+  duration_ms: 2.34363
+  type: 'test'
+  ...
+# Subtest: ENG-020 · ARCA autoriza y la respuesta se pierde: el reintento registra el número 1 y no pide un 2
+ok 20 - ENG-020 · ARCA autoriza y la respuesta se pierde: el reintento registra el número 1 y no pide un 2
+  ---
+  duration_ms: 42.870923
+  type: 'test'
+  ...
+# Subtest: ENG-020 · respuesta cortada después de autorizar: el reintento adopta el CAE, un solo comprobante
+ok 21 - ENG-020 · respuesta cortada después de autorizar: el reintento adopta el CAE, un solo comprobante
+  ---
+  duration_ms: 1.723338
+  type: 'test'
+  ...
+# Subtest: ENG-020 · timeout ANTES de autorizar: el reintento consulta, no encuentra nada y pide el 1
+ok 22 - ENG-020 · timeout ANTES de autorizar: el reintento consulta, no encuentra nada y pide el 1
+  ---
+  duration_ms: 42.233248
+  type: 'test'
+  ...
+# Subtest: ENG-020 · si la consulta no contesta, NO se pide otro CAE (queda pendiente)
+ok 23 - ENG-020 · si la consulta no contesta, NO se pide otro CAE (queda pendiente)
+  ---
+  duration_ms: 82.875919
+  type: 'test'
+  ...
+# Subtest: ENG-020 · si el número anotado lo autorizó OTRO comprobante, no se adopta: se pide el siguiente
+ok 24 - ENG-020 · si el número anotado lo autorizó OTRO comprobante, no se adopta: se pide el siguiente
+  ---
+  duration_ms: 1.675502
+  type: 'test'
+  ...
+# Subtest: ENG-020 · si no se pudo anotar el número, no se pide el CAE
+ok 25 - ENG-020 · si no se pudo anotar el número, no se pide el CAE
+  ---
+  duration_ms: 0.692354
+  type: 'test'
+  ...
+# Subtest: ENG-020 · el número se anota ANTES de pedir el CAE
+ok 26 - ENG-020 · el número se anota ANTES de pedir el CAE
+  ---
+  duration_ms: 1.004253
+  type: 'test'
+  ...
+# Subtest: ENG-021 · con un 600 el despacho no registra nada y el reintento autoriza con el mismo número
+ok 27 - ENG-021 · con un 600 el despacho no registra nada y el reintento autoriza con el mismo número
+  ---
+  duration_ms: 1.582569
+  type: 'test'
+  ...
+# Subtest: ENG-020 · ARCA dio el CAE pero no se pudo guardar: el reintento adopta ese CAE y no pide otro
+ok 28 - ENG-020 · ARCA dio el CAE pero no se pudo guardar: el reintento adopta ese CAE y no pide otro
+  ---
+  duration_ms: 1.859688
+  type: 'test'
+  ...
+# Subtest: ENG-021 · FECompConsultar con el error 1000: pasajero, nunca rechazo (no se sabe si el número se usó)
+ok 29 - ENG-021 · FECompConsultar con el error 1000: pasajero, nunca rechazo (no se sabe si el número se usó)
+  ---
+  duration_ms: 0.600151
+  type: 'test'
+  ...
+# Subtest: ENG-021 · FECompConsultar con el error 10015: pasajero, nunca rechazo (no se sabe si el número se usó)
+ok 30 - ENG-021 · FECompConsultar con el error 10015: pasajero, nunca rechazo (no se sabe si el número se usó)
+  ---
+  duration_ms: 0.390131
+  type: 'test'
+  ...
+# Subtest: ENG-021 · FECompConsultar con el error 600: pasajero, nunca rechazo (no se sabe si el número se usó)
+ok 31 - ENG-021 · FECompConsultar con el error 600: pasajero, nunca rechazo (no se sabe si el número se usó)
+  ---
+  duration_ms: 0.374716
+  type: 'test'
+  ...
+# Subtest: ENG-020 · si la consulta del número anotado lanza un rechazo (cualquier cliente), sale pasajero y no se pide otro número
+ok 32 - ENG-020 · si la consulta del número anotado lanza un rechazo (cualquier cliente), sale pasajero y no se pide otro número
+  ---
+  duration_ms: 0.273849
+  type: 'test'
+  ...
+# Subtest: ENG-020 · dos ventas iguales a consumidor final: si el número anotado ya está en OTRA factura, no se adopta y se pide el siguiente
+ok 33 - ENG-020 · dos ventas iguales a consumidor final: si el número anotado ya está en OTRA factura, no se adopta y se pide el siguiente
+  ---
+  duration_ms: 1.422775
+  type: 'test'
+  ...
+# Subtest: ENG-020 · el mismo comprobante idéntico, sin otra factura que lo tenga: se adopta (la respuesta se había perdido)
+ok 34 - ENG-020 · el mismo comprobante idéntico, sin otra factura que lo tenga: se adopta (la respuesta se había perdido)
+  ---
+  duration_ms: 0.840118
+  type: 'test'
+  ...
+# Subtest: ENG-020 · esElMismoComprobante: cada dato que viaja a ARCA, si difiere, hace que NO se adopte
+ok 35 - ENG-020 · esElMismoComprobante: cada dato que viaja a ARCA, si difiere, hace que NO se adopte
+  ---
+  duration_ms: 0.286952
+  type: 'test'
+  ...
+# Subtest: ENG-020 · con número anotado se consulta ANTES de validar: si ARCA ya lo autorizó, se registra aunque la validación de hoy lo objete
+ok 36 - ENG-020 · con número anotado se consulta ANTES de validar: si ARCA ya lo autorizó, se registra aunque la validación de hoy lo objete
+  ---
+  duration_ms: 1.03786
+  type: 'test'
+  ...
+# Subtest: contrato · FECompUltimoAutorizado caído (HTTP 503): pasajero y no se pide el CAE
+ok 37 - contrato · FECompUltimoAutorizado caído (HTTP 503): pasajero y no se pide el CAE
+  ---
+  duration_ms: 0.658263
+  type: 'test'
+  ...
+# Subtest: contrato · FECAESolicitar sin red: pasajero, 0 CAE, y el reintento autoriza el mismo número
+ok 38 - contrato · FECAESolicitar sin red: pasajero, 0 CAE, y el reintento autoriza el mismo número
+  ---
+  duration_ms: 1.643899
+  type: 'test'
+  ...
+# Subtest: ENG-020 · ARCA autoriza TARDE (después de la consulta del reintento): no se pide otro número; el reintento siguiente adopta el mismo y queda 1 CAE
+not ok 39 - ENG-020 · ARCA autoriza TARDE (después de la consulta del reintento): no se pide otro número; el reintento siguiente adopta el mismo y queda 1 CAE
+  ---
+  duration_ms: 46.04738
+  type: 'test'
+  location: '/home/user/erp/src/plugins/arca/afip/contrato-arca.test.ts:2:22766'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (/home/user/erp/src/plugins/arca/afip/contrato-arca.test.ts:522:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ENG-020 · autorizarSinDuplicar: número anotado que da 602 pero ya es menor o igual al último autorizado → pasajero, sin pedir otro
+not ok 40 - ENG-020 · autorizarSinDuplicar: número anotado que da 602 pero ya es menor o igual al último autorizado → pasajero, sin pedir otro
+  ---
+  duration_ms: 42.873756
+  type: 'test'
+  location: '/home/user/erp/src/plugins/arca/afip/contrato-arca.test.ts:2:23965'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection (ArcaPasajeroError).'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (/home/user/erp/src/plugins/arca/afip/contrato-arca.test.ts:541:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ENG-020 · número anotado que da 602 y sigue por encima del último autorizado: el pedido no había llegado, se pide ese mismo número
+ok 41 - ENG-020 · número anotado que da 602 y sigue por encima del último autorizado: el pedido no había llegado, se pide ese mismo número
+  ---
+  duration_ms: 42.488803
+  type: 'test'
+  ...
+# Subtest: contrato · FECompConsultar caido: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+ok 42 - contrato · FECompConsultar caido: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+  ---
+  duration_ms: 41.793473
+  type: 'test'
+  ...
+# Subtest: contrato · FECompConsultar sin-red: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+ok 43 - contrato · FECompConsultar sin-red: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+  ---
+  duration_ms: 42.311789
+  type: 'test'
+  ...
+# Subtest: contrato · FECompConsultar respuesta-cortada: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+ok 44 - contrato · FECompConsultar respuesta-cortada: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+  ---
+  duration_ms: 41.995756
+  type: 'test'
+  ...
+# Subtest: contrato · FECompConsultar timeout-antes: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+ok 45 - contrato · FECompConsultar timeout-antes: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+  ---
+  duration_ms: 81.485605
+  type: 'test'
+  ...
+# Subtest: contrato · FECompUltimoAutorizado <Errors> 600: pasajero, no se anota ni se pide el CAE
+ok 46 - contrato · FECompUltimoAutorizado <Errors> 600: pasajero, no se anota ni se pide el CAE
+  ---
+  duration_ms: 0.808265
+  type: 'test'
+  ...
+# Subtest: contrato · FECompUltimoAutorizado <Errors> 501: pasajero, no se anota ni se pide el CAE
+ok 47 - contrato · FECompUltimoAutorizado <Errors> 501: pasajero, no se anota ni se pide el CAE
+  ---
+  duration_ms: 0.49443
+  type: 'test'
+  ...
+# Subtest: contrato · FECompUltimoAutorizado timeout-antes: pasajero, no se anota ni se pide el CAE
+ok 48 - contrato · FECompUltimoAutorizado timeout-antes: pasajero, no se anota ni se pide el CAE
+  ---
+  duration_ms: 40.300529
+  type: 'test'
+  ...
+# Subtest: contrato · FECompUltimoAutorizado respuesta-cortada: pasajero, no se anota ni se pide el CAE
+ok 49 - contrato · FECompUltimoAutorizado respuesta-cortada: pasajero, no se anota ni se pide el CAE
+  ---
+  duration_ms: 0.679211
+  type: 'test'
+  ...
+# Subtest: contrato · FECompUltimoAutorizado sin-red: pasajero, no se anota ni se pide el CAE
+ok 50 - contrato · FECompUltimoAutorizado sin-red: pasajero, no se anota ni se pide el CAE
+  ---
+  duration_ms: 0.372006
+  type: 'test'
+  ...
+1..50
+# tests 50
+# suites 0
+# pass 48
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1112.605822
+restaurado (cmp ok)

@@ -1,0 +1,12 @@
+mutación 1: sin reactivar dados de baja
+not ok 3 - después de restaurar, el usuario común entra en cada negocio y todos los que había vuelven a entrar con la misma clave, incluso los dados de baja
+# pass 4
+# fail 1
+mutación 2: reversa sin borrar los creados
+not ok 5 - el script deja el respaldo sólo legible por su dueño, no muestra la clave, y la reversa deja cada usuario exactamente como estaba
+# pass 4
+# fail 1
+mutación 3: el script no borra lo escrito si falla
+not ok 5 - el script deja el respaldo sólo legible por su dueño, no muestra la clave, y la reversa deja cada usuario exactamente como estaba
+# pass 4
+# fail 1

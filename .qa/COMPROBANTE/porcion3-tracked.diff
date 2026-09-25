@@ -1,0 +1,1070 @@
+diff --git a/src/lib/arca-dispatch.ts b/src/lib/arca-dispatch.ts
+index 74f1dea..469d980 100644
+--- a/src/lib/arca-dispatch.ts
++++ b/src/lib/arca-dispatch.ts
+@@ -7,22 +7,26 @@
+  * dos lados (por eso importa el plugin); el Core (`invoice-core`) no importa el
+  * plugin — la dependencia va plugin→Core (ADR-002).
+  *
+- * Hoy corre a demanda (`processArcaOutbox()`); mañana lo dispara un worker
+- * periódico (pg-boss/graphile-worker, ADR-002/005). No está enganchado a ningún
+- * cron todavía a propósito: la emisión de facturas reales es un follow-up.
++ * Dos entradas: `processArcaOutbox()` barre todos los negocios y la llama SÓLO el cron
++ * (`/api/cron/arca-outbox`); `procesarEnviosDelNegocio(tenantId)` procesa los de un negocio y
++ * la llaman las acciones del panel y la facturación (ENG-012). Cada envío se toma con reserva,
++ * de a uno por negocio (`arca-reserva.ts`, ENG-019).
+  */
+ 
++import { Prisma } from "@/generated/prisma/client";
+ import { operatorPrisma } from "@/lib/operator-db";
+ import { tenantTransaction } from "@/lib/rls";
+ import { cuitValido, normalizarCuit } from "@/lib/cuit";
+ import {
++  cerrarEnvioDeFacturaNoPendiente,
+   markInvoiceRejected,
++  numeroUsadoPorOtraFactura,
+   registerFiscalDocument,
+-  OUTBOX_INVOICE_CREATED,
+   type InvoiceCreatedPayload,
+ } from "@/lib/invoice-core";
+ import {
+   procesarInvoiceCreated,
++  ArcaPasajeroError,
+   ArcaRechazoError,
+   ComprobanteInvalidoError,
+   crearAfipClient,
+@@ -37,6 +41,18 @@ import {
+ } from "@/plugins/arca";
+ import { credencialParaTenant } from "@/lib/fiscal/tenant-cert";
+ import { leerTicketAcceso, guardarTicketAcceso } from "@/lib/fiscal/arca-ta-store";
++import { logger } from "@/lib/logger";
++import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
++import {
++  anotarFallaYSoltar,
++  anotarIntentoConReserva,
++  CorridaDeEnvios,
++  soltarReserva,
++  tomarSiguienteEnvio,
++  verificarAccesoDelOperador,
++  type EnTransaccion,
++  type EnvioTomado,
++} from "@/lib/arca-reserva";
+ 
+ /**
+  * Config fiscal no sensible del tenant (lo que la DB SÍ guarda). El cert/clave
+@@ -162,97 +178,211 @@ function aEventoPlugin(p: InvoiceCreatedPayload): InvoiceCreatedEvent {
+     neto: p.neto,
+     iva: p.iva,
+     total: p.total,
++    ivaPorProducto: p.ivaPorProducto === true,
+     servicioDesde: p.servicioDesde,
+     servicioHasta: p.servicioHasta,
+     vencimientoPago: p.vencimientoPago,
++    intentoArca: p.intentoArca,
+   };
+ }
+ 
++/**
++ * Lo que el despacho recibe de afuera. `anotarIntento` y `registrar` NO: los arma el despacho
++ * atados al envío que procesa (anotar y registrar sólo escriben si ese envío sigue abierto).
++ */
++// El reloj (`fechaDeEnvio`) lo pone el despacho: el día del negocio en que se pide el CAE.
++export type DepsDespacho = Omit<HandlerDeps, "anotarIntento" | "registrar" | "fechaDeEnvio">;
++
++const DEPS_DESPACHO: DepsDespacho = {
++  clientePara,
++  numeroUsadoPorOtraFactura,
++};
++
++/**
++ * El envío ya estaba cerrado, o su reserva pasó a otro despacho, cuando este quiso anotar el
++ * número: no se pide el CAE.
++ */
++class EnvioCerradoError extends Error {
++  constructor(eventoId: string) {
++    super(`El envío ${eventoId} ya estaba cerrado o lo tomó otro despacho: no se le pide nada a ARCA.`);
++    this.name = "EnvioCerradoError";
++  }
++}
++
++/**
++ * El motivo que queda en `lastError`: el mensaje y, si ARCA mandó códigos, los códigos. Un error
++ * de la base queda sólo con su código (P2002…): el mensaje de Prisma trae la ruta del archivo,
++ * la consulta y el código fuente, y eso no se guarda (estándar §4).
++ */
++export function motivoDelError(err: unknown): string {
++  if (err instanceof ArcaPasajeroError && err.observaciones.length > 0) {
++    return `${err.message} [${err.observaciones.map((o) => `${o.codigo}: ${o.mensaje}`).join("; ")}]`;
++  }
++  if (err instanceof Prisma.PrismaClientKnownRequestError) {
++    return `La base de datos no aceptó la operación (código ${err.code}).`;
++  }
++  if (err instanceof Prisma.PrismaClientUnknownRequestError || err instanceof Prisma.PrismaClientValidationError) {
++    return "La base de datos no aceptó la operación.";
++  }
++  return err instanceof Error ? err.message : String(err);
++}
++
+ export interface DispatchResumen {
+   procesados: number;
+   autorizados: number;
+   rechazados: number;
+   fallidos: number;
++  /**
++   * Envíos que este despacho NO cerró: otro despacho ya lo había hecho, la venta se volvió a
++   * facturar, o su factura ya no estaba pendiente. Si alguno llegó a obtener un CAE, ese CAE no
++   * se registró en ninguna factura: mayor a 0 es para mirar (ENG-019).
++   */
++  descartados: number;
+ }
+ 
++/** La transacción de un negocio, con su contexto de RLS (escrituras del envío y toma por negocio). */
++const enElNegocio =
++  (tenantId: string): EnTransaccion =>
++  (fn) =>
++    tenantTransaction((tx) => fn(tx), { tenantId });
++
++/** El cliente del operador (cruza negocios). Inyectable para los tests de ENG-027. */
++export type ClienteOperador = Pick<typeof operatorPrisma, "$queryRaw" | "$transaction">;
++
+ /**
+- * Drena eventos `InvoiceCreated` pendientes del outbox y los manda al plugin.
+- * - Éxito → `registerFiscalDocument` (lo hace el handler) + marca procesado.
+- * - Rechazo de ARCA → marca la factura REJECTED + marca el evento procesado.
+- * - Otro error → deja el evento pendiente, incrementa `attempts` y guarda el error.
+- *
+- * AISLAMIENTO DE TENANT (fix async/cron, ADR-018 §4): este worker corre sin
+- * request/host — `getCurrentTenantId()` ambiental rompe apenas hay >1 tenant
+- * bajo RLS. El barrido CROSS-TENANT (todos los tenants, una sola pasada) usa
+- * `operatorPrisma` (rol dueño, bypassa RLS por diseño — nunca el `prisma`
+- * conmutado por RLS para esto, ver ADR-021). Cada fila procesada queda atada a
+- * SU tenant vía `tenantTransaction(fn, { tenantId: evento.tenantId })` — el
+- * dato ya está en la fila del outbox, se lo pasamos explícito en vez de dejar
+- * que se intente resolver ambientalmente.
++ * CRON · Barrido de TODOS los negocios (lo llama sólo `/api/cron/arca-outbox`). Usa la conexión
++ * del operador, que tiene que ver los envíos de todos (ADR-021); si no los ve, lanza
++ * `ProcesadorArcaSinAccesoError` antes de leer, en vez de devolver "0 procesados" (ENG-027).
++ * Cada envío se toma con reserva (`arca-reserva.ts`, ENG-019) y se escribe en la transacción de
++ * SU negocio (`tenantTransaction` con el `tenantId` de la fila, ADR-018 §4).
+  */
+ export async function processArcaOutbox(
+   limit = 20,
+-  deps: HandlerDeps = { clientePara, registrar: registerFiscalDocument },
++  deps: DepsDespacho = DEPS_DESPACHO,
++  operador: ClienteOperador = operatorPrisma,
++): Promise<DispatchResumen> {
++  await verificarAccesoDelOperador(operador);
++  return despacharEnvios((fn) => operador.$transaction((tx) => fn(tx)), null, limit, deps);
++}
++
++/**
++ * ENG-012 · Los envíos pendientes de UN negocio (lo llaman las acciones del panel y la
++ * facturación de ventas, turnos y pagos). Toma y escribe con la conexión de la app, dentro del
++ * contexto de RLS de ese negocio y con el filtro explícito por negocio: nunca ve, toca ni cuenta
++ * envíos de otro. No necesita la conexión del operador.
++ */
++export async function procesarEnviosDelNegocio(
++  tenantId: string,
++  limit = 20,
++  deps: DepsDespacho = DEPS_DESPACHO,
+ ): Promise<DispatchResumen> {
+-  const pendientes = await operatorPrisma.outboxEvent.findMany({
+-    where: { type: OUTBOX_INVOICE_CREATED, processedAt: null },
+-    orderBy: { createdAt: "asc" },
+-    take: limit,
+-  });
++  return despacharEnvios(enElNegocio(tenantId), tenantId, limit, deps);
++}
+ 
++/**
++ * Toma de a un envío (con reserva) y lo manda al plugin, hasta `limit` o hasta que no quede
++ * ninguno que se pueda tomar ahora.
++ * - Factura que ya no está PENDING → cierra el envío sin llamar a ARCA (descartado).
++ * - Éxito → `registerFiscalDocument` registra el CAE y cierra el envío en una transacción.
++ * - Rechazo de ARCA → `markInvoiceRejected` rechaza la factura y cierra el envío, también juntos.
++ *   Si el envío ya estaba cerrado, ninguno de los dos escribe (descartado).
++ * - Otro error → deja el evento pendiente, incrementa `attempts`, guarda el error y suelta la
++ *   reserva.
++ */
++async function despacharEnvios(
++  tomarEn: EnTransaccion,
++  soloDelNegocio: string | null,
++  limit: number,
++  deps: DepsDespacho,
++): Promise<DispatchResumen> {
+   const resumen: DispatchResumen = {
+     procesados: 0,
+     autorizados: 0,
+     rechazados: 0,
+     fallidos: 0,
++    descartados: 0,
+   };
++  const corrida = new CorridaDeEnvios();
+ 
+-  for (const evento of pendientes) {
+-    const payload = evento.payload as unknown as InvoiceCreatedPayload;
++  while (corrida.vistos.length < limit) {
++    const envio = await tomarSiguienteEnvio(tomarEn, corrida, soloDelNegocio);
++    if (!envio) break;
+     try {
+-      await procesarInvoiceCreated(aEventoPlugin(payload), deps);
+-      await tenantTransaction(
+-        (tx) => tx.outboxEvent.update({ where: { id: evento.id }, data: { processedAt: new Date() } }),
+-        { tenantId: payload.tenantId },
+-      );
++      await despacharUno(envio, corrida.token, deps, resumen);
++    } catch (err) {
++      // Algo falló al anotar la falla misma: se suelta la reserva (si se puede) y sigue el lote.
++      await soltarReserva(enElNegocio(envio.tenantId), envio, corrida.token).catch(() => undefined);
++      logger.error("arca", "no se pudo cerrar el intento de un envío", err, { tenantId: envio.tenantId });
++      resumen.fallidos++;
++    }
++  }
++
++  return resumen;
++}
++
++async function despacharUno(
++  envio: EnvioTomado,
++  token: string,
++  deps: DepsDespacho,
++  resumen: DispatchResumen,
++): Promise<void> {
++  const payload = envio.payload as InvoiceCreatedPayload;
++  const enSuNegocio = enElNegocio(envio.tenantId);
++  try {
++    if (await cerrarEnvioDeFacturaNoPendiente(envio.id, payload.invoiceId, envio.tenantId)) {
++      resumen.descartados++;
++      return;
++    }
++    let registrado = false;
++    await procesarInvoiceCreated(aEventoPlugin(payload), {
++      ...deps,
++      // El día del negocio en que se pide el CAE: la decisión controla contra él la ventana de ARCA.
++      fechaDeEnvio: () => fechaFiscalDelDia(),
++      anotarIntento: async (intento) => {
++        if (!(await anotarIntentoConReserva(enSuNegocio, envio, token, intento))) {
++          throw new EnvioCerradoError(envio.id);
++        }
++      },
++      registrar: async (doc) => {
++        registrado = await registerFiscalDocument(doc, envio.id);
++      },
++    });
++    if (registrado) {
+       resumen.autorizados++;
+       resumen.procesados++;
+-    } catch (err) {
+-      if (err instanceof ArcaRechazoError || err instanceof ComprobanteInvalidoError) {
+-        // Rechazo determinístico: no tiene sentido reintentar. Marca la factura
+-        // rechazada y el evento como procesado.
+-        const motivo =
+-          err instanceof ArcaRechazoError
+-            ? err.observaciones.map((o) => `${o.codigo}: ${o.mensaje}`).join("; ")
+-            : err.errores.map((e) => `${e.campo}: ${e.mensaje}`).join("; ");
+-        await markInvoiceRejected(payload.invoiceId, payload.tenantId, motivo);
+-        await tenantTransaction(
+-          (tx) =>
+-            tx.outboxEvent.update({
+-              where: { id: evento.id },
+-              data: { processedAt: new Date(), lastError: motivo },
+-            }),
+-          { tenantId: payload.tenantId },
+-        );
+-        resumen.rechazados++;
+-        resumen.procesados++;
+-      } else {
+-        // Error transitorio (red, ARCA caído): dejar pendiente para reintento.
+-        await tenantTransaction(
+-          (tx) =>
+-            tx.outboxEvent.update({
+-              where: { id: evento.id },
+-              data: {
+-                attempts: { increment: 1 },
+-                lastError: err instanceof Error ? err.message : String(err),
+-              },
+-            }),
+-          { tenantId: payload.tenantId },
+-        );
++    } else {
++      resumen.descartados++;
++    }
++  } catch (err) {
++    if (err instanceof EnvioCerradoError) {
++      resumen.descartados++;
++    } else if (err instanceof ArcaRechazoError || err instanceof ComprobanteInvalidoError) {
++      // Rechazo del comprobante (ARCA lo evaluó y dijo que está mal, o no pasó la validación
++      // local): la factura queda rechazada y el envío cerrado, en una sola transacción. La
++      // venta se puede volver a facturar (`createInvoiceInTx` con `reabrirSiRechazada`).
++      const motivo =
++        err instanceof ArcaRechazoError
++          ? err.observaciones.map((o) => `${o.codigo}: ${o.mensaje}`).join("; ")
++          : err.errores.map((e) => `${e.campo}: ${e.mensaje}`).join("; ");
++      try {
++        if (await markInvoiceRejected(payload.invoiceId, envio.tenantId, motivo, envio.id)) {
++          resumen.rechazados++;
++          resumen.procesados++;
++        } else {
++          resumen.descartados++;
++        }
++      } catch (errAlRechazar) {
++        // No se pudo guardar el rechazo: el envío sigue abierto y se reintenta; el resto del
++        // lote sigue.
++        await anotarFallaYSoltar(enSuNegocio, envio, token, motivoDelError(errAlRechazar));
+         resumen.fallidos++;
+       }
++    } else {
++      // Error pasajero (ENG-021: sin respuesta a tiempo, 5xx, token, WSAA caído, respuesta
++      // cortada, 10016) o cualquier otro que no sea un rechazo: la factura sigue pendiente y
++      // el evento se reintenta. El reintento consulta antes de pedir otro CAE (ENG-020).
++      await anotarFallaYSoltar(enSuNegocio, envio, token, motivoDelError(err));
++      resumen.fallidos++;
+     }
+   }
+-
+-  return resumen;
+ }
+diff --git a/src/lib/invoice-core.ts b/src/lib/invoice-core.ts
+index d872dde..1174efa 100644
+--- a/src/lib/invoice-core.ts
++++ b/src/lib/invoice-core.ts
+@@ -21,7 +21,7 @@
+ import { prisma } from "@/lib/prisma";
+ import { Prisma } from "@/generated/prisma/client";
+ import { tenantTransaction } from "@/lib/rls";
+-import { round2 } from "@/lib/round";
++import { sumarAlCentavo } from "@/lib/dinero/redondeo";
+ import { buildInvoiceOriginLink, type InvoiceOriginType } from "@/lib/settlement/invoice-origin";
+ 
+ /** Cliente de transacción interactiva (mismo patrón que `LedgerTx` en stock/ledger.ts):
+@@ -54,17 +54,37 @@ export interface CreateInvoiceInput {
+   neto: number;
+   iva: SubtotalIva[];
+   total: number;
++  /**
++   * ENG-024 · `true` sólo si `iva` salió de la alícuota de cada producto. Ningún camino lo pone
++   * todavía (`calcularImpuestos` aplica una tasa pareja): el plugin no deja emitir así a un
++   * Responsable Inscripto.
++   */
++  ivaPorProducto?: boolean;
+   servicioDesde?: string;
+   servicioHasta?: string;
+   vencimientoPago?: string;
+   /** Venta de la que sale la factura (I2). Si se pasa, la creación es IDEMPOTENTE por venta. */
+   origin?: InvoiceOrigin;
++  /**
++   * ENG-021 · Si la factura de esa venta está RECHAZADA, reabrirla y reenviarla. Sólo lo pide
++   * quien corrigió el dato ("Volver a facturar", `facturarVenta`). Los flujos automáticos
++   * (webhook de MP que llega de nuevo, turno completado otra vez, pedido externo, bancos) no lo
++   * piden: reciben la misma factura rechazada, sin reenviar los mismos datos.
++   */
++  reabrirSiRechazada?: boolean;
+ }
+ 
+ /** Forma del payload del evento `InvoiceCreated` que viaja por el outbox. */
+-export interface InvoiceCreatedPayload extends Omit<CreateInvoiceInput, "tenantId" | "origin"> {
++export interface InvoiceCreatedPayload
++  extends Omit<CreateInvoiceInput, "tenantId" | "origin" | "reabrirSiRechazada"> {
+   invoiceId: string;
+   tenantId: string;
++  /**
++   * ENG-020 · Número que el despacho le pidió a ARCA para este evento, anotado ANTES de
++   * pedirlo (`arca-dispatch.ts`). Si la respuesta se pierde, el reintento lo consulta y adopta
++   * el comprobante ya autorizado en vez de pedir otro.
++   */
++  intentoArca?: { puntoVenta: number; tipo: number; numero: number };
+ }
+ 
+ /** Input del comando `registerFiscalDocument` (lo llama el plugin con el CAE). */
+@@ -80,6 +100,56 @@ export interface RegisterFiscalDocumentInput {
+ 
+ export const OUTBOX_INVOICE_CREATED = "InvoiceCreated";
+ 
++/** `lastError` del envío que se cierra porque la venta se volvió a facturar (ENG-021). */
++export const MOTIVO_ENVIO_REEMPLAZADO = "Reemplazado: la venta se volvió a facturar con otro envío.";
++
++/**
++ * Se lanza DENTRO de la transacción cuando el envío ya estaba cerrado: deshace lo escrito en la
++ * factura. Nunca sale de este módulo.
++ */
++class EnvioYaCerrado extends Error {}
++
++/**
++ * Cierra el envío (si seguía abierto) en la transacción dada. Si ya estaba cerrado lanza
++ * `EnvioYaCerrado`, y la transacción entera se deshace.
++ */
++async function cerrarEnvioOAbortar(
++  tx: InvoiceTx,
++  envioId: string,
++  tenantId: string,
++  lastError?: string,
++): Promise<void> {
++  const cerrado = await tx.outboxEvent.updateMany({
++    where: { id: envioId, tenantId, processedAt: null },
++    data: { processedAt: new Date(), ...(lastError !== undefined ? { lastError } : {}) },
++  });
++  if (cerrado.count === 0) throw new EnvioYaCerrado();
++}
++
++/** Corre `escribir` y cierra el envío en UNA transacción; `false` si el envío ya estaba cerrado. */
++async function escribirSiElEnvioSigueAbierto(
++  tenantId: string,
++  envioId: string,
++  escribir: (tx: InvoiceTx) => Promise<{ count: number }>,
++  lastError?: string,
++): Promise<boolean> {
++  try {
++    return await tenantTransaction(
++      async (tx) => {
++        // Primero la factura y después el envío: el mismo orden que la reapertura, así dos
++        // transacciones que tocan las dos filas nunca se esperan en cruz.
++        const escrita = await escribir(tx);
++        await cerrarEnvioOAbortar(tx, envioId, tenantId, lastError);
++        return escrita.count === 1;
++      },
++      { tenantId },
++    );
++  } catch (e) {
++    if (e instanceof EnvioYaCerrado) return false;
++    throw e;
++  }
++}
++
+ /**
+  * Crea una factura en estado PENDING y encola `InvoiceCreated` en la misma
+  * transacción (outbox, ADR-002). Devuelve el id de la factura.
+@@ -121,6 +191,17 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<string>
+  * IDEMPOTENCIA POR VENTA (I2, ADR-064): si ya existe una factura para este origen, la
+  * devuelve — nunca DOS comprobantes para la misma venta — y NO encola un outbox nuevo
+  * (no re-despacha). Sin origen, crea siempre (facturas MP standalone / previas a D10).
++ *
++ * VOLVER A FACTURAR (ENG-021): si la factura de esa venta está RECHAZADA (ARCA no la autorizó:
++ * no tiene CAE ni número) y el llamador lo pide (`reabrirSiRechazada`, sólo la acción humana),
++ * se reabre la MISMA fila con los datos de ahora y se encola un envío
++ * nuevo. Una fila y no dos: los índices únicos por venta no se tocan. Si dos pedidos llegan a
++ * la vez, el UPDATE condicionado a REJECTED lo gana uno solo (el otro espera el bloqueo de la
++ * fila, ve PENDING y no encola). En la misma transacción se CIERRA todo envío anterior de esa
++ * factura que haya quedado abierto: un envío es la única vía por la que la factura toma un CAE
++ * o un rechazo (`registerFiscalDocument` y `markInvoiceRejected` sólo escriben si cierran SU
++ * envío), así que un envío viejo ya no puede escribir sobre la factura reabierta. Queda un solo
++ * envío vivo por factura. Orden de bloqueo: factura y después envío, igual que al registrar.
+  */
+ export async function createInvoiceInTx(
+   tx: InvoiceTx,
+@@ -132,33 +213,69 @@ export async function createInvoiceInTx(
+   if (hasOrigin) {
+     const existing = await tx.invoice.findFirst({
+       where: { tenantId: input.tenantId, ...originLink },
+-      select: { id: true },
++      select: { id: true, status: true },
+     });
+-    if (existing) return existing.id;
++    if (existing) {
++      if (existing.status !== "REJECTED" || !input.reabrirSiRechazada) return existing.id;
++      const reabierta = await tx.invoice.updateMany({
++        where: { id: existing.id, tenantId: input.tenantId, status: "REJECTED", cae: null },
++        data: { ...datosDelComprobante(input), rechazoMotivo: null },
++      });
++      if (reabierta.count === 1) {
++        await tx.outboxEvent.updateMany({
++          where: {
++            tenantId: input.tenantId,
++            type: OUTBOX_INVOICE_CREATED,
++            processedAt: null,
++            payload: { path: ["invoiceId"], equals: existing.id },
++          },
++          data: { processedAt: new Date(), lastError: MOTIVO_ENVIO_REEMPLAZADO },
++        });
++        await encolarInvoiceCreated(tx, existing.id, input);
++      }
++      return existing.id;
++    }
+   }
+ 
+   const invoice = await tx.invoice.create({
+     data: {
+       tenantId: input.tenantId,
+       ...originLink, // enlace a la venta (D10) = clave de idempotencia
+-      puntoVenta: input.emisor.puntoVenta,
+-      concepto: input.concepto,
+-      docTipo: input.receptor.docTipo,
+-      docNro: String(input.receptor.docNro),
+-      fecha: input.fecha,
+-      neto: input.neto,
+-      // Total de IVA = suma de las alícuotas, redondeada a 2 decimales (ADR-057): cada
+-      // `importe` ya viene redondeado del Core, pero la SUMA puede arrastrar deriva binaria.
+-      iva: round2(input.iva.reduce((s, x) => s + x.importe, 0)),
+-      ivaDesglose: input.iva as unknown as object, // desglose por alícuota (audit)
+-      total: input.total,
+-      status: "PENDING",
++      ...datosDelComprobante(input),
+     },
+     select: { id: true },
+   });
+ 
++  await encolarInvoiceCreated(tx, invoice.id, input);
++  return invoice.id;
++}
++
++/** Los datos del comprobante que se guardan en la factura PENDING (alta o reapertura). */
++function datosDelComprobante(input: CreateInvoiceInput) {
++  return {
++    puntoVenta: input.emisor.puntoVenta,
++    concepto: input.concepto,
++    docTipo: input.receptor.docTipo,
++    docNro: String(input.receptor.docNro),
++    fecha: input.fecha,
++    neto: input.neto,
++    // Total de IVA = suma de cada alícuota al centavo (R3 de ADR-100): el mismo número que
++    // viaja a ARCA como ImpIVA (soap.ts), así el libro IVA coincide con Mis Comprobantes.
++    iva: sumarAlCentavo(input.iva.map((x) => x.importe)),
++    ivaDesglose: input.iva as unknown as object, // desglose por alícuota (audit)
++    total: input.total,
++    status: "PENDING" as const,
++  };
++}
++
++/** Encola `InvoiceCreated` para la factura, en la misma transacción (outbox, ADR-002). */
++async function encolarInvoiceCreated(
++  tx: InvoiceTx,
++  invoiceId: string,
++  input: CreateInvoiceInput,
++): Promise<void> {
+   const payload: InvoiceCreatedPayload = {
+-    invoiceId: invoice.id,
++    invoiceId,
+     tenantId: input.tenantId,
+     concepto: input.concepto,
+     fecha: input.fecha,
+@@ -167,6 +284,7 @@ export async function createInvoiceInTx(
+     neto: input.neto,
+     iva: input.iva,
+     total: input.total,
++    ...(input.ivaPorProducto === true ? { ivaPorProducto: true } : {}),
+     servicioDesde: input.servicioDesde,
+     servicioHasta: input.servicioHasta,
+     vencimientoPago: input.vencimientoPago,
+@@ -179,59 +297,120 @@ export async function createInvoiceInTx(
+       payload: payload as unknown as object,
+     },
+   });
+-
+-  return invoice.id;
+ }
+ 
+ /**
+- * Comando público (superficie II): el plugin pasa el CAE y el Core lo persiste.
+- * Idempotente por diseño: solo autoriza facturas en PENDING (una segunda entrega
+- * del mismo evento no vuelve a escribir). Scopeado por `tenantId`.
++ * Comando público (superficie II): el plugin pasa el CAE y el Core lo persiste, atado al envío
++ * (`envioId`, el evento del outbox) que lo obtuvo.
++ *
++ * En UNA transacción: la factura PENDING pasa a AUTHORIZED y el envío se cierra. Si el envío ya
++ * estaba cerrado (otro despacho lo procesó, o la venta se volvió a facturar y este envío quedó
++ * reemplazado), NO se escribe nada y devuelve `false`: el CAE de un envío viejo jamás se
++ * registra sobre la factura reabierta con otros importes (ENG-021). También devuelve `false` si
++ * la factura ya no estaba PENDING (el envío se cierra igual). `true` = la factura tomó el CAE.
++ * `tenantId` explícito: lo invoca el despacho, sin request (ADR-018 §4).
+  */
+ export async function registerFiscalDocument(
+   input: RegisterFiscalDocumentInput,
+-): Promise<void> {
+-  // `tenantTransaction` con `tenantId` EXPLÍCITO (no ambiental): este comando lo
+-  // invoca el worker/dispatcher (processArcaOutbox), sin request/host — con
+-  // RLS_ENFORCEMENT on, resolverlo ambientalmente (getCurrentTenantId) rompería
+-  // apenas hubiera >1 tenant. El `tenantId` ya lo trae el caller (viene del
+-  // payload del outbox), así que se lo pasamos directo (ADR-018 §4).
+-  const res = await tenantTransaction(
++  envioId: string,
++): Promise<boolean> {
++  return escribirSiElEnvioSigueAbierto(input.tenantId, envioId, (tx) =>
++    tx.invoice.updateMany({
++      where: { id: input.invoiceId, tenantId: input.tenantId, status: "PENDING" },
++      data: {
++        status: "AUTHORIZED",
++        cae: input.cae,
++        caeVencimiento: input.caeVencimiento,
++        numero: input.numero,
++        tipoComprobante: input.tipoComprobante,
++        authorizedAt: new Date(),
++      },
++    }),
++  );
++}
++
++/**
++ * Consulta pública (superficie II, ENG-020): ¿ese número de comprobante (punto de venta, tipo,
++ * número) ya lo tiene registrado OTRA factura del negocio? El plugin la usa antes de adoptar un
++ * comprobante que encontró autorizado en ARCA: si ya es de otra venta, no lo adopta.
++ */
++export async function numeroUsadoPorOtraFactura(consulta: {
++  tenantId: string;
++  invoiceId: string;
++  puntoVenta: number;
++  tipo: number;
++  numero: number;
++}): Promise<boolean> {
++  const otra = await tenantTransaction(
+     (tx) =>
+-      tx.invoice.updateMany({
+-        where: { id: input.invoiceId, tenantId: input.tenantId, status: "PENDING" },
+-        data: {
+-          status: "AUTHORIZED",
+-          cae: input.cae,
+-          caeVencimiento: input.caeVencimiento,
+-          numero: input.numero,
+-          tipoComprobante: input.tipoComprobante,
+-          authorizedAt: new Date(),
++      tx.invoice.findFirst({
++        where: {
++          tenantId: consulta.tenantId,
++          puntoVenta: consulta.puntoVenta,
++          tipoComprobante: consulta.tipo,
++          numero: consulta.numero,
++          id: { not: consulta.invoiceId },
+         },
++        select: { id: true },
+       }),
+-    { tenantId: input.tenantId },
++    { tenantId: consulta.tenantId },
+   );
+-  if (res.count === 0) {
+-    // No estaba PENDING: ya autorizada (reintento del evento) o no existe / otro
+-    // tenant. No es error del flujo; el dispatcher lo trata como procesado.
+-    return;
+-  }
++  return otra !== null;
+ }
+ 
+-/** Registra que ARCA rechazó la factura (status REJECTED + motivo). */
++/**
++ * Registra que ARCA rechazó la factura (REJECTED + motivo) y cierra el envío que recibió el
++ * rechazo, en UNA transacción: si el proceso se corta, o quedan las dos cosas o ninguna (un
++ * envío abierto para una factura rechazada era la puerta a un segundo CAE al volver a
++ * facturar). Si el envío ya estaba cerrado no se escribe nada y devuelve `false`: el rechazo
++ * de un envío viejo no toca la factura reabierta. `true` = la factura quedó rechazada.
++ */
+ export async function markInvoiceRejected(
+   invoiceId: string,
+   tenantId: string,
+   motivo: string,
+-): Promise<void> {
+-  // Mismo criterio que registerFiscalDocument: tenantId explícito, sin depender
+-  // de la resolución ambiental (worker sin request).
+-  await tenantTransaction(
++  envioId: string,
++): Promise<boolean> {
++  return escribirSiElEnvioSigueAbierto(
++    tenantId,
++    envioId,
+     (tx) =>
+       tx.invoice.updateMany({
+         where: { id: invoiceId, tenantId, status: "PENDING" },
+         data: { status: "REJECTED", rechazoMotivo: motivo },
+       }),
++    motivo,
++  );
++}
++
++/**
++ * ENG-021 · Antes de mandar un envío a ARCA: si su factura ya no está PENDING (quedó autorizada
++ * o rechazada y el envío no se llegó a cerrar, como pasaba antes de que registrar y rechazar
++ * cerraran el envío en la misma transacción), lo cierra SIN pedirle nada a ARCA y devuelve
++ * `true` (= no se envía; también si otro despacho ya lo había cerrado). Un pedido más sólo podía
++ * terminar en un CAE que ninguna factura toma. `false` = la factura sigue PENDING: se envía.
++ */
++export async function cerrarEnvioDeFacturaNoPendiente(
++  envioId: string,
++  invoiceId: string,
++  tenantId: string,
++): Promise<boolean> {
++  return tenantTransaction(
++    async (tx) => {
++      const factura = await tx.invoice.findFirst({
++        where: { id: invoiceId, tenantId },
++        select: { status: true },
++      });
++      if (factura?.status === "PENDING") return false;
++      await tx.outboxEvent.updateMany({
++        where: { id: envioId, tenantId, processedAt: null },
++        data: {
++          processedAt: new Date(),
++          lastError: `La factura ya no estaba pendiente (${factura?.status ?? "no existe"}): no se envió a ARCA.`,
++        },
++      });
++      return true;
++    },
+     { tenantId },
+   );
+ }
+diff --git a/src/plugins/arca/core-contract.ts b/src/plugins/arca/core-contract.ts
+index 9de5f02..6806ad2 100644
+--- a/src/plugins/arca/core-contract.ts
++++ b/src/plugins/arca/core-contract.ts
+@@ -25,6 +25,12 @@ export interface EmisorEvento {
+   cuit: number;
+   condicionIva: CondicionIva;
+   puntoVenta: number;
++  /**
++   * Sólo Responsable Inscripto: la clase A que le asignó ARCA (RG 1575): "A", "A_CON_LEYENDA"
++   * o "M". Sin el dato ninguna A sale sola (va a revisión). El Core todavía no lo guarda
++   * (columna a crear, ver BACKLOG): hoy ningún camino emite como Responsable Inscripto.
++   */
++  regimenFacturaA?: string | null;
+ }
+ 
+ /** Datos del receptor tal como el Core los conoce. */
+@@ -55,10 +61,37 @@ export interface InvoiceCreatedEvent {
+   iva: SubtotalIvaCore[];
+   /** Total del comprobante (neto + IVA), calculado por el Core. */
+   total: number;
++  /**
++   * ENG-024 · `true` sólo si el desglose de IVA salió de la alícuota de cada producto. Sin el
++   * dato (o `false`) es una tasa pareja sobre el total, y un Responsable Inscripto no emite así.
++   */
++  ivaPorProducto?: boolean;
+   /** Fechas de servicio (`AAAAMMDD`), requeridas si el concepto incluye servicios. */
+   servicioDesde?: string;
+   servicioHasta?: string;
+   vencimientoPago?: string;
++  /** Importe exento (ImpOpEx) y no gravado (ImpTotConc). Sin dato: no hay. En Factura C, 0. */
++  importeExento?: number;
++  importeNoGravado?: number;
++  /** Default: factura. Nota de crédito o débito, con lo que corrige. */
++  clase?: 'factura' | 'nota_debito' | 'nota_credito';
++  /** Nota de crédito o débito: la factura que corrige (CbtesAsoc). Fecha AAAAMMDD. */
++  asociado?: { cbteTipo: number; puntoVenta: number; numero: number; fecha: string } | null;
++  /** Nota de crédito o débito por período (PeriodoAsoc), en vez de una factura. AAAAMMDD. */
++  periodoAsociado?: { desde: string; hasta: string; letra?: 'A' | 'B' | 'C' | 'M' | null } | null;
++  /**
++   * ENG-020 · El número que un envío anterior de ESTE evento le pidió a ARCA. Si está, antes
++   * de pedir otro CAE se consulta ese número: si ARCA ya lo autorizó para este comprobante, se
++   * adopta (la respuesta se había perdido) y no se emite un segundo comprobante.
++   */
++  intentoArca?: IntentoArca;
++}
++
++/** ENG-020 · Número pedido a ARCA, anotado ANTES de mandar el pedido. */
++export interface IntentoArca {
++  puntoVenta: number;
++  tipo: number;
++  numero: number;
+ }
+ 
+ /**
+@@ -86,3 +119,13 @@ export interface RegisterFiscalDocumentInput {
+ export type RegisterFiscalDocument = (
+   input: RegisterFiscalDocumentInput,
+ ) => Promise<void>;
++
++/**
++ * ENG-020 · Consulta pública del Core: ¿ese número (punto de venta, tipo, número) ya lo tiene
++ * registrado OTRA factura del negocio? Si sí, el comprobante que ARCA muestra con ese número es
++ * de esa otra venta (aunque los datos coincidan: dos ventas iguales a consumidor final el mismo
++ * día) y el plugin no lo adopta.
++ */
++export type NumeroUsadoPorOtraFactura = (
++  consulta: IntentoArca & { tenantId: string; invoiceId: string },
++) => Promise<boolean>;
+diff --git a/src/plugins/arca/handler.ts b/src/plugins/arca/handler.ts
+index ba5c456..b85de33 100644
+--- a/src/plugins/arca/handler.ts
++++ b/src/plugins/arca/handler.ts
+@@ -2,7 +2,7 @@
+  * Orquestación del plugin ARCA: el flujo de punta a punta de una autorización.
+  *
+  *   InvoiceCreated (Core, superficie III)
+- *     → construir comprobante (mapeo a catálogo ARCA)
++ *     → decidir el comprobante (decisión fiscal única: tipo, condición, fechas)
+  *     → validar local (fallar barato, no contra ARCA)
+  *     → solicitar CAE (AfipClient: WSAA + WSFEv1)
+  *     → RegisterFiscalDocument (Core, superficie II)
+@@ -11,10 +11,24 @@
+  * comando, ambos por el contrato de `core-contract.ts` (ADR-002/020/022).
+  */
+ 
+-import { AfipClient, ResultadoCae } from './afip/port';
+-import { InvoiceCreatedEvent, RegisterFiscalDocument } from './core-contract';
+-import { construirComprobante } from './domain/comprobante';
++import { AfipClient, ArcaPasajeroError, ArcaRechazoError, ComprobanteConsultado, ResultadoCae } from './afip/port';
++import {
++  IntentoArca,
++  InvoiceCreatedEvent,
++  NumeroUsadoPorOtraFactura,
++  RegisterFiscalDocument,
++} from './core-contract';
++import {
++  ComprobanteArca,
++  ComprobanteSinDecisionError,
++  comprobanteDeLaDecision,
++  construirComprobante,
++  decidirDelEvento,
++  ivaInformadoAArca,
++} from './domain/comprobante';
++import { centavosDe } from '@/lib/dinero/redondeo';
+ import { validarComprobante } from './domain/validacion';
++import { ivaSinAlicuotaPorProducto } from './domain/iva-por-producto';
+ 
+ export interface HandlerDeps {
+   /**
+@@ -25,6 +39,29 @@ export interface HandlerDeps {
+   clientePara: (tenantId: string) => AfipClient | Promise<AfipClient>;
+   /** Comando público del Core que registra el CAE (superficie II). */
+   registrar: RegisterFiscalDocument;
++  /**
++   * ENG-020 · Guarda, ANTES de pedir el CAE, qué número se le va a pedir a ARCA para este
++   * evento. Si falla, no se pide nada. Es lo que permite, si la respuesta se pierde, reconocer
++   * en el reintento el comprobante que ARCA ya autorizó en vez de pedir otro.
++   */
++  anotarIntento: (intento: IntentoArca) => Promise<void>;
++  /**
++   * El día en que se pide el CAE (AAAAMMDD, día del negocio). Con él la decisión controla la
++   * ventana de fechas que acepta ARCA. Lo da el Core (`fechaFiscalDelDia`): el plugin no mira
++   * el reloj.
++   */
++  fechaDeEnvio: () => string;
++  /**
++   * ENG-020 · Consulta del Core: ¿ese número ya está registrado en otra factura del negocio?
++   * Si sí, no se adopta aunque los datos coincidan (ver `autorizarSinDuplicar`).
++   */
++  numeroUsadoPorOtraFactura: NumeroUsadoPorOtraFactura;
++}
++
++/** Lo que `autorizarSinDuplicar` necesita del envío: anotar el número y saber si ya es de otra factura. */
++export interface RegistroDeIntentos {
++  anotar: (intento: IntentoArca) => Promise<void>;
++  usadoPorOtraFactura: (intento: IntentoArca) => Promise<boolean>;
+ }
+ 
+ /** Error de validación previa (antes de pegarle a ARCA). */
+@@ -38,6 +75,25 @@ export class ComprobanteInvalidoError extends Error {
+   }
+ }
+ 
++/**
++ * El comprobante que se emite sin que nadie mire: sólo si la decisión fiscal quedó "lista". Si
++ * no, `ComprobanteInvalidoError` con los motivos de la decisión en castellano (qué falta y cómo
++ * seguir): el Core lo guarda como motivo del rechazo y no se le pide nada a ARCA.
++ */
++function comprobanteParaEmitir(ev: InvoiceCreatedEvent, fechaDeEnvio: string): ComprobanteArca {
++  try {
++    return construirComprobante(ev, fechaDeEnvio);
++  } catch (e) {
++    if (!(e instanceof ComprobanteSinDecisionError)) throw e;
++    throw new ComprobanteInvalidoError(
++      `La factura ${ev.invoiceId} no se envía a ARCA: ${e.message}`,
++      e.motivos
++        .filter((m) => m.gravedad !== 'aviso')
++        .map((m) => ({ campo: m.campo ?? m.codigo, mensaje: m.mensaje })),
++    );
++  }
++}
++
+ /**
+  * Procesa un evento `InvoiceCreated`: autoriza el comprobante en ARCA y devuelve
+  * el CAE al Core. Devuelve el resultado para trazabilidad/logging del worker.
+@@ -46,18 +102,56 @@ export async function procesarInvoiceCreated(
+   ev: InvoiceCreatedEvent,
+   deps: HandlerDeps,
+ ): Promise<ResultadoCae> {
+-  const comp = construirComprobante(ev);
++  const fechaDeEnvio = deps.fechaDeEnvio();
++  const registro: RegistroDeIntentos = {
++    anotar: deps.anotarIntento,
++    usadoPorOtraFactura: (intento) =>
++      deps.numeroUsadoPorOtraFactura({ ...intento, tenantId: ev.tenantId, invoiceId: ev.invoiceId }),
++  };
+ 
+-  const validacion = validarComprobante(comp);
+-  if (!validacion.ok) {
+-    throw new ComprobanteInvalidoError(
+-      `Comprobante de la factura ${ev.invoiceId} inválido; no se envía a ARCA.`,
+-      validacion.errores,
+-    );
++  // Con un número anotado, PRIMERO se mira si ARCA ya lo autorizó para este comprobante: si sí,
++  // existe en ARCA y se registra aunque la validación local de hoy lo objete (validar antes lo
++  // daba por rechazado con CAE en ARCA, y al volver a facturarlo salía un segundo CAE). Para
++  // reconocerlo se usa el comprobante tal como se decidió el día de su fecha (la ventana contra
++  // hoy no importa para adoptar uno ya autorizado). Sin número anotado se decide y valida
++  // primero: se falla barato, sin pedirle nada a ARCA.
++  let cliente: AfipClient | undefined;
++  let resultado: ResultadoCae | null = null;
++  let ultimoConocido: UltimoAutorizado | undefined;
++  if (ev.intentoArca) {
++    const comoSeDecidio = decidirDelEvento(ev, ev.fecha).comprobante;
++    if (comoSeDecidio) {
++      cliente = await deps.clientePara(ev.tenantId);
++      const revision = await revisarIntento(
++        cliente,
++        comprobanteDeLaDecision(ev, comoSeDecidio),
++        ev.intentoArca,
++        registro,
++      );
++      resultado = revision.adoptado;
++      ultimoConocido = revision.ultimoAutorizado;
++    }
++  }
++  if (!resultado) {
++    // ENG-024: un inscripto no emite con el IVA como tasa pareja sobre el total.
++    const sinAlicuota = ivaSinAlicuotaPorProducto(ev);
++    if (sinAlicuota) {
++      throw new ComprobanteInvalidoError(
++        `La factura ${ev.invoiceId} no se envía a ARCA: ${sinAlicuota.mensaje}`,
++        [sinAlicuota],
++      );
++    }
++    const comp = comprobanteParaEmitir(ev, fechaDeEnvio);
++    const validacion = validarComprobante(comp);
++    if (!validacion.ok) {
++      throw new ComprobanteInvalidoError(
++        `Comprobante de la factura ${ev.invoiceId} inválido; no se envía a ARCA.`,
++        validacion.errores,
++      );
++    }
++    cliente ??= await deps.clientePara(ev.tenantId);
++    resultado = await pedirNumeroNuevo(cliente, comp, registro, ultimoConocido);
+   }
+-
+-  const cliente = await deps.clientePara(ev.tenantId);
+-  const resultado = await cliente.solicitarCae(comp);
+ 
+   await deps.registrar({
+     invoiceId: ev.invoiceId,
+@@ -71,3 +165,137 @@ export async function procesarInvoiceCreated(
+ 
+   return resultado;
+ }
++
++/**
++ * ENG-020 · ¿Es este comprobante autorizado el que se quiso emitir? Se compara todo lo que viaja
++ * a ARCA y ARCA devuelve: punto de venta, tipo, fecha, documento, concepto, y total, neto e IVA
++ * al centavo. Si algo no coincide, ese número lo usó otro comprobante y NO se adopta. Que
++ * coincida NO alcanza por sí solo: dos ventas iguales dan iguales (ver `revisarIntento`).
++ */
++export function esElMismoComprobante(
++  autorizado: ComprobanteConsultado,
++  comp: ComprobanteArca,
++): boolean {
++  return (
++    autorizado.puntoVenta === comp.puntoVenta &&
++    autorizado.tipo === comp.tipo &&
++    autorizado.fecha === comp.fecha &&
++    autorizado.docTipo === comp.docTipo &&
++    autorizado.docNro === comp.docNro &&
++    autorizado.concepto === comp.concepto &&
++    autorizado.totalCentavos === centavosDe(comp.total) &&
++    autorizado.netoCentavos === centavosDe(comp.neto) &&
++    autorizado.ivaCentavos === centavosDe(ivaInformadoAArca(comp))
++  );
++}
++
++/** El último número que ARCA dio por autorizado para un punto de venta y tipo. */
++interface UltimoAutorizado {
++  puntoVenta: number;
++  tipo: number;
++  numero: number;
++}
++
++/**
++ * Lo que se sabe del número anotado después de consultarlo: el comprobante adoptado, o `null`
++ * (y, si ARCA dijo que no existe, el último autorizado que se miró para confirmarlo).
++ */
++interface RevisionDelIntento {
++  adoptado: ResultadoCae | null;
++  ultimoAutorizado?: UltimoAutorizado;
++}
++
++/**
++ * ENG-020 · Revisa el número que anotó un envío anterior de este evento.
++ *
++ * Se consulta a ARCA ese número (`FECompConsultar`). Se adopta sólo si ARCA lo tiene
++ * autorizado con estos mismos datos Y ninguna otra factura del negocio lo tiene registrado: dos
++ * ventas iguales (mismo día, consumidor final, mismo total) coinciden en todo, y si la otra ya lo
++ * registró, ese CAE es suyo. Si la consulta falla, lanza SIEMPRE pasajero: no se sabe si el
++ * número se usó, así que ni se rechaza la factura ni se pide otro número.
++ *
++ * AUTORIZACIÓN TARDÍA: el corte propio es a los 15 s, pero ARCA puede seguir procesando el
++ * pedido y confirmarlo después. Si la consulta dice "no existe" (602) pero el último autorizado
++ * ya llegó a ese número, alguien lo usó en el medio, y puede ser nuestro pedido confirmado
++ * tarde: lanza pasajero y NO se pide otro número. El reintento vuelve a consultar y ve el
++ * comprobante con sus datos (se adopta si es éste; si es de otro, se pide el siguiente). Si el
++ * último está por debajo, el pedido nunca se usó y se sigue con un número nuevo.
++ */
++async function revisarIntento(
++  cliente: AfipClient,
++  comp: ComprobanteArca,
++  intento: IntentoArca,
++  registro: RegistroDeIntentos,
++): Promise<RevisionDelIntento> {
++  let autorizado: ComprobanteConsultado | null;
++  try {
++    autorizado = await cliente.consultarComprobante(intento.puntoVenta, intento.tipo, intento.numero);
++  } catch (e) {
++    if (e instanceof ArcaRechazoError) {
++      throw new ArcaPasajeroError(
++        `No se pudo consultar en ARCA si el número ${intento.numero} ya se usó (se reintenta).`,
++        e.observaciones,
++        { cause: e },
++      );
++    }
++    throw e;
++  }
++  if (!autorizado) {
++    const ultimo = await cliente.ultimoAutorizado(intento.puntoVenta, intento.tipo);
++    if (ultimo >= intento.numero) {
++      throw new ArcaPasajeroError(
++        `ARCA todavía no muestra el comprobante ${intento.numero}, pero ya autorizó hasta el ${ultimo}: ` +
++          `puede ser el pedido anterior confirmado tarde. Se vuelve a consultar; no se pide otro número.`,
++      );
++    }
++    return { adoptado: null, ultimoAutorizado: { puntoVenta: intento.puntoVenta, tipo: intento.tipo, numero: ultimo } };
++  }
++  if (!esElMismoComprobante(autorizado, comp)) return { adoptado: null };
++  if (await registro.usadoPorOtraFactura(intento)) return { adoptado: null };
++  return {
++    adoptado: {
++      cae: autorizado.cae,
++      caeVencimiento: autorizado.caeVencimiento,
++      numero: autorizado.numero,
++      puntoVenta: autorizado.puntoVenta,
++      tipo: comp.tipo,
++    },
++  };
++}
++
++/**
++ * ENG-020 · Toma el próximo número (`FECompUltimoAutorizado` + 1), lo ANOTA y recién ahí pide el
++ * CAE. Si la revisión del intento ya miró el último autorizado de este punto de venta y tipo, se
++ * usa ése (sin una segunda llamada a ARCA).
++ */
++async function pedirNumeroNuevo(
++  cliente: AfipClient,
++  comp: ComprobanteArca,
++  registro: RegistroDeIntentos,
++  ultimoConocido?: UltimoAutorizado,
++): Promise<ResultadoCae> {
++  const ultimo =
++    ultimoConocido && ultimoConocido.puntoVenta === comp.puntoVenta && ultimoConocido.tipo === comp.tipo
++      ? ultimoConocido.numero
++      : await cliente.ultimoAutorizado(comp.puntoVenta, comp.tipo);
++  const numero = ultimo + 1;
++  await registro.anotar({ puntoVenta: comp.puntoVenta, tipo: comp.tipo, numero });
++  return cliente.solicitarCae({ ...comp, numero });
++}
++
++/**
++ * ENG-020 · Pide el CAE sin emitir dos comprobantes para el mismo evento: si un envío anterior
++ * anotó un número y ARCA ya lo autorizó para este comprobante (y no es de otra factura), lo
++ * adopta; si no, pide el próximo número, anotándolo antes.
++ */
++export async function autorizarSinDuplicar(
++  cliente: AfipClient,
++  comp: ComprobanteArca,
++  intentoPrevio: IntentoArca | undefined,
++  registro: RegistroDeIntentos,
++): Promise<ResultadoCae> {
++  const revision: RevisionDelIntento = intentoPrevio
++    ? await revisarIntento(cliente, comp, intentoPrevio, registro)
++    : { adoptado: null };
++  return revision.adoptado ?? pedirNumeroNuevo(cliente, comp, registro, revision.ultimoAutorizado);
++}

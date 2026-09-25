@@ -32,6 +32,7 @@ import { medioDeCobroRequerido, mensajeYaCobrado } from "@/lib/caja/medio-cobro"
 import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
 import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
 import { facturarOrden } from "@/lib/invoice-from-order";
+import { VentaAnuladaError } from "@/lib/invoice-core";
 import { getFiscalProfile, isInvoicingEnabled, PerfilFiscalIncompletoError } from "@/lib/fiscal";
 import { buildWhatsAppHref, sanitizePhone } from "@/lib/whatsapp-cta";
 import { logger } from "@/lib/logger";
@@ -1166,12 +1167,14 @@ export async function facturarVenta(_prev: EstadoFacturaVenta, formData: FormDat
   let perfil: PerfilParaFacturar | null = null;
   if (encendida) {
     // Ya tiene comprobante: se dice cuál. Nunca se emite un segundo para la misma venta.
+    // Rechazada (ARCA no la autorizó: sin CAE ni número) SÍ se vuelve a facturar: se pide
+    // `reabrirSiRechazada` y `createInvoice` reabre la MISMA factura con un envío nuevo (ENG-021).
     const previa = await prisma.invoice.findFirst({
       where: { tenantId, orderId: o.id },
       orderBy: { createdAt: "desc" },
       select: SELECT_FACTURA,
     });
-    if (previa) return { ok: true, factura: estadoDeFactura(previa) };
+    if (previa && previa.status !== "REJECTED") return { ok: true, factura: estadoDeFactura(previa) };
     // El perfil fiscal se lee sólo con la facturación encendida: apagada, no hace falta.
     try {
       const p = await getFiscalProfile(tenantId);
@@ -1192,8 +1195,13 @@ export async function facturarVenta(_prev: EstadoFacturaVenta, formData: FormDat
 
   let invoiceId: string | null = null;
   try {
-    invoiceId = await facturarOrden(o.id, tenantId);
+    // Acción humana: si la factura estaba rechazada, se reabre y se reenvía (ENG-021).
+    invoiceId = await facturarOrden(o.id, tenantId, undefined, { reabrirSiRechazada: true });
   } catch (e) {
+    // ENG-023: la venta se anuló entre la lectura de arriba y la factura (otra pestaña).
+    if (e instanceof VentaAnuladaError) {
+      return { ok: false, error: e.message, factura: { ...SIN_FACTURA, texto: `Sin factura: ${e.message}` } };
+    }
     logger.error("ventas", "no se pudo facturar la venta", e, { tenantId, orderId: o.id });
   }
   if (!invoiceId) {

@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: contra una base que no es de esta máquina el script sale con error, sin conectarse ni mostrar la clave
+ok 1 - contra una base que no es de esta máquina el script sale con error, sin conectarse ni mostrar la clave
+  ---
+  duration_ms: 850.992924
+  type: 'test'
+  ...
+# Subtest: una clave común que no cumple la política de contraseñas no se acepta
+ok 2 - una clave común que no cumple la política de contraseñas no se acepta
+  ---
+  duration_ms: 920.676733
+  type: 'test'
+  ...
+# Subtest: el respaldo y las credenciales no se pueden escribir dentro del repo: la clave en claro no se commitea
+ok 3 - el respaldo y las credenciales no se pueden escribir dentro del repo: la clave en claro no se commitea
+  ---
+  duration_ms: 1606.166591
+  type: 'test'
+  ...
+# Subtest: después de restaurar, el usuario común entra en cada negocio y todos los que había vuelven a entrar con la misma clave, incluso los dados de baja
+ok 4 - después de restaurar, el usuario común entra en cada negocio y todos los que había vuelven a entrar con la misma clave, incluso los dados de baja
+  ---
+  duration_ms: 2614.118437
+  type: 'test'
+  ...
+# Subtest: si no se puede guardar el respaldo, no cambia ninguna contraseña
+ok 5 - si no se puede guardar el respaldo, no cambia ninguna contraseña
+  ---
+  duration_ms: 1999.586205
+  type: 'test'
+  ...
+# Subtest: el script deja el respaldo sólo legible por su dueño, no muestra la clave, y la reversa deja cada usuario exactamente como estaba
+ok 6 - el script deja el respaldo sólo legible por su dueño, no muestra la clave, y la reversa deja cada usuario exactamente como estaba
+  ---
+  duration_ms: 5351.684559
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 13711.334929

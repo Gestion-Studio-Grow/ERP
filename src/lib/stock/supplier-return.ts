@@ -390,7 +390,7 @@ export async function listSupplierReturns(
       productName: m.product?.name ?? "(producto eliminado)",
       qty,
       unitCost,
-      value: unitCost != null ? Math.round(qty * unitCost * 100) / 100 : 0,
+      value: unitCost != null ? round2(qty * unitCost) : 0,
       reason: m.reason,
       purchaseId: m.purchaseId,
       at: m.createdAt,

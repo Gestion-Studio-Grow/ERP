@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: sincronizar Mercado Pago: el cobro del link de un turno no se factura como venta suelta y queda anotado por qué
+ok 1 - sincronizar Mercado Pago: el cobro del link de un turno no se factura como venta suelta y queda anotado por qué
+  ---
+  duration_ms: 2.517548
+  type: 'test'
+  ...
+# Subtest: sincronizar Mercado Pago: el cobro del link de un pedido no se factura como venta suelta (la factura sale del pedido)
+ok 2 - sincronizar Mercado Pago: el cobro del link de un pedido no se factura como venta suelta (la factura sale del pedido)
+  ---
+  duration_ms: 0.316069
+  type: 'test'
+  ...
+# Subtest: sincronizar Mercado Pago: la venta suelta (sin referencia) se sigue facturando, y una segunda sincronización no repite nada
+ok 3 - sincronizar Mercado Pago: la venta suelta (sin referencia) se sigue facturando, y una segunda sincronización no repite nada
+  ---
+  duration_ms: 0.545319
+  type: 'test'
+  ...
+# Subtest: el camino de un solo pago (aviso de venta directa) tampoco factura un cobro con dueño
+ok 4 - el camino de un solo pago (aviso de venta directa) tampoco factura un cobro con dueño
+  ---
+  duration_ms: 0.165462
+  type: 'test'
+  ...
+# Subtest: dueño del cobro: la misma lectura de la referencia que usa el aviso de Mercado Pago
+ok 5 - dueño del cobro: la misma lectura de la referencia que usa el aviso de Mercado Pago
+  ---
+  duration_ms: 0.179512
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 431.192352

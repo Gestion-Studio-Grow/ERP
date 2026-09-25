@@ -14,6 +14,7 @@ import { crearProductoConStockInicial } from "@/lib/stock/alta-producto";
 import { cantidadDelFormulario, importeDelFormulario } from "@/lib/pos-peso";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { cambioDePrecioDeUnProducto, registrarCambiosDePrecio } from "@/lib/catalogo/precios-auditoria";
+import { importeONaN } from "@/lib/dinero/leer";
 import {
   clearCommissionOverride,
   setCommissionOverride,
@@ -132,9 +133,8 @@ export async function deleteBoxBlock(formData: FormData) {
 // diferencial (cobra `price` para todos). Si viene cargado, debe ser menor al
 // precio general — es un beneficio, no puede terminar siendo más caro.
 function parseResidentPrice(formData: FormData, price: number): number | null {
-  const raw = String(formData.get("residentPrice") || "").trim();
-  if (!raw) return null;
-  const value = Number(raw);
+  // Vacío o ilegible: sin precio vecino, como siempre. "10.000" son diez mil (ENG-109).
+  const value = importeONaN(formData.get("residentPrice"));
   if (!Number.isFinite(value) || value <= 0) return null;
   if (value >= price) {
     throw new Error("El precio vecino tiene que ser menor al precio general — es un beneficio, no un recargo.");
@@ -146,9 +146,8 @@ function parseResidentPrice(formData: FormData, price: number): number | null {
 // Tiene que ser menor al precio (no tiene sentido pedir de seña más de lo
 // que cuesta el servicio).
 function parseDepositAmount(formData: FormData, price: number): number | null {
-  const raw = String(formData.get("depositAmount") || "").trim();
-  if (!raw) return null;
-  const value = Number(raw);
+  // Vacío o ilegible: sin seña, como siempre. "5.000" son cinco mil (ENG-109).
+  const value = importeONaN(formData.get("depositAmount"));
   if (!Number.isFinite(value) || value <= 0) return null;
   if (value >= price) {
     throw new Error("La seña tiene que ser menor al precio del servicio.");
@@ -161,7 +160,7 @@ export async function createService(formData: FormData) {
   const name = String(formData.get("name") || "").trim();
   const description = String(formData.get("description") || "").trim();
   const durationMin = Number(formData.get("durationMin"));
-  const price = Number(formData.get("price"));
+  const price = importeONaN(formData.get("price"));
   const categoryId = String(formData.get("categoryId") || "") || null;
   if (!name || !durationMin || !price) return;
   const residentPrice = parseResidentPrice(formData, price);
@@ -196,7 +195,7 @@ export async function updateService(formData: FormData) {
   const name = String(formData.get("name") || "").trim();
   const description = String(formData.get("description") || "").trim();
   const durationMin = Number(formData.get("durationMin"));
-  const price = Number(formData.get("price"));
+  const price = importeONaN(formData.get("price"));
   const categoryId = String(formData.get("categoryId") || "") || null;
   if (!name || !durationMin || !price) return;
   const residentPrice = parseResidentPrice(formData, price);

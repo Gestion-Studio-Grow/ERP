@@ -1,0 +1,708 @@
+TAP version 13
+# Subtest: ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+ok 1 - ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+  ---
+  duration_ms: 2609.826283
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 2 - ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 66.706656
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 3 - ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 46.190883
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 4 - ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 33.949292
+  type: 'test'
+  ...
+# Subtest: ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 5 - ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 50.358024
+  type: 'test'
+  ...
+# Subtest: ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 6 - ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 79.035203
+  type: 'test'
+  ...
+# Subtest: ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 7 - ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 29.319308
+  type: 'test'
+  ...
+# Subtest: ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 8 - ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 33.896729
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+ok 9 - ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+  ---
+  duration_ms: 82.166051
+  type: 'test'
+  ...
+# Subtest: ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+ok 10 - ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+  ---
+  duration_ms: 37.790657
+  type: 'test'
+  ...
+# Subtest: aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+ok 11 - aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+  ---
+  duration_ms: 95.730823
+  type: 'test'
+  ...
+# Subtest: clientePara: sin ARCA_MODO devuelve el stub aunque haya config del tenant
+ok 12 - clientePara: sin ARCA_MODO devuelve el stub aunque haya config del tenant
+  ---
+  duration_ms: 1.209639
+  type: 'test'
+  ...
+# Subtest: clientePara: tenant sin config fiscal cae a un stub cuit:0 (inofensivo)
+ok 13 - clientePara: tenant sin config fiscal cae a un stub cuit:0 (inofensivo)
+  ---
+  duration_ms: 0.226859
+  type: 'test'
+  ...
+# Subtest: clientePara: stub NO resuelve credencial (ni toca el store)
+ok 14 - clientePara: stub NO resuelve credencial (ni toca el store)
+  ---
+  duration_ms: 0.510158
+  type: 'test'
+  ...
+# Subtest: clientePara: ARCA_MODO=real sin credencial cargada → propaga el error (no emite falso)
+ok 15 - clientePara: ARCA_MODO=real sin credencial cargada → propaga el error (no emite falso)
+  ---
+  duration_ms: 0.978217
+  type: 'test'
+  ...
+# Subtest: 🔒 ADR-066: ARCA_MODO=real con credencial del CUIT correcto → SOAP real por tenant
+ok 16 - 🔒 ADR-066: ARCA_MODO=real con credencial del CUIT correcto → SOAP real por tenant
+  ---
+  duration_ms: 223.870387
+  type: 'test'
+  ...
+# Subtest: 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed en el factory)
+ok 17 - 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed en el factory)
+  ---
+  duration_ms: 30.726931
+  type: 'test'
+  ...
+# Subtest: clientePara (stub): NO toca el store del TA
+ok 18 - clientePara (stub): NO toca el store del TA
+  ---
+  duration_ms: 1.427467
+  type: 'test'
+  ...
+# Subtest: clientePara (homologación): carga el TA persistido del tenant (ticketInicial)
+ok 19 - clientePara (homologación): carga el TA persistido del tenant (ticketInicial)
+  ---
+  duration_ms: 38.931153
+  type: 'test'
+  ...
+# Subtest: clientePara: en modo real, tenant sin CUIT válido LANZA (no despacha con cuit:0)
+ok 20 - clientePara: en modo real, tenant sin CUIT válido LANZA (no despacha con cuit:0)
+  ---
+  duration_ms: 0.525081
+  type: 'test'
+  ...
+# Subtest: clientePara: en modo homologación, tenant sin config fiscal también LANZA
+ok 21 - clientePara: en modo homologación, tenant sin config fiscal también LANZA
+  ---
+  duration_ms: 0.417137
+  type: 'test'
+  ...
+# Subtest: el IVA guardado suma cada renglón al centavo, como el ImpIVA que viaja: 1,005 + 1,005 = 2,02
+ok 22 - el IVA guardado suma cada renglón al centavo, como el ImpIVA que viaja: 1,005 + 1,005 = 2,02
+  ---
+  duration_ms: 1.287675
+  type: 'test'
+  ...
+# Subtest: I2 · reintento sobre la misma venta → mismo comprobante, una sola factura, un solo outbox
+ok 23 - I2 · reintento sobre la misma venta → mismo comprobante, una sola factura, un solo outbox
+  ---
+  duration_ms: 0.387053
+  type: 'test'
+  ...
+# Subtest: I2 · idempotencia también por turno (APPOINTMENT)
+ok 24 - I2 · idempotencia también por turno (APPOINTMENT)
+  ---
+  duration_ms: 0.2583
+  type: 'test'
+  ...
+# Subtest: I2 · ventas DISTINTAS generan comprobantes distintos
+ok 25 - I2 · ventas DISTINTAS generan comprobantes distintos
+  ---
+  duration_ms: 0.2785
+  type: 'test'
+  ...
+# Subtest: I2 · SIN origen (previa a D10) NO dedupe: crea siempre
+ok 26 - I2 · SIN origen (previa a D10) NO dedupe: crea siempre
+  ---
+  duration_ms: 0.330894
+  type: 'test'
+  ...
+# Subtest: A-6 · webhook MP duplicado (mismo payment_id) → una sola factura, mismo comprobante
+ok 27 - A-6 · webhook MP duplicado (mismo payment_id) → una sola factura, mismo comprobante
+  ---
+  duration_ms: 0.315471
+  type: 'test'
+  ...
+# Subtest: A-6 · pagos MP distintos → facturas distintas
+ok 28 - A-6 · pagos MP distintos → facturas distintas
+  ---
+  duration_ms: 0.259767
+  type: 'test'
+  ...
+# Subtest: A-6 · BUG(antes): SIN origin, dos webhooks del mismo pago facturaban dos veces
+ok 29 - A-6 · BUG(antes): SIN origin, dos webhooks del mismo pago facturaban dos veces
+  ---
+  duration_ms: 0.168237
+  type: 'test'
+  ...
+# Subtest: I2 · la guarda UNIQUE del schema dispara P2002 ante un doble-create directo (misma venta)
+ok 30 - I2 · la guarda UNIQUE del schema dispara P2002 ante un doble-create directo (misma venta)
+  ---
+  duration_ms: 0.698353
+  type: 'test'
+  ...
+# Subtest: I2 · CARRERA: dos emisiones simultáneas de la misma venta → 1 factura, mismo id (P2002 + recovery)
+ok 31 - I2 · CARRERA: dos emisiones simultáneas de la misma venta → 1 factura, mismo id (P2002 + recovery)
+  ---
+  duration_ms: 0.3901
+  type: 'test'
+  ...
+# Subtest: I2 · CARRERA saldada: la emisión que llega después ve el comprobante y lo reusa
+ok 32 - I2 · CARRERA saldada: la emisión que llega después ve el comprobante y lo reusa
+  ---
+  duration_ms: 0.106978
+  type: 'test'
+  ...
+# Subtest: contrato · autoriza: CAE y número 1, y FECompConsultar devuelve ese mismo comprobante
+ok 33 - contrato · autoriza: CAE y número 1, y FECompConsultar devuelve ese mismo comprobante
+  ---
+  duration_ms: 43.27322
+  type: 'test'
+  ...
+# Subtest: contrato · rechaza (Resultado R con una observación del comprobante): ArcaRechazoError, 0 CAE
+ok 34 - contrato · rechaza (Resultado R con una observación del comprobante): ArcaRechazoError, 0 CAE
+  ---
+  duration_ms: 3.103505
+  type: 'test'
+  ...
+# Subtest: contrato · timeout ANTES de autorizar: pasajero y ARCA no tiene nada (consultar da null)
+ok 35 - contrato · timeout ANTES de autorizar: pasajero y ARCA no tiene nada (consultar da null)
+  ---
+  duration_ms: 43.443284
+  type: 'test'
+  ...
+# Subtest: contrato · timeout DESPUÉS de autorizar: pasajero, pero ARCA ya emitió el CAE del número 1
+ok 36 - contrato · timeout DESPUÉS de autorizar: pasajero, pero ARCA ya emitió el CAE del número 1
+  ---
+  duration_ms: 42.937921
+  type: 'test'
+  ...
+# Subtest: contrato · respuesta cortada después de autorizar: pasajero, nunca rechazo
+ok 37 - contrato · respuesta cortada después de autorizar: pasajero, nunca rechazo
+  ---
+  duration_ms: 1.225653
+  type: 'test'
+  ...
+# Subtest: contrato · WSAA caído (HTTP 503 con SOAP Fault): pasajero y no se llega a pedir el CAE
+ok 38 - contrato · WSAA caído (HTTP 503 con SOAP Fault): pasajero y no se llega a pedir el CAE
+  ---
+  duration_ms: 1.62443
+  type: 'test'
+  ...
+# Subtest: contrato · WSAA sin red: pasajero
+ok 39 - contrato · WSAA sin red: pasajero
+  ---
+  duration_ms: 0.429846
+  type: 'test'
+  ...
+# Subtest: contrato · WSAA contesta cortado (sin token): pasajero
+ok 40 - contrato · WSAA contesta cortado (sin token): pasajero
+  ---
+  duration_ms: 0.608228
+  type: 'test'
+  ...
+# Subtest: contrato · WSFEv1 caído (HTTP 503) al pedir el CAE: pasajero
+ok 41 - contrato · WSFEv1 caído (HTTP 503) al pedir el CAE: pasajero
+  ---
+  duration_ms: 0.830097
+  type: 'test'
+  ...
+# Subtest: contrato · <Errors> 500 al pedir el CAE: pasajero con el código a la vista
+ok 42 - contrato · <Errors> 500 al pedir el CAE: pasajero con el código a la vista
+  ---
+  duration_ms: 1.354684
+  type: 'test'
+  ...
+# Subtest: contrato · <Errors> 501 al pedir el CAE: pasajero con el código a la vista
+ok 43 - contrato · <Errors> 501 al pedir el CAE: pasajero con el código a la vista
+  ---
+  duration_ms: 0.816081
+  type: 'test'
+  ...
+# Subtest: contrato · <Errors> 502 al pedir el CAE: pasajero con el código a la vista
+ok 44 - contrato · <Errors> 502 al pedir el CAE: pasajero con el código a la vista
+  ---
+  duration_ms: 0.834819
+  type: 'test'
+  ...
+# Subtest: contrato · <Errors> 600 al pedir el CAE: pasajero con el código a la vista
+ok 45 - contrato · <Errors> 600 al pedir el CAE: pasajero con el código a la vista
+  ---
+  duration_ms: 0.512609
+  type: 'test'
+  ...
+# Subtest: contrato · token que ARCA ya no reconoce: el simulador contesta 600 y es pasajero
+ok 46 - contrato · token que ARCA ya no reconoce: el simulador contesta 600 y es pasajero
+  ---
+  duration_ms: 0.887249
+  type: 'test'
+  ...
+# Subtest: contrato · número que no es el próximo (10016): pasajero, 0 CAE
+ok 47 - contrato · número que no es el próximo (10016): pasajero, 0 CAE
+  ---
+  duration_ms: 0.802955
+  type: 'test'
+  ...
+# Subtest: contrato · FECompConsultar de un número que no existe (602): null, no error
+ok 48 - contrato · FECompConsultar de un número que no existe (602): null, no error
+  ---
+  duration_ms: 0.58482
+  type: 'test'
+  ...
+# (node:6959) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: contrato · FECompConsultar sin respuesta a tiempo: lanza pasajero (no contesta "no existe")
+ok 49 - contrato · FECompConsultar sin respuesta a tiempo: lanza pasajero (no contesta "no existe")
+  ---
+  duration_ms: 40.229118
+  type: 'test'
+  ...
+# Subtest: el importe de ARCA se lee a centavos sin float: "1210" → 121000, "0.1" → 10, "1.005" no se adopta
+ok 50 - el importe de ARCA se lee a centavos sin float: "1210" → 121000, "0.1" → 10, "1.005" no se adopta
+  ---
+  duration_ms: 0.375963
+  type: 'test'
+  ...
+# Subtest: el transporte real corta a los 15 s: a los 14,999 s sigue esperando, a los 15 s es pasajero
+ok 51 - el transporte real corta a los 15 s: a los 14,999 s sigue esperando, a los 15 s es pasajero
+  ---
+  duration_ms: 3.858484
+  type: 'test'
+  ...
+# Subtest: ENG-020 · ARCA autoriza y la respuesta se pierde: el reintento registra el número 1 y no pide un 2
+ok 52 - ENG-020 · ARCA autoriza y la respuesta se pierde: el reintento registra el número 1 y no pide un 2
+  ---
+  duration_ms: 42.796661
+  type: 'test'
+  ...
+# Subtest: ENG-020 · respuesta cortada después de autorizar: el reintento adopta el CAE, un solo comprobante
+ok 53 - ENG-020 · respuesta cortada después de autorizar: el reintento adopta el CAE, un solo comprobante
+  ---
+  duration_ms: 1.79251
+  type: 'test'
+  ...
+# Subtest: ENG-020 · timeout ANTES de autorizar: el reintento consulta, no encuentra nada y pide el 1
+ok 54 - ENG-020 · timeout ANTES de autorizar: el reintento consulta, no encuentra nada y pide el 1
+  ---
+  duration_ms: 43.115249
+  type: 'test'
+  ...
+# Subtest: ENG-020 · si la consulta no contesta, NO se pide otro CAE (queda pendiente)
+ok 55 - ENG-020 · si la consulta no contesta, NO se pide otro CAE (queda pendiente)
+  ---
+  duration_ms: 85.570685
+  type: 'test'
+  ...
+# Subtest: ENG-020 · si el número anotado lo autorizó OTRO comprobante, no se adopta: se pide el siguiente
+ok 56 - ENG-020 · si el número anotado lo autorizó OTRO comprobante, no se adopta: se pide el siguiente
+  ---
+  duration_ms: 5.68363
+  type: 'test'
+  ...
+# Subtest: ENG-020 · si no se pudo anotar el número, no se pide el CAE
+ok 57 - ENG-020 · si no se pudo anotar el número, no se pide el CAE
+  ---
+  duration_ms: 0.8166
+  type: 'test'
+  ...
+# Subtest: ENG-020 · el número se anota ANTES de pedir el CAE
+ok 58 - ENG-020 · el número se anota ANTES de pedir el CAE
+  ---
+  duration_ms: 0.813695
+  type: 'test'
+  ...
+# Subtest: ENG-021 · con un 600 el despacho no registra nada y el reintento autoriza con el mismo número
+ok 59 - ENG-021 · con un 600 el despacho no registra nada y el reintento autoriza con el mismo número
+  ---
+  duration_ms: 1.291907
+  type: 'test'
+  ...
+# Subtest: ENG-020 · ARCA dio el CAE pero no se pudo guardar: el reintento adopta ese CAE y no pide otro
+ok 60 - ENG-020 · ARCA dio el CAE pero no se pudo guardar: el reintento adopta ese CAE y no pide otro
+  ---
+  duration_ms: 2.062294
+  type: 'test'
+  ...
+# Subtest: modoDesdeEnv: default stub, homologacion y real por ARCA_MODO
+ok 61 - modoDesdeEnv: default stub, homologacion y real por ARCA_MODO
+  ---
+  duration_ms: 1.002671
+  type: 'test'
+  ...
+# Subtest: configParaModo: homologacion fuerza homologacion=true aunque el Tenant diga false
+ok 62 - configParaModo: homologacion fuerza homologacion=true aunque el Tenant diga false
+  ---
+  duration_ms: 0.238204
+  type: 'test'
+  ...
+# Subtest: sin ARCA_MODO → StubAfipClient (no requiere credencial)
+ok 63 - sin ARCA_MODO → StubAfipClient (no requiere credencial)
+  ---
+  duration_ms: 0.294204
+  type: 'test'
+  ...
+# Subtest: ARCA_MODO=real sin credencial → error explícito (NO cae al stub ni a un env compartido)
+ok 64 - ARCA_MODO=real sin credencial → error explícito (NO cae al stub ni a un env compartido)
+  ---
+  duration_ms: 0.405192
+  type: 'test'
+  ...
+# Subtest: ARCA_MODO=homologacion sin credencial → mismo error explícito
+ok 65 - ARCA_MODO=homologacion sin credencial → mismo error explícito
+  ---
+  duration_ms: 0.145912
+  type: 'test'
+  ...
+# Subtest: ARCA_MODO=real con credencial del CUIT correcto → adapter SOAP real
+ok 66 - ARCA_MODO=real con credencial del CUIT correcto → adapter SOAP real
+  ---
+  duration_ms: 45.932551
+  type: 'test'
+  ...
+# Subtest: 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed)
+ok 67 - 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed)
+  ---
+  duration_ms: 27.683399
+  type: 'test'
+  ...
+# Subtest: ARCA_MODO=homologacion con credencial de PRUEBA → SOAP real forzado a homologación (sin guard estricto)
+ok 68 - ARCA_MODO=homologacion con credencial de PRUEBA → SOAP real forzado a homologación (sin guard estricto)
+  ---
+  duration_ms: 22.728249
+  type: 'test'
+  ...
+# Subtest: fechaDePrueba: formatea AAAAMMDD desde un reloj inyectado
+ok 69 - fechaDePrueba: formatea AAAAMMDD desde un reloj inyectado
+  ---
+  duration_ms: 1.127171
+  type: 'test'
+  ...
+# Subtest: comprobanteDePrueba: pasa la validación local (Factura C, consumidor final)
+ok 70 - comprobanteDePrueba: pasa la validación local (Factura C, consumidor final)
+  ---
+  duration_ms: 1.833447
+  type: 'test'
+  ...
+# Subtest: comprobanteDePrueba: respeta overrides de puntoVenta y monto
+ok 71 - comprobanteDePrueba: respeta overrides de puntoVenta y monto
+  ---
+  duration_ms: 0.156186
+  type: 'test'
+  ...
+# Subtest: emitirFacturaDePrueba: con StubAfipClient devuelve CAE simulado
+ok 72 - emitirFacturaDePrueba: con StubAfipClient devuelve CAE simulado
+  ---
+  duration_ms: 0.6742
+  type: 'test'
+  ...
+# Subtest: emitirFacturaDePrueba: mapea ArcaRechazoError a motivo "rechazo"
+ok 73 - emitirFacturaDePrueba: mapea ArcaRechazoError a motivo "rechazo"
+  ---
+  duration_ms: 0.272207
+  type: 'test'
+  ...
+# Subtest: emitirFacturaDePrueba: mapea un error genérico (red/parseo) a motivo "error"
+ok 74 - emitirFacturaDePrueba: mapea un error genérico (red/parseo) a motivo "error"
+  ---
+  duration_ms: 0.197902
+  type: 'test'
+  ...
+# Subtest: escaparXml / desescaparXml son inversas para caracteres especiales
+ok 75 - escaparXml / desescaparXml son inversas para caracteres especiales
+  ---
+  duration_ms: 1.410312
+  type: 'test'
+  ...
+# Subtest: extraerTag ignora prefijo de namespace y atributos
+ok 76 - extraerTag ignora prefijo de namespace y atributos
+  ---
+  duration_ms: 0.752653
+  type: 'test'
+  ...
+# Subtest: extraerTags devuelve todas las ocurrencias
+ok 77 - extraerTags devuelve todas las ocurrencias
+  ---
+  duration_ms: 0.469916
+  type: 'test'
+  ...
+# Subtest: endpointsPara elige homologación o producción según config
+ok 78 - endpointsPara elige homologación o producción según config
+  ---
+  duration_ms: 1.024427
+  type: 'test'
+  ...
+# Subtest: armarLoginTicketRequest incluye header, service y ventana temporal
+ok 79 - armarLoginTicketRequest incluye header, service y ventana temporal
+  ---
+  duration_ms: 0.715921
+  type: 'test'
+  ...
+# Subtest: parsearLoginTicketResponse desescapa y extrae token/sign/expiration
+ok 80 - parsearLoginTicketResponse desescapa y extrae token/sign/expiration
+  ---
+  duration_ms: 0.810685
+  type: 'test'
+  ...
+# Subtest: parsearLoginTicketResponse falla si falta token
+ok 81 - parsearLoginTicketResponse falla si falta token
+  ---
+  duration_ms: 1.219399
+  type: 'test'
+  ...
+# Subtest: ticketVigente respeta expiration y margen
+ok 82 - ticketVigente respeta expiration y margen
+  ---
+  duration_ms: 0.167507
+  type: 'test'
+  ...
+# Subtest: armarUltimoAutorizadoRequest arma Auth + PtoVta + CbteTipo
+ok 83 - armarUltimoAutorizadoRequest arma Auth + PtoVta + CbteTipo
+  ---
+  duration_ms: 0.42533
+  type: 'test'
+  ...
+# Subtest: parsearUltimoAutorizadoResponse devuelve el CbteNro
+ok 84 - parsearUltimoAutorizadoResponse devuelve el CbteNro
+  ---
+  duration_ms: 0.74569
+  type: 'test'
+  ...
+# Subtest: parsearUltimoAutorizadoResponse: el 600 (token inválido) es pasajero, no rechazo
+ok 85 - parsearUltimoAutorizadoResponse: el 600 (token inválido) es pasajero, no rechazo
+  ---
+  duration_ms: 1.026282
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest (Factura A) discrimina IVA y arma AlicIva
+ok 86 - armarFECAESolicitarRequest (Factura A) discrimina IVA y arma AlicIva
+  ---
+  duration_ms: 0.51676
+  type: 'test'
+  ...
+# Subtest: los importes viajan con la regla única de redondeo: 2,675 → 2.68 y 3,235 → 3.24 (no 2.67 ni 3.23)
+ok 87 - los importes viajan con la regla única de redondeo: 2,675 → 2.68 y 3,235 → 3.24 (no 2.67 ni 3.23)
+  ---
+  duration_ms: 0.377583
+  type: 'test'
+  ...
+# Subtest: ImpIVA es la suma exacta de los AlicIva que viajan: 1,005 + 1,005 → 1.01 + 1.01 = 2.02
+ok 88 - ImpIVA es la suma exacta de los AlicIva que viajan: 1,005 + 1,005 → 1.01 + 1.01 = 2.02
+  ---
+  duration_ms: 0.513295
+  type: 'test'
+  ...
+# Subtest: ImpIVA = Σ AlicIva.Importe en 20.000 comprobantes al azar de 1 a 3 alícuotas con milésimos
+ok 89 - ImpIVA = Σ AlicIva.Importe en 20.000 comprobantes al azar de 1 a 3 alícuotas con milésimos
+  ---
+  duration_ms: 189.68937
+  type: 'test'
+  ...
+# Subtest: un monto que no es un número no se manda a ARCA: el armado tira antes de escribir "NaN"
+ok 90 - un monto que no es un número no se manda a ARCA: el armado tira antes de escribir "NaN"
+  ---
+  duration_ms: 0.451507
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest (Factura C) NO discrimina IVA ni manda <Iva>, y arma fechas de servicio
+ok 91 - armarFECAESolicitarRequest (Factura C) NO discrimina IVA ni manda <Iva>, y arma fechas de servicio
+  ---
+  duration_ms: 0.300811
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest emite CondicionIVAReceptorId (RG 5616) tras MonCotiz
+ok 92 - armarFECAESolicitarRequest emite CondicionIVAReceptorId (RG 5616) tras MonCotiz
+  ---
+  duration_ms: 0.087573
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest usa el CondicionIVAReceptorId del comprobante si viene
+ok 93 - armarFECAESolicitarRequest usa el CondicionIVAReceptorId del comprobante si viene
+  ---
+  duration_ms: 0.076636
+  type: 'test'
+  ...
+# Subtest: parsearFECAESolicitarResponse OK devuelve ResultadoCae con CAE y número autorizado
+ok 94 - parsearFECAESolicitarResponse OK devuelve ResultadoCae con CAE y número autorizado
+  ---
+  duration_ms: 1.122543
+  type: 'test'
+  ...
+# Subtest: parsearFECAESolicitarResponse rechazo (Resultado=R) lanza ArcaRechazoError con observaciones
+ok 95 - parsearFECAESolicitarResponse rechazo (Resultado=R) lanza ArcaRechazoError con observaciones
+  ---
+  duration_ms: 0.718597
+  type: 'test'
+  ...
+# Subtest: parsearFECAESolicitarResponse: <Errors> con 600 es pasajero y conserva código y mensaje
+ok 96 - parsearFECAESolicitarResponse: <Errors> con 600 es pasajero y conserva código y mensaje
+  ---
+  duration_ms: 0.214775
+  type: 'test'
+  ...
+# Subtest: parsearFECAESolicitarResponse: <Errors> con un código del comprobante sigue siendo rechazo
+ok 97 - parsearFECAESolicitarResponse: <Errors> con un código del comprobante sigue siendo rechazo
+  ---
+  duration_ms: 0.207498
+  type: 'test'
+  ...
+# Subtest: parsearObservaciones extrae code + msg de cada <Obs>
+ok 98 - parsearObservaciones extrae code + msg de cada <Obs>
+  ---
+  duration_ms: 0.223504
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient.ultimoAutorizado autentica una vez y golpea WSFEv1
+ok 99 - SoapAfipClient.ultimoAutorizado autentica una vez y golpea WSFEv1
+  ---
+  duration_ms: 0.426199
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient.solicitarCae resuelve numeración (ultimo+1) y devuelve el CAE
+ok 100 - SoapAfipClient.solicitarCae resuelve numeración (ultimo+1) y devuelve el CAE
+  ---
+  duration_ms: 0.801473
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient cachea el ticket: no reautentica en la 2da operación
+ok 101 - SoapAfipClient cachea el ticket: no reautentica en la 2da operación
+  ---
+  duration_ms: 0.271993
+  type: 'test'
+  ...
+# Subtest: El signer por defecto exige credencial (acción humana)
+ok 102 - El signer por defecto exige credencial (acción humana)
+  ---
+  duration_ms: 0.241821
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest (Factura B) SÍ informa IVA (ImpIVA + <Iva>) — fix del bug latente
+ok 103 - armarFECAESolicitarRequest (Factura B) SÍ informa IVA (ImpIVA + <Iva>) — fix del bug latente
+  ---
+  duration_ms: 0.227312
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient reusa el ticketInicial vigente: NO re-loguea contra WSAA
+ok 104 - SoapAfipClient reusa el ticketInicial vigente: NO re-loguea contra WSAA
+  ---
+  duration_ms: 0.207949
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient con ticketInicial vencido: re-loguea y PERSISTE el TA nuevo (alRenovarTicket)
+ok 105 - SoapAfipClient con ticketInicial vencido: re-loguea y PERSISTE el TA nuevo (alRenovarTicket)
+  ---
+  duration_ms: 0.256649
+  type: 'test'
+  ...
+# Subtest: el error 500 (falla interna de ARCA) es pasajero: no es culpa del comprobante
+ok 106 - el error 500 (falla interna de ARCA) es pasajero: no es culpa del comprobante
+  ---
+  duration_ms: 0.922452
+  type: 'test'
+  ...
+# Subtest: el error 501 (falla interna de ARCA) es pasajero: no es culpa del comprobante
+ok 107 - el error 501 (falla interna de ARCA) es pasajero: no es culpa del comprobante
+  ---
+  duration_ms: 0.124898
+  type: 'test'
+  ...
+# Subtest: el error 502 (falla interna de ARCA) es pasajero: no es culpa del comprobante
+ok 108 - el error 502 (falla interna de ARCA) es pasajero: no es culpa del comprobante
+  ---
+  duration_ms: 0.068917
+  type: 'test'
+  ...
+# Subtest: el error 600 (token inválido) es pasajero: se arregla volviendo a autenticar, no rechaza la venta
+ok 109 - el error 600 (token inválido) es pasajero: se arregla volviendo a autenticar, no rechaza la venta
+  ---
+  duration_ms: 0.119067
+  type: 'test'
+  ...
+# Subtest: el error 601 (CUIT que el token no representa) es pasajero: es la credencial, no el comprobante
+ok 110 - el error 601 (CUIT que el token no representa) es pasajero: es la credencial, no el comprobante
+  ---
+  duration_ms: 0.07759
+  type: 'test'
+  ...
+# Subtest: el 10016 (el número no es el próximo a autorizar) es pasajero: otro envío tomó el número
+ok 111 - el 10016 (el número no es el próximo a autorizar) es pasajero: otro envío tomó el número
+  ---
+  duration_ms: 0.07271
+  type: 'test'
+  ...
+# Subtest: una observación del comprobante (10015, ImpTotal no cierra) es un rechazo definitivo
+ok 112 - una observación del comprobante (10015, ImpTotal no cierra) es un rechazo definitivo
+  ---
+  duration_ms: 0.117441
+  type: 'test'
+  ...
+# Subtest: un código que la tabla no conoce se toma como rechazo (ARCA evaluó el comprobante)
+ok 113 - un código que la tabla no conoce se toma como rechazo (ARCA evaluó el comprobante)
+  ---
+  duration_ms: 0.066273
+  type: 'test'
+  ...
+# Subtest: si ARCA mezcla un defecto del comprobante con un 10016, es rechazo: reintentar no lo arregla
+ok 114 - si ARCA mezcla un defecto del comprobante con un 10016, es rechazo: reintentar no lo arregla
+  ---
+  duration_ms: 0.173908
+  type: 'test'
+  ...
+# Subtest: sin ningún código no hay de dónde decir que es pasajero: rechazo
+ok 115 - sin ningún código no hay de dónde decir que es pasajero: rechazo
+  ---
+  duration_ms: 0.304418
+  type: 'test'
+  ...
+# Subtest: cada código pasajero dice por qué, en castellano
+ok 116 - cada código pasajero dice por qué, en castellano
+  ---
+  duration_ms: 0.187836
+  type: 'test'
+  ...
+1..116
+# tests 116
+# suites 0
+# pass 116
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3641.473993

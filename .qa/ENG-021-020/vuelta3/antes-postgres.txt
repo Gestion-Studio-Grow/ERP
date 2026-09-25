@@ -1,0 +1,192 @@
+TAP version 13
+# Subtest: ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+ok 1 - ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+  ---
+  duration_ms: 2233.978887
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 2 - ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 54.791496
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 3 - ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 64.077708
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 4 - ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 48.418875
+  type: 'test'
+  ...
+# Subtest: ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 5 - ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 62.0088
+  type: 'test'
+  ...
+# Subtest: ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 6 - ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 78.890884
+  type: 'test'
+  ...
+# Subtest: ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 7 - ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 30.784655
+  type: 'test'
+  ...
+# Subtest: ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 8 - ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 38.548305
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+ok 9 - ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+  ---
+  duration_ms: 69.540201
+  type: 'test'
+  ...
+# Subtest: ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+ok 10 - ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+  ---
+  duration_ms: 39.912938
+  type: 'test'
+  ...
+# Subtest: aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+ok 11 - aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+  ---
+  duration_ms: 91.969644
+  type: 'test'
+  ...
+# Subtest: ENG-020 · dos ventas iguales a consumidor final: la que perdió el pedido no adopta el CAE de la otra; cada una con su número
+ok 12 - ENG-020 · dos ventas iguales a consumidor final: la que perdió el pedido no adopta el CAE de la otra; cada una con su número
+  ---
+  duration_ms: 90.195536
+  type: 'test'
+  ...
+# Subtest: ENG-020/021 · la consulta del número anotado falla con un código desconocido: la factura sigue pendiente (no se rechaza) y un solo CAE
+ok 13 - ENG-020/021 · la consulta del número anotado falla con un código desconocido: la factura sigue pendiente (no se rechaza) y un solo CAE
+  ---
+  duration_ms: 81.840068
+  type: 'test'
+  ...
+# Subtest: ENG-021 · volver a facturar con un envío viejo sin cerrar (corte entre el rechazo y el cierre): un solo envío vivo, un CAE, y el CAE es el de los importes nuevos
+not ok 14 - ENG-021 · volver a facturar con un envío viejo sin cerrar (corte entre el rechazo y el cierre): un solo envío vivo, un CAE, y el CAE es el de los importes nuevos
+  ---
+  duration_ms: 47.275558
+  type: 'test'
+  location: '/home/user/erp/src/lib/arca-dispatch-postgres.test.ts:2:15373'
+  failureType: 'testCodeFailure'
+  error: |-
+    la reapertura cierra el envío viejo: queda uno solo vivo
+    
+    2 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 2
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/arca-dispatch-postgres.test.ts:347:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ENG-021 · un despacho viejo que obtiene el CAE DESPUÉS de que la venta se volvió a facturar no lo registra en la factura reabierta
+not ok 15 - ENG-021 · un despacho viejo que obtiene el CAE DESPUÉS de que la venta se volvió a facturar no lo registra en la factura reabierta
+  ---
+  duration_ms: 57.932576
+  type: 'test'
+  location: '/home/user/erp/src/lib/arca-dispatch-postgres.test.ts:2:16716'
+  failureType: 'testCodeFailure'
+  error: |-
+    la factura reabierta no toma el CAE del envío viejo
+    + actual - expected
+    
+    + 'AUTHORIZED'
+    - 'PENDING'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'PENDING'
+  actual: 'AUTHORIZED'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/arca-dispatch-postgres.test.ts:378:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ENG-021 · un despacho viejo que recibe un rechazo DESPUÉS de que la venta se volvió a facturar no rechaza la factura reabierta
+not ok 16 - ENG-021 · un despacho viejo que recibe un rechazo DESPUÉS de que la venta se volvió a facturar no rechaza la factura reabierta
+  ---
+  duration_ms: 60.764189
+  type: 'test'
+  location: '/home/user/erp/src/lib/arca-dispatch-postgres.test.ts:2:18229'
+  failureType: 'testCodeFailure'
+  error: |-
+    el rechazo del envío viejo no toca la factura reabierta
+    + actual - expected
+    
+    + 'REJECTED'
+    - 'PENDING'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'PENDING'
+  actual: 'REJECTED'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/arca-dispatch-postgres.test.ts:409:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ENG-021 · un envío que quedó abierto para una factura ya rechazada se cierra sin volver a pedirle nada a ARCA
+not ok 17 - ENG-021 · un envío que quedó abierto para una factura ya rechazada se cierra sin volver a pedirle nada a ARCA
+  ---
+  duration_ms: 44.916681
+  type: 'test'
+  location: '/home/user/erp/src/lib/arca-dispatch-postgres.test.ts:2:19756'
+  failureType: 'testCodeFailure'
+  error: |-
+    no se llamó a ARCA
+    
+    91 !== 87
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 87
+  actual: 91
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/arca-dispatch-postgres.test.ts:433:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# {"ts":"2026-09-25T05:48:33.463Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_4d554216b0","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T05:48:33.472Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_4d554216b0","condicionIva":"MONOTRIBUTO"}
+# Subtest: facturarVenta sobre una venta con factura rechazada: la misma factura se reabre y termina autorizada; B no la ve
+ok 18 - facturarVenta sobre una venta con factura rechazada: la misma factura se reabre y termina autorizada; B no la ve
+  ---
+  duration_ms: 2884.171283
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 14
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6862.84783

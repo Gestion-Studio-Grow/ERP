@@ -54,6 +54,13 @@ test("los importes usan COMA decimal para que Excel es-AR los sume", () => {
   assert.ok(!csv.includes("1234.50"));
 });
 
+test("el medio centavo sube, con la misma regla que el resto de la plata: $4,185 sale 4,19", () => {
+  // En binario 4,185 es 4,18499…: toFixed(2) escribía 4,18 (ENG-109, revisión vuelta 1).
+  const csv = buildLibroCsv(buildLibro(zeroAmounts(), [mov({ amount: 4.185 })]), deps);
+  assert.ok(csv.includes(";4,19;"), csv);
+  assert.ok(!csv.includes("4,18"), csv);
+});
+
 test("un detalle con punto y coma no parte la fila", () => {
   const libro = buildLibro(zeroAmounts(), [mov({ amount: 100, detail: "Seña; saldo pendiente" })]);
   const csv = buildLibroCsv(libro, deps);

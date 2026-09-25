@@ -1,0 +1,22 @@
+43,45c43,46
+<  * El importe se compara en centavos, redondeado como viaja a ARCA (`toFixed(2)`,
+<  * el formato de WSFEv1 en src/plugins/arca/afip/soap.ts): el umbral se decide
+<  * sobre el mismo número que recibe ARCA, no sobre decimales que nunca llegan.
+---
+>  * El importe se compara en centavos, redondeado como viaja a ARCA (la regla única
+>  * de src/lib/dinero/redondeo.ts, la misma con la que src/plugins/arca/afip/soap.ts
+>  * escribe WSFEv1): el umbral se decide sobre el mismo número que recibe ARCA, no
+>  * sobre decimales que nunca llegan.
+69a71
+> import { centavosDe } from "@/lib/dinero/redondeo";
+453,455c455,456
+<  * con 2 decimales y el plugin los arma con `toFixed(2)`
+<  * (src/plugins/arca/afip/soap.ts, `fmt`). Así 5.549.861,995 cuenta como
+<  * 5.549.862,00, que es lo que ARCA recibe.
+---
+>  * con 2 decimales y el plugin los escribe con la misma regla (`textoAlCentavo`).
+>  * Así 5.549.861,995 cuenta como 5.549.862,00, que es lo que ARCA recibe.
+457c458
+< const aCentavos = (n: number) => Math.round(Number(n.toFixed(2)) * 100);
+---
+> const aCentavos = centavosDe;

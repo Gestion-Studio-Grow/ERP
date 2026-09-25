@@ -1,0 +1,179 @@
+TAP version 13
+# {"ts":"2026-09-25T07:10:03.751Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_912892674c","condicionIva":"MONOTRIBUTO"}
+# Subtest: pedido (facturarOrden): sin identificar desde el umbral no emite y deja el motivo; un peso menos, emite
+not ok 1 - pedido (facturarOrden): sin identificar desde el umbral no emite y deja el motivo; un peso menos, emite
+  ---
+  duration_ms: 2917.924265
+  type: 'test'
+  location: '/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:2:3443'
+  failureType: 'testCodeFailure'
+  error: |-
+    quedó AUTHORIZED: 
+    + actual - expected
+    
+    + 'AUTHORIZED'
+    - 'REJECTED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'REJECTED'
+  actual: 'AUTHORIZED'
+  operator: 'strictEqual'
+  stack: |-
+    Object.rechazadaPor (/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:63:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:87:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# {"ts":"2026-09-25T07:10:03.868Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_912892674c","condicionIva":"MONOTRIBUTO"}
+# Subtest: pedido (facturarOrden) con emisor inscripto e IVA parejo: no emite y deja el motivo
+ok 2 - pedido (facturarOrden) con emisor inscripto e IVA parejo: no emite y deja el motivo
+  ---
+  duration_ms: 102.21583
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T07:10:03.981Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_912892674c","condicionIva":"MONOTRIBUTO"}
+# Subtest: turno (facturarAppointment): sin identificar desde el umbral no emite; inscripto con IVA parejo tampoco
+not ok 3 - turno (facturarAppointment): sin identificar desde el umbral no emite; inscripto con IVA parejo tampoco
+  ---
+  duration_ms: 135.211817
+  type: 'test'
+  location: '/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:2:5365'
+  failureType: 'testCodeFailure'
+  error: |-
+    quedó PENDING: 
+    + actual - expected
+    
+    + 'PENDING'
+    - 'REJECTED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'REJECTED'
+  actual: 'PENDING'
+  operator: 'strictEqual'
+  stack: |-
+    Object.rechazadaPor (/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:63:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:147:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# {"ts":"2026-09-25T07:10:04.065Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_912892674c","condicionIva":"MONOTRIBUTO"}
+# Subtest: Mercado Pago (facturarPagoMP): sin identificar desde el umbral no emite; inscripto con IVA parejo tampoco
+not ok 4 - Mercado Pago (facturarPagoMP): sin identificar desde el umbral no emite; inscripto con IVA parejo tampoco
+  ---
+  duration_ms: 61.888039
+  type: 'test'
+  location: '/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:2:7466'
+  failureType: 'testCodeFailure'
+  error: |-
+    quedó PENDING: 
+    + actual - expected
+    
+    + 'PENDING'
+    - 'REJECTED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'REJECTED'
+  actual: 'PENDING'
+  operator: 'strictEqual'
+  stack: |-
+    Object.rechazadaPor (/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:63:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:179:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# {"ts":"2026-09-25T07:10:04.264Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_b_3becccf378","condicionIva":"MONOTRIBUTO"}
+# Subtest: facturita (emitirFacturitaAction, Server Action real): sin identificar desde el umbral no emite y deja el motivo
+not ok 5 - facturita (emitirFacturitaAction, Server Action real): sin identificar desde el umbral no emite y deja el motivo
+  ---
+  duration_ms: 193.097217
+  type: 'test'
+  location: '/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:2:8531'
+  failureType: 'testCodeFailure'
+  error: |-
+    quedó AUTHORIZED: 
+    + actual - expected
+    
+    + 'AUTHORIZED'
+    - 'REJECTED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'REJECTED'
+  actual: 'AUTHORIZED'
+  operator: 'strictEqual'
+  stack: |-
+    Object.rechazadaPor (/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:63:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:207:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# {"ts":"2026-09-25T07:10:04.364Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_912892674c","condicionIva":"MONOTRIBUTO"}
+# Subtest: bancos (emitirPropuestasAction, Server Action real): un movimiento sin identificar desde el umbral no emite y deja el motivo
+not ok 6 - bancos (emitirPropuestasAction, Server Action real): un movimiento sin identificar desde el umbral no emite y deja el motivo
+  ---
+  duration_ms: 169.628642
+  type: 'test'
+  location: '/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:2:9452'
+  failureType: 'testCodeFailure'
+  error: |-
+    quedó PENDING: 
+    + actual - expected
+    
+    + 'PENDING'
+    - 'REJECTED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'REJECTED'
+  actual: 'PENDING'
+  operator: 'strictEqual'
+  stack: |-
+    Object.rechazadaPor (/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:63:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:235:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# {"ts":"2026-09-25T07:10:04.606Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_912892674c","condicionIva":"MONOTRIBUTO"}
+# Subtest: API externa (createExternalOrder): un pedido sin identificar desde el umbral no emite y deja el motivo
+not ok 7 - API externa (createExternalOrder): un pedido sin identificar desde el umbral no emite y deja el motivo
+  ---
+  duration_ms: 244.622942
+  type: 'test'
+  location: '/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:2:10606'
+  failureType: 'testCodeFailure'
+  error: |-
+    quedó PENDING: 
+    + actual - expected
+    
+    + 'PENDING'
+    - 'REJECTED'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'REJECTED'
+  actual: 'PENDING'
+  operator: 'strictEqual'
+  stack: |-
+    Object.rechazadaPor (/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:63:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/umbral-en-los-seis-caminos-postgres.test.ts:254:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 1
+# fail 6
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4348.96586

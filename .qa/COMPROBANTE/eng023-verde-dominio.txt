@@ -1,0 +1,676 @@
+TAP version 13
+# Subtest: recepción NO anula una venta cobrada ayer, y no se mueve nada
+ok 1 - recepción NO anula una venta cobrada ayer, y no se mueve nada
+  ---
+  duration_ms: 2.249584
+  type: 'test'
+  ...
+# Subtest: recepción anula una venta de HOY SIN motivo → rechazo, y no se mueve nada
+ok 2 - recepción anula una venta de HOY SIN motivo → rechazo, y no se mueve nada
+  ---
+  duration_ms: 0.318102
+  type: 'test'
+  ...
+# Subtest: recepción anula una venta de hoy CON motivo: egreso asentado, firmado y con el motivo
+ok 3 - recepción anula una venta de hoy CON motivo: egreso asentado, firmado y con el motivo
+  ---
+  duration_ms: 0.916701
+  type: 'test'
+  ...
+# Subtest: el dueño anula una venta de ayer si ese día no está cerrado
+ok 4 - el dueño anula una venta de ayer si ese día no está cerrado
+  ---
+  duration_ms: 0.377295
+  type: 'test'
+  ...
+# Subtest: el dueño tampoco anula un día ya cerrado
+ok 5 - el dueño tampoco anula un día ya cerrado
+  ---
+  duration_ms: 0.282238
+  type: 'test'
+  ...
+# Subtest: recepción con venta de ayer en un día cerrado: gana el día cerrado (no la manda al dueño)
+ok 6 - recepción con venta de ayer en un día cerrado: gana el día cerrado (no la manda al dueño)
+  ---
+  duration_ms: 0.326327
+  type: 'test'
+  ...
+# Subtest: el dueño sin motivo: se anula y queda escrito que no hubo motivo
+ok 7 - el dueño sin motivo: se anula y queda escrito que no hubo motivo
+  ---
+  duration_ms: 0.514649
+  type: 'test'
+  ...
+# Subtest: el dueño con un motivo de 3 letras: rechazo (si lo escribe, que explique algo)
+ok 8 - el dueño con un motivo de 3 letras: rechazo (si lo escribe, que explique algo)
+  ---
+  duration_ms: 0.180265
+  type: 'test'
+  ...
+# Subtest: el profesional no anula nada
+ok 9 - el profesional no anula nada
+  ---
+  duration_ms: 0.240045
+  type: 'test'
+  ...
+# Subtest: recepción SÍ anula un pedido sin cobrar de ayer: no hay plata que mover, sólo vuelve el stock
+ok 10 - recepción SÍ anula un pedido sin cobrar de ayer: no hay plata que mover, sólo vuelve el stock
+  ---
+  duration_ms: 0.53374
+  type: 'test'
+  ...
+# Subtest: un «Cobrar» que entra mientras se anula no deja la plata sin contrapartida
+ok 11 - un «Cobrar» que entra mientras se anula no deja la plata sin contrapartida
+  ---
+  duration_ms: 0.938302
+  type: 'test'
+  ...
+# Subtest: con la venta leída de entrada, la caja no se relee (el camino de todos los días no suma consultas)
+ok 12 - con la venta leída de entrada, la caja no se relee (el camino de todos los días no suma consultas)
+  ---
+  duration_ms: 0.359106
+  type: 'test'
+  ...
+# Subtest: planDeEntrega: sin cobrar, entregar exige medio o «queda a cobrar»
+ok 13 - planDeEntrega: sin cobrar, entregar exige medio o «queda a cobrar»
+  ---
+  duration_ms: 1.760351
+  type: 'test'
+  ...
+# Subtest: planDeEntrega: ya cobrado se entrega directo; lo que no está listo, no
+ok 14 - planDeEntrega: ya cobrado se entrega directo; lo que no está listo, no
+  ---
+  duration_ms: 2.202298
+  type: 'test'
+  ...
+# Subtest: entregar sin medio ni «queda a cobrar» → bloqueado, y no se mueve nada
+ok 15 - entregar sin medio ni «queda a cobrar» → bloqueado, y no se mueve nada
+  ---
+  duration_ms: 60.192542
+  type: 'test'
+  ...
+# Subtest: entregar con «queda a cobrar» → entregado sin cobrar, y SIGUE en la bandeja
+ok 16 - entregar con «queda a cobrar» → entregado sin cobrar, y SIGUE en la bandeja
+  ---
+  duration_ms: 36.620668
+  type: 'test'
+  ...
+# Subtest: entregar eligiendo el medio → se cobra UNA vez y se entrega
+ok 17 - entregar eligiendo el medio → se cobra UNA vez y se entrega
+  ---
+  duration_ms: 0.950553
+  type: 'test'
+  ...
+# Subtest: doble toque en «Cobrar y entregar», uno detrás del otro → un solo cobro
+ok 18 - doble toque en «Cobrar y entregar», uno detrás del otro → un solo cobro
+  ---
+  duration_ms: 0.572806
+  type: 'test'
+  ...
+# Subtest: doble toque SIMULTÁNEO en «Cobrar y entregar» → un solo cobro, una sola entrega
+ok 19 - doble toque SIMULTÁNEO en «Cobrar y entregar» → un solo cobro, una sola entrega
+  ---
+  duration_ms: 0.587694
+  type: 'test'
+  ...
+# Subtest: si el cobro se rechaza (día cerrado), la mercadería NO se da por entregada
+ok 20 - si el cobro se rechaza (día cerrado), la mercadería NO se da por entregada
+  ---
+  duration_ms: 0.327094
+  type: 'test'
+  ...
+# Subtest: ya cobrado: se entrega de un toque y no se vuelve a cobrar
+ok 21 - ya cobrado: se entrega de un toque y no se vuelve a cobrar
+  ---
+  duration_ms: 2.626442
+  type: 'test'
+  ...
+# Subtest: otro medio elegido sobre un pedido que otra pestaña ya cobró → no se entrega y se dice con qué quedó
+ok 22 - otro medio elegido sobre un pedido que otra pestaña ya cobró → no se entrega y se dice con qué quedó
+  ---
+  duration_ms: 0.556261
+  type: 'test'
+  ...
+# Subtest: con 101 tickets de mostrador, el pedido abierto de ayer SIGUE en la bandeja
+ok 23 - con 101 tickets de mostrador, el pedido abierto de ayer SIGUE en la bandeja
+  ---
+  duration_ms: 0.662294
+  type: 'test'
+  ...
+# Subtest: abiertos y cerrados se reparten TODO sin repetir, y nunca cruzan de negocio
+ok 24 - abiertos y cerrados se reparten TODO sin repetir, y nunca cruzan de negocio
+  ---
+  duration_ms: 0.504694
+  type: 'test'
+  ...
+# Subtest: cada estado cae donde tiene que caer
+ok 25 - cada estado cae donde tiene que caer
+  ---
+  duration_ms: 0.179088
+  type: 'test'
+  ...
+# Subtest: doble toque en «Enviar pedido», uno detrás del otro → un solo pedido, stock descontado una vez
+ok 26 - doble toque en «Enviar pedido», uno detrás del otro → un solo pedido, stock descontado una vez
+  ---
+  duration_ms: 3.752584
+  type: 'test'
+  ...
+# Subtest: doble toque SIMULTÁNEO en «Enviar pedido» → un solo pedido, stock descontado una vez
+ok 27 - doble toque SIMULTÁNEO en «Enviar pedido» → un solo pedido, stock descontado una vez
+  ---
+  duration_ms: 35.641593
+  type: 'test'
+  ...
+# Subtest: sin clave —lo que mandaban tres de las cuatro tiendas— el doble toque creaba DOS pedidos
+ok 28 - sin clave —lo que mandaban tres de las cuatro tiendas— el doble toque creaba DOS pedidos
+  ---
+  duration_ms: 2.691932
+  type: 'test'
+  ...
+# Subtest: con la bolsa cambiada la clave es otra: es otro pedido, no el viejo reciclado
+ok 29 - con la bolsa cambiada la clave es otra: es otro pedido, no el viejo reciclado
+  ---
+  duration_ms: 2.010679
+  type: 'test'
+  ...
+# Subtest: la regla del cupón: % sobre lo que se compra, fijo sin pasarse, y los rechazos con su porqué
+ok 30 - la regla del cupón: % sobre lo que se compra, fijo sin pasarse, y los rechazos con su porqué
+  ---
+  duration_ms: 2.581755
+  type: 'test'
+  ...
+# Subtest: cupón en la venta: se consume con compare-and-set y el total queda con el descuento
+ok 31 - cupón en la venta: se consume con compare-and-set y el total queda con el descuento
+  ---
+  duration_ms: 0.850815
+  type: 'test'
+  ...
+# Subtest: la regla del cupón (% o FIJO) se escribe en la transacción del alta, en la fila del pedido; sin cupón, nada
+ok 32 - la regla del cupón (% o FIJO) se escribe en la transacción del alta, en la fila del pedido; sin cupón, nada
+  ---
+  duration_ms: 0.540512
+  type: 'test'
+  ...
+# Subtest: cupón al máximo de usos → rechazo; y el último uso no lo gastan dos ventas a la vez
+ok 33 - cupón al máximo de usos → rechazo; y el último uso no lo gastan dos ventas a la vez
+  ---
+  duration_ms: 0.597701
+  type: 'test'
+  ...
+# Subtest: un cupón y un descuento a mano no se suman
+ok 34 - un cupón y un descuento a mano no se suman
+  ---
+  duration_ms: 0.253099
+  type: 'test'
+  ...
+# Subtest: a cuenta: el pedido queda saldado SIN medio y el libro no asienta nada
+ok 35 - a cuenta: el pedido queda saldado SIN medio y el libro no asienta nada
+  ---
+  duration_ms: 3.670184
+  type: 'test'
+  ...
+# Subtest: anular una venta a cuenta anula su deuda en la misma transacción; con cobros o de otro día (recepción), no
+ok 36 - anular una venta a cuenta anula su deuda en la misma transacción; con cobros o de otro día (recepción), no
+  ---
+  duration_ms: 0.563381
+  type: 'test'
+  ...
+# Subtest: anular una venta a cuenta (el camino entero): la venta, su deuda y el stock en la misma transacción; la caja no se toca
+ok 37 - anular una venta a cuenta (el camino entero): la venta, su deuda y el stock en la misma transacción; la caja no se toca
+  ---
+  duration_ms: 1.728428
+  type: 'test'
+  ...
+# Subtest: anular una venta a cuenta con cobros: se rechaza y NADA queda anulado (ni la venta ni el stock)
+ok 38 - anular una venta a cuenta con cobros: se rechaza y NADA queda anulado (ni la venta ni el stock)
+  ---
+  duration_ms: 0.528519
+  type: 'test'
+  ...
+# Subtest: recepción no anula una venta a cuenta de ayer (no hay asiento que la frene: la frena la deuda), y vuelve todo atrás
+ok 39 - recepción no anula una venta a cuenta de ayer (no hay asiento que la frene: la frena la deuda), y vuelve todo atrás
+  ---
+  duration_ms: 0.919736
+  type: 'test'
+  ...
+# Subtest: con cuentas corrientes apagadas, anular no mira deudas
+ok 40 - con cuentas corrientes apagadas, anular no mira deudas
+  ---
+  duration_ms: 0.425356
+  type: 'test'
+  ...
+# Subtest: precio a mano de recepción: hasta 10 % menos que la lista, nunca por kilo con precio, y hasta $50.000 sin producto
+ok 41 - precio a mano de recepción: hasta 10 % menos que la lista, nunca por kilo con precio, y hasta $50.000 sin producto
+  ---
+  duration_ms: 0.707543
+  type: 'test'
+  ...
+# Subtest: el tope se controla DENTRO de la transacción, con el catálogo leído ahí
+ok 42 - el tope se controla DENTRO de la transacción, con el catálogo leído ahí
+  ---
+  duration_ms: 0.404775
+  type: 'test'
+  ...
+# Subtest: una venta sin facturas no tiene factura viva
+ok 43 - una venta sin facturas no tiene factura viva
+  ---
+  duration_ms: 0.842395
+  type: 'test'
+  ...
+# Subtest: una factura rechazada por ARCA no tiene CAE: la venta se puede anular
+ok 44 - una factura rechazada por ARCA no tiene CAE: la venta se puede anular
+  ---
+  duration_ms: 0.157928
+  type: 'test'
+  ...
+# Subtest: una factura autorizada deja la venta facturada
+ok 45 - una factura autorizada deja la venta facturada
+  ---
+  duration_ms: 0.128975
+  type: 'test'
+  ...
+# Subtest: una factura pendiente frena igual: el CAE puede llegar después de anular
+ok 46 - una factura pendiente frena igual: el CAE puede llegar después de anular
+  ---
+  duration_ms: 0.116743
+  type: 'test'
+  ...
+# Subtest: si conviven una rechazada y una autorizada, manda la autorizada
+ok 47 - si conviven una rechazada y una autorizada, manda la autorizada
+  ---
+  duration_ms: 0.131044
+  type: 'test'
+  ...
+# Subtest: un estado desconocido se trata como vivo: ante la duda, no se anula
+ok 48 - un estado desconocido se trata como vivo: ante la duda, no se anula
+  ---
+  duration_ms: 0.059806
+  type: 'test'
+  ...
+# Subtest: el mensaje de la factura autorizada explica por qué no se anula y qué hacer
+ok 49 - el mensaje de la factura autorizada explica por qué no se anula y qué hacer
+  ---
+  duration_ms: 0.699173
+  type: 'test'
+  ...
+# Subtest: el mensaje de la factura en camino pide esperar la respuesta de ARCA
+ok 50 - el mensaje de la factura en camino pide esperar la respuesta de ARCA
+  ---
+  duration_ms: 0.190911
+  type: 'test'
+  ...
+# Subtest: anular una venta cobrada asienta el EGRESO y devuelve los kilos
+ok 51 - anular una venta cobrada asienta el EGRESO y devuelve los kilos
+  ---
+  duration_ms: 3.726965
+  type: 'test'
+  ...
+# Subtest: la contrapartida va con la FECHA DEL ASIENTO ORIGINAL, no con la de hoy
+ok 52 - la contrapartida va con la FECHA DEL ASIENTO ORIGINAL, no con la de hoy
+  ---
+  duration_ms: 0.51547
+  type: 'test'
+  ...
+# Subtest: la contrapartida queda FIRMADA para que el libro no la deje borrar
+ok 53 - la contrapartida queda FIRMADA para que el libro no la deje borrar
+  ---
+  duration_ms: 0.358525
+  type: 'test'
+  ...
+# Subtest: si el día del asiento ya está cerrado, NO se escribe absolutamente nada
+ok 54 - si el día del asiento ya está cerrado, NO se escribe absolutamente nada
+  ---
+  duration_ms: 0.696788
+  type: 'test'
+  ...
+# Subtest: el mensaje del día cerrado dice qué hacer, no sólo que no se puede
+ok 55 - el mensaje del día cerrado dice qué hacer, no sólo que no se puede
+  ---
+  duration_ms: 0.291363
+  type: 'test'
+  ...
+# Subtest: un pedido SIN cobrar se anula aunque el día esté cerrado: no hay plata que mover
+ok 56 - un pedido SIN cobrar se anula aunque el día esté cerrado: no hay plata que mover
+  ---
+  duration_ms: 0.388216
+  type: 'test'
+  ...
+# Subtest: dos clics en Anular devuelven el stock UNA sola vez
+ok 57 - dos clics en Anular devuelven el stock UNA sola vez
+  ---
+  duration_ms: 0.499518
+  type: 'test'
+  ...
+# Subtest: una venta con factura autorizada no se anula mientras no exista la nota de crédito
+ok 58 - una venta con factura autorizada no se anula mientras no exista la nota de crédito
+  ---
+  duration_ms: 0.190265
+  type: 'test'
+  ...
+# Subtest: una venta con la factura en camino a ARCA tampoco: el CAE puede llegar después
+ok 59 - una venta con la factura en camino a ARCA tampoco: el CAE puede llegar después
+  ---
+  duration_ms: 0.267944
+  type: 'test'
+  ...
+# Subtest: la factura se responde antes que el día cerrado: sin nota de crédito, ni el dueño la anula
+ok 60 - la factura se responde antes que el día cerrado: sin nota de crédito, ni el dueño la anula
+  ---
+  duration_ms: 0.311468
+  type: 'test'
+  ...
+# Subtest: anular una venta con factura autorizada se rechaza y no escribe nada
+ok 61 - anular una venta con factura autorizada se rechaza y no escribe nada
+  ---
+  duration_ms: 0.492168
+  type: 'test'
+  ...
+# Subtest: la factura rechazada por ARCA no frena la anulación: no tiene CAE
+ok 62 - la factura rechazada por ARCA no frena la anulación: no tiene CAE
+  ---
+  duration_ms: 0.311373
+  type: 'test'
+  ...
+# Subtest: la factura de otro negocio con el mismo id de pedido no frena la anulación
+ok 63 - la factura de otro negocio con el mismo id de pedido no frena la anulación
+  ---
+  duration_ms: 0.369827
+  type: 'test'
+  ...
+# Subtest: una factura confirmada mientras se anulaba se ve después del bloqueo y la anulación se cae entera
+ok 64 - una factura confirmada mientras se anulaba se ve después del bloqueo y la anulación se cae entera
+  ---
+  duration_ms: 0.436971
+  type: 'test'
+  ...
+# Subtest: una venta ENTREGADA se puede anular: es la corrección diaria de una carnicería
+ok 65 - una venta ENTREGADA se puede anular: es la corrección diaria de una carnicería
+  ---
+  duration_ms: 0.098557
+  type: 'test'
+  ...
+# Subtest: el doble clic contesta 'ya está', no 'no se puede' — aunque el día esté cerrado
+ok 66 - el doble clic contesta 'ya está', no 'no se puede' — aunque el día esté cerrado
+  ---
+  duration_ms: 0.070773
+  type: 'test'
+  ...
+# Subtest: la frontera del día cerrado sólo frena la venta que ESCRIBE en la caja
+ok 67 - la frontera del día cerrado sólo frena la venta que ESCRIBE en la caja
+  ---
+  duration_ms: 0.144906
+  type: 'test'
+  ...
+# Subtest: la venta COBRADA de un día ya cerrado se rechaza — el arqueo firmado no se toca
+ok 68 - la venta COBRADA de un día ya cerrado se rechaza — el arqueo firmado no se toca
+  ---
+  duration_ms: 0.188783
+  type: 'test'
+  ...
+# Subtest: el pedido SIN cobrar entra igual con el día cerrado: no escribe en la caja
+ok 69 - el pedido SIN cobrar entra igual con el día cerrado: no escribe en la caja
+  ---
+  duration_ms: 0.144485
+  type: 'test'
+  ...
+# Subtest: sin ningún cierre hecho, el mostrador opera exactamente como antes
+ok 70 - sin ningún cierre hecho, el mostrador opera exactamente como antes
+  ---
+  duration_ms: 0.103193
+  type: 'test'
+  ...
+# Subtest: cobrar un pedido ya tomado tiene la MISMA frontera que el alta
+ok 71 - cobrar un pedido ya tomado tiene la MISMA frontera que el alta
+  ---
+  duration_ms: 0.103975
+  type: 'test'
+  ...
+# Subtest: con el día de hoy todavía ABIERTO, la venta cobrada pasa
+ok 72 - con el día de hoy todavía ABIERTO, la venta cobrada pasa
+  ---
+  duration_ms: 0.067021
+  type: 'test'
+  ...
+# Subtest: un pedido sin cobrar se edita; uno cobrado NO
+ok 73 - un pedido sin cobrar se edita; uno cobrado NO
+  ---
+  duration_ms: 0.104034
+  type: 'test'
+  ...
+# Subtest: si hay asiento en el libro no se edita, aunque el pedido diga que no está cobrado
+ok 74 - si hay asiento en el libro no se edita, aunque el pedido diga que no está cobrado
+  ---
+  duration_ms: 0.064623
+  type: 'test'
+  ...
+# Subtest: un pedido entregado o anulado no se edita
+ok 75 - un pedido entregado o anulado no se edita
+  ---
+  duration_ms: 0.066003
+  type: 'test'
+  ...
+# Subtest: el peso real mueve SÓLO la diferencia: de 1,240 a 1,310 salen 70 gramos
+ok 76 - el peso real mueve SÓLO la diferencia: de 1,240 a 1,310 salen 70 gramos
+  ---
+  duration_ms: 0.241208
+  type: 'test'
+  ...
+# Subtest: si el paquete pesó menos, la diferencia vuelve al stock
+ok 77 - si el paquete pesó menos, la diferencia vuelve al stock
+  ---
+  duration_ms: 0.074998
+  type: 'test'
+  ...
+# Subtest: producto sacado del pedido: vuelve todo; producto agregado: sale todo
+ok 78 - producto sacado del pedido: vuelve todo; producto agregado: sale todo
+  ---
+  duration_ms: 1.779794
+  type: 'test'
+  ...
+# Subtest: mismo peso = ningún movimiento de stock (no se ensucia el ledger al guardar sin cambios)
+ok 79 - mismo peso = ningún movimiento de stock (no se ensucia el ledger al guardar sin cambios)
+  ---
+  duration_ms: 0.220263
+  type: 'test'
+  ...
+# Subtest: los productos sin control de stock no entran al delta
+ok 80 - los productos sin control de stock no entran al delta
+  ---
+  duration_ms: 0.077795
+  type: 'test'
+  ...
+# Subtest: sólo el rubro MOSTRADOR nace DELIVERED: la estética conserva su bandeja
+ok 81 - sólo el rubro MOSTRADOR nace DELIVERED: la estética conserva su bandeja
+  ---
+  duration_ms: 3.914307
+  type: 'test'
+  ...
+# Subtest: anular una venta con cupón devuelve el uso a ESE cupón, y anular otra vez no devuelve otro
+ok 82 - anular una venta con cupón devuelve el uso a ESE cupón, y anular otra vez no devuelve otro
+  ---
+  duration_ms: 0.548747
+  type: 'test'
+  ...
+# Subtest: una fila de cupón vieja (sin id) devuelve por código, dentro del negocio y sin bajar de cero
+ok 83 - una fila de cupón vieja (sin id) devuelve por código, dentro del negocio y sin bajar de cero
+  ---
+  duration_ms: 1.022755
+  type: 'test'
+  ...
+# Subtest: fila vieja (sin id) y el cupón se borró y se recreó DESPUÉS del pedido con el mismo código: no se le devuelve un uso al nuevo
+ok 84 - fila vieja (sin id) y el cupón se borró y se recreó DESPUÉS del pedido con el mismo código: no se le devuelve un uso al nuevo
+  ---
+  duration_ms: 0.49601
+  type: 'test'
+  ...
+# Subtest: una venta sin cupón se anula igual y no toca ningún cupón
+ok 85 - una venta sin cupón se anula igual y no toca ningún cupón
+  ---
+  duration_ms: 0.29029
+  type: 'test'
+  ...
+# Subtest: si la anulación no pasa (día cerrado), el cupón tampoco vuelve
+ok 86 - si la anulación no pasa (día cerrado), el cupón tampoco vuelve
+  ---
+  duration_ms: 0.249355
+  type: 'test'
+  ...
+# Subtest: el motivo es obligatorio y no se acepta un garabato
+ok 87 - el motivo es obligatorio y no se acepta un garabato
+  ---
+  duration_ms: 2.043298
+  type: 'test'
+  ...
+# Subtest: la nota ata la contrapartida al cobro original y se puede volver a leer
+ok 88 - la nota ata la contrapartida al cobro original y se puede volver a leer
+  ---
+  duration_ms: 0.199951
+  type: 'test'
+  ...
+# Subtest: cobrado y condonado NO se suman: son plata distinta
+ok 89 - cobrado y condonado NO se suman: son plata distinta
+  ---
+  duration_ms: 0.429337
+  type: 'test'
+  ...
+# Subtest: un cobro ya anulado no vuelve a ofrecerse para anular
+ok 90 - un cobro ya anulado no vuelve a ofrecerse para anular
+  ---
+  duration_ms: 0.20416
+  type: 'test'
+  ...
+# Subtest: planAnulacion: sólo cobros vivos, y el día cerrado se responde después de la idempotencia
+ok 91 - planAnulacion: sólo cobros vivos, y el día cerrado se responde después de la idempotencia
+  ---
+  duration_ms: 0.28246
+  type: 'test'
+  ...
+# Subtest: planAnulacion: con factura autorizada o en camino el cobro no se anula; el doble clic sigue contestando 'ya está'
+ok 92 - planAnulacion: con factura autorizada o en camino el cobro no se anula; el doble clic sigue contestando 'ya está'
+  ---
+  duration_ms: 0.324418
+  type: 'test'
+  ...
+# Subtest: anular el cobro de un turno con factura autorizada se rechaza y no escribe nada
+ok 93 - anular el cobro de un turno con factura autorizada se rechaza y no escribe nada
+  ---
+  duration_ms: 1.872305
+  type: 'test'
+  ...
+# Subtest: la factura de otro turno o de otro negocio no frena la anulación del cobro
+ok 94 - la factura de otro turno o de otro negocio no frena la anulación del cobro
+  ---
+  duration_ms: 0.597114
+  type: 'test'
+  ...
+# Subtest: planCondonacion: sólo un turno prestado y con saldo
+ok 95 - planCondonacion: sólo un turno prestado y con saldo
+  ---
+  duration_ms: 0.396573
+  type: 'test'
+  ...
+# Subtest: el detalle de la reversa nombra al asiento original
+ok 96 - el detalle de la reversa nombra al asiento original
+  ---
+  duration_ms: 0.289044
+  type: 'test'
+  ...
+# Subtest: anular deja la contrapartida, baja el Payment y revierte el asiento con el MISMO medio, monto y fecha contable
+ok 97 - anular deja la contrapartida, baja el Payment y revierte el asiento con el MISMO medio, monto y fecha contable
+  ---
+  duration_ms: 0.617323
+  type: 'test'
+  ...
+# Subtest: anular dos veces NO duplica la reversa ni el egreso
+ok 98 - anular dos veces NO duplica la reversa ni el egreso
+  ---
+  duration_ms: 0.384859
+  type: 'test'
+  ...
+# Subtest: un cobro de un día YA CERRADO no se anula: la corrección va con fecha de hoy
+ok 99 - un cobro de un día YA CERRADO no se anula: la corrección va con fecha de hoy
+  ---
+  duration_ms: 0.220828
+  type: 'test'
+  ...
+# Subtest: la frontera se mide contra la FECHA CONTABLE del asiento, no contra cuándo se tipeó
+ok 100 - la frontera se mide contra la FECHA CONTABLE del asiento, no contra cuándo se tipeó
+  ---
+  duration_ms: 0.429182
+  type: 'test'
+  ...
+# Subtest: anular una contrapartida está prohibido: no se anula una anulación
+ok 101 - anular una contrapartida está prohibido: no se anula una anulación
+  ---
+  duration_ms: 0.282467
+  type: 'test'
+  ...
+# Subtest: schema-ahead: sin las columnas migradas la contrapartida se asienta igual, sin clave ni libro
+ok 102 - schema-ahead: sin las columnas migradas la contrapartida se asienta igual, sin clave ni libro
+  ---
+  duration_ms: 0.357316
+  type: 'test'
+  ...
+# Subtest: withSchema pero sin asiento original: la reversa no se asienta y lo dice
+ok 103 - withSchema pero sin asiento original: la reversa no se asienta y lo dice
+  ---
+  duration_ms: 0.28828
+  type: 'test'
+  ...
+# Subtest: un medio que no se traduce a medio de caja NO se reporta como falta de asiento
+ok 104 - un medio que no se traduce a medio de caja NO se reporta como falta de asiento
+  ---
+  duration_ms: 0.272558
+  type: 'test'
+  ...
+# Subtest: anulado el cobro, el turno se puede volver a cobrar por el monto completo
+ok 105 - anulado el cobro, el turno se puede volver a cobrar por el monto completo
+  ---
+  duration_ms: 0.39617
+  type: 'test'
+  ...
+# Subtest: condonar salda el turno SIN tocar el libro ni inflar el Payment
+ok 106 - condonar salda el turno SIN tocar el libro ni inflar el Payment
+  ---
+  duration_ms: 0.418496
+  type: 'test'
+  ...
+# Subtest: condonar dos veces no da de baja el saldo dos veces
+ok 107 - condonar dos veces no da de baja el saldo dos veces
+  ---
+  duration_ms: 0.264322
+  type: 'test'
+  ...
+# Subtest: no se condona un turno que todavía no se prestó ni uno sin saldo
+ok 108 - no se condona un turno que todavía no se prestó ni uno sin saldo
+  ---
+  duration_ms: 0.361837
+  type: 'test'
+  ...
+# Subtest: condonar NO puede escribir en el libro de caja: no hay plata que mover
+ok 109 - condonar NO puede escribir en el libro de caja: no hay plata que mover
+  ---
+  duration_ms: 0.27994
+  type: 'test'
+  ...
+# Subtest: anular exige la MISMA capacidad y el MISMO veredicto que cobrar
+ok 110 - anular exige la MISMA capacidad y el MISMO veredicto que cobrar
+  ---
+  duration_ms: 0.471184
+  type: 'test'
+  ...
+# Subtest: condonar exige agenda:manage: perdonar plata lo decide el negocio, no quien cobra
+ok 111 - condonar exige agenda:manage: perdonar plata lo decide el negocio, no quien cobra
+  ---
+  duration_ms: 0.523673
+  type: 'test'
+  ...
+1..111
+# tests 111
+# suites 0
+# pass 111
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1499.06348

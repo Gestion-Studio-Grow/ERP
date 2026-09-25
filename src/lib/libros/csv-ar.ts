@@ -9,6 +9,7 @@
 // rompa los acentos. Mismo criterio que el libro de caja (caja/libro-csv.ts) y Reportes.
 
 import { csvField, sinFormula } from "@/lib/report-csv";
+import { textoAlCentavo } from "@/lib/dinero/redondeo";
 
 /** BOM UTF-8. La respuesta HTTP lo antepone al texto. */
 export const BOM = "\uFEFF";
@@ -80,9 +81,12 @@ export function lineaSinFormulas(linea: string): string {
   return linea === "" ? "" : filaCsv(...camposDeLineaCsv(linea));
 }
 
-/** 1234.5 → "1234,50". */
+/**
+ * 1234.5 → "1234,50", con la regla única de redondeo (2,135 → "2,14"). Un monto que no es
+ * un número no se escribe en un libro fiscal: tira (RangeError), no deja "NaN" en el archivo.
+ */
 export function pesosCsv(n: number): string {
-  return (Math.round((n + Number.EPSILON) * 100) / 100).toFixed(2).replace(".", ",");
+  return textoAlCentavo(n).replace(".", ",");
 }
 
 /** 0.105 → "10,5%". */

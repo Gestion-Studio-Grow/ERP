@@ -1,0 +1,4 @@
+combinaciones 30000000, distintas 13704, diferencia máxima $1
+58% de $25: 14 -> 15
+70% de $45: 31 -> 32
+29% de $50: 14 -> 15

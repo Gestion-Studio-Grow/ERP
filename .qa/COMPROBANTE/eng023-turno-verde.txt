@@ -1,0 +1,31 @@
+TAP version 13
+# {"ts":"2026-09-25T07:35:10.849Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_91be991e79","condicionIva":"MONOTRIBUTO"}
+# Subtest: anulación del cobro primero: la facturación del turno espera el bloqueo y termina sin factura
+ok 1 - anulación del cobro primero: la facturación del turno espera el bloqueo y termina sin factura
+  ---
+  duration_ms: 3189.394039
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T07:35:11.280Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_91be991e79","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T07:35:11.685Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_91be991e79","condicionIva":"MONOTRIBUTO"}
+# Subtest: se anula una parte del cobro mientras se factura: no sale la factura por el monto viejo; al volver a facturar, sale por lo cobrado
+ok 2 - se anula una parte del cobro mientras se factura: no sale la factura por el monto viejo; al volver a facturar, sale por lo cobrado
+  ---
+  duration_ms: 515.094293
+  type: 'test'
+  ...
+# Subtest: facturación del turno primero: «Anular cobro» espera, ve la factura en camino y no anula
+ok 3 - facturación del turno primero: «Anular cobro» espera, ve la factura en camino y no anula
+  ---
+  duration_ms: 550.754181
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4715.787333

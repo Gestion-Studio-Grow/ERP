@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: inscripto con el IVA como tasa pareja sobre el total (sin alícuota por producto): la regla lo frena con el motivo
+ok 1 - inscripto con el IVA como tasa pareja sobre el total (sin alícuota por producto): la regla lo frena con el motivo
+  ---
+  duration_ms: 0.95291
+  type: 'test'
+  ...
+# Subtest: inscripto con el IVA armado desde la alícuota de cada producto: la regla no lo frena
+ok 2 - inscripto con el IVA armado desde la alícuota de cada producto: la regla no lo frena
+  ---
+  duration_ms: 0.211696
+  type: 'test'
+  ...
+# Subtest: monotributo y exento no discriminan IVA: la regla no los toca aunque no declaren alícuota por producto
+ok 3 - monotributo y exento no discriminan IVA: la regla no los toca aunque no declaren alícuota por producto
+  ---
+  duration_ms: 0.162863
+  type: 'test'
+  ...
+# Subtest: despacho: un inscripto sin alícuota por producto no emite, devuelve el motivo y no se le pide nada a ARCA
+ok 4 - despacho: un inscripto sin alícuota por producto no emite, devuelve el motivo y no se le pide nada a ARCA
+  ---
+  duration_ms: 2.18843
+  type: 'test'
+  ...
+# Subtest: despacho: el mismo inscripto con alícuota por producto emite su Factura B a consumidor final
+ok 5 - despacho: el mismo inscripto con alícuota por producto emite su Factura B a consumidor final
+  ---
+  duration_ms: 3.801716
+  type: 'test'
+  ...
+# Subtest: despacho: un monotributista (como CH) sigue emitiendo su Factura C sin declarar alícuota por producto
+ok 6 - despacho: un monotributista (como CH) sigue emitiendo su Factura C sin declarar alícuota por producto
+  ---
+  duration_ms: 0.574041
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 453.41863

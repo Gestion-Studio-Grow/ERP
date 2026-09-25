@@ -24,6 +24,13 @@ export interface TareaReingenieria {
 }
 
 /**
+ * Cuándo se anotaron por última vez estas listas (último cambio de datos de este archivo en git).
+ * El tablero de la consola la muestra al lado de «No se actualiza solo». Quien cambie una lista,
+ * cambia esta fecha.
+ */
+export const ANOTADO_EL = "2026-07-13";
+
+/**
  * Estado del bloque de reingeniería (Balde B, plan-ventana 2026-07-08). Espejo del
  * doc; se actualiza al cerrar cada tarea. T4 en-curso porque es esta misma sesión.
  */
@@ -79,7 +86,7 @@ export function resumenPlan(tareas: TareaReingenieria[] = PLAN_REINGENIERIA): {
     hechas,
     enCurso,
     pendientes,
-    pctHecho: tareas.length ? Math.round((hechas / tareas.length) * 100) : 0,
+    pctHecho: tareas.length ? Math.round((hechas / tareas.length) * 100) : 0, // no-es-plata: porcentaje de tareas
   };
 }
 

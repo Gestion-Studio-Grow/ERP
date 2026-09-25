@@ -39,6 +39,7 @@
 // valúa en $0: un cero en la columna de pesos diría "no perdiste nada", y lo que pasa es que
 // no se sabe.
 
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { buildReason, motivoLabel } from "@/lib/stock/adjustment-core";
 import { ANULACION_VENTA_ACTOR_PREFIX, EDICION_ACTOR_PREFIX } from "@/lib/order-anulacion";
 import { MOTIVO_STOCK_INICIAL } from "@/lib/stock/alta-producto";
@@ -181,7 +182,7 @@ export type ResumenDeMerma = {
 };
 
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
-const r2 = (n: number) => Math.round(n * 100) / 100;
+const r2 = redondearAlCentavo;
 
 function renglonVacio(): Renglon {
   return { kg: 0, unidades: 0, pesos: 0, movimientos: 0, sinCosto: 0 };

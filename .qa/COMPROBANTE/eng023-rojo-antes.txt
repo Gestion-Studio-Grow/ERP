@@ -1,0 +1,550 @@
+TAP version 13
+# node:internal/modules/cjs/loader:1383
+#   const err = new Error(message);
+#               ^
+# Error: Cannot find module '@/lib/factura-viva'
+# Require stack:
+# - /home/user/erp/src/lib/factura-viva.test.ts
+#     at node:internal/modules/cjs/loader:1383:15
+#     at T._resolveFilename (file:///home/user/erp/node_modules/tsx/dist/register-CqMfTiWi.mjs:2:14889)
+#     at nextResolveSimple (/home/user/erp/node_modules/tsx/dist/register-BOkp8V6j.cjs:10:1017)
+#     at /home/user/erp/node_modules/tsx/dist/register-BOkp8V6j.cjs:9:4388
+#     at /home/user/erp/node_modules/tsx/dist/register-BOkp8V6j.cjs:9:3818
+#     at resolveTsPaths (/home/user/erp/node_modules/tsx/dist/register-BOkp8V6j.cjs:10:770)
+#     at Function._resolveFilename (/home/user/erp/node_modules/tsx/dist/register-BOkp8V6j.cjs:10:1155)
+#     at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)
+#     at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)
+#     at Function._load (node:internal/modules/cjs/loader:1192:37) {
+#   code: 'MODULE_NOT_FOUND',
+#   requireStack: [ '/home/user/erp/src/lib/factura-viva.test.ts' ]
+# }
+# Node.js v22.22.2
+# Subtest: src/lib/factura-viva.test.ts
+not ok 1 - src/lib/factura-viva.test.ts
+  ---
+  duration_ms: 420.951802
+  type: 'test'
+  location: '/home/user/erp/src/lib/factura-viva.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: anular una venta cobrada asienta el EGRESO y devuelve los kilos
+ok 2 - anular una venta cobrada asienta el EGRESO y devuelve los kilos
+  ---
+  duration_ms: 4.591645
+  type: 'test'
+  ...
+# Subtest: la contrapartida va con la FECHA DEL ASIENTO ORIGINAL, no con la de hoy
+ok 3 - la contrapartida va con la FECHA DEL ASIENTO ORIGINAL, no con la de hoy
+  ---
+  duration_ms: 0.512462
+  type: 'test'
+  ...
+# Subtest: la contrapartida queda FIRMADA para que el libro no la deje borrar
+ok 4 - la contrapartida queda FIRMADA para que el libro no la deje borrar
+  ---
+  duration_ms: 0.768695
+  type: 'test'
+  ...
+# Subtest: si el día del asiento ya está cerrado, NO se escribe absolutamente nada
+ok 5 - si el día del asiento ya está cerrado, NO se escribe absolutamente nada
+  ---
+  duration_ms: 0.897057
+  type: 'test'
+  ...
+# Subtest: el mensaje del día cerrado dice qué hacer, no sólo que no se puede
+ok 6 - el mensaje del día cerrado dice qué hacer, no sólo que no se puede
+  ---
+  duration_ms: 0.377369
+  type: 'test'
+  ...
+# Subtest: un pedido SIN cobrar se anula aunque el día esté cerrado: no hay plata que mover
+ok 7 - un pedido SIN cobrar se anula aunque el día esté cerrado: no hay plata que mover
+  ---
+  duration_ms: 0.491419
+  type: 'test'
+  ...
+# Subtest: dos clics en Anular devuelven el stock UNA sola vez
+ok 8 - dos clics en Anular devuelven el stock UNA sola vez
+  ---
+  duration_ms: 0.571266
+  type: 'test'
+  ...
+# Subtest: una venta con factura autorizada no se anula mientras no exista la nota de crédito
+not ok 9 - una venta con factura autorizada no se anula mientras no exista la nota de crédito
+  ---
+  duration_ms: 7.224513
+  type: 'test'
+  location: '/home/user/erp/src/lib/order-anulacion.test.ts:2:9240'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   ok: true
+    -   motivo: 'facturada',
+    -   ok: false
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    ok: false
+    motivo: 'facturada'
+  actual:
+    ok: true
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/order-anulacion.test.ts:303:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: una venta con la factura en camino a ARCA tampoco: el CAE puede llegar después
+not ok 10 - una venta con la factura en camino a ARCA tampoco: el CAE puede llegar después
+  ---
+  duration_ms: 0.690343
+  type: 'test'
+  location: '/home/user/erp/src/lib/order-anulacion.test.ts:2:9539'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   ok: true
+    -   motivo: 'factura-en-camino',
+    -   ok: false
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    ok: false
+    motivo: 'factura-en-camino'
+  actual:
+    ok: true
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/order-anulacion.test.ts:310:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: la factura se responde antes que el día cerrado: sin nota de crédito, ni el dueño la anula
+not ok 11 - la factura se responde antes que el día cerrado: sin nota de crédito, ni el dueño la anula
+  ---
+  duration_ms: 0.813838
+  type: 'test'
+  location: '/home/user/erp/src/lib/order-anulacion.test.ts:2:9841'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   motivo: 'dia-cerrado',
+    -   motivo: 'facturada',
+        ok: false
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    ok: false
+    motivo: 'facturada'
+  actual:
+    ok: false
+    motivo: 'dia-cerrado'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/order-anulacion.test.ts:317:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: anular una venta con factura autorizada se rechaza y no escribe nada
+not ok 12 - anular una venta con factura autorizada se rechaza y no escribe nada
+  ---
+  duration_ms: 1.218317
+  type: 'test'
+  location: '/home/user/erp/src/lib/order-anulacion.test.ts:2:10170'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (/home/user/erp/src/lib/order-anulacion.test.ts:325:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: la factura rechazada por ARCA no frena la anulación: no tiene CAE
+ok 13 - la factura rechazada por ARCA no frena la anulación: no tiene CAE
+  ---
+  duration_ms: 0.593224
+  type: 'test'
+  ...
+# Subtest: la factura de otro negocio con el mismo id de pedido no frena la anulación
+ok 14 - la factura de otro negocio con el mismo id de pedido no frena la anulación
+  ---
+  duration_ms: 0.570728
+  type: 'test'
+  ...
+# Subtest: una factura confirmada mientras se anulaba se ve después del bloqueo y la anulación se cae entera
+not ok 15 - una factura confirmada mientras se anulaba se ve después del bloqueo y la anulación se cae entera
+  ---
+  duration_ms: 0.942756
+  type: 'test'
+  location: '/home/user/erp/src/lib/order-anulacion.test.ts:2:11653'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (/home/user/erp/src/lib/order-anulacion.test.ts:349:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: una venta ENTREGADA se puede anular: es la corrección diaria de una carnicería
+ok 16 - una venta ENTREGADA se puede anular: es la corrección diaria de una carnicería
+  ---
+  duration_ms: 0.19623
+  type: 'test'
+  ...
+# Subtest: el doble clic contesta 'ya está', no 'no se puede' — aunque el día esté cerrado
+ok 17 - el doble clic contesta 'ya está', no 'no se puede' — aunque el día esté cerrado
+  ---
+  duration_ms: 0.178983
+  type: 'test'
+  ...
+# Subtest: la frontera del día cerrado sólo frena la venta que ESCRIBE en la caja
+ok 18 - la frontera del día cerrado sólo frena la venta que ESCRIBE en la caja
+  ---
+  duration_ms: 0.227842
+  type: 'test'
+  ...
+# Subtest: la venta COBRADA de un día ya cerrado se rechaza — el arqueo firmado no se toca
+ok 19 - la venta COBRADA de un día ya cerrado se rechaza — el arqueo firmado no se toca
+  ---
+  duration_ms: 0.174507
+  type: 'test'
+  ...
+# Subtest: el pedido SIN cobrar entra igual con el día cerrado: no escribe en la caja
+ok 20 - el pedido SIN cobrar entra igual con el día cerrado: no escribe en la caja
+  ---
+  duration_ms: 0.156421
+  type: 'test'
+  ...
+# Subtest: sin ningún cierre hecho, el mostrador opera exactamente como antes
+ok 21 - sin ningún cierre hecho, el mostrador opera exactamente como antes
+  ---
+  duration_ms: 0.087922
+  type: 'test'
+  ...
+# Subtest: cobrar un pedido ya tomado tiene la MISMA frontera que el alta
+ok 22 - cobrar un pedido ya tomado tiene la MISMA frontera que el alta
+  ---
+  duration_ms: 0.230163
+  type: 'test'
+  ...
+# Subtest: con el día de hoy todavía ABIERTO, la venta cobrada pasa
+ok 23 - con el día de hoy todavía ABIERTO, la venta cobrada pasa
+  ---
+  duration_ms: 0.20021
+  type: 'test'
+  ...
+# Subtest: un pedido sin cobrar se edita; uno cobrado NO
+ok 24 - un pedido sin cobrar se edita; uno cobrado NO
+  ---
+  duration_ms: 0.153496
+  type: 'test'
+  ...
+# Subtest: si hay asiento en el libro no se edita, aunque el pedido diga que no está cobrado
+ok 25 - si hay asiento en el libro no se edita, aunque el pedido diga que no está cobrado
+  ---
+  duration_ms: 0.059386
+  type: 'test'
+  ...
+# Subtest: un pedido entregado o anulado no se edita
+ok 26 - un pedido entregado o anulado no se edita
+  ---
+  duration_ms: 0.078915
+  type: 'test'
+  ...
+# Subtest: el peso real mueve SÓLO la diferencia: de 1,240 a 1,310 salen 70 gramos
+ok 27 - el peso real mueve SÓLO la diferencia: de 1,240 a 1,310 salen 70 gramos
+  ---
+  duration_ms: 0.349598
+  type: 'test'
+  ...
+# Subtest: si el paquete pesó menos, la diferencia vuelve al stock
+ok 28 - si el paquete pesó menos, la diferencia vuelve al stock
+  ---
+  duration_ms: 0.173119
+  type: 'test'
+  ...
+# Subtest: producto sacado del pedido: vuelve todo; producto agregado: sale todo
+ok 29 - producto sacado del pedido: vuelve todo; producto agregado: sale todo
+  ---
+  duration_ms: 1.27726
+  type: 'test'
+  ...
+# Subtest: mismo peso = ningún movimiento de stock (no se ensucia el ledger al guardar sin cambios)
+ok 30 - mismo peso = ningún movimiento de stock (no se ensucia el ledger al guardar sin cambios)
+  ---
+  duration_ms: 0.283746
+  type: 'test'
+  ...
+# Subtest: los productos sin control de stock no entran al delta
+ok 31 - los productos sin control de stock no entran al delta
+  ---
+  duration_ms: 0.212636
+  type: 'test'
+  ...
+# Subtest: sólo el rubro MOSTRADOR nace DELIVERED: la estética conserva su bandeja
+ok 32 - sólo el rubro MOSTRADOR nace DELIVERED: la estética conserva su bandeja
+  ---
+  duration_ms: 0.40538
+  type: 'test'
+  ...
+# Subtest: anular una venta con cupón devuelve el uso a ESE cupón, y anular otra vez no devuelve otro
+ok 33 - anular una venta con cupón devuelve el uso a ESE cupón, y anular otra vez no devuelve otro
+  ---
+  duration_ms: 0.676052
+  type: 'test'
+  ...
+# Subtest: una fila de cupón vieja (sin id) devuelve por código, dentro del negocio y sin bajar de cero
+ok 34 - una fila de cupón vieja (sin id) devuelve por código, dentro del negocio y sin bajar de cero
+  ---
+  duration_ms: 0.256255
+  type: 'test'
+  ...
+# Subtest: fila vieja (sin id) y el cupón se borró y se recreó DESPUÉS del pedido con el mismo código: no se le devuelve un uso al nuevo
+ok 35 - fila vieja (sin id) y el cupón se borró y se recreó DESPUÉS del pedido con el mismo código: no se le devuelve un uso al nuevo
+  ---
+  duration_ms: 0.372218
+  type: 'test'
+  ...
+# Subtest: una venta sin cupón se anula igual y no toca ningún cupón
+ok 36 - una venta sin cupón se anula igual y no toca ningún cupón
+  ---
+  duration_ms: 0.317271
+  type: 'test'
+  ...
+# Subtest: si la anulación no pasa (día cerrado), el cupón tampoco vuelve
+ok 37 - si la anulación no pasa (día cerrado), el cupón tampoco vuelve
+  ---
+  duration_ms: 0.202473
+  type: 'test'
+  ...
+# Subtest: el motivo es obligatorio y no se acepta un garabato
+ok 38 - el motivo es obligatorio y no se acepta un garabato
+  ---
+  duration_ms: 2.731856
+  type: 'test'
+  ...
+# Subtest: la nota ata la contrapartida al cobro original y se puede volver a leer
+ok 39 - la nota ata la contrapartida al cobro original y se puede volver a leer
+  ---
+  duration_ms: 0.402
+  type: 'test'
+  ...
+# Subtest: cobrado y condonado NO se suman: son plata distinta
+ok 40 - cobrado y condonado NO se suman: son plata distinta
+  ---
+  duration_ms: 0.475836
+  type: 'test'
+  ...
+# Subtest: un cobro ya anulado no vuelve a ofrecerse para anular
+ok 41 - un cobro ya anulado no vuelve a ofrecerse para anular
+  ---
+  duration_ms: 0.298027
+  type: 'test'
+  ...
+# Subtest: planAnulacion: sólo cobros vivos, y el día cerrado se responde después de la idempotencia
+ok 42 - planAnulacion: sólo cobros vivos, y el día cerrado se responde después de la idempotencia
+  ---
+  duration_ms: 0.35439
+  type: 'test'
+  ...
+# Subtest: planAnulacion: con factura autorizada o en camino el cobro no se anula; el doble clic sigue contestando 'ya está'
+not ok 43 - planAnulacion: con factura autorizada o en camino el cobro no se anula; el doble clic sigue contestando 'ya está'
+  ---
+  duration_ms: 5.148244
+  type: 'test'
+  location: '/home/user/erp/src/lib/turnos/anulacion.test.ts:2:7414'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   monto: 18000,
+    +   ok: true
+    -   motivo: 'facturado',
+    -   ok: false
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    ok: false
+    motivo: 'facturado'
+  actual:
+    ok: true
+    monto: 18000
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/turnos/anulacion.test.ts:262:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: anular el cobro de un turno con factura autorizada se rechaza y no escribe nada
+not ok 44 - anular el cobro de un turno con factura autorizada se rechaza y no escribe nada
+  ---
+  duration_ms: 2.034418
+  type: 'test'
+  location: '/home/user/erp/src/lib/turnos/anulacion.test.ts:2:8193'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (/home/user/erp/src/lib/turnos/anulacion.test.ts:275:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: la factura de otro turno o de otro negocio no frena la anulación del cobro
+ok 45 - la factura de otro turno o de otro negocio no frena la anulación del cobro
+  ---
+  duration_ms: 1.626312
+  type: 'test'
+  ...
+# Subtest: planCondonacion: sólo un turno prestado y con saldo
+ok 46 - planCondonacion: sólo un turno prestado y con saldo
+  ---
+  duration_ms: 0.379091
+  type: 'test'
+  ...
+# Subtest: el detalle de la reversa nombra al asiento original
+ok 47 - el detalle de la reversa nombra al asiento original
+  ---
+  duration_ms: 0.419105
+  type: 'test'
+  ...
+# Subtest: anular deja la contrapartida, baja el Payment y revierte el asiento con el MISMO medio, monto y fecha contable
+ok 48 - anular deja la contrapartida, baja el Payment y revierte el asiento con el MISMO medio, monto y fecha contable
+  ---
+  duration_ms: 0.914775
+  type: 'test'
+  ...
+# Subtest: anular dos veces NO duplica la reversa ni el egreso
+ok 49 - anular dos veces NO duplica la reversa ni el egreso
+  ---
+  duration_ms: 0.533491
+  type: 'test'
+  ...
+# Subtest: un cobro de un día YA CERRADO no se anula: la corrección va con fecha de hoy
+ok 50 - un cobro de un día YA CERRADO no se anula: la corrección va con fecha de hoy
+  ---
+  duration_ms: 0.617766
+  type: 'test'
+  ...
+# Subtest: la frontera se mide contra la FECHA CONTABLE del asiento, no contra cuándo se tipeó
+ok 51 - la frontera se mide contra la FECHA CONTABLE del asiento, no contra cuándo se tipeó
+  ---
+  duration_ms: 0.315419
+  type: 'test'
+  ...
+# Subtest: anular una contrapartida está prohibido: no se anula una anulación
+ok 52 - anular una contrapartida está prohibido: no se anula una anulación
+  ---
+  duration_ms: 0.459387
+  type: 'test'
+  ...
+# Subtest: schema-ahead: sin las columnas migradas la contrapartida se asienta igual, sin clave ni libro
+ok 53 - schema-ahead: sin las columnas migradas la contrapartida se asienta igual, sin clave ni libro
+  ---
+  duration_ms: 0.611899
+  type: 'test'
+  ...
+# Subtest: withSchema pero sin asiento original: la reversa no se asienta y lo dice
+ok 54 - withSchema pero sin asiento original: la reversa no se asienta y lo dice
+  ---
+  duration_ms: 0.498525
+  type: 'test'
+  ...
+# Subtest: un medio que no se traduce a medio de caja NO se reporta como falta de asiento
+ok 55 - un medio que no se traduce a medio de caja NO se reporta como falta de asiento
+  ---
+  duration_ms: 0.491533
+  type: 'test'
+  ...
+# Subtest: anulado el cobro, el turno se puede volver a cobrar por el monto completo
+ok 56 - anulado el cobro, el turno se puede volver a cobrar por el monto completo
+  ---
+  duration_ms: 0.43355
+  type: 'test'
+  ...
+# Subtest: condonar salda el turno SIN tocar el libro ni inflar el Payment
+ok 57 - condonar salda el turno SIN tocar el libro ni inflar el Payment
+  ---
+  duration_ms: 0.735078
+  type: 'test'
+  ...
+# Subtest: condonar dos veces no da de baja el saldo dos veces
+ok 58 - condonar dos veces no da de baja el saldo dos veces
+  ---
+  duration_ms: 0.301354
+  type: 'test'
+  ...
+# Subtest: no se condona un turno que todavía no se prestó ni uno sin saldo
+ok 59 - no se condona un turno que todavía no se prestó ni uno sin saldo
+  ---
+  duration_ms: 0.472101
+  type: 'test'
+  ...
+# Subtest: condonar NO puede escribir en el libro de caja: no hay plata que mover
+ok 60 - condonar NO puede escribir en el libro de caja: no hay plata que mover
+  ---
+  duration_ms: 0.276945
+  type: 'test'
+  ...
+# Subtest: anular exige la MISMA capacidad y el MISMO veredicto que cobrar
+ok 61 - anular exige la MISMA capacidad y el MISMO veredicto que cobrar
+  ---
+  duration_ms: 0.676991
+  type: 'test'
+  ...
+# Subtest: condonar exige agenda:manage: perdonar plata lo decide el negocio, no quien cobra
+ok 62 - condonar exige agenda:manage: perdonar plata lo decide el negocio, no quien cobra
+  ---
+  duration_ms: 0.440172
+  type: 'test'
+  ...
+1..62
+# tests 62
+# suites 0
+# pass 54
+# fail 8
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 611.39863

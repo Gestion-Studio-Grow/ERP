@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: un total con medio centavo no llega a escribirse: el plugin lo rechaza antes de ARCA
+ok 1 - un total con medio centavo no llega a escribirse: el plugin lo rechaza antes de ARCA
+  ---
+  duration_ms: 1.403062
+  type: 'test'
+  ...
+# Subtest: el Core deja 1,005 en 1,01: viaja 1.01 y la decisión cuenta 1,01
+ok 2 - el Core deja 1,005 en 1,01: viaja 1.01 y la decisión cuenta 1,01
+  ---
+  duration_ms: 13.659333
+  type: 'test'
+  ...
+# Subtest: 9.999.999,995 viaja como 10.000.000,00 y la decisión pide identificar por ley
+ok 3 - 9.999.999,995 viaja como 10.000.000,00 y la decisión pide identificar por ley
+  ---
+  duration_ms: 0.529253
+  type: 'test'
+  ...
+# Subtest: 599.999,995 viaja como 600.000,00 y alcanza un umbral del negocio de 600.000
+ok 4 - 599.999,995 viaja como 600.000,00 y alcanza un umbral del negocio de 600.000
+  ---
+  duration_ms: 0.549329
+  type: 'test'
+  ...
+# Subtest: en 20.000 cobros con medio centavo, lo que pasa la validación se decide justo en el ImpTotal que viaja
+ok 5 - en 20.000 cobros con medio centavo, lo que pasa la validación se decide justo en el ImpTotal que viaja
+  ---
+  duration_ms: 1250.900422
+  type: 'test'
+  ...
+# Subtest: todo cobro que arma el Core pasa la validación exacta: de $0,01 a $5.000, inscripto y monotributo
+ok 6 - todo cobro que arma el Core pasa la validación exacta: de $0,01 a $5.000, inscripto y monotributo
+  ---
+  duration_ms: 4077.311769
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5871.045388

@@ -1,0 +1,1588 @@
+TAP version 13
+# Subtest: ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+ok 1 - ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+  ---
+  duration_ms: 2943.562727
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 2 - ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 238.885139
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 3 - ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 112.815927
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 4 - ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 65.981575
+  type: 'test'
+  ...
+# Subtest: ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 5 - ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 99.258285
+  type: 'test'
+  ...
+# Subtest: ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 6 - ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 174.441303
+  type: 'test'
+  ...
+# Subtest: ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 7 - ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 127.424731
+  type: 'test'
+  ...
+# Subtest: ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 8 - ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 150.807045
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+ok 9 - ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+  ---
+  duration_ms: 171.294493
+  type: 'test'
+  ...
+# Subtest: ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+ok 10 - ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+  ---
+  duration_ms: 66.24857
+  type: 'test'
+  ...
+# Subtest: aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+ok 11 - aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+  ---
+  duration_ms: 329.634993
+  type: 'test'
+  ...
+# Subtest: ENG-020 · dos ventas iguales a consumidor final: la que perdió el pedido no adopta el CAE de la otra; cada una con su número
+ok 12 - ENG-020 · dos ventas iguales a consumidor final: la que perdió el pedido no adopta el CAE de la otra; cada una con su número
+  ---
+  duration_ms: 246.755279
+  type: 'test'
+  ...
+# Subtest: ENG-020/021 · la consulta del número anotado falla con un código desconocido: la factura sigue pendiente (no se rechaza) y un solo CAE
+ok 13 - ENG-020/021 · la consulta del número anotado falla con un código desconocido: la factura sigue pendiente (no se rechaza) y un solo CAE
+  ---
+  duration_ms: 234.712424
+  type: 'test'
+  ...
+# Subtest: ENG-021 · volver a facturar con un envío viejo sin cerrar (corte entre el rechazo y el cierre): un solo envío vivo, un CAE, y el CAE es el de los importes nuevos
+ok 14 - ENG-021 · volver a facturar con un envío viejo sin cerrar (corte entre el rechazo y el cierre): un solo envío vivo, un CAE, y el CAE es el de los importes nuevos
+  ---
+  duration_ms: 97.659311
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un despacho viejo que obtiene el CAE DESPUÉS de que la venta se volvió a facturar no lo registra en la factura reabierta
+ok 15 - ENG-021 · un despacho viejo que obtiene el CAE DESPUÉS de que la venta se volvió a facturar no lo registra en la factura reabierta
+  ---
+  duration_ms: 84.386983
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un despacho viejo que recibe un rechazo DESPUÉS de que la venta se volvió a facturar no rechaza la factura reabierta
+ok 16 - ENG-021 · un despacho viejo que recibe un rechazo DESPUÉS de que la venta se volvió a facturar no rechaza la factura reabierta
+  ---
+  duration_ms: 114.096337
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un envío que quedó abierto para una factura ya rechazada se cierra sin volver a pedirle nada a ARCA
+ok 17 - ENG-021 · un envío que quedó abierto para una factura ya rechazada se cierra sin volver a pedirle nada a ARCA
+  ---
+  duration_ms: 45.007217
+  type: 'test'
+  ...
+# Subtest: ENG-019 · mientras un despacho tiene el envío, otro no lo toma ni le pide nada a ARCA; ARCA termina con un CAE
+ok 18 - ENG-019 · mientras un despacho tiene el envío, otro no lo toma ni le pide nada a ARCA; ARCA termina con un CAE
+  ---
+  duration_ms: 34.16414
+  type: 'test'
+  ...
+# Subtest: ENG-019 · un despacho que perdió la reserva (se colgó más que ella) no anota ni pide el CAE: lo hace el que la tomó
+ok 19 - ENG-019 · un despacho que perdió la reserva (se colgó más que ella) no anota ni pide el CAE: lo hace el que la tomó
+  ---
+  duration_ms: 44.300364
+  type: 'test'
+  ...
+# Subtest: clientePara: sin ARCA_MODO devuelve el stub aunque haya config del tenant
+ok 20 - clientePara: sin ARCA_MODO devuelve el stub aunque haya config del tenant
+  ---
+  duration_ms: 1.135203
+  type: 'test'
+  ...
+# Subtest: clientePara: tenant sin config fiscal cae a un stub cuit:0 (inofensivo)
+ok 21 - clientePara: tenant sin config fiscal cae a un stub cuit:0 (inofensivo)
+  ---
+  duration_ms: 0.21798
+  type: 'test'
+  ...
+# Subtest: clientePara: stub NO resuelve credencial (ni toca el store)
+ok 22 - clientePara: stub NO resuelve credencial (ni toca el store)
+  ---
+  duration_ms: 0.143498
+  type: 'test'
+  ...
+# Subtest: clientePara: ARCA_MODO=real sin credencial cargada → propaga el error (no emite falso)
+ok 23 - clientePara: ARCA_MODO=real sin credencial cargada → propaga el error (no emite falso)
+  ---
+  duration_ms: 0.608656
+  type: 'test'
+  ...
+# Subtest: 🔒 ADR-066: ARCA_MODO=real con credencial del CUIT correcto → SOAP real por tenant
+ok 24 - 🔒 ADR-066: ARCA_MODO=real con credencial del CUIT correcto → SOAP real por tenant
+  ---
+  duration_ms: 198.913498
+  type: 'test'
+  ...
+# Subtest: 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed en el factory)
+ok 25 - 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed en el factory)
+  ---
+  duration_ms: 31.506135
+  type: 'test'
+  ...
+# Subtest: clientePara (stub): NO toca el store del TA
+ok 26 - clientePara (stub): NO toca el store del TA
+  ---
+  duration_ms: 0.349701
+  type: 'test'
+  ...
+# Subtest: clientePara (homologación): carga el TA persistido del tenant (ticketInicial)
+ok 27 - clientePara (homologación): carga el TA persistido del tenant (ticketInicial)
+  ---
+  duration_ms: 34.321871
+  type: 'test'
+  ...
+# Subtest: clientePara: en modo real, tenant sin CUIT válido LANZA (no despacha con cuit:0)
+ok 28 - clientePara: en modo real, tenant sin CUIT válido LANZA (no despacha con cuit:0)
+  ---
+  duration_ms: 0.435601
+  type: 'test'
+  ...
+# Subtest: clientePara: en modo homologación, tenant sin config fiscal también LANZA
+ok 29 - clientePara: en modo homologación, tenant sin config fiscal también LANZA
+  ---
+  duration_ms: 0.449498
+  type: 'test'
+  ...
+# Subtest: ENG-021 · el motivo que queda en el envío no filtra la estructura interna de un error de la base
+ok 30 - ENG-021 · el motivo que queda en el envío no filtra la estructura interna de un error de la base
+  ---
+  duration_ms: 12.531656
+  type: 'test'
+  ...
+# \# EVIDENCIA [{"serie":1,"porProceso":[{"modo":"cron","cuentas":{"procesados":3,"autorizados":3,"rechazados":0,"fallidos":0,"descartados":0,"corridas":15}},{"modo":"cron","cuentas":{"procesados":3,"autorizados":3,"rechazados":0,"fallidos":0,"descartados":0,"corridas":16}},{"modo":"negocio:A","cuentas":{"procesados":3,"autorizados":3,"rechazados":0,"fallidos":0,"descartados":0,"corridas":13}},{"modo":"negocio:B","cuentas":{"procesados":3,"autorizados":3,"rechazados":0,"fallidos":0,"descartados":0,"corridas":11}}],"A":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[1,2,3,4,5,6],"numerosEsperados":[1,2,3,4,5,6],"enviosAbiertos":0},"B":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[1,2,3,4,5,6],"numerosEsperados":[1,2,3,4,5,6],"enviosAbiertos":0}},{"serie":2,"porProceso":[{"modo":"cron","cuentas":{"procesados":2,"autorizados":2,"rechazados":0,"fallidos":0,"descartados":0,"corridas":8}},{"modo":"cron","cuentas":{"procesados":4,"autorizados":4,"rechazados":0,"fallidos":0,"descartados":0,"corridas":6}},{"modo":"negocio:A","cuentas":{"procesados":0,"autorizados":0,"rechazados":0,"fallidos":0,"descartados":0,"corridas":9}},{"modo":"negocio:B","cuentas":{"procesados":6,"autorizados":6,"rechazados":0,"fallidos":0,"descartados":0,"corridas":2}}],"A":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[7,8,9,10,11,12],"numerosEsperados":[7,8,9,10,11,12],"enviosAbiertos":0},"B":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[7,8,9,10,11,12],"numerosEsperados":[7,8,9,10,11,12],"enviosAbiertos":0}},{"serie":3,"porProceso":[{"modo":"cron","cuentas":{"procesados":5,"autorizados":5,"rechazados":0,"fallidos":0,"descartados":0,"corridas":5}},{"modo":"cron","cuentas":{"procesados":6,"autorizados":6,"rechazados":0,"fallidos":0,"descartados":0,"corridas":2}},{"modo":"negocio:A","cuentas":{"procesados":0,"autorizados":0,"rechazados":0,"fallidos":0,"descartados":0,"corridas":11}},{"modo":"negocio:B","cuentas":{"procesados":1,"autorizados":1,"rechazados":0,"fallidos":0,"descartados":0,"corridas":9}}],"A":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[13,14,15,16,17,18],"numerosEsperados":[13,14,15,16,17,18],"enviosAbiertos":0},"B":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[13,14,15,16,17,18],"numerosEsperados":[13,14,15,16,17,18],"enviosAbiertos":0}}]
+# Subtest: ENG-019 · 4 procesos a la vez sobre 12 pendientes de dos negocios, 3 series seguidas: 12 CAE por serie, ninguno de más, números de ARCA = base
+ok 31 - ENG-019 · 4 procesos a la vez sobre 12 pendientes de dos negocios, 3 series seguidas: 12 CAE por serie, ninguno de más, números de ARCA = base
+  ---
+  duration_ms: 5935.453894
+  type: 'test'
+  ...
+# Subtest: ENG-019 · 50 de 50 iteraciones: dos ventas simultáneas de A y una de B con tres despachos a la vez → 0 CAE de más, 0 rechazadas con CAE, números de ARCA = base
+ok 32 - ENG-019 · 50 de 50 iteraciones: dos ventas simultáneas de A y una de B con tres despachos a la vez → 0 CAE de más, 0 rechazadas con CAE, números de ARCA = base
+  ---
+  duration_ms: 4272.06762
+  type: 'test'
+  ...
+# Subtest: ENG-019 · 20 envíos de A que fallan y 1 de B: B queda autorizada en la PRIMERA corrida
+ok 33 - ENG-019 · 20 envíos de A que fallan y 1 de B: B queda autorizada en la PRIMERA corrida
+  ---
+  duration_ms: 517.192323
+  type: 'test'
+  ...
+# Subtest: ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan intactos y el resumen cuenta sólo los de A
+ok 34 - ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan intactos y el resumen cuenta sólo los de A
+  ---
+  duration_ms: 4742.67109
+  type: 'test'
+  ...
+# Subtest: ENG-012 · la acción de A no toma un envío de B aunque sea el único pendiente (0 procesados, B sin intentos)
+ok 35 - ENG-012 · la acción de A no toma un envío de B aunque sea el único pendiente (0 procesados, B sin intentos)
+  ---
+  duration_ms: 43.958632
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T07:05:12.142Z","level":"error","scope":"arca","msg":"el cron de ARCA no ve los envíos de todos los negocios","err":{"name":"ProcesadorArcaSinAccesoError","message":"procesador de ARCA sin acceso: falta OPERATOR_DATABASE_URL y la conexión de la app (rol app_rls) no ve los envíos de todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño.","stack":"ProcesadorArcaSinAccesoError: procesador de ARCA sin acceso: falta OPERATOR_DATABASE_URL y la conexión de la app (rol app_rls) no ve los envíos de todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño.\\n    at verificarAccesoDelOperador (/home/user/erp/src/lib/arca-reserva.ts:244:9)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async processArcaOutbox (/home/user/erp/src/lib/arca-dispatch.ts:264:3)\\n    at async GET (/home/user/erp/src/app/api/cron/arca-outbox/route.ts:39:21)\\n    at async TestContext.<anonymous> (/home/user/erp/src/lib/arca-procesador-sin-operador-postgres.test.ts:84:14)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)"}}
+# {"ts":"2026-09-25T07:05:12.252Z","level":"error","scope":"ready","msg":"el procesador de ARCA no ve los envíos de todos los negocios","requestId":"348aead2-219e-47b1-b2a4-a6fa136b0565","err":{"name":"ProcesadorArcaSinAccesoError","message":"procesador de ARCA sin acceso: falta OPERATOR_DATABASE_URL y la conexión de la app (rol app_rls) no ve los envíos de todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño.","stack":"ProcesadorArcaSinAccesoError: procesador de ARCA sin acceso: falta OPERATOR_DATABASE_URL y la conexión de la app (rol app_rls) no ve los envíos de todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño.\\n    at verificarAccesoDelOperador (/home/user/erp/src/lib/arca-reserva.ts:244:9)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async <anonymous> (/home/user/erp/src/app/api/ready/route.ts:34:9)\\n    at async <anonymous> (/home/user/erp/src/lib/request-context.ts:96:19)\\n    at async TestContext.<anonymous> (/home/user/erp/src/lib/arca-procesador-sin-operador-postgres.test.ts:90:14)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)"}}
+# Subtest: ENG-027 · sin OPERATOR_DATABASE_URL (app_rls): el procesador lanza un error de configuración, el cron responde error y /api/ready 503; con el rol dueño procesa los dos negocios
+ok 36 - ENG-027 · sin OPERATOR_DATABASE_URL (app_rls): el procesador lanza un error de configuración, el cron responde error y /api/ready 503; con el rol dueño procesa los dos negocios
+  ---
+  duration_ms: 3387.997329
+  type: 'test'
+  ...
+# Subtest: ENG-027 · con la facturación apagada /api/ready no mira el procesador (sigue 200 aunque falte el operador)
+ok 37 - ENG-027 · con la facturación apagada /api/ready no mira el procesador (sigue 200 aunque falte el operador)
+  ---
+  duration_ms: 75.534963
+  type: 'test'
+  ...
+# Subtest: ENG-027 · un rol que no es dueño ni tiene BYPASSRLS, puesto como OPERATOR_DATABASE_URL, también es error de configuración
+ok 38 - ENG-027 · un rol que no es dueño ni tiene BYPASSRLS, puesto como OPERATOR_DATABASE_URL, también es error de configuración
+  ---
+  duration_ms: 92.581736
+  type: 'test'
+  ...
+# Subtest: el IVA guardado suma cada renglón al centavo, como el ImpIVA que viaja: 1,005 + 1,005 = 2,02
+ok 39 - el IVA guardado suma cada renglón al centavo, como el ImpIVA que viaja: 1,005 + 1,005 = 2,02
+  ---
+  duration_ms: 1.502321
+  type: 'test'
+  ...
+# Subtest: I2 · reintento sobre la misma venta → mismo comprobante, una sola factura, un solo outbox
+ok 40 - I2 · reintento sobre la misma venta → mismo comprobante, una sola factura, un solo outbox
+  ---
+  duration_ms: 0.482476
+  type: 'test'
+  ...
+# Subtest: I2 · idempotencia también por turno (APPOINTMENT)
+ok 41 - I2 · idempotencia también por turno (APPOINTMENT)
+  ---
+  duration_ms: 0.327312
+  type: 'test'
+  ...
+# Subtest: I2 · ventas DISTINTAS generan comprobantes distintos
+ok 42 - I2 · ventas DISTINTAS generan comprobantes distintos
+  ---
+  duration_ms: 0.251893
+  type: 'test'
+  ...
+# Subtest: I2 · SIN origen (previa a D10) NO dedupe: crea siempre
+ok 43 - I2 · SIN origen (previa a D10) NO dedupe: crea siempre
+  ---
+  duration_ms: 0.41379
+  type: 'test'
+  ...
+# Subtest: A-6 · webhook MP duplicado (mismo payment_id) → una sola factura, mismo comprobante
+ok 44 - A-6 · webhook MP duplicado (mismo payment_id) → una sola factura, mismo comprobante
+  ---
+  duration_ms: 0.59589
+  type: 'test'
+  ...
+# Subtest: A-6 · pagos MP distintos → facturas distintas
+ok 45 - A-6 · pagos MP distintos → facturas distintas
+  ---
+  duration_ms: 0.415216
+  type: 'test'
+  ...
+# Subtest: A-6 · BUG(antes): SIN origin, dos webhooks del mismo pago facturaban dos veces
+ok 46 - A-6 · BUG(antes): SIN origin, dos webhooks del mismo pago facturaban dos veces
+  ---
+  duration_ms: 0.228851
+  type: 'test'
+  ...
+# Subtest: I2 · la guarda UNIQUE del schema dispara P2002 ante un doble-create directo (misma venta)
+ok 47 - I2 · la guarda UNIQUE del schema dispara P2002 ante un doble-create directo (misma venta)
+  ---
+  duration_ms: 0.781553
+  type: 'test'
+  ...
+# Subtest: I2 · CARRERA: dos emisiones simultáneas de la misma venta → 1 factura, mismo id (P2002 + recovery)
+ok 48 - I2 · CARRERA: dos emisiones simultáneas de la misma venta → 1 factura, mismo id (P2002 + recovery)
+  ---
+  duration_ms: 0.783944
+  type: 'test'
+  ...
+# Subtest: I2 · CARRERA saldada: la emisión que llega después ve el comprobante y lo reusa
+ok 49 - I2 · CARRERA saldada: la emisión que llega después ve el comprobante y lo reusa
+  ---
+  duration_ms: 0.172404
+  type: 'test'
+  ...
+# Subtest: turno sin pago → emitir
+ok 50 - turno sin pago → emitir
+  ---
+  duration_ms: 1.77056
+  type: 'test'
+  ...
+# Subtest: pago sin comprobante → emitir
+ok 51 - pago sin comprobante → emitir
+  ---
+  duration_ms: 0.18443
+  type: 'test'
+  ...
+# Subtest: pago con comprobante → reusar (idempotente, no re-factura)
+ok 52 - pago con comprobante → reusar (idempotente, no re-factura)
+  ---
+  duration_ms: 0.100087
+  type: 'test'
+  ...
+# Subtest: comprobante de recibo de caja también bloquea la re-facturación
+ok 53 - comprobante de recibo de caja también bloquea la re-facturación
+  ---
+  duration_ms: 0.073929
+  type: 'test'
+  ...
+# Subtest: cuitDesdeCertPem: extrae el CUIT del serialNumber "CUIT <11 dígitos>"
+ok 54 - cuitDesdeCertPem: extrae el CUIT del serialNumber "CUIT <11 dígitos>"
+  ---
+  duration_ms: 50.964263
+  type: 'test'
+  ...
+# Subtest: cuitDesdeCertPem: tolera guiones en el CUIT
+ok 55 - cuitDesdeCertPem: tolera guiones en el CUIT
+  ---
+  duration_ms: 34.232034
+  type: 'test'
+  ...
+# Subtest: cuitDesdeCertPem: cae al CN si no hay serialNumber con CUIT
+ok 56 - cuitDesdeCertPem: cae al CN si no hay serialNumber con CUIT
+  ---
+  duration_ms: 30.429718
+  type: 'test'
+  ...
+# Subtest: cuitDesdeCertPem: PEM inválido → null
+ok 57 - cuitDesdeCertPem: PEM inválido → null
+  ---
+  duration_ms: 0.136163
+  type: 'test'
+  ...
+# Subtest: vencimientoDesdeCertPem: devuelve la fecha notAfter
+ok 58 - vencimientoDesdeCertPem: devuelve la fecha notAfter
+  ---
+  duration_ms: 14.543234
+  type: 'test'
+  ...
+# Subtest: assertCertCoincideConCuit: coincide → no lanza
+ok 59 - assertCertCoincideConCuit: coincide → no lanza
+  ---
+  duration_ms: 17.678741
+  type: 'test'
+  ...
+# Subtest: assertCertCoincideConCuit: tolera guiones en el CUIT del tenant
+ok 60 - assertCertCoincideConCuit: tolera guiones en el CUIT del tenant
+  ---
+  duration_ms: 25.675818
+  type: 'test'
+  ...
+# Subtest: 🔒 assertCertCoincideConCuit: CUIT distinto → CredencialCuitMismatchError
+ok 61 - 🔒 assertCertCoincideConCuit: CUIT distinto → CredencialCuitMismatchError
+  ---
+  duration_ms: 43.652678
+  type: 'test'
+  ...
+# Subtest: 🔒 assertCertCoincideConCuit: cert sin CUIT legible → aborta (no asume que coincide)
+ok 62 - 🔒 assertCertCoincideConCuit: cert sin CUIT legible → aborta (no asume que coincide)
+  ---
+  duration_ms: 15.90709
+  type: 'test'
+  ...
+# Subtest: contrato · autoriza: CAE y número 1, y FECompConsultar devuelve ese mismo comprobante
+ok 63 - contrato · autoriza: CAE y número 1, y FECompConsultar devuelve ese mismo comprobante
+  ---
+  duration_ms: 40.884687
+  type: 'test'
+  ...
+# Subtest: contrato · rechaza (Resultado R con una observación del comprobante): ArcaRechazoError, 0 CAE
+ok 64 - contrato · rechaza (Resultado R con una observación del comprobante): ArcaRechazoError, 0 CAE
+  ---
+  duration_ms: 3.021274
+  type: 'test'
+  ...
+# Subtest: contrato · timeout ANTES de autorizar: pasajero y ARCA no tiene nada (consultar da null)
+ok 65 - contrato · timeout ANTES de autorizar: pasajero y ARCA no tiene nada (consultar da null)
+  ---
+  duration_ms: 43.539858
+  type: 'test'
+  ...
+# Subtest: contrato · timeout DESPUÉS de autorizar: pasajero, pero ARCA ya emitió el CAE del número 1
+ok 66 - contrato · timeout DESPUÉS de autorizar: pasajero, pero ARCA ya emitió el CAE del número 1
+  ---
+  duration_ms: 42.576835
+  type: 'test'
+  ...
+# Subtest: contrato · respuesta cortada después de autorizar: pasajero, nunca rechazo
+ok 67 - contrato · respuesta cortada después de autorizar: pasajero, nunca rechazo
+  ---
+  duration_ms: 1.586136
+  type: 'test'
+  ...
+# Subtest: contrato · WSAA caído (HTTP 503 con SOAP Fault): pasajero y no se llega a pedir el CAE
+ok 68 - contrato · WSAA caído (HTTP 503 con SOAP Fault): pasajero y no se llega a pedir el CAE
+  ---
+  duration_ms: 2.172832
+  type: 'test'
+  ...
+# Subtest: contrato · WSAA sin red: pasajero
+ok 69 - contrato · WSAA sin red: pasajero
+  ---
+  duration_ms: 0.588727
+  type: 'test'
+  ...
+# Subtest: contrato · WSAA contesta cortado (sin token): pasajero
+ok 70 - contrato · WSAA contesta cortado (sin token): pasajero
+  ---
+  duration_ms: 0.797195
+  type: 'test'
+  ...
+# Subtest: contrato · WSFEv1 caído (HTTP 503) al pedir el CAE: pasajero
+ok 71 - contrato · WSFEv1 caído (HTTP 503) al pedir el CAE: pasajero
+  ---
+  duration_ms: 1.140062
+  type: 'test'
+  ...
+# Subtest: contrato · <Errors> 500 al pedir el CAE: pasajero con el código a la vista
+ok 72 - contrato · <Errors> 500 al pedir el CAE: pasajero con el código a la vista
+  ---
+  duration_ms: 1.869716
+  type: 'test'
+  ...
+# Subtest: contrato · <Errors> 501 al pedir el CAE: pasajero con el código a la vista
+ok 73 - contrato · <Errors> 501 al pedir el CAE: pasajero con el código a la vista
+  ---
+  duration_ms: 0.747842
+  type: 'test'
+  ...
+# Subtest: contrato · <Errors> 502 al pedir el CAE: pasajero con el código a la vista
+ok 74 - contrato · <Errors> 502 al pedir el CAE: pasajero con el código a la vista
+  ---
+  duration_ms: 0.842895
+  type: 'test'
+  ...
+# Subtest: contrato · <Errors> 600 al pedir el CAE: pasajero con el código a la vista
+ok 75 - contrato · <Errors> 600 al pedir el CAE: pasajero con el código a la vista
+  ---
+  duration_ms: 0.726726
+  type: 'test'
+  ...
+# Subtest: contrato · token que ARCA ya no reconoce: el simulador contesta 600 y es pasajero
+ok 76 - contrato · token que ARCA ya no reconoce: el simulador contesta 600 y es pasajero
+  ---
+  duration_ms: 0.742198
+  type: 'test'
+  ...
+# Subtest: contrato · número que no es el próximo (10016): pasajero, 0 CAE
+ok 77 - contrato · número que no es el próximo (10016): pasajero, 0 CAE
+  ---
+  duration_ms: 0.911886
+  type: 'test'
+  ...
+# Subtest: contrato · FECompConsultar de un número que no existe (602): null, no error
+ok 78 - contrato · FECompConsultar de un número que no existe (602): null, no error
+  ---
+  duration_ms: 0.703884
+  type: 'test'
+  ...
+# (node:16559) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: contrato · FECompConsultar sin respuesta a tiempo: lanza pasajero (no contesta "no existe")
+ok 79 - contrato · FECompConsultar sin respuesta a tiempo: lanza pasajero (no contesta "no existe")
+  ---
+  duration_ms: 40.993351
+  type: 'test'
+  ...
+# Subtest: el importe de ARCA se lee a centavos sin float: "1210" → 121000, "0.1" → 10, "1.005" no se adopta
+ok 80 - el importe de ARCA se lee a centavos sin float: "1210" → 121000, "0.1" → 10, "1.005" no se adopta
+  ---
+  duration_ms: 0.467943
+  type: 'test'
+  ...
+# Subtest: el transporte real corta a los 15 s: a los 14,999 s sigue esperando, a los 15 s es pasajero
+ok 81 - el transporte real corta a los 15 s: a los 14,999 s sigue esperando, a los 15 s es pasajero
+  ---
+  duration_ms: 2.679886
+  type: 'test'
+  ...
+# Subtest: ENG-020 · ARCA autoriza y la respuesta se pierde: el reintento registra el número 1 y no pide un 2
+ok 82 - ENG-020 · ARCA autoriza y la respuesta se pierde: el reintento registra el número 1 y no pide un 2
+  ---
+  duration_ms: 63.025655
+  type: 'test'
+  ...
+# Subtest: ENG-020 · respuesta cortada después de autorizar: el reintento adopta el CAE, un solo comprobante
+ok 83 - ENG-020 · respuesta cortada después de autorizar: el reintento adopta el CAE, un solo comprobante
+  ---
+  duration_ms: 1.991568
+  type: 'test'
+  ...
+# Subtest: ENG-020 · timeout ANTES de autorizar: el reintento consulta, no encuentra nada y pide el 1
+ok 84 - ENG-020 · timeout ANTES de autorizar: el reintento consulta, no encuentra nada y pide el 1
+  ---
+  duration_ms: 43.354107
+  type: 'test'
+  ...
+# Subtest: ENG-020 · si la consulta no contesta, NO se pide otro CAE (queda pendiente)
+ok 85 - ENG-020 · si la consulta no contesta, NO se pide otro CAE (queda pendiente)
+  ---
+  duration_ms: 83.415013
+  type: 'test'
+  ...
+# Subtest: ENG-020 · si el número anotado lo autorizó OTRO comprobante, no se adopta: se pide el siguiente
+ok 86 - ENG-020 · si el número anotado lo autorizó OTRO comprobante, no se adopta: se pide el siguiente
+  ---
+  duration_ms: 1.661523
+  type: 'test'
+  ...
+# Subtest: ENG-020 · si no se pudo anotar el número, no se pide el CAE
+ok 87 - ENG-020 · si no se pudo anotar el número, no se pide el CAE
+  ---
+  duration_ms: 0.608206
+  type: 'test'
+  ...
+# Subtest: ENG-020 · el número se anota ANTES de pedir el CAE
+ok 88 - ENG-020 · el número se anota ANTES de pedir el CAE
+  ---
+  duration_ms: 0.766981
+  type: 'test'
+  ...
+# Subtest: ENG-021 · con un 600 el despacho no registra nada y el reintento autoriza con el mismo número
+ok 89 - ENG-021 · con un 600 el despacho no registra nada y el reintento autoriza con el mismo número
+  ---
+  duration_ms: 2.059584
+  type: 'test'
+  ...
+# Subtest: ENG-020 · ARCA dio el CAE pero no se pudo guardar: el reintento adopta ese CAE y no pide otro
+ok 90 - ENG-020 · ARCA dio el CAE pero no se pudo guardar: el reintento adopta ese CAE y no pide otro
+  ---
+  duration_ms: 1.680699
+  type: 'test'
+  ...
+# Subtest: ENG-021 · FECompConsultar con el error 1000: pasajero, nunca rechazo (no se sabe si el número se usó)
+ok 91 - ENG-021 · FECompConsultar con el error 1000: pasajero, nunca rechazo (no se sabe si el número se usó)
+  ---
+  duration_ms: 0.924299
+  type: 'test'
+  ...
+# Subtest: ENG-021 · FECompConsultar con el error 10015: pasajero, nunca rechazo (no se sabe si el número se usó)
+ok 92 - ENG-021 · FECompConsultar con el error 10015: pasajero, nunca rechazo (no se sabe si el número se usó)
+  ---
+  duration_ms: 0.540136
+  type: 'test'
+  ...
+# Subtest: ENG-021 · FECompConsultar con el error 600: pasajero, nunca rechazo (no se sabe si el número se usó)
+ok 93 - ENG-021 · FECompConsultar con el error 600: pasajero, nunca rechazo (no se sabe si el número se usó)
+  ---
+  duration_ms: 0.32928
+  type: 'test'
+  ...
+# Subtest: ENG-020 · si la consulta del número anotado lanza un rechazo (cualquier cliente), sale pasajero y no se pide otro número
+ok 94 - ENG-020 · si la consulta del número anotado lanza un rechazo (cualquier cliente), sale pasajero y no se pide otro número
+  ---
+  duration_ms: 0.420627
+  type: 'test'
+  ...
+# Subtest: ENG-020 · dos ventas iguales a consumidor final: si el número anotado ya está en OTRA factura, no se adopta y se pide el siguiente
+ok 95 - ENG-020 · dos ventas iguales a consumidor final: si el número anotado ya está en OTRA factura, no se adopta y se pide el siguiente
+  ---
+  duration_ms: 1.382375
+  type: 'test'
+  ...
+# Subtest: ENG-020 · el mismo comprobante idéntico, sin otra factura que lo tenga: se adopta (la respuesta se había perdido)
+ok 96 - ENG-020 · el mismo comprobante idéntico, sin otra factura que lo tenga: se adopta (la respuesta se había perdido)
+  ---
+  duration_ms: 0.85666
+  type: 'test'
+  ...
+# Subtest: ENG-020 · esElMismoComprobante: cada dato que viaja a ARCA, si difiere, hace que NO se adopte
+ok 97 - ENG-020 · esElMismoComprobante: cada dato que viaja a ARCA, si difiere, hace que NO se adopte
+  ---
+  duration_ms: 0.284789
+  type: 'test'
+  ...
+# Subtest: ENG-020 · con número anotado se consulta ANTES de validar: si ARCA ya lo autorizó, se registra aunque la validación de hoy lo objete
+ok 98 - ENG-020 · con número anotado se consulta ANTES de validar: si ARCA ya lo autorizó, se registra aunque la validación de hoy lo objete
+  ---
+  duration_ms: 1.211373
+  type: 'test'
+  ...
+# Subtest: contrato · FECompUltimoAutorizado caído (HTTP 503): pasajero y no se pide el CAE
+ok 99 - contrato · FECompUltimoAutorizado caído (HTTP 503): pasajero y no se pide el CAE
+  ---
+  duration_ms: 0.64834
+  type: 'test'
+  ...
+# Subtest: contrato · FECAESolicitar sin red: pasajero, 0 CAE, y el reintento autoriza el mismo número
+ok 100 - contrato · FECAESolicitar sin red: pasajero, 0 CAE, y el reintento autoriza el mismo número
+  ---
+  duration_ms: 1.80975
+  type: 'test'
+  ...
+# Subtest: ENG-020 · ARCA autoriza TARDE (después de la consulta del reintento): no se pide otro número; el reintento siguiente adopta el mismo y queda 1 CAE
+ok 101 - ENG-020 · ARCA autoriza TARDE (después de la consulta del reintento): no se pide otro número; el reintento siguiente adopta el mismo y queda 1 CAE
+  ---
+  duration_ms: 43.122479
+  type: 'test'
+  ...
+# Subtest: ENG-020 · autorizarSinDuplicar: número anotado que da 602 pero ya es menor o igual al último autorizado → pasajero, sin pedir otro
+ok 102 - ENG-020 · autorizarSinDuplicar: número anotado que da 602 pero ya es menor o igual al último autorizado → pasajero, sin pedir otro
+  ---
+  duration_ms: 46.771854
+  type: 'test'
+  ...
+# Subtest: ENG-020 · número anotado que da 602 y sigue por encima del último autorizado: el pedido no había llegado, se pide ese mismo número
+ok 103 - ENG-020 · número anotado que da 602 y sigue por encima del último autorizado: el pedido no había llegado, se pide ese mismo número
+  ---
+  duration_ms: 42.739805
+  type: 'test'
+  ...
+# Subtest: contrato · FECompConsultar caido: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+ok 104 - contrato · FECompConsultar caido: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+  ---
+  duration_ms: 44.106597
+  type: 'test'
+  ...
+# Subtest: contrato · FECompConsultar sin-red: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+ok 105 - contrato · FECompConsultar sin-red: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+  ---
+  duration_ms: 41.403105
+  type: 'test'
+  ...
+# Subtest: contrato · FECompConsultar respuesta-cortada: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+ok 106 - contrato · FECompConsultar respuesta-cortada: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+  ---
+  duration_ms: 43.472236
+  type: 'test'
+  ...
+# Subtest: contrato · FECompConsultar timeout-antes: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+ok 107 - contrato · FECompConsultar timeout-antes: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+  ---
+  duration_ms: 87.814494
+  type: 'test'
+  ...
+# Subtest: contrato · FECompUltimoAutorizado <Errors> 600: pasajero, no se anota ni se pide el CAE
+ok 108 - contrato · FECompUltimoAutorizado <Errors> 600: pasajero, no se anota ni se pide el CAE
+  ---
+  duration_ms: 0.978803
+  type: 'test'
+  ...
+# Subtest: contrato · FECompUltimoAutorizado <Errors> 501: pasajero, no se anota ni se pide el CAE
+ok 109 - contrato · FECompUltimoAutorizado <Errors> 501: pasajero, no se anota ni se pide el CAE
+  ---
+  duration_ms: 0.532048
+  type: 'test'
+  ...
+# Subtest: contrato · FECompUltimoAutorizado timeout-antes: pasajero, no se anota ni se pide el CAE
+ok 110 - contrato · FECompUltimoAutorizado timeout-antes: pasajero, no se anota ni se pide el CAE
+  ---
+  duration_ms: 41.350086
+  type: 'test'
+  ...
+# Subtest: contrato · FECompUltimoAutorizado respuesta-cortada: pasajero, no se anota ni se pide el CAE
+ok 111 - contrato · FECompUltimoAutorizado respuesta-cortada: pasajero, no se anota ni se pide el CAE
+  ---
+  duration_ms: 0.757309
+  type: 'test'
+  ...
+# Subtest: contrato · FECompUltimoAutorizado sin-red: pasajero, no se anota ni se pide el CAE
+ok 112 - contrato · FECompUltimoAutorizado sin-red: pasajero, no se anota ni se pide el CAE
+  ---
+  duration_ms: 0.437177
+  type: 'test'
+  ...
+# Subtest: modoDesdeEnv: default stub, homologacion y real por ARCA_MODO
+ok 113 - modoDesdeEnv: default stub, homologacion y real por ARCA_MODO
+  ---
+  duration_ms: 0.874117
+  type: 'test'
+  ...
+# Subtest: configParaModo: homologacion fuerza homologacion=true aunque el Tenant diga false
+ok 114 - configParaModo: homologacion fuerza homologacion=true aunque el Tenant diga false
+  ---
+  duration_ms: 0.148565
+  type: 'test'
+  ...
+# Subtest: sin ARCA_MODO → StubAfipClient (no requiere credencial)
+ok 115 - sin ARCA_MODO → StubAfipClient (no requiere credencial)
+  ---
+  duration_ms: 0.270049
+  type: 'test'
+  ...
+# Subtest: ARCA_MODO=real sin credencial → error explícito (NO cae al stub ni a un env compartido)
+ok 116 - ARCA_MODO=real sin credencial → error explícito (NO cae al stub ni a un env compartido)
+  ---
+  duration_ms: 0.329531
+  type: 'test'
+  ...
+# Subtest: ARCA_MODO=homologacion sin credencial → mismo error explícito
+ok 117 - ARCA_MODO=homologacion sin credencial → mismo error explícito
+  ---
+  duration_ms: 0.099661
+  type: 'test'
+  ...
+# Subtest: ARCA_MODO=real con credencial del CUIT correcto → adapter SOAP real
+ok 118 - ARCA_MODO=real con credencial del CUIT correcto → adapter SOAP real
+  ---
+  duration_ms: 67.927002
+  type: 'test'
+  ...
+# Subtest: 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed)
+ok 119 - 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed)
+  ---
+  duration_ms: 22.935453
+  type: 'test'
+  ...
+# Subtest: ARCA_MODO=homologacion con credencial de PRUEBA → SOAP real forzado a homologación (sin guard estricto)
+ok 120 - ARCA_MODO=homologacion con credencial de PRUEBA → SOAP real forzado a homologación (sin guard estricto)
+  ---
+  duration_ms: 18.805249
+  type: 'test'
+  ...
+# Subtest: fechaDePrueba: formatea AAAAMMDD desde un reloj inyectado
+ok 121 - fechaDePrueba: formatea AAAAMMDD desde un reloj inyectado
+  ---
+  duration_ms: 0.986876
+  type: 'test'
+  ...
+# Subtest: comprobanteDePrueba: pasa la validación local (Factura C, consumidor final)
+ok 122 - comprobanteDePrueba: pasa la validación local (Factura C, consumidor final)
+  ---
+  duration_ms: 1.956358
+  type: 'test'
+  ...
+# Subtest: comprobanteDePrueba: respeta overrides de puntoVenta y monto
+ok 123 - comprobanteDePrueba: respeta overrides de puntoVenta y monto
+  ---
+  duration_ms: 0.193461
+  type: 'test'
+  ...
+# Subtest: emitirFacturaDePrueba: con StubAfipClient devuelve CAE simulado
+ok 124 - emitirFacturaDePrueba: con StubAfipClient devuelve CAE simulado
+  ---
+  duration_ms: 0.766538
+  type: 'test'
+  ...
+# Subtest: emitirFacturaDePrueba: mapea ArcaRechazoError a motivo "rechazo"
+ok 125 - emitirFacturaDePrueba: mapea ArcaRechazoError a motivo "rechazo"
+  ---
+  duration_ms: 0.28538
+  type: 'test'
+  ...
+# Subtest: emitirFacturaDePrueba: mapea un error genérico (red/parseo) a motivo "error"
+ok 126 - emitirFacturaDePrueba: mapea un error genérico (red/parseo) a motivo "error"
+  ---
+  duration_ms: 0.206896
+  type: 'test'
+  ...
+# Subtest: firmarCms devuelve un CMS SignedData válido (base64) con el TRA embebido
+ok 127 - firmarCms devuelve un CMS SignedData válido (base64) con el TRA embebido
+  ---
+  duration_ms: 69.07213
+  type: 'test'
+  ...
+# Subtest: el CMS no es determinístico entre firmas (signingTime) pero siempre válido
+ok 128 - el CMS no es determinístico entre firmas (signingTime) pero siempre válido
+  ---
+  duration_ms: 34.993641
+  type: 'test'
+  ...
+# Subtest: constructor con PEM inválido falla fail-fast
+ok 129 - constructor con PEM inválido falla fail-fast
+  ---
+  duration_ms: 0.441295
+  type: 'test'
+  ...
+# Subtest: credencialDesdeEnv: null si falta cert o clave, credencial si están las dos
+ok 130 - credencialDesdeEnv: null si falta cert o clave, credencial si están las dos
+  ---
+  duration_ms: 3.363306
+  type: 'test'
+  ...
+# Subtest: escaparXml / desescaparXml son inversas para caracteres especiales
+ok 131 - escaparXml / desescaparXml son inversas para caracteres especiales
+  ---
+  duration_ms: 1.372352
+  type: 'test'
+  ...
+# Subtest: extraerTag ignora prefijo de namespace y atributos
+ok 132 - extraerTag ignora prefijo de namespace y atributos
+  ---
+  duration_ms: 0.660403
+  type: 'test'
+  ...
+# Subtest: extraerTags devuelve todas las ocurrencias
+ok 133 - extraerTags devuelve todas las ocurrencias
+  ---
+  duration_ms: 0.42929
+  type: 'test'
+  ...
+# Subtest: endpointsPara elige homologación o producción según config
+ok 134 - endpointsPara elige homologación o producción según config
+  ---
+  duration_ms: 0.880689
+  type: 'test'
+  ...
+# Subtest: armarLoginTicketRequest incluye header, service y ventana temporal
+ok 135 - armarLoginTicketRequest incluye header, service y ventana temporal
+  ---
+  duration_ms: 0.619661
+  type: 'test'
+  ...
+# Subtest: parsearLoginTicketResponse desescapa y extrae token/sign/expiration
+ok 136 - parsearLoginTicketResponse desescapa y extrae token/sign/expiration
+  ---
+  duration_ms: 0.850033
+  type: 'test'
+  ...
+# Subtest: parsearLoginTicketResponse falla si falta token
+ok 137 - parsearLoginTicketResponse falla si falta token
+  ---
+  duration_ms: 1.093851
+  type: 'test'
+  ...
+# Subtest: ticketVigente respeta expiration y margen
+ok 138 - ticketVigente respeta expiration y margen
+  ---
+  duration_ms: 0.148404
+  type: 'test'
+  ...
+# Subtest: armarUltimoAutorizadoRequest arma Auth + PtoVta + CbteTipo
+ok 139 - armarUltimoAutorizadoRequest arma Auth + PtoVta + CbteTipo
+  ---
+  duration_ms: 0.397159
+  type: 'test'
+  ...
+# Subtest: parsearUltimoAutorizadoResponse devuelve el CbteNro
+ok 140 - parsearUltimoAutorizadoResponse devuelve el CbteNro
+  ---
+  duration_ms: 0.538966
+  type: 'test'
+  ...
+# Subtest: parsearUltimoAutorizadoResponse: el 600 (token inválido) es pasajero, no rechazo
+ok 141 - parsearUltimoAutorizadoResponse: el 600 (token inválido) es pasajero, no rechazo
+  ---
+  duration_ms: 0.931159
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest (Factura A) discrimina IVA y arma AlicIva
+ok 142 - armarFECAESolicitarRequest (Factura A) discrimina IVA y arma AlicIva
+  ---
+  duration_ms: 0.559653
+  type: 'test'
+  ...
+# Subtest: los importes viajan con la regla única de redondeo: 2,675 → 2.68 y 3,235 → 3.24 (no 2.67 ni 3.23)
+ok 143 - los importes viajan con la regla única de redondeo: 2,675 → 2.68 y 3,235 → 3.24 (no 2.67 ni 3.23)
+  ---
+  duration_ms: 0.310572
+  type: 'test'
+  ...
+# Subtest: ImpIVA es la suma exacta de los AlicIva que viajan: 1,005 + 1,005 → 1.01 + 1.01 = 2.02
+ok 144 - ImpIVA es la suma exacta de los AlicIva que viajan: 1,005 + 1,005 → 1.01 + 1.01 = 2.02
+  ---
+  duration_ms: 0.492121
+  type: 'test'
+  ...
+# Subtest: ImpIVA = Σ AlicIva.Importe en 20.000 comprobantes al azar de 1 a 3 alícuotas con milésimos
+ok 145 - ImpIVA = Σ AlicIva.Importe en 20.000 comprobantes al azar de 1 a 3 alícuotas con milésimos
+  ---
+  duration_ms: 206.635965
+  type: 'test'
+  ...
+# Subtest: un monto que no es un número no se manda a ARCA: el armado tira antes de escribir "NaN"
+ok 146 - un monto que no es un número no se manda a ARCA: el armado tira antes de escribir "NaN"
+  ---
+  duration_ms: 0.333937
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest (Factura C) NO discrimina IVA ni manda <Iva>, y arma fechas de servicio
+ok 147 - armarFECAESolicitarRequest (Factura C) NO discrimina IVA ni manda <Iva>, y arma fechas de servicio
+  ---
+  duration_ms: 0.239766
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest emite CondicionIVAReceptorId (RG 5616) tras MonCotiz
+ok 148 - armarFECAESolicitarRequest emite CondicionIVAReceptorId (RG 5616) tras MonCotiz
+  ---
+  duration_ms: 0.085685
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest usa el CondicionIVAReceptorId del comprobante si viene
+ok 149 - armarFECAESolicitarRequest usa el CondicionIVAReceptorId del comprobante si viene
+  ---
+  duration_ms: 0.069783
+  type: 'test'
+  ...
+# Subtest: parsearFECAESolicitarResponse OK devuelve ResultadoCae con CAE y número autorizado
+ok 150 - parsearFECAESolicitarResponse OK devuelve ResultadoCae con CAE y número autorizado
+  ---
+  duration_ms: 0.917125
+  type: 'test'
+  ...
+# Subtest: parsearFECAESolicitarResponse rechazo (Resultado=R) lanza ArcaRechazoError con observaciones
+ok 151 - parsearFECAESolicitarResponse rechazo (Resultado=R) lanza ArcaRechazoError con observaciones
+  ---
+  duration_ms: 0.619027
+  type: 'test'
+  ...
+# Subtest: parsearFECAESolicitarResponse: <Errors> con 600 es pasajero y conserva código y mensaje
+ok 152 - parsearFECAESolicitarResponse: <Errors> con 600 es pasajero y conserva código y mensaje
+  ---
+  duration_ms: 0.157516
+  type: 'test'
+  ...
+# Subtest: parsearFECAESolicitarResponse: <Errors> con un código del comprobante sigue siendo rechazo
+ok 153 - parsearFECAESolicitarResponse: <Errors> con un código del comprobante sigue siendo rechazo
+  ---
+  duration_ms: 0.174496
+  type: 'test'
+  ...
+# Subtest: parsearObservaciones extrae code + msg de cada <Obs>
+ok 154 - parsearObservaciones extrae code + msg de cada <Obs>
+  ---
+  duration_ms: 0.092371
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient.ultimoAutorizado autentica una vez y golpea WSFEv1
+ok 155 - SoapAfipClient.ultimoAutorizado autentica una vez y golpea WSFEv1
+  ---
+  duration_ms: 0.477927
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient.solicitarCae resuelve numeración (ultimo+1) y devuelve el CAE
+ok 156 - SoapAfipClient.solicitarCae resuelve numeración (ultimo+1) y devuelve el CAE
+  ---
+  duration_ms: 0.720604
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient cachea el ticket: no reautentica en la 2da operación
+ok 157 - SoapAfipClient cachea el ticket: no reautentica en la 2da operación
+  ---
+  duration_ms: 0.331308
+  type: 'test'
+  ...
+# Subtest: El signer por defecto exige credencial (acción humana)
+ok 158 - El signer por defecto exige credencial (acción humana)
+  ---
+  duration_ms: 0.232876
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest (Factura B) SÍ informa IVA (ImpIVA + <Iva>) — fix del bug latente
+ok 159 - armarFECAESolicitarRequest (Factura B) SÍ informa IVA (ImpIVA + <Iva>) — fix del bug latente
+  ---
+  duration_ms: 0.152562
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient reusa el ticketInicial vigente: NO re-loguea contra WSAA
+ok 160 - SoapAfipClient reusa el ticketInicial vigente: NO re-loguea contra WSAA
+  ---
+  duration_ms: 0.172448
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient con ticketInicial vencido: re-loguea y PERSISTE el TA nuevo (alRenovarTicket)
+ok 161 - SoapAfipClient con ticketInicial vencido: re-loguea y PERSISTE el TA nuevo (alRenovarTicket)
+  ---
+  duration_ms: 0.235622
+  type: 'test'
+  ...
+# Subtest: traslada los campos base del evento sin tocarlos
+ok 162 - traslada los campos base del evento sin tocarlos
+  ---
+  duration_ms: 2.989331
+  type: 'test'
+  ...
+# Subtest: traslada los montos calculados por el Core sin recalcular
+ok 163 - traslada los montos calculados por el Core sin recalcular
+  ---
+  duration_ms: 1.794291
+  type: 'test'
+  ...
+# Subtest: mapea el desglose de IVA por alícuota (varias líneas)
+ok 164 - mapea el desglose de IVA por alícuota (varias líneas)
+  ---
+  duration_ms: 0.291652
+  type: 'test'
+  ...
+# Subtest: emisor RI + receptor RI ⇒ Factura A
+ok 165 - emisor RI + receptor RI ⇒ Factura A
+  ---
+  duration_ms: 0.228173
+  type: 'test'
+  ...
+# Subtest: emisor RI + receptor consumidor final ⇒ Factura B
+ok 166 - emisor RI + receptor consumidor final ⇒ Factura B
+  ---
+  duration_ms: 0.327803
+  type: 'test'
+  ...
+# Subtest: emisor RI + receptor monotributo ⇒ Factura A (RG 5003/2021, con la leyenda de la Ley 27.618)
+ok 167 - emisor RI + receptor monotributo ⇒ Factura A (RG 5003/2021, con la leyenda de la Ley 27.618)
+  ---
+  duration_ms: 0.278484
+  type: 'test'
+  ...
+# Subtest: emisor monotributo ⇒ Factura C (sin importar el receptor)
+ok 168 - emisor monotributo ⇒ Factura C (sin importar el receptor)
+  ---
+  duration_ms: 0.26726
+  type: 'test'
+  ...
+# Subtest: emisor exento ⇒ Factura C
+ok 169 - emisor exento ⇒ Factura C
+  ---
+  duration_ms: 0.22693
+  type: 'test'
+  ...
+# Subtest: emisor consumidor final no puede emitir: lanza
+ok 170 - emisor consumidor final no puede emitir: lanza
+  ---
+  duration_ms: 1.028824
+  type: 'test'
+  ...
+# Subtest: traslada las fechas de servicio cuando vienen en el evento
+ok 171 - traslada las fechas de servicio cuando vienen en el evento
+  ---
+  duration_ms: 0.549024
+  type: 'test'
+  ...
+# Subtest: sin fechas de servicio en el evento, quedan undefined
+ok 172 - sin fechas de servicio en el evento, quedan undefined
+  ---
+  duration_ms: 0.255529
+  type: 'test'
+  ...
+# Subtest: numero no lo pone construirComprobante: lo resuelve el cliente contra ARCA
+ok 173 - numero no lo pone construirComprobante: lo resuelve el cliente contra ARCA
+  ---
+  duration_ms: 0.146399
+  type: 'test'
+  ...
+# Subtest: totalIva suma los importes de todas las alícuotas
+ok 174 - totalIva suma los importes de todas las alícuotas
+  ---
+  duration_ms: 0.257393
+  type: 'test'
+  ...
+# Subtest: totalIva suma al centavo, como viaja ImpIVA: $0,10 + $0,20 da $0,30 y no 0,30000000000000004 (ENG-109)
+ok 175 - totalIva suma al centavo, como viaja ImpIVA: $0,10 + $0,20 da $0,30 y no 0,30000000000000004 (ENG-109)
+  ---
+  duration_ms: 0.187716
+  type: 'test'
+  ...
+# Subtest: totalIva de un comprobante sin IVA es 0
+ok 176 - totalIva de un comprobante sin IVA es 0
+  ---
+  duration_ms: 0.101265
+  type: 'test'
+  ...
+# Subtest: informaIvaWsfe: A y B informan IVA (ImpIVA + <Iva>); C no
+ok 177 - informaIvaWsfe: A y B informan IVA (ImpIVA + <Iva>); C no
+  ---
+  duration_ms: 0.152744
+  type: 'test'
+  ...
+# Subtest: informaIvaWsfe ⊃ discriminaIva: B informa IVA aunque NO discrimine (regla receptor-CUIT es solo-A)
+ok 178 - informaIvaWsfe ⊃ discriminaIva: B informa IVA aunque NO discrimine (regla receptor-CUIT es solo-A)
+  ---
+  duration_ms: 0.077892
+  type: 'test'
+  ...
+# Subtest: el error 500 (falla interna de ARCA) es pasajero: no es culpa del comprobante
+ok 179 - el error 500 (falla interna de ARCA) es pasajero: no es culpa del comprobante
+  ---
+  duration_ms: 0.720419
+  type: 'test'
+  ...
+# Subtest: el error 501 (falla interna de ARCA) es pasajero: no es culpa del comprobante
+ok 180 - el error 501 (falla interna de ARCA) es pasajero: no es culpa del comprobante
+  ---
+  duration_ms: 0.100542
+  type: 'test'
+  ...
+# Subtest: el error 502 (falla interna de ARCA) es pasajero: no es culpa del comprobante
+ok 181 - el error 502 (falla interna de ARCA) es pasajero: no es culpa del comprobante
+  ---
+  duration_ms: 0.052828
+  type: 'test'
+  ...
+# Subtest: el error 600 (token inválido) es pasajero: se arregla volviendo a autenticar, no rechaza la venta
+ok 182 - el error 600 (token inválido) es pasajero: se arregla volviendo a autenticar, no rechaza la venta
+  ---
+  duration_ms: 0.062472
+  type: 'test'
+  ...
+# Subtest: el error 601 (CUIT que el token no representa) es pasajero: es la credencial, no el comprobante
+ok 183 - el error 601 (CUIT que el token no representa) es pasajero: es la credencial, no el comprobante
+  ---
+  duration_ms: 0.067085
+  type: 'test'
+  ...
+# Subtest: el 10016 (el número no es el próximo a autorizar) es pasajero: otro envío tomó el número
+ok 184 - el 10016 (el número no es el próximo a autorizar) es pasajero: otro envío tomó el número
+  ---
+  duration_ms: 0.053045
+  type: 'test'
+  ...
+# Subtest: una observación del comprobante (10015, ImpTotal no cierra) es un rechazo definitivo
+ok 185 - una observación del comprobante (10015, ImpTotal no cierra) es un rechazo definitivo
+  ---
+  duration_ms: 0.244806
+  type: 'test'
+  ...
+# Subtest: un código que la tabla no conoce se toma como rechazo (ARCA evaluó el comprobante)
+ok 186 - un código que la tabla no conoce se toma como rechazo (ARCA evaluó el comprobante)
+  ---
+  duration_ms: 0.07959
+  type: 'test'
+  ...
+# Subtest: si ARCA mezcla un defecto del comprobante con un 10016, es rechazo: reintentar no lo arregla
+ok 187 - si ARCA mezcla un defecto del comprobante con un 10016, es rechazo: reintentar no lo arregla
+  ---
+  duration_ms: 0.16243
+  type: 'test'
+  ...
+# Subtest: sin ningún código no hay de dónde decir que es pasajero: rechazo
+ok 188 - sin ningún código no hay de dónde decir que es pasajero: rechazo
+  ---
+  duration_ms: 0.223147
+  type: 'test'
+  ...
+# Subtest: cada código pasajero dice por qué, en castellano
+ok 189 - cada código pasajero dice por qué, en castellano
+  ---
+  duration_ms: 0.189074
+  type: 'test'
+  ...
+# Subtest: payload: campos y formato oficiales (fecha con guiones, tipoCodAut E)
+ok 190 - payload: campos y formato oficiales (fecha con guiones, tipoCodAut E)
+  ---
+  duration_ms: 0.857646
+  type: 'test'
+  ...
+# Subtest: base64 es reversible al JSON del payload
+ok 191 - base64 es reversible al JSON del payload
+  ---
+  duration_ms: 1.094588
+  type: 'test'
+  ...
+# Subtest: url arranca con el endpoint oficial y trae ?p=<base64>
+ok 192 - url arranca con el endpoint oficial y trae ?p=<base64>
+  ---
+  duration_ms: 0.354568
+  type: 'test'
+  ...
+# Subtest: fecha inválida (no AAAAMMDD) lanza
+ok 193 - fecha inválida (no AAAAMMDD) lanza
+  ---
+  duration_ms: 0.177972
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T07:05:14.189Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"beauty-spa","condicionIva":"MONOTRIBUTO"}
+# Subtest: monotributo → responsable inscripto: FacturaC con CondicionIVAReceptorId 1, y el XML sigue la secuencia de WSFEv1
+ok 194 - monotributo → responsable inscripto: FacturaC con CondicionIVAReceptorId 1, y el XML sigue la secuencia de WSFEv1
+  ---
+  duration_ms: 5.649443
+  type: 'test'
+  ...
+# Subtest: monotributo → monotributista: FacturaC con CondicionIVAReceptorId 6, y el XML sigue la secuencia de WSFEv1
+ok 195 - monotributo → monotributista: FacturaC con CondicionIVAReceptorId 6, y el XML sigue la secuencia de WSFEv1
+  ---
+  duration_ms: 0.674056
+  type: 'test'
+  ...
+# Subtest: monotributo → exento: FacturaC con CondicionIVAReceptorId 4, y el XML sigue la secuencia de WSFEv1
+ok 196 - monotributo → exento: FacturaC con CondicionIVAReceptorId 4, y el XML sigue la secuencia de WSFEv1
+  ---
+  duration_ms: 0.448029
+  type: 'test'
+  ...
+# Subtest: monotributo → consumidor final: FacturaC con CondicionIVAReceptorId 5, y el XML sigue la secuencia de WSFEv1
+ok 197 - monotributo → consumidor final: FacturaC con CondicionIVAReceptorId 5, y el XML sigue la secuencia de WSFEv1
+  ---
+  duration_ms: 0.334035
+  type: 'test'
+  ...
+# Subtest: exento → responsable inscripto: FacturaC con CondicionIVAReceptorId 1, y el XML sigue la secuencia de WSFEv1
+ok 198 - exento → responsable inscripto: FacturaC con CondicionIVAReceptorId 1, y el XML sigue la secuencia de WSFEv1
+  ---
+  duration_ms: 0.707706
+  type: 'test'
+  ...
+# Subtest: exento → consumidor final: FacturaC con CondicionIVAReceptorId 5, y el XML sigue la secuencia de WSFEv1
+ok 199 - exento → consumidor final: FacturaC con CondicionIVAReceptorId 5, y el XML sigue la secuencia de WSFEv1
+  ---
+  duration_ms: 0.356971
+  type: 'test'
+  ...
+# Subtest: responsable inscripto → responsable inscripto: FacturaA con CondicionIVAReceptorId 1, y el XML sigue la secuencia de WSFEv1
+ok 200 - responsable inscripto → responsable inscripto: FacturaA con CondicionIVAReceptorId 1, y el XML sigue la secuencia de WSFEv1
+  ---
+  duration_ms: 0.515098
+  type: 'test'
+  ...
+# Subtest: responsable inscripto → monotributista (RG 5003/2021): FacturaA con CondicionIVAReceptorId 6, y el XML sigue la secuencia de WSFEv1
+ok 201 - responsable inscripto → monotributista (RG 5003/2021): FacturaA con CondicionIVAReceptorId 6, y el XML sigue la secuencia de WSFEv1
+  ---
+  duration_ms: 0.327457
+  type: 'test'
+  ...
+# Subtest: responsable inscripto → exento: FacturaB con CondicionIVAReceptorId 4, y el XML sigue la secuencia de WSFEv1
+ok 202 - responsable inscripto → exento: FacturaB con CondicionIVAReceptorId 4, y el XML sigue la secuencia de WSFEv1
+  ---
+  duration_ms: 0.807775
+  type: 'test'
+  ...
+# Subtest: responsable inscripto → consumidor final sin identificar: FacturaB con CondicionIVAReceptorId 5, y el XML sigue la secuencia de WSFEv1
+ok 203 - responsable inscripto → consumidor final sin identificar: FacturaB con CondicionIVAReceptorId 5, y el XML sigue la secuencia de WSFEv1
+  ---
+  duration_ms: 0.907514
+  type: 'test'
+  ...
+# Subtest: responsable inscripto → consumidor final con DNI: FacturaB con CondicionIVAReceptorId 5, y el XML sigue la secuencia de WSFEv1
+ok 204 - responsable inscripto → consumidor final con DNI: FacturaB con CondicionIVAReceptorId 5, y el XML sigue la secuencia de WSFEv1
+  ---
+  duration_ms: 0.760426
+  type: 'test'
+  ...
+# Subtest: el mapeo del catálogo coincide con la decisión en toda la tabla (responsable inscripto a monotributista va con A)
+ok 205 - el mapeo del catálogo coincide con la decisión en toda la tabla (responsable inscripto a monotributista va con A)
+  ---
+  duration_ms: 0.241328
+  type: 'test'
+  ...
+# Subtest: los códigos que faltaban del catálogo de ARCA: CDI 87 y las condiciones 8, 9, 10 y 16
+ok 206 - los códigos que faltaban del catálogo de ARCA: CDI 87 y las condiciones 8, 9, 10 y 16
+  ---
+  duration_ms: 0.108409
+  type: 'test'
+  ...
+# Subtest: responsable inscripto sin la clase A que le asignó ARCA: la A no se construye y dice por qué
+ok 207 - responsable inscripto sin la clase A que le asignó ARCA: la A no se construye y dice por qué
+  ---
+  duration_ms: 0.965267
+  type: 'test'
+  ...
+# Subtest: una fecha de comprobante fuera de la ventana de ARCA no se construye (se frena antes de pedir el CAE)
+ok 208 - una fecha de comprobante fuera de la ventana de ARCA no se construye (se frena antes de pedir el CAE)
+  ---
+  duration_ms: 0.441181
+  type: 'test'
+  ...
+# Subtest: un concepto que no es 1, 2 ni 3 no se construye: no se adivina qué se vendió
+ok 209 - un concepto que no es 1, 2 ni 3 no se construye: no se adivina qué se vendió
+  ---
+  duration_ms: 0.301214
+  type: 'test'
+  ...
+# Subtest: servicios: FchServDesde, FchServHasta y FchVtoPago son las del evento, tal como las resolvió la decisión
+ok 210 - servicios: FchServDesde, FchServHasta y FchVtoPago son las del evento, tal como las resolvió la decisión
+  ---
+  duration_ms: 0.488291
+  type: 'test'
+  ...
+# Subtest: servicios sin fechas en el comprobante: el armado del XML no las inventa, se niega
+ok 211 - servicios sin fechas en el comprobante: el armado del XML no las inventa, se niega
+  ---
+  duration_ms: 0.523225
+  type: 'test'
+  ...
+# Subtest: sin condición del receptor el armado no manda consumidor final por defecto: se niega
+ok 212 - sin condición del receptor el armado no manda consumidor final por defecto: se niega
+  ---
+  duration_ms: 0.437705
+  type: 'test'
+  ...
+# Subtest: Factura A a consumidor final se frena en la validación con un mensaje en castellano (RG 5616)
+ok 213 - Factura A a consumidor final se frena en la validación con un mensaje en castellano (RG 5616)
+  ---
+  duration_ms: 0.751173
+  type: 'test'
+  ...
+# Subtest: ImpOpEx e ImpTotConc viajan con lo que trae el comprobante, y el total los suma
+ok 214 - ImpOpEx e ImpTotConc viajan con lo que trae el comprobante, y el total los suma
+  ---
+  duration_ms: 0.750838
+  type: 'test'
+  ...
+# Subtest: Factura C con exento o no gravado se frena antes de ARCA (en C van en 0)
+ok 215 - Factura C con exento o no gravado se frena antes de ARCA (en C van en 0)
+  ---
+  duration_ms: 0.452643
+  type: 'test'
+  ...
+# Subtest: nota de crédito con la factura que corrige: CbtesAsoc con Tipo, PtoVta, Nro y CbteFch, sin PeriodoAsoc
+ok 216 - nota de crédito con la factura que corrige: CbtesAsoc con Tipo, PtoVta, Nro y CbteFch, sin PeriodoAsoc
+  ---
+  duration_ms: 0.757121
+  type: 'test'
+  ...
+# Subtest: nota de crédito por período: PeriodoAsoc con FchDesde y FchHasta, sin CbtesAsoc
+ok 217 - nota de crédito por período: PeriodoAsoc con FchDesde y FchHasta, sin CbtesAsoc
+  ---
+  duration_ms: 0.453715
+  type: 'test'
+  ...
+# Subtest: nota de crédito con factura y período a la vez: no se construye, la validación la frena y el XML no se arma
+ok 218 - nota de crédito con factura y período a la vez: no se construye, la validación la frena y el XML no se arma
+  ---
+  duration_ms: 0.783392
+  type: 'test'
+  ...
+# Subtest: nota de crédito sin factura ni período: no se construye
+ok 219 - nota de crédito sin factura ni período: no se construye
+  ---
+  duration_ms: 0.268063
+  type: 'test'
+  ...
+# Subtest: CH (beauty-spa): con su perfil fiscal medido en el código sigue emitiendo Factura C a consumidor final, como hoy
+ok 220 - CH (beauty-spa): con su perfil fiscal medido en el código sigue emitiendo Factura C a consumidor final, como hoy
+  ---
+  duration_ms: 2.824282
+  type: 'test'
+  ...
+# Subtest: la misma operación con AlicuotaIvaId del Core viaja con el id del catálogo
+ok 221 - la misma operación con AlicuotaIvaId del Core viaja con el id del catálogo
+  ---
+  duration_ms: 0.289706
+  type: 'test'
+  ...
+# Subtest: un comprobante B consistente pasa sin errores
+ok 222 - un comprobante B consistente pasa sin errores
+  ---
+  duration_ms: 2.941063
+  type: 'test'
+  ...
+# Subtest: un comprobante A con receptor CUIT identificado pasa
+ok 223 - un comprobante A con receptor CUIT identificado pasa
+  ---
+  duration_ms: 0.435089
+  type: 'test'
+  ...
+# Subtest: puntoVenta debe ser entero positivo
+ok 224 - puntoVenta debe ser entero positivo
+  ---
+  duration_ms: 0.402624
+  type: 'test'
+  ...
+# Subtest: fecha exige formato AAAAMMDD (8 dígitos)
+ok 225 - fecha exige formato AAAAMMDD (8 dígitos)
+  ---
+  duration_ms: 0.595025
+  type: 'test'
+  ...
+# Subtest: iva vacío es rechazado
+ok 226 - iva vacío es rechazado
+  ---
+  duration_ms: 0.150701
+  type: 'test'
+  ...
+# Subtest: total debe ser mayor a 0
+ok 227 - total debe ser mayor a 0
+  ---
+  duration_ms: 0.110147
+  type: 'test'
+  ...
+# Subtest: concepto Servicios exige servicioDesde/Hasta y vencimientoPago
+ok 228 - concepto Servicios exige servicioDesde/Hasta y vencimientoPago
+  ---
+  duration_ms: 0.173858
+  type: 'test'
+  ...
+# Subtest: concepto Servicios con las tres fechas presentes no marca esos errores
+ok 229 - concepto Servicios con las tres fechas presentes no marca esos errores
+  ---
+  duration_ms: 0.175645
+  type: 'test'
+  ...
+# Subtest: concepto ProductosYServicios también exige las fechas de servicio
+ok 230 - concepto ProductosYServicios también exige las fechas de servicio
+  ---
+  duration_ms: 0.254287
+  type: 'test'
+  ...
+# Subtest: concepto Productos NO exige fechas de servicio
+ok 231 - concepto Productos NO exige fechas de servicio
+  ---
+  duration_ms: 0.303918
+  type: 'test'
+  ...
+# Subtest: Factura A sin CUIT (docTipo != CUIT) es rechazada
+ok 232 - Factura A sin CUIT (docTipo != CUIT) es rechazada
+  ---
+  duration_ms: 0.11886
+  type: 'test'
+  ...
+# Subtest: Factura A con CUIT pero docNro <= 0 es rechazada
+ok 233 - Factura A con CUIT pero docNro <= 0 es rechazada
+  ---
+  duration_ms: 0.139996
+  type: 'test'
+  ...
+# Subtest: Nota de crédito A también exige CUIT (discrimina IVA)
+ok 234 - Nota de crédito A también exige CUIT (discrimina IVA)
+  ---
+  duration_ms: 0.104727
+  type: 'test'
+  ...
+# Subtest: Factura B con consumidor final NO exige CUIT
+ok 235 - Factura B con consumidor final NO exige CUIT
+  ---
+  duration_ms: 0.093981
+  type: 'test'
+  ...
+# Subtest: numero, si se informa, debe ser entero positivo
+ok 236 - numero, si se informa, debe ser entero positivo
+  ---
+  duration_ms: 0.153395
+  type: 'test'
+  ...
+# Subtest: numero ausente (undefined) es válido: lo resuelve el cliente contra ARCA
+ok 237 - numero ausente (undefined) es válido: lo resuelve el cliente contra ARCA
+  ---
+  duration_ms: 0.066719
+  type: 'test'
+  ...
+# Subtest: baseImponible negativa es rechazada
+ok 238 - baseImponible negativa es rechazada
+  ---
+  duration_ms: 0.07516
+  type: 'test'
+  ...
+# Subtest: alícuota de IVA desconocida es rechazada
+ok 239 - alícuota de IVA desconocida es rechazada
+  ---
+  duration_ms: 0.077773
+  type: 'test'
+  ...
+# Subtest: IVA inconsistente con la alícuota es rechazado (más allá de la tolerancia)
+ok 240 - IVA inconsistente con la alícuota es rechazado (más allá de la tolerancia)
+  ---
+  duration_ms: 0.128727
+  type: 'test'
+  ...
+# Subtest: IVA a un centavo de base × alícuota se acepta: el Core redondea cada renglón
+ok 241 - IVA a un centavo de base × alícuota se acepta: el Core redondea cada renglón
+  ---
+  duration_ms: 0.273797
+  type: 'test'
+  ...
+# Subtest: IVA a dos centavos de base × alícuota se rechaza: 100 @ 21 % no es 21,02
+ok 242 - IVA a dos centavos de base × alícuota se rechaza: 100 @ 21 % no es 21,02
+  ---
+  duration_ms: 0.150785
+  type: 'test'
+  ...
+# Subtest: un importe con más de dos decimales se rechaza: a ARCA viajan centavos y el Core los manda así
+ok 243 - un importe con más de dos decimales se rechaza: a ARCA viajan centavos y el Core los manda así
+  ---
+  duration_ms: 0.159436
+  type: 'test'
+  ...
+# Subtest: un total a un centavo de neto + IVA se rechaza: 6,63 + 1,39 no es 8,01
+ok 244 - un total a un centavo de neto + IVA se rechaza: 6,63 + 1,39 no es 8,01
+  ---
+  duration_ms: 0.072549
+  type: 'test'
+  ...
+# Subtest: en todos los pares a un centavo hasta $20.000, ningún total ni neto descuadrado pasa
+ok 245 - en todos los pares a un centavo hasta $20.000, ningún total ni neto descuadrado pasa
+  ---
+  duration_ms: 31501.891138
+  type: 'test'
+  ...
+# Subtest: neto que no coincide con la suma de bases es rechazado
+ok 246 - neto que no coincide con la suma de bases es rechazado
+  ---
+  duration_ms: 0.238893
+  type: 'test'
+  ...
+# Subtest: total que no coincide con neto + IVA es rechazado
+ok 247 - total que no coincide con neto + IVA es rechazado
+  ---
+  duration_ms: 0.07699
+  type: 'test'
+  ...
+# Subtest: comprobante con varias alícuotas consistentes pasa
+ok 248 - comprobante con varias alícuotas consistentes pasa
+  ---
+  duration_ms: 0.074767
+  type: 'test'
+  ...
+# Subtest: alícuota 0% (base > 0, importe 0) es consistente
+ok 249 - alícuota 0% (base > 0, importe 0) es consistente
+  ---
+  duration_ms: 0.100144
+  type: 'test'
+  ...
+# Subtest: acumula todos los errores en una pasada (no corta en el primero)
+ok 250 - acumula todos los errores en una pasada (no corta en el primero)
+  ---
+  duration_ms: 0.134325
+  type: 'test'
+  ...
+# Subtest: un total, un neto o un importe de IVA que no es un número se rechaza acá, con mensaje
+ok 251 - un total, un neto o un importe de IVA que no es un número se rechaza acá, con mensaje
+  ---
+  duration_ms: 0.14029
+  type: 'test'
+  ...
+# Subtest: el mensaje de un descuadre muestra la suma de las bases tal como viajan
+ok 252 - el mensaje de un descuadre muestra la suma de las bases tal como viajan
+  ---
+  duration_ms: 0.298049
+  type: 'test'
+  ...
+# Subtest: responsable inscripto a monotributista: el despacho pide y registra una Factura A (antes salía B)
+ok 253 - responsable inscripto a monotributista: el despacho pide y registra una Factura A (antes salía B)
+  ---
+  duration_ms: 3.562333
+  type: 'test'
+  ...
+# Subtest: fecha del comprobante fuera de la ventana de ARCA: se rechaza con el motivo y no se le pide nada a ARCA
+ok 254 - fecha del comprobante fuera de la ventana de ARCA: se rechaza con el motivo y no se le pide nada a ARCA
+  ---
+  duration_ms: 0.829644
+  type: 'test'
+  ...
+# Subtest: responsable inscripto sin la clase A cargada: no sale una A sola, se rechaza con el motivo y sin llamar a ARCA
+ok 255 - responsable inscripto sin la clase A cargada: no sale una A sola, se rechaza con el motivo y sin llamar a ARCA
+  ---
+  duration_ms: 2.632062
+  type: 'test'
+  ...
+# Subtest: servicios sin período: no se inventa con la fecha de la factura, se rechaza sin llamar a ARCA
+ok 256 - servicios sin período: no se inventa con la fecha de la factura, se rechaza sin llamar a ARCA
+  ---
+  duration_ms: 0.440462
+  type: 'test'
+  ...
+# Subtest: inscripto con el IVA como tasa pareja sobre el total (sin alícuota por producto): la regla lo frena con el motivo
+ok 257 - inscripto con el IVA como tasa pareja sobre el total (sin alícuota por producto): la regla lo frena con el motivo
+  ---
+  duration_ms: 0.918922
+  type: 'test'
+  ...
+# Subtest: inscripto con el IVA armado desde la alícuota de cada producto: la regla no lo frena
+ok 258 - inscripto con el IVA armado desde la alícuota de cada producto: la regla no lo frena
+  ---
+  duration_ms: 0.189385
+  type: 'test'
+  ...
+# Subtest: monotributo y exento no discriminan IVA: la regla no los toca aunque no declaren alícuota por producto
+ok 259 - monotributo y exento no discriminan IVA: la regla no los toca aunque no declaren alícuota por producto
+  ---
+  duration_ms: 0.13193
+  type: 'test'
+  ...
+# Subtest: despacho: un inscripto sin alícuota por producto no emite, devuelve el motivo y no se le pide nada a ARCA
+ok 260 - despacho: un inscripto sin alícuota por producto no emite, devuelve el motivo y no se le pide nada a ARCA
+  ---
+  duration_ms: 0.589905
+  type: 'test'
+  ...
+# Subtest: despacho: el mismo inscripto con alícuota por producto emite su Factura B a consumidor final
+ok 261 - despacho: el mismo inscripto con alícuota por producto emite su Factura B a consumidor final
+  ---
+  duration_ms: 2.715853
+  type: 'test'
+  ...
+# Subtest: despacho: un monotributista (como CH) sigue emitiendo su Factura C sin declarar alícuota por producto
+ok 262 - despacho: un monotributista (como CH) sigue emitiendo su Factura C sin declarar alícuota por producto
+  ---
+  duration_ms: 0.546883
+  type: 'test'
+  ...
+1..262
+# tests 262
+# suites 0
+# pass 262
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 43587.593742

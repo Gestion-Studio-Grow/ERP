@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { processArcaOutbox, type DispatchResumen } from "@/lib/arca-dispatch";
+import { procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
 import { modoDesdeEnv, type ModoArca } from "@/plugins/arca";
 import { logger } from "@/lib/logger";
 
@@ -135,7 +135,8 @@ export async function getFacturacion(): Promise<{ facturas: FacturaVista[]; esta
  */
 export async function procesarFacturacionPendiente(): Promise<DispatchResumen> {
   await requireCapability("billing:manage");
-  const resumen = await processArcaOutbox();
+  // ENG-012: sólo los envíos de ESTE negocio; el barrido de todos es del cron.
+  const resumen = await procesarEnviosDelNegocio(await getCurrentTenantId());
   revalidatePath(FACTURACION_PATH);
   return resumen;
 }

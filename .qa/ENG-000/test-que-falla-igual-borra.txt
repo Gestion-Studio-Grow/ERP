@@ -1,0 +1,8 @@
+# Un test que falla a propósito con su base creada y la app conectada (script temporal):
+# base creada: erp_test_14806_fb58b045
+# Subtest: falla a propósito con la base creada y la app conectada
+not ok 1 - falla a propósito con la base creada y la app conectada
+# pass 0
+# fail 1
+# bases erp_test_ después:
+0

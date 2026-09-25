@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { camposDeLineaCsv, enUnaLinea, filaCsv, lineaSinFormulas, sinFormula } from "./csv-ar";
+import { camposDeLineaCsv, enUnaLinea, filaCsv, lineaSinFormulas, pesosCsv, sinFormula } from "./csv-ar";
 import { armarLibroIva } from "./libro-iva";
 import { armarExportLibroIva } from "./libro-iva-export";
 
@@ -56,4 +56,16 @@ test("el Libro IVA exportado sólo usa CRLF, aunque un cliente o un proveedor tr
   assert.doesNotMatch(out, /[^\r]\n/);
   assert.match(out, /;Ana Gómez;1000,00\r\n/);
   assert.match(out, /;Frigorífico Sur;/);
+});
+
+test("un importe del libro IVA sale con coma y la regla única de redondeo: 2,135 → 2,14", () => {
+  assert.equal(pesosCsv(1234.5), "1234,50");
+  assert.equal(pesosCsv(2.135), "2,14"); // con el épsilon de antes salía "2,13"
+  assert.equal(pesosCsv(-1.005), "-1,01");
+  assert.equal(pesosCsv(0.1 + 0.2), "0,30");
+});
+
+test("un monto que no es un número no se escribe en el libro IVA: tira en vez de dejar NaN", () => {
+  assert.throws(() => pesosCsv(Number.NaN), RangeError);
+  assert.throws(() => pesosCsv(Infinity), RangeError);
 });

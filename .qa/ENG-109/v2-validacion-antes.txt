@@ -1,0 +1,246 @@
+TAP version 13
+# Subtest: un comprobante B consistente pasa sin errores
+ok 1 - un comprobante B consistente pasa sin errores
+  ---
+  duration_ms: 2.492297
+  type: 'test'
+  ...
+# Subtest: un comprobante A con receptor CUIT identificado pasa
+ok 2 - un comprobante A con receptor CUIT identificado pasa
+  ---
+  duration_ms: 0.312817
+  type: 'test'
+  ...
+# Subtest: puntoVenta debe ser entero positivo
+ok 3 - puntoVenta debe ser entero positivo
+  ---
+  duration_ms: 0.310703
+  type: 'test'
+  ...
+# Subtest: fecha exige formato AAAAMMDD (8 dígitos)
+ok 4 - fecha exige formato AAAAMMDD (8 dígitos)
+  ---
+  duration_ms: 0.256355
+  type: 'test'
+  ...
+# Subtest: iva vacío es rechazado
+ok 5 - iva vacío es rechazado
+  ---
+  duration_ms: 0.129133
+  type: 'test'
+  ...
+# Subtest: total debe ser mayor a 0
+ok 6 - total debe ser mayor a 0
+  ---
+  duration_ms: 0.105106
+  type: 'test'
+  ...
+# Subtest: concepto Servicios exige servicioDesde/Hasta y vencimientoPago
+ok 7 - concepto Servicios exige servicioDesde/Hasta y vencimientoPago
+  ---
+  duration_ms: 0.153354
+  type: 'test'
+  ...
+# Subtest: concepto Servicios con las tres fechas presentes no marca esos errores
+ok 8 - concepto Servicios con las tres fechas presentes no marca esos errores
+  ---
+  duration_ms: 0.120117
+  type: 'test'
+  ...
+# Subtest: concepto ProductosYServicios también exige las fechas de servicio
+ok 9 - concepto ProductosYServicios también exige las fechas de servicio
+  ---
+  duration_ms: 0.209834
+  type: 'test'
+  ...
+# Subtest: concepto Productos NO exige fechas de servicio
+ok 10 - concepto Productos NO exige fechas de servicio
+  ---
+  duration_ms: 0.306711
+  type: 'test'
+  ...
+# Subtest: Factura A sin CUIT (docTipo != CUIT) es rechazada
+ok 11 - Factura A sin CUIT (docTipo != CUIT) es rechazada
+  ---
+  duration_ms: 0.243397
+  type: 'test'
+  ...
+# Subtest: Factura A con CUIT pero docNro <= 0 es rechazada
+ok 12 - Factura A con CUIT pero docNro <= 0 es rechazada
+  ---
+  duration_ms: 0.090193
+  type: 'test'
+  ...
+# Subtest: Nota de crédito A también exige CUIT (discrimina IVA)
+ok 13 - Nota de crédito A también exige CUIT (discrimina IVA)
+  ---
+  duration_ms: 0.065717
+  type: 'test'
+  ...
+# Subtest: Factura B con consumidor final NO exige CUIT
+ok 14 - Factura B con consumidor final NO exige CUIT
+  ---
+  duration_ms: 0.058524
+  type: 'test'
+  ...
+# Subtest: numero, si se informa, debe ser entero positivo
+ok 15 - numero, si se informa, debe ser entero positivo
+  ---
+  duration_ms: 0.100013
+  type: 'test'
+  ...
+# Subtest: numero ausente (undefined) es válido: lo resuelve el cliente contra ARCA
+ok 16 - numero ausente (undefined) es válido: lo resuelve el cliente contra ARCA
+  ---
+  duration_ms: 0.051062
+  type: 'test'
+  ...
+# Subtest: baseImponible negativa es rechazada
+ok 17 - baseImponible negativa es rechazada
+  ---
+  duration_ms: 0.063935
+  type: 'test'
+  ...
+# Subtest: alícuota de IVA desconocida es rechazada
+ok 18 - alícuota de IVA desconocida es rechazada
+  ---
+  duration_ms: 0.082883
+  type: 'test'
+  ...
+# Subtest: IVA inconsistente con la alícuota es rechazado (más allá de la tolerancia)
+ok 19 - IVA inconsistente con la alícuota es rechazado (más allá de la tolerancia)
+  ---
+  duration_ms: 0.134404
+  type: 'test'
+  ...
+# Subtest: IVA a un centavo de base × alícuota se acepta: el Core redondea cada renglón
+ok 20 - IVA a un centavo de base × alícuota se acepta: el Core redondea cada renglón
+  ---
+  duration_ms: 0.147094
+  type: 'test'
+  ...
+# Subtest: un importe con más de dos decimales se rechaza: a ARCA viajan centavos y el Core los manda así
+not ok 21 - un importe con más de dos decimales se rechaza: a ARCA viajan centavos y el Core los manda así
+  ---
+  duration_ms: 2.730155
+  type: 'test'
+  location: '/home/user/erp/src/plugins/arca/domain/validacion.test.ts:2:8296'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/plugins/arca/domain/validacion.test.ts:234:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: un total a un centavo de neto + IVA se rechaza: 6,63 + 1,39 no es 8,01
+not ok 22 - un total a un centavo de neto + IVA se rechaza: 6,63 + 1,39 no es 8,01
+  ---
+  duration_ms: 0.444354
+  type: 'test'
+  location: '/home/user/erp/src/plugins/arca/domain/validacion.test.ts:2:9378'
+  failureType: 'testCodeFailure'
+  error: '[]'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/plugins/arca/domain/validacion.test.ts:261:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: en todos los pares a un centavo hasta $20.000, ningún total ni neto descuadrado pasa
+not ok 23 - en todos los pares a un centavo hasta $20.000, ningún total ni neto descuadrado pasa
+  ---
+  duration_ms: 13055.494561
+  type: 'test'
+  location: '/home/user/erp/src/plugins/arca/domain/validacion.test.ts:2:9727'
+  failureType: 'testCodeFailure'
+  error: |-
+    neto 0.01 contra 0.02
+    
+    1358943 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1358943
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/plugins/arca/domain/validacion.test.ts:284:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: neto que no coincide con la suma de bases es rechazado
+ok 24 - neto que no coincide con la suma de bases es rechazado
+  ---
+  duration_ms: 0.266604
+  type: 'test'
+  ...
+# Subtest: total que no coincide con neto + IVA es rechazado
+ok 25 - total que no coincide con neto + IVA es rechazado
+  ---
+  duration_ms: 0.086017
+  type: 'test'
+  ...
+# Subtest: comprobante con varias alícuotas consistentes pasa
+ok 26 - comprobante con varias alícuotas consistentes pasa
+  ---
+  duration_ms: 0.070045
+  type: 'test'
+  ...
+# Subtest: alícuota 0% (base > 0, importe 0) es consistente
+ok 27 - alícuota 0% (base > 0, importe 0) es consistente
+  ---
+  duration_ms: 0.050263
+  type: 'test'
+  ...
+# Subtest: acumula todos los errores en una pasada (no corta en el primero)
+ok 28 - acumula todos los errores en una pasada (no corta en el primero)
+  ---
+  duration_ms: 0.116295
+  type: 'test'
+  ...
+# Subtest: un total, un neto o un importe de IVA que no es un número se rechaza acá, con mensaje
+ok 29 - un total, un neto o un importe de IVA que no es un número se rechaza acá, con mensaje
+  ---
+  duration_ms: 0.123628
+  type: 'test'
+  ...
+# Subtest: el mensaje de un descuadre muestra la suma de las bases tal como viajan
+ok 30 - el mensaje de un descuadre muestra la suma de las bases tal como viajan
+  ---
+  duration_ms: 0.212914
+  type: 'test'
+  ...
+1..30
+# tests 30
+# suites 0
+# pass 27
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 13444.459211

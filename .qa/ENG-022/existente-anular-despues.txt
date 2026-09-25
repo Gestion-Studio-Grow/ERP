@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: anularVenta: con factura autorizada o en camino se rechaza y el pedido no se anula; con la rechazada se anula; B no la toca
+ok 1 - anularVenta: con factura autorizada o en camino se rechaza y el pedido no se anula; con la rechazada se anula; B no la toca
+  ---
+  duration_ms: 2906.492085
+  type: 'test'
+  ...
+# Subtest: anularCobroTurno: con factura autorizada del turno se rechaza y el cobro sigue en pie; rechazada la factura, se anula
+ok 2 - anularCobroTurno: con factura autorizada del turno se rechaza y el cobro sigue en pie; rechazada la factura, se anula
+  ---
+  duration_ms: 204.035369
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3594.30234

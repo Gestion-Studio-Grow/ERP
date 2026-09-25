@@ -8,16 +8,19 @@
 //    scripts/provision-tenant.ts. Se recorren los archivos REALES de src/ y scripts/; el detector
 //    se prueba además contra código de ejemplo, para que no sea un test que nunca puede fallar.
 //
-// 2. CONTRA LA BASE. Con el Postgres local (erp_qa_apps en /tmp/pgrun): la app como `app_rls` con
-//    RLS forzado y la consola con el rol dueño, igual que producción. Corre la escritura real de la
-//    consola, la lectura real del panel (interruptores.server.ts, piloto.ts, contexto.server.ts),
+// 2. CONTRA LA BASE. En una base efímera propia (src/test/base-efimera.ts): la app como `app_rls`
+//    con RLS forzado y la consola con el rol dueño, igual que producción. Corre la escritura real de
+//    la consola, la lectura real del panel (interruptores.server.ts, piloto.ts, contexto.server.ts),
 //    `audit()` real con una fila forjada, y el aislamiento entre negocios. Crea sus negocios de
-//    prueba (slug qa-2b-…) y los borra al terminar. Sin la base, se SALTEA diciéndolo.
+//    prueba (slug qa-2b-…); la base se borra al terminar. Sin Postgres local se SALTEA diciéndolo;
+//    en CI, falla.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
+import { apuntarLaAppA, baseEfimeraParaElTest } from "@/test/base-efimera";
+import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 // ── 1. Trinquete ─────────────────────────────────────────────────────────────
 
@@ -112,46 +115,21 @@ test("TRINQUETE: la escritura real sólo la importa la action (detrás de la gua
 
 // ── 2. Contra Postgres ───────────────────────────────────────────────────────
 
-const DB = process.env.INTERRUPTORES_TEST_DB ?? "erp_qa_apps";
-const OWNER_URL = `postgresql://postgres@localhost:5433/${DB}?host=/tmp/pgrun`;
-const APP_URL = `postgresql://app_rls@localhost:5433/${DB}?host=/tmp/pgrun`;
-
 test("contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, aislar y apagar", async (t) => {
+  const base = await baseEfimeraParaElTest(t);
+  if (!base) return;
+  apuntarLaAppA(base);
   const e = process.env as Record<string, string | undefined>;
-  Object.assign(e, {
-    NODE_ENV: "development",
-    DATABASE_URL: APP_URL,
-    OPERATOR_DATABASE_URL: OWNER_URL,
-    RLS_ENFORCEMENT: "on",
-    MODULE_REGISTRY_ENABLED: "",
-    DB_CONNECTION_LIMIT: "2",
-    DB_CONNECT_TIMEOUT_MS: "3000",
-  });
-  // `server-only` lo resuelve Next (no está en node_modules); en Node se reemplaza por un módulo
-  // vacío para poder importar los lectores de servidor tal cual corren en el panel.
-  const Module = (await import("node:module")).default as unknown as {
-    _resolveFilename: (req: string, ...rest: unknown[]) => string;
-    _cache: Record<string, unknown>;
-  };
-  const resolverOriginal = Module._resolveFilename;
-  Module._resolveFilename = function (req: string, ...rest: unknown[]) {
-    return req === "server-only" ? "\0server-only" : resolverOriginal.call(this, req, ...rest);
-  };
-  Module._cache["\0server-only"] = { id: "\0server-only", filename: "\0server-only", loaded: true, exports: {} };
+  Object.assign(e, { NODE_ENV: "development", MODULE_REGISTRY_ENABLED: "", DB_CONNECTION_LIMIT: "2", DB_CONNECT_TIMEOUT_MS: "3000" });
+  // `server-only` (y lo demás que pone Next) resuelto como en el servidor, para importar los
+  // lectores de servidor tal cual corren en el panel.
+  prepararAccionesDeServidor();
 
-  const { operatorPrisma } = await import("@/lib/operator-db");
   const { basePrisma } = await import("@/lib/prisma-base");
-  try {
-    await operatorPrisma.$queryRaw`SELECT 1`;
-    const rol = await basePrisma.$queryRaw<{ r: string; bypass: boolean }[]>`
-      SELECT current_user AS r, rolbypassrls AS bypass FROM pg_roles WHERE rolname = current_user`;
-    assert.equal(rol[0]?.bypass, false, "la app tiene que correr con un rol sin BYPASSRLS");
-  } catch (err) {
-    await operatorPrisma.$disconnect().catch(() => {});
-    await basePrisma.$disconnect().catch(() => {});
-    if (err instanceof assert.AssertionError) throw err;
-    return t.skip(`sin Postgres local (${DB} en /tmp/pgrun): la escritura real queda SIN verificar`);
-  }
+  const { operatorPrisma } = await import("@/lib/operator-db");
+  const rol = await basePrisma.$queryRaw<{ r: string; bypass: boolean }[]>`
+    SELECT current_user AS r, rolbypassrls AS bypass FROM pg_roles WHERE rolname = current_user`;
+  assert.equal(rol[0]?.bypass, false, "la app tiene que correr con un rol sin BYPASSRLS");
 
   const { depsDeCambioReales } = await import("@/lib/operador/interruptores-escritura.server");
   const { cambiarInterruptorCon } = await import("./interruptores-core");
@@ -182,12 +160,8 @@ test("contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, ais
     catalogo(),
   );
   assert.ok(fijar.ok);
-  const ids: string[] = [];
-  const crear = async (slug: string, modules: string[]) => {
-    const tn = await operatorPrisma.tenant.create({ data: { name: slug, slug, blueprintId: "carniceria", modules } });
-    ids.push(tn.id);
-    return tn;
-  };
+  const crear = (slug: string, modules: string[]) =>
+    operatorPrisma.tenant.create({ data: { name: slug, slug, blueprintId: "carniceria", modules } });
   const filasDe = (tenantId: string) =>
     operatorPrisma.auditLog.findMany({ where: { tenantId, entity: "Interruptor" }, orderBy: { createdAt: "asc" } });
   const comoPanel = async (slug: string) => {
@@ -373,12 +347,7 @@ test("contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, ais
       delete e.CANDADO_APPS_ESPERA_MS;
     }
   } finally {
+    // Los negocios de prueba se van con la base efímera; los clientes de Prisma los cierra el arnés.
     delete e.FORCE_TENANT_SLUG;
-    if (ids.length > 0) {
-      await operatorPrisma.auditLog.deleteMany({ where: { tenantId: { in: ids } } });
-      await operatorPrisma.tenant.deleteMany({ where: { id: { in: ids } } });
-    }
-    await operatorPrisma.$disconnect();
-    await basePrisma.$disconnect();
   }
 });

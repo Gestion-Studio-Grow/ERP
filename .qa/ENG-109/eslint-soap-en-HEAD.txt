@@ -1,0 +1,8 @@
+
+/home/user/erp/src/plugins/arca/afip/soap.ts
+  74:19  warning  '_traXml' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 1 problem (0 errors, 1 warning)
+
+ESLint found too many warnings (maximum: 0).
+exit 1

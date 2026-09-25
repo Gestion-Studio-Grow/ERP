@@ -1,0 +1,32 @@
+TAP version 13
+# corrida 1 {"procesados":1,"autorizados":1,"rechazados":0,"fallidos":1}
+# corrida 2 {"procesados":1,"autorizados":1,"rechazados":0,"fallidos":0}
+# corrida 3 {"procesados":0,"autorizados":0,"rechazados":0,"fallidos":0}
+# corrida 4 {"procesados":0,"autorizados":0,"rechazados":0,"fallidos":0}
+# A AUTHORIZED 2 SIM00000000002 | B AUTHORIZED 1 SIM00000000001 | CAE en ARCA 2 | envio A attempts 1 lastError ARCA no respondió en 0.04 s (https://wswhomo.afip.gov.ar/wsfev1/service.asmx).
+# Subtest: REFUTA ENG-020 · dos ventas iguales a consumidor final: A adopta el CAE de B y queda trabada
+ok 1 - REFUTA ENG-020 · dos ventas iguales a consumidor final: A adopta el CAE de B y queda trabada
+  ---
+  duration_ms: 2599.449411
+  type: 'test'
+  ...
+# c1 {"procesados":0,"autorizados":0,"rechazados":0,"fallidos":1} CAE 1
+# c2 {"procesados":0,"autorizados":0,"rechazados":0,"fallidos":1}
+# factura PENDING null | CAE en ARCA 1
+# c3 {"procesados":1,"autorizados":1,"rechazados":0,"fallidos":0}
+# final AUTHORIZED 1 SIM00000000001 | CAE en ARCA 1 [[1,"SIM00000000001","1210.00"]]
+# Subtest: REFUTA · la consulta del número anotado da un error fuera de la tabla: la factura queda RECHAZADA con CAE en ARCA y volver a facturar emite un segundo CAE
+ok 2 - REFUTA · la consulta del número anotado da un error fuera de la tabla: la factura queda RECHAZADA con CAE en ARCA y volver a facturar emite un segundo CAE
+  ---
+  duration_ms: 2562.746823
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3229.126397

@@ -1,0 +1,2 @@
+# Camino fiscal: plugin ARCA, src/lib/fiscal*, libros, invoice-*, arca-*, facturita-*, facturacion-*, round.ts
+lineas: 0

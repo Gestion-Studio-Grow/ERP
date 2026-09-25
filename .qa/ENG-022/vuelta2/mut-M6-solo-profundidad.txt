@@ -1,0 +1,57 @@
+TAP version 13
+# Subtest: como app_rls, un comprobante con CAE: cambiarle un campo fiscal o borrarlo falla, y la fila no cambia
+ok 1 - como app_rls, un comprobante con CAE: cambiarle un campo fiscal o borrarlo falla, y la fila no cambia
+  ---
+  duration_ms: 2356.682823
+  type: 'test'
+  ...
+# Subtest: el dueño de las tablas (sin RLS) tampoco puede editar ni borrar un comprobante con CAE
+ok 2 - el dueño de las tablas (sin RLS) tampoco puede editar ni borrar un comprobante con CAE
+  ---
+  duration_ms: 101.131058
+  type: 'test'
+  ...
+# Subtest: sin CAE sigue permitido editar y borrar; el paso normal de pendiente a autorizada (código real) funciona
+ok 3 - sin CAE sigue permitido editar y borrar; el paso normal de pendiente a autorizada (código real) funciona
+  ---
+  duration_ms: 448.289486
+  type: 'test'
+  ...
+# Subtest: con CAE: lo que no es fiscal sigue libre y borrar el pedido de origen deja la factura sin enlace
+ok 4 - con CAE: lo que no es fiscal sigue libre y borrar el pedido de origen deja la factura sin enlace
+  ---
+  duration_ms: 83.633202
+  type: 'test'
+  ...
+# Subtest: con CAE: vaciar a mano el pedido o el turno falla, como app_rls y como dueño; la venta no se puede facturar dos veces
+not ok 5 - con CAE: vaciar a mano el pedido o el turno falla, como app_rls y como dueño; la venta no se puede facturar dos veces
+  ---
+  duration_ms: 245.912324
+  type: 'test'
+  location: '/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:7:8407'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: app_rls vacía orderId desde un trigger propio'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rechazaConRestriccion (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:146:3)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:350:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: la reversa saca la protección sin tocar filas y `prisma migrate deploy` la vuelve a poner
+ok 6 - la reversa saca la protección sin tocar filas y `prisma migrate deploy` la vuelve a poner
+  ---
+  duration_ms: 1308.559337
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 5
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4982.718885

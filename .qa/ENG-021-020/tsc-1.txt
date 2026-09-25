@@ -1,0 +1,3 @@
+scripts/demo-factura.mts(61,52): error TS2345: Argument of type '{ clientePara: () => StubAfipClient; registrar: (doc: RegisterFiscalDocumentInput) => Promise<void>; }' is not assignable to parameter of type 'HandlerDeps'.
+  Property 'anotarIntento' is missing in type '{ clientePara: () => StubAfipClient; registrar: (doc: RegisterFiscalDocumentInput) => Promise<void>; }' but required in type 'HandlerDeps'.
+exit 2

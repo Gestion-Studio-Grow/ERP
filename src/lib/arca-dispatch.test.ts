@@ -142,3 +142,15 @@ test("clientePara: en modo homologación, tenant sin config fiscal también LANZ
   });
   await assert.rejects(() => clientePara("tenant-inexistente"), /no tiene un CUIT válido/);
 });
+
+test("ENG-021 · el motivo que queda en el envío no filtra la estructura interna de un error de la base", async () => {
+  const { motivoDelError } = await import("./arca-dispatch");
+  const { Prisma } = await import("@/generated/prisma/client");
+  const choque = new Prisma.PrismaClientKnownRequestError(
+    "Invalid `tx.invoice.updateMany()` invocation in\n/home/user/erp/src/lib/invoice-core.ts:236:25\n\n  233 const res = await tenantTransaction(\nUnique constraint failed on the fields: (`tenantId`,`puntoVenta`,`tipoComprobante`,`numero`)",
+    { code: "P2002", clientVersion: "7" },
+  );
+  const motivo = motivoDelError(choque);
+  assert.match(motivo, /P2002/);
+  assert.doesNotMatch(motivo, /invoice-core|updateMany|\/home\/|tenantTransaction/);
+});

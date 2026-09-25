@@ -1,0 +1,206 @@
+TAP version 13
+# Subtest: un nombre que empieza con =, +, -, @ o tabulación sale con apóstrofo adelante
+ok 1 - un nombre que empieza con =, +, -, @ o tabulación sale con apóstrofo adelante
+  ---
+  duration_ms: 1.261694
+  type: 'test'
+  ...
+# Subtest: los números no se tocan: importes con signo, miles con punto, porcentajes
+ok 2 - los números no se tocan: importes con signo, miles con punto, porcentajes
+  ---
+  duration_ms: 0.17608
+  type: 'test'
+  ...
+# Subtest: filaCsv: neutraliza y además escapa ; y comillas
+ok 3 - filaCsv: neutraliza y además escapa ; y comillas
+  ---
+  duration_ms: 0.397084
+  type: 'test'
+  ...
+# Subtest: una línea ajena (el libro de caja) se relee campo por campo y vuelve igual, salvo la fórmula
+ok 4 - una línea ajena (el libro de caja) se relee campo por campo y vuelve igual, salvo la fórmula
+  ---
+  duration_ms: 3.654207
+  type: 'test'
+  ...
+# Subtest: un campo con saltos de línea queda en una línea; el que empezaba con un salto no esquiva la guarda de fórmulas
+ok 5 - un campo con saltos de línea queda en una línea; el que empezaba con un salto no esquiva la guarda de fórmulas
+  ---
+  duration_ms: 0.451523
+  type: 'test'
+  ...
+# Subtest: el Libro IVA exportado sólo usa CRLF, aunque un cliente o un proveedor traiga un salto adentro
+ok 6 - el Libro IVA exportado sólo usa CRLF, aunque un cliente o un proveedor traiga un salto adentro
+  ---
+  duration_ms: 23.661654
+  type: 'test'
+  ...
+# Subtest: un importe del libro IVA sale con coma y la regla única de redondeo: 2,135 → 2,14
+ok 7 - un importe del libro IVA sale con coma y la regla única de redondeo: 2,135 → 2,14
+  ---
+  duration_ms: 0.18161
+  type: 'test'
+  ...
+# Subtest: un monto que no es un número no se escribe en el libro IVA: tira en vez de dejar NaN
+ok 8 - un monto que no es un número no se escribe en el libro IVA: tira en vez de dejar NaN
+  ---
+  duration_ms: 0.577976
+  type: 'test'
+  ...
+# (node:27851) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: facturarOrden: la venta de las 23:30 del 31/08 sale con fecha 20260831
+ok 9 - facturarOrden: la venta de las 23:30 del 31/08 sale con fecha 20260831
+  ---
+  duration_ms: 15.444807
+  type: 'test'
+  ...
+# Subtest: facturarAppointment: el turno cobrado a las 23:30 del 31/08 sale con fecha y servicio del 31/08
+ok 10 - facturarAppointment: el turno cobrado a las 23:30 del 31/08 sale con fecha y servicio del 31/08
+  ---
+  duration_ms: 0.667123
+  type: 'test'
+  ...
+# Subtest: facturarPagoMP: sin fecha de acreditación, el día del negocio; con fecha, la de Mercado Pago
+ok 11 - facturarPagoMP: sin fecha de acreditación, el día del negocio; con fecha, la de Mercado Pago
+  ---
+  duration_ms: 0.472894
+  type: 'test'
+  ...
+# Subtest: a la medianoche argentina ya es el día siguiente
+ok 12 - a la medianoche argentina ya es el día siguiente
+  ---
+  duration_ms: 0.36818
+  type: 'test'
+  ...
+# (node:27852) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: una factura a las 23:30 hora argentina del 31/08 lleva fecha 20260831 (reloj fijo)
+ok 13 - una factura a las 23:30 hora argentina del 31/08 lleva fecha 20260831 (reloj fijo)
+  ---
+  duration_ms: 13.786296
+  type: 'test'
+  ...
+# Subtest: los bordes del día argentino: 00:00 y 23:59 no se corren
+ok 14 - los bordes del día argentino: 00:00 y 23:59 no se corren
+  ---
+  duration_ms: 0.220301
+  type: 'test'
+  ...
+# Subtest: el Libro IVA de septiembre toma del 1 al 30, en hora argentina
+ok 15 - el Libro IVA de septiembre toma del 1 al 30, en hora argentina
+  ---
+  duration_ms: 6.31071
+  type: 'test'
+  ...
+# Subtest: meses: largo, vecinos que cruzan el año, validación de lo que llega por URL
+ok 16 - meses: largo, vecinos que cruzan el año, validación de lo que llega por URL
+  ---
+  duration_ms: 0.669914
+  type: 'test'
+  ...
+# Subtest: ya facturada: la factura puede ser de hasta 3 días antes de la acreditación, nunca después
+ok 17 - ya facturada: la factura puede ser de hasta 3 días antes de la acreditación, nunca después
+  ---
+  duration_ms: 0.293258
+  type: 'test'
+  ...
+# Subtest: el where del extracto: mismo total, la ventana de 3 días y sin los rechazados por ARCA
+ok 18 - el where del extracto: mismo total, la ventana de 3 días y sin los rechazados por ARCA
+  ---
+  duration_ms: 0.23725
+  type: 'test'
+  ...
+# Subtest: fiscalDateToIso: AAAAMMDD → YYYY-MM-DD; lo que no es fiscal pasa tal cual
+ok 19 - fiscalDateToIso: AAAAMMDD → YYYY-MM-DD; lo que no es fiscal pasa tal cual
+  ---
+  duration_ms: 1.803819
+  type: 'test'
+  ...
+# Subtest: dateToIso fecha en el día de negocio: las 21:30 del 30 NO son el 1 del mes que viene
+ok 20 - dateToIso fecha en el día de negocio: las 21:30 del 30 NO son el 1 del mes que viene
+  ---
+  duration_ms: 31.257982
+  type: 'test'
+  ...
+# Subtest: comprobante: montos exactos, número y documento; la alícuota sale del desglose guardado
+ok 21 - comprobante: montos exactos, número y documento; la alícuota sale del desglose guardado
+  ---
+  duration_ms: 2.544764
+  type: 'test'
+  ...
+# Subtest: alícuotas: una factura con carne al 10,5% y embutidos al 21% se ve con las dos
+ok 22 - alícuotas: una factura con carne al 10,5% y embutidos al 21% se ve con las dos
+  ---
+  duration_ms: 0.569785
+  type: 'test'
+  ...
+# Subtest: alícuotas sin desglose (comprobantes viejos): la oficial más cercana, nunca un 20,98%
+ok 23 - alícuotas sin desglose (comprobantes viejos): la oficial más cercana, nunca un 20,98%
+  ---
+  duration_ms: 0.451014
+  type: 'test'
+  ...
+# Subtest: una nota de crédito RESTA; una venta anulada con factura queda marcada
+ok 24 - una nota de crédito RESTA; una venta anulada con factura queda marcada
+  ---
+  duration_ms: 1.389914
+  type: 'test'
+  ...
+# Subtest: una compra sin factura NO suma crédito; la venta sin comprobante NO suma débito
+ok 25 - una compra sin factura NO suma crédito; la venta sin comprobante NO suma débito
+  ---
+  duration_ms: 0.268645
+  type: 'test'
+  ...
+# Subtest: condición: con A o B es inscripto; sólo C, monotributo; nada, no se afirma
+ok 26 - condición: con A o B es inscripto; sólo C, monotributo; nada, no se afirma
+  ---
+  duration_ms: 0.143018
+  type: 'test'
+  ...
+# Subtest: orden: cada bloque por fecha, y a igual fecha por número
+ok 27 - orden: cada bloque por fecha, y a igual fecha por número
+  ---
+  duration_ms: 0.459811
+  type: 'test'
+  ...
+# Subtest: el archivo: bloques con título, ; como separador, coma decimal y la posición sólo si es inscripto
+ok 28 - el archivo: bloques con título, ; como separador, coma decimal y la posición sólo si es inscripto
+  ---
+  duration_ms: 5.740344
+  type: 'test'
+  ...
+# Subtest: anuladas con factura: el mismo where para el botón (por emisión) y el cierre (por fecha fiscal)
+ok 29 - anuladas con factura: el mismo where para el botón (por emisión) y el cierre (por fecha fiscal)
+  ---
+  duration_ms: 0.370944
+  type: 'test'
+  ...
+# Subtest: la clave de cada fila es el id: dos ventas que se ven iguales no chocan
+ok 30 - la clave de cada fila es el id: dos ventas que se ven iguales no chocan
+  ---
+  duration_ms: 0.222701
+  type: 'test'
+  ...
+# Subtest: el número del botón y la pantalla: el mismo where y la misma cuenta
+ok 31 - el número del botón y la pantalla: el mismo where y la misma cuenta
+  ---
+  duration_ms: 0.446092
+  type: 'test'
+  ...
+# Subtest: el libro se le oculta a un monotributista; sin comprobantes todavía, no
+ok 32 - el libro se le oculta a un monotributista; sin comprobantes todavía, no
+  ---
+  duration_ms: 0.076952
+  type: 'test'
+  ...
+1..32
+# tests 32
+# suites 0
+# pass 32
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1462.611196

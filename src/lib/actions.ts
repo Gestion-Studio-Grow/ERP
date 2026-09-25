@@ -68,6 +68,8 @@ import {
 import { diaSiguiente, rangoDelDia, textoRecordatorio } from "@/lib/turnos/turno-abierto";
 import { cancelarTurnoVivo, whereTurnosDeManana, whereTurnosDelDia } from "@/lib/crm/wheres";
 import { Prisma } from "@/generated/prisma/client";
+import { importeONaN } from "@/lib/dinero/leer";
+import { cuponDeLaReserva } from "@/lib/cupones/cupon-de-reserva";
 import {
   isDemoSandbox,
   getDemoAgendaDay,
@@ -327,26 +329,12 @@ async function bookAppointment({
     // si dos reservas llegan a la vez con el último uso del mismo cupón, la
     // segunda que intente incrementar usedCount por encima de maxUses falla
     // acá y no cobra el descuento.
-    let discountAmount = 0;
-    let appliedCouponCode: string | null = null;
-    const normalizedCode = couponCode?.trim().toUpperCase();
-    if (normalizedCode) {
-      const coupon = await tx.coupon.findUnique({ where: { tenantId_code: { tenantId, code: normalizedCode } } });
-      const valid =
-        coupon &&
-        coupon.active &&
-        (!coupon.expiresAt || coupon.expiresAt >= new Date()) &&
-        (coupon.maxUses == null || coupon.usedCount < coupon.maxUses);
-      if (valid) {
-        discountAmount =
-          coupon.type === "PERCENT" ? Math.round(basePrice * (coupon.value / 100)) : Math.min(coupon.value, basePrice);
-        appliedCouponCode = coupon.code;
-        await tx.coupon.update({ where: { id: coupon.id }, data: { usedCount: { increment: 1 } } });
-      }
-      // Si el cupón ya no es válido (alguien lo agotó justo antes, venció,
-      // etc.) simplemente no se aplica — no se bloquea la reserva por esto,
-      // el cliente ya llegó hasta acá con la expectativa de reservar.
-    }
+    // Si el cupón no vale (alguien lo agotó justo antes, venció, etc.) o no llega a descontar
+    // nada, simplemente no se aplica ni se gasta: no se bloquea la reserva por esto, el cliente
+    // ya llegó hasta acá con la expectativa de reservar (ENG-109).
+    const cupon = await cuponDeLaReserva(tx, { tenantId, codigo: couponCode, base: basePrice, ahora: new Date() });
+    const discountAmount = cupon?.descuento ?? 0;
+    const appliedCouponCode = cupon?.codigo ?? null;
 
     const appointment = await tx.appointment.create({
       data: {
@@ -735,7 +723,7 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
   // porcentaje) y medio. El server valida monto y medio; el saldo lo valida la tx.
   let cobroInicial: CobroInicial | null = null;
   if (formData.get("senaCobrar") === "on") {
-    const monto = Number(String(formData.get("senaMonto") || "").replace(",", "."));
+    const monto = importeONaN(formData.get("senaMonto"));
     const metodo = String(formData.get("senaMetodo") || "");
     if (!Number.isFinite(monto) || monto <= 0) return { ok: false, error: "El monto de la seña tiene que ser mayor a cero." };
     if (!esMetodoDePago(metodo)) return { ok: false, error: "Elegí el medio con que se cobra la seña: efectivo, Mercado Pago o transferencia." };
@@ -1055,7 +1043,7 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
   const user = await requireCapability("agenda:collect");
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
   const appointmentId = String(formData.get("appointmentId") || "");
-  const monto = Number(String(formData.get("amount") || "").replace(",", "."));
+  const monto = importeONaN(formData.get("amount"));
   const methodRaw = String(formData.get("method") || "");
   const idempotencyKey = String(formData.get("idempotencyKey") || "").trim() || null;
   if (!appointmentId) return { ok: false, error: "Falta el turno a cobrar." };

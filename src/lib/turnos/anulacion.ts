@@ -45,6 +45,7 @@ import { round2 } from "@/lib/round";
 import type { Prisma } from "@/generated/prisma/client";
 import { estadoCobroTurno, type CobroTurno, type PagoLegado } from "./cobros";
 import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
+import { facturaDeLaVenta, mensajeFacturaViva, type FacturaDeLaVenta } from "@/lib/factura-viva";
 
 export type AnulacionTx = Prisma.TransactionClient;
 
@@ -183,6 +184,8 @@ export type MotivoAnulacionRechazada =
   | "no-es-cobro" // se apuntó a una contrapartida o a una condonación
   | "ya-anulado" // idempotencia: ya tiene su reversa
   | "monto-invalido" // fila corrupta (≤ 0): no hay nada que revertir
+  | "facturado" // ENG-023: el turno tiene factura autorizada y todavía no hay nota de crédito
+  | "factura-en-camino" // ENG-023: su factura espera la respuesta de ARCA; el CAE puede llegar después
   | "dia-cerrado"; // el día del asiento ya está cerrado: la corrección va con fecha de hoy
 
 export type PlanAnulacion =
@@ -191,17 +194,23 @@ export type PlanAnulacion =
 
 /**
  * ¿Se puede anular ESTE cobro? Pura. `yaAnulado` lo resuelve el repositorio buscando la
- * contrapartida; `diaCerrado` lo resuelve la frontera del libro (`frontera-cierre.ts`).
+ * contrapartida; `diaCerrado` lo resuelve la frontera del libro (`frontera-cierre.ts`);
+ * `factura`, la factura del turno (`facturaDeLaVenta`, factura-viva.ts, ENG-023).
  */
 export function planAnulacion(input: {
   note: string | null | undefined;
   amount: number;
   yaAnulado: boolean;
   diaCerrado: boolean;
+  factura: FacturaDeLaVenta;
 }): PlanAnulacion {
   if (claseDeCobro(input.note) !== "cobro") return { ok: false, motivo: "no-es-cobro" };
   if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, motivo: "monto-invalido" };
   if (input.yaAnulado) return { ok: false, motivo: "ya-anulado" };
+  // La factura va antes que el día cerrado: sin nota de crédito, la plata de un turno
+  // facturado no se devuelve por acá, ni hoy ni con fecha de otro día.
+  if (input.factura === "autorizada") return { ok: false, motivo: "facturado" };
+  if (input.factura === "en-camino") return { ok: false, motivo: "factura-en-camino" };
   // El día cerrado se evalúa AL FINAL: si ya está anulado, la respuesta correcta es
   // "ya está", no "no se puede" — un doble clic no tiene que asustar a nadie.
   if (input.diaCerrado) return { ok: false, motivo: "dia-cerrado" };
@@ -259,6 +268,10 @@ export function mensajeAnulacionRechazada(motivo: MotivoAnulacionRechazada): str
       return "Ese cobro no tiene un monto válido para revertir.";
     case "ya-anulado":
       return "Ese cobro ya estaba anulado.";
+    case "facturado":
+      return mensajeFacturaViva("autorizada", "turno");
+    case "factura-en-camino":
+      return mensajeFacturaViva("en-camino", "turno");
     case "dia-cerrado":
       return "Ese cobro es de un día ya cerrado y un día contado no se toca. La corrección va con fecha de hoy: cargala en el libro de caja como INGRESO/EGRESO, con el motivo.";
   }
@@ -341,6 +354,17 @@ export async function anularCobroTurnoInTx(
   tenantId: string,
   args: AnularCobroArgs,
 ): Promise<AnularCobroResult> {
+  // ENG-023, contra la facturación del turno: la fila del turno FOR UPDATE, ANTES de leer sus
+  // facturas. La facturación (`createInvoiceInTx`, origen APPOINTMENT) escribe esa misma fila:
+  //  · si facturó primero y confirmó después de la foto de esta transacción (Serializable),
+  //    Postgres aborta este bloqueo (40001), `tenantTransaction` reintenta y el reintento ve la
+  //    factura y rechaza la anulación;
+  //  · si la anulación va primero, la facturación espera este bloqueo y después relee el cobro.
+  // El negocio va explícito en el WHERE además de RLS.
+  await tx.$queryRaw`
+    SELECT id FROM "Appointment"
+    WHERE id = ${args.appointmentId} AND "tenantId" = ${tenantId}
+    FOR UPDATE`;
   const original = await tx.collection.findFirst({
     where: { tenantId, id: args.collectionId, originType: "APPOINTMENT", originId: args.appointmentId },
     select: { id: true, amount: true, method: true, note: true, createdAt: true },
@@ -380,6 +404,13 @@ export async function anularCobroTurnoInTx(
     amount: montoOriginal,
     yaAnulado: Boolean(yaAnulada),
     diaCerrado: Boolean(args.diaCerradoHasta && args.esDiaCerrado(diaContable, args.diaCerradoHasta)),
+    // ENG-023: la factura del turno, por su enlace (`Invoice.appointmentId`) y dentro del negocio.
+    factura: facturaDeLaVenta(
+      await tx.invoice.findMany({
+        where: { tenantId, appointmentId: args.appointmentId },
+        select: { status: true },
+      }),
+    ),
   });
   if (!plan.ok) {
     if (plan.motivo === "ya-anulado" && yaAnulada) return { applied: false, reason: "duplicate", reversaId: yaAnulada.id };

@@ -1,0 +1,117 @@
+--- .qa/ENG-019-012-027/arca-dispatch-postgres.test.antes.ts	2026-09-25 06:09:55.995113101 +0000
++++ src/lib/arca-dispatch-postgres.test.ts	2026-09-25 06:11:56.739935265 +0000
+@@ -333,6 +333,20 @@
+   return { cliente, llego, soltar };
+ }
+ 
++/**
++ * ENG-019 · Da por vencida la reserva de los envíos abiertos de una factura, como si el despacho
++ * que los tomó se hubiera colgado más de `RESERVA_DEL_ENVIO_SEGUNDOS`. Es la única forma en que un
++ * segundo despacho toma un envío que otro tiene: los tests de "despacho viejo" la necesitan.
++ */
++async function vencerReservas(p: NonNullable<Awaited<ReturnType<typeof preparar>>>, invoiceId: string) {
++  for (const e of await p.envios(invoiceId)) {
++    await p.operatorPrisma.$executeRaw`
++      UPDATE "OutboxEvent"
++      SET "payload" = jsonb_set("payload", '{reserva,hasta}', to_jsonb(now() - interval '1 second'))
++      WHERE "id" = ${e.id} AND "payload" ? 'reserva'`;
++  }
++}
++
+ /** El comprobante que ARCA tiene con el CAE de la factura, a centavos. */
+ async function totalEnArcaDe(sim: SimuladorArca, cae: string | null) {
+   const { centavosDeImporteArca } = await import("@/plugins/arca/afip/soap");
+@@ -375,10 +389,15 @@
+   // anterior en cada login): lo que se mide es la base, no el token.
+   const sesion = p.deps.clientePara(p.base.a.id);
+   const frenado = clienteQueSeFrena(sesion);
+-  const x = p.processArcaOutbox(20, { ...p.deps, clientePara: () => frenado.cliente });
++  // X toma UN envío (el viejo): si no, al terminar sigue con el envío nuevo de la venta.
++  const x = p.processArcaOutbox(1, { ...p.deps, clientePara: () => frenado.cliente });
+   await frenado.llego; // X anotó el número y está por pedir el CAE con los importes de 1210
+ 
+-  // Otro despacho procesa el mismo envío, ARCA lo rechaza, y la persona vuelve a facturar.
++  // Mientras X tiene el envío, otro despacho no lo toma (ENG-019)…
++  assert.equal((await p.processArcaOutbox(20, { ...p.deps, clientePara: () => sesion })).procesados, 0);
++  // …salvo que X se cuelgue más que la reserva. Entonces otro despacho procesa el mismo envío,
++  // ARCA lo rechaza, y la persona vuelve a facturar.
++  await vencerReservas(p, id);
+   simA.fallarProximo("FECAESolicitar", { rechazo: [{ codigo: 10048, mensaje: "El importe no cierra." }] });
+   assert.equal((await p.processArcaOutbox(20, { ...p.deps, clientePara: () => sesion })).rechazados, 1);
+   assert.equal(await p.facturarPago(p.base.a.id, "mp_v3_registro_viejo", 2420, true), id);
+@@ -406,8 +425,10 @@
+   const id = await p.facturarPago(p.base.a.id, "mp_v3_rechazo_viejo");
+   const sesion = p.deps.clientePara(p.base.a.id);
+   const frenado = clienteQueSeFrena(sesion);
+-  const x = p.processArcaOutbox(20, { ...p.deps, clientePara: () => frenado.cliente });
++  // X toma UN envío (el viejo): si no, al terminar sigue con el envío nuevo de la venta.
++  const x = p.processArcaOutbox(1, { ...p.deps, clientePara: () => frenado.cliente });
+   await frenado.llego;
++  await vencerReservas(p, id); // X se colgó más que la reserva (ENG-019)
+ 
+   simA.fallarProximo("FECAESolicitar", { rechazo: [{ codigo: 10048, mensaje: "El importe no cierra." }] });
+   assert.equal((await p.processArcaOutbox(20, { ...p.deps, clientePara: () => sesion })).rechazados, 1);
+@@ -437,7 +458,9 @@
+   const id = await p.facturarPago(p.base.a.id, "mp_v3_abierto");
+   assert.equal((await p.despachar()).rechazados, 1);
+   const [envio] = await p.envios(id);
+-  await p.operatorPrisma.outboxEvent.update({ where: { id: envio.id }, data: { processedAt: null } });
++  // Un envío que el código ANTERIOR dejó abierto: sin cerrar y sin reserva (esa versión no reservaba).
++  await p.operatorPrisma.$executeRaw`
++    UPDATE "OutboxEvent" SET "processedAt" = NULL, "payload" = "payload" - 'reserva' WHERE "id" = ${envio.id}`;
+ 
+   const [llamadosAntes, caeAntes] = [simA.llamados.length, simA.cantidadDeCae()];
+   const r = await p.despachar();
+@@ -449,7 +472,7 @@
+   assert.equal((await p.factura(id)).status, "REJECTED");
+ });
+ 
+-test("ENG-019 (parcial) · un despacho que llega tarde a un envío que otro ya autorizó y cerró no le pide otro CAE a ARCA", async (t) => {
++test("ENG-019 · mientras un despacho tiene el envío, otro no lo toma ni le pide nada a ARCA; ARCA termina con un CAE", async (t) => {
+   const p = await preparar(t);
+   if (!p) return;
+   const simA = p.sims.get(p.base.a.id)!;
+@@ -459,15 +482,40 @@
+   const frenado = clienteQueSeFrena(sesion, "ultimoAutorizado");
+   const x = p.processArcaOutbox(20, { ...p.deps, clientePara: () => frenado.cliente });
+   await frenado.llego; // X tomó el envío y todavía no anotó número
++  const llamadosAntes = simA.llamados.length;
+ 
+   const y = await p.processArcaOutbox(20, { ...p.deps, clientePara: () => sesion });
+-  assert.equal(y.autorizados, 1);
++  assert.deepEqual(y, { procesados: 0, autorizados: 0, rechazados: 0, fallidos: 0, descartados: 0 });
++  assert.equal(simA.llamados.length, llamadosAntes, "Y no le habló a ARCA");
+   frenado.soltar();
+   const resumenX = await x;
++  assert.equal(resumenX.autorizados, 1);
+   assert.equal(simA.cantidadDeCae(), caeAntes + 1, "una venta, un CAE");
+-  assert.equal(resumenX.descartados, 1);
+-  assert.equal(resumenX.autorizados, 0);
+   const f = await p.factura(id);
+   assert.equal(f.status, "AUTHORIZED");
+   assert.equal(f.numero, caeAntes + 1);
+ });
++
++test("ENG-019 · un despacho que perdió la reserva (se colgó más que ella) no anota ni pide el CAE: lo hace el que la tomó", async (t) => {
++  const p = await preparar(t);
++  if (!p) return;
++  const simA = p.sims.get(p.base.a.id)!;
++  const caeAntes = simA.cantidadDeCae();
++  const id = await p.facturarPago(p.base.a.id, "mp_v4_reserva_perdida");
++  const sesion = p.deps.clientePara(p.base.a.id);
++  const frenado = clienteQueSeFrena(sesion, "ultimoAutorizado");
++  const x = p.processArcaOutbox(20, { ...p.deps, clientePara: () => frenado.cliente });
++  await frenado.llego;
++  await vencerReservas(p, id);
++
++  const y = await p.processArcaOutbox(20, { ...p.deps, clientePara: () => sesion });
++  assert.equal(y.autorizados, 1);
++  const pedidosAntes = simA.llamados.filter((m) => m === "FECAESolicitar").length;
++  frenado.soltar();
++  const resumenX = await x;
++  assert.equal(resumenX.descartados, 1);
++  assert.equal(resumenX.autorizados, 0);
++  assert.equal(simA.llamados.filter((m) => m === "FECAESolicitar").length, pedidosAntes, "X no pidió el CAE");
++  assert.equal(simA.cantidadDeCae(), caeAntes + 1);
++  assert.equal((await p.factura(id)).numero, caeAntes + 1);
++});

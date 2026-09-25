@@ -137,7 +137,7 @@ export function agruparVentasMostrador(
 
 /** "4,35" kilos o "12" unidades, con coma decimal. PURA. */
 export function cantidadLegible(cantidad: number, porKilo: boolean): string {
-  const n = porKilo ? Math.round(cantidad * 1000) / 1000 : Math.round(cantidad * 100) / 100;
+  const n = porKilo ? Math.round(cantidad * 1000) / 1000 : Math.round(cantidad * 100) / 100; // no-es-plata: cantidad
   return `${String(n).replace(".", ",")} ${porKilo ? "kg" : "u."}`;
 }
 

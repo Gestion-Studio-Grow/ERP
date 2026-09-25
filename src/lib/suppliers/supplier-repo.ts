@@ -10,6 +10,7 @@
 // endpoint. Lo llaman la página y las acciones de /admin/proveedores, que resuelven el negocio
 // del request.
 
+import { redondearAlCentavo, sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { prisma } from "@/lib/prisma";
 import { listPayables, type PayableListItem } from "@/lib/debts/payable-repo";
 import { mensajeDeProveedor, validateSupplierInput, whereProveedoresActivos, type SupplierInput } from "./supplier";
@@ -121,7 +122,7 @@ export function totalDevuelto(grupos: readonly { unitCost: number | null; _sum: 
     movimientos += g._count._all;
     if (g.unitCost && g.unitCost > 0) pesos += Math.abs(g._sum.qty ?? 0) * g.unitCost;
   }
-  return { pesos: Math.round(pesos * 100) / 100, movimientos };
+  return { pesos: redondearAlCentavo(pesos), movimientos };
 }
 
 /**
@@ -170,7 +171,7 @@ export async function getFichaProveedor(tenantId: string, id: string) {
     proveedor,
     compras,
     totalDeCompras: totales._count._all,
-    comprado: Math.round((totales._sum.totalCost ?? 0) * 100) / 100,
+    comprado: redondearAlCentavo(totales._sum.totalCost ?? 0),
     deuda,
     devoluciones,
     totalDeDevoluciones: devuelto.movimientos,
@@ -182,7 +183,7 @@ export async function getFichaProveedor(tenantId: string, id: string) {
 async function leerDeuda(tenantId: string, supplierId: string): Promise<DeudaDeProveedor> {
   try {
     const abiertas = (await listPayables(tenantId)).filter((p) => p.supplierId === supplierId);
-    return { ok: true, abiertas, saldo: Math.round(abiertas.reduce((s, p) => s + p.balance, 0) * 100) / 100 };
+    return { ok: true, abiertas, saldo: sumarAlCentavo(abiertas.map((p) => p.balance)) };
   } catch (err) {
     const code = (err as { code?: string })?.code;
     if (code === "P2021" || code === "P2022") {

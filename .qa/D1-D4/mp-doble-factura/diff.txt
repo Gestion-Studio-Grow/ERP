@@ -1,0 +1,126 @@
+diff --git a/src/plugins/mercadopago/core-contract.ts b/src/plugins/mercadopago/core-contract.ts
+index f81d1ef..890811f 100644
+--- a/src/plugins/mercadopago/core-contract.ts
++++ b/src/plugins/mercadopago/core-contract.ts
+@@ -47,6 +47,23 @@ export function pedidoDeReferencia(ref: string | null | undefined): string | nul
+   return id && /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : null;
+ }
+ 
++/**
++ * Quién es dueño de un cobro según su `external_reference`. PURA. Es la ÚNICA lectura de la
++ * referencia: la usan el aviso de Mercado Pago (handler.ts) y la ingesta de ventas sueltas
++ * (ingest.ts), para que un mismo cobro tenga un solo camino de factura.
++ *  - sin referencia → null: venta suelta, la factura la ingesta (origen MP_PAYMENT);
++ *  - "pedido:<id>" → el pedido: se cobra y la factura sale de la venta (origen ORDER);
++ *  - cualquier otra → un turno (va pelada, por los links que ya existen): la factura es la del
++ *    turno (origen APPOINTMENT).
++ */
++export type DuenoDelCobro = { tipo: "pedido"; id: string } | { tipo: "turno"; id: string };
++
++export function duenoDelCobro(ref: string | null | undefined): DuenoDelCobro | null {
++  if (!ref) return null;
++  const orderId = pedidoDeReferencia(ref);
++  return orderId ? { tipo: "pedido", id: orderId } : { tipo: "turno", id: ref };
++}
++
+ /** Lo que el Core contesta cuando se le pide cobrar un pedido por un pago acreditado. */
+ export type ResultadoCobroPedido =
+   | { cobrado: true; code: number; total: number }
+diff --git a/src/plugins/mercadopago/handler.ts b/src/plugins/mercadopago/handler.ts
+index feb5f07..dfa650c 100644
+--- a/src/plugins/mercadopago/handler.ts
++++ b/src/plugins/mercadopago/handler.ts
+@@ -18,7 +18,7 @@
+ 
+ import { MercadoPagoClient } from "./port";
+ import {
+-  pedidoDeReferencia,
++  duenoDelCobro,
+   type CobrarPedidoPorPago,
+   type FacturarPorPago,
+   type NotificacionPagoMP,
+@@ -64,14 +64,17 @@ export async function procesarNotificacionPago(
+     return { procesado: true, facturado: false, invoiceId: null, motivo: `estado ${pago.estado}` };
+   }
+ 
+-  if (!pago.externalReference) {
++  // La misma lectura de la referencia que la ingesta de ventas sueltas (core-contract.ts): un
++  // cobro, un solo camino de factura.
++  const dueno = duenoDelCobro(pago.externalReference);
++  if (!dueno) {
+     return { procesado: true, facturado: false, invoiceId: null, motivo: "pago sin external_reference (appointmentId)" };
+   }
+ 
+   // El link de un pedido: se cobra el pedido, con el monto que Mercado Pago dice que se pagó
+   // (el Core lo compara con el total del pedido en la base antes de cobrar).
+-  const orderId = pedidoDeReferencia(pago.externalReference);
+-  if (orderId) {
++  if (dueno.tipo === "pedido") {
++    const orderId = dueno.id;
+     if (!deps.cobrarPedido) {
+       return { procesado: true, facturado: false, invoiceId: null, motivo: "pago de pedido: el cobro de pedidos no está conectado" };
+     }
+@@ -90,6 +93,6 @@ export async function procesarNotificacionPago(
+     };
+   }
+ 
+-  const invoiceId = await deps.facturar(pago.externalReference, notif.tenantId);
++  const invoiceId = await deps.facturar(dueno.id, notif.tenantId);
+   return { procesado: true, facturado: invoiceId != null, invoiceId };
+ }
+diff --git a/src/plugins/mercadopago/index.ts b/src/plugins/mercadopago/index.ts
+index 675b78d..83a1475 100644
+--- a/src/plugins/mercadopago/index.ts
++++ b/src/plugins/mercadopago/index.ts
+@@ -14,7 +14,7 @@ export type {
+   CobrarPedidoPorPago,
+   ResultadoCobroPedido,
+ } from "./core-contract";
+-export { referenciaDePedido, pedidoDeReferencia, PREFIJO_REFERENCIA_PEDIDO } from "./core-contract";
++export { referenciaDePedido, pedidoDeReferencia, duenoDelCobro, PREFIJO_REFERENCIA_PEDIDO, type DuenoDelCobro } from "./core-contract";
+ export {
+   type MercadoPagoClient,
+   type MercadoPagoConfig,
+diff --git a/src/plugins/mercadopago/ingest.ts b/src/plugins/mercadopago/ingest.ts
+index 69a4f4e..e383dde 100644
+--- a/src/plugins/mercadopago/ingest.ts
++++ b/src/plugins/mercadopago/ingest.ts
+@@ -12,6 +12,7 @@
+ import { CriterioBusqueda, MercadoPagoClient, PagoMP } from "./port";
+ import { ClasificadorPort } from "./classifier";
+ import { ReconciliacionPort } from "./reconciliation";
++import { duenoDelCobro, type DuenoDelCobro } from "./core-contract";
+ 
+ /** Factura un pago MP y devuelve el `invoiceId` (o null si no se pudo). */
+ export type FacturarPagoMP = (pago: PagoMP, tenantId: string) => Promise<string | null>;
+@@ -51,6 +52,12 @@ export interface ResumenIngesta {
+ 
+ const MAX_INTENTOS_DEFAULT = 3;
+ 
++/** Por qué un cobro con dueño no se factura como venta suelta (lo lee el dueño en el panel). */
++const MOTIVO_COBRO_CON_DUENO: Record<DuenoDelCobro["tipo"], string> = {
++  turno: "Cobro de un turno por link de Mercado Pago: la factura es la del turno, no una venta suelta.",
++  pedido: "Cobro de un pedido por link de Mercado Pago: la factura sale del pedido con «Facturar», no como venta suelta.",
++};
++
+ /** Procesa un único pago (usado por el webhook y por el backfill). Idempotente. */
+ export async function facturarPagoSiCorresponde(
+   pago: PagoMP,
+@@ -62,6 +69,17 @@ export async function facturarPagoSiCorresponde(
+     return;
+   }
+ 
++  // Un cobro con dueño no es venta suelta. El link de un turno lo factura el aviso por el turno
++  // (origen APPOINTMENT); el de un pedido lo cobra el pedido y la factura sale de la venta
++  // (origen ORDER). Facturarlo acá (origen MP_PAYMENT, otra clave de unicidad) emitía una
++  // segunda Factura C con CAE por el mismo ingreso. La referencia se lee igual que en el aviso.
++  const dueno = duenoDelCobro(pago.externalReference);
++  if (dueno) {
++    await deps.reconciliacion.marcarNoFacturable(pago.id, MOTIVO_COBRO_CON_DUENO[dueno.tipo]);
++    resumen.noFacturables++;
++    return;
++  }
++
+   // Clasificación (§12.1): entre ingesta y facturación. No se factura a ciegas.
+   const { clasificacion, motivo } = await deps.clasificador.clasificar(pago, deps.tenantId);
+ 

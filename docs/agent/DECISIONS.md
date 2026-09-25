@@ -165,6 +165,29 @@ cumplido es un defecto ALTA (§5).
   `BACKLOG.md` vive en `$AUD`, dentro de `/tmp`: si la carpeta se limpia, ningún número se puede
   volver a verificar. Traer los scripts al repo antes de cualquier otro slice es lo más barato y
   reversible.
+- **DEC-011 · El plugin ARCA importa del Core sólo la regla de redondeo (ENG-109).** ADR-022
+  prohíbe que un plugin importe `src/lib`; ADR-100 §3-4 exige que los importes a ARCA los escriba
+  el módulo de plata. Se resuelve con una excepción única y vigilada: `src/lib/dinero/redondeo.ts`
+  no importa nada, y `src/lib/dinero/redondeo.test.ts` falla si el plugin trae otra cosa de
+  `src/lib` o si el módulo empieza a importar. Descartado: copiar la regla en el plugin (es lo que
+  dejó la copia de `plugins/bancos/domain/valores.ts:19` y dos reglas distintas).
+- **DEC-012 · A ARCA viajan importes que ya vienen al centavo (ENG-109, revisión vuelta 1).**
+  `validarComprobante` (`plugins/arca/domain/validacion.ts`) rechaza un total, un neto, una base o
+  un IVA con más de dos decimales, y exige neto = suma de bases y total = neto + IVA exactos en
+  centavos (la tolerancia de 1 centavo queda sólo entre el IVA de un renglón y base × alícuota).
+  Así la decisión del comprobante (`fiscal/decidir-comprobante.ts`, núcleo de otro frente) y el
+  pedido cuentan el mismo número aunque cada uno redondee a su modo; lo prueba
+  `src/lib/dinero/decision-y-envio-arca.test.ts` contra el núcleo sin cambios. Descartado: editar
+  el núcleo sin commit de otro frente (queda como parche propuesto en `.qa/ENG-109/decidir-comprobante.diff`).
+- **DEC-013 · El cupón de % conserva la unidad de cada camino hasta que el dueño decida (ENG-109, revisión vuelta 2).**
+  Una sola cuenta (`montoDeCupon`, `venta-reglas.ts`) con la unidad por camino en
+  `UNIDAD_DEL_DESCUENTO_DE_CUPON`: turnos al peso (como la reserva y la vista previa de CH), venta y
+  tienda al centavo (como el alta del pedido, que es lo que se factura). Poner una sola unidad
+  cambiaba cobros de CH antes de la decisión del dueño: al peso, 575.000 de 700.000 descuentos de la
+  venta; al centavo, casi todos los de turnos. Medido contra HEAD: turnos cambian 13.704 de 30 M
+  (medio peso que bajaba); venta 0 de 700.000 con precios enteros y 364.530 de 198 M con centavos
+  (medio centavo que bajaba). Un cupón que no llega a descontar nada se rechaza y no se gasta.
+  Reversible: cuando el dueño decida, las dos claves pasan a la misma unidad.
 
 ## 5. Pendiente de decisión del dueño (no se decide acá)
 

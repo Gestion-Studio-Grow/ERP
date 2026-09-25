@@ -16,7 +16,8 @@
 #    página se ve rota o ilegible, el CI FALLA. Es la lección más cara que pagamos.
 #
 # NO toca prod ni Neon: ninguna valla necesita base de datos externa (la coverage
-# de RLS es estática sobre el schema; los tests son unitarios; la valla visual
+# de RLS es estática sobre el schema; los tests de integración usan un Postgres
+# del propio job, con bases efímeras que crea y borra cada test; la valla visual
 # corre el subset SIN DB —login de operador/admin + vidriera con branding
 # fail-open—; la visual-aa levanta una base EFÍMERA en RAM con PGlite, sin Neon).
 # El cliente Prisma se genera en el postinstall (`prisma generate`, sin DB).
@@ -62,17 +63,63 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
 
+  # Los tests de integración corren contra bases EFÍMERAS que crea cada test en este Postgres
+  # (src/test/base-efimera.ts: migraciones + RLS + app_rls; se borran al terminar). Nada de Neon.
+  # `trust`: los roles de prueba (neondb_owner, app_rls) entran sin contraseña; el contenedor vive
+  # lo que dura el job. Chromium: lo usan los tests de pantalla (`npm ci` no lo baja).
+  # Node 22: `node --test "src/**/*.test.ts"` necesita Node 21 o más para expandir el patrón; con
+  # Node 20 sale "Could not find" sin correr ningún test (.qa/ENG-000/npmtest-node20-como-ci-antes.txt).
   tests:
     name: tests (npm test)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      ERP_TEST_PG_URL: postgresql://postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      # La salida queda en un archivo: se sube como artefacto y la lee el chequeo de abajo.
+      - name: npm test
+        shell: bash
+        run: npm test 2>&1 | tee npm-test.log
+      # En CI no se saltea nada: un test salteado es un test que no corrió (ENG-000, criterio 1).
+      # El resumen dice "# skipped N" (reporte TAP, sin terminal) o "ℹ skipped N" (reporte spec).
+      - name: ningún test salteado
+        if: always()
+        shell: bash
+        run: |
+          grep -E '^(# |ℹ )(tests|pass|fail|skipped) ' npm-test.log || true
+          grep -qxE '(# |ℹ )skipped 0' npm-test.log || { echo "::error::npm test salteó tests: en CI tienen que correr todos"; exit 1; }
+      # Ninguna base efímera queda viva al terminar (ENG-000, criterio 4).
+      - name: ninguna base erp_test_ quedó
+        if: always()
+        shell: bash
+        run: |
+          vivas=$(docker exec ${{ job.services.postgres.id }} psql -U postgres -Atc "SELECT count(*) FROM pg_database WHERE datname LIKE 'erp\_test\_%'")
+          echo "bases erp_test_ vivas: $vivas"
+          test "$vivas" = "0"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: npm-test-log
+          path: npm-test.log
+          if-no-files-found: warn
 
   rls:
     name: rls-coverage (aislamiento)

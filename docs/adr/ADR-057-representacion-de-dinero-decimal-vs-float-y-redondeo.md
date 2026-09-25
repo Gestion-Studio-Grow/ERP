@@ -6,7 +6,7 @@ depends_on: [ADR-002, ADR-006, ADR-022]
 ---
 # ADR-057: Representación de dinero — `number`/Float con redondeo único, `Decimal(14,2)` en el borde fiscal
 
-**Estado:** Aceptado — **decisión de arquitectura**. Resuelve dos pendientes documentados: la divergencia
+**Estado:** **Reemplazado por [ADR-100](ADR-100-dinero-en-decimal.md)** (2026-09-25, decisión D1 del dueño: el dinero pasa a decimal con moneda). No aplicar esta regla; se conserva como historia. Antes: Aceptado — **decisión de arquitectura**. Resuelve dos pendientes documentados: la divergencia
 `Float` vs `Decimal(14,2)` de `Invoice` (ESTADO-ACTUAL §5 / nota en `prisma/schema.prisma`) y **R4**
 (unificar `round2`/`redondear`, `src/lib/round.ts`). La parte **reversible** (redondeo único) va a código con
 su Gate; la **migración a `Decimal`** es **§C · Gate 2** (la ejecuta el dueño al encender ARCA real).

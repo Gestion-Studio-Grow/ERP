@@ -397,7 +397,7 @@ export function evaluarCliente(
       id: "cerca_del_cupo",
       severidad: "atencion",
       titulo: "Cerca del límite del plan",
-      detalle: `${h.facturasMes} de ${cap} facturas automáticas del mes (${Math.round(pctCap * 100)}% del límite del plan).`,
+      detalle: `${h.facturasMes} de ${cap} facturas automáticas del mes (${Math.round(pctCap * 100)}% del límite del plan).`, // no-es-plata: porcentaje
       accion: "Ampliar el límite de facturas automáticas del plan antes de que frene la emisión automática.",
       resuelve: { quien: "estudio", ruta: "/admin/facturacion/bancos/configuracion" },
     });

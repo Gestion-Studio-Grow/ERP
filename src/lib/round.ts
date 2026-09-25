@@ -1,20 +1,15 @@
 /**
- * Redondeo a 2 decimales (pesos) — regla ÚNICA del camino de dinero de TODO el sistema
- * (POS/caja/compras + FISCAL). Fuente de verdad única del redondeo de plata.
+ * `round2`: el importe redondeado al centavo, con LA regla de la plata del sistema
+ * (`src/lib/dinero/redondeo.ts`, ENG-109 y ADR-100 §3, que deroga ADR-057 §2).
  *
- * Antes había 4 copias idénticas de `round2` (caja, order-core, purchase-core, wa-intent) + una
- * variante distinta en `fiscal.ts` (`redondear`). Ambas se unificaron acá (dedup + R4 cerrado).
+ * Medio centavo hacia arriba, lejos del cero, y un `number` vale lo que dicen sus
+ * 15 cifras significativas: 1,005 → 1,01; 2,135 → 2,14; −2,675 → −2,68.
+ * La versión anterior sumaba un épsilon de máquina antes de multiplicar por 100 y
+ * bajaba 587.189 de los 10.000.000 de x,xx5 entre $0 y $100.000 (2,135 daba 2,13).
  *
- * ✅ R4 resuelto (ADR-057): esta es la variante EPSILON-safe
- * `Math.round((n + Number.EPSILON) * 100) / 100`, que corrige la frontera binaria de x.xx5
- * (p. ej. 1.005 → 1.01, 1.015 → 1.02, en vez de caer por debajo). Es el redondeo comercial/AFIP
- * "medio hacia arriba" y ahora rige también el POS (cambio de comportamiento en el medio centavo,
- * ASUMIDO a propósito: antes el POS y la factura redondeaban distinto). Ver
- * `docs/adr/ADR-057-representacion-de-dinero-decimal-vs-float-y-redondeo.md`.
+ * Queda con la misma firma para sus llamadas de hoy; el código nuevo usa el módulo.
  *
- * Nota: `round3` (cantidades en kg del ledger de stock) vive en `stock/ledger.ts` — no es dinero y
- * no se toca acá.
+ * Nota: `round3` (cantidades en kg del ledger de stock) vive en `stock/ledger.ts` — no es
+ * dinero y no se toca acá.
  */
-export function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
+export { redondearAlCentavo as round2 } from "@/lib/dinero/redondeo";

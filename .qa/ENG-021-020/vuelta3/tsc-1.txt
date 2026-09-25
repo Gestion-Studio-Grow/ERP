@@ -1,0 +1,2 @@
+src/lib/arca-dispatch-postgres.test.ts(214,23): error TS2554: Expected 4 arguments, but got 3.
+src/lib/facturar-venta-rechazada-postgres.test.ts(48,9): error TS2554: Expected 4 arguments, but got 3.

@@ -13,6 +13,7 @@
 //     reservado. Un saldo dado de baja ("CONDONACION:") baja la deuda pero NO es plata que
 //     entró: se separa con `desglosarCobros`, la misma regla de la fila del turno.
 
+import { redondearAlCentavo, sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { esCuentaACobrar, estadoCobroTurno, type CobroTurno, type PagoLegado } from "@/lib/turnos/cobros";
 import { desglosarCobros } from "@/lib/turnos/anulacion";
 import { esVentaACuenta } from "@/lib/venta-reglas";
@@ -100,9 +101,9 @@ export function resumirFicha(input: {
     proximoTurno,
     ultimaVisita,
     faltazos,
-    saldoTurnos: Math.round(saldoTurnos * 100) / 100,
-    saldoFiado: input.fiado === null ? null : Math.round(input.fiado.reduce((s, f) => s + f.saldo, 0) * 100) / 100,
-    gastadoAnio: Math.round(gastadoAnio * 100) / 100,
+    saldoTurnos: redondearAlCentavo(saldoTurnos),
+    saldoFiado: input.fiado === null ? null : sumarAlCentavo(input.fiado.map((f) => f.saldo)),
+    gastadoAnio: redondearAlCentavo(gastadoAnio),
     visitas,
     pedidos: input.pedidos.filter((p) => p.status !== "CANCELLED").length,
   };

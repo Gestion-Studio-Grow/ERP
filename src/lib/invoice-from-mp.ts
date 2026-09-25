@@ -10,7 +10,7 @@
 
 import { createInvoice } from "@/lib/invoice-core";
 import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
-import { processArcaOutbox } from "@/lib/arca-dispatch";
+import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
 import type { PagoMP } from "@/plugins/mercadopago";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 
@@ -26,10 +26,10 @@ const DOC_CONSUMIDOR_FINAL = 99;
 export interface DepsFacturarPagoMP {
   getFiscalProfile: typeof getFiscalProfile;
   createInvoice: typeof createInvoice;
-  processArcaOutbox: typeof processArcaOutbox;
+  procesarEnviosDelNegocio: typeof procesarEnviosDelNegocio;
 }
 
-const DEPS: DepsFacturarPagoMP = { getFiscalProfile, createInvoice, processArcaOutbox };
+const DEPS: DepsFacturarPagoMP = { getFiscalProfile, createInvoice, procesarEnviosDelNegocio };
 
 /**
  * Crea la Factura C de un pago MP y la despacha al plugin ARCA (tick del
@@ -66,6 +66,6 @@ export async function facturarPagoMP(
     origin: { type: "MP_PAYMENT", id: pago.id },
   });
 
-  await deps.processArcaOutbox();
+  await deps.procesarEnviosDelNegocio(tenantId);
   return invoiceId;
 }

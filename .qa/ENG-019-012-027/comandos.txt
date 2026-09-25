@@ -1,0 +1,11 @@
+# ENG-019 + ENG-012 + ENG-027 — comandos (2026-09-25), en /home/user/erp
+node --import tsx --test src/lib/arca-envios-concurrencia-postgres.test.ts src/lib/arca-envios-por-negocio-postgres.test.ts src/lib/arca-procesador-sin-operador-postgres.test.ts src/lib/arca-dispatch-postgres.test.ts src/lib/arca-dispatch.test.ts src/lib/libros/facturadores-fecha.test.ts   # x3 -> tests-vuelta{1,2,3}.txt (42/42 cada una)
+npx tsc --noEmit -p .            -> tsc.txt (vacío, rc 0)
+npx eslint --max-warnings=0 <16 archivos tocados> -> eslint.txt (vacío, rc 0)
+npm test                         -> npm-test.txt (3867 tests, 6 rojos ajenos: xlsx x4, src/design/hoja.test.ts, redondeos-locales por CajaRenglon.tsx:51 y LocalesRenglon.tsx:52 del rediseño)
+Mutaciones (código restaurado después, cmp OK):
+  M1 sin candado por negocio ni control de reservas vigentes -> mut-M1.txt: 4 procesos, 7 fallidos (10016)
+  M2 sin condición de reserva libre -> mut-M2.txt: 4 tests rojos (2 de concurrencia, 2 de despacho)
+  M3 sin verificarAccesoDelOperador -> mut-M3.txt: test ENG-027 rojo
+  M4 procesarEnviosDelNegocio barriendo con el operador -> mut-M4.txt: 2 tests ENG-012 rojos
+grep processArcaOutbox (sin tests) -> criterio-eng012-grep.txt

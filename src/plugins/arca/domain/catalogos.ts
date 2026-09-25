@@ -21,6 +21,8 @@ export enum TipoComprobante {
 export enum TipoDocumento {
   CUIT = 80,
   CUIL = 86,
+  /** Clave de Identificación (extranjeros sin CUIT/CUIL). */
+  CDI = 87,
   DNI = 96,
   /** Consumidor final sin identificar. */
   ConsumidorFinal = 99,
@@ -63,8 +65,12 @@ export enum CondicionIvaReceptorId {
   ConsumidorFinal = 5,
   ResponsableMonotributo = 6,
   SujetoNoCategorizado = 7,
+  ProveedorExterior = 8,
+  ClienteExterior = 9,
+  IvaLiberadoLey19640 = 10,
   MonotributistaSocial = 13,
   IvaNoAlcanzado = 15,
+  MonotributistaPromovido = 16,
 }
 
 /** Mapea la condición de IVA del dominio al código ARCA del receptor (RG 5616). */
@@ -103,10 +109,14 @@ export function conceptoRequiereFechasServicio(c: Concepto): boolean {
 }
 
 /**
- * Tipo de FACTURA que corresponde según la condición del emisor y el receptor.
- * Mapeo a la catalogación de ARCA (por eso vive en el plugin):
+ * Letra de la FACTURA según la condición del emisor y el receptor (RG 1415 y RG 5003/2021):
  *  - Monotributo / Exento  → Factura C.
- *  - Responsable Inscripto → A si el receptor es RI; B en caso contrario.
+ *  - Responsable Inscripto → A si el receptor es Responsable Inscripto o monotributista (este
+ *    último con la leyenda de la Ley 27.618); B en el resto.
+ * El armado del comprobante NO usa esta tabla: toma el tipo de la decisión fiscal única
+ * (`decidirDelEvento` → src/lib/fiscal/decidir-comprobante.ts), que además mira el régimen de la
+ * A, la identificación y las fechas. Queda como referencia rápida, y un test la cruza con la
+ * decisión caso por caso para que no se separen.
  */
 export function tipoFacturaCorrespondiente(
   emisor: CondicionIva,
@@ -117,7 +127,8 @@ export function tipoFacturaCorrespondiente(
     case CondicionIva.Exento:
       return TipoComprobante.FacturaC;
     case CondicionIva.ResponsableInscripto:
-      return receptor === CondicionIva.ResponsableInscripto
+      return receptor === CondicionIva.ResponsableInscripto ||
+        receptor === CondicionIva.Monotributo
         ? TipoComprobante.FacturaA
         : TipoComprobante.FacturaB;
     default:

@@ -1,0 +1,172 @@
+TAP version 13
+# Subtest: un comprobante B consistente pasa sin errores
+ok 1 - un comprobante B consistente pasa sin errores
+  ---
+  duration_ms: 2.445438
+  type: 'test'
+  ...
+# Subtest: un comprobante A con receptor CUIT identificado pasa
+ok 2 - un comprobante A con receptor CUIT identificado pasa
+  ---
+  duration_ms: 0.306772
+  type: 'test'
+  ...
+# Subtest: puntoVenta debe ser entero positivo
+ok 3 - puntoVenta debe ser entero positivo
+  ---
+  duration_ms: 0.55136
+  type: 'test'
+  ...
+# Subtest: fecha exige formato AAAAMMDD (8 dígitos)
+ok 4 - fecha exige formato AAAAMMDD (8 dígitos)
+  ---
+  duration_ms: 0.291233
+  type: 'test'
+  ...
+# Subtest: iva vacío es rechazado
+ok 5 - iva vacío es rechazado
+  ---
+  duration_ms: 0.234182
+  type: 'test'
+  ...
+# Subtest: total debe ser mayor a 0
+ok 6 - total debe ser mayor a 0
+  ---
+  duration_ms: 0.12924
+  type: 'test'
+  ...
+# Subtest: concepto Servicios exige servicioDesde/Hasta y vencimientoPago
+ok 7 - concepto Servicios exige servicioDesde/Hasta y vencimientoPago
+  ---
+  duration_ms: 0.176741
+  type: 'test'
+  ...
+# Subtest: concepto Servicios con las tres fechas presentes no marca esos errores
+ok 8 - concepto Servicios con las tres fechas presentes no marca esos errores
+  ---
+  duration_ms: 0.101608
+  type: 'test'
+  ...
+# Subtest: concepto ProductosYServicios también exige las fechas de servicio
+ok 9 - concepto ProductosYServicios también exige las fechas de servicio
+  ---
+  duration_ms: 0.199075
+  type: 'test'
+  ...
+# Subtest: concepto Productos NO exige fechas de servicio
+ok 10 - concepto Productos NO exige fechas de servicio
+  ---
+  duration_ms: 0.388195
+  type: 'test'
+  ...
+# Subtest: Factura A sin CUIT (docTipo != CUIT) es rechazada
+ok 11 - Factura A sin CUIT (docTipo != CUIT) es rechazada
+  ---
+  duration_ms: 0.134194
+  type: 'test'
+  ...
+# Subtest: Factura A con CUIT pero docNro <= 0 es rechazada
+ok 12 - Factura A con CUIT pero docNro <= 0 es rechazada
+  ---
+  duration_ms: 0.074478
+  type: 'test'
+  ...
+# Subtest: Nota de crédito A también exige CUIT (discrimina IVA)
+ok 13 - Nota de crédito A también exige CUIT (discrimina IVA)
+  ---
+  duration_ms: 0.060123
+  type: 'test'
+  ...
+# Subtest: Factura B con consumidor final NO exige CUIT
+ok 14 - Factura B con consumidor final NO exige CUIT
+  ---
+  duration_ms: 0.053471
+  type: 'test'
+  ...
+# Subtest: numero, si se informa, debe ser entero positivo
+ok 15 - numero, si se informa, debe ser entero positivo
+  ---
+  duration_ms: 0.095655
+  type: 'test'
+  ...
+# Subtest: numero ausente (undefined) es válido: lo resuelve el cliente contra ARCA
+ok 16 - numero ausente (undefined) es válido: lo resuelve el cliente contra ARCA
+  ---
+  duration_ms: 0.095015
+  type: 'test'
+  ...
+# Subtest: baseImponible negativa es rechazada
+ok 17 - baseImponible negativa es rechazada
+  ---
+  duration_ms: 0.082471
+  type: 'test'
+  ...
+# Subtest: alícuota de IVA desconocida es rechazada
+ok 18 - alícuota de IVA desconocida es rechazada
+  ---
+  duration_ms: 0.079165
+  type: 'test'
+  ...
+# Subtest: IVA inconsistente con la alícuota es rechazado (más allá de la tolerancia)
+ok 19 - IVA inconsistente con la alícuota es rechazado (más allá de la tolerancia)
+  ---
+  duration_ms: 0.12579
+  type: 'test'
+  ...
+# Subtest: IVA dentro de la tolerancia de redondeo (0.01) se acepta
+ok 20 - IVA dentro de la tolerancia de redondeo (0.01) se acepta
+  ---
+  duration_ms: 0.110728
+  type: 'test'
+  ...
+# Subtest: neto que no coincide con la suma de bases es rechazado
+ok 21 - neto que no coincide con la suma de bases es rechazado
+  ---
+  duration_ms: 0.073724
+  type: 'test'
+  ...
+# Subtest: total que no coincide con neto + IVA es rechazado
+ok 22 - total que no coincide con neto + IVA es rechazado
+  ---
+  duration_ms: 0.059229
+  type: 'test'
+  ...
+# Subtest: comprobante con varias alícuotas consistentes pasa
+ok 23 - comprobante con varias alícuotas consistentes pasa
+  ---
+  duration_ms: 0.056176
+  type: 'test'
+  ...
+# Subtest: alícuota 0% (base > 0, importe 0) es consistente
+ok 24 - alícuota 0% (base > 0, importe 0) es consistente
+  ---
+  duration_ms: 0.047626
+  type: 'test'
+  ...
+# Subtest: acumula todos los errores en una pasada (no corta en el primero)
+ok 25 - acumula todos los errores en una pasada (no corta en el primero)
+  ---
+  duration_ms: 0.064159
+  type: 'test'
+  ...
+# Subtest: un total, un neto o un importe de IVA que no es un número se rechaza acá, con mensaje
+ok 26 - un total, un neto o un importe de IVA que no es un número se rechaza acá, con mensaje
+  ---
+  duration_ms: 0.102563
+  type: 'test'
+  ...
+# Subtest: el mensaje de un descuadre muestra la suma con la regla única de redondeo
+ok 27 - el mensaje de un descuadre muestra la suma con la regla única de redondeo
+  ---
+  duration_ms: 0.266622
+  type: 'test'
+  ...
+1..27
+# tests 27
+# suites 0
+# pass 27
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 467.142499

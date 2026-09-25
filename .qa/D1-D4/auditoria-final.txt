@@ -1,0 +1,146 @@
+# Auditoría final del circuito fiscal D1-D4 — 2026-09-25T08:35:20+00:00
+# bases erp_test_ antes: 0
+# comando: node --import tsx --test src/lib/circuito-fiscal-auditoria-postgres.test.ts src/lib/arca-dispatch-postgres.test.ts src/lib/arca-envios-concurrencia-postgres.test.ts src/lib/arca-envios-por-negocio-postgres.test.ts src/lib/arca-procesador-sin-operador-postgres.test.ts src/lib/anular-venta-facturada-postgres.test.ts src/lib/comprobante-autorizado-inmutable-postgres.test.ts src/lib/facturar-venta-rechazada-postgres.test.ts src/lib/facturar-venta-anulada-postgres.test.ts src/lib/facturar-turno-con-cobro-anulado-postgres.test.ts src/lib/reintento-de-venta-postgres.test.ts src/lib/arca-dispatch.test.ts src/plugins/arca/afip/contrato-arca.test.ts src/plugins/arca/handler-decision.test.ts src/apps/paridad-menu.test.ts
+ok 1 - sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+ok 2 - Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+ok 3 - CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+ok 4 - diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+ok 5 - anularVenta: con factura autorizada o en camino se rechaza y el pedido no se anula; con la rechazada se anula; B no la toca
+ok 6 - anularCobroTurno: con factura autorizada del turno se rechaza y el cobro sigue en pie; rechazada la factura, se anula
+ok 7 - ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+ok 8 - ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 9 - ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 10 - ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 11 - ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 12 - ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 13 - ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 14 - ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 15 - ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+ok 16 - ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+ok 17 - aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+ok 18 - ENG-020 · dos ventas iguales a consumidor final: la que perdió el pedido no adopta el CAE de la otra; cada una con su número
+ok 19 - ENG-020/021 · la consulta del número anotado falla con un código desconocido: la factura sigue pendiente (no se rechaza) y un solo CAE
+ok 20 - ENG-021 · volver a facturar con un envío viejo sin cerrar (corte entre el rechazo y el cierre): un solo envío vivo, un CAE, y el CAE es el de los importes nuevos
+ok 21 - ENG-021 · un despacho viejo que obtiene el CAE DESPUÉS de que la venta se volvió a facturar no lo registra en la factura reabierta
+ok 22 - ENG-021 · un despacho viejo que recibe un rechazo DESPUÉS de que la venta se volvió a facturar no rechaza la factura reabierta
+ok 23 - ENG-021 · un envío que quedó abierto para una factura ya rechazada se cierra sin volver a pedirle nada a ARCA
+ok 24 - ENG-019 · mientras un despacho tiene el envío, otro no lo toma ni le pide nada a ARCA; ARCA termina con un CAE
+ok 25 - ENG-019 · un despacho que perdió la reserva (se colgó más que ella) no anota ni pide el CAE: lo hace el que la tomó
+ok 26 - clientePara: sin ARCA_MODO devuelve el stub aunque haya config del tenant
+ok 27 - clientePara: tenant sin config fiscal cae a un stub cuit:0 (inofensivo)
+ok 28 - clientePara: stub NO resuelve credencial (ni toca el store)
+ok 29 - clientePara: ARCA_MODO=real sin credencial cargada → propaga el error (no emite falso)
+ok 30 - 🔒 ADR-066: ARCA_MODO=real con credencial del CUIT correcto → SOAP real por tenant
+ok 31 - 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed en el factory)
+ok 32 - clientePara (stub): NO toca el store del TA
+ok 33 - clientePara (homologación): carga el TA persistido del tenant (ticketInicial)
+ok 34 - clientePara: en modo real, tenant sin CUIT válido LANZA (no despacha con cuit:0)
+ok 35 - clientePara: en modo homologación, tenant sin config fiscal también LANZA
+ok 36 - ENG-021 · el motivo que queda en el envío no filtra la estructura interna de un error de la base
+ok 37 - ENG-019 · 4 procesos a la vez sobre 12 pendientes de dos negocios, 3 series seguidas: 12 CAE por serie, ninguno de más, números de ARCA = base
+ok 38 - ENG-019 · 50 de 50 iteraciones: dos ventas simultáneas de A y una de B con tres despachos a la vez → 0 CAE de más, 0 rechazadas con CAE, números de ARCA = base
+ok 39 - ENG-019 · 20 envíos de A que fallan y 1 de B: B queda autorizada en la PRIMERA corrida
+ok 40 - ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan intactos y el resumen cuenta sólo los de A
+ok 41 - ENG-012 · la acción de A no toma un envío de B aunque sea el único pendiente (0 procesados, B sin intentos)
+ok 42 - ENG-027 · sin OPERATOR_DATABASE_URL (app_rls): el procesador lanza un error de configuración, el cron responde error y /api/ready 503; con el rol dueño procesa los dos negocios
+ok 43 - ENG-027 · con la facturación apagada /api/ready no mira el procesador (sigue 200 aunque falte el operador)
+ok 44 - ENG-027 · un rol que no es dueño ni tiene BYPASSRLS, puesto como OPERATOR_DATABASE_URL, también es error de configuración
+ok 45 - circuito · venta → factura → envío → CAE por el camino de la venta, y dos ventas facturadas a la vez: un CAE y un número cada una; el comprobante con CAE no se edita ni se borra desde la app
+ok 46 - ENG-020/021 · volver a facturar la venta A rechazada no cierra el envío abierto de la factura B del mismo negocio: A y B terminan autorizadas, un CAE cada una
+ok 47 - aislamiento · el negocio A no puede volver a facturar la venta rechazada del negocio B: error, y la factura de B no cambia ni gana envíos
+ok 48 - como app_rls, un comprobante con CAE: cambiarle un campo fiscal o borrarlo falla, y la fila no cambia
+ok 49 - el dueño de las tablas (sin RLS) tampoco puede editar ni borrar un comprobante con CAE
+ok 50 - sin CAE sigue permitido editar y borrar; el paso normal de pendiente a autorizada (código real) funciona
+ok 51 - con CAE: lo que no es fiscal sigue libre y borrar el pedido de origen deja la factura sin enlace
+ok 52 - con CAE: vaciar a mano el pedido o el turno falla, como app_rls y como dueño; la venta no se puede facturar dos veces
+ok 53 - la reversa saca la protección sin tocar filas y `prisma migrate deploy` la vuelve a poner
+ok 54 - anulación del cobro primero: la facturación del turno espera el bloqueo y termina sin factura
+ok 55 - se anula una parte del cobro mientras se factura: no sale la factura por el monto viejo; al volver a facturar, sale por lo cobrado
+ok 56 - facturación del turno primero: «Anular cobro» espera, ve la factura en camino y no anula
+ok 57 - facturar un pedido anulado no crea factura ni envío; con una rechazada, no la reabre
+ok 58 - anulación primero: «Facturar» espera el bloqueo del pedido y termina sin factura, con el motivo
+ok 59 - facturación primero: «Anular venta» espera, ve la factura en camino y no anula
+ok 60 - facturarVenta sobre una venta con factura rechazada: la misma factura se reabre y termina autorizada; B no la ve
+ok 61 - contra Postgres (app_rls + RLS): el reintento con una clave grabada se compara con lo grabado
+ok 62 - contrato · autoriza: CAE y número 1, y FECompConsultar devuelve ese mismo comprobante
+ok 63 - contrato · rechaza (Resultado R con una observación del comprobante): ArcaRechazoError, 0 CAE
+ok 64 - contrato · timeout ANTES de autorizar: pasajero y ARCA no tiene nada (consultar da null)
+ok 65 - contrato · timeout DESPUÉS de autorizar: pasajero, pero ARCA ya emitió el CAE del número 1
+ok 66 - contrato · respuesta cortada después de autorizar: pasajero, nunca rechazo
+ok 67 - contrato · WSAA caído (HTTP 503 con SOAP Fault): pasajero y no se llega a pedir el CAE
+ok 68 - contrato · WSAA sin red: pasajero
+ok 69 - contrato · WSAA contesta cortado (sin token): pasajero
+ok 70 - contrato · WSFEv1 caído (HTTP 503) al pedir el CAE: pasajero
+ok 71 - contrato · <Errors> 500 al pedir el CAE: pasajero con el código a la vista
+ok 72 - contrato · <Errors> 501 al pedir el CAE: pasajero con el código a la vista
+ok 73 - contrato · <Errors> 502 al pedir el CAE: pasajero con el código a la vista
+ok 74 - contrato · <Errors> 600 al pedir el CAE: pasajero con el código a la vista
+ok 75 - contrato · token que ARCA ya no reconoce: el simulador contesta 600 y es pasajero
+ok 76 - contrato · número que no es el próximo (10016): pasajero, 0 CAE
+ok 77 - contrato · FECompConsultar de un número que no existe (602): null, no error
+ok 78 - contrato · FECompConsultar sin respuesta a tiempo: lanza pasajero (no contesta "no existe")
+ok 79 - el importe de ARCA se lee a centavos sin float: "1210" → 121000, "0.1" → 10, "1.005" no se adopta
+ok 80 - el transporte real corta a los 15 s: a los 14,999 s sigue esperando, a los 15 s es pasajero
+ok 81 - ENG-020 · ARCA autoriza y la respuesta se pierde: el reintento registra el número 1 y no pide un 2
+ok 82 - ENG-020 · respuesta cortada después de autorizar: el reintento adopta el CAE, un solo comprobante
+ok 83 - ENG-020 · timeout ANTES de autorizar: el reintento consulta, no encuentra nada y pide el 1
+ok 84 - ENG-020 · si la consulta no contesta, NO se pide otro CAE (queda pendiente)
+ok 85 - ENG-020 · si el número anotado lo autorizó OTRO comprobante, no se adopta: se pide el siguiente
+ok 86 - ENG-020 · si no se pudo anotar el número, no se pide el CAE
+ok 87 - ENG-020 · el número se anota ANTES de pedir el CAE
+ok 88 - ENG-021 · con un 600 el despacho no registra nada y el reintento autoriza con el mismo número
+ok 89 - ENG-020 · ARCA dio el CAE pero no se pudo guardar: el reintento adopta ese CAE y no pide otro
+ok 90 - ENG-021 · FECompConsultar con el error 1000: pasajero, nunca rechazo (no se sabe si el número se usó)
+ok 91 - ENG-021 · FECompConsultar con el error 10015: pasajero, nunca rechazo (no se sabe si el número se usó)
+ok 92 - ENG-021 · FECompConsultar con el error 600: pasajero, nunca rechazo (no se sabe si el número se usó)
+ok 93 - ENG-020 · si la consulta del número anotado lanza un rechazo (cualquier cliente), sale pasajero y no se pide otro número
+ok 94 - ENG-020 · dos ventas iguales a consumidor final: si el número anotado ya está en OTRA factura, no se adopta y se pide el siguiente
+ok 95 - ENG-020 · el mismo comprobante idéntico, sin otra factura que lo tenga: se adopta (la respuesta se había perdido)
+ok 96 - ENG-020 · esElMismoComprobante: cada dato que viaja a ARCA, si difiere, hace que NO se adopte
+ok 97 - ENG-020 · con número anotado se consulta ANTES de validar: si ARCA ya lo autorizó, se registra aunque la validación de hoy lo objete
+ok 98 - contrato · FECompUltimoAutorizado caído (HTTP 503): pasajero y no se pide el CAE
+ok 99 - contrato · FECAESolicitar sin red: pasajero, 0 CAE, y el reintento autoriza el mismo número
+ok 100 - ENG-020 · ARCA autoriza TARDE (después de la consulta del reintento): no se pide otro número; el reintento siguiente adopta el mismo y queda 1 CAE
+ok 101 - ENG-020 · autorizarSinDuplicar: número anotado que da 602 pero ya es menor o igual al último autorizado → pasajero, sin pedir otro
+ok 102 - ENG-020 · número anotado que da 602 y sigue por encima del último autorizado: el pedido no había llegado, se pide ese mismo número
+ok 103 - contrato · FECompConsultar caido: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+ok 104 - contrato · FECompConsultar sin-red: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+ok 105 - contrato · FECompConsultar respuesta-cortada: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+ok 106 - contrato · FECompConsultar timeout-antes: pasajero; con la respuesta perdida no se pide otro CAE y el reintento adopta
+ok 107 - contrato · FECompUltimoAutorizado <Errors> 600: pasajero, no se anota ni se pide el CAE
+ok 108 - contrato · FECompUltimoAutorizado <Errors> 501: pasajero, no se anota ni se pide el CAE
+ok 109 - contrato · FECompUltimoAutorizado timeout-antes: pasajero, no se anota ni se pide el CAE
+ok 110 - contrato · FECompUltimoAutorizado respuesta-cortada: pasajero, no se anota ni se pide el CAE
+ok 111 - contrato · FECompUltimoAutorizado sin-red: pasajero, no se anota ni se pide el CAE
+ok 112 - responsable inscripto a monotributista: el despacho pide y registra una Factura A (antes salía B)
+ok 113 - fecha del comprobante fuera de la ventana de ARCA: se rechaza con el motivo y no se le pide nada a ARCA
+ok 114 - responsable inscripto sin la clase A cargada: no sale una A sola, se rechaza con el motivo y sin llamar a ARCA
+ok 115 - servicios sin período: no se inventa con la fecha de la factura, se rechaza sin llamar a ARCA
+# tests 115
+# suites 0
+# pass 115
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 25383.555832
+# bases erp_test_ después: 0
+
+# --- Mutación (invoice-core.ts:237, filtro payload.invoiceId del cierre de envíos al volver a facturar) ---
+# Se comentó la línea 237 en el árbol, se corrió sólo el test "ENG-020/021 · volver a facturar la venta A...",
+# y se restauró el archivo (md5 antes y después: ad8a66c97ad72742501969b9525e8a1e).
+# tests 1
+# pass 0
+# fail 1
+# motivo de la falla: "el envío de B sigue abierto" (AssertionError) → la mutación ya NO sobrevive.
+
+# --- Repetición del archivo nuevo (5 corridas seguidas) ---
+corrida 1: # pass 3 # fail 0 
+corrida 2: # pass 3 # fail 0 
+corrida 3: # pass 3 # fail 0 
+corrida 4: # pass 3 # fail 0 
+corrida 5: # pass 3 # fail 0 
+
+# --- tsc / eslint ---
+# npx tsc --noEmit -p . → exit 0, 0 errores
+# npx eslint --max-warnings=0 src/lib/circuito-fiscal-auditoria-postgres.test.ts → exit 0

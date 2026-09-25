@@ -20,6 +20,7 @@ import {
   TipoComprobante,
 } from "../src/plugins/arca/domain/catalogos";
 import type { InvoiceCreatedEvent } from "../src/plugins/arca/core-contract";
+import { fechaFiscalDelDia } from "../src/lib/libros/fecha-fiscal";
 
 const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -63,6 +64,10 @@ async function main() {
     registrar: async (doc) => {
       registrados.push(doc);
     },
+    // Demo de una sola pasada: no hay reintento que necesite el número anotado (ENG-020).
+    anotarIntento: async () => {},
+    numeroUsadoPorOtraFactura: async () => false,
+    fechaDeEnvio: () => fechaFiscalDelDia(),
   });
 
   const tipoNombre = TipoComprobante[cae.tipo] ?? `Tipo ${cae.tipo}`;

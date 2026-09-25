@@ -1,0 +1,6 @@
+
+> estetica-erp@0.1.0 test
+> node --import tsx --test "src/**/*.test.ts"
+
+Could not find '/home/user/erp/src/**/*.test.ts'
+salida=1

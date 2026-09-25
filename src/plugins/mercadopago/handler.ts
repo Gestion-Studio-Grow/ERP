@@ -18,7 +18,7 @@
 
 import { MercadoPagoClient } from "./port";
 import {
-  pedidoDeReferencia,
+  duenoDelCobro,
   type CobrarPedidoPorPago,
   type FacturarPorPago,
   type NotificacionPagoMP,
@@ -64,14 +64,17 @@ export async function procesarNotificacionPago(
     return { procesado: true, facturado: false, invoiceId: null, motivo: `estado ${pago.estado}` };
   }
 
-  if (!pago.externalReference) {
+  // La misma lectura de la referencia que la ingesta de ventas sueltas (core-contract.ts): un
+  // cobro, un solo camino de factura.
+  const dueno = duenoDelCobro(pago.externalReference);
+  if (!dueno) {
     return { procesado: true, facturado: false, invoiceId: null, motivo: "pago sin external_reference (appointmentId)" };
   }
 
   // El link de un pedido: se cobra el pedido, con el monto que Mercado Pago dice que se pagó
   // (el Core lo compara con el total del pedido en la base antes de cobrar).
-  const orderId = pedidoDeReferencia(pago.externalReference);
-  if (orderId) {
+  if (dueno.tipo === "pedido") {
+    const orderId = dueno.id;
     if (!deps.cobrarPedido) {
       return { procesado: true, facturado: false, invoiceId: null, motivo: "pago de pedido: el cobro de pedidos no está conectado" };
     }
@@ -90,6 +93,6 @@ export async function procesarNotificacionPago(
     };
   }
 
-  const invoiceId = await deps.facturar(pago.externalReference, notif.tenantId);
+  const invoiceId = await deps.facturar(dueno.id, notif.tenantId);
   return { procesado: true, facturado: invoiceId != null, invoiceId };
 }

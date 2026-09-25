@@ -14,9 +14,9 @@
  */
 
 import type { SubtotalIva } from "@/lib/invoice-core";
-// Redondeo de dinero UNIFICADO (R4 cerrado, ADR-057): fiscal y POS comparten la misma
-// regla EPSILON-safe. `redondear` es el alias con nombre del dominio fiscal.
-import { round2 as redondear } from "@/lib/round";
+// La regla única de redondeo de la plata (ENG-109, ADR-100 §3): la misma que usa el plugin
+// ARCA para escribir los importes. `redondear` es el alias con nombre del dominio fiscal.
+import { redondearAlCentavo as redondear } from "@/lib/dinero/redondeo";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 // Validador ÚNICO de CUIT del repo (dígito verificador + prefijo de tipo). Vive

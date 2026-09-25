@@ -250,8 +250,8 @@ test("el alta y la edición leen TODO el formulario antes de escribir", () => {
 // componentes REALES con esbuild (sólo la Server Action se reemplaza por una que guarda el
 // FormData, y `next/link` por un `<a>`) y se tipea en Chromium.
 //
-// Sin Chromium o sin esbuild (el job `tests` del CI no instala navegadores) se saltea y lo
-// dice; donde están (este contenedor, /opt/pw-browsers), corre.
+// Sin Chromium o sin esbuild se saltea y lo dice; donde están (este contenedor,
+// /opt/pw-browsers; el job `tests` del CI, que lo instala desde ENG-000), corre.
 
 const RAIZ = fileURLToPath(new URL("../../../", import.meta.url));
 

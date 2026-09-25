@@ -14,7 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Prisma } from "@/generated/prisma/client";
-import { createInvoiceInTx, type CreateInvoiceInput, type InvoiceTx } from "./invoice-core";
+import { CobroDelTurnoCambioError, createInvoiceInTx, VentaAnuladaError, type CreateInvoiceInput, type InvoiceTx } from "./invoice-core";
 
 // --- Doble de test: store en memoria con la guarda UNIQUE (tenantId, orderId/appointmentId). ---
 
@@ -24,6 +24,7 @@ interface StoredInvoice {
   orderId: string | null;
   appointmentId: string | null;
   mpPaymentId: string | null; // A-6 — origen MP_PAYMENT
+  iva?: number;
 }
 
 function makeMockTx() {
@@ -38,7 +39,25 @@ function makeMockTx() {
     );
   }
 
+  // Pedidos anulados del doble. `createInvoiceInTx` toma la fila del pedido con SQL crudo
+  // (FOR SHARE, ENG-023); el doble contesta su estado. El bloqueo real se prueba contra Postgres
+  // en facturar-venta-anulada-postgres.test.ts.
+  const anulados = new Set<string>();
+  // Turnos: la facturación escribe la fila del turno y relee su cobro (`Payment.amount`,
+  // ENG-023). El doble contesta el cobro de cada turno; sin cobro cargado, el turno no tiene
+  // `Payment`. La carrera real se prueba en facturar-turno-con-cobro-anulado-postgres.test.ts.
+  const cobroDelTurno = new Map<string, number>();
   const tx = {
+    $queryRaw: async (sql: TemplateStringsArray, ...valores: unknown[]) => {
+      const texto = sql.join("?");
+      if (texto.includes('UPDATE "Appointment"')) return [{ id: String(valores[0]) }];
+      if (texto.includes('FROM "Payment"')) {
+        const cobro = cobroDelTurno.get(String(valores[0]));
+        return cobro === undefined ? [] : [{ amount: cobro }];
+      }
+      const orderId = String(valores[0]);
+      return [{ status: anulados.has(orderId) ? "CANCELLED" : "DELIVERED" }];
+    },
     invoice: {
       findFirst: async (args: {
         where: { tenantId: string; orderId?: string; appointmentId?: string; mpPaymentId?: string };
@@ -56,7 +75,7 @@ function makeMockTx() {
         return found ? { id: found.id } : null;
       },
       create: async (args: {
-        data: { tenantId: string; orderId?: string; appointmentId?: string; mpPaymentId?: string };
+        data: { tenantId: string; orderId?: string; appointmentId?: string; mpPaymentId?: string; iva?: number };
       }) => {
         const d = args.data;
         const orderId = d.orderId ?? null;
@@ -78,7 +97,7 @@ function makeMockTx() {
         ) {
           throw p2002("Invoice_tenantId_mpPaymentId_key");
         }
-        const inv: StoredInvoice = { id: `inv_${++seq}`, tenantId: d.tenantId, orderId, appointmentId, mpPaymentId };
+        const inv: StoredInvoice = { id: `inv_${++seq}`, tenantId: d.tenantId, orderId, appointmentId, mpPaymentId, iva: d.iva };
         invoices.push(inv);
         return { id: inv.id };
       },
@@ -91,7 +110,7 @@ function makeMockTx() {
     },
   };
 
-  return { tx: tx as unknown as InvoiceTx, mock: tx, invoices, outbox };
+  return { tx: tx as unknown as InvoiceTx, mock: tx, invoices, outbox, anulados, cobroDelTurno };
 }
 
 function baseInput(overrides: Partial<CreateInvoiceInput> = {}): CreateInvoiceInput {
@@ -107,6 +126,25 @@ function baseInput(overrides: Partial<CreateInvoiceInput> = {}): CreateInvoiceIn
     ...overrides,
   };
 }
+
+// --- El IVA del comprobante es la suma de los renglones tal como viajan a ARCA (ENG-109). ---
+
+test("el IVA guardado suma cada renglón al centavo, como el ImpIVA que viaja: 1,005 + 1,005 = 2,02", async () => {
+  const { tx, invoices } = makeMockTx();
+  await createInvoiceInTx(
+    tx,
+    baseInput({
+      neto: 20,
+      iva: [
+        { alicuotaId: 5, base: 10, importe: 1.005 },
+        { alicuotaId: 4, base: 10, importe: 1.005 },
+      ],
+      total: 22.02,
+    }),
+  );
+  // Redondear la suma (2,01) dejaría el libro IVA un centavo distinto de lo informado a ARCA.
+  assert.equal(invoices[0]?.iva, 2.02);
+});
 
 // --- Idempotencia SECUENCIAL (reintento) sobre la orquestación real. ---
 
@@ -139,6 +177,46 @@ test("I2 · ventas DISTINTAS generan comprobantes distintos", async () => {
   const idB = await createInvoiceInTx(tx, baseInput({ origin: { type: "ORDER", id: "ord_B" } }));
 
   assert.notEqual(idA, idB);
+  assert.equal(invoices.length, 2);
+});
+
+test("ENG-023 · un pedido anulado no se factura: lanza VentaAnuladaError y no crea factura ni envío", async () => {
+  const { tx, invoices, outbox, anulados } = makeMockTx();
+  anulados.add("ord_anulado");
+  await assert.rejects(
+    createInvoiceInTx(tx, baseInput({ origin: { type: "ORDER", id: "ord_anulado" } })),
+    VentaAnuladaError,
+  );
+  assert.equal(invoices.length, 0);
+  assert.equal(outbox.length, 0);
+});
+
+test("ENG-023 · un turno con el cobro anulado no se factura: no crea factura ni envío", async () => {
+  const { tx, invoices, outbox, cobroDelTurno } = makeMockTx();
+  cobroDelTurno.set("apt_devuelto", 0);
+  await assert.rejects(
+    createInvoiceInTx(tx, baseInput({ concepto: 2, origin: { type: "APPOINTMENT", id: "apt_devuelto" } })),
+    (e: unknown) => e instanceof CobroDelTurnoCambioError && /anulado/.test(e.message),
+  );
+  assert.equal(invoices.length, 0);
+  assert.equal(outbox.length, 0);
+});
+
+test("ENG-023 · un turno cuyo cobro ya no es el total del comprobante no se factura con el monto viejo", async () => {
+  const { tx, invoices, cobroDelTurno } = makeMockTx();
+  cobroDelTurno.set("apt_parcial", 1000); // el comprobante se armó por 1.210
+  await assert.rejects(
+    createInvoiceInTx(tx, baseInput({ concepto: 2, origin: { type: "APPOINTMENT", id: "apt_parcial" } })),
+    (e: unknown) => e instanceof CobroDelTurnoCambioError && /cambió/.test(e.message),
+  );
+  assert.equal(invoices.length, 0);
+});
+
+test("ENG-023 · un turno con el mismo cobro que el total, o sin cobros (precio de lista), se factura", async () => {
+  const { tx, invoices, cobroDelTurno } = makeMockTx();
+  cobroDelTurno.set("apt_cobrado", 1210);
+  await createInvoiceInTx(tx, baseInput({ concepto: 2, origin: { type: "APPOINTMENT", id: "apt_cobrado" } }));
+  await createInvoiceInTx(tx, baseInput({ concepto: 2, origin: { type: "APPOINTMENT", id: "apt_sin_cobro" } }));
   assert.equal(invoices.length, 2);
 });
 

@@ -1,0 +1,44 @@
+# Resumen de la salida de npm test (TAP), corrida final después del último cambio. Comando en comandos.txt.
+# tests 3527
+# suites 24
+# pass 3513
+# fail 14
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 95540.518908
+# Fallas (todas previas y ajenas: Caja en el navegador x8, pies pegados x2, xlsx x4):
+not ok 1 - cierre del día entero con el teclado: contar, anotar la diferencia, revisar, Escape, confirmar
+not ok 2 - cierre: sin efectivo, Enter lleva al efectivo y lo dice; lo ilegible se marca en su campo
+not ok 3 - cierre: se corta la señal al confirmar → lo contado queda y se dice cómo saber si se cerró
+not ok 4 - cerrar el turno de cajero pide confirmación con el faltante; Enter confirma
+not ok 5 - abrir la caja sin señal: se dice qué pasó y el fondo tipeado queda
+not ok 6 - libro: sin señal al guardar, lo cargado queda y se dice cómo saber si se guardó
+not ok 7 - libro vacío: «Cargar un movimiento» deja el foco en el Detalle, listo para tipear
+not ok 8 - 412 px con el CSS real: el cierre entra sin scroll horizontal y sus botones son de 44 px
+not ok 57 - Caja en el navegador
+not ok 1 - Vender, con la barra de espacios: el pie no vuelve a sumar la zona segura
+not ok 2 - Vender, sin barra (fuera del piloto): el pie deja la zona segura una vez
+not ok 223 - Pies pegados en el iPhone: la zona segura una sola vez
+not ok 3238 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+not ok 3261 - lee un xlsx con fechas Date y números number
+not ok 3262 - filas totalmente vacías se descartan
+not ok 3263 - esXlsx reconoce el magic ZIP de un .xlsx real
+# Tests que corren contra su base efímera:
+ok 538 - contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, aislar y apagar
+ok 2149 - contra Postgres (app_rls + RLS): el BEGIN junto al negocio no afloja el aislamiento
+ok 2287 - contra Postgres (app_rls + RLS): el reintento con una clave grabada se compara con lo grabado
+ok 2396 - el seed con el rol dueño recarga sólo el negocio de muestra: los otros negocios quedan igual
+ok 2709 - getCurrentTenantId: en producción con la base real (>1 tenant) el pin LANZA
+ok 2710 - getCurrentTenantId: fuera de producción el pin SIGUE funcionando (dev/scripts intactos)
+ok 2837 - lote: una migración de más en la rama frena
+ok 2838 - lote: base al día → nada pendiente → sigue
+ok 2842 - preview contra una base con el negocio vivo → bloqueado
+ok 2843 - preview contra una base de QA sin negocios reales → atiende
+ok 2844 - basta UNA de las dos cadenas apuntando a producción para bloquear (la consola usa la otra)
+ok 3358 - contra Postgres (app_rls + RLS): con la sesión de A, una acción de lectura real devuelve sólo filas de A
+ok 3364 - contra Postgres: la base sale migrada, con RLS para app_rls, A y B separados, y se borra
+ok 3365 - contra Postgres: la base de un proceso muerto se barre; la de uno vivo, no
+real	1m35.735s
+user	3m23.247s
+sys	0m38.463s

@@ -1,0 +1,190 @@
+TAP version 13
+# Subtest: escaparXml / desescaparXml son inversas para caracteres especiales
+ok 1 - escaparXml / desescaparXml son inversas para caracteres especiales
+  ---
+  duration_ms: 1.021355
+  type: 'test'
+  ...
+# Subtest: extraerTag ignora prefijo de namespace y atributos
+ok 2 - extraerTag ignora prefijo de namespace y atributos
+  ---
+  duration_ms: 0.735246
+  type: 'test'
+  ...
+# Subtest: extraerTags devuelve todas las ocurrencias
+ok 3 - extraerTags devuelve todas las ocurrencias
+  ---
+  duration_ms: 0.433625
+  type: 'test'
+  ...
+# Subtest: endpointsPara elige homologación o producción según config
+ok 4 - endpointsPara elige homologación o producción según config
+  ---
+  duration_ms: 0.917073
+  type: 'test'
+  ...
+# Subtest: armarLoginTicketRequest incluye header, service y ventana temporal
+ok 5 - armarLoginTicketRequest incluye header, service y ventana temporal
+  ---
+  duration_ms: 0.713604
+  type: 'test'
+  ...
+# Subtest: parsearLoginTicketResponse desescapa y extrae token/sign/expiration
+ok 6 - parsearLoginTicketResponse desescapa y extrae token/sign/expiration
+  ---
+  duration_ms: 0.718759
+  type: 'test'
+  ...
+# Subtest: parsearLoginTicketResponse falla si falta token
+ok 7 - parsearLoginTicketResponse falla si falta token
+  ---
+  duration_ms: 0.994431
+  type: 'test'
+  ...
+# Subtest: ticketVigente respeta expiration y margen
+ok 8 - ticketVigente respeta expiration y margen
+  ---
+  duration_ms: 0.188741
+  type: 'test'
+  ...
+# Subtest: armarUltimoAutorizadoRequest arma Auth + PtoVta + CbteTipo
+ok 9 - armarUltimoAutorizadoRequest arma Auth + PtoVta + CbteTipo
+  ---
+  duration_ms: 0.309516
+  type: 'test'
+  ...
+# Subtest: parsearUltimoAutorizadoResponse devuelve el CbteNro
+ok 10 - parsearUltimoAutorizadoResponse devuelve el CbteNro
+  ---
+  duration_ms: 0.626228
+  type: 'test'
+  ...
+# Subtest: parsearUltimoAutorizadoResponse lanza ArcaRechazoError ante <Errors>
+ok 11 - parsearUltimoAutorizadoResponse lanza ArcaRechazoError ante <Errors>
+  ---
+  duration_ms: 0.882925
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest (Factura A) discrimina IVA y arma AlicIva
+ok 12 - armarFECAESolicitarRequest (Factura A) discrimina IVA y arma AlicIva
+  ---
+  duration_ms: 0.473113
+  type: 'test'
+  ...
+# Subtest: los importes viajan con la regla única de redondeo: 2,675 → 2.68 y 3,235 → 3.24 (no 2.67 ni 3.23)
+ok 13 - los importes viajan con la regla única de redondeo: 2,675 → 2.68 y 3,235 → 3.24 (no 2.67 ni 3.23)
+  ---
+  duration_ms: 0.361719
+  type: 'test'
+  ...
+# Subtest: ImpIVA es la suma exacta de los AlicIva que viajan: 1,005 + 1,005 → 1.01 + 1.01 = 2.02
+ok 14 - ImpIVA es la suma exacta de los AlicIva que viajan: 1,005 + 1,005 → 1.01 + 1.01 = 2.02
+  ---
+  duration_ms: 0.577556
+  type: 'test'
+  ...
+# Subtest: ImpIVA = Σ AlicIva.Importe en 20.000 comprobantes al azar de 1 a 3 alícuotas con milésimos
+ok 15 - ImpIVA = Σ AlicIva.Importe en 20.000 comprobantes al azar de 1 a 3 alícuotas con milésimos
+  ---
+  duration_ms: 179.423912
+  type: 'test'
+  ...
+# Subtest: un monto que no es un número no se manda a ARCA: el armado tira antes de escribir "NaN"
+ok 16 - un monto que no es un número no se manda a ARCA: el armado tira antes de escribir "NaN"
+  ---
+  duration_ms: 0.351756
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest (Factura C) NO discrimina IVA ni manda <Iva>, y arma fechas de servicio
+ok 17 - armarFECAESolicitarRequest (Factura C) NO discrimina IVA ni manda <Iva>, y arma fechas de servicio
+  ---
+  duration_ms: 0.249927
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest emite CondicionIVAReceptorId (RG 5616) tras MonCotiz
+ok 18 - armarFECAESolicitarRequest emite CondicionIVAReceptorId (RG 5616) tras MonCotiz
+  ---
+  duration_ms: 0.101889
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest usa el CondicionIVAReceptorId del comprobante si viene
+ok 19 - armarFECAESolicitarRequest usa el CondicionIVAReceptorId del comprobante si viene
+  ---
+  duration_ms: 0.114783
+  type: 'test'
+  ...
+# Subtest: parsearFECAESolicitarResponse OK devuelve ResultadoCae con CAE y número autorizado
+ok 20 - parsearFECAESolicitarResponse OK devuelve ResultadoCae con CAE y número autorizado
+  ---
+  duration_ms: 0.862992
+  type: 'test'
+  ...
+# Subtest: parsearFECAESolicitarResponse rechazo (Resultado=R) lanza ArcaRechazoError con observaciones
+ok 21 - parsearFECAESolicitarResponse rechazo (Resultado=R) lanza ArcaRechazoError con observaciones
+  ---
+  duration_ms: 0.578944
+  type: 'test'
+  ...
+# Subtest: parsearFECAESolicitarResponse mapea <Errors> a ArcaRechazoError
+ok 22 - parsearFECAESolicitarResponse mapea <Errors> a ArcaRechazoError
+  ---
+  duration_ms: 0.165062
+  type: 'test'
+  ...
+# Subtest: parsearObservaciones extrae code + msg de cada <Obs>
+ok 23 - parsearObservaciones extrae code + msg de cada <Obs>
+  ---
+  duration_ms: 0.162882
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient.ultimoAutorizado autentica una vez y golpea WSFEv1
+ok 24 - SoapAfipClient.ultimoAutorizado autentica una vez y golpea WSFEv1
+  ---
+  duration_ms: 0.443313
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient.solicitarCae resuelve numeración (ultimo+1) y devuelve el CAE
+ok 25 - SoapAfipClient.solicitarCae resuelve numeración (ultimo+1) y devuelve el CAE
+  ---
+  duration_ms: 0.719614
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient cachea el ticket: no reautentica en la 2da operación
+ok 26 - SoapAfipClient cachea el ticket: no reautentica en la 2da operación
+  ---
+  duration_ms: 0.292296
+  type: 'test'
+  ...
+# Subtest: El signer por defecto exige credencial (acción humana)
+ok 27 - El signer por defecto exige credencial (acción humana)
+  ---
+  duration_ms: 0.265156
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest (Factura B) SÍ informa IVA (ImpIVA + <Iva>) — fix del bug latente
+ok 28 - armarFECAESolicitarRequest (Factura B) SÍ informa IVA (ImpIVA + <Iva>) — fix del bug latente
+  ---
+  duration_ms: 0.177652
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient reusa el ticketInicial vigente: NO re-loguea contra WSAA
+ok 29 - SoapAfipClient reusa el ticketInicial vigente: NO re-loguea contra WSAA
+  ---
+  duration_ms: 0.235692
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient con ticketInicial vencido: re-loguea y PERSISTE el TA nuevo (alRenovarTicket)
+ok 30 - SoapAfipClient con ticketInicial vencido: re-loguea y PERSISTE el TA nuevo (alRenovarTicket)
+  ---
+  duration_ms: 0.203482
+  type: 'test'
+  ...
+1..30
+# tests 30
+# suites 0
+# pass 30
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 615.062367

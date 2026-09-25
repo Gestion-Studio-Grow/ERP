@@ -47,6 +47,23 @@ export function pedidoDeReferencia(ref: string | null | undefined): string | nul
   return id && /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : null;
 }
 
+/**
+ * Quién es dueño de un cobro según su `external_reference`. PURA. Es la ÚNICA lectura de la
+ * referencia: la usan el aviso de Mercado Pago (handler.ts) y la ingesta de ventas sueltas
+ * (ingest.ts), para que un mismo cobro tenga un solo camino de factura.
+ *  - sin referencia → null: venta suelta, la factura la ingesta (origen MP_PAYMENT);
+ *  - "pedido:<id>" → el pedido: se cobra y la factura sale de la venta (origen ORDER);
+ *  - cualquier otra → un turno (va pelada, por los links que ya existen): la factura es la del
+ *    turno (origen APPOINTMENT).
+ */
+export type DuenoDelCobro = { tipo: "pedido"; id: string } | { tipo: "turno"; id: string };
+
+export function duenoDelCobro(ref: string | null | undefined): DuenoDelCobro | null {
+  if (!ref) return null;
+  const orderId = pedidoDeReferencia(ref);
+  return orderId ? { tipo: "pedido", id: orderId } : { tipo: "turno", id: ref };
+}
+
 /** Lo que el Core contesta cuando se le pide cobrar un pedido por un pago acreditado. */
 export type ResultadoCobroPedido =
   | { cobrado: true; code: number; total: number }

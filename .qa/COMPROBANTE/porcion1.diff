@@ -1,0 +1,1598 @@
+diff --git a/src/lib/arca-dispatch.ts b/src/lib/arca-dispatch.ts
+index 74f1dea..c82b0de 100644
+--- a/src/lib/arca-dispatch.ts
++++ b/src/lib/arca-dispatch.ts
+@@ -7,22 +7,26 @@
+  * dos lados (por eso importa el plugin); el Core (`invoice-core`) no importa el
+  * plugin — la dependencia va plugin→Core (ADR-002).
+  *
+- * Hoy corre a demanda (`processArcaOutbox()`); mañana lo dispara un worker
+- * periódico (pg-boss/graphile-worker, ADR-002/005). No está enganchado a ningún
+- * cron todavía a propósito: la emisión de facturas reales es un follow-up.
++ * Dos entradas: `processArcaOutbox()` barre todos los negocios y la llama SÓLO el cron
++ * (`/api/cron/arca-outbox`); `procesarEnviosDelNegocio(tenantId)` procesa los de un negocio y
++ * la llaman las acciones del panel y la facturación (ENG-012). Cada envío se toma con reserva,
++ * de a uno por negocio (`arca-reserva.ts`, ENG-019).
+  */
+ 
++import { Prisma } from "@/generated/prisma/client";
+ import { operatorPrisma } from "@/lib/operator-db";
+ import { tenantTransaction } from "@/lib/rls";
+ import { cuitValido, normalizarCuit } from "@/lib/cuit";
+ import {
++  cerrarEnvioDeFacturaNoPendiente,
+   markInvoiceRejected,
++  numeroUsadoPorOtraFactura,
+   registerFiscalDocument,
+-  OUTBOX_INVOICE_CREATED,
+   type InvoiceCreatedPayload,
+ } from "@/lib/invoice-core";
+ import {
+   procesarInvoiceCreated,
++  ArcaPasajeroError,
+   ArcaRechazoError,
+   ComprobanteInvalidoError,
+   crearAfipClient,
+@@ -37,6 +41,18 @@ import {
+ } from "@/plugins/arca";
+ import { credencialParaTenant } from "@/lib/fiscal/tenant-cert";
+ import { leerTicketAcceso, guardarTicketAcceso } from "@/lib/fiscal/arca-ta-store";
++import { logger } from "@/lib/logger";
++import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
++import {
++  anotarFallaYSoltar,
++  anotarIntentoConReserva,
++  CorridaDeEnvios,
++  soltarReserva,
++  tomarSiguienteEnvio,
++  verificarAccesoDelOperador,
++  type EnTransaccion,
++  type EnvioTomado,
++} from "@/lib/arca-reserva";
+ 
+ /**
+  * Config fiscal no sensible del tenant (lo que la DB SÍ guarda). El cert/clave
+@@ -165,94 +181,207 @@ function aEventoPlugin(p: InvoiceCreatedPayload): InvoiceCreatedEvent {
+     servicioDesde: p.servicioDesde,
+     servicioHasta: p.servicioHasta,
+     vencimientoPago: p.vencimientoPago,
++    intentoArca: p.intentoArca,
+   };
+ }
+ 
++/**
++ * Lo que el despacho recibe de afuera. `anotarIntento` y `registrar` NO: los arma el despacho
++ * atados al envío que procesa (anotar y registrar sólo escriben si ese envío sigue abierto).
++ */
++// El reloj (`fechaDeEnvio`) lo pone el despacho: el día del negocio en que se pide el CAE.
++export type DepsDespacho = Omit<HandlerDeps, "anotarIntento" | "registrar" | "fechaDeEnvio">;
++
++const DEPS_DESPACHO: DepsDespacho = {
++  clientePara,
++  numeroUsadoPorOtraFactura,
++};
++
++/**
++ * El envío ya estaba cerrado, o su reserva pasó a otro despacho, cuando este quiso anotar el
++ * número: no se pide el CAE.
++ */
++class EnvioCerradoError extends Error {
++  constructor(eventoId: string) {
++    super(`El envío ${eventoId} ya estaba cerrado o lo tomó otro despacho: no se le pide nada a ARCA.`);
++    this.name = "EnvioCerradoError";
++  }
++}
++
++/**
++ * El motivo que queda en `lastError`: el mensaje y, si ARCA mandó códigos, los códigos. Un error
++ * de la base queda sólo con su código (P2002…): el mensaje de Prisma trae la ruta del archivo,
++ * la consulta y el código fuente, y eso no se guarda (estándar §4).
++ */
++export function motivoDelError(err: unknown): string {
++  if (err instanceof ArcaPasajeroError && err.observaciones.length > 0) {
++    return `${err.message} [${err.observaciones.map((o) => `${o.codigo}: ${o.mensaje}`).join("; ")}]`;
++  }
++  if (err instanceof Prisma.PrismaClientKnownRequestError) {
++    return `La base de datos no aceptó la operación (código ${err.code}).`;
++  }
++  if (err instanceof Prisma.PrismaClientUnknownRequestError || err instanceof Prisma.PrismaClientValidationError) {
++    return "La base de datos no aceptó la operación.";
++  }
++  return err instanceof Error ? err.message : String(err);
++}
++
+ export interface DispatchResumen {
+   procesados: number;
+   autorizados: number;
+   rechazados: number;
+   fallidos: number;
++  /**
++   * Envíos que este despacho NO cerró: otro despacho ya lo había hecho, la venta se volvió a
++   * facturar, o su factura ya no estaba pendiente. Si alguno llegó a obtener un CAE, ese CAE no
++   * se registró en ninguna factura: mayor a 0 es para mirar (ENG-019).
++   */
++  descartados: number;
+ }
+ 
++/** La transacción de un negocio, con su contexto de RLS (escrituras del envío y toma por negocio). */
++const enElNegocio =
++  (tenantId: string): EnTransaccion =>
++  (fn) =>
++    tenantTransaction((tx) => fn(tx), { tenantId });
++
++/** El cliente del operador (cruza negocios). Inyectable para los tests de ENG-027. */
++export type ClienteOperador = Pick<typeof operatorPrisma, "$queryRaw" | "$transaction">;
++
+ /**
+- * Drena eventos `InvoiceCreated` pendientes del outbox y los manda al plugin.
+- * - Éxito → `registerFiscalDocument` (lo hace el handler) + marca procesado.
+- * - Rechazo de ARCA → marca la factura REJECTED + marca el evento procesado.
+- * - Otro error → deja el evento pendiente, incrementa `attempts` y guarda el error.
+- *
+- * AISLAMIENTO DE TENANT (fix async/cron, ADR-018 §4): este worker corre sin
+- * request/host — `getCurrentTenantId()` ambiental rompe apenas hay >1 tenant
+- * bajo RLS. El barrido CROSS-TENANT (todos los tenants, una sola pasada) usa
+- * `operatorPrisma` (rol dueño, bypassa RLS por diseño — nunca el `prisma`
+- * conmutado por RLS para esto, ver ADR-021). Cada fila procesada queda atada a
+- * SU tenant vía `tenantTransaction(fn, { tenantId: evento.tenantId })` — el
+- * dato ya está en la fila del outbox, se lo pasamos explícito en vez de dejar
+- * que se intente resolver ambientalmente.
++ * CRON · Barrido de TODOS los negocios (lo llama sólo `/api/cron/arca-outbox`). Usa la conexión
++ * del operador, que tiene que ver los envíos de todos (ADR-021); si no los ve, lanza
++ * `ProcesadorArcaSinAccesoError` antes de leer, en vez de devolver "0 procesados" (ENG-027).
++ * Cada envío se toma con reserva (`arca-reserva.ts`, ENG-019) y se escribe en la transacción de
++ * SU negocio (`tenantTransaction` con el `tenantId` de la fila, ADR-018 §4).
+  */
+ export async function processArcaOutbox(
+   limit = 20,
+-  deps: HandlerDeps = { clientePara, registrar: registerFiscalDocument },
++  deps: DepsDespacho = DEPS_DESPACHO,
++  operador: ClienteOperador = operatorPrisma,
++): Promise<DispatchResumen> {
++  await verificarAccesoDelOperador(operador);
++  return despacharEnvios((fn) => operador.$transaction((tx) => fn(tx)), null, limit, deps);
++}
++
++/**
++ * ENG-012 · Los envíos pendientes de UN negocio (lo llaman las acciones del panel y la
++ * facturación de ventas, turnos y pagos). Toma y escribe con la conexión de la app, dentro del
++ * contexto de RLS de ese negocio y con el filtro explícito por negocio: nunca ve, toca ni cuenta
++ * envíos de otro. No necesita la conexión del operador.
++ */
++export async function procesarEnviosDelNegocio(
++  tenantId: string,
++  limit = 20,
++  deps: DepsDespacho = DEPS_DESPACHO,
+ ): Promise<DispatchResumen> {
+-  const pendientes = await operatorPrisma.outboxEvent.findMany({
+-    where: { type: OUTBOX_INVOICE_CREATED, processedAt: null },
+-    orderBy: { createdAt: "asc" },
+-    take: limit,
+-  });
++  return despacharEnvios(enElNegocio(tenantId), tenantId, limit, deps);
++}
+ 
++/**
++ * Toma de a un envío (con reserva) y lo manda al plugin, hasta `limit` o hasta que no quede
++ * ninguno que se pueda tomar ahora.
++ * - Factura que ya no está PENDING → cierra el envío sin llamar a ARCA (descartado).
++ * - Éxito → `registerFiscalDocument` registra el CAE y cierra el envío en una transacción.
++ * - Rechazo de ARCA → `markInvoiceRejected` rechaza la factura y cierra el envío, también juntos.
++ *   Si el envío ya estaba cerrado, ninguno de los dos escribe (descartado).
++ * - Otro error → deja el evento pendiente, incrementa `attempts`, guarda el error y suelta la
++ *   reserva.
++ */
++async function despacharEnvios(
++  tomarEn: EnTransaccion,
++  soloDelNegocio: string | null,
++  limit: number,
++  deps: DepsDespacho,
++): Promise<DispatchResumen> {
+   const resumen: DispatchResumen = {
+     procesados: 0,
+     autorizados: 0,
+     rechazados: 0,
+     fallidos: 0,
++    descartados: 0,
+   };
++  const corrida = new CorridaDeEnvios();
+ 
+-  for (const evento of pendientes) {
+-    const payload = evento.payload as unknown as InvoiceCreatedPayload;
++  while (corrida.vistos.length < limit) {
++    const envio = await tomarSiguienteEnvio(tomarEn, corrida, soloDelNegocio);
++    if (!envio) break;
+     try {
+-      await procesarInvoiceCreated(aEventoPlugin(payload), deps);
+-      await tenantTransaction(
+-        (tx) => tx.outboxEvent.update({ where: { id: evento.id }, data: { processedAt: new Date() } }),
+-        { tenantId: payload.tenantId },
+-      );
++      await despacharUno(envio, corrida.token, deps, resumen);
++    } catch (err) {
++      // Algo falló al anotar la falla misma: se suelta la reserva (si se puede) y sigue el lote.
++      await soltarReserva(enElNegocio(envio.tenantId), envio, corrida.token).catch(() => undefined);
++      logger.error("arca", "no se pudo cerrar el intento de un envío", err, { tenantId: envio.tenantId });
++      resumen.fallidos++;
++    }
++  }
++
++  return resumen;
++}
++
++async function despacharUno(
++  envio: EnvioTomado,
++  token: string,
++  deps: DepsDespacho,
++  resumen: DispatchResumen,
++): Promise<void> {
++  const payload = envio.payload as InvoiceCreatedPayload;
++  const enSuNegocio = enElNegocio(envio.tenantId);
++  try {
++    if (await cerrarEnvioDeFacturaNoPendiente(envio.id, payload.invoiceId, envio.tenantId)) {
++      resumen.descartados++;
++      return;
++    }
++    let registrado = false;
++    await procesarInvoiceCreated(aEventoPlugin(payload), {
++      ...deps,
++      // El día del negocio en que se pide el CAE: la decisión controla contra él la ventana de ARCA.
++      fechaDeEnvio: () => fechaFiscalDelDia(),
++      anotarIntento: async (intento) => {
++        if (!(await anotarIntentoConReserva(enSuNegocio, envio, token, intento))) {
++          throw new EnvioCerradoError(envio.id);
++        }
++      },
++      registrar: async (doc) => {
++        registrado = await registerFiscalDocument(doc, envio.id);
++      },
++    });
++    if (registrado) {
+       resumen.autorizados++;
+       resumen.procesados++;
+-    } catch (err) {
+-      if (err instanceof ArcaRechazoError || err instanceof ComprobanteInvalidoError) {
+-        // Rechazo determinístico: no tiene sentido reintentar. Marca la factura
+-        // rechazada y el evento como procesado.
+-        const motivo =
+-          err instanceof ArcaRechazoError
+-            ? err.observaciones.map((o) => `${o.codigo}: ${o.mensaje}`).join("; ")
+-            : err.errores.map((e) => `${e.campo}: ${e.mensaje}`).join("; ");
+-        await markInvoiceRejected(payload.invoiceId, payload.tenantId, motivo);
+-        await tenantTransaction(
+-          (tx) =>
+-            tx.outboxEvent.update({
+-              where: { id: evento.id },
+-              data: { processedAt: new Date(), lastError: motivo },
+-            }),
+-          { tenantId: payload.tenantId },
+-        );
+-        resumen.rechazados++;
+-        resumen.procesados++;
+-      } else {
+-        // Error transitorio (red, ARCA caído): dejar pendiente para reintento.
+-        await tenantTransaction(
+-          (tx) =>
+-            tx.outboxEvent.update({
+-              where: { id: evento.id },
+-              data: {
+-                attempts: { increment: 1 },
+-                lastError: err instanceof Error ? err.message : String(err),
+-              },
+-            }),
+-          { tenantId: payload.tenantId },
+-        );
++    } else {
++      resumen.descartados++;
++    }
++  } catch (err) {
++    if (err instanceof EnvioCerradoError) {
++      resumen.descartados++;
++    } else if (err instanceof ArcaRechazoError || err instanceof ComprobanteInvalidoError) {
++      // Rechazo del comprobante (ARCA lo evaluó y dijo que está mal, o no pasó la validación
++      // local): la factura queda rechazada y el envío cerrado, en una sola transacción. La
++      // venta se puede volver a facturar (`createInvoiceInTx` con `reabrirSiRechazada`).
++      const motivo =
++        err instanceof ArcaRechazoError
++          ? err.observaciones.map((o) => `${o.codigo}: ${o.mensaje}`).join("; ")
++          : err.errores.map((e) => `${e.campo}: ${e.mensaje}`).join("; ");
++      try {
++        if (await markInvoiceRejected(payload.invoiceId, envio.tenantId, motivo, envio.id)) {
++          resumen.rechazados++;
++          resumen.procesados++;
++        } else {
++          resumen.descartados++;
++        }
++      } catch (errAlRechazar) {
++        // No se pudo guardar el rechazo: el envío sigue abierto y se reintenta; el resto del
++        // lote sigue.
++        await anotarFallaYSoltar(enSuNegocio, envio, token, motivoDelError(errAlRechazar));
+         resumen.fallidos++;
+       }
++    } else {
++      // Error pasajero (ENG-021: sin respuesta a tiempo, 5xx, token, WSAA caído, respuesta
++      // cortada, 10016) o cualquier otro que no sea un rechazo: la factura sigue pendiente y
++      // el evento se reintenta. El reintento consulta antes de pedir otro CAE (ENG-020).
++      await anotarFallaYSoltar(enSuNegocio, envio, token, motivoDelError(err));
++      resumen.fallidos++;
+     }
+   }
+-
+-  return resumen;
+ }
+diff --git a/src/plugins/arca/afip/soap.ts b/src/plugins/arca/afip/soap.ts
+index cfd3534..b9cd061 100644
+--- a/src/plugins/arca/afip/soap.ts
++++ b/src/plugins/arca/afip/soap.ts
+@@ -19,15 +19,21 @@
+ 
+ import {
+   CondicionIvaReceptorId,
+-  Concepto,
+   MONEDA_PESOS,
+   TipoComprobante,
++  conceptoRequiereFechasServicio,
+   informaIvaWsfe,
+ } from '../domain/catalogos';
+-import { ComprobanteArca } from '../domain/comprobante';
++import { ComprobanteArca, ivaInformadoAArca } from '../domain/comprobante';
++// La única pieza del Core que usa el plugin: la regla de redondeo de la plata, que no
++// importa nada (ADR-100 §3; lo verifica src/lib/dinero/redondeo.test.ts).
++import { textoAlCentavo } from '@/lib/dinero/redondeo';
++import { esErrorPasajero } from '../domain/errores-arca';
+ import {
+   AfipClient,
++  ArcaPasajeroError,
+   ArcaRechazoError,
++  ComprobanteConsultado,
+   EmisorConfig,
+   ObservacionArca,
+   ResultadoCae,
+@@ -71,7 +77,7 @@ export interface TicketAcceso {
+  * (p.ej. con node:crypto / un CMS de PKCS#7) el día que haya credenciales.
+  */
+ export class CredencialRequeridaSigner implements TraSigner {
+-  async firmarCms(_traXml: string): Promise<string> {
++  async firmarCms(): Promise<string> {
+     throw new Error(
+       'ARCA: firma CMS del TRA no disponible — credencial requerida (acción ' +
+         'humana). Inyectá un TraSigner con el certificado X.509 + clave privada ' +
+@@ -207,8 +213,12 @@ export function parsearLoginTicketResponse(xml: string): TicketAcceso {
+   const expiration = extraerTag(ticket, 'expirationTime');
+ 
+   if (!token || !sign || !expiration) {
+-    throw new Error(
+-      'WSAA: LoginTicketResponse inválido (falta token/sign/expirationTime).',
++    // WSAA caído, un SOAP Fault (p. ej. `coe.alreadyAuthenticated`) o la respuesta cortada:
++    // no es culpa de ningún comprobante → pasajero (ENG-021).
++    const falla = extraerTag(xml, 'faultstring');
++    throw new ArcaPasajeroError(
++      'WSAA: LoginTicketResponse inválido (falta token/sign/expirationTime).' +
++        (falla ? ` WSAA dijo: ${desescaparXml(falla).trim().slice(0, 300)}` : ''),
+     );
+   }
+   return { token, sign, expiration };
+@@ -289,13 +299,13 @@ export function parsearUltimoAutorizadoResponse(xml: string): number {
+   lanzarSiErrores(xml);
+   const cbteNro = extraerTag(xml, 'CbteNro');
+   if (cbteNro === undefined) {
+-    throw new Error(
+-      'WSFEv1: respuesta de FECompUltimoAutorizado sin CbteNro.',
++    throw new ArcaPasajeroError(
++      'WSFEv1: respuesta de FECompUltimoAutorizado sin CbteNro (cortada o vacía).',
+     );
+   }
+   const n = Number(cbteNro);
+   if (!Number.isInteger(n) || n < 0) {
+-    throw new Error(`WSFEv1: CbteNro inválido en la respuesta: "${cbteNro}".`);
++    throw new ArcaPasajeroError(`WSFEv1: CbteNro inválido en la respuesta: "${cbteNro}".`);
+   }
+   return n;
+ }
+@@ -315,18 +325,20 @@ export function armarFECAESolicitarRequest(
+   comp: ComprobanteArca,
+   numero: number,
+ ): string {
+-  const importeIva = comp.iva.reduce((s, x) => s + x.importe, 0);
+   const informaIva = informaIvaWsfe(comp.tipo);
+ 
+   // Comprobantes que informan IVA (tipo A y B, emisor Responsable Inscripto)
+   // mandan ImpNeto + ImpIVA y el array <Iva>. Los que no (C) mandan el importe
+   // en ImpNeto sin <Iva>. (Antes esto miraba `discriminaIva` = solo A, y dejaba
+   // la Factura B sin <Iva> con ImpIVA=0 → ImpTotal ≠ ImpNeto → rechazo de ARCA.)
++  // ImpIVA: la suma de los <AlicIva><Importe> tal como viajan, cada uno al centavo; 0 en tipo C.
++  // La misma regla con la que el reintento reconoce el comprobante (`ivaInformadoAArca`).
+   const impNeto = comp.neto;
+-  const impIva = informaIva ? importeIva : 0;
++  const impIva = ivaInformadoAArca(comp);
+   const impTotal = comp.total;
+ 
+-  const detalleIva = informaIva
++  // Sin alícuotas (todo exento o no gravado) no va un <Iva> vacío.
++  const detalleIva = informaIva && comp.iva.length > 0
+     ? `<ar:Iva>` +
+       comp.iva
+         .map(
+@@ -341,14 +353,46 @@ export function armarFECAESolicitarRequest(
+       `</ar:Iva>`
+     : '';
+ 
+-  const fechasServicio =
+-    comp.concepto === Concepto.Servicios ||
+-    comp.concepto === Concepto.ProductosYServicios
+-      ? `<ar:FchServDesde>${escaparXml(comp.servicioDesde ?? comp.fecha)}</ar:FchServDesde>` +
+-        `<ar:FchServHasta>${escaparXml(comp.servicioHasta ?? comp.fecha)}</ar:FchServHasta>` +
+-        `<ar:FchVtoPago>${escaparXml(comp.vencimientoPago ?? comp.fecha)}</ar:FchVtoPago>`
+-      : '';
++  // Las fechas del servicio las resolvió la decisión (`decidirDelEvento`): acá no se completan
++  // con la fecha del comprobante. Si faltan, no se arma el pedido (la validación ya lo frena).
++  let fechasServicio = '';
++  if (conceptoRequiereFechasServicio(comp.concepto)) {
++    const { servicioDesde, servicioHasta, vencimientoPago } = comp;
++    if (!servicioDesde || !servicioHasta || !vencimientoPago) {
++      throw new Error(
++        'WSFEv1: faltan las fechas del servicio (desde, hasta y vencimiento del pago); no se completan solas.',
++      );
++    }
++    fechasServicio =
++      `<ar:FchServDesde>${escaparXml(servicioDesde)}</ar:FchServDesde>` +
++      `<ar:FchServHasta>${escaparXml(servicioHasta)}</ar:FchServHasta>` +
++      `<ar:FchVtoPago>${escaparXml(vencimientoPago)}</ar:FchVtoPago>`;
++  }
++
++  // Nota de crédito o débito: la factura que corrige (CbtesAsoc) O el período (PeriodoAsoc).
++  if (comp.asociado && comp.periodoAsociado) {
++    throw new Error(
++      'WSFEv1: el comprobante trae la factura asociada y el período asociado; va uno u otro, nunca los dos.',
++    );
++  }
++  const cbtesAsoc = comp.asociado
++    ? `<ar:CbtesAsoc><ar:CbteAsoc>` +
++      `<ar:Tipo>${comp.asociado.tipo}</ar:Tipo>` +
++      `<ar:PtoVta>${comp.asociado.puntoVenta}</ar:PtoVta>` +
++      `<ar:Nro>${comp.asociado.numero}</ar:Nro>` +
++      `<ar:CbteFch>${escaparXml(comp.asociado.fecha)}</ar:CbteFch>` +
++      `</ar:CbteAsoc></ar:CbtesAsoc>`
++    : '';
++  const periodoAsoc = comp.periodoAsociado
++    ? `<ar:PeriodoAsoc>` +
++      `<ar:FchDesde>${escaparXml(comp.periodoAsociado.desde)}</ar:FchDesde>` +
++      `<ar:FchHasta>${escaparXml(comp.periodoAsociado.hasta)}</ar:FchHasta>` +
++      `</ar:PeriodoAsoc>`
++    : '';
+ 
++  // Secuencia de FECAEDetRequest del WSDL de WSFEv1: ImpTrib va ANTES de ImpIVA, y después de
++  // la condición del receptor vienen CbtesAsoc, Tributos, Iva, Opcionales, Compradores y
++  // PeriodoAsoc, en ese orden.
+   const detalle =
+     `<ar:FECAEDetRequest>` +
+     `<ar:Concepto>${comp.concepto}</ar:Concepto>` +
+@@ -358,16 +402,18 @@ export function armarFECAESolicitarRequest(
+     `<ar:CbteHasta>${numero}</ar:CbteHasta>` +
+     `<ar:CbteFch>${escaparXml(comp.fecha)}</ar:CbteFch>` +
+     `<ar:ImpTotal>${fmt(impTotal)}</ar:ImpTotal>` +
+-    `<ar:ImpTotConc>0</ar:ImpTotConc>` +
++    `<ar:ImpTotConc>${fmt(comp.importeNoGravado ?? 0)}</ar:ImpTotConc>` +
+     `<ar:ImpNeto>${fmt(impNeto)}</ar:ImpNeto>` +
+-    `<ar:ImpOpEx>0</ar:ImpOpEx>` +
+-    `<ar:ImpIVA>${fmt(impIva)}</ar:ImpIVA>` +
++    `<ar:ImpOpEx>${fmt(comp.importeExento ?? 0)}</ar:ImpOpEx>` +
+     `<ar:ImpTrib>0</ar:ImpTrib>` +
++    `<ar:ImpIVA>${fmt(impIva)}</ar:ImpIVA>` +
+     fechasServicio +
+     `<ar:MonId>${MONEDA_PESOS}</ar:MonId>` +
+     `<ar:MonCotiz>1</ar:MonCotiz>` +
+     `<ar:CondicionIVAReceptorId>${condicionIvaReceptor(comp)}</ar:CondicionIVAReceptorId>` +
++    cbtesAsoc +
+     detalleIva +
++    periodoAsoc +
+     `</ar:FECAEDetRequest>`;
+ 
+   return sobreWsfe(
+@@ -385,19 +431,26 @@ export function armarFECAESolicitarRequest(
+   );
+ }
+ 
+-/** Formatea un monto a 2 decimales (formato de WSFEv1). */
++/**
++ * Un monto con 2 decimales (formato de WSFEv1), con la regla única de redondeo:
++ * 1,005 → "1.01". Lo que no es un importe (NaN, infinito) no se manda: tira.
++ */
+ function fmt(n: number): string {
+-  return n.toFixed(2);
++  return textoAlCentavo(n);
+ }
+ 
+ /**
+- * Resuelve el `CondicionIVAReceptorId` (obligatorio, RG 5616). Usa el del
+- * comprobante si vino resuelto (lo setea `construirComprobante` desde la
+- * condición real del receptor); si no, cae a Consumidor Final — el default
+- * seguro para el comprobante a consumidor final sin identificar.
++ * El `CondicionIVAReceptorId` (obligatorio, RG 5616) que resolvió la decisión. Sin él no se arma
++ * el pedido: mandar Consumidor Final por defecto hacía pasar como consumidor final a un
++ * receptor del que no se sabía la condición (y con una A, ARCA la rechazaba).
+  */
+ function condicionIvaReceptor(comp: ComprobanteArca): CondicionIvaReceptorId {
+-  return comp.condicionIvaReceptorId ?? CondicionIvaReceptorId.ConsumidorFinal;
++  if (comp.condicionIvaReceptorId == null) {
++    throw new Error(
++      'WSFEv1: falta la condición frente al IVA del receptor (RG 5616); no se manda una por defecto.',
++    );
++  }
++  return comp.condicionIvaReceptorId;
+ }
+ 
+ /**
+@@ -414,7 +467,8 @@ export function parsearFECAESolicitarResponse(
+   comp: ComprobanteArca,
+   numero: number,
+ ): ResultadoCae {
+-  // 1) Errores de nivel método (Auth, formato) → rechazo.
++  // 1) Errores de nivel método (Auth, falla interna, formato): rechazo o pasajero según el
++  //    código (ENG-021, `domain/errores-arca.ts`).
+   lanzarSiErrores(xml);
+ 
+   // 2) Resultado de cabecera: 'A' aprobado, 'R' rechazado, 'P' parcial.
+@@ -424,7 +478,7 @@ export function parsearFECAESolicitarResponse(
+   const observaciones = parsearObservaciones(xml);
+ 
+   if (resultado === 'R' || resultado === 'P') {
+-    throw new ArcaRechazoError(
++    throw errorDeArca(
+       `ARCA rechazó el comprobante (Resultado=${resultado}).`,
+       observaciones.length > 0
+         ? observaciones
+@@ -432,11 +486,20 @@ export function parsearFECAESolicitarResponse(
+     );
+   }
+ 
++  // Sin resultado o aprobado sin CAE: la respuesta llegó cortada. ARCA pudo haber autorizado,
++  // así que NO es un rechazo: es pasajero y el reintento consulta antes de pedir otro número
++  // (ENG-020). Marcarlo rechazado dejaba un CAE en ARCA sin factura en el sistema.
++  if (resultado !== 'A') {
++    throw new ArcaPasajeroError(
++      'ARCA devolvió una respuesta sin resultado (cortada o incompleta).',
++      observaciones,
++    );
++  }
+   const cae = extraerTag(xml, 'CAE');
+   const caeVencimiento = extraerTag(xml, 'CAEFchVto');
+   if (!cae || !caeVencimiento) {
+-    throw new ArcaRechazoError(
+-      'ARCA no devolvió CAE (respuesta sin CAE/CAEFchVto).',
++    throw new ArcaPasajeroError(
++      'ARCA aprobó pero la respuesta no trae CAE/CAEFchVto (cortada o incompleta).',
+       observaciones,
+     );
+   }
+@@ -480,31 +543,193 @@ export function lanzarSiErrores(xml: string): void {
+     codigo: Number(extraerTag(e, 'Code') ?? 0),
+     mensaje: (extraerTag(e, 'Msg') ?? '').trim(),
+   }));
+-  throw new ArcaRechazoError('ARCA devolvió errores.', observaciones);
++  throw errorDeArca('ARCA devolvió errores.', observaciones);
++}
++
++/**
++ * ENG-021 · El error que corresponde a lo que contestó ARCA: pasajero si todos los códigos
++ * son pasajeros (`domain/errores-arca.ts`), rechazo del comprobante si no.
++ */
++export function errorDeArca(
++  mensaje: string,
++  observaciones: ObservacionArca[],
++): ArcaPasajeroError | ArcaRechazoError {
++  return esErrorPasajero(observaciones)
++    ? new ArcaPasajeroError(`${mensaje} (error pasajero: se reintenta)`, observaciones)
++    : new ArcaRechazoError(mensaje, observaciones);
++}
++
++/**
++ * ENG-020 · Un error de la CONSULTA de un número anotado, como pasajero: la consulta no evalúa
++ * ningún comprobante, así que nunca es un rechazo. Conserva los códigos y la causa.
++ */
++function comoPasajeroDeConsulta(e: unknown): unknown {
++  if (!(e instanceof ArcaRechazoError)) return e;
++  return new ArcaPasajeroError(
++    `No se pudo consultar en ARCA si el número ya se usó: ${e.message} (se reintenta)`,
++    e.observaciones,
++    { cause: e },
++  );
++}
++
++// ────────────────────────────────────────────────────────────────────────────
++// WSFEv1 — FECompConsultar (PURO) · ENG-020
++// ────────────────────────────────────────────────────────────────────────────
++
++/** Código con el que WSFEv1 dice "no existen datos para los parámetros ingresados". */
++export const CODIGO_SIN_RESULTADOS = 602;
++
++/** Arma el request de `FECompConsultar` (CbteTipo, CbteNro, PtoVta). */
++export function armarFECompConsultarRequest(
++  ta: TicketAcceso,
++  cuit: number,
++  puntoVenta: number,
++  tipo: TipoComprobante,
++  numero: number,
++): string {
++  return sobreWsfe(
++    `<ar:FECompConsultar>` +
++      bloqueAuth(ta, cuit) +
++      `<ar:FeCompConsReq>` +
++      `<ar:CbteTipo>${tipo}</ar:CbteTipo>` +
++      `<ar:CbteNro>${numero}</ar:CbteNro>` +
++      `<ar:PtoVta>${puntoVenta}</ar:PtoVta>` +
++      `</ar:FeCompConsReq>` +
++      `</ar:FECompConsultar>`,
++  );
++}
++
++/**
++ * Un importe de ARCA (`ImpTotal`, texto con punto decimal) en centavos enteros, sin pasar por
++ * float: "1210" → 121000, "1210.5" → 121050. Lo que no se puede leer exacto lanza pasajero
++ * (no se adopta un comprobante que no se pudo comparar).
++ */
++export function centavosDeImporteArca(texto: string): number {
++  const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(texto.trim());
++  if (!m) throw new ArcaPasajeroError(`WSFEv1: importe ilegible en la respuesta: "${texto}".`);
++  const decimales = m[3] ?? '';
++  if (/[1-9]/.test(decimales.slice(2))) {
++    throw new ArcaPasajeroError(`WSFEv1: importe con más de dos decimales: "${texto}".`);
++  }
++  const centavos = Number(m[2]) * 100 + Number(decimales.slice(0, 2).padEnd(2, '0'));
++  return m[1] === '-' && centavos !== 0 ? -centavos : centavos;
++}
++
++/**
++ * Parsea la respuesta de `FECompConsultar`: el comprobante autorizado, o `null` si ARCA dice
++ * que no existe (602). Cualquier otro error, o una respuesta que no se puede leer entera, lanza
++ * SIEMPRE `ArcaPasajeroError`, sea cual sea el código: la consulta no evalúa ningún comprobante,
++ * así que un error acá sólo dice "no sé si ese número ya se usó". Tomarlo por rechazo cerraba la
++ * factura y, al volver a facturarla, ARCA daba un segundo CAE para la misma venta.
++ */
++export function parsearFECompConsultarResponse(
++  xml: string,
++  puntoVenta: number,
++  tipo: TipoComprobante,
++  numero: number,
++): ComprobanteConsultado | null {
++  const bloqueErrors = extraerTag(xml, 'Errors');
++  if (bloqueErrors) {
++    const codigos = extraerTags(bloqueErrors, 'Err').map((e) => Number(extraerTag(e, 'Code') ?? 0));
++    if (codigos.length > 0 && codigos.every((c) => c === CODIGO_SIN_RESULTADOS)) return null;
++  }
++  try {
++    lanzarSiErrores(xml);
++  } catch (e) {
++    throw comoPasajeroDeConsulta(e);
++  }
++
++  const resultGet = extraerTag(xml, 'ResultGet');
++  if (!resultGet) {
++    throw new ArcaPasajeroError('WSFEv1: respuesta de FECompConsultar sin ResultGet (cortada o vacía).');
++  }
++  const campo = (tag: string): string => {
++    const v = extraerTag(resultGet, tag);
++    if (v === undefined || v.trim() === '') {
++      throw new ArcaPasajeroError(`WSFEv1: FECompConsultar sin ${tag} (respuesta incompleta).`);
++    }
++    return v.trim();
++  };
++  // Sólo cuenta un comprobante autorizado con CAE; otro resultado es "no está autorizado".
++  if (campo('Resultado') !== 'A') return null;
++  const numeroLeido = Number(campo('CbteDesde'));
++  if (numeroLeido !== numero || Number(campo('PtoVta')) !== puntoVenta || Number(campo('CbteTipo')) !== tipo) {
++    throw new ArcaPasajeroError(
++      `WSFEv1: FECompConsultar devolvió otro comprobante (${campo('PtoVta')}-${campo('CbteTipo')}-${numeroLeido}).`,
++    );
++  }
++  return {
++    puntoVenta,
++    tipo,
++    numero,
++    cae: campo('CodAutorizacion'),
++    caeVencimiento: campo('FchVto'),
++    fecha: campo('CbteFch'),
++    docTipo: Number(campo('DocTipo')),
++    docNro: Number(campo('DocNro')),
++    totalCentavos: centavosDeImporteArca(campo('ImpTotal')),
++    netoCentavos: centavosDeImporteArca(campo('ImpNeto')),
++    ivaCentavos: centavosDeImporteArca(campo('ImpIVA')),
++    concepto: Number(campo('Concepto')),
++  };
+ }
+ 
+ // ────────────────────────────────────────────────────────────────────────────
+ // Transporte por defecto (fetch) — usado en producción, mockeable en tests
+ // ────────────────────────────────────────────────────────────────────────────
+ 
+-/** Transporte real: POST SOAP 1.1 con `SOAPAction`. */
++/** Límite de una llamada a ARCA (DECISIONS.md P5): 15 s, incluida la lectura de la respuesta. */
++export const TIMEOUT_ARCA_MS = 15_000;
++
++/**
++ * Transporte real: POST SOAP 1.1 con `SOAPAction`, cortado a los 15 s (ENG-020). Toda falla
++ * del transporte (sin respuesta a tiempo, red caída, respuesta cortada, HTTP que no es 2xx) es
++ * `ArcaPasajeroError`: ARCA no evaluó el comprobante, o no se sabe si lo hizo (ENG-021).
++ */
+ export class FetchSoapTransport implements SoapTransport {
++  private readonly timeoutMs: number;
++  private readonly hacerFetch: typeof fetch;
++
++  constructor(opciones: { timeoutMs?: number; fetch?: typeof fetch } = {}) {
++    this.timeoutMs = opciones.timeoutMs ?? TIMEOUT_ARCA_MS;
++    this.hacerFetch = opciones.fetch ?? ((...a) => fetch(...a));
++  }
++
+   async post(url: string, soapAction: string, body: string): Promise<string> {
+-    const res = await fetch(url, {
+-      method: 'POST',
+-      headers: {
+-        'Content-Type': 'text/xml; charset=utf-8',
+-        SOAPAction: soapAction,
+-      },
+-      body,
+-    });
+-    const texto = await res.text();
+-    if (!res.ok) {
+-      throw new Error(
+-        `ARCA: transporte SOAP falló (HTTP ${res.status}). Cuerpo: ${texto.slice(0, 500)}`,
+-      );
++    const corte = new AbortController();
++    const reloj = setTimeout(() => corte.abort(), this.timeoutMs);
++    try {
++      let res: Response;
++      let texto: string;
++      try {
++        res = await this.hacerFetch(url, {
++          method: 'POST',
++          headers: {
++            'Content-Type': 'text/xml; charset=utf-8',
++            SOAPAction: soapAction,
++          },
++          body,
++          signal: corte.signal,
++        });
++        texto = await res.text();
++      } catch (e) {
++        throw new ArcaPasajeroError(
++          corte.signal.aborted
++            ? `ARCA no respondió en ${this.timeoutMs / 1000} s (${url}).`
++            : `No se pudo hablar con ARCA (${url}): ${e instanceof Error ? e.message : String(e)}`,
++          [],
++          { cause: e },
++        );
++      }
++      if (!res.ok) {
++        throw new ArcaPasajeroError(
++          `ARCA: transporte SOAP falló (HTTP ${res.status}). Cuerpo: ${texto.slice(0, 500)}`,
++        );
++      }
++      return texto;
++    } finally {
++      clearTimeout(reloj);
+     }
+-    return texto;
+   }
+ }
+ 
+@@ -636,4 +861,18 @@ export class SoapAfipClient implements AfipClient {
+     );
+     return parsearFECAESolicitarResponse(respuesta, comp, numero);
+   }
++
++  async consultarComprobante(
++    puntoVenta: number,
++    tipo: TipoComprobante,
++    numero: number,
++  ): Promise<ComprobanteConsultado | null> {
++    const ta = await this.autenticar();
++    const respuesta = await this.transport.post(
++      this.endpoints.wsfev1,
++      `${WSFE_NS}FECompConsultar`,
++      armarFECompConsultarRequest(ta, this.config.cuit, puntoVenta, tipo, numero),
++    );
++    return parsearFECompConsultarResponse(respuesta, puntoVenta, tipo, numero);
++  }
+ }
+diff --git a/src/plugins/arca/core-contract.ts b/src/plugins/arca/core-contract.ts
+index 9de5f02..a8daec9 100644
+--- a/src/plugins/arca/core-contract.ts
++++ b/src/plugins/arca/core-contract.ts
+@@ -25,6 +25,12 @@ export interface EmisorEvento {
+   cuit: number;
+   condicionIva: CondicionIva;
+   puntoVenta: number;
++  /**
++   * Sólo Responsable Inscripto: la clase A que le asignó ARCA (RG 1575): "A", "A_CON_LEYENDA"
++   * o "M". Sin el dato ninguna A sale sola (va a revisión). El Core todavía no lo guarda
++   * (columna a crear, ver BACKLOG): hoy ningún camino emite como Responsable Inscripto.
++   */
++  regimenFacturaA?: string | null;
+ }
+ 
+ /** Datos del receptor tal como el Core los conoce. */
+@@ -59,6 +65,28 @@ export interface InvoiceCreatedEvent {
+   servicioDesde?: string;
+   servicioHasta?: string;
+   vencimientoPago?: string;
++  /** Importe exento (ImpOpEx) y no gravado (ImpTotConc). Sin dato: no hay. En Factura C, 0. */
++  importeExento?: number;
++  importeNoGravado?: number;
++  /** Default: factura. Nota de crédito o débito, con lo que corrige. */
++  clase?: 'factura' | 'nota_debito' | 'nota_credito';
++  /** Nota de crédito o débito: la factura que corrige (CbtesAsoc). Fecha AAAAMMDD. */
++  asociado?: { cbteTipo: number; puntoVenta: number; numero: number; fecha: string } | null;
++  /** Nota de crédito o débito por período (PeriodoAsoc), en vez de una factura. AAAAMMDD. */
++  periodoAsociado?: { desde: string; hasta: string; letra?: 'A' | 'B' | 'C' | 'M' | null } | null;
++  /**
++   * ENG-020 · El número que un envío anterior de ESTE evento le pidió a ARCA. Si está, antes
++   * de pedir otro CAE se consulta ese número: si ARCA ya lo autorizó para este comprobante, se
++   * adopta (la respuesta se había perdido) y no se emite un segundo comprobante.
++   */
++  intentoArca?: IntentoArca;
++}
++
++/** ENG-020 · Número pedido a ARCA, anotado ANTES de mandar el pedido. */
++export interface IntentoArca {
++  puntoVenta: number;
++  tipo: number;
++  numero: number;
+ }
+ 
+ /**
+@@ -86,3 +114,13 @@ export interface RegisterFiscalDocumentInput {
+ export type RegisterFiscalDocument = (
+   input: RegisterFiscalDocumentInput,
+ ) => Promise<void>;
++
++/**
++ * ENG-020 · Consulta pública del Core: ¿ese número (punto de venta, tipo, número) ya lo tiene
++ * registrado OTRA factura del negocio? Si sí, el comprobante que ARCA muestra con ese número es
++ * de esa otra venta (aunque los datos coincidan: dos ventas iguales a consumidor final el mismo
++ * día) y el plugin no lo adopta.
++ */
++export type NumeroUsadoPorOtraFactura = (
++  consulta: IntentoArca & { tenantId: string; invoiceId: string },
++) => Promise<boolean>;
+diff --git a/src/plugins/arca/domain/catalogos.ts b/src/plugins/arca/domain/catalogos.ts
+index 36b9606..f761118 100644
+--- a/src/plugins/arca/domain/catalogos.ts
++++ b/src/plugins/arca/domain/catalogos.ts
+@@ -21,6 +21,8 @@ export enum TipoComprobante {
+ export enum TipoDocumento {
+   CUIT = 80,
+   CUIL = 86,
++  /** Clave de Identificación (extranjeros sin CUIT/CUIL). */
++  CDI = 87,
+   DNI = 96,
+   /** Consumidor final sin identificar. */
+   ConsumidorFinal = 99,
+@@ -63,8 +65,12 @@ export enum CondicionIvaReceptorId {
+   ConsumidorFinal = 5,
+   ResponsableMonotributo = 6,
+   SujetoNoCategorizado = 7,
++  ProveedorExterior = 8,
++  ClienteExterior = 9,
++  IvaLiberadoLey19640 = 10,
+   MonotributistaSocial = 13,
+   IvaNoAlcanzado = 15,
++  MonotributistaPromovido = 16,
+ }
+ 
+ /** Mapea la condición de IVA del dominio al código ARCA del receptor (RG 5616). */
+@@ -103,10 +109,14 @@ export function conceptoRequiereFechasServicio(c: Concepto): boolean {
+ }
+ 
+ /**
+- * Tipo de FACTURA que corresponde según la condición del emisor y el receptor.
+- * Mapeo a la catalogación de ARCA (por eso vive en el plugin):
++ * Letra de la FACTURA según la condición del emisor y el receptor (RG 1415 y RG 5003/2021):
+  *  - Monotributo / Exento  → Factura C.
+- *  - Responsable Inscripto → A si el receptor es RI; B en caso contrario.
++ *  - Responsable Inscripto → A si el receptor es Responsable Inscripto o monotributista (este
++ *    último con la leyenda de la Ley 27.618); B en el resto.
++ * El armado del comprobante NO usa esta tabla: toma el tipo de la decisión fiscal única
++ * (`decidirDelEvento` → src/lib/fiscal/decidir-comprobante.ts), que además mira el régimen de la
++ * A, la identificación y las fechas. Queda como referencia rápida, y un test la cruza con la
++ * decisión caso por caso para que no se separen.
+  */
+ export function tipoFacturaCorrespondiente(
+   emisor: CondicionIva,
+@@ -117,7 +127,8 @@ export function tipoFacturaCorrespondiente(
+     case CondicionIva.Exento:
+       return TipoComprobante.FacturaC;
+     case CondicionIva.ResponsableInscripto:
+-      return receptor === CondicionIva.ResponsableInscripto
++      return receptor === CondicionIva.ResponsableInscripto ||
++        receptor === CondicionIva.Monotributo
+         ? TipoComprobante.FacturaA
+         : TipoComprobante.FacturaB;
+     default:
+diff --git a/src/plugins/arca/domain/comprobante.ts b/src/plugins/arca/domain/comprobante.ts
+index 6108fea..7348826 100644
+--- a/src/plugins/arca/domain/comprobante.ts
++++ b/src/plugins/arca/domain/comprobante.ts
+@@ -6,14 +6,21 @@
+  */
+ 
+ import { InvoiceCreatedEvent } from '../core-contract';
++import { sumarAlCentavo } from '@/lib/dinero/redondeo';
++import {
++  decidirComprobante,
++  type ComprobanteDecidido,
++  type Decision,
++  type Motivo,
++  type Naturaleza,
++} from '@/lib/fiscal/decidir-comprobante';
+ import {
+   AlicuotaIvaId,
+   CondicionIvaReceptorId,
+   Concepto,
+   TipoComprobante,
+   TipoDocumento,
+-  condicionIvaReceptorArca,
+-  tipoFacturaCorrespondiente,
++  informaIvaWsfe,
+ } from './catalogos';
+ 
+ /** Subtotal de IVA por alícuota, como lo espera WSFEv1 (`Iva[]`). */
+@@ -50,32 +57,108 @@ export interface ComprobanteArca {
+    * RG 5616 — sin este campo ARCA rechaza con la observación 10246.
+    */
+   condicionIvaReceptorId?: CondicionIvaReceptorId;
++  /** ImpOpEx e ImpTotConc: lo exento y lo no gravado. Sin dato, 0. En Factura C, 0. */
++  importeExento?: number;
++  importeNoGravado?: number;
++  /** Nota de crédito o débito: la factura que corrige (CbtesAsoc). Nunca junto con el período. */
++  asociado?: { tipo: number; puntoVenta: number; numero: number; fecha: string };
++  /** Nota de crédito o débito por período (PeriodoAsoc). AAAAMMDD. Nunca junto con `asociado`. */
++  periodoAsociado?: { desde: string; hasta: string };
++  /** Leyendas que el impreso tiene que llevar (ej. RG 5003/2021 en la A a monotributista). */
++  leyendas?: { codigo: string; texto: string | null; norma: string }[];
+   /** Trazabilidad hacia el Core. */
+   invoiceId: string;
+   tenantId: string;
+ }
+ 
++/** Concepto de ARCA (1, 2, 3) → qué se vendió, para la decisión. Otro valor: no se adivina. */
++const NATURALEZA: Readonly<Record<number, Naturaleza>> = {
++  [Concepto.Productos]: 'productos',
++  [Concepto.Servicios]: 'servicios',
++  [Concepto.ProductosYServicios]: 'productos_y_servicios',
++};
++
+ /**
+- * Construye el `ComprobanteArca` a partir del evento del Core.
+- * Mapea condición→tipo de comprobante (catálogo ARCA) y traslada los montos
+- * que el Core ya calculó. No hace cuentas de IVA.
++ * La decisión fiscal única (src/lib/fiscal/decidir-comprobante.ts) aplicada al evento del Core:
++ * letra y tipo, CondicionIVAReceptorId, documento, concepto y fechas, comprobante asociado.
++ * `fechaDeEnvio` (AAAAMMDD) es el día en que se pide el CAE: con ella se controla la ventana de
++ * fechas que acepta ARCA. Pura: no mira el reloj. Las fechas del servicio salen de acá: si
++ * faltan, no se inventan (exigirPeriodoDeServicio).
+  */
+-export function construirComprobante(ev: InvoiceCreatedEvent): ComprobanteArca {
+-  const tipo = tipoFacturaCorrespondiente(
+-    ev.emisor.condicionIva,
+-    ev.receptor.condicionIva,
++export function decidirDelEvento(ev: InvoiceCreatedEvent, fechaDeEnvio: string): Decision {
++  return decidirComprobante(
++    {
++      condicionIva: ev.emisor.condicionIva,
++      cuit: ev.emisor.cuit,
++      regimenFacturaA: ev.emisor.regimenFacturaA ?? null,
++    },
++    {
++      condicionIva: ev.receptor.condicionIva,
++      docTipo: ev.receptor.docTipo,
++      docNro: ev.receptor.docNro,
++    },
++    {
++      clase: ev.clase ?? 'factura',
++      fecha: ev.fecha,
++      fechaDeEnvio,
++      importeTotal: ev.total,
++      naturaleza: NATURALEZA[ev.concepto] ?? null,
++      servicio: {
++        desde: ev.servicioDesde ?? null,
++        hasta: ev.servicioHasta ?? null,
++        vencimientoPago: ev.vencimientoPago ?? null,
++      },
++      asociado: ev.asociado
++        ? {
++            cbteTipo: ev.asociado.cbteTipo,
++            puntoVenta: ev.asociado.puntoVenta,
++            numero: ev.asociado.numero,
++            fecha: ev.asociado.fecha,
++          }
++        : null,
++      periodoAsociado: ev.periodoAsociado ?? null,
++    },
++    // El despacho emite sin una persona mirando: un período de servicio que falta NO se
++    // completa con la fecha de la factura (sería un período falso), va a revisión.
++    { exigirPeriodoDeServicio: true },
+   );
++}
++
++/** La decisión no dejó un comprobante para emitir: los motivos dicen por qué y cómo seguir. */
++export class ComprobanteSinDecisionError extends Error {
++  constructor(
++    readonly motivos: Motivo[],
++    readonly estado: Decision['estado'],
++  ) {
++    const bloqueantes = motivos.filter((m) => m.gravedad !== 'aviso');
++    super(
++      bloqueantes.length > 0
++        ? bloqueantes.map((m) => m.mensaje).join(' ')
++        : 'La decisión fiscal no dejó un comprobante para emitir.',
++    );
++    this.name = 'ComprobanteSinDecisionError';
++  }
++}
+ 
++/**
++ * Arma el `ComprobanteArca` con lo que resolvió la decisión (tipo, condición, documento,
++ * concepto, fechas, asociado) y los montos que el Core ya calculó (ADR-006: acá no se hacen
++ * cuentas de IVA).
++ */
++export function comprobanteDeLaDecision(
++  ev: InvoiceCreatedEvent,
++  d: ComprobanteDecidido,
++): ComprobanteArca {
+   return {
+     invoiceId: ev.invoiceId,
+     tenantId: ev.tenantId,
+     puntoVenta: ev.emisor.puntoVenta,
+-    tipo,
+-    concepto: ev.concepto as Concepto,
+-    docTipo: ev.receptor.docTipo as TipoDocumento,
+-    docNro: ev.receptor.docNro,
+-    condicionIvaReceptorId: condicionIvaReceptorArca(ev.receptor.condicionIva),
+-    fecha: ev.fecha,
++    tipo: d.cbteTipo as TipoComprobante,
++    concepto: d.concepto as Concepto,
++    docTipo: d.docTipo as TipoDocumento,
++    docNro: d.docNro,
++    condicionIvaReceptorId: d.condicionIvaReceptorId as CondicionIvaReceptorId,
++    fecha: d.cbteFch,
+     neto: ev.neto,
+     iva: ev.iva.map((s) => ({
+       id: s.alicuotaId as AlicuotaIvaId,
+@@ -83,13 +166,53 @@ export function construirComprobante(ev: InvoiceCreatedEvent): ComprobanteArca {
+       importe: s.importe,
+     })),
+     total: ev.total,
+-    servicioDesde: ev.servicioDesde,
+-    servicioHasta: ev.servicioHasta,
+-    vencimientoPago: ev.vencimientoPago,
++    importeExento: ev.importeExento ?? 0,
++    importeNoGravado: ev.importeNoGravado ?? 0,
++    servicioDesde: d.fchServDesde,
++    servicioHasta: d.fchServHasta,
++    vencimientoPago: d.fchVtoPago,
++    ...(d.asociado
++      ? {
++          asociado: {
++            tipo: d.asociado.cbteTipo,
++            puntoVenta: d.asociado.puntoVenta,
++            numero: d.asociado.numero,
++            fecha: d.asociado.cbteFch,
++          },
++        }
++      : {}),
++    ...(d.periodoAsociado ? { periodoAsociado: { ...d.periodoAsociado } } : {}),
++    leyendas: d.leyendas.map((l) => ({ codigo: l.codigo, texto: l.texto, norma: l.norma })),
+   };
+ }
+ 
+-/** Suma de importes de IVA del comprobante. */
++/**
++ * Construye el `ComprobanteArca` que se puede emitir SIN que nadie mire: sólo si la decisión
++ * quedó "lista". Si quedó en revisión o bloqueada, lanza `ComprobanteSinDecisionError` con los
++ * motivos (identificar al comprador, cargar la clase A, fecha fuera de la ventana…).
++ * `fechaDeEnvio`: el día en que se pide el CAE (AAAAMMDD); sin él, el día del comprobante.
++ */
++export function construirComprobante(
++  ev: InvoiceCreatedEvent,
++  fechaDeEnvio: string = ev.fecha,
++): ComprobanteArca {
++  const decision = decidirDelEvento(ev, fechaDeEnvio);
++  if (decision.estado !== 'lista' || !decision.comprobante) {
++    throw new ComprobanteSinDecisionError(decision.motivos, decision.estado);
++  }
++  return comprobanteDeLaDecision(ev, decision.comprobante);
++}
++
++/** Suma de importes de IVA del comprobante, al centavo: el mismo número que viaja como ImpIVA (ENG-109). */
+ export function totalIva(comp: ComprobanteArca): number {
+-  return comp.iva.reduce((s, x) => s + x.importe, 0);
++  return sumarAlCentavo(comp.iva.map((x) => x.importe));
++}
++
++/**
++ * ENG-020 · El ImpIVA que viaja a ARCA en `FECAESolicitar`: la suma de las alícuotas al centavo
++ * en los tipos que informan IVA (A y B), 0 en los que no (C). Una sola regla para armar el pedido
++ * (`soap.ts`) y para reconocer, en la consulta del reintento, que el comprobante es éste.
++ */
++export function ivaInformadoAArca(comp: ComprobanteArca): number {
++  return informaIvaWsfe(comp.tipo) ? totalIva(comp) : 0;
+ }
+diff --git a/src/plugins/arca/domain/validacion.ts b/src/plugins/arca/domain/validacion.ts
+index d703e64..6d04b0d 100644
+--- a/src/plugins/arca/domain/validacion.ts
++++ b/src/plugins/arca/domain/validacion.ts
+@@ -14,6 +14,16 @@ import {
+   discriminaIva,
+ } from './catalogos';
+ import { ComprobanteArca } from './comprobante';
++// Qué CondicionIVAReceptorId admite cada letra: la tabla de la decisión fiscal única (RG 5616).
++import { CBTE_TIPO, RECEPTORES_ADMITIDOS, type Letra } from '@/lib/fiscal/decidir-comprobante';
++// La regla única de redondeo de la plata (ADR-100 §3): la misma con la que soap.ts escribe.
++import {
++  admiteCentavos,
++  centavosDe,
++  redondearAlCentavo,
++  sumarAlCentavo,
++  textoAlCentavo,
++} from '@/lib/dinero/redondeo';
+ 
+ export interface ErrorValidacion {
+   campo: string;
+@@ -26,13 +36,38 @@ export interface ResultadoValidacion {
+ }
+ 
+ const RE_FECHA = /^\d{8}$/; // AAAAMMDD
+-/** Tolerancia de redondeo al verificar los montos del Core. */
+-const TOLERANCIA = 0.01;
++/**
++ * Tolerancia, en centavos, entre el IVA de un renglón y base × alícuota: el Core redondea
++ * cada renglón al centavo. Las sumas (neto y total) no tienen tolerancia: ARCA exige que
++ * cierren exactas con los importes tal como viajan.
++ */
++const TOLERANCIA_IVA_EN_CENTAVOS = 1;
++
++/**
++ * El importe ya viene al centavo: es exactamente el que se escribe en WSFEv1. Así la
++ * decisión del comprobante (que usa este mismo número) y el pedido a ARCA no pueden
++ * contar centavos distintos (ENG-109).
++ */
++const esAlCentavo = (n: number): boolean => admiteCentavos(n) && redondearAlCentavo(n) === n;
++const MAS_DE_DOS_DECIMALES = 'Tiene más de dos decimales: el Core manda cada importe al centavo.';
++
++/** Un importe para un mensaje: con la regla de redondeo si se puede; si no, tal cual. */
++const enMensaje = (n: number): string => (admiteCentavos(n) ? textoAlCentavo(n) : String(n));
+ 
+ function esFechaValida(f: string | undefined): boolean {
+   return !!f && RE_FECHA.test(f);
+ }
+ 
++/** Letra y si es nota (crédito o débito) de un CbteTipo común; `null` si no es uno de esos. */
++function letraDelTipo(tipo: number): { letra: Letra; esNota: boolean } | null {
++  for (const letra of ['A', 'B', 'C'] as const) {
++    const t = CBTE_TIPO[letra];
++    if (t.factura === tipo) return { letra, esNota: false };
++    if (t.nota_credito === tipo || t.nota_debito === tipo) return { letra, esNota: true };
++  }
++  return null;
++}
++
+ export function validarComprobante(comp: ComprobanteArca): ResultadoValidacion {
+   const errores: ErrorValidacion[] = [];
+   const push = (campo: string, mensaje: string) => errores.push({ campo, mensaje });
+@@ -49,8 +84,19 @@ export function validarComprobante(comp: ComprobanteArca): ResultadoValidacion {
+     push('iva', 'El comprobante necesita al menos un subtotal de IVA.');
+   }
+ 
+-  if (!(comp.total > 0)) {
++  // Un monto que no se puede escribir con centavos (NaN, infinito) no llega al armado
++  // del pedido a ARCA: acá es un rechazo con mensaje, allá sería un error sin salida.
++  if (!admiteCentavos(comp.total)) {
++    push('total', 'No es un importe.');
++  } else if (!(comp.total > 0)) {
+     push('total', 'Debe ser mayor a 0.');
++  } else if (!esAlCentavo(comp.total)) {
++    push('total', MAS_DE_DOS_DECIMALES);
++  }
++  if (!admiteCentavos(comp.neto)) {
++    push('neto', 'No es un importe.');
++  } else if (!esAlCentavo(comp.neto)) {
++    push('neto', MAS_DE_DOS_DECIMALES);
+   }
+ 
+   // Fechas de servicio obligatorias si hay servicios.
+@@ -72,35 +118,92 @@ export function validarComprobante(comp: ComprobanteArca): ResultadoValidacion {
+     }
+   }
+ 
++  // RG 5616: la condición del receptor es obligatoria y tiene que ser una que la letra admite.
++  const letra = letraDelTipo(comp.tipo);
++  if (comp.condicionIvaReceptorId == null) {
++    push('condicionIvaReceptorId', 'Falta la condición frente al IVA del receptor (RG 5616).');
++  } else if (letra && !RECEPTORES_ADMITIDOS[letra.letra].has(comp.condicionIvaReceptorId)) {
++    push(
++      'condicionIvaReceptorId',
++      `El comprobante ${letra.letra} no admite un receptor con condición ${comp.condicionIvaReceptorId} frente al IVA.`,
++    );
++  }
++
++  // Nota de crédito o débito: la factura que corrige O el período, nunca los dos.
++  if (comp.asociado && comp.periodoAsociado) {
++    push('asociado', 'Va la factura asociada o el período asociado, nunca los dos.');
++  } else if (letra?.esNota && !comp.asociado && !comp.periodoAsociado) {
++    push('asociado', 'Una nota de crédito o débito necesita la factura que corrige o el período.');
++  }
++
++  // Exento (ImpOpEx) y no gravado (ImpTotConc): al centavo, no negativos, y en C en 0.
++  const exento = comp.importeExento ?? 0;
++  const noGravado = comp.importeNoGravado ?? 0;
++  let extrasEscribibles = true;
++  for (const [campo, valor] of [
++    ['importeExento', exento],
++    ['importeNoGravado', noGravado],
++  ] as const) {
++    if (!admiteCentavos(valor)) {
++      push(campo, 'No es un importe.');
++      extrasEscribibles = false;
++    } else if (!esAlCentavo(valor)) {
++      push(campo, MAS_DE_DOS_DECIMALES);
++      extrasEscribibles = false;
++    } else if (valor < 0) {
++      push(campo, 'No puede ser negativo.');
++    } else if (letra?.letra === 'C' && valor !== 0) {
++      push(campo, 'En un comprobante C va en 0: el importe entero se informa como neto.');
++    }
++  }
++
+   if (comp.numero !== undefined && (!Number.isInteger(comp.numero) || comp.numero <= 0)) {
+     push('numero', 'Si se informa, debe ser un entero positivo.');
+   }
+ 
+   // Consistencia de los montos del Core: verificar, no recalcular.
+-  let netoAcum = 0;
+-  let ivaAcum = 0;
++  let montosEscribibles = esAlCentavo(comp.total) && esAlCentavo(comp.neto) && extrasEscribibles;
+   comp.iva.forEach((sub, i) => {
++    if (!admiteCentavos(sub.baseImponible) || !admiteCentavos(sub.importe)) {
++      push(`iva[${i}]`, 'La base y el importe tienen que ser importes.');
++      montosEscribibles = false;
++      return;
++    }
++    if (!esAlCentavo(sub.baseImponible)) {
++      push(`iva[${i}].baseImponible`, MAS_DE_DOS_DECIMALES);
++      montosEscribibles = false;
++    }
++    if (!esAlCentavo(sub.importe)) {
++      push(`iva[${i}].importe`, MAS_DE_DOS_DECIMALES);
++      montosEscribibles = false;
++    }
+     if (!(sub.baseImponible >= 0)) {
+       push(`iva[${i}].baseImponible`, 'No puede ser negativa.');
+     }
+     const esperado = sub.baseImponible * (PORCENTAJE_IVA[sub.id] ?? NaN);
+     if (Number.isNaN(esperado)) {
+       push(`iva[${i}].id`, 'Alícuota de IVA desconocida.');
+-    } else if (Math.abs(esperado - sub.importe) > TOLERANCIA) {
++    } else if (
++      admiteCentavos(esperado) &&
++      Math.abs(centavosDe(esperado) - centavosDe(sub.importe)) > TOLERANCIA_IVA_EN_CENTAVOS
++    ) {
+       push(
+         `iva[${i}].importe`,
+-        `IVA inconsistente: base ${sub.baseImponible} @ alícuota ${sub.id} ⇒ ~${esperado.toFixed(2)}, recibido ${sub.importe}.`,
++        `IVA inconsistente: base ${sub.baseImponible} @ alícuota ${sub.id} ⇒ ~${enMensaje(esperado)}, recibido ${sub.importe}.`,
+       );
+     }
+-    netoAcum += sub.baseImponible;
+-    ivaAcum += sub.importe;
+   });
+-
+-  if (Math.abs(netoAcum - comp.neto) > TOLERANCIA) {
+-    push('neto', `No coincide con la suma de bases (${netoAcum.toFixed(2)}).`);
++  if (!montosEscribibles) return { ok: false, errores };
++
++  // Las sumas, en centavos enteros y sin tolerancia: todo ya viene al centavo.
++  const netoAcum = sumarAlCentavo(comp.iva.map((sub) => sub.baseImponible));
++  const ivaAcum = sumarAlCentavo(comp.iva.map((sub) => sub.importe));
++  const netoMasIva = sumarAlCentavo([netoAcum, ivaAcum, exento, noGravado]);
++  if (centavosDe(netoAcum) !== centavosDe(comp.neto)) {
++    push('neto', `No coincide con la suma de bases (${enMensaje(netoAcum)}).`);
+   }
+-  if (Math.abs(netoAcum + ivaAcum - comp.total) > TOLERANCIA) {
+-    push('total', `No coincide con neto + IVA (${(netoAcum + ivaAcum).toFixed(2)}).`);
++  if (centavosDe(netoMasIva) !== centavosDe(comp.total)) {
++    push('total', `No coincide con neto + IVA + exento + no gravado (${enMensaje(netoMasIva)}).`);
+   }
+ 
+   return { ok: errores.length === 0, errores };
+diff --git a/src/plugins/arca/handler.ts b/src/plugins/arca/handler.ts
+index ba5c456..832fc87 100644
+--- a/src/plugins/arca/handler.ts
++++ b/src/plugins/arca/handler.ts
+@@ -2,7 +2,7 @@
+  * Orquestación del plugin ARCA: el flujo de punta a punta de una autorización.
+  *
+  *   InvoiceCreated (Core, superficie III)
+- *     → construir comprobante (mapeo a catálogo ARCA)
++ *     → decidir el comprobante (decisión fiscal única: tipo, condición, fechas)
+  *     → validar local (fallar barato, no contra ARCA)
+  *     → solicitar CAE (AfipClient: WSAA + WSFEv1)
+  *     → RegisterFiscalDocument (Core, superficie II)
+@@ -11,9 +11,22 @@
+  * comando, ambos por el contrato de `core-contract.ts` (ADR-002/020/022).
+  */
+ 
+-import { AfipClient, ResultadoCae } from './afip/port';
+-import { InvoiceCreatedEvent, RegisterFiscalDocument } from './core-contract';
+-import { construirComprobante } from './domain/comprobante';
++import { AfipClient, ArcaPasajeroError, ArcaRechazoError, ComprobanteConsultado, ResultadoCae } from './afip/port';
++import {
++  IntentoArca,
++  InvoiceCreatedEvent,
++  NumeroUsadoPorOtraFactura,
++  RegisterFiscalDocument,
++} from './core-contract';
++import {
++  ComprobanteArca,
++  ComprobanteSinDecisionError,
++  comprobanteDeLaDecision,
++  construirComprobante,
++  decidirDelEvento,
++  ivaInformadoAArca,
++} from './domain/comprobante';
++import { centavosDe } from '@/lib/dinero/redondeo';
+ import { validarComprobante } from './domain/validacion';
+ 
+ export interface HandlerDeps {
+@@ -25,6 +38,29 @@ export interface HandlerDeps {
+   clientePara: (tenantId: string) => AfipClient | Promise<AfipClient>;
+   /** Comando público del Core que registra el CAE (superficie II). */
+   registrar: RegisterFiscalDocument;
++  /**
++   * ENG-020 · Guarda, ANTES de pedir el CAE, qué número se le va a pedir a ARCA para este
++   * evento. Si falla, no se pide nada. Es lo que permite, si la respuesta se pierde, reconocer
++   * en el reintento el comprobante que ARCA ya autorizó en vez de pedir otro.
++   */
++  anotarIntento: (intento: IntentoArca) => Promise<void>;
++  /**
++   * El día en que se pide el CAE (AAAAMMDD, día del negocio). Con él la decisión controla la
++   * ventana de fechas que acepta ARCA. Lo da el Core (`fechaFiscalDelDia`): el plugin no mira
++   * el reloj.
++   */
++  fechaDeEnvio: () => string;
++  /**
++   * ENG-020 · Consulta del Core: ¿ese número ya está registrado en otra factura del negocio?
++   * Si sí, no se adopta aunque los datos coincidan (ver `autorizarSinDuplicar`).
++   */
++  numeroUsadoPorOtraFactura: NumeroUsadoPorOtraFactura;
++}
++
++/** Lo que `autorizarSinDuplicar` necesita del envío: anotar el número y saber si ya es de otra factura. */
++export interface RegistroDeIntentos {
++  anotar: (intento: IntentoArca) => Promise<void>;
++  usadoPorOtraFactura: (intento: IntentoArca) => Promise<boolean>;
+ }
+ 
+ /** Error de validación previa (antes de pegarle a ARCA). */
+@@ -38,6 +74,25 @@ export class ComprobanteInvalidoError extends Error {
+   }
+ }
+ 
++/**
++ * El comprobante que se emite sin que nadie mire: sólo si la decisión fiscal quedó "lista". Si
++ * no, `ComprobanteInvalidoError` con los motivos de la decisión en castellano (qué falta y cómo
++ * seguir): el Core lo guarda como motivo del rechazo y no se le pide nada a ARCA.
++ */
++function comprobanteParaEmitir(ev: InvoiceCreatedEvent, fechaDeEnvio: string): ComprobanteArca {
++  try {
++    return construirComprobante(ev, fechaDeEnvio);
++  } catch (e) {
++    if (!(e instanceof ComprobanteSinDecisionError)) throw e;
++    throw new ComprobanteInvalidoError(
++      `La factura ${ev.invoiceId} no se envía a ARCA: ${e.message}`,
++      e.motivos
++        .filter((m) => m.gravedad !== 'aviso')
++        .map((m) => ({ campo: m.campo ?? m.codigo, mensaje: m.mensaje })),
++    );
++  }
++}
++
+ /**
+  * Procesa un evento `InvoiceCreated`: autoriza el comprobante en ARCA y devuelve
+  * el CAE al Core. Devuelve el resultado para trazabilidad/logging del worker.
+@@ -46,18 +101,48 @@ export async function procesarInvoiceCreated(
+   ev: InvoiceCreatedEvent,
+   deps: HandlerDeps,
+ ): Promise<ResultadoCae> {
+-  const comp = construirComprobante(ev);
++  const fechaDeEnvio = deps.fechaDeEnvio();
++  const registro: RegistroDeIntentos = {
++    anotar: deps.anotarIntento,
++    usadoPorOtraFactura: (intento) =>
++      deps.numeroUsadoPorOtraFactura({ ...intento, tenantId: ev.tenantId, invoiceId: ev.invoiceId }),
++  };
+ 
+-  const validacion = validarComprobante(comp);
+-  if (!validacion.ok) {
+-    throw new ComprobanteInvalidoError(
+-      `Comprobante de la factura ${ev.invoiceId} inválido; no se envía a ARCA.`,
+-      validacion.errores,
+-    );
++  // Con un número anotado, PRIMERO se mira si ARCA ya lo autorizó para este comprobante: si sí,
++  // existe en ARCA y se registra aunque la validación local de hoy lo objete (validar antes lo
++  // daba por rechazado con CAE en ARCA, y al volver a facturarlo salía un segundo CAE). Para
++  // reconocerlo se usa el comprobante tal como se decidió el día de su fecha (la ventana contra
++  // hoy no importa para adoptar uno ya autorizado). Sin número anotado se decide y valida
++  // primero: se falla barato, sin pedirle nada a ARCA.
++  let cliente: AfipClient | undefined;
++  let resultado: ResultadoCae | null = null;
++  let ultimoConocido: UltimoAutorizado | undefined;
++  if (ev.intentoArca) {
++    const comoSeDecidio = decidirDelEvento(ev, ev.fecha).comprobante;
++    if (comoSeDecidio) {
++      cliente = await deps.clientePara(ev.tenantId);
++      const revision = await revisarIntento(
++        cliente,
++        comprobanteDeLaDecision(ev, comoSeDecidio),
++        ev.intentoArca,
++        registro,
++      );
++      resultado = revision.adoptado;
++      ultimoConocido = revision.ultimoAutorizado;
++    }
++  }
++  if (!resultado) {
++    const comp = comprobanteParaEmitir(ev, fechaDeEnvio);
++    const validacion = validarComprobante(comp);
++    if (!validacion.ok) {
++      throw new ComprobanteInvalidoError(
++        `Comprobante de la factura ${ev.invoiceId} inválido; no se envía a ARCA.`,
++        validacion.errores,
++      );
++    }
++    cliente ??= await deps.clientePara(ev.tenantId);
++    resultado = await pedirNumeroNuevo(cliente, comp, registro, ultimoConocido);
+   }
+-
+-  const cliente = await deps.clientePara(ev.tenantId);
+-  const resultado = await cliente.solicitarCae(comp);
+ 
+   await deps.registrar({
+     invoiceId: ev.invoiceId,
+@@ -71,3 +156,137 @@ export async function procesarInvoiceCreated(
+ 
+   return resultado;
+ }
++
++/**
++ * ENG-020 · ¿Es este comprobante autorizado el que se quiso emitir? Se compara todo lo que viaja
++ * a ARCA y ARCA devuelve: punto de venta, tipo, fecha, documento, concepto, y total, neto e IVA
++ * al centavo. Si algo no coincide, ese número lo usó otro comprobante y NO se adopta. Que
++ * coincida NO alcanza por sí solo: dos ventas iguales dan iguales (ver `revisarIntento`).
++ */
++export function esElMismoComprobante(
++  autorizado: ComprobanteConsultado,
++  comp: ComprobanteArca,
++): boolean {
++  return (
++    autorizado.puntoVenta === comp.puntoVenta &&
++    autorizado.tipo === comp.tipo &&
++    autorizado.fecha === comp.fecha &&
++    autorizado.docTipo === comp.docTipo &&
++    autorizado.docNro === comp.docNro &&
++    autorizado.concepto === comp.concepto &&
++    autorizado.totalCentavos === centavosDe(comp.total) &&
++    autorizado.netoCentavos === centavosDe(comp.neto) &&
++    autorizado.ivaCentavos === centavosDe(ivaInformadoAArca(comp))
++  );
++}
++
++/** El último número que ARCA dio por autorizado para un punto de venta y tipo. */
++interface UltimoAutorizado {
++  puntoVenta: number;
++  tipo: number;
++  numero: number;
++}
++
++/**
++ * Lo que se sabe del número anotado después de consultarlo: el comprobante adoptado, o `null`
++ * (y, si ARCA dijo que no existe, el último autorizado que se miró para confirmarlo).
++ */
++interface RevisionDelIntento {
++  adoptado: ResultadoCae | null;
++  ultimoAutorizado?: UltimoAutorizado;
++}
++
++/**
++ * ENG-020 · Revisa el número que anotó un envío anterior de este evento.
++ *
++ * Se consulta a ARCA ese número (`FECompConsultar`). Se adopta sólo si ARCA lo tiene
++ * autorizado con estos mismos datos Y ninguna otra factura del negocio lo tiene registrado: dos
++ * ventas iguales (mismo día, consumidor final, mismo total) coinciden en todo, y si la otra ya lo
++ * registró, ese CAE es suyo. Si la consulta falla, lanza SIEMPRE pasajero: no se sabe si el
++ * número se usó, así que ni se rechaza la factura ni se pide otro número.
++ *
++ * AUTORIZACIÓN TARDÍA: el corte propio es a los 15 s, pero ARCA puede seguir procesando el
++ * pedido y confirmarlo después. Si la consulta dice "no existe" (602) pero el último autorizado
++ * ya llegó a ese número, alguien lo usó en el medio, y puede ser nuestro pedido confirmado
++ * tarde: lanza pasajero y NO se pide otro número. El reintento vuelve a consultar y ve el
++ * comprobante con sus datos (se adopta si es éste; si es de otro, se pide el siguiente). Si el
++ * último está por debajo, el pedido nunca se usó y se sigue con un número nuevo.
++ */
++async function revisarIntento(
++  cliente: AfipClient,
++  comp: ComprobanteArca,
++  intento: IntentoArca,
++  registro: RegistroDeIntentos,
++): Promise<RevisionDelIntento> {
++  let autorizado: ComprobanteConsultado | null;
++  try {
++    autorizado = await cliente.consultarComprobante(intento.puntoVenta, intento.tipo, intento.numero);
++  } catch (e) {
++    if (e instanceof ArcaRechazoError) {
++      throw new ArcaPasajeroError(
++        `No se pudo consultar en ARCA si el número ${intento.numero} ya se usó (se reintenta).`,
++        e.observaciones,
++        { cause: e },
++      );
++    }
++    throw e;
++  }
++  if (!autorizado) {
++    const ultimo = await cliente.ultimoAutorizado(intento.puntoVenta, intento.tipo);
++    if (ultimo >= intento.numero) {
++      throw new ArcaPasajeroError(
++        `ARCA todavía no muestra el comprobante ${intento.numero}, pero ya autorizó hasta el ${ultimo}: ` +
++          `puede ser el pedido anterior confirmado tarde. Se vuelve a consultar; no se pide otro número.`,
++      );
++    }
++    return { adoptado: null, ultimoAutorizado: { puntoVenta: intento.puntoVenta, tipo: intento.tipo, numero: ultimo } };
++  }
++  if (!esElMismoComprobante(autorizado, comp)) return { adoptado: null };
++  if (await registro.usadoPorOtraFactura(intento)) return { adoptado: null };
++  return {
++    adoptado: {
++      cae: autorizado.cae,
++      caeVencimiento: autorizado.caeVencimiento,
++      numero: autorizado.numero,
++      puntoVenta: autorizado.puntoVenta,
++      tipo: comp.tipo,
++    },
++  };
++}
++
++/**
++ * ENG-020 · Toma el próximo número (`FECompUltimoAutorizado` + 1), lo ANOTA y recién ahí pide el
++ * CAE. Si la revisión del intento ya miró el último autorizado de este punto de venta y tipo, se
++ * usa ése (sin una segunda llamada a ARCA).
++ */
++async function pedirNumeroNuevo(
++  cliente: AfipClient,
++  comp: ComprobanteArca,
++  registro: RegistroDeIntentos,
++  ultimoConocido?: UltimoAutorizado,
++): Promise<ResultadoCae> {
++  const ultimo =
++    ultimoConocido && ultimoConocido.puntoVenta === comp.puntoVenta && ultimoConocido.tipo === comp.tipo
++      ? ultimoConocido.numero
++      : await cliente.ultimoAutorizado(comp.puntoVenta, comp.tipo);
++  const numero = ultimo + 1;
++  await registro.anotar({ puntoVenta: comp.puntoVenta, tipo: comp.tipo, numero });
++  return cliente.solicitarCae({ ...comp, numero });
++}
++
++/**
++ * ENG-020 · Pide el CAE sin emitir dos comprobantes para el mismo evento: si un envío anterior
++ * anotó un número y ARCA ya lo autorizó para este comprobante (y no es de otra factura), lo
++ * adopta; si no, pide el próximo número, anotándolo antes.
++ */
++export async function autorizarSinDuplicar(
++  cliente: AfipClient,
++  comp: ComprobanteArca,
++  intentoPrevio: IntentoArca | undefined,
++  registro: RegistroDeIntentos,
++): Promise<ResultadoCae> {
++  const revision: RevisionDelIntento = intentoPrevio
++    ? await revisarIntento(cliente, comp, intentoPrevio, registro)
++    : { adoptado: null };
++  return revision.adoptado ?? pedirNumeroNuevo(cliente, comp, registro, revision.ultimoAutorizado);
++}

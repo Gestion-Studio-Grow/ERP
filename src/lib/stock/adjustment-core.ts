@@ -13,6 +13,7 @@
 // sin arrastrar Prisma al bundle del cliente. La persistencia está en
 // `adjustment-insert.ts`, que se apoya en estos helpers.
 
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { round3 } from "@/lib/stock/ledger";
 import { leerCantidad, type LecturaCantidad } from "@/lib/pos-peso";
 import type { Role } from "@/lib/capabilities";
@@ -406,7 +407,7 @@ export function valorDeLaBaja(lineas: readonly { delta: number; costo: number | 
     if (l.costo === null || !(l.costo > 0)) sinCosto++;
     else pesos += -l.delta * l.costo;
   }
-  return { pesos: Math.round(pesos * 100) / 100, sinCosto };
+  return { pesos: redondearAlCentavo(pesos), sinCosto };
 }
 
 /** ¿La carga pasa el tope? `tope` null = sin tope. PURA. */

@@ -12,7 +12,7 @@
 import { prisma } from "@/lib/prisma";
 import { createInvoice } from "@/lib/invoice-core";
 import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
-import { processArcaOutbox } from "@/lib/arca-dispatch";
+import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 
 // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
@@ -28,7 +28,7 @@ export interface DepsFacturarOrden {
   leerOrden: (orderId: string, tenantId: string) => Promise<{ total: number } | null>;
   getFiscalProfile: typeof getFiscalProfile;
   createInvoice: typeof createInvoice;
-  processArcaOutbox: typeof processArcaOutbox;
+  procesarEnviosDelNegocio: typeof procesarEnviosDelNegocio;
 }
 
 const DEPS: DepsFacturarOrden = {
@@ -36,14 +36,15 @@ const DEPS: DepsFacturarOrden = {
     prisma.order.findFirst({ where: { id: orderId, tenantId }, select: { total: true } }),
   getFiscalProfile,
   createInvoice,
-  processArcaOutbox,
+  procesarEnviosDelNegocio,
 };
 
 /**
  * Crea la factura de una orden y la despacha al plugin ARCA (tick del simulador).
  * Devuelve el `invoiceId`, o `null` si la orden no se pudo facturar (no existe,
- * otro tenant, o total no positivo). NO lanza por fallas de facturación: el
- * llamador decide si es best-effort (intake del pedido) o reintentable.
+ * otro tenant, o total no positivo). LANZA `VentaAnuladaError` si el pedido está anulado
+ * (ENG-023) y "No se encontró la venta a facturar." si la fila desapareció dentro de la
+ * transacción; el llamador decide si eso es best-effort (intake del pedido) o se muestra.
  *
  * Concepto PRODUCTOS: a diferencia del turno (Servicios), un pedido de retail no
  * lleva fechas de servicio. El receptor es Consumidor Final mientras la Orden no
@@ -53,6 +54,7 @@ export async function facturarOrden(
   orderId: string,
   tenantId: string,
   deps: DepsFacturarOrden = DEPS,
+  opciones: { reabrirSiRechazada?: boolean } = {},
 ): Promise<string | null> {
   const order = await deps.leerOrden(orderId, tenantId);
   if (!order) return null;
@@ -85,10 +87,13 @@ export async function facturarOrden(
     // I2 (ADR-064): enlace a la venta = idempotencia por pedido. Un reintento de facturación
     // del MISMO pedido devuelve el comprobante ya emitido, no crea un duplicado.
     origin: { type: "ORDER", id: orderId },
+    // ENG-021: una factura rechazada se reabre sólo si lo pide quien la vuelve a facturar
+    // ("Volver a facturar"); la ingesta de pedidos externos no lo pide.
+    ...(opciones.reabrirSiRechazada ? { reabrirSiRechazada: true } : {}),
   });
 
   // Tick del simulador: en prod esto lo hace un worker periódico (ADR-002/024).
-  await deps.processArcaOutbox();
+  await deps.procesarEnviosDelNegocio(tenantId);
 
   return invoiceId;
 }

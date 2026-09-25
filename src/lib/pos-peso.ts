@@ -53,6 +53,9 @@
 // Sin DB, sin React, sin Prisma: se importa igual desde el cliente (el POS) y desde la
 // Server Action (que NO confía en lo que mandó el navegador y vuelve a parsear).
 
+import { leerImporte } from "./dinero/leer";
+import { redondearAlCentavo } from "./dinero/redondeo";
+
 /** Decimales que se conservan: gramos. Más que esto es ruido de la balanza. */
 export const DECIMALES_CANTIDAD = 3;
 
@@ -208,71 +211,10 @@ export function formatearCantidad(valor: number): string {
 // LEER UN IMPORTE — plata en pesos, NO cantidades.
 // ============================================================================
 //
-// Mismo problema que la cantidad (un `type="number"` no entiende cómo se escribe la plata
-// acá) con el desempate AL REVÉS, que es exactamente lo que advierte la cabecera: en un
-// campo de plata "$1.234" son mil doscientos treinta y cuatro pesos, no un peso con
-// veintitrés centavos. Y "12.500" en un `type="number"` hoy se lee 12,5: un egreso de doce
-// mil quinientos que entra como doce pesos con cincuenta.
-//
-//   · UN separador seguido de EXACTAMENTE 3 dígitos es de MILES:  "12.500" y "12,500" → 12500
-//   · UN separador seguido de 1 o 2 dígitos es el DECIMAL:        "12,5" y "12.50"   → 12,5
-//   · DOS separadores distintos: el último es el decimal:         "1.234,56"          → 1234,56
-//   · Separadores iguales repetidos: todos de miles:              "1.234.567"         → 1234567
-//   · Precisión: CENTAVOS. Un tercer decimal no es plata, es un error: se rechaza.
-//   · Se toleran el "$" y los espacios que se arrastran al copiar de un extracto.
-
-/** Resultado de leer un importe. Misma forma que `LecturaCantidad`, a propósito. */
-export type LecturaImporte = LecturaCantidad;
-
-const redondearCentavos = (n: number): number => Math.round(n * 100) / 100;
-
-export function leerImporte(raw: string | null | undefined): LecturaImporte {
-  const s = String(raw ?? "")
-    .replace(/[\s  ]/g, "")
-    .replace(/^\$/, "")
-    .trim();
-  if (s === "") return { estado: "vacio" };
-  if (!/^[0-9.,]+$/.test(s)) return { estado: "invalida" };
-
-  const corte = Math.max(s.lastIndexOf("."), s.lastIndexOf(","));
-  if (corte === -1) {
-    const n = Number(s);
-    return Number.isFinite(n) ? { estado: "ok", valor: n } : { estado: "invalida" };
-  }
-
-  const sep = s[corte];
-  const cabeza = s.slice(0, corte);
-  const cola = s.slice(corte + 1);
-  // Grupos de miles: el primero no empieza con 0 ("0,555" no son quinientos cincuenta y cinco
-  // pesos: es un tercer decimal, que en plata no existe, y rebota).
-  const miles = /^(0|[1-9]\d{0,2})([.,]\d{3})*$/;
-  const milesConGrupos = /^[1-9]\d{0,2}([.,]\d{3})+$/;
-
-  // Separador colgando mientras se tipea ("12."): vale el entero, no se pinta de rojo.
-  if (cola === "") {
-    if (!(cabeza === "" || /^\d+$/.test(cabeza) || miles.test(cabeza))) return { estado: "invalida" };
-    const n = Number(cabeza.replace(/[.,]/g, ""));
-    return Number.isFinite(n) ? { estado: "ok", valor: n } : { estado: "invalida" };
-  }
-  if (!/^\d+$/.test(cola)) return { estado: "invalida" };
-
-  const otro = sep === "." ? "," : ".";
-  const hayOtroSeparador = cabeza.includes(otro);
-
-  // Todo el número son grupos de miles: "12.500", "1.234.567". El separador final NO es decimal.
-  if (!hayOtroSeparador && cola.length === 3 && milesConGrupos.test(s)) {
-    return { estado: "ok", valor: Number(s.replace(/[.,]/g, "")) };
-  }
-
-  // El último separador es el decimal: la parte entera tiene que ser dígitos o miles con EL OTRO
-  // separador ("1.234,56"). Mezclar ("1,234,56") o pasarse de centavos ("12,345,6") rebota.
-  if (cola.length > 2) return { estado: "invalida" };
-  const enteraOk = cabeza === "" || /^\d+$/.test(cabeza) || (hayOtroSeparador && !cabeza.includes(sep) && miles.test(cabeza));
-  if (!enteraOk) return { estado: "invalida" };
-
-  const n = Number(`${cabeza.replace(/[.,]/g, "") || "0"}.${cola}`);
-  return Number.isFinite(n) ? { estado: "ok", valor: redondearCentavos(n) } : { estado: "invalida" };
-}
+// El lector vive en el módulo de plata (`src/lib/dinero/leer.ts`, ENG-109): el mismo para la
+// pantalla y para las acciones de servidor. Acá se re-exporta para quienes ya lo importaban de
+// este archivo. La regla (miles, centavos, tercer decimal que rebota) está documentada allá.
+export { leerImporte, type LecturaImporte } from "./dinero/leer";
 
 /** El importe como número, o 0 si no es legible. Sólo para totales en pantalla. */
 export function importeOCero(raw: string | null | undefined): number {
@@ -282,7 +224,7 @@ export function importeOCero(raw: string | null | undefined): number {
 
 /** El importe tal como viaja en un `<input type="hidden">`: punto decimal, sin miles. */
 export function importeParaFormulario(valor: number): string {
-  return String(redondearCentavos(valor));
+  return String(redondearAlCentavo(valor));
 }
 
 // ============================================================================

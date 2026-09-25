@@ -1,0 +1,6 @@
+
+/home/user/erp/src/lib/__eslint_head_catalog.ts
+  528:31  warning  '_omitido' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+✖ 1 problem (0 errors, 1 warning)
+

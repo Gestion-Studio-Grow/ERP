@@ -19,15 +19,21 @@
 
 import {
   CondicionIvaReceptorId,
-  Concepto,
   MONEDA_PESOS,
   TipoComprobante,
+  conceptoRequiereFechasServicio,
   informaIvaWsfe,
 } from '../domain/catalogos';
-import { ComprobanteArca } from '../domain/comprobante';
+import { ComprobanteArca, ivaInformadoAArca } from '../domain/comprobante';
+// La única pieza del Core que usa el plugin: la regla de redondeo de la plata, que no
+// importa nada (ADR-100 §3; lo verifica src/lib/dinero/redondeo.test.ts).
+import { textoAlCentavo } from '@/lib/dinero/redondeo';
+import { esErrorPasajero } from '../domain/errores-arca';
 import {
   AfipClient,
+  ArcaPasajeroError,
   ArcaRechazoError,
+  ComprobanteConsultado,
   EmisorConfig,
   ObservacionArca,
   ResultadoCae,
@@ -71,7 +77,7 @@ export interface TicketAcceso {
  * (p.ej. con node:crypto / un CMS de PKCS#7) el día que haya credenciales.
  */
 export class CredencialRequeridaSigner implements TraSigner {
-  async firmarCms(_traXml: string): Promise<string> {
+  async firmarCms(): Promise<string> {
     throw new Error(
       'ARCA: firma CMS del TRA no disponible — credencial requerida (acción ' +
         'humana). Inyectá un TraSigner con el certificado X.509 + clave privada ' +
@@ -207,8 +213,12 @@ export function parsearLoginTicketResponse(xml: string): TicketAcceso {
   const expiration = extraerTag(ticket, 'expirationTime');
 
   if (!token || !sign || !expiration) {
-    throw new Error(
-      'WSAA: LoginTicketResponse inválido (falta token/sign/expirationTime).',
+    // WSAA caído, un SOAP Fault (p. ej. `coe.alreadyAuthenticated`) o la respuesta cortada:
+    // no es culpa de ningún comprobante → pasajero (ENG-021).
+    const falla = extraerTag(xml, 'faultstring');
+    throw new ArcaPasajeroError(
+      'WSAA: LoginTicketResponse inválido (falta token/sign/expirationTime).' +
+        (falla ? ` WSAA dijo: ${desescaparXml(falla).trim().slice(0, 300)}` : ''),
     );
   }
   return { token, sign, expiration };
@@ -289,13 +299,13 @@ export function parsearUltimoAutorizadoResponse(xml: string): number {
   lanzarSiErrores(xml);
   const cbteNro = extraerTag(xml, 'CbteNro');
   if (cbteNro === undefined) {
-    throw new Error(
-      'WSFEv1: respuesta de FECompUltimoAutorizado sin CbteNro.',
+    throw new ArcaPasajeroError(
+      'WSFEv1: respuesta de FECompUltimoAutorizado sin CbteNro (cortada o vacía).',
     );
   }
   const n = Number(cbteNro);
   if (!Number.isInteger(n) || n < 0) {
-    throw new Error(`WSFEv1: CbteNro inválido en la respuesta: "${cbteNro}".`);
+    throw new ArcaPasajeroError(`WSFEv1: CbteNro inválido en la respuesta: "${cbteNro}".`);
   }
   return n;
 }
@@ -315,18 +325,20 @@ export function armarFECAESolicitarRequest(
   comp: ComprobanteArca,
   numero: number,
 ): string {
-  const importeIva = comp.iva.reduce((s, x) => s + x.importe, 0);
   const informaIva = informaIvaWsfe(comp.tipo);
 
   // Comprobantes que informan IVA (tipo A y B, emisor Responsable Inscripto)
   // mandan ImpNeto + ImpIVA y el array <Iva>. Los que no (C) mandan el importe
   // en ImpNeto sin <Iva>. (Antes esto miraba `discriminaIva` = solo A, y dejaba
   // la Factura B sin <Iva> con ImpIVA=0 → ImpTotal ≠ ImpNeto → rechazo de ARCA.)
+  // ImpIVA: la suma de los <AlicIva><Importe> tal como viajan, cada uno al centavo; 0 en tipo C.
+  // La misma regla con la que el reintento reconoce el comprobante (`ivaInformadoAArca`).
   const impNeto = comp.neto;
-  const impIva = informaIva ? importeIva : 0;
+  const impIva = ivaInformadoAArca(comp);
   const impTotal = comp.total;
 
-  const detalleIva = informaIva
+  // Sin alícuotas (todo exento o no gravado) no va un <Iva> vacío.
+  const detalleIva = informaIva && comp.iva.length > 0
     ? `<ar:Iva>` +
       comp.iva
         .map(
@@ -341,14 +353,46 @@ export function armarFECAESolicitarRequest(
       `</ar:Iva>`
     : '';
 
-  const fechasServicio =
-    comp.concepto === Concepto.Servicios ||
-    comp.concepto === Concepto.ProductosYServicios
-      ? `<ar:FchServDesde>${escaparXml(comp.servicioDesde ?? comp.fecha)}</ar:FchServDesde>` +
-        `<ar:FchServHasta>${escaparXml(comp.servicioHasta ?? comp.fecha)}</ar:FchServHasta>` +
-        `<ar:FchVtoPago>${escaparXml(comp.vencimientoPago ?? comp.fecha)}</ar:FchVtoPago>`
-      : '';
+  // Las fechas del servicio las resolvió la decisión (`decidirDelEvento`): acá no se completan
+  // con la fecha del comprobante. Si faltan, no se arma el pedido (la validación ya lo frena).
+  let fechasServicio = '';
+  if (conceptoRequiereFechasServicio(comp.concepto)) {
+    const { servicioDesde, servicioHasta, vencimientoPago } = comp;
+    if (!servicioDesde || !servicioHasta || !vencimientoPago) {
+      throw new Error(
+        'WSFEv1: faltan las fechas del servicio (desde, hasta y vencimiento del pago); no se completan solas.',
+      );
+    }
+    fechasServicio =
+      `<ar:FchServDesde>${escaparXml(servicioDesde)}</ar:FchServDesde>` +
+      `<ar:FchServHasta>${escaparXml(servicioHasta)}</ar:FchServHasta>` +
+      `<ar:FchVtoPago>${escaparXml(vencimientoPago)}</ar:FchVtoPago>`;
+  }
 
+  // Nota de crédito o débito: la factura que corrige (CbtesAsoc) O el período (PeriodoAsoc).
+  if (comp.asociado && comp.periodoAsociado) {
+    throw new Error(
+      'WSFEv1: el comprobante trae la factura asociada y el período asociado; va uno u otro, nunca los dos.',
+    );
+  }
+  const cbtesAsoc = comp.asociado
+    ? `<ar:CbtesAsoc><ar:CbteAsoc>` +
+      `<ar:Tipo>${comp.asociado.tipo}</ar:Tipo>` +
+      `<ar:PtoVta>${comp.asociado.puntoVenta}</ar:PtoVta>` +
+      `<ar:Nro>${comp.asociado.numero}</ar:Nro>` +
+      `<ar:CbteFch>${escaparXml(comp.asociado.fecha)}</ar:CbteFch>` +
+      `</ar:CbteAsoc></ar:CbtesAsoc>`
+    : '';
+  const periodoAsoc = comp.periodoAsociado
+    ? `<ar:PeriodoAsoc>` +
+      `<ar:FchDesde>${escaparXml(comp.periodoAsociado.desde)}</ar:FchDesde>` +
+      `<ar:FchHasta>${escaparXml(comp.periodoAsociado.hasta)}</ar:FchHasta>` +
+      `</ar:PeriodoAsoc>`
+    : '';
+
+  // Secuencia de FECAEDetRequest del WSDL de WSFEv1: ImpTrib va ANTES de ImpIVA, y después de
+  // la condición del receptor vienen CbtesAsoc, Tributos, Iva, Opcionales, Compradores y
+  // PeriodoAsoc, en ese orden.
   const detalle =
     `<ar:FECAEDetRequest>` +
     `<ar:Concepto>${comp.concepto}</ar:Concepto>` +
@@ -358,16 +402,18 @@ export function armarFECAESolicitarRequest(
     `<ar:CbteHasta>${numero}</ar:CbteHasta>` +
     `<ar:CbteFch>${escaparXml(comp.fecha)}</ar:CbteFch>` +
     `<ar:ImpTotal>${fmt(impTotal)}</ar:ImpTotal>` +
-    `<ar:ImpTotConc>0</ar:ImpTotConc>` +
+    `<ar:ImpTotConc>${fmt(comp.importeNoGravado ?? 0)}</ar:ImpTotConc>` +
     `<ar:ImpNeto>${fmt(impNeto)}</ar:ImpNeto>` +
-    `<ar:ImpOpEx>0</ar:ImpOpEx>` +
-    `<ar:ImpIVA>${fmt(impIva)}</ar:ImpIVA>` +
+    `<ar:ImpOpEx>${fmt(comp.importeExento ?? 0)}</ar:ImpOpEx>` +
     `<ar:ImpTrib>0</ar:ImpTrib>` +
+    `<ar:ImpIVA>${fmt(impIva)}</ar:ImpIVA>` +
     fechasServicio +
     `<ar:MonId>${MONEDA_PESOS}</ar:MonId>` +
     `<ar:MonCotiz>1</ar:MonCotiz>` +
     `<ar:CondicionIVAReceptorId>${condicionIvaReceptor(comp)}</ar:CondicionIVAReceptorId>` +
+    cbtesAsoc +
     detalleIva +
+    periodoAsoc +
     `</ar:FECAEDetRequest>`;
 
   return sobreWsfe(
@@ -385,19 +431,26 @@ export function armarFECAESolicitarRequest(
   );
 }
 
-/** Formatea un monto a 2 decimales (formato de WSFEv1). */
+/**
+ * Un monto con 2 decimales (formato de WSFEv1), con la regla única de redondeo:
+ * 1,005 → "1.01". Lo que no es un importe (NaN, infinito) no se manda: tira.
+ */
 function fmt(n: number): string {
-  return n.toFixed(2);
+  return textoAlCentavo(n);
 }
 
 /**
- * Resuelve el `CondicionIVAReceptorId` (obligatorio, RG 5616). Usa el del
- * comprobante si vino resuelto (lo setea `construirComprobante` desde la
- * condición real del receptor); si no, cae a Consumidor Final — el default
- * seguro para el comprobante a consumidor final sin identificar.
+ * El `CondicionIVAReceptorId` (obligatorio, RG 5616) que resolvió la decisión. Sin él no se arma
+ * el pedido: mandar Consumidor Final por defecto hacía pasar como consumidor final a un
+ * receptor del que no se sabía la condición (y con una A, ARCA la rechazaba).
  */
 function condicionIvaReceptor(comp: ComprobanteArca): CondicionIvaReceptorId {
-  return comp.condicionIvaReceptorId ?? CondicionIvaReceptorId.ConsumidorFinal;
+  if (comp.condicionIvaReceptorId == null) {
+    throw new Error(
+      'WSFEv1: falta la condición frente al IVA del receptor (RG 5616); no se manda una por defecto.',
+    );
+  }
+  return comp.condicionIvaReceptorId;
 }
 
 /**
@@ -414,7 +467,8 @@ export function parsearFECAESolicitarResponse(
   comp: ComprobanteArca,
   numero: number,
 ): ResultadoCae {
-  // 1) Errores de nivel método (Auth, formato) → rechazo.
+  // 1) Errores de nivel método (Auth, falla interna, formato): rechazo o pasajero según el
+  //    código (ENG-021, `domain/errores-arca.ts`).
   lanzarSiErrores(xml);
 
   // 2) Resultado de cabecera: 'A' aprobado, 'R' rechazado, 'P' parcial.
@@ -424,7 +478,7 @@ export function parsearFECAESolicitarResponse(
   const observaciones = parsearObservaciones(xml);
 
   if (resultado === 'R' || resultado === 'P') {
-    throw new ArcaRechazoError(
+    throw errorDeArca(
       `ARCA rechazó el comprobante (Resultado=${resultado}).`,
       observaciones.length > 0
         ? observaciones
@@ -432,11 +486,20 @@ export function parsearFECAESolicitarResponse(
     );
   }
 
+  // Sin resultado o aprobado sin CAE: la respuesta llegó cortada. ARCA pudo haber autorizado,
+  // así que NO es un rechazo: es pasajero y el reintento consulta antes de pedir otro número
+  // (ENG-020). Marcarlo rechazado dejaba un CAE en ARCA sin factura en el sistema.
+  if (resultado !== 'A') {
+    throw new ArcaPasajeroError(
+      'ARCA devolvió una respuesta sin resultado (cortada o incompleta).',
+      observaciones,
+    );
+  }
   const cae = extraerTag(xml, 'CAE');
   const caeVencimiento = extraerTag(xml, 'CAEFchVto');
   if (!cae || !caeVencimiento) {
-    throw new ArcaRechazoError(
-      'ARCA no devolvió CAE (respuesta sin CAE/CAEFchVto).',
+    throw new ArcaPasajeroError(
+      'ARCA aprobó pero la respuesta no trae CAE/CAEFchVto (cortada o incompleta).',
       observaciones,
     );
   }
@@ -480,31 +543,193 @@ export function lanzarSiErrores(xml: string): void {
     codigo: Number(extraerTag(e, 'Code') ?? 0),
     mensaje: (extraerTag(e, 'Msg') ?? '').trim(),
   }));
-  throw new ArcaRechazoError('ARCA devolvió errores.', observaciones);
+  throw errorDeArca('ARCA devolvió errores.', observaciones);
+}
+
+/**
+ * ENG-021 · El error que corresponde a lo que contestó ARCA: pasajero si todos los códigos
+ * son pasajeros (`domain/errores-arca.ts`), rechazo del comprobante si no.
+ */
+export function errorDeArca(
+  mensaje: string,
+  observaciones: ObservacionArca[],
+): ArcaPasajeroError | ArcaRechazoError {
+  return esErrorPasajero(observaciones)
+    ? new ArcaPasajeroError(`${mensaje} (error pasajero: se reintenta)`, observaciones)
+    : new ArcaRechazoError(mensaje, observaciones);
+}
+
+/**
+ * ENG-020 · Un error de la CONSULTA de un número anotado, como pasajero: la consulta no evalúa
+ * ningún comprobante, así que nunca es un rechazo. Conserva los códigos y la causa.
+ */
+function comoPasajeroDeConsulta(e: unknown): unknown {
+  if (!(e instanceof ArcaRechazoError)) return e;
+  return new ArcaPasajeroError(
+    `No se pudo consultar en ARCA si el número ya se usó: ${e.message} (se reintenta)`,
+    e.observaciones,
+    { cause: e },
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// WSFEv1 — FECompConsultar (PURO) · ENG-020
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Código con el que WSFEv1 dice "no existen datos para los parámetros ingresados". */
+export const CODIGO_SIN_RESULTADOS = 602;
+
+/** Arma el request de `FECompConsultar` (CbteTipo, CbteNro, PtoVta). */
+export function armarFECompConsultarRequest(
+  ta: TicketAcceso,
+  cuit: number,
+  puntoVenta: number,
+  tipo: TipoComprobante,
+  numero: number,
+): string {
+  return sobreWsfe(
+    `<ar:FECompConsultar>` +
+      bloqueAuth(ta, cuit) +
+      `<ar:FeCompConsReq>` +
+      `<ar:CbteTipo>${tipo}</ar:CbteTipo>` +
+      `<ar:CbteNro>${numero}</ar:CbteNro>` +
+      `<ar:PtoVta>${puntoVenta}</ar:PtoVta>` +
+      `</ar:FeCompConsReq>` +
+      `</ar:FECompConsultar>`,
+  );
+}
+
+/**
+ * Un importe de ARCA (`ImpTotal`, texto con punto decimal) en centavos enteros, sin pasar por
+ * float: "1210" → 121000, "1210.5" → 121050. Lo que no se puede leer exacto lanza pasajero
+ * (no se adopta un comprobante que no se pudo comparar).
+ */
+export function centavosDeImporteArca(texto: string): number {
+  const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(texto.trim());
+  if (!m) throw new ArcaPasajeroError(`WSFEv1: importe ilegible en la respuesta: "${texto}".`);
+  const decimales = m[3] ?? '';
+  if (/[1-9]/.test(decimales.slice(2))) {
+    throw new ArcaPasajeroError(`WSFEv1: importe con más de dos decimales: "${texto}".`);
+  }
+  const centavos = Number(m[2]) * 100 + Number(decimales.slice(0, 2).padEnd(2, '0'));
+  return m[1] === '-' && centavos !== 0 ? -centavos : centavos;
+}
+
+/**
+ * Parsea la respuesta de `FECompConsultar`: el comprobante autorizado, o `null` si ARCA dice
+ * que no existe (602). Cualquier otro error, o una respuesta que no se puede leer entera, lanza
+ * SIEMPRE `ArcaPasajeroError`, sea cual sea el código: la consulta no evalúa ningún comprobante,
+ * así que un error acá sólo dice "no sé si ese número ya se usó". Tomarlo por rechazo cerraba la
+ * factura y, al volver a facturarla, ARCA daba un segundo CAE para la misma venta.
+ */
+export function parsearFECompConsultarResponse(
+  xml: string,
+  puntoVenta: number,
+  tipo: TipoComprobante,
+  numero: number,
+): ComprobanteConsultado | null {
+  const bloqueErrors = extraerTag(xml, 'Errors');
+  if (bloqueErrors) {
+    const codigos = extraerTags(bloqueErrors, 'Err').map((e) => Number(extraerTag(e, 'Code') ?? 0));
+    if (codigos.length > 0 && codigos.every((c) => c === CODIGO_SIN_RESULTADOS)) return null;
+  }
+  try {
+    lanzarSiErrores(xml);
+  } catch (e) {
+    throw comoPasajeroDeConsulta(e);
+  }
+
+  const resultGet = extraerTag(xml, 'ResultGet');
+  if (!resultGet) {
+    throw new ArcaPasajeroError('WSFEv1: respuesta de FECompConsultar sin ResultGet (cortada o vacía).');
+  }
+  const campo = (tag: string): string => {
+    const v = extraerTag(resultGet, tag);
+    if (v === undefined || v.trim() === '') {
+      throw new ArcaPasajeroError(`WSFEv1: FECompConsultar sin ${tag} (respuesta incompleta).`);
+    }
+    return v.trim();
+  };
+  // Sólo cuenta un comprobante autorizado con CAE; otro resultado es "no está autorizado".
+  if (campo('Resultado') !== 'A') return null;
+  const numeroLeido = Number(campo('CbteDesde'));
+  if (numeroLeido !== numero || Number(campo('PtoVta')) !== puntoVenta || Number(campo('CbteTipo')) !== tipo) {
+    throw new ArcaPasajeroError(
+      `WSFEv1: FECompConsultar devolvió otro comprobante (${campo('PtoVta')}-${campo('CbteTipo')}-${numeroLeido}).`,
+    );
+  }
+  return {
+    puntoVenta,
+    tipo,
+    numero,
+    cae: campo('CodAutorizacion'),
+    caeVencimiento: campo('FchVto'),
+    fecha: campo('CbteFch'),
+    docTipo: Number(campo('DocTipo')),
+    docNro: Number(campo('DocNro')),
+    totalCentavos: centavosDeImporteArca(campo('ImpTotal')),
+    netoCentavos: centavosDeImporteArca(campo('ImpNeto')),
+    ivaCentavos: centavosDeImporteArca(campo('ImpIVA')),
+    concepto: Number(campo('Concepto')),
+  };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 // Transporte por defecto (fetch) — usado en producción, mockeable en tests
 // ────────────────────────────────────────────────────────────────────────────
 
-/** Transporte real: POST SOAP 1.1 con `SOAPAction`. */
+/** Límite de una llamada a ARCA (DECISIONS.md P5): 15 s, incluida la lectura de la respuesta. */
+export const TIMEOUT_ARCA_MS = 15_000;
+
+/**
+ * Transporte real: POST SOAP 1.1 con `SOAPAction`, cortado a los 15 s (ENG-020). Toda falla
+ * del transporte (sin respuesta a tiempo, red caída, respuesta cortada, HTTP que no es 2xx) es
+ * `ArcaPasajeroError`: ARCA no evaluó el comprobante, o no se sabe si lo hizo (ENG-021).
+ */
 export class FetchSoapTransport implements SoapTransport {
+  private readonly timeoutMs: number;
+  private readonly hacerFetch: typeof fetch;
+
+  constructor(opciones: { timeoutMs?: number; fetch?: typeof fetch } = {}) {
+    this.timeoutMs = opciones.timeoutMs ?? TIMEOUT_ARCA_MS;
+    this.hacerFetch = opciones.fetch ?? ((...a) => fetch(...a));
+  }
+
   async post(url: string, soapAction: string, body: string): Promise<string> {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/xml; charset=utf-8',
-        SOAPAction: soapAction,
-      },
-      body,
-    });
-    const texto = await res.text();
-    if (!res.ok) {
-      throw new Error(
-        `ARCA: transporte SOAP falló (HTTP ${res.status}). Cuerpo: ${texto.slice(0, 500)}`,
-      );
+    const corte = new AbortController();
+    const reloj = setTimeout(() => corte.abort(), this.timeoutMs);
+    try {
+      let res: Response;
+      let texto: string;
+      try {
+        res = await this.hacerFetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/xml; charset=utf-8',
+            SOAPAction: soapAction,
+          },
+          body,
+          signal: corte.signal,
+        });
+        texto = await res.text();
+      } catch (e) {
+        throw new ArcaPasajeroError(
+          corte.signal.aborted
+            ? `ARCA no respondió en ${this.timeoutMs / 1000} s (${url}).`
+            : `No se pudo hablar con ARCA (${url}): ${e instanceof Error ? e.message : String(e)}`,
+          [],
+          { cause: e },
+        );
+      }
+      if (!res.ok) {
+        throw new ArcaPasajeroError(
+          `ARCA: transporte SOAP falló (HTTP ${res.status}). Cuerpo: ${texto.slice(0, 500)}`,
+        );
+      }
+      return texto;
+    } finally {
+      clearTimeout(reloj);
     }
-    return texto;
   }
 }
 
@@ -635,5 +860,19 @@ export class SoapAfipClient implements AfipClient {
       body,
     );
     return parsearFECAESolicitarResponse(respuesta, comp, numero);
+  }
+
+  async consultarComprobante(
+    puntoVenta: number,
+    tipo: TipoComprobante,
+    numero: number,
+  ): Promise<ComprobanteConsultado | null> {
+    const ta = await this.autenticar();
+    const respuesta = await this.transport.post(
+      this.endpoints.wsfev1,
+      `${WSFE_NS}FECompConsultar`,
+      armarFECompConsultarRequest(ta, this.config.cuit, puntoVenta, tipo, numero),
+    );
+    return parsearFECompConsultarResponse(respuesta, puntoVenta, tipo, numero);
   }
 }

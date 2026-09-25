@@ -1,0 +1,91 @@
+TAP version 13
+# Subtest: como app_rls, un comprobante con CAE: cambiarle un campo fiscal o borrarlo falla, y la fila no cambia
+not ok 1 - como app_rls, un comprobante con CAE: cambiarle un campo fiscal o borrarlo falla, y la fila no cambia
+  ---
+  duration_ms: 1878.130086
+  type: 'test'
+  location: '/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:7:703'
+  failureType: 'testCodeFailure'
+  error: 'total y CAE'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: 'Un comprobante con CAE no se puede editar (cae): se anula con una nota de crédito.'
+  operator: 'match'
+  stack: |-
+    Object.<anonymous> (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:108:14)
+    expectedException (node:assert:576:17)
+    expectsError (node:assert:701:21)
+    Function.rejects (node:assert:767:3)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rechazaConRestriccion (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:103:3)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:123:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: el dueño de las tablas (sin RLS) tampoco puede editar ni borrar un comprobante con CAE
+not ok 2 - el dueño de las tablas (sin RLS) tampoco puede editar ni borrar un comprobante con CAE
+  ---
+  duration_ms: 22.655367
+  type: 'test'
+  location: '/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:7:2586'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: UPDATE dueño'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rechazaConRestriccion (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:103:3)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:174:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: sin CAE sigue permitido editar y borrar; el paso normal de pendiente a autorizada (código real) funciona
+not ok 3 - sin CAE sigue permitido editar y borrar; el paso normal de pendiente a autorizada (código real) funciona
+  ---
+  duration_ms: 412.032385
+  type: 'test'
+  location: '/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:7:3940'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: tras autorizar'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rechazaConRestriccion (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:103:3)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:244:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: con CAE: lo que no es fiscal sigue libre y borrar el pedido de origen deja la factura sin enlace
+ok 4 - con CAE: lo que no es fiscal sigue libre y borrar el pedido de origen deja la factura sin enlace
+  ---
+  duration_ms: 96.051176
+  type: 'test'
+  ...
+# Subtest: la reversa saca la protección sin tocar filas y `prisma migrate deploy` la vuelve a poner
+not ok 5 - la reversa saca la protección sin tocar filas y `prisma migrate deploy` la vuelve a poner
+  ---
+  duration_ms: 1219.241446
+  type: 'test'
+  location: '/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:7:7710'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: re-aplicada'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rechazaConRestriccion (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:103:3)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:308:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 1
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4156.12967

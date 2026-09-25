@@ -16,6 +16,8 @@
 //   · "hoy" es el día del NEGOCIO (`todayInBusinessTz`), no el del servidor.
 // Todas las cuentas de días son entre días de calendario ("AAAA-MM-DD"), sin horas.
 
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
+
 export type BatchStatus = "AVAILABLE" | "DEPLETED" | "EXPIRED" | "WITHDRAWN";
 
 export interface Batch {
@@ -181,5 +183,5 @@ export function plataEnRiesgo(batches: Batch[], hoy: string, dias = DIAS_POR_VEN
     if (b.unitCost != null && b.unitCost > 0 && b.netWeightKg != null && b.netWeightKg > 0) pesos += b.unitCost * b.netWeightKg;
     else sinCosto++;
   }
-  return { lotes, pesos: Math.round(pesos * 100) / 100, sinCosto };
+  return { lotes, pesos: redondearAlCentavo(pesos), sinCosto };
 }

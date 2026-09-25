@@ -1,0 +1,652 @@
+TAP version 13
+# Subtest: cuitDesdeCertPem: extrae el CUIT del serialNumber "CUIT <11 dígitos>"
+ok 1 - cuitDesdeCertPem: extrae el CUIT del serialNumber "CUIT <11 dígitos>"
+  ---
+  duration_ms: 37.925731
+  type: 'test'
+  ...
+# Subtest: cuitDesdeCertPem: tolera guiones en el CUIT
+ok 2 - cuitDesdeCertPem: tolera guiones en el CUIT
+  ---
+  duration_ms: 32.036669
+  type: 'test'
+  ...
+# Subtest: cuitDesdeCertPem: cae al CN si no hay serialNumber con CUIT
+ok 3 - cuitDesdeCertPem: cae al CN si no hay serialNumber con CUIT
+  ---
+  duration_ms: 17.681956
+  type: 'test'
+  ...
+# Subtest: cuitDesdeCertPem: PEM inválido → null
+ok 4 - cuitDesdeCertPem: PEM inválido → null
+  ---
+  duration_ms: 0.163999
+  type: 'test'
+  ...
+# Subtest: vencimientoDesdeCertPem: devuelve la fecha notAfter
+ok 5 - vencimientoDesdeCertPem: devuelve la fecha notAfter
+  ---
+  duration_ms: 29.455161
+  type: 'test'
+  ...
+# Subtest: assertCertCoincideConCuit: coincide → no lanza
+ok 6 - assertCertCoincideConCuit: coincide → no lanza
+  ---
+  duration_ms: 18.422739
+  type: 'test'
+  ...
+# Subtest: assertCertCoincideConCuit: tolera guiones en el CUIT del tenant
+ok 7 - assertCertCoincideConCuit: tolera guiones en el CUIT del tenant
+  ---
+  duration_ms: 15.335552
+  type: 'test'
+  ...
+# Subtest: 🔒 assertCertCoincideConCuit: CUIT distinto → CredencialCuitMismatchError
+ok 8 - 🔒 assertCertCoincideConCuit: CUIT distinto → CredencialCuitMismatchError
+  ---
+  duration_ms: 13.325781
+  type: 'test'
+  ...
+# Subtest: 🔒 assertCertCoincideConCuit: cert sin CUIT legible → aborta (no asume que coincide)
+ok 9 - 🔒 assertCertCoincideConCuit: cert sin CUIT legible → aborta (no asume que coincide)
+  ---
+  duration_ms: 28.815414
+  type: 'test'
+  ...
+# Subtest: modoDesdeEnv: default stub, homologacion y real por ARCA_MODO
+ok 10 - modoDesdeEnv: default stub, homologacion y real por ARCA_MODO
+  ---
+  duration_ms: 0.695877
+  type: 'test'
+  ...
+# Subtest: configParaModo: homologacion fuerza homologacion=true aunque el Tenant diga false
+ok 11 - configParaModo: homologacion fuerza homologacion=true aunque el Tenant diga false
+  ---
+  duration_ms: 0.138137
+  type: 'test'
+  ...
+# Subtest: sin ARCA_MODO → StubAfipClient (no requiere credencial)
+ok 12 - sin ARCA_MODO → StubAfipClient (no requiere credencial)
+  ---
+  duration_ms: 0.173763
+  type: 'test'
+  ...
+# Subtest: ARCA_MODO=real sin credencial → error explícito (NO cae al stub ni a un env compartido)
+ok 13 - ARCA_MODO=real sin credencial → error explícito (NO cae al stub ni a un env compartido)
+  ---
+  duration_ms: 0.263298
+  type: 'test'
+  ...
+# Subtest: ARCA_MODO=homologacion sin credencial → mismo error explícito
+ok 14 - ARCA_MODO=homologacion sin credencial → mismo error explícito
+  ---
+  duration_ms: 0.119721
+  type: 'test'
+  ...
+# Subtest: ARCA_MODO=real con credencial del CUIT correcto → adapter SOAP real
+ok 15 - ARCA_MODO=real con credencial del CUIT correcto → adapter SOAP real
+  ---
+  duration_ms: 55.608485
+  type: 'test'
+  ...
+# Subtest: 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed)
+ok 16 - 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed)
+  ---
+  duration_ms: 24.903836
+  type: 'test'
+  ...
+# Subtest: ARCA_MODO=homologacion con credencial de PRUEBA → SOAP real forzado a homologación (sin guard estricto)
+ok 17 - ARCA_MODO=homologacion con credencial de PRUEBA → SOAP real forzado a homologación (sin guard estricto)
+  ---
+  duration_ms: 15.56718
+  type: 'test'
+  ...
+# Subtest: fechaDePrueba: formatea AAAAMMDD desde un reloj inyectado
+ok 18 - fechaDePrueba: formatea AAAAMMDD desde un reloj inyectado
+  ---
+  duration_ms: 0.978862
+  type: 'test'
+  ...
+# Subtest: comprobanteDePrueba: pasa la validación local (Factura C, consumidor final)
+ok 19 - comprobanteDePrueba: pasa la validación local (Factura C, consumidor final)
+  ---
+  duration_ms: 1.883496
+  type: 'test'
+  ...
+# Subtest: comprobanteDePrueba: respeta overrides de puntoVenta y monto
+ok 20 - comprobanteDePrueba: respeta overrides de puntoVenta y monto
+  ---
+  duration_ms: 0.168632
+  type: 'test'
+  ...
+# Subtest: emitirFacturaDePrueba: con StubAfipClient devuelve CAE simulado
+ok 21 - emitirFacturaDePrueba: con StubAfipClient devuelve CAE simulado
+  ---
+  duration_ms: 0.620806
+  type: 'test'
+  ...
+# Subtest: emitirFacturaDePrueba: mapea ArcaRechazoError a motivo "rechazo"
+ok 22 - emitirFacturaDePrueba: mapea ArcaRechazoError a motivo "rechazo"
+  ---
+  duration_ms: 0.222029
+  type: 'test'
+  ...
+# Subtest: emitirFacturaDePrueba: mapea un error genérico (red/parseo) a motivo "error"
+ok 23 - emitirFacturaDePrueba: mapea un error genérico (red/parseo) a motivo "error"
+  ---
+  duration_ms: 0.128754
+  type: 'test'
+  ...
+# Subtest: firmarCms devuelve un CMS SignedData válido (base64) con el TRA embebido
+ok 24 - firmarCms devuelve un CMS SignedData válido (base64) con el TRA embebido
+  ---
+  duration_ms: 56.973638
+  type: 'test'
+  ...
+# Subtest: el CMS no es determinístico entre firmas (signingTime) pero siempre válido
+ok 25 - el CMS no es determinístico entre firmas (signingTime) pero siempre válido
+  ---
+  duration_ms: 31.309408
+  type: 'test'
+  ...
+# Subtest: constructor con PEM inválido falla fail-fast
+ok 26 - constructor con PEM inválido falla fail-fast
+  ---
+  duration_ms: 0.324279
+  type: 'test'
+  ...
+# Subtest: credencialDesdeEnv: null si falta cert o clave, credencial si están las dos
+ok 27 - credencialDesdeEnv: null si falta cert o clave, credencial si están las dos
+  ---
+  duration_ms: 1.257943
+  type: 'test'
+  ...
+# Subtest: escaparXml / desescaparXml son inversas para caracteres especiales
+ok 28 - escaparXml / desescaparXml son inversas para caracteres especiales
+  ---
+  duration_ms: 0.874709
+  type: 'test'
+  ...
+# Subtest: extraerTag ignora prefijo de namespace y atributos
+ok 29 - extraerTag ignora prefijo de namespace y atributos
+  ---
+  duration_ms: 0.605071
+  type: 'test'
+  ...
+# Subtest: extraerTags devuelve todas las ocurrencias
+ok 30 - extraerTags devuelve todas las ocurrencias
+  ---
+  duration_ms: 0.441902
+  type: 'test'
+  ...
+# Subtest: endpointsPara elige homologación o producción según config
+ok 31 - endpointsPara elige homologación o producción según config
+  ---
+  duration_ms: 0.777954
+  type: 'test'
+  ...
+# Subtest: armarLoginTicketRequest incluye header, service y ventana temporal
+ok 32 - armarLoginTicketRequest incluye header, service y ventana temporal
+  ---
+  duration_ms: 0.615796
+  type: 'test'
+  ...
+# Subtest: parsearLoginTicketResponse desescapa y extrae token/sign/expiration
+ok 33 - parsearLoginTicketResponse desescapa y extrae token/sign/expiration
+  ---
+  duration_ms: 0.714095
+  type: 'test'
+  ...
+# Subtest: parsearLoginTicketResponse falla si falta token
+ok 34 - parsearLoginTicketResponse falla si falta token
+  ---
+  duration_ms: 0.882438
+  type: 'test'
+  ...
+# Subtest: ticketVigente respeta expiration y margen
+ok 35 - ticketVigente respeta expiration y margen
+  ---
+  duration_ms: 0.137363
+  type: 'test'
+  ...
+# Subtest: armarUltimoAutorizadoRequest arma Auth + PtoVta + CbteTipo
+ok 36 - armarUltimoAutorizadoRequest arma Auth + PtoVta + CbteTipo
+  ---
+  duration_ms: 0.293126
+  type: 'test'
+  ...
+# Subtest: parsearUltimoAutorizadoResponse devuelve el CbteNro
+ok 37 - parsearUltimoAutorizadoResponse devuelve el CbteNro
+  ---
+  duration_ms: 1.029894
+  type: 'test'
+  ...
+# Subtest: parsearUltimoAutorizadoResponse lanza ArcaRechazoError ante <Errors>
+ok 38 - parsearUltimoAutorizadoResponse lanza ArcaRechazoError ante <Errors>
+  ---
+  duration_ms: 0.851279
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest (Factura A) discrimina IVA y arma AlicIva
+ok 39 - armarFECAESolicitarRequest (Factura A) discrimina IVA y arma AlicIva
+  ---
+  duration_ms: 0.474212
+  type: 'test'
+  ...
+# Subtest: los importes viajan con la regla única de redondeo: 2,675 → 2.68 y 3,235 → 3.24 (no 2.67 ni 3.23)
+ok 40 - los importes viajan con la regla única de redondeo: 2,675 → 2.68 y 3,235 → 3.24 (no 2.67 ni 3.23)
+  ---
+  duration_ms: 0.305304
+  type: 'test'
+  ...
+# Subtest: ImpIVA es la suma exacta de los AlicIva que viajan: 1,005 + 1,005 → 1.01 + 1.01 = 2.02
+ok 41 - ImpIVA es la suma exacta de los AlicIva que viajan: 1,005 + 1,005 → 1.01 + 1.01 = 2.02
+  ---
+  duration_ms: 0.450935
+  type: 'test'
+  ...
+# Subtest: ImpIVA = Σ AlicIva.Importe en 20.000 comprobantes al azar de 1 a 3 alícuotas con milésimos
+ok 42 - ImpIVA = Σ AlicIva.Importe en 20.000 comprobantes al azar de 1 a 3 alícuotas con milésimos
+  ---
+  duration_ms: 222.785621
+  type: 'test'
+  ...
+# Subtest: un monto que no es un número no se manda a ARCA: el armado tira antes de escribir "NaN"
+ok 43 - un monto que no es un número no se manda a ARCA: el armado tira antes de escribir "NaN"
+  ---
+  duration_ms: 0.250731
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest (Factura C) NO discrimina IVA ni manda <Iva>, y arma fechas de servicio
+ok 44 - armarFECAESolicitarRequest (Factura C) NO discrimina IVA ni manda <Iva>, y arma fechas de servicio
+  ---
+  duration_ms: 0.195351
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest emite CondicionIVAReceptorId (RG 5616) tras MonCotiz
+ok 45 - armarFECAESolicitarRequest emite CondicionIVAReceptorId (RG 5616) tras MonCotiz
+  ---
+  duration_ms: 0.068061
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest usa el CondicionIVAReceptorId del comprobante si viene
+ok 46 - armarFECAESolicitarRequest usa el CondicionIVAReceptorId del comprobante si viene
+  ---
+  duration_ms: 0.06077
+  type: 'test'
+  ...
+# Subtest: parsearFECAESolicitarResponse OK devuelve ResultadoCae con CAE y número autorizado
+ok 47 - parsearFECAESolicitarResponse OK devuelve ResultadoCae con CAE y número autorizado
+  ---
+  duration_ms: 0.722932
+  type: 'test'
+  ...
+# Subtest: parsearFECAESolicitarResponse rechazo (Resultado=R) lanza ArcaRechazoError con observaciones
+ok 48 - parsearFECAESolicitarResponse rechazo (Resultado=R) lanza ArcaRechazoError con observaciones
+  ---
+  duration_ms: 0.400854
+  type: 'test'
+  ...
+# Subtest: parsearFECAESolicitarResponse mapea <Errors> a ArcaRechazoError
+ok 49 - parsearFECAESolicitarResponse mapea <Errors> a ArcaRechazoError
+  ---
+  duration_ms: 0.113337
+  type: 'test'
+  ...
+# Subtest: parsearObservaciones extrae code + msg de cada <Obs>
+ok 50 - parsearObservaciones extrae code + msg de cada <Obs>
+  ---
+  duration_ms: 0.227906
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient.ultimoAutorizado autentica una vez y golpea WSFEv1
+ok 51 - SoapAfipClient.ultimoAutorizado autentica una vez y golpea WSFEv1
+  ---
+  duration_ms: 0.381769
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient.solicitarCae resuelve numeración (ultimo+1) y devuelve el CAE
+ok 52 - SoapAfipClient.solicitarCae resuelve numeración (ultimo+1) y devuelve el CAE
+  ---
+  duration_ms: 0.687267
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient cachea el ticket: no reautentica en la 2da operación
+ok 53 - SoapAfipClient cachea el ticket: no reautentica en la 2da operación
+  ---
+  duration_ms: 0.249342
+  type: 'test'
+  ...
+# Subtest: El signer por defecto exige credencial (acción humana)
+ok 54 - El signer por defecto exige credencial (acción humana)
+  ---
+  duration_ms: 0.218968
+  type: 'test'
+  ...
+# Subtest: armarFECAESolicitarRequest (Factura B) SÍ informa IVA (ImpIVA + <Iva>) — fix del bug latente
+ok 55 - armarFECAESolicitarRequest (Factura B) SÍ informa IVA (ImpIVA + <Iva>) — fix del bug latente
+  ---
+  duration_ms: 0.226139
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient reusa el ticketInicial vigente: NO re-loguea contra WSAA
+ok 56 - SoapAfipClient reusa el ticketInicial vigente: NO re-loguea contra WSAA
+  ---
+  duration_ms: 0.328833
+  type: 'test'
+  ...
+# Subtest: SoapAfipClient con ticketInicial vencido: re-loguea y PERSISTE el TA nuevo (alRenovarTicket)
+ok 57 - SoapAfipClient con ticketInicial vencido: re-loguea y PERSISTE el TA nuevo (alRenovarTicket)
+  ---
+  duration_ms: 0.213471
+  type: 'test'
+  ...
+# Subtest: traslada los campos base del evento sin tocarlos
+ok 58 - traslada los campos base del evento sin tocarlos
+  ---
+  duration_ms: 1.106293
+  type: 'test'
+  ...
+# Subtest: traslada los montos calculados por el Core sin recalcular
+ok 59 - traslada los montos calculados por el Core sin recalcular
+  ---
+  duration_ms: 1.224671
+  type: 'test'
+  ...
+# Subtest: mapea el desglose de IVA por alícuota (varias líneas)
+ok 60 - mapea el desglose de IVA por alícuota (varias líneas)
+  ---
+  duration_ms: 0.176104
+  type: 'test'
+  ...
+# Subtest: emisor RI + receptor RI ⇒ Factura A
+ok 61 - emisor RI + receptor RI ⇒ Factura A
+  ---
+  duration_ms: 0.221267
+  type: 'test'
+  ...
+# Subtest: emisor RI + receptor consumidor final ⇒ Factura B
+ok 62 - emisor RI + receptor consumidor final ⇒ Factura B
+  ---
+  duration_ms: 0.107844
+  type: 'test'
+  ...
+# Subtest: emisor RI + receptor monotributo ⇒ Factura B (no A)
+ok 63 - emisor RI + receptor monotributo ⇒ Factura B (no A)
+  ---
+  duration_ms: 0.094111
+  type: 'test'
+  ...
+# Subtest: emisor monotributo ⇒ Factura C (sin importar el receptor)
+ok 64 - emisor monotributo ⇒ Factura C (sin importar el receptor)
+  ---
+  duration_ms: 0.166356
+  type: 'test'
+  ...
+# Subtest: emisor exento ⇒ Factura C
+ok 65 - emisor exento ⇒ Factura C
+  ---
+  duration_ms: 0.092468
+  type: 'test'
+  ...
+# Subtest: emisor consumidor final no puede emitir: lanza
+ok 66 - emisor consumidor final no puede emitir: lanza
+  ---
+  duration_ms: 0.636413
+  type: 'test'
+  ...
+# Subtest: traslada las fechas de servicio cuando vienen en el evento
+ok 67 - traslada las fechas de servicio cuando vienen en el evento
+  ---
+  duration_ms: 0.375695
+  type: 'test'
+  ...
+# Subtest: sin fechas de servicio en el evento, quedan undefined
+ok 68 - sin fechas de servicio en el evento, quedan undefined
+  ---
+  duration_ms: 0.124803
+  type: 'test'
+  ...
+# Subtest: numero no lo pone construirComprobante: lo resuelve el cliente contra ARCA
+ok 69 - numero no lo pone construirComprobante: lo resuelve el cliente contra ARCA
+  ---
+  duration_ms: 0.068713
+  type: 'test'
+  ...
+# Subtest: totalIva suma los importes de todas las alícuotas
+ok 70 - totalIva suma los importes de todas las alícuotas
+  ---
+  duration_ms: 0.121975
+  type: 'test'
+  ...
+# Subtest: totalIva de un comprobante sin IVA es 0
+ok 71 - totalIva de un comprobante sin IVA es 0
+  ---
+  duration_ms: 0.062868
+  type: 'test'
+  ...
+# Subtest: informaIvaWsfe: A y B informan IVA (ImpIVA + <Iva>); C no
+ok 72 - informaIvaWsfe: A y B informan IVA (ImpIVA + <Iva>); C no
+  ---
+  duration_ms: 0.106872
+  type: 'test'
+  ...
+# Subtest: informaIvaWsfe ⊃ discriminaIva: B informa IVA aunque NO discrimine (regla receptor-CUIT es solo-A)
+ok 73 - informaIvaWsfe ⊃ discriminaIva: B informa IVA aunque NO discrimine (regla receptor-CUIT es solo-A)
+  ---
+  duration_ms: 0.060723
+  type: 'test'
+  ...
+# Subtest: payload: campos y formato oficiales (fecha con guiones, tipoCodAut E)
+ok 74 - payload: campos y formato oficiales (fecha con guiones, tipoCodAut E)
+  ---
+  duration_ms: 0.718458
+  type: 'test'
+  ...
+# Subtest: base64 es reversible al JSON del payload
+ok 75 - base64 es reversible al JSON del payload
+  ---
+  duration_ms: 1.031855
+  type: 'test'
+  ...
+# Subtest: url arranca con el endpoint oficial y trae ?p=<base64>
+ok 76 - url arranca con el endpoint oficial y trae ?p=<base64>
+  ---
+  duration_ms: 0.341249
+  type: 'test'
+  ...
+# Subtest: fecha inválida (no AAAAMMDD) lanza
+ok 77 - fecha inválida (no AAAAMMDD) lanza
+  ---
+  duration_ms: 0.170397
+  type: 'test'
+  ...
+# Subtest: un comprobante B consistente pasa sin errores
+ok 78 - un comprobante B consistente pasa sin errores
+  ---
+  duration_ms: 2.458089
+  type: 'test'
+  ...
+# Subtest: un comprobante A con receptor CUIT identificado pasa
+ok 79 - un comprobante A con receptor CUIT identificado pasa
+  ---
+  duration_ms: 0.311256
+  type: 'test'
+  ...
+# Subtest: puntoVenta debe ser entero positivo
+ok 80 - puntoVenta debe ser entero positivo
+  ---
+  duration_ms: 0.270408
+  type: 'test'
+  ...
+# Subtest: fecha exige formato AAAAMMDD (8 dígitos)
+ok 81 - fecha exige formato AAAAMMDD (8 dígitos)
+  ---
+  duration_ms: 0.410721
+  type: 'test'
+  ...
+# Subtest: iva vacío es rechazado
+ok 82 - iva vacío es rechazado
+  ---
+  duration_ms: 0.147876
+  type: 'test'
+  ...
+# Subtest: total debe ser mayor a 0
+ok 83 - total debe ser mayor a 0
+  ---
+  duration_ms: 0.10695
+  type: 'test'
+  ...
+# Subtest: concepto Servicios exige servicioDesde/Hasta y vencimientoPago
+ok 84 - concepto Servicios exige servicioDesde/Hasta y vencimientoPago
+  ---
+  duration_ms: 0.181197
+  type: 'test'
+  ...
+# Subtest: concepto Servicios con las tres fechas presentes no marca esos errores
+ok 85 - concepto Servicios con las tres fechas presentes no marca esos errores
+  ---
+  duration_ms: 0.117061
+  type: 'test'
+  ...
+# Subtest: concepto ProductosYServicios también exige las fechas de servicio
+ok 86 - concepto ProductosYServicios también exige las fechas de servicio
+  ---
+  duration_ms: 0.35696
+  type: 'test'
+  ...
+# Subtest: concepto Productos NO exige fechas de servicio
+ok 87 - concepto Productos NO exige fechas de servicio
+  ---
+  duration_ms: 0.354206
+  type: 'test'
+  ...
+# Subtest: Factura A sin CUIT (docTipo != CUIT) es rechazada
+ok 88 - Factura A sin CUIT (docTipo != CUIT) es rechazada
+  ---
+  duration_ms: 0.130157
+  type: 'test'
+  ...
+# Subtest: Factura A con CUIT pero docNro <= 0 es rechazada
+ok 89 - Factura A con CUIT pero docNro <= 0 es rechazada
+  ---
+  duration_ms: 0.080514
+  type: 'test'
+  ...
+# Subtest: Nota de crédito A también exige CUIT (discrimina IVA)
+ok 90 - Nota de crédito A también exige CUIT (discrimina IVA)
+  ---
+  duration_ms: 0.072317
+  type: 'test'
+  ...
+# Subtest: Factura B con consumidor final NO exige CUIT
+ok 91 - Factura B con consumidor final NO exige CUIT
+  ---
+  duration_ms: 0.09166
+  type: 'test'
+  ...
+# Subtest: numero, si se informa, debe ser entero positivo
+ok 92 - numero, si se informa, debe ser entero positivo
+  ---
+  duration_ms: 0.143971
+  type: 'test'
+  ...
+# Subtest: numero ausente (undefined) es válido: lo resuelve el cliente contra ARCA
+ok 93 - numero ausente (undefined) es válido: lo resuelve el cliente contra ARCA
+  ---
+  duration_ms: 0.071171
+  type: 'test'
+  ...
+# Subtest: baseImponible negativa es rechazada
+ok 94 - baseImponible negativa es rechazada
+  ---
+  duration_ms: 0.111461
+  type: 'test'
+  ...
+# Subtest: alícuota de IVA desconocida es rechazada
+ok 95 - alícuota de IVA desconocida es rechazada
+  ---
+  duration_ms: 0.079648
+  type: 'test'
+  ...
+# Subtest: IVA inconsistente con la alícuota es rechazado (más allá de la tolerancia)
+ok 96 - IVA inconsistente con la alícuota es rechazado (más allá de la tolerancia)
+  ---
+  duration_ms: 0.180289
+  type: 'test'
+  ...
+# Subtest: IVA a un centavo de base × alícuota se acepta: el Core redondea cada renglón
+ok 97 - IVA a un centavo de base × alícuota se acepta: el Core redondea cada renglón
+  ---
+  duration_ms: 0.239623
+  type: 'test'
+  ...
+# Subtest: un importe con más de dos decimales se rechaza: a ARCA viajan centavos y el Core los manda así
+ok 98 - un importe con más de dos decimales se rechaza: a ARCA viajan centavos y el Core los manda así
+  ---
+  duration_ms: 0.18029
+  type: 'test'
+  ...
+# Subtest: un total a un centavo de neto + IVA se rechaza: 6,63 + 1,39 no es 8,01
+ok 99 - un total a un centavo de neto + IVA se rechaza: 6,63 + 1,39 no es 8,01
+  ---
+  duration_ms: 0.079902
+  type: 'test'
+  ...
+# Subtest: en todos los pares a un centavo hasta $20.000, ningún total ni neto descuadrado pasa
+ok 100 - en todos los pares a un centavo hasta $20.000, ningún total ni neto descuadrado pasa
+  ---
+  duration_ms: 28764.85362
+  type: 'test'
+  ...
+# Subtest: neto que no coincide con la suma de bases es rechazado
+ok 101 - neto que no coincide con la suma de bases es rechazado
+  ---
+  duration_ms: 0.245163
+  type: 'test'
+  ...
+# Subtest: total que no coincide con neto + IVA es rechazado
+ok 102 - total que no coincide con neto + IVA es rechazado
+  ---
+  duration_ms: 0.095995
+  type: 'test'
+  ...
+# Subtest: comprobante con varias alícuotas consistentes pasa
+ok 103 - comprobante con varias alícuotas consistentes pasa
+  ---
+  duration_ms: 0.07581
+  type: 'test'
+  ...
+# Subtest: alícuota 0% (base > 0, importe 0) es consistente
+ok 104 - alícuota 0% (base > 0, importe 0) es consistente
+  ---
+  duration_ms: 0.052312
+  type: 'test'
+  ...
+# Subtest: acumula todos los errores en una pasada (no corta en el primero)
+ok 105 - acumula todos los errores en una pasada (no corta en el primero)
+  ---
+  duration_ms: 0.204777
+  type: 'test'
+  ...
+# Subtest: un total, un neto o un importe de IVA que no es un número se rechaza acá, con mensaje
+ok 106 - un total, un neto o un importe de IVA que no es un número se rechaza acá, con mensaje
+  ---
+  duration_ms: 0.193461
+  type: 'test'
+  ...
+# Subtest: el mensaje de un descuadre muestra la suma de las bases tal como viajan
+ok 107 - el mensaje de un descuadre muestra la suma de las bases tal como viajan
+  ---
+  duration_ms: 0.277177
+  type: 'test'
+  ...
+1..107
+# tests 107
+# suites 0
+# pass 107
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 30055.941287

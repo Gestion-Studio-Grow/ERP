@@ -15,6 +15,7 @@
 // avisar antes de cobrar y el servidor para rechazar, con el mismo texto.
 
 import { round2 } from "@/lib/round";
+import { porcentajeDe, type UnidadDeRedondeo } from "@/lib/dinero/redondeo";
 import { leerImporte } from "@/lib/pos-peso";
 import { validarMotivo, MOTIVO_MIN } from "@/lib/turnos/anulacion";
 import { fmtMoneyARS } from "@/components/ui/format";
@@ -413,7 +414,8 @@ export type CuponLeido = {
 
 export type ResultadoCupon =
   | { ok: true; codigo: string; descuento: number }
-  | { ok: false; error: string };
+  /** `sinDescuento`: el cupón vale pero sobre esta compra no descuenta nada; el motivo se puede mostrar. */
+  | { ok: false; error: string; sinDescuento?: true };
 
 export const CUPON_Y_DESCUENTO = "Un cupón y un descuento a mano no se suman: usá uno de los dos.";
 
@@ -427,9 +429,11 @@ export const CUPON_NO_VALE = "Ese cupón no existe o no está activo. Revisá c�
 /**
  * El descuento de un cupón sobre `base` (lo que se compra, sin el envío), o el rechazo con el
  * porqué. PURA. Sin cupón, vencido, inactivo o agotado: rechazo, nunca un descuento de 0 que
- * el cliente descubra después.
+ * el cliente descubra después. Tampoco un cupón que vale pero que, redondeado, no descuenta nada
+ * (5 % de $9 en turnos): se rechaza con `sinDescuento` y quien lo llama no gasta el uso.
+ * `camino`: con qué unidad se redondea el % (`UNIDAD_DEL_DESCUENTO_DE_CUPON`); la venta si no se dice.
  */
-export function aplicarCupon(input: { cupon: CuponLeido | null; base: number; ahora: Date }): ResultadoCupon {
+export function aplicarCupon(input: { cupon: CuponLeido | null; base: number; ahora: Date; camino?: CaminoDelCupon }): ResultadoCupon {
   const c = input.cupon;
   if (!c || !c.active) return { ok: false, error: CUPON_NO_VALE };
   if (c.expiresAt && c.expiresAt.getTime() < input.ahora.getTime()) {
@@ -440,20 +444,45 @@ export function aplicarCupon(input: { cupon: CuponLeido | null; base: number; ah
   }
   const base = round2(input.base);
   if (!(base > 0)) return { ok: false, error: "Agregá algo a la compra antes de usar el cupón." };
-  if (!(c.value > 0)) return { ok: false, error: `El cupón ${c.code} no tiene un descuento cargado.` };
-  return { ok: true, codigo: c.code, descuento: montoDeCupon(c.type, c.value, base) };
+  if (!(c.value > 0)) return { ok: false, error: `El cupón ${c.code} no tiene un descuento cargado.`, sinDescuento: true };
+  const descuento = montoDeCupon(c.type, c.value, base, input.camino ?? "venta");
+  if (!(descuento > 0)) {
+    return { ok: false, error: `El cupón ${c.code} no llega a descontar nada sobre ${fmtMoneyARS(base)}.`, sinDescuento: true };
+  }
+  return { ok: true, codigo: c.code, descuento };
 }
 
 /**
  * Cuánto descuenta un cupón ya validado sobre `base`: el % de lo que se compra, o el monto fijo
- * sin pasarse de la compra. PURA. La usa también la pantalla para recalcular la vista previa
- * cuando cambia la bolsa, sin volver a preguntarle al servidor.
+ * sin pasarse de la compra. El % se redondea UNA vez a la unidad de su `camino`
+ * (`UNIDAD_DEL_DESCUENTO_DE_CUPON`); el fijo, al centavo; 100 % o más es la compra entera. PURA.
+ * Es la ÚNICA cuenta del descuento de un cupón (ENG-109): la usan la reserva de turno y su vista
+ * previa (`cupones/cupon-de-reserva.ts`, `checkCoupon`, camino "turno"), la venta, la tienda y
+ * sus pantallas para recalcular la vista previa cuando cambia la bolsa (camino "venta").
  */
-export function montoDeCupon(tipo: string, valor: number, base: number): number {
+export function montoDeCupon(tipo: string, valor: number, base: number, camino: CaminoDelCupon = "venta"): number {
   const b = round2(base);
   if (!(b > 0) || !(valor > 0)) return 0;
-  return tipo === "PERCENT" ? round2((b * Math.min(valor, 100)) / 100) : round2(Math.min(valor, b));
+  if (tipo !== "PERCENT") return round2(Math.min(valor, b));
+  // 100 % o más es la compra entera, con sus centavos: al peso quedarían centavos a pagar.
+  if (valor >= 100) return b;
+  return Math.min(porcentajeDe(b, valor, UNIDAD_DEL_DESCUENTO_DE_CUPON[camino]), b);
 }
+
+/** Dónde se usa el cupón: la reserva de un turno, o la venta (mostrador, pedido y tienda). */
+export type CaminoDelCupon = "turno" | "venta";
+
+/**
+ * A qué se redondea el descuento de un cupón de porcentaje en cada camino (ENG-109, D1-PLAN §3.3
+ * R4). Que sea UNA sola unidad para todos es decisión del dueño (D1-PLAN §7), pendiente: hasta
+ * que decida, cada camino conserva la que tenía antes de ENG-109, así CH no ve cambiar sus
+ * precios. Turnos al peso (el cobro de turnos no acepta centavos); venta y tienda al centavo (lo
+ * que se factura). Cuando decida, las dos claves pasan a la misma unidad (y el test que la fija).
+ */
+export const UNIDAD_DEL_DESCUENTO_DE_CUPON: Readonly<Record<CaminoDelCupon, UnidadDeRedondeo>> = {
+  turno: "peso",
+  venta: "centavo",
+};
 
 /**
  * Qué consume un cupón que pasó `aplicarCupon`: el compare-and-set sobre el `usedCount` que se

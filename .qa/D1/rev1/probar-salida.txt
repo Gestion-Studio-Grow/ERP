@@ -1,0 +1,24 @@
+== A · subir, escribir en el medio (como el código nuevo), bajar con la reversa v2
+NOTICE:  database "erp_d1_v2" does not exist, skipping
+tipos: Payment.amount=numeric(14,2) CashMovement.amount=numeric(14,2) Service.price=numeric(14,2) Service.depositAmount=numeric(14,2) StockMovement.unitCost=numeric(18,6)
+CM cm1=3000;CM cm2=0.3;CM cm3=9000;Payment pay1=12000;Payment pay2=0.3;Payment pay3=1234.56;Payment pay4=777.77;SM sm1=1000.571429;SM sm2=1000;SM sm3=null;Service svc1 price=13500 dep=3500;Service svc2 price=9999.99 dep=null;
+huella de las filas que nadie tocó: antes 38886396c8920b428e1bcc559cf42365 / después 38886396c8920b428e1bcc559cf42365 → IGUAL
+caja ch = 12000 ; Payment pay1 = 12000
+== B · la reversa de antes (coalesce) con la misma secuencia
+reversa vieja: Payment pay1 = 3000, Service svc1 = 12000 / 3000
+== C · un importe con fracción de centavo sin autorizar (la comisión 1851,8505 de antes)
+ERROR:  D1: Payment.amount tiene importes con más de 2 decimales sin autorización del dueño (ids: pay9)
+tipo después: double precision; columnas _float: 0
+== D · la misma fila, autorizada por el dueño
+pay9 = 1851.85 (respaldo 1851.8505); sm1 = 1000.571429
+== E · costo unitario de 6 decimales en una columna de 2 (sin autorizar)
+ERROR:  D1: StockMovement.unitCost tiene importes con más de 2 decimales sin autorización del dueño (ids: sm1)
+== F · NaN
+ERROR:  D1: 1 filas de Payment.amount no entran en numeric (NaN, infinito o 1 billón o más)
+== G · RLS forzado y un dueño sin BYPASSRLS
+NOTICE:  role "d1_duenio" does not exist, skipping
+-- sin row_security=off (plantilla vieja en ese punto):
+   tipo: numeric; NaN adentro: 1
+-- con row_security=off (plantilla v2):
+ERROR:  query would be affected by row-level security policy for table "Payment"
+   tipo: double precision

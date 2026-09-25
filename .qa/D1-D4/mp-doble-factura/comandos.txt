@@ -1,0 +1,16 @@
+# Doble Factura C por el mismo cobro de Mercado Pago (hallazgo "rompe" de la auditoría fiscal) — 2026-09-25
+# Causa: la ingesta de ventas sueltas (plugins/mercadopago/ingest.ts facturarPagoSiCorresponde) tomaba
+# cobros con external_reference (turno / "pedido:<id>") y facturarPagoMP emitía otra factura (origen
+# MP_PAYMENT) aunque el turno ya estaba facturado (origen APPOINTMENT).
+# Arreglo: core-contract.ts duenoDelCobro (única lectura de la referencia, la usan handler.ts e ingest.ts);
+# ingest.ts marca el cobro con dueño como no_facturable con motivo, antes del clasificador.
+node --import tsx --test src/plugins/mercadopago/ingest-referencia.test.ts         > pura-antes.txt   (sin arreglo: 1/5)
+node --import tsx --test src/lib/mercadopago-doble-factura-postgres.test.ts       > postgres-antes.txt (sin arreglo: 0/2, "quedaron 2")
+__SIN_ARREGLO=1 ... (arreglo apagado con un guard temporal, archivo restaurado; md5 antes/después en md5-ingest.txt)
+                                                                                  > pura-sin-arreglo.txt / postgres-sin-arreglo.txt
+node --import tsx --test (mismos dos archivos, con arreglo)                       > pura-despues.txt (5/5) / postgres-despues.txt (2/2)
+node --import tsx --test <suites MP + facturadores-fecha + umbral-seis-caminos + invoice-core + paridad-menu + pagos-dispatch> > suite-mp.txt (122/122)
+npx tsc --noEmit -p .                                                              > tsc.txt (exit 0)
+npx eslint --max-warnings=0 $(cat eslint-archivos.txt)                             > eslint.txt (exit 0)
+npm test                                                                           > npm-test-resumen.txt (3992: 3987 pass, 5 fail ajenos)
+psql ... count(erp_test_%)                                                         > bases-erp_test-antes.txt / -despues.txt (0 / 0)

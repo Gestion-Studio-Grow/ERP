@@ -10,7 +10,7 @@
 import { prisma } from "@/lib/prisma";
 import { createInvoice } from "@/lib/invoice-core";
 import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
-import { processArcaOutbox } from "@/lib/arca-dispatch";
+import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
 import { decidirFacturacion } from "@/lib/invoice-idempotency";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 
@@ -35,7 +35,7 @@ export interface DepsFacturarTurno {
   marcarPago: (paymentId: string, invoiceId: string) => Promise<unknown>;
   getFiscalProfile: typeof getFiscalProfile;
   createInvoice: typeof createInvoice;
-  processArcaOutbox: typeof processArcaOutbox;
+  procesarEnviosDelNegocio: typeof procesarEnviosDelNegocio;
 }
 
 const DEPS: DepsFacturarTurno = {
@@ -51,14 +51,16 @@ const DEPS: DepsFacturarTurno = {
     }),
   getFiscalProfile,
   createInvoice,
-  processArcaOutbox,
+  procesarEnviosDelNegocio,
 };
 
 /**
  * Crea la factura del turno y la despacha al plugin ARCA (tick del simulador).
  * Devuelve el `invoiceId`, o `null` si el turno no se pudo facturar (ej. sin
- * monto). NO lanza por fallas de facturación: es responsabilidad del llamador
- * decidir si eso es best-effort (completar turno) o reintentable (webhook MP).
+ * monto). LANZA `CobroDelTurnoCambioError` si el cobro del turno se anuló (entero o en parte)
+ * mientras se facturaba (ENG-023): el monto se lee acá, fuera de la transacción, y
+ * `createInvoiceInTx` lo vuelve a comparar con la fila del turno tomada. El llamador decide si
+ * eso es best-effort (completar turno, que lo registra en el log) o reintentable.
  */
 export async function facturarAppointment(
   appointmentId: string,
@@ -118,7 +120,7 @@ export async function facturarAppointment(
   }
 
   // Tick del simulador: en prod esto lo hace un worker periódico (ADR-002/024).
-  await deps.processArcaOutbox();
+  await deps.procesarEnviosDelNegocio(tenantId);
 
   return invoiceId;
 }

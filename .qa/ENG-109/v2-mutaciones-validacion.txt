@@ -1,0 +1,6 @@
+s/const esAlCentavo = (n: number): boolean => admiteCentavos(n) \&\& redondearAlCentavo(n) === n;/const esAlCentavo = (n: number): boolean => admiteCentavos(n);/ => # fail 2
+s/if (centavosDe(netoMasIva) !== centavosDe(comp.total)) {/if (Math.abs(netoMasIva - comp.total) > 0.01) {/ => # fail 2
+s/if (centavosDe(netoAcum) !== centavosDe(comp.neto)) {/if (Math.abs(netoAcum - comp.neto) > 0.01) {/ => # fail 1
+s/> TOLERANCIA_IVA_EN_CENTAVOS/> 5/ => # fail 0
+--- con el caso 100 @ 21 % = 21,02:
+tolerancia 5 centavos => # fail 1

@@ -27,7 +27,7 @@ import {
 } from "./visibles";
 import { searchNavItems } from "@/modules/nav-search";
 
-// Filas de Tenant como las de la base de QA (psql erp_qa_apps, 2026-09-23): beauty-spa sin
+// Filas de Tenant como las de la base local de QA (leídas con psql el 2026-09-23): beauty-spa sin
 // blueprint ni módulos; magra con su seed.
 const CH: TenantParaApps = { id: "t-ch", slug: "beauty-spa", blueprintId: null, modules: [] };
 const MAGRA: TenantParaApps = {

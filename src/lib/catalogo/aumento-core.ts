@@ -22,6 +22,7 @@
 // PURO: sin base, sin React, sin Prisma de valor. Lo usan la pantalla (vista previa en vivo),
 // la acción del servidor (que vuelve a armar el plan adentro de la transacción) y los tests.
 
+import { redondearAlCentavo, centavosDe } from "@/lib/dinero/redondeo";
 import { effectiveCategoria, type CorteCategoria } from "@/lib/carniceria/cortes";
 import { leerCantidad } from "@/lib/pos-peso";
 import {
@@ -129,7 +130,7 @@ export function leerPorcentaje(raw: string, sentido: Sentido): LecturaPorcentaje
   if (limpio === "") return { estado: "vacio" };
   const l = leerCantidad(limpio);
   if (l.estado !== "ok") return { estado: "invalido", mensaje: `"${raw}" no es un porcentaje. Escribilo como 8 u 8,5.` };
-  const valor = Math.round(l.valor * 100) / 100;
+  const valor = redondearAlCentavo(l.valor); // el % vale con dos decimales, como la plata (R7)
   if (Math.abs(valor - l.valor) > 1e-9) return { estado: "invalido", mensaje: "El porcentaje va con dos decimales como mucho." };
   if (!(valor > 0)) return { estado: "invalido", mensaje: "El porcentaje tiene que ser mayor que cero." };
   if (sentido === "subir" && valor > MAX_AUMENTO) {
@@ -157,8 +158,8 @@ export function pideConfirmacionExtra(porcentaje: number): boolean {
  * paso. Un precio que ya es múltiplo del paso y queda exacto no se mueve de más.
  */
 export function precioConPorcentaje(precio: number, porcentaje: number, sentido: Sentido, paso: PasoRedondeo): number {
-  const centavos = Math.round(precio * 100);
-  const basis = Math.round(porcentaje * 100); // 8,5 % → 850 (centésimos de punto)
+  const centavos = centavosDe(precio);
+  const basis = centavosDe(porcentaje); // 8,5 % → 850 (centésimos de punto)
   const factor = sentido === "subir" ? 10000 + basis : 10000 - basis;
   // centavos × factor es entero y exacto mientras no pase 2^53: con el tope de +500 % (factor
   // 60.000) alcanza para precios de hasta $1.500 millones.
@@ -277,7 +278,7 @@ export function planificarAumento(productos: readonly ProductoParaPrecios[], ped
       quedanEnCero.push(p.name);
       continue;
     }
-    if (Math.round(despues * 100) === Math.round(antes * 100)) {
+    if (centavosDe(despues) === centavosDe(antes)) {
       sinCambios++;
       continue;
     }

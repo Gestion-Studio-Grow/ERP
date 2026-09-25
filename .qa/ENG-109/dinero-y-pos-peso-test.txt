@@ -1,0 +1,424 @@
+TAP version 13
+# Subtest: 1,005 viaja como 1.01 y la decisión cuenta 1,01: un umbral de 1,01 lo alcanza
+ok 1 - 1,005 viaja como 1.01 y la decisión cuenta 1,01: un umbral de 1,01 lo alcanza
+  ---
+  duration_ms: 19.219428
+  type: 'test'
+  ...
+# Subtest: en 20.000 importes con medio centavo, la decisión corta justo en el ImpTotal que viaja
+ok 2 - en 20.000 importes con medio centavo, la decisión corta justo en el ImpTotal que viaja
+  ---
+  duration_ms: 1337.446579
+  type: 'test'
+  ...
+# Subtest: un punto o una coma seguidos de tres cifras son de miles: 12.500 y 12,500 son $12.500
+ok 3 - un punto o una coma seguidos de tres cifras son de miles: 12.500 y 12,500 son $12.500
+  ---
+  duration_ms: 1.199445
+  type: 'test'
+  ...
+# Subtest: con dos separadores distintos, el último es el de los centavos: 1.234,56 y 1,234.56
+ok 4 - con dos separadores distintos, el último es el de los centavos: 1.234,56 y 1,234.56
+  ---
+  duration_ms: 0.38936
+  type: 'test'
+  ...
+# Subtest: una o dos cifras después del separador son centavos: 12,5 → $12,50 y 12.05 → $12,05
+ok 5 - una o dos cifras después del separador son centavos: 12,5 → $12,50 y 12.05 → $12,05
+  ---
+  duration_ms: 0.347235
+  type: 'test'
+  ...
+# Subtest: la forma en que viaja un importe desde la pantalla se relee igual (punto decimal, sin miles)
+ok 6 - la forma en que viaja un importe desde la pantalla se relee igual (punto decimal, sin miles)
+  ---
+  duration_ms: 0.178395
+  type: 'test'
+  ...
+# Subtest: un tercer decimal no es plata y rebota: 1234,567 y 0,555
+ok 7 - un tercer decimal no es plata y rebota: 1234,567 y 0,555
+  ---
+  duration_ms: 0.124436
+  type: 'test'
+  ...
+# Subtest: se toleran el signo $ y los espacios que se arrastran al copiar de un extracto
+ok 8 - se toleran el signo $ y los espacios que se arrastran al copiar de un extracto
+  ---
+  duration_ms: 0.158827
+  type: 'test'
+  ...
+# Subtest: un campo vacío es vacío, no cero
+ok 9 - un campo vacío es vacío, no cero
+  ---
+  duration_ms: 0.117612
+  type: 'test'
+  ...
+# Subtest: lo que no es un importe rebota: negativos, notación científica, letras y separadores dobles
+ok 10 - lo que no es un importe rebota: negativos, notación científica, letras y separadores dobles
+  ---
+  duration_ms: 0.174878
+  type: 'test'
+  ...
+# Subtest: importeONaN: vacío, ilegible o un archivo dan NaN, y la validación de cada acción lo rechaza
+ok 11 - importeONaN: vacío, ilegible o un archivo dan NaN, y la validación de cada acción lo rechaza
+  ---
+  duration_ms: 0.785894
+  type: 'test'
+  ...
+# Subtest: el mostrador y el servidor usan el mismo lector: pos-peso lo re-exporta, no tiene otra copia
+ok 12 - el mostrador y el servidor usan el mismo lector: pos-peso lo re-exporta, no tiene otra copia
+  ---
+  duration_ms: 0.496397
+  type: 'test'
+  ...
+# Subtest: las acciones de turnos, cobros y catálogo leen cada campo de plata con el lector, nunca con Number
+ok 13 - las acciones de turnos, cobros y catálogo leen cada campo de plata con el lector, nunca con Number
+  ---
+  duration_ms: 6.347426
+  type: 'test'
+  ...
+# Subtest: medio centavo va hacia arriba: 1,005 → 1,01; 2,675 → 2,68; 0,005 → 0,01
+ok 14 - medio centavo va hacia arriba: 1,005 → 1,01; 2,675 → 2,68; 0,005 → 0,01
+  ---
+  duration_ms: 1.529895
+  type: 'test'
+  ...
+# Subtest: menos de medio centavo va hacia abajo: 1,004 → 1,00; 0,004 → 0; 2,6749 → 2,67
+ok 15 - menos de medio centavo va hacia abajo: 1,004 → 1,00; 0,004 → 0; 2,6749 → 2,67
+  ---
+  duration_ms: 0.239082
+  type: 'test'
+  ...
+# Subtest: negativos: el medio centavo se aleja del cero (−2,675 → −2,68; −0,005 → −0,01)
+ok 16 - negativos: el medio centavo se aleja del cero (−2,675 → −2,68; −0,005 → −0,01)
+  ---
+  duration_ms: 0.321235
+  type: 'test'
+  ...
+# Subtest: un negativo que redondea a cero da 0, nunca −0 (−0,004 y −0)
+ok 17 - un negativo que redondea a cero da 0, nunca −0 (−0,004 y −0)
+  ---
+  duration_ms: 0.233387
+  type: 'test'
+  ...
+# Subtest: un número vale lo que dicen sus 15 cifras: 0,1 + 0,2 → 0,30; 1234,5650000000001 → 1234,57
+ok 18 - un número vale lo que dicen sus 15 cifras: 0,1 + 0,2 → 0,30; 1234,5650000000001 → 1234,57
+  ---
+  duration_ms: 0.122235
+  type: 'test'
+  ...
+# Subtest: el redondeo arrastra a los enteros: 999,995 → 1.000,00; 9,995 → 10,00
+ok 19 - el redondeo arrastra a los enteros: 999,995 → 1.000,00; 9,995 → 10,00
+  ---
+  duration_ms: 0.139322
+  type: 'test'
+  ...
+# Subtest: barrido: los 100.000.000 de x,xx5 de $0 a $1.000.000 van todos hacia arriba
+ok 20 - barrido: los 100.000.000 de x,xx5 de $0 a $1.000.000 van todos hacia arriba
+  ---
+  duration_ms: 13749.571912
+  type: 'test'
+  ...
+# Subtest: barrido negativo: los 10.000.000 de −x,xx5 de −$100.000 a $0 se alejan del cero
+ok 21 - barrido negativo: los 10.000.000 de −x,xx5 de −$100.000 a $0 se alejan del cero
+  ---
+  duration_ms: 1761.567642
+  type: 'test'
+  ...
+# Subtest: lo que ya está al centavo no cambia: 1.000.000 de importes al azar de hasta ±$1.000.000.000.000
+ok 22 - lo que ya está al centavo no cambia: 1.000.000 de importes al azar de hasta ±$1.000.000.000.000
+  ---
+  duration_ms: 1145.469931
+  type: 'test'
+  ...
+# Subtest: suma de renglones: cada renglón al centavo y el total es la suma exacta
+ok 23 - suma de renglones: cada renglón al centavo y el total es la suma exacta
+  ---
+  duration_ms: 53.958745
+  type: 'test'
+  ...
+# Subtest: texto para ARCA: siempre dos decimales con punto
+ok 24 - texto para ARCA: siempre dos decimales con punto
+  ---
+  duration_ms: 0.402764
+  type: 'test'
+  ...
+# Subtest: texto para ARCA: lo que no es un importe no sale (NaN, infinito, 13 cifras enteras o más)
+ok 25 - texto para ARCA: lo que no es un importe no sale (NaN, infinito, 13 cifras enteras o más)
+  ---
+  duration_ms: 0.849065
+  type: 'test'
+  ...
+# Subtest: lo que no es un número pasa sin cambios por el redondeo, como con Math.round
+ok 26 - lo que no es un número pasa sin cambios por el redondeo, como con Math.round
+  ---
+  duration_ms: 0.221783
+  type: 'test'
+  ...
+# Subtest: el módulo de redondeo no importa nada (lo usan el navegador y el plugin ARCA)
+ok 27 - el módulo de redondeo no importa nada (lo usan el navegador y el plugin ARCA)
+  ---
+  duration_ms: 3.22281
+  type: 'test'
+  ...
+# Subtest: el plugin ARCA sólo trae del Core el módulo de redondeo (ADR-022 y ADR-100)
+ok 28 - el plugin ARCA sólo trae del Core el módulo de redondeo (ADR-022 y ADR-100)
+  ---
+  duration_ms: 3.881981
+  type: 'test'
+  ...
+# Subtest: en el camino de la plata fiscal no queda redondeo a mano fuera de este módulo
+ok 29 - en el camino de la plata fiscal no queda redondeo a mano fuera de este módulo
+  ---
+  duration_ms: 5.33568
+  type: 'test'
+  ...
+# Subtest: coma decimal: 1,3 kg es 1,3
+ok 30 - coma decimal: 1,3 kg es 1,3
+  ---
+  duration_ms: 2.058626
+  type: 'test'
+  ...
+# Subtest: punto decimal: 1.3 vale lo mismo que 1,3 (pad numérico del celular)
+ok 31 - punto decimal: 1.3 vale lo mismo que 1,3 (pad numérico del celular)
+  ---
+  duration_ms: 0.464726
+  type: 'test'
+  ...
+# Subtest: 1,3 kg a $18.900/kg son $24.570 — el camino viejo daba diez veces más
+ok 32 - 1,3 kg a $18.900/kg son $24.570 — el camino viejo daba diez veces más
+  ---
+  duration_ms: 0.385819
+  type: 'test'
+  ...
+# Subtest: 1,234 kg (gramos) entra entero
+ok 33 - 1,234 kg (gramos) entra entero
+  ---
+  duration_ms: 0.515444
+  type: 'test'
+  ...
+# Subtest: medio kilo escrito como lo escribe la gente
+ok 34 - medio kilo escrito como lo escribe la gente
+  ---
+  duration_ms: 0.289161
+  type: 'test'
+  ...
+# Subtest: más de 3 decimales se redondea a gramos, no se rechaza
+ok 35 - más de 3 decimales se redondea a gramos, no se rechaza
+  ---
+  duration_ms: 0.174476
+  type: 'test'
+  ...
+# Subtest: con DOS separadores distintos, el último manda: 1.234,5 → 1234,5
+ok 36 - con DOS separadores distintos, el último manda: 1.234,5 → 1234,5
+  ---
+  duration_ms: 0.61287
+  type: 'test'
+  ...
+# Subtest: con separadores IGUALES repetidos, todos son de miles: 1.234.567
+ok 37 - con separadores IGUALES repetidos, todos son de miles: 1.234.567
+  ---
+  duration_ms: 0.311009
+  type: 'test'
+  ...
+# Subtest: entero puro
+ok 38 - entero puro
+  ---
+  duration_ms: 0.334069
+  type: 'test'
+  ...
+# Subtest: vacío no es un error: es un campo que todavía no se tocó
+ok 39 - vacío no es un error: es un campo que todavía no se tocó
+  ---
+  duration_ms: 2.234392
+  type: 'test'
+  ...
+# Subtest: texto e importes negativos se marcan inválidos, no se silencian como 0
+ok 40 - texto e importes negativos se marcan inválidos, no se silencian como 0
+  ---
+  duration_ms: 0.360049
+  type: 'test'
+  ...
+# Subtest: dedo torcido: 1.3.4 rebota en vez de convertirse en 13,4 kg
+ok 41 - dedo torcido: 1.3.4 rebota en vez de convertirse en 13,4 kg
+  ---
+  duration_ms: 0.219161
+  type: 'test'
+  ...
+# Subtest: separador colgando mientras se tipea no pone el campo en rojo
+ok 42 - separador colgando mientras se tipea no pone el campo en rojo
+  ---
+  duration_ms: 0.170808
+  type: 'test'
+  ...
+# Subtest: lo que pega la balanza o el Excel: espacios y la unidad
+ok 43 - lo que pega la balanza o el Excel: espacios y la unidad
+  ---
+  duration_ms: 0.123552
+  type: 'test'
+  ...
+# Subtest: cantidadOCero no suma lo ilegible al total del ticket
+ok 44 - cantidadOCero no suma lo ilegible al total del ticket
+  ---
+  duration_ms: 0.181327
+  type: 'test'
+  ...
+# Subtest: lo que viaja al server usa PUNTO decimal (Number() del otro lado lo lee bien)
+ok 45 - lo que viaja al server usa PUNTO decimal (Number() del otro lado lo lee bien)
+  ---
+  duration_ms: 0.178096
+  type: 'test'
+  ...
+# Subtest: lo que ve la persona usa COMA
+ok 46 - lo que ve la persona usa COMA
+  ---
+  duration_ms: 0.095218
+  type: 'test'
+  ...
+# Subtest: 1300 kg avisa (la balanza decía 1,300) pero NO bloquea la venta
+ok 47 - 1300 kg avisa (la balanza decía 1,300) pero NO bloquea la venta
+  ---
+  duration_ms: 0.211132
+  type: 'test'
+  ...
+# Subtest: un peso normal de mostrador no molesta a nadie
+ok 48 - un peso normal de mostrador no molesta a nadie
+  ---
+  duration_ms: 0.179745
+  type: 'test'
+  ...
+# Subtest: importe: '12.500' son doce mil quinientos, no doce con cincuenta
+ok 49 - importe: '12.500' son doce mil quinientos, no doce con cincuenta
+  ---
+  duration_ms: 0.656064
+  type: 'test'
+  ...
+# Subtest: importe: un solo separador con 1 o 2 dígitos es el decimal
+ok 50 - importe: un solo separador con 1 o 2 dígitos es el decimal
+  ---
+  duration_ms: 0.356015
+  type: 'test'
+  ...
+# Subtest: importe: miles y centavos juntos, como en el extracto
+ok 51 - importe: miles y centavos juntos, como en el extracto
+  ---
+  duration_ms: 0.47984
+  type: 'test'
+  ...
+# Subtest: importe: lo que no es plata rebota, no se vuelve 0
+ok 52 - importe: lo que no es plata rebota, no se vuelve 0
+  ---
+  duration_ms: 0.293281
+  type: 'test'
+  ...
+# Subtest: importe: separador colgando mientras se tipea no es error
+ok 53 - importe: separador colgando mientras se tipea no es error
+  ---
+  duration_ms: 0.109535
+  type: 'test'
+  ...
+# Subtest: importe: viaja al server con punto y sin miles
+ok 54 - importe: viaja al server con punto y sin miles
+  ---
+  duration_ms: 0.134227
+  type: 'test'
+  ...
+# Subtest: cantidades de compras y recuento: 4,350 · 12,5 · 1.234,5
+ok 55 - cantidades de compras y recuento: 4,350 · 12,5 · 1.234,5
+  ---
+  duration_ms: 0.10081
+  type: 'test'
+  ...
+# Subtest: importes del proveedor: 6.543 · 6.543,50 · 6543,5 · 12.500
+ok 56 - importes del proveedor: 6.543 · 6.543,50 · 6543,5 · 12.500
+  ---
+  duration_ms: 0.189975
+  type: 'test'
+  ...
+# Subtest: server: lo ilegible se RECHAZA con mensaje, no viaja como 0
+ok 57 - server: lo ilegible se RECHAZA con mensaje, no viaja como 0
+  ---
+  duration_ms: 0.806338
+  type: 'test'
+  ...
+# Subtest: server: vacío es null (el llamador decide si el campo es opcional)
+ok 58 - server: vacío es null (el llamador decide si el campo es opcional)
+  ---
+  duration_ms: 0.171665
+  type: 'test'
+  ...
+# Subtest: server: lee lo tipeado Y lo canónico que manda el hidden, con el mismo resultado
+ok 59 - server: lee lo tipeado Y lo canónico que manda el hidden, con el mismo resultado
+  ---
+  duration_ms: 0.327293
+  type: 'test'
+  ...
+# Subtest: server: el eco de un valor larguísimo se recorta (el mensaje se lee en el teléfono)
+ok 60 - server: el eco de un valor larguísimo se recorta (el mensaje se lee en el teléfono)
+  ---
+  duration_ms: 0.182876
+  type: 'test'
+  ...
+# Subtest: la vidriera muestra la cantidad con coma
+ok 61 - la vidriera muestra la cantidad con coma
+  ---
+  duration_ms: 41.948198
+  type: 'test'
+  ...
+# Subtest: textosDelAjuste: 'Pesar y ajustar' con una línea por peso; 'Ajustar pedido' si todo es por unidad
+ok 62 - textosDelAjuste: 'Pesar y ajustar' con una línea por peso; 'Ajustar pedido' si todo es por unidad
+  ---
+  duration_ms: 0.329333
+  type: 'test'
+  ...
+# Subtest: hayLineaPorPeso: UN criterio para el botón (textosDelAjuste) y el resultado del ajuste (conPeso)
+ok 63 - hayLineaPorPeso: UN criterio para el botón (textosDelAjuste) y el resultado del ajuste (conPeso)
+  ---
+  duration_ms: 0.152952
+  type: 'test'
+  ...
+# Subtest: round2 redondea a 2 decimales
+ok 64 - round2 redondea a 2 decimales
+  ---
+  duration_ms: 0.858634
+  type: 'test'
+  ...
+# Subtest: round2 no arrastra error de coma flotante (0.1 + 0.2 → 0.3)
+ok 65 - round2 no arrastra error de coma flotante (0.1 + 0.2 → 0.3)
+  ---
+  duration_ms: 0.2021
+  type: 'test'
+  ...
+# Subtest: round2 redondea negativos
+ok 66 - round2 redondea negativos
+  ---
+  duration_ms: 0.101302
+  type: 'test'
+  ...
+# Subtest: round2 es idempotente sobre valores ya redondeados
+ok 67 - round2 es idempotente sobre valores ya redondeados
+  ---
+  duration_ms: 0.078979
+  type: 'test'
+  ...
+# Subtest: round2: medio centavo hacia arriba en la frontera x,xx5 (1,005 → 1,01)
+ok 68 - round2: medio centavo hacia arriba en la frontera x,xx5 (1,005 → 1,01)
+  ---
+  duration_ms: 0.117364
+  type: 'test'
+  ...
+# Subtest: round2 sube los medios centavos que la regla anterior bajaba (ENG-109)
+ok 69 - round2 sube los medios centavos que la regla anterior bajaba (ENG-109)
+  ---
+  duration_ms: 0.05642
+  type: 'test'
+  ...
+1..69
+# tests 69
+# suites 0
+# pass 69
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 17221.104908

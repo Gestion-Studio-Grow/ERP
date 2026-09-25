@@ -13,6 +13,7 @@
 // nunca de un parámetro.
 
 import "server-only";
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { cache } from "react";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
@@ -207,7 +208,7 @@ async function cargarFiado(tenantId: string, clientId: string) {
         emitida: d.issueDate,
         vence: d.dueDate,
         total: d.amount.toNumber(),
-        saldo: Math.round((d.amount.toNumber() - (porDeuda.get(d.id) ?? 0)) * 100) / 100,
+        saldo: redondearAlCentavo(d.amount.toNumber() - (porDeuda.get(d.id) ?? 0)),
       }))
       .filter((d) => d.saldo > 0);
   } catch (e) {

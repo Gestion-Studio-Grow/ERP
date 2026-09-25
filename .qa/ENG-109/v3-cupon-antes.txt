@@ -1,0 +1,517 @@
+TAP version 13
+# Subtest: contra Postgres (app_rls + RLS): la reserva de turno y su vista previa descuentan lo mismo, y un cupón que no descuenta nada no se gasta
+not ok 1 - contra Postgres (app_rls + RLS): la reserva de turno y su vista previa descuentan lo mismo, y un cupón que no descuenta nada no se gasta
+  ---
+  duration_ms: 4547.601697
+  type: 'test'
+  location: '/home/user/erp/src/lib/cupones/cupon-de-reserva-postgres.test.ts:2:1086'
+  failureType: 'testCodeFailure'
+  error: "Cannot find package '@/lib' imported from /home/user/erp/src/lib/cupones/cupon-de-reserva-postgres.test.ts"
+  code: 'ERR_MODULE_NOT_FOUND'
+  stack: |-
+    Object.getPackageJSONURL (node:internal/modules/package_json_reader:314:9)
+    packageResolve (node:internal/modules/esm/resolve:768:81)
+    moduleResolve (node:internal/modules/esm/resolve:855:18)
+    defaultResolve (node:internal/modules/esm/resolve:985:11)
+    nextResolve (node:internal/modules/esm/hooks:748:28)
+    resolveBase (file:///home/user/erp/node_modules/tsx/dist/register-CqMfTiWi.mjs:2:8141)
+    resolveDirectory (file:///home/user/erp/node_modules/tsx/dist/register-CqMfTiWi.mjs:2:9227)
+    resolveTsPaths (file:///home/user/erp/node_modules/tsx/dist/register-CqMfTiWi.mjs:2:10757)
+    async resolve2 (file:///home/user/erp/node_modules/tsx/dist/register-CqMfTiWi.mjs:2:11932)
+    async nextResolve (node:internal/modules/esm/hooks:748:22)
+  ...
+# Subtest: hasta que el dueño decida la unidad, cada camino conserva la suya: turnos al peso, venta y tienda al centavo
+not ok 2 - hasta que el dueño decida la unidad, cada camino conserva la suya: turnos al peso, venta y tienda al centavo
+  ---
+  duration_ms: 6.437065
+  type: 'test'
+  location: '/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:2:2286'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + 'peso'
+    - {
+    -   turno: 'peso',
+    -   venta: 'centavo'
+    - }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    turno: 'peso'
+    venta: 'centavo'
+  actual: 'peso'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:60:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: en la venta y la tienda 10 % de $12.345 sigue siendo $1.234,50, como antes de ENG-109
+not ok 3 - en la venta y la tienda 10 % de $12.345 sigue siendo $1.234,50, como antes de ENG-109
+  ---
+  duration_ms: 0.732887
+  type: 'test'
+  location: '/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:2:2547'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    1235 !== 1234.5
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1234.5
+  actual: 1235
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:65:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: en turnos 10 % de $12.345 da $1.235 (el medio peso sube) y 10 % de $12.344 da $1.234
+ok 4 - en turnos 10 % de $12.345 da $1.235 (el medio peso sube) y 10 % de $12.344 da $1.234
+  ---
+  duration_ms: 0.181452
+  type: 'test'
+  ...
+# Subtest: la venta, contra la cuenta de antes, sólo cambia el medio centavo que bajaba, y siempre por $0,01 hacia arriba
+not ok 5 - la venta, contra la cuenta de antes, sólo cambia el medio centavo que bajaba, y siempre por $0,01 hacia arriba
+  ---
+  duration_ms: 0.525594
+  type: 'test'
+  location: '/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:2:3238'
+  failureType: 'testCodeFailure'
+  error: |-
+    $0.01 al 50 %: 0.01 → 0
+    
+    -1 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: -1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:91:14)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: la venta con precios enteros de $1 a $100.000 no cambia en ningún caso (la revisión midió 575.000 cambios al peso)
+not ok 6 - la venta con precios enteros de $1 a $100.000 no cambia en ningún caso (la revisión midió 575.000 cambios al peso)
+  ---
+  duration_ms: 1329.042628
+  type: 'test'
+  location: '/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:2:3965'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    575000 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 575000
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:102:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: turnos, contra la cuenta de antes, sólo cambia el medio peso que bajaba (29 % de $750: $217 → $218)
+ok 7 - turnos, contra la cuenta de antes, sólo cambia el medio peso que bajaba (29 % de $750: $217 → $218)
+  ---
+  duration_ms: 6514.242216
+  type: 'test'
+  ...
+# Subtest: un solo redondeo: en turnos 10 % de $12.344,95 es $1.234,495 y da $1.234, no $1.235
+ok 8 - un solo redondeo: en turnos 10 % de $12.344,95 es $1.234,495 y da $1.234, no $1.235
+  ---
+  duration_ms: 0.168006
+  type: 'test'
+  ...
+# Subtest: el porcentaje no pasa del 100 % ni el descuento pasa de la compra, en los dos caminos
+ok 9 - el porcentaje no pasa del 100 % ni el descuento pasa de la compra, en los dos caminos
+  ---
+  duration_ms: 0.22815
+  type: 'test'
+  ...
+# Subtest: el monto fijo va al centavo: $99,999 descuenta $100,00 y $500 sobre $1.000 descuenta $500
+ok 10 - el monto fijo va al centavo: $99,999 descuenta $100,00 y $500 sobre $1.000 descuenta $500
+  ---
+  duration_ms: 0.293389
+  type: 'test'
+  ...
+# Subtest: un cupón sin valor, negativo o roto no descuenta ni sube el precio
+ok 11 - un cupón sin valor, negativo o roto no descuenta ni sube el precio
+  ---
+  duration_ms: 0.423139
+  type: 'test'
+  ...
+# Subtest: un cupón de 100 % o más deja la compra en cero aunque tenga centavos
+ok 12 - un cupón de 100 % o más deja la compra en cero aunque tenga centavos
+  ---
+  duration_ms: 0.135668
+  type: 'test'
+  ...
+# Subtest: un cupón válido que no llega a descontar nada se rechaza con el motivo, no se aplica en $0
+not ok 13 - un cupón válido que no llega a descontar nada se rechaza con el motivo, no se aplica en $0
+  ---
+  duration_ms: 1.047022
+  type: 'test'
+  location: '/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:2:7417'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   codigo: 'CINCO',
+    +   descuento: 0,
+    +   ok: true
+    -   error: 'El cupón CINCO no llega a descontar nada sobre $9,00.',
+    -   ok: false,
+    -   sinDescuento: true
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    ok: false
+    error: 'El cupón CINCO no llega a descontar nada sobre $9,00.'
+    sinDescuento: true
+  actual:
+    ok: true
+    codigo: 'CINCO'
+    descuento: 0
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:166:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: la reserva de turno (bookAppointment) toma el cupón sólo con cuponDeLaReserva (lectura del código)
+not ok 14 - la reserva de turno (bookAppointment) toma el cupón sólo con cuponDeLaReserva (lectura del código)
+  ---
+  duration_ms: 1.783157
+  type: 'test'
+  location: '/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:2:8398'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /await\s+cuponDeLaReserva\(\s*tx\s*,/. Input:
+    
+    '{\n' +
+      '  const [service, professional] = await Promise.all([\n' +
+      '    prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),\n' +
+      '    prisma.professional.findUniqueOrThrow({ where: { id: professionalId }, include: { box: true } }),\n' +
+      '  ]);\n' +
+      '\n' +
+      '  if (!professional.active || professional.deletedAt) {\n' +
+      '    throw new Error("Este profesional ya no está disponible para reservas.");\n' +
+      '  }\n' +
+      '  if (!service.active || service.deletedAt) {\n' +
+      '    throw new Error("Este servicio ya no está disponible.");\n' +
+      '  }\n' +
+      '  if (!professional.boxId || !professional.box?.active || professional.box?.deletedAt) {\n' +
+      '    throw new Error("Este profesional no tiene un box activo asignado. Contactanos para coordinar tu turno.");\n' +
+      '  }\n' +
+      '\n' +
+      '  const startsAt = new Date(startsAtIso);\n' +
+      '  const endsAt = new Date(startsAt.getTime() + service.durationMin * 60000);\n' +
+      '  const boxId = professional.boxId;\n' +
+      '\n' +
+      '  \n' +
+      '  \n' +
+      '  const dateStr = dateStrInBusinessTz(startsAt);\n' +
+      '  const window = await getWorkingWindow(professionalId, dateStr);\n' +
+      '  if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {\n' +
+      '    throw new Error("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");\n' +
+      '  }\n' +
+      '\n' +
+      '  const tenantId = await getCurrentTenantId();\n' +
+      '\n' +
+      '  const run = (withSchema: boolean) => bookingTransaction(async (tx) => {\n' +
+      '    \n' +
+      '    \n' +
+      '    \n' +
+      '    \n' +
+      '    \n' +
+      '    await assertSlotAvailable(tx, { professionalId, boxId, serviceId, startsAt, endsAt });\n' +
+      '\n' +
+      '    \n' +
+      '    \n' +
+      '    const { priceAtBooking: basePrice, isResidentBooking: appliesResidentPrice } =\n' +
+      '      precioCongeladoDeReserva(service, isResident);\n' +
+      '\n' +
+      '    \n' +
+      '    \n' +
+      '    \n' +
+      '    \n' +
+      '    let discountAmount = 0;\n' +
+      '    let appliedCouponCode: string | null = null;\n' +
+      '    const normalizedCode = couponCode?.trim().toUpperCase();\n' +
+      '    if (normalizedCode) {\n' +
+      '      const coupon = await tx.coupon.findUnique({ where: { tenantId_code: { tenantId, code: normalizedCode } } });\n' +
+      '      const valid =\n' +
+      '        coupon &&\n' +
+      '        coupon.active &&\n' +
+      '        (!coupon.expiresAt || coupon.expiresAt >= new Date()) &&\n' +
+      '        (coupon.maxUses == null || coupon.usedCount < coupon.maxUses);\n' +
+      '      if (valid) {\n' +
+      '        \n' +
+      '        discountAmount = montoDeCupon(coupon.type, coupon.value, basePrice);\n' +
+      '        appliedCouponCode = coupon.code;\n' +
+      '        await tx.coupon.update({ where: { id: coupon.id }, data: { usedCount: { increment: 1 } } });\n' +
+      '      }\n' +
+      '      \n' +
+      '      \n' +
+      '      \n' +
+      '    }\n' +
+      '\n' +
+      '    const appointment = await tx.appointment.create({\n' +
+      '      data: {\n' +
+      '        tenantId,\n' +
+      '        clientId,\n' +
+      '        professionalId,\n' +
+      '        serviceId,\n' +
+      '        boxId,\n' +
+      '        startsAt,\n' +
+      '        endsAt,\n' +
+      '        status,\n' +
+      '        priceAtBooking: Math.max(0, basePrice - discountAmount),\n' +
+      '        isResidentBooking: appliesResidentPrice,\n' +
+      '        couponCode: appliedCouponCode,\n' +
+      '        discountAmount,\n' +
+      '        notes: notes?.trim() || null,\n' +
+      '      },\n' +
+      '    });\n' +
+      '\n' +
+      '    \n' +
+      '    \n' +
+      '    \n' +
+      '    let cobro: AplicarCobroResult | null = null;\n' +
+      '    if (cobroInicial && cobroInicial.monto > 0) {\n' +
+      '      cobro = await aplicarCobroTurnoInTx(tx, tenantId, {\n' +
+      '        appointmentId: appointment.id,\n' +
+      '        status,\n' +
+      '        precio: appointment.priceAtBooking ?? basePrice,\n' +
+      '        monto: cobroInicial.monto,\n' +
+      '        method: cobroInicial.method,\n' +
+      '        \n' +
+      '        \n' +
+      '        note: cobroInicial.monto >= (appointment.priceAtBooking ?? basePrice)\n' +
+      '          ? "Cobro al reservar"\n' +
+      '          : "Seña al reservar",\n' +
+      '        actor: cobroInicial.actor,\n' +
+      '        detail: cobroTurnoDetail({ serviceName: service.name, clientName: clientName ?? "" }),\n' +
+      '        idempotencyKey: claveCobroTurno("senia", appointment.id),\n' +
+      '        withSchema,\n' +
+      '      });\n' +
+      '    }\n' +
+      '    return { appointment, cobro };\n' +
+      '  });\n' +
+      '\n' +
+      '  if (!cobroInicial) {\n' +
+      '    const { appointment } = await run(false);\n' +
+      '    return { appointment, cobro: null, libroCaja: null as ReturnType<typeof rastroLibroCaja> };\n' +
+      '  }\n' +
+      '  const settled = await settleAppointmentPaymentGuarded({\n' +
+      '    runWithBridge: () => run(true),\n' +
+      '    runWithoutBridge: () => run(false),\n' +
+      '  });\n' +
+      '  \n' +
+      '  if (settled.outcome === "race") throw new Error("La reserva se envió dos veces. Revisá la agenda antes de reintentar.");\n' +
+      '  if (settled.outcome === "degraded") {\n' +
+      '    logger.warn("caja", "reserva con seña asentada SIN puente al libro de caja (migración de cobros parciales sin aplicar)", {\n' +
+      '      tenantId,\n' +
+      '      appointmentId: settled.value.appointment.id,\n' +
+      '    });\n' +
+      '  }\n' +
+      '  return {\n' +
+      '    ...settled.value,\n' +
+      '    libroCaja: rastroLibroCaja({ outcome: settled.outcome, value: settled.value.cobro ?? undefined }),\n' +
+      '  };\n' +
+      '}'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    {
+      const [service, professional] = await Promise.all([
+        prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),
+        prisma.professional.findUniqueOrThrow({ where: { id: professionalId }, include: { box: true } }),
+      ]);
+    
+      if (!professional.active || professional.deletedAt) {
+        throw new Error("Este profesional ya no está disponible para reservas.");
+      }
+      if (!service.active || service.deletedAt) {
+        throw new Error("Este servicio ya no está disponible.");
+      }
+      if (!professional.boxId || !professional.box?.active || professional.box?.deletedAt) {
+        throw new Error("Este profesional no tiene un box activo asignado. Contactanos para coordinar tu turno.");
+      }
+    
+      const startsAt = new Date(startsAtIso);
+      const endsAt = new Date(startsAt.getTime() + service.durationMin * 60000);
+      const boxId = professional.boxId;
+    
+      
+      
+      const dateStr = dateStrInBusinessTz(startsAt);
+      const window = await getWorkingWindow(professionalId, dateStr);
+      if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {
+        throw new Error("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
+      }
+    
+      const tenantId = await getCurrentTenantId();
+    
+      const run = (withSchema: boolean) => bookingTransaction(async (tx) => {
+        
+        
+        
+        
+        
+        await assertSlotAvailable(tx, { professionalId, boxId, serviceId, startsAt, endsAt });
+    
+        
+        
+        const { priceAtBooking: basePrice, isResidentBooking: appliesResidentPrice } =
+          precioCongeladoDeReserva(service, isResident);
+    
+        
+        
+        
+        
+        let discountAmount = 0;
+        let appliedCouponCode: string | null = null;
+        const normalizedCode = couponCode?.trim().toUpperCase();
+        if (normalizedCode) {
+          const coupon = await tx.coupon.findUnique({ where: { tenantId_code: { tenantId, code: normalizedCode } } });
+          const valid =
+            coupon &&
+            coupon.active &&
+            (!coupon.expiresAt || coupon.expiresAt >= new Date()) &&
+            (coupon.maxUses == null || coupon.usedCount < coupon.maxUses);
+          if (valid) {
+            
+            discountAmount = montoDeCupon(coupon.type, coupon.value, basePrice);
+            appliedCouponCode = coupon.code;
+            await tx.coupon.update({ where: { id: coupon.id }, data: { usedCount: { increment: 1 } } });
+          }
+          
+          
+          
+        }
+    
+        const appointment = await tx.appointment.create({
+          data: {
+            tenantId,
+            clientId,
+            professionalId,
+            serviceId,
+            boxId,
+            startsAt,
+            endsAt,
+            status,
+            priceAtBooking: Math.max(0, basePrice - discountAmount),
+            isResidentBooking: appliesResidentPrice,
+            couponCode: appliedCouponCode,
+            discountAmount,
+            notes: notes?.trim() || null,
+          },
+        });
+    
+        
+        
+        
+        let cobro: AplicarCobroResult | null = null;
+        if (cobroInicial && cobroInicial.monto > 0) {
+          cobro = await aplicarCobroTurnoInTx(tx, tenantId, {
+            appointmentId: appointment.id,
+            status,
+            precio: appointment.priceAtBooking ?? basePrice,
+            monto: cobroInicial.monto,
+            method: cobroInicial.method,
+            
+            
+            note: cobroInicial.monto >= (appointment.priceAtBooking ?? basePrice)
+              ? "Cobro al reservar"
+              : "Seña al reservar",
+            actor: cobroInicial.actor,
+            detail: cobroTurnoDetail({ serviceName: service.name, clientName: clientName ?? "" }),
+            idempotencyKey: claveCobroTurno("senia", appointment.id),
+            withSchema,
+          });
+        }
+        return { appointment, cobro };
+      });
+    
+      if (!cobroInicial) {
+        const { appointment } = await run(false);
+        return { appointment, cobro: null, libroCaja: null as ReturnType<typeof rastroLibroCaja> };
+      }
+      const settled = await settleAppointmentPaymentGuarded({
+        runWithBridge: () => run(true),
+        runWithoutBridge: () => run(false),
+      });
+      
+      if (settled.outcome === "race") throw new Error("La reserva se envió dos veces. Revisá la agenda antes de reintentar.");
+      if (settled.outcome === "degraded") {
+        logger.warn("caja", "reserva con seña asentada SIN puente al libro de caja (migración de cobros parciales sin aplicar)", {
+          tenantId,
+          appointmentId: settled.value.appointment.id,
+        });
+      }
+      return {
+        ...settled.value,
+        libroCaja: rastroLibroCaja({ outcome: settled.outcome, value: settled.value.cobro ?? undefined }),
+      };
+    }
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:180:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ningún archivo de src (fuera de montoDeCupon) calcula a mano el % de un cupón (lectura del código)
+ok 15 - ningún archivo de src (fuera de montoDeCupon) calcula a mano el % de un cupón (lectura del código)
+  ---
+  duration_ms: 50.351918
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 8
+# fail 7
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8494.111368

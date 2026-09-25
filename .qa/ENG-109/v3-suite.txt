@@ -1,0 +1,970 @@
+TAP version 13
+# Subtest: pedido online de 0,5 kg pesado a 1,240: el total pasa de $6.250 a $15.500 y el stock baja 0,74
+ok 1 - pedido online de 0,5 kg pesado a 1,240: el total pasa de $6.250 a $15.500 y el stock baja 0,74
+  ---
+  duration_ms: 2.761551
+  type: 'test'
+  ...
+# Subtest: pesar un pedido de la tienda con envío y cupón: el envío no es base del descuento (camino del servidor)
+ok 2 - pesar un pedido de la tienda con envío y cupón: el envío no es base del descuento (camino del servidor)
+  ---
+  duration_ms: 0.898925
+  type: 'test'
+  ...
+# Subtest: ya cobrado no se pesa: se anula y se rehace
+ok 3 - ya cobrado no se pesa: se anula y se rehace
+  ---
+  duration_ms: 0.162624
+  type: 'test'
+  ...
+# Subtest: el ajuste conserva las líneas con precio a mano y el descuento; lo nuevo entra al precio de hoy sólo si se vende
+ok 4 - el ajuste conserva las líneas con precio a mano y el descuento; lo nuevo entra al precio de hoy sólo si se vende
+  ---
+  duration_ms: 0.416426
+  type: 'test'
+  ...
+# Subtest: recepción: 10 kg con el 10 % pesados a 1 kg quedan con el 10 % ($1.250), no en $0
+ok 5 - recepción: 10 kg con el 10 % pesados a 1 kg quedan con el 10 % ($1.250), no en $0
+  ---
+  duration_ms: 0.76884
+  type: 'test'
+  ...
+# Subtest: el descuento del ajuste: sube con el pedido al mismo %, nunca pasa del subtotal ni se inventa
+ok 6 - el descuento del ajuste: sube con el pedido al mismo %, nunca pasa del subtotal ni se inventa
+  ---
+  duration_ms: 0.194502
+  type: 'test'
+  ...
+# Subtest: cupón FIJO de $2.000 en 1,6 kg de vacío: pesado a 2,4 kg o a 0,8 kg sigue descontando $2.000
+ok 7 - cupón FIJO de $2.000 en 1,6 kg de vacío: pesado a 2,4 kg o a 0,8 kg sigue descontando $2.000
+  ---
+  duration_ms: 0.572304
+  type: 'test'
+  ...
+# Subtest: cupón FIJO con envío: el envío no es base, el cupón no se pasa de la compra y crece hasta su valor
+ok 8 - cupón FIJO con envío: el envío no es base, el cupón no se pasa de la compra y crece hasta su valor
+  ---
+  duration_ms: 0.326801
+  type: 'test'
+  ...
+# Subtest: cupón de %: sigue siendo el mismo % de lo que se compra
+ok 9 - cupón de %: sigue siendo el mismo % de lo que se compra
+  ---
+  duration_ms: 0.354325
+  type: 'test'
+  ...
+# Subtest: la vista previa dice de dónde sale el descuento: el cupón fijo no es «el X % de la venta»
+ok 10 - la vista previa dice de dónde sale el descuento: el cupón fijo no es «el X % de la venta»
+  ---
+  duration_ms: 3.953203
+  type: 'test'
+  ...
+# Subtest: la regla del cupón que escribe el alta se lee igual; una fila rota no inventa un cupón
+ok 11 - la regla del cupón que escribe el alta se lee igual; una fila rota no inventa un cupón
+  ---
+  duration_ms: 0.640022
+  type: 'test'
+  ...
+# Subtest: ajustarPedidoInTx: el pedido de 10 kg con el 10 % pesado a 1 kg guarda 12.500 / 1.250 / 11.250 y devuelve 9 kg
+ok 12 - ajustarPedidoInTx: el pedido de 10 kg con el 10 % pesado a 1 kg guarda 12.500 / 1.250 / 11.250 y devuelve 9 kg
+  ---
+  duration_ms: 1.19415
+  type: 'test'
+  ...
+# Subtest: ajustarPedidoInTx: 0,5 kg pesado a 1,240 sale como VENTA de 0,74 que puede dejar el stock en negativo (por peso)
+ok 13 - ajustarPedidoInTx: 0,5 kg pesado a 1,240 sale como VENTA de 0,74 que puede dejar el stock en negativo (por peso)
+  ---
+  duration_ms: 0.508766
+  type: 'test'
+  ...
+# Subtest: ajustarPedidoInTx: con plata en el libro no toca nada, aunque el pedido diga que no se cobró
+ok 14 - ajustarPedidoInTx: con plata en el libro no toca nada, aunque el pedido diga que no se cobró
+  ---
+  duration_ms: 0.528233
+  type: 'test'
+  ...
+# Subtest: ajustarPedidoInTx: el pedido de la tienda con el cupón FIJO de $2.000 pesado a 2,4 kg guarda 30.000 / 2.000 / 28.000
+ok 15 - ajustarPedidoInTx: el pedido de la tienda con el cupón FIJO de $2.000 pesado a 2,4 kg guarda 30.000 / 2.000 / 28.000
+  ---
+  duration_ms: 0.553522
+  type: 'test'
+  ...
+# Subtest: ajustarPedidoInTx: sin fila de cupón el descuento es a mano (conserva el %); sin descuento no se busca
+ok 16 - ajustarPedidoInTx: sin fila de cupón el descuento es a mano (conserva el %); sin descuento no se busca
+  ---
+  duration_ms: 0.564719
+  type: 'test'
+  ...
+# Subtest: un corte que ya estaba en el pedido se pesa aunque hoy se haya dejado de vender
+ok 17 - un corte que ya estaba en el pedido se pesa aunque hoy se haya dejado de vender
+  ---
+  duration_ms: 0.205291
+  type: 'test'
+  ...
+# Subtest: en comercio, Nuevo pasa directo a Preparando; en servicios (CH) sigue pasando por Confirmado
+ok 18 - en comercio, Nuevo pasa directo a Preparando; en servicios (CH) sigue pasando por Confirmado
+  ---
+  duration_ms: 0.171853
+  type: 'test'
+  ...
+# Subtest: el horario del pedido se lee en la zona del negocio, no en la del servidor
+ok 19 - el horario del pedido se lee en la zona del negocio, no en la del servidor
+  ---
+  duration_ms: 2.458115
+  type: 'test'
+  ...
+# Subtest: aviso de pedido listo: armado, 1 a 1 al número del cliente, sin inventar datos del local
+ok 20 - aviso de pedido listo: armado, 1 a 1 al número del cliente, sin inventar datos del local
+  ---
+  duration_ms: 0.706316
+  type: 'test'
+  ...
+# Subtest: la regla del cupón: % sobre lo que se compra, fijo sin pasarse, y los rechazos con su porqué
+ok 21 - la regla del cupón: % sobre lo que se compra, fijo sin pasarse, y los rechazos con su porqué
+  ---
+  duration_ms: 3.279245
+  type: 'test'
+  ...
+# Subtest: cupón en la venta: se consume con compare-and-set y el total queda con el descuento
+ok 22 - cupón en la venta: se consume con compare-and-set y el total queda con el descuento
+  ---
+  duration_ms: 0.898453
+  type: 'test'
+  ...
+# Subtest: la regla del cupón (% o FIJO) se escribe en la transacción del alta, en la fila del pedido; sin cupón, nada
+ok 23 - la regla del cupón (% o FIJO) se escribe en la transacción del alta, en la fila del pedido; sin cupón, nada
+  ---
+  duration_ms: 0.695121
+  type: 'test'
+  ...
+# Subtest: cupón al máximo de usos → rechazo; y el último uso no lo gastan dos ventas a la vez
+ok 24 - cupón al máximo de usos → rechazo; y el último uso no lo gastan dos ventas a la vez
+  ---
+  duration_ms: 0.59976
+  type: 'test'
+  ...
+# Subtest: un cupón y un descuento a mano no se suman
+ok 25 - un cupón y un descuento a mano no se suman
+  ---
+  duration_ms: 0.595162
+  type: 'test'
+  ...
+# Subtest: a cuenta: el pedido queda saldado SIN medio y el libro no asienta nada
+ok 26 - a cuenta: el pedido queda saldado SIN medio y el libro no asienta nada
+  ---
+  duration_ms: 3.772445
+  type: 'test'
+  ...
+# Subtest: anular una venta a cuenta anula su deuda en la misma transacción; con cobros o de otro día (recepción), no
+ok 27 - anular una venta a cuenta anula su deuda en la misma transacción; con cobros o de otro día (recepción), no
+  ---
+  duration_ms: 0.533903
+  type: 'test'
+  ...
+# Subtest: anular una venta a cuenta (el camino entero): la venta, su deuda y el stock en la misma transacción; la caja no se toca
+ok 28 - anular una venta a cuenta (el camino entero): la venta, su deuda y el stock en la misma transacción; la caja no se toca
+  ---
+  duration_ms: 1.539958
+  type: 'test'
+  ...
+# Subtest: anular una venta a cuenta con cobros: se rechaza y NADA queda anulado (ni la venta ni el stock)
+ok 29 - anular una venta a cuenta con cobros: se rechaza y NADA queda anulado (ni la venta ni el stock)
+  ---
+  duration_ms: 0.641992
+  type: 'test'
+  ...
+# Subtest: recepción no anula una venta a cuenta de ayer (no hay asiento que la frene: la frena la deuda), y vuelve todo atrás
+ok 30 - recepción no anula una venta a cuenta de ayer (no hay asiento que la frene: la frena la deuda), y vuelve todo atrás
+  ---
+  duration_ms: 0.970978
+  type: 'test'
+  ...
+# Subtest: con cuentas corrientes apagadas, anular no mira deudas
+ok 31 - con cuentas corrientes apagadas, anular no mira deudas
+  ---
+  duration_ms: 0.877246
+  type: 'test'
+  ...
+# Subtest: precio a mano de recepción: hasta 10 % menos que la lista, nunca por kilo con precio, y hasta $50.000 sin producto
+ok 32 - precio a mano de recepción: hasta 10 % menos que la lista, nunca por kilo con precio, y hasta $50.000 sin producto
+  ---
+  duration_ms: 0.914948
+  type: 'test'
+  ...
+# Subtest: el tope se controla DENTRO de la transacción, con el catálogo leído ahí
+ok 33 - el tope se controla DENTRO de la transacción, con el catálogo leído ahí
+  ---
+  duration_ms: 0.436564
+  type: 'test'
+  ...
+# Subtest: sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+ok 34 - sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+  ---
+  duration_ms: 7.195336
+  type: 'test'
+  ...
+# Subtest: Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+ok 35 - Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+  ---
+  duration_ms: 16.301276
+  type: 'test'
+  ...
+# Subtest: CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+ok 36 - CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+  ---
+  duration_ms: 0.328016
+  type: 'test'
+  ...
+# Subtest: diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+ok 37 - diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+  ---
+  duration_ms: 0.57328
+  type: 'test'
+  ...
+# Subtest: contra Postgres (app_rls + RLS): la reserva de turno y su vista previa descuentan lo mismo, y un cupón que no descuenta nada no se gasta
+ok 38 - contra Postgres (app_rls + RLS): la reserva de turno y su vista previa descuentan lo mismo, y un cupón que no descuenta nada no se gasta
+  ---
+  duration_ms: 2598.757846
+  type: 'test'
+  ...
+# Subtest: hasta que el dueño decida la unidad, cada camino conserva la suya: turnos al peso, venta y tienda al centavo
+ok 39 - hasta que el dueño decida la unidad, cada camino conserva la suya: turnos al peso, venta y tienda al centavo
+  ---
+  duration_ms: 1.937245
+  type: 'test'
+  ...
+# Subtest: en la venta y la tienda 10 % de $12.345 sigue siendo $1.234,50, como antes de ENG-109
+ok 40 - en la venta y la tienda 10 % de $12.345 sigue siendo $1.234,50, como antes de ENG-109
+  ---
+  duration_ms: 0.446377
+  type: 'test'
+  ...
+# Subtest: en turnos 10 % de $12.345 da $1.235 (el medio peso sube) y 10 % de $12.344 da $1.234
+ok 41 - en turnos 10 % de $12.345 da $1.235 (el medio peso sube) y 10 % de $12.344 da $1.234
+  ---
+  duration_ms: 0.092704
+  type: 'test'
+  ...
+# Subtest: la venta, contra la cuenta de antes, sólo cambia el medio centavo que bajaba, y siempre por $0,01 hacia arriba
+ok 42 - la venta, contra la cuenta de antes, sólo cambia el medio centavo que bajaba, y siempre por $0,01 hacia arriba
+  ---
+  duration_ms: 4455.296411
+  type: 'test'
+  ...
+# Subtest: la venta con precios enteros de $1 a $100.000 no cambia en ningún caso (la revisión midió 575.000 cambios al peso)
+ok 43 - la venta con precios enteros de $1 a $100.000 no cambia en ningún caso (la revisión midió 575.000 cambios al peso)
+  ---
+  duration_ms: 1079.590746
+  type: 'test'
+  ...
+# Subtest: turnos, contra la cuenta de antes, sólo cambia el medio peso que bajaba (29 % de $750: $217 → $218)
+ok 44 - turnos, contra la cuenta de antes, sólo cambia el medio peso que bajaba (29 % de $750: $217 → $218)
+  ---
+  duration_ms: 6373.446999
+  type: 'test'
+  ...
+# Subtest: un solo redondeo: en turnos 10 % de $12.344,95 es $1.234,495 y da $1.234, no $1.235
+ok 45 - un solo redondeo: en turnos 10 % de $12.344,95 es $1.234,495 y da $1.234, no $1.235
+  ---
+  duration_ms: 0.224806
+  type: 'test'
+  ...
+# Subtest: el porcentaje no pasa del 100 % ni el descuento pasa de la compra, en los dos caminos
+ok 46 - el porcentaje no pasa del 100 % ni el descuento pasa de la compra, en los dos caminos
+  ---
+  duration_ms: 0.164999
+  type: 'test'
+  ...
+# Subtest: el monto fijo va al centavo: $99,999 descuenta $100,00 y $500 sobre $1.000 descuenta $500
+ok 47 - el monto fijo va al centavo: $99,999 descuenta $100,00 y $500 sobre $1.000 descuenta $500
+  ---
+  duration_ms: 0.160838
+  type: 'test'
+  ...
+# Subtest: un cupón sin valor, negativo o roto no descuenta ni sube el precio
+ok 48 - un cupón sin valor, negativo o roto no descuenta ni sube el precio
+  ---
+  duration_ms: 0.376453
+  type: 'test'
+  ...
+# Subtest: un cupón de 100 % o más deja la compra en cero aunque tenga centavos
+ok 49 - un cupón de 100 % o más deja la compra en cero aunque tenga centavos
+  ---
+  duration_ms: 0.134193
+  type: 'test'
+  ...
+# Subtest: un cupón válido que no llega a descontar nada se rechaza con el motivo, no se aplica en $0
+ok 50 - un cupón válido que no llega a descontar nada se rechaza con el motivo, no se aplica en $0
+  ---
+  duration_ms: 3.413159
+  type: 'test'
+  ...
+# Subtest: la reserva de turno (bookAppointment) toma el cupón sólo con cuponDeLaReserva (lectura del código)
+ok 51 - la reserva de turno (bookAppointment) toma el cupón sólo con cuponDeLaReserva (lectura del código)
+  ---
+  duration_ms: 1.491405
+  type: 'test'
+  ...
+# Subtest: ningún archivo de src (fuera de montoDeCupon) calcula a mano el % de un cupón (lectura del código)
+ok 52 - ningún archivo de src (fuera de montoDeCupon) calcula a mano el % de un cupón (lectura del código)
+  ---
+  duration_ms: 51.866955
+  type: 'test'
+  ...
+# Subtest: inexistente, apagado, vencido y agotado contestan LO MISMO hacia afuera
+ok 53 - inexistente, apagado, vencido y agotado contestan LO MISMO hacia afuera
+  ---
+  duration_ms: 2.262949
+  type: 'test'
+  ...
+# Subtest: TODO intento fallido suma al freno (no sólo los inexistentes), y frenado no se lee la base
+ok 54 - TODO intento fallido suma al freno (no sólo los inexistentes), y frenado no se lee la base
+  ---
+  duration_ms: 0.841602
+  type: 'test'
+  ...
+# Subtest: sin IP (un proxy que no la manda) se agrupa bajo una misma clave: también se frena
+ok 55 - sin IP (un proxy que no la manda) se agrupa bajo una misma clave: también se frena
+  ---
+  duration_ms: 0.147922
+  type: 'test'
+  ...
+# Subtest: cuponUsable: la misma lista de rechazos que el alta
+ok 56 - cuponUsable: la misma lista de rechazos que el alta
+  ---
+  duration_ms: 7.607837
+  type: 'test'
+  ...
+# Subtest: la reserva de CH (exigeDescuento: false) sigue aceptando un cupón en 0, como antes; la tienda no
+ok 57 - la reserva de CH (exigeDescuento: false) sigue aceptando un cupón en 0, como antes; la tienda no
+  ---
+  duration_ms: 0.554665
+  type: 'test'
+  ...
+# Subtest: el freno cuenta por (negocio, IP): el wifi del salón frena al salón en ESE negocio, no a otro negocio ni a otra IP
+ok 58 - el freno cuenta por (negocio, IP): el wifi del salón frena al salón en ESE negocio, no a otro negocio ni a otra IP
+  ---
+  duration_ms: 0.357434
+  type: 'test'
+  ...
+# Subtest: el alta de la tienda: el rechazo del cupón sale con el texto único y suma; el reintentable, tal cual
+ok 59 - el alta de la tienda: el rechazo del cupón sale con el texto único y suma; el reintentable, tal cual
+  ---
+  duration_ms: 0.710278
+  type: 'test'
+  ...
+# Subtest: un total con medio centavo no llega a escribirse: el plugin lo rechaza antes de ARCA
+ok 60 - un total con medio centavo no llega a escribirse: el plugin lo rechaza antes de ARCA
+  ---
+  duration_ms: 1.136825
+  type: 'test'
+  ...
+# Subtest: el Core deja 1,005 en 1,01: viaja 1.01 y la decisión cuenta 1,01
+ok 61 - el Core deja 1,005 en 1,01: viaja 1.01 y la decisión cuenta 1,01
+  ---
+  duration_ms: 11.298335
+  type: 'test'
+  ...
+# Subtest: 9.999.999,995 viaja como 10.000.000,00 y la decisión pide identificar por ley
+ok 62 - 9.999.999,995 viaja como 10.000.000,00 y la decisión pide identificar por ley
+  ---
+  duration_ms: 0.618413
+  type: 'test'
+  ...
+# Subtest: 599.999,995 viaja como 600.000,00 y alcanza un umbral del negocio de 600.000
+ok 63 - 599.999,995 viaja como 600.000,00 y alcanza un umbral del negocio de 600.000
+  ---
+  duration_ms: 0.403611
+  type: 'test'
+  ...
+# Subtest: en 20.000 cobros con medio centavo, lo que pasa la validación se decide justo en el ImpTotal que viaja
+ok 64 - en 20.000 cobros con medio centavo, lo que pasa la validación se decide justo en el ImpTotal que viaja
+  ---
+  duration_ms: 1375.613265
+  type: 'test'
+  ...
+# Subtest: todo cobro que arma el Core pasa la validación exacta: de $0,01 a $5.000, inscripto y monotributo
+ok 65 - todo cobro que arma el Core pasa la validación exacta: de $0,01 a $5.000, inscripto y monotributo
+  ---
+  duration_ms: 4045.784665
+  type: 'test'
+  ...
+# Subtest: un punto o una coma seguidos de tres cifras son de miles: 12.500 y 12,500 son $12.500
+ok 66 - un punto o una coma seguidos de tres cifras son de miles: 12.500 y 12,500 son $12.500
+  ---
+  duration_ms: 1.124795
+  type: 'test'
+  ...
+# Subtest: con dos separadores distintos, el último es el de los centavos: 1.234,56 y 1,234.56
+ok 67 - con dos separadores distintos, el último es el de los centavos: 1.234,56 y 1,234.56
+  ---
+  duration_ms: 0.383581
+  type: 'test'
+  ...
+# Subtest: una o dos cifras después del separador son centavos: 12,5 → $12,50 y 12.05 → $12,05
+ok 68 - una o dos cifras después del separador son centavos: 12,5 → $12,50 y 12.05 → $12,05
+  ---
+  duration_ms: 1.008093
+  type: 'test'
+  ...
+# Subtest: la forma en que viaja un importe desde la pantalla se relee igual (punto decimal, sin miles)
+ok 69 - la forma en que viaja un importe desde la pantalla se relee igual (punto decimal, sin miles)
+  ---
+  duration_ms: 0.258404
+  type: 'test'
+  ...
+# Subtest: un tercer decimal no es plata y rebota: 1234,567 y 0,555
+ok 70 - un tercer decimal no es plata y rebota: 1234,567 y 0,555
+  ---
+  duration_ms: 0.099609
+  type: 'test'
+  ...
+# Subtest: se toleran el signo $ y los espacios que se arrastran al copiar de un extracto
+ok 71 - se toleran el signo $ y los espacios que se arrastran al copiar de un extracto
+  ---
+  duration_ms: 0.083333
+  type: 'test'
+  ...
+# Subtest: un campo vacío es vacío, no cero
+ok 72 - un campo vacío es vacío, no cero
+  ---
+  duration_ms: 0.070274
+  type: 'test'
+  ...
+# Subtest: lo que no es un importe rebota: negativos, notación científica, letras y separadores dobles
+ok 73 - lo que no es un importe rebota: negativos, notación científica, letras y separadores dobles
+  ---
+  duration_ms: 0.377968
+  type: 'test'
+  ...
+# Subtest: importeONaN: vacío, ilegible o un archivo dan NaN, y la validación de cada acción lo rechaza
+ok 74 - importeONaN: vacío, ilegible o un archivo dan NaN, y la validación de cada acción lo rechaza
+  ---
+  duration_ms: 0.681216
+  type: 'test'
+  ...
+# Subtest: el mostrador y el servidor usan el mismo lector: pos-peso lo re-exporta, no tiene otra copia
+ok 75 - el mostrador y el servidor usan el mismo lector: pos-peso lo re-exporta, no tiene otra copia
+  ---
+  duration_ms: 0.453179
+  type: 'test'
+  ...
+# Subtest: las acciones de turnos, cobros y catálogo leen cada campo de plata con el lector, nunca con Number
+ok 76 - las acciones de turnos, cobros y catálogo leen cada campo de plata con el lector, nunca con Number
+  ---
+  duration_ms: 4.015603
+  type: 'test'
+  ...
+# Subtest: medio peso va hacia arriba: 1.234,50 → 1.235; 0,50 → 1; 12.344,5 → 12.345
+ok 77 - medio peso va hacia arriba: 1.234,50 → 1.235; 0,50 → 1; 12.344,5 → 12.345
+  ---
+  duration_ms: 1.105148
+  type: 'test'
+  ...
+# Subtest: menos de medio peso va hacia abajo: 1.234,49 → 1.234; 0,49 → 0
+ok 78 - menos de medio peso va hacia abajo: 1.234,49 → 1.234; 0,49 → 0
+  ---
+  duration_ms: 0.174772
+  type: 'test'
+  ...
+# Subtest: un solo redondeo: 1.234,495 va a 1.234 (al centavo daría 1.234,50 y al peso 1.235)
+ok 79 - un solo redondeo: 1.234,495 va a 1.234 (al centavo daría 1.234,50 y al peso 1.235)
+  ---
+  duration_ms: 0.175639
+  type: 'test'
+  ...
+# Subtest: un número vale sus 15 cifras: 1.234,4999999999998 es 1.234,5 y sube
+ok 80 - un número vale sus 15 cifras: 1.234,4999999999998 es 1.234,5 y sube
+  ---
+  duration_ms: 0.080257
+  type: 'test'
+  ...
+# Subtest: negativos: el medio peso se aleja del cero y lo que redondea a cero da 0, nunca −0
+ok 81 - negativos: el medio peso se aleja del cero y lo que redondea a cero da 0, nunca −0
+  ---
+  duration_ms: 0.128014
+  type: 'test'
+  ...
+# Subtest: lo que no es un número pasa sin cambios, como con Math.round
+ok 82 - lo que no es un número pasa sin cambios, como con Math.round
+  ---
+  duration_ms: 0.069889
+  type: 'test'
+  ...
+# Subtest: barrido: los 1.000.000 de x,50 de $0 a $1.000.000 suben y los x,49 bajan
+ok 83 - barrido: los 1.000.000 de x,50 de $0 a $1.000.000 suben y los x,49 bajan
+  ---
+  duration_ms: 430.049131
+  type: 'test'
+  ...
+# Subtest: porcentaje: 10 % de $12.345 da $1.235 al peso y $1.234,50 al centavo
+ok 84 - porcentaje: 10 % de $12.345 da $1.235 al peso y $1.234,50 al centavo
+  ---
+  duration_ms: 0.515632
+  type: 'test'
+  ...
+# Subtest: porcentaje: todos los % enteros de 1 a 100 sobre cada centavo de $0 a $1.000 dan el exacto
+ok 85 - porcentaje: todos los % enteros de 1 a 100 sobre cada centavo de $0 a $1.000 dan el exacto
+  ---
+  duration_ms: 11883.596968
+  type: 'test'
+  ...
+# Subtest: porcentaje: 1.000.000 de bases al azar hasta $1.000.000.000 con % de dos decimales dan el exacto
+ok 86 - porcentaje: 1.000.000 de bases al azar hasta $1.000.000.000 con % de dos decimales dan el exacto
+  ---
+  duration_ms: 795.925557
+  type: 'test'
+  ...
+# Subtest: un porcentaje vale con dos decimales: 12,345 % se toma 12,35 % (R1 y R7 sobre el %)
+ok 87 - un porcentaje vale con dos decimales: 12,345 % se toma 12,35 % (R1 y R7 sobre el %)
+  ---
+  duration_ms: 0.213218
+  type: 'test'
+  ...
+# Subtest: lo que no es un número pasa sin cambios por el porcentaje
+ok 88 - lo que no es un número pasa sin cambios por el porcentaje
+  ---
+  duration_ms: 0.094164
+  type: 'test'
+  ...
+# Subtest: porcentaje de una base enorme (el producto no entra entero): igual redondea por R7
+ok 89 - porcentaje de una base enorme (el producto no entra entero): igual redondea por R7
+  ---
+  duration_ms: 0.097328
+  type: 'test'
+  ...
+# Subtest: porcentaje de un negativo se aleja del cero: 10 % de −$12.345 da −$1.235
+ok 90 - porcentaje de un negativo se aleja del cero: 10 % de −$12.345 da −$1.235
+  ---
+  duration_ms: 0.046502
+  type: 'test'
+  ...
+# Subtest: medio centavo va hacia arriba: 1,005 → 1,01; 2,675 → 2,68; 0,005 → 0,01
+ok 91 - medio centavo va hacia arriba: 1,005 → 1,01; 2,675 → 2,68; 0,005 → 0,01
+  ---
+  duration_ms: 0.962719
+  type: 'test'
+  ...
+# Subtest: menos de medio centavo va hacia abajo: 1,004 → 1,00; 0,004 → 0; 2,6749 → 2,67
+ok 92 - menos de medio centavo va hacia abajo: 1,004 → 1,00; 0,004 → 0; 2,6749 → 2,67
+  ---
+  duration_ms: 0.198369
+  type: 'test'
+  ...
+# Subtest: negativos: el medio centavo se aleja del cero (−2,675 → −2,68; −0,005 → −0,01)
+ok 93 - negativos: el medio centavo se aleja del cero (−2,675 → −2,68; −0,005 → −0,01)
+  ---
+  duration_ms: 0.150352
+  type: 'test'
+  ...
+# Subtest: un negativo que redondea a cero da 0, nunca −0 (−0,004 y −0)
+ok 94 - un negativo que redondea a cero da 0, nunca −0 (−0,004 y −0)
+  ---
+  duration_ms: 0.129467
+  type: 'test'
+  ...
+# Subtest: un número vale lo que dicen sus 15 cifras: 0,1 + 0,2 → 0,30; 1234,5650000000001 → 1234,57
+ok 95 - un número vale lo que dicen sus 15 cifras: 0,1 + 0,2 → 0,30; 1234,5650000000001 → 1234,57
+  ---
+  duration_ms: 0.075317
+  type: 'test'
+  ...
+# Subtest: el redondeo arrastra a los enteros: 999,995 → 1.000,00; 9,995 → 10,00
+ok 96 - el redondeo arrastra a los enteros: 999,995 → 1.000,00; 9,995 → 10,00
+  ---
+  duration_ms: 0.077041
+  type: 'test'
+  ...
+# Subtest: barrido: los 100.000.000 de x,xx5 de $0 a $1.000.000 van todos hacia arriba
+ok 97 - barrido: los 100.000.000 de x,xx5 de $0 a $1.000.000 van todos hacia arriba
+  ---
+  duration_ms: 13565.425539
+  type: 'test'
+  ...
+# Subtest: barrido negativo: los 10.000.000 de −x,xx5 de −$100.000 a $0 se alejan del cero
+ok 98 - barrido negativo: los 10.000.000 de −x,xx5 de −$100.000 a $0 se alejan del cero
+  ---
+  duration_ms: 1257.734765
+  type: 'test'
+  ...
+# Subtest: lo que ya está al centavo no cambia: 1.000.000 de importes al azar de hasta ±$1.000.000.000.000
+ok 99 - lo que ya está al centavo no cambia: 1.000.000 de importes al azar de hasta ±$1.000.000.000.000
+  ---
+  duration_ms: 893.313428
+  type: 'test'
+  ...
+# Subtest: suma de renglones: cada renglón al centavo y el total es la suma exacta
+ok 100 - suma de renglones: cada renglón al centavo y el total es la suma exacta
+  ---
+  duration_ms: 27.520368
+  type: 'test'
+  ...
+# Subtest: texto para ARCA: siempre dos decimales con punto
+ok 101 - texto para ARCA: siempre dos decimales con punto
+  ---
+  duration_ms: 0.169703
+  type: 'test'
+  ...
+# Subtest: texto para ARCA: lo que no es un importe no sale (NaN, infinito, 13 cifras enteras o más)
+ok 102 - texto para ARCA: lo que no es un importe no sale (NaN, infinito, 13 cifras enteras o más)
+  ---
+  duration_ms: 0.446496
+  type: 'test'
+  ...
+# Subtest: lo que no es un número pasa sin cambios por el redondeo, como con Math.round
+ok 103 - lo que no es un número pasa sin cambios por el redondeo, como con Math.round
+  ---
+  duration_ms: 0.101609
+  type: 'test'
+  ...
+# Subtest: el módulo de redondeo no importa nada (lo usan el navegador y el plugin ARCA)
+ok 104 - el módulo de redondeo no importa nada (lo usan el navegador y el plugin ARCA)
+  ---
+  duration_ms: 0.324764
+  type: 'test'
+  ...
+# Subtest: el plugin ARCA sólo trae del Core el módulo de redondeo (ADR-022 y ADR-100)
+ok 105 - el plugin ARCA sólo trae del Core el módulo de redondeo (ADR-022 y ADR-100)
+  ---
+  duration_ms: 2.189399
+  type: 'test'
+  ...
+# Subtest: en el camino de la plata fiscal no queda redondeo a mano fuera de este módulo
+ok 106 - en el camino de la plata fiscal no queda redondeo a mano fuera de este módulo
+  ---
+  duration_ms: 2.75731
+  type: 'test'
+  ...
+# Subtest: fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+ok 107 - fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+  ---
+  duration_ms: 91.97381
+  type: 'test'
+  ...
+# Subtest: el patrón detecta las formas de redondeo a mano que busca
+ok 108 - el patrón detecta las formas de redondeo a mano que busca
+  ---
+  duration_ms: 0.263288
+  type: 'test'
+  ...
+# Subtest: traslada los campos base del evento sin tocarlos
+ok 109 - traslada los campos base del evento sin tocarlos
+  ---
+  duration_ms: 1.015894
+  type: 'test'
+  ...
+# Subtest: traslada los montos calculados por el Core sin recalcular
+ok 110 - traslada los montos calculados por el Core sin recalcular
+  ---
+  duration_ms: 1.132847
+  type: 'test'
+  ...
+# Subtest: mapea el desglose de IVA por alícuota (varias líneas)
+ok 111 - mapea el desglose de IVA por alícuota (varias líneas)
+  ---
+  duration_ms: 0.154732
+  type: 'test'
+  ...
+# Subtest: emisor RI + receptor RI ⇒ Factura A
+ok 112 - emisor RI + receptor RI ⇒ Factura A
+  ---
+  duration_ms: 0.145571
+  type: 'test'
+  ...
+# Subtest: emisor RI + receptor consumidor final ⇒ Factura B
+ok 113 - emisor RI + receptor consumidor final ⇒ Factura B
+  ---
+  duration_ms: 0.093278
+  type: 'test'
+  ...
+# Subtest: emisor RI + receptor monotributo ⇒ Factura B (no A)
+ok 114 - emisor RI + receptor monotributo ⇒ Factura B (no A)
+  ---
+  duration_ms: 0.092252
+  type: 'test'
+  ...
+# Subtest: emisor monotributo ⇒ Factura C (sin importar el receptor)
+ok 115 - emisor monotributo ⇒ Factura C (sin importar el receptor)
+  ---
+  duration_ms: 0.162892
+  type: 'test'
+  ...
+# Subtest: emisor exento ⇒ Factura C
+ok 116 - emisor exento ⇒ Factura C
+  ---
+  duration_ms: 0.083849
+  type: 'test'
+  ...
+# Subtest: emisor consumidor final no puede emitir: lanza
+ok 117 - emisor consumidor final no puede emitir: lanza
+  ---
+  duration_ms: 0.535223
+  type: 'test'
+  ...
+# Subtest: traslada las fechas de servicio cuando vienen en el evento
+ok 118 - traslada las fechas de servicio cuando vienen en el evento
+  ---
+  duration_ms: 0.39956
+  type: 'test'
+  ...
+# Subtest: sin fechas de servicio en el evento, quedan undefined
+ok 119 - sin fechas de servicio en el evento, quedan undefined
+  ---
+  duration_ms: 0.105093
+  type: 'test'
+  ...
+# Subtest: numero no lo pone construirComprobante: lo resuelve el cliente contra ARCA
+ok 120 - numero no lo pone construirComprobante: lo resuelve el cliente contra ARCA
+  ---
+  duration_ms: 0.060545
+  type: 'test'
+  ...
+# Subtest: totalIva suma los importes de todas las alícuotas
+ok 121 - totalIva suma los importes de todas las alícuotas
+  ---
+  duration_ms: 0.20331
+  type: 'test'
+  ...
+# Subtest: totalIva suma al centavo, como viaja ImpIVA: $0,10 + $0,20 da $0,30 y no 0,30000000000000004 (ENG-109)
+ok 122 - totalIva suma al centavo, como viaja ImpIVA: $0,10 + $0,20 da $0,30 y no 0,30000000000000004 (ENG-109)
+  ---
+  duration_ms: 0.161487
+  type: 'test'
+  ...
+# Subtest: totalIva de un comprobante sin IVA es 0
+ok 123 - totalIva de un comprobante sin IVA es 0
+  ---
+  duration_ms: 0.072427
+  type: 'test'
+  ...
+# Subtest: informaIvaWsfe: A y B informan IVA (ImpIVA + <Iva>); C no
+ok 124 - informaIvaWsfe: A y B informan IVA (ImpIVA + <Iva>); C no
+  ---
+  duration_ms: 0.099776
+  type: 'test'
+  ...
+# Subtest: informaIvaWsfe ⊃ discriminaIva: B informa IVA aunque NO discrimine (regla receptor-CUIT es solo-A)
+ok 125 - informaIvaWsfe ⊃ discriminaIva: B informa IVA aunque NO discrimine (regla receptor-CUIT es solo-A)
+  ---
+  duration_ms: 0.061629
+  type: 'test'
+  ...
+# Subtest: payload: campos y formato oficiales (fecha con guiones, tipoCodAut E)
+ok 126 - payload: campos y formato oficiales (fecha con guiones, tipoCodAut E)
+  ---
+  duration_ms: 0.80277
+  type: 'test'
+  ...
+# Subtest: base64 es reversible al JSON del payload
+ok 127 - base64 es reversible al JSON del payload
+  ---
+  duration_ms: 1.411164
+  type: 'test'
+  ...
+# Subtest: url arranca con el endpoint oficial y trae ?p=<base64>
+ok 128 - url arranca con el endpoint oficial y trae ?p=<base64>
+  ---
+  duration_ms: 0.420507
+  type: 'test'
+  ...
+# Subtest: fecha inválida (no AAAAMMDD) lanza
+ok 129 - fecha inválida (no AAAAMMDD) lanza
+  ---
+  duration_ms: 0.205793
+  type: 'test'
+  ...
+# Subtest: un comprobante B consistente pasa sin errores
+ok 130 - un comprobante B consistente pasa sin errores
+  ---
+  duration_ms: 4.368382
+  type: 'test'
+  ...
+# Subtest: un comprobante A con receptor CUIT identificado pasa
+ok 131 - un comprobante A con receptor CUIT identificado pasa
+  ---
+  duration_ms: 0.302533
+  type: 'test'
+  ...
+# Subtest: puntoVenta debe ser entero positivo
+ok 132 - puntoVenta debe ser entero positivo
+  ---
+  duration_ms: 0.279836
+  type: 'test'
+  ...
+# Subtest: fecha exige formato AAAAMMDD (8 dígitos)
+ok 133 - fecha exige formato AAAAMMDD (8 dígitos)
+  ---
+  duration_ms: 0.383583
+  type: 'test'
+  ...
+# Subtest: iva vacío es rechazado
+ok 134 - iva vacío es rechazado
+  ---
+  duration_ms: 0.161728
+  type: 'test'
+  ...
+# Subtest: total debe ser mayor a 0
+ok 135 - total debe ser mayor a 0
+  ---
+  duration_ms: 0.106363
+  type: 'test'
+  ...
+# Subtest: concepto Servicios exige servicioDesde/Hasta y vencimientoPago
+ok 136 - concepto Servicios exige servicioDesde/Hasta y vencimientoPago
+  ---
+  duration_ms: 0.160862
+  type: 'test'
+  ...
+# Subtest: concepto Servicios con las tres fechas presentes no marca esos errores
+ok 137 - concepto Servicios con las tres fechas presentes no marca esos errores
+  ---
+  duration_ms: 0.136477
+  type: 'test'
+  ...
+# Subtest: concepto ProductosYServicios también exige las fechas de servicio
+ok 138 - concepto ProductosYServicios también exige las fechas de servicio
+  ---
+  duration_ms: 0.264954
+  type: 'test'
+  ...
+# Subtest: concepto Productos NO exige fechas de servicio
+ok 139 - concepto Productos NO exige fechas de servicio
+  ---
+  duration_ms: 0.323381
+  type: 'test'
+  ...
+# Subtest: Factura A sin CUIT (docTipo != CUIT) es rechazada
+ok 140 - Factura A sin CUIT (docTipo != CUIT) es rechazada
+  ---
+  duration_ms: 0.116622
+  type: 'test'
+  ...
+# Subtest: Factura A con CUIT pero docNro <= 0 es rechazada
+ok 141 - Factura A con CUIT pero docNro <= 0 es rechazada
+  ---
+  duration_ms: 0.077748
+  type: 'test'
+  ...
+# Subtest: Nota de crédito A también exige CUIT (discrimina IVA)
+ok 142 - Nota de crédito A también exige CUIT (discrimina IVA)
+  ---
+  duration_ms: 0.062331
+  type: 'test'
+  ...
+# Subtest: Factura B con consumidor final NO exige CUIT
+ok 143 - Factura B con consumidor final NO exige CUIT
+  ---
+  duration_ms: 0.100401
+  type: 'test'
+  ...
+# Subtest: numero, si se informa, debe ser entero positivo
+ok 144 - numero, si se informa, debe ser entero positivo
+  ---
+  duration_ms: 0.165193
+  type: 'test'
+  ...
+# Subtest: numero ausente (undefined) es válido: lo resuelve el cliente contra ARCA
+ok 145 - numero ausente (undefined) es válido: lo resuelve el cliente contra ARCA
+  ---
+  duration_ms: 0.085451
+  type: 'test'
+  ...
+# Subtest: baseImponible negativa es rechazada
+ok 146 - baseImponible negativa es rechazada
+  ---
+  duration_ms: 0.081082
+  type: 'test'
+  ...
+# Subtest: alícuota de IVA desconocida es rechazada
+ok 147 - alícuota de IVA desconocida es rechazada
+  ---
+  duration_ms: 0.066695
+  type: 'test'
+  ...
+# Subtest: IVA inconsistente con la alícuota es rechazado (más allá de la tolerancia)
+ok 148 - IVA inconsistente con la alícuota es rechazado (más allá de la tolerancia)
+  ---
+  duration_ms: 0.119876
+  type: 'test'
+  ...
+# Subtest: IVA a un centavo de base × alícuota se acepta: el Core redondea cada renglón
+ok 149 - IVA a un centavo de base × alícuota se acepta: el Core redondea cada renglón
+  ---
+  duration_ms: 0.156839
+  type: 'test'
+  ...
+# Subtest: IVA a dos centavos de base × alícuota se rechaza: 100 @ 21 % no es 21,02
+ok 150 - IVA a dos centavos de base × alícuota se rechaza: 100 @ 21 % no es 21,02
+  ---
+  duration_ms: 0.086898
+  type: 'test'
+  ...
+# Subtest: un importe con más de dos decimales se rechaza: a ARCA viajan centavos y el Core los manda así
+ok 151 - un importe con más de dos decimales se rechaza: a ARCA viajan centavos y el Core los manda así
+  ---
+  duration_ms: 0.17635
+  type: 'test'
+  ...
+# Subtest: un total a un centavo de neto + IVA se rechaza: 6,63 + 1,39 no es 8,01
+ok 152 - un total a un centavo de neto + IVA se rechaza: 6,63 + 1,39 no es 8,01
+  ---
+  duration_ms: 0.08288
+  type: 'test'
+  ...
+# Subtest: en todos los pares a un centavo hasta $20.000, ningún total ni neto descuadrado pasa
+ok 153 - en todos los pares a un centavo hasta $20.000, ningún total ni neto descuadrado pasa
+  ---
+  duration_ms: 27087.527467
+  type: 'test'
+  ...
+# Subtest: neto que no coincide con la suma de bases es rechazado
+ok 154 - neto que no coincide con la suma de bases es rechazado
+  ---
+  duration_ms: 0.31168
+  type: 'test'
+  ...
+# Subtest: total que no coincide con neto + IVA es rechazado
+ok 155 - total que no coincide con neto + IVA es rechazado
+  ---
+  duration_ms: 0.102288
+  type: 'test'
+  ...
+# Subtest: comprobante con varias alícuotas consistentes pasa
+ok 156 - comprobante con varias alícuotas consistentes pasa
+  ---
+  duration_ms: 0.082777
+  type: 'test'
+  ...
+# Subtest: alícuota 0% (base > 0, importe 0) es consistente
+ok 157 - alícuota 0% (base > 0, importe 0) es consistente
+  ---
+  duration_ms: 0.090192
+  type: 'test'
+  ...
+# Subtest: acumula todos los errores en una pasada (no corta en el primero)
+ok 158 - acumula todos los errores en una pasada (no corta en el primero)
+  ---
+  duration_ms: 0.128576
+  type: 'test'
+  ...
+# Subtest: un total, un neto o un importe de IVA que no es un número se rechaza acá, con mensaje
+ok 159 - un total, un neto o un importe de IVA que no es un número se rechaza acá, con mensaje
+  ---
+  duration_ms: 0.135928
+  type: 'test'
+  ...
+# Subtest: el mensaje de un descuadre muestra la suma de las bases tal como viajan
+ok 160 - el mensaje de un descuadre muestra la suma de las bases tal como viajan
+  ---
+  duration_ms: 0.244447
+  type: 'test'
+  ...
+1..160
+# tests 160
+# suites 0
+# pass 160
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 41461.946972

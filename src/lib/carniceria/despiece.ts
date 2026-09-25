@@ -20,6 +20,8 @@
 // vendible y se dice en pantalla por qué. OJO, cambia números frente al cliente: sube el costo
 // del lomo y baja el del osobuco; se le avisa a MAGRA antes de desplegarlo.
 
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
+
 export interface DespieceOutput {
   name: string;
   weightKg: number;
@@ -34,7 +36,7 @@ export interface DespieceInput {
 }
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
-const round2 = (n: number) => Math.round(n * 100) / 100;
+const round2 = redondearAlCentavo;
 const positivo = (n: number | null | undefined): n is number => typeof n === "number" && Number.isFinite(n) && n > 0;
 
 /** Kilos totales obtenidos (suma de los cortes). Puro. */

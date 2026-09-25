@@ -6,7 +6,6 @@ import assert from 'node:assert/strict';
 import { comprobanteDePrueba, emitirFacturaDePrueba, fechaDePrueba } from './prueba';
 import { StubAfipClient } from './stub';
 import { ArcaRechazoError, type AfipClient, type ResultadoCae } from './port';
-import type { ComprobanteArca } from '../domain/comprobante';
 import { validarComprobante } from '../domain/validacion';
 
 test('fechaDePrueba: formatea AAAAMMDD desde un reloj inyectado', () => {
@@ -48,6 +47,9 @@ test('emitirFacturaDePrueba: mapea ArcaRechazoError a motivo "rechazo"', async (
     async solicitarCae(): Promise<ResultadoCae> {
       throw new ArcaRechazoError('rechazado', [{ codigo: 10016, mensaje: 'numeración' }]);
     },
+    async consultarComprobante() {
+      return null;
+    },
   };
   const r = await emitirFacturaDePrueba(clienteQueRechaza);
   assert.equal(r.ok, false);
@@ -64,8 +66,11 @@ test('emitirFacturaDePrueba: mapea un error genérico (red/parseo) a motivo "err
     async ultimoAutorizado() {
       return 0;
     },
-    async solicitarCae(_comp: ComprobanteArca) {
+    async solicitarCae(): Promise<ResultadoCae> {
       throw new Error('timeout de red');
+    },
+    async consultarComprobante() {
+      return null;
     },
   };
   const r = await emitirFacturaDePrueba(clienteQueFalla);

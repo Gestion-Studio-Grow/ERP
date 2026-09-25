@@ -1,0 +1,11 @@
+src/app/api/cron/arca-outbox/route.ts:4:import { processArcaOutbox } from "@/lib/arca-dispatch";
+src/app/api/cron/arca-outbox/route.ts:11:// (`processArcaOutbox`, hasta hoy "a demanda") necesitaba para cerrar el ciclo.
+src/app/api/cron/arca-outbox/route.ts:39:    const resumen = await processArcaOutbox();
+src/test/procesos/despachante-arca.ts:7:// Corre el código REAL del despacho (`processArcaOutbox` o `procesarEnviosDelNegocio`) con el
+src/test/procesos/despachante-arca.ts:39:  const { processArcaOutbox, procesarEnviosDelNegocio } = await import("@/lib/arca-dispatch");
+src/test/procesos/despachante-arca.ts:69:    negocio ? procesarEnviosDelNegocio(negocio, 20, deps) : processArcaOutbox(20, deps);
+src/lib/arca-dispatch.ts:10: * Dos entradas: `processArcaOutbox()` barre todos los negocios y la llama SÓLO el cron
+src/lib/arca-dispatch.ts:74: * worker (`processArcaOutbox`), sin request/host — con RLS_ENFORCEMENT on,
+src/lib/arca-dispatch.ts:259:export async function processArcaOutbox(
+src/lib/cron/reminder-sweep.ts:7:// `processArcaOutbox` (`src/lib/arca-dispatch.ts`) — separa el efecto (DB,
+src/lib/arca-pruebas-actions.ts:6:// (`processArcaOutbox`/`Invoice`/`OutboxEvent`): no depende de que las

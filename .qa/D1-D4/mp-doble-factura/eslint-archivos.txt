@@ -1,0 +1,1 @@
+src/plugins/mercadopago/ingest.ts src/plugins/mercadopago/handler.ts src/plugins/mercadopago/core-contract.ts src/plugins/mercadopago/index.ts src/plugins/mercadopago/ingest-referencia.test.ts src/lib/mercadopago-doble-factura-postgres.test.ts

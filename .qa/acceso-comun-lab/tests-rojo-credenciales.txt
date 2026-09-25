@@ -1,0 +1,50 @@
+TAP version 13
+# Subtest: contra una base que no es de esta máquina el script sale con error, sin conectarse ni mostrar la clave
+ok 1 - contra una base que no es de esta máquina el script sale con error, sin conectarse ni mostrar la clave
+  ---
+  duration_ms: 752.049588
+  type: 'test'
+  ...
+# Subtest: una clave común que no cumple la política de contraseñas no se acepta
+ok 2 - una clave común que no cumple la política de contraseñas no se acepta
+  ---
+  duration_ms: 642.238984
+  type: 'test'
+  ...
+# Subtest: después de restaurar, el usuario común entra en cada negocio y todos los que había vuelven a entrar con la misma clave, incluso los dados de baja
+ok 3 - después de restaurar, el usuario común entra en cada negocio y todos los que había vuelven a entrar con la misma clave, incluso los dados de baja
+  ---
+  duration_ms: 2399.413258
+  type: 'test'
+  ...
+# Subtest: si no se puede guardar el respaldo, no cambia ninguna contraseña
+ok 4 - si no se puede guardar el respaldo, no cambia ninguna contraseña
+  ---
+  duration_ms: 1885.407911
+  type: 'test'
+  ...
+# Subtest: el script deja el respaldo sólo legible por su dueño, no muestra la clave, y la reversa deja cada usuario exactamente como estaba
+not ok 5 - el script deja el respaldo sólo legible por su dueño, no muestra la clave, y la reversa deja cada usuario exactamente como estaba
+  ---
+  duration_ms: 2588.426749
+  type: 'test'
+  location: '/home/user/erp/src/lib/seed/acceso-comun-lab.test.ts:6:4489'
+  failureType: 'testCodeFailure'
+  error: "ENOENT: no such file or directory, stat '/tmp/acceso-comun-F63w7l/credenciales.md'"
+  code: 'ENOENT'
+  stack: |-
+    statSync (node:fs:1746:25)
+    TestContext.<anonymous> (/home/user/erp/src/lib/seed/acceso-comun-lab.test.ts:178:16)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 4
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8667.405253

@@ -21,6 +21,7 @@
 // Las acciones DEVUELVEN el error en vez de tirarlo: si se escapa, Next en producción lo
 // reemplaza por la pantalla genérica y la persona pierde lo cargado.
 
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { auditAdmin } from "@/lib/audit-core";
@@ -182,7 +183,7 @@ export async function registrarRecuento(_prev: EstadoAjuste, formData: FormData)
       teorico: l.teorico,
       contado: contado.get(l.productId) ?? l.teorico + l.delta,
       diferencia: l.delta,
-      pesos: conCostos && l.costo !== null ? Math.round(l.delta * l.costo * 100) / 100 : null,
+      pesos: conCostos && l.costo !== null ? redondearAlCentavo(l.delta * l.costo) : null,
     }));
 
     await auditAdmin({

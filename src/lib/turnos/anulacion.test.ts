@@ -74,7 +74,15 @@ const D = (s: string) => new Date(`${s}T15:00:00.000Z`);
 
 type ColSeed = Omit<Partial<ColRow>, "amount"> & { amount?: number };
 
-function makeTx(seed: { cobros?: ColSeed[]; movs?: Partial<MovRow>[]; payment?: Partial<PayRow> } = {}) {
+function makeTx(
+  seed: {
+    cobros?: ColSeed[];
+    movs?: Partial<MovRow>[];
+    payment?: Partial<PayRow>;
+    /** Las facturas del turno (ENG-023), con su negocio y su turno. */
+    facturas?: { tenantId: string; appointmentId: string; status: string }[];
+  } = {},
+) {
   let seq = 0;
   const collections: ColRow[] = (seed.cobros ?? []).map((c, i) => ({
     id: c.id ?? `col-${i + 1}`,
@@ -105,7 +113,21 @@ function makeTx(seed: { cobros?: ColSeed[]; movs?: Partial<MovRow>[]; payment?: 
     ? [{ tenantId: TENANT, appointmentId: TURNO, amount: 0, method: "EFECTIVO", status: "APPROVED", ...seed.payment }]
     : [];
 
+  // `anularCobroTurnoInTx` toma la fila del turno FOR UPDATE con SQL crudo (ENG-023); el doble
+  // anota que se tomó. El bloqueo real se prueba contra Postgres en
+  // facturar-turno-con-cobro-anulado-postgres.test.ts.
+  const orden: string[] = [];
   const tx = {
+    $queryRaw: async (_sql: TemplateStringsArray, ...valores: unknown[]) => {
+      orden.push(`toma el turno ${String(valores[0])}`);
+      return [{ id: String(valores[0]) }];
+    },
+    invoice: {
+      findMany: async (args: { where: { tenantId: string; appointmentId: string } }) =>
+        (orden.push(`lee las facturas de ${args.where.appointmentId}`), seed.facturas ?? [])
+          .filter((f) => f.tenantId === args.where.tenantId && f.appointmentId === args.where.appointmentId)
+          .map((f) => ({ status: f.status })),
+    },
     collection: {
       findFirst: async (args: { where: { id?: string; originId?: string } }) =>
         collections.find((c) => (args.where.id ? c.id === args.where.id : c.originId === args.where.originId)) ?? null,
@@ -169,7 +191,7 @@ function makeTx(seed: { cobros?: ColSeed[]; movs?: Partial<MovRow>[]; payment?: 
       },
     },
   };
-  return { tx: tx as unknown as AnulacionTx, collections, movements, payments };
+  return { tx: tx as unknown as AnulacionTx, collections, movements, payments, orden };
 }
 
 // Día contable inyectado: el test no depende de la zona horaria del que lo corre.
@@ -231,15 +253,65 @@ test("un cobro ya anulado no vuelve a ofrecerse para anular", () => {
 });
 
 test("planAnulacion: sólo cobros vivos, y el día cerrado se responde después de la idempotencia", () => {
-  assert.deepEqual(planAnulacion({ note: null, amount: 18000, yaAnulado: false, diaCerrado: false }), { ok: true, monto: 18000 });
-  assert.deepEqual(planAnulacion({ note: notaDeAnulacion("x", "m"), amount: -1, yaAnulado: false, diaCerrado: false }), {
+  assert.deepEqual(planAnulacion({ note: null, amount: 18000, yaAnulado: false, diaCerrado: false, factura: "sin-factura-viva" }), { ok: true, monto: 18000 });
+  assert.deepEqual(planAnulacion({ note: notaDeAnulacion("x", "m"), amount: -1, yaAnulado: false, diaCerrado: false, factura: "sin-factura-viva" }), {
     ok: false,
     motivo: "no-es-cobro",
   });
-  assert.deepEqual(planAnulacion({ note: null, amount: 0, yaAnulado: false, diaCerrado: false }), { ok: false, motivo: "monto-invalido" });
+  assert.deepEqual(planAnulacion({ note: null, amount: 0, yaAnulado: false, diaCerrado: false, factura: "sin-factura-viva" }), { ok: false, motivo: "monto-invalido" });
   // Ya anulado + día cerrado → "ya-anulado": un doble clic no tiene que asustar a nadie.
-  assert.deepEqual(planAnulacion({ note: null, amount: 100, yaAnulado: true, diaCerrado: true }), { ok: false, motivo: "ya-anulado" });
-  assert.deepEqual(planAnulacion({ note: null, amount: 100, yaAnulado: false, diaCerrado: true }), { ok: false, motivo: "dia-cerrado" });
+  assert.deepEqual(planAnulacion({ note: null, amount: 100, yaAnulado: true, diaCerrado: true, factura: "sin-factura-viva" }), { ok: false, motivo: "ya-anulado" });
+  assert.deepEqual(planAnulacion({ note: null, amount: 100, yaAnulado: false, diaCerrado: true, factura: "sin-factura-viva" }), { ok: false, motivo: "dia-cerrado" });
+});
+
+// ENG-023: el cobro de un turno facturado no se anula mientras no exista la nota de crédito.
+test("planAnulacion: con factura autorizada o en camino el cobro no se anula; el doble clic sigue contestando 'ya está'", () => {
+  const base = { note: null, amount: 18000, yaAnulado: false, diaCerrado: false };
+  assert.deepEqual(planAnulacion({ ...base, factura: "autorizada" }), { ok: false, motivo: "facturado" });
+  assert.deepEqual(planAnulacion({ ...base, factura: "en-camino" }), { ok: false, motivo: "factura-en-camino" });
+  assert.deepEqual(planAnulacion({ ...base, diaCerrado: true, factura: "autorizada" }), { ok: false, motivo: "facturado" });
+  assert.deepEqual(planAnulacion({ ...base, yaAnulado: true, factura: "autorizada" }), { ok: false, motivo: "ya-anulado" });
+});
+
+test("anular el cobro de un turno con factura autorizada se rechaza y no escribe nada", async () => {
+  const { tx, collections, movements, payments } = makeTx({
+    cobros: [{ id: "col-1", amount: 18000 }],
+    movs: [{ collectionId: "col-1", type: "VENTA", amount: 18000, occurredAt: D("2026-09-10") }],
+    payment: { amount: 18000 },
+    facturas: [{ tenantId: TENANT, appointmentId: TURNO, status: "AUTHORIZED" }],
+  });
+  await assert.rejects(
+    () => anularCobroTurnoInTx(tx, TENANT, argsAnular()),
+    (e: unknown) => e instanceof AnulacionRechazada && e.motivo === "facturado" && /nota de crédito/.test(e.message),
+  );
+  assert.equal(collections.length, 1, "ninguna contrapartida");
+  assert.equal(movements.length, 1, "ningún egreso");
+  assert.equal(payments[0].amount, 18000, "el turno sigue cobrado");
+});
+
+test("anular el cobro toma la fila del turno antes de leer sus facturas (ENG-023: la facturación simultánea la escribe)", async () => {
+  const { tx, orden } = makeTx({
+    cobros: [{ id: "col-1", amount: 18000 }],
+    movs: [{ collectionId: "col-1", type: "VENTA", amount: 18000, occurredAt: D("2026-09-10") }],
+    payment: { amount: 18000 },
+  });
+  await anularCobroTurnoInTx(tx, TENANT, argsAnular());
+  assert.deepEqual(orden, [`toma el turno ${TURNO}`, `lee las facturas de ${TURNO}`]);
+});
+
+test("la factura de otro turno o de otro negocio no frena la anulación del cobro", async () => {
+  const { tx } = makeTx({
+    cobros: [{ id: "col-1", amount: 18000 }],
+    movs: [{ collectionId: "col-1", type: "VENTA", amount: 18000, occurredAt: D("2026-09-10") }],
+    payment: { amount: 18000 },
+    facturas: [
+      { tenantId: "t2", appointmentId: TURNO, status: "AUTHORIZED" },
+      { tenantId: TENANT, appointmentId: "appt-otro", status: "AUTHORIZED" },
+      { tenantId: TENANT, appointmentId: TURNO, status: "REJECTED" },
+    ],
+  });
+  const r = await anularCobroTurnoInTx(tx, TENANT, argsAnular());
+  assert.equal(r.applied, true);
 });
 
 test("planCondonacion: sólo un turno prestado y con saldo", () => {

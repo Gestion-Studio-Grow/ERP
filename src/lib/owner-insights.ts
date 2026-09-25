@@ -65,12 +65,12 @@ function deltaPct(actual: number, previo: number | null): number | null {
 }
 
 function pct(n: number): string {
-  return `${Math.round(n * 100)}%`;
+  return `${Math.round(n * 100)}%`; // no-es-plata: porcentaje entero para leer
 }
 
 function signoPct(d: number): string {
   // d es una variación relativa (ej -0.12). Texto "subió 12%" / "bajó 12%".
-  const abs = Math.abs(Math.round(d * 100));
+  const abs = Math.abs(Math.round(d * 100)); // no-es-plata: porcentaje entero para leer
   return d >= 0 ? `subió ${abs}%` : `bajó ${abs}%`;
 }
 

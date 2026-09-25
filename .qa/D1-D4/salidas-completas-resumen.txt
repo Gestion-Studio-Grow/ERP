@@ -1,0 +1,117 @@
+# Salidas completas de npm test que NO se commitean por tamaño (>400 KB). Resumen y huella de cada una.
+# Generado 2026-09-25T08:57:59Z al commitear D1-D4.
+## .qa/COMPROBANTE/suite-2.txt  sha256=9e0dc3a28e07f115  864 KB
+# tests 3923 # pass 3917 # fail 6 # cancelled 0 # skipped 0 # duration_ms 155882.933534 
+   not ok 739 - la versión de la URL es la del contenido, y ConDiseno pide esa
+   not ok 1770 - fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+   not ok 3600 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+   not ok 3623 - lee un xlsx con fechas Date y números number
+   not ok 3624 - filas totalmente vacías se descartan
+   not ok 3625 - esXlsx reconoce el magic ZIP de un .xlsx real
+## .qa/COMPROBANTE/suite-3.txt  sha256=6ae6d757ca45d569  868 KB
+# tests 3941 # pass 3935 # fail 6 # cancelled 0 # skipped 0 # duration_ms 187949.053572 
+   not ok 744 - la versión de la URL es la del contenido, y ConDiseno pide esa
+   not ok 1775 - fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+   not ok 3618 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+   not ok 3641 - lee un xlsx con fechas Date y números number
+   not ok 3642 - filas totalmente vacías se descartan
+   not ok 3643 - esXlsx reconoce el magic ZIP de un .xlsx real
+## .qa/COMPROBANTE/suite-4.txt  sha256=d35b2893aa637253  872 KB
+# tests 3953 # pass 3947 # fail 6 # cancelled 0 # skipped 0 # duration_ms 177123.212104 
+   not ok 752 - la versión de la URL es la del contenido, y ConDiseno pide esa
+   not ok 1783 - fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+   not ok 3630 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+   not ok 3653 - lee un xlsx con fechas Date y números number
+   not ok 3654 - filas totalmente vacías se descartan
+   not ok 3655 - esXlsx reconoce el magic ZIP de un .xlsx real
+## .qa/COMPROBANTE/suite-5.txt  sha256=d420d49d5fb8664f  876 KB
+# tests 3960 # pass 3954 # fail 6 # cancelled 0 # skipped 0 # duration_ms 172876.696232 
+   not ok 752 - la versión de la URL es la del contenido, y ConDiseno pide esa
+   not ok 1783 - fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+   not ok 3637 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+   not ok 3660 - lee un xlsx con fechas Date y números number
+   not ok 3661 - filas totalmente vacías se descartan
+   not ok 3662 - esXlsx reconoce el magic ZIP de un .xlsx real
+## .qa/ENG-019-012-027/npm-test.txt  sha256=ec688836ccb357b7  848 KB
+# tests 3867 # pass 3861 # fail 6 # cancelled 0 # skipped 0 # duration_ms 149688.12907 
+   not ok 738 - la versión de la URL es la del contenido, y ConDiseno pide esa
+   not ok 1767 - fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+   not ok 3547 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+   not ok 3570 - lee un xlsx con fechas Date y números number
+   not ok 3571 - filas totalmente vacías se descartan
+   not ok 3572 - esXlsx reconoce el magic ZIP de un .xlsx real
+## .qa/ENG-021-020/npm-test.txt  sha256=a32c51457478ac5d  876 KB
+# tests 3823 # pass 3767 # fail 35 # cancelled 21 # skipped 0 # duration_ms 203301.005853 
+   not ok 378 - Vender en el navegador
+   not ok 733 - la versión de la URL es la del contenido, y ConDiseno pide esa
+   not ok 3503 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+   not ok 3526 - lee un xlsx con fechas Date y números number
+   not ok 3527 - filas totalmente vacías se descartan
+   not ok 3528 - esXlsx reconoce el magic ZIP de un .xlsx real
+## .qa/ENG-021-020/vuelta2/npm-test.txt  sha256=4f409c4fc18e669a  832 KB
+# tests 3836 # pass 3831 # fail 5 # cancelled 0 # skipped 0 # duration_ms 139461.85424 
+   not ok 733 - la versión de la URL es la del contenido, y ConDiseno pide esa
+   not ok 3516 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+   not ok 3539 - lee un xlsx con fechas Date y números number
+   not ok 3540 - filas totalmente vacías se descartan
+   not ok 3541 - esXlsx reconoce el magic ZIP de un .xlsx real
+## .qa/ENG-021-020/vuelta3/npm-test.txt  sha256=b8c7368203db0187  840 KB
+# tests 3853 # pass 3848 # fail 5 # cancelled 0 # skipped 0 # duration_ms 134105.5613 
+   not ok 733 - la versión de la URL es la del contenido, y ConDiseno pide esa
+   not ok 3533 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+   not ok 3556 - lee un xlsx con fechas Date y números number
+   not ok 3557 - filas totalmente vacías se descartan
+   not ok 3558 - esXlsx reconoce el magic ZIP de un .xlsx real
+## .qa/ENG-022/npm-test.txt  sha256=9ed6f6c5adece8d9  876 KB
+# tests 3965 # pass 3960 # fail 5 # cancelled 0 # skipped 0 # duration_ms 173939.360649 
+   not ok 1788 - fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+   not ok 3642 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+   not ok 3665 - lee un xlsx con fechas Date y números number
+   not ok 3666 - filas totalmente vacías se descartan
+   not ok 3667 - esXlsx reconoce el magic ZIP de un .xlsx real
+## .qa/ENG-022/vuelta2/npm-test.txt  sha256=dbf6e487d910dcd3  880 KB
+# tests 3982 # pass 3977 # fail 5 # cancelled 0 # skipped 0 # duration_ms 180283.511929 
+   not ok 1805 - fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+   not ok 3659 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+   not ok 3682 - lee un xlsx con fechas Date y números number
+   not ok 3683 - filas totalmente vacías se descartan
+   not ok 3684 - esXlsx reconoce el magic ZIP de un .xlsx real
+## .qa/ENG-109/grep-redondeos-src-4.txt  sha256=324d99f1edafb72c  480 KB
+
+## .qa/ENG-109/grep-redondeos-src.txt  sha256=6c0e74a5de425212  484 KB
+
+## .qa/ENG-109/npmtest-4.txt  sha256=8864526bf9ddda89  800 KB
+# tests 3690 # pass 3684 # fail 6 # cancelled 0 # skipped 0 # duration_ms 114261.388693 
+   not ok 257 - Pies pegados en el iPhone: la zona segura una sola vez
+   not ok 3374 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+   not ok 3397 - lee un xlsx con fechas Date y números number
+   not ok 3398 - filas totalmente vacías se descartan
+   not ok 3399 - esXlsx reconoce el magic ZIP de un .xlsx real
+## .qa/ENG-109/npmtest-5.txt  sha256=93f805a716c539bc  808 KB
+# tests 3739 # pass 3733 # fail 6 # cancelled 0 # skipped 0 # duration_ms 153478.375733 
+   not ok 268 - Pies pegados en el iPhone: la zona segura una sola vez
+   not ok 3423 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+   not ok 3446 - lee un xlsx con fechas Date y números number
+   not ok 3447 - filas totalmente vacías se descartan
+   not ok 3448 - esXlsx reconoce el magic ZIP de un .xlsx real
+## .qa/ENG-109/npmtest.txt  sha256=538d6cfbcca67689  792 KB
+# tests 3661 # pass 3655 # fail 6 # cancelled 0 # skipped 0 # duration_ms 111857.783644 
+   not ok 248 - Pies pegados en el iPhone: la zona segura una sola vez
+   not ok 3345 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+   not ok 3368 - lee un xlsx con fechas Date y números number
+   not ok 3369 - filas totalmente vacías se descartan
+   not ok 3370 - esXlsx reconoce el magic ZIP de un .xlsx real
+## .qa/ENG-109/v2-npmtest.txt  sha256=fc767c5baeb04ea3  816 KB
+# tests 3761 # pass 3755 # fail 6 # cancelled 0 # skipped 0 # duration_ms 138535.078598 
+   not ok 276 - Pies pegados en el iPhone: la zona segura una sola vez
+   not ok 3445 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+   not ok 3468 - lee un xlsx con fechas Date y números number
+   not ok 3469 - filas totalmente vacías se descartan
+   not ok 3470 - esXlsx reconoce el magic ZIP de un .xlsx real
+## .qa/ENG-109/v3-npmtest.txt  sha256=60e7f57c8f1dab29  816 KB
+# tests 3766 # pass 3760 # fail 6 # cancelled 0 # skipped 0 # duration_ms 134848.771672 
+   not ok 276 - Pies pegados en el iPhone: la zona segura una sola vez
+   not ok 3450 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+   not ok 3473 - lee un xlsx con fechas Date y números number
+   not ok 3474 - filas totalmente vacías se descartan
+   not ok 3475 - esXlsx reconoce el magic ZIP de un .xlsx real

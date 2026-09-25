@@ -80,7 +80,8 @@ de dominio sin framework.
 | Cuentas a cobrar y a pagar | `lib/debts/`, `settlement/`, `cartera-core.ts` | `cuentas-a-cobrar`, `cuentas-a-pagar` |
 | Stock e inventario | `lib/stock/` (el ledger es `stock/ledger.ts`), `inventario/`, `inventory/`, `carniceria/`, `multilocal/` | `inventario`, `despiece`, `lotes`, `ajustes/recuento`, `locales` |
 | Compras y proveedores | `lib/stock/purchase-core.ts`, `suppliers/`, `devoluciones/`, `stock/supplier-return.ts` | `compras`, `proveedores`, `devoluciones-proveedor` |
-| Fiscal (ARCA) | `plugins/arca/` (domain, afip/soap.ts), `lib/fiscal.ts`, `fiscal/`, `invoice-core.ts`, `invoice-from-order.ts`, `invoice-from-appointment.ts`, `invoice-from-mp.ts`, `arca-dispatch.ts` (outbox), `facturita-actions.ts`, `libros/` | `facturacion`, `libros`, `retenciones`; cron `api/cron/arca-outbox` |
+| Fiscal (ARCA) | `plugins/arca/` (domain, afip/soap.ts), `lib/fiscal.ts`, `fiscal/`, `invoice-core.ts`, `invoice-from-order.ts`, `invoice-from-appointment.ts`, `invoice-from-mp.ts`, `arca-dispatch.ts` (outbox: `processArcaOutbox` sólo el cron, `procesarEnviosDelNegocio` el panel), `arca-reserva.ts` (toma con reserva, acceso del operador), `facturita-actions.ts`, `libros/` | `facturacion`, `libros`, `retenciones`; cron `api/cron/arca-outbox` |
+| Plata (redondeo) | `lib/dinero/redondeo.ts`: la única regla de redondeo (medio centavo hacia arriba, 15 cifras; ENG-109). `lib/round.ts` (`round2`) delega; la usan `fiscal.ts`, el plugin ARCA (`soap.ts`, `validacion.ts`, `comprobante.ts`; DEC-011), `libros/csv-ar.ts`, `caja/libro-csv.ts`, `invoice-core.ts` y el cupón (`venta-reglas.ts` `montoDeCupon`, `cupones/cupon-de-reserva.ts`). `fiscal/decidir-comprobante.ts` (núcleo de otro frente) NO la usa: redondea por su cuenta con `toFixed(2)`; la decisión y el envío cuentan los mismos centavos SÓLO porque `validacion.ts` rechaza importes con más de 2 decimales y exige neto y total exactos (DEC-012): aflojar esa validación rompe la garantía |  |
 | Bancos | `plugins/bancos/`, `lib/bancos-actions.ts`, `bancos-glue.ts` | `facturacion/bancos` |
 | Mercado Pago y pagos | `plugins/mercadopago/`, `plugins/pagos/`, `lib/mercadopago-*.ts`, `pagos-dispatch.ts` | `api/webhooks/mercadopago` |
 | Negocios, sesión y permisos | `proxy.ts`, `lib/tenant.ts`, `tenant-scope.ts`, `tenant-context.ts`, `rls.ts`, `db.ts`, `prisma-base.ts`, `operator-db.ts`, `auth.ts`, `auth-actions.ts`, `session.ts`, `authz.ts`, `capabilities.ts`, `operator-auth.ts`, `rate-limit.ts`, `provisioning/` | `admin/login`, `operador/login` |
@@ -141,17 +142,20 @@ de dominio sin framework.
 | render | `npm run gate:visual` (5 rutas a 1280 y 390 px) | sí |
 | contraste/toque/desborde | `npm run gate:visual:aa` | sí |
 
-**CI:** `.github/workflows/gates.yml`, un job por valla en cada push y PR, Node 20. `lint` con
-`continue-on-error: true` (`gates.yml:42`). El job `tests` (`gates.yml:65-75`) no levanta
-Postgres ni instala Chromium: sólo lo instalan `visual` (`:126`) y `visual-aa` (`:151`), y `npm ci`
-no baja navegadores. Reproducido en local sin base y sin Chromium: 76 tests saltados de 2.980 (9 de
-base y 67 de componentes; `$AUD/correccion/npmtest-como-ci.txt`).
+**CI:** `.github/workflows/gates.yml`, un job por valla en cada push y PR, Node 20 salvo `tests`.
+`lint` con `continue-on-error: true` (`gates.yml:42`). Desde ENG-000 el job `tests` corre con
+Node 22 (con Node 20 `node --test "src/**/*.test.ts"` no expande el patrón y sale "Could not find"
+sin correr nada: `.qa/ENG-000/npmtest-node20-como-ci-antes.txt`), levanta un servicio Postgres 16,
+instala Chromium y falla si la salida no dice `# skipped 0` o si queda alguna base `erp_test_`.
+Resultado en GitHub Actions: sin medir hasta el primer push.
 
-**Tests que usan base:** 4 archivos (`src/cambios/interruptores-escritura.test.ts`,
-`src/lib/reintento-de-venta-postgres.test.ts`, `src/lib/tenant.test.ts`,
-`src/lib/vercel-build.test.ts`). Por defecto apuntan a bases compartidas de `/tmp/pgrun`
-(`erp_qa_apps`, `erp_scope`); se redirigen con `INTERRUPTORES_TEST_DB`, `REINTENTO_TEST_DB`,
-`TENANT_TEST_DATABASE_URL` y `PREDEPLOY_TEST_DATABASE_URL`. Sin base se saltean: en CI se saltean siempre.
+**Tests que usan base:** 8 archivos, 14 tests, cada uno con su base efímera
+(`src/test/base-efimera.ts`, ENG-000): `src/test/base-efimera.test.ts`,
+`src/test/accion-de-servidor.test.ts`, `src/cambios/interruptores-escritura.test.ts`,
+`src/lib/reintento-de-venta-postgres.test.ts`, `src/lib/pg-begin-con-negocio-postgres.test.ts`,
+`src/lib/tenant.test.ts`, `src/lib/seed/seed-postgres.test.ts`, `src/lib/vercel-build.test.ts`. El
+servidor es `ERP_TEST_PG_URL` (por defecto el local de `/tmp/pgrun`). Sin servidor se saltean fuera
+de CI y fallan en CI. Server Actions reales con sesión: `src/test/accion-de-servidor.ts`.
 
 **Tests que usan navegador:** 5 archivos de componentes en Chromium
 (`src/app/admin/(dashboard)/caja/caja-teclado.test.ts`, `pie-pegado-zona-segura.test.ts`,
@@ -168,7 +172,7 @@ base y 67 de componentes; `$AUD/correccion/npmtest-como-ci.txt`).
 
 | Falta | Sección | Slice |
 |---|---|---|
-| Postgres efímero para los tests de integración, en local y en CI, con RLS y `app_rls` aplicados; Chromium instalado en el job `tests` | §3 | ENG-000 |
+| ~~Postgres efímero para los tests de integración, en local y en CI, con RLS y `app_rls` aplicados; Chromium instalado en el job `tests`~~ hecho; falta leer el primer run de CI | §3 | ENG-000 |
 | Plantilla de aislamiento A/B que ejecute cada acción real, dentro de `npm test` | §3 | ENG-016 |
 | Tests de concurrencia contra la base (último ítem, numeración fiscal, correlativos) | §2 | ENG-106 |
 | `npm audit --omit=dev --audit-level=high` bloqueante | §4 | ENG-120 |

@@ -1,0 +1,8 @@
+src/lib/arca-envios-por-negocio-postgres.test.ts exit=0 # tests 2 # pass 2 # fail 0 # skipped 0 
+src/lib/arca-procesador-sin-operador-postgres.test.ts exit=0 # tests 3 # pass 3 # fail 0 # skipped 0 
+src/lib/comprobante-autorizado-inmutable-postgres.test.ts exit=0 # tests 6 # pass 6 # fail 0 # skipped 0 
+src/lib/anular-venta-facturada-postgres.test.ts exit=0 # tests 2 # pass 2 # fail 0 # skipped 0 
+src/lib/facturar-venta-anulada-postgres.test.ts exit=0 # tests 3 # pass 3 # fail 0 # skipped 0 
+src/lib/facturar-turno-con-cobro-anulado-postgres.test.ts exit=0 # tests 3 # pass 3 # fail 0 # skipped 0 
+src/plugins/arca/domain/tipo-segun-la-rg.test.ts exit=0 # tests 28 # pass 28 # fail 0 # skipped 0 
+src/lib/factura-viva.test.ts exit=0 # tests 8 # pass 8 # fail 0 # skipped 0 

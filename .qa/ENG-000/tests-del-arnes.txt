@@ -1,0 +1,623 @@
+TAP version 13
+# Subtest: sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+ok 1 - sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+  ---
+  duration_ms: 8.794014
+  type: 'test'
+  ...
+# Subtest: Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+ok 2 - Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+  ---
+  duration_ms: 28.927907
+  type: 'test'
+  ...
+# Subtest: CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+ok 3 - CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+  ---
+  duration_ms: 0.432673
+  type: 'test'
+  ...
+# Subtest: diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+ok 4 - diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+  ---
+  duration_ms: 0.703682
+  type: 'test'
+  ...
+# Subtest: el interruptor decide por negocio: apagado, sin gate; prendido y con asignación, piloto
+ok 5 - el interruptor decide por negocio: apagado, sin gate; prendido y con asignación, piloto
+  ---
+  duration_ms: 1.020203
+  type: 'test'
+  ...
+# Subtest: CH queda SIN gate aun con el interruptor prendido: su asignación está vacía
+ok 6 - CH queda SIN gate aun con el interruptor prendido: su asignación está vacía
+  ---
+  duration_ms: 0.166501
+  type: 'test'
+  ...
+# Subtest: magra: sin gate con el interruptor apagado; prendido, sus módulos resueltos
+ok 7 - magra: sin gate con el interruptor apagado; prendido, sus módulos resueltos
+  ---
+  duration_ms: 1.387012
+  type: 'test'
+  ...
+# Subtest: piloto: un módulo sin su dependencia no habilita nada (resolverActivacion real)
+ok 8 - piloto: un módulo sin su dependencia no habilita nada (resolverActivacion real)
+  ---
+  duration_ms: 0.425648
+  type: 'test'
+  ...
+# Subtest: Comerciante: el set asignado tal cual, con o sin piloto; el flag global manda sobre todo
+ok 9 - Comerciante: el set asignado tal cual, con o sin piloto; el flag global manda sobre todo
+  ---
+  duration_ms: 0.213865
+  type: 'test'
+  ...
+# Subtest: sin gate, el módulo no decide nada: CH ve Facturación aunque no tenga `arca` asignado
+ok 10 - sin gate, el módulo no decide nada: CH ve Facturación aunque no tenga `arca` asignado
+  ---
+  duration_ms: 0.143159
+  type: 'test'
+  ...
+# Subtest: piloto: el gate saca sólo lo no asignado; con inventario, bancos y campañas, magra no pierde nada
+ok 11 - piloto: el gate saca sólo lo no asignado; con inventario, bancos y campañas, magra no pierde nada
+  ---
+  duration_ms: 8.24065
+  type: 'test'
+  ...
+# Subtest: piloto: manda el módulo, no el perfil (Libro IVA sin el callejón de 'edición Empresa')
+ok 12 - piloto: manda el módulo, no el perfil (Libro IVA sin el callejón de 'edición Empresa')
+  ---
+  duration_ms: 0.300088
+  type: 'test'
+  ...
+# Subtest: Comerciante: la guardia usa el módulo de su barra de hoy; el piloto, el de la app
+ok 13 - Comerciante: la guardia usa el módulo de su barra de hoy; el piloto, el de la app
+  ---
+  duration_ms: 0.500781
+  type: 'test'
+  ...
+# Subtest: moduloDuro: invisible con contexto null si el negocio no tiene el módulo
+ok 14 - moduloDuro: invisible con contexto null si el negocio no tiene el módulo
+  ---
+  duration_ms: 0.376765
+  type: 'test'
+  ...
+# Subtest: moduloDuro: el módulo de la barra de hoy no lo afloja en el Comerciante
+ok 15 - moduloDuro: el módulo de la barra de hoy no lo afloja en el Comerciante
+  ---
+  duration_ms: 0.135355
+  type: 'test'
+  ...
+# Subtest: moduloDuro: la casa (con el módulo asignado) la ve, con o sin gate
+ok 16 - moduloDuro: la casa (con el módulo asignado) la ve, con o sin gate
+  ---
+  duration_ms: 0.104935
+  type: 'test'
+  ...
+# Subtest: motivos: rol primero, después en preparación, módulo, rubro y edición
+ok 17 - motivos: rol primero, después en preparación, módulo, rubro y edición
+  ---
+  duration_ms: 0.162051
+  type: 'test'
+  ...
+# Subtest: 'App no disponible' la abre cualquiera con sesión, y nunca se ofrece en un lanzador
+ok 18 - 'App no disponible' la abre cualquiera con sesión, y nunca se ofrece en un lanzador
+  ---
+  duration_ms: 0.232172
+  type: 'test'
+  ...
+# Subtest: el buscador no revela apps ocultas, ni tecleando su nombre, sus palabras o su rótulo de hoy
+ok 19 - el buscador no revela apps ocultas, ni tecleando su nombre, sus palabras o su rótulo de hoy
+  ---
+  duration_ms: 94.979617
+  type: 'test'
+  ...
+# Subtest: el buscador encuentra lo que la persona sí ve, por nombre, palabra o rótulo de hoy
+ok 20 - el buscador encuentra lo que la persona sí ve, por nombre, palabra o rótulo de hoy
+  ---
+  duration_ms: 0.738856
+  type: 'test'
+  ...
+# Subtest: appsVisibles sale ordenada por espacio y, adentro, por el orden decidido
+ok 21 - appsVisibles sale ordenada por espacio y, adentro, por el orden decidido
+  ---
+  duration_ms: 0.425506
+  type: 'test'
+  ...
+# Subtest: PROFESSIONAL teclea /admin/facturacion: el porqué es su rol y el botón va a su agenda
+ok 22 - PROFESSIONAL teclea /admin/facturacion: el porqué es su rol y el botón va a su agenda
+  ---
+  duration_ms: 1.886937
+  type: 'test'
+  ...
+# Subtest: a quién pedírsela: la dueña o el dueño a GSG, el resto del equipo a la dueña o el dueño
+ok 23 - a quién pedírsela: la dueña o el dueño a GSG, el resto del equipo a la dueña o el dueño
+  ---
+  duration_ms: 0.232287
+  type: 'test'
+  ...
+# Subtest: sin loop: si la casa del rol tampoco se puede abrir, no hay botón de vuelta
+ok 24 - sin loop: si la casa del rol tampoco se puede abrir, no hay botón de vuelta
+  ---
+  duration_ms: 0.324481
+  type: 'test'
+  ...
+# Subtest: número del botón: RECEPTION ve cuántos, nunca cuánta plata
+ok 25 - número del botón: RECEPTION ve cuántos, nunca cuánta plata
+  ---
+  duration_ms: 0.199457
+  type: 'test'
+  ...
+# Subtest: número del botón: ninguna app con plata en su número se la muestra a quien no tiene reports:read
+ok 26 - número del botón: ninguna app con plata en su número se la muestra a quien no tiene reports:read
+  ---
+  duration_ms: 0.283817
+  type: 'test'
+  ...
+# Subtest: el encargado: RECEPTION de un mostrador del piloto abre Stock, Recibir mercadería y Mermas; en CH, no
+ok 27 - el encargado: RECEPTION de un mostrador del piloto abre Stock, Recibir mercadería y Mermas; en CH, no
+  ---
+  duration_ms: 0.153221
+  type: 'test'
+  ...
+# Subtest: Vender y Ventas del día: CH no las ve ni por URL; un comercio con pos sí
+ok 28 - Vender y Ventas del día: CH no las ve ni por URL; un comercio con pos sí
+  ---
+  duration_ms: 53.536772
+  type: 'test'
+  ...
+# Subtest: el detector del trinquete marca las escrituras de la entidad y no las demás
+ok 29 - el detector del trinquete marca las escrituras de la entidad y no las demás
+  ---
+  duration_ms: 1.81447
+  type: 'test'
+  ...
+# Subtest: TRINQUETE: nadie fuera de la consola escribe entity 'Interruptor'
+ok 30 - TRINQUETE: nadie fuera de la consola escribe entity 'Interruptor'
+  ---
+  duration_ms: 44.887721
+  type: 'test'
+  ...
+# Subtest: TRINQUETE: la escritura real sólo la importa la action (detrás de la guardia del negocio)
+ok 31 - TRINQUETE: la escritura real sólo la importa la action (detrás de la guardia del negocio)
+  ---
+  duration_ms: 47.489182
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T00:20:02.088Z","level":"error","scope":"audit","msg":"audit() no escribe interruptores: sólo la consola del operador","action":"interruptor.encender","entity":"Interruptor","entityId":"inicio-por-apps"}
+# Subtest: contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, aislar y apagar
+ok 32 - contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, aislar y apagar
+  ---
+  duration_ms: 5913.288393
+  type: 'test'
+  ...
+# Subtest: contra Postgres (app_rls + RLS): el BEGIN junto al negocio no afloja el aislamiento
+ok 33 - contra Postgres (app_rls + RLS): el BEGIN junto al negocio no afloja el aislamiento
+  ---
+  duration_ms: 4975.677897
+  type: 'test'
+  ...
+# Subtest: contra Postgres (app_rls + RLS): el reintento con una clave grabada se compara con lo grabado
+ok 34 - contra Postgres (app_rls + RLS): el reintento con una clave grabada se compara con lo grabado
+  ---
+  duration_ms: 5268.696213
+  type: 'test'
+  ...
+# Subtest: el seed rechaza la base de producción en Neon, directa o por el pooler
+ok 35 - el seed rechaza la base de producción en Neon, directa o por el pooler
+  ---
+  duration_ms: 1.082491
+  type: 'test'
+  ...
+# Subtest: el seed rechaza cualquier host que no sea esta máquina
+ok 36 - el seed rechaza cualquier host que no sea esta máquina
+  ---
+  duration_ms: 0.184486
+  type: 'test'
+  ...
+# Subtest: el parámetro host manda sobre el host de la URL, como en libpq
+ok 37 - el parámetro host manda sobre el host de la URL, como en libpq
+  ---
+  duration_ms: 0.124017
+  type: 'test'
+  ...
+# Subtest: el seed acepta un Postgres local por TCP o por socket
+ok 38 - el seed acepta un Postgres local por TCP o por socket
+  ---
+  duration_ms: 0.233309
+  type: 'test'
+  ...
+# Subtest: sin DATABASE_URL, ilegible o de otro motor, el seed no corre
+ok 39 - sin DATABASE_URL, ilegible o de otro motor, el seed no corre
+  ---
+  duration_ms: 0.172275
+  type: 'test'
+  ...
+# Subtest: sin host en la URL el seed no corre: node-postgres tomaría PGHOST, que puede ser remoto
+ok 40 - sin host en la URL el seed no corre: node-postgres tomaría PGHOST, que puede ser remoto
+  ---
+  duration_ms: 0.102397
+  type: 'test'
+  ...
+# Subtest: el motivo del rechazo nunca muestra la contraseña
+ok 41 - el motivo del rechazo nunca muestra la contraseña
+  ---
+  duration_ms: 0.279128
+  type: 'test'
+  ...
+# Subtest: prisma/seed.ts verifica la base antes de conectarse y no borra sin negocio
+ok 42 - prisma/seed.ts verifica la base antes de conectarse y no borra sin negocio
+  ---
+  duration_ms: 0.49017
+  type: 'test'
+  ...
+# Subtest: el seed contra una base de Neon sale con error y no se conecta
+ok 43 - el seed contra una base de Neon sale con error y no se conecta
+  ---
+  duration_ms: 832.710603
+  type: 'test'
+  ...
+# (node:31223) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+# (Use `node --trace-deprecation ...` to show where the warning was created)
+# Subtest: el seed con el rol dueño recarga sólo el negocio de muestra: los otros negocios quedan igual
+ok 44 - el seed con el rol dueño recarga sólo el negocio de muestra: los otros negocios quedan igual
+  ---
+  duration_ms: 4168.592198
+  type: 'test'
+  ...
+# Subtest: devuelve el subdominio de un host del dominio base
+ok 45 - devuelve el subdominio de un host del dominio base
+  ---
+  duration_ms: 0.984205
+  type: 'test'
+  ...
+# Subtest: ignora puerto y mayúsculas
+ok 46 - ignora puerto y mayúsculas
+  ---
+  duration_ms: 0.247738
+  type: 'test'
+  ...
+# Subtest: el dominio base pelado o www NO tienen subdominio (fallback single-tenant)
+ok 47 - el dominio base pelado o www NO tienen subdominio (fallback single-tenant)
+  ---
+  duration_ms: 0.105012
+  type: 'test'
+  ...
+# Subtest: un host ajeno al dominio base devuelve null (no cross-tenant por accidente)
+ok 48 - un host ajeno al dominio base devuelve null (no cross-tenant por accidente)
+  ---
+  duration_ms: 0.10717
+  type: 'test'
+  ...
+# Subtest: toma solo el primer host de una lista x-forwarded y el primer label
+ok 49 - toma solo el primer host de una lista x-forwarded y el primer label
+  ---
+  duration_ms: 0.179325
+  type: 'test'
+  ...
+# Subtest: host vacío o ausente devuelve null
+ok 50 - host vacío o ausente devuelve null
+  ---
+  duration_ms: 0.098432
+  type: 'test'
+  ...
+# Subtest: sin APP_BASE_DOMAIN configurado, siempre null (single-tenant)
+ok 51 - sin APP_BASE_DOMAIN configurado, siempre null (single-tenant)
+  ---
+  duration_ms: 0.211266
+  type: 'test'
+  ...
+# Subtest: forcedTenantSlug: null si la env var no está o está vacía
+ok 52 - forcedTenantSlug: null si la env var no está o está vacía
+  ---
+  duration_ms: 0.236365
+  type: 'test'
+  ...
+# Subtest: forcedTenantSlug: normaliza trim + lowercase
+ok 53 - forcedTenantSlug: normaliza trim + lowercase
+  ---
+  duration_ms: 0.294488
+  type: 'test'
+  ...
+# Subtest: resolveForcedTenantId: devuelve el id cuando el slug matchea
+ok 54 - resolveForcedTenantId: devuelve el id cuando el slug matchea
+  ---
+  duration_ms: 0.343388
+  type: 'test'
+  ...
+# Subtest: resolveForcedTenantId: THROW fail-closed si el slug no existe
+ok 55 - resolveForcedTenantId: THROW fail-closed si el slug no existe
+  ---
+  duration_ms: 0.444016
+  type: 'test'
+  ...
+# Subtest: normalizeHost: primer host de la lista, sin puerto, lowercase
+ok 56 - normalizeHost: primer host de la lista, sin puerto, lowercase
+  ---
+  duration_ms: 0.140946
+  type: 'test'
+  ...
+# Subtest: parseTenantHostMap: parsea pares host=sub y tolera espacios/;-sobrante
+ok 57 - parseTenantHostMap: parsea pares host=sub y tolera espacios/;-sobrante
+  ---
+  duration_ms: 0.121199
+  type: 'test'
+  ...
+# Subtest: parseTenantHostMap: vacío/indefinido → mapa vacío
+ok 58 - parseTenantHostMap: vacío/indefinido → mapa vacío
+  ---
+  duration_ms: 0.092613
+  type: 'test'
+  ...
+# Subtest: hostMapSubdomain: matchea el hostname exacto (case/puerto-insensible)
+ok 59 - hostMapSubdomain: matchea el hostname exacto (case/puerto-insensible)
+  ---
+  duration_ms: 0.191992
+  type: 'test'
+  ...
+# Subtest: hostMapSubdomain: host fuera del mapa → null (cae al método de subdominio)
+ok 60 - hostMapSubdomain: host fuera del mapa → null (cae al método de subdominio)
+  ---
+  duration_ms: 0.075055
+  type: 'test'
+  ...
+# Subtest: hostMapSubdomain: sin TENANT_HOST_MAP → null (no rompe el flujo de subdominio)
+ok 61 - hostMapSubdomain: sin TENANT_HOST_MAP → null (no rompe el flujo de subdominio)
+  ---
+  duration_ms: 0.065484
+  type: 'test'
+  ...
+# Subtest: el pin por env NO lanza fuera de producción, y ni siquiera mira la base
+ok 62 - el pin por env NO lanza fuera de producción, y ni siquiera mira la base
+  ---
+  duration_ms: 0.151811
+  type: 'test'
+  ...
+# Subtest: el pin por env NO lanza en producción con UN solo tenant (no hay a quién filtrarle)
+ok 63 - el pin por env NO lanza en producción con UN solo tenant (no hay a quién filtrarle)
+  ---
+  duration_ms: 0.206911
+  type: 'test'
+  ...
+# Subtest: el pin por env LANZA en producción con más de un tenant
+ok 64 - el pin por env LANZA en producción con más de un tenant
+  ---
+  duration_ms: 0.281861
+  type: 'test'
+  ...
+# Subtest: el mensaje dice QUÉ sacar y DE DÓNDE (si no, el próximo lo saca del código)
+ok 65 - el mensaje dice QUÉ sacar y DE DÓNDE (si no, el próximo lo saca del código)
+  ---
+  duration_ms: 0.285966
+  type: 'test'
+  ...
+# Subtest: getCurrentTenantId: en producción con la base real (>1 tenant) el pin LANZA
+ok 66 - getCurrentTenantId: en producción con la base real (>1 tenant) el pin LANZA
+  ---
+  duration_ms: 3588.57861
+  type: 'test'
+  ...
+# Subtest: getCurrentTenantId: fuera de producción el pin SIGUE funcionando (dev/scripts intactos)
+ok 67 - getCurrentTenantId: fuera de producción el pin SIGUE funcionando (dev/scripts intactos)
+  ---
+  duration_ms: 1092.66529
+  type: 'test'
+  ...
+# Subtest: una cadena del POOLER frena el build antes de tocar nada
+ok 68 - una cadena del POOLER frena el build antes de tocar nada
+  ---
+  duration_ms: 49.034571
+  type: 'test'
+  ...
+# Subtest: un preview NO migra, aunque tenga la cadena de producción
+ok 69 - un preview NO migra, aunque tenga la cadena de producción
+  ---
+  duration_ms: 0.278543
+  type: 'test'
+  ...
+# Subtest: sin MIGRATE_DATABASE_URL no se toca ninguna base
+ok 70 - sin MIGRATE_DATABASE_URL no se toca ninguna base
+  ---
+  duration_ms: 0.17045
+  type: 'test'
+  ...
+# Subtest: el orden es: validar el lote, migrar, verificar los árbitros, y RECIÉN compilar
+ok 71 - el orden es: validar el lote, migrar, verificar los árbitros, y RECIÉN compilar
+  ---
+  duration_ms: 0.21077
+  type: 'test'
+  ...
+# Subtest: que falte un árbitro del dinero FRENA el build
+ok 72 - que falte un árbitro del dinero FRENA el build
+  ---
+  duration_ms: 0.112397
+  type: 'test'
+  ...
+# Subtest: producción sin OPERATOR_SECRET, o igual a AUTH_SECRET, no se publica
+ok 73 - producción sin OPERATOR_SECRET, o igual a AUTH_SECRET, no se publica
+  ---
+  duration_ms: 90.337062
+  type: 'test'
+  ...
+# Subtest: producción sin OPERATOR_PASSWORD, o vacía, no se publica (y el valor no se imprime)
+ok 74 - producción sin OPERATOR_PASSWORD, o vacía, no se publica (y el valor no se imprime)
+  ---
+  duration_ms: 798.653719
+  type: 'test'
+  ...
+# Subtest: producción sin AUTH_SECRET no se publica
+ok 75 - producción sin AUTH_SECRET no se publica
+  ---
+  duration_ms: 51.073171
+  type: 'test'
+  ...
+# Subtest: producción sin ninguna cadena de base no se publica
+ok 76 - producción sin ninguna cadena de base no se publica
+  ---
+  duration_ms: 56.818508
+  type: 'test'
+  ...
+# Subtest: producción SIN migrar igual mira la base, y si no puede, NO publica
+ok 77 - producción SIN migrar igual mira la base, y si no puede, NO publica
+  ---
+  duration_ms: 599.453014
+  type: 'test'
+  ...
+# Subtest: con migración, un host inalcanzable frena ANTES de migrar
+ok 78 - con migración, un host inalcanzable frena ANTES de migrar
+  ---
+  duration_ms: 636.260859
+  type: 'test'
+  ...
+# Subtest: un preview NO migra: compila, y si no puede mirar la base queda bloqueado (fail-closed)
+ok 79 - un preview NO migra: compila, y si no puede mirar la base queda bloqueado (fail-closed)
+  ---
+  duration_ms: 187.650546
+  type: 'test'
+  ...
+# Subtest: un preview sin ninguna base configurada queda bloqueado
+ok 80 - un preview sin ninguna base configurada queda bloqueado
+  ---
+  duration_ms: 175.34397
+  type: 'test'
+  ...
+# Subtest: el mensaje de migración dice NO CANCELAR, no 'cancelá'
+ok 81 - el mensaje de migración dice NO CANCELAR, no 'cancelá'
+  ---
+  duration_ms: 0.306376
+  type: 'test'
+  ...
+# Subtest: el chequeo nunca manda statement_timeout al pooler
+ok 82 - el chequeo nunca manda statement_timeout al pooler
+  ---
+  duration_ms: 0.505298
+  type: 'test'
+  ...
+# Subtest: lote: una migración de más en la rama frena
+ok 83 - lote: una migración de más en la rama frena
+  ---
+  duration_ms: 3443.754647
+  type: 'test'
+  ...
+# Subtest: lote: base al día → nada pendiente → sigue
+ok 84 - lote: base al día → nada pendiente → sigue
+  ---
+  duration_ms: 1094.762977
+  type: 'test'
+  ...
+# Subtest: el build no hace el respaldo, y lo dice
+ok 85 - el build no hace el respaldo, y lo dice
+  ---
+  duration_ms: 0.428515
+  type: 'test'
+  ...
+# Subtest: el build no prende RLS solo: mide y avisa
+ok 86 - el build no prende RLS solo: mide y avisa
+  ---
+  duration_ms: 0.21295
+  type: 'test'
+  ...
+# Subtest: vercel.json usa este script como build
+ok 87 - vercel.json usa este script como build
+  ---
+  duration_ms: 0.412265
+  type: 'test'
+  ...
+# Subtest: preview contra una base con el negocio vivo → bloqueado
+ok 88 - preview contra una base con el negocio vivo → bloqueado
+  ---
+  duration_ms: 3238.041083
+  type: 'test'
+  ...
+# Subtest: preview contra una base de QA sin negocios reales → atiende
+ok 89 - preview contra una base de QA sin negocios reales → atiende
+  ---
+  duration_ms: 444.061103
+  type: 'test'
+  ...
+# Subtest: basta UNA de las dos cadenas apuntando a producción para bloquear (la consola usa la otra)
+ok 90 - basta UNA de las dos cadenas apuntando a producción para bloquear (la consola usa la otra)
+  ---
+  duration_ms: 411.825342
+  type: 'test'
+  ...
+# Subtest: los cortes de Next se leen del digest que ponen redirect() y notFound() de verdad
+ok 91 - los cortes de Next se leen del digest que ponen redirect() y notFound() de verdad
+  ---
+  duration_ms: 2.073149
+  type: 'test'
+  ...
+# Subtest: las cookies del pedido se leen, se escriben y se borran como en una Server Action
+ok 92 - las cookies del pedido se leen, se escriben y se borran como en una Server Action
+  ---
+  duration_ms: 1.016168
+  type: 'test'
+  ...
+# Subtest: los dobles de Next: dentro del pedido anotan lo que la acción hace; fuera fallan como en Next
+ok 93 - los dobles de Next: dentro del pedido anotan lo que la acción hace; fuera fallan como en Next
+  ---
+  duration_ms: 308.921233
+  type: 'test'
+  ...
+# Subtest: contra Postgres (app_rls + RLS): con la sesión de A, una acción de lectura real devuelve sólo filas de A
+ok 94 - contra Postgres (app_rls + RLS): con la sesión de A, una acción de lectura real devuelve sólo filas de A
+  ---
+  duration_ms: 4979.788553
+  type: 'test'
+  ...
+# Subtest: la URL de cada rol: otro usuario, otra base, sin contraseña, y el socket se conserva
+ok 95 - la URL de cada rol: otro usuario, otra base, sin contraseña, y el socket se conserva
+  ---
+  duration_ms: 0.87457
+  type: 'test'
+  ...
+# Subtest: sin Postgres: en CI el test de base falla; fuera de CI se saltea
+ok 96 - sin Postgres: en CI el test de base falla; fuera de CI se saltea
+  ---
+  duration_ms: 0.175686
+  type: 'test'
+  ...
+# Subtest: sólo se reconocen (y se pueden barrer) las bases con el nombre del arnés
+ok 97 - sólo se reconocen (y se pueden barrer) las bases con el nombre del arnés
+  ---
+  duration_ms: 0.253712
+  type: 'test'
+  ...
+# Subtest: contra un servidor que no es de esta máquina el arnés no arranca
+ok 98 - contra un servidor que no es de esta máquina el arnés no arranca
+  ---
+  duration_ms: 2.993983
+  type: 'test'
+  ...
+# Subtest: sin servidor: fuera de CI se saltea diciéndolo, en CI falla
+ok 99 - sin servidor: fuera de CI se saltea diciéndolo, en CI falla
+  ---
+  duration_ms: 13.453822
+  type: 'test'
+  ...
+# Subtest: contra Postgres: la base sale migrada, con RLS para app_rls, A y B separados, y se borra
+ok 100 - contra Postgres: la base sale migrada, con RLS para app_rls, A y B separados, y se borra
+  ---
+  duration_ms: 4800.814989
+  type: 'test'
+  ...
+# Subtest: contra Postgres: la base de un proceso muerto se barre; la de uno vivo, no
+ok 101 - contra Postgres: la base de un proceso muerto se barre; la de uno vivo, no
+  ---
+  duration_ms: 2649.245963
+  type: 'test'
+  ...
+1..101
+# tests 101
+# suites 0
+# pass 101
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 20066.386008
+
+real	0m20.140s
+user	0m31.778s
+sys	0m6.045s

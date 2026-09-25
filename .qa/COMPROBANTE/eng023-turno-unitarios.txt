@@ -1,0 +1,256 @@
+TAP version 13
+# Subtest: el IVA guardado suma cada renglón al centavo, como el ImpIVA que viaja: 1,005 + 1,005 = 2,02
+ok 1 - el IVA guardado suma cada renglón al centavo, como el ImpIVA que viaja: 1,005 + 1,005 = 2,02
+  ---
+  duration_ms: 1.466983
+  type: 'test'
+  ...
+# Subtest: I2 · reintento sobre la misma venta → mismo comprobante, una sola factura, un solo outbox
+ok 2 - I2 · reintento sobre la misma venta → mismo comprobante, una sola factura, un solo outbox
+  ---
+  duration_ms: 0.499094
+  type: 'test'
+  ...
+# Subtest: I2 · idempotencia también por turno (APPOINTMENT)
+ok 3 - I2 · idempotencia también por turno (APPOINTMENT)
+  ---
+  duration_ms: 0.297051
+  type: 'test'
+  ...
+# Subtest: I2 · ventas DISTINTAS generan comprobantes distintos
+ok 4 - I2 · ventas DISTINTAS generan comprobantes distintos
+  ---
+  duration_ms: 0.260728
+  type: 'test'
+  ...
+# Subtest: ENG-023 · un pedido anulado no se factura: lanza VentaAnuladaError y no crea factura ni envío
+ok 5 - ENG-023 · un pedido anulado no se factura: lanza VentaAnuladaError y no crea factura ni envío
+  ---
+  duration_ms: 0.499019
+  type: 'test'
+  ...
+# Subtest: ENG-023 · un turno con el cobro anulado no se factura: no crea factura ni envío
+ok 6 - ENG-023 · un turno con el cobro anulado no se factura: no crea factura ni envío
+  ---
+  duration_ms: 0.451652
+  type: 'test'
+  ...
+# Subtest: ENG-023 · un turno cuyo cobro ya no es el total del comprobante no se factura con el monto viejo
+ok 7 - ENG-023 · un turno cuyo cobro ya no es el total del comprobante no se factura con el monto viejo
+  ---
+  duration_ms: 0.381622
+  type: 'test'
+  ...
+# Subtest: ENG-023 · un turno con el mismo cobro que el total, o sin cobros (precio de lista), se factura
+ok 8 - ENG-023 · un turno con el mismo cobro que el total, o sin cobros (precio de lista), se factura
+  ---
+  duration_ms: 0.403584
+  type: 'test'
+  ...
+# Subtest: I2 · SIN origen (previa a D10) NO dedupe: crea siempre
+ok 9 - I2 · SIN origen (previa a D10) NO dedupe: crea siempre
+  ---
+  duration_ms: 0.424427
+  type: 'test'
+  ...
+# Subtest: A-6 · webhook MP duplicado (mismo payment_id) → una sola factura, mismo comprobante
+ok 10 - A-6 · webhook MP duplicado (mismo payment_id) → una sola factura, mismo comprobante
+  ---
+  duration_ms: 0.472569
+  type: 'test'
+  ...
+# Subtest: A-6 · pagos MP distintos → facturas distintas
+ok 11 - A-6 · pagos MP distintos → facturas distintas
+  ---
+  duration_ms: 0.233291
+  type: 'test'
+  ...
+# Subtest: A-6 · BUG(antes): SIN origin, dos webhooks del mismo pago facturaban dos veces
+ok 12 - A-6 · BUG(antes): SIN origin, dos webhooks del mismo pago facturaban dos veces
+  ---
+  duration_ms: 0.140256
+  type: 'test'
+  ...
+# Subtest: I2 · la guarda UNIQUE del schema dispara P2002 ante un doble-create directo (misma venta)
+ok 13 - I2 · la guarda UNIQUE del schema dispara P2002 ante un doble-create directo (misma venta)
+  ---
+  duration_ms: 0.310065
+  type: 'test'
+  ...
+# Subtest: I2 · CARRERA: dos emisiones simultáneas de la misma venta → 1 factura, mismo id (P2002 + recovery)
+ok 14 - I2 · CARRERA: dos emisiones simultáneas de la misma venta → 1 factura, mismo id (P2002 + recovery)
+  ---
+  duration_ms: 0.153296
+  type: 'test'
+  ...
+# Subtest: I2 · CARRERA saldada: la emisión que llega después ve el comprobante y lo reusa
+ok 15 - I2 · CARRERA saldada: la emisión que llega después ve el comprobante y lo reusa
+  ---
+  duration_ms: 0.062192
+  type: 'test'
+  ...
+# Subtest: el motivo es obligatorio y no se acepta un garabato
+ok 16 - el motivo es obligatorio y no se acepta un garabato
+  ---
+  duration_ms: 2.123103
+  type: 'test'
+  ...
+# Subtest: la nota ata la contrapartida al cobro original y se puede volver a leer
+ok 17 - la nota ata la contrapartida al cobro original y se puede volver a leer
+  ---
+  duration_ms: 0.253712
+  type: 'test'
+  ...
+# Subtest: cobrado y condonado NO se suman: son plata distinta
+ok 18 - cobrado y condonado NO se suman: son plata distinta
+  ---
+  duration_ms: 0.407454
+  type: 'test'
+  ...
+# Subtest: un cobro ya anulado no vuelve a ofrecerse para anular
+ok 19 - un cobro ya anulado no vuelve a ofrecerse para anular
+  ---
+  duration_ms: 0.153472
+  type: 'test'
+  ...
+# Subtest: planAnulacion: sólo cobros vivos, y el día cerrado se responde después de la idempotencia
+ok 20 - planAnulacion: sólo cobros vivos, y el día cerrado se responde después de la idempotencia
+  ---
+  duration_ms: 0.244761
+  type: 'test'
+  ...
+# Subtest: planAnulacion: con factura autorizada o en camino el cobro no se anula; el doble clic sigue contestando 'ya está'
+ok 21 - planAnulacion: con factura autorizada o en camino el cobro no se anula; el doble clic sigue contestando 'ya está'
+  ---
+  duration_ms: 0.281056
+  type: 'test'
+  ...
+# Subtest: anular el cobro de un turno con factura autorizada se rechaza y no escribe nada
+ok 22 - anular el cobro de un turno con factura autorizada se rechaza y no escribe nada
+  ---
+  duration_ms: 1.417595
+  type: 'test'
+  ...
+# Subtest: anular el cobro toma la fila del turno antes de leer sus facturas (ENG-023: la facturación simultánea la escribe)
+ok 23 - anular el cobro toma la fila del turno antes de leer sus facturas (ENG-023: la facturación simultánea la escribe)
+  ---
+  duration_ms: 0.717648
+  type: 'test'
+  ...
+# Subtest: la factura de otro turno o de otro negocio no frena la anulación del cobro
+ok 24 - la factura de otro turno o de otro negocio no frena la anulación del cobro
+  ---
+  duration_ms: 0.454663
+  type: 'test'
+  ...
+# Subtest: planCondonacion: sólo un turno prestado y con saldo
+ok 25 - planCondonacion: sólo un turno prestado y con saldo
+  ---
+  duration_ms: 0.438785
+  type: 'test'
+  ...
+# Subtest: el detalle de la reversa nombra al asiento original
+ok 26 - el detalle de la reversa nombra al asiento original
+  ---
+  duration_ms: 0.098475
+  type: 'test'
+  ...
+# Subtest: anular deja la contrapartida, baja el Payment y revierte el asiento con el MISMO medio, monto y fecha contable
+ok 27 - anular deja la contrapartida, baja el Payment y revierte el asiento con el MISMO medio, monto y fecha contable
+  ---
+  duration_ms: 0.595609
+  type: 'test'
+  ...
+# Subtest: anular dos veces NO duplica la reversa ni el egreso
+ok 28 - anular dos veces NO duplica la reversa ni el egreso
+  ---
+  duration_ms: 0.470006
+  type: 'test'
+  ...
+# Subtest: un cobro de un día YA CERRADO no se anula: la corrección va con fecha de hoy
+ok 29 - un cobro de un día YA CERRADO no se anula: la corrección va con fecha de hoy
+  ---
+  duration_ms: 0.628698
+  type: 'test'
+  ...
+# Subtest: la frontera se mide contra la FECHA CONTABLE del asiento, no contra cuándo se tipeó
+ok 30 - la frontera se mide contra la FECHA CONTABLE del asiento, no contra cuándo se tipeó
+  ---
+  duration_ms: 0.231284
+  type: 'test'
+  ...
+# Subtest: anular una contrapartida está prohibido: no se anula una anulación
+ok 31 - anular una contrapartida está prohibido: no se anula una anulación
+  ---
+  duration_ms: 0.343392
+  type: 'test'
+  ...
+# Subtest: schema-ahead: sin las columnas migradas la contrapartida se asienta igual, sin clave ni libro
+ok 32 - schema-ahead: sin las columnas migradas la contrapartida se asienta igual, sin clave ni libro
+  ---
+  duration_ms: 0.467955
+  type: 'test'
+  ...
+# Subtest: withSchema pero sin asiento original: la reversa no se asienta y lo dice
+ok 33 - withSchema pero sin asiento original: la reversa no se asienta y lo dice
+  ---
+  duration_ms: 0.248429
+  type: 'test'
+  ...
+# Subtest: un medio que no se traduce a medio de caja NO se reporta como falta de asiento
+ok 34 - un medio que no se traduce a medio de caja NO se reporta como falta de asiento
+  ---
+  duration_ms: 0.211084
+  type: 'test'
+  ...
+# Subtest: anulado el cobro, el turno se puede volver a cobrar por el monto completo
+ok 35 - anulado el cobro, el turno se puede volver a cobrar por el monto completo
+  ---
+  duration_ms: 0.443166
+  type: 'test'
+  ...
+# Subtest: condonar salda el turno SIN tocar el libro ni inflar el Payment
+ok 36 - condonar salda el turno SIN tocar el libro ni inflar el Payment
+  ---
+  duration_ms: 0.465854
+  type: 'test'
+  ...
+# Subtest: condonar dos veces no da de baja el saldo dos veces
+ok 37 - condonar dos veces no da de baja el saldo dos veces
+  ---
+  duration_ms: 0.320333
+  type: 'test'
+  ...
+# Subtest: no se condona un turno que todavía no se prestó ni uno sin saldo
+ok 38 - no se condona un turno que todavía no se prestó ni uno sin saldo
+  ---
+  duration_ms: 0.305106
+  type: 'test'
+  ...
+# Subtest: condonar NO puede escribir en el libro de caja: no hay plata que mover
+ok 39 - condonar NO puede escribir en el libro de caja: no hay plata que mover
+  ---
+  duration_ms: 0.350889
+  type: 'test'
+  ...
+# Subtest: anular exige la MISMA capacidad y el MISMO veredicto que cobrar
+ok 40 - anular exige la MISMA capacidad y el MISMO veredicto que cobrar
+  ---
+  duration_ms: 0.614563
+  type: 'test'
+  ...
+# Subtest: condonar exige agenda:manage: perdonar plata lo decide el negocio, no quien cobra
+ok 41 - condonar exige agenda:manage: perdonar plata lo decide el negocio, no quien cobra
+  ---
+  duration_ms: 0.53469
+  type: 'test'
+  ...
+1..41
+# tests 41
+# suites 0
+# pass 41
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 557.004352

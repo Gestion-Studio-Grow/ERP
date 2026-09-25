@@ -53,8 +53,14 @@ function nuevoMundo(opts: {
   trackStock?: boolean;
   /** La fila 'cupon-del-pedido' que escribió el alta (sus `changes`), si la venta usó cupón. */
   cuponDelPedido?: Record<string, unknown>;
+  /** Las facturas de la venta (ENG-023), con su negocio y su pedido. */
+  facturas?: { tenantId: string; orderId: string; status: string }[];
+  /** Una factura que otra transacción confirma entre la primera lectura y el bloqueo del pedido. */
+  facturaTrasElBloqueo?: { tenantId: string; orderId: string; status: string };
 }) {
   const mundo = {
+    facturas: [...(opts.facturas ?? [])],
+    facturaTrasElBloqueo: opts.facturaTrasElBloqueo ?? null,
     order: {
       id: "ord_1",
       code: 42,
@@ -137,8 +143,16 @@ function txDe(mundo: ReturnType<typeof nuevoMundo>): AnulacionVentaTx {
         }
         mundo.order.status = args.data.status;
         mundo.ordersUpdated += 1;
+        // La otra transacción confirmó su factura justo antes de que el pedido quedara bloqueado.
+        if (mundo.facturaTrasElBloqueo) mundo.facturas.push(mundo.facturaTrasElBloqueo);
         return { count: 1 };
       },
+    },
+    invoice: {
+      findMany: async (args: { where: { tenantId: string; orderId: string } }) =>
+        mundo.facturas
+          .filter((f) => f.tenantId === args.where.tenantId && f.orderId === args.where.orderId)
+          .map((f) => ({ status: f.status })),
     },
     cashMovement: {
       findFirst: async (args: { where: { type?: string } }) =>
@@ -284,15 +298,72 @@ test("dos clics en Anular devuelven el stock UNA sola vez", async () => {
 
 // ── 4. Reglas puras ─────────────────────────────────────────────────────────
 
+// ENG-023: la factura autorizada sigue viva ante ARCA si se anula la venta sin nota de crédito.
+test("una venta con factura autorizada no se anula mientras no exista la nota de crédito", () => {
+  assert.deepEqual(
+    planAnulacionVenta({ existe: true, yaAnulada: false, diaCerrado: false, factura: "autorizada" }),
+    { ok: false, motivo: "facturada" },
+  );
+});
+
+test("una venta con la factura en camino a ARCA tampoco: el CAE puede llegar después", () => {
+  assert.deepEqual(
+    planAnulacionVenta({ existe: true, yaAnulada: false, diaCerrado: false, factura: "en-camino" }),
+    { ok: false, motivo: "factura-en-camino" },
+  );
+});
+
+test("la factura se responde antes que el día cerrado: sin nota de crédito, ni el dueño la anula", () => {
+  assert.deepEqual(
+    planAnulacionVenta({ existe: true, yaAnulada: false, diaCerrado: true, fueraDelDia: true, factura: "autorizada" }),
+    { ok: false, motivo: "facturada" },
+  );
+});
+
+test("anular una venta con factura autorizada se rechaza y no escribe nada", async () => {
+  const mundo = nuevoMundo({ facturas: [{ tenantId: "t1", orderId: "ord_1", status: "AUTHORIZED" }] });
+  await assert.rejects(
+    () => anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }),
+    (e: unknown) => e instanceof AnulacionVentaRechazada && e.motivo === "facturada" && /nota de crédito/.test(e.message),
+  );
+  assert.equal(mundo.order.status, "DELIVERED", "el pedido no quedó anulado");
+  assert.equal(mundo.ordersUpdated, 0);
+  assert.equal(mundo.cashMovements.length, 1, "sólo la VENTA: ninguna devolución en el libro");
+  assert.equal(mundo.stockMovements.length, 0);
+});
+
+test("la factura rechazada por ARCA no frena la anulación: no tiene CAE", async () => {
+  const mundo = nuevoMundo({ facturas: [{ tenantId: "t1", orderId: "ord_1", status: "REJECTED" }] });
+  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  assert.equal(r.applied, true);
+});
+
+test("la factura de otro negocio con el mismo id de pedido no frena la anulación", async () => {
+  const mundo = nuevoMundo({ facturas: [{ tenantId: "t2", orderId: "ord_1", status: "AUTHORIZED" }] });
+  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
+  assert.equal(r.applied, true);
+});
+
+test("una factura confirmada mientras se anulaba se ve después del bloqueo y la anulación se cae entera", async () => {
+  const mundo = nuevoMundo({ facturaTrasElBloqueo: { tenantId: "t1", orderId: "ord_1", status: "PENDING" } });
+  await assert.rejects(
+    () => anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }),
+    (e: unknown) => e instanceof AnulacionVentaRechazada && e.motivo === "factura-en-camino",
+  );
+  // En la base, el lanzamiento vuelve atrás el compare-and-set: lo prueba el test contra Postgres.
+  assert.equal(mundo.cashMovements.length, 1, "no llegó a asentar la devolución");
+  assert.equal(mundo.stockMovements.length, 0, "no llegó a devolver stock");
+});
+
 test("una venta ENTREGADA se puede anular: es la corrección diaria de una carnicería", () => {
   assert.deepEqual(
-    planAnulacionVenta({ existe: true, yaAnulada: false, diaCerrado: false }),
+    planAnulacionVenta({ existe: true, yaAnulada: false, diaCerrado: false, factura: "sin-factura-viva" }),
     { ok: true },
   );
 });
 
 test("el doble clic contesta 'ya está', no 'no se puede' — aunque el día esté cerrado", () => {
-  assert.deepEqual(planAnulacionVenta({ existe: true, yaAnulada: true, diaCerrado: true }), {
+  assert.deepEqual(planAnulacionVenta({ existe: true, yaAnulada: true, diaCerrado: true, factura: "autorizada" }), {
     ok: false,
     motivo: "ya-anulada",
   });

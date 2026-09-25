@@ -18,7 +18,7 @@ import {
   isInvoicingEnabled,
   PerfilFiscalIncompletoError,
 } from "@/lib/fiscal";
-import { processArcaOutbox } from "@/lib/arca-dispatch";
+import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
 import { contarFacturasDelMes, fechaFiscalDelDia } from "@/lib/bancos-glue";
 import { logger } from "@/lib/logger";
 import {
@@ -52,7 +52,7 @@ export async function estadoFacturitaAction(): Promise<EstadoLimite> {
 
 export type ResultadoEmisionFacturita =
   | { ok: true; invoiceId: string; limite: EstadoLimite }
-  | { ok: false; error: string };
+  | { ok: false; error: string; invoiceId?: string };
 
 // La fecha del comprobante es el día del NEGOCIO, no el del proceso. Armada con
 // `getDate()` salía en la zona del proceso: con TZ=UTC (medido) una factura del 31/08 a
@@ -100,7 +100,7 @@ export async function emitirFacturitaAction(
 
     // Despacho a ARCA (CAE) si la facturación está encendida (stub/homologación/real).
     if (isInvoicingEnabled()) {
-      await processArcaOutbox().catch((err) =>
+      await procesarEnviosDelNegocio(tenantId).catch((err) =>
         logger.warn("facturita", "despacho ARCA diferido (lo toma el próximo ciclo)", {
           tenantId,
           err: err instanceof Error ? err.message : String(err),
@@ -109,6 +109,21 @@ export async function emitirFacturitaAction(
     }
 
     revalidatePath("/facturita/app");
+
+    // Si el despacho ya la rechazó (la decisión del comprobante o ARCA), se dice ahora y con el
+    // motivo: responder «Factura emitida» con la factura rechazada deja al usuario creyendo que
+    // entregó un comprobante válido. En camino (despacho diferido) sigue siendo ok.
+    const decidida = await tenantTransaction(
+      (tx) => tx.invoice.findFirst({ where: { id: invoiceId, tenantId }, select: { status: true, rechazoMotivo: true } }),
+      { tenantId },
+    );
+    if (decidida?.status === "REJECTED") {
+      return {
+        ok: false,
+        error: `ARCA no autorizó la factura: ${decidida.rechazoMotivo ?? "sin motivo informado"}`,
+        invoiceId,
+      };
+    }
     return { ok: true, invoiceId, limite: estadoLimite(limite.usadas + 1) };
   } catch (err) {
     logger.error("facturita", "emisión falló", err, { tenantId });

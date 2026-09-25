@@ -41,7 +41,7 @@ function comunes() {
         emitidas.push(input);
         return "inv-1";
       },
-      processArcaOutbox: async () => ({ procesados: 0 }) as unknown as Awaited<ReturnType<DepsFacturarOrden["processArcaOutbox"]>>,
+      procesarEnviosDelNegocio: async () => ({ procesados: 0 }) as unknown as Awaited<ReturnType<DepsFacturarOrden["procesarEnviosDelNegocio"]>>,
     },
   };
 }

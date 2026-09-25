@@ -1,0 +1,281 @@
+diff --git a/src/app/api/cron/arca-outbox/route.ts b/src/app/api/cron/arca-outbox/route.ts
+index efb4fd7..d4a1c23 100644
+--- a/src/app/api/cron/arca-outbox/route.ts
++++ b/src/app/api/cron/arca-outbox/route.ts
+@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
+ import { authorizeCron } from "@/lib/cron-auth";
+ import { isInvoicingEnabled } from "@/lib/fiscal";
+ import { processArcaOutbox } from "@/lib/arca-dispatch";
++import { ProcesadorArcaSinAccesoError } from "@/lib/arca-reserva";
++import { logger } from "@/lib/logger";
+ 
+ // Worker del outbox de ARCA (ADR-002 / ADR-022): drena los eventos `InvoiceCreated`
+ // pendientes y los despacha al plugin (emisión del comprobante + registro del CAE, o
+@@ -33,6 +35,16 @@ export async function GET(request: NextRequest) {
+     return NextResponse.json({ skipped: true, reason: "ARCA_INVOICING_ENABLED off" });
+   }
+ 
+-  const resumen = await processArcaOutbox();
+-  return NextResponse.json({ ok: true, ...resumen });
++  try {
++    const resumen = await processArcaOutbox();
++    return NextResponse.json({ ok: true, ...resumen });
++  } catch (err) {
++    // ENG-027: sin acceso a los envíos de todos los negocios, el cron FALLA a la vista (el log
++    // lleva el detalle; la respuesta, sólo el motivo) en vez de responder "0 procesados".
++    if (err instanceof ProcesadorArcaSinAccesoError) {
++      logger.error("arca", "el cron de ARCA no ve los envíos de todos los negocios", err);
++      return NextResponse.json({ ok: false, error: err.motivo }, { status: 500 });
++    }
++    throw err;
++  }
+ }
+diff --git a/src/app/api/ready/route.ts b/src/app/api/ready/route.ts
+index be9c0fc..d16f047 100644
+--- a/src/app/api/ready/route.ts
++++ b/src/app/api/ready/route.ts
+@@ -10,9 +10,17 @@
+  * Costo $0: un `SELECT 1` es despreciable. Pensado para el chequeo del deploy, NO para un
+  * uptime-monitor en loop cerrado (para eso está `/api/health`, sin DB). Usa `basePrisma`
+  * (cliente crudo, sin RLS): la readiness es de infraestructura, no depende del tenant.
++ *
++ * ENG-027: con la facturación encendida, verifica además que el procesador de ARCA (la conexión
++ * del operador) ve los envíos de todos los negocios. Si no, **503** con el motivo
++ * "procesador de ARCA sin acceso": sin eso el cron no autoriza ninguna factura.
+  */
+ 
+ import { basePrisma } from "@/lib/prisma-base";
++import { operatorPrisma } from "@/lib/operator-db";
++import { isInvoicingEnabled } from "@/lib/fiscal";
++import { ProcesadorArcaSinAccesoError, verificarAccesoDelOperador } from "@/lib/arca-reserva";
++import { logger } from "@/lib/logger";
+ import { withRequestId } from "@/lib/request-context";
+ 
+ export const runtime = "nodejs";
+@@ -21,6 +29,18 @@ export const dynamic = "force-dynamic";
+ export const GET = withRequestId(async () => {
+   try {
+     await basePrisma.$queryRaw`SELECT 1`;
++    if (isInvoicingEnabled()) {
++      try {
++        await verificarAccesoDelOperador(operatorPrisma);
++      } catch (err) {
++        if (!(err instanceof ProcesadorArcaSinAccesoError)) throw err;
++        logger.error("ready", "el procesador de ARCA no ve los envíos de todos los negocios", err);
++        return Response.json(
++          { status: "not-ready", motivo: err.motivo, ts: new Date().toISOString() },
++          { status: 503, headers: { "Cache-Control": "no-store" } },
++        );
++      }
++    }
+     return Response.json(
+       { status: "ready", ts: new Date().toISOString() },
+       { headers: { "Cache-Control": "no-store" } },
+diff --git a/src/lib/bancos-glue.ts b/src/lib/bancos-glue.ts
+index b58bf8d..4c8f688 100644
+--- a/src/lib/bancos-glue.ts
++++ b/src/lib/bancos-glue.ts
+@@ -27,7 +27,7 @@ import { tenantTransaction } from "@/lib/rls";
+ import { runInTenantContext } from "@/lib/tenant-context";
+ import { createInvoice } from "@/lib/invoice-core";
+ import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
+-import { processArcaOutbox, type DispatchResumen } from "@/lib/arca-dispatch";
++import { procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
+ import { logger } from "@/lib/logger";
+ import { businessWallTimeToUtc, dateStrInBusinessTz } from "@/lib/datetime";
+ import { fechaFiscalDelDia, ventanaYaFacturada } from "@/lib/libros/fecha-fiscal";
+@@ -730,7 +730,7 @@ export async function emitirPropuestas(
+     // Con la facturación encendida, drenar el outbox → plugin ARCA → CAE (stub en dev).
+     let despachoArca: DispatchResumen | undefined;
+     if (emitidas > 0 && isInvoicingEnabled()) {
+-      despachoArca = await processArcaOutbox();
++      despachoArca = await procesarEnviosDelNegocio(tenantId);
+     }
+ 
+     const capAlcanzado = bloqueadas > 0 || facturasMes + emitidas >= cap;
+diff --git a/src/lib/facturacion-actions.ts b/src/lib/facturacion-actions.ts
+index 265d082..cbf9f5a 100644
+--- a/src/lib/facturacion-actions.ts
++++ b/src/lib/facturacion-actions.ts
+@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
+ import { prisma } from "@/lib/prisma";
+ import { requireCapability } from "@/lib/authz";
+ import { getCurrentTenantId } from "@/lib/tenant";
+-import { processArcaOutbox, type DispatchResumen } from "@/lib/arca-dispatch";
++import { procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
+ import { modoDesdeEnv, type ModoArca } from "@/plugins/arca";
+ import { logger } from "@/lib/logger";
+ 
+@@ -135,7 +135,8 @@ export async function getFacturacion(): Promise<{ facturas: FacturaVista[]; esta
+  */
+ export async function procesarFacturacionPendiente(): Promise<DispatchResumen> {
+   await requireCapability("billing:manage");
+-  const resumen = await processArcaOutbox();
++  // ENG-012: sólo los envíos de ESTE negocio; el barrido de todos es del cron.
++  const resumen = await procesarEnviosDelNegocio(await getCurrentTenantId());
+   revalidatePath(FACTURACION_PATH);
+   return resumen;
+ }
+diff --git a/src/lib/facturita-actions.ts b/src/lib/facturita-actions.ts
+index 2b6278d..078031c 100644
+--- a/src/lib/facturita-actions.ts
++++ b/src/lib/facturita-actions.ts
+@@ -18,7 +18,7 @@ import {
+   isInvoicingEnabled,
+   PerfilFiscalIncompletoError,
+ } from "@/lib/fiscal";
+-import { processArcaOutbox } from "@/lib/arca-dispatch";
++import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
+ import { contarFacturasDelMes, fechaFiscalDelDia } from "@/lib/bancos-glue";
+ import { logger } from "@/lib/logger";
+ import {
+@@ -100,7 +100,7 @@ export async function emitirFacturitaAction(
+ 
+     // Despacho a ARCA (CAE) si la facturación está encendida (stub/homologación/real).
+     if (isInvoicingEnabled()) {
+-      await processArcaOutbox().catch((err) =>
++      await procesarEnviosDelNegocio(tenantId).catch((err) =>
+         logger.warn("facturita", "despacho ARCA diferido (lo toma el próximo ciclo)", {
+           tenantId,
+           err: err instanceof Error ? err.message : String(err),
+diff --git a/src/lib/invoice-from-appointment.ts b/src/lib/invoice-from-appointment.ts
+index 0630b29..73cc3ba 100644
+--- a/src/lib/invoice-from-appointment.ts
++++ b/src/lib/invoice-from-appointment.ts
+@@ -10,7 +10,7 @@
+ import { prisma } from "@/lib/prisma";
+ import { createInvoice } from "@/lib/invoice-core";
+ import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
+-import { processArcaOutbox } from "@/lib/arca-dispatch";
++import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
+ import { decidirFacturacion } from "@/lib/invoice-idempotency";
+ import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
+ 
+@@ -35,7 +35,7 @@ export interface DepsFacturarTurno {
+   marcarPago: (paymentId: string, invoiceId: string) => Promise<unknown>;
+   getFiscalProfile: typeof getFiscalProfile;
+   createInvoice: typeof createInvoice;
+-  processArcaOutbox: typeof processArcaOutbox;
++  procesarEnviosDelNegocio: typeof procesarEnviosDelNegocio;
+ }
+ 
+ const DEPS: DepsFacturarTurno = {
+@@ -51,7 +51,7 @@ const DEPS: DepsFacturarTurno = {
+     }),
+   getFiscalProfile,
+   createInvoice,
+-  processArcaOutbox,
++  procesarEnviosDelNegocio,
+ };
+ 
+ /**
+@@ -118,7 +118,7 @@ export async function facturarAppointment(
+   }
+ 
+   // Tick del simulador: en prod esto lo hace un worker periódico (ADR-002/024).
+-  await deps.processArcaOutbox();
++  await deps.procesarEnviosDelNegocio(tenantId);
+ 
+   return invoiceId;
+ }
+diff --git a/src/lib/invoice-from-mp.ts b/src/lib/invoice-from-mp.ts
+index 5e2b2c1..eb6ead6 100644
+--- a/src/lib/invoice-from-mp.ts
++++ b/src/lib/invoice-from-mp.ts
+@@ -10,7 +10,7 @@
+ 
+ import { createInvoice } from "@/lib/invoice-core";
+ import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
+-import { processArcaOutbox } from "@/lib/arca-dispatch";
++import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
+ import type { PagoMP } from "@/plugins/mercadopago";
+ import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
+ 
+@@ -26,10 +26,10 @@ const DOC_CONSUMIDOR_FINAL = 99;
+ export interface DepsFacturarPagoMP {
+   getFiscalProfile: typeof getFiscalProfile;
+   createInvoice: typeof createInvoice;
+-  processArcaOutbox: typeof processArcaOutbox;
++  procesarEnviosDelNegocio: typeof procesarEnviosDelNegocio;
+ }
+ 
+-const DEPS: DepsFacturarPagoMP = { getFiscalProfile, createInvoice, processArcaOutbox };
++const DEPS: DepsFacturarPagoMP = { getFiscalProfile, createInvoice, procesarEnviosDelNegocio };
+ 
+ /**
+  * Crea la Factura C de un pago MP y la despacha al plugin ARCA (tick del
+@@ -66,6 +66,6 @@ export async function facturarPagoMP(
+     origin: { type: "MP_PAYMENT", id: pago.id },
+   });
+ 
+-  await deps.processArcaOutbox();
++  await deps.procesarEnviosDelNegocio(tenantId);
+   return invoiceId;
+ }
+diff --git a/src/lib/invoice-from-order.ts b/src/lib/invoice-from-order.ts
+index 484db24..0eb2743 100644
+--- a/src/lib/invoice-from-order.ts
++++ b/src/lib/invoice-from-order.ts
+@@ -12,7 +12,7 @@
+ import { prisma } from "@/lib/prisma";
+ import { createInvoice } from "@/lib/invoice-core";
+ import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
+-import { processArcaOutbox } from "@/lib/arca-dispatch";
++import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
+ import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
+ 
+ // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
+@@ -28,7 +28,7 @@ export interface DepsFacturarOrden {
+   leerOrden: (orderId: string, tenantId: string) => Promise<{ total: number } | null>;
+   getFiscalProfile: typeof getFiscalProfile;
+   createInvoice: typeof createInvoice;
+-  processArcaOutbox: typeof processArcaOutbox;
++  procesarEnviosDelNegocio: typeof procesarEnviosDelNegocio;
+ }
+ 
+ const DEPS: DepsFacturarOrden = {
+@@ -36,7 +36,7 @@ const DEPS: DepsFacturarOrden = {
+     prisma.order.findFirst({ where: { id: orderId, tenantId }, select: { total: true } }),
+   getFiscalProfile,
+   createInvoice,
+-  processArcaOutbox,
++  procesarEnviosDelNegocio,
+ };
+ 
+ /**
+@@ -53,6 +53,7 @@ export async function facturarOrden(
+   orderId: string,
+   tenantId: string,
+   deps: DepsFacturarOrden = DEPS,
++  opciones: { reabrirSiRechazada?: boolean } = {},
+ ): Promise<string | null> {
+   const order = await deps.leerOrden(orderId, tenantId);
+   if (!order) return null;
+@@ -85,10 +86,13 @@ export async function facturarOrden(
+     // I2 (ADR-064): enlace a la venta = idempotencia por pedido. Un reintento de facturación
+     // del MISMO pedido devuelve el comprobante ya emitido, no crea un duplicado.
+     origin: { type: "ORDER", id: orderId },
++    // ENG-021: una factura rechazada se reabre sólo si lo pide quien la vuelve a facturar
++    // ("Volver a facturar"); la ingesta de pedidos externos no lo pide.
++    ...(opciones.reabrirSiRechazada ? { reabrirSiRechazada: true } : {}),
+   });
+ 
+   // Tick del simulador: en prod esto lo hace un worker periódico (ADR-002/024).
+-  await deps.processArcaOutbox();
++  await deps.procesarEnviosDelNegocio(tenantId);
+ 
+   return invoiceId;
+ }
+diff --git a/src/lib/libros/facturadores-fecha.test.ts b/src/lib/libros/facturadores-fecha.test.ts
+index f2bbdd9..ec0a44e 100644
+--- a/src/lib/libros/facturadores-fecha.test.ts
++++ b/src/lib/libros/facturadores-fecha.test.ts
+@@ -41,7 +41,7 @@ function comunes() {
+         emitidas.push(input);
+         return "inv-1";
+       },
+-      processArcaOutbox: async () => ({ procesados: 0 }) as unknown as Awaited<ReturnType<DepsFacturarOrden["processArcaOutbox"]>>,
++      procesarEnviosDelNegocio: async () => ({ procesados: 0 }) as unknown as Awaited<ReturnType<DepsFacturarOrden["procesarEnviosDelNegocio"]>>,
+     },
+   };
+ }

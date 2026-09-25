@@ -1,0 +1,2818 @@
+TAP version 13
+# Subtest: la unidad del descuento porcentual es el peso entero (provisional a confirmar)
+not ok 1 - la unidad del descuento porcentual es el peso entero (provisional a confirmar)
+  ---
+  duration_ms: 2.192365
+  type: 'test'
+  location: '/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:2:1858'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'peso'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'peso'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:35:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: 10 % de $12.345 da $1.235 (el medio peso sube), y 10 % de $12.344 da $1.234
+not ok 2 - 10 % de $12.345 da $1.235 (el medio peso sube), y 10 % de $12.344 da $1.234
+  ---
+  duration_ms: 0.557288
+  type: 'test'
+  location: '/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:2:2058'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    1234.5 !== 1235
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1235
+  actual: 1234.5
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:39:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: un solo redondeo: 10 % de $12.344,95 es $1.234,495 y da $1.234, no $1.235
+not ok 3 - un solo redondeo: 10 % de $12.344,95 es $1.234,495 y da $1.234, no $1.235
+  ---
+  duration_ms: 0.183319
+  type: 'test'
+  location: '/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:2:2351'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    1234.5 !== 1234
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1234
+  actual: 1234.5
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:44:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: el porcentaje no pasa del 100 % ni el descuento pasa de la compra
+ok 4 - el porcentaje no pasa del 100 % ni el descuento pasa de la compra
+  ---
+  duration_ms: 0.250803
+  type: 'test'
+  ...
+# Subtest: el monto fijo va al centavo: $99,999 descuenta $100,00 y $500 sobre $1.000 descuenta $500
+ok 5 - el monto fijo va al centavo: $99,999 descuenta $100,00 y $500 sobre $1.000 descuenta $500
+  ---
+  duration_ms: 0.082091
+  type: 'test'
+  ...
+# Subtest: un cupón sin valor, negativo o roto no descuenta ni sube el precio
+ok 6 - un cupón sin valor, negativo o roto no descuenta ni sube el precio
+  ---
+  duration_ms: 0.067819
+  type: 'test'
+  ...
+# Subtest: un descuento chico al peso puede dar 0: 15 % de $3 es $0,45 y da $0
+not ok 7 - un descuento chico al peso puede dar 0: 15 % de $3 es $0,45 y da $0
+  ---
+  duration_ms: 0.21313
+  type: 'test'
+  location: '/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:2:3858'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0.45 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 0.45
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:69:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: la reserva de turno (bookAppointment) calcula el descuento con montoDeCupon y nada más
+not ok 8 - la reserva de turno (bookAppointment) calcula el descuento con montoDeCupon y nada más
+  ---
+  duration_ms: 3.554269
+  type: 'test'
+  location: '/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:2:4045'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /discountAmount\s*=\s*montoDeCupon\(\s*coupon\.type,\s*coupon\.value,\s*basePrice\s*\)/. Input:
+    
+    '{\n' +
+      '  const [service, professional] = await Promise.all([\n' +
+      '    prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),\n' +
+      '    prisma.professional.findUniqueOrThrow({ where: { id: professionalId }, include: { box: true } }),\n' +
+      '  ]);\n' +
+      '\n' +
+      '  if (!professional.active || professional.deletedAt) {\n' +
+      '    throw new Error("Este profesional ya no está disponible para reservas.");\n' +
+      '  }\n' +
+      '  if (!service.active || service.deletedAt) {\n' +
+      '    throw new Error("Este servicio ya no está disponible.");\n' +
+      '  }\n' +
+      '  if (!professional.boxId || !professional.box?.active || professional.box?.deletedAt) {\n' +
+      '    throw new Error("Este profesional no tiene un box activo asignado. Contactanos para coordinar tu turno.");\n' +
+      '  }\n' +
+      '\n' +
+      '  const startsAt = new Date(startsAtIso);\n' +
+      '  const endsAt = new Date(startsAt.getTime() + service.durationMin * 60000);\n' +
+      '  const boxId = professional.boxId;\n' +
+      '\n' +
+      '  \n' +
+      '  \n' +
+      '  const dateStr = dateStrInBusinessTz(startsAt);\n' +
+      '  const window = await getWorkingWindow(professionalId, dateStr);\n' +
+      '  if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {\n' +
+      '    throw new Error("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");\n' +
+      '  }\n' +
+      '\n' +
+      '  const tenantId = await getCurrentTenantId();\n' +
+      '\n' +
+      '  const run = (withSchema: boolean) => bookingTransaction(async (tx) => {\n' +
+      '    \n' +
+      '    \n' +
+      '    \n' +
+      '    \n' +
+      '    \n' +
+      '    await assertSlotAvailable(tx, { professionalId, boxId, serviceId, startsAt, endsAt });\n' +
+      '\n' +
+      '    \n' +
+      '    \n' +
+      '    const { priceAtBooking: basePrice, isResidentBooking: appliesResidentPrice } =\n' +
+      '      precioCongeladoDeReserva(service, isResident);\n' +
+      '\n' +
+      '    \n' +
+      '    \n' +
+      '    \n' +
+      '    \n' +
+      '    let discountAmount = 0;\n' +
+      '    let appliedCouponCode: string | null = null;\n' +
+      '    const normalizedCode = couponCode?.trim().toUpperCase();\n' +
+      '    if (normalizedCode) {\n' +
+      '      const coupon = await tx.coupon.findUnique({ where: { tenantId_code: { tenantId, code: normalizedCode } } });\n' +
+      '      const valid =\n' +
+      '        coupon &&\n' +
+      '        coupon.active &&\n' +
+      '        (!coupon.expiresAt || coupon.expiresAt >= new Date()) &&\n' +
+      '        (coupon.maxUses == null || coupon.usedCount < coupon.maxUses);\n' +
+      '      if (valid) {\n' +
+      '        discountAmount =\n' +
+      '          coupon.type === "PERCENT" ? Math.round(basePrice * (coupon.value / 100)) : Math.min(coupon.value, basePrice);\n' +
+      '        appliedCouponCode = coupon.code;\n' +
+      '        await tx.coupon.update({ where: { id: coupon.id }, data: { usedCount: { increment: 1 } } });\n' +
+      '      }\n' +
+      '      \n' +
+      '      \n' +
+      '      \n' +
+      '    }\n' +
+      '\n' +
+      '    const appointment = await tx.appointment.create({\n' +
+      '      data: {\n' +
+      '        tenantId,\n' +
+      '        clientId,\n' +
+      '        professionalId,\n' +
+      '        serviceId,\n' +
+      '        boxId,\n' +
+      '        startsAt,\n' +
+      '        endsAt,\n' +
+      '        status,\n' +
+      '        priceAtBooking: Math.max(0, basePrice - discountAmount),\n' +
+      '        isResidentBooking: appliesResidentPrice,\n' +
+      '        couponCode: appliedCouponCode,\n' +
+      '        discountAmount,\n' +
+      '        notes: notes?.trim() || null,\n' +
+      '      },\n' +
+      '    });\n' +
+      '\n' +
+      '    \n' +
+      '    \n' +
+      '    \n' +
+      '    let cobro: AplicarCobroResult | null = null;\n' +
+      '    if (cobroInicial && cobroInicial.monto > 0) {\n' +
+      '      cobro = await aplicarCobroTurnoInTx(tx, tenantId, {\n' +
+      '        appointmentId: appointment.id,\n' +
+      '        status,\n' +
+      '        precio: appointment.priceAtBooking ?? basePrice,\n' +
+      '        monto: cobroInicial.monto,\n' +
+      '        method: cobroInicial.method,\n' +
+      '        \n' +
+      '        \n' +
+      '        note: cobroInicial.monto >= (appointment.priceAtBooking ?? basePrice)\n' +
+      '          ? "Cobro al reservar"\n' +
+      '          : "Seña al reservar",\n' +
+      '        actor: cobroInicial.actor,\n' +
+      '        detail: cobroTurnoDetail({ serviceName: service.name, clientName: clientName ?? "" }),\n' +
+      '        idempotencyKey: claveCobroTurno("senia", appointment.id),\n' +
+      '        withSchema,\n' +
+      '      });\n' +
+      '    }\n' +
+      '    return { appointment, cobro };\n' +
+      '  });\n' +
+      '\n' +
+      '  if (!cobroInicial) {\n' +
+      '    const { appointment } = await run(false);\n' +
+      '    return { appointment, cobro: null, libroCaja: null as ReturnType<typeof rastroLibroCaja> };\n' +
+      '  }\n' +
+      '  const settled = await settleAppointmentPaymentGuarded({\n' +
+      '    runWithBridge: () => run(true),\n' +
+      '    runWithoutBridge: () => run(false),\n' +
+      '  });\n' +
+      '  \n' +
+      '  if (settled.outcome === "race") throw new Error("La reserva se envió dos veces. Revisá la agenda antes de reintentar.");\n' +
+      '  if (settled.outcome === "degraded") {\n' +
+      '    logger.warn("caja", "reserva con seña asentada SIN puente al libro de caja (migración de cobros parciales sin aplicar)", {\n' +
+      '      tenantId,\n' +
+      '      appointmentId: settled.value.appointment.id,\n' +
+      '    });\n' +
+      '  }\n' +
+      '  return {\n' +
+      '    ...settled.value,\n' +
+      '    libroCaja: rastroLibroCaja({ outcome: settled.outcome, value: settled.value.cobro ?? undefined }),\n' +
+      '  };\n' +
+      '}'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    {
+      const [service, professional] = await Promise.all([
+        prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),
+        prisma.professional.findUniqueOrThrow({ where: { id: professionalId }, include: { box: true } }),
+      ]);
+    
+      if (!professional.active || professional.deletedAt) {
+        throw new Error("Este profesional ya no está disponible para reservas.");
+      }
+      if (!service.active || service.deletedAt) {
+        throw new Error("Este servicio ya no está disponible.");
+      }
+      if (!professional.boxId || !professional.box?.active || professional.box?.deletedAt) {
+        throw new Error("Este profesional no tiene un box activo asignado. Contactanos para coordinar tu turno.");
+      }
+    
+      const startsAt = new Date(startsAtIso);
+      const endsAt = new Date(startsAt.getTime() + service.durationMin * 60000);
+      const boxId = professional.boxId;
+    
+      
+      
+      const dateStr = dateStrInBusinessTz(startsAt);
+      const window = await getWorkingWindow(professionalId, dateStr);
+      if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {
+        throw new Error("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
+      }
+    
+      const tenantId = await getCurrentTenantId();
+    
+      const run = (withSchema: boolean) => bookingTransaction(async (tx) => {
+        
+        
+        
+        
+        
+        await assertSlotAvailable(tx, { professionalId, boxId, serviceId, startsAt, endsAt });
+    
+        
+        
+        const { priceAtBooking: basePrice, isResidentBooking: appliesResidentPrice } =
+          precioCongeladoDeReserva(service, isResident);
+    
+        
+        
+        
+        
+        let discountAmount = 0;
+        let appliedCouponCode: string | null = null;
+        const normalizedCode = couponCode?.trim().toUpperCase();
+        if (normalizedCode) {
+          const coupon = await tx.coupon.findUnique({ where: { tenantId_code: { tenantId, code: normalizedCode } } });
+          const valid =
+            coupon &&
+            coupon.active &&
+            (!coupon.expiresAt || coupon.expiresAt >= new Date()) &&
+            (coupon.maxUses == null || coupon.usedCount < coupon.maxUses);
+          if (valid) {
+            discountAmount =
+              coupon.type === "PERCENT" ? Math.round(basePrice * (coupon.value / 100)) : Math.min(coupon.value, basePrice);
+            appliedCouponCode = coupon.code;
+            await tx.coupon.update({ where: { id: coupon.id }, data: { usedCount: { increment: 1 } } });
+          }
+          
+          
+          
+        }
+    
+        const appointment = await tx.appointment.create({
+          data: {
+            tenantId,
+            clientId,
+            professionalId,
+            serviceId,
+            boxId,
+            startsAt,
+            endsAt,
+            status,
+            priceAtBooking: Math.max(0, basePrice - discountAmount),
+            isResidentBooking: appliesResidentPrice,
+            couponCode: appliedCouponCode,
+            discountAmount,
+            notes: notes?.trim() || null,
+          },
+        });
+    
+        
+        
+        
+        let cobro: AplicarCobroResult | null = null;
+        if (cobroInicial && cobroInicial.monto > 0) {
+          cobro = await aplicarCobroTurnoInTx(tx, tenantId, {
+            appointmentId: appointment.id,
+            status,
+            precio: appointment.priceAtBooking ?? basePrice,
+            monto: cobroInicial.monto,
+            method: cobroInicial.method,
+            
+            
+            note: cobroInicial.monto >= (appointment.priceAtBooking ?? basePrice)
+              ? "Cobro al reservar"
+              : "Seña al reservar",
+            actor: cobroInicial.actor,
+            detail: cobroTurnoDetail({ serviceName: service.name, clientName: clientName ?? "" }),
+            idempotencyKey: claveCobroTurno("senia", appointment.id),
+            withSchema,
+          });
+        }
+        return { appointment, cobro };
+      });
+    
+      if (!cobroInicial) {
+        const { appointment } = await run(false);
+        return { appointment, cobro: null, libroCaja: null as ReturnType<typeof rastroLibroCaja> };
+      }
+      const settled = await settleAppointmentPaymentGuarded({
+        runWithBridge: () => run(true),
+        runWithoutBridge: () => run(false),
+      });
+      
+      if (settled.outcome === "race") throw new Error("La reserva se envió dos veces. Revisá la agenda antes de reintentar.");
+      if (settled.outcome === "degraded") {
+        logger.warn("caja", "reserva con seña asentada SIN puente al libro de caja (migración de cobros parciales sin aplicar)", {
+          tenantId,
+          appointmentId: settled.value.appointment.id,
+        });
+      }
+      return {
+        ...settled.value,
+        libroCaja: rastroLibroCaja({ outcome: settled.outcome, value: settled.value.cobro ?? undefined }),
+      };
+    }
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:74:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: la vista previa del cupón en la web de turnos (checkCoupon) usa montoDeCupon y nada más
+not ok 9 - la vista previa del cupón en la web de turnos (checkCoupon) usa montoDeCupon y nada más
+  ---
+  duration_ms: 0.651596
+  type: 'test'
+  location: '/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:2:4521'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /discount\s*=\s*montoDeCupon\(\s*coupon\.type,\s*coupon\.value,\s*price\s*\)/. Input:
+    
+    '{\n' +
+      '  const tenantId = await getCurrentTenantId();\n' +
+      '  const normalized = String(code ?? "").trim().toUpperCase();\n' +
+      '  if (!normalized) return { ok: false, reason: "Ingresá un código." };\n' +
+      '\n' +
+      '  const prueba = await probarCuponPublico({\n' +
+      '    freno: frenoDeCupones,\n' +
+      '    tenantId,\n' +
+      '    ip: await requestIp(),\n' +
+      '    ahora: new Date(),\n' +
+      '    leer: () => prisma.coupon.findUnique({ where: { tenantId_code: { tenantId, code: normalized } } }),\n' +
+      '    \n' +
+      '    \n' +
+      '    exigeDescuento: false,\n' +
+      '  });\n' +
+      '  if (!prueba.ok) return { ok: false, reason: prueba.motivo === "frenado" ? CUPON_FRENADO : "Cupón inválido." };\n' +
+      '  const coupon = prueba.cupon;\n' +
+      '\n' +
+      '  const discount = coupon.type === "PERCENT" ? Math.round(price * (coupon.value / 100)) : Math.min(coupon.value, price);\n' +
+      '  return { ok: true, coupon: { code: coupon.code, type: coupon.type, value: coupon.value }, discount };\n' +
+      '}'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    {
+      const tenantId = await getCurrentTenantId();
+      const normalized = String(code ?? "").trim().toUpperCase();
+      if (!normalized) return { ok: false, reason: "Ingresá un código." };
+    
+      const prueba = await probarCuponPublico({
+        freno: frenoDeCupones,
+        tenantId,
+        ip: await requestIp(),
+        ahora: new Date(),
+        leer: () => prisma.coupon.findUnique({ where: { tenantId_code: { tenantId, code: normalized } } }),
+        
+        
+        exigeDescuento: false,
+      });
+      if (!prueba.ok) return { ok: false, reason: prueba.motivo === "frenado" ? CUPON_FRENADO : "Cupón inválido." };
+      const coupon = prueba.cupon;
+    
+      const discount = coupon.type === "PERCENT" ? Math.round(price * (coupon.value / 100)) : Math.min(coupon.value, price);
+      return { ok: true, coupon: { code: coupon.code, type: coupon.type, value: coupon.value }, discount };
+    }
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:81:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: la venta y la tienda (aplicarCupon) usan montoDeCupon
+ok 10 - la venta y la tienda (aplicarCupon) usan montoDeCupon
+  ---
+  duration_ms: 0.545017
+  type: 'test'
+  ...
+# Subtest: ningún otro archivo de src/lib calcula el % de un cupón a mano
+not ok 11 - ningún otro archivo de src/lib calcula el % de un cupón a mano
+  ---
+  duration_ms: 0.968225
+  type: 'test'
+  location: '/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:2:5231'
+  failureType: 'testCodeFailure'
+  error: 'src/lib/actions.ts'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    "use server";
+    
+    import { cache } from "react";
+    import { prisma } from "@/lib/prisma";
+    import { redirect, unstable_rethrow } from "next/navigation";
+    import { revalidatePath } from "next/cache";
+    import { BUFFER_MIN } from "@/lib/business-config";
+    import { DEFAULT_REPORT_RANGE_DAYS } from "@/lib/report-config";
+    import {
+      businessWallTimeToUtc,
+      todayInBusinessTz,
+      dateStrInBusinessTz,
+      dayOfWeekForDate,
+    } from "@/lib/datetime";
+    import { auditAdmin, auditPublic } from "@/lib/audit-core";
+    import { getCurrentTenantId } from "@/lib/tenant";
+    import { bookingTransaction, tenantTransaction } from "@/lib/rls";
+    import { requireCapability } from "@/lib/authz";
+    import { recordMovement } from "@/lib/stock/ledger";
+    import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
+    import { generateSlotsForDays } from "@/lib/booking-slots";
+    import { validateBookingContact } from "@/lib/contact-validation";
+    import { isInvoicingEnabled } from "@/lib/fiscal";
+    import { facturarAppointment } from "@/lib/invoice-from-appointment";
+    import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
+    import { logger } from "@/lib/logger";
+    import { RechazoDeDominio, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
+    import { cobroTurnoDetail, settleAppointmentPaymentGuarded, type SettleOutcome } from "@/lib/caja/cobro-turno";
+    import {
+      aplicarCobroTurnoInTx,
+      cobrosDelTurnoInTx,
+      rastroLibroCaja,
+      CobroTurnoRechazado,
+      CompletarTurnoRechazado,
+      type AplicarCobroResult,
+    } from "@/lib/turnos/cobro-turno-repo";
+    import {
+      claveCobroTurno,
+      esMetodoDePago,
+      planCompletar,
+      puedeCompletarse,
+      type MetodoDePago,
+    } from "@/lib/turnos/cobros";
+    import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
+    import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
+    import { agruparIngresos, bordesDelPeriodo } from "@/lib/report-ingresos";
+    import {
+      anularCobroTurnoInTx,
+      condonarSaldoTurnoInTx,
+      cobrosDetalladosPorTurno,
+      validarMotivo,
+      mensajeMotivoInvalido,
+      AnulacionRechazada,
+      CondonacionRechazada,
+      type AnularCobroResult,
+      type CondonarSaldoResult,
+    } from "@/lib/turnos/anulacion";
+    import { lastClosedDay } from "@/lib/caja/frontera-cierre";
+    import { isFrozenDay, type DayKey } from "@/lib/caja/cierre-diario";
+    import { isColumnMissing } from "@/lib/prisma-errors";
+    import {
+      buscarFichaPorTelefono,
+      entradaAuditoriaEmpate,
+      resumirFichasParaAlta,
+      type FichaEncontrada,
+      type FichaParaAlta,
+    } from "@/lib/clientes/ficha-por-telefono";
+    import { diaSiguiente, rangoDelDia, textoRecordatorio } from "@/lib/turnos/turno-abierto";
+    import { cancelarTurnoVivo, whereTurnosDeManana, whereTurnosDelDia } from "@/lib/crm/wheres";
+    import { Prisma } from "@/generated/prisma/client";
+    import { importeONaN } from "@/lib/dinero/leer";
+    import {
+      isDemoSandbox,
+      getDemoAgendaDay,
+      getDemoReportData,
+      getDemoDeepReportData,
+      getDemoOwnerPanelData,
+    } from "@/lib/demo-sandbox";
+    
+    export async function getProfessionalsWithServices() {
+      const args = {
+        where: { active: true, deletedAt: null },
+        include: { services: { where: { active: true, deletedAt: null } }, box: true },
+      } as const;
+      try {
+        return await prisma.professional.findMany(args);
+      } catch (err) {
+        
+        
+        
+        
+        if (!isColumnMissing(err, "cobraEnMostrador")) throw err;
+        const filas = await prisma.professional.findMany({
+          where: args.where,
+          select: {
+            id: true, name: true, email: true, phone: true, active: true, boxId: true,
+            commissionPercent: true, tenantId: true, createdAt: true, updatedAt: true, deletedAt: true,
+            services: { where: { active: true, deletedAt: null } },
+            box: true,
+          },
+        });
+        return filas as unknown as Awaited<ReturnType<typeof prisma.professional.findMany<typeof args>>>;
+      }
+    }
+    
+    
+    
+    
+    export async function getAvailableSlots(
+      professionalId: string,
+      serviceId: string,
+      date: string,
+      
+      
+      
+      excludeAppointmentId?: string
+    ): Promise<string[]> {
+      const byDay = await getAvailableSlotsRange(professionalId, serviceId, [date], excludeAppointmentId);
+      return byDay[date] ?? [];
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    export async function getAvailableSlotsRange(
+      professionalId: string,
+      serviceId: string,
+      dates: string[],
+      excludeAppointmentId?: string
+    ): Promise<Record<string, string[]>> {
+      const result: Record<string, string[]> = {};
+      const uniqueDates = [...new Set(dates)];
+      if (uniqueDates.length === 0) return result;
+    
+      
+      
+      
+      const [service, professional, workingHours, serviceResources] = await Promise.all([
+        prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),
+        prisma.professional.findUniqueOrThrow({ where: { id: professionalId } }),
+        prisma.workingHours.findMany({ where: { professionalId } }),
+        prisma.serviceResource.findMany({ where: { serviceId }, include: { resource: true } }),
+      ]);
+      const hoursByDow = new Map(workingHours.map((h) => [h.dayOfWeek, h]));
+      const resourceIds = serviceResources.map((sr) => sr.resourceId);
+    
+      
+      
+      const windows = new Map<string, { dayStart: Date; dayEnd: Date }>();
+      for (const date of uniqueDates) {
+        result[date] = [];
+        const hours = hoursByDow.get(dayOfWeekForDate(date));
+        if (!hours) continue;
+        windows.set(date, {
+          dayStart: businessWallTimeToUtc(date, hours.startTime),
+          dayEnd: businessWallTimeToUtc(date, hours.endTime),
+        });
+      }
+      if (windows.size === 0) return result;
+    
+      
+      
+      
+      let rangeStart = Infinity;
+      let rangeEnd = -Infinity;
+      for (const { dayStart, dayEnd } of windows.values()) {
+        rangeStart = Math.min(rangeStart, dayStart.getTime());
+        rangeEnd = Math.max(rangeEnd, dayEnd.getTime());
+      }
+      const minStart = new Date(rangeStart);
+      const maxEnd = new Date(rangeEnd);
+    
+      
+      const notSelf = excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {};
+    
+      const [existing, boxBlocks, professionalBlocks, resourceUsage] = await Promise.all([
+        prisma.appointment.findMany({
+          where: {
+            ...notSelf,
+            status: { in: ["PENDING", "CONFIRMED"] },
+            startsAt: { gte: minStart, lt: maxEnd },
+            OR: [{ professionalId }, ...(professional.boxId ? [{ boxId: professional.boxId }] : [])],
+          },
+          select: { startsAt: true, endsAt: true },
+        }),
+        professional.boxId
+          ? prisma.boxBlock.findMany({
+              where: { boxId: professional.boxId, startsAt: { lt: maxEnd }, endsAt: { gt: minStart } },
+              select: { startsAt: true, endsAt: true },
+            })
+          : Promise.resolve([]),
+        
+        prisma.professionalBlock.findMany({
+          where: { professionalId, startsAt: { lt: maxEnd }, endsAt: { gt: minStart } },
+          select: { startsAt: true, endsAt: true },
+        }),
+        
+        
+        resourceIds.length > 0
+          ? prisma.appointment.findMany({
+              where: {
+                ...notSelf,
+                status: { in: ["PENDING", "CONFIRMED"] },
+                startsAt: { gte: minStart, lt: maxEnd },
+                service: { resources: { some: { resourceId: { in: resourceIds } } } },
+              },
+              select: {
+                startsAt: true,
+                endsAt: true,
+                service: {
+                  select: { resources: { where: { resourceId: { in: resourceIds } }, select: { resourceId: true, units: true } } },
+                },
+              },
+            })
+          : Promise.resolve([]),
+      ]);
+    
+      
+      
+      const computed = generateSlotsForDays({
+        windows: [...windows].map(([date, w]) => ({ date, dayStart: w.dayStart, dayEnd: w.dayEnd })),
+        durationMin: service.durationMin,
+        stepMin: 30,
+        bufferMin: BUFFER_MIN,
+        busyAppointments: existing,
+        boxBlocks,
+        professionalBlocks,
+        resourceUsage: resourceUsage.map((a) => ({
+          startsAt: a.startsAt,
+          endsAt: a.endsAt,
+          resources: a.service.resources,
+        })),
+        requiredResources: serviceResources.map((sr) => ({
+          resourceId: sr.resourceId,
+          units: sr.units,
+          quantity: sr.resource.quantity,
+        })),
+      });
+    
+      return { ...result, ...computed };
+    }
+    
+    type BookingStatus = "PENDING" | "CONFIRMED";
+    
+    
+    
+    export type ResultadoAccion = { ok: true } | { ok: false; error: string };
+    
+    
+    
+    
+    type CobroInicial = { monto: number; method: MetodoDePago; actor: string };
+    
+    async function bookAppointment({
+      professionalId,
+      serviceId,
+      startsAtIso,
+      clientId,
+      clientName,
+      status,
+      notes,
+      isResident,
+      couponCode,
+      cobroInicial,
+    }: {
+      professionalId: string;
+      serviceId: string;
+      startsAtIso: string;
+      clientId: string;
+      clientName?: string;
+      status: BookingStatus;
+      notes?: string;
+      
+      
+      isResident?: boolean;
+      
+      
+      couponCode?: string;
+      cobroInicial?: CobroInicial | null;
+    }) {
+      const [service, professional] = await Promise.all([
+        prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),
+        prisma.professional.findUniqueOrThrow({ where: { id: professionalId }, include: { box: true } }),
+      ]);
+    
+      if (!professional.active || professional.deletedAt) {
+        throw new Error("Este profesional ya no está disponible para reservas.");
+      }
+      if (!service.active || service.deletedAt) {
+        throw new Error("Este servicio ya no está disponible.");
+      }
+      if (!professional.boxId || !professional.box?.active || professional.box?.deletedAt) {
+        throw new Error("Este profesional no tiene un box activo asignado. Contactanos para coordinar tu turno.");
+      }
+    
+      const startsAt = new Date(startsAtIso);
+      const endsAt = new Date(startsAt.getTime() + service.durationMin * 60000);
+      const boxId = professional.boxId;
+    
+      
+      
+      const dateStr = dateStrInBusinessTz(startsAt);
+      const window = await getWorkingWindow(professionalId, dateStr);
+      if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {
+        throw new Error("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
+      }
+    
+      const tenantId = await getCurrentTenantId();
+    
+      const run = (withSchema: boolean) => bookingTransaction(async (tx) => {
+        
+        
+        
+        
+        
+        await assertSlotAvailable(tx, { professionalId, boxId, serviceId, startsAt, endsAt });
+    
+        
+        
+        const { priceAtBooking: basePrice, isResidentBooking: appliesResidentPrice } =
+          precioCongeladoDeReserva(service, isResident);
+    
+        
+        
+        
+        
+        let discountAmount = 0;
+        let appliedCouponCode: string | null = null;
+        const normalizedCode = couponCode?.trim().toUpperCase();
+        if (normalizedCode) {
+          const coupon = await tx.coupon.findUnique({ where: { tenantId_code: { tenantId, code: normalizedCode } } });
+          const valid =
+            coupon &&
+            coupon.active &&
+            (!coupon.expiresAt || coupon.expiresAt >= new Date()) &&
+            (coupon.maxUses == null || coupon.usedCount < coupon.maxUses);
+          if (valid) {
+            discountAmount =
+              coupon.type === "PERCENT" ? Math.round(basePrice * (coupon.value / 100)) : Math.min(coupon.value, basePrice);
+            appliedCouponCode = coupon.code;
+            await tx.coupon.update({ where: { id: coupon.id }, data: { usedCount: { increment: 1 } } });
+          }
+          
+          
+          
+        }
+    
+        const appointment = await tx.appointment.create({
+          data: {
+            tenantId,
+            clientId,
+            professionalId,
+            serviceId,
+            boxId,
+            startsAt,
+            endsAt,
+            status,
+            priceAtBooking: Math.max(0, basePrice - discountAmount),
+            isResidentBooking: appliesResidentPrice,
+            couponCode: appliedCouponCode,
+            discountAmount,
+            notes: notes?.trim() || null,
+          },
+        });
+    
+        
+        
+        
+        let cobro: AplicarCobroResult | null = null;
+        if (cobroInicial && cobroInicial.monto > 0) {
+          cobro = await aplicarCobroTurnoInTx(tx, tenantId, {
+            appointmentId: appointment.id,
+            status,
+            precio: appointment.priceAtBooking ?? basePrice,
+            monto: cobroInicial.monto,
+            method: cobroInicial.method,
+            
+            
+            note: cobroInicial.monto >= (appointment.priceAtBooking ?? basePrice)
+              ? "Cobro al reservar"
+              : "Seña al reservar",
+            actor: cobroInicial.actor,
+            detail: cobroTurnoDetail({ serviceName: service.name, clientName: clientName ?? "" }),
+            idempotencyKey: claveCobroTurno("senia", appointment.id),
+            withSchema,
+          });
+        }
+        return { appointment, cobro };
+      });
+    
+      if (!cobroInicial) {
+        const { appointment } = await run(false);
+        return { appointment, cobro: null, libroCaja: null as ReturnType<typeof rastroLibroCaja> };
+      }
+      const settled = await settleAppointmentPaymentGuarded({
+        runWithBridge: () => run(true),
+        runWithoutBridge: () => run(false),
+      });
+      
+      if (settled.outcome === "race") throw new Error("La reserva se envió dos veces. Revisá la agenda antes de reintentar.");
+      if (settled.outcome === "degraded") {
+        logger.warn("caja", "reserva con seña asentada SIN puente al libro de caja (migración de cobros parciales sin aplicar)", {
+          tenantId,
+          appointmentId: settled.value.appointment.id,
+        });
+      }
+      return {
+        ...settled.value,
+        libroCaja: rastroLibroCaja({ outcome: settled.outcome, value: settled.value.cobro ?? undefined }),
+      };
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    async function fichaDeReservaPublica(datos: {
+      name: string;
+      phone: string;
+      email?: string;
+      isResident: boolean;
+    }): Promise<FichaEncontrada> {
+      const tenantId = await getCurrentTenantId();
+      const encontrada = await buscarFichaPorTelefono(prisma, tenantId, datos.phone);
+      
+      if (encontrada) return encontrada;
+      const creada = await prisma.client.create({
+        data: { tenantId, name: datos.name, phone: datos.phone, email: datos.email, isResident: datos.isResident },
+        select: { id: true },
+      });
+      return { id: creada.id, empate: null };
+    }
+    
+    export async function createAppointment(formData: FormData) {
+      const professionalId = String(formData.get("professionalId"));
+      const serviceId = String(formData.get("serviceId"));
+      const startsAtIso = String(formData.get("startsAt"));
+      const clientName = String(formData.get("clientName"));
+      const clientPhone = String(formData.get("clientPhone"));
+      const clientEmail = String(formData.get("clientEmail") || "");
+      const isResident = formData.get("isResident") === "on";
+      const couponCode = String(formData.get("couponCode") || "").trim() || undefined;
+    
+      
+      
+      const contact = validateBookingContact(clientPhone, clientEmail);
+      if (!contact.ok) throw new Error(contact.error);
+    
+      const ficha = await fichaDeReservaPublica({
+        name: clientName,
+        phone: clientPhone,
+        email: clientEmail || undefined,
+        isResident,
+      });
+      const clientId = ficha.id;
+    
+      
+      
+      const { appointment } = await bookAppointment({
+        professionalId,
+        serviceId,
+        startsAtIso,
+        clientId,
+        clientName,
+        status: "PENDING",
+        isResident,
+        couponCode,
+      });
+    
+      if (ficha.empate) await auditPublic({ ...entradaAuditoriaEmpate(ficha.empate), clientPhone });
+      await auditPublic({
+        action: "create",
+        entity: "Appointment",
+        entityId: appointment.id,
+        clientPhone,
+        changes: { professionalId, serviceId, startsAt: appointment.startsAt },
+      });
+    
+      redirect(`/reserva/confirmacion/${appointment.id}`);
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    export async function getMostBookedServiceIds(limit = 3, days = 90): Promise<string[]> {
+      try {
+        const desde = new Date(Date.now() - days * 86400000);
+        const filas = await prisma.appointment.groupBy({
+          by: ["serviceId"],
+          where: {
+            startsAt: { gte: desde },
+            
+            
+            status: { in: ["COMPLETED", "CONFIRMED", "PENDING"] },
+          },
+          _count: { serviceId: true },
+          orderBy: { _count: { serviceId: "desc" } },
+          take: limit,
+        });
+        return filas.map((f) => f.serviceId);
+      } catch {
+        return [];
+      }
+    }
+    
+    
+    
+    
+    
+    
+    export const getPublicBookingData = cache(async () => {
+      
+      
+      
+      
+      
+      try {
+        const [categories, uncategorized, professionals] = await Promise.all([
+          prisma.serviceCategory.findMany({
+            orderBy: { order: "asc" },
+            select: {
+              id: true,
+              name: true,
+              services: {
+                where: { active: true, deletedAt: null },
+                orderBy: { name: "asc" },
+                select: { id: true, name: true, durationMin: true, price: true, residentPrice: true, depositAmount: true },
+              },
+            },
+          }),
+          prisma.service.findMany({
+            where: { active: true, deletedAt: null, categoryId: null },
+            orderBy: { name: "asc" },
+            select: { id: true, name: true, durationMin: true, price: true, residentPrice: true, depositAmount: true },
+          }),
+          prisma.professional.findMany({
+            where: { active: true, deletedAt: null, boxId: { not: null } },
+            orderBy: { name: "asc" },
+            select: {
+              id: true,
+              name: true,
+              box: { select: { name: true } },
+              services: { where: { active: true, deletedAt: null }, select: { id: true, name: true } },
+            },
+          }),
+        ]);
+    
+        const groups = categories
+          .filter((c) => c.services.length > 0)
+          .map((c) => ({ id: c.id, name: c.name, services: c.services }));
+        if (uncategorized.length > 0) {
+          groups.push({ id: "otros", name: "Otros servicios", services: uncategorized });
+        }
+    
+        return {
+          groups,
+          professionals: professionals.map((p) => ({
+            id: p.id,
+            name: p.name,
+            boxName: p.box?.name ?? null,
+            serviceIds: p.services.map((s) => s.id),
+            serviceNames: p.services.map((s) => s.name),
+          })),
+        };
+      } catch (err) {
+        logger.error("public-booking", "no se pudo cargar la vidriera (¿schema pre-migración?)", err);
+        return {
+          groups: [] as { id: string; name: string; services: { id: string; name: string; durationMin: number; price: number; residentPrice: number | null; depositAmount: number | null }[] }[],
+          professionals: [] as { id: string; name: string; boxName: string | null; serviceIds: string[]; serviceNames: string[] }[],
+        };
+      }
+    });
+    
+    
+    
+    
+    
+    
+    export const getPublicNews = cache(async () => {
+      
+      
+      
+      try {
+        const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        return await prisma.professionalNews.findMany({
+          where: { createdAt: { gte: since }, professional: { active: true, deletedAt: null } },
+          orderBy: { createdAt: "desc" },
+          take: 4,
+          include: { professional: { select: { name: true } } },
+        });
+      } catch (err) {
+        logger.error("public-news", "no se pudieron cargar las novedades", err);
+        return [];
+      }
+    });
+    
+    
+    
+    export async function createBookingFromModal(input: {
+      professionalId: string;
+      serviceId: string;
+      startsAtIso: string;
+      clientName: string;
+      clientPhone: string;
+      clientEmail?: string;
+      isResident?: boolean;
+      couponCode?: string;
+    }): Promise<{ id: string; startsAt: string }> {
+      const clientName = input.clientName.trim();
+      const clientPhone = input.clientPhone.trim();
+      const isResident = !!input.isResident;
+      if (!clientName || !clientPhone) {
+        throw new Error("Nombre y teléfono son obligatorios.");
+      }
+      
+      const contact = validateBookingContact(clientPhone, input.clientEmail);
+      if (!contact.ok) throw new Error(contact.error);
+    
+      const ficha = await fichaDeReservaPublica({
+        name: clientName,
+        phone: clientPhone,
+        email: input.clientEmail?.trim() || undefined,
+        isResident,
+      });
+      const clientId = ficha.id;
+    
+      const { appointment } = await bookAppointment({
+        professionalId: input.professionalId,
+        serviceId: input.serviceId,
+        startsAtIso: input.startsAtIso,
+        clientId,
+        clientName,
+        status: "PENDING",
+        isResident,
+        couponCode: input.couponCode,
+      });
+    
+      if (ficha.empate) await auditPublic({ ...entradaAuditoriaEmpate(ficha.empate), clientPhone });
+      await auditPublic({
+        action: "create",
+        entity: "Appointment",
+        entityId: appointment.id,
+        clientPhone,
+        changes: {
+          professionalId: input.professionalId,
+          serviceId: input.serviceId,
+          startsAt: appointment.startsAt,
+        },
+      });
+    
+      return { id: appointment.id, startsAt: appointment.startsAt.toISOString() };
+    }
+    
+    
+    function esErrorDeDominioAlReservar(e: Error): boolean {
+      const m = e.message;
+      if (!m || m.length > 300) return false;
+      return /horario|ocupad|disponib|libre|box|capacidad|servicio|profesional|cupón|cupon|turno|agenda|precio|seña|sena/i.test(m);
+    }
+    
+    export async function createManualAppointment(formData: FormData): Promise<ResultadoAccion> {
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      const user = await requireCapability("agenda:manage");
+      const professionalId = String(formData.get("professionalId"));
+      const serviceId = String(formData.get("serviceId"));
+      const startsAtIso = String(formData.get("startsAt"));
+      const clientName = String(formData.get("clientName"));
+      const clientPhone = String(formData.get("clientPhone"));
+      const statusInput = String(formData.get("status"));
+      const status: BookingStatus = statusInput === "CONFIRMED" ? "CONFIRMED" : "PENDING";
+      const notes = String(formData.get("notes") || "");
+      const isResident = formData.get("isResident") === "on";
+      const couponCode = String(formData.get("couponCode") || "").trim() || undefined;
+    
+      if (!clientName.trim() || !clientPhone.trim()) {
+        return { ok: false, error: "Nombre y teléfono del cliente son obligatorios." };
+      }
+    
+      
+      
+      
+      let cobroInicial: CobroInicial | null = null;
+      if (formData.get("senaCobrar") === "on") {
+        const monto = importeONaN(formData.get("senaMonto"));
+        const metodo = String(formData.get("senaMetodo") || "");
+        if (!Number.isFinite(monto) || monto <= 0) return { ok: false, error: "El monto de la seña tiene que ser mayor a cero." };
+        if (!esMetodoDePago(metodo)) return { ok: false, error: "Elegí el medio con que se cobra la seña: efectivo, Mercado Pago o transferencia." };
+        
+        
+        
+        
+        const dueño = await leerProfesionalParaCobro(professionalId);
+        const veredicto = puedeCobrarEsteTurno({
+          rol: user.role,
+          professionalIdDelUsuario: user.professionalId,
+          professionalIdDelTurno: professionalId,
+          nombreProfesional: dueño.nombre,
+          cobraEnMostrador: dueño.cobraEnMostrador,
+        });
+        if (!veredicto.ok) return { ok: false, error: veredicto.motivo };
+        cobroInicial = { monto, method: metodo, actor: `user:${user.id}` };
+      }
+    
+      
+      
+      
+      
+      
+      const tenantId = await getCurrentTenantId();
+      const encontrada = await buscarFichaPorTelefono(prisma, tenantId, clientPhone);
+      let client = encontrada
+        ? await prisma.client.findFirst({ where: { id: encontrada.id, tenantId } })
+        : null;
+      if (!client) {
+        client = await prisma.client.create({
+          data: { tenantId, name: clientName, phone: clientPhone, isResident },
+        });
+      } else if (client.isResident !== isResident) {
+        client = await prisma.client.update({ where: { id: client.id }, data: { isResident } });
+      }
+    
+      let booked: Awaited<ReturnType<typeof bookAppointment>>;
+      try {
+        booked = await bookAppointment({
+          professionalId,
+          serviceId,
+          startsAtIso,
+          clientId: client.id,
+          clientName: client.name,
+          status,
+          notes,
+          isResident,
+          couponCode,
+          cobroInicial,
+        });
+      } catch (e) {
+        
+        
+        if (e instanceof CobroTurnoRechazado) return { ok: false, error: `No se pudo cobrar la seña: ${e.message}` };
+        if (e instanceof Error && esErrorDeDominioAlReservar(e)) return { ok: false, error: e.message };
+        
+        throw e;
+      }
+      const { appointment, cobro, libroCaja } = booked;
+    
+      
+      
+      if (encontrada?.empate) await auditAdmin(entradaAuditoriaEmpate(encontrada.empate));
+      await auditAdmin({
+        action: "create_manual",
+        entity: "Appointment",
+        entityId: appointment.id,
+        changes: {
+          professionalId,
+          serviceId,
+          startsAt: appointment.startsAt,
+          status,
+          senia: cobro?.applied ? { monto: cobro.monto, method: cobroInicial?.method, saldo: cobro.estado.saldo } : null,
+          libroCaja,
+        },
+      });
+    
+      revalidatePath("/admin");
+      revalidatePath("/admin/turnos");
+      revalidatePath("/admin/turnos/lista");
+      revalidatePath("/admin/caja/libro");
+      return { ok: true };
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    export async function rescheduleAppointment(formData: FormData): Promise<ResultadoAccion> {
+      await requireCapability("agenda:manage");
+      if (isDemoSandbox()) return { ok: true }; 
+      try {
+        await reprogramarTurno(formData);
+        return { ok: true };
+      } catch (e) {
+        unstable_rethrow(e);
+        return {
+          ok: false,
+          
+          
+          
+          error: rechazoDeDominio(
+            e,
+            "No se pudo reprogramar el turno. Probá de nuevo; si sigue, avisá a GSG.",
+            "agenda.reprogramar",
+          ),
+        };
+      }
+    }
+    
+    
+    async function reprogramarTurno(formData: FormData): Promise<void> {
+      const tenantId = await getCurrentTenantId();
+      const appointmentId = String(formData.get("appointmentId"));
+      const startsAtIso = String(formData.get("startsAt"));
+      
+      const newProfessionalId = String(formData.get("professionalId") || "").trim();
+    
+      if (!appointmentId || !startsAtIso) {
+        throw new RechazoDeDominio("Faltan datos para reprogramar el turno.");
+      }
+    
+      
+      const appointment = await prisma.appointment.findFirst({
+        where: { id: appointmentId, tenantId },
+        include: { service: true },
+      });
+      if (!appointment) throw new RechazoDeDominio("Ese turno ya no existe. Recargá la agenda.");
+    
+      
+      
+      if (appointment.status !== "PENDING" && appointment.status !== "CONFIRMED") {
+        throw new RechazoDeDominio("Solo se puede reprogramar un turno pendiente o confirmado.");
+      }
+    
+      const targetProfessionalId = newProfessionalId || appointment.professionalId;
+      const professional = await prisma.professional.findFirst({
+        where: { id: targetProfessionalId, tenantId },
+        include: { box: true },
+      });
+      if (!professional || !professional.active || professional.deletedAt) {
+        throw new RechazoDeDominio("Ese profesional ya no está disponible.");
+      }
+      if (!professional.boxId || !professional.box?.active || professional.box?.deletedAt) {
+        throw new RechazoDeDominio("Ese profesional no tiene un box activo asignado.");
+      }
+    
+      
+      
+      const startsAt = new Date(startsAtIso);
+      
+      
+      if (Number.isNaN(startsAt.getTime())) {
+        throw new RechazoDeDominio("Ese horario no se pudo leer. Elegí de nuevo el día y la hora.");
+      }
+      const endsAt = new Date(startsAt.getTime() + appointment.service.durationMin * 60000);
+      const boxId = professional.boxId;
+    
+      
+      const dateStr = dateStrInBusinessTz(startsAt);
+      const window = await getWorkingWindow(targetProfessionalId, dateStr);
+      if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {
+        throw new RechazoDeDominio("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
+      }
+    
+      await bookingTransaction(async (tx) => {
+        await assertSlotAvailable(tx, {
+          professionalId: targetProfessionalId,
+          boxId,
+          serviceId: appointment.serviceId,
+          startsAt,
+          endsAt,
+          excludeAppointmentId: appointmentId,
+        });
+    
+        
+        
+        
+        await tx.appointment.update({
+          where: { id: appointmentId },
+          data: { startsAt, endsAt, professionalId: targetProfessionalId, boxId, reminderSentAt: null },
+        });
+      });
+    
+      await auditAdmin({
+        action: "reschedule",
+        entity: "Appointment",
+        entityId: appointmentId,
+        changes: {
+          from: {
+            startsAt: appointment.startsAt,
+            professionalId: appointment.professionalId,
+            boxId: appointment.boxId,
+          },
+          to: { startsAt, professionalId: targetProfessionalId, boxId },
+        },
+      });
+    
+      revalidatePath("/admin");
+      revalidatePath("/admin/turnos");
+      revalidatePath("/admin/turnos/lista");
+    }
+    
+    
+    
+    const APPOINTMENTS_DEFAULT_RANGE_DAYS = 365;
+    
+    export async function getAppointments(rangeDays: number = APPOINTMENTS_DEFAULT_RANGE_DAYS) {
+      
+      
+      await requireCapability("agenda:manage");
+      
+      
+      
+      const tenantId = await getCurrentTenantId();
+      const since = new Date(Date.now() - Math.max(1, rangeDays) * 24 * 60 * 60 * 1000);
+      const appointments = await prisma.appointment.findMany({
+        where: { tenantId, startsAt: { gte: since } },
+        orderBy: { startsAt: "asc" },
+        include: { client: true, professional: true, service: true, box: true, payment: true },
+      });
+      return conCobros(tenantId, appointments);
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    async function conCobros<T extends { id: string }>(tenantId: string, appointments: T[]) {
+      const cobros = await cobrosDetalladosPorTurno(prisma, tenantId, appointments.map((a) => a.id));
+      return appointments.map((a) => ({ ...a, collections: cobros.get(a.id) ?? [] }));
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    async function leerProfesionalParaCobro(professionalId: string): Promise<{
+      nombre: string | null;
+      cobraEnMostrador?: boolean;
+    }> {
+      try {
+        const p = await prisma.professional.findUnique({
+          where: { id: professionalId },
+          select: { name: true, cobraEnMostrador: true },
+        });
+        return { nombre: p?.name ?? null, cobraEnMostrador: p?.cobraEnMostrador };
+      } catch (err) {
+        if (!isColumnMissing(err, "cobraEnMostrador")) throw err;
+        const p = await prisma.professional.findUnique({ where: { id: professionalId }, select: { name: true } });
+        return { nombre: p?.name ?? null };
+      }
+    }
+    
+    
+    async function leerProfesionalDelTurno(appointmentId: string): Promise<{
+      professionalId: string;
+      nombre: string | null;
+      cobraEnMostrador?: boolean;
+    }> {
+      try {
+        const a = await prisma.appointment.findUniqueOrThrow({
+          where: { id: appointmentId },
+          select: { professionalId: true, professional: { select: { name: true, cobraEnMostrador: true } } },
+        });
+        return {
+          professionalId: a.professionalId,
+          nombre: a.professional?.name ?? null,
+          cobraEnMostrador: a.professional?.cobraEnMostrador,
+        };
+      } catch (err) {
+        if (!isColumnMissing(err, "cobraEnMostrador")) throw err;
+        const a = await prisma.appointment.findUniqueOrThrow({
+          where: { id: appointmentId },
+          select: { professionalId: true, professional: { select: { name: true } } },
+        });
+        return { professionalId: a.professionalId, nombre: a.professional?.name ?? null };
+      }
+    }
+    
+    export async function registrarCobroTurno(formData: FormData): Promise<ResultadoAccion> {
+      
+      
+      
+      const user = await requireCapability("agenda:collect");
+      if (isDemoSandbox()) return { ok: true }; 
+      const appointmentId = String(formData.get("appointmentId") || "");
+      const monto = importeONaN(formData.get("amount"));
+      const methodRaw = String(formData.get("method") || "");
+      const idempotencyKey = String(formData.get("idempotencyKey") || "").trim() || null;
+      if (!appointmentId) return { ok: false, error: "Falta el turno a cobrar." };
+      if (!Number.isFinite(monto) || monto <= 0) return { ok: false, error: "El monto a cobrar tiene que ser mayor a cero." };
+      if (!esMetodoDePago(methodRaw)) {
+        return { ok: false, error: "Elegí el medio de pago: Mercado Pago, efectivo o transferencia." };
+      }
+      const method = methodRaw;
+      const tenantId = await getCurrentTenantId();
+      const actor = `user:${user.id}`;
+    
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      const delTurno = await leerProfesionalDelTurno(appointmentId);
+      const veredicto = puedeCobrarEsteTurno({
+        rol: user.role,
+        professionalIdDelUsuario: user.professionalId,
+        professionalIdDelTurno: delTurno.professionalId,
+        nombreProfesional: delTurno.nombre,
+        cobraEnMostrador: delTurno.cobraEnMostrador,
+      });
+      if (!veredicto.ok) return { ok: false, error: veredicto.motivo };
+    
+      
+      
+      const run = (withSchema: boolean) =>
+        tenantTransaction(
+          async (tx) => {
+            const appointment = await tx.appointment.findUniqueOrThrow({
+              where: { id: appointmentId },
+              include: { service: { select: { name: true, price: true } }, client: { select: { name: true } } },
+            });
+            
+            
+            
+            if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId) {
+              throw new Error("Ese turno es de otra profesional: sólo podés cobrar los tuyos.");
+            }
+            return aplicarCobroTurnoInTx(tx, tenantId, {
+              appointmentId,
+              status: appointment.status,
+              precio: appointment.priceAtBooking ?? appointment.service.price,
+              monto,
+              method,
+              actor,
+              detail: cobroTurnoDetail({ serviceName: appointment.service.name, clientName: appointment.client.name }),
+              idempotencyKey,
+              withSchema,
+            });
+          },
+          { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+    
+      let settled: SettleOutcome<AplicarCobroResult>;
+      try {
+        settled = await settleAppointmentPaymentGuarded({
+          runWithBridge: () => run(true),
+          runWithoutBridge: () => run(false),
+        });
+      } catch (e) {
+        if (e instanceof CobroTurnoRechazado) return { ok: false, error: e.message };
+        throw e;
+      }
+    
+      if (settled.outcome === "race" || !settled.value.applied) {
+        
+        revalidatePath("/admin/turnos");
+        return { ok: true };
+      }
+      if (settled.outcome === "degraded") {
+        logger.warn("caja", "registrarCobroTurno: cobro asentado SIN puente al libro de caja (migración de cobros parciales sin aplicar)", {
+          tenantId,
+          appointmentId,
+        });
+      }
+    
+      await auditAdmin({
+        action: "collect_payment",
+        entity: "Appointment",
+        entityId: appointmentId,
+        changes: {
+          method,
+          amount: settled.value.monto,
+          cobrado: settled.value.estado.cobrado,
+          saldo: settled.value.estado.saldo,
+          libroCaja: rastroLibroCaja(settled),
+        },
+      });
+    
+      revalidatePath("/admin");
+      revalidatePath("/admin/turnos");
+      revalidatePath("/admin/turnos/lista");
+      revalidatePath("/admin/reportes");
+      revalidatePath("/admin/caja");
+      revalidatePath("/admin/caja/libro");
+      return { ok: true };
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    export async function anularCobroTurno(formData: FormData): Promise<ResultadoAccion> {
+      const user = await requireCapability("agenda:collect");
+      if (isDemoSandbox()) return { ok: true }; 
+      const collectionId = String(formData.get("collectionId") || "").trim();
+      const appointmentId = String(formData.get("appointmentId") || "").trim();
+      if (!collectionId || !appointmentId) return { ok: false, error: "Falta identificar el cobro a anular." };
+    
+      const motivoV = validarMotivo(formData.get("motivo") as string | null);
+      if (!motivoV.ok) return { ok: false, error: mensajeMotivoInvalido(motivoV.error) };
+    
+      const tenantId = await getCurrentTenantId();
+      const actor = `user:${user.id}`;
+    
+      
+      
+      const delTurno = await leerProfesionalDelTurno(appointmentId);
+      const veredicto = puedeCobrarEsteTurno({
+        rol: user.role,
+        professionalIdDelUsuario: user.professionalId,
+        professionalIdDelTurno: delTurno.professionalId,
+        nombreProfesional: delTurno.nombre,
+        cobraEnMostrador: delTurno.cobraEnMostrador,
+      });
+      if (!veredicto.ok) return { ok: false, error: veredicto.motivo };
+    
+      
+      
+      const diaCerradoHasta = await lastClosedDay(tenantId);
+    
+      const run = (withSchema: boolean) =>
+        tenantTransaction(
+          async (tx) => {
+            const appointment = await tx.appointment.findUniqueOrThrow({
+              where: { id: appointmentId },
+              include: { service: { select: { price: true } } },
+            });
+            
+            if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId) {
+              throw new Error("Ese turno es de otra profesional: sólo podés anular cobros de los tuyos.");
+            }
+            return anularCobroTurnoInTx(tx, tenantId, {
+              collectionId,
+              appointmentId,
+              precio: appointment.priceAtBooking ?? appointment.service.price,
+              motivo: motivoV.motivo,
+              actor,
+              diaCerradoHasta,
+              esDiaCerrado: (dia, hasta) => isFrozenDay(dia as DayKey, hasta as DayKey),
+              diaDe: dateStrInBusinessTz,
+              withSchema,
+            });
+          },
+          { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+    
+      
+      
+      
+      let settled: SettleOutcome<AnularCobroResult>;
+      try {
+        settled = await settleAppointmentPaymentGuarded({
+          runWithBridge: () => run(true),
+          runWithoutBridge: () => run(false),
+        });
+      } catch (e) {
+        if (e instanceof AnulacionRechazada) return { ok: false, error: e.message };
+        throw e;
+      }
+    
+      if (settled.outcome === "race" || !settled.value.applied) {
+        
+        
+        revalidatePath("/admin/turnos");
+        revalidatePath("/admin/turnos/lista");
+        return { ok: true };
+      }
+      if (settled.outcome === "degraded") {
+        logger.warn("caja", "anularCobroTurno: reversa asentada SIN puente al libro de caja (migración de cobros parciales sin aplicar)", {
+          tenantId,
+          appointmentId,
+          collectionId,
+        });
+      }
+    
+      await auditAdmin({
+        action: "void_collection",
+        entity: "Appointment",
+        entityId: appointmentId,
+        changes: {
+          collectionId,
+          motivo: motivoV.motivo,
+          monto: settled.value.monto,
+          cobrado: settled.value.cobradoDespues,
+          saldo: settled.value.saldoDespues,
+          libroCaja: settled.outcome === "degraded" ? "sin-migrar" : settled.value.libro,
+        },
+      });
+    
+      revalidatePath("/admin");
+      revalidatePath("/admin/turnos");
+      revalidatePath("/admin/turnos/lista");
+      revalidatePath("/admin/reportes");
+      revalidatePath("/admin/caja");
+      revalidatePath("/admin/caja/libro");
+      return { ok: true };
+    }
+    
+    
+    export async function condonarSaldoTurno(formData: FormData): Promise<ResultadoAccion> {
+      const user = await requireCapability("agenda:manage");
+      if (isDemoSandbox()) return { ok: true }; 
+      const appointmentId = String(formData.get("appointmentId") || "").trim();
+      if (!appointmentId) return { ok: false, error: "Falta identificar el turno." };
+    
+      const motivoV = validarMotivo(formData.get("motivo") as string | null);
+      if (!motivoV.ok) return { ok: false, error: mensajeMotivoInvalido(motivoV.error) };
+    
+      const tenantId = await getCurrentTenantId();
+      const actor = `user:${user.id}`;
+    
+      const run = (withSchema: boolean) =>
+        tenantTransaction(
+          async (tx) => {
+            const appointment = await tx.appointment.findUniqueOrThrow({
+              where: { id: appointmentId },
+              include: { service: { select: { price: true } } },
+            });
+            return condonarSaldoTurnoInTx(tx, tenantId, {
+              appointmentId,
+              status: appointment.status,
+              precio: appointment.priceAtBooking ?? appointment.service.price,
+              motivo: motivoV.motivo,
+              actor,
+              withSchema,
+            });
+          },
+          { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+    
+      let settled: SettleOutcome<CondonarSaldoResult>;
+      try {
+        settled = await settleAppointmentPaymentGuarded({
+          runWithBridge: () => run(true),
+          runWithoutBridge: () => run(false),
+        });
+      } catch (e) {
+        if (e instanceof CondonacionRechazada) return { ok: false, error: e.message };
+        throw e;
+      }
+    
+      if (settled.outcome === "race") {
+        
+        
+        revalidatePath("/admin/turnos");
+        revalidatePath("/admin/turnos/lista");
+        return { ok: true };
+      }
+      if (!settled.value.applied) {
+        
+        
+        
+        
+        
+        
+        revalidatePath("/admin/turnos");
+        revalidatePath("/admin/turnos/lista");
+        return {
+          ok: false,
+          error: "Este turno ya tiene un saldo dado de baja. Si cambió, todavía no se puede rehacer desde acá: escribinos.",
+        };
+      }
+    
+      await auditAdmin({
+        action: "write_off_balance",
+        entity: "Appointment",
+        entityId: appointmentId,
+        changes: { motivo: motivoV.motivo, monto: settled.value.monto, condonacionId: settled.value.condonacionId },
+      });
+    
+      revalidatePath("/admin");
+      revalidatePath("/admin/turnos");
+      revalidatePath("/admin/turnos/lista");
+      revalidatePath("/admin/reportes");
+      return { ok: true };
+    }
+    
+    
+    
+    
+    export async function confirmarTurno(formData: FormData) {
+      await requireCapability("agenda:manage");
+      if (isDemoSandbox()) return; 
+      const appointmentId = String(formData.get("appointmentId") || "");
+      const res = await prisma.appointment.updateMany({
+        where: { id: appointmentId, status: "PENDING" },
+        data: { status: "CONFIRMED" },
+      });
+      if (res.count === 0) return; 
+      await auditAdmin({ action: "confirm", entity: "Appointment", entityId: appointmentId, changes: { status: "CONFIRMED" } });
+      revalidatePath("/admin");
+      revalidatePath("/admin/turnos");
+      revalidatePath("/admin/turnos/lista");
+      
+      revalidatePath("/admin/turnos/manana");
+    }
+    
+    export async function getReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
+      await requireCapability("reports:read");
+      if (isDemoSandbox()) return getDemoReportData(rangeDays);
+      const tenantId = await getCurrentTenantId();
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      const { desde, hasta } = bordesDelPeriodo(todayInBusinessTz(), rangeDays, businessWallTimeToUtc);
+      const payments = await prisma.payment.findMany({
+        where: { tenantId, status: "APPROVED", createdAt: { gte: desde, lte: hasta } },
+        select: {
+          amount: true,
+          createdAt: true,
+          appointment: {
+            select: {
+              professional: { select: { name: true } },
+              service: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+    
+      
+      
+      
+      const agrupado = agruparIngresos(
+        payments.map((p) => ({
+          amount: p.amount,
+          cobradoEn: p.createdAt,
+          profesional: p.appointment.professional.name,
+          servicio: p.appointment.service.name,
+        })),
+        dateStrInBusinessTz,
+      );
+    
+      return { rangeDays, desde, hasta, ...agrupado };
+    }
+    
+    
+    
+    
+    
+    
+    
+    export async function getDeepReportData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
+      await requireCapability("reports:read");
+      if (isDemoSandbox()) return getDemoDeepReportData(rangeDays);
+      const tenantId = await getCurrentTenantId();
+    
+      const hasta = new Date();
+      const desde = new Date(hasta.getTime() - rangeDays * 24 * 60 * 60 * 1000);
+    
+      const appointments = await prisma.appointment.findMany({
+        where: { tenantId, startsAt: { gte: desde, lte: hasta } },
+        select: {
+          status: true,
+          startsAt: true,
+          endsAt: true,
+          clientId: true,
+          professional: { select: { name: true } },
+          
+          payment: { select: { amount: true, method: true, status: true } },
+        },
+      });
+    
+      const mapped: KpiAppointment[] = appointments.map((a) => ({
+        status: a.status,
+        startsAt: a.startsAt,
+        endsAt: a.endsAt,
+        clientId: a.clientId,
+        professionalName: a.professional.name,
+        payment:
+          a.payment && a.payment.status === "APPROVED"
+            ? { amount: a.payment.amount, method: a.payment.method }
+            : null,
+      }));
+    
+      return {
+        rangeDays,
+        desde,
+        hasta,
+        totalTurnos: mapped.length,
+        kpis: computeDeepKpis(mapped),
+      };
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    export async function getOwnerPanelData(rangeDays: number = DEFAULT_REPORT_RANGE_DAYS) {
+      await requireCapability("reports:read");
+      if (isDemoSandbox()) return getDemoOwnerPanelData(rangeDays);
+      const tenantId = await getCurrentTenantId();
+    
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      const TREND_MONTHS = 6; 
+      const hasta = new Date();
+    
+      
+      
+      
+      const trendStart = new Date(hasta.getFullYear(), hasta.getMonth() - TREND_MONTHS, 1);
+      const prevStart = new Date(hasta.getTime() - 2 * rangeDays * DAY_MS);
+      const desde = trendStart < prevStart ? trendStart : prevStart;
+    
+      const appointments = await prisma.appointment.findMany({
+        where: { tenantId, startsAt: { gte: desde, lte: hasta } },
+        select: {
+          status: true,
+          startsAt: true,
+          endsAt: true,
+          clientId: true,
+          professional: { select: { name: true } },
+          payment: { select: { amount: true, method: true, status: true } },
+        },
+      });
+    
+      const mapped: KpiAppointment[] = appointments.map((a) => ({
+        status: a.status,
+        startsAt: a.startsAt,
+        endsAt: a.endsAt,
+        clientId: a.clientId,
+        professionalName: a.professional.name,
+        payment:
+          a.payment && a.payment.status === "APPROVED"
+            ? { amount: a.payment.amount, method: a.payment.method }
+            : null,
+      }));
+    
+      
+      
+      const curStart = new Date(hasta.getTime() - rangeDays * DAY_MS);
+      const current = computeDeepKpis(mapped.filter((a) => a.startsAt >= curStart));
+      const prevList = mapped.filter((a) => a.startsAt >= prevStart && a.startsAt < curStart);
+      const previous = prevList.length > 0 ? computeDeepKpis(prevList) : null;
+    
+      
+      
+      
+      const currentMonth = dateStrInBusinessTz(hasta).slice(0, 7);
+      const byMonth = new Map<string, KpiAppointment[]>();
+      for (const a of mapped) {
+        const mk = dateStrInBusinessTz(a.startsAt).slice(0, 7);
+        if (mk === currentMonth) continue;
+        const arr = byMonth.get(mk) ?? [];
+        arr.push(a);
+        byMonth.set(mk, arr);
+      }
+      const months = Array.from(byMonth.keys())
+        .sort()
+        .slice(-TREND_MONTHS)
+        .map((month) => ({ month, kpis: computeDeepKpis(byMonth.get(month)!) }));
+    
+      return {
+        rangeDays,
+        desde,
+        hasta,
+        hasPrevious: previous !== null,
+        current,
+        previous,
+        months,
+      };
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    export async function cancelAppointment(formData: FormData) {
+      await requireCapability("agenda:manage");
+      if (isDemoSandbox()) return; 
+      const appointmentId = String(formData.get("appointmentId") ?? "");
+      const tenantId = await getCurrentTenantId();
+      const cambiados = await cancelarTurnoVivo(prisma, tenantId, appointmentId);
+      if (cambiados === 0) {
+        logger.warn("agenda", "cancelación rechazada: el turno no está reservado ni confirmado", { appointmentId });
+        revalidatePath("/admin/turnos");
+        return;
+      }
+      await auditAdmin({ action: "cancel", entity: "Appointment", entityId: appointmentId });
+      revalidatePath("/admin");
+      revalidatePath("/admin/turnos");
+      
+      revalidatePath("/admin/espera");
+    }
+    
+    export async function markNoShow(formData: FormData) {
+      const user = await requireCapability("agenda:complete");
+      if (isDemoSandbox()) return; 
+      const appointmentId = String(formData.get("appointmentId"));
+      const appointment = await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
+      
+      if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId) {
+        throw new Error("No autorizado: solo podés operar sobre tu propia agenda.");
+      }
+      if (appointment.status !== "CONFIRMED") {
+        throw new Error('Solo se puede marcar "no se presentó" un turno confirmado.');
+      }
+      await prisma.appointment.update({
+        where: { id: appointmentId },
+        data: { status: "NO_SHOW" },
+      });
+      await auditAdmin({ action: "no_show", entity: "Appointment", entityId: appointmentId });
+      revalidatePath("/admin");
+      revalidatePath("/admin/turnos");
+    }
+    
+    
+    
+    
+    
+    
+    export async function completeAppointment(formData: FormData): Promise<ResultadoAccion> {
+      const user = await requireCapability("agenda:complete");
+      if (isDemoSandbox()) return { ok: true }; 
+      const appointmentId = String(formData.get("appointmentId") || "");
+      
+      
+      const facturar = formData.get("facturar") !== "false";
+      const methodRaw = String(formData.get("method") || "");
+      const method: MetodoDePago | null = esMetodoDePago(methodRaw) ? methodRaw : null;
+      const dejarSaldoACobrar = formData.get("saldo") === "a-cobrar";
+      const tenantId = await getCurrentTenantId();
+      const actor = `user:${user.id}`;
+    
+      const run = (withSchema: boolean) =>
+        tenantTransaction(
+          async (tx) => {
+            const appointment = await tx.appointment.findUniqueOrThrow({
+              where: { id: appointmentId },
+              include: {
+                service: { include: { products: { include: { product: true } } } },
+                client: { select: { name: true } },
+                payment: { select: { status: true, amount: true } },
+              },
+            });
+    
+            
+            if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId) {
+              throw new Error("No autorizado: solo podés operar sobre tu propia agenda.");
+            }
+    
+            const puede = puedeCompletarse({ status: appointment.status, startsAt: appointment.startsAt, ahora: new Date() });
+            if (!puede.ok) throw new CompletarTurnoRechazado(puede.motivo);
+    
+            const precio = appointment.priceAtBooking ?? appointment.service.price;
+            const cobros = await cobrosDelTurnoInTx(tx, tenantId, appointmentId);
+            const plan = planCompletar({ precio, cobros, pagoLegado: appointment.payment, dejarSaldoACobrar, method });
+            if (!plan.ok) throw new CompletarTurnoRechazado(plan.motivo);
+    
+            
+            
+            
+            
+            
+            for (const usage of appointment.service.products) {
+              await recordMovement(tx, {
+                tenantId: appointment.tenantId,
+                productId: usage.productId,
+                type: "CONSUMO",
+                qty: usage.quantity,
+                appointmentId,
+                createdBy: actor,
+                label: usage.product.name,
+                allowNegative: true,
+              });
+            }
+    
+            
+            
+            let cobro: AplicarCobroResult | null = null;
+            if (plan.cobro) {
+              cobro = await aplicarCobroTurnoInTx(tx, tenantId, {
+                appointmentId,
+                status: appointment.status,
+                precio,
+                monto: plan.cobro.monto,
+                method: plan.cobro.method as MetodoDePago,
+                note: "Saldo al completar",
+                actor,
+                detail: cobroTurnoDetail({ serviceName: appointment.service.name, clientName: appointment.client.name }),
+                idempotencyKey: claveCobroTurno("saldo", appointmentId),
+                withSchema,
+              });
+            }
+    
+            await tx.appointment.update({
+              where: { id: appointmentId },
+              data: { status: "COMPLETED" },
+            });
+    
+            return { cobro, saldoACobrar: plan.saldoACobrar };
+          },
+          { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+    
+      let settled: SettleOutcome<{ cobro: AplicarCobroResult | null; saldoACobrar: number }>;
+      try {
+        settled = await settleAppointmentPaymentGuarded({
+          runWithBridge: () => run(true),
+          runWithoutBridge: () => run(false),
+        });
+      } catch (e) {
+        if (e instanceof CompletarTurnoRechazado || e instanceof CobroTurnoRechazado) return { ok: false, error: e.message };
+        throw e;
+      }
+      if (settled.outcome === "race") {
+        
+        revalidatePath("/admin/turnos");
+        return { ok: true };
+      }
+      if (settled.outcome === "degraded") {
+        logger.warn("caja", "completeAppointment: saldo cobrado SIN puente al libro de caja (migración de cobros parciales sin aplicar)", {
+          tenantId,
+          appointmentId,
+        });
+      }
+      const cobro = settled.value.cobro;
+    
+      await auditAdmin({
+        action: "complete",
+        entity: "Appointment",
+        entityId: appointmentId,
+        changes: {
+          saldoCobrado: cobro?.applied ? { amount: cobro.monto, method } : null,
+          saldoACobrar: settled.value.saldoACobrar,
+          libroCaja: cobro ? rastroLibroCaja({ outcome: settled.outcome, value: cobro }) : null,
+        },
+      });
+    
+      
+      
+      
+      
+      if (facturar && isInvoicingEnabled()) {
+        try {
+          await facturarAppointment(appointmentId, tenantId);
+        } catch (err) {
+          logger.error("arca", "facturación best-effort falló", err, { appointmentId, tenantId });
+        }
+      }
+    
+      revalidatePath("/admin");
+      revalidatePath("/admin/turnos");
+      revalidatePath("/admin/turnos/lista");
+      revalidatePath("/admin/catalogo");
+      revalidatePath("/admin/reportes");
+      revalidatePath("/admin/caja");
+      revalidatePath("/admin/caja/libro");
+      return { ok: true };
+    }
+    
+    export async function getClients() {
+      await requireCapability("clients:read");
+      
+      
+      
+      return prisma.client.findMany({
+        orderBy: { name: "asc" },
+        include: { _count: { select: { appointments: true } } },
+      });
+    }
+    
+    export async function getClient(id: string) {
+      await requireCapability("clients:read");
+      return prisma.client.findUnique({
+        where: { id },
+        include: {
+          appointments: {
+            orderBy: { startsAt: "desc" },
+            include: { professional: true, service: true, payment: true },
+          },
+        },
+      });
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    const FICHAS_ALTA_RANGO_DIAS = 365;
+    
+    export async function getFichasParaAlta(): Promise<FichaParaAlta[]> {
+      await requireCapability("agenda:manage");
+      if (isDemoSandbox()) return [];
+      const tenantId = await getCurrentTenantId();
+      const desde = new Date(Date.now() - FICHAS_ALTA_RANGO_DIAS * 24 * 60 * 60 * 1000);
+      const [clientes, completados] = await Promise.all([
+        prisma.client.findMany({
+          where: { tenantId },
+          orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            notes: true,
+            isResident: true,
+            createdAt: true,
+            _count: { select: { appointments: true } },
+          },
+        }),
+        prisma.appointment.findMany({
+          where: { tenantId, status: "COMPLETED", startsAt: { gte: desde } },
+          select: {
+            id: true,
+            clientId: true,
+            status: true,
+            startsAt: true,
+            priceAtBooking: true,
+            service: { select: { name: true, price: true } },
+            professional: { select: { name: true } },
+            payment: { select: { status: true, amount: true } },
+          },
+        }),
+      ]);
+      const cobros = await cobrosDetalladosPorTurno(prisma, tenantId, completados.map((a) => a.id));
+      return resumirFichasParaAlta(
+        clientes,
+        completados.map((a) => ({
+          clientId: a.clientId,
+          status: a.status,
+          startsAt: a.startsAt,
+          precio: a.priceAtBooking ?? a.service.price,
+          servicio: a.service.name,
+          profesional: a.professional.name,
+          cobros: cobros.get(a.id) ?? [],
+          pagoLegado: a.payment,
+        })),
+      );
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    export type TurnoAConfirmar = {
+      id: string;
+      
+      clientId: string;
+      startsAt: string;
+      status: "PENDING" | "CONFIRMED";
+      clienta: string;
+      telefono: string;
+      servicio: string;
+      profesional: string;
+      texto: string;
+      avisadaEl: string | null;
+    };
+    
+    export async function getMananaConfirmar(): Promise<{ dia: string; turnos: TurnoAConfirmar[] }> {
+      await requireCapability("agenda:manage");
+      const dia = diaSiguiente(todayInBusinessTz());
+      if (isDemoSandbox()) return { dia, turnos: [] };
+      const tenantId = await getCurrentTenantId();
+      const { desde, hasta } = rangoDelDia(dia);
+      const [turnos, plantilla] = await Promise.all([
+        prisma.appointment.findMany({
+          
+          where: whereTurnosDeManana(tenantId, desde, hasta),
+          orderBy: { startsAt: "asc" },
+          select: {
+            id: true,
+            startsAt: true,
+            status: true,
+            reminderSentAt: true,
+            clientId: true,
+            client: { select: { name: true, phone: true } },
+            service: { select: { name: true } },
+            professional: { select: { name: true } },
+          },
+        }),
+        prisma.messageTemplate.findFirst({
+          where: { tenantId, type: "APPOINTMENT_REMINDER", channel: "WHATSAPP", active: true },
+          select: { body: true },
+        }),
+      ]);
+      return {
+        dia,
+        turnos: turnos.map((t) => ({
+          id: t.id,
+          clientId: t.clientId,
+          startsAt: t.startsAt.toISOString(),
+          status: t.status === "PENDING" ? "PENDING" : "CONFIRMED",
+          clienta: t.client.name,
+          telefono: t.client.phone,
+          servicio: t.service.name,
+          profesional: t.professional.name,
+          texto: textoRecordatorio(plantilla?.body, {
+            clientName: t.client.name,
+            serviceName: t.service.name,
+            professionalName: t.professional.name,
+            startsAt: t.startsAt,
+          }),
+          avisadaEl: t.reminderSentAt ? t.reminderSentAt.toISOString() : null,
+        })),
+      };
+    }
+    
+    
+    export async function marcarAvisada(appointmentId: string): Promise<{ ok: true; avisadaEl: string } | { ok: false; error: string }> {
+      await requireCapability("agenda:manage");
+      if (isDemoSandbox()) return { ok: true, avisadaEl: new Date().toISOString() };
+      const id = String(appointmentId || "");
+      if (!id) return { ok: false, error: "Falta el turno." };
+      const tenantId = await getCurrentTenantId();
+      const ahora = new Date();
+      const res = await prisma.appointment.updateMany({
+        where: { id, tenantId, status: { in: ["PENDING", "CONFIRMED"] } },
+        data: { reminderSentAt: ahora },
+      });
+      if (res.count === 0) return { ok: false, error: "Ese turno ya no está reservado ni confirmado." };
+      await auditAdmin({
+        action: "reminder_manual",
+        entity: "Appointment",
+        entityId: id,
+        changes: { reminderSentAt: ahora, canal: "whatsapp-manual" },
+      });
+      revalidatePath("/admin/turnos");
+      revalidatePath("/admin/turnos/manana");
+      return { ok: true, avisadaEl: ahora.toISOString() };
+    }
+    
+    export async function getAgendaDay(date: string) {
+      const user = await requireCapability("agenda:read");
+      if (isDemoSandbox()) return getDemoAgendaDay(date);
+    
+      
+      
+      
+      const onlyProfessionalId =
+        user.role === "PROFESSIONAL" ? user.professionalId ?? "__no_professional__" : null;
+    
+      
+      const dayStart = businessWallTimeToUtc(date, "00:00");
+      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+      const tenantId = await getCurrentTenantId();
+    
+      const [professionals, appointments, blocksToday] = await Promise.all([
+        prisma.professional.findMany({
+          where: {
+            active: true,
+            deletedAt: null,
+            ...(onlyProfessionalId ? { id: onlyProfessionalId } : {}),
+          },
+          orderBy: { name: "asc" },
+          include: { box: true },
+        }),
+        prisma.appointment.findMany({
+          
+          where: {
+            ...whereTurnosDelDia(tenantId, dayStart, dayEnd),
+            ...(onlyProfessionalId ? { professionalId: onlyProfessionalId } : {}),
+          },
+          include: { client: true, professional: true, service: true, payment: true, box: true },
+          orderBy: { startsAt: "asc" },
+        }),
+        
+        
+        prisma.professionalBlock.findMany({
+          where: {
+            startsAt: { lt: dayEnd },
+            endsAt: { gt: dayStart },
+            ...(onlyProfessionalId ? { professionalId: onlyProfessionalId } : {}),
+          },
+          include: { professional: { select: { name: true } } },
+          orderBy: { professional: { name: "asc" } },
+        }),
+      ]);
+    
+      return { professionals, appointments: await conCobros(tenantId, appointments), blocksToday };
+    }
+    
+    export async function getDashboardData() {
+      await requireCapability("dashboard:read");
+      
+      const todayStart = businessWallTimeToUtc(todayInBusinessTz(), "00:00");
+      const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+      const weekStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
+    
+      const [todayAppointments, pendingCount, weekPayments, professionalsCount, clientsCount, blocksToday] =
+        await Promise.all([
+          prisma.appointment.findMany({
+            where: { startsAt: { gte: todayStart, lt: todayEnd }, status: { not: "CANCELLED" } },
+            include: { client: true, professional: true, service: true },
+            orderBy: { startsAt: "asc" },
+          }),
+          
+          
+          
+          
+          
+          prisma.appointment.count({ where: { status: "PENDING", startsAt: { gte: new Date() } } }),
+          prisma.payment.findMany({
+            where: { status: "APPROVED", createdAt: { gte: weekStart } },
+            select: { amount: true },
+          }),
+          prisma.professional.count({ where: { active: true, deletedAt: null } }),
+          prisma.client.count(),
+          
+          
+          prisma.professionalBlock.findMany({
+            where: { startsAt: { lt: todayEnd }, endsAt: { gt: todayStart } },
+            include: { professional: { select: { name: true } } },
+            orderBy: { professional: { name: "asc" } },
+          }),
+        ]);
+    
+      return {
+        todayAppointments,
+        pendingCount,
+        weekRevenue: weekPayments.reduce((sum, p) => sum + p.amount, 0),
+        professionalsCount,
+        clientsCount,
+        blocksToday,
+      };
+    }
+    
+    
+    
+    
+    
+    export async function getRetailDashboardData() {
+      await requireCapability("dashboard:read");
+      const todayStart = businessWallTimeToUtc(todayInBusinessTz(), "00:00");
+      const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+      const weekStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
+    
+      const [todayOrders, weekOrders, products, clientsCount, openCash] = await Promise.all([
+        prisma.order.findMany({
+          where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: "CANCELLED" } },
+          select: { total: true },
+        }),
+        prisma.order.findMany({
+          where: { createdAt: { gte: weekStart }, status: { not: "CANCELLED" } },
+          select: { total: true },
+        }),
+        prisma.product.findMany({
+          where: { active: true, deletedAt: null, trackStock: true },
+          select: { id: true, name: true, unit: true, stock: true, lowStockAt: true },
+        }),
+        prisma.client.count(),
+        prisma.cashSession.findFirst({ where: { status: "OPEN" }, select: { id: true } }),
+      ]);
+    
+      const lowStock = products
+        .filter((p) => p.stock <= p.lowStockAt)
+        .sort((a, b) => a.stock - b.stock);
+    
+      return {
+        todaySalesCount: todayOrders.length,
+        todayRevenue: todayOrders.reduce((s, o) => s + o.total, 0),
+        weekRevenue: weekOrders.reduce((s, o) => s + o.total, 0),
+        lowStock, 
+        lowStockCount: lowStock.length,
+        clientsCount,
+        cashOpen: !!openCash,
+      };
+    }
+    
+  operator: 'doesNotMatch'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/cupones/descuento-de-cupon.test.ts:94:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: medio peso va hacia arriba: 1.234,50 → 1.235; 0,50 → 1; 12.344,5 → 12.345
+not ok 12 - medio peso va hacia arriba: 1.234,50 → 1.235; 0,50 → 1; 12.344,5 → 12.345
+  ---
+  duration_ms: 1.480105
+  type: 'test'
+  location: '/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:2:1006'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_redondeo.redondearAlPeso) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:12:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: menos de medio peso va hacia abajo: 1.234,49 → 1.234; 0,49 → 0
+not ok 13 - menos de medio peso va hacia abajo: 1.234,49 → 1.234; 0,49 → 0
+  ---
+  duration_ms: 0.227553
+  type: 'test'
+  location: '/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:2:1438'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_redondeo.redondearAlPeso) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:19:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: un solo redondeo: 1.234,495 va a 1.234 (al centavo daría 1.234,50 y al peso 1.235)
+not ok 14 - un solo redondeo: 1.234,495 va a 1.234 (al centavo daría 1.234,50 y al peso 1.235)
+  ---
+  duration_ms: 0.179549
+  type: 'test'
+  location: '/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:2:1778'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_redondeo.redondearAlPeso) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:25:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: un número vale sus 15 cifras: 1.234,4999999999998 es 1.234,5 y sube
+not ok 15 - un número vale sus 15 cifras: 1.234,4999999999998 es 1.234,5 y sube
+  ---
+  duration_ms: 0.186465
+  type: 'test'
+  location: '/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:2:2052'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_redondeo.redondearAlPeso) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:30:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: negativos: el medio peso se aleja del cero y lo que redondea a cero da 0, nunca −0
+not ok 16 - negativos: el medio peso se aleja del cero y lo que redondea a cero da 0, nunca −0
+  ---
+  duration_ms: 0.143763
+  type: 'test'
+  location: '/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:2:2328'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_redondeo.redondearAlPeso) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:35:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: lo que no es un número pasa sin cambios, como con Math.round
+not ok 17 - lo que no es un número pasa sin cambios, como con Math.round
+  ---
+  duration_ms: 0.132381
+  type: 'test'
+  location: '/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:2:2771'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_redondeo.redondearAlPeso) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:42:26)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: barrido: los 1.000.000 de x,50 de $0 a $1.000.000 suben y los x,49 bajan
+not ok 18 - barrido: los 1.000.000 de x,50 de $0 a $1.000.000 suben y los x,49 bajan
+  ---
+  duration_ms: 0.234304
+  type: 'test'
+  location: '/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:2:3074'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_redondeo.redondearAlPeso) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:49:9)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: porcentaje: 10 % de $12.345 da $1.235 al peso y $1.234,50 al centavo
+not ok 19 - porcentaje: 10 % de $12.345 da $1.235 al peso y $1.234,50 al centavo
+  ---
+  duration_ms: 0.157473
+  type: 'test'
+  location: '/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:2:3705'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_redondeo.porcentajeDe) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:68:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: porcentaje: todos los % enteros de 1 a 100 sobre cada centavo de $0 a $1.000 dan el exacto
+not ok 20 - porcentaje: todos los % enteros de 1 a 100 sobre cada centavo de $0 a $1.000 dan el exacto
+  ---
+  duration_ms: 0.884597
+  type: 'test'
+  location: '/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:2:4406'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_redondeo.porcentajeDe) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:82:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: porcentaje: 1.000.000 de bases al azar hasta $1.000.000.000 con % de dos decimales dan el exacto
+not ok 21 - porcentaje: 1.000.000 de bases al azar hasta $1.000.000.000 con % de dos decimales dan el exacto
+  ---
+  duration_ms: 157.026579
+  type: 'test'
+  location: '/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:2:4855'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_redondeo.porcentajeDe) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:103:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: un porcentaje vale con dos decimales: 12,345 % se toma 12,35 % (R1 y R7 sobre el %)
+not ok 22 - un porcentaje vale con dos decimales: 12,345 % se toma 12,35 % (R1 y R7 sobre el %)
+  ---
+  duration_ms: 7.156215
+  type: 'test'
+  location: '/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:2:5530'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_redondeo.porcentajeDe) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:113:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: lo que no es un número pasa sin cambios por el porcentaje
+not ok 23 - lo que no es un número pasa sin cambios por el porcentaje
+  ---
+  duration_ms: 0.27014
+  type: 'test'
+  location: '/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:2:5827'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_redondeo.porcentajeDe) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:118:26)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: porcentaje de un negativo se aleja del cero: 10 % de −$12.345 da −$1.235
+not ok 24 - porcentaje de un negativo se aleja del cero: 10 % de −$12.345 da −$1.235
+  ---
+  duration_ms: 0.094098
+  type: 'test'
+  location: '/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:2:6117'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_redondeo.porcentajeDe) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/dinero/redondeo-al-peso.test.ts:123:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..24
+# tests 24
+# suites 0
+# pass 4
+# fail 20
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1421.182553

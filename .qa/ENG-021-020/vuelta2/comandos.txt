@@ -1,0 +1,14 @@
+ENG-021 + ENG-020 · vuelta 2 (2026-09-25), desde /home/user/erp. Tests primero, después el arreglo.
+ANTES del arreglo (rojos esperados):
+  node --import tsx --test contrato-arca.test.ts arca-dispatch.test.ts            -> antes-unit.txt (49: 10 rojos, 3 por el cambio de firma)
+  node --import tsx --test arca-dispatch-postgres.test.ts                         -> antes-postgres.txt (13: 3 rojos)
+DESPUÉS:
+  unit y contrato (ARCA, facturas, despacho, libros)                              -> despues-unit.txt (172/172)
+  arca-dispatch-postgres + facturar-venta-rechazada-postgres (Postgres + RLS)     -> despues-postgres.txt (14/14)
+  repros del revisor (scratchpad/v2, con la dependencia nueva)                    -> repros-del-revisor.txt (2/2)
+  plugin ARCA + domain + dispatch + invoice-* + redondeo + paridad-menu (CH)      -> final-unit.txt (205/205)
+  npx tsc --noEmit -p .                                                           -> tsc.txt (exit 0)
+  npx eslint --max-warnings=0 <15 archivos tocados>                               -> eslint.txt (exit 0)
+  npm test                                                                        -> npm-test.txt (3836: 3831 ok, 5 rojos ajenos: xlsx x4, src/design/hoja versión)
+Mutaciones (archivo restaurado con cp y verificado con cmp)                        -> mutacion-*.txt, todas detectadas
+Bases: sólo erp_test_* efímeras del arnés; al final no queda ninguna. Nada contra Neon, Vercel ni ARCA.

@@ -1,0 +1,705 @@
+diff --git a/src/app/admin/(dashboard)/pedidos/plata-de-la-bandeja.test.ts b/src/app/admin/(dashboard)/pedidos/plata-de-la-bandeja.test.ts
+index 8d49b48..c6a82df 100644
+--- a/src/app/admin/(dashboard)/pedidos/plata-de-la-bandeja.test.ts
++++ b/src/app/admin/(dashboard)/pedidos/plata-de-la-bandeja.test.ts
+@@ -87,6 +87,8 @@ function txDe({ m, venta }: ReturnType<typeof mundoDeVenta>, opts: { ventaAparec
+   const tx = {
+     // Estas ventas no tienen cupón: la anulación busca la fila del cupón y no la encuentra.
+     auditLog: { findFirst: async () => null },
++    // Venta sin facturar (ENG-023): la anulación busca sus facturas y no hay.
++    invoice: { findMany: async () => [] },
+     order: {
+       findFirst: async () => ({ ...m.order }),
+       updateMany: async (args: { where: { status?: { not?: string } }; data: { status: string } }) => {
+diff --git a/src/app/admin/(dashboard)/vender/cupon-cuenta-tope.test.ts b/src/app/admin/(dashboard)/vender/cupon-cuenta-tope.test.ts
+index 0292b2a..f26ff0f 100644
+--- a/src/app/admin/(dashboard)/vender/cupon-cuenta-tope.test.ts
++++ b/src/app/admin/(dashboard)/vender/cupon-cuenta-tope.test.ts
+@@ -321,6 +321,8 @@ function txACuenta(m: MundoACuenta) {
+   return {
+     // Venta sin cupón: la anulación busca la fila del cupón del pedido y no hay.
+     auditLog: { findFirst: async () => null },
++    // Venta sin facturar (ENG-023): la anulación busca sus facturas y no hay.
++    invoice: { findMany: async () => [] },
+     order: {
+       findFirst: async () => structuredClone(m.order),
+       updateMany: async (a: { where: { status?: { not?: string } }; data: { status: string } }) => {
+diff --git a/src/lib/order-anulacion.test.ts b/src/lib/order-anulacion.test.ts
+index 13824b7..af684f6 100644
+--- a/src/lib/order-anulacion.test.ts
++++ b/src/lib/order-anulacion.test.ts
+@@ -53,8 +53,14 @@ function nuevoMundo(opts: {
+   trackStock?: boolean;
+   /** La fila 'cupon-del-pedido' que escribió el alta (sus `changes`), si la venta usó cupón. */
+   cuponDelPedido?: Record<string, unknown>;
++  /** Las facturas de la venta (ENG-023), con su negocio y su pedido. */
++  facturas?: { tenantId: string; orderId: string; status: string }[];
++  /** Una factura que otra transacción confirma entre la primera lectura y el bloqueo del pedido. */
++  facturaTrasElBloqueo?: { tenantId: string; orderId: string; status: string };
+ }) {
+   const mundo = {
++    facturas: [...(opts.facturas ?? [])],
++    facturaTrasElBloqueo: opts.facturaTrasElBloqueo ?? null,
+     order: {
+       id: "ord_1",
+       code: 42,
+@@ -137,9 +143,17 @@ function txDe(mundo: ReturnType<typeof nuevoMundo>): AnulacionVentaTx {
+         }
+         mundo.order.status = args.data.status;
+         mundo.ordersUpdated += 1;
++        // La otra transacción confirmó su factura justo antes de que el pedido quedara bloqueado.
++        if (mundo.facturaTrasElBloqueo) mundo.facturas.push(mundo.facturaTrasElBloqueo);
+         return { count: 1 };
+       },
+     },
++    invoice: {
++      findMany: async (args: { where: { tenantId: string; orderId: string } }) =>
++        mundo.facturas
++          .filter((f) => f.tenantId === args.where.tenantId && f.orderId === args.where.orderId)
++          .map((f) => ({ status: f.status })),
++    },
+     cashMovement: {
+       findFirst: async (args: { where: { type?: string } }) =>
+         mundo.cashMovements.find((m) => m.type === args.where.type) ?? null,
+@@ -284,15 +298,72 @@ test("dos clics en Anular devuelven el stock UNA sola vez", async () => {
+ 
+ // ── 4. Reglas puras ─────────────────────────────────────────────────────────
+ 
++// ENG-023: la factura autorizada sigue viva ante ARCA si se anula la venta sin nota de crédito.
++test("una venta con factura autorizada no se anula mientras no exista la nota de crédito", () => {
++  assert.deepEqual(
++    planAnulacionVenta({ existe: true, yaAnulada: false, diaCerrado: false, factura: "autorizada" }),
++    { ok: false, motivo: "facturada" },
++  );
++});
++
++test("una venta con la factura en camino a ARCA tampoco: el CAE puede llegar después", () => {
++  assert.deepEqual(
++    planAnulacionVenta({ existe: true, yaAnulada: false, diaCerrado: false, factura: "en-camino" }),
++    { ok: false, motivo: "factura-en-camino" },
++  );
++});
++
++test("la factura se responde antes que el día cerrado: sin nota de crédito, ni el dueño la anula", () => {
++  assert.deepEqual(
++    planAnulacionVenta({ existe: true, yaAnulada: false, diaCerrado: true, fueraDelDia: true, factura: "autorizada" }),
++    { ok: false, motivo: "facturada" },
++  );
++});
++
++test("anular una venta con factura autorizada se rechaza y no escribe nada", async () => {
++  const mundo = nuevoMundo({ facturas: [{ tenantId: "t1", orderId: "ord_1", status: "AUTHORIZED" }] });
++  await assert.rejects(
++    () => anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }),
++    (e: unknown) => e instanceof AnulacionVentaRechazada && e.motivo === "facturada" && /nota de crédito/.test(e.message),
++  );
++  assert.equal(mundo.order.status, "DELIVERED", "el pedido no quedó anulado");
++  assert.equal(mundo.ordersUpdated, 0);
++  assert.equal(mundo.cashMovements.length, 1, "sólo la VENTA: ninguna devolución en el libro");
++  assert.equal(mundo.stockMovements.length, 0);
++});
++
++test("la factura rechazada por ARCA no frena la anulación: no tiene CAE", async () => {
++  const mundo = nuevoMundo({ facturas: [{ tenantId: "t1", orderId: "ord_1", status: "REJECTED" }] });
++  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
++  assert.equal(r.applied, true);
++});
++
++test("la factura de otro negocio con el mismo id de pedido no frena la anulación", async () => {
++  const mundo = nuevoMundo({ facturas: [{ tenantId: "t2", orderId: "ord_1", status: "AUTHORIZED" }] });
++  const r = await anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null });
++  assert.equal(r.applied, true);
++});
++
++test("una factura confirmada mientras se anulaba se ve después del bloqueo y la anulación se cae entera", async () => {
++  const mundo = nuevoMundo({ facturaTrasElBloqueo: { tenantId: "t1", orderId: "ord_1", status: "PENDING" } });
++  await assert.rejects(
++    () => anularVentaInTx(txDe(mundo), "t1", { ...ARGS_BASE, diaCerradoHasta: null }),
++    (e: unknown) => e instanceof AnulacionVentaRechazada && e.motivo === "factura-en-camino",
++  );
++  // En la base, el lanzamiento vuelve atrás el compare-and-set: lo prueba el test contra Postgres.
++  assert.equal(mundo.cashMovements.length, 1, "no llegó a asentar la devolución");
++  assert.equal(mundo.stockMovements.length, 0, "no llegó a devolver stock");
++});
++
+ test("una venta ENTREGADA se puede anular: es la corrección diaria de una carnicería", () => {
+   assert.deepEqual(
+-    planAnulacionVenta({ existe: true, yaAnulada: false, diaCerrado: false }),
++    planAnulacionVenta({ existe: true, yaAnulada: false, diaCerrado: false, factura: "sin-factura-viva" }),
+     { ok: true },
+   );
+ });
+ 
+ test("el doble clic contesta 'ya está', no 'no se puede' — aunque el día esté cerrado", () => {
+-  assert.deepEqual(planAnulacionVenta({ existe: true, yaAnulada: true, diaCerrado: true }), {
++  assert.deepEqual(planAnulacionVenta({ existe: true, yaAnulada: true, diaCerrado: true, factura: "autorizada" }), {
+     ok: false,
+     motivo: "ya-anulada",
+   });
+diff --git a/src/lib/order-anulacion.ts b/src/lib/order-anulacion.ts
+index 4eefae7..ca5538c 100644
+--- a/src/lib/order-anulacion.ts
++++ b/src/lib/order-anulacion.ts
+@@ -45,6 +45,7 @@ import {
+   type DayKey,
+ } from "@/lib/caja/cierre-diario";
+ import { validarMotivo, mensajeMotivoInvalido } from "@/lib/turnos/anulacion";
++import { facturaDeLaVenta, mensajeFacturaViva, type FacturaDeLaVenta } from "@/lib/factura-viva";
+ import { formatearCantidad, hayLineaPorPeso } from "@/lib/pos-peso";
+ import { dateStrInBusinessTz, fmtTime, horarioDeNegocioDelFormulario } from "@/lib/datetime";
+ import { BUSINESS_TIMEZONE } from "@/lib/business-config";
+@@ -203,6 +204,8 @@ export function mensajeVentaEnDiaCerrado(
+ export type MotivoAnulacionVentaRechazada =
+   | "no-existe" // el pedido no es de este tenant o ya no está
+   | "ya-anulada" // idempotencia: ya se anuló (doble clic, reintento)
++  | "facturada" // ENG-023: tiene factura autorizada y todavía no hay nota de crédito que la cancele
++  | "factura-en-camino" // ENG-023: su factura espera la respuesta de ARCA; el CAE puede llegar después
+   | "dia-cerrado" // el día del asiento ya está cerrado: la corrección va con fecha de hoy
+   | "solo-hoy"; // quien anula sólo puede con lo cobrado hoy, y esta plata es de otro día
+ 
+@@ -229,11 +232,20 @@ export function planAnulacionVenta(input: {
+    * (`AlcanceDeAnulacion.soloHoy`). Opcional: sin el dato, no hay límite de día.
+    */
+   fueraDelDia?: boolean;
++  /**
++   * ENG-023: la factura de la venta (`facturaDeLaVenta`, factura-viva.ts). Obligatorio: una
++   * anulación que no la mira deja la factura vigente ante ARCA.
++   */
++  factura: FacturaDeLaVenta;
+ }): PlanAnulacionVenta {
+   if (!input.existe) return { ok: false, motivo: "no-existe" };
+   // El "ya anulada" se evalúa ANTES del día cerrado: ante un doble clic la respuesta correcta
+   // es "ya está", no "no se puede" — nadie tiene que asustarse por apretar dos veces.
+   if (input.yaAnulada) return { ok: false, motivo: "ya-anulada" };
++  // La factura va antes que el día cerrado y que el límite de rol: sin nota de crédito no la
++  // anula nadie, y mandar a la persona al dueño o a otro día sería mandarla a otro rechazo.
++  if (input.factura === "autorizada") return { ok: false, motivo: "facturada" };
++  if (input.factura === "en-camino") return { ok: false, motivo: "factura-en-camino" };
+   // El día cerrado va antes que el límite de rol: si el día ya se firmó, tampoco lo anula el
+   // dueño, y mandar a la persona a pedírselo sería mandarla a otro rechazo.
+   if (input.diaCerrado) return { ok: false, motivo: "dia-cerrado" };
+@@ -250,6 +262,10 @@ export function mensajeAnulacionVentaRechazada(
+       return "Ese pedido ya no existe.";
+     case "ya-anulada":
+       return "Esa venta ya estaba anulada.";
++    case "facturada":
++      return mensajeFacturaViva("autorizada", "venta");
++    case "factura-en-camino":
++      return mensajeFacturaViva("en-camino", "venta");
+     case "dia-cerrado":
+       return (
+         `Esa venta es del ${ctx?.dia ?? "un día"} y ese día de caja ya está cerrado: un día contado y ` +
+@@ -368,9 +384,15 @@ export async function anularVentaInTx(
+     });
+   type Asiento = Awaited<ReturnType<typeof leerAsiento>>;
+ 
+-  // La decisión, en función del asiento: se toma una vez antes del compare-and-set y, si
+-  // hace falta, otra vez después (ver 1b).
+-  const decidir = (a: Asiento) => {
++  // ENG-023: la factura de la venta, por su enlace (`Invoice.orderId`) y dentro del negocio.
++  const leerFactura = async () =>
++    facturaDeLaVenta(
++      await tx.invoice.findMany({ where: { tenantId, orderId: args.orderId }, select: { status: true } }),
++    );
++
++  // La decisión, en función del asiento y de la factura: se toma una vez antes del
++  // compare-and-set y otra vez después (ver 1b).
++  const decidir = (a: Asiento, factura: FacturaDeLaVenta) => {
+     const diaContable = order ? args.diaDe(a?.occurredAt ?? order.createdAt) : null;
+     const plan = planAnulacionVenta({
+       existe: Boolean(order),
+@@ -382,12 +404,13 @@ export async function anularVentaInTx(
+         a && diaContable && args.diaCerradoHasta && args.esDiaCerrado(diaContable, args.diaCerradoHasta),
+       ),
+       fueraDelDia: Boolean(a && diaContable && args.soloDelDia && diaContable !== args.soloDelDia),
++      factura,
+     });
+     return { plan, dia: diaContable ? formatDayLabel(diaContable) : null };
+   };
+ 
+   let asiento: Asiento = order ? await leerAsiento() : null;
+-  const antes = decidir(asiento);
++  const antes = decidir(asiento, order ? await leerFactura() : "sin-factura-viva");
+   if (!antes.plan.ok) {
+     if (antes.plan.motivo === "ya-anulada") return { applied: false, reason: "duplicate" };
+     throw new AnulacionVentaRechazada(antes.plan.motivo, { dia: antes.dia });
+@@ -407,13 +430,14 @@ export async function anularVentaInTx(
+   // llegue después ya no entra: encuentra el pedido anulado y vuelve atrás (setOrderPaidCore).
+   // Si la plata recién aparecida no se puede anular (otro día, día cerrado), se lanza y el
+   // compare-and-set vuelve atrás con toda la transacción.
+-  if (!asiento) {
+-    asiento = await leerAsiento();
+-    if (asiento) {
+-      const despues = decidir(asiento);
+-      if (!despues.plan.ok) throw new AnulacionVentaRechazada(despues.plan.motivo, { dia: despues.dia });
+-    }
+-  }
++  //
++  // La factura se relee SIEMPRE, por lo mismo (ENG-023): una facturación que confirmó entre la
++  // primera lectura y el bloqueo ya es visible acá, y la anulación vuelve atrás entera. (Para
++  // que la facturación que llega DESPUÉS del bloqueo espere y vea el pedido anulado, del lado de
++  // la factura hace falta tomar la fila del pedido: anotado en el BACKLOG, ENG-023.)
++  if (!asiento) asiento = await leerAsiento();
++  const despues = decidir(asiento, await leerFactura());
++  if (!despues.plan.ok) throw new AnulacionVentaRechazada(despues.plan.motivo, { dia: despues.dia });
+ 
+   // (2) La contrapartida en el libro, con la FECHA DEL ASIENTO ORIGINAL y su mismo turno de
+   // caja: el día del cobro vuelve a cerrar en cero. `paid` NO se toca — que se haya cobrado
+diff --git a/src/lib/turnos/anulacion.test.ts b/src/lib/turnos/anulacion.test.ts
+index 17f7323..4e4b034 100644
+--- a/src/lib/turnos/anulacion.test.ts
++++ b/src/lib/turnos/anulacion.test.ts
+@@ -74,7 +74,15 @@ const D = (s: string) => new Date(`${s}T15:00:00.000Z`);
+ 
+ type ColSeed = Omit<Partial<ColRow>, "amount"> & { amount?: number };
+ 
+-function makeTx(seed: { cobros?: ColSeed[]; movs?: Partial<MovRow>[]; payment?: Partial<PayRow> } = {}) {
++function makeTx(
++  seed: {
++    cobros?: ColSeed[];
++    movs?: Partial<MovRow>[];
++    payment?: Partial<PayRow>;
++    /** Las facturas del turno (ENG-023), con su negocio y su turno. */
++    facturas?: { tenantId: string; appointmentId: string; status: string }[];
++  } = {},
++) {
+   let seq = 0;
+   const collections: ColRow[] = (seed.cobros ?? []).map((c, i) => ({
+     id: c.id ?? `col-${i + 1}`,
+@@ -106,6 +114,12 @@ function makeTx(seed: { cobros?: ColSeed[]; movs?: Partial<MovRow>[]; payment?:
+     : [];
+ 
+   const tx = {
++    invoice: {
++      findMany: async (args: { where: { tenantId: string; appointmentId: string } }) =>
++        (seed.facturas ?? [])
++          .filter((f) => f.tenantId === args.where.tenantId && f.appointmentId === args.where.appointmentId)
++          .map((f) => ({ status: f.status })),
++    },
+     collection: {
+       findFirst: async (args: { where: { id?: string; originId?: string } }) =>
+         collections.find((c) => (args.where.id ? c.id === args.where.id : c.originId === args.where.originId)) ?? null,
+@@ -231,15 +245,55 @@ test("un cobro ya anulado no vuelve a ofrecerse para anular", () => {
+ });
+ 
+ test("planAnulacion: sólo cobros vivos, y el día cerrado se responde después de la idempotencia", () => {
+-  assert.deepEqual(planAnulacion({ note: null, amount: 18000, yaAnulado: false, diaCerrado: false }), { ok: true, monto: 18000 });
+-  assert.deepEqual(planAnulacion({ note: notaDeAnulacion("x", "m"), amount: -1, yaAnulado: false, diaCerrado: false }), {
++  assert.deepEqual(planAnulacion({ note: null, amount: 18000, yaAnulado: false, diaCerrado: false, factura: "sin-factura-viva" }), { ok: true, monto: 18000 });
++  assert.deepEqual(planAnulacion({ note: notaDeAnulacion("x", "m"), amount: -1, yaAnulado: false, diaCerrado: false, factura: "sin-factura-viva" }), {
+     ok: false,
+     motivo: "no-es-cobro",
+   });
+-  assert.deepEqual(planAnulacion({ note: null, amount: 0, yaAnulado: false, diaCerrado: false }), { ok: false, motivo: "monto-invalido" });
++  assert.deepEqual(planAnulacion({ note: null, amount: 0, yaAnulado: false, diaCerrado: false, factura: "sin-factura-viva" }), { ok: false, motivo: "monto-invalido" });
+   // Ya anulado + día cerrado → "ya-anulado": un doble clic no tiene que asustar a nadie.
+-  assert.deepEqual(planAnulacion({ note: null, amount: 100, yaAnulado: true, diaCerrado: true }), { ok: false, motivo: "ya-anulado" });
+-  assert.deepEqual(planAnulacion({ note: null, amount: 100, yaAnulado: false, diaCerrado: true }), { ok: false, motivo: "dia-cerrado" });
++  assert.deepEqual(planAnulacion({ note: null, amount: 100, yaAnulado: true, diaCerrado: true, factura: "sin-factura-viva" }), { ok: false, motivo: "ya-anulado" });
++  assert.deepEqual(planAnulacion({ note: null, amount: 100, yaAnulado: false, diaCerrado: true, factura: "sin-factura-viva" }), { ok: false, motivo: "dia-cerrado" });
++});
++
++// ENG-023: el cobro de un turno facturado no se anula mientras no exista la nota de crédito.
++test("planAnulacion: con factura autorizada o en camino el cobro no se anula; el doble clic sigue contestando 'ya está'", () => {
++  const base = { note: null, amount: 18000, yaAnulado: false, diaCerrado: false };
++  assert.deepEqual(planAnulacion({ ...base, factura: "autorizada" }), { ok: false, motivo: "facturado" });
++  assert.deepEqual(planAnulacion({ ...base, factura: "en-camino" }), { ok: false, motivo: "factura-en-camino" });
++  assert.deepEqual(planAnulacion({ ...base, diaCerrado: true, factura: "autorizada" }), { ok: false, motivo: "facturado" });
++  assert.deepEqual(planAnulacion({ ...base, yaAnulado: true, factura: "autorizada" }), { ok: false, motivo: "ya-anulado" });
++});
++
++test("anular el cobro de un turno con factura autorizada se rechaza y no escribe nada", async () => {
++  const { tx, collections, movements, payments } = makeTx({
++    cobros: [{ id: "col-1", amount: 18000 }],
++    movs: [{ collectionId: "col-1", type: "VENTA", amount: 18000, occurredAt: D("2026-09-10") }],
++    payment: { amount: 18000 },
++    facturas: [{ tenantId: TENANT, appointmentId: TURNO, status: "AUTHORIZED" }],
++  });
++  await assert.rejects(
++    () => anularCobroTurnoInTx(tx, TENANT, argsAnular()),
++    (e: unknown) => e instanceof AnulacionRechazada && e.motivo === "facturado" && /nota de crédito/.test(e.message),
++  );
++  assert.equal(collections.length, 1, "ninguna contrapartida");
++  assert.equal(movements.length, 1, "ningún egreso");
++  assert.equal(payments[0].amount, 18000, "el turno sigue cobrado");
++});
++
++test("la factura de otro turno o de otro negocio no frena la anulación del cobro", async () => {
++  const { tx } = makeTx({
++    cobros: [{ id: "col-1", amount: 18000 }],
++    movs: [{ collectionId: "col-1", type: "VENTA", amount: 18000, occurredAt: D("2026-09-10") }],
++    payment: { amount: 18000 },
++    facturas: [
++      { tenantId: "t2", appointmentId: TURNO, status: "AUTHORIZED" },
++      { tenantId: TENANT, appointmentId: "appt-otro", status: "AUTHORIZED" },
++      { tenantId: TENANT, appointmentId: TURNO, status: "REJECTED" },
++    ],
++  });
++  const r = await anularCobroTurnoInTx(tx, TENANT, argsAnular());
++  assert.equal(r.applied, true);
+ });
+ 
+ test("planCondonacion: sólo un turno prestado y con saldo", () => {
+diff --git a/src/lib/turnos/anulacion.ts b/src/lib/turnos/anulacion.ts
+index d6c4b70..b16229a 100644
+--- a/src/lib/turnos/anulacion.ts
++++ b/src/lib/turnos/anulacion.ts
+@@ -45,6 +45,7 @@ import { round2 } from "@/lib/round";
+ import type { Prisma } from "@/generated/prisma/client";
+ import { estadoCobroTurno, type CobroTurno, type PagoLegado } from "./cobros";
+ import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
++import { facturaDeLaVenta, mensajeFacturaViva, type FacturaDeLaVenta } from "@/lib/factura-viva";
+ 
+ export type AnulacionTx = Prisma.TransactionClient;
+ 
+@@ -183,6 +184,8 @@ export type MotivoAnulacionRechazada =
+   | "no-es-cobro" // se apuntó a una contrapartida o a una condonación
+   | "ya-anulado" // idempotencia: ya tiene su reversa
+   | "monto-invalido" // fila corrupta (≤ 0): no hay nada que revertir
++  | "facturado" // ENG-023: el turno tiene factura autorizada y todavía no hay nota de crédito
++  | "factura-en-camino" // ENG-023: su factura espera la respuesta de ARCA; el CAE puede llegar después
+   | "dia-cerrado"; // el día del asiento ya está cerrado: la corrección va con fecha de hoy
+ 
+ export type PlanAnulacion =
+@@ -191,17 +194,23 @@ export type PlanAnulacion =
+ 
+ /**
+  * ¿Se puede anular ESTE cobro? Pura. `yaAnulado` lo resuelve el repositorio buscando la
+- * contrapartida; `diaCerrado` lo resuelve la frontera del libro (`frontera-cierre.ts`).
++ * contrapartida; `diaCerrado` lo resuelve la frontera del libro (`frontera-cierre.ts`);
++ * `factura`, la factura del turno (`facturaDeLaVenta`, factura-viva.ts, ENG-023).
+  */
+ export function planAnulacion(input: {
+   note: string | null | undefined;
+   amount: number;
+   yaAnulado: boolean;
+   diaCerrado: boolean;
++  factura: FacturaDeLaVenta;
+ }): PlanAnulacion {
+   if (claseDeCobro(input.note) !== "cobro") return { ok: false, motivo: "no-es-cobro" };
+   if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, motivo: "monto-invalido" };
+   if (input.yaAnulado) return { ok: false, motivo: "ya-anulado" };
++  // La factura va antes que el día cerrado: sin nota de crédito, la plata de un turno
++  // facturado no se devuelve por acá, ni hoy ni con fecha de otro día.
++  if (input.factura === "autorizada") return { ok: false, motivo: "facturado" };
++  if (input.factura === "en-camino") return { ok: false, motivo: "factura-en-camino" };
+   // El día cerrado se evalúa AL FINAL: si ya está anulado, la respuesta correcta es
+   // "ya está", no "no se puede" — un doble clic no tiene que asustar a nadie.
+   if (input.diaCerrado) return { ok: false, motivo: "dia-cerrado" };
+@@ -259,6 +268,10 @@ export function mensajeAnulacionRechazada(motivo: MotivoAnulacionRechazada): str
+       return "Ese cobro no tiene un monto válido para revertir.";
+     case "ya-anulado":
+       return "Ese cobro ya estaba anulado.";
++    case "facturado":
++      return mensajeFacturaViva("autorizada", "turno");
++    case "factura-en-camino":
++      return mensajeFacturaViva("en-camino", "turno");
+     case "dia-cerrado":
+       return "Ese cobro es de un día ya cerrado y un día contado no se toca. La corrección va con fecha de hoy: cargala en el libro de caja como INGRESO/EGRESO, con el motivo.";
+   }
+@@ -380,6 +393,13 @@ export async function anularCobroTurnoInTx(
+     amount: montoOriginal,
+     yaAnulado: Boolean(yaAnulada),
+     diaCerrado: Boolean(args.diaCerradoHasta && args.esDiaCerrado(diaContable, args.diaCerradoHasta)),
++    // ENG-023: la factura del turno, por su enlace (`Invoice.appointmentId`) y dentro del negocio.
++    factura: facturaDeLaVenta(
++      await tx.invoice.findMany({
++        where: { tenantId, appointmentId: args.appointmentId },
++        select: { status: true },
++      }),
++    ),
+   });
+   if (!plan.ok) {
+     if (plan.motivo === "ya-anulado" && yaAnulada) return { applied: false, reason: "duplicate", reversaId: yaAnulada.id };
+diff --git a/src/lib/factura-viva.ts b/src/lib/factura-viva.ts
+new file mode 100644
+index 0000000..cc09270
+--- /dev/null
++++ b/src/lib/factura-viva.ts
+@@ -0,0 +1,47 @@
++// ============================================================================
++// ENG-023 · ¿La venta tiene una factura viva ante ARCA? (regla pura, sin base)
++// ============================================================================
++//
++// La usan las dos anulaciones que devuelven plata de una venta: la de un pedido
++// (`order-anulacion.ts`, por `Invoice.orderId`) y la del cobro de un turno
++// (`turnos/anulacion.ts`, por `Invoice.appointmentId`).
++//
++// Mientras no exista la nota de crédito (R4-F2), una venta con factura viva no se anula: el
++// pedido quedaría anulado, el libro con la devolución, y la factura con su CAE vigente ante ARCA
++// (medido en ENG-023: $121.000 declarados sin venta detrás). Cuando la nota de crédito exista,
++// anular la encola en la misma transacción y esta regla deja de rechazar.
++//
++//   · AUTHORIZED → "autorizada": tiene CAE; sólo la cancela una nota de crédito.
++//   · PENDING    → "en-camino": el envío a ARCA sigue abierto y el CAE puede llegar después de
++//                  anular. Se frena igual y se pide esperar la respuesta.
++//   · REJECTED   → no cuenta: ARCA no la autorizó, no hay nada que cancelar.
++//   · Cualquier otro estado (uno nuevo que este módulo no conoce) se trata como vivo: ante la
++//     duda, no se anula.
++
++/** El estado de la factura tal como lo guarda `Invoice.status`. */
++export type EstadoDeLaFactura = "PENDING" | "AUTHORIZED" | "REJECTED";
++
++export type FacturaDeLaVenta = "sin-factura-viva" | "autorizada" | "en-camino";
++
++export function facturaDeLaVenta(facturas: readonly { status: EstadoDeLaFactura | string }[]): FacturaDeLaVenta {
++  const vivas = facturas.filter((f) => f.status !== "REJECTED");
++  if (vivas.length === 0) return "sin-factura-viva";
++  return vivas.some((f) => f.status === "AUTHORIZED") ? "autorizada" : "en-camino";
++}
++
++/** El motivo del rechazo, para quien intentó anular. `que` nombra lo que se quiso anular. */
++export function mensajeFacturaViva(factura: Exclude<FacturaDeLaVenta, "sin-factura-viva">, que: "venta" | "turno"): string {
++  const sujeto = que === "venta" ? "Esa venta" : "Ese turno";
++  if (factura === "autorizada") {
++    return (
++      `${sujeto} tiene factura electrónica autorizada por ARCA. Si se anula acá, la factura sigue vigente ` +
++      `ante ARCA: primero hay que emitir la nota de crédito que la cancela, y el sistema todavía no la ` +
++      `emite. Pedile a tu contador que la emita y registrá la devolución de la plata en el libro de caja, ` +
++      `con el motivo.`
++    );
++  }
++  return (
++    `${sujeto} tiene una factura que todavía está esperando la respuesta de ARCA. Si se anula ahora, la ` +
++    `factura puede quedar autorizada igual. Esperá a que ARCA responda y volvé a intentarlo.`
++  );
++}
+diff --git a/src/lib/factura-viva.test.ts b/src/lib/factura-viva.test.ts
+new file mode 100644
+index 0000000..9a8bf51
+--- /dev/null
++++ b/src/lib/factura-viva.test.ts
+@@ -0,0 +1,51 @@
++// ============================================================================
++// ENG-023 · ¿La venta tiene una factura viva ante ARCA? (regla pura)
++// ============================================================================
++//
++// Una venta (o un turno) con factura AUTORIZADA no se anula mientras no exista la nota de
++// crédito que la cancela: anularla dejaría la factura con su CAE vigente y el libro con la
++// devolución, y el IVA de esa venta quedaría declarado sin venta detrás. Una factura EN CAMINO
++// (PENDING: el envío a ARCA sigue abierto) frena igual, porque el CAE puede llegar después de
++// anular. Una RECHAZADA no tiene CAE: no hay nada que cancelar ante ARCA.
++
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { facturaDeLaVenta, mensajeFacturaViva } from "@/lib/factura-viva";
++
++test("una venta sin facturas no tiene factura viva", () => {
++  assert.equal(facturaDeLaVenta([]), "sin-factura-viva");
++});
++
++test("una factura rechazada por ARCA no tiene CAE: la venta se puede anular", () => {
++  assert.equal(facturaDeLaVenta([{ status: "REJECTED" }]), "sin-factura-viva");
++});
++
++test("una factura autorizada deja la venta facturada", () => {
++  assert.equal(facturaDeLaVenta([{ status: "AUTHORIZED" }]), "autorizada");
++});
++
++test("una factura pendiente frena igual: el CAE puede llegar después de anular", () => {
++  assert.equal(facturaDeLaVenta([{ status: "PENDING" }]), "en-camino");
++});
++
++test("si conviven una rechazada y una autorizada, manda la autorizada", () => {
++  assert.equal(facturaDeLaVenta([{ status: "REJECTED" }, { status: "PENDING" }, { status: "AUTHORIZED" }]), "autorizada");
++});
++
++test("un estado desconocido se trata como vivo: ante la duda, no se anula", () => {
++  assert.equal(facturaDeLaVenta([{ status: "OTRO" }]), "en-camino");
++});
++
++test("el mensaje de la factura autorizada explica por qué no se anula y qué hacer", () => {
++  const venta = mensajeFacturaViva("autorizada", "venta");
++  assert.match(venta, /^Esa venta tiene factura electrónica autorizada por ARCA/);
++  assert.match(venta, /nota de crédito/);
++  assert.match(venta, /contador/);
++  const turno = mensajeFacturaViva("autorizada", "turno");
++  assert.match(turno, /^Ese turno tiene factura electrónica autorizada por ARCA/);
++});
++
++test("el mensaje de la factura en camino pide esperar la respuesta de ARCA", () => {
++  assert.match(mensajeFacturaViva("en-camino", "venta"), /esperá/i);
++  assert.match(mensajeFacturaViva("en-camino", "turno"), /^Ese turno/);
++});
+diff --git a/src/lib/anular-venta-facturada-postgres.test.ts b/src/lib/anular-venta-facturada-postgres.test.ts
+new file mode 100644
+index 0000000..bb6fde7
+--- /dev/null
++++ b/src/lib/anular-venta-facturada-postgres.test.ts
+@@ -0,0 +1,176 @@
++// ============================================================================
++// ENG-023 · Anular una venta facturada no deja la factura viva (contra Postgres)
++// ============================================================================
++//
++// Ejecuta las Server Actions REALES de anulación (`anularVenta`, order-actions.ts, y
++// `anularCobroTurno`, actions.ts: guardia, Prisma con RLS, transacción) con la sesión de la
++// dueña, contra una base efímera con todas las migraciones. Antes de ENG-023 las dos pasaban:
++// el pedido quedaba anulado, el libro con la devolución y la factura con su CAE vigente.
++//
++// La nota de crédito todavía no existe (R4-F2): hasta entonces, con factura autorizada o en
++// camino, la anulación se rechaza con un motivo claro y no cambia nada.
++
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { apuntarLaAppA, baseEfimeraDelArchivo } from "@/test/base-efimera";
++import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
++
++const laBase = baseEfimeraDelArchivo();
++
++/** Una factura ya decidida (como la deja el despacho de ARCA), enlazada a su origen. */
++function factura(
++  tenantId: string,
++  origen: { orderId: string } | { appointmentId: string },
++  status: "PENDING" | "AUTHORIZED" | "REJECTED",
++  numero: number,
++) {
++  return {
++    tenantId,
++    ...origen,
++    puntoVenta: 1,
++    tipoComprobante: 11,
++    concepto: 1,
++    docTipo: 99,
++    docNro: "0",
++    fecha: "20260924",
++    neto: "121000.00",
++    iva: "0.00",
++    total: "121000.00",
++    status,
++    ...(status === "AUTHORIZED" ? { cae: "86390000000001", caeVencimiento: "20261004", numero } : {}),
++    ...(status === "REJECTED" ? { rechazoMotivo: "10015: prueba" } : {}),
++  };
++}
++
++async function preparar(t: import("node:test").TestContext) {
++  const base = await laBase(t);
++  if (!base) return null;
++  apuntarLaAppA(base);
++  prepararAccionesDeServidor();
++  Object.assign(process.env, { DB_CONNECTION_LIMIT: "2", DB_CONNECT_TIMEOUT_MS: "3000" });
++  const { operatorPrisma } = await import("@/lib/operator-db");
++  return { base, operatorPrisma };
++}
++
++test("anularVenta: con factura autorizada o en camino se rechaza y el pedido no se anula; con la rechazada se anula; B no la toca", async (t) => {
++  const listo = await preparar(t);
++  if (!listo) return;
++  const { base, operatorPrisma } = listo;
++  const { anularVenta } = await import("@/lib/order-actions");
++  const a = base.a;
++  const [conCae, enCamino, rechazada] = a.pedidos;
++
++  for (const id of a.pedidos) {
++    await operatorPrisma.order.update({ where: { id }, data: { paid: true, total: 121000, status: "DELIVERED" } });
++  }
++  await operatorPrisma.invoice.create({ data: factura(a.id, { orderId: conCae }, "AUTHORIZED", 1) });
++  await operatorPrisma.invoice.create({ data: factura(a.id, { orderId: enCamino }, "PENDING", 0) });
++  await operatorPrisma.invoice.create({ data: factura(a.id, { orderId: rechazada }, "REJECTED", 0) });
++
++  const fd = (id: string) => {
++    const f = new FormData();
++    f.set("id", id);
++    f.set("motivo", "El cliente devolvió la mercadería");
++    return f;
++  };
++  const anular = (negocio: typeof a | typeof base.b, id: string) =>
++    ejecutarAccion({ negocio, usuario: negocio.duenia }, () => anularVenta({ ok: false, error: "" } as never, fd(id)));
++
++  // El negocio B no puede anular (ni ver) la venta de A.
++  const deB = await anular(base.b, conCae);
++  assert.equal(deB.tipo, "respuesta");
++  if (deB.tipo === "respuesta") assert.equal(deB.valor?.ok, false);
++
++  const r1 = await anular(a, conCae);
++  assert.equal(r1.tipo, "respuesta");
++  if (r1.tipo === "respuesta") {
++    assert.equal(r1.valor?.ok, false, JSON.stringify(r1.valor));
++    assert.match(String((r1.valor as { error?: string }).error), /factura electrónica autorizada por ARCA[^]*nota de crédito/);
++  }
++
++  const r2 = await anular(a, enCamino);
++  assert.equal(r2.tipo, "respuesta");
++  if (r2.tipo === "respuesta") {
++    assert.equal(r2.valor?.ok, false, JSON.stringify(r2.valor));
++    assert.match(String((r2.valor as { error?: string }).error), /esperando la respuesta de ARCA/);
++  }
++
++  const r3 = await anular(a, rechazada);
++  assert.equal(r3.tipo, "respuesta");
++  if (r3.tipo === "respuesta") assert.equal(r3.valor?.ok, true, JSON.stringify(r3.valor));
++
++  const pedidos = await operatorPrisma.order.findMany({ where: { id: { in: a.pedidos } }, select: { id: true, status: true } });
++  const estado = new Map(pedidos.map((p) => [p.id, p.status]));
++  assert.equal(estado.get(conCae), "DELIVERED", "con CAE: el pedido no quedó anulado");
++  assert.equal(estado.get(enCamino), "DELIVERED", "en camino: el pedido no quedó anulado");
++  assert.equal(estado.get(rechazada), "CANCELLED", "rechazada por ARCA: se anula como siempre");
++
++  const egresos = await operatorPrisma.cashMovement.count({ where: { tenantId: a.id, orderId: { in: [conCae, enCamino] } } });
++  assert.equal(egresos, 0, "ninguna devolución en el libro de las ventas facturadas");
++  const viva = await operatorPrisma.invoice.findFirstOrThrow({ where: { orderId: conCae } });
++  assert.equal(viva.status, "AUTHORIZED");
++});
++
++test("anularCobroTurno: con factura autorizada del turno se rechaza y el cobro sigue en pie; rechazada la factura, se anula", async (t) => {
++  const listo = await preparar(t);
++  if (!listo) return;
++  const { base, operatorPrisma } = listo;
++  const { anularCobroTurno } = await import("@/lib/actions");
++  const a = base.a;
++
++  const box = await operatorPrisma.box.create({ data: { tenantId: a.id, name: "Gabinete 1" } });
++  const prof = await operatorPrisma.professional.create({ data: { tenantId: a.id, name: "Lucía" } });
++  const serv = await operatorPrisma.service.create({ data: { tenantId: a.id, name: "Limpieza facial", durationMin: 60, price: 18000 } });
++  const turno = await operatorPrisma.appointment.create({
++    data: {
++      tenantId: a.id,
++      clientId: a.clientes[0],
++      professionalId: prof.id,
++      serviceId: serv.id,
++      boxId: box.id,
++      startsAt: new Date("2026-09-24T13:00:00Z"),
++      endsAt: new Date("2026-09-24T14:00:00Z"),
++      status: "COMPLETED",
++    },
++  });
++  await operatorPrisma.payment.create({
++    data: { tenantId: a.id, appointmentId: turno.id, amount: 18000, method: "EFECTIVO", status: "APPROVED" },
++  });
++  const cobro = await operatorPrisma.collection.create({
++    data: {
++      tenantId: a.id,
++      originType: "APPOINTMENT",
++      originId: turno.id,
++      appointmentId: turno.id,
++      amount: "18000.00",
++      method: "EFECTIVO",
++      collectedBy: `user:${a.duenia.id}`,
++    },
++  });
++  const fac = await operatorPrisma.invoice.create({ data: factura(a.id, { appointmentId: turno.id }, "AUTHORIZED", 2) });
++
++  const fd = () => {
++    const f = new FormData();
++    f.set("collectionId", cobro.id);
++    f.set("appointmentId", turno.id);
++    f.set("motivo", "Se cobró dos veces");
++    return f;
++  };
++
++  const r1 = await ejecutarAccion({ negocio: a, usuario: a.duenia }, () => anularCobroTurno(fd()));
++  assert.equal(r1.tipo, "respuesta");
++  if (r1.tipo === "respuesta") {
++    assert.equal(r1.valor?.ok, false, JSON.stringify(r1.valor));
++    assert.match(String((r1.valor as { error?: string }).error), /^Ese turno tiene factura electrónica autorizada por ARCA/);
++  }
++  assert.equal(await operatorPrisma.collection.count({ where: { tenantId: a.id, originId: turno.id } }), 1, "ninguna contrapartida");
++  assert.equal((await operatorPrisma.payment.findUniqueOrThrow({ where: { appointmentId: turno.id } })).amount, 18000);
++
++  // La misma anulación, con la factura rechazada por ARCA (sin CAE): pasa. Lo que la frenaba
++  // era la factura, no otra cosa del turno.
++  await operatorPrisma.invoice.update({ where: { id: fac.id }, data: { status: "REJECTED", cae: null, numero: null } });
++  const r2 = await ejecutarAccion({ negocio: a, usuario: a.duenia }, () => anularCobroTurno(fd()));
++  assert.equal(r2.tipo, "respuesta");
++  if (r2.tipo === "respuesta") assert.equal(r2.valor?.ok, true, JSON.stringify(r2.valor));
++  assert.equal(await operatorPrisma.collection.count({ where: { tenantId: a.id, originId: turno.id } }), 2, "cobro + contrapartida");
++});

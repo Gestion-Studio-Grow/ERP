@@ -1,0 +1,43 @@
+TAP version 13
+# Subtest: responsable inscripto a monotributista: el despacho pide y registra una Factura A (antes salía B)
+ok 1 - responsable inscripto a monotributista: el despacho pide y registra una Factura A (antes salía B)
+  ---
+  duration_ms: 3.848358
+  type: 'test'
+  ...
+# Subtest: fecha del comprobante fuera de la ventana de ARCA: se rechaza con el motivo y no se le pide nada a ARCA
+not ok 2 - fecha del comprobante fuera de la ventana de ARCA: se rechaza con el motivo y no se le pide nada a ARCA
+  ---
+  duration_ms: 2.123679
+  type: 'test'
+  location: '/home/user/erp/src/plugins/arca/handler-decision.test.ts:2:2580'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    async TestContext.<anonymous> (/home/user/erp/src/plugins/arca/handler-decision.test.ts:55:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: responsable inscripto sin la clase A cargada: no sale una A sola, se rechaza con el motivo y sin llamar a ARCA
+ok 3 - responsable inscripto sin la clase A cargada: no sale una A sola, se rechaza con el motivo y sin llamar a ARCA
+  ---
+  duration_ms: 0.656513
+  type: 'test'
+  ...
+# Subtest: servicios sin período: no se inventa con la fecha de la factura, se rechaza sin llamar a ARCA
+ok 4 - servicios sin período: no se inventa con la fecha de la factura, se rechaza sin llamar a ARCA
+  ---
+  duration_ms: 0.311213
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 3
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 432.370161

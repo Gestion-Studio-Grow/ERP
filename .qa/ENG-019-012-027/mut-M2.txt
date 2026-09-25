@@ -1,0 +1,2962 @@
+TAP version 13
+# Subtest: ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+ok 1 - ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+  ---
+  duration_ms: 2759.107644
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 2 - ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 133.207922
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 3 - ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 111.190697
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 4 - ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 97.009253
+  type: 'test'
+  ...
+# Subtest: ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 5 - ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 93.415915
+  type: 'test'
+  ...
+# Subtest: ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 6 - ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 160.050606
+  type: 'test'
+  ...
+# Subtest: ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 7 - ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 293.746727
+  type: 'test'
+  ...
+# Subtest: ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 8 - ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 392.363494
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+ok 9 - ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+  ---
+  duration_ms: 334.854709
+  type: 'test'
+  ...
+# Subtest: ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+ok 10 - ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+  ---
+  duration_ms: 230.547411
+  type: 'test'
+  ...
+# Subtest: aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+ok 11 - aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+  ---
+  duration_ms: 321.134683
+  type: 'test'
+  ...
+# Subtest: ENG-020 · dos ventas iguales a consumidor final: la que perdió el pedido no adopta el CAE de la otra; cada una con su número
+ok 12 - ENG-020 · dos ventas iguales a consumidor final: la que perdió el pedido no adopta el CAE de la otra; cada una con su número
+  ---
+  duration_ms: 441.251898
+  type: 'test'
+  ...
+# Subtest: ENG-020/021 · la consulta del número anotado falla con un código desconocido: la factura sigue pendiente (no se rechaza) y un solo CAE
+ok 13 - ENG-020/021 · la consulta del número anotado falla con un código desconocido: la factura sigue pendiente (no se rechaza) y un solo CAE
+  ---
+  duration_ms: 462.170963
+  type: 'test'
+  ...
+# Subtest: ENG-021 · volver a facturar con un envío viejo sin cerrar (corte entre el rechazo y el cierre): un solo envío vivo, un CAE, y el CAE es el de los importes nuevos
+ok 14 - ENG-021 · volver a facturar con un envío viejo sin cerrar (corte entre el rechazo y el cierre): un solo envío vivo, un CAE, y el CAE es el de los importes nuevos
+  ---
+  duration_ms: 266.925736
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un despacho viejo que obtiene el CAE DESPUÉS de que la venta se volvió a facturar no lo registra en la factura reabierta
+not ok 15 - ENG-021 · un despacho viejo que obtiene el CAE DESPUÉS de que la venta se volvió a facturar no lo registra en la factura reabierta
+  ---
+  duration_ms: 147.726398
+  type: 'test'
+  location: '/home/user/erp/src/lib/arca-dispatch-postgres.test.ts:5:1809'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    1 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/arca-dispatch-postgres.test.ts:397:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ENG-021 · un despacho viejo que recibe un rechazo DESPUÉS de que la venta se volvió a facturar no rechaza la factura reabierta
+ok 16 - ENG-021 · un despacho viejo que recibe un rechazo DESPUÉS de que la venta se volvió a facturar no rechaza la factura reabierta
+  ---
+  duration_ms: 172.762833
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un envío que quedó abierto para una factura ya rechazada se cierra sin volver a pedirle nada a ARCA
+ok 17 - ENG-021 · un envío que quedó abierto para una factura ya rechazada se cierra sin volver a pedirle nada a ARCA
+  ---
+  duration_ms: 90.998897
+  type: 'test'
+  ...
+# Subtest: ENG-019 · mientras un despacho tiene el envío, otro no lo toma ni le pide nada a ARCA; ARCA termina con un CAE
+not ok 18 - ENG-019 · mientras un despacho tiene el envío, otro no lo toma ni le pide nada a ARCA; ARCA termina con un CAE
+  ---
+  duration_ms: 65.960282
+  type: 'test'
+  location: '/home/user/erp/src/lib/arca-dispatch-postgres.test.ts:6:620'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   autorizados: 1,
+    -   autorizados: 0,
+        descartados: 0,
+        fallidos: 0,
+    +   procesados: 1,
+    -   procesados: 0,
+        rechazados: 0
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    procesados: 0
+    autorizados: 0
+    rechazados: 0
+    fallidos: 0
+    descartados: 0
+  actual:
+    procesados: 1
+    autorizados: 1
+    rechazados: 0
+    fallidos: 0
+    descartados: 0
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/arca-dispatch-postgres.test.ts:488:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ENG-019 · un despacho que perdió la reserva (se colgó más que ella) no anota ni pide el CAE: lo hace el que la tomó
+ok 19 - ENG-019 · un despacho que perdió la reserva (se colgó más que ella) no anota ni pide el CAE: lo hace el que la tomó
+  ---
+  duration_ms: 86.079873
+  type: 'test'
+  ...
+# Subtest: ENG-019 · 4 procesos a la vez sobre 12 pendientes de dos negocios, 3 series seguidas: 12 CAE por serie, ninguno de más, números de ARCA = base
+not ok 20 - ENG-019 · 4 procesos a la vez sobre 12 pendientes de dos negocios, 3 series seguidas: 12 CAE por serie, ninguno de más, números de ARCA = base
+  ---
+  duration_ms: 6237.944208
+  type: 'test'
+  location: '/home/user/erp/src/lib/arca-envios-concurrencia-postgres.test.ts:2:6197'
+  failureType: 'testCodeFailure'
+  error: |-
+    ningún CAE obtenido y descartado
+    
+    5 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 5
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/arca-envios-concurrencia-postgres.test.ts:211:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: ENG-019 · 50 de 50 iteraciones: dos ventas simultáneas de A y una de B con tres despachos a la vez → 0 CAE de más, 0 rechazadas con CAE, números de ARCA = base
+not ok 21 - ENG-019 · 50 de 50 iteraciones: dos ventas simultáneas de A y una de B con tres despachos a la vez → 0 CAE de más, 0 rechazadas con CAE, números de ARCA = base
+  ---
+  duration_ms: 3718.778138
+  type: 'test'
+  location: '/home/user/erp/src/lib/arca-envios-concurrencia-postgres.test.ts:4:31'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         7,
+    +         8
+    +       ],
+    +       numerosEsperados: [
+    +         7,
+    +         8
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         7
+    +       ],
+    +       numerosEsperados: [
+    +         7
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 0,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 2,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 0,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         9,
+    +         10
+    +       ],
+    +       numerosEsperados: [
+    +         9,
+    +         10
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         8
+    +       ],
+    +       numerosEsperados: [
+    +         8
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 1,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         13,
+    +         14
+    +       ],
+    +       numerosEsperados: [
+    +         13,
+    +         14
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         10
+    +       ],
+    +       numerosEsperados: [
+    +         10
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 3,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 2,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         15,
+    +         16
+    +       ],
+    +       numerosEsperados: [
+    +         15,
+    +         16
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         11
+    +       ],
+    +       numerosEsperados: [
+    +         11
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 4,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         17,
+    +         18
+    +       ],
+    +       numerosEsperados: [
+    +         17,
+    +         18
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         12
+    +       ],
+    +       numerosEsperados: [
+    +         12
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 5,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 2,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 0,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         19,
+    +         20
+    +       ],
+    +       numerosEsperados: [
+    +         19,
+    +         20
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         13
+    +       ],
+    +       numerosEsperados: [
+    +         13
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 6,
+    +     vueltas: [
+    +       {
+    +         autorizados: 2,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 0,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         21,
+    +         22
+    +       ],
+    +       numerosEsperados: [
+    +         21,
+    +         22
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         14
+    +       ],
+    +       numerosEsperados: [
+    +         14
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 7,
+    +     vueltas: [
+    +       {
+    +         autorizados: 0,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 2,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         23,
+    +         24
+    +       ],
+    +       numerosEsperados: [
+    +         23,
+    +         24
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         15
+    +       ],
+    +       numerosEsperados: [
+    +         15
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 8,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         25,
+    +         26
+    +       ],
+    +       numerosEsperados: [
+    +         25,
+    +         26
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         16
+    +       ],
+    +       numerosEsperados: [
+    +         16
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 9,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 2,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 0,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         31,
+    +         32
+    +       ],
+    +       numerosEsperados: [
+    +         31,
+    +         32
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         19
+    +       ],
+    +       numerosEsperados: [
+    +         19
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 12,
+    +     vueltas: [
+    +       {
+    +         autorizados: 0,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 2,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         33,
+    +         34
+    +       ],
+    +       numerosEsperados: [
+    +         33,
+    +         34
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         20
+    +       ],
+    +       numerosEsperados: [
+    +         20
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 13,
+    +     vueltas: [
+    +       {
+    +         autorizados: 2,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 0,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         37,
+    +         38
+    +       ],
+    +       numerosEsperados: [
+    +         37,
+    +         38
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         22
+    +       ],
+    +       numerosEsperados: [
+    +         22
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 15,
+    +     vueltas: [
+    +       {
+    +         autorizados: 0,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 2,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         41,
+    +         42
+    +       ],
+    +       numerosEsperados: [
+    +         41,
+    +         42
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         24
+    +       ],
+    +       numerosEsperados: [
+    +         24
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 17,
+    +     vueltas: [
+    +       {
+    +         autorizados: 0,
+    +         descartados: 2,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 2,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         47,
+    +         48
+    +       ],
+    +       numerosEsperados: [
+    +         47,
+    +         48
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         27
+    +       ],
+    +       numerosEsperados: [
+    +         27
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 20,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         55,
+    +         56
+    +       ],
+    +       numerosEsperados: [
+    +         55,
+    +         56
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         31
+    +       ],
+    +       numerosEsperados: [
+    +         31
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 24,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 0,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 2,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         61,
+    +         62
+    +       ],
+    +       numerosEsperados: [
+    +         61,
+    +         62
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         34
+    +       ],
+    +       numerosEsperados: [
+    +         34
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 27,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 0,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 2,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         63,
+    +         64
+    +       ],
+    +       numerosEsperados: [
+    +         63,
+    +         64
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         35
+    +       ],
+    +       numerosEsperados: [
+    +         35
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 28,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 2,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         69,
+    +         70
+    +       ],
+    +       numerosEsperados: [
+    +         69,
+    +         70
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         38
+    +       ],
+    +       numerosEsperados: [
+    +         38
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 31,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 2,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 2,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 0,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         71,
+    +         72
+    +       ],
+    +       numerosEsperados: [
+    +         71,
+    +         72
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         39
+    +       ],
+    +       numerosEsperados: [
+    +         39
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 32,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 0,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 2,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         73,
+    +         74
+    +       ],
+    +       numerosEsperados: [
+    +         73,
+    +         74
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         40
+    +       ],
+    +       numerosEsperados: [
+    +         40
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 33,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 2,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         75,
+    +         76
+    +       ],
+    +       numerosEsperados: [
+    +         75,
+    +         76
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         41
+    +       ],
+    +       numerosEsperados: [
+    +         41
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 34,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         77,
+    +         78
+    +       ],
+    +       numerosEsperados: [
+    +         77,
+    +         78
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         42
+    +       ],
+    +       numerosEsperados: [
+    +         42
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 35,
+    +     vueltas: [
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 2,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 0,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         83,
+    +         84
+    +       ],
+    +       numerosEsperados: [
+    +         83,
+    +         84
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         45
+    +       ],
+    +       numerosEsperados: [
+    +         45
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 38,
+    +     vueltas: [
+    +       {
+    +         autorizados: 0,
+    +         descartados: 2,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 2,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         99,
+    +         100
+    +       ],
+    +       numerosEsperados: [
+    +         99,
+    +         100
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         53
+    +       ],
+    +       numerosEsperados: [
+    +         53
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 46,
+    +     vueltas: [
+    +       {
+    +         autorizados: 2,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 0,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         101,
+    +         102
+    +       ],
+    +       numerosEsperados: [
+    +         101,
+    +         102
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         54
+    +       ],
+    +       numerosEsperados: [
+    +         54
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 47,
+    +     vueltas: [
+    +       {
+    +         autorizados: 2,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 0,
+    +         descartados: 2,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   },
+    +   {
+    +     ca: {
+    +       autorizadas: 2,
+    +       caeDistintosEnLaBase: 2,
+    +       caeEnArca: 2,
+    +       enviosAbiertos: 0,
+    +       facturas: 2,
+    +       numerosDeLaBase: [
+    +         103,
+    +         104
+    +       ],
+    +       numerosEsperados: [
+    +         103,
+    +         104
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     cb: {
+    +       autorizadas: 1,
+    +       caeDistintosEnLaBase: 1,
+    +       caeEnArca: 1,
+    +       enviosAbiertos: 0,
+    +       facturas: 1,
+    +       numerosDeLaBase: [
+    +         55
+    +       ],
+    +       numerosEsperados: [
+    +         55
+    +       ],
+    +       numerosIgualesAArca: true,
+    +       rechazadas: 0
+    +     },
+    +     i: 48,
+    +     vueltas: [
+    +       {
+    +         autorizados: 2,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 2,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 0,
+    +         descartados: 0,
+    +         fallidos: 0,
+    +         procesados: 0,
+    +         rechazados: 0
+    +       },
+    +       {
+    +         autorizados: 1,
+    +         descartados: 1,
+    +         fallidos: 0,
+    +         procesados: 1,
+    +         rechazados: 0
+    +       }
+    +     ]
+    +   }
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0:
+      i: 0
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 7
+          1: 8
+        numerosEsperados:
+          0: 7
+          1: 8
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 7
+        numerosEsperados:
+          0: 7
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        1:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        2:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    1:
+      i: 1
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 9
+          1: 10
+        numerosEsperados:
+          0: 9
+          1: 10
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 8
+        numerosEsperados:
+          0: 8
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        1:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        2:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    2:
+      i: 3
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 13
+          1: 14
+        numerosEsperados:
+          0: 13
+          1: 14
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 10
+        numerosEsperados:
+          0: 10
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 2
+        1:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        2:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+    3:
+      i: 4
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 15
+          1: 16
+        numerosEsperados:
+          0: 15
+          1: 16
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 11
+        numerosEsperados:
+          0: 11
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        1:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        2:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+    4:
+      i: 5
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 17
+          1: 18
+        numerosEsperados:
+          0: 17
+          1: 18
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 12
+        numerosEsperados:
+          0: 12
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        1:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        2:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    5:
+      i: 6
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 19
+          1: 20
+        numerosEsperados:
+          0: 19
+          1: 20
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 13
+        numerosEsperados:
+          0: 13
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        1:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        2:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    6:
+      i: 7
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 21
+          1: 22
+        numerosEsperados:
+          0: 21
+          1: 22
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 14
+        numerosEsperados:
+          0: 14
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        1:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        2:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    7:
+      i: 8
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 23
+          1: 24
+        numerosEsperados:
+          0: 23
+          1: 24
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 15
+        numerosEsperados:
+          0: 15
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        1:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        2:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+    8:
+      i: 9
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 25
+          1: 26
+        numerosEsperados:
+          0: 25
+          1: 26
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 16
+        numerosEsperados:
+          0: 16
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        1:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        2:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    9:
+      i: 12
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 31
+          1: 32
+        numerosEsperados:
+          0: 31
+          1: 32
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 19
+        numerosEsperados:
+          0: 19
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        1:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        2:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    10:
+      i: 13
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 33
+          1: 34
+        numerosEsperados:
+          0: 33
+          1: 34
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 20
+        numerosEsperados:
+          0: 20
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        1:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        2:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    11:
+      i: 15
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 37
+          1: 38
+        numerosEsperados:
+          0: 37
+          1: 38
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 22
+        numerosEsperados:
+          0: 22
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        1:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        2:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    12:
+      i: 17
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 41
+          1: 42
+        numerosEsperados:
+          0: 41
+          1: 42
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 24
+        numerosEsperados:
+          0: 24
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 2
+        1:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        2:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    13:
+      i: 20
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 47
+          1: 48
+        numerosEsperados:
+          0: 47
+          1: 48
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 27
+        numerosEsperados:
+          0: 27
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        1:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        2:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    14:
+      i: 24
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 55
+          1: 56
+        numerosEsperados:
+          0: 55
+          1: 56
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 31
+        numerosEsperados:
+          0: 31
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        1:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        2:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    15:
+      i: 27
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 61
+          1: 62
+        numerosEsperados:
+          0: 61
+          1: 62
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 34
+        numerosEsperados:
+          0: 34
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        1:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        2:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    16:
+      i: 28
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 63
+          1: 64
+        numerosEsperados:
+          0: 63
+          1: 64
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 35
+        numerosEsperados:
+          0: 35
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 2
+        1:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        2:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+    17:
+      i: 31
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 69
+          1: 70
+        numerosEsperados:
+          0: 69
+          1: 70
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 38
+        numerosEsperados:
+          0: 38
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 2
+        1:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        2:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    18:
+      i: 32
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 71
+          1: 72
+        numerosEsperados:
+          0: 71
+          1: 72
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 39
+        numerosEsperados:
+          0: 39
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        1:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        2:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    19:
+      i: 33
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 73
+          1: 74
+        numerosEsperados:
+          0: 73
+          1: 74
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 40
+        numerosEsperados:
+          0: 40
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 2
+        1:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        2:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    20:
+      i: 34
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 75
+          1: 76
+        numerosEsperados:
+          0: 75
+          1: 76
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 41
+        numerosEsperados:
+          0: 41
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        1:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        2:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+    21:
+      i: 35
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 77
+          1: 78
+        numerosEsperados:
+          0: 77
+          1: 78
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 42
+        numerosEsperados:
+          0: 42
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        1:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        2:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    22:
+      i: 38
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 83
+          1: 84
+        numerosEsperados:
+          0: 83
+          1: 84
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 45
+        numerosEsperados:
+          0: 45
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 2
+        1:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        2:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    23:
+      i: 46
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 99
+          1: 100
+        numerosEsperados:
+          0: 99
+          1: 100
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 53
+        numerosEsperados:
+          0: 53
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        1:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        2:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+    24:
+      i: 47
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 101
+          1: 102
+        numerosEsperados:
+          0: 101
+          1: 102
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 54
+        numerosEsperados:
+          0: 54
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+        1:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 2
+        2:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+    25:
+      i: 48
+      ca:
+        facturas: 2
+        autorizadas: 2
+        rechazadas: 0
+        caeEnArca: 2
+        caeDistintosEnLaBase: 2
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 103
+          1: 104
+        numerosEsperados:
+          0: 103
+          1: 104
+        enviosAbiertos: 0
+      cb:
+        facturas: 1
+        autorizadas: 1
+        rechazadas: 0
+        caeEnArca: 1
+        caeDistintosEnLaBase: 1
+        numerosIgualesAArca: true
+        numerosDeLaBase:
+          0: 55
+        numerosEsperados:
+          0: 55
+        enviosAbiertos: 0
+      vueltas:
+        0:
+          procesados: 2
+          autorizados: 2
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        1:
+          procesados: 0
+          autorizados: 0
+          rechazados: 0
+          fallidos: 0
+          descartados: 0
+        2:
+          procesados: 1
+          autorizados: 1
+          rechazados: 0
+          fallidos: 0
+          descartados: 1
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/arca-envios-concurrencia-postgres.test.ts:248:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ENG-019 · 20 envíos de A que fallan y 1 de B: B queda autorizada en la PRIMERA corrida
+ok 22 - ENG-019 · 20 envíos de A que fallan y 1 de B: B queda autorizada en la PRIMERA corrida
+  ---
+  duration_ms: 440.274174
+  type: 'test'
+  ...
+1..22
+# tests 22
+# suites 0
+# pass 18
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10849.221577

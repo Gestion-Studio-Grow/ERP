@@ -8,10 +8,15 @@ export { arcaModule } from './module';
 export {
   procesarInvoiceCreated,
   ComprobanteInvalidoError,
+  autorizarSinDuplicar,
+  esElMismoComprobante,
   type HandlerDeps,
+  type RegistroDeIntentos,
 } from './handler';
 export type {
   InvoiceCreatedEvent,
+  IntentoArca,
+  NumeroUsadoPorOtraFactura,
   RegisterFiscalDocumentInput,
   RegisterFiscalDocument,
   SubtotalIvaCore,
@@ -57,8 +62,11 @@ export {
   type EmisorConfig,
   type ResultadoCae,
   type ObservacionArca,
+  type ComprobanteConsultado,
   ArcaRechazoError,
+  ArcaPasajeroError,
 } from './afip/port';
+export { esErrorPasajero, CODIGOS_PASAJEROS_ARCA } from './domain/errores-arca';
 export { StubAfipClient } from './afip/stub';
 export {
   SoapAfipClient,

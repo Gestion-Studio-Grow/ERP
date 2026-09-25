@@ -12,6 +12,7 @@
 import { CriterioBusqueda, MercadoPagoClient, PagoMP } from "./port";
 import { ClasificadorPort } from "./classifier";
 import { ReconciliacionPort } from "./reconciliation";
+import { duenoDelCobro, type DuenoDelCobro } from "./core-contract";
 
 /** Factura un pago MP y devuelve el `invoiceId` (o null si no se pudo). */
 export type FacturarPagoMP = (pago: PagoMP, tenantId: string) => Promise<string | null>;
@@ -51,6 +52,12 @@ export interface ResumenIngesta {
 
 const MAX_INTENTOS_DEFAULT = 3;
 
+/** Por qué un cobro con dueño no se factura como venta suelta (lo lee el dueño en el panel). */
+const MOTIVO_COBRO_CON_DUENO: Record<DuenoDelCobro["tipo"], string> = {
+  turno: "Cobro de un turno por link de Mercado Pago: la factura es la del turno, no una venta suelta.",
+  pedido: "Cobro de un pedido por link de Mercado Pago: la factura sale del pedido con «Facturar», no como venta suelta.",
+};
+
 /** Procesa un único pago (usado por el webhook y por el backfill). Idempotente. */
 export async function facturarPagoSiCorresponde(
   pago: PagoMP,
@@ -59,6 +66,17 @@ export async function facturarPagoSiCorresponde(
 ): Promise<void> {
   if (await deps.reconciliacion.yaProcesado(pago.id)) {
     resumen.saltados++;
+    return;
+  }
+
+  // Un cobro con dueño no es venta suelta. El link de un turno lo factura el aviso por el turno
+  // (origen APPOINTMENT); el de un pedido lo cobra el pedido y la factura sale de la venta
+  // (origen ORDER). Facturarlo acá (origen MP_PAYMENT, otra clave de unicidad) emitía una
+  // segunda Factura C con CAE por el mismo ingreso. La referencia se lee igual que en el aviso.
+  const dueno = duenoDelCobro(pago.externalReference);
+  if (dueno) {
+    await deps.reconciliacion.marcarNoFacturable(pago.id, MOTIVO_COBRO_CON_DUENO[dueno.tipo]);
+    resumen.noFacturables++;
     return;
   }
 

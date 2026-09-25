@@ -1,0 +1,16 @@
+ scripts/demo-factura.mts                    |   5 +
+ src/lib/arca-dispatch.ts                    | 257 +++++++++++++++------
+ src/plugins/arca/afip/port.ts               |  52 +++++
+ src/plugins/arca/afip/prueba.test.ts        |   9 +-
+ src/plugins/arca/afip/soap.test.ts          |  94 +++++++-
+ src/plugins/arca/afip/soap.ts               | 335 ++++++++++++++++++++++++----
+ src/plugins/arca/afip/stub.ts               |  34 ++-
+ src/plugins/arca/core-contract.ts           |  38 ++++
+ src/plugins/arca/domain/catalogos.ts        |  19 +-
+ src/plugins/arca/domain/comprobante.test.ts |  36 ++-
+ src/plugins/arca/domain/comprobante.ts      | 163 ++++++++++++--
+ src/plugins/arca/domain/validacion.test.ts  | 112 +++++++++-
+ src/plugins/arca/domain/validacion.ts       | 131 +++++++++--
+ src/plugins/arca/handler.ts                 | 247 ++++++++++++++++++--
+ src/plugins/arca/index.ts                   |   8 +
+ 15 files changed, 1349 insertions(+), 191 deletions(-)

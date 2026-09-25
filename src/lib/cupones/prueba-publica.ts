@@ -74,9 +74,9 @@ export const frenoDeCupones = crearFrenoDeCupones();
  * motivo no se dice.
  *
  * `exigeDescuento`: el "tiene un descuento cargado" (value > 0) es regla de los PEDIDOS
- * (`aplicarCupon` ya lo exigía antes de la tanda 2a). La reserva de CH (`checkCoupon`) nunca lo
- * miró —y `bookAppointment` aplica igual un cupón en 0—, así que ahí va en false: la tanda 2a
- * cambió en CH el texto y el freno, no qué cupón vale.
+ * (`aplicarCupon` ya lo exigía antes de la tanda 2a). La reserva de CH (`checkCoupon`) va en
+ * false: ahí el cupón en 0 lo rechaza después `aplicarCupon` con su motivo ("no llega a
+ * descontar nada"), igual que la reserva, que ya no lo gasta (ENG-109).
  */
 export function cuponUsable(
   c: Pick<CuponLeido, "active" | "expiresAt" | "maxUses" | "usedCount" | "value"> | null,

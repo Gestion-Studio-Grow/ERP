@@ -1,17 +1,15 @@
-// ENG-001, criterio 3: el seed REAL (prisma/seed.ts) contra Postgres con el ROL DUEÑO, que es el
-// caso peligroso (sin RLS de por medio). Base propia `erp_seed_*` creada por el test, con todas las
-// migraciones; dos negocios: el de muestra y otro con datos. Después del seed, el otro negocio
-// tiene exactamente las mismas filas. Además: contra una URL de Neon el seed sale con error antes
-// de conectarse. Sin el Postgres local (/tmp/pgrun), la parte de base se SALTEA diciéndolo.
+// ENG-001, criterio 3: el seed REAL (prisma/seed.ts) contra Postgres con el ROL DUEÑO de las
+// tablas, que es el caso peligroso (exento de RLS). Base efímera propia (src/test/base-efimera.ts:
+// todas las migraciones, los negocios A y B) más el negocio de muestra y otro con datos. Después
+// del seed, los demás negocios tienen exactamente las mismas filas. Además: contra una URL de Neon
+// el seed sale con error antes de conectarse. Sin Postgres local la parte de base se SALTEA
+// diciéndolo; en CI, falla.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import pg from "pg";
-
-const SOCKET = "/tmp/pgrun";
-const PUERTO = 5433;
-const urlDe = (db: string) => `postgresql://postgres@localhost:${PUERTO}/${db}?host=${SOCKET}`;
+import { baseEfimeraParaElTest } from "@/test/base-efimera";
 
 function correr(cmd: string, args: string[], databaseUrl: string) {
   return spawnSync(cmd, args, {
@@ -29,20 +27,11 @@ test("el seed contra una base de Neon sale con error y no se conecta", () => {
   assert.ok(!`${r.stdout}${r.stderr}`.includes("clave-secreta"), "no muestra la contraseña");
 });
 
-test("el seed con el rol dueño recarga sólo el negocio de muestra: el otro negocio queda igual", async (t) => {
-  const admin = new pg.Client({ connectionString: urlDe("postgres"), connectionTimeoutMillis: 3000 });
+test("el seed con el rol dueño recarga sólo el negocio de muestra: los otros negocios quedan igual", async (t) => {
+  const laBase = await baseEfimeraParaElTest(t);
+  if (!laBase) return;
+  const base = new pg.Client({ connectionString: laBase.urlDuenio });
   try {
-    await admin.connect();
-  } catch {
-    return t.skip(`sin Postgres local (${SOCKET}:${PUERTO}): el seed contra la base queda SIN verificar`);
-  }
-  const db = `erp_seed_${process.pid}_${Math.floor(Math.random() * 1e6)}`;
-  await admin.query(`CREATE DATABASE ${db}`);
-  const base = new pg.Client({ connectionString: urlDe(db) });
-  try {
-    const mig = correr("npx", ["prisma", "migrate", "deploy"], urlDe(db));
-    assert.equal(mig.status, 0, `migrate deploy: ${mig.stderr}`);
-
     await base.connect();
     await base.query(`
       INSERT INTO "Tenant" (id, name, slug, "updatedAt") VALUES
@@ -64,18 +53,18 @@ test("el seed con el rol dueño recarga sólo el negocio de muestra: el otro neg
       );
       return Object.fromEntries(r.rows.map((x) => [x.tabla, Number(x.n)]));
     };
-    const otroAntes = await filasDe("t-otro");
+    const otros = ["t-otro", laBase.a.id, laBase.b.id];
+    const antes = await Promise.all(otros.map(filasDe));
+    assert.deepEqual(antes[1], { Box: 0, Client: 2, Service: 0, Professional: 0 }, "el negocio A de la base efímera");
 
-    const seed = correr("npx", ["tsx", "prisma/seed.ts"], urlDe(db));
+    const seed = correr("npx", ["tsx", "prisma/seed.ts"], laBase.urlDuenio);
     assert.equal(seed.status, 0, `seed: ${seed.stderr}`);
 
-    assert.deepEqual(await filasDe("t-otro"), otroAntes, "el otro negocio no pierde ni gana filas");
+    assert.deepEqual(await Promise.all(otros.map(filasDe)), antes, "los otros negocios no pierden ni ganan filas");
     assert.deepEqual(await filasDe("t-muestra"), { Box: 3, Client: 1, Service: 5, Professional: 3 });
     const vieja = await base.query(`SELECT 1 FROM "Client" WHERE id = 'c-vieja'`);
     assert.equal(vieja.rowCount, 0, "la ficha vieja del negocio de muestra se reemplaza");
   } finally {
     await base.end().catch(() => {});
-    await admin.query(`DROP DATABASE IF EXISTS ${db} WITH (FORCE)`);
-    await admin.end();
   }
 });

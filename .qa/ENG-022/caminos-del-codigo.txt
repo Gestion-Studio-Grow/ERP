@@ -1,0 +1,11 @@
+# Caminos del código que escriben Invoice (medido 2026-09-25)
+$ grep -rnE "invoice\.(update|updateMany|delete|deleteMany|upsert)\b" src scripts prisma/*.ts (sin src/generated ni tests)
+src/lib/invoice-core.ts:227:      const reabierta = await tx.invoice.updateMany({
+src/lib/invoice-core.ts:409:    tx.invoice.updateMany({
+src/lib/invoice-core.ts:469:      tx.invoice.updateMany({
+$ grep -rniE "(UPDATE|DELETE FROM|TRUNCATE)[^;]*\"Invoice\"" src scripts prisma/*.ts (sin tests)
+(fin)
+
+        where: { id: existing.id, tenantId: input.tenantId, status: "REJECTED", cae: null },
+      where: { id: input.invoiceId, tenantId: input.tenantId, status: "PENDING" },
+        where: { id: invoiceId, tenantId, status: "PENDING" },

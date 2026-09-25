@@ -59,7 +59,7 @@ export function resumirAgenda(grupos: readonly { status: string; _count: { _all:
   const faltan = cuantos("PENDING") + confirmados;
   const dia = plural(total, "turno hoy", "turnos hoy");
   if (faltan === 0) return { valor: fmtNumberAR(total), detalle: `${dia} · no falta ninguno` };
-  const pct = Math.round((confirmados / faltan) * 100);
+  const pct = Math.round((confirmados / faltan) * 100); // no-es-plata: porcentaje de turnos
   return { valor: fmtNumberAR(total), detalle: `${dia} · ${pct}% de los que faltan confirmados` };
 }
 
@@ -86,7 +86,7 @@ export const confirmarManana: LoaderKpi = async ({ db, tenantId, hoy }) => {
 /** "62% de los turnos de mañana ya avisados", o '—' si mañana no hay turnos. PURA. */
 export function resumirCobertura(c: { total: number; avisados: number }): DatoKpi {
   if (c.total === 0) return { sinDato: "Mañana no hay turnos reservados ni confirmados" };
-  const pct = Math.round((c.avisados / c.total) * 100);
+  const pct = Math.round((c.avisados / c.total) * 100); // no-es-plata: porcentaje de avisos
   return { valor: `${pct}%`, detalle: `de los turnos de mañana ya avisados (${c.avisados} de ${c.total})` };
 }
 

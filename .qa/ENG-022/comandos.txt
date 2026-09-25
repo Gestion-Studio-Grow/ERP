@@ -1,0 +1,1 @@
+node --import tsx --test src/lib/comprobante-autorizado-inmutable-postgres.test.ts  (verde-1.txt); mutaciones: rojo-antes-sin-migracion, mut-M1..M4; npm test > npm-test.txt (5 rojos ajenos: xlsx x4 y redondeos-locales por CajaRenglon.tsx/LocalesRenglon.tsx sin seguimiento del rediseño); npx tsc --noEmit -p . (tsc.txt, 0); npx eslint --max-warnings=0 <2 tests> (eslint.txt, 0)

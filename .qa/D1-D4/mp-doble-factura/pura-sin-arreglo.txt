@@ -1,0 +1,128 @@
+TAP version 13
+# Subtest: sincronizar Mercado Pago: el cobro del link de un turno no se factura como venta suelta y queda anotado por qué
+not ok 1 - sincronizar Mercado Pago: el cobro del link de un turno no se factura como venta suelta y queda anotado por qué
+  ---
+  duration_ms: 5.916125
+  type: 'test'
+  location: '/home/user/erp/src/plugins/mercadopago/ingest-referencia.test.ts:2:1971'
+  failureType: 'testCodeFailure'
+  error: |-
+    la factura de ese cobro es la del turno: no puede salir otra
+    + actual - expected
+    
+    + [
+    +   'mp-turno'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'mp-turno'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/plugins/mercadopago/ingest-referencia.test.ts:54:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: sincronizar Mercado Pago: el cobro del link de un pedido no se factura como venta suelta (la factura sale del pedido)
+not ok 2 - sincronizar Mercado Pago: el cobro del link de un pedido no se factura como venta suelta (la factura sale del pedido)
+  ---
+  duration_ms: 0.91391
+  type: 'test'
+  location: '/home/user/erp/src/plugins/mercadopago/ingest-referencia.test.ts:2:2584'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   'mp-pedido'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'mp-pedido'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/plugins/mercadopago/ingest-referencia.test.ts:65:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: sincronizar Mercado Pago: la venta suelta (sin referencia) se sigue facturando, y una segunda sincronización no repite nada
+not ok 3 - sincronizar Mercado Pago: la venta suelta (sin referencia) se sigue facturando, y una segunda sincronización no repite nada
+  ---
+  duration_ms: 0.629912
+  type: 'test'
+  location: '/home/user/erp/src/plugins/mercadopago/ingest-referencia.test.ts:2:3138'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        'mp-suelta',
+    +   'mp-turno',
+    +   'mp-pedido'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'mp-suelta'
+  actual:
+    0: 'mp-suelta'
+    1: 'mp-turno'
+    2: 'mp-pedido'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/plugins/mercadopago/ingest-referencia.test.ts:75:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: el camino de un solo pago (aviso de venta directa) tampoco factura un cobro con dueño
+not ok 4 - el camino de un solo pago (aviso de venta directa) tampoco factura un cobro con dueño
+  ---
+  duration_ms: 0.458001
+  type: 'test'
+  location: '/home/user/erp/src/plugins/mercadopago/ingest-referencia.test.ts:2:3853'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   'mp-turno'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'mp-turno'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/plugins/mercadopago/ingest-referencia.test.ts:87:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: dueño del cobro: la misma lectura de la referencia que usa el aviso de Mercado Pago
+ok 5 - dueño del cobro: la misma lectura de la referencia que usa el aviso de Mercado Pago
+  ---
+  duration_ms: 1.669004
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 1
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 548.264344

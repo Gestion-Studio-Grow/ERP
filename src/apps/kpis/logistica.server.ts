@@ -29,6 +29,7 @@
 // día (`whereVentasCobradas`), y sólo se lee con `monto`, porque el porcentaje es plata.
 
 import { businessWallTimeToUtc } from "@/lib/datetime";
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { computeStockValuation, whereEnNegativo, whereProductosDeStock } from "@/lib/inventory/valuation";
 import { SELECT_INGRESOS, costosVigentesDe } from "@/lib/stock/costo";
 import { clasificarAjuste, whereAjustesDelPeriodo } from "@/lib/stock/merma-core";
@@ -115,7 +116,7 @@ export function resumirMermasDelMes(
     if (m.unitCost != null && m.unitCost > 0) pesos += Math.abs(m.qty) * m.unitCost;
     else sinCosto++;
   }
-  return { cargadas, pesos: Math.round(pesos * 100) / 100, sinCosto, porRecepcion };
+  return { cargadas, pesos: redondearAlCentavo(pesos), sinCosto, porRecepcion };
 }
 
 /** "(3,2 % de la venta)": la merma a costo sobre lo cobrado del mes. Sin venta, nada. PURA. */

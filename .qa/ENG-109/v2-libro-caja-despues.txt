@@ -1,0 +1,280 @@
+TAP version 13
+# Subtest: el CSV lleva el resumen arriba y después los movimientos
+ok 1 - el CSV lleva el resumen arriba y después los movimientos
+  ---
+  duration_ms: 3.115567
+  type: 'test'
+  ...
+# Subtest: los importes usan COMA decimal para que Excel es-AR los sume
+ok 2 - los importes usan COMA decimal para que Excel es-AR los sume
+  ---
+  duration_ms: 0.677944
+  type: 'test'
+  ...
+# Subtest: el medio centavo sube, con la misma regla que el resto de la plata: $4,185 sale 4,19
+ok 3 - el medio centavo sube, con la misma regla que el resto de la plata: $4,185 sale 4,19
+  ---
+  duration_ms: 0.431772
+  type: 'test'
+  ...
+# Subtest: un detalle con punto y coma no parte la fila
+ok 4 - un detalle con punto y coma no parte la fila
+  ---
+  duration_ms: 0.520483
+  type: 'test'
+  ...
+# Subtest: un detalle con comillas las duplica (RFC 4180)
+ok 5 - un detalle con comillas las duplica (RFC 4180)
+  ---
+  duration_ms: 0.601316
+  type: 'test'
+  ...
+# Subtest: ingreso y egreso van en columnas distintas y el saldo acompaña
+ok 6 - ingreso y egreso van en columnas distintas y el saldo acompaña
+  ---
+  duration_ms: 0.819848
+  type: 'test'
+  ...
+# Subtest: la fecha va en ISO, que ordena bien en cualquier planilla
+ok 7 - la fecha va en ISO, que ordena bien en cualquier planilla
+  ---
+  duration_ms: 0.706886
+  type: 'test'
+  ...
+# Subtest: un mes sin movimientos exporta el resumen y lo dice
+ok 8 - un mes sin movimientos exporta el resumen y lo dice
+  ---
+  duration_ms: 0.218572
+  type: 'test'
+  ...
+# Subtest: una fila de cada marca: las columnas 0 a 5 no cambian y Origen/Referencia van al final
+ok 9 - una fila de cada marca: las columnas 0 a 5 no cambian y Origen/Referencia van al final
+  ---
+  duration_ms: 3.463209
+  type: 'test'
+  ...
+# Subtest: ningún campo del CSV lleva el actor 'user:<id>' (el archivo sale hacia el estudio)
+ok 10 - ningún campo del CSV lleva el actor 'user:<id>' (el archivo sale hacia el estudio)
+  ---
+  duration_ms: 2.054072
+  type: 'test'
+  ...
+# Subtest: una marca que terminaría en un actor no se usa como referencia
+ok 11 - una marca que terminaría en un actor no se usa como referencia
+  ---
+  duration_ms: 1.273312
+  type: 'test'
+  ...
+# Subtest: el RESUMEN abre los egresos por origen y por medio, y suman lo mismo que 'Egresos (-)'
+ok 12 - el RESUMEN abre los egresos por origen y por medio, y suman lo mismo que 'Egresos (-)'
+  ---
+  duration_ms: 1.984933
+  type: 'test'
+  ...
+# Subtest: sin clasificación del loader (demo, fixtures) el origen sale del tipo, nunca vacío
+ok 13 - sin clasificación del loader (demo, fixtures) el origen sale del tipo, nunca vacío
+  ---
+  duration_ms: 3.073368
+  type: 'test'
+  ...
+# Subtest: con las dos columnas de referencia migradas se lee una sola vez, con las dos
+ok 14 - con las dos columnas de referencia migradas se lee una sola vez, con las dos
+  ---
+  duration_ms: 0.502155
+  type: 'test'
+  ...
+# Subtest: el estado intermedio del runbook (sin collectionId): se relee sin ella y el libro sale
+ok 15 - el estado intermedio del runbook (sin collectionId): se relee sin ella y el libro sale
+  ---
+  duration_ms: 0.32625
+  type: 'test'
+  ...
+# Subtest: sin ninguna de las dos migraciones: se sacan de a una y el libro sale igual
+ok 16 - sin ninguna de las dos migraciones: se sacan de a una y el libro sale igual
+  ---
+  duration_ms: 0.171418
+  type: 'test'
+  ...
+# Subtest: un error que no es de una columna de referencia sube tal cual (no se tapa)
+ok 17 - un error que no es de una columna de referencia sube tal cual (no se tapa)
+  ---
+  duration_ms: 0.526581
+  type: 'test'
+  ...
+# Subtest: un detalle con saltos de línea sale en UNA línea: el archivo usa sólo CRLF
+ok 18 - un detalle con saltos de línea sale en UNA línea: el archivo usa sólo CRLF
+  ---
+  duration_ms: 0.855094
+  type: 'test'
+  ...
+# Subtest: la planilla baja con BOM, ';', CRLF, coma decimal y ordenada por nombre
+ok 19 - la planilla baja con BOM, ';', CRLF, coma decimal y ordenada por nombre
+  ---
+  duration_ms: 8.017332
+  type: 'test'
+  ...
+# Subtest: precio para la planilla: sin miles, centavos sólo si hay, vacío si no tiene
+ok 20 - precio para la planilla: sin miles, centavos sólo si hay, vacío si no tiene
+  ---
+  duration_ms: 0.188085
+  type: 'test'
+  ...
+# Subtest: normalizar: sin acentos, minúsculas, un solo espacio
+ok 21 - normalizar: sin acentos, minúsculas, un solo espacio
+  ---
+  duration_ms: 0.316983
+  type: 'test'
+  ...
+# Subtest: ida y vuelta: la planilla recién bajada sube con 0 altas, 0 cambios y 0 errores
+ok 22 - ida y vuelta: la planilla recién bajada sube con 0 altas, 0 cambios y 0 errores
+  ---
+  duration_ms: 3.018022
+  type: 'test'
+  ...
+# Subtest: alta: un corte que no está en el catálogo sale como alta, sin stock y con su precio por kilo
+ok 23 - alta: un corte que no está en el catálogo sale como alta, sin stock y con su precio por kilo
+  ---
+  duration_ms: 0.588313
+  type: 'test'
+  ...
+# Subtest: alta por unidad con 'no' controla stock
+ok 24 - alta por unidad con 'no' controla stock
+  ---
+  duration_ms: 0.422944
+  type: 'test'
+  ...
+# Subtest: cambio de precio con coma: antes → después, en el precio de su forma de venta
+ok 25 - cambio de precio con coma: antes → después, en el precio de su forma de venta
+  ---
+  duration_ms: 0.651978
+  type: 'test'
+  ...
+# Subtest: '12.500' en una planilla de precios son doce mil quinientos, no doce con cincuenta
+ok 26 - '12.500' en una planilla de precios son doce mil quinientos, no doce con cincuenta
+  ---
+  duration_ms: 0.277118
+  type: 'test'
+  ...
+# Subtest: cambiar sólo 'controla stock' es un cambio; el precio vacío no se toca
+ok 27 - cambiar sólo 'controla stock' es un cambio; el precio vacío no se toca
+  ---
+  duration_ms: 0.405957
+  type: 'test'
+  ...
+# Subtest: un producto pausado cruza igual y se marca: el precio cambia, sigue pausado
+ok 28 - un producto pausado cruza igual y se marca: el precio cambia, sigue pausado
+  ---
+  duration_ms: 0.55167
+  type: 'test'
+  ...
+# Subtest: fila con precio ilegible: error con fila y motivo, y el plan NO es aplicable
+ok 29 - fila con precio ilegible: error con fila y motivo, y el plan NO es aplicable
+  ---
+  duration_ms: 0.345359
+  type: 'test'
+  ...
+# Subtest: precio cero o negativo, forma o sí/no inventados: errores, no ceros
+ok 30 - precio cero o negativo, forma o sí/no inventados: errores, no ceros
+  ---
+  duration_ms: 0.370729
+  type: 'test'
+  ...
+# Subtest: alta sin forma de venta o sin precio: se pide, no se adivina
+ok 31 - alta sin forma de venta o sin precio: se pide, no se adivina
+  ---
+  duration_ms: 0.226915
+  type: 'test'
+  ...
+# Subtest: nombre duplicado en el archivo (aunque cambie mayúsculas o acentos): error en la segunda
+ok 32 - nombre duplicado en el archivo (aunque cambie mayúsculas o acentos): error en la segunda
+  ---
+  duration_ms: 0.178275
+  type: 'test'
+  ...
+# Subtest: renombre: 'Vacío premium' no encuentra a nadie → alta EXPLÍCITA, y 'Vacío' queda como no nombrado
+ok 33 - renombre: 'Vacío premium' no encuentra a nadie → alta EXPLÍCITA, y 'Vacío' queda como no nombrado
+  ---
+  duration_ms: 0.173283
+  type: 'test'
+  ...
+# Subtest: cambiar la forma de venta de un corte existente es error: sus kilos pasarían a unidades
+ok 34 - cambiar la forma de venta de un corte existente es error: sus kilos pasarían a unidades
+  ---
+  duration_ms: 0.177089
+  type: 'test'
+  ...
+# Subtest: dos productos del catálogo con el mismo nombre: cruce ambiguo, error
+ok 35 - dos productos del catálogo con el mismo nombre: cruce ambiguo, error
+  ---
+  duration_ms: 0.156202
+  type: 'test'
+  ...
+# Subtest: encabezado que no es el de la planilla: error general, ninguna fila
+ok 36 - encabezado que no es el de la planilla: error general, ninguna fila
+  ---
+  duration_ms: 0.259122
+  type: 'test'
+  ...
+# Subtest: guardada con ',' y comillas (otra planilla): se lee igual
+ok 37 - guardada con ',' y comillas (otra planilla): se lee igual
+  ---
+  duration_ms: 0.172108
+  type: 'test'
+  ...
+# Subtest: las filas vacías del final que deja Excel no cuentan, y el número de fila es el de Excel
+ok 38 - las filas vacías del final que deja Excel no cuentan, y el número de fila es el de Excel
+  ---
+  duration_ms: 0.263949
+  type: 'test'
+  ...
+# Subtest: IDEMPOTENCIA: aplicar el plan y volver a subir el MISMO archivo da 0 altas y 0 cambios
+ok 39 - IDEMPOTENCIA: aplicar el plan y volver a subir el MISMO archivo da 0 altas y 0 cambios
+  ---
+  duration_ms: 0.758918
+  type: 'test'
+  ...
+# Subtest: huella: el mismo archivo contra el mismo catálogo da la misma; si el catálogo cambió, otra
+ok 40 - huella: el mismo archivo contra el mismo catálogo da la misma; si el catálogo cambió, otra
+  ---
+  duration_ms: 0.534673
+  type: 'test'
+  ...
+# Subtest: escribirPlan: UN createManyAndReturn con las altas del tenant y UN update con null = no tocar
+ok 41 - escribirPlan: UN createManyAndReturn con las altas del tenant y UN update con null = no tocar
+  ---
+  duration_ms: 0.692539
+  type: 'test'
+  ...
+# Subtest: escribirPlan: si la base actualiza menos filas que cambios, lanza (y la tx se deshace)
+ok 42 - escribirPlan: si la base actualiza menos filas que cambios, lanza (y la tx se deshace)
+  ---
+  duration_ms: 0.599806
+  type: 'test'
+  ...
+# Subtest: escribirPlan se niega a escribir un plan con errores
+ok 43 - escribirPlan se niega a escribir un plan con errores
+  ---
+  duration_ms: 0.411292
+  type: 'test'
+  ...
+# Subtest: archivo re-guardado en Windows-1252: se lee con los acentos y cruza con el catálogo
+ok 44 - archivo re-guardado en Windows-1252: se lee con los acentos y cruza con el catálogo
+  ---
+  duration_ms: 0.813048
+  type: 'test'
+  ...
+# Subtest: archivo en UTF-8 con BOM (el que baja): se lee tal cual
+ok 45 - archivo en UTF-8 con BOM (el que baja): se lee tal cual
+  ---
+  duration_ms: 0.294949
+  type: 'test'
+  ...
+1..45
+# tests 45
+# suites 0
+# pass 45
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 522.655537

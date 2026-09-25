@@ -1,0 +1,16 @@
+ENG-021 + ENG-020 · vuelta 3 (2026-09-25), desde /home/user/erp. Tests primero, después el arreglo.
+Correr: TSX_TSCONFIG_PATH=tsconfig.json node --import tsx --test [--test-concurrency=1] <archivos>
+ANTES del arreglo (rojos esperados):
+  contrato-arca.test.ts                                        -> antes-contrato.txt (50: 2 rojos, autorización tardía)
+  arca-dispatch-postgres + facturar-venta-rechazada-postgres   -> antes-postgres.txt (18: 4 rojos: reapertura con envío
+      viejo abierto -> 2 envíos vivos; CAE viejo registrado en la reabierta -> AUTHORIZED; rechazo viejo -> REJECTED;
+      envío abierto de factura rechazada -> 4 llamadas nuevas a ARCA)
+DESPUÉS:
+  mismos postgres + test nuevo de despacho tardío (ENG-019 parcial) -> despues-postgres.txt (19/19)
+  repro del revisor (scratchpad repro-reabrir.test.ts, sin cambios) -> repro-del-revisor-reabrir.txt (1/1: 1 CAE por 2420)
+  plugin ARCA + dispatch + invoice-core/idempotency + redondeo + facturadores-fecha + paridad-menu (CH) -> despues-unit.txt (221/221)
+  npx tsc --noEmit -p .                                        -> tsc.txt (exit 0)
+  npx eslint --max-warnings=0 <7 archivos tocados>             -> eslint.txt (exit 0)
+  npm test                                                     -> npm-test.txt
+Mutaciones (archivo restaurado con cp y verificado con cmp)    -> mutacion-*.txt
+Bases: sólo erp_test_* efímeras del arnés. Nada contra Neon, Vercel ni ARCA.

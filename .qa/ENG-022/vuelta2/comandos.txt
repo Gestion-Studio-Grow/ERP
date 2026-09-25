@@ -1,0 +1,11 @@
+ENG-022 vuelta 2 (2026-09-25) · refutación: app_rls podía vaciar orderId/appointmentId de una factura con CAE y facturar la venta dos veces.
+rojo-antes.txt   : tests nuevos con la migración de la vuelta 1 -> 8 tests, 5 pasan, 3 fallan (el nuevo: "Missing expected rejection: app_rls vacía el pedido"; los otros 2 por el nuevo formato DETAIL).
+verde.txt        : CI=true node --import tsx --test src/lib/comprobante-autorizado-inmutable-postgres.test.ts src/lib/anular-venta-facturada-postgres.test.ts -> 8/8.
+mut-M5-enlace-libre.txt     : vaciar el enlace siempre permitido (vuelta 1) -> 1 rojo (el test nuevo).
+mut-M6-solo-profundidad.txt : sólo pg_trigger_depth()>1, sin mirar el origen -> 1 rojo (trigger propio anidado).
+mut-M7-search-path.txt      : existencia buscada por search_path -> 1 rojo (tabla temporal "Order" la tapa).
+mut-M8-solo-existencia.txt  : sólo existencia, sin profundidad -> 0 rojos: la profundidad es traba redundante (con RLS el pedido y la factura son del mismo negocio).
+tsc.txt   : npx tsc --noEmit -p . -> exit 0.
+eslint.txt: npx eslint --max-warnings=0 <los 2 tests> -> exit 0.
+npm-test.txt: npm test -> 3982 tests, 3977 pasan, 5 fallan, 0 salteados. Ajenos: xlsx x4 y redondeos-locales (CajaRenglon.tsx:51, LocalesRenglon.tsx:52, pantallas del rediseño). paridad-menu en verde (ok 586-588).
+Bases erp_test_ que quedaron en el servidor: 0.

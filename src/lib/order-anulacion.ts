@@ -45,6 +45,7 @@ import {
   type DayKey,
 } from "@/lib/caja/cierre-diario";
 import { validarMotivo, mensajeMotivoInvalido } from "@/lib/turnos/anulacion";
+import { facturaDeLaVenta, mensajeFacturaViva, type FacturaDeLaVenta } from "@/lib/factura-viva";
 import { formatearCantidad, hayLineaPorPeso } from "@/lib/pos-peso";
 import { dateStrInBusinessTz, fmtTime, horarioDeNegocioDelFormulario } from "@/lib/datetime";
 import { BUSINESS_TIMEZONE } from "@/lib/business-config";
@@ -203,6 +204,8 @@ export function mensajeVentaEnDiaCerrado(
 export type MotivoAnulacionVentaRechazada =
   | "no-existe" // el pedido no es de este tenant o ya no está
   | "ya-anulada" // idempotencia: ya se anuló (doble clic, reintento)
+  | "facturada" // ENG-023: tiene factura autorizada y todavía no hay nota de crédito que la cancele
+  | "factura-en-camino" // ENG-023: su factura espera la respuesta de ARCA; el CAE puede llegar después
   | "dia-cerrado" // el día del asiento ya está cerrado: la corrección va con fecha de hoy
   | "solo-hoy"; // quien anula sólo puede con lo cobrado hoy, y esta plata es de otro día
 
@@ -229,11 +232,20 @@ export function planAnulacionVenta(input: {
    * (`AlcanceDeAnulacion.soloHoy`). Opcional: sin el dato, no hay límite de día.
    */
   fueraDelDia?: boolean;
+  /**
+   * ENG-023: la factura de la venta (`facturaDeLaVenta`, factura-viva.ts). Obligatorio: una
+   * anulación que no la mira deja la factura vigente ante ARCA.
+   */
+  factura: FacturaDeLaVenta;
 }): PlanAnulacionVenta {
   if (!input.existe) return { ok: false, motivo: "no-existe" };
   // El "ya anulada" se evalúa ANTES del día cerrado: ante un doble clic la respuesta correcta
   // es "ya está", no "no se puede" — nadie tiene que asustarse por apretar dos veces.
   if (input.yaAnulada) return { ok: false, motivo: "ya-anulada" };
+  // La factura va antes que el día cerrado y que el límite de rol: sin nota de crédito no la
+  // anula nadie, y mandar a la persona al dueño o a otro día sería mandarla a otro rechazo.
+  if (input.factura === "autorizada") return { ok: false, motivo: "facturada" };
+  if (input.factura === "en-camino") return { ok: false, motivo: "factura-en-camino" };
   // El día cerrado va antes que el límite de rol: si el día ya se firmó, tampoco lo anula el
   // dueño, y mandar a la persona a pedírselo sería mandarla a otro rechazo.
   if (input.diaCerrado) return { ok: false, motivo: "dia-cerrado" };
@@ -250,6 +262,10 @@ export function mensajeAnulacionVentaRechazada(
       return "Ese pedido ya no existe.";
     case "ya-anulada":
       return "Esa venta ya estaba anulada.";
+    case "facturada":
+      return mensajeFacturaViva("autorizada", "venta");
+    case "factura-en-camino":
+      return mensajeFacturaViva("en-camino", "venta");
     case "dia-cerrado":
       return (
         `Esa venta es del ${ctx?.dia ?? "un día"} y ese día de caja ya está cerrado: un día contado y ` +
@@ -368,9 +384,15 @@ export async function anularVentaInTx(
     });
   type Asiento = Awaited<ReturnType<typeof leerAsiento>>;
 
-  // La decisión, en función del asiento: se toma una vez antes del compare-and-set y, si
-  // hace falta, otra vez después (ver 1b).
-  const decidir = (a: Asiento) => {
+  // ENG-023: la factura de la venta, por su enlace (`Invoice.orderId`) y dentro del negocio.
+  const leerFactura = async () =>
+    facturaDeLaVenta(
+      await tx.invoice.findMany({ where: { tenantId, orderId: args.orderId }, select: { status: true } }),
+    );
+
+  // La decisión, en función del asiento y de la factura: se toma una vez antes del
+  // compare-and-set y otra vez después (ver 1b).
+  const decidir = (a: Asiento, factura: FacturaDeLaVenta) => {
     const diaContable = order ? args.diaDe(a?.occurredAt ?? order.createdAt) : null;
     const plan = planAnulacionVenta({
       existe: Boolean(order),
@@ -382,12 +404,13 @@ export async function anularVentaInTx(
         a && diaContable && args.diaCerradoHasta && args.esDiaCerrado(diaContable, args.diaCerradoHasta),
       ),
       fueraDelDia: Boolean(a && diaContable && args.soloDelDia && diaContable !== args.soloDelDia),
+      factura,
     });
     return { plan, dia: diaContable ? formatDayLabel(diaContable) : null };
   };
 
   let asiento: Asiento = order ? await leerAsiento() : null;
-  const antes = decidir(asiento);
+  const antes = decidir(asiento, order ? await leerFactura() : "sin-factura-viva");
   if (!antes.plan.ok) {
     if (antes.plan.motivo === "ya-anulada") return { applied: false, reason: "duplicate" };
     throw new AnulacionVentaRechazada(antes.plan.motivo, { dia: antes.dia });
@@ -407,13 +430,14 @@ export async function anularVentaInTx(
   // llegue después ya no entra: encuentra el pedido anulado y vuelve atrás (setOrderPaidCore).
   // Si la plata recién aparecida no se puede anular (otro día, día cerrado), se lanza y el
   // compare-and-set vuelve atrás con toda la transacción.
-  if (!asiento) {
-    asiento = await leerAsiento();
-    if (asiento) {
-      const despues = decidir(asiento);
-      if (!despues.plan.ok) throw new AnulacionVentaRechazada(despues.plan.motivo, { dia: despues.dia });
-    }
-  }
+  //
+  // La factura se relee SIEMPRE, por lo mismo (ENG-023): una facturación que confirmó entre la
+  // primera lectura y el bloqueo ya es visible acá, y la anulación vuelve atrás entera. (Para
+  // que la facturación que llega DESPUÉS del bloqueo espere y vea el pedido anulado, del lado de
+  // la factura hace falta tomar la fila del pedido: anotado en el BACKLOG, ENG-023.)
+  if (!asiento) asiento = await leerAsiento();
+  const despues = decidir(asiento, await leerFactura());
+  if (!despues.plan.ok) throw new AnulacionVentaRechazada(despues.plan.motivo, { dia: despues.dia });
 
   // (2) La contrapartida en el libro, con la FECHA DEL ASIENTO ORIGINAL y su mismo turno de
   // caja: el día del cobro vuelve a cerrar en cero. `paid` NO se toca — que se haya cobrado

@@ -13,9 +13,10 @@ import {
   TipoDocumento,
 } from '../domain/catalogos';
 import { ComprobanteArca } from '../domain/comprobante';
-import { ArcaRechazoError } from './port';
+import { ArcaPasajeroError, ArcaRechazoError } from './port';
 import {
   CredencialRequeridaSigner,
+  type TraSigner,
   ENDPOINTS_HOMOLOGACION,
   ENDPOINTS_PRODUCCION,
   SoapAfipClient,
@@ -51,6 +52,7 @@ function comprobanteFacturaA(): ComprobanteArca {
     concepto: Concepto.Productos,
     docTipo: TipoDocumento.CUIT,
     docNro: 20111111112,
+    condicionIvaReceptorId: CondicionIvaReceptorId.ResponsableInscripto,
     fecha: '20260705',
     neto: 1000,
     iva: [{ id: AlicuotaIvaId.VeintiUno, baseImponible: 1000, importe: 210 }],
@@ -67,6 +69,7 @@ function comprobanteFacturaCServicios(): ComprobanteArca {
     concepto: Concepto.Servicios,
     docTipo: TipoDocumento.ConsumidorFinal,
     docNro: 0,
+    condicionIvaReceptorId: CondicionIvaReceptorId.ConsumidorFinal,
     fecha: '20260705',
     neto: 500,
     iva: [{ id: AlicuotaIvaId.Cero, baseImponible: 500, importe: 0 }],
@@ -273,10 +276,15 @@ test('parsearUltimoAutorizadoResponse devuelve el CbteNro', () => {
   assert.equal(parsearUltimoAutorizadoResponse(ULTIMO_RESPONSE_OK), 42);
 });
 
-test('parsearUltimoAutorizadoResponse lanza ArcaRechazoError ante <Errors>', () => {
+// ENG-021: el 600 (token inválido) es pasajero. Antes este test fijaba el defecto: lo daba por
+// rechazo y la venta quedaba rechazada sin salida por un problema de la credencial.
+test('parsearUltimoAutorizadoResponse: el 600 (token inválido) es pasajero, no rechazo', () => {
   assert.throws(
     () => parsearUltimoAutorizadoResponse(RESPONSE_ERRORS),
-    (e: unknown) => e instanceof ArcaRechazoError && e.observaciones[0].codigo === 600,
+    (e: unknown) =>
+      e instanceof ArcaPasajeroError &&
+      !(e instanceof ArcaRechazoError) &&
+      e.observaciones[0].codigo === 600,
   );
 });
 
@@ -295,6 +303,67 @@ test('armarFECAESolicitarRequest (Factura A) discrimina IVA y arma AlicIva', () 
   assert.match(body, /<ar:BaseImp>1000\.00<\/ar:BaseImp>/);
 });
 
+const importeDe = (body: string, tag: string): string =>
+  (body.match(new RegExp(`<ar:${tag}>([^<]*)</ar:${tag}>`)) ?? [])[1] ?? '';
+
+test('los importes viajan con la regla única de redondeo: 2,675 → 2.68 y 3,235 → 3.24 (no 2.67 ni 3.23)', () => {
+  const comp: ComprobanteArca = {
+    ...comprobanteFacturaA(),
+    neto: 2.675,
+    iva: [{ id: AlicuotaIvaId.VeintiUno, baseImponible: 2.675, importe: 0.56 }],
+    total: 3.235,
+  };
+  const body = armarFECAESolicitarRequest(TA, 20111111112, comp, 1);
+  assert.equal(importeDe(body, 'ImpNeto'), '2.68');
+  assert.equal(importeDe(body, 'BaseImp'), '2.68');
+  assert.equal(importeDe(body, 'ImpIVA'), '0.56');
+  assert.equal(importeDe(body, 'ImpTotal'), '3.24');
+});
+
+test('ImpIVA es la suma exacta de los AlicIva que viajan: 1,005 + 1,005 → 1.01 + 1.01 = 2.02', () => {
+  const comp: ComprobanteArca = {
+    ...comprobanteFacturaA(),
+    neto: 14.36,
+    iva: [
+      { id: AlicuotaIvaId.VeintiUno, baseImponible: 4.79, importe: 1.005 },
+      { id: AlicuotaIvaId.DiezCinco, baseImponible: 9.57, importe: 1.005 },
+    ],
+    total: 16.37,
+  };
+  const body = armarFECAESolicitarRequest(TA, 20111111112, comp, 1);
+  assert.deepEqual([...body.matchAll(/<ar:Importe>([^<]*)<\/ar:Importe>/g)].map((m) => m[1]), ['1.01', '1.01']);
+  assert.equal(importeDe(body, 'ImpIVA'), '2.02');
+});
+
+test('ImpIVA = Σ AlicIva.Importe en 20.000 comprobantes al azar de 1 a 3 alícuotas con milésimos', () => {
+  let semilla = 7;
+  const azar = () => {
+    semilla = (semilla * 1103515245 + 12345) % 2147483648;
+    return semilla / 2147483648;
+  };
+  const centavos = (texto: string) => Math.round(Number(texto) * 100); // texto de 2 decimales: exacto
+  const alicuotas = [AlicuotaIvaId.VeintiUno, AlicuotaIvaId.DiezCinco, AlicuotaIvaId.VeintiSiete];
+  let descuadres = 0;
+  for (let i = 0; i < 20_000; i++) {
+    const iva = alicuotas.slice(0, 1 + Math.floor(azar() * 3)).map((id) => ({
+      id,
+      baseImponible: 100,
+      importe: Math.floor(azar() * 10_000_000) / 1000, // hasta $10.000 con 3 decimales
+    }));
+    const body = armarFECAESolicitarRequest(TA, 20111111112, { ...comprobanteFacturaA(), iva }, 1);
+    const suma = [...body.matchAll(/<ar:Importe>([^<]*)<\/ar:Importe>/g)].reduce((s, m) => s + centavos(m[1]), 0);
+    if (suma !== centavos(importeDe(body, 'ImpIVA'))) descuadres++;
+  }
+  assert.equal(descuadres, 0);
+});
+
+test('un monto que no es un número no se manda a ARCA: el armado tira antes de escribir "NaN"', () => {
+  assert.throws(
+    () => armarFECAESolicitarRequest(TA, 20111111112, { ...comprobanteFacturaA(), total: Number.NaN }, 1),
+    RangeError,
+  );
+});
+
 test('armarFECAESolicitarRequest (Factura C) NO discrimina IVA ni manda <Iva>, y arma fechas de servicio', () => {
   const body = armarFECAESolicitarRequest(TA, 20111111112, comprobanteFacturaCServicios(), 10);
   assert.match(body, /<ar:CbteTipo>11<\/ar:CbteTipo>/);
@@ -306,7 +375,8 @@ test('armarFECAESolicitarRequest (Factura C) NO discrimina IVA ni manda <Iva>, y
 });
 
 test('armarFECAESolicitarRequest emite CondicionIVAReceptorId (RG 5616) tras MonCotiz', () => {
-  // Sin el campo en el comprobante → default seguro Consumidor Final (5).
+  // La del comprobante (Consumidor Final, 5). Sin el campo ya no hay default: el armado se niega
+  // (tipo-segun-la-rg.test.ts).
   const body = armarFECAESolicitarRequest(TA, 20111111112, comprobanteFacturaCServicios(), 10);
   assert.match(body, /<ar:CondicionIVAReceptorId>5<\/ar:CondicionIVAReceptorId>/);
   // Orden XSD: CondicionIVAReceptorId va después de MonCotiz.
@@ -348,14 +418,23 @@ test('parsearFECAESolicitarResponse rechazo (Resultado=R) lanza ArcaRechazoError
   );
 });
 
-test('parsearFECAESolicitarResponse mapea <Errors> a ArcaRechazoError', () => {
+test('parsearFECAESolicitarResponse: <Errors> con 600 es pasajero y conserva código y mensaje', () => {
   const comp = comprobanteFacturaA();
   assert.throws(
     () => parsearFECAESolicitarResponse(RESPONSE_ERRORS, comp, 43),
     (e: unknown) =>
-      e instanceof ArcaRechazoError &&
+      e instanceof ArcaPasajeroError &&
       e.observaciones[0].codigo === 600 &&
       /Token invalido/.test(e.observaciones[0].mensaje),
+  );
+});
+
+test('parsearFECAESolicitarResponse: <Errors> con un código del comprobante sigue siendo rechazo', () => {
+  const comp = comprobanteFacturaA();
+  const conCodigo = RESPONSE_ERRORS.replace('<Code>600</Code>', '<Code>10015</Code>');
+  assert.throws(
+    () => parsearFECAESolicitarResponse(conCodigo, comp, 43),
+    (e: unknown) => e instanceof ArcaRechazoError && e.observaciones[0].codigo === 10015,
   );
 });
 
@@ -433,7 +512,8 @@ test('SoapAfipClient cachea el ticket: no reautentica en la 2da operación', asy
 });
 
 test('El signer por defecto exige credencial (acción humana)', async () => {
-  const signer = new CredencialRequeridaSigner();
+  // Se usa, como en WSAA, a través del contrato TraSigner.
+  const signer: TraSigner = new CredencialRequeridaSigner();
   await assert.rejects(() => signer.firmarCms('<tra/>'), /credencial requerida/);
 });
 

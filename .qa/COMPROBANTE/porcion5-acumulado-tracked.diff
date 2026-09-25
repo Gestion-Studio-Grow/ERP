@@ -1,0 +1,941 @@
+diff --git a/src/lib/invoice-core.test.ts b/src/lib/invoice-core.test.ts
+index ceeabff..eabd2f5 100644
+--- a/src/lib/invoice-core.test.ts
++++ b/src/lib/invoice-core.test.ts
+@@ -14,7 +14,7 @@
+ import { test } from "node:test";
+ import assert from "node:assert/strict";
+ import { Prisma } from "@/generated/prisma/client";
+-import { createInvoiceInTx, type CreateInvoiceInput, type InvoiceTx } from "./invoice-core";
++import { CobroDelTurnoCambioError, createInvoiceInTx, VentaAnuladaError, type CreateInvoiceInput, type InvoiceTx } from "./invoice-core";
+ 
+ // --- Doble de test: store en memoria con la guarda UNIQUE (tenantId, orderId/appointmentId). ---
+ 
+@@ -24,6 +24,7 @@ interface StoredInvoice {
+   orderId: string | null;
+   appointmentId: string | null;
+   mpPaymentId: string | null; // A-6 — origen MP_PAYMENT
++  iva?: number;
+ }
+ 
+ function makeMockTx() {
+@@ -38,7 +39,25 @@ function makeMockTx() {
+     );
+   }
+ 
++  // Pedidos anulados del doble. `createInvoiceInTx` toma la fila del pedido con SQL crudo
++  // (FOR SHARE, ENG-023); el doble contesta su estado. El bloqueo real se prueba contra Postgres
++  // en facturar-venta-anulada-postgres.test.ts.
++  const anulados = new Set<string>();
++  // Turnos: la facturación escribe la fila del turno y relee su cobro (`Payment.amount`,
++  // ENG-023). El doble contesta el cobro de cada turno; sin cobro cargado, el turno no tiene
++  // `Payment`. La carrera real se prueba en facturar-turno-con-cobro-anulado-postgres.test.ts.
++  const cobroDelTurno = new Map<string, number>();
+   const tx = {
++    $queryRaw: async (sql: TemplateStringsArray, ...valores: unknown[]) => {
++      const texto = sql.join("?");
++      if (texto.includes('UPDATE "Appointment"')) return [{ id: String(valores[0]) }];
++      if (texto.includes('FROM "Payment"')) {
++        const cobro = cobroDelTurno.get(String(valores[0]));
++        return cobro === undefined ? [] : [{ amount: cobro }];
++      }
++      const orderId = String(valores[0]);
++      return [{ status: anulados.has(orderId) ? "CANCELLED" : "DELIVERED" }];
++    },
+     invoice: {
+       findFirst: async (args: {
+         where: { tenantId: string; orderId?: string; appointmentId?: string; mpPaymentId?: string };
+@@ -56,7 +75,7 @@ function makeMockTx() {
+         return found ? { id: found.id } : null;
+       },
+       create: async (args: {
+-        data: { tenantId: string; orderId?: string; appointmentId?: string; mpPaymentId?: string };
++        data: { tenantId: string; orderId?: string; appointmentId?: string; mpPaymentId?: string; iva?: number };
+       }) => {
+         const d = args.data;
+         const orderId = d.orderId ?? null;
+@@ -78,7 +97,7 @@ function makeMockTx() {
+         ) {
+           throw p2002("Invoice_tenantId_mpPaymentId_key");
+         }
+-        const inv: StoredInvoice = { id: `inv_${++seq}`, tenantId: d.tenantId, orderId, appointmentId, mpPaymentId };
++        const inv: StoredInvoice = { id: `inv_${++seq}`, tenantId: d.tenantId, orderId, appointmentId, mpPaymentId, iva: d.iva };
+         invoices.push(inv);
+         return { id: inv.id };
+       },
+@@ -91,7 +110,7 @@ function makeMockTx() {
+     },
+   };
+ 
+-  return { tx: tx as unknown as InvoiceTx, mock: tx, invoices, outbox };
++  return { tx: tx as unknown as InvoiceTx, mock: tx, invoices, outbox, anulados, cobroDelTurno };
+ }
+ 
+ function baseInput(overrides: Partial<CreateInvoiceInput> = {}): CreateInvoiceInput {
+@@ -108,6 +127,25 @@ function baseInput(overrides: Partial<CreateInvoiceInput> = {}): CreateInvoiceIn
+   };
+ }
+ 
++// --- El IVA del comprobante es la suma de los renglones tal como viajan a ARCA (ENG-109). ---
++
++test("el IVA guardado suma cada renglón al centavo, como el ImpIVA que viaja: 1,005 + 1,005 = 2,02", async () => {
++  const { tx, invoices } = makeMockTx();
++  await createInvoiceInTx(
++    tx,
++    baseInput({
++      neto: 20,
++      iva: [
++        { alicuotaId: 5, base: 10, importe: 1.005 },
++        { alicuotaId: 4, base: 10, importe: 1.005 },
++      ],
++      total: 22.02,
++    }),
++  );
++  // Redondear la suma (2,01) dejaría el libro IVA un centavo distinto de lo informado a ARCA.
++  assert.equal(invoices[0]?.iva, 2.02);
++});
++
+ // --- Idempotencia SECUENCIAL (reintento) sobre la orquestación real. ---
+ 
+ test("I2 · reintento sobre la misma venta → mismo comprobante, una sola factura, un solo outbox", async () => {
+@@ -142,6 +180,46 @@ test("I2 · ventas DISTINTAS generan comprobantes distintos", async () => {
+   assert.equal(invoices.length, 2);
+ });
+ 
++test("ENG-023 · un pedido anulado no se factura: lanza VentaAnuladaError y no crea factura ni envío", async () => {
++  const { tx, invoices, outbox, anulados } = makeMockTx();
++  anulados.add("ord_anulado");
++  await assert.rejects(
++    createInvoiceInTx(tx, baseInput({ origin: { type: "ORDER", id: "ord_anulado" } })),
++    VentaAnuladaError,
++  );
++  assert.equal(invoices.length, 0);
++  assert.equal(outbox.length, 0);
++});
++
++test("ENG-023 · un turno con el cobro anulado no se factura: no crea factura ni envío", async () => {
++  const { tx, invoices, outbox, cobroDelTurno } = makeMockTx();
++  cobroDelTurno.set("apt_devuelto", 0);
++  await assert.rejects(
++    createInvoiceInTx(tx, baseInput({ concepto: 2, origin: { type: "APPOINTMENT", id: "apt_devuelto" } })),
++    (e: unknown) => e instanceof CobroDelTurnoCambioError && /anulado/.test(e.message),
++  );
++  assert.equal(invoices.length, 0);
++  assert.equal(outbox.length, 0);
++});
++
++test("ENG-023 · un turno cuyo cobro ya no es el total del comprobante no se factura con el monto viejo", async () => {
++  const { tx, invoices, cobroDelTurno } = makeMockTx();
++  cobroDelTurno.set("apt_parcial", 1000); // el comprobante se armó por 1.210
++  await assert.rejects(
++    createInvoiceInTx(tx, baseInput({ concepto: 2, origin: { type: "APPOINTMENT", id: "apt_parcial" } })),
++    (e: unknown) => e instanceof CobroDelTurnoCambioError && /cambió/.test(e.message),
++  );
++  assert.equal(invoices.length, 0);
++});
++
++test("ENG-023 · un turno con el mismo cobro que el total, o sin cobros (precio de lista), se factura", async () => {
++  const { tx, invoices, cobroDelTurno } = makeMockTx();
++  cobroDelTurno.set("apt_cobrado", 1210);
++  await createInvoiceInTx(tx, baseInput({ concepto: 2, origin: { type: "APPOINTMENT", id: "apt_cobrado" } }));
++  await createInvoiceInTx(tx, baseInput({ concepto: 2, origin: { type: "APPOINTMENT", id: "apt_sin_cobro" } }));
++  assert.equal(invoices.length, 2);
++});
++
+ test("I2 · SIN origen (previa a D10) NO dedupe: crea siempre", async () => {
+   const { tx, invoices } = makeMockTx();
+   const id1 = await createInvoiceInTx(tx, baseInput()); // sin origin
+diff --git a/src/lib/invoice-core.ts b/src/lib/invoice-core.ts
+index d872dde..11bdcc0 100644
+--- a/src/lib/invoice-core.ts
++++ b/src/lib/invoice-core.ts
+@@ -21,7 +21,7 @@
+ import { prisma } from "@/lib/prisma";
+ import { Prisma } from "@/generated/prisma/client";
+ import { tenantTransaction } from "@/lib/rls";
+-import { round2 } from "@/lib/round";
++import { centavosDe, sumarAlCentavo } from "@/lib/dinero/redondeo";
+ import { buildInvoiceOriginLink, type InvoiceOriginType } from "@/lib/settlement/invoice-origin";
+ 
+ /** Cliente de transacción interactiva (mismo patrón que `LedgerTx` en stock/ledger.ts):
+@@ -54,17 +54,37 @@ export interface CreateInvoiceInput {
+   neto: number;
+   iva: SubtotalIva[];
+   total: number;
++  /**
++   * ENG-024 · `true` sólo si `iva` salió de la alícuota de cada producto. Ningún camino lo pone
++   * todavía (`calcularImpuestos` aplica una tasa pareja): el plugin no deja emitir así a un
++   * Responsable Inscripto.
++   */
++  ivaPorProducto?: boolean;
+   servicioDesde?: string;
+   servicioHasta?: string;
+   vencimientoPago?: string;
+   /** Venta de la que sale la factura (I2). Si se pasa, la creación es IDEMPOTENTE por venta. */
+   origin?: InvoiceOrigin;
++  /**
++   * ENG-021 · Si la factura de esa venta está RECHAZADA, reabrirla y reenviarla. Sólo lo pide
++   * quien corrigió el dato ("Volver a facturar", `facturarVenta`). Los flujos automáticos
++   * (webhook de MP que llega de nuevo, turno completado otra vez, pedido externo, bancos) no lo
++   * piden: reciben la misma factura rechazada, sin reenviar los mismos datos.
++   */
++  reabrirSiRechazada?: boolean;
+ }
+ 
+ /** Forma del payload del evento `InvoiceCreated` que viaja por el outbox. */
+-export interface InvoiceCreatedPayload extends Omit<CreateInvoiceInput, "tenantId" | "origin"> {
++export interface InvoiceCreatedPayload
++  extends Omit<CreateInvoiceInput, "tenantId" | "origin" | "reabrirSiRechazada"> {
+   invoiceId: string;
+   tenantId: string;
++  /**
++   * ENG-020 · Número que el despacho le pidió a ARCA para este evento, anotado ANTES de
++   * pedirlo (`arca-dispatch.ts`). Si la respuesta se pierde, el reintento lo consulta y adopta
++   * el comprobante ya autorizado en vez de pedir otro.
++   */
++  intentoArca?: { puntoVenta: number; tipo: number; numero: number };
+ }
+ 
+ /** Input del comando `registerFiscalDocument` (lo llama el plugin con el CAE). */
+@@ -80,6 +100,56 @@ export interface RegisterFiscalDocumentInput {
+ 
+ export const OUTBOX_INVOICE_CREATED = "InvoiceCreated";
+ 
++/** `lastError` del envío que se cierra porque la venta se volvió a facturar (ENG-021). */
++export const MOTIVO_ENVIO_REEMPLAZADO = "Reemplazado: la venta se volvió a facturar con otro envío.";
++
++/**
++ * Se lanza DENTRO de la transacción cuando el envío ya estaba cerrado: deshace lo escrito en la
++ * factura. Nunca sale de este módulo.
++ */
++class EnvioYaCerrado extends Error {}
++
++/**
++ * Cierra el envío (si seguía abierto) en la transacción dada. Si ya estaba cerrado lanza
++ * `EnvioYaCerrado`, y la transacción entera se deshace.
++ */
++async function cerrarEnvioOAbortar(
++  tx: InvoiceTx,
++  envioId: string,
++  tenantId: string,
++  lastError?: string,
++): Promise<void> {
++  const cerrado = await tx.outboxEvent.updateMany({
++    where: { id: envioId, tenantId, processedAt: null },
++    data: { processedAt: new Date(), ...(lastError !== undefined ? { lastError } : {}) },
++  });
++  if (cerrado.count === 0) throw new EnvioYaCerrado();
++}
++
++/** Corre `escribir` y cierra el envío en UNA transacción; `false` si el envío ya estaba cerrado. */
++async function escribirSiElEnvioSigueAbierto(
++  tenantId: string,
++  envioId: string,
++  escribir: (tx: InvoiceTx) => Promise<{ count: number }>,
++  lastError?: string,
++): Promise<boolean> {
++  try {
++    return await tenantTransaction(
++      async (tx) => {
++        // Primero la factura y después el envío: el mismo orden que la reapertura, así dos
++        // transacciones que tocan las dos filas nunca se esperan en cruz.
++        const escrita = await escribir(tx);
++        await cerrarEnvioOAbortar(tx, envioId, tenantId, lastError);
++        return escrita.count === 1;
++      },
++      { tenantId },
++    );
++  } catch (e) {
++    if (e instanceof EnvioYaCerrado) return false;
++    throw e;
++  }
++}
++
+ /**
+  * Crea una factura en estado PENDING y encola `InvoiceCreated` en la misma
+  * transacción (outbox, ADR-002). Devuelve el id de la factura.
+@@ -121,6 +191,17 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<string>
+  * IDEMPOTENCIA POR VENTA (I2, ADR-064): si ya existe una factura para este origen, la
+  * devuelve — nunca DOS comprobantes para la misma venta — y NO encola un outbox nuevo
+  * (no re-despacha). Sin origen, crea siempre (facturas MP standalone / previas a D10).
++ *
++ * VOLVER A FACTURAR (ENG-021): si la factura de esa venta está RECHAZADA (ARCA no la autorizó:
++ * no tiene CAE ni número) y el llamador lo pide (`reabrirSiRechazada`, sólo la acción humana),
++ * se reabre la MISMA fila con los datos de ahora y se encola un envío
++ * nuevo. Una fila y no dos: los índices únicos por venta no se tocan. Si dos pedidos llegan a
++ * la vez, el UPDATE condicionado a REJECTED lo gana uno solo (el otro espera el bloqueo de la
++ * fila, ve PENDING y no encola). En la misma transacción se CIERRA todo envío anterior de esa
++ * factura que haya quedado abierto: un envío es la única vía por la que la factura toma un CAE
++ * o un rechazo (`registerFiscalDocument` y `markInvoiceRejected` sólo escriben si cierran SU
++ * envío), así que un envío viejo ya no puede escribir sobre la factura reabierta. Queda un solo
++ * envío vivo por factura. Orden de bloqueo: factura y después envío, igual que al registrar.
+  */
+ export async function createInvoiceInTx(
+   tx: InvoiceTx,
+@@ -129,36 +210,163 @@ export async function createInvoiceInTx(
+   const originLink = input.origin ? buildInvoiceOriginLink(input.origin.type, input.origin.id) : {};
+   const hasOrigin = "orderId" in originLink || "appointmentId" in originLink || "mpPaymentId" in originLink;
+ 
++  if ("orderId" in originLink && originLink.orderId) {
++    await tomarPedidoNoAnulado(tx, input.tenantId, originLink.orderId);
++  }
++  if ("appointmentId" in originLink && originLink.appointmentId) {
++    await tomarTurnoConElMismoCobro(tx, input.tenantId, originLink.appointmentId, input.total);
++  }
++
+   if (hasOrigin) {
+     const existing = await tx.invoice.findFirst({
+       where: { tenantId: input.tenantId, ...originLink },
+-      select: { id: true },
++      select: { id: true, status: true },
+     });
+-    if (existing) return existing.id;
++    if (existing) {
++      if (existing.status !== "REJECTED" || !input.reabrirSiRechazada) return existing.id;
++      const reabierta = await tx.invoice.updateMany({
++        where: { id: existing.id, tenantId: input.tenantId, status: "REJECTED", cae: null },
++        data: { ...datosDelComprobante(input), rechazoMotivo: null },
++      });
++      if (reabierta.count === 1) {
++        await tx.outboxEvent.updateMany({
++          where: {
++            tenantId: input.tenantId,
++            type: OUTBOX_INVOICE_CREATED,
++            processedAt: null,
++            payload: { path: ["invoiceId"], equals: existing.id },
++          },
++          data: { processedAt: new Date(), lastError: MOTIVO_ENVIO_REEMPLAZADO },
++        });
++        await encolarInvoiceCreated(tx, existing.id, input);
++      }
++      return existing.id;
++    }
+   }
+ 
+   const invoice = await tx.invoice.create({
+     data: {
+       tenantId: input.tenantId,
+       ...originLink, // enlace a la venta (D10) = clave de idempotencia
+-      puntoVenta: input.emisor.puntoVenta,
+-      concepto: input.concepto,
+-      docTipo: input.receptor.docTipo,
+-      docNro: String(input.receptor.docNro),
+-      fecha: input.fecha,
+-      neto: input.neto,
+-      // Total de IVA = suma de las alícuotas, redondeada a 2 decimales (ADR-057): cada
+-      // `importe` ya viene redondeado del Core, pero la SUMA puede arrastrar deriva binaria.
+-      iva: round2(input.iva.reduce((s, x) => s + x.importe, 0)),
+-      ivaDesglose: input.iva as unknown as object, // desglose por alícuota (audit)
+-      total: input.total,
+-      status: "PENDING",
++      ...datosDelComprobante(input),
+     },
+     select: { id: true },
+   });
+ 
++  await encolarInvoiceCreated(tx, invoice.id, input);
++  return invoice.id;
++}
++
++/** Un pedido anulado no se factura (ENG-023): ni factura nueva ni reapertura de una rechazada. */
++export class VentaAnuladaError extends Error {
++  constructor() {
++    super("La venta está anulada: no se factura.");
++    this.name = "VentaAnuladaError";
++  }
++}
++
++/**
++ * ENG-023, del lado de la factura: toma la fila del pedido (FOR SHARE) y, si está anulado,
++ * lanza `VentaAnuladaError` sin escribir nada. Es el mismo candado que
++ * pisa la anulación con su compare-and-set (`anularVentaInTx`, UPDATE de `status`), así que las
++ * dos nunca terminan juntas:
++ *  · anulación primero: esta lectura espera su confirmación, vuelve a evaluar la fila (Read
++ *    Committed), la ve CANCELLED y no factura;
++ *  · facturación primero: la anulación espera esta transacción y, al releer la factura después
++ *    de su compare-and-set, la ve en camino y vuelve atrás.
++ * SQL crudo porque Prisma no expresa FOR SHARE; el negocio va explícito en el WHERE (patrón de
++ * `stock/adjustment-insert.ts`) además de RLS.
++ */
++async function tomarPedidoNoAnulado(tx: InvoiceTx, tenantId: string, orderId: string): Promise<void> {
++  // Con FOR SHARE, Postgres devuelve la versión de la fila que dejó confirmada quien la tenía
++  // bloqueada: el `status` que se lee acá es el de después de la anulación.
++  const filas = await tx.$queryRaw<{ status: string }[]>`
++    SELECT status::text AS status FROM "Order"
++    WHERE id = ${orderId} AND "tenantId" = ${tenantId}
++    FOR SHARE`;
++  if (filas.length === 0) throw new Error("No se encontró la venta a facturar.");
++  if (filas[0].status === "CANCELLED") throw new VentaAnuladaError();
++}
++
++/**
++ * El cobro del turno cambió entre que se armó el comprobante y que se tomó la fila del turno
++ * (ENG-023): se anuló entero, o una parte. No se factura con el monto viejo.
++ */
++export class CobroDelTurnoCambioError extends Error {
++  constructor(anulado: boolean) {
++    super(
++      anulado
++        ? "El cobro del turno está anulado: no se factura."
++        : "El cobro del turno cambió mientras se facturaba: volvé a facturarlo.",
++    );
++    this.name = "CobroDelTurnoCambioError";
++  }
++}
++
++/**
++ * ENG-023, del lado de la factura, turno. Dos pasos, y en este orden:
++ *  1. ESCRIBE la fila del turno (un UPDATE que no cambia ningún valor). La anulación del cobro
++ *     (`anularCobroTurnoInTx`) toma esa fila FOR UPDATE antes de leer las facturas y corre en
++ *     Serializable: si esta transacción confirmó después de la foto de la anulación, Postgres la
++ *     aborta por actualización concurrente (40001), `tenantTransaction` la reintenta y la
++ *     reintentada ve la factura. Un FOR SHARE no alcanzaría: un bloqueo sin escritura no aborta
++ *     a una transacción Serializable, que seguiría leyendo su foto sin la factura.
++ *     Si la anulación tiene la fila, este UPDATE la espera.
++ *  2. Ya con la fila tomada, RELEE el cobro del turno (`Payment`, el agregado que baja la
++ *     anulación) en una sentencia aparte: en Read Committed cada sentencia toma su foto, así que
++ *     ésta ve lo que la anulación confirmó mientras se esperaba. `facturarAppointment` arma el
++ *     comprobante con ese mismo `Payment.amount`: si ahora es 0 o distinto al total, no se
++ *     factura. Sin `Payment` (turno facturado a precio de lista, sin cobros) no hay cobro que
++ *     anular y no se compara.
++ * SQL crudo porque Prisma no expresa esta escritura; el negocio va explícito en el WHERE además
++ * de RLS.
++ */
++async function tomarTurnoConElMismoCobro(
++  tx: InvoiceTx,
++  tenantId: string,
++  appointmentId: string,
++  total: number,
++): Promise<void> {
++  const turno = await tx.$queryRaw<{ id: string }[]>`
++    UPDATE "Appointment" SET "tenantId" = "tenantId"
++    WHERE id = ${appointmentId} AND "tenantId" = ${tenantId}
++    RETURNING id`;
++  if (turno.length === 0) throw new Error("No se encontró el turno a facturar.");
++  const pago = await tx.$queryRaw<{ amount: number }[]>`
++    SELECT amount FROM "Payment"
++    WHERE "appointmentId" = ${appointmentId} AND "tenantId" = ${tenantId}`;
++  if (pago.length === 0) return;
++  const cobrado = centavosDe(pago[0].amount);
++  if (cobrado <= 0) throw new CobroDelTurnoCambioError(true);
++  if (cobrado !== centavosDe(total)) throw new CobroDelTurnoCambioError(false);
++}
++
++/** Los datos del comprobante que se guardan en la factura PENDING (alta o reapertura). */
++function datosDelComprobante(input: CreateInvoiceInput) {
++  return {
++    puntoVenta: input.emisor.puntoVenta,
++    concepto: input.concepto,
++    docTipo: input.receptor.docTipo,
++    docNro: String(input.receptor.docNro),
++    fecha: input.fecha,
++    neto: input.neto,
++    // Total de IVA = suma de cada alícuota al centavo (R3 de ADR-100): el mismo número que
++    // viaja a ARCA como ImpIVA (soap.ts), así el libro IVA coincide con Mis Comprobantes.
++    iva: sumarAlCentavo(input.iva.map((x) => x.importe)),
++    ivaDesglose: input.iva as unknown as object, // desglose por alícuota (audit)
++    total: input.total,
++    status: "PENDING" as const,
++  };
++}
++
++/** Encola `InvoiceCreated` para la factura, en la misma transacción (outbox, ADR-002). */
++async function encolarInvoiceCreated(
++  tx: InvoiceTx,
++  invoiceId: string,
++  input: CreateInvoiceInput,
++): Promise<void> {
+   const payload: InvoiceCreatedPayload = {
+-    invoiceId: invoice.id,
++    invoiceId,
+     tenantId: input.tenantId,
+     concepto: input.concepto,
+     fecha: input.fecha,
+@@ -167,6 +375,7 @@ export async function createInvoiceInTx(
+     neto: input.neto,
+     iva: input.iva,
+     total: input.total,
++    ...(input.ivaPorProducto === true ? { ivaPorProducto: true } : {}),
+     servicioDesde: input.servicioDesde,
+     servicioHasta: input.servicioHasta,
+     vencimientoPago: input.vencimientoPago,
+@@ -179,59 +388,120 @@ export async function createInvoiceInTx(
+       payload: payload as unknown as object,
+     },
+   });
+-
+-  return invoice.id;
+ }
+ 
+ /**
+- * Comando público (superficie II): el plugin pasa el CAE y el Core lo persiste.
+- * Idempotente por diseño: solo autoriza facturas en PENDING (una segunda entrega
+- * del mismo evento no vuelve a escribir). Scopeado por `tenantId`.
++ * Comando público (superficie II): el plugin pasa el CAE y el Core lo persiste, atado al envío
++ * (`envioId`, el evento del outbox) que lo obtuvo.
++ *
++ * En UNA transacción: la factura PENDING pasa a AUTHORIZED y el envío se cierra. Si el envío ya
++ * estaba cerrado (otro despacho lo procesó, o la venta se volvió a facturar y este envío quedó
++ * reemplazado), NO se escribe nada y devuelve `false`: el CAE de un envío viejo jamás se
++ * registra sobre la factura reabierta con otros importes (ENG-021). También devuelve `false` si
++ * la factura ya no estaba PENDING (el envío se cierra igual). `true` = la factura tomó el CAE.
++ * `tenantId` explícito: lo invoca el despacho, sin request (ADR-018 §4).
+  */
+ export async function registerFiscalDocument(
+   input: RegisterFiscalDocumentInput,
+-): Promise<void> {
+-  // `tenantTransaction` con `tenantId` EXPLÍCITO (no ambiental): este comando lo
+-  // invoca el worker/dispatcher (processArcaOutbox), sin request/host — con
+-  // RLS_ENFORCEMENT on, resolverlo ambientalmente (getCurrentTenantId) rompería
+-  // apenas hubiera >1 tenant. El `tenantId` ya lo trae el caller (viene del
+-  // payload del outbox), así que se lo pasamos directo (ADR-018 §4).
+-  const res = await tenantTransaction(
++  envioId: string,
++): Promise<boolean> {
++  return escribirSiElEnvioSigueAbierto(input.tenantId, envioId, (tx) =>
++    tx.invoice.updateMany({
++      where: { id: input.invoiceId, tenantId: input.tenantId, status: "PENDING" },
++      data: {
++        status: "AUTHORIZED",
++        cae: input.cae,
++        caeVencimiento: input.caeVencimiento,
++        numero: input.numero,
++        tipoComprobante: input.tipoComprobante,
++        authorizedAt: new Date(),
++      },
++    }),
++  );
++}
++
++/**
++ * Consulta pública (superficie II, ENG-020): ¿ese número de comprobante (punto de venta, tipo,
++ * número) ya lo tiene registrado OTRA factura del negocio? El plugin la usa antes de adoptar un
++ * comprobante que encontró autorizado en ARCA: si ya es de otra venta, no lo adopta.
++ */
++export async function numeroUsadoPorOtraFactura(consulta: {
++  tenantId: string;
++  invoiceId: string;
++  puntoVenta: number;
++  tipo: number;
++  numero: number;
++}): Promise<boolean> {
++  const otra = await tenantTransaction(
+     (tx) =>
+-      tx.invoice.updateMany({
+-        where: { id: input.invoiceId, tenantId: input.tenantId, status: "PENDING" },
+-        data: {
+-          status: "AUTHORIZED",
+-          cae: input.cae,
+-          caeVencimiento: input.caeVencimiento,
+-          numero: input.numero,
+-          tipoComprobante: input.tipoComprobante,
+-          authorizedAt: new Date(),
++      tx.invoice.findFirst({
++        where: {
++          tenantId: consulta.tenantId,
++          puntoVenta: consulta.puntoVenta,
++          tipoComprobante: consulta.tipo,
++          numero: consulta.numero,
++          id: { not: consulta.invoiceId },
+         },
++        select: { id: true },
+       }),
+-    { tenantId: input.tenantId },
++    { tenantId: consulta.tenantId },
+   );
+-  if (res.count === 0) {
+-    // No estaba PENDING: ya autorizada (reintento del evento) o no existe / otro
+-    // tenant. No es error del flujo; el dispatcher lo trata como procesado.
+-    return;
+-  }
++  return otra !== null;
+ }
+ 
+-/** Registra que ARCA rechazó la factura (status REJECTED + motivo). */
++/**
++ * Registra que ARCA rechazó la factura (REJECTED + motivo) y cierra el envío que recibió el
++ * rechazo, en UNA transacción: si el proceso se corta, o quedan las dos cosas o ninguna (un
++ * envío abierto para una factura rechazada era la puerta a un segundo CAE al volver a
++ * facturar). Si el envío ya estaba cerrado no se escribe nada y devuelve `false`: el rechazo
++ * de un envío viejo no toca la factura reabierta. `true` = la factura quedó rechazada.
++ */
+ export async function markInvoiceRejected(
+   invoiceId: string,
+   tenantId: string,
+   motivo: string,
+-): Promise<void> {
+-  // Mismo criterio que registerFiscalDocument: tenantId explícito, sin depender
+-  // de la resolución ambiental (worker sin request).
+-  await tenantTransaction(
++  envioId: string,
++): Promise<boolean> {
++  return escribirSiElEnvioSigueAbierto(
++    tenantId,
++    envioId,
+     (tx) =>
+       tx.invoice.updateMany({
+         where: { id: invoiceId, tenantId, status: "PENDING" },
+         data: { status: "REJECTED", rechazoMotivo: motivo },
+       }),
++    motivo,
++  );
++}
++
++/**
++ * ENG-021 · Antes de mandar un envío a ARCA: si su factura ya no está PENDING (quedó autorizada
++ * o rechazada y el envío no se llegó a cerrar, como pasaba antes de que registrar y rechazar
++ * cerraran el envío en la misma transacción), lo cierra SIN pedirle nada a ARCA y devuelve
++ * `true` (= no se envía; también si otro despacho ya lo había cerrado). Un pedido más sólo podía
++ * terminar en un CAE que ninguna factura toma. `false` = la factura sigue PENDING: se envía.
++ */
++export async function cerrarEnvioDeFacturaNoPendiente(
++  envioId: string,
++  invoiceId: string,
++  tenantId: string,
++): Promise<boolean> {
++  return tenantTransaction(
++    async (tx) => {
++      const factura = await tx.invoice.findFirst({
++        where: { id: invoiceId, tenantId },
++        select: { status: true },
++      });
++      if (factura?.status === "PENDING") return false;
++      await tx.outboxEvent.updateMany({
++        where: { id: envioId, tenantId, processedAt: null },
++        data: {
++          processedAt: new Date(),
++          lastError: `La factura ya no estaba pendiente (${factura?.status ?? "no existe"}): no se envió a ARCA.`,
++        },
++      });
++      return true;
++    },
+     { tenantId },
+   );
+ }
+diff --git a/src/lib/invoice-from-appointment.ts b/src/lib/invoice-from-appointment.ts
+index 0630b29..9615ab4 100644
+--- a/src/lib/invoice-from-appointment.ts
++++ b/src/lib/invoice-from-appointment.ts
+@@ -10,7 +10,7 @@
+ import { prisma } from "@/lib/prisma";
+ import { createInvoice } from "@/lib/invoice-core";
+ import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
+-import { processArcaOutbox } from "@/lib/arca-dispatch";
++import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
+ import { decidirFacturacion } from "@/lib/invoice-idempotency";
+ import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
+ 
+@@ -35,7 +35,7 @@ export interface DepsFacturarTurno {
+   marcarPago: (paymentId: string, invoiceId: string) => Promise<unknown>;
+   getFiscalProfile: typeof getFiscalProfile;
+   createInvoice: typeof createInvoice;
+-  processArcaOutbox: typeof processArcaOutbox;
++  procesarEnviosDelNegocio: typeof procesarEnviosDelNegocio;
+ }
+ 
+ const DEPS: DepsFacturarTurno = {
+@@ -51,14 +51,16 @@ const DEPS: DepsFacturarTurno = {
+     }),
+   getFiscalProfile,
+   createInvoice,
+-  processArcaOutbox,
++  procesarEnviosDelNegocio,
+ };
+ 
+ /**
+  * Crea la factura del turno y la despacha al plugin ARCA (tick del simulador).
+  * Devuelve el `invoiceId`, o `null` si el turno no se pudo facturar (ej. sin
+- * monto). NO lanza por fallas de facturación: es responsabilidad del llamador
+- * decidir si eso es best-effort (completar turno) o reintentable (webhook MP).
++ * monto). LANZA `CobroDelTurnoCambioError` si el cobro del turno se anuló (entero o en parte)
++ * mientras se facturaba (ENG-023): el monto se lee acá, fuera de la transacción, y
++ * `createInvoiceInTx` lo vuelve a comparar con la fila del turno tomada. El llamador decide si
++ * eso es best-effort (completar turno, que lo registra en el log) o reintentable.
+  */
+ export async function facturarAppointment(
+   appointmentId: string,
+@@ -118,7 +120,7 @@ export async function facturarAppointment(
+   }
+ 
+   // Tick del simulador: en prod esto lo hace un worker periódico (ADR-002/024).
+-  await deps.processArcaOutbox();
++  await deps.procesarEnviosDelNegocio(tenantId);
+ 
+   return invoiceId;
+ }
+diff --git a/src/lib/invoice-from-order.ts b/src/lib/invoice-from-order.ts
+index 484db24..6d0ef2e 100644
+--- a/src/lib/invoice-from-order.ts
++++ b/src/lib/invoice-from-order.ts
+@@ -12,7 +12,7 @@
+ import { prisma } from "@/lib/prisma";
+ import { createInvoice } from "@/lib/invoice-core";
+ import { calcularImpuestos, getFiscalProfile } from "@/lib/fiscal";
+-import { processArcaOutbox } from "@/lib/arca-dispatch";
++import { procesarEnviosDelNegocio } from "@/lib/arca-dispatch";
+ import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
+ 
+ // Códigos de catálogo ARCA (ver src/plugins/arca/domain/catalogos.ts).
+@@ -28,7 +28,7 @@ export interface DepsFacturarOrden {
+   leerOrden: (orderId: string, tenantId: string) => Promise<{ total: number } | null>;
+   getFiscalProfile: typeof getFiscalProfile;
+   createInvoice: typeof createInvoice;
+-  processArcaOutbox: typeof processArcaOutbox;
++  procesarEnviosDelNegocio: typeof procesarEnviosDelNegocio;
+ }
+ 
+ const DEPS: DepsFacturarOrden = {
+@@ -36,14 +36,15 @@ const DEPS: DepsFacturarOrden = {
+     prisma.order.findFirst({ where: { id: orderId, tenantId }, select: { total: true } }),
+   getFiscalProfile,
+   createInvoice,
+-  processArcaOutbox,
++  procesarEnviosDelNegocio,
+ };
+ 
+ /**
+  * Crea la factura de una orden y la despacha al plugin ARCA (tick del simulador).
+  * Devuelve el `invoiceId`, o `null` si la orden no se pudo facturar (no existe,
+- * otro tenant, o total no positivo). NO lanza por fallas de facturación: el
+- * llamador decide si es best-effort (intake del pedido) o reintentable.
++ * otro tenant, o total no positivo). LANZA `VentaAnuladaError` si el pedido está anulado
++ * (ENG-023) y "No se encontró la venta a facturar." si la fila desapareció dentro de la
++ * transacción; el llamador decide si eso es best-effort (intake del pedido) o se muestra.
+  *
+  * Concepto PRODUCTOS: a diferencia del turno (Servicios), un pedido de retail no
+  * lleva fechas de servicio. El receptor es Consumidor Final mientras la Orden no
+@@ -53,6 +54,7 @@ export async function facturarOrden(
+   orderId: string,
+   tenantId: string,
+   deps: DepsFacturarOrden = DEPS,
++  opciones: { reabrirSiRechazada?: boolean } = {},
+ ): Promise<string | null> {
+   const order = await deps.leerOrden(orderId, tenantId);
+   if (!order) return null;
+@@ -85,10 +87,13 @@ export async function facturarOrden(
+     // I2 (ADR-064): enlace a la venta = idempotencia por pedido. Un reintento de facturación
+     // del MISMO pedido devuelve el comprobante ya emitido, no crea un duplicado.
+     origin: { type: "ORDER", id: orderId },
++    // ENG-021: una factura rechazada se reabre sólo si lo pide quien la vuelve a facturar
++    // ("Volver a facturar"); la ingesta de pedidos externos no lo pide.
++    ...(opciones.reabrirSiRechazada ? { reabrirSiRechazada: true } : {}),
+   });
+ 
+   // Tick del simulador: en prod esto lo hace un worker periódico (ADR-002/024).
+-  await deps.processArcaOutbox();
++  await deps.procesarEnviosDelNegocio(tenantId);
+ 
+   return invoiceId;
+ }
+diff --git a/src/lib/turnos/anulacion.test.ts b/src/lib/turnos/anulacion.test.ts
+index 17f7323..aee8fdc 100644
+--- a/src/lib/turnos/anulacion.test.ts
++++ b/src/lib/turnos/anulacion.test.ts
+@@ -74,7 +74,15 @@ const D = (s: string) => new Date(`${s}T15:00:00.000Z`);
+ 
+ type ColSeed = Omit<Partial<ColRow>, "amount"> & { amount?: number };
+ 
+-function makeTx(seed: { cobros?: ColSeed[]; movs?: Partial<MovRow>[]; payment?: Partial<PayRow> } = {}) {
++function makeTx(
++  seed: {
++    cobros?: ColSeed[];
++    movs?: Partial<MovRow>[];
++    payment?: Partial<PayRow>;
++    /** Las facturas del turno (ENG-023), con su negocio y su turno. */
++    facturas?: { tenantId: string; appointmentId: string; status: string }[];
++  } = {},
++) {
+   let seq = 0;
+   const collections: ColRow[] = (seed.cobros ?? []).map((c, i) => ({
+     id: c.id ?? `col-${i + 1}`,
+@@ -105,7 +113,21 @@ function makeTx(seed: { cobros?: ColSeed[]; movs?: Partial<MovRow>[]; payment?:
+     ? [{ tenantId: TENANT, appointmentId: TURNO, amount: 0, method: "EFECTIVO", status: "APPROVED", ...seed.payment }]
+     : [];
+ 
++  // `anularCobroTurnoInTx` toma la fila del turno FOR UPDATE con SQL crudo (ENG-023); el doble
++  // anota que se tomó. El bloqueo real se prueba contra Postgres en
++  // facturar-turno-con-cobro-anulado-postgres.test.ts.
++  const orden: string[] = [];
+   const tx = {
++    $queryRaw: async (_sql: TemplateStringsArray, ...valores: unknown[]) => {
++      orden.push(`toma el turno ${String(valores[0])}`);
++      return [{ id: String(valores[0]) }];
++    },
++    invoice: {
++      findMany: async (args: { where: { tenantId: string; appointmentId: string } }) =>
++        (orden.push(`lee las facturas de ${args.where.appointmentId}`), seed.facturas ?? [])
++          .filter((f) => f.tenantId === args.where.tenantId && f.appointmentId === args.where.appointmentId)
++          .map((f) => ({ status: f.status })),
++    },
+     collection: {
+       findFirst: async (args: { where: { id?: string; originId?: string } }) =>
+         collections.find((c) => (args.where.id ? c.id === args.where.id : c.originId === args.where.originId)) ?? null,
+@@ -169,7 +191,7 @@ function makeTx(seed: { cobros?: ColSeed[]; movs?: Partial<MovRow>[]; payment?:
+       },
+     },
+   };
+-  return { tx: tx as unknown as AnulacionTx, collections, movements, payments };
++  return { tx: tx as unknown as AnulacionTx, collections, movements, payments, orden };
+ }
+ 
+ // Día contable inyectado: el test no depende de la zona horaria del que lo corre.
+@@ -231,15 +253,65 @@ test("un cobro ya anulado no vuelve a ofrecerse para anular", () => {
+ });
+ 
+ test("planAnulacion: sólo cobros vivos, y el día cerrado se responde después de la idempotencia", () => {
+-  assert.deepEqual(planAnulacion({ note: null, amount: 18000, yaAnulado: false, diaCerrado: false }), { ok: true, monto: 18000 });
+-  assert.deepEqual(planAnulacion({ note: notaDeAnulacion("x", "m"), amount: -1, yaAnulado: false, diaCerrado: false }), {
++  assert.deepEqual(planAnulacion({ note: null, amount: 18000, yaAnulado: false, diaCerrado: false, factura: "sin-factura-viva" }), { ok: true, monto: 18000 });
++  assert.deepEqual(planAnulacion({ note: notaDeAnulacion("x", "m"), amount: -1, yaAnulado: false, diaCerrado: false, factura: "sin-factura-viva" }), {
+     ok: false,
+     motivo: "no-es-cobro",
+   });
+-  assert.deepEqual(planAnulacion({ note: null, amount: 0, yaAnulado: false, diaCerrado: false }), { ok: false, motivo: "monto-invalido" });
++  assert.deepEqual(planAnulacion({ note: null, amount: 0, yaAnulado: false, diaCerrado: false, factura: "sin-factura-viva" }), { ok: false, motivo: "monto-invalido" });
+   // Ya anulado + día cerrado → "ya-anulado": un doble clic no tiene que asustar a nadie.
+-  assert.deepEqual(planAnulacion({ note: null, amount: 100, yaAnulado: true, diaCerrado: true }), { ok: false, motivo: "ya-anulado" });
+-  assert.deepEqual(planAnulacion({ note: null, amount: 100, yaAnulado: false, diaCerrado: true }), { ok: false, motivo: "dia-cerrado" });
++  assert.deepEqual(planAnulacion({ note: null, amount: 100, yaAnulado: true, diaCerrado: true, factura: "sin-factura-viva" }), { ok: false, motivo: "ya-anulado" });
++  assert.deepEqual(planAnulacion({ note: null, amount: 100, yaAnulado: false, diaCerrado: true, factura: "sin-factura-viva" }), { ok: false, motivo: "dia-cerrado" });
++});
++
++// ENG-023: el cobro de un turno facturado no se anula mientras no exista la nota de crédito.
++test("planAnulacion: con factura autorizada o en camino el cobro no se anula; el doble clic sigue contestando 'ya está'", () => {
++  const base = { note: null, amount: 18000, yaAnulado: false, diaCerrado: false };
++  assert.deepEqual(planAnulacion({ ...base, factura: "autorizada" }), { ok: false, motivo: "facturado" });
++  assert.deepEqual(planAnulacion({ ...base, factura: "en-camino" }), { ok: false, motivo: "factura-en-camino" });
++  assert.deepEqual(planAnulacion({ ...base, diaCerrado: true, factura: "autorizada" }), { ok: false, motivo: "facturado" });
++  assert.deepEqual(planAnulacion({ ...base, yaAnulado: true, factura: "autorizada" }), { ok: false, motivo: "ya-anulado" });
++});
++
++test("anular el cobro de un turno con factura autorizada se rechaza y no escribe nada", async () => {
++  const { tx, collections, movements, payments } = makeTx({
++    cobros: [{ id: "col-1", amount: 18000 }],
++    movs: [{ collectionId: "col-1", type: "VENTA", amount: 18000, occurredAt: D("2026-09-10") }],
++    payment: { amount: 18000 },
++    facturas: [{ tenantId: TENANT, appointmentId: TURNO, status: "AUTHORIZED" }],
++  });
++  await assert.rejects(
++    () => anularCobroTurnoInTx(tx, TENANT, argsAnular()),
++    (e: unknown) => e instanceof AnulacionRechazada && e.motivo === "facturado" && /nota de crédito/.test(e.message),
++  );
++  assert.equal(collections.length, 1, "ninguna contrapartida");
++  assert.equal(movements.length, 1, "ningún egreso");
++  assert.equal(payments[0].amount, 18000, "el turno sigue cobrado");
++});
++
++test("anular el cobro toma la fila del turno antes de leer sus facturas (ENG-023: la facturación simultánea la escribe)", async () => {
++  const { tx, orden } = makeTx({
++    cobros: [{ id: "col-1", amount: 18000 }],
++    movs: [{ collectionId: "col-1", type: "VENTA", amount: 18000, occurredAt: D("2026-09-10") }],
++    payment: { amount: 18000 },
++  });
++  await anularCobroTurnoInTx(tx, TENANT, argsAnular());
++  assert.deepEqual(orden, [`toma el turno ${TURNO}`, `lee las facturas de ${TURNO}`]);
++});
++
++test("la factura de otro turno o de otro negocio no frena la anulación del cobro", async () => {
++  const { tx } = makeTx({
++    cobros: [{ id: "col-1", amount: 18000 }],
++    movs: [{ collectionId: "col-1", type: "VENTA", amount: 18000, occurredAt: D("2026-09-10") }],
++    payment: { amount: 18000 },
++    facturas: [
++      { tenantId: "t2", appointmentId: TURNO, status: "AUTHORIZED" },
++      { tenantId: TENANT, appointmentId: "appt-otro", status: "AUTHORIZED" },
++      { tenantId: TENANT, appointmentId: TURNO, status: "REJECTED" },
++    ],
++  });
++  const r = await anularCobroTurnoInTx(tx, TENANT, argsAnular());
++  assert.equal(r.applied, true);
+ });
+ 
+ test("planCondonacion: sólo un turno prestado y con saldo", () => {
+diff --git a/src/lib/turnos/anulacion.ts b/src/lib/turnos/anulacion.ts
+index d6c4b70..c8b8aea 100644
+--- a/src/lib/turnos/anulacion.ts
++++ b/src/lib/turnos/anulacion.ts
+@@ -45,6 +45,7 @@ import { round2 } from "@/lib/round";
+ import type { Prisma } from "@/generated/prisma/client";
+ import { estadoCobroTurno, type CobroTurno, type PagoLegado } from "./cobros";
+ import { cashMethodFromPaymentMethod } from "@/lib/caja/cierre-diario";
++import { facturaDeLaVenta, mensajeFacturaViva, type FacturaDeLaVenta } from "@/lib/factura-viva";
+ 
+ export type AnulacionTx = Prisma.TransactionClient;
+ 
+@@ -183,6 +184,8 @@ export type MotivoAnulacionRechazada =
+   | "no-es-cobro" // se apuntó a una contrapartida o a una condonación
+   | "ya-anulado" // idempotencia: ya tiene su reversa
+   | "monto-invalido" // fila corrupta (≤ 0): no hay nada que revertir
++  | "facturado" // ENG-023: el turno tiene factura autorizada y todavía no hay nota de crédito
++  | "factura-en-camino" // ENG-023: su factura espera la respuesta de ARCA; el CAE puede llegar después
+   | "dia-cerrado"; // el día del asiento ya está cerrado: la corrección va con fecha de hoy
+ 
+ export type PlanAnulacion =
+@@ -191,17 +194,23 @@ export type PlanAnulacion =
+ 
+ /**
+  * ¿Se puede anular ESTE cobro? Pura. `yaAnulado` lo resuelve el repositorio buscando la
+- * contrapartida; `diaCerrado` lo resuelve la frontera del libro (`frontera-cierre.ts`).
++ * contrapartida; `diaCerrado` lo resuelve la frontera del libro (`frontera-cierre.ts`);
++ * `factura`, la factura del turno (`facturaDeLaVenta`, factura-viva.ts, ENG-023).
+  */
+ export function planAnulacion(input: {
+   note: string | null | undefined;
+   amount: number;
+   yaAnulado: boolean;
+   diaCerrado: boolean;
++  factura: FacturaDeLaVenta;
+ }): PlanAnulacion {
+   if (claseDeCobro(input.note) !== "cobro") return { ok: false, motivo: "no-es-cobro" };
+   if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, motivo: "monto-invalido" };
+   if (input.yaAnulado) return { ok: false, motivo: "ya-anulado" };
++  // La factura va antes que el día cerrado: sin nota de crédito, la plata de un turno
++  // facturado no se devuelve por acá, ni hoy ni con fecha de otro día.
++  if (input.factura === "autorizada") return { ok: false, motivo: "facturado" };
++  if (input.factura === "en-camino") return { ok: false, motivo: "factura-en-camino" };
+   // El día cerrado se evalúa AL FINAL: si ya está anulado, la respuesta correcta es
+   // "ya está", no "no se puede" — un doble clic no tiene que asustar a nadie.
+   if (input.diaCerrado) return { ok: false, motivo: "dia-cerrado" };
+@@ -259,6 +268,10 @@ export function mensajeAnulacionRechazada(motivo: MotivoAnulacionRechazada): str
+       return "Ese cobro no tiene un monto válido para revertir.";
+     case "ya-anulado":
+       return "Ese cobro ya estaba anulado.";
++    case "facturado":
++      return mensajeFacturaViva("autorizada", "turno");
++    case "factura-en-camino":
++      return mensajeFacturaViva("en-camino", "turno");
+     case "dia-cerrado":
+       return "Ese cobro es de un día ya cerrado y un día contado no se toca. La corrección va con fecha de hoy: cargala en el libro de caja como INGRESO/EGRESO, con el motivo.";
+   }
+@@ -341,6 +354,17 @@ export async function anularCobroTurnoInTx(
+   tenantId: string,
+   args: AnularCobroArgs,
+ ): Promise<AnularCobroResult> {
++  // ENG-023, contra la facturación del turno: la fila del turno FOR UPDATE, ANTES de leer sus
++  // facturas. La facturación (`createInvoiceInTx`, origen APPOINTMENT) escribe esa misma fila:
++  //  · si facturó primero y confirmó después de la foto de esta transacción (Serializable),
++  //    Postgres aborta este bloqueo (40001), `tenantTransaction` reintenta y el reintento ve la
++  //    factura y rechaza la anulación;
++  //  · si la anulación va primero, la facturación espera este bloqueo y después relee el cobro.
++  // El negocio va explícito en el WHERE además de RLS.
++  await tx.$queryRaw`
++    SELECT id FROM "Appointment"
++    WHERE id = ${args.appointmentId} AND "tenantId" = ${tenantId}
++    FOR UPDATE`;
+   const original = await tx.collection.findFirst({
+     where: { tenantId, id: args.collectionId, originType: "APPOINTMENT", originId: args.appointmentId },
+     select: { id: true, amount: true, method: true, note: true, createdAt: true },
+@@ -380,6 +404,13 @@ export async function anularCobroTurnoInTx(
+     amount: montoOriginal,
+     yaAnulado: Boolean(yaAnulada),
+     diaCerrado: Boolean(args.diaCerradoHasta && args.esDiaCerrado(diaContable, args.diaCerradoHasta)),
++    // ENG-023: la factura del turno, por su enlace (`Invoice.appointmentId`) y dentro del negocio.
++    factura: facturaDeLaVenta(
++      await tx.invoice.findMany({
++        where: { tenantId, appointmentId: args.appointmentId },
++        select: { status: true },
++      }),
++    ),
+   });
+   if (!plan.ok) {
+     if (plan.motivo === "ya-anulado" && yaAnulada) return { applied: false, reason: "duplicate", reversaId: yaAnulada.id };

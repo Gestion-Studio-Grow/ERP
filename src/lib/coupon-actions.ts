@@ -121,8 +121,12 @@ export type CouponCheck =
 //     por negocio + IP): antes seguía contestando; ahora "Probaste muchos códigos seguidos.
 //     Esperá unos minutos y volvé a intentar." (`CUPON_FRENADO`). Límite aceptado: las clientas
 //     que reservan desde el wifi del salón comparten la IP y el cupo (ver `crearFrenoDeCupones`).
-// Un cupón válido se aplica igual que antes, con la misma cuenta del descuento, y la regla de
-// validez es la de siempre (existe, prendido, sin vencer, con usos; un cupón en 0 pasa).
+//   · cupón que vale pero no llega a descontar nada (en 0, o 5 % de $9 al peso): antes pasaba con
+//     $0 y la reserva gastaba el uso; ahora "El cupón X no llega a descontar nada sobre $9,00." y
+//     la reserva no lo gasta (ENG-109).
+// Un cupón que descuenta se aplica con la cuenta de la reserva (`montoDeCupon`, camino "turno",
+// al peso); lo único que cambia es el medio peso, que antes bajaba por error de binario y ahora
+// sube (29 % de $750: $217 → $218), y el 100 %, que ahora deja el turno en cero (ENG-109).
 export async function checkCoupon(code: string, price: number): Promise<CouponCheck> {
   const tenantId = await getCurrentTenantId();
   const normalized = String(code ?? "").trim().toUpperCase();
@@ -134,15 +138,18 @@ export async function checkCoupon(code: string, price: number): Promise<CouponCh
     ip: await requestIp(),
     ahora: new Date(),
     leer: () => prisma.coupon.findUnique({ where: { tenantId_code: { tenantId, code: normalized } } }),
-    // La misma regla de validez que tenía la reserva: un cupón en 0 sigue pasando (y
-    // `bookAppointment` lo aplica igual). Sólo cambian el texto y el freno.
+    // El freno y el texto único van por acá; el cupón en 0 (o que redondeado no descuenta nada)
+    // lo rechaza abajo `aplicarCupon`, con el motivo, igual que la reserva (ENG-109).
     exigeDescuento: false,
   });
   if (!prueba.ok) return { ok: false, reason: prueba.motivo === "frenado" ? CUPON_FRENADO : "Cupón inválido." };
   const coupon = prueba.cupon;
 
-  const discount = coupon.type === "PERCENT" ? Math.round(price * (coupon.value / 100)) : Math.min(coupon.value, price);
-  return { ok: true, coupon: { code: coupon.code, type: coupon.type, value: coupon.value }, discount };
+  // La misma decisión que la reserva (`cuponDeLaReserva`, ENG-109): el % al peso, y un cupón que
+  // no llega a descontar nada se avisa acá en vez de aplicarse en $0 y gastarse al reservar.
+  const r = aplicarCupon({ cupon: coupon, base: price, ahora: new Date(), camino: "turno" });
+  if (!r.ok) return { ok: false, reason: r.sinDescuento ? r.error : "Cupón inválido." };
+  return { ok: true, coupon: { code: coupon.code, type: coupon.type, value: coupon.value }, discount: r.descuento };
 }
 
 export type VistaPreviaCupon =
@@ -197,7 +204,9 @@ export async function probarCuponEnPedido(codigo: string, base: number): Promise
   const r = aplicarCupon({ cupon: c, base: baseLeida, ahora: new Date() });
   // Con el cupón usable y la base positiva, `aplicarCupon` no rechaza; si algún día cambia, la
   // respuesta hacia afuera sigue siendo la única.
-  if (!r.ok) return { ok: false, error: CUPON_NO_VALE };
+  // Si el cupón vale pero sobre esta bolsa no descuenta nada, se dice eso (no "no existe"): el
+  // código ya pasó el freno y la prueba, no hay nada nuevo que revelar.
+  if (!r.ok) return { ok: false, error: r.sinDescuento ? r.error : CUPON_NO_VALE };
   // El tipo y el valor van para que la pantalla recalcule la vista previa cuando cambia la bolsa
   // (`montoDeCupon`). El servidor vuelve a decidir todo al tomar el pedido.
   return { ok: true, codigo: r.codigo, tipo: c.type, valor: c.value, descuento: r.descuento };

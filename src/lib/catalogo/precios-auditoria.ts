@@ -19,6 +19,7 @@
 // Este archivo no importa ningún valor de Prisma: las funciones que escriben reciben la tx del
 // llamador (la de `tenantTransaction`), igual que `escribirPlan`.
 
+import { centavosDe } from "@/lib/dinero/redondeo";
 import type { Prisma } from "@/generated/prisma/client";
 import type { FormaDeVenta } from "./planilla-core";
 import { precioDeVenta } from "./aumento-core";
@@ -124,7 +125,7 @@ export function cambioDePrecioDeUnProducto(args: {
     args.antes !== null &&
     precioAntes !== null &&
     args.antes.saleUnit === despues.saleUnit &&
-    Math.round(precioAntes * 100) === Math.round(precioDespues * 100);
+    centavosDe(precioAntes) === centavosDe(precioDespues);
   if (mismo) return null;
   return { productId: args.productId, nombre: args.nombre, saleUnit: despues.saleUnit, antes: precioAntes, despues: precioDespues };
 }

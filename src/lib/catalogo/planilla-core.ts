@@ -38,6 +38,7 @@
 // La única pieza que toca la base es `escribirPlan`, al final, que recibe la tx del llamador
 // (igual que `recordMovement`) y no abre la suya.
 
+import { centavosDe, textoAlCentavo } from "@/lib/dinero/redondeo";
 import { leerCantidad, leerImporte } from "@/lib/pos-peso";
 import type { LedgerTx } from "@/lib/stock/ledger";
 
@@ -175,13 +176,13 @@ function nombreLimpio(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
-const centavos = (n: number): number => Math.round(n * 100);
+const centavos = centavosDe;
 
 /** Precio como lo lee Excel es-AR: sin miles, coma decimal, centavos sólo si hay. */
 export function precioParaPlanilla(n: number | null): string {
   if (n == null || !(n > 0)) return "";
   const c = centavos(n);
-  return c % 100 === 0 ? String(c / 100) : (c / 100).toFixed(2).replace(".", ",");
+  return c % 100 === 0 ? String(c / 100) : textoAlCentavo(c / 100).replace(".", ",");
 }
 
 function cantidadParaPlanilla(n: number): string {

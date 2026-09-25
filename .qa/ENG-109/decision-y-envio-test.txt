@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: 1,005 viaja como 1.01 y la decisión cuenta 1,01: un umbral de 1,01 lo alcanza
+ok 1 - 1,005 viaja como 1.01 y la decisión cuenta 1,01: un umbral de 1,01 lo alcanza
+  ---
+  duration_ms: 19.125516
+  type: 'test'
+  ...
+# Subtest: en 20.000 importes con medio centavo, la decisión corta justo en el ImpTotal que viaja
+ok 2 - en 20.000 importes con medio centavo, la decisión corta justo en el ImpTotal que viaja
+  ---
+  duration_ms: 1295.099081
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1804.838017

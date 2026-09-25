@@ -25,6 +25,12 @@ export interface EmisorEvento {
   cuit: number;
   condicionIva: CondicionIva;
   puntoVenta: number;
+  /**
+   * Sólo Responsable Inscripto: la clase A que le asignó ARCA (RG 1575): "A", "A_CON_LEYENDA"
+   * o "M". Sin el dato ninguna A sale sola (va a revisión). El Core todavía no lo guarda
+   * (columna a crear, ver BACKLOG): hoy ningún camino emite como Responsable Inscripto.
+   */
+  regimenFacturaA?: string | null;
 }
 
 /** Datos del receptor tal como el Core los conoce. */
@@ -55,10 +61,37 @@ export interface InvoiceCreatedEvent {
   iva: SubtotalIvaCore[];
   /** Total del comprobante (neto + IVA), calculado por el Core. */
   total: number;
+  /**
+   * ENG-024 · `true` sólo si el desglose de IVA salió de la alícuota de cada producto. Sin el
+   * dato (o `false`) es una tasa pareja sobre el total, y un Responsable Inscripto no emite así.
+   */
+  ivaPorProducto?: boolean;
   /** Fechas de servicio (`AAAAMMDD`), requeridas si el concepto incluye servicios. */
   servicioDesde?: string;
   servicioHasta?: string;
   vencimientoPago?: string;
+  /** Importe exento (ImpOpEx) y no gravado (ImpTotConc). Sin dato: no hay. En Factura C, 0. */
+  importeExento?: number;
+  importeNoGravado?: number;
+  /** Default: factura. Nota de crédito o débito, con lo que corrige. */
+  clase?: 'factura' | 'nota_debito' | 'nota_credito';
+  /** Nota de crédito o débito: la factura que corrige (CbtesAsoc). Fecha AAAAMMDD. */
+  asociado?: { cbteTipo: number; puntoVenta: number; numero: number; fecha: string } | null;
+  /** Nota de crédito o débito por período (PeriodoAsoc), en vez de una factura. AAAAMMDD. */
+  periodoAsociado?: { desde: string; hasta: string; letra?: 'A' | 'B' | 'C' | 'M' | null } | null;
+  /**
+   * ENG-020 · El número que un envío anterior de ESTE evento le pidió a ARCA. Si está, antes
+   * de pedir otro CAE se consulta ese número: si ARCA ya lo autorizó para este comprobante, se
+   * adopta (la respuesta se había perdido) y no se emite un segundo comprobante.
+   */
+  intentoArca?: IntentoArca;
+}
+
+/** ENG-020 · Número pedido a ARCA, anotado ANTES de mandar el pedido. */
+export interface IntentoArca {
+  puntoVenta: number;
+  tipo: number;
+  numero: number;
 }
 
 /**
@@ -86,3 +119,13 @@ export interface RegisterFiscalDocumentInput {
 export type RegisterFiscalDocument = (
   input: RegisterFiscalDocumentInput,
 ) => Promise<void>;
+
+/**
+ * ENG-020 · Consulta pública del Core: ¿ese número (punto de venta, tipo, número) ya lo tiene
+ * registrado OTRA factura del negocio? Si sí, el comprobante que ARCA muestra con ese número es
+ * de esa otra venta (aunque los datos coincidan: dos ventas iguales a consumidor final el mismo
+ * día) y el plugin no lo adopta.
+ */
+export type NumeroUsadoPorOtraFactura = (
+  consulta: IntentoArca & { tenantId: string; invoiceId: string },
+) => Promise<boolean>;

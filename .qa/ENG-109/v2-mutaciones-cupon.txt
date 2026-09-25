@@ -1,0 +1,5 @@
+s/if (valor >= 100) return b;/if (valor > 100) return b;/ => # fail 1
+s/if (valor >= 100) return b;// => # fail 1
+s/return Math.min(porcentajeDe(b, valor, UNIDAD_DEL_DESCUENTO_DE_CUPON), b);/return porcentajeDe(b, valor, UNIDAD_DEL_DESCUENTO_DE_CUPON);/ => # fail 0
+--- con el caso 99 % de $0,60:
+s/return Math.min(porcentajeDe(b, valor, UNIDAD_DEL_DESCUENTO_DE_CUPON), b);/return porcentajeDe(b, valor, UNIDAD_DEL_DESCUENTO_DE_CUPON);/ => # fail 1

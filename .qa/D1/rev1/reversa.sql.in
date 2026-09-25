@@ -1,0 +1,20 @@
+-- D1 · reversa v2. Va como migración NUEVA hacia adelante (<fecha>_d1_<porción>_revertir), con el
+-- commit que devuelve schema.prisma a Float. La fila que nadie tocó vuelve bit por bit de su
+-- respaldo; la que se escribió o se creó después de migrar conserva su valor vigente.
+DO $reversa$
+DECLARE
+  pares text[][] := ARRAY[ @PARES@ ];
+  t text; tipos text; drops text;
+BEGIN
+  PERFORM set_config('lock_timeout', '5s', true);
+  PERFORM set_config('row_security', 'off', true);
+  FOR t IN SELECT DISTINCT pares[i][1] FROM generate_subscripts(pares, 1) i LOOP
+    SELECT string_agg(format('ALTER COLUMN %1$I TYPE double precision USING CASE WHEN %2$I IS NOT NULL AND round(%2$I::numeric, %3$s) = %1$I THEN %2$I ELSE %1$I::float8 END',
+                             pares[i][2], pares[i][2] || '_float', pares[i][3]), ', '),
+           string_agg(format('DROP COLUMN %I', pares[i][2] || '_float'), ', ')
+      INTO tipos, drops FROM generate_subscripts(pares, 1) i WHERE pares[i][1] = t;
+    EXECUTE format('ALTER TABLE %I %s', t, tipos);
+    EXECUTE format('ALTER TABLE %I %s', t, drops);
+  END LOOP;
+END
+$reversa$;

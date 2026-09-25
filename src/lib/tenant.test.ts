@@ -147,6 +147,7 @@ import { assertForcedSlugAllowedInProduction } from "./tenant";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { baseEfimeraDelArchivo, type BaseEfimera } from "@/test/base-efimera";
 
 test("el pin por env NO lanza fuera de producción, y ni siquiera mira la base", async () => {
   let cuentas = 0;
@@ -200,12 +201,11 @@ test("el mensaje dice QUÉ sacar y DE DÓNDE (si no, el próximo lo saca del có
 // vez de lanzar y el test se pone rojo — que es justo el agujero que un test de
 // "¿el archivo menciona la función?" no vería.
 //
-// Necesita el Postgres local. Si no está, se SALTEA con el motivo a la vista en vez de
-// fallar: `npm test` corre en CI sin base (.github/workflows/gates.yml:75).
+// La base es una efímera propia (src/test/base-efimera.ts), con dos negocios (A y B), compartida
+// por los dos tests de abajo y borrada al terminar el archivo. Sin Postgres local se SALTEA con el
+// motivo a la vista; en CI, falla.
 const TENANT_TS = path.join(__dirname, "tenant.ts");
-const DB_LOCAL =
-  process.env.TENANT_TEST_DATABASE_URL ??
-  "postgresql://postgres@localhost:5433/erp_scope?host=/tmp/pgrun";
+const laBase = baseEfimeraDelArchivo();
 
 const HIJO = `
 (async () => {
@@ -225,7 +225,7 @@ const HIJO = `
 })();
 `;
 
-function correr(nodeEnv: "production" | "development"): string {
+function correr(nodeEnv: "production" | "development", base: BaseEfimera): string {
   return execFileSync(
     process.execPath,
     ["--import", "tsx", "-e", HIJO],
@@ -235,8 +235,8 @@ function correr(nodeEnv: "production" | "development"): string {
       env: {
         ...process.env,
         NODE_ENV: nodeEnv,
-        FORCE_TENANT_SLUG: "beauty-spa",
-        DATABASE_URL: DB_LOCAL,
+        FORCE_TENANT_SLUG: base.a.slug,
+        DATABASE_URL: base.urlDuenio,
         DEMO_MODE_ENABLED: "",
         RLS_ENFORCEMENT: "",
       },
@@ -244,27 +244,22 @@ function correr(nodeEnv: "production" | "development"): string {
   ).trim();
 }
 
-test("getCurrentTenantId: en producción con la base real (>1 tenant) el pin LANZA", (t) => {
+test("getCurrentTenantId: en producción con la base real (>1 tenant) el pin LANZA", async (t) => {
   if (!existsSync(TENANT_TS)) return t.skip("no encuentro tenant.ts");
-  const salida = correr("production");
-  if (salida.startsWith("SIN_DB:")) {
-    return t.skip(`sin Postgres local (${DB_LOCAL}) — el cableado queda SIN verificar`);
-  }
+  const base = await laBase(t);
+  if (!base) return;
+  const salida = correr("production", base);
   assert.ok(
     salida.startsWith("THROW:"),
     `getCurrentTenantId resolvió un tenant con FORCE_TENANT_SLUG en producción: ${salida}`,
   );
-  assert.match(salida, /FORCE_TENANT_SLUG="beauty-spa".*PRODUCCIÓN/);
+  assert.match(salida, new RegExp(`FORCE_TENANT_SLUG="${base.a.slug}".*PRODUCCIÓN.*2 tenants`));
 });
 
-test("getCurrentTenantId: fuera de producción el pin SIGUE funcionando (dev/scripts intactos)", (t) => {
+test("getCurrentTenantId: fuera de producción el pin SIGUE funcionando (dev/scripts intactos)", async (t) => {
   if (!existsSync(TENANT_TS)) return t.skip("no encuentro tenant.ts");
-  const salida = correr("development");
-  if (salida.startsWith("SIN_DB:")) {
-    return t.skip(`sin Postgres local (${DB_LOCAL}) — el cableado queda SIN verificar`);
-  }
-  assert.ok(
-    salida.startsWith("RESOLVIO:"),
-    `el pin dejó de andar en desarrollo, que es su uso legítimo: ${salida}`,
-  );
+  const base = await laBase(t);
+  if (!base) return;
+  const salida = correr("development", base);
+  assert.equal(salida, `RESOLVIO:${base.a.id}`, `el pin dejó de andar en desarrollo, que es su uso legítimo: ${salida}`);
 });

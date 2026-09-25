@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+ok 1 - fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+  ---
+  duration_ms: 119.557427
+  type: 'test'
+  ...
+# Subtest: el patrón detecta las formas de redondeo a mano que busca
+ok 2 - el patrón detecta las formas de redondeo a mano que busca
+  ---
+  duration_ms: 0.377045
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 531.43917

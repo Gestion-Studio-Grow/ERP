@@ -1,0 +1,3011 @@
+TAP version 13
+# Subtest: lo anotado vuelve igual: textos con coma, hora de cada conteo, góndola y conteo ciego
+ok 1 - lo anotado vuelve igual: textos con coma, hora de cada conteo, góndola y conteo ciego
+  ---
+  duration_ms: 2.037347
+  type: 'test'
+  ...
+# Subtest: una planilla sin conteos ni nota no deja borrador (se borra la clave)
+ok 2 - una planilla sin conteos ni nota no deja borrador (se borra la clave)
+  ---
+  duration_ms: 0.169044
+  type: 'test'
+  ...
+# Subtest: un conteo de hace más de un día se descarta y se cuenta: el servidor rechazaría el recuento entero
+ok 3 - un conteo de hace más de un día se descarta y se cuenta: el servidor rechazaría el recuento entero
+  ---
+  duration_ms: 0.157611
+  type: 'test'
+  ...
+# Subtest: un producto que ya no está en la planilla (desactivado, sin control de stock) se descarta y se dice
+ok 4 - un producto que ya no está en la planilla (desactivado, sin control de stock) se descarta y se dice
+  ---
+  duration_ms: 0.215313
+  type: 'test'
+  ...
+# Subtest: si todo lo anotado se descartó, igual se avisa (para que nadie crea que quedó cargado)
+ok 5 - si todo lo anotado se descartó, igual se avisa (para que nadie crea que quedó cargado)
+  ---
+  duration_ms: 0.121089
+  type: 'test'
+  ...
+# Subtest: un borrador de ayer entero no se recupera, ni siquiera la nota
+ok 6 - un borrador de ayer entero no se recupera, ni siquiera la nota
+  ---
+  duration_ms: 0.087349
+  type: 'test'
+  ...
+# Subtest: lo que no escribió este formulario no se recupera: vacío, JSON roto, otra versión, datos con otra forma
+ok 7 - lo que no escribió este formulario no se recupera: vacío, JSON roto, otra versión, datos con otra forma
+  ---
+  duration_ms: 0.269841
+  type: 'test'
+  ...
+# Subtest: la clave separa negocio y persona: en un teléfono compartido cada uno ve lo suyo
+ok 8 - la clave separa negocio y persona: en un teléfono compartido cada uno ve lo suyo
+  ---
+  duration_ms: 0.147941
+  type: 'test'
+  ...
+# Subtest: 'Siguiente' en el teclado: el producto de abajo y, al final de la góndola, ninguno
+ok 9 - 'Siguiente' en el teclado: el producto de abajo y, al final de la góndola, ninguno
+  ---
+  duration_ms: 0.170864
+  type: 'test'
+  ...
+# Subtest: hace cuánto se anotó lo último
+ok 10 - hace cuánto se anotó lo último
+  ---
+  duration_ms: 0.346747
+  type: 'test'
+  ...
+# Subtest: un Guardar que entró pero no respondió no se vuelve a cargar (reloj del teléfono 0 min corrido)
+ok 11 - un Guardar que entró pero no respondió no se vuelve a cargar (reloj del teléfono 0 min corrido)
+  ---
+  duration_ms: 1.400198
+  type: 'test'
+  ...
+# Subtest: un Guardar que entró pero no respondió no se vuelve a cargar (reloj del teléfono 7 min corrido)
+ok 12 - un Guardar que entró pero no respondió no se vuelve a cargar (reloj del teléfono 7 min corrido)
+  ---
+  duration_ms: 0.210621
+  type: 'test'
+  ...
+# Subtest: un Guardar que entró pero no respondió no se vuelve a cargar (reloj del teléfono -7 min corrido)
+ok 13 - un Guardar que entró pero no respondió no se vuelve a cargar (reloj del teléfono -7 min corrido)
+  ---
+  duration_ms: 0.272317
+  type: 'test'
+  ...
+# Subtest: un Guardar que NO llegó al servidor: lo contado vuelve, con el aviso de que se estaba guardando
+ok 14 - un Guardar que NO llegó al servidor: lo contado vuelve, con el aviso de que se estaba guardando
+  ---
+  duration_ms: 0.259018
+  type: 'test'
+  ...
+# Subtest: otra persona recontó un producto después: manda su recuento, el conteo viejo no vuelve
+ok 15 - otra persona recontó un producto después: manda su recuento, el conteo viejo no vuelve
+  ---
+  duration_ms: 0.13364
+  type: 'test'
+  ...
+# Subtest: antes de mandar: los conteos de más de un día se detectan con la hora de AHORA
+ok 16 - antes de mandar: los conteos de más de un día se detectan con la hora de AHORA
+  ---
+  duration_ms: 0.167659
+  type: 'test'
+  ...
+# Subtest: la app Promociones está registrada con su ruta, su capability y su número
+ok 17 - la app Promociones está registrada con su ruta, su capability y su número
+  ---
+  duration_ms: 0.73283
+  type: 'test'
+  ...
+# Subtest: Promociones: '4 cupones activos · 12 usos' en UNA consulta, con el where de la pantalla
+ok 18 - Promociones: '4 cupones activos · 12 usos' en UNA consulta, con el where de la pantalla
+  ---
+  duration_ms: 4.600724
+  type: 'test'
+  ...
+# Subtest: Etiquetas: el botón y el titular de la pantalla cuentan lo mismo (no borrado y con precio)
+ok 19 - Etiquetas: el botón y el titular de la pantalla cuentan lo mismo (no borrado y con precio)
+  ---
+  duration_ms: 0.977945
+  type: 'test'
+  ...
+# Subtest: parseCsv: comillas, comas y comillas escapadas dentro del campo
+ok 20 - parseCsv: comillas, comas y comillas escapadas dentro del campo
+  ---
+  duration_ms: 2.020553
+  type: 'test'
+  ...
+# Subtest: parseCsv: CRLF, BOM y salto de línea dentro de comillas
+ok 21 - parseCsv: CRLF, BOM y salto de línea dentro de comillas
+  ---
+  duration_ms: 0.190659
+  type: 'test'
+  ...
+# Subtest: parseCsv: última línea sin salto final también cuenta
+ok 22 - parseCsv: última línea sin salto final también cuenta
+  ---
+  duration_ms: 0.186831
+  type: 'test'
+  ...
+# Subtest: parseCsv: comilla sin cerrar es error, no una fila inventada
+ok 23 - parseCsv: comilla sin cerrar es error, no una fila inventada
+  ---
+  duration_ms: 0.358283
+  type: 'test'
+  ...
+# Subtest: parseCents: acepta hasta 2 decimales con punto; rechaza coma, signo, cero y 3 decimales
+ok 24 - parseCents: acepta hasta 2 decimales con punto; rechaza coma, signo, cero y 3 decimales
+  ---
+  duration_ms: 0.25152
+  type: 'test'
+  ...
+# Subtest: normalizeDetail: colapsa espacios y respeta tildes, ñ y mayúsculas
+ok 25 - normalizeDetail: colapsa espacios y respeta tildes, ñ y mayúsculas
+  ---
+  duration_ms: 0.682916
+  type: 'test'
+  ...
+# Subtest: parseCajaCsv: fila completa con detalle entre comillas, coma y ñ
+ok 26 - parseCajaCsv: fila completa con detalle entre comillas, coma y ñ
+  ---
+  duration_ms: 0.804289
+  type: 'test'
+  ...
+# Subtest: parseCajaCsv: columnas en otro orden se aceptan; columna faltante frena todo
+ok 27 - parseCajaCsv: columnas en otro orden se aceptan; columna faltante frena todo
+  ---
+  duration_ms: 0.253242
+  type: 'test'
+  ...
+# Subtest: parseCajaCsv: cada fila inválida va a rechazadas con línea y motivos, el resto sigue
+ok 28 - parseCajaCsv: cada fila inválida va a rechazadas con línea y motivos, el resto sigue
+  ---
+  duration_ms: 0.521615
+  type: 'test'
+  ...
+# Subtest: applyDudosoPolicy: excluir separa las dudosas; incluir las deja pasar
+ok 29 - applyDudosoPolicy: excluir separa las dudosas; incluir las deja pasar
+  ---
+  duration_ms: 0.442924
+  type: 'test'
+  ...
+# Subtest: dedupKey: sólo contenido contable — origen, confianza y nota no cambian la clave
+ok 30 - dedupKey: sólo contenido contable — origen, confianza y nota no cambian la clave
+  ---
+  duration_ms: 0.215808
+  type: 'test'
+  ...
+# Subtest: planImport: base vacía → todo se inserta, en orden de CSV
+ok 31 - planImport: base vacía → todo se inserta, en orden de CSV
+  ---
+  duration_ms: 0.285043
+  type: 'test'
+  ...
+# Subtest: planImport: dos filas legítimas iguales el mismo día entran las dos
+ok 32 - planImport: dos filas legítimas iguales el mismo día entran las dos
+  ---
+  duration_ms: 0.113476
+  type: 'test'
+  ...
+# Subtest: planImport: segunda corrida sobre lo ya insertado no inserta nada (idempotente)
+ok 33 - planImport: segunda corrida sobre lo ya insertado no inserta nada (idempotente)
+  ---
+  duration_ms: 0.172424
+  type: 'test'
+  ...
+# Subtest: planImport: multiconjunto — CSV trae 2, la base tiene 1 → inserta exactamente 1 (la última del CSV)
+ok 34 - planImport: multiconjunto — CSV trae 2, la base tiene 1 → inserta exactamente 1 (la última del CSV)
+  ---
+  duration_ms: 0.137631
+  type: 'test'
+  ...
+# Subtest: planImport: una fila cargada A MANO con la misma clave cuenta como existente (no se duplica)
+ok 35 - planImport: una fila cargada A MANO con la misma clave cuenta como existente (no se duplica)
+  ---
+  duration_ms: 0.164722
+  type: 'test'
+  ...
+# Subtest: planImport: distinto monto/medio/tipo/fecha/detalle → clave distinta → se inserta
+ok 36 - planImport: distinto monto/medio/tipo/fecha/detalle → clave distinta → se inserta
+  ---
+  duration_ms: 0.136687
+  type: 'test'
+  ...
+# Subtest: planImport: filas marcadas de un CSV anterior que ya no están en el CSV se reportan como huérfanas
+ok 37 - planImport: filas marcadas de un CSV anterior que ya no están en el CSV se reportan como huérfanas
+  ---
+  duration_ms: 0.177686
+  type: 'test'
+  ...
+# Subtest: importMarker / importRowId: determinísticos, distintos por archivo y por línea
+ok 38 - importMarker / importRowId: determinísticos, distintos por archivo y por línea
+  ---
+  duration_ms: 0.149602
+  type: 'test'
+  ...
+# Subtest: aggregate: mes × medio × tipo en centavos, sin errores de coma flotante
+ok 39 - aggregate: mes × medio × tipo en centavos, sin errores de coma flotante
+  ---
+  duration_ms: 0.193634
+  type: 'test'
+  ...
+# Subtest: reconcile: vacío cuando cierran; lista cada clave que difiere, incluidas las que faltan de un lado
+ok 40 - reconcile: vacío cuando cierran; lista cada clave que difiere, incluidas las que faltan de un lado
+  ---
+  duration_ms: 0.154517
+  type: 'test'
+  ...
+# Subtest: coveredByCsv: toma de la base como mucho tantas filas por clave como trae el CSV
+ok 41 - coveredByCsv: toma de la base como mucho tantas filas por clave como trae el CSV
+  ---
+  duration_ms: 0.781946
+  type: 'test'
+  ...
+# Subtest: centsOf / fmtCents: ida y vuelta de la plata
+ok 42 - centsOf / fmtCents: ida y vuelta de la plata
+  ---
+  duration_ms: 0.234777
+  type: 'test'
+  ...
+# Subtest: la pieza sale a su costo y cada corte entra con el suyo (valor relativo), en una transacción
+ok 43 - la pieza sale a su costo y cada corte entra con el suyo (valor relativo), en una transacción
+  ---
+  duration_ms: 8.744158
+  type: 'test'
+  ...
+# Subtest: si el stock de la pieza no alcanza, no se escribe nada
+ok 44 - si el stock de la pieza no alcanza, no se escribe nada
+  ---
+  duration_ms: 17.515194
+  type: 'test'
+  ...
+# Subtest: una venta entre la lectura y la escritura: la baja condicional frena y no entra ningún corte
+ok 45 - una venta entre la lectura y la escritura: la baja condicional frena y no entra ningún corte
+  ---
+  duration_ms: 0.831985
+  type: 'test'
+  ...
+# Subtest: un corte con un producto de otro negocio no entra: se rechaza sin escribir
+ok 46 - un corte con un producto de otro negocio no entra: se rechaza sin escribir
+  ---
+  duration_ms: 0.319498
+  type: 'test'
+  ...
+# Subtest: sin costo de la pieza (ni tipeado ni vigente): se registra igual y los cortes entran sin costo
+ok 47 - sin costo de la pieza (ni tipeado ni vigente): se registra igual y los cortes entran sin costo
+  ---
+  duration_ms: 0.723324
+  type: 'test'
+  ...
+# Subtest: totalOutputKg — suma de cortes
+ok 48 - totalOutputKg — suma de cortes
+  ---
+  duration_ms: 0.914048
+  type: 'test'
+  ...
+# Subtest: yieldPct — rendimiento por corte sobre la entrada
+ok 49 - yieldPct — rendimiento por corte sobre la entrada
+  ---
+  duration_ms: 0.229366
+  type: 'test'
+  ...
+# Subtest: mermaKg / mermaPct — lo que no se vende
+ok 50 - mermaKg / mermaPct — lo que no se vende
+  ---
+  duration_ms: 0.165065
+  type: 'test'
+  ...
+# Subtest: costPerSellableKg — el costo se reparte entre lo VENDIBLE, no la entrada
+ok 51 - costPerSellableKg — el costo se reparte entre lo VENDIBLE, no la entrada
+  ---
+  duration_ms: 0.158609
+  type: 'test'
+  ...
+# Subtest: analyzeDespiece — rendimiento + costo real por corte + merma
+ok 52 - analyzeDespiece — rendimiento + costo real por corte + merma
+  ---
+  duration_ms: 0.514395
+  type: 'test'
+  ...
+# Subtest: analyzeDespiece — over-declared: más kilos que la entrada → flag
+ok 53 - analyzeDespiece — over-declared: más kilos que la entrada → flag
+  ---
+  duration_ms: 0.129622
+  type: 'test'
+  ...
+# Subtest: valor relativo: cada corte carga el costo en proporción a lo que se vende
+ok 54 - valor relativo: cada corte carga el costo en proporción a lo que se vende
+  ---
+  duration_ms: 0.2236
+  type: 'test'
+  ...
+# Subtest: antes (parejo por kilo) el lomo y el osobuco costaban lo mismo; ahora el lomo cuesta más
+ok 55 - antes (parejo por kilo) el lomo y el osobuco costaban lo mismo; ahora el lomo cuesta más
+  ---
+  duration_ms: 0.228601
+  type: 'test'
+  ...
+# Subtest: sin ningún precio: vuelve al reparto parejo por kilo, y lo dice
+ok 56 - sin ningún precio: vuelve al reparto parejo por kilo, y lo dice
+  ---
+  duration_ms: 1.303956
+  type: 'test'
+  ...
+# Subtest: sin costo de la pieza: ningún corte tiene costo (no se inventa un $0)
+ok 57 - sin costo de la pieza: ningún corte tiene costo (no se inventa un $0)
+  ---
+  duration_ms: 0.424255
+  type: 'test'
+  ...
+# Subtest: los centavos del redondeo van al corte de más valor: la suma cierra exacta
+ok 58 - los centavos del redondeo van al corte de más valor: la suma cierra exacta
+  ---
+  duration_ms: 0.276016
+  type: 'test'
+  ...
+# Subtest: analyzeDespiece usa el valor relativo cuando hay precios
+ok 59 - analyzeDespiece usa el valor relativo cuando hay precios
+  ---
+  duration_ms: 0.209681
+  type: 'test'
+  ...
+# Subtest: el costo de la pieza: el tipeado, o el de la compra por los kilos que entran
+ok 60 - el costo de la pieza: el tipeado, o el de la compra por los kilos que entran
+  ---
+  duration_ms: 0.140019
+  type: 'test'
+  ...
+# Subtest: precio por kilo del corte: por peso, o por unidad si la unidad es el kilo; si no, no hay
+ok 61 - precio por kilo del corte: por peso, o por unidad si la unidad es el kilo; si no, no hay
+  ---
+  duration_ms: 0.23911
+  type: 'test'
+  ...
+# Subtest: los movimientos del despiece se reconocen por su motivo
+ok 62 - los movimientos del despiece se reconocen por su motivo
+  ---
+  duration_ms: 0.103699
+  type: 'test'
+  ...
+# Subtest: rendimiento del período: kilos obtenidos sobre kilos de entrada de todas las corridas
+ok 63 - rendimiento del período: kilos obtenidos sobre kilos de entrada de todas las corridas
+  ---
+  duration_ms: 0.099525
+  type: 'test'
+  ...
+# Subtest: costo fijado a mano: se avisa, y si lo escribió un despiece viejo, cuál y de cuándo
+ok 64 - costo fijado a mano: se avisa, y si lo escribió un despiece viejo, cuál y de cuándo
+  ---
+  duration_ms: 8.676164
+  type: 'test'
+  ...
+# Subtest: el vencimiento tipeado '2026-10-15' se ve 15/10 en hora argentina (antes se veía 14/10)
+ok 65 - el vencimiento tipeado '2026-10-15' se ve 15/10 en hora argentina (antes se veía 14/10)
+  ---
+  duration_ms: 12.9428
+  type: 'test'
+  ...
+# Subtest: a las 22:00 del 14 en Buenos Aires un lote que vence el 15 vence MAÑANA, no hoy
+ok 66 - a las 22:00 del 14 en Buenos Aires un lote que vence el 15 vence MAÑANA, no hoy
+  ---
+  duration_ms: 0.244745
+  type: 'test'
+  ...
+# Subtest: el formulario: vacío es sin fecha; un día que no existe se rechaza, no se corre
+ok 67 - el formulario: vacío es sin fecha; un día que no existe se rechaza, no se corre
+  ---
+  duration_ms: 0.153423
+  type: 'test'
+  ...
+# Subtest: daysUntil — por día de calendario, negativo si venció
+ok 68 - daysUntil — por día de calendario, negativo si venció
+  ---
+  duration_ms: 0.144932
+  type: 'test'
+  ...
+# Subtest: expiryState — semáforo de vencimiento
+ok 69 - expiryState — semáforo de vencimiento
+  ---
+  duration_ms: 0.122336
+  type: 'test'
+  ...
+# Subtest: avgPackageWeight — PESO VARIABLE: neto/paquetes
+ok 70 - avgPackageWeight — PESO VARIABLE: neto/paquetes
+  ---
+  duration_ms: 0.083744
+  type: 'test'
+  ...
+# Subtest: sortFefo — vence antes primero, sin fecha al final, no muta
+ok 71 - sortFefo — vence antes primero, sin fecha al final, no muta
+  ---
+  duration_ms: 1.144648
+  type: 'test'
+  ...
+# Subtest: pickFefo — próximo a despachar: available no vencido que vence antes
+ok 72 - pickFefo — próximo a despachar: available no vencido que vence antes
+  ---
+  duration_ms: 0.227392
+  type: 'test'
+  ...
+# Subtest: summarizeBatches — sólo lo disponible: un lote agotado o retirado ya no es un 'vencido'
+ok 73 - summarizeBatches — sólo lo disponible: un lote agotado o retirado ya no es un 'vencido'
+  ---
+  duration_ms: 0.311807
+  type: 'test'
+  ...
+# Subtest: plata en riesgo: disponibles vencidos o por vencer, a costo por kilo × peso; sin costo aparte
+ok 74 - plata en riesgo: disponibles vencidos o por vencer, a costo por kilo × peso; sin costo aparte
+  ---
+  duration_ms: 0.583703
+  type: 'test'
+  ...
+# Subtest: redondeo SIEMPRE para arriba en un aumento, sin la trampa del flotante: $12.500 + 10 % a $50 da $13.750
+ok 75 - redondeo SIEMPRE para arriba en un aumento, sin la trampa del flotante: $12.500 + 10 % a $50 da $13.750
+  ---
+  duration_ms: 1.111369
+  type: 'test'
+  ...
+# Subtest: redondeo con decimales en el porcentaje y en el precio: 8,5 % y $1.234,56
+ok 76 - redondeo con decimales en el porcentaje y en el precio: 8,5 % y $1.234,56
+  ---
+  duration_ms: 0.171204
+  type: 'test'
+  ...
+# Subtest: en una baja el redondeo va SIEMPRE para abajo: una baja nunca termina subiendo el precio
+ok 77 - en una baja el redondeo va SIEMPRE para abajo: una baja nunca termina subiendo el precio
+  ---
+  duration_ms: 0.094584
+  type: 'test'
+  ...
+# Subtest: propiedad: el aumento real nunca es menor que el pedido, y la baja real nunca es menor que la pedida
+ok 78 - propiedad: el aumento real nunca es menor que el pedido, y la baja real nunca es menor que la pedida
+  ---
+  duration_ms: 10.343495
+  type: 'test'
+  ...
+# Subtest: el porcentaje se lee como se tipea: '8', '8,5', '12.5 %'; sin signo, con topes
+ok 79 - el porcentaje se lee como se tipea: '8', '8,5', '12.5 %'; sin signo, con topes
+  ---
+  duration_ms: 1.948298
+  type: 'test'
+  ...
+# Subtest: confirmación extra: más del 30 % (en cualquier sentido) sí; 30 % justo, no
+ok 80 - confirmación extra: más del 30 % (en cualquier sentido) sí; 30 % justo, no
+  ---
+  duration_ms: 4.534459
+  type: 'test'
+  ...
+# Subtest: MAGRA: +8 % a los que dicen 'vacuno', redondeo $50 → 60 cambian con su antes y después; los demás no se tocan
+ok 81 - MAGRA: +8 % a los que dicen 'vacuno', redondeo $50 → 60 cambian con su antes y después; los demás no se tocan
+  ---
+  duration_ms: 1.080404
+  type: 'test'
+  ...
+# Subtest: por unidad se escribe en `price`; un pausado entra y se marca
+ok 82 - por unidad se escribe en `price`; un pausado entra y se marca
+  ---
+  duration_ms: 0.466409
+  type: 'test'
+  ...
+# Subtest: el redondeo que se aleja mucho del porcentaje se marca: $30 + 8 % a $50 queda en $50 (+66,7 %)
+ok 83 - el redondeo que se aleja mucho del porcentaje se marca: $30 + 8 % a $50 queda en $50 (+66,7 %)
+  ---
+  duration_ms: 0.351856
+  type: 'test'
+  ...
+# Subtest: una baja que con el redondeo deja un precio en $0 frena TODO el plan, con el nombre
+ok 84 - una baja que con el redondeo deja un precio en $0 frena TODO el plan, con el nombre
+  ---
+  duration_ms: 0.464227
+  type: 'test'
+  ...
+# Subtest: sin nada que cambiar: ninguno elegido, todos sin precio, o el redondeo los deja igual
+ok 85 - sin nada que cambiar: ninguno elegido, todos sin precio, o el redondeo los deja igual
+  ---
+  duration_ms: 0.337445
+  type: 'test'
+  ...
+# Subtest: elegir: todos, una góndola (por nombre o la cargada), texto sin acentos, tildados
+ok 86 - elegir: todos, una góndola (por nombre o la cargada), texto sin acentos, tildados
+  ---
+  duration_ms: 0.726682
+  type: 'test'
+  ...
+# Subtest: huella: el mismo pedido sobre el mismo catálogo da la misma; si un precio cambió en el medio, otra
+ok 87 - huella: el mismo pedido sobre el mismo catálogo da la misma; si un precio cambió en el medio, otra
+  ---
+  duration_ms: 0.765166
+  type: 'test'
+  ...
+# Subtest: lo que llega del navegador se valida campo por campo
+ok 88 - lo que llega del navegador se valida campo por campo
+  ---
+  duration_ms: 0.206354
+  type: 'test'
+  ...
+# Subtest: el porcentaje en palabras: +8 %, −5 %, +8,5 %
+ok 89 - el porcentaje en palabras: +8 %, −5 %, +8,5 %
+  ---
+  duration_ms: 10.618846
+  type: 'test'
+  ...
+# Subtest: el precio de la etiqueta: sin centavos si es redondo, con centavos si los tiene
+ok 90 - el precio de la etiqueta: sin centavos si es redondo, con centavos si los tiene
+  ---
+  duration_ms: 21.776571
+  type: 'test'
+  ...
+# Subtest: al lado del precio: 'el kg' en lo que se pesa; 'c/u' o la unidad en lo que se vende por unidad
+ok 91 - al lado del precio: 'el kg' en lo que se pesa; 'c/u' o la unidad en lo que se vende por unidad
+  ---
+  duration_ms: 1.150488
+  type: 'test'
+  ...
+# Subtest: hojas: 60 etiquetas en A4 son 3 hojas (24 + 24 + 12); en rollo, 60 páginas
+ok 92 - hojas: 60 etiquetas en A4 son 3 hojas (24 + 24 + 12); en rollo, 60 páginas
+  ---
+  duration_ms: 1.408643
+  type: 'test'
+  ...
+# Subtest: A4: el documento es una hoja A4 de 3 × 8 por cada 24, con el precio por kilo grande y 'el kg' al lado
+ok 93 - A4: el documento es una hoja A4 de 3 × 8 por cada 24, con el precio por kilo grande y 'el kg' al lado
+  ---
+  duration_ms: 2.428572
+  type: 'test'
+  ...
+# Subtest: rollo: una etiqueta por página de 60 × 40 mm
+ok 94 - rollo: una etiqueta por página de 60 × 40 mm
+  ---
+  duration_ms: 0.33606
+  type: 'test'
+  ...
+# Subtest: el nombre que tipeó una persona no se ejecuta: va escapado
+ok 95 - el nombre que tipeó una persona no se ejecuta: va escapado
+  ---
+  duration_ms: 0.175417
+  type: 'test'
+  ...
+# Subtest: un precio largo achica la letra para no salirse de la etiqueta
+ok 96 - un precio largo achica la letra para no salirse de la etiqueta
+  ---
+  duration_ms: 0.182195
+  type: 'test'
+  ...
+# Subtest: tamaño de la hoja en píxeles (vista previa): A4 a 96 ppp
+ok 97 - tamaño de la hoja en píxeles (vista previa): A4 a 96 ppp
+  ---
+  duration_ms: 0.174197
+  type: 'test'
+  ...
+# Subtest: lo que llega a la acción se valida: ids de texto, sin repetidos, con tope; plantilla conocida
+ok 98 - lo que llega a la acción se valida: ids de texto, sin repetidos, con tope; plantilla conocida
+  ---
+  duration_ms: 0.494182
+  type: 'test'
+  ...
+# Subtest: la planilla baja con BOM, ';', CRLF, coma decimal y ordenada por nombre
+ok 99 - la planilla baja con BOM, ';', CRLF, coma decimal y ordenada por nombre
+  ---
+  duration_ms: 7.662234
+  type: 'test'
+  ...
+# Subtest: precio para la planilla: sin miles, centavos sólo si hay, vacío si no tiene
+ok 100 - precio para la planilla: sin miles, centavos sólo si hay, vacío si no tiene
+  ---
+  duration_ms: 0.186627
+  type: 'test'
+  ...
+# Subtest: normalizar: sin acentos, minúsculas, un solo espacio
+ok 101 - normalizar: sin acentos, minúsculas, un solo espacio
+  ---
+  duration_ms: 0.247931
+  type: 'test'
+  ...
+# Subtest: ida y vuelta: la planilla recién bajada sube con 0 altas, 0 cambios y 0 errores
+ok 102 - ida y vuelta: la planilla recién bajada sube con 0 altas, 0 cambios y 0 errores
+  ---
+  duration_ms: 2.743956
+  type: 'test'
+  ...
+# Subtest: alta: un corte que no está en el catálogo sale como alta, sin stock y con su precio por kilo
+ok 103 - alta: un corte que no está en el catálogo sale como alta, sin stock y con su precio por kilo
+  ---
+  duration_ms: 0.589259
+  type: 'test'
+  ...
+# Subtest: alta por unidad con 'no' controla stock
+ok 104 - alta por unidad con 'no' controla stock
+  ---
+  duration_ms: 0.353313
+  type: 'test'
+  ...
+# Subtest: cambio de precio con coma: antes → después, en el precio de su forma de venta
+ok 105 - cambio de precio con coma: antes → después, en el precio de su forma de venta
+  ---
+  duration_ms: 0.634969
+  type: 'test'
+  ...
+# Subtest: '12.500' en una planilla de precios son doce mil quinientos, no doce con cincuenta
+ok 106 - '12.500' en una planilla de precios son doce mil quinientos, no doce con cincuenta
+  ---
+  duration_ms: 0.266848
+  type: 'test'
+  ...
+# Subtest: cambiar sólo 'controla stock' es un cambio; el precio vacío no se toca
+ok 107 - cambiar sólo 'controla stock' es un cambio; el precio vacío no se toca
+  ---
+  duration_ms: 0.540919
+  type: 'test'
+  ...
+# Subtest: un producto pausado cruza igual y se marca: el precio cambia, sigue pausado
+ok 108 - un producto pausado cruza igual y se marca: el precio cambia, sigue pausado
+  ---
+  duration_ms: 0.423862
+  type: 'test'
+  ...
+# Subtest: fila con precio ilegible: error con fila y motivo, y el plan NO es aplicable
+ok 109 - fila con precio ilegible: error con fila y motivo, y el plan NO es aplicable
+  ---
+  duration_ms: 0.37006
+  type: 'test'
+  ...
+# Subtest: precio cero o negativo, forma o sí/no inventados: errores, no ceros
+ok 110 - precio cero o negativo, forma o sí/no inventados: errores, no ceros
+  ---
+  duration_ms: 0.284749
+  type: 'test'
+  ...
+# Subtest: alta sin forma de venta o sin precio: se pide, no se adivina
+ok 111 - alta sin forma de venta o sin precio: se pide, no se adivina
+  ---
+  duration_ms: 0.221707
+  type: 'test'
+  ...
+# Subtest: nombre duplicado en el archivo (aunque cambie mayúsculas o acentos): error en la segunda
+ok 112 - nombre duplicado en el archivo (aunque cambie mayúsculas o acentos): error en la segunda
+  ---
+  duration_ms: 0.228348
+  type: 'test'
+  ...
+# Subtest: renombre: 'Vacío premium' no encuentra a nadie → alta EXPLÍCITA, y 'Vacío' queda como no nombrado
+ok 113 - renombre: 'Vacío premium' no encuentra a nadie → alta EXPLÍCITA, y 'Vacío' queda como no nombrado
+  ---
+  duration_ms: 0.177785
+  type: 'test'
+  ...
+# Subtest: cambiar la forma de venta de un corte existente es error: sus kilos pasarían a unidades
+ok 114 - cambiar la forma de venta de un corte existente es error: sus kilos pasarían a unidades
+  ---
+  duration_ms: 0.103706
+  type: 'test'
+  ...
+# Subtest: dos productos del catálogo con el mismo nombre: cruce ambiguo, error
+ok 115 - dos productos del catálogo con el mismo nombre: cruce ambiguo, error
+  ---
+  duration_ms: 0.106291
+  type: 'test'
+  ...
+# Subtest: encabezado que no es el de la planilla: error general, ninguna fila
+ok 116 - encabezado que no es el de la planilla: error general, ninguna fila
+  ---
+  duration_ms: 0.249861
+  type: 'test'
+  ...
+# Subtest: guardada con ',' y comillas (otra planilla): se lee igual
+ok 117 - guardada con ',' y comillas (otra planilla): se lee igual
+  ---
+  duration_ms: 0.205268
+  type: 'test'
+  ...
+# Subtest: las filas vacías del final que deja Excel no cuentan, y el número de fila es el de Excel
+ok 118 - las filas vacías del final que deja Excel no cuentan, y el número de fila es el de Excel
+  ---
+  duration_ms: 0.237181
+  type: 'test'
+  ...
+# Subtest: IDEMPOTENCIA: aplicar el plan y volver a subir el MISMO archivo da 0 altas y 0 cambios
+ok 119 - IDEMPOTENCIA: aplicar el plan y volver a subir el MISMO archivo da 0 altas y 0 cambios
+  ---
+  duration_ms: 0.772103
+  type: 'test'
+  ...
+# Subtest: huella: el mismo archivo contra el mismo catálogo da la misma; si el catálogo cambió, otra
+ok 120 - huella: el mismo archivo contra el mismo catálogo da la misma; si el catálogo cambió, otra
+  ---
+  duration_ms: 0.377865
+  type: 'test'
+  ...
+# Subtest: escribirPlan: UN createManyAndReturn con las altas del tenant y UN update con null = no tocar
+ok 121 - escribirPlan: UN createManyAndReturn con las altas del tenant y UN update con null = no tocar
+  ---
+  duration_ms: 0.608293
+  type: 'test'
+  ...
+# Subtest: escribirPlan: si la base actualiza menos filas que cambios, lanza (y la tx se deshace)
+ok 122 - escribirPlan: si la base actualiza menos filas que cambios, lanza (y la tx se deshace)
+  ---
+  duration_ms: 0.540534
+  type: 'test'
+  ...
+# Subtest: escribirPlan se niega a escribir un plan con errores
+ok 123 - escribirPlan se niega a escribir un plan con errores
+  ---
+  duration_ms: 0.223625
+  type: 'test'
+  ...
+# Subtest: archivo re-guardado en Windows-1252: se lee con los acentos y cruza con el catálogo
+ok 124 - archivo re-guardado en Windows-1252: se lee con los acentos y cruza con el catálogo
+  ---
+  duration_ms: 0.438883
+  type: 'test'
+  ...
+# Subtest: archivo en UTF-8 con BOM (el que baja): se lee tal cual
+ok 125 - archivo en UTF-8 con BOM (el que baja): se lee tal cual
+  ---
+  duration_ms: 0.23454
+  type: 'test'
+  ...
+# Subtest: pendientes: cambió después de su última etiqueta → pendiente; impresa después del cambio → al día
+ok 126 - pendientes: cambió después de su última etiqueta → pendiente; impresa después del cambio → al día
+  ---
+  duration_ms: 2.34358
+  type: 'test'
+  ...
+# Subtest: pendientes es POR PRODUCTO: reimprimir 10 de los 60 que cambiaron deja 50 pendientes
+ok 127 - pendientes es POR PRODUCTO: reimprimir 10 de los 60 que cambiaron deja 50 pendientes
+  ---
+  duration_ms: 0.33183
+  type: 'test'
+  ...
+# Subtest: 60 cambios de precio son 60 filas: cada una con su producto, su antes y su después
+ok 128 - 60 cambios de precio son 60 filas: cada una con su producto, su antes y su después
+  ---
+  duration_ms: 0.423728
+  type: 'test'
+  ...
+# Subtest: registrarCambiosDePrecio: UNA sentencia con todas las filas; sin cambios no escribe
+ok 129 - registrarCambiosDePrecio: UNA sentencia con todas las filas; sin cambios no escribe
+  ---
+  duration_ms: 0.232469
+  type: 'test'
+  ...
+# Subtest: la etiqueta impresa guarda el precio que salió en el papel
+ok 130 - la etiqueta impresa guarda el precio que salió en el papel
+  ---
+  duration_ms: 0.218753
+  type: 'test'
+  ...
+# Subtest: edición de un producto: sólo deja fila si el precio de venta cambió y queda con precio
+ok 131 - edición de un producto: sólo deja fila si el precio de venta cambió y queda con precio
+  ---
+  duration_ms: 0.368235
+  type: 'test'
+  ...
+# Subtest: último aumento: días en el calendario del negocio, con el porcentaje del lote
+ok 132 - último aumento: días en el calendario del negocio, con el porcentaje del lote
+  ---
+  duration_ms: 12.196303
+  type: 'test'
+  ...
+# Subtest: los where: filtran por negocio, por producto y por acción; el de aumentos deja afuera la edición suelta
+ok 133 - los where: filtran por negocio, por producto y por acción; el de aumentos deja afuera la edición suelta
+  ---
+  duration_ms: 0.254176
+  type: 'test'
+  ...
+# Subtest: auditoría: la fila de un cambio de precio y la de una etiqueta se leen en palabras, con lo que se guardó
+ok 134 - auditoría: la fila de un cambio de precio y la de una etiqueta se leen en palabras, con lo que se guardó
+  ---
+  duration_ms: 0.512656
+  type: 'test'
+  ...
+# Subtest: cada KPI declarado en Catálogo y precios tiene su loader, y cada loader su app
+ok 135 - cada KPI declarado en Catálogo y precios tiene su loader, y cada loader su app
+  ---
+  duration_ms: 1.636984
+  type: 'test'
+  ...
+# Subtest: una consulta por número, siempre con el negocio en el where (mostrador y servicios, con y sin plata)
+ok 136 - una consulta por número, siempre con el negocio en el where (mostrador y servicios, con y sin plata)
+  ---
+  duration_ms: 4.092681
+  type: 'test'
+  ...
+# Subtest: Catálogo: '2 sin precio · 1 sin costo' con el where de la pantalla y el costo vigente de stock/costo.ts
+ok 137 - Catálogo: '2 sin precio · 1 sin costo' con el where de la pantalla y el costo vigente de stock/costo.ts
+  ---
+  duration_ms: 0.491476
+  type: 'test'
+  ...
+# Subtest: Actualizar precios: '23 días desde el último aumento (+8 %)'; sin ninguno, '—' con el motivo
+ok 138 - Actualizar precios: '23 días desde el último aumento (+8 %)'; sin ninguno, '—' con el motivo
+  ---
+  duration_ms: 1.144983
+  type: 'test'
+  ...
+# Subtest: el texto del último cambio: hoy, ayer, baja y planilla
+ok 139 - el texto del último cambio: hoy, ayer, baja y planilla
+  ---
+  duration_ms: 0.292434
+  type: 'test'
+  ...
+# Subtest: Etiquetas: '14 precios cambiaron y no se reimprimieron', con el where y la cuenta de la pantalla
+ok 140 - Etiquetas: '14 precios cambiaron y no se reimprimieron', con el where y la cuenta de la pantalla
+  ---
+  duration_ms: 0.785005
+  type: 'test'
+  ...
+# Subtest: con la huella que vio la persona: 60 precios en UN update y 60 registros con el lote
+ok 141 - con la huella que vio la persona: 60 precios en UN update y 60 registros con el lote
+  ---
+  duration_ms: 3.893582
+  type: 'test'
+  ...
+# Subtest: si un precio cambió desde la vista previa (otra huella), no escribe nada y lo dice
+ok 142 - si un precio cambió desde la vista previa (otra huella), no escribe nada y lo dice
+  ---
+  duration_ms: 0.88172
+  type: 'test'
+  ...
+# Subtest: 80 %: sin la confirmación extra no escribe; con ella, sí
+ok 143 - 80 %: sin la confirmación extra no escribe; con ella, sí
+  ---
+  duration_ms: 1.61439
+  type: 'test'
+  ...
+# Subtest: un precio cambiado sin su registro lanza: la transacción se deshace
+ok 144 - un precio cambiado sin su registro lanza: la transacción se deshace
+  ---
+  duration_ms: 1.144859
+  type: 'test'
+  ...
+# Subtest: un pedido que no cambia nada no escribe
+ok 145 - un pedido que no cambia nada no escribe
+  ---
+  duration_ms: 0.281759
+  type: 'test'
+  ...
+# Subtest: conflicto de serialización: P2034, o P2010 con 40001 (el UPDATE crudo); lo demás no
+ok 146 - conflicto de serialización: P2034, o P2010 con 40001 (el UPDATE crudo); lo demás no
+  ---
+  duration_ms: 0.247763
+  type: 'test'
+  ...
+# Subtest: motivos: pasada > reseña de ayer > cumpleaños > por recuperar (una fila por clienta)
+ok 147 - motivos: pasada > reseña de ayer > cumpleaños > por recuperar (una fila por clienta)
+  ---
+  duration_ms: 15.120924
+  type: 'test'
+  ...
+# Subtest: sin reseñas en un mostrador; la reseña es sólo del turno de AYER
+ok 148 - sin reseñas en un mostrador; la reseña es sólo del turno de AYER
+  ---
+  duration_ms: 0.283869
+  type: 'test'
+  ...
+# Subtest: cumpleaños que cruza el año entra en la bandeja del 30/12
+ok 149 - cumpleaños que cruza el año entra en la bandeja del 30/12
+  ---
+  duration_ms: 0.646096
+  type: 'test'
+  ...
+# Subtest: exclusiones: baja, contactada hace menos de 14 días, turno futuro y sin celular — y se cuentan
+ok 150 - exclusiones: baja, contactada hace menos de 14 días, turno futuro y sin celular — y se cuentan
+  ---
+  duration_ms: 1.187016
+  type: 'test'
+  ...
+# Subtest: tope del día: 15 contando las ya contactadas hoy, las de más valor primero
+ok 151 - tope del día: 15 contando las ya contactadas hoy, las de más valor primero
+  ---
+  duration_ms: 0.529081
+  type: 'test'
+  ...
+# Subtest: la bandeja leída con una base falsa: dos lecturas, el negocio en el where, y al contactar sale
+ok 152 - la bandeja leída con una base falsa: dos lecturas, el negocio en el where, y al contactar sale
+  ---
+  duration_ms: 1.710688
+  type: 'test'
+  ...
+# Subtest: sin motivo no es candidata: una frecuente al día no entra
+ok 153 - sin motivo no es candidata: una frecuente al día no entra
+  ---
+  duration_ms: 0.298864
+  type: 'test'
+  ...
+# Subtest: Agenda: '18 turnos hoy · 77% de los que faltan confirmados' con el where de getAgendaDay
+ok 154 - Agenda: '18 turnos hoy · 77% de los que faltan confirmados' con el where de getAgendaDay
+  ---
+  duration_ms: 15.109847
+  type: 'test'
+  ...
+# Subtest: Agenda: completados y 'no se presentó' NO cuentan como confirmados
+ok 155 - Agenda: completados y 'no se presentó' NO cuentan como confirmados
+  ---
+  duration_ms: 0.466838
+  type: 'test'
+  ...
+# Subtest: Confirmar mañana: los de getMananaConfirmar sin aviso; Recordatorios: la cobertura, '—' sin turnos
+ok 156 - Confirmar mañana: los de getMananaConfirmar sin aviso; Recordatorios: la cobertura, '—' sin turnos
+  ---
+  duration_ms: 0.789213
+  type: 'test'
+  ...
+# Subtest: Lista de espera: el where de getWaitlist
+ok 157 - Lista de espera: el where de getWaitlist
+  ---
+  duration_ms: 0.423455
+  type: 'test'
+  ...
+# Subtest: Reseñas: promedio ponderado y sin publicar; '—' si no hay
+ok 158 - Reseñas: promedio ponderado y sin publicar; '—' si no hay
+  ---
+  duration_ms: 0.362763
+  type: 'test'
+  ...
+# Subtest: Clientes nuevos del mes: primera visita de TODA la historia, por turnos o por pedidos según el rubro
+ok 159 - Clientes nuevos del mes: primera visita de TODA la historia, por turnos o por pedidos según el rubro
+  ---
+  duration_ms: 0.689152
+  type: 'test'
+  ...
+# Subtest: Por recuperar: cuenta las en riesgo; la plata sólo con reports:read
+ok 160 - Por recuperar: cuenta las en riesgo; la plata sólo con reports:read
+  ---
+  duration_ms: 2.22953
+  type: 'test'
+  ...
+# Subtest: Fichas duplicadas: grupos por la clave del teléfono
+ok 161 - Fichas duplicadas: grupos por la clave del teléfono
+  ---
+  duration_ms: 0.67402
+  type: 'test'
+  ...
+# Subtest: apps nuevas: CH (sin gate) no las ve en su barra de hoy; en el Inicio, sí
+ok 162 - apps nuevas: CH (sin gate) no las ve en su barra de hoy; en el Inicio, sí
+  ---
+  duration_ms: 1.066606
+  type: 'test'
+  ...
+# Subtest: apps nuevas: la recepción abre la bandeja y Por recuperar sin plata; unificar es de la dueña
+ok 163 - apps nuevas: la recepción abre la bandeja y Por recuperar sin plata; unificar es de la dueña
+  ---
+  duration_ms: 0.431328
+  type: 'test'
+  ...
+# Subtest: mediana: impar, par, vacía y desordenada
+ok 164 - mediana: impar, par, vacía y desordenada
+  ---
+  duration_ms: 0.936479
+  type: 'test'
+  ...
+# Subtest: ciclo propio = mediana de los intervalos: un viaje largo no lo corre
+ok 165 - ciclo propio = mediana de los intervalos: un viaje largo no lo corre
+  ---
+  duration_ms: 1.437224
+  type: 'test'
+  ...
+# Subtest: ciclo: sin intervalos usa el del servicio; sin servicio, 45 días (provisional)
+ok 166 - ciclo: sin intervalos usa el del servicio; sin servicio, 45 días (provisional)
+  ---
+  duration_ms: 0.135267
+  type: 'test'
+  ...
+# Subtest: ciclo: se acota a [7, 365] (dos visitas el mismo fin de semana no dan un ciclo de 2 días)
+ok 167 - ciclo: se acota a [7, 365] (dos visitas el mismo fin de semana no dan un ciclo de 2 días)
+  ---
+  duration_ms: 0.103324
+  type: 'test'
+  ...
+# Subtest: ciclo del servicio: sólo visitas consecutivas del MISMO servicio y con casos suficientes
+ok 168 - ciclo del servicio: sólo visitas consecutivas del MISMO servicio y con casos suficientes
+  ---
+  duration_ms: 0.282185
+  type: 'test'
+  ...
+# Subtest: bordes de segmento: 1,5 y 3 ciclos adentro de 'en riesgo', más de 3 es 'no volvió'
+ok 169 - bordes de segmento: 1,5 y 3 ciclos adentro de 'en riesgo', más de 3 es 'no volvió'
+  ---
+  duration_ms: 0.194185
+  type: 'test'
+  ...
+# Subtest: evaluarPersona: días sin venir, ciclos con un decimal y valor por año
+ok 170 - evaluarPersona: días sin venir, ciclos con un decimal y valor por año
+  ---
+  duration_ms: 0.344455
+  type: 'test'
+  ...
+# Subtest: porRecuperar: sólo 'en riesgo', la que más vale primero
+ok 171 - porRecuperar: sólo 'en riesgo', la que más vale primero
+  ---
+  duration_ms: 0.198939
+  type: 'test'
+  ...
+# Subtest: armarPersona: turnos completados son visitas (una por día), el reservado es el próximo, los sin reseña se anotan
+ok 172 - armarPersona: turnos completados son visitas (una por día), el reservado es el próximo, los sin reseña se anotan
+  ---
+  duration_ms: 15.415207
+  type: 'test'
+  ...
+# Subtest: armarPersona en un mostrador: las visitas son los pedidos
+ok 173 - armarPersona en un mostrador: las visitas son los pedidos
+  ---
+  duration_ms: 0.444205
+  type: 'test'
+  ...
+# Subtest: cumpleaños que cruza el año: el 30/12, uno del 2/1 está a 3 días
+ok 174 - cumpleaños que cruza el año: el 30/12, uno del 2/1 está a 3 días
+  ---
+  duration_ms: 0.203938
+  type: 'test'
+  ...
+# Subtest: 29 de febrero: en un año no bisiesto se festeja el 28 (provisional)
+ok 175 - 29 de febrero: en un año no bisiesto se festeja el 28 (provisional)
+  ---
+  duration_ms: 0.083105
+  type: 'test'
+  ...
+# Subtest: el cumpleaños se lee con la convención de las 12:00Z (no se corre un día)
+ok 176 - el cumpleaños se lee con la convención de las 12:00Z (no se corre un día)
+  ---
+  duration_ms: 0.085527
+  type: 'test'
+  ...
+# Subtest: nuevos del mes: primera visita dentro del mes del negocio, con sus bordes
+ok 177 - nuevos del mes: primera visita dentro del mes del negocio, con sus bordes
+  ---
+  duration_ms: 1.066712
+  type: 'test'
+  ...
+# Subtest: permiso: vale el ÚLTIMO evento; sin eventos no hay baja
+ok 178 - permiso: vale el ÚLTIMO evento; sin eventos no hay baja
+  ---
+  duration_ms: 0.278213
+  type: 'test'
+  ...
+# Subtest: constancias del día: contactos de hoy (día del negocio), pasadas a la bandeja y bajas
+ok 179 - constancias del día: contactos de hoy (día del negocio), pasadas a la bandeja y bajas
+  ---
+  duration_ms: 0.420111
+  type: 'test'
+  ...
+# Subtest: al unificar, el permiso que queda es el último que expresó la persona en cualquiera de sus fichas
+ok 180 - al unificar, el permiso que queda es el último que expresó la persona en cualquiera de sus fichas
+  ---
+  duration_ms: 0.237015
+  type: 'test'
+  ...
+# Subtest: fichas duplicadas: el mismo número escrito distinto agrupa; sin dígitos no
+ok 181 - fichas duplicadas: el mismo número escrito distinto agrupa; sin dígitos no
+  ---
+  duration_ms: 0.437785
+  type: 'test'
+  ...
+# Subtest: pedidos de la ficha: los atados y los que llegaron sin ficha con su número
+ok 182 - pedidos de la ficha: los atados y los que llegaron sin ficha con su número
+  ---
+  duration_ms: 0.18282
+  type: 'test'
+  ...
+# Subtest: compradores sin ficha: agrupa por número, saca los que ya tienen ficha y los números a medias
+ok 183 - compradores sin ficha: agrupa por número, saca los que ya tienen ficha y los números a medias
+  ---
+  duration_ms: 0.275685
+  type: 'test'
+  ...
+# Subtest: cancelar: sólo un turno Reservado o Confirmado; completado, ausente o cancelado se rechaza
+ok 184 - cancelar: sólo un turno Reservado o Confirmado; completado, ausente o cancelado se rechaza
+  ---
+  duration_ms: 2.196024
+  type: 'test'
+  ...
+# Subtest: cancelar EJECUTADO: una base con turnos en todos los estados y de dos negocios; sólo cambian los vivos del negocio
+ok 185 - cancelar EJECUTADO: una base con turnos en todos los estados y de dos negocios; sólo cambian los vivos del negocio
+  ---
+  duration_ms: 0.51034
+  type: 'test'
+  ...
+# Subtest: los where de las pantallas llevan el negocio
+ok 186 - los where de las pantallas llevan el negocio
+  ---
+  duration_ms: 0.187895
+  type: 'test'
+  ...
+# Subtest: hueco liberado: mismo servicio, y el profesional que pidió o cualquiera; el que más espera primero
+ok 187 - hueco liberado: mismo servicio, y el profesional que pidió o cualquiera; el que más espera primero
+  ---
+  duration_ms: 0.362355
+  type: 'test'
+  ...
+# Subtest: hueco liberado: no se ofrece si ya pasó, si alguien volvió a ocupar el horario o si no le sirve a nadie
+ok 188 - hueco liberado: no se ofrece si ya pasó, si alguien volvió a ocupar el horario o si no le sirve a nadie
+  ---
+  duration_ms: 0.197645
+  type: 'test'
+  ...
+# Subtest: unificar: completa lo que falta sin pisar, y suma las notas con de dónde vinieron
+ok 189 - unificar: completa lo que falta sin pisar, y suma las notas con de dónde vinieron
+  ---
+  duration_ms: 0.804648
+  type: 'test'
+  ...
+# Subtest: unificar: rechaza otro teléfono, la misma ficha dos veces o fichas que ya no están
+ok 190 - unificar: rechaza otro teléfono, la misma ficha dos veces o fichas que ya no están
+  ---
+  duration_ms: 0.464165
+  type: 'test'
+  ...
+# Subtest: ficha única: próximo turno, faltazos, lo que debe (como la agenda) y lo gastado en el año
+ok 191 - ficha única: próximo turno, faltazos, lo que debe (como la agenda) y lo gastado en el año
+  ---
+  duration_ms: 1.101645
+  type: 'test'
+  ...
+# Subtest: ficha única: un saldo dado de baja no es plata que entró (no suma a lo gastado) y ya no se debe
+ok 192 - ficha única: un saldo dado de baja no es plata que entró (no suma a lo gastado) y ya no se debe
+  ---
+  duration_ms: 0.466562
+  type: 'test'
+  ...
+# Subtest: reseñas: promedio con un decimal, sin publicar, y por profesional (más reseñas primero)
+ok 193 - reseñas: promedio con un decimal, sin publicar, y por profesional (más reseñas primero)
+  ---
+  duration_ms: 0.548118
+  type: 'test'
+  ...
+# Subtest: textos de contacto: primer nombre, link de la reseña, y según el rubro
+ok 194 - textos de contacto: primer nombre, link de la reseña, y según el rubro
+  ---
+  duration_ms: 0.58709
+  type: 'test'
+  ...
+# Subtest: mueve las TRES claves foráneas (turnos, pedidos, fiado) a la ficha que queda y borra la duplicada
+ok 195 - mueve las TRES claves foráneas (turnos, pedidos, fiado) a la ficha que queda y borra la duplicada
+  ---
+  duration_ms: 3.35399
+  type: 'test'
+  ...
+# Subtest: no toca NADA del otro negocio, aunque le pasen sus ids
+ok 196 - no toca NADA del otro negocio, aunque le pasen sus ids
+  ---
+  duration_ms: 0.375565
+  type: 'test'
+  ...
+# Subtest: audita los ids movidos y la foto de la ficha borrada, en la misma transacción
+ok 197 - audita los ids movidos y la foto de la ficha borrada, en la misma transacción
+  ---
+  duration_ms: 0.409918
+  type: 'test'
+  ...
+# Subtest: sin la tabla del fiado (migración sin aplicar) no la nombra: turnos y pedidos se mueven igual
+ok 198 - sin la tabla del fiado (migración sin aplicar) no la nombra: turnos y pedidos se mueven igual
+  ---
+  duration_ms: 0.410247
+  type: 'test'
+  ...
+# Subtest: un turno cargado en la duplicada mientras tanto: la clave foránea frena y se propaga P2003
+ok 199 - un turno cargado en la duplicada mientras tanto: la clave foránea frena y se propaga P2003
+  ---
+  duration_ms: 0.54091
+  type: 'test'
+  ...
+# Subtest: góndolas en el orden del recorrido; las vacías no aparecen; lo que no está en el orden va al final
+ok 200 - góndolas en el orden del recorrido; las vacías no aparecen; lo que no está en el orden va al final
+  ---
+  duration_ms: 3.0871
+  type: 'test'
+  ...
+# Subtest: pide recuento: nunca contado, o contado antes de hace 30 días; el where de la base dice lo mismo
+ok 201 - pide recuento: nunca contado, o contado antes de hace 30 días; el where de la base dice lo mismo
+  ---
+  duration_ms: 0.975733
+  type: 'test'
+  ...
+# Subtest: resultado del recuento: coinciden, faltantes y sobrantes, en pesos sólo lo que tiene costo
+ok 202 - resultado del recuento: coinciden, faltantes y sobrantes, en pesos sólo lo que tiene costo
+  ---
+  duration_ms: 0.476588
+  type: 'test'
+  ...
+# Subtest: el prefijo del recuento es el motivo que escribe el ajuste: si uno cambia, este test lo ve
+ok 203 - el prefijo del recuento es el motivo que escribe el ajuste: si uno cambia, este test lo ve
+  ---
+  duration_ms: 0.448536
+  type: 'test'
+  ...
+# Subtest: recuento del encargado que deja en 0 un lomo de 20 kg a $9.000: rechazado, sin montos en el mensaje
+ok 204 - recuento del encargado que deja en 0 un lomo de 20 kg a $9.000: rechazado, sin montos en el mensaje
+  ---
+  duration_ms: 2.377112
+  type: 'test'
+  ...
+# Subtest: el mismo recuento de la dueña se guarda: el lomo queda en 0 con su faltante valuado
+ok 205 - el mismo recuento de la dueña se guarda: el lomo queda en 0 con su faltante valuado
+  ---
+  duration_ms: 0.568823
+  type: 'test'
+  ...
+# Subtest: un recuento chico del encargado (1 kg de faltante) pasa como siempre
+ok 206 - un recuento chico del encargado (1 kg de faltante) pasa como siempre
+  ---
+  duration_ms: 0.496623
+  type: 'test'
+  ...
+# Subtest: cada número de stock hace UNA consulta con el negocio (regla 8), salvo Mermas con su excepción
+ok 207 - cada número de stock hace UNA consulta con el negocio (regla 8), salvo Mermas con su excepción
+  ---
+  duration_ms: 9.037182
+  type: 'test'
+  ...
+# Subtest: Stock: bajo el mínimo (sólo los que controlan stock), sin costo, y el valorizado sólo con reports:read
+ok 208 - Stock: bajo el mínimo (sólo los que controlan stock), sin costo, y el valorizado sólo con reports:read
+  ---
+  duration_ms: 2.381322
+  type: 'test'
+  ...
+# Subtest: Movimientos: los productos en negativo, en alerta para 'Para atender hoy'
+ok 209 - Movimientos: los productos en negativo, en alerta para 'Para atender hoy'
+  ---
+  duration_ms: 0.438164
+  type: 'test'
+  ...
+# Subtest: Recuento: sin contar hace más de 30 días, con el where de la planilla
+ok 210 - Recuento: sin contar hace más de 30 días, con el where de la planilla
+  ---
+  duration_ms: 0.397123
+  type: 'test'
+  ...
+# Subtest: Mermas: 'vencido' de 2 kg cargada por recepción → '$13.086 a costo (2,6 % de la venta) · 1 por recepción'
+ok 211 - Mermas: 'vencido' de 2 kg cargada por recepción → '$13.086 a costo (2,6 % de la venta) · 1 por recepción'
+  ---
+  duration_ms: 2.223576
+  type: 'test'
+  ...
+# Subtest: Recibir mercadería: recepciones del mes, las que no tienen proveedor de la lista, y lo comprado
+ok 212 - Recibir mercadería: recepciones del mes, las que no tienen proveedor de la lista, y lo comprado
+  ---
+  duration_ms: 0.424303
+  type: 'test'
+  ...
+# Subtest: Proveedores: activos y sin CUIT en UN conteo, con el where de la lista
+ok 213 - Proveedores: activos y sin CUIT en UN conteo, con el where de la lista
+  ---
+  duration_ms: 0.373529
+  type: 'test'
+  ...
+# Subtest: Devoluciones: lo devuelto en el mes a costo de la compra, con el where del historial
+ok 214 - Devoluciones: lo devuelto en el mes a costo de la compra, con el where del historial
+  ---
+  duration_ms: 0.388142
+  type: 'test'
+  ...
+# Subtest: el pedido de traslado: clave, origen, destino y líneas con cantidades como las escribe la gente
+ok 215 - el pedido de traslado: clave, origen, destino y líneas con cantidades como las escribe la gente
+  ---
+  duration_ms: 2.946461
+  type: 'test'
+  ...
+# Subtest: sólo entre lugares de la red con el MISMO CUIT: con otro CUIT es una venta y se rechaza
+ok 216 - sólo entre lugares de la red con el MISMO CUIT: con otro CUIT es una venta y se rechaza
+  ---
+  duration_ms: 0.3364
+  type: 'test'
+  ...
+# Subtest: las fases del traslado ponen el GUC de SU negocio y no se pueden correr a la vez
+ok 217 - las fases del traslado ponen el GUC de SU negocio y no se pueden correr a la vez
+  ---
+  duration_ms: 1.472119
+  type: 'test'
+  ...
+# Subtest: escribir la fila del destino en la fase del origen revienta (WITH CHECK) y no queda nada
+ok 218 - escribir la fila del destino en la fase del origen revienta (WITH CHECK) y no queda nada
+  ---
+  duration_ms: 0.525851
+  type: 'test'
+  ...
+# Subtest: trasladoTransaction: Serializable, reintenta un conflicto de escritura y exige dos negocios distintos
+ok 219 - trasladoTransaction: Serializable, reintenta un conflicto de escritura y exige dos negocios distintos
+  ---
+  duration_ms: 0.874402
+  type: 'test'
+  ...
+# Subtest: 10 kg de vacío del obrador a Canning: el obrador baja 10 y Canning sube 10, al costo del obrador, con auditoría en los dos
+ok 220 - 10 kg de vacío del obrador a Canning: el obrador baja 10 y Canning sube 10, al costo del obrador, con auditoría en los dos
+  ---
+  duration_ms: 2.148032
+  type: 'test'
+  ...
+# Subtest: doble clic (la misma clave dos veces): un solo traslado
+ok 221 - doble clic (la misma clave dos veces): un solo traslado
+  ---
+  duration_ms: 1.039957
+  type: 'test'
+  ...
+# Subtest: si el destino no tiene el producto, no se mueve NADA (lo que salió del origen vuelve)
+ok 222 - si el destino no tiene el producto, no se mueve NADA (lo que salió del origen vuelve)
+  ---
+  duration_ms: 0.734814
+  type: 'test'
+  ...
+# Subtest: si no alcanza el stock del origen, se rechaza diciendo cuánto hay
+ok 223 - si no alcanza el stock del origen, se rechaza diciendo cuánto hay
+  ---
+  duration_ms: 5.617041
+  type: 'test'
+  ...
+# Subtest: el formulario y la transacción cruzan igual: un pausado en el destino entra, dos con el mismo nombre no
+ok 224 - el formulario y la transacción cruzan igual: un pausado en el destino entra, dos con el mismo nombre no
+  ---
+  duration_ms: 2.508075
+  type: 'test'
+  ...
+# Subtest: el pedazo de where que deja los traslados fuera de las listas de ajustes
+ok 225 - el pedazo de where que deja los traslados fuera de las listas de ajustes
+  ---
+  duration_ms: 0.133627
+  type: 'test'
+  ...
+# Subtest: el traslado NO es merma: la salida queda excluida del tablero de merma
+ok 226 - el traslado NO es merma: la salida queda excluida del tablero de merma
+  ---
+  duration_ms: 1.075969
+  type: 'test'
+  ...
+# Subtest: el remito: la leyenda arriba y abajo, y lo que escribió la gente escapado
+ok 227 - el remito: la leyenda arriba y abajo, y lo que escribió la gente escapado
+  ---
+  duration_ms: 0.484803
+  type: 'test'
+  ...
+# Subtest: la lista de la casa: sólo lo activo con precio; los repetidos se nombran
+ok 228 - la lista de la casa: sólo lo activo con precio; los repetidos se nombran
+  ---
+  duration_ms: 0.551499
+  type: 'test'
+  ...
+# Subtest: vista previa de Lomas: '58 cambios, 2 que no existen', y lo que sólo tiene Lomas no se toca
+ok 229 - vista previa de Lomas: '58 cambios, 2 que no existen', y lo que sólo tiene Lomas no se toca
+  ---
+  duration_ms: 4.785161
+  type: 'test'
+  ...
+# Subtest: aplicar la lista en un local: precios y productos nuevos, cada precio en su auditoría, y la segunda vez no escribe nada
+ok 230 - aplicar la lista en un local: precios y productos nuevos, cada precio en su auditoría, y la segunda vez no escribe nada
+  ---
+  duration_ms: 1.932892
+  type: 'test'
+  ...
+# Subtest: si el catálogo del local cambió desde la vista previa, ese local no se aplica
+ok 231 - si el catálogo del local cambió desde la vista previa, ese local no se aplica
+  ---
+  duration_ms: 0.322987
+  type: 'test'
+  ...
+# Subtest: CUIT y punto de venta del alta: el de la casa por defecto, validado, y el punto de venta es un entero
+ok 232 - CUIT y punto de venta del alta: el de la casa por defecto, validado, y el punto de venta es un entero
+  ---
+  duration_ms: 0.488458
+  type: 'test'
+  ...
+# Subtest: el local nuevo entra a la red en una corrida: vínculo, CUIT y punto de venta, y la lista de la casa (sin stock)
+ok 233 - el local nuevo entra a la red en una corrida: vínculo, CUIT y punto de venta, y la lista de la casa (sin stock)
+  ---
+  duration_ms: 2.282363
+  type: 'test'
+  ...
+# Subtest: el alta rechaza un CUIT + punto de venta ya usado, y no deja NADA escrito
+ok 234 - el alta rechaza un CUIT + punto de venta ya usado, y no deja NADA escrito
+  ---
+  duration_ms: 0.812039
+  type: 'test'
+  ...
+# Subtest: si la lista no se puede dejar, el local queda en la red igual y la lista queda pendiente con su porqué
+ok 235 - si la lista no se puede dejar, el local queda en la red igual y la lista queda pendiente con su porqué
+  ---
+  duration_ms: 1.127746
+  type: 'test'
+  ...
+# Subtest: sin vista previa no se pisa un catálogo propio: un local que ya tenía productos conserva sus precios
+ok 236 - sin vista previa no se pisa un catálogo propio: un local que ya tenía productos conserva sus precios
+  ---
+  duration_ms: 1.893666
+  type: 'test'
+  ...
+# Subtest: el alta en la red no se usa para sumar a CH ni a un negocio de otra red
+ok 237 - el alta en la red no se usa para sumar a CH ni a un negocio de otra red
+  ---
+  duration_ms: 0.324191
+  type: 'test'
+  ...
+# Subtest: el núcleo de Mis locales y exigirCasa no son 'use server'
+ok 238 - el núcleo de Mis locales y exigirCasa no son 'use server'
+  ---
+  duration_ms: 1.362531
+  type: 'test'
+  ...
+# Subtest: cada export de multilocal-actions arranca con exigirCasa y ninguno recibe un id de negocio
+ok 239 - cada export de multilocal-actions arranca con exigirCasa y ninguno recibe un id de negocio
+  ---
+  duration_ms: 1.329357
+  type: 'test'
+  ...
+# Subtest: las actions de la red de locales (consola) esperan primero la guardia del negocio (sesión + candado de CH)
+ok 240 - las actions de la red de locales (consola) esperan primero la guardia del negocio (sesión + candado de CH)
+  ---
+  duration_ms: 1.326856
+  type: 'test'
+  ...
+# Subtest: cada página y cada exportación de /admin/locales pasa por requireApp y exigirCasa
+ok 241 - cada página y cada exportación de /admin/locales pasa por requireApp y exigirCasa
+  ---
+  duration_ms: 1.09326
+  type: 'test'
+  ...
+# Subtest: nadie fuera de la consola de GSG (y de la cartera del contador) escribe CarteraCliente
+ok 242 - nadie fuera de la consola de GSG (y de la cartera del contador) escribe CarteraCliente
+  ---
+  duration_ms: 81.008273
+  type: 'test'
+  ...
+# Subtest: trasladoTransaction (escribe en dos negocios) sólo la importa multilocal-actions
+ok 243 - trasladoTransaction (escribe en dos negocios) sólo la importa multilocal-actions
+  ---
+  duration_ms: 78.624726
+  type: 'test'
+  ...
+# Subtest: el número del Inicio de Mis locales no importa la base al cargarse
+ok 244 - el número del Inicio de Mis locales no importa la base al cargarse
+  ---
+  duration_ms: 0.28515
+  type: 'test'
+  ...
+# Subtest: los chequeos de forma de verdad detectan lo que prohíben (no pasan en vacío)
+ok 245 - los chequeos de forma de verdad detectan lo que prohíben (no pasan en vacío)
+  ---
+  duration_ms: 0.193763
+  type: 'test'
+  ...
+# Subtest: sin locales vinculados: '—' con el motivo, UNA consulta con el negocio, y la red ni se recorre
+ok 246 - sin locales vinculados: '—' con el motivo, UNA consulta con el negocio, y la red ni se recorre
+  ---
+  duration_ms: 2.43404
+  type: 'test'
+  ...
+# Subtest: Mis locales: locales y cajas sin cerrar para todos; lo cobrado hoy sólo con reports:read
+ok 247 - Mis locales: locales y cajas sin cerrar para todos; lo cobrado hoy sólo con reports:read
+  ---
+  duration_ms: 3.270411
+  type: 'test'
+  ...
+# Subtest: Ventas por local: la semana y el local que más cambió
+ok 248 - Ventas por local: la semana y el local que más cambió
+  ---
+  duration_ms: 0.679875
+  type: 'test'
+  ...
+# Subtest: Cajas de los locales: cuántas sin cerrar y desde cuándo, en 'Para atender hoy'; al día sin alerta
+ok 249 - Cajas de los locales: cuántas sin cerrar y desde cuándo, en 'Para atender hoy'; al día sin alerta
+  ---
+  duration_ms: 0.514955
+  type: 'test'
+  ...
+# Subtest: Stock por local: con la palabra del rubro, y sin plata
+ok 250 - Stock por local: con la palabra del rubro, y sin plata
+  ---
+  duration_ms: 0.314502
+  type: 'test'
+  ...
+# Subtest: si la red no se pudo leer, el botón dice el porqué (nunca un 0)
+ok 251 - si la red no se pudo leer, el botón dice el porqué (nunca un 0)
+  ---
+  duration_ms: 0.137139
+  type: 'test'
+  ...
+# Subtest: los loaders REALES corren sin base cuando no hay locales: una consulta, con el negocio
+ok 252 - los loaders REALES corren sin base cuando no hay locales: una consulta, con el negocio
+  ---
+  duration_ms: 0.617145
+  type: 'test'
+  ...
+# Subtest: un local que no se pudo leer: el número es de los demás y el botón lo dice
+ok 253 - un local que no se pudo leer: el número es de los demás y el botón lo dice
+  ---
+  duration_ms: 0.428207
+  type: 'test'
+  ...
+# Subtest: Catálogo de la marca: cuántos locales tienen precios distintos a la lista, con la misma vista previa de la pantalla
+ok 254 - Catálogo de la marca: cuántos locales tienen precios distintos a la lista, con la misma vista previa de la pantalla
+  ---
+  duration_ms: 3.584885
+  type: 'test'
+  ...
+# Subtest: Traslados: 'Hoy: 4 traslados · 182 kg', sin plata; sin traslados, 0 real
+ok 255 - Traslados: 'Hoy: 4 traslados · 182 kg', sin plata; sin traslados, 0 real
+  ---
+  duration_ms: 0.745185
+  type: 'test'
+  ...
+# Subtest: si no se pudo leer NINGÚN local, cada botón dice '—' con el motivo: nunca 'Al día' ni un 0
+ok 256 - si no se pudo leer NINGÚN local, cada botón dice '—' con el motivo: nunca 'Al día' ni un 0
+  ---
+  duration_ms: 0.593275
+  type: 'test'
+  ...
+# Subtest: la casa necesita multilocal y no puede tener la cartera del contador
+ok 257 - la casa necesita multilocal y no puede tener la cartera del contador
+  ---
+  duration_ms: 1.766285
+  type: 'test'
+  ...
+# Subtest: el estudio contable rechaza a quien tenga multilocal (exigirEstudio usa la misma regla)
+ok 258 - el estudio contable rechaza a quien tenga multilocal (exigirEstudio usa la misma regla)
+  ---
+  duration_ms: 0.148217
+  type: 'test'
+  ...
+# Subtest: la red se lee sólo de las filas activas de la casa, sin la casa misma ni huérfanas
+ok 259 - la red se lee sólo de las filas activas de la casa, sin la casa misma ni huérfanas
+  ---
+  duration_ms: 0.236402
+  type: 'test'
+  ...
+# Subtest: recorrerLocales abre UNA transacción por local, con el id de la fila (de a uno si se pide de a uno)
+ok 260 - recorrerLocales abre UNA transacción por local, con el id de la fila (de a uno si se pide de a uno)
+  ---
+  duration_ms: 0.416738
+  type: 'test'
+  ...
+# Subtest: un local que falla no tumba la red: los demás se leen y el que falló queda nombrado
+ok 261 - un local que falla no tumba la red: los demás se leen y el que falló queda nombrado
+  ---
+  duration_ms: 0.558696
+  type: 'test'
+  ...
+# Subtest: un local pedido desde afuera sólo vale si es de la red: el ajeno da error
+ok 262 - un local pedido desde afuera sólo vale si es de la red: el ajeno da error
+  ---
+  duration_ms: 0.189105
+  type: 'test'
+  ...
+# Subtest: ventas: cuenta VENTA, resta sólo las anulaciones; compras y retiros no son ventas
+ok 263 - ventas: cuenta VENTA, resta sólo las anulaciones; compras y retiros no son ventas
+  ---
+  duration_ms: 1.532714
+  type: 'test'
+  ...
+# Subtest: ventas por día: el día es el del negocio, no el de UTC
+ok 264 - ventas por día: el día es el del negocio, no el de UTC
+  ---
+  duration_ms: 1.064819
+  type: 'test'
+  ...
+# Subtest: la caja del local: el mismo período, la misma cuenta y los mismos medios que su pantalla de Caja
+ok 265 - la caja del local: el mismo período, la misma cuenta y los mismos medios que su pantalla de Caja
+  ---
+  duration_ms: 2.015433
+  type: 'test'
+  ...
+# Subtest: la caja: hoy ya cerrado no tiene período, y sin movimientos viejos está al día
+ok 266 - la caja: hoy ya cerrado no tiene período, y sin movimientos viejos está al día
+  ---
+  duration_ms: 0.702548
+  type: 'test'
+  ...
+# Subtest: la semana: lunes a hoy contra la semana anterior hasta el MISMO día
+ok 267 - la semana: lunes a hoy contra la semana anterior hasta el MISMO día
+  ---
+  duration_ms: 0.552399
+  type: 'test'
+  ...
+# Subtest: los cierres del local: la diferencia que asentó cada uno, leída de su auditoría
+ok 268 - los cierres del local: la diferencia que asentó cada uno, leída de su auditoría
+  ---
+  duration_ms: 3.484592
+  type: 'test'
+  ...
+# Subtest: resumen de la red: cobrado hoy, cajas sin cerrar, stock bajo y el local que más cambió
+ok 269 - resumen de la red: cobrado hoy, cajas sin cerrar, stock bajo y el local que más cambió
+  ---
+  duration_ms: 0.620428
+  type: 'test'
+  ...
+# Subtest: la matriz de stock cruza por nombre sin acentos ni mayúsculas y por unidad de venta
+ok 270 - la matriz de stock cruza por nombre sin acentos ni mayúsculas y por unidad de venta
+  ---
+  duration_ms: 1.429177
+  type: 'test'
+  ...
+# Subtest: la regla del stock: bajo el mínimo y en negativo sólo cuentan si el producto controla existencias
+ok 271 - la regla del stock: bajo el mínimo y en negativo sólo cuentan si el producto controla existencias
+  ---
+  duration_ms: 0.217195
+  type: 'test'
+  ...
+# Subtest: la regla del stock es la MISMA que la de la pantalla de Stock (valuation.ts), caso por caso
+ok 272 - la regla del stock es la MISMA que la de la pantalla de Stock (valuation.ts), caso por caso
+  ---
+  duration_ms: 24.181017
+  type: 'test'
+  ...
+# Subtest: el rango: la semana por defecto, y lo ilegible, invertido, futuro o largo se dice
+ok 273 - el rango: la semana por defecto, y lo ilegible, invertido, futuro o largo se dice
+  ---
+  duration_ms: 0.618289
+  type: 'test'
+  ...
+# Subtest: el CSV: resumen por local, consolidado por CUIT si comparten, y detalle por día y medio
+ok 274 - el CSV: resumen por local, consolidado por CUIT si comparten, y detalle por día y medio
+  ---
+  duration_ms: 2.030971
+  type: 'test'
+  ...
+# Subtest: la dirección de un local: el host del mapa de ruteo, o el dominio propio, o nada
+ok 275 - la dirección de un local: el host del mapa de ruteo, o el dominio propio, o nada
+  ---
+  duration_ms: 0.211018
+  type: 'test'
+  ...
+# Subtest: validarVinculo: cada rechazo con su porqué
+ok 276 - validarVinculo: cada rechazo con su porqué
+  ---
+  duration_ms: 0.324506
+  type: 'test'
+  ...
+# Subtest: alias: el escrito, sin espacios de más y corto; si no, el nombre del negocio
+ok 277 - alias: el escrito, sin espacios de más y corto; si no, el nombre del negocio
+  ---
+  duration_ms: 0.083439
+  type: 'test'
+  ...
+# Subtest: vincular: la fila con el GUC de la casa, auditoría en la casa Y en el local, con candado
+ok 278 - vincular: la fila con el GUC de la casa, auditoría en la casa Y en el local, con candado
+  ---
+  duration_ms: 1.131471
+  type: 'test'
+  ...
+# Subtest: vincular: un local que ya está en otra red se rechaza, aunque la tabla sólo se vea con el GUC de cada casa
+ok 279 - vincular: un local que ya está en otra red se rechaza, aunque la tabla sólo se vea con el GUC de cada casa
+  ---
+  duration_ms: 0.338964
+  type: 'test'
+  ...
+# Subtest: la lista de la consola marca los que ya son local de OTRA red, con su casa; los libres y los propios no
+ok 280 - la lista de la consola marca los que ya son local de OTRA red, con su casa; los libres y los propios no
+  ---
+  duration_ms: 0.713832
+  type: 'test'
+  ...
+# Subtest: vincular: un estudio contable no entra a una red; CH sólo con el OK del dueño
+ok 281 - vincular: un estudio contable no entra a una red; CH sólo con el OK del dueño
+  ---
+  duration_ms: 0.254019
+  type: 'test'
+  ...
+# Subtest: dar de baja: el local desaparece de la red y queda auditado en los dos; dar de baja otra vez avisa
+ok 282 - dar de baja: el local desaparece de la red y queda auditado en los dos; dar de baja otra vez avisa
+  ---
+  duration_ms: 0.934299
+  type: 'test'
+  ...
+# Subtest: la ficha: los locales de la casa, a qué red pertenece un local y sus vínculos activos
+ok 283 - la ficha: los locales de la casa, a qué red pertenece un local y sus vínculos activos
+  ---
+  duration_ms: 0.703768
+  type: 'test'
+  ...
+# Subtest: mismo resultado que de a uno, en el orden de la red, y nunca más de tres a la vez
+ok 284 - mismo resultado que de a uno, en el orden de la red, y nunca más de tres a la vez
+  ---
+  duration_ms: 831.953007
+  type: 'test'
+  ...
+# Subtest: de a uno si se pide de a uno (y un número raro cae en uno)
+ok 285 - de a uno si se pide de a uno (y un número raro cae en uno)
+  ---
+  duration_ms: 82.37888
+  type: 'test'
+  ...
+# Subtest: agosto: ventas − costo de lo vendido − gastos, sin contar compras, pagos de deuda ni retiros
+ok 286 - agosto: ventas − costo de lo vendido − gastos, sin contar compras, pagos de deuda ni retiros
+  ---
+  duration_ms: 2.09667
+  type: 'test'
+  ...
+# Subtest: la compra de mercadería y el retiro del dueño no mueven el resultado
+ok 287 - la compra de mercadería y el retiro del dueño no mueven el resultado
+  ---
+  duration_ms: 0.608055
+  type: 'test'
+  ...
+# Subtest: un Responsable Inscripto ve las ventas sin IVA (21%, como factura el sistema)
+ok 288 - un Responsable Inscripto ve las ventas sin IVA (21%, como factura el sistema)
+  ---
+  duration_ms: 0.256853
+  type: 'test'
+  ...
+# Subtest: un MOSTRADOR inscripto: el IVA NO se saca con un 21% que no es de todo lo vendido, y se dice
+ok 289 - un MOSTRADOR inscripto: el IVA NO se saca con un 21% que no es de todo lo vendido, y se dice
+  ---
+  duration_ms: 0.257948
+  type: 'test'
+  ...
+# Subtest: servicios inscripto (CH) sigue igual: 21%, la alícuota general de los servicios
+ok 290 - servicios inscripto (CH) sigue igual: 21%, la alícuota general de los servicios
+  ---
+  duration_ms: 1.446981
+  type: 'test'
+  ...
+# Subtest: turnos cobrados e insumos consumidos: el resultado de un negocio de servicios
+ok 291 - turnos cobrados e insumos consumidos: el resultado de un negocio de servicios
+  ---
+  duration_ms: 0.228261
+  type: 'test'
+  ...
+# Subtest: un mes sin nada no tiene resultado que dar
+ok 292 - un mes sin nada no tiene resultado que dar
+  ---
+  duration_ms: 0.253865
+  type: 'test'
+  ...
+# Subtest: qué es cada movimiento del libro: por su marca, no por el tipo
+ok 293 - qué es cada movimiento del libro: por su marca, no por el tipo
+  ---
+  duration_ms: 0.155325
+  type: 'test'
+  ...
+# Subtest: costo de lo vendido: guardado primero, el de hoy si la venta no lo guardó, y nunca un $0 inventado
+ok 294 - costo de lo vendido: guardado primero, el de hoy si la venta no lo guardó, y nunca un $0 inventado
+  ---
+  duration_ms: 0.324385
+  type: 'test'
+  ...
+# Subtest: qué pedido es venta: cobrado, o a cuenta; uno saldado con cuenta es venta A CUENTA, una vez
+ok 295 - qué pedido es venta: cobrado, o a cuenta; uno saldado con cuenta es venta A CUENTA, una vez
+  ---
+  duration_ms: 0.382432
+  type: 'test'
+  ...
+# Subtest: por día del negocio: una venta de las 23:30 del 19 es del 19, aunque en UTC ya sea el 20
+ok 296 - por día del negocio: una venta de las 23:30 del 19 es del 19, aunque en UTC ya sea el 20
+  ---
+  duration_ms: 3.261771
+  type: 'test'
+  ...
+# Subtest: la venta 'A cuenta' (saldada y sin medio, con su cuenta) va como 'A cuenta (fiado)', no como 'Sin medio registrado'
+ok 297 - la venta 'A cuenta' (saldada y sin medio, con su cuenta) va como 'A cuenta (fiado)', no como 'Sin medio registrado'
+  ---
+  duration_ms: 0.318969
+  type: 'test'
+  ...
+# Subtest: por producto con las líneas ya sumadas por la base: sale de ellas y no de cada venta
+ok 298 - por producto con las líneas ya sumadas por la base: sale de ellas y no de cada venta
+  ---
+  duration_ms: 0.249839
+  type: 'test'
+  ...
+# Subtest: por producto: kilos y unidades, y las líneas a mano por su nombre
+ok 299 - por producto: kilos y unidades, y las líneas a mano por su nombre
+  ---
+  duration_ms: 0.342743
+  type: 'test'
+  ...
+# Subtest: el CSV: ; y coma decimal, CRLF en todas las líneas
+ok 300 - el CSV: ; y coma decimal, CRLF en todas las líneas
+  ---
+  duration_ms: 0.857891
+  type: 'test'
+  ...
+# Subtest: el where del período: el de Ventas del día, de las 00:00 del primer día a la medianoche del siguiente al último
+ok 301 - el where del período: el de Ventas del día, de las 00:00 del primer día a la medianoche del siguiente al último
+  ---
+  duration_ms: 1.069584
+  type: 'test'
+  ...
+# Subtest: motivoMode: recuento cuenta, mermas restan, otro es delta firmado
+ok 302 - motivoMode: recuento cuenta, mermas restan, otro es delta firmado
+  ---
+  duration_ms: 0.937685
+  type: 'test'
+  ...
+# Subtest: adjustmentDelta COUNT (recuento): delta = contado − stock actual
+ok 303 - adjustmentDelta COUNT (recuento): delta = contado − stock actual
+  ---
+  duration_ms: 0.170504
+  type: 'test'
+  ...
+# Subtest: adjustmentDelta LOSS (merma/rotura/vencimiento): siempre resta la magnitud
+ok 304 - adjustmentDelta LOSS (merma/rotura/vencimiento): siempre resta la magnitud
+  ---
+  duration_ms: 0.074849
+  type: 'test'
+  ...
+# Subtest: adjustmentDelta SIGNED (otro): respeta el signo del valor cargado
+ok 305 - adjustmentDelta SIGNED (otro): respeta el signo del valor cargado
+  ---
+  duration_ms: 0.082465
+  type: 'test'
+  ...
+# Subtest: adjustmentDelta: redondea a 3 decimales (stock fraccional en kg)
+ok 306 - adjustmentDelta: redondea a 3 decimales (stock fraccional en kg)
+  ---
+  duration_ms: 0.121296
+  type: 'test'
+  ...
+# Subtest: adjustmentDelta: valor no numérico → 0 (línea inerte, no rompe el lote)
+ok 307 - adjustmentDelta: valor no numérico → 0 (línea inerte, no rompe el lote)
+  ---
+  duration_ms: 0.100471
+  type: 'test'
+  ...
+# Subtest: requiresNote: sólo OTRO exige nota (el resto la tiene en el motivo)
+ok 308 - requiresNote: sólo OTRO exige nota (el resto la tiene en el motivo)
+  ---
+  duration_ms: 0.138171
+  type: 'test'
+  ...
+# Subtest: buildReason: motivo + nota; nunca vacío (reason obligatorio)
+ok 309 - buildReason: motivo + nota; nunca vacío (reason obligatorio)
+  ---
+  duration_ms: 0.102655
+  type: 'test'
+  ...
+# Subtest: recuento de '4,350' kg contra 10 kg en sistema: delta −5,65, el corte queda en 4,35
+ok 310 - recuento de '4,350' kg contra 10 kg en sistema: delta −5,65, el corte queda en 4,35
+  ---
+  duration_ms: 0.513821
+  type: 'test'
+  ...
+# Subtest: recuento: punto y coma valen lo mismo, y contado 0 es un recuento válido
+ok 311 - recuento: punto y coma valen lo mismo, y contado 0 es un recuento válido
+  ---
+  duration_ms: 0.41333
+  type: 'test'
+  ...
+# Subtest: un contado ilegible NO produce delta (ni 0 − stock ni nada)
+ok 312 - un contado ilegible NO produce delta (ni 0 − stock ni nada)
+  ---
+  duration_ms: 0.197593
+  type: 'test'
+  ...
+# Subtest: merma: la cantidad perdida con coma resta; con signo es un error de tipeo
+ok 313 - merma: la cantidad perdida con coma resta; con signo es un error de tipeo
+  ---
+  duration_ms: 0.077971
+  type: 'test'
+  ...
+# Subtest: otro (delta firmado): el signo se respeta, con coma y con el menos del celular
+ok 314 - otro (delta firmado): el signo se respeta, con coma y con el menos del celular
+  ---
+  duration_ms: 0.240409
+  type: 'test'
+  ...
+# Subtest: server: lee las líneas con la misma regla y lo que viaja canónico da lo mismo
+ok 315 - server: lee las líneas con la misma regla y lo que viaja canónico da lo mismo
+  ---
+  duration_ms: 1.251788
+  type: 'test'
+  ...
+# Subtest: server: una línea ilegible RECHAZA el ajuste entero con mensaje, no se descarta callada
+ok 316 - server: una línea ilegible RECHAZA el ajuste entero con mensaje, no se descarta callada
+  ---
+  duration_ms: 0.367528
+  type: 'test'
+  ...
+# Subtest: server: la fila sin producto no es un error (no se pidió nada)
+ok 317 - server: la fila sin producto no es un error (no se pidió nada)
+  ---
+  duration_ms: 0.143975
+  type: 'test'
+  ...
+# Subtest: pantalla de ajustes: sin preelegido, sólo productos activos
+ok 318 - pantalla de ajustes: sin preelegido, sólo productos activos
+  ---
+  duration_ms: 0.134004
+  type: 'test'
+  ...
+# Subtest: pantalla de ajustes: el 'Recontar' de un producto INACTIVO lo trae igual
+ok 319 - pantalla de ajustes: el 'Recontar' de un producto INACTIVO lo trae igual
+  ---
+  duration_ms: 0.094474
+  type: 'test'
+  ...
+# Subtest: criterio de aceptación: se cuenta a las 10:00, a las 10:05 se vende 1 kg, se guarda a las 10:10 → la diferencia es la real
+ok 320 - criterio de aceptación: se cuenta a las 10:00, a las 10:05 se vende 1 kg, se guarda a las 10:10 → la diferencia es la real
+  ---
+  duration_ms: 0.172037
+  type: 'test'
+  ...
+# Subtest: hora del conteo: 'hace cuánto se contó' medido en el teléfono, restado a la hora del servidor
+ok 321 - hora del conteo: 'hace cuánto se contó' medido en el teléfono, restado a la hora del servidor
+  ---
+  duration_ms: 0.407147
+  type: 'test'
+  ...
+# Subtest: hora del conteo: sin hora de envío, sin tipeo o con el reloj para atrás → ahora; más de un día → error
+ok 322 - hora del conteo: sin hora de envío, sin tipeo o con el reloj para atrás → ahora; más de un día → error
+  ---
+  duration_ms: 0.160253
+  type: 'test'
+  ...
+# Subtest: criterio del revisor: página armada a las 10:00, venta a las 10:20, se vuelve con Atrás a las 10:30 y se cuenta lo que hay
+ok 323 - criterio del revisor: página armada a las 10:00, venta a las 10:20, se vuelve con Atrás a las 10:30 y se cuenta lo que hay
+  ---
+  duration_ms: 0.205567
+  type: 'test'
+  ...
+# Subtest: marca del conteo: arranca con el primer número; seguir tipeando no la mueve; borrar y volver a escribir es contar de nuevo
+ok 324 - marca del conteo: arranca con el primer número; seguir tipeando no la mueve; borrar y volver a escribir es contar de nuevo
+  ---
+  duration_ms: 0.104321
+  type: 'test'
+  ...
+# Subtest: las líneas de un recuento traen su hora; el mismo producto dos veces es un error
+ok 325 - las líneas de un recuento traen su hora; el mismo producto dos veces es un error
+  ---
+  duration_ms: 0.215092
+  type: 'test'
+  ...
+# Subtest: motivos: en servicios los de siempre (CH no cambia); los de perecederos sólo donde se vende comida fresca
+ok 326 - motivos: en servicios los de siempre (CH no cambia); los de perecederos sólo donde se vende comida fresca
+  ---
+  duration_ms: 0.303316
+  type: 'test'
+  ...
+# Subtest: tope de merma: la dueña sin tope; recepción hasta $50.000 por carga (provisional)
+ok 327 - tope de merma: la dueña sin tope; recepción hasta $50.000 por carga (provisional)
+  ---
+  duration_ms: 0.349536
+  type: 'test'
+  ...
+# Subtest: tope: el FALTANTE de un recuento cuenta como baja (antes se esquivaba cargándola como Recuento)
+ok 328 - tope: el FALTANTE de un recuento cuenta como baja (antes se esquivaba cargándola como Recuento)
+  ---
+  duration_ms: 0.12715
+  type: 'test'
+  ...
+# Subtest: tope del recuento: el mensaje habla del faltante y, sin costos, no lleva montos
+ok 329 - tope del recuento: el mensaje habla del faltante y, sin costos, no lleva montos
+  ---
+  duration_ms: 0.252039
+  type: 'test'
+  ...
+# Subtest: tope de merma: el rechazo no le muestra costos a quien no los ve
+ok 330 - tope de merma: el rechazo no le muestra costos a quien no los ve
+  ---
+  duration_ms: 0.19293
+  type: 'test'
+  ...
+# Subtest: criterio de aceptación, con la persistencia real: cuenta 10:00, venta 10:05, guarda 10:10 → −0,5 y el stock queda en 8,5
+ok 331 - criterio de aceptación, con la persistencia real: cuenta 10:00, venta 10:05, guarda 10:10 → −0,5 y el stock queda en 8,5
+  ---
+  duration_ms: 3.55982
+  type: 'test'
+  ...
+# Subtest: recuento que coincide: fila en 0 con su saldo, sin tocar el stock
+ok 332 - recuento que coincide: fila en 0 con su saldo, sin tocar el stock
+  ---
+  duration_ms: 0.419374
+  type: 'test'
+  ...
+# Subtest: merma: resta, guarda el costo; una merma no bloquea filas ni lee movimientos
+ok 333 - merma: resta, guarda el costo; una merma no bloquea filas ni lee movimientos
+  ---
+  duration_ms: 0.275687
+  type: 'test'
+  ...
+# Subtest: tope: la carga que lo pasa se rechaza con un mensaje SIN montos; la dueña no tiene tope
+ok 334 - tope: la carga que lo pasa se rechaza con un mensaje SIN montos; la dueña no tiene tope
+  ---
+  duration_ms: 1.064086
+  type: 'test'
+  ...
+# Subtest: un producto que no es del negocio o está borrado frena todo el ajuste
+ok 335 - un producto que no es del negocio o está borrado frena todo el ajuste
+  ---
+  duration_ms: 0.315378
+  type: 'test'
+  ...
+# Subtest: reenvío de un recuento ya guardado (borrador cuya respuesta se perdió): se rechaza entero y el stock no se descuenta dos veces
+ok 336 - reenvío de un recuento ya guardado (borrador cuya respuesta se perdió): se rechaza entero y el stock no se descuenta dos veces
+  ---
+  duration_ms: 0.652691
+  type: 'test'
+  ...
+# Subtest: un conteo POSTERIOR al último recuento se guarda; una venta o una merma posterior no lo frena
+ok 337 - un conteo POSTERIOR al último recuento se guarda; una venta o una merma posterior no lo frena
+  ---
+  duration_ms: 0.417124
+  type: 'test'
+  ...
+# Subtest: el recuento de otra persona después de mi conteo frena el mío, con los productos nombrados
+ok 338 - el recuento de otra persona después de mi conteo frena el mío, con los productos nombrados
+  ---
+  duration_ms: 0.360498
+  type: 'test'
+  ...
+# Subtest: alta con stock inicial 10: el producto se crea en 0 y el ledger asienta AJUSTE 'Stock inicial' por 10
+ok 339 - alta con stock inicial 10: el producto se crea en 0 y el ledger asienta AJUSTE 'Stock inicial' por 10
+  ---
+  duration_ms: 2.66442
+  type: 'test'
+  ...
+# Subtest: alta sin stock inicial: no hay movimiento (el ledger no acepta cantidad cero)
+ok 340 - alta sin stock inicial: no hay movimiento (el ledger no acepta cantidad cero)
+  ---
+  duration_ms: 0.178893
+  type: 'test'
+  ...
+# Subtest: stock inicial con gramos se redondea igual que el ledger
+ok 341 - stock inicial con gramos se redondea igual que el ledger
+  ---
+  duration_ms: 0.161889
+  type: 'test'
+  ...
+# Subtest: stock inicial negativo o NaN se rechaza: antes NaN abortaba el alta SIN avisar
+ok 342 - stock inicial negativo o NaN se rechaza: antes NaN abortaba el alta SIN avisar
+  ---
+  duration_ms: 0.47944
+  type: 'test'
+  ...
+# Subtest: crearProductoConStockInicial: create en 0, después el AJUSTE, y el saldo cierra
+ok 343 - crearProductoConStockInicial: create en 0, después el AJUSTE, y el saldo cierra
+  ---
+  duration_ms: 0.800171
+  type: 'test'
+  ...
+# Subtest: crearProductoConStockInicial sin stock: sólo el create, ninguna fila en el ledger
+ok 344 - crearProductoConStockInicial sin stock: sólo el create, ninguna fila en el ledger
+  ---
+  duration_ms: 0.231816
+  type: 'test'
+  ...
+# Subtest: fuera de ledger.ts y de src/blueprints, ninguna escritura de Product lleva `stock`
+ok 345 - fuera de ledger.ts y de src/blueprints, ninguna escritura de Product lleva `stock`
+  ---
+  duration_ms: 52.187931
+  type: 'test'
+  ...
+# Subtest: el barrido detecta lo que tiene que detectar (si no, pasar no prueba nada)
+ok 346 - el barrido detecta lo que tiene que detectar (si no, pasar no prueba nada)
+  ---
+  duration_ms: 0.547258
+  type: 'test'
+  ...
+# Subtest: el catálogo ya no manda un campo `stock` en la edición
+ok 347 - el catálogo ya no manda un campo `stock` en la edición
+  ---
+  duration_ms: 2.446641
+  type: 'test'
+  ...
+# Subtest: el alta y la edición leen TODO el formulario antes de escribir
+ok 348 - el alta y la edición leen TODO el formulario antes de escribir
+  ---
+  duration_ms: 0.6283
+  type: 'test'
+  ...
+# Subtest: alta en el navegador: después de cada alta los números vuelven a su inicial
+    # Subtest: CH: el alta de 'Crema B' no viaja con el stock inicial ni el precio de 'Crema A'
+    ok 1 - CH: el alta de 'Crema B' no viaja con el stock inicial ni el precio de 'Crema A'
+      ---
+      duration_ms: 601.388331
+      type: 'test'
+      ...
+    # Subtest: CH: después de un alta 'por peso', la forma de venta vuelve a 'por unidad' entera
+    ok 2 - CH: después de un alta 'por peso', la forma de venta vuelve a 'por unidad' entera
+      ---
+      duration_ms: 412.733596
+      type: 'test'
+      ...
+    # Subtest: cortes: 'Matambre' no hereda stock, precio/kg ni costo de 'Vacío', y la forma de venta vuelve a kilo
+    ok 3 - cortes: 'Matambre' no hereda stock, precio/kg ni costo de 'Vacío', y la forma de venta vuelve a kilo
+      ---
+      duration_ms: 614.892203
+      type: 'test'
+      ...
+    1..3
+ok 349 - alta en el navegador: después de cada alta los números vuelven a su inicial
+  ---
+  duration_ms: 2480.67297
+  type: 'suite'
+  ...
+# Subtest: el costo del catálogo (Product.cost) manda; si no, el último ingreso; si no, sin costo (nunca 0)
+ok 350 - el costo del catálogo (Product.cost) manda; si no, el último ingreso; si no, sin costo (nunca 0)
+  ---
+  duration_ms: 0.823741
+  type: 'test'
+  ...
+# Subtest: último ingreso con costo: gana la FECHA, venga del registro o de la compra; los sin costo no cuentan
+ok 351 - último ingreso con costo: gana la FECHA, venga del registro o de la compra; los sin costo no cuentan
+  ---
+  duration_ms: 0.232292
+  type: 'test'
+  ...
+# Subtest: el corte de un despiece (REPOSICION con costo, sin compra) tiene costo; antes Stock y Margen lo daban 'sin costo'
+ok 352 - el corte de un despiece (REPOSICION con costo, sin compra) tiene costo; antes Stock y Margen lo daban 'sin costo'
+  ---
+  duration_ms: 0.185896
+  type: 'test'
+  ...
+# Subtest: una compra de antes del registro de movimientos (sólo StockPurchaseItem) también cuenta
+ok 353 - una compra de antes del registro de movimientos (sólo StockPurchaseItem) también cuenta
+  ---
+  duration_ms: 0.201465
+  type: 'test'
+  ...
+# Subtest: el vacío cuesta lo mismo en Stock, Catálogo y Margen: los tres usan costosVigentesDe
+ok 354 - el vacío cuesta lo mismo en Stock, Catálogo y Margen: los tres usan costosVigentesDe
+  ---
+  duration_ms: 1.211257
+  type: 'test'
+  ...
+# Subtest: adentro de una transacción: UNA consulta con el negocio escrito, y el float8 que llega como texto se lee
+ok 355 - adentro de una transacción: UNA consulta con el negocio escrito, y el float8 que llega como texto se lee
+  ---
+  duration_ms: 0.556273
+  type: 'test'
+  ...
+# Subtest: el despiece no pisa Product.cost: una compra posterior del mismo corte le gana a su costo
+ok 356 - el despiece no pisa Product.cost: una compra posterior del mismo corte le gana a su costo
+  ---
+  duration_ms: 6.939504
+  type: 'test'
+  ...
+# Subtest: formatCuit: normaliza 11 dígitos (con o sin separadores) a XX-XXXXXXXX-X
+ok 357 - formatCuit: normaliza 11 dígitos (con o sin separadores) a XX-XXXXXXXX-X
+  ---
+  duration_ms: 0.728169
+  type: 'test'
+  ...
+# Subtest: formatCuit: null/inválido (≠ 11 dígitos) → null
+ok 358 - formatCuit: null/inválido (≠ 11 dígitos) → null
+  ---
+  duration_ms: 0.185984
+  type: 'test'
+  ...
+# Subtest: composeFormalNotes: compone OC + CUIT + nota libre en una línea formal + nota
+ok 359 - composeFormalNotes: compone OC + CUIT + nota libre en una línea formal + nota
+  ---
+  duration_ms: 0.150859
+  type: 'test'
+  ...
+# Subtest: composeFormalNotes: solo lo presente; CUIT inválido se descarta
+ok 360 - composeFormalNotes: solo lo presente; CUIT inválido se descarta
+  ---
+  duration_ms: 0.152084
+  type: 'test'
+  ...
+# Subtest: composeFormalNotes: todo vacío → null (idéntico al comportamiento legado de notes)
+ok 361 - composeFormalNotes: todo vacío → null (idéntico al comportamiento legado de notes)
+  ---
+  duration_ms: 0.087734
+  type: 'test'
+  ...
+# Subtest: round3: redondea a 3 decimales (stock fraccional en kg)
+ok 362 - round3: redondea a 3 decimales (stock fraccional en kg)
+  ---
+  duration_ms: 1.102225
+  type: 'test'
+  ...
+# Subtest: movementDirection: entradas +1, salidas -1, ajuste 0 (lo define el delta)
+ok 363 - movementDirection: entradas +1, salidas -1, ajuste 0 (lo define el delta)
+  ---
+  duration_ms: 0.175902
+  type: 'test'
+  ...
+# Subtest: signedDelta: el TIPO fija el signo — un qty negativo en VENTA sigue restando
+ok 364 - signedDelta: el TIPO fija el signo — un qty negativo en VENTA sigue restando
+  ---
+  duration_ms: 0.159222
+  type: 'test'
+  ...
+# Subtest: signedDelta: AJUSTE respeta el delta firmado declarado (recuento arriba o abajo)
+ok 365 - signedDelta: AJUSTE respeta el delta firmado declarado (recuento arriba o abajo)
+  ---
+  duration_ms: 0.145061
+  type: 'test'
+  ...
+# Subtest: signedDelta: redondea a 3 decimales (venta por peso)
+ok 366 - signedDelta: redondea a 3 decimales (venta por peso)
+  ---
+  duration_ms: 0.108092
+  type: 'test'
+  ...
+# Subtest: pendiente de la ola 1: 1,1 − 1,24 queda guardado en −0,14 (no en −0,1399999999999999)
+ok 367 - pendiente de la ola 1: 1,1 − 1,24 queda guardado en −0,14 (no en −0,1399999999999999)
+  ---
+  duration_ms: 1.447904
+  type: 'test'
+  ...
+# Subtest: sin error de coma flotante no hay segunda escritura
+ok 368 - sin error de coma flotante no hay segunda escritura
+  ---
+  duration_ms: 0.38868
+  type: 'test'
+  ...
+# Subtest: el compare-and-set de la salida sigue: sin stock no sale, pero medio gramo de error de coma no la frena
+ok 369 - el compare-and-set de la salida sigue: sin stock no sale, pero medio gramo de error de coma no la frena
+  ---
+  duration_ms: 0.86475
+  type: 'test'
+  ...
+# Subtest: toda SALIDA sin costo guarda el costo vigente; las entradas y las que ya traen costo, no se tocan
+ok 370 - toda SALIDA sin costo guarda el costo vigente; las entradas y las que ya traen costo, no se tocan
+  ---
+  duration_ms: 0.692704
+  type: 'test'
+  ...
+# Subtest: un recuento que coincide deja su fila en 0 con el saldo, sin tocar el stock
+ok 371 - un recuento que coincide deja su fila en 0 con el saldo, sin tocar el stock
+  ---
+  duration_ms: 0.535604
+  type: 'test'
+  ...
+# Subtest: Merma, Vencimiento y Rotura (con o sin nota) son merma declarada, cada una con su motivo
+ok 372 - Merma, Vencimiento y Rotura (con o sin nota) son merma declarada, cada una con su motivo
+  ---
+  duration_ms: 2.118209
+  type: 'test'
+  ...
+# Subtest: Recuento: con delta negativo es FALTANTE, positivo es SOBRANTE
+ok 373 - Recuento: con delta negativo es FALTANTE, positivo es SOBRANTE
+  ---
+  duration_ms: 0.188795
+  type: 'test'
+  ...
+# Subtest: Otro (y cualquier motivo que no se reconoce) es OTRO: aparte, no se mezcla con la merma
+ok 374 - Otro (y cualquier motivo que no se reconoce) es OTRO: aparte, no se mezcla con la merma
+  ---
+  duration_ms: 0.38723
+  type: 'test'
+  ...
+# Subtest: DEVOLUCIÓN por anulación de venta: EXCLUIDA por el prefijo de createdBy, aunque el reason diga Recuento
+ok 375 - DEVOLUCIÓN por anulación de venta: EXCLUIDA por el prefijo de createdBy, aunque el reason diga Recuento
+  ---
+  duration_ms: 0.247323
+  type: 'test'
+  ...
+# Subtest: devolución por reajuste de peso de un pedido: EXCLUIDA
+ok 376 - devolución por reajuste de peso de un pedido: EXCLUIDA
+  ---
+  duration_ms: 0.121028
+  type: 'test'
+  ...
+# Subtest: el Stock inicial de un alta no es sobrante: EXCLUIDO
+ok 377 - el Stock inicial de un alta no es sobrante: EXCLUIDO
+  ---
+  duration_ms: 0.081785
+  type: 'test'
+  ...
+# Subtest: costo: el guardado en la fila manda; si la fila no lo tiene (movimiento viejo), el vigente del producto
+ok 378 - costo: el guardado en la fila manda; si la fila no lo tiene (movimiento viejo), el vigente del producto
+  ---
+  duration_ms: 1.405663
+  type: 'test'
+  ...
+# Subtest: los motivos de perecederos son merma declarada, cada uno con su renglón
+ok 379 - los motivos de perecederos son merma declarada, cada uno con su renglón
+  ---
+  duration_ms: 0.532802
+  type: 'test'
+  ...
+# Subtest: kilos: por forma de venta o por la unidad escrita
+ok 380 - kilos: por forma de venta o por la unidad escrita
+  ---
+  duration_ms: 0.581209
+  type: 'test'
+  ...
+# Subtest: merma de 1,5 kg y un recuento con faltante: renglones SEPARADOS, en kg y en $; la devolución no es sobrante
+ok 381 - merma de 1,5 kg y un recuento con faltante: renglones SEPARADOS, en kg y en $; la devolución no es sobrante
+  ---
+  duration_ms: 0.876631
+  type: 'test'
+  ...
+# Subtest: la pieza que entra a un despiece no es merma ni 'Otro': se convirtió en cortes
+ok 382 - la pieza que entra a un despiece no es merma ni 'Otro': se convirtió en cortes
+  ---
+  duration_ms: 0.453917
+  type: 'test'
+  ...
+# Subtest: un corte sin costo queda 'sin costo' (no $0) y no entra al ranking en pesos: se nombra aparte
+ok 383 - un corte sin costo queda 'sin costo' (no $0) y no entra al ranking en pesos: se nombra aparte
+  ---
+  duration_ms: 0.37789
+  type: 'test'
+  ...
+# Subtest: renglón mixto: los pesos son de lo valuado y se cuenta cuánto quedó sin costo
+ok 384 - renglón mixto: los pesos son de lo valuado y se cuenta cuánto quedó sin costo
+  ---
+  duration_ms: 0.141453
+  type: 'test'
+  ...
+# Subtest: unidades no se suman a kilos, y OTRO es neto con signo
+ok 385 - unidades no se suman a kilos, y OTRO es neto con signo
+  ---
+  duration_ms: 0.428145
+  type: 'test'
+  ...
+# Subtest: top 5: los que más pierden en pesos (merma + faltante), sin sobrante
+ok 386 - top 5: los que más pierden en pesos (merma + faltante), sin sobrante
+  ---
+  duration_ms: 0.407517
+  type: 'test'
+  ...
+# Subtest: el top se corta en 5
+ok 387 - el top se corta en 5
+  ---
+  duration_ms: 0.344528
+  type: 'test'
+  ...
+# Subtest: semana: sin elegir son los últimos 7 días hasta hoy, sin 'siguiente'
+ok 388 - semana: sin elegir son los últimos 7 días hasta hoy, sin 'siguiente'
+  ---
+  duration_ms: 0.482258
+  type: 'test'
+  ...
+# Subtest: semana anterior elegida: tiene 'siguiente'; futura o basura cae en la de hoy
+ok 389 - semana anterior elegida: tiene 'siguiente'; futura o basura cae en la de hoy
+  ---
+  duration_ms: 0.350217
+  type: 'test'
+  ...
+# Subtest: cortes en negativo: sólo los < 0, del más negativo al menos
+ok 390 - cortes en negativo: sólo los < 0, del más negativo al menos
+  ---
+  duration_ms: 0.163992
+  type: 'test'
+  ...
+# Subtest: Ajustes recientes: la pieza de un despiece y un traslado NO aparecen; una merma y un ajuste sin motivo, sí
+ok 391 - Ajustes recientes: la pieza de un despiece y un traslado NO aparecen; una merma y un ajuste sin motivo, sí
+  ---
+  duration_ms: 4.30796
+  type: 'test'
+  ...
+# Subtest: un producto que NO controla stock nunca reporta faltante (se vende como siempre)
+ok 392 - un producto que NO controla stock nunca reporta faltante (se vende como siempre)
+  ---
+  duration_ms: 4.201045
+  type: 'test'
+  ...
+# Subtest: un producto desconocido para la caja no bloquea (la guarda real está en el server)
+ok 393 - un producto desconocido para la caja no bloquea (la guarda real está en el server)
+  ---
+  duration_ms: 0.340721
+  type: 'test'
+  ...
+# Subtest: con control de stock, alcanza justo o sobra → sin faltante
+ok 394 - con control de stock, alcanza justo o sobra → sin faltante
+  ---
+  duration_ms: 0.270857
+  type: 'test'
+  ...
+# Subtest: con control de stock, pedir más de lo que hay → faltante con lo disponible
+ok 395 - con control de stock, pedir más de lo que hay → faltante con lo disponible
+  ---
+  duration_ms: 1.422054
+  type: 'test'
+  ...
+# Subtest: el stock negativo heredado se informa como 0 disponible, no como negativo
+ok 396 - el stock negativo heredado se informa como 0 disponible, no como negativo
+  ---
+  duration_ms: 0.123416
+  type: 'test'
+  ...
+# Subtest: cantidad cero o inválida no es faltante (todavía no hay línea que vender)
+ok 397 - cantidad cero o inválida no es faltante (todavía no hay línea que vender)
+  ---
+  duration_ms: 0.13307
+  type: 'test'
+  ...
+# Subtest: soporta fracciones (venta por kg): 1.250 kg con 1.2 en stock falta
+ok 398 - soporta fracciones (venta por kg): 1.250 kg con 1.2 en stock falta
+  ---
+  duration_ms: 0.434628
+  type: 'test'
+  ...
+# Subtest: estado vacío sin productos, quien mira puede editar el catálogo → lo manda a cargar
+ok 399 - estado vacío sin productos, quien mira puede editar el catálogo → lo manda a cargar
+  ---
+  duration_ms: 0.722844
+  type: 'test'
+  ...
+# Subtest: estado vacío con productos sin precio → dice cuántos y qué falta
+ok 400 - estado vacío con productos sin precio → dice cuántos y qué falta
+  ---
+  duration_ms: 1.022114
+  type: 'test'
+  ...
+# Subtest: estado vacío con un solo producto concuerda en singular
+ok 401 - estado vacío con un solo producto concuerda en singular
+  ---
+  duration_ms: 1.178027
+  type: 'test'
+  ...
+# Subtest: quien NO puede editar el catálogo recibe a quién pedírselo y sin botón al catálogo
+ok 402 - quien NO puede editar el catálogo recibe a quién pedírselo y sin botón al catálogo
+  ---
+  duration_ms: 0.186763
+  type: 'test'
+  ...
+# Subtest: el copy es neutral de rubro: sin cortes, góndolas ni balanza
+ok 403 - el copy es neutral de rubro: sin cortes, góndolas ni balanza
+  ---
+  duration_ms: 0.248249
+  type: 'test'
+  ...
+# Subtest: la matriz UNIT/WEIGHT × COUNTER/ONLINE: sólo WEIGHT + COUNTER permite negativo
+ok 404 - la matriz UNIT/WEIGHT × COUNTER/ONLINE: sólo WEIGHT + COUNTER permite negativo
+  ---
+  duration_ms: 0.128477
+  type: 'test'
+  ...
+# Subtest: al editar un pedido al peso real: WEIGHT sí, UNIT no
+ok 405 - al editar un pedido al peso real: WEIGHT sí, UNIT no
+  ---
+  duration_ms: 0.05007
+  type: 'test'
+  ...
+# Subtest: una unidad de venta desconocida no abre la excepción
+ok 406 - una unidad de venta desconocida no abre la excepción
+  ---
+  duration_ms: 0.056858
+  type: 'test'
+  ...
+# Subtest: la lista que viaja a insertOrder: sólo los productos por peso, y sólo en mostrador
+ok 407 - la lista que viaja a insertOrder: sólo los productos por peso, y sólo en mostrador
+  ---
+  duration_ms: 0.324427
+  type: 'test'
+  ...
+# Subtest: el caso del sábado: stock 1,1 kg, se vende 1,240 en mostrador → avisa, no bloquea
+ok 408 - el caso del sábado: stock 1,1 kg, se vende 1,240 en mostrador → avisa, no bloquea
+  ---
+  duration_ms: 0.801587
+  type: 'test'
+  ...
+# Subtest: el mismo 1,240 kg en un pedido online sigue bloqueando
+ok 409 - el mismo 1,240 kg en un pedido online sigue bloqueando
+  ---
+  duration_ms: 0.20368
+  type: 'test'
+  ...
+# Subtest: un producto por unidad sin stock sigue bloqueado en el mostrador
+ok 410 - un producto por unidad sin stock sigue bloqueado en el mostrador
+  ---
+  duration_ms: 0.346493
+  type: 'test'
+  ...
+# Subtest: si alcanza, o el producto no controla stock, no hay nada que decir
+ok 411 - si alcanza, o el producto no controla stock, no hay nada que decir
+  ---
+  duration_ms: 0.134447
+  type: 'test'
+  ...
+# Subtest: con el stock ya en negativo, el aviso dice lo que había (negativo) y lo que queda
+ok 412 - con el stock ya en negativo, el aviso dice lo que había (negativo) y lo que queda
+  ---
+  duration_ms: 0.224136
+  type: 'test'
+  ...
+# Subtest: insertOrder no decide la excepción: no importa la regla ni mira saleUnit para el stock
+ok 413 - insertOrder no decide la excepción: no importa la regla ni mira saleUnit para el stock
+  ---
+  duration_ms: 0.581603
+  type: 'test'
+  ...
+# Subtest: createOrder calcula la lista con la regla; la vidriera no la pasa
+ok 414 - createOrder calcula la lista con la regla; la vidriera no la pasa
+  ---
+  duration_ms: 0.45353
+  type: 'test'
+  ...
+# Subtest: updateOrderItems usa la regla con el contexto de edición al peso real
+ok 415 - updateOrderItems usa la regla con el contexto de edición al peso real
+  ---
+  duration_ms: 0.154687
+  type: 'test'
+  ...
+# Subtest: un form sin campos de venta no toca nada (compatibilidad con ABMs parciales)
+ok 416 - un form sin campos de venta no toca nada (compatibilidad con ABMs parciales)
+  ---
+  duration_ms: 33.44295
+  type: 'test'
+  ...
+# Subtest: venta por unidad: guarda price y anula pricePerKg
+ok 417 - venta por unidad: guarda price y anula pricePerKg
+  ---
+  duration_ms: 0.575251
+  type: 'test'
+  ...
+# Subtest: venta por peso: guarda pricePerKg y anula price
+ok 418 - venta por peso: guarda pricePerKg y anula price
+  ---
+  duration_ms: 0.221945
+  type: 'test'
+  ...
+# Subtest: el precio que NO corresponde a la forma de venta se descarta aunque venga en el form
+ok 419 - el precio que NO corresponde a la forma de venta se descarta aunque venga en el form
+  ---
+  duration_ms: 0.264958
+  type: 'test'
+  ...
+# Subtest: precio vacío = null (insumo que no se vende), no 0 ni NaN
+ok 420 - precio vacío = null (insumo que no se vende), no 0 ni NaN
+  ---
+  duration_ms: 0.102686
+  type: 'test'
+  ...
+# Subtest: precio cero, negativo o basura se guarda como null
+ok 421 - precio cero, negativo o basura se guarda como null
+  ---
+  duration_ms: 0.116972
+  type: 'test'
+  ...
+# Subtest: una forma de venta desconocida cae a UNIT (fail-safe)
+ok 422 - una forma de venta desconocida cae a UNIT (fail-safe)
+  ---
+  duration_ms: 0.117605
+  type: 'test'
+  ...
+# Subtest: el precio se lee como se escribe acá: $15.900 son quince mil novecientos
+ok 423 - el precio se lee como se escribe acá: $15.900 son quince mil novecientos
+  ---
+  duration_ms: 0.354509
+  type: 'test'
+  ...
+# Subtest: acepta decimales en el precio (kg fraccionado, centavos)
+ok 424 - acepta decimales en el precio (kg fraccionado, centavos)
+  ---
+  duration_ms: 0.257997
+  type: 'test'
+  ...
+# Subtest: trackStock ausente → no se toca (un form viejo no apaga el control de stock)
+ok 425 - trackStock ausente → no se toca (un form viejo no apaga el control de stock)
+  ---
+  duration_ms: 0.271392
+  type: 'test'
+  ...
+# Subtest: trackStock: hidden 'off' + checkbox 'on' → true; sólo el hidden 'off' → false
+ok 426 - trackStock: hidden 'off' + checkbox 'on' → true; sólo el hidden 'off' → false
+  ---
+  duration_ms: 0.151302
+  type: 'test'
+  ...
+# Subtest: trackStock se puede mandar solo, sin los campos de precio
+ok 427 - trackStock se puede mandar solo, sin los campos de precio
+  ---
+  duration_ms: 0.082878
+  type: 'test'
+  ...
+# Subtest: salePriceOf devuelve el precio que corresponde a la forma de venta, o null
+ok 428 - salePriceOf devuelve el precio que corresponde a la forma de venta, o null
+  ---
+  duration_ms: 0.083228
+  type: 'test'
+  ...
+# Subtest: round2: redondea a 2 decimales
+ok 429 - round2: redondea a 2 decimales
+  ---
+  duration_ms: 0.951717
+  type: 'test'
+  ...
+# Subtest: buildPurchaseLines: snapshotea nombre/unidad y calcula el total de línea
+ok 430 - buildPurchaseLines: snapshotea nombre/unidad y calcula el total de línea
+  ---
+  duration_ms: 1.356768
+  type: 'test'
+  ...
+# Subtest: buildPurchaseLines: descarta productos desconocidos y cantidades no válidas
+ok 431 - buildPurchaseLines: descarta productos desconocidos y cantidades no válidas
+  ---
+  duration_ms: 0.186744
+  type: 'test'
+  ...
+# Subtest: buildPurchaseLines: costo ausente/negativo/basura → 0 (reposición sin costo)
+ok 432 - buildPurchaseLines: costo ausente/negativo/basura → 0 (reposición sin costo)
+  ---
+  duration_ms: 0.146724
+  type: 'test'
+  ...
+# Subtest: purchaseTotal: suma las líneas redondeando (sin arrastrar coma flotante)
+ok 433 - purchaseTotal: suma las líneas redondeando (sin arrastrar coma flotante)
+  ---
+  duration_ms: 0.203284
+  type: 'test'
+  ...
+# Subtest: purchaseTotal: entrada sin líneas → 0
+ok 434 - purchaseTotal: entrada sin líneas → 0
+  ---
+  duration_ms: 0.064851
+  type: 'test'
+  ...
+# Subtest: la misma compra enviada dos veces en dos minutos se reconoce (el orden de las líneas no importa)
+ok 435 - la misma compra enviada dos veces en dos minutos se reconoce (el orden de las líneas no importa)
+  ---
+  duration_ms: 0.27267
+  type: 'test'
+  ...
+# Subtest: otra cantidad, otro proveedor u otro tipo NO es la misma compra
+ok 436 - otra cantidad, otro proveedor u otro tipo NO es la misma compra
+  ---
+  duration_ms: 0.269167
+  type: 'test'
+  ...
+# Subtest: la dueña (con costos): la compra lleva el medio elegido y el costo de cada línea
+ok 437 - la dueña (con costos): la compra lleva el medio elegido y el costo de cada línea
+  ---
+  duration_ms: 0.267773
+  type: 'test'
+  ...
+# Subtest: el encargado (sin costs:read): el costo y el medio de pago se IGNORAN aunque lleguen
+ok 438 - el encargado (sin costs:read): el costo y el medio de pago se IGNORAN aunque lleguen
+  ---
+  duration_ms: 0.639059
+  type: 'test'
+  ...
+# Subtest: una reposición no lleva medio de pago, ni de la dueña
+ok 439 - una reposición no lleva medio de pago, ni de la dueña
+  ---
+  duration_ms: 0.101109
+  type: 'test'
+  ...
+# Subtest: el where de las compras es uno: las devolvibles sin fecha y las del mes para el Inicio
+ok 440 - el where de las compras es uno: las devolvibles sin fecha y las del mes para el Inicio
+  ---
+  duration_ms: 0.13138
+  type: 'test'
+  ...
+# Subtest: una compra pagada asienta un EGRESO por el total, con el medio informado
+ok 441 - una compra pagada asienta un EGRESO por el total, con el medio informado
+  ---
+  duration_ms: 1.174483
+  type: 'test'
+  ...
+# Subtest: el monto se redondea a 2 decimales: el libro no arrastra centavos binarios
+ok 442 - el monto se redondea a 2 decimales: el libro no arrastra centavos binarios
+  ---
+  duration_ms: 0.201543
+  type: 'test'
+  ...
+# Subtest: MP y TARJETA viajan tal cual: el medio lo decide quien pagó, no este módulo
+ok 443 - MP y TARJETA viajan tal cual: el medio lo decide quien pagó, no este módulo
+  ---
+  duration_ms: 0.172513
+  type: 'test'
+  ...
+# Subtest: una REPOSICIÓN no asienta egreso: no es una compra, no salió plata
+ok 444 - una REPOSICIÓN no asienta egreso: no es una compra, no salió plata
+  ---
+  duration_ms: 0.08544
+  type: 'test'
+  ...
+# Subtest: una compra A CUENTA CORRIENTE no asienta egreso: la plata sale cuando se paga
+ok 445 - una compra A CUENTA CORRIENTE no asienta egreso: la plata sale cuando se paga
+  ---
+  duration_ms: 0.098588
+  type: 'test'
+  ...
+# Subtest: sin costo no hay nada que asentar (0, negativo o basura)
+ok 446 - sin costo no hay nada que asentar (0, negativo o basura)
+  ---
+  duration_ms: 0.17553
+  type: 'test'
+  ...
+# Subtest: sin medio informado asume efectivo y lo DICE en el detalle
+ok 447 - sin medio informado asume efectivo y lo DICE en el detalle
+  ---
+  duration_ms: 0.168715
+  type: 'test'
+  ...
+# Subtest: PAGO_POR_DEFECTO es el que aplica cuando el llamador no manda nada, y viene marcado
+ok 448 - PAGO_POR_DEFECTO es el que aplica cuando el llamador no manda nada, y viene marcado
+  ---
+  duration_ms: 0.17142
+  type: 'test'
+  ...
+# Subtest: si hoy ya está cerrado, el egreso se imputa al PRIMER DÍA ABIERTO y lo aclara
+ok 449 - si hoy ya está cerrado, el egreso se imputa al PRIMER DÍA ABIERTO y lo aclara
+  ---
+  duration_ms: 0.469832
+  type: 'test'
+  ...
+# Subtest: diaContableDelEgreso: sin cierre y con cierre viejo, el día es hoy
+ok 450 - diaContableDelEgreso: sin cierre y con cierre viejo, el día es hoy
+  ---
+  duration_ms: 0.275281
+  type: 'test'
+  ...
+# Subtest: diaContableDelEgreso: un cierre que abarca hoy empuja al día siguiente, cruzando el mes
+ok 451 - diaContableDelEgreso: un cierre que abarca hoy empuja al día siguiente, cruzando el mes
+  ---
+  duration_ms: 0.094135
+  type: 'test'
+  ...
+# Subtest: la marca identifica la compra y se reconoce con esEgresoDeCompra
+ok 452 - la marca identifica la compra y se reconoce con esEgresoDeCompra
+  ---
+  duration_ms: 0.166625
+  type: 'test'
+  ...
+# Subtest: un proveedor larguísimo se recorta: el detalle se lee en una tabla angosta
+ok 453 - un proveedor larguísimo se recorta: el detalle se lee en una tabla angosta
+  ---
+  duration_ms: 0.134885
+  type: 'test'
+  ...
+# Subtest: el egreso se escribe DENTRO de la única tenantTransaction de insertStockPurchase
+ok 454 - el egreso se escribe DENTRO de la única tenantTransaction de insertStockPurchase
+  ---
+  duration_ms: 0.245839
+  type: 'test'
+  ...
+# Subtest: insertStockPurchase pre-chequea la marca antes de crear el egreso (idempotencia)
+ok 455 - insertStockPurchase pre-chequea la marca antes de crear el egreso (idempotencia)
+  ---
+  duration_ms: 0.155499
+  type: 'test'
+  ...
+# Subtest: el libro NO deja borrar el egreso que asentó una compra (dirección única)
+ok 456 - el libro NO deja borrar el egreso que asentó una compra (dirección única)
+  ---
+  duration_ms: 0.497071
+  type: 'test'
+  ...
+# Subtest: el libro AVISA si alguien tipea a mano un egreso que la compra ya asentó
+ok 457 - el libro AVISA si alguien tipea a mano un egreso que la compra ya asentó
+  ---
+  duration_ms: 7.838595
+  type: 'test'
+  ...
+# Subtest: el formulario de compras pregunta cómo se pagó y no deja registrar sin elegirlo
+ok 458 - el formulario de compras pregunta cómo se pagó y no deja registrar sin elegirlo
+  ---
+  duration_ms: 0.247056
+  type: 'test'
+  ...
+# Subtest: la Server Action pasa el medio elegido a insertStockPurchase
+ok 459 - la Server Action pasa el medio elegido a insertStockPurchase
+  ---
+  duration_ms: 0.219123
+  type: 'test'
+  ...
+# Subtest: la Server Action AUDITA el asiento de caja de la compra
+ok 460 - la Server Action AUDITA el asiento de caja de la compra
+  ---
+  duration_ms: 0.163525
+  type: 'test'
+  ...
+# Subtest: el aviso de duplicado de un egreso del sistema NO exige que coincida el medio
+ok 461 - el aviso de duplicado de un egreso del sistema NO exige que coincida el medio
+  ---
+  duration_ms: 0.369664
+  type: 'test'
+  ...
+# Subtest: una línea de '12,5' kg a '$6.543' asienta un egreso de $81.787,50
+ok 462 - una línea de '12,5' kg a '$6.543' asienta un egreso de $81.787,50
+  ---
+  duration_ms: 0.922813
+  type: 'test'
+  ...
+# Subtest: lo que asentaba el camino viejo con lo que entregaba el navegador: diez veces más
+ok 463 - lo que asentaba el camino viejo con lo que entregaba el navegador: diez veces más
+  ---
+  duration_ms: 0.126539
+  type: 'test'
+  ...
+# Subtest: un costo ilegible frena la compra con mensaje en vez de asentar un egreso de menos
+ok 464 - un costo ilegible frena la compra con mensaje en vez de asentar un egreso de menos
+  ---
+  duration_ms: 0.368588
+  type: 'test'
+  ...
+# Subtest: la Server Action de compras lee con las funciones de pos-peso, no con Number()
+ok 465 - la Server Action de compras lee con las funciones de pos-peso, no con Number()
+  ---
+  duration_ms: 0.228741
+  type: 'test'
+  ...
+# Subtest: el formulario de compras no usa type=number y manda la forma canónica
+ok 466 - el formulario de compras no usa type=number y manda la forma canónica
+  ---
+  duration_ms: 0.314256
+  type: 'test'
+  ...
+# Subtest: 3 líneas y una inválida → ninguna es válida y el error queda EN esa línea
+ok 467 - 3 líneas y una inválida → ninguna es válida y el error queda EN esa línea
+  ---
+  duration_ms: 5.620467
+  type: 'test'
+  ...
+# Subtest: todas válidas → vuelven todas, con el costo de la compra de origen
+ok 468 - todas válidas → vuelven todas, con el costo de la compra de origen
+  ---
+  duration_ms: 0.480786
+  type: 'test'
+  ...
+# Subtest: cada regla, con su mensaje: ilegible, fuera de la compra, repetida, más que el stock, todo devuelto
+ok 469 - cada regla, con su mensaje: ilegible, fuera de la compra, repetida, más que el stock, todo devuelto
+  ---
+  duration_ms: 0.570445
+  type: 'test'
+  ...
+# Subtest: sin ninguna cantidad cargada no hay errores ni líneas (la acción pide cargar al menos una)
+ok 470 - sin ninguna cantidad cargada no hay errores ni líneas (la acción pide cargar al menos una)
+  ---
+  duration_ms: 0.16499
+  type: 'test'
+  ...
+# Subtest: el mismo producto en dos líneas de la compra: se suma lo comprado y el costo es el promedio ponderado
+ok 471 - el mismo producto en dos líneas de la compra: se suma lo comprado y el costo es el promedio ponderado
+  ---
+  duration_ms: 0.856663
+  type: 'test'
+  ...
+# Subtest: el where de las devoluciones es uno: el historial sin fecha y el número del Inicio desde el día 1
+ok 472 - el where de las devoluciones es uno: el historial sin fecha y el número del Inicio desde el día 1
+  ---
+  duration_ms: 0.326499
+  type: 'test'
+  ...
+# Subtest: devolución de 3 líneas con una inválida: se rechaza con el error EN esa línea y no se escribe nada
+ok 473 - devolución de 3 líneas con una inválida: se rechaza con el error EN esa línea y no se escribe nada
+  ---
+  duration_ms: 1.333012
+  type: 'test'
+  ...
+# Subtest: devolución válida a caja: sale del stock al costo PROMEDIO de la compra y entra el reintegro en el turno abierto
+ok 474 - devolución válida a caja: sale del stock al costo PROMEDIO de la compra y entra el reintegro en el turno abierto
+  ---
+  duration_ms: 2.820621
+  type: 'test'
+  ...
+# Subtest: descontar de la deuda sin una deuda abierta: se rechaza con qué hacer (la transacción deshace el stock)
+ok 475 - descontar de la deuda sin una deuda abierta: se rechaza con qué hacer (la transacción deshace el stock)
+  ---
+  duration_ms: 0.66476
+  type: 'test'
+  ...
+# Subtest: cuentas a pagar: el crédito de una devolución se lee 'Nota de crédito por devolución', no 'Transferencia'
+ok 476 - cuentas a pagar: el crédito de una devolución se lee 'Nota de crédito por devolución', no 'Transferencia'
+  ---
+  duration_ms: 0.357505
+  type: 'test'
+  ...
+# Subtest: lo devuelto: cantidad (firmada en el registro) × costo de cada grupo, de TODAS las devoluciones
+ok 477 - lo devuelto: cantidad (firmada en el registro) × costo de cada grupo, de TODAS las devoluciones
+  ---
+  duration_ms: 1.920434
+  type: 'test'
+  ...
+# Subtest: las listas de la ficha siguen acotadas (y la pantalla dice 'las últimas N')
+ok 478 - las listas de la ficha siguen acotadas (y la pantalla dice 'las últimas N')
+  ---
+  duration_ms: 0.207872
+  type: 'test'
+  ...
+# Subtest: criterio de aceptación: venta diaria 2 kg, stock 5, mínimo 4 → 17 kg
+ok 479 - criterio de aceptación: venta diaria 2 kg, stock 5, mínimo 4 → 17 kg
+  ---
+  duration_ms: 1.173595
+  type: 'test'
+  ...
+# Subtest: la seguridad es el mayor entre el mínimo cargado y dos días de venta
+ok 480 - la seguridad es el mayor entre el mínimo cargado y dos días de venta
+  ---
+  duration_ms: 0.143967
+  type: 'test'
+  ...
+# Subtest: con stock de sobra no se pide nada; sin ventas, se repone hasta el mínimo
+ok 481 - con stock de sobra no se pide nada; sin ventas, se repone hasta el mínimo
+  ---
+  duration_ms: 0.197602
+  type: 'test'
+  ...
+# Subtest: redondeo: por unidad, a la unidad de arriba; por kilo, a la décima de arriba
+ok 482 - redondeo: por unidad, a la unidad de arriba; por kilo, a la décima de arriba
+  ---
+  duration_ms: 0.184373
+  type: 'test'
+  ...
+# Subtest: qué cuenta como venta: ventas y consumos; lo devuelto de una venta anulada se descuenta
+ok 483 - qué cuenta como venta: ventas y consumos; lo devuelto de una venta anulada se descuenta
+  ---
+  duration_ms: 0.215656
+  type: 'test'
+  ...
+# Subtest: lo que el obrador manda a los locales por traslado es demanda; lo que recibe un local, no
+ok 484 - lo que el obrador manda a los locales por traslado es demanda; lo que recibe un local, no
+  ---
+  duration_ms: 0.093813
+  type: 'test'
+  ...
+# Subtest: sólo aparecen los productos a pedir, y el número del Inicio es la misma cuenta
+ok 485 - sólo aparecen los productos a pedir, y el número del Inicio es la misma cuenta
+  ---
+  duration_ms: 1.502103
+  type: 'test'
+  ...
+# Subtest: el where y el período: productos que controlan stock, movimientos de 28 días
+ok 486 - el where y el período: productos que controlan stock, movimientos de 28 días
+  ---
+  duration_ms: 0.388204
+  type: 'test'
+  ...
+# Subtest: por proveedor habitual, con los que no tienen proveedor al final
+ok 487 - por proveedor habitual, con los que no tienen proveedor al final
+  ---
+  duration_ms: 1.23069
+  type: 'test'
+  ...
+# Subtest: el texto para WhatsApp: saludo, un renglón por producto con su cantidad, sin precios
+ok 488 - el texto para WhatsApp: saludo, un renglón por producto con su cantidad, sin precios
+  ---
+  duration_ms: 3.623253
+  type: 'test'
+  ...
+# Subtest: normalizeTaxId deja 11 dígitos y saca separadores
+ok 489 - normalizeTaxId deja 11 dígitos y saca separadores
+  ---
+  duration_ms: 0.867944
+  type: 'test'
+  ...
+# Subtest: normalizeTaxId → null si no son 11 dígitos
+ok 490 - normalizeTaxId → null si no son 11 dígitos
+  ---
+  duration_ms: 0.155989
+  type: 'test'
+  ...
+# Subtest: formatTaxId muestra XX-XXXXXXXX-X o null
+ok 491 - formatTaxId muestra XX-XXXXXXXX-X o null
+  ---
+  duration_ms: 0.09421
+  type: 'test'
+  ...
+# Subtest: validateSupplierInput exige razón social
+ok 492 - validateSupplierInput exige razón social
+  ---
+  duration_ms: 1.062091
+  type: 'test'
+  ...
+# Subtest: validateSupplierInput acepta proveedor mínimo (solo nombre), taxId null
+ok 493 - validateSupplierInput acepta proveedor mínimo (solo nombre), taxId null
+  ---
+  duration_ms: 0.245849
+  type: 'test'
+  ...
+# Subtest: validateSupplierInput normaliza el CUIT cuando viene con guiones
+ok 494 - validateSupplierInput normaliza el CUIT cuando viene con guiones
+  ---
+  duration_ms: 0.189388
+  type: 'test'
+  ...
+# Subtest: validateSupplierInput rechaza un CUIT de 11 dígitos con el verificador mal (cuit.ts)
+ok 495 - validateSupplierInput rechaza un CUIT de 11 dígitos con el verificador mal (cuit.ts)
+  ---
+  duration_ms: 0.256544
+  type: 'test'
+  ...
+# Subtest: validateSupplierInput rechaza un CUIT con contenido pero inválido (no guarda basura)
+ok 496 - validateSupplierInput rechaza un CUIT con contenido pero inválido (no guarda basura)
+  ---
+  duration_ms: 0.076641
+  type: 'test'
+  ...
+# Subtest: validateSupplierInput: campos vacíos → null, no strings vacíos
+ok 497 - validateSupplierInput: campos vacíos → null, no strings vacíos
+  ---
+  duration_ms: 0.305838
+  type: 'test'
+  ...
+1..497
+# tests 499
+# suites 1
+# pass 499
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7147.787852

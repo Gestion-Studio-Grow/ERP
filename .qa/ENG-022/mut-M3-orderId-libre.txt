@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: como app_rls, un comprobante con CAE: cambiarle un campo fiscal o borrarlo falla, y la fila no cambia
+not ok 1 - como app_rls, un comprobante con CAE: cambiarle un campo fiscal o borrarlo falla, y la fila no cambia
+  ---
+  duration_ms: 2073.556765
+  type: 'test'
+  location: '/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:7:703'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: UPDATE "orderId" = $2'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rechazaConRestriccion (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:103:3)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:154:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: el dueño de las tablas (sin RLS) tampoco puede editar ni borrar un comprobante con CAE
+ok 2 - el dueño de las tablas (sin RLS) tampoco puede editar ni borrar un comprobante con CAE
+  ---
+  duration_ms: 78.527101
+  type: 'test'
+  ...
+# Subtest: sin CAE sigue permitido editar y borrar; el paso normal de pendiente a autorizada (código real) funciona
+ok 3 - sin CAE sigue permitido editar y borrar; el paso normal de pendiente a autorizada (código real) funciona
+  ---
+  duration_ms: 371.397539
+  type: 'test'
+  ...
+# Subtest: con CAE: lo que no es fiscal sigue libre y borrar el pedido de origen deja la factura sin enlace
+not ok 4 - con CAE: lo que no es fiscal sigue libre y borrar el pedido de origen deja la factura sin enlace
+  ---
+  duration_ms: 9.139316
+  type: 'test'
+  location: '/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:7:6652'
+  failureType: 'testCodeFailure'
+  error: 'duplicate key value violates unique constraint "Invoice_tenantId_orderId_key"'
+  code: '23505'
+  name: 'error'
+  stack: |-
+    /home/user/erp/node_modules/pg/lib/client.js:652:17
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async comoDuenio (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:57:12)
+    async sembrarFactura (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:78:3)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:252:14)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: la reversa saca la protección sin tocar filas y `prisma migrate deploy` la vuelve a poner
+ok 5 - la reversa saca la protección sin tocar filas y `prisma migrate deploy` la vuelve a poner
+  ---
+  duration_ms: 1302.784145
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 3
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4212.65073

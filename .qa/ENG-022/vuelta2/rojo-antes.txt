@@ -1,0 +1,105 @@
+TAP version 13
+# Subtest: anularVenta: con factura autorizada o en camino se rechaza y el pedido no se anula; con la rechazada se anula; B no la toca
+ok 1 - anularVenta: con factura autorizada o en camino se rechaza y el pedido no se anula; con la rechazada se anula; B no la toca
+  ---
+  duration_ms: 3001.778496
+  type: 'test'
+  ...
+# Subtest: anularCobroTurno: con factura autorizada del turno se rechaza y el cobro sigue en pie; rechazada la factura, se anula
+ok 2 - anularCobroTurno: con factura autorizada del turno se rechaza y el cobro sigue en pie; rechazada la factura, se anula
+  ---
+  duration_ms: 306.80575
+  type: 'test'
+  ...
+# Subtest: como app_rls, un comprobante con CAE: cambiarle un campo fiscal o borrarlo falla, y la fila no cambia
+not ok 3 - como app_rls, un comprobante con CAE: cambiarle un campo fiscal o borrarlo falla, y la fila no cambia
+  ---
+  duration_ms: 2047.40071
+  type: 'test'
+  location: '/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:7:1365'
+  failureType: 'testCodeFailure'
+  error: 'total y CAE'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: 'Un comprobante con CAE no se puede editar (cae, total): se anula con una nota de crédito. · undefined'
+  operator: 'match'
+  stack: |-
+    Object.<anonymous> (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:152:14)
+    expectedException (node:assert:576:17)
+    expectsError (node:assert:701:21)
+    Function.rejects (node:assert:767:3)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rechazaConRestriccion (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:146:3)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:167:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: el dueño de las tablas (sin RLS) tampoco puede editar ni borrar un comprobante con CAE
+not ok 4 - el dueño de las tablas (sin RLS) tampoco puede editar ni borrar un comprobante con CAE
+  ---
+  duration_ms: 29.898383
+  type: 'test'
+  location: '/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:7:3312'
+  failureType: 'testCodeFailure'
+  error: 'UPDATE dueño'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: 'Un comprobante con CAE no se puede editar (total): se anula con una nota de crédito. · undefined'
+  operator: 'match'
+  stack: |-
+    Object.<anonymous> (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:152:14)
+    expectedException (node:assert:576:17)
+    expectsError (node:assert:701:21)
+    Function.rejects (node:assert:767:3)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rechazaConRestriccion (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:146:3)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:218:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: sin CAE sigue permitido editar y borrar; el paso normal de pendiente a autorizada (código real) funciona
+ok 5 - sin CAE sigue permitido editar y borrar; el paso normal de pendiente a autorizada (código real) funciona
+  ---
+  duration_ms: 448.720407
+  type: 'test'
+  ...
+# Subtest: con CAE: lo que no es fiscal sigue libre y borrar el pedido de origen deja la factura sin enlace
+ok 6 - con CAE: lo que no es fiscal sigue libre y borrar el pedido de origen deja la factura sin enlace
+  ---
+  duration_ms: 65.652007
+  type: 'test'
+  ...
+# Subtest: con CAE: vaciar a mano el pedido o el turno falla, como app_rls y como dueño; la venta no se puede facturar dos veces
+not ok 7 - con CAE: vaciar a mano el pedido o el turno falla, como app_rls y como dueño; la venta no se puede facturar dos veces
+  ---
+  duration_ms: 82.910734
+  type: 'test'
+  location: '/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:7:8407'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: app_rls vacía el pedido'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async rechazaConRestriccion (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:146:3)
+    async TestContext.<anonymous> (/home/user/erp/src/lib/comprobante-autorizado-inmutable-postgres.test.ts:330:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: la reversa saca la protección sin tocar filas y `prisma migrate deploy` la vuelve a poner
+ok 8 - la reversa saca la protección sin tocar filas y `prisma migrate deploy` la vuelve a poner
+  ---
+  duration_ms: 1392.136028
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 5
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4606.107092

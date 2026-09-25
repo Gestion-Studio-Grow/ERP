@@ -1,0 +1,65 @@
+== src/lib/dinero/redondeo.ts : 'milesimos >= 5 ? 1 : 0' -> 'milesimos > 5 ? 1 : 0'
+# pass 9
+# fail 7
+not ok 1 - medio centavo va hacia arriba: 1,005 → 1,01; 2,675 → 2,68; 0,005 → 0,01
+not ok 3 - negativos: el medio centavo se aleja del cero (−2,675 → −2,68; −0,005 → −0,01)
+not ok 5 - un número vale lo que dicen sus 15 cifras: 0,1 + 0,2 → 0,30; 1234,5650000000001 → 1234,57
+not ok 6 - el redondeo arrastra a los enteros: 999,995 → 1.000,00; 9,995 → 10,00
+not ok 7 - barrido: los 100.000.000 de x,xx5 de $0 a $1.000.000 van todos hacia arriba
+== src/lib/dinero/redondeo.ts : 'importe.toPrecision(15)' -> 'importe.toPrecision(17)'
+# pass 10
+# fail 6
+not ok 1 - medio centavo va hacia arriba: 1,005 → 1,01; 2,675 → 2,68; 0,005 → 0,01
+not ok 3 - negativos: el medio centavo se aleja del cero (−2,675 → −2,68; −0,005 → −0,01)
+not ok 6 - el redondeo arrastra a los enteros: 999,995 → 1.000,00; 9,995 → 10,00
+not ok 7 - barrido: los 100.000.000 de x,xx5 de $0 a $1.000.000 van todos hacia arriba
+not ok 8 - barrido negativo: los 10.000.000 de −x,xx5 de −$100.000 a $0 se alejan del cero
+== src/lib/dinero/redondeo.ts : '  if (centavos === 0) return 0;' -> ''
+# pass 15
+# fail 1
+not ok 4 - un negativo que redondea a cero da 0, nunca −0 (−0,004 y −0)
+== src/plugins/arca/afip/soap.ts : 'return textoAlCentavo(n);' -> 'return n.toFixed(2);'
+# pass 26
+# fail 6
+not ok 1 - 1,005 viaja como 1.01 y la decisión cuenta 1,01: un umbral de 1,01 lo alcanza
+not ok 2 - en 20.000 importes con medio centavo, la decisión corta justo en el ImpTotal que viaja
+not ok 15 - los importes viajan con la regla única de redondeo: 2,675 → 2.68 y 3,235 → 3.24 (no 2.67 ni 3.23)
+not ok 16 - ImpIVA es la suma exacta de los AlicIva que viajan: 1,005 + 1,005 → 1.01 + 1.01 = 2.02
+not ok 17 - ImpIVA = Σ AlicIva.Importe en 20.000 comprobantes al azar de 1 a 3 alícuotas con milésimos
+== src/plugins/arca/afip/soap.ts : 'sumarAlCentavo(comp.iva.map((x) => x.importe))' -> 'comp.iva.reduce((s, x) => s + x.importe, 0)'
+# pass 28
+# fail 2
+not ok 14 - ImpIVA es la suma exacta de los AlicIva que viajan: 1,005 + 1,005 → 1.01 + 1.01 = 2.02
+not ok 15 - ImpIVA = Σ AlicIva.Importe en 20.000 comprobantes al azar de 1 a 3 alícuotas con milésimos
+== src/lib/fiscal/decidir-comprobante.ts : 'const aCentavos = centavosDe;' -> 'const aCentavos = (n: number) => Math.round(Number(n.toFixed(2)) * 100);'
+# pass 64
+# fail 3
+not ok 1 - 1,005 viaja como 1.01 y la decisión cuenta 1,01: un umbral de 1,01 lo alcanza
+not ok 2 - en 20.000 importes con medio centavo, la decisión corta justo en el ImpTotal que viaja
+not ok 36 - el importe se decide con 2 decimales, como viaja a ARCA (la regla única de redondeo del plugin)
+== src/lib/round.ts : 'export { redondearAlCentavo as round2 } from "@/lib/dinero/redondeo";' -> 'export function round2(n: number): number { return Math.round((n + Number.EPSILON) * 100) / 100; }'
+# pass 5
+# fail 1
+not ok 6 - round2 sube los medios centavos que la regla anterior bajaba (ENG-109)
+== src/plugins/arca/domain/validacion.ts : 'if (!admiteCentavos(comp.neto)) {' -> 'if (false) {'
+# pass 26
+# fail 1
+not ok 26 - un total, un neto o un importe de IVA que no es un número se rechaza acá, con mensaje
+== src/lib/libros/csv-ar.ts : 'return textoAlCentavo(n).replace(".", ",");' -> 'return (Math.round((n + Number.EPSILON) * 100) / 100).toFixed(2).replace(".", ",");'
+# pass 6
+# fail 2
+not ok 7 - un importe del libro IVA sale con coma y la regla única de redondeo: 2,135 → 2,14
+not ok 8 - un monto que no es un número no se escribe en el libro IVA: tira en vez de dejar NaN
+# (después del arreglo del borde 10^13)
+== src/lib/dinero/redondeo.ts : 'punto + 2 < largo ? texto.charCodeAt(punto + 2) - 48 : 0' -> 'texto.charCodeAt(punto + 2) - 48'
+# pass 15
+# fail 1
+not ok 6 - el redondeo arrastra a los enteros: 999,995 → 1.000,00; 9,995 → 10,00
+== src/lib/dinero/redondeo.ts : 'milesimos >= 5 ? 1 : 0' -> 'milesimos > 5 ? 1 : 0'
+# pass 9
+# fail 7
+not ok 1 - medio centavo va hacia arriba: 1,005 → 1,01; 2,675 → 2,68; 0,005 → 0,01
+not ok 3 - negativos: el medio centavo se aleja del cero (−2,675 → −2,68; −0,005 → −0,01)
+not ok 5 - un número vale lo que dicen sus 15 cifras: 0,1 + 0,2 → 0,30; 1234,5650000000001 → 1234,57
+not ok 6 - el redondeo arrastra a los enteros: 999,995 → 1.000,00; 9,995 → 10,00
+not ok 7 - barrido: los 100.000.000 de x,xx5 de $0 a $1.000.000 van todos hacia arriba

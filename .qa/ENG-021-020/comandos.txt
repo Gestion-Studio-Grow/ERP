@@ -1,0 +1,12 @@
+ENG-021 + ENG-020 · comandos corridos (2026-09-25), desde /home/user/erp
+node --import tsx --test src/plugins/arca/afip/contrato-arca.test.ts src/plugins/arca/domain/errores-arca.test.ts src/plugins/arca/afip/soap.test.ts src/plugins/arca/afip/prueba.test.ts src/plugins/arca/afip/factory.test.ts src/lib/invoice-core.test.ts src/lib/arca-dispatch.test.ts src/lib/arca-dispatch-postgres.test.ts src/lib/mercadopago-simulador*.test.ts src/lib/invoice-from-*.test.ts  -> tests-final.txt
+node --import tsx --test src/lib/facturar-venta-rechazada-postgres.test.ts -> facturar-venta.txt
+node --import tsx --test src/lib/dinero/redondeo.test.ts src/apps/paridad-menu.test.ts -> redondeo-y-paridad.txt
+npx tsc --noEmit -p . -> tsc.txt ; npx eslint --max-warnings=0 <archivos tocados> -> eslint.txt
+npm test -> npm-test.txt
+Mutaciones (se restauró el archivo después de cada una; se verificó con grep que no quedó la mutación):
+  handler.ts sin consultar el número anotado      -> mutacion-sin-consulta.txt (5 rojos ENG-020)
+  errores-arca.ts todo es rechazo                 -> mutacion-todo-rechazo.txt (10 rojos)
+  invoice-core.ts sin reabrir la rechazada        -> mutacion-sin-reapertura.txt (2 rojos)
+  order-actions.ts facturarVenta corta en rechazada -> mutacion-accion-sin-reapertura.txt (1 rojo)
+Bases: sólo erp_test_* efímeras del arnés (src/test/base-efimera.ts). Nada contra Neon, Vercel ni ARCA.

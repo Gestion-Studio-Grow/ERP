@@ -11,6 +11,8 @@
 //
 // Sin imports de servidor: lo usan el formulario (client component), el loader y los tests.
 
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
+
 /** Un producto de la planilla. */
 export interface ProductoARecontar {
   id: string;
@@ -133,14 +135,13 @@ export function resumirRecuento(lineas: readonly LineaDeRecuento[]): {
     else if (l.pesos < 0) pesosFaltante += -l.pesos;
     else pesosSobrante += l.pesos;
   }
-  const r2 = (n: number) => Math.round(n * 100) / 100;
   return {
     contados: lineas.length,
     coinciden,
     conFaltante,
     conSobrante,
-    pesosFaltante: r2(pesosFaltante),
-    pesosSobrante: r2(pesosSobrante),
+    pesosFaltante: redondearAlCentavo(pesosFaltante),
+    pesosSobrante: redondearAlCentavo(pesosSobrante),
     sinCosto,
   };
 }

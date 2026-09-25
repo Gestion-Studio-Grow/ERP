@@ -27,6 +27,7 @@ import { MercadoPagoApiError } from "@/plugins/mercadopago/http";
 import { procesarNotificacionPago } from "@/plugins/mercadopago/handler";
 import { referenciaDePedido } from "@/plugins/mercadopago/core-contract";
 import { StubMercadoPagoClient } from "@/plugins/mercadopago/stub";
+import { importeONaN } from "@/lib/dinero/leer";
 import {
   ACCION_LINK_DE_PAGO,
   linkDePagoDisponible,
@@ -60,7 +61,7 @@ export async function generarCobro(formData: FormData): Promise<GenerarCobroResu
   const tenantId = await getCurrentTenantId();
 
   const concepto = String(formData.get("concepto") || "").trim();
-  const monto = Number(formData.get("monto"));
+  const monto = importeONaN(formData.get("monto"));
   const referenciaExterna = String(formData.get("referenciaExterna") || "").trim() || undefined;
   const emailPagador = String(formData.get("emailPagador") || "").trim() || undefined;
 

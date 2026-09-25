@@ -1,0 +1,10 @@
+# Mutaciones sobre el flujo del test de humo (script temporal en el scratchpad, no queda en el repo).
+# M1: sin RLS en Client la dueña de A sigue viendo 2: el candado de la app (tenant-scope en rls.ts) filtra igual.
+#     El test del arnés (base-efimera.test.ts) mira RLS de frente: app_rls sin negocio ve 0 filas y con A no escribe filas de B.
+# M3/M4: si la resolución del negocio falla, el test de humo falla (redirección o error), no pasa en silencio.
+# M0 sin mutación: clientes que ve A = 2
+# M1 sin RLS en Client: clientes que ve A = 2
+# M3 negocio fijado en A: la recepcionista de B recibe = redireccion /admin/login
+# M4 sin host: tiró: getCurrentTenantId: hay más de un tenant y el request no trae subdominio para resolver (AD
+# pass 1
+# fail 0

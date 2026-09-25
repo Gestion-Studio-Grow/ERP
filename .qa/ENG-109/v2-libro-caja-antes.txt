@@ -1,0 +1,148 @@
+TAP version 13
+# Subtest: el CSV lleva el resumen arriba y después los movimientos
+ok 1 - el CSV lleva el resumen arriba y después los movimientos
+  ---
+  duration_ms: 2.772617
+  type: 'test'
+  ...
+# Subtest: los importes usan COMA decimal para que Excel es-AR los sume
+ok 2 - los importes usan COMA decimal para que Excel es-AR los sume
+  ---
+  duration_ms: 0.539814
+  type: 'test'
+  ...
+# Subtest: el medio centavo sube, con la misma regla que el resto de la plata: $4,185 sale 4,19
+not ok 3 - el medio centavo sube, con la misma regla que el resto de la plata: $4,185 sale 4,19
+  ---
+  duration_ms: 2.987713
+  type: 'test'
+  location: '/home/user/erp/src/lib/caja/libro-csv.test.ts:2:2454'
+  failureType: 'testCodeFailure'
+  error: |-
+    Libro de caja — septiembre 2026
+    
+    RESUMEN;Efectivo;MP / Transf.;Tarjeta;Total
+    Saldo inicial;0,00;0,00;0,00;0,00
+    Ingresos (+);4,19;0,00;0,00;4,19
+    Egresos (-);0,00;0,00;0,00;0,00
+    Saldo actual;4,19;0,00;0,00;4,19
+    
+    EGRESOS POR ORIGEN (de los movimientos de abajo);Efectivo;MP / Transf.;Tarjeta;Total
+    (sin egresos)
+    
+    Fecha;Detalle;Medio;Ingreso;Egreso;Saldo;Origen;Referencia
+    2026-09-10;detalle;Efectivo;4,18;;4,19;Ingreso manual;
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/caja/libro-csv.test.ts:61:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: un detalle con punto y coma no parte la fila
+ok 4 - un detalle con punto y coma no parte la fila
+  ---
+  duration_ms: 0.656722
+  type: 'test'
+  ...
+# Subtest: un detalle con comillas las duplica (RFC 4180)
+ok 5 - un detalle con comillas las duplica (RFC 4180)
+  ---
+  duration_ms: 0.464895
+  type: 'test'
+  ...
+# Subtest: ingreso y egreso van en columnas distintas y el saldo acompaña
+ok 6 - ingreso y egreso van en columnas distintas y el saldo acompaña
+  ---
+  duration_ms: 1.054313
+  type: 'test'
+  ...
+# Subtest: la fecha va en ISO, que ordena bien en cualquier planilla
+ok 7 - la fecha va en ISO, que ordena bien en cualquier planilla
+  ---
+  duration_ms: 0.540148
+  type: 'test'
+  ...
+# Subtest: un mes sin movimientos exporta el resumen y lo dice
+ok 8 - un mes sin movimientos exporta el resumen y lo dice
+  ---
+  duration_ms: 0.195267
+  type: 'test'
+  ...
+# Subtest: una fila de cada marca: las columnas 0 a 5 no cambian y Origen/Referencia van al final
+ok 9 - una fila de cada marca: las columnas 0 a 5 no cambian y Origen/Referencia van al final
+  ---
+  duration_ms: 3.734096
+  type: 'test'
+  ...
+# Subtest: ningún campo del CSV lleva el actor 'user:<id>' (el archivo sale hacia el estudio)
+ok 10 - ningún campo del CSV lleva el actor 'user:<id>' (el archivo sale hacia el estudio)
+  ---
+  duration_ms: 1.901018
+  type: 'test'
+  ...
+# Subtest: una marca que terminaría en un actor no se usa como referencia
+ok 11 - una marca que terminaría en un actor no se usa como referencia
+  ---
+  duration_ms: 1.586641
+  type: 'test'
+  ...
+# Subtest: el RESUMEN abre los egresos por origen y por medio, y suman lo mismo que 'Egresos (-)'
+ok 12 - el RESUMEN abre los egresos por origen y por medio, y suman lo mismo que 'Egresos (-)'
+  ---
+  duration_ms: 4.702984
+  type: 'test'
+  ...
+# Subtest: sin clasificación del loader (demo, fixtures) el origen sale del tipo, nunca vacío
+ok 13 - sin clasificación del loader (demo, fixtures) el origen sale del tipo, nunca vacío
+  ---
+  duration_ms: 1.12688
+  type: 'test'
+  ...
+# Subtest: con las dos columnas de referencia migradas se lee una sola vez, con las dos
+ok 14 - con las dos columnas de referencia migradas se lee una sola vez, con las dos
+  ---
+  duration_ms: 0.585871
+  type: 'test'
+  ...
+# Subtest: el estado intermedio del runbook (sin collectionId): se relee sin ella y el libro sale
+ok 15 - el estado intermedio del runbook (sin collectionId): se relee sin ella y el libro sale
+  ---
+  duration_ms: 0.501346
+  type: 'test'
+  ...
+# Subtest: sin ninguna de las dos migraciones: se sacan de a una y el libro sale igual
+ok 16 - sin ninguna de las dos migraciones: se sacan de a una y el libro sale igual
+  ---
+  duration_ms: 0.196329
+  type: 'test'
+  ...
+# Subtest: un error que no es de una columna de referencia sube tal cual (no se tapa)
+ok 17 - un error que no es de una columna de referencia sube tal cual (no se tapa)
+  ---
+  duration_ms: 0.711395
+  type: 'test'
+  ...
+# Subtest: un detalle con saltos de línea sale en UNA línea: el archivo usa sólo CRLF
+ok 18 - un detalle con saltos de línea sale en UNA línea: el archivo usa sólo CRLF
+  ---
+  duration_ms: 0.927687
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 17
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 526.262951

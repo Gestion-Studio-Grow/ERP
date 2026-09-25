@@ -29,7 +29,7 @@ const SIN_PILOTO: FlagsDeApps = { registroGlobal: false, enInicioPorApps: false 
 const PILOTO: FlagsDeApps = { registroGlobal: false, enInicioPorApps: true };
 const ids = (apps: readonly AppDescriptor[]) => apps.map((a) => a.id);
 
-// magra como está en la base de QA (psql erp_qa_apps, 2026-09-23), con la migración cárnica.
+// magra como está en la base local de QA (leída con psql el 2026-09-23), con la migración cárnica.
 const MAGRA: NegocioParaActivar = {
   id: "t-magra",
   slug: "magra",

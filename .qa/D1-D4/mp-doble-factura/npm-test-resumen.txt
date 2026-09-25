@@ -1,0 +1,12 @@
+# tests 3992
+# suites 35
+# pass 3987
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+not ok 1808 - fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+not ok 3664 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+not ok 3687 - lee un xlsx con fechas Date y números number
+not ok 3688 - filas totalmente vacías se descartan
+not ok 3689 - esXlsx reconoce el magic ZIP de un .xlsx real

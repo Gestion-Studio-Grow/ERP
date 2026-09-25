@@ -27,7 +27,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { runInTenantContext } from "@/lib/tenant-context";
 import { createInvoice } from "@/lib/invoice-core";
 import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
-import { processArcaOutbox, type DispatchResumen } from "@/lib/arca-dispatch";
+import { procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
 import { logger } from "@/lib/logger";
 import { businessWallTimeToUtc, dateStrInBusinessTz } from "@/lib/datetime";
 import { fechaFiscalDelDia, ventanaYaFacturada } from "@/lib/libros/fecha-fiscal";
@@ -730,7 +730,7 @@ export async function emitirPropuestas(
     // Con la facturación encendida, drenar el outbox → plugin ARCA → CAE (stub en dev).
     let despachoArca: DispatchResumen | undefined;
     if (emitidas > 0 && isInvoicingEnabled()) {
-      despachoArca = await processArcaOutbox();
+      despachoArca = await procesarEnviosDelNegocio(tenantId);
     }
 
     const capAlcanzado = bloqueadas > 0 || facturasMes + emitidas >= cap;

@@ -1,0 +1,60 @@
+TAP version 13
+# {"ts":"2026-09-25T08:39:49.693Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_44e1b8bdc5","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T08:39:49.874Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_44e1b8bdc5","condicionIva":"MONOTRIBUTO"}
+# Subtest: turno cobrado por link de Mercado Pago y facturado por el aviso: «Sincronizar Mercado Pago» no emite otra factura por el mismo cobro
+not ok 1 - turno cobrado por link de Mercado Pago y facturado por el aviso: «Sincronizar Mercado Pago» no emite otra factura por el mismo cobro
+  ---
+  duration_ms: 2676.040997
+  type: 'test'
+  location: '/home/user/erp/src/lib/mercadopago-doble-factura-postgres.test.ts:2:4390'
+  failureType: 'testCodeFailure'
+  error: |-
+    un cobro, una factura: quedaron 2 (cmugpmpzp0003yi7dhflt5j7s, mp-turno-1)
+    
+    2 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 2
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/mercadopago-doble-factura-postgres.test.ts:136:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# {"ts":"2026-09-25T08:39:50.030Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_44e1b8bdc5","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T08:39:50.116Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_44e1b8bdc5","condicionIva":"MONOTRIBUTO"}
+# Subtest: «Sincronizar Mercado Pago»: el cobro del link de un pedido no sale como venta suelta; la venta suelta sí, una sola vez
+not ok 2 - «Sincronizar Mercado Pago»: el cobro del link de un pedido no sale como venta suelta; la venta suelta sí, una sola vez
+  ---
+  duration_ms: 196.505818
+  type: 'test'
+  location: '/home/user/erp/src/lib/mercadopago-doble-factura-postgres.test.ts:2:6039'
+  failureType: 'testCodeFailure'
+  error: |-
+    sólo la venta suelta se factura desde la sincronización
+    
+    4 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 4
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/mercadopago-doble-factura-postgres.test.ts:163:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3377.151725

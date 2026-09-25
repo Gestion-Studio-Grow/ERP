@@ -61,7 +61,7 @@ export const DEFAULT_TREND_THRESHOLDS: TrendThresholds = {
 };
 
 function pct(n: number): string {
-  return `${Math.round(Math.abs(n) * 100)}%`;
+  return `${Math.round(Math.abs(n) * 100)}%`; // no-es-plata: porcentaje entero para leer
 }
 
 // Variación relativa entre dos valores. null si `from` es 0.

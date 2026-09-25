@@ -1,0 +1,88 @@
+TAP version 13
+# Subtest: la unidad del descuento porcentual es el peso entero (provisional a confirmar)
+ok 1 - la unidad del descuento porcentual es el peso entero (provisional a confirmar)
+  ---
+  duration_ms: 0.905169
+  type: 'test'
+  ...
+# Subtest: 10 % de $12.345 da $1.235 (el medio peso sube), y 10 % de $12.344 da $1.234
+ok 2 - 10 % de $12.345 da $1.235 (el medio peso sube), y 10 % de $12.344 da $1.234
+  ---
+  duration_ms: 0.511611
+  type: 'test'
+  ...
+# Subtest: un solo redondeo: 10 % de $12.344,95 es $1.234,495 y da $1.234, no $1.235
+ok 3 - un solo redondeo: 10 % de $12.344,95 es $1.234,495 y da $1.234, no $1.235
+  ---
+  duration_ms: 0.136754
+  type: 'test'
+  ...
+# Subtest: el porcentaje no pasa del 100 % ni el descuento pasa de la compra
+ok 4 - el porcentaje no pasa del 100 % ni el descuento pasa de la compra
+  ---
+  duration_ms: 0.095245
+  type: 'test'
+  ...
+# Subtest: el monto fijo va al centavo: $99,999 descuenta $100,00 y $500 sobre $1.000 descuenta $500
+ok 5 - el monto fijo va al centavo: $99,999 descuenta $100,00 y $500 sobre $1.000 descuenta $500
+  ---
+  duration_ms: 0.150238
+  type: 'test'
+  ...
+# Subtest: un cupón sin valor, negativo o roto no descuenta ni sube el precio
+ok 6 - un cupón sin valor, negativo o roto no descuenta ni sube el precio
+  ---
+  duration_ms: 0.086294
+  type: 'test'
+  ...
+# Subtest: un descuento chico al peso puede dar 0: 15 % de $3 es $0,45 y da $0
+ok 7 - un descuento chico al peso puede dar 0: 15 % de $3 es $0,45 y da $0
+  ---
+  duration_ms: 0.124691
+  type: 'test'
+  ...
+# Subtest: un cupón de 100 % o más deja la compra en cero aunque tenga centavos
+ok 8 - un cupón de 100 % o más deja la compra en cero aunque tenga centavos
+  ---
+  duration_ms: 0.081186
+  type: 'test'
+  ...
+# Subtest: CH lo ve: en turnos el medio peso ahora sube (29 % de $750 es $217,50 y da $218, antes $217)
+ok 9 - CH lo ve: en turnos el medio peso ahora sube (29 % de $750 es $217,50 y da $218, antes $217)
+  ---
+  duration_ms: 0.235162
+  type: 'test'
+  ...
+# Subtest: la reserva de turno (bookAppointment) calcula el descuento con montoDeCupon y nada más (lectura del código)
+ok 10 - la reserva de turno (bookAppointment) calcula el descuento con montoDeCupon y nada más (lectura del código)
+  ---
+  duration_ms: 1.628067
+  type: 'test'
+  ...
+# Subtest: la vista previa del cupón en la web de turnos (checkCoupon) usa montoDeCupon y nada más (lectura del código)
+ok 11 - la vista previa del cupón en la web de turnos (checkCoupon) usa montoDeCupon y nada más (lectura del código)
+  ---
+  duration_ms: 0.433657
+  type: 'test'
+  ...
+# Subtest: la venta y la tienda (aplicarCupon) usan montoDeCupon (lectura del código)
+ok 12 - la venta y la tienda (aplicarCupon) usan montoDeCupon (lectura del código)
+  ---
+  duration_ms: 0.279546
+  type: 'test'
+  ...
+# Subtest: ningún archivo de src (fuera de montoDeCupon) calcula a mano el % de un cupón
+ok 13 - ningún archivo de src (fuera de montoDeCupon) calcula a mano el % de un cupón
+  ---
+  duration_ms: 65.172678
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 490.553819

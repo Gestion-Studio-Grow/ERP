@@ -1,0 +1,135 @@
+TAP version 13
+# Subtest: traslada los campos base del evento sin tocarlos
+ok 1 - traslada los campos base del evento sin tocarlos
+  ---
+  duration_ms: 0.973815
+  type: 'test'
+  ...
+# Subtest: traslada los montos calculados por el Core sin recalcular
+ok 2 - traslada los montos calculados por el Core sin recalcular
+  ---
+  duration_ms: 1.157135
+  type: 'test'
+  ...
+# Subtest: mapea el desglose de IVA por alícuota (varias líneas)
+ok 3 - mapea el desglose de IVA por alícuota (varias líneas)
+  ---
+  duration_ms: 0.189434
+  type: 'test'
+  ...
+# Subtest: emisor RI + receptor RI ⇒ Factura A
+ok 4 - emisor RI + receptor RI ⇒ Factura A
+  ---
+  duration_ms: 0.110597
+  type: 'test'
+  ...
+# Subtest: emisor RI + receptor consumidor final ⇒ Factura B
+ok 5 - emisor RI + receptor consumidor final ⇒ Factura B
+  ---
+  duration_ms: 0.070576
+  type: 'test'
+  ...
+# Subtest: emisor RI + receptor monotributo ⇒ Factura B (no A)
+ok 6 - emisor RI + receptor monotributo ⇒ Factura B (no A)
+  ---
+  duration_ms: 0.068521
+  type: 'test'
+  ...
+# Subtest: emisor monotributo ⇒ Factura C (sin importar el receptor)
+ok 7 - emisor monotributo ⇒ Factura C (sin importar el receptor)
+  ---
+  duration_ms: 0.134495
+  type: 'test'
+  ...
+# Subtest: emisor exento ⇒ Factura C
+ok 8 - emisor exento ⇒ Factura C
+  ---
+  duration_ms: 0.071214
+  type: 'test'
+  ...
+# Subtest: emisor consumidor final no puede emitir: lanza
+ok 9 - emisor consumidor final no puede emitir: lanza
+  ---
+  duration_ms: 0.582767
+  type: 'test'
+  ...
+# Subtest: traslada las fechas de servicio cuando vienen en el evento
+ok 10 - traslada las fechas de servicio cuando vienen en el evento
+  ---
+  duration_ms: 0.300107
+  type: 'test'
+  ...
+# Subtest: sin fechas de servicio en el evento, quedan undefined
+ok 11 - sin fechas de servicio en el evento, quedan undefined
+  ---
+  duration_ms: 0.092513
+  type: 'test'
+  ...
+# Subtest: numero no lo pone construirComprobante: lo resuelve el cliente contra ARCA
+ok 12 - numero no lo pone construirComprobante: lo resuelve el cliente contra ARCA
+  ---
+  duration_ms: 0.047592
+  type: 'test'
+  ...
+# Subtest: totalIva suma los importes de todas las alícuotas
+ok 13 - totalIva suma los importes de todas las alícuotas
+  ---
+  duration_ms: 0.080674
+  type: 'test'
+  ...
+# Subtest: totalIva suma al centavo, como viaja ImpIVA: $0,10 + $0,20 da $0,30 y no 0,30000000000000004 (ENG-109)
+not ok 14 - totalIva suma al centavo, como viaja ImpIVA: $0,10 + $0,20 da $0,30 y no 0,30000000000000004 (ENG-109)
+  ---
+  duration_ms: 1.825794
+  type: 'test'
+  location: '/home/user/erp/src/plugins/arca/domain/comprobante.test.ts:2:6156'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 0.30000000000000004
+    - 0.3
+         ^
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0.3
+  actual: 0.30000000000000004
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/plugins/arca/domain/comprobante.test.ts:202:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: totalIva de un comprobante sin IVA es 0
+ok 15 - totalIva de un comprobante sin IVA es 0
+  ---
+  duration_ms: 0.130056
+  type: 'test'
+  ...
+# Subtest: informaIvaWsfe: A y B informan IVA (ImpIVA + <Iva>); C no
+ok 16 - informaIvaWsfe: A y B informan IVA (ImpIVA + <Iva>); C no
+  ---
+  duration_ms: 0.181533
+  type: 'test'
+  ...
+# Subtest: informaIvaWsfe ⊃ discriminaIva: B informa IVA aunque NO discrimine (regla receptor-CUIT es solo-A)
+ok 17 - informaIvaWsfe ⊃ discriminaIva: B informa IVA aunque NO discrimine (regla receptor-CUIT es solo-A)
+  ---
+  duration_ms: 0.06046
+  type: 'test'
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 16
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 355.51908

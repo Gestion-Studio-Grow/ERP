@@ -1,0 +1,757 @@
+TAP version 13
+# Subtest: sin Mercado Pago conectado no se ofrece un link de mentira; con el simulador, sí (marcado de prueba)
+ok 1 - sin Mercado Pago conectado no se ofrece un link de mentira; con el simulador, sí (marcado de prueba)
+  ---
+  duration_ms: 0.84936
+  type: 'test'
+  ...
+# Subtest: sin el módulo de Mercado Pago en el negocio no hay link, aunque el despliegue tenga Mercado Pago real
+ok 2 - sin el módulo de Mercado Pago en el negocio no hay link, aunque el despliegue tenga Mercado Pago real
+  ---
+  duration_ms: 0.233788
+  type: 'test'
+  ...
+# Subtest: el último link de cada pedido sale de la auditoría; una fila rara no tira nada
+ok 3 - el último link de cada pedido sale de la auditoría; una fila rara no tira nada
+  ---
+  duration_ms: 1.23739
+  type: 'test'
+  ...
+# Subtest: el WhatsApp del link dice el pedido, el monto y el link
+ok 4 - el WhatsApp del link dice el pedido, el monto y el link
+  ---
+  duration_ms: 20.809774
+  type: 'test'
+  ...
+# Subtest: sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+ok 5 - sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+  ---
+  duration_ms: 13.586802
+  type: 'test'
+  ...
+# Subtest: Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+ok 6 - Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+  ---
+  duration_ms: 40.302291
+  type: 'test'
+  ...
+# Subtest: CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+ok 7 - CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+  ---
+  duration_ms: 0.454626
+  type: 'test'
+  ...
+# Subtest: diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+ok 8 - diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+  ---
+  duration_ms: 1.024938
+  type: 'test'
+  ...
+# Subtest: el IVA guardado suma cada renglón al centavo, como el ImpIVA que viaja: 1,005 + 1,005 = 2,02
+ok 9 - el IVA guardado suma cada renglón al centavo, como el ImpIVA que viaja: 1,005 + 1,005 = 2,02
+  ---
+  duration_ms: 1.507226
+  type: 'test'
+  ...
+# Subtest: I2 · reintento sobre la misma venta → mismo comprobante, una sola factura, un solo outbox
+ok 10 - I2 · reintento sobre la misma venta → mismo comprobante, una sola factura, un solo outbox
+  ---
+  duration_ms: 0.490827
+  type: 'test'
+  ...
+# Subtest: I2 · idempotencia también por turno (APPOINTMENT)
+ok 11 - I2 · idempotencia también por turno (APPOINTMENT)
+  ---
+  duration_ms: 0.602738
+  type: 'test'
+  ...
+# Subtest: I2 · ventas DISTINTAS generan comprobantes distintos
+ok 12 - I2 · ventas DISTINTAS generan comprobantes distintos
+  ---
+  duration_ms: 0.506246
+  type: 'test'
+  ...
+# Subtest: ENG-023 · un pedido anulado no se factura: lanza VentaAnuladaError y no crea factura ni envío
+ok 13 - ENG-023 · un pedido anulado no se factura: lanza VentaAnuladaError y no crea factura ni envío
+  ---
+  duration_ms: 1.470877
+  type: 'test'
+  ...
+# Subtest: ENG-023 · un turno con el cobro anulado no se factura: no crea factura ni envío
+ok 14 - ENG-023 · un turno con el cobro anulado no se factura: no crea factura ni envío
+  ---
+  duration_ms: 1.183438
+  type: 'test'
+  ...
+# Subtest: ENG-023 · un turno cuyo cobro ya no es el total del comprobante no se factura con el monto viejo
+ok 15 - ENG-023 · un turno cuyo cobro ya no es el total del comprobante no se factura con el monto viejo
+  ---
+  duration_ms: 0.367228
+  type: 'test'
+  ...
+# Subtest: ENG-023 · un turno con el mismo cobro que el total, o sin cobros (precio de lista), se factura
+ok 16 - ENG-023 · un turno con el mismo cobro que el total, o sin cobros (precio de lista), se factura
+  ---
+  duration_ms: 0.460303
+  type: 'test'
+  ...
+# Subtest: I2 · SIN origen (previa a D10) NO dedupe: crea siempre
+ok 17 - I2 · SIN origen (previa a D10) NO dedupe: crea siempre
+  ---
+  duration_ms: 1.154613
+  type: 'test'
+  ...
+# Subtest: A-6 · webhook MP duplicado (mismo payment_id) → una sola factura, mismo comprobante
+ok 18 - A-6 · webhook MP duplicado (mismo payment_id) → una sola factura, mismo comprobante
+  ---
+  duration_ms: 0.476619
+  type: 'test'
+  ...
+# Subtest: A-6 · pagos MP distintos → facturas distintas
+ok 19 - A-6 · pagos MP distintos → facturas distintas
+  ---
+  duration_ms: 0.305428
+  type: 'test'
+  ...
+# Subtest: A-6 · BUG(antes): SIN origin, dos webhooks del mismo pago facturaban dos veces
+ok 20 - A-6 · BUG(antes): SIN origin, dos webhooks del mismo pago facturaban dos veces
+  ---
+  duration_ms: 0.15316
+  type: 'test'
+  ...
+# Subtest: I2 · la guarda UNIQUE del schema dispara P2002 ante un doble-create directo (misma venta)
+ok 21 - I2 · la guarda UNIQUE del schema dispara P2002 ante un doble-create directo (misma venta)
+  ---
+  duration_ms: 0.265191
+  type: 'test'
+  ...
+# Subtest: I2 · CARRERA: dos emisiones simultáneas de la misma venta → 1 factura, mismo id (P2002 + recovery)
+ok 22 - I2 · CARRERA: dos emisiones simultáneas de la misma venta → 1 factura, mismo id (P2002 + recovery)
+  ---
+  duration_ms: 0.150327
+  type: 'test'
+  ...
+# Subtest: I2 · CARRERA saldada: la emisión que llega después ve el comprobante y lo reusa
+ok 23 - I2 · CARRERA saldada: la emisión que llega después ve el comprobante y lo reusa
+  ---
+  duration_ms: 0.255018
+  type: 'test'
+  ...
+# (node:9120) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: facturarOrden: la venta de las 23:30 del 31/08 sale con fecha 20260831
+ok 24 - facturarOrden: la venta de las 23:30 del 31/08 sale con fecha 20260831
+  ---
+  duration_ms: 17.234707
+  type: 'test'
+  ...
+# Subtest: facturarAppointment: el turno cobrado a las 23:30 del 31/08 sale con fecha y servicio del 31/08
+ok 25 - facturarAppointment: el turno cobrado a las 23:30 del 31/08 sale con fecha y servicio del 31/08
+  ---
+  duration_ms: 0.777929
+  type: 'test'
+  ...
+# Subtest: facturarPagoMP: sin fecha de acreditación, el día del negocio; con fecha, la de Mercado Pago
+ok 26 - facturarPagoMP: sin fecha de acreditación, el día del negocio; con fecha, la de Mercado Pago
+  ---
+  duration_ms: 0.425761
+  type: 'test'
+  ...
+# Subtest: a la medianoche argentina ya es el día siguiente
+ok 27 - a la medianoche argentina ya es el día siguiente
+  ---
+  duration_ms: 0.374681
+  type: 'test'
+  ...
+# Subtest: bajo el umbral y bajo el tope: sigue FACTURABLE
+ok 28 - bajo el umbral y bajo el tope: sigue FACTURABLE
+  ---
+  duration_ms: 0.898877
+  type: 'test'
+  ...
+# Subtest: igual o sobre el umbral: va a REVISAR (necesita datos del comprador)
+ok 29 - igual o sobre el umbral: va a REVISAR (necesita datos del comprador)
+  ---
+  duration_ms: 0.319287
+  type: 'test'
+  ...
+# Subtest: al llegar al tope del mes: va a REVISAR (emisión manual)
+ok 30 - al llegar al tope del mes: va a REVISAR (emisión manual)
+  ---
+  duration_ms: 0.183041
+  type: 'test'
+  ...
+# Subtest: lo NO facturable del clasificador base no se toca
+ok 31 - lo NO facturable del clasificador base no se toca
+  ---
+  duration_ms: 0.226942
+  type: 'test'
+  ...
+# Subtest: mapeo operación→clasificación de DB
+ok 32 - mapeo operación→clasificación de DB
+  ---
+  duration_ms: 0.193045
+  type: 'test'
+  ...
+# Subtest: hash idempotente estable por payment_id
+ok 33 - hash idempotente estable por payment_id
+  ---
+  duration_ms: 0.167085
+  type: 'test'
+  ...
+# Subtest: modoCobrosDesdeEnv: default stub, test y real por MP_MODO
+ok 34 - modoCobrosDesdeEnv: default stub, test y real por MP_MODO
+  ---
+  duration_ms: 0.999401
+  type: 'test'
+  ...
+# Subtest: pareceTokenDePrueba: detecta el prefijo TEST- de Mercado Pago
+ok 35 - pareceTokenDePrueba: detecta el prefijo TEST- de Mercado Pago
+  ---
+  duration_ms: 0.167279
+  type: 'test'
+  ...
+# Subtest: crearPasarelaCobrosPara: sin MP_MODO → StubPasarelaCobros
+ok 36 - crearPasarelaCobrosPara: sin MP_MODO → StubPasarelaCobros
+  ---
+  duration_ms: 0.18419
+  type: 'test'
+  ...
+# Subtest: crearPasarelaCobrosPara: MP_MODO=test → HttpPasarelaCobros (aunque falte el token)
+ok 37 - crearPasarelaCobrosPara: MP_MODO=test → HttpPasarelaCobros (aunque falte el token)
+  ---
+  duration_ms: 0.194963
+  type: 'test'
+  ...
+# Subtest: crearPasarelaCobrosPara: MP_MODO=real → HttpPasarelaCobros
+ok 38 - crearPasarelaCobrosPara: MP_MODO=real → HttpPasarelaCobros
+  ---
+  duration_ms: 0.186536
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T08:42:05.683Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_0d08d1d161","condicionIva":"MONOTRIBUTO"}
+# Subtest: turno cobrado por link de Mercado Pago y facturado por el aviso: «Sincronizar Mercado Pago» no emite otra factura por el mismo cobro
+ok 39 - turno cobrado por link de Mercado Pago y facturado por el aviso: «Sincronizar Mercado Pago» no emite otra factura por el mismo cobro
+  ---
+  duration_ms: 4360.262525
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T08:42:06.244Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_b_336c5f7158","condicionIva":"MONOTRIBUTO"}
+# Subtest: «Sincronizar Mercado Pago»: el cobro del link de un pedido no sale como venta suelta; la venta suelta sí, una sola vez
+ok 40 - «Sincronizar Mercado Pago»: el cobro del link de un pedido no sale como venta suelta; la venta suelta sí, una sola vez
+  ---
+  duration_ms: 295.533477
+  type: 'test'
+  ...
+# Subtest: el registro de cobros trae Mercado Pago registrado
+ok 41 - el registro de cobros trae Mercado Pago registrado
+  ---
+  duration_ms: 2.143658
+  type: 'test'
+  ...
+# Subtest: la config por defecto apunta a Mercado Pago (provisional, sin credenciales)
+ok 42 - la config por defecto apunta a Mercado Pago (provisional, sin credenciales)
+  ---
+  duration_ms: 0.198939
+  type: 'test'
+  ...
+# Subtest: gatewayCobrosPara resuelve el stub cuando el tenant no tiene credenciales
+ok 43 - gatewayCobrosPara resuelve el stub cuando el tenant no tiene credenciales
+  ---
+  duration_ms: 0.343114
+  type: 'test'
+  ...
+# Subtest: cada tenant resuelve el proveedor que declara su config
+ok 44 - cada tenant resuelve el proveedor que declara su config
+  ---
+  duration_ms: 0.228546
+  type: 'test'
+  ...
+# Subtest: un proveedor no registrado tira ProveedorPagoDesconocidoError
+ok 45 - un proveedor no registrado tira ProveedorPagoDesconocidoError
+  ---
+  duration_ms: 0.370758
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T08:42:06.410Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_ebf205309c","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T08:42:06.538Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_ebf205309c","condicionIva":"MONOTRIBUTO"}
+# Subtest: pedido (facturarOrden): sin identificar desde el umbral no emite y deja el motivo; un peso menos, emite
+ok 46 - pedido (facturarOrden): sin identificar desde el umbral no emite y deja el motivo; un peso menos, emite
+  ---
+  duration_ms: 4381.28971
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T08:42:06.842Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_ebf205309c","condicionIva":"MONOTRIBUTO"}
+# Subtest: pedido (facturarOrden) con emisor inscripto e IVA parejo: no emite y deja el motivo
+ok 47 - pedido (facturarOrden) con emisor inscripto e IVA parejo: no emite y deja el motivo
+  ---
+  duration_ms: 339.171406
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T08:42:07.082Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_ebf205309c","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T08:42:07.162Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_ebf205309c","condicionIva":"MONOTRIBUTO"}
+# Subtest: turno (facturarAppointment): sin identificar desde el umbral no emite; inscripto con IVA parejo tampoco
+ok 48 - turno (facturarAppointment): sin identificar desde el umbral no emite; inscripto con IVA parejo tampoco
+  ---
+  duration_ms: 211.922578
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T08:42:07.237Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_ebf205309c","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T08:42:07.327Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_ebf205309c","condicionIva":"MONOTRIBUTO"}
+# Subtest: Mercado Pago (facturarPagoMP): sin identificar desde el umbral no emite; inscripto con IVA parejo tampoco
+ok 49 - Mercado Pago (facturarPagoMP): sin identificar desde el umbral no emite; inscripto con IVA parejo tampoco
+  ---
+  duration_ms: 216.239218
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T08:42:07.589Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_b_1a9215f469","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T08:42:07.679Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_b_1a9215f469","condicionIva":"MONOTRIBUTO"}
+# Subtest: facturita (emitirFacturitaAction, Server Action real): sin identificar desde el umbral no emite y deja el motivo
+ok 50 - facturita (emitirFacturitaAction, Server Action real): sin identificar desde el umbral no emite y deja el motivo
+  ---
+  duration_ms: 362.47559
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T08:42:07.847Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_ebf205309c","condicionIva":"MONOTRIBUTO"}
+# Subtest: bancos (emitirPropuestasAction, Server Action real): un movimiento sin identificar desde el umbral no emite y deja el motivo
+ok 51 - bancos (emitirPropuestasAction, Server Action real): un movimiento sin identificar desde el umbral no emite y deja el motivo
+  ---
+  duration_ms: 163.419044
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T08:42:08.193Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_ebf205309c","condicionIva":"MONOTRIBUTO"}
+# Subtest: API externa (createExternalOrder): un pedido sin identificar desde el umbral no emite y deja el motivo
+ok 52 - API externa (createExternalOrder): un pedido sin identificar desde el umbral no emite y deja el motivo
+  ---
+  duration_ms: 303.204903
+  type: 'test'
+  ...
+# Subtest: la referencia del link es el pedido, y sólo un pedido se lee como pedido
+ok 53 - la referencia del link es el pedido, y sólo un pedido se lee como pedido
+  ---
+  duration_ms: 1.215864
+  type: 'test'
+  ...
+# Subtest: link pagado → el pedido queda cobrado con Mercado Pago y el libro asienta el total; el aviso repetido no asienta de nuevo
+ok 54 - link pagado → el pedido queda cobrado con Mercado Pago y el libro asienta el total; el aviso repetido no asienta de nuevo
+  ---
+  duration_ms: 2.633365
+  type: 'test'
+  ...
+# Subtest: un pago pendiente no cobra; uno aprobado después, sí
+ok 55 - un pago pendiente no cobra; uno aprobado después, sí
+  ---
+  duration_ms: 0.366785
+  type: 'test'
+  ...
+# Subtest: el pedido se pesó y cambió después del link: el aviso NO cobra solo y dice por qué
+ok 56 - el pedido se pesó y cambió después del link: el aviso NO cobra solo y dice por qué
+  ---
+  duration_ms: 3.698539
+  type: 'test'
+  ...
+# Subtest: un pedido anulado no se cobra aunque llegue el pago; un pedido de otro negocio, tampoco
+ok 57 - un pedido anulado no se cobra aunque llegue el pago; un pedido de otro negocio, tampoco
+  ---
+  duration_ms: 0.288057
+  type: 'test'
+  ...
+# Subtest: con la caja de hoy cerrada, el aviso no mete plata en un día contado
+ok 58 - con la caja de hoy cerrada, el aviso no mete plata en un día contado
+  ---
+  duration_ms: 0.486741
+  type: 'test'
+  ...
+# Subtest: la decisión del aviso, pura
+ok 59 - la decisión del aviso, pura
+  ---
+  duration_ms: 0.272701
+  type: 'test'
+  ...
+# Subtest: sin el cobro de pedidos conectado, el pago de un pedido no se factura como si fuera un turno
+ok 60 - sin el cobro de pedidos conectado, el pago de un pedido no se factura como si fuera un turno
+  ---
+  duration_ms: 0.308245
+  type: 'test'
+  ...
+# Subtest: validarSolicitud: solicitud OK no tiene errores
+ok 61 - validarSolicitud: solicitud OK no tiene errores
+  ---
+  duration_ms: 1.957263
+  type: 'test'
+  ...
+# Subtest: validarSolicitud: concepto vacío y monto <= 0
+ok 62 - validarSolicitud: concepto vacío y monto <= 0
+  ---
+  duration_ms: 0.221344
+  type: 'test'
+  ...
+# Subtest: validarSolicitud: cantidad no entera y email inválido
+ok 63 - validarSolicitud: cantidad no entera y email inválido
+  ---
+  duration_ms: 0.173791
+  type: 'test'
+  ...
+# Subtest: armarBodyPreferencia: 1 ítem en ARS, redondeo a centavos
+ok 64 - armarBodyPreferencia: 1 ítem en ARS, redondeo a centavos
+  ---
+  duration_ms: 0.183085
+  type: 'test'
+  ...
+# Subtest: armarBodyPreferencia: cantidad y email cuando vienen
+ok 65 - armarBodyPreferencia: cantidad y email cuando vienen
+  ---
+  duration_ms: 0.170582
+  type: 'test'
+  ...
+# Subtest: parsearPreferencia: respuesta válida → LinkDePago
+ok 66 - parsearPreferencia: respuesta válida → LinkDePago
+  ---
+  duration_ms: 0.203535
+  type: 'test'
+  ...
+# Subtest: parsearPreferencia: sin id o init_point lanza
+ok 67 - parsearPreferencia: sin id o init_point lanza
+  ---
+  duration_ms: 0.393459
+  type: 'test'
+  ...
+# Subtest: construirUrlPreferencia
+ok 68 - construirUrlPreferencia
+  ---
+  duration_ms: 0.103191
+  type: 'test'
+  ...
+# Subtest: HttpPasarelaCobros: happy path con token y transporte mock
+ok 69 - HttpPasarelaCobros: happy path con token y transporte mock
+  ---
+  duration_ms: 0.456996
+  type: 'test'
+  ...
+# Subtest: HttpPasarelaCobros: valida ANTES de pegarle a MP (no llama al transporte)
+ok 70 - HttpPasarelaCobros: valida ANTES de pegarle a MP (no llama al transporte)
+  ---
+  duration_ms: 0.750402
+  type: 'test'
+  ...
+# Subtest: HttpPasarelaCobros: error HTTP de MP se propaga como MercadoPagoApiError
+ok 71 - HttpPasarelaCobros: error HTTP de MP se propaga como MercadoPagoApiError
+  ---
+  duration_ms: 0.2678
+  type: 'test'
+  ...
+# Subtest: StubPasarelaCobros: link determinístico y de sandbox
+ok 72 - StubPasarelaCobros: link determinístico y de sandbox
+  ---
+  duration_ms: 0.281922
+  type: 'test'
+  ...
+# Subtest: StubPasarelaCobros: distinta solicitud → distinto link
+ok 73 - StubPasarelaCobros: distinta solicitud → distinto link
+  ---
+  duration_ms: 0.132933
+  type: 'test'
+  ...
+# Subtest: StubPasarelaCobros: también valida
+ok 74 - StubPasarelaCobros: también valida
+  ---
+  duration_ms: 0.127426
+  type: 'test'
+  ...
+# Subtest: solicitudDePrueba: concepto identificable, referencia con prefijo PRUEBA-
+ok 75 - solicitudDePrueba: concepto identificable, referencia con prefijo PRUEBA-
+  ---
+  duration_ms: 1.305267
+  type: 'test'
+  ...
+# Subtest: solicitudDePrueba: respeta el monto pasado
+ok 76 - solicitudDePrueba: respeta el monto pasado
+  ---
+  duration_ms: 0.291402
+  type: 'test'
+  ...
+# Subtest: generarCobroDePrueba: con StubPasarelaCobros devuelve un link de sandbox
+ok 77 - generarCobroDePrueba: con StubPasarelaCobros devuelve un link de sandbox
+  ---
+  duration_ms: 0.571919
+  type: 'test'
+  ...
+# Subtest: generarCobroDePrueba: mapea SolicitudCobroInvalidaError a motivo 'invalida'
+ok 78 - generarCobroDePrueba: mapea SolicitudCobroInvalidaError a motivo 'invalida'
+  ---
+  duration_ms: 0.292788
+  type: 'test'
+  ...
+# Subtest: generarCobroDePrueba: mapea MercadoPagoApiError a motivo 'error'
+ok 79 - generarCobroDePrueba: mapea MercadoPagoApiError a motivo 'error'
+  ---
+  duration_ms: 0.293139
+  type: 'test'
+  ...
+# Subtest: fabricaGatewayMP sin credenciales devuelve el stub (dev/test)
+ok 80 - fabricaGatewayMP sin credenciales devuelve el stub (dev/test)
+  ---
+  duration_ms: 2.32597
+  type: 'test'
+  ...
+# Subtest: fabricaGatewayMP sin accessToken (config vacía) devuelve el stub
+ok 81 - fabricaGatewayMP sin accessToken (config vacía) devuelve el stub
+  ---
+  duration_ms: 0.175691
+  type: 'test'
+  ...
+# Subtest: fabricaGatewayMP con access token devuelve el adapter real HTTP
+ok 82 - fabricaGatewayMP con access token devuelve el adapter real HTTP
+  ---
+  duration_ms: 4.060771
+  type: 'test'
+  ...
+# Subtest: MP se registra como proveedor y se resuelve por su clave
+ok 83 - MP se registra como proveedor y se resuelve por su clave
+  ---
+  duration_ms: 0.739681
+  type: 'test'
+  ...
+# Subtest: mapearEstado cubre los estados de MP y cae en pending lo desconocido
+ok 84 - mapearEstado cubre los estados de MP y cae en pending lo desconocido
+  ---
+  duration_ms: 0.927981
+  type: 'test'
+  ...
+# Subtest: mapearOperacion: cobros → pago, transferencias → transferencia, resto → otro
+ok 85 - mapearOperacion: cobros → pago, transferencias → transferencia, resto → otro
+  ---
+  duration_ms: 0.22741
+  type: 'test'
+  ...
+# Subtest: fechaArca convierte ISO a AAAAMMDD y tolera vacío/roto
+ok 86 - fechaArca convierte ISO a AAAAMMDD y tolera vacío/roto
+  ---
+  duration_ms: 0.203479
+  type: 'test'
+  ...
+# Subtest: sumarComisiones suma fee_details y redondea; undefined si no hay
+ok 87 - sumarComisiones suma fee_details y redondea; undefined si no hay
+  ---
+  duration_ms: 0.129952
+  type: 'test'
+  ...
+# Subtest: nombreContraparte prioriza nombre completo, luego email
+ok 88 - nombreContraparte prioriza nombre completo, luego email
+  ---
+  duration_ms: 0.115279
+  type: 'test'
+  ...
+# Subtest: normalizarPago mapea todos los campos que importan
+ok 89 - normalizarPago mapea todos los campos que importan
+  ---
+  duration_ms: 0.181757
+  type: 'test'
+  ...
+# Subtest: normalizarPago: transferencia entre cuentas propias → operacion transferencia
+ok 90 - normalizarPago: transferencia entre cuentas propias → operacion transferencia
+  ---
+  duration_ms: 1.351756
+  type: 'test'
+  ...
+# Subtest: normalizarPago exige id
+ok 91 - normalizarPago exige id
+  ---
+  duration_ms: 0.583829
+  type: 'test'
+  ...
+# Subtest: construirUrlPago arma la ruta del pago y escapa el id
+ok 92 - construirUrlPago arma la ruta del pago y escapa el id
+  ---
+  duration_ms: 0.299565
+  type: 'test'
+  ...
+# Subtest: construirUrlBusqueda: sin fechas manda offset/limit; el cursor ES el offset
+ok 93 - construirUrlBusqueda: sin fechas manda offset/limit; el cursor ES el offset
+  ---
+  duration_ms: 1.00547
+  type: 'test'
+  ...
+# Subtest: construirUrlBusqueda: con desde/hasta arma range + begin_date/end_date del día
+ok 94 - construirUrlBusqueda: con desde/hasta arma range + begin_date/end_date del día
+  ---
+  duration_ms: 0.593532
+  type: 'test'
+  ...
+# Subtest: construirUrlBusqueda: un solo extremo usa el relativo de MP para el otro
+ok 95 - construirUrlBusqueda: un solo extremo usa el relativo de MP para el otro
+  ---
+  duration_ms: 0.303737
+  type: 'test'
+  ...
+# Subtest: parsearPago normaliza el cuerpo de /v1/payments/{id}
+ok 96 - parsearPago normaliza el cuerpo de /v1/payments/{id}
+  ---
+  duration_ms: 0.151031
+  type: 'test'
+  ...
+# Subtest: parsearPagina calcula nextCursor mientras haya más (offset+limit<total)
+ok 97 - parsearPagina calcula nextCursor mientras haya más (offset+limit<total)
+  ---
+  duration_ms: 0.200067
+  type: 'test'
+  ...
+# Subtest: parsearPagina sin más resultados → nextCursor undefined
+ok 98 - parsearPagina sin más resultados → nextCursor undefined
+  ---
+  duration_ms: 0.097767
+  type: 'test'
+  ...
+# Subtest: lanzarSiErrorHttp: 2xx no lanza; no-2xx lanza MercadoPagoApiError tipado
+ok 99 - lanzarSiErrorHttp: 2xx no lanza; no-2xx lanza MercadoPagoApiError tipado
+  ---
+  duration_ms: 0.269015
+  type: 'test'
+  ...
+# Subtest: lanzarSiErrorHttp tolera cuerpo no-JSON
+ok 100 - lanzarSiErrorHttp tolera cuerpo no-JSON
+  ---
+  duration_ms: 0.094806
+  type: 'test'
+  ...
+# Subtest: tokenNoConfigurado exige credencial (acción humana)
+ok 101 - tokenNoConfigurado exige credencial (acción humana)
+  ---
+  duration_ms: 0.183848
+  type: 'test'
+  ...
+# Subtest: tokenFijo devuelve el token de la config y falla si está vacío
+ok 102 - tokenFijo devuelve el token de la config y falla si está vacío
+  ---
+  duration_ms: 0.121748
+  type: 'test'
+  ...
+# Subtest: tokenDesdeCredenciales pide el token vigente al CredencialesPort del tenant
+ok 103 - tokenDesdeCredenciales pide el token vigente al CredencialesPort del tenant
+  ---
+  duration_ms: 0.226171
+  type: 'test'
+  ...
+# Subtest: HttpMercadoPagoClient.getPayment normaliza y manda el Bearer
+ok 104 - HttpMercadoPagoClient.getPayment normaliza y manda el Bearer
+  ---
+  duration_ms: 0.270155
+  type: 'test'
+  ...
+# Subtest: HttpMercadoPagoClient.getPayment traduce un 404 a MercadoPagoApiError
+ok 105 - HttpMercadoPagoClient.getPayment traduce un 404 a MercadoPagoApiError
+  ---
+  duration_ms: 0.220001
+  type: 'test'
+  ...
+# Subtest: HttpMercadoPagoClient.listPayments pagina: pasa el offset del cursor
+ok 106 - HttpMercadoPagoClient.listPayments pagina: pasa el offset del cursor
+  ---
+  duration_ms: 0.220734
+  type: 'test'
+  ...
+# Subtest: HttpMercadoPagoClient con token por defecto exige credencial
+ok 107 - HttpMercadoPagoClient con token por defecto exige credencial
+  ---
+  duration_ms: 0.179506
+  type: 'test'
+  ...
+# Subtest: FetchHttpTransport es un HttpTransport
+ok 108 - FetchHttpTransport es un HttpTransport
+  ---
+  duration_ms: 0.063218
+  type: 'test'
+  ...
+# Subtest: sincronizar Mercado Pago: el cobro del link de un turno no se factura como venta suelta y queda anotado por qué
+ok 109 - sincronizar Mercado Pago: el cobro del link de un turno no se factura como venta suelta y queda anotado por qué
+  ---
+  duration_ms: 2.134083
+  type: 'test'
+  ...
+# Subtest: sincronizar Mercado Pago: el cobro del link de un pedido no se factura como venta suelta (la factura sale del pedido)
+ok 110 - sincronizar Mercado Pago: el cobro del link de un pedido no se factura como venta suelta (la factura sale del pedido)
+  ---
+  duration_ms: 0.331213
+  type: 'test'
+  ...
+# Subtest: sincronizar Mercado Pago: la venta suelta (sin referencia) se sigue facturando, y una segunda sincronización no repite nada
+ok 111 - sincronizar Mercado Pago: la venta suelta (sin referencia) se sigue facturando, y una segunda sincronización no repite nada
+  ---
+  duration_ms: 0.502288
+  type: 'test'
+  ...
+# Subtest: el camino de un solo pago (aviso de venta directa) tampoco factura un cobro con dueño
+ok 112 - el camino de un solo pago (aviso de venta directa) tampoco factura un cobro con dueño
+  ---
+  duration_ms: 0.209594
+  type: 'test'
+  ...
+# Subtest: dueño del cobro: la misma lectura de la referencia que usa el aviso de Mercado Pago
+ok 113 - dueño del cobro: la misma lectura de la referencia que usa el aviso de Mercado Pago
+  ---
+  duration_ms: 0.11779
+  type: 'test'
+  ...
+# Subtest: parseXSignature extrae ts y v1
+ok 114 - parseXSignature extrae ts y v1
+  ---
+  duration_ms: 6.282278
+  type: 'test'
+  ...
+# Subtest: parseXSignature tolera espacios y orden
+ok 115 - parseXSignature tolera espacios y orden
+  ---
+  duration_ms: 0.205399
+  type: 'test'
+  ...
+# Subtest: parseXSignature → null si falta ts o v1, o header vacío
+ok 116 - parseXSignature → null si falta ts o v1, o header vacío
+  ---
+  duration_ms: 0.133908
+  type: 'test'
+  ...
+# Subtest: buildManifest arma id;request-id;ts con data.id en minúsculas
+ok 117 - buildManifest arma id;request-id;ts con data.id en minúsculas
+  ---
+  duration_ms: 0.148694
+  type: 'test'
+  ...
+# Subtest: buildManifest omite request-id si falta
+ok 118 - buildManifest omite request-id si falta
+  ---
+  duration_ms: 0.226682
+  type: 'test'
+  ...
+# Subtest: verifica una firma legítima
+ok 119 - verifica una firma legítima
+  ---
+  duration_ms: 0.494028
+  type: 'test'
+  ...
+# Subtest: rechaza una firma forjada (secreto equivocado)
+ok 120 - rechaza una firma forjada (secreto equivocado)
+  ---
+  duration_ms: 0.192514
+  type: 'test'
+  ...
+# Subtest: rechaza si cambian los datos firmados (manifest distinto)
+ok 121 - rechaza si cambian los datos firmados (manifest distinto)
+  ---
+  duration_ms: 0.212846
+  type: 'test'
+  ...
+# Subtest: fail-closed ante datos faltantes
+ok 122 - fail-closed ante datos faltantes
+  ---
+  duration_ms: 0.456564
+  type: 'test'
+  ...
+1..122
+# tests 122
+# suites 0
+# pass 122
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9113.133473

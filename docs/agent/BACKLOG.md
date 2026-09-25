@@ -32,7 +32,16 @@ se lo referencia y sólo se agregan los criterios del estándar que le faltan.
 
 ## 0. Habilitante (va primero)
 
-### ENG-000 · Arnés de integración: Postgres efímero en `npm test` y en CI · M
+### ENG-000 · Arnés de integración: Postgres efímero en `npm test` y en CI · M · **CONSTRUIDO 2026-09-25, falta el criterio 1 en CI**
+- **Estado.** `src/test/base-efimera.ts` (base `erp_test_<pid>_<azar>`: migraciones, 0002, 0001,
+  negocios A y B; se borra al terminar, y las de procesos muertos se barren) y
+  `src/test/accion-de-servidor.ts` (Server Action real con sesión; cookies, headers y caché de Next
+  simulados). Los 8 archivos con base pasaron al arnés. `gates.yml`, job `tests`: Postgres 16,
+  Chromium, Node 22 (con Node 20 el job no corría ningún test) y dos chequeos: `# skipped 0` y
+  ninguna base `erp_test_`. Medido en local (`.qa/ENG-000/`): criterio 2 = 0 líneas; criterio 3 en
+  `src/test/accion-de-servidor.test.ts`; criterio 4 = 0 bases después de `npm test`; `npm test`
+  completo, también con `CI=true` por TCP como el servicio de CI: 3.527 tests, 0 saltados, las 14
+  fallas previas y ajenas. **Criterio 1 sin medir:** hace falta un push y leer el log del job.
 - **Qué.** Un helper de test que crea una base `erp_test_<aleatorio>`, le aplica
   `prisma migrate deploy` más `prisma/rls/0001_enable_rls.sql` y `0002_app_role.sql`, siembra
   dos negocios A y B, y la borra al terminar. Otro helper que ejecuta una Server Action real con
@@ -238,7 +247,42 @@ se lo referencia y sólo se agregan los criterios del estándar que le faltan.
   de cupón de hace 19 meses, `purgeAuditLogs` en modo prueba cuenta 0 para borrar; el test falla
   si se saca la exención. (Alternativa válida: tablas propias con `tenantId` y RLS, Gate 2.)
 
-### ENG-011 · Dinero en decimal y con moneda · L · Gate 2 · **bloqueado por la decisión D1 del dueño**
+### ENG-011 · Dinero en decimal y con moneda · L · Gate 2 · **fondo decidido (D1 → A); plan en `D1-PLAN.md`, NO ejecutable todavía**
+- **Estado (2026-09-25, integración D1-D4).** Plan: `docs/agent/D1-PLAN.md` (revisión 1) y
+  `docs/adr/ADR-100-dinero-en-decimal.md`, partido en P0, PF, P1, P2a, P2b, P3, P4, P5 y M-D1-F.
+  P0 = ENG-109 (su criterio 2 usa el patrón ampliado de P0 c3). PF entra en la tanda de D4
+  después de ENG-020 y ENG-021. El criterio 4 se enmienda: `CarniceriaRubro.sql:37` y `:62` van a
+  `numeric(18,6)` (costos unitarios), `:109` a `numeric(14,2)`. **Frenos antes de P1:**
+  (a) el método de migración (en el lugar, por porción) contradice `DECISIONS.md` §5.0 D1
+  (`:177-180`, «expandir y contraer»): decide el dueño; (b) seis objeciones abiertas de la
+  revisión del plan, sin resolver:
+  1. La reversa queda bloqueada: `D1-PLAN.md` §5.6.3 y §5.6.6 (`:854-865`) mandan revertir el
+     commit de la migración, y `scripts/predeploy-check.mts:223-231` rechaza toda migración aplicada
+     que no esté en el repo (reproducido: `LOTE RECHAZADO … 20260930000000_d1_p1_caja_y_cobros`, exit 1).
+     Arreglo: el revert del código conserva `prisma/migrations/<d1>` y su línea en `lote-deploy.txt`;
+     sumar ese recorrido a M4 (`.qa/D1/rev1/probar-prisma.sh`) y decir cuándo se saca
+     `MIGRATE_DATABASE_URL` (§5.6.5).
+  2. Falta la guarda de escritura: Prisma acepta `number` en campos Decimal
+     (`src/generated/prisma/models/Invoice.ts:525-527`), así que «tsc los obliga»
+     (`D1-PLAN.md:921-923`) es falso y la base redondearía sin avisar (contra R2, `:409`). Criterio
+     nuevo: test, extensión de Prisma o regla de lint que rechace un `number` en campos Decimal.
+  3. La evidencia del plan vive en el scratchpad (`D1-PLAN.md:69`, tabla `:76-82`): llevarla a
+     `.qa/D1/` antes de ejecutar (§7.4, §11).
+  4. Sumas de plata en float que ningún criterio de P5 detecta (72 `reduce(... + ...)` en `src`;
+     p. ej. `libros/LibrosClient.tsx:110`, `caja/libro/LibroRenglon.tsx:241-242`,
+     `inicio/InicioRenglon.tsx:260`, `facturacion/bancos/page.tsx:135`, `reportes/margen/page.tsx:77-78`).
+  5. §5.7 consulta 2 (`:885-894`, con `:708` y `:721`): una fila autorizada con fracción queda en
+     `round(x,2)` y puede diferir 1 centavo de la factura con CAE (`fiscal.ts:286-291`, `round2`
+     baja empates) y del movimiento de caja. La consulta tiene que traer factura, CashMovement y
+     día cerrado (`caja/frontera-cierre.ts:48`) y proponer el valor ya facturado o cobrado.
+  6. P5 criterio 3 (`D1-PLAN.md:1193-1194`, «resultado = caja al centavo») contradice
+     `src/lib/reports/resultado.ts:6-32`: reemplazarlo por (a) cada movimiento del libro cae en una
+     sola categoría y la suma da el neto del libro; (b) ventas del resultado = Order.total +
+     Payment.amount del mes con el mismo reloj que Reportes.
+  Cuando la porción de `Invoice` agregue `moneda` y `cotizacion`, el trigger de ENG-022
+  (`20260925150000_comprobante_autorizado_inmutable`) las tiene que proteger en la misma migración.
+  Mediciones de sólo lectura en Neon que el plan necesita (§5.7, §3.4, cupones de CH en el
+  mostrador, `CarniceriaRubro.sql` y `lote-deploy.txt`): van con ENG-204.
 - **Qué.** Los importes pasan de Float a `Decimal(14,2)` con moneda explícita; el código usa un
   tipo decimal de punta a punta.
 - **Por qué.** 24 de 33 campos de importe son Float y 9 son `Decimal(14,2)`; 0 columnas de moneda
@@ -262,7 +306,14 @@ se lo referencia y sólo se agregan los criterios del estándar que le faltan.
 
 ## 2. ALTA: seguridad
 
-### ENG-012 · Cada negocio procesa sólo sus propios envíos a ARCA · S
+### ENG-012 · Cada negocio procesa sólo sus propios envíos a ARCA · S · **CERRADO 2026-09-25**
+- **Estado (2026-09-25): construido, criterios 1 y 2 cumplidos.** `procesarEnviosDelNegocio(tenantId)`
+  (`src/lib/arca-dispatch.ts`) toma y escribe con la conexión de la app, dentro del RLS de ese negocio
+  y con filtro explícito por negocio; no usa `operatorPrisma`. Los 6 lugares de facturación la
+  llaman con su negocio; `processArcaOutbox` queda sólo en `api/cron/arca-outbox/route.ts`.
+  Test: `src/lib/arca-envios-por-negocio-postgres.test.ts` (Server Action real
+  `procesarFacturacionPendiente` con la sesión de la dueña de A, operador = rol dueño). Evidencia:
+  `.qa/ENG-019-012-027/`.
 - **Qué.** Las acciones del negocio procesan sólo los comprobantes pendientes de su negocio; el
   barrido de todos queda únicamente en el cron.
 - **Por qué.** `src/lib/arca-dispatch.ts:197-201` lee con `operatorPrisma` hasta 20 pendientes,
@@ -282,6 +333,21 @@ se lo referencia y sólo se agregan los criterios del estándar que le faltan.
   1. `grep -rn processArcaOutbox src` (sin tests) aparece sólo en la ruta del cron y en funciones que reciben el negocio.
   2. Test de integración con pendientes de A y B: la acción de A no toca los de B (intentos, error y fecha de proceso sin cambio) y su resumen cuenta sólo los de A.
 - **Relación.** R7-F1 rehace el procesador; este slice es previo, chico y no toca el envío a ARCA.
+
+### ENG-324 · Índice parcial y columnas propias para la reserva de envíos a ARCA · S (con migración)
+- **Qué.** Pasar la reserva de `payload.reserva` a columnas (`reservadoHasta`, `reservadoPor`) y un
+  índice parcial `("tenantId","createdAt") WHERE "processedAt" IS NULL` sobre `OutboxEvent`.
+- **Por qué.** ENG-019 guarda la reserva en el JSON para no migrar, y cada toma recorre los envíos
+  abiertos sin índice (`OutboxEvent` sólo tiene `@@index([tenantId])`, `schema.prisma:1027`); la
+  lectura anterior tampoco tenía índice, pero ahora se hace una vez por envío. Sin medir con ≥ 50k filas.
+- **Criterios.** Migración aditiva con reversa probada; p95 de la toma < 50 ms con 50k envíos cerrados.
+
+### ENG-325 · En modo simulado por defecto, el segundo envío de un negocio choca · S
+- **Por qué.** `crearClientePara` arma un `StubAfipClient` nuevo por envío (`arca-dispatch.ts`,
+  `factory.ts:104`) y cada uno arranca su numeración en 0: el segundo envío del mismo negocio pide el
+  número 1 otra vez y la base lo frena por el índice único (P2002; medido en
+  `arca-envios-por-negocio-postgres.test.ts`). Previo a ENG-019; afecta demos y dev, no ARCA real.
+- **Criterio.** Dos envíos seguidos del mismo negocio en modo simulado quedan autorizados con 1 y 2.
 
 ### ENG-013 · La sesión del panel vence y se puede revocar en el servidor · M
 - **Qué.** El token de sesión lleva fecha de emisión y una versión del usuario; el servidor
@@ -371,6 +437,20 @@ se lo referencia y sólo se agregan los criterios del estándar que le faltan.
 ## 3. ALTA: fiscal
 
 ### ENG-019 · Envíos a ARCA sin doble emisión ni bloqueo entre negocios → **planificado en R7-F1** (pide OK del dueño) · M (lo que agrega)
+- **Estado (2026-09-25): construido contra el simulador; criterios 1 y 2 cumplidos, el 3 no (pide
+  decisión del dueño).** Cada envío se toma con una sentencia condicional (`FOR UPDATE SKIP LOCKED` +
+  `UPDATE … WHERE reserva libre`) y queda reservado 300 s en el `payload` (`reserva: {token, hasta}`,
+  sin migración); un envío en vuelo por negocio (candado `pg_try_advisory_xact_lock` por negocio y
+  control de reservas vigentes en una sentencia posterior); anotar el número renueva la reserva y
+  sólo si sigue siendo de ese despacho; turno entre negocios por corrida (`src/lib/arca-reserva.ts`).
+  Tests: `src/lib/arca-envios-concurrencia-postgres.test.ts` (4 procesos de Node a la vez sobre 12
+  pendientes, 3 series: 12 CAE por serie, 0 de más, 0 fallidos, números = ARCA; 50 de 50
+  iteraciones en un proceso; cabeza de cola) y 2 tests nuevos en `arca-dispatch-postgres.test.ts`.
+  Mutaciones: sin el candado por negocio, 7 pedidos de número repetido (10016); sin la condición de
+  reserva, 4 tests en rojo. **Criterio 3 no cumplido:** el cron corre una vez por día
+  (`vercel.json:14-15`); cada 15 min requiere un plan de Vercel que lo permita (costo: decisión del
+  dueño) o un disparador externo. Pendientes nuevos: ENG-324 (índice parcial y columnas de reserva
+  en la migración de R7-F1), ENG-325 (el simulador por defecto numera desde 1 en cada envío).
 - **Por qué.** `arca-dispatch.ts:197-201` toma pendientes sin reservarlos (sin `FOR UPDATE SKIP
   LOCKED`); `soap.ts:622-624` numera con "último autorizado + 1" sin serializar;
   `invoice-core.ts:214-218` descarta un CAE (el número de autorización de ARCA) sin log si la
@@ -389,6 +469,38 @@ se lo referencia y sólo se agregan los criterios del estándar que le faltan.
   3. Un pendiente se reintenta en 15 minutos o menos (DECISIONS.md P5).
 
 ### ENG-020 · Si se pierde la respuesta de ARCA, no se emite otro comprobante · M
+- **No cierra (integración D1-D4, 2026-09-25): falta un test.** El filtro `payload: { path: ["invoiceId"],
+  equals: existing.id }` de `createInvoiceInTx` (`src/lib/invoice-core.ts:219-227`) es lo único que impide
+  que volver a facturar UNA venta cierre los envíos abiertos de TODAS las facturas pendientes del negocio
+  (quedarían en PENDING sin envío vivo, sin CAE y sin reintento). Borrando esa línea, la suite de
+  ENG-020/021 sigue en verde (la mutación sobrevive; `preparar()` en `arca-dispatch-postgres.test.ts:42`
+  procesa todo antes de cada test). Criterio: test contra Postgres donde A rechazada se vuelve a
+  facturar mientras B tiene su envío abierto; B sigue abierto y el despacho termina con A y B
+  autorizadas, un CAE cada una.
+- **Estado (2026-09-25): construido, contra el simulador; falta la prueba real del dueño.** Antes de
+  pedir el CAE, el despacho anota en el envío el número que va a pedir
+  (`arca-dispatch.ts`, `anotarIntentoEnElEvento`); el reintento consulta ese número con
+  `FECompConsultar` y, si ARCA ya lo autorizó para este comprobante, lo adopta
+  (`plugins/arca/handler.ts`, `autorizarSinDuplicar`). Transporte cortado a los 15 s
+  (`soap.ts`, `TIMEOUT_ARCA_MS`). Evidencia: `.qa/ENG-021-020/`. Las respuestas del simulador son
+  *provisional a confirmar* hasta tener las grabadas en homologación (ENG-317).
+- **Vuelta 2 (2026-09-25), dos defectos de la revisión corregidos.** (1) Dos ventas iguales a
+  consumidor final (mismo día y total) coincidían en todo y una adoptaba el CAE de la otra y
+  quedaba trabada para siempre: ahora no se adopta un número que ya registró otra factura del
+  negocio (`invoice-core.ts`, `numeroUsadoPorOtraFactura`), y la comparación suma neto e IVA.
+  (2) Un error de `FECompConsultar` con un código fuera de la tabla rechazaba la factura con CAE
+  en ARCA, y volver a facturarla daba un segundo CAE: ahora toda falla de la consulta es
+  pasajera (`soap.ts` y `handler.ts`). Con número anotado se consulta antes de validar. Sigue
+  abierto con ENG-019: dos despachos simultáneos del MISMO envío (el número anotado no es una
+  reserva de filas); el título se cumple con un solo despachador. Evidencia: `.qa/ENG-021-020/vuelta2/`.
+- **Vuelta 3 (2026-09-25): autorización tardía.** El corte propio es a los 15 s pero ARCA puede
+  confirmar después: el reintento veía «no existe» (602) y pedía el número siguiente, 2 CAE para
+  una venta con un solo despachador. Ahora, si la consulta da 602 pero el último autorizado ya
+  llegó al número anotado, el envío queda pendiente sin pedir otro número y el reintento lo
+  consulta con datos (`plugins/arca/handler.ts`, `revisarIntento`). El simulador tiene la falla
+  `autoriza-tarde`. Además, un despacho que llega a un envío que otro ya cerró no anota número
+  ni pide CAE (`arca-dispatch.ts`, `anotarIntentoEnElEvento`): achica, no cierra, ENG-019.
+  Evidencia: `.qa/ENG-021-020/vuelta3/`.
 - **Qué.** Timeout en la llamada a ARCA y, antes de reintentar, consultar si el comprobante ya
   quedó autorizado.
 - **Por qué.** `src/plugins/arca/afip/soap.ts:491-508` llama sin límite de tiempo;
@@ -403,6 +515,31 @@ se lo referencia y sólo se agregan los criterios del estándar que le faltan.
 - **Relación.** El simulador de ARCA de R1-F3 sirve para estos tests.
 
 ### ENG-021 · Distinguir un rechazo de ARCA de un error pasajero · M
+- **No cierra (integración D1-D4, 2026-09-25): falta un test.** El filtro `payload: { path: ["invoiceId"],
+  equals: existing.id }` de `createInvoiceInTx` (`src/lib/invoice-core.ts:219-227`) es lo único que impide
+  que volver a facturar UNA venta cierre los envíos abiertos de TODAS las facturas pendientes del negocio
+  (quedarían en PENDING sin envío vivo, sin CAE y sin reintento). Borrando esa línea, la suite de
+  ENG-020/021 sigue en verde (la mutación sobrevive; `preparar()` en `arca-dispatch-postgres.test.ts:42`
+  procesa todo antes de cada test). Criterio: test contra Postgres donde A rechazada se vuelve a
+  facturar mientras B tiene su envío abierto; B sigue abierto y el despacho termina con A y B
+  autorizadas, un CAE cada una.
+- **Estado (2026-09-25): construido, contra el simulador; falta la prueba real del dueño.** Tabla de
+  códigos en `plugins/arca/domain/errores-arca.ts` (500, 501, 502, 600, 601, 10016: *provisional a
+  confirmar*); `ArcaPasajeroError` para timeout, sin red, HTTP no 2xx, WSAA caído y respuesta
+  cortada. Volver a facturar: `invoice-core.ts` (`createInvoiceInTx`) reabre la misma factura
+  rechazada y `order-actions.ts` (`facturarVenta`) ya no corta en una rechazada. La pantalla
+  todavía no ofrece el botón en una rechazada (ENG-318). Evidencia: `.qa/ENG-021-020/`.
+  Vuelta 2: la reapertura se hace sólo si el llamador la pide (`reabrirSiRechazada`, sólo
+  `facturarVenta`); webhooks de MP, turnos, pedidos externos, facturita y bancos reciben la
+  misma factura rechazada sin reenviarla. El `lastError` de un error de la base guarda sólo el
+  código, no el mensaje de Prisma. 601 y los HTTP no 2xx siguen pasajeros sin tope (ENG-019).
+  Vuelta 3: un envío viejo ya no escribe sobre la factura reabierta. Registrar el CAE y
+  rechazar la factura cierran SU envío en la misma transacción y no escriben si ya estaba
+  cerrado (`invoice-core.ts`, `registerFiscalDocument` y `markInvoiceRejected` con el id del
+  envío); volver a facturar cierra los envíos abiertos de esa factura; el despacho cierra sin
+  llamar a ARCA un envío cuya factura ya no está pendiente. El resumen del despacho suma
+  `descartados` (un CAE que ninguna factura tomó queda a la vista). Evidencia:
+  `.qa/ENG-021-020/vuelta3/`.
 - **Qué.** Una tabla de códigos de ARCA que separa rechazos definitivos de errores pasajeros, y
   una forma de reintentar una factura rechazada.
 - **Por qué.** `soap.ts:474-484` convierte todo error de ARCA en rechazo (`soap.test.ts:179-194`
@@ -415,7 +552,7 @@ se lo referencia y sólo se agregan los criterios del estándar que le faltan.
   pendiente). Test de integración: una venta con factura rechazada se reintenta y termina
   autorizada sin violar los índices únicos.
 
-### ENG-022 · Un comprobante autorizado no se puede editar ni borrar en la base · M · Gate 2
+### ENG-022 · Un comprobante autorizado no se puede editar ni borrar en la base · M · Gate 2 · **CERRADO en el código 2026-09-25; aplicar la migración en Neon: dueño**
 - **Qué.** Trigger (o policy) que rechaza borrar una factura autorizada o cambiarle montos, CAE,
   número, tipo, fecha o documento.
 - **Por qué.** `prisma/rls/0002_app_role.sql:58` da a `app_rls` permiso de UPDATE y DELETE sobre
@@ -426,8 +563,43 @@ se lo referencia y sólo se agregan los criterios del estándar que le faltan.
 - **Criterios de aceptación.** Test de integración como `app_rls`: el UPDATE de esas columnas y el
   DELETE de una factura autorizada fallan; el paso normal de pendiente a autorizada sigue
   funcionando. Migración con reversa probada.
+- **Estado (2026-09-25, construido en el árbol, sin commit; aplicarla en Neon es del dueño).**
+  Migración `prisma/migrations/20260925150000_comprobante_autorizado_inmutable/` (función
+  `comprobante_autorizado_inmutable` + trigger BEFORE UPDATE OR DELETE en `Invoice`, sólo filas con
+  status AUTHORIZED o `cae` no nulo; error SQLSTATE 23001). Protege id, tenantId, puntoVenta,
+  tipoComprobante, concepto, docTipo, docNro, fecha, neto, iva, total, ivaDesglose, status, cae,
+  caeVencimiento, numero, createdAt, authorizedAt y mpPaymentId; `orderId`/`appointmentId` (clave
+  de idempotencia de `createInvoice`) no se cambian ni se vacían a mano: sólo la FK ON DELETE SET
+  NULL los vacía, reconocida por `pg_trigger_depth() > 1` Y origen inexistente (buscado en
+  `TG_TABLE_SCHEMA`, no en el search_path); `rechazoMotivo` y `updatedAt` libres. El mensaje no
+  nombra columnas (§4): van en el DETAIL. Reversa en
+  `rollback.sql` (saca trigger, función y el registro en `_prisma_migrations`).
+  `src/lib/comprobante-autorizado-inmutable-postgres.test.ts` (5 tests, base efímera con
+  `migrate deploy` + RLS): como `app_rls` y como dueño, 21 cambios de columnas fiscales y el DELETE
+  fallan y la fila queda igual; sin CAE se edita y se borra; `createInvoice` +
+  `registerFiscalDocument` reales pasan de pendiente a autorizada; borrar el pedido deja la factura
+  sin enlace; reversa sin tocar filas y `migrate deploy` la vuelve a poner. Rojo sin la migración
+  4 de 5; mutaciones M1-M4 en rojo (`.qa/ENG-022/`). Código: los 3 `invoice.updateMany` de
+  `invoice-core.ts` filtran PENDING o REJECTED sin CAE; no hay `invoice.delete*` ni SQL crudo que
+  escriba `Invoice` en `src/`, `scripts/` ni `prisma/*.ts` (`.qa/ENG-022/caminos-del-codigo.txt`).
+  Test adaptado: `anular-venta-facturada-postgres.test.ts` pasaba una autorizada a rechazada como
+  atajo de preparación; ahora usa un turno aparte con una rechazada (sin desligar nada).
+  - **Vuelta 2 (refutación: desligar a mano = doble facturación).** En la vuelta 1 `app_rls` podía
+    `UPDATE "Invoice" SET "orderId" = NULL` sobre una autorizada (rowCount 1) y `createInvoice` del
+    mismo pedido emitía un segundo CAE. Cerrado en la raíz (el trigger). Test nuevo (6 en total):
+    como `app_rls` y como dueño, vaciar pedido o turno falla; también anidado en un trigger propio
+    con tablas temporales "Order"/"Appointment" que tapan las reales; `createInvoice` devuelve la
+    autorizada (1 factura por venta); borrar pedido y turno como `app_rls` sigue dejándola sin
+    enlace. Rojo antes: el test nuevo falla ("Missing expected rejection: app_rls vacía el
+    pedido"). Mutaciones: M5 (enlace libre a NULL), M6 (sólo profundidad), M7 (existencia por
+    search_path) en rojo; M8 (sólo existencia, sin profundidad) en verde: la profundidad es una
+    segunda traba que ningún test separa, porque con RLS el pedido y la factura son del mismo
+    negocio (`.qa/ENG-022/vuelta2/`).
+  - Queda afuera (ENG-331): TRUNCATE no dispara triggers de fila (`app_rls` no tiene TRUNCATE; el
+    dueño sí); un `BEFORE TRUNCATE` por sentencia lo cerraría. Un reset de datos transaccionales
+    ya no puede borrar facturas con CAE: es lo buscado, pero el guion del reset tiene que saberlo.
 
-### ENG-023 · Anular una venta facturada no deja la factura viva · S (+ criterios para R4-F2)
+### ENG-023 · Anular una venta facturada no deja la factura viva · S (+ criterios para R4-F2) · **CERRADO 2026-09-25 (criterio 1; el 2 viaja con R4-F2)**
 - **Qué.** Mientras no exista la nota de crédito, anular una venta con factura autorizada se
   rechaza con un motivo claro. Cuando R4-F2 (nota de crédito asociada, **ya planificada**) cierre,
   anular encola la nota de crédito en la misma transacción.
@@ -441,6 +613,9 @@ se lo referencia y sólo se agregan los criterios del estándar que le faltan.
 - **Criterios de aceptación.**
   1. Test de dominio y de integración: con factura autorizada, la anulación se rechaza y el pedido no queda anulado; lo mismo en `turnos/anulacion.ts`.
   2. (A R4-F2) Anular encola la nota de crédito de la letra que corresponde en la misma transacción, y el neto del período en el libro IVA para esa venta da 0.
+- **Estado (2026-09-25, criterio 1 cumplido en el árbol, sin commit).** `src/lib/factura-viva.ts` decide; `order-anulacion.ts` (`planAnulacionVenta`, `anularVentaInTx`, relee la factura después del compare-and-set) y `turnos/anulacion.ts` (`planAnulacion`, `anularCobroTurnoInTx`) rechazan con factura AUTHORIZED ("facturada") o PENDING ("factura-en-camino"); REJECTED no frena. Evidencia: `.qa/COMPROBANTE/eng023-*.txt` (Server Actions reales contra Postgres; con la regla apagada, 2 de 2 en rojo).
+  - **Del lado de la factura, pedido: hecho (2026-09-25, sin commit).** `createInvoiceInTx` (`invoice-core.ts`, `tomarPedidoNoAnulado`) toma la fila del pedido `FOR SHARE` antes de crear o reabrir la factura y lanza `VentaAnuladaError` si está CANCELLED; `facturarVenta` (`order-actions.ts`) lo traduce a "La venta está anulada: no se factura.". `src/lib/facturar-venta-anulada-postgres.test.ts` (3 tests, Postgres con RLS, Server Actions reales): pedido anulado sin factura ni envío; rechazada no se reabre; anulación primero → «Facturar» espera y no factura; facturación primero → «Anular venta» espera y no anula. Mutaciones: sin la guarda, 3 de 3 en rojo; sin `FOR SHARE`, 2 de 3 (`.qa/COMPROBANTE/eng023-guarda-*.txt`).
+  - **Del lado de la factura, turno: hecho (2026-09-25, sin commit).** La facturación del turno (`createInvoiceInTx`, origen APPOINTMENT, `tomarTurnoConElMismoCobro` en `invoice-core.ts`) ESCRIBE la fila del turno (UPDATE sin cambio de valores) y, ya con la fila tomada, relee `Payment.amount` en otra sentencia: si es 0 o distinto del total del comprobante, lanza `CobroDelTurnoCambioError` y no factura. La anulación (`anularCobroTurnoInTx`, Serializable) toma la fila del turno `FOR UPDATE` antes de leer las facturas: si la facturación confirmó después de su foto, Postgres la aborta (40001) y `tenantTransaction` la reintenta, y ahí ve la factura. `src/lib/facturar-turno-con-cobro-anulado-postgres.test.ts` (3 tests, Postgres con RLS, código real): anulación primero → la facturación espera y no factura; anulación parcial durante la facturación → no sale por el monto viejo y al volver a facturar sale por lo cobrado; facturación primero → «Anular cobro» espera, ve la factura en camino y no anula. Rojo antes 3 de 3; mutaciones: FOR SHARE en vez de escribir → 1 de 3 en rojo; sin relectura del cobro → 2 de 3; anulación sin FOR UPDATE → 3 de 3 (`.qa/COMPROBANTE/eng023-turno-*.txt`).
 
 ### ENG-024 · Receptor y umbral de identificación en todos los caminos de emisión → **planificado en R0-F4 + R1-F5 + R2-F2** · S (lo que agrega)
 - **Por qué.** `src/lib/invoice-from-order.ts:79` fija "consumidor final sin identificar" para
@@ -456,6 +631,13 @@ se lo referencia y sólo se agregan los criterios del estándar que le faltan.
   1. Las reglas viven en el plugin fiscal, no en una pantalla: un test por cada uno de los 6 caminos (pedido, turno, Mercado Pago, facturita, bancos, API externa) → consumidor final sin identificar por encima del umbral no emite y devuelve el motivo; emisor inscripto sin alícuota por producto no emite.
   2. Una fecha de comprobante fuera de la ventana permitida se rechaza antes de llamar a ARCA.
   3. El umbral sale de un solo lugar (la tabla de vigencias de R0-F4).
+- **Estado (2026-09-25, en el árbol, sin commit).**
+  - Criterio 1, umbral: la decisión corre en el despacho (`plugins/arca/handler.ts`, `decidirDelEvento`) para los 6 caminos. `src/lib/umbral-en-los-seis-caminos-postgres.test.ts` ejecuta cada camino real contra Postgres con RLS (pedido, turno, MP, facturita y bancos por su Server Action, API externa): desde $10.000.000 la factura queda RECHAZADA con el motivo y sin CAE; un peso menos, emite.
+  - Criterio 1, inscripto: la regla pasó al plugin (`plugins/arca/domain/iva-por-producto.ts`, aplicada en `handler.ts` antes de decidir). El Core marca `ivaPorProducto` en `createInvoice` (`invoice-core.ts`) y el despacho lo pasa (`arca-dispatch.ts`, `aEventoPlugin`). Ningún camino lo marca hoy (`calcularImpuestos` aplica 21 % parejo), así que un inscripto no emite por ninguno. Test por camino donde el perfil se puede inyectar (pedido, turno, MP). En facturita, bancos y API externa el perfil real no puede dar inscripto: la columna de la condición no existe (`fiscal.ts:236-246`). Cuando exista, esos 3 tests se extienden.
+  - Mutaciones: con la regla del IVA apagada caen 4 tests; con la decisión ciega al importe caen los 6 del umbral (`.qa/COMPROBANTE/eng024-mutacion-*.txt`).
+  - Criterio 2: cubierto en la porción 1 (`handler-decision.test.ts`, fecha fuera de la ventana sin llamar a ARCA).
+  - Criterio 3: el umbral legal sale sólo de `lib/fiscal/vigencias.ts`. Los $600.000 de `plugins/bancos/domain/reglas.ts:31` (que usa también `mercadopago-auto.ts:282`) son la regla propia del negocio, no el umbral legal. `decidirDelEvento` todavía no le pasa esa regla a la decisión (`umbralIdentificacionDelNegocio`).
+  - `emitirFacturitaAction` ya no responde `ok:true` con la factura rechazada: relee la factura después del despacho y, si quedó REJECTED, devuelve `ok:false` con "ARCA no autorizó la factura: <motivo>" (test del camino facturita en `umbral-en-los-seis-caminos-postgres.test.ts`, con el control de un peso menos).
 
 ### ENG-025 · La factura de un pago de Mercado Pago sale por lo cobrado · M
 - **Qué.** El monto facturado es el del pago, no el precio del turno; una devolución deja la nota
@@ -471,7 +653,13 @@ se lo referencia y sólo se agregan los criterios del estándar que le faltan.
   pago facturado → nota de crédito encolada (con R4-F2) o caso en revisión, y la conciliación se
   revierte.
 
-### ENG-027 · Si falta la conexión del operador, el procesador de ARCA lo dice en vez de no hacer nada · S
+### ENG-027 · Si falta la conexión del operador, el procesador de ARCA lo dice en vez de no hacer nada · S · **CERRADO 2026-09-25**
+- **Estado (2026-09-25): construido, criterios 1, 2 y 3 cumplidos.** `verificarAccesoDelOperador`
+  (`src/lib/arca-reserva.ts`) mira, antes de leer, si el rol del operador es superusuario, tiene
+  BYPASSRLS o es dueño de `OutboxEvent` sin FORCE RLS; si no, `ProcesadorArcaSinAccesoError`. El cron
+  responde 500 `{error: "procesador de ARCA sin acceso"}`; `/api/ready` responde 503 con ese motivo
+  **cuando la facturación está encendida** (`ARCA_INVOICING_ENABLED=true`; apagada, el cron no corre y
+  el panel no usa esa conexión). Test: `src/lib/arca-procesador-sin-operador-postgres.test.ts`.
 - **Qué.** El procesador de envíos a ARCA y el cron verifican, antes de leer, que el cliente del
   operador puede ver los pendientes de todos los negocios (rol dueño o con BYPASSRLS). Si no, fallan
   con un error de configuración que queda en el log y en `/api/ready`, en vez de devolver "0
@@ -537,7 +725,36 @@ Formato corto: qué · evidencia · criterio · tamaño. Van después de las ALT
 - **ENG-106 · Tests de concurrencia contra la base, dentro de la suite · M.** Hoy 0 tests con escrituras simultáneas contra Postgres. Las guardas funcionan cuando se las mide: último ítem 1 de 10, cupón de un uso 1 de 10, reserva del mismo horario 1 de 50 (`$AUD/concurrencia-ventas.out`, `$AUD/stock-compras/aud-stock.out`, `medir-caa/doble-reserva.ts`), pero una regresión no la detecta nada. *Criterio:* esos casos más el correlativo de compras y dos recuentos del mismo producto, en `npm test`; cada test falla si se saca su guarda (p. ej. el filtro de stock de `stock/ledger.ts:152`); la reserva rechazada muestra "ese horario ya no está disponible", no el error interno.
 - **ENG-107 · La fecha fiscal de Mercado Pago es el día del negocio · S.** `plugins/mercadopago/http.ts:206-211` toma el día del texto que manda Mercado Pago; `mercadopago-auto.ts:52-55` usa el reloj del servidor (UTC). *Criterio:* test: un pago del 31/07 a las 23:30 de Argentina cae el 31/07.
 - **ENG-108 · Convención de fechas y fecha contable de los cobros · M.** 101 fechas sin zona horaria y 0 `timestamptz`; los cobros (Collection) sólo tienen fecha de carga (`schema.prisma:1584`); el cheque acreditado usa "ahora" (`payable-service.ts:210`); tres cálculos de "últimos N días" distintos en Reportes (`actions.ts:1430`, `:1473-1474`, `:1530`). *Criterio:* ADR con la convención; fecha contable propia en Collection; test con reloj en 23:30 de Argentina: los tres reportes dan el mismo período.
-- **ENG-109 · Una sola regla de redondeo y de lectura de importes, correcta · M.** `round2` (`round.ts:18-20`) redondea hacia abajo 587.189 de 10.000.000 casos x,xx5 en [0; 100.000) (5,87 %; `npx tsx $AUD/aud-round.ts`) y 4.697.605 de 100.000.000 en [0; 1.000.000), el rango de este criterio (4,70 %; desde `$AUD/base-gen`, `HASTA_CENTAVOS=100000000 npx tsx $AUD/correccion/aud-round-rango.ts`); 11 copias locales de redondeo (`$AUD/stock-compras/redondeo-copias.txt`); el descuento de un cupón se calcula en 3 lugares con 2 redondeos distintos (`actions.ts:342`, `coupon-actions.ts:144`, `venta-reglas.ts:455`); el formulario de compras muestra $1,51 y se graba $1,50; las vidrieras suman sin redondear por línea; los cobros de turno leen "12.500" como 12,5 (`actions.ts:738`, `:1058`). *Criterio:* test que barre todos los x,xx5 de [0, 1e6) sin ninguno hacia abajo; `grep` de redondeos locales = 0; mismo cupón y precio dan el mismo descuento en los 3 caminos. Relación: C1-F2 (catálogo) usa `round2`: corregirlo antes.
+- **ENG-109 · Una sola regla de redondeo y de lectura de importes, correcta · M · EN CURSO 2026-09-25: regla única, camino fiscal, lectura de importes y cupón en un solo cálculo (`montoDeCupon`) hechos: hasta que el dueño decida UNA unidad, cada camino conserva la suya (turnos al peso, venta y tienda al centavo, `UNIDAD_DEL_DESCUENTO_DE_CUPON`); 100 % o más deja la compra en cero; un cupón que vale pero no llega a descontar nada se rechaza con el motivo y no se gasta (antes la reserva lo aplicaba en $0 y gastaba el uso); el plugin ARCA rechaza importes con más de 2 decimales y exige neto y total exactos al centavo, así la decisión del comprobante y el envío cuentan el mismo número sin tocar el núcleo `fiscal/decidir-comprobante.ts`; redondeos a mano: 53 líneas en 41 archivos con el patrón ampliado (incluye `toFixed(2)` suelto y `Number.EPSILON`), el resto espera el corte del rediseño o DEC-011 para plugins; falta lo de `.qa/ENG-109/traspaso-3.md`. Cambio visible en CH (medido contra HEAD, `.qa/ENG-109/v3-cupon-head-vs-ahora.txt`): en turnos el medio peso de un cupón de % ahora sube (29 % de $750 da $218, antes $217): 13.704 de 30 millones de combinaciones enteras, siempre por $1; en la venta y la tienda, con precios enteros no cambia nada (0 de 700.000) y con centavos sólo el medio centavo que bajaba (364.530 de 198 millones, siempre $0,01 hacia arriba); un cupón que no llega a descontar nada ahora avisa en vez de pasar en $0.** `round2` (`round.ts:18-20`) redondea hacia abajo 587.189 de 10.000.000 casos x,xx5 en [0; 100.000) (5,87 %; `npx tsx $AUD/aud-round.ts`) y 4.697.605 de 100.000.000 en [0; 1.000.000), el rango de este criterio (4,70 %; desde `$AUD/base-gen`, `HASTA_CENTAVOS=100000000 npx tsx $AUD/correccion/aud-round-rango.ts`); 11 copias locales de redondeo (`$AUD/stock-compras/redondeo-copias.txt`); el descuento de un cupón se calcula en 3 lugares con 2 redondeos distintos (`actions.ts:342`, `coupon-actions.ts:144`, `venta-reglas.ts:455`); el formulario de compras muestra $1,51 y se graba $1,50; las vidrieras suman sin redondear por línea; los cobros de turno leen "12.500" como 12,5 (`actions.ts:738`, `:1058`). *Criterio:* test que barre todos los x,xx5 de [0, 1e6) sin ninguno hacia abajo; `grep` de redondeos locales = 0; mismo cupón y precio dan el mismo descuento en los 3 caminos. Relación: C1-F2 (catálogo) usa `round2`: corregirlo antes.
+- **ENG-311 · La nota de crédito viaja con su comprobante asociado · M · fiscal.** `soap.ts` (armado de FECAESolicitar) no arma `CbtesAsoc` y `construirComprobante` (`plugins/arca/domain/comprobante.ts:64`) sólo resuelve tipos de factura: la nota de crédito que decide el Core (`fiscal/decidir-comprobante.ts`, bloque de NC) no tiene cómo informar a qué factura anula. *Criterio:* test de contrato de FECAESolicitar con `CbtesAsoc` (tipo, punto de venta, número, CUIT, fecha) para NC A, B y C; el simulador rechaza una NC sin asociado. Origen: revisión fiscal de ENG-109, vuelta 1 (a confirmar contra el manual WSFEv1 vigente).
+- **ENG-312 · IVA 10,5 % para carne fresca (magra) · M · fiscal.** `calcularImpuestos` (`src/lib/fiscal.ts`, bloque RESPONSABLE_INSCRIPTO) calcula todo al 21 %. La carne bovina, porcina y ovina fresca, refrigerada o congelada va al 10,5 % (Ley de IVA, art. 28; inciso exacto *provisional a confirmar*). Si magra es Responsable Inscripto emitiría A/B con el IVA mal discriminado. *Criterio:* alícuota por producto o rubro; test con una venta mixta 21 % + 10,5 % cuyo ImpIVA y AlicIva cierran al centavo contra `validarComprobante`. Escala al dueño: confirmar la condición de magra frente al IVA.
+- **ENG-313 · Un comprobante roto no tira abajo el libro IVA del mes · S.** `pesosCsv` (`src/lib/libros/csv-ar.ts`) y `money` del libro de caja (`src/lib/caja/libro-csv.ts`) rechazan un importe que no es número (antes escribían "NaN"): una sola fila rota corta todo el export con un error 500. *Criterio:* el export sale igual y avisa "faltan datos en el comprobante X", con test.
+- **ENG-314 · Montos en pantalla con la regla única · S · rediseño.** `src/components/ui/display-core.ts:45` (lo usan Plata y Ticket) redondea con `Number.EPSILON`: en 587.185 de 10.000.000 de x,xx5 hasta $100.000 muestra un centavo menos que la regla (4,185 sale $4,18). Es del rediseño y no tiene commit. *Criterio:* `formato === "plata"` usa `centavosDe`/`textoAlCentavo` de `@/lib/dinero/redondeo` y el archivo sale de `PENDIENTES` en `src/lib/dinero/redondeos-locales.test.ts`.
+- **ENG-315 · Percepciones, exentos y no gravados en la factura electrónica · M · fiscal.** `plugins/arca/afip/soap.ts` (armado de FECAESolicitar) manda siempre en cero `ImpTotConc`, `ImpOpEx` e `ImpTrib`, y `plugins/arca/domain/validacion.ts` exige total = neto + IVA: un negocio designado agente de percepción de IIBB o IVA, o que venda exento o no gravado, no puede emitir bien. Preexistente, no lo introduce ENG-109. *Criterio:* tests de contrato con `Tributos` y con `ImpOpEx`/`ImpTotConc`; la validación exige total = neto + IVA + tributos + exento + no gravado al centavo; el simulador rechaza la diferencia. Origen: revisión fiscal de ENG-109, vuelta 2.
+- **ENG-316 · La letra del comprobante coincide con la condición frente al IVA del receptor · S · fiscal · CERRADO 2026-09-25.** `soap.ts` (CondicionIVAReceptorId) manda Consumidor Final si falta la condición, y `validacion.ts` no controla que la letra (A, B, C) coincida con esa condición: hoy la rechaza ARCA (RG 5616) en vez de frenarse antes. *Criterio:* test de validación que rechaza Factura A a Consumidor Final y a receptor sin condición, con un mensaje en castellano. Origen: revisión fiscal de ENG-109, vuelta 2. **Estado (COMPROBANTE, porción 1): construido** — `validacion.ts` rechaza la condición que la letra no admite (tabla `RECEPTORES_ADMITIDOS` de la decisión) y la falta de condición; `soap.ts` ya no manda 5 por defecto. Tests en `plugins/arca/domain/tipo-segun-la-rg.test.ts`.
+- **ENG-317 · Grabar las respuestas reales de ARCA y reemplazar las del simulador · S · fiscal.** Las respuestas de `plugins/arca/afip/simulador.ts` y la tabla de `domain/errores-arca.ts` salen del manual de WSFEv1 (*provisional a confirmar*). En la prueba de homologación que corre el dueño desde Vercel, guardar (sin token ni sign) las respuestas de `FECAESolicitar` aprobada y rechazada, `FECompConsultar` con resultado y con 602, `FECompUltimoAutorizado` y un `<Errors>` 600. *Criterio:* los tests de contrato corren contra esas respuestas grabadas. Origen: ENG-021/020.
+- **ENG-318 · «Volver a facturar» en una venta con factura rechazada · S · pantalla (rediseño).** El servidor ya lo permite (`facturarVenta`, test `src/lib/facturar-venta-rechazada-postgres.test.ts`), pero `ventas/FacturarVenta.tsx:43` sólo ofrece el botón con `estado === "sin-factura"`. *Criterio:* con estado «rechazada» se ofrece «Volver a facturar» y el motivo del rechazo queda a la vista. Origen: ENG-021.
+- **ENG-319 · Un token rechazado (600) no se vuelve a usar · S · fiscal.** Con un 600 la factura queda pendiente (ENG-021), pero el TA guardado del negocio (`arca-ta-store`) se sigue cargando hasta que vence (hasta 12 h), así que cada reintento vuelve a dar 600. Y si se pierde la respuesta de WSAA, el próximo login da `coe.alreadyAuthenticated` hasta que vence el TA que ARCA sí emitió. *Criterio:* test de contrato: tras un 600, el siguiente despacho re-autentica y autoriza. Origen: ENG-021.
+- **ENG-320 · El 10016 por fecha no se reintenta sin fin · S · fiscal.** El 10016 también sale cuando la fecha del comprobante quedó fuera de la ventana de ARCA (5 días productos, 10 servicios). Como pasajero, una factura vieja reintenta sin salida hasta que ENG-019 ponga tope. *Criterio:* si el número enviado era el próximo y aun así da 10016, se trata como rechazo con el motivo «fecha fuera de término»; test con el simulador. Origen: ENG-021.
+- **ENG-321 · Ampliar la comparación del comprobante adoptado cuando haya tributos, otra moneda o notas de crédito · S · fiscal.** `plugins/arca/handler.ts` (`esElMismoComprobante`) no compara MonId/MonCotiz, ImpTrib, ImpOpEx, ImpTotConc, el detalle de alícuotas ni CbtesAsoc; y `afip/soap.ts` (`parsearFECompConsultarResponse`) toma el primer `<PtoVta>` del ResultGet, que en una nota de crédito con CbtesAsoc puede ser el del asociado. Hoy no aplica (sólo facturas, PES, importes extra en 0). *Criterio:* en el mismo slice que habilite ENG-315, multimoneda o notas de crédito por esta vía, un test por campo nuevo y un test de consulta de nota de crédito con asociado de otro punto de venta. Origen: revisión de ENG-020, vuelta 2.
+- **ENG-322 · El cron de ARCA termina dentro del tiempo de la función · S.** `src/app/api/cron/arca-outbox/route.ts` no declara `maxDuration` y un lote de 20 con hasta 4 llamadas de 15 s por envío supera cualquier límite de Vercel. Desde la vuelta 3 de ENG-021 un corte ya no deja la factura rechazada con el envío abierto, pero corta el resto del lote. *Criterio:* `maxDuration` declarado y el despacho deja de tomar envíos cuando el tiempo restante no alcanza para uno más; test con reloj simulado. Origen: revisión de ENG-021, vuelta 2.
+- **ENG-323 · El 601 (el certificado no representa a este CUIT) avisa a una persona · S · fiscal.** `plugins/arca/domain/errores-arca.ts` lo trata como pasajero: se reintenta sin fin, no emite nada, y la venta queda sin factura y sin aviso. *Criterio:* el envío queda pendiente con el motivo «revisar la delegación del certificado en ARCA», visible en el tablero; test con el simulador. Depende del tope y la alerta de ENG-019. Origen: revisión de ENG-020, vuelta 2.
+- **ENG-326 · Guardar la clase A que ARCA le asignó al inscripto y la condición de IVA del negocio · S · fiscal · necesita migración (estacionada).** Desde COMPROBANTE el tipo sale de `decidirComprobante` (`plugins/arca/domain/comprobante.ts`, `decidirDelEvento`): un Responsable Inscripto sin `regimenFacturaA` no emite ninguna A sola (va rechazada con el motivo REGIMEN_A_A_CONFIRMAR). `Tenant` no tiene `arcaCondicionIva` ni el régimen (`lib/fiscal.ts:241-245` sólo lee CUIT, punto de venta y homologación), así que hoy todo negocio emite como Monotributo (C). *Criterio:* columnas aditivas con reversa probada; `fiscal.ts` las lee; `invoice-core` las pone en el evento (`EmisorEvento.regimenFacturaA`); test que emite A con régimen "A" y rechaza con "M". Origen: COMPROBANTE, porción 1.
+- **ENG-327 · El impreso lleva las leyendas de la decisión (RG 5003/2021, Ley 27.743) · S · fiscal.** `ComprobanteArca.leyendas` las trae (A a monotributista: la de la Ley 27.618), pero el impreso y el PDF no las muestran. *Criterio:* test del impreso de una A a monotributista con el texto exacto. Origen: COMPROBANTE, porción 1.
+- **ENG-328 · Una factura de Mercado Pago de un pedido no frena la anulación del pedido · S · fiscal · sin medir.** `invoice-from-mp.ts` factura con origen `mpPaymentId`; `tomarPedidoNoAnulado` (`invoice-core.ts`) y `leerFactura` (`order-anulacion.ts:388-391`) sólo miran `orderId`. `grep -n "orderId\|external_reference" src/lib/invoice-from-mp.ts src/lib/mercadopago-auto.ts` = 0: la facturación automática de MP no sabe si el pago es de un pedido. *Criterio:* medir si un pago de checkout de un pedido entra a la conciliación automática; si entra, excluirlo o enlazarlo al pedido, con test en Postgres que anule el pedido con la factura de MP viva y se rechace. Origen: revisión de COMPROBANTE, vuelta 1.
+- **ENG-329 · El tope mensual de facturas cuenta las rechazadas · S · planes (decisión del dueño).** `contarFacturasDelMes` (`bancos-glue.ts:518-523`) cuenta todas las facturas del mes, también las REJECTED, que no tienen CAE. Desde COMPROBANTE el despacho rechaza por umbral, ventana de fechas e IVA por producto, y cada rechazo le gasta un cupo al usuario (una de Facturita no tiene origen y no se puede volver a facturar). *Criterio:* con la decisión del dueño, `status: { not: "REJECTED" }` y test que emite una rechazada y el cupo no baja. Origen: revisión de COMPROBANTE, vuelta 1.
+- **ENG-330 · Los códigos 600 y 601 de ARCA (credencial) se reintentan como pasajeros · S · fiscal.** `plugins/arca/domain/errores-arca.ts:20-21` los pone en `CODIGOS_PASAJEROS_ARCA`: un token vencido o de otro CUIT se reintenta sin mostrarse como error de configuración. *Criterio:* 600 renueva el token y reintenta una vez; 601 deja el envío en espera con "revisá la credencial de ARCA" visible al dueño, sin rechazar la factura; test de contrato con la respuesta armada desde la especificación (provisional a confirmar). Origen: revisión de COMPROBANTE, vuelta 1.
+- **ENG-331 · TRUNCATE de `Invoice` saltea la protección de ENG-022 · S · fiscal.** El trigger de `20260925150000_comprobante_autorizado_inmutable` es por fila y TRUNCATE no lo dispara. `app_rls` no tiene TRUNCATE (`prisma/rls/0002_app_role.sql:58`), el dueño de las tablas sí (y también puede `DISABLE TRIGGER`). *Criterio:* migración aditiva con un trigger `BEFORE TRUNCATE ... FOR EACH STATEMENT` que falla si hay alguna fila con CAE; test contra Postgres que el TRUNCATE con una autorizada falla y sin autorizadas pasa; reversa probada. Además, el guion de reset de datos transaccionales (si se escribe) excluye las facturas con CAE, salvo las de homologación (según la revisión fiscal de la vuelta 1, con la facturación apagada en producción los CAE de hoy son de prueba; confirmar contra `isInvoicingEnabled` antes de escribir el guion): ese paso se escribe con `DISABLE TRIGGER` explícito, acta y quién lo autoriza (el dueño). En el mismo documento, el procedimiento para corregir el registro LOCAL de una autorizada que no coincide con ARCA (p. ej. una adopción de ENG-020 mal grabada): nunca se toca ARCA, se corrige con `DISABLE TRIGGER` dentro de una transacción, con auditoría. Origen: ENG-022 (revisión fiscal, vuelta 1).
+- **ENG-332 · Una factura enviada a ARCA sin respuesta todavía se puede borrar · S · fiscal.** El trigger de ENG-022 protege sólo filas con CAE o AUTHORIZED. Si ARCA autorizó y la respuesta se perdió, la fila queda PENDING sin CAE y se puede borrar a nivel base; la venta se volvería a facturar y quedaría un comprobante vivo en ARCA sin registro local. Hoy ningún camino del código borra facturas (`.qa/ENG-022/caminos-del-codigo.txt`), por eso no es regresión. *Criterio:* el DELETE de toda factura que tenga un envío a ARCA (evento del outbox procesado o con intentos) falla en la base; test contra Postgres como `app_rls`; reversa probada. Origen: ENG-022 (revisión fiscal, vuelta 1).
+- **ENG-334 · Cantidades en Float: la deriva no está medida · S · sin medir.** 4 campos de cantidad o peso
+  siguen en Float en `prisma/schema.prisma` (`grep -nE "quantity|cantidad" prisma/schema.prisma | grep Float`)
+  y D1 no los migra. *Criterio:* medir la deriva de sumar kilos y unidades en float contra numeric con
+  datos del seed realista; si pasa de la precisión que se muestra, slice de migración. Origen: revisión D1.
+- **ENG-335 · Un extracto bancario en dólares se concilia como pesos sin aviso · S · fiscal.**
+  `ImportacionBancaria` (`prisma/schema.prisma:1078-1093`) no registra la moneda del extracto. *Criterio:*
+  test que importa un extracto con moneda distinta de ARS y lo rechaza o lo marca antes de conciliar
+  (sin migración: rechazo; con migración estacionada: columna `moneda`). Origen: revisión D1.
+- **ENG-333 · Borrar el pedido o turno de una venta con CAE deja la factura huérfana · S · fiscal (decisión de producto).** La FK es ON DELETE SET NULL (ADR-060) y ENG-022 lo respeta: la factura queda entera pero sin su venta, y la cuenta corriente pierde la relación. Contablemente una venta con CAE se anula con nota de crédito, no se borra. *Criterio:* decidir si el DELETE del origen de una factura con CAE se rechaza en la base; si sí, migración aditiva + test como `app_rls` + reversa, y revisar que ningún flujo de CH borre pedidos o turnos facturados. Origen: ENG-022 (revisión fiscal, vuelta 1).
 - **ENG-110 · Operaciones de varias tablas en una transacción · M.** Producto y costo en dos transacciones y el error del costo se silencia (`catalog-actions.ts:344-362`, `product-extras.ts:84-88`); dar de baja a dos dueños a la vez deja 0 dueños (`user-actions.ts:101-108`); la reserva pública crea la ficha fuera de la transacción (`actions.ts:441-449`); `deleteBox` en dos escrituras (`catalog-actions.ts:95-96`); entregar cobra y marca en dos pasos (`order-actions.ts:858-866`); el recordatorio se envía dentro de una transacción de base sin clave de idempotencia (`cron/reminder-sweep.ts:67-97`). *Criterio:* un test de integración por caso con la falla inyectada en la segunda escritura → no cambia nada.
 - **ENG-111 · Auditoría en la misma transacción y en toda escritura de negocio · L.** 101 llamadas a auditoría fuera de la transacción y 23 adentro; 28 de 45 modelos auditados; sin auditoría: 16 de 24 acciones de configuración de agenda, 17 de 47 escrituras de stock, 0 en toda la emisión fiscal (10 archivos). *Criterio:* test que recorre las escrituras de negocio y verifica una fila con actor, entidad y antes/después; las que mueven plata la escriben con el mismo `tx`.
 - **ENG-113 · Una sola puerta al libro de caja · M · Gate 2.** 11 archivos escriben CashMovement, 5 de otros contextos (compras, devoluciones, anulaciones, comisiones); 12 prefijos usan `createdBy` como tipo de asiento; el egreso de una compra no tiene clave única (`purchase-core.ts:490-501`). *Criterio:* `grep cashMovement.create` fuera de `src/lib/caja` = 0; clave única del egreso (test: dos llamadas con la misma compra dejan 1).

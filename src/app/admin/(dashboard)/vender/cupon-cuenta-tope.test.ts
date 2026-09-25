@@ -321,6 +321,8 @@ function txACuenta(m: MundoACuenta) {
   return {
     // Venta sin cupón: la anulación busca la fila del cupón del pedido y no hay.
     auditLog: { findFirst: async () => null },
+    // Venta sin facturar (ENG-023): la anulación busca sus facturas y no hay.
+    invoice: { findMany: async () => [] },
     order: {
       findFirst: async () => structuredClone(m.order),
       updateMany: async (a: { where: { status?: { not?: string } }; data: { status: string } }) => {

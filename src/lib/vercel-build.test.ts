@@ -15,6 +15,8 @@ import { readFileSync, writeFileSync, mkdtempSync, chmodSync, existsSync, readdi
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import pg from "pg";
+import { baseEfimeraDelArchivo, type BaseEfimera } from "@/test/base-efimera";
 
 const SCRIPT = "scripts/vercel-build.mjs";
 const fuente = readFileSync(new URL(`../../${SCRIPT}`, import.meta.url), "utf8");
@@ -210,9 +212,30 @@ test("el chequeo nunca manda statement_timeout al pooler", () => {
   assert.match(cliente, /connectionTimeoutMillis/);
 });
 
-// ── Con base de verdad (opcional) ────────────────────────────────────────────
-// PREDEPLOY_TEST_DATABASE_URL = una base local con TODAS las migraciones del repo aplicadas.
-const BASE = process.env.PREDEPLOY_TEST_DATABASE_URL;
+// ── Con base de verdad ───────────────────────────────────────────────────────
+// Dos bases efímeras (src/test/base-efimera.ts), cada una con TODAS las migraciones del repo:
+// una de QA (sólo los negocios de prueba A y B) y una "de producción", que además tiene el negocio
+// vivo. Se crean con el primer test que las pide y se borran al terminar el archivo. Sin Postgres
+// local, esos tests se saltean diciéndolo; en CI, fallan.
+const laBaseDeQa = baseEfimeraDelArchivo();
+const laBaseDeProduccion = baseEfimeraDelArchivo();
+let negocioVivoSembrado: Promise<void> | null = null;
+
+async function baseConElNegocioVivo(t: Parameters<typeof laBaseDeProduccion>[0]): Promise<BaseEfimera | null> {
+  const base = await laBaseDeProduccion(t);
+  if (!base) return null;
+  negocioVivoSembrado ??= (async () => {
+    const c = new pg.Client({ connectionString: base.urlDuenio });
+    await c.connect();
+    try {
+      await c.query(`INSERT INTO "Tenant" (id, name, slug, "updatedAt") VALUES ('tnt_vivo', 'CH Estética (copia de prueba)', 'beauty-spa', now())`);
+    } finally {
+      await c.end();
+    }
+  })();
+  await negocioVivoSembrado;
+  return base;
+}
 
 function check(env: Record<string, string>) {
   return spawnSync(TSX_REAL, ["scripts/predeploy-check.mts"], {
@@ -222,20 +245,24 @@ function check(env: Record<string, string>) {
   });
 }
 
-test("lote: una migración de más en la rama frena", { skip: !BASE && "sin PREDEPLOY_TEST_DATABASE_URL" }, () => {
+test("lote: una migración de más en la rama frena", async (t) => {
+  const base = await laBaseDeQa(t);
+  if (!base) return;
   const dir = mkdtempSync(join(tmpdir(), "migs-"));
   const orig = resolve("prisma/migrations");
   const nombres = readdirSync(orig).filter((n) => /^\d/.test(n));
   for (const n of [...nombres, "20991231000000_sexta"]) mkdirSync(join(dir, n));
   const lote = join(dir, "lote.txt");
   writeFileSync(lote, "");
-  const r = check({ PREDEPLOY_DATABASE_URL: BASE!, PREDEPLOY_LOTE: lote, PREDEPLOY_MIGRATIONS_DIR: dir });
+  const r = check({ PREDEPLOY_DATABASE_URL: base.urlDuenio, PREDEPLOY_LOTE: lote, PREDEPLOY_MIGRATIONS_DIR: dir });
   assert.equal(r.status, 1, r.stdout + r.stderr);
   assert.match(r.stderr, /20991231000000_sexta/);
 });
 
-test("lote: base al día → nada pendiente → sigue", { skip: !BASE && "sin PREDEPLOY_TEST_DATABASE_URL" }, () => {
-  const r = check({ PREDEPLOY_DATABASE_URL: BASE!, PREDEPLOY_LOTE: "prisma/lote-deploy.txt" });
+test("lote: base al día → nada pendiente → sigue", async (t) => {
+  const base = await laBaseDeQa(t);
+  if (!base) return;
+  const r = check({ PREDEPLOY_DATABASE_URL: base.urlDuenio, PREDEPLOY_LOTE: "prisma/lote-deploy.txt" });
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 
@@ -266,24 +293,28 @@ test("vercel.json usa este script como build", () => {
   assert.equal(v.buildCommand, "node scripts/vercel-build.mjs");
 });
 
-// ── Preview contra la base de producción (con Postgres local, opcional) ─────────────────────
-// PREVIEW_TEST_PROD_URL = una base con el negocio vivo (beauty-spa); PREVIEW_TEST_QA_URL = una sin.
-const PROD_LOCAL = process.env.PREVIEW_TEST_PROD_URL;
-const QA_LOCAL = process.env.PREVIEW_TEST_QA_URL;
+// ── Preview contra la base de producción ─────────────────────────────────────────────────────
+// La app se conecta como `app_rls` (DATABASE_URL) y la consola como dueño (OPERATOR_DATABASE_URL).
 
-test("preview contra una base con el negocio vivo → bloqueado", { skip: !PROD_LOCAL && "sin PREVIEW_TEST_PROD_URL" }, () => {
-  const r = corre({ VERCEL_ENV: "preview", DATABASE_URL: PROD_LOCAL!, OPERATOR_DATABASE_URL: PROD_LOCAL! });
+test("preview contra una base con el negocio vivo → bloqueado", async (t) => {
+  const prod = await baseConElNegocioVivo(t);
+  if (!prod) return;
+  const r = corre({ VERCEL_ENV: "preview", DATABASE_URL: prod.urlApp, OPERATOR_DATABASE_URL: prod.urlDuenio });
   assert.deepEqual(r.llamadas, ["prisma generate", "next build [bloqueado]"]);
   assert.match(r.salida, /negocio vivo/);
 });
 
-test("preview contra una base de QA sin negocios reales → atiende", { skip: !QA_LOCAL && "sin PREVIEW_TEST_QA_URL" }, () => {
-  const r = corre({ VERCEL_ENV: "preview", DATABASE_URL: QA_LOCAL!, OPERATOR_DATABASE_URL: QA_LOCAL! });
+test("preview contra una base de QA sin negocios reales → atiende", async (t) => {
+  const qa = await laBaseDeQa(t);
+  if (!qa) return;
+  const r = corre({ VERCEL_ENV: "preview", DATABASE_URL: qa.urlApp, OPERATOR_DATABASE_URL: qa.urlDuenio });
   assert.deepEqual(r.llamadas, ["prisma generate", "next build"]);
   assert.match(r.salida, /base propia/);
 });
 
-test("basta UNA de las dos cadenas apuntando a producción para bloquear (la consola usa la otra)", { skip: !(PROD_LOCAL && QA_LOCAL) && "sin bases locales" }, () => {
-  const r = corre({ VERCEL_ENV: "preview", DATABASE_URL: QA_LOCAL!, OPERATOR_DATABASE_URL: PROD_LOCAL! });
+test("basta UNA de las dos cadenas apuntando a producción para bloquear (la consola usa la otra)", async (t) => {
+  const [qa, prod] = [await laBaseDeQa(t), await baseConElNegocioVivo(t)];
+  if (!qa || !prod) return;
+  const r = corre({ VERCEL_ENV: "preview", DATABASE_URL: qa.urlApp, OPERATOR_DATABASE_URL: prod.urlDuenio });
   assert.deepEqual(r.llamadas, ["prisma generate", "next build [bloqueado]"]);
 });

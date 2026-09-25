@@ -1,0 +1,26 @@
+28a29
+> import { redondearAlCentavo } from "@/lib/dinero/redondeo";
+650c651
+< test("el importe se decide con 2 decimales, como viaja a ARCA (toFixed(2) del plugin)", () => {
+---
+> test("el importe se decide con 2 decimales, como viaja a ARCA (la regla única de redondeo del plugin)", () => {
+659c660
+<     const viaja = Number(importeTotal.toFixed(2));
+---
+>     const viaja = redondearAlCentavo(importeTotal);
+663,664c664,671
+<   // Igual con la regla del negocio. 599.999,995 es, en binario, 599.999,99499…: viaja como
+<   // 599.999,99 (debajo de 600.000), aunque Math.round(importe * 100) diría 600.000,00.
+---
+>   // Medio centavo sube (ENG-109): 9.999.999,995 viaja como 10.000.000,00 y hay que identificar.
+>   assert.ok(codigos(decidirComprobante(RI, CF, productos({ importeTotal: 9_999_999.995 }))).includes("IDENTIFICACION_OBLIGATORIA"));
+>   // Igual con la regla del negocio. 599.999,995 es, en binario, 599.999,99499…, pero vale
+>   // 599.999,995 por sus 15 cifras y viaja como 600.000,00: alcanza el umbral de 600.000.
+>   assert.ok(
+>     codigos(decidirComprobante(MONO, CF, productos({ importeTotal: 599_999.995 }), { umbralIdentificacionDelNegocio: 600_000 }))
+>       .includes("IDENTIFICACION_REGLA_DEL_NEGOCIO"),
+>   );
+666c673
+<     const viaja = Number(importeTotal.toFixed(2));
+---
+>     const viaja = redondearAlCentavo(importeTotal);

@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: como app_rls, un comprobante con CAE: cambiarle un campo fiscal o borrarlo falla, y la fila no cambia
+ok 1 - como app_rls, un comprobante con CAE: cambiarle un campo fiscal o borrarlo falla, y la fila no cambia
+  ---
+  duration_ms: 2062.892206
+  type: 'test'
+  ...
+# Subtest: el dueño de las tablas (sin RLS) tampoco puede editar ni borrar un comprobante con CAE
+ok 2 - el dueño de las tablas (sin RLS) tampoco puede editar ni borrar un comprobante con CAE
+  ---
+  duration_ms: 78.392495
+  type: 'test'
+  ...
+# Subtest: sin CAE sigue permitido editar y borrar; el paso normal de pendiente a autorizada (código real) funciona
+ok 3 - sin CAE sigue permitido editar y borrar; el paso normal de pendiente a autorizada (código real) funciona
+  ---
+  duration_ms: 437.39581
+  type: 'test'
+  ...
+# Subtest: con CAE: lo que no es fiscal sigue libre y borrar el pedido de origen deja la factura sin enlace
+ok 4 - con CAE: lo que no es fiscal sigue libre y borrar el pedido de origen deja la factura sin enlace
+  ---
+  duration_ms: 68.406969
+  type: 'test'
+  ...
+# Subtest: la reversa saca la protección sin tocar filas y `prisma migrate deploy` la vuelve a poner
+ok 5 - la reversa saca la protección sin tocar filas y `prisma migrate deploy` la vuelve a poner
+  ---
+  duration_ms: 1277.478138
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4454.585664

@@ -1,0 +1,14 @@
+# ENG-000 — comandos que produjeron la evidencia de esta carpeta (desde /home/user/erp)
+# (las salidas completas de npm test se resumieron: cuentas, fallas y los tests de base)
+PATH=/opt/node20/bin:$PATH npm test                                   > npmtest-node20-como-ci-antes.txt   (Node 20.20.2, como el job viejo)
+npm test                                                             > npmtest-completo-resumen.txt       (Postgres local por socket, Chromium en /opt/pw-browsers)
+CI=true ERP_TEST_PG_URL=postgresql://postgres@localhost:5433/postgres npm test > npmtest-modo-ci-tcp-resumen.txt   (como el servicio de CI: TCP y trust)
+CI=true ERP_TEST_PG_URL=postgresql://postgres@localhost:5999/postgres node --import tsx --test src/test/accion-de-servidor.test.ts src/lib/tenant.test.ts > modo-ci-sin-postgres-falla.txt
+ERP_TEST_PG_URL=postgresql://postgres@localhost:5999/postgres node --import tsx --test src/test/accion-de-servidor.test.ts > local-sin-postgres-saltea.txt
+node --import tsx --test <los 12 archivos tocados>                    > tests-del-arnes.txt
+psql "postgresql://postgres@localhost:5433/postgres?host=/tmp/pgrun" -Atc "select count(*) from pg_database where datname like 'erp\_test\_%'"  > bases-erp_test-*.txt
+npx tsc --noEmit -p .                                                > tsc.txt
+npx eslint --max-warnings=0 <archivos tocados>                       > eslint.txt
+grep -rnE "erp_qa_apps|erp_lab|erp_scope" src --include=*.test.ts    > criterio2-grep.txt
+node --import tsx --test <scratchpad>/mut/mutaciones.test.ts         > mutaciones-humo.txt                (script temporal, no queda en el repo)
+node --import tsx --test <scratchpad>/mut/falla.test.ts              > test-que-falla-igual-borra.txt     (script temporal, no queda en el repo)
