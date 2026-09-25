@@ -76,6 +76,15 @@ const TRAZOS = {
       <path d="M20 15.5H6M9.5 12 6 15.5 9.5 19" />
     </>
   ),
+  // Mercado Pago en el mostrador: el QR que escanea el cliente.
+  qr: (
+    <>
+      <rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1" />
+      <rect x="14" y="3.5" width="6.5" height="6.5" rx="1" />
+      <rect x="3.5" y="14" width="6.5" height="6.5" rx="1" />
+      <path d="M14 14h2.5v2.5M20.5 14v.1M14 20.5h.1M17.5 20.5h3v-3" />
+    </>
+  ),
   tarjeta: (
     <>
       <rect x="2.5" y="5.5" width="19" height="13" rx="2" />
@@ -115,6 +124,17 @@ const TRAZOS = {
 } satisfies Record<string, ReactNode>;
 
 export type NombreIconoPieza = keyof typeof TRAZOS;
+
+/**
+ * El ícono de cada medio de cobro (los valores de `MEDIOS_DE_COBRO`, src/lib/caja/medio-cobro.ts)
+ * y de «A cuenta» (la ficha del cliente). Lo usan las elecciones del medio: Vender y el cobro del pedido.
+ */
+export function iconoDelMedio(valor: string): NombreIconoPieza {
+  if (valor === "EFECTIVO") return "efectivo";
+  if (valor === "MERCADOPAGO") return "qr";
+  if (valor === "TRANSFERENCIA") return "transferencia";
+  return "persona";
+}
 
 export function Icono({
   nombre,

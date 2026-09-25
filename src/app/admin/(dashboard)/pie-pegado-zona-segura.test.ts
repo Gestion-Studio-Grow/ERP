@@ -129,14 +129,16 @@ describe("Pies pegados en el iPhone: la zona segura una sola vez", { timeout: 12
     return m;
   }
 
-  /** Vender con el diseño nuevo: la raíz con la piel, el armazón y (en el celular) la cápsula. */
-  async function medirRenglon(conCapsula: boolean) {
+  /** Vender con el diseño nuevo: la raíz con la piel, el armazón y (en el celular) la cápsula.
+   *  `conLineas`: el ticket tiene productos (VenderForm pone `data-fijo` y el pie se fija); vacío,
+   *  el pie queda en su lugar para no tapar la fila de opcionales (renglon.css). */
+  async function medirRenglon(conCapsula: boolean, conLineas = true) {
     const page = await browser!.newPage({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
     await page.setContent(
       `<!doctype html><html lang="es"><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css}</style><style>${cssRenglon}</style></head><body class="bg-surface">` +
         `<div data-diseno="renglon"><div data-ui="armazon"><div id="contenido" class="flex-1 pb-[var(--alto-barra-inferior,0px)]"><main>` +
         `<div style="height:2000px">el ticket largo</div>` +
-        `<div id="pie" data-vender="cobrar" class="${PIE_RENGLON}"><button style="height:44px;width:100%">Cobrar</button></div>` +
+        `<div id="pie" data-vender="cobrar" class="${PIE_RENGLON}"${conLineas ? ' data-fijo=""' : ""}><button style="height:44px;width:100%">Cobrar</button></div>` +
         `</main></div>` +
         (conCapsula ? `<nav id="barra" data-ui="capsula" aria-label="Espacios"><a>Vender</a></nav>` : "") +
         `</div></div></body></html>`,
@@ -146,6 +148,7 @@ describe("Pies pegados en el iPhone: la zona segura una sola vez", { timeout: 12
       const barra = document.getElementById("barra");
       return {
         relleno: parseFloat(getComputedStyle(pie).paddingBottom),
+        posicion: getComputedStyle(pie).position,
         pieAbajo: pie.getBoundingClientRect().bottom,
         barraArriba: barra ? barra.getBoundingClientRect().top : null,
         botonAbajo: pie.querySelector("button")!.getBoundingClientRect().bottom,
@@ -154,6 +157,13 @@ describe("Pies pegados en el iPhone: la zona segura una sola vez", { timeout: 12
     await page.close();
     return m;
   }
+
+  test("Vender con el diseño nuevo, ticket vacío: el pie no se fija y no tapa nada", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const m = await medirRenglon(true, false);
+    assert.equal(m.posicion, "static", "sin productos no hay nada que cobrar: el pie queda en su lugar");
+    assert.ok(m.pieAbajo > 915, `el pie sigue al ticket, fuera de la pantalla (${m.pieAbajo})`);
+  });
 
   test("Vender con el diseño nuevo, con la cápsula: el pie se apoya en ella sin franja vacía", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);

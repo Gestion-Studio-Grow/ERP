@@ -1,0 +1,4 @@
+Pages directory cannot be found at /home/user/erp/src/app/admin/(dashboard)/vender/pages or /home/user/erp/src/app/admin/(dashboard)/vender/src/pages. If using a custom path, please configure with the `no-html-link-for-pages` rule in your eslint config file.
+Pages directory cannot be found at /home/user/erp/src/app/admin/(dashboard)/pedidos/pages or /home/user/erp/src/app/admin/(dashboard)/pedidos/src/pages. If using a custom path, please configure with the `no-html-link-for-pages` rule in your eslint config file.
+Pages directory cannot be found at /home/user/erp/src/components/ui/pages or /home/user/erp/src/components/ui/src/pages. If using a custom path, please configure with the `no-html-link-for-pages` rule in your eslint config file.
+eslint: VenderForm.tsx exit 0 · CobroDelPedido.tsx exit 0 · Icono.tsx exit 0 (el aviso de 'Pages directory' sale por correr desde la carpeta)

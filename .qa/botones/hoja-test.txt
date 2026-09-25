@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: el bloque de tokens de la hoja es el que sale de tokens.ts (lo que se mide es lo que se sirve)
+ok 1 - el bloque de tokens de la hoja es el que sale de tokens.ts (lo que se mide es lo que se sirve)
+  ---
+  duration_ms: 2.162359
+  type: 'test'
+  ...
+# Subtest: la versión de la URL es la del contenido, y ConDiseno pide esa
+ok 2 - la versión de la URL es la del contenido, y ConDiseno pide esa
+  ---
+  duration_ms: 1.796751
+  type: 'test'
+  ...
+# Subtest: todo está acotado bajo [data-diseno="renglon"] y no hay capas
+ok 3 - todo está acotado bajo [data-diseno="renglon"] y no hay capas
+  ---
+  duration_ms: 10.096227
+  type: 'test'
+  ...
+# Subtest: materia plana: ni degradés, ni vidrio, ni sombras de dos capas
+ok 4 - materia plana: ni degradés, ni vidrio, ni sombras de dos capas
+  ---
+  duration_ms: 0.890987
+  type: 'test'
+  ...
+# Subtest: presupuesto: la hoja ≤ 30 KB gzip; la letra, un archivo ≤ 120 KB
+ok 5 - presupuesto: la hoja ≤ 30 KB gzip; la letra, un archivo ≤ 120 KB
+  ---
+  duration_ms: 4.315696
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 438.383129

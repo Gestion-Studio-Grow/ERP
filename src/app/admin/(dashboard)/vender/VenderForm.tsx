@@ -36,6 +36,7 @@ import { AvisoError, BuscadorCombo, Input, Select, buttonClasses, cn, fmtMoneyAR
 import { Atajos } from "@/components/ui/Renglon";
 import { Kbd } from "@/components/ui/Kbd";
 import { Plata } from "@/components/ui/Plata";
+import { Icono, iconoDelMedio } from "@/components/ui/Icono";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import { faltanteDeLinea, type PosStockInfo } from "@/lib/stock/pos-stock-rules";
 import { MEDIOS_DE_COBRO, leerMedioDeCobro, type MedioDeCobro } from "@/lib/caja/medio-cobro";
@@ -336,7 +337,12 @@ function FormularioVender({
     if (!focusPedido) return;
     // En el ticket no hay renglones vacíos con su buscador: el foco que iba a uno va al buscador.
     const el = document.getElementById(focusPedido.id) ?? (nuevo ? document.getElementById("vender-buscar") : null);
-    el?.focus();
+    if (nuevo && el) {
+      // El campo recién sumado (el peso) se trae a la vista con su `scroll-margin` (la hoja lo fija
+      // por encima de la tecla de cobrar y la cápsula): así no queda escondido detrás del pie fijo.
+      el.focus({ preventScroll: true });
+      el.scrollIntoView({ block: "nearest" });
+    } else el?.focus();
     if (nuevo && el instanceof HTMLInputElement && el.value) el.select();
   }, [focusPedido, nuevo]);
 
@@ -763,8 +769,16 @@ function FormularioVender({
         esPedido: isOrder,
       });
 
+  // Diseño nuevo: la tecla principal deshabilitada SIEMPRE dice qué falta (sin líneas, «Cargá un
+  // producto…»; con una línea sin peso, cuál) y la que cobra dice el monto, también en el pedido.
   const etiquetaCobrar = !hayLineaValida
-    ? "Cobrar"
+    ? nuevo
+      ? lineaSinCantidad
+        ? motivoDeLineaSinCantidad(byId.get(lineaSinCantidad.productId))
+        : isOrder
+          ? "Cargá un producto para el pedido"
+          : "Cargá un producto para cobrar"
+      : "Cobrar"
     : motivoBloqueo ??
       (aviso?.reintentar
         ? isOrder
@@ -773,7 +787,9 @@ function FormularioVender({
             // precios de hoy: si estaba grabada, vuelve esa venta con ese total.
             `${etiquetaDeReintento()} ${fmtMoneyARS(reintentoDeLaMisma && sinRespuesta ? sinRespuesta.total : total)}`
         : isOrder
-          ? "Registrar pedido"
+          ? nuevo && paid
+            ? `Registrar y cobrar ${fmtMoneyARS(total)}`
+            : "Registrar pedido"
           : aCuentaActivo
             ? `Dejar a cuenta ${fmtMoneyARS(total)}`
             : `Cobrar ${fmtMoneyARS(total)}`);
@@ -1215,6 +1231,7 @@ function FormularioVender({
                   }}
                   className={cn("chip-btn h-11 px-4 text-sm", !aCuentaActivo && medio === m.valor && "bg-accent text-on-accent")}
                 >
+                  {nuevo && <Icono nombre={!aCuentaActivo && medio === m.valor ? "listo" : iconoDelMedio(m.valor)} />}
                   {m.etiqueta}
                 </button>
               ))}
@@ -1233,6 +1250,7 @@ function FormularioVender({
                   }}
                   className={cn("chip-btn h-11 px-4 text-sm", aCuentaActivo && "bg-accent text-on-accent")}
                 >
+                  {nuevo && <Icono nombre={aCuentaActivo ? "listo" : iconoDelMedio("A_CUENTA")} />}
                   A cuenta
                 </button>
               )}
@@ -1440,7 +1458,7 @@ function FormularioVender({
     const porPeso = botonesRapidos.some((p) => p.saleUnit === "WEIGHT");
     const buscarQue = sustantivo && sustantivo !== "producto" ? `Buscá un ${sustantivo} o un producto` : "Buscá un producto";
     const casillaCobrado = (
-      <label className="flex min-h-11 w-fit items-center gap-2 text-sm">
+      <label data-vender="casilla" className="flex min-h-11 w-fit items-center gap-2 text-sm">
         <input
           key={isOrder ? "cobrado-pedido" : "cobrado-venta"}
           type="checkbox"
@@ -1519,6 +1537,7 @@ function FormularioVender({
                     setPaid(true);
                   }}
                 >
+                  {!isOrder && <Icono nombre="listo" />}
                   Venta
                 </button>
                 <button
@@ -1531,6 +1550,7 @@ function FormularioVender({
                     setACuenta(false);
                   }}
                 >
+                  {isOrder && <Icono nombre="listo" />}
                   Pedido
                 </button>
               </div>
@@ -1561,8 +1581,14 @@ function FormularioVender({
                         {l.qtyText}
                       </span>
                       <span data-parte="importe" />
-                      <button type="button" data-parte="quitar" onClick={() => removeLine(l.key)} aria-label="Quitar línea">
-                        −
+                      <button
+                        type="button"
+                        data-parte="quitar"
+                        onClick={() => removeLine(l.key)}
+                        aria-label={`Quitar línea de ${nombresDeLaDuda[l.productId] ?? "un producto"}`}
+                      >
+                        <Icono nombre="cerrar" />
+                        <span data-parte="palabra">Quitar</span>
                       </button>
                       {l.qty > 0 && (
                         <>
@@ -1592,6 +1618,9 @@ function FormularioVender({
                       </span>
                     </div>
                     <label data-parte="cantidad">
+                      <span data-parte="rotulo" aria-hidden>
+                        {esPeso ? "Peso" : "Cantidad"}
+                      </span>
                       <Input
                         id={`qty-${l.key}`}
                         type="text"
@@ -1599,7 +1628,7 @@ function FormularioVender({
                         autoComplete="off"
                         value={l.qtyText}
                         aria-label={esPeso ? "Peso en kg" : "Cantidad"}
-                        placeholder={esPeso ? "Peso" : "Cant."}
+                        placeholder={esPeso ? "0,000" : "Cant."}
                         onChange={(e) => setLine(l.key, { qtyText: e.target.value })}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
@@ -1615,9 +1644,13 @@ function FormularioVender({
                         {esPeso ? "kg" : "u"}
                       </span>
                     </label>
-                    <span data-parte="importe">{lineTotal > 0 ? <Plata valor={lineTotal} /> : "—"}</span>
-                    <button type="button" data-parte="quitar" onClick={() => removeLine(l.key)} aria-label="Quitar línea">
-                      −
+                    <div data-parte="subtotal">
+                      <span data-parte="rotulo">Subtotal</span>
+                      <span data-parte="importe">{lineTotal > 0 ? <Plata valor={lineTotal} /> : "—"}</span>
+                    </div>
+                    <button type="button" data-parte="quitar" onClick={() => removeLine(l.key)} aria-label={`Quitar línea de ${p.name}`}>
+                      <Icono nombre="cerrar" />
+                      <span data-parte="palabra">Quitar</span>
                     </button>
                     {l.invalida && (
                       <p role="alert" data-parte="nota" className="text-xs text-danger">
@@ -1661,6 +1694,7 @@ function FormularioVender({
 
             <div data-vender="opcionales" className="flex flex-wrap gap-2">
               <button type="button" onClick={addManual} className="chip-btn h-11 text-sm">
+                <Icono nombre="mas" />
                 Precio a mano
               </button>
               {!conDescuento && (
@@ -1672,11 +1706,13 @@ function FormularioVender({
                   }}
                   className="chip-btn h-11 text-sm"
                 >
+                  <Icono nombre="mas" />
                   Descuento
                 </button>
               )}
               {!isOrder && !conCliente && (
                 <button type="button" onClick={() => setConCliente(true)} className="chip-btn h-11 text-sm">
+                  <Icono nombre="mas" />
                   Cliente
                 </button>
               )}
@@ -1713,8 +1749,14 @@ function FormularioVender({
             </div>
             {/* Lo que va fijo abajo en el celular: el botón (que dice el total) y lo que no salió, al
                 lado del botón, que es donde se está mirando. Encima de la cápsula del armazón
-                (`--alto-barra-inferior`); en la PC, en su lugar. */}
-            <div data-vender="cobrar" className="sticky bottom-[var(--alto-barra-inferior,0px)] z-10 space-y-3">
+                (`--alto-barra-inferior`); en la PC, en su lugar. Con el ticket vacío no se fija
+                (renglon.css, `:not([data-fijo])`): no hay nada que cobrar y tapaba la fila de
+                «Precio a mano · Descuento · Cliente». La clase queda literal: la mide
+                pie-pegado-zona-segura.test.ts. */}
+            <div
+              data-vender="cobrar" className="sticky bottom-[var(--alto-barra-inferior,0px)] z-10 space-y-3"
+              data-fijo={conProducto.length > 0 || manuales.length > 0 ? "" : undefined}
+            >
               {bloqueAviso}
               <CobrarSubmit disabled={cobrarBloqueado} label={etiquetaCobrar} pendiente={isOrder ? "Registrando…" : "Cobrando…"} atajo="F2" />
             </div>

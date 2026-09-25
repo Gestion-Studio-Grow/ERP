@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { cobrarPedido, entregarPedido } from "@/lib/order-actions";
 import { MEDIOS_DE_COBRO } from "@/lib/caja/medio-cobro";
 import { Button, Segmented } from "@/components/ui";
+import { Icono, iconoDelMedio } from "@/components/ui/Icono";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { useToast } from "../ToastProvider";
 import { aFormData, camposDeLaEntrega, camposDelCobro, esRedirectDeNext, textoDeLaEntrega } from "./formularios-del-pedido";
@@ -93,7 +94,13 @@ export default function CobroDelPedido({
           tono="acento"
           lleno
           value={quedaACobrar ? "" : medio}
-          opciones={MEDIOS_DE_COBRO.map((m) => ({ valor: m.valor, etiqueta: m.etiqueta, disabled: quedaACobrar }))}
+          // Cada medio con su ícono; el elegido, con el tilde (además del acento).
+          opciones={MEDIOS_DE_COBRO.map((m) => ({
+            valor: m.valor,
+            etiqueta: m.etiqueta,
+            icono: <Icono nombre={!quedaACobrar && medio === m.valor ? "listo" : iconoDelMedio(m.valor)} />,
+            disabled: quedaACobrar,
+          }))}
           onChange={(e) => {
             const t = e.target as unknown as HTMLInputElement;
             if (t.name === "paymentMethod") {

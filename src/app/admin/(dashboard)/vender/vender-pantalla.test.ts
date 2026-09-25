@@ -1943,7 +1943,8 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.keyboard.press("F2");
     // Por kilo, sin el peso: lo mismo, con la palabra de la balanza.
     await qtyCrema.fill("1");
-    await page.getByRole("button", { name: "Vacío" }).click();
+    // «Quitar línea de Vacío» también nombra al Vacío: la tecla es la que EMPIEZA con su nombre.
+    await page.getByRole("button", { name: /^Vacío/ }).click();
     const frenadoPeso = page.getByRole("button", { name: "Falta el peso de Vacío" });
     await frenadoPeso.waitFor();
     assert.equal(await frenadoPeso.isDisabled(), true);

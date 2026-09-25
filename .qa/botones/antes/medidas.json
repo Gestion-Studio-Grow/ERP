@@ -1,0 +1,877 @@
+{
+ "medidas": [
+  {
+   "nombre": "vender-vacio-390-claro",
+   "modo": [
+    {
+     "t": "Venta",
+     "w": 72,
+     "h": 44,
+     "y": 557
+    },
+    {
+     "t": "Pedido",
+     "w": 72,
+     "h": 44,
+     "y": 557
+    }
+   ],
+   "medios": [
+    {
+     "t": "Efectivo",
+     "w": 108,
+     "h": 44,
+     "y": 820
+    },
+    {
+     "t": "Mercado Pago",
+     "w": 108,
+     "h": 44,
+     "y": 820
+    },
+    {
+     "t": "Transferencia",
+     "w": 108,
+     "h": 44,
+     "y": 820
+    }
+   ],
+   "quitar": [],
+   "cobrar": [
+    {
+     "t": "Cobrar",
+     "w": 332,
+     "h": 48,
+     "y": 727
+    }
+   ],
+   "opcionales": [
+    {
+     "t": "Precio a mano",
+     "w": 116,
+     "h": 44,
+     "y": 696
+    },
+    {
+     "t": "Descuento",
+     "w": 95,
+     "h": 44,
+     "y": 696
+    },
+    {
+     "t": "Cliente",
+     "w": 71,
+     "h": 44,
+     "y": 696
+    }
+   ]
+  },
+  {
+   "nombre": "vender-venta-390-claro",
+   "modo": [
+    {
+     "t": "Venta",
+     "w": 72,
+     "h": 44,
+     "y": 557
+    },
+    {
+     "t": "Pedido",
+     "w": 72,
+     "h": 44,
+     "y": 557
+    }
+   ],
+   "medios": [
+    {
+     "t": "Efectivo",
+     "w": 108,
+     "h": 44,
+     "y": 980
+    },
+    {
+     "t": "Mercado Pago",
+     "w": 108,
+     "h": 44,
+     "y": 980
+    },
+    {
+     "t": "Transferencia",
+     "w": 108,
+     "h": 44,
+     "y": 980
+    }
+   ],
+   "quitar": [
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": 620
+    },
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": 737
+    }
+   ],
+   "cobrar": [
+    {
+     "t": "Cobrar $40.958,00",
+     "w": 332,
+     "h": 48,
+     "y": 727
+    }
+   ],
+   "opcionales": [
+    {
+     "t": "Precio a mano",
+     "w": 116,
+     "h": 44,
+     "y": 856
+    },
+    {
+     "t": "Descuento",
+     "w": 95,
+     "h": 44,
+     "y": 856
+    },
+    {
+     "t": "Cliente",
+     "w": 71,
+     "h": 44,
+     "y": 856
+    }
+   ]
+  },
+  {
+   "nombre": "vender-pedido-390-claro",
+   "modo": [
+    {
+     "t": "Venta",
+     "w": 72,
+     "h": 44,
+     "y": -256
+    },
+    {
+     "t": "Pedido",
+     "w": 72,
+     "h": 44,
+     "y": -256
+    }
+   ],
+   "medios": [
+    {
+     "t": "Efectivo",
+     "w": 108,
+     "h": 44,
+     "y": 636
+    },
+    {
+     "t": "Mercado Pago",
+     "w": 108,
+     "h": 44,
+     "y": 636
+    },
+    {
+     "t": "Transferencia",
+     "w": 108,
+     "h": 44,
+     "y": 636
+    }
+   ],
+   "quitar": [
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": -193
+    },
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": -76
+    }
+   ],
+   "cobrar": [
+    {
+     "t": "Registrar pedido",
+     "w": 332,
+     "h": 48,
+     "y": 694
+    }
+   ],
+   "opcionales": [
+    {
+     "t": "Precio a mano",
+     "w": 116,
+     "h": 44,
+     "y": 43
+    },
+    {
+     "t": "Descuento",
+     "w": 95,
+     "h": 44,
+     "y": 43
+    }
+   ]
+  },
+  {
+   "nombre": "vender-vacio-1440-claro",
+   "modo": [
+    {
+     "t": "Venta",
+     "w": 72,
+     "h": 32,
+     "y": 152
+    },
+    {
+     "t": "Pedido",
+     "w": 72,
+     "h": 32,
+     "y": 152
+    }
+   ],
+   "medios": [
+    {
+     "t": "Efectivo",
+     "w": 138,
+     "h": 44,
+     "y": 408
+    },
+    {
+     "t": "Mercado Pago",
+     "w": 138,
+     "h": 44,
+     "y": 408
+    },
+    {
+     "t": "Transferencia",
+     "w": 138,
+     "h": 44,
+     "y": 408
+    }
+   ],
+   "quitar": [],
+   "cobrar": [
+    {
+     "t": "Cobrar F2",
+     "w": 422,
+     "h": 48,
+     "y": 522
+    }
+   ],
+   "opcionales": [
+    {
+     "t": "Precio a mano",
+     "w": 116,
+     "h": 44,
+     "y": 279
+    },
+    {
+     "t": "Descuento",
+     "w": 95,
+     "h": 44,
+     "y": 279
+    },
+    {
+     "t": "Cliente",
+     "w": 71,
+     "h": 44,
+     "y": 279
+    }
+   ]
+  },
+  {
+   "nombre": "vender-venta-1440-claro",
+   "modo": [
+    {
+     "t": "Venta",
+     "w": 72,
+     "h": 32,
+     "y": 152
+    },
+    {
+     "t": "Pedido",
+     "w": 72,
+     "h": 32,
+     "y": 152
+    }
+   ],
+   "medios": [
+    {
+     "t": "Efectivo",
+     "w": 138,
+     "h": 44,
+     "y": 456
+    },
+    {
+     "t": "Mercado Pago",
+     "w": 138,
+     "h": 44,
+     "y": 456
+    },
+    {
+     "t": "Transferencia",
+     "w": 138,
+     "h": 44,
+     "y": 456
+    }
+   ],
+   "quitar": [
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": 203
+    },
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": 264
+    }
+   ],
+   "cobrar": [
+    {
+     "t": "Cobrar $40.958,00 F2",
+     "w": 422,
+     "h": 48,
+     "y": 642
+    }
+   ],
+   "opcionales": [
+    {
+     "t": "Precio a mano",
+     "w": 116,
+     "h": 44,
+     "y": 327
+    },
+    {
+     "t": "Descuento",
+     "w": 95,
+     "h": 44,
+     "y": 327
+    },
+    {
+     "t": "Cliente",
+     "w": 71,
+     "h": 44,
+     "y": 327
+    }
+   ]
+  },
+  {
+   "nombre": "vender-pedido-1440-claro",
+   "modo": [
+    {
+     "t": "Venta",
+     "w": 72,
+     "h": 32,
+     "y": 152
+    },
+    {
+     "t": "Pedido",
+     "w": 72,
+     "h": 32,
+     "y": 152
+    }
+   ],
+   "medios": [
+    {
+     "t": "Efectivo",
+     "w": 138,
+     "h": 44,
+     "y": 749
+    },
+    {
+     "t": "Mercado Pago",
+     "w": 138,
+     "h": 44,
+     "y": 749
+    },
+    {
+     "t": "Transferencia",
+     "w": 138,
+     "h": 44,
+     "y": 749
+    }
+   ],
+   "quitar": [
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": 203
+    },
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": 264
+    }
+   ],
+   "cobrar": [
+    {
+     "t": "Registrar pedido F2",
+     "w": 422,
+     "h": 48,
+     "y": 807
+    }
+   ],
+   "opcionales": [
+    {
+     "t": "Precio a mano",
+     "w": 116,
+     "h": 44,
+     "y": 327
+    },
+    {
+     "t": "Descuento",
+     "w": 95,
+     "h": 44,
+     "y": 327
+    }
+   ]
+  },
+  {
+   "nombre": "vender-vacio-390-oscuro",
+   "modo": [
+    {
+     "t": "Venta",
+     "w": 72,
+     "h": 44,
+     "y": 557
+    },
+    {
+     "t": "Pedido",
+     "w": 72,
+     "h": 44,
+     "y": 557
+    }
+   ],
+   "medios": [
+    {
+     "t": "Efectivo",
+     "w": 108,
+     "h": 44,
+     "y": 820
+    },
+    {
+     "t": "Mercado Pago",
+     "w": 108,
+     "h": 44,
+     "y": 820
+    },
+    {
+     "t": "Transferencia",
+     "w": 108,
+     "h": 44,
+     "y": 820
+    }
+   ],
+   "quitar": [],
+   "cobrar": [
+    {
+     "t": "Cobrar",
+     "w": 332,
+     "h": 48,
+     "y": 727
+    }
+   ],
+   "opcionales": [
+    {
+     "t": "Precio a mano",
+     "w": 116,
+     "h": 44,
+     "y": 696
+    },
+    {
+     "t": "Descuento",
+     "w": 95,
+     "h": 44,
+     "y": 696
+    },
+    {
+     "t": "Cliente",
+     "w": 71,
+     "h": 44,
+     "y": 696
+    }
+   ]
+  },
+  {
+   "nombre": "vender-venta-390-oscuro",
+   "modo": [
+    {
+     "t": "Venta",
+     "w": 72,
+     "h": 44,
+     "y": 557
+    },
+    {
+     "t": "Pedido",
+     "w": 72,
+     "h": 44,
+     "y": 557
+    }
+   ],
+   "medios": [
+    {
+     "t": "Efectivo",
+     "w": 108,
+     "h": 44,
+     "y": 980
+    },
+    {
+     "t": "Mercado Pago",
+     "w": 108,
+     "h": 44,
+     "y": 980
+    },
+    {
+     "t": "Transferencia",
+     "w": 108,
+     "h": 44,
+     "y": 980
+    }
+   ],
+   "quitar": [
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": 620
+    },
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": 737
+    }
+   ],
+   "cobrar": [
+    {
+     "t": "Cobrar $40.958,00",
+     "w": 332,
+     "h": 48,
+     "y": 727
+    }
+   ],
+   "opcionales": [
+    {
+     "t": "Precio a mano",
+     "w": 116,
+     "h": 44,
+     "y": 856
+    },
+    {
+     "t": "Descuento",
+     "w": 95,
+     "h": 44,
+     "y": 856
+    },
+    {
+     "t": "Cliente",
+     "w": 71,
+     "h": 44,
+     "y": 856
+    }
+   ]
+  },
+  {
+   "nombre": "vender-pedido-390-oscuro",
+   "modo": [
+    {
+     "t": "Venta",
+     "w": 72,
+     "h": 44,
+     "y": -256
+    },
+    {
+     "t": "Pedido",
+     "w": 72,
+     "h": 44,
+     "y": -256
+    }
+   ],
+   "medios": [
+    {
+     "t": "Efectivo",
+     "w": 108,
+     "h": 44,
+     "y": 636
+    },
+    {
+     "t": "Mercado Pago",
+     "w": 108,
+     "h": 44,
+     "y": 636
+    },
+    {
+     "t": "Transferencia",
+     "w": 108,
+     "h": 44,
+     "y": 636
+    }
+   ],
+   "quitar": [
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": -193
+    },
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": -76
+    }
+   ],
+   "cobrar": [
+    {
+     "t": "Registrar pedido",
+     "w": 332,
+     "h": 48,
+     "y": 694
+    }
+   ],
+   "opcionales": [
+    {
+     "t": "Precio a mano",
+     "w": 116,
+     "h": 44,
+     "y": 43
+    },
+    {
+     "t": "Descuento",
+     "w": 95,
+     "h": 44,
+     "y": 43
+    }
+   ]
+  },
+  {
+   "nombre": "vender-vacio-1440-oscuro",
+   "modo": [
+    {
+     "t": "Venta",
+     "w": 72,
+     "h": 32,
+     "y": 152
+    },
+    {
+     "t": "Pedido",
+     "w": 72,
+     "h": 32,
+     "y": 152
+    }
+   ],
+   "medios": [
+    {
+     "t": "Efectivo",
+     "w": 138,
+     "h": 44,
+     "y": 408
+    },
+    {
+     "t": "Mercado Pago",
+     "w": 138,
+     "h": 44,
+     "y": 408
+    },
+    {
+     "t": "Transferencia",
+     "w": 138,
+     "h": 44,
+     "y": 408
+    }
+   ],
+   "quitar": [],
+   "cobrar": [
+    {
+     "t": "Cobrar F2",
+     "w": 422,
+     "h": 48,
+     "y": 522
+    }
+   ],
+   "opcionales": [
+    {
+     "t": "Precio a mano",
+     "w": 116,
+     "h": 44,
+     "y": 279
+    },
+    {
+     "t": "Descuento",
+     "w": 95,
+     "h": 44,
+     "y": 279
+    },
+    {
+     "t": "Cliente",
+     "w": 71,
+     "h": 44,
+     "y": 279
+    }
+   ]
+  },
+  {
+   "nombre": "vender-venta-1440-oscuro",
+   "modo": [
+    {
+     "t": "Venta",
+     "w": 72,
+     "h": 32,
+     "y": 152
+    },
+    {
+     "t": "Pedido",
+     "w": 72,
+     "h": 32,
+     "y": 152
+    }
+   ],
+   "medios": [
+    {
+     "t": "Efectivo",
+     "w": 138,
+     "h": 44,
+     "y": 456
+    },
+    {
+     "t": "Mercado Pago",
+     "w": 138,
+     "h": 44,
+     "y": 456
+    },
+    {
+     "t": "Transferencia",
+     "w": 138,
+     "h": 44,
+     "y": 456
+    }
+   ],
+   "quitar": [
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": 203
+    },
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": 264
+    }
+   ],
+   "cobrar": [
+    {
+     "t": "Cobrar $40.958,00 F2",
+     "w": 422,
+     "h": 48,
+     "y": 642
+    }
+   ],
+   "opcionales": [
+    {
+     "t": "Precio a mano",
+     "w": 116,
+     "h": 44,
+     "y": 327
+    },
+    {
+     "t": "Descuento",
+     "w": 95,
+     "h": 44,
+     "y": 327
+    },
+    {
+     "t": "Cliente",
+     "w": 71,
+     "h": 44,
+     "y": 327
+    }
+   ]
+  },
+  {
+   "nombre": "vender-pedido-1440-oscuro",
+   "modo": [
+    {
+     "t": "Venta",
+     "w": 72,
+     "h": 32,
+     "y": 152
+    },
+    {
+     "t": "Pedido",
+     "w": 72,
+     "h": 32,
+     "y": 152
+    }
+   ],
+   "medios": [
+    {
+     "t": "Efectivo",
+     "w": 138,
+     "h": 44,
+     "y": 749
+    },
+    {
+     "t": "Mercado Pago",
+     "w": 138,
+     "h": 44,
+     "y": 749
+    },
+    {
+     "t": "Transferencia",
+     "w": 138,
+     "h": 44,
+     "y": 749
+    }
+   ],
+   "quitar": [
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": 203
+    },
+    {
+     "t": "−",
+     "w": 44,
+     "h": 44,
+     "y": 264
+    }
+   ],
+   "cobrar": [
+    {
+     "t": "Registrar pedido F2",
+     "w": 422,
+     "h": 48,
+     "y": 807
+    }
+   ],
+   "opcionales": [
+    {
+     "t": "Precio a mano",
+     "w": 116,
+     "h": 44,
+     "y": 327
+    },
+    {
+     "t": "Descuento",
+     "w": 95,
+     "h": 44,
+     "y": 327
+    }
+   ]
+  }
+ ],
+ "errores": []
+}

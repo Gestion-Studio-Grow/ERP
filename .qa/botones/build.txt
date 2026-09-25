@@ -1,0 +1,132 @@
+▲ Next.js 16.3.4 (Turbopack)
+✓ Running next.config.ts took 42ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 42s
+  Running TypeScript ...
+  Finished TypeScript in 49s ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/8) ...
+  Generating static pages using 3 workers (2/8) 
+  Generating static pages using 3 workers (4/8) 
+  Generating static pages using 3 workers (6/8) 
+✓ Generating static pages using 3 workers (8/8) in 168ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /acceso
+├ ƒ /admin
+├ ƒ /admin/ajustes
+├ ƒ /admin/ajustes/recuento
+├ ƒ /admin/apariencia
+├ ƒ /admin/auditoria
+├ ƒ /admin/caja
+├ ƒ /admin/caja/cierre
+├ ƒ /admin/caja/libro
+├ ƒ /admin/caja/libro/export
+├ ƒ /admin/cambiar-password
+├ ƒ /admin/campania
+├ ƒ /admin/campania/export
+├ ƒ /admin/catalogo
+├ ƒ /admin/catalogo/etiquetas
+├ ƒ /admin/catalogo/planilla
+├ ƒ /admin/catalogo/precios
+├ ƒ /admin/cierre-mes
+├ ƒ /admin/cierre-mes/paquete
+├ ƒ /admin/clientes
+├ ƒ /admin/clientes/[id]
+├ ƒ /admin/clientes/[id]/fiscal
+├ ƒ /admin/clientes/duplicadas
+├ ƒ /admin/clientes/hoy
+├ ƒ /admin/clientes/recuperar
+├ ƒ /admin/comisiones
+├ ƒ /admin/compras
+├ ƒ /admin/compras/sugerido
+├ ƒ /admin/cuentas-a-cobrar
+├ ƒ /admin/cuentas-a-cobrar/[id]
+├ ƒ /admin/cuentas-a-pagar
+├ ƒ /admin/cuentas-a-pagar/[id]
+├ ƒ /admin/despiece
+├ ƒ /admin/devoluciones-proveedor
+├ ƒ /admin/espera
+├ ƒ /admin/facturacion
+├ ƒ /admin/facturacion/bancos
+├ ƒ /admin/facturacion/bancos/configuracion
+├ ƒ /admin/facturacion/comprobante/[id]
+├ ƒ /admin/facturacion/comprobante/[id]/pdf
+├ ƒ /admin/flujo
+├ ƒ /admin/inventario
+├ ƒ /admin/inventario/movimientos
+├ ƒ /admin/libros
+├ ƒ /admin/libros/export
+├ ƒ /admin/locales
+├ ƒ /admin/locales/cajas
+├ ƒ /admin/locales/catalogo
+├ ƒ /admin/locales/stock
+├ ƒ /admin/locales/traslados
+├ ƒ /admin/locales/traslados/[id]
+├ ƒ /admin/locales/ventas
+├ ƒ /admin/locales/ventas/export
+├ ƒ /admin/localizacion
+├ ƒ /admin/login
+├ ƒ /admin/lotes
+├ ƒ /admin/no-disponible
+├ ƒ /admin/pedidos
+├ ƒ /admin/promociones
+├ ƒ /admin/proveedores
+├ ƒ /admin/proveedores/[id]
+├ ƒ /admin/recordatorios
+├ ƒ /admin/reportes
+├ ƒ /admin/reportes/export
+├ ƒ /admin/reportes/margen
+├ ƒ /admin/resenas
+├ ƒ /admin/resultado
+├ ƒ /admin/retenciones
+├ ƒ /admin/turnos
+├ ƒ /admin/turnos/lista
+├ ƒ /admin/turnos/manana
+├ ƒ /admin/usuarios
+├ ƒ /admin/usuarios/plan
+├ ƒ /admin/vender
+├ ƒ /admin/ventas
+├ ƒ /api/cron/arca-outbox
+├ ƒ /api/cron/reminders
+├ ƒ /api/health
+├ ƒ /api/public/v1/orders
+├ ƒ /api/public/v1/orders/[code]
+├ ƒ /api/ready
+├ ƒ /api/webhooks/mercadopago
+├ ƒ /contador
+├ ƒ /contador/paquete
+├ ƒ /demo
+├ ƒ /facturita
+├ ƒ /facturita/app
+├ ƒ /facturita/app/cuenta
+├ ƒ /facturita/app/facturas
+├ ƒ /obsequio
+├ ƒ /operador
+├ ƒ /operador/alta
+├ ƒ /operador/clave
+├ ƒ /operador/cockpit
+├ ƒ /operador/direccion
+├ ƒ /operador/direccion/panel
+├ ƒ /operador/diseno
+├ ƒ /operador/login
+├ ƒ /operador/tenants/[id]
+├ ƒ /premium
+├ ƒ /probar
+├ ƒ /reserva
+├ ƒ /reserva/confirmacion/[id]
+├ ƒ /reserva/turno/[id]
+├ ƒ /servicios
+├ ƒ /tienda
+└ ƒ /tienda/gracias
+
+
+ƒ Proxy (Middleware)
+
+ƒ  (Dynamic)  server-rendered on demand
+
+build exit 0
