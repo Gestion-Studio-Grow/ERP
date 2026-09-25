@@ -1,5 +1,7 @@
 # 📄 RFC-006 — Rendí: rendición de gastos argentina, integrada a SAP S/4HANA Cloud Public
 
+> ⚠️ **Archivo desde el 2026-09-25.** La copia vigente del RFC-006 vive en el repo del producto `gsg-rendi` (`docs/rfc/`), junto con el ADR-099 aceptado (opción D: producto propio, núcleo portable, dos anfitriones). Esta rama no se mergea a `main`.
+
 > **Tipo:** RFC (propuesta, no decisión). **Estado: 🟡 PROPUESTO (2026-09-24).**
 > **Disparador:** pedido del dueño — una app "como Rindegastos", sólida, para vendérsela a una consultora SAP o a su cliente. El canal comercial lo maneja el dueño.
 > **Decisión asociada:** ADR-099.

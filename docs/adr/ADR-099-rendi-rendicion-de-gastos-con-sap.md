@@ -7,6 +7,8 @@ depends_on: [ADR-002, ADR-057, ADR-060, ADR-061, ADR-064, ADR-065, ADR-066, ADR-
 
 # ADR-099 — Rendí: rendición de gastos argentina integrada a SAP, como módulo del motor
 
+> ⚠️ **Reemplazada el 2026-09-25. Este texto queda como archivo.** Después de la validación técnica, el dueño eligió la opción D: Rendí es un producto propio, con núcleo portable y dos anfitriones (app de GSG y variante SAP BTP). El texto vigente del ADR-099 vive en el repo del producto `gsg-rendi`: `docs/adr/ADR-099-rendi-producto-propio-nucleo-portable.md`. Esta rama (`frente/rendiciones`) no se mergea a `main`. El número 099 sigue reservado para Rendí.
+
 **Estado:** Propuesta (2026-09-24). Demo a costo cero en construcción en `frente/rendiciones`. Pasa al Challenger (ADR-045) junto con el RFC-006.
 
 **Depende de:**
