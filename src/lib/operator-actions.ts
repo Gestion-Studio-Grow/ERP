@@ -58,6 +58,8 @@ import {
   leerNegocioParaActivar,
 } from "@/app/operador/(console)/tenants/[id]/negocio.server";
 import { todosApagados, trabajaPorApps } from "@/cambios/interruptores-core";
+import { aplicarPase } from "@/lib/operador/pase-a-real.server";
+import { modoDesdeEnv } from "@/plugins/arca";
 
 // --- Sesión de operador -------------------------------------------------------
 
@@ -385,6 +387,32 @@ export async function cargarCredencialFiscal(formData: FormData) {
   }
   revalidatePath(`/operador/tenants/${tenantId}`);
   redirect(`/operador/tenants/${tenantId}?ok=${encodeURIComponent(mensajeOk)}`);
+}
+
+// --- Pase a facturación real y vuelta a pruebas (R2-F5) -----------------------
+// Reemplaza el UPDATE a mano de implementacion/07 §3.4. Primero la guardia del negocio (sesión de
+// operador y candado de CH); la decisión y la escritura condicional con bloqueo viven en
+// src/lib/operador/pase-a-real.server.ts, que deja la fila de AuditLog. El slug tipeado y la huella
+// de la ficha vienen del formulario; el resto se lee de la base.
+export async function cambiarFacturacionReal(formData: FormData) {
+  const tenantId = String(formData.get("tenantId") || "").trim();
+  const sesion = await requireOperadorParaNegocio({ id: tenantId });
+  const r = await aplicarPase(
+    { nombre: sesion.nombre, esDuenio: sesion.esDuenio },
+    tenantId,
+    {
+      accion: String(formData.get("accion") || ""),
+      huellaVista: String(formData.get("huella") || ""),
+      slugTipeado: String(formData.get("slug") || ""),
+    },
+    modoDesdeEnv(),
+  );
+  if (r.tipo === "no-existe") redirect("/operador?error=notfound");
+  const ficha = `/operador/tenants/${encodeURIComponent(tenantId)}?pestana=fiscal`;
+  if (r.tipo === "rechazado") redirect(`${ficha}&error=${encodeURIComponent(r.motivo)}#pase-a-real`);
+  revalidatePath(`/operador/tenants/${tenantId}`);
+  revalidatePath("/operador");
+  redirect(`${ficha}&ok=${encodeURIComponent(r.mensaje)}#pase-a-real`);
 }
 
 // --- Reset de contraseña del OWNER (revelado único) ---------------------------

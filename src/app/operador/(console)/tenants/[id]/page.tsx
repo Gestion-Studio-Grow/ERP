@@ -18,7 +18,7 @@ import {
   evaluarListoParaFacturar,
   type EstadoApertura,
 } from "@/lib/operador/checklist-apertura";
-import { MODULES, PLANS, TENANT_STATUSES } from "@/lib/operator-config";
+import { MODULES, PLAN_IDS, PLANS, TENANT_STATUSES } from "@/lib/operator-config";
 import {
   ACCENT_PRESETS,
   ACCENT_PRESET_LABELS,
@@ -66,6 +66,9 @@ import {
   leerRedDeLaFicha,
 } from "./negocio.server";
 import { InterruptoresCard } from "./InterruptoresCard";
+import { PaseARealCard } from "./PaseARealCard";
+import PlanDelNegocioCard from "./PlanDelNegocioCard";
+import { leerFichaDelPase } from "@/lib/operador/pase-a-real.server";
 import { RedDeLocalesCard, type CandidatoLocal } from "./RedDeLocalesCard";
 import {
   AppsDelNegocioCard,
@@ -230,13 +233,15 @@ export default async function FichaDelNegocio({
     error?: string;
     modulo?: string;
     pestana?: string;
+    /** `?plan=` que deja la tarjeta Plan del negocio al volver: abre su vista previa. */
+    plan?: string;
   }>;
 }) {
   // Guardia en la página, no sólo en el layout: el layout no se vuelve a ejecutar al navegar del
   // lado del cliente, y esta ficha lee y cambia datos de cualquier negocio.
   const sesion = await requireSesionOperador();
   const { id } = await params;
-  const { created, ok, error, modulo, pestana } = await searchParams;
+  const { created, ok, error, modulo, pestana, plan: planAbierto } = await searchParams;
 
   const tenant = await operatorPrisma.tenant.findUnique({
     where: { id },
@@ -284,6 +289,7 @@ export default async function FichaDelNegocio({
     historial,
     red,
     candidatosCasa,
+    fichaDelPase,
   ] = await Promise.all([
     credencialFiscalDe(t.id),
     // Dueño del negocio + estado de su contraseña temporal (tolera la migración sin aplicar).
@@ -352,6 +358,8 @@ export default async function FichaDelNegocio({
             ),
           )
       : Promise.resolve([] as { id: string; name: string; slug: string }[]),
+    // La ficha fiscal del pase a real (R2-F5): abre el certificado sólo para ver quién lo firmó.
+    leerFichaDelPase(t.id, modoDesdeEnv()),
   ]);
   if (!negocio) notFound();
   const { owner, tempPending: ownerTempPending } = ownerYEstado;
@@ -824,13 +832,28 @@ export default async function FichaDelNegocio({
           </form>
         )}
       </Bloque>
+
+      {fichaDelPase && (
+        <PaseARealCard
+          tenantId={t.id}
+          ficha={fichaDelPase}
+          soloLectura={soloLectura}
+        />
+      )}
     </>
   );
 
+  // El plan de antes (trial/base/pro/enterprise) escribe la misma columna que los planes nuevos:
+  // con un plan nuevo asignado, su selector mostraría "Sin plan" y guardarlo lo borraría. Por eso
+  // se muestra sólo mientras el negocio no tiene plan o tiene uno de los de antes.
+  const conPlanAnterior = !t.plan || PLAN_IDS.includes(t.plan);
   const planPanel = (
     <>
+      <PlanDelNegocioCard tenantId={t.id} flags={flags} planAbierto={planAbierto ?? null} />
+
+      {conPlanAnterior && (
       <Bloque
-        titulo="Plan"
+        titulo="Plan anterior"
         cuenta={plan.nota ? `${plan.texto} · ${plan.nota}` : plan.texto}
       >
         <form
@@ -857,11 +880,13 @@ export default async function FichaDelNegocio({
           </Button>
         </form>
         <p className="border-t border-line py-2 text-[13px] text-muted">
-          Los planes nuevos (Facturación, Micro comerciante, Comerciante, PyME,
-          Estudio) todavía no se asignan desde acá: los precios y límites son
-          provisionales a confirmar.
+          Son los planes de antes (Prueba, Base, Pro, Enterprise) y quedan por
+          compatibilidad. Los planes nuevos se eligen arriba, en la tarjeta del
+          plan (precios y límites provisionales a confirmar); al elegir uno,
+          esta tarjeta deja de mostrarse.
         </p>
       </Bloque>
+      )}
 
       <InterruptoresCard
         tenantId={t.id}
@@ -1038,7 +1063,7 @@ export default async function FichaDelNegocio({
     { id: "personas", etiqueta: "Personas" },
     { id: "historial", etiqueta: "Historial" },
   ];
-  const inicial = modulo ? "plan" : leerPestana(pestana);
+  const inicial = modulo || planAbierto ? "plan" : leerPestana(pestana);
 
   return (
     <div className="space-y-6">

@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: inscripto con el IVA de cada producto: A a un cliente inscripto, A a un monotributista, B a consumidor final
+ok 1 - inscripto con el IVA de cada producto: A a un cliente inscripto, A a un monotributista, B a consumidor final
+  ---
+  duration_ms: 4.592767
+  type: 'test'
+  ...
+# Subtest: inscripto sin la alícuota de cada producto (o sin la fecha del día): no se emite, y se dice qué cargar
+ok 2 - inscripto sin la alícuota de cada producto (o sin la fecha del día): no se emite, y se dice qué cargar
+  ---
+  duration_ms: 0.282766
+  type: 'test'
+  ...
+# Subtest: inscripto sin la clase A cargada: a un cliente inscripto no emite (lo dice la decisión); a consumidor final, B
+ok 3 - inscripto sin la clase A cargada: a un cliente inscripto no emite (lo dice la decisión); a consumidor final, B
+  ---
+  duration_ms: 0.546845
+  type: 'test'
+  ...
+# Subtest: monotributo (CH) factura exactamente como antes: C sin mirar la ficha ni la alícuota
+ok 4 - monotributo (CH) factura exactamente como antes: C sin mirar la ficha ni la alícuota
+  ---
+  duration_ms: 0.235573
+  type: 'test'
+  ...
+# Subtest: con la facturación apagada no se emite: 'Sin factura' con el porqué
+ok 5 - con la facturación apagada no se emite: 'Sin factura' con el porqué
+  ---
+  duration_ms: 0.273555
+  type: 'test'
+  ...
+# Subtest: encendida: se emite sólo con el perfil completo y fuera de Responsable Inscripto
+ok 6 - encendida: se emite sólo con el perfil completo y fuera de Responsable Inscripto
+  ---
+  duration_ms: 0.3154
+  type: 'test'
+  ...
+# Subtest: anulada, sin cobrar o en cero: no se factura
+ok 7 - anulada, sin cobrar o en cero: no se factura
+  ---
+  duration_ms: 0.135529
+  type: 'test'
+  ...
+# Subtest: lo que dice la fila según el comprobante
+ok 8 - lo que dice la fila según el comprobante
+  ---
+  duration_ms: 0.198302
+  type: 'test'
+  ...
+# Subtest: Ventas del día: las ventas a cuenta se dicen aparte y el cupón queda en la nota
+ok 9 - Ventas del día: las ventas a cuenta se dicen aparte y el cupón queda en la nota
+  ---
+  duration_ms: 4.761191
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 511.5794

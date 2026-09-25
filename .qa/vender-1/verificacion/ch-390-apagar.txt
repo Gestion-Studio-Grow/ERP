@@ -1,0 +1,3 @@
+OK   operador · apagar «Diseño nuevo» de CH (5523 ms) prendido → apagado
+
+apagar 390: 1/1 pasos OK · errores de consola 0 · callejones 0

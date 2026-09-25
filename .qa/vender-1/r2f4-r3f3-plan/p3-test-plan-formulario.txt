@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: vacío vuelve al tope del plan
+ok 1 - vacío vuelve al tope del plan
+  ---
+  duration_ms: 2.373999
+  type: 'test'
+  ...
+# Subtest: «sin-tope» deja el límite sin tope
+ok 2 - «sin-tope» deja el límite sin tope
+  ---
+  duration_ms: 0.254619
+  type: 'test'
+  ...
+# Subtest: un entero entre 0 y el máximo es el tope nuevo
+ok 3 - un entero entre 0 y el máximo es el tope nuevo
+  ---
+  duration_ms: 0.38105
+  type: 'test'
+  ...
+# Subtest: negativos, decimales, texto o más que el máximo se rechazan con un porqué
+ok 4 - negativos, decimales, texto o más que el máximo se rechazan con un porqué
+  ---
+  duration_ms: 14.564391
+  type: 'test'
+  ...
+# Subtest: trinquete: sólo la consola del operador arma o escribe el plan y las excepciones de límites
+ok 5 - trinquete: sólo la consola del operador arma o escribe el plan y las excepciones de límites
+  ---
+  duration_ms: 80.387167
+  type: 'test'
+  ...
+# Subtest: trinquete: el detector reconoce los caminos de escritura
+ok 6 - trinquete: el detector reconoce los caminos de escritura
+  ---
+  duration_ms: 0.181644
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 555.034099

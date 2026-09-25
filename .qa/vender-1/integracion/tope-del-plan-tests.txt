@@ -1,0 +1,334 @@
+TAP version 13
+# Subtest: toNum: number, Decimal-like y basura
+ok 1 - toNum: number, Decimal-like y basura
+  ---
+  duration_ms: 1.192442
+  type: 'test'
+  ...
+# Subtest: rangoMesActual: [00:00 del 1° del mes, 00:00 del 1° del siguiente) en hora argentina
+ok 2 - rangoMesActual: [00:00 del 1° del mes, 00:00 del 1° del siguiente) en hora argentina
+  ---
+  duration_ms: 16.820393
+  type: 'test'
+  ...
+# Subtest: el 31 a las 22:30 hora argentina queda en ESE mes (cupo, fecha y período fiscal)
+ok 3 - el 31 a las 22:30 hora argentina queda en ESE mes (cupo, fecha y período fiscal)
+  ---
+  duration_ms: 1.674652
+  type: 'test'
+  ...
+# Subtest: a las 00:30 del 1° hora argentina ya es el mes nuevo
+ok 4 - a las 00:30 del 1° hora argentina ya es el mes nuevo
+  ---
+  duration_ms: 0.312745
+  type: 'test'
+  ...
+# Subtest: diciembre cruza de año en los dos relojes
+ok 5 - diciembre cruza de año en los dos relojes
+  ---
+  duration_ms: 0.159015
+  type: 'test'
+  ...
+# Subtest: rangoFiscalMes: {gte:'AAAAMM01', lt:'AAAAMM+1 01'} y deja afuera el 1° del siguiente
+ok 6 - rangoFiscalMes: {gte:'AAAAMM01', lt:'AAAAMM+1 01'} y deja afuera el 1° del siguiente
+  ---
+  duration_ms: 0.172658
+  type: 'test'
+  ...
+# Subtest: filtrosFacturacionMes: facturado = sólo AUTHORIZED por fecha fiscal; el cupo cuenta por createdAt sin los rechazados (ENG-329)
+ok 7 - filtrosFacturacionMes: facturado = sólo AUTHORIZED por fecha fiscal; el cupo cuenta por createdAt sin los rechazados (ENG-329)
+  ---
+  duration_ms: 0.49971
+  type: 'test'
+  ...
+# Subtest: rechazados: un extracto de agosto emitido y rechazado en septiembre cuenta en septiembre
+ok 8 - rechazados: un extracto de agosto emitido y rechazado en septiembre cuenta en septiembre
+  ---
+  duration_ms: 0.280349
+  type: 'test'
+  ...
+# Subtest: mapearClasificacion: reglas del plugin → vocabulario de producto
+ok 9 - mapearClasificacion: reglas del plugin → vocabulario de producto
+  ---
+  duration_ms: 0.397652
+  type: 'test'
+  ...
+# Subtest: mapearClasificacion: comision-impuesto se separa por la leyenda
+ok 10 - mapearClasificacion: comision-impuesto se separa por la leyenda
+  ---
+  duration_ms: 0.737094
+  type: 'test'
+  ...
+# Subtest: mapearClasificacion: aprendizaje/REVISAR caen por la clasificación
+ok 11 - mapearClasificacion: aprendizaje/REVISAR caen por la clasificación
+  ---
+  duration_ms: 0.41751
+  type: 'test'
+  ...
+# Subtest: resumirPropuestas: cuenta por estado y separa duplicados
+ok 12 - resumirPropuestas: cuenta por estado y separa duplicados
+  ---
+  duration_ms: 0.25357
+  type: 'test'
+  ...
+# Subtest: configBancosDesdeTenant: nulos = defaults del producto (no pisa con undefined)
+ok 13 - configBancosDesdeTenant: nulos = defaults del producto (no pisa con undefined)
+  ---
+  duration_ms: 0.236347
+  type: 'test'
+  ...
+# Subtest: configBancosDesdeTenant: con el tope del plan, ése manda para la regla y para los mensajes aunque la columna diga otra cosa
+ok 14 - configBancosDesdeTenant: con el tope del plan, ése manda para la regla y para los mensajes aunque la columna diga otra cosa
+  ---
+  duration_ms: 0.119833
+  type: 'test'
+  ...
+# Subtest: configBancosDesdeTenant: valores del tenant (Decimal-like) + CUIT propio normalizado
+ok 15 - configBancosDesdeTenant: valores del tenant (Decimal-like) + CUIT propio normalizado
+  ---
+  duration_ms: 0.253295
+  type: 'test'
+  ...
+# Subtest: validarDatosRevision: CUIT válido con nombre y descripción → ok
+ok 16 - validarDatosRevision: CUIT válido con nombre y descripción → ok
+  ---
+  duration_ms: 0.420664
+  type: 'test'
+  ...
+# Subtest: validarDatosRevision: CUIT con dígito verificador incorrecto → error
+ok 17 - validarDatosRevision: CUIT con dígito verificador incorrecto → error
+  ---
+  duration_ms: 0.359077
+  type: 'test'
+  ...
+# Subtest: validarDatosRevision: identificación sin nombre o sin descripción → error
+ok 18 - validarDatosRevision: identificación sin nombre o sin descripción → error
+  ---
+  duration_ms: 0.097986
+  type: 'test'
+  ...
+# Subtest: validarDatosRevision: DNI de 7-8 dígitos; otro largo falla
+ok 19 - validarDatosRevision: DNI de 7-8 dígitos; otro largo falla
+  ---
+  duration_ms: 0.133337
+  type: 'test'
+  ...
+# Subtest: validarDatosRevision: consumidor final (99) sin datos → ok con doc 0
+ok 20 - validarDatosRevision: consumidor final (99) sin datos → ok con doc 0
+  ---
+  duration_ms: 0.167034
+  type: 'test'
+  ...
+# Subtest: validarDatosRevision: docTipo desconocido → error
+ok 21 - validarDatosRevision: docTipo desconocido → error
+  ---
+  duration_ms: 0.099016
+  type: 'test'
+  ...
+# Subtest: armarFilasMovimientos: propuesta auto → fila completa; descartados NO se persisten
+ok 22 - armarFilasMovimientos: propuesta auto → fila completa; descartados NO se persisten
+  ---
+  duration_ms: 0.332878
+  type: 'test'
+  ...
+# Subtest: armarFilasMovimientos: revisión conserva motivo e identificación pendiente
+ok 23 - armarFilasMovimientos: revisión conserva motivo e identificación pendiente
+  ---
+  duration_ms: 0.153777
+  type: 'test'
+  ...
+# Subtest: bajo el umbral y bajo el tope: sigue FACTURABLE
+ok 24 - bajo el umbral y bajo el tope: sigue FACTURABLE
+  ---
+  duration_ms: 0.977129
+  type: 'test'
+  ...
+# Subtest: igual o sobre el umbral: va a REVISAR (necesita datos del comprador)
+ok 25 - igual o sobre el umbral: va a REVISAR (necesita datos del comprador)
+  ---
+  duration_ms: 0.305393
+  type: 'test'
+  ...
+# Subtest: al llegar al tope del mes: va a REVISAR (emisión manual)
+ok 26 - al llegar al tope del mes: va a REVISAR (emisión manual)
+  ---
+  duration_ms: 0.179747
+  type: 'test'
+  ...
+# Subtest: lo NO facturable del clasificador base no se toca
+ok 27 - lo NO facturable del clasificador base no se toca
+  ---
+  duration_ms: 0.197197
+  type: 'test'
+  ...
+# Subtest: mapeo operación→clasificación de DB
+ok 28 - mapeo operación→clasificación de DB
+  ---
+  duration_ms: 0.146084
+  type: 'test'
+  ...
+# Subtest: hash idempotente estable por payment_id
+ok 29 - hash idempotente estable por payment_id
+  ---
+  duration_ms: 0.119837
+  type: 'test'
+  ...
+# Subtest: Bancos: un Micro que se carga 100.000 facturas en su panel ve y usa el tope del plan; la excepción de GSG manda
+ok 30 - Bancos: un Micro que se carga 100.000 facturas en su panel ve y usa el tope del plan; la excepción de GSG manda
+  ---
+  duration_ms: 2672.902096
+  type: 'test'
+  ...
+# Subtest: Bancos: sin plan del catálogo (como CH) el tope es el de siempre, la columna o 159
+ok 31 - Bancos: sin plan del catálogo (como CH) el tope es el de siempre, la columna o 159
+  ---
+  duration_ms: 62.297551
+  type: 'test'
+  ...
+# Subtest: un Micro que se carga 100.000 facturas desde su panel sigue con el tope del plan; sólo GSG da más
+ok 32 - un Micro que se carga 100.000 facturas desde su panel sigue con el tope del plan; sólo GSG da más
+  ---
+  duration_ms: 2780.072701
+  type: 'test'
+  ...
+# Subtest: sin plan del catálogo y en CH, el tope de facturas es el de siempre (la columna o 159)
+ok 33 - sin plan del catálogo y en CH, el tope de facturas es el de siempre (la columna o 159)
+  ---
+  duration_ms: 40.833044
+  type: 'test'
+  ...
+# Subtest: «Tu plan» lee el plan, las personas activas y los comprobantes del mes del negocio, sin mirar al vecino
+ok 34 - «Tu plan» lee el plan, las personas activas y los comprobantes del mes del negocio, sin mirar al vecino
+  ---
+  duration_ms: 68.243086
+  type: 'test'
+  ...
+# Subtest: configConDefaults completa los valores del producto
+ok 35 - configConDefaults completa los valores del producto
+  ---
+  duration_ms: 1.047186
+  type: 'test'
+  ...
+# Subtest: monto menor al umbral → AUTO consumidor final genérico, sin descripción
+ok 36 - monto menor al umbral → AUTO consumidor final genérico, sin descripción
+  ---
+  duration_ms: 0.77876
+  type: 'test'
+  ...
+# Subtest: monto IGUAL al umbral va a revisión (el límite es estricto)
+ok 37 - monto IGUAL al umbral va a revisión (el límite es estricto)
+  ---
+  duration_ms: 14.201005
+  type: 'test'
+  ...
+# Subtest: monto mayor al umbral → revisión con identificación obligatoria
+ok 38 - monto mayor al umbral → revisión con identificación obligatoria
+  ---
+  duration_ms: 0.413564
+  type: 'test'
+  ...
+# Subtest: al 90% del cap se alerta pero se sigue emitiendo
+ok 39 - al 90% del cap se alerta pero se sigue emitiendo
+  ---
+  duration_ms: 1.513368
+  type: 'test'
+  ...
+# Subtest: al 100% del cap se bloquea la emisión automática (baja a revisión)
+ok 40 - al 100% del cap se bloquea la emisión automática (baja a revisión)
+  ---
+  duration_ms: 0.603372
+  type: 'test'
+  ...
+# Subtest: con el cap ya agotado, ninguna auto pasa
+ok 41 - con el cap ya agotado, ninguna auto pasa
+  ---
+  duration_ms: 0.2754
+  type: 'test'
+  ...
+# Subtest: las revisiones y no facturables no consumen cap
+ok 42 - las revisiones y no facturables no consumen cap
+  ---
+  duration_ms: 0.535277
+  type: 'test'
+  ...
+# Subtest: el mismo movimiento repetido en el archivo se descarta
+ok 43 - el mismo movimiento repetido en el archivo se descarta
+  ---
+  duration_ms: 0.405234
+  type: 'test'
+  ...
+# Subtest: un movimiento ya procesado en otra importación se descarta
+ok 44 - un movimiento ya procesado en otra importación se descarta
+  ---
+  duration_ms: 0.540013
+  type: 'test'
+  ...
+# Subtest: cruce banco↔MP: mismo monto y fecha ya facturado por MP → revisión
+ok 45 - cruce banco↔MP: mismo monto y fecha ya facturado por MP → revisión
+  ---
+  duration_ms: 0.378813
+  type: 'test'
+  ...
+# Subtest: cruce banco↔MP: distinto monto o fecha no molesta
+ok 46 - cruce banco↔MP: distinto monto o fecha no molesta
+  ---
+  duration_ms: 0.149009
+  type: 'test'
+  ...
+# Subtest: NO_FACTURABLE y REVISAR del clasificador se respetan con su motivo
+ok 47 - NO_FACTURABLE y REVISAR del clasificador se respetan con su motivo
+  ---
+  duration_ms: 0.217229
+  type: 'test'
+  ...
+# Subtest: el monto de la propuesta es el valor absoluto (IVA incluido, lo desglosa el Core)
+ok 48 - el monto de la propuesta es el valor absoluto (IVA incluido, lo desglosa el Core)
+  ---
+  duration_ms: 0.109505
+  type: 'test'
+  ...
+# Subtest: R3-F3: la columna del negocio puede bajar el tope del plan
+ok 49 - R3-F3: la columna del negocio puede bajar el tope del plan
+  ---
+  duration_ms: 0.377737
+  type: 'test'
+  ...
+# Subtest: R3-F3: un negocio Micro que carga 100.000 en su panel sigue frenado por el tope de su plan
+ok 50 - R3-F3: un negocio Micro que carga 100.000 en su panel sigue frenado por el tope de su plan
+  ---
+  duration_ms: 0.114697
+  type: 'test'
+  ...
+# Subtest: R3-F3: para dar más que el plan hace falta la excepción de GSG; la columna igual puede bajarla
+ok 51 - R3-F3: para dar más que el plan hace falta la excepción de GSG; la columna igual puede bajarla
+  ---
+  duration_ms: 0.083934
+  type: 'test'
+  ...
+# Subtest: R3-F3: con la columna vacía vale el tope del plan
+ok 52 - R3-F3: con la columna vacía vale el tope del plan
+  ---
+  duration_ms: 0.127987
+  type: 'test'
+  ...
+# Subtest: R3-F3: sin plan del catálogo (o en CH) queda el tope de siempre
+ok 53 - R3-F3: sin plan del catálogo (o en CH) queda el tope de siempre
+  ---
+  duration_ms: 0.157712
+  type: 'test'
+  ...
+# Subtest: R3-F3: «sin tope» no deja el automático sin freno y un valor inválido en la columna se ignora
+ok 54 - R3-F3: «sin tope» no deja el automático sin freno y un valor inválido en la columna se ignora
+  ---
+  duration_ms: 0.156055
+  type: 'test'
+  ...
+1..54
+# tests 54
+# suites 0
+# pass 54
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4319.182393

@@ -1,0 +1,9 @@
+Modelos protegidos por la policy (tienen tenantId): 57
+  AccountPayable, AccountReceivable, Appointment, ArcaAuthTicket, AuditLog, Box, BoxBlock, BusinessSettings, CarteraCliente, CashMovement, CashSession, Client, Collection, CommissionPayout, ContactoCartera, ConversacionWhatsapp, Coupon, DelegacionFiscal, EnvioComprobante, EventoIntegracion, ExtractoRecibido, ImportacionBancaria, IntegracionConexion, IntegracionCredencial, IntegracionEstadoOAuth, IntegracionUso, Invoice, LeadCampania, MensajeWhatsapp, MessageTemplate, MovimientoImportado, Order, OrderItem, OutboxEvent, PayableCheque, Payment, Product, Professional, ProfessionalBlock, ProfessionalNews, ProfessionalServiceCommission, ReceptorFiscal, ReglaClasificacionBancoTenant, Resource, Review, Service, ServiceCategory, ServiceProduct, ServiceResource, StockMovement, StockPurchase, StockPurchaseItem, Supplier, TenantFiscalCredential, User, WaitlistEntry, WorkingHours
+
+Excluido a propósito: Tenant (raíz del aislamiento) · _ProfessionalServices (join M2M sin tenantId, protegido transitivamente)
+
+Migraciones desde 20260925120000 revisadas (RLS adentro de la migración): 2
+
+✅ Todo modelo de-tenant es protegible por RLS (tiene tenantId) y ninguna tabla nueva nace sin RLS.
+exit 0

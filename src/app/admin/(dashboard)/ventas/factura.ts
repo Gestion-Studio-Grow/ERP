@@ -8,11 +8,23 @@
 // ofrece reintentar. No emitir es reversible; emitir mal no (un comprobante con datos fiscales
 // inventados no se borra: se anula con nota de crédito).
 //
-// Un Responsable Inscripto queda afuera a propósito: la factura de la venta de un RI necesita
-// la alícuota de IVA por producto (la carne va al 10,5 %) y eso llega en la ola 9. Hasta
-// entonces, calcular todo al 21 % emitiría un comprobante equivocado.
+// Un Responsable Inscripto factura con la letra que decide el sistema (R1-F5): A a otro inscripto
+// o a un monotributista, B a un consumidor final, según la ficha fiscal del cliente de la venta
+// (`decidirFacturaDeVenta`, la misma decisión que usa el despacho a ARCA). Sólo si el IVA sale de
+// la alícuota de cada producto (la carne va al 10,5 %): calcular todo al 21 % emitiría un
+// comprobante equivocado, y el despacho tampoco lo deja salir (plugins/arca/domain/iva-por-producto.ts).
+// Monotributo y exento siguen como siempre: Factura C, sin mirar al comprador.
 //
 // Dato puro: lo importan la Server Action y las pantallas (FilaVenta, VenderForm).
+
+import {
+  decidirFacturaDeVenta,
+  motivoDeLaDecision,
+  queImpideEntregarLaFactura,
+  type FichaFiscal,
+} from "@/lib/fiscal/ficha-fiscal";
+import type { Letra } from "@/lib/fiscal/decidir-comprobante";
+import { calcularImpuestosPorAlicuota, type RenglonConAlicuota } from "@/lib/fiscal/impuestos-por-alicuota";
 
 export type EstadoFactura = "facturada" | "en-tramite" | "rechazada" | "sin-factura";
 
@@ -62,18 +74,40 @@ export function faltanteFiscalEnPalabras(campo: string | null | undefined): stri
   return "los datos fiscales del negocio";
 }
 
-export type PerfilParaFacturar = { ok: true; condicionIva: string } | { ok: false; falta: string };
+export type PerfilParaFacturar =
+  | {
+      ok: true;
+      condicionIva: string;
+      /** CUIT del negocio: la decisión no deja que se facture a sí mismo. */
+      cuit?: string | number | null;
+      /** Clase A que ARCA le asignó al inscripto (RG 1575). Sin dato, la A no sale sola. */
+      regimenFacturaA?: string | null;
+    }
+  | { ok: false; falta: string };
+
+/** Lo que dice la fila cuando un inscripto vende sin la alícuota de cada producto. */
+export { MOTIVO_INSCRIPTO_SIN_ALICUOTA } from "@/lib/fiscal/impuestos-por-alicuota";
 
 /**
  * ¿Se llama al facturador para esta venta? PURA. Si no, el motivo es lo que la fila muestra
- * al lado de «Sin factura».
+ * al lado de «Sin factura». Para un inscripto dice además con qué letra sale.
  */
 export function puedeFacturarVenta(input: {
   facturacionEncendida: boolean;
   /** Se lee sólo con la facturación encendida: apagada, no hace falta ir a buscarlo. */
   perfil: PerfilParaFacturar | null;
   venta: { paid: boolean; anulada: boolean; total: number };
-}): { ok: true } | { ok: false; motivo: string } {
+  /** Sólo inscripto: ficha fiscal del cliente de la venta (`null`: consumidor final sin identificar). */
+  receptor?: FichaFiscal | null;
+  /**
+   * Sólo inscripto: lo cobrado por cada producto de la venta con su alícuota de IVA
+   * (`Product.alicuotaIva`). Se calcula con lo mismo que usa la emisión
+   * (`calcularImpuestosPorAlicuota`): si así no sale la factura, no se promete.
+   */
+  renglones?: readonly RenglonConAlicuota[];
+  /** Sólo inscripto: día del negocio en que se pide el CAE (AAAAMMDD). */
+  hoy?: string;
+}): { ok: true; letra?: Letra } | { ok: false; motivo: string } {
   const { venta } = input;
   if (venta.anulada) return { ok: false, motivo: "Una venta anulada no se factura." };
   if (!venta.paid) return { ok: false, motivo: "Sólo se facturan las ventas cobradas o dejadas a cuenta." };
@@ -92,10 +126,25 @@ export function puedeFacturarVenta(input: {
     };
   }
   if (p.condicionIva === "RESPONSABLE_INSCRIPTO") {
-    return {
-      ok: false,
-      motivo: "Para un Responsable Inscripto la factura de la venta todavía no se emite desde acá (falta el IVA por producto).",
-    };
+    const impuestos = calcularImpuestosPorAlicuota("RESPONSABLE_INSCRIPTO", {
+      total: venta.total,
+      renglones: input.renglones ?? [],
+    });
+    if (!impuestos.ok) return { ok: false, motivo: impuestos.motivo };
+    if (!input.hoy) {
+      return { ok: false, motivo: "No se pudo decidir la letra de la factura porque falta la fecha del día. Reintentá." };
+    }
+    const d = decidirFacturaDeVenta(
+      { condicionIva: p.condicionIva, cuit: p.cuit ?? null, regimenFacturaA: p.regimenFacturaA ?? null },
+      input.receptor ?? null,
+      { hoy: input.hoy, total: venta.total },
+    );
+    if (d.estado !== "lista" || !d.comprobante) return { ok: false, motivo: motivoDeLaDecision(d) };
+    // ARCA autoriza A que el impreso no puede entregar (sin domicilio, con varias alícuotas, sin
+    // la leyenda de la RG 5003): esas no se prometen, y no se pide un CAE sin papel.
+    const impide = queImpideEntregarLaFactura(d, input.receptor, impuestos.impuestos.iva.length);
+    if (impide) return { ok: false, motivo: impide };
+    return { ok: true, letra: d.comprobante.letra };
   }
   return { ok: true };
 }

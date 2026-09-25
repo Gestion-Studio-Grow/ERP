@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+ok 1 - sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+  ---
+  duration_ms: 7.000259
+  type: 'test'
+  ...
+# Subtest: Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+ok 2 - Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+  ---
+  duration_ms: 15.417953
+  type: 'test'
+  ...
+# Subtest: CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+ok 3 - CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+  ---
+  duration_ms: 0.374146
+  type: 'test'
+  ...
+# Subtest: diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+ok 4 - diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+  ---
+  duration_ms: 0.671628
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 477.883502

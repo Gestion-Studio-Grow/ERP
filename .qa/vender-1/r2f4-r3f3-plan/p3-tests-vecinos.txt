@@ -1,0 +1,3200 @@
+TAP version 13
+# Subtest: el tile de Auditoría abre la pantalla filtrada a hoy; el resto, su ruta
+ok 1 - el tile de Auditoría abre la pantalla filtrada a hoy; el resto, su ruta
+  ---
+  duration_ms: 0.897607
+  type: 'test'
+  ...
+# Subtest: el número de Auditoría cuenta con el MISMO where que la pantalla abierta desde el tile
+ok 2 - el número de Auditoría cuenta con el MISMO where que la pantalla abierta desde el tile
+  ---
+  duration_ms: 22.330502
+  type: 'test'
+  ...
+# Subtest: negocio de mostrador: Profesional se rechaza (aunque llegue por un POST a mano); Dueño y Mostrador pasan
+ok 3 - negocio de mostrador: Profesional se rechaza (aunque llegue por un POST a mano); Dueño y Mostrador pasan
+  ---
+  duration_ms: 46.436083
+  type: 'test'
+  ...
+# Subtest: CH (servicios): se admiten los tres roles, como siempre
+ok 4 - CH (servicios): se admiten los tres roles, como siempre
+  ---
+  duration_ms: 0.440906
+  type: 'test'
+  ...
+# Subtest: lo que acepta el servidor es exactamente lo que ofrece la pantalla, en los dos tipos de negocio
+ok 5 - lo que acepta el servidor es exactamente lo que ofrece la pantalla, en los dos tipos de negocio
+  ---
+  duration_ms: 0.642423
+  type: 'test'
+  ...
+# Subtest: los demás rechazos, con el aviso que muestra la pantalla
+ok 6 - los demás rechazos, con el aviso que muestra la pantalla
+  ---
+  duration_ms: 0.384419
+  type: 'test'
+  ...
+# Subtest: createUser decide con validarAltaDeUsuario y el negocio de la sesión, y da de alta con lo que devuelve
+ok 7 - createUser decide con validarAltaDeUsuario y el negocio de la sesión, y da de alta con lo que devuelve
+  ---
+  duration_ms: 0.451854
+  type: 'test'
+  ...
+# Subtest: en un mostrador hay dos columnas: Dueño/a y Mostrador, sin filas de agenda
+ok 8 - en un mostrador hay dos columnas: Dueño/a y Mostrador, sin filas de agenda
+  ---
+  duration_ms: 2.411398
+  type: 'test'
+  ...
+# Subtest: en un negocio de servicios aparecen Recepción y Profesional, y la agenda
+ok 9 - en un negocio de servicios aparecen Recepción y Profesional, y la agenda
+  ---
+  duration_ms: 0.256173
+  type: 'test'
+  ...
+# Subtest: el dueño puede todo lo de la tabla, sin matices
+ok 10 - el dueño puede todo lo de la tabla, sin matices
+  ---
+  duration_ms: 0.179646
+  type: 'test'
+  ...
+# Subtest: el mostrador anula sólo lo de hoy y con motivo, y no ve costos ni reportes
+ok 11 - el mostrador anula sólo lo de hoy y con motivo, y no ve costos ni reportes
+  ---
+  duration_ms: 0.229328
+  type: 'test'
+  ...
+# Subtest: el profesional ve y cobra sólo lo suyo y no da turnos
+ok 12 - el profesional ve y cobra sólo lo suyo y no da turnos
+  ---
+  duration_ms: 0.143328
+  type: 'test'
+  ...
+# Subtest: cada celda dice lo mismo que el sistema de permisos
+ok 13 - cada celda dice lo mismo que el sistema de permisos
+  ---
+  duration_ms: 0.312135
+  type: 'test'
+  ...
+# Subtest: el resumen del rol para el alta sale de la misma tabla
+ok 14 - el resumen del rol para el alta sale de la misma tabla
+  ---
+  duration_ms: 0.461172
+  type: 'test'
+  ...
+# Subtest: quien choca con el tope de usuarios llega a una página que existe (no a un 404)
+ok 15 - quien choca con el tope de usuarios llega a una página que existe (no a un 404)
+  ---
+  duration_ms: 1.288335
+  type: 'test'
+  ...
+# Subtest: un Micro con el cupo de usuarios lleno ve el porqué y cómo seguir
+ok 16 - un Micro con el cupo de usuarios lleno ve el porqué y cómo seguir
+  ---
+  duration_ms: 15.908169
+  type: 'test'
+  ...
+# Subtest: si mientras tanto se liberó un lugar, el aviso lo dice en vez de repetir el error
+ok 17 - si mientras tanto se liberó un lugar, el aviso lo dice en vez de repetir el error
+  ---
+  duration_ms: 0.428203
+  type: 'test'
+  ...
+# Subtest: los comprobantes avisan al 80 % y al 100 %, y nunca dicen que se frena una venta
+ok 18 - los comprobantes avisan al 80 % y al 100 %, y nunca dicen que se frena una venta
+  ---
+  duration_ms: 0.939776
+  type: 'test'
+  ...
+# Subtest: lo que no se midió no se inventa: se muestra sólo lo que incluye el plan
+ok 19 - lo que no se midió no se inventa: se muestra sólo lo que incluye el plan
+  ---
+  duration_ms: 0.467097
+  type: 'test'
+  ...
+# Subtest: sin plan del catálogo no hay topes: se ofrece escribir
+ok 20 - sin plan del catálogo no hay topes: se ofrece escribir
+  ---
+  duration_ms: 0.20083
+  type: 'test'
+  ...
+# Subtest: el precio va marcado como provisional a confirmar
+ok 21 - el precio va marcado como provisional a confirmar
+  ---
+  duration_ms: 0.208301
+  type: 'test'
+  ...
+# Subtest: «Quiero más» abre WhatsApp: directo a GSG si hay número; si no, para elegir contacto, nunca roto
+ok 22 - «Quiero más» abre WhatsApp: directo a GSG si hay número; si no, para elegir contacto, nunca roto
+  ---
+  duration_ms: 0.37393
+  type: 'test'
+  ...
+# Subtest: en un negocio sin agenda no se ofrece Profesional y Recepción se dice Mostrador
+ok 23 - en un negocio sin agenda no se ofrece Profesional y Recepción se dice Mostrador
+  ---
+  duration_ms: 2.07385
+  type: 'test'
+  ...
+# Subtest: en servicios (CH) queda exactamente como estaba
+ok 24 - en servicios (CH) queda exactamente como estaba
+  ---
+  duration_ms: 0.236043
+  type: 'test'
+  ...
+# Subtest: el servidor admite en el alta sólo los roles que ofrece la pantalla
+ok 25 - el servidor admite en el alta sólo los roles que ofrece la pantalla
+  ---
+  duration_ms: 0.187097
+  type: 'test'
+  ...
+# Subtest: en el laboratorio: sistema, base y aislamiento arriba; facturación, cobros y WhatsApp al medio
+ok 26 - en el laboratorio: sistema, base y aislamiento arriba; facturación, cobros y WhatsApp al medio
+  ---
+  duration_ms: 2.268256
+  type: 'test'
+  ...
+# Subtest: ninguna llave usa siglas internas ni variables de entorno
+ok 27 - ninguna llave usa siglas internas ni variables de entorno
+  ---
+  duration_ms: 0.559175
+  type: 'test'
+  ...
+# Subtest: facturación en el ambiente de prueba de ARCA avisa que nada tiene validez fiscal
+ok 28 - facturación en el ambiente de prueba de ARCA avisa que nada tiene validez fiscal
+  ---
+  duration_ms: 0.419369
+  type: 'test'
+  ...
+# Subtest: con todo en real, anda todo
+ok 29 - con todo en real, anda todo
+  ---
+  duration_ms: 0.328317
+  type: 'test'
+  ...
+# Subtest: en el laboratorio anda, con facturación, cobros y WhatsApp para mirar
+ok 30 - en el laboratorio anda, con facturación, cobros y WhatsApp para mirar
+  ---
+  duration_ms: 0.32172
+  type: 'test'
+  ...
+# Subtest: si la base no responde, hay algo caído y va primero
+ok 31 - si la base no responde, hay algo caído y va primero
+  ---
+  duration_ms: 0.149218
+  type: 'test'
+  ...
+# Subtest: la medición en pausa no inventa números
+ok 32 - la medición en pausa no inventa números
+  ---
+  duration_ms: 0.145483
+  type: 'test'
+  ...
+# Subtest: la medición prendida muestra los tres números de la última lectura
+ok 33 - la medición prendida muestra los tres números de la última lectura
+  ---
+  duration_ms: 14.25883
+  type: 'test'
+  ...
+# Subtest: un negocio en prueba no es un problema de la plataforma; uno suspendido sí
+ok 34 - un negocio en prueba no es un problema de la plataforma; uno suspendido sí
+  ---
+  duration_ms: 0.487277
+  type: 'test'
+  ...
+# Subtest: las notas escritas a mano salen sin siglas y con la urgente primero
+ok 35 - las notas escritas a mano salen sin siglas y con la urgente primero
+  ---
+  duration_ms: 0.647711
+  type: 'test'
+  ...
+# Subtest: una nota nueva que no conozco se muestra con sus palabras de origen
+ok 36 - una nota nueva que no conozco se muestra con sus palabras de origen
+  ---
+  duration_ms: 0.138757
+  type: 'test'
+  ...
+# Subtest: la página de la consola no arma su propio formulario de búsqueda para el celular
+ok 37 - la página de la consola no arma su propio formulario de búsqueda para el celular
+  ---
+  duration_ms: 0.986489
+  type: 'test'
+  ...
+# Subtest: la lista de negocios recibe la búsqueda, el filtro y el orden actuales
+ok 38 - la lista de negocios recibe la búsqueda, el filtro y el orden actuales
+  ---
+  duration_ms: 0.409778
+  type: 'test'
+  ...
+# Subtest: el único \#buscar-negocio es el de la lista
+ok 39 - el único \#buscar-negocio es el de la lista
+  ---
+  duration_ms: 0.235624
+  type: 'test'
+  ...
+# Subtest: las vistas cuentan cada estado y los pendientes para abrir
+ok 40 - las vistas cuentan cada estado y los pendientes para abrir
+  ---
+  duration_ms: 2.168531
+  type: 'test'
+  ...
+# Subtest: una vista que no existe cae en «Todos»; una pestaña que no existe, en «Puesta en marcha»
+ok 41 - una vista que no existe cae en «Todos»; una pestaña que no existe, en «Puesta en marcha»
+  ---
+  duration_ms: 0.252258
+  type: 'test'
+  ...
+# Subtest: la vista «en producción» deja sólo los negocios vivos
+ok 42 - la vista «en producción» deja sólo los negocios vivos
+  ---
+  duration_ms: 0.225491
+  type: 'test'
+  ...
+# Subtest: la vista «con pendientes» deja los que no están listos para abrir
+ok 43 - la vista «con pendientes» deja los que no están listos para abrir
+  ---
+  duration_ms: 0.136777
+  type: 'test'
+  ...
+# Subtest: buscar encuentra por nombre, slug o link sin mayúsculas ni acentos
+ok 44 - buscar encuentra por nombre, slug o link sin mayúsculas ni acentos
+  ---
+  duration_ms: 0.373276
+  type: 'test'
+  ...
+# Subtest: el buscador de la lista en el celular usa la misma regla que el servidor
+ok 45 - el buscador de la lista en el celular usa la misma regla que el servidor
+  ---
+  duration_ms: 0.414385
+  type: 'test'
+  ...
+# Subtest: ordenar por actividad de mayor a menor pone arriba al que más operó
+ok 46 - ordenar por actividad de mayor a menor pone arriba al que más operó
+  ---
+  duration_ms: 7.687648
+  type: 'test'
+  ...
+# Subtest: un orden que no se entiende no reordena
+ok 47 - un orden que no se entiende no reordena
+  ---
+  duration_ms: 0.157332
+  type: 'test'
+  ...
+# Subtest: el estado se dice en palabras, con su forma
+ok 48 - el estado se dice en palabras, con su forma
+  ---
+  duration_ms: 0.359638
+  type: 'test'
+  ...
+# Subtest: el plan sale del catálogo nuevo (provisional), de uno viejo, o dice «Sin plan»
+ok 49 - el plan sale del catálogo nuevo (provisional), de uno viejo, o dice «Sin plan»
+  ---
+  duration_ms: 0.439302
+  type: 'test'
+  ...
+# Subtest: el rubro se lee sin el prefijo del blueprint
+ok 50 - el rubro se lee sin el prefijo del blueprint
+  ---
+  duration_ms: 0.133749
+  type: 'test'
+  ...
+# Subtest: cada pendiente abre la pestaña de la ficha que lo resuelve
+ok 51 - cada pendiente abre la pestaña de la ficha que lo resuelve
+  ---
+  duration_ms: 0.099388
+  type: 'test'
+  ...
+# Subtest: la bandeja pone primero al que más debe y no pide nada a un suspendido
+ok 52 - la bandeja pone primero al que más debe y no pide nada a un suspendido
+  ---
+  duration_ms: 0.316298
+  type: 'test'
+  ...
+# Subtest: con un solo pendiente la bandeja dice cuál y su dato
+ok 53 - con un solo pendiente la bandeja dice cuál y su dato
+  ---
+  duration_ms: 0.100646
+  type: 'test'
+  ...
+# Subtest: el riel de «listo para abrir» cuenta sólo lo que aplica, los listos primero
+ok 54 - el riel de «listo para abrir» cuenta sólo lo que aplica, los listos primero
+  ---
+  duration_ms: 0.141145
+  type: 'test'
+  ...
+# Subtest: La lista en el celular, en el navegador
+    # Subtest: en el celular, el renglón vacío ocupa todo el ancho (con y sin casillas)
+    ok 1 - en el celular, el renglón vacío ocupa todo el ancho (con y sin casillas)
+      ---
+      duration_ms: 713.133514
+      type: 'test'
+      ...
+    # Subtest: en la PC el renglón vacío sigue siendo una celda de tabla a lo ancho
+    ok 2 - en la PC el renglón vacío sigue siendo una celda de tabla a lo ancho
+      ---
+      duration_ms: 315.544834
+      type: 'test'
+      ...
+    # Subtest: consola a 390: se busca un negocio desde la lista, mientras se escribe y con Enter
+    ok 3 - consola a 390: se busca un negocio desde la lista, mientras se escribe y con Enter
+      ---
+      duration_ms: 708.190997
+      type: 'test'
+      ...
+    # Subtest: consola en la PC: el buscador de la lista no aparece (está en la cabecera) y sin `buscador` no cambia nada
+    ok 4 - consola en la PC: el buscador de la lista no aparece (está en la cabecera) y sin `buscador` no cambia nada
+      ---
+      duration_ms: 753.841602
+      type: 'test'
+      ...
+    1..4
+ok 55 - La lista en el celular, en el navegador
+  ---
+  duration_ms: 4624.91969
+  type: 'suite'
+  ...
+# Subtest: activar inventario en magra: con el Inicio por apps gana Stock y las apps de stock, sin perder nada
+ok 56 - activar inventario en magra: con el Inicio por apps gana Stock y las apps de stock, sin perder nada
+  ---
+  duration_ms: 6.139135
+  type: 'test'
+  ...
+# Subtest: fuera del Inicio por apps el cambio no se nota hoy; adentro, se nota apenas se confirma
+ok 57 - fuera del Inicio por apps el cambio no se nota hoy; adentro, se nota apenas se confirma
+  ---
+  duration_ms: 3.346786
+  type: 'test'
+  ...
+# Subtest: activar inventario sin catálogo arrastra el catálogo (dependencia) y lo avisa
+ok 58 - activar inventario sin catálogo arrastra el catálogo (dependencia) y lo avisa
+  ---
+  duration_ms: 0.27469
+  type: 'test'
+  ...
+# Subtest: activar un módulo que ya está no escribe nada
+ok 59 - activar un módulo que ya está no escribe nada
+  ---
+  duration_ms: 0.197458
+  type: 'test'
+  ...
+# Subtest: apagar agenda con lista de espera activa: queda bloqueado, con el motivo
+ok 60 - apagar agenda con lista de espera activa: queda bloqueado, con el motivo
+  ---
+  duration_ms: 0.384456
+  type: 'test'
+  ...
+# Subtest: apagar la lista de espera primero sí se puede, y la vista previa dice qué app pierde
+ok 61 - apagar la lista de espera primero sí se puede, y la vista previa dice qué app pierde
+  ---
+  duration_ms: 7.933417
+  type: 'test'
+  ...
+# Subtest: en un Comerciante no se apaga un módulo que viene con su plan
+ok 62 - en un Comerciante no se apaga un módulo que viene con su plan
+  ---
+  duration_ms: 0.235772
+  type: 'test'
+  ...
+# Subtest: un módulo de otro rubro no se activa (comisiones en una carnicería)
+ok 63 - un módulo de otro rubro no se activa (comisiones en una carnicería)
+  ---
+  duration_ms: 0.189692
+  type: 'test'
+  ...
+# Subtest: un módulo que no existe se rechaza con el motivo
+ok 64 - un módulo que no existe se rechaza con el motivo
+  ---
+  duration_ms: 0.247562
+  type: 'test'
+  ...
+# Subtest: CH (beauty-spa): ni cambios de a uno ni 'fijar' sin el OK del dueño
+ok 65 - CH (beauty-spa): ni cambios de a uno ni 'fijar' sin el OK del dueño
+  ---
+  duration_ms: 1.556597
+  type: 'test'
+  ...
+# Subtest: cartera y multilocal no pueden estar juntos, en ningún orden
+ok 66 - cartera y multilocal no pueden estar juntos, en ningún orden
+  ---
+  duration_ms: 0.267488
+  type: 'test'
+  ...
+# Subtest: multilocal abre las apps de Mis locales, con el Inicio por apps y sin él
+ok 67 - multilocal abre las apps de Mis locales, con el Inicio por apps y sin él
+  ---
+  duration_ms: 1.468506
+  type: 'test'
+  ...
+# Subtest: Mis locales con vínculos adentro: no se prende sobre una cartera ni se apaga con locales colgando
+ok 68 - Mis locales con vínculos adentro: no se prende sobre una cartera ni se apaga con locales colgando
+  ---
+  duration_ms: 0.429543
+  type: 'test'
+  ...
+# Subtest: activar cartera en un negocio del rubro lo convierte en Contador: la vista previa lo avisa
+ok 69 - activar cartera en un negocio del rubro lo convierte en Contador: la vista previa lo avisa
+  ---
+  duration_ms: 0.962311
+  type: 'test'
+  ...
+# Subtest: magra hoy: fuera del Inicio por apps, y con su asignación perdería apps frente a hoy
+ok 70 - magra hoy: fuera del Inicio por apps, y con su asignación perdería apps frente a hoy
+  ---
+  duration_ms: 0.67511
+  type: 'test'
+  ...
+# Subtest: fijar en magra suma lo mínimo (inventario, campañas, bancos) y deja 0 apps perdidas
+ok 71 - fijar en magra suma lo mínimo (inventario, campañas, bancos) y deja 0 apps perdidas
+  ---
+  duration_ms: 2.728114
+  type: 'test'
+  ...
+# Subtest: ya en el piloto con la asignación incompleta: la tarjeta lo marca y fijar le devuelve lo perdido
+ok 72 - ya en el piloto con la asignación incompleta: la tarjeta lo marca y fijar le devuelve lo perdido
+  ---
+  duration_ms: 1.049654
+  type: 'test'
+  ...
+# Subtest: sin módulos asignados: el Inicio por apps no filtra, y fijar da la asignación completa de su menú
+ok 73 - sin módulos asignados: el Inicio por apps no filtra, y fijar da la asignación completa de su menú
+  ---
+  duration_ms: 1.333355
+  type: 'test'
+  ...
+# Subtest: shinevelas y adosmanos con la asignación de su rubro: fijar deja 0 apps perdidas
+ok 74 - shinevelas y adosmanos con la asignación de su rubro: fijar deja 0 apps perdidas
+  ---
+  duration_ms: 1.375117
+  type: 'test'
+  ...
+# Subtest: activar un solo módulo en un negocio sin asignación prende el filtro: la vista previa muestra todo lo que perdería
+ok 75 - activar un solo módulo en un negocio sin asignación prende el filtro: la vista previa muestra todo lo que perdería
+  ---
+  duration_ms: 0.822789
+  type: 'test'
+  ...
+# Subtest: mismoConjunto: ignora el orden y los repetidos, no los faltantes
+ok 76 - mismoConjunto: ignora el orden y los repetidos, no los faltantes
+  ---
+  duration_ms: 0.160162
+  type: 'test'
+  ...
+# Subtest: trabajando por apps, un cambio de módulos que le saca apps que ve se frena; apagado, no
+ok 77 - trabajando por apps, un cambio de módulos que le saca apps que ve se frena; apagado, no
+  ---
+  duration_ms: 2.028462
+  type: 'test'
+  ...
+# Subtest: cargar el punto de venta 3 en un CUIT que otro negocio ya usa con el 3 → rechazo
+ok 78 - cargar el punto de venta 3 en un CUIT que otro negocio ya usa con el 3 → rechazo
+  ---
+  duration_ms: 1.59361
+  type: 'test'
+  ...
+# Subtest: el mismo CUIT con un punto de venta libre pasa
+ok 79 - el mismo CUIT con un punto de venta libre pasa
+  ---
+  duration_ms: 0.242797
+  type: 'test'
+  ...
+# Subtest: el mismo punto de venta con OTRO CUIT pasa: es otro talonario
+ok 80 - el mismo punto de venta con OTRO CUIT pasa: es otro talonario
+  ---
+  duration_ms: 0.253262
+  type: 'test'
+  ...
+# Subtest: volver a guardar el propio punto de venta no es un choque
+ok 81 - volver a guardar el propio punto de venta no es un choque
+  ---
+  duration_ms: 0.178288
+  type: 'test'
+  ...
+# Subtest: sin CUIT o sin punto de venta no hay talonario que compartir
+ok 82 - sin CUIT o sin punto de venta no hay talonario que compartir
+  ---
+  duration_ms: 0.151748
+  type: 'test'
+  ...
+# Subtest: cambiar el CUIT de un negocio que ya tiene punto de venta también choca
+ok 83 - cambiar el CUIT de un negocio que ya tiene punto de venta también choca
+  ---
+  duration_ms: 0.12299
+  type: 'test'
+  ...
+# Subtest: el CUIT se compara por sus dígitos: con guiones o sin guiones es el mismo
+ok 84 - el CUIT se compara por sus dígitos: con guiones o sin guiones es el mismo
+  ---
+  duration_ms: 0.301533
+  type: 'test'
+  ...
+# Subtest: los puntos usados del CUIT salen ordenados y sin el propio ni los vacíos
+ok 85 - los puntos usados del CUIT salen ordenados y sin el propio ni los vacíos
+  ---
+  duration_ms: 2.090097
+  type: 'test'
+  ...
+# Subtest: el motivo dice quién lo usa, qué pasa y cómo seguir
+ok 86 - el motivo dice quién lo usa, qué pasa y cómo seguir
+  ---
+  duration_ms: 0.618007
+  type: 'test'
+  ...
+# Subtest: el aviso al contador dice qué no se hizo y cómo seguir, sin nombrar al otro negocio
+ok 87 - el aviso al contador dice qué no se hizo y cómo seguir, sin nombrar al otro negocio
+  ---
+  duration_ms: 0.643914
+  type: 'test'
+  ...
+# Subtest: CUIT de un solo negocio: nuevo, propio, ajeno o re-alta, como antes
+ok 88 - CUIT de un solo negocio: nuevo, propio, ajeno o re-alta, como antes
+  ---
+  duration_ms: 0.367527
+  type: 'test'
+  ...
+# Subtest: CUIT de una marca con varios locales: nunca elige uno cualquiera
+ok 89 - CUIT de una marca con varios locales: nunca elige uno cualquiera
+  ---
+  duration_ms: 0.441328
+  type: 'test'
+  ...
+# Subtest: magra Micro → PyME → Micro trabajando por apps: la vista previa coincide con el Inicio posterior y vuelve igual
+ok 90 - magra Micro → PyME → Micro trabajando por apps: la vista previa coincide con el Inicio posterior y vuelve igual
+  ---
+  duration_ms: 16.099587
+  type: 'test'
+  ...
+# Subtest: magra Micro → PyME → Micro sin «Trabaja por apps»: la vista previa coincide con el Inicio posterior y vuelve igual
+ok 91 - magra Micro → PyME → Micro sin «Trabaja por apps»: la vista previa coincide con el Inicio posterior y vuelve igual
+  ---
+  duration_ms: 7.829838
+  type: 'test'
+  ...
+# Subtest: PyME suma apps a magra trabajando por apps, y bajar a Micro pide confirmar lo que pierde
+ok 92 - PyME suma apps a magra trabajando por apps, y bajar a Micro pide confirmar lo que pierde
+  ---
+  duration_ms: 1.497918
+  type: 'test'
+  ...
+# Subtest: CH (beauty-spa) queda bloqueado con el motivo del OK del dueño, con cualquier plan
+ok 93 - CH (beauty-spa) queda bloqueado con el motivo del OK del dueño, con cualquier plan
+  ---
+  duration_ms: 0.23116
+  type: 'test'
+  ...
+# Subtest: un plan que no existe se rechaza con cómo seguir
+ok 94 - un plan que no existe se rechaza con cómo seguir
+  ---
+  duration_ms: 0.122223
+  type: 'test'
+  ...
+# Subtest: con locales vinculados no baja a un plan sin «Mis locales»; sin vínculos sí; sin poder leerlos, no
+ok 95 - con locales vinculados no baja a un plan sin «Mis locales»; sin vínculos sí; sin poder leerlos, no
+  ---
+  duration_ms: 0.666805
+  type: 'test'
+  ...
+# Subtest: mismo plan, módulos y perfil: sin cambios y sin excepciones que cerrar
+ok 96 - mismo plan, módulos y perfil: sin cambios y sin excepciones que cerrar
+  ---
+  duration_ms: 0.553036
+  type: 'test'
+  ...
+# Subtest: el agregado sumado por fuera del plan se conserva si el plan nuevo lo acepta; si no, se apaga con sus datos guardados
+ok 97 - el agregado sumado por fuera del plan se conserva si el plan nuevo lo acepta; si no, se apaga con sus datos guardados
+  ---
+  duration_ms: 0.890901
+  type: 'test'
+  ...
+# Subtest: al cambiar de plan se cierran las excepciones vigentes de todos los planes; una fila forjada desde /admin no cuenta
+ok 98 - al cambiar de plan se cierran las excepciones vigentes de todos los planes; una fila forjada desde /admin no cuenta
+  ---
+  duration_ms: 2.002609
+  type: 'test'
+  ...
+# Subtest: la escritura sólo lleva plan, modules y profile
+ok 99 - la escritura sólo lleva plan, modules y profile
+  ---
+  duration_ms: 0.858289
+  type: 'test'
+  ...
+# Subtest: el enlace de cada acción es de la app que declara (appDeRuta), y los ids no se repiten
+ok 100 - el enlace de cada acción es de la app que declara (appDeRuta), y los ids no se repiten
+  ---
+  duration_ms: 1.405314
+  type: 'test'
+  ...
+# Subtest: una acción aparece sólo si la persona ve su app
+ok 101 - una acción aparece sólo si la persona ve su app
+  ---
+  duration_ms: 1.075281
+  type: 'test'
+  ...
+# Subtest: el profesional ve su agenda pero no da turnos: la acción pide agenda:manage
+ok 102 - el profesional ve su agenda pero no da turnos: la acción pide agenda:manage
+  ---
+  duration_ms: 0.325121
+  type: 'test'
+  ...
+# Subtest: con la barra de siempre (CH), sólo las acciones de sus pantallas
+ok 103 - con la barra de siempre (CH), sólo las acciones de sus pantallas
+  ---
+  duration_ms: 1.520272
+  type: 'test'
+  ...
+# Subtest: diez espacios, en el orden de la pantalla, sin apps repetidas entre listas
+ok 104 - diez espacios, en el orden de la pantalla, sin apps repetidas entre listas
+  ---
+  duration_ms: 2.307782
+  type: 'test'
+  ...
+# Subtest: toda app de un estante del Inicio tiene un espacio de la navegación; el Inicio y la consola, ninguno
+ok 105 - toda app de un estante del Inicio tiene un espacio de la navegación; el Inicio y la consola, ninguno
+  ---
+  duration_ms: 0.457089
+  type: 'test'
+  ...
+# Subtest: cada deuda al lado de su contraparte y el cierre del mes con los del día (A1)
+ok 106 - cada deuda al lado de su contraparte y el cierre del mes con los del día (A1)
+  ---
+  duration_ms: 0.224392
+  type: 'test'
+  ...
+# Subtest: «Facturas e impuestos» tiene exactamente las apps de los módulos argentinos (A10)
+ok 107 - «Facturas e impuestos» tiene exactamente las apps de los módulos argentinos (A10)
+  ---
+  duration_ms: 0.281322
+  type: 'test'
+  ...
+# Subtest: ningún espacio pasa de 8 apps por rubro con el registro de hoy
+ok 108 - ningún espacio pasa de 8 apps por rubro con el registro de hoy
+  ---
+  duration_ms: 0.401585
+  type: 'test'
+  ...
+# Subtest: el primer espacio se llama Recepción en servicios; los nombres no llevan siglas
+ok 109 - el primer espacio se llama Recepción en servicios; los nombres no llevan siglas
+  ---
+  duration_ms: 0.983297
+  type: 'test'
+  ...
+# Subtest: GUARDIA_EN_EL_LOADER sólo lista páginas que todavía dependen de su loader (sin requireApp)
+ok 110 - GUARDIA_EN_EL_LOADER sólo lista páginas que todavía dependen de su loader (sin requireApp)
+  ---
+  duration_ms: 1.065038
+  type: 'test'
+  ...
+# Subtest: el recorrido encuentra las páginas del panel
+ok 111 - el recorrido encuentra las páginas del panel
+  ---
+  duration_ms: 0.301862
+  type: 'test'
+  ...
+# Subtest: trinquete: páginas sin requireApp ≤ 3
+ok 112 - trinquete: páginas sin requireApp ≤ 3
+  ---
+  duration_ms: 0.243152
+  type: 'test'
+  ...
+# Subtest: toda página del panel pertenece a una app del registro
+ok 113 - toda página del panel pertenece a una app del registro
+  ---
+  duration_ms: 0.708833
+  type: 'test'
+  ...
+# Subtest: requireApp protege la app de SU ruta, no otra
+ok 114 - requireApp protege la app de SU ruta, no otra
+  ---
+  duration_ms: 3.120118
+  type: 'test'
+  ...
+# Subtest: la capability del registro es la que pide la página raíz de cada app (directo o en su loader)
+ok 115 - la capability del registro es la que pide la página raíz de cada app (directo o en su loader)
+  ---
+  duration_ms: 0.62613
+  type: 'test'
+  ...
+# Subtest: el recorrido encuentra los route handlers del panel
+ok 116 - el recorrido encuentra los route handlers del panel
+  ---
+  duration_ms: 0.164107
+  type: 'test'
+  ...
+# Subtest: trinquete: route handlers sin requireApp ≤ 0
+ok 117 - trinquete: route handlers sin requireApp ≤ 0
+  ---
+  duration_ms: 0.125433
+  type: 'test'
+  ...
+# Subtest: todo route handler pertenece a una app, y su requireApp es el de esa app
+ok 118 - todo route handler pertenece a una app, y su requireApp es el de esa app
+  ---
+  duration_ms: 0.315642
+  type: 'test'
+  ...
+# Subtest: sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+ok 119 - sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+  ---
+  duration_ms: 11.258261
+  type: 'test'
+  ...
+# Subtest: Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+ok 120 - Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+  ---
+  duration_ms: 45.741099
+  type: 'test'
+  ...
+# Subtest: CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+ok 121 - CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+  ---
+  duration_ms: 0.321994
+  type: 'test'
+  ...
+# Subtest: diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+ok 122 - diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+  ---
+  duration_ms: 0.647283
+  type: 'test'
+  ...
+# Subtest: ids únicos y en kebab-case
+ok 123 - ids únicos y en kebab-case
+  ---
+  duration_ms: 1.26954
+  type: 'test'
+  ...
+# Subtest: rutas únicas, bajo /admin y sin barra final ni query
+ok 124 - rutas únicas, bajo /admin y sin barra final ni query
+  ---
+  duration_ms: 0.392322
+  type: 'test'
+  ...
+# Subtest: el módulo de cada app existe en el catálogo de módulos
+ok 125 - el módulo de cada app existe en el catálogo de módulos
+  ---
+  duration_ms: 1.330669
+  type: 'test'
+  ...
+# Subtest: moduloDuro exige un módulo, y toda app de Mis locales es moduloDuro
+ok 126 - moduloDuro exige un módulo, y toda app de Mis locales es moduloDuro
+  ---
+  duration_ms: 0.220835
+  type: 'test'
+  ...
+# Subtest: ninguna app declara scopeItems ni campos fuera del contrato
+ok 127 - ninguna app declara scopeItems ni campos fuera del contrato
+  ---
+  duration_ms: 0.305033
+  type: 'test'
+  ...
+# Subtest: trinquete: ningún módulo NUEVO declara scopeItems[].ruta
+ok 128 - trinquete: ningún módulo NUEVO declara scopeItems[].ruta
+  ---
+  duration_ms: 0.295119
+  type: 'test'
+  ...
+# Subtest: cada app cae en un espacio que existe, y los órdenes de espacio no repiten apps
+ok 129 - cada app cae en un espacio que existe, y los órdenes de espacio no repiten apps
+  ---
+  duration_ms: 0.361383
+  type: 'test'
+  ...
+# Subtest: menuDeHoy: posiciones únicas; kpi: ids únicos
+ok 130 - menuDeHoy: posiciones únicas; kpi: ids únicos
+  ---
+  duration_ms: 0.163747
+  type: 'test'
+  ...
+# Subtest: sólo el Inicio es exacta, y sólo 'App no disponible' se abre con la sesión sola
+ok 131 - sólo el Inicio es exacta, y sólo 'App no disponible' se abre con la sesión sola
+  ---
+  duration_ms: 1.600885
+  type: 'test'
+  ...
+# Subtest: las 28 apps de la ola 1 están registradas con su ruta de hoy
+ok 132 - las 28 apps de la ola 1 están registradas con su ruta de hoy
+  ---
+  duration_ms: 0.585946
+  type: 'test'
+  ...
+# Subtest: buscarApp no confía en lo que llega de afuera
+ok 133 - buscarApp no confía en lo que llega de afuera
+  ---
+  duration_ms: 0.293888
+  type: 'test'
+  ...
+# Subtest: para cada pantalla de la barra de hoy y sus sub-rutas, la misma pantalla que navItemForPath
+ok 134 - para cada pantalla de la barra de hoy y sus sub-rutas, la misma pantalla que navItemForPath
+  ---
+  duration_ms: 11.619824
+  type: 'test'
+  ...
+# Subtest: Facturación automática es su propia app, con todo lo que cuelga de ella
+ok 135 - Facturación automática es su propia app, con todo lo que cuelga de ella
+  ---
+  duration_ms: 0.191305
+  type: 'test'
+  ...
+# Subtest: match por segmento, el Inicio sólo exacto, y lo que no es de nadie da undefined
+ok 136 - match por segmento, el Inicio sólo exacto, y lo que no es de nadie da undefined
+  ---
+  duration_ms: 0.133245
+  type: 'test'
+  ...
+# Subtest: sub-rutas de hoy caen en su app
+ok 137 - sub-rutas de hoy caen en su app
+  ---
+  duration_ms: 0.126994
+  type: 'test'
+  ...
+# Subtest: normalizarRuta saca query, hash y la barra final
+ok 138 - normalizarRuta saca query, hash y la barra final
+  ---
+  duration_ms: 0.160525
+  type: 'test'
+  ...
+# Subtest: Comerciante con `pos`: Vender y Ventas del día pasan; sin `pos`, rebotan como antes
+ok 139 - Comerciante con `pos`: Vender y Ventas del día pasan; sin `pos`, rebotan como antes
+  ---
+  duration_ms: 0.27322
+  type: 'test'
+  ...
+# Subtest: una casa Comerciante con `multilocal`: Mis locales y sus sub-apps pasan; sin el módulo, no
+ok 140 - una casa Comerciante con `multilocal`: Mis locales y sus sub-apps pasan; sin el módulo, no
+  ---
+  duration_ms: 0.229158
+  type: 'test'
+  ...
+# Subtest: el gate no se afloja con lo que el Comerciante no tiene, ni con rutas que no son de nadie
+ok 141 - el gate no se afloja con lo que el Comerciante no tiene, ni con rutas que no son de nadie
+  ---
+  duration_ms: 0.142923
+  type: 'test'
+  ...
+# Subtest: el layout del panel arma el gate del Comerciante con las dos reglas
+ok 142 - el layout del panel arma el gate del Comerciante con las dos reglas
+  ---
+  duration_ms: 7.035935
+  type: 'test'
+  ...
+# Subtest: el interruptor decide por negocio: apagado, sin gate; prendido y con asignación, piloto
+ok 143 - el interruptor decide por negocio: apagado, sin gate; prendido y con asignación, piloto
+  ---
+  duration_ms: 1.232787
+  type: 'test'
+  ...
+# Subtest: CH queda SIN gate aun con el interruptor prendido: su asignación está vacía
+ok 144 - CH queda SIN gate aun con el interruptor prendido: su asignación está vacía
+  ---
+  duration_ms: 0.174997
+  type: 'test'
+  ...
+# Subtest: magra: sin gate con el interruptor apagado; prendido, sus módulos resueltos
+ok 145 - magra: sin gate con el interruptor apagado; prendido, sus módulos resueltos
+  ---
+  duration_ms: 2.909899
+  type: 'test'
+  ...
+# Subtest: piloto: un módulo sin su dependencia no habilita nada (resolverActivacion real)
+ok 146 - piloto: un módulo sin su dependencia no habilita nada (resolverActivacion real)
+  ---
+  duration_ms: 0.543565
+  type: 'test'
+  ...
+# Subtest: Comerciante: el set asignado tal cual, con o sin piloto; el flag global manda sobre todo
+ok 147 - Comerciante: el set asignado tal cual, con o sin piloto; el flag global manda sobre todo
+  ---
+  duration_ms: 0.243502
+  type: 'test'
+  ...
+# Subtest: sin gate, el módulo no decide nada: CH ve Facturación aunque no tenga `arca` asignado
+ok 148 - sin gate, el módulo no decide nada: CH ve Facturación aunque no tenga `arca` asignado
+  ---
+  duration_ms: 0.202145
+  type: 'test'
+  ...
+# Subtest: piloto: el gate saca sólo lo no asignado; con inventario, bancos y campañas, magra no pierde nada
+ok 149 - piloto: el gate saca sólo lo no asignado; con inventario, bancos y campañas, magra no pierde nada
+  ---
+  duration_ms: 18.487547
+  type: 'test'
+  ...
+# Subtest: piloto: manda el módulo, no el perfil (Libro IVA sin el callejón de 'edición Empresa')
+ok 150 - piloto: manda el módulo, no el perfil (Libro IVA sin el callejón de 'edición Empresa')
+  ---
+  duration_ms: 0.308491
+  type: 'test'
+  ...
+# Subtest: Comerciante: la guardia usa el módulo de su barra de hoy; el piloto, el de la app
+ok 151 - Comerciante: la guardia usa el módulo de su barra de hoy; el piloto, el de la app
+  ---
+  duration_ms: 0.461883
+  type: 'test'
+  ...
+# Subtest: moduloDuro: invisible con contexto null si el negocio no tiene el módulo
+ok 152 - moduloDuro: invisible con contexto null si el negocio no tiene el módulo
+  ---
+  duration_ms: 0.41372
+  type: 'test'
+  ...
+# Subtest: moduloDuro: el módulo de la barra de hoy no lo afloja en el Comerciante
+ok 153 - moduloDuro: el módulo de la barra de hoy no lo afloja en el Comerciante
+  ---
+  duration_ms: 0.21492
+  type: 'test'
+  ...
+# Subtest: moduloDuro: la casa (con el módulo asignado) la ve, con o sin gate
+ok 154 - moduloDuro: la casa (con el módulo asignado) la ve, con o sin gate
+  ---
+  duration_ms: 0.763297
+  type: 'test'
+  ...
+# Subtest: motivos: rol primero, después en preparación, módulo, rubro y edición
+ok 155 - motivos: rol primero, después en preparación, módulo, rubro y edición
+  ---
+  duration_ms: 4.776783
+  type: 'test'
+  ...
+# Subtest: 'App no disponible' la abre cualquiera con sesión, y nunca se ofrece en un lanzador
+ok 156 - 'App no disponible' la abre cualquiera con sesión, y nunca se ofrece en un lanzador
+  ---
+  duration_ms: 1.511646
+  type: 'test'
+  ...
+# Subtest: el buscador no revela apps ocultas, ni tecleando su nombre, sus palabras o su rótulo de hoy
+ok 157 - el buscador no revela apps ocultas, ni tecleando su nombre, sus palabras o su rótulo de hoy
+  ---
+  duration_ms: 64.919387
+  type: 'test'
+  ...
+# Subtest: el buscador encuentra lo que la persona sí ve, por nombre, palabra o rótulo de hoy
+ok 158 - el buscador encuentra lo que la persona sí ve, por nombre, palabra o rótulo de hoy
+  ---
+  duration_ms: 0.61403
+  type: 'test'
+  ...
+# Subtest: appsVisibles sale ordenada por espacio y, adentro, por el orden decidido
+ok 159 - appsVisibles sale ordenada por espacio y, adentro, por el orden decidido
+  ---
+  duration_ms: 0.479807
+  type: 'test'
+  ...
+# Subtest: PROFESSIONAL teclea /admin/facturacion: el porqué es su rol y el botón va a su agenda
+ok 160 - PROFESSIONAL teclea /admin/facturacion: el porqué es su rol y el botón va a su agenda
+  ---
+  duration_ms: 0.549636
+  type: 'test'
+  ...
+# Subtest: a quién pedírsela: la dueña o el dueño a GSG, el resto del equipo a la dueña o el dueño
+ok 161 - a quién pedírsela: la dueña o el dueño a GSG, el resto del equipo a la dueña o el dueño
+  ---
+  duration_ms: 0.253478
+  type: 'test'
+  ...
+# Subtest: sin loop: si la casa del rol tampoco se puede abrir, no hay botón de vuelta
+ok 162 - sin loop: si la casa del rol tampoco se puede abrir, no hay botón de vuelta
+  ---
+  duration_ms: 0.274632
+  type: 'test'
+  ...
+# Subtest: número del botón: RECEPTION ve cuántos, nunca cuánta plata
+ok 163 - número del botón: RECEPTION ve cuántos, nunca cuánta plata
+  ---
+  duration_ms: 0.184964
+  type: 'test'
+  ...
+# Subtest: número del botón: ninguna app con plata en su número se la muestra a quien no tiene reports:read
+ok 164 - número del botón: ninguna app con plata en su número se la muestra a quien no tiene reports:read
+  ---
+  duration_ms: 0.397739
+  type: 'test'
+  ...
+# Subtest: el encargado: RECEPTION de un mostrador del piloto abre Stock, Recibir mercadería y Mermas; en CH, no
+ok 165 - el encargado: RECEPTION de un mostrador del piloto abre Stock, Recibir mercadería y Mermas; en CH, no
+  ---
+  duration_ms: 0.179353
+  type: 'test'
+  ...
+# Subtest: Vender y Ventas del día: CH no las ve ni por URL; un comercio con pos sí
+ok 166 - Vender y Ventas del día: CH no las ve ni por URL; un comercio con pos sí
+  ---
+  duration_ms: 3.10553
+  type: 'test'
+  ...
+# Subtest: el detector del trinquete marca las escrituras de la entidad y no las demás
+ok 167 - el detector del trinquete marca las escrituras de la entidad y no las demás
+  ---
+  duration_ms: 1.584206
+  type: 'test'
+  ...
+# Subtest: TRINQUETE: nadie fuera de la consola escribe entity 'Interruptor'
+ok 168 - TRINQUETE: nadie fuera de la consola escribe entity 'Interruptor'
+  ---
+  duration_ms: 52.826933
+  type: 'test'
+  ...
+# Subtest: TRINQUETE: la escritura real sólo la importa la action (detrás de la guardia del negocio)
+ok 169 - TRINQUETE: la escritura real sólo la importa la action (detrás de la guardia del negocio)
+  ---
+  duration_ms: 23.548651
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T21:59:01.272Z","level":"error","scope":"audit","msg":"audit() no escribe interruptores: sólo la consola del operador","action":"interruptor.encender","entity":"Interruptor","entityId":"inicio-por-apps"}
+# Subtest: contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, aislar y apagar
+ok 170 - contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, aislar y apagar
+  ---
+  duration_ms: 5770.034011
+  type: 'test'
+  ...
+# Subtest: carnicería: el rubro resuelve, y el home entra en modo MOSTRADOR sin prender ningún flag
+ok 171 - carnicería: el rubro resuelve, y el home entra en modo MOSTRADOR sin prender ningún flag
+  ---
+  duration_ms: 1.126712
+  type: 'test'
+  ...
+# Subtest: menú de una carnicería: NO trae Agenda, Lista de espera, Reseñas ni Recordatorios
+ok 172 - menú de una carnicería: NO trae Agenda, Lista de espera, Reseñas ni Recordatorios
+  ---
+  duration_ms: 0.443541
+  type: 'test'
+  ...
+# Subtest: un local de MAGRA que no se llama `magra` tiene el MISMO menú que magra
+ok 173 - un local de MAGRA que no se llama `magra` tiene el MISMO menú que magra
+  ---
+  duration_ms: 1.285275
+  type: 'test'
+  ...
+# Subtest: Lotes y Despiece esperan a la migración cárnica; el resto del menú no cambia
+ok 174 - Lotes y Despiece esperan a la migración cárnica; el resto del menú no cambia
+  ---
+  duration_ms: 0.270304
+  type: 'test'
+  ...
+# Subtest: beauty-spa (el único tenant vivo) conserva EXACTAMENTE la nav legada
+ok 175 - beauty-spa (el único tenant vivo) conserva EXACTAMENTE la nav legada
+  ---
+  duration_ms: 0.508404
+  type: 'test'
+  ...
+# Subtest: el rol sigue mandando: la recepción de una carnicería no ve lo que no le toca
+ok 176 - el rol sigue mandando: la recepción de una carnicería no ve lo que no le toca
+  ---
+  duration_ms: 0.333932
+  type: 'test'
+  ...
+# Subtest: ningún ítem visible en un mostrador está marcado como `agendaOnly` (ni al revés)
+ok 177 - ningún ítem visible en un mostrador está marcado como `agendaOnly` (ni al revés)
+  ---
+  duration_ms: 0.29512
+  type: 'test'
+  ...
+# Subtest: rubroGateAllows: los tres casos, uno por uno
+ok 178 - rubroGateAllows: los tres casos, uno por uno
+  ---
+  duration_ms: 0.154415
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T21:58:58.204Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"t-magra-lomas","condicionIva":"MONOTRIBUTO"}
+# Subtest: un local recién creado por el wizard NO está listo para abrir
+ok 179 - un local recién creado por el wizard NO está listo para abrir
+  ---
+  duration_ms: 1.964625
+  type: 'test'
+  ...
+# Subtest: el mismo local, ya configurado, da listo
+ok 180 - el mismo local, ya configurado, da listo
+  ---
+  duration_ms: 1.494295
+  type: 'test'
+  ...
+# Subtest: cada ítem explica POR QUÉ está en la lista (es lo que hace que se respete)
+ok 181 - cada ítem explica POR QUÉ está en la lista (es lo que hace que se respete)
+  ---
+  duration_ms: 0.326522
+  type: 'test'
+  ...
+# Subtest: detecta los precios provisionales del blueprint de carnicería
+ok 182 - detecta los precios provisionales del blueprint de carnicería
+  ---
+  duration_ms: 0.398015
+  type: 'test'
+  ...
+# Subtest: un precio editado deja de contar como provisional; los demás siguen contando
+ok 183 - un precio editado deja de contar como provisional; los demás siguen contando
+  ---
+  duration_ms: 0.23744
+  type: 'test'
+  ...
+# Subtest: catálogo vacío = pendiente, no 'listo' por no tener nada que comparar
+ok 184 - catálogo vacío = pendiente, no 'listo' por no tener nada que comparar
+  ---
+  duration_ms: 0.170578
+  type: 'test'
+  ...
+# Subtest: un tenant que no es de mostrador no arrastra el chequeo de precios (beauty-spa)
+ok 185 - un tenant que no es de mostrador no arrastra el chequeo de precios (beauty-spa)
+  ---
+  duration_ms: 0.291899
+  type: 'test'
+  ...
+# Subtest: los 5 locales resuelven su rubro por familia de slug, no por un mapa a mano
+ok 186 - los 5 locales resuelven su rubro por familia de slug, no por un mapa a mano
+  ---
+  duration_ms: 0.254584
+  type: 'test'
+  ...
+# Subtest: la dirección y el Instagram provisionales del blueprint se detectan
+ok 187 - la dirección y el Instagram provisionales del blueprint se detectan
+  ---
+  duration_ms: 0.525109
+  type: 'test'
+  ...
+# Subtest: comparar contra el default del rubro es case/espacio-insensible
+ok 188 - comparar contra el default del rubro es case/espacio-insensible
+  ---
+  duration_ms: 0.54058
+  type: 'test'
+  ...
+# Subtest: REGRESIÓN: con CUIT y certificado pero SIN punto de venta, NO está listo para facturar
+ok 189 - REGRESIÓN: con CUIT y certificado pero SIN punto de venta, NO está listo para facturar
+  ---
+  duration_ms: 0.278226
+  type: 'test'
+  ...
+# Subtest: ORÁCULO: el semáforo coincide con construirPerfilFiscal en modo real
+ok 190 - ORÁCULO: el semáforo coincide con construirPerfilFiscal en modo real
+  ---
+  duration_ms: 2.10336
+  type: 'test'
+  ...
+# Subtest: en homologación la condición de IVA no bloquea (el plugin la asume y lo marca)
+ok 191 - en homologación la condición de IVA no bloquea (el plugin la asume y lo marca)
+  ---
+  duration_ms: 0.176542
+  type: 'test'
+  ...
+# Subtest: modo stub nunca es 'listo para facturar'
+ok 192 - modo stub nunca es 'listo para facturar'
+  ---
+  duration_ms: 0.133483
+  type: 'test'
+  ...
+# Subtest: CUIT del certificado distinto al del tenant bloquea (la firma lo rechaza)
+ok 193 - CUIT del certificado distinto al del tenant bloquea (la firma lo rechaza)
+  ---
+  duration_ms: 0.102799
+  type: 'test'
+  ...
+# Subtest: tabla de credenciales sin aplicar se reporta como bloqueo de migración, no como 'falta cargar'
+ok 194 - tabla de credenciales sin aplicar se reporta como bloqueo de migración, no como 'falta cargar'
+  ---
+  duration_ms: 0.075996
+  type: 'test'
+  ...
+# Subtest: subdominio vacío o en blanco cuenta como pendiente
+ok 195 - subdominio vacío o en blanco cuenta como pendiente
+  ---
+  duration_ms: 0.233441
+  type: 'test'
+  ...
+# Subtest: un solo usuario es pendiente; dos ya no
+ok 196 - un solo usuario es pendiente; dos ya no
+  ---
+  duration_ms: 0.19818
+  type: 'test'
+  ...
+# Subtest: candado ocupado (55P03, lock_timeout) y base que no respondió (P2028) dan mensajes distintos
+ok 197 - candado ocupado (55P03, lock_timeout) y base que no respondió (P2028) dan mensajes distintos
+  ---
+  duration_ms: 1.511909
+  type: 'test'
+  ...
+# Subtest: CH sólo con la sesión del dueño; el resto de los negocios, cualquier operador
+ok 198 - CH sólo con la sesión del dueño; el resto de los negocios, cualquier operador
+  ---
+  duration_ms: 148.711536
+  type: 'test'
+  ...
+# Subtest: el recorrido encuentra los endpoints con privilegio de operador en TODO src/ (si no, el trinquete no mira nada)
+not ok 199 - el recorrido encuentra los endpoints con privilegio de operador en TODO src/ (si no, el trinquete no mira nada)
+  ---
+  duration_ms: 8.981469
+  type: 'test'
+  location: '/home/user/erp/src/lib/operador/guardia-negocio.test.ts:2:15134'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        'src/lib/cartera-actions.ts',
+        'src/lib/operador/interruptores-actions.ts',
+    +   'src/lib/operador/plan-actions.ts',
+        'src/lib/operador/red-locales-actions.ts',
+        'src/lib/operator-actions.ts',
+        'src/lib/operator-provisioning-actions.ts'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'src/lib/cartera-actions.ts'
+    1: 'src/lib/operador/interruptores-actions.ts'
+    2: 'src/lib/operador/red-locales-actions.ts'
+    3: 'src/lib/operator-actions.ts'
+    4: 'src/lib/operator-provisioning-actions.ts'
+  actual:
+    0: 'src/lib/cartera-actions.ts'
+    1: 'src/lib/operador/interruptores-actions.ts'
+    2: 'src/lib/operador/plan-actions.ts'
+    3: 'src/lib/operador/red-locales-actions.ts'
+    4: 'src/lib/operator-actions.ts'
+    5: 'src/lib/operator-provisioning-actions.ts'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/operador/guardia-negocio.test.ts:350:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guardia del negocio (candado de CH)
+not ok 200 - TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guardia del negocio (candado de CH)
+  ---
+  duration_ms: 0.988993
+  type: 'test'
+  location: '/home/user/erp/src/lib/operador/guardia-negocio.test.ts:2:15539'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        'src/lib/cartera-actions.ts#altaClienteCarteraAction',
+        'src/lib/cartera-actions.ts#emitirAutomaticasClienteAction',
+        'src/lib/cartera-actions.ts#monitorCarteraAction',
+        'src/lib/cartera-actions.ts#setEstadoCarteraAction',
+        'src/lib/operador/interruptores-actions.ts#cambiarInterruptor',
+    +   'src/lib/operador/plan-actions.ts#ajustarLimiteDelNegocio',
+    +   'src/lib/operador/plan-actions.ts#aplicarPlanDelNegocio',
+        'src/lib/operador/red-locales-actions.ts#darDeBajaLocalAction',
+        'src/lib/operador/red-locales-actions.ts#revisarAltaEnRedAction',
+        'src/lib/operador/red-locales-actions.ts#sumarAltaALaRedAction',
+        'src/lib/operador/red-locales-actions.ts#vincularLocalAction',
+    +   'src/lib/operator-actions.ts#cambiarFacturacionReal',
+        'src/lib/operator-actions.ts#cargarCredencialFiscal',
+        'src/lib/operator-actions.ts#fijarAsignacionActual',
+        'src/lib/operator-actions.ts#resetOwnerPassword',
+        'src/lib/operator-actions.ts#resetOwnerPasswordDeTenant',
+        'src/lib/operator-actions.ts#setTenantArcaCuit',
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'src/lib/cartera-actions.ts#altaClienteCarteraAction'
+    1: 'src/lib/cartera-actions.ts#emitirAutomaticasClienteAction'
+    2: 'src/lib/cartera-actions.ts#monitorCarteraAction'
+    3: 'src/lib/cartera-actions.ts#setEstadoCarteraAction'
+    4: 'src/lib/operador/interruptores-actions.ts#cambiarInterruptor'
+    5: 'src/lib/operador/red-locales-actions.ts#darDeBajaLocalAction'
+    6: 'src/lib/operador/red-locales-actions.ts#revisarAltaEnRedAction'
+    7: 'src/lib/operador/red-locales-actions.ts#sumarAltaALaRedAction'
+    8: 'src/lib/operador/red-locales-actions.ts#vincularLocalAction'
+    9: 'src/lib/operator-actions.ts#cargarCredencialFiscal'
+    10: 'src/lib/operator-actions.ts#fijarAsignacionActual'
+    11: 'src/lib/operator-actions.ts#resetOwnerPassword'
+    12: 'src/lib/operator-actions.ts#resetOwnerPasswordDeTenant'
+    13: 'src/lib/operator-actions.ts#setTenantArcaCuit'
+    14: 'src/lib/operator-actions.ts#setTenantArcaPuntoVenta'
+    15: 'src/lib/operator-actions.ts#setTenantBranding'
+    16: 'src/lib/operator-actions.ts#setTenantPlan'
+    17: 'src/lib/operator-actions.ts#setTenantStatus'
+    18: 'src/lib/operator-actions.ts#setTenantSubdomain'
+    19: 'src/lib/operator-actions.ts#toggleTenantModule'
+    20: 'src/lib/operator-provisioning-actions.ts#commitTenantAction'
+    21: 'src/lib/operator-provisioning-actions.ts#planTenantAction'
+  actual:
+    0: 'src/lib/cartera-actions.ts#altaClienteCarteraAction'
+    1: 'src/lib/cartera-actions.ts#emitirAutomaticasClienteAction'
+    2: 'src/lib/cartera-actions.ts#monitorCarteraAction'
+    3: 'src/lib/cartera-actions.ts#setEstadoCarteraAction'
+    4: 'src/lib/operador/interruptores-actions.ts#cambiarInterruptor'
+    5: 'src/lib/operador/plan-actions.ts#ajustarLimiteDelNegocio'
+    6: 'src/lib/operador/plan-actions.ts#aplicarPlanDelNegocio'
+    7: 'src/lib/operador/red-locales-actions.ts#darDeBajaLocalAction'
+    8: 'src/lib/operador/red-locales-actions.ts#revisarAltaEnRedAction'
+    9: 'src/lib/operador/red-locales-actions.ts#sumarAltaALaRedAction'
+    10: 'src/lib/operador/red-locales-actions.ts#vincularLocalAction'
+    11: 'src/lib/operator-actions.ts#cambiarFacturacionReal'
+    12: 'src/lib/operator-actions.ts#cargarCredencialFiscal'
+    13: 'src/lib/operator-actions.ts#fijarAsignacionActual'
+    14: 'src/lib/operator-actions.ts#resetOwnerPassword'
+    15: 'src/lib/operator-actions.ts#resetOwnerPasswordDeTenant'
+    16: 'src/lib/operator-actions.ts#setTenantArcaCuit'
+    17: 'src/lib/operator-actions.ts#setTenantArcaPuntoVenta'
+    18: 'src/lib/operator-actions.ts#setTenantBranding'
+    19: 'src/lib/operator-actions.ts#setTenantPlan'
+    20: 'src/lib/operator-actions.ts#setTenantStatus'
+    21: 'src/lib/operator-actions.ts#setTenantSubdomain'
+    22: 'src/lib/operator-actions.ts#toggleTenantModule'
+    23: 'src/lib/operator-provisioning-actions.ts#commitTenantAction'
+    24: 'src/lib/operator-provisioning-actions.ts#planTenantAction'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/operador/guardia-negocio.test.ts:371:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cada engaño conocido pone el trinquete en rojo
+ok 201 - cada engaño conocido pone el trinquete en rojo
+  ---
+  duration_ms: 11.089487
+  type: 'test'
+  ...
+# Subtest: y una action bien hecha pasa (el detector no rechaza todo)
+ok 202 - y una action bien hecha pasa (el detector no rechaza todo)
+  ---
+  duration_ms: 0.524102
+  type: 'test'
+  ...
+# Subtest: los cambios de estado, plan, marca y subdominio quedan auditados con el operador
+ok 203 - los cambios de estado, plan, marca y subdominio quedan auditados con el operador
+  ---
+  duration_ms: 0.62707
+  type: 'test'
+  ...
+# (node:23523) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+# (Use `node --trace-deprecation ...` to show where the warning was created)
+# Subtest: pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH y aislamiento
+    # Subtest: faltando cada una de las 5 condiciones, se niega con su motivo y no cambia nada
+    ok 1 - faltando cada una de las 5 condiciones, se niega con su motivo y no cambia nada
+      ---
+      duration_ms: 280.462276
+      type: 'test'
+      ...
+    # Subtest: con todo en regla pasa a real y deja una fila de AuditLog sin material del certificado
+    ok 2 - con todo en regla pasa a real y deja una fila de AuditLog sin material del certificado
+      ---
+      duration_ms: 59.722563
+      type: 'test'
+      ...
+    # Subtest: la vuelta a pruebas funciona sin ningún dato (ni CUIT, ni certificado, ni huella, ni slug)
+    ok 3 - la vuelta a pruebas funciona sin ningún dato (ni CUIT, ni certificado, ni huella, ni slug)
+      ---
+      duration_ms: 67.717636
+      type: 'test'
+      ...
+    # Subtest: dos confirmaciones a la vez: un solo cambio y una sola fila de AuditLog
+    ok 4 - dos confirmaciones a la vez: un solo cambio y una sola fila de AuditLog
+      ---
+      duration_ms: 106.931362
+      type: 'test'
+      ...
+    # Subtest: con la huella vieja (la ficha cambió después de mirarla) no cambia nada
+    ok 5 - con la huella vieja (la ficha cambió después de mirarla) no cambia nada
+      ---
+      duration_ms: 69.47027
+      type: 'test'
+      ...
+    # Subtest: sin el slug escrito no pasa; con el de otro negocio, tampoco
+    ok 6 - sin el slug escrito no pasa; con el de otro negocio, tampoco
+      ---
+      duration_ms: 37.95776
+      type: 'test'
+      ...
+    # Subtest: CH: un operador que no es el dueño no pasa ni vuelve; el dueño tiene que escribir el slug
+    ok 7 - CH: un operador que no es el dueño no pasa ni vuelve; el dueño tiene que escribir el slug
+      ---
+      duration_ms: 113.578483
+      type: 'test'
+      ...
+    # Subtest: comprobantes de la etapa de pruebas: esperando CAE o autorizados en pruebas niegan sin cambiar nada
+    ok 8 - comprobantes de la etapa de pruebas: esperando CAE o autorizados en pruebas niegan sin cambiar nada
+      ---
+      duration_ms: 276.335591
+      type: 'test'
+      ...
+    # Subtest: el negocio B queda intacto, aunque le manden la confirmación de A
+    ok 9 - el negocio B queda intacto, aunque le manden la confirmación de A
+      ---
+      duration_ms: 41.756368
+      type: 'test'
+      ...
+    1..9
+ok 204 - pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH y aislamiento
+  ---
+  duration_ms: 4470.15185
+  type: 'test'
+  ...
+# Subtest: de las 7 combinaciones de precondiciones sólo la completa pasa; las otras 6 se niegan con su motivo en castellano
+ok 205 - de las 7 combinaciones de precondiciones sólo la completa pasa; las otras 6 se niegan con su motivo en castellano
+  ---
+  duration_ms: 3.41015
+  type: 'test'
+  ...
+# Subtest: el certificado tiene que ser de producción y del mismo CUIT; una delegación, aunque figure verificada, no lo reemplaza
+ok 206 - el certificado tiene que ser de producción y del mismo CUIT; una delegación, aunque figure verificada, no lo reemplaza
+  ---
+  duration_ms: 0.831945
+  type: 'test'
+  ...
+# Subtest: CH: sólo el dueño de GSG, y escribiendo el slug
+ok 207 - CH: sólo el dueño de GSG, y escribiendo el slug
+  ---
+  duration_ms: 0.279667
+  type: 'test'
+  ...
+# Subtest: cualquier negocio pide escribir su slug para pasar a real (sin distinguir mayúsculas ni espacios)
+ok 208 - cualquier negocio pide escribir su slug para pasar a real (sin distinguir mayúsculas ni espacios)
+  ---
+  duration_ms: 0.1374
+  type: 'test'
+  ...
+# Subtest: si la ficha fiscal cambió entre que el operador miró y confirmó, no se hace nada
+ok 209 - si la ficha fiscal cambió entre que el operador miró y confirmó, no se hace nada
+  ---
+  duration_ms: 0.399527
+  type: 'test'
+  ...
+# Subtest: la vuelta a pruebas nunca se bloquea: ni por datos, ni por la huella, ni por el slug
+ok 210 - la vuelta a pruebas nunca se bloquea: ni por datos, ni por la huella, ni por el slug
+  ---
+  duration_ms: 0.413012
+  type: 'test'
+  ...
+# Subtest: pasar a real un negocio que ya factura en real no cambia nada; un pedido raro se niega
+ok 211 - pasar a real un negocio que ya factura en real no cambia nada; un pedido raro se niega
+  ---
+  duration_ms: 0.136257
+  type: 'test'
+  ...
+# Subtest: el entorno del certificado sale de quién lo firmó; lo que no se reconoce no es de producción
+ok 212 - el entorno del certificado sale de quién lo firmó; lo que no se reconoce no es de producción
+  ---
+  duration_ms: 0.231635
+  type: 'test'
+  ...
+# Subtest: con comprobantes de la etapa de pruebas esperando CAE, con el envío abierto o autorizados en pruebas, no pasa
+ok 213 - con comprobantes de la etapa de pruebas esperando CAE, con el envío abierto o autorizados en pruebas, no pasa
+  ---
+  duration_ms: 0.796017
+  type: 'test'
+  ...
+# Subtest: el conteo de comprobantes no entra en la huella: lo frena la condición (releída bajo bloqueo), con su motivo
+ok 214 - el conteo de comprobantes no entra en la huella: lo frena la condición (releída bajo bloqueo), con su motivo
+  ---
+  duration_ms: 0.420741
+  type: 'test'
+  ...
+# Subtest: la auditoría del pase dice antes, después, respaldo, modo y el conteo de comprobantes de prueba, sin material del certificado
+ok 215 - la auditoría del pase dice antes, después, respaldo, modo y el conteo de comprobantes de prueba, sin material del certificado
+  ---
+  duration_ms: 0.351502
+  type: 'test'
+  ...
+# Subtest: Micro → PyME → Micro: mismos conteos por tabla, mismas pantallas, la vista previa es lo que queda
+ok 216 - Micro → PyME → Micro: mismos conteos por tabla, mismas pantallas, la vista previa es lo que queda
+  ---
+  duration_ms: 3327.960683
+  type: 'test'
+  ...
+# Subtest: una escritura con una foto vieja no cambia nada
+ok 217 - una escritura con una foto vieja no cambia nada
+  ---
+  duration_ms: 130.762695
+  type: 'test'
+  ...
+# Subtest: CH (beauty-spa) queda bloqueado con el motivo del OK del dueño, aunque se llame directo a la escritura
+ok 218 - CH (beauty-spa) queda bloqueado con el motivo del OK del dueño, aunque se llame directo a la escritura
+  ---
+  duration_ms: 85.713426
+  type: 'test'
+  ...
+# Subtest: una fila forjada desde el panel del negocio no cambia el plan ni sus límites
+ok 219 - una fila forjada desde el panel del negocio no cambia el plan ni sus límites
+  ---
+  duration_ms: 40.595852
+  type: 'test'
+  ...
+# Subtest: vacío vuelve al tope del plan
+ok 220 - vacío vuelve al tope del plan
+  ---
+  duration_ms: 1.96003
+  type: 'test'
+  ...
+# Subtest: «sin-tope» deja el límite sin tope
+ok 221 - «sin-tope» deja el límite sin tope
+  ---
+  duration_ms: 0.181289
+  type: 'test'
+  ...
+# Subtest: un entero entre 0 y el máximo es el tope nuevo
+ok 222 - un entero entre 0 y el máximo es el tope nuevo
+  ---
+  duration_ms: 0.405479
+  type: 'test'
+  ...
+# Subtest: negativos, decimales, texto o más que el máximo se rechazan con un porqué
+ok 223 - negativos, decimales, texto o más que el máximo se rechazan con un porqué
+  ---
+  duration_ms: 13.621692
+  type: 'test'
+  ...
+# Subtest: trinquete: sólo la consola del operador arma o escribe el plan y las excepciones de límites
+not ok 224 - trinquete: sólo la consola del operador arma o escribe el plan y las excepciones de límites
+  ---
+  duration_ms: 82.482049
+  type: 'test'
+  location: '/home/user/erp/src/lib/operador/plan-formulario.test.ts:2:3665'
+  failureType: 'testCodeFailure'
+  error: |-
+    archivos nuevos que tocan el plan o sus límites: scripts/qa/r2f4-plan-magra-lab.ts
+    + actual - expected
+    
+    + [
+    +   'scripts/qa/r2f4-plan-magra-lab.ts'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'scripts/qa/r2f4-plan-magra-lab.ts'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/operador/plan-formulario.test.ts:69:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: trinquete: el detector reconoce los caminos de escritura
+ok 225 - trinquete: el detector reconoce los caminos de escritura
+  ---
+  duration_ms: 0.290971
+  type: 'test'
+  ...
+# Subtest: un Micro que se carga 100.000 facturas desde su panel sigue con el tope del plan; sólo GSG da más
+ok 226 - un Micro que se carga 100.000 facturas desde su panel sigue con el tope del plan; sólo GSG da más
+  ---
+  duration_ms: 3173.824942
+  type: 'test'
+  ...
+# Subtest: sin plan del catálogo y en CH, el tope de facturas es el de siempre (la columna o 159)
+ok 227 - sin plan del catálogo y en CH, el tope de facturas es el de siempre (la columna o 159)
+  ---
+  duration_ms: 54.673091
+  type: 'test'
+  ...
+# Subtest: «Tu plan» lee el plan, las personas activas y los comprobantes del mes del negocio, sin mirar al vecino
+ok 228 - «Tu plan» lee el plan, las personas activas y los comprobantes del mes del negocio, sin mirar al vecino
+  ---
+  duration_ms: 85.453272
+  type: 'test'
+  ...
+# Subtest: un negocio Micro (2 usuarios) no puede crear un tercero y recibe el porqué
+ok 229 - un negocio Micro (2 usuarios) no puede crear un tercero y recibe el porqué
+  ---
+  duration_ms: 3065.606276
+  type: 'test'
+  ...
+# Subtest: con un ajuste de GSG (3) entra uno más; sin plan del catálogo no hay tope
+ok 230 - con un ajuste de GSG (3) entra uno más; sin plan del catálogo no hay tope
+  ---
+  duration_ms: 103.093531
+  type: 'test'
+  ...
+# Subtest: CH (beauty-spa) no tiene tope nuevo: se comporta como hoy
+ok 231 - CH (beauty-spa) no tiene tope nuevo: se comporta como hoy
+  ---
+  duration_ms: 58.302069
+  type: 'test'
+  ...
+# Subtest: dos altas a la vez por el último lugar: entra una sola (la segunda espera a la primera)
+ok 232 - dos altas a la vez por el último lugar: entra una sola (la segunda espera a la primera)
+  ---
+  duration_ms: 169.3502
+  type: 'test'
+  ...
+# Subtest: asignación diferenciada: solo se activan los módulos pedidos
+ok 233 - asignación diferenciada: solo se activan los módulos pedidos
+  ---
+  duration_ms: 2.847289
+  type: 'test'
+  ...
+# Subtest: GUARDARRAÍL DX-6: un tenant sin módulos asignados NO recibe nada (jamás todos-con-todo)
+ok 234 - GUARDARRAÍL DX-6: un tenant sin módulos asignados NO recibe nada (jamás todos-con-todo)
+  ---
+  duration_ms: 0.281818
+  type: 'test'
+  ...
+# Subtest: variante: módulo incompatible con el rubro se rechaza (commissions en carnicería)
+ok 235 - variante: módulo incompatible con el rubro se rechaza (commissions en carnicería)
+  ---
+  duration_ms: 0.212675
+  type: 'test'
+  ...
+# Subtest: variante: el mismo módulo SÍ se activa en su rubro (commissions en servicios)
+ok 236 - variante: el mismo módulo SÍ se activa en su rubro (commissions en servicios)
+  ---
+  duration_ms: 0.218658
+  type: 'test'
+  ...
+# Subtest: dependencia faltante: waitlist sin agenda no se activa
+ok 237 - dependencia faltante: waitlist sin agenda no se activa
+  ---
+  duration_ms: 0.338815
+  type: 'test'
+  ...
+# Subtest: dependencia presente: waitlist con agenda se activa
+ok 238 - dependencia presente: waitlist con agenda se activa
+  ---
+  duration_ms: 0.211167
+  type: 'test'
+  ...
+# Subtest: commissions requiere reports: sin reports queda como dependencia faltante
+ok 239 - commissions requiere reports: sin reports queda como dependencia faltante
+  ---
+  duration_ms: 0.243494
+  type: 'test'
+  ...
+# Subtest: dependencia TRANSITIVA en cascada: A→B→C, falta C ⇒ caen B y A
+ok 240 - dependencia TRANSITIVA en cascada: A→B→C, falta C ⇒ caen B y A
+  ---
+  duration_ms: 0.326182
+  type: 'test'
+  ...
+# Subtest: dependencia transitiva satisfecha: A→B→C con los tres presentes se activan
+ok 241 - dependencia transitiva satisfecha: A→B→C con los tres presentes se activan
+  ---
+  duration_ms: 0.384628
+  type: 'test'
+  ...
+# Subtest: módulo desconocido va a desconocidos, no rompe
+ok 242 - módulo desconocido va a desconocidos, no rompe
+  ---
+  duration_ms: 0.49502
+  type: 'test'
+  ...
+# Subtest: modules[] con duplicados se dedupe
+ok 243 - modules[] con duplicados se dedupe
+  ---
+  duration_ms: 0.205721
+  type: 'test'
+  ...
+# Subtest: flag enforced se propaga (default true; se puede pasar false)
+ok 244 - flag enforced se propaga (default true; se puede pasar false)
+  ---
+  duration_ms: 0.109635
+  type: 'test'
+  ...
+# Subtest: asignacionSugerida filtra por compatibilidad de rubro (no infla)
+ok 245 - asignacionSugerida filtra por compatibilidad de rubro (no infla)
+  ---
+  duration_ms: 0.216136
+  type: 'test'
+  ...
+# Subtest: flag OFF (activeProfile null): siempre visible, nunca locked (legado intacto)
+ok 246 - flag OFF (activeProfile null): siempre visible, nunca locked (legado intacto)
+  ---
+  duration_ms: 1.021128
+  type: 'test'
+  ...
+# Subtest: ROLLBACK: teaserEnabled=false colapsa exactamente al binario de perfilGateAllows (nunca locked)
+ok 247 - ROLLBACK: teaserEnabled=false colapsa exactamente al binario de perfilGateAllows (nunca locked)
+  ---
+  duration_ms: 0.301715
+  type: 'test'
+  ...
+# Subtest: teaserEnabled=true: lo que ya era visible SIGUE visible (el candado nunca esconde ni bloquea lo permitido)
+ok 248 - teaserEnabled=true: lo que ya era visible SIGUE visible (el candado nunca esconde ni bloquea lo permitido)
+  ---
+  duration_ms: 0.166944
+  type: 'test'
+  ...
+# Subtest: teaserEnabled=true: enterprise-only en tenant lite pasa a locked (candado + UpgradeSheet)
+ok 249 - teaserEnabled=true: enterprise-only en tenant lite pasa a locked (candado + UpgradeSheet)
+  ---
+  duration_ms: 0.097134
+  type: 'test'
+  ...
+# Subtest: teaserEnabled=false (default): enterprise-only en tenant lite se oculta (comportamiento de hoy)
+ok 250 - teaserEnabled=false (default): enterprise-only en tenant lite se oculta (comportamiento de hoy)
+  ---
+  duration_ms: 0.080366
+  type: 'test'
+  ...
+# Subtest: tenant enterprise: nunca ve locked, ni con el teaser prendido (ya tiene todo lo que el lite tiene + más)
+ok 251 - tenant enterprise: nunca ve locked, ni con el teaser prendido (ya tiene todo lo que el lite tiene + más)
+  ---
+  duration_ms: 0.105561
+  type: 'test'
+  ...
+# Subtest: el catálogo real se construye y valida estricto (fail-closed no dispara)
+ok 252 - el catálogo real se construye y valida estricto (fail-closed no dispara)
+  ---
+  duration_ms: 3.443116
+  type: 'test'
+  ...
+# Subtest: el catálogo real no tiene errores de validación
+ok 253 - el catálogo real no tiene errores de validación
+  ---
+  duration_ms: 1.750669
+  type: 'test'
+  ...
+# Subtest: ids del catálogo son únicos
+ok 254 - ids del catálogo son únicos
+  ---
+  duration_ms: 0.359981
+  type: 'test'
+  ...
+# Subtest: ARCA y Mercado Pago están en el catálogo como plugins
+ok 255 - ARCA y Mercado Pago están en el catálogo como plugins
+  ---
+  duration_ms: 0.354035
+  type: 'test'
+  ...
+# Subtest: waitlist depende de agenda y ambos están en el catálogo real
+ok 256 - waitlist depende de agenda y ambos están en el catálogo real
+  ---
+  duration_ms: 0.36965
+  type: 'test'
+  ...
+# Subtest: MIGRACIÓN ARCA: el manifiesto legado se deriva del descriptor (misma data)
+ok 257 - MIGRACIÓN ARCA: el manifiesto legado se deriva del descriptor (misma data)
+  ---
+  duration_ms: 0.843392
+  type: 'test'
+  ...
+# Subtest: variante sobre el catálogo real: commissions solo aplica a servicios
+ok 258 - variante sobre el catálogo real: commissions solo aplica a servicios
+  ---
+  duration_ms: 0.671837
+  type: 'test'
+  ...
+# Subtest: flag MODULE_REGISTRY_ENABLED: default OFF, se prende con valores esperados
+ok 259 - flag MODULE_REGISTRY_ENABLED: default OFF, se prende con valores esperados
+  ---
+  duration_ms: 0.175129
+  type: 'test'
+  ...
+# Subtest: descriptor válido no tiene errores
+ok 260 - descriptor válido no tiene errores
+  ---
+  duration_ms: 1.396777
+  type: 'test'
+  ...
+# Subtest: id no kebab es error
+ok 261 - id no kebab es error
+  ---
+  duration_ms: 0.334988
+  type: 'test'
+  ...
+# Subtest: version no semver es error
+ok 262 - version no semver es error
+  ---
+  duration_ms: 0.210421
+  type: 'test'
+  ...
+# Subtest: rubros lista vacía es error; lista válida no
+ok 263 - rubros lista vacía es error; lista válida no
+  ---
+  duration_ms: 0.291808
+  type: 'test'
+  ...
+# Subtest: plugin sin superficie declarada da AVISO, no error
+ok 264 - plugin sin superficie declarada da AVISO, no error
+  ---
+  duration_ms: 0.193155
+  type: 'test'
+  ...
+# Subtest: plugin con evento o comando no avisa por superficie
+ok 265 - plugin con evento o comando no avisa por superficie
+  ---
+  duration_ms: 0.102788
+  type: 'test'
+  ...
+# Subtest: auto-dependencia es error
+ok 266 - auto-dependencia es error
+  ---
+  duration_ms: 0.155803
+  type: 'test'
+  ...
+# Subtest: migración no aditiva es error
+ok 267 - migración no aditiva es error
+  ---
+  duration_ms: 0.153195
+  type: 'test'
+  ...
+# Subtest: versionSatisface: rangos soportados
+ok 268 - versionSatisface: rangos soportados
+  ---
+  duration_ms: 0.549455
+  type: 'test'
+  ...
+# Subtest: majorDe
+ok 269 - majorDe
+  ---
+  duration_ms: 0.507853
+  type: 'test'
+  ...
+# Subtest: toLegacyPluginManifest proyecta la forma legada
+ok 270 - toLegacyPluginManifest proyecta la forma legada
+  ---
+  duration_ms: 1.743681
+  type: 'test'
+  ...
+# Subtest: flag OFF (activeModules=null): deja pasar TODO — comportamiento legado
+ok 271 - flag OFF (activeModules=null): deja pasar TODO — comportamiento legado
+  ---
+  duration_ms: 0.754313
+  type: 'test'
+  ...
+# Subtest: ítem core (sin módulo): siempre visible, aun con gating encendido
+ok 272 - ítem core (sin módulo): siempre visible, aun con gating encendido
+  ---
+  duration_ms: 0.156162
+  type: 'test'
+  ...
+# Subtest: ítem con módulo: visible solo si el módulo está activo
+ok 273 - ítem con módulo: visible solo si el módulo está activo
+  ---
+  duration_ms: 0.279478
+  type: 'test'
+  ...
+# Subtest: set vacío de activos: los ítems con módulo se esconden todos
+ok 274 - set vacío de activos: los ítems con módulo se esconden todos
+  ---
+  duration_ms: 0.128674
+  type: 'test'
+  ...
+# Subtest: NAV_GROUPS: labels profesionales en español neutro, sin lunfardo
+ok 275 - NAV_GROUPS: labels profesionales en español neutro, sin lunfardo
+  ---
+  duration_ms: 2.696967
+  type: 'test'
+  ...
+# Subtest: NAV_ITEM_GROUPS: TODO ítem de ALL_ITEMS tiene grupo — ninguno cae en 'ungrouped'
+ok 276 - NAV_ITEM_GROUPS: TODO ítem de ALL_ITEMS tiene grupo — ninguno cae en 'ungrouped'
+  ---
+  duration_ms: 0.331066
+  type: 'test'
+  ...
+# Subtest: ENTERPRISE_NAV_ITEMS ∩ ALL_ITEMS: la única superposición es /admin/inventario
+ok 277 - ENTERPRISE_NAV_ITEMS ∩ ALL_ITEMS: la única superposición es /admin/inventario
+  ---
+  duration_ms: 0.205272
+  type: 'test'
+  ...
+# Subtest: NAV_ITEM_GROUPS: 'Ajustes y mermas' cae en Inventario y compras (es stock, no config)
+ok 278 - NAV_ITEM_GROUPS: 'Ajustes y mermas' cae en Inventario y compras (es stock, no config)
+  ---
+  duration_ms: 0.14681
+  type: 'test'
+  ...
+# Subtest: groupNavItems: agrupa respetando el orden fijo de NAV_GROUPS
+ok 279 - groupNavItems: agrupa respetando el orden fijo de NAV_GROUPS
+  ---
+  duration_ms: 0.378112
+  type: 'test'
+  ...
+# Subtest: groupNavItems: omite grupos vacíos en vez de renderizar un heading sin ítems
+ok 280 - groupNavItems: omite grupos vacíos en vez de renderizar un heading sin ítems
+  ---
+  duration_ms: 0.202887
+  type: 'test'
+  ...
+# Subtest: groupNavItems: manda a `ungrouped` los ítems sin `grupo` en vez de perderlos en silencio
+ok 281 - groupNavItems: manda a `ungrouped` los ítems sin `grupo` en vez de perderlos en silencio
+  ---
+  duration_ms: 0.274228
+  type: 'test'
+  ...
+# Subtest: groupNavItems: no muta el array de entrada
+ok 282 - groupNavItems: no muta el array de entrada
+  ---
+  duration_ms: 0.141232
+  type: 'test'
+  ...
+# Subtest: groupNavItems: compone con visibleNavItems (rol × módulo × perfil) sin perder la agrupación
+ok 283 - groupNavItems: compone con visibleNavItems (rol × módulo × perfil) sin perder la agrupación
+  ---
+  duration_ms: 0.385307
+  type: 'test'
+  ...
+# Subtest: BACKLOG_SCOPE_ITEM_NAV: grupos válidos y coherentes con la guía S5 (inventario→inv, fiado→finanzas)
+ok 284 - BACKLOG_SCOPE_ITEM_NAV: grupos válidos y coherentes con la guía S5 (inventario→inv, fiado→finanzas)
+  ---
+  duration_ms: 0.476597
+  type: 'test'
+  ...
+# Subtest: BACKLOG_SCOPE_ITEM_NAV: fiado y stock son 'ambos' (lite), no enterprise-only; fiado default OFF
+ok 285 - BACKLOG_SCOPE_ITEM_NAV: fiado y stock son 'ambos' (lite), no enterprise-only; fiado default OFF
+  ---
+  duration_ms: 0.14888
+  type: 'test'
+  ...
+# Subtest: ENTERPRISE_NAV_ITEMS: 5 shells (3 enterprise + CxC/Inventario lite reconciliados), ready, grupos válidos, hrefs propios
+ok 286 - ENTERPRISE_NAV_ITEMS: 5 shells (3 enterprise + CxC/Inventario lite reconciliados), ready, grupos válidos, hrefs propios
+  ---
+  duration_ms: 0.284783
+  type: 'test'
+  ...
+# Subtest: ENTERPRISE_NAV_ITEMS: cada href está en el backlog validado con el MISMO grupo
+ok 287 - ENTERPRISE_NAV_ITEMS: cada href está en el backlog validado con el MISMO grupo
+  ---
+  duration_ms: 0.179618
+  type: 'test'
+  ...
+# Subtest: ENTERPRISE_NAV_ITEMS: al agruparse caen en su grupo (Finanzas / Inventario y compras)
+ok 288 - ENTERPRISE_NAV_ITEMS: al agruparse caen en su grupo (Finanzas / Inventario y compras)
+  ---
+  duration_ms: 0.194471
+  type: 'test'
+  ...
+# Subtest: ENTERPRISE_NAV_ITEMS: los 5 shells existen (ready) → readyEnterpriseNavItems los expone todos
+ok 289 - ENTERPRISE_NAV_ITEMS: los 5 shells existen (ready) → readyEnterpriseNavItems los expone todos
+  ---
+  duration_ms: 0.17258
+  type: 'test'
+  ...
+# Subtest: ENTERPRISE_NAV_ITEMS: cada shell 'ready' tiene su page.tsx en disco (anti dead-end de verdad)
+ok 290 - ENTERPRISE_NAV_ITEMS: cada shell 'ready' tiene su page.tsx en disco (anti dead-end de verdad)
+  ---
+  duration_ms: 0.20002
+  type: 'test'
+  ...
+# Subtest: ENTERPRISE_NAV_ITEMS: replica el filtro del shell — OWNER Empresa los 5; Comercio CxC+Inventario (lite); RECEPTION/motor-OFF ninguno
+ok 291 - ENTERPRISE_NAV_ITEMS: replica el filtro del shell — OWNER Empresa los 5; Comercio CxC+Inventario (lite); RECEPTION/motor-OFF ninguno
+  ---
+  duration_ms: 0.59966
+  type: 'test'
+  ...
+# Subtest: BACKLOG_SCOPE_ITEM_NAV: invariante enterprise ⊇ lite — un ítem 'lite' se ve en ambos perfiles
+ok 292 - BACKLOG_SCOPE_ITEM_NAV: invariante enterprise ⊇ lite — un ítem 'lite' se ve en ambos perfiles
+  ---
+  duration_ms: 0.132416
+  type: 'test'
+  ...
+# Subtest: normalizarBusqueda: minúsculas, sin acentos, sin espacios de borde
+ok 293 - normalizarBusqueda: minúsculas, sin acentos, sin espacios de borde
+  ---
+  duration_ms: 1.16967
+  type: 'test'
+  ...
+# Subtest: query vacía devuelve [] — la barra sin texto no tapa la nav
+ok 294 - query vacía devuelve [] — la barra sin texto no tapa la nav
+  ---
+  duration_ms: 1.358569
+  type: 'test'
+  ...
+# Subtest: prefijo del label gana sobre coincidencia en el medio
+ok 295 - prefijo del label gana sobre coincidencia en el medio
+  ---
+  duration_ms: 0.532136
+  type: 'test'
+  ...
+# Subtest: prefijo de PALABRA interna encuentra 'Lista de espera' por 'esp'
+ok 296 - prefijo de PALABRA interna encuentra 'Lista de espera' por 'esp'
+  ---
+  duration_ms: 0.15483
+  type: 'test'
+  ...
+# Subtest: busca sin acentos: 'facturacion' encuentra 'Facturación'
+ok 297 - busca sin acentos: 'facturacion' encuentra 'Facturación'
+  ---
+  duration_ms: 0.107586
+  type: 'test'
+  ...
+# Subtest: alias: 'afip' cae en Facturación aunque la palabra no esté en el rótulo
+ok 298 - alias: 'afip' cae en Facturación aunque la palabra no esté en el rótulo
+  ---
+  duration_ms: 0.104847
+  type: 'test'
+  ...
+# Subtest: el alias pierde contra el rótulo: 'cierre' no adelanta a un label que arranca igual
+ok 299 - el alias pierde contra el rótulo: 'cierre' no adelanta a un label que arranca igual
+  ---
+  duration_ms: 0.13744
+  type: 'test'
+  ...
+# Subtest: empate de rango: manda el orden original de la nav, no el alfabético
+ok 300 - empate de rango: manda el orden original de la nav, no el alfabético
+  ---
+  duration_ms: 0.129019
+  type: 'test'
+  ...
+# Subtest: sin coincidencia devuelve [] (no cae de vuelta a 'todos')
+ok 301 - sin coincidencia devuelve [] (no cae de vuelta a 'todos')
+  ---
+  duration_ms: 0.242273
+  type: 'test'
+  ...
+# Subtest: rangoCoincidencia: null cuando no matchea ni por label ni por alias
+ok 302 - rangoCoincidencia: null cuando no matchea ni por label ni por alias
+  ---
+  duration_ms: 0.310722
+  type: 'test'
+  ...
+# Subtest: NO decide visibilidad: buscar sobre la lista filtrada nunca revela lo del OWNER
+ok 303 - NO decide visibilidad: buscar sobre la lista filtrada nunca revela lo del OWNER
+  ---
+  duration_ms: 0.48592
+  type: 'test'
+  ...
+# Subtest: todo ítem de ALL_ITEMS es alcanzable tipeando su propio rótulo
+ok 304 - todo ítem de ALL_ITEMS es alcanzable tipeando su propio rótulo
+  ---
+  duration_ms: 2.750236
+  type: 'test'
+  ...
+# Subtest: nucleoParaProducto('comerciante') = núcleo de facturación (bancos/arca/mercadopago/clients/reports)
+ok 305 - nucleoParaProducto('comerciante') = núcleo de facturación (bancos/arca/mercadopago/clients/reports)
+  ---
+  duration_ms: 2.16136
+  type: 'test'
+  ...
+# Subtest: nucleoParaProducto('contador') incluye cartera (su discriminador) + arca/clients/reports
+ok 306 - nucleoParaProducto('contador') incluye cartera (su discriminador) + arca/clients/reports
+  ---
+  duration_ms: 0.20679
+  type: 'test'
+  ...
+# Subtest: nucleoParaProducto('vertical') = [] → el llamador cae al default legado por blueprint
+ok 307 - nucleoParaProducto('vertical') = [] → el llamador cae al default legado por blueprint
+  ---
+  duration_ms: 1.248181
+  type: 'test'
+  ...
+# Subtest: alta de un COMERCIANTE (blueprint 'generico') nace con el núcleo, NO con 'Agregar turno'
+ok 308 - alta de un COMERCIANTE (blueprint 'generico') nace con el núcleo, NO con 'Agregar turno'
+  ---
+  duration_ms: 0.212951
+  type: 'test'
+  ...
+# Subtest: alta de un VERTICAL cae al default legado por blueprint (byte-idéntico, no se toca)
+ok 309 - alta de un VERTICAL cae al default legado por blueprint (byte-idéntico, no se toca)
+  ---
+  duration_ms: 0.225853
+  type: 'test'
+  ...
+# Subtest: el default PURO de 'generico' NO se toca (sigue sirviendo al comodín de rubro)
+ok 310 - el default PURO de 'generico' NO se toca (sigue sirviendo al comodín de rubro)
+  ---
+  duration_ms: 0.155405
+  type: 'test'
+  ...
+# Subtest: un cambio de plan sólo escribe plan, modules y profile
+ok 311 - un cambio de plan sólo escribe plan, modules y profile
+  ---
+  duration_ms: 2.087184
+  type: 'test'
+  ...
+# Subtest: un campo de más (un dato del negocio) se rechaza antes de escribir
+ok 312 - un campo de más (un dato del negocio) se rechaza antes de escribir
+  ---
+  duration_ms: 0.589455
+  type: 'test'
+  ...
+# Subtest: plan vacío, módulo vacío o perfil desconocido: no se escribe nada
+ok 313 - plan vacío, módulo vacío o perfil desconocido: no se escribe nada
+  ---
+  duration_ms: 0.210121
+  type: 'test'
+  ...
+# Subtest: lo que se apaga avisa que los datos quedan guardados
+ok 314 - lo que se apaga avisa que los datos quedan guardados
+  ---
+  duration_ms: 0.210122
+  type: 'test'
+  ...
+# Subtest: conteos por tabla: iguales no dan diferencias; uno menos, una tabla nueva o una que falta, sí
+ok 315 - conteos por tabla: iguales no dan diferencias; uno menos, una tabla nueva o una que falta, sí
+  ---
+  duration_ms: 0.485604
+  type: 'test'
+  ...
+# Subtest: perfilGateAllows: flag OFF (null) deja pasar todo (legado)
+ok 316 - perfilGateAllows: flag OFF (null) deja pasar todo (legado)
+  ---
+  duration_ms: 0.773768
+  type: 'test'
+  ...
+# Subtest: perfilGateAllows: ítems lite se ven en ambos perfiles; enterprise-only solo en enterprise
+ok 317 - perfilGateAllows: ítems lite se ven en ambos perfiles; enterprise-only solo en enterprise
+  ---
+  duration_ms: 0.167808
+  type: 'test'
+  ...
+# Subtest: INVARIANTE (predicado): si algo se ve en lite, se ve en enterprise
+ok 318 - INVARIANTE (predicado): si algo se ve en lite, se ve en enterprise
+  ---
+  duration_ms: 0.115392
+  type: 'test'
+  ...
+# Subtest: INVARIANTE de NAV `enterprise ⊇ lite`: ∀ rol × módulos, visible(lite) ⊆ visible(enterprise)
+ok 319 - INVARIANTE de NAV `enterprise ⊇ lite`: ∀ rol × módulos, visible(lite) ⊆ visible(enterprise)
+  ---
+  duration_ms: 0.620076
+  type: 'test'
+  ...
+# Subtest: flag OFF (activeProfile null): la nav es idéntica a no gatear por perfil (legado)
+ok 320 - flag OFF (activeProfile null): la nav es idéntica a no gatear por perfil (legado)
+  ---
+  duration_ms: 2.310536
+  type: 'test'
+  ...
+# Subtest: registrar / tiene / get / ids / listar
+ok 321 - registrar / tiene / get / ids / listar
+  ---
+  duration_ms: 2.434107
+  type: 'test'
+  ...
+# Subtest: get de id desconocido lanza ModuloDesconocidoError
+ok 322 - get de id desconocido lanza ModuloDesconocidoError
+  ---
+  duration_ms: 0.501729
+  type: 'test'
+  ...
+# Subtest: rubroCompatible: todos y listas
+ok 323 - rubroCompatible: todos y listas
+  ---
+  duration_ms: 0.199989
+  type: 'test'
+  ...
+# Subtest: compatiblesConRubro filtra por variante
+ok 324 - compatiblesConRubro filtra por variante
+  ---
+  duration_ms: 0.240576
+  type: 'test'
+  ...
+# Subtest: validar: dependencia colgada es error
+ok 325 - validar: dependencia colgada es error
+  ---
+  duration_ms: 0.590945
+  type: 'test'
+  ...
+# Subtest: validar: rango de versión de dependencia no satisfecho es error
+ok 326 - validar: rango de versión de dependencia no satisfecho es error
+  ---
+  duration_ms: 0.381018
+  type: 'test'
+  ...
+# Subtest: validar: ciclo de dependencias es error
+ok 327 - validar: ciclo de dependencias es error
+  ---
+  duration_ms: 0.360071
+  type: 'test'
+  ...
+# Subtest: validar: dependencia con compat más amplia que el módulo es AVISO
+ok 328 - validar: dependencia con compat más amplia que el módulo es AVISO
+  ---
+  duration_ms: 0.230072
+  type: 'test'
+  ...
+# Subtest: validarEstricto lanza CatalogoInvalidoError ante un error
+ok 329 - validarEstricto lanza CatalogoInvalidoError ante un error
+  ---
+  duration_ms: 0.453927
+  type: 'test'
+  ...
+# Subtest: validarEstricto no lanza por avisos
+ok 330 - validarEstricto no lanza por avisos
+  ---
+  duration_ms: 0.512792
+  type: 'test'
+  ...
+# Subtest: vistaModulos: lista solo lo compatible con el rubro y marca los activos
+ok 331 - vistaModulos: lista solo lo compatible con el rubro y marca los activos
+  ---
+  duration_ms: 1.43793
+  type: 'test'
+  ...
+# Subtest: vistaModulos: commissions sí aparece para servicios
+ok 332 - vistaModulos: commissions sí aparece para servicios
+  ---
+  duration_ms: 0.255498
+  type: 'test'
+  ...
+# Subtest: vistaModulos: requeridoPor marca al que bloquea la desactivación
+ok 333 - vistaModulos: requeridoPor marca al que bloquea la desactivación
+  ---
+  duration_ms: 1.377731
+  type: 'test'
+  ...
+# Subtest: planActivar: arrastra las dependencias en cascada
+ok 334 - planActivar: arrastra las dependencias en cascada
+  ---
+  duration_ms: 0.306115
+  type: 'test'
+  ...
+# Subtest: planActivar: rechaza lo incompatible con el rubro (variante), sin tocar nada
+ok 335 - planActivar: rechaza lo incompatible con el rubro (variante), sin tocar nada
+  ---
+  duration_ms: 0.20344
+  type: 'test'
+  ...
+# Subtest: planActivar: activar algo ya activo no duplica
+ok 336 - planActivar: activar algo ya activo no duplica
+  ---
+  duration_ms: 0.15239
+  type: 'test'
+  ...
+# Subtest: planDesactivar: bloquea si un módulo activo depende del que se apaga
+ok 337 - planDesactivar: bloquea si un módulo activo depende del que se apaga
+  ---
+  duration_ms: 0.324939
+  type: 'test'
+  ...
+# Subtest: planDesactivar: apaga limpio cuando nadie depende
+ok 338 - planDesactivar: apaga limpio cuando nadie depende
+  ---
+  duration_ms: 0.227077
+  type: 'test'
+  ...
+# Subtest: planDesactivar: apagar algo que no estaba activo es no-op
+ok 339 - planDesactivar: apagar algo que no estaba activo es no-op
+  ---
+  duration_ms: 0.348733
+  type: 'test'
+  ...
+# Subtest: vistaModulos(producto): marca esNucleo según nucleoPara del producto actual
+ok 340 - vistaModulos(producto): marca esNucleo según nucleoPara del producto actual
+  ---
+  duration_ms: 0.466433
+  type: 'test'
+  ...
+# Subtest: vistaModulos(comerciante): esconde el discriminador de OTRO producto (cartera fuera de Contador)
+ok 341 - vistaModulos(comerciante): esconde el discriminador de OTRO producto (cartera fuera de Contador)
+  ---
+  duration_ms: 0.155969
+  type: 'test'
+  ...
+# Subtest: vistaModulos(contador): sí muestra cartera (es su núcleo)
+ok 342 - vistaModulos(contador): sí muestra cartera (es su núcleo)
+  ---
+  duration_ms: 0.170766
+  type: 'test'
+  ...
+# Subtest: vistaModulos sin producto (legado): no filtra ni marca núcleo — vidriera plana
+ok 343 - vistaModulos sin producto (legado): no filtra ni marca núcleo — vidriera plana
+  ---
+  duration_ms: 0.123914
+  type: 'test'
+  ...
+# Subtest: planDesactivar: CANDADO del núcleo — un módulo del plan no se desinstala
+ok 344 - planDesactivar: CANDADO del núcleo — un módulo del plan no se desinstala
+  ---
+  duration_ms: 0.161357
+  type: 'test'
+  ...
+# Subtest: planDesactivar: un módulo NO-núcleo del producto sí se desinstala
+ok 345 - planDesactivar: un módulo NO-núcleo del producto sí se desinstala
+  ---
+  duration_ms: 0.08103
+  type: 'test'
+  ...
+# Subtest: catálogo: cinco planes, uno por id, con nombre y a quién le sirve
+ok 346 - catálogo: cinco planes, uno por id, con nombre y a quién le sirve
+  ---
+  duration_ms: 2.949713
+  type: 'test'
+  ...
+# Subtest: esPlanId es estricto: el texto libre de antes en Tenant.plan no se lee como un plan
+ok 347 - esPlanId es estricto: el texto libre de antes en Tenant.plan no se lee como un plan
+  ---
+  duration_ms: 0.284451
+  type: 'test'
+  ...
+# Subtest: rubroDelNegocio usa los dos datos de la barra
+ok 348 - rubroDelNegocio usa los dos datos de la barra
+  ---
+  duration_ms: 0.371447
+  type: 'test'
+  ...
+# Subtest: 1a. todo módulo de cada plan (propios, por rubro y agregables) existe en el catálogo de módulos
+ok 349 - 1a. todo módulo de cada plan (propios, por rubro y agregables) existe en el catálogo de módulos
+  ---
+  duration_ms: 0.376501
+  type: 'test'
+  ...
+# Subtest: 1b. las dependencias de cada módulo están dentro del plan, en cada rubro y con cada agregado
+ok 350 - 1b. las dependencias de cada módulo están dentro del plan, en cada rubro y con cada agregado
+  ---
+  duration_ms: 1.180314
+  type: 'test'
+  ...
+# Subtest: 1c. el gate real no descarta nada del plan en NINGÚN blueprint: ni desconocidos, ni de otro rubro, ni con dependencias colgadas
+ok 351 - 1c. el gate real no descarta nada del plan en NINGÚN blueprint: ni desconocidos, ni de otro rubro, ni con dependencias colgadas
+  ---
+  duration_ms: 3.61347
+  type: 'test'
+  ...
+# Subtest: 1c'. el plan se aplica por el camino de la consola (validarCambio, de a un módulo) en cualquier blueprint
+ok 352 - 1c'. el plan se aplica por el camino de la consola (validarCambio, de a un módulo) en cualquier blueprint
+  ---
+  duration_ms: 10.117189
+  type: 'test'
+  ...
+# Subtest: 1c''. las pruebas de rubro muerden: un módulo de un solo blueprint en el plan se detecta en una estética
+ok 353 - 1c''. las pruebas de rubro muerden: un módulo de un solo blueprint en el plan se detecta en una estética
+  ---
+  duration_ms: 0.384763
+  type: 'test'
+  ...
+# Subtest: 1d. la prueba de dependencias muerde: un plan con inventario sin catálogo se detecta
+ok 354 - 1d. la prueba de dependencias muerde: un plan con inventario sin catálogo se detecta
+  ---
+  duration_ms: 0.362054
+  type: 'test'
+  ...
+# Subtest: agregables: no repiten lo del plan, y lo que un plan suma suelto el siguiente lo trae o lo ofrece
+ok 355 - agregables: no repiten lo del plan, y lo que un plan suma suelto el siguiente lo trae o lo ofrece
+  ---
+  duration_ms: 0.519919
+  type: 'test'
+  ...
+# Subtest: cada módulo que vende un plan se nota: alguna app suya aparece en la vitrina, o trabaja de fondo
+ok 356 - cada módulo que vende un plan se nota: alguna app suya aparece en la vitrina, o trabaja de fondo
+  ---
+  duration_ms: 7.95754
+  type: 'test'
+  ...
+# Subtest: modulosDelPlan: suma los agregables y rechaza con el porqué lo que el plan no ofrece
+ok 357 - modulosDelPlan: suma los agregables y rechaza con el porqué lo que el plan no ofrece
+  ---
+  duration_ms: 0.329371
+  type: 'test'
+  ...
+# Subtest: 2a. escalera en MÓDULOS, en cada rubro
+ok 358 - 2a. escalera en MÓDULOS, en cada rubro
+  ---
+  duration_ms: 0.412907
+  type: 'test'
+  ...
+# Subtest: 2b. escalera en APPS, en cada rubro (con el mismo gate que el Inicio)
+ok 359 - 2b. escalera en APPS, en cada rubro (con el mismo gate que el Inicio)
+  ---
+  duration_ms: 12.736052
+  type: 'test'
+  ...
+# Subtest: 2c. escalera en LÍMITES: ningún tope baja al subir de plan (sin tope = el más alto)
+ok 360 - 2c. escalera en LÍMITES: ningún tope baja al subir de plan (sin tope = el más alto)
+  ---
+  duration_ms: 0.323932
+  type: 'test'
+  ...
+# Subtest: 2d. escalera en PERFIL: subir nunca pasa de Empresa a Comercio
+ok 361 - 2d. escalera en PERFIL: subir nunca pasa de Empresa a Comercio
+  ---
+  duration_ms: 0.121952
+  type: 'test'
+  ...
+# Subtest: 2e. cada escalón suma algo: ningún plan de la escalera es igual al anterior en módulos y límites
+ok 362 - 2e. cada escalón suma algo: ningún plan de la escalera es igual al anterior en módulos y límites
+  ---
+  duration_ms: 0.161586
+  type: 'test'
+  ...
+# Subtest: 3a. ningún plan vende un módulo cuya app está en preparación
+ok 363 - 3a. ningún plan vende un módulo cuya app está en preparación
+  ---
+  duration_ms: 0.287753
+  type: 'test'
+  ...
+# Subtest: 3b. la vitrina no regala: cada app que muestra es del núcleo o de un módulo que el plan trae
+ok 364 - 3b. la vitrina no regala: cada app que muestra es del núcleo o de un módulo que el plan trae
+  ---
+  duration_ms: 2.564246
+  type: 'test'
+  ...
+# Subtest: 3c. la prueba de 'en preparación' muerde: una app en preparación de un módulo del plan se detecta y no se muestra
+ok 365 - 3c. la prueba de 'en preparación' muerde: una app en preparación de un módulo del plan se detecta y no se muestra
+  ---
+  duration_ms: 0.405355
+  type: 'test'
+  ...
+# Subtest: 4a. el Estudio trae la cartera y no Mis locales, ni en su rubro ni con agregados
+ok 366 - 4a. el Estudio trae la cartera y no Mis locales, ni en su rubro ni con agregados
+  ---
+  duration_ms: 0.198602
+  type: 'test'
+  ...
+# Subtest: 4b. ningún plan junta cartera y Mis locales, y la cartera es sólo del Estudio
+ok 367 - 4b. ningún plan junta cartera y Mis locales, y la cartera es sólo del Estudio
+  ---
+  duration_ms: 0.127964
+  type: 'test'
+  ...
+# Subtest: 4c. el Estudio, con el menú real de su producto, no ve Mis locales ni el mostrador
+ok 368 - 4c. el Estudio, con el menú real de su producto, no ve Mis locales ni el mostrador
+  ---
+  duration_ms: 0.241231
+  type: 'test'
+  ...
+# Subtest: Facturación es el núcleo del producto de facturación de hoy; el Estudio, el del contador
+ok 369 - Facturación es el núcleo del producto de facturación de hoy; el Estudio, el del contador
+  ---
+  duration_ms: 0.239061
+  type: 'test'
+  ...
+# Subtest: appsDelPlan usa el mismo gate que un negocio real que trabaja por apps (el Estudio, con el de su producto)
+ok 370 - appsDelPlan usa el mismo gate que un negocio real que trabaja por apps (el Estudio, con el de su producto)
+  ---
+  duration_ms: 2.938236
+  type: 'test'
+  ...
+# Subtest: la vitrina no promete de más en ningún blueprint (salvo el de menú de producto, que se conoce)
+ok 371 - la vitrina no promete de más en ningún blueprint (salvo el de menú de producto, que se conoce)
+  ---
+  duration_ms: 38.509897
+  type: 'test'
+  ...
+# Subtest: en un negocio de menú de producto la escalera NO decide sus apps: se sabe y se mide
+ok 372 - en un negocio de menú de producto la escalera NO decide sus apps: se sabe y se mide
+  ---
+  duration_ms: 0.350432
+  type: 'test'
+  ...
+# Subtest: lo que ve la dueña cubre lo que ve todo el equipo
+ok 373 - lo que ve la dueña cubre lo que ve todo el equipo
+  ---
+  duration_ms: 6.479528
+  type: 'test'
+  ...
+# Subtest: la vitrina dice lo que cada plan vende (casos concretos)
+ok 374 - la vitrina dice lo que cada plan vende (casos concretos)
+  ---
+  duration_ms: 0.844472
+  type: 'test'
+  ...
+# Subtest: precios: uno por plan, todos provisionales a confirmar
+ok 375 - precios: uno por plan, todos provisionales a confirmar
+  ---
+  duration_ms: 0.200221
+  type: 'test'
+  ...
+# Subtest: ningún archivo que decide importa los precios
+ok 376 - ningún archivo que decide importa los precios
+  ---
+  duration_ms: 78.797715
+  type: 'test'
+  ...
+# Subtest: el catálogo es dato puro: sólo importa tipos (se puede leer desde el navegador)
+ok 377 - el catálogo es dato puro: sólo importa tipos (se puede leer desde el navegador)
+  ---
+  duration_ms: 5.213903
+  type: 'test'
+  ...
+# Subtest: un negocio con plan tiene los topes de su plan
+ok 378 - un negocio con plan tiene los topes de su plan
+  ---
+  duration_ms: 2.747819
+  type: 'test'
+  ...
+# Subtest: sin plan del catálogo, ningún tope nuevo: se comporta como hoy
+ok 379 - sin plan del catálogo, ningún tope nuevo: se comporta como hoy
+  ---
+  duration_ms: 0.869443
+  type: 'test'
+  ...
+# Subtest: CH (beauty-spa) nunca tiene plan hasta el OK del dueño, diga lo que diga su columna y sus filas
+ok 380 - CH (beauty-spa) nunca tiene plan hasta el OK del dueño, diga lo que diga su columna y sus filas
+  ---
+  duration_ms: 0.715287
+  type: 'test'
+  ...
+# Subtest: una excepción de la consola ajusta el tope y dice quién y cuándo
+ok 381 - una excepción de la consola ajusta el tope y dice quién y cuándo
+  ---
+  duration_ms: 0.494225
+  type: 'test'
+  ...
+# Subtest: manda la última fila válida de cada límite del plan (por fecha, y a igual fecha por id)
+ok 382 - manda la última fila válida de cada límite del plan (por fecha, y a igual fecha por id)
+  ---
+  duration_ms: 0.316802
+  type: 'test'
+  ...
+# Subtest: una fila forjada o mal formada no cuenta, aunque sea la más nueva
+ok 383 - una fila forjada o mal formada no cuenta, aunque sea la más nueva
+  ---
+  duration_ms: 0.53763
+  type: 'test'
+  ...
+# Subtest: una excepción fijada con otro plan no cuenta y se informa; la de este plan sí
+ok 384 - una excepción fijada con otro plan no cuenta y se informa; la de este plan sí
+  ---
+  duration_ms: 0.247864
+  type: 'test'
+  ...
+# Subtest: cada excepción es de su límite Y su plan: lo que se hace con otro plan no la pisa ni la borra
+ok 385 - cada excepción es de su límite Y su plan: lo que se hace con otro plan no la pisa ni la borra
+  ---
+  duration_ms: 0.273477
+  type: 'test'
+  ...
+# Subtest: las excepciones de otro plan se informan ordenadas por límite y por plan
+ok 386 - las excepciones de otro plan se informan ordenadas por límite y por plan
+  ---
+  duration_ms: 0.390723
+  type: 'test'
+  ...
+# Subtest: la fila que arma la consola es la que la lectura acepta
+ok 387 - la fila que arma la consola es la que la lectura acepta
+  ---
+  duration_ms: 0.484407
+  type: 'test'
+  ...
+# Subtest: la consola no puede armar una fila inválida
+ok 388 - la consola no puede armar una fila inválida
+  ---
+  duration_ms: 0.456557
+  type: 'test'
+  ...
+# Subtest: el filtro de la consulta acota a las filas de la consola de ese negocio
+ok 389 - el filtro de la consulta acota a las filas de la consola de ese negocio
+  ---
+  duration_ms: 0.159333
+  type: 'test'
+  ...
+# Subtest: la entidad de las excepciones está reservada para la consola
+ok 390 - la entidad de las excepciones está reservada para la consola
+  ---
+  duration_ms: 0.102992
+  type: 'test'
+  ...
+# Subtest: evaluarUso: avisa desde el 80 %, completo en el tope, pasado por encima
+ok 391 - evaluarUso: avisa desde el 80 %, completo en el tope, pasado por encima
+  ---
+  duration_ms: 0.310145
+  type: 'test'
+  ...
+# Subtest: decidirAlta: frena al llegar al tope y dice cómo seguir
+ok 392 - decidirAlta: frena al llegar al tope y dice cómo seguir
+  ---
+  duration_ms: 0.190064
+  type: 'test'
+  ...
+# Subtest: decidirAlta: si no se pudo contar, frena con un porqué que dice cómo seguir
+ok 393 - decidirAlta: si no se pudo contar, frena con un porqué que dice cómo seguir
+  ---
+  duration_ms: 0.114202
+  type: 'test'
+  ...
+# Subtest: una venta nunca se frena: comprobantes y facturas automáticas sólo avisan
+ok 394 - una venta nunca se frena: comprobantes y facturas automáticas sólo avisan
+  ---
+  duration_ms: 0.123238
+  type: 'test'
+  ...
+# Subtest: cada límite tiene nombre, unidad y cómo se cuenta, en castellano
+ok 395 - cada límite tiene nombre, unidad y cómo se cuenta, en castellano
+  ---
+  duration_ms: 0.681588
+  type: 'test'
+  ...
+# Subtest: crédito acreditado es venta facturable
+ok 396 - crédito acreditado es venta facturable
+  ---
+  duration_ms: 1.423886
+  type: 'test'
+  ...
+# Subtest: débito genérico (egreso) no se factura
+ok 397 - débito genérico (egreso) no se factura
+  ---
+  duration_ms: 0.249514
+  type: 'test'
+  ...
+# Subtest: comisiones e impuestos bancarios se marcan con su motivo específico
+ok 398 - comisiones e impuestos bancarios se marcan con su motivo específico
+  ---
+  duration_ms: 0.38944
+  type: 'test'
+  ...
+# Subtest: un crédito cuya leyenda menciona IVA NO cae en comisión-impuesto
+ok 399 - un crédito cuya leyenda menciona IVA NO cae en comisión-impuesto
+  ---
+  duration_ms: 0.137081
+  type: 'test'
+  ...
+# Subtest: transferencia entre cuentas propias no es venta
+ok 400 - transferencia entre cuentas propias no es venta
+  ---
+  duration_ms: 0.126528
+  type: 'test'
+  ...
+# Subtest: CUIT propio en la contraparte (config) no es venta
+ok 401 - CUIT propio en la contraparte (config) no es venta
+  ---
+  duration_ms: 0.168108
+  type: 'test'
+  ...
+# Subtest: contraasientos, reversos y devoluciones no son venta (aunque sean crédito)
+ok 402 - contraasientos, reversos y devoluciones no son venta (aunque sean crédito)
+  ---
+  duration_ms: 0.157794
+  type: 'test'
+  ...
+# Subtest: préstamos y plazos fijos acreditados no son venta
+ok 403 - préstamos y plazos fijos acreditados no son venta
+  ---
+  duration_ms: 0.122189
+  type: 'test'
+  ...
+# Subtest: movimiento sin monto no se factura
+ok 404 - movimiento sin monto no se factura
+  ---
+  duration_ms: 0.275166
+  type: 'test'
+  ...
+# Subtest: reglas extra del tenant se evalúan antes que las default
+ok 405 - reglas extra del tenant se evalúan antes que las default
+  ---
+  duration_ms: 0.442898
+  type: 'test'
+  ...
+# Subtest: aprendizaje: una corrección se recuerda y pisa a las reglas
+ok 406 - aprendizaje: una corrección se recuerda y pisa a las reglas
+  ---
+  duration_ms: 0.376723
+  type: 'test'
+  ...
+# Subtest: aprendizaje por contraparte tiene prioridad
+ok 407 - aprendizaje por contraparte tiene prioridad
+  ---
+  duration_ms: 0.123421
+  type: 'test'
+  ...
+# Subtest: CUITs válidos (verificador correcto)
+ok 408 - CUITs válidos (verificador correcto)
+  ---
+  duration_ms: 1.079871
+  type: 'test'
+  ...
+# Subtest: tolera guiones, espacios y puntos (formatos de carga humana)
+ok 409 - tolera guiones, espacios y puntos (formatos de carga humana)
+  ---
+  duration_ms: 0.179937
+  type: 'test'
+  ...
+# Subtest: verificador incorrecto → inválido
+ok 410 - verificador incorrecto → inválido
+  ---
+  duration_ms: 0.111514
+  type: 'test'
+  ...
+# Subtest: dv = 10 es inválido por definición (ARCA no lo emite)
+ok 411 - dv = 10 es inválido por definición (ARCA no lo emite)
+  ---
+  duration_ms: 0.209674
+  type: 'test'
+  ...
+# Subtest: forma inválida → inválido (largo, letras, prefijo desconocido)
+ok 412 - forma inválida → inválido (largo, letras, prefijo desconocido)
+  ---
+  duration_ms: 0.158283
+  type: 'test'
+  ...
+# Subtest: template Galicia: headers exactos dan confianza 1
+ok 413 - template Galicia: headers exactos dan confianza 1
+  ---
+  duration_ms: 1.973609
+  type: 'test'
+  ...
+# Subtest: heurística por sinónimos: headers que no matchean template igual mapean alto
+ok 414 - heurística por sinónimos: headers que no matchean template igual mapean alto
+  ---
+  duration_ms: 1.158802
+  type: 'test'
+  ...
+# Subtest: sin headers reconocibles: la forma de los datos manda y pide confirmación
+ok 415 - sin headers reconocibles: la forma de los datos manda y pide confirmación
+  ---
+  duration_ms: 0.504826
+  type: 'test'
+  ...
+# Subtest: matriz vacía o sin tabla devuelve null
+ok 416 - matriz vacía o sin tabla devuelve null
+  ---
+  duration_ms: 0.157902
+  type: 'test'
+  ...
+# Subtest: normalizarMovimientos: débito/crédito a monto con signo + hash idempotente
+ok 417 - normalizarMovimientos: débito/crédito a monto con signo + hash idempotente
+  ---
+  duration_ms: 2.414084
+  type: 'test'
+  ...
+# Subtest: normalizarMovimientos saltea filas de ruido (subtotales, leyendas)
+ok 418 - normalizarMovimientos saltea filas de ruido (subtotales, leyendas)
+  ---
+  duration_ms: 0.390064
+  type: 'test'
+  ...
+# Subtest: template Mercado Pago produce movimientos con origen mercadopago
+ok 419 - template Mercado Pago produce movimientos con origen mercadopago
+  ---
+  duration_ms: 0.32591
+  type: 'test'
+  ...
+# Subtest: celdas XLSX tipadas (Date y number) normalizan igual que las string
+ok 420 - celdas XLSX tipadas (Date y number) normalizan igual que las string
+  ---
+  duration_ms: 0.387791
+  type: 'test'
+  ...
+# Subtest: buscarTemplate exige igualdad exacta (falso negativo > falso positivo)
+ok 421 - buscarTemplate exige igualdad exacta (falso negativo > falso positivo)
+  ---
+  duration_ms: 0.357082
+  type: 'test'
+  ...
+# Subtest: el stub del mapeador asistido devuelve el heurístico tal cual
+ok 422 - el stub del mapeador asistido devuelve el heurístico tal cual
+  ---
+  duration_ms: 0.556553
+  type: 'test'
+  ...
+# Subtest: configConDefaults completa los valores del producto
+ok 423 - configConDefaults completa los valores del producto
+  ---
+  duration_ms: 1.134705
+  type: 'test'
+  ...
+# Subtest: monto menor al umbral → AUTO consumidor final genérico, sin descripción
+ok 424 - monto menor al umbral → AUTO consumidor final genérico, sin descripción
+  ---
+  duration_ms: 0.735018
+  type: 'test'
+  ...
+# Subtest: monto IGUAL al umbral va a revisión (el límite es estricto)
+ok 425 - monto IGUAL al umbral va a revisión (el límite es estricto)
+  ---
+  duration_ms: 19.970883
+  type: 'test'
+  ...
+# Subtest: monto mayor al umbral → revisión con identificación obligatoria
+ok 426 - monto mayor al umbral → revisión con identificación obligatoria
+  ---
+  duration_ms: 0.419733
+  type: 'test'
+  ...
+# Subtest: al 90% del cap se alerta pero se sigue emitiendo
+ok 427 - al 90% del cap se alerta pero se sigue emitiendo
+  ---
+  duration_ms: 1.499366
+  type: 'test'
+  ...
+# Subtest: al 100% del cap se bloquea la emisión automática (baja a revisión)
+ok 428 - al 100% del cap se bloquea la emisión automática (baja a revisión)
+  ---
+  duration_ms: 0.598277
+  type: 'test'
+  ...
+# Subtest: con el cap ya agotado, ninguna auto pasa
+ok 429 - con el cap ya agotado, ninguna auto pasa
+  ---
+  duration_ms: 0.272092
+  type: 'test'
+  ...
+# Subtest: las revisiones y no facturables no consumen cap
+ok 430 - las revisiones y no facturables no consumen cap
+  ---
+  duration_ms: 0.489452
+  type: 'test'
+  ...
+# Subtest: el mismo movimiento repetido en el archivo se descarta
+ok 431 - el mismo movimiento repetido en el archivo se descarta
+  ---
+  duration_ms: 0.437921
+  type: 'test'
+  ...
+# Subtest: un movimiento ya procesado en otra importación se descarta
+ok 432 - un movimiento ya procesado en otra importación se descarta
+  ---
+  duration_ms: 0.626581
+  type: 'test'
+  ...
+# Subtest: cruce banco↔MP: mismo monto y fecha ya facturado por MP → revisión
+ok 433 - cruce banco↔MP: mismo monto y fecha ya facturado por MP → revisión
+  ---
+  duration_ms: 0.484662
+  type: 'test'
+  ...
+# Subtest: cruce banco↔MP: distinto monto o fecha no molesta
+ok 434 - cruce banco↔MP: distinto monto o fecha no molesta
+  ---
+  duration_ms: 0.170296
+  type: 'test'
+  ...
+# Subtest: NO_FACTURABLE y REVISAR del clasificador se respetan con su motivo
+ok 435 - NO_FACTURABLE y REVISAR del clasificador se respetan con su motivo
+  ---
+  duration_ms: 0.126968
+  type: 'test'
+  ...
+# Subtest: el monto de la propuesta es el valor absoluto (IVA incluido, lo desglosa el Core)
+ok 436 - el monto de la propuesta es el valor absoluto (IVA incluido, lo desglosa el Core)
+  ---
+  duration_ms: 0.089534
+  type: 'test'
+  ...
+# Subtest: R3-F3: la columna del negocio puede bajar el tope del plan
+ok 437 - R3-F3: la columna del negocio puede bajar el tope del plan
+  ---
+  duration_ms: 0.461334
+  type: 'test'
+  ...
+# Subtest: R3-F3: un negocio Micro que carga 100.000 en su panel sigue frenado por el tope de su plan
+ok 438 - R3-F3: un negocio Micro que carga 100.000 en su panel sigue frenado por el tope de su plan
+  ---
+  duration_ms: 0.136247
+  type: 'test'
+  ...
+# Subtest: R3-F3: para dar más que el plan hace falta la excepción de GSG; la columna igual puede bajarla
+ok 439 - R3-F3: para dar más que el plan hace falta la excepción de GSG; la columna igual puede bajarla
+  ---
+  duration_ms: 0.083801
+  type: 'test'
+  ...
+# Subtest: R3-F3: con la columna vacía vale el tope del plan
+ok 440 - R3-F3: con la columna vacía vale el tope del plan
+  ---
+  duration_ms: 0.08357
+  type: 'test'
+  ...
+# Subtest: R3-F3: sin plan del catálogo (o en CH) queda el tope de siempre
+ok 441 - R3-F3: sin plan del catálogo (o en CH) queda el tope de siempre
+  ---
+  duration_ms: 0.128648
+  type: 'test'
+  ...
+# Subtest: R3-F3: «sin tope» no deja el automático sin freno y un valor inválido en la columna se ignora
+ok 442 - R3-F3: «sin tope» no deja el automático sin freno y un valor inválido en la columna se ignora
+  ---
+  duration_ms: 0.149393
+  type: 'test'
+  ...
+# Subtest: redondear2 es EPSILON-safe en la frontera del medio centavo
+ok 443 - redondear2 es EPSILON-safe en la frontera del medio centavo
+  ---
+  duration_ms: 1.269067
+  type: 'test'
+  ...
+# Subtest: parsea el formato AR completo con símbolo y miles
+ok 444 - parsea el formato AR completo con símbolo y miles
+  ---
+  duration_ms: 0.437936
+  type: 'test'
+  ...
+# Subtest: parsea el formato técnico con punto decimal
+ok 445 - parsea el formato técnico con punto decimal
+  ---
+  duration_ms: 0.181483
+  type: 'test'
+  ...
+# Subtest: solo punto en grupos de tres es separador de miles
+ok 446 - solo punto en grupos de tres es separador de miles
+  ---
+  duration_ms: 0.261321
+  type: 'test'
+  ...
+# Subtest: negativos: signo y paréntesis contable
+ok 447 - negativos: signo y paréntesis contable
+  ---
+  duration_ms: 0.237536
+  type: 'test'
+  ...
+# Subtest: number directo (celda XLSX) pasa redondeado
+ok 448 - number directo (celda XLSX) pasa redondeado
+  ---
+  duration_ms: 0.09048
+  type: 'test'
+  ...
+# Subtest: lo que no es número devuelve null
+ok 449 - lo que no es número devuelve null
+  ---
+  duration_ms: 0.149906
+  type: 'test'
+  ...
+# Subtest: parsea los formatos de fecha de los bancos a AAAAMMDD
+ok 450 - parsea los formatos de fecha de los bancos a AAAAMMDD
+  ---
+  duration_ms: 0.447172
+  type: 'test'
+  ...
+# Subtest: parsea Date (celda XLSX tipada)
+ok 451 - parsea Date (celda XLSX tipada)
+  ---
+  duration_ms: 0.440477
+  type: 'test'
+  ...
+# Subtest: lo que no es fecha plausible devuelve null
+ok 452 - lo que no es fecha plausible devuelve null
+  ---
+  duration_ms: 0.522598
+  type: 'test'
+  ...
+# Subtest: normaliza acentos, mayúsculas y espacios
+ok 453 - normaliza acentos, mayúsculas y espacios
+  ---
+  duration_ms: 0.295136
+  type: 'test'
+  ...
+# Subtest: el hash es estable e insensible a mayúsculas/acentos de la descripción
+ok 454 - el hash es estable e insensible a mayúsculas/acentos de la descripción
+  ---
+  duration_ms: 0.361113
+  type: 'test'
+  ...
+# Subtest: el hash cambia si cambia fecha, monto o descripción
+ok 455 - el hash cambia si cambia fecha, monto o descripción
+  ---
+  duration_ms: 0.231353
+  type: 'test'
+  ...
+# Subtest: extracto CSV estilo Nación de punta a punta
+ok 456 - extracto CSV estilo Nación de punta a punta
+  ---
+  duration_ms: 19.819641
+  type: 'test'
+  ...
+# Subtest: el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+not ok 457 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+  ---
+  duration_ms: 0.503199
+  type: 'test'
+  location: '/home/user/erp/src/plugins/bancos/handler.test.ts:2:3056'
+  failureType: 'testCodeFailure'
+  error: 'stub local de xlsx (CDN de sheetjs bloqueado en este entorno)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Proxy.nope (/home/user/erp/node_modules/xlsx/index.js:1:25)
+    TestContext.<anonymous> (/home/user/erp/src/plugins/bancos/handler.test.ts:70:27)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: detectarFormato decide por contenido primero y extensión después
+ok 458 - detectarFormato decide por contenido primero y extensión después
+  ---
+  duration_ms: 0.216402
+  type: 'test'
+  ...
+# Subtest: detección cruzada banco↔MP baja la venta a revisión
+ok 459 - detección cruzada banco↔MP baja la venta a revisión
+  ---
+  duration_ms: 1.579485
+  type: 'test'
+  ...
+# Subtest: reimportar el mismo archivo descarta todo (idempotencia entre corridas)
+ok 460 - reimportar el mismo archivo descarta todo (idempotencia entre corridas)
+  ---
+  duration_ms: 6.474305
+  type: 'test'
+  ...
+# Subtest: archivo vacío devuelve alerta y nada más
+ok 461 - archivo vacío devuelve alerta y nada más
+  ---
+  duration_ms: 0.358635
+  type: 'test'
+  ...
+# Subtest: archivo sin tabla reconocible devuelve alerta de mapeo
+ok 462 - archivo sin tabla reconocible devuelve alerta de mapeo
+  ---
+  duration_ms: 0.518113
+  type: 'test'
+  ...
+# Subtest: mapeo con baja confianza alerta y consulta al mapeador asistido
+ok 463 - mapeo con baja confianza alerta y consulta al mapeador asistido
+  ---
+  duration_ms: 0.86439
+  type: 'test'
+  ...
+# Subtest: con template (confianza 1) el mapeador asistido NO se consulta
+ok 464 - con template (confianza 1) el mapeador asistido NO se consulta
+  ---
+  duration_ms: 0.953147
+  type: 'test'
+  ...
+# Subtest: el descriptor de bancos pasa la validación del catálogo sin errores
+ok 465 - el descriptor de bancos pasa la validación del catálogo sin errores
+  ---
+  duration_ms: 6.362285
+  type: 'test'
+  ...
+# Subtest: declara su superficie: comando CreateInvoice, sin eventos del outbox
+ok 466 - declara su superficie: comando CreateInvoice, sin eventos del outbox
+  ---
+  duration_ms: 0.306671
+  type: 'test'
+  ...
+# Subtest: la config no declara secretos (el extracto lo sube el usuario, no hay credenciales)
+ok 467 - la config no declara secretos (el extracto lo sube el usuario, no hay credenciales)
+  ---
+  duration_ms: 0.164842
+  type: 'test'
+  ...
+# Subtest: domicilioEmisor y puntoVenta son obligatorios para activar
+ok 468 - domicilioEmisor y puntoVenta son obligatorios para activar
+  ---
+  duration_ms: 0.161554
+  type: 'test'
+  ...
+# Subtest: el manifiesto legado se deriva del descriptor
+ok 469 - el manifiesto legado se deriva del descriptor
+  ---
+  duration_ms: 0.1222
+  type: 'test'
+  ...
+# Subtest: autodetecta punto y coma (el clásico de los bancos AR)
+ok 470 - autodetecta punto y coma (el clásico de los bancos AR)
+  ---
+  duration_ms: 2.540038
+  type: 'test'
+  ...
+# Subtest: autodetecta coma cuando el archivo es coma-separado
+ok 471 - autodetecta coma cuando el archivo es coma-separado
+  ---
+  duration_ms: 0.25423
+  type: 'test'
+  ...
+# Subtest: comillas: separador y comillas escapadas adentro de la celda
+ok 472 - comillas: separador y comillas escapadas adentro de la celda
+  ---
+  duration_ms: 0.222241
+  type: 'test'
+  ...
+# Subtest: BOM UTF-8 no ensucia la primera celda
+ok 473 - BOM UTF-8 no ensucia la primera celda
+  ---
+  duration_ms: 0.246008
+  type: 'test'
+  ...
+# Subtest: latin1: los acentos de un export viejo de Windows sobreviven
+ok 474 - latin1: los acentos de un export viejo de Windows sobreviven
+  ---
+  duration_ms: 0.332389
+  type: 'test'
+  ...
+# Subtest: UTF-8 válido se decodifica como UTF-8
+ok 475 - UTF-8 válido se decodifica como UTF-8
+  ---
+  duration_ms: 0.12842
+  type: 'test'
+  ...
+# Subtest: finales de línea CRLF y CR pelado
+ok 476 - finales de línea CRLF y CR pelado
+  ---
+  duration_ms: 0.160828
+  type: 'test'
+  ...
+# Subtest: salto de línea DENTRO de comillas no corta la fila
+ok 477 - salto de línea DENTRO de comillas no corta la fila
+  ---
+  duration_ms: 0.090464
+  type: 'test'
+  ...
+# Subtest: filas vacías decorativas se descartan
+ok 478 - filas vacías decorativas se descartan
+  ---
+  duration_ms: 0.312935
+  type: 'test'
+  ...
+# Subtest: archivo vacío devuelve matriz vacía
+ok 479 - archivo vacío devuelve matriz vacía
+  ---
+  duration_ms: 0.351724
+  type: 'test'
+  ...
+# Subtest: lee un xlsx con fechas Date y números number
+not ok 480 - lee un xlsx con fechas Date y números number
+  ---
+  duration_ms: 0.937212
+  type: 'test'
+  location: '/home/user/erp/src/plugins/bancos/parser/xlsx.test.ts:2:1343'
+  failureType: 'testCodeFailure'
+  error: 'stub local de xlsx (CDN de sheetjs bloqueado en este entorno)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Proxy.nope (/home/user/erp/node_modules/xlsx/index.js:1:25)
+    xlsxDesdeMatriz (/home/user/erp/src/plugins/bancos/parser/xlsx.test.ts:12:27)
+    TestContext.<anonymous> (/home/user/erp/src/plugins/bancos/parser/xlsx.test.ts:19:17)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: filas totalmente vacías se descartan
+not ok 481 - filas totalmente vacías se descartan
+  ---
+  duration_ms: 0.14542
+  type: 'test'
+  location: '/home/user/erp/src/plugins/bancos/parser/xlsx.test.ts:2:2107'
+  failureType: 'testCodeFailure'
+  error: 'stub local de xlsx (CDN de sheetjs bloqueado en este entorno)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Proxy.nope (/home/user/erp/node_modules/xlsx/index.js:1:25)
+    xlsxDesdeMatriz (/home/user/erp/src/plugins/bancos/parser/xlsx.test.ts:12:27)
+    TestContext.<anonymous> (/home/user/erp/src/plugins/bancos/parser/xlsx.test.ts:37:17)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: esXlsx reconoce el magic ZIP de un .xlsx real
+not ok 482 - esXlsx reconoce el magic ZIP de un .xlsx real
+  ---
+  duration_ms: 0.075303
+  type: 'test'
+  location: '/home/user/erp/src/plugins/bancos/parser/xlsx.test.ts:2:2363'
+  failureType: 'testCodeFailure'
+  error: 'stub local de xlsx (CDN de sheetjs bloqueado en este entorno)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Proxy.nope (/home/user/erp/node_modules/xlsx/index.js:1:25)
+    xlsxDesdeMatriz (/home/user/erp/src/plugins/bancos/parser/xlsx.test.ts:12:27)
+    TestContext.<anonymous> (/home/user/erp/src/plugins/bancos/parser/xlsx.test.ts:47:17)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: esXlsx reconoce el magic OLE de un .xls viejo
+ok 483 - esXlsx reconoce el magic OLE de un .xls viejo
+  ---
+  duration_ms: 0.21998
+  type: 'test'
+  ...
+# Subtest: esXlsx rechaza un CSV de texto plano
+ok 484 - esXlsx rechaza un CSV de texto plano
+  ---
+  duration_ms: 0.127147
+  type: 'test'
+  ...
+1..484
+# tests 496
+# suites 1
+# pass 489
+# fail 7
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 17503.466863

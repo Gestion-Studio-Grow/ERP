@@ -1,0 +1,14 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+page.innerText: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('main')[22m
+
+    at /tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/recorrido-ficha-fiscal.mjs:25:25 {
+  log: [ "  - waiting for locator('main')" ],
+  name: 'TimeoutError'
+}
+
+Node.js v22.22.2

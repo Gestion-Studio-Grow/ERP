@@ -58,6 +58,8 @@ import {
 } from "@/app/admin/(dashboard)/ventas/factura";
 import { permiteVenderSinStock, productosQuePuedenQuedarNegativos } from "@/lib/stock/pos-stock-rules";
 import { tenantTransaction } from "@/lib/rls";
+import { leerDatosFiscalesDeVenta, type DatosFiscalesDeVenta } from "@/lib/fiscal/datos-fiscales-de-venta";
+import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { isUniqueViolation } from "@/lib/prisma-errors";
 import { cantidadOCero, formatearCantidad } from "@/lib/pos-peso";
 import { fmtMoneyARS } from "@/components/ui/format";
@@ -1165,6 +1167,7 @@ export async function facturarVenta(_prev: EstadoFacturaVenta, formData: FormDat
   // con el flag (fiscal.ts), y leerla antes rompería la pantalla en una base que no la tiene.
   const encendida = isInvoicingEnabled();
   let perfil: PerfilParaFacturar | null = null;
+  let datosDeVenta: DatosFiscalesDeVenta | null = null;
   if (encendida) {
     // Ya tiene comprobante: se dice cuál. Nunca se emite un segundo para la misma venta.
     // Rechazada (ARCA no la autorizó: sin CAE ni número) SÍ se vuelve a facturar: se pide
@@ -1178,16 +1181,24 @@ export async function facturarVenta(_prev: EstadoFacturaVenta, formData: FormDat
     // El perfil fiscal se lee sólo con la facturación encendida: apagada, no hace falta.
     try {
       const p = await getFiscalProfile(tenantId);
-      perfil = { ok: true, condicionIva: p.condicionIva };
+      perfil = { ok: true, condicionIva: p.condicionIva, cuit: p.cuit, regimenFacturaA: p.regimenFacturaA ?? null };
     } catch (e) {
       if (!(e instanceof PerfilFiscalIncompletoError)) throw e;
       perfil = { ok: false, falta: faltanteFiscalEnPalabras(e.campo) };
+    }
+    // Inscripto: la letra, el IVA por alícuota y el comprador salen de la ficha del cliente y de
+    // los productos de la venta, leídos igual que en la emisión (invoice-from-order.ts). CH no pasa.
+    if (perfil.ok && perfil.condicionIva === "RESPONSABLE_INSCRIPTO") {
+      datosDeVenta = await tenantTransaction((tx) => leerDatosFiscalesDeVenta(tx, o.id), { tenantId });
     }
   }
   const decision = puedeFacturarVenta({
     facturacionEncendida: encendida,
     perfil,
     venta: { paid: o.paid, anulada: o.status === "CANCELLED", total: o.total },
+    receptor: datosDeVenta?.receptor ?? null,
+    renglones: datosDeVenta?.renglones ?? [],
+    hoy: fechaFiscalDelDia(),
   });
   if (!decision.ok) {
     return { ok: false, error: decision.motivo, factura: { ...SIN_FACTURA, texto: `Sin factura: ${decision.motivo}` } };

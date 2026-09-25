@@ -19,8 +19,8 @@
  * webhook de MP ya reintenta solo); un fallo persistente escala a REVISAR.
  */
 
-import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
+import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { logger } from "@/lib/logger";
 import { gatewayCobrosPara } from "@/lib/pagos-dispatch";
 import { facturarPagoMP } from "@/lib/invoice-from-mp";
@@ -248,9 +248,9 @@ export interface EntornoIngestaReal {
 
 /** Arma las dependencias REALES de la ingesta MP para un tenant. */
 export async function crearEntornoReal(tenantId: string): Promise<EntornoIngestaReal> {
-  const tenant = await tenantTransaction(
-    (tx) =>
-      tx.tenant.findUnique({
+  const { tenant, capDelPlan } = await tenantTransaction(
+    async (tx) => {
+      const t = await tx.tenant.findUnique({
         where: { id: tenantId },
         select: {
           bancosUmbralIdentificacion: true,
@@ -259,16 +259,22 @@ export async function crearEntornoReal(tenantId: string): Promise<EntornoIngesta
           arcaPuntoVenta: true,
           arcaCuit: true,
         },
-      }),
+      });
+      // El tope del plan (o la excepción de GSG), que la columna del negocio sólo baja (R3-F3).
+      return { tenant: t, capDelPlan: await capFacturasMesDelNegocioEnTx(tx, tenantId, t?.bancosCapFacturasMes) };
+    },
     { tenantId },
   );
-  const configTenant = configBancosDesdeTenant({
-    bancosUmbralIdentificacion: tenant?.bancosUmbralIdentificacion ?? null,
-    bancosCapFacturasMes: tenant?.bancosCapFacturasMes ?? null,
-    bancosDomicilioEmisor: tenant?.bancosDomicilioEmisor ?? null,
-    arcaPuntoVenta: tenant?.arcaPuntoVenta ?? null,
-    arcaCuit: tenant?.arcaCuit ?? null,
-  });
+  const configTenant = configBancosDesdeTenant(
+    {
+      bancosUmbralIdentificacion: tenant?.bancosUmbralIdentificacion ?? null,
+      bancosCapFacturasMes: tenant?.bancosCapFacturasMes ?? null,
+      bancosDomicilioEmisor: tenant?.bancosDomicilioEmisor ?? null,
+      arcaPuntoVenta: tenant?.arcaPuntoVenta ?? null,
+      arcaCuit: tenant?.arcaCuit ?? null,
+    },
+    capDelPlan,
+  );
 
   const reconciliacion = new ReconciliacionMovimientosMP(tenantId);
   // El conteo del tope se consulta una vez por corrida (suficiente: la ventana

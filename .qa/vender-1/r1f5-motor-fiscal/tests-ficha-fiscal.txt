@@ -1,0 +1,112 @@
+TAP version 13
+# Subtest: CUIT de responsable inscripto con guiones: se guarda sin guiones, con su condición y razón social
+ok 1 - CUIT de responsable inscripto con guiones: se guarda sin guiones, con su condición y razón social
+  ---
+  duration_ms: 8.264304
+  type: 'test'
+  ...
+# Subtest: CUIT con el dígito verificador cambiado: se rechaza y se dice por qué
+ok 2 - CUIT con el dígito verificador cambiado: se rechaza y se dice por qué
+  ---
+  duration_ms: 0.396091
+  type: 'test'
+  ...
+# Subtest: un número sin tipo de documento no se adivina: se pide elegir CUIT, CUIL o DNI
+ok 3 - un número sin tipo de documento no se adivina: se pide elegir CUIT, CUIL o DNI
+  ---
+  duration_ms: 0.21634
+  type: 'test'
+  ...
+# Subtest: CUIT sin condición frente al IVA: se pide, no se asume consumidor final
+ok 4 - CUIT sin condición frente al IVA: se pide, no se asume consumidor final
+  ---
+  duration_ms: 0.214163
+  type: 'test'
+  ...
+# Subtest: CUIT sin razón social: se pide, no se copia el nombre de la ficha
+ok 5 - CUIT sin razón social: se pide, no se copia el nombre de la ficha
+  ---
+  duration_ms: 0.221493
+  type: 'test'
+  ...
+# Subtest: responsable inscripto, monotributista o exento sin CUIT: se pide el CUIT
+ok 6 - responsable inscripto, monotributista o exento sin CUIT: se pide el CUIT
+  ---
+  duration_ms: 0.454525
+  type: 'test'
+  ...
+# Subtest: una condición frente al IVA que no está en la tabla de ARCA se rechaza
+ok 7 - una condición frente al IVA que no está en la tabla de ARCA se rechaza
+  ---
+  duration_ms: 0.219482
+  type: 'test'
+  ...
+# Subtest: ficha vacía: vale y deja al cliente como consumidor final sin identificar
+ok 8 - ficha vacía: vale y deja al cliente como consumidor final sin identificar
+  ---
+  duration_ms: 0.234647
+  type: 'test'
+  ...
+# Subtest: DNI de consumidor final: se guarda sin puntos; uno de 5 números se rechaza
+ok 9 - DNI de consumidor final: se guarda sin puntos; uno de 5 números se rechaza
+  ---
+  duration_ms: 0.353005
+  type: 'test'
+  ...
+# Subtest: razón social o domicilio demasiado largos se rechazan
+ok 10 - razón social o domicilio demasiado largos se rechazan
+  ---
+  duration_ms: 0.53442
+  type: 'test'
+  ...
+# Subtest: cambios de la ficha: sólo lo que cambió, con el valor anterior al lado
+ok 11 - cambios de la ficha: sólo lo que cambió, con el valor anterior al lado
+  ---
+  duration_ms: 0.199658
+  type: 'test'
+  ...
+# Subtest: inscripto con A común a un cliente inscripto guardado: Factura A (tipo 1), lista para emitir
+ok 12 - inscripto con A común a un cliente inscripto guardado: Factura A (tipo 1), lista para emitir
+  ---
+  duration_ms: 2.067426
+  type: 'test'
+  ...
+# Subtest: inscripto a un monotributista: Factura A con la leyenda de la RG 5003/2021, no B
+ok 13 - inscripto a un monotributista: Factura A con la leyenda de la RG 5003/2021, no B
+  ---
+  duration_ms: 0.397658
+  type: 'test'
+  ...
+# Subtest: inscripto a un consumidor final sin ficha: Factura B (tipo 6), sin documento
+ok 14 - inscripto a un consumidor final sin ficha: Factura B (tipo 6), sin documento
+  ---
+  duration_ms: 0.18751
+  type: 'test'
+  ...
+# Subtest: monotributo emite siempre C, a cualquier ficha
+ok 15 - monotributo emite siempre C, a cualquier ficha
+  ---
+  duration_ms: 0.347121
+  type: 'test'
+  ...
+# Subtest: inscripto sin la clase A cargada: la A no sale sola (a revisión, con el motivo); la B a consumidor final sí
+ok 16 - inscripto sin la clase A cargada: la A no sale sola (a revisión, con el motivo); la B a consumidor final sí
+  ---
+  duration_ms: 0.359865
+  type: 'test'
+  ...
+# Subtest: emisor sin condición frente al IVA: la decisión se niega con un motivo que dice qué cargar
+ok 17 - emisor sin condición frente al IVA: la decisión se niega con un motivo que dice qué cargar
+  ---
+  duration_ms: 0.539763
+  type: 'test'
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 465.955556

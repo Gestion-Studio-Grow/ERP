@@ -1,0 +1,4 @@
+warning: The `fitz` API is deprecated and will be removed in future. Use `import pymupdf` instead.
+muestra-factura-B-modo-prueba textos 51 pares que se tocan 1 en la misma linea 0 fuera del margen 0 renglones de la leyenda RG5003 0
+muestra-factura-A textos 61 pares que se tocan 1 en la misma linea 0 fuera del margen 0 renglones de la leyenda RG5003 0
+muestra-factura-A-monotributista textos 65 pares que se tocan 1 en la misma linea 0 fuera del margen 0 renglones de la leyenda RG5003 3

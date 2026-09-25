@@ -1,0 +1,4 @@
+not ok 3892 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+not ok 3915 - lee un xlsx con fechas Date y números number
+not ok 3916 - filas totalmente vacías se descartan
+not ok 3917 - esXlsx reconoce el magic ZIP de un .xlsx real

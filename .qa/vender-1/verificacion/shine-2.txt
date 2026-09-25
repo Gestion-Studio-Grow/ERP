@@ -1,0 +1,62 @@
+  OK   admin: cargar el WhatsApp del negocio (Localización) y recargar (3519 ms) ya estaba: 5491155550101
+
+=== shinevelas · 390 px
+  OK   tienda: portada (1991 ms) sx=0 chicos(0)=
+  OK   tienda: buscar y vacío (1643 ms) «lavanda» → 1 productos visibles; vacío → «No encontramos «zzqqxx».»
+  FALLA tienda: ficha de producto: recargar el enlace de la ficha no la vuelve a abrir
+  FALLA tienda: sumar a la bolsa (+1 con Más): locator.click: Timeout 30000ms exceeded.
+  FALLA tienda: la bolsa sobrevive a recargar: al recargar la página la bolsa quedó vacía
+  FALLA tienda: error sin conexión: page.fill: Timeout 30000ms exceeded.
+  FALLA tienda: enviar pedido y texto del wa.me: locator.getAttribute: Timeout 30000ms exceeded.
+  OK   tienda: 360 px sin scroll horizontal (2067 ms) portada y ficha sin desborde
+  OK   admin: entrar como dueño (1532 ms) diseño=renglon
+  FALLA admin: el pedido de la vidriera llegó a Pedidos: no hay código de pedido de la vidriera para buscar
+  OK   admin: vender por unidad y cobrar (9861 ms) TOTAL $5.900 · «cobradas hoy Venta #330 cobrada · $5» · ventas hoy 12→13 · stock 19→18
+  OK   admin: catálogo — agregar producto y recargar (5318 ms) aviso «undefined» · fila «os 3 unidad QA Recorrido Vela 390 l2saa Stock bajo Sin costo $2.500 1 producto de 37 Planilla de co» · formas de venta ofrecidas: Por kilo (balanza)/Por unidad
+  OK   admin: catálogo — búsqueda sin resultados (1132 ms) «Ningún producto coincide con «zzqqxx».»
+  OK   admin: compra — registrar vacía da error (1070 ms) botón deshabilitado con leyenda «Cargá qué llegó y cuánto.»
+  OK   admin: compra a proveedor y recepción (stock +N, recarga) (9253 ms) proveedor «Taller de Aromas BA (prueba)» · aviso «undefined» · stock 46→49
+  OK   admin: qué pedir (sugerido) lleva a recibir (1298 ms) «Sugerido de compra 30 productos para pedir a 2 proveedores y algunos sin proveedor habitua» · acciones: Recibir mercadería / Mandar por WhatsApp / Copiar el pedido / Mandar por WhatsApp / Copiar el pedido
+  OK   admin: reportes (rango, margen, resultado, CSV) (3519 ms) 30 días: «Del 27/08/2026 al 25/09/2026» · margen h1 «Margen» · resultado h1 «Resultado del mes» · CSV 67 líneas, encabezado «Ventas del mostrador;Shine;del 2026-08-27 al 2026-09-25»
+  OK   admin: ruta inexistente muestra error entendible (734 ms) HTTP 404 · «S Shine viernes 25 de septiembre No encontramos esta página La dirección no existe, se escribió mal » · enlaces a inicio=1
+  OK   admin: teclas < 44 px a 390 y scroll a 360 (12945 ms) sin desborde a 360 en 9 pantallas; con teclas < 44 px: 3 (detalle en tactil-y-desborde.txt)
+
+=== shinevelas · 1440 px
+  OK   tienda: portada (1725 ms) sx=0 chicos(0)=
+  OK   tienda: buscar y vacío (1763 ms) «lavanda» → 1 productos visibles; vacío → «No encontramos «zzqqxx».»
+  FALLA tienda: ficha de producto: recargar el enlace de la ficha no la vuelve a abrir
+  FALLA tienda: sumar a la bolsa (+1 con Más): locator.click: Timeout 30000ms exceeded.
+  FALLA tienda: la bolsa sobrevive a recargar: al recargar la página la bolsa quedó vacía
+  FALLA tienda: error sin conexión: page.fill: Timeout 30000ms exceeded.
+  FALLA tienda: enviar pedido y texto del wa.me: locator.getAttribute: Timeout 30000ms exceeded.
+  OK   tienda: 360 px sin scroll horizontal (2061 ms) portada y ficha sin desborde
+  OK   admin: entrar como dueño (1368 ms) diseño=renglon
+  FALLA admin: el pedido de la vidriera llegó a Pedidos: no hay código de pedido de la vidriera para buscar
+  OK   admin: vender por unidad y cobrar (10335 ms) TOTAL $5.900 · «cobradas hoy Venta #331 cobrada · $5» · ventas hoy 13→14 · stock 18→17
+  OK   admin: catálogo — agregar producto y recargar (5295 ms) aviso «undefined» · fila «IO 3 unidad QA Recorrido Vela 1440 l2saa Por unidad Stock bajo Sin costo $2.500 1 producto de 38 ↑ ↓» · formas de venta ofrecidas: Por kilo (balanza)/Por unidad
+  OK   admin: catálogo — búsqueda sin resultados (1179 ms) «Ningún producto coincide con «zzqqxx».»
+  OK   admin: compra — registrar vacía da error (1097 ms) botón deshabilitado con leyenda «Cargá qué llegó y cuánto.»
+  OK   admin: compra a proveedor y recepción (stock +N, recarga) (9321 ms) proveedor «Taller de Aromas BA (prueba)» · aviso «undefined» · stock 49→51
+  OK   admin: qué pedir (sugerido) lleva a recibir (1298 ms) «Sugerido de compra 31 productos para pedir a 2 proveedores y algunos sin proveedor habitua» · acciones: Recibir mercadería / Mandar por WhatsApp / Copiar el pedido / Mandar por WhatsApp / Copiar el pedido
+  OK   admin: reportes (rango, margen, resultado, CSV) (3139 ms) 30 días: «Del 27/08/2026 al 25/09/2026» · margen h1 «Margen» · resultado h1 «Resultado del mes» · CSV 67 líneas, encabezado «Ventas del mostrador;Shine;del 2026-08-27 al 2026-09-25»
+  OK   admin: ruta inexistente muestra error entendible (729 ms) HTTP 404 · «S Shine viernes 25 de septiembre No encontramos esta página La dirección no existe, se escribió mal » · enlaces a inicio=1
+  OK   permisos del cajero (7071 ms) /admin/vender → 200 /admin/vender «Vender» ; /admin/catalogo?agregar=1 → 200 /admin/no-disponible «Catálogo no está disponible» formAlta=0 ; /admin/compras → 200 /admin/compras «Recibir mercadería» ; /admin/reportes → 200 /admin/no-disponible «Reportes no está disponible» ; /admin/resultado → 200 /admin/no-disponible «Resultado del mes no está disponible» ; /admin/usuarios → 200 /admin/no-disponible «Usuarios y permisos no está disponible» ; /admin/cierre-mes → 200 /admin/no-disponible «Cierre del mes no está disponible»
+
+=== RESUMEN sello=l2saa
+pasos: 39 · ok: 27 · fallas: 12
+  FALLA [shinevelas 390] tienda: ficha de producto: recargar el enlace de la ficha no la vuelve a abrir
+  FALLA [shinevelas 390] tienda: sumar a la bolsa (+1 con Más): locator.click: Timeout 30000ms exceeded.
+  FALLA [shinevelas 390] tienda: la bolsa sobrevive a recargar: al recargar la página la bolsa quedó vacía
+  FALLA [shinevelas 390] tienda: error sin conexión: page.fill: Timeout 30000ms exceeded.
+  FALLA [shinevelas 390] tienda: enviar pedido y texto del wa.me: locator.getAttribute: Timeout 30000ms exceeded.
+  FALLA [shinevelas 390] admin: el pedido de la vidriera llegó a Pedidos: no hay código de pedido de la vidriera para buscar
+  FALLA [shinevelas 1440] tienda: ficha de producto: recargar el enlace de la ficha no la vuelve a abrir
+  FALLA [shinevelas 1440] tienda: sumar a la bolsa (+1 con Más): locator.click: Timeout 30000ms exceeded.
+  FALLA [shinevelas 1440] tienda: la bolsa sobrevive a recargar: al recargar la página la bolsa quedó vacía
+  FALLA [shinevelas 1440] tienda: error sin conexión: page.fill: Timeout 30000ms exceeded.
+  FALLA [shinevelas 1440] tienda: enviar pedido y texto del wa.me: locator.getAttribute: Timeout 30000ms exceeded.
+  FALLA [shinevelas 1440] admin: el pedido de la vidriera llegó a Pedidos: no hay código de pedido de la vidriera para buscar
+errores de consola: 0 (más 2 provocados a propósito)
+  CONSOLA (provocado) shinevelas 390 http://shinevelas.localhost:3210/admin/catalogo/no-existe-qa :: Failed to load resource: the server responded with a status of 404 (Not Found)
+  CONSOLA (provocado) shinevelas 1440 http://shinevelas.localhost:3210/admin/catalogo/no-existe-qa :: Failed to load resource: the server responded with a status of 404 (Not Found)
+callejones: 0

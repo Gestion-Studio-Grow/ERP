@@ -236,6 +236,14 @@ model Tenant {
   carteraComoCliente       CarteraCliente[]                @relation("CarteraComoCliente") // módulo CARTERA — carteras donde este tenant es el cliente
   leadsCampania            LeadCampania[] // captación de campañas presenciales (QR del evento)
   fiscalCredential         TenantFiscalCredential? // cert/clave ARCA del emisor, CIFRADOS (ADR-066)
+  // Lanzamiento (20260925120000_lanzamiento_base): suite de integraciones, contador por
+  // WhatsApp, receptores fiscales y caché del ticket de ARCA.
+  integracionConexiones    IntegracionConexion[]
+  integracionUsos          IntegracionUso[]
+  integracionEstadosOAuth  IntegracionEstadoOAuth[]
+  conversacionesWhatsapp   ConversacionWhatsapp[]
+  receptoresFiscales       ReceptorFiscal[]
+  arcaAuthTickets          ArcaAuthTicket[]
 
   // --- Control-plane / operador (ADR-021): metadata de PLATAFORMA por tenant ---
   // La gestiona el plano de operador (superficie separada, cross-tenant), no el
@@ -279,6 +287,25 @@ model Tenant {
   bancosUmbralIdentificacion Decimal? @db.Decimal(14, 2) // pesos desde los cuales se exige identificar al receptor
   bancosCapFacturasMes       Int? // tope de facturas automáticas por mes
   bancosDomicilioEmisor      String? // domicilio comercial del emisor (obligatorio en el comprobante)
+
+  // --- Datos fiscales del emisor (lanzamiento, E1 §3.6 · E2 B3) ---
+  // Los pide el comprobante impreso y la decisión de la letra. Nulos = sin cargar: la emisión
+  // real sigue negándose como hoy (src/lib/fiscal.ts). Los agrega
+  // `20260925120000_lanzamiento_base` (aditiva, sin backfill). Texto y no enum de Postgres,
+  // igual que la condición del receptor (docs/fiscal/PROPUESTA-condicion-iva-por-tenant.md).
+  arcaCondicionIva      String? // RESPONSABLE_INSCRIPTO | MONOTRIBUTO | EXENTO | CONSUMIDOR_FINAL
+  arcaRazonSocial       String?
+  arcaDomicilioFiscal   String?
+  arcaInicioActividades String? // AAAAMMDD (mismo formato que Invoice.fecha)
+  arcaIibb              String? // número de Ingresos Brutos, o "Convenio Multilateral"/"Exento"
+  arcaConceptoDefault   Int? // 1 productos, 2 servicios, 3 ambos (CHECK en la base)
+  fceMiPyme             Boolean @default(false) // obligado a Factura de Crédito Electrónica MiPyME
+
+  // --- Llaves por negocio (lanzamiento, E4 §3.2) ---
+  // Nula = hereda la variable de entorno de hoy (CUENTAS_CORRIENTES_ENABLED / PROFILES_ENABLED),
+  // así ningún negocio cambia hasta que alguien la prenda o la apague para él.
+  cuentasCorrientes Boolean?
+  perfiles          Boolean?
 }
 
 // Estado de un tenant en la plataforma (control-plane, ADR-021). TRIAL = en
@@ -564,9 +591,21 @@ model Product {
   purchaseItems  StockPurchaseItem[] // entradas de stock (compras/reposiciones) que lo repusieron
   stockMovements StockMovement[] // ledger de movimientos de stock (entradas y salidas)
 
+  // --- Lanzamiento (20260925120000_lanzamiento_base, E2 B6) ---
+  // Código de barras o SKU: único por negocio entre los productos que lo tienen (en Postgres
+  // los NULL no chocan en un índice único). Sin espacios en los bordes ni vacío (CHECK en la
+  // base): "sin código" es NULL. Es también el SKU de las variantes (ADR-102): no agregar otra
+  // columna para lo mismo.
+  codigo      String?
+  // Código de alícuota de ARCA: 1 no gravado, 2 exento, 3 = 0 %, 4 = 10,5 %, 5 = 21 %,
+  // 6 = 27 %, 8 = 5 %, 9 = 2,5 % (CHECK en la base). Es el CÓDIGO, no el porcentaje.
+  // Null = sin cargar (hoy: 21 % parejo y el inscripto no emite, iva-por-producto.ts).
+  alicuotaIva Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([tenantId, codigo])
   @@index([tenantId])
 }
 
@@ -591,6 +630,10 @@ model Client {
   tenant       Tenant              @relation(fields: [tenantId], references: [id])
   tenantId     String
   name         String
+  // En la BASE ya es nullable (20260925120000_lanzamiento_base: DROP NOT NULL), para que el
+  // importador traiga empresas sin teléfono sin inventar datos. Acá sigue obligatorio A
+  // PROPÓSITO hasta que el importador (R5-F1) lo pase a `String?` junto con los ~75 usos que
+  // hoy lo tratan como texto. NO volver a poner NOT NULL en una migración nueva.
   phone        String
   email        String?
   notes        String?
@@ -604,7 +647,16 @@ model Client {
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
+  // --- Ficha fiscal (lanzamiento, E2 B3) ---
+  // Mismo par que Invoice.docTipo/docNro: el comprobante se arma copiando la ficha.
+  docTipo      Int? // catálogo ARCA: 80 CUIT, 86 CUIL, 96 DNI, 99 consumidor final
+  docNro       String? // como texto: 11 dígitos no entran en Int32
+  razonSocial  String?
+  condicionIva String? // mismos valores que Tenant.arcaCondicionIva
+  domicilio    String?
+
   @@index([tenantId])
+  @@index([tenantId, docNro])
 }
 
 model Appointment {
@@ -993,6 +1045,15 @@ model Invoice {
   // (OFF en prod).
   mpPaymentId String?
 
+  // Lanzamiento (20260925120000_lanzamiento_base, E2 B4) — la nota de crédito apunta al
+  // comprobante que anula (CbtesAsoc). La llave foránea incluye `tenantId`: una nota de un
+  // negocio NO puede asociar un comprobante de otro, aunque el código se equivoque de id.
+  comprobanteAsociadoId String?
+  comprobanteAsociado   Invoice?           @relation("ComprobanteAsociado", fields: [tenantId, comprobanteAsociadoId], references: [tenantId, id], onDelete: Restrict)
+  notasAsociadas        Invoice[]          @relation("ComprobanteAsociado")
+  envios                EnvioComprobante[]
+
+  @@unique([tenantId, id]) // destino de las llaves foráneas que incluyen el negocio
   @@unique([tenantId, puntoVenta, tipoComprobante, numero]) // guarda anti-duplicado de numeración fiscal (spec §1). NULLs (PENDING) no colisionan.
   @@unique([tenantId, mpPaymentId]) // A-6 — 1 factura por pago MP (dedupe del webhook; NULLs no colisionan)
   // I2 (ADR-064) — IDEMPOTENCIA comprobante↔venta 1:1: UNA factura por Order/Appointment.
@@ -1003,6 +1064,7 @@ model Invoice {
   @@unique([tenantId, orderId]) // I2/D10 — 1:1 pedido↔comprobante
   @@unique([tenantId, appointmentId]) // I2/D10 — 1:1 turno↔comprobante
   @@index([tenantId, status])
+  @@index([tenantId, comprobanteAsociadoId]) // "las notas de este comprobante" y la llave foránea
 }
 
 // Outbox transaccional (ADR-002): el Core escribe el evento de dominio en la
@@ -1024,8 +1086,20 @@ model OutboxEvent {
 
   createdAt DateTime @default(now())
 
+  // Lanzamiento (20260925120000_lanzamiento_base, E3 §2.5): el outbox genérico de la suite de
+  // integraciones. Nulas: los eventos de ARCA de hoy no las usan y siguen igual.
+  conexionId       String? // nula en los eventos de ARCA; con valor, una conexión DEL MISMO negocio
+  conexion         IntegracionConexion? @relation(fields: [tenantId, conexionId], references: [tenantId, id], onDelete: Restrict)
+  proximoIntentoEn DateTime? // espera creciente entre intentos
+  bloqueadoHasta   DateTime? // lo tomó un worker (SKIP LOCKED) hasta esta hora
+  muertoEn         DateTime? // se rindió al 8.º intento
+
+  eventosIntegracion EventoIntegracion[]
+
+  @@unique([tenantId, id]) // destino de las llaves foráneas que incluyen el negocio
   @@index([tenantId])
   @@index([processedAt])
+  @@index([processedAt, proximoIntentoEn])
 }
 
 // --- Módulo BANCOS (plugin src/plugins/bancos + glue src/lib/bancos-*) ---
@@ -1129,6 +1203,16 @@ model MovimientoImportado {
   // Rastro a la factura emitida (sin FK a propósito: rastro débil, como el
   // resto del camino fiscal — borrar jamás una Invoice es regla aparte).
   invoiceId String?
+
+  // Lanzamiento (20260925120000_lanzamiento_base, E1 §3.6): la propuesta fiscalmente correcta
+  // y quién la aprobó. Nulas: los movimientos ya importados quedan como estaban.
+  receptorCondicionIva     String?
+  tipoComprobantePropuesto Int? // catálogo ARCA (1 A, 6 B, 11 C…)
+  concepto                 Int? // 1 productos, 2 servicios, 3 ambos (CHECK en la base)
+  fceObligatoria           Boolean?
+  aprobadoPor              String? // actor "user:<id>"
+  aprobadoEn               DateTime?
+  rechazoMotivo            String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1417,7 +1501,29 @@ model StockPurchase {
   items     StockPurchaseItem[]
   createdAt DateTime            @default(now())
 
+  // --- Factura del proveedor (lanzamiento, 20260925120000_lanzamiento_base, E2 B7) ---
+  // Lo que pide el Libro IVA compras. Todo nulo: una compra sin factura cargada no da crédito
+  // fiscal. Importes en Decimal(14,2) como Invoice; el desglose con la forma de
+  // Invoice.ivaDesglose ({ alicuotaId, base, importe }[]). La fecha fiscal va aparte de createdAt.
+  facturaTipo           Int? // catálogo ARCA (1 A, 6 B, 11 C, 51 M…)
+  facturaPuntoVenta     Int?
+  facturaNumero         Int?
+  facturaFecha          String? // AAAAMMDD
+  facturaCuit           String? // CUIT del proveedor tal como figura en la factura
+  facturaNeto           Decimal? @db.Decimal(14, 2) // neto gravado
+  facturaIva            Decimal? @db.Decimal(14, 2) // IVA total (suma de alícuotas)
+  facturaIvaDesglose    Json?
+  facturaNoGravado      Decimal? @db.Decimal(14, 2)
+  facturaExento         Decimal? @db.Decimal(14, 2)
+  facturaPercepcionIva  Decimal? @db.Decimal(14, 2)
+  facturaPercepcionIibb Decimal? @db.Decimal(14, 2)
+  facturaOtrosTributos  Decimal? @db.Decimal(14, 2) // otras percepciones nacionales o municipales, impuestos internos
+  facturaTotal          Decimal? @db.Decimal(14, 2)
+
   @@unique([tenantId, code])
+  // La misma factura de un proveedor no se carga dos veces (crédito fiscal doble). Las compras
+  // sin factura (NULL) no chocan.
+  @@unique([tenantId, facturaCuit, facturaTipo, facturaPuntoVenta, facturaNumero], map: "StockPurchase_factura_proveedor_key")
   @@index([tenantId, createdAt])
   @@index([tenantId, supplierId]) // D1 — "compras de este proveedor" (para cuentas a pagar)
 }
@@ -1764,6 +1870,14 @@ model CarteraCliente {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Lanzamiento: todo lo que el estudio guarda "de un cliente" cuelga de ESTA fila, con una
+  // llave foránea de dos columnas (estudio, cliente). Así la base impide que un estudio anote
+  // contactos, conversaciones, extractos o delegaciones de un negocio que no está en su cartera.
+  contactos      ContactoCartera[]
+  conversaciones ConversacionWhatsapp[]
+  extractos      ExtractoRecibido[]
+  delegaciones   DelegacionFiscal[]
+
   @@unique([tenantId, clienteTenantId]) // un cliente entra UNA vez a la cartera de un estudio
   @@index([tenantId])
   @@index([clienteTenantId]) // lookup inverso: ¿en qué carteras está este tenant?
@@ -1798,4 +1912,372 @@ model LeadCampania {
   /// que un doble toque en el botón genere dos filas.
   @@unique([tenantId, campania, telefono])
   @@index([tenantId, campania])
+}
+
+// ============================================================================
+// LANZAMIENTO — 20260925120000_lanzamiento_base (R0-F1)
+// ============================================================================
+// Una sola migración aditiva para pedir UNA autorización (E1 §3.6, E2 R0, E3 §5, E4).
+// Todas las tablas tienen `tenantId`: la migración misma les prende RLS con la política
+// `tenant_isolation` (la misma de prisma/rls/0001_enable_rls.sql), así no quedan un minuto sin
+// aislar aunque nadie corra el script a mano. Cuando una tabla cuelga de otra de negocio, la
+// llave foránea incluye `tenantId` (padre con @@unique([tenantId, id])): la base impide que una
+// fila de un negocio apunte a la de otro aunque el código se equivoque de id. Esas tablas no
+// llevan relación directa a Tenant: su `tenantId` queda atado al del padre.
+
+// --- Suite de integraciones (E3 §5) ---
+
+enum EstadoConexion {
+  pendiente
+  conectada
+  con_problemas
+  requiere_reconectar
+  pausada
+  desconectada
+}
+
+enum DireccionEvento {
+  entrada
+  salida
+}
+
+enum EstadoEvento {
+  recibido
+  procesado
+  fallido
+  ignorado
+  duplicado
+  muerto
+}
+
+// Una cuenta externa (número de WhatsApp, tienda, cuenta de Mercado Pago) vinculada a un negocio.
+// El canal de WhatsApp del estudio es una fila de acá (conector "whatsapp", cuentaExterna =
+// phone_number_id), no una tabla propia.
+model IntegracionConexion {
+  id             String         @id @default(cuid())
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  conector       String // id del registro de conectores ("whatsapp", "tiendanube"…)
+  cuentaExterna  String? // phone_number_id / collector_id / store_id / user_id
+  etiqueta       String? // lo que se muestra ("velas-shine.mitiendanube.com")
+  rutaHash       String?        @unique // sha256 del token de la URL (modo url-por-conexion)
+  estado         EstadoConexion @default(pendiente)
+  config         Json? // NO secreto: mapeos, depósito que descuenta, lista de precios
+  ultimoEventoEn DateTime?
+  fallosSeguidos Int            @default(0)
+  tokenVersion   Int            @default(0) // bloqueo optimista del refresh OAuth
+  conectadaPor   String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  credenciales IntegracionCredencial[]
+  eventos      EventoIntegracion[]
+  usos         IntegracionUso[]
+  outbox       OutboxEvent[]
+
+  // Una cuenta externa pertenece a UN negocio. Sin tenantId a propósito: Postgres verifica la
+  // unicidad aunque el negocio no pueda LEER la fila del otro (RLS). Los NULL no chocan. Como
+  // compara bytes, la base exige la forma canónica (CHECK de la migración 20260925120000):
+  // conector en minúsculas, dígitos y guiones; cuentaExterna en ASCII imprimible sin espacios.
+  @@unique([conector, cuentaExterna])
+  @@unique([tenantId, conector, cuentaExterna])
+  @@unique([tenantId, id]) // destino de las llaves foráneas que incluyen el negocio
+  @@index([tenantId, estado])
+}
+
+// Un secreto de una conexión, sellado (AES-256-GCM, AAD = tenantId|conexionId|campo;
+// src/integraciones/secretos.ts). Nunca en claro.
+model IntegracionCredencial {
+  id         String              @id @default(cuid())
+  tenantId   String
+  conexionId String
+  conexion   IntegracionConexion @relation(fields: [tenantId, conexionId], references: [tenantId, id], onDelete: Cascade)
+  campo      String // "access_token" | "refresh_token" | "app_secret" | "ck" | "cs" | "webhook_secret"
+  kekId      String
+  wrappedDek String
+  sealed     String
+  ultimos4   String? // para mostrar "••••1234"
+  expiraEn   DateTime?
+  cargadaPor String
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@unique([tenantId, conexionId, campo]) // con el negocio: la fila de otro ni choca ni se delata
+}
+
+// Una fila por cada cosa que entra o sale (tráfico de máquina; las acciones de personas
+// siguen en AuditLog). La unicidad es la deduplicación de webhooks repetidos.
+model EventoIntegracion {
+  id            String              @id @default(cuid())
+  tenantId      String
+  conexionId    String
+  conexion      IntegracionConexion @relation(fields: [tenantId, conexionId], references: [tenantId, id], onDelete: Cascade)
+  direccion     DireccionEvento
+  tipo          String // canónico: "pedido.creado", "archivo.recibido"…
+  idExterno     String // clave de deduplicación del proveedor
+  estado        EstadoEvento        @default(recibido)
+  intentos      Int                 @default(0)
+  codigoError   String? // del catálogo de errores accionables
+  detalleError  String? // técnico, sólo lo ve el operador
+  resumen       String? // legible para el dueño
+  payload       Json? // REDACTADO
+  payloadSha256 String?
+  entidad       String? // "Order" | "Invoice" | "ImportacionBancaria"
+  entidadId     String? // rastro débil, sin FK
+  outboxId      String? // un evento del outbox DEL MISMO negocio
+  outbox        OutboxEvent?        @relation(fields: [tenantId, outboxId], references: [tenantId, id], onDelete: Restrict)
+  createdAt     DateTime            @default(now())
+  procesadoEn   DateTime?
+
+  @@unique([tenantId, conexionId, direccion, idExterno]) // deduplicación; con el negocio, como el resto
+  @@index([tenantId, createdAt])
+  @@index([conexionId, estado])
+}
+
+// Contador mensual barato para los límites por plan (no se cuenta sobre EventoIntegracion).
+model IntegracionUso {
+  id         String @id @default(cuid())
+  tenant     Tenant @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  conexionId String
+  // El contador sobrevive: una conexión con uso contado no se borra (se da de baja con su estado).
+  conexion   IntegracionConexion @relation(fields: [tenantId, conexionId], references: [tenantId, id], onDelete: Restrict)
+  mes        String // "2026-09"
+  eventos    Int    @default(0)
+
+  @@unique([tenantId, conexionId, mes])
+}
+
+// Nonce de un solo uso del OAuth (se purga a las 24 h).
+model IntegracionEstadoOAuth {
+  nonce     String    @id
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  conector  String
+  expira    DateTime
+  usadoEn   DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([tenantId])
+  @@index([expira])
+}
+
+// --- Contador por WhatsApp (E1 §3.6) ---
+
+enum EstadoExtractoRecibido {
+  recibido
+  descargado
+  leido
+  esperando_confirmacion
+  cargado
+  descartado
+  ilegible
+  duplicado
+  error
+}
+
+enum EstadoDelegacionFiscal {
+  declarada
+  verificada
+  fallida
+  revocada
+}
+
+enum OrigenReceptorFiscal {
+  manual
+  leyenda
+  padron
+}
+
+enum CanalEnvio {
+  whatsapp
+  email
+}
+
+enum EstadoEnvioComprobante {
+  pendiente
+  enviado
+  entregado
+  leido
+  fallido
+}
+
+// Un teléfono que el ESTUDIO (tenantId) conoce como contacto de un cliente de su cartera. Un
+// teléfono puede ser de varios clientes; el bot nunca le lista clientes a un número sin verificar.
+model ContactoCartera {
+  id                String         @id @default(cuid())
+  tenantId          String // el estudio
+  clienteTenantId   String
+  cartera           CarteraCliente @relation(fields: [tenantId, clienteTenantId], references: [tenantId, clienteTenantId], onDelete: Restrict)
+  telefono          String // sólo dígitos, E.164 sin "+"
+  nombre            String?
+  verificadoEn      DateTime?
+  optOutEn          DateTime?
+  avisoPrivacidadEn DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@unique([tenantId, telefono, clienteTenantId])
+  @@index([tenantId, clienteTenantId])
+  @@index([telefono]) // resolver el estudio por el remitente con el número compartido de GSG
+}
+
+// Estado del bot por (estudio, teléfono). El estado es texto: lo valida el bot
+// (src/lib/contador-wa/bot.ts, ESTADOS_BOT) y una fila rara se trata como conversación nueva.
+model ConversacionWhatsapp {
+  id              String          @id @default(cuid())
+  tenant          Tenant          @relation(fields: [tenantId], references: [id])
+  tenantId        String // el estudio
+  telefono        String
+  estado          String
+  contexto        Json?
+  clienteTenantId String? // el cliente elegido en la conversación: tiene que estar en la cartera
+  cartera         CarteraCliente? @relation(fields: [tenantId, clienteTenantId], references: [tenantId, clienteTenantId], onDelete: Restrict)
+  vence           DateTime?
+  silenciadoHasta DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  mensajes MensajeWhatsapp[]
+
+  @@unique([tenantId, telefono])
+  @@unique([tenantId, id]) // destino de las llaves foráneas que incluyen el negocio
+  @@index([tenantId, clienteTenantId])
+}
+
+// Un mensaje que entró o salió. La unicidad por wamid es la idempotencia del webhook. El texto
+// del cliente no se guarda más de 30 días (provisional a confirmar): lo borra la purga.
+model MensajeWhatsapp {
+  id             String               @id @default(cuid())
+  tenantId       String // el estudio
+  conversacionId String
+  conversacion   ConversacionWhatsapp @relation(fields: [tenantId, conversacionId], references: [tenantId, id], onDelete: Cascade)
+  wamid          String
+  direccion      DireccionEvento
+  tipo           String // text | document | image | interactive…
+  telefono       String
+  texto          String?
+  estadoEntrega  String? // el de Meta tal cual: sent | delivered | read | failed
+  createdAt      DateTime             @default(now())
+
+  extractos ExtractoRecibido[]
+
+  @@unique([tenantId, wamid])
+  @@unique([tenantId, id]) // destino de las llaves foráneas que incluyen el negocio
+  @@index([tenantId, conversacionId, createdAt])
+}
+
+// Un archivo (extracto) que un cliente del estudio mandó. La fila ES el trabajo (estado +
+// intentos, toma con claim). El contenido va sellado y se purga; la fila queda para no
+// cargar dos veces el mismo archivo.
+model ExtractoRecibido {
+  id              String                 @id @default(cuid())
+  tenantId        String // el estudio
+  clienteTenantId String
+  cartera         CarteraCliente         @relation(fields: [tenantId, clienteTenantId], references: [tenantId, clienteTenantId], onDelete: Restrict)
+  mensajeId       String? // el MensajeWhatsapp que lo trajo (mismo negocio); otro canal, columna propia
+  mensaje         MensajeWhatsapp?       @relation(fields: [tenantId, mensajeId], references: [tenantId, id], onDelete: Restrict)
+  mime            String
+  nombreArchivo   String?
+  sha256          String
+  tamano          Int
+  kekId           String? // sobre del contenido (nulo después de la purga)
+  wrappedDek      String?
+  sealed          String?
+  banco           String?
+  cuentaUlt4      String?
+  periodoDesde    String? // AAAAMMDD
+  periodoHasta    String? // AAAAMMDD
+  resumen         Json?
+  estado          EstadoExtractoRecibido @default(recibido)
+  intentos        Int                    @default(0)
+  error           String?
+  importacionId   String? // rastro débil a la ImportacionBancaria del cliente, sin FK
+  purgarDesde     DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@unique([tenantId, clienteTenantId, sha256])
+  @@index([tenantId, estado])
+  @@index([estado, updatedAt]) // barrido de lo trabado
+}
+
+// Plano de control: el cliente (tenantId = el representado) delegó la facturación en el CUIT del
+// estudio. La llave foránea (estudio, cliente) exige que el cliente esté en la cartera del estudio.
+model DelegacionFiscal {
+  id                String                 @id @default(cuid())
+  tenantId          String // el cliente representado
+  estudioTenantId   String
+  cartera           CarteraCliente         @relation(fields: [estudioTenantId, tenantId], references: [tenantId, clienteTenantId], onDelete: Restrict)
+  cuitRepresentado  String
+  cuitRepresentante String
+  servicio          String                 @default("wsfe")
+  estado            EstadoDelegacionFiscal @default(declarada)
+  verificadaEn      DateTime?
+  ultimaPrueba      DateTime?
+  evidencia         String? // código y mensaje de ARCA
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@unique([tenantId, servicio])
+  @@index([estudioTenantId, tenantId])
+}
+
+// Un comprador que el negocio ya identificó (arregla H4: el RI se recuerda de un mes al otro).
+model ReceptorFiscal {
+  id           String               @id @default(cuid())
+  tenant       Tenant               @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  cuit         String
+  razonSocial  String?
+  condicionIva String? // mismos valores que Tenant.arcaCondicionIva
+  email        String?
+  origen       OrigenReceptorFiscal @default(manual)
+  patrones     String[]             @default([]) // contrapartes del extracto que lo identifican
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@unique([tenantId, cuit])
+}
+
+// Entrega de un comprobante por WhatsApp o email: una por comprobante y canal (idempotente).
+model EnvioComprobante {
+  id        String                 @id @default(cuid())
+  tenantId  String
+  invoiceId String
+  invoice   Invoice                @relation(fields: [tenantId, invoiceId], references: [tenantId, id], onDelete: Restrict)
+  canal     CanalEnvio
+  destino   String // completo acá; enmascarado en toda vista
+  estado    EstadoEnvioComprobante @default(pendiente)
+  wamid     String?
+  intentos  Int                    @default(0)
+  error     String?
+  enviadoEn DateTime?
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  @@unique([tenantId, invoiceId, canal])
+  @@index([wamid]) // estados de entrega del webhook
+}
+
+// --- Caché del ticket de acceso de ARCA (promovida de prisma/pending-gate2/ArcaAuthTicket.sql) ---
+// La clave es el CERTIFICADO (su huella SHA-256), no el negocio: dos negocios que firman con el
+// mismo certificado comparten el ticket. `tenantId` = quién lo pidió último (RLS y rastro). La
+// usa src/lib/fiscal/arca-ta-store.ts con SQL crudo y `operatorPrisma` (plano de control).
+// token y sign van sellados (FISCAL_MASTER_KEY); `expiration` en claro para descartar sin abrir.
+model ArcaAuthTicket {
+  id         String   @id @default(cuid())
+  certHuella String
+  service    String   @default("wsfe")
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId   String
+  kekId      String
+  wrappedDek String
+  sealed     String
+  expiration String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@unique([certHuella, service])
+  @@index([tenantId])
 }

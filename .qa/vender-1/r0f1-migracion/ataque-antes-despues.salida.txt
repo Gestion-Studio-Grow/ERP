@@ -1,0 +1,25 @@
+== migración vieja (dfd86de8…); 'INSERT 0 1' = el ataque PASÓ
+   1. A anota uso con la conexion de B
+   INSERT 0 1
+   2. A encola un evento del outbox por la conexion de B
+   INSERT 0 1
+   3. A repite la credencial que B tiene en su conexion (antes: el unico la delataba)
+   ERROR:  duplicate key value violates unique constraint "IntegracionCredencial_conexionId_campo_key"
+   4. A vincula la cuenta de B como WhatsApp con mayuscula
+   INSERT 0 1
+   5. A vincula la cuenta de B con un espacio al final
+   INSERT 0 1
+== migración nueva (593bea4a…); 'INSERT 0 1' = el ataque PASÓ
+   1. A anota uso con la conexion de B
+   ERROR:  insert or update on table "IntegracionUso" violates foreign key constraint "IntegracionUso_tenantId_conexionId_fkey"
+   DETAIL:  Key is not present in table "IntegracionConexion".
+   2. A encola un evento del outbox por la conexion de B
+   ERROR:  insert or update on table "OutboxEvent" violates foreign key constraint "OutboxEvent_tenantId_conexionId_fkey"
+   DETAIL:  Key (tenantId, conexionId)=(neg_a, cx_b) is not present in table "IntegracionConexion".
+   3. A repite la credencial que B tiene en su conexion (antes: el unico la delataba)
+   ERROR:  insert or update on table "IntegracionCredencial" violates foreign key constraint "IntegracionCredencial_tenantId_conexionId_fkey"
+   DETAIL:  Key is not present in table "IntegracionConexion".
+   4. A vincula la cuenta de B como WhatsApp con mayuscula
+   ERROR:  new row for relation "IntegracionConexion" violates check constraint "IntegracionConexion_conector_check"
+   5. A vincula la cuenta de B con un espacio al final
+   ERROR:  new row for relation "IntegracionConexion" violates check constraint "IntegracionConexion_cuentaExterna_check"

@@ -1,0 +1,12 @@
+OK   operador · clave equivocada avisa (1475 ms) avisa «Nombre o clave incorrectos»
+OK   operador · entrar (2174 ms) diseno=renglon sx360=0 chicos<44=0
+OK   operador · buscar un negocio en la lista (579 ms) busca con Enter y CH aparece
+OK   operador · abrir la ficha de CH desde la lista (2549 ms) CH Estética · diseno=renglon sx360=0 chicos<44=0
+OK   operador · pestaña Plan y apps → interruptores (1935 ms) Prendido Diseño nuevo El diseño nuevo en su panel: botones, cifras y pantallas renovados, con las mismas apps y los mismos datos. Apagado, se ve como siempre. Si lo apagás, en la próxima carga se ve c · diseno=renglon sx360=0 chicos<44=0
+OK   operador · recargar conserva la pestaña (1362 ms) url=?pestana=plan visible=true
+OK   operador · galería de diseño (desde el menú) (3560 ms) Renglón · diseno=renglon sx360=0 chicos<44=0
+OK   operador · galería: pieza viva de teclado y diálogo (1808 ms) botones=154 dialogo=2
+FALLA operador · negocio inexistente (error) (31231 ms) http=404 ·  ERRORES=[operador · negocio inexistente (error)] Failed to load resource: the server responded with a status of 404 (Not Found)
+OK   operador · sin sesión no entra (1231 ms) manda al login
+
+consola 390: 9/10 pasos OK · errores de consola 1 · callejones 0

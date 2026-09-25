@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: CH sólo con la sesión del dueño; el resto de los negocios, cualquier operador
+ok 1 - CH sólo con la sesión del dueño; el resto de los negocios, cualquier operador
+  ---
+  duration_ms: 120.087111
+  type: 'test'
+  ...
+# Subtest: el recorrido encuentra los endpoints con privilegio de operador en TODO src/ (si no, el trinquete no mira nada)
+ok 2 - el recorrido encuentra los endpoints con privilegio de operador en TODO src/ (si no, el trinquete no mira nada)
+  ---
+  duration_ms: 0.38948
+  type: 'test'
+  ...
+# Subtest: TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guardia del negocio (candado de CH)
+ok 3 - TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guardia del negocio (candado de CH)
+  ---
+  duration_ms: 0.463516
+  type: 'test'
+  ...
+# Subtest: cada engaño conocido pone el trinquete en rojo
+ok 4 - cada engaño conocido pone el trinquete en rojo
+  ---
+  duration_ms: 3.585533
+  type: 'test'
+  ...
+# Subtest: y una action bien hecha pasa (el detector no rechaza todo)
+ok 5 - y una action bien hecha pasa (el detector no rechaza todo)
+  ---
+  duration_ms: 0.486317
+  type: 'test'
+  ...
+# Subtest: los cambios de estado, plan, marca y subdominio quedan auditados con el operador
+ok 6 - los cambios de estado, plan, marca y subdominio quedan auditados con el operador
+  ---
+  duration_ms: 0.546072
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2452.752752

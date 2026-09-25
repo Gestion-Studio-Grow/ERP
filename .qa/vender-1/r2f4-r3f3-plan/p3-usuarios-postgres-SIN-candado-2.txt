@@ -1,0 +1,50 @@
+TAP version 13
+# Subtest: un negocio Micro (2 usuarios) no puede crear un tercero y recibe el porqué
+ok 1 - un negocio Micro (2 usuarios) no puede crear un tercero y recibe el porqué
+  ---
+  duration_ms: 2394.453069
+  type: 'test'
+  ...
+# Subtest: con un ajuste de GSG (3) entra uno más; sin plan del catálogo no hay tope
+ok 2 - con un ajuste de GSG (3) entra uno más; sin plan del catálogo no hay tope
+  ---
+  duration_ms: 84.193721
+  type: 'test'
+  ...
+# Subtest: CH (beauty-spa) no tiene tope nuevo: se comporta como hoy
+ok 3 - CH (beauty-spa) no tiene tope nuevo: se comporta como hoy
+  ---
+  duration_ms: 37.075765
+  type: 'test'
+  ...
+# Subtest: dos altas a la vez por el último lugar: entra una sola (la segunda espera a la primera)
+not ok 4 - dos altas a la vez por el último lugar: entra una sola (la segunda espera a la primera)
+  ---
+  duration_ms: 99.808872
+  type: 'test'
+  location: '/home/user/erp/src/lib/usuarios-del-plan-postgres.test.ts:3:1475'
+  failureType: 'testCodeFailure'
+  error: |-
+    B no esperó a A: dos altas pueden contar el mismo lugar libre
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/usuarios-del-plan-postgres.test.ts:132:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 3
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3114.977948

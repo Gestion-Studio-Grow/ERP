@@ -1,0 +1,67 @@
+TAP version 13
+# Subtest: pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH y aislamiento
+    # Subtest: faltando cada una de las 5 condiciones, se niega con su motivo y no cambia nada
+    ok 1 - faltando cada una de las 5 condiciones, se niega con su motivo y no cambia nada
+      ---
+      duration_ms: 180.530409
+      type: 'test'
+      ...
+# (node:10643) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+# (Use `node --trace-deprecation ...` to show where the warning was created)
+    # Subtest: con todo en regla pasa a real y deja una fila de AuditLog sin material del certificado
+    ok 2 - con todo en regla pasa a real y deja una fila de AuditLog sin material del certificado
+      ---
+      duration_ms: 47.440901
+      type: 'test'
+      ...
+    # Subtest: la vuelta a pruebas funciona sin ningún dato (ni CUIT, ni certificado, ni huella, ni slug)
+    ok 3 - la vuelta a pruebas funciona sin ningún dato (ni CUIT, ni certificado, ni huella, ni slug)
+      ---
+      duration_ms: 32.584984
+      type: 'test'
+      ...
+    # Subtest: dos confirmaciones a la vez: un solo cambio y una sola fila de AuditLog
+    ok 4 - dos confirmaciones a la vez: un solo cambio y una sola fila de AuditLog
+      ---
+      duration_ms: 70.512398
+      type: 'test'
+      ...
+    # Subtest: con la huella vieja (la ficha cambió después de mirarla) no cambia nada
+    ok 5 - con la huella vieja (la ficha cambió después de mirarla) no cambia nada
+      ---
+      duration_ms: 55.136314
+      type: 'test'
+      ...
+    # Subtest: sin el slug escrito no pasa; con el de otro negocio, tampoco
+    ok 6 - sin el slug escrito no pasa; con el de otro negocio, tampoco
+      ---
+      duration_ms: 27.909716
+      type: 'test'
+      ...
+    # Subtest: CH: un operador que no es el dueño no pasa ni vuelve; el dueño tiene que escribir el slug
+    ok 7 - CH: un operador que no es el dueño no pasa ni vuelve; el dueño tiene que escribir el slug
+      ---
+      duration_ms: 62.803139
+      type: 'test'
+      ...
+    # Subtest: el negocio B queda intacto, aunque le manden la confirmación de A
+    ok 8 - el negocio B queda intacto, aunque le manden la confirmación de A
+      ---
+      duration_ms: 18.841766
+      type: 'test'
+      ...
+    1..8
+ok 1 - pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH y aislamiento
+  ---
+  duration_ms: 3516.032173
+  type: 'test'
+  ...
+1..1
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4052.384707

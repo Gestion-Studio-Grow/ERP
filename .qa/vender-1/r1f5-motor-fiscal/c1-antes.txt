@@ -1,0 +1,309 @@
+TAP version 13
+# Subtest: inscripto con el IVA de cada producto: A a un cliente inscripto con domicilio y una alícuota; B a consumidor final con una o varias
+ok 1 - inscripto con el IVA de cada producto: A a un cliente inscripto con domicilio y una alícuota; B a consumidor final con una o varias
+  ---
+  duration_ms: 5.228969
+  type: 'test'
+  ...
+# Subtest: la A sin el domicilio del comprador no se promete: el impreso de la A lo lleva (RG 1415, Anexo II)
+not ok 2 - la A sin el domicilio del comprador no se promete: el impreso de la A lo lleva (RG 1415, Anexo II)
+  ---
+  duration_ms: 3.310362
+  type: 'test'
+  location: '/home/user/erp/src/app/admin/(dashboard)/ventas/factura.test.ts:2:2327'
+  failureType: 'testCodeFailure'
+  error: |-
+    domicilio null
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/app/admin/(dashboard)/ventas/factura.test.ts:61:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: la A con productos de distintas alícuotas no se promete: el impreso no puede mostrar el precio sin IVA de cada uno
+not ok 3 - la A con productos de distintas alícuotas no se promete: el impreso no puede mostrar el precio sin IVA de cada uno
+  ---
+  duration_ms: 0.758332
+  type: 'test'
+  location: '/home/user/erp/src/app/admin/(dashboard)/ventas/factura.test.ts:2:2825'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/app/admin/(dashboard)/ventas/factura.test.ts:68:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: la A a un monotributista no se promete mientras el impreso no lleve la leyenda de la RG 5003/2021 (Ley 27.618)
+not ok 4 - la A a un monotributista no se promete mientras el impreso no lleve la leyenda de la RG 5003/2021 (Ley 27.618)
+  ---
+  duration_ms: 0.459875
+  type: 'test'
+  location: '/home/user/erp/src/app/admin/(dashboard)/ventas/factura.test.ts:2:3295'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/app/admin/(dashboard)/ventas/factura.test.ts:76:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: inscripto sin la alícuota de cada producto (o sin la fecha del día): no se emite, y se dice qué cargar
+ok 5 - inscripto sin la alícuota de cada producto (o sin la fecha del día): no se emite, y se dice qué cargar
+  ---
+  duration_ms: 0.507836
+  type: 'test'
+  ...
+# Subtest: inscripto sin la clase A cargada: a un cliente inscripto no emite (lo dice la decisión); a consumidor final, B
+ok 6 - inscripto sin la clase A cargada: a un cliente inscripto no emite (lo dice la decisión); a consumidor final, B
+  ---
+  duration_ms: 0.907965
+  type: 'test'
+  ...
+# Subtest: inscripto: Ventas no promete una factura que la emisión no puede calcular (exento, renglones que no suman)
+ok 7 - inscripto: Ventas no promete una factura que la emisión no puede calcular (exento, renglones que no suman)
+  ---
+  duration_ms: 0.272285
+  type: 'test'
+  ...
+# Subtest: monotributo (CH) factura exactamente como antes: C sin mirar la ficha ni la alícuota
+ok 8 - monotributo (CH) factura exactamente como antes: C sin mirar la ficha ni la alícuota
+  ---
+  duration_ms: 0.27146
+  type: 'test'
+  ...
+# Subtest: con la facturación apagada no se emite: 'Sin factura' con el porqué
+ok 9 - con la facturación apagada no se emite: 'Sin factura' con el porqué
+  ---
+  duration_ms: 0.362055
+  type: 'test'
+  ...
+# Subtest: encendida: se emite sólo con el perfil completo y fuera de Responsable Inscripto
+ok 10 - encendida: se emite sólo con el perfil completo y fuera de Responsable Inscripto
+  ---
+  duration_ms: 0.649898
+  type: 'test'
+  ...
+# Subtest: anulada, sin cobrar o en cero: no se factura
+ok 11 - anulada, sin cobrar o en cero: no se factura
+  ---
+  duration_ms: 0.171721
+  type: 'test'
+  ...
+# Subtest: lo que dice la fila según el comprobante
+ok 12 - lo que dice la fila según el comprobante
+  ---
+  duration_ms: 0.204443
+  type: 'test'
+  ...
+# Subtest: Ventas del día: las ventas a cuenta se dicen aparte y el cupón queda en la nota
+ok 13 - Ventas del día: las ventas a cuenta se dicen aparte y el cupón queda en la nota
+  ---
+  duration_ms: 4.899966
+  type: 'test'
+  ...
+# Subtest: CUIT de responsable inscripto con guiones: se guarda sin guiones, con su condición y razón social
+ok 14 - CUIT de responsable inscripto con guiones: se guarda sin guiones, con su condición y razón social
+  ---
+  duration_ms: 2.914946
+  type: 'test'
+  ...
+# Subtest: inscripto o monotributista sin domicilio: se pide, porque la Factura A lo lleva impreso (RG 1415); exento o consumidor final, no
+not ok 15 - inscripto o monotributista sin domicilio: se pide, porque la Factura A lo lleva impreso (RG 1415); exento o consumidor final, no
+  ---
+  duration_ms: 3.2716
+  type: 'test'
+  location: '/home/user/erp/src/lib/fiscal/ficha-fiscal.test.ts:2:2182'
+  failureType: 'testCodeFailure'
+  error: 'RESPONSABLE_INSCRIPTO'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: ''
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/fiscal/ficha-fiscal.test.ts:66:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: lo que impide entregar la factura decidida: nada en la A común con domicilio y una alícuota, ni en la B; sí en la A sin domicilio, con dos alícuotas o a un monotributista
+not ok 16 - lo que impide entregar la factura decidida: nada en la A común con domicilio y una alícuota, ni en la B; sí en la A sin domicilio, con dos alícuotas o a un monotributista
+  ---
+  duration_ms: 2.680922
+  type: 'test'
+  location: '/home/user/erp/src/lib/fiscal/ficha-fiscal.test.ts:2:3109'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_ficha_fiscal.queImpideEntregarLaFactura) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/fiscal/ficha-fiscal.test.ts:76:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: CUIT con el dígito verificador cambiado: se rechaza y se dice por qué
+ok 17 - CUIT con el dígito verificador cambiado: se rechaza y se dice por qué
+  ---
+  duration_ms: 0.225413
+  type: 'test'
+  ...
+# Subtest: un número sin tipo de documento no se adivina: se pide elegir CUIT, CUIL o DNI
+ok 18 - un número sin tipo de documento no se adivina: se pide elegir CUIT, CUIL o DNI
+  ---
+  duration_ms: 0.174871
+  type: 'test'
+  ...
+# Subtest: CUIT sin condición frente al IVA: se pide, no se asume consumidor final
+ok 19 - CUIT sin condición frente al IVA: se pide, no se asume consumidor final
+  ---
+  duration_ms: 0.178015
+  type: 'test'
+  ...
+# Subtest: CUIT sin razón social: se pide, no se copia el nombre de la ficha
+ok 20 - CUIT sin razón social: se pide, no se copia el nombre de la ficha
+  ---
+  duration_ms: 0.12746
+  type: 'test'
+  ...
+# Subtest: responsable inscripto, monotributista o exento sin CUIT: se pide el CUIT
+ok 21 - responsable inscripto, monotributista o exento sin CUIT: se pide el CUIT
+  ---
+  duration_ms: 0.41542
+  type: 'test'
+  ...
+# Subtest: una condición frente al IVA que no está en la tabla de ARCA se rechaza
+ok 22 - una condición frente al IVA que no está en la tabla de ARCA se rechaza
+  ---
+  duration_ms: 0.333982
+  type: 'test'
+  ...
+# Subtest: ficha vacía: vale y deja al cliente como consumidor final sin identificar
+ok 23 - ficha vacía: vale y deja al cliente como consumidor final sin identificar
+  ---
+  duration_ms: 0.43469
+  type: 'test'
+  ...
+# Subtest: DNI de consumidor final: se guarda sin puntos; uno de 5 números se rechaza
+ok 24 - DNI de consumidor final: se guarda sin puntos; uno de 5 números se rechaza
+  ---
+  duration_ms: 0.168642
+  type: 'test'
+  ...
+# Subtest: razón social o domicilio demasiado largos se rechazan
+ok 25 - razón social o domicilio demasiado largos se rechazan
+  ---
+  duration_ms: 0.245557
+  type: 'test'
+  ...
+# Subtest: cambios de la ficha: sólo lo que cambió, con el valor anterior al lado
+ok 26 - cambios de la ficha: sólo lo que cambió, con el valor anterior al lado
+  ---
+  duration_ms: 0.249661
+  type: 'test'
+  ...
+# Subtest: inscripto con A común a un cliente inscripto guardado: Factura A (tipo 1), lista para emitir
+ok 27 - inscripto con A común a un cliente inscripto guardado: Factura A (tipo 1), lista para emitir
+  ---
+  duration_ms: 0.413848
+  type: 'test'
+  ...
+# Subtest: inscripto a un monotributista: Factura A con la leyenda de la RG 5003/2021, no B
+ok 28 - inscripto a un monotributista: Factura A con la leyenda de la RG 5003/2021, no B
+  ---
+  duration_ms: 0.349654
+  type: 'test'
+  ...
+# Subtest: inscripto a un consumidor final sin ficha: Factura B (tipo 6), sin documento
+ok 29 - inscripto a un consumidor final sin ficha: Factura B (tipo 6), sin documento
+  ---
+  duration_ms: 0.168369
+  type: 'test'
+  ...
+# Subtest: monotributo emite siempre C, a cualquier ficha
+ok 30 - monotributo emite siempre C, a cualquier ficha
+  ---
+  duration_ms: 0.229656
+  type: 'test'
+  ...
+# Subtest: inscripto sin la clase A cargada: la A no sale sola (a revisión, con el motivo); la B a consumidor final sí
+ok 31 - inscripto sin la clase A cargada: la A no sale sola (a revisión, con el motivo); la B a consumidor final sí
+  ---
+  duration_ms: 0.69695
+  type: 'test'
+  ...
+# Subtest: emisor sin condición frente al IVA: la decisión se niega con un motivo que dice qué cargar
+ok 32 - emisor sin condición frente al IVA: la decisión se niega con un motivo que dice qué cargar
+  ---
+  duration_ms: 0.308299
+  type: 'test'
+  ...
+# Subtest: el comprador de la factura es el de la decisión: inscripto, monotributista, DNI y sin identificar
+ok 33 - el comprador de la factura es el de la decisión: inscripto, monotributista, DNI y sin identificar
+  ---
+  duration_ms: 0.590347
+  type: 'test'
+  ...
+# Subtest: sin decisión lista no hay comprador para la factura: CUIT sin condición, o la A sin su clase
+ok 34 - sin decisión lista no hay comprador para la factura: CUIT sin condición, o la A sin su clase
+  ---
+  duration_ms: 0.210468
+  type: 'test'
+  ...
+# Subtest: lo que Ventas decide es lo que el despacho vuelve a decidir con la factura armada
+ok 35 - lo que Ventas decide es lo que el despacho vuelve a decidir con la factura armada
+  ---
+  duration_ms: 16.777249
+  type: 'test'
+  ...
+1..35
+# tests 35
+# suites 0
+# pass 30
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 555.45604

@@ -1,0 +1,8 @@
+390 /admin/usuarios/plan -> /admin/usuarios/plan 200 h1= Tu plan hscroll= false chicos= 1/10 alto= 844 err= 0
+390 /admin/clientes/cmryy6n9b006cww7dcjr3703c/fiscal -> /admin/clientes/cmryy6n9b006cww7dcjr3703c/fiscal 200 h1= No encontramos esta página hscroll= false chicos= 0/1 alto= 844 err= 0
+390 /admin/vender -> /admin/vender 200 h1= Vender hscroll= false chicos= 1/27 alto= 1106 err= 0
+390 /admin/pedidos -> /admin/pedidos 200 h1= Pedidos para preparar hscroll= false chicos= 13/65 alto= 1666 err= 0
+1440 /admin/usuarios/plan -> /admin/usuarios/plan 200 h1= Tu plan hscroll= false chicos= 13/21 alto= 900 err= 0
+1440 /admin/clientes/cmryy6n9b006cww7dcjr3703c/fiscal -> /admin/clientes/cmryy6n9b006cww7dcjr3703c/fiscal 200 h1= No encontramos esta página hscroll= false chicos= 0/1 alto= 900 err= 0
+1440 /admin/vender -> /admin/vender 200 h1= Vender hscroll= false chicos= 12/37 alto= 900 err= 0
+1440 /admin/pedidos -> /admin/pedidos 200 h1= Pedidos para preparar hscroll= false chicos= 46/79 alto= 1049 err= 0

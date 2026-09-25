@@ -1,0 +1,6 @@
+not ok 5 - createUser decide con validarAltaDeUsuario y el negocio de la sesión, y da de alta con lo que devuelve
+not ok 141 - el recorrido encuentra los endpoints con privilegio de operador en TODO src/ (si no, el trinquete no mira nada)
+not ok 142 - TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guardia del negocio (candado de CH)
+# tests 339
+# pass 336
+# fail 3

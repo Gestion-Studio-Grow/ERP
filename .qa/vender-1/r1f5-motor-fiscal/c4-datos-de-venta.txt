@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: sin descuento, cada renglón es lo cobrado por el producto, con su alícuota (o sin ella: no se inventa)
+ok 1 - sin descuento, cada renglón es lo cobrado por el producto, con su alícuota (o sin ella: no se inventa)
+  ---
+  duration_ms: 2.339091
+  type: 'test'
+  ...
+# Subtest: el descuento de la venta se reparte entre los productos en proporción y al centavo: la suma da lo vendido menos el descuento
+ok 2 - el descuento de la venta se reparte entre los productos en proporción y al centavo: la suma da lo vendido menos el descuento
+  ---
+  duration_ms: 26.207548
+  type: 'test'
+  ...
+# Subtest: un descuento que no se puede repartir no se inventa: los renglones quedan como están y el IVA dice que no suman lo cobrado
+ok 3 - un descuento que no se puede repartir no se inventa: los renglones quedan como están y el IVA dice que no suman lo cobrado
+  ---
+  duration_ms: 0.72273
+  type: 'test'
+  ...
+# Subtest: lee de la base la ficha del cliente y los productos de la venta con su alícuota; la venta de otro negocio da null
+ok 4 - lee de la base la ficha del cliente y los productos de la venta con su alícuota; la venta de otro negocio da null
+  ---
+  duration_ms: 2518.888369
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3282.64047

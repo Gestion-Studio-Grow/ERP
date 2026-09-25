@@ -1,0 +1,88 @@
+TAP version 13
+# Subtest: GUARDIA_EN_EL_LOADER sólo lista páginas que todavía dependen de su loader (sin requireApp)
+ok 1 - GUARDIA_EN_EL_LOADER sólo lista páginas que todavía dependen de su loader (sin requireApp)
+  ---
+  duration_ms: 0.929035
+  type: 'test'
+  ...
+# Subtest: el recorrido encuentra las páginas del panel
+ok 2 - el recorrido encuentra las páginas del panel
+  ---
+  duration_ms: 0.241775
+  type: 'test'
+  ...
+# Subtest: trinquete: páginas sin requireApp ≤ 3
+ok 3 - trinquete: páginas sin requireApp ≤ 3
+  ---
+  duration_ms: 0.218044
+  type: 'test'
+  ...
+# Subtest: toda página del panel pertenece a una app del registro
+ok 4 - toda página del panel pertenece a una app del registro
+  ---
+  duration_ms: 0.774218
+  type: 'test'
+  ...
+# Subtest: requireApp protege la app de SU ruta, no otra
+ok 5 - requireApp protege la app de SU ruta, no otra
+  ---
+  duration_ms: 2.412144
+  type: 'test'
+  ...
+# Subtest: la capability del registro es la que pide la página raíz de cada app (directo o en su loader)
+ok 6 - la capability del registro es la que pide la página raíz de cada app (directo o en su loader)
+  ---
+  duration_ms: 0.693014
+  type: 'test'
+  ...
+# Subtest: el recorrido encuentra los route handlers del panel
+ok 7 - el recorrido encuentra los route handlers del panel
+  ---
+  duration_ms: 0.125918
+  type: 'test'
+  ...
+# Subtest: trinquete: route handlers sin requireApp ≤ 0
+ok 8 - trinquete: route handlers sin requireApp ≤ 0
+  ---
+  duration_ms: 0.125857
+  type: 'test'
+  ...
+# Subtest: todo route handler pertenece a una app, y su requireApp es el de esa app
+ok 9 - todo route handler pertenece a una app, y su requireApp es el de esa app
+  ---
+  duration_ms: 0.364318
+  type: 'test'
+  ...
+# Subtest: sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+ok 10 - sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+  ---
+  duration_ms: 8.872857
+  type: 'test'
+  ...
+# Subtest: Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+ok 11 - Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+  ---
+  duration_ms: 18.097924
+  type: 'test'
+  ...
+# Subtest: CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+ok 12 - CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+  ---
+  duration_ms: 0.349429
+  type: 'test'
+  ...
+# Subtest: diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+ok 13 - diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+  ---
+  duration_ms: 0.661908
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 489.95453

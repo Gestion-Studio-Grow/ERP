@@ -1,0 +1,148 @@
+TAP version 13
+# Subtest: CUIT de responsable inscripto con guiones: se guarda sin guiones, con su condición y razón social
+ok 1 - CUIT de responsable inscripto con guiones: se guarda sin guiones, con su condición y razón social
+  ---
+  duration_ms: 3.733916
+  type: 'test'
+  ...
+# Subtest: inscripto o monotributista sin domicilio: se pide, porque la Factura A lo lleva impreso (RG 1415); exento o consumidor final, no
+ok 2 - inscripto o monotributista sin domicilio: se pide, porque la Factura A lo lleva impreso (RG 1415); exento o consumidor final, no
+  ---
+  duration_ms: 0.762872
+  type: 'test'
+  ...
+# Subtest: lo que impide entregar la factura decidida: nada en la A común con domicilio y una alícuota, ni en la B; sí en la A sin domicilio, con dos alícuotas o a un monotributista
+ok 3 - lo que impide entregar la factura decidida: nada en la A común con domicilio y una alícuota, ni en la B; sí en la A sin domicilio, con dos alícuotas o a un monotributista
+  ---
+  duration_ms: 2.939913
+  type: 'test'
+  ...
+# Subtest: CUIT con el dígito verificador cambiado: se rechaza y se dice por qué
+ok 4 - CUIT con el dígito verificador cambiado: se rechaza y se dice por qué
+  ---
+  duration_ms: 0.423233
+  type: 'test'
+  ...
+# Subtest: un número sin tipo de documento no se adivina: se pide elegir CUIT, CUIL o DNI
+ok 5 - un número sin tipo de documento no se adivina: se pide elegir CUIT, CUIL o DNI
+  ---
+  duration_ms: 0.270602
+  type: 'test'
+  ...
+# Subtest: CUIT sin condición frente al IVA: se pide, no se asume consumidor final
+ok 6 - CUIT sin condición frente al IVA: se pide, no se asume consumidor final
+  ---
+  duration_ms: 0.299911
+  type: 'test'
+  ...
+# Subtest: CUIT sin razón social: se pide, no se copia el nombre de la ficha
+ok 7 - CUIT sin razón social: se pide, no se copia el nombre de la ficha
+  ---
+  duration_ms: 0.165783
+  type: 'test'
+  ...
+# Subtest: responsable inscripto, monotributista o exento sin CUIT: se pide el CUIT
+ok 8 - responsable inscripto, monotributista o exento sin CUIT: se pide el CUIT
+  ---
+  duration_ms: 0.389009
+  type: 'test'
+  ...
+# Subtest: una condición frente al IVA que no está en la tabla de ARCA se rechaza
+ok 9 - una condición frente al IVA que no está en la tabla de ARCA se rechaza
+  ---
+  duration_ms: 0.449898
+  type: 'test'
+  ...
+# Subtest: ficha vacía: vale y deja al cliente como consumidor final sin identificar
+ok 10 - ficha vacía: vale y deja al cliente como consumidor final sin identificar
+  ---
+  duration_ms: 0.602997
+  type: 'test'
+  ...
+# Subtest: DNI de consumidor final: se guarda sin puntos; uno de 5 números se rechaza
+ok 11 - DNI de consumidor final: se guarda sin puntos; uno de 5 números se rechaza
+  ---
+  duration_ms: 0.177841
+  type: 'test'
+  ...
+# Subtest: razón social o domicilio demasiado largos se rechazan
+ok 12 - razón social o domicilio demasiado largos se rechazan
+  ---
+  duration_ms: 0.216458
+  type: 'test'
+  ...
+# Subtest: cambios de la ficha: sólo lo que cambió, con el valor anterior al lado
+ok 13 - cambios de la ficha: sólo lo que cambió, con el valor anterior al lado
+  ---
+  duration_ms: 0.239948
+  type: 'test'
+  ...
+# Subtest: inscripto con A común a un cliente inscripto guardado: Factura A (tipo 1), lista para emitir
+ok 14 - inscripto con A común a un cliente inscripto guardado: Factura A (tipo 1), lista para emitir
+  ---
+  duration_ms: 0.232094
+  type: 'test'
+  ...
+# Subtest: inscripto a un monotributista: Factura A con la leyenda de la RG 5003/2021, no B
+ok 15 - inscripto a un monotributista: Factura A con la leyenda de la RG 5003/2021, no B
+  ---
+  duration_ms: 0.398366
+  type: 'test'
+  ...
+# Subtest: inscripto a un consumidor final sin ficha: Factura B (tipo 6), sin documento
+ok 16 - inscripto a un consumidor final sin ficha: Factura B (tipo 6), sin documento
+  ---
+  duration_ms: 0.16762
+  type: 'test'
+  ...
+# Subtest: monotributo emite siempre C, a cualquier ficha
+ok 17 - monotributo emite siempre C, a cualquier ficha
+  ---
+  duration_ms: 0.951124
+  type: 'test'
+  ...
+# Subtest: inscripto sin la clase A cargada: la A no sale sola (a revisión, con el motivo); la B a consumidor final sí
+ok 18 - inscripto sin la clase A cargada: la A no sale sola (a revisión, con el motivo); la B a consumidor final sí
+  ---
+  duration_ms: 0.532057
+  type: 'test'
+  ...
+# Subtest: emisor sin condición frente al IVA: la decisión se niega con un motivo que dice qué cargar
+ok 19 - emisor sin condición frente al IVA: la decisión se niega con un motivo que dice qué cargar
+  ---
+  duration_ms: 0.187898
+  type: 'test'
+  ...
+# Subtest: el comprador de la factura es el de la decisión: inscripto, monotributista, DNI y sin identificar
+ok 20 - el comprador de la factura es el de la decisión: inscripto, monotributista, DNI y sin identificar
+  ---
+  duration_ms: 0.621646
+  type: 'test'
+  ...
+# Subtest: sin decisión lista no hay comprador para la factura: CUIT sin condición, o la A sin su clase
+ok 21 - sin decisión lista no hay comprador para la factura: CUIT sin condición, o la A sin su clase
+  ---
+  duration_ms: 0.377558
+  type: 'test'
+  ...
+# Subtest: lo que Ventas decide es lo que el despacho vuelve a decidir con la factura armada
+ok 22 - lo que Ventas decide es lo que el despacho vuelve a decidir con la factura armada
+  ---
+  duration_ms: 23.450678
+  type: 'test'
+  ...
+# Subtest: el formulario de la ficha ofrece sólo lo que la acción acepta, y cada condición dicha en castellano
+ok 23 - el formulario de la ficha ofrece sólo lo que la acción acepta, y cada condición dicha en castellano
+  ---
+  duration_ms: 0.494772
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 23
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 866.173891

@@ -1,0 +1,1 @@
+src/lib/operador/guardia-negocio.test.ts src/lib/limites-del-negocio-en-tx.ts src/lib/uso-del-plan.ts src/lib/bancos-glue.ts src/lib/bancos-glue.test.ts src/lib/mercadopago-auto.ts src/lib/bancos-actions.ts src/lib/tope-del-plan-en-emision-postgres.test.ts src/lib/invoice-from-order.ts src/lib/invoice-from-order.test.ts src/lib/order-actions.ts

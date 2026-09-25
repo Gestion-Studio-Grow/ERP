@@ -1,0 +1,136 @@
+TAP version 13
+# Subtest: magra Micro → PyME → Micro trabajando por apps: la vista previa coincide con el Inicio posterior y vuelve igual
+ok 1 - magra Micro → PyME → Micro trabajando por apps: la vista previa coincide con el Inicio posterior y vuelve igual
+  ---
+  duration_ms: 12.263299
+  type: 'test'
+  ...
+# Subtest: magra Micro → PyME → Micro sin «Trabaja por apps»: la vista previa coincide con el Inicio posterior y vuelve igual
+ok 2 - magra Micro → PyME → Micro sin «Trabaja por apps»: la vista previa coincide con el Inicio posterior y vuelve igual
+  ---
+  duration_ms: 3.387543
+  type: 'test'
+  ...
+# Subtest: PyME suma apps a magra trabajando por apps, y bajar a Micro pide confirmar lo que pierde
+ok 3 - PyME suma apps a magra trabajando por apps, y bajar a Micro pide confirmar lo que pierde
+  ---
+  duration_ms: 1.39702
+  type: 'test'
+  ...
+# Subtest: CH (beauty-spa) queda bloqueado con el motivo del OK del dueño, con cualquier plan
+ok 4 - CH (beauty-spa) queda bloqueado con el motivo del OK del dueño, con cualquier plan
+  ---
+  duration_ms: 0.233217
+  type: 'test'
+  ...
+# Subtest: un plan que no existe se rechaza con cómo seguir
+ok 5 - un plan que no existe se rechaza con cómo seguir
+  ---
+  duration_ms: 0.140924
+  type: 'test'
+  ...
+# Subtest: con locales vinculados no baja a un plan sin «Mis locales»; sin vínculos sí; sin poder leerlos, no
+ok 6 - con locales vinculados no baja a un plan sin «Mis locales»; sin vínculos sí; sin poder leerlos, no
+  ---
+  duration_ms: 0.724417
+  type: 'test'
+  ...
+# Subtest: mismo plan, módulos y perfil: sin cambios y sin excepciones que cerrar
+ok 7 - mismo plan, módulos y perfil: sin cambios y sin excepciones que cerrar
+  ---
+  duration_ms: 0.602419
+  type: 'test'
+  ...
+# Subtest: el agregado sumado por fuera del plan se conserva si el plan nuevo lo acepta; si no, se apaga con sus datos guardados
+ok 8 - el agregado sumado por fuera del plan se conserva si el plan nuevo lo acepta; si no, se apaga con sus datos guardados
+  ---
+  duration_ms: 0.841318
+  type: 'test'
+  ...
+# Subtest: al cambiar de plan se cierran las excepciones vigentes de todos los planes; una fila forjada desde /admin no cuenta
+ok 9 - al cambiar de plan se cierran las excepciones vigentes de todos los planes; una fila forjada desde /admin no cuenta
+  ---
+  duration_ms: 1.783128
+  type: 'test'
+  ...
+# Subtest: la escritura sólo lleva plan, modules y profile
+ok 10 - la escritura sólo lleva plan, modules y profile
+  ---
+  duration_ms: 1.41755
+  type: 'test'
+  ...
+# Subtest: vacío vuelve al tope del plan
+ok 11 - vacío vuelve al tope del plan
+  ---
+  duration_ms: 1.979472
+  type: 'test'
+  ...
+# Subtest: «sin-tope» deja el límite sin tope
+ok 12 - «sin-tope» deja el límite sin tope
+  ---
+  duration_ms: 0.251998
+  type: 'test'
+  ...
+# Subtest: un entero entre 0 y el máximo es el tope nuevo
+ok 13 - un entero entre 0 y el máximo es el tope nuevo
+  ---
+  duration_ms: 0.325478
+  type: 'test'
+  ...
+# Subtest: negativos, decimales, texto o más que el máximo se rechazan con un porqué
+ok 14 - negativos, decimales, texto o más que el máximo se rechazan con un porqué
+  ---
+  duration_ms: 14.543898
+  type: 'test'
+  ...
+# Subtest: trinquete: sólo la consola del operador arma o escribe el plan y las excepciones de límites
+ok 15 - trinquete: sólo la consola del operador arma o escribe el plan y las excepciones de límites
+  ---
+  duration_ms: 80.765315
+  type: 'test'
+  ...
+# Subtest: trinquete: el detector reconoce los caminos de escritura
+ok 16 - trinquete: el detector reconoce los caminos de escritura
+  ---
+  duration_ms: 0.204641
+  type: 'test'
+  ...
+# Subtest: un cambio de plan sólo escribe plan, modules y profile
+ok 17 - un cambio de plan sólo escribe plan, modules y profile
+  ---
+  duration_ms: 2.427907
+  type: 'test'
+  ...
+# Subtest: un campo de más (un dato del negocio) se rechaza antes de escribir
+ok 18 - un campo de más (un dato del negocio) se rechaza antes de escribir
+  ---
+  duration_ms: 0.505276
+  type: 'test'
+  ...
+# Subtest: plan vacío, módulo vacío o perfil desconocido: no se escribe nada
+ok 19 - plan vacío, módulo vacío o perfil desconocido: no se escribe nada
+  ---
+  duration_ms: 0.206322
+  type: 'test'
+  ...
+# Subtest: lo que se apaga avisa que los datos quedan guardados
+ok 20 - lo que se apaga avisa que los datos quedan guardados
+  ---
+  duration_ms: 0.256969
+  type: 'test'
+  ...
+# Subtest: conteos por tabla: iguales no dan diferencias; uno menos, una tabla nueva o una que falta, sí
+ok 21 - conteos por tabla: iguales no dan diferencias; uno menos, una tabla nueva o una que falta, sí
+  ---
+  duration_ms: 0.521801
+  type: 'test'
+  ...
+1..21
+# tests 21
+# suites 0
+# pass 21
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 611.756678

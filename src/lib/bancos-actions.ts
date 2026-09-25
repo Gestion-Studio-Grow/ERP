@@ -23,6 +23,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
+import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import {
@@ -175,7 +176,12 @@ async function procesarYPersistir(
   });
   if (!tenant) return { ok: false, error: "No se encontró el negocio.", alertas: [] };
 
-  const cfg = configBancosDesdeTenant(tenant);
+  // El tope del plan (o la excepción de GSG), que la columna del negocio sólo baja (R3-F3).
+  const capDelPlan = await tenantTransaction(
+    (tx) => capFacturasMesDelNegocioEnTx(tx, tenantId, tenant.bancosCapFacturasMes),
+    { tenantId },
+  );
+  const cfg = configBancosDesdeTenant(tenant, capDelPlan);
   const facturasEmitidasEsteMes = await contarFacturasDelMes(tenantId);
 
   const resultado = await procesarExtracto(archivo, {

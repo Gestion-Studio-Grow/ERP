@@ -24,6 +24,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
+import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { runInTenantContext } from "@/lib/tenant-context";
 import { createInvoice } from "@/lib/invoice-core";
 import { calcularImpuestos, getFiscalProfile, isInvoicingEnabled } from "@/lib/fiscal";
@@ -250,19 +251,25 @@ export interface ConfigTenantBancos {
   capFacturasMes: number;
 }
 
-/** Tenant row → config del módulo. PURA. */
-export function configBancosDesdeTenant(row: TenantBancosRow): ConfigTenantBancos {
+/**
+ * Tenant row → config del módulo. PURA.
+ * `capEfectivo`: el tope que vale este mes, leído con `capFacturasMesDelNegocioEnTx` (el del plan,
+ * que la columna sólo baja). Sin él, la columna o 159 (lo de siempre; CH no tiene plan del catálogo
+ * y da lo mismo por cualquiera de los dos caminos).
+ */
+export function configBancosDesdeTenant(row: TenantBancosRow, capEfectivo?: number): ConfigTenantBancos {
+  const cap = capEfectivo ?? row.bancosCapFacturasMes ?? CAP_FACTURAS_MES_DEFAULT;
   return {
     config: {
       ...(row.bancosUmbralIdentificacion != null
         ? { umbralIdentificacion: toNum(row.bancosUmbralIdentificacion) }
         : {}),
-      ...(row.bancosCapFacturasMes != null ? { capFacturasMes: row.bancosCapFacturasMes } : {}),
+      ...(capEfectivo !== undefined || row.bancosCapFacturasMes != null ? { capFacturasMes: cap } : {}),
       ...(row.bancosDomicilioEmisor != null ? { domicilioEmisor: row.bancosDomicilioEmisor } : {}),
       ...(row.arcaPuntoVenta != null ? { puntoVenta: row.arcaPuntoVenta } : {}),
     },
     cuitsPropios: row.arcaCuit ? [normalizarCuit(row.arcaCuit)] : [],
-    capFacturasMes: row.bancosCapFacturasMes ?? CAP_FACTURAS_MES_DEFAULT,
+    capFacturasMes: cap,
   };
 }
 
@@ -605,7 +612,11 @@ export async function kpisFacturacionBancaria(tenantId: string): Promise<KpisFac
       { tenantId },
     );
 
-  const capFacturasMes = tenant?.bancosCapFacturasMes ?? CAP_FACTURAS_MES_DEFAULT;
+  // El tope que vale: el del plan (o la excepción de GSG); la columna del negocio sólo lo baja (R3-F3).
+  const capFacturasMes = await tenantTransaction(
+    (tx) => capFacturasMesDelNegocioEnTx(tx, tenantId, tenant?.bancosCapFacturasMes),
+    { tenantId },
+  );
   return {
     facturasMes,
     capFacturasMes,
@@ -651,7 +662,11 @@ export async function emitirPropuestas(
       where: { id: tenantId },
       select: { bancosCapFacturasMes: true },
     });
-    const cap = tenant?.bancosCapFacturasMes ?? CAP_FACTURAS_MES_DEFAULT;
+    // El tope del plan (o la excepción de GSG), que la columna del negocio sólo baja (R3-F3).
+    const cap = await tenantTransaction(
+      (tx) => capFacturasMesDelNegocioEnTx(tx, tenantId, tenant?.bancosCapFacturasMes),
+      { tenantId },
+    );
     const facturasMes = await contarFacturasDelMes(tenantId);
 
     const movimientos = await prisma.movimientoImportado.findMany({

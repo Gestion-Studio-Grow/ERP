@@ -1,0 +1,3 @@
+Suite completa (node --import tsx --test "src/**/*.test.ts"), corte parcial al cerrar la porción: 1513 pruebas de primer nivel ok, 1 con falla.
+not ok 445 - Ingreso en el navegador
+La falla es src/app/admin/login/ingreso-pantalla.test.ts (navegador, pantalla de ingreso): este frente no toca ese archivo ni nada que importe.

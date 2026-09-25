@@ -1,0 +1,17 @@
+erp_lab / qa-magra-adrogue (cmufyijv200001m7dhn93d5rw) al empezar: plan=sin plan · 5 módulos · perfil lite
+tablas con tenantId: 56 · filas del negocio: 35
+OK    sin plan → micro: {"tipo":"ok","excepcionesCerradas":0}
+OK    pasar a micro no cambió ninguna fila de datos
+OK    la vista previa de micro es lo que quedó en la base
+OK    micro → pyme: {"tipo":"ok","excepcionesCerradas":0}
+  pyme gana 7 apps y pierde 0: gana [campanias, mis-locales, ventas-por-local, cajas-de-los-locales, stock-por-local, catalogo-de-la-marca, traslados]
+OK    la vista previa de pyme es lo que quedó en la base
+OK    pasar a pyme no cambió ninguna fila de datos
+OK    pyme → micro: {"tipo":"ok","excepcionesCerradas":0}
+OK    vuelve con los mismos módulos (8)
+OK    vuelve con las mismas pantallas (34 apps)
+OK    mismos conteos por tabla al volver (56 tablas)
+OK    qa-magra-adrogue quedó como estaba al empezar
+OK    ninguna tabla de qa-magra-adrogue ganó ni perdió filas en todo el recorrido
+auditoría: 3 cambios de plan registrados con el actor operator:qa-r2f4-lab (acumulado de corridas)
+RESULTADO: todo OK

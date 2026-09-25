@@ -1,0 +1,184 @@
+TAP version 13
+# Subtest: el QR impreso se lee como la URL de urlQrAfip y su payload trae los datos del comprobante
+ok 1 - el QR impreso se lee como la URL de urlQrAfip y su payload trae los datos del comprobante
+  ---
+  duration_ms: 208.785667
+  type: 'test'
+  ...
+# Subtest: el QR de un comprobante A lleva el CUIT del cliente
+ok 2 - el QR de un comprobante A lleva el CUIT del cliente
+  ---
+  duration_ms: 77.916764
+  type: 'test'
+  ...
+# Subtest: el lector de QR no es un eco: con un módulo de datos cambiado, no lee
+ok 3 - el lector de QR no es un eco: con un módulo de datos cambiado, no lee
+  ---
+  duration_ms: 45.780219
+  type: 'test'
+  ...
+# Subtest: el PDF lleva emisor, receptor, número, fecha, CAE y su vencimiento
+ok 4 - el PDF lleva emisor, receptor, número, fecha, CAE y su vencimiento
+  ---
+  duration_ms: 38.568167
+  type: 'test'
+  ...
+# Subtest: factura B: lleva la leyenda de la Ley 27.743 con el IVA contenido y los otros impuestos
+ok 5 - factura B: lleva la leyenda de la Ley 27.743 con el IVA contenido y los otros impuestos
+  ---
+  duration_ms: 39.031246
+  type: 'test'
+  ...
+# Subtest: nota de crédito B: también lleva la leyenda y el comprobante que anula
+ok 6 - nota de crédito B: también lleva la leyenda y el comprobante que anula
+  ---
+  duration_ms: 33.71511
+  type: 'test'
+  ...
+# Subtest: factura C y factura A: no llevan la leyenda de la Ley 27.743; la A discrimina el IVA
+ok 7 - factura C y factura A: no llevan la leyenda de la Ley 27.743; la A discrimina el IVA
+  ---
+  duration_ms: 75.059072
+  type: 'test'
+  ...
+# Subtest: factura A: cada renglón lleva su precio sin IVA y los subtotales sin IVA suman justo el neto autorizado
+ok 8 - factura A: cada renglón lleva su precio sin IVA y los subtotales sin IVA suman justo el neto autorizado
+  ---
+  duration_ms: 36.079018
+  type: 'test'
+  ...
+# Subtest: factura A: con más de una alícuota el comprobante no guarda cuál lleva cada renglón, así que no se imprime y dice por qué
+ok 9 - factura A: con más de una alícuota el comprobante no guarda cuál lleva cada renglón, así que no se imprime y dice por qué
+  ---
+  duration_ms: 0.722331
+  type: 'test'
+  ...
+# Subtest: factura A: si el neto no coincide con la base del IVA no se imprime un detalle que no cierra
+ok 10 - factura A: si el neto no coincide con la base del IVA no se imprime un detalle que no cierra
+  ---
+  duration_ms: 0.541137
+  type: 'test'
+  ...
+# Subtest: sin los datos fiscales del negocio no hay PDF y el aviso dice qué falta y dónde cargarlo
+ok 11 - sin los datos fiscales del negocio no hay PDF y el aviso dice qué falta y dónde cargarlo
+  ---
+  duration_ms: 0.502977
+  type: 'test'
+  ...
+# Subtest: un CUIT del negocio con el dígito verificador mal no imprime
+ok 12 - un CUIT del negocio con el dígito verificador mal no imprime
+  ---
+  duration_ms: 0.262285
+  type: 'test'
+  ...
+# Subtest: sin CAE no hay PDF: ni pendiente ni rechazado
+ok 13 - sin CAE no hay PDF: ni pendiente ni rechazado
+  ---
+  duration_ms: 0.220646
+  type: 'test'
+  ...
+# Subtest: si la letra no cuadra con la condición del negocio de hoy, no reimprime un dato falso
+ok 14 - si la letra no cuadra con la condición del negocio de hoy, no reimprime un dato falso
+  ---
+  duration_ms: 0.130919
+  type: 'test'
+  ...
+# Subtest: un comprobante A sin CUIT ni domicilio del cliente no se imprime
+ok 15 - un comprobante A sin CUIT ni domicilio del cliente no se imprime
+  ---
+  duration_ms: 0.299855
+  type: 'test'
+  ...
+# Subtest: un tipo de comprobante que no sabe imprimir (Factura de Crédito MiPyME) no genera
+ok 16 - un tipo de comprobante que no sabe imprimir (Factura de Crédito MiPyME) no genera
+  ---
+  duration_ms: 0.11179
+  type: 'test'
+  ...
+# Subtest: en modo de prueba de ARCA la hoja advierte que no tiene validez fiscal
+ok 17 - en modo de prueba de ARCA la hoja advierte que no tiene validez fiscal
+  ---
+  duration_ms: 68.35982
+  type: 'test'
+  ...
+# Subtest: con muchos renglones sigue en otra hoja sin perder ninguno, y el QR va en la última
+ok 18 - con muchos renglones sigue en otra hoja sin perder ninguno, y el QR va en la última
+  ---
+  duration_ms: 52.894308
+  type: 'test'
+  ...
+# Subtest: un nombre con caracteres que la fuente no tiene no rompe el PDF
+ok 19 - un nombre con caracteres que la fuente no tiene no rompe el PDF
+  ---
+  duration_ms: 31.803755
+  type: 'test'
+  ...
+# Subtest: la plata se escribe en pesos argentinos con el redondeo de src/lib/dinero
+ok 20 - la plata se escribe en pesos argentinos con el redondeo de src/lib/dinero
+  ---
+  duration_ms: 0.270606
+  type: 'test'
+  ...
+# Subtest: CUIT: once números con dígito verificador
+ok 21 - CUIT: once números con dígito verificador
+  ---
+  duration_ms: 0.099948
+  type: 'test'
+  ...
+# Subtest: la vista y la descarga exigen la app de facturación y el permiso de facturar antes de leer
+ok 22 - la vista y la descarga exigen la app de facturación y el permiso de facturar antes de leer
+  ---
+  duration_ms: 0.421967
+  type: 'test'
+  ...
+# Subtest: factura A a un monotributista: el PDF lleva la leyenda de la RG 5003/2021 con el texto del motor fiscal
+ok 23 - factura A a un monotributista: el PDF lleva la leyenda de la RG 5003/2021 con el texto del motor fiscal
+  ---
+  duration_ms: 69.175297
+  type: 'test'
+  ...
+# Subtest: factura A a un responsable inscripto y factura B: no llevan la leyenda de la RG 5003/2021
+ok 24 - factura A a un responsable inscripto y factura B: no llevan la leyenda de la RG 5003/2021
+  ---
+  duration_ms: 67.386936
+  type: 'test'
+  ...
+# Subtest: la vista y el PDF toman las leyendas de la A del motor fiscal, no de una copia
+ok 25 - la vista y el PDF toman las leyendas de la A del motor fiscal, no de una copia
+  ---
+  duration_ms: 0.585645
+  type: 'test'
+  ...
+# Subtest: si el cliente figura hoy con una condición que la letra no admite (RG 5616), no se reimprime
+ok 26 - si el cliente figura hoy con una condición que la letra no admite (RG 5616), no se reimprime
+  ---
+  duration_ms: 0.547596
+  type: 'test'
+  ...
+# Subtest: la marca de «sin validez fiscal» sale del ambiente en que ARCA autorizó, no sólo de la ficha del negocio
+ok 27 - la marca de «sin validez fiscal» sale del ambiente en que ARCA autorizó, no sólo de la ficha del negocio
+  ---
+  duration_ms: 0.25084
+  type: 'test'
+  ...
+# Subtest: autorizado antes del último cambio entre prueba y real: no se sabe en cuál fue, así que no se imprime
+ok 28 - autorizado antes del último cambio entre prueba y real: no se sabe en cuál fue, así que no se imprime
+  ---
+  duration_ms: 0.226929
+  type: 'test'
+  ...
+# Subtest: en modo de prueba el pie no dice que ARCA lo autorizó ni invita a verificarlo con el QR
+ok 29 - en modo de prueba el pie no dice que ARCA lo autorizó ni invita a verificarlo con el QR
+  ---
+  duration_ms: 63.674901
+  type: 'test'
+  ...
+1..29
+# tests 29
+# suites 0
+# pass 29
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1537.898283

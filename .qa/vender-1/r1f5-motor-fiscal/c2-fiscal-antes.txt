@@ -1,0 +1,138 @@
+TAP version 13
+# {"ts":"2026-09-25T21:36:48.619Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"beauty-spa","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T21:36:48.623Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"beauty-spa","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T21:36:48.624Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"t","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T21:36:48.625Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"t","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T21:36:48.626Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"t","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T21:36:48.627Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"t","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T21:36:48.627Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"t","condicionIva":"MONOTRIBUTO"}
+# Subtest: getFiscalProfile: lee CUIT y punto de venta del tenant (no el placeholder)
+ok 1 - getFiscalProfile: lee CUIT y punto de venta del tenant (no el placeholder)
+  ---
+  duration_ms: 2.514483
+  type: 'test'
+  ...
+# Subtest: getFiscalProfile: tenant sin CUIT LANZA (no emite con datos inventados)
+ok 2 - getFiscalProfile: tenant sin CUIT LANZA (no emite con datos inventados)
+  ---
+  duration_ms: 0.724325
+  type: 'test'
+  ...
+# Subtest: getFiscalProfile: CUIT vacío o en blanco también LANZA
+ok 3 - getFiscalProfile: CUIT vacío o en blanco también LANZA
+  ---
+  duration_ms: 0.21299
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: el viejo CUIT placeholder 20000000000 se rechaza por nombre
+ok 4 - construirPerfilFiscal: el viejo CUIT placeholder 20000000000 se rechaza por nombre
+  ---
+  duration_ms: 0.164199
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: CUIT con dígito verificador mal LANZA
+ok 5 - construirPerfilFiscal: CUIT con dígito verificador mal LANZA
+  ---
+  duration_ms: 0.164906
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: tenant inexistente LANZA
+ok 6 - construirPerfilFiscal: tenant inexistente LANZA
+  ---
+  duration_ms: 0.724335
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: sin punto de venta (o inválido) LANZA
+ok 7 - construirPerfilFiscal: sin punto de venta (o inválido) LANZA
+  ---
+  duration_ms: 0.394075
+  type: 'test'
+  ...
+# Subtest: getFiscalProfile: dos tenants distintos obtienen perfiles distintos
+ok 8 - getFiscalProfile: dos tenants distintos obtienen perfiles distintos
+  ---
+  duration_ms: 0.408136
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: homologacion refleja arcaHomologacion del tenant
+ok 9 - construirPerfilFiscal: homologacion refleja arcaHomologacion del tenant
+  ---
+  duration_ms: 0.503477
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: sin condición de IVA en HOMOLOGACIÓN asume el default y lo marca
+ok 10 - construirPerfilFiscal: sin condición de IVA en HOMOLOGACIÓN asume el default y lo marca
+  ---
+  duration_ms: 0.552397
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: sin condición de IVA en PRODUCCIÓN LANZA (no asume Monotributo)
+ok 11 - construirPerfilFiscal: sin condición de IVA en PRODUCCIÓN LANZA (no asume Monotributo)
+  ---
+  duration_ms: 0.237285
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: condición de IVA cargada gana y no queda marcada como asumida
+ok 12 - construirPerfilFiscal: condición de IVA cargada gana y no queda marcada como asumida
+  ---
+  duration_ms: 0.203724
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: condición de IVA desconocida LANZA (no cae al default)
+ok 13 - construirPerfilFiscal: condición de IVA desconocida LANZA (no cae al default)
+  ---
+  duration_ms: 0.151955
+  type: 'test'
+  ...
+# Subtest: calcularImpuestos: Monotributo asumido sobre un Responsable Inscripto pierde el IVA
+ok 14 - calcularImpuestos: Monotributo asumido sobre un Responsable Inscripto pierde el IVA
+  ---
+  duration_ms: 0.289829
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: tolera el CUIT con guiones y espacios
+ok 15 - construirPerfilFiscal: tolera el CUIT con guiones y espacios
+  ---
+  duration_ms: 0.536987
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: un negocio cargado como consumidor final no emite (lanza con el dato a corregir)
+ok 16 - construirPerfilFiscal: un negocio cargado como consumidor final no emite (lanza con el dato a corregir)
+  ---
+  duration_ms: 0.222293
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: el inscripto lleva la clase A que le asignó ARCA (RG 1575); sin dato, null y la A va a revisión
+not ok 17 - construirPerfilFiscal: el inscripto lleva la clase A que le asignó ARCA (RG 1575); sin dato, null y la A va a revisión
+  ---
+  duration_ms: 2.648781
+  type: 'test'
+  location: '/home/user/erp/src/lib/fiscal.test.ts:2:7650'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    undefined !== 'A'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'A'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/fiscal.test.ts:215:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 16
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 593.078141

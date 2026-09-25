@@ -19,6 +19,7 @@ import { enInicioPorApps } from "@/app/admin/(dashboard)/inicio/piloto";
 import { getLocation } from "@/lib/settings";
 import { nextBusinessDays } from "@/lib/datetime";
 import type { BookingData } from "@/app/(site)/_ch/types";
+import { cambiosDeFicha, validarFichaFiscal } from "@/lib/fiscal/ficha-fiscal";
 
 // Es un endpoint PÚBLICO ("use server" + lo llama la página del turno, sin sesión): quien
 // tenga el link del turno lo puede invocar. Por eso NO trae la ficha de la clienta —notas,
@@ -376,4 +377,51 @@ export async function crearFicha(
   await auditAdmin({ action: "create", entity: "Client", entityId: id, changes: { name, phone, pedidosVinculados: pedidos } });
   revalidatePath("/admin/clientes");
   return { ok: true, id, pedidos: pedidos.length };
+}
+
+// ============================================================================
+// FICHA FISCAL DEL CLIENTE (R1-F5) — lo que copia su factura y decide la letra.
+// ============================================================================
+//
+// Guarda documento, razón social, condición frente al IVA y domicilio de UNA ficha, validados
+// sin inventar nada (`validarFichaFiscal`, src/lib/fiscal/ficha-fiscal.ts). Es una acción aparte
+// de `updateClient` a propósito: el formulario de siempre (nombre, teléfono, cumpleaños) no cambia
+// en nada, y lo fiscal se audita campo por campo con su valor anterior al lado. El negocio sale de
+// la sesión (RLS + candado de la transacción): el id de una ficha ajena da "no existe".
+const SELECT_FICHA_FISCAL = { docTipo: true, docNro: true, razonSocial: true, condicionIva: true, domicilio: true } as const;
+
+export async function guardarFichaFiscal(formData: FormData): Promise<ResultadoAccion> {
+  await requireCapability("clients:manage");
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { ok: false, error: "Falta indicar qué cliente se edita." };
+
+  const campo = (clave: string) => {
+    const v = formData.get(clave);
+    return typeof v === "string" ? v : null;
+  };
+  const v = validarFichaFiscal({
+    docTipo: campo("docTipo"),
+    docNro: campo("docNro"),
+    razonSocial: campo("razonSocial"),
+    condicionIva: campo("condicionIva"),
+    domicilio: campo("domicilio"),
+  });
+  if (!v.ok) return { ok: false, error: v.error };
+
+  // Leer y escribir en la misma transacción: el valor anterior que queda en la auditoría es el
+  // que se pisó, aunque dos personas guarden la misma ficha a la vez.
+  const cambios = await tenantTransaction(async (tx) => {
+    const antes = await tx.client.findFirst({ where: { id }, select: SELECT_FICHA_FISCAL });
+    if (!antes) return null;
+    const diferencias = cambiosDeFicha(antes, v.ficha);
+    if (Object.keys(diferencias).length > 0) await tx.client.update({ where: { id }, data: v.ficha });
+    return diferencias;
+  });
+  if (!cambios) return { ok: false, error: "Esa ficha de cliente no existe." };
+  if (Object.keys(cambios).length === 0) return { ok: true };
+
+  await auditAdmin({ action: "update", entity: "Client", entityId: id, changes: cambios });
+  revalidatePath(`/admin/clientes/${id}`);
+  revalidatePath("/admin/clientes");
+  return { ok: true };
 }

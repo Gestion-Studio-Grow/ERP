@@ -1,0 +1,7 @@
+## base vacía r0f1_vacia (postgres local 5433) · 2026-09-25T19:34:36+00:00
+migrate deploy: All migrations have been successfully applied.
+47 migraciones; últimas en orden: 20260911120000_profesional_cobra_en_mostrador -> 20260925120000_lanzamiento_base -> 20260925150000_comprobante_autorizado_inmutable
+## drift schema.prisma vs migraciones (prisma migrate diff --from-config-datasource --to-schema):
+-- AlterTable
+ALTER TABLE "Client" ALTER COLUMN "phone" SET NOT NULL;
+(única diferencia, a propósito: la base ya acepta Client.phone NULL; el schema lo afloja el frente del importador, sin migración nueva)

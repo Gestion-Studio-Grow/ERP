@@ -1,0 +1,7 @@
+erp_lab / magra (cmrhv1kwk0018ww7dsn4r2df2) al empezar: plan=sin plan · 9 módulos · perfil lite
+tablas con tenantId: 56 · filas del negocio: 4716
+FALLA sin plan → comerciante: {"tipo":"sin-vista-previa","motivo":"Tiene 3 locales vinculados a su red y el plan Comerciante no lo trae. Primero dalos de baja en «Red de locales» (en esta ficha) y después cambiá el plan."}
+OK    magra quedó como estaba al empezar
+OK    ninguna tabla de magra ganó ni perdió filas en todo el recorrido
+auditoría: 0 cambios de plan registrados con el actor operator:qa-r2f4-lab (acumulado de corridas)
+RESULTADO: 1 falla(s)

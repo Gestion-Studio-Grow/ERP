@@ -14,6 +14,12 @@ import { auditAdmin } from "@/lib/audit-core";
 import { hashPassword } from "@/lib/auth-password";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { MIN_PASSWORD_LENGTH, validarAltaDeUsuario } from "@/app/admin/(dashboard)/usuarios/alta-usuario";
+import {
+  crearUsuarioSiEntra,
+  DESTINO_SIN_LUGAR_USUARIOS,
+  reactivarUsuarioSiEntra,
+  type ResultadoAltaDeUsuario,
+} from "@/lib/usuarios-del-plan";
 
 const USERS_PATH = "/admin/usuarios";
 
@@ -62,16 +68,17 @@ export async function createUser(formData: FormData) {
   if (existing) backWith("error_email_taken");
 
   const passwordHash = await hashPassword(password);
-  let created: { id: string };
+  // Tope de usuarios del plan (R3-F3): se cuenta y se crea en la misma transacción, con candado.
+  // Sin plan del catálogo, o en CH, no hay tope. Quien choca va a "Tu plan", que dice el porqué.
+  let resultado: ResultadoAltaDeUsuario;
   try {
-    created = await prisma.user.create({
-      data: { tenantId, name, email, role, passwordHash },
-      select: { id: true },
-    });
+    resultado = await crearUsuarioSiEntra({ data: { tenantId, name, email, role, passwordHash } });
   } catch {
     // P2002 u otro conflicto de unicidad que se coló entre el chequeo y el create.
     backWith("error_email_taken");
   }
+  if (!resultado.ok) redirect(DESTINO_SIN_LUGAR_USUARIOS);
+  const created = { id: resultado.id };
 
   await auditAdmin({
     action: "create",
@@ -105,7 +112,13 @@ export async function setUserActive(formData: FormData) {
     if (activeOwners <= 1) backWith("error_last_owner");
   }
 
-  await prisma.user.update({ where: { id: userId }, data: { active } });
+  if (active && !target.active) {
+    // Reactivar suma un usuario activo: mismo tope del plan que el alta (R3-F3).
+    const d = await reactivarUsuarioSiEntra(tenantId, userId);
+    if (!d.ok) redirect(DESTINO_SIN_LUGAR_USUARIOS);
+  } else {
+    await prisma.user.update({ where: { id: userId }, data: { active } });
+  }
   await auditAdmin({
     action: active ? "reactivate" : "deactivate",
     entity: "User",

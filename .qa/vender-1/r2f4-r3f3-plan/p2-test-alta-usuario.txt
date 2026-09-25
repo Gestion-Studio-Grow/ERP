@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: negocio de mostrador: Profesional se rechaza (aunque llegue por un POST a mano); Dueño y Mostrador pasan
+ok 1 - negocio de mostrador: Profesional se rechaza (aunque llegue por un POST a mano); Dueño y Mostrador pasan
+  ---
+  duration_ms: 40.098962
+  type: 'test'
+  ...
+# Subtest: CH (servicios): se admiten los tres roles, como siempre
+ok 2 - CH (servicios): se admiten los tres roles, como siempre
+  ---
+  duration_ms: 0.374375
+  type: 'test'
+  ...
+# Subtest: lo que acepta el servidor es exactamente lo que ofrece la pantalla, en los dos tipos de negocio
+ok 3 - lo que acepta el servidor es exactamente lo que ofrece la pantalla, en los dos tipos de negocio
+  ---
+  duration_ms: 0.560801
+  type: 'test'
+  ...
+# Subtest: los demás rechazos, con el aviso que muestra la pantalla
+ok 4 - los demás rechazos, con el aviso que muestra la pantalla
+  ---
+  duration_ms: 0.273377
+  type: 'test'
+  ...
+# Subtest: createUser decide con validarAltaDeUsuario y el negocio de la sesión, y da de alta con lo que devuelve
+ok 5 - createUser decide con validarAltaDeUsuario y el negocio de la sesión, y da de alta con lo que devuelve
+  ---
+  duration_ms: 0.468854
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 392.435055

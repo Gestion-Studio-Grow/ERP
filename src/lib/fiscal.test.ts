@@ -189,3 +189,36 @@ test("construirPerfilFiscal: tolera el CUIT con guiones y espacios", () => {
     assert.equal(perfil.cuit, 20304050609, `debería normalizar "${crudo}"`);
   }
 });
+
+test("construirPerfilFiscal: un negocio cargado como consumidor final no emite (lanza con el dato a corregir)", () => {
+  assert.throws(
+    () =>
+      construirPerfilFiscal("t-cf", {
+        arcaCuit: "30712345671",
+        arcaPuntoVenta: 1,
+        arcaHomologacion: true,
+        arcaCondicionIva: "CONSUMIDOR_FINAL",
+      }),
+    (e: unknown) =>
+      e instanceof Error &&
+      e.name === "PerfilFiscalIncompletoError" &&
+      (e as Error & { campo?: string }).campo === "condicionIva" &&
+      /consumidor final no emite facturas/.test(e.message),
+  );
+});
+
+// Refutación r1f5 (1): el perfil del negocio no llevaba la clase A (RG 1575), así que ninguna A
+// salía por el camino del producto. El perfil la lleva tal cual; la valida la decisión única.
+test("construirPerfilFiscal: el inscripto lleva la clase A que le asignó ARCA (RG 1575); sin dato, null y la A va a revisión", () => {
+  const ri = (arcaRegimenFacturaA?: string | null) =>
+    construirPerfilFiscal("t", registro({ arcaCondicionIva: "RESPONSABLE_INSCRIPTO", arcaRegimenFacturaA }));
+  assert.equal(ri("A").regimenFacturaA, "A");
+  assert.equal(ri(" M ").regimenFacturaA, "M");
+  assert.equal(ri("A_CON_LEYENDA").regimenFacturaA, "A_CON_LEYENDA");
+  assert.equal(ri(null).regimenFacturaA, null);
+  assert.equal(ri(undefined).regimenFacturaA, null);
+  assert.equal(ri("  ").regimenFacturaA, null);
+  // Un monotributo (o el asumido de homologación) no emite A: el dato no pesa.
+  assert.equal(construirPerfilFiscal("t", registro({ arcaCondicionIva: "MONOTRIBUTO", arcaRegimenFacturaA: "A" })).regimenFacturaA, null);
+  assert.equal(construirPerfilFiscal("t", registro({ arcaRegimenFacturaA: "A" })).regimenFacturaA, null);
+});

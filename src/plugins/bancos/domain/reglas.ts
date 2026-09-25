@@ -47,6 +47,30 @@ export interface ConfigBancos {
 }
 
 /** Completa la config parcial del tenant con los defaults del producto. */
+/**
+ * El tope mensual de facturas automáticas que vale para un negocio (R3-F3).
+ *
+ * Con plan del catálogo manda el plan (`limitesDelNegocio(...).topes.facturasAutomaticasMes`, con
+ * la excepción que haya puesto GSG desde la consola). La columna `Tenant.bancosCapFacturasMes` la
+ * escribe el propio negocio desde su panel (/admin/facturacion/bancos/configuracion), así que sólo
+ * puede BAJAR ese tope, nunca subirlo: vale el menor de los dos. Para dar más, GSG carga una
+ * excepción en la consola, que el panel no puede forjar.
+ * Un plan o una excepción "sin tope" (`null`) no deja el automático sin freno: usa `topeMaximo`.
+ * Sin plan del catálogo (o CH), como siempre: la columna si tiene un valor válido, si no el default.
+ * `delPlan` `undefined` = no se leyó el plan: se trata como sin plan.
+ * Sólo frena lo automático: la factura a mano sigue.
+ */
+export function capFacturasMesEfectivo(
+  columna: number | null | undefined,
+  delPlan: { valor: number | null; origen: "plan" | "excepcion" | "sin-plan" } | undefined,
+  topeMaximo: number,
+): number {
+  const columnaValida = typeof columna === "number" && Number.isInteger(columna) && columna >= 0 ? columna : null;
+  if (!delPlan || delPlan.origen === "sin-plan") return columnaValida ?? CAP_FACTURAS_MES_DEFAULT;
+  const topeDelPlan = delPlan.valor === null ? topeMaximo : delPlan.valor;
+  return columnaValida === null ? topeDelPlan : Math.min(columnaValida, topeDelPlan);
+}
+
 export function configConDefaults(parcial: Partial<ConfigBancos> = {}): ConfigBancos {
   return {
     umbralIdentificacion: parcial.umbralIdentificacion ?? UMBRAL_IDENTIFICACION_DEFAULT,

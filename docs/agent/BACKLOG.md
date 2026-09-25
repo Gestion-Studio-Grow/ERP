@@ -30,6 +30,78 @@ se lo referencia y sólo se agregan los criterios del estándar que le faltan.
 
 ---
 
+## L. Lanzamiento, tandas R0 a R3: estado de los frentes de la corrida «vender-1» (2026-09-25)
+
+Integración hecha en el árbol compartido, sin commit y sin deploy. Verificación de la integración:
+`.qa/vender-1/integracion/` (tsc 0 errores, eslint 0 sobre lo tocado, suite completa: ver HEALTH §0).
+Nada de esto está aplicado en Neon.
+
+- **R0-F1 · Migración de lanzamiento `20260925120000_lanzamiento_base`** · **construida y probada en
+  local; sin aplicar en Neon (dueño).** Evidencia: `.qa/vender-1/r0f1-migracion/` (tests nuevos 9/9
+  contra la migración real, 3 rojos con la política aflojada, los 5 ataques cruzados del refutador
+  frenados). Queda:
+  - `prisma/schema.prisma:637` dice `phone String` y la base ya lo acepta nulo. Lo cambia el frente
+    del importador de clientes (tipo opcional y sus usos). Hasta entonces **nadie corre
+    `prisma migrate dev`**: generaría `ALTER COLUMN "phone" SET NOT NULL`.
+  - Lote de producción (cuando el dueño lo pida): sumar `20260925120000_lanzamiento_base` y
+    `20260925150000_comprobante_autorizado_inmutable` a `prisma/lote-deploy.txt`, correr
+    `node scripts/ensayo-lote-neon.mjs` y aplicar `.qa/vender-1/r0f1-migracion/0001-cabecera-propuesta.diff`
+    a la vez en `prisma/rls/0001_enable_rls.sql` y en los dos `2-rls-despues-del-lote.sql` de
+    `docs/runbooks/` (tienen que quedar idénticos: `src/lib/ensayo-lote-neon.test.ts:14-28`).
+  - `vendor/xlsx-0.20.3.tgz`: cdn.sheetjs.com bloqueado en este entorno; los 4 tests de XLSX siguen
+    en rojo con el stub local (ENG-120).
+  - Cuando exista el alta de conexiones de integraciones (hoy nadie escribe `IntegracionConexion`):
+    traducir el P2002 de `IntegracionConexion_conector_cuentaExterna_key` a «esa cuenta ya está
+    vinculada a otro negocio», sin mostrar la llave ni el negocio.
+  - ADR-103 registrado en `docs/adr/INDEX.md` y `docs/adr/graph.json` (integración).
+- **R1-F5 · Motor fiscal (ficha del cliente, IVA por alícuota, letra)** · **integrado en Ventas y en la
+  emisión de órdenes.** `src/lib/order-actions.ts` (facturar venta) le pasa a `puedeFacturarVenta` la
+  ficha del cliente, los renglones con su alícuota y el día; `src/lib/invoice-from-order.ts`
+  (`armarFacturaDeLaOrden`) emite con las mismas funciones. Monotributo y exento (CH): el pedido a
+  ARCA es idéntico al de antes (test). Evidencia: `.qa/vender-1/r1f5-motor-fiscal/` y
+  `.qa/vender-1/integracion/invoice-from-order-*.txt` (código viejo: 4 de 6 en rojo; nuevo: 6 de 6).
+  Sin la alícuota de cada producto, la orden automática sale como antes y el plugin la deja
+  RECHAZADA con el motivo (ENG-024 sigue verde). Queda:
+  - Camino automático (API externa) de un inscripto al que le falta la ficha o la clase A: no crea
+    factura y sólo deja un aviso en el log (`invoice-from-order.ts`, `armarFacturaDeLaOrden`); falta
+    que el motivo quede a la vista del negocio sin abrir Ventas.
+  - **Migración estacionada (dueño):** `Tenant.arcaRegimenFacturaA TEXT NULL CHECK IN ('A','A_CON_LEYENDA','M')`,
+    aditiva, reversa `DROP COLUMN`; después la lee `src/lib/fiscal.ts:~247` y la carga la pantalla
+    Datos fiscales (R4-F4). Sin ella ningún inscripto emite A: la venta dice por qué y no se pide CAE.
+  - `src/lib/invoice-core.ts:52` (emisor con `regimenFacturaA` tipado) y `src/lib/arca-dispatch.ts:168-181`
+    (copiarlo al evento): hoy se descarta; sin la columna no cambia nada, con la columna la A iría a
+    revisión en vez de salir.
+  - `src/lib/invoice-core.ts:48-62`: exento (ImpOpEx) y no gravado (ImpTotConc) en `CreateInvoiceInput`.
+  - R4-F4: enlazar la ficha fiscal del cliente (`clientes/[id]/fiscal`, hoy sin enlace; 404 fuera de
+    inscriptos, CH incluido).
+  - Texto del backlog R1-F5 «a un monotributista, B»: la norma y el código dicen A (lo corrige el dueño).
+- **R2-F4 + R3-F3 · Plan del negocio y uso del plan** · **integrado.** Los dos endpoints de
+  `src/lib/operador/plan-actions.ts` y `operator-actions.ts#cambiarFacturacionReal` quedaron en el
+  trinquete `guardia-negocio.test.ts` (6/6). El tope de facturas automáticas del plan ahora frena la
+  emisión: `bancos-glue.ts` (`kpisFacturacionBancaria`, `emitirPropuestas`), `bancos-actions.ts`
+  (`procesarYPersistir`) y `mercadopago-auto.ts` (`crearEntornoReal`) usan
+  `capFacturasMesDelNegocioEnTx`, movido a `src/lib/limites-del-negocio-en-tx.ts` para que
+  bancos-glue no arme un ciclo con uso-del-plan. Evidencia: `.qa/vender-1/r2f4-r3f3-plan/` y
+  `.qa/vender-1/integracion/tope-del-plan-*.txt` (regla vieja: Micro con 100.000 en la columna daba
+  100.000; nueva: 159 del plan, 0 con la excepción de GSG; sin plan: la columna o 159). Queda:
+  - Sólo pantalla: `facturacion/bancos/configuracion/page.tsx:65` y la cartera del contador
+    (`cartera-actions.ts:268`, `cartera-core.ts:358`) muestran la columna, no el tope del plan.
+  - `emitirPropuestas` no tiene test de punta a punta con el tope (usa el mismo helper que el test de KPIs).
+  - magra (3 locales vinculados) no puede bajar de PyME: sólo PyME trae «Mis locales». El criterio
+    «magra pasa de Micro a PyME y vuelve» no se cumple tal como está: decide el dueño.
+  - QA clic por clic en el lab: sin `next dev`/`build` en esta corrida.
+- **R2-F5 · Pase a facturación real** · **construido.** Evidencia: `.qa/vender-1/r2f5-pase-a-real/`
+  (11/11 unitarios, 10/10 contra Postgres con RLS). Queda: QA clic por clic en el lab.
+- **R3-F1 · Comprobante PDF con QR de ARCA** · **construido.** Evidencia:
+  `.qa/vender-1/r3f1-comprobante-pdf/` (32/32, muestras PDF y PNG). Queda:
+  - **Migración estacionada (dueño):** guardar en `Invoice`, al autorizar, el ambiente de ARCA, la
+    condición informada (CondicionIVAReceptorId) y nombre y domicilio del receptor. Sin eso, una
+    reimpresión usa la condición de hoy del cliente.
+  - Vista a 412 px sin medir; «condición de venta» en el impreso: no verificable (la RG 1415 no se
+    pudo abrir desde este entorno).
+
+---
+
 ## 0. Habilitante (va primero)
 
 ### ENG-000 · Arnés de integración: Postgres efímero en `npm test` y en CI · M · **CONSTRUIDO 2026-09-25, falta el criterio 1 en CI**

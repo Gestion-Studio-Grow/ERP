@@ -1,0 +1,5 @@
+botón: Guardar datos para facturar
+url después: /admin/clientes/cmryy6n9b006cww7dcjr3703c/fiscal
+texto: Saltar al contenido M MAGRA Mostrador Caja Locales Clientes Catálogo Stock Compras Facturas Números Configuración ¿Qué querés hacer? Ctrl K MA Martín Aguirre Dueño/a Clientes Para contactar hoy Clientes por recuperar Campañas Unificar fichas duplicadas Vender F1 ← Volver a la ficha Datos para facturar a Maximiliano Villalba Con estos datos el sistema decide la letra de la factura: A a responsables
+recargado: 20304050609 | Villalba Maximiliano (prueba)
+errores de consola: 0 []

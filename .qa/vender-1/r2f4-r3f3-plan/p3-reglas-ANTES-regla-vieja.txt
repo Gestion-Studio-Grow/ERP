@@ -1,0 +1,170 @@
+TAP version 13
+# Subtest: configConDefaults completa los valores del producto
+ok 1 - configConDefaults completa los valores del producto
+  ---
+  duration_ms: 1.180808
+  type: 'test'
+  ...
+# Subtest: monto menor al umbral → AUTO consumidor final genérico, sin descripción
+ok 2 - monto menor al umbral → AUTO consumidor final genérico, sin descripción
+  ---
+  duration_ms: 1.00091
+  type: 'test'
+  ...
+# Subtest: monto IGUAL al umbral va a revisión (el límite es estricto)
+ok 3 - monto IGUAL al umbral va a revisión (el límite es estricto)
+  ---
+  duration_ms: 21.032737
+  type: 'test'
+  ...
+# Subtest: monto mayor al umbral → revisión con identificación obligatoria
+ok 4 - monto mayor al umbral → revisión con identificación obligatoria
+  ---
+  duration_ms: 0.493686
+  type: 'test'
+  ...
+# Subtest: al 90% del cap se alerta pero se sigue emitiendo
+ok 5 - al 90% del cap se alerta pero se sigue emitiendo
+  ---
+  duration_ms: 1.857722
+  type: 'test'
+  ...
+# Subtest: al 100% del cap se bloquea la emisión automática (baja a revisión)
+ok 6 - al 100% del cap se bloquea la emisión automática (baja a revisión)
+  ---
+  duration_ms: 0.83701
+  type: 'test'
+  ...
+# Subtest: con el cap ya agotado, ninguna auto pasa
+ok 7 - con el cap ya agotado, ninguna auto pasa
+  ---
+  duration_ms: 0.506891
+  type: 'test'
+  ...
+# Subtest: las revisiones y no facturables no consumen cap
+ok 8 - las revisiones y no facturables no consumen cap
+  ---
+  duration_ms: 0.750331
+  type: 'test'
+  ...
+# Subtest: el mismo movimiento repetido en el archivo se descarta
+ok 9 - el mismo movimiento repetido en el archivo se descarta
+  ---
+  duration_ms: 0.489323
+  type: 'test'
+  ...
+# Subtest: un movimiento ya procesado en otra importación se descarta
+ok 10 - un movimiento ya procesado en otra importación se descarta
+  ---
+  duration_ms: 0.558057
+  type: 'test'
+  ...
+# Subtest: cruce banco↔MP: mismo monto y fecha ya facturado por MP → revisión
+ok 11 - cruce banco↔MP: mismo monto y fecha ya facturado por MP → revisión
+  ---
+  duration_ms: 0.622745
+  type: 'test'
+  ...
+# Subtest: cruce banco↔MP: distinto monto o fecha no molesta
+ok 12 - cruce banco↔MP: distinto monto o fecha no molesta
+  ---
+  duration_ms: 0.289869
+  type: 'test'
+  ...
+# Subtest: NO_FACTURABLE y REVISAR del clasificador se respetan con su motivo
+ok 13 - NO_FACTURABLE y REVISAR del clasificador se respetan con su motivo
+  ---
+  duration_ms: 0.311846
+  type: 'test'
+  ...
+# Subtest: el monto de la propuesta es el valor absoluto (IVA incluido, lo desglosa el Core)
+ok 14 - el monto de la propuesta es el valor absoluto (IVA incluido, lo desglosa el Core)
+  ---
+  duration_ms: 0.207612
+  type: 'test'
+  ...
+# Subtest: R3-F3: la columna del negocio puede bajar el tope del plan
+ok 15 - R3-F3: la columna del negocio puede bajar el tope del plan
+  ---
+  duration_ms: 0.629542
+  type: 'test'
+  ...
+# Subtest: R3-F3: un negocio Micro que carga 100.000 en su panel sigue frenado por el tope de su plan
+not ok 16 - R3-F3: un negocio Micro que carga 100.000 en su panel sigue frenado por el tope de su plan
+  ---
+  duration_ms: 3.575831
+  type: 'test'
+  location: '/home/user/erp/src/plugins/bancos/domain/reglas.test.ts:2:8804'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    100000 !== 159
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 159
+  actual: 100000
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/plugins/bancos/domain/reglas.test.ts:239:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: R3-F3: para dar más que el plan hace falta la excepción de GSG; la columna igual puede bajarla
+not ok 17 - R3-F3: para dar más que el plan hace falta la excepción de GSG; la columna igual puede bajarla
+  ---
+  duration_ms: 0.526561
+  type: 'test'
+  location: '/home/user/erp/src/plugins/bancos/domain/reglas.test.ts:2:9358'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    100000 !== 500
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 500
+  actual: 100000
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/plugins/bancos/domain/reglas.test.ts:245:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: R3-F3: con la columna vacía vale el tope del plan
+ok 18 - R3-F3: con la columna vacía vale el tope del plan
+  ---
+  duration_ms: 0.150964
+  type: 'test'
+  ...
+# Subtest: R3-F3: sin plan del catálogo (o en CH) queda el tope de siempre
+ok 19 - R3-F3: sin plan del catálogo (o en CH) queda el tope de siempre
+  ---
+  duration_ms: 0.162695
+  type: 'test'
+  ...
+# Subtest: R3-F3: «sin tope» no deja el automático sin freno y un valor inválido en la columna se ignora
+ok 20 - R3-F3: «sin tope» no deja el automático sin freno y un valor inválido en la columna se ignora
+  ---
+  duration_ms: 0.147541
+  type: 'test'
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 18
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 519.42636

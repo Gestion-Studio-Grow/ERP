@@ -1,0 +1,204 @@
+TAP version 13
+# (node:17248) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+# (Use `node --trace-deprecation ...` to show where the warning was created)
+# Subtest: sólo el negocio dueño lee su comprobante: el de otro negocio no existe para él (RLS + tenantId)
+ok 1 - sólo el negocio dueño lee su comprobante: el de otro negocio no existe para él (RLS + tenantId)
+  ---
+  duration_ms: 3073.963043
+  type: 'test'
+  ...
+# Subtest: el detalle impreso siempre suma el total autorizado
+ok 2 - el detalle impreso siempre suma el total autorizado
+  ---
+  duration_ms: 54.215038
+  type: 'test'
+  ...
+# Subtest: la marca de prueba sale del ambiente de ARCA, y lo autorizado antes de que el negocio cambie de ambiente no se imprime
+ok 3 - la marca de prueba sale del ambiente de ARCA, y lo autorizado antes de que el negocio cambie de ambiente no se imprime
+  ---
+  duration_ms: 121.856987
+  type: 'test'
+  ...
+# Subtest: el QR impreso se lee como la URL de urlQrAfip y su payload trae los datos del comprobante
+ok 4 - el QR impreso se lee como la URL de urlQrAfip y su payload trae los datos del comprobante
+  ---
+  duration_ms: 229.275751
+  type: 'test'
+  ...
+# Subtest: el QR de un comprobante A lleva el CUIT del cliente
+ok 5 - el QR de un comprobante A lleva el CUIT del cliente
+  ---
+  duration_ms: 102.490584
+  type: 'test'
+  ...
+# Subtest: el lector de QR no es un eco: con un módulo de datos cambiado, no lee
+ok 6 - el lector de QR no es un eco: con un módulo de datos cambiado, no lee
+  ---
+  duration_ms: 62.305463
+  type: 'test'
+  ...
+# Subtest: el PDF lleva emisor, receptor, número, fecha, CAE y su vencimiento
+ok 7 - el PDF lleva emisor, receptor, número, fecha, CAE y su vencimiento
+  ---
+  duration_ms: 42.951301
+  type: 'test'
+  ...
+# Subtest: factura B: lleva la leyenda de la Ley 27.743 con el IVA contenido y los otros impuestos
+ok 8 - factura B: lleva la leyenda de la Ley 27.743 con el IVA contenido y los otros impuestos
+  ---
+  duration_ms: 36.879736
+  type: 'test'
+  ...
+# Subtest: nota de crédito B: también lleva la leyenda y el comprobante que anula
+ok 9 - nota de crédito B: también lleva la leyenda y el comprobante que anula
+  ---
+  duration_ms: 33.795682
+  type: 'test'
+  ...
+# Subtest: factura C y factura A: no llevan la leyenda de la Ley 27.743; la A discrimina el IVA
+ok 10 - factura C y factura A: no llevan la leyenda de la Ley 27.743; la A discrimina el IVA
+  ---
+  duration_ms: 72.457699
+  type: 'test'
+  ...
+# Subtest: factura A: cada renglón lleva su precio sin IVA y los subtotales sin IVA suman justo el neto autorizado
+ok 11 - factura A: cada renglón lleva su precio sin IVA y los subtotales sin IVA suman justo el neto autorizado
+  ---
+  duration_ms: 37.897943
+  type: 'test'
+  ...
+# Subtest: factura A: con más de una alícuota el comprobante no guarda cuál lleva cada renglón, así que no se imprime y dice por qué
+ok 12 - factura A: con más de una alícuota el comprobante no guarda cuál lleva cada renglón, así que no se imprime y dice por qué
+  ---
+  duration_ms: 0.581316
+  type: 'test'
+  ...
+# Subtest: factura A: si el neto no coincide con la base del IVA no se imprime un detalle que no cierra
+ok 13 - factura A: si el neto no coincide con la base del IVA no se imprime un detalle que no cierra
+  ---
+  duration_ms: 0.545909
+  type: 'test'
+  ...
+# Subtest: sin los datos fiscales del negocio no hay PDF y el aviso dice qué falta y dónde cargarlo
+ok 14 - sin los datos fiscales del negocio no hay PDF y el aviso dice qué falta y dónde cargarlo
+  ---
+  duration_ms: 0.4839
+  type: 'test'
+  ...
+# Subtest: un CUIT del negocio con el dígito verificador mal no imprime
+ok 15 - un CUIT del negocio con el dígito verificador mal no imprime
+  ---
+  duration_ms: 0.143667
+  type: 'test'
+  ...
+# Subtest: sin CAE no hay PDF: ni pendiente ni rechazado
+ok 16 - sin CAE no hay PDF: ni pendiente ni rechazado
+  ---
+  duration_ms: 0.186868
+  type: 'test'
+  ...
+# Subtest: si la letra no cuadra con la condición del negocio de hoy, no reimprime un dato falso
+ok 17 - si la letra no cuadra con la condición del negocio de hoy, no reimprime un dato falso
+  ---
+  duration_ms: 0.121349
+  type: 'test'
+  ...
+# Subtest: un comprobante A sin CUIT ni domicilio del cliente no se imprime
+ok 18 - un comprobante A sin CUIT ni domicilio del cliente no se imprime
+  ---
+  duration_ms: 0.222841
+  type: 'test'
+  ...
+# Subtest: un tipo de comprobante que no sabe imprimir (Factura de Crédito MiPyME) no genera
+ok 19 - un tipo de comprobante que no sabe imprimir (Factura de Crédito MiPyME) no genera
+  ---
+  duration_ms: 0.163242
+  type: 'test'
+  ...
+# Subtest: en modo de prueba de ARCA la hoja advierte que no tiene validez fiscal
+ok 20 - en modo de prueba de ARCA la hoja advierte que no tiene validez fiscal
+  ---
+  duration_ms: 75.382455
+  type: 'test'
+  ...
+# Subtest: con muchos renglones sigue en otra hoja sin perder ninguno, y el QR va en la última
+ok 21 - con muchos renglones sigue en otra hoja sin perder ninguno, y el QR va en la última
+  ---
+  duration_ms: 55.411132
+  type: 'test'
+  ...
+# Subtest: un nombre con caracteres que la fuente no tiene no rompe el PDF
+ok 22 - un nombre con caracteres que la fuente no tiene no rompe el PDF
+  ---
+  duration_ms: 32.347193
+  type: 'test'
+  ...
+# Subtest: la plata se escribe en pesos argentinos con el redondeo de src/lib/dinero
+ok 23 - la plata se escribe en pesos argentinos con el redondeo de src/lib/dinero
+  ---
+  duration_ms: 0.319601
+  type: 'test'
+  ...
+# Subtest: CUIT: once números con dígito verificador
+ok 24 - CUIT: once números con dígito verificador
+  ---
+  duration_ms: 0.150876
+  type: 'test'
+  ...
+# Subtest: la vista y la descarga exigen la app de facturación y el permiso de facturar antes de leer
+ok 25 - la vista y la descarga exigen la app de facturación y el permiso de facturar antes de leer
+  ---
+  duration_ms: 0.410013
+  type: 'test'
+  ...
+# Subtest: factura A a un monotributista: el PDF lleva la leyenda de la RG 5003/2021 con el texto del motor fiscal
+ok 26 - factura A a un monotributista: el PDF lleva la leyenda de la RG 5003/2021 con el texto del motor fiscal
+  ---
+  duration_ms: 73.972757
+  type: 'test'
+  ...
+# Subtest: factura A a un responsable inscripto y factura B: no llevan la leyenda de la RG 5003/2021
+ok 27 - factura A a un responsable inscripto y factura B: no llevan la leyenda de la RG 5003/2021
+  ---
+  duration_ms: 82.075637
+  type: 'test'
+  ...
+# Subtest: la vista y el PDF toman las leyendas de la A del motor fiscal, no de una copia
+ok 28 - la vista y el PDF toman las leyendas de la A del motor fiscal, no de una copia
+  ---
+  duration_ms: 0.696402
+  type: 'test'
+  ...
+# Subtest: si el cliente figura hoy con una condición que la letra no admite (RG 5616), no se reimprime
+ok 29 - si el cliente figura hoy con una condición que la letra no admite (RG 5616), no se reimprime
+  ---
+  duration_ms: 0.852608
+  type: 'test'
+  ...
+# Subtest: la marca de «sin validez fiscal» sale del ambiente en que ARCA autorizó, no sólo de la ficha del negocio
+ok 30 - la marca de «sin validez fiscal» sale del ambiente en que ARCA autorizó, no sólo de la ficha del negocio
+  ---
+  duration_ms: 0.376914
+  type: 'test'
+  ...
+# Subtest: autorizado antes del último cambio entre prueba y real: no se sabe en cuál fue, así que no se imprime
+ok 31 - autorizado antes del último cambio entre prueba y real: no se sabe en cuál fue, así que no se imprime
+  ---
+  duration_ms: 0.483807
+  type: 'test'
+  ...
+# Subtest: en modo de prueba el pie no dice que ARCA lo autorizó ni invita a verificarlo con el QR
+ok 32 - en modo de prueba el pie no dice que ARCA lo autorizó ni invita a verificarlo con el QR
+  ---
+  duration_ms: 86.457756
+  type: 'test'
+  ...
+1..32
+# tests 32
+# suites 0
+# pass 32
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3716.85352

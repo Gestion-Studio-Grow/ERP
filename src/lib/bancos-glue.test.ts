@@ -228,6 +228,18 @@ test("configBancosDesdeTenant: nulos = defaults del producto (no pisa con undefi
   assert.equal(cfg.capFacturasMes, 159);
 });
 
+test("configBancosDesdeTenant: con el tope del plan, ése manda para la regla y para los mensajes aunque la columna diga otra cosa", () => {
+  const fila = { bancosUmbralIdentificacion: null, bancosCapFacturasMes: 100000, bancosDomicilioEmisor: null, arcaPuntoVenta: null, arcaCuit: null };
+  const cfg = configBancosDesdeTenant(fila, 159);
+  assert.equal(cfg.config.capFacturasMes, 159);
+  assert.equal(cfg.capFacturasMes, 159);
+  // Un tope 0 (excepción de GSG) también se respeta: no cae al default.
+  assert.equal(configBancosDesdeTenant({ ...fila, bancosCapFacturasMes: null }, 0).config.capFacturasMes, 0);
+  // Sin tope del plan (CH): lo de siempre, la columna o el default del producto.
+  assert.equal(configBancosDesdeTenant(fila).capFacturasMes, 100000);
+  assert.equal(configBancosDesdeTenant({ ...fila, bancosCapFacturasMes: null }).config.capFacturasMes, undefined);
+});
+
 test("configBancosDesdeTenant: valores del tenant (Decimal-like) + CUIT propio normalizado", () => {
   const cfg = configBancosDesdeTenant({
     bancosUmbralIdentificacion: { toNumber: () => 800000 },

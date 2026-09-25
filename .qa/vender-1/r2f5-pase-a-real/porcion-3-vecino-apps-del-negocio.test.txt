@@ -1,0 +1,142 @@
+TAP version 13
+# Subtest: activar inventario en magra: con el Inicio por apps gana Stock y las apps de stock, sin perder nada
+ok 1 - activar inventario en magra: con el Inicio por apps gana Stock y las apps de stock, sin perder nada
+  ---
+  duration_ms: 5.320549
+  type: 'test'
+  ...
+# Subtest: fuera del Inicio por apps el cambio no se nota hoy; adentro, se nota apenas se confirma
+ok 2 - fuera del Inicio por apps el cambio no se nota hoy; adentro, se nota apenas se confirma
+  ---
+  duration_ms: 2.667521
+  type: 'test'
+  ...
+# Subtest: activar inventario sin catálogo arrastra el catálogo (dependencia) y lo avisa
+ok 3 - activar inventario sin catálogo arrastra el catálogo (dependencia) y lo avisa
+  ---
+  duration_ms: 0.308311
+  type: 'test'
+  ...
+# Subtest: activar un módulo que ya está no escribe nada
+ok 4 - activar un módulo que ya está no escribe nada
+  ---
+  duration_ms: 0.206191
+  type: 'test'
+  ...
+# Subtest: apagar agenda con lista de espera activa: queda bloqueado, con el motivo
+ok 5 - apagar agenda con lista de espera activa: queda bloqueado, con el motivo
+  ---
+  duration_ms: 0.391136
+  type: 'test'
+  ...
+# Subtest: apagar la lista de espera primero sí se puede, y la vista previa dice qué app pierde
+ok 6 - apagar la lista de espera primero sí se puede, y la vista previa dice qué app pierde
+  ---
+  duration_ms: 1.414826
+  type: 'test'
+  ...
+# Subtest: en un Comerciante no se apaga un módulo que viene con su plan
+ok 7 - en un Comerciante no se apaga un módulo que viene con su plan
+  ---
+  duration_ms: 0.299692
+  type: 'test'
+  ...
+# Subtest: un módulo de otro rubro no se activa (comisiones en una carnicería)
+ok 8 - un módulo de otro rubro no se activa (comisiones en una carnicería)
+  ---
+  duration_ms: 0.195376
+  type: 'test'
+  ...
+# Subtest: un módulo que no existe se rechaza con el motivo
+ok 9 - un módulo que no existe se rechaza con el motivo
+  ---
+  duration_ms: 0.330495
+  type: 'test'
+  ...
+# Subtest: CH (beauty-spa): ni cambios de a uno ni 'fijar' sin el OK del dueño
+ok 10 - CH (beauty-spa): ni cambios de a uno ni 'fijar' sin el OK del dueño
+  ---
+  duration_ms: 0.720283
+  type: 'test'
+  ...
+# Subtest: cartera y multilocal no pueden estar juntos, en ningún orden
+ok 11 - cartera y multilocal no pueden estar juntos, en ningún orden
+  ---
+  duration_ms: 0.257308
+  type: 'test'
+  ...
+# Subtest: multilocal abre las apps de Mis locales, con el Inicio por apps y sin él
+ok 12 - multilocal abre las apps de Mis locales, con el Inicio por apps y sin él
+  ---
+  duration_ms: 1.624572
+  type: 'test'
+  ...
+# Subtest: Mis locales con vínculos adentro: no se prende sobre una cartera ni se apaga con locales colgando
+ok 13 - Mis locales con vínculos adentro: no se prende sobre una cartera ni se apaga con locales colgando
+  ---
+  duration_ms: 0.625506
+  type: 'test'
+  ...
+# Subtest: activar cartera en un negocio del rubro lo convierte en Contador: la vista previa lo avisa
+ok 14 - activar cartera en un negocio del rubro lo convierte en Contador: la vista previa lo avisa
+  ---
+  duration_ms: 0.882227
+  type: 'test'
+  ...
+# Subtest: magra hoy: fuera del Inicio por apps, y con su asignación perdería apps frente a hoy
+ok 15 - magra hoy: fuera del Inicio por apps, y con su asignación perdería apps frente a hoy
+  ---
+  duration_ms: 0.790213
+  type: 'test'
+  ...
+# Subtest: fijar en magra suma lo mínimo (inventario, campañas, bancos) y deja 0 apps perdidas
+ok 16 - fijar en magra suma lo mínimo (inventario, campañas, bancos) y deja 0 apps perdidas
+  ---
+  duration_ms: 2.364691
+  type: 'test'
+  ...
+# Subtest: ya en el piloto con la asignación incompleta: la tarjeta lo marca y fijar le devuelve lo perdido
+ok 17 - ya en el piloto con la asignación incompleta: la tarjeta lo marca y fijar le devuelve lo perdido
+  ---
+  duration_ms: 1.006915
+  type: 'test'
+  ...
+# Subtest: sin módulos asignados: el Inicio por apps no filtra, y fijar da la asignación completa de su menú
+ok 18 - sin módulos asignados: el Inicio por apps no filtra, y fijar da la asignación completa de su menú
+  ---
+  duration_ms: 1.349521
+  type: 'test'
+  ...
+# Subtest: shinevelas y adosmanos con la asignación de su rubro: fijar deja 0 apps perdidas
+ok 19 - shinevelas y adosmanos con la asignación de su rubro: fijar deja 0 apps perdidas
+  ---
+  duration_ms: 1.125975
+  type: 'test'
+  ...
+# Subtest: activar un solo módulo en un negocio sin asignación prende el filtro: la vista previa muestra todo lo que perdería
+ok 20 - activar un solo módulo en un negocio sin asignación prende el filtro: la vista previa muestra todo lo que perdería
+  ---
+  duration_ms: 0.798221
+  type: 'test'
+  ...
+# Subtest: mismoConjunto: ignora el orden y los repetidos, no los faltantes
+ok 21 - mismoConjunto: ignora el orden y los repetidos, no los faltantes
+  ---
+  duration_ms: 0.164806
+  type: 'test'
+  ...
+# Subtest: trabajando por apps, un cambio de módulos que le saca apps que ve se frena; apagado, no
+ok 22 - trabajando por apps, un cambio de módulos que le saca apps que ve se frena; apagado, no
+  ---
+  duration_ms: 1.818929
+  type: 'test'
+  ...
+1..22
+# tests 22
+# suites 0
+# pass 22
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 434.383276

@@ -1,0 +1,36 @@
+NOTICE:  database "r0f1_lab_copia" does not exist, skipping
+1. copia de erp_lab con 47 migraciones aplicadas
+psql:prisma/migrations/20260925120000_lanzamiento_base/rollback.sql:46: NOTICE:  constraint "OutboxEvent_tenantId_conexionId_fkey" of relation "OutboxEvent" does not exist, skipping
+psql:prisma/migrations/20260925120000_lanzamiento_base/rollback.sql:99: NOTICE:  index "OutboxEvent_tenantId_id_key" does not exist, skipping
+2. reversas (150000 y 120000) corridas con datos: quedan 45 migraciones; tablas nuevas presentes: 0
+3. migrate deploy: All migrations have been successfully applied.
+   últimas aplicadas, en orden: 20260911120000_profesional_cobra_en_mostrador -> 20260925120000_lanzamiento_base -> 20260925150000_comprobante_autorizado_inmutable
+4. datos anteriores intactos: 46 tablas con las mismas filas y el mismo md5 de sus columnas (33494 filas)
+5. filas de hoy con algo cargado en lo nuevo (debe ser 0): 0
+6. SIN correr 0001. Tabla nueva | RLS | políticas | USING y WITH CHECK = negocio de la transacción:
+   ArcaAuthTicket | t | tenant_isolation | t
+   ContactoCartera | t | tenant_isolation | t
+   ConversacionWhatsapp | t | tenant_isolation | t
+   DelegacionFiscal | t | tenant_isolation | t
+   EnvioComprobante | t | tenant_isolation | t
+   EventoIntegracion | t | tenant_isolation | t
+   ExtractoRecibido | t | tenant_isolation | t
+   IntegracionConexion | t | tenant_isolation | t
+   IntegracionCredencial | t | tenant_isolation | t
+   IntegracionEstadoOAuth | t | tenant_isolation | t
+   IntegracionUso | t | tenant_isolation | t
+   MensajeWhatsapp | t | tenant_isolation | t
+   ReceptorFiscal | t | tenant_isolation | t
+7. como app_rls, negocio A=cmrhv1kwk0018ww7dsn4r2df2, B=cmrhw45s7001yww7dshs68gpr (todo en una transacción que se deshace):
+   t
+   A ve sus conexiones: 1
+   t
+   B ve conexiones de A: 0
+   ERROR:  duplicate key value violates unique constraint "IntegracionConexion_conector_cuentaExterna_key"
+   ERROR:  new row violates row-level security policy for table "IntegracionConexion"
+   ERROR:  new row for relation "IntegracionConexion" violates check constraint "IntegracionConexion_conector_check"
+   ERROR:  insert or update on table "IntegracionUso" violates foreign key constraint "IntegracionUso_tenantId_conexionId_fkey"
+   DETAIL:  Key is not present in table "IntegracionConexion".
+   t
+   sin negocio ve: 0
+8. copia borrada. erp_lab no se tocó: 47 migraciones.

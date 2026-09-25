@@ -1,0 +1,13 @@
+{
+  "ok": false,
+  "faltantes": [
+    {
+      "campo": "emisor.razonSocial",
+      "mensaje": "Falta la razón social del negocio (el nombre que figura en ARCA). Cargalo en los datos fiscales del negocio y volvé a abrir el comprobante."
+    },
+    {
+      "campo": "emisor.iibb",
+      "mensaje": "Falta el número de Ingresos Brutos del negocio (o \"Exento\" o \"Convenio Multilateral\"). Cargalo en los datos fiscales del negocio y volvé a abrir el comprobante."
+    }
+  ]
+}

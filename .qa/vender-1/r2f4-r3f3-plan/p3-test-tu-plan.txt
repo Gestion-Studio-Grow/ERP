@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: quien choca con el tope de usuarios llega a una página que existe (no a un 404)
+ok 1 - quien choca con el tope de usuarios llega a una página que existe (no a un 404)
+  ---
+  duration_ms: 1.155749
+  type: 'test'
+  ...
+# Subtest: un Micro con el cupo de usuarios lleno ve el porqué y cómo seguir
+ok 2 - un Micro con el cupo de usuarios lleno ve el porqué y cómo seguir
+  ---
+  duration_ms: 15.119772
+  type: 'test'
+  ...
+# Subtest: si mientras tanto se liberó un lugar, el aviso lo dice en vez de repetir el error
+ok 3 - si mientras tanto se liberó un lugar, el aviso lo dice en vez de repetir el error
+  ---
+  duration_ms: 0.37352
+  type: 'test'
+  ...
+# Subtest: los comprobantes avisan al 80 % y al 100 %, y nunca dicen que se frena una venta
+ok 4 - los comprobantes avisan al 80 % y al 100 %, y nunca dicen que se frena una venta
+  ---
+  duration_ms: 0.829433
+  type: 'test'
+  ...
+# Subtest: lo que no se midió no se inventa: se muestra sólo lo que incluye el plan
+ok 5 - lo que no se midió no se inventa: se muestra sólo lo que incluye el plan
+  ---
+  duration_ms: 0.250889
+  type: 'test'
+  ...
+# Subtest: sin plan del catálogo no hay topes: se ofrece escribir
+ok 6 - sin plan del catálogo no hay topes: se ofrece escribir
+  ---
+  duration_ms: 0.171012
+  type: 'test'
+  ...
+# Subtest: el precio va marcado como provisional a confirmar
+ok 7 - el precio va marcado como provisional a confirmar
+  ---
+  duration_ms: 0.170283
+  type: 'test'
+  ...
+# Subtest: «Quiero más» abre WhatsApp: directo a GSG si hay número; si no, para elegir contacto, nunca roto
+ok 8 - «Quiero más» abre WhatsApp: directo a GSG si hay número; si no, para elegir contacto, nunca roto
+  ---
+  duration_ms: 0.417922
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 848.973551

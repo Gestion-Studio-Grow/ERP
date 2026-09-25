@@ -1,0 +1,16 @@
+OK   operador · clave equivocada avisa (1462 ms) avisa «Nombre o clave incorrectos»
+OK   operador · entrar (2200 ms) diseno=renglon sx360=0 chicos<44=28
+OK   operador · buscar un negocio en la lista (596 ms) busca con Enter y CH aparece
+OK   operador · abrir la ficha de CH desde la lista (2618 ms) CH Estética · diseno=renglon sx360=0 chicos<44=7
+OK   operador · pestaña Plan y apps → interruptores (1791 ms) Prendido Diseño nuevo El diseño nuevo en su panel: botones, cifras y pantallas renovados, con las mismas apps y los mismos datos. Apagado, se ve como siempre. Si lo apagás, en la próxima carga se ve c · diseno=renglon sx360=0 chicos<44=29
+OK   operador · recargar conserva la pestaña (1229 ms) url=?pestana=plan visible=true
+OK   operador · galería de diseño (desde el menú) (3189 ms) Renglón · diseno=renglon sx360=0 chicos<44=66
+OK   operador · galería: pieza viva de teclado y diálogo (1506 ms) botones=154 dialogo=2
+FALLA operador · negocio inexistente (error) (31199 ms) http=404 ·  ERRORES=[operador · negocio inexistente (error)] Failed to load resource: the server responded with a status of 404 (Not Found)
+OK   operador · sin sesión no entra (1199 ms) manda al login
+
+consola 1440: 9/10 pasos OK · errores de consola 1 · callejones 0
+MEDIDA consola-lista /operador sx360=0 chicos: Ver los 9 con pendientes:24, Puesta en marcha de QA Kiosc:36, Puesta en marcha de A Dos Ma:36, Puesta en marcha de CH Estét:36, Puesta en marcha de MAGRA:36, Puesta en marcha de MAGRA Ca:36
+MEDIDA ficha-ch /operador/tenants/cmuf1ub190000vu7d06np040t sx360=0 chicos: ← Negocios:20, Abrir su panel (se abre en o:36, Fiscal:36, En prueba En producción Susp:36, Guardar:36, estetica-norte:36
+MEDIDA interruptores-ch /operador/tenants/cmuf1ub190000vu7d06np040t?pestana=plan sx360=0 chicos: ← Negocios:20, Abrir su panel (se abre en o:36, Sin plan Prueba Base Pro Ent:36, Guardar:36, slug:36, Prender:36
+MEDIDA galeria /operador/diseno sx360=0 chicos: GSG:32, CH Estética:32, MAGRA:32, Shine:32, A Dos Manos:32, Claro y oscuro:32

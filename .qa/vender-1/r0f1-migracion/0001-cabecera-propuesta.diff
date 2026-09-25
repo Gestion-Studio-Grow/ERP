@@ -1,0 +1,22 @@
+--- prisma/rls/0001_enable_rls.sql	2026-09-25 19:41:51.643670293 +0000
++++ prisma/rls/0001_enable_rls.sql (cabecera propuesta)
+@@ -46,8 +46,17 @@
+ --
+ -- IDEMPOTENTE: DROP POLICY IF EXISTS + CREATE; ENABLE RLS no falla si ya estaba.
+ --
+--- NO APLICADA A PRODUCCIÓN. Aplicar es Gate 2 (OK explícito de Maxi), junto con
+--- provisionar el 2º tenant. Ver prisma/rls/README.md.
++-- DESDE 20260925120000_lanzamiento_base, RLS VIAJA CON LA MIGRACIÓN: cada migración que crea
++-- una tabla con `tenantId` le prende RLS y le crea ESTA MISMA política (lo exige
++-- prisma/rls/check-coverage.mjs). Las 13 tablas de lanzamiento (IntegracionConexion,
++-- IntegracionCredencial, EventoIntegracion, IntegracionUso, IntegracionEstadoOAuth,
++-- ContactoCartera, ConversacionWhatsapp, MensajeWhatsapp, ExtractoRecibido, DelegacionFiscal,
++-- ReceptorFiscal, EnvioComprobante, ArcaAuthTicket) ya nacen protegidas. Este script sigue
++-- siendo la red para las tablas anteriores y, como es idempotente, correrlo después de esa
++-- migración deja todo igual.
++--
++-- Si está aplicado en una base se MIDE con prisma/rls/check-rls-live.mjs (sólo lectura); este
++-- comentario no lo afirma. Aplicarlo en producción es decisión del dueño. Ver prisma/rls/README.md.
+ -- ============================================================================
+ 
+ BEGIN;

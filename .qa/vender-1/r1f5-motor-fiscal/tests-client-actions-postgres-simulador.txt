@@ -1,0 +1,41 @@
+TAP version 13
+# Subtest: la dueña guarda la ficha fiscal de su cliente: queda normalizada y auditada con el valor anterior
+ok 1 - la dueña guarda la ficha fiscal de su cliente: queda normalizada y auditada con el valor anterior
+  ---
+  duration_ms: 2790.15682
+  type: 'test'
+  ...
+# Subtest: un CUIT con el dígito verificador cambiado, o sin condición frente al IVA, no se guarda
+ok 2 - un CUIT con el dígito verificador cambiado, o sin condición frente al IVA, no se guarda
+  ---
+  duration_ms: 21.164156
+  type: 'test'
+  ...
+# Subtest: aislamiento: con el id de una ficha de otro negocio da 'no existe' y la ficha ajena no cambia
+ok 3 - aislamiento: con el id de una ficha de otro negocio da 'no existe' y la ficha ajena no cambia
+  ---
+  duration_ms: 25.846189
+  type: 'test'
+  ...
+# Subtest: inscripto: B a consumidor final por el camino completo; A a su cliente inscripto y a un monotributista con la clase A cargada, contra el simulador
+ok 4 - inscripto: B a consumidor final por el camino completo; A a su cliente inscripto y a un monotributista con la clase A cargada, contra el simulador
+  ---
+  duration_ms: 153.02192
+  type: 'test'
+  ...
+# {"ts":"2026-09-25T20:33:29.833Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_b_a662e44a77","condicionIva":"MONOTRIBUTO"}
+# Subtest: monotributo sin condición cargada (el caso de CH): en homologación igual que antes, C; en producción se niega
+ok 5 - monotributo sin condición cargada (el caso de CH): en homologación igual que antes, C; en producción se niega
+  ---
+  duration_ms: 33.287471
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3520.481963

@@ -7,8 +7,8 @@
     "Se re-genera como subproducto del ritual (Gate/retro): node scripts/adr-graph.mjs."
   ],
   "query": "dependents[X] responde '¿qué se cae / qué depende si cambio X?'",
-  "count": 92,
-  "adrCount": 86,
+  "count": 93,
+  "adrCount": 87,
   "amendmentCount": 6,
   "nodes": [
     {
@@ -473,7 +473,8 @@
         "ADR-064",
         "ADR-066",
         "ADR-075",
-        "ADR-100"
+        "ADR-100",
+        "ADR-103"
       ]
     },
     {
@@ -1641,6 +1642,20 @@
       "dependents": [
         "ADR-012"
       ]
+    },
+    {
+      "id": "ADR-103",
+      "title": "ADR-103 — Tres dependencias para vender: `unpdf` (leer PDF), `pdf-lib` (armar PDF) y `qrcode` (QR de ARCA)",
+      "nivel": "plataforma",
+      "dominio": [
+        "Dependencias",
+        "Fiscal",
+        "Bancos"
+      ],
+      "depends_on": [
+        "ADR-022"
+      ],
+      "dependents": []
     }
   ]
 }

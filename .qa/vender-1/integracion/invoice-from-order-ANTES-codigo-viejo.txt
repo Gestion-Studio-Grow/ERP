@@ -1,0 +1,129 @@
+TAP version 13
+# Subtest: monotributo (como CH): el pedido a ARCA es el de siempre y no se lee la ficha del cliente
+ok 1 - monotributo (como CH): el pedido a ARCA es el de siempre y no se lee la ficha del cliente
+  ---
+  duration_ms: 21.452034
+  type: 'test'
+  ...
+# Subtest: inscripto a consumidor final: IVA por alícuota (21 % y 10,5 %), sin identificar, marcado ivaPorProducto
+not ok 2 - inscripto a consumidor final: IVA por alícuota (21 % y 10,5 %), sin identificar, marcado ivaPorProducto
+  ---
+  duration_ms: 2.953566
+  type: 'test'
+  location: '/home/user/erp/src/lib/invoice-from-order.test.ts:2:2782'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/invoice-from-order.test.ts:75:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: inscripto con un producto sin alícuota cargada: sale como antes, sin marcar ivaPorProducto, para que el plugin la rechace con el motivo (ENG-024)
+ok 3 - inscripto con un producto sin alícuota cargada: sale como antes, sin marcar ivaPorProducto, para que el plugin la rechace con el motivo (ENG-024)
+  ---
+  duration_ms: 0.715064
+  type: 'test'
+  ...
+# Subtest: inscripto que le vende a otro inscripto sin la clase A cargada (RG 1575): no sale sola, queda sin factura
+not ok 4 - inscripto que le vende a otro inscripto sin la clase A cargada (RG 1575): no sale sola, queda sin factura
+  ---
+  duration_ms: 0.83576
+  type: 'test'
+  location: '/home/user/erp/src/lib/invoice-from-order.test.ts:2:4310'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'factura-1'
+    - null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual: 'factura-1'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/invoice-from-order.test.ts:95:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: inscripto con clase A común y cliente inscripto con domicilio: Factura A al CUIT del cliente
+not ok 5 - inscripto con clase A común y cliente inscripto con domicilio: Factura A al CUIT del cliente
+  ---
+  duration_ms: 1.482789
+  type: 'test'
+  location: '/home/user/erp/src/lib/invoice-from-order.test.ts:2:4770'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   condicionIva: 'CONSUMIDOR_FINAL',
+    +   docNro: 0,
+    +   docTipo: 99
+    -   condicionIva: 'RESPONSABLE_INSCRIPTO',
+    -   docNro: 20123456786,
+    -   docTipo: 80
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    docTipo: 80
+    docNro: 20123456786
+    condicionIva: 'RESPONSABLE_INSCRIPTO'
+  actual:
+    docTipo: 99
+    docNro: 0
+    condicionIva: 'CONSUMIDOR_FINAL'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/invoice-from-order.test.ts:104:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: inscripto con cliente inscripto SIN domicilio: la A no se puede imprimir, no se pide el CAE
+not ok 6 - inscripto con cliente inscripto SIN domicilio: la A no se puede imprimir, no se pide el CAE
+  ---
+  duration_ms: 0.502503
+  type: 'test'
+  location: '/home/user/erp/src/lib/invoice-from-order.test.ts:2:5450'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'factura-1'
+    - null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual: 'factura-1'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/invoice-from-order.test.ts:112:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 2
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 647.912332

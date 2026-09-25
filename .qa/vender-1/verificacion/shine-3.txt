@@ -1,0 +1,52 @@
+  OK   admin: cargar el WhatsApp del negocio (Localización) y recargar (3474 ms) ya estaba: 5491155550101
+
+=== shinevelas · 390 px
+  OK   tienda: portada (2076 ms) sx=0 chicos(0)=
+  OK   tienda: buscar y vacío (1675 ms) «lavanda» → 1 productos visibles; vacío → «No encontramos «zzqqxx».»
+  OK   tienda: ficha de producto (2585 ms) url=/tienda?producto=cmrj8c9u8005dww7d8zm1hjn4 selectorDeVariante=0 texto=«Ir a la carta Tu pedido SHINE · VELAS · AROMAS · DECO No es una vela. Es un ambiente. Cera de soja, mecha de algodón y fragancias que cambian cómo se siente un »
+  OK   tienda: sumar a la bolsa (+1 con Más) (2367 ms) bolsa abierta con «Ver mi pedido» · botón de envío: «Enviar pedido · $17.300» via=tienda
+  OK   tienda: la bolsa sobrevive a recargar (1800 ms) sigue: «Enviar pedido · $17.300»
+  OK   tienda: error sin conexión (3378 ms) aviso: «No pudimos tomar el pedido.»
+  OK   tienda: enviar pedido y texto del wa.me (36793 ms) código #332 · cargando=«» · destino /5491155550101 · «¡Hola Shine Velas! Te escribo por mi pedido #332 de la tienda: ⏎ • 2 u · Fósforos largos deco (frasco) ⏎ Total: $13.800,00 ⏎ Entrega: retiro en el local ⏎ A nombre de: QA Recorrido laart»
+  OK   tienda: 360 px sin scroll horizontal (2091 ms) portada y ficha sin desborde
+  OK   admin: entrar como dueño (1528 ms) diseño=renglon
+  OK   admin: el pedido de la vidriera llegó a Pedidos (1390 ms) aparecen #332
+  OK   admin: vender por unidad y cobrar (9929 ms) TOTAL $5.900 · «cobradas hoy Venta #333 cobrada · $5» · ventas hoy 14→15 · stock 17→16
+  OK   admin: catálogo — agregar producto y recargar (5625 ms) aviso «undefined» · fila «os 3 unidad QA Recorrido Vela 390 laart Stock bajo Sin costo $2.500 1 producto de 39 Planilla de co» · formas de venta ofrecidas: Por kilo (balanza)/Por unidad
+  OK   admin: catálogo — búsqueda sin resultados (1098 ms) «Ningún producto coincide con «zzqqxx».»
+  OK   admin: compra — registrar vacía da error (1053 ms) botón deshabilitado con leyenda «Cargá qué llegó y cuánto.»
+  OK   admin: compra a proveedor y recepción (stock +N, recarga) (9240 ms) proveedor «Taller de Aromas BA (prueba)» · aviso «undefined» · stock 51→54
+  OK   admin: qué pedir (sugerido) lleva a recibir (1375 ms) «Sugerido de compra 31 productos para pedir a 2 proveedores y algunos sin proveedor habitua» · acciones: Recibir mercadería / Mandar por WhatsApp / Copiar el pedido / Mandar por WhatsApp / Copiar el pedido
+  OK   admin: reportes (rango, margen, resultado, CSV) (3299 ms) 30 días: «Del 27/08/2026 al 25/09/2026» · margen h1 «Margen» · resultado h1 «Resultado del mes» · CSV 67 líneas, encabezado «Ventas del mostrador;Shine;del 2026-08-27 al 2026-09-25»
+  OK   admin: ruta inexistente muestra error entendible (743 ms) HTTP 404 · «S Shine viernes 25 de septiembre No encontramos esta página La dirección no existe, se escribió mal » · enlaces a inicio=1
+  OK   admin: teclas < 44 px a 390 y scroll a 360 (13050 ms) sin desborde a 360 en 9 pantallas; con teclas < 44 px: 3 (detalle en tactil-y-desborde.txt)
+
+=== shinevelas · 1440 px
+  OK   tienda: portada (1785 ms) sx=0 chicos(0)=
+  OK   tienda: buscar y vacío (1801 ms) «lavanda» → 1 productos visibles; vacío → «No encontramos «zzqqxx».»
+  OK   tienda: ficha de producto (2338 ms) url=/tienda?producto=cmrj8c9u8005dww7d8zm1hjn4 selectorDeVariante=0 texto=«Ir a la carta VELAS · AROMAS · DECO Colección Regalos Ritual Contacto WhatsApp SHINE · VELAS · AROMAS · DECO No es una vela. Es un ambiente. Cera de soja, mecha»
+  OK   tienda: sumar a la bolsa (+1 con Más) (1546 ms) bolsa a la vista · botón de envío: «Enviar pedido · $17.300» via=tienda
+  OK   tienda: la bolsa sobrevive a recargar (1067 ms) sigue: «Enviar pedido · $17.300»
+  OK   tienda: error sin conexión (3233 ms) aviso: «No pudimos tomar el pedido.»
+  OK   tienda: enviar pedido y texto del wa.me (36576 ms) código #334 · cargando=«» · destino /5491155550101 · «¡Hola Shine Velas! Te escribo por mi pedido #334 de la tienda: ⏎ • 2 u · Fósforos largos deco (frasco) ⏎ Total: $13.800,00 ⏎ Entrega: retiro en el local ⏎ A nombre de: QA Recorrido laart»
+  OK   tienda: 360 px sin scroll horizontal (2074 ms) portada y ficha sin desborde
+  OK   admin: entrar como dueño (1385 ms) diseño=renglon
+  OK   admin: el pedido de la vidriera llegó a Pedidos (1484 ms) aparecen #332, #334
+  OK   admin: vender por unidad y cobrar (10463 ms) TOTAL $5.900 · «cobradas hoy Venta #335 cobrada · $5» · ventas hoy 15→16 · stock 16→15
+  OK   admin: catálogo — agregar producto y recargar (5447 ms) aviso «undefined» · fila «IO 3 unidad QA Recorrido Vela 1440 laart Por unidad Stock bajo Sin costo $2.500 1 producto de 40 ↑ ↓» · formas de venta ofrecidas: Por kilo (balanza)/Por unidad
+  OK   admin: catálogo — búsqueda sin resultados (1188 ms) «Ningún producto coincide con «zzqqxx».»
+  OK   admin: compra — registrar vacía da error (1144 ms) botón deshabilitado con leyenda «Cargá qué llegó y cuánto.»
+  OK   admin: compra a proveedor y recepción (stock +N, recarga) (9398 ms) proveedor «Taller de Aromas BA (prueba)» · aviso «undefined» · stock 54→56
+  OK   admin: qué pedir (sugerido) lleva a recibir (1328 ms) «Sugerido de compra 32 productos para pedir a 2 proveedores y algunos sin proveedor habitua» · acciones: Recibir mercadería / Mandar por WhatsApp / Copiar el pedido / Mandar por WhatsApp / Copiar el pedido
+  OK   admin: reportes (rango, margen, resultado, CSV) (3059 ms) 30 días: «Del 27/08/2026 al 25/09/2026» · margen h1 «Margen» · resultado h1 «Resultado del mes» · CSV 67 líneas, encabezado «Ventas del mostrador;Shine;del 2026-08-27 al 2026-09-25»
+  OK   admin: ruta inexistente muestra error entendible (712 ms) HTTP 404 · «S Shine viernes 25 de septiembre No encontramos esta página La dirección no existe, se escribió mal » · enlaces a inicio=1
+  OK   permisos del cajero (7017 ms) /admin/vender → 200 /admin/vender «Vender» ; /admin/catalogo?agregar=1 → 200 /admin/no-disponible «Catálogo no está disponible» formAlta=0 ; /admin/compras → 200 /admin/compras «Recibir mercadería» ; /admin/reportes → 200 /admin/no-disponible «Reportes no está disponible» ; /admin/resultado → 200 /admin/no-disponible «Resultado del mes no está disponible» ; /admin/usuarios → 200 /admin/no-disponible «Usuarios y permisos no está disponible» ; /admin/cierre-mes → 200 /admin/no-disponible «Cierre del mes no está disponible»
+
+=== RESUMEN sello=laart
+pasos: 39 · ok: 39 · fallas: 0
+errores de consola: 0 (más 6 provocados a propósito)
+  CONSOLA (provocado) shinevelas 390 http://shinevelas.localhost:3210/tienda :: Failed to load resource: net::ERR_INTERNET_DISCONNECTED
+  CONSOLA (provocado) shinevelas 390 http://shinevelas.localhost:3210/admin/catalogo/no-existe-qa :: Failed to load resource: the server responded with a status of 404 (Not Found)
+  CONSOLA (provocado) shinevelas 1440 http://shinevelas.localhost:3210/tienda :: Failed to load resource: net::ERR_INTERNET_DISCONNECTED
+  CONSOLA (provocado) shinevelas 1440 http://shinevelas.localhost:3210/admin/catalogo/no-existe-qa :: Failed to load resource: the server responded with a status of 404 (Not Found)
+callejones: 0

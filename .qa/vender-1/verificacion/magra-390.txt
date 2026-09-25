@@ -1,0 +1,31 @@
+OK   Entrar: clave equivocada muestra error (881 ms) mensaje="El email o la contraseña no coinciden. Revisá los dos y probá de nuevo. Con 5 intentos fal" · email conservado="nadie-qa@magra.lab"
+OK   Entrar como dueño (Enter) (998 ms) h1="Hoy, viernes 25 de septiembre" diseno=renglon sx360=0 chicos<44=0
+OK   Recuento con diferencia (repone Vacío y Pollo entero) (4656 ms) Vacío: 1.8 → 8 aviso="Recuento guardado: 1 producto contado, 1 con diferencia. Faltante $0,00 · sobrante $80.724" · Pollo entero: sistema 4, alcanza
+OK   Stock antes de vender (1859 ms) Vacío="8 kg" · Pollo="4 u"
+OK   Inicio → Vender (1957 ms) h1="Vender" diseno=renglon sx360=0 chicos<44=1
+OK   Vender por peso: Vacío, 1,240 + Enter (717 ms) foco→peso, Enter→buscador, lista cerrada; línea="Vacío 1,24 kg × $22.200 / kg PESO kg SUBTOTAL $27.528,00 Quitar"
+OK   Pollo entero sin cantidad → Cobrar bloqueado (1104 ms) botón="Falta la cantidad de Pollo entero orgánico (~2 kg)" bloqueado
+OK   Cantidad 1 y cobrar en efectivo (724 ms) Alt+1 eligió Efectivo · botón "Cobrar $47.028,00" → Venta #504 $47.028,00; ticket nuevo con 0 línea(s) vacía(s)
+OK   Persistencia: la venta está en Ventas tras recargar (2138 ms) #504 listada · diseno=renglon sx360=0 chicos<44=19
+OK   Persistencia: el stock bajó (1576 ms) Vacío: "8 kg" → "6,76 kg" · Pollo: "4 u" → "3 u"
+FALLA Inicio → Pedidos para preparar → Preparar (31486 ms) locator.innerText: Timeout 30000ms exceeded.
+OK   Inicio → Caja del día → Cerrar el turno (3776 ms) esperado=$976.191,25 · vista previa="Cuadra" · <dialog> abierto=1 · Escape cierra (sin cerrar el turno en esta corrida) · diseno=renglon sx360=0 chicos<44=1
+OK   Cierre del día: contar y revisar (3659 ms) contado=Efectivo=976191,25 ; Mercado Pago y transferencias=20727355,99 · deslizador habilitado (NO se desliza: congelaría el día compartido) · diseno=renglon sx360=0 chicos<44=0
+OK   Clientes: búsqueda sin resultados (estado vacío) (2670 ms) vacío="Situación Todas 0 Clientes Nadie coincide con «zzqqxxsinnadie». Ver todos ¿Cómo se calcula la situación?"
+FALLA Clientes → Nueva ficha → buscarla → abrir ficha (36170 ms) page.waitForLoadState: Timeout 30000ms exceeded.
+OK   Ficha de un cliente con compras (1529 ms) h1="Catalina Rodríguez" · ← Clientes Catalina Rodríguez 11 5555-2271 Cuenta corriente al día 10 pedidos 1 pedido sin cobrar Compró por última vez hace 2 días WhatsApp
+OK   Stock → Contar → Recuento de un corte (7371 ms) Bife de chorizo: contado 0,847 con «Guardar recuento (1)» → tras recargar "Bife de chorizo sistema 0,847 kg · contado hoy" · fila="Bife de chorizo sistema 0,847 kg · contado ayer" · aviso="Recuento guardado: 1 producto contado, todos coinciden con el sistema."  · movimientos="Movimientos de stock los 200 más recientes · Volver a Stock Producto Tipo Todos Venta Compra Reposición Consumo en un se" · diseno=renglon sx360=0 chicos<44=0 · diseno=renglon sx360=0 chicos<44=1
+OK   Traslado entre locales (8387 ms) sin stock: "En MAGRA hay 6,76 kg: no alcanza." + Trasladar bloqueado · destino="Adrogué QA" · remitos 17 → 18 · aviso="Listo: 1 producto salió de MAGRA y entró en Adrogué QA. Remito T-2DDB2E38. Ver e" · remito="Traslados entre locales Remito interno T-2DDB2E38 25/09/2026 20:08 MAGRA → Adrogué QA Sale de MAGRA (CUIT 30-71765432-9)" · diseno=renglon sx360=0 chicos<44=0
+OK   Ctrl+K: buscar un cliente y abrirlo con Enter (3494 ms) opciones=["Catalina García 11 5555-2125","Catalina Rodríguez 11 5555-2271"] (Catalina en #0) → h1="Catalina García"
+OK   Ctrl+K: acción «cerrar el día» y Escape (1999 ms) «pollo» → ["Pollo entero orgánico (~2 kg) Por unidad","Pechuga de pollo orgánico Por kilo · $12"]; Escape cierra
+OK   Permisos del encargado (RECEPTION) (8801 ms) /admin→200⇒/admin/vender「Vender」 · /admin/vender→200「Vender」 · /admin/pedidos→200「Pedidos para preparar」 · /admin/caja→200「Caja del día」 · /admin/caja/cierre→200「Cierre del día」 · /admin/clientes→200「Clientes」 · /admin/inventario→200「Stock」 · /admin/ajustes/recuento→200「Recuento」 · /admin/locales/traslados→200「Traslados entre locales」 · /admin/usuarios→200⇒/admin/no-disponible「Usuarios y permisos no está disponible」 · /admin/reportes→200⇒/admin/no-disponible「Reportes no está disponible」
+
+PASOS: 19/21 bien · errores de consola: 0
+medida Inicio /admin diseno=renglon scrollX@360=0 <44px(0)=
+medida Vender /admin/vender diseno=renglon scrollX@360=0 <44px(1)=paid:22
+medida Ventas /admin/ventas diseno=renglon scrollX@360=0 <44px(19)=Vacío, Pollo entero orgánico:24|Vacío, Pollo entero orgánico:24|Vacío, Pollo entero orgánico:24|Vacío, Pollo entero orgánico:24|Vacío, Pollo entero orgánico:24|Vacío, Pollo entero orgánico:24
+medida Caja del día /admin/caja diseno=renglon scrollX@360=0 <44px(1)=Libro de caja:14
+medida Cierre del día /admin/caja/cierre diseno=renglon scrollX@360=0 <44px(0)=
+medida Stock /admin/inventario diseno=renglon scrollX@360=0 <44px(0)=
+medida Recuento /admin/ajustes/recuento diseno=renglon scrollX@360=0 <44px(1)=INPUT:20
+medida Traslados /admin/locales/traslados diseno=renglon scrollX@360=0 <44px(0)=

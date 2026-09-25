@@ -1,0 +1,21 @@
+R2-F5 porción 1 · 2026-09-25T20:48:33+00:00
+
+$ node --import tsx --test src/lib/operador/pase-a-real.test.ts
+ok 1 - de las 6 combinaciones de precondiciones sólo la completa pasa; las otras 5 se niegan con su motivo en castellano
+ok 2 - el certificado tiene que ser de producción y del mismo CUIT; si no, la delegación verificada de ese CUIT
+ok 3 - CH: sólo el dueño de GSG, y escribiendo el slug
+ok 4 - cualquier negocio pide escribir su slug para pasar a real (sin distinguir mayúsculas ni espacios)
+ok 5 - si la ficha fiscal cambió entre que el operador miró y confirmó, no se hace nada
+ok 6 - la vuelta a pruebas nunca se bloquea: ni por datos, ni por la huella, ni por el slug
+ok 7 - pasar a real un negocio que ya factura en real no cambia nada; un pedido raro se niega
+ok 8 - el entorno del certificado sale de quién lo firmó; lo que no se reconoce no es de producción
+ok 9 - la auditoría del pase dice antes, después, respaldo y modo, sin material del certificado
+# tests 9
+# pass 9
+# fail 0
+
+$ npx tsc --noEmit -p .   (proyecto entero)
+errores TS: 0 · tsc exit=0
+
+$ npx eslint --max-warnings=0 src/lib/operador/pase-a-real.ts src/lib/operador/pase-a-real.test.ts
+eslint exit=0, 0 avisos

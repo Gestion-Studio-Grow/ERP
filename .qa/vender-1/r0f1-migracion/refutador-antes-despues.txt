@@ -1,0 +1,59 @@
+# R0-F1 · corrección tras el refutador — antes y después (2026-09-25T20:16:41Z)
+Todo local (Postgres 16.13, puerto 5433, /tmp/pgrun). Nada contra Neon. Sin deploy.
+
+## Archivos
+- migration.sql antes: md5 dfd86de83fd71be5056f509a842af7f1 (el que midió el refutador); ahora: 593bea4aaea6ed3e57ef7565d1d7f215
+- rollback.sql antes: md5 f2029e0a1e54a6afa48610fb6685e0f5; ahora: f359de95a7a5df23d8220db763578c4b
+
+## Cómo se corrió el 'antes' (sin tocar el árbol compartido)
+Raíces de prueba en el scratchpad: copia de prisma/ con la migración a probar, package.json, tsconfig.json y
+prisma.config.ts copiados, src/test/base-efimera.ts COPIADO (su RAIZ = __dirname/../.. apunta a la copia; con
+symlink medía el repo real), el resto de src/ y node_modules por symlink. Comando en cada raíz:
+  node --import tsx --test src/lib/lanzamiento-base-postgres.test.ts
+Política floja = el bloque DO de la migración nueva con 'USING (true) ' (sed sobre la copia; 1 reemplazo).
+
+### A. Tests VIEJOS + migración con USING (true)  (reproduce al refutador)
+# tests 7 # pass 7 # fail 0 
+
+### B. Tests NUEVOS + migración con USING (true)
+# tests 9 # pass 6 # fail 3 
+  not ok 1 - como la deja el deploy (sin prisma/rls/0001), la migración sola aísla las 13 tablas nuevas
+  not ok 2 - la prueba del aislamiento no se deja engañar: con USING o WITH CHECK en true en la migración, falla en las 13 tablas
+  not ok 9 - la reversa frena si perdería lo que no se reconstruye; si no, deja la base igual a una sin la migración y migrate deploy la repone
+
+### C. Tests NUEVOS + migración y reversa VIEJAS (md5 dfd86de8… / f2029e0a…)
+# tests 9 # pass 7 # fail 2 
+  not ok 5 - con la sesión de A y los ids de B, la base no deja apuntar a lo de B, no le traba el contador y no delata qué tiene
+  not ok 6 - una cuenta externa, un negocio: la base no acepta la misma cuenta escrita de otra forma
+
+### D. Tests NUEVOS + migración NUEVA (el árbol real)
+# tests 9 # pass 9 # fail 0 
+  ok 1 - como la deja el deploy (sin prisma/rls/0001), la migración sola aísla las 13 tablas nuevas
+  ok 2 - la prueba del aislamiento no se deja engañar: con USING o WITH CHECK en true en la migración, falla en las 13 tablas
+  ok 3 - una cuenta externa no se vincula a dos negocios aunque el segundo no pueda ver la fila del primero
+  ok 4 - las llaves foráneas con el negocio adentro: nada apunta a filas de otro negocio ni a clientes fuera de la cartera
+  ok 5 - con la sesión de A y los ids de B, la base no deja apuntar a lo de B, no le traba el contador y no delata qué tiene
+  ok 6 - una cuenta externa, un negocio: la base no acepta la misma cuenta escrita de otra forma
+  ok 7 - producto y compra: alícuota por código, código único por negocio, la misma factura de proveedor una sola vez
+  ok 8 - Client.phone acepta NULL en la base y las llaves por negocio nacen nulas (heredan la variable de entorno)
+  ok 9 - la reversa frena si perdería lo que no se reconstruye; si no, deja la base igual a una sin la migración y migrate deploy la repone
+
+## Esquema y código
+- npx prisma validate: 1 schema válido
+- migrate deploy en base VACÍA (r0f1_drift): 1 'All migrations have been successfully applied'
+- drift (prisma migrate diff --from-config-datasource --to-schema): -- AlterTable ALTER TABLE "Client" ALTER COLUMN "phone" SET NOT NULL;   (a propósito, como antes)
+- npx prisma generate: Generated Prisma Client (7.8.0)
+- npx tsc --noEmit -p .: tsc exit 0, 0 errores
+- npx eslint --max-warnings=0 src/lib/lanzamiento-base-postgres.test.ts: eslint exit 0
+- node prisma/rls/check-coverage.mjs: check-coverage exit 0
+- rls-cobertura-migraciones + paridad-menu (CH) + ensayo-lote-neon: # pass 13 # fail 0 
+- outbox/ARCA sobre Postgres (10 *-postgres + monitor-core + invoice-core + base-efimera): # pass 122 # fail 0 
+- copia de erp_lab SIN 0001: ver lab-copia.sh y lab-copia.salida.txt (paso 6: 13/13 con la política exacta)
+
+## Primer error de cada rojo (B y C)
+- r-floja-nuevo, test 1: Expected values to be strictly deep-equal: + actual - expected  
+- r-floja-nuevo, test 2: la migración trae la cláusula USING estricta una sola vez  0 !== 1 
+- r-floja-nuevo, test 9: re-aplicada, aislada + actual - expected  
+- r-antes, test 5: uso de A con la conexión de B, que ya contó ese mes: esperaba 23503, vino 42P10 (there is no unique or exclusion constraint matching the ON CONFLICT specification)  '42P10' !== '23503' 
+- r-antes, test 6: 'Missing expected rejection.'
+- Suite completa (node --import tsx --test "src/**/*.test.ts"): 4093 tests, 4088 verdes, 5 rojos = los 4 de XLSX previos (stub local: CDN de sheetjs bloqueado) + "Ingreso en el navegador" (src/app/admin/login/ingreso-pantalla.test.ts), que sola da 5/5 (carga, igual que en la primera pasada). Rojos nuevos: 0.

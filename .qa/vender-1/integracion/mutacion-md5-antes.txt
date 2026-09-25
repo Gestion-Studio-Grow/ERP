@@ -1,0 +1,1 @@
+91296dcf8857c6f3330cd327be1361f3  src/lib/bancos-glue.ts

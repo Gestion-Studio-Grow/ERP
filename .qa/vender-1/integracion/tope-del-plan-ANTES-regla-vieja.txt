@@ -1,0 +1,39 @@
+TAP version 13
+# Subtest: Bancos: un Micro que se carga 100.000 facturas en su panel ve y usa el tope del plan; la excepción de GSG manda
+not ok 1 - Bancos: un Micro que se carga 100.000 facturas en su panel ve y usa el tope del plan; la excepción de GSG manda
+  ---
+  duration_ms: 2462.181262
+  type: 'test'
+  location: '/home/user/erp/src/lib/tope-del-plan-en-emision-postgres.test.ts:2:1310'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    100000 !== 159
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 159
+  actual: 100000
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/tope-del-plan-en-emision-postgres.test.ts:32:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: Bancos: sin plan del catálogo (como CH) el tope es el de siempre, la columna o 159
+ok 2 - Bancos: sin plan del catálogo (como CH) el tope es el de siempre, la columna o 159
+  ---
+  duration_ms: 49.346757
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 1
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3151.428389

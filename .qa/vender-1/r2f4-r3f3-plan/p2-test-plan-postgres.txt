@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: Micro → PyME → Micro: mismos conteos por tabla, mismas pantallas, la vista previa es lo que queda
+ok 1 - Micro → PyME → Micro: mismos conteos por tabla, mismas pantallas, la vista previa es lo que queda
+  ---
+  duration_ms: 2727.920929
+  type: 'test'
+  ...
+# Subtest: una escritura con una foto vieja no cambia nada
+ok 2 - una escritura con una foto vieja no cambia nada
+  ---
+  duration_ms: 57.772075
+  type: 'test'
+  ...
+# Subtest: CH (beauty-spa) queda bloqueado con el motivo del OK del dueño, aunque se llame directo a la escritura
+ok 3 - CH (beauty-spa) queda bloqueado con el motivo del OK del dueño, aunque se llame directo a la escritura
+  ---
+  duration_ms: 57.296716
+  type: 'test'
+  ...
+# Subtest: una fila forjada desde el panel del negocio no cambia el plan ni sus límites
+ok 4 - una fila forjada desde el panel del negocio no cambia el plan ni sus límites
+  ---
+  duration_ms: 42.311236
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3470.100531

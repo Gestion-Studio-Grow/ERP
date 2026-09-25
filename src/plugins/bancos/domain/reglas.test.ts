@@ -220,3 +220,53 @@ test("el monto de la propuesta es el valor absoluto (IVA incluido, lo desglosa e
   const { propuestas } = await generarPropuestas(movs, clasif, ctx());
   assert.equal(propuestas[0].montoTotal, 300);
 });
+
+// ── R3-F3: tope de facturas automáticas tomado del plan cuando la columna está vacía ─────────
+import { capFacturasMesEfectivo as capEfectivo, CAP_FACTURAS_MES_DEFAULT as CAP_DEFAULT } from "./reglas";
+import { limitesDelNegocio as limitesR3F3, TOPE_MAXIMO as TOPE_MAX_R3F3 } from "@/planes/limites";
+
+test("R3-F3: la columna del negocio puede bajar el tope del plan", () => {
+  const micro = limitesR3F3({ slug: "negocio-x", plan: "micro" }, []).topes.facturasAutomaticasMes;
+  assert.equal(capEfectivo(40, micro, TOPE_MAX_R3F3), 40);
+  assert.equal(capEfectivo(0, micro, TOPE_MAX_R3F3), 0);
+});
+
+test("R3-F3: un negocio Micro que carga 100.000 en su panel sigue frenado por el tope de su plan", () => {
+  // La columna la escribe el propio negocio desde /admin (guardarConfigBancosAction, 1 a 100.000):
+  // no puede servir para saltarse el plan.
+  const micro = limitesR3F3({ slug: "negocio-x", plan: "micro" }, []).topes.facturasAutomaticasMes;
+  assert.equal(typeof micro.valor, "number");
+  assert.equal(capEfectivo(100_000, micro, TOPE_MAX_R3F3), micro.valor);
+  assert.equal(capEfectivo((micro.valor ?? 0) + 1, micro, TOPE_MAX_R3F3), micro.valor);
+});
+
+test("R3-F3: para dar más que el plan hace falta la excepción de GSG; la columna igual puede bajarla", () => {
+  const conExcepcion = { valor: 500, origen: "excepcion" as const };
+  assert.equal(capEfectivo(100_000, conExcepcion, TOPE_MAX_R3F3), 500);
+  assert.equal(capEfectivo(300, conExcepcion, TOPE_MAX_R3F3), 300);
+  assert.equal(capEfectivo(null, conExcepcion, TOPE_MAX_R3F3), 500);
+  // «Sin tope» de GSG: la columna del negocio vuelve a ser su propio freno.
+  assert.equal(capEfectivo(100_000, { valor: null, origen: "excepcion" }, TOPE_MAX_R3F3), 100_000);
+});
+
+test("R3-F3: con la columna vacía vale el tope del plan", () => {
+  const micro = limitesR3F3({ slug: "negocio-x", plan: "micro" }, []).topes.facturasAutomaticasMes;
+  assert.equal(capEfectivo(null, micro, TOPE_MAX_R3F3), micro.valor ?? TOPE_MAX_R3F3);
+  assert.equal(capEfectivo(null, { valor: 25, origen: "excepcion" }, TOPE_MAX_R3F3), 25);
+});
+
+test("R3-F3: sin plan del catálogo (o en CH) queda el tope de siempre", () => {
+  const ch = limitesR3F3({ slug: "beauty-spa", plan: "pyme" }, []).topes.facturasAutomaticasMes;
+  assert.equal(capEfectivo(null, ch, TOPE_MAX_R3F3), CAP_DEFAULT);
+  // CH sin cambios: su columna sigue mandando, aunque sea más alta que el default.
+  assert.equal(capEfectivo(300, ch, TOPE_MAX_R3F3), 300);
+  assert.equal(capEfectivo(300, undefined, TOPE_MAX_R3F3), 300);
+  assert.equal(capEfectivo(undefined, undefined, TOPE_MAX_R3F3), CAP_DEFAULT);
+  assert.equal(capEfectivo(null, limitesR3F3({ slug: "x", plan: null }, []).topes.facturasAutomaticasMes, TOPE_MAX_R3F3), CAP_DEFAULT);
+});
+
+test("R3-F3: «sin tope» no deja el automático sin freno y un valor inválido en la columna se ignora", () => {
+  assert.equal(capEfectivo(null, { valor: null, origen: "excepcion" }, TOPE_MAX_R3F3), TOPE_MAX_R3F3);
+  assert.equal(capEfectivo(-3, { valor: 30, origen: "plan" }, TOPE_MAX_R3F3), 30);
+  assert.equal(capEfectivo(2.5, { valor: 30, origen: "plan" }, TOPE_MAX_R3F3), 30);
+});

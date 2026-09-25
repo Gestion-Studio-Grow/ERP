@@ -13,10 +13,6 @@
  * reversible; emitir mal, no.
  */
 
-import type { SubtotalIva } from "@/lib/invoice-core";
-// La regla única de redondeo de la plata (ENG-109, ADR-100 §3): la misma que usa el plugin
-// ARCA para escribir los importes. `redondear` es el alias con nombre del dominio fiscal.
-import { redondearAlCentavo as redondear } from "@/lib/dinero/redondeo";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 // Validador ÚNICO de CUIT del repo (dígito verificador + prefijo de tipo). Vive
@@ -48,10 +44,11 @@ const CONDICIONES_IVA: readonly CondicionIva[] = [
 ];
 
 /**
- * Default de condición de IVA mientras el `Tenant` no tenga columna propia
- * (propuesta en `docs/fiscal/PROPUESTA-condicion-iva-por-tenant.md` — migración
- * NO aplicada, Gate 2 del dueño). SOLO se aplica en homologación y queda marcado
- * en el perfil (`condicionIvaAsumida`). En producción NO hay default: lanza.
+ * Default de condición de IVA para un `Tenant` con `arcaCondicionIva` vacía (la columna
+ * la agrega `20260925120000_lanzamiento_base`, sin backfill: todos los negocios, CH
+ * incluido, arrancan en NULL). SOLO se aplica en homologación y queda marcado en el
+ * perfil (`condicionIvaAsumida`): así CH emite igual que antes de la columna. En
+ * producción NO hay default: lanza.
  */
 export const CONDICION_IVA_DEFAULT: CondicionIva = "MONOTRIBUTO";
 
@@ -73,6 +70,13 @@ export interface FiscalProfile {
    * `CONDICION_IVA_DEFAULT`. Solo puede ser `true` en homologación.
    */
   condicionIvaAsumida: boolean;
+  /**
+   * Clase A que ARCA le asignó al inscripto (RG 1575: "A", "A_CON_LEYENDA" o "M"), tal como está
+   * cargada; `null` si no está cargada o si el negocio no es inscripto. La valida la decisión
+   * única (`decidirComprobante`): sin dato, cada A pasa por revisión. Opcional sólo por los
+   * perfiles armados a mano en tests de otros módulos.
+   */
+  regimenFacturaA?: string | null;
 }
 
 /** Campo del perfil que faltaba o vino inválido. */
@@ -110,12 +114,15 @@ export interface RegistroFiscalTenant {
   arcaPuntoVenta: number | null;
   arcaHomologacion: boolean;
   /**
-   * SCHEMA-AHEAD a propósito: la columna `arcaCondicionIva` NO existe todavía
-   * (propuesta escrita, migración NO aplicada — Gate 2 del dueño). El lector de
-   * Prisma manda `undefined` hasta que exista; el día que se aplique se agrega
-   * al `select` y la lógica de acá no cambia.
+   * `Tenant.arcaCondicionIva` (R1-F5: el lector de Prisma la selecciona). Opcional sólo para
+   * los lectores inyectados de los tests: ausente o NULL es "sin cargar".
    */
   arcaCondicionIva?: string | null;
+  /**
+   * Clase A asignada al inscripto (RG 1575). TODAVÍA SIN COLUMNA en `Tenant`: el lector de Prisma
+   * no la trae, así que desde la base siempre llega "sin cargar" y cada A pasa por revisión.
+   */
+  arcaRegimenFacturaA?: string | null;
 }
 
 /** Lee la metadata fiscal de un tenant. Seam inyectable (default: Prisma). */
@@ -197,12 +204,24 @@ export function construirPerfilFiscal(
         `"${condicionCruda}" no es una condición de IVA conocida (${CONDICIONES_IVA.join(", ")})`,
       );
     }
+    // Un consumidor final no emite facturas: la decisión de la letra (decidirComprobante,
+    // EMISOR_NO_FACTURA) también lo frena, pero acá se dice antes y con el dato a corregir.
+    if (condicionCruda === "CONSUMIDOR_FINAL") {
+      throw new PerfilFiscalIncompletoError(
+        tenantId,
+        "condicionIva",
+        "un consumidor final no emite facturas; la condición del negocio frente al IVA " +
+          "tiene que ser Responsable Inscripto, Monotributo o Exento",
+      );
+    }
     return {
       cuit: Number(cuitTexto),
       condicionIva: condicionCruda as CondicionIva,
       puntoVenta,
       homologacion,
       condicionIvaAsumida: false,
+      regimenFacturaA:
+        condicionCruda === "RESPONSABLE_INSCRIPTO" ? (registro.arcaRegimenFacturaA ?? "").trim() || null : null,
     };
   }
 
@@ -227,6 +246,7 @@ export function construirPerfilFiscal(
     puntoVenta,
     homologacion,
     condicionIvaAsumida: true,
+    regimenFacturaA: null,
   };
 }
 
@@ -235,13 +255,14 @@ export function construirPerfilFiscal(
  * `leerConfigFiscalPrisma` (src/lib/arca-dispatch.ts): `Tenant` está excluido de
  * RLS (ADR-018) y se resuelve por id explícito, nunca ambiental.
  *
- * `arcaCondicionIva` NO se selecciona todavía: la columna no existe. Cuando el
- * dueño apruebe la migración (Gate 2), se agrega acá al `select`.
+ * Lee también `arcaCondicionIva` (R1-F5): con el dato cargado, la condición es la del
+ * negocio y no la asumida; vacío, rige `construirPerfilFiscal` (homologación asume,
+ * producción se niega).
  */
 export const leerRegistroFiscalPrisma: LeerRegistroFiscal = async (tenantId) =>
   prisma.tenant.findUnique({
     where: { id: tenantId },
-    select: { arcaCuit: true, arcaPuntoVenta: true, arcaHomologacion: true },
+    select: { arcaCuit: true, arcaPuntoVenta: true, arcaHomologacion: true, arcaCondicionIva: true },
   });
 
 /**
@@ -260,42 +281,8 @@ export function crearGetFiscalProfile(
  */
 export const getFiscalProfile = crearGetFiscalProfile();
 
-export interface Impuestos {
-  neto: number;
-  iva: SubtotalIva[];
-  total: number;
-}
-
-// Ids de alícuota de IVA de ARCA (ver src/plugins/arca/domain/catalogos.ts).
-const IVA_0 = 3; // 0%
-const IVA_21 = 5; // 21%
-
-/**
- * Calcula neto + IVA + total a partir del monto bruto que paga el cliente y la
- * condición del emisor. Simplificado a propósito (ADR-024 §2.e):
- *  - Monotributo / Exento (Factura C): no discrimina IVA → una línea al 0%,
- *    neto = total = monto.
- *  - Responsable Inscripto (Factura A/B): el monto es IVA-incluido al 21% →
- *    neto = monto / 1,21; IVA = monto − neto.
- */
-export function calcularImpuestos(
-  emisor: CondicionIva,
-  montoBruto: number,
-): Impuestos {
-  if (emisor === "RESPONSABLE_INSCRIPTO") {
-    const neto = redondear(montoBruto / 1.21);
-    const importe = redondear(montoBruto - neto);
-    return {
-      neto,
-      iva: [{ alicuotaId: IVA_21, base: neto, importe }],
-      total: redondear(neto + importe),
-    };
-  }
-  // Monotributo / Exento / (fallback): Factura C, sin IVA discriminado.
-  const neto = redondear(montoBruto);
-  return {
-    neto,
-    iva: [{ alicuotaId: IVA_0, base: neto, importe: 0 }],
-    total: neto,
-  };
-}
+// El cálculo de neto + IVA + total vive en el módulo PURO de impuestos (sin Prisma: lo alcanza
+// Ventas, que llega a un componente de cliente). `calcularImpuestos` se movió allá sin cambios y se
+// sigue exportando desde acá; la factura de un inscripto usa `calcularImpuestosPorAlicuota`.
+export { calcularImpuestos } from "@/lib/fiscal/impuestos-por-alicuota";
+export type { Impuestos } from "@/lib/fiscal/impuestos-por-alicuota";

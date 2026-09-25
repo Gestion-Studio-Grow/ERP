@@ -1,0 +1,76 @@
+TAP version 13
+# Subtest: de las 7 combinaciones de precondiciones sólo la completa pasa; las otras 6 se niegan con su motivo en castellano
+ok 1 - de las 7 combinaciones de precondiciones sólo la completa pasa; las otras 6 se niegan con su motivo en castellano
+  ---
+  duration_ms: 3.427877
+  type: 'test'
+  ...
+# Subtest: el certificado tiene que ser de producción y del mismo CUIT; una delegación, aunque figure verificada, no lo reemplaza
+ok 2 - el certificado tiene que ser de producción y del mismo CUIT; una delegación, aunque figure verificada, no lo reemplaza
+  ---
+  duration_ms: 0.801647
+  type: 'test'
+  ...
+# Subtest: CH: sólo el dueño de GSG, y escribiendo el slug
+ok 3 - CH: sólo el dueño de GSG, y escribiendo el slug
+  ---
+  duration_ms: 0.272795
+  type: 'test'
+  ...
+# Subtest: cualquier negocio pide escribir su slug para pasar a real (sin distinguir mayúsculas ni espacios)
+ok 4 - cualquier negocio pide escribir su slug para pasar a real (sin distinguir mayúsculas ni espacios)
+  ---
+  duration_ms: 0.136972
+  type: 'test'
+  ...
+# Subtest: si la ficha fiscal cambió entre que el operador miró y confirmó, no se hace nada
+ok 5 - si la ficha fiscal cambió entre que el operador miró y confirmó, no se hace nada
+  ---
+  duration_ms: 0.413887
+  type: 'test'
+  ...
+# Subtest: la vuelta a pruebas nunca se bloquea: ni por datos, ni por la huella, ni por el slug
+ok 6 - la vuelta a pruebas nunca se bloquea: ni por datos, ni por la huella, ni por el slug
+  ---
+  duration_ms: 0.419697
+  type: 'test'
+  ...
+# Subtest: pasar a real un negocio que ya factura en real no cambia nada; un pedido raro se niega
+ok 7 - pasar a real un negocio que ya factura en real no cambia nada; un pedido raro se niega
+  ---
+  duration_ms: 0.130793
+  type: 'test'
+  ...
+# Subtest: el entorno del certificado sale de quién lo firmó; lo que no se reconoce no es de producción
+ok 8 - el entorno del certificado sale de quién lo firmó; lo que no se reconoce no es de producción
+  ---
+  duration_ms: 0.241023
+  type: 'test'
+  ...
+# Subtest: con comprobantes de la etapa de pruebas esperando CAE, con el envío abierto o autorizados en pruebas, no pasa
+ok 9 - con comprobantes de la etapa de pruebas esperando CAE, con el envío abierto o autorizados en pruebas, no pasa
+  ---
+  duration_ms: 0.732442
+  type: 'test'
+  ...
+# Subtest: el conteo de comprobantes no entra en la huella: lo frena la condición (releída bajo bloqueo), con su motivo
+ok 10 - el conteo de comprobantes no entra en la huella: lo frena la condición (releída bajo bloqueo), con su motivo
+  ---
+  duration_ms: 0.492111
+  type: 'test'
+  ...
+# Subtest: la auditoría del pase dice antes, después, respaldo, modo y el conteo de comprobantes de prueba, sin material del certificado
+ok 11 - la auditoría del pase dice antes, después, respaldo, modo y el conteo de comprobantes de prueba, sin material del certificado
+  ---
+  duration_ms: 0.356316
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 486.002908

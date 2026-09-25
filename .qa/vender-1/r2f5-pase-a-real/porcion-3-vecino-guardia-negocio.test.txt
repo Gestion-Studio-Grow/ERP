@@ -1,0 +1,170 @@
+TAP version 13
+# Subtest: CH sólo con la sesión del dueño; el resto de los negocios, cualquier operador
+ok 1 - CH sólo con la sesión del dueño; el resto de los negocios, cualquier operador
+  ---
+  duration_ms: 111.683654
+  type: 'test'
+  ...
+# Subtest: el recorrido encuentra los endpoints con privilegio de operador en TODO src/ (si no, el trinquete no mira nada)
+not ok 2 - el recorrido encuentra los endpoints con privilegio de operador en TODO src/ (si no, el trinquete no mira nada)
+  ---
+  duration_ms: 4.515806
+  type: 'test'
+  location: '/home/user/erp/src/lib/operador/guardia-negocio.test.ts:2:15134'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        'src/lib/cartera-actions.ts',
+        'src/lib/operador/interruptores-actions.ts',
+    +   'src/lib/operador/plan-actions.ts',
+        'src/lib/operador/red-locales-actions.ts',
+        'src/lib/operator-actions.ts',
+        'src/lib/operator-provisioning-actions.ts'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'src/lib/cartera-actions.ts'
+    1: 'src/lib/operador/interruptores-actions.ts'
+    2: 'src/lib/operador/red-locales-actions.ts'
+    3: 'src/lib/operator-actions.ts'
+    4: 'src/lib/operator-provisioning-actions.ts'
+  actual:
+    0: 'src/lib/cartera-actions.ts'
+    1: 'src/lib/operador/interruptores-actions.ts'
+    2: 'src/lib/operador/plan-actions.ts'
+    3: 'src/lib/operador/red-locales-actions.ts'
+    4: 'src/lib/operator-actions.ts'
+    5: 'src/lib/operator-provisioning-actions.ts'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/operador/guardia-negocio.test.ts:350:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guardia del negocio (candado de CH)
+not ok 3 - TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guardia del negocio (candado de CH)
+  ---
+  duration_ms: 0.977766
+  type: 'test'
+  location: '/home/user/erp/src/lib/operador/guardia-negocio.test.ts:2:15539'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        'src/lib/cartera-actions.ts#altaClienteCarteraAction',
+        'src/lib/cartera-actions.ts#emitirAutomaticasClienteAction',
+        'src/lib/cartera-actions.ts#monitorCarteraAction',
+        'src/lib/cartera-actions.ts#setEstadoCarteraAction',
+        'src/lib/operador/interruptores-actions.ts#cambiarInterruptor',
+    +   'src/lib/operador/plan-actions.ts#ajustarLimiteDelNegocio',
+    +   'src/lib/operador/plan-actions.ts#aplicarPlanDelNegocio',
+        'src/lib/operador/red-locales-actions.ts#darDeBajaLocalAction',
+        'src/lib/operador/red-locales-actions.ts#revisarAltaEnRedAction',
+        'src/lib/operador/red-locales-actions.ts#sumarAltaALaRedAction',
+        'src/lib/operador/red-locales-actions.ts#vincularLocalAction',
+    +   'src/lib/operator-actions.ts#cambiarFacturacionReal',
+        'src/lib/operator-actions.ts#cargarCredencialFiscal',
+        'src/lib/operator-actions.ts#fijarAsignacionActual',
+        'src/lib/operator-actions.ts#resetOwnerPassword',
+        'src/lib/operator-actions.ts#resetOwnerPasswordDeTenant',
+        'src/lib/operator-actions.ts#setTenantArcaCuit',
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'src/lib/cartera-actions.ts#altaClienteCarteraAction'
+    1: 'src/lib/cartera-actions.ts#emitirAutomaticasClienteAction'
+    2: 'src/lib/cartera-actions.ts#monitorCarteraAction'
+    3: 'src/lib/cartera-actions.ts#setEstadoCarteraAction'
+    4: 'src/lib/operador/interruptores-actions.ts#cambiarInterruptor'
+    5: 'src/lib/operador/red-locales-actions.ts#darDeBajaLocalAction'
+    6: 'src/lib/operador/red-locales-actions.ts#revisarAltaEnRedAction'
+    7: 'src/lib/operador/red-locales-actions.ts#sumarAltaALaRedAction'
+    8: 'src/lib/operador/red-locales-actions.ts#vincularLocalAction'
+    9: 'src/lib/operator-actions.ts#cargarCredencialFiscal'
+    10: 'src/lib/operator-actions.ts#fijarAsignacionActual'
+    11: 'src/lib/operator-actions.ts#resetOwnerPassword'
+    12: 'src/lib/operator-actions.ts#resetOwnerPasswordDeTenant'
+    13: 'src/lib/operator-actions.ts#setTenantArcaCuit'
+    14: 'src/lib/operator-actions.ts#setTenantArcaPuntoVenta'
+    15: 'src/lib/operator-actions.ts#setTenantBranding'
+    16: 'src/lib/operator-actions.ts#setTenantPlan'
+    17: 'src/lib/operator-actions.ts#setTenantStatus'
+    18: 'src/lib/operator-actions.ts#setTenantSubdomain'
+    19: 'src/lib/operator-actions.ts#toggleTenantModule'
+    20: 'src/lib/operator-provisioning-actions.ts#commitTenantAction'
+    21: 'src/lib/operator-provisioning-actions.ts#planTenantAction'
+  actual:
+    0: 'src/lib/cartera-actions.ts#altaClienteCarteraAction'
+    1: 'src/lib/cartera-actions.ts#emitirAutomaticasClienteAction'
+    2: 'src/lib/cartera-actions.ts#monitorCarteraAction'
+    3: 'src/lib/cartera-actions.ts#setEstadoCarteraAction'
+    4: 'src/lib/operador/interruptores-actions.ts#cambiarInterruptor'
+    5: 'src/lib/operador/plan-actions.ts#ajustarLimiteDelNegocio'
+    6: 'src/lib/operador/plan-actions.ts#aplicarPlanDelNegocio'
+    7: 'src/lib/operador/red-locales-actions.ts#darDeBajaLocalAction'
+    8: 'src/lib/operador/red-locales-actions.ts#revisarAltaEnRedAction'
+    9: 'src/lib/operador/red-locales-actions.ts#sumarAltaALaRedAction'
+    10: 'src/lib/operador/red-locales-actions.ts#vincularLocalAction'
+    11: 'src/lib/operator-actions.ts#cambiarFacturacionReal'
+    12: 'src/lib/operator-actions.ts#cargarCredencialFiscal'
+    13: 'src/lib/operator-actions.ts#fijarAsignacionActual'
+    14: 'src/lib/operator-actions.ts#resetOwnerPassword'
+    15: 'src/lib/operator-actions.ts#resetOwnerPasswordDeTenant'
+    16: 'src/lib/operator-actions.ts#setTenantArcaCuit'
+    17: 'src/lib/operator-actions.ts#setTenantArcaPuntoVenta'
+    18: 'src/lib/operator-actions.ts#setTenantBranding'
+    19: 'src/lib/operator-actions.ts#setTenantPlan'
+    20: 'src/lib/operator-actions.ts#setTenantStatus'
+    21: 'src/lib/operator-actions.ts#setTenantSubdomain'
+    22: 'src/lib/operator-actions.ts#toggleTenantModule'
+    23: 'src/lib/operator-provisioning-actions.ts#commitTenantAction'
+    24: 'src/lib/operator-provisioning-actions.ts#planTenantAction'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/operador/guardia-negocio.test.ts:371:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cada engaño conocido pone el trinquete en rojo
+ok 4 - cada engaño conocido pone el trinquete en rojo
+  ---
+  duration_ms: 2.552299
+  type: 'test'
+  ...
+# Subtest: y una action bien hecha pasa (el detector no rechaza todo)
+ok 5 - y una action bien hecha pasa (el detector no rechaza todo)
+  ---
+  duration_ms: 0.548044
+  type: 'test'
+  ...
+# Subtest: los cambios de estado, plan, marca y subdominio quedan auditados con el operador
+ok 6 - los cambios de estado, plan, marca y subdominio quedan auditados con el operador
+  ---
+  duration_ms: 0.596207
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 4
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2315.067246

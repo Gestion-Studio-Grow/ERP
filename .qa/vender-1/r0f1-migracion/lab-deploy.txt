@@ -1,0 +1,19 @@
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": PostgreSQL database "r0f1_lab_copia", schema "public" at "localhost:5433"
+
+47 migrations found in prisma/migrations
+
+Applying migration `20260925120000_lanzamiento_base`
+Applying migration `20260925150000_comprobante_autorizado_inmutable`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20260925120000_lanzamiento_base/
+    └─ migration.sql
+  └─ 20260925150000_comprobante_autorizado_inmutable/
+    └─ migration.sql
+
+All migrations have been successfully applied.

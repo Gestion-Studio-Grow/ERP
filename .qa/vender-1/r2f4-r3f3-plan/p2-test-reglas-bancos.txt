@@ -1,0 +1,118 @@
+TAP version 13
+# Subtest: configConDefaults completa los valores del producto
+ok 1 - configConDefaults completa los valores del producto
+  ---
+  duration_ms: 1.077205
+  type: 'test'
+  ...
+# Subtest: monto menor al umbral → AUTO consumidor final genérico, sin descripción
+ok 2 - monto menor al umbral → AUTO consumidor final genérico, sin descripción
+  ---
+  duration_ms: 0.807145
+  type: 'test'
+  ...
+# Subtest: monto IGUAL al umbral va a revisión (el límite es estricto)
+ok 3 - monto IGUAL al umbral va a revisión (el límite es estricto)
+  ---
+  duration_ms: 14.844319
+  type: 'test'
+  ...
+# Subtest: monto mayor al umbral → revisión con identificación obligatoria
+ok 4 - monto mayor al umbral → revisión con identificación obligatoria
+  ---
+  duration_ms: 0.428763
+  type: 'test'
+  ...
+# Subtest: al 90% del cap se alerta pero se sigue emitiendo
+ok 5 - al 90% del cap se alerta pero se sigue emitiendo
+  ---
+  duration_ms: 1.447245
+  type: 'test'
+  ...
+# Subtest: al 100% del cap se bloquea la emisión automática (baja a revisión)
+ok 6 - al 100% del cap se bloquea la emisión automática (baja a revisión)
+  ---
+  duration_ms: 0.579243
+  type: 'test'
+  ...
+# Subtest: con el cap ya agotado, ninguna auto pasa
+ok 7 - con el cap ya agotado, ninguna auto pasa
+  ---
+  duration_ms: 0.301924
+  type: 'test'
+  ...
+# Subtest: las revisiones y no facturables no consumen cap
+ok 8 - las revisiones y no facturables no consumen cap
+  ---
+  duration_ms: 0.419405
+  type: 'test'
+  ...
+# Subtest: el mismo movimiento repetido en el archivo se descarta
+ok 9 - el mismo movimiento repetido en el archivo se descarta
+  ---
+  duration_ms: 0.485531
+  type: 'test'
+  ...
+# Subtest: un movimiento ya procesado en otra importación se descarta
+ok 10 - un movimiento ya procesado en otra importación se descarta
+  ---
+  duration_ms: 0.616194
+  type: 'test'
+  ...
+# Subtest: cruce banco↔MP: mismo monto y fecha ya facturado por MP → revisión
+ok 11 - cruce banco↔MP: mismo monto y fecha ya facturado por MP → revisión
+  ---
+  duration_ms: 0.445486
+  type: 'test'
+  ...
+# Subtest: cruce banco↔MP: distinto monto o fecha no molesta
+ok 12 - cruce banco↔MP: distinto monto o fecha no molesta
+  ---
+  duration_ms: 0.152663
+  type: 'test'
+  ...
+# Subtest: NO_FACTURABLE y REVISAR del clasificador se respetan con su motivo
+ok 13 - NO_FACTURABLE y REVISAR del clasificador se respetan con su motivo
+  ---
+  duration_ms: 0.17358
+  type: 'test'
+  ...
+# Subtest: el monto de la propuesta es el valor absoluto (IVA incluido, lo desglosa el Core)
+ok 14 - el monto de la propuesta es el valor absoluto (IVA incluido, lo desglosa el Core)
+  ---
+  duration_ms: 0.13651
+  type: 'test'
+  ...
+# Subtest: R3-F3: la columna del negocio manda sobre el plan
+ok 15 - R3-F3: la columna del negocio manda sobre el plan
+  ---
+  duration_ms: 0.387932
+  type: 'test'
+  ...
+# Subtest: R3-F3: con la columna vacía vale el tope del plan
+ok 16 - R3-F3: con la columna vacía vale el tope del plan
+  ---
+  duration_ms: 0.11243
+  type: 'test'
+  ...
+# Subtest: R3-F3: sin plan del catálogo (o en CH) queda el tope de siempre
+ok 17 - R3-F3: sin plan del catálogo (o en CH) queda el tope de siempre
+  ---
+  duration_ms: 0.133815
+  type: 'test'
+  ...
+# Subtest: R3-F3: «sin tope» no deja el automático sin freno y un valor inválido en la columna se ignora
+ok 18 - R3-F3: «sin tope» no deja el automático sin freno y un valor inválido en la columna se ignora
+  ---
+  duration_ms: 0.072756
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 18
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 511.157926

@@ -1,0 +1,161 @@
+TAP version 13
+# {"ts":"2026-09-25T20:53:57.283Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"beauty-spa","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T20:53:57.289Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"beauty-spa","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T20:53:57.290Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"t","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T20:53:57.291Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"t","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T20:53:57.294Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"t","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T20:53:57.295Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"t","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-25T20:53:57.296Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"t","condicionIva":"MONOTRIBUTO"}
+# Subtest: getFiscalProfile: lee CUIT y punto de venta del tenant (no el placeholder)
+ok 1 - getFiscalProfile: lee CUIT y punto de venta del tenant (no el placeholder)
+  ---
+  duration_ms: 3.951015
+  type: 'test'
+  ...
+# Subtest: getFiscalProfile: tenant sin CUIT LANZA (no emite con datos inventados)
+ok 2 - getFiscalProfile: tenant sin CUIT LANZA (no emite con datos inventados)
+  ---
+  duration_ms: 0.746143
+  type: 'test'
+  ...
+# Subtest: getFiscalProfile: CUIT vacío o en blanco también LANZA
+ok 3 - getFiscalProfile: CUIT vacío o en blanco también LANZA
+  ---
+  duration_ms: 0.27345
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: el viejo CUIT placeholder 20000000000 se rechaza por nombre
+ok 4 - construirPerfilFiscal: el viejo CUIT placeholder 20000000000 se rechaza por nombre
+  ---
+  duration_ms: 0.201855
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: CUIT con dígito verificador mal LANZA
+ok 5 - construirPerfilFiscal: CUIT con dígito verificador mal LANZA
+  ---
+  duration_ms: 0.176111
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: tenant inexistente LANZA
+ok 6 - construirPerfilFiscal: tenant inexistente LANZA
+  ---
+  duration_ms: 0.131063
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: sin punto de venta (o inválido) LANZA
+ok 7 - construirPerfilFiscal: sin punto de venta (o inválido) LANZA
+  ---
+  duration_ms: 0.246792
+  type: 'test'
+  ...
+# Subtest: getFiscalProfile: dos tenants distintos obtienen perfiles distintos
+ok 8 - getFiscalProfile: dos tenants distintos obtienen perfiles distintos
+  ---
+  duration_ms: 0.900011
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: homologacion refleja arcaHomologacion del tenant
+ok 9 - construirPerfilFiscal: homologacion refleja arcaHomologacion del tenant
+  ---
+  duration_ms: 1.048235
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: sin condición de IVA en HOMOLOGACIÓN asume el default y lo marca
+ok 10 - construirPerfilFiscal: sin condición de IVA en HOMOLOGACIÓN asume el default y lo marca
+  ---
+  duration_ms: 1.222846
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: sin condición de IVA en PRODUCCIÓN LANZA (no asume Monotributo)
+ok 11 - construirPerfilFiscal: sin condición de IVA en PRODUCCIÓN LANZA (no asume Monotributo)
+  ---
+  duration_ms: 0.310434
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: condición de IVA cargada gana y no queda marcada como asumida
+ok 12 - construirPerfilFiscal: condición de IVA cargada gana y no queda marcada como asumida
+  ---
+  duration_ms: 0.23837
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: condición de IVA desconocida LANZA (no cae al default)
+ok 13 - construirPerfilFiscal: condición de IVA desconocida LANZA (no cae al default)
+  ---
+  duration_ms: 0.210955
+  type: 'test'
+  ...
+# Subtest: calcularImpuestos: Monotributo asumido sobre un Responsable Inscripto pierde el IVA
+ok 14 - calcularImpuestos: Monotributo asumido sobre un Responsable Inscripto pierde el IVA
+  ---
+  duration_ms: 0.501677
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: tolera el CUIT con guiones y espacios
+ok 15 - construirPerfilFiscal: tolera el CUIT con guiones y espacios
+  ---
+  duration_ms: 2.085417
+  type: 'test'
+  ...
+# Subtest: construirPerfilFiscal: un negocio cargado como consumidor final no emite (lanza con el dato a corregir)
+ok 16 - construirPerfilFiscal: un negocio cargado como consumidor final no emite (lanza con el dato a corregir)
+  ---
+  duration_ms: 0.308225
+  type: 'test'
+  ...
+# Subtest: monotributo y exento facturan exactamente como antes: lo cobrado como neto, sin mirar alícuotas
+ok 17 - monotributo y exento facturan exactamente como antes: lo cobrado como neto, sin mirar alícuotas
+  ---
+  duration_ms: 25.726264
+  type: 'test'
+  ...
+# Subtest: inscripto con todo al 21 %: da lo mismo que la tasa pareja de antes, ahora con el IVA por producto
+ok 18 - inscripto con todo al 21 %: da lo mismo que la tasa pareja de antes, ahora con el IVA por producto
+  ---
+  duration_ms: 29.708862
+  type: 'test'
+  ...
+# Subtest: inscripto con 21 % y 10,5 %: discrimina cada alícuota, en orden de código, y neto + IVA = total
+ok 19 - inscripto con 21 % y 10,5 %: discrimina cada alícuota, en orden de código, y neto + IVA = total
+  ---
+  duration_ms: 0.251484
+  type: 'test'
+  ...
+# Subtest: 3000 ventas al azar de un inscripto: todo al centavo, cuadra exacto y el plugin ARCA las valida
+ok 20 - 3000 ventas al azar de un inscripto: todo al centavo, cuadra exacto y el plugin ARCA las valida
+  ---
+  duration_ms: 192.42384
+  type: 'test'
+  ...
+# Subtest: inscripto sin la alícuota de algún producto: no se factura y se dice qué cargar
+ok 21 - inscripto sin la alícuota de algún producto: no se factura y se dice qué cargar
+  ---
+  duration_ms: 0.625445
+  type: 'test'
+  ...
+# Subtest: inscripto con un producto exento o no gravado: todavía no se emite, y se dice que va por ARCA
+ok 22 - inscripto con un producto exento o no gravado: todavía no se emite, y se dice que va por ARCA
+  ---
+  duration_ms: 0.24005
+  type: 'test'
+  ...
+# Subtest: inscripto: no se inventa ni se reparte a ojo (código que no es de ARCA, renglones que no suman, importes inválidos)
+ok 23 - inscripto: no se inventa ni se reparte a ojo (código que no es de ARCA, renglones que no suman, importes inválidos)
+  ---
+  duration_ms: 0.514456
+  type: 'test'
+  ...
+# Subtest: la tabla de alícuotas del Core es la misma que verifica el plugin ARCA
+ok 24 - la tabla de alícuotas del Core es la misma que verifica el plugin ARCA
+  ---
+  duration_ms: 0.402759
+  type: 'test'
+  ...
+1..24
+# tests 24
+# suites 0
+# pass 24
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 890.369848

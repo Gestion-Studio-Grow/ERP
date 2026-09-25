@@ -1,0 +1,11 @@
+Integración vender-1, 2026-09-25. Árbol compartido, sin commit, sin deploy, sin Neon.
+node --import tsx --test src/lib/operador/guardia-negocio.test.ts -> antes 4/6 (guardia-antes.txt), después 6/6 (guardia-despues.txt)
+Tope del plan en Bancos: tope-del-plan-tests.txt 54/54 (bancos-glue, tope-del-plan-en-emision-postgres, uso-del-plan-postgres, mercadopago-auto, reglas)
+  regla vieja en kpisFacturacionBancaria: tope-del-plan-ANTES-regla-vieja.txt 1 rojo (esperado 159, dio 100000); md5 restaurado igual (mutacion-md5-*.txt)
+facturarOrden inscripto: invoice-from-order-tests.txt 6/6; código de HEAD: invoice-from-order-ANTES-codigo-viejo.txt 4 rojos; md5 restaurado igual (mutacion-ifo-md5-*.txt)
+Caminos fiscales vecinos (umbral en los seis caminos, facturadores-fecha, venta anulada, circuito fiscal): correccion-eng024-tests.txt 23/23
+npx prisma generate -> exit 0 (prisma-generate.txt)
+npx tsc --noEmit -p tsconfig.json -> exit 0, 0 errores (tsc.txt)
+npx eslint --max-warnings=0 <archivos-tocados.txt> -> exit 0 (eslint.txt)
+node --import tsx --test src/apps/paridad-menu.test.ts -> 4/4 (paridad-menu.txt)
+npm test -> 4251 tests, 4247 pass, 4 fail (xlsx, stub local), 0 skipped (npm-test.txt, npm-test-fallas.txt)

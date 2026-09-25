@@ -1,0 +1,220 @@
+TAP version 13
+# Subtest: inscripto con el IVA de cada producto: A a un cliente inscripto con domicilio y una alícuota; B a consumidor final con una o varias
+ok 1 - inscripto con el IVA de cada producto: A a un cliente inscripto con domicilio y una alícuota; B a consumidor final con una o varias
+  ---
+  duration_ms: 5.375836
+  type: 'test'
+  ...
+# Subtest: la A sin el domicilio del comprador no se promete: el impreso de la A lo lleva (RG 1415, Anexo II)
+ok 2 - la A sin el domicilio del comprador no se promete: el impreso de la A lo lleva (RG 1415, Anexo II)
+  ---
+  duration_ms: 0.795272
+  type: 'test'
+  ...
+# Subtest: la A con productos de distintas alícuotas no se promete: el impreso no puede mostrar el precio sin IVA de cada uno
+ok 3 - la A con productos de distintas alícuotas no se promete: el impreso no puede mostrar el precio sin IVA de cada uno
+  ---
+  duration_ms: 0.415248
+  type: 'test'
+  ...
+# Subtest: la A a un monotributista no se promete mientras el impreso no lleve la leyenda de la RG 5003/2021 (Ley 27.618)
+ok 4 - la A a un monotributista no se promete mientras el impreso no lleve la leyenda de la RG 5003/2021 (Ley 27.618)
+  ---
+  duration_ms: 0.280707
+  type: 'test'
+  ...
+# Subtest: inscripto sin la alícuota de cada producto (o sin la fecha del día): no se emite, y se dice qué cargar
+ok 5 - inscripto sin la alícuota de cada producto (o sin la fecha del día): no se emite, y se dice qué cargar
+  ---
+  duration_ms: 0.332988
+  type: 'test'
+  ...
+# Subtest: inscripto sin la clase A cargada: a un cliente inscripto no emite (lo dice la decisión); a consumidor final, B
+ok 6 - inscripto sin la clase A cargada: a un cliente inscripto no emite (lo dice la decisión); a consumidor final, B
+  ---
+  duration_ms: 1.653967
+  type: 'test'
+  ...
+# Subtest: inscripto: Ventas no promete una factura que la emisión no puede calcular (exento, renglones que no suman)
+ok 7 - inscripto: Ventas no promete una factura que la emisión no puede calcular (exento, renglones que no suman)
+  ---
+  duration_ms: 0.462021
+  type: 'test'
+  ...
+# Subtest: monotributo (CH) factura exactamente como antes: C sin mirar la ficha ni la alícuota
+ok 8 - monotributo (CH) factura exactamente como antes: C sin mirar la ficha ni la alícuota
+  ---
+  duration_ms: 0.305865
+  type: 'test'
+  ...
+# Subtest: con la facturación apagada no se emite: 'Sin factura' con el porqué
+ok 9 - con la facturación apagada no se emite: 'Sin factura' con el porqué
+  ---
+  duration_ms: 0.368275
+  type: 'test'
+  ...
+# Subtest: encendida: se emite sólo con el perfil completo y fuera de Responsable Inscripto
+ok 10 - encendida: se emite sólo con el perfil completo y fuera de Responsable Inscripto
+  ---
+  duration_ms: 2.861486
+  type: 'test'
+  ...
+# Subtest: anulada, sin cobrar o en cero: no se factura
+ok 11 - anulada, sin cobrar o en cero: no se factura
+  ---
+  duration_ms: 0.427076
+  type: 'test'
+  ...
+# Subtest: lo que dice la fila según el comprobante
+ok 12 - lo que dice la fila según el comprobante
+  ---
+  duration_ms: 0.502944
+  type: 'test'
+  ...
+# Subtest: Ventas del día: las ventas a cuenta se dicen aparte y el cupón queda en la nota
+ok 13 - Ventas del día: las ventas a cuenta se dicen aparte y el cupón queda en la nota
+  ---
+  duration_ms: 4.25518
+  type: 'test'
+  ...
+# Subtest: CUIT de responsable inscripto con guiones: se guarda sin guiones, con su condición y razón social
+ok 14 - CUIT de responsable inscripto con guiones: se guarda sin guiones, con su condición y razón social
+  ---
+  duration_ms: 2.940349
+  type: 'test'
+  ...
+# Subtest: inscripto o monotributista sin domicilio: se pide, porque la Factura A lo lleva impreso (RG 1415); exento o consumidor final, no
+ok 15 - inscripto o monotributista sin domicilio: se pide, porque la Factura A lo lleva impreso (RG 1415); exento o consumidor final, no
+  ---
+  duration_ms: 0.629968
+  type: 'test'
+  ...
+# Subtest: lo que impide entregar la factura decidida: nada en la A común con domicilio y una alícuota, ni en la B; sí en la A sin domicilio, con dos alícuotas o a un monotributista
+ok 16 - lo que impide entregar la factura decidida: nada en la A común con domicilio y una alícuota, ni en la B; sí en la A sin domicilio, con dos alícuotas o a un monotributista
+  ---
+  duration_ms: 2.302379
+  type: 'test'
+  ...
+# Subtest: CUIT con el dígito verificador cambiado: se rechaza y se dice por qué
+ok 17 - CUIT con el dígito verificador cambiado: se rechaza y se dice por qué
+  ---
+  duration_ms: 1.312087
+  type: 'test'
+  ...
+# Subtest: un número sin tipo de documento no se adivina: se pide elegir CUIT, CUIL o DNI
+ok 18 - un número sin tipo de documento no se adivina: se pide elegir CUIT, CUIL o DNI
+  ---
+  duration_ms: 0.267986
+  type: 'test'
+  ...
+# Subtest: CUIT sin condición frente al IVA: se pide, no se asume consumidor final
+ok 19 - CUIT sin condición frente al IVA: se pide, no se asume consumidor final
+  ---
+  duration_ms: 0.244283
+  type: 'test'
+  ...
+# Subtest: CUIT sin razón social: se pide, no se copia el nombre de la ficha
+ok 20 - CUIT sin razón social: se pide, no se copia el nombre de la ficha
+  ---
+  duration_ms: 0.217756
+  type: 'test'
+  ...
+# Subtest: responsable inscripto, monotributista o exento sin CUIT: se pide el CUIT
+ok 21 - responsable inscripto, monotributista o exento sin CUIT: se pide el CUIT
+  ---
+  duration_ms: 0.368063
+  type: 'test'
+  ...
+# Subtest: una condición frente al IVA que no está en la tabla de ARCA se rechaza
+ok 22 - una condición frente al IVA que no está en la tabla de ARCA se rechaza
+  ---
+  duration_ms: 0.29072
+  type: 'test'
+  ...
+# Subtest: ficha vacía: vale y deja al cliente como consumidor final sin identificar
+ok 23 - ficha vacía: vale y deja al cliente como consumidor final sin identificar
+  ---
+  duration_ms: 0.831283
+  type: 'test'
+  ...
+# Subtest: DNI de consumidor final: se guarda sin puntos; uno de 5 números se rechaza
+ok 24 - DNI de consumidor final: se guarda sin puntos; uno de 5 números se rechaza
+  ---
+  duration_ms: 0.250918
+  type: 'test'
+  ...
+# Subtest: razón social o domicilio demasiado largos se rechazan
+ok 25 - razón social o domicilio demasiado largos se rechazan
+  ---
+  duration_ms: 0.220978
+  type: 'test'
+  ...
+# Subtest: cambios de la ficha: sólo lo que cambió, con el valor anterior al lado
+ok 26 - cambios de la ficha: sólo lo que cambió, con el valor anterior al lado
+  ---
+  duration_ms: 0.183896
+  type: 'test'
+  ...
+# Subtest: inscripto con A común a un cliente inscripto guardado: Factura A (tipo 1), lista para emitir
+ok 27 - inscripto con A común a un cliente inscripto guardado: Factura A (tipo 1), lista para emitir
+  ---
+  duration_ms: 0.261071
+  type: 'test'
+  ...
+# Subtest: inscripto a un monotributista: Factura A con la leyenda de la RG 5003/2021, no B
+ok 28 - inscripto a un monotributista: Factura A con la leyenda de la RG 5003/2021, no B
+  ---
+  duration_ms: 0.343334
+  type: 'test'
+  ...
+# Subtest: inscripto a un consumidor final sin ficha: Factura B (tipo 6), sin documento
+ok 29 - inscripto a un consumidor final sin ficha: Factura B (tipo 6), sin documento
+  ---
+  duration_ms: 0.169261
+  type: 'test'
+  ...
+# Subtest: monotributo emite siempre C, a cualquier ficha
+ok 30 - monotributo emite siempre C, a cualquier ficha
+  ---
+  duration_ms: 0.579153
+  type: 'test'
+  ...
+# Subtest: inscripto sin la clase A cargada: la A no sale sola (a revisión, con el motivo); la B a consumidor final sí
+ok 31 - inscripto sin la clase A cargada: la A no sale sola (a revisión, con el motivo); la B a consumidor final sí
+  ---
+  duration_ms: 0.407334
+  type: 'test'
+  ...
+# Subtest: emisor sin condición frente al IVA: la decisión se niega con un motivo que dice qué cargar
+ok 32 - emisor sin condición frente al IVA: la decisión se niega con un motivo que dice qué cargar
+  ---
+  duration_ms: 0.187312
+  type: 'test'
+  ...
+# Subtest: el comprador de la factura es el de la decisión: inscripto, monotributista, DNI y sin identificar
+ok 33 - el comprador de la factura es el de la decisión: inscripto, monotributista, DNI y sin identificar
+  ---
+  duration_ms: 0.521072
+  type: 'test'
+  ...
+# Subtest: sin decisión lista no hay comprador para la factura: CUIT sin condición, o la A sin su clase
+ok 34 - sin decisión lista no hay comprador para la factura: CUIT sin condición, o la A sin su clase
+  ---
+  duration_ms: 1.418548
+  type: 'test'
+  ...
+# Subtest: lo que Ventas decide es lo que el despacho vuelve a decidir con la factura armada
+ok 35 - lo que Ventas decide es lo que el despacho vuelve a decidir con la factura armada
+  ---
+  duration_ms: 18.329866
+  type: 'test'
+  ...
+1..35
+# tests 35
+# suites 0
+# pass 35
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 604.34214

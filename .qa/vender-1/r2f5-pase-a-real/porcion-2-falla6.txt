@@ -1,0 +1,4 @@
+    + actual - expected
+    +   'src/lib/operador/plan-actions.ts',
+  expected:
+  actual:
