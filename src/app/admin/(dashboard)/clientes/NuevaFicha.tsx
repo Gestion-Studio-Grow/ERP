@@ -7,7 +7,7 @@
 // Un error deja el formulario abierto con lo tipeado y dice qué pasó; si el teléfono ya es de
 // otra ficha, ofrece ir a ella.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { crearFicha } from "@/lib/client-actions";
@@ -16,8 +16,20 @@ import { fmtShortDate } from "@/lib/datetime";
 
 export type CompradorSinFichaVista = { clave: string; nombre: string; telefono: string; pedidos: number; ultimo: string };
 
-export default function NuevaFicha({ sinFicha }: { sinFicha: CompradorSinFichaVista[] }) {
+/** El «⋯» de la lista (diseño nuevo, celular) pide abrir «Nueva ficha» o «Compraron sin ficha». */
+export const EVENTO_FICHA = "clientes:ficha";
+export type PedidoFicha = "nueva" | "sin";
+
+export default function NuevaFicha({
+  sinFicha,
+  compacta = false,
+}: {
+  sinFicha: CompradorSinFichaVista[];
+  /** Diseño nuevo: en el celular los dos botones viven en el «⋯» de la lista, no arriba de ella. */
+  compacta?: boolean;
+}) {
   const [abierta, setAbierta] = useState(false);
+  const [sinAbierta, setSinAbierta] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<{ texto: string; existenteId?: string } | null>(null);
   const [prefill, setPrefill] = useState<{ nombre: string; telefono: string; n: number }>({ nombre: "", telefono: "", n: 0 });
@@ -32,10 +44,32 @@ export default function NuevaFicha({ sinFicha }: { sinFicha: CompradorSinFichaVi
     requestAnimationFrame(() => form.current?.scrollIntoView({ block: "start", behavior: "smooth" }));
   }
 
+  useEffect(() => {
+    if (!compacta) return;
+    const alPedir = (e: Event) => {
+      const que = (e as CustomEvent<PedidoFicha>).detail;
+      if (que === "nueva") {
+        setError(null);
+        setPrefill((p) => ({ nombre: "", telefono: "", n: p.n + 1 }));
+        setAbierta(true);
+        requestAnimationFrame(() => form.current?.scrollIntoView({ block: "start", behavior: "smooth" }));
+      }
+      if (que === "sin") setSinAbierta(true);
+    };
+    window.addEventListener(EVENTO_FICHA, alPedir);
+    return () => window.removeEventListener(EVENTO_FICHA, alPedir);
+  }, [compacta]);
+
+  // En el celular (compacta) la sección no ocupa lugar hasta que se abre algo desde el «⋯».
+  const soloPc = compacta ? " max-sm:hidden" : "";
+
   return (
-    <section className="mb-6 space-y-3" aria-label="Cargar una ficha">
+    <section
+      className={`mb-4 flex flex-wrap items-start gap-2${compacta && !abierta && !sinAbierta ? " max-sm:mb-0" : ""}`}
+      aria-label="Cargar una ficha"
+    >
       {!abierta && (
-        <button type="button" onClick={() => abrirCon("", "")} className={buttonClasses("outline", "md")}>
+        <button type="button" onClick={() => abrirCon("", "")} className={buttonClasses("outline", "md") + soloPc}>
           Nueva ficha
         </button>
       )}
@@ -65,7 +99,7 @@ export default function NuevaFicha({ sinFicha }: { sinFicha: CompradorSinFichaVi
               setGuardando(false);
             }
           }}
-          className="space-y-4 rounded-lg border border-line bg-surface-raised p-4"
+          className="basis-full space-y-4 rounded-lg border border-line bg-surface-raised p-4"
         >
           <p className="text-sm font-medium text-strong">Nueva ficha</p>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -107,7 +141,11 @@ export default function NuevaFicha({ sinFicha }: { sinFicha: CompradorSinFichaVi
       )}
 
       {sinFicha.length > 0 && (
-        <details className="rounded-lg border border-line bg-surface-raised">
+        <details
+          open={sinAbierta}
+          onToggle={(e) => setSinAbierta(e.currentTarget.open)}
+          className={`min-w-0 rounded-lg border border-line bg-surface-raised open:basis-full${sinAbierta ? "" : soloPc}`}
+        >
           <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-medium text-strong">
             Compraron sin ficha ({sinFicha.length})
           </summary>

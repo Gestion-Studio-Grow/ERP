@@ -9,7 +9,8 @@ import { getSugeridoData } from "@/lib/suppliers/sugerido-loader";
 import { CICLO_DIAS, DEMORA_DIAS, DIAS_DE_SEGURIDAD, DIAS_DE_VENTA, cantidadParaPedir, type LineaSugerida } from "@/lib/suppliers/sugerido";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { formatearCantidad } from "@/lib/pos-peso";
-import { EmptyState, KpiTile, PageHeader, buttonClasses } from "@/components/ui";
+import { EmptyState, KpiTile, PageContainer, PageHeader, buttonClasses } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import PedidoProveedor, { type LineaDelPedido } from "./PedidoProveedor";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ function lineaParaMostrar(l: LineaSugerida): LineaDelPedido {
 // misma del número del Inicio. Sin plata: son cantidades, así que la abre el encargado.
 export default async function SugeridoPage() {
   const user = await requireApp("sugerido-de-compra");
-  const [tenantId, negocio, rubro] = await Promise.all([getCurrentTenantId(), getNegocioApps(user.role), getCurrentTenantRubro()]);
+  const [tenantId, negocio, rubro, nuevo] = await Promise.all([getCurrentTenantId(), getNegocioApps(user.role), getCurrentTenantRubro(), disenoNuevo()]);
   const datos = await getSugeridoData(tenantId, new Date());
   const ve = {
     compras: appPermitida(appPorId("recibir-mercaderia"), negocio),
@@ -42,6 +43,93 @@ export default async function SugeridoPage() {
   const plural = sustantivo.endsWith("s") ? sustantivo : `${sustantivo}s`;
   const aPedir = datos.pedidos.reduce((s, p) => s + p.lineas.length, 0);
   const conProveedor = datos.pedidos.filter((p) => p.proveedor).length;
+
+  const pedidosDeHoy = datos.pedidos.map((p) => {
+    const tel = p.proveedor?.telefono ?? null;
+    return {
+      clave: p.proveedor?.id ?? "sin-proveedor",
+      proveedorId: p.proveedor?.id ?? null,
+      titulo: p.proveedor?.nombre ?? "Sin proveedor habitual",
+      subtitulo: p.proveedor ? tel : "Nunca se compraron a un proveedor de la lista",
+      lineas: p.lineas.map(lineaParaMostrar),
+      texto: p.texto,
+      waHref: p.proveedor ? waLinkClienta(tel, p.texto) : null,
+      sinTelefono: p.proveedor
+        ? {
+            texto: tel ? "El teléfono cargado no sirve para WhatsApp (tiene que tener característica y número)." : "El proveedor no tiene teléfono cargado.",
+            href: ve.proveedores ? `/admin/proveedores/${p.proveedor.id}` : null,
+          }
+        : null,
+    };
+  });
+
+  // DISEÑO NUEVO («Renglón»): el lunes a la mañana, el encargado frente a la cámara con el
+  // celular. Arriba, en una línea, cuánto hay que pedir y a cuántos; después un bloque por
+  // proveedor que se lee como la nota que se le manda, con «Mandar por WhatsApp» debajo. La
+  // explicación de la cuenta baja al pie, plegada. La misma lectura y los mismos textos.
+  if (nuevo) {
+    return (
+      <PageContainer width="narrow">
+        <PageHeader
+          title="Sugerido de compra"
+          estado={
+            datos.productos === 0 || aPedir === 0
+              ? undefined
+              : [
+                  <strong key="a">{aPedir === 1 ? `1 ${sustantivo} para pedir` : `${aPedir} ${plural} para pedir`}</strong>,
+                  <span key="p">
+                    {conProveedor === 1 ? "a 1 proveedor" : `a ${conProveedor} proveedores`}
+                    {conProveedor < datos.pedidos.length ? " y algunos sin proveedor habitual" : ""}
+                  </span>,
+                ]
+          }
+          actions={
+            ve.compras ? (
+              <Link href="/admin/compras" className={buttonClasses("outline", "md")}>
+                Recibir mercadería
+              </Link>
+            ) : undefined
+          }
+        />
+        {datos.productos === 0 ? (
+          <p data-ui="vacio" className="border-y border-line py-4 text-sm text-body">
+            Ningún {sustantivo} controla stock, así que no hay de dónde sacar la cuenta.{" "}
+            {ve.catalogo ? (
+              <Link href="/admin/catalogo" className="inline-flex min-h-11 items-center font-medium underline underline-offset-2">
+                Activá el control de stock en el catálogo
+              </Link>
+            ) : (
+              "Pedile a la dueña o al dueño que lo active en el catálogo."
+            )}
+          </p>
+        ) : aPedir === 0 ? (
+          <p data-ui="vacio" className="border-y border-line py-4 text-sm text-body">
+            Hoy no hace falta pedir nada: con lo que se vende y lo que hay, ningún {sustantivo} llega al mínimo antes del próximo pedido.
+          </p>
+        ) : (
+          <div className="space-y-8">
+            {!datos.conProveedores && (
+              <p role="status" className="text-sm text-warning">
+                Los proveedores todavía no están habilitados en este negocio: el pedido sale sin agrupar.
+              </p>
+            )}
+            {pedidosDeHoy.map(({ clave, ...p }) => (
+              <PedidoProveedor key={clave} {...p} renglon />
+            ))}
+            <details className="border-t border-line pt-2 text-sm text-muted">
+              <summary className="inline-flex min-h-11 cursor-pointer items-center font-medium text-body">¿Cómo se calcula cuánto pedir?</summary>
+              <p className="pb-2">
+                Lo que se vende por día en los últimos {DIAS_DE_VENTA} días × {DEMORA_DIAS + CICLO_DIAS} días ({DEMORA_DIAS} de entrega y{" "}
+                {CICLO_DIAS} hasta el próximo pedido, provisorios a confirmar con cada proveedor) más un colchón (el mínimo cargado o{" "}
+                {DIAS_DE_SEGURIDAD} días de venta, lo que sea mayor), menos lo que hay. Se agrupa por el proveedor al que se lo compraste la
+                última vez. Revisá las cantidades en el chat antes de mandar.
+              </p>
+            </details>
+          </div>
+        )}
+      </PageContainer>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-8">
@@ -101,31 +189,9 @@ export default async function SugeridoPage() {
               Los proveedores todavía no están habilitados en este negocio: el pedido sale sin agrupar.
             </p>
           )}
-          {datos.pedidos.map((p) => {
-            const tel = p.proveedor?.telefono ?? null;
-            const waHref = p.proveedor ? waLinkClienta(tel, p.texto) : null;
-            return (
-              <PedidoProveedor
-                key={p.proveedor?.id ?? "sin-proveedor"}
-                proveedorId={p.proveedor?.id ?? null}
-                titulo={p.proveedor?.nombre ?? "Sin proveedor habitual"}
-                subtitulo={p.proveedor ? tel : "Nunca se compraron a un proveedor de la lista"}
-                lineas={p.lineas.map(lineaParaMostrar)}
-                texto={p.texto}
-                waHref={waHref}
-                sinTelefono={
-                  p.proveedor
-                    ? {
-                        texto: tel
-                          ? "El teléfono cargado no sirve para WhatsApp (tiene que tener característica y número)."
-                          : "El proveedor no tiene teléfono cargado.",
-                        href: ve.proveedores ? `/admin/proveedores/${p.proveedor.id}` : null,
-                      }
-                    : null
-                }
-              />
-            );
-          })}
+          {pedidosDeHoy.map(({ clave, ...p }) => (
+            <PedidoProveedor key={clave} {...p} />
+          ))}
         </div>
       )}
     </main>

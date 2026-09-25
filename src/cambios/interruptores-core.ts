@@ -22,6 +22,7 @@ import {
 import {
   ACCION_DE,
   CANAL_INTERRUPTOR,
+  DISENO_NUEVO,
   ENTIDAD_INTERRUPTOR,
   esFilaDeInterruptorValida,
   esInterruptorId,
@@ -97,6 +98,11 @@ export function filtroDeFilasValidas(tenantId: string) {
 /** ¿El negocio trabaja por apps? Atajo del interruptor más usado. */
 export function trabajaPorApps(estado: EstadoInterruptores): boolean {
   return estado[INICIO_POR_APPS].encendido;
+}
+
+/** ¿El negocio tiene el diseño nuevo (la piel «Renglón»)? Lo lee src/lib/diseno/diseno.server.ts. */
+export function disenoNuevoPrendido(estado: EstadoInterruptores): boolean {
+  return estado[DISENO_NUEVO].encendido;
 }
 
 // ── La fila que se escribe ───────────────────────────────────────────────────
@@ -175,7 +181,10 @@ export interface ContextoFresco {
   modulosActuales: readonly string[];
   /** ¿Está prendido hoy, leído de la base recién? */
   encendido: boolean;
-  /** Apps del menú de siempre que perdería con el interruptor prendido (vista previa con la base fresca). */
+  /**
+   * Apps del menú de siempre que perdería con el Inicio por apps (vista previa con la base fresca).
+   * Sólo frena a un interruptor que cambia las apps (`cambiaLasApps`): el diseño nuevo no quita ninguna.
+   */
   appsPerdidas: readonly string[];
 }
 
@@ -216,7 +225,7 @@ export function decidirCambioDeInterruptor(pedido: PedidoDeInterruptor, ctx: Con
     return { ok: true, interruptor, accion, sinCambios: true };
   }
 
-  if (accion === "encender" && ctx.appsPerdidas.length > 0) {
+  if (accion === "encender" && interruptorPorId(interruptor).cambiaLasApps && ctx.appsPerdidas.length > 0) {
     const n = ctx.appsPerdidas.length;
     return {
       ok: false,
@@ -275,8 +284,14 @@ export async function cambiarInterruptorCon(
   }
   const id = esInterruptorId(pedido.interruptor) ? pedido.interruptor : INICIO_POR_APPS;
   const encendido = estado[id].encendido;
-  // La vista previa, recalculada acá con la base fresca: la misma función que pinta la ficha.
-  const apps = estadoDeApps(negocio, { registroGlobal: deps.registroGlobal, enInicioPorApps: encendido }, deps.registry);
+  const cambiaLasApps = interruptorPorId(id).cambiaLasApps;
+  // La vista previa, recalculada acá con la base fresca: la misma función que pinta la ficha. Con
+  // el Inicio por apps DE ESTE NEGOCIO como está hoy (para "Trabaja por apps" es `encendido`).
+  const apps = estadoDeApps(
+    negocio,
+    { registroGlobal: deps.registroGlobal, enInicioPorApps: estado[INICIO_POR_APPS].encendido },
+    deps.registry,
+  );
   const decision = decidirCambioDeInterruptor(pedido, {
     operador,
     duenio: deps.duenio,
@@ -293,7 +308,7 @@ export async function cambiarInterruptorCon(
     interruptor: decision.interruptor,
     accion: decision.accion,
     operador: operador.nombre,
-    gana: decision.accion === "encender" ? apps.conInicioFrenteAlMenu.gana.map((a) => a.id) : [],
+    gana: cambiaLasApps && decision.accion === "encender" ? apps.conInicioFrenteAlMenu.gana.map((a) => a.id) : [],
   });
   const escrito = await deps.escribirSiSigueIgual(fila, { modules: negocio.modules, encendido });
   if (escrito !== true) return { tipo: "rechazado", motivo: escrito === false ? CAMBIO_MIENTRAS_MIRABAS : escrito.motivo };

@@ -9,11 +9,11 @@ export const dynamic = "force-dynamic";
 export default function DireccionPage() {
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">GSG Lab · Mesa de Dirección</h1>
+          <h1 className="text-2xl font-bold text-strong">Dirección</h1>
           <p className="text-muted text-sm mt-1">
-            Cartera de negocios digitales del laboratorio (GSG Lab) · vista ejecutiva para la dirección.
+            Los negocios propios del laboratorio, vistos de arriba: para decidir, no para operar.
             Publicado {PANEL_PUBLICADO}.
           </p>
         </div>

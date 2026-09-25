@@ -14,9 +14,17 @@
 //
 // El desajuste SSR/cliente que esto genera en el atributo lo absorbe
 // `suppressHydrationWarning` en el contenedor.
+//
+// Diseño nuevo (`nuevo`): el mismo script sale por ScriptDelTema, que no dispara el aviso de React
+// «Encountered a script tag…» cuando el elemento se dibuja en el navegador. Apagado (CH hoy): el
+// <script> de siempre, sin cambios. El HTML del servidor es el mismo en los dos casos
+// (AdminThemeScript.test.ts).
+
+import { ScriptDelTema } from "./ScriptDelTema";
 
 const BOOT = `(function(){try{var e=document.currentScript.parentElement,t=localStorage.getItem("gsg-admin-theme");if(t!=="light"&&t!=="dark"){t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}e.setAttribute("data-theme",t)}catch(_){}})()`;
 
-export default function AdminThemeScript() {
+export default function AdminThemeScript({ nuevo = false }: { nuevo?: boolean }) {
+  if (nuevo) return <ScriptDelTema codigo={BOOT} />;
   return <script dangerouslySetInnerHTML={{ __html: BOOT }} />;
 }

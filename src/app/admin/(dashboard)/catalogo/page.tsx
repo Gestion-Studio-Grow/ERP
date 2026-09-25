@@ -11,7 +11,8 @@ import { appPorId } from "@/apps/registro";
 import { cargarCostosDelCatalogo, cargarGondolas } from "@/lib/catalogo/precios-lectura";
 import { resumirCatalogo } from "@/lib/catalogo/resumen";
 import { hrefMovimientos } from "@/lib/inventario/movimientos";
-import { buttonClasses, fmtNumberAR } from "@/components/ui";
+import { PageHeader, buttonClasses, fmtNumberAR } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import BoxesSection from "./BoxesSection";
 import ServicesSection from "./ServicesSection";
 import ProfessionalsSection from "./ProfessionalsSection";
@@ -22,10 +23,15 @@ import AsignacionSection from "./AsignacionSection";
 import CortesSection, { type Corte } from "./CortesSection";
 import PlanillaCortes from "./PlanillaCortes";
 import { vocabularioDelRubro } from "./vocabulario";
+import CatalogoRenglon from "./CatalogoRenglon";
+import CatalogoServiciosPagina from "./CatalogoServiciosPagina";
+import { leerEditar, leerParametrosCatalogo, paginaDelCatalogo } from "./lista-core";
 
 export const dynamic = "force-dynamic";
 
-export default async function CatalogoPage() {
+type Sp = Record<string, string | string[] | undefined>;
+
+export default async function CatalogoPage({ searchParams }: { searchParams: Promise<Sp> }) {
   // Guardia de la app (ADR-098): una app oculta no es una app protegida.
   const user = await requireApp("catalogo");
   const rubro = await getCurrentTenantRubro();
@@ -78,6 +84,73 @@ export default async function CatalogoPage() {
       etiquetas: appPermitida(appPorId("etiquetas-de-precio"), negocio),
     };
 
+    // «Diseño nuevo» (Renglón): la tabla densa paginada en el servidor, con los MISMOS cortes de
+    // arriba (cero consultas nuevas). Apagado, el catálogo de siempre.
+    if (await disenoNuevo()) {
+      const sp = await searchParams;
+      const vocabulario = vocabularioDelRubro(rubro.rubro);
+      const p = leerParametrosCatalogo(sp);
+      const pagina = paginaDelCatalogo(cortes, p, vocabulario.carniceria);
+      const idEditar = leerEditar(sp);
+      const editando = idEditar ? (cortes.find((c) => c.id === idEditar) ?? null) : null;
+      const agregar = sp.agregar === "1";
+      return (
+        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+          {/* En el celular: el título y «Agregar» en una fila, sin la bajada (las vistas de la
+              lista ya dicen cuántos hay sin precio); lo demás va al «⋯» de la lista. */}
+          <PageHeader
+            title="Catálogo"
+            className="max-sm:mb-4 max-sm:flex-row max-sm:items-center max-sm:justify-between max-sm:[&_[data-parte=bajada]]:hidden"
+            description={
+              resumen.activos > 0
+                ? `${fmtNumberAR(resumen.activos)} a la venta · ${fmtNumberAR(resumen.sinPrecio)} sin precio${conCostos ? ` · ${fmtNumberAR(resumen.sinCosto)} sin costo` : ""}`
+                : undefined
+            }
+            actions={
+              <>
+                <Link href="/admin/catalogo?agregar=1" scroll={false} className={buttonClasses("solid", "md")}>
+                  Agregar {vocabulario.carniceria ? "corte" : vocabulario.uno}
+                </Link>
+                {ve.precios && (
+                  <Link href="/admin/catalogo/precios" className={buttonClasses("outline", "md") + " max-sm:hidden"}>
+                    Actualizar precios
+                  </Link>
+                )}
+                {ve.etiquetas && (
+                  <Link href="/admin/catalogo/etiquetas" className={buttonClasses("ghost", "md") + " max-sm:hidden"}>
+                    Etiquetas
+                  </Link>
+                )}
+              </>
+            }
+          />
+          <CatalogoRenglon
+            filas={pagina.filas}
+            coinciden={pagina.coinciden}
+            conBusqueda={pagina.conBusqueda}
+            total={cortes.length}
+            pagina={pagina.pagina}
+            paginas={pagina.paginas}
+            porVista={pagina.porVista}
+            q={p.q}
+            vista={p.vista}
+            conCostos={conCostos}
+            vocabulario={vocabulario}
+            puedeAumentar={ve.precios}
+            editando={editando}
+            agregando={agregar && editando === null}
+            masAcciones={[
+              ...(ve.precios ? [{ etiqueta: "Actualizar precios", href: "/admin/catalogo/precios" }] : []),
+              ...(ve.etiquetas ? [{ etiqueta: "Etiquetas", href: "/admin/catalogo/etiquetas" }] : []),
+            ]}
+          />
+          <div className="mt-10">
+            <PlanillaCortes />
+          </div>
+        </main>
+      );
+    }
+
     return (
       <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -129,10 +202,22 @@ export default async function CatalogoPage() {
   }
 
   // --- Rubro SERVICIOS (spa) y demás: layout histórico, sin cambios ---
-  const [{ boxes, services, professionals, products, categories, resources }, coupons] = await Promise.all([
+  const [{ boxes, services, professionals, products, categories, resources }, coupons, conDisenoNuevo] = await Promise.all([
     getCatalog(),
     getCoupons(),
+    disenoNuevo(),
   ]);
+
+  // «Diseño nuevo» (Renglón): una pestaña por parte del catálogo y un renglón por ítem, con los
+  // MISMOS datos de arriba (cero consultas nuevas). Apagado, CH sigue viendo el catálogo de siempre.
+  if (conDisenoNuevo) {
+    return (
+      <CatalogoServiciosPagina
+        sp={await searchParams}
+        datos={{ boxes, services, professionals, products, categories, resources, coupons }}
+      />
+    );
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">

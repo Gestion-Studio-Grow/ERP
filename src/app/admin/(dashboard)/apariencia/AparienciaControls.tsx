@@ -10,10 +10,17 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { applyTheme, changeTheme, resolveTheme, useAdminTheme, type Theme } from "../../theme-client";
 import { updateAccentPresetAction } from "@/lib/apariencia-actions";
+import { Marca } from "@/components/ui";
+
+// DISEÑO NUEVO («Renglón»): cada opción es un renglón que se toca entero (52 px en el celular), con
+// la muestra en el folio y «● En uso» a la derecha. Sin tarjetas ni círculos con degradé: el color
+// del equipo se muestra partido en dos cuadrados planos, el tono para claro y el tono para oscuro.
+const FILA =
+  "flex min-h-[52px] w-full items-center gap-4 border-b border-line py-2 text-left hover:bg-surface-sunken focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus sm:min-h-10";
 
 // ── Tema claro/oscuro ─────────────────────────────────────────────────────────
 
-export function ThemeSelector() {
+export function ThemeSelector({ renglon = false }: { renglon?: boolean } = {}) {
   // Misma lectura que el toggle de la topbar, con la MISMA mecánica compartida: los
   // dos controles quedan en sincronía sin que ninguno tenga que copiar la del otro.
   const theme = useAdminTheme();
@@ -31,6 +38,33 @@ export function ThemeSelector() {
     { id: "light", label: "Claro", detalle: "Fondo gris perla, ideal de día." },
     { id: "dark", label: "Oscuro", detalle: "Grafito profundo, descansa la vista." },
   ];
+
+  if (renglon) {
+    return (
+      <div role="group" aria-label="Tema del panel">
+        {opciones.map((o) => {
+          const activo = theme === o.id;
+          return (
+            <button key={o.id} type="button" onClick={() => elegir(o.id)} aria-pressed={activo} className={FILA}>
+              {/* Muestra del tema en sí (fondo y hoja), con los hex del tema: es dato, no UI temable. */}
+              <span
+                aria-hidden
+                className="grid h-7 w-10 shrink-0 place-items-center rounded border border-line"
+                style={{ background: o.id === "dark" ? "#0d0d0f" : "#f5f5f7" }}
+              >
+                <span className="block h-3 w-6 rounded-sm" style={{ background: o.id === "dark" ? "#17171a" : "#ffffff" }} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className={`block text-strong ${activo ? "font-semibold" : ""}`}>{o.label}</span>
+                <span className="block text-[13px] text-muted">{o.detalle}</span>
+              </span>
+              {activo && <Marca tipo="hecho">En uso</Marca>}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div role="group" aria-label="Tema del panel" className="grid grid-cols-1 gap-sm sm:grid-cols-2">
@@ -99,7 +133,7 @@ function aplicarAcento(s: Swatch) {
   });
 }
 
-export function AccentSelector({ swatches, actual }: { swatches: Swatch[]; actual: string }) {
+export function AccentSelector({ swatches, actual, renglon = false }: { swatches: Swatch[]; actual: string; renglon?: boolean }) {
   const router = useRouter();
   const [elegido, setElegido] = useState(actual);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +157,43 @@ export function AccentSelector({ swatches, actual }: { swatches: Swatch[]; actua
       router.refresh();
     });
   };
+
+  if (renglon) {
+    return (
+      <div>
+        <div role="group" aria-label="Color del equipo">
+          {swatches.map((s) => {
+            const activo = s.id === elegido;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => elegir(s)}
+                disabled={pendiente && activo}
+                aria-pressed={activo}
+                className={FILA}
+              >
+                {/* Los dos tonos del color (hex del preset: dato, no UI temable). */}
+                <span aria-hidden className="flex h-7 w-10 shrink-0 overflow-hidden rounded border border-line">
+                  <span className="h-full flex-1" style={{ background: s.light }} />
+                  <span className="h-full flex-1" style={{ background: s.dark }} />
+                </span>
+                <span className={`min-w-0 flex-1 text-strong ${activo ? "font-semibold" : ""}`}>{s.label}</span>
+                {activo && <Marca tipo={pendiente ? "pendiente" : "hecho"}>{pendiente ? "Guardando…" : "En uso"}</Marca>}
+              </button>
+            );
+          })}
+        </div>
+        <div aria-live="polite">
+          {error && (
+            <p role="alert" className="mt-2 text-sm text-danger">
+              {error}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

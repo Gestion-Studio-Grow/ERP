@@ -174,6 +174,7 @@ import AjustarPedidoForm from "@/app/admin/(dashboard)/pedidos/AjustarPedidoForm
 import AnularPedidoForm from "@/app/admin/(dashboard)/pedidos/AnularPedidoForm";
 import PosForm from "@/app/admin/(dashboard)/pedidos/PosForm";
 import BarraInferior from "@/app/admin/(dashboard)/inicio/BarraInferior";
+import { DisenoProvider } from "@/lib/diseno/DisenoProvider";
 import { REGISTRO_APPS } from "@/apps/registro";
 window.__envios = [];
 // La barra de espacios REAL del celular (la que el shell monta en todo negocio por apps, MAGRA
@@ -204,6 +205,8 @@ window.__montar = (cual, tope, extra) =>
         ? createElement(VenderForm, { products: [], stockById: {}, rapidos: [], negocio: "MAGRA Canning", topeDescuentoPct: tope })
         : cual === "vender" || cual === "pedido"
         ? createElement(VenderForm, { products: productos, stockById: stock, rapidos: ["p_vacio", "p_entrana"], negocio: "MAGRA Canning", topeDescuentoPct: tope, pedidoInicial: cual === "pedido", ...(extra || {}) })
+        : cual === "vender-nuevo"
+        ? createElement(DisenoProvider, { nuevo: true }, createElement(VenderForm, { products: productos, stockById: stock, rapidos: ["p_vacio", "p_entrana"], negocio: "MAGRA Canning", vendedor: "Micaela", sustantivo: "corte", topeDescuentoPct: tope, ...(extra || {}) }))
         : createElement(AjustarPedidoForm, { id: "ord_7", code: 7, subtotal: PEDIDOS[cual].subtotal, descuento: PEDIDOS[cual].descuento, items: [
             { productId: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", quantity: PEDIDOS[cual].quantity, unitPrice: 12500, lineTotal: PEDIDOS[cual].subtotal },
           ] }),
@@ -212,7 +215,7 @@ window.__montar = (cual, tope, extra) =>
 `;
 
 type Envio = Record<string, string[]>;
-type Montaje = "vender" | "pedido" | "sin-precios" | "ajustar" | "ajustar-10kg" | "anular" | "pos";
+type Montaje = "vender" | "vender-nuevo" | "pedido" | "sin-precios" | "ajustar" | "ajustar-10kg" | "anular" | "pos";
 /** Lo que el "servidor" falso tiene grabado por clave (la fila, como la lee `leerVentaGrabada`). */
 type Grabada = {
   anulada: boolean;
@@ -1695,6 +1698,225 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     assert.doesNotMatch((await empezar.getAttribute("class")) ?? "", /text-muted/, "no es un texto gris");
     await empezar.click();
     assert.equal(await aviso.count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  // ── El ticket que crece (diseño nuevo, «Renglón») ────────────────────────────────────────────
+  // La MISMA venta con la vista nueva: lo que viaja al servidor tiene que ser idéntico a lo que manda
+  // la vista de siempre con los mismos toques (misma plata, mismo medio, mismas cantidades).
+
+  /** Carga Vacío 1,240 + Entraña 0,950 en efectivo con $50.000 y cobra. Devuelve lo que viajó. */
+  async function venderLaDeSiempre(page: Page, cobrar: RegExp | string) {
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("button", { name: "Entraña" }).click();
+    await page.keyboard.type("0,950");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.getByLabel("Pagó con").fill("50.000");
+    await page.getByText("Vuelto $17.875,00").waitFor();
+    await page.getByRole("button", { name: cobrar }).click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.equal(envios.length, 1);
+    const { idempotencyKey, ...resto } = envios[0];
+    assert.ok(idempotencyKey?.[0], "viaja con su clave");
+    return resto;
+  }
+
+  test("ticket: la misma venta que la vista de siempre viaja IDÉNTICA al servidor", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const siempre = await montar("vender");
+    const deSiempre = await venderLaDeSiempre(siempre.page, "Cobrar $32.125,00");
+    await siempre.page.close();
+    const ticket = await montar("vender-nuevo");
+    // Las teclas de «Más vendidos» dicen su precio por kilo.
+    assert.ok(await ticket.page.getByRole("button", { name: "Vacío $12.500 / kg" }).isVisible());
+    const delTicket = await venderLaDeSiempre(ticket.page, /^Cobrar \$32\.125,00/);
+    assert.deepEqual(delTicket, deSiempre);
+    assert.deepEqual(ticket.errores, []);
+    await ticket.page.close();
+  });
+
+  test("ticket: cada línea dice kilos × precio = importe, se saca con «−», y el total grande es el del botón", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender-nuevo");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    const linea = page.locator('[data-vender="linea"]').first();
+    await linea.getByText("1,24 kg × $12.500 / kg").waitFor();
+    assert.equal((await linea.locator('[data-parte="importe"]').innerText()).replace(/\s/g, ""), "$15.500,00");
+    await page.getByRole("button", { name: "Entraña" }).click();
+    await page.keyboard.type("0,950");
+    assert.equal(await page.locator('[data-vender="linea"]').count(), 2);
+    await page.getByText("Total · 2 líneas").waitFor();
+    // «−» saca la línea: el total baja a la otra.
+    await page.getByRole("button", { name: "Quitar línea" }).first().click();
+    assert.equal(await page.locator('[data-vender="linea"]').count(), 1);
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    assert.ok(await page.getByRole("button", { name: /^Cobrar \$16\.625,00/ }).isEnabled());
+    // «Cobrado» no está a la vista: cobrar ES la acción. Está en «Más», marcado.
+    assert.equal(await page.getByLabel("Cobrado").isVisible(), false);
+    assert.equal(await page.getByLabel("Cobrado").isChecked(), true);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("ticket: el teclado del mostrador — / busca, Alt+1 es efectivo, F2 cobra, Esc limpia", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender-nuevo");
+    const soltarFoco = () => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    // Montado (los atajos se enganchan al pintar).
+    await page.getByRole("combobox", { name: "Buscá un corte o un producto" }).waitFor();
+    await page.waitForTimeout(50);
+    await soltarFoco();
+    await page.keyboard.press("/");
+    assert.equal(await page.evaluate(() => document.activeElement?.id), "vender-buscar");
+    await page.keyboard.type("entr");
+    await page.getByRole("option", { name: /Entraña/ }).click();
+    await page.keyboard.type("1");
+    // El foco sale del campo (Esc en un campo es del campo) y se elige el medio con Alt+1.
+    await soltarFoco();
+    await page.keyboard.press("Alt+1");
+    assert.equal(await page.getByRole("radio", { name: "Efectivo" }).getAttribute("aria-checked"), "true");
+    await page.keyboard.press("F2");
+    await page.getByText("Venta #42 cobrada").waitFor();
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.deepEqual(envios[0].paymentMethod, ["EFECTIVO"]);
+    assert.deepEqual(envios[0].quantity, ["1"]);
+    // Esc con algo cargado lo limpia (sin un cobro en duda).
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("2");
+    await soltarFoco();
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator('[data-vender="linea"]').count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("ticket: una línea con producto y sin cantidad frena el cobro y dice cuál; lo que va por unidad entra con 1", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const crema = { id: "p_crema", name: "Crema", saleUnit: "UNIT", price: 9000, pricePerKg: null, unit: "u" };
+    const { page, errores } = await montar("vender-nuevo", 10, {
+      products: [{ id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", price: null, pricePerKg: 12500, unit: "kg" }, crema],
+      stockById: { p_vacio: { stock: 30, trackStock: true }, p_crema: { stock: 5, trackStock: true } },
+      rapidos: ["p_vacio", "p_crema"],
+    });
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    // Por unidad: el toque la carga con 1 y el campo queda seleccionado (un «2» lo pisa, no da 12).
+    await page.getByRole("button", { name: /^Crema/ }).click();
+    const qtyCrema = page.locator('[data-vender="linea"]').filter({ hasText: "Crema" }).getByLabel("Cantidad");
+    assert.equal(await qtyCrema.inputValue(), "1");
+    await page.keyboard.type("2");
+    assert.equal(await qtyCrema.inputValue(), "2");
+    // Sin la cantidad, la Crema NO se cae callada del ticket: Cobrar se frena y dice qué falta.
+    await qtyCrema.fill("");
+    const frenado = page.getByRole("button", { name: "Falta la cantidad de Crema" });
+    await frenado.waitFor();
+    assert.equal(await frenado.isDisabled(), true);
+    await page.keyboard.press("F2");
+    // Por kilo, sin el peso: lo mismo, con la palabra de la balanza.
+    await qtyCrema.fill("1");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    const frenadoPeso = page.getByRole("button", { name: "Falta el peso de Vacío" });
+    await frenadoPeso.waitFor();
+    assert.equal(await frenadoPeso.isDisabled(), true);
+    await page.getByRole("button", { name: "Quitar línea" }).last().click();
+    await page.getByRole("button", { name: /^Cobrar \$24\.500,00/ }).click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.equal(envios.length, 1, "con la línea sin cantidad no viajó nada");
+    assert.deepEqual(envios[0].productId, ["p_vacio", "p_crema"]);
+    assert.deepEqual(envios[0].quantity, ["1.24", "1"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("ticket: después de cargar el peso el foco vuelve al buscador SIN abrir la lista (un toque no cae sobre otro corte)", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender-nuevo");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.keyboard.press("Enter");
+    const buscador = page.getByRole("combobox", { name: "Buscá un corte o un producto" });
+    assert.equal(await page.evaluate(() => document.activeElement?.id), "vender-buscar");
+    assert.equal(await buscador.getAttribute("aria-expanded"), "false");
+    assert.equal(await page.getByRole("listbox").count(), 0, "ninguna lista tapa los más vendidos");
+    // El botón de abajo recibe el toque (no una opción de la lista).
+    await page.getByRole("button", { name: "Entraña" }).click();
+    await page.keyboard.type("0,950");
+    assert.equal(await page.locator('[data-vender="linea"]').count(), 2);
+    await page.locator('[data-vender="linea"]').filter({ hasText: "Entraña" }).waitFor();
+    // Tipear sí abre la lista.
+    await buscador.focus();
+    await page.keyboard.type("vac");
+    await page.getByRole("option", { name: /Vacío/ }).waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("ticket: se corta la señal a mitad del cobro y el reintento es la MISMA venta (misma clave)", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender-nuevo");
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.evaluate(() => ((window as unknown as Ventana).__respuestaPerdida = true));
+    await page.getByRole("button", { name: /^Cobrar \$15\.500,00/ }).click();
+    const reintento = page.getByRole("button", { name: /^Reintentar/ });
+    await reintento.waitFor();
+    await reintento.click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.equal(envios.length, 2);
+    assert.deepEqual(envios[1].idempotencyKey, envios[0].idempotencyKey, "misma clave: no se cobra dos veces");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("ticket en el celular (412 px) con la piel: el botón de cobrar a la vista, arriba de la cápsula, sin scroll de costado", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS de la app");
+    const piel = readFileSync(join(RAIZ, "public", "diseno", "renglon.css"), "utf8");
+    const page = await browser!.newPage({ viewport: { width: 412, height: 800 }, locale: "es-AR" });
+    const errores: string[] = [];
+    page.on("pageerror", (e) => errores.push(e.message));
+    // La raíz del panel con la piel prendida y una cápsula fija como la del armazón nuevo.
+    const html = `<!doctype html><html lang="es"><head><style>${css}</style><style>${piel}</style></head><body><div data-skin="fable" data-diseno="renglon" data-theme="light" class="min-h-screen"><div data-ui="armazon"><div data-parte="contenido"><div style="height:48px">barra</div><div id="root" class="px-4"></div></div><nav data-ui="capsula" aria-label="Espacios" style="--espacios:4"><a data-parte="espacio" href="#">Inicio</a><a data-parte="espacio" href="#">Caja</a><a data-parte="espacio" href="#">Clientes</a><a data-parte="espacio" href="#">Stock</a><a data-parte="rubro" href="#">Vender</a></nav></div></div></body></html>`;
+    await page.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html }));
+    await page.goto(ORIGEN);
+    await page.addScriptTag({ content: bundle });
+    await page.evaluate(() => (window as unknown as Ventana).__montar("vender-nuevo", 10));
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1,240");
+    await page.getByRole("button", { name: "Entraña" }).click();
+    await page.keyboard.type("0,950");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    const cobrar = page.getByRole("button", { name: /^Cobrar \$32\.125,00/ });
+    const caja = await cobrar.boundingBox();
+    const capsula = await page.getByRole("navigation", { name: "Espacios" }).boundingBox();
+    assert.ok(caja && capsula);
+    assert.ok(caja.y >= 0 && caja.y + caja.height <= capsula.y, `el botón (y=${caja.y}, alto ${caja.height}) queda arriba de la cápsula (y=${capsula.y})`);
+    assert.ok(caja.height >= 44, `toque de 44 px o más (${caja.height})`);
+    const encima = await page.evaluate(
+      ([x, y]) => document.elementFromPoint(x, y)?.closest("button")?.getAttribute("type") ?? "",
+      [caja.x + caja.width / 2, caja.y + caja.height / 2] as const,
+    );
+    assert.equal(encima, "submit", "tocar el centro del botón es tocar Cobrar");
+    const ancho = await page.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(ancho <= 412, `sin scroll horizontal (${ancho})`);
+    // Los toques del ticket miden 44 px o más.
+    const chicos = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-vender] button, [data-vender] input:not([type="hidden"]), [data-vender] [role="radio"], [data-vender] summary')]
+        // Una casilla dentro de su rótulo se toca por el rótulo entero: se mide el rótulo.
+        .map((el) => (el instanceof HTMLInputElement && el.type === "checkbox" && el.closest("label") ? el.closest("label")! : el))
+        .map((el) => ({ q: (el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 30), r: el.getBoundingClientRect() }))
+        .filter(({ r }) => r.width > 0 && r.height > 0 && (r.height < 44 || r.width < 44))
+        .map(({ q, r }) => `${q} ${Math.round(r.width)}×${Math.round(r.height)}`),
+    );
+    assert.deepEqual(chicos, [], "ningún control del ticket de menos de 44 × 44 px");
     assert.deepEqual(errores, []);
     await page.close();
   });

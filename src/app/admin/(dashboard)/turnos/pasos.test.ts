@@ -5,7 +5,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   esFechaDeCalendario,
+  esIdDeFicha,
   hrefNuevoTurno,
+  leerClienteDelAlta,
   leerNuevoTurno,
   vacioDiaSinTurnos,
   vacioManana,
@@ -36,6 +38,23 @@ test("la lista abre el alta con la fecha de hoy o futura; la pasada o inventada 
   assert.deepEqual(leerNuevoTurno({ nuevo: "1", fecha: "2026-09-23" }, HOY), { abrir: true, fecha: "" });
   assert.deepEqual(leerNuevoTurno({ nuevo: "1", fecha: "2026-13-01" }, HOY), { abrir: true, fecha: "" });
   assert.deepEqual(leerNuevoTurno({ nuevo: ["1", "0"], fecha: ["2026-10-01"] }, HOY), { abrir: true, fecha: "2026-10-01" });
+});
+
+test("darle un turno desde la ficha: el link lleva a la clienta, con o sin fecha", () => {
+  assert.equal(hrefNuevoTurno(null, "cm1abc_D-9"), "/admin/turnos/lista?nuevo=1&cliente=cm1abc_D-9");
+  assert.equal(hrefNuevoTurno("2026-09-25", "cm1abc"), "/admin/turnos/lista?nuevo=1&fecha=2026-09-25&cliente=cm1abc");
+  // Un id que rompería la URL o metería otro parámetro no viaja.
+  assert.equal(hrefNuevoTurno(null, "a&nuevo=0"), "/admin/turnos/lista?nuevo=1");
+  assert.equal(hrefNuevoTurno(null, ""), "/admin/turnos/lista?nuevo=1");
+  assert.equal(esIdDeFicha("x".repeat(65)), false);
+});
+
+test("la lista precarga la clienta sólo con el alta abierta y un id sano", () => {
+  assert.equal(leerClienteDelAlta({ nuevo: "1", cliente: "cm1abc" }), "cm1abc");
+  assert.equal(leerClienteDelAlta({ nuevo: "1", cliente: ["cm1abc", "otra"] }), "cm1abc");
+  assert.equal(leerClienteDelAlta({ cliente: "cm1abc" }), "");
+  assert.equal(leerClienteDelAlta({ nuevo: "1", cliente: "<script>" }), "");
+  assert.equal(leerClienteDelAlta({ nuevo: "1" }), "");
 });
 
 test("sin ?nuevo=1 la lista queda como siempre: el alta cerrada y sin fecha", () => {

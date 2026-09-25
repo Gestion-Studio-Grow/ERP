@@ -1,0 +1,10 @@
+FALLA CH (apagado) · entrar (6323 ms) llegó a /admin ERRORES=[CH (apagado) · entrar] Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa
+OK   CH (apagado) · /admin con la vista de siempre (2542 ms) h1=Inicio · diseno=null sx360=0 chicos<44=1
+OK   CH (apagado) · /admin/turnos con la vista de siempre (3350 ms) h1=Agenda · diseno=null sx360=0 chicos<44=0
+OK   CH (apagado) · /admin/turnos/lista?nuevo=1 con la vista de siempre (21206 ms) h1=Agenda · diseno=null sx360=0 chicos<44=0
+FALLA CH (apagado) · /admin/caja/cierre con la vista de siempre (407 ms) page.goto: net::ERR_CONNECTION_REFUSED at http://chestetica.localhost:3210/admin/caja/cierre
+FALLA CH (apagado) · /admin/clientes con la vista de siempre (343 ms) page.goto: net::ERR_CONNECTION_REFUSED at http://chestetica.localhost:3210/admin/clientes
+FALLA CH (apagado) · F1 no hace nada nuevo (353 ms) page.goto: net::ERR_CONNECTION_REFUSED at http://chestetica.localhost:3210/admin/turnos
+
+ch-off 390: 3/7 pasos OK · errores de consola 6 · callejones 0
+MEDIDA off/admin /admin sx360=0 chicos: Ver agenda completa →:20

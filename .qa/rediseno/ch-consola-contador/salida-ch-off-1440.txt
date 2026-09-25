@@ -1,0 +1,13 @@
+FALLA CH (apagado) · entrar (2255 ms) llegó a /admin ERRORES=[CH (apagado) · entrar] Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa
+OK   CH (apagado) · /admin con la vista de siempre (2505 ms) h1=Inicio · diseno=null sx360=0 chicos<44=2
+OK   CH (apagado) · /admin/turnos con la vista de siempre (2561 ms) h1=Agenda · diseno=null sx360=0 chicos<44=16
+OK   CH (apagado) · /admin/turnos/lista?nuevo=1 con la vista de siempre (17421 ms) h1=Agenda · diseno=null sx360=0 chicos<44=1192
+OK   CH (apagado) · /admin/caja/cierre con la vista de siempre (2634 ms) h1=Cierre de caja · diseno=null sx360=0 chicos<44=5
+OK   CH (apagado) · /admin/clientes con la vista de siempre (3932 ms) h1=Clientes · diseno=null sx360=0 chicos<44=0
+OK   CH (apagado) · F1 no hace nada nuevo (3470 ms) se queda donde está (como hoy)
+
+ch-off 1440: 6/7 pasos OK · errores de consola 1 · callejones 0
+MEDIDA off/admin /admin sx360=0 chicos: + Nuevo turno:36, Ver agenda completa →:20
+MEDIDA off/admin/turnos /admin/turnos sx360=0 chicos: Calendario:30, Lista:30, ← Anterior:36, Hoy:36, Siguiente →:36, Ir a una fecha:34
+MEDIDA off/admin/turnos/lista?nuevo=1 /admin/turnos/lista?nuevo=1 sx360=0 chicos: Calendario:30, Lista:30, Cancelar:20, Monto a cobrar:36, Efectivo Mercado Pago Transf:36, Registrar cobro:36
+MEDIDA off/admin/caja/cierre /admin/caja/cierre sx360=0 chicos: ← 24/09/2026:34, 26/09/2026 →:34, Ver el libro del mes →:20, Bajar el libro de este día:20, Bajar el mes completo:20

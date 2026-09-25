@@ -15,6 +15,7 @@ import { getActiveModuleIds, moduleGateAllows } from "@/lib/module-gating";
 import {
   kpisFacturacionAction,
   listarPropuestasAction,
+  type PropuestaVista,
 } from "@/lib/bancos-actions";
 import { getFacturacion } from "@/lib/facturacion-actions";
 import { Badge, PageContainer, PageHeader, SectionGroup, buttonClasses, fmtNumberAR } from "@/components/ui";
@@ -24,8 +25,14 @@ import ImportarExtracto from "./ImportarExtracto";
 import MercadoPagoSync from "./MercadoPagoSync";
 import EmitirFacturas from "./EmitirFacturas";
 import ColaRevision from "./ColaRevision";
+import RevisarEnCajon from "./RevisarEnCajon";
+import EmitirDeslizando from "./EmitirDeslizando";
 import { estadoMercadoPagoAction } from "@/lib/mercadopago-actions";
 import { fmtDateTimeAr } from "@/lib/datetime";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { Bloque, Franja, LineaDeEstado, Marca, Plata, Renglon, Rotulo, atributosBoton } from "@/components/ui";
+import { FranjaDeArca, datosDeArca } from "../EstadoArca";
+import { fechaAr } from "./helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +53,21 @@ function chipMapeo(estado: string, confianza: number | null) {
     return <Badge tone="warning" dot>A confirmar · {pct}</Badge>;
   }
   return <Badge tone="neutral" dot>Detectado{pct ? ` · ${pct}` : ""}</Badge>;
+}
+
+/** Diseño nuevo: cuántas listas se ven sin desplegar (el resto, a un toque). */
+const LISTAS_A_LA_VISTA = 8;
+
+/** Diseño nuevo: una venta lista para facturar, como renglón (fecha, qué dice el banco, monto). */
+function RenglonDeLista({ p }: { p: PropuestaVista }) {
+  return (
+    <Renglon
+      folio={<span className="tabular-nums">{fechaAr(p.fecha).slice(0, 5)}</span>}
+      titulo={<span className="font-normal">{p.descripcion}</span>}
+      detalle={p.contraparte ?? undefined}
+      plata={<Plata valor={Math.abs(p.monto)} />}
+    />
+  );
 }
 
 export default async function FacturacionBancosPage() {
@@ -111,6 +133,113 @@ export default async function FacturacionBancosPage() {
   );
 
   const totalListas = listas.reduce((acc, p) => acc + Math.abs(p.monto), 0);
+
+  // DISEÑO NUEVO («Renglón»): las mismas piezas, en el orden del trabajo. Primero lo que pide una
+  // mano (la cola de revisión), después lo que está listo para facturar, después traer movimientos.
+  // Los cuatro números del mes van en la línea de estado; el tope del plan, en una franja sólo
+  // cuando importa (90 % o más). El modo de ARCA, en la franja de siempre.
+  if (await disenoNuevo()) {
+    const pct = kpis.capFacturasMes > 0 ? Math.round((kpis.facturasMes / kpis.capFacturasMes) * 100) : 0;
+    return (
+      <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
+        <header data-ui="page-header" className="mb-3 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-strong">Facturación automática</h1>
+            <LineaDeEstado
+              datos={[
+                datosDeArca(estado)[0],
+                `${fmtNumberAR(kpis.facturasMes)} de ${fmtNumberAR(kpis.capFacturasMes)} facturas del plan este mes`,
+                kpis.montoFacturadoMes > 0 ? (
+                  <span key="f">
+                    <Plata valor={kpis.montoFacturadoMes} sinCentavos /> con CAE{estado.modo !== "real" ? " (de prueba)" : ""}
+                  </span>
+                ) : null,
+                enRevision.length > 0 ? <Marca key="r" tipo="atencion">{`${fmtNumberAR(enRevision.length)} para revisar`}</Marca> : "nada para revisar",
+              ]}
+            />
+          </div>
+          <Link href="/admin/facturacion/bancos/configuracion" className={buttonClasses("ghost", "md")} {...atributosBoton("ghost", "md")}>
+            Configuración
+          </Link>
+        </header>
+        <FranjaDeArca estado={estado} className="mb-3" />
+        {pct >= 90 && (
+          <Franja tono={pct >= 100 ? "peligro" : "atencion"} className="mb-3">
+            {pct >= 100
+              ? "Se alcanzó el límite de facturas automáticas del plan: este mes no se emiten más."
+              : `Estás cerca del límite de facturas automáticas del plan: ${kpis.facturasMes} de ${kpis.capFacturasMes}.`}
+          </Franja>
+        )}
+        <div className="mt-5 flex flex-col gap-10">
+          {enRevision.length > 0 && (
+            <Bloque id="cola-revision" titulo="Para revisar" cuenta={fmtNumberAR(enRevision.length)} nota="Superan el umbral o parecen repetidas: completá el comprador o marcalas como no facturables">
+              <RevisarEnCajon propuestas={enRevision} />
+            </Bloque>
+          )}
+          <Bloque titulo="Listas para facturar" cuenta={fmtNumberAR(listas.length)} nota={listas.length > 0 ? <Plata valor={totalListas} /> : "nada por ahora"}>
+            {listas.length === 0 ? (
+              <p className="py-3 text-sm text-muted">No hay facturas listas para emitir. Subí un extracto o completá las ventas para revisar.</p>
+            ) : (
+              <>
+                {listas.slice(0, LISTAS_A_LA_VISTA).map((p) => (
+                  <RenglonDeLista key={p.id} p={p} />
+                ))}
+                {listas.length > LISTAS_A_LA_VISTA && (
+                  <details className="group">
+                    <summary className="flex min-h-11 cursor-pointer items-center py-2 text-sm font-semibold text-accent">
+                      Ver las otras {fmtNumberAR(listas.length - LISTAS_A_LA_VISTA)}
+                    </summary>
+                    {listas.slice(LISTAS_A_LA_VISTA).map((p) => (
+                      <RenglonDeLista key={p.id} p={p} />
+                    ))}
+                  </details>
+                )}
+                <div className="pt-4">
+                  <EmitirDeslizando cantidad={listas.length} total={totalListas} modoPrueba={estado.modo !== "real"} />
+                </div>
+              </>
+            )}
+          </Bloque>
+          <Bloque titulo="Traer movimientos" nota="El mismo extracto dos veces no duplica nada">
+            <div className="grid gap-8 pt-4 lg:grid-cols-2">
+              <div className="min-w-0">
+                <Rotulo className="mb-2">Extracto del banco</Rotulo>
+                <ImportarExtracto />
+              </div>
+              <div className="min-w-0">
+                <Rotulo className="mb-2">Cobros de Mercado Pago</Rotulo>
+                <MercadoPagoSync estado={estadoMP} />
+              </div>
+            </div>
+          </Bloque>
+          <Bloque titulo="Últimas importaciones" cuenta={kpis.ultimasImportaciones.length || undefined}>
+            {kpis.ultimasImportaciones.length === 0 ? (
+              <p className="py-3 text-sm text-muted">Todavía no subiste ningún extracto: el primero se importa acá arriba.</p>
+            ) : (
+              kpis.ultimasImportaciones.map((imp) => {
+                const confianza = confianzaPorImportacion.get(imp.id) ?? null;
+                return (
+                  <Renglon
+                    key={imp.id}
+                    folio={fmtDateTimeAr(imp.createdAt).slice(0, 5)}
+                    titulo={<span className="font-normal">{imp.nombreArchivo}</span>}
+                    detalle={
+                      imp.estado === "confirmada"
+                        ? "columnas confirmadas"
+                        : confianza != null && confianza < 0.8
+                          ? `columnas a confirmar (${Math.round(confianza * 100)} % seguro)`
+                          : `columnas detectadas${confianza != null ? ` (${Math.round(confianza * 100)} % seguro)` : ""}`
+                    }
+                    plata={<span className="text-sm tabular-nums text-muted">{fmtNumberAR(imp.totalMovimientos)} mov.</span>}
+                  />
+                );
+              })
+            )}
+          </Bloque>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <PageContainer>

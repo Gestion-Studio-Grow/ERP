@@ -110,7 +110,7 @@ test("la red se lee sólo de las filas activas de la casa, sin la casa misma ni 
   assert.deepEqual(leidos.sort(), ["t-borrado", "t-canning"]);
 });
 
-test("recorrerLocales abre UNA transacción por local, en serie, con el id de la fila", async () => {
+test("recorrerLocales abre UNA transacción por local, con el id de la fila (de a uno si se pide de a uno)", async () => {
   const filas: FilaRed[] = [
     { id: "1", localTenantId: "t-canning", alias: "Canning", estado: "activa" },
     { id: "2", localTenantId: "t-lomas", alias: "Lomas", estado: "activa" },
@@ -122,6 +122,7 @@ test("recorrerLocales abre UNA transacción por local, en serie, con el id de la
     { ...p, enLocal: async (id, fn) => { abiertas.push(id); enCurso++; assert.equal(enCurso, 1, "en serie"); const x = await fn({} as never); enCurso--; return x; } },
     "t-casa",
     async (_tx, local) => local.alias.toUpperCase(),
+    1,
   );
   assert.deepEqual(abiertas, ["t-canning", "t-lomas"]);
   assert.deepEqual(r.leidos.map((x) => x.dato), ["CANNING", "LOMAS"]);

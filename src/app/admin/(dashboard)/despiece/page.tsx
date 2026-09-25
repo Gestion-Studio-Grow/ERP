@@ -12,7 +12,8 @@ import { SELECT_INGRESOS, costosVigentesDe } from "@/lib/stock/costo";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
-import { PageHeader, EmptyState, KpiTile, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { PageHeader, EmptyState, KpiTile, PageContainer, buttonClasses, fmtMoneyARS, Bloque, Marca, Plata, Renglon } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import DespieceClient, { type ProductoDeDespiece, type RunView } from "./DespieceClient";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,18 @@ export default async function DespiecePage() {
   if ((await leerEstadoLotesYDespiece()) === "falta-migracion") {
     // Sólo un aviso fijo, sin un dato del negocio: alcanza con la sesión.
     await requireUser();
+    // DISEÑO NUEVO: título + estado + una frase, sin caja ni dibujo. (La pantalla con datos sigue
+    // con la piel de siempre hasta poder verla en el laboratorio: la migración cárnica no está aplicada.)
+    if (await disenoNuevo()) {
+      return (
+        <PageContainer width="narrow">
+          <PageHeader title={TITULO} estado={["En preparación"]} />
+          <p data-ui="vacio" className="border-y border-line py-4 text-sm text-body">
+            El despiece con rendimiento y costo por corte se activa cuando se aplique la actualización de la base de tu negocio.
+          </p>
+        </PageContainer>
+      );
+    }
     return (
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-8">
         <PageHeader title={TITULO} description="De la media res a los cortes, con el rendimiento real." />
@@ -95,6 +108,77 @@ export default async function DespiecePage() {
     createdAtLabel: fmtShortDate(r.createdAt),
     outputs: r.outputs,
   }));
+
+  // DISEÑO NUEVO («Renglón»): el rendimiento en la línea de estado (no en tarjetas), el aviso del
+  // costo fijado a mano como renglones con su costo, y el formulario y el historial sin cajas. Los
+  // MISMOS datos y la MISMA acción; apagado, lo de abajo tal cual.
+  if (await disenoNuevo()) {
+    return (
+      <PageContainer>
+        <PageHeader
+          title={TITULO}
+          estado={[
+            rendimiento === null ? (
+              "sin despieces en los últimos 30 días"
+            ) : (
+              <span key="r">
+                <strong>rinde {Math.round(rendimiento * 100)} %</strong> en {DIAS_DE_RENDIMIENTO} días (kilos de cortes sobre kilos de pieza)
+              </span>
+            ),
+            `${runs.length} ${runs.length === 1 ? "despiece" : "despieces"}`,
+            fijados.length > 0 ? (
+              <Marca key="f" tipo="atencion">
+                {fijados.length === 1 ? "1 corte con costo a mano" : `${fijados.length} cortes con costo a mano`}
+              </Marca>
+            ) : null,
+          ]}
+        />
+        <div className="space-y-8">
+          {fijados.length > 0 && (
+            <Bloque id="costo-fijado" titulo="Costo fijado a mano" cuenta={fijados.length}>
+              <p className="py-3 text-sm text-body">
+                Ese costo manda sobre el que sale del despiece y de las compras. Si no lo pusiste vos, borralo en el catálogo y el corte
+                pasa a tomar el costo de su último despiece o compra.
+              </p>
+              <ul data-parte="renglones">
+                {fijados.map((f) => (
+                  <Renglon
+                    key={f.productId}
+                    as="li"
+                    folio={<Marca tipo="atencion">a mano</Marca>}
+                    titulo={f.nombre}
+                    detalle={f.despiece ? `lo fijó el despiece #${f.despiece.code} del ${fmtShortDate(f.despiece.fecha)}` : "fijado a mano en el catálogo"}
+                    plata={
+                      <span className="whitespace-nowrap">
+                        <Plata valor={f.costo} /> <span className="text-[13px] text-muted">el kilo</span>
+                      </span>
+                    }
+                  />
+                ))}
+              </ul>
+              {veCatalogo && (
+                <Link href="/admin/catalogo" className={buttonClasses("outline", "md", "mt-3")}>
+                  Ir al catálogo
+                </Link>
+              )}
+            </Bloque>
+          )}
+          {products.length === 0 ? (
+            <p data-ui="vacio" className="flex flex-wrap items-center gap-3 border-y border-line py-4 text-sm text-body">
+              La pieza y los cortes se cuentan en kilos, y no hay productos por kilo. Cargalos en el catálogo como venta por peso y volvé.
+              {veCatalogo && (
+                <Link href="/admin/catalogo" className={buttonClasses("outline", "md")}>
+                  Ir al catálogo
+                </Link>
+              )}
+            </p>
+          ) : (
+            <DespieceClient runs={runViews} products={products} renglon />
+          )}
+        </div>
+      </PageContainer>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">

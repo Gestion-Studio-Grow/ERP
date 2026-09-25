@@ -15,7 +15,9 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, buttonClasses, fmtNumberAR } from "@/components/ui";
+import { Badge, Bloque, Button, Franja, Marca, MenuMas, Plata, Renglon, buttonClasses, fmtNumberAR } from "@/components/ui";
+import { useDiseno } from "@/lib/diseno/DisenoProvider";
+import { folioDeBandeja, ordenarBandeja } from "./bandeja-core";
 import type { FilaCartera } from "@/lib/cartera-core";
 import {
   noPuedeEmitir,
@@ -43,6 +45,7 @@ export default function MonitorBandeja({
   baseDomain: string | null;
 }) {
   const router = useRouter();
+  const nuevo = useDiseno();
   const [mensaje, setMensaje] = useState<{ tono: "ok" | "error"; texto: string } | null>(null);
   const [pendiente, startTransition] = useTransition();
 
@@ -89,6 +92,103 @@ export default function MonitorBandeja({
 
   // Sin cartera no hay bandeja: el panel de abajo ya dice "tu cartera está vacía".
   if (resumen.total === 0) return null;
+
+  // Diseño nuevo: la bandeja como bloque de renglones. Mismo contenido y mismas acciones que la
+  // de siempre; cambia la forma y el orden (gravedad → lo que vence → la plata, bandeja-core.ts).
+  if (nuevo) {
+    const ordenadas = ordenarBandeja(aAtender, (id) => porId.get(id)?.montoFacturadoMes ?? 0);
+    const hayFiscal = cartera.some((f) => f.validezFiscal);
+    return (
+      <div className="mb-xl flex flex-col gap-3">
+        {titular.nota && <p className="text-sm text-body">{titular.nota}</p>}
+        {avisos.map((a) => (
+          <Franja key={a.id} tono="info">
+            {a.texto}
+          </Franja>
+        ))}
+        <div aria-live="polite">
+          {mensaje && (
+            <Franja tono={mensaje.tono === "error" ? "peligro" : "info"}>
+              <span role={mensaje.tono === "error" ? "alert" : undefined}>{mensaje.texto}</span>
+            </Franja>
+          )}
+        </div>
+        <Bloque
+          id="monitor"
+          titulo="De qué cliente me ocupo hoy"
+          cuenta={fmtNumberAR(aAtender.length)}
+          nota={
+            aAtender.length > 0
+              ? `Primero lo más grave y lo que vence; a la derecha, lo ${hayFiscal ? "facturado" : "emitido en prueba"} este mes`
+              : undefined
+          }
+        >
+          {ordenadas.length === 0 ? (
+            <Renglon titulo="Ningún cliente necesita que hagas algo hoy." />
+          ) : (
+            <ul>
+              {ordenadas.map((f) => {
+                const s = peorSenal(f);
+                if (!s) return null;
+                const fila = porId.get(f.clienteTenantId);
+                const listas = fila?.listasParaEmitir ?? 0;
+                const destino = s.resuelve.quien === "estudio" ? urlCliente(f.clienteTenantId, s.resuelve.ruta) : null;
+                const puedeEmitir = listas > 0 && !noPuedeEmitir(f);
+                const otras = f.senales.length - 1;
+                const detalle = [s.detalle, s.accion, otras > 0 ? `y ${fmtNumberAR(otras)} ${otras === 1 ? "cosa más" : "cosas más"}` : null]
+                  .filter(Boolean)
+                  .join(" · ");
+                return (
+                  <Renglon
+                    key={f.clienteTenantId}
+                    as="li"
+                    folio={<Marca tipo={s.severidad === "critico" ? "anulado" : "atencion"}>{folioDeBandeja(f)}</Marca>}
+                    titulo={`${f.alias}: ${s.titulo}`}
+                    detalle={detalle}
+                    plata={fila ? <Plata valor={fila.montoFacturadoMes} sinCentavos /> : null}
+                    tecla={
+                      <>
+                        {puedeEmitir ? (
+                          <Button size="md" disabled={pendiente} onClick={() => emitir(f)}>
+                            {pendiente ? "Emitiendo…" : `Emitir ${fmtNumberAR(listas)}`}
+                          </Button>
+                        ) : destino ? (
+                          <a href={destino} target="_blank" rel="noreferrer" className={buttonClasses("outline", "md")}>
+                            Abrir su panel
+                          </a>
+                        ) : null}
+                        <MenuMas etiqueta={`Más sobre ${f.alias}`}>
+                          {puedeEmitir && destino && (
+                            <a href={destino} target="_blank" rel="noreferrer">
+                              Abrir su panel
+                            </a>
+                          )}
+                          {s.resuelve.quien === "estudio" && !destino && (
+                            <span>Todavía no tiene dirección propia para abrir su panel</span>
+                          )}
+                          <button type="button" disabled={pendiente} onClick={() => pausar(f)}>
+                            Pausar: que no aparezca acá
+                          </button>
+                        </MenuMas>
+                      </>
+                    }
+                  />
+                );
+              })}
+            </ul>
+          )}
+        </Bloque>
+        {alDia.length > 0 && (
+          <details className="border-b border-line">
+            <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-strong">
+              {fmtNumberAR(alDia.length)} al día
+            </summary>
+            <p className="pb-3 text-sm text-muted">{alDia.map((f) => f.alias).join(" · ")}</p>
+          </details>
+        )}
+      </div>
+    );
+  }
 
   return (
     <section aria-labelledby="monitor-titulo" className="mb-xl">

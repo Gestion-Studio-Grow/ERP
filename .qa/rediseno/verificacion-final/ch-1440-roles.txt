@@ -1,0 +1,20 @@
+contexto nuevo recepcion@ch.lab
+OK   CH recepción · entrar (2325 ms) llegó a /admin · diseno=renglon sx360=0 chicos<44=5
+OK   CH recepción · agenda (2108 ms) piel=renglon · Agenda 16 turnos 5 sin confirmar 2 por cobrar Carla con 12 ← Ayer Viernes 25 de septiembre Mañana → Otro día Día Por pro · diseno=renglon sx360=0 chicos<44=30
+OK   CH recepción · tecla «Dar un turno» / F1 (1980 ms) tecla=2 F1navega=true
+OK   CH recepción · entrar por dirección al alta (1440 ms) alta visible=1 · «Agenda 16 turnos 5 sin confirmar 2 por cobrar Carla con 12 ← Ayer Viernes 25 de septiembre Mañana → »
+OK   CH recepción · cierre de caja (1339 ms) http=200 url=/admin/caja/cierre · «Cierre del día Viernes 25 de septiembre cerrado ‹ 24/09 Hoy Cerrado el viernes, 25 de septiembre de 2026, 01:14 por Ceci»
+OK   CH recepción · usuarios (sólo dueña) (1450 ms) http=200 url=/admin/no-disponible · «CH CH Estética viernes 25 de septiembre Usuarios y permisos no está disponible Tu usuario no tiene a»
+contexto nuevo valentina@ch.lab
+OK   CH profesional · entrar (2057 ms) llegó a /admin · diseno=renglon sx360=0 chicos<44=2
+OK   CH profesional · agenda (1896 ms) piel=renglon · Agenda 1 turno ← Ayer Viernes 25 de septiembre Mañana → Otro día Todos 1 11:00 Mariana Juárez Manicuría semipermanente · · diseno=renglon sx360=0 chicos<44=5
+OK   CH profesional · tecla «Dar un turno» / F1 (1804 ms) tecla=0 F1navega=false
+OK   CH profesional · entrar por dirección al alta (1495 ms) alta visible=0 · «Agenda 1 turno ← Ayer Viernes 25 de septiembre Mañana → Otro día Todos 1 11:00 Mariana Juárez Manicu»
+OK   CH profesional · cierre de caja (1349 ms) http=200 url=/admin/no-disponible · «CH CH Estética viernes 25 de septiembre Cierre del día no está disponible Tu usuario no tiene acceso a esta app. Si la n»
+OK   CH profesional · usuarios (sólo dueña) (1370 ms) http=200 url=/admin/no-disponible · «CH CH Estética viernes 25 de septiembre Usuarios y permisos no está disponible Tu usuario no tiene a»
+
+roles 1440: 12/12 pasos OK · errores de consola 0 · callejones 0
+MEDIDA inicio-recepción /admin/turnos sx360=0 chicos: Recepción:36, Caja:36, Clientes:36, ¿Qué querés hacer? Ctrl K:36, Dar un turno F1:36
+MEDIDA agenda-recepción /admin/turnos sx360=0 chicos: ← Ayer:36, Mañana →:36, Otro día:36, Todos 16:32, Sin confirmar 5:32, Por cobrar 2:32
+MEDIDA inicio-profesional /admin/turnos sx360=0 chicos: Recepción:36, ¿Qué querés hacer? Ctrl K:36
+MEDIDA agenda-profesional /admin/turnos sx360=0 chicos: ← Ayer:36, Mañana →:36, Otro día:36, Todos 1:32, Mariana Juárez:20

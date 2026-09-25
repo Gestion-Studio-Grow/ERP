@@ -12,16 +12,23 @@ const control =
   "aria-invalid:border-danger " +
   "disabled:opacity-60 disabled:bg-surface-sunken";
 
-export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(control, className)} {...props} />;
+// Diseño nuevo (ADR-099): cada control lleva `data-ui` (input / select / textarea) y la piel lo
+// viste de pozo con la línea de escribir; `importe` (sólo Input) lo pone en cifra ancha a la
+// derecha, para cargar plata. Sin la piel, las mismas clases de siempre.
+export function Input({
+  className,
+  importe,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & { importe?: boolean }) {
+  return <input data-ui="input" data-importe={importe || undefined} className={cn(control, className)} {...props} />;
 }
 
 export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={cn(control, "pr-8", className)} {...props} />;
+  return <select data-ui="select" className={cn(control, "pr-8", className)} {...props} />;
 }
 
 export function Textarea({ className, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={cn(control, "h-auto min-h-24 py-2.5 leading-relaxed", className)} {...props} />;
+  return <textarea data-ui="textarea" className={cn(control, "h-auto min-h-24 py-2.5 leading-relaxed", className)} {...props} />;
 }
 
 // Envoltura label + control + hint/error, con asociación accesible. `htmlFor`
@@ -44,16 +51,16 @@ export function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
-      <label htmlFor={htmlFor} className="text-sm font-medium text-strong">
+    <div data-ui="field" className={cn("flex flex-col gap-1.5", className)}>
+      <label htmlFor={htmlFor} data-parte="etiqueta" className="text-sm font-medium text-strong">
         {label}
         {required && <span className="text-danger ml-0.5" aria-hidden>*</span>}
       </label>
       {children}
       {error ? (
-        <p className="text-xs text-danger" role="alert">{error}</p>
+        <p data-parte="error" className="text-xs text-danger" role="alert">{error}</p>
       ) : hint ? (
-        <p className="text-xs text-muted">{hint}</p>
+        <p data-parte="ayuda" className="text-xs text-muted">{hint}</p>
       ) : null}
     </div>
   );

@@ -5,7 +5,7 @@ import { registrarDespiece, type EstadoDespiece } from "@/lib/carniceria/despiec
 import { planDelDespiece, type MetodoDeCosteo } from "@/lib/carniceria/despiece";
 import { leerCantidad, leerImporte, cantidadParaFormulario, importeParaFormulario } from "@/lib/pos-peso";
 import { useEnvio } from "@/lib/inventario/envio";
-import { AvisoError, Badge, Input, Select, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { AvisoError, Badge, Bloque, Input, LineaDeCuenta, Marca, Plata, Renglon, Select, buttonClasses, fmtMoneyARS } from "@/components/ui";
 
 export interface RunView {
   id: string;
@@ -45,7 +45,16 @@ const EXPLICACION: Record<MetodoDeCosteo, string> = {
   "sin-costo": "Sin costo de la pieza, los cortes entran al stock sin costo.",
 };
 
-export default function DespieceClient({ runs, products }: { runs: RunView[]; products: ProductoDeDespiece[] }) {
+/**
+ * `renglon` (diseño nuevo): el formulario sin cajas (cada parte con su título sobre la raya), la
+ * vista previa como una cuenta (kilos, merma, costo) con un renglón por corte, y el historial como
+ * renglones. Mismos campos, misma regla (`planDelDespiece`), misma acción.
+ */
+export default function DespieceClient({ runs, products, renglon = false }: { runs: RunView[]; products: ProductoDeDespiece[]; renglon?: boolean }) {
+  const caja = (vieja: string) => (renglon ? "" : vieja);
+  const tituloDeParte = renglon
+    ? "border-b border-line-strong pb-2 text-[15px] font-semibold text-strong"
+    : "text-base font-medium text-strong";
   const [piezaId, setPiezaId] = useState("");
   const [inputWeight, setInputWeight] = useState("");
   const [inputCost, setInputCost] = useState("");
@@ -111,9 +120,9 @@ export default function DespieceClient({ runs, products }: { runs: RunView[]; pr
           </p>
         )}
 
-        <section className="rounded-lg border border-line bg-surface-sunken p-4">
-          <h2 className="text-base font-medium text-strong mb-1">Pieza que entra</h2>
-          <p className="text-xs text-muted mb-3">Sale del stock al registrar: tiene que estar cargada (Recibir mercadería).</p>
+        <section className={caja("rounded-lg border border-line bg-surface-sunken p-4")}>
+          <h2 className={`${tituloDeParte} mb-1`}>Pieza que entra</h2>
+          <p className={renglon ? "mb-3 text-[13px] text-muted" : "text-xs text-muted mb-3"}>Sale del stock al registrar: tiene que estar cargada (Recibir mercadería).</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="flex flex-col gap-1">
               <label htmlFor="d-pieza" className="text-xs font-medium text-muted">Pieza</label>
@@ -159,18 +168,18 @@ export default function DespieceClient({ runs, products }: { runs: RunView[]; pr
           </div>
         </section>
 
-        <section className="rounded-lg border border-line p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <h2 className="text-base font-medium text-strong">Cortes obtenidos</h2>
+        <section className={caja("rounded-lg border border-line p-4")}>
+          <div className={renglon ? "mb-2 flex flex-wrap items-end justify-between gap-2 border-b border-line-strong pb-2" : "flex flex-wrap items-center justify-between gap-2 mb-3"}>
+            <h2 className={renglon ? "text-[15px] font-semibold text-strong" : "text-base font-medium text-strong"}>Cortes obtenidos</h2>
             <button type="button" onClick={addRow} className="chip-btn max-sm:min-h-11! min-h-11">+ Agregar corte</button>
           </div>
-          <p className="text-xs text-muted mb-3">
+          <p className={renglon ? "mb-1 text-[13px] text-muted" : "text-xs text-muted mb-3"}>
             Elegí el producto para que el corte sume al stock. Hueso y grasa se cargan sin producto: cuentan para el
             rendimiento y no cargan costo.
           </p>
-          <div className="space-y-3">
+          <div className={renglon ? "divide-y divide-line border-b border-line" : "space-y-3"}>
             {rows.map((r, i) => (
-              <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_120px_auto] gap-2 items-end">
+              <div key={i} className={renglon ? "grid grid-cols-1 items-end gap-2 py-3 sm:grid-cols-[1fr_1fr_120px_auto]" : "grid grid-cols-1 sm:grid-cols-[1fr_1fr_120px_auto] gap-2 items-end"}>
                 <div className="flex flex-col gap-1">
                   <label htmlFor={`d-prod-${i}`} className="text-xs font-medium text-muted">Producto</label>
                   <Select id={`d-prod-${i}`} name="outputProductId" value={r.productId} onChange={(e) => onPickProduct(i, e.target.value)}>
@@ -223,7 +232,43 @@ export default function DespieceClient({ runs, products }: { runs: RunView[]; pr
             {plan.error}
           </p>
         )}
-        {plan?.ok && (
+        {plan?.ok && renglon && (
+          <section aria-live="polite" aria-labelledby="despiece-previa">
+            <h3 id="despiece-previa" className="border-b border-line-strong pb-2 text-[15px] font-semibold text-strong">
+              Así queda
+            </h3>
+            <LineaDeCuenta concepto="Kilos obtenidos" importe={<span className="tabular-nums">{kgFmt.format(plan.analisis.totalOutputKg)} kg</span>} />
+            <LineaDeCuenta
+              concepto="Merma"
+              detalle="lo que entró y no salió como corte"
+              importe={<span className="tabular-nums">{kgFmt.format(plan.analisis.mermaKg)} kg · {pct(plan.analisis.mermaPct)}</span>}
+            />
+            <LineaDeCuenta concepto="Sale del stock" importe={<span className="tabular-nums">{kgFmt.format(-plan.salida.qty)} kg</span>} />
+            <LineaDeCuenta concepto="Costo de la pieza" importe={plan.costoPieza != null ? <Plata valor={plan.costoPieza} /> : "—"} />
+            <p className="py-2 text-[13px] text-muted">{EXPLICACION[plan.analisis.metodoDeCosteo]}</p>
+            <ul data-parte="renglones">
+              {plan.analisis.outputs.map((o, i) => (
+                <Renglon
+                  key={i}
+                  as="li"
+                  folio={<span className="tabular-nums">rinde {pct(o.yieldPct)}</span>}
+                  titulo={o.name}
+                  detalle={`${kgFmt.format(o.weightKg)} kg`}
+                  plata={
+                    o.costPerKg != null ? (
+                      <span className="whitespace-nowrap">
+                        <Plata valor={o.costPerKg} /> <span className="text-[13px] text-muted">el kilo</span>
+                      </span>
+                    ) : (
+                      <span className="text-[13px] text-muted">sin costo</span>
+                    )
+                  }
+                />
+              ))}
+            </ul>
+          </section>
+        )}
+        {plan?.ok && !renglon && (
           <section aria-live="polite" className="rounded-lg border border-line bg-surface-raised p-4">
             <h3 className="text-sm font-medium text-strong mb-3">Vista previa</h3>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
@@ -279,32 +324,73 @@ export default function DespieceClient({ runs, products }: { runs: RunView[]; pr
       </form>
 
       {/* Historial */}
-      <section aria-labelledby="despiece-hist">
-        <h2 id="despiece-hist" className="text-lg font-medium text-strong mb-3">Despieces registrados</h2>
-        {runs.length === 0 ? (
-          <p className="text-sm text-muted">Todavía no registraste ningún despiece.</p>
-        ) : (
-          <div className="space-y-3">
-            {runs.map((r) => (
-              <div key={r.id} className="rounded-lg border border-line p-4">
-                <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
-                  <div>
-                    <span className="text-sm font-semibold text-strong">#{r.code} · {r.inputName}</span>
-                    <span className="ml-2 text-xs text-faint">{r.createdAtLabel}</span>
+      {renglon ? (
+        <Bloque id="despiece-hist" titulo="Despieces registrados" cuenta={runs.length > 0 ? runs.length : undefined}>
+          {runs.length === 0 ? (
+            <p data-ui="vacio" className="border-b border-line py-4 text-sm text-body">Todavía no registraste ningún despiece.</p>
+          ) : (
+            <ul data-parte="renglones">
+              {runs.map((r) => (
+                <Renglon
+                  key={r.id}
+                  as="li"
+                  folio={`#${r.code} · ${r.createdAtLabel}`}
+                  titulo={r.inputName}
+                  detalle={
+                    <>
+                      <span className="tabular-nums">
+                        {kgFmt.format(r.inputWeightKg)} kg → {kgFmt.format(r.totalOutputKg)} kg ·{" "}
+                        {r.mermaKg < 0 ? (
+                          <Marca tipo="atencion">salió más de lo que entró ({kgFmt.format(-r.mermaKg)} kg)</Marca>
+                        ) : (
+                          `merma ${kgFmt.format(r.mermaKg)} kg (${pct(r.mermaPct)})`
+                        )}
+                      </span>
+                      <span className="block">{r.outputs.map((o) => `${o.name} ${kgFmt.format(o.weightKg)} kg`).join(" · ")}</span>
+                    </>
+                  }
+                  plata={
+                    r.costPerSellableKg != null ? (
+                      <span className="whitespace-nowrap">
+                        <Plata valor={r.costPerSellableKg} /> <span className="text-[13px] text-muted">el kilo</span>
+                      </span>
+                    ) : (
+                      "—"
+                    )
+                  }
+                />
+              ))}
+            </ul>
+          )}
+        </Bloque>
+      ) : (
+        <section aria-labelledby="despiece-hist">
+          <h2 id="despiece-hist" className="text-lg font-medium text-strong mb-3">Despieces registrados</h2>
+          {runs.length === 0 ? (
+            <p className="text-sm text-muted">Todavía no registraste ningún despiece.</p>
+          ) : (
+            <div className="space-y-3">
+              {runs.map((r) => (
+                <div key={r.id} className="rounded-lg border border-line p-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+                    <div>
+                      <span className="text-sm font-semibold text-strong">#{r.code} · {r.inputName}</span>
+                      <span className="ml-2 text-xs text-faint">{r.createdAtLabel}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-sm tabular-nums">
+                      <span className="text-muted">{kgFmt.format(r.inputWeightKg)} kg →</span>
+                      <span className="text-body">{kgFmt.format(r.totalOutputKg)} kg</span>
+                      <Badge tone={r.mermaKg < 0 ? "danger" : "warning"}>merma {kgFmt.format(r.mermaKg)} kg ({pct(r.mermaPct)})</Badge>
+                      {r.costPerSellableKg != null && <Badge tone="neutral">{fmtMoneyARS(r.costPerSellableKg)} el kilo promedio</Badge>}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 text-sm tabular-nums">
-                    <span className="text-muted">{kgFmt.format(r.inputWeightKg)} kg →</span>
-                    <span className="text-body">{kgFmt.format(r.totalOutputKg)} kg</span>
-                    <Badge tone={r.mermaKg < 0 ? "danger" : "warning"}>merma {kgFmt.format(r.mermaKg)} kg ({pct(r.mermaPct)})</Badge>
-                    {r.costPerSellableKg != null && <Badge tone="neutral">{fmtMoneyARS(r.costPerSellableKg)} el kilo promedio</Badge>}
-                  </div>
+                  <p className="text-xs text-muted">{r.outputs.map((o) => `${o.name} ${kgFmt.format(o.weightKg)} kg`).join(" · ")}</p>
                 </div>
-                <p className="text-xs text-muted">{r.outputs.map((o) => `${o.name} ${kgFmt.format(o.weightKg)} kg`).join(" · ")}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

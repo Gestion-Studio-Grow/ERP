@@ -1,0 +1,20 @@
+contexto nuevo recepcion@ch.lab
+FALLA CH recepción · entrar (3276 ms) llegó a /admin · diseno=renglon sx360=0 chicos<44=5 ERRORES=[CH recepción · entrar] Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa
+OK   CH recepción · agenda (2546 ms) piel=renglon · Agenda 16 turnos 5 sin confirmar 2 por cobrar Carla con 12 ← Ayer Viernes 25 de septiembre Mañana → Otro día Día Por pro · diseno=renglon sx360=0 chicos<44=30
+OK   CH recepción · tecla «Dar un turno» / F1 (1950 ms) tecla=2 F1navega=true
+OK   CH recepción · entrar por dirección al alta (1907 ms) alta visible=1 · «Agenda 16 turnos 5 sin confirmar 2 por cobrar Carla con 12 ← Ayer Viernes 25 de septiembre Mañana → »
+OK   CH recepción · cierre de caja (1599 ms) http=200 url=/admin/caja/cierre · «Cierre del día Viernes 25 de septiembre cerrado ‹ 24/09 Hoy Cerrado el viernes, 25 de septiembre de 2026, 01:14 por Ceci»
+OK   CH recepción · usuarios (sólo dueña) (1946 ms) http=200 url=/admin/no-disponible · «CH CH Estética viernes 25 de septiembre Usuarios y permisos no está disponible Tu usuario no tiene a»
+contexto nuevo valentina@ch.lab
+FALLA CH profesional · entrar (2741 ms) llegó a /admin · diseno=renglon sx360=0 chicos<44=2 ERRORES=[CH profesional · entrar] Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa
+OK   CH profesional · agenda (2303 ms) piel=renglon · Agenda 1 turno ← Ayer Viernes 25 de septiembre Mañana → Otro día Todos 1 11:00 Mariana Juárez Manicuría semipermanente · · diseno=renglon sx360=0 chicos<44=5
+OK   CH profesional · tecla «Dar un turno» / F1 (1815 ms) tecla=0 F1navega=false
+OK   CH profesional · entrar por dirección al alta (1829 ms) alta visible=0 · «Agenda 1 turno ← Ayer Viernes 25 de septiembre Mañana → Otro día Todos 1 11:00 Mariana Juárez Manicu»
+OK   CH profesional · cierre de caja (1931 ms) http=200 url=/admin/no-disponible · «CH CH Estética viernes 25 de septiembre Cierre del día no está disponible Tu usuario no tiene acceso a esta app. Si la n»
+OK   CH profesional · usuarios (sólo dueña) (1871 ms) http=200 url=/admin/no-disponible · «CH CH Estética viernes 25 de septiembre Usuarios y permisos no está disponible Tu usuario no tiene a»
+
+roles 1440: 10/12 pasos OK · errores de consola 2 · callejones 0
+MEDIDA inicio-recepción /admin/turnos sx360=0 chicos: Recepción:36, Caja:36, Clientes:36, ¿Qué querés hacer? Ctrl K:36, Dar un turno F1:36
+MEDIDA agenda-recepción /admin/turnos sx360=0 chicos: ← Ayer:36, Mañana →:36, Otro día:36, Todos 16:32, Sin confirmar 5:32, Por cobrar 2:32
+MEDIDA inicio-profesional /admin/turnos sx360=0 chicos: Recepción:36, ¿Qué querés hacer? Ctrl K:36
+MEDIDA agenda-profesional /admin/turnos sx360=0 chicos: ← Ayer:36, Mañana →:36, Otro día:36, Todos 1:32, Mariana Juárez:20

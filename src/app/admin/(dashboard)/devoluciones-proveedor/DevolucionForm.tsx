@@ -22,11 +22,18 @@ function Registrar({ disabled, enviando }: { disabled: boolean; enviando: boolea
   );
 }
 
+/** Hasta cuántas compras se muestran como renglones tocables; con más, el desplegable (es más corto). */
+const COMPRAS_EN_RENGLONES = 8;
+
 export function DevolucionForm({
   compras,
   hrefCompras = null,
+  renglon = false,
 }: {
   compras: CompraDevolvible[];
+  /** Diseño nuevo («Renglón»): sin caja alrededor, las líneas como renglones del libro y, si son
+   *  pocas, las compras como renglones tocables en vez del desplegable. Mismos campos, misma acción. */
+  renglon?: boolean;
   /** Recibir mercadería, si quien devuelve la puede abrir: es la salida del vacío. */
   hrefCompras?: string | null;
 }) {
@@ -35,6 +42,11 @@ export function DevolucionForm({
   const [destino, setDestino] = useState<Destino | "">("");
   const [medio, setMedio] = useState<"EFECTIVO" | "MP">("EFECTIVO");
   const [motivo, setMotivo] = useState("");
+  const elegirCompra = (id: string) => {
+    setPurchaseId(id);
+    setCantidades({});
+    setDestino("");
+  };
   const compra = useMemo(() => compras.find((c) => c.id === purchaseId) ?? null, [compras, purchaseId]);
 
   // `useEnvio` y no `<form action>`: con action, React vaciaba el formulario también cuando
@@ -77,7 +89,7 @@ export function DevolucionForm({
   const destinoListo = destino !== "" && (destino !== "deuda" || compra?.tieneDeuda);
 
   return (
-    <form onSubmit={enviar} className="space-y-4 rounded-lg border border-line p-4">
+    <form onSubmit={enviar} className={renglon ? "space-y-5" : "space-y-4 rounded-lg border border-line p-4"}>
       {estado?.ok === false && <AvisoError titulo="No se registró la devolución" comoSeguir={estado.error} />}
       {estado?.ok && (
         <p role="status" className="rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm text-strong">
@@ -86,31 +98,51 @@ export function DevolucionForm({
       )}
       <input type="hidden" name="purchaseId" value={purchaseId} />
 
-      <label className="block text-sm">
-        <span className="mb-1 block text-muted">Compra de la que devolvés</span>
-        <Select
-          value={purchaseId}
-          onChange={(e) => {
-            setPurchaseId(e.target.value);
-            setCantidades({});
-            setDestino("");
-          }}
-        >
-          <option value="">Elegí una compra…</option>
-          {compras.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.etiqueta}
-            </option>
-          ))}
-        </Select>
-      </label>
+      {renglon && compras.length <= COMPRAS_EN_RENGLONES ? (
+        <fieldset>
+          <legend className="mb-1 text-sm text-muted">Compra de la que devolvés</legend>
+          <ul className="divide-y divide-line border-y border-line">
+            {compras.map((c) => (
+              <li key={c.id}>
+                <label className="flex min-h-[52px] cursor-pointer items-center gap-3 py-2 text-sm text-strong">
+                  <input
+                    type="radio"
+                    name="compra-elegida"
+                    value={c.id}
+                    checked={purchaseId === c.id}
+                    onChange={() => elegirCompra(c.id)}
+                    className="size-5 shrink-0"
+                  />
+                  <span className="min-w-0 flex-1">{c.etiqueta}</span>
+                  {purchaseId === c.id && <span className="shrink-0 text-xs font-medium text-muted">● Elegida</span>}
+                </label>
+              </li>
+            ))}
+          </ul>
+        </fieldset>
+      ) : (
+        <label className="block text-sm">
+          <span className="mb-1 block text-muted">Compra de la que devolvés</span>
+          <Select
+            value={purchaseId}
+            onChange={(e) => elegirCompra(e.target.value)}
+          >
+            <option value="">Elegí una compra…</option>
+            {compras.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.etiqueta}
+              </option>
+            ))}
+          </Select>
+        </label>
+      )}
 
       {compra && (
-        <ul className="divide-y divide-line rounded-md border border-line">
+        <ul className={renglon ? "divide-y divide-line border-y border-line" : "divide-y divide-line rounded-md border border-line"}>
           {lineas.map((l) => {
             const error = errorDe.get(l.productId) ?? (l.lectura.estado === "invalida" ? "Eso no es una cantidad. Escribila con coma (1,5)." : null);
             return (
-              <li key={l.productId} className="grid grid-cols-[1fr_7rem] items-center gap-x-3 gap-y-1 px-3 py-3">
+              <li key={l.productId} className={renglon ? "grid grid-cols-[1fr_7rem] items-center gap-x-3 gap-y-1 py-3" : "grid grid-cols-[1fr_7rem] items-center gap-x-3 gap-y-1 px-3 py-3"}>
                 <label htmlFor={`dev-${l.productId}`} className="min-w-0 text-sm">
                   <span className="block font-medium text-strong">{l.nombre}</span>
                   <span className="block text-xs text-muted">

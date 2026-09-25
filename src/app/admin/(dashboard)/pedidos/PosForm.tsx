@@ -92,6 +92,9 @@ function isNextRedirect(e: unknown): boolean {
   return typeof digest === "string" && digest.startsWith("NEXT_REDIRECT");
 }
 
+// Los datos del cliente de un pedido con el ticket vacío.
+const CLIENTE_VACIO = { customerName: "", customerPhone: "", scheduledFor: "", address: "", notes: "" };
+
 export default function PosForm({
   products,
   stockById,
@@ -106,6 +109,14 @@ export default function PosForm({
   // Caja de mostrador (venta rápida, se cobra en el acto) vs. pedido con retiro/envío.
   const [isOrder, setIsOrder] = useState(false);
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
+  // Los datos del cliente del pedido, CONTROLADOS. Sueltos, React 19 los vaciaba al terminar la
+  // acción del <form> AUNQUE hubiera fallado (se cortó la señal, el servidor rechazó): medido en
+  // Chromium, nombre, teléfono y nota quedaban en blanco y había que volver a pedírselos al
+  // cliente. Ahora quedan hasta que el ticket se limpia (cobrado bien o «Empezar de nuevo»), y el
+  // reintento viaja con los mismos datos.
+  const [cliente, setCliente] = useState(CLIENTE_VACIO);
+  const escribir = (campo: keyof typeof CLIENTE_VACIO) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setCliente((c) => ({ ...c, [campo]: e.target.value }));
   // «Cobrado», CONTROLADO. Antes era `defaultChecked={!isOrder}`, que React aplica sólo al
   // montar: medido en Chromium, después de tocar "Pedido" la casilla seguía tildada. Ahora el
   // modo lo pone (mostrador → cobrado, pedido → a cobrar) y la persona lo puede cambiar.
@@ -223,8 +234,11 @@ export default function PosForm({
     } catch (e) {
       if (isNextRedirect(e)) throw e;
       showError(
-        "No se pudo registrar la venta. Revisá la conexión y volvé a intentar con el mismo ticket: " +
-          "si ya se había grabado, no se va a cobrar dos veces.",
+        isOrder
+          ? "No se pudo registrar el pedido. Revisá la conexión y volvé a intentar con el mismo ticket: " +
+              "si ya se había grabado, no se va a registrar dos veces."
+          : "No se pudo registrar la venta. Revisá la conexión y volvé a intentar con el mismo ticket: " +
+              "si ya se había grabado, no se va a cobrar dos veces.",
       );
       return;
     }
@@ -252,6 +266,7 @@ export default function PosForm({
     setMedio("");
     setPaid(!isOrder);
     setYaGrabada(null);
+    setCliente(CLIENTE_VACIO);
     ticketKey.current = "";
   }
 
@@ -444,11 +459,11 @@ export default function PosForm({
         <div className="grid gap-3 sm:grid-cols-2 border-t border-line pt-4">
           <label className="text-sm">
             <span className="block text-muted mb-1">Cliente *</span>
-            <Input name="customerName" required={isOrder} placeholder="Nombre y apellido" />
+            <Input name="customerName" required={isOrder} placeholder="Nombre y apellido" value={cliente.customerName} onChange={escribir("customerName")} />
           </label>
           <label className="text-sm">
             <span className="block text-muted mb-1">Teléfono / WhatsApp</span>
-            <Input name="customerPhone" placeholder="11…" />
+            <Input name="customerPhone" placeholder="11…" value={cliente.customerPhone} onChange={escribir("customerPhone")} />
           </label>
           <label className="text-sm">
             <span className="block text-muted mb-1">Entrega</span>
@@ -463,17 +478,23 @@ export default function PosForm({
           </label>
           <label className="text-sm">
             <span className="block text-muted mb-1">Horario deseado</span>
-            <Input name="scheduledFor" type="datetime-local" />
+            <Input name="scheduledFor" type="datetime-local" value={cliente.scheduledFor} onChange={escribir("scheduledFor")} />
           </label>
           {fulfillment === "DELIVERY" && (
             <label className="text-sm sm:col-span-2">
               <span className="block text-muted mb-1">Dirección *</span>
-              <Input name="address" required={fulfillment === "DELIVERY"} placeholder="Calle, número, barrio" />
+              <Input
+                name="address"
+                required={fulfillment === "DELIVERY"}
+                placeholder="Calle, número, barrio"
+                value={cliente.address}
+                onChange={escribir("address")}
+              />
             </label>
           )}
           <label className="text-sm sm:col-span-2">
             <span className="block text-muted mb-1">Nota</span>
-            <Input name="notes" placeholder="Ej.: cortar en milanesas, sin grasa" />
+            <Input name="notes" placeholder="Ej.: cortar en milanesas, sin grasa" value={cliente.notes} onChange={escribir("notes")} />
           </label>
         </div>
       )}

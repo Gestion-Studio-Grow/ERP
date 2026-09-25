@@ -1,0 +1,526 @@
+TAP version 13
+# Subtest: 'las anulaciones de Juan en septiembre': un where con el mes entero en hora argentina
+ok 1 - 'las anulaciones de Juan en septiembre': un where con el mes entero en hora argentina
+  ---
+  duration_ms: 3.777123
+  type: 'test'
+  ...
+# Subtest: lo que llega por la URL se valida: lo que no sirve se ignora, no rompe
+ok 2 - lo que llega por la URL se valida: lo que no sirve se ignora, no rompe
+  ---
+  duration_ms: 0.298665
+  type: 'test'
+  ...
+# Subtest: un rango al revés se da vuelta; un solo extremo filtra de un lado
+ok 3 - un rango al revés se da vuelta; un solo extremo filtra de un lado
+  ---
+  duration_ms: 0.426788
+  type: 'test'
+  ...
+# Subtest: quién: GSG, la web y el sistema, sin mezclar con los usuarios
+ok 4 - quién: GSG, la web y el sistema, sin mezclar con los usuarios
+  ---
+  duration_ms: 0.323029
+  type: 'test'
+  ...
+# Subtest: cada 'qué hizo' filtra con las acciones que de verdad se escriben
+ok 5 - cada 'qué hizo' filtra con las acciones que de verdad se escriben
+  ---
+  duration_ms: 0.325299
+  type: 'test'
+  ...
+# Subtest: sobre qué: la entidad, y sin agenda no se ofrece 'Turnos'
+ok 6 - sobre qué: la entidad, y sin agenda no se ofrece 'Turnos'
+  ---
+  duration_ms: 0.282471
+  type: 'test'
+  ...
+# Subtest: páginas: una de más muestra la última; los links conservan los filtros
+ok 7 - páginas: una de más muestra la última; los links conservan los filtros
+  ---
+  duration_ms: 0.377758
+  type: 'test'
+  ...
+# Subtest: atajos de período: hoy, 7 días, este mes y el anterior con su nombre
+ok 8 - atajos de período: hoy, 7 días, este mes y el anterior con su nombre
+  ---
+  duration_ms: 0.297249
+  type: 'test'
+  ...
+# Subtest: días: validación y día siguiente
+ok 9 - días: validación y día siguiente
+  ---
+  duration_ms: 0.293592
+  type: 'test'
+  ...
+# Subtest: una venta con cupón se lee como frase, no como JSON
+ok 10 - una venta con cupón se lee como frase, no como JSON
+  ---
+  duration_ms: 19.881109
+  type: 'test'
+  ...
+# Subtest: una anulación dice qué venta, por qué y qué se devolvió
+ok 11 - una anulación dice qué venta, por qué y qué se devolvió
+  ---
+  duration_ms: 1.934525
+  type: 'test'
+  ...
+# Subtest: los cambios de estado, el cobro y el ajuste al pesar de un pedido
+ok 12 - los cambios de estado, el cobro y el ajuste al pesar de un pedido
+  ---
+  duration_ms: 1.00219
+  type: 'test'
+  ...
+# Subtest: caja: apertura, cierre, libro y el cierre del día de siempre
+ok 13 - caja: apertura, cierre, libro y el cierre del día de siempre
+  ---
+  duration_ms: 14.360781
+  type: 'test'
+  ...
+# Subtest: precios, turnos, traslados y usuarios
+ok 14 - precios, turnos, traslados y usuarios
+  ---
+  duration_ms: 0.811692
+  type: 'test'
+  ...
+# Subtest: el interruptor de GSG sigue con su frase y sin detalle interno
+ok 15 - el interruptor de GSG sigue con su frase y sin detalle interno
+  ---
+  duration_ms: 0.234604
+  type: 'test'
+  ...
+# Subtest: ninguna fila conocida muestra nombres internos ni JSON en la frase
+ok 16 - ninguna fila conocida muestra nombres internos ni JSON en la frase
+  ---
+  duration_ms: 1.38149
+  type: 'test'
+  ...
+# Subtest: plata: sin centavos cuando no hay, con coma cuando hay
+ok 17 - plata: sin centavos cuando no hay, con coma cuando hay
+  ---
+  duration_ms: 0.420752
+  type: 'test'
+  ...
+# Subtest: sin tildes ni mayúsculas
+ok 18 - sin tildes ni mayúsculas
+  ---
+  duration_ms: 2.578744
+  type: 'test'
+  ...
+# Subtest: el que empieza con lo tipeado va primero
+ok 19 - el que empieza con lo tipeado va primero
+  ---
+  duration_ms: 0.303405
+  type: 'test'
+  ...
+# Subtest: palabras en cualquier orden
+ok 20 - palabras en cualquier orden
+  ---
+  duration_ms: 0.14933
+  type: 'test'
+  ...
+# Subtest: también busca en el detalle
+ok 21 - también busca en el detalle
+  ---
+  duration_ms: 0.240582
+  type: 'test'
+  ...
+# Subtest: vacío muestra las primeras, con tope
+ok 22 - vacío muestra las primeras, con tope
+  ---
+  duration_ms: 0.205546
+  type: 'test'
+  ...
+# Subtest: Enter con una búsqueda sin resultados: no elige y NO deja pasar el envío del formulario
+ok 23 - Enter con una búsqueda sin resultados: no elige y NO deja pasar el envío del formulario
+  ---
+  duration_ms: 2.048051
+  type: 'test'
+  ...
+# Subtest: Enter con el campo recién enfocado y vacío: no elige el primero del catálogo
+ok 24 - Enter con el campo recién enfocado y vacío: no elige el primero del catálogo
+  ---
+  duration_ms: 0.165949
+  type: 'test'
+  ...
+# Subtest: Enter con la lista cerrada: tampoco llega al formulario
+ok 25 - Enter con la lista cerrada: tampoco llega al formulario
+  ---
+  duration_ms: 0.248326
+  type: 'test'
+  ...
+# Subtest: Enter con lo tipeado: elige la resaltada (el flujo de mostrador 'vac' + Enter)
+ok 26 - Enter con lo tipeado: elige la resaltada (el flujo de mostrador 'vac' + Enter)
+  ---
+  duration_ms: 0.122197
+  type: 'test'
+  ...
+# Subtest: Enter sin texto pero recorriendo con las flechas: elige la que se resaltó
+ok 27 - Enter sin texto pero recorriendo con las flechas: elige la que se resaltó
+  ---
+  duration_ms: 0.107368
+  type: 'test'
+  ...
+# Subtest: Enter mientras el teclado compone una palabra: no elige, y tampoco envía
+ok 28 - Enter mientras el teclado compone una palabra: no elige, y tampoco envía
+  ---
+  duration_ms: 0.148992
+  type: 'test'
+  ...
+# Subtest: todo Enter se previene, en cualquier estado
+ok 29 - todo Enter se previene, en cualquier estado
+  ---
+  duration_ms: 0.705424
+  type: 'test'
+  ...
+# Subtest: flechas: abren en la primera, recorren sin salirse y no rompen sin resultados
+ok 30 - flechas: abren en la primera, recorren sin salirse y no rompen sin resultados
+  ---
+  duration_ms: 0.276968
+  type: 'test'
+  ...
+# Subtest: Escape cierra; cualquier otra tecla sigue su curso (tipear no se frena)
+ok 31 - Escape cierra; cualquier otra tecla sigue su curso (tipear no se frena)
+  ---
+  duration_ms: 0.320653
+  type: 'test'
+  ...
+# Subtest: BuscadorCombo aplica la decisión en cada tecla
+ok 32 - BuscadorCombo aplica la decisión en cada tecla
+  ---
+  duration_ms: 0.76394
+  type: 'test'
+  ...
+# Subtest: sin texto: las primeras acciones y todas las apps, en ese orden
+ok 33 - sin texto: las primeras acciones y todas las apps, en ese orden
+  ---
+  duration_ms: 13.026506
+  type: 'test'
+  ...
+# Subtest: con texto: acciones primero, después apps; «ca» trae Cargar una merma y Caja/Catálogo
+ok 34 - con texto: acciones primero, después apps; «ca» trae Cargar una merma y Caja/Catálogo
+  ---
+  duration_ms: 0.926033
+  type: 'test'
+  ...
+# Subtest: resaltar marca lo tipeado sin tildes ni mayúsculas, en las posiciones del nombre
+ok 35 - resaltar marca lo tipeado sin tildes ni mayúsculas, en las posiciones del nombre
+  ---
+  duration_ms: 0.265
+  type: 'test'
+  ...
+# Subtest: la paleta poda lo flojo: una palabra de búsqueda cuenta si EMPIEZA con lo tipeado; con dos letras, el nombre también
+ok 36 - la paleta poda lo flojo: una palabra de búsqueda cuenta si EMPIEZA con lo tipeado; con dos letras, el nombre también
+  ---
+  duration_ms: 0.265718
+  type: 'test'
+  ...
+# Subtest: registros: van después de acciones y apps, tal como llegan (no se vuelven a filtrar), con su ícono
+ok 37 - registros: van después de acciones y apps, tal como llegan (no se vuelven a filtrar), con su ícono
+  ---
+  duration_ms: 0.264585
+  type: 'test'
+  ...
+# Subtest: registros: sin texto no se muestran (la paleta vacía es la de siempre)
+ok 38 - registros: sin texto no se muestran (la paleta vacía es la de siempre)
+  ---
+  duration_ms: 0.097781
+  type: 'test'
+  ...
+# Subtest: nextSort: sin orden -> asc al activar una columna
+ok 39 - nextSort: sin orden -> asc al activar una columna
+  ---
+  duration_ms: 1.671977
+  type: 'test'
+  ...
+# Subtest: nextSort: asc -> desc en la MISMA columna
+ok 40 - nextSort: asc -> desc en la MISMA columna
+  ---
+  duration_ms: 4.357262
+  type: 'test'
+  ...
+# Subtest: nextSort: desc -> null (vuelve al orden original) en la MISMA columna
+ok 41 - nextSort: desc -> null (vuelve al orden original) en la MISMA columna
+  ---
+  duration_ms: 0.143234
+  type: 'test'
+  ...
+# Subtest: nextSort: cambiar de columna arranca SIEMPRE en asc, sin importar la dirección previa
+ok 42 - nextSort: cambiar de columna arranca SIEMPRE en asc, sin importar la dirección previa
+  ---
+  duration_ms: 0.083611
+  type: 'test'
+  ...
+# Subtest: nextSort: el ciclo completo de 3 pasos vuelve exactamente al punto de partida
+ok 43 - nextSort: el ciclo completo de 3 pasos vuelve exactamente al punto de partida
+  ---
+  duration_ms: 0.071078
+  type: 'test'
+  ...
+# Subtest: ariaSortFor: columna sin orden activo -> none
+ok 44 - ariaSortFor: columna sin orden activo -> none
+  ---
+  duration_ms: 0.109843
+  type: 'test'
+  ...
+# Subtest: ariaSortFor: refleja asc/desc SOLO para la columna activa
+ok 45 - ariaSortFor: refleja asc/desc SOLO para la columna activa
+  ---
+  duration_ms: 0.095827
+  type: 'test'
+  ...
+# Subtest: el avance sigue al dedo y no se sale de la pista
+ok 46 - el avance sigue al dedo y no se sale de la pista
+  ---
+  duration_ms: 0.707173
+  type: 'test'
+  ...
+# Subtest: soltar antes del final vuelve; al final confirma
+ok 47 - soltar antes del final vuelve; al final confirma
+  ---
+  duration_ms: 0.178493
+  type: 'test'
+  ...
+# Subtest: con el teclado: flechas de a 10 %, Inicio y Fin; otras teclas no la mueven
+ok 48 - con el teclado: flechas de a 10 %, Inicio y Fin; otras teclas no la mueven
+  ---
+  duration_ms: 0.129354
+  type: 'test'
+  ...
+# Subtest: la plata se parte en $, entero con punto de miles y centavos con coma
+ok 49 - la plata se parte en $, entero con punto de miles y centavos con coma
+  ---
+  duration_ms: 2.071599
+  type: 'test'
+  ...
+# Subtest: el peso lleva 3 decimales (gramos) y «kg»; los números, sin decimales
+ok 50 - el peso lleva 3 decimales (gramos) y «kg»; los números, sin decimales
+  ---
+  duration_ms: 0.245993
+  type: 'test'
+  ...
+# Subtest: el delta lleva signo y palabra; subir es bueno o malo según qué se mide
+ok 51 - el delta lleva signo y palabra; subir es bueno o malo según qué se mide
+  ---
+  duration_ms: 11.956211
+  type: 'test'
+  ...
+# Subtest: la micro línea: sin 2 datos reales no hay línea; una serie plana va al medio
+ok 52 - la micro línea: sin 2 datos reales no hay línea; una serie plana va al medio
+  ---
+  duration_ms: 0.372425
+  type: 'test'
+  ...
+# Subtest: fmtMoneyARS: decimals=0 para KPIs headline (tablas siguen en 2)
+ok 53 - fmtMoneyARS: decimals=0 para KPIs headline (tablas siguen en 2)
+  ---
+  duration_ms: 24.06173
+  type: 'test'
+  ...
+# Subtest: fmtCuit: 11 dígitos -> XX-XXXXXXXX-X
+ok 54 - fmtCuit: 11 dígitos -> XX-XXXXXXXX-X
+  ---
+  duration_ms: 0.194708
+  type: 'test'
+  ...
+# Subtest: fmtCuit: acepta guiones/espacios de entrada y normaliza
+ok 55 - fmtCuit: acepta guiones/espacios de entrada y normaliza
+  ---
+  duration_ms: 0.104137
+  type: 'test'
+  ...
+# Subtest: fmtCuit: largo distinto de 11 -> tal cual; vacío/null -> em dash
+ok 56 - fmtCuit: largo distinto de 11 -> tal cual; vacío/null -> em dash
+  ---
+  duration_ms: 0.081086
+  type: 'test'
+  ...
+# Subtest: fmtMoneyARS: entero positivo fuerza 2 decimales
+ok 57 - fmtMoneyARS: entero positivo fuerza 2 decimales
+  ---
+  duration_ms: 0.183945
+  type: 'test'
+  ...
+# Subtest: fmtMoneyARS: redondea/completa a 2 decimales (grado contable)
+ok 58 - fmtMoneyARS: redondea/completa a 2 decimales (grado contable)
+  ---
+  duration_ms: 0.189971
+  type: 'test'
+  ...
+# Subtest: fmtMoneyARS: negativo -> signo ANTES del $ (saldo deudor)
+ok 59 - fmtMoneyARS: negativo -> signo ANTES del $ (saldo deudor)
+  ---
+  duration_ms: 0.174114
+  type: 'test'
+  ...
+# Subtest: fmtMoneyARS: cero no lleva signo
+ok 60 - fmtMoneyARS: cero no lleva signo
+  ---
+  duration_ms: 0.127826
+  type: 'test'
+  ...
+# Subtest: fmtMoneyARS: acepta string numérica (Decimal.toString() del server)
+ok 61 - fmtMoneyARS: acepta string numérica (Decimal.toString() del server)
+  ---
+  duration_ms: 0.258469
+  type: 'test'
+  ...
+# Subtest: fmtMoneyARS: null/undefined/no-numérico -> em dash, nunca NaN ni $undefined
+ok 62 - fmtMoneyARS: null/undefined/no-numérico -> em dash, nunca NaN ni $undefined
+  ---
+  duration_ms: 0.443829
+  type: 'test'
+  ...
+# Subtest: fmtNumberAR: sin decimals por default, agrupa miles es-AR
+ok 63 - fmtNumberAR: sin decimals por default, agrupa miles es-AR
+  ---
+  duration_ms: 0.262269
+  type: 'test'
+  ...
+# Subtest: fmtNumberAR: decimals fuerza la cantidad de decimales pedida
+ok 64 - fmtNumberAR: decimals fuerza la cantidad de decimales pedida
+  ---
+  duration_ms: 0.185043
+  type: 'test'
+  ...
+# Subtest: fmtNumberAR: null/undefined/no-numérico -> em dash
+ok 65 - fmtNumberAR: null/undefined/no-numérico -> em dash
+  ---
+  duration_ms: 0.122353
+  type: 'test'
+  ...
+# Subtest: sin la piel nueva, las piezas rinden el HTML de siempre (más sus data-*)
+ok 66 - sin la piel nueva, las piezas rinden el HTML de siempre (más sus data-*)
+  ---
+  duration_ms: 7.896796
+  type: 'test'
+  ...
+# Subtest: los data-* que agrega la piel son los que la hoja espera
+ok 67 - los data-* que agrega la piel son los que la hoja espera
+  ---
+  duration_ms: 0.835854
+  type: 'test'
+  ...
+# Subtest: lo nuevo del botón es opcional: sin usarlo, `children` va directo (sin envolturas)
+ok 68 - lo nuevo del botón es opcional: sin usarlo, `children` va directo (sin envolturas)
+  ---
+  duration_ms: 2.560338
+  type: 'test'
+  ...
+# Subtest: SubmitButton sin la piel nueva: el botón de siempre, sin un atributo de más
+ok 69 - SubmitButton sin la piel nueva: el botón de siempre, sin un atributo de más
+  ---
+  duration_ms: 59.271521
+  type: 'test'
+  ...
+# Subtest: D7: lite -> Comercio, enterprise -> Empresa
+ok 70 - D7: lite -> Comercio, enterprise -> Empresa
+  ---
+  duration_ms: 0.718227
+  type: 'test'
+  ...
+# Subtest: D7: ninguna etiqueta de cliente filtra jerga de ingeniería (lite/enterprise)
+ok 71 - D7: ninguna etiqueta de cliente filtra jerga de ingeniería (lite/enterprise)
+  ---
+  duration_ms: 0.286428
+  type: 'test'
+  ...
+# Subtest: orden en la URL: `total` sube, `-total` baja, lo que no es ordenable no ordena
+ok 72 - orden en la URL: `total` sube, `-total` baja, lo que no es ordenable no ordena
+  ---
+  duration_ms: 1.745572
+  type: 'test'
+  ...
+# Subtest: filtros en la URL: se cambian sin perder los otros, y un filtro nuevo vuelve a la primera página
+ok 73 - filtros en la URL: se cambian sin perder los otros, y un filtro nuevo vuelve a la primera página
+  ---
+  duration_ms: 0.513825
+  type: 'test'
+  ...
+# Subtest: página por cursor: se piden N+1; si vino una de más hay siguiente y su cursor es la última mostrada
+ok 74 - página por cursor: se piden N+1; si vino una de más hay siguiente y su cursor es la última mostrada
+  ---
+  duration_ms: 0.198711
+  type: 'test'
+  ...
+# Subtest: selección: alternar, rango con Mayúsculas en el orden de la pantalla, y la casilla de todas
+ok 75 - selección: alternar, rango con Mayúsculas en el orden de la pantalla, y la casilla de todas
+  ---
+  duration_ms: 0.318176
+  type: 'test'
+  ...
+# Subtest: teclado: j/k y flechas mueven, x selecciona, Enter abre, ⇧A todo, Esc limpia, la letra de contexto ejecuta
+ok 76 - teclado: j/k y flechas mueven, x selecciona, Enter abre, ⇧A todo, Esc limpia, la letra de contexto ejecuta
+  ---
+  duration_ms: 0.286793
+  type: 'test'
+  ...
+# Subtest: abrir una fila: con ficha va a la ficha; sin ficha, la abre en el cajón de la pantalla; sin ninguna de las dos, nada
+ok 77 - abrir una fila: con ficha va a la ficha; sin ficha, la abre en el cajón de la pantalla; sin ninguna de las dos, nada
+  ---
+  duration_ms: 0.158065
+  type: 'test'
+  ...
+# Subtest: escribir en un campo no es un atajo: input, textarea, select y texto editable
+ok 78 - escribir en un campo no es un atajo: input, textarea, select y texto editable
+  ---
+  duration_ms: 3.125205
+  type: 'test'
+  ...
+# Subtest: con un diálogo o un desplegable abierto, las teclas son de él
+ok 79 - con un diálogo o un desplegable abierto, las teclas son de él
+  ---
+  duration_ms: 0.23207
+  type: 'test'
+  ...
+# Subtest: un navegador sin :popover-open no rompe: sin diálogo, no hay nada encima
+ok 80 - un navegador sin :popover-open no rompe: sin diálogo, no hay nada encima
+  ---
+  duration_ms: 0.114826
+  type: 'test'
+  ...
+# Subtest: la tecla es de la pantalla sólo sin modificadores, fuera de un campo y sin nada encima
+ok 81 - la tecla es de la pantalla sólo sin modificadores, fuera de un campo y sin nada encima
+  ---
+  duration_ms: 0.229532
+  type: 'test'
+  ...
+# Subtest: la tecla de peso: los dígitos de la etiqueta, la coma la pone el sistema
+ok 82 - la tecla de peso: los dígitos de la etiqueta, la coma la pone el sistema
+  ---
+  duration_ms: 0.832454
+  type: 'test'
+  ...
+# Subtest: el visor separa lo que falta tipear (apagado) de lo tipeado
+ok 83 - el visor separa lo que falta tipear (apagado) de lo tipeado
+  ---
+  duration_ms: 1.098526
+  type: 'test'
+  ...
+# Subtest: ceros a la izquierda no cuentan; el máximo se respeta; borrar y limpiar
+ok 84 - ceros a la izquierda no cuentan; el máximo se respeta; borrar y limpiar
+  ---
+  duration_ms: 4.286691
+  type: 'test'
+  ...
+# Subtest: en plata: pesos sin centavos, «00» agrega dos ceros, punto de miles
+ok 85 - en plata: pesos sin centavos, «00» agrega dos ceros, punto de miles
+  ---
+  duration_ms: 0.332301
+  type: 'test'
+  ...
+# Subtest: el teclado físico de la PC
+ok 86 - el teclado físico de la PC
+  ---
+  duration_ms: 0.135109
+  type: 'test'
+  ...
+1..86
+# tests 86
+# suites 0
+# pass 86
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3307.040976

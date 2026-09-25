@@ -1,0 +1,14 @@
+shinevelas (dueno@shinevelas.lab)
+  OK    shinevelas · clave equivocada avisa sin error de consola
+  FALLA shinevelas · entrar: page.waitForURL: Timeout 120000ms exceeded.
+  FALLA shinevelas · 404 del panel con vuelta: status 200
+adosmanos (cajero@adosmanos.lab)
+  OK    adosmanos · clave equivocada avisa sin error de consola
+  FALLA adosmanos · entrar: page.waitForURL: Timeout 120000ms exceeded.
+  FALLA adosmanos · 404 del panel con vuelta: status 200
+consola del operador
+  OK    consola · clave equivocada avisa
+  FALLA consola · entrar: page.waitForURL: Timeout 120000ms exceeded.
+  FALLA consola · negocio que no existe con vuelta a Negocios: status 200
+
+390: 3/9 pasos OK · errores de consola 0

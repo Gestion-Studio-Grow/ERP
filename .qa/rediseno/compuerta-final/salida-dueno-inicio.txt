@@ -1,0 +1,4 @@
+390 /admin -> /admin 200 h1= Hoy, viernes 25 de septiembre hscroll= false chicos= 1/29 alto= 1836 err= 0
+390 /admin/vender -> /admin/vender 200 h1= Vender hscroll= false chicos= 1/28 alto= 1143 err= 0
+1440 /admin -> /admin 200 h1= Hoy, viernes 25 de septiembre hscroll= false chicos= 19/36 alto= 900 err= 0
+1440 /admin/vender -> /admin/vender 200 h1= Vender hscroll= false chicos= 14/37 alto= 900 err= 0

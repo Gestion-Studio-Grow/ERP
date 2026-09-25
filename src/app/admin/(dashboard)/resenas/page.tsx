@@ -10,6 +10,9 @@ import { getNegocioApps } from "@/apps/contexto.server";
 import PasoVacio from "../turnos/PasoVacio";
 import EliminarResena from "./EliminarResena";
 import { vacioDeResenas } from "./vacio";
+import MasDeResena from "./MasDeResena";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { Marca, Renglon, buttonClasses } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -52,12 +55,91 @@ function ResumenDeResenas({ r }: { r: ResumenResenas }) {
 
 export default async function ResenasPage() {
   const user = await requireApp("resenas");
-  const [reviews, piloto, negocio] = await Promise.all([getReviews(), enInicioPorApps(), getNegocioApps(user.role)]);
+  const [reviews, piloto, negocio, nuevo] = await Promise.all([getReviews(), enInicioPorApps(), getNegocioApps(user.role), disenoNuevo()]);
   const resumen = piloto
     ? resumirResenasDeLista(
         reviews.map((r) => ({ rating: r.rating, published: r.published, professionalId: r.professionalId, profesional: r.professional.name })),
       )
     : null;
+
+  // DISEÑO NUEVO («Renglón»): primero las que esperan tu OK, después las publicadas; un renglón
+  // por reseña, «Publicar/Ocultar» a la mano y «Eliminar» al «⋯» con confirmación. Mismos datos.
+  if (nuevo) {
+    const vacio = (
+      <PasoVacio paso={vacioDeResenas({ piloto, bandejaPermitida: appPermitida(appPorId("para-contactar-hoy"), negocio) })} />
+    );
+    const sinPublicar = reviews.filter((r) => !r.published);
+    const publicadas = reviews.filter((r) => r.published);
+    const promedio = reviews.length > 0 ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : null;
+    const libro = (lista: typeof reviews, titulo: string, nota: string) =>
+      lista.length > 0 && (
+        <section aria-label={titulo} className="mb-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-b border-line-strong pb-2">
+            <h2 className="text-[15px] font-semibold text-strong">{titulo}</h2>
+            <span className="text-[13px] text-muted">{nota}</span>
+          </div>
+          <ul>
+            {lista.map((r) => (
+              <Renglon
+                as="li"
+                key={r.id}
+                className="items-start py-2.5"
+                folio={<span className="block w-[4.5rem] tabular-nums">{fmtShortDate(r.createdAt)}</span>}
+                titulo={
+                  <span className="flex flex-wrap items-baseline gap-x-2">
+                    <span aria-label={`${r.rating} de 5`}>
+                      <Stars rating={r.rating} />
+                    </span>
+                    <span className="font-medium">{r.clientName}</span>
+                    <span className="text-[13px] text-muted">{`con ${r.professional.name}`}</span>
+                  </span>
+                }
+                detalle={r.comment ? <span className="text-body">{r.comment}</span> : "Sin comentario, sólo las estrellas."}
+                plata={r.published ? <Marca tipo="hecho">En la web</Marca> : <Marca tipo="pendiente">Oculta</Marca>}
+                tecla={
+                  <span className="inline-flex items-center gap-1">
+                    <form action={togglePublished}>
+                      <input type="hidden" name="id" value={r.id} />
+                      <input type="hidden" name="published" value={String(r.published)} />
+                      <button type="submit" className={buttonClasses(r.published ? "outline" : "solid", "md", "min-h-11 min-w-[6.5rem]")}>
+                        {r.published ? "Ocultar" : "Publicar"}
+                      </button>
+                    </form>
+                    <MasDeResena id={r.id} cliente={r.clientName} />
+                  </span>
+                }
+              />
+            ))}
+          </ul>
+        </section>
+      );
+    return (
+      <main data-ui="pagina" className="mx-auto w-full max-w-4xl px-4 py-6">
+        <header data-ui="page-header" className="mb-4">
+          <h1 className="text-2xl font-bold text-strong">Reseñas</h1>
+          <p className="mt-1 text-sm text-muted">
+            {promedio === null ? (
+              "Todavía no hay reseñas."
+            ) : (
+              <>
+                <strong className="text-strong">{`${fmtNumberAR(promedio, 1)}★ de promedio`}</strong>
+                {` · ${fmtNumberAR(reviews.length)} ${reviews.length === 1 ? "reseña" : "reseñas"}`}
+                {sinPublicar.length > 0 && ` · ${fmtNumberAR(sinPublicar.length)} esperan tu OK para salir en la web`}
+              </>
+            )}
+          </p>
+        </header>
+        {resumen && resumen.porProfesional.length > 1 && (
+          <p className="mb-4 text-[13px] text-muted tabular-nums">
+            {resumen.porProfesional.map((p) => `${p.profesional} ${fmtNumberAR(p.promedio, 1)}★ (${p.cantidad})`).join(" · ")}
+          </p>
+        )}
+        {libro(sinPublicar, "Para revisar", "no salen en la web hasta que las publiques")}
+        {libro(publicadas, "Publicadas", "se ven en la web")}
+        {reviews.length === 0 && vacio}
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">

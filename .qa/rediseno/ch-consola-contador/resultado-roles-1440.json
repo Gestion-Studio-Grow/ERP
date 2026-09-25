@@ -1,0 +1,173 @@
+{
+  "fase": "roles",
+  "ancho": 1440,
+  "pasos": [
+    {
+      "paso": "CH recepción · entrar",
+      "ok": true,
+      "det": "llegó a /admin · diseno=renglon sx360=0 chicos<44=5",
+      "ms": 2325,
+      "errs": []
+    },
+    {
+      "paso": "CH recepción · agenda",
+      "ok": true,
+      "det": "piel=renglon · Agenda 16 turnos 5 sin confirmar 2 por cobrar Carla con 12 ← Ayer Viernes 25 de septiembre Mañana → Otro día Día Por pro · diseno=renglon sx360=0 chicos<44=30",
+      "ms": 2108,
+      "errs": []
+    },
+    {
+      "paso": "CH recepción · tecla «Dar un turno» / F1",
+      "ok": true,
+      "det": "tecla=2 F1navega=true",
+      "ms": 1980,
+      "errs": []
+    },
+    {
+      "paso": "CH recepción · entrar por dirección al alta",
+      "ok": true,
+      "det": "alta visible=1 · «Agenda 16 turnos 5 sin confirmar 2 por cobrar Carla con 12 ← Ayer Viernes 25 de septiembre Mañana → »",
+      "ms": 1440,
+      "errs": []
+    },
+    {
+      "paso": "CH recepción · cierre de caja",
+      "ok": true,
+      "det": "http=200 url=/admin/caja/cierre · «Cierre del día Viernes 25 de septiembre cerrado ‹ 24/09 Hoy Cerrado el viernes, 25 de septiembre de 2026, 01:14 por Ceci»",
+      "ms": 1339,
+      "errs": []
+    },
+    {
+      "paso": "CH recepción · usuarios (sólo dueña)",
+      "ok": true,
+      "det": "http=200 url=/admin/no-disponible · «CH CH Estética viernes 25 de septiembre Usuarios y permisos no está disponible Tu usuario no tiene a»",
+      "ms": 1450,
+      "errs": []
+    },
+    {
+      "paso": "CH profesional · entrar",
+      "ok": true,
+      "det": "llegó a /admin · diseno=renglon sx360=0 chicos<44=2",
+      "ms": 2057,
+      "errs": []
+    },
+    {
+      "paso": "CH profesional · agenda",
+      "ok": true,
+      "det": "piel=renglon · Agenda 1 turno ← Ayer Viernes 25 de septiembre Mañana → Otro día Todos 1 11:00 Mariana Juárez Manicuría semipermanente · · diseno=renglon sx360=0 chicos<44=5",
+      "ms": 1896,
+      "errs": []
+    },
+    {
+      "paso": "CH profesional · tecla «Dar un turno» / F1",
+      "ok": true,
+      "det": "tecla=0 F1navega=false",
+      "ms": 1804,
+      "errs": []
+    },
+    {
+      "paso": "CH profesional · entrar por dirección al alta",
+      "ok": true,
+      "det": "alta visible=0 · «Agenda 1 turno ← Ayer Viernes 25 de septiembre Mañana → Otro día Todos 1 11:00 Mariana Juárez Manicu»",
+      "ms": 1495,
+      "errs": []
+    },
+    {
+      "paso": "CH profesional · cierre de caja",
+      "ok": true,
+      "det": "http=200 url=/admin/no-disponible · «CH CH Estética viernes 25 de septiembre Cierre del día no está disponible Tu usuario no tiene acceso a esta app. Si la n»",
+      "ms": 1348,
+      "errs": []
+    },
+    {
+      "paso": "CH profesional · usuarios (sólo dueña)",
+      "ok": true,
+      "det": "http=200 url=/admin/no-disponible · «CH CH Estética viernes 25 de septiembre Usuarios y permisos no está disponible Tu usuario no tiene a»",
+      "ms": 1370,
+      "errs": []
+    }
+  ],
+  "fallas": 0,
+  "errores": [],
+  "callejones": [],
+  "medidas": [
+    {
+      "pantalla": "inicio-recepción",
+      "url": "/admin/turnos",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "Recepción:36",
+        "Caja:36",
+        "Clientes:36",
+        "¿Qué querés hacer? Ctrl K:36",
+        "Dar un turno F1:36"
+      ]
+    },
+    {
+      "pantalla": "agenda-recepción",
+      "url": "/admin/turnos",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "← Ayer:36",
+        "Mañana →:36",
+        "Otro día:36",
+        "Todos 16:32",
+        "Sin confirmar 5:32",
+        "Por cobrar 2:32",
+        "QA Recorrido 390 10803:20",
+        "QA Recorrido 390 55109:20",
+        "Milagros Acosta:20",
+        "QA Recorrido 390 49736:20",
+        "Belén Suárez:20",
+        "Confirmar:36",
+        "Mariana Juárez:20",
+        "QA Recorrido 1440 23227:20",
+        "QA Recorrido 1440 28033:20",
+        "Confirmar:36",
+        "Sebastián Medina:20",
+        "Lucía Rodríguez:20",
+        "QA Reserva Web Cupon:20",
+        "Confirmar:36",
+        "Guadalupe Ruiz:20",
+        "Micaela Silva:20",
+        "Confirmar:36",
+        "Ezequiel Morales:20",
+        "Seña $12.000:36",
+        "Sebastián Quiroga:20",
+        "Confirmar:36",
+        "QA Renglón Hoy Paula:20",
+        "Avisar a las 21:36",
+        "Ver la lista:36"
+      ]
+    },
+    {
+      "pantalla": "inicio-profesional",
+      "url": "/admin/turnos",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "Recepción:36",
+        "¿Qué querés hacer? Ctrl K:36"
+      ]
+    },
+    {
+      "pantalla": "agenda-profesional",
+      "url": "/admin/turnos",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "← Ayer:36",
+        "Mañana →:36",
+        "Otro día:36",
+        "Todos 1:32",
+        "Mariana Juárez:20"
+      ]
+    }
+  ]
+}

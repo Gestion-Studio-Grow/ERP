@@ -8,6 +8,8 @@ import { appPorId } from "@/apps/registro";
 import { appPermitida } from "@/apps/visibles";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { LocalesSinLeer, NoEsCasa, NoSePudoLeer, SinLocales, SolapasLocales } from "../partes";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { CabeceraStock, FiltroStock, MatrizStock } from "./StockRenglon";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +81,40 @@ export default async function StockPorLocalPage({
   const soloBajo = una(sp.bajo) === "1";
   const filas = filtrarMatriz(r.filas, { q, soloBajo });
   const { stockBajo, stockNegativo } = r.resumen;
+
+  // DISEÑO NUEVO («Renglón»): la matriz como libro, un renglón por producto. Mismos datos.
+  if (await disenoNuevo()) {
+    return (
+      <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
+        <CabeceraStock casa={r.casa} bajo={stockBajo} negativo={stockNegativo.productos} locales={r.locales} />
+        <SolapasLocales activa="stock-por-local" role={user.role} />
+        <LocalesSinLeer sinLeer={r.sinLeer} ruta="/admin/locales/stock" />
+        {r.locales === 0 ? (
+          r.sinLeer.length === 0 && <SinLocales />
+        ) : (
+          <>
+            <FiltroStock q={q} soloBajo={soloBajo} />
+            {filas.length === 0 ? (
+              <p className="py-3 text-sm text-muted">
+                {r.filas.length === 0 ? (
+                  "Ningún local tiene productos cargados todavía. Cuando cada local cargue su catálogo, acá aparece cuánto tiene de cada cosa."
+                ) : (
+                  <>
+                    {"Nada con ese filtro. "}
+                    <Link href="/admin/locales/stock" className="inline-flex min-h-11 items-center font-medium text-accent-ink underline underline-offset-2">
+                      Ver todo el stock
+                    </Link>
+                  </>
+                )}
+              </p>
+            ) : (
+              <MatrizStock filas={filas} columnas={r.columnas} veTraslados={veTraslados} total={r.filas.length} />
+            )}
+          </>
+        )}
+      </main>
+    );
+  }
 
   return (
     <PageContainer>

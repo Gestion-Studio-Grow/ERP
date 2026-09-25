@@ -1,0 +1,105 @@
+{
+  "fase": "ch-off",
+  "ancho": 390,
+  "pasos": [
+    {
+      "paso": "CH (apagado) · entrar",
+      "ok": true,
+      "det": "llegó a /admin",
+      "ms": 1681,
+      "errs": []
+    },
+    {
+      "paso": "CH (apagado) · /admin con la vista de siempre",
+      "ok": true,
+      "det": "h1=Inicio · diseno=null sx360=0 chicos<44=1",
+      "ms": 2027,
+      "errs": []
+    },
+    {
+      "paso": "CH (apagado) · /admin/turnos con la vista de siempre",
+      "ok": true,
+      "det": "h1=Agenda · diseno=null sx360=0 chicos<44=0",
+      "ms": 3303,
+      "errs": []
+    },
+    {
+      "paso": "CH (apagado) · /admin/turnos/lista?nuevo=1 con la vista de siempre",
+      "ok": true,
+      "det": "h1=Agenda · diseno=null sx360=0 chicos<44=0",
+      "ms": 16574,
+      "errs": []
+    },
+    {
+      "paso": "CH (apagado) · /admin/caja/cierre con la vista de siempre",
+      "ok": true,
+      "det": "h1=Cierre de caja · diseno=null sx360=0 chicos<44=2",
+      "ms": 1928,
+      "errs": []
+    },
+    {
+      "paso": "CH (apagado) · /admin/clientes con la vista de siempre",
+      "ok": true,
+      "det": "h1=Clientes · diseno=null sx360=0 chicos<44=0",
+      "ms": 3334,
+      "errs": []
+    },
+    {
+      "paso": "CH (apagado) · F1 no hace nada nuevo",
+      "ok": true,
+      "det": "se queda donde está (como hoy)",
+      "ms": 3944,
+      "errs": []
+    }
+  ],
+  "fallas": 0,
+  "errores": [],
+  "callejones": [],
+  "medidas": [
+    {
+      "pantalla": "off/admin",
+      "url": "/admin",
+      "diseno": null,
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "Ver agenda completa →:20"
+      ]
+    },
+    {
+      "pantalla": "off/admin/turnos",
+      "url": "/admin/turnos",
+      "diseno": null,
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": []
+    },
+    {
+      "pantalla": "off/admin/turnos/lista?nuevo=1",
+      "url": "/admin/turnos/lista?nuevo=1",
+      "diseno": null,
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": []
+    },
+    {
+      "pantalla": "off/admin/caja/cierre",
+      "url": "/admin/caja/cierre",
+      "diseno": null,
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "Bajar el libro de este día:20",
+        "Bajar el mes completo:20"
+      ]
+    },
+    {
+      "pantalla": "off/admin/clientes",
+      "url": "/admin/clientes",
+      "diseno": null,
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": []
+    }
+  ]
+}

@@ -91,11 +91,14 @@ export default async function AltaPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/operador" className="text-sm text-muted hover:text-strong">← Tenants</Link>
-        <h1 className="text-2xl font-semibold mt-2">Alta de tenant</h1>
-        <p className="text-muted text-sm mt-1">
-          Wizard con vista previa en vivo. Envuelve la fábrica de tenants (ADR-074): dry-run obligatorio →
-          preview → commit del core de ADR-019 (idempotente, transaccional, gate RLS).
+        <Link href="/operador" className="inline-flex min-h-11 items-center text-sm text-muted hover:text-strong">
+          ← Negocios
+        </Link>
+        <h1 className="text-2xl font-bold text-strong">Dar de alta un negocio</h1>
+        <p className="text-muted text-sm mt-1 max-w-prose">
+          Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en
+          seco; si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo
+          duplica.
           {data.altaEnRedDisponible
             ? " Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida."
             : " El paso «¿De qué red?» todavía no abre locales dentro de una red: la fábrica siembra el catálogo de ejemplo del rubro."}

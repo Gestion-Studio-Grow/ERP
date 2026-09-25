@@ -31,9 +31,14 @@ export type BadgeProps = React.HTMLAttributes<HTMLSpanElement> & {
   dot?: boolean;
 };
 
+// Diseño nuevo (ADR-099): `data-ui="badge"` + `data-tone`. La piel le pone el ÍCONO del tono
+// (tilde, triángulo, cruz, «i») con una máscara CSS, sin tocar este HTML: ícono + palabra, nunca
+// sólo color. El punto de `dot` se esconde ahí (el ícono ocupa su lugar).
 export function Badge({ tone = "neutral", dot, className, children, ...props }: BadgeProps) {
   return (
     <span
+      data-ui="badge"
+      data-tone={tone}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5",
         "text-xs font-medium leading-5 tracking-wide tabular-nums",
@@ -42,7 +47,7 @@ export function Badge({ tone = "neutral", dot, className, children, ...props }: 
       )}
       {...props}
     >
-      {dot && <span className="size-1.5 rounded-full bg-current opacity-70" aria-hidden />}
+      {dot && <span data-parte="punto" className="size-1.5 rounded-full bg-current opacity-70" aria-hidden />}
       {children}
     </span>
   );

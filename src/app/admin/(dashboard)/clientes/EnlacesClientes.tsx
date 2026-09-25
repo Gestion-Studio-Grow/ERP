@@ -10,7 +10,7 @@ import { appPermitida } from "@/apps/visibles";
 import { appPorId, type AppId } from "@/apps/registro";
 import { getNegocioApps } from "@/apps/contexto.server";
 import type { Role } from "@/lib/capabilities";
-import { cn } from "@/components/ui";
+import { chipLinkAtributos } from "@/components/ui";
 
 const ATAJOS: { id: AppId; etiqueta: string }[] = [
   { id: "clientes", etiqueta: "Todos" },
@@ -19,26 +19,30 @@ const ATAJOS: { id: AppId; etiqueta: string }[] = [
   { id: "unificar-fichas", etiqueta: "Fichas duplicadas" },
 ];
 
-export default async function EnlacesClientes({ role, actual }: { role: Role; actual: AppId }) {
+/** Los atajos que esta persona puede abrir (el «⋯» de la lista los ofrece en el celular). */
+export async function atajosDeClientes(role: Role): Promise<{ id: AppId; etiqueta: string; href: string }[]> {
   const negocio = await getNegocioApps(role);
   const visibles = ATAJOS.filter((a) => appPermitida(appPorId(a.id), negocio));
-  if (visibles.length < 2) return null;
+  return visibles.length < 2 ? [] : visibles.map((a) => ({ ...a, href: appPorId(a.id).ruta }));
+}
+
+export default async function EnlacesClientes({
+  role,
+  actual,
+  className = "mb-6 flex flex-wrap gap-2",
+}: {
+  role: Role;
+  actual: AppId;
+  className?: string;
+}) {
+  const visibles = await atajosDeClientes(role);
+  if (visibles.length === 0) return null;
   return (
-    <nav aria-label="Apps de clientes" className="mb-6 flex flex-wrap gap-2">
+    <nav aria-label="Apps de clientes" className={className}>
       {visibles.map((a) => {
         const activo = a.id === actual;
         return (
-          <Link
-            key={a.id}
-            href={appPorId(a.id).ruta}
-            aria-current={activo ? "page" : undefined}
-            className={cn(
-              "inline-flex h-11 shrink-0 items-center rounded-full border px-4 text-sm font-medium transition-colors",
-              activo
-                ? "border-accent bg-accent-soft text-accent-ink"
-                : "border-line bg-surface-raised text-body hover:border-line-strong",
-            )}
-          >
+          <Link key={a.id} href={a.href} {...chipLinkAtributos(activo, "shrink-0")}>
             {a.etiqueta}
           </Link>
         );

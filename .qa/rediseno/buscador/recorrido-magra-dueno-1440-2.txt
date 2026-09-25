@@ -1,0 +1,17 @@
+Q «vac» => 1 resultado Esc PRODUCTOS Vacío Por kilo · $22.200,00 el kilo Enter ↑ ↓ moverte · Enter abrir · Esc cerrar Sólo lo que vos podés abrir
+   scrollHorizontal=false altosOpciones=[54]
+Q «Micaela» => 1 resultado Esc CLIENTES Micaela Aguirre 11 5555-2112 Enter ↑ ↓ moverte · Enter abrir · Esc cerrar Sólo lo que vos podés abrir
+   scrollHorizontal=false altosOpciones=[54]
+Q «5555-2112» => 1 resultado Esc CLIENTES Micaela Aguirre 11 5555-2112 Enter ↑ ↓ moverte · Enter abrir · Esc cerrar Sólo lo que vos podés abrir
+   scrollHorizontal=false altosOpciones=[54]
+Q «#485» => 1 resultado Esc PEDIDOS Pedido #485 Abierto · Prueba Vidriera QA · $30.025,00 Enter ↑ ↓ moverte · Enter abrir · Esc cerrar Sólo lo que vos podés abrir
+   scrollHorizontal=false altosOpciones=[54]
+Q «Mariano González» => 0 resultados Esc No encontramos nada con «Mariano González». Probá con otra palabra, un teléfono o el número del pedido. ↑ ↓ moverte · Enter abrir · Esc cerrar Sólo lo que vos podés abrir
+   scrollHorizontal=false altosOpciones=[]
+Q «Sándalo» => 0 resultados Esc No encontramos nada con «Sándalo». Probá con otra palabra, un teléfono o el número del pedido. ↑ ↓ moverte · Enter abrir · Esc cerrar Sólo lo que vos podés abrir
+   scrollHorizontal=false altosOpciones=[]
+Q «a» => 14 resultados Esc ACCIONES Abrir la caja Caja del día Enter Aumentar precios Actualizar precios Sumar una persona al equipo Usuarios y permisos Cerrar el día Cierre del día Cargar una merma Mermas Hacer una factura Facturación APPS Actualizar precios Catálogo y precios Auditoría Configuración Apariencia Configuración Facturación automática Facturas e impuestos Ventas del día Mostrador Cierre del día Caja Cierre del mes Caja Cajas de los locales Mis locales ↑ ↓ moverte · Enter abrir · Esc cerrar Sólo lo que vos podés abrir
+   scrollHorizontal=false altosOpciones=[54,54,54,54,54,54,54,54,54,54,54,54,54,54]
+Q «vacío» => 1 resultado Esc PRODUCTOS Vacío Por kilo · $22.200,00 el kilo Enter ↑ ↓ moverte · Enter abrir · Esc cerrar Sólo lo que vos podés abrir
+   scrollHorizontal=false altosOpciones=[54]
+ERRORES DE CONSOLA: ninguno

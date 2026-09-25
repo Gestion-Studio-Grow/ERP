@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { crearLote, cambiarEstadoDelLote, type EstadoLote } from "@/lib/carniceria/lotes-actions";
 import { AvisoError, Badge, EmptyState, Input, KpiTile, Select, buttonClasses, fmtMoneyARS, type BadgeProps } from "@/components/ui";
+import { Bloque, Marca, MenuMas, Plata, Renglon, Seccion, type TipoMarca } from "@/components/ui";
 import { useEnvio } from "@/lib/inventario/envio";
 import type { ExpiryState, BatchStatus, BatchSummary } from "@/lib/carniceria/lotes";
 
@@ -41,6 +42,15 @@ function expiryLabel(v: LoteView): string {
   return `en ${v.daysToExpiry} d`;
 }
 
+/** Diseño nuevo: la marca del folio (forma + palabra): vencido ✕, vence pronto ⚠, al día ●, fuera ○. */
+function marcaDelLote(v: LoteView): TipoMarca {
+  if (v.status !== "AVAILABLE") return "pendiente";
+  if (v.expiryState === "expired") return "anulado";
+  if (v.expiryState === "soon") return "atencion";
+  if (v.expiryState === "ok") return "hecho";
+  return "pendiente";
+}
+
 const STATUS_LABEL: Record<BatchStatus, string> = {
   AVAILABLE: "Disponible",
   DEPLETED: "Agotado",
@@ -52,8 +62,39 @@ const kgFmt = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 });
 
 // Cambiar el estado de un lote: una acción por botón, con su error a la vista (antes, si
 // fallaba, no pasaba nada y no se decía nada).
-function CambiarEstado({ id, code, status }: { id: string; code: string; status: BatchStatus }) {
+function CambiarEstado({ id, code, status, renglon = false }: { id: string; code: string; status: BatchStatus; renglon?: boolean }) {
   const { estado, enviar, enviando } = useEnvio<EstadoLote>(cambiarEstadoDelLote, null);
+  if (renglon) {
+    // Diseño nuevo: UNA tecla (el paso que sigue: se terminó / volvió) y «Retirar» en el ⋯.
+    const form = (hacia: BatchStatus, contenido: React.ReactNode, aria: string, clase: string, peligro = false) => (
+      <form onSubmit={enviar} className="contents">
+        <input type="hidden" name="id" value={id} />
+        <input type="hidden" name="status" value={hacia} />
+        <button type="submit" disabled={enviando} aria-label={aria} className={clase} data-peligro={peligro || undefined}>
+          {contenido}
+        </button>
+      </form>
+    );
+    return (
+      <span className="flex flex-col items-end gap-1">
+        <span className="flex items-center gap-1">
+          {status === "AVAILABLE"
+            ? form("DEPLETED", "Se terminó", `Marcar el lote ${code} como agotado`, buttonClasses("outline", "sm", "disabled:opacity-50"))
+            : form("AVAILABLE", "Reactivar", `Volver a poner disponible el lote ${code}`, buttonClasses("outline", "sm", "disabled:opacity-50"))}
+          {status === "AVAILABLE" && (
+            <MenuMas etiqueta={`Más acciones del lote ${code}`}>
+              {form("WITHDRAWN", "Retirar el lote", `Retirar el lote ${code}`, "", true)}
+            </MenuMas>
+          )}
+        </span>
+        {estado?.ok === false && (
+          <span role="alert" className="text-xs text-danger">
+            {estado.error}
+          </span>
+        )}
+      </span>
+    );
+  }
   const boton = (hacia: BatchStatus, texto: string, aria: string, peligro = false) => (
     <form onSubmit={enviar}>
       <input type="hidden" name="id" value={id} />
@@ -97,7 +138,10 @@ export default function LotesClient({
   suppliers,
   conCostos,
   puedeCargar,
+  renglon = false,
 }: {
+  /** Diseño nuevo («Renglón»): la heladera en renglones, el que vence antes arriba. */
+  renglon?: boolean;
   views: LoteView[];
   summary: BatchSummary;
   /** La plata en riesgo (sólo con costos): lotes que vencen en 3 días o menos. */
@@ -115,6 +159,124 @@ export default function LotesClient({
     if (r?.ok) setVuelta((v) => v + 1);
     return r;
   }, null);
+
+  const formulario = (
+    <>
+      {estado?.ok === false && <AvisoError titulo="No se cargó el lote" comoSeguir={estado.error} />}
+      {estado?.ok && (
+        <p role="status" className={renglon ? "mb-3 text-sm text-strong" : "mb-3 rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm text-strong"}>
+          {renglon ? "✓ " : ""}
+          {estado.mensaje}
+        </p>
+      )}
+      <form key={vuelta} onSubmit={enviar} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="lote-code" className="text-xs font-medium text-muted">Nº de lote</label>
+          <Input id="lote-code" name="code" required maxLength={40} autoComplete="off" placeholder="ej: L-2026-014" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="lote-product" className="text-xs font-medium text-muted">Corte</label>
+          <Select id="lote-product" name="productId" required defaultValue="">
+            <option value="">Elegí el corte…</option>
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="lote-supplier" className="text-xs font-medium text-muted">Proveedor (opcional)</label>
+          <Select id="lote-supplier" name="supplierId" defaultValue="">
+            <option value="">Sin proveedor</option>
+            {suppliers.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="lote-packed" className="text-xs font-medium text-muted">Fecha de envasado (opcional)</label>
+          <Input id="lote-packed" name="packedAt" type="date" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="lote-expires" className="text-xs font-medium text-muted">Vencimiento</label>
+          <Input id="lote-expires" name="expiresAt" type="date" required />
+        </div>
+        {conCostos && (
+          <div className="flex flex-col gap-1">
+            <label htmlFor="lote-cost" className="text-xs font-medium text-muted">Costo por kilo (opcional)</label>
+            <Input id="lote-cost" name="unitCost" type="text" inputMode="decimal" autoComplete="off" placeholder="$ el kilo" />
+          </div>
+        )}
+        <div className="flex flex-col gap-1">
+          <label htmlFor="lote-weight" className="text-xs font-medium text-muted">Peso neto en kg (opcional)</label>
+          <Input id="lote-weight" name="netWeightKg" type="text" inputMode="decimal" autoComplete="off" placeholder="ej: 12,340" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="lote-packages" className="text-xs font-medium text-muted">Paquetes</label>
+          <Input id="lote-packages" name="packages" type="text" inputMode="numeric" autoComplete="off" defaultValue="1" />
+        </div>
+        <div className="flex items-end">
+          <button type="submit" disabled={enviando} className={buttonClasses("solid", "md", "w-full disabled:opacity-50")}>
+            {enviando ? "Cargando…" : "Cargar lote"}
+          </button>
+        </div>
+      </form>
+    </>
+  );
+
+  if (renglon) {
+    return (
+      <div className="space-y-8">
+        <Bloque id="lotes" titulo="En la heladera" cuenta={views.length > 0 ? `${views.length}` : undefined} nota="el que vence antes, arriba">
+          {views.length === 0 ? (
+            <p data-ui="vacio" className="flex flex-wrap items-center gap-3 border-b border-line py-4 text-sm text-body">
+              {puedeCargar
+                ? "Todavía no hay lotes. Cargá cada vacío con su vencimiento cuando llega."
+                : "Todavía no hay lotes: los carga quien recibe la mercadería."}
+              {puedeCargar && (
+                <button type="button" onClick={() => document.getElementById("lote-code")?.focus()} className={buttonClasses("solid", "md")}>
+                  Cargar el primero
+                </button>
+              )}
+            </p>
+          ) : (
+            <ul>
+              {views.map((v) => (
+                <Renglon
+                  key={v.id}
+                  as="li"
+                  folio={<Marca tipo={marcaDelLote(v)}>{v.status === "AVAILABLE" ? expiryLabel(v) : STATUS_LABEL[v.status].toLowerCase()}</Marca>}
+                  titulo={v.productName}
+                  detalle={[
+                    `Lote ${v.code}`,
+                    v.supplierName,
+                    v.expiresAtLabel ? `vence ${v.expiresAtLabel}` : null,
+                    v.netWeightKg != null ? `${kgFmt.format(v.netWeightKg)} kg en ${v.packages} paq.` : `${v.packages} paq.`,
+                    v.avgPackageKg != null ? `~${kgFmt.format(v.avgPackageKg)} kg c/u` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  plata={
+                    conCostos && v.unitCost != null ? (
+                      <span className="whitespace-nowrap">
+                        <Plata valor={v.unitCost} />
+                        <span className="text-[13px] text-muted">/kg</span>
+                      </span>
+                    ) : undefined
+                  }
+                  tecla={puedeCargar ? <CambiarEstado id={v.id} code={v.code} status={v.status} renglon /> : undefined}
+                />
+              ))}
+            </ul>
+          )}
+        </Bloque>
+        {puedeCargar && (
+          <Seccion id="cargar" titulo="Cargar un lote al vacío" nivel="h2" nota="las fechas, las de la etiqueta">
+            <div className="pt-3">{formulario}</div>
+          </Seccion>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -226,63 +388,7 @@ export default function LotesClient({
             El peso neto y la cantidad de paquetes cubren el <span className="text-body">peso variable</span>: un vacío
             nunca pesa exacto, así que el sistema calcula el promedio por paquete. Las fechas son las de la etiqueta.
           </p>
-          {estado?.ok === false && <AvisoError titulo="No se cargó el lote" comoSeguir={estado.error} />}
-          {estado?.ok && (
-            <p role="status" className="mb-3 rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm text-strong">
-              {estado.mensaje}
-            </p>
-          )}
-          <form key={vuelta} onSubmit={enviar} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="flex flex-col gap-1">
-              <label htmlFor="lote-code" className="text-xs font-medium text-muted">Nº de lote</label>
-              <Input id="lote-code" name="code" required maxLength={40} autoComplete="off" placeholder="ej: L-2026-014" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="lote-product" className="text-xs font-medium text-muted">Corte</label>
-              <Select id="lote-product" name="productId" required defaultValue="">
-                <option value="">Elegí el corte…</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="lote-supplier" className="text-xs font-medium text-muted">Proveedor (opcional)</label>
-              <Select id="lote-supplier" name="supplierId" defaultValue="">
-                <option value="">Sin proveedor</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="lote-packed" className="text-xs font-medium text-muted">Fecha de envasado (opcional)</label>
-              <Input id="lote-packed" name="packedAt" type="date" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="lote-expires" className="text-xs font-medium text-muted">Vencimiento</label>
-              <Input id="lote-expires" name="expiresAt" type="date" required />
-            </div>
-            {conCostos && (
-              <div className="flex flex-col gap-1">
-                <label htmlFor="lote-cost" className="text-xs font-medium text-muted">Costo por kilo (opcional)</label>
-                <Input id="lote-cost" name="unitCost" type="text" inputMode="decimal" autoComplete="off" placeholder="$ el kilo" />
-              </div>
-            )}
-            <div className="flex flex-col gap-1">
-              <label htmlFor="lote-weight" className="text-xs font-medium text-muted">Peso neto en kg (opcional)</label>
-              <Input id="lote-weight" name="netWeightKg" type="text" inputMode="decimal" autoComplete="off" placeholder="ej: 12,340" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="lote-packages" className="text-xs font-medium text-muted">Paquetes</label>
-              <Input id="lote-packages" name="packages" type="text" inputMode="numeric" autoComplete="off" defaultValue="1" />
-            </div>
-            <div className="flex items-end">
-              <button type="submit" disabled={enviando} className={buttonClasses("solid", "md", "w-full disabled:opacity-50")}>
-                {enviando ? "Cargando…" : "Cargar lote"}
-              </button>
-            </div>
-          </form>
+          {formulario}
         </section>
       )}
     </div>

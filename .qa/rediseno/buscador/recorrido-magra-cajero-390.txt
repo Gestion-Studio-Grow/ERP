@@ -1,0 +1,9 @@
+Q «vac» => 0 resultados Cerrar No encontramos nada con «vac». Probá con otra palabra, un teléfono o el número del pedido.
+   scrollHorizontal=false altosOpciones=[]
+Q «Micaela» => 1 resultado Cerrar CLIENTES Micaela Aguirre 11 5555-2112
+   scrollHorizontal=false altosOpciones=[54]
+Q «#485» => 1 resultado Cerrar PEDIDOS Pedido #485 Abierto · Prueba Vidriera QA
+   scrollHorizontal=false altosOpciones=[54]
+ERRORES DE CONSOLA: [
+  'Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozill'
+]

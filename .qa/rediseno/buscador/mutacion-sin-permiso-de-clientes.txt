@@ -1,0 +1,79 @@
+TAP version 13
+# Subtest: contra Postgres (app_rls + RLS): el buscador sólo encuentra lo del negocio y lo que la persona puede abrir
+not ok 1 - contra Postgres (app_rls + RLS): el buscador sólo encuentra lo del negocio y lo que la persona puede abrir
+  ---
+  duration_ms: 3589.291727
+  type: 'test'
+  location: '/home/user/erp/src/lib/buscador/buscar-en-el-negocio-postgres.test.ts:2:1123'
+  failureType: 'testCodeFailure'
+  error: |-
+    profesional, «Cliente»
+    + actual - expected
+    
+      {
+    +   grupos: [
+    +     {
+    +       grupo: 'clientes',
+    +       items: [
+    +         {
+    +           grupo: 'clientes',
+    +           href: '/admin/clientes/cli_a_df961f6998',
+    +           id: 'cliente-cli_a_df961f6998',
+    +           nombre: 'Cliente 1 de Negocio A (prueba)',
+    +           segunda: '1110000000'
+    +         },
+    +         {
+    +           grupo: 'clientes',
+    +           href: '/admin/clientes/cli_a_ec6b9528b5',
+    +           id: 'cliente-cli_a_ec6b9528b5',
+    +           nombre: 'Cliente 2 de Negocio A (prueba)',
+    +           segunda: '1110000001'
+    +         }
+    +       ],
+    +       nombre: 'Clientes'
+    +     }
+    +   ],
+    -   grupos: [],
+        ok: true
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    ok: true
+    grupos:
+  actual:
+    ok: true
+    grupos:
+      0:
+        grupo: 'clientes'
+        nombre: 'Clientes'
+        items:
+          0:
+            id: 'cliente-cli_a_df961f6998'
+            grupo: 'clientes'
+            nombre: 'Cliente 1 de Negocio A (prueba)'
+            segunda: '1110000000'
+            href: '/admin/clientes/cli_a_df961f6998'
+          1:
+            id: 'cliente-cli_a_ec6b9528b5'
+            grupo: 'clientes'
+            nombre: 'Cliente 2 de Negocio A (prueba)'
+            segunda: '1110000001'
+            href: '/admin/clientes/cli_a_ec6b9528b5'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp/src/lib/buscador/buscar-en-el-negocio-postgres.test.ts:101:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3971.009274

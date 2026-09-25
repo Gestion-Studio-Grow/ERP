@@ -14,7 +14,9 @@ import {
 import { fmtDateTimeAr } from "@/lib/datetime";
 import { formatearCantidad } from "@/lib/pos-peso";
 import { EmptyState, PageHeader, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import Filtros from "./Filtros";
+import { CabeceraMovimientos, LibroDeMovimientos, ParaRecontar } from "./MovimientosRenglon";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +40,20 @@ export default async function MovimientosPage({
   // "App no disponible".
   const veStock = appPermitida(appPorId("inventario"), negocio);
   const elegido = filtros.producto ? datos.productos.find((p) => p.id === filtros.producto) : undefined;
+  const tipos = TIPOS_DE_MOVIMIENTO.map((t) => ({ id: t, nombre: nombreDelTipo(t) }));
+
+  // DISEÑO NUEVO («Renglón»): el libro de la cámara. Lo que hay que recontar arriba, el filtro
+  // suelto, y cada día con su rótulo y su cuenta; los días de más atrás, plegados.
+  if (await disenoNuevo()) {
+    return (
+      <main data-ui="pagina" className="mx-auto w-full max-w-5xl px-4 py-6">
+        <CabeceraMovimientos elegido={elegido} cuantos={datos.movimientos.length} hayMas={datos.hayMas} veStock={veStock} />
+        <ParaRecontar negativos={datos.negativos} puedeRecontar={puedeRecontar} />
+        <Filtros productos={datos.productos} tipos={tipos} inicial={filtros} renglon />
+        <LibroDeMovimientos datos={datos} filtros={filtros} elegido={Boolean(elegido)} />
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
@@ -83,7 +99,7 @@ export default async function MovimientosPage({
 
       <Filtros
         productos={datos.productos}
-        tipos={TIPOS_DE_MOVIMIENTO.map((t) => ({ id: t, nombre: nombreDelTipo(t) }))}
+        tipos={tipos}
         inicial={filtros}
       />
 

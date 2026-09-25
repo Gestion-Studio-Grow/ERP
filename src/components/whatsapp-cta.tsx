@@ -39,11 +39,13 @@ export function useWhatsAppCta(): WhatsAppCtaContextValue {
 }
 
 export function WhatsAppCtaProvider({
-  tenantKey,
   configuredNumber,
   children,
 }: {
-  /** Identifica al tenant para namespacear el localStorage (slug del tenant). */
+  /**
+   * Identifica al tenant. Ya no se usa (el número del visitante no se guarda más: ver arriba); queda
+   * en la firma para no tocar a los cuatro que lo pasan.
+   */
   tenantKey: string;
   /** Número real del tenant (BusinessSettings.whatsapp), o vacío/null si no tiene. */
   configuredNumber: string | null | undefined;

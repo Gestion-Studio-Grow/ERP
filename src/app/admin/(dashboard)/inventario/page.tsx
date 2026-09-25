@@ -7,12 +7,17 @@ import { getProductExtras } from "@/lib/carniceria/product-extras";
 import { getInventory } from "@/lib/inventario/loader";
 import type { InventoryRow } from "@/lib/inventario/valuation";
 import { classifyCorte, categoriaMeta, CORTE_CATEGORIAS, type CorteCategoria } from "@/lib/carniceria/cortes";
-import { PageHeader, EmptyState, Badge, fmtMoneyARS, buttonClasses } from "@/components/ui";
+import { PageHeader, EmptyState, Badge, fmtMoneyARS, buttonClasses, AvisoError, Bloque, Renglon as RenglonUI, Seccion, Plata } from "@/components/ui";
 import { getMermaDeLaSemana } from "@/lib/inventario/merma-loader";
 import { cortesEnNegativo, renglonSinCosto, semanaHasta, MOTIVOS_DE_MERMA, type Renglon, type ResumenDeMerma, type Semana } from "@/lib/stock/merma-core";
 import { hrefMovimientos } from "@/lib/inventario/movimientos";
 import { formatearCantidad } from "@/lib/pos-peso";
 import { todayInBusinessTz } from "@/lib/datetime";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import { vocabularioDelRubro } from "../catalogo/vocabulario";
+import StockRenglon from "./StockRenglon";
+import { aFilaDeStock, hrefContar, leerParametrosStock, paginaDeStock } from "./stock-core";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +55,7 @@ function Stat({
 export default async function InventarioPage({
   searchParams,
 }: {
-  searchParams: Promise<{ hasta?: string | string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requireApp("inventario");
   const [{ rows, summary, conCostos }, extras, sp, negocio] = await Promise.all([
@@ -76,6 +81,94 @@ export default async function InventarioPage({
     puede.recontar
       ? `/admin/ajustes/recuento?producto=${encodeURIComponent(productId)}`
       : `/admin/ajustes?producto=${encodeURIComponent(productId)}&motivo=RECUENTO`;
+
+  if (await disenoNuevo()) {
+    const carniceria = vocabularioDelRubro((await getCurrentTenantRubro()).rubro).carniceria;
+    const todas = rows.map((r) => ({
+      ...aFilaDeStock(r, extras.get(r.productId)?.category, carniceria),
+      contar: hrefContar(r.productId, puede),
+      movimientos: puede.movimientos ? hrefMovimientos({ producto: r.productId }) : null,
+    }));
+    const p = leerParametrosStock(sp, conCostos);
+    const pag = paginaDeStock(todas, p);
+    return (
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
+        {/* En el celular: el título y «Contar» (la tecla de Stock) en una fila, sin párrafo de
+            ayuda; «Cargar merma» y «Movimientos» van al «⋯» de la lista (StockRenglon). */}
+        <PageHeader
+          title="Stock"
+          className="max-sm:mb-4 max-sm:flex-row max-sm:items-center max-sm:justify-between"
+          actions={
+            <>
+              {puede.recontar && (
+                <Link href="/admin/ajustes/recuento" className={buttonClasses("solid", "md")}>
+                  Contar
+                </Link>
+              )}
+              {puede.mermas && (
+                <Link href="/admin/ajustes" className={buttonClasses("outline", "md") + " max-sm:hidden"}>
+                  Cargar merma
+                </Link>
+              )}
+              {puede.movimientos && (
+                <Link href="/admin/inventario/movimientos" className={buttonClasses("outline", "md") + " max-sm:hidden"}>
+                  Movimientos
+                </Link>
+              )}
+            </>
+          }
+        />
+
+        {negativos.length > 0 && p.vista !== "negativo" && (
+          <AvisoError
+            tono="aviso"
+            className="mb-4"
+            titulo={negativos.length === 1 ? "1 producto en negativo" : `${negativos.length} productos en negativo`}
+            comoSeguir="Se vendió más de lo que había cargado. Contalos para que el stock vuelva a ser el real."
+            accion={
+              <Link href="/admin/inventario?vista=negativo" className={buttonClasses("outline", "md")}>
+                {negativos.length === 1 ? "Verlo" : `Ver los ${negativos.length}`}
+              </Link>
+            }
+          />
+        )}
+
+        {rows.length === 0 ? (
+          <EmptyState
+            title="Todavía no hay productos que se cuenten"
+            description="El stock aparece cuando cargues productos en el catálogo y registres lo que llega del proveedor."
+            action={
+              <Link href="/admin/compras" className={buttonClasses("solid", "md")}>
+                Recibir mercadería
+              </Link>
+            }
+          />
+        ) : (
+          <StockRenglon
+            filas={pag.filas}
+            coinciden={pag.coinciden}
+            conBusqueda={pag.conBusqueda}
+            total={todas.length}
+            pagina={pag.pagina}
+            paginas={pag.paginas}
+            porVista={pag.porVista}
+            q={p.q}
+            vista={p.vista}
+            conCostos={conCostos}
+            carniceria={carniceria}
+            valuacionTotal={summary.valuacionTotal}
+            sinCosto={summary.sinCosto}
+            masAcciones={[
+              ...(puede.mermas ? [{ etiqueta: "Cargar merma", href: "/admin/ajustes" }] : []),
+              ...(puede.movimientos ? [{ etiqueta: "Movimientos", href: "/admin/inventario/movimientos" }] : []),
+            ]}
+          />
+        )}
+
+        <MermaRenglon semana={semana} merma={merma} hoy={hoy} conCostos={conCostos} />
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">
@@ -449,5 +542,134 @@ function PorGondola({
         </div>
       ))}
     </div>
+  );
+}
+
+// ── Diseño nuevo («Renglón») ────────────────────────────────────────────────────────────────────
+// La semana de pérdidas como renglones del cuaderno, no como tarjeta: los mismos números que
+// `MermaDeLaSemana` (getMermaDeLaSemana), la misma semana en la URL (?hasta=).
+
+/** Los renglones de la semana no tienen folio: sin esto, el hueco del folio los corre a la derecha. */
+const SIN_FOLIO = "[&>[data-parte=folio]:empty]:hidden";
+
+function CifraMerma({ r, tono, conCostos }: { r: Renglon; tono: "neutral" | "danger"; conCostos: boolean }) {
+  const color = tono === "danger" && r.movimientos > 0 ? "text-danger" : "text-strong";
+  return (
+    <span className="block text-right tabular-nums">
+      <span className={`block font-semibold ${color}`}>{cantidades(r)}</span>
+      {conCostos && <span className={`block text-[13px] ${renglonSinCosto(r) ? "text-muted" : "text-body"}`}>{pesosDe(r)}</span>}
+    </span>
+  );
+}
+
+function MermaRenglon({
+  semana,
+  merma,
+  hoy,
+  conCostos,
+}: {
+  semana: Semana;
+  merma: ResumenDeMerma & { truncado: boolean };
+  hoy: string;
+  conCostos: boolean;
+}) {
+  const pm = merma.mermaPorMotivo;
+  const detalleMerma =
+    MOTIVOS_DE_MERMA.filter((m) => pm[m].kg !== 0 || pm[m].unidades !== 0)
+      .map((m) => `${m}: ${cantidades(pm[m])}`)
+      .join(" · ") || "Merma, vencimiento, rotura, decomiso, consumo interno y degustación";
+  const devoluciones = merma.excluidos["devolucion-anulacion"] + merma.excluidos["devolucion-edicion"];
+  const notas: string[] = [];
+  if (devoluciones > 0)
+    notas.push(
+      `No se cuentan ${devoluciones === 1 ? "1 devolución" : `${devoluciones} devoluciones`} de ventas anuladas o pedidos reajustados: esa mercadería volvió, no sobró.`,
+    );
+  if (merma.excluidos.traslado > 0)
+    notas.push(
+      `${merma.excluidos.traslado === 1 ? "1 traslado" : `${merma.excluidos.traslado} traslados`} a otros locales: no ${merma.excluidos.traslado === 1 ? "es" : "son"} merma, la mercadería se mudó.`,
+    );
+  if (merma.excluidos.despiece > 0)
+    notas.push(
+      `${merma.excluidos.despiece === 1 ? "1 pieza despostada" : `${merma.excluidos.despiece} piezas despostadas`}: no ${merma.excluidos.despiece === 1 ? "es" : "son"} merma, se convirtieron en cortes.`,
+    );
+
+  return (
+    <Bloque id="merma" titulo={`Merma y faltante ${semana.esLaActual ? "de los últimos 7 días" : "de la semana"}`} className="mt-10">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2">
+        <p className="text-[13px] text-muted">
+          Del {ddmm(semana.desde)} al {ddmm(semana.hasta)}
+          {conCostos && " · a costo del día de cada movimiento"}
+        </p>
+        <nav aria-label="Elegir semana" className="flex gap-2">
+          <Link href={`/admin/inventario?hasta=${semana.anterior}#merma`} className={buttonClasses("ghost", "md")}>
+            ‹ Anterior
+          </Link>
+          {semana.siguiente && (
+            <Link
+              href={semana.siguiente === hoy ? "/admin/inventario#merma" : `/admin/inventario?hasta=${semana.siguiente}#merma`}
+              className={buttonClasses("ghost", "md")}
+            >
+              Siguiente ›
+            </Link>
+          )}
+        </nav>
+      </div>
+      <RenglonUI className={SIN_FOLIO} titulo="Merma declarada" detalle={detalleMerma} plata={<CifraMerma r={merma.merma} tono="neutral" conCostos={conCostos} />} />
+      <RenglonUI
+        titulo="Faltante de recuento"
+        detalle="Lo que el sistema tenía y al contar no estaba. No se explica: es lo que hay que mirar."
+        plata={<CifraMerma r={merma.faltante} tono="danger" conCostos={conCostos} />}
+      />
+      <RenglonUI
+        titulo="Sobrante de recuento"
+        detalle="Al contar había más de lo cargado."
+        plata={<CifraMerma r={merma.sobrante} tono="neutral" conCostos={conCostos} />}
+      />
+      {merma.otro.movimientos > 0 && (
+        <RenglonUI
+          className={SIN_FOLIO}
+          titulo="Otras correcciones"
+          detalle="Ajustes con motivo Otro, neto con su signo."
+          plata={<CifraMerma r={merma.otro} tono="neutral" conCostos={conCostos} />}
+        />
+      )}
+
+      {conCostos && merma.top.length > 0 && (
+        <Seccion titulo="Los que más pierden" className="mt-6">
+          <ol>
+            {merma.top.map((c, i) => (
+              <RenglonUI
+                key={c.productId}
+                folio={`${i + 1}.`}
+                as="li"
+                titulo={c.nombre}
+                detalle={
+                  <>
+                    {c.merma > 0 && `merma ${formatearCantidad(c.merma)} ${c.kilo ? "kg" : "u"}`}
+                    {c.merma > 0 && c.faltante > 0 && " · "}
+                    {c.faltante > 0 && <span className="text-danger">faltante {formatearCantidad(c.faltante)} {c.kilo ? "kg" : "u"}</span>}
+                  </>
+                }
+                plata={c.pesos != null ? <Plata valor={c.pesos} /> : <span className="text-muted">—</span>}
+              />
+            ))}
+          </ol>
+        </Seccion>
+      )}
+      {conCostos && merma.perdidaSinCosto.length > 0 && (
+        <p className="mt-2 text-[13px] text-muted">
+          Con pérdida y sin costo cargado (no se pueden ordenar en pesos):{" "}
+          {merma.perdidaSinCosto.map((c) => `${c.nombre} ${formatearCantidad(c.merma + c.faltante)} ${c.kilo ? "kg" : "u"}`).join(" · ")}.
+        </p>
+      )}
+      {notas.map((n) => (
+        <p key={n} className="mt-2 text-[13px] text-muted">
+          {n}
+        </p>
+      ))}
+      {merma.truncado && (
+        <p className="mt-2 text-[13px] font-medium text-warning">Hay más movimientos de los que entran en este resumen: la semana está incompleta.</p>
+      )}
+    </Bloque>
   );
 }

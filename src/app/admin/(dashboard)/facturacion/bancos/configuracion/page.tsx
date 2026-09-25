@@ -11,7 +11,8 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
 import { getActiveModuleIds, moduleGateAllows } from "@/lib/module-gating";
 import { UMBRAL_IDENTIFICACION_DEFAULT, CAP_FACTURAS_MES_DEFAULT } from "@/plugins/bancos";
-import { PageContainer, PageHeader, buttonClasses } from "@/components/ui";
+import { PageContainer, PageHeader, buttonClasses, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import ConfigForm from "./ConfigForm";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +56,33 @@ export default async function ConfiguracionBancosPage() {
     tenant?.bancosUmbralIdentificacion != null
       ? Number(tenant.bancosUmbralIdentificacion)
       : null;
+
+  // DISEÑO NUEVO («Renglón»): un enlace «← Facturación automática» sobre el título (la cabecera
+  // ya es el camino), la regla vigente en la línea de estado y el formulario en dos secciones. Sin
+  // párrafo ni pie de marca. La misma lectura y la misma acción de guardado.
+  if (await disenoNuevo()) {
+    const umbral = umbralActual ?? UMBRAL_IDENTIFICACION_DEFAULT;
+    const cap = tenant?.bancosCapFacturasMes ?? CAP_FACTURAS_MES_DEFAULT;
+    return (
+      <PageContainer width="narrow">
+        <Link href="/admin/facturacion/bancos" className="mb-1 inline-flex min-h-11 items-center text-sm text-muted hover:text-strong sm:min-h-8">
+          ← Facturación automática
+        </Link>
+        <PageHeader
+          title="Reglas para facturar solo"
+          estado={[`datos del comprador desde ${fmtMoneyARS(umbral, 0)}`, `hasta ${fmtNumberAR(cap)} facturas por mes`]}
+        />
+        <ConfigForm
+          renglon
+          umbralActual={umbralActual}
+          capActual={tenant?.bancosCapFacturasMes ?? null}
+          domicilioActual={tenant?.bancosDomicilioEmisor ?? null}
+          umbralDefault={UMBRAL_IDENTIFICACION_DEFAULT}
+          capDefault={CAP_FACTURAS_MES_DEFAULT}
+        />
+      </PageContainer>
+    );
+  }
 
   return (
     <PageContainer width="narrow">

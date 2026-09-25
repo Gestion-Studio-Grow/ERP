@@ -8,10 +8,26 @@
 
 import { BUSINESS_TIMEZONE } from "@/lib/business-config";
 
+// FORMATEADORES REUSADOS. Armar un `Intl.DateTimeFormat` es caro (carga los datos de zona y de
+// idioma de ICU); usarlo es barato. Antes cada llamada armaba el suyo, y una pantalla con cientos
+// de filas los armaba cientos de veces: en el perfil de CPU del Inicio de MAGRA,
+// `dateStrInBusinessTz` sola sumaba 164 ms. Ahora cada combinación (idioma + opciones) se arma
+// una vez por proceso y se reusa: un formateador no guarda estado entre usos, así que el
+// resultado es el mismo (datetime-memo.test.ts lo compara contra uno recién armado).
+const formateadores = new Map<string, Intl.DateTimeFormat>();
+function formateador(clave: string, locale: string, opciones: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  let f = formateadores.get(clave);
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, opciones);
+    formateadores.set(clave, f);
+  }
+  return f;
+}
+
 // Offset (ms) de una zona en un instante dado. Positivo al este de UTC.
 // Ej: para America/Argentina/Buenos_Aires devuelve -10800000 (-3h).
 function tzOffsetMs(timeZone: string, instant: Date): number {
-  const dtf = new Intl.DateTimeFormat("en-US", {
+  const dtf = formateador(`offset|${timeZone}`, "en-US", {
     timeZone,
     hour12: false,
     year: "numeric",
@@ -61,7 +77,7 @@ export function dayOfWeekForDate(dateStr: string): number {
 
 // Fecha de "hoy" (YYYY-MM-DD) en la zona del negocio — no en la del servidor.
 export function todayInBusinessTz(): string {
-  return new Intl.DateTimeFormat("en-CA", {
+  return formateador("dia", "en-CA", {
     timeZone: BUSINESS_TIMEZONE,
     year: "numeric",
     month: "2-digit",
@@ -71,7 +87,7 @@ export function todayInBusinessTz(): string {
 
 // YYYY-MM-DD de un instante, expresado en la zona del negocio.
 export function dateStrInBusinessTz(instant: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
+  return formateador("dia", "en-CA", {
     timeZone: BUSINESS_TIMEZONE,
     year: "numeric",
     month: "2-digit",
@@ -85,7 +101,7 @@ export function dateStrInBusinessTz(instant: Date): string {
 // 24h argentino (ADR-044/046): es-AR por default rinde 12h con "a. m./p. m." — se fuerza
 // `hour12: false` para el reloj de 24 horas que espera la pyme argentina.
 export function fmtDateTime(instant: Date | string): string {
-  return new Intl.DateTimeFormat("es-AR", {
+  return formateador("fechaHoraLarga", "es-AR", {
     timeZone: BUSINESS_TIMEZONE,
     dateStyle: "full",
     timeStyle: "short",
@@ -100,7 +116,7 @@ export function fmtDateTime(instant: Date | string): string {
 export function fmtDateTimeAr(instant: Date | string): string {
   const d = new Date(instant);
   if (Number.isNaN(d.getTime())) return String(instant);
-  const parts = new Intl.DateTimeFormat("es-AR", {
+  const parts = formateador("fechaHoraCorta", "es-AR", {
     timeZone: "America/Argentina/Buenos_Aires",
     hour12: false,
     day: "2-digit",
@@ -116,7 +132,7 @@ export function fmtDateTimeAr(instant: Date | string): string {
 }
 
 export function fmtTime(instant: Date | string): string {
-  return new Intl.DateTimeFormat("es-AR", {
+  return formateador("hora", "es-AR", {
     timeZone: BUSINESS_TIMEZONE,
     hour: "2-digit",
     minute: "2-digit",
@@ -125,7 +141,7 @@ export function fmtTime(instant: Date | string): string {
 }
 
 export function fmtShortDate(instant: Date | string): string {
-  return new Intl.DateTimeFormat("es-AR", {
+  return formateador("fechaCorta", "es-AR", {
     timeZone: BUSINESS_TIMEZONE,
     day: "2-digit",
     month: "2-digit",
@@ -135,7 +151,7 @@ export function fmtShortDate(instant: Date | string): string {
 
 // Etiqueta larga de una fecha de calendario ("YYYY-MM-DD"), sin hora.
 export function fmtCalendarDateLabel(dateStr: string): string {
-  return new Intl.DateTimeFormat("es-AR", {
+  return formateador("diaLargo", "es-AR", {
     timeZone: "UTC",
     weekday: "long",
     day: "2-digit",
@@ -151,7 +167,7 @@ export function nextBusinessDays(count: number): { value: string; label: string 
   for (let i = 0; i < count; i++) {
     const d = new Date(base.getTime() + i * 86400000);
     const value = d.toISOString().slice(0, 10);
-    const label = new Intl.DateTimeFormat("es-AR", {
+    const label = formateador("diaCorto", "es-AR", {
       timeZone: "UTC",
       weekday: "short",
       day: "numeric",
@@ -165,7 +181,7 @@ export function nextBusinessDays(count: number): { value: string; label: string 
 
 // Hora y minuto de pared (en la zona del negocio) de un instante UTC.
 export function wallHourMinuteInBusinessTz(instant: Date): { hour: number; minute: number } {
-  const parts = new Intl.DateTimeFormat("en-US", {
+  const parts = formateador("horaMinuto", "en-US", {
     timeZone: BUSINESS_TIMEZONE,
     hour12: false,
     hour: "2-digit",

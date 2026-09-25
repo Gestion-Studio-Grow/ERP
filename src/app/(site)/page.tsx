@@ -11,6 +11,8 @@ import ReserveButton from "./_ch/ReserveButton";
 import Reveal from "./_ch/Reveal";
 import PhotoPlaceholder from "./_ch/PhotoPlaceholder";
 import FeaturedTreatments, { type FeaturedService } from "./_ch/FeaturedTreatments";
+import InicioCH from "./_ch/InicioCH"; // «diseño nuevo»
+import { disenoNuevo } from "@/lib/diseno/diseno.server"; // «diseño nuevo»
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +51,7 @@ const TEAM_PHOTOS: Record<string, { src: string; rotate?: number }> = {
 };
 
 export default async function Home() {
+  const nuevoP = disenoNuevo(); // «diseño nuevo»: arranca ya, en paralelo con todo lo de abajo
   // ENTRADA POR PRODUCTO (frente identidad-por-producto): los productos de facturación NO
   // tienen vidriera pública — su raíz no debe mostrar la landing de estética de CH (que estaba
   // "hardcodeada", como marcó el dueño). Comerciante y Contador entran por un LOGIN diseñado
@@ -125,6 +128,21 @@ export default async function Home() {
   // aplicados, mapsUrl derivado). Si la dueña no cargó nada, caen a los textos de
   // siempre — la sección nunca queda vacía. Se agrega el email como fila solo si
   // está cargado.
+  // «diseño nuevo»: desde acá — con el interruptor de CH prendido, la home nueva (_ch/InicioCH.tsx).
+  // Apagado (CH en producción hoy), no se toca nada: todo lo de abajo es el código de siempre.
+  if (await nuevoP) {
+    return (
+      <InicioCH
+        groups={groups}
+        professionals={professionals}
+        news={news}
+        reviews={reviews}
+        location={location}
+        destacados={destacados}
+      />
+    );
+  }
+  // «diseño nuevo»: hasta acá
   const contactRows: [string, string][] = [
     ["Dirección", location.addressLine],
     ["Horarios", location.hoursLabel],

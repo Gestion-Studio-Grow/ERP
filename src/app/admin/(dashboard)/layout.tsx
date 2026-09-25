@@ -11,6 +11,7 @@ import { roleHasCapability } from "@/lib/capabilities";
 import { getProductoContexto } from "@/lib/producto";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { lotesYDespieceListos } from "@/lib/carniceria/schema-probe";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { densityForProfile } from "@/lib/profile-density";
 import { navGroupingEnabled } from "@/modules";
 import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
@@ -24,6 +25,10 @@ import { getTeamAccentPreset } from "@/lib/team-accent";
 import AdminThemeScript from "../AdminThemeScript";
 import { getBrandSheet, brandSheetAccent } from "@/lib/brand-sheet";
 import { tenantBrandSheetEnabled } from "@/lib/identity";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { PIEL_RENGLON } from "@/lib/diseno/diseno";
+import { armarNavegacion } from "./armazon/navegacion";
+import { ConDiseno } from "@/lib/diseno/ConDiseno";
 import type { CSSProperties } from "react";
 
 // Monograma de respaldo a partir del nombre ("Velas DEMO" → "VD", "Magra" → "M").
@@ -53,7 +58,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // que su lugar es acá. La lectura de la ficha sigue siendo condicional al flag: con el
   // flag OFF no se consulta nada (`null` sin viaje).
   const useSheet = tenantBrandSheetEnabled();
-  const [user, brand, activeProfile, productoCtx, , , sheet, teamPreset, modoApps] = await Promise.all([
+  const [user, brand, activeProfile, productoCtx, , , sheet, teamPreset, modoApps, nuevo] = await Promise.all([
     requireUser(),
     getTenantBrand(),
     // Perfil activo (ADR-058/059): "lite"/"enterprise" o null si `PROFILES_ENABLED`
@@ -76,6 +81,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     // ¿Trabaja por apps? El interruptor del negocio: una lectura por request, compartida con
     // getContextoApps (src/cambios/interruptores.server.ts). Si falla, el menú de siempre.
     enInicioPorApps(),
+    // ¿Diseño nuevo? Otro interruptor de la MISMA lectura: cero viajes nuevos. Si falla, el de
+    // siempre. Apagado (CH), la raíz y lo de adentro rinden lo de siempre (raices-ch.test.ts).
+    disenoNuevo(),
+    // PERFORMANCE (informe perf/, E2): el rubro del negocio sale en la MISMA tanda. Está cacheado
+    // por pedido (react.cache) y lo leen después el Inicio, Vender y el catálogo: largarlo acá
+    // saca un viaje en serie de esas pantallas. Mismo dato, misma función: cambia CUÁNDO se lee.
+    getCurrentTenantRubro(),
   ]);
 
   // PORTÓN DE CAMBIO FORZADO: si la contraseña del usuario está marcada como temporal (reset del
@@ -156,8 +168,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const accentLight = sheet ? brandSheetAccent(sheet, "light") : resolveAccent(preset, "light");
   const accentDark = sheet ? brandSheetAccent(sheet, "dark") : resolveAccent(preset, "dark");
   const dataBrand = sheet ? sheet.themeId : undefined;
-  const brandName = sheet ? sheet.name : (identidad?.nombre ?? brand.name);
-  const monogram = sheet ? initialsOf(sheet.name) : (identidad?.monograma ?? brand.monogram);
+  let brandName = sheet ? sheet.name : (identidad?.nombre ?? brand.name);
+  let monogram = sheet ? initialsOf(sheet.name) : (identidad?.monograma ?? brand.monogram);
+  // DISEÑO NUEVO — un negocio sin marca propia (cae en la marca neutra de branding.ts: «Mi
+  // negocio» con «•») se nombra con SU nombre y sus iniciales: la misma ficha (`getBrandSheet`,
+  // cacheada por pedido) que ya se usa con el flag de ficha prendido; acá sólo se toma el nombre,
+  // no el color ni el tema. Apagado (CH, que además tiene marca propia) no se consulta nada.
+  if (nuevo && !sheet && !identidad && brand.monogram === "•") {
+    const ficha = await getBrandSheet();
+    if (ficha.name !== "Mi negocio") {
+      brandName = ficha.name;
+      monogram = initialsOf(ficha.name);
+    }
+  }
 
   // LA BARRA SALE DEL REGISTRO DE APPS, calculada UNA vez acá. `appsVisibles` es la misma
   // decisión que usa la guardia de cada página (`requireApp`) y el Inicio por apps: rol ×
@@ -173,6 +196,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const negocioApps = await getNegocioApps(user.role);
   const visibles = appsVisibles(negocioApps);
   const menu = proyectarMenuDeHoy(visibles);
+  // DISEÑO NUEVO: la navegación del armazón nuevo (espacios, comandos de ⌘K, tecla del rubro), con
+  // las MISMAS apps que ya decidió `appsVisibles`. Apagado no se arma ni viaja: CH recibe los mismos
+  // props de siempre (armazon/armazon-ch.test.ts).
+  const nav = nuevo
+    ? armarNavegacion({ visibles, menu, modoApps, esMostrador: negocioApps.esMostrador, role: user.role })
+    : undefined;
 
   // DENSIDAD por perfil (ADR-059 D4): el MISMO design system en dos densidades. Comercio
   // (lite) → `data-density="lite"` (espacioso, --density 1.32); Empresa (enterprise) y motor
@@ -184,6 +213,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div
       data-skin="fable"
+      // DISEÑO NUEVO (interruptor "Diseño nuevo" del negocio): la piel «Renglón» se acota bajo
+      // este atributo. Apagado es `undefined` y React no lo escribe: la raíz de siempre, byte a
+      // byte. `data-skin="fable"` NO se toca: ThemeToggle, AparienciaControls y theme-client lo buscan.
+      data-diseno={nuevo ? PIEL_RENGLON : undefined}
       data-theme="light"
       suppressHydrationWarning
       data-density={density}
@@ -212,18 +245,22 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       }
     >
       {/* Corrige el data-theme ANTES del primer paint (sistema/localStorage). */}
-      <AdminThemeScript />
+      <AdminThemeScript nuevo={nuevo} />
       {/* Banda de "modo demo" — solo aparece en el deploy de demo; null en real. */}
       <DemoBanner />
-      <GlobalLoadingProvider>
-        <ToastProvider>
-          {/* `apps` (para el buscador de Ctrl/⌘K y la barra de espacios del celular) sólo viaja
-              en el piloto: fuera de él la barra busca en su propio menú, como siempre. */}
-          <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"}>
-            {children}
-          </AdminShell>
-        </ToastProvider>
-      </GlobalLoadingProvider>
+      {/* Diseño nuevo: sus hojas y `useDiseno()` para el shell y las pantallas. Apagado devuelve su
+          único hijo tal cual, en el mismo lugar: ni un nodo ni una referencia de más. */}
+      <ConDiseno nuevo={nuevo}>
+        <GlobalLoadingProvider>
+          <ToastProvider>
+            {/* `apps` (para el buscador de Ctrl/⌘K y la barra de espacios del celular) sólo viaja
+                en el piloto: fuera de él la barra busca en su propio menú, como siempre. */}
+            <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})}>
+              {children}
+            </AdminShell>
+          </ToastProvider>
+        </GlobalLoadingProvider>
+      </ConDiseno>
     </div>
   );
 }

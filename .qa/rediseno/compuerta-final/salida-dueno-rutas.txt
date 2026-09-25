@@ -1,0 +1,44 @@
+390 /admin/pedidos -> /admin/pedidos 200 h1= Pedidos para preparar hscroll= false chicos= 18/90 alto= 2335 err= 0
+390 /admin/cierre-mes -> /admin/cierre-mes 200 h1= Cierre del mes hscroll= false chicos= 1/12 alto= 1279 err= 0
+390 /admin/clientes/duplicadas -> /admin/clientes/duplicadas 200 h1= Fichas duplicadas hscroll= false chicos= 1/12 alto= 844 err= 0
+390 /admin/catalogo -> /admin/catalogo 200 h1= Catálogo hscroll= false chicos= 1/82 alto= 3315 err= 0
+390 /admin/catalogo/precios -> /admin/catalogo/precios 200 h1= Actualizar precios hscroll= false chicos= 1/21 alto= 933 err= 0
+390 /admin/catalogo/etiquetas -> /admin/catalogo/etiquetas 200 h1= Etiquetas de precio hscroll= false chicos= 1/37 alto= 1853 err= 0
+390 /admin/promociones -> /admin/promociones 200 h1= Promociones y cupones hscroll= false chicos= 1/15 alto= 844 err= 0
+390 /admin/proveedores -> /admin/proveedores 200 h1= Proveedores hscroll= false chicos= 1/14 alto= 844 err= 0
+390 /admin/facturacion -> /admin/facturacion 200 h1= Facturación hscroll= false chicos= 2/13 alto= 1097 err= 0
+390 /admin/facturacion/bancos -> /admin/facturacion/bancos 200 h1= Facturación automática hscroll= false chicos= 1/11 alto= 1279 err= 0
+390 /admin/retenciones -> /admin/retenciones 200 h1= Retenciones y percepciones hscroll= false chicos= 1/10 alto= 844 err= 0
+390 /admin/resultado -> /admin/resultado 200 h1= Resultado del mes hscroll= false chicos= 2/13 alto= 1216 err= 0
+390 /admin/reportes/margen -> /admin/reportes/margen 200 h1= Margen hscroll= false chicos= 1/10 alto= 3434 err= 0
+390 /admin/flujo -> /admin/flujo 200 h1= Flujo de fondos hscroll= false chicos= 1/11 alto= 936 err= 0
+390 /admin/reportes -> /admin/reportes 200 h1= Reportes hscroll= false chicos= 1/15 alto= 4192 err= 0
+390 /admin/localizacion -> /admin/localizacion 200 h1= Localización hscroll= false chicos= 1/18 alto= 1277 err= 0
+390 /admin/usuarios -> /admin/usuarios 200 h1= Usuarios hscroll= false chicos= 1/23 alto= 1986 err= 0
+390 /admin/auditoria -> /admin/auditoria 200 h1= Auditoría hscroll= false chicos= 1/19 alto= 8667 err= 0
+390 /admin/apariencia -> /admin/apariencia 200 h1= Apariencia hscroll= false chicos= 1/17 alto= 903 err= 0
+390 /admin?espacio=numeros -> /admin 200 h1= Números del negocio hscroll= false chicos= 1/16 alto= 844 err= 0
+390 /admin?espacio=administracion -> /admin 200 h1= Configuración hscroll= false chicos= 1/16 alto= 844 err= 0
+390 /admin/clientes -> /admin/clientes 200 h1= Clientes hscroll= false chicos= 27/72 alto= 2932 err= 0
+1440 /admin/pedidos -> /admin/pedidos 200 h1= Pedidos para preparar hscroll= false chicos= 56/100 alto= 1272 err= 0
+1440 /admin/cierre-mes -> /admin/cierre-mes 200 h1= Cierre del mes hscroll= false chicos= 14/22 alto= 900 err= 0
+1440 /admin/clientes/duplicadas -> /admin/clientes/duplicadas 200 h1= Fichas duplicadas hscroll= false chicos= 11/19 alto= 900 err= 0
+1440 /admin/catalogo -> /admin/catalogo 200 h1= Catálogo hscroll= false chicos= 18/93 alto= 2223 err= 0
+1440 /admin/catalogo/precios -> /admin/catalogo/precios 200 h1= Actualizar precios hscroll= false chicos= 11/31 alto= 900 err= 0
+1440 /admin/catalogo/etiquetas -> /admin/catalogo/etiquetas 200 h1= Etiquetas de precio hscroll= false chicos= 15/47 alto= 1003 err= 0
+1440 /admin/promociones -> /admin/promociones 200 h1= Promociones y cupones hscroll= false chicos= 14/25 alto= 900 err= 0
+1440 /admin/proveedores -> /admin/proveedores 200 h1= Proveedores hscroll= false chicos= 13/23 alto= 900 err= 0
+1440 /admin/facturacion -> /admin/facturacion 200 h1= Facturación hscroll= false chicos= 12/22 alto= 900 err= 0
+1440 /admin/facturacion/bancos -> /admin/facturacion/bancos 200 h1= Facturación automática hscroll= false chicos= 13/20 alto= 900 err= 0
+1440 /admin/retenciones -> /admin/retenciones 200 h1= Retenciones y percepciones hscroll= false chicos= 12/19 alto= 900 err= 0
+1440 /admin/resultado -> /admin/resultado 200 h1= Resultado del mes hscroll= false chicos= 14/23 alto= 900 err= 0
+1440 /admin/reportes/margen -> /admin/reportes/margen 200 h1= Margen hscroll= false chicos= 11/20 alto= 2931 err= 0
+1440 /admin/flujo -> /admin/flujo 200 h1= Flujo de fondos hscroll= false chicos= 14/21 alto= 900 err= 0
+1440 /admin/reportes -> /admin/reportes 200 h1= Reportes hscroll= false chicos= 11/25 alto= 2590 err= 0
+1440 /admin/localizacion -> /admin/localizacion 200 h1= Localización hscroll= false chicos= 11/28 alto= 925 err= 0
+1440 /admin/usuarios -> /admin/usuarios 200 h1= Usuarios hscroll= false chicos= 11/33 alto= 1236 err= 0
+1440 /admin/auditoria -> /admin/auditoria 200 h1= Auditoría hscroll= false chicos= 16/29 alto= 4306 err= 0
+1440 /admin/apariencia -> /admin/apariencia 200 h1= Apariencia hscroll= false chicos= 11/27 alto= 900 err= 0
+1440 /admin?espacio=numeros -> /admin 200 h1= Números del negocio hscroll= false chicos= 15/26 alto= 900 err= 0
+1440 /admin?espacio=administracion -> /admin 200 h1= Configuración hscroll= false chicos= 15/26 alto= 900 err= 0
+1440 /admin/clientes -> /admin/clientes 200 h1= Clientes hscroll= false chicos= 47/79 alto= 1605 err= 0

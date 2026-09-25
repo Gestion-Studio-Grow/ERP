@@ -5,11 +5,16 @@ import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
 import { getComprasData } from "@/lib/inventario/compras-loader";
 import { esStockBajo } from "@/lib/inventory/valuation";
-import { EmptyState, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { Bloque, EmptyState, PageHeader, Plata, Renglon, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { fmtShortDate, todayInBusinessTz } from "@/lib/datetime";
 import { DIAS_DE_CUENTA_CORRIENTE, diaMasDias } from "@/lib/stock/purchase-egreso";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import { vocabularioDelRubro } from "../catalogo/vocabulario";
 import ComprasForm from "./ComprasForm";
+import RecibirRenglon from "./RecibirRenglon";
+import { cortosParaSumar, detalleDeEntrada, proveedorDeLaUrl } from "./recibir-core";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +30,11 @@ const KIND_LABEL: Record<string, string> = {
 // Perfil (ADR-058/059): la edición Empresa profundiza la MISMA pantalla con la orden formal a
 // proveedor (razón social + CUIT + N° de orden, J45/18J). Con el motor OFF (profile===null) o
 // Comercio, la cabecera es la simple de hoy.
-export default async function ComprasPage() {
+export default async function ComprasPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const user = await requireApp("recibir-mercaderia");
   const [{ products, recent, proveedores, conCostos }, profile, negocio] = await Promise.all([
     getComprasData(),
@@ -50,6 +59,111 @@ export default async function ComprasPage() {
   // Lo que conviene reponer primero: bajo el mínimo, con la definición única (`esStockBajo`:
   // sólo los que controlan stock).
   const lowStock = products.filter(esStockBajo);
+
+  // Diseño nuevo («el remito en la mano»): mismos datos, misma acción; apagado, la de siempre.
+  if (await disenoNuevo()) {
+    const vocabulario = vocabularioDelRubro(
+      (await getCurrentTenantRubro()).rubro,
+    );
+    const palabra = vocabulario.carniceria ? "Corte" : "Producto";
+    const sp = await searchParams;
+    const titulo = negocio.esMostrador
+      ? "Recibir mercadería"
+      : "Compras y reposición";
+    return (
+      <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">
+        <PageHeader
+          title={titulo}
+          description="Lo que llega, como viene en el remito: suma el stock de cada producto al registrarlo."
+          actions={
+            <>
+              {veSugerido && (
+                <Link
+                  href="/admin/compras/sugerido"
+                  className={buttonClasses("outline", "md")}
+                >
+                  Qué pedir
+                </Link>
+              )}
+              {veProveedores && (
+                <Link
+                  href="/admin/proveedores"
+                  className={buttonClasses("outline", "md")}
+                >
+                  Proveedores
+                </Link>
+              )}
+            </>
+          }
+        />
+
+        {products.length === 0 ? (
+          <EmptyState
+            title="Todavía no hay productos que reciban stock"
+            description={
+              veCatalogo
+                ? "Lo que llega se suma al stock de un producto del catálogo. Cargalos y volvé con el remito."
+                : "Lo que llega se suma al stock de un producto del catálogo. Pedile a la dueña o al dueño que los cargue."
+            }
+            action={
+              veCatalogo ? (
+                <Link
+                  href="/admin/catalogo"
+                  className={buttonClasses("solid", "md")}
+                >
+                  Ir al catálogo
+                </Link>
+              ) : undefined
+            }
+          />
+        ) : (
+          <RecibirRenglon
+            productos={products}
+            proveedores={proveedores}
+            formal={formal}
+            conCostos={conCostos}
+            cuentaCorriente={cuentaCorriente}
+            proveedorInicial={proveedorDeLaUrl(sp.proveedor, proveedores)}
+            cortos={cortosParaSumar(products, esStockBajo).map((p) => p.id)}
+            palabra={palabra}
+          />
+        )}
+
+        {recent.length > 0 && (
+          <Bloque
+            titulo="Lo último que entró"
+            cuenta={recent.length}
+            className="mt-12"
+          >
+            {recent.map((e) => (
+              <Renglon
+                key={e.id}
+                folio={`#${e.code}`}
+                titulo={e.supplier ?? KIND_LABEL[e.kind] ?? e.kind}
+                detalle={[
+                  fmtShortDate(e.createdAt),
+                  e.supplier ? KIND_LABEL[e.kind] : null,
+                  detalleDeEntrada(e.items),
+                  e.notes,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                plata={
+                  conCostos ? (
+                    e.totalCost > 0 ? (
+                      <Plata valor={e.totalCost} />
+                    ) : (
+                      "—"
+                    )
+                  ) : undefined
+                }
+              />
+            ))}
+          </Bloque>
+        )}
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-8">

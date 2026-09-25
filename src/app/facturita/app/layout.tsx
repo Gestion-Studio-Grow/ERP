@@ -11,6 +11,9 @@ import { getTeamAccentPreset } from "@/lib/team-accent";
 import { getProductoContexto } from "@/lib/producto";
 import AdminThemeScript from "../../admin/AdminThemeScript";
 import ThemeToggle from "../../admin/(dashboard)/ThemeToggle";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { PIEL_RENGLON } from "@/lib/diseno/diseno";
+import { ConDiseno } from "@/lib/diseno/ConDiseno";
 
 export const metadata: Metadata = {
   title: "Facturita",
@@ -26,6 +29,9 @@ const TABS = [
 ];
 
 export default async function FacturitaLayout({ children }: { children: React.ReactNode }) {
+  // Diseño nuevo del negocio (interruptor "Diseño nuevo"): se larga ya y se espera al final, en
+  // paralelo con las lecturas de abajo. Nunca rechaza: si falla, el de siempre.
+  const disenoP = disenoNuevo();
   const brand = await getTenantBrand();
   // Identidad del producto Facturita: el nombre/acento salen del producto, no del branding
   // legado (que caería en "Mi negocio"). Si el tenant eligió color de equipo, ese gana.
@@ -34,10 +40,14 @@ export default async function FacturitaLayout({ children }: { children: React.Re
   const accentLight = resolveAccent(preset, "light");
   const accentDark = resolveAccent(preset, "dark");
   const nombreProducto = identidad?.nombre ?? brand.name ?? "Facturita";
+  const nuevo = await disenoP;
 
   return (
     <div
       data-skin="fable"
+      // Diseño nuevo: apagado es `undefined` y la raíz queda como siempre (raices-ch.test.ts).
+      // Prendido, el encabezado de acá se viste con la piel; las pantallas preguntan `useDiseno()`.
+      data-diseno={nuevo ? PIEL_RENGLON : undefined}
       data-theme="light"
       suppressHydrationWarning
       style={
@@ -50,7 +60,7 @@ export default async function FacturitaLayout({ children }: { children: React.Re
       }
       className="min-h-screen bg-surface text-body"
     >
-      <AdminThemeScript />
+      <AdminThemeScript nuevo={nuevo} />
       <header className="sticky top-0 z-40 border-b border-line bg-surface/80 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center gap-4 px-4 py-3 sm:px-6">
           <span className="text-sm font-semibold tracking-tight text-strong">
@@ -72,7 +82,10 @@ export default async function FacturitaLayout({ children }: { children: React.Re
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
+        {/* Diseño nuevo: sus hojas y `useDiseno()`. Apagado devuelve lo de adentro tal cual. */}
+        <ConDiseno nuevo={nuevo}>{children}</ConDiseno>
+      </main>
       <footer className="mx-auto max-w-3xl border-t border-line px-4 pb-6 pt-4 text-center text-xs text-faint">
         Con tecnología de Gestión Studio Grow
       </footer>

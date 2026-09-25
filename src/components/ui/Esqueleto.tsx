@@ -10,7 +10,7 @@ import { cn } from "./cn";
 // Son decorativos (aria-hidden): quien los usa anuncia la carga una vez, con texto, no por barra.
 
 export function Esqueleto({ className }: { className?: string }) {
-  return <span aria-hidden className={cn("block rounded bg-surface-sunken motion-safe:animate-pulse", className)} />;
+  return <span aria-hidden data-ui="esqueleto" className={cn("block rounded bg-surface-sunken motion-safe:animate-pulse", className)} />;
 }
 
 export function KpiTileEsqueleto({ className }: { className?: string }) {

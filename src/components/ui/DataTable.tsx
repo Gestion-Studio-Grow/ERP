@@ -83,7 +83,7 @@ export function DataTable<T>({
   const sortableColumns = columns.filter((c) => c.sortable);
 
   return (
-    <div className={className}>
+    <div data-ui="tabla" className={className}>
       {sortableColumns.length > 0 && (
         <div className="mb-xs flex flex-wrap gap-2xs sm:hidden" role="group" aria-label="Ordenar tabla">
           {sortableColumns.map((col) => (
@@ -101,7 +101,7 @@ export function DataTable<T>({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-line bg-surface-raised">
+      <div data-parte="marco" className="overflow-x-auto rounded-xl border border-line bg-surface-raised">
         <table className="block sm:table w-full border-collapse text-left text-sm">
           <caption className="sr-only">{caption}</caption>
           <thead className="hidden sm:table-header-group">
@@ -183,7 +183,7 @@ export function DataTable<T>({
                         col.className,
                       )}
                     >
-                      <span className="sm:hidden mr-1.5 text-xs uppercase tracking-wide text-faint">
+                      <span data-parte="rotulo" className="sm:hidden mr-1.5 text-xs uppercase tracking-wide text-faint">
                         {col.header}:{" "}
                       </span>
                       {col.cell(row)}

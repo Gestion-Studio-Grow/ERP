@@ -40,6 +40,7 @@ export default function NewAppointmentForm({
   faltazos,
   abierto = false,
   fechaInicial = "",
+  clienteInicial = "",
 }: {
   professionals: Professional[];
   origen?: OrigenAlta;
@@ -67,6 +68,12 @@ export default function NewAppointmentForm({
    */
   abierto?: boolean;
   fechaInicial?: string;
+  /**
+   * El id de la ficha con la que se llega desde "Darle un turno" (?cliente=, `leerClienteDelAlta`
+   * en pasos.ts). Arranca como si la recepción la hubiera elegido en "Clienta": la MISMA
+   * `alElegirFicha`. Si no está entre `fichas` (otro negocio, borrada), el alta arranca vacía.
+   */
+  clienteInicial?: string;
 }) {
   const [open, setOpen] = useState(origen === "mostrador" || abierto);
   const [professionalId, setProfessionalId] = useState("");
@@ -82,8 +89,11 @@ export default function NewAppointmentForm({
   // deshacerse junta: la regla (qué se completa, qué se destilda cuando la ficha deja de
   // corresponder) es `alCambiarTelefono`/`alElegirFicha`, pura y con test
   // (ficha-por-telefono.test.ts). Acá sólo se llama.
-  const [datos, setDatos] = useState(DATOS_CLIENTA_VACIOS);
   const lista = useMemo(() => fichas ?? [], [fichas]);
+  const [datos, setDatos] = useState(() => {
+    const f = clienteInicial ? lista.find((x) => x.id === clienteInicial) : undefined;
+    return f ? alElegirFicha(DATOS_CLIENTA_VACIOS, f, lista) : DATOS_CLIENTA_VACIOS;
+  });
   const opcionesClienta = useMemo(
     () => lista.map((f) => ({ id: f.id, etiqueta: f.nombre, detalle: detalleFicha(f) })),
     [lista],
@@ -204,6 +214,14 @@ export default function NewAppointmentForm({
           {origen === "mostrador" ? "Limpiar" : "Cancelar"}
         </button>
       </div>
+      {clienteInicial && reconocida && (
+        // Llegó desde la ficha ("Darle un turno"): que se vea para quién es antes de elegir
+        // profesional y horario. Es la ficha en la que el turno va a quedar (misma regla que el servidor).
+        <p className="-mt-1 mb-3 text-sm text-muted">
+          Para <span className="font-medium text-strong">{reconocida.nombre}</span>
+          {reconocida.telefono ? ` · ${reconocida.telefono}` : ""}
+        </p>
+      )}
 
       <form
         action={async (fd) => {

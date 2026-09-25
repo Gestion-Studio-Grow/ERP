@@ -1,0 +1,3 @@
+FALLA operador · prender «Diseño nuevo» de CH (394 ms) page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3210/operador/login
+
+prender 390: 0/1 pasos OK · errores de consola 0 · callejones 0

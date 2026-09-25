@@ -1,0 +1,2 @@
+390 /admin -> /admin/vender 200 h1= Vender hscroll= false chicos= 1/28 alto= 1153 err= 0
+1440 /admin -> /admin/vender 200 h1= Vender hscroll= false chicos= 10/33 alto= 900 err= 0

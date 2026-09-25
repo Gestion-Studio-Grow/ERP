@@ -26,6 +26,7 @@ export type EmptyStateProps = {
 export function EmptyState({ icon, title, description, action, className }: EmptyStateProps) {
   return (
     <div
+      data-ui="vacio"
       className={cn(
         "flex flex-col items-center gap-xs rounded-lg border border-line",
         "bg-surface-sunken px-md py-xl text-center",
@@ -35,13 +36,14 @@ export function EmptyState({ icon, title, description, action, className }: Empt
       {icon && (
         <span
           aria-hidden="true"
+          data-parte="icono"
           className="grid size-10 place-items-center rounded-full bg-surface-raised text-faint"
         >
           {icon}
         </span>
       )}
       <div className="max-w-sm">
-        <p className="text-sm font-medium text-strong">{title}</p>
+        <p data-parte="titulo" className="text-sm font-medium text-strong">{title}</p>
         {description && <p className="mt-3xs text-sm text-muted">{description}</p>}
       </div>
       {action && <div className="mt-xs">{action}</div>}

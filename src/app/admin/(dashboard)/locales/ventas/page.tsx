@@ -20,6 +20,8 @@ import {
   fmtNumberAR,
 } from "@/components/ui";
 import { LocalesSinLeer, NoEsCasa, NoSePudoLeer, SinLocales, SolapasLocales, dia } from "../partes";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { CabeceraVentas, DiaPorDiaRenglon, FiltroVentas, TablaVentas } from "./VentasRenglon";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +79,36 @@ export default async function VentasPorLocalPage({
   const total = elegido ? sumarVentas(mostrados.map((l) => l.total)) : r.total;
   const qs = new URLSearchParams({ desde: r.rango.desde, hasta: r.rango.hasta });
   if (elegido) qs.set("local", elegido.localTenantId);
+
+  // DISEÑO NUEVO («Renglón»): un renglón por local, totales por CUIT al pie. Mismos datos.
+  if (await disenoNuevo()) {
+    return (
+      <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
+        <CabeceraVentas casa={r.casa} desde={r.rango.desde} hasta={r.rango.hasta} total={total} elegido={elegido?.alias ?? null} />
+        <SolapasLocales activa="ventas-por-local" role={user.role} />
+        {!eleccion.ok && (
+          <AvisoError className="mb-4" titulo={eleccion.error} comoSeguir="No se muestra nada de ese negocio. Abajo están todos los locales de tu red." />
+        )}
+        {r.aviso && <AvisoError className="mb-4" tono="aviso" titulo="No se usó el rango pedido" comoSeguir={r.aviso} />}
+        <LocalesSinLeer sinLeer={r.sinLeer} ruta="/admin/locales/ventas" />
+        {r.locales.length === 0 ? (
+          r.sinLeer.length === 0 && <SinLocales />
+        ) : (
+          <>
+            <FiltroVentas
+              desde={r.rango.desde}
+              hasta={r.rango.hasta}
+              local={elegido?.localTenantId ?? ""}
+              locales={r.locales.map((l) => ({ id: l.local.localTenantId, alias: l.local.alias }))}
+              descarga={`/admin/locales/ventas/export?${qs.toString()}`}
+            />
+            <TablaVentas locales={mostrados} porCuit={r.porCuit} total={total} conPie={!elegido} />
+            <DiaPorDiaRenglon locales={mostrados} />
+          </>
+        )}
+      </main>
+    );
+  }
 
   return (
     <PageContainer>

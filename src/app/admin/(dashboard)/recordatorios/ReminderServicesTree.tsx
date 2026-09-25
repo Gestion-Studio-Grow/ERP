@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { updateServiceReminderConfig } from "@/lib/reminders-actions";
 import SubmitButton from "@/components/SubmitButton";
-import { buttonClasses } from "@/components/ui";
+import { Marca, Renglon, Rotulo, buttonClasses } from "@/components/ui";
 import PasoVacio from "../turnos/PasoVacio";
 import { vacioSinServicios } from "../turnos/pasos";
 
@@ -71,10 +71,17 @@ function ServiceConfigForm({ service }: { service: Service }) {
 export default function ReminderServicesTree({
   services,
   abreCatalogo = false,
+  renglon = false,
 }: {
   services: Service[];
   /** ¿Quien mira puede abrir el Catálogo? Decide si el estado vacío lleva a cargar servicios. */
   abreCatalogo?: boolean;
+  /**
+   * Diseño nuevo («Renglón»): todos los servicios a la vista, agrupados por categoría, cada uno con
+   * su estado en palabras («24 hs antes», «Sin aviso») y «Cambiar» que abre el mismo formulario. Sin
+   * el acordeón de dos niveles: antes había que tocar dos veces para saber si un servicio avisaba.
+   */
+  renglon?: boolean;
 }) {
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [openService, setOpenService] = useState<string | null>(null);
@@ -97,6 +104,52 @@ export default function ReminderServicesTree({
   if (services.length === 0) {
     return (
       <PasoVacio paso={vacioSinServicios({ abreCatalogo })} />
+    );
+  }
+
+  if (renglon) {
+    return (
+      <div>
+        {groups.map((g) => (
+          <div key={g.id} className="pt-3">
+            <Rotulo as="h3">{g.name}</Rotulo>
+            <ul aria-label={`Servicios de ${g.name}`}>
+              {g.services.map((s) => {
+                const abierto = openService === s.id;
+                return (
+                  <li key={s.id} className="border-b border-line">
+                    <Renglon
+                      className="border-b-0"
+                      titulo={<span className="break-words">{s.name}</span>}
+                      detalle={
+                        s.reminderEnabled ? (
+                          <Marca tipo="hecho">{`${s.reminderHoursBefore} hs antes`}</Marca>
+                        ) : (
+                          <Marca tipo="pendiente" className="text-muted">
+                            Sin aviso
+                          </Marca>
+                        )
+                      }
+                      tecla={
+                        <button
+                          type="button"
+                          onClick={() => setOpenService(abierto ? null : s.id)}
+                          aria-expanded={abierto}
+                          className={buttonClasses("ghost", "sm", "min-h-11")}
+                        >
+                          {abierto ? "Cerrar" : "Cambiar"}
+                          <span className="sr-only">{` el recordatorio de ${s.name}`}</span>
+                        </button>
+                      }
+                    />
+                    {abierto && <ServiceConfigForm service={s} />}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </div>
     );
   }
 

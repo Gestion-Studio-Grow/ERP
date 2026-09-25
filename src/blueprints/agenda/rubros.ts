@@ -11,6 +11,7 @@
 // ADR-019 §2.b). NO son la lista real de ningún negocio: se editan en el panel.
 
 import type { TenantBrandingDefaults } from "../types";
+import { mayuscula } from "@/lib/texto";
 
 // Copy del rubro para la vidriera/panel: el nombre de las cosas cambia para que el
 // cliente sienta que es su negocio ("Sacá tu turno" vs "Reservá tu consulta").
@@ -204,7 +205,7 @@ export function resolveAgendaRubroIdBySlug(slug: string | null | undefined): str
 
 // Copy YA RESUELTA del flujo de reserva público — strings listos para pintar. Cae
 // al wording histórico (estética/CH) cuando el rubro no define su propia voz, así
-// los tenants existentes no cambian nada. `capitalize` sólo la primera letra para
+// los tenants existentes no cambian nada. `mayuscula` sólo la primera letra para
 // derivar etiquetas ("cancha" → "Cancha") sin castellanizar de más.
 export interface AgendaBookingCopy {
   title: string;
@@ -218,17 +219,13 @@ export interface AgendaBookingCopy {
   summaryServiceLabel: string;
 }
 
-function capitalize(s: string): string {
-  return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
-}
-
 export function agendaBookingCopyFor(rubroId: string | null | undefined): AgendaBookingCopy {
   const rubro = rubroId ? getAgendaRubro(rubroId) : null;
   const w = rubro?.wording ?? GENERIC_AGENDA_WORDING;
   const providerNoun = w.providerNoun; // "profesional" | "cancha" | …
   const serviceNoun = w.serviceNoun ?? "servicio";
-  const providerCap = capitalize(providerNoun);
-  const serviceCap = capitalize(serviceNoun);
+  const providerCap = mayuscula(providerNoun);
+  const serviceCap = mayuscula(serviceNoun);
   // Artículo para el placeholder: "cancha" es femenino → "una", el resto "un".
   const article = /a$/.test(providerNoun) ? "una" : "un";
   return {

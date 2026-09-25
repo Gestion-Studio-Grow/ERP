@@ -14,6 +14,8 @@ import { PageHeader, EmptyState } from "@/components/ui";
 import { DebtDetailBody } from "@/components/cuentas/DebtDetailBody";
 import type { ChequeVista } from "@/components/cuentas/ChequesDeLaDeuda";
 import { agregarCheque, cambiarEstadoCheque, registerPayablePayment } from "../actions";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { CuentaRenglon } from "../../cuentas-a-cobrar/CuentasRenglon";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +70,21 @@ export default async function CuentaAPagarDetailPage({ params }: { params: Promi
   const libre = d.status === "OPEN" ? Math.max(0, round2(d.balance - committedChequeTotal(d.cheques))) : 0;
 
   const aging = agingOf(detail.vencimiento, new Date());
+  if (await disenoNuevo()) {
+    return (
+      <CuentaRenglon
+        detail={detail}
+        aging={aging}
+        tipo="pagar"
+        volver={{ href: "/admin/cuentas-a-pagar", texto: "Cuentas a pagar" }}
+        desde={null}
+        action={registerPayablePayment}
+        asientaEnLibro={cuentasCorrientesEnabled()}
+        anulada={d.status !== "OPEN"}
+        cheques={{ lista: cheques, libre, agregar: agregarCheque, cambiarEstado: cambiarEstadoCheque }}
+      />
+    );
+  }
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       <PageHeader

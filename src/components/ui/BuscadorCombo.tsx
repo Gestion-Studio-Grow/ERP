@@ -30,6 +30,13 @@ export interface BuscadorComboProps {
   className?: string;
   /** Cuántas opciones se muestran a la vez. */
   max?: number;
+  /**
+   * Si la lista se abre apenas el campo toma el foco (lo de siempre). En falso se abre al tipear,
+   * con las flechas o con un clic: para un buscador al que el foco VUELVE solo (Vender, después
+   * de cargar el peso), donde una lista abierta sin pedirla tapa los botones de abajo y un toque
+   * cae sobre otra opción.
+   */
+  abrirAlEnfocar?: boolean;
 }
 
 const control =
@@ -46,6 +53,7 @@ export function BuscadorCombo({
   ariaLabel,
   className,
   max = 8,
+  abrirAlEnfocar = true,
 }: BuscadorComboProps) {
   const autoId = useId();
   const inputId = id ?? `buscador-${autoId}`;
@@ -76,6 +84,7 @@ export function BuscadorCombo({
         id={inputId}
         type="text"
         role="combobox"
+        data-ui="campo"
         aria-label={ariaLabel}
         aria-expanded={abierto}
         aria-controls={listaId}
@@ -85,10 +94,13 @@ export function BuscadorCombo({
         placeholder={elegida ? elegida.etiqueta : placeholder}
         value={abierto ? texto : (elegida?.etiqueta ?? texto)}
         onFocus={() => {
-          setAbierto(true);
+          setAbierto(abrirAlEnfocar);
           setTexto("");
           setActivo(0);
           setRecorrio(false);
+        }}
+        onClick={() => {
+          if (!abrirAlEnfocar) setAbierto(true);
         }}
         onBlur={() => setTimeout(() => setAbierto(false), 120)}
         onChange={(e) => {
@@ -119,6 +131,7 @@ export function BuscadorCombo({
         <ul
           id={listaId}
           role="listbox"
+          data-ui="lista-combo"
           className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-md border border-line-strong bg-surface-raised py-1 shadow-lg"
         >
           {visibles.length === 0 ? (

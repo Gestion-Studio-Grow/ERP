@@ -193,10 +193,23 @@ export interface Recorrido<T> {
 }
 
 /**
- * Recorre la red: UNA transacción por local, con SU GUC, en serie. El piso son N
- * transacciones porque el GUC de RLS es por transacción y leer varios negocios en una sola
- * consulta obligaría a evadir el aislamiento. En serie para cuidar el pool (5 conexiones por
- * instancia, prisma-base.ts): con 5 a 9 locales alcanza; con 30 o más va una caché por casa.
+ * Cuántos locales se leen A LA VEZ. Cada lectura es una transacción que ocupa una conexión del
+ * pool de la instancia (src/lib/db-pool.ts) mientras dura; leerlos todos juntos con una red
+ * grande dejaría sin conexión al resto del pedido (el Inicio lee la red adentro de su fila de
+ * números). De a tres: con la red de hoy (dos o tres locales) es una sola tanda en vez de una
+ * por local, y con una red grande nunca toma más de tres conexiones.
+ */
+export const LOCALES_A_LA_VEZ = 3;
+
+/**
+ * Recorre la red: UNA transacción por local, con SU GUC. El piso son N transacciones porque el
+ * GUC de RLS es por transacción y leer varios negocios en una sola consulta obligaría a evadir
+ * el aislamiento. Van de a `LOCALES_A_LA_VEZ` (antes, de a uno: con 30 ms de ida y vuelta a la
+ * base, cada local sumaba su tiempo entero al de la pantalla). Cada transacción sigue siendo la
+ * de su local, con su GUC y su contexto propio: correr a la vez no mezcla negocios (lo prueba
+ * prisma/rls/aislamiento-capa-app.ts con el rol app_rls).
+ *
+ * El resultado sale en el ORDEN de la red, termine primero el que termine.
  *
  * Un local que falla (la base no contestó a tiempo, una migración que ese local no tiene) NO
  * tumba la red: queda en `fallidos` y los demás se siguen leyendo. La dueña ve los que se
@@ -206,17 +219,27 @@ export async function recorrerLocales<T>(
   p: PuertosRed,
   casaId: string,
   recolectar: (tx: Tx, local: LocalDeLaRed) => Promise<T>,
+  aLaVez: number = LOCALES_A_LA_VEZ,
 ): Promise<Recorrido<T>> {
   const locales = await localesDeLaRed(p, casaId);
+  const resultados: ({ ok: true; dato: T } | { ok: false; error: unknown })[] = new Array(locales.length);
+  let siguiente = 0;
+  const trabajar = async () => {
+    while (siguiente < locales.length) {
+      const i = siguiente++;
+      const local = locales[i];
+      try {
+        resultados[i] = { ok: true, dato: await p.enLocal(local.localTenantId, (tx) => recolectar(tx, local)) };
+      } catch (error) {
+        resultados[i] = { ok: false, error };
+      }
+    }
+  };
+  const trabajadores = Math.max(1, Math.min(Math.floor(aLaVez) || 1, locales.length));
+  await Promise.all(Array.from({ length: trabajadores }, trabajar));
   const leidos: { local: LocalDeLaRed; dato: T }[] = [];
   const fallidos: LocalQueFallo[] = [];
-  for (const local of locales) {
-    try {
-      leidos.push({ local, dato: await p.enLocal(local.localTenantId, (tx) => recolectar(tx, local)) });
-    } catch (error) {
-      fallidos.push({ local, error });
-    }
-  }
+  resultados.forEach((r, i) => (r.ok ? leidos.push({ local: locales[i], dato: r.dato }) : fallidos.push({ local: locales[i], error: r.error })));
   return { leidos, fallidos };
 }
 

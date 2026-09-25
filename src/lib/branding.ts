@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
+import { tenantFamilySlug } from "@/blueprints/retail/rubros";
 
 // ============================================================================
 // BRANDING POR TENANT + REGLA DE TEMAS FRONT/BACK (design system)
@@ -182,8 +183,13 @@ const DEFAULT_BRAND: TenantBrand = {
 
 // Lookup PURO (sin DB) — separado para poder testear la asignación slug→marca sin
 // mockear Prisma/el request. `null`/slug desconocido → DEFAULT_BRAND.
+// Los locales de una marca (`magra-canning`, `magra-lomas`…) llevan la marca de la
+// casa, con la misma regla de familia de slug que usa la vidriera
+// (`resolveTenantBrandId`, src/tenants/storefront.ts:279).
 export function brandForSlug(slug: string | null): TenantBrand {
-  return (slug && TENANTS[slug]) || DEFAULT_BRAND;
+  if (!slug) return DEFAULT_BRAND;
+  const familia = tenantFamilySlug(slug);
+  return TENANTS[slug] ?? (familia ? TENANTS[familia] : undefined) ?? DEFAULT_BRAND;
 }
 
 // Acento resuelto (hex + texto-sobre-acento) para una superficie según SU tema.

@@ -17,6 +17,8 @@ import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { frozenDayMessage } from "@/lib/caja/cierre-diario";
 import { OpenCajaForm, CloseCajaForm } from "./CajaForms";
 import { AddLibroEntryForm } from "./libro/LibroForms";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import CajaRenglon from "./CajaRenglon";
 
 export const dynamic = "force-dynamic";
 
@@ -70,13 +72,24 @@ export default async function CajaPage() {
   // La guardia de la app (rol, rubro, edición) va en la página, como en el resto del panel: quien
   // no puede abrirla ve "App no disponible" en vez de rebotar en silencio desde el loader.
   await requireApp("caja-del-dia");
-  const conCajon = await tieneCajonFisico();
   // Mismo loader que el Cierre del día: la aritmética del resumen es LA MISMA
   // (`buildCierreDiario`), así que lo que se lee acá a las 16 es exactamente lo que va a
   // aparecer a las 20 al cerrar. Cero cálculo nuevo, cero segunda verdad.
-  const dia = await getCierreDiarioData();
-  // El turno de cajero sólo se consulta donde existe: sin cajón, es una query al pedo.
-  const caja = conCajon ? await getCajaData() : null;
+  //
+  // El resumen del día y el turno de cajero no dependen uno del otro: se leen A LA VEZ (antes
+  // iban en fila: rubro, después el día, después el cajón — tres tandas de idas y vueltas a la
+  // base). El turno de cajero sigue consultándose sólo donde hay cajón: sin cajón, es una
+  // consulta al pedo, así que espera a saber el rubro (que el layout del panel ya pidió en el
+  // mismo pedido) y el día no lo espera a él.
+  const [dia, caja, nuevo] = await Promise.all([
+    getCierreDiarioData(),
+    tieneCajonFisico().then((conCajon) => (conCajon ? getCajaData() : null)),
+    // «Diseño nuevo»: la lectura de interruptores del layout, cacheada (no suma viajes).
+    disenoNuevo(),
+  ]);
+
+  // DISEÑO NUEVO («Renglón»): los mismos datos, ordenados para quien pasa el día acá.
+  if (nuevo) return <CajaRenglon dia={dia} caja={caja} />;
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { upsertMessageTemplate } from "@/lib/reminders-actions";
 import SubmitButton from "@/components/SubmitButton";
-import { Field, Input, Textarea, buttonClasses } from "@/components/ui";
+import { Field, Input, Marca, Renglon, Textarea, buttonClasses } from "@/components/ui";
 
 // Plantillas de mensaje, una tarjeta colapsada por (tipo, canal). El listado
 // anterior mostraba los 3 formularios abiertos y un párrafo críptico de
@@ -56,7 +56,7 @@ const TYPE_VARS: Record<Slot["type"], { token: string; label: string }[]> = {
   ],
 };
 
-function TemplateCard({ slot, template }: { slot: Slot; template: Template | undefined }) {
+function TemplateCard({ slot, template, renglon = false }: { slot: Slot; template: Template | undefined; renglon?: boolean }) {
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState(template?.body ?? "");
 
@@ -65,8 +65,34 @@ function TemplateCard({ slot, template }: { slot: Slot; template: Template | und
   const idBase = `plantilla-${slot.type}-${slot.channel}`.toLowerCase();
   const isActive = template?.active ?? true;
 
+  // Diseño nuevo («Renglón»): un renglón con lo que dice el mensaje hoy (el principio), su estado
+  // en palabras y «Editar»; al abrirlo, el mismo formulario de siempre.
+  const cabeza = renglon ? (
+    <Renglon
+      className="border-b-0"
+      titulo={title}
+      detalle={<span className="line-clamp-2 break-words">{body.trim() ? body : "Sin texto cargado."}</span>}
+      plata={
+        isActive ? (
+          <Marca tipo="hecho">Activa</Marca>
+        ) : (
+          <Marca tipo="pendiente" className="text-muted">
+            Apagada
+          </Marca>
+        )
+      }
+      tecla={
+        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className={buttonClasses("ghost", "sm", "min-h-11")}>
+          {open ? "Cerrar" : "Editar"}
+          <span className="sr-only">{` la plantilla ${title}`}</span>
+        </button>
+      }
+    />
+  ) : null;
+
   return (
-    <div className="rounded-lg border border-line overflow-hidden">
+    <div className={renglon ? "border-b border-line" : "rounded-lg border border-line overflow-hidden"}>
+      {cabeza ?? (
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -87,6 +113,7 @@ function TemplateCard({ slot, template }: { slot: Slot; template: Template | und
           </span>
         </span>
       </button>
+      )}
 
       {open && (
         <form action={upsertMessageTemplate} className="border-t border-line bg-surface-sunken p-3 space-y-3">
@@ -155,12 +182,13 @@ function TemplateCard({ slot, template }: { slot: Slot; template: Template | und
   );
 }
 
-export default function TemplatesSection({ templates }: { templates: Template[] }) {
+export default function TemplatesSection({ templates, renglon = false }: { templates: Template[]; renglon?: boolean }) {
   return (
-    <div className="space-y-2">
+    <div className={renglon ? undefined : "space-y-2"}>
       {SLOTS.map((slot) => (
         <TemplateCard
           key={`${slot.type}-${slot.channel}`}
+          renglon={renglon}
           slot={slot}
           template={templates.find((t) => t.type === slot.type && t.channel === slot.channel)}
         />

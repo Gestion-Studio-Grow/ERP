@@ -6,6 +6,7 @@ import { NOMBRE_APP_CATALOGO, divergeDeLaLista, resumenDeLaVista } from "@/lib/m
 import { AvisoError, Badge, EmptyState, KpiTile, PageContainer, PageHeader, buttonClasses, fmtNumberAR } from "@/components/ui";
 import { LocalesSinLeer, NoEsCasa, NoSePudoLeer, SinLocales, SolapasLocales } from "../partes";
 import { AplicarCatalogo, type LocalParaAplicar } from "./AplicarCatalogo";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,67 @@ export default async function CatalogoDeLaMarcaPage() {
     resumen: resumenDeLaVista(local.alias, vista),
     ...vista,
   }));
+
+  // DISEÑO NUEVO («Renglón»): lo de las tres tarjetas va en una línea; cada local, un renglón.
+  if (await disenoNuevo()) {
+    const alDia = r.locales.length - distintos;
+    return (
+      <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
+        <header data-ui="page-header" className="mb-4">
+          <h1 className="text-2xl font-bold text-strong">{titulo}</h1>
+          <p className="mt-1 text-sm text-muted">
+            {r.casa}
+            {r.lista.incluidos > 0 && r.locales.length > 0 && (
+              <>
+                {` · ${fmtNumberAR(r.lista.incluidos)} productos en tu lista · `}
+                <strong className="text-strong">
+                  {distintos === 0 ? "todos los locales la tienen" : `${fmtNumberAR(distintos)} ${distintos === 1 ? "local con precios distintos" : "locales con precios distintos"}`}
+                </strong>
+                {distintos > 0 && alDia > 0 && ` · ${fmtNumberAR(alDia)} al día`}
+              </>
+            )}
+          </p>
+          <p className="mt-1 text-[13px] text-muted">
+            Tu lista es el catálogo de la casa. Al mandarla cambian los precios y se crean los productos que le faltan a cada local; su stock no se toca.
+          </p>
+        </header>
+        <SolapasLocales activa="catalogo-de-la-marca" role={user.role} />
+        <LocalesSinLeer sinLeer={r.sinLeer} ruta="/admin/locales/catalogo" />
+        {r.lista.repetidos.length > 0 && (
+          <AvisoError
+            className="mb-4"
+            titulo={`Tu lista tiene productos con el mismo nombre: ${r.lista.repetidos.join(", ")}`}
+            comoSeguir="Así no se puede mandar: cada local no sabría cuál es cuál. Renombrá uno desde el Catálogo y volvé acá."
+            accion={
+              <Link href="/admin/catalogo" className={buttonClasses("outline", "md")}>
+                Ir al Catálogo
+              </Link>
+            }
+          />
+        )}
+        {r.lista.sinPrecio.length > 0 && (
+          <AvisoError
+            className="mb-4"
+            tono="aviso"
+            titulo={`${fmtNumberAR(r.lista.sinPrecio.length)} ${r.lista.sinPrecio.length === 1 ? "producto no tiene" : "productos no tienen"} precio y no se ${r.lista.sinPrecio.length === 1 ? "manda" : "mandan"}`}
+            comoSeguir={`${r.lista.sinPrecio.join(", ")}. Cargale el precio en el Catálogo si querés que llegue a los locales.`}
+          />
+        )}
+        {r.locales.length === 0 ? (
+          r.sinLeer.length === 0 && <SinLocales />
+        ) : r.lista.incluidos === 0 ? (
+          <p className="py-3 text-sm text-muted">
+            {"Tu lista está vacía: son los productos activos y con precio del catálogo de la casa. "}
+            <Link href="/admin/catalogo" className="inline-flex min-h-11 items-center font-medium text-accent-ink underline underline-offset-2">
+              Cargalos en el Catálogo
+            </Link>
+          </p>
+        ) : (
+          <AplicarCatalogo locales={locales} bloqueada={r.lista.repetidos.length > 0} renglon />
+        )}
+      </main>
+    );
+  }
 
   return (
     <PageContainer>

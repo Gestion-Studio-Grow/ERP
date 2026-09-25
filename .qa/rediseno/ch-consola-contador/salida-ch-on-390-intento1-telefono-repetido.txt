@@ -1,0 +1,21 @@
+FALLA CH dueña · entrar (4317 ms) llegó a /admin · diseno=renglon sx360=0 chicos<44=0 ERRORES=[CH dueña · entrar] Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa
+OK   CH · ir a la agenda desde el menú (1664 ms) Agenda · diseno=renglon sx360=0 chicos<44=12
+OK   CH · tecla grande «Dar un turno» abre la pantalla nueva (2024 ms) /admin/turnos/lista?nuevo=1 · diseno=renglon sx360=0 chicos<44=12
+OK   CH · alta: validación antes de completar (525 ms) botón deshabilitado con el alta vacía
+OK   CH · alta: elegir servicio y horario (1279 ms) servicio «Depilación definitiva axilas 20′ · $16.000» a las 10:30
+FALLA CH · alta: clienta nueva y dar el turno (2401 ms) el turno no aparece en la agenda (http://chestetica.localhost:3210/admin/turnos)
+FALLA CH · recargar: el turno quedó (1732 ms) después de recargar no está
+FALLA CH · abrir el turno (cajón) (30468 ms) locator.click: Timeout 30000ms exceeded.
+FALLA CH · Escape cierra el cajón y vuelve a la agenda (31298 ms) locator.click: Timeout 30000ms exceeded.
+FALLA CH · confirmar y cobrar el turno (30512 ms) locator.waitFor: Timeout 30000ms exceeded.
+FALLA CH · recargar: el turno figura terminado y cobrado (3813 ms) el turno no está en la agenda
+OK   CH · ficha de la clienta nueva (desde el buscador Ctrl+K) (2210 ms) el buscador no trae la clienta recién creada: «2 resultados Cerrar CLIENTES QA Recorrido 1440 23227 11 5555-3227 QA Recorrido 1440 28033 11 5555-8033»
+FALLA CH · cierre de caja (sin deslizar) (33200 ms) locator.click: Timeout 30000ms exceeded.
+OK   CH · agenda de un día sin turnos (vacío) (2323 ms) «Agenda 0 turnos ← sáb 13 Domingo 14 de marzo lun 15 → Hoy Otro día Día Por profesional Todos los turnos No hay turnos ese día Si alguien pide un turno para ese » · acciones con «turno»=1 · diseno=renglon sx360=0 chicos<44=0
+OK   CH · turno que no existe (error) (1948 ms) http=200 · «Agenda 13 turnos 5 sin confirmar 2 por cobrar Carla con 9 ← Ayer Viernes 25 de septiembre Mañana → Otro día Día Por profesional Todos los tu»
+OK   CH · fecha inválida en la dirección (1923 ms) http=200 · «Agenda 13 turnos 5 sin confirmar 2 por cobrar Carla con 9 ← Ayer Viernes 25 de septiembre Mañana → Otro día Día Por prof»
+OK   CH · lista de turnos y «para mañana» (5577 ms) lista: diseno=renglon sx360=0 chicos<44=0 · mañana: diseno=renglon sx360=0 chicos<44=0
+
+ch-on 390: 9/17 pasos OK · errores de consola 1 · callejones 0
+MEDIDA agenda /admin/turnos sx360=0 chicos: Milagros Acosta:20, Mariana Juárez:20, QA Recorrido 1440 23227:20, QA Recorrido 1440 28033:20, Sebastián Medina:20, Lucía Rodríguez:20
+MEDIDA alta-turno /admin/turnos/lista?nuevo=1 sx360=0 chicos: Milagros Acosta:20, Mariana Juárez:20, QA Recorrido 1440 23227:20, QA Recorrido 1440 28033:20, Sebastián Medina:20, Lucía Rodríguez:20

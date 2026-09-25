@@ -16,11 +16,15 @@ export default function Filtros({
   productos,
   tipos,
   inicial,
+  renglon = false,
 }: {
   productos: Opcion[];
   tipos: { id: string; nombre: string }[];
   inicial: { producto: string | null; tipo: string | null; desde: string | null; hasta: string | null };
+  /** Diseño nuevo («Renglón»): el filtro va suelto sobre la raya, sin caja; «Limpiar» sólo si hay algo filtrado. */
+  renglon?: boolean;
 }) {
+  const hayFiltro = Boolean(inicial.producto || inicial.tipo || inicial.desde || inicial.hasta);
   const [producto, setProducto] = useState(inicial.producto ?? "");
   const opciones = productos.map((p) => ({
     id: p.id,
@@ -28,7 +32,12 @@ export default function Filtros({
     detalle: `hay ${qty.format(p.stock)} ${p.unit}`,
   }));
   return (
-    <form method="get" action="/admin/inventario/movimientos" className="grid gap-3 rounded-lg border border-line p-4 sm:grid-cols-2 lg:grid-cols-4">
+    <form
+      method="get"
+      action="/admin/inventario/movimientos"
+      aria-label="Filtrar movimientos"
+      className={renglon ? "grid gap-3 border-b border-line pb-4 sm:grid-cols-2 lg:grid-cols-4" : "grid gap-3 rounded-lg border border-line p-4 sm:grid-cols-2 lg:grid-cols-4"}
+    >
       <div className="text-sm sm:col-span-2">
         <span className="mb-1 block text-muted">Producto</span>
         <BuscadorCombo
@@ -65,9 +74,11 @@ export default function Filtros({
         <button type="submit" className={buttonClasses("solid", "md")}>
           Ver movimientos
         </button>
-        <Link href="/admin/inventario/movimientos" className={buttonClasses("outline", "md")}>
-          Limpiar filtros
-        </Link>
+        {(!renglon || hayFiltro) && (
+          <Link href="/admin/inventario/movimientos" className={buttonClasses("outline", "md")}>
+            Limpiar filtros
+          </Link>
+        )}
       </div>
     </form>
   );

@@ -96,6 +96,32 @@ export function masVendidos(
     .map((g) => g.id);
 }
 
+/**
+ * Las teclas del mostrador en el diseño nuevo. PURA.
+ *
+ * Con ventas de sobra, son los más vendidos. El primer día de un negocio (o una semana floja)
+ * no hay de dónde sacarlos y el cajero se quedaba sin teclas, teniendo que saberse los nombres
+ * de memoria: entonces se completa con el catálogo que ya se puede vender, en el orden en que
+ * llega (alfabético), sin repetir. Mientras haga falta completar, el rótulo no promete lo que
+ * no es: dice «Tus productos», no «Más vendidos».
+ */
+export function teclasDelMostrador(
+  vendidos: readonly string[],
+  catalogo: readonly string[],
+  n = BOTONES_RAPIDOS,
+): { ids: string[]; rotulo: "Más vendidos" | "Tus productos" } {
+  if (vendidos.length >= n) return { ids: vendidos.slice(0, n), rotulo: "Más vendidos" };
+  const ids = [...vendidos];
+  const ya = new Set(ids);
+  for (const id of catalogo) {
+    if (ids.length >= n) break;
+    if (ya.has(id)) continue;
+    ya.add(id);
+    ids.push(id);
+  }
+  return { ids, rotulo: ids.length > vendidos.length ? "Tus productos" : "Más vendidos" };
+}
+
 // ── EL TICKET ────────────────────────────────────────────────────────────────
 //
 // Comprobante NO fiscal para el cliente: por WhatsApp o impreso en 58 mm. Dice "No válido

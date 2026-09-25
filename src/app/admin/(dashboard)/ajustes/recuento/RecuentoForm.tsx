@@ -32,7 +32,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { unstable_rethrow } from "next/navigation";
 import { registrarRecuento, type EstadoAjuste } from "@/lib/stock-adjustment-actions";
-import { AvisoError, Textarea, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { AvisoError, Chip, Textarea, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { cantidadParaFormulario, formatearCantidad, leerCantidad } from "@/lib/pos-peso";
 import { round3 } from "@/lib/stock/ledger";
 import { marcaDeConteo } from "@/lib/stock/adjustment-core";
@@ -104,6 +104,11 @@ type PropsDeLaPlanilla = {
   conTope?: boolean;
   /** Dónde se anota el borrador en este teléfono (`claveDelBorrador`: negocio + persona). */
   claveBorrador: string;
+  /**
+   * Diseño nuevo («Renglón»): la planilla entre rayas, sin cajas ni fondos de color, y las
+   * ayudas largas plegadas. Misma lógica, mismos campos, mismo formulario.
+   */
+  renglon?: boolean;
 };
 
 const sinSuscripcion = () => () => {};
@@ -126,6 +131,7 @@ function Planilla({
   conTope = false,
   claveBorrador,
   enTelefono,
+  renglon = false,
 }: PropsDeLaPlanilla & { enTelefono: boolean }) {
   // Lo que había quedado anotado en este teléfono, contra la planilla de hoy. Se lee una sola
   // vez, al armar la planilla. Lo ya recontado después de cada conteo (la planilla de hoy lo
@@ -326,9 +332,16 @@ function Planilla({
           <AvisoError titulo="No se guardó el recuento" comoSeguir={`${estado.error} Lo que contaste sigue cargado.`} />
         )
       )}
-      {estado?.ok && estado.recuento && <Resultado mensaje={estado.mensaje} lineas={estado.recuento} conCostos={conCostos} />}
+      {estado?.ok && estado.recuento && <Resultado mensaje={estado.mensaje} lineas={estado.recuento} conCostos={conCostos} renglon={renglon} />}
       {recuperado && (
-        <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface-sunken px-4 py-3">
+        <div
+          role="status"
+          className={
+            renglon
+              ? "flex flex-wrap items-center justify-between gap-3 border-y border-line py-3"
+              : "flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface-sunken px-4 py-3"
+          }
+        >
           <p className="min-w-0 text-sm text-body">
             {recuperado.recuperados > 0
               ? `Seguís donde habías dejado: ${recuperado.recuperados === 1 ? "1 conteo anotado" : `${recuperado.recuperados} conteos anotados`} ${recuperado.hace}.`
@@ -362,25 +375,21 @@ function Planilla({
       <form onSubmit={enviar} className="space-y-4">
         {/* Góndolas: cada una es un tramo del recorrido. */}
         {gondolas.length > 1 && (
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Góndola">
+          <div
+            className={renglon ? "-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [&>*]:shrink-0 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0" : "flex flex-wrap gap-2"}
+            role="group"
+            aria-label="Góndola"
+          >
             {gondolas.map((g) => {
               const hechos = g.productos.filter((p) => conteos[p.id]).length;
               const elegida = g.id === actual?.id;
               return (
-                <button
-                  key={g.id}
-                  type="button"
-                  aria-pressed={elegida}
-                  onClick={() => setGondola(g.id)}
-                  className={`inline-flex h-11 items-center rounded-md border px-3 text-sm transition-colors ${
-                    elegida ? "border-accent bg-accent text-on-accent" : "border-line-strong text-muted hover:bg-surface-sunken"
-                  }`}
-                >
+                <Chip key={g.id} prendido={elegida} onClick={() => setGondola(g.id)}>
                   {g.nombre}
-                  <span className="ml-1 tabular-nums opacity-80">
+                  <span data-parte="conteo">
                     {hechos}/{g.productos.length}
                   </span>
-                </button>
+                </Chip>
               );
             })}
           </div>
@@ -395,7 +404,7 @@ function Planilla({
           />
           Conteo ciego: no mostrar el stock del sistema mientras cuento
         </label>
-        {!ciego && (
+        {!ciego && !renglon && (
           <p className="text-xs text-faint">
             La diferencia que ves al lado de cada uno es contra el stock de este momento. Al guardar se calcula con lo que
             había cuando lo contaste.
@@ -407,14 +416,18 @@ function Planilla({
           </p>
         )}
 
-        <ul ref={listaRef} className="scroll-mt-4 divide-y divide-line rounded-lg border border-line">
+        <ul
+          ref={listaRef}
+          data-ui={renglon ? "planilla" : undefined}
+          className={renglon ? "scroll-mt-4 divide-y divide-line border-y border-line-strong" : "scroll-mt-4 divide-y divide-line rounded-lg border border-line"}
+        >
           {actual?.productos.map((p) => {
             const c = conteos[p.id];
             const l = c ? leerCantidad(c.texto) : null;
             const dif = l?.estado === "ok" ? round3(l.valor - p.stock) : null;
             const pide = pideRecuento(p.ultimoRecuento, reciente);
             return (
-              <li key={p.id} className="grid grid-cols-[1fr_7.5rem] items-center gap-x-3 gap-y-1 px-3 py-3">
+              <li key={p.id} className={`grid grid-cols-[1fr_7.5rem] items-center gap-x-3 gap-y-1 py-3 ${renglon ? "px-0" : "px-3"}`}>
                 <div className="min-w-0">
                   <label htmlFor={`cont-${p.id}`} className="block text-sm font-medium text-strong">
                     {p.nombre}
@@ -503,10 +516,21 @@ function Planilla({
             {ilegibles.map((p) => p.nombre).join(", ")}. Corregilas antes de guardar.
           </p>
         )}
-        <p className="text-xs text-faint">
-          Se guardan sólo los que cargaste; los que coinciden quedan registrados como contados. Hasta que guardes, lo que
-          cargás queda anotado en este teléfono.
-        </p>
+        {renglon ? (
+          <details className="text-xs text-muted">
+            <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-medium text-body">¿Qué se guarda?</summary>
+            <p className="pb-2">
+              Sólo los que cargaste; los que coinciden quedan registrados como contados. La diferencia que ves al lado de cada
+              uno es contra el stock de este momento; al guardar se calcula con lo que había cuando lo contaste. Hasta que
+              guardes, lo que cargás queda anotado en este teléfono.
+            </p>
+          </details>
+        ) : (
+          <p className="text-xs text-faint">
+            Se guardan sólo los que cargaste; los que coinciden quedan registrados como contados. Hasta que guardes, lo que
+            cargás queda anotado en este teléfono.
+          </p>
+        )}
 
         {/* Pegado abajo, al alcance del pulgar: cuánto va de esta góndola y Guardar. En la PC
             queda en su lugar, al final. La zona segura del iPhone se deja UNA vez: con la barra de
@@ -539,12 +563,12 @@ function Planilla({
   );
 }
 
-function Resultado({ mensaje, lineas, conCostos }: { mensaje: string; lineas: LineaDeRecuento[]; conCostos: boolean }) {
+function Resultado({ mensaje, lineas, conCostos, renglon }: { mensaje: string; lineas: LineaDeRecuento[]; conCostos: boolean; renglon: boolean }) {
   const r = resumirRecuento(lineas);
   const conDiferencia = lineas.filter((l) => l.diferencia !== 0);
   return (
-    <section role="status" className="rounded-lg border border-success/30 bg-success-soft p-4">
-      <p className="text-sm font-semibold text-strong">{mensaje}</p>
+    <section role="status" className={renglon ? "border-y border-line py-3" : "rounded-lg border border-success/30 bg-success-soft p-4"}>
+      <p className={renglon ? "text-sm font-semibold text-success" : "text-sm font-semibold text-strong"}>{mensaje}</p>
       {conCostos && (r.pesosFaltante > 0 || r.pesosSobrante > 0) && (
         <p className="mt-1 text-sm text-body">
           Faltante {fmtMoneyARS(r.pesosFaltante)} · sobrante {fmtMoneyARS(r.pesosSobrante)} a costo
@@ -552,9 +576,9 @@ function Resultado({ mensaje, lineas, conCostos }: { mensaje: string; lineas: Li
         </p>
       )}
       {conDiferencia.length > 0 && (
-        <ul className="mt-3 divide-y divide-line rounded-md border border-line bg-surface-raised">
+        <ul className={renglon ? "mt-2 divide-y divide-line" : "mt-3 divide-y divide-line rounded-md border border-line bg-surface-raised"}>
           {conDiferencia.map((l, i) => (
-            <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 px-3 py-2 text-sm">
+            <li key={i} className={`flex flex-wrap items-baseline justify-between gap-x-3 py-2 text-sm ${renglon ? "" : "px-3"}`}>
               <span className="text-strong">{l.nombre}</span>
               <span className="tabular-nums text-body">
                 había {formatearCantidad(l.teorico)} · contaste {formatearCantidad(l.contado)} ·{" "}

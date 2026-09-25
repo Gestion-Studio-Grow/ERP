@@ -1,0 +1,90 @@
+{
+  "fase": "contador",
+  "ancho": 1440,
+  "pasos": [
+    {
+      "paso": "contador · entrar",
+      "ok": true,
+      "det": "llegó a /contador",
+      "ms": 1684,
+      "errs": []
+    },
+    {
+      "paso": "contador · bandeja",
+      "ok": true,
+      "det": "«Mi cartera La facturación está apagada: nada sale hacia ARCA 2 clientes Emitido en prueba este mes $0 0 facturas automáticas 0 para revisar 0 de 2 con agosto cerrado Además, 2 tienen un bloqueo propio» · diseno=renglon sx360=0 chicos<44=8",
+      "ms": 985,
+      "errs": []
+    },
+    {
+      "paso": "contador · abrir un cliente (Abrir en su renglón)",
+      "ok": true,
+      "det": "panel: «Shine Velas — Cerrar Emitido en prueba este mes Sin validez fiscal $0 Facturas automáticas Límite del plan: 159 por mes 0 Para revisar Ventas que necesitan datos del comprador 0 Listas para emitir Propuestas automáticas » · diseno=renglon sx360=0 chicos<44=11",
+      "ms": 2608,
+      "errs": []
+    },
+    {
+      "paso": "contador · del cliente a su panel (enlace)",
+      "ok": true,
+      "det": "sin «Abrir su panel»: el laboratorio no tiene dirección propia (APP_BASE_DOMAIN) y la pantalla lo dice",
+      "ms": 870,
+      "errs": []
+    },
+    {
+      "paso": "contador · recargar conserva",
+      "ok": true,
+      "det": "«Mi cartera La facturación está apagada: nada sale hacia ARCA 2 clientes Emitido en prueba este mes $0 0 facturas automát»",
+      "ms": 1008,
+      "errs": []
+    },
+    {
+      "paso": "contador · un dueño común no entra a /contador",
+      "ok": true,
+      "det": "http=200 · «CH CH Estética viernes 25 de septiembre No encontramos esta página La dirección »",
+      "ms": 2642,
+      "errs": []
+    }
+  ],
+  "fallas": 0,
+  "errores": [],
+  "callejones": [],
+  "medidas": [
+    {
+      "pantalla": "bandeja",
+      "url": "/contador",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "Abrir:36",
+        "Abrir:36",
+        "Kiosco La Esquina:36",
+        "20-12345678-3:36",
+        "dueno@negocio.com:36",
+        "3:36",
+        "Kiosco de Marta:36",
+        "Agregar a la cartera:36"
+      ]
+    },
+    {
+      "pantalla": "cliente",
+      "url": "/contador",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "Abrir:36",
+        "Cerrar:36",
+        "Cerrar:20",
+        "Borrador:36",
+        "Emitir automáticas (0):36",
+        "Kiosco La Esquina:36",
+        "20-12345678-3:36",
+        "dueno@negocio.com:36",
+        "3:36",
+        "Kiosco de Marta:36",
+        "Agregar a la cartera:36"
+      ]
+    }
+  ]
+}

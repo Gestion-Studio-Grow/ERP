@@ -12,7 +12,8 @@
 import { requireApp } from "@/lib/require-app";
 import { getTenantBrand, ACCENT_PRESETS, ACCENT_PRESET_LABELS, type AccentPreset } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
-import { PageHeader, SectionGroup } from "@/components/ui";
+import { Bloque, PageContainer, PageHeader, SectionGroup } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { AccentSelector, ThemeSelector, type Swatch } from "./AparienciaControls";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,25 @@ export default async function AparienciaPage() {
     label: ACCENT_PRESET_LABELS[id],
     ...ACCENT_PRESETS[id],
   }));
+
+  // DISEÑO NUEVO («Renglón»): dos bloques de renglones que se tocan enteros. La diferencia de alcance
+  // (el tema es tuyo, el color es de todos) va en la nota de cada bloque, no en un párrafo.
+  if (await disenoNuevo()) {
+    const enUso = swatches.find((s) => s.id === actual)?.label;
+    return (
+      <PageContainer width="narrow">
+        <PageHeader title="Apariencia" estado={["Sólo el panel: tu página pública no cambia", enUso ? `color ${enUso.toLowerCase()}` : null]} />
+        <div className="space-y-8">
+          <Bloque id="tema" titulo="Tema" nota="sólo en este dispositivo">
+            <ThemeSelector renglon />
+          </Bloque>
+          <Bloque id="color" titulo="Color del equipo" nota="lo ven todos">
+            <AccentSelector swatches={swatches} actual={actual} renglon />
+          </Bloque>
+        </div>
+      </PageContainer>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">

@@ -43,6 +43,13 @@ const LIBRO_FALSO = `${GUARDAR}
 export async function addLibroEntry(_p, fd) { guardar(fd); sinRed(); return { ok: true, message: "Guardado." }; }
 export async function deleteLibroEntry(_p, fd) { guardar(fd); sinRed(); return { ok: true }; }`;
 const NAVEGACION_FALSA = `export function useRouter() { return { refresh() { window.__refrescos = (window.__refrescos || 0) + 1; } }; }`;
+// Los formularios no usan <Link>, pero el barril de @/components/ui lo trae (pestañas, chips): el
+// next/link de verdad lee process.env al cargarse y en el navegador de la prueba no hay process.
+// Alcanza con un <a>, como en vender/vender-pantalla.test.ts.
+const LINK_FALSO = `
+import { createElement } from "react";
+export default function Link({ href, prefetch, ...resto }) { return createElement("a", { href: String(href), ...resto }); }
+`;
 
 const ENTRADA = `
 import { createElement } from "react";
@@ -136,6 +143,7 @@ describe("Caja en el navegador", { timeout: 120_000 }, () => {
       "@/lib/caja-actions": CAJA_FALSA,
       "@/lib/libro-caja-actions": LIBRO_FALSO,
       "next/navigation": NAVEGACION_FALSA,
+      "next/link": LINK_FALSO,
     };
     const r = await esbuild.build({
       stdin: { contents: ENTRADA, loader: "tsx", resolveDir: RAIZ },
@@ -150,7 +158,7 @@ describe("Caja en el navegador", { timeout: 120_000 }, () => {
         {
           name: "falsos",
           setup(b) {
-            b.onResolve({ filter: /^(@\/lib\/(cierre-diario-actions|caja-actions|libro-caja-actions)|next\/navigation)$/ }, (a) => ({
+            b.onResolve({ filter: /^(@\/lib\/(cierre-diario-actions|caja-actions|libro-caja-actions)|next\/navigation|next\/link)$/ }, (a) => ({
               path: a.path,
               namespace: "falso",
             }));

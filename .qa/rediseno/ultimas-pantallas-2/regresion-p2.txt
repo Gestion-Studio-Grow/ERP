@@ -1,0 +1,19 @@
+magra_despiece 390 status=200 diseno=renglon h1="Despiece" primer=null sx=0 chicos(0)=
+magra_despiece 1440 status=200 diseno=renglon h1="Despiece" primer=null sx=0
+magra_despiece 360 status=200 diseno=renglon h1="Despiece" primer=null sx=0
+magra_devoluciones-proveedor 390 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=113 sx=0 chicos(0)=
+magra_devoluciones-proveedor 1440 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=189 sx=0
+magra_devoluciones-proveedor 360 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=113 sx=0
+magra_lotes 390 status=200 diseno=renglon h1="Lotes y vencimientos" primer=null sx=0 chicos(0)=
+magra_lotes 1440 status=200 diseno=renglon h1="Lotes y vencimientos" primer=null sx=0
+magra_lotes 360 status=200 diseno=renglon h1="Lotes y vencimientos" primer=null sx=0
+adosmanos_despiece 390 status=200 diseno=renglon h1="Despiece no está disponible" primer=113 sx=0 chicos(0)=
+adosmanos_despiece 1440 status=200 diseno=renglon h1="Despiece no está disponible" primer=189 sx=0
+adosmanos_despiece 360 status=200 diseno=renglon h1="Despiece no está disponible" primer=113 sx=0
+adosmanos_devoluciones-proveedor 390 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=113 sx=0 chicos(0)=
+adosmanos_devoluciones-proveedor 1440 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=189 sx=0
+adosmanos_devoluciones-proveedor 360 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=113 sx=0
+adosmanos_lotes 390 status=200 diseno=renglon h1="Lotes y vencimientos no está disponible" primer=113 sx=0 chicos(0)=
+adosmanos_lotes 1440 status=200 diseno=renglon h1="Lotes y vencimientos no está disponible" primer=189 sx=0
+adosmanos_lotes 360 status=200 diseno=renglon h1="Lotes y vencimientos no está disponible" primer=113 sx=0
+pantallas con errores de consola: 0

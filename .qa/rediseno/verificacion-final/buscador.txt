@@ -1,0 +1,3 @@
+dueno-390 exit=0
+dueno-1440 exit=0
+cajero-390 exit=0

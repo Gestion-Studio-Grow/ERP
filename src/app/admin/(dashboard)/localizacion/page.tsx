@@ -1,7 +1,8 @@
 import { getBusinessSettingsForAdmin, updateBusinessSettings } from "@/lib/settings-actions";
 import { requireApp } from "@/lib/require-app";
 import SubmitButton from "@/components/SubmitButton";
-import { Input, buttonClasses } from "@/components/ui";
+import { Input, PageContainer, PageHeader, Seccion, buttonClasses } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import type { BusinessSettingsRow } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,22 @@ const FIELDS: {
   { key: "contactNote", label: "Nota de contacto", wide: true, hint: "Leyenda del pie del sitio." },
 ];
 
+// DISEÑO NUEVO: los mismos campos, agrupados como se leen en la puerta del local: dónde, cuándo
+// y cómo te escriben. Ayudas cortas y atadas a su campo.
+const GRUPOS: { titulo: string; id: string; campos: (keyof BusinessSettingsRow)[] }[] = [
+  { titulo: "Dónde", id: "loc-donde", campos: ["addressLine", "city", "mapsUrl", "shortLabel"] },
+  { titulo: "Cuándo", id: "loc-cuando", campos: ["hoursLabel"] },
+  { titulo: "Cómo te escriben", id: "loc-contacto", campos: ["whatsapp", "email", "instagram", "contactNote"] },
+];
+const AYUDA_CORTA: Partial<Record<keyof BusinessSettingsRow, string>> = {
+  shortLabel: "Va arriba del título en la portada.",
+  hoursLabel: "Tal cual se lee en la web («Lun a sáb de 9 a 20»).",
+  whatsapp: "Con característica y sin +: 54911…",
+  instagram: "@usuario o el link.",
+  mapsUrl: "Si lo dejás vacío, «Cómo llegar» busca la dirección.",
+  contactNote: "La frase del pie del sitio.",
+};
+
 export default async function LocalizacionPage({
   searchParams,
 }: {
@@ -52,6 +69,60 @@ export default async function LocalizacionPage({
   // el resto muestra placeholder vacío. Se indexa como record para no pelear con
   // el keyof completo de la fila.
   const d = defaults as Record<string, string>;
+
+  if (await disenoNuevo()) {
+    const porClave = new Map(FIELDS.map((f) => [f.key, f]));
+    return (
+      <PageContainer width="narrow">
+        <PageHeader title="Datos del negocio" estado={["Lo que ven tus clientes en la web", "vacío = el de siempre"]} />
+        {banner && (
+          <p role={banner.ok ? "status" : "alert"} className={`mb-4 border-y border-line py-2 text-sm ${banner.ok ? "text-strong" : "text-danger"}`}>
+            {banner.ok ? "✓ " : ""}
+            {banner.text}
+          </p>
+        )}
+        <form action={updateBusinessSettings} className="space-y-6">
+          {GRUPOS.map((g) => (
+            <Seccion key={g.id} id={g.id} titulo={g.titulo}>
+              <div className="grid gap-4 pt-3 sm:grid-cols-2">
+                {g.campos.map((k) => {
+                  const f = porClave.get(k);
+                  if (!f) return null;
+                  const ayuda = AYUDA_CORTA[k];
+                  const idCampo = `loc-${k}`;
+                  return (
+                    <div key={k} className={f.wide || k === "hoursLabel" ? "sm:col-span-2" : ""}>
+                      <label htmlFor={idCampo} className="mb-1 block text-sm font-medium text-strong">
+                        {k === "hoursLabel" ? "Horarios" : f.label}
+                      </label>
+                      <Input
+                        id={idCampo}
+                        name={f.key}
+                        type={f.type ?? "text"}
+                        defaultValue={row?.[f.key] ?? ""}
+                        placeholder={d[f.key] ?? ""}
+                        aria-describedby={ayuda ? `${idCampo}-ayuda` : undefined}
+                      />
+                      {ayuda && (
+                        <p id={`${idCampo}-ayuda`} className="mt-1 text-[13px] text-muted">
+                          {ayuda}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Seccion>
+          ))}
+          <div className="border-t border-line pt-4">
+            <SubmitButton pendingText="Guardando…" className={buttonClasses("solid", "md", "w-full sm:w-auto")}>
+              Guardar cambios
+            </SubmitButton>
+          </div>
+        </form>
+      </PageContainer>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-8">

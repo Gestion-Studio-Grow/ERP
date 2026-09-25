@@ -1,0 +1,34 @@
+FALLA Entrar: clave equivocada muestra error (1789 ms) mensaje="El email o la contraseña no coinciden. Revisá los dos y probá de nuevo. Con 5 intentos fal" · email conservado="" ERRORES=[Entrar: clave equivocada muestra error] Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/template).
+OK   Entrar como dueño (Enter) (1615 ms) h1="Hoy, viernes 25 de septiembre" diseno=renglon sx360=0 chicos<44=18
+OK   Recuento con diferencia (repone Vacío y Pollo entero) (8552 ms) Vacío: -1.96 → 8 aviso="Recuento guardado: 1 producto contado, 1 con diferencia. Faltante $0,00 · sobrante $129.67" · Pollo entero: 0 → 6 aviso="Recuento guardado: 1 producto contado, 1 con diferencia. Faltante $0,00 · sobrante $72.300"
+OK   Stock antes de vender (2416 ms) Vacío="8 kg" · Pollo="6 u"
+OK   Inicio → Vender (2470 ms) h1="Vender" diseno=renglon sx360=0 chicos<44=4
+OK   Vender por peso: Vacío, 1,240 + Enter (748 ms) foco→peso, Enter→buscador, lista cerrada; línea="Vacío 1,24 kg × $22.200 / kg kg $27.528,00 −"
+OK   Pollo entero sin cantidad → Cobrar bloqueado (1103 ms) botón="Falta la cantidad de Pollo entero orgánico (~2 kg) F2" bloqueado
+OK   Cantidad 1 y cobrar en efectivo (1406 ms) Alt+1 eligió Efectivo · botón "Cobrar $47.028,00 F2" → Venta #494 $47.028,00; ticket nuevo con 0 línea(s) vacía(s)
+OK   Persistencia: la venta está en Ventas tras recargar (2835 ms) #494 listada · diseno=renglon sx360=0 chicos<44=27
+OK   Persistencia: el stock bajó (2458 ms) Vacío: "8 kg" → "6,76 kg" · Pollo: "6 u" → "5 u"
+OK   Inicio → Pedidos para preparar → Preparar (5257 ms) botón «Preparar: QA Cliente Retiro, pedido #481» · Para preparar 9 → Para preparar 8 · diseno=renglon sx360=0 chicos<44=50
+OK   Inicio → Caja del día → Cerrar el turno (4152 ms) esperado=$262.890,00 · vista previa="Cuadra" · <dialog> abierto=1 · Escape cierra (sin cerrar el turno en esta corrida) · diseno=renglon sx360=0 chicos<44=4
+OK   Cierre del día: contar y revisar (4360 ms) contado=Efectivo=505911,25 ; Mercado Pago y transferencias=20727355,99 · deslizador habilitado (NO se desliza: congelaría el día compartido) · diseno=renglon sx360=0 chicos<44=4
+OK   Clientes: búsqueda sin resultados (estado vacío) (3123 ms) vacío="Situación Todas 0 Clientes ÚLTIMA VEZ CLIENTE TELÉFONO SITUACIÓN COMPRAS Nadie coincide con «zzqqxxsinnadie». Ver todos ¿Cómo se calcula la situación?"
+OK   Clientes → Nueva ficha → buscarla → abrir ficha (8878 ms) tras crear: /admin/clientes/cmugpk06s00687g7dqg6zfjga aviso="QA Recorrido 1440 57537" · ficha "QA Recorrido 1440 57537" en /admin/clientes/cmugpk06s00687g7dqg6zfjga · diseno=renglon sx360=0 chicos<44=1
+OK   Ficha de un cliente con compras (2033 ms) h1="Catalina Rodríguez" · ← Clientes Catalina Rodríguez 11 5555-2271 Cuenta corriente al día 10 pedidos 1 pedido sin cobrar Compró por última vez hace 2 días WhatsApp
+OK   Stock → Contar → Recuento de un corte (8941 ms) Entraña: contado 4,284 con «Guardar recuento (1)» → tras recargar "Entraña sistema 4,284 kg · contado hoy" · fila="Entraña sistema 4,284 kg · nunca contado" · aviso="Recuento guardado: 1 producto contado, todos coinciden con el sistema."  · movimientos="Movimientos de stock los 200 más recientes · Volver a Stock Producto Tipo Todos Venta Compra Reposición Consumo en un se" · diseno=renglon sx360=0 chicos<44=6 · diseno=renglon sx360=0 chicos<44=6
+OK   Traslado entre locales (8829 ms) sin stock: "En MAGRA hay 6,76 kg: no alcanza." + Trasladar bloqueado · destino="Adrogué QA" · remitos 7 → 8 · aviso="Listo: 1 producto salió de MAGRA y entró en Adrogué QA. Remito T-A7635E2F. Ver e" · remito="Traslados entre locales Remito interno T-A7635E2F 25/09/2026 05:38 MAGRA → Adrogué QA Sale de MAGRA (CUIT 30-71765432-9)" · diseno=renglon sx360=0 chicos<44=7
+OK   Ctrl+K: buscar un cliente y abrirlo con Enter (3878 ms) opciones=["Catalina García 11 5555-2125 Enter","Catalina Rodríguez 11 5555-2271"] (Catalina en #0) → h1="Catalina García"
+OK   Ctrl+K: acción «cerrar el día» y Escape (2079 ms) «pollo» → ["Pollo entero orgánico (~2 kg) Por unidad","Pechuga de pollo orgánico Por kilo · $12"]; Escape cierra
+FALLA Permisos del encargado (RECEPTION) (12738 ms) /admin→200⇒/admin/vender「Vender」 · /admin/vender→200「Vender」 · /admin/pedidos→200「Pedidos para preparar」 · /admin/caja→200「Caja del día」 · /admin/caja/cierre→200「Cierre del día」 · /admin/clientes→200「Clientes」 · /admin/inventario→200「Stock」 · /admin/ajustes/recuento→200「Recuento」 · /admin/locales/traslados→200「Traslados entre locales」 · /admin/usuarios→200⇒/admin/no-disponible「Usuarios y permisos no está disponible」 · /admin/reportes→200⇒/admin/no-disponible「Reportes no está disponible」 ERRORES=[permisos] Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/template).
+
+PASOS: 19/21 bien · errores de consola: 2
+medida Inicio /admin diseno=renglon scrollX@360=0 <44px(18)=Preparar:36|Preparar:36|Preparar:36|Ver los 12 en Pedidos →:24|Cerrar el mes:36|Contar:36
+medida Vender /admin/vender diseno=renglon scrollX@360=0 <44px(4)=Buscá un corte o un producto:36|Venta:32|Pedido:32|paid:20
+medida Ventas /admin/ventas diseno=renglon scrollX@360=0 <44px(27)=‹ 24/09:36|Vender:36|Todos los medios:32|Efectivo:32|Mercado Pago:32|Transferencia:32
+medida Pedidos /admin/pedidos diseno=renglon scrollX@360=0 <44px(50)=Tomar un pedido:36|Abiertos 12:32|Para preparar 9:32|En preparación 3:32|Cerrados:32|Todos:32
+medida Caja del día /admin/caja diseno=renglon scrollX@360=0 <44px(4)=Cargar un gasto o retiro:36|Cerrar el día:36|Libro de caja:14|Cerrar el turno:36
+medida Cierre del día /admin/caja/cierre diseno=renglon scrollX@360=0 <44px(4)=‹ 24/09:36|INPUT:36|INPUT:36|Contar igual:36
+medida Ficha de cliente /admin/clientes/cmugpk06s00687g7dqg6zfjga diseno=renglon scrollX@360=0 <44px(1)=Editar datos:36
+medida Stock /admin/inventario diseno=renglon scrollX@360=0 <44px(6)=Todos 19:32|Stock bajo 4:32|Sin costo 1:32|STOCK:17|CORTE:17|VALOR:17
+medida Recuento /admin/ajustes/recuento diseno=renglon scrollX@360=0 <44px(6)=Vaca 0/9:32|Cerdo 0/2:32|Pollo 0/2:32|Preparados 0/2:32|Gourmet 0/4:32|INPUT:20
+medida Traslados /admin/locales/traslados diseno=renglon scrollX@360=0 <44px(7)=MAGRA (la casa) Adrogué QA C:36|Elegí el local Adrogué QA Ca:36|Buscá el producto:36|Ej: 10,5:36|Agregar otro producto:36|nota:36
+exit=1

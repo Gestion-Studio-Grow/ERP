@@ -40,14 +40,18 @@ function validarDocEnVivo(docTipo: number, docNro: string): { texto: string; ton
 
 // ── Panel de detalle (keyed por propuesta: cambia la fila, se resetea el form) ──
 
-function PanelDetalle({
+export function PanelDetalle({
   propuesta,
   headingRef,
   onResuelta,
+  enCajon = false,
 }: {
   propuesta: PropuestaVista;
   headingRef: React.RefObject<HTMLHeadingElement | null>;
   onResuelta: (id: string) => void;
+  /** Diseño nuevo: el panel vive en un cajón que ya dice qué movimiento es (título, fecha,
+   *  monto, motivo), así que va sin tarjeta y sin su propio encabezado. Mismo formulario. */
+  enCajon?: boolean;
 }) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
@@ -137,21 +141,25 @@ function PanelDetalle({
   );
 
   return (
-    <div className="rounded-lg border border-line bg-surface-raised p-5 shadow-card xl:sticky xl:top-6">
-      <div className="mb-1 flex items-center justify-between gap-2 text-xs font-semibold tracking-wide text-muted">
-        <span className="tabular-nums">{fechaAr(propuesta.fecha)}</span>
-        <Badge tone={motivo.tone} dot>{motivo.label}</Badge>
-      </div>
-      <h3
-        ref={headingRef}
-        tabIndex={-1}
-        className="break-words text-base font-bold tracking-tight text-strong outline-none line-clamp-2"
-      >
-        {propuesta.descripcion}
-      </h3>
-      <p className="mb-4 mt-0.5 text-lg font-bold tabular-nums text-strong">
-        {fmtMoneyARS(Math.abs(propuesta.monto))}
-      </p>
+    <div className={enCajon ? undefined : "rounded-lg border border-line bg-surface-raised p-5 shadow-card xl:sticky xl:top-6"}>
+      {!enCajon && (
+        <>
+          <div className="mb-1 flex items-center justify-between gap-2 text-xs font-semibold tracking-wide text-muted">
+            <span className="tabular-nums">{fechaAr(propuesta.fecha)}</span>
+            <Badge tone={motivo.tone} dot>{motivo.label}</Badge>
+          </div>
+          <h3
+            ref={headingRef}
+            tabIndex={-1}
+            className="break-words text-base font-bold tracking-tight text-strong outline-none line-clamp-2"
+          >
+            {propuesta.descripcion}
+          </h3>
+          <p className="mb-4 mt-0.5 text-lg font-bold tabular-nums text-strong">
+            {fmtMoneyARS(Math.abs(propuesta.monto))}
+          </p>
+        </>
+      )}
 
       <div role="tablist" aria-label="Detalle del movimiento" className="mb-4 flex gap-0.5 rounded-lg bg-surface-sunken p-0.5">
         {seg("movimiento", "Movimiento")}

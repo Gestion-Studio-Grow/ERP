@@ -16,6 +16,8 @@ export type PageContainerProps = {
 export function PageContainer({ children, width = "default", className }: PageContainerProps) {
   return (
     <main
+      data-ui="pagina"
+      data-ancho={width === "narrow" ? "angosto" : undefined}
       className={cn(
         "mx-auto w-full px-4 py-6 sm:px-8 sm:py-9",
         width === "narrow" ? "max-w-2xl" : "max-w-[1240px]",

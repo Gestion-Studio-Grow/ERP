@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { getPosData } from "@/lib/order-actions";
-import { fmtMoneyARS, EmptyState, ButtonLink, buttonClasses } from "@/components/ui";
+import { fmtMoneyARS, EmptyState, ButtonLink, buttonClasses, atributosBoton } from "@/components/ui";
 import { fmtShortDate, todayInBusinessTz, dateStrInBusinessTz } from "@/lib/datetime";
 import { getPosStockSnapshot } from "@/lib/stock/pos-stock";
 import { posEmptyState } from "@/lib/stock/pos-stock-rules";
 import MostradorTabs from "./MostradorTabs";
+import MostradorEnCajon from "./MostradorEnCajon";
 import CobrarPedidoForm from "./CobrarPedidoForm";
 import EntregarPedidoForm from "./EntregarPedidoForm";
 import AnularPedidoForm from "./AnularPedidoForm";
@@ -35,6 +36,12 @@ import { formatearCantidad } from "@/lib/pos-peso";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { verboDelPaso, etiquetaDeHorario, avisoPedidoListo, ESTADOS_EN_CURSO } from "@/lib/order-anulacion";
 import { enInicioPorApps } from "../inicio/piloto";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { roleHasCapability } from "@/lib/capabilities";
+import TableroPedidos from "./TableroPedidos";
+import { armarTablero, leerAvisados } from "./tablero.server";
+import { LineaDeEstado, Plata } from "@/components/ui";
+import { lineaDelTablero } from "./pedidos-core";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +76,9 @@ export default async function PedidosPage() {
   // interruptor apagado, la solapa de venta de arriba queda IGUAL que siempre hasta que el dueño
   // apruebe el cambio. Apagar el interruptor devuelve un negocio a esta pantalla sin tocar datos.
   // Está cacheado por request (el layout ya lo leyó): no suma un viaje a la base.
-  const modeloNuevo = await enInicioPorApps();
+  // «Diseño nuevo» es la misma lectura de interruptores que la de "Trabaja por apps" (cacheada
+  // por pedido): no suma un viaje a la base.
+  const [modeloNuevo, nuevo] = await Promise.all([enInicioPorApps(), disenoNuevo()]);
   // El POS de arriba sólo en el modelo de hoy, y en la MISMA tanda que la bandeja. El snapshot
   // de stock (mismo gate) es lo que permite avisar el faltante antes de cobrar y explicar la
   // caja vacía: "no hay productos" no es lo mismo que "hay, pero sin precio".
@@ -147,6 +156,94 @@ export default async function PedidosPage() {
       const c = leerCuponDelPedido(f.changes);
       if (f.entityId && c) cupones.set(f.entityId, c);
     }
+  }
+
+  // DISEÑO NUEVO («Renglón»): el tablero vivo. Los MISMOS pedidos, las MISMAS acciones y las
+  // mismas reglas de arriba; cambia cómo se ven y cómo se opera (tabla densa con una tecla por
+  // pedido, filtros en la URL, en lote, el pedido entero en un cajón). Apagado, lo de abajo tal cual.
+  if (nuevo) {
+    const avisados = comercio ? await leerAvisados(abiertos.filter((o) => o.status === "READY").map((o) => o.id)) : new Map<string, Date>();
+    const tablero = armarTablero({
+      abiertos,
+      cerrados,
+      comercio,
+      hoy,
+      local,
+      links,
+      cupones,
+      avisados,
+      ofrecerLink,
+      simulacion,
+      alcance,
+    });
+    const verPlata = roleHasCapability(user.role, "reports:read");
+    const linea = lineaDelTablero(tablero.abiertos, verPlata);
+    const puedeTomar = modeloNuevo && roleHasCapability(user.role, "orders:manage");
+    return (
+      <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
+        {/* En el celular el título va solo en su fila y «Tomar un pedido» baja debajo del estado: a
+            360 px no entran los dos y el título se partía en dos renglones. */}
+        <header data-ui="page-header" className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
+            <h1 className="text-2xl font-bold text-strong">{comercio ? "Pedidos para preparar" : "Pedidos"}</h1>
+            <LineaDeEstado
+              datos={[
+                <strong key="a">{linea.abiertos === 1 ? "1 abierto" : `${linea.abiertos} abiertos`}</strong>,
+                linea.paraHoy > 0 ? `${linea.paraHoy} para entregar hoy` : null,
+                linea.sinAvisar > 0 ? `${linea.sinAvisar} ${linea.sinAvisar === 1 ? "listo" : "listos"} sin avisar` : null,
+                linea.porCobrar ? (
+                  <span key="p">
+                    <Plata valor={linea.porCobrar} sinCentavos /> por cobrar
+                  </span>
+                ) : null,
+              ]}
+            />
+          </div>
+          {puedeTomar && (
+            <Link href="/admin/vender?modo=pedido" className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+              Tomar un pedido
+            </Link>
+          )}
+          {/* Sin «Trabaja por apps» (CH) el mostrador vive acá: el MISMO formulario de siempre, en
+              un cajón que se abre con su tecla, para que la pantalla sea la bandeja. */}
+          {!modeloNuevo && (
+            <MostradorEnCajon servicios={!comercio}>
+              <MostradorTabs
+                viewer={{ role: user.role, professionalId: user.professionalId }}
+                products={products}
+                stockById={stockSnap?.stockById ?? {}}
+                professionals={professionals}
+                conServicios={!comercio}
+                productosBloqueados={
+                  empty ? (
+                    <EmptyState
+                      title={empty.title}
+                      description={empty.description}
+                      action={
+                        empty.linkToCatalog ? (
+                          <ButtonLink href="/admin/catalogo#productos">Ir al catálogo a cargar precios</ButtonLink>
+                        ) : undefined
+                      }
+                    />
+                  ) : undefined
+                }
+              />
+            </MostradorEnCajon>
+          )}
+        </header>
+
+        <TableroPedidos
+          abiertos={tablero.abiertos}
+          cerrados={tablero.cerrados}
+          extras={tablero.extras}
+          comercio={comercio}
+          puedeOperar={roleHasCapability(user.role, "orders:manage")}
+          anulacion={alcance ? { motivoObligatorio: alcance.motivoObligatorio } : null}
+          simulacion={simulacion}
+          tomarPedido={puedeTomar ? "/admin/vender?modo=pedido" : null}
+        />
+      </main>
+    );
   }
 
   return (

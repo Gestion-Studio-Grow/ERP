@@ -1,0 +1,1 @@
+Servidor usado: :3220 (espejo lab/app, copia de las 01:39). :3210 caido (curl 000). 111 archivos de src difieren entre el espejo y /home/user/erp (entre ellos PaletaDeComandos, ArmazonNuevo, ClientesRenglon, Tabla, InicioRenglon, VenderForm, src/lib/buscador entero).

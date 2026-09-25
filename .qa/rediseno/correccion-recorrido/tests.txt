@@ -1,0 +1,772 @@
+TAP version 13
+# Subtest: cada número sube a su objetivo, escrito como tarea y con su tecla
+ok 1 - cada número sube a su objetivo, escrito como tarea y con su tecla
+  ---
+  duration_ms: 6.555022
+  type: 'test'
+  ...
+# Subtest: la alerta abre la app que RESUELVE si la ve (Recuento), y si no, la que mide (Movimientos)
+ok 2 - la alerta abre la app que RESUELVE si la ve (Recuento), y si no, la que mide (Movimientos)
+  ---
+  duration_ms: 0.876561
+  type: 'test'
+  ...
+# Subtest: una alerta de una app sin regla no se pierde: va a Revisar con la app que la mide
+ok 3 - una alerta de una app sin regla no se pierde: va a Revisar con la app que la mide
+  ---
+  duration_ms: 0.246753
+  type: 'test'
+  ...
+# Subtest: la bandeja pide pocos números: ninguna app repetida y todas con regla
+ok 4 - la bandeja pide pocos números: ninguna app repetida y todas con regla
+  ---
+  duration_ms: 0.398731
+  type: 'test'
+  ...
+# Subtest: la línea del día: sólo lo que se pudo leer, en palabras
+ok 5 - la línea del día: sólo lo que se pudo leer, en palabras
+  ---
+  duration_ms: 0.449281
+  type: 'test'
+  ...
+# Subtest: el título con la fecha del negocio, mayúscula sólo donde va; Mis apps de fábrica por rubro; montos
+ok 6 - el título con la fecha del negocio, mayúscula sólo donde va; Mis apps de fábrica por rubro; montos
+  ---
+  duration_ms: 15.03393
+  type: 'test'
+  ...
+# Subtest: el sugerido de compra dice la cantidad en la tarea y lleva una palabra de folio (no un número suelto)
+ok 7 - el sugerido de compra dice la cantidad en la tarea y lleva una palabra de folio (no un número suelto)
+  ---
+  duration_ms: 0.354239
+  type: 'test'
+  ...
+# Subtest: con la caja cerrada el Inicio ofrece «Abrir la caja»; abierta, o sin la app Caja, no dice nada
+ok 8 - con la caja cerrada el Inicio ofrece «Abrir la caja»; abierta, o sin la app Caja, no dice nada
+  ---
+  duration_ms: 0.1715
+  type: 'test'
+  ...
+# Subtest: un negocio que nunca cerró un día ve «Para arrancar» con precios, caja y primer cierre
+ok 9 - un negocio que nunca cerró un día ve «Para arrancar» con precios, caja y primer cierre
+  ---
+  duration_ms: 0.367954
+  type: 'test'
+  ...
+# Subtest: los pasos resueltos quedan tildados, y con el primer cierre «Para arrancar» se va solo
+ok 10 - los pasos resueltos quedan tildados, y con el primer cierre «Para arrancar» se va solo
+  ---
+  duration_ms: 0.432998
+  type: 'test'
+  ...
+# Subtest: cada paso sale sólo si la persona ve la app que lo resuelve
+ok 11 - cada paso sale sólo si la persona ve la app que lo resuelve
+  ---
+  duration_ms: 0.163799
+  type: 'test'
+  ...
+# Subtest: «Para arrancar» avisa la facturación sin configurar sólo a quien ve Facturación y sin inventar
+ok 12 - «Para arrancar» avisa la facturación sin configurar sólo a quien ve Facturación y sin inventar
+  ---
+  duration_ms: 0.226954
+  type: 'test'
+  ...
+# Subtest: «Para arrancar» avisa que la vidriera no tiene WhatsApp, sólo a quien ve Pedidos y Datos del negocio
+ok 13 - «Para arrancar» avisa que la vidriera no tiene WhatsApp, sólo a quien ve Pedidos y Datos del negocio
+  ---
+  duration_ms: 0.248758
+  type: 'test'
+  ...
+# Subtest: fijar 'Vender': queda guardada para esa persona y aparece en Mis apps
+ok 14 - fijar 'Vender': queda guardada para esa persona y aparece en Mis apps
+  ---
+  duration_ms: 4.289349
+  type: 'test'
+  ...
+# Subtest: la cookie es de UNA persona: si en la misma computadora entra otra, no hereda las fijadas
+ok 15 - la cookie es de UNA persona: si en la misma computadora entra otra, no hereda las fijadas
+  ---
+  duration_ms: 0.262836
+  type: 'test'
+  ...
+# Subtest: sin cookie (otro navegador de la misma persona) no hay fijadas: es lo esperado
+ok 16 - sin cookie (otro navegador de la misma persona) no hay fijadas: es lo esperado
+  ---
+  duration_ms: 0.213236
+  type: 'test'
+  ...
+# Subtest: una cookie editada a mano no hace aparecer apps que la persona no ve
+ok 17 - una cookie editada a mano no hace aparecer apps que la persona no ve
+  ---
+  duration_ms: 0.431333
+  type: 'test'
+  ...
+# Subtest: las pantallas que no se ofrecen (App no disponible) no se pueden fijar
+ok 18 - las pantallas que no se ofrecen (App no disponible) no se pueden fijar
+  ---
+  duration_ms: 0.258479
+  type: 'test'
+  ...
+# Subtest: tope de 8: la novena no entra y el mensaje dice cómo seguir
+ok 19 - tope de 8: la novena no entra y el mensaje dice cómo seguir
+  ---
+  duration_ms: 1.020108
+  type: 'test'
+  ...
+# Subtest: fijar dos veces no duplica, y quitar la saca aunque ya no se vea
+ok 20 - fijar dos veces no duplica, y quitar la saca aunque ya no se vea
+  ---
+  duration_ms: 0.491774
+  type: 'test'
+  ...
+# Subtest: una app que se dejó de ver sale de Mis apps y libera su lugar en el tope
+ok 21 - una app que se dejó de ver sale de Mis apps y libera su lugar en el tope
+  ---
+  duration_ms: 0.344081
+  type: 'test'
+  ...
+# Subtest: los números se piden en orden de pantalla: Mis apps primero, sin repetir
+ok 22 - los números se piden en orden de pantalla: Mis apps primero, sin repetir
+  ---
+  duration_ms: 0.783509
+  type: 'test'
+  ...
+# Subtest: barra de abajo: los 4 primeros espacios de la persona, con rótulo corto, y el buscador aparte
+ok 23 - barra de abajo: los 4 primeros espacios de la persona, con rótulo corto, y el buscador aparte
+  ---
+  duration_ms: 0.848576
+  type: 'test'
+  ...
+# Subtest: barra de abajo en una estética: el primero es Recepción, con la agenda de ícono
+ok 24 - barra de abajo en una estética: el primero es Recepción, con la agenda de ícono
+  ---
+  duration_ms: 0.889231
+  type: 'test'
+  ...
+# Subtest: la barra marca el espacio de la pantalla actual; el Inicio no marca ninguno
+ok 25 - la barra marca el espacio de la pantalla actual; el Inicio no marca ninguno
+  ---
+  duration_ms: 0.554071
+  type: 'test'
+  ...
+# Subtest: la barra busca el espacio igual que appDeRuta, sin llevar el registro al navegador
+ok 26 - la barra busca el espacio igual que appDeRuta, sin llevar el registro al navegador
+  ---
+  duration_ms: 7.261594
+  type: 'test'
+  ...
+# Subtest: toda app lista con ruta fija está en el gate; las en preparación y las de [id] no
+ok 27 - toda app lista con ruta fija está en el gate; las en preparación y las de [id] no
+  ---
+  duration_ms: 38.947244
+  type: 'test'
+  ...
+# Subtest: cada app se mide en los negocios de su rubro
+ok 28 - cada app se mide en los negocios de su rubro
+  ---
+  duration_ms: 18.211531
+  type: 'test'
+  ...
+# Subtest: lo que el gate ya medía sigue medido (y la pantalla de rechazos también)
+ok 29 - lo que el gate ya medía sigue medido (y la pantalla de rechazos también)
+  ---
+  duration_ms: 6.372734
+  type: 'test'
+  ...
+# Subtest: el celular del gate es el de 412 px de la casa
+ok 30 - el celular del gate es el de 412 px de la casa
+  ---
+  duration_ms: 5.243449
+  type: 'test'
+  ...
+# Subtest: una app que no está en ese negocio se omite (no se mide la pantalla de rechazo en su lugar)
+ok 31 - una app que no está en ese negocio se omite (no se mide la pantalla de rechazo en su lugar)
+  ---
+  duration_ms: 6.39714
+  type: 'test'
+  ...
+# Subtest: sólo puede faltar una app con módulo, rubro o edición: una del núcleo que rebota FALLA
+ok 32 - sólo puede faltar una app con módulo, rubro o edición: una del núcleo que rebota FALLA
+  ---
+  duration_ms: 2.161489
+  type: 'test'
+  ...
+# Subtest: el tile de Auditoría abre la pantalla filtrada a hoy; el resto, su ruta
+ok 33 - el tile de Auditoría abre la pantalla filtrada a hoy; el resto, su ruta
+  ---
+  duration_ms: 0.751135
+  type: 'test'
+  ...
+# Subtest: el número de Auditoría cuenta con el MISMO where que la pantalla abierta desde el tile
+ok 34 - el número de Auditoría cuenta con el MISMO where que la pantalla abierta desde el tile
+  ---
+  duration_ms: 17.516142
+  type: 'test'
+  ...
+# Subtest: OWNER de MAGRA ve Mostrador, Caja, Clientes, Catálogo y precios, Stock y compras, Finanzas y Administración
+ok 35 - OWNER de MAGRA ve Mostrador, Caja, Clientes, Catálogo y precios, Stock y compras, Finanzas y Administración
+  ---
+  duration_ms: 4.11977
+  type: 'test'
+  ...
+# Subtest: RECEPTION de MAGRA ve Mostrador, Caja, Clientes y Stock y compras (el encargado cuenta y mira movimientos)
+ok 36 - RECEPTION de MAGRA ve Mostrador, Caja, Clientes y Stock y compras (el encargado cuenta y mira movimientos)
+  ---
+  duration_ms: 0.414887
+  type: 'test'
+  ...
+# Subtest: PROFESSIONAL no tiene Inicio de apps (su casa es la agenda)
+ok 37 - PROFESSIONAL no tiene Inicio de apps (su casa es la agenda)
+  ---
+  duration_ms: 0.163975
+  type: 'test'
+  ...
+# Subtest: en un negocio de servicios el primer espacio se llama Recepción
+ok 38 - en un negocio de servicios el primer espacio se llama Recepción
+  ---
+  duration_ms: 0.243687
+  type: 'test'
+  ...
+# Subtest: los espacios que no van en el Inicio nunca son sección (el propio Inicio no es un botón)
+ok 39 - los espacios que no van en el Inicio nunca son sección (el propio Inicio no es un botón)
+  ---
+  duration_ms: 0.432987
+  type: 'test'
+  ...
+# Subtest: escribir 'fact' y Enter abre Facturación (la primera coincidencia)
+ok 40 - escribir 'fact' y Enter abre Facturación (la primera coincidencia)
+  ---
+  duration_ms: 1.011553
+  type: 'test'
+  ...
+# Subtest: 'Para atender hoy' junta sólo lo que está en alerta, y avisa lo que no se pudo revisar
+ok 41 - 'Para atender hoy' junta sólo lo que está en alerta, y avisa lo que no se pudo revisar
+  ---
+  duration_ms: 0.341043
+  type: 'test'
+  ...
+# Subtest: listaDeNombres arma la frase del aviso
+ok 42 - listaDeNombres arma la frase del aviso
+  ---
+  duration_ms: 0.133446
+  type: 'test'
+  ...
+# Subtest: apagado: el <script> de siempre, sin componente de cliente en el medio
+ok 43 - apagado: el <script> de siempre, sin componente de cliente en el medio
+  ---
+  duration_ms: 0.90004
+  type: 'test'
+  ...
+# Subtest: prendido: sale por ScriptDelTema con el mismo código
+ok 44 - prendido: sale por ScriptDelTema con el mismo código
+  ---
+  duration_ms: 0.251617
+  type: 'test'
+  ...
+# Subtest: el HTML del servidor es byte a byte el mismo prendido y apagado: el script corre al leerse
+ok 45 - el HTML del servidor es byte a byte el mismo prendido y apagado: el script corre al leerse
+  ---
+  duration_ms: 4.50463
+  type: 'test'
+  ...
+# Subtest: nacido en el navegador: bloque de datos (text/plain), que React no ejecuta ni avisa
+ok 46 - nacido en el navegador: bloque de datos (text/plain), que React no ejecuta ni avisa
+  ---
+  duration_ms: 0.096953
+  type: 'test'
+  ...
+# Subtest: consola del operador: siempre la hoja nueva con la vuelta a Negocios, prendido o no
+ok 47 - consola del operador: siempre la hoja nueva con la vuelta a Negocios, prendido o no
+  ---
+  duration_ms: 2.636062
+  type: 'test'
+  ...
+# Subtest: panel de un negocio con el interruptor APAGADO (CH hoy): el 404 de siempre
+ok 48 - panel de un negocio con el interruptor APAGADO (CH hoy): el 404 de siempre
+  ---
+  duration_ms: 0.258477
+  type: 'test'
+  ...
+# Subtest: panel de un negocio con el diseño nuevo: siempre hay un camino de vuelta
+ok 49 - panel de un negocio con el diseño nuevo: siempre hay un camino de vuelta
+  ---
+  duration_ms: 0.309386
+  type: 'test'
+  ...
+# Subtest: vidriera y rutas que sólo se parecen: el 404 de siempre
+ok 50 - vidriera y rutas que sólo se parecen: el 404 de siempre
+  ---
+  duration_ms: 0.394764
+  type: 'test'
+  ...
+# Subtest: el enlace de cada acción es de la app que declara (appDeRuta), y los ids no se repiten
+ok 51 - el enlace de cada acción es de la app que declara (appDeRuta), y los ids no se repiten
+  ---
+  duration_ms: 1.303299
+  type: 'test'
+  ...
+# Subtest: una acción aparece sólo si la persona ve su app
+ok 52 - una acción aparece sólo si la persona ve su app
+  ---
+  duration_ms: 0.969987
+  type: 'test'
+  ...
+# Subtest: el profesional ve su agenda pero no da turnos: la acción pide agenda:manage
+ok 53 - el profesional ve su agenda pero no da turnos: la acción pide agenda:manage
+  ---
+  duration_ms: 0.428853
+  type: 'test'
+  ...
+# Subtest: con la barra de siempre (CH), sólo las acciones de sus pantallas
+ok 54 - con la barra de siempre (CH), sólo las acciones de sus pantallas
+  ---
+  duration_ms: 1.926157
+  type: 'test'
+  ...
+# Subtest: diez espacios, en el orden de la pantalla, sin apps repetidas entre listas
+ok 55 - diez espacios, en el orden de la pantalla, sin apps repetidas entre listas
+  ---
+  duration_ms: 3.224749
+  type: 'test'
+  ...
+# Subtest: toda app de un estante del Inicio tiene un espacio de la navegación; el Inicio y la consola, ninguno
+ok 56 - toda app de un estante del Inicio tiene un espacio de la navegación; el Inicio y la consola, ninguno
+  ---
+  duration_ms: 0.625824
+  type: 'test'
+  ...
+# Subtest: cada deuda al lado de su contraparte y el cierre del mes con los del día (A1)
+ok 57 - cada deuda al lado de su contraparte y el cierre del mes con los del día (A1)
+  ---
+  duration_ms: 0.450168
+  type: 'test'
+  ...
+# Subtest: «Facturas e impuestos» tiene exactamente las apps de los módulos argentinos (A10)
+ok 58 - «Facturas e impuestos» tiene exactamente las apps de los módulos argentinos (A10)
+  ---
+  duration_ms: 0.382925
+  type: 'test'
+  ...
+# Subtest: ningún espacio pasa de 8 apps por rubro con el registro de hoy
+ok 59 - ningún espacio pasa de 8 apps por rubro con el registro de hoy
+  ---
+  duration_ms: 0.582895
+  type: 'test'
+  ...
+# Subtest: el primer espacio se llama Recepción en servicios; los nombres no llevan siglas
+ok 60 - el primer espacio se llama Recepción en servicios; los nombres no llevan siglas
+  ---
+  duration_ms: 0.540164
+  type: 'test'
+  ...
+# Subtest: GUARDIA_EN_EL_LOADER sólo lista páginas que todavía dependen de su loader (sin requireApp)
+ok 61 - GUARDIA_EN_EL_LOADER sólo lista páginas que todavía dependen de su loader (sin requireApp)
+  ---
+  duration_ms: 0.902954
+  type: 'test'
+  ...
+# Subtest: el recorrido encuentra las páginas del panel
+ok 62 - el recorrido encuentra las páginas del panel
+  ---
+  duration_ms: 0.253053
+  type: 'test'
+  ...
+# Subtest: trinquete: páginas sin requireApp ≤ 3
+ok 63 - trinquete: páginas sin requireApp ≤ 3
+  ---
+  duration_ms: 0.151691
+  type: 'test'
+  ...
+# Subtest: toda página del panel pertenece a una app del registro
+ok 64 - toda página del panel pertenece a una app del registro
+  ---
+  duration_ms: 0.85206
+  type: 'test'
+  ...
+# Subtest: requireApp protege la app de SU ruta, no otra
+ok 65 - requireApp protege la app de SU ruta, no otra
+  ---
+  duration_ms: 2.902998
+  type: 'test'
+  ...
+# Subtest: la capability del registro es la que pide la página raíz de cada app (directo o en su loader)
+ok 66 - la capability del registro es la que pide la página raíz de cada app (directo o en su loader)
+  ---
+  duration_ms: 0.741601
+  type: 'test'
+  ...
+# Subtest: el recorrido encuentra los route handlers del panel
+ok 67 - el recorrido encuentra los route handlers del panel
+  ---
+  duration_ms: 0.143355
+  type: 'test'
+  ...
+# Subtest: trinquete: route handlers sin requireApp ≤ 0
+ok 68 - trinquete: route handlers sin requireApp ≤ 0
+  ---
+  duration_ms: 0.547578
+  type: 'test'
+  ...
+# Subtest: todo route handler pertenece a una app, y su requireApp es el de esa app
+ok 69 - todo route handler pertenece a una app, y su requireApp es el de esa app
+  ---
+  duration_ms: 0.322545
+  type: 'test'
+  ...
+# Subtest: sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+ok 70 - sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+  ---
+  duration_ms: 5.849761
+  type: 'test'
+  ...
+# Subtest: Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+ok 71 - Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+  ---
+  duration_ms: 23.432904
+  type: 'test'
+  ...
+# Subtest: CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+ok 72 - CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+  ---
+  duration_ms: 0.316762
+  type: 'test'
+  ...
+# Subtest: diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+ok 73 - diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+  ---
+  duration_ms: 0.671936
+  type: 'test'
+  ...
+# Subtest: ids únicos y en kebab-case
+ok 74 - ids únicos y en kebab-case
+  ---
+  duration_ms: 1.093004
+  type: 'test'
+  ...
+# Subtest: rutas únicas, bajo /admin y sin barra final ni query
+ok 75 - rutas únicas, bajo /admin y sin barra final ni query
+  ---
+  duration_ms: 2.560079
+  type: 'test'
+  ...
+# Subtest: el módulo de cada app existe en el catálogo de módulos
+ok 76 - el módulo de cada app existe en el catálogo de módulos
+  ---
+  duration_ms: 1.364841
+  type: 'test'
+  ...
+# Subtest: moduloDuro exige un módulo, y toda app de Mis locales es moduloDuro
+ok 77 - moduloDuro exige un módulo, y toda app de Mis locales es moduloDuro
+  ---
+  duration_ms: 0.23625
+  type: 'test'
+  ...
+# Subtest: ninguna app declara scopeItems ni campos fuera del contrato
+ok 78 - ninguna app declara scopeItems ni campos fuera del contrato
+  ---
+  duration_ms: 0.412504
+  type: 'test'
+  ...
+# Subtest: trinquete: ningún módulo NUEVO declara scopeItems[].ruta
+ok 79 - trinquete: ningún módulo NUEVO declara scopeItems[].ruta
+  ---
+  duration_ms: 0.319337
+  type: 'test'
+  ...
+# Subtest: cada app cae en un espacio que existe, y los órdenes de espacio no repiten apps
+ok 80 - cada app cae en un espacio que existe, y los órdenes de espacio no repiten apps
+  ---
+  duration_ms: 0.312243
+  type: 'test'
+  ...
+# Subtest: menuDeHoy: posiciones únicas; kpi: ids únicos
+ok 81 - menuDeHoy: posiciones únicas; kpi: ids únicos
+  ---
+  duration_ms: 0.160456
+  type: 'test'
+  ...
+# Subtest: sólo el Inicio es exacta, y sólo 'App no disponible' se abre con la sesión sola
+ok 82 - sólo el Inicio es exacta, y sólo 'App no disponible' se abre con la sesión sola
+  ---
+  duration_ms: 1.302272
+  type: 'test'
+  ...
+# Subtest: las 28 apps de la ola 1 están registradas con su ruta de hoy
+ok 83 - las 28 apps de la ola 1 están registradas con su ruta de hoy
+  ---
+  duration_ms: 0.534166
+  type: 'test'
+  ...
+# Subtest: buscarApp no confía en lo que llega de afuera
+ok 84 - buscarApp no confía en lo que llega de afuera
+  ---
+  duration_ms: 0.195645
+  type: 'test'
+  ...
+# Subtest: para cada pantalla de la barra de hoy y sus sub-rutas, la misma pantalla que navItemForPath
+ok 85 - para cada pantalla de la barra de hoy y sus sub-rutas, la misma pantalla que navItemForPath
+  ---
+  duration_ms: 4.564895
+  type: 'test'
+  ...
+# Subtest: Facturación automática es su propia app, con todo lo que cuelga de ella
+ok 86 - Facturación automática es su propia app, con todo lo que cuelga de ella
+  ---
+  duration_ms: 0.265632
+  type: 'test'
+  ...
+# Subtest: match por segmento, el Inicio sólo exacto, y lo que no es de nadie da undefined
+ok 87 - match por segmento, el Inicio sólo exacto, y lo que no es de nadie da undefined
+  ---
+  duration_ms: 0.156953
+  type: 'test'
+  ...
+# Subtest: sub-rutas de hoy caen en su app
+ok 88 - sub-rutas de hoy caen en su app
+  ---
+  duration_ms: 0.112951
+  type: 'test'
+  ...
+# Subtest: normalizarRuta saca query, hash y la barra final
+ok 89 - normalizarRuta saca query, hash y la barra final
+  ---
+  duration_ms: 0.135893
+  type: 'test'
+  ...
+# Subtest: Comerciante con `pos`: Vender y Ventas del día pasan; sin `pos`, rebotan como antes
+ok 90 - Comerciante con `pos`: Vender y Ventas del día pasan; sin `pos`, rebotan como antes
+  ---
+  duration_ms: 0.213034
+  type: 'test'
+  ...
+# Subtest: una casa Comerciante con `multilocal`: Mis locales y sus sub-apps pasan; sin el módulo, no
+ok 91 - una casa Comerciante con `multilocal`: Mis locales y sus sub-apps pasan; sin el módulo, no
+  ---
+  duration_ms: 0.254929
+  type: 'test'
+  ...
+# Subtest: el gate no se afloja con lo que el Comerciante no tiene, ni con rutas que no son de nadie
+ok 92 - el gate no se afloja con lo que el Comerciante no tiene, ni con rutas que no son de nadie
+  ---
+  duration_ms: 0.144079
+  type: 'test'
+  ...
+# Subtest: el layout del panel arma el gate del Comerciante con las dos reglas
+ok 93 - el layout del panel arma el gate del Comerciante con las dos reglas
+  ---
+  duration_ms: 2.447545
+  type: 'test'
+  ...
+# Subtest: el interruptor decide por negocio: apagado, sin gate; prendido y con asignación, piloto
+ok 94 - el interruptor decide por negocio: apagado, sin gate; prendido y con asignación, piloto
+  ---
+  duration_ms: 1.024652
+  type: 'test'
+  ...
+# Subtest: CH queda SIN gate aun con el interruptor prendido: su asignación está vacía
+ok 95 - CH queda SIN gate aun con el interruptor prendido: su asignación está vacía
+  ---
+  duration_ms: 0.158327
+  type: 'test'
+  ...
+# Subtest: magra: sin gate con el interruptor apagado; prendido, sus módulos resueltos
+ok 96 - magra: sin gate con el interruptor apagado; prendido, sus módulos resueltos
+  ---
+  duration_ms: 1.318622
+  type: 'test'
+  ...
+# Subtest: piloto: un módulo sin su dependencia no habilita nada (resolverActivacion real)
+ok 97 - piloto: un módulo sin su dependencia no habilita nada (resolverActivacion real)
+  ---
+  duration_ms: 0.446854
+  type: 'test'
+  ...
+# Subtest: Comerciante: el set asignado tal cual, con o sin piloto; el flag global manda sobre todo
+ok 98 - Comerciante: el set asignado tal cual, con o sin piloto; el flag global manda sobre todo
+  ---
+  duration_ms: 0.292556
+  type: 'test'
+  ...
+# Subtest: sin gate, el módulo no decide nada: CH ve Facturación aunque no tenga `arca` asignado
+ok 99 - sin gate, el módulo no decide nada: CH ve Facturación aunque no tenga `arca` asignado
+  ---
+  duration_ms: 0.172861
+  type: 'test'
+  ...
+# Subtest: piloto: el gate saca sólo lo no asignado; con inventario, bancos y campañas, magra no pierde nada
+ok 100 - piloto: el gate saca sólo lo no asignado; con inventario, bancos y campañas, magra no pierde nada
+  ---
+  duration_ms: 8.393095
+  type: 'test'
+  ...
+# Subtest: piloto: manda el módulo, no el perfil (Libro IVA sin el callejón de 'edición Empresa')
+ok 101 - piloto: manda el módulo, no el perfil (Libro IVA sin el callejón de 'edición Empresa')
+  ---
+  duration_ms: 0.316708
+  type: 'test'
+  ...
+# Subtest: Comerciante: la guardia usa el módulo de su barra de hoy; el piloto, el de la app
+ok 102 - Comerciante: la guardia usa el módulo de su barra de hoy; el piloto, el de la app
+  ---
+  duration_ms: 0.561222
+  type: 'test'
+  ...
+# Subtest: moduloDuro: invisible con contexto null si el negocio no tiene el módulo
+ok 103 - moduloDuro: invisible con contexto null si el negocio no tiene el módulo
+  ---
+  duration_ms: 0.47751
+  type: 'test'
+  ...
+# Subtest: moduloDuro: el módulo de la barra de hoy no lo afloja en el Comerciante
+ok 104 - moduloDuro: el módulo de la barra de hoy no lo afloja en el Comerciante
+  ---
+  duration_ms: 0.327119
+  type: 'test'
+  ...
+# Subtest: moduloDuro: la casa (con el módulo asignado) la ve, con o sin gate
+ok 105 - moduloDuro: la casa (con el módulo asignado) la ve, con o sin gate
+  ---
+  duration_ms: 0.155362
+  type: 'test'
+  ...
+# Subtest: motivos: rol primero, después en preparación, módulo, rubro y edición
+ok 106 - motivos: rol primero, después en preparación, módulo, rubro y edición
+  ---
+  duration_ms: 0.131756
+  type: 'test'
+  ...
+# Subtest: 'App no disponible' la abre cualquiera con sesión, y nunca se ofrece en un lanzador
+ok 107 - 'App no disponible' la abre cualquiera con sesión, y nunca se ofrece en un lanzador
+  ---
+  duration_ms: 0.271455
+  type: 'test'
+  ...
+# Subtest: el buscador no revela apps ocultas, ni tecleando su nombre, sus palabras o su rótulo de hoy
+ok 108 - el buscador no revela apps ocultas, ni tecleando su nombre, sus palabras o su rótulo de hoy
+  ---
+  duration_ms: 64.446015
+  type: 'test'
+  ...
+# Subtest: el buscador encuentra lo que la persona sí ve, por nombre, palabra o rótulo de hoy
+ok 109 - el buscador encuentra lo que la persona sí ve, por nombre, palabra o rótulo de hoy
+  ---
+  duration_ms: 2.063127
+  type: 'test'
+  ...
+# Subtest: appsVisibles sale ordenada por espacio y, adentro, por el orden decidido
+ok 110 - appsVisibles sale ordenada por espacio y, adentro, por el orden decidido
+  ---
+  duration_ms: 0.402508
+  type: 'test'
+  ...
+# Subtest: PROFESSIONAL teclea /admin/facturacion: el porqué es su rol y el botón va a su agenda
+ok 111 - PROFESSIONAL teclea /admin/facturacion: el porqué es su rol y el botón va a su agenda
+  ---
+  duration_ms: 0.573946
+  type: 'test'
+  ...
+# Subtest: a quién pedírsela: la dueña o el dueño a GSG, el resto del equipo a la dueña o el dueño
+ok 112 - a quién pedírsela: la dueña o el dueño a GSG, el resto del equipo a la dueña o el dueño
+  ---
+  duration_ms: 0.198557
+  type: 'test'
+  ...
+# Subtest: sin loop: si la casa del rol tampoco se puede abrir, no hay botón de vuelta
+ok 113 - sin loop: si la casa del rol tampoco se puede abrir, no hay botón de vuelta
+  ---
+  duration_ms: 0.335941
+  type: 'test'
+  ...
+# Subtest: número del botón: RECEPTION ve cuántos, nunca cuánta plata
+ok 114 - número del botón: RECEPTION ve cuántos, nunca cuánta plata
+  ---
+  duration_ms: 0.198603
+  type: 'test'
+  ...
+# Subtest: número del botón: ninguna app con plata en su número se la muestra a quien no tiene reports:read
+ok 115 - número del botón: ninguna app con plata en su número se la muestra a quien no tiene reports:read
+  ---
+  duration_ms: 0.263108
+  type: 'test'
+  ...
+# Subtest: el encargado: RECEPTION de un mostrador del piloto abre Stock, Recibir mercadería y Mermas; en CH, no
+ok 116 - el encargado: RECEPTION de un mostrador del piloto abre Stock, Recibir mercadería y Mermas; en CH, no
+  ---
+  duration_ms: 0.173786
+  type: 'test'
+  ...
+# Subtest: Vender y Ventas del día: CH no las ve ni por URL; un comercio con pos sí
+ok 117 - Vender y Ventas del día: CH no las ve ni por URL; un comercio con pos sí
+  ---
+  duration_ms: 29.605937
+  type: 'test'
+  ...
+# Subtest: «Diseño nuevo» está en el catálogo: nombre, qué cambia, cómo figura en la Auditoría, y no toca las apps
+ok 118 - «Diseño nuevo» está en el catálogo: nombre, qué cambia, cómo figura en la Auditoría, y no toca las apps
+  ---
+  duration_ms: 0.984663
+  type: 'test'
+  ...
+# Subtest: beauty-spa: «Diseño nuevo» sólo lo prende el dueño, escribiendo el slug; nadie más lo apaga
+ok 119 - beauty-spa: «Diseño nuevo» sólo lo prende el dueño, escribiendo el slug; nadie más lo apaga
+  ---
+  duration_ms: 12.061145
+  type: 'test'
+  ...
+# Subtest: una fila forjada desde la app del negocio no prende el diseño nuevo, ni apaga el que prendió la consola
+ok 120 - una fila forjada desde la app del negocio no prende el diseño nuevo, ni apaga el que prendió la consola
+  ---
+  duration_ms: 5.101204
+  type: 'test'
+  ...
+# Subtest: si la lectura falla (o viene rota), el diseño es el de siempre, y se avisa
+ok 121 - si la lectura falla (o viene rota), el diseño es el de siempre, y se avisa
+  ---
+  duration_ms: 0.434375
+  type: 'test'
+  ...
+# Subtest: el diseño nuevo se prende aunque 'Trabaja por apps' perdería apps: no quita ninguna, y su fila no promete apps
+ok 122 - el diseño nuevo se prende aunque 'Trabaja por apps' perdería apps: no quita ninguna, y su fila no promete apps
+  ---
+  duration_ms: 1.129509
+  type: 'test'
+  ...
+# Subtest: cada interruptor con su estado: prender uno no prende el otro, y 'lo que viste' se compara con el suyo
+ok 123 - cada interruptor con su estado: prender uno no prende el otro, y 'lo que viste' se compara con el suyo
+  ---
+  duration_ms: 11.283802
+  type: 'test'
+  ...
+# Subtest: la decisión: sólo la última fila válida de la consola prende el diseño nuevo
+ok 124 - la decisión: sólo la última fila válida de la consola prende el diseño nuevo
+  ---
+  duration_ms: 1.357406
+  type: 'test'
+  ...
+# Subtest: ConDiseno apagado devuelve el mismo hijo (ni hoja, ni provider, ni un nodo de más)
+ok 125 - ConDiseno apagado devuelve el mismo hijo (ni hoja, ni provider, ni un nodo de más)
+  ---
+  duration_ms: 4.721909
+  type: 'test'
+  ...
+# Subtest: ConDiseno prendido pide la hoja versionada una vez y deja el contenido igual
+ok 126 - ConDiseno prendido pide la hoja versionada una vez y deja el contenido igual
+  ---
+  duration_ms: 1.834129
+  type: 'test'
+  ...
+# Subtest: cada raíz de un negocio: el atributo sólo con el interruptor, la piel de siempre intacta
+ok 127 - cada raíz de un negocio: el atributo sólo con el interruptor, la piel de siempre intacta
+  ---
+  duration_ms: 0.847074
+  type: 'test'
+  ...
+1..127
+# tests 127
+# suites 0
+# pass 127
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2398.880731

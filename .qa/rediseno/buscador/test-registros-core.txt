@@ -1,0 +1,88 @@
+TAP version 13
+# Subtest: la búsqueda se recorta y exige de 2 a 60 letras; lo que no es texto no se busca
+ok 1 - la búsqueda se recorta y exige de 2 a 60 letras; lo que no es texto no se busca
+  ---
+  duration_ms: 2.39737
+  type: 'test'
+  ...
+# Subtest: los mensajes de una búsqueda inválida no nombran tablas, campos ni tipos
+ok 2 - los mensajes de una búsqueda inválida no nombran tablas, campos ni tipos
+  ---
+  duration_ms: 0.40538
+  type: 'test'
+  ...
+# Subtest: un número (con \# o separadores) se lee como número de pedido y como teléfono
+ok 3 - un número (con \# o separadores) se lee como número de pedido y como teléfono
+  ---
+  duration_ms: 0.295602
+  type: 'test'
+  ...
+# Subtest: el número de pedido «47» cubre el 47 y los que empiezan con 47 (470-479, 4700-4799…), sin pasarse del tope
+ok 4 - el número de pedido «47» cubre el 47 y los que empiezan con 47 (470-479, 4700-4799…), sin pasarse del tope
+  ---
+  duration_ms: 0.324191
+  type: 'test'
+  ...
+# Subtest: tres grupos en orden fijo: clientes, productos, pedidos; como mucho 5 por grupo
+ok 5 - tres grupos en orden fijo: clientes, productos, pedidos; como mucho 5 por grupo
+  ---
+  duration_ms: 7.557897
+  type: 'test'
+  ...
+# Subtest: clientes: primero los que empiezan con lo tipeado, después palabra que empieza, después contiene; sin tildes
+ok 6 - clientes: primero los que empiezan con lo tipeado, después palabra que empieza, después contiene; sin tildes
+  ---
+  duration_ms: 0.340863
+  type: 'test'
+  ...
+# Subtest: clientes encontrados por el teléfono van después de los encontrados por el nombre
+ok 7 - clientes encontrados por el teléfono van después de los encontrados por el nombre
+  ---
+  duration_ms: 0.242971
+  type: 'test'
+  ...
+# Subtest: productos: activos antes que pausados; el precio sólo para quien ve plata
+ok 8 - productos: activos antes que pausados; el precio sólo para quien ve plata
+  ---
+  duration_ms: 7.204756
+  type: 'test'
+  ...
+# Subtest: pedidos: el número exacto primero y después los más nuevos; abierto al tablero, cerrado a las ventas de ese día
+ok 9 - pedidos: el número exacto primero y después los más nuevos; abierto al tablero, cerrado a las ventas de ese día
+  ---
+  duration_ms: 0.757767
+  type: 'test'
+  ...
+# Subtest: pedidos sin permiso de ver plata: sin montos y, cerrados, a las ventas de hoy (otro día no lo pueden abrir)
+ok 10 - pedidos sin permiso de ver plata: sin montos y, cerrados, a las ventas de hoy (otro día no lo pueden abrir)
+  ---
+  duration_ms: 0.562498
+  type: 'test'
+  ...
+# Subtest: un pedido cerrado sin la app Ventas del día va a la bandeja de pedidos; sin ninguna de las dos no se muestra
+ok 11 - un pedido cerrado sin la app Ventas del día va a la bandeja de pedidos; sin ninguna de las dos no se muestra
+  ---
+  duration_ms: 0.463405
+  type: 'test'
+  ...
+# Subtest: SEGURIDAD: un grupo sin permiso no se dibuja aunque le lleguen filas
+ok 12 - SEGURIDAD: un grupo sin permiso no se dibuja aunque le lleguen filas
+  ---
+  duration_ms: 0.201925
+  type: 'test'
+  ...
+# Subtest: los ids son únicos entre grupos (un cliente y un producto con el mismo id no chocan en la lista)
+ok 13 - los ids son únicos entre grupos (un cliente y un producto con el mismo id no chocan en la lista)
+  ---
+  duration_ms: 0.250079
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 475.395001

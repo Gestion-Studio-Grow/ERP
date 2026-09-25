@@ -1,0 +1,26 @@
+# 2026-09-25T11:14:28Z contra next start :3210 (build de producción del árbol actual)
+magra-390 exit=1
+magra-1440 exit=1
+shine-adosmanos exit=1
+ch-390-ch-off exit=1
+ch-390-prender exit=0
+ch-390-roles exit=0
+ch-1440-roles exit=0
+ch-390-consola exit=1
+ch-1440-consola exit=1
+ch-390-contador exit=0
+ch-1440-contador exit=0
+ch-390-ch-on exit=0
+ch-1440-ch-on exit=0
+buscador exit=0
+verificar-390 exit=1
+verificar-1440 exit=1
+verificar-390-ch exit=1
+verificar-1440-ch exit=1
+compuerta-recorrido exit=1
+compuerta-buscador exit=1
+FIN
+verificar-390-ch (2da, sin bloqueo) exit=1
+ch-390-apagar (orden correcto) exit=0
+ch-390-ch-off (orden correcto) exit=0
+ch-390-prender (orden correcto) exit=0

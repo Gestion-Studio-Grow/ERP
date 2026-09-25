@@ -7,6 +7,8 @@ import { fmtDateTimeAr } from "@/lib/datetime";
 import { AvisoError, Card, PageContainer, PageHeader, buttonClasses, fmtCuit } from "@/components/ui";
 import { NoEsCasa } from "../../partes";
 import { ImprimirRemito } from "./ImprimirRemito";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { Bloque } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +48,45 @@ export default async function RemitoPage({ params }: { params: Promise<{ id: str
   }
   const t = r.remito;
   const cuando = fmtDateTimeAr(new Date(t.fecha));
+
+  // DISEÑO NUEVO («Renglón»): el remito como hoja, de dónde a dónde en una línea y lo que viajó
+  // con la cantidad a la derecha. Mismos datos, misma impresión.
+  if (await disenoNuevo()) {
+    return (
+      <main data-ui="pagina" className="mx-auto w-full max-w-3xl px-4 py-6">
+        <header data-ui="page-header" className="mb-4">
+          <p className="text-[13px] text-muted">
+            <Link href="/admin/locales/traslados" className="inline-flex min-h-11 items-center font-medium text-accent-ink underline underline-offset-2">
+              Traslados entre locales
+            </Link>
+          </p>
+          <h1 className="text-2xl font-bold text-strong">{`Remito interno ${t.codigo}`}</h1>
+          <p className="mt-1 text-sm text-muted">{cuando}</p>
+        </header>
+        <Bloque titulo={`${t.origen.nombre} → ${t.destino.nombre}`} className="mb-4">
+          <p className="pt-2 text-[13px] text-muted break-words">
+            {`Sale de ${t.origen.nombre} (CUIT ${fmtCuit(t.origen.cuit)}) y va a ${t.destino.nombre} (CUIT ${fmtCuit(t.destino.cuit)}).`}
+          </p>
+          <ul aria-label="Lo que se trasladó" className="mt-2">
+            {t.lineas.map((l) => (
+              <li key={`${l.nombre}-${l.saleUnit}`} className="flex items-baseline justify-between gap-3 border-b border-line py-2.5">
+                <span className="min-w-0 text-strong break-words">{l.nombre}</span>
+                <span className="shrink-0 font-semibold tabular-nums text-strong">{textoCantidad(l.cantidad, l.saleUnit, l.unidad)}</span>
+              </li>
+            ))}
+          </ul>
+          {t.nota && <p className="pt-2 text-sm text-body break-words">{`Nota: ${t.nota}`}</p>}
+          <p className="pt-2 text-[13px] text-muted">
+            {`Cargado por ${t.por || "la casa"}${t.casa ? ` (${t.casa})` : ""}. Salió del stock de ${t.origen.nombre} y entró en el de ${t.destino.nombre} en el mismo momento.`}
+          </p>
+          <p className="pt-1 text-[13px] text-muted">{LEYENDA_REMITO}</p>
+        </Bloque>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <ImprimirRemito html={htmlDelRemito(t, cuando)} />
+        </div>
+      </main>
+    );
+  }
 
   return (
     <PageContainer>

@@ -6,6 +6,11 @@ import { fmtShortDate } from "@/lib/datetime";
 import { formatearCantidad } from "@/lib/pos-peso";
 import { EmptyState, PageHeader, Badge, buttonClasses, fmtCuit, fmtMoneyARS } from "@/components/ui";
 import { EstadoProveedorForm, ProveedorForm } from "../ProveedorForm";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { getNegocioApps } from "@/apps/contexto.server";
+import { appPermitida } from "@/apps/visibles";
+import { appPorId } from "@/apps/registro";
+import { FichaProveedorRenglon } from "./FichaProveedorRenglon";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +26,8 @@ export default async function FichaProveedorPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ alta?: string }>;
 }) {
-  await requireApp("proveedores");
-  const [{ id }, sp, tenantId] = await Promise.all([params, searchParams, getCurrentTenantId()]);
+  const user = await requireApp("proveedores");
+  const [{ id }, sp, tenantId, nuevo] = await Promise.all([params, searchParams, getCurrentTenantId(), disenoNuevo()]);
   const ficha = await getFichaProveedor(tenantId, id);
 
   if (!ficha) {
@@ -39,6 +44,17 @@ export default async function FichaProveedorPage({
         />
       </main>
     );
+  }
+
+  // DISEÑO NUEVO («Renglón»): la misma ficha como renglones (FichaProveedorRenglon).
+  // Las teclas llevan sólo a apps que este negocio y esta persona tienen (sin callejones).
+  if (nuevo) {
+    const negocio = await getNegocioApps(user.role);
+    const ve = {
+      recibir: appPermitida(appPorId("recibir-mercaderia"), negocio),
+      pagar: appPermitida(appPorId("cuentas-a-pagar"), negocio),
+    };
+    return <FichaProveedorRenglon ficha={ficha} alta={sp.alta === "1"} ve={ve} />;
   }
 
   const { proveedor: p, compras, totalDeCompras, comprado, deuda, devoluciones, totalDeDevoluciones, devuelto, codigoDeCompra } = ficha;
@@ -58,7 +74,7 @@ export default async function FichaProveedorPage({
       {sp.alta === "1" && (
         <p role="status" className="rounded-md border border-success/30 bg-success-soft px-3 py-2 text-sm text-strong">
           Proveedor dado de alta. Ya lo podés elegir en{" "}
-          <Link href="/admin/compras" className="font-medium underline underline-offset-2">
+          <Link href={`/admin/compras?proveedor=${encodeURIComponent(id)}`} className="font-medium underline underline-offset-2">
             Recibir mercadería
           </Link>
           .
@@ -104,7 +120,7 @@ export default async function FichaProveedorPage({
             title="Todavía no hay compras de este proveedor"
             description="Cuando recibas mercadería, elegilo en la lista y la compra aparece acá."
             action={
-              <Link href="/admin/compras" className={buttonClasses("solid", "md")}>
+              <Link href={`/admin/compras?proveedor=${encodeURIComponent(id)}`} className={buttonClasses("solid", "md")}>
                 Recibir mercadería
               </Link>
             }

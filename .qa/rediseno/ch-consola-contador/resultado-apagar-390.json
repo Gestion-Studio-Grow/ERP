@@ -1,0 +1,26 @@
+{
+  "fase": "apagar",
+  "ancho": 390,
+  "pasos": [
+    {
+      "paso": "operador · apagar «Diseño nuevo» de CH",
+      "ok": true,
+      "det": "prendido → apagado",
+      "ms": 5594,
+      "errs": []
+    }
+  ],
+  "fallas": 0,
+  "errores": [],
+  "callejones": [],
+  "medidas": [
+    {
+      "pantalla": "interruptor-cambiado",
+      "url": "/operador/tenants/cmuf1ub190000vu7d06np040t?pestana=plan",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": []
+    }
+  ]
+}

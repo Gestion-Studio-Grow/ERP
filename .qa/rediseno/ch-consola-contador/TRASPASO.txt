@@ -1,0 +1,15 @@
+Recorrido ch-consola-contador (25/09/2026) — traspaso
+Script: recorrido.mjs  (node recorrido.mjs <390|1440> <consola|ch-on|roles|contador|apagar|ch-off|prender>)
+Corridas: salida-*.txt y resultado-*.json; fotos/ (<fase>_<ancho>_NN_paso.png).
+
+URGENTE: el interruptor «Diseño nuevo» de CH (beauty-spa) quedó APAGADO en el laboratorio.
+  Se apagó por la consola para comparar con la vista de siempre; el servidor :3210 se cayó (conexión rechazada)
+  antes de volver a prenderlo y no volvió en 8 minutos. Al levantarlo: node recorrido.mjs 390 prender
+  y después: node recorrido.mjs 390 ch-off  (sólo lo cortado: /admin/caja/cierre, /admin/clientes, F1 a 390)
+  — ojo: ch-off hay que correrlo ANTES de prender.
+La clave de la consola del laboratorio es <clave del laboratorio> (<clave de la consola del laboratorio> ya no entra).
+
+Datos que dejó el recorrido en el laboratorio (CH, hoy 25/09): turnos «QA Recorrido 1440 …» y «QA Recorrido 390 …»
+(Depilación definitiva axilas, Carla Díaz), confirmados y cobrados $16.000 en efectivo cada uno; más un turno
+10:30 que quedó a nombre de Belén Suárez (primer intento a 390: el teléfono de prueba 11 5555-xxxx coincidió con
+su ficha y el alta la reconoció; se cambió a 11 4000-xxxx).

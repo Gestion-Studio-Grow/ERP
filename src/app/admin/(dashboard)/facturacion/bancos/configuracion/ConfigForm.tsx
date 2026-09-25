@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { guardarConfigBancosAction } from "@/lib/bancos-actions";
-import { Button, Field, Input, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
+import { Button, Field, Input, Marca, Seccion, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
 import { useToast } from "../../../ToastProvider";
 
 export default function ConfigForm({
@@ -16,12 +16,15 @@ export default function ConfigForm({
   domicilioActual,
   umbralDefault,
   capDefault,
+  renglon = false,
 }: {
   umbralActual: number | null;
   capActual: number | null;
   domicilioActual: string | null;
   umbralDefault: number;
   capDefault: number;
+  /** Diseño nuevo («Renglón»): primero lo que falta (el domicilio), después las dos reglas. */
+  renglon?: boolean;
 }) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
@@ -53,6 +56,69 @@ export default function ConfigForm({
     } finally {
       setGuardando(false);
     }
+  }
+
+  if (renglon) {
+    return (
+      <form onSubmit={guardar} className="space-y-6">
+        <Seccion id="cfg-factura" titulo="En la factura">
+          <div className="space-y-2 pt-3">
+            {faltaDomicilio && (
+              <p className="text-sm text-body">
+                <Marca tipo="atencion">Falta el domicilio</Marca>: va impreso en cada comprobante. Cargalo antes de emitir.
+              </p>
+            )}
+            <Field label="Domicilio del emisor" htmlFor="cfg-domicilio" required hint="Calle, número y localidad, como en tu constancia. Ej.: Av. Corrientes 1234, CABA.">
+              <Input
+                id="cfg-domicilio"
+                value={domicilio}
+                onChange={(e) => setDomicilio(e.target.value)}
+                maxLength={200}
+                placeholder="Calle y número, localidad"
+              />
+            </Field>
+          </div>
+        </Seccion>
+        <Seccion id="cfg-reglas" titulo="Cuándo factura solo">
+          <div className="grid gap-4 pt-3 sm:grid-cols-2">
+            <Field
+              label="Pedir los datos del comprador desde"
+              htmlFor="cfg-umbral"
+              hint={`En pesos. Vacío: ${fmtMoneyARS(umbralDefault, 0)}. Es una regla tuya; el mínimo de ARCA es $10.000.000.`}
+            >
+              <Input
+                id="cfg-umbral"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                step="0.01"
+                value={umbral}
+                onChange={(e) => setUmbral(e.target.value)}
+                placeholder={String(umbralDefault)}
+              />
+            </Field>
+            <Field label="Facturas automáticas por mes, como mucho" htmlFor="cfg-cap" hint={`Vacío: ${fmtNumberAR(capDefault)}. Pasado el tope, el resto espera al mes siguiente.`}>
+              <Input
+                id="cfg-cap"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={100000}
+                step={1}
+                value={cap}
+                onChange={(e) => setCap(e.target.value)}
+                placeholder={String(capDefault)}
+              />
+            </Field>
+          </div>
+        </Seccion>
+        <div className="border-t border-line pt-4">
+          <Button type="submit" disabled={guardando} className="w-full sm:w-auto">
+            {guardando ? "Guardando…" : "Guardar"}
+          </Button>
+        </div>
+      </form>
+    );
   }
 
   return (

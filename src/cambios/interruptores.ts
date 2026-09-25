@@ -46,6 +46,12 @@ export interface Interruptor {
   queCambia: string;
   /** Qué se nombra en la Auditoría del negocio: "GSG activó <esto>". */
   enAuditoria: string;
+  /**
+   * ¿Prenderlo cambia QUÉ APPS ve cada persona? Sólo esos muestran la vista previa de apps en la
+   * ficha y exigen 0 apps perdidas para prenderse (`decidirCambioDeInterruptor`). Uno que sólo
+   * cambia cómo se ve no le quita nada a nadie: no se frena por apps.
+   */
+  cambiaLasApps: boolean;
 }
 
 /** El catálogo. El primero reemplaza a la variable de deploy APPS_INICIO (retirada). */
@@ -56,12 +62,27 @@ export const INTERRUPTORES = [
     queCambia:
       "El Inicio por apps y la barra por módulos: sus módulos deciden qué apps ve cada persona. Apagado, ve el menú de siempre.",
     enAuditoria: "el Inicio por apps",
+    cambiaLasApps: true,
+  },
+  {
+    // La piel «Renglón» (src/lib/diseno/): `data-diseno="renglon"` en la raíz del panel,
+    // del ingreso, del panel del contador y de Facturita de ESTE negocio. Apagado, esas raíces
+    // rinden el HTML de siempre (src/lib/diseno/raices-ch.test.ts).
+    id: "diseno-nuevo",
+    nombre: "Diseño nuevo",
+    queCambia:
+      "El diseño nuevo en su panel: botones, cifras y pantallas renovados, con las mismas apps y los mismos datos. Apagado, se ve como siempre.",
+    enAuditoria: "el diseño nuevo",
+    cambiaLasApps: false,
   },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
 
 export const INICIO_POR_APPS: InterruptorId = "inicio-por-apps";
+
+/** La piel «Renglón», por negocio (src/lib/diseno/diseno.server.ts la lee en cada pedido). */
+export const DISENO_NUEVO: InterruptorId = "diseno-nuevo";
 
 export function esInterruptorId(id: unknown): id is InterruptorId {
   return typeof id === "string" && INTERRUPTORES.some((i) => i.id === id);

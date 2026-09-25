@@ -1,0 +1,50 @@
+[
+ {
+  "vp": 1440,
+  "t": "Gonzalo",
+  "opciones": [],
+  "dialogo": "Saltar al contenido M MAGRA Mostrador Caja Clientes Stock Compras ¿Qué querés hacer? Ctrl K MB Micaela Benítez Recepción Clientes Para contactar hoy Clientes por recuperar Campañas Vender F1 Clientes 31 fichas · 0 nuevos este mes (primera compra de su historia). Nueva ficha Compraron sin ficha (18) "
+ },
+ {
+  "vp": 1440,
+  "t": "2772",
+  "opciones": [],
+  "dialogo": "Saltar al contenido M MAGRA Mostrador Caja Clientes Stock Compras ¿Qué querés hacer? Ctrl K MB Micaela Benítez Recepción Clientes Para contactar hoy Clientes por recuperar Campañas Vender F1 Clientes 31 fichas · 0 nuevos este mes (primera compra de su historia). Nueva ficha Compraron sin ficha (18) "
+ },
+ {
+  "vp": 1440,
+  "t": "Vacío",
+  "opciones": [],
+  "dialogo": "Saltar al contenido M MAGRA Mostrador Caja Clientes Stock Compras ¿Qué querés hacer? Ctrl K MB Micaela Benítez Recepción Clientes Para contactar hoy Clientes por recuperar Campañas Vender F1 Clientes 31 fichas · 0 nuevos este mes (primera compra de su historia). Nueva ficha Compraron sin ficha (18) "
+ },
+ {
+  "vp": 1440,
+  "errores": [
+   "Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozill"
+  ]
+ },
+ {
+  "vp": 390,
+  "t": "Gonzalo",
+  "opciones": [],
+  "dialogo": "Saltar al contenido M Clientes Clientes 31 fichas · 0 nuevos este mes (primera compra de su historia). Todos Para contactar hoy Por recuperar Nueva ficha Compraron sin ficha (18) Buscar por nombre o teléfono Buscar Situación Todas 31 Frecuente 28 En riesgo 1 No volvió 2 ¿Cómo se calcula la situación"
+ },
+ {
+  "vp": 390,
+  "t": "2772",
+  "opciones": [],
+  "dialogo": "Saltar al contenido M Clientes Clientes 31 fichas · 0 nuevos este mes (primera compra de su historia). Todos Para contactar hoy Por recuperar Nueva ficha Compraron sin ficha (18) Buscar por nombre o teléfono Buscar Situación Todas 31 Frecuente 28 En riesgo 1 No volvió 2 ¿Cómo se calcula la situación"
+ },
+ {
+  "vp": 390,
+  "t": "Vacío",
+  "opciones": [],
+  "dialogo": "Saltar al contenido M Clientes Clientes 31 fichas · 0 nuevos este mes (primera compra de su historia). Todos Para contactar hoy Por recuperar Nueva ficha Compraron sin ficha (18) Buscar por nombre o teléfono Buscar Situación Todas 31 Frecuente 28 En riesgo 1 No volvió 2 ¿Cómo se calcula la situación"
+ },
+ {
+  "vp": 390,
+  "errores": [
+   "Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozill"
+  ]
+ }
+]

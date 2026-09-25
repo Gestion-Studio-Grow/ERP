@@ -1,0 +1,32 @@
+390 /admin/pedidos -> /admin/pedidos 200 h1= Pedidos para preparar hscroll= false chicos= 2/24 alto= 844 err= 0
+390 /admin/ventas -> /admin/ventas 200 h1= Ventas del día hscroll= false chicos= 3/22 alto= 844 err= 0
+390 /admin/caja -> /admin/caja 200 h1= Caja del día hscroll= false chicos= 2/13 alto= 1153 err= 0
+390 /admin/caja/cierre -> /admin/caja/cierre 200 h1= Cierre del día hscroll= false chicos= 2/13 alto= 1527 err= 0
+390 /admin/caja/libro -> /admin/caja/libro 200 h1= Libro de caja hscroll= false chicos= 2/44 alto= 3027 err= 0
+390 /admin/clientes -> /admin/clientes 200 h1= Clientes hscroll= false chicos= 31/71 alto= 3206 err= 0
+390 /admin/clientes/hoy -> /admin/clientes/hoy 200 h1= Para contactar hoy hscroll= false chicos= 2/13 alto= 844 err= 0
+390 /admin/clientes/recuperar -> /admin/clientes/recuperar 200 h1= Clientes por recuperar hscroll= false chicos= 2/13 alto= 844 err= 0
+390 /admin/campania -> /admin/campania 200 h1= Anotados del obsequio hscroll= false chicos= 1/9 alto= 844 err= 0
+390 /admin/inventario -> /admin/inventario 200 h1= Stock hscroll= false chicos= 1/39 alto= 2603 err= 0
+390 /admin/ajustes/recuento -> /admin/ajustes/recuento 200 h1= Recuento hscroll= false chicos= 1/26 alto= 1588 err= 0
+390 /admin/inventario/movimientos -> /admin/inventario/movimientos 200 h1= Movimientos de stock hscroll= false chicos= 1/224 alto= 4375 err= 0
+390 /admin/ajustes -> /admin/ajustes 200 h1= Mermas hscroll= false chicos= 1/22 alto= 2634 err= 0
+390 /admin/compras -> /admin/compras 200 h1= Recibir mercadería hscroll= false chicos= 1/24 alto= 2358 err= 0
+390 /admin/compras/sugerido -> /admin/compras/sugerido 200 h1= Sugerido de compra hscroll= false chicos= 1/16 alto= 2408 err= 0
+390 /admin?espacio=stock -> /admin 200 h1= Stock hscroll= false chicos= 1/16 alto= 844 err= 0
+1440 /admin/pedidos -> /admin/pedidos 200 h1= Pedidos para preparar hscroll= false chicos= 20/30 alto= 900 err= 0
+1440 /admin/ventas -> /admin/ventas 200 h1= Ventas del día hscroll= false chicos= 19/27 alto= 900 err= 0
+1440 /admin/caja -> /admin/caja 200 h1= Caja del día hscroll= false chicos= 10/18 alto= 900 err= 0
+1440 /admin/caja/cierre -> /admin/caja/cierre 200 h1= Cierre del día hscroll= false chicos= 10/18 alto= 900 err= 0
+1440 /admin/caja/libro -> /admin/caja/libro 200 h1= Libro de caja hscroll= false chicos= 43/49 alto= 2319 err= 0
+1440 /admin/clientes -> /admin/clientes 200 h1= Clientes hscroll= false chicos= 46/74 alto= 1765 err= 0
+1440 /admin/clientes/hoy -> /admin/clientes/hoy 200 h1= Para contactar hoy hscroll= false chicos= 9/16 alto= 900 err= 0
+1440 /admin/clientes/recuperar -> /admin/clientes/recuperar 200 h1= Clientes por recuperar hscroll= false chicos= 9/16 alto= 900 err= 0
+1440 /admin/campania -> /admin/campania 200 h1= Anotados del obsequio hscroll= false chicos= 7/15 alto= 900 err= 0
+1440 /admin/inventario -> /admin/inventario 200 h1= Stock hscroll= false chicos= 12/45 alto= 1867 err= 0
+1440 /admin/ajustes/recuento -> /admin/ajustes/recuento 200 h1= Recuento hscroll= false chicos= 12/32 alto= 1366 err= 0
+1440 /admin/inventario/movimientos -> /admin/inventario/movimientos 200 h1= Movimientos de stock hscroll= false chicos= 7/230 alto= 2623 err= 0
+1440 /admin/ajustes -> /admin/ajustes 200 h1= Mermas hscroll= false chicos= 18/28 alto= 1064 err= 0
+1440 /admin/compras -> /admin/compras 200 h1= Recibir mercadería hscroll= false chicos= 9/28 alto= 1366 err= 0
+1440 /admin/compras/sugerido -> /admin/compras/sugerido 200 h1= Sugerido de compra hscroll= false chicos= 7/20 alto= 1967 err= 0
+1440 /admin?espacio=stock -> /admin 200 h1= Stock hscroll= false chicos= 11/22 alto= 900 err= 0

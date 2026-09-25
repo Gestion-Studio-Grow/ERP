@@ -8,15 +8,31 @@ import Link from "next/link";
 import { pasarABandeja } from "@/lib/crm-actions";
 import { buttonClasses } from "@/components/ui";
 
-export default function PasarABandeja({ clientId, yaEsta }: { clientId: string; yaEsta: boolean }) {
+export default function PasarABandeja({
+  clientId,
+  yaEsta,
+  corto = false,
+}: {
+  clientId: string;
+  yaEsta: boolean;
+  /** «Diseño nuevo»: la tecla del renglón, con el texto corto (el nombre completo va al lector). */
+  corto?: boolean;
+}) {
   const [listo, setListo] = useState(yaEsta);
   const [error, setError] = useState("");
   const [pendiente, start] = useTransition();
 
   if (listo) {
     return (
-      <Link href="/admin/clientes/hoy" className={buttonClasses("ghost", "md", "whitespace-nowrap")}>
-        En la bandeja de hoy →
+      <Link
+        href="/admin/clientes/hoy"
+        className={buttonClasses(
+          "ghost",
+          corto ? "sm" : "md",
+          "whitespace-nowrap",
+        )}
+      >
+        {corto ? "En la bandeja →" : "En la bandeja de hoy →"}
       </Link>
     );
   }
@@ -37,9 +53,18 @@ export default function PasarABandeja({ clientId, yaEsta }: { clientId: string; 
             }
           })
         }
-        className={buttonClasses("outline", "md", "whitespace-nowrap")}
+        aria-label={corto ? "Sumar a la bandeja de hoy" : undefined}
+        className={buttonClasses(
+          "outline",
+          corto ? "sm" : "md",
+          "whitespace-nowrap",
+        )}
       >
-        {pendiente ? "Sumando…" : "Sumar a la bandeja de hoy"}
+        {pendiente
+          ? "Sumando…"
+          : corto
+            ? "A la bandeja"
+            : "Sumar a la bandeja de hoy"}
       </button>
       {error && (
         <p role="alert" className="text-xs text-danger">

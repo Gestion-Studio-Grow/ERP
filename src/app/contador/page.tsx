@@ -25,6 +25,8 @@ import { basePrisma } from "@/lib/prisma-base";
 import { MODULO_CARTERA } from "@/lib/cartera-core";
 import { decidirAcceso } from "@/lib/multilocal/multilocal-core";
 import { monitorCarteraAction } from "@/lib/cartera-actions";
+import { titularMonitor } from "@/lib/monitor-core";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { Badge, KpiTile, PageContainer, PageHeader, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
 import { nombreDelMes } from "@/lib/libros/fecha-fiscal";
 import ThemeToggle from "@/app/admin/(dashboard)/ThemeToggle";
@@ -55,6 +57,7 @@ function Icono({ path }: { path: React.ReactNode }) {
 export default async function ContadorPage() {
   // Guarda de rol de la página (las actions la repiten server-side por acción).
   await requireCapability("cartera:manage");
+  const nuevoP = disenoNuevo();
   const estudioTenantId = await getCurrentTenantId();
 
   // Barrera dura por ASIGNACIÓN de módulo (ADR-055): sin `cartera` en
@@ -107,23 +110,48 @@ export default async function ContadorPage() {
   const hayFiscal = filas.some((f) => f.validezFiscal);
   const cierre = resumen.cierreMes;
   const mesCierre = cierre.mes ? nombreDelMes(cierre.mes) : null;
+  const nuevo = await nuevoP;
+  // Diseño nuevo: lo que decían las cinco tarjetas pasa a una sola línea de estado bajo el título.
+  const titular = titularMonitor(monitor.resumen, monitor.avisos);
+  const estado = nuevo
+    ? [
+        <b key="t">{titular.texto}</b>,
+        `${fmtNumberAR(resumen.clientes)} ${resumen.clientes === 1 ? "cliente" : "clientes"}`,
+        <span key="m">
+          {hayFiscal ? "Facturado este mes " : "Emitido en prueba este mes "}
+          <b>{fmtMoneyARS(hayFiscal ? resumen.montoFiscalMes : resumen.montoPruebaMes, 0)}</b>
+        </span>,
+        `${fmtNumberAR(resumen.facturasMes)} facturas automáticas`,
+        <span key="r">
+          <b>{fmtNumberAR(resumen.pendientesRevision)}</b> para revisar
+        </span>,
+        ...(mesCierre ? [`${fmtNumberAR(cierre.congelados)} de ${fmtNumberAR(cierre.activos)} con ${mesCierre} cerrado`] : []),
+      ]
+    : undefined;
 
   return (
     <PageContainer>
       <PageHeader
         title="Mi cartera"
+        // Diseño nuevo: el nombre del estudio ya está en la cabecera (layout.tsx).
         badge={
+          nuevo ? undefined : (
           <Badge tone="accent" dot>
             {estudio.name}
           </Badge>
+          )
         }
+        estado={estado}
         description={
+          nuevo ? undefined : (
           <>
             Primero, de qué cliente te tenés que ocupar hoy y qué hacer. Abajo, cuánto facturó cada
             uno este mes y qué quedó esperando tu revisión.
           </>
+          )
         }
-        actions={<ThemeToggle />}
+        // Diseño nuevo: el tema se cambia desde la cabecera del estudio (layout.tsx).
+        actions={nuevo ? undefined : <ThemeToggle />}
       />
 
       {/* "De quién me ocupo hoy": sale de la misma pasada que el volumen de abajo. */}
@@ -139,6 +167,8 @@ export default async function ContadorPage() {
           plata y la cantidad van en tarjetas SEPARADAS porque responden a relojes distintos:
           la plata es fiscal (comprobantes con CAE, por su fecha) y la cantidad es la que
           cuenta para el límite de facturas automáticas del plan (todo lo emitido en el mes). */}
+      {/* Diseño nuevo: sin tarjetas; su contenido va en la línea de estado de arriba. */}
+      {!nuevo && (
       <section
         aria-label="Volumen de la cartera en el mes"
         className="mb-xl grid grid-cols-1 gap-[14px] sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
@@ -201,6 +231,7 @@ export default async function ContadorPage() {
           icon={<Icono path={<><path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21V3z" /><path d="M10 8h4m-4 4h4" /></>} />}
         />
       </section>
+      )}
 
       {/* Cartera: tabla + panel de detalle con acciones */}
       <CarteraPanel filas={filas} baseDomain={base} />

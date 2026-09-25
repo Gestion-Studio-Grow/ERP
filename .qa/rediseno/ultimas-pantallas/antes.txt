@@ -1,0 +1,49 @@
+magra_apariencia 390 status=200 diseno=renglon h1="Apariencia" primer=182 sx=0 chicos(0)=
+magra_apariencia 1440 status=200 diseno=renglon h1="Apariencia" primer=213 sx=0
+magra_apariencia 360 status=200 diseno=renglon h1="Apariencia" primer=182 sx=0
+magra_auditoria 390 status=200 diseno=renglon h1="Auditoría" primer=178 sx=0 chicos(0)=
+magra_auditoria 1440 status=200 diseno=renglon h1="Auditoría" primer=205 sx=0
+magra_auditoria 360 status=200 diseno=renglon h1="Auditoría" primer=178 sx=0
+magra_despiece 390 status=200 diseno=renglon h1="Despiece" primer=null sx=0 chicos(0)=
+magra_despiece 1440 status=200 diseno=renglon h1="Despiece" primer=null sx=0
+magra_despiece 360 status=200 diseno=renglon h1="Despiece" primer=null sx=0
+magra_devoluciones-proveedor 390 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=113 sx=0 chicos(0)=
+magra_devoluciones-proveedor 1440 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=189 sx=0
+magra_devoluciones-proveedor 360 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=113 sx=0
+magra_facturacion-bancos-configuracion 390 status=200 diseno=renglon h1="Configuración de facturación automática" primer=242 sx=0 chicos(0)=
+magra_facturacion-bancos-configuracion 1440 status=200 diseno=renglon h1="Configuración de facturación automática" primer=205 sx=0
+magra_facturacion-bancos-configuracion 360 status=200 diseno=renglon h1="Configuración de facturación automática" primer=242 sx=0
+magra_localizacion 390 status=200 diseno=renglon h1="Localización" primer=236 sx=0 chicos(0)=
+magra_localizacion 1440 status=200 diseno=renglon h1="Localización" primer=257 sx=0
+magra_localizacion 360 status=200 diseno=renglon h1="Localización" primer=260 sx=0
+magra_lotes 390 status=200 diseno=renglon h1="Lotes y vencimientos" primer=null sx=0 chicos(0)=
+magra_lotes 1440 status=200 diseno=renglon h1="Lotes y vencimientos" primer=null sx=0
+magra_lotes 360 status=200 diseno=renglon h1="Lotes y vencimientos" primer=null sx=0
+magra_reportes-margen 390 status=200 diseno=renglon h1="Margen" primer=163 sx=0 chicos(0)=
+magra_reportes-margen 1440 status=200 diseno=renglon h1="Margen" primer=213 sx=0
+magra_reportes-margen 360 status=200 diseno=renglon h1="Margen" primer=182 sx=0
+chestetica_apariencia 390 status=200 diseno=renglon h1="Apariencia" primer=182 sx=0 chicos(0)=
+chestetica_apariencia 1440 status=200 diseno=renglon h1="Apariencia" primer=213 sx=0
+chestetica_apariencia 360 status=200 diseno=renglon h1="Apariencia" primer=182 sx=0
+chestetica_auditoria 390 status=200 diseno=renglon h1="Auditoría" primer=178 sx=0 chicos(0)=
+chestetica_auditoria 1440 status=200 diseno=renglon h1="Auditoría" primer=205 sx=0
+chestetica_auditoria 360 status=200 diseno=renglon h1="Auditoría" primer=178 sx=0
+chestetica_despiece 390 status=200 diseno=renglon h1="Despiece no está disponible" primer=113 sx=0 chicos(0)=
+chestetica_despiece 1440 status=200 diseno=renglon h1="Despiece no está disponible" primer=189 sx=0
+chestetica_despiece 360 status=200 diseno=renglon h1="Despiece no está disponible" primer=113 sx=0
+chestetica_devoluciones-proveedor 390 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=113 sx=0 chicos(0)=
+chestetica_devoluciones-proveedor 1440 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=189 sx=0
+chestetica_devoluciones-proveedor 360 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=113 sx=0
+chestetica_facturacion-bancos-configuracion 390 status=200 diseno=renglon h1="Configuración de facturación automática" primer=242 sx=0 chicos(0)=
+chestetica_facturacion-bancos-configuracion 1440 status=200 diseno=renglon h1="Configuración de facturación automática" primer=205 sx=0
+chestetica_facturacion-bancos-configuracion 360 status=200 diseno=renglon h1="Configuración de facturación automática" primer=242 sx=0
+chestetica_localizacion 390 status=200 diseno=renglon h1="Localización" primer=236 sx=0 chicos(0)=
+chestetica_localizacion 1440 status=200 diseno=renglon h1="Localización" primer=257 sx=0
+chestetica_localizacion 360 status=200 diseno=renglon h1="Localización" primer=260 sx=0
+chestetica_lotes 390 status=200 diseno=renglon h1="Lotes y vencimientos no está disponible" primer=113 sx=0 chicos(0)=
+chestetica_lotes 1440 status=200 diseno=renglon h1="Lotes y vencimientos no está disponible" primer=189 sx=0
+chestetica_lotes 360 status=200 diseno=renglon h1="Lotes y vencimientos no está disponible" primer=113 sx=0
+chestetica_reportes-margen 390 status=200 diseno=renglon h1="Margen" primer=163 sx=0 chicos(0)=
+chestetica_reportes-margen 1440 status=200 diseno=renglon h1="Margen" primer=213 sx=0
+chestetica_reportes-margen 360 status=200 diseno=renglon h1="Margen" primer=182 sx=0
+pantallas con errores de consola: 0

@@ -12,6 +12,8 @@ export type CardProps = React.HTMLAttributes<HTMLDivElement> & {
 export function Card({ flush, interactive, className, ...props }: CardProps) {
   return (
     <div
+      data-ui="card"
+      data-interactive={interactive || undefined}
       className={cn(
         "bg-surface-raised border border-line rounded-lg shadow-card",
         !flush && "p-5 sm:p-6",
@@ -30,6 +32,7 @@ export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDiv
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h3
+      data-parte="titulo"
       className={cn("text-base font-semibold text-strong tracking-tight", className)}
       {...props}
     />

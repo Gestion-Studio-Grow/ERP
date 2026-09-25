@@ -10,7 +10,10 @@ import { enInicioPorApps } from "../../inicio/piloto";
 import { esCuentaACobrar, estadoCobroTurno } from "@/lib/turnos/cobros";
 import { seccionDeLista } from "@/lib/turnos/turno-abierto";
 import { todayInBusinessTz } from "@/lib/datetime";
-import { leerNuevoTurno } from "../pasos";
+import { leerClienteDelAlta, leerNuevoTurno } from "../pasos";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import AgendaRenglon from "../AgendaRenglon";
+import DarTurnoCajon from "../_agenda/DarTurnoCajon";
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +89,7 @@ function instanteDeCarga() {
 export default async function TurnosListaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ nuevo?: string | string[]; fecha?: string | string[] }>;
+  searchParams: Promise<{ nuevo?: string | string[]; fecha?: string | string[]; cliente?: string | string[] }>;
 }) {
   // La lista (historial completo + alta manual) es gestión de agenda: solo
   // OWNER/RECEPTION. El PROFESSIONAL cae acá a su calendario propio.
@@ -99,7 +102,41 @@ export default async function TurnosListaPage({
   const viewer = { role: user.role, professionalId: user.professionalId };
   // "Dar un turno" desde un estado vacío de la agenda llega con ?nuevo=1&fecha=… (pasos.ts): el
   // alta se abre sola y con el día puesto. Sin eso, la lista es la de siempre.
-  const nuevo = leerNuevoTurno(await searchParams, todayInBusinessTz());
+  const sp = await searchParams;
+  const nuevo = leerNuevoTurno(sp, todayInBusinessTz());
+  // "Darle un turno" desde la ficha: ?cliente=<id>. El formulario la busca entre las MISMAS
+  // fichas que ya recibe (getFichasParaAlta, del negocio); si no está, el alta queda vacía.
+  const clienteInicial = leerClienteDelAlta(sp);
+  // DISEÑO NUEVO («Renglón»): «Dar un turno» es un cajón encima del libro del día, no el formulario
+  // viejo dentro de la lista. Mismas lecturas que el alta de abajo (profesionales con servicios,
+  // fichas del negocio, faltazos del piloto) y la misma acción de alta; no se trae el historial,
+  // que el cajón no usa. Apagado el interruptor (CH hoy), la lista de siempre.
+  if (nuevo.abrir && (await disenoNuevo())) {
+    const hoy = todayInBusinessTz();
+    const [profesionales, fichasAlta, faltazosAlta] = await Promise.all([
+      getProfessionalsWithServices(),
+      getFichasParaAlta(),
+      enInicioPorApps().then((piloto) => (piloto ? cargarFaltazosPorFicha() : undefined)),
+    ]);
+    return (
+      <AgendaRenglon
+        quien={{ role: user.role, professionalId: user.professionalId }}
+        fecha={nuevo.fecha || undefined}
+        vista="lista"
+        alta={
+          <DarTurnoCajon
+            profesionales={profesionales}
+            fichas={fichasAlta}
+            faltazos={faltazosAlta}
+            hoy={hoy}
+            fechaInicial={nuevo.fecha || hoy}
+            clienteInicial={clienteInicial || undefined}
+            viewer={viewer}
+          />
+        }
+      />
+    );
+  }
   const [appointments, professionals, fichas, faltazos] = await Promise.all([
     getAppointments(),
     getProfessionalsWithServices(),
@@ -155,6 +192,7 @@ export default async function TurnosListaPage({
         faltazos={faltazos}
         abierto={nuevo.abrir}
         fechaInicial={nuevo.fecha}
+        clienteInicial={clienteInicial}
       />
 
       {sinCerrar.length > 0 && (

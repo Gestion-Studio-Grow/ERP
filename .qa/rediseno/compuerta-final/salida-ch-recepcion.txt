@@ -1,0 +1,8 @@
+390 /admin -> /admin/turnos 200 h1= Agenda hscroll= false chicos= 16/58 alto= 2342 err= 0
+390 /admin/turnos -> /admin/turnos 200 h1= Agenda hscroll= false chicos= 16/58 alto= 2342 err= 0
+390 /admin/clientes -> /admin/clientes 200 h1= Clientes hscroll= false chicos= 51/74 alto= 4855 err= 0
+390 /admin/caja -> /admin/caja 200 h1= Caja del día hscroll= false chicos= 1/9 alto= 844 err= 0
+1440 /admin -> /admin/turnos 200 h1= Agenda hscroll= false chicos= 33/62 alto= 1402 err= 0
+1440 /admin/turnos -> /admin/turnos 200 h1= Agenda hscroll= false chicos= 33/62 alto= 1402 err= 0
+1440 /admin/clientes -> /admin/clientes 200 h1= Clientes hscroll= false chicos= 65/74 alto= 2535 err= 0
+1440 /admin/caja -> /admin/caja 200 h1= Caja del día hscroll= false chicos= 7/13 alto= 900 err= 0

@@ -13,6 +13,8 @@ import { cargarHuecosLiberados } from "@/lib/crm/cargas.server";
 import { anotadosConHueco } from "@/lib/crm/huecos";
 import { enInicioPorApps } from "../inicio/piloto";
 import { vacioDiaSinTurnos, vacioSinProfesionales } from "./pasos";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import AgendaRenglon from "./AgendaRenglon";
 
 // Muestra en un vistazo qué profesionales tienen novedad (franco/vacaciones)
 // ese día, para no tener que ir a buscarlo a Catálogo (ADR-011 G9).
@@ -68,7 +70,7 @@ function addDays(dateStr: string, days: number) {
 export default async function TurnosCalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<{ date?: string; vista?: string }>;
 }) {
   // El PROFESSIONAL ve el calendario de su propia agenda (getAgendaDay lo
   // scopea) pero sin las acciones de gestión (confirmar pago / cancelar), que
@@ -78,7 +80,18 @@ export default async function TurnosCalendarPage({
   // El profesional cobra sus turnos aunque no pueda gestionarlos (decisión del dueño).
   const canCollect = roleHasCapability(user.role, "agenda:collect");
 
-  const { date: dateParam } = await searchParams;
+  const [{ date: dateParam, vista }, nuevo] = await Promise.all([searchParams, disenoNuevo()]);
+  // DISEÑO NUEVO («Renglón»): el libro del día (AgendaRenglon.tsx). Mismos datos, mismas acciones,
+  // mismas guardias. Apagado (CH hoy), la agenda de abajo tal cual.
+  if (nuevo) {
+    return (
+      <AgendaRenglon
+        quien={{ role: user.role, professionalId: user.professionalId }}
+        fecha={dateParam}
+        vista={vista === "profesionales" ? "profesionales" : "lista"}
+      />
+    );
+  }
   const today = todayInBusinessTz();
   const date = dateParam ?? today;
   // "Mañana: confirmar" sólo en la vista de HOY y para quien gestiona la agenda: es la tarea

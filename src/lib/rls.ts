@@ -26,9 +26,60 @@ import { getTenantStore, runInTenantContext } from "@/lib/tenant-context";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { scopeArgs, scopeTxClient } from "@/lib/tenant-scope";
 import { esConflictoDeEscritura } from "@/lib/conflicto-de-escritura";
+import { leerTenantSinTransaccion } from "@/lib/db-pool";
 
 async function resolveTenantId(): Promise<string> {
   return getTenantStore()?.tenantId ?? (await getCurrentTenantId());
+}
+
+// ── Lecturas de `Tenant` sin transacción ─────────────────────────────────────
+//
+// `Tenant` es la raíz del aislamiento: no tiene `tenantId`, no tiene RLS (excluida a propósito
+// en prisma/rls/0001_enable_rls.sql) y el candado de la app no la toca (MODELOS_SIN_TENANT).
+// Leer sus columnas propias con el GUC puesto o sin él da EXACTAMENTE lo mismo, así que la
+// transacción de cuatro viajes (BEGIN, set_config, la lectura, COMMIT) no protegía nada: era un
+// viaje útil y tres de ceremonia. Cada pantalla lee el negocio varias veces (módulos, rubro,
+// marca, interruptores), así que es la ceremonia más repetida del panel.
+//
+// Lo que NO entra acá y sigue por la transacción, porque sí depende del GUC: cualquier lectura
+// que toque OTRA tabla a través de `Tenant` — `include`, un `select` de una relación o de
+// `_count`, un filtro por relación en el `where`, `AND`/`OR`/`NOT` (no se mira adentro), un
+// `orderBy` — y cualquier escritura. Si hay una sola clave que no sea una columna propia de
+// `Tenant`, va por el camino de siempre. Probado en rls-tenant-directo.test.ts.
+
+// APAGADO por defecto: sólo `DB_TENANT_DIRECTO=on` (db-pool.ts) lo prende. Cambia el camino de
+// las consultas de TODO negocio (CH incluido) y espera el OK del dueño y un preview contra Neon.
+const TENANT_DIRECTO = leerTenantSinTransaccion(process.env);
+
+const COLUMNAS_DE_TENANT: ReadonlySet<string> = new Set(Object.values(Prisma.TenantScalarFieldEnum));
+const LECTURAS_DE_TENANT: ReadonlySet<string> = new Set([
+  "findUnique",
+  "findUniqueOrThrow",
+  "findFirst",
+  "findFirstOrThrow",
+  "findMany",
+]);
+const CLAVES_PERMITIDAS: ReadonlySet<string> = new Set(["where", "select", "omit"]);
+
+function soloColumnas(obj: unknown, valoresBooleanos: boolean): boolean {
+  if (obj === undefined) return true;
+  if (obj === null || typeof obj !== "object" || Array.isArray(obj)) return false;
+  return Object.entries(obj as Record<string, unknown>).every(
+    ([k, v]) => COLUMNAS_DE_TENANT.has(k) && (!valoresBooleanos || v === true || v === false),
+  );
+}
+
+/**
+ * ¿Esta operación es una lectura de columnas propias de `Tenant`, sin nada que dependa del GUC?
+ * PURA. Exportada para los tests.
+ */
+export function esLecturaDirectaDeTenant(model: string | undefined, operation: string, args: unknown): boolean {
+  if (model !== "Tenant" || !LECTURAS_DE_TENANT.has(operation)) return false;
+  if (args === undefined || args === null) return true;
+  if (typeof args !== "object" || Array.isArray(args)) return false;
+  const a = args as Record<string, unknown>;
+  if (!Object.keys(a).every((k) => CLAVES_PERMITIDAS.has(k))) return false;
+  return soloColumnas(a.where, false) && soloColumnas(a.select, true) && soloColumnas(a.omit, true);
 }
 
 // Cliente extendido. NO se usa directo: `@/lib/db` lo elige cuando el flag está ON.
@@ -69,6 +120,10 @@ export const rlsPrisma = basePrisma.$extends({
       }
 
       const tenantId = store?.tenantId ?? (await getCurrentTenantId());
+
+      // Lectura de columnas propias de `Tenant`: un viaje, sin transacción (ver arriba). El
+      // negocio se resuelve igual, antes: si no se puede resolver, falla como siempre.
+      if (TENANT_DIRECTO && esLecturaDirectaDeTenant(model, operation, args)) return query(args);
 
       // Op suelta → transacción interactiva sobre el cliente BASE: setear el GUC
       // como primer statement y re-despachar la MISMA operación sobre `tx` (mismo

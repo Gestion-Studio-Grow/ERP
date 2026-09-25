@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { buttonClasses } from "@/components/ui";
+import { Bloque, Renglon, buttonClasses } from "@/components/ui";
 import { dejarConstanciaDelPedido } from "./actions";
 
 export type LineaDelPedido = {
@@ -29,6 +29,7 @@ export default function PedidoProveedor({
   texto,
   waHref,
   sinTelefono,
+  renglon = false,
 }: {
   proveedorId: string | null;
   titulo: string;
@@ -39,6 +40,8 @@ export default function PedidoProveedor({
   waHref: string | null;
   /** Qué hacer si no hay teléfono (con el enlace a la ficha, si la persona la puede abrir). */
   sinTelefono: { texto: string; href: string | null } | null;
+  /** Diseño nuevo («Renglón»): el pedido como bloque de renglones, sin caja. */
+  renglon?: boolean;
 }) {
   const [copiado, setCopiado] = useState<"si" | "no" | null>(null);
   const constancia = (via: "whatsapp" | "copiado") =>
@@ -58,6 +61,75 @@ export default function PedidoProveedor({
       // queda a la vista para copiarlo a mano.
       setCopiado("no");
     }
+  }
+
+  const teclas = (
+    <>
+      {waHref && (
+        <a
+          href={waHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => constancia("whatsapp")}
+          className={`${buttonClasses("solid", "md")} min-h-11`}
+        >
+          Mandar por WhatsApp
+        </a>
+      )}
+      <button type="button" onClick={copiar} className={`${buttonClasses(waHref ? "outline" : "solid", "md")} min-h-11`}>
+        Copiar el pedido
+      </button>
+      {copiado === "si" && (
+        <span role="status" className="text-xs text-success">
+          Copiado. Pegalo en el chat del proveedor.
+        </span>
+      )}
+    </>
+  );
+  const avisos = (
+    <>
+      {copiado === "no" && (
+        <div role="alert" className="mt-2 text-xs text-danger">
+          No se pudo copiar solo. Seleccioná el texto y copialo a mano:
+          <pre className="mt-1 whitespace-pre-wrap rounded-md bg-surface-sunken p-2 text-body">{texto}</pre>
+        </div>
+      )}
+      {!waHref && sinTelefono && (
+        <p className="mt-2 text-xs text-muted">
+          {sinTelefono.texto}{" "}
+          {sinTelefono.href && (
+            <Link href={sinTelefono.href} className="inline-flex min-h-11 items-center font-medium text-accent underline underline-offset-2">
+              Cargar el teléfono
+            </Link>
+          )}
+        </p>
+      )}
+    </>
+  );
+
+  // DISEÑO NUEVO: el pedido se lee como la nota que se le manda al proveedor: un renglón por
+  // producto con lo que hay y lo que se vende, y lo que hay que pedir en la columna de la derecha
+  // (donde el ojo ya busca la cifra). Las teclas, abajo del bloque, a mano del pulgar.
+  if (renglon) {
+    return (
+      <section aria-label={`Pedido para ${titulo}`}>
+        <Bloque titulo={titulo} cuenta={lineas.length} nota={subtitulo ?? undefined}>
+          <ul data-sin-folio="">
+            {lineas.map((l) => (
+              <Renglon
+                key={l.productId}
+                as="li"
+                titulo={l.nombre}
+                detalle={`${l.hay}${l.venta ? ` · ${l.venta}` : " · sin ventas en 28 días"}`}
+                plata={<strong className="tabular-nums text-strong">pedir {l.pedir}</strong>}
+              />
+            ))}
+          </ul>
+          <div className="mt-3 flex flex-wrap items-center gap-2">{teclas}</div>
+          {avisos}
+        </Bloque>
+      </section>
+    );
   }
 
   return (
@@ -82,43 +154,8 @@ export default function PedidoProveedor({
         ))}
       </ul>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        {waHref && (
-          <a
-            href={waHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => constancia("whatsapp")}
-            className={`${buttonClasses("solid", "md")} min-h-11`}
-          >
-            Mandar por WhatsApp
-          </a>
-        )}
-        <button type="button" onClick={copiar} className={`${buttonClasses(waHref ? "outline" : "solid", "md")} min-h-11`}>
-          Copiar el pedido
-        </button>
-        {copiado === "si" && (
-          <span role="status" className="text-xs text-success">
-            Copiado. Pegalo en el chat del proveedor.
-          </span>
-        )}
-      </div>
-      {copiado === "no" && (
-        <div role="alert" className="mt-2 text-xs text-danger">
-          No se pudo copiar solo. Seleccioná el texto y copialo a mano:
-          <pre className="mt-1 whitespace-pre-wrap rounded-md bg-surface-sunken p-2 text-body">{texto}</pre>
-        </div>
-      )}
-      {!waHref && sinTelefono && (
-        <p className="mt-2 text-xs text-muted">
-          {sinTelefono.texto}{" "}
-          {sinTelefono.href && (
-            <Link href={sinTelefono.href} className="inline-flex min-h-11 items-center font-medium text-accent underline underline-offset-2">
-              Cargar el teléfono
-            </Link>
-          )}
-        </p>
-      )}
+      <div className="mt-4 flex flex-wrap items-center gap-2">{teclas}</div>
+      {avisos}
     </section>
   );
 }

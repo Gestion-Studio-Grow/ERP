@@ -175,8 +175,16 @@ export async function getCierreDiarioData(
   const tenantId = await getCurrentTenantId();
   // Del `day` que se CIERRA, no de hoy: el cierre acepta días anteriores. Se lee también con
   // el día ya cerrado —un turno que quedó abierto sigue siendo plata o una ausencia sin marcar.
-  const turnosSinCerrar =
-    opciones.conTurnosSinCerrar && (await canCurrentUser("agenda:manage")) ? await leerTurnosSinCerrar(tenantId, day) : null;
+  //
+  // No depende de la frontera ni del período, así que se lee A LA VEZ que ellos: antes era una
+  // tanda entera en serie, delante de todo (cada tanda es una ida y vuelta a la base por lo
+  // menos). Mismas consultas, mismo resultado. Se espera siempre en el `Promise.all` de abajo;
+  // el `catch` vacío sólo evita un rechazo "sin atender" si la frontera falla primero (en ese
+  // caso el error que sube es el de la frontera, y éste ya no importa).
+  const turnosSinCerrarP: Promise<TurnoSinCerrar[] | null> = opciones.conTurnosSinCerrar
+    ? canCurrentUser("agenda:manage").then((gestiona) => (gestiona ? leerTurnosSinCerrar(tenantId, day) : null))
+    : Promise.resolve(null);
+  turnosSinCerrarP.catch(() => {});
   const cerradoHasta = await lastClosedDay(tenantId);
   const yaCerrado = cerradoHasta ? compareDayKeys(day, cerradoHasta) <= 0 : false;
 
@@ -184,6 +192,7 @@ export async function getCierreDiarioData(
   // cierre, y este día ya está adentro. Calcularlo igual daba el rango invertido que vio el
   // QA ("Desde el 08/09 hasta el 07/09 — 0 movimientos") sobre el día recién cerrado.
   if (yaCerrado) {
+    const [registro, turnosSinCerrar] = await Promise.all([leerRegistro(tenantId, day), turnosSinCerrarP]);
     return {
       day,
       today,
@@ -193,7 +202,7 @@ export async function getCierreDiarioData(
       movements: [],
       yaCerrado: true,
       enElFuturo: compareDayKeys(day, today) > 0,
-      registro: await leerRegistro(tenantId, day),
+      registro,
       turnosSinCerrar,
     };
   }
@@ -205,7 +214,7 @@ export async function getCierreDiarioData(
   const start = since ? businessWallTimeToUtc(since, "00:00") : new Date(0);
   const end = endOfDayUtc(day);
 
-  const [rows, previousTotals] = await Promise.all([
+  const [rows, previousTotals, turnosSinCerrar] = await Promise.all([
     prisma.cashMovement.findMany({
       where: { tenantId, occurredAt: { gte: start, lt: end } },
       orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
@@ -224,6 +233,7 @@ export async function getCierreDiarioData(
       where: { tenantId, occurredAt: { lt: start } },
       _sum: { amount: true },
     }),
+    turnosSinCerrarP,
   ]);
 
   const previous: LibroMovement[] = previousTotals.map((g, i) => ({

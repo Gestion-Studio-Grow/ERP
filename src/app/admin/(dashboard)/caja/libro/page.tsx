@@ -35,6 +35,8 @@ import {
   fmtMoneyARS,
 } from "@/components/ui";
 import { AddLibroEntryForm, DeleteLibroEntryButton, IrACargarMovimiento } from "./LibroForms";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import LibroRenglon from "./LibroRenglon";
 
 export const dynamic = "force-dynamic";
 
@@ -83,7 +85,8 @@ export default async function LibroCajaPage({
   const { mes } = await searchParams;
   // getLibroCajaData aplica además requireCapability("orders:read"), la misma del registro.
   // Un ?mes inválido cae al mes corriente en vez de romper.
-  const { rows, summary, year, month, monthKey, posiblesDuplicados, cerradoHasta } = await getLibroCajaData(mes);
+  const [libro, nuevo] = await Promise.all([getLibroCajaData(mes), disenoNuevo()]);
+  const { rows, summary, year, month, monthKey, posiblesDuplicados, cerradoHasta } = libro;
   const duplicados = new Set(posiblesDuplicados);
 
   const prev = shiftMonth(year, month, -1);
@@ -99,6 +102,9 @@ export default async function LibroCajaPage({
   // fecha a mano, que es justo cuando la persona ya cerró y está apurada por irse.
   const defaultDate =
     cerradoHasta && isFrozenDay(enElMes, cerradoHasta) ? nextDayKey(cerradoHasta) : enElMes;
+
+  // DISEÑO NUEVO («Renglón»): el libro por días. Mismos datos, mismos formularios.
+  if (nuevo) return <LibroRenglon d={libro} defaultDate={defaultDate} hoy={today} />;
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">

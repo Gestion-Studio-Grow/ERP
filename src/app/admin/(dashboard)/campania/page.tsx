@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { requireApp } from "@/lib/require-app";
 import { fmtDateTime } from "@/lib/datetime";
-import { EmptyState } from "@/components/ui";
+import { Bloque, EmptyState, LineaDeEstado, Marca, PageHeader, Renglon, buttonClasses } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { leerAnotados } from "./anotados";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +46,78 @@ export default async function CampaniaPage() {
 
   const conDifusion = leads.filter((l) => l.aceptaDifusion).length;
   const conInstagram = leads.filter((l) => l.instagram).length;
+
+  // DISEÑO NUEVO («Renglón»): los tres números van en la línea de estado (no en tres cajas), un
+  // renglón por anotado (el último arriba) y la tecla «Escribirle» SÓLO para quien aceptó
+  // difusión: el consentimiento decide la tecla, no un párrafo al pie. La misma lectura.
+  if (await disenoNuevo()) {
+    return (
+      <main data-ui="pagina" className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+        <PageHeader
+          title="Anotados del obsequio"
+          actions={
+            <a href="/admin/campania/export" download className={buttonClasses("outline", "md")}>
+              Descargar CSV
+            </a>
+          }
+        />
+        <LineaDeEstado
+          className="-mt-2 mb-4"
+          datos={[
+            <strong key="n">{leads.length === 1 ? "1 anotado" : `${leads.length} anotados`}</strong>,
+            `${conDifusion} aceptan difusión`,
+            `${conInstagram} dejaron Instagram`,
+            "la inscripción ya cerró",
+          ]}
+        />
+        <Bloque titulo="Del último al primero" cuenta={leads.length || undefined} className="mt-6">
+          {leads.length === 0 ? (
+            <p data-ui="vacio" className="border-b border-line py-4 text-sm text-body">
+              No se anotó nadie.
+            </p>
+          ) : (
+            <ul>
+              {leads.map((l) => {
+                const wa = l.aceptaDifusion ? waLinkClienta(l.telefono) : null;
+                return (
+                  <Renglon
+                    key={l.id}
+                    as="li"
+                    folio={<span className="tabular-nums">{fmtDateTime(l.createdAt)}</span>}
+                    titulo={`${l.nombre} ${l.apellido}`}
+                    detalle={
+                      <>
+                        <a href={`tel:${l.telefono}`} className="underline underline-offset-2">
+                          {l.telefono}
+                        </a>
+                        {l.instagram && (
+                          <>
+                            {" · "}
+                            <a href={`https://instagram.com/${l.instagram}`} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                              @{l.instagram}
+                            </a>
+                          </>
+                        )}
+                        {" · "}
+                        {l.aceptaDifusion ? <Marca tipo="hecho">acepta difusión</Marca> : <Marca tipo="anulado">sin difusión</Marca>}
+                      </>
+                    }
+                    tecla={
+                      wa ? (
+                        <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "sm")}>
+                          Escribirle
+                        </a>
+                      ) : undefined
+                    }
+                  />
+                );
+              })}
+            </ul>
+          )}
+        </Bloque>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-10 flex flex-col gap-8">

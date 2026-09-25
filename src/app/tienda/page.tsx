@@ -27,6 +27,9 @@ import Storefront from "./Storefront";
 import SiteReplica from "./SiteReplica";
 import MagraFront from "./MagraFront";
 import ShineFront from "./ShineFront";
+import TiendaNueva from "./vidriera/TiendaNueva";
+import { usaVidrieraNueva } from "./vidriera/marcas";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 
 export const dynamic = "force-dynamic";
 
@@ -80,10 +83,36 @@ export async function generateMetadata(): Promise<Metadata> {
 //   nuestro). NO es un clon suelto: se sirve como la vidriera de este tenant.
 // - Si no, cae a la vidriera genérica del rubro (para clientes sin web).
 // En ambos casos, el backoffice (pedidos/POS/stock/facturación) es el mismo, detrás.
-export default async function TiendaPage() {
-  const [data, accent, identity] = await Promise.all([loadStorefront(), loadAccent(), getTenantIdentity()]);
+export default async function TiendaPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const [data, accent, identity, nuevo] = await Promise.all([loadStorefront(), loadAccent(), getTenantIdentity(), disenoNuevo()]);
   const slug = identity.slug;
   const front = editorialFrontFor(identity);
+
+  // DISEÑO NUEVO (interruptor «Diseño nuevo» del negocio, apagado = todo lo de abajo, igual que
+  // siempre). Sólo para negocios de mostrador o con marca propia: CH (servicios) no tiene tienda y
+  // sigue con lo de siempre aunque el interruptor esté prendido. Lee lo mismo que la vidriera de hoy
+  // (`getStorefront`, sin consultas nuevas); ver vidriera/TiendaNueva.tsx.
+  if (usaVidrieraNueva(nuevo, identity, front)) {
+    return (
+      <TiendaNueva
+        nombre={data.name}
+        branding={data.branding}
+        wording={identity.rubro?.wording ?? data.wording}
+        copy={data.copy}
+        productos={data.products}
+        tenantKey={slug ?? "default"}
+        front={front}
+        brandId={identity.brandId}
+        imagery={resolveTenantLayout(brandForSlug(slug)).imagery ?? null}
+        acento={accent}
+        searchParams={await searchParams}
+      />
+    );
+  }
 
   // Qué front editorial se sirve: por MARCA (identity.brandId = familia del slug), no por una
   // lista de slugs escritos a mano. Antes era `slug === "magra" || slug === "magra-demo"`: con

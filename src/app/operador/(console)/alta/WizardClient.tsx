@@ -27,7 +27,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Card, Field, Input, Select, Button, Badge, buttonClasses } from "@/components/ui";
-import { BootstrapReveal } from "@/components/BootstrapReveal";
+import { RevelarClave } from "../RevelarClave";
 import { planTenantAction, commitTenantAction } from "@/lib/operator-provisioning-actions";
 import { revisarAltaEnRedAction, sumarAltaALaRedAction, type RevisionAltaEnRed } from "@/lib/operador/red-locales-actions";
 import type { ResultadoAltaEnRed } from "@/lib/multilocal/multilocal-core";
@@ -52,7 +52,7 @@ export interface WizardData {
   altaEnRedDisponible: boolean;
 }
 
-const STEPS = ["Negocio", "Rubro", "¿De qué red?", "Módulos", "Marca + link", "Revisar"] as const;
+const STEPS = ["Negocio", "Rubro", "¿De qué red?", "Módulos", "Marca y link", "Revisar"] as const;
 
 /** Lo que se carga en el paso "¿De qué red?". Sin casa = local suelto, como siempre. */
 type DatosRed = { casaId: string; alias: string; cuit: string; puntoVenta: string };
@@ -275,21 +275,21 @@ export function AltaWizard({ data }: { data: WizardData }) {
 
             <div className="flex items-center justify-between gap-3">
               <Button variant="ghost" size="sm" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
-                ← Atrás
+                Atrás
               </Button>
               {step < STEPS.length - 1 ? (
                 <Button onClick={() => setStep((s) => s + 1)} disabled={!canAdvance}>
-                  Siguiente →
+                  Siguiente
                 </Button>
               ) : (
                 <Button onClick={onCommit} disabled={!canCommit}>
-                  {committing ? "Creando…" : "Crear tenant"}
+                  {committing ? "Dando de alta…" : "Dar de alta el negocio"}
                 </Button>
               )}
             </div>
             {!canCommit && step === STEPS.length - 1 && !result && !step1Ok && (
               <p className="text-xs text-danger" role="alert">
-                Falta elegir el <b>rubro</b> (paso 2). Sin rubro el negocio nace con blueprint de servicios.
+                Falta elegir el <b>rubro</b> (paso 2). Sin rubro el negocio nace como uno de servicios.
               </p>
             )}
             {!canCommit && step === STEPS.length - 1 && !result && step1Ok && plan && !plan.ok && (
@@ -385,7 +385,7 @@ function StepNegocio({
         <Field label="Nombre del negocio" required htmlFor="w-name">
           <Input id="w-name" value={form.name ?? ""} onChange={(e) => onNameChange(e.target.value)} placeholder="Estética Norte" />
         </Field>
-        <Field label="Slug (URL-safe, único)" required htmlFor="w-slug" hint="minúsculas, números y guiones">
+        <Field label="Nombre corto (único)" required htmlFor="w-slug" hint="Minúsculas, números y guiones. Identifica al negocio en la consola.">
           <Input
             id="w-slug"
             value={form.slug ?? ""}
@@ -396,10 +396,10 @@ function StepNegocio({
             <Availability pending={planPending} error={msg("slug-invalid") ?? msg("slug-taken")} ok={!has("slug-invalid") && !has("slug-taken") && Boolean(plan)} okLabel="disponible" />
           )}
         </Field>
-        <Field label="Nombre del dueño (OWNER)" htmlFor="w-owner">
+        <Field label="Nombre del dueño" htmlFor="w-owner">
           <Input id="w-owner" value={form.ownerName ?? ""} onChange={(e) => set({ ownerName: e.target.value })} placeholder="Ana Ruiz" />
         </Field>
-        <Field label="Email del dueño (login)" required htmlFor="w-email">
+        <Field label="Email del dueño (con el que entra)" required htmlFor="w-email">
           <Input id="w-email" type="email" value={form.ownerEmail ?? ""} onChange={(e) => set({ ownerEmail: e.target.value })} placeholder="ana@estetica-norte.com" />
           {emailFilled && <Availability pending={planPending} error={msg("email-invalid")} ok={!has("email-invalid") && Boolean(plan)} okLabel="formato válido" />}
         </Field>
@@ -418,16 +418,15 @@ function StepRubro({
     <Card className="p-5 space-y-4">
       <h2 className="font-medium">Rubro del negocio</h2>
       <p className="text-sm text-muted">
-        Define con qué nace el local: catálogo, wording de la vidriera y pantallas. <b>Es obligatorio</b>{" "}
-        — ver más abajo por qué no se puede pasar de largo.
+        Define con qué nace el local: su catálogo de ejemplo, las palabras de su vidriera y sus pantallas. <b>Es obligatorio.</b>
       </p>
       <div className="grid md:grid-cols-2 gap-4">
-        <Field label="Rubro (texto libre)" htmlFor="w-rubro" hint="Se resuelve al blueprint del rubro, o al comodín genérico.">
+        <Field label="Rubro, en palabras" htmlFor="w-rubro" hint="Se busca el rubro que corresponde; si no hay, el genérico.">
           <Input id="w-rubro" value={form.rubro ?? ""} onChange={(e) => set({ rubro: e.target.value })} placeholder="p. ej. ferretería, spa, carnicería…" />
         </Field>
-        <Field label="…o blueprint explícito" htmlFor="w-bp" hint="Si lo elegís, tiene prioridad sobre el rubro.">
+        <Field label="…o elegilo de la lista" htmlFor="w-bp" hint="Si lo elegís, manda sobre lo escrito.">
           <Select id="w-bp" value={form.blueprint ?? ""} onChange={(e) => set({ blueprint: e.target.value })}>
-            <option value="">(según rubro / default)</option>
+            <option value="">Según lo escrito</option>
             {data.blueprintGroups.map((g) => (
               <optgroup key={g.family} label={g.family}>
                 {g.items.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
@@ -440,7 +439,7 @@ function StepRubro({
       {/* Resolución EN VIVO del blueprint (resuelve P3). */}
       {plan && elegido && (
         <div className="rounded-md bg-info-soft text-info text-sm px-3 py-2">
-          Se crea como: <b>{plan.blueprint.label}</b> <span className="opacity-80">— {plan.blueprint.note}</span>
+          Nace como: <b>{plan.blueprint.label}</b> <span className="opacity-80">· {plan.blueprint.note}</span>
         </div>
       )}
 
@@ -451,9 +450,9 @@ function StepRubro({
           cambiar cómodamente después: manda el catálogo semilla y el wording de la vidriera. */}
       {!elegido && (
         <div className="rounded-md bg-warning-soft text-warning text-sm px-3 py-2" role="alert">
-          <b>Elegí el rubro para seguir.</b> Si se pasa de largo, el negocio nace con el blueprint de{" "}
-          <b>servicios</b> (agenda de turnos, lista de espera, catálogo de servicios) — aunque sea una
-          carnicería. Corregirlo después es rehacer el alta.
+          <b>Elegí el rubro para seguir.</b> Si se pasa de largo, el negocio nace como uno de <b>servicios</b>{" "}
+          (agenda de turnos, lista de espera, catálogo de servicios), aunque sea una carnicería. Corregirlo después es
+          rehacer el alta.
         </div>
       )}
 
@@ -587,7 +586,7 @@ function PanelDeLaRed({
       <Link href={`/operador/tenants/${encodeURIComponent(localId)}`} className={buttonClasses("outline", "md")}>
         Abrir la ficha del local
       </Link>
-      <Link href={`/operador/tenants/${encodeURIComponent(casaId)}#red`} className={buttonClasses("outline", "md")}>
+      <Link href={`/operador/tenants/${encodeURIComponent(casaId)}?pestana=plan#red`} className={buttonClasses("outline", "md")}>
         Abrir la red de {casa}
       </Link>
     </div>
@@ -673,14 +672,13 @@ function StepModulos({ plan, data, planPending }: { plan: ProvisionPlan | null; 
   const baseMods = modules;
   return (
     <Card className="p-5 space-y-4">
-      <h2 className="font-medium">Módulos que se activan</h2>
+      <h2 className="font-medium">Módulos que trae</h2>
       <p className="text-sm text-muted">
-        Derivados del <b>rubro</b> (motor de la fábrica, ADR-074). Son los que quedan guardados en el
-        tenant; hoy el menú real se decide por rubro, así que esta lista es la referencia de lo que
-        contrata el local, no un interruptor de pantallas.
+        Salen del <b>rubro</b>. Quedan guardados en el negocio: mientras no trabaje por apps, sus pantallas las
+        decide el rubro, así que esta lista es lo que contrata el local, no un interruptor de pantallas.
       </p>
       {planPending && modules.length === 0 ? (
-        <p className="text-sm text-muted">Calculando el set…</p>
+        <p className="text-sm text-muted">Calculando…</p>
       ) : (
         <div className="space-y-4">
           <div>
@@ -717,8 +715,8 @@ function StepMarca({
     <Card className="p-5 space-y-5">
       <h2 className="font-medium">Marca y link</h2>
 
-      <Field label="Acento de marca" htmlFor="w-accent">
-        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Acento de marca">
+      <Field label="Color de la marca" htmlFor="w-accent">
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Color de la marca">
           {data.accents.map((a) => {
             const on = form.accentPreset === a.id;
             return (
@@ -754,10 +752,10 @@ function StepMarca({
       {/* Preview del monograma con el acento (resuelve P5). */}
       <div className="flex items-center gap-3">
         <span className="grid size-12 place-items-center rounded-lg font-semibold" style={{ background: bg, color: fg }}>{monogram}</span>
-        <span className="text-sm text-muted">Así se ve el acento sobre el tema elegido.</span>
+        <span className="text-sm text-muted">Así se ve el color sobre el tema elegido.</span>
       </div>
 
-      <Field label="Subdominio / link propio" htmlFor="w-sub" hint="Su URL propia. Único. Opcional.">
+      <Field label="Link propio (subdominio)" htmlFor="w-sub" hint="Su dirección en internet. Única. Opcional.">
         <Input id="w-sub" value={form.subdomain ?? ""} onChange={(e) => set({ subdomain: e.target.value })} placeholder="estetica-norte" />
         {subFilled && (
           <Availability pending={planPending} error={msg("host-invalid") ?? msg("host-taken")} ok={!has("host-invalid") && !has("host-taken")} okLabel="disponible" />
@@ -796,23 +794,23 @@ function StepRevisar({
 }) {
   return (
     <Card className="p-5 space-y-4">
-      <h2 className="font-medium">Revisar y crear</h2>
+      <h2 className="font-medium">Revisar y dar de alta</h2>
 
       {isSecondTenant && (
         <div className="rounded-md bg-warning-soft text-warning text-sm px-3 py-2" role="alert">
-          ⚠️ Este sería el <b>2º tenant</b>. El gate RLS de ADR-018 bloquea el alta hasta activar el
-          aislamiento por fila en Postgres. Si RLS no está activo, el commit se abortará con un error explícito.
+          Con más de un negocio en la base, el alta exige el aislamiento entre negocios prendido. Si no lo está, el
+          alta se frena con un error que lo dice, y no se escribe nada.
         </div>
       )}
 
       <div className="rounded-md border border-line p-4">
         <Row k="Negocio" v={form.name || "—"} />
-        <Row k="Slug" v={`/${form.slug || "—"}`} />
+        <Row k="Nombre corto" v={form.slug || "—"} />
         <Row k="Dueño" v={form.ownerEmail || "—"} />
-        <Row k="Blueprint" v={plan ? `${plan.blueprint.label}` : "—"} />
+        <Row k="Rubro" v={plan ? `${plan.blueprint.label}` : "—"} />
         <Row k="Módulos" v={`${plan?.modules.length ?? 0} activos`} />
-        <Row k="Acento / tema" v={`${form.accentPreset || "default"} · ${form.frontTheme === "dark" ? "oscuro" : "claro"}`} />
-        <Row k="Link" v={form.subdomain ? `/${form.subdomain}` : "sin subdominio"} />
+        <Row k="Color y tema" v={`${form.accentPreset || "el del rubro"} · ${form.frontTheme === "dark" ? "oscuro" : "claro"}`} />
+        <Row k="Link" v={form.subdomain ? form.subdomain : "sin link propio"} />
         <Row
           k="Red"
           v={
@@ -834,10 +832,10 @@ function StepRevisar({
 
       {plan && plan.objects.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-muted mb-2">Se crearían</p>
+          <p className="text-xs font-medium text-muted mb-2">Se va a crear</p>
           <ul className="text-sm space-y-1">
             {plan.objects.map((o, i) => (
-              <li key={i} className="flex gap-2"><span className="text-success">＋</span><span>{o.label}<span className="text-muted"> — {o.detail}</span></span></li>
+              <li key={i} className="flex gap-2"><span className="text-success" aria-hidden>+</span><span>{o.label}<span className="text-muted"> · {o.detail}</span></span></li>
             ))}
           </ul>
         </div>
@@ -890,7 +888,7 @@ function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantI
     // Bloqueado antes de escribir (colisiones / gate RLS de ADR-018).
     return (
       <Card className="p-5 space-y-3">
-        <h2 className="font-medium text-danger">No se pudo crear el tenant</h2>
+        <h2 className="font-medium text-danger">No se pudo dar de alta el negocio</h2>
         <p className="text-sm text-danger whitespace-pre-wrap" role="alert">{result.error}</p>
         <p className="text-sm text-muted">No se escribió nada. Corregí lo indicado y volvé a intentar.</p>
       </Card>
@@ -900,24 +898,19 @@ function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantI
   const state = outcome?.state ?? "PENDING";
   return (
     <Card className="p-5 space-y-4">
-      <h2 className="font-medium">{result.ok ? "Tenant creado" : "Alta con compensación"}</h2>
+      <h2 className="font-medium">{result.ok ? "Negocio dado de alta" : "El alta se deshizo a medias"}</h2>
       <SagaStepper state={state} />
 
       {state === "FAILED_COMPENSATED" && outcome?.failure && (
         <div className="rounded-md bg-warning-soft text-warning text-sm px-3 py-2" role="alert">
           Falló en <b>{outcome.failure.atState}</b>: {outcome.failure.reason}.
           {outcome.failure.compensated.length > 0 && <> Se compensó: {outcome.failure.compensated.join(", ")}.</>}
-          <span className="block mt-1">Los datos del tenant NO se borraron (aditivo/idempotente): reintentar es seguro.</span>
+          <span className="block mt-1">Lo que se alcanzó a crear no se borró y reintentar no lo duplica: es seguro volver a probar.</span>
         </div>
       )}
 
-      {/* Entrega segura del bootstrap (P10): fuera de la URL, copiar al portapapeles, se muestra una vez. */}
-      {result.generatedPassword && (
-        <BootstrapReveal
-          password={result.generatedPassword}
-          label={<>Contraseña de bootstrap del OWNER (se muestra <b>una sola vez</b>, comunicala por canal seguro):</>}
-        />
-      )}
+      {/* La contraseña del dueño: fuera de la URL, se copia, se muestra una sola vez. */}
+      {result.generatedPassword && <RevelarClave clave={result.generatedPassword} para="el dueño" />}
 
       {/* Lo que la saga NO hizo. Va acá, pegado al resultado, porque es el único momento en que el
           operador tiene el alta fresca: después se olvida y el local abre sin link y sin aviso. */}
@@ -926,12 +919,12 @@ function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantI
           <p className="font-medium">Falta hacer a mano (el alta no lo hace):</p>
           <ul className="mt-1 space-y-0.5 text-xs">
             <li>
-              • <b>Ligar el link:</b> el subdominio queda guardado en el tenant, pero apuntar el
-              dominio en Vercel/DNS es manual.
+              • <b>Ligar el link:</b> el subdominio queda guardado en el negocio, pero apuntar el
+              dominio es manual.
             </li>
             <li>
               • <b>Avisarle al dueño:</b> no se envía ningún mail. Pasale por canal seguro la
-              contraseña de acá arriba (o generá una nueva en la ficha, “Contraseña del OWNER”).
+              contraseña de acá arriba (o generá una nueva en su ficha, pestaña Personas).
             </li>
             <li>
               • <b>Datos fiscales y de contacto:</b> CUIT, punto de venta de ARCA, dirección real e
@@ -943,7 +936,7 @@ function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantI
 
       {tenantId && (
         <Link href={`/operador/tenants/${tenantId}`} className="inline-block">
-          <Button variant="outline" size="sm">Ir a la ficha del tenant →</Button>
+          <Button variant="outline" size="sm">Ir a la ficha del negocio</Button>
         </Link>
       )}
     </Card>
@@ -966,7 +959,7 @@ function PreviewPanel({
     <aside className="lg:sticky lg:top-6">
       <Card className="p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-medium text-muted uppercase tracking-wide">Vista previa del tenant</p>
+          <p className="text-xs font-medium text-muted uppercase tracking-wide">Así va a quedar</p>
           {planPending && <span className="text-xs text-muted">actualizando…</span>}
         </div>
 
@@ -974,7 +967,7 @@ function PreviewPanel({
           <span className="grid size-11 place-items-center rounded-lg font-semibold shrink-0" style={{ background: bg, color: fg }}>{monogram}</span>
           <div className="min-w-0">
             <p className="font-medium truncate">{form.name || "Nombre del negocio"}</p>
-            <p className="text-xs text-muted truncate">/{form.slug || "slug"}</p>
+            <p className="text-xs text-muted truncate">{form.slug || "nombre-corto"}</p>
           </div>
         </div>
 
@@ -996,7 +989,7 @@ function PreviewPanel({
           </div>
         )}
 
-        {form.subdomain && <p className="text-xs text-muted">🔗 /{form.subdomain}</p>}
+        {form.subdomain && <p className="text-xs text-muted">Link: {form.subdomain}</p>}
 
         {plan && plan.collisions.length > 0 && (
           <div className="text-xs text-danger space-y-0.5" role="alert">

@@ -1,0 +1,9 @@
+OK   CH (apagado) · entrar (1740 ms) llegó a /admin
+FALLA CH (apagado) · /admin con la vista de siempre (1460 ms) tiene la piel nueva con el interruptor apagado
+FALLA CH (apagado) · /admin/turnos con la vista de siempre (1541 ms) tiene la piel nueva con el interruptor apagado
+FALLA CH (apagado) · /admin/turnos/lista?nuevo=1 con la vista de siempre (1901 ms) tiene la piel nueva con el interruptor apagado
+FALLA CH (apagado) · /admin/caja/cierre con la vista de siempre (1369 ms) tiene la piel nueva con el interruptor apagado
+FALLA CH (apagado) · /admin/clientes con la vista de siempre (1738 ms) tiene la piel nueva con el interruptor apagado
+FALLA CH (apagado) · F1 no hace nada nuevo (3055 ms) F1 navegó a http://chestetica.localhost:3210/admin/turnos/lista?nuevo=1
+
+ch-off 390: 1/7 pasos OK · errores de consola 0 · callejones 0

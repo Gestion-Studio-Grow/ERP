@@ -12,8 +12,10 @@ import { requireApp } from "@/lib/require-app";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getCommissionsOverview } from "@/lib/commission-actions";
 import { totalALiquidar } from "@/lib/reports/comisiones";
-import { PageHeader, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
+import { LineaDeEstado, PageHeader, Plata, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import ComisionesPendientes from "./ComisionesPendientes";
+import ComisionesRenglon from "./ComisionesRenglon";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +28,43 @@ const ESTADOS: Record<string, { texto: string; ok: boolean }> = {
 
 export default async function ComisionesPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const user = await requireApp("comisiones");
-  const { status } = await searchParams;
-  const overview = await getCommissionsOverview();
+  const [{ status }, overview, nuevo] = await Promise.all([searchParams, getCommissionsOverview(), disenoNuevo()]);
   const total = totalALiquidar(overview.pending);
   const canSettle = roleHasCapability(user.role, "commissions:manage");
   const banner = status ? ESTADOS[status] : undefined;
+  const aviso = banner && (
+    <p
+      role="status"
+      className={`mb-6 rounded-md px-3 py-2 text-sm ${banner.ok ? "bg-success-soft text-success" : "bg-danger-soft text-danger"}`}
+    >
+      {banner.texto}
+    </p>
+  );
+
+  // DISEÑO NUEVO («Renglón»): el total a liquidar en la línea de estado (no en una tarjeta con un
+  // número grande), un renglón por profesional con «Pagar» y el historial abajo. Los mismos datos
+  // y la misma acción. Apagado, lo de abajo tal cual.
+  if (nuevo) {
+    return (
+      <main data-ui="pagina" className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+        <PageHeader title="Comisiones" />
+        <LineaDeEstado
+          className="-mt-2 mb-4"
+          datos={[
+            <strong key="t">
+              <Plata valor={total.monto} sinCentavos /> a liquidar
+            </strong>,
+            total.profesionales > 0
+              ? `a ${fmtNumberAR(total.profesionales)} ${total.profesionales === 1 ? "profesional" : "profesionales"}`
+              : null,
+            "un turno con saldo sin cobrar espera hasta que se salde",
+          ]}
+        />
+        {aviso}
+        <ComisionesRenglon overview={overview} canSettle={canSettle} volver="/admin/comisiones" />
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8">

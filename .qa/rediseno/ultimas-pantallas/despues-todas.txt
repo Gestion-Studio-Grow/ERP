@@ -1,0 +1,49 @@
+magra_apariencia 390 status=200 diseno=renglon h1="Apariencia" primer=139 sx=0 chicos(0)=
+magra_apariencia 1440 status=200 diseno=renglon h1="Apariencia" primer=186 sx=0
+magra_apariencia 360 status=200 diseno=renglon h1="Apariencia" primer=161 sx=0
+magra_auditoria 390 status=200 diseno=renglon h1="Auditoría" primer=139 sx=0 chicos(0)=
+magra_auditoria 1440 status=200 diseno=renglon h1="Auditoría" primer=186 sx=0
+magra_auditoria 360 status=200 diseno=renglon h1="Auditoría" primer=161 sx=0
+magra_despiece 390 status=200 diseno=renglon h1="Despiece" primer=null sx=0 chicos(0)=
+magra_despiece 1440 status=200 diseno=renglon h1="Despiece" primer=null sx=0
+magra_despiece 360 status=200 diseno=renglon h1="Despiece" primer=null sx=0
+magra_devoluciones-proveedor 390 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=113 sx=0 chicos(0)=
+magra_devoluciones-proveedor 1440 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=189 sx=0
+magra_devoluciones-proveedor 360 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=113 sx=0
+magra_facturacion-bancos-configuracion 390 status=200 diseno=renglon h1="Reglas para facturar solo" primer=209 sx=0 chicos(0)=
+magra_facturacion-bancos-configuracion 1440 status=200 diseno=renglon h1="Reglas para facturar solo" primer=222 sx=0
+magra_facturacion-bancos-configuracion 360 status=200 diseno=renglon h1="Reglas para facturar solo" primer=209 sx=0
+magra_localizacion 390 status=200 diseno=renglon h1="Datos del negocio" primer=139 sx=0 chicos(0)=
+magra_localizacion 1440 status=200 diseno=renglon h1="Datos del negocio" primer=186 sx=0
+magra_localizacion 360 status=200 diseno=renglon h1="Datos del negocio" primer=161 sx=0
+magra_lotes 390 status=200 diseno=renglon h1="Lotes y vencimientos" primer=null sx=0 chicos(0)=
+magra_lotes 1440 status=200 diseno=renglon h1="Lotes y vencimientos" primer=null sx=0
+magra_lotes 360 status=200 diseno=renglon h1="Lotes y vencimientos" primer=null sx=0
+magra_reportes-margen 390 status=200 diseno=renglon h1="Margen" primer=161 sx=0 chicos(0)=
+magra_reportes-margen 1440 status=200 diseno=renglon h1="Margen" primer=186 sx=0
+magra_reportes-margen 360 status=200 diseno=renglon h1="Margen" primer=161 sx=0
+chestetica_apariencia 390 status=200 diseno=renglon h1="Apariencia" primer=161 sx=0 chicos(0)=
+chestetica_apariencia 1440 status=200 diseno=renglon h1="Apariencia" primer=186 sx=0
+chestetica_apariencia 360 status=200 diseno=renglon h1="Apariencia" primer=161 sx=0
+chestetica_auditoria 390 status=200 diseno=renglon h1="Auditoría" primer=139 sx=0 chicos(0)=
+chestetica_auditoria 1440 status=200 diseno=renglon h1="Auditoría" primer=186 sx=0
+chestetica_auditoria 360 status=200 diseno=renglon h1="Auditoría" primer=161 sx=0
+chestetica_despiece 390 status=200 diseno=renglon h1="Despiece no está disponible" primer=113 sx=0 chicos(0)=
+chestetica_despiece 1440 status=200 diseno=renglon h1="Despiece no está disponible" primer=189 sx=0
+chestetica_despiece 360 status=200 diseno=renglon h1="Despiece no está disponible" primer=113 sx=0
+chestetica_devoluciones-proveedor 390 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=113 sx=0 chicos(0)=
+chestetica_devoluciones-proveedor 1440 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=189 sx=0
+chestetica_devoluciones-proveedor 360 status=200 diseno=renglon h1="Devoluciones a proveedor no está disponible" primer=113 sx=0
+chestetica_facturacion-bancos-configuracion 390 status=200 diseno=renglon h1="Reglas para facturar solo" primer=209 sx=0 chicos(0)=
+chestetica_facturacion-bancos-configuracion 1440 status=200 diseno=renglon h1="Reglas para facturar solo" primer=222 sx=0
+chestetica_facturacion-bancos-configuracion 360 status=200 diseno=renglon h1="Reglas para facturar solo" primer=209 sx=0
+chestetica_localizacion 390 status=200 diseno=renglon h1="Datos del negocio" primer=139 sx=0 chicos(0)=
+chestetica_localizacion 1440 status=200 diseno=renglon h1="Datos del negocio" primer=186 sx=0
+chestetica_localizacion 360 status=200 diseno=renglon h1="Datos del negocio" primer=161 sx=0
+chestetica_lotes 390 status=200 diseno=renglon h1="Lotes y vencimientos no está disponible" primer=113 sx=0 chicos(0)=
+chestetica_lotes 1440 status=200 diseno=renglon h1="Lotes y vencimientos no está disponible" primer=189 sx=0
+chestetica_lotes 360 status=200 diseno=renglon h1="Lotes y vencimientos no está disponible" primer=113 sx=0
+chestetica_reportes-margen 390 status=200 diseno=renglon h1="Margen" primer=139 sx=0 chicos(0)=
+chestetica_reportes-margen 1440 status=200 diseno=renglon h1="Margen" primer=186 sx=0
+chestetica_reportes-margen 360 status=200 diseno=renglon h1="Margen" primer=139 sx=0
+pantallas con errores de consola: 0

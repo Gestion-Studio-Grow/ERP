@@ -10,6 +10,8 @@ import { requireApp } from "@/lib/require-app";
 import EditarClienteForm from "./EditarClienteForm";
 import FichaUnica from "./FichaUnica";
 import { enInicioPorApps } from "../../inicio/piloto";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import FichaRenglon from "./FichaRenglon";
 
 // "Reservado", igual que la agenda (CalendarGrid, lista): la ficha decía "Pendiente de pago"
 // para el mismo estado, y el estado del turno no habla de plata (la seña se cobra al reservar).
@@ -27,7 +29,10 @@ export default async function ClienteDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireApp("clientes");
-  const { id } = await params;
+  const [{ id }, nuevo] = await Promise.all([params, disenoNuevo()]);
+  // DISEÑO NUEVO («Renglón»): la ficha como ciclo de vida (FichaRenglon.tsx), con los datos y las
+  // guardias de la ficha única. Apagado (CH hoy), lo de abajo tal cual.
+  if (nuevo) return <FichaRenglon id={id} user={user} />;
   // En el Inicio por apps, la ficha única (próximo turno, lo que debe, faltazos, pedidos, fiado,
   // cumpleaños y permiso de mensajes). CH, fuera del piloto, sigue con la ficha de siempre.
   if (await enInicioPorApps()) return <FichaUnica id={id} user={user} />;

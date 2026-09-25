@@ -1,56 +1,73 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { requireOperator } from "@/lib/operator-session";
+import { Suspense } from "react";
+import { getSesionOperador, requireOperator } from "@/lib/operator-session";
 import { operatorLogout } from "@/lib/operator-actions";
 import { cockpitNavEnabled } from "@/lib/cockpit/flag";
-import { Button } from "@/components/ui";
+import { PIEL_RENGLON } from "@/lib/diseno/diseno";
+import { ConDiseno } from "@/lib/diseno/ConDiseno";
+import AdminThemeScript from "@/app/admin/AdminThemeScript";
+import CabeceraConsola, { CapsulaConsola } from "./CabeceraConsola";
 
-// Control-plane: título propio (no "CH Estética…" heredado) y sin indexar.
+// Consola GSG: título propio (no "CH Estética…" heredado) y sin indexar.
 // `generator` es el sello GSG invisible en el <head> (verificable en el HTML,
-// ADR-043/estandar-marca-gsg.md) — el crédito visible va discreto en el footer.
+// ADR-043/estandar-marca-gsg.md) — el crédito visible va discreto al pie.
 export const metadata: Metadata = {
-  title: "Consola · Control-plane",
+  title: "Consola GSG",
   generator: "Gestión Studio Grow",
   robots: { index: false, follow: false },
 };
 
-// Shell del plano de operador. Guard duro (requireOperator) además del portón del
-// proxy. Look deliberadamente distinto al backoffice del tenant: esto es "nosotros
-// operando la plataforma", no un negocio (ADR-021: dos superficies, dos audiencias).
+// Armazón de la consola. Guardia dura (requireOperator) además del portón del proxy; cada página
+// repite la suya (el layout no se vuelve a ejecutar al navegar del lado del cliente).
+//
+// DISEÑO NUEVO SIEMPRE: la consola la usa sólo GSG, así que la piel «Renglón» va prendida sin
+// interruptor (no hay negocio de quien leerlo). Sin color de negocio: el acento cae al carbónico de
+// GSG (el respaldo de la piel). El tema es el de la persona (claro u oscuro, AdminThemeScript +
+// el interruptor de su menú): la consola ya no es una «sala de control» oscura fija.
+//
+// La misma anatomía que el panel: cabecera de dos renglones en la PC, barra arriba y cápsula abajo
+// en el celular (CabeceraConsola.tsx). Palabras de mostrador: «Negocios», no «Tenants».
 export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
   await requireOperator();
+  const sesion = await getSesionOperador();
+  const conTablero = cockpitNavEnabled();
 
-  // Skin Fable en OSCURO fijo (grafito): la consola es nuestra, sin tenant → el
-  // acento cae al azul del mockup (fallback del skin). Sin toggle acá a propósito:
-  // control-plane, siempre "sala de control".
+  const salir = (
+    <form action={operatorLogout}>
+      <button type="submit" data-parte="opcion">
+        Salir de la consola
+      </button>
+    </form>
+  );
+
   return (
-    <div className="min-h-screen bg-surface text-strong" data-skin="fable" data-theme="dark">
-      <header className="border-b border-line bg-elevated">
-        <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link href="/operador" className="font-semibold tracking-tight">
-              ◆ Control-plane
-            </Link>
-            <nav className="flex items-center gap-4 text-sm text-muted">
-              <Link href="/operador" className="hover:text-strong">Tenants</Link>
-              <Link href="/operador/alta" className="hover:text-strong">Alta de tenant</Link>
-              {cockpitNavEnabled() && (
-                <Link href="/operador/cockpit" className="hover:text-strong">Cockpit</Link>
-              )}
-              <Link href="/operador/direccion" className="hover:text-strong">GSG Lab · Dirección</Link>
-            </nav>
+    <div data-skin="fable" data-diseno={PIEL_RENGLON} data-theme="light" suppressHydrationWarning className="min-h-screen">
+      {/* Corrige el tema antes del primer paint (lo elegido a mano, o el del sistema). */}
+      <AdminThemeScript nuevo />
+      <ConDiseno nuevo>
+        <div data-ui="armazon">
+          <Suspense fallback={null}>
+            <CabeceraConsola
+              operador={sesion?.nombre ?? "GSG"}
+              esDuenio={sesion?.esDuenio ?? false}
+              conTablero={conTablero}
+              salir={salir}
+            />
+          </Suspense>
+          <div id="contenido" tabIndex={-1} data-parte="contenido">
+            {/* La página: ancho completo hasta 1400 px, márgenes de 16/24 px (la piel). Cada pantalla
+                de la consola pone sólo su contenido. */}
+            <main data-ui="pagina" className="mx-auto w-full">
+              {children}
+            </main>
+            {/* Sello de GSG, discreto: ADR-043/estandar-marca-gsg.md. */}
+            <p className="mx-auto max-w-[87.5rem] px-4 pb-6 text-xs text-muted lg:px-6">Hecho por Gestión Studio Grow</p>
           </div>
-          <form action={operatorLogout}>
-            <Button type="submit" variant="ghost" size="sm">Salir</Button>
-          </form>
+          <Suspense fallback={null}>
+            <CapsulaConsola conTablero={conTablero} />
+          </Suspense>
         </div>
-      </header>
-      <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
-      {/* Sello de marca GSG — crédito discreto en el footer del backoffice, no
-          visible en la vidriera del tenant (ADR-043/estandar-marca-gsg.md). */}
-      <footer className="mx-auto max-w-6xl px-6 pb-6">
-        <p className="text-xs text-muted">Hecho por Gestión Studio Grow</p>
-      </footer>
+      </ConDiseno>
     </div>
   );
 }

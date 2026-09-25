@@ -3,9 +3,21 @@ import { requireApp } from "@/lib/require-app";
 import { prisma } from "@/lib/prisma";
 import { roleHasCapability } from "@/lib/capabilities";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
-import { EmptyState, PageHeader, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import {
+  Bloque,
+  EmptyState,
+  LineaDeEstado,
+  PageHeader,
+  buttonClasses,
+  fmtMoneyARS,
+} from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { cargarBandeja } from "@/lib/crm/lecturas";
-import { contextoCrm, nombreDelNegocio, urlDelSitio } from "@/lib/crm/cargas.server";
+import {
+  contextoCrm,
+  nombreDelNegocio,
+  urlDelSitio,
+} from "@/lib/crm/cargas.server";
 import { textoContacto } from "@/lib/crm/textos";
 import { CRM_REGLAS } from "@/lib/crm/reglas";
 import { appPermitida } from "@/apps/visibles";
@@ -26,11 +38,12 @@ export const dynamic = "force-dynamic";
 export default async function ParaContactarHoyPage() {
   const user = await requireApp("para-contactar-hoy");
   const c = await contextoCrm();
-  const [{ bandeja }, negocio, sitio, apps] = await Promise.all([
+  const [{ bandeja }, negocio, sitio, apps, nuevo] = await Promise.all([
     cargarBandeja(prisma, c),
     nombreDelNegocio(),
     urlDelSitio(),
     getNegocioApps(user.role),
+    disenoNuevo(),
   ]);
   // El botón del estado vacío lleva a "Por recuperar" sólo si esta persona la puede abrir: si no,
   // sería un callejón que termina en "App no disponible".
@@ -46,7 +59,10 @@ export default async function ParaContactarHoyPage() {
         negocio,
         servicio: f.servicio,
         diasParaCumple: f.diasParaCumple,
-        linkResena: f.appointmentId && sitio ? `${sitio}/reserva/turno/${f.appointmentId}` : null,
+        linkResena:
+          f.appointmentId && sitio
+            ? `${sitio}/reserva/turno/${f.appointmentId}`
+            : null,
       },
       c.rubro,
     );
@@ -62,19 +78,116 @@ export default async function ParaContactarHoyPage() {
         motivo: f.motivo,
         explicacion: f.explicacion,
         wa,
-        valor: verPlata && recuperar && f.valorAnual > 0 ? `${fmtMoneyARS(f.valorAnual, 0)} por año` : null,
+        valor:
+          verPlata && recuperar && f.valorAnual > 0
+            ? `${fmtMoneyARS(f.valorAnual, 0)} por año`
+            : null,
       },
     ];
   });
 
   const ex = bandeja.excluidas;
   const fuera = [
-    ex.contactoReciente && `${ex.contactoReciente} contactadas hace menos de ${CRM_REGLAS.contactoRecienteDias} días`,
+    ex.contactoReciente &&
+      `${ex.contactoReciente} contactadas hace menos de ${CRM_REGLAS.contactoRecienteDias} días`,
     ex.conTurno && `${ex.conTurno} con turno reservado`,
-    ex.baja && `${ex.baja} ${ex.baja === 1 ? "pidió" : "pidieron"} no recibir mensajes`,
+    ex.baja &&
+      `${ex.baja} ${ex.baja === 1 ? "pidió" : "pidieron"} no recibir mensajes`,
     ex.sinCelular && `${ex.sinCelular} sin un celular válido en la ficha`,
   ].filter(Boolean);
   const topeCumplido = bandeja.contactadasHoy >= bandeja.tope;
+
+  // DISEÑO NUEVO («Renglón»): la cuenta del día en la línea de estado, un renglón por persona con
+  // su motivo y la tecla WhatsApp (que deja la constancia, como siempre). «Cómo se arma esta
+  // lista» queda plegado al pie. Las mismas filas y la misma acción. Apagado, lo de abajo tal cual.
+  if (nuevo) {
+    return (
+      <main
+        data-ui="pagina"
+        className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8"
+      >
+        <PageHeader title="Para contactar hoy" />
+        <LineaDeEstado
+          className="-mt-2 mb-4"
+          datos={[
+            <strong key="n">{filas.length} para escribir hoy</strong>,
+            `${bandeja.contactadasHoy} ya ${bandeja.contactadasHoy === 1 ? "contactada" : "contactadas"} de ${bandeja.tope}`,
+            !puedeContactar ? "la constancia la deja quien atiende" : null,
+          ]}
+        />
+        <div className="mt-4">
+          <EnlacesClientes role={user.role} actual="para-contactar-hoy" />
+        </div>
+        <Bloque
+          titulo="De a uno, por WhatsApp"
+          cuenta={filas.length || undefined}
+          className="mt-6"
+        >
+          {filas.length === 0 ? (
+            <p
+              data-ui="vacio"
+              className="flex flex-wrap items-center gap-3 border-b border-line py-4 text-sm text-body"
+            >
+              {topeCumplido
+                ? `Ya se contactaron las ${bandeja.tope} de hoy. Mañana la bandeja propone más.`
+                : "Nadie para hoy: aparece quien cumpla años, deje de venir o tenga que dejar una reseña."}
+              {abreRecuperar && (
+                <Link
+                  href="/admin/clientes/recuperar"
+                  className={buttonClasses("outline", "sm")}
+                >
+                  Ver clientes por recuperar
+                </Link>
+              )}
+            </p>
+          ) : (
+            <ul data-sin-folio>
+              {filas.map((f) => (
+                <FilaContacto key={f.clientId} fila={f} renglon />
+              ))}
+            </ul>
+          )}
+        </Bloque>
+        {fuera.length > 0 && (
+          <p className="mt-4 text-sm text-muted">
+            No se muestran: {fuera.join(" · ")}.
+          </p>
+        )}
+        <details className="mt-6 border-y border-line text-sm">
+          <summary className="flex min-h-11 cursor-pointer items-center font-medium text-strong">
+            Cómo se arma esta lista
+          </summary>
+          <ul className="list-disc space-y-1 pb-4 pl-5 text-muted">
+            {c.rubro === "servicios" && (
+              <li>
+                Pedir reseña: vino ayer, el turno quedó completado y todavía no
+                dejó su opinión.
+              </li>
+            )}
+            <li>
+              Cumpleaños: cumple de hoy a dentro de {CRM_REGLAS.cumpleAvisoDias}{" "}
+              días (sólo si la ficha tiene la fecha).
+            </li>
+            <li>
+              Por recuperar: pasó entre{" "}
+              {String(CRM_REGLAS.riesgoDesdeCiclos).replace(".", ",")} y{" "}
+              {CRM_REGLAS.perdidaDespuesDeCiclos} veces su ciclo sin volver;
+              primero las que más gastan.
+            </li>
+            <li>
+              No entra quien ya tiene turno, a quien se le escribió hace menos
+              de {CRM_REGLAS.contactoRecienteDias} días, ni quien pidió no
+              recibir mensajes.
+            </li>
+            <li>
+              Hasta {CRM_REGLAS.topeBandejaPorDia} por día. Los números son
+              provisionales y se ajustan con la dueña.
+            </li>
+          </ul>
+        </details>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
@@ -86,13 +199,18 @@ export default async function ParaContactarHoyPage() {
 
       {!puedeContactar && (
         <p className="mb-4 rounded-md border border-line bg-surface-sunken px-3 py-2 text-sm text-muted">
-          Podés ver la bandeja, pero dejar la constancia del contacto lo hace quien atiende a los clientes.
+          Podés ver la bandeja, pero dejar la constancia del contacto lo hace
+          quien atiende a los clientes.
         </p>
       )}
 
       {filas.length === 0 ? (
         <EmptyState
-          title={topeCumplido ? `Ya se contactaron las ${bandeja.tope} de hoy` : "No hay nadie para contactar hoy"}
+          title={
+            topeCumplido
+              ? `Ya se contactaron las ${bandeja.tope} de hoy`
+              : "No hay nadie para contactar hoy"
+          }
           description={
             topeCumplido
               ? "El tope es para que los mensajes sigan siendo de a uno. Mañana la bandeja propone más."
@@ -100,7 +218,10 @@ export default async function ParaContactarHoyPage() {
           }
           action={
             abreRecuperar ? (
-              <Link href="/admin/clientes/recuperar" className={buttonClasses("outline", "md")}>
+              <Link
+                href="/admin/clientes/recuperar"
+                className={buttonClasses("outline", "md")}
+              >
                 Ver clientes por recuperar
               </Link>
             ) : undefined
@@ -114,22 +235,42 @@ export default async function ParaContactarHoyPage() {
         </ul>
       )}
 
-      {fuera.length > 0 && <p className="mt-4 text-sm text-muted">No se muestran: {fuera.join(" · ")}.</p>}
+      {fuera.length > 0 && (
+        <p className="mt-4 text-sm text-muted">
+          No se muestran: {fuera.join(" · ")}.
+        </p>
+      )}
 
       <details className="mt-6 rounded-lg border border-line bg-surface-raised text-sm">
-        <summary className="flex min-h-11 cursor-pointer items-center px-4 font-medium text-strong">Cómo se arma esta lista</summary>
+        <summary className="flex min-h-11 cursor-pointer items-center px-4 font-medium text-strong">
+          Cómo se arma esta lista
+        </summary>
         <ul className="list-disc space-y-1 px-8 pb-4 text-muted">
-          {c.rubro === "servicios" && <li>Pedir reseña: vino ayer, el turno quedó completado y todavía no dejó su opinión.</li>}
-          <li>Cumpleaños: cumple de hoy a dentro de {CRM_REGLAS.cumpleAvisoDias} días (sólo si la ficha tiene la fecha).</li>
+          {c.rubro === "servicios" && (
+            <li>
+              Pedir reseña: vino ayer, el turno quedó completado y todavía no
+              dejó su opinión.
+            </li>
+          )}
           <li>
-            Por recuperar: pasó entre {String(CRM_REGLAS.riesgoDesdeCiclos).replace(".", ",")} y {CRM_REGLAS.perdidaDespuesDeCiclos} veces su
-            ciclo sin volver; primero las que más gastan.
+            Cumpleaños: cumple de hoy a dentro de {CRM_REGLAS.cumpleAvisoDias}{" "}
+            días (sólo si la ficha tiene la fecha).
           </li>
           <li>
-            No entra quien ya tiene turno, a quien se le escribió hace menos de {CRM_REGLAS.contactoRecienteDias} días, ni quien pidió
-            no recibir mensajes.
+            Por recuperar: pasó entre{" "}
+            {String(CRM_REGLAS.riesgoDesdeCiclos).replace(".", ",")} y{" "}
+            {CRM_REGLAS.perdidaDespuesDeCiclos} veces su ciclo sin volver;
+            primero las que más gastan.
           </li>
-          <li>Hasta {CRM_REGLAS.topeBandejaPorDia} por día. Los números son provisionales y se ajustan con la dueña.</li>
+          <li>
+            No entra quien ya tiene turno, a quien se le escribió hace menos de{" "}
+            {CRM_REGLAS.contactoRecienteDias} días, ni quien pidió no recibir
+            mensajes.
+          </li>
+          <li>
+            Hasta {CRM_REGLAS.topeBandejaPorDia} por día. Los números son
+            provisionales y se ajustan con la dueña.
+          </li>
         </ul>
       </details>
     </main>

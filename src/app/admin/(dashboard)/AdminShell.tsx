@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import FormCerrarSesion from "../FormCerrarSesion";
 import { type Role } from "@/lib/capabilities";
@@ -15,6 +16,14 @@ import { ProfileBadge } from "@/components/ui";
 import ThemeToggle from "./ThemeToggle";
 import PaletaApps from "./inicio/PaletaApps";
 import BarraInferior from "./inicio/BarraInferior";
+import { useDiseno } from "@/lib/diseno/DisenoProvider";
+import type { NavDelArmazon } from "./armazon/navegacion";
+
+// DISEÑO NUEVO («Renglón», interruptor "Diseño nuevo" del negocio): el armazón nuevo vive en su
+// propio archivo y se carga APARTE (`next/dynamic`): un negocio con el interruptor apagado (CH) nunca
+// lo pide, ni en el HTML ni en el JS. Apagado, `AdminShell` rinde `ArmazonDeSiempre`, que es el
+// armazón de antes tal cual: lo prueba armazon/armazon-ch.test.ts contra el HTML de HEAD.
+const ArmazonNuevo = dynamic(() => import("./armazon/ArmazonNuevo"));
 
 // Íconos de línea: el set vive en src/components/iconos-apps.tsx para que la barra, el
 // Inicio y "App no disponible" dibujen el MISMO ícono por app. Los trazos son los que tenía
@@ -27,7 +36,7 @@ function Icon({ name }: { name: string }) {
 // apps (`appsVisibles` + `proyectarMenuDeHoy`, src/apps/visibles.ts), la misma decisión que
 // usa la guardia de cada página. Acá no queda lógica de visibilidad: sólo se pintan.
 
-const ROLE_LABEL: Record<Role, string> = {
+export const ROLE_LABEL: Record<Role, string> = {
   OWNER: "Dueño/a",
   RECEPTION: "Recepción",
   PROFESSIONAL: "Profesional",
@@ -59,7 +68,7 @@ function Brand({ monogram, name }: { monogram: string; name: string }) {
   );
 }
 
-function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
+export function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   const isActive = useActive();
   return (
     <div className="space-y-0.5">
@@ -107,7 +116,7 @@ function agruparMenu(items: readonly ItemMenuDeHoy[]) {
   return { groups, ungrouped };
 }
 
-function NavGroups({ items, onNavigate }: { items: ItemMenuDeHoy[]; onNavigate?: () => void }) {
+export function NavGroups({ items, onNavigate }: { items: ItemMenuDeHoy[]; onNavigate?: () => void }) {
   const { groups, ungrouped } = agruparMenu(items);
   return (
     <div className="space-y-4">
@@ -146,7 +155,7 @@ function NavGroups({ items, onNavigate }: { items: ItemMenuDeHoy[]; onNavigate?:
 // que abre la paleta de apps (Ctrl/⌘K, la misma búsqueda del Inicio, con la descripción de
 // cada app y todas las que la persona ve, no sólo las de la barra). Así hay UN buscador, no
 // dos que encuentran cosas distintas. Fuera del piloto (CH) esto queda exactamente igual.
-function NavBuscable({
+export function NavBuscable({
   items,
   navGrouping,
   onNavigate,
@@ -344,7 +353,7 @@ function NavBuscable({
   );
 }
 
-function NavFooter({
+export function NavFooter({
   userName,
   roleLabel,
   showPublicSite,
@@ -418,7 +427,21 @@ function BotonBuscarApps({ onClick }: { onClick: () => void }) {
   );
 }
 
-export default function AdminShell({
+export type PropsDelArmazon = Parameters<typeof ArmazonDeSiempre>[0] & {
+  /**
+   * La navegación del armazón nuevo, armada en el servidor (armazon/navegacion.ts). Llega SÓLO con
+   * el diseño nuevo prendido: apagado no viaja (ni en el HTML ni en el payload de CH).
+   */
+  nav?: NavDelArmazon;
+};
+
+/** El armazón del panel: el nuevo con el diseño nuevo prendido; si no, el de siempre. */
+export default function AdminShell({ nav, ...props }: PropsDelArmazon) {
+  const nuevo = useDiseno();
+  return nuevo && nav ? <ArmazonNuevo {...props} nav={nav} /> : <ArmazonDeSiempre {...props} />;
+}
+
+function ArmazonDeSiempre({
   children,
   role,
   userName,

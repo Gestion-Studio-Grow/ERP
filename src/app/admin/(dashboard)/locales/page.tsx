@@ -14,6 +14,8 @@ import { Badge, Card, KpiTile, PageContainer, PageHeader, fmtMoneyARS, fmtNumber
 import { appPorId } from "@/apps/registro";
 import { appPermitida } from "@/apps/visibles";
 import { getNegocioApps } from "@/apps/contexto.server";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { CabeceraLocales, TablaLocales } from "./LocalesRenglon";
 import { AbrirLocal, LocalesSinLeer, NoEsCasa, NoSePudoLeer, SinLocales, SolapasLocales, dia, ruteoDeLocales } from "./partes";
 
 export const dynamic = "force-dynamic";
@@ -54,7 +56,19 @@ export default async function MisLocalesPage() {
 
   const ruteo = ruteoDeLocales();
   // Stock por local es de mostrador: en una red de servicios el número se muestra sin link.
-  const veStock = appPermitida(appPorId("stock-por-local"), await getNegocioApps(user.role));
+  const [negocioApps, nuevo] = await Promise.all([getNegocioApps(user.role), disenoNuevo()]);
+  const veStock = appPermitida(appPorId("stock-por-local"), negocioApps);
+  // DISEÑO NUEVO («Renglón»): la red en una línea y un renglón por local. Mismos datos.
+  if (nuevo) {
+    return (
+      <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
+        <CabeceraLocales casa={r.casa} hoy={r.hoy} resumen={r.resumen} red={r.red} veStock={veStock} />
+        <SolapasLocales activa="mis-locales" role={user.role} />
+        <LocalesSinLeer sinLeer={r.sinLeer} ruta="/admin/locales" />
+        {r.red.length === 0 ? r.sinLeer.length === 0 && <SinLocales /> : <TablaLocales red={r.red} ruteo={ruteo} />}
+      </main>
+    );
+  }
   return (
     <PageContainer>
       <PageHeader

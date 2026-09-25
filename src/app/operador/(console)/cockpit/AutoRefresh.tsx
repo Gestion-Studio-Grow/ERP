@@ -25,9 +25,7 @@ export default function AutoRefresh({ seconds = 30 }: { seconds?: number }) {
   }, [activo, seconds, router]);
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-muted">
-      <span className={`h-1.5 w-1.5 rounded-full ${activo ? "bg-emerald-500 cockpit-pulse" : "bg-muted"}`} />
-      {activo ? `al día · cada ${seconds}s` : "en pausa"}
-    </span>
+    // Dice lo que hace, no lo que promete: vuelve a leer cada tanto mientras la pestaña se ve.
+    <span>{activo ? `se vuelve a leer cada ${seconds} s` : "lectura en pausa: la pestaña no se ve"}</span>
   );
 }

@@ -1,0 +1,10 @@
+OK   contador · entrar (1684 ms) llegó a /contador
+OK   contador · bandeja (985 ms) «Mi cartera La facturación está apagada: nada sale hacia ARCA 2 clientes Emitido en prueba este mes $0 0 facturas automáticas 0 para revisar 0 de 2 con agosto cerrado Además, 2 tienen un bloqueo propio» · diseno=renglon sx360=0 chicos<44=8
+OK   contador · abrir un cliente (Abrir en su renglón) (2608 ms) panel: «Shine Velas — Cerrar Emitido en prueba este mes Sin validez fiscal $0 Facturas automáticas Límite del plan: 159 por mes 0 Para revisar Ventas que necesitan datos del comprador 0 Listas para emitir Propuestas automáticas » · diseno=renglon sx360=0 chicos<44=11
+OK   contador · del cliente a su panel (enlace) (870 ms) sin «Abrir su panel»: el laboratorio no tiene dirección propia (APP_BASE_DOMAIN) y la pantalla lo dice
+OK   contador · recargar conserva (1008 ms) «Mi cartera La facturación está apagada: nada sale hacia ARCA 2 clientes Emitido en prueba este mes $0 0 facturas automát»
+OK   contador · un dueño común no entra a /contador (2642 ms) http=200 · «CH CH Estética viernes 25 de septiembre No encontramos esta página La dirección »
+
+contador 1440: 6/6 pasos OK · errores de consola 0 · callejones 0
+MEDIDA bandeja /contador sx360=0 chicos: Abrir:36, Abrir:36, Kiosco La Esquina:36, 20-12345678-3:36, dueno@negocio.com:36, 3:36
+MEDIDA cliente /contador sx360=0 chicos: Abrir:36, Cerrar:36, Cerrar:20, Borrador:36, Emitir automáticas (0):36, Kiosco La Esquina:36

@@ -7,12 +7,14 @@
 
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Field, Input, SectionGroup } from "@/components/ui";
+import { Bloque, Button, Field, Franja, Input, SectionGroup } from "@/components/ui";
+import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import { cuitValido, normalizarCuit } from "@/plugins/bancos/domain/cuit";
 import { altaClienteCarteraAction, type ResultadoAlta } from "@/lib/cartera-actions";
 
 export default function AltaCliente() {
   const router = useRouter();
+  const nuevo = useDiseno();
   const ids = { nombre: useId(), cuit: useId(), email: useId(), alias: useId(), pv: useId() };
 
   const [nombre, setNombre] = useState("");
@@ -53,14 +55,12 @@ export default function AltaCliente() {
     });
   };
 
-  return (
-    <SectionGroup
-      title="Agregar un cliente"
-      description="Con el nombre, el CUIT y un email, el cliente queda dado de alta con su facturación lista (ARCA en homologación con el certificado del estudio). Nada se cobra ni se emite sin tu acción."
-    >
+  // Diseño nuevo («Renglón»): bloque con rótulo y raya, sin tarjeta ni párrafo; la ayuda queda en la
+  // nota del bloque. Mismo formulario, mismos campos y la misma action.
+  const formulario = (
       <form
         onSubmit={submit}
-        className="rounded-xl border border-line bg-surface-raised p-5 shadow-card"
+        className={nuevo ? "pt-4" : "rounded-xl border border-line bg-surface-raised p-5 shadow-card"}
         aria-describedby={resultado && !resultado.ok ? `${ids.nombre}-error` : undefined}
       >
         <div className="grid grid-cols-1 gap-md sm:grid-cols-2">
@@ -146,12 +146,18 @@ export default function AltaCliente() {
 
         <div aria-live="polite" className="mt-sm">
           {resultado && !resultado.ok && (
+            nuevo ? (
+              <Franja tono="peligro">
+                <span id={`${ids.nombre}-error`} role="alert">{resultado.error}</span>
+              </Franja>
+            ) : (
             <p id={`${ids.nombre}-error`} role="alert" className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">
               {resultado.error}
             </p>
+            )
           )}
           {resultado?.ok && (
-            <div className="rounded-xl border border-success/40 bg-success-soft px-4 py-3 text-sm text-success">
+            <div className={nuevo ? "border-y border-line py-3 text-sm text-strong" : "rounded-xl border border-success/40 bg-success-soft px-4 py-3 text-sm text-success"}>
               {resultado.yaEstaba ? (
                 <p>
                   <strong>{resultado.alias}</strong> ya estaba en tu cartera: quedó activo de nuevo.
@@ -163,7 +169,7 @@ export default function AltaCliente() {
               )}
               {resultado.aviso && <p className="mt-1 text-strong">{resultado.aviso}</p>}
               {resultado.passwordBootstrap && (
-                <div className="mt-2 rounded-md border border-line bg-surface-raised p-3 text-strong">
+                <div className={nuevo ? "mt-2 border border-line-strong p-3 text-strong" : "mt-2 rounded-md border border-line bg-surface-raised p-3 text-strong"}>
                   <p className="text-xs font-medium uppercase tracking-wide text-muted">
                     Contraseña inicial del cliente — se muestra UNA sola vez
                   </p>
@@ -180,6 +186,26 @@ export default function AltaCliente() {
           )}
         </div>
       </form>
+  );
+
+  if (nuevo) {
+    return (
+      <Bloque
+        id="alta-cliente"
+        titulo="Agregar un cliente"
+        nota="Con nombre, CUIT y email queda listo para facturar · nada se cobra ni se emite sin tu acción"
+        className="scroll-mt-24"
+      >
+        {formulario}
+      </Bloque>
+    );
+  }
+  return (
+    <SectionGroup
+      title="Agregar un cliente"
+      description="Con el nombre, el CUIT y un email, el cliente queda dado de alta con su facturación lista (ARCA en homologación con el certificado del estudio). Nada se cobra ni se emite sin tu acción."
+    >
+      {formulario}
     </SectionGroup>
   );
 }

@@ -52,8 +52,8 @@ import { whereVentasDelPeriodo } from "@/lib/reports/ventas-mostrador-lectura";
  * más reciente del negocio).
  *
  * "Cerrada" no va a "Para atender hoy": a las 22 una caja cerrada es lo normal. Lo que sí
- * dice es qué hacer, porque vender en efectivo con la caja cerrada deja esa plata fuera del
- * arqueo del turno (cash-sale.ts).
+ * dice es lo que pasa de verdad: se puede cobrar en efectivo con la caja cerrada, y esa plata
+ * se anota en el libro del día sin turno, fuera del arqueo de un cajero (cash-sale.ts).
  */
 export const cajaDelDia: LoaderKpi = async ({ db, tenantId, esMostrador }) => {
   if (!esMostrador) return null;
@@ -62,7 +62,7 @@ export const cajaDelDia: LoaderKpi = async ({ db, tenantId, esMostrador }) => {
     orderBy: { openedAt: "desc" },
     select: { openedAt: true },
   });
-  if (!abierta) return { valor: "Cerrada", detalle: "abrila antes de cobrar en efectivo" };
+  if (!abierta) return { valor: "Cerrada", detalle: "el efectivo va al libro, sin turno" };
   return { valor: "Abierta", detalle: `desde las ${fmtTime(abierta.openedAt)}` };
 };
 

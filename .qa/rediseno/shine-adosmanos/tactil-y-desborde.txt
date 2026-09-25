@@ -1,0 +1,60 @@
+shinevelas pobos
+/admin chicos(0)=
+/admin/pedidos chicos(16)=QA Recorrido pobos:24|QA Recorrido pobos:24|QA Recorrido pbf1m:24|QA Recorrido pbf1m:24|QA Recorrido p2ctb:24
+/admin/vender chicos(0)=
+/admin/catalogo chicos(1)=INPUT:1
+/admin/compras chicos(0)=
+/admin/compras/sugerido chicos(0)=
+/admin/reportes chicos(0)=
+/admin/reportes/margen chicos(0)=
+/admin/resultado chicos(2)=Cargá el costo en el Catálog:20|Verlos en el libro:14
+desborde360: ninguno
+
+adosmanos pobos
+/admin chicos(0)=
+/admin/pedidos chicos(7)=QA Recorrido pobos:24|QA Recorrido pobos:24|QA Recorrido p5o19:24|QA Recorrido p5o19:24|Prueba Vidriera QA:24
+/admin/vender chicos(0)=
+/admin/catalogo chicos(1)=INPUT:1
+/admin/compras chicos(0)=
+/admin/compras/sugerido chicos(0)=
+/admin/reportes chicos(0)=
+/admin/reportes/margen chicos(0)=
+/admin/resultado chicos(2)=Cargá el costo en el Catálog:20|Verlos en el libro:14
+desborde360: ninguno
+
+shinevelas pyn83
+/admin chicos(0)=
+/admin/pedidos chicos(17)=QA Recorrido pyn83:24|QA Recorrido pobos:24|QA Recorrido pobos:24|QA Recorrido pbf1m:24|QA Recorrido pbf1m:24
+/admin/vender chicos(0)=
+/admin/catalogo chicos(1)=INPUT:1
+/admin/compras chicos(0)=
+/admin/compras/sugerido chicos(0)=
+/admin/reportes chicos(0)=
+/admin/reportes/margen chicos(0)=
+/admin/resultado chicos(2)=Cargá el costo en el Catálog:20|Verlos en el libro:14
+desborde360: ninguno
+
+shinevelas v9us4
+/admin chicos(0)=
+/admin/pedidos chicos(19)=QA Recorrido v9us4:24|QA Recorrido v9us4:24|QA Recorrido pyn83:24|QA Recorrido pobos:24|QA Recorrido pobos:24
+/admin/vender chicos(0)=
+/admin/catalogo chicos(1)=INPUT:1
+/admin/compras chicos(0)=
+/admin/compras/sugerido chicos(0)=
+/admin/reportes chicos(0)=
+/admin/reportes/margen chicos(0)=
+/admin/resultado chicos(2)=Cargá el costo en el Catálog:20|Verlos en el libro:14
+desborde360: ninguno
+
+adosmanos v9us4
+/admin chicos(0)=
+/admin/pedidos chicos(9)=QA Recorrido v9us4:24|QA Recorrido v9us4:24|QA Recorrido pobos:24|QA Recorrido pobos:24|QA Recorrido p5o19:24
+/admin/vender chicos(0)=
+/admin/catalogo chicos(1)=INPUT:1
+/admin/compras chicos(0)=
+/admin/compras/sugerido chicos(0)=
+/admin/reportes chicos(0)=
+/admin/reportes/margen chicos(0)=
+/admin/resultado chicos(2)=Cargá el costo en el Catálog:20|Verlos en el libro:14
+desborde360: ninguno
+

@@ -1,0 +1,253 @@
+{
+  "fase": "ch-on",
+  "ancho": 390,
+  "pasos": [
+    {
+      "paso": "CH dueña · entrar",
+      "ok": true,
+      "det": "llegó a /admin · diseno=renglon sx360=0 chicos<44=0",
+      "ms": 2337,
+      "errs": []
+    },
+    {
+      "paso": "CH · ir a la agenda desde el menú",
+      "ok": true,
+      "det": "Agenda · diseno=renglon sx360=0 chicos<44=16",
+      "ms": 1528,
+      "errs": []
+    },
+    {
+      "paso": "CH · tecla grande «Dar un turno» abre la pantalla nueva",
+      "ok": true,
+      "det": "/admin/turnos/lista?nuevo=1 · diseno=renglon sx360=0 chicos<44=16",
+      "ms": 1652,
+      "errs": []
+    },
+    {
+      "paso": "CH · alta: validación antes de completar",
+      "ok": true,
+      "det": "botón deshabilitado con el alta vacía",
+      "ms": 485,
+      "errs": []
+    },
+    {
+      "paso": "CH · alta: elegir servicio y horario",
+      "ok": true,
+      "det": "servicio «Depilación definitiva axilas 20′ · $16.000» a las 17:00",
+      "ms": 1907,
+      "errs": []
+    },
+    {
+      "paso": "CH · alta: clienta nueva y dar el turno",
+      "ok": true,
+      "det": "«Dar el turno · Mañana 17:00» → /admin/turnos?date=2026-09-26",
+      "ms": 1529,
+      "errs": []
+    },
+    {
+      "paso": "CH · recargar: el turno quedó",
+      "ok": true,
+      "det": "sigue en la agenda",
+      "ms": 1467,
+      "errs": []
+    },
+    {
+      "paso": "CH · abrir el turno (cajón)",
+      "ok": true,
+      "det": "?date=2026-09-26&turno=cmugvn06l002t0x7dpgvzjf7k · diseno=renglon sx360=0 chicos<44=24",
+      "ms": 2136,
+      "errs": []
+    },
+    {
+      "paso": "CH · Escape cierra el cajón y vuelve a la agenda",
+      "ok": true,
+      "det": "Escape cierra=true; reabierto true",
+      "ms": 1790,
+      "errs": []
+    },
+    {
+      "paso": "CH · confirmar y cobrar el turno",
+      "ok": true,
+      "det": "confirmado; «Cobrar $16.000» · Confirmado: QA Recorrido 390 72316, 17:00. | Cobrado: QA Recorrido 390 72316, efectivo.",
+      "ms": 4083,
+      "errs": []
+    },
+    {
+      "paso": "CH · recargar: el turno figura terminado y cobrado",
+      "ok": true,
+      "det": "renglón: «añas · 60′ · Marina Suárez · Box 2 Confirmado $26.000 17:00 QA Recorrido 390 72316 Depilación definitiva axilas · 20′ · Carla Díaz · Box 3 Confirmado $16.000 17:30 Soledad Ríos Lif»",
+      "ms": 1574,
+      "errs": []
+    },
+    {
+      "paso": "CH · ficha de la clienta nueva (desde el buscador Ctrl+K)",
+      "ok": true,
+      "det": "el buscador no trae la clienta recién creada: «5 resultados Cerrar CLIENTES QA Recorrido 1440 23227 11 5555-3227 QA Recorrido 1440 28033 11 5555-8033 QA Recorrido 390 10803 11 4000-0803 QA Recorrido 390 49736 11 4000-9736 QA Recorrido 390 55109 11»",
+      "ms": 2118,
+      "errs": []
+    },
+    {
+      "paso": "CH · cierre de caja (sin deslizar)",
+      "ok": true,
+      "det": "/admin/caja/cierre · «Cierre del día Viernes 25 de septiembre cerrado ‹ 24/09 Hoy Cerrado el viernes, 25 de septiembre de 2026, 01:14 por Cecilia Herrera · 6 movimientos · cuadró Efectivo contó$400.885,» · diseno=renglon sx360=0 chicos<44=0",
+      "ms": 2872,
+      "errs": []
+    },
+    {
+      "paso": "CH · agenda de un día sin turnos (vacío)",
+      "ok": true,
+      "det": "«Agenda 0 turnos ← sáb 13 Domingo 14 de marzo lun 15 → Hoy Otro día Día Por profesional Todos los turnos No hay turnos ese día Si alguien pide un turno para ese » · acciones con «turno»=1 · diseno=renglon sx360=0 chicos<44=0",
+      "ms": 1905,
+      "errs": []
+    },
+    {
+      "paso": "CH · turno que no existe (error)",
+      "ok": true,
+      "det": "http=200 · «Agenda 16 turnos 5 sin confirmar 2 por cobrar Carla con 12 ← Ayer Viernes 25 de septiembre Mañana → Otro día Día Por profesional Todos los t»",
+      "ms": 1730,
+      "errs": []
+    },
+    {
+      "paso": "CH · fecha inválida en la dirección",
+      "ok": true,
+      "det": "http=200 · «Agenda 16 turnos 5 sin confirmar 2 por cobrar Carla con 12 ← Ayer Viernes 25 de septiembre Mañana → Otro día Día Por pro»",
+      "ms": 1485,
+      "errs": []
+    },
+    {
+      "paso": "CH · lista de turnos y «para mañana»",
+      "ok": true,
+      "det": "lista: diseno=renglon sx360=0 chicos<44=0 · mañana: diseno=renglon sx360=0 chicos<44=0",
+      "ms": 4260,
+      "errs": []
+    }
+  ],
+  "fallas": 0,
+  "errores": [],
+  "callejones": [],
+  "medidas": [
+    {
+      "pantalla": "inicio",
+      "url": "/admin",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": []
+    },
+    {
+      "pantalla": "agenda",
+      "url": "/admin/turnos",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "QA Recorrido 390 10803:20",
+        "QA Recorrido 390 55109:20",
+        "Milagros Acosta:20",
+        "QA Recorrido 390 49736:20",
+        "Belén Suárez:20",
+        "Mariana Juárez:20",
+        "QA Recorrido 1440 23227:20",
+        "QA Recorrido 1440 28033:20",
+        "Sebastián Medina:20",
+        "Lucía Rodríguez:20",
+        "QA Reserva Web Cupon:20",
+        "Guadalupe Ruiz:20",
+        "Micaela Silva:20",
+        "Ezequiel Morales:20",
+        "Sebastián Quiroga:20",
+        "QA Renglón Hoy Paula:20"
+      ]
+    },
+    {
+      "pantalla": "alta-turno",
+      "url": "/admin/turnos/lista?nuevo=1",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "QA Recorrido 390 10803:20",
+        "QA Recorrido 390 55109:20",
+        "Milagros Acosta:20",
+        "QA Recorrido 390 49736:20",
+        "Belén Suárez:20",
+        "Mariana Juárez:20",
+        "QA Recorrido 1440 23227:20",
+        "QA Recorrido 1440 28033:20",
+        "Sebastián Medina:20",
+        "Lucía Rodríguez:20",
+        "QA Reserva Web Cupon:20",
+        "Guadalupe Ruiz:20",
+        "Micaela Silva:20",
+        "Ezequiel Morales:20",
+        "Sebastián Quiroga:20",
+        "QA Renglón Hoy Paula:20"
+      ]
+    },
+    {
+      "pantalla": "cajon-turno",
+      "url": "/admin/turnos?date=2026-09-26&turno=cmugvn06l002t0x7dpgvzjf7k",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "Rocío López:20",
+        "Andrea Flores:20",
+        "Silvina Silva:20",
+        "Laura Pérez:20",
+        "QA Renglón Tomasa:20",
+        "Guadalupe Villalba:20",
+        "Rocío Giménez:20",
+        "Guadalupe Álvarez:20",
+        "Soledad Paz:20",
+        "Belén Suárez:20",
+        "Soledad Quiroga:20",
+        "Emilia Quiroga:20",
+        "Lucía Acosta:20",
+        "Rodrigo Sosa:20",
+        "Tomás Godoy:20",
+        "Lucas Giménez:20",
+        "Camila Giménez:20",
+        "Milagros Núñez:20",
+        "Agustina Silva:20",
+        "QA Recorrido 390 72316:20",
+        "Soledad Ríos:20",
+        "QA Cajón Renglón Dos:20",
+        "QA Cajón Renglón:20",
+        "11 4000-2316 · WhatsApp:16"
+      ]
+    },
+    {
+      "pantalla": "cierre",
+      "url": "/admin/caja/cierre",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": []
+    },
+    {
+      "pantalla": "agenda-vacia",
+      "url": "/admin/turnos?date=2027-03-14",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": []
+    },
+    {
+      "pantalla": "lista",
+      "url": "/admin/turnos/lista",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": []
+    },
+    {
+      "pantalla": "manana",
+      "url": "/admin/turnos/manana",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": []
+    }
+  ]
+}

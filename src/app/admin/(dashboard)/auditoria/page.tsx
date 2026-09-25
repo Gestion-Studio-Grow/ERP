@@ -5,7 +5,8 @@ import { todayInBusinessTz } from "@/lib/datetime";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
 import { EmptyState, PageContainer, PageHeader, buttonClasses, fmtNumberAR } from "@/components/ui";
 import { hayFiltros } from "./filtros";
-import { Filtros, ListaDeAcciones, Paginas } from "./partes";
+import { Filtros, LibroDeAcciones, ListaDeAcciones, Paginas } from "./partes";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +24,10 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
 export default async function AuditoriaPage({ searchParams }: Props) {
   // Guardia de la app en la página; getAuditLog sigue exigiendo audit:read (la misma del registro).
   await requireApp("auditoria");
-  const [{ entradas, total, filtros, usuarios, porPagina }, identidad] = await Promise.all([
+  const [{ entradas, total, filtros, usuarios, porPagina }, identidad, nuevo] = await Promise.all([
     searchParams.then((p) => getAuditLog(p)),
     getTenantIdentity(),
+    disenoNuevo(),
   ]);
   const userNames = new Map(usuarios.map((u) => [u.id, u.name]));
   const hoy = todayInBusinessTz();
@@ -33,6 +35,49 @@ export default async function AuditoriaPage({ searchParams }: Props) {
   const paginas = Math.max(1, Math.ceil(total / porPagina));
   const primera = total === 0 ? 0 : (filtros.pagina - 1) * porPagina + 1;
   const ultima = Math.min(total, filtros.pagina * porPagina);
+
+  // DISEÑO NUEVO («Renglón»): el libro de novedades. Título + una línea de estado (cuántas, qué
+  // se ve); los períodos en chips y el resto de los filtros plegado; un bloque por día con la hora
+  // en el folio. Los mismos filtros en la URL, la misma lectura, la misma paginación.
+  if (nuevo) {
+    return (
+      <PageContainer width="narrow">
+        <PageHeader
+          title="Auditoría"
+          estado={
+            total === 0
+              ? [filtrado ? "Nada con estos filtros" : "Todavía sin actividad registrada"]
+              : [
+                  <strong key="t">
+                    {fmtNumberAR(total)} {total === 1 ? "acción" : "acciones"}
+                    {filtrado ? " con estos filtros" : ""}
+                  </strong>,
+                  paginas > 1 ? `de la ${fmtNumberAR(primera)} a la ${fmtNumberAR(ultima)}` : null,
+                  "lo más nuevo arriba",
+                ]
+          }
+        />
+        <Filtros filtros={filtros} hoy={hoy} usuarios={usuarios} conAgenda={!identidad.isRetail} renglon />
+        {total === 0 ? (
+          <p data-ui="vacio" className="flex flex-wrap items-center gap-3 border-y border-line py-4 text-sm text-body">
+            {filtrado
+              ? "No hay acciones con estos filtros: probá con otro período o sacá alguno."
+              : "Cada venta, cobro, anulación, cambio de precio o cierre de caja va a quedar acá, con quién lo hizo."}
+            {filtrado && (
+              <Link href="/admin/auditoria" className={buttonClasses("outline", "md")}>
+                Ver todo
+              </Link>
+            )}
+          </p>
+        ) : (
+          <>
+            <LibroDeAcciones entradas={entradas} nombres={userNames} hoy={hoy} />
+            {paginas > 1 && <Paginas filtros={filtros} paginas={paginas} />}
+          </>
+        )}
+      </PageContainer>
+    );
+  }
 
   return (
     <PageContainer>

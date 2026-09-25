@@ -32,6 +32,7 @@ import {
   htmlDelTicket,
   lineasAManoDelFormulario,
   masVendidos,
+  teclasDelMostrador,
   renglonesDelTicket,
   textoDelTicket,
   topeDeDescuento,
@@ -335,6 +336,33 @@ test("los 8 más vendidos: sin líneas a mano ni productos que ya no se venden, 
   assert.deepEqual(r.slice(0, 3), ["b", "a", "x0"]);
   assert.ok(!r.includes("borrado"));
   assert.deepEqual(masVendidos([], vendibles), []);
+});
+
+test("el primer día, sin ventas, las teclas del mostrador salen del catálogo y dicen «Tus productos»", () => {
+  const catalogo = ["asado", "bife", "chorizo", "entraña", "matambre", "molleja", "morcilla", "vacío", "osobuco", "pollo"];
+  const r = teclasDelMostrador([], catalogo);
+  assert.equal(r.rotulo, "Tus productos");
+  assert.deepEqual(r.ids, catalogo.slice(0, 8));
+});
+
+test("con pocas ventas, los vendidos van primero y el catálogo completa sin repetir", () => {
+  const r = teclasDelMostrador(["vacío", "asado"], ["asado", "bife", "chorizo", "vacío", "pollo"]);
+  assert.deepEqual(r.ids, ["vacío", "asado", "bife", "chorizo", "pollo"]);
+  assert.equal(r.rotulo, "Tus productos");
+});
+
+test("con ocho más vendidos o más, las teclas son los más vendidos y el catálogo no se mete", () => {
+  const vendidos = Array.from({ length: 9 }, (_, i) => `v${i}`);
+  const r = teclasDelMostrador(vendidos, ["a", "b"]);
+  assert.equal(r.rotulo, "Más vendidos");
+  assert.deepEqual(r.ids, vendidos.slice(0, 8));
+});
+
+test("si el catálogo no suma nada nuevo, el rótulo sigue siendo «Más vendidos»", () => {
+  const r = teclasDelMostrador(["a", "b"], ["b", "a"]);
+  assert.deepEqual(r.ids, ["a", "b"]);
+  assert.equal(r.rotulo, "Más vendidos");
+  assert.deepEqual(teclasDelMostrador([], []).ids, []);
 });
 
 // ── El ticket ───────────────────────────────────────────────────────────────

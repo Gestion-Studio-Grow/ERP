@@ -15,7 +15,6 @@ import { motivoNoDisponible } from "@/apps/visibles";
 import { esMesKey, etiquetaDelMes, mesDelNegocio, mesVecino } from "@/lib/libros/fecha-fiscal";
 import {
   TOTAL_PASOS,
-  capitalizar,
   estadoDesdeAuditoria,
   evaluarPasos,
   fechaCorta,
@@ -25,9 +24,15 @@ import {
   sinCallejones,
   type Paso,
 } from "@/lib/cierre-mes/cierre-mes";
+import { mayuscula } from "@/lib/texto";
 import { leerAuditoriaCierre, leerHechosCierreMes } from "@/lib/cierre-mes/lectura";
 import { PageHeader, buttonClasses } from "@/components/ui";
 import { CongelarMes, ReabrirMes } from "./CierreMesForms";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { Bloque, DosColumnas, Franja, LineaDeEstado, Marca, Renglon, atributosBoton, type TipoMarca } from "@/components/ui";
+import { PasoDePeriodo } from "@/components/ui/PasoDePeriodo";
+import { nombreMes } from "../caja/_renglon/fechas";
+import CongelarDeslizando from "./CongelarDeslizando";
 
 export const dynamic = "force-dynamic";
 
@@ -62,10 +67,118 @@ export default async function CierreMesPage({ searchParams }: { searchParams: Pr
   const pendientes = pendientesAntesDeCongelar(pasos);
   const bloqueante = pasos.find((p) => p.bloquea && p.estado === "pendiente") ?? null;
   const etiqueta = etiquetaDelMes(mes);
-  const Etiqueta = capitalizar(etiqueta);
+  const Etiqueta = mayuscula(etiqueta);
   const anterior = mesVecino(mes, -1);
   const siguiente = mesVecino(mes, 1);
   const hrefPaquete = `${RUTA}/paquete?mes=${mes}`;
+
+  // DISEÑO NUEVO («Renglón»): los ocho pasos como un libro (número, marca con palabra, qué se
+  // encontró y UNA tecla para resolver lo pendiente) y congelar deslizando. Mismos datos y reglas.
+  if (await disenoNuevo()) {
+    const MARCA_NUEVA: Record<Paso["estado"], { tipo: TipoMarca; texto: string }> = {
+      listo: { tipo: "hecho", texto: "Listo" },
+      pendiente: { tipo: "atencion", texto: "Pendiente" },
+      "no-aplica": { tipo: "pendiente", texto: "No aplica" },
+    };
+    return (
+      <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
+        <header data-ui="page-header" className="mb-5 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-strong">Cierre del mes</h1>
+            <LineaDeEstado
+              datos={[
+                <strong key="m">{Etiqueta}</strong>,
+                estado.congelado ? <Marca key="e" tipo="hecho">congelado</Marca> : "abierto",
+                `${listos} de ${TOTAL_PASOS} pasos listos`,
+              ]}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <PasoDePeriodo
+              etiqueta="Mes"
+              actual={Etiqueta}
+              anterior={{ href: `${RUTA}?mes=${anterior}`, texto: nombreMes(anterior) }}
+              siguiente={siguiente < actual ? { href: `${RUTA}?mes=${siguiente}`, texto: nombreMes(siguiente) } : null}
+            />
+            {/* <a> y no <Link>: Link precarga, y cada descarga queda registrada como «descargado por». */}
+            <a href={hrefPaquete} download className={buttonClasses(estado.congelado ? "solid" : "ghost", "md")} {...atributosBoton(estado.congelado ? "solid" : "ghost", "md")}>
+              {estado.congelado ? "Bajar el paquete (CSV)" : "Bajar un borrador"}
+            </a>
+          </div>
+        </header>
+        {estado.congelado && estado.congeladoEl ? (
+          <Franja className="mb-5">
+            Lo congeló {estado.congeladoPor} el {fechaCorta(estado.congeladoEl)}. La caja de esos días no acepta cambios: una corrección de plata va con la fecha de hoy.
+          </Franja>
+        ) : estado.reabiertoEl ? (
+          <Franja tono="atencion" className="mb-5">
+            Lo reabrió {estado.reabiertoPor} el {fechaCorta(estado.reabiertoEl)}: «{estado.motivoReapertura ?? ""}». Cuando esté corregido, congelalo de nuevo.
+          </Franja>
+        ) : null}
+        <DosColumnas>
+          <div className="min-w-0">
+            <Bloque titulo="Los pasos" cuenta={`${listos} de ${TOTAL_PASOS}`}>
+              <ol>
+                {pasos.map((p, i) => {
+                  const m = MARCA_NUEVA[p.estado];
+                  return (
+                    <Renglon
+                      key={p.id}
+                      as="li"
+                      folio={
+                        <span className="inline-flex items-baseline gap-2">
+                          <span className="tabular-nums">{i + 1}</span>
+                          <Marca tipo={m.tipo}>{m.texto}</Marca>
+                        </span>
+                      }
+                      titulo={p.titulo}
+                      detalle={p.detalle}
+                      tecla={
+                        p.estado === "pendiente" && p.accion ? (
+                          <Link href={p.accion.href} className={buttonClasses("outline", "sm")} {...atributosBoton("outline", "sm")}>
+                            {p.accion.texto}
+                          </Link>
+                        ) : undefined
+                      }
+                    />
+                  );
+                })}
+              </ol>
+            </Bloque>
+          </div>
+          <div className="min-w-0">
+            {estado.congelado ? (
+              <ReabrirMes mes={mes} etiqueta={Etiqueta} puedeReabrir={user.role === "OWNER"} />
+            ) : (
+              <CongelarDeslizando mes={mes} etiqueta={Etiqueta} bloqueo={bloqueante ? bloqueante.detalle : null} pendientes={pendientes.map((p) => p.titulo)} />
+            )}
+            {filas.length > 0 && (
+              <details className="group mt-8">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between border-b border-line text-sm font-semibold text-strong">
+                  Lo que pasó con {etiqueta}
+                  <span aria-hidden className="text-muted group-open:rotate-90">
+                    ›
+                  </span>
+                </summary>
+                {[...filas].reverse().map((f, i) => {
+                  const c = (f.changes ?? {}) as { por?: string; motivo?: string; borrador?: boolean };
+                  const que =
+                    f.action === "cierre-mes.congelar"
+                      ? "congeló el mes"
+                      : f.action === "cierre-mes.reabrir"
+                        ? `lo reabrió: «${c.motivo ?? ""}»`
+                        : c.borrador
+                          ? "bajó un borrador del paquete"
+                          : "descargó el paquete";
+                  return <Renglon key={`${f.action}-${i}`} folio={fechaCorta(f.createdAt)} titulo={<span className="font-normal">{c.por ?? "alguien del negocio"}</span>} detalle={que} />;
+                })}
+              </details>
+            )}
+          </div>
+        </DosColumnas>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">

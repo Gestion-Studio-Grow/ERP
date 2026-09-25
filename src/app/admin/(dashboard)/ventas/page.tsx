@@ -30,6 +30,11 @@ import {
 import { estadoDeFactura, SIN_FACTURA, type FacturaDeVenta } from "./factura";
 import { puedeAbrirApp } from "../vender/puede-abrir";
 import { ventaDeOrden } from "../vender/reglas-venta";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { LineaDeEstado, Marca, Plata, Renglon, atributosBoton, chipLinkAtributos, hrefConParametros } from "@/components/ui";
+import { PasoDePeriodo } from "@/components/ui/PasoDePeriodo";
+import { diaAnterior, diaLargo, diaMes } from "../caja/_renglon/fechas";
+import TablaDeVentas, { type FilaDeVenta } from "./TablaDeVentas";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +84,7 @@ export default async function VentasPage({
   const filtros = leerFiltros(await searchParams, { hoy, otrosDias: verPlata });
   // «Facturar» en cada fila: con la MISMA regla que exige su action (app Facturación: módulo arca
   // y billing:manage). Sin ella, la fila no muestra nada de facturas: como hasta hoy.
-  const puedeFacturar = await puedeAbrirApp("facturacion");
+  const [puedeFacturar, nuevo] = await Promise.all([puedeAbrirApp("facturacion"), disenoNuevo()]);
   const esHoy = filtros.dia === hoy;
 
   // Hoy: desde las 00:00 sin tope (el mismo corte que el número del Inicio). Otro día: ese día.
@@ -194,6 +199,126 @@ export default async function VentasPage({
     vender: "/admin/vender",
     hoy: "/admin/ventas",
   } as const;
+
+  // DISEÑO NUEVO («Renglón»): los mismos datos y las mismas acciones, en una tabla densa con la
+  // venta entera en un cajón. Apagado, lo de abajo tal cual.
+  if (nuevo) {
+    const RUTA = "/admin/ventas";
+    const filas: FilaDeVenta[] = lista.map((o) => {
+      const venta = ventaDeOrden(o);
+      return {
+        venta,
+        hora: fmtTime(o.createdAt),
+        canal: o.channel,
+        notas: notasDe(o),
+        factura: puedeFacturar && !venta.anulada ? (facturaDe.get(o.id) ?? SIN_FACTURA) : null,
+        anular: venta.anulada ? null : anulaEsteDia,
+      };
+    });
+    const filtroHref = (cambios: Record<string, string | null>) =>
+      hrefConParametros(RUTA, { dia: esHoy ? undefined : filtros.dia, medio: filtros.medio ?? undefined, canal: filtros.canal ?? undefined }, cambios);
+    return (
+      <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
+        <header data-ui="page-header" className="mb-4 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-strong">Ventas del día</h1>
+            <LineaDeEstado
+              datos={[
+                <strong key="d">{diaLargo(filtros.dia)}</strong>,
+                `${resumen.cantidad} ${resumen.cantidad === 1 ? "cobrada" : "cobradas"}${hayFiltro ? " con el filtro" : ""}`,
+                verPlata && resumen.cantidad > 0 ? (
+                  <span key="t">
+                    <Plata valor={resumen.total} sinCentavos /> · ticket promedio <Plata valor={resumen.promedio ?? 0} sinCentavos />
+                  </span>
+                ) : null,
+                aCuenta.cantidad > 0 ? `${aCuenta.cantidad} a cuenta` : null,
+                anulacionesLeidas.length > 0 ? (
+                  <Marca key="a" tipo="atencion">
+                    {anulacionesLeidas.length === 1 ? "1 anulación" : `${anulacionesLeidas.length} anulaciones`} {porQuien(anulacionesLeidas.map((a) => a.quien))}
+                  </Marca>
+                ) : null,
+              ]}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {verPlata && (
+              <PasoDePeriodo
+                etiqueta="Día"
+                actual={esHoy ? "Hoy" : diaMes(filtros.dia)}
+                anterior={{ href: filtroHref({ dia: diaAnterior(filtros.dia) }), texto: diaMes(diaAnterior(filtros.dia)) }}
+                siguiente={esHoy ? null : { href: filtroHref({ dia: nextDayKey(filtros.dia) === hoy ? null : nextDayKey(filtros.dia) }), texto: diaMes(nextDayKey(filtros.dia)) }}
+                volver={esHoy ? null : { href: filtroHref({ dia: null }), texto: "Hoy" }}
+              />
+            )}
+            {puedeVender && (
+              <Link href="/admin/vender" className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+                Vender
+              </Link>
+            )}
+          </div>
+        </header>
+
+        {anulacionesLeidas.length > 0 && (
+          <details className="group mb-4 max-w-3xl">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between border-b border-line text-sm font-semibold text-strong">
+              Quién anuló y por qué{verPlata ? ` · ${fmtMoneyARS(montoAnulado)} devueltos` : ""}
+              <span aria-hidden className="text-muted group-open:rotate-90">
+                ›
+              </span>
+            </summary>
+            {anulacionesLeidas.map((a, i) => (
+              <Renglon
+                key={i}
+                folio={a.code != null ? `#${a.code}` : "—"}
+                titulo={a.quien}
+                detalle={a.motivo || "sin motivo escrito"}
+                plata={verPlata ? <Plata valor={a.monto} /> : undefined}
+              />
+            ))}
+          </details>
+        )}
+
+        <nav data-ui="filtros" aria-label="Filtrar las ventas">
+          <span className="flex flex-wrap gap-1.5" role="group" aria-label="Medio">
+            {[{ valor: null, etiqueta: "Todos los medios" }, ...MEDIOS_DE_COBRO].map((m) => (
+              <Link key={m.etiqueta} href={filtroHref({ medio: m.valor })} scroll={false} {...chipLinkAtributos((filtros.medio ?? null) === m.valor)}>
+                {m.etiqueta}
+              </Link>
+            ))}
+          </span>
+          <span className="flex flex-wrap gap-1.5" role="group" aria-label="Canal">
+            {([
+              [null, "Mostrador y pedidos"],
+              ["COUNTER", "Mostrador"],
+              ["ONLINE", "Pedidos"],
+            ] as const).map(([c, etiqueta]) => (
+              <Link key={etiqueta} href={filtroHref({ canal: c })} scroll={false} {...chipLinkAtributos((filtros.canal ?? null) === c)}>
+                {etiqueta}
+              </Link>
+            ))}
+          </span>
+        </nav>
+
+        <TablaDeVentas
+          filas={filas}
+          negocio={negocio}
+          vacio={
+            <span className="flex flex-wrap items-center gap-3">
+              {vacio.titulo}. {vacio.descripcion}
+              {vacio.accion && (
+                <Link href={destinoVacio[vacio.accion.destino]} className={buttonClasses("outline", "sm")} {...atributosBoton("outline", "sm")}>
+                  {vacio.accion.etiqueta}
+                </Link>
+              )}
+            </span>
+          }
+        />
+        {(vigentes.length === LIMITE || anuladas.length === LIMITE) && (
+          <p className="mt-3 text-sm text-muted">Se muestran las últimas {LIMITE}. Filtrá por medio o por canal para ver el resto.</p>
+        )}
+      </main>
+    );
+  }
 
   return (
     <PageContainer>

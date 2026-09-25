@@ -21,6 +21,7 @@ import {
   PASOS_REDONDEO,
   UMBRAL_CONFIRMACION,
   aumentoAplicable,
+  elegirProductos,
   gondolaDe,
   leerPorcentaje,
   planificarAumento,
@@ -73,7 +74,31 @@ function Opcion({
   );
 }
 
-function Paso({ n, titulo, children }: { n: number; titulo: string; children: React.ReactNode }) {
+function Paso({
+  n,
+  titulo,
+  children,
+  renglon = false,
+  className,
+}: {
+  n: number;
+  titulo: string;
+  children: React.ReactNode;
+  renglon?: boolean;
+  className?: string;
+}) {
+  // Diseño nuevo («Renglón»): el paso es un rótulo con su raya, sin caja; el número va como folio.
+  if (renglon) {
+    return (
+      <fieldset className={cn("min-w-0", className)}>
+        <legend className="float-left w-full border-b border-line-strong pb-2 text-[15px] font-semibold text-strong">
+          <span className="mr-2 tabular-nums text-muted">{n}.</span>
+          {titulo}
+        </legend>
+        <div className="clear-both space-y-3 pt-3">{children}</div>
+      </fieldset>
+    );
+  }
   return (
     <fieldset className="rounded-lg border border-line bg-surface-raised p-4 sm:p-5">
       <legend className="px-1 text-base font-semibold text-strong">
@@ -91,17 +116,27 @@ export default function ActualizarPrecios({
   productos,
   sustantivo,
   veEtiquetas,
+  tildadosIniciales = [],
+  renglon = false,
 }: {
   productos: ProductoParaPrecios[];
   sustantivo: { uno: string; varios: string };
   veEtiquetas: boolean;
+  /** Los que llegan tildados desde la selección del catálogo (`?ids=`). Sólo los que existen. */
+  tildadosIniciales?: readonly string[];
+  /** Diseño nuevo («Renglón»): los tres pasos a la izquierda y la pizarra (antes → después) a la derecha, a mano. */
+  renglon?: boolean;
 }) {
   const router = useRouter();
   const ids = useId();
-  const [tipo, setTipo] = useState<TipoAlcance>("todos");
+  const [inicial] = useState(() => {
+    const existen = new Set(productos.map((p) => p.id));
+    return new Set(tildadosIniciales.filter((id) => existen.has(id)));
+  });
+  const [tipo, setTipo] = useState<TipoAlcance>(inicial.size > 0 ? "tildados" : "todos");
   const [gondola, setGondola] = useState<CorteCategoria | "">("");
   const [texto, setTexto] = useState("");
-  const [tildados, setTildados] = useState<ReadonlySet<string>>(new Set());
+  const [tildados, setTildados] = useState<ReadonlySet<string>>(inicial);
   const [filtroLista, setFiltroLista] = useState("");
   const [sentido, setSentido] = useState<Sentido>("subir");
   const [porcentaje, setPorcentaje] = useState("");
@@ -138,6 +173,11 @@ export default function ActualizarPrecios({
   const plan = planificarAumento(productos, pedido);
   const lecturaPct = leerPorcentaje(porcentaje, sentido);
   const aplicable = aumentoAplicable(plan);
+  // Con el diseño nuevo, la cuenta de elegidos no espera al porcentaje: «Todos (19)» tildado y
+  // «Todavía no elegiste» abajo se contradecían. Misma función que usa el plan.
+  const elegidosAhora = renglon && plan.elegidos === 0 ? elegirProductos(productos, alcance) : null;
+  const cuentaElegidos = elegidosAhora ? elegidosAhora.length : plan.elegidos;
+  const sinPrecioElegidos = elegidosAhora ? elegidosAhora.filter((p) => precioDeVenta(p) === null).length : plan.sinPrecio.length;
 
   const listaFiltrada = useMemo(() => {
     const q = normalizarNombre(filtroLista);
@@ -197,7 +237,8 @@ export default function ActualizarPrecios({
   const ejemplo = plan.porcentaje !== null ? precioConPorcentaje(10000, plan.porcentaje, sentido, redondeo) : null;
 
   return (
-    <div className="space-y-5">
+    <div className={renglon ? "grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start" : "space-y-5"}>
+      <ColumnaDePasos renglon={renglon}>
       {listo && (
         <div role="status" className="rounded-lg border border-success/30 bg-success-soft px-4 py-3 text-sm">
           <p className="font-semibold text-strong">
@@ -214,7 +255,7 @@ export default function ActualizarPrecios({
         </div>
       )}
 
-      <Paso n={1} titulo={`¿Qué ${sustantivo.varios}?`}>
+      <Paso renglon={renglon} n={1} titulo={`¿Qué ${sustantivo.varios}?`}>
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={`Qué ${sustantivo.varios} cambian`}>
           <Opcion name={`${ids}-alcance`} value="todos" checked={tipo === "todos"} onChange={() => cambiar(setTipo)("todos")}>
             Todos ({fmtNumberAR(conPrecio(productos))})
@@ -309,14 +350,14 @@ export default function ActualizarPrecios({
         )}
 
         <p className="text-sm text-body" aria-live="polite">
-          {plan.elegidos === 0
+          {cuentaElegidos === 0
             ? `Todavía no elegiste ${sustantivo.varios}.`
-            : `Elegiste ${fmtNumberAR(plan.elegidos)} ${plan.elegidos === 1 ? sustantivo.uno : sustantivo.varios}` +
-              (plan.sinPrecio.length > 0 ? ` (${fmtNumberAR(plan.sinPrecio.length)} sin precio: esos no se tocan).` : ".")}
+            : `Elegiste ${fmtNumberAR(cuentaElegidos)} ${cuentaElegidos === 1 ? sustantivo.uno : sustantivo.varios}` +
+              (sinPrecioElegidos > 0 ? ` (${fmtNumberAR(sinPrecioElegidos)} sin precio: esos no se tocan).` : ".")}
         </p>
       </Paso>
 
-      <Paso n={2} titulo="¿Cuánto?">
+      <Paso renglon={renglon} n={2} titulo="¿Cuánto?">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex gap-2" role="radiogroup" aria-label="Suben o bajan">
             <Opcion name={`${ids}-sentido`} value="subir" checked={sentido === "subir"} onChange={() => cambiar(setSentido)("subir")}>
@@ -353,7 +394,7 @@ export default function ActualizarPrecios({
         </p>
       </Paso>
 
-      <Paso n={3} titulo="Redondeo">
+      <Paso renglon={renglon} n={3} titulo="Redondeo">
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Redondear a">
           {PASOS_REDONDEO.map((paso) => (
             <Opcion key={paso} name={`${ids}-redondeo`} value={String(paso)} checked={redondeo === paso} onChange={() => cambiar(setRedondeo)(paso)}>
@@ -366,14 +407,23 @@ export default function ActualizarPrecios({
           {ejemplo !== null && `: un precio de $10.000 queda en ${fmtMoneyARS(ejemplo, 0)}`}.
         </p>
       </Paso>
+      </ColumnaDePasos>
 
-      <Paso n={4} titulo="Vista previa">
+      <Paso renglon={renglon} n={4} titulo={renglon ? "Cómo queda la pizarra" : "Vista previa"} className={renglon ? "lg:sticky lg:top-4" : undefined}>
         {plan.error ? (
           <p className="text-sm text-muted" aria-live="polite">
             {plan.error}
           </p>
         ) : (
           <>
+            {renglon ? (
+              <p className="text-sm text-body" aria-live="polite">
+                <strong className="text-strong">{`${fmtNumberAR(plan.filas.length)} ${plan.filas.length === 1 ? "cambia" : "cambian"}`}</strong>
+                {plan.porcentaje !== null && ` · ${textoDelPorcentaje(plan.sentido, plan.porcentaje)}`}
+                {plan.sinCambios > 0 && ` · ${fmtNumberAR(plan.sinCambios)} quedan igual`}
+                {plan.sinPrecio.length > 0 && ` · ${fmtNumberAR(plan.sinPrecio.length)} sin precio`}
+              </p>
+            ) : (
             <div className="flex flex-wrap gap-2" aria-live="polite">
               <Badge tone="info">
                 {fmtNumberAR(plan.filas.length)} {plan.filas.length === 1 ? "cambia" : "cambian"}
@@ -382,8 +432,12 @@ export default function ActualizarPrecios({
               {plan.sinPrecio.length > 0 && <Badge>{fmtNumberAR(plan.sinPrecio.length)} sin precio</Badge>}
               {plan.porcentaje !== null && <Badge tone="accent">{textoDelPorcentaje(plan.sentido, plan.porcentaje)}</Badge>}
             </div>
+            )}
             {/* Con su propio alto: con 200 cortes, el botón de Aplicar no queda a diez pantallas. */}
-            <ul className="max-h-[28rem] divide-y divide-line overflow-y-auto rounded-md border border-line" aria-label="Antes y después">
+            <ul
+              className={renglon ? "max-h-[28rem] divide-y divide-line overflow-y-auto border-y border-line" : "max-h-[28rem] divide-y divide-line overflow-y-auto rounded-md border border-line"}
+              aria-label="Antes y después"
+            >
               {plan.filas.map((f) => (
                 <li key={f.productId} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-3 py-2 text-sm">
                   <span className="min-w-0 break-words text-strong">
@@ -441,4 +495,9 @@ export default function ActualizarPrecios({
       </Paso>
     </div>
   );
+}
+
+/** Con el diseño nuevo, los pasos 1 a 3 van juntos en la columna de la izquierda; si no, sueltos como siempre. */
+function ColumnaDePasos({ renglon, children }: { renglon: boolean; children: React.ReactNode }) {
+  return renglon ? <div className="min-w-0 space-y-8">{children}</div> : <>{children}</>;
 }

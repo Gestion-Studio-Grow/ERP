@@ -1,0 +1,256 @@
+TAP version 13
+# Subtest: cada número sube a su objetivo, escrito como tarea y con su tecla
+ok 1 - cada número sube a su objetivo, escrito como tarea y con su tecla
+  ---
+  duration_ms: 2.634604
+  type: 'test'
+  ...
+# Subtest: la alerta abre la app que RESUELVE si la ve (Recuento), y si no, la que mide (Movimientos)
+ok 2 - la alerta abre la app que RESUELVE si la ve (Recuento), y si no, la que mide (Movimientos)
+  ---
+  duration_ms: 0.435758
+  type: 'test'
+  ...
+# Subtest: una alerta de una app sin regla no se pierde: va a Revisar con la app que la mide
+ok 3 - una alerta de una app sin regla no se pierde: va a Revisar con la app que la mide
+  ---
+  duration_ms: 0.336378
+  type: 'test'
+  ...
+# Subtest: la bandeja pide pocos números: ninguna app repetida y todas con regla
+ok 4 - la bandeja pide pocos números: ninguna app repetida y todas con regla
+  ---
+  duration_ms: 0.145131
+  type: 'test'
+  ...
+# Subtest: la línea del día: sólo lo que se pudo leer, en palabras
+ok 5 - la línea del día: sólo lo que se pudo leer, en palabras
+  ---
+  duration_ms: 0.331549
+  type: 'test'
+  ...
+# Subtest: el título con la fecha del negocio, mayúscula sólo donde va; Mis apps de fábrica por rubro; montos
+ok 6 - el título con la fecha del negocio, mayúscula sólo donde va; Mis apps de fábrica por rubro; montos
+  ---
+  duration_ms: 57.112423
+  type: 'test'
+  ...
+# Subtest: el sugerido de compra dice la cantidad en la tarea y lleva una palabra de folio (no un número suelto)
+ok 7 - el sugerido de compra dice la cantidad en la tarea y lleva una palabra de folio (no un número suelto)
+  ---
+  duration_ms: 0.462127
+  type: 'test'
+  ...
+# Subtest: con la caja cerrada el Inicio ofrece «Abrir la caja»; abierta, o sin la app Caja, no dice nada
+ok 8 - con la caja cerrada el Inicio ofrece «Abrir la caja»; abierta, o sin la app Caja, no dice nada
+  ---
+  duration_ms: 0.186057
+  type: 'test'
+  ...
+# Subtest: un negocio que nunca cerró un día ve «Para arrancar» con precios, caja y primer cierre
+ok 9 - un negocio que nunca cerró un día ve «Para arrancar» con precios, caja y primer cierre
+  ---
+  duration_ms: 0.547102
+  type: 'test'
+  ...
+# Subtest: los pasos resueltos quedan tildados, y con el primer cierre «Para arrancar» se va solo
+ok 10 - los pasos resueltos quedan tildados, y con el primer cierre «Para arrancar» se va solo
+  ---
+  duration_ms: 0.512683
+  type: 'test'
+  ...
+# Subtest: cada paso sale sólo si la persona ve la app que lo resuelve
+ok 11 - cada paso sale sólo si la persona ve la app que lo resuelve
+  ---
+  duration_ms: 1.353598
+  type: 'test'
+  ...
+# Subtest: «Para arrancar» avisa la facturación sin configurar sólo a quien ve Facturación y sin inventar
+ok 12 - «Para arrancar» avisa la facturación sin configurar sólo a quien ve Facturación y sin inventar
+  ---
+  duration_ms: 0.733645
+  type: 'test'
+  ...
+# Subtest: «Para arrancar» avisa que la vidriera no tiene WhatsApp, sólo a quien ve Pedidos y Datos del negocio
+ok 13 - «Para arrancar» avisa que la vidriera no tiene WhatsApp, sólo a quien ve Pedidos y Datos del negocio
+  ---
+  duration_ms: 0.202049
+  type: 'test'
+  ...
+# Subtest: agrupa los movimientos por día sin cambiar el orden en que llegan
+ok 14 - agrupa los movimientos por día sin cambiar el orden en que llegan
+  ---
+  duration_ms: 1.809247
+  type: 'test'
+  ...
+# Subtest: sin movimientos no hay días
+ok 15 - sin movimientos no hay días
+  ---
+  duration_ms: 0.183979
+  type: 'test'
+  ...
+# Subtest: el primer día arranca abierto aunque tenga más renglones que el tope
+ok 16 - el primer día arranca abierto aunque tenga más renglones que el tope
+  ---
+  duration_ms: 0.136743
+  type: 'test'
+  ...
+# Subtest: se abren días mientras entren en el tope de renglones y el resto queda plegado
+ok 17 - se abren días mientras entren en el tope de renglones y el resto queda plegado
+  ---
+  duration_ms: 0.10231
+  type: 'test'
+  ...
+# Subtest: rótulo cercano: hoy, ayer (también cruzando de mes) y nada para los demás
+ok 18 - rótulo cercano: hoy, ayer (también cruzando de mes) y nada para los demás
+  ---
+  duration_ms: 0.534722
+  type: 'test'
+  ...
+# Subtest: consola del operador: siempre la hoja nueva con la vuelta a Negocios, prendido o no
+ok 19 - consola del operador: siempre la hoja nueva con la vuelta a Negocios, prendido o no
+  ---
+  duration_ms: 1.814243
+  type: 'test'
+  ...
+# Subtest: panel de un negocio con el interruptor APAGADO (CH hoy): el 404 de siempre
+ok 20 - panel de un negocio con el interruptor APAGADO (CH hoy): el 404 de siempre
+  ---
+  duration_ms: 0.207719
+  type: 'test'
+  ...
+# Subtest: panel de un negocio con el diseño nuevo: siempre hay un camino de vuelta
+ok 21 - panel de un negocio con el diseño nuevo: siempre hay un camino de vuelta
+  ---
+  duration_ms: 0.28572
+  type: 'test'
+  ...
+# Subtest: vidriera y rutas que sólo se parecen: el 404 de siempre
+ok 22 - vidriera y rutas que sólo se parecen: el 404 de siempre
+  ---
+  duration_ms: 0.18515
+  type: 'test'
+  ...
+# Subtest: sin texto: las primeras acciones y todas las apps, en ese orden
+ok 23 - sin texto: las primeras acciones y todas las apps, en ese orden
+  ---
+  duration_ms: 2.144254
+  type: 'test'
+  ...
+# Subtest: con texto: acciones primero, después apps; «ca» trae Cargar una merma y Caja/Catálogo
+ok 24 - con texto: acciones primero, después apps; «ca» trae Cargar una merma y Caja/Catálogo
+  ---
+  duration_ms: 1.005242
+  type: 'test'
+  ...
+# Subtest: resaltar marca lo tipeado sin tildes ni mayúsculas, en las posiciones del nombre
+ok 25 - resaltar marca lo tipeado sin tildes ni mayúsculas, en las posiciones del nombre
+  ---
+  duration_ms: 0.257106
+  type: 'test'
+  ...
+# Subtest: la paleta poda lo flojo: una palabra de búsqueda cuenta si EMPIEZA con lo tipeado; con dos letras, el nombre también
+ok 26 - la paleta poda lo flojo: una palabra de búsqueda cuenta si EMPIEZA con lo tipeado; con dos letras, el nombre también
+  ---
+  duration_ms: 0.344095
+  type: 'test'
+  ...
+# Subtest: registros: van después de acciones y apps, tal como llegan (no se vuelven a filtrar), con su ícono
+ok 27 - registros: van después de acciones y apps, tal como llegan (no se vuelven a filtrar), con su ícono
+  ---
+  duration_ms: 0.23465
+  type: 'test'
+  ...
+# Subtest: registros: sin texto no se muestran (la paleta vacía es la de siempre)
+ok 28 - registros: sin texto no se muestran (la paleta vacía es la de siempre)
+  ---
+  duration_ms: 0.083229
+  type: 'test'
+  ...
+# Subtest: la búsqueda se recorta y exige de 2 a 60 letras; lo que no es texto no se busca
+ok 29 - la búsqueda se recorta y exige de 2 a 60 letras; lo que no es texto no se busca
+  ---
+  duration_ms: 2.226587
+  type: 'test'
+  ...
+# Subtest: los mensajes de una búsqueda inválida no nombran tablas, campos ni tipos
+ok 30 - los mensajes de una búsqueda inválida no nombran tablas, campos ni tipos
+  ---
+  duration_ms: 0.379322
+  type: 'test'
+  ...
+# Subtest: un número (con \# o separadores) se lee como número de pedido y como teléfono
+ok 31 - un número (con \# o separadores) se lee como número de pedido y como teléfono
+  ---
+  duration_ms: 0.359867
+  type: 'test'
+  ...
+# Subtest: el número de pedido «47» cubre el 47 y los que empiezan con 47 (470-479, 4700-4799…), sin pasarse del tope
+ok 32 - el número de pedido «47» cubre el 47 y los que empiezan con 47 (470-479, 4700-4799…), sin pasarse del tope
+  ---
+  duration_ms: 0.303856
+  type: 'test'
+  ...
+# Subtest: tres grupos en orden fijo: clientes, productos, pedidos; como mucho 5 por grupo
+ok 33 - tres grupos en orden fijo: clientes, productos, pedidos; como mucho 5 por grupo
+  ---
+  duration_ms: 6.769187
+  type: 'test'
+  ...
+# Subtest: clientes: primero los que empiezan con lo tipeado, después palabra que empieza, después contiene; sin tildes
+ok 34 - clientes: primero los que empiezan con lo tipeado, después palabra que empieza, después contiene; sin tildes
+  ---
+  duration_ms: 0.30966
+  type: 'test'
+  ...
+# Subtest: clientes encontrados por el teléfono van después de los encontrados por el nombre
+ok 35 - clientes encontrados por el teléfono van después de los encontrados por el nombre
+  ---
+  duration_ms: 0.212245
+  type: 'test'
+  ...
+# Subtest: productos: activos antes que pausados; el precio sólo para quien ve plata
+ok 36 - productos: activos antes que pausados; el precio sólo para quien ve plata
+  ---
+  duration_ms: 8.628658
+  type: 'test'
+  ...
+# Subtest: pedidos: el número exacto primero y después los más nuevos; abierto al tablero, cerrado a las ventas de ese día
+ok 37 - pedidos: el número exacto primero y después los más nuevos; abierto al tablero, cerrado a las ventas de ese día
+  ---
+  duration_ms: 0.713183
+  type: 'test'
+  ...
+# Subtest: pedidos sin permiso de ver plata: sin montos y, cerrados, a las ventas de hoy (otro día no lo pueden abrir)
+ok 38 - pedidos sin permiso de ver plata: sin montos y, cerrados, a las ventas de hoy (otro día no lo pueden abrir)
+  ---
+  duration_ms: 0.446971
+  type: 'test'
+  ...
+# Subtest: un pedido cerrado sin la app Ventas del día va a la bandeja de pedidos; sin ninguna de las dos no se muestra
+ok 39 - un pedido cerrado sin la app Ventas del día va a la bandeja de pedidos; sin ninguna de las dos no se muestra
+  ---
+  duration_ms: 0.376545
+  type: 'test'
+  ...
+# Subtest: SEGURIDAD: un grupo sin permiso no se dibuja aunque le lleguen filas
+ok 40 - SEGURIDAD: un grupo sin permiso no se dibuja aunque le lleguen filas
+  ---
+  duration_ms: 0.149455
+  type: 'test'
+  ...
+# Subtest: los ids son únicos entre grupos (un cliente y un producto con el mismo id no chocan en la lista)
+ok 41 - los ids son únicos entre grupos (un cliente y un producto con el mismo id no chocan en la lista)
+  ---
+  duration_ms: 0.158118
+  type: 'test'
+  ...
+1..41
+# tests 41
+# suites 0
+# pass 41
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 844.775556

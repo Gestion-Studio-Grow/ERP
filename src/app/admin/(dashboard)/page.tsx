@@ -13,6 +13,8 @@ import type { KpisFacturacionBancaria } from "@/lib/bancos-glue";
 import { getFacturacion, type EstadoFiscal } from "@/lib/facturacion-actions";
 import ArcaPill from "./facturacion/bancos/ArcaPill";
 import InicioApps from "./inicio/InicioApps";
+import InicioRenglon from "./inicio/InicioRenglon";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { enInicioPorApps } from "./inicio/piloto";
 import {
   buttonClasses,
@@ -234,10 +236,22 @@ async function RetailHome({
 //   - "contador"/"facturita" → el layout ya los redirigió a su casa; si por algún
 //                     borde llegan acá, caen al Inicio vertical (genérico y seguro).
 // ─────────────────────────────────────────────────────────────────────────────
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ espacio?: string | string[] }> }) {
+  // DISEÑO NUEVO («Renglón», interruptor del negocio): cada rol aterriza en su trabajo (la bandeja
+  // del dueño, la página de un espacio con `?espacio=`), con o sin "Trabaja por apps" (en CH, con las
+  // pantallas de su barra de siempre). El Inicio del Comerciante sin "Trabaja por apps" se queda con
+  // el suyo (facturación). Apagado (CH hoy), lo de abajo tal cual.
+  const [nuevo, porApps] = await Promise.all([disenoNuevo(), enInicioPorApps()]);
+  if (nuevo) {
+    const producto = porApps ? null : await getProductoActual();
+    if (producto !== "comerciante") {
+      const { espacio } = await searchParams;
+      return <InicioRenglon espacio={typeof espacio === "string" ? espacio : null} />;
+    }
+  }
   // Inicio por apps sólo con el interruptor "Trabaja por apps" prendido; CH y el resto, el de
   // hoy (inicio/).
-  if (await enInicioPorApps()) return <InicioApps />;
+  if (porApps) return <InicioApps />;
   const producto = await getProductoActual();
   if (producto === "comerciante") return <InicioComerciante />;
   return <InicioVertical />;

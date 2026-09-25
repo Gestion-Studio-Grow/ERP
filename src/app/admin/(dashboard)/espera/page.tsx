@@ -14,6 +14,9 @@ import { textoHuecoLiberado } from "@/lib/crm/textos";
 import { enInicioPorApps } from "../inicio/piloto";
 import EntryBooking from "./EntryBooking";
 import HuecosLiberados, { type HuecoVista } from "./HuecosLiberados";
+import QuitarDeEspera from "./QuitarDeEspera";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { Bloque, Marca, Renglon, Rotulo } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +59,139 @@ export default async function EsperaPage() {
     enInicioPorApps().then((piloto) => (piloto ? huecosParaMostrar() : [])),
   ]);
   const dates = nextBusinessDays(30);
+
+  // DISEÑO NUEVO («Renglón»): la lista primero, como libro (una persona por renglón, «Marcar
+  // avisada» a la mano, «Quitar» al «⋯» con confirmación) y el alta al pie. Mismos datos y actions.
+  if (await disenoNuevo()) {
+    const esperando = entries.filter((e) => e.status === "WAITING").length;
+    const avisadas = entries.length - esperando;
+    const campo = "grid gap-1 text-sm";
+    return (
+      <main data-ui="pagina" className="mx-auto w-full max-w-4xl px-4 py-6">
+        <header data-ui="page-header" className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-strong">Lista de espera</h1>
+            <p className="mt-1 text-sm text-muted">
+              {entries.length === 0 ? (
+                "Nadie esperando."
+              ) : (
+                <>
+                  <strong className="text-strong">{`${esperando} esperando un lugar`}</strong>
+                  {avisadas > 0 && ` · ${avisadas} ya ${avisadas === 1 ? "avisada" : "avisadas"}`}
+                </>
+              )}
+            </p>
+          </div>
+          <a href="#anotar" className={buttonClasses("solid", "md", "min-h-11")}>
+            Anotar a alguien
+          </a>
+        </header>
+
+        <HuecosLiberados huecos={huecos} />
+
+        <Bloque titulo="Quién espera" cuenta={entries.length > 0 ? String(entries.length) : undefined} nota="la más vieja arriba" className="mb-6">
+          {entries.length === 0 ? (
+            <p className="py-3 text-sm text-muted">
+              Cuando alguien quiera un turno y no tengas horario para ofrecerle, anotala abajo: si se libera un lugar, la encontrás acá.
+            </p>
+          ) : (
+            <ul>
+              {entries.map((e) => (
+                <li key={e.id} className="border-b border-line">
+                  <Renglon
+                    className="items-start border-b-0 py-2.5"
+                    folio={<span className="block w-[4.5rem] tabular-nums">{fmtShortDate(e.createdAt)}</span>}
+                    titulo={
+                      <span className="flex flex-wrap items-baseline gap-x-2">
+                        <span className="font-medium [overflow-wrap:anywhere]">{e.clientName}</span>
+                        <span className="text-[13px] text-muted tabular-nums">{e.clientPhone}</span>
+                      </span>
+                    }
+                    detalle={
+                      <>
+                        {`${e.service.name} · ${e.professional ? `con ${e.professional.name}` : "con cualquiera"}`}
+                        {e.preferenceNote && <span className="block">{`Prefiere: ${e.preferenceNote}`}</span>}
+                        {e.notes && <span className="block text-faint">{e.notes}</span>}
+                      </>
+                    }
+                    plata={e.status === "NOTIFIED" ? <Marca tipo="medias">Avisada</Marca> : <Marca tipo="pendiente">Esperando</Marca>}
+                    tecla={
+                      <span className="inline-flex items-center gap-1">
+                        {e.status === "WAITING" && (
+                          <form action={markWaitlistNotified}>
+                            <input type="hidden" name="id" value={e.id} />
+                            <button type="submit" className={buttonClasses("outline", "md", "min-h-11")}>
+                              Marcar avisada
+                            </button>
+                          </form>
+                        )}
+                        <QuitarDeEspera id={e.id} nombre={e.clientName} />
+                      </span>
+                    }
+                  />
+                  <div className="pb-2.5 sm:pl-[6.5rem]">
+                    <EntryBooking entryId={e.id} dates={dates} renglon />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Bloque>
+
+        <Bloque titulo="Anotar a alguien" id="anotar" className="scroll-mt-24">
+          <form action={addToWaitlist} className="grid gap-3 pt-3 sm:grid-cols-2">
+            <label className={campo}>
+              <Rotulo as="span">Nombre</Rotulo>
+              <Input name="clientName" autoComplete="off" required />
+            </label>
+            <label className={campo}>
+              <Rotulo as="span">Teléfono</Rotulo>
+              <Input name="clientPhone" type="tel" inputMode="tel" autoComplete="off" required />
+            </label>
+            <label className={campo}>
+              <Rotulo as="span">Servicio</Rotulo>
+              <Select name="serviceId" required>
+                <option value="">Elegí un servicio…</option>
+                {services.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className={campo}>
+              <Rotulo as="span">Con quién</Rotulo>
+              <Select name="professionalId">
+                <option value="">Con cualquiera</option>
+                {professionals.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className={campo}>
+              <Rotulo as="span">Cuándo le viene bien</Rotulo>
+              <Input name="preferenceNote" placeholder="Martes o jueves por la tarde" />
+            </label>
+            <label className={campo}>
+              <Rotulo as="span">Email (si lo da)</Rotulo>
+              <Input name="clientEmail" type="email" />
+            </label>
+            <label className={`${campo} sm:col-span-2`}>
+              <Rotulo as="span">Nota para el equipo (si hace falta)</Rotulo>
+              <Input name="notes" />
+            </label>
+            <div className="sm:col-span-2">
+              <button type="submit" className={buttonClasses("solid", "md", "min-h-11 w-full sm:w-auto")}>
+                Anotarla en la lista
+              </button>
+            </div>
+          </form>
+        </Bloque>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">

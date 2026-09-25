@@ -1,0 +1,28 @@
+FALLA CH dueña · entrar (3505 ms) llegó a /admin · diseno=renglon sx360=0 chicos<44=21 ERRORES=[CH dueña · entrar] Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa
+OK   CH · ir a la agenda desde el menú (2324 ms) Agenda · diseno=renglon sx360=0 chicos<44=24
+OK   CH · F1 abre la pantalla nueva (2099 ms) /admin/turnos/lista?nuevo=1 · diseno=renglon sx360=0 chicos<44=36
+OK   CH · alta: validación antes de completar (416 ms) botón deshabilitado con el alta vacía
+OK   CH · alta: elegir servicio y horario (1239 ms) servicio «Depilación definitiva axilas 20′ · $16.000» a las 11:00
+OK   CH · alta: clienta nueva y dar el turno (2298 ms) «Dar el turno · Hoy 11:00» → /admin/turnos
+OK   CH · recargar: el turno quedó (1546 ms) sigue en la agenda
+OK   CH · abrir el turno (cajón) (2136 ms) ?turno=cmugq937l00bl7g7d53xduquo · diseno=renglon sx360=0 chicos<44=31
+OK   CH · Escape cierra el cajón y vuelve a la agenda (1835 ms) Escape cierra=true; reabierto true
+OK   CH · confirmar y cobrar el turno (3975 ms) confirmado; «Cobrar $16.000» · Confirmado: QA Recorrido 1440 23227, 11:00. | Cobrado: QA Recorrido 1440 23227, efectivo.
+OK   CH · recargar: el turno figura terminado y cobrado (1767 ms) renglón: «nte · 60′ · Valentina Ríos · Box 4 Confirmado $18.000 11:00 QA Recorrido 1440 23227 Depilación definitiva axilas · 20′ · Carla Díaz · Box 3 Confirmado $16.000 11:30 QA Recorrido 14»
+OK   CH · ficha de la clienta nueva (desde el buscador Ctrl+K) (3401 ms) /admin/clientes/cmugq936u00bk7g7dqviw7n5e · diseno=renglon sx360=0 chicos<44=2
+OK   CH · cierre de caja (sin deslizar) (4001 ms) /admin/caja/cierre · «Cierre del día Viernes 25 de septiembre cerrado ‹ 24/09 Hoy Cerrado el viernes, 25 de septiembre de 2026, 01:14 por Cecilia Herrera · 6 movimientos · cuadró MEDIO CONTÓ DEBERÍA HAB» · diseno=renglon sx360=0 chicos<44=4
+OK   CH · agenda de un día sin turnos (vacío) (2349 ms) «Agenda 0 turnos ← sáb 13 Domingo 14 de marzo lun 15 → Hoy Otro día Día Por profesional Todos los turnos No hay turnos ese día Si alguien pide un turno para ese » · acciones con «turno»=1 · diseno=renglon sx360=0 chicos<44=5
+OK   CH · turno que no existe (error) (1908 ms) http=200 · «Agenda 12 turnos 4 sin confirmar 2 por cobrar Carla con 8 ← Ayer Viernes 25 de septiembre Mañana → Otro día Día Por profesional Todos los tu»
+OK   CH · fecha inválida en la dirección (1856 ms) http=200 · «Agenda 12 turnos 4 sin confirmar 2 por cobrar Carla con 8 ← Ayer Viernes 25 de septiembre Mañana → Otro día Día Por prof»
+OK   CH · lista de turnos y «para mañana» (5915 ms) lista: diseno=renglon sx360=0 chicos<44=1171 · mañana: diseno=renglon sx360=0 chicos<44=32
+
+ch-on 1440: 16/17 pasos OK · errores de consola 1 · callejones 0
+MEDIDA inicio /admin sx360=0 chicos: Ver la agenda →:24, Ver:36, Ver:36, Ver:36, Ver:36, Ver:36
+MEDIDA agenda /admin/turnos sx360=0 chicos: ← Ayer:36, Mañana →:36, Otro día:36, Todos 11:32, Sin confirmar 4:32, Por cobrar 2:32
+MEDIDA alta-turno /admin/turnos/lista?nuevo=1 sx360=0 chicos: ← Ayer:36, Mañana →:36, Otro día:36, Todos 11:32, Sin confirmar 4:32, Por cobrar 2:32
+MEDIDA cajon-turno /admin/turnos?turno=cmugq937l00bl7g7d53xduquo sx360=0 chicos: ← Ayer:36, Mañana →:36, Otro día:36, Todos 12:32, Sin confirmar 5:32, Por cobrar 2:32
+MEDIDA ficha-clienta /admin/clientes/cmugq936u00bk7g7dqviw7n5e sx360=0 chicos: Otro turno:36, Editar datos:36
+MEDIDA cierre /admin/caja/cierre sx360=0 chicos: ‹ 24/09:36, Bajar el libro de este día:36, Bajar septiembre completo:36, Ver el libro de septiembre:36
+MEDIDA agenda-vacia /admin/turnos?date=2027-03-14 sx360=0 chicos: ← sáb 13:36, lun 15 →:36, Hoy:36, Otro día:36, Dar un turno:36
+MEDIDA lista /admin/turnos/lista sx360=0 chicos: Calendario:30, Lista:30, Monto a cobrar:36, Efectivo Mercado Pago Transf:36, Registrar cobro:36, Confirmar turno:36
+MEDIDA manana /admin/turnos/manana sx360=0 chicos: Ir a la agenda →:36, Avisar de a una (21):36, Confirmar:36, WhatsApp:36, WhatsApp:36, WhatsApp:36

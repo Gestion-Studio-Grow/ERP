@@ -15,9 +15,12 @@ type SlotGroup = { professionalId: string; professionalName: string; slots: stri
 export default function EntryBooking({
   entryId,
   dates,
+  renglon = false,
 }: {
   entryId: string;
   dates: { value: string; label: string }[];
+  /** Diseño nuevo: la tecla a 44 px también en la PC. */
+  renglon?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState("");
@@ -46,7 +49,7 @@ export default function EntryBooking({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="chip-btn text-xs min-h-8 max-sm:min-h-11!"
+        className={renglon ? "chip-btn text-sm min-h-11!" : "chip-btn text-xs min-h-8 max-sm:min-h-11!"}
       >
         Buscar horario
       </button>

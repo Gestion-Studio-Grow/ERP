@@ -33,6 +33,8 @@ import {
 } from "@/components/ui";
 import { CerrarDiaForm } from "./CierreForm";
 import { requireApp } from "@/lib/require-app";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import CierreRenglon from "./CierreRenglon";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +72,10 @@ export default async function CierreCajaPage({
   // Guardia de la app (ADR-098): una app oculta no es una app protegida.
   await requireApp("cierre-del-dia");
   const { dia } = await searchParams;
-  const data = await getCierreDiarioData(dia, { conTurnosSinCerrar: true });
+  // «Diseño nuevo»: la lectura de interruptores del layout (cacheada), a la par de los datos.
+  const [data, nuevo] = await Promise.all([getCierreDiarioData(dia, { conTurnosSinCerrar: true }), disenoNuevo()]);
+  // DISEÑO NUEVO («Renglón»): contar primero y cerrar deslizando. Mismos datos, mismas acciones.
+  if (nuevo) return <CierreRenglon d={data} />;
   const { preview, day, today, lastClosedDay, since, movements, yaCerrado, enElFuturo, registro, turnosSinCerrar } = data;
 
   const esperadoTotal = preview.total.expected;

@@ -8,6 +8,9 @@ import { fmtDateTimeAr } from "@/lib/datetime";
 import { AvisoError, Badge, Card, EmptyState, KpiTile, PageContainer, PageHeader, buttonClasses, fmtNumberAR } from "@/components/ui";
 import { LocalesSinLeer, NoEsCasa, NoSePudoLeer, SinLocales, SolapasLocales } from "../partes";
 import { TrasladoForm } from "./TrasladoForm";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { Bloque } from "@/components/ui";
+import { CabeceraTraslados, LibroDeTraslados } from "./TrasladosRenglon";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +54,37 @@ export default async function TrasladosPage({ searchParams }: { searchParams: Pr
   }
   const sp = await searchParams;
   const sinCuit = r.ubicaciones.filter((u) => !u.cuit);
+
+  // DISEÑO NUEVO («Renglón»): lo de hoy en una línea, el formulario en su bloque y un libro de remitos.
+  if (await disenoNuevo()) {
+    return (
+      <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
+        <CabeceraTraslados casa={r.casa} hoy={r.deHoy} />
+        <SolapasLocales activa="traslados" role={user.role} />
+        <LocalesSinLeer sinLeer={r.sinLeer} ruta="/admin/locales/traslados" />
+        {r.ubicaciones.length < 2 ? (
+          r.sinLeer.length === 0 && <SinLocales />
+        ) : (
+          <>
+            {sinCuit.length > 0 && (
+              <AvisoError
+                className="mb-4"
+                tono="aviso"
+                titulo={`${sinCuit.map((u) => u.nombre).join(", ")} no ${sinCuit.length === 1 ? "tiene" : "tienen"} el CUIT cargado`}
+                comoSeguir="Sin el CUIT no se sabe si es el mismo dueño, y un traslado sólo va entre lugares del mismo CUIT. Pedile a Gestión Studio Grow que lo cargue."
+              />
+            )}
+            <Bloque titulo="Nuevo traslado" className="mb-6">
+              <div className="pt-3">
+                <TrasladoForm clave={randomUUID()} ubicaciones={r.ubicaciones} productos={r.productos} productoInicial={una(sp.producto) ?? null} />
+              </div>
+            </Bloque>
+            <LibroDeTraslados recientes={r.recientes} />
+          </>
+        )}
+      </main>
+    );
+  }
 
   return (
     <PageContainer>

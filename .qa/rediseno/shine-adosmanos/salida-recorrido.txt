@@ -1,0 +1,105 @@
+Recorrido 2026-09-25T11:17:46.900Z sello=v9us4
+  OK   admin: cargar el WhatsApp del negocio (Localización) y recargar (3507 ms) ya estaba: 5491155550101
+
+=== shinevelas · 1440 px
+  OK   tienda: portada (2119 ms) sx=0 chicos(0)=
+  OK   tienda: buscar y vacío (1801 ms) «lavanda» → 1 productos visibles; vacío → «No encontramos «zzqqxx».»
+  OK   tienda: ficha de producto (2293 ms) url=/tienda?producto=cmrj8c9u8005dww7d8zm1hjn4 selectorDeVariante=0 texto=«Ir a la carta VELAS · AROMAS · DECO Colección Regalos Ritual Contacto WhatsApp SHINE · VELAS · AROMAS · DECO No es una vela. Es un ambiente. Cera de soja, mecha»
+  OK   tienda: sumar a la bolsa (+1 con Más) (1490 ms) bolsa a la vista · botón de envío: «Enviar pedido · $17.300» via=tienda
+  OK   tienda: la bolsa sobrevive a recargar (1024 ms) sigue: «Enviar pedido · $17.300»
+  OK   tienda: error sin conexión (3221 ms) aviso: «No pudimos tomar el pedido.»
+  OK   tienda: enviar pedido y texto del wa.me (36529 ms) código #318 · cargando=«» · destino /5491155550101 · «¡Hola Shine Velas! Te escribo por mi pedido #318 de la tienda: ⏎ • 2 u · Fósforos largos deco (frasco) ⏎ Total: $13.800,00 ⏎ Entrega: retiro en el local ⏎ A nombre de: QA Recorrido v9us4»
+  OK   tienda: 360 px sin scroll horizontal (2126 ms) portada y ficha sin desborde
+  OK   admin: entrar como dueño (1382 ms) diseño=renglon
+  OK   admin: el pedido de la vidriera llegó a Pedidos (1567 ms) aparecen #318
+  OK   admin: vender por unidad y cobrar (10485 ms) TOTAL $5.900 · «cobradas hoy Venta #319 cobrada · $5» · ventas hoy 6→7 · stock 25→24
+  OK   admin: catálogo — agregar producto y recargar (5286 ms) aviso «undefined» · fila «IO 3 unidad QA Recorrido Vela 1440 v9us4 Por unidad Stock bajo Sin costo $2.500 1 producto de 31 ↑ ↓» · formas de venta ofrecidas: Por kilo (balanza)/Por unidad
+  OK   admin: catálogo — búsqueda sin resultados (1190 ms) «Ningún producto coincide con «zzqqxx».»
+  OK   admin: compra — registrar vacía da error (1118 ms) botón deshabilitado con leyenda «Cargá qué llegó y cuánto.»
+  OK   admin: compra a proveedor y recepción (stock +N, recarga) (9436 ms) proveedor «Taller de Aromas BA (prueba)» · aviso «undefined» · stock 31→33
+  OK   admin: qué pedir (sugerido) lleva a recibir (1364 ms) «Sugerido de compra 25 productos para pedir a 2 proveedores y algunos sin proveedor habitua» · acciones: Recibir mercadería / Mandar por WhatsApp / Copiar el pedido / Mandar por WhatsApp / Copiar el pedido
+  OK   admin: reportes (rango, margen, resultado, CSV) (3284 ms) 30 días: «Del 27/08/2026 al 25/09/2026» · margen h1 «Margen» · resultado h1 «Resultado del mes» · CSV 67 líneas, encabezado «Ventas del mostrador;Shine;del 2026-08-27 al 2026-09-25»
+  OK   admin: ruta inexistente muestra error entendible (739 ms) HTTP 404 · «S Shine viernes 25 de septiembre No encontramos esta página La dirección no existe, se escribió mal » · enlaces a inicio=1
+
+=== shinevelas · 390 px
+  OK   tienda: portada (1973 ms) sx=0 chicos(0)=
+  OK   tienda: buscar y vacío (1658 ms) «lavanda» → 1 productos visibles; vacío → «No encontramos «zzqqxx».»
+  OK   tienda: ficha de producto (2625 ms) url=/tienda?producto=cmrj8c9u8005dww7d8zm1hjn4 selectorDeVariante=0 texto=«Ir a la carta Tu pedido SHINE · VELAS · AROMAS · DECO No es una vela. Es un ambiente. Cera de soja, mecha de algodón y fragancias que cambian cómo se siente un »
+  OK   tienda: sumar a la bolsa (+1 con Más) (2306 ms) bolsa abierta con «Ver mi pedido» · botón de envío: «Enviar pedido · $17.300» via=tienda
+  OK   tienda: la bolsa sobrevive a recargar (1796 ms) sigue: «Enviar pedido · $17.300»
+  OK   tienda: error sin conexión (3280 ms) aviso: «No pudimos tomar el pedido.»
+  OK   tienda: enviar pedido y texto del wa.me (34898 ms) código #320 · cargando=«» · destino /5491155550101 · «¡Hola Shine Velas! Te escribo por mi pedido #320 de la tienda: ⏎ • 2 u · Fósforos largos deco (frasco) ⏎ Total: $13.800,00 ⏎ Entrega: retiro en el local ⏎ A nombre de: QA Recorrido v9us4»
+  OK   tienda: 360 px sin scroll horizontal (2084 ms) portada y ficha sin desborde
+  OK   admin: entrar como dueño (1608 ms) diseño=renglon
+  OK   admin: el pedido de la vidriera llegó a Pedidos (1541 ms) aparecen #318, #320
+  OK   admin: vender por unidad y cobrar (9968 ms) TOTAL $5.900 · «cobradas hoy Venta #321 cobrada · $5» · ventas hoy 7→8 · stock 24→23
+  OK   admin: catálogo — agregar producto y recargar (5353 ms) aviso «undefined» · fila «os 3 unidad QA Recorrido Vela 390 v9us4 Stock bajo Sin costo $2.500 1 producto de 32 Planilla de co» · formas de venta ofrecidas: Por kilo (balanza)/Por unidad
+  OK   admin: catálogo — búsqueda sin resultados (1162 ms) «Ningún producto coincide con «zzqqxx».»
+  OK   admin: compra — registrar vacía da error (1101 ms) botón deshabilitado con leyenda «Cargá qué llegó y cuánto.»
+  OK   admin: compra a proveedor y recepción (stock +N, recarga) (9426 ms) proveedor «Taller de Aromas BA (prueba)» · aviso «undefined» · stock 33→36
+  OK   admin: qué pedir (sugerido) lleva a recibir (1339 ms) «Sugerido de compra 26 productos para pedir a 2 proveedores y algunos sin proveedor habitua» · acciones: Recibir mercadería / Mandar por WhatsApp / Copiar el pedido / Mandar por WhatsApp / Copiar el pedido
+  OK   admin: reportes (rango, margen, resultado, CSV) (3573 ms) 30 días: «Del 27/08/2026 al 25/09/2026» · margen h1 «Margen» · resultado h1 «Resultado del mes» · CSV 67 líneas, encabezado «Ventas del mostrador;Shine;del 2026-08-27 al 2026-09-25»
+  OK   admin: ruta inexistente muestra error entendible (769 ms) HTTP 404 · «S Shine viernes 25 de septiembre No encontramos esta página La dirección no existe, se escribió mal » · enlaces a inicio=1
+  OK   admin: teclas < 44 px a 390 y scroll a 360 (13183 ms) sin desborde a 360 en 9 pantallas; con teclas < 44 px: 3 (detalle en tactil-y-desborde.txt)
+  OK   permisos del cajero (7061 ms) /admin/vender → 200 /admin/vender «Vender» ; /admin/catalogo?agregar=1 → 200 /admin/no-disponible «Catálogo no está disponible» formAlta=0 ; /admin/compras → 200 /admin/compras «Recibir mercadería» ; /admin/reportes → 200 /admin/no-disponible «Reportes no está disponible» ; /admin/resultado → 200 /admin/no-disponible «Resultado del mes no está disponible» ; /admin/usuarios → 200 /admin/no-disponible «Usuarios y permisos no está disponible» ; /admin/cierre-mes → 200 /admin/no-disponible «Cierre del mes no está disponible»
+  OK   admin: cargar el WhatsApp del negocio (Localización) y recargar (3529 ms) ya estaba: 5491155550102
+
+=== adosmanos · 1440 px
+  OK   tienda: portada (1410 ms) sx=0 chicos(0)=
+  OK   tienda: buscar y vacío (1633 ms) «nox» → 2 productos visibles; vacío → «No encontramos «zzqqxx».»
+  OK   tienda: ficha de producto (1940 ms) url=/tienda?producto=cmrj9euq30062ww7dz17hbmlc selectorDeVariante=0 texto=«Ir a la carta A DOS MANOS PÁDEL Palas y zapatillas Cómo comprar Contacto WhatsApp TIENDA CHICA, ELEGIDA A MANO. PALAS Y ZAPATILLAS, PARA JUGAR MEJOR. Dos líneas»
+  OK   tienda: sumar a la bolsa (+1 con Más) (1206 ms) bolsa a la vista · botón de envío: «Enviar pedido · $19.800» via=tienda
+  OK   tienda: la bolsa sobrevive a recargar (964 ms) sigue: «Enviar pedido · $19.800»
+  OK   tienda: error sin conexión (2991 ms) aviso: «No pudimos tomar el pedido.»
+  OK   tienda: enviar pedido y texto del wa.me (36296 ms) código #188 · cargando=«» · destino /5491155550102 · «¡Hola A Dos Manos Pádel! Te escribo por mi pedido #188 de la tienda: ⏎ • 2 u · Protector de pala transparente ⏎ Total: $19.800,00 ⏎ Entrega: retiro en el local ⏎ A nombre de: QA Recorrido v9us4»
+  OK   tienda: 360 px sin scroll horizontal (1959 ms) portada y ficha sin desborde
+  OK   admin: entrar como dueño (1378 ms) diseño=renglon
+  OK   admin: el pedido de la vidriera llegó a Pedidos (1271 ms) aparecen #188
+  OK   admin: vender por unidad y cobrar (10341 ms) TOTAL $8.900 · «cobradas hoy Venta #189 cobrada · $8» · ventas hoy 6→7 · stock 16→15
+  FALLA admin: vender con variante (talle): sin selector de talle: 2 productos sueltos para «Zapatillas Asics»
+  OK   admin: catálogo — agregar producto y recargar (5285 ms) aviso «undefined» · fila «IO 3 unidad QA Recorrido Grip 1440 v9us4 Por unidad Stock bajo Sin costo $2.500 1 producto de 28 ↑ ↓» · formas de venta ofrecidas: Por kilo (balanza)/Por unidad
+  OK   admin: catálogo — búsqueda sin resultados (1203 ms) «Ningún producto coincide con «zzqqxx».»
+  OK   admin: compra — registrar vacía da error (1194 ms) botón deshabilitado con leyenda «Cargá qué llegó y cuánto.»
+  OK   admin: compra a proveedor y recepción (stock +N, recarga) (9439 ms) proveedor «Distribuidora Pádel Sur (prueba)» · aviso «undefined» · stock 29→31
+  OK   admin: qué pedir (sugerido) lleva a recibir (1247 ms) «Sugerido de compra 13 productos para pedir a 2 proveedores y algunos sin proveedor habitua» · acciones: Recibir mercadería / Mandar por WhatsApp / Copiar el pedido / Mandar por WhatsApp / Copiar el pedido
+  OK   admin: reportes (rango, margen, resultado, CSV) (3059 ms) 30 días: «Del 27/08/2026 al 25/09/2026» · margen h1 «Margen» · resultado h1 «Resultado del mes» · CSV 60 líneas, encabezado «Ventas del mostrador;A Dos Manos;del 2026-08-27 al 2026-09-25»
+  OK   admin: ruta inexistente muestra error entendible (719 ms) HTTP 404 · «AM A Dos Manos viernes 25 de septiembre No encontramos esta página La dirección no existe, se escrib» · enlaces a inicio=1
+
+=== adosmanos · 390 px
+  OK   tienda: portada (1506 ms) sx=0 chicos(0)=
+  OK   tienda: buscar y vacío (1527 ms) «nox» → 2 productos visibles; vacío → «No encontramos «zzqqxx».»
+  OK   tienda: ficha de producto (1953 ms) url=/tienda?producto=cmrj9euq30062ww7dz17hbmlc selectorDeVariante=0 texto=«Ir a la carta A DOS MANOS Tu pedido TIENDA CHICA, ELEGIDA A MANO. PALAS Y ZAPATILLAS, PARA JUGAR MEJOR. Dos líneas, las mejores marcas y asesoramiento personali»
+  OK   tienda: sumar a la bolsa (+1 con Más) (2089 ms) bolsa abierta con «Ver mi pedido» · botón de envío: «Enviar pedido · $19.800» via=tienda
+  OK   tienda: la bolsa sobrevive a recargar (1725 ms) sigue: «Enviar pedido · $19.800»
+  OK   tienda: error sin conexión (3075 ms) aviso: «No pudimos tomar el pedido.»
+  OK   tienda: enviar pedido y texto del wa.me (36482 ms) código #190 · cargando=«» · destino /5491155550102 · «¡Hola A Dos Manos Pádel! Te escribo por mi pedido #190 de la tienda: ⏎ • 2 u · Protector de pala transparente ⏎ Total: $19.800,00 ⏎ Entrega: retiro en el local ⏎ A nombre de: QA Recorrido v9us4»
+  OK   tienda: 360 px sin scroll horizontal (1961 ms) portada y ficha sin desborde
+  OK   admin: entrar como dueño (1519 ms) diseño=renglon
+  OK   admin: el pedido de la vidriera llegó a Pedidos (1258 ms) aparecen #188, #190
+  OK   admin: vender por unidad y cobrar (9940 ms) TOTAL $8.900 · «cobradas hoy Venta #191 cobrada · $8» · ventas hoy 7→8 · stock 15→14
+  FALLA admin: vender con variante (talle): sin selector de talle: 2 productos sueltos para «Zapatillas Asics»
+  OK   admin: catálogo — agregar producto y recargar (5288 ms) aviso «undefined» · fila «os 3 unidad QA Recorrido Grip 390 v9us4 Stock bajo Sin costo $2.500 1 producto de 29 Planilla de co» · formas de venta ofrecidas: Por kilo (balanza)/Por unidad
+  OK   admin: catálogo — búsqueda sin resultados (1126 ms) «Ningún producto coincide con «zzqqxx».»
+  OK   admin: compra — registrar vacía da error (1081 ms) botón deshabilitado con leyenda «Cargá qué llegó y cuánto.»
+  OK   admin: compra a proveedor y recepción (stock +N, recarga) (9686 ms) proveedor «Distribuidora Pádel Sur (prueba)» · aviso «undefined» · stock 31→34
+  OK   admin: qué pedir (sugerido) lleva a recibir (1263 ms) «Sugerido de compra 14 productos para pedir a 2 proveedores y algunos sin proveedor habitua» · acciones: Recibir mercadería / Mandar por WhatsApp / Copiar el pedido / Mandar por WhatsApp / Copiar el pedido
+  OK   admin: reportes (rango, margen, resultado, CSV) (3276 ms) 30 días: «Del 27/08/2026 al 25/09/2026» · margen h1 «Margen» · resultado h1 «Resultado del mes» · CSV 60 líneas, encabezado «Ventas del mostrador;A Dos Manos;del 2026-08-27 al 2026-09-25»
+  OK   admin: ruta inexistente muestra error entendible (753 ms) HTTP 404 · «AM A Dos Manos viernes 25 de septiembre No encontramos esta página La dirección no existe, se escrib» · enlaces a inicio=1
+  OK   admin: teclas < 44 px a 390 y scroll a 360 (12835 ms) sin desborde a 360 en 9 pantallas; con teclas < 44 px: 3 (detalle en tactil-y-desborde.txt)
+  OK   permisos del cajero (7132 ms) /admin/vender → 200 /admin/vender «Vender» ; /admin/catalogo?agregar=1 → 200 /admin/no-disponible «Catálogo no está disponible» formAlta=0 ; /admin/compras → 200 /admin/compras «Recibir mercadería» ; /admin/reportes → 200 /admin/no-disponible «Reportes no está disponible» ; /admin/resultado → 200 /admin/no-disponible «Resultado del mes no está disponible» ; /admin/usuarios → 200 /admin/no-disponible «Usuarios y permisos no está disponible» ; /admin/cierre-mes → 200 /admin/no-disponible «Cierre del mes no está disponible»
+
+=== RESUMEN sello=v9us4
+pasos: 80 · ok: 78 · fallas: 2
+  FALLA [adosmanos 1440] admin: vender con variante (talle): sin selector de talle: 2 productos sueltos para «Zapatillas Asics»
+  FALLA [adosmanos 390] admin: vender con variante (talle): sin selector de talle: 2 productos sueltos para «Zapatillas Asics»
+errores de consola: 0 (más 10 provocados a propósito)
+  CONSOLA (provocado) shinevelas 1440 http://shinevelas.localhost:3210/tienda :: Failed to load resource: net::ERR_INTERNET_DISCONNECTED
+  CONSOLA (provocado) shinevelas 1440 http://shinevelas.localhost:3210/admin/catalogo/no-existe-qa :: Failed to load resource: the server responded with a status of 404 (Not Found)
+  CONSOLA (provocado) shinevelas 390 http://shinevelas.localhost:3210/tienda :: Failed to load resource: net::ERR_INTERNET_DISCONNECTED
+  CONSOLA (provocado) shinevelas 390 http://shinevelas.localhost:3210/admin/catalogo/no-existe-qa :: Failed to load resource: the server responded with a status of 404 (Not Found)
+  CONSOLA (provocado) adosmanos 1440 http://adosmanos.localhost:3210/tienda :: Failed to load resource: net::ERR_INTERNET_DISCONNECTED
+  CONSOLA (provocado) adosmanos 1440 http://adosmanos.localhost:3210/admin/catalogo/no-existe-qa :: Failed to load resource: the server responded with a status of 404 (Not Found)
+  CONSOLA (provocado) adosmanos 390 http://adosmanos.localhost:3210/tienda :: Failed to load resource: net::ERR_INTERNET_DISCONNECTED
+  CONSOLA (provocado) adosmanos 390 http://adosmanos.localhost:3210/admin/catalogo/no-existe-qa :: Failed to load resource: the server responded with a status of 404 (Not Found)
+callejones: 2
+  CALLEJÓN adosmanos: no hay variantes (talle/color). «Zapatillas Asics» aparece como 2 productos sueltos (Zapatillas Asics Gel-Padel Pro $229.900,00/u  / QA Zapatillas Asics Gel-Padel Pro talle 42 $2); el talle sólo existe si se crea un producto aparte o se escribe en la nota del pedido.

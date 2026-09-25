@@ -1,0 +1,602 @@
+{
+  "sello": "pobos",
+  "pasos": [
+    {
+      "neg": "shinevelas",
+      "ancho": "config",
+      "paso": "admin: cargar el WhatsApp del negocio (Localización) y recargar",
+      "ok": true,
+      "det": "ya estaba: 5491155550101"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "tienda: portada",
+      "ok": true,
+      "det": "sx=0 chicos(0)="
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "tienda: buscar y vacío",
+      "ok": true,
+      "det": "«lavanda» → 1 productos visibles; vacío → «No encontramos «zzqqxx».»"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "tienda: ficha de producto",
+      "ok": true,
+      "det": "url=/tienda?producto=cmrj8c9u8005dww7d8zm1hjn4 selectorDeVariante=0 texto=«Ir a la carta VELAS · AROMAS · DECO Colección Regalos Ritual Contacto WhatsApp SHINE · VELAS · AROMAS · DECO No es una vela. Es un ambiente. Cera de soja, mecha»"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "tienda: sumar a la bolsa (+1 con Más)",
+      "ok": true,
+      "det": "bolsa a la vista · botón de envío: «Enviar pedido · $17.300» via=tienda"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "tienda: la bolsa sobrevive a recargar",
+      "ok": true,
+      "det": "sigue: «Enviar pedido · $17.300»"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "tienda: error sin conexión",
+      "ok": true,
+      "det": "aviso: «No pudimos tomar el pedido.»"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "tienda: enviar pedido y texto del wa.me",
+      "ok": true,
+      "det": "código #313 · cargando=«Pedir por WhatsApp» · destino /5491155550101 · «¡Hola Shine Velas! Te escribo por mi pedido #313 de la tienda: ⏎ • 2 u · Fósforos largos deco (frasco) ⏎ Total: $13.800,00 ⏎ Entrega: retiro en el local ⏎ A nombre de: QA Recorrido pobos»"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "tienda: 360 px sin scroll horizontal",
+      "ok": true,
+      "det": "portada y ficha sin desborde"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "admin: entrar como dueño",
+      "ok": true,
+      "det": "diseño=renglon"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "admin: el pedido de la vidriera llegó a Pedidos",
+      "ok": true,
+      "det": "aparecen #313"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "admin: vender por unidad y cobrar",
+      "ok": true,
+      "det": "TOTAL $5.900 · «cobradas hoy Venta #314 cobrada · $5» · ventas hoy 4→5 · stock 27→26"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "admin: catálogo — agregar producto y recargar",
+      "ok": true,
+      "det": "aviso «undefined» · fila «IO 3 unidad QA Recorrido Vela 1440 pobos Por unidad Stock bajo Sin costo $2.500 1 producto de 28 ↑ ↓» · formas de venta ofrecidas: Por kilo (balanza)/Por unidad"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "admin: catálogo — búsqueda sin resultados",
+      "ok": true,
+      "det": "«Ningún producto coincide con «zzqqxx».»"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "admin: compra — registrar vacía da error",
+      "ok": true,
+      "det": "botón deshabilitado con leyenda «Cargá qué llegó y cuánto.»"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "admin: compra a proveedor y recepción (stock +N, recarga)",
+      "ok": true,
+      "det": "proveedor «Taller de Aromas BA (prueba)» · aviso «undefined» · stock 23→25"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "admin: qué pedir (sugerido) lleva a recibir",
+      "ok": true,
+      "det": "«Sugerido de compra 21 productos para pedir a 2 proveedores y algunos sin proveedor habitua» · acciones: Recibir mercadería / Mandar por WhatsApp / Copiar el pedido / Mandar por WhatsApp / Copiar el pedido"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "admin: reportes (rango, margen, resultado, CSV)",
+      "ok": true,
+      "det": "30 días: «Del 27/08/2026 al 25/09/2026» · margen h1 «Margen» · resultado h1 «Resultado del mes» · CSV 67 líneas, encabezado «Ventas del mostrador;Shine;del 2026-08-27 al 2026-09-25\r»"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 1440,
+      "paso": "admin: ruta inexistente muestra error entendible",
+      "ok": true,
+      "det": "HTTP 404 · «404 This page could not be found.» · enlaces a inicio=0"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "tienda: portada",
+      "ok": true,
+      "det": "sx=0 chicos(0)="
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "tienda: buscar y vacío",
+      "ok": true,
+      "det": "«lavanda» → 1 productos visibles; vacío → «No encontramos «zzqqxx».»"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "tienda: ficha de producto",
+      "ok": true,
+      "det": "url=/tienda?producto=cmrj8c9u8005dww7d8zm1hjn4 selectorDeVariante=0 texto=«Ir a la carta Tu pedido SHINE · VELAS · AROMAS · DECO No es una vela. Es un ambiente. Cera de soja, mecha de algodón y fragancias que cambian cómo se siente un »"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "tienda: sumar a la bolsa (+1 con Más)",
+      "ok": true,
+      "det": "bolsa abierta con «Ver mi pedido» · botón de envío: «Enviar pedido · $17.300» via=tienda"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "tienda: la bolsa sobrevive a recargar",
+      "ok": true,
+      "det": "sigue: «Enviar pedido · $17.300»"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "tienda: error sin conexión",
+      "ok": true,
+      "det": "aviso: «No pudimos tomar el pedido.»"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "tienda: enviar pedido y texto del wa.me",
+      "ok": true,
+      "det": "código #315 · cargando=«Pedir por WhatsApp» · destino /5491155550101 · «¡Hola Shine Velas! Te escribo por mi pedido #315 de la tienda: ⏎ • 2 u · Fósforos largos deco (frasco) ⏎ Total: $13.800,00 ⏎ Entrega: retiro en el local ⏎ A nombre de: QA Recorrido pobos»"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "tienda: 360 px sin scroll horizontal",
+      "ok": true,
+      "det": "portada y ficha sin desborde"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "admin: entrar como dueño",
+      "ok": true,
+      "det": "diseño=renglon"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "admin: el pedido de la vidriera llegó a Pedidos",
+      "ok": true,
+      "det": "aparecen #313, #315"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "admin: vender por unidad y cobrar",
+      "ok": false,
+      "det": "locator.click: Timeout 30000ms exceeded."
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "admin: catálogo — agregar producto y recargar",
+      "ok": true,
+      "det": "aviso «undefined» · fila «os 3 unidad QA Recorrido Vela 390 pobos Stock bajo Sin costo $2.500 1 producto de 29 Planilla de co» · formas de venta ofrecidas: Por kilo (balanza)/Por unidad"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "admin: catálogo — búsqueda sin resultados",
+      "ok": true,
+      "det": "«Ningún producto coincide con «zzqqxx».»"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "admin: compra — registrar vacía da error",
+      "ok": true,
+      "det": "botón deshabilitado con leyenda «Cargá qué llegó y cuánto.»"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "admin: compra a proveedor y recepción (stock +N, recarga)",
+      "ok": true,
+      "det": "proveedor «Taller de Aromas BA (prueba)» · aviso «undefined» · stock 25→28"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "admin: qué pedir (sugerido) lleva a recibir",
+      "ok": true,
+      "det": "«Sugerido de compra 22 productos para pedir a 2 proveedores y algunos sin proveedor habitua» · acciones: Recibir mercadería / Mandar por WhatsApp / Copiar el pedido / Mandar por WhatsApp / Copiar el pedido"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "admin: reportes (rango, margen, resultado, CSV)",
+      "ok": true,
+      "det": "30 días: «Del 27/08/2026 al 25/09/2026» · margen h1 «Margen» · resultado h1 «Resultado del mes» · CSV 67 líneas, encabezado «Ventas del mostrador;Shine;del 2026-08-27 al 2026-09-25\r»"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "admin: ruta inexistente muestra error entendible",
+      "ok": true,
+      "det": "HTTP 404 · «404 This page could not be found.» · enlaces a inicio=0"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": 390,
+      "paso": "admin: teclas < 44 px a 390 y scroll a 360",
+      "ok": true,
+      "det": "sin desborde a 360 en 9 pantallas; con teclas < 44 px: 3 (detalle en tactil-y-desborde.txt)"
+    },
+    {
+      "neg": "shinevelas",
+      "ancho": "cajero",
+      "paso": "permisos del cajero",
+      "ok": true,
+      "det": "/admin/vender → 200 /admin/vender «Vender» ; /admin/catalogo?agregar=1 → 200 /admin/no-disponible «Catálogo no está disponible» formAlta=0 ; /admin/compras → 200 /admin/compras «Recibir mercadería» ; /admin/reportes → 200 /admin/no-disponible «Reportes no está disponible» ; /admin/resultado → 200 /admin/no-disponible «Resultado del mes no está disponible» ; /admin/usuarios → 200 /admin/no-disponible «Usuarios y permisos no está disponible» ; /admin/cierre-mes → 200 /admin/no-disponible «Cierre del mes no está disponible»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": "config",
+      "paso": "admin: cargar el WhatsApp del negocio (Localización) y recargar",
+      "ok": true,
+      "det": "ya estaba: 5491155550102"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "tienda: portada",
+      "ok": true,
+      "det": "sx=0 chicos(0)="
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "tienda: buscar y vacío",
+      "ok": true,
+      "det": "«nox» → 2 productos visibles; vacío → «No encontramos «zzqqxx».»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "tienda: ficha de producto",
+      "ok": true,
+      "det": "url=/tienda?producto=cmrj9euq30062ww7dz17hbmlc selectorDeVariante=0 texto=«Ir a la carta A DOS MANOS PÁDEL Palas y zapatillas Cómo comprar Contacto WhatsApp TIENDA CHICA, ELEGIDA A MANO. PALAS Y ZAPATILLAS, PARA JUGAR MEJOR. Dos líneas»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "tienda: sumar a la bolsa (+1 con Más)",
+      "ok": true,
+      "det": "bolsa a la vista · botón de envío: «Enviar pedido · $19.800» via=tienda"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "tienda: la bolsa sobrevive a recargar",
+      "ok": true,
+      "det": "sigue: «Enviar pedido · $19.800»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "tienda: error sin conexión",
+      "ok": true,
+      "det": "aviso: «No pudimos tomar el pedido.»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "tienda: enviar pedido y texto del wa.me",
+      "ok": true,
+      "det": "código #184 · cargando=«Pedir por WhatsApp» · destino /5491155550102 · «¡Hola A Dos Manos Pádel! Te escribo por mi pedido #184 de la tienda: ⏎ • 2 u · Protector de pala transparente ⏎ Total: $19.800,00 ⏎ Entrega: retiro en el local ⏎ A nombre de: QA Recorrido pobos»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "tienda: 360 px sin scroll horizontal",
+      "ok": true,
+      "det": "portada y ficha sin desborde"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "admin: entrar como dueño",
+      "ok": true,
+      "det": "diseño=renglon"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "admin: el pedido de la vidriera llegó a Pedidos",
+      "ok": true,
+      "det": "aparecen #184"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "admin: vender por unidad y cobrar",
+      "ok": true,
+      "det": "TOTAL $8.900 · «cobradas hoy Venta #185 cobrada · $8» · ventas hoy 4→5 · stock 18→17"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "admin: vender con variante (talle)",
+      "ok": false,
+      "det": "sin selector de talle: 2 productos sueltos para «Zapatillas Asics»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "admin: catálogo — agregar producto y recargar",
+      "ok": true,
+      "det": "aviso «undefined» · fila «IO 3 unidad QA Recorrido Grip 1440 pobos Por unidad Stock bajo Sin costo $2.500 1 producto de 26 ↑ ↓» · formas de venta ofrecidas: Por kilo (balanza)/Por unidad"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "admin: catálogo — búsqueda sin resultados",
+      "ok": true,
+      "det": "«Ningún producto coincide con «zzqqxx».»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "admin: compra — registrar vacía da error",
+      "ok": true,
+      "det": "botón deshabilitado con leyenda «Cargá qué llegó y cuánto.»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "admin: compra a proveedor y recepción (stock +N, recarga)",
+      "ok": true,
+      "det": "proveedor «Distribuidora Pádel Sur (prueba)» · aviso «undefined» · stock 24→26"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "admin: qué pedir (sugerido) lleva a recibir",
+      "ok": true,
+      "det": "«Sugerido de compra 11 productos para pedir a 2 proveedores y algunos sin proveedor habitua» · acciones: Recibir mercadería / Mandar por WhatsApp / Copiar el pedido / Mandar por WhatsApp / Copiar el pedido"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "admin: reportes (rango, margen, resultado, CSV)",
+      "ok": true,
+      "det": "30 días: «Del 27/08/2026 al 25/09/2026» · margen h1 «Margen» · resultado h1 «Resultado del mes» · CSV 60 líneas, encabezado «Ventas del mostrador;A Dos Manos;del 2026-08-27 al 2026-09-25\r»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 1440,
+      "paso": "admin: ruta inexistente muestra error entendible",
+      "ok": true,
+      "det": "HTTP 404 · «404 This page could not be found.» · enlaces a inicio=0"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "tienda: portada",
+      "ok": true,
+      "det": "sx=0 chicos(0)="
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "tienda: buscar y vacío",
+      "ok": true,
+      "det": "«nox» → 2 productos visibles; vacío → «No encontramos «zzqqxx».»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "tienda: ficha de producto",
+      "ok": true,
+      "det": "url=/tienda?producto=cmrj9euq30062ww7dz17hbmlc selectorDeVariante=0 texto=«Ir a la carta A DOS MANOS Tu pedido TIENDA CHICA, ELEGIDA A MANO. PALAS Y ZAPATILLAS, PARA JUGAR MEJOR. Dos líneas, las mejores marcas y asesoramiento personali»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "tienda: sumar a la bolsa (+1 con Más)",
+      "ok": true,
+      "det": "bolsa abierta con «Ver mi pedido» · botón de envío: «Enviar pedido · $19.800» via=tienda"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "tienda: la bolsa sobrevive a recargar",
+      "ok": true,
+      "det": "sigue: «Enviar pedido · $19.800»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "tienda: error sin conexión",
+      "ok": true,
+      "det": "aviso: «No pudimos tomar el pedido.»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "tienda: enviar pedido y texto del wa.me",
+      "ok": true,
+      "det": "código #186 · cargando=«» · destino /5491155550102 · «¡Hola A Dos Manos Pádel! Te escribo por mi pedido #186 de la tienda: ⏎ • 2 u · Protector de pala transparente ⏎ Total: $19.800,00 ⏎ Entrega: retiro en el local ⏎ A nombre de: QA Recorrido pobos»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "tienda: 360 px sin scroll horizontal",
+      "ok": true,
+      "det": "portada y ficha sin desborde"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "admin: entrar como dueño",
+      "ok": true,
+      "det": "diseño=renglon"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "admin: el pedido de la vidriera llegó a Pedidos",
+      "ok": true,
+      "det": "aparecen #184, #186"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "admin: vender por unidad y cobrar",
+      "ok": true,
+      "det": "TOTAL $8.900 · «cobradas hoy Venta #187 cobrada · $8» · ventas hoy 5→6 · stock 17→16"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "admin: vender con variante (talle)",
+      "ok": false,
+      "det": "sin selector de talle: 2 productos sueltos para «Zapatillas Asics»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "admin: catálogo — agregar producto y recargar",
+      "ok": true,
+      "det": "aviso «undefined» · fila «os 3 unidad QA Recorrido Grip 390 pobos Stock bajo Sin costo $2.500 1 producto de 27 Planilla de co» · formas de venta ofrecidas: Por kilo (balanza)/Por unidad"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "admin: catálogo — búsqueda sin resultados",
+      "ok": true,
+      "det": "«Ningún producto coincide con «zzqqxx».»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "admin: compra — registrar vacía da error",
+      "ok": true,
+      "det": "botón deshabilitado con leyenda «Cargá qué llegó y cuánto.»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "admin: compra a proveedor y recepción (stock +N, recarga)",
+      "ok": true,
+      "det": "proveedor «Distribuidora Pádel Sur (prueba)» · aviso «undefined» · stock 26→29"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "admin: qué pedir (sugerido) lleva a recibir",
+      "ok": true,
+      "det": "«Sugerido de compra 12 productos para pedir a 2 proveedores y algunos sin proveedor habitua» · acciones: Recibir mercadería / Mandar por WhatsApp / Copiar el pedido / Mandar por WhatsApp / Copiar el pedido"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "admin: reportes (rango, margen, resultado, CSV)",
+      "ok": true,
+      "det": "30 días: «Del 27/08/2026 al 25/09/2026» · margen h1 «Margen» · resultado h1 «Resultado del mes» · CSV 60 líneas, encabezado «Ventas del mostrador;A Dos Manos;del 2026-08-27 al 2026-09-25\r»"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "admin: ruta inexistente muestra error entendible",
+      "ok": true,
+      "det": "HTTP 404 · «404 This page could not be found.» · enlaces a inicio=0"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": 390,
+      "paso": "admin: teclas < 44 px a 390 y scroll a 360",
+      "ok": true,
+      "det": "sin desborde a 360 en 9 pantallas; con teclas < 44 px: 3 (detalle en tactil-y-desborde.txt)"
+    },
+    {
+      "neg": "adosmanos",
+      "ancho": "cajero",
+      "paso": "permisos del cajero",
+      "ok": true,
+      "det": "/admin/vender → 200 /admin/vender «Vender» ; /admin/catalogo?agregar=1 → 200 /admin/no-disponible «Catálogo no está disponible» formAlta=0 ; /admin/compras → 200 /admin/compras «Recibir mercadería» ; /admin/reportes → 200 /admin/no-disponible «Reportes no está disponible» ; /admin/resultado → 200 /admin/no-disponible «Resultado del mes no está disponible» ; /admin/usuarios → 200 /admin/no-disponible «Usuarios y permisos no está disponible» ; /admin/cierre-mes → 200 /admin/no-disponible «Cierre del mes no está disponible»"
+    }
+  ],
+  "errores": [
+    "shinevelas config http://shinevelas.localhost:3210/admin/login :: Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa",
+    "shinevelas 1440 http://shinevelas.localhost:3210/tienda :: Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+    "shinevelas 1440 http://shinevelas.localhost:3210/tienda :: Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+    "shinevelas 1440 http://shinevelas.localhost:3210/admin/login :: Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa",
+    "shinevelas 1440 http://shinevelas.localhost:3210/admin/catalogo/no-existe-qa :: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "shinevelas 390 http://shinevelas.localhost:3210/tienda :: Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+    "shinevelas 390 http://shinevelas.localhost:3210/tienda :: Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+    "shinevelas 390 http://shinevelas.localhost:3210/tienda :: Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+    "shinevelas 390 http://shinevelas.localhost:3210/admin/login :: Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa",
+    "shinevelas 390 http://shinevelas.localhost:3210/admin/compras :: %c%s%c {\"ts\":\"2026-09-25T08:44:02.798Z\",\"level\":\"warn\",\"scope\":\"apps\",\"msg\":\"no se pudo leer el negocio para decidir sus apps; queda sin gate por módulo\",\"error\":\"Transaction API error: Unable to start a transaction in the given time.\"} bac",
+    "shinevelas 390 http://shinevelas.localhost:3210/admin/catalogo/no-existe-qa :: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "shinevelas cajero http://shinevelas.localhost:3210/admin/login :: Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa",
+    "adosmanos config http://adosmanos.localhost:3210/admin/login :: Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa",
+    "adosmanos 1440 http://adosmanos.localhost:3210/tienda :: Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+    "adosmanos 1440 http://adosmanos.localhost:3210/admin/login :: Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa",
+    "adosmanos 1440 http://adosmanos.localhost:3210/admin/catalogo/no-existe-qa :: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "adosmanos 390 http://adosmanos.localhost:3210/tienda :: Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+    "adosmanos 390 http://adosmanos.localhost:3210/admin/login :: Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa",
+    "adosmanos 390 http://adosmanos.localhost:3210/admin/catalogo/no-existe-qa :: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "adosmanos cajero http://adosmanos.localhost:3210/admin/login :: Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa"
+  ],
+  "callejones": [
+    "shinevelas: la página de «no existe» (404) no ofrece volver al inicio.",
+    "adosmanos: no hay variantes (talle/color). «Zapatillas Asics» aparece como 2 productos sueltos (Zapatillas Asics Gel-Padel Pro $229.900,00/u  / QA Zapatillas Asics Gel-Padel Pro talle 42 $2); el talle sólo existe si se crea un producto aparte o se escribe en la nota del pedido.",
+    "adosmanos: la página de «no existe» (404) no ofrece volver al inicio."
+  ],
+  "pedidos": {
+    "shinevelas": [
+      "313",
+      "315"
+    ],
+    "adosmanos": [
+      "184",
+      "186"
+    ]
+  }
+}

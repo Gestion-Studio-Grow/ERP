@@ -1,0 +1,11 @@
+qa-kiosco-lab inicio 390 status=200 diseno=renglon h1="Hoy, viernes 25 de septiembre" lineasH1=1 marca="QA Kiosco LabMostradorCajaClientesCatálogoStockComprasFacturasNúmerosConfiguración¿Qué querés hacer?Ctrl KQKQA Dueño KioscoDueño/aInicio MostradorCajaClientesCatálogoStockComprasFacturasNúmerosConfiguración Inicio QK" primer=171 sx=0
+  para-arrancar: Paso 1 Todos tus productos tienen precio | Paso 2 Abrir la caja con el fondo del cajón Abrir la caja | Paso 3 Facturación sin configurar Falta el CUIT y el punto de venta: los carga Gestión Studio Grow Ver factura | Paso 4 Cerrar el primer día Al final de la jornada: contás el cajón y queda en el libro Cerrar el día
+qa-kiosco-lab inicio 360 status=200 diseno=renglon h1="Hoy, viernes 25 de septiembre" lineasH1=1 marca="QA Kiosco LabMostradorCajaClientesCatálogoStockComprasFacturasNúmerosConfiguración¿Qué querés hacer?Ctrl KQKQA Dueño KioscoDueño/aInicio MostradorCajaClientesCatálogoStockComprasFacturasNúmerosConfiguración Inicio QK" primer=194 sx=0
+  para-arrancar: Paso 1 Todos tus productos tienen precio | Paso 2 Abrir la caja con el fondo del cajón Abrir la caja | Paso 3 Facturación sin configurar Falta el CUIT y el punto de venta: los carga Gestión Studio Grow Ver factura | Paso 4 Cerrar el primer día Al final de la jornada: contás el cajón y queda en el libro Cerrar el día
+qa-kiosco-lab inicio 1440 status=200 diseno=renglon h1="Hoy, viernes 25 de septiembre" lineasH1=1 marca=null primer=217 sx=0
+  para-arrancar: Paso 1 Todos tus productos tienen precio | Paso 2 Abrir la caja con el fondo del cajón Abrir la caja | Paso 3 Facturación sin configurar Falta el CUIT y el punto de venta: los carga Gestión Studio Grow Ver factura | Paso 4 Cerrar el primer día Al final de la jornada: contás el cajón y queda en el libro Cerrar el día
+magra pedidos 360 status=200 diseno=renglon h1="Pedidos para preparar" lineasH1=1 marca=null primer=305 sx=0
+magra pedidos 390 status=200 diseno=renglon h1="Pedidos para preparar" lineasH1=1 marca=null primer=305 sx=0
+magra pedidos 1440 status=200 diseno=renglon h1="Pedidos para preparar" lineasH1=1 marca=null primer=317 sx=0
+chestetica inicio 390 status=200 diseno=renglon h1="Hoy, viernes 25 de septiembre" lineasH1=1 marca=null primer=317 sx=0
+pantallas con errores de consola: 0

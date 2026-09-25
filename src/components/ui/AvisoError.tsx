@@ -30,6 +30,8 @@ export function AvisoError({ titulo, comoSeguir, accion, tono = "error", classNa
   return (
     <div
       role={esError ? "alert" : "status"}
+      data-ui="aviso-error"
+      data-tono={tono}
       className={cn(
         "flex items-start gap-3 rounded-lg border px-4 py-3 text-sm",
         esError ? "border-danger/25 bg-danger-soft" : "border-warning/25 bg-warning-soft",

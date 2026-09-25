@@ -20,6 +20,11 @@ import { mesSinMovimiento } from "@/lib/reports/resultado";
 import { negocioActual } from "@/apps/kpis/negocio.server";
 import { appsQuePuedeAbrir } from "@/lib/reports/apps-a-mano.server";
 import { AvisoError, EmptyState, PageHeader, buttonClasses, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
+import { DosColumnas, Franja, LineaDeEstado, Plata, atributosBoton } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { LineaDeCuenta } from "@/components/ui/LineaDeCuenta";
+import { PasoDePeriodo } from "@/components/ui/PasoDePeriodo";
+import { mesLargo, nombreMes } from "../caja/_renglon/fechas";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +89,168 @@ export default async function ResultadoPage({ searchParams }: { searchParams: Pr
       porque: "pueden ser un aporte, un préstamo o un cobro que ya se contó por otro lado",
     },
   ].filter((x) => x.monto !== 0);
+
+  // DISEÑO NUEVO («Renglón»): el resultado como se lleva una cuenta. Lo vendido, menos lo que costó,
+  // menos los gastos, y el renglón final con lo que dejó (la línea de estado lo repite arriba). Lo
+  // que se movió en la caja y no es resultado va al costado, con su porqué. Mismos números.
+  if (await disenoNuevo()) {
+    const avisos: React.ReactNode[] = [];
+    if (r.ivaIncluidoSinAlicuota && r.ventas.bruto > 0)
+      avisos.push(
+        "Tus ventas van con el IVA incluido. Como Responsable Inscripto ese IVA no es tuyo, pero cuánto es depende de la alícuota de cada producto (la carne paga 10,5 % y no 21 %) y el sistema todavía no la guarda por producto: no se descuenta, así que el resultado real es menor que el que ves.",
+      );
+    if (r.condicion === "sin-comprobantes" && r.ventas.bruto > 0)
+      avisos.push(
+        "Todavía no hay facturas con CAE, así que no se sabe si tu negocio es Responsable Inscripto: las ventas van como se cobraron. Si lo sos, el IVA incluido no es tuyo y el resultado real es menor.",
+      );
+    return (
+      <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
+        <header data-ui="page-header" className="mb-5 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-strong">Resultado del mes</h1>
+            <LineaDeEstado
+              datos={[
+                <strong key="m">
+                  {mesLargo(mes)}
+                  {enCurso ? ", hasta hoy" : ""}
+                </strong>,
+                mesSinMovimiento(r) ? "sin ventas ni gastos" : (
+                  <span key="r">
+                    {r.resultado >= 0 ? "dejó" : "perdió"} <Plata valor={Math.abs(r.resultado)} sinCentavos tono={r.resultado >= 0 ? "cobrado" : "peligro"} />
+                  </span>
+                ),
+                !mesSinMovimiento(r) && r.margenSobreVentas !== null ? `${pct(r.margenSobreVentas)} de las ventas` : null,
+              ]}
+            />
+          </div>
+          <PasoDePeriodo
+            etiqueta="Mes"
+            actual={mesLargo(mes)}
+            anterior={{ href: `${RUTA}?mes=${anterior}`, texto: nombreMes(anterior) }}
+            siguiente={siguiente <= actual ? { href: `${RUTA}?mes=${siguiente}`, texto: nombreMes(siguiente) } : null}
+          />
+        </header>
+        {mesSinMovimiento(r) ? (
+          <p className="flex max-w-3xl flex-wrap items-center gap-3 border-y border-line py-4 text-sm text-body">
+            Sin ventas ni gastos en {etiqueta}. El resultado sale de las ventas cobradas (o a cuenta), de lo que costó lo vendido y de los gastos del libro de caja.
+            {abribles.has("vender") && (
+              <Link href="/admin/vender" className={buttonClasses("outline", "sm")} {...atributosBoton("outline", "sm")}>
+                Ir a Vender
+              </Link>
+            )}
+          </p>
+        ) : (
+          <>
+            {r.costo.lineasSinCosto > 0 && (
+              <Franja tono="atencion" className="mb-5">
+                {fmtNumberAR(r.costo.lineasSinCosto)} {r.costo.lineasSinCosto === 1 ? "línea vendida no tiene" : "líneas vendidas no tienen"} costo: {money(r.costo.vendidoSinCosto)} que no se restan, así que el resultado sale más alto de lo que es.{" "}
+                {abribles.has("catalogo") ? (
+                  <Link href="/admin/catalogo">Cargá el costo en el Catálogo</Link>
+                ) : (
+                  "Cargá el costo en el Catálogo o al recibir la mercadería."
+                )}
+              </Franja>
+            )}
+            <DosColumnas>
+              <section aria-labelledby="la-cuenta" className="min-w-0">
+                <div className="flex items-baseline justify-between gap-3 border-b border-line-strong pb-2">
+                  <h2 id="la-cuenta" className="text-[15px] font-semibold text-strong">
+                    La cuenta de {nombreMes(mes)}
+                  </h2>
+                  <span className="text-[13px] text-muted">{r.sinIva ? "sin IVA" : "como se cobró"}</span>
+                </div>
+                {r.ventas.mostrador !== 0 && (
+                  <LineaDeCuenta concepto="Ventas del mostrador cobradas" detalle={`${fmtNumberAR(r.ventas.mostradorCantidad)} ventas`} importe={<Plata valor={r.ventas.mostrador} />} />
+                )}
+                {r.ventas.aCuenta !== 0 && (
+                  <LineaDeCuenta concepto="Ventas a cuenta (fiado)" detalle={`${fmtNumberAR(r.ventas.aCuentaCantidad)} ventas`} importe={<Plata valor={r.ventas.aCuenta} />} />
+                )}
+                {r.ventas.turnos !== 0 && (
+                  <LineaDeCuenta concepto="Turnos cobrados" detalle={`${fmtNumberAR(r.ventas.turnosCantidad)} cobros, por la fecha del cobro`} importe={<Plata valor={r.ventas.turnos} />} />
+                )}
+                {r.sinIva && r.alicuota != null && (
+                  <LineaDeCuenta
+                    concepto={`Menos el IVA (${pct(r.alicuota)})`}
+                    detalle="El que cobraste por cuenta de ARCA: no es tuyo."
+                    importe={<Plata valor={-(r.ventas.bruto - r.ventas.neto)} />}
+                  />
+                )}
+                <LineaDeCuenta total concepto="Ventas" importe={<Plata valor={r.ventas.neto} />} />
+                {r.costo.mercaderia !== 0 && (
+                  <LineaDeCuenta
+                    concepto="Costo de la mercadería vendida"
+                    detalle={
+                      r.costo.lineasAlCostoDeHoy > 0
+                        ? `${fmtNumberAR(r.costo.lineasAlCostoDeHoy)} ${r.costo.lineasAlCostoDeHoy === 1 ? "línea va" : "líneas van"} con el costo de hoy (no lo guardaron al venderse).`
+                        : "Con el costo guardado en cada venta."
+                    }
+                    importe={<Plata valor={-r.costo.mercaderia} />}
+                  />
+                )}
+                {r.costo.insumos !== 0 && <LineaDeCuenta concepto="Insumos usados en los servicios" importe={<Plata valor={-r.costo.insumos} />} />}
+                {r.gastos.comisiones !== 0 && <LineaDeCuenta concepto="Comisiones pagadas" importe={<Plata valor={-r.gastos.comisiones} />} />}
+                {r.gastos.diferenciasDeCaja !== 0 && (
+                  <LineaDeCuenta
+                    concepto={r.gastos.diferenciasDeCaja > 0 ? "Faltantes de caja" : "Sobrantes de caja"}
+                    detalle="Lo que dejaron los cierres del día."
+                    importe={<Plata valor={-r.gastos.diferenciasDeCaja} />}
+                  />
+                )}
+                {r.gastos.sinCategoria !== 0 && (
+                  <LineaDeCuenta
+                    concepto={`Gastos cargados a mano (${fmtNumberAR(r.gastos.sinCategoriaCantidad)})`}
+                    detalle={
+                      abribles.has("libro-de-caja") ? (
+                        <Link href={`/admin/caja/libro?mes=${mes}`} className="font-medium text-accent-ink underline underline-offset-4">
+                          Verlos en el libro
+                        </Link>
+                      ) : (
+                        "Los egresos del libro de caja."
+                      )
+                    }
+                    importe={<Plata valor={-r.gastos.sinCategoria} />}
+                  />
+                )}
+                <LineaDeCuenta
+                  total
+                  concepto={r.resultado >= 0 ? "Dejó" : "Perdió"}
+                  detalle={r.margenSobreVentas === null ? undefined : `${pct(r.margenSobreVentas)} de las ventas`}
+                  importe={<Plata valor={r.resultado} tono={r.resultado >= 0 ? "cobrado" : "peligro"} />}
+                  className="text-base"
+                />
+                {avisos.length > 0 && (
+                  <ul className="mt-4 space-y-2 text-sm text-muted">
+                    {avisos.map((a, i) => (
+                      <li key={i}>{a}</li>
+                    ))}
+                  </ul>
+                )}
+                {abribles.has("margen") && (
+                  <p className="mt-4">
+                    <Link href={`/admin/reportes/margen?mes=${mes}`} className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+                      Ver cuánto dejó cada producto
+                    </Link>
+                  </p>
+                )}
+              </section>
+              {fuera.length > 0 && (
+                <aside aria-labelledby="no-es-resultado" className="min-w-0">
+                  <div className="flex items-baseline justify-between gap-3 border-b border-line-strong pb-2">
+                    <h2 id="no-es-resultado" className="text-[15px] font-semibold text-strong">
+                      Pasó por la caja y no es resultado
+                    </h2>
+                  </div>
+                  {fuera.map((x) => (
+                    <LineaDeCuenta key={x.rotulo} concepto={x.rotulo} detalle={x.porque} importe={<Plata valor={x.monto} />} />
+                  ))}
+                </aside>
+              )}
+            </DosColumnas>
+          </>
+        )}
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">

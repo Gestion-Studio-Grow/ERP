@@ -31,6 +31,11 @@ import { appsQuePuedeAbrir } from "@/lib/reports/apps-a-mano.server";
 import { negocioActual } from "@/apps/kpis/negocio.server";
 import { pluralDe } from "@/apps/kpis/nucleo.server";
 import { EmptyState, PageHeader, buttonClasses, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
+import { Bloque, DosColumnas, Franja, Marca, PageContainer, Plata, Renglon, atributosBoton } from "@/components/ui";
+import { LineaDeCuenta } from "@/components/ui/LineaDeCuenta";
+import { PasoDePeriodo } from "@/components/ui/PasoDePeriodo";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { mesLargo, nombreMes } from "../../caja/_renglon/fechas";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +44,29 @@ const money = (n: number) => fmtMoneyARS(n, 0);
 const pct = (n: number) => `${(n * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
 /** Cuántos con margen positivo se listan (los que venden a pérdida van todos). */
 const TOPE_CON_MARGEN = 30;
+
+/**
+ * DISEÑO NUEVO: el precio partido como en la etiqueta de la balanza. La raya entera es el precio;
+ * la parte gris es lo que cuesta y la de color lo que queda. Si el costo pasa el precio, la raya va
+ * entera en rojo. Es decorativa (aria-hidden): los números están escritos al lado.
+ */
+function RayaDelPrecio({ precio, costo }: { precio: number; costo: number }) {
+  if (!(precio > 0)) return null;
+  const perdida = costo > precio;
+  const parteCosto = Math.max(0, Math.min(1, costo / precio)) * 100;
+  return (
+    <span aria-hidden data-ui="raya-precio" className="mt-1.5 flex h-1 w-full max-w-48 overflow-hidden bg-surface-sunken">
+      {perdida ? (
+        <span className="h-full w-full bg-danger" />
+      ) : (
+        <>
+          <span className="h-full bg-line-strong" style={{ width: `${parteCosto}%` }} />
+          <span className="h-full flex-1 bg-accent" />
+        </>
+      )}
+    </span>
+  );
+}
 
 function Tarjeta({ label, value, hint, tono }: { label: string; value: string; hint?: string; tono?: "danger" | "success" }) {
   const color = tono === "danger" ? "text-danger" : tono === "success" ? "text-success" : "text-strong";
@@ -94,6 +122,162 @@ export default async function MargenPage({ searchParams }: { searchParams: Promi
       Ir a Recibir mercadería
     </Link>
   ) : undefined;
+
+  // DISEÑO NUEVO («Renglón»): el dueño a la noche, con el celular, se pregunta «¿en qué estoy
+  // perdiendo?». Arriba la respuesta en una línea; cada producto es un renglón con su porcentaje en
+  // el folio, lo que deja por kilo o unidad en la columna de plata y el precio partido en una raya
+  // (costo | lo que queda). Lo vendido del mes es una cuenta (vendido − costo = dejó), no tres
+  // tarjetas. Las mismas lecturas y los mismos números; la explicación, plegada al pie.
+  if (await disenoNuevo()) {
+    const listados = [...aPerdida, ...conMargen.slice(0, TOPE_CON_MARGEN)];
+    const dejo = totalVentas - totalCosto;
+    return (
+      <PageContainer>
+        <PageHeader
+          title="Margen"
+          estado={
+            hoy.summary.count === 0
+              ? [`Sin ${varios} con precio y costo`]
+              : [
+                  <strong key="p">promedio {pct(hoy.summary.avgMarginPct)} sobre el precio</strong>,
+                  aPerdida.length > 0 ? (
+                    <Marca key="a" tipo="atencion">
+                      {deN(aPerdida.length, `${uno} se vende`, `${varios} se venden`)} por debajo del costo
+                    </Marca>
+                  ) : (
+                    <span key="a">ninguno por debajo del costo</span>
+                  ),
+                  hoy.sinIva ? "sin IVA" : null,
+                ]
+          }
+          actions={
+            aPerdida.length > 0 && abribles.has("actualizar-precios") ? (
+              <Link href="/admin/catalogo/precios" className={buttonClasses("solid", "md")} {...atributosBoton("solid", "md")}>
+                Actualizar precios
+              </Link>
+            ) : undefined
+          }
+        />
+        {hoy.ivaIncluidoSinAlicuota && (
+          <Franja tono="atencion" className="mb-5">
+            Precios con IVA incluido: el neto depende de la alícuota de cada {uno}, que el sistema todavía no guarda. El margen real es menor que el que ves.
+          </Franja>
+        )}
+        <DosColumnas>
+          <Bloque id="hoy" titulo="Hoy: precio contra costo" cuenta={hoy.summary.count > 0 ? fmtNumberAR(hoy.summary.count) : undefined} nota="% · deja por unidad" className="min-w-0">
+            {hoy.summary.count === 0 ? (
+              <p data-ui="vacio" className="flex flex-wrap items-center gap-3 border-b border-line py-4 text-sm text-body">
+                {hoy.sinCosto > 0
+                  ? `Hay ${deN(hoy.sinCosto, uno, varios)} con precio y sin costo. El costo sale de la última compra o del que cargues en el Catálogo.`
+                  : `El margen sale del precio y del costo: cargá los dos y acá ves cuánto deja cada ${uno}.`}
+                {botonCostos}
+              </p>
+            ) : (
+              <>
+                <ul>
+                  {listados.map((r) => (
+                    <Renglon
+                      key={r.id}
+                      as="li"
+                      folio={<span className={r.margin < 0 ? "font-semibold text-danger" : "font-semibold text-strong"}>{pct(r.marginPct)}</span>}
+                      titulo={r.name}
+                      detalle={
+                        <>
+                          {r.margin < 0 ? <Marca tipo="atencion">a pérdida</Marca> : null} {money(r.price)} − {money(r.cost)} por {r.unitLabel}
+                          <RayaDelPrecio precio={r.price} costo={r.cost} />
+                        </>
+                      }
+                      plata={
+                        <span className="whitespace-nowrap">
+                          <Plata valor={r.margin} sinCentavos />
+                          <span className="text-[13px] text-muted">/{r.unitLabel}</span>
+                        </span>
+                      }
+                    />
+                  ))}
+                </ul>
+                {(hoy.sinCosto > 0 || conMargen.length > TOPE_CON_MARGEN || (hoy.sinIva && aPerdida.length > hoy.precioDeListaBajoCosto)) && (
+                  <p className="mt-2 text-[13px] text-muted">
+                    {hoy.sinIva && aPerdida.length > hoy.precioDeListaBajoCosto
+                      ? `${deN(hoy.precioDeListaBajoCosto, "tiene", "tienen")} el precio de lista por debajo del costo y ${fmtNumberAR(aPerdida.length - hoy.precioDeListaBajoCosto)} más pierden al sacar el IVA. `
+                      : ""}
+                    {conMargen.length > TOPE_CON_MARGEN ? `Van los que pierden y los ${TOPE_CON_MARGEN} que más dejan, de ${fmtNumberAR(conMargen.length)}. ` : ""}
+                    {hoy.sinCosto > 0 ? `${deN(hoy.sinCosto, `${uno} tiene`, `${varios} tienen`)} precio y no costo: no entran.` : ""}
+                  </p>
+                )}
+              </>
+            )}
+          </Bloque>
+
+          <Bloque id="vendido" titulo={`Lo que vendiste en ${nombreMes(mes)}`} nota={mes === actual ? "hasta hoy" : undefined} className="min-w-0">
+            <PasoDePeriodo
+              etiqueta="Mes"
+              className="border-b border-line py-1"
+              actual={mesLargo(mes)}
+              anterior={{ href: `${RUTA}?mes=${anterior}`, texto: nombreMes(anterior) }}
+              siguiente={siguiente <= actual ? { href: `${RUTA}?mes=${siguiente}`, texto: nombreMes(siguiente) } : null}
+            />
+            {vendido.length === 0 ? (
+              <p data-ui="vacio" className="border-b border-line py-4 text-sm text-body">
+                Sin ventas de {varios} en {etiqueta}. Acá aparece cada {uno} vendido, con lo que costó y lo que dejó.
+              </p>
+            ) : (
+              <>
+                <LineaDeCuenta concepto="Vendido" detalle={hoy.sinIva ? "sin IVA" : undefined} importe={<Plata valor={totalVentas} sinCentavos />} />
+                <LineaDeCuenta concepto="Lo que costó" importe={<Plata valor={-totalCosto} sinCentavos />} />
+                <LineaDeCuenta
+                  total
+                  concepto={dejo >= 0 ? "Dejó" : "Perdió"}
+                  detalle={totalVentas > 0 ? `${pct(dejo / totalVentas)} de lo vendido` : undefined}
+                  importe={<Plata valor={dejo} sinCentavos tono={dejo < 0 ? "peligro" : "cobrado"} />}
+                />
+                {sinCostoVendido > 0 && (
+                  <p className="mt-3 text-[13px] text-body">
+                    <Marca tipo="atencion">
+                      {deN(sinCostoVendido, `${uno} vendido no tiene`, `${varios} vendidos no tienen`)} costo
+                    </Marca>
+                    : no se resta arriba y su margen va sin calcular.
+                  </p>
+                )}
+                <ul className="mt-4 border-t border-line-strong">
+                  {vendido.map((r) => (
+                    <Renglon
+                      key={r.clave}
+                      as="li"
+                      folio={r.margenPct !== null ? <span className={r.margenPct < 0 ? "text-danger" : undefined}>{pct(r.margenPct)}</span> : "—"}
+                      titulo={r.nombre}
+                      detalle={
+                        <>
+                          {cantidadLegible(r.cantidad, r.porKilo)} · vendido {money(r.ventas)} · costo {money(r.costo)}
+                          {r.conCostoDeHoy ? " · parte con el costo de hoy" : ""}
+                        </>
+                      }
+                      plata={r.margen === null ? <span className="text-[13px] text-muted">sin costo</span> : <Plata valor={r.margen} sinCentavos />}
+                    />
+                  ))}
+                </ul>
+              </>
+            )}
+            {abribles.has("resultado-del-mes") && (
+              <p className="mt-4">
+                <Link href={`/admin/resultado?mes=${mes}`} className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+                  Ver el resultado de {nombreMes(mes)}
+                </Link>
+              </p>
+            )}
+          </Bloque>
+        </DosColumnas>
+        <details className="mt-8 max-w-2xl border-t border-line pt-3 text-sm text-body">
+          <summary className="flex min-h-11 cursor-pointer items-center font-medium text-strong">¿Cómo se calcula?</summary>
+          <p className="mt-2">
+            Hoy: el precio de lista contra el costo vigente, el mismo que ves en Stock y en el Catálogo. Lo vendido: al precio al que se vendió
+            (antes del descuento de la venta) y con el costo que se guardó en cada venta, el de ese día.
+            {hoy.sinIva ? " Los precios van sin IVA (21 %), porque tu negocio es Responsable Inscripto: ese IVA no es tuyo." : ""}
+          </p>
+        </details>
+      </PageContainer>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">

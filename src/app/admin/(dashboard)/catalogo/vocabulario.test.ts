@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RETAIL_RUBROS, getRetailRubro } from "@/blueprints/retail/rubros";
-import { VOCABULARIO_CARNICERIA, mayuscula, vocabularioDelRubro } from "./vocabulario";
+import { VOCABULARIO_CARNICERIA, vocabularioDelRubro } from "./vocabulario";
 
 test("la carnicería (MAGRA) queda como estaba: 'corte', por kilo, con los textos de carne", () => {
   assert.deepEqual(vocabularioDelRubro(getRetailRubro("carniceria")), VOCABULARIO_CARNICERIA);
@@ -25,9 +25,4 @@ test("el alta arranca por kilo en los rubros que venden por peso y por unidad en
   for (const id of ["velas", "padel", "indumentaria"]) assert.ok(!porKilo.has(id), `${id} vende por unidad`);
   assert.equal(vocabularioDelRubro(getRetailRubro("indumentaria")).uno, "prenda");
   assert.equal(vocabularioDelRubro(getRetailRubro("indumentaria")).varios, "prendas");
-});
-
-test("mayúscula del encabezado", () => {
-  assert.equal(mayuscula("producto"), "Producto");
-  assert.equal(mayuscula(""), "");
 });

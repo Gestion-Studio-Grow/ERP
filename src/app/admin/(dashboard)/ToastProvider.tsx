@@ -1,6 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { useDiseno } from "@/lib/diseno/DisenoProvider";
+import { Aviso } from "@/components/ui/Aviso";
 
 type Toast = { id: number; message: string; kind: "error" | "success" };
 type ToastContextValue = {
@@ -19,14 +21,19 @@ export function useToast() {
 export default function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(0);
+  // Diseño nuevo: cada aviso es la pieza `Aviso` (la misma de «Deshacer»), que cuenta su propio
+  // tiempo y lo pausa con el puntero o el foco encima. Apagado (CH hoy): igual que siempre, 4 s fijos.
+  const nuevo = useDiseno();
+
+  const sacar = useCallback((id: number) => {
+    setToasts((t) => t.filter((x) => x.id !== id));
+  }, []);
 
   const push = useCallback((message: string, kind: Toast["kind"]) => {
     const id = nextId.current++;
     setToasts((t) => [...t, { id, message, kind }]);
-    setTimeout(() => {
-      setToasts((t) => t.filter((x) => x.id !== id));
-    }, 4000);
-  }, []);
+    if (!nuevo) setTimeout(() => sacar(id), 4000);
+  }, [nuevo, sacar]);
 
   const showError = useCallback((message: string) => push(message, "error"), [push]);
   const showSuccess = useCallback((message: string) => push(message, "success"), [push]);
@@ -38,7 +45,10 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
           define layout.tsx y vale 0 sin barra (PC, CH), así que ahí queda en bottom-4 como siempre.
           El contenedor no captura toques: sólo cada aviso, así no bloquea lo que queda debajo. */}
       <div className="pointer-events-none fixed bottom-[calc(1rem_+_var(--alto-barra-inferior,0px))] right-4 z-50 flex flex-col gap-2 max-w-sm">
-        {toasts.map((t) => (
+        {toasts.map((t) =>
+          nuevo ? (
+            <Aviso key={t.id} mensaje={t.message} tono={t.kind === "error" ? "error" : "exito"} onTermina={() => sacar(t.id)} />
+          ) : (
           <div
             key={t.id}
             role="alert"
@@ -50,7 +60,8 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
           >
             {t.message}
           </div>
-        ))}
+          ),
+        )}
       </div>
     </ToastContext.Provider>
   );

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
-import { getPublicBookingData, getPublicNews } from "@/lib/actions";
-import { nextBusinessDays } from "@/lib/datetime";
+import { getPublicNews } from "@/lib/actions";
 import { getLocation } from "@/lib/settings";
 import { getTenantBrand, resolveAccent } from "@/lib/branding";
 import { getBrandSheet, brandSheetAccent } from "@/lib/brand-sheet";
@@ -15,8 +14,9 @@ import AnnouncementBar from "./_ch/AnnouncementBar";
 export const dynamic = "force-dynamic";
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
-  const [{ groups, professionals }, news, location, brand, slug] = await Promise.all([
-    getPublicBookingData(),
+  // Los servicios y el equipo ya no se leen acá: no viajan en el HTML de cada página (ver
+  // BookingProvider) y la lectura quedaba sin usar en /reserva y /reserva/turno.
+  const [news, location, brand, slug] = await Promise.all([
     getPublicNews(),
     getLocation(),
     getTenantBrand(),
@@ -36,7 +36,6 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const { accent, onAccent } = sheet
     ? brandSheetAccent(sheet, frontTheme)
     : resolveAccent(brand.preset, brand.frontTheme);
-  const days = nextBusinessDays(14);
   // WhatsApp del negocio (módulo Localización): ya viene normalizado a dígitos.
   const whatsapp = location.whatsapp;
   const latestNews = news[0] ?? null;

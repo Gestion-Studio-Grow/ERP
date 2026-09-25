@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: apagado: el <script> de siempre, sin componente de cliente en el medio
+ok 1 - apagado: el <script> de siempre, sin componente de cliente en el medio
+  ---
+  duration_ms: 1.074046
+  type: 'test'
+  ...
+# Subtest: prendido: sale por ScriptDelTema con el mismo código
+ok 2 - prendido: sale por ScriptDelTema con el mismo código
+  ---
+  duration_ms: 0.230482
+  type: 'test'
+  ...
+# Subtest: el HTML del servidor es byte a byte el mismo prendido y apagado: el script corre al leerse
+ok 3 - el HTML del servidor es byte a byte el mismo prendido y apagado: el script corre al leerse
+  ---
+  duration_ms: 5.167431
+  type: 'test'
+  ...
+# Subtest: nacido en el navegador: bloque de datos (text/plain), que React no ejecuta ni avisa
+ok 4 - nacido en el navegador: bloque de datos (text/plain), que React no ejecuta ni avisa
+  ---
+  duration_ms: 0.129394
+  type: 'test'
+  ...
+# Subtest: la decisión: sólo la última fila válida de la consola prende el diseño nuevo
+ok 5 - la decisión: sólo la última fila válida de la consola prende el diseño nuevo
+  ---
+  duration_ms: 2.140964
+  type: 'test'
+  ...
+# Subtest: ConDiseno apagado devuelve el mismo hijo (ni hoja, ni provider, ni un nodo de más)
+ok 6 - ConDiseno apagado devuelve el mismo hijo (ni hoja, ni provider, ni un nodo de más)
+  ---
+  duration_ms: 6.595352
+  type: 'test'
+  ...
+# Subtest: ConDiseno prendido pide la hoja versionada una vez y deja el contenido igual
+ok 7 - ConDiseno prendido pide la hoja versionada una vez y deja el contenido igual
+  ---
+  duration_ms: 2.809017
+  type: 'test'
+  ...
+# Subtest: cada raíz de un negocio: el atributo sólo con el interruptor, la piel de siempre intacta
+ok 8 - cada raíz de un negocio: el atributo sólo con el interruptor, la piel de siempre intacta
+  ---
+  duration_ms: 1.359922
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 520.135373

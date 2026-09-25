@@ -3,11 +3,12 @@ import { requireApp } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { appPermitida } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
-import { EmptyState, buttonClasses } from "@/components/ui";
+import { Bloque, DosColumnas, EmptyState, LineaDeEstado, PageHeader, Renglon, buttonClasses } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { getAdjustmentData } from "@/lib/inventario/ajustes-loader";
-import { fmtShortDate } from "@/lib/datetime";
+import { fmtShortDate, dateStrInBusinessTz, todayInBusinessTz } from "@/lib/datetime";
 import { motivosDeAjuste, topeDeMermaPorCarga, type AdjustmentMotivo } from "@/lib/stock/adjustment-core";
 import { rubroConPerecederos } from "@/blueprints/retail/rubros";
 import AjustesForm, { type AjusteInicial } from "./AjustesForm";
@@ -52,13 +53,99 @@ export default async function AjustesPage({
   searchParams: Promise<{ producto?: string | string[]; motivo?: string | string[] }>;
 }) {
   const user = await requireApp("mermas");
-  const [sp, negocio, rubro] = await Promise.all([searchParams, getNegocioApps(user.role), getCurrentTenantRubro()]);
+  const [sp, negocio, rubro, nuevo] = await Promise.all([searchParams, getNegocioApps(user.role), getCurrentTenantRubro(), disenoNuevo()]);
   const { products, recent } = await getAdjustmentData(uno(sp.producto) || undefined);
   // Los motivos de perecederos salen del dato del blueprint (el mismo que prende Lotes y Despiece).
   const motivos = motivosDeAjuste({ esMostrador: negocio.esMostrador, perecederos: rubroConPerecederos(rubro.rubro?.id) });
   const inicial = leerInicial(sp, new Set(products.map((p) => p.id)), motivos);
   // El botón del vacío, sólo si quien carga puede abrir el catálogo (el encargado no).
   const veCatalogo = appPermitida(appPorId("catalogo"), negocio);
+
+  const sinProductos = (
+    <EmptyState
+      title="Todavía no hay productos"
+      description={
+        veCatalogo
+          ? "Para cargar una merma primero tiene que estar el producto. Cargalo en el catálogo y volvé."
+          : "Para cargar una merma primero tiene que estar el producto. Pedile a la dueña o al dueño que lo cargue en el catálogo."
+      }
+      action={
+        veCatalogo ? (
+          <Link href="/admin/catalogo" className={buttonClasses("solid", "md")}>
+            Ir al catálogo
+          </Link>
+        ) : undefined
+      }
+    />
+  );
+
+  // DISEÑO NUEVO («Renglón»): a la izquierda la carga (el mismo AjustesForm, con sus topes y sus
+  // motivos) y a la derecha lo último que se cargó, un renglón por ajuste con la diferencia a la
+  // derecha. Sin párrafos: el recuento es un enlace en la línea de estado. Los mismos datos
+  // (getAdjustmentData). Apagado, lo de abajo tal cual.
+  if (nuevo) {
+    const hoy = todayInBusinessTz();
+    const deHoy = recent.filter((m) => dateStrInBusinessTz(m.createdAt) === hoy).length;
+    return (
+      <main data-ui="pagina" className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+        <PageHeader title={negocio.esMostrador ? "Mermas" : "Ajustes y mermas"} />
+        <LineaDeEstado
+          className="-mt-2 mb-4"
+          datos={[
+            <strong key="h">{deHoy === 1 ? "1 ajuste hoy" : `${deHoy} ajustes hoy`}</strong>,
+            "cada uno mueve el stock y queda quién lo cargó",
+            <Link key="r" href="/admin/ajustes/recuento" className="underline underline-offset-2">
+              Contar una góndola entera
+            </Link>,
+          ]}
+        />
+        <DosColumnas className="mt-6">
+          <Bloque titulo="Cargar">
+            <div className="pt-3">
+              {products.length === 0 ? (
+                sinProductos
+              ) : (
+                <AjustesForm
+                  key={`${inicial.productId ?? ""}:${inicial.motivo ?? ""}`}
+                  products={products}
+                  motivos={motivos}
+                  inicial={inicial}
+                  topePesos={topeDeMermaPorCarga(user.role)}
+                  conCostos={roleHasCapability(user.role, "costs:read")}
+                />
+              )}
+            </div>
+          </Bloque>
+          <Bloque titulo="Lo último que se cargó" cuenta={recent.length || undefined}>
+            {recent.length === 0 ? (
+              <p data-ui="vacio" className="border-b border-line py-4 text-sm text-body">
+                Todavía no se cargó ninguna.
+              </p>
+            ) : (
+              <ul>
+                {recent.map((m) => (
+                  <Renglon
+                    key={m.id}
+                    as="li"
+                    folio={<span className="tabular-nums">{fmtShortDate(m.createdAt)}</span>}
+                    titulo={m.product?.name ?? "(producto eliminado)"}
+                    detalle={`${m.reason ? `${m.reason} · ` : ""}quedó ${qtyFmt.format(m.balanceAfter)}`}
+                    plata={
+                      m.qty === 0 ? (
+                        <span className="text-muted">sin diferencia</span>
+                      ) : (
+                        <span className={`tabular-nums font-semibold ${m.qty >= 0 ? "text-success" : "text-danger"}`}>{signedFmt.format(m.qty)}</span>
+                      )
+                    }
+                  />
+                ))}
+              </ul>
+            )}
+          </Bloque>
+        </DosColumnas>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-8">

@@ -9,6 +9,8 @@ import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { DebtDetailBody } from "@/components/cuentas/DebtDetailBody";
 import { registerReceivableCollection } from "../actions";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { CuentaRenglon } from "../CuentasRenglon";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +53,20 @@ export default async function CuentaACobrarDetailPage({ params }: { params: Prom
     historial: d.collections.map((c) => ({ id: c.id, fecha: c.at, monto: c.amount, metodo: medioDelPago(c.method, c.note), nota: c.note })),
   };
   const aging = agingOf(detail.vencimiento, new Date());
+  if (await disenoNuevo()) {
+    return (
+      <CuentaRenglon
+        detail={detail}
+        aging={aging}
+        tipo="cobrar"
+        volver={{ href: "/admin/cuentas-a-cobrar", texto: "Fiado y cuentas de clientes" }}
+        desde={null}
+        action={registerReceivableCollection}
+        asientaEnLibro={cuentasCorrientesEnabled()}
+        anulada={d.status !== "OPEN"}
+      />
+    );
+  }
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       <PageHeader

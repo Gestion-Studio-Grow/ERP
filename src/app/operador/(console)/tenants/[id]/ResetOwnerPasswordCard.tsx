@@ -1,126 +1,140 @@
 "use client";
 
-// Tarjeta "Resetear contraseña del OWNER" en la ficha del tenant (consola de operador).
-// Llama al Server Action `resetOwnerPassword` (guardado por requireOperator) y muestra la
-// contraseña temporal con REVELADO ÚNICO (BootstrapReveal): el claro llega por el retorno del
-// action, vive solo en estado de cliente, no va por la URL ni se persiste. Al recargar/navegar
-// se pierde → si se perdió, se resetea de nuevo.
+// «La contraseña del dueño» en la pestaña Personas de la ficha (consola de GSG).
+//
+// Genera una contraseña temporal para el dueño de ESTE negocio y la muestra una sola vez
+// (RevelarClave). Dos pasos: primero «Resetear…», después escribir el slug del negocio y confirmar
+// (`resetOwnerPasswordDeTenant`, operator-actions.ts): obliga a mirar a quién se le cambia la
+// contraseña, que es justo lo que un clic suelto se saltea. La action repite la guardia (CH sólo
+// con el dueño de GSG) y deja el cambio en la auditoría.
 
 import { useState } from "react";
-import { Card, Button, Badge } from "@/components/ui";
-import { BootstrapReveal } from "@/components/BootstrapReveal";
-import { resetOwnerPassword } from "@/lib/operator-actions";
+import { Button, Input, Marca, Renglon } from "@/components/ui";
+import { resetOwnerPasswordDeTenant } from "@/lib/operator-actions";
+import { RevelarClave } from "../../RevelarClave";
 
-type ResetResult =
-  | { ok: true; password: string; email: string; flagPending: boolean }
-  | { ok: false; error: string };
+type Resultado = { ok: true; password: string; email: string; flagPending: boolean } | { ok: false; error: string };
 
 export function ResetOwnerPasswordCard({
   tenantId,
+  slug,
   ownerEmail,
   tempPending,
+  soloLectura,
 }: {
   tenantId: string;
+  slug: string;
   ownerEmail: string | null;
   tempPending: boolean | "pendiente";
+  /** Por qué este operador no puede tocarlo (CH), o null. */
+  soloLectura: string | null;
 }) {
-  const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<ResetResult | null>(null);
+  const [confirmando, setConfirmando] = useState(false);
+  const [tipeado, setTipeado] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+  const [resultado, setResultado] = useState<Resultado | null>(null);
 
-  async function doReset() {
-    setBusy(true);
+  async function resetear() {
+    setOcupado(true);
     try {
-      setResult(await resetOwnerPassword(tenantId));
-      setConfirming(false);
+      setResultado(await resetOwnerPasswordDeTenant(tenantId, tipeado));
+      setConfirmando(false);
+      setTipeado("");
     } catch (e) {
-      setResult({ ok: false, error: e instanceof Error ? e.message : String(e) });
+      setResultado({ ok: false, error: e instanceof Error ? e.message : String(e) });
     } finally {
-      setBusy(false);
+      setOcupado(false);
     }
   }
 
+  const estado =
+    tempPending === "pendiente" ? (
+      <Marca tipo="info">Sin dato</Marca>
+    ) : tempPending ? (
+      <Marca tipo="atencion">Temporal</Marca>
+    ) : (
+      <Marca tipo="hecho">Definitiva</Marca>
+    );
+
   return (
-    <Card className="p-5 space-y-4">
-      <div>
-        <h2 className="font-medium">Contraseña del OWNER</h2>
-        <p className="text-sm text-muted mt-1">
-          Generá una contraseña temporal para entrar por primera vez al backoffice. Se guarda
-          <b> solo el hash</b> (nunca el texto), se muestra <b>una sola vez</b> acá, y en el primer
-          ingreso el sistema <b>obliga</b> a definir una nueva.
-        </p>
-      </div>
+    <div className="space-y-3">
+      <Renglon
+        folio={ownerEmail ? estado : <Marca tipo="atencion">Sin dueño</Marca>}
+        titulo={ownerEmail ? <span className="font-mono text-[14px]">{ownerEmail}</span> : "Este negocio no tiene un dueño activo"}
+        detalle={
+          !ownerEmail
+            ? "Sin dueño activo no hay a quién resetearle la contraseña."
+            : tempPending === "pendiente"
+              ? "No se sabe si ya cambió la temporal: falta la migración de la columna que lo guarda."
+              : tempPending
+                ? "Entró con una temporal y todavía no eligió la suya."
+                : "El dueño entra con esta cuenta. Si se olvidó la contraseña, generale una temporal."
+        }
+        tecla={
+          ownerEmail && !confirmando ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!!soloLectura}
+              onClick={() => {
+                setResultado(null);
+                setConfirmando(true);
+              }}
+            >
+              {resultado?.ok ? "Resetear de nuevo…" : "Resetear…"}
+            </Button>
+          ) : null
+        }
+      />
 
-      {/* Estado actual del OWNER */}
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        {ownerEmail ? (
-          <>
-            <span className="text-muted">Dueño:</span>
-            <code className="font-mono text-strong">{ownerEmail}</code>
-            {tempPending === "pendiente" ? (
-              <Badge tone="neutral" dot>
-                <span className="sr-only">estado: </span>migración pendiente
-              </Badge>
-            ) : tempPending ? (
-              <Badge tone="warning" dot>
-                <span className="sr-only">estado: </span>contraseña temporal sin cambiar
-              </Badge>
-            ) : (
-              <Badge tone="success" dot>
-                <span className="sr-only">estado: </span>contraseña definitiva
-              </Badge>
-            )}
-          </>
-        ) : (
-          <span className="text-muted">Este tenant no tiene un OWNER activo.</span>
-        )}
-      </div>
+      {soloLectura && <p className="text-[13px] text-warning">{soloLectura}</p>}
 
-      {/* Resultado del reset (revelado único) */}
-      {result?.ok && (
-        <div className="space-y-2" role="status">
-          <BootstrapReveal
-            password={result.password}
-            label={
-              <>
-                Contraseña temporal de <code className="font-mono">{result.email}</code> — se muestra{" "}
-                <b>una sola vez</b>. Copiala y guardala; si la perdés, reseteá de nuevo.
-              </>
-            }
-          />
-          {result.flagPending && (
-            <p className="text-xs text-warning" role="alert">
-              ⚠️ La contraseña quedó reseteada, pero el <b>cambio forzado</b> no se pudo activar porque la
-              columna <code>mustChangePassword</code> todavía no está en la base (migración Gate 2 sin
-              aplicar). El dueño puede entrar con esta contraseña; pediile que la cambie a mano en{" "}
-              <b>Mi cuenta</b> hasta que se aplique la migración.
+      {confirmando && (
+        <form
+          className="flex flex-wrap items-end gap-3 border-y border-line-strong bg-warning-soft px-3 py-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void resetear();
+          }}
+        >
+          <label className="block min-w-0 flex-1 basis-64 text-sm">
+            <span className="text-strong">
+              Esto invalida la contraseña actual de <b className="break-all">{ownerEmail}</b>. Escribí «{slug}» para confirmar.
+            </span>
+            <Input
+              value={tipeado}
+              onChange={(e) => setTipeado(e.target.value)}
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              className="mt-1 font-mono"
+            />
+          </label>
+          <Button type="submit" variant="danger" disabled={ocupado || tipeado.trim().toLowerCase() !== slug.toLowerCase()}>
+            {ocupado ? "Generando…" : "Resetear la contraseña"}
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => setConfirmando(false)} disabled={ocupado}>
+            Cancelar
+          </Button>
+        </form>
+      )}
+
+      {resultado?.ok && (
+        <>
+          <RevelarClave clave={resultado.password} para={<span className="font-mono">{resultado.email}</span>} />
+          {resultado.flagPending && (
+            <p role="alert" className="text-[13px] text-warning">
+              La contraseña quedó reseteada, pero no se le puede exigir que la cambie al entrar: la columna{" "}
+              <code>mustChangePassword</code> todavía no está en la base (migración sin aplicar). Pedile que la cambie a mano.
             </p>
           )}
-        </div>
+        </>
       )}
-      {result && !result.ok && (
-        <p className="text-sm text-danger" role="alert">{result.error}</p>
+      {resultado && !resultado.ok && (
+        <p role="alert" className="text-sm text-danger">
+          {resultado.error}
+        </p>
       )}
-
-      {/* Acción */}
-      {ownerEmail &&
-        (confirming ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning-soft px-3 py-2">
-            <span className="text-sm text-warning">
-              Esto invalida la contraseña actual del dueño. ¿Generar una nueva temporal?
-            </span>
-            <Button size="sm" onClick={doReset} disabled={busy}>
-              {busy ? "Generando…" : "Sí, resetear"}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={busy}>
-              Cancelar
-            </Button>
-          </div>
-        ) : (
-          <Button variant="outline" size="sm" onClick={() => { setResult(null); setConfirming(true); }}>
-            {result?.ok ? "Resetear de nuevo" : "Resetear contraseña del OWNER"}
-          </Button>
-        ))}
-    </Card>
+    </div>
   );
 }

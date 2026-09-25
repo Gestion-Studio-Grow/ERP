@@ -6,12 +6,17 @@ import { todayInBusinessTz } from "@/lib/datetime";
 import { agingOf } from "@/lib/cuentas/aging";
 import { leerCuentasAPagar } from "@/lib/debts/cuentas-lectura";
 import { DIAS_PROXIMOS_A_PAGAR, diaDe, resumirAPagar, salidasDeCuenta } from "@/lib/debts/resumen-cuentas";
-import { ETIQUETA_CHEQUE } from "@/lib/debts/cheque";
+import { ETIQUETA_CHEQUE, chequeCommitted } from "@/lib/debts/cheque";
 import { diaLegible } from "@/lib/libros/fecha-fiscal";
 import { cuentasCorrientesEnabled } from "@/lib/settlement/asiento-libro";
 import { appsQuePuedeAbrir } from "@/lib/reports/apps-a-mano.server";
 import { AvisoError, EmptyState, PageHeader, buttonClasses, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
 import { DebtListTable, type DebtRowVM } from "@/components/cuentas/DebtListTable";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { Bloque, LineaDeEstado, Marca, Plata, Renglon, atributosBoton } from "@/components/ui";
+import { diaMes } from "../caja/_renglon/fechas";
+import { agruparCuentas, type CuentaDeBandeja } from "../cuentas-a-cobrar/bandeja-cuentas";
+import { BandejaDeCuentas } from "../cuentas-a-cobrar/CuentasRenglon";
 
 export const dynamic = "force-dynamic";
 
@@ -45,9 +50,10 @@ function Tarjeta({ label, value, hint, tono }: { label: string; value: string; h
 export default async function CuentasAPagarPage() {
   const user = await requireApp("cuentas-a-pagar");
   const tenantId = await getCurrentTenantId();
-  const [{ cuentas, faltanTablas }, abribles] = await Promise.all([
+  const [{ cuentas, faltanTablas }, abribles, nuevo] = await Promise.all([
     leerCuentasAPagar(prisma, tenantId),
     appsQuePuedeAbrir(user.role, ["recibir-mercaderia", "flujo-de-fondos"]),
+    disenoNuevo(),
   ]);
   const ahora = new Date();
   const hoy = todayInBusinessTz();
@@ -77,6 +83,127 @@ export default async function CuentasAPagarPage() {
         }),
     )
     .sort((a, b) => a.dia.localeCompare(b.dia));
+
+  // DISEÑO NUEVO («Renglón»): la bandeja por prioridad (vencido → próximos 7 días → más adelante
+  // → sin vencimiento), la plata más grande arriba y «Pagar» en cada renglón; los cheques como la
+  // agenda del banco. Mismos saldos y la misma cuenta de siempre (`resumirAPagar`).
+  if (nuevo) {
+    const grupos = agruparCuentas(
+      conSaldo.map((c): CuentaDeBandeja => {
+        // Los cheques que todavía van a salir del banco (la misma regla que el tope: `chequeCommitted`).
+        const sinDebitar = c.cheques.filter((ch) => chequeCommitted(ch.status)).length;
+        return {
+          id: c.id,
+          quien: c.proveedor,
+          concepto: c.concepto,
+          total: c.amount,
+          saldo: c.saldo,
+          desde: diaDe(c.issueDate) ?? hoy,
+          vence: diaDe(c.dueDate),
+          nota: sinDebitar > 0 ? `${sinDebitar} ${sinDebitar === 1 ? "cheque entregado" : "cheques entregados"}` : null,
+        };
+      }),
+      hoy,
+      "pagar",
+    );
+    return (
+      <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
+        <header data-ui="page-header" className="mb-5 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-strong">Cuentas a pagar</h1>
+            <LineaDeEstado
+              datos={[
+                r.cuentas > 0 ? (
+                  <strong key="t">
+                    Le debés <Plata valor={r.total} sinCentavos /> a proveedores
+                  </strong>
+                ) : (
+                  <strong key="t">No le debés nada a ningún proveedor</strong>
+                ),
+                r.venceEn7 > 0 ? (
+                  <span key="7">
+                    <Plata valor={r.venceEn7} sinCentavos /> para pagar en {DIAS_PROXIMOS_A_PAGAR} días
+                  </span>
+                ) : null,
+                r.vencido > 0 ? (
+                  <span key="v">
+                    <Plata valor={r.vencido} sinCentavos tono="peligro" /> vencido
+                  </span>
+                ) : null,
+                r.chequesADebitar > 0 ? (
+                  <span key="c">
+                    {r.chequesADebitar} {r.chequesADebitar === 1 ? "cheque" : "cheques"} a debitar (<Plata valor={r.montoChequesADebitar} sinCentavos />)
+                  </span>
+                ) : null,
+              ]}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {abribles.has("recibir-mercaderia") && (
+              <Link href="/admin/compras" className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+                Recibir mercadería
+              </Link>
+            )}
+            {abribles.has("flujo-de-fondos") && (
+              <Link href="/admin/flujo" className={buttonClasses("ghost", "md")} {...atributosBoton("ghost", "md")}>
+                Ver el flujo de fondos
+              </Link>
+            )}
+          </div>
+        </header>
+        {faltanTablas && (
+          <AvisoError
+            className="mb-6"
+            titulo="Las cuentas a pagar todavía no están listas en tu negocio"
+            comoSeguir="Falta preparar la base para las deudas con proveedores. Escribinos a Gestión Studio Grow y lo dejamos listo."
+          />
+        )}
+        <div className="grid gap-x-10 gap-y-8 xl:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
+          <div className="min-w-0">
+            {grupos.length > 0 ? (
+              <BandejaDeCuentas grupos={grupos} hoy={hoy} tipo="pagar" base="/admin/cuentas-a-pagar" />
+            ) : (
+              <p className="flex flex-wrap items-center gap-3 border-y border-line py-4 text-sm text-body">
+                {saldadas > 0 ? "No le debés nada a ningún proveedor." : "Todavía no hay deudas con proveedores."} Las deudas nacen al recibir
+                mercadería a cuenta corriente.
+                {abribles.has("recibir-mercaderia") && (
+                  <Link href="/admin/compras" className={buttonClasses("outline", "sm")} {...atributosBoton("outline", "sm")}>
+                    Ir a Recibir mercadería
+                  </Link>
+                )}
+              </p>
+            )}
+          </div>
+          {cheques.length > 0 && (
+            <aside className="min-w-0" aria-labelledby="cheques-a-debitar">
+              <Bloque id="cheques-a-debitar" titulo="Cheques sin debitar" cuenta={cheques.length} nota="por fecha">
+                {cheques.map((c) => (
+                  <Renglon
+                    key={c.ch.id}
+                    className="relative"
+                    folio={c.dia < hoy ? <Marca tipo="atencion">{diaMes(c.dia)}</Marca> : diaMes(c.dia)}
+                    titulo={
+                      <Link href={`/admin/cuentas-a-pagar/${c.cuentaId}`} className="after:absolute after:inset-0 hover:underline">
+                        {c.proveedor}
+                      </Link>
+                    }
+                    detalle={`N° ${c.ch.chequeNumber} · ${c.ch.bank} · ${ETIQUETA_CHEQUE[c.ch.status]}${c.dia < hoy ? " · la fecha ya pasó: ¿se debitó?" : ""}`}
+                    plata={<Plata valor={c.monto} />}
+                  />
+                ))}
+              </Bloque>
+            </aside>
+          )}
+        </div>
+        {!cuentasCorrientesEnabled() && conSaldo.length > 0 && (
+          <p className="mt-6 max-w-3xl text-sm text-muted">
+            Los pagos quedan en cada cuenta, pero todavía no pasan solos al libro de caja: si pagás en efectivo, anotalo también en el
+            libro.
+          </p>
+        )}
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">

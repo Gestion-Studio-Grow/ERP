@@ -1,0 +1,28 @@
+OK   CH dueña · entrar (2300 ms) llegó a /admin · diseno=renglon sx360=0 chicos<44=26
+OK   CH · ir a la agenda desde el menú (1520 ms) Agenda · diseno=renglon sx360=0 chicos<44=30
+OK   CH · F1 abre la pantalla nueva (1376 ms) /admin/turnos/lista?nuevo=1 · diseno=renglon sx360=0 chicos<44=42
+OK   CH · alta: validación antes de completar (421 ms) botón deshabilitado con el alta vacía
+OK   CH · alta: elegir servicio y horario (1849 ms) servicio «Depilación definitiva axilas 20′ · $16.000» a las 11:30
+OK   CH · alta: clienta nueva y dar el turno (1412 ms) «Dar el turno · Mañana 11:30» → /admin/turnos?date=2026-09-26
+OK   CH · recargar: el turno quedó (1301 ms) sigue en la agenda
+OK   CH · abrir el turno (cajón) (2110 ms) ?date=2026-09-26&turno=cmugvnrdj00310x7den7tcw3d · diseno=renglon sx360=0 chicos<44=44
+OK   CH · Escape cierra el cajón y vuelve a la agenda (1752 ms) Escape cierra=true; reabierto true
+OK   CH · confirmar y cobrar el turno (3942 ms) confirmado; «Cobrar $16.000» · Confirmado: QA Recorrido 1440 08034, 11:30. | Cobrado: QA Recorrido 1440 08034, efectivo.
+OK   CH · recargar: el turno figura terminado y cobrado (1519 ms) renglón: «ez · Box 1 Reservado, sin confirmar $42.000 Confirmar 11:30 QA Recorrido 1440 08034 Depilación definitiva axilas · 20′ · Carla Díaz · Box 3 Confirmado $16.000 12:15 Guadalupe Álvar»
+OK   CH · ficha de la clienta nueva (desde el buscador Ctrl+K) (3013 ms) /admin/clientes/cmugvnrcw00300x7dndjkco4g · diseno=renglon sx360=0 chicos<44=2
+OK   CH · cierre de caja (sin deslizar) (2864 ms) /admin/caja/cierre · «Cierre del día Viernes 25 de septiembre cerrado ‹ 24/09 Hoy Cerrado el viernes, 25 de septiembre de 2026, 01:14 por Cecilia Herrera · 6 movimientos · cuadró MEDIO CONTÓ DEBERÍA HAB» · diseno=renglon sx360=0 chicos<44=4
+OK   CH · agenda de un día sin turnos (vacío) (2001 ms) «Agenda 0 turnos ← sáb 13 Domingo 14 de marzo lun 15 → Hoy Otro día Día Por profesional Todos los turnos No hay turnos ese día Si alguien pide un turno para ese » · acciones con «turno»=1 · diseno=renglon sx360=0 chicos<44=5
+OK   CH · turno que no existe (error) (1568 ms) http=200 · «Agenda 16 turnos 5 sin confirmar 2 por cobrar Carla con 12 ← Ayer Viernes 25 de septiembre Mañana → Otro día Día Por profesional Todos los t»
+OK   CH · fecha inválida en la dirección (1650 ms) http=200 · «Agenda 16 turnos 5 sin confirmar 2 por cobrar Carla con 12 ← Ayer Viernes 25 de septiembre Mañana → Otro día Día Por pro»
+OK   CH · lista de turnos y «para mañana» (5255 ms) lista: diseno=renglon sx360=0 chicos<44=1202 · mañana: diseno=renglon sx360=0 chicos<44=34
+
+ch-on 1440: 17/17 pasos OK · errores de consola 0 · callejones 0
+MEDIDA inicio /admin sx360=0 chicos: Ver la agenda →:24, Ver:36, Ver:36, Ver:36, Ver:36, Ver:36
+MEDIDA agenda /admin/turnos sx360=0 chicos: ← Ayer:36, Mañana →:36, Otro día:36, Todos 16:32, Sin confirmar 5:32, Por cobrar 2:32
+MEDIDA alta-turno /admin/turnos/lista?nuevo=1 sx360=0 chicos: ← Ayer:36, Mañana →:36, Otro día:36, Todos 16:32, Sin confirmar 5:32, Por cobrar 2:32
+MEDIDA cajon-turno /admin/turnos?date=2026-09-26&turno=cmugvnrdj00310x7den7tcw3d sx360=0 chicos: ← Hoy:36, dom 27 →:36, Hoy:36, Otro día:36, Todos 24:32, Sin confirmar 9:32
+MEDIDA ficha-clienta /admin/clientes/cmugvnrcw00300x7dndjkco4g sx360=0 chicos: Otro turno:36, Editar datos:36
+MEDIDA cierre /admin/caja/cierre sx360=0 chicos: ‹ 24/09:36, Bajar el libro de este día:36, Bajar septiembre completo:36, Ver el libro de septiembre:36
+MEDIDA agenda-vacia /admin/turnos?date=2027-03-14 sx360=0 chicos: ← sáb 13:36, lun 15 →:36, Hoy:36, Otro día:36, Dar un turno:36
+MEDIDA lista /admin/turnos/lista sx360=0 chicos: Calendario:30, Lista:30, Monto a cobrar:36, Efectivo Mercado Pago Transf:36, Registrar cobro:36, Confirmar turno:36
+MEDIDA manana /admin/turnos/manana sx360=0 chicos: Ir a la agenda →:36, Avisar de a una (23):36, WhatsApp:36, Confirmar:36, WhatsApp:36, WhatsApp:36

@@ -33,7 +33,9 @@ import {
   margenCorte,
   type CorteCategoria,
 } from "@/lib/carniceria/cortes";
-import { VOCABULARIO_CARNICERIA, mayuscula, type VocabularioDelCatalogo } from "./vocabulario";
+import { VOCABULARIO_CARNICERIA, type VocabularioDelCatalogo } from "./vocabulario";
+import { mayuscula } from "@/lib/texto";
+import { precioDeVenta } from "./lista-core";
 
 export type Corte = {
   id: string;
@@ -71,7 +73,8 @@ function groupCortes(cortes: Corte[]): { categoria: (typeof CORTE_CATEGORIAS)[nu
   })).filter((g) => g.items.length > 0);
 }
 
-const sellPrice = (c: Corte): number | null => (c.saleUnit === "WEIGHT" ? c.pricePerKg : c.price);
+// El precio con el que se vende (por kilo o por unidad): una sola definición, la de lista-core.
+const sellPrice = precioDeVenta;
 
 // Estilo de los campos de un corte. `h-11`: 44px de alto, el objetivo táctil en el teléfono
 // (antes era `py-1.5`, más bajo que eso, en la pantalla donde se cambian los precios de pie).
@@ -92,6 +95,7 @@ function VentaFields({
   conCostos,
   trackStock,
   idPrefix,
+  conGondola = true,
 }: {
   saleUnit: "UNIT" | "WEIGHT";
   price: number | null;
@@ -106,6 +110,11 @@ function VentaFields({
   conCostos: boolean;
   trackStock: boolean;
   idPrefix: string;
+  /**
+   * La góndola (Vaca, Cerdo, Pollo…) es de la carnicería. Sin ella el campo no se muestra ni viaja
+   * (`updateProduct` sólo toca la góndola si llega): velas y pádel no ven «góndola».
+   */
+  conGondola?: boolean;
 }) {
   const [modo, setModo] = useState<"UNIT" | "WEIGHT">(saleUnit);
   const selectId = `${idPrefix}-saleUnit`;
@@ -120,17 +129,19 @@ function VentaFields({
 
   return (
     <>
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${idPrefix}-category`} className="text-xs font-medium text-muted">
-          Góndola
-        </label>
-        <select id={`${idPrefix}-category`} name="category" defaultValue={category ?? ""} className={inputClass}>
-          <option value="">Auto (por nombre)</option>
-          {CORTE_CATEGORIAS.map((c) => (
-            <option key={c.id} value={c.id}>{c.label}</option>
-          ))}
-        </select>
-      </div>
+      {conGondola && (
+        <div className="flex flex-col gap-1">
+          <label htmlFor={`${idPrefix}-category`} className="text-xs font-medium text-muted">
+            Góndola
+          </label>
+          <select id={`${idPrefix}-category`} name="category" defaultValue={category ?? ""} className={inputClass}>
+            <option value="">Auto (por nombre)</option>
+            {CORTE_CATEGORIAS.map((c) => (
+              <option key={c.id} value={c.id}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
       {conCostos && (
         <div className="flex flex-col gap-1">
           <label htmlFor={`${idPrefix}-cost`} className="text-xs font-medium text-muted">
@@ -258,6 +269,96 @@ function MargenBadge({ corte }: { corte: Corte }) {
   );
 }
 
+/**
+ * El formulario para corregir un producto (nombre, forma de venta, precio, costo, góndola, aviso de
+ * stock bajo). Lo usan el renglón del catálogo de siempre y el cajón del diseño nuevo: el mismo
+ * `updateProduct`, los mismos campos. `className` arma la grilla de quien lo pone.
+ */
+export function FormularioEditarCorte({
+  corte,
+  conCostos,
+  nombre,
+  className,
+  alTerminar,
+  enCajon,
+}: {
+  corte: Corte;
+  conCostos: boolean;
+  nombre: string;
+  className: string;
+  /** Después de guardar y al tocar «Cancelar». */
+  alTerminar: () => void;
+  /**
+   * En el cajón del diseño nuevo: «Guardar» como tecla y la góndola sólo si es carnicería. Sin
+   * esto, el renglón del catálogo de siempre, tal cual.
+   */
+  enCajon?: { conGondola: boolean };
+}) {
+  const conGondola = enCajon ? enCajon.conGondola : true;
+  return (
+    <form
+      action={async (fd) => {
+        await updateProduct(fd);
+        alTerminar();
+      }}
+      className={className}
+    >
+      <input type="hidden" name="id" value={corte.id} />
+      <div className="flex flex-col gap-1 sm:col-span-2">
+        <label htmlFor={`edit-${corte.id}-name`} className="text-xs font-medium text-muted">
+          {nombre}
+        </label>
+        <input
+          id={`edit-${corte.id}-name`}
+          name="name"
+          defaultValue={corte.name}
+          required
+          className={CAMPO}
+        />
+      </div>
+      <VentaFields
+        saleUnit={corte.saleUnit}
+        price={corte.price}
+        pricePerKg={corte.pricePerKg}
+        unit={corte.unit}
+        category={corte.category}
+        costoCargado={corte.costoCargado}
+        costoVigente={corte.cost}
+        conCostos={conCostos}
+        trackStock={corte.trackStock}
+        idPrefix={`edit-${corte.id}`}
+        conGondola={conGondola}
+      />
+      {/* El stock NO se edita acá: guardar el precio lo pisaba con el número de cuando se
+          abrió la pantalla, borrando lo vendido en el medio sin dejar movimiento. Se
+          muestra, y "Recontar" lleva al recuento con motivo (queda en el ledger). */}
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-muted">Stock</span>
+        <StockSoloLectura productId={corte.id} stock={corte.stock} unit={corte.unit} />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`edit-${corte.id}-low`} className="text-xs font-medium text-muted">
+          Aviso stock bajo
+        </label>
+        <CampoDecimal
+          id={`edit-${corte.id}-low`}
+          name="lowStockAt"
+          tipo="cantidad"
+          valorInicial={corte.lowStockAt}
+          required
+          className={CAMPO}
+        />
+      </div>
+      <div className="flex gap-3 sm:col-span-6 justify-end">
+        <button type="submit" className={enCajon ? buttonClasses("solid", "md") : "min-h-11 px-2 text-sm font-medium"}>Guardar</button>
+        <button type="button" onClick={alTerminar} className={enCajon ? buttonClasses("ghost", "md") : "min-h-11 px-2 text-sm text-muted"}>
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function CorteRow({ corte, conCostos, nombre }: { corte: Corte; conCostos: boolean; nombre: string }) {
   const [editing, setEditing] = useState(false);
   const lowStock = esStockBajo(corte);
@@ -273,65 +374,13 @@ function CorteRow({ corte, conCostos, nombre }: { corte: Corte; conCostos: boole
     return (
       <tr className="block sm:table-row border-b bg-surface-sunken">
         <td colSpan={6} className="block sm:table-cell p-0">
-          <form
-            action={async (fd) => {
-              await updateProduct(fd);
-              setEditing(false);
-            }}
+          <FormularioEditarCorte
+            corte={corte}
+            conCostos={conCostos}
+            nombre={nombre}
             className="grid grid-cols-1 sm:grid-cols-6 items-end gap-2 px-4 py-3"
-          >
-            <input type="hidden" name="id" value={corte.id} />
-            <div className="flex flex-col gap-1 sm:col-span-2">
-              <label htmlFor={`edit-${corte.id}-name`} className="text-xs font-medium text-muted">
-                {nombre}
-              </label>
-              <input
-                id={`edit-${corte.id}-name`}
-                name="name"
-                defaultValue={corte.name}
-                required
-                className={CAMPO}
-              />
-            </div>
-            <VentaFields
-              saleUnit={corte.saleUnit}
-              price={corte.price}
-              pricePerKg={corte.pricePerKg}
-              unit={corte.unit}
-              category={corte.category}
-              costoCargado={corte.costoCargado}
-              costoVigente={corte.cost}
-              conCostos={conCostos}
-              trackStock={corte.trackStock}
-              idPrefix={`edit-${corte.id}`}
-            />
-            {/* El stock NO se edita acá: guardar el precio lo pisaba con el número de cuando se
-                abrió la pantalla, borrando lo vendido en el medio sin dejar movimiento. Se
-                muestra, y "Recontar" lleva al recuento con motivo (queda en el ledger). */}
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted">Stock</span>
-              <StockSoloLectura productId={corte.id} stock={corte.stock} unit={corte.unit} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor={`edit-${corte.id}-low`} className="text-xs font-medium text-muted">
-                Aviso stock bajo
-              </label>
-              <CampoDecimal
-                id={`edit-${corte.id}-low`}
-                name="lowStockAt"
-                tipo="cantidad"
-                valorInicial={corte.lowStockAt}
-                required
-                className={CAMPO}
-              />
-            </div>
-            <div className="flex gap-3 sm:col-span-6 justify-end">
-              <button type="submit" className="min-h-11 px-2 text-sm font-medium">Guardar</button>
-              <button type="button" onClick={() => setEditing(false)} className="min-h-11 px-2 text-sm text-muted">
-                Cancelar
-              </button>
-            </div>
-          </form>
+            alTerminar={() => setEditing(false)}
+          />
         </td>
       </tr>
     );
@@ -398,6 +447,80 @@ function CorteRow({ corte, conCostos, nombre }: { corte: Corte; conCostos: boole
         </div>
       </td>
     </tr>
+  );
+}
+
+/**
+ * El alta de un producto. La usan el catálogo de siempre (al pie) y el cajón «Agregar» del diseño
+ * nuevo: el mismo `createProduct` (el stock inicial entra por el ledger), los mismos campos.
+ */
+export function FormularioAltaCorte({
+  vocabulario,
+  conCostos,
+  className,
+  alTerminar,
+}: {
+  vocabulario: VocabularioDelCatalogo;
+  conCostos: boolean;
+  className: string;
+  /** Si está, se llama después de guardar (el cajón se cierra). */
+  alTerminar?: () => void;
+}) {
+  const { uno } = vocabulario;
+  const Uno = mayuscula(uno);
+  // En el cajón del diseño nuevo (con `alTerminar`) la góndola es sólo de la carnicería; el alta de
+  // siempre queda como estaba.
+  const conGondola = alTerminar ? vocabulario.carniceria : true;
+  return (
+    <form
+      action={alTerminar ? async (fd) => { await createProduct(fd); alTerminar(); } : createProduct}
+      className={className}
+    >
+      <div className="flex flex-col gap-1 sm:col-span-2">
+        <label htmlFor="new-corte-name" className="text-xs font-medium text-muted">
+          {Uno}
+        </label>
+        <input
+          id="new-corte-name"
+          name="name"
+          required
+          placeholder={vocabulario.carniceria ? "ej: Asado de tira" : "Como lo ve el cliente"}
+          className={CAMPO}
+        />
+      </div>
+      <VentaFields saleUnit={vocabulario.porPeso ? "WEIGHT" : "UNIT"} price={null} pricePerKg={null} unit={vocabulario.porPeso ? "kg" : "unidad"} category={null} costoCargado={null} costoVigente={null} conCostos={conCostos} trackStock={true} idPrefix="new-corte" conGondola={conGondola} />
+      <div className="flex flex-col gap-1">
+        <label htmlFor="new-corte-stock" className="text-xs font-medium text-muted">
+          Stock inicial
+        </label>
+        {/* Entra por el ledger como AJUSTE "Stock inicial" (alta-producto.ts), no por el
+            create. Vacío = 0. */}
+        <CampoDecimal
+          id="new-corte-stock"
+          name="stock"
+          tipo="cantidad"
+          valorInicial={0}
+          className={CAMPO}
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor="new-corte-low" className="text-xs font-medium text-muted">
+          Aviso stock bajo
+        </label>
+        <CampoDecimal
+          id="new-corte-low"
+          name="lowStockAt"
+          tipo="cantidad"
+          valorInicial={5}
+          className={CAMPO}
+        />
+      </div>
+      <div className="sm:col-span-6">
+        <button type="submit" className={buttonClasses("solid", "md")}>
+          Agregar {uno}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -505,52 +628,7 @@ export default function CortesSection({
         {/* En la carnicería, el título de siempre ("un corte"); en los demás rubros el sustantivo
             solo, porque el artículo cambia con el género ("una prenda"). */}
         <h3 className="text-base font-medium text-strong mb-3">Agregar {vocabulario.carniceria ? "un corte" : uno}</h3>
-        <form action={createProduct} className="grid grid-cols-1 sm:grid-cols-6 items-end gap-2">
-          <div className="flex flex-col gap-1 sm:col-span-2">
-            <label htmlFor="new-corte-name" className="text-xs font-medium text-muted">
-              {Uno}
-            </label>
-            <input
-              id="new-corte-name"
-              name="name"
-              required
-              placeholder={vocabulario.carniceria ? "ej: Asado de tira" : "Como lo ve el cliente"}
-              className={CAMPO}
-            />
-          </div>
-          <VentaFields saleUnit={vocabulario.porPeso ? "WEIGHT" : "UNIT"} price={null} pricePerKg={null} unit={vocabulario.porPeso ? "kg" : "unidad"} category={null} costoCargado={null} costoVigente={null} conCostos={conCostos} trackStock={true} idPrefix="new-corte" />
-          <div className="flex flex-col gap-1">
-            <label htmlFor="new-corte-stock" className="text-xs font-medium text-muted">
-              Stock inicial
-            </label>
-            {/* Entra por el ledger como AJUSTE "Stock inicial" (alta-producto.ts), no por el
-                create. Vacío = 0. */}
-            <CampoDecimal
-              id="new-corte-stock"
-              name="stock"
-              tipo="cantidad"
-              valorInicial={0}
-              className={CAMPO}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="new-corte-low" className="text-xs font-medium text-muted">
-              Aviso stock bajo
-            </label>
-            <CampoDecimal
-              id="new-corte-low"
-              name="lowStockAt"
-              tipo="cantidad"
-              valorInicial={5}
-              className={CAMPO}
-            />
-          </div>
-          <div className="sm:col-span-6">
-            <button type="submit" className={buttonClasses("solid", "md")}>
-              Agregar {uno}
-            </button>
-          </div>
-        </form>
+        <FormularioAltaCorte vocabulario={vocabulario} conCostos={conCostos} className="grid grid-cols-1 sm:grid-cols-6 items-end gap-2" />
       </div>
     </section>
   );

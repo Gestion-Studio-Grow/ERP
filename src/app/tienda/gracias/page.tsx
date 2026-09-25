@@ -4,16 +4,27 @@
 
 import Link from "next/link";
 import type { Metadata } from "next";
+import { cache } from "react";
 import { getTenantAccent } from "@/lib/branding";
 import { getStorefront } from "@/lib/order-actions";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { editorialFrontFor, getTenantIdentity } from "@/lib/identidad-rubro";
+import { resolveMagraLocal } from "@/tenants/magra-content";
+import { sanitizePhone } from "@/lib/whatsapp-cta";
+import GraciasNueva from "../vidriera/GraciasNueva";
+import { marcaDeLaVidriera, usaVidrieraNueva } from "../vidriera/marcas";
+import { textoDeMediosDePago } from "../reglas-tienda";
 
 export const dynamic = "force-dynamic";
+
+// Una sola lectura del storefront por pedido, compartida entre la metadata y la página nueva.
+const leerTienda = cache(getStorefront);
 
 // Título POR TENANT (no el "Panel de gestión" del layout raíz, que el CLIENTE veía en la pestaña
 // de su propia página de gracias). Sale del nombre del storefront, igual que /tienda.
 export async function generateMetadata(): Promise<Metadata> {
   try {
-    const { name } = await getStorefront();
+    const { name } = await leerTienda();
     return { title: `Pedido recibido · ${name}` };
   } catch {
     return { title: "Pedido recibido" };
@@ -25,7 +36,38 @@ export default async function GraciasPage({
 }: {
   searchParams: Promise<{ pedido?: string }>;
 }) {
-  const [{ pedido }, accent] = await Promise.all([searchParams, getTenantAccent()]);
+  const [{ pedido }, accent, nuevo, identity] = await Promise.all([
+    searchParams,
+    getTenantAccent(),
+    disenoNuevo(),
+    getTenantIdentity(),
+  ]);
+
+  // DISEÑO NUEVO (interruptor del negocio): el número del pedido y cómo sigue, con la marca de la
+  // tienda. Apagado, lo de siempre (abajo, sin cambios). Sólo negocios de mostrador o con marca.
+  const front = editorialFrontFor(identity);
+  if (usaVidrieraNueva(nuevo, identity, front)) {
+    const tienda = await leerTienda();
+    const marca = marcaDeLaVidriera(front, identity.brandId);
+    const whatsapp = marca === "magra" ? resolveMagraLocal(tienda.branding).whatsapp : sanitizePhone(tienda.branding?.whatsapp);
+    const medios = textoDeMediosDePago(tienda.copy?.paymentMethods ?? []);
+    const pago =
+      marca === "magra"
+        ? `Te lo llevamos o lo retirás. Pagás al recibir: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}`
+        : marca === "shinevelas"
+          ? `Te lo mandamos o lo retirás. El pago se coordina al confirmar: ${medios.charAt(0).toLowerCase()}${medios.slice(1)}`
+          : "Te lo mandamos o lo retirás. El medio de pago y el envío te los confirmamos antes de cobrar.";
+    return (
+      <GraciasNueva
+        marca={marca}
+        tenantKey={identity.slug ?? "default"}
+        nombre={tienda.name}
+        pedido={pedido && /^\d{1,9}$/.test(pedido) ? pedido : null}
+        whatsapp={whatsapp}
+        pago={pago}
+      />
+    );
+  }
 
   return (
     <div

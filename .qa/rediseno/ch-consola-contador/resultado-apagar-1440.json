@@ -1,0 +1,60 @@
+{
+  "fase": "apagar",
+  "ancho": 1440,
+  "pasos": [
+    {
+      "paso": "operador · apagar «Diseño nuevo» de CH",
+      "ok": false,
+      "det": "prendido → apagado",
+      "ms": 7005,
+      "errs": [
+        "[operador · apagar «Diseño nuevo» de CH] Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa"
+      ]
+    }
+  ],
+  "fallas": 1,
+  "errores": [
+    "[operador · apagar «Diseño nuevo» de CH] Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/templa"
+  ],
+  "callejones": [],
+  "medidas": [
+    {
+      "pantalla": "interruptor-cambiado",
+      "url": "/operador/tenants/cmuf1ub190000vu7d06np040t?pestana=plan",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "← Negocios:20",
+        "Abrir su panel (se abre en o:36",
+        "Sin plan Prueba Base Pro Ent:36",
+        "Guardar:36",
+        "slug:36",
+        "Prender:36",
+        "slug:36",
+        "Prender:36",
+        "Fijar:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36",
+        "Activar…:36"
+      ]
+    }
+  ]
+}

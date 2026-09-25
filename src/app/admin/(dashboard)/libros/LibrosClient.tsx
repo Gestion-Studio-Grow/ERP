@@ -42,12 +42,19 @@ export default function LibrosClient({
   ventasSinComprobante,
   compras,
   conIva,
+  plegado = false,
 }: {
   comprobantes: ComprobanteRow[];
   ventasSinComprobante: VentaSinComprobanteRow[];
   compras: CompraRow[];
   /** Responsable Inscripto: se muestran neto, alícuota e IVA. En monotributo, sólo el total. */
   conIva: boolean;
+  /**
+   * Diseño nuevo: cada libro plegado, con su cuenta y su total en la línea que lo abre (las ventas
+   * sin comprobante de un mes son cientos de renglones: desplegadas medían 70.000 px en un celular).
+   * Sin esto, la pantalla de siempre, tal cual.
+   */
+  plegado?: boolean;
 }) {
   const c = useOrden(comprobantes, MONTOS);
   const v = useOrden(ventasSinComprobante, TOTAL);
@@ -98,6 +105,92 @@ export default function LibrosClient({
     { key: "numero", header: "Número", cell: (r) => r.numero },
     { key: "total", header: "Total", sortable: true, align: "right", cell: (r) => plata(r.total, true) },
   ];
+
+  if (plegado) {
+    const suma = (xs: readonly { total: number }[]) => xs.reduce((t, x) => t + x.total, 0);
+    const libros = [
+      {
+        id: "libro-comprobantes",
+        titulo: "Comprobantes emitidos",
+        nota: "con CAE: es lo que se declara",
+        n: comprobantes.length,
+        total: suma(comprobantes),
+        abierto: comprobantes.length > 0 && comprobantes.length <= 30,
+        tabla: (
+          <DataTable
+            caption="Comprobantes emitidos del mes"
+            columns={colsComprobantes}
+            rows={c.ordenadas}
+            rowKey={(r) => r.clave}
+            sort={c.sort}
+            onSortChange={c.setSort}
+            emptyState={<p className="px-4 py-3 text-sm text-muted">No hay comprobantes con CAE este mes: las facturas se emiten desde Facturación.</p>}
+          />
+        ),
+      },
+      {
+        id: "libro-sin-comprobante",
+        titulo: "Ventas sin comprobante",
+        nota: "control: no se declaran ni llevan IVA calculado",
+        n: ventasSinComprobante.length,
+        total: suma(ventasSinComprobante),
+        abierto: false,
+        tabla: (
+          <DataTable
+            caption="Ventas sin comprobante del mes"
+            columns={colsSinComprobante}
+            rows={v.ordenadas}
+            rowKey={(r) => r.clave}
+            sort={v.sort}
+            onSortChange={v.setSort}
+            emptyState={<p className="px-4 py-3 text-sm text-muted">Todo lo cobrado este mes tiene comprobante.</p>}
+          />
+        ),
+      },
+      {
+        id: "libro-compras",
+        titulo: "Compras",
+        nota: "control: sin la factura del proveedor no dan crédito fiscal",
+        n: compras.length,
+        total: suma(compras),
+        abierto: false,
+        tabla: (
+          <DataTable
+            caption="Compras del mes"
+            columns={colsCompras}
+            rows={k.ordenadas}
+            rowKey={(r) => r.clave}
+            sort={k.sort}
+            onSortChange={k.setSort}
+            emptyState={<p className="px-4 py-3 text-sm text-muted">No hay compras cargadas este mes.</p>}
+          />
+        ),
+      },
+    ];
+    return (
+      <div>
+        {libros.map((l) => (
+          <details key={l.id} className="group border-b border-line" open={l.abierto}>
+            <summary className="grid min-h-12 cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto_1.5rem] items-baseline gap-x-4 py-2.5">
+              <span className="min-w-0">
+                <span id={l.id} className="font-semibold text-strong">
+                  {l.titulo}
+                </span>
+                <span className="block text-[13px] text-muted">
+                  {l.n} {l.n === 1 ? "renglón" : "renglones"} · {l.nota}
+                </span>
+              </span>
+              <span className="text-right font-semibold tabular-nums">{plata(l.total)}</span>
+              <span aria-hidden className="text-center text-muted transition-transform group-open:rotate-90">
+                ›
+              </span>
+            </summary>
+            <div className="pb-4">{l.tabla}</div>
+          </details>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

@@ -5,6 +5,8 @@ import { direccionDelLocal, type LocalConPasada } from "@/lib/multilocal/multilo
 import { Badge, PageContainer, PageHeader, fmtNumberAR } from "@/components/ui";
 import { AbrirLocal, LocalesSinLeer, NoEsCasa, NoSePudoLeer, SinLocales, SolapasLocales, ruteoDeLocales } from "../partes";
 import { CajaDeUnLocal, ResumenDeCajas } from "./partes-cajas";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { CabeceraCajas, TablaCajas } from "./CajasRenglon";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +47,26 @@ export default async function CajasDeLosLocalesPage() {
   const orden = [...r.red].sort((a, b) => clave(a).localeCompare(clave(b)));
   const ruteo = ruteoDeLocales();
   const n = r.resumen.cajasSinCerrar;
+  // DISEÑO NUEVO («Renglón»): un renglón por local con la diferencia del último cierre a la derecha.
+  if (await disenoNuevo()) {
+    return (
+      <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
+        <CabeceraCajas casa={r.casa} locales={r.red.length} sinCerrar={n} />
+        <SolapasLocales activa="cajas-de-los-locales" role={user.role} />
+        <LocalesSinLeer sinLeer={r.sinLeer} ruta="/admin/locales/cajas" />
+        {r.red.length === 0 ? (
+          r.sinLeer.length === 0 && <SinLocales />
+        ) : (
+          <TablaCajas
+            red={orden}
+            accion={(x) => (
+              <AbrirLocal url={direccionDelLocal(x.local.subdomain, ruteo, "/admin/caja/cierre")} etiqueta="Abrir su cierre del día" />
+            )}
+          />
+        )}
+      </main>
+    );
+  }
   return (
     <PageContainer>
       <PageHeader

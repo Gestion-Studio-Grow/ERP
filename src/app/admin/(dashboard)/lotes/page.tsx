@@ -16,7 +16,8 @@ import {
   summarizeBatches,
 } from "@/lib/carniceria/lotes";
 import { whereProveedoresActivos } from "@/lib/suppliers/supplier";
-import { PageHeader, EmptyState } from "@/components/ui";
+import { PageHeader, EmptyState, Marca, PageContainer, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import LotesClient, { type LoteView } from "./LotesClient";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,16 @@ export default async function LotesPage() {
   if ((await leerEstadoLotesYDespiece()) === "falta-migracion") {
     // Sólo un aviso fijo, sin un dato del negocio: alcanza con la sesión.
     await requireUser();
+    if (await disenoNuevo()) {
+      return (
+        <PageContainer width="narrow">
+          <PageHeader title={TITULO} estado={["En preparación"]} />
+          <p data-ui="vacio" className="border-y border-line py-4 text-sm text-body">
+            Los lotes al vacío se activan cuando se aplique la actualización de la base de tu negocio. Mientras tanto, los vencimientos se siguen controlando como hasta ahora.
+          </p>
+        </PageContainer>
+      );
+    }
     return (
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-8">
         <PageHeader title={TITULO} description="Trazabilidad, vencimientos y peso de cada lote al vacío." />
@@ -70,6 +81,57 @@ export default async function LotesPage() {
       status: b.status,
     };
   });
+
+  // DISEÑO NUEVO («Renglón»): la heladera ordenada por el que vence antes. Los cuatro números de
+  // arriba pasan a la línea de estado (los que piden acción, con su marca); cada lote es un renglón
+  // con el vencimiento en el folio, el costo por kilo en la columna de plata y «Se terminó» como
+  // tecla. La misma lectura, las mismas acciones.
+  if (await disenoNuevo()) {
+    const summary = summarizeBatches(batches, hoy);
+    const riesgo = conCostos ? plataEnRiesgo(batches, hoy) : null;
+    const kg = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(summary.totalKg);
+    const puedeCargar = roleHasCapability(user.role, "stock:receive");
+    return (
+      <PageContainer>
+        <PageHeader
+          title={TITULO}
+          estado={[
+            <strong key="d">
+              {summary.available === 1 ? "1 lote disponible" : `${summary.available} lotes disponibles`} · {kg} kg
+            </strong>,
+            summary.expired > 0 ? (
+              <Marca key="v" tipo="anulado">
+                {summary.expired === 1 ? "1 vencido en la heladera" : `${summary.expired} vencidos en la heladera`}
+              </Marca>
+            ) : null,
+            summary.soon > 0 ? (
+              <Marca key="p" tipo="atencion">
+                {summary.soon === 1 ? "1 vence" : `${summary.soon} vencen`} en 3 días o menos
+                {riesgo && riesgo.lotes > 0 ? ` (${fmtMoneyARS(riesgo.pesos, 0)}${riesgo.sinCosto > 0 ? `, ${riesgo.sinCosto} sin costo` : ""})` : ""}
+              </Marca>
+            ) : null,
+          ]}
+          actions={
+            puedeCargar ? (
+              <a href="#cargar" className={buttonClasses("solid", "md")}>
+                Cargar un lote
+              </a>
+            ) : undefined
+          }
+        />
+        <LotesClient
+          renglon
+          views={views}
+          summary={summary}
+          riesgo={riesgo}
+          products={products}
+          suppliers={suppliers}
+          conCostos={conCostos}
+          puedeCargar={puedeCargar}
+        />
+      </PageContainer>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-5xl px-4 sm:px-6 py-6 sm:py-8">

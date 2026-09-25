@@ -40,9 +40,13 @@ function clase(rel: string, patron: RegExp): string {
 const RAIZ_POR_APPS = clase("src/app/admin/(dashboard)/layout.tsx", /"(min-h-screen bg-surface text-body \[--alto-barra-inferior:[^"]+)"/);
 const BARRA = clase("src/app/admin/(dashboard)/inicio/BarraInferior.tsx", /className="(fixed inset-x-0 bottom-0 z-40[^"]+)"/);
 const PIES = {
-  Vender: clase("src/app/admin/(dashboard)/vender/VenderForm.tsx", /className="(sticky bottom-\[var\(--alto-barra-inferior[^"]+)"/),
+  // El pie DE SIEMPRE (diseño apagado): el de `-mx-3 -mb-3`. El pie de Renglón (diseño nuevo) es
+  // otro elemento de VenderForm, con su relleno en renglon.css, y se mide aparte (abajo).
+  Vender: clase("src/app/admin/(dashboard)/vender/VenderForm.tsx", /className="(sticky bottom-\[var\(--alto-barra-inferior[^"]*-mx-3 -mb-3[^"]+)"/),
   Recuento: clase("src/app/admin/(dashboard)/ajustes/recuento/RecuentoForm.tsx", /id="recuento-pie" className="([^"]+)"/),
 };
+/** El pie de Cobrar de Renglón (diseño nuevo): su relleno lo pone renglon.css. */
+const PIE_RENGLON = clase("src/app/admin/(dashboard)/vender/VenderForm.tsx", /data-vender="cobrar" className="([^"]+)"/);
 
 function rutaDeChromium(porDefecto: () => string): string | null {
   try {
@@ -65,6 +69,7 @@ function rutaDeChromium(porDefecto: () => string): string | null {
 describe("Pies pegados en el iPhone: la zona segura una sola vez", { timeout: 120_000 }, () => {
   let browser: Browser | null = null;
   let css = "";
+  let cssRenglon = "";
   let sinNavegador = "";
 
   before(async () => {
@@ -87,6 +92,9 @@ describe("Pies pegados en el iPhone: la zona segura una sola vez", { timeout: 12
     // En los selectores los paréntesis van escapados (`env\(`): sólo se tocan los valores.
     css = compilado.replaceAll("env(safe-area-inset-bottom)", `${ZONA_SEGURA_PX}px`);
     assert.ok(css !== compilado, "el CSS compilado usa la zona segura");
+    const renglon = leer("public/diseno/renglon.css");
+    cssRenglon = renglon.replaceAll("env(safe-area-inset-bottom)", `${ZONA_SEGURA_PX}px`);
+    assert.ok(cssRenglon !== renglon, "renglon.css usa la zona segura");
     browser = await playwright.chromium.launch({ executablePath: chrome });
   });
 
@@ -120,6 +128,47 @@ describe("Pies pegados en el iPhone: la zona segura una sola vez", { timeout: 12
     await page.close();
     return m;
   }
+
+  /** Vender con el diseño nuevo: la raíz con la piel, el armazón y (en el celular) la cápsula. */
+  async function medirRenglon(conCapsula: boolean) {
+    const page = await browser!.newPage({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
+    await page.setContent(
+      `<!doctype html><html lang="es"><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css}</style><style>${cssRenglon}</style></head><body class="bg-surface">` +
+        `<div data-diseno="renglon"><div data-ui="armazon"><div id="contenido" class="flex-1 pb-[var(--alto-barra-inferior,0px)]"><main>` +
+        `<div style="height:2000px">el ticket largo</div>` +
+        `<div id="pie" data-vender="cobrar" class="${PIE_RENGLON}"><button style="height:44px;width:100%">Cobrar</button></div>` +
+        `</main></div>` +
+        (conCapsula ? `<nav id="barra" data-ui="capsula" aria-label="Espacios"><a>Vender</a></nav>` : "") +
+        `</div></div></body></html>`,
+    );
+    const m = await page.evaluate(() => {
+      const pie = document.getElementById("pie")!;
+      const barra = document.getElementById("barra");
+      return {
+        relleno: parseFloat(getComputedStyle(pie).paddingBottom),
+        pieAbajo: pie.getBoundingClientRect().bottom,
+        barraArriba: barra ? barra.getBoundingClientRect().top : null,
+        botonAbajo: pie.querySelector("button")!.getBoundingClientRect().bottom,
+      };
+    });
+    await page.close();
+    return m;
+  }
+
+  test("Vender con el diseño nuevo, con la cápsula: el pie se apoya en ella sin franja vacía", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const m = await medirRenglon(true);
+    assert.equal(m.relleno, RELLENO_PX, `relleno de abajo del pie: ${m.relleno}px`);
+    assert.ok(m.barraArriba !== null && Math.abs(m.pieAbajo - m.barraArriba) <= 0.5, `el pie se apoya en la cápsula (${m.pieAbajo} / ${m.barraArriba})`);
+    assert.ok(m.barraArriba! - m.botonAbajo <= RELLENO_PX + 0.5, "entre Cobrar y la cápsula no queda una franja vacía");
+  });
+
+  test("Vender con el diseño nuevo, sin cápsula: el pie deja la zona segura una vez", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const m = await medirRenglon(false);
+    assert.equal(m.relleno, ZONA_SEGURA_PX, "sin cápsula, la rayita del iPhone la deja el pie");
+    assert.ok(Math.abs(m.pieAbajo - 915) <= 0.5, `el pie llega al borde de la pantalla (${m.pieAbajo})`);
+  });
 
   for (const [pantalla, pie] of Object.entries(PIES)) {
     test(`${pantalla}, con la barra de espacios: el pie no vuelve a sumar la zona segura`, async (t) => {

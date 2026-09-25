@@ -37,6 +37,7 @@
 // contador (que está en un client component) y los tests.
 
 import type { Role } from "@/lib/capabilities";
+import { mayuscula } from "@/lib/texto";
 import {
   bordesDelMes,
   diaLegible,
@@ -458,9 +459,9 @@ export function validarCongelar(input: {
 }): Validacion {
   const etiqueta = etiquetaDelMes(input.mes);
   if (!mesCerrable(input.mes, input.hoy)) {
-    return { ok: false, error: `${capitalizar(etiqueta)} todavía no terminó: se cierra desde el día 1 del mes siguiente.` };
+    return { ok: false, error: `${mayuscula(etiqueta)} todavía no terminó: se cierra desde el día 1 del mes siguiente.` };
   }
-  if (input.estado.congelado) return { ok: false, error: `${capitalizar(etiqueta)} ya está congelado.` };
+  if (input.estado.congelado) return { ok: false, error: `${mayuscula(etiqueta)} ya está congelado.` };
   const bloqueante = input.pasos.find((p) => p.bloquea && p.estado === "pendiente");
   if (bloqueante) {
     return {
@@ -488,7 +489,7 @@ export const MOTIVO_MINIMO = 10;
 
 /** ¿Se puede reabrir? Sólo OWNER y con motivo. PURA. */
 export function validarReabrir(input: { mes: MesKey; estado: EstadoCierreMes; role: Role; motivo: string | null | undefined }): Validacion {
-  const etiqueta = capitalizar(etiquetaDelMes(input.mes));
+  const etiqueta = mayuscula(etiquetaDelMes(input.mes));
   if (input.role !== "OWNER") return { ok: false, error: "Sólo la dueña o el dueño puede reabrir un mes cerrado." };
   if (!input.estado.congelado) return { ok: false, error: `${etiqueta} no está congelado: no hay nada que reabrir.` };
   const motivo = String(input.motivo ?? "").trim();
@@ -496,10 +497,6 @@ export function validarReabrir(input: { mes: MesKey; estado: EstadoCierreMes; ro
     return { ok: false, error: "Escribí por qué lo reabrís (una frase): queda en la auditoría y lo ve tu contador." };
   }
   return { ok: true };
-}
-
-export function capitalizar(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 // ── El número del botón y la cartera del contador ────────────────────────────
@@ -522,7 +519,7 @@ export type DatoCierre =
  */
 export function datoCierreDelMes(filas: readonly RegistroCierre[], hoy: Date, diaDelMes: number): DatoCierre {
   const mes = mesParaCerrar(hoy);
-  const valor = capitalizar(nombreDelMes(mes));
+  const valor = mayuscula(nombreDelMes(mes));
   const e = estadoDesdeAuditoria(filas);
   if (!e.congelado) {
     const dato: DatoCierre = { valor, detalle: "sin congelar: entrá para ver qué falta" };

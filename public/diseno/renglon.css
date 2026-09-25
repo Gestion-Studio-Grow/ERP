@@ -1,0 +1,2863 @@
+/* ============================================================================
+   «RENGLÓN» — la piel del ERP de GSG (ADR-099).
+   ============================================================================
+   Un renglón por cosa. La plata en su columna. Una tecla por renglón.
+
+   Sale de la DISCIPLINA del libro de mostrador (no de su estética): cada cosa ocupa un renglón con lo
+   mismo en el mismo lugar —a la izquierda el folio, en el medio de qué se trata, a la derecha la plata,
+   al final qué se hace—; las rayas ordenan, no las cajas; los importes se alinean en una columna fija.
+   Materia plana: cero tarjetas con sombra, cero vidrio, cero degradé. Sombra de una capa sólo en lo que
+   flota (hoja, paleta, aviso, menú).
+
+   CÓMO SE PRENDE: el layout de un negocio con el interruptor «Diseño nuevo» pone
+   `data-diseno="renglon"` en su raíz y pide ESTA hoja (ConDiseno). Todo lo de acá está acotado bajo
+   ese atributo: sin él, nada aplica, y un negocio apagado (CH) ni siquiera la descarga.
+
+   SIN CAPA a propósito: una regla sin `@layer` le gana a `@layer utilities` de Tailwind, así la piel
+   viste lo que tiene clases sueltas sin tocar esas clases. La contracara es la regla de oro: en las
+   piezas que un llamador puede ubicar o esconder (`hidden`, `absolute`, `w-full`) la piel NO fija
+   `display`, `position`, `width` ni `margin`: pone materia (color, forma, letra, movimiento). Las
+   piezas propias de esta hoja (renglón, bloque, tabla densa, armazón) sí se ubican: nadie las ubica
+   desde afuera.
+
+   Las piezas se marcan con `data-ui` (+ `data-variant` / `data-size` / `data-estado` / `data-parte`)
+   desde src/components/ui. Contraste de cada par: src/design/tokens.test.ts. */
+
+/* ─── TOKENS · generado por src/design/hoja.ts desde tokens.ts (no editar a mano) ─── */
+@font-face {
+  font-family: "Archivo Renglon";
+  font-style: normal;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-display: swap;
+  src: url("/diseno/archivo-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Archivo Renglon Respaldo";
+  src: local("Arial");
+  ascent-override: 85.41%;
+  descent-override: 20.43%;
+  line-gap-override: 0.00%;
+  size-adjust: 102.80%;
+}
+[data-diseno="renglon"] {
+  --radius-sm: 4px;
+  --radius: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
+  --radio-control: 4px;
+  --radio-flota: 6px;
+  --font-ui: "Archivo Renglon", "Archivo Renglon Respaldo", Arial, sans-serif;
+  --wdth-rotulo: 85%;
+  --wdth-folio: 85%;
+  --wdth-titulo: 90%;
+  --wdth-cifra: 95%;
+  --wdth-cifra-grande: 85%;
+  --wdth-tecla: 95%;
+  --col-plata: 8rem;
+  --col-folio: 5.5rem;
+  --renglon: 2.5rem;
+  --renglon-movil: 3.25rem;
+  --margen: 1rem;
+  --ancho-max: 87.5rem;
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --tap-min: 2.75rem;
+}
+[data-diseno="renglon"],
+[data-diseno="renglon"] [data-theme="light"] {
+  color-scheme: light;
+  --lienzo: oklch(97.2% 0.004 80);
+  --hoja: oklch(99.3% 0.002 80);
+  --hundido: oklch(94.6% 0.005 80);
+  --apretado: oklch(91.5% 0.006 80);
+  --linea: oklch(88% 0.006 80);
+  --linea-2: oklch(76% 0.008 80);
+  --linea-campo: oklch(58% 0.012 80);
+  --tinta: oklch(20% 0.012 80);
+  --tinta-cuerpo: oklch(26% 0.012 80);
+  --tinta-2: oklch(42% 0.012 80);
+  --tinta-3: oklch(49% 0.012 80);
+  --invertido: oklch(23% 0.012 80);
+  --surface: var(--lienzo);
+  --background: var(--lienzo);
+  --surface-raised: var(--hoja);
+  --surface-floating: var(--hoja);
+  --surface-sunken: var(--hundido);
+  --surface-pressed: var(--apretado);
+  --surface-inverted: var(--invertido);
+  --text-strong: var(--tinta);
+  --foreground: var(--tinta);
+  --text: var(--tinta-cuerpo);
+  --text-muted: var(--tinta-2);
+  --text-faint: var(--tinta-3);
+  --text-inverted: var(--lienzo);
+  --line: var(--linea);
+  --line-strong: var(--linea-2);
+  --line-field: var(--linea-campo);
+  --accent: var(--tenant-accent-light, oklch(38% 0.16 285));
+  --text-on-accent: var(--tenant-on-accent-light, #ffffff);
+  --acento: var(--accent);
+  --sobre-acento: var(--text-on-accent);
+  --accent-hover: color-mix(in oklch, var(--accent), black 12%);
+  --accent-soft: color-mix(in oklch, var(--accent) 9%, var(--hoja));
+  --acento-fondo: var(--accent-soft);
+  --accent-ink: color-mix(in oklch, var(--accent) 80%, var(--tinta));
+  --success: oklch(44% 0.11 155);
+  --success-soft: oklch(95.2% 0.035 155);
+  --success-fill: oklch(58% 0.14 155);
+  --warning: oklch(48% 0.098 70);
+  --warning-soft: oklch(95.6% 0.036 82);
+  --warning-fill: oklch(62% 0.125 68);
+  --danger: oklch(47% 0.17 27);
+  --danger-soft: oklch(95.2% 0.024 22);
+  --danger-fill: oklch(56% 0.19 27);
+  --danger-solid: oklch(47% 0.17 27);
+  --text-on-danger: oklch(99% 0.004 27);
+  --info: var(--accent-ink);
+  --info-soft: var(--accent-soft);
+  --info-fill: var(--accent);
+  --cobrado: var(--success);
+  --atencion: var(--warning);
+  --peligro: var(--danger);
+  --bar-track: var(--hundido);
+  --focus-ring: var(--accent);
+  --seleccion: var(--accent-soft);
+  --sombra-flota: 0 8px 24px oklch(20% 0.01 80 / 0.16);
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: var(--sombra-flota);
+}
+[data-diseno="renglon"][data-theme="dark"],
+[data-diseno="renglon"] [data-theme="dark"] {
+  color-scheme: dark;
+  --lienzo: oklch(17% 0.006 80);
+  --hoja: oklch(21% 0.007 80);
+  --hundido: oklch(25.5% 0.008 80);
+  --apretado: oklch(29% 0.008 80);
+  --linea: oklch(31% 0.008 80);
+  --linea-2: oklch(42% 0.01 80);
+  --linea-campo: oklch(56% 0.012 80);
+  --tinta: oklch(95% 0.004 80);
+  --tinta-cuerpo: oklch(88% 0.006 80);
+  --tinta-2: oklch(76% 0.008 80);
+  --tinta-3: oklch(68% 0.008 80);
+  --invertido: oklch(94% 0.004 80);
+  --surface: var(--lienzo);
+  --background: var(--lienzo);
+  --surface-raised: var(--hoja);
+  --surface-floating: var(--hoja);
+  --surface-sunken: var(--hundido);
+  --surface-pressed: var(--apretado);
+  --surface-inverted: var(--invertido);
+  --text-strong: var(--tinta);
+  --foreground: var(--tinta);
+  --text: var(--tinta-cuerpo);
+  --text-muted: var(--tinta-2);
+  --text-faint: var(--tinta-3);
+  --text-inverted: var(--lienzo);
+  --line: var(--linea);
+  --line-strong: var(--linea-2);
+  --line-field: var(--linea-campo);
+  --accent: var(--tenant-accent-dark, oklch(80% 0.1 285));
+  --text-on-accent: var(--tenant-on-accent-dark, oklch(17% 0.01 285));
+  --acento: var(--accent);
+  --sobre-acento: var(--text-on-accent);
+  --accent-hover: color-mix(in oklch, var(--accent), white 10%);
+  --accent-soft: color-mix(in oklch, var(--accent) 16%, var(--hoja));
+  --acento-fondo: var(--accent-soft);
+  --accent-ink: color-mix(in oklch, var(--accent) 82%, white);
+  --success: oklch(79% 0.13 155);
+  --success-soft: oklch(27% 0.045 155);
+  --success-fill: oklch(70% 0.15 155);
+  --warning: oklch(83% 0.12 82);
+  --warning-soft: oklch(28% 0.045 75);
+  --warning-fill: oklch(78% 0.14 78);
+  --danger: oklch(77% 0.13 25);
+  --danger-soft: oklch(27% 0.055 25);
+  --danger-fill: oklch(68% 0.17 25);
+  --danger-solid: oklch(70% 0.16 25);
+  --text-on-danger: oklch(18% 0.03 25);
+  --info: var(--accent-ink);
+  --info-soft: var(--accent-soft);
+  --info-fill: var(--accent);
+  --cobrado: var(--success);
+  --atencion: var(--warning);
+  --peligro: var(--danger);
+  --bar-track: var(--hundido);
+  --focus-ring: var(--accent);
+  --seleccion: var(--accent-soft);
+  --sombra-flota: 0 8px 24px oklch(0% 0 0 / 0.5);
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: var(--sombra-flota);
+}
+@supports (color: oklch(from red l c h)) {
+  [data-diseno="renglon"],
+  [data-diseno="renglon"] [data-theme="light"] {
+    --lienzo: oklch(from var(--accent) 97.2% 0.004 h);
+    --hoja: oklch(from var(--accent) 99.3% 0.002 h);
+    --hundido: oklch(from var(--accent) 94.6% 0.005 h);
+    --apretado: oklch(from var(--accent) 91.5% 0.006 h);
+    --linea: oklch(from var(--accent) 88% 0.006 h);
+    --linea-2: oklch(from var(--accent) 76% 0.008 h);
+    --linea-campo: oklch(from var(--accent) 58% 0.012 h);
+    --tinta: oklch(from var(--accent) 20% 0.012 h);
+    --tinta-cuerpo: oklch(from var(--accent) 26% 0.012 h);
+    --tinta-2: oklch(from var(--accent) 42% 0.012 h);
+    --tinta-3: oklch(from var(--accent) 49% 0.012 h);
+    --invertido: oklch(from var(--accent) 23% 0.012 h);
+  }
+  [data-diseno="renglon"][data-theme="dark"],
+  [data-diseno="renglon"] [data-theme="dark"] {
+    --lienzo: oklch(from var(--accent) 17% 0.006 h);
+    --hoja: oklch(from var(--accent) 21% 0.007 h);
+    --hundido: oklch(from var(--accent) 25.5% 0.008 h);
+    --apretado: oklch(from var(--accent) 29% 0.008 h);
+    --linea: oklch(from var(--accent) 31% 0.008 h);
+    --linea-2: oklch(from var(--accent) 42% 0.01 h);
+    --linea-campo: oklch(from var(--accent) 56% 0.012 h);
+    --tinta: oklch(from var(--accent) 95% 0.004 h);
+    --tinta-cuerpo: oklch(from var(--accent) 88% 0.006 h);
+    --tinta-2: oklch(from var(--accent) 76% 0.008 h);
+    --tinta-3: oklch(from var(--accent) 68% 0.008 h);
+    --invertido: oklch(from var(--accent) 94% 0.004 h);
+  }
+}
+/* ─── FIN TOKENS ─── */
+
+/* ── Raíz y letra ─────────────────────────────────────────────────────────── */
+[data-diseno="renglon"] {
+  font-family: var(--font-ui);
+  font-synthesis: none;
+  color: var(--tinta-cuerpo);
+  background-color: var(--lienzo);
+  accent-color: var(--accent);
+  -webkit-tap-highlight-color: transparent;
+}
+[data-diseno="renglon"] :is(h1, h2, h3) {
+  font-stretch: var(--wdth-titulo);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+[data-diseno="renglon"] :is(td, th, output, .tabular-nums, [data-ui="plata"], [data-parte="folio"]) {
+  font-variant-numeric: tabular-nums;
+}
+[data-diseno="renglon"] ::selection {
+  background-color: color-mix(in oklch, var(--accent) 24%, transparent);
+}
+[data-diseno="renglon"] a {
+  text-underline-offset: 3px;
+}
+[data-diseno="renglon"] :focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+[data-diseno="renglon"] :is(input[type="checkbox"], input[type="radio"]) {
+  accent-color: var(--accent);
+}
+
+/* El rótulo: versales condensadas, la voz de las cabeceras de columna y de bloque. */
+[data-diseno="renglon"] :is([data-ui="rotulo"], [data-ui="field"] [data-parte="etiqueta"], [data-ui="tabla"] th, [data-ui="tabla-densa"] th) {
+  font-size: 0.71875rem;
+  font-weight: 600;
+  font-stretch: var(--wdth-rotulo);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tinta-2);
+}
+
+/* ── Página: ancho completo hasta 1400 px, márgenes de 16 / 24 px ─────────── */
+[data-diseno="renglon"] [data-ui="pagina"] {
+  padding: 1.25rem var(--margen) 2rem;
+}
+[data-diseno="renglon"] [data-ui="pagina"]:not([data-ancho="angosto"]) {
+  max-width: var(--ancho-max);
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] { --margen: 1.5rem; }
+  [data-diseno="renglon"] [data-ui="pagina"] { padding-block: 1.5rem 3rem; }
+}
+
+/* ── Encabezado de página: título (= la app) + una línea de estado ─────────── */
+[data-diseno="renglon"] [data-ui="page-header"] {
+  margin-bottom: 1.25rem;
+  gap: 0.75rem;
+}
+[data-diseno="renglon"] [data-ui="page-header"] h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-stretch: var(--wdth-titulo);
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="page-header"] [data-parte="bajada"] {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--tinta-2);
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] [data-ui="page-header"] h1 { font-size: 1.375rem; }
+}
+[data-diseno="renglon"] [data-ui="linea-estado"] {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 0.5rem;
+  row-gap: 0.125rem;
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--tinta-2);
+}
+/* El punto cuelga del dato anterior: al partirse la línea en el celular, ningún renglón empieza con «·». */
+[data-diseno="renglon"] [data-ui="linea-estado"] > [data-parte="dato"]:not(:last-child)::after {
+  content: "·";
+  margin-left: 0.5rem;
+  color: var(--tinta-3);
+}
+[data-diseno="renglon"] [data-ui="linea-estado"] :is(strong, b) {
+  font-weight: 650;
+  color: var(--tinta);
+}
+
+/* ── Tecla (Button) ─────────────────────────────────────────────────────────
+   Cuatro pesos, 44 px en el celular y 36 en la PC, radio 4, sin sombra. Al apretar baja la luz
+   (nada de escalar). Cargando: una raya que late en el borde de abajo; la palabra se queda. */
+[data-diseno="renglon"] :is([data-ui="button"], .btn-editorial, .btn-editorial-solid) {
+  --alto: 2.75rem;
+  min-height: var(--alto);
+  height: auto;
+  padding-inline: 0.875rem;
+  gap: 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radio-control);
+  font-family: var(--font-ui);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  font-stretch: var(--wdth-tecla);
+  letter-spacing: 0;
+  line-height: 1.2;
+  box-shadow: none;
+  translate: none;
+  scale: none;
+  touch-action: manipulation;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] [data-ui="button"]:is([data-size="sm"], [data-size="md"]) { --alto: 2.25rem; font-size: 0.875rem; }
+}
+[data-diseno="renglon"] [data-ui="button"][data-size="lg"] {
+  --alto: 3rem;
+  padding-inline: 1.25rem;
+  font-size: 1rem;
+}
+[data-diseno="renglon"] [data-ui="button"] svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: none;
+}
+[data-diseno="renglon"] :is([data-ui="button"][data-variant="solid"], .btn-editorial-solid) {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent);
+}
+[data-diseno="renglon"] [data-ui="button"][data-variant="solid"]:hover:not(:disabled, [aria-disabled="true"]) {
+  background-color: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+[data-diseno="renglon"] [data-ui="button"][data-variant="solid"]:active:not(:disabled) {
+  background-color: color-mix(in oklch, var(--accent), black 22%);
+}
+[data-diseno="renglon"] :is([data-ui="button"][data-variant="outline"], .btn-editorial) {
+  background-color: var(--hoja);
+  border-color: var(--linea-2);
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="button"]:is([data-variant="outline"], [data-variant="subtle"]):hover:not(:disabled) {
+  background-color: var(--hundido);
+}
+[data-diseno="renglon"] [data-ui="button"]:is([data-variant="outline"], [data-variant="subtle"]):active:not(:disabled) {
+  background-color: var(--apretado);
+}
+[data-diseno="renglon"] [data-ui="button"][data-variant="subtle"] {
+  background-color: var(--hundido);
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="button"][data-variant="ghost"] {
+  background-color: transparent;
+  color: var(--tinta);
+  padding-inline: 0.5rem;
+}
+[data-diseno="renglon"] [data-ui="button"][data-variant="ghost"]:hover:not(:disabled) {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+}
+/* Peligro: tonal en reposo; sólido cuando pide la confirmación («Tocá de nuevo para anular»). */
+[data-diseno="renglon"] :is([data-ui="button"][data-variant="danger"], .chip-btn-danger) {
+  background-color: var(--danger-soft);
+  border-color: color-mix(in oklch, var(--danger-fill) 40%, transparent);
+  color: var(--danger);
+  opacity: 1;
+}
+[data-diseno="renglon"] [data-ui="button"][data-variant="danger"]:hover:not(:disabled) {
+  border-color: var(--danger-fill);
+}
+[data-diseno="renglon"] [data-ui="button"][data-variant="danger"][data-estado="confirmar"] {
+  background-color: var(--danger-solid);
+  border-color: var(--danger-solid);
+  color: var(--text-on-danger);
+}
+[data-diseno="renglon"] [data-ui="button"]:is(:disabled, [aria-disabled="true"]) {
+  opacity: 1;
+  background-color: var(--hundido);
+  border-color: transparent;
+  color: var(--tinta-3);
+  cursor: not-allowed;
+}
+[data-diseno="renglon"] [data-ui="button"][data-estado="cargando"] {
+  cursor: progress;
+  animation: ren-carga 1.2s var(--ease-out) infinite;
+}
+@keyframes ren-carga {
+  0%, 100% { box-shadow: inset 0 -2px 0 color-mix(in oklch, currentColor 20%, transparent); }
+  50% { box-shadow: inset 0 -2px 0 currentColor; }
+}
+[data-diseno="renglon"] [data-ui="button"][data-estado="listo"] [data-parte="listo"] {
+  color: inherit;
+}
+[data-diseno="renglon"] [data-ui="motivo-error"] {
+  font-size: 0.8125rem;
+  font-weight: 550;
+}
+[data-diseno="renglon"] [data-ui="button"] [data-ui="kbd"][data-en="boton"] {
+  border-color: color-mix(in oklch, currentColor 40%, transparent);
+  background-color: transparent;
+  color: inherit;
+}
+@media (max-width: 1023px), (hover: none) {
+  [data-diseno="renglon"] [data-ui="kbd"][data-en="boton"] {
+    display: none;
+  }
+}
+
+/* Tecla de ícono: el mismo cuerpo sin palabra. */
+[data-diseno="renglon"] [data-ui="icon-button"] {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border: 1px solid transparent;
+  border-radius: var(--radio-control);
+  background-color: transparent;
+  color: var(--tinta-2);
+  box-shadow: none;
+}
+[data-diseno="renglon"] [data-ui="icon-button"]:hover:not(:disabled) {
+  background-color: var(--hundido);
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="icon-button"][data-variant="solid"] {
+  background-color: var(--accent);
+  color: var(--text-on-accent);
+}
+
+/* ── Atajo (kbd) ─────────────────────────────────────────────────────────── */
+[data-diseno="renglon"] [data-ui="kbd"] {
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--linea-2);
+  border-radius: 3px;
+  background-color: var(--hundido);
+  color: var(--tinta-2);
+  font-family: var(--font-ui);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  font-stretch: 90%;
+  line-height: 1.1rem;
+  box-shadow: none;
+}
+[data-diseno="renglon"] [data-ui="atajos"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  margin: 0;
+  padding: 0.375rem 0;
+  font-size: 0.75rem;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="atajos"] > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+/* En el celular (dedo, sin teclado) los atajos no dicen nada: se esconden. */
+@media (max-width: 1023px), (hover: none) {
+  [data-diseno="renglon"] [data-ui="atajos"] { display: none; }
+}
+
+/* ── Campos ──────────────────────────────────────────────────────────────── */
+[data-diseno="renglon"] [data-ui="field"] {
+  gap: 0.375rem;
+}
+[data-diseno="renglon"] [data-ui="field"] :is([data-parte="ayuda"], [data-parte="error"]) {
+  font-size: 0.8125rem;
+}
+[data-diseno="renglon"] [data-ui="field"] [data-parte="error"] {
+  color: var(--danger);
+  font-weight: 550;
+}
+[data-diseno="renglon"] :is([data-ui="input"], [data-ui="select"], [data-ui="textarea"], [data-ui="campo"]) {
+  min-height: 2.75rem;
+  height: auto;
+  padding-inline: 0.75rem;
+  border: 1px solid var(--linea-campo);
+  border-radius: var(--radio-control);
+  background-color: var(--hoja);
+  color: var(--tinta);
+  /* 16 px en el celular: debajo de eso el iPhone agranda la pantalla al tocar el campo. */
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  box-shadow: none;
+  transition: border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] :is([data-ui="input"], [data-ui="select"], [data-ui="campo"]) {
+    min-height: 2.25rem;
+    font-size: 0.875rem;
+  }
+  [data-diseno="renglon"] [data-ui="textarea"] { font-size: 0.875rem; }
+}
+[data-diseno="renglon"] [data-ui="textarea"] {
+  min-height: 6rem;
+  padding-block: 0.5rem;
+  line-height: 1.45;
+}
+[data-diseno="renglon"] :is([data-ui="input"], [data-ui="select"], [data-ui="textarea"], [data-ui="campo"])::placeholder {
+  color: var(--tinta-3);
+}
+[data-diseno="renglon"] :is([data-ui="input"], [data-ui="select"], [data-ui="textarea"], [data-ui="campo"]):focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+[data-diseno="renglon"] :is([data-ui="input"], [data-ui="select"], [data-ui="textarea"], [data-ui="campo"])[aria-invalid="true"] {
+  border-color: var(--danger-fill);
+  box-shadow: inset 0 0 0 1px var(--danger-fill);
+}
+[data-diseno="renglon"] :is([data-ui="input"], [data-ui="select"], [data-ui="textarea"]):disabled {
+  background-color: var(--hundido);
+  color: var(--tinta-2);
+  opacity: 1;
+}
+[data-diseno="renglon"] [data-ui="select"] {
+  appearance: none;
+  padding-right: 2rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23666' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.625rem center;
+  background-size: 0.875rem;
+}
+/* Campo de plata y de peso: cifras tabulares a la derecha, un poco más pesadas. */
+[data-diseno="renglon"] :is([data-ui="input"][data-importe], [data-ui="campo"][data-tipo="plata"], [data-ui="campo"][data-tipo="peso"]) {
+  font-variant-numeric: tabular-nums;
+  font-stretch: var(--wdth-cifra);
+  font-weight: 600;
+  text-align: right;
+}
+
+/* ── Segmentado (medio de pago, canal, período) ──────────────────────────── */
+[data-diseno="renglon"] [data-ui="segmented"] {
+  padding: 2px;
+  gap: 2px;
+  border-radius: var(--radio-control);
+  background-color: var(--hundido);
+}
+[data-diseno="renglon"] [data-ui="segmented"] [data-parte="cara"] {
+  min-height: 2.5rem;
+  padding-inline: 0.875rem;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--tinta-2);
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: none;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+[data-diseno="renglon"] [data-ui="segmented"] [data-parte="opcion"]:hover [data-parte="cara"] {
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="segmented"] [data-parte="opcion"]:has(:checked) [data-parte="cara"] {
+  background-color: var(--hoja);
+  border-color: var(--linea-2);
+  color: var(--tinta);
+  font-weight: 650;
+  box-shadow: none;
+}
+[data-diseno="renglon"] [data-ui="segmented"][data-tono="acento"] [data-parte="opcion"]:has(:checked) [data-parte="cara"] {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent);
+}
+[data-diseno="renglon"] [data-ui="segmented"] [data-parte="opcion"]:has(:focus-visible) [data-parte="cara"] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+[data-diseno="renglon"] [data-ui="segmented"] [data-parte="opcion"]:has(:disabled) [data-parte="cara"] {
+  color: var(--tinta-3);
+  cursor: not-allowed;
+}
+[data-diseno="renglon"] [data-ui="segmented"] [data-parte="conteo"] {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--tinta-2);
+}
+@media (max-width: 1023px) {
+  [data-diseno="renglon"] [data-ui="segmented"] [data-parte="cara"] { min-height: 2.75rem; }
+}
+/* El segmentado a lo ancho (el medio de pago en un cajón) reparte el lugar según lo que dice cada
+   opción, no en partes iguales, y si en un celular angosto no entran, pasa a dos líneas: nunca
+   «Mercado Pa…». Medido: a 412 y a 360 px, «Mercado Pago» y «Transferencia» se cortaban. */
+[data-diseno="renglon"] [data-ui="segmented"][data-lleno] {
+  flex-wrap: wrap;
+}
+[data-diseno="renglon"] [data-ui="segmented"][data-lleno] > [data-parte="opcion"] {
+  flex: 1 1 auto;
+}
+@media (max-width: 639px) {
+  [data-diseno="renglon"] [data-ui="segmented"][data-lleno] [data-parte="cara"] { padding-inline: 0.625rem; }
+}
+
+/* ── Chip (filtro con conteo) y los chips de siempre ─────────────────────── */
+[data-diseno="renglon"] :is([data-ui="chip"], .chip-btn) {
+  min-height: 2.75rem;
+  align-items: center;
+  padding-inline: 0.75rem;
+  gap: 0.375rem;
+  border: 1px solid var(--linea-2);
+  border-radius: var(--radio-control);
+  background-color: var(--hoja);
+  color: var(--tinta);
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: none;
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] :is([data-ui="chip"], .chip-btn) { min-height: 2rem; }
+}
+[data-diseno="renglon"] :is([data-ui="chip"], .chip-btn):hover:not(:disabled) {
+  background-color: var(--hundido);
+}
+[data-diseno="renglon"] :is([data-ui="chip"][aria-pressed="true"], [data-ui="chip"][aria-current="page"], .chip-btn[aria-pressed="true"]) {
+  background-color: var(--tinta);
+  border-color: var(--tinta);
+  color: var(--lienzo);
+}
+[data-diseno="renglon"] [data-ui="chip"] [data-parte="conteo"] {
+  font-size: 0.75rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] :is([data-ui="chip"][aria-pressed="true"], [data-ui="chip"][aria-current="page"]) [data-parte="conteo"] {
+  color: inherit;
+  opacity: 0.8;
+}
+
+/* ── Interruptor ─────────────────────────────────────────────────────────── */
+[data-diseno="renglon"] [data-ui="switch"] {
+  appearance: none;
+  width: 2.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--linea-campo);
+  border-radius: 0.75rem;
+  background-color: var(--hundido);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+[data-diseno="renglon"] [data-ui="switch"]::before {
+  content: "";
+  display: block;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 2px;
+  border-radius: 50%;
+  background-color: var(--tinta-2);
+  transition: translate var(--dur-2) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+[data-diseno="renglon"] [data-ui="switch"]:checked {
+  border-color: var(--accent);
+  background-color: var(--accent);
+}
+[data-diseno="renglon"] [data-ui="switch"]:checked::before {
+  translate: 1rem 0;
+  background-color: var(--text-on-accent);
+}
+
+/* ── Materia de las pantallas de siempre: tarjeta, insignia, número, tabla ── */
+[data-diseno="renglon"] [data-ui="card"] {
+  border-color: var(--linea);
+  border-radius: var(--radius-lg);
+  background-color: var(--hoja);
+  box-shadow: none;
+}
+[data-diseno="renglon"] [data-ui="card"] [data-parte="titulo"] {
+  font-size: 0.9375rem;
+  font-weight: 650;
+  font-stretch: var(--wdth-titulo);
+}
+/* La insignia de siempre pasa a marca: forma + palabra, sin pastilla de color. */
+[data-diseno="renglon"] [data-ui="badge"] {
+  padding: 0;
+  gap: 0.3rem;
+  border-radius: 0;
+  background-color: transparent;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-stretch: var(--wdth-folio);
+  letter-spacing: 0;
+  line-height: 1.4;
+}
+[data-diseno="renglon"] [data-ui="badge"] [data-parte="punto"] {
+  display: none;
+}
+[data-diseno="renglon"] [data-ui="badge"]::before {
+  content: "○";
+  font-size: 0.85em;
+}
+[data-diseno="renglon"] [data-ui="badge"]:is([data-tone="success"], [data-tone="info"], [data-tone="accent"])::before { content: "●"; }
+[data-diseno="renglon"] [data-ui="badge"][data-tone="warning"]::before { content: "⚠"; }
+[data-diseno="renglon"] [data-ui="badge"][data-tone="danger"]::before { content: "✕"; }
+[data-diseno="renglon"] [data-ui="badge"][data-tone="neutral"] { color: var(--tinta-2); }
+[data-diseno="renglon"] [data-ui="kpi"] {
+  border-width: 1px 0 0;
+  border-color: var(--linea);
+  border-radius: 0;
+  background-color: transparent;
+  box-shadow: none;
+  padding: 0.75rem 0;
+}
+[data-diseno="renglon"] [data-ui="kpi"] [data-parte="icono"] {
+  display: none;
+}
+[data-diseno="renglon"] [data-ui="kpi"] [data-parte="etiqueta"] {
+  font-size: 0.71875rem;
+  font-weight: 600;
+  font-stretch: var(--wdth-rotulo);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="kpi"] [data-parte="valor"] {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-stretch: var(--wdth-cifra-grande);
+  letter-spacing: -0.02em;
+}
+[data-diseno="renglon"] [data-ui="tabla"] [data-parte="marco"] {
+  border-width: 1px 0;
+  border-color: var(--linea);
+  border-radius: 0;
+  background-color: var(--hoja);
+}
+[data-diseno="renglon"] [data-ui="tabla"] thead tr {
+  border-color: var(--linea);
+  background-color: var(--hundido);
+}
+[data-diseno="renglon"] [data-ui="tabla"] th {
+  height: 2rem;
+  padding-block: 0;
+}
+[data-diseno="renglon"] [data-ui="tabla"] td {
+  padding-block: 0.5rem;
+  color: var(--tinta-cuerpo);
+  font-size: 0.875rem;
+}
+[data-diseno="renglon"] [data-ui="tabla"] tbody tr {
+  border-color: var(--linea);
+  border-radius: 0;
+}
+
+/* ── Estado vacío: una frase, qué pasa y qué hacer, en el lugar del primer renglón ── */
+[data-diseno="renglon"] [data-ui="vacio"] {
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.875rem 0;
+  border-width: 1px 0;
+  border-color: var(--linea);
+  border-radius: 0;
+  background-color: transparent;
+  text-align: left;
+}
+[data-diseno="renglon"] [data-ui="vacio"] [data-parte="icono"] {
+  display: none;
+}
+[data-diseno="renglon"] [data-ui="vacio"] > div {
+  max-width: 44rem;
+}
+[data-diseno="renglon"] [data-ui="vacio"] [data-parte="titulo"] {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--tinta);
+}
+
+/* ── Esqueleto: la forma real que late (quieto si se pidió menos movimiento) ── */
+[data-diseno="renglon"] :is([data-ui="esqueleto"], .animate-pulse) {
+  background-color: var(--hundido);
+  animation: ren-late 1.2s ease-in-out infinite;
+}
+@keyframes ren-late {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* ── Avisos: de error (en el lugar), flotante (con deshacer), franja (fija arriba) ── */
+[data-diseno="renglon"] [data-ui="aviso-error"] {
+  border-radius: var(--radio-control);
+  border-width: 1px;
+  box-shadow: none;
+}
+[data-diseno="renglon"] [data-ui="aviso"] {
+  border: 0;
+  border-radius: var(--radio-flota);
+  background-color: var(--invertido);
+  color: var(--text-inverted);
+  box-shadow: var(--sombra-flota);
+  font-size: 0.875rem;
+}
+[data-diseno="renglon"] [data-ui="aviso"] [data-parte="deshacer"] {
+  color: inherit;
+  font-weight: 650;
+  text-decoration: underline;
+}
+[data-diseno="renglon"] [data-ui="franja"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  min-height: 2.25rem;
+  padding: 0.375rem var(--margen);
+  border-bottom: 1px solid color-mix(in oklch, var(--franja-tinta) 30%, transparent);
+  background-color: var(--franja-fondo);
+  color: var(--franja-tinta);
+  font-size: 0.8125rem;
+  font-weight: 550;
+  --franja-fondo: var(--accent-soft);
+  --franja-tinta: var(--accent-ink);
+}
+[data-diseno="renglon"] [data-ui="franja"][data-tono="atencion"] { --franja-fondo: var(--warning-soft); --franja-tinta: var(--warning); }
+[data-diseno="renglon"] [data-ui="franja"][data-tono="peligro"] { --franja-fondo: var(--danger-soft); --franja-tinta: var(--danger); }
+[data-diseno="renglon"] [data-ui="franja"] a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* ── Pulso: sólo cuando falta la señal ───────────────────────────────────── */
+[data-diseno="renglon"] [data-ui="pulso"] {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--warning);
+}
+
+/* ── La plata: cifras tabulares, $ liviano, centavos chicos ────────────────── */
+[data-diseno="renglon"] [data-ui="plata"] {
+  font-stretch: var(--wdth-cifra);
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="plata"] [data-parte="moneda"] {
+  margin-right: 0.08em;
+  font-weight: 400;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="plata"] [data-parte="centavos"] {
+  font-size: 0.72em;
+  font-weight: 500;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="plata"][data-tono="peligro"],
+[data-diseno="renglon"] [data-ui="plata"][data-tono="peligro"] :is([data-parte="moneda"], [data-parte="centavos"]) {
+  color: var(--danger);
+}
+[data-diseno="renglon"] [data-ui="plata"][data-tono="cobrado"] {
+  color: var(--success);
+}
+[data-diseno="renglon"] [data-ui="plata"][data-tamano="grande"] {
+  font-size: clamp(2rem, 9cqi, 3.5rem);
+  font-weight: 700;
+  font-stretch: var(--wdth-cifra-grande);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+[data-diseno="renglon"] [data-ui="plata"][data-tamano="grande"] [data-parte="moneda"] {
+  font-size: 0.55em;
+  vertical-align: 0.55em;
+}
+[data-diseno="renglon"] [data-ui="plata"][data-tamano="grande"] [data-parte="centavos"] {
+  font-size: 0.45em;
+  vertical-align: 0.8em;
+}
+
+/* ── Display (la cifra grande de siempre): en cqi del contenedor, nunca en vw ── */
+[data-diseno="renglon"] [data-ui="display"] {
+  container-type: inline-size;
+  border-radius: 0;
+  background-color: transparent;
+  box-shadow: none;
+}
+[data-diseno="renglon"] [data-ui="display"] [data-parte="cifra"] {
+  font-size: clamp(1.75rem, 12cqi, 3.5rem);
+  font-weight: 700;
+  font-stretch: var(--wdth-cifra-grande);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="display"] :is([data-parte="moneda"], [data-parte="centavos"], [data-parte="decimales"], [data-parte="unidad"]) {
+  font-size: 0.5em;
+  font-weight: 500;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="display"] [data-parte="etiqueta"] {
+  font-size: 0.71875rem;
+  font-weight: 600;
+  font-stretch: var(--wdth-rotulo);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tinta-2);
+}
+
+/* ── Marca de estado: forma + palabra; el color sólo refuerza ─────────────── */
+[data-diseno="renglon"] [data-ui="marca"] {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-stretch: var(--wdth-folio);
+  white-space: nowrap;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="marca"] [data-parte="forma"] {
+  flex: none;
+  width: 0.72em;
+  height: 0.72em;
+  align-self: center;
+}
+[data-diseno="renglon"] [data-ui="marca"][data-tipo="hecho"] { color: var(--success); }
+[data-diseno="renglon"] [data-ui="marca"]:is([data-tipo="medias"], [data-tipo="atencion"]) { color: var(--warning); }
+[data-diseno="renglon"] [data-ui="marca"][data-tipo="anulado"] { color: var(--danger); }
+[data-diseno="renglon"] [data-ui="marca"][data-tipo="info"] { color: var(--accent-ink); }
+[data-diseno="renglon"] [data-ui="riel"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--tinta-3);
+}
+[data-diseno="renglon"] [data-ui="riel"] [data-parte="paso"][data-hecho] {
+  color: var(--success-fill);
+}
+
+/* ── Bloque: rótulo + raya + renglones. Sin fondo, sin caja. ──────────────── */
+[data-diseno="renglon"] [data-ui="bloque"] {
+  min-width: 0;
+}
+[data-diseno="renglon"] [data-ui="bloque"] > [data-parte="cabeza"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.75rem;
+  row-gap: 0.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--linea-2);
+}
+[data-diseno="renglon"] [data-ui="bloque"] > [data-parte="cabeza"] h2 {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  font-stretch: var(--wdth-titulo);
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="bloque"] > [data-parte="cabeza"] [data-parte="cuenta"] {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-stretch: var(--wdth-folio);
+  font-variant-numeric: tabular-nums;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="bloque"] > [data-parte="cabeza"] [data-parte="nota"] {
+  margin-left: auto;
+  font-size: 0.8125rem;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="bloque"] + [data-ui="bloque"] {
+  margin-top: 1.75rem;
+}
+
+/* ── Renglón: [folio] [asunto] [plata] [tecla] ───────────────────────────────
+   PC: una línea de 40 px, la plata en su columna. Celular: dos líneas de 52 px —folio y plata
+   arriba, asunto y tecla abajo—. */
+[data-diseno="renglon"] [data-ui="renglon"] {
+  display: grid;
+  grid-template-columns: var(--col-folio) minmax(0, 1fr) var(--col-plata) auto;
+  grid-template-areas: "folio asunto plata tecla";
+  align-items: center;
+  column-gap: 1rem;
+  min-height: var(--renglon);
+  padding-block: 0.375rem;
+  border-bottom: 1px solid var(--linea);
+}
+[data-diseno="renglon"] [data-ui="renglon"] > [data-parte="folio"] {
+  grid-area: folio;
+  min-width: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-stretch: var(--wdth-folio);
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="renglon"] > [data-parte="asunto"] {
+  grid-area: asunto;
+  min-width: 0;
+}
+[data-diseno="renglon"] [data-ui="renglon"] [data-parte="titulo"] {
+  display: block;
+  overflow: hidden;
+  font-size: 0.9375rem;
+  font-weight: 550;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="renglon"] a[data-parte="titulo"]:hover {
+  text-decoration: underline;
+}
+[data-diseno="renglon"] [data-ui="renglon"] [data-parte="detalle"] {
+  display: block;
+  overflow: hidden;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="renglon"] > [data-parte="plata"] {
+  grid-area: plata;
+  text-align: right;
+}
+[data-diseno="renglon"] [data-ui="renglon"] > [data-parte="tecla"] {
+  grid-area: tecla;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+/* Sin plata, el asunto usa también la columna de la plata (la columna sigue en su lugar). */
+[data-diseno="renglon"] [data-ui="renglon"]:not(:has(> [data-parte="plata"] > *)) > [data-parte="asunto"] {
+  grid-column: 2 / 4;
+}
+[data-diseno="renglon"] [data-ui="renglon"] > [data-parte="plata"]:empty {
+  display: none;
+}
+[data-diseno="renglon"] [data-ui="renglon"][data-resuelto] {
+  opacity: 0;
+  transition: opacity 150ms var(--ease-out);
+}
+@media (max-width: 1023px) {
+  [data-diseno="renglon"] [data-ui="renglon"] {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "folio plata" "asunto tecla";
+    row-gap: 0.125rem;
+    min-height: var(--renglon-movil);
+    padding-block: 0.625rem;
+  }
+  [data-diseno="renglon"] [data-ui="renglon"]:not(:has(> [data-parte="plata"] > *)) > [data-parte="asunto"] { grid-column: auto; }
+  [data-diseno="renglon"] [data-ui="renglon"] [data-parte="titulo"] { font-size: 1rem; white-space: normal; }
+  [data-diseno="renglon"] [data-ui="renglon"] [data-parte="detalle"] { white-space: normal; }
+  [data-diseno="renglon"] [data-ui="renglon"] > [data-parte="tecla"] { align-self: center; }
+}
+/* Sin folio (`data-sin-folio` en la lista): renglones que son rótulos, no documentos («La plata»,
+   «Sus datos» de una ficha). El asunto arranca en el borde, sin la sangría de la columna vacía. */
+[data-diseno="renglon"] [data-sin-folio] [data-ui="renglon"] {
+  grid-template-columns: minmax(0, 1fr) var(--col-plata) auto;
+  grid-template-areas: "asunto plata tecla";
+}
+[data-diseno="renglon"] [data-sin-folio] [data-ui="renglon"] > [data-parte="folio"] {
+  display: none;
+}
+[data-diseno="renglon"] [data-sin-folio] [data-ui="renglon"]:not(:has(> [data-parte="plata"] > *)) > [data-parte="asunto"] {
+  grid-column: 1 / 3;
+}
+@media (max-width: 1023px) {
+  [data-diseno="renglon"] [data-sin-folio] [data-ui="renglon"] {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "asunto plata" "asunto tecla";
+  }
+  [data-diseno="renglon"] [data-sin-folio] [data-ui="renglon"]:not(:has(> [data-parte="plata"] > *)) > [data-parte="asunto"] {
+    grid-column: asunto;
+  }
+}
+/* Las dos columnas del Inicio y de las fichas: 7/5 en la PC. */
+[data-diseno="renglon"] [data-ui="dos-columnas"] {
+  display: grid;
+  gap: 2rem;
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] [data-ui="dos-columnas"] { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 2.5rem; }
+}
+
+/* ── La bandeja del Inicio: un bloque por objetivo ────────────────────────────
+   PC: a la izquierda el resumen del objetivo (rótulo, la cifra, una nota); a la derecha sus
+   renglones. Celular: el resumen en una línea arriba y los renglones debajo. */
+[data-diseno="renglon"] [data-ui="objetivo"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  border-bottom: 1px solid var(--linea-2);
+}
+[data-diseno="renglon"] [data-ui="objetivo"] > [data-parte="resumen"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.625rem;
+  padding: 0.875rem 0 0.25rem;
+}
+[data-diseno="renglon"] [data-ui="objetivo"] [data-parte="cifra"] {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-stretch: var(--wdth-cifra-grande);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="objetivo"] [data-parte="cifra"] [data-ui="plata"] {
+  font-size: inherit;
+  font-weight: inherit;
+}
+[data-diseno="renglon"] [data-ui="objetivo"] [data-parte="nota"] {
+  margin: 0;
+  font-size: 0.75rem;
+  font-stretch: var(--wdth-folio);
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="objetivo"] > [data-parte="renglones"] {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-diseno="renglon"] [data-ui="objetivo"] > [data-parte="renglones"] > :last-child {
+  border-bottom: 0;
+}
+[data-diseno="renglon"] [data-ui="objetivo"] [data-parte="resto"] {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--linea);
+  font-size: 0.8125rem;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] :is([data-ui="objetivo"] [data-parte="resto"] a, [data-ui="bloque"] [data-parte="nota"] a) {
+  color: var(--accent-ink);
+  font-weight: 550;
+  text-decoration: none;
+}
+[data-diseno="renglon"] :is([data-ui="objetivo"] [data-parte="resto"] a, [data-ui="bloque"] [data-parte="nota"] a):hover {
+  text-decoration: underline;
+}
+/* Los enlaces sueltos («Ver los 11 en Pedidos →», «Elegir cuáles», «Abrir la caja») también son
+   teclas: 44 px de alto en el celular, 24 en la PC (WCAG 2.5.8), sin mover la letra. Dentro de una
+   frase (la línea de estado) el enlace sigue siendo texto: crece con relleno que no ocupa renglón,
+   así la frase se parte igual que antes y el «·» no queda solo. */
+[data-diseno="renglon"] :is([data-ui="objetivo"] [data-parte="resto"], [data-ui="bloque"] [data-parte="nota"]) a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+}
+[data-diseno="renglon"] [data-ui="linea-estado"] a {
+  padding-block: 0.125rem;
+  white-space: nowrap;
+}
+@media (max-width: 1023.98px) {
+  [data-diseno="renglon"] :is([data-ui="objetivo"] [data-parte="resto"], [data-ui="bloque"] [data-parte="nota"]) a {
+    min-height: var(--tap-min);
+  }
+  [data-diseno="renglon"] [data-ui="linea-estado"] a {
+    padding-block: 0.9375rem;
+  }
+  [data-diseno="renglon"] [data-ui="objetivo"] [data-parte="resto"] {
+    align-items: center;
+    padding-block: 0;
+  }
+}
+[data-diseno="renglon"] [data-ui="objetivo"] [data-parte="nada"] {
+  margin: 0;
+  padding: 0.25rem 0 0.875rem;
+  font-size: 0.875rem;
+  color: var(--tinta-2);
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] [data-ui="objetivo"] {
+    grid-template-columns: 8.5rem minmax(0, 1fr);
+    column-gap: 1rem;
+  }
+  [data-diseno="renglon"] [data-ui="objetivo"] > [data-parte="resumen"] {
+    display: block;
+    padding: 0.75rem 0;
+  }
+  [data-diseno="renglon"] [data-ui="objetivo"] [data-parte="cifra"] { margin-top: 0.375rem; font-size: 1.375rem; }
+  [data-diseno="renglon"] [data-ui="objetivo"] [data-parte="nota"] { margin-top: 0.25rem; }
+  [data-diseno="renglon"] [data-ui="objetivo"] [data-ui="renglon"] { grid-template-columns: 6.5rem minmax(0, 1fr) var(--col-plata) auto; }
+  [data-diseno="renglon"] [data-ui="objetivo"] [data-parte="nada"] { padding: 0.875rem 0; }
+}
+
+/* ── Mis apps: dos por fila, con su número; el índice de espacios ─────────── */
+[data-diseno="renglon"] [data-ui="mis-apps"] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+[data-diseno="renglon"] [data-ui="mis-apps"] a {
+  display: grid;
+  grid-template-columns: 1.125rem minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.5rem;
+  min-height: 3rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--linea-2);
+  border-radius: var(--radio-control);
+  background-color: var(--hoja);
+  color: var(--tinta);
+  text-decoration: none;
+}
+[data-diseno="renglon"] [data-ui="mis-apps"] a:hover {
+  background-color: var(--hundido);
+}
+[data-diseno="renglon"] :is([data-ui="mis-apps"], [data-ui="indice"]) svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="mis-apps"] [data-parte="nombre"] {
+  overflow: hidden;
+  font-size: 0.875rem;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-diseno="renglon"] [data-ui="mis-apps"] [data-parte="numero"] {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  font-stretch: var(--wdth-cifra);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="mis-apps"] [data-parte="numero"][data-alerta] {
+  color: var(--warning);
+}
+[data-diseno="renglon"] [data-ui="indice"] {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-diseno="renglon"] [data-ui="indice"] a {
+  display: grid;
+  grid-template-columns: 1.125rem minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.625rem;
+  min-height: 2.75rem;
+  border-bottom: 1px solid var(--linea);
+  color: var(--tinta);
+  text-decoration: none;
+}
+[data-diseno="renglon"] [data-ui="indice"] a:hover [data-parte="nombre"] {
+  text-decoration: underline;
+}
+[data-diseno="renglon"] [data-ui="indice"] [data-parte="nombre"] {
+  font-size: 0.9375rem;
+  font-weight: 550;
+}
+[data-diseno="renglon"] [data-ui="indice"] [data-parte="aviso"] {
+  color: var(--warning-fill);
+  font-size: 0.75rem;
+}
+[data-diseno="renglon"] [data-ui="indice"] [data-parte="cuenta"] {
+  font-size: 0.8125rem;
+  font-stretch: var(--wdth-folio);
+  color: var(--tinta-2);
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] [data-ui="indice"] a { min-height: 2.25rem; }
+}
+
+/* ── Pestañas (las apps de un espacio, las vistas de una app) ──────────────── */
+[data-diseno="renglon"] [data-ui="pestanas"] {
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+[data-diseno="renglon"] [data-ui="pestanas"] > :is(a, button) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--tinta-2);
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+}
+[data-diseno="renglon"] [data-ui="pestanas"] > :is(a, button):hover {
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="pestanas"] > :is([aria-current="page"], [aria-selected="true"]) {
+  border-bottom-color: var(--accent);
+  color: var(--tinta);
+  font-weight: 650;
+}
+[data-diseno="renglon"] [data-ui="pestanas"][data-con-raya] {
+  border-bottom: 1px solid var(--linea);
+}
+
+/* ── Tabla densa: la pieza central ──────────────────────────────────────────
+   Cabecera de 32 px hundida, filas de 40 px con raya, cifras a la derecha, fila entera enlazada,
+   selección con barra de lote, foco de fila con teclado. En un contenedor angosto, cada fila son
+   dos líneas (folio y plata arriba, asunto y tecla abajo). */
+[data-diseno="renglon"] [data-ui="tabla-densa"] {
+  container-type: inline-size;
+  min-width: 0;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] thead th {
+  height: 2rem;
+  padding: 0 0.75rem;
+  border-bottom: 1px solid var(--linea);
+  background-color: var(--hundido);
+  text-align: left;
+  white-space: nowrap;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] th button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] th[aria-sort]:not([aria-sort="none"]) {
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] :is(th, td)[data-alinear="derecha"] {
+  text-align: right;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] :is(th, td)[data-alinear="derecha"] button {
+  flex-direction: row-reverse;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] tbody tr {
+  height: var(--renglon);
+  border-bottom: 1px solid var(--linea);
+  background-color: var(--hoja);
+  cursor: default;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] tbody tr[data-enlace] {
+  cursor: pointer;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] tbody tr:hover {
+  background-color: color-mix(in oklch, var(--hundido) 55%, var(--hoja));
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] tbody tr[aria-selected="true"] {
+  background-color: var(--seleccion);
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] tbody tr[data-foco] {
+  background-color: var(--hundido);
+  box-shadow: inset 3px 0 0 var(--linea-2);
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] tbody tr[aria-selected="true"][data-foco],
+[data-diseno="renglon"] [data-ui="tabla-densa"] tbody tr[aria-selected="true"] {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] td {
+  padding: 0.25rem 0.75rem;
+  color: var(--tinta-cuerpo);
+  vertical-align: middle;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] td[data-movil="folio"] {
+  font-size: 0.8125rem;
+  font-stretch: var(--wdth-folio);
+  font-weight: 500;
+  color: var(--tinta-2);
+  white-space: nowrap;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] td[data-movil="asunto"] {
+  color: var(--tinta);
+  font-weight: 550;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] td[data-movil="asunto"] a {
+  color: inherit;
+  text-decoration: none;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] td[data-movil="asunto"] a:hover {
+  text-decoration: underline;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] td[data-movil="plata"] {
+  width: var(--col-plata);
+  white-space: nowrap;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] td[data-movil="tecla"] {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] :is(th, td)[data-parte="seleccion"] {
+  width: 2.75rem;
+  padding: 0;
+  text-align: center;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] [data-parte="seleccion"] label {
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.5rem;
+  cursor: pointer;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] [data-parte="seleccion"] input {
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] [data-parte="lote"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid color-mix(in oklch, var(--accent) 40%, transparent);
+  border-bottom: 0;
+  background-color: var(--seleccion);
+  font-size: 0.875rem;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] [data-parte="lote"] > strong {
+  margin-right: 0.5rem;
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] [data-parte="lote"] > [data-parte="limpiar"] {
+  margin-left: auto;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] [data-parte="pie"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.5rem 0;
+  font-size: 0.8125rem;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] [data-parte="vacio"] td {
+  padding: 1rem 0.75rem;
+  color: var(--tinta-2);
+  cursor: default;
+}
+/* La barra de la lista: el buscador de la lista y, en el celular, ⇅ (ordenar) y ⋯, en UNA fila.
+   En la PC el orden vive en los encabezados y la barra queda sólo con el buscador (o no ocupa lugar). */
+[data-diseno="renglon"] [data-ui="tabla-densa"] > [data-parte="barra"] {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] > [data-parte="barra"]:not(:has(> :not([data-parte="orden-movil"]))) {
+  margin-bottom: 0;
+}
+[data-diseno="renglon"] [data-ui="tabla-densa"] [data-parte="orden-movil"] {
+  display: none;
+}
+[data-diseno="renglon"] [data-ui="menu"] > [data-parte="menu-titulo"] {
+  margin: 0;
+  padding: 0.375rem 0.75rem 0.25rem;
+  font-size: 0.71875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="menu"] > [aria-current="true"] {
+  font-weight: 600;
+  background-color: var(--hundido);
+}
+@container (max-width: 40rem) {
+  [data-diseno="renglon"] [data-ui="tabla-densa"] > [data-parte="barra"]:not(:has(> :not([data-parte="orden-movil"]))) {
+    justify-content: flex-end;
+    margin-bottom: 0.25rem;
+  }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] [data-parte="orden-movil"] {
+    display: block;
+    flex: none;
+  }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] > [data-parte="barra"] [data-ui="mas"] {
+    border-color: var(--linea-campo);
+  }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] :is(table, tbody) {
+    display: block;
+  }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] thead {
+    display: none;
+  }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] tbody tr {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "sel folio plata" "sel asunto tecla" "sel detalle tecla";
+    align-items: center;
+    column-gap: 0.75rem;
+    height: auto;
+    min-height: var(--renglon-movil);
+    padding: 0.5rem 0.25rem 0.5rem 0;
+  }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] tbody tr > td {
+    display: block;
+    width: auto;
+    padding: 0;
+  }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] td[data-parte="seleccion"] { grid-area: sel; align-self: stretch; display: grid; place-items: center; }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] td[data-movil="folio"] { grid-area: folio; }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] td[data-movil="asunto"] { grid-area: asunto; font-size: 1rem; }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] td[data-movil="detalle"] { grid-area: detalle; font-size: 0.8125rem; color: var(--tinta-2); }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] td[data-movil="detalle"] + td[data-movil="detalle"] { display: none; }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] td[data-movil="plata"] { grid-area: plata; text-align: right; }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] td[data-movil="tecla"] { grid-area: tecla; }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] td[data-movil="oculta"] { display: none; }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] tbody tr:not(:has(td[data-parte="seleccion"])) {
+    grid-template-columns: 0 minmax(0, 1fr) auto;
+    column-gap: 0;
+    padding-left: 0.25rem;
+  }  /* El renglón entero es el blanco del dedo: el enlace del asunto se estira a toda la fila (el
+     nombre solo medía 17 px de alto). Lo demás que se toca en la fila queda por encima. */
+  [data-diseno="renglon"] [data-ui="tabla-densa"] tbody tr:has(td[data-movil="asunto"] :is(a, button)) {
+    position: relative;
+  }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] td[data-movil="asunto"] :is(a, button):first-of-type::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] [data-parte="seleccion"] label {
+    height: 2.75rem;
+  }
+  [data-diseno="renglon"] [data-ui="tabla-densa"] tbody td:not([data-movil="asunto"]) :is(a, button, input, label, select, summary) {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+/* Pedidos en el celular: estado y canal en UNA fila con scroll propio (antes eran dos filas). */
+@media (max-width: 639px) {
+  [data-diseno="renglon"] [data-tablero="pedidos"] > [data-ui="filtros"] {
+    flex-wrap: nowrap;
+    margin-inline: -0.25rem;
+    padding-inline: 0.25rem;
+    overflow-x: auto;
+  }
+  [data-diseno="renglon"] [data-tablero="pedidos"] > [data-ui="filtros"] > [role="group"] {
+    flex: none;
+    max-width: none;
+    overflow: visible;
+  }
+}
+/* ── Filtros sobre la tabla: una sola línea, todo en la URL ─────────────────── */
+[data-diseno="renglon"] [data-ui="filtros"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.75rem;
+}
+[data-diseno="renglon"] [data-ui="filtros"] > [data-parte="buscar"] {
+  flex: 1 1 14rem;
+  max-width: 22rem;
+  margin-left: auto;
+}
+
+/* ── «Más» (⋯) y su menú (popover nativo) ──────────────────────────────────── */
+[data-diseno="renglon"] [data-ui="mas"] {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border: 1px solid transparent;
+  border-radius: var(--radio-control);
+  background: none;
+  color: var(--tinta-2);
+  font-size: 1.125rem;
+  line-height: 1;
+  cursor: pointer;
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] [data-ui="mas"] { min-width: 2.25rem; min-height: 2.25rem; }
+}
+[data-diseno="renglon"] [data-ui="mas"]:hover {
+  background-color: var(--hundido);
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="menu"] {
+  min-width: 13rem;
+  margin: 0;
+  padding: 0.25rem;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-flota);
+  background-color: var(--hoja);
+  color: var(--tinta);
+  box-shadow: var(--sombra-flota);
+}
+[data-diseno="renglon"] [data-ui="menu"] > :is(a, button) {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] [data-ui="menu"] > :is(a, button) { min-height: 2.25rem; }
+}
+[data-diseno="renglon"] [data-ui="menu"] > :is(a, button):is(:hover, :focus-visible) {
+  background-color: var(--hundido);
+}
+[data-diseno="renglon"] [data-ui="menu"] > [data-peligro] {
+  color: var(--danger);
+}
+
+/* ── Lo que flota: hoja (celular), cajón (PC), diálogo, paleta ────────────── */
+[data-diseno="renglon"] dialog:is([data-ui="hoja"], [data-ui="cajon"], [data-ui="dialogo"], [data-ui="paleta"]) {
+  border: 1px solid var(--linea);
+  background-color: var(--hoja);
+  color: var(--tinta-cuerpo);
+  box-shadow: var(--sombra-flota);
+  padding: 0;
+}
+[data-diseno="renglon"] dialog:is([data-ui="hoja"], [data-ui="cajon"], [data-ui="dialogo"], [data-ui="paleta"])::backdrop {
+  background-color: oklch(20% 0.01 80 / 0.4);
+}
+[data-diseno="renglon"] dialog[data-ui="hoja"] {
+  border-radius: var(--radio-flota) var(--radio-flota) 0 0;
+  transition: translate var(--dur-3) var(--ease-out), opacity var(--dur-2) var(--ease-out), display var(--dur-3) allow-discrete, overlay var(--dur-3) allow-discrete;
+}
+[data-diseno="renglon"] dialog[data-ui="hoja"] [data-parte="manija"] {
+  width: 2.5rem;
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--linea-2);
+}
+@starting-style {
+  [data-diseno="renglon"] dialog[data-ui="hoja"][open] { translate: 0 100%; }
+  [data-diseno="renglon"] dialog[data-ui="cajon"][open] { translate: 100% 0; }
+  [data-diseno="renglon"] dialog:is([data-ui="dialogo"], [data-ui="paleta"])[open] { opacity: 0; translate: 0 -8px; }
+}
+[data-diseno="renglon"] dialog[data-ui="cajon"] {
+  margin: 0 0 0 auto;
+  width: min(30rem, 100vw);
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  border-width: 0 0 0 1px;
+  border-radius: 0;
+  transition: translate var(--dur-3) var(--ease-out), display var(--dur-3) allow-discrete, overlay var(--dur-3) allow-discrete;
+}
+@media (max-width: 639px) {
+  [data-diseno="renglon"] dialog[data-ui="cajon"] {
+    margin: auto 0 0;
+    width: 100vw;
+    height: auto;
+    max-height: 90dvh;
+    border-width: 1px 0 0;
+    border-radius: var(--radio-flota) var(--radio-flota) 0 0;
+  }
+}
+[data-diseno="renglon"] dialog[data-ui="dialogo"] {
+  width: min(27.5rem, calc(100vw - 2rem));
+  border-radius: var(--radio-flota);
+  transition: opacity var(--dur-2) var(--ease-out), translate var(--dur-2) var(--ease-out), display var(--dur-2) allow-discrete, overlay var(--dur-2) allow-discrete;
+}
+[data-diseno="renglon"] :is(dialog[data-ui="cajon"], dialog[data-ui="dialogo"]) > [data-parte="marco"] {
+  display: flex;
+  flex-direction: column;
+  max-height: inherit;
+  height: 100%;
+}
+/* Hijos directos del marco: así un Bloque metido en el cajón conserva su propia cabeza y su pie. */
+[data-diseno="renglon"] :is([data-ui="cajon"], [data-ui="dialogo"]) > [data-parte="marco"] > [data-parte="cabeza"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem 1rem 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--linea);
+}
+[data-diseno="renglon"] :is([data-ui="cajon"], [data-ui="dialogo"]) > [data-parte="marco"] > [data-parte="cabeza"] h2 {
+  flex: 1;
+  margin: 0;
+  padding-top: 0.5rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--tinta);
+}
+[data-diseno="renglon"] :is([data-ui="cajon"], [data-ui="dialogo"]) > [data-parte="marco"] > [data-parte="cuerpo"] {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+}
+[data-diseno="renglon"] :is([data-ui="cajon"], [data-ui="dialogo"]) > [data-parte="marco"] > [data-parte="pie"] {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem calc(0.75rem + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--linea);
+}
+
+/* ── La paleta de Ctrl/⌘K: acciones, apps y (cuando existan) registros ───── */
+[data-diseno="renglon"] dialog[data-ui="paleta"] {
+  width: min(40rem, calc(100vw - 2rem));
+  max-height: min(34rem, 80dvh);
+  margin: 10vh auto auto;
+  border-radius: var(--radio-flota);
+  overflow: hidden;
+  transition: opacity var(--dur-2) var(--ease-out), translate var(--dur-2) var(--ease-out), display var(--dur-2) allow-discrete, overlay var(--dur-2) allow-discrete;
+}
+@media (max-width: 639px) {
+  [data-diseno="renglon"] dialog[data-ui="paleta"] {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+}
+[data-diseno="renglon"] [data-ui="paleta"] [data-parte="marco"] {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: inherit;
+}
+[data-diseno="renglon"] [data-ui="paleta"] [data-parte="campo"] {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 3.25rem;
+  padding: 0 0.75rem 0 1rem;
+  border-bottom: 1px solid var(--linea);
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="paleta"] [data-parte="campo"] input {
+  flex: 1;
+  min-width: 0;
+  height: 3rem;
+  border: 0;
+  background: none;
+  color: var(--tinta);
+  font: inherit;
+  font-size: 1rem;
+  outline: none;
+}
+[data-diseno="renglon"] [data-ui="paleta"] [data-parte="cuenta"] {
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+[data-diseno="renglon"] [data-ui="paleta"] [data-parte="lista"] {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0 0 0.375rem;
+  overflow-y: auto;
+  list-style: none;
+}
+[data-diseno="renglon"] [data-ui="paleta"] [data-parte="grupo"] {
+  padding: 0.75rem 1rem 0.25rem;
+}
+[data-diseno="renglon"] [data-ui="paleta"] [role="option"] {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.75rem;
+  min-height: 3rem;
+  padding: 0.375rem 1rem;
+  color: var(--tinta);
+  cursor: pointer;
+}
+[data-diseno="renglon"] [data-ui="paleta"] [role="option"][aria-selected="true"] {
+  background-color: var(--hundido);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+[data-diseno="renglon"] [data-ui="paleta"] [role="option"] svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="paleta"] [data-parte="nombre"] {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+[data-diseno="renglon"] [data-ui="paleta"] [data-parte="segunda"] {
+  display: block;
+  overflow: hidden;
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="paleta"] mark {
+  background: none;
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+[data-diseno="renglon"] [data-ui="paleta"] [data-parte="nada"] {
+  padding: 1rem;
+  color: var(--tinta-2);
+  font-size: 0.875rem;
+}
+[data-diseno="renglon"] [data-ui="paleta"] [data-parte="ayuda"] {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--linea);
+  font-size: 0.75rem;
+  color: var(--tinta-2);
+}
+/* En el celular no hay flechas ni Enter que enseñar: la ayuda de teclado se va. */
+@media (max-width: 1023.98px) {
+  [data-diseno="renglon"] [data-ui="paleta"] :is([data-parte="ayuda"], [role="option"] [data-ui="kbd"], [role="option"] kbd) {
+    display: none;
+  }
+}
+
+/* ── Hoja de siempre (Hoja.tsx), aviso flotante, deslizar, teclado, ticket ── */
+[data-diseno="renglon"] [data-ui="deslizar"] {
+  border: 1px solid var(--linea-2);
+  border-radius: var(--radio-control);
+  background-color: var(--hundido);
+  box-shadow: none;
+}
+[data-diseno="renglon"] [data-ui="deslizar"] [data-parte="perilla"] {
+  border-radius: 3px;
+  background-color: var(--accent);
+  color: var(--text-on-accent);
+  box-shadow: none;
+}
+[data-diseno="renglon"] [data-ui="deslizar"] [data-parte="relleno"] {
+  border-radius: 3px;
+  background-color: var(--accent-soft);
+}
+[data-diseno="renglon"] [data-ui="teclado"] [data-ui="tecla"] {
+  min-height: 3.25rem;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-control);
+  background-color: var(--hoja);
+  color: var(--tinta);
+  font-size: 1.375rem;
+  font-weight: 600;
+  font-stretch: var(--wdth-cifra);
+  font-variant-numeric: tabular-nums;
+  box-shadow: none;
+}
+[data-diseno="renglon"] [data-ui="teclado"] [data-ui="tecla"]:active {
+  background-color: var(--apretado);
+}
+[data-diseno="renglon"] [data-ui="teclado"] [data-parte="visor"] {
+  font-size: 2.25rem;
+  font-weight: 700;
+  font-stretch: var(--wdth-cifra-grande);
+  font-variant-numeric: tabular-nums;
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="ticket"] {
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-control);
+  background-color: var(--hoja);
+  box-shadow: none;
+}
+[data-diseno="renglon"] [data-ui="ticket"] [data-parte="cabeza"] {
+  font-size: 0.8125rem;
+  font-stretch: var(--wdth-folio);
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="ticket"] [data-parte="linea"] {
+  border-color: var(--linea);
+}
+[data-diseno="renglon"] [data-ui="ticket"] [data-parte="corte"] {
+  border-top: 1px dashed var(--linea-2);
+}
+
+/* ── La lista del buscador (BuscadorCombo): flota, así que lleva la sombra ───── */
+[data-diseno="renglon"] [data-ui="lista-combo"] {
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-flota);
+  background-color: var(--hoja);
+  box-shadow: var(--sombra-flota);
+}
+[data-diseno="renglon"] [data-ui="lista-combo"] [role="option"][aria-selected="true"] {
+  background-color: var(--hundido);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* ============================================================================
+   VENDER — el ticket que crece.
+   PC: a la izquierda el buscador y las teclas de «Más vendidos»; a la derecha el ticket, pegado
+   arriba mientras se busca. Celular: las teclas arriba, el ticket abajo y el pie de cobro fijo
+   encima de la cápsula.
+   ============================================================================ */
+[data-diseno="renglon"] [data-vender="formulario"] {
+  display: grid;
+  gap: 1.5rem;
+  align-items: start;
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] [data-vender="formulario"] { grid-template-columns: minmax(0, 1fr) minmax(24rem, 28rem); }
+  [data-diseno="renglon"] [data-vender="ticket"] { position: sticky; top: 7rem; }
+}
+[data-diseno="renglon"] [data-vender="rapidos"] h2 {
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+@media (min-width: 640px) {
+  [data-diseno="renglon"] [data-vender="rapidos"] [data-parte="teclas"] { grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); }
+}
+[data-diseno="renglon"] [data-vender="tecla-producto"] {
+  display: grid;
+  align-content: space-between;
+  gap: 0.375rem;
+  min-height: 3.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--linea-2);
+  border-radius: var(--radio-control);
+  background-color: var(--hoja);
+  color: var(--tinta);
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+[data-diseno="renglon"] [data-vender="tecla-producto"]:hover {
+  background-color: var(--hundido);
+}
+[data-diseno="renglon"] [data-vender="tecla-producto"]:active {
+  background-color: var(--apretado);
+}
+[data-diseno="renglon"] [data-vender="tecla-producto"] [data-parte="nombre"] {
+  font-size: 0.9375rem;
+  font-weight: 550;
+  line-height: 1.2;
+}
+[data-diseno="renglon"] [data-vender="tecla-producto"] [data-parte="precio"] {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-stretch: var(--wdth-cifra);
+  font-variant-numeric: tabular-nums;
+  color: var(--tinta-cuerpo);
+}
+[data-diseno="renglon"] [data-vender="tecla-producto"] small {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-vender="ticket"] {
+  container-type: inline-size;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-control);
+  background-color: var(--hoja);
+}
+[data-diseno="renglon"] [data-vender="ticket"] > [data-parte="cabeza"] {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px dashed var(--linea-2);
+  font-size: 0.8125rem;
+  font-stretch: var(--wdth-folio);
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-vender="modo"] {
+  padding: 2px;
+  border-radius: var(--radio-control);
+  background-color: var(--hundido);
+}
+[data-diseno="renglon"] [data-vender="modo"] > button {
+  min-width: 4.5rem;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  color: var(--tinta-2);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 550;
+  cursor: pointer;
+}
+[data-diseno="renglon"] [data-vender="modo"] > button[aria-pressed="true"] {
+  border-color: var(--linea-2);
+  background-color: var(--hoja);
+  color: var(--tinta);
+  font-weight: 650;
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] [data-vender="modo"] > button { min-height: 2rem; }
+}
+[data-diseno="renglon"] [data-vender="ticket"] [data-parte="vacio"] {
+  margin: 0;
+  padding: 1rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-vender="ticket"] [data-parte="lineas"] {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-diseno="renglon"] [data-vender="linea"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7rem auto 2.75rem;
+  grid-template-areas: "que cantidad importe quitar" "nota nota nota nota";
+  align-items: center;
+  column-gap: 0.5rem;
+  padding: 0.5rem 0.25rem 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--linea);
+}
+[data-diseno="renglon"] [data-vender="linea"][data-sin-cantidad] {
+  background-color: var(--acento-fondo);
+}
+[data-diseno="renglon"] [data-vender="linea"] > [data-parte="que"] {
+  grid-area: que;
+  display: grid;
+  min-width: 0;
+}
+[data-diseno="renglon"] [data-vender="linea"] [data-parte="producto"] {
+  overflow: hidden;
+  font-size: 0.9375rem;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-vender="linea"] [data-parte="detalle"] {
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-vender="linea"] > [data-parte="cantidad"] {
+  grid-area: cantidad;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+[data-diseno="renglon"] [data-vender="linea"] > [data-parte="cantidad"] [data-ui="input"] {
+  min-width: 0;
+  padding-inline: 0.5rem;
+}
+[data-diseno="renglon"] [data-vender="linea"] [data-parte="unidad"] {
+  font-size: 0.8125rem;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-vender="linea"] > [data-parte="importe"] {
+  grid-area: importe;
+  min-width: 5.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+[data-diseno="renglon"] [data-vender="linea"] > [data-parte="quitar"] {
+  grid-area: quitar;
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  border-radius: var(--radio-control);
+  background: none;
+  color: var(--tinta-2);
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+[data-diseno="renglon"] [data-vender="linea"] > [data-parte="quitar"]:hover {
+  background-color: var(--danger-soft);
+  color: var(--danger);
+}
+[data-diseno="renglon"] [data-vender="linea"] > [data-parte="nota"] {
+  grid-column: 1 / -1;
+  margin: 0.25rem 0 0;
+}
+@container (max-width: 26rem) {
+  [data-diseno="renglon"] [data-vender="linea"] {
+    grid-template-columns: 7rem minmax(0, 1fr) auto 2.75rem;
+    grid-template-areas: "que que importe quitar" "cantidad . . ." "nota nota nota nota";
+    row-gap: 0.375rem;
+  }
+}
+[data-diseno="renglon"] [data-vender="ticket"] fieldset {
+  margin: 0.5rem 0.75rem;
+}
+[data-diseno="renglon"] [data-vender="opcionales"] {
+  padding: 0.625rem 0.75rem;
+}
+[data-diseno="renglon"] [data-vender="ticket"] > :is(div.grid, div.space-y-2) {
+  padding: 0.75rem;
+}
+[data-diseno="renglon"] [data-vender="pie"] {
+  container-type: inline-size;
+  padding: 0.75rem 0.75rem 0;
+  border-top: 1px solid var(--linea-2);
+}
+[data-diseno="renglon"] [data-vender="cobrar"] {
+  /* Abajo: su aire, o la zona segura del iPhone si no hay cápsula que ya la deje (una sola vez). */
+  padding: 0.75rem 0.75rem max(0.75rem, calc(env(safe-area-inset-bottom) - var(--alto-barra-inferior, 0px)));
+  border-radius: 0 0 var(--radio-control) var(--radio-control);
+  background-color: var(--hoja);
+  box-shadow: 0 -6px 16px -10px oklch(20% 0.01 80 / 0.35);
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] [data-vender="cobrar"] { position: static; box-shadow: none; }
+}
+[data-diseno="renglon"] [data-vender="pie"] [data-parte="total"] [data-ui="plata"][data-tamano="grande"] {
+  font-size: clamp(2rem, 13cqi, 3rem);
+}
+[data-diseno="renglon"] [data-vender="pie"] [role="radiogroup"] {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radio-control);
+  background-color: var(--hundido);
+}
+[data-diseno="renglon"] [data-vender="pie"] [role="radiogroup"] > [role="radio"] {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding-inline: 0.375rem;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background-color: transparent;
+  color: var(--tinta-2);
+  font-size: 0.875rem;
+  font-weight: 550;
+  white-space: nowrap;
+}
+[data-diseno="renglon"] [data-vender="pie"] [role="radiogroup"] > [role="radio"][aria-checked="true"] {
+  border-color: var(--linea-2);
+  background-color: var(--hoja);
+  color: var(--tinta);
+  font-weight: 700;
+}
+[data-diseno="renglon"] [data-vender="pie"] div:has(> [role="status"] > strong) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 0.5rem;
+}
+[data-diseno="renglon"] [data-vender="pie"] div:has(> [role="status"] > strong) label > span {
+  font-size: 0.71875rem;
+  font-weight: 600;
+  font-stretch: var(--wdth-rotulo);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-vender="pie"] div:has(> [role="status"] > strong) [data-ui="input"] {
+  width: 100%;
+}
+[data-diseno="renglon"] [data-vender="pie"] [role="status"]:has(> strong) {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 3rem;
+  margin: 0;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radio-control);
+  background-color: var(--success-soft);
+  color: var(--success);
+  font-size: 0.71875rem;
+  font-weight: 600;
+  font-stretch: var(--wdth-rotulo);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+[data-diseno="renglon"] [data-vender="pie"] [role="status"] > strong {
+  color: var(--success);
+  font-size: clamp(1.125rem, 6.5cqi, 1.75rem);
+  font-weight: 700;
+  font-stretch: var(--wdth-cifra-grande);
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+[data-diseno="renglon"] [data-vender="cobrar"] button[type="submit"] {
+  width: 100%;
+  min-height: 3rem;
+  font-size: 1.0625rem;
+}
+[data-diseno="renglon"] [data-vender="mas"] > summary {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--tinta-2);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+/* ============================================================================
+   EL ARMAZÓN — PC: cabecera de dos renglones, sin barra lateral. Celular: el título de la app
+   arriba y la cápsula abajo (4 espacios + la tecla del rubro).
+   ============================================================================ */
+[data-diseno="renglon"] [data-ui="armazon"] {
+  --alto-capsula: calc(3.5rem + 1px + env(safe-area-inset-bottom));
+  min-height: 100dvh;
+}
+/* Lo que una pantalla fija abajo (el pie de cobrar de Vender, el del Recuento, los avisos) se apoya
+   ENCIMA de la cápsula con `bottom-[var(--alto-barra-inferior,0px)]`: con el armazón nuevo la
+   cápsula está en todos los negocios (también en CH), así que la variable la pone la piel. */
+[data-diseno="renglon"]:has([data-ui="capsula"]) {
+  --alto-barra-inferior: calc(3.5rem + 1px + env(safe-area-inset-bottom));
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"]:has([data-ui="capsula"]) { --alto-barra-inferior: 0px; }
+}
+[data-diseno="renglon"] [data-ui="armazon"] [data-parte="contenido"] {
+  min-width: 0;
+  padding-bottom: var(--alto-capsula);
+  outline: none;
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] [data-ui="armazon"] { --alto-capsula: 0px; }
+}
+
+/* PC ── renglón 1: el negocio, los espacios, el buscador y la persona; renglón 2: las apps del
+   espacio como pestañas y la acción principal, siempre en el mismo lugar. */
+[data-diseno="renglon"] [data-ui="cabecera"] {
+  display: none;
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] [data-ui="cabecera"] {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    border-bottom: 1px solid var(--linea);
+    background-color: var(--lienzo);
+  }
+}
+[data-diseno="renglon"] [data-ui="cabecera"] [data-parte="fila-1"] {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  height: 3rem;
+  padding: 0 var(--margen);
+  border-bottom: 1px solid var(--linea);
+}
+[data-diseno="renglon"] [data-ui="cabecera"] [data-parte="fila-2"] {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 1rem;
+  height: 2.75rem;
+  padding: 0 var(--margen);
+}
+[data-diseno="renglon"] [data-ui="cabecera"] [data-parte="fila-2"] [data-ui="pestanas"] > :is(a, button) {
+  min-height: 100%;
+  padding-inline: 0.625rem;
+}
+[data-diseno="renglon"] [data-ui="cabecera"] [data-parte="accion"] {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+}
+[data-diseno="renglon"] [data-parte="negocio"] {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding-right: 0.75rem;
+  border-right: 1px solid var(--linea);
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+[data-diseno="renglon"] [data-parte="monograma"] {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radio-control);
+  background-color: var(--accent);
+  color: var(--text-on-accent);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-stretch: var(--wdth-titulo);
+}
+[data-diseno="renglon"] [data-parte="negocio"] [data-parte="nombre"] {
+  max-width: 14rem;
+  overflow: hidden;
+  font-size: 0.9375rem;
+  font-weight: 750;
+  font-stretch: var(--wdth-titulo);
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+[data-diseno="renglon"] [data-ui="cabecera"] [data-parte="espacios"] {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.125rem;
+  min-width: 0;
+  overflow: hidden;
+}
+[data-diseno="renglon"] [data-ui="cabecera"] [data-parte="espacio"] {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0 0.5rem;
+  border-radius: var(--radio-control);
+  color: var(--tinta-cuerpo);
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-stretch: 92%;
+  text-decoration: none;
+  white-space: nowrap;
+}
+[data-diseno="renglon"] [data-ui="cabecera"] [data-parte="espacio"]:hover {
+  background-color: var(--hundido);
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="cabecera"] [data-parte="espacio"][aria-current] {
+  background-color: var(--hundido);
+  color: var(--tinta);
+  font-weight: 650;
+}
+@media (min-width: 1024px) and (max-width: 1279px) {
+  [data-diseno="renglon"] [data-ui="cabecera"] [data-parte="espacio"] { padding-inline: 0.375rem; font-stretch: 80%; }
+  [data-diseno="renglon"] [data-parte="negocio"] [data-parte="nombre"] { max-width: 8rem; }
+}
+[data-diseno="renglon"] [data-ui="cabecera"] [data-parte="buscar"] {
+  display: flex;
+  flex: 0 1 15rem;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 10rem;
+  height: 2.25rem;
+  margin-left: auto;
+  padding: 0 0.375rem 0 0.625rem;
+  border: 1px solid var(--linea-2);
+  border-radius: var(--radio-control);
+  background-color: var(--hoja);
+  color: var(--tinta-2);
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: text;
+}
+[data-diseno="renglon"] [data-ui="cabecera"] [data-parte="buscar"] > span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-diseno="renglon"] [data-ui="cabecera"] [data-parte="buscar"] svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+[data-diseno="renglon"] [data-parte="persona"] {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 0.25rem;
+  border: 0;
+  border-radius: var(--radio-control);
+  background: none;
+  color: var(--tinta);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+[data-diseno="renglon"] [data-parte="persona"]:hover {
+  background-color: var(--hundido);
+}
+[data-diseno="renglon"] [data-parte="iniciales"] {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--linea-2);
+  border-radius: var(--radio-control);
+  background-color: var(--hundido);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-stretch: var(--wdth-titulo);
+}
+[data-diseno="renglon"] [data-parte="persona"] [data-parte="quien"] {
+  display: grid;
+  line-height: 1.15;
+}
+[data-diseno="renglon"] [data-parte="persona"] [data-parte="quien"] b {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+[data-diseno="renglon"] [data-parte="persona"] [data-parte="quien"] small {
+  font-size: 0.75rem;
+  color: var(--tinta-2);
+}
+@media (max-width: 1279px) {
+  [data-diseno="renglon"] [data-ui="cabecera"] [data-parte="persona"] [data-parte="quien"] { display: none; }
+}
+
+/* Celular ── arriba: el negocio, el título de la app y la lupa. */
+[data-diseno="renglon"] [data-ui="barra-movil"] {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) 3rem;
+  align-items: center;
+  height: 3rem;
+  padding: 0 0.25rem;
+  border-bottom: 1px solid var(--linea);
+  background-color: var(--lienzo);
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] [data-ui="barra-movil"] { display: none; }
+}
+[data-diseno="renglon"] [data-ui="barra-movil"] > :is(a, button) {
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  border-radius: var(--radio-control);
+  background: none;
+  color: var(--tinta);
+  cursor: pointer;
+}
+[data-diseno="renglon"] [data-ui="barra-movil"] svg {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+[data-diseno="renglon"] [data-ui="barra-movil"] [data-parte="titulo"] {
+  overflow: hidden;
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  font-stretch: var(--wdth-titulo);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tinta);
+}
+
+/* Celular ── abajo: la cápsula opaca, pegada al borde, con raya arriba. */
+[data-diseno="renglon"] [data-ui="capsula"] {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(var(--espacios, 4), minmax(0, 1fr)) auto;
+  align-items: center;
+  gap: 0.125rem;
+  height: var(--alto-capsula);
+  padding: 0.25rem 0.375rem calc(0.25rem + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--linea-2);
+  background-color: var(--hoja);
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] [data-ui="capsula"] { display: none; }
+}
+[data-diseno="renglon"] [data-ui="capsula"] [data-parte="espacio"] {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.125rem;
+  min-width: 0;
+  height: 3rem;
+  border: 0;
+  border-radius: var(--radio-control);
+  background: none;
+  color: var(--tinta-2);
+  font: inherit;
+  font-size: 0.71875rem;
+  font-weight: 550;
+  font-stretch: 88%;
+  text-decoration: none;
+  cursor: pointer;
+}
+[data-diseno="renglon"] [data-ui="capsula"] [data-parte="espacio"] > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-diseno="renglon"] [data-ui="capsula"] [data-parte="espacio"] svg {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+[data-diseno="renglon"] [data-ui="capsula"] [data-parte="espacio"][aria-current] {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+[data-diseno="renglon"] [data-ui="capsula"] [data-parte="rubro"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 3rem;
+  padding: 0 1rem;
+  border-radius: var(--radio-flota);
+  background-color: var(--accent);
+  color: var(--text-on-accent);
+  font-size: 1rem;
+  font-weight: 700;
+  font-stretch: var(--wdth-tecla);
+  text-decoration: none;
+  white-space: nowrap;
+}
+[data-diseno="renglon"] [data-ui="capsula"] [data-parte="rubro"] svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* Los desplegables del armazón (popover nativo): la hoja de un espacio y el menú de la persona.
+   En el celular suben desde abajo; en la PC, el de la persona cuelga de la esquina. */
+[data-diseno="renglon"] [data-ui="desplegable"] {
+  position: fixed;
+  inset: auto 0 0 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 85dvh;
+  margin: 0;
+  padding: 0 0 calc(0.75rem + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  border: 0;
+  border-top: 1px solid var(--linea-2);
+  border-radius: var(--radio-flota) var(--radio-flota) 0 0;
+  background-color: var(--hoja);
+  color: var(--tinta-cuerpo);
+  box-shadow: var(--sombra-flota);
+  transition: translate var(--dur-3) var(--ease-out), display var(--dur-3) allow-discrete, overlay var(--dur-3) allow-discrete;
+}
+[data-diseno="renglon"] [data-ui="desplegable"]::backdrop {
+  background-color: oklch(20% 0.01 80 / 0.35);
+}
+@starting-style {
+  [data-diseno="renglon"] [data-ui="desplegable"]:popover-open { translate: 0 100%; }
+}
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] [data-ui="desplegable"][data-tipo="persona"] {
+    inset: 3.25rem var(--margen) auto auto;
+    width: 18rem;
+    border: 1px solid var(--linea);
+    border-radius: var(--radio-flota);
+    padding-bottom: 0.5rem;
+    transition: opacity var(--dur-2) var(--ease-out), display var(--dur-2) allow-discrete, overlay var(--dur-2) allow-discrete;
+  }
+  [data-diseno="renglon"] [data-ui="desplegable"][data-tipo="persona"]::backdrop { background: none; }
+}
+@starting-style {
+  @media (min-width: 1024px) {
+    [data-diseno="renglon"] [data-ui="desplegable"][data-tipo="persona"]:popover-open { translate: none; opacity: 0; }
+  }
+}
+[data-diseno="renglon"] [data-ui="desplegable"] [data-parte="cabeza"] {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3.25rem;
+  padding: 0.25rem 0.5rem 0.25rem 1rem;
+  border-bottom: 1px solid var(--linea);
+}
+[data-diseno="renglon"] [data-ui="desplegable"] [data-parte="cabeza"] h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--tinta);
+}
+[data-diseno="renglon"] [data-ui="desplegable"] [data-parte="apps"] {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-diseno="renglon"] [data-ui="desplegable"] [data-parte="app"] {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.75rem;
+  min-height: 3.25rem;
+  padding: 0.375rem 1rem;
+  border-bottom: 1px solid var(--linea);
+  color: var(--tinta);
+  text-decoration: none;
+}
+[data-diseno="renglon"] [data-ui="desplegable"] [data-parte="app"][aria-current] {
+  box-shadow: inset 3px 0 0 var(--accent);
+  background-color: var(--hundido);
+}
+[data-diseno="renglon"] [data-ui="desplegable"] [data-parte="app"] svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="desplegable"] [data-parte="app"] b {
+  display: block;
+  font-size: 1rem;
+  font-weight: 550;
+}
+[data-diseno="renglon"] [data-ui="desplegable"] [data-parte="app"] small {
+  display: block;
+  overflow: hidden;
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tinta-2);
+}
+[data-diseno="renglon"] [data-ui="desplegable"] [data-parte="pie"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 0;
+}
+[data-diseno="renglon"] [data-ui="desplegable"] [data-parte="dato"] {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--linea);
+  font-size: 0.875rem;
+}
+[data-diseno="renglon"] [data-ui="desplegable"] [data-parte="dato"] b {
+  display: block;
+  color: var(--tinta);
+  font-size: 0.9375rem;
+}
+[data-diseno="renglon"] [data-ui="desplegable"] [data-parte="opcion"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 0;
+  background: none;
+  color: var(--tinta);
+  font: inherit;
+  font-size: 0.9375rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+[data-diseno="renglon"] [data-ui="desplegable"] [data-parte="opcion"]:hover {
+  background-color: var(--hundido);
+}
+
+/* ── Movimiento pedido por la persona y contraste pedido por la persona ─────── */
+@media (prefers-reduced-motion: reduce) {
+  [data-diseno="renglon"] *,
+  [data-diseno="renglon"] *::before,
+  [data-diseno="renglon"] *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 120ms !important;
+    transition-property: opacity, background-color, color, border-color !important;
+  }
+}
+@media (prefers-contrast: more) {
+  [data-diseno="renglon"] {
+    --linea: var(--linea-2);
+    --tinta-2: var(--tinta-cuerpo);
+    --tinta-3: var(--tinta-cuerpo);
+  }
+}
+
+/* ── Pulido del QA visual de MAGRA (25/09/2026): sólo presentación ─────────── */
+/* Un renglón sin folio en el celular (el «Total» de un pedido, un rótulo): el asunto y la plata
+   en la misma línea, en vez de la cifra arriba sola y el título abajo. */
+@media (max-width: 1023px) {
+  [data-diseno="renglon"] [data-ui="renglon"]:has(> [data-parte="folio"]:empty) {
+    grid-template-areas: "asunto plata" "asunto tecla";
+  }
+  [data-diseno="renglon"] [data-ui="renglon"]:has(> [data-parte="folio"]:empty) > [data-parte="folio"] {
+    display: none;
+  }
+}
+/* Las cifras de resumen (KpiTile) en el celular son renglones —rótulo a la izquierda, cifra en la
+   columna de la derecha—, no tarjetas apiladas con un número grande cada una (§1.4, §2). */
+@media (max-width: 639px) {
+  [data-diseno="renglon"] :is(section, div):has(> [data-ui="kpi"]) {
+    gap: 0;
+  }
+  [data-diseno="renglon"] [data-ui="kpi"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "etiqueta valor" "sub valor";
+    column-gap: 1rem;
+    align-items: center;
+    min-height: var(--renglon-movil);
+    padding: 0.5rem 0;
+  }
+  [data-diseno="renglon"] [data-ui="kpi"] > div:first-child {
+    grid-area: etiqueta;
+    align-self: end;
+  }
+  [data-diseno="renglon"] [data-ui="kpi"] [data-parte="etiqueta"] {
+    font-size: 0.875rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--tinta);
+  }
+  [data-diseno="renglon"] [data-ui="kpi"] [data-parte="valor"] {
+    grid-area: valor;
+    margin-top: 0;
+    font-size: 1.25rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  [data-diseno="renglon"] [data-ui="kpi"] > p:not([data-parte]) {
+    grid-area: sub;
+    margin-top: 0;
+    align-self: start;
+  }
+}
+/* En la PC la cabecera de dos renglones ya lista las apps del espacio (§4.1): la fila de chips
+   con las mismas apps, repetida abajo del título, sobra. En el celular sigue (ahí no hay segundo
+   renglón). */
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] :is(nav[aria-label="Apps de clientes"], nav[aria-label="Vistas de Mis locales"]) {
+    display: none;
+  }
+}
+
+/* ── La agenda de CH en el celular: la hora es la columna del folio, como en el libro ────────
+   El renglón genérico del celular pone el folio en su propia línea («folio plata» / «asunto
+   tecla»): en la agenda eso hacía cuatro líneas y 250 px por turno. Acá la hora queda a la
+   izquierda en una columna angosta, el asunto (clienta, servicio, profesional, marca) ocupa
+   el medio, la plata arriba a la derecha y la tecla abajo a la derecha (proto/agenda.html).
+   Alcance: sólo las listas de turnos (`data-agenda="libro"` y `data-agenda="manana"`). */
+@media (max-width: 1023px) {
+  [data-diseno="renglon"] [data-agenda="libro"] [data-ui="renglon"],
+  [data-diseno="renglon"] [data-agenda="manana"] [data-ui="renglon"] {
+    grid-template-columns: 3.25rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      "folio asunto plata"
+      "folio asunto tecla";
+    column-gap: 0.5rem;
+    row-gap: 0.25rem;
+    padding-block: 0.625rem;
+    align-items: start;
+  }
+  [data-diseno="renglon"] [data-agenda="libro"] [data-ui="renglon"] > [data-parte="folio"],
+  [data-diseno="renglon"] [data-agenda="manana"] [data-ui="renglon"] > [data-parte="folio"] {
+    padding-top: 0.125rem;
+  }
+  [data-diseno="renglon"] [data-agenda="libro"] [data-ui="renglon"] [data-parte="titulo"],
+  [data-diseno="renglon"] [data-agenda="manana"] [data-ui="renglon"] [data-parte="titulo"] {
+    font-size: 0.9375rem;
+    white-space: nowrap;
+  }
+  /* El nombre abre el turno: mide una línea a la vista, pero el área que responde al dedo sigue
+     siendo de 44 px (se extiende por arriba y por abajo sin mover nada). */
+  [data-diseno="renglon"] [data-agenda="libro"] [data-ui="renglon"] [data-parte="titulo"] > button,
+  [data-diseno="renglon"] [data-agenda="manana"] [data-ui="renglon"] [data-parte="titulo"] > button {
+    position: relative;
+    min-height: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: top;
+  }
+  [data-diseno="renglon"] [data-agenda="libro"] [data-ui="renglon"] [data-parte="titulo"] > button::after {
+    content: "";
+    position: absolute;
+    inset: -0.75rem 0;
+  }
+  [data-diseno="renglon"] [data-agenda="libro"] [data-ui="renglon"] > [data-parte="plata"],
+  [data-diseno="renglon"] [data-agenda="manana"] [data-ui="renglon"] > [data-parte="plata"] {
+    align-self: start;
+    padding-top: 0.0625rem;
+  }
+  [data-diseno="renglon"] [data-agenda="libro"] [data-ui="renglon"] > [data-parte="tecla"],
+  [data-diseno="renglon"] [data-agenda="manana"] [data-ui="renglon"] > [data-parte="tecla"] {
+    align-self: end;
+  }
+  /* Mañana no tiene plata y suele llevar dos teclas (Confirmar y WhatsApp): el asunto va a lo
+     ancho y las teclas debajo, a la derecha, en vez de apretar el nombre a media pantalla. */
+  [data-diseno="renglon"] [data-agenda="manana"] [data-ui="renglon"] {
+    grid-template-columns: 3.25rem minmax(0, 1fr);
+    grid-template-areas:
+      "folio asunto"
+      "folio tecla";
+  }
+  [data-diseno="renglon"] [data-agenda="manana"] [data-ui="renglon"]:not(:has(> [data-parte="plata"] > *)) > [data-parte="asunto"] {
+    grid-area: asunto;
+  }
+  [data-diseno="renglon"] [data-agenda="manana"] [data-ui="renglon"] > [data-parte="tecla"] {
+    justify-content: flex-end;
+    margin-top: 0.25rem;
+  }
+}
+
+/* ── La hoja en la PC: un diálogo centrado, no una hoja de celular pegada al pie ────────────
+   Hoja.tsx es la hoja del celular (sube desde abajo, con manija para arrastrar). En la PC el
+   mismo <dialog> queda en el medio de la pantalla, con las cuatro esquinas de 6 px y sin manija:
+   la cobranza de un turno, por ejemplo, se lee como un diálogo y no como un cajón mal cerrado. */
+@media (min-width: 1024px) {
+  [data-diseno="renglon"] dialog[data-ui="hoja"] {
+    margin: auto;
+    border-radius: var(--radio-flota);
+  }
+  [data-diseno="renglon"] dialog[data-ui="hoja"] [data-parte="manija"] {
+    display: none;
+  }
+}

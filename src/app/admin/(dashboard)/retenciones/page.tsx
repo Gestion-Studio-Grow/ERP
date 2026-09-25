@@ -21,6 +21,11 @@ import { ETIQUETA_PAGO_A_CUENTA, RETENCIONES_Y_PERCEPCIONES } from "@/lib/report
 import { leerPagosACuenta } from "@/lib/reports/retenciones-lectura";
 import { appsQuePuedeAbrir } from "@/lib/reports/apps-a-mano.server";
 import { EmptyState, PageHeader, buttonClasses, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
+import { DosColumnas, LineaDeEstado, Plata, Renglon } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { LineaDeCuenta } from "@/components/ui/LineaDeCuenta";
+import { PasoDePeriodo } from "@/components/ui/PasoDePeriodo";
+import { mesLargo, nombreMes } from "../caja/_renglon/fechas";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +49,89 @@ export default async function RetencionesPage({ searchParams }: { searchParams: 
       Subir el extracto
     </Link>
   ) : undefined;
+
+  // DISEÑO NUEVO («Renglón»): lo que el banco ya descontó, como una cuenta para el contador (por
+  // tipo, con el total que se toma a cuenta) y, aparte, el impuesto al cheque; debajo, cada
+  // movimiento del extracto. Mismos números (`leerPagosACuenta`).
+  if (await disenoNuevo()) {
+    return (
+      <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
+        <header data-ui="page-header" className="mb-5 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-strong">Retenciones y percepciones</h1>
+            <LineaDeEstado
+              datos={[
+                <strong key="m">{mesLargo(mes)}</strong>,
+                r.movimientos.length > 0 ? (
+                  <span key="t">
+                    <Plata valor={r.total} sinCentavos /> para pasarle a tu contador
+                  </span>
+                ) : null,
+                r.leidos > 0 ? `${fmtNumberAR(r.leidos)} movimientos leídos del extracto` : "sin extracto del mes",
+              ]}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <PasoDePeriodo
+              etiqueta="Mes"
+              actual={mesLargo(mes)}
+              anterior={{ href: `${RUTA}?mes=${anterior}`, texto: nombreMes(anterior) }}
+              siguiente={siguiente <= actual ? { href: `${RUTA}?mes=${siguiente}`, texto: nombreMes(siguiente) } : null}
+            />
+            {subirExtracto}
+          </div>
+        </header>
+        {r.leidos === 0 || r.movimientos.length === 0 ? (
+          <p className="max-w-3xl border-y border-line py-4 text-sm text-body">
+            {r.leidos === 0
+              ? `Todavía no hay extracto de ${etiqueta}. Las retenciones salen del extracto del banco: subilo en Facturación automática (el mismo archivo que usás para facturar) y acá aparecen solas.`
+              : `El extracto de ${etiqueta} no trae retenciones ni percepciones: se leyeron ${fmtNumberAR(r.leidos)} movimientos y ninguno es SIRCREB, IVA, Ganancias ni el impuesto al cheque. Si falta parte del mes, subí el extracto que falta.`}
+          </p>
+        ) : (
+          <DosColumnas>
+            <section aria-labelledby="para-el-contador" className="min-w-0">
+              <div className="flex items-baseline justify-between gap-3 border-b border-line-strong pb-2">
+                <h2 id="para-el-contador" className="text-[15px] font-semibold text-strong">
+                  Para tu contador
+                </h2>
+                <span className="text-[13px] text-muted">se descuentan de lo que tenés que pagar</span>
+              </div>
+              {RETENCIONES_Y_PERCEPCIONES.map((t) => (
+                <LineaDeCuenta key={t} concepto={ETIQUETA_PAGO_A_CUENTA[t]} importe={<Plata valor={r.porTipo[t]} />} />
+              ))}
+              <LineaDeCuenta total concepto="Retenciones y percepciones" importe={<Plata valor={r.total} />} />
+              {r.impuestoAlCheque !== 0 && (
+                <div className="mt-5">
+                  <LineaDeCuenta
+                    concepto={`${ETIQUETA_PAGO_A_CUENTA.cheque} (aparte)`}
+                    detalle="No suma arriba: qué parte se toma a cuenta depende de la condición de tu negocio, y la define tu contador."
+                    importe={<Plata valor={r.impuestoAlCheque} />}
+                  />
+                </div>
+              )}
+            </section>
+            <section aria-labelledby="movimientos-extracto" className="min-w-0">
+              <div className="flex items-baseline justify-between gap-3 border-b border-line-strong pb-2">
+                <h2 id="movimientos-extracto" className="text-[15px] font-semibold text-strong">
+                  Del extracto
+                </h2>
+                <span className="text-[13px] text-muted">{r.movimientos.length}</span>
+              </div>
+              {r.movimientos.map((m) => (
+                <Renglon
+                  key={m.id}
+                  folio={diaLegible(fiscalDateToIso(m.fecha)).slice(0, 5)}
+                  titulo={<span className="font-normal">{m.descripcion}</span>}
+                  detalle={`${ETIQUETA_PAGO_A_CUENTA[m.tipo]}${m.importe < 0 ? " · devolución" : ""}`}
+                  plata={<Plata valor={m.importe} />}
+                />
+              ))}
+            </section>
+          </DosColumnas>
+        )}
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">

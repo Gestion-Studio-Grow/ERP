@@ -1,12 +1,27 @@
+import type { ReactNode } from "react";
 import { cn } from "./cn";
+import { Icono } from "./Icono";
+import { Kbd } from "./Kbd";
 
 // Botón base del design system. Token-driven: los colores salen de la capa
 // semántica (@theme), no de hex sueltos. Sirve para /admin y sitio público por
 // igual. No lleva "use client" — es presentacional; anda como submit dentro de
 // un <form> con server actions (ver SubmitButton para el estado pending).
+//
+// DISEÑO NUEVO («Renglón», ADR-099): el botón se marca con `data-ui="button"` + `data-variant`
+// + `data-size`, y la hoja de la piel lo viste (la tecla) sólo bajo `data-diseno="renglon"`.
+// Sin la piel, las MISMAS clases de siempre: el atributo no pinta nada. Lo nuevo es opcional y, si
+// no se usa, el contenido sale tal cual (`children` directo, sin envolturas):
+//   · `icono` + palabra (toda acción principal), `atajo` visible como <kbd> en la PC;
+//   · `estado`: "cargando" (línea de progreso por el borde de abajo, la palabra se queda),
+//     "listo" («✓ Listo» en el mismo ancho), "error" (sacudida + `motivo` debajo) y "confirmar"
+//     (el peligro tonal pasa a sólido: «Tocá de nuevo para eliminar»).
 
 type Variant = "solid" | "outline" | "ghost" | "danger" | "subtle";
 type Size = "sm" | "md" | "lg";
+
+/** Estado de la tecla bajo el diseño nuevo. */
+export type EstadoBoton = "cargando" | "listo" | "error" | "confirmar";
 
 const base =
   "inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap " +
@@ -40,24 +55,93 @@ const sizes: Record<Size, string> = {
   lg: "h-12 px-7 text-base",
 };
 
+/** Los atributos que marcan un botón para la piel. Para un <Link> con `buttonClasses(...)`. */
+export function atributosBoton(variant: Variant = "solid", size: Size = "md") {
+  return { "data-ui": "button", "data-variant": variant, "data-size": size } as const;
+}
+
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: Variant;
   size?: Size;
+  /** Ícono ANTES de la palabra (un <svg>, p. ej. `<Icono nombre="…" />` o `<IconoApp />`). */
+  icono?: ReactNode;
+  /** Atajo de teclado visible en la PC («F2», «Enter», «Ctrl K»). En el celular no se muestra. */
+  atajo?: string;
+  estado?: EstadoBoton;
+  /** Con `estado="error"`: el motivo, debajo del botón, con ícono y palabra. */
+  motivo?: string;
+  /** Con `estado="listo"`: la palabra de «listo» (por defecto, «Listo»). */
+  textoListo?: string;
 };
+
+/** Lo de adentro del botón. Sin nada nuevo, `children` tal cual (el HTML de siempre). */
+function contenido(
+  children: ReactNode,
+  { icono, atajo, estado, textoListo }: Pick<ButtonProps, "icono" | "atajo" | "estado" | "textoListo">,
+) {
+  if (icono === undefined && atajo === undefined && estado !== "listo") return children;
+  const cuerpo = (
+    <>
+      {icono}
+      {children}
+      {atajo && (
+        <Kbd enBoton>
+          {atajo}
+        </Kbd>
+      )}
+    </>
+  );
+  if (estado !== "listo") return cuerpo;
+  // «Listo» se apila en la MISMA celda que lo de siempre (que queda invisible): el botón no cambia
+  // de ancho ni empuja lo de al lado. El lector de pantalla lee sólo «Listo».
+  return (
+    <span data-parte="pila" className="inline-grid">
+      <span data-parte="contenido" className="invisible col-start-1 row-start-1 inline-flex items-center justify-center gap-2" aria-hidden>
+        {cuerpo}
+      </span>
+      <span data-parte="listo" className="col-start-1 row-start-1 inline-flex items-center justify-center gap-2">
+        <Icono nombre="listo" />
+        {textoListo ?? "Listo"}
+      </span>
+    </span>
+  );
+}
 
 export function Button({
   variant = "solid",
   size = "md",
   className,
   type = "button",
+  icono,
+  atajo,
+  estado,
+  motivo,
+  textoListo,
+  children,
   ...props
 }: ButtonProps) {
-  return (
+  const boton = (
     <button
       type={type}
       className={cn(base, variants[variant], sizes[size], className)}
+      {...atributosBoton(variant, size)}
+      data-estado={estado}
+      aria-busy={estado === "cargando" || undefined}
       {...props}
-    />
+    >
+      {contenido(children, { icono, atajo, estado, textoListo })}
+    </button>
+  );
+  if (estado !== "error" || !motivo) return boton;
+  // Error con motivo: el botón y, debajo, qué pasó (ícono + palabra), anunciado al aparecer.
+  return (
+    <span data-ui="boton-con-motivo" className="inline-flex flex-col items-start gap-1.5">
+      {boton}
+      <span data-ui="motivo-error" role="alert" className="inline-flex items-center gap-1.5 text-xs text-danger">
+        <Icono nombre="error" />
+        {motivo}
+      </span>
+    </span>
   );
 }
 
@@ -72,5 +156,5 @@ export function buttonClasses(variant: Variant = "solid", size: Size = "md", cla
 }
 
 export function ButtonLink({ variant = "solid", size = "md", className, ...props }: ButtonLinkProps) {
-  return <a className={buttonClasses(variant, size, className)} {...props} />;
+  return <a className={buttonClasses(variant, size, className)} {...atributosBoton(variant, size)} {...props} />;
 }

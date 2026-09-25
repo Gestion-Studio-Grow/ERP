@@ -20,6 +20,8 @@ import { cantidadLegible } from "@/lib/reports/ventas-mostrador";
 import { appsQuePuedeAbrir } from "@/lib/reports/apps-a-mano.server";
 import { diaLegible } from "@/lib/libros/fecha-fiscal";
 import { EmptyState, PageHeader, buttonClasses, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import ReportesMostradorRenglon from "./ReportesMostradorRenglon";
 
 const money = (n: number) => fmtMoneyARS(n, 0);
 
@@ -53,10 +55,13 @@ function Lista({ titulo, hint, filas }: { titulo: string; hint?: string; filas: 
 export default async function ReportesMostrador({ rangeDays, role }: { rangeDays: number; role: Role }) {
   const tenantId = await getCurrentTenantId();
   const hoy = todayInBusinessTz();
-  const [r, abribles] = await Promise.all([
+  const [r, abribles, nuevo] = await Promise.all([
     leerVentasMostrador(prisma, tenantId, hoy, rangeDays),
     appsQuePuedeAbrir(role, ["resultado-del-mes", "margen", "vender", "ventas-del-dia"]),
+    disenoNuevo(),
   ]);
+  // Diseño nuevo («Renglón»): los mismos datos, con la tira y la semana tipo. Apagado, igual que siempre.
+  if (nuevo) return <ReportesMostradorRenglon r={r} hoy={hoy} rangeDays={rangeDays} abribles={abribles} />;
   const TOPE_PRODUCTOS = 25;
 
   return (

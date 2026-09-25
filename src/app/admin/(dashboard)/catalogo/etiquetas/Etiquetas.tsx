@@ -54,14 +54,20 @@ export default function Etiquetas({
   negocio,
   hoy,
   sustantivo,
+  renglon = false,
 }: {
   productos: ProductoEtiqueta[];
   negocio: string;
   /** Hoy en la zona del negocio (AAAA-MM-DD), para el pie de la vista previa. */
   hoy: string;
   sustantivo: { uno: string; varios: string };
+  /** Diseño nuevo («Renglón»): qué etiquetas y el papel a la izquierda, sin cajas; la hoja que sale y «Imprimir» a la derecha, a mano. */
+  renglon?: boolean;
 }) {
   const router = useRouter();
+  // Con el diseño nuevo, cada bloque es un rótulo con su raya; sin él, la caja de siempre.
+  const caja = renglon ? "min-w-0" : "rounded-lg border border-line bg-surface-raised p-4 sm:p-5";
+  const rotulo = renglon ? "border-b border-line-strong pb-2 text-[15px] font-semibold text-strong" : "text-base font-semibold text-strong";
   const ids = useId();
   const cambiaron = useMemo(() => productos.filter((p) => p.cambioPendiente !== null), [productos]);
   const [vista, setVista] = useState<Vista>(cambiaron.length > 0 ? "cambiaron" : "todos");
@@ -152,7 +158,8 @@ export default function Etiquetas({
   }
 
   return (
-    <div className="space-y-5">
+    <div className={renglon ? "grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:items-start" : "space-y-5"}>
+      <Columna renglon={renglon} className="space-y-8">
       {impreso && (
         <div role="status" className="rounded-lg border border-success/30 bg-success-soft px-4 py-3 text-sm">
           <p className="font-semibold text-strong">
@@ -165,8 +172,8 @@ export default function Etiquetas({
         </div>
       )}
 
-      <section aria-labelledby={`${ids}-que`} className="rounded-lg border border-line bg-surface-raised p-4 sm:p-5">
-        <h2 id={`${ids}-que`} className="text-base font-semibold text-strong">
+      <section aria-labelledby={`${ids}-que`} className={caja}>
+        <h2 id={`${ids}-que`} className={rotulo}>
           Qué etiquetas
         </h2>
         <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Qué mostrar">
@@ -177,7 +184,11 @@ export default function Etiquetas({
           >
             Cambiaron de precio ({fmtNumberAR(cambiaron.length)})
           </Button>
-          <Button aria-pressed={vista === "todos"} variant={vista === "todos" ? "solid" : "outline"} onClick={() => setVista("todos")}>
+          <Button
+            aria-pressed={vista === "todos"}
+            variant={vista === "todos" ? "solid" : "outline"}
+            onClick={() => setVista("todos")}
+          >
             Todos ({fmtNumberAR(productos.length)})
           </Button>
         </div>
@@ -255,8 +266,8 @@ export default function Etiquetas({
         )}
       </section>
 
-      <section aria-labelledby={`${ids}-plantilla`} className="rounded-lg border border-line bg-surface-raised p-4 sm:p-5">
-        <h2 id={`${ids}-plantilla`} className="text-base font-semibold text-strong">
+      <section aria-labelledby={`${ids}-plantilla`} className={caja}>
+        <h2 id={`${ids}-plantilla`} className={rotulo}>
           Papel
         </h2>
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-labelledby={`${ids}-plantilla`}>
@@ -289,8 +300,10 @@ export default function Etiquetas({
           En el cuadro de impresión elegí tamaño real (100 %) y sin márgenes, para que cada etiqueta caiga en su lugar.
         </p>
       </section>
+      </Columna>
 
-      <VistaDeImpresion seleccion={seleccion} plantilla={plantilla} pie={pieDe(negocio, hoy)} />
+      <Columna renglon={renglon} className="space-y-4 lg:sticky lg:top-4">
+      <VistaDeImpresion seleccion={seleccion} plantilla={plantilla} pie={pieDe(negocio, hoy)} renglon={renglon} />
 
       {error && <AvisoError titulo="No se imprimió" comoSeguir={error} />}
 
@@ -301,6 +314,7 @@ export default function Etiquetas({
             ? "Tildá al menos una etiqueta"
             : `Imprimir ${fmtNumberAR(seleccion.length)} ${seleccion.length === 1 ? "etiqueta" : "etiquetas"}`}
       </Button>
+      </Columna>
     </div>
   );
 }
@@ -309,7 +323,17 @@ export default function Etiquetas({
  * La vista de impresión: el documento real en un iframe, achicado al ancho disponible. En A4
  * muestra la primera hoja; en rollo, las primeras etiquetas. Lo que no entra se cuenta abajo.
  */
-function VistaDeImpresion({ seleccion, plantilla, pie }: { seleccion: DatosEtiqueta[]; plantilla: PlantillaId; pie: string }) {
+function VistaDeImpresion({
+  seleccion,
+  plantilla,
+  pie,
+  renglon = false,
+}: {
+  seleccion: DatosEtiqueta[];
+  plantilla: PlantillaId;
+  pie: string;
+  renglon?: boolean;
+}) {
   const caja = useRef<HTMLDivElement | null>(null);
   const [ancho, setAncho] = useState(0);
 
@@ -335,7 +359,9 @@ function VistaDeImpresion({ seleccion, plantilla, pie }: { seleccion: DatosEtiqu
 
   return (
     <section aria-label="Vista de impresión" className="space-y-2">
-      <h2 className="text-base font-semibold text-strong">Vista de impresión</h2>
+      <h2 className={renglon ? "border-b border-line-strong pb-2 text-[15px] font-semibold text-strong" : "text-base font-semibold text-strong"}>
+        {renglon ? "Así sale la hoja" : "Vista de impresión"}
+      </h2>
       {/* La caja es siempre la misma (la mide el ResizeObserver); adentro, el aviso o el documento. */}
       <div
         ref={caja}
@@ -375,4 +401,9 @@ function VistaDeImpresion({ seleccion, plantilla, pie }: { seleccion: DatosEtiqu
       )}
     </section>
   );
+}
+
+/** Con el diseño nuevo, agrupa una columna de la pantalla; sin él, deja todo suelto como siempre. */
+function Columna({ renglon, className, children }: { renglon: boolean; className?: string; children: React.ReactNode }) {
+  return renglon ? <div className={cn("min-w-0", className)}>{children}</div> : <>{children}</>;
 }

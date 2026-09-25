@@ -1,4 +1,5 @@
 import { cn } from "./cn";
+import { LineaDeEstado } from "./Renglon";
 
 // Encabezado de página del backoffice (ADR-059 D6) — reemplaza el patrón
 // repetido `<h1 className="text-2xl font-semibold mb-1">` + `<p
@@ -19,11 +20,17 @@ export type PageHeaderProps = {
   /** Botones/acciones de la página (a la derecha en desktop, debajo en mobile). */
   actions?: React.ReactNode;
   className?: string;
+  /**
+   * Diseño nuevo («Renglón»): la línea de estado bajo el título, en datos separados por «·»
+   * («Abierta desde las 9:10 · 14 movimientos»). Reemplaza al párrafo explicativo (`description`).
+   */
+  estado?: readonly React.ReactNode[];
 };
 
-export function PageHeader({ title, description, badge, actions, className }: PageHeaderProps) {
+export function PageHeader({ title, description, badge, actions, className, estado }: PageHeaderProps) {
   return (
     <header
+      data-ui="page-header"
       className={cn(
         "mb-lg flex flex-col gap-sm sm:flex-row sm:items-start sm:justify-between",
         className,
@@ -36,8 +43,9 @@ export function PageHeader({ title, description, badge, actions, className }: Pa
           {badge}
         </div>
         {description && (
-          <p className="mt-2xs max-w-2xl text-sm leading-relaxed text-muted">{description}</p>
+          <p data-parte="bajada" className="mt-2xs max-w-2xl text-sm leading-relaxed text-muted">{description}</p>
         )}
+        {estado && <LineaDeEstado datos={estado} />}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-sm">{actions}</div>}
     </header>

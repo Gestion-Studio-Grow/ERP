@@ -25,6 +25,7 @@ export type KpiTileProps = {
 export function KpiTile({ label, value, icon, sub, className }: KpiTileProps) {
   return (
     <div
+      data-ui="kpi"
       className={cn(
         "h-full rounded-xl border border-line bg-surface-raised shadow-xs p-md",
         "transition-colors hover:border-line-strong",
@@ -35,14 +36,14 @@ export function KpiTile({ label, value, icon, sub, className }: KpiTileProps) {
           tabular-nums (los llamadores ya no necesitan envolver el valor) ·
           ritmo vertical 7px entre label/valor/sub. */}
       <div className="flex items-center justify-between">
-        <p className="text-[12.5px] font-medium leading-tight text-muted">{label}</p>
+        <p data-parte="etiqueta" className="text-[12.5px] font-medium leading-tight text-muted">{label}</p>
         {icon && (
-          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
+          <span data-parte="icono" className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
             {icon}
           </span>
         )}
       </div>
-      <p className="mt-[7px] text-[27px] font-bold leading-tight tracking-[-0.03em] tabular-nums text-strong">{value}</p>
+      <p data-parte="valor" className="mt-[7px] text-[27px] font-bold leading-tight tracking-[-0.03em] tabular-nums text-strong">{value}</p>
       {sub && <p className="mt-[7px] text-xs text-muted">{sub}</p>}
     </div>
   );

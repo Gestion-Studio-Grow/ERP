@@ -23,8 +23,29 @@ export function esFechaDeCalendario(s: unknown): s is string {
  * El link que abre "Nuevo turno" ya desplegado en la lista, con la fecha puesta si viene. Ahorra
  * los dos toques de "Lista" → "+ Nuevo turno" y el de elegir la fecha.
  */
-export function hrefNuevoTurno(fecha?: string | null): string {
-  return esFechaDeCalendario(fecha) ? `/admin/turnos/lista?nuevo=1&fecha=${fecha}` : "/admin/turnos/lista?nuevo=1";
+export function hrefNuevoTurno(fecha?: string | null, cliente?: string | null): string {
+  const base = esFechaDeCalendario(fecha) ? `/admin/turnos/lista?nuevo=1&fecha=${fecha}` : "/admin/turnos/lista?nuevo=1";
+  return esIdDeFicha(cliente) ? `${base}&cliente=${cliente}` : base;
+}
+
+const FORMATO_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** ¿Parece el id de una ficha? (letras, números, guion; nada que rompa la URL.) */
+export function esIdDeFicha(s: unknown): s is string {
+  return typeof s === "string" && FORMATO_ID.test(s);
+}
+
+/**
+ * "Darle un turno" desde la ficha llega con ?cliente=<id>: el alta arranca con ESA clienta
+ * elegida (nombre, teléfono y "de la zona", como si la hubieran buscado en "Clienta"). Sólo
+ * con el alta abierta; un id raro no se precarga. Que la ficha exista y sea de este negocio lo
+ * decide el formulario contra las fichas que ya le pasa el servidor (getFichasParaAlta): un id
+ * ajeno simplemente no aparece y el alta queda vacía, como siempre.
+ */
+export function leerClienteDelAlta(sp: { nuevo?: string | string[]; cliente?: string | string[] }): string {
+  const uno = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  const cliente = uno(sp.cliente);
+  return uno(sp.nuevo) === "1" && esIdDeFicha(cliente) ? cliente : "";
 }
 
 /**

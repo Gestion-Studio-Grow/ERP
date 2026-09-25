@@ -6,7 +6,7 @@
 // y cómo seguir: ninguno cae en la pantalla genérica de error.
 
 import Link from "next/link";
-import { AvisoError, EmptyState, buttonClasses, cn } from "@/components/ui";
+import { AvisoError, EmptyState, buttonClasses, chipLinkAtributos, cn } from "@/components/ui";
 import { formatDayLabel } from "@/lib/caja/cierre-diario";
 import { parseTenantHostMap } from "@/lib/tenant";
 import type { Role } from "@/lib/capabilities";
@@ -52,12 +52,7 @@ export async function SolapasLocales({ activa, role }: { activa: Solapa; role: R
   return (
     <nav aria-label="Vistas de Mis locales" className="mb-lg flex flex-wrap gap-2">
       {visibles.map((s) => (
-        <Link
-          key={s.id}
-          href={s.href}
-          aria-current={s.id === activa ? "page" : undefined}
-          className={buttonClasses(s.id === activa ? "solid" : "outline", "md")}
-        >
+        <Link key={s.id} href={s.href} {...chipLinkAtributos(s.id === activa)}>
           {s.etiqueta}
         </Link>
       ))}

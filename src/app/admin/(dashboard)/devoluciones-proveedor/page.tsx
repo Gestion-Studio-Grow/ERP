@@ -5,7 +5,8 @@ import { appPorId } from "@/apps/registro";
 import { getDevolucionesData } from "@/lib/suppliers/devoluciones";
 import { fmtShortDate } from "@/lib/datetime";
 import { formatearCantidad } from "@/lib/pos-peso";
-import { PageHeader, fmtMoneyARS } from "@/components/ui";
+import { Bloque, PageContainer, PageHeader, Plata, Renglon, fmtMoneyARS } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { DevolucionForm } from "./DevolucionForm";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,50 @@ export default async function DevolucionesProveedorPage() {
   const user = await requireApp("devoluciones-a-proveedor");
   const [{ compras, historial }, negocio] = await Promise.all([getDevolucionesData(), getNegocioApps(user.role)]);
   const veCompras = appPermitida(appPorId("recibir-mercaderia"), negocio);
+
+  // DISEÑO NUEVO («Renglón»): la nota de devolución arriba (el mismo formulario) y lo devuelto como
+  // renglones: la fecha en el folio, el producto y la compra en el asunto, lo que valía en la
+  // columna de plata. La explicación de qué pasa con el stock y la plata la da el formulario.
+  if (await disenoNuevo()) {
+    return (
+      <PageContainer width="narrow">
+        <PageHeader
+          title="Devoluciones a proveedor"
+          estado={[
+            "Sale del stock y se descuenta de la deuda o te la devuelven",
+            historial.length > 0 ? `${historial.length} ${historial.length === 1 ? "devolución" : "devoluciones"} en el historial` : null,
+          ]}
+        />
+        <div className="space-y-8">
+          <Bloque id="nueva" titulo="Nueva devolución">
+            <div className="pt-3">
+              <DevolucionForm compras={compras} hrefCompras={veCompras ? "/admin/compras" : null} renglon />
+            </div>
+          </Bloque>
+          <Bloque id="historial" titulo="Lo que devolviste">
+            {historial.length === 0 ? (
+              <p data-ui="vacio" className="border-b border-line py-4 text-sm text-body">
+                Todavía no se devolvió nada.
+              </p>
+            ) : (
+              <ul>
+                {historial.map((h) => (
+                  <Renglon
+                    key={h.id}
+                    as="li"
+                    folio={fmtShortDate(h.at)}
+                    titulo={h.productName}
+                    detalle={[formatearCantidad(h.qty), h.compra !== null ? `compra #${h.compra}` : null, h.reason].filter(Boolean).join(" · ")}
+                    plata={h.unitCost != null ? <Plata valor={h.value} /> : <span className="text-[13px] text-muted">sin costo</span>}
+                  />
+                ))}
+              </ul>
+            )}
+          </Bloque>
+        </div>
+      </PageContainer>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 sm:py-8 space-y-8">

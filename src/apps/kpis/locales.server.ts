@@ -18,6 +18,7 @@
 //   · la plata sólo con `monto` (reports:read); si no hay dato, '—' con el motivo, nunca un 0.
 // La pasada entra por un lector inyectable para probar las palabras con datos, sin base.
 
+import { cache } from "react";
 import { fmtMoneyARS, fmtNumberAR } from "@/components/ui/format";
 import { formatDayLabel } from "@/lib/caja/cierre-diario";
 import type {
@@ -28,7 +29,7 @@ import type {
   ResultadoTraslados,
 } from "@/lib/multilocal/multilocal-actions";
 import { divergeDeLaLista } from "@/lib/multilocal/catalogo-marca-core";
-import { plural, type ContextoLoader, type DatoKpi, type LoaderKpi } from "./nucleo.server";
+import { plural, type ContextoLoader, type DatoKpi, type DbKpi, type LoaderKpi } from "./nucleo.server";
 
 /** De dónde salen la red, el stock, el catálogo y los traslados. El real importa las actions recién al usarlas. */
 export interface LectorRed {
@@ -77,9 +78,21 @@ export function ningunoLeido(leidos: number, sinLeer: readonly LocalSinLeer[]): 
  * `where` (la RLS de CarteraCliente la cubre por el `tenantId` de la casa). Es la misma fila
  * que después lee la red (`consultaFilasDeLaRed`: estado activa).
  */
-async function hayLocales({ db, tenantId }: ContextoLoader): Promise<boolean> {
+async function contarLocales(db: DbKpi, tenantId: string): Promise<boolean> {
   return (await db.carteraCliente.count({ where: { tenantId, estado: "activa" } })) > 0;
 }
+
+/** ¿La casa tiene locales? La pregunta que hace cada botón de la red antes de recorrerla. */
+export type PreguntaLocales = (ctx: ContextoLoader) => Promise<boolean>;
+
+/**
+ * La pregunta del PEDIDO: los seis botones de la red preguntan lo mismo en el mismo Inicio, así
+ * que se consulta UNA vez por pedido y la respuesta se comparte (eran seis transacciones iguales).
+ * `react.cache` dura lo que dura el render del pedido; entre pedidos no guarda nada. La clave es
+ * el cliente de base y el negocio (`ctx.db`, `ctx.tenantId`): dos negocios nunca comparten.
+ */
+const hayLocalesDelPedido = cache((db: DbKpi, tenantId: string) => contarLocales(db, tenantId));
+const preguntaDelPedido: PreguntaLocales = (ctx) => hayLocalesDelPedido(ctx.db, ctx.tenantId);
 
 /** "+12 %" / "−8 %". */
 export function textoCambio(cambio: number): string {
@@ -87,7 +100,10 @@ export function textoCambio(cambio: number): string {
   return `${cambio >= 0 ? "+" : "−"}${fmtNumberAR(pct)} %`;
 }
 
-export function crearLoadersLocales(lector: LectorRed): Readonly<Record<string, LoaderKpi>> {
+export function crearLoadersLocales(
+  lector: LectorRed,
+  hayLocales: PreguntaLocales = preguntaDelPedido,
+): Readonly<Record<string, LoaderKpi>> {
   /**
    * "5 locales · 2 con la caja sin cerrar" y, con reports:read, "$X cobrado hoy". No va a
    * "Para atender hoy": ese aviso lo da Cajas de los locales, que es donde se resuelve.

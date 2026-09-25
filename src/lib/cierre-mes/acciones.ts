@@ -28,7 +28,6 @@ import {
   ACCION_CONGELAR,
   ACCION_REABRIR,
   CIERRE_MES_ENTITY,
-  capitalizar,
   estadoDesdeAuditoria,
   evaluarPasos,
   pasosListos,
@@ -36,6 +35,7 @@ import {
   validarCongelar,
   validarReabrir,
 } from "./cierre-mes";
+import { mayuscula } from "@/lib/texto";
 import { leerAuditoriaCierre, leerHechosCierreMes } from "./lectura";
 
 export type EstadoAccionCierre = { ok: true; mensaje: string } | { ok: false; error: string } | null;
@@ -104,13 +104,13 @@ export async function congelarMesAction(_prev: EstadoAccionCierre, formData: For
       { tenantId },
     );
   } catch (e) {
-    if (e instanceof CambioDeEstadoError) return { ok: false, error: `${capitalizar(etiquetaDelMes(mes))} ya estaba congelado. Actualizá la página.` };
+    if (e instanceof CambioDeEstadoError) return { ok: false, error: `${mayuscula(etiquetaDelMes(mes))} ya estaba congelado. Actualizá la página.` };
     throw e;
   }
 
   revalidatePath(RUTA);
   revalidatePath("/admin");
-  return { ok: true, mensaje: `${capitalizar(etiquetaDelMes(mes))} quedó congelado. Ahora descargá el paquete para tu contador.` };
+  return { ok: true, mensaje: `${mayuscula(etiquetaDelMes(mes))} quedó congelado. Ahora descargá el paquete para tu contador.` };
 }
 
 export async function reabrirMesAction(_prev: EstadoAccionCierre, formData: FormData): Promise<EstadoAccionCierre> {
@@ -146,7 +146,7 @@ export async function reabrirMesAction(_prev: EstadoAccionCierre, formData: Form
       { tenantId },
     );
   } catch (e) {
-    if (e instanceof CambioDeEstadoError) return { ok: false, error: `${capitalizar(etiquetaDelMes(mes))} ya estaba abierto. Actualizá la página.` };
+    if (e instanceof CambioDeEstadoError) return { ok: false, error: `${mayuscula(etiquetaDelMes(mes))} ya estaba abierto. Actualizá la página.` };
     throw e;
   }
 
@@ -154,6 +154,6 @@ export async function reabrirMesAction(_prev: EstadoAccionCierre, formData: Form
   revalidatePath("/admin");
   return {
     ok: true,
-    mensaje: `${capitalizar(etiquetaDelMes(mes))} quedó abierto. La caja sigue cerrada día por día: lo que corrijas de plata va con la fecha de hoy.`,
+    mensaje: `${mayuscula(etiquetaDelMes(mes))} quedó abierto. La caja sigue cerrada día por día: lo que corrijas de plata va con la fecha de hoy.`,
   };
 }

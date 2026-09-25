@@ -13,14 +13,21 @@
 import { useActionState, useState } from "react";
 import { empujarCatalogoAction, type EstadoEmpuje } from "@/lib/multilocal/multilocal-actions";
 import type { VistaDelLocal } from "@/lib/multilocal/catalogo-marca-core";
-import { AvisoError, Badge, Button, Card, cn, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
+import { AvisoError, Badge, Button, Card, Marca, cn, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
 
 export type LocalParaAplicar = VistaDelLocal & { localTenantId: string; alias: string; resumen: string };
 
 const precio = (n: number | null, saleUnit: "UNIT" | "WEIGHT") =>
   n === null ? "sin precio" : `${fmtMoneyARS(n)}${saleUnit === "WEIGHT" ? " /kg" : ""}`;
 
-export function AplicarCatalogo({ locales, bloqueada }: { locales: LocalParaAplicar[]; bloqueada: boolean }) {
+// `renglon` (diseño nuevo): cada local es un renglón del libro y no una tarjeta, y su estado va
+// con Marca (forma + palabra). Mismo formulario, misma action, mismas reglas.
+function HojaDeLocal({ className, children }: { className?: string; children: React.ReactNode }) {
+  return <div className={cn("border-b border-line py-3", className)}>{children}</div>;
+}
+
+export function AplicarCatalogo({ locales, bloqueada, renglon = false }: { locales: LocalParaAplicar[]; bloqueada: boolean; renglon?: boolean }) {
+  const Caja = renglon ? HojaDeLocal : Card;
   const [estado, aplicar, pendiente] = useActionState<EstadoEmpuje, FormData>(empujarCatalogoAction, null);
   const [elegidos, setElegidos] = useState<Set<string>>(
     () => new Set(locales.filter((l) => l.aplicable).map((l) => l.localTenantId)),
@@ -80,12 +87,12 @@ export function AplicarCatalogo({ locales, bloqueada }: { locales: LocalParaApli
         </div>
       )}
 
-      <ul className="space-y-3" aria-label="Lo que cambiaría en cada local">
+      <ul className={renglon ? "border-t border-line-strong" : "space-y-3"} aria-label="Lo que cambiaría en cada local">
         {locales.map((l) => {
           const tildado = elegidos.has(l.localTenantId);
           return (
             <li key={l.localTenantId}>
-              <Card className="space-y-3">
+              <Caja className="space-y-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <label className={cn("flex min-h-11 items-center gap-3", !l.aplicable && "cursor-not-allowed")}>
                     <input
@@ -102,7 +109,15 @@ export function AplicarCatalogo({ locales, bloqueada }: { locales: LocalParaApli
                       <span className="block text-sm text-muted">{l.resumen}</span>
                     </span>
                   </label>
-                  {l.problemas.length > 0 ? (
+                  {renglon ? (
+                    l.problemas.length > 0 ? (
+                      <Marca tipo="atencion">No se puede mandar</Marca>
+                    ) : l.alDia ? (
+                      <Marca tipo="hecho">Al día</Marca>
+                    ) : (
+                      <Marca tipo="pendiente">Distinto a tu lista</Marca>
+                    )
+                  ) : l.problemas.length > 0 ? (
                     <Badge tone="danger">No se puede aplicar</Badge>
                   ) : l.alDia ? (
                     <Badge tone="success" dot>
@@ -177,7 +192,7 @@ export function AplicarCatalogo({ locales, bloqueada }: { locales: LocalParaApli
                     producto tuyo con otro nombre, renombralo en el local para que se crucen.
                   </p>
                 )}
-              </Card>
+              </Caja>
             </li>
           );
         })}

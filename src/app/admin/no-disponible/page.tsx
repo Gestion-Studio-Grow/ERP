@@ -12,6 +12,13 @@ import { getNegocioApps } from "@/apps/contexto.server";
 import { IconoApp } from "@/components/iconos-apps";
 import { buttonClasses } from "@/components/ui";
 import AdminThemeScript from "../AdminThemeScript";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { PIEL_RENGLON } from "@/lib/diseno/diseno";
+import { ConDiseno } from "@/lib/diseno/ConDiseno";
+import { cn } from "@/components/ui/cn";
+import HojaDeIngreso, { RAIZ_HOJA_DE_INGRESO } from "../login/HojaDeIngreso";
+import { folioDelDia } from "../login/login-core";
+import { etiquetaDeRol } from "../(dashboard)/usuarios/roles";
 
 // "APP NO DISPONIBLE" — adonde manda `requireApp` cuando la persona no puede abrir una app.
 //
@@ -41,11 +48,14 @@ export default async function NoDisponiblePage({
   const pedida = buscarApp(typeof appParam === "string" ? appParam : undefined);
   const app = pedida?.enLanzador === false ? undefined : pedida;
 
-  const [negocio, brand, { identidad }, teamPreset] = await Promise.all([
+  const [negocio, brand, { identidad }, teamPreset, nuevo] = await Promise.all([
     getNegocioApps(user.role),
     getTenantBrand(),
     getProductoContexto(),
     getTeamAccentPreset(),
+    // Diseño nuevo: sale de la misma lectura de interruptores que `getNegocioApps` (cacheada por
+    // pedido), así que no suma viajes. Si falla, el de siempre.
+    disenoNuevo(),
   ]);
   const motivo = app ? motivoNoDisponible(app, negocio) : null;
   const texto = explicarNoDisponible(app, motivo, negocio);
@@ -62,6 +72,8 @@ export default async function NoDisponiblePage({
   return (
     <main
       data-skin="fable"
+      // Diseño nuevo: apagado es `undefined` y la raíz queda como siempre (raices-ch.test.ts).
+      data-diseno={nuevo ? PIEL_RENGLON : undefined}
       data-theme="light"
       suppressHydrationWarning
       style={
@@ -72,55 +84,127 @@ export default async function NoDisponiblePage({
           "--tenant-on-accent-dark": accentDark.onAccent,
         } as CSSProperties
       }
-      className="min-h-screen flex flex-col items-center justify-center bg-surface text-body px-4 py-10 sm:px-6"
+      // Diseño nuevo: la hoja de ingreso, anclada arriba. Apagado, la clase de siempre.
+      className={
+        nuevo
+          ? RAIZ_HOJA_DE_INGRESO
+          : "min-h-screen flex flex-col items-center justify-center bg-surface text-body px-4 py-10 sm:px-6"
+      }
     >
-      <AdminThemeScript />
+      <AdminThemeScript nuevo={nuevo} />
 
-      <div className="w-full max-w-sm">
-        <p className="mb-4 text-center text-sm font-medium text-muted">{marcaNombre}</p>
+      {/* Diseño nuevo: sus hojas y `useDiseno()`. Apagado devuelve este único hijo tal cual. */}
+      <ConDiseno nuevo={nuevo}>
+        {nuevo ? (
+          <HojaDeIngreso
+            marcaNombre={marcaNombre}
+            marcaMonograma={identidad?.monograma ?? brand.monogram}
+            hoy={folioDelDia(new Date())}
+            lema={identidad?.tagline}
+          >
+            <section aria-labelledby="nd-titulo" className="mt-8">
+              <h1 id="nd-titulo" className="text-[26px] font-semibold leading-tight text-strong">
+                {texto.titulo}
+              </h1>
+              <p className="mt-2 text-[15px] text-body">{texto.porque}</p>
+              <p className="mt-1 text-sm text-muted">{texto.aQuien}</p>
 
-        <section
-          aria-labelledby="nd-titulo"
-          className="rounded-xl border border-line bg-surface-raised p-6 shadow-sm sm:p-8"
-        >
-          <span className="relative mb-4 grid h-12 w-12 place-items-center rounded-xl bg-surface-sunken text-muted">
-            <IconoApp nombre={app?.icono ?? "candado"} className="h-6 w-6" />
-            {!abrir && (
-              <span className="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-full border border-line bg-surface-raised text-strong">
-                <IconoApp nombre="candado" className="h-3.5 w-3.5" />
-              </span>
-            )}
-          </span>
+              {/* El renglón de la app, como figura en el inicio, con su estado a la derecha. */}
+              {app && (
+                <div className="mt-6 flex items-center gap-3 border-y border-line py-3">
+                  <IconoApp nombre={app.icono} className="h-5 w-5 shrink-0 text-muted" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-medium text-strong">{app.nombre}</p>
+                    <p className="text-[13px] text-muted">{app.descripcion}</p>
+                  </div>
+                  <span
+                    data-parte="estado-app"
+                    className={cn("shrink-0 text-[13px] font-medium", abrir ? "text-strong" : "text-muted")}
+                  >
+                    {abrir ? "Disponible" : "Sin acceso"}
+                  </span>
+                </div>
+              )}
 
-          <h1 id="nd-titulo" className="text-xl font-semibold tracking-tight text-strong">
-            {texto.titulo}
-          </h1>
-          {app && <p className="mt-1 text-sm text-muted">{app.descripcion}</p>}
+              {/* Quién está entrando: para pasarle el teléfono a quien sí puede, sin adivinar. */}
+              <p className={cn("text-[13px] text-muted", app ? "mt-3" : "mt-6")}>
+                Entraste como <span className="font-medium text-body">{user.name}</span> ·{" "}
+                {etiquetaDeRol(user.role, negocio.esMostrador)}
+              </p>
 
-          <p className="mt-4 text-sm text-body">{texto.porque}</p>
-          <p className="mt-1 text-sm text-body">{texto.aQuien}</p>
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                {abrir && (
+                  <Link href={abrir.ruta} className={cn(buttonClasses("solid", "lg", "w-full sm:w-auto"), "min-h-11")}>
+                    Abrir {abrir.nombre}
+                  </Link>
+                )}
+                {vuelta && (
+                  <Link
+                    href={vuelta.href}
+                    className={cn(buttonClasses(abrir ? "outline" : "solid", "lg", "w-full sm:w-auto"), "min-h-11")}
+                  >
+                    {vuelta.etiqueta}
+                  </Link>
+                )}
+                <FormCerrarSesion>
+                  <button
+                    type="submit"
+                    className={cn(buttonClasses(vuelta || abrir ? "ghost" : "outline", "lg", "w-full sm:w-auto"), "min-h-11")}
+                  >
+                    Cerrar sesión
+                  </button>
+                </FormCerrarSesion>
+              </div>
+            </section>
+          </HojaDeIngreso>
+        ) : (
+        <div className="w-full max-w-sm">
+          <p className="mb-4 text-center text-sm font-medium text-muted">{marcaNombre}</p>
 
-          <div className="mt-6 flex flex-col gap-2">
-            {abrir && (
-              <Link href={abrir.ruta} className={buttonClasses("solid", "md", "w-full")}>
-                Abrir {abrir.nombre}
-              </Link>
-            )}
-            {vuelta && (
-              <Link href={vuelta.href} className={buttonClasses(abrir ? "outline" : "solid", "md", "w-full")}>
-                {vuelta.etiqueta}
-              </Link>
-            )}
-            <FormCerrarSesion>
-              <button type="submit" className={buttonClasses(vuelta || abrir ? "ghost" : "outline", "md", "w-full")}>
-                Cerrar sesión
-              </button>
-            </FormCerrarSesion>
-          </div>
-        </section>
+          <section
+            aria-labelledby="nd-titulo"
+            className="rounded-xl border border-line bg-surface-raised p-6 shadow-sm sm:p-8"
+          >
+            <span className="relative mb-4 grid h-12 w-12 place-items-center rounded-xl bg-surface-sunken text-muted">
+              <IconoApp nombre={app?.icono ?? "candado"} className="h-6 w-6" />
+              {!abrir && (
+                <span className="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-full border border-line bg-surface-raised text-strong">
+                  <IconoApp nombre="candado" className="h-3.5 w-3.5" />
+                </span>
+              )}
+            </span>
 
-        <p className="mt-6 text-center text-xs text-faint">Con tecnología de Gestión Studio Grow</p>
-      </div>
+            <h1 id="nd-titulo" className="text-xl font-semibold tracking-tight text-strong">
+              {texto.titulo}
+            </h1>
+            {app && <p className="mt-1 text-sm text-muted">{app.descripcion}</p>}
+
+            <p className="mt-4 text-sm text-body">{texto.porque}</p>
+            <p className="mt-1 text-sm text-body">{texto.aQuien}</p>
+
+            <div className="mt-6 flex flex-col gap-2">
+              {abrir && (
+                <Link href={abrir.ruta} className={buttonClasses("solid", "md", "w-full")}>
+                  Abrir {abrir.nombre}
+                </Link>
+              )}
+              {vuelta && (
+                <Link href={vuelta.href} className={buttonClasses(abrir ? "outline" : "solid", "md", "w-full")}>
+                  {vuelta.etiqueta}
+                </Link>
+              )}
+              <FormCerrarSesion>
+                <button type="submit" className={buttonClasses(vuelta || abrir ? "ghost" : "outline", "md", "w-full")}>
+                  Cerrar sesión
+                </button>
+              </FormCerrarSesion>
+            </div>
+          </section>
+
+          <p className="mt-6 text-center text-xs text-faint">Con tecnología de Gestión Studio Grow</p>
+        </div>
+        )}
+      </ConDiseno>
     </main>
   );
 }

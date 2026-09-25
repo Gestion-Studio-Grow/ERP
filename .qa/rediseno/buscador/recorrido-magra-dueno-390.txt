@@ -1,0 +1,10 @@
+Q «ma» => 10 resultados Cerrar APPS Margen Números del negocio Catálogo y precios de la marca Mis locales Mis locales Mis locales Traslados entre locales Mis locales Apariencia Configuración CLIENTES Mariana Godoy 11 5555-2253 Martín Juárez 11 5555-2246 Martín Ortiz 11 5555-2262 Martín Villalba 11 5555-2119 Martina Silva 11 5555-2138
+   scrollHorizontal=false altosOpciones=[54,54,54,54,54,54,54,54,54,54]
+Q «#48» => 5 resultados Cerrar PEDIDOS Pedido #48 Entregado · Candela Acosta · $57.134,70 Pedido #489 Entregado · Mostrador · $27.750,00 Pedido #488 Entregado · Mostrador · $18.693,00 Pedido #487 Entregado · Mostrador · $12.640,00 Pedido #486 Entregado · Mostrador · $27.750,00
+   scrollHorizontal=false altosOpciones=[54,54,54,54,54]
+Q «5555-2112» => 1 resultado Cerrar CLIENTES Micaela Aguirre 11 5555-2112
+   scrollHorizontal=false altosOpciones=[54]
+   ENTER → http://magra.localhost:3210/admin/clientes/cmryy6n9c006dww7datkgdxjo · título: Micaela Aguirre
+ERRORES DE CONSOLA: [
+  'Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozill'
+]

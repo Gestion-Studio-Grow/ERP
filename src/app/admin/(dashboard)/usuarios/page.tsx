@@ -5,6 +5,8 @@ import SubmitButton from "@/components/SubmitButton";
 import { Input, Select, Field, buttonClasses } from "@/components/ui";
 import { fmtDateTime } from "@/lib/datetime";
 import { etiquetaDeRol, rolSinPantallas, rolesParaAlta } from "./roles";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import UsuariosRenglon from "./UsuariosRenglon";
 
 export const dynamic = "force-dynamic";
 
@@ -31,11 +33,13 @@ export default async function UsuariosPage({
 }) {
   // Solo OWNER (users:manage, desde el registro de apps). El resto ve "App no disponible".
   const user = await requireApp("usuarios");
-  const [users, { status }, negocio] = await Promise.all([getUsers(), searchParams, getNegocioApps(user.role)]);
+  const [users, { status }, negocio, nuevo] = await Promise.all([getUsers(), searchParams, getNegocioApps(user.role), disenoNuevo()]);
   const banner = status ? STATUS_MESSAGES[status] : undefined;
   // En un negocio sin agenda no se ofrece el rol Profesional (roles.ts).
   const { esMostrador } = negocio;
   const roles = rolesParaAlta(esMostrador);
+  // Diseño nuevo («Renglón»): las mismas acciones y los mismos campos. Apagado, igual que siempre.
+  if (nuevo) return <UsuariosRenglon users={users} roles={roles} esMostrador={esMostrador} banner={banner} />;
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">

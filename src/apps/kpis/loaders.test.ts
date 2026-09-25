@@ -185,7 +185,7 @@ test("Caja del día: abierta con su hora o cerrada; en servicios no lleva númer
   const cerrada = dbFalsa();
   assert.deepEqual(await cajaDelDia(ctx(cerrada.db)), {
     valor: "Cerrada",
-    detalle: "abrila antes de cobrar en efectivo",
+    detalle: "el efectivo va al libro, sin turno",
   });
 
   const servicios = dbFalsa();

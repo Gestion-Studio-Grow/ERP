@@ -17,6 +17,9 @@ import { HORIZONTES, leerHorizonte, type MovimientoDeFlujo } from "@/lib/reports
 import { leerFlujo } from "@/lib/reports/flujo-lectura";
 import { appsQuePuedeAbrir } from "@/lib/reports/apps-a-mano.server";
 import { AvisoError, PageHeader, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import { DosColumnas, Franja, LineaDeEstado, Marca, Plata, Renglon, chipLinkAtributos } from "@/components/ui";
+import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { LineaDeCuenta } from "@/components/ui/LineaDeCuenta";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +56,7 @@ export default async function FlujoPage({ searchParams }: { searchParams: Promis
     appsQuePuedeAbrir(user.role, ["cuentas-a-cobrar", "cuentas-a-pagar", "libro-de-caja"]),
   ]);
   const ajustada = f.semanaMasAjustada;
+  const ajustada_ = (numero: number) => ajustada?.numero === numero && f.semanas.length > 1;
   const rojo = f.primeraEnRojo;
   const fuera = [
     { texto: "Fiado vencido", n: f.fuera.fiadoVencidoCuentas, monto: f.fuera.fiadoVencido, porque: "ya pasó la fecha y no se sabe cuándo entra", href: "/admin/cuentas-a-cobrar", app: "cuentas-a-cobrar" },
@@ -61,6 +65,143 @@ export default async function FlujoPage({ searchParams }: { searchParams: Promis
     { texto: "A cobrar más adelante", n: null, monto: f.fuera.cobrosMasAdelante, porque: `vence después del ${diaLegible(f.hasta)}`, href: "/admin/cuentas-a-cobrar", app: "cuentas-a-cobrar" },
     { texto: "A pagar más adelante", n: null, monto: f.fuera.pagosMasAdelante, porque: `vence después del ${diaLegible(f.hasta)}`, href: "/admin/cuentas-a-pagar", app: "cuentas-a-pagar" },
   ].filter((x) => x.monto > 0);
+
+  // DISEÑO NUEVO («Renglón»): la plata semana por semana como un libro. Cada semana es un renglón con
+  // lo que entra, lo que sale y cómo queda, y una barra dentro del renglón con ese saldo (proporción
+  // del saldo más grande del período; en rojo si queda debajo de cero). La semana más ajustada, con
+  // su marca. Adentro, los movimientos. Mismos números (`leerFlujo`).
+  if (await disenoNuevo()) {
+    const tope = Math.max(1, ...f.semanas.map((s) => Math.abs(s.saldoAlCierre)), Math.abs(f.saldoInicial));
+    return (
+      <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
+        <header data-ui="page-header" className="mb-5 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-strong">Flujo de fondos</h1>
+            <LineaDeEstado
+              datos={[
+                <span key="h">
+                  <strong>Plata hoy</strong> <Plata valor={f.saldoInicial} sinCentavos />
+                </span>,
+                <span key="e">
+                  entra <Plata valor={f.totalEntra} sinCentavos />
+                </span>,
+                <span key="s">
+                  sale <Plata valor={f.totalSale} sinCentavos />
+                </span>,
+                <span key="f">
+                  al {corto(f.hasta)} <Plata valor={f.saldoFinal} sinCentavos tono={f.saldoFinal < 0 ? "peligro" : undefined} />
+                </span>,
+              ]}
+            />
+          </div>
+          <nav aria-label="Hasta cuándo" className="flex flex-wrap gap-1.5">
+            {HORIZONTES.map((d) => (
+              <Link key={d} href={`${RUTA}?h=${d}`} {...chipLinkAtributos(d === horizonte)}>
+                {d} días
+              </Link>
+            ))}
+          </nav>
+        </header>
+        {sinCuentasCorrientes && (
+          <Franja className="mb-4">Por ahora el flujo muestra sólo el saldo del libro de caja: el fiado y las cuentas a pagar todavía no están listos en tu negocio.</Franja>
+        )}
+        {rojo && (
+          <Franja tono="peligro" className="mb-4">
+            La semana del {corto(rojo.desde)} al {corto(rojo.hasta)} quedás en {money(rojo.saldoAlCierre)}. Antes de esa fecha: cobrá un fiado, conseguí la
+            plata o hablá con el proveedor para mover un pago o un cheque.{" "}
+            {abribles.has("cuentas-a-pagar") && <Link href="/admin/cuentas-a-pagar">Ver cuentas a pagar</Link>}
+          </Franja>
+        )}
+        <DosColumnas>
+          <section aria-labelledby="semanas" className="min-w-0">
+            <div className="flex items-baseline justify-between gap-3 border-b border-line-strong pb-2">
+              <h2 id="semanas" className="text-[15px] font-semibold text-strong">
+                Semana por semana
+              </h2>
+              <span className="text-[13px] text-muted">lo vencido se cuenta hoy</span>
+            </div>
+            <LineaDeCuenta concepto="Plata hoy" detalle="El saldo del libro de caja, todos los medios" importe={<Plata valor={f.saldoInicial} sinCentavos />} />
+            {f.semanas.map((s) => {
+              const ajustada = ajustada_(s.numero);
+              const enRojo = s.saldoAlCierre < 0;
+              return (
+                <details key={s.numero} className="group border-b border-line">
+                  <summary className="grid min-h-12 cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-2.5">
+                    <span className="min-w-0">
+                      <span className="font-medium text-strong">
+                        {corto(s.desde)} al {corto(s.hasta)}
+                      </span>
+                      {ajustada && (
+                        <Marca tipo="atencion" className="ml-2">
+                          la más ajustada
+                        </Marca>
+                      )}
+                      <span className="block text-[13px] text-muted">
+                        entra {money(s.entra)} · sale {money(s.sale)}
+                      </span>
+                    </span>
+                    <span className="text-right font-semibold">
+                      <Plata valor={s.saldoAlCierre} sinCentavos tono={enRojo ? "peligro" : undefined} />
+                    </span>
+                    {/* La barra: el saldo al cierre de la semana, en proporción al más grande del período. */}
+                    <span aria-hidden className="col-span-2 block h-1.5 bg-surface-sunken">
+                      <span
+                        className={`block h-full ${enRojo ? "bg-danger" : "bg-accent"}`}
+                        style={{ width: `${Math.max(2, Math.round((Math.abs(s.saldoAlCierre) / tope) * 100))}%` }}
+                      />
+                    </span>
+                  </summary>
+                  {s.movimientos.length === 0 ? (
+                    <p className="pb-3 text-sm text-muted">No entra ni sale nada esta semana.</p>
+                  ) : (
+                    <div className="pb-2">
+                      {s.movimientos.map((m, i) => (
+                        <Renglon
+                          key={`${m.cuentaId}-${m.tipo}-${i}`}
+                          folio={corto(m.dia)}
+                          titulo={<span className="font-normal">{m.quien}</span>}
+                          detalle={`${QUE[m.tipo]}${m.vencidoDesde ? ` · vencido desde el ${corto(m.vencidoDesde)}, se cuenta hoy` : ""}`}
+                          plata={<Plata valor={m.tipo === "cobro" ? m.monto : -m.monto} sinCentavos />}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </details>
+              );
+            })}
+            <LineaDeCuenta total concepto={`Plata al ${corto(f.hasta)}`} importe={<Plata valor={f.saldoFinal} sinCentavos tono={f.saldoFinal < 0 ? "peligro" : undefined} />} />
+          </section>
+          {fuera.length > 0 && (
+            <aside aria-labelledby="fuera" className="min-w-0">
+              <div className="flex items-baseline justify-between gap-3 border-b border-line-strong pb-2">
+                <h2 id="fuera" className="text-[15px] font-semibold text-strong">
+                  Lo que no entra en la cuenta
+                </h2>
+                <span className="text-[13px] text-muted">no se sabe cuándo se mueve</span>
+              </div>
+              {fuera.map((x) => (
+                <LineaDeCuenta
+                  key={x.texto}
+                  concepto={
+                    abribles.has(x.app) ? (
+                      <Link href={x.href} className="hover:underline">
+                        {x.texto}
+                        {x.n !== null ? ` (${x.n})` : ""}
+                      </Link>
+                    ) : (
+                      `${x.texto}${x.n !== null ? ` (${x.n})` : ""}`
+                    )
+                  }
+                  detalle={x.porque}
+                  importe={<Plata valor={x.monto} sinCentavos />}
+                />
+              ))}
+            </aside>
+          )}
+        </DosColumnas>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">

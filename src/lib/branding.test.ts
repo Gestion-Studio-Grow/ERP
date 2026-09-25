@@ -31,6 +31,16 @@ test("brandForSlug: nunca devuelve la marca de CH para el slug de otro tenant", 
   }
 });
 
+test("brandForSlug: los locales de MAGRA llevan la marca de la casa, no la neutra", () => {
+  for (const local of ["magra-canning", "magra-lomas"]) {
+    assert.deepEqual(brandForSlug(local), brandForSlug("magra"), `${local} tiene que verse como MAGRA`);
+  }
+  // Un slug de QA que sólo contiene la palabra no hereda nada: la familia es el primer tramo.
+  assert.equal(brandForSlug("qa-magra-adrogue").name, "Mi negocio");
+  // CH sigue con su entrada propia ("beauty" no es una marca).
+  assert.equal(brandForSlug("beauty-spa").name, "CH Estética");
+});
+
 test("resolveAccent + invertTheme: el back va en el tema opuesto al front de cada tenant", () => {
   for (const slug of ["beauty-spa", "magra", "shinevelas", "adosmanos"]) {
     const brand = brandForSlug(slug);

@@ -1,0 +1,349 @@
+{
+  "ancho": 390,
+  "cerrarTurno": false,
+  "fecha": "2026-09-25T11:16:07.804Z",
+  "pasos": [
+    {
+      "paso": "Entrar: clave equivocada muestra error",
+      "ok": true,
+      "det": "mensaje=\"El email o la contraseña no coinciden. Revisá los dos y probá de nuevo. Con 5 intentos fal\" · email conservado=\"\"",
+      "ms": 1001,
+      "errs": []
+    },
+    {
+      "paso": "Entrar como dueño (Enter)",
+      "ok": true,
+      "det": "h1=\"Hoy, viernes 25 de septiembre\" diseno=renglon sx360=0 chicos<44=0",
+      "ms": 1283,
+      "errs": []
+    },
+    {
+      "paso": "Recuento con diferencia (repone Vacío y Pollo entero)",
+      "ok": true,
+      "det": "Vacío: sistema 6.76, alcanza · Pollo entero: sistema 4, alcanza",
+      "ms": 2487,
+      "errs": []
+    },
+    {
+      "paso": "Stock antes de vender",
+      "ok": true,
+      "det": "Vacío=\"6,76 kg\" · Pollo=\"4 u\"",
+      "ms": 1866,
+      "errs": []
+    },
+    {
+      "paso": "Inicio → Vender",
+      "ok": true,
+      "det": "h1=\"Vender\" diseno=renglon sx360=0 chicos<44=1",
+      "ms": 2037,
+      "errs": []
+    },
+    {
+      "paso": "Vender por peso: Vacío, 1,240 + Enter",
+      "ok": true,
+      "det": "foco→peso, Enter→buscador, lista cerrada; línea=\"Vacío 1,24 kg × $22.200 / kg kg $27.528,00 −\"",
+      "ms": 764,
+      "errs": []
+    },
+    {
+      "paso": "Pollo entero sin cantidad → Cobrar bloqueado",
+      "ok": true,
+      "det": "botón=\"Falta la cantidad de Pollo entero orgánico (~2 kg)\" bloqueado",
+      "ms": 1120,
+      "errs": []
+    },
+    {
+      "paso": "Cantidad 1 y cobrar en efectivo",
+      "ok": true,
+      "det": "Alt+1 eligió Efectivo · botón \"Cobrar $47.028,00\" → Venta #500 $47.028,00; ticket nuevo con 0 línea(s) vacía(s)",
+      "ms": 733,
+      "errs": []
+    },
+    {
+      "paso": "Persistencia: la venta está en Ventas tras recargar",
+      "ok": true,
+      "det": "#500 listada · diseno=renglon sx360=0 chicos<44=15",
+      "ms": 2162,
+      "errs": []
+    },
+    {
+      "paso": "Persistencia: el stock bajó",
+      "ok": true,
+      "det": "Vacío: \"6,76 kg\" → \"5,52 kg\" · Pollo: \"4 u\" → \"3 u\"",
+      "ms": 1583,
+      "errs": []
+    },
+    {
+      "paso": "Inicio → Pedidos para preparar → Preparar",
+      "ok": true,
+      "det": "botón «Preparar: Guadalupe Paz, pedido #467» · Para preparar 3 → Para preparar 2 · diseno=renglon sx360=0 chicos<44=24",
+      "ms": 4368,
+      "errs": []
+    },
+    {
+      "paso": "Inicio → Caja del día → Cerrar el turno",
+      "ok": true,
+      "det": "esperado=$545.058,00 · vista previa=\"Cuadra\" · <dialog> abierto=1 · Escape cierra (sin cerrar el turno en esta corrida) · diseno=renglon sx360=0 chicos<44=1",
+      "ms": 3802,
+      "errs": []
+    },
+    {
+      "paso": "Cierre del día: contar y revisar",
+      "ok": true,
+      "det": "contado=Efectivo=788079,25 ; Mercado Pago y transferencias=20727355,99 · deslizador habilitado (NO se desliza: congelaría el día compartido) · diseno=renglon sx360=0 chicos<44=0",
+      "ms": 3729,
+      "errs": []
+    },
+    {
+      "paso": "Clientes: búsqueda sin resultados (estado vacío)",
+      "ok": true,
+      "det": "vacío=\"Situación Todas 0 Clientes Nadie coincide con «zzqqxxsinnadie». Ver todos ¿Cómo se calcula la situación?\"",
+      "ms": 2734,
+      "errs": []
+    },
+    {
+      "paso": "Clientes → Nueva ficha → buscarla → abrir ficha",
+      "ok": false,
+      "det": "page.waitForLoadState: Timeout 30000ms exceeded.",
+      "ms": 36376,
+      "errs": []
+    },
+    {
+      "paso": "Ficha de un cliente con compras",
+      "ok": true,
+      "det": "h1=\"Catalina Rodríguez\" · ← Clientes Catalina Rodríguez 11 5555-2271 Cuenta corriente al día 10 pedidos 1 pedido sin cobrar Compró por última vez hace 2 días WhatsApp",
+      "ms": 1522,
+      "errs": []
+    },
+    {
+      "paso": "Stock → Contar → Recuento de un corte",
+      "ok": true,
+      "det": "Asado de tira: contado 15,5 con «Guardar recuento (1)» → tras recargar \"Asado de tira sistema 15,5 kg · contado hoy\" · fila=\"Asado de tira sistema 15,5 kg · contado hoy\" · aviso=\"Recuento guardado: 1 producto contado, todos coinciden con el sistema.\"  · movimientos=\"Movimientos de stock los 200 más recientes · Volver a Stock Producto Tipo Todos Venta Compra Reposición Consumo en un se\" · diseno=renglon sx360=0 chicos<44=0 · diseno=renglon sx360=0 chicos<44=1",
+      "ms": 7237,
+      "errs": []
+    },
+    {
+      "paso": "Traslado entre locales",
+      "ok": true,
+      "det": "sin stock: \"En MAGRA hay 5,52 kg: no alcanza.\" + Trasladar bloqueado · destino=\"Adrogué QA\" · remitos 13 → 14 · aviso=\"Listo: 1 producto salió de MAGRA y entró en Adrogué QA. Remito T-6305B9DE. Ver e\" · remito=\"Traslados entre locales Remito interno T-6305B9DE 25/09/2026 08:15 MAGRA → Adrogué QA Sale de MAGRA (CUIT 30-71765432-9)\" · diseno=renglon sx360=0 chicos<44=0",
+      "ms": 8459,
+      "errs": []
+    },
+    {
+      "paso": "Ctrl+K: buscar un cliente y abrirlo con Enter",
+      "ok": true,
+      "det": "opciones=[\"Catalina García 11 5555-2125\",\"Catalina Rodríguez 11 5555-2271\"] (Catalina en #0) → h1=\"Catalina García\"",
+      "ms": 3577,
+      "errs": []
+    },
+    {
+      "paso": "Ctrl+K: acción «cerrar el día» y Escape",
+      "ok": true,
+      "det": "«pollo» → [\"Pollo entero orgánico (~2 kg) Por unidad\",\"Pechuga de pollo orgánico Por kilo · $12\"]; Escape cierra",
+      "ms": 2011,
+      "errs": []
+    },
+    {
+      "paso": "Permisos del encargado (RECEPTION)",
+      "ok": true,
+      "det": "/admin→200⇒/admin/vender「Vender」 · /admin/vender→200「Vender」 · /admin/pedidos→200「Pedidos para preparar」 · /admin/caja→200「Caja del día」 · /admin/caja/cierre→200「Cierre del día」 · /admin/clientes→200「Clientes」 · /admin/inventario→200「Stock」 · /admin/ajustes/recuento→200「Recuento」 · /admin/locales/traslados→200「Traslados entre locales」 · /admin/usuarios→200⇒/admin/no-disponible「Usuarios y permisos no está disponible」 · /admin/reportes→200⇒/admin/no-disponible「Reportes no está disponible」",
+      "ms": 9331,
+      "errs": []
+    }
+  ],
+  "medidas": [
+    {
+      "pantalla": "Inicio",
+      "url": "/admin",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": []
+    },
+    {
+      "pantalla": "Vender",
+      "url": "/admin/vender",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "paid:20"
+      ]
+    },
+    {
+      "pantalla": "Ventas",
+      "url": "/admin/ventas",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "Vacío, Pollo entero orgánico:24",
+        "Vacío, Pollo entero orgánico:24",
+        "Vacío, Pollo entero orgánico:24",
+        "Vacío, Pollo entero orgánico:24",
+        "Vacío, Pollo entero orgánico:24",
+        "Vacío, Pollo entero orgánico:24",
+        "Vacío, Pollo entero orgánico:24",
+        "Vacío, Pollo entero orgánico:24",
+        "Vacío, Pollo entero orgánico:24",
+        "Vacío, Pollo entero orgánico:24",
+        "Vacío, Pollo entero orgánico:24",
+        "Vacío:24",
+        "Asado de tira:24",
+        "Carne picada especial:24",
+        "Vacío:24"
+      ]
+    },
+    {
+      "pantalla": "Pedidos",
+      "url": "/admin/pedidos",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "Seleccionar:18",
+        "Prueba Vidriera QA:24",
+        "Seleccionar:18",
+        "Prueba Vidriera QA:24",
+        "Seleccionar:18",
+        "QA Cliente PC:24",
+        "Seleccionar:18",
+        "QA Cliente Retiro:24",
+        "Seleccionar:18",
+        "Parrilla QA La Brasa · mostr:24",
+        "Seleccionar:18",
+        "Mostrador · mostrador:24",
+        "Seleccionar:18",
+        "Catalina Rodríguez:24",
+        "Seleccionar:18",
+        "Juan Paz:24",
+        "Seleccionar:18",
+        "Alejandro Ortiz:24",
+        "Seleccionar:18",
+        "Guadalupe Paz:24",
+        "Seleccionar:18",
+        "Guadalupe Suárez:24",
+        "Seleccionar:18",
+        "Ana Ruiz:24"
+      ]
+    },
+    {
+      "pantalla": "Caja del día",
+      "url": "/admin/caja",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "Libro de caja:14"
+      ]
+    },
+    {
+      "pantalla": "Cierre del día",
+      "url": "/admin/caja/cierre",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": []
+    },
+    {
+      "pantalla": "Stock",
+      "url": "/admin/inventario",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": []
+    },
+    {
+      "pantalla": "Recuento",
+      "url": "/admin/ajustes/recuento",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": [
+        "INPUT:20"
+      ]
+    },
+    {
+      "pantalla": "Traslados",
+      "url": "/admin/locales/traslados",
+      "diseno": "renglon",
+      "scrollX360": 0,
+      "scrollXAncho": 0,
+      "menoresDe44": []
+    }
+  ],
+  "permisos": [
+    {
+      "ruta": "/admin",
+      "status": 200,
+      "terminaEn": "/admin/vender",
+      "h1": "Vender"
+    },
+    {
+      "ruta": "/admin/vender",
+      "status": 200,
+      "terminaEn": "/admin/vender",
+      "h1": "Vender"
+    },
+    {
+      "ruta": "/admin/pedidos",
+      "status": 200,
+      "terminaEn": "/admin/pedidos",
+      "h1": "Pedidos para preparar"
+    },
+    {
+      "ruta": "/admin/caja",
+      "status": 200,
+      "terminaEn": "/admin/caja",
+      "h1": "Caja del día"
+    },
+    {
+      "ruta": "/admin/caja/cierre",
+      "status": 200,
+      "terminaEn": "/admin/caja/cierre",
+      "h1": "Cierre del día"
+    },
+    {
+      "ruta": "/admin/clientes",
+      "status": 200,
+      "terminaEn": "/admin/clientes",
+      "h1": "Clientes"
+    },
+    {
+      "ruta": "/admin/inventario",
+      "status": 200,
+      "terminaEn": "/admin/inventario",
+      "h1": "Stock"
+    },
+    {
+      "ruta": "/admin/ajustes/recuento",
+      "status": 200,
+      "terminaEn": "/admin/ajustes/recuento",
+      "h1": "Recuento"
+    },
+    {
+      "ruta": "/admin/locales/traslados",
+      "status": 200,
+      "terminaEn": "/admin/locales/traslados",
+      "h1": "Traslados entre locales"
+    },
+    {
+      "ruta": "/admin/usuarios",
+      "status": 200,
+      "terminaEn": "/admin/no-disponible",
+      "h1": "Usuarios y permisos no está disponible"
+    },
+    {
+      "ruta": "/admin/reportes",
+      "status": 200,
+      "terminaEn": "/admin/no-disponible",
+      "h1": "Reportes no está disponible"
+    }
+  ],
+  "errores": [],
+  "venta": {
+    "codigoVenta": "500",
+    "totalVenta": "$47.028,00"
+  },
+  "callejones": []
+}

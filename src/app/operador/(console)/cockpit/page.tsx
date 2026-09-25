@@ -1,230 +1,259 @@
-// COCKPIT OPERADOR (control-plane, ADR-021 / spec T4). Tablero de mando read-only:
-// mapa de tenants, salud de arquitectura, estado de Neon, flujo, alertas críticas y
-// plan/roadmap en vivo. 3D via CSS + SVG (cero deps). CERO escrituras.
+// TABLERO DE LA PLATAFORMA (consola GSG, ADR-021). Sólo lectura: ¿anda todo?, en una mirada.
 //
-// Reversibilidad: la ruta es aditiva; el link en el nav está detrás de COCKPIT_ENABLED.
-// Se accede directo para probar. Datos por poll suave (AutoRefresh), Neon-free-consciente.
+// La idea viene del tablero eléctrico: cada servicio es una llave. Arriba = anda en real, al
+// medio = en prueba, abajo = apagado o caído. Todo lo demás es renglón callado: la base, los
+// negocios vistos desde la plataforma y las notas que se escriben a mano en el código, que se
+// muestran como tales y nunca como estado vivo (src/lib/cockpit/plan.ts no se actualiza solo).
+//
+// Qué NO repite: el «listo para abrir» por negocio vive en Negocios (bandeja «Para atender»); acá
+// sólo va la cuenta y el camino. Las palabras salen de tablero-core.ts (puro, con tests).
+//
+// Reversibilidad: la ruta es aditiva; el enlace del menú está detrás de COCKPIT_ENABLED. Los datos
+// se refrescan por sondeo suave (AutoRefresh) y la medición de la base está en pausa por defecto.
 
-import "./cockpit.css";
 import Link from "next/link";
 import { cargarCockpit } from "@/lib/cockpit/datos";
-import { operatorPrisma } from "@/lib/operator-db";
+import { ANOTADO_EL } from "@/lib/cockpit/plan";
 import { modoDesdeEnv } from "@/plugins/arca";
-import { checklistApertura, type EstadoApertura } from "@/lib/operador/checklist-apertura";
-import { peorEstado } from "@/lib/cockpit/salud";
+import { modoCobrosDesdeEnv } from "@/lib/mercadopago-cobros-dispatch";
+import { Bloque, LineaDeEstado, Marca, Renglon, atributosBoton } from "@/components/ui";
+import { cargarAperturas } from "../aperturas.server";
 import AutoRefresh from "./AutoRefresh";
 import {
-  TenantMap,
-  ArchitectureDiagram,
-  NeonStatus,
-  WorkflowDiagram,
-  CriticalPanel,
-  PlanRoadmap,
-} from "./Widgets";
+  MARCA_DE_TAREA,
+  estadoGeneral,
+  lecturaDeBase,
+  llavesDeServicios,
+  notasAMano,
+  resumenDeNegocios,
+  type Llave,
+} from "./tablero-core";
 
 export const dynamic = "force-dynamic";
-
-const SALUD_HEX: Record<string, string> = { sano: "#10b981", atencion: "#f59e0b", caido: "#ef4444" };
 
 function horaCriolla(iso: string): string {
   try {
     return new Intl.DateTimeFormat("es-AR", {
-      hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "America/Argentina/Buenos_Aires",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      timeZone: "America/Argentina/Buenos_Aires",
     }).format(new Date(iso));
   } catch {
     return iso;
   }
 }
 
-// APERTURAS — una fila por local. Por qué está en el cockpit y no sólo en cada ficha: MAGRA abre
-// 5 locales y cada local es un tenant propio; la pregunta del lunes es "¿cuál de los cinco está
-// listo?", y esa respuesta no puede exigir entrar de a una en cinco fichas.
-//
-// Lecturas EN LOTE (4 consultas para TODOS los tenants, no una por tenant): el cockpit se
-// auto-refresca cada 30 s contra Neon free, y un N+1 acá se paga en cuota de conexiones.
-async function cargarAperturas() {
-  const tenants = await operatorPrisma.tenant.findMany({
-    select: {
-      id: true, name: true, slug: true, blueprintId: true, subdomain: true,
-      arcaCuit: true, arcaPuntoVenta: true, arcaHomologacion: true,
-    },
-    orderBy: { createdAt: "asc" },
-  });
-  if (tenants.length === 0) return [];
+const REFERENCIA = "Arriba: en real · al medio: en prueba · abajo: apagado o caído";
 
-  const ids = tenants.map((t) => t.id);
-  const [settings, productos, usuarios] = await Promise.all([
-    operatorPrisma.businessSettings
-      .findMany({ where: { tenantId: { in: ids } }, select: { tenantId: true, addressLine: true, instagram: true, whatsapp: true } })
-      .catch(() => []),
-    operatorPrisma.product
-      .findMany({
-        where: { tenantId: { in: ids }, deletedAt: null },
-        select: { tenantId: true, name: true, price: true, pricePerKg: true },
-        take: 2000, // techo defensivo: el chequeo compara contra catálogos semilla de ~20 ítems
-      })
-      .catch(() => []),
-    operatorPrisma.user.groupBy({
-      by: ["tenantId"],
-      where: { tenantId: { in: ids }, active: true, deletedAt: null },
-      _count: { _all: true },
-    }),
-  ]);
-  // La tabla de credenciales puede no estar aplicada (Gate 2): `null` = "no se sabe", que el
-  // evaluador reporta como bloqueo de migración en vez de como "falta cargar el certificado".
-  const creds = await operatorPrisma.tenantFiscalCredential
-    .findMany({ where: { tenantId: { in: ids } }, select: { tenantId: true, certCuit: true } })
-    .then((rows) => new Map(rows.map((r) => [r.tenantId, r])))
-    .catch(() => null);
+// La perilla de la llave: el color acompaña, la palabra de abajo es la que manda.
+const PERILLA: Record<Llave["posicion"], string> = {
+  arriba: "top-0.5 bg-success",
+  medio: "top-1/2 -translate-y-1/2 bg-warning",
+  abajo: "bottom-0.5 bg-danger",
+};
 
-  const modoArca = modoDesdeEnv();
-  type FilaProducto = (typeof productos)[number];
-  const prods = new Map<string, FilaProducto[]>();
-  for (const r of productos) {
-    const acc = prods.get(r.tenantId);
-    if (acc) acc.push(r);
-    else prods.set(r.tenantId, [r]);
-  }
-  const sets = new Map(settings.map((r) => [r.tenantId, r]));
-  const users = new Map(usuarios.map((r) => [r.tenantId, r._count._all]));
-
-  return tenants.map((t) => {
-    const cred = creds?.get(t.id) ?? null;
-    const estado: EstadoApertura = {
-      slug: t.slug,
-      blueprintId: t.blueprintId,
-      subdomain: t.subdomain,
-      usuariosActivos: users.get(t.id) ?? 0,
-      arcaCuit: t.arcaCuit,
-      arcaPuntoVenta: t.arcaPuntoVenta,
-      arcaHomologacion: t.arcaHomologacion,
-      certificadoCargado: creds === null ? null : Boolean(cred),
-      certCuit: cred?.certCuit ?? null,
-      modoArca,
-      // Ver la nota de la ficha del tenant: la columna `arcaCondicionIva` no existe todavía.
-      condicionIvaDisponible: false,
-      contacto: sets.get(t.id) ?? null,
-      productos: prods.get(t.id) ?? [],
-    };
-    return { id: t.id, name: t.name, slug: t.slug, ...checklistApertura(estado) };
-  });
+function LlaveDelTablero({ llave }: { llave: Llave }) {
+  return (
+    <li className="flex flex-col items-center gap-1.5 px-1 py-3 text-center">
+      <span
+        aria-hidden
+        className="relative block h-12 w-7 rounded-[3px] border-2 border-line-strong bg-surface-sunken"
+      >
+        <span className={`absolute inset-x-0.5 h-4 rounded-[2px] ${PERILLA[llave.posicion]}`} />
+      </span>
+      <span className="text-[13px] font-semibold leading-tight text-strong">{llave.nombre}</span>
+      <span
+        className={`text-[12px] leading-tight ${
+          llave.caida ? "font-semibold text-danger" : llave.paraMirar ? "text-warning" : "text-muted"
+        }`}
+      >
+        {llave.estado}
+      </span>
+    </li>
+  );
 }
 
-export default async function CockpitPage() {
+export default async function TableroPage() {
   const [d, aperturas] = await Promise.all([cargarCockpit(), cargarAperturas()]);
 
-  // Salud global: el peor entre tenants y componentes (el "¿anda todo?" del dueño).
-  const global = peorEstado([
-    d.resumenTenants.peor,
-    ...d.componentes.map((c) => c.estado),
-  ]);
+  const llaves = llavesDeServicios(d.componentes, { arca: modoDesdeEnv(), cobros: modoCobrosDesdeEnv() });
+  const base = lecturaDeBase(d.neon);
+  const general = estadoGeneral(llaves, base);
+  const negocios = resumenDeNegocios(d.tenants);
+  const conPendientes = aperturas.filter((a) => !a.listo).length;
+  const notas = notasAMano(d.alertas);
+  const enReal = llaves.filter((l) => l.posicion === "arriba").length;
 
   return (
-    <div className="space-y-6">
-      {/* Encabezado con salud global */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-8">
+      <header>
+        <h1 className="text-2xl font-bold text-strong">Tablero de la plataforma</h1>
+        <LineaDeEstado
+          datos={[
+            <Marca key="g" tipo={general.tipo}>
+              {general.frase}
+            </Marca>,
+            general.paraMirar.length > 0 ? `para mirar: ${general.paraMirar.join(", ")}` : null,
+            `leído a las ${horaCriolla(d.ts)}`,
+            <AutoRefresh key="r" seconds={30} />,
+          ]}
+        />
+        <p className="mt-2 max-w-prose text-[13px] text-muted">
+          Sólo lectura: muestra cómo está la plataforma, no datos de los clientes, y no cambia nada.
+          Publicar, aplicar cambios a la base y cambiar claves siguen siendo decisión tuya.
+        </p>
+      </header>
+
+      <Bloque
+        id="servicios"
+        titulo="Servicios"
+        cuenta={`${enReal} de ${llaves.length} andando en real`}
+        nota={<span className="hidden lg:inline">{REFERENCIA}</span>}
+      >
+        <ul className="grid grid-cols-3 border-b border-line sm:grid-cols-6" aria-label="Llaves de la plataforma">
+          {llaves.map((l) => (
+            <LlaveDelTablero key={l.id} llave={l} />
+          ))}
+        </ul>
+        <p className="py-2 text-[12px] text-muted lg:hidden">{REFERENCIA}</p>
         <div>
-          <div className="flex items-center gap-3">
-            <span
-              className={`h-3.5 w-3.5 rounded-full ${global !== "sano" ? "cockpit-pulse" : ""}`}
-              style={{ background: SALUD_HEX[global] }}
-              aria-hidden
+          {llaves.map((l) => (
+            <Renglon
+              key={l.id}
+              folio={<Marca tipo={l.caida ? "anulado" : l.paraMirar ? "atencion" : "hecho"}>{l.estado}</Marca>}
+              titulo={l.nombre}
+              detalle={l.dice}
             />
-            <h1 className="text-2xl font-semibold">Cockpit</h1>
-            <span className="text-sm" style={{ color: SALUD_HEX[global] }}>
-              {global === "sano" ? "Anda todo" : global === "atencion" ? "Necesita tu ojo" : "Algo caído"}
-            </span>
-          </div>
-          <p className="mt-1 text-sm text-muted">
-            Estado de la plataforma — solo lectura. No muestra datos de negocio de ningún cliente.
-          </p>
+          ))}
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <AutoRefresh seconds={30} />
-          <span className="text-xs text-faint">última lectura {horaCriolla(d.ts)}</span>
+      </Bloque>
+
+      <Bloque id="base" titulo="Base de datos" cuenta={<Marca tipo={base.tipo}>{base.estado}</Marca>}>
+        <p className="py-3 text-[14px] text-body">{base.dice}</p>
+        {base.numeros && (
+          <dl className="grid grid-cols-1 border-t border-line sm:grid-cols-3">
+            {base.numeros.map((n) => (
+              <div
+                key={n.que}
+                className="flex items-baseline justify-between gap-3 border-b border-line py-2 sm:block sm:border-b-0"
+              >
+                <dt className="text-[13px] text-muted">{n.que}</dt>
+                <dd className="font-mono text-[18px] tabular-nums text-strong">{n.valor}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </Bloque>
+
+      <Bloque
+        id="negocios"
+        titulo="Negocios"
+        cuenta={negocios.total}
+        nota={
+          <Link href="/operador" className="inline-flex min-h-11 items-center text-accent underline-offset-2 hover:underline">
+            Ver la lista
+          </Link>
+        }
+      >
+        <LineaDeEstado
+          className="py-2"
+          datos={[
+            `${negocios.produccion} en producción`,
+            `${negocios.prueba} en prueba`,
+            negocios.suspendidos > 0 ? `${negocios.suspendidos} suspendidos` : null,
+          ]}
+        />
+        <div>
+          {negocios.conProblema.map((p) => (
+            <Renglon
+              key={p.id}
+              folio={<Marca tipo="atencion">Para mirar</Marca>}
+              titulo={p.nombre}
+              detalle={p.que}
+              tecla={
+                <Link
+                  href={`/operador/tenants/${p.id}`}
+                  {...atributosBoton("outline", "sm")}
+                  className="inline-flex items-center whitespace-nowrap"
+                >
+                  Abrir ficha<span className="sr-only"> de {p.nombre}</span>
+                </Link>
+              }
+            />
+          ))}
+          <Renglon
+            folio={
+              <Marca tipo={conPendientes > 0 ? "pendiente" : "hecho"}>
+                {conPendientes > 0 ? `${conPendientes} de ${aperturas.length}` : "Todos"}
+              </Marca>
+            }
+            titulo={conPendientes > 0 ? "Con pendientes para abrir" : "Listos para abrir"}
+            detalle="Lo que le falta a cada uno sale de sus datos reales: precios, contacto, facturación, link y personas."
+            tecla={
+              conPendientes > 0 ? (
+                <Link
+                  href="/operador?estado=pendientes"
+                  {...atributosBoton("outline", "sm")}
+                  className="inline-flex items-center whitespace-nowrap"
+                >
+                  Ver cuáles
+                </Link>
+              ) : undefined
+            }
+          />
         </div>
-      </div>
+      </Bloque>
 
-      {/* Tablero 3D */}
-      <div className="cockpit-board space-y-5">
-        {/* Fila 1 — lo que el dueño mira primero: qué necesita su ojo */}
-        <CriticalPanel alertas={d.alertas} />
-
-        {/* Fila 1.5 — ¿cuál de los locales está listo para abrir? Una fila por tenant. */}
-        <section className="rounded-lg border border-line bg-elevated p-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="font-medium">Listo para abrir · por local</h2>
-            <span className="text-xs text-faint">
-              {aperturas.filter((a) => a.listo).length} de {aperturas.length} sin pendientes
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-muted">
-            Cada local es un tenant propio. Lo que falta sale del dato real del tenant (precios,
-            contacto, fiscal, link, usuarios), no de una lista escrita a mano.
-          </p>
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-line text-left text-muted">
-                  <th className="px-2 py-2 font-medium">Local</th>
-                  <th className="px-2 py-2 font-medium">Estado</th>
-                  <th className="px-2 py-2 font-medium">Qué le falta</th>
-                  <th className="px-2 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {aperturas.map((a) => {
-                  const faltan = a.items.filter((i) => i.ok === false);
-                  return (
-                    <tr key={a.id} className="border-b border-line/50 last:border-0 align-top">
-                      <td className="px-2 py-2 text-strong">
-                        {a.name} <span className="text-faint text-xs">/{a.slug}</span>
-                      </td>
-                      <td className="px-2 py-2 whitespace-nowrap">
-                        <span style={{ color: a.listo ? SALUD_HEX.sano : SALUD_HEX.atencion }}>
-                          {a.listo ? "✓ listo" : `${a.pendientes} pendiente${a.pendientes === 1 ? "" : "s"}`}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2 text-muted">
-                        {faltan.length === 0 ? "—" : faltan.map((i) => i.label).join(" · ")}
-                      </td>
-                      <td className="px-2 py-2 text-right whitespace-nowrap">
-                        <Link href={`/operador/tenants/${a.id}`} className="text-accent hover:underline">
-                          Abrir ficha →
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {aperturas.length === 0 && (
-                  <tr><td colSpan={4} className="px-2 py-3 text-muted">Todavía no hay tenants.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* Fila 2 — mapa de tenants + plan en vivo */}
-        <div className="grid gap-5 lg:grid-cols-2">
-          <TenantMap tenants={d.tenants} resumen={d.resumenTenants} />
-          <PlanRoadmap plan={d.plan} horizontes={d.horizontes} />
+      <Bloque id="a-mano" titulo="Anotado a mano" cuenta={notas.length} nota={`Anotado el ${ANOTADO_EL.split("-").reverse().join("/")} · no se actualiza solo`}>
+        <p className="py-2 text-[13px] text-muted">
+          Estas notas están escritas en el código del sistema, no se leen de ningún lado: pueden estar
+          viejas. Antes de actuar, confirmá que siguen pendientes.
+        </p>
+        <div>
+          {notas.map((n) => (
+            <Renglon
+              key={n.id}
+              folio={
+                <Marca tipo={n.urgente ? "atencion" : "pendiente"}>
+                  {n.urgente ? "Antes de cobrar" : "Pendiente"}
+                </Marca>
+              }
+              titulo={n.titulo}
+              detalle={
+                <>
+                  {n.detalle} <span className="text-strong">Lo hacés vos:</span> {n.queHacesVos}
+                </>
+              }
+            />
+          ))}
         </div>
+      </Bloque>
 
-        {/* Fila 3 — arquitectura + Neon */}
-        <div className="grid gap-5 lg:grid-cols-2">
-          <ArchitectureDiagram componentes={d.componentes} />
-          <NeonStatus neon={d.neon} />
-        </div>
-
-        {/* Fila 4 — flujo de trabajo */}
-        <WorkflowDiagram flujo={d.flujo} />
-      </div>
-
-      {/* Nota de aislamiento (transparencia, ADR-021) */}
-      <p className="text-xs text-faint">
-        Plano de control (super-admin). Señala lo que requiere tu atención; no ejecuta nada
-        irreversible — publicar, migrar y rotar secretos siguen siendo decisión tuya.
-      </p>
+      <details className="border-t border-line-strong">
+        <summary className="flex min-h-11 cursor-pointer items-center gap-2 text-[15px] font-semibold text-strong">
+          Plan de trabajo y quién decide qué
+          <span className="text-[13px] font-normal text-muted">· anotado a mano</span>
+        </summary>
+        <ol className="mt-1">
+          {d.plan.map((t) => (
+            <Renglon
+              as="li"
+              key={t.id}
+              folio={<Marca tipo={MARCA_DE_TAREA[t.estado].tipo}>{MARCA_DE_TAREA[t.estado].palabra}</Marca>}
+              titulo={t.titulo}
+            />
+          ))}
+        </ol>
+        <dl className="mt-4 grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+          {d.flujo.map((p) => (
+            <div key={p.id} className="flex items-baseline gap-3 border-b border-line py-2">
+              <dt className="w-32 shrink-0 text-[13px] font-semibold text-strong">{p.actor}</dt>
+              <dd className="text-[13px] text-muted">{p.hace}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
     </div>
   );
 }

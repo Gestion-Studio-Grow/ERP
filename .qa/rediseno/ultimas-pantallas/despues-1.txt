@@ -1,0 +1,28 @@
+magra_apariencia 390 status=200 diseno=renglon h1="Apariencia" primer=139 sx=0 chicos(0)=
+magra_apariencia 1440 status=200 diseno=renglon h1="Apariencia" primer=186 sx=0
+magra_apariencia 360 status=200 diseno=renglon h1="Apariencia" primer=161 sx=0
+magra_auditoria 390 status=200 diseno=renglon h1="Auditoría" primer=139 sx=0 chicos(0)=
+magra_auditoria 1440 status=200 diseno=renglon h1="Auditoría" primer=186 sx=0
+magra_auditoria 360 status=200 diseno=renglon h1="Auditoría" primer=161 sx=0
+magra_localizacion 390 status=200 diseno=renglon h1="Datos del negocio" primer=180 sx=0 chicos(0)=
+magra_localizacion 1440 status=200 diseno=renglon h1="Datos del negocio" primer=186 sx=0
+magra_localizacion 360 status=200 diseno=renglon h1="Datos del negocio" primer=180 sx=0
+magra_facturacion-bancos-configuracion 390 status=200 diseno=renglon h1="Reglas de la facturación automática" primer=236 sx=0 chicos(0)=
+magra_facturacion-bancos-configuracion 1440 status=200 diseno=renglon h1="Reglas de la facturación automática" primer=222 sx=0
+magra_facturacion-bancos-configuracion 360 status=200 diseno=renglon h1="Reglas de la facturación automática" primer=236 sx=0
+chestetica_apariencia 390 status=200 diseno=renglon h1="Apariencia" primer=161 sx=0 chicos(0)=
+chestetica_apariencia 1440 status=200 diseno=renglon h1="Apariencia" primer=186 sx=0
+chestetica_apariencia 360 status=200 diseno=renglon h1="Apariencia" primer=161 sx=0
+chestetica_auditoria 390 status=200 diseno=renglon h1="Auditoría" primer=139 sx=0 chicos(0)=
+chestetica_auditoria 1440 status=200 diseno=renglon h1="Auditoría" primer=186 sx=0
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+page.evaluate: Execution context was destroyed, most likely because of a navigation
+    at /home/user/erp/.qa/rediseno/ultimas-pantallas/fotos.mjs:31:25 {
+  log: [],
+  name: 'Error'
+}
+
+Node.js v22.22.2
