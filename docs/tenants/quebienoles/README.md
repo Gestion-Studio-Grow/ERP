@@ -51,6 +51,15 @@ DOTENV_CONFIG_PATH=<.env de la base> npx tsx scripts/tenants/quebienoles-catalog
 
 El mail del OWNER es **provisional** (`dueno@quebienoles.com.ar`): cambiarlo por el real del dueño.
 
+## Gate de Excelencia (26/09/2026, auditoría en Opus)
+
+| Bloque | Resultado |
+|---|---|
+| 1 · Fiori + ángulo argentino | Rol único (quien compra) · coherente con la casa (reusa `useVidriera`, `pedido-online`, `OlvidarBolsa`, `catalogo-core`) · simple (bolsa en 2 pasos, 2 campos obligatorios) · adaptable (probado en 1440 y 375 px; piel propia por marca) · delightful (frasco 3D, estela, puertas, guía) · accesible (`<dialog>` nativo, etiquetas explícitas, `aria-live`, foco visible, contraste AA medido en tokens, movimiento reducido = cuadro quieto sin estela ni bruma) · criollo, de vos, con las frases de la marca; su canal real (Instagram) en vez de un WhatsApp que no tiene; nada de cobro online ni promesas sin fuente. |
+| 2 · Sello GSG | `generator` en /tienda y /tienda/gracias; sin crédito GSG visible en la vidriera; docs firmados. |
+| 3 · Arquitectura | Tenant + rubro reusable, sin schema nuevo; host en código con la variable ganando (MT-6); three.js en chunk propio por import dinámico (ninguna ruta lo referencia de entrada); carga de catálogo filtrada por `tenantId`, con GUC de RLS, simulación por defecto y sin borrados. |
+| 4 · Confiabilidad | `tsc` 0 · eslint 0 en lo tocado · `next build` OK · tests: 0 fallas nuevas (las 19 que quedan fallan idénticas en `origin/main` dfb99bb) · sin migraciones · regresión en producción: CH, MAGRA y Shine OK después del deploy. |
+
 ## Pendientes
 
 Ver `docs/preventa/analisis-redes-quebienoles.md` §6 (presentación de dos perfumes, Bharara Bleu, ml, stock,

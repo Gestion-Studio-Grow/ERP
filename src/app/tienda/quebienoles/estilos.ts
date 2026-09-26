@@ -38,6 +38,8 @@ export const CSS_BASE = `
   -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
 }
 .qb *,.qb *::before,.qb *::after{box-sizing:border-box}
+/* El body del ERP es crema: con esta piel, el rebote del scroll (iOS) y las barras nativas van en negro. */
+html:has(.qb),body:has(.qb){background:${FONDO};color-scheme:dark}
 .qb,.qb *{scrollbar-width:thin;scrollbar-color:rgba(216,179,106,.35) transparent}
 .qb::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:70;opacity:.055;background-image:${GRANO};mix-blend-mode:overlay}
 .qb a{color:inherit}
