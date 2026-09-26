@@ -1,0 +1,142 @@
+{
+  "etiqueta": "antes-local",
+  "url": "http://127.0.0.1:8801/",
+  "fecha": "2026-09-26T19:57:31.499Z",
+  "perfiles": {
+    "movil": {
+      "cargaMs": 1665,
+      "ttfbMs": 14,
+      "dclMs": 1611,
+      "loadMs": 1656,
+      "htmlKbCodificado": 272.8,
+      "htmlKbTransferido": 273.1,
+      "fcpMs": 684,
+      "lcp": {
+        "t": 684,
+        "tam": 58282,
+        "el": "h1",
+        "texto": "Etapa 4Major 2026",
+        "url": null
+      },
+      "cls": 0.0002,
+      "tbtMs": 164,
+      "tareasLargas": 6,
+      "recursos": {
+        "link @ fonts.googleapis.com": {
+          "n": 1,
+          "kbCodificado": 0,
+          "kbTransferido": 0
+        }
+      },
+      "anchoDoc": 390,
+      "anchoVista": 390,
+      "desbordan": [
+        "div.glow right=745",
+        "svg.[object right=468",
+        "g.[object right=413",
+        "path.[object right=413"
+      ],
+      "interactivos": 70,
+      "toquesMenores44": 13,
+      "muestraToques": [
+        "a.wm 138x32 \"\"",
+        "button.btn 300x40 \"Ver reglamento com\"",
+        "a. 334x34 \"Torneos y eventos\"",
+        "a. 334x34 \"Ranking\"",
+        "a. 334x34 \"Jugadores\"",
+        "a. 334x34 \"Sedes\"",
+        "a. 334x34 \"Quiénes somos\"",
+        "a. 334x34 \"Reglamento\"",
+        "a. 334x34 \"Recategorizaciones\"",
+        "a. 334x34 \"Sanciones\"",
+        "a. 334x34 \"@circuitowpe\"",
+        "a. 334x34 \"Accesos rápidos\""
+      ],
+      "contraste": {
+        "evaluados": 641,
+        "sinFondoMedible": 2,
+        "fallanAA": 2,
+        "muestra": [
+          "13.04 button.btn \"Sin cupo\" op=0.42",
+          "13.04 button.btn \"Sin cupo\" op=0.42"
+        ]
+      },
+      "titulo": "Circuito WPE · Pádel Amateur AMBA — Etapa 4 Major 2026",
+      "canonical": null,
+      "ogImage": null,
+      "descripcion": "Circuito WPE — torneos de pádel amateur en AMBA. Etapa 4 Major 2026: inscripción abierta.",
+      "generator": null,
+      "focoSinIndicador": 0,
+      "muestraFoco": [],
+      "errores": [
+        "requestfailed: https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap net::ERR_CERT_AUTHORITY_INVALID",
+        "console: Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      ]
+    },
+    "escritorio": {
+      "cargaMs": 335,
+      "ttfbMs": 3,
+      "dclMs": 305,
+      "loadMs": 327,
+      "htmlKbCodificado": 272.8,
+      "htmlKbTransferido": 273.1,
+      "fcpMs": 348,
+      "lcp": {
+        "t": 348,
+        "tam": 120771,
+        "el": "h1",
+        "texto": "Etapa 4Major 2026",
+        "url": null
+      },
+      "cls": 0,
+      "tbtMs": 5,
+      "tareasLargas": 3,
+      "recursos": {
+        "link @ fonts.googleapis.com": {
+          "n": 1,
+          "kbCodificado": 0,
+          "kbTransferido": 0
+        }
+      },
+      "anchoDoc": 1430,
+      "anchoVista": 1440,
+      "desbordan": [],
+      "interactivos": 77,
+      "toquesMenores44": 64,
+      "muestraToques": [
+        "a.wm 172x40 \"\"",
+        "a.on 58x35 \"Inicio\"",
+        "a. 97x35 \"Institucional\"",
+        "a. 137x35 \"Torneos y Eventos\"",
+        "a. 89x35 \"Jugadores\"",
+        "a. 76x35 \"Ranking\"",
+        "a. 64x35 \"Sedes\"",
+        "input. 210x36 \"Buscador del sitio\"",
+        "button.btn 89x40 \"Acceder\"",
+        "button.btn 104x40 \"Inscribirse\"",
+        "button.on 64x30 \"Todas\"",
+        "button. 88x30 \"Caballeros\""
+      ],
+      "contraste": {
+        "evaluados": 659,
+        "sinFondoMedible": 2,
+        "fallanAA": 2,
+        "muestra": [
+          "13.04 button.btn \"Sin cupo\" op=0.42",
+          "13.04 button.btn \"Sin cupo\" op=0.42"
+        ]
+      },
+      "titulo": "Circuito WPE · Pádel Amateur AMBA — Etapa 4 Major 2026",
+      "canonical": null,
+      "ogImage": null,
+      "descripcion": "Circuito WPE — torneos de pádel amateur en AMBA. Etapa 4 Major 2026: inscripción abierta.",
+      "generator": null,
+      "focoSinIndicador": 0,
+      "muestraFoco": [],
+      "errores": [
+        "requestfailed: https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap net::ERR_CERT_AUTHORITY_INVALID",
+        "console: Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+      ]
+    }
+  }
+}

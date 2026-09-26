@@ -1,0 +1,70 @@
+# Foco con Tab (escritorio, 70 Tab) y toques < 44 px en 5 estados a 390 px
+## Antes del pulido de la porción 2
+escritorio: 64 focos con Tab, sin indicador (contorno o sombra): 1
+  - div.pal-box > div.pal-in > input#palInput [Buscá — 'caballeros 5ta', 'ranking', 'gran willy', un jugador…] borde: rgb(244, 244, 242)
+móvil inicio: ancho 390/390, toques < 44: 11
+  - a. 334x34 "Torneos y evento"
+  - a. 334x34 "Ranking"
+  - a. 334x34 "Jugadores"
+  - a. 334x34 "Sedes"
+  - a. 334x34 "Quiénes somos"
+  - a. 334x34 "Reglamento"
+  - a. 334x34 "Recategorizacion"
+  - a. 334x34 "Sanciones"
+  - a. 334x34 "@circuitowpe"
+  - a. 334x34 "Accesos rápidos"
+  - button.f-orglink 104x19 "Modo organizador"
+móvil menú abierto: ancho 390/390, toques < 44: 11
+  - a. 334x34 "Torneos y evento"
+  - a. 334x34 "Ranking"
+  - a. 334x34 "Jugadores"
+  - a. 334x34 "Sedes"
+  - a. 334x34 "Quiénes somos"
+  - a. 334x34 "Reglamento"
+  - a. 334x34 "Recategorizacion"
+  - a. 334x34 "Sanciones"
+  - a. 334x34 "@circuitowpe"
+  - a. 334x34 "Accesos rápidos"
+  - button.f-orglink 104x19 "Modo organizador"
+móvil inscripción abierta: ancho 390/390, toques < 44: 14
+  - a. 334x34 "Torneos y evento"
+  - a. 334x34 "Ranking"
+  - a. 334x34 "Jugadores"
+  - a. 334x34 "Sedes"
+  - a. 334x34 "Quiénes somos"
+  - a. 334x34 "Reglamento"
+  - a. 334x34 "Recategorizacion"
+  - a. 334x34 "Sanciones"
+  - a. 334x34 "@circuitowpe"
+  - a. 334x34 "Accesos rápidos"
+  - button.f-orglink 104x19 "Modo organizador"
+  - button.m-x 38x38 "Cerrar"
+  - input. 13x15 ""
+  - a. 135x15 "reglamento del c"
+móvil modo organizador: ancho 390/390, toques < 44: 16
+  - a. 334x34 "Torneos y evento"
+  - a. 334x34 "Ranking"
+  - a. 334x34 "Jugadores"
+  - a. 334x34 "Sedes"
+  - a. 334x34 "Quiénes somos"
+  - a. 334x34 "Reglamento"
+  - a. 334x34 "Recategorizacion"
+  - a. 334x34 "Sanciones"
+  - a. 334x34 "@circuitowpe"
+  - a. 334x34 "Accesos rápidos"
+  - button.f-orglink 104x19 "Modo organizador"
+  - button.m-x 38x38 "Cerrar"
+  - button. 155x40 "Jugador"
+  - button.on 155x40 "Organizador"
+errores de consola: 0 
+## Después
+escritorio: 64 focos con Tab, sin indicador (contorno o sombra): 0
+móvil inicio: ancho 390/390, toques < 44: 0 (+0 exentos)
+  menú abierto: true
+móvil menú abierto: ancho 390/390, toques < 44: 0 (+0 exentos)
+móvil inscripción abierta: ancho 390/390, toques < 44: 0 (+2 exentos)
+  - EXENTO: su blanco es la fila (label 58 px) · input. 20x20 ""
+  - EXENTO: su blanco es la fila (label 58 px) · a. 135x15 "reglamento del c"
+móvil modo organizador: ancho 390/390, toques < 44: 0 (+0 exentos)
+móvil pestaña Organizador: ancho 390/390, toques < 44: 0 (+0 exentos)
+errores de consola: 0 

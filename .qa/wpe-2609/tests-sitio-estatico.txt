@@ -1,0 +1,118 @@
+TAP version 13
+# Subtest: el negocio circuito-wpe tiene su sitio en el subdominio wpe
+ok 1 - el negocio circuito-wpe tiene su sitio en el subdominio wpe
+  ---
+  duration_ms: 1.46321
+  type: 'test'
+  ...
+# Subtest: la raíz y los adjuntos de wpe.gsgapp.com.ar van al manejador del sitio
+ok 2 - la raíz y los adjuntos de wpe.gsgapp.com.ar van al manejador del sitio
+  ---
+  duration_ms: 2.041396
+  type: 'test'
+  ...
+# Subtest: ningún otro host se reescribe: CH, Magra, Qué Bien Olés y los parecidos siguen en su página
+ok 3 - ningún otro host se reescribe: CH, Magra, Qué Bien Olés y los parecidos siguen en su página
+  ---
+  duration_ms: 0.419594
+  type: 'test'
+  ...
+# Subtest: el host que reescribe next.config es el mismo que tenant.ts resuelve al subdominio del sitio
+ok 4 - el host que reescribe next.config es el mismo que tenant.ts resuelve al subdominio del sitio
+  ---
+  duration_ms: 0.359177
+  type: 'test'
+  ...
+# Subtest: el patrón de host escapa el subdominio y exige un dominio detrás
+ok 5 - el patrón de host escapa el subdominio y exige un dominio detrás
+  ---
+  duration_ms: 0.18622
+  type: 'test'
+  ...
+# Subtest: el negocio dueño recibe su página con tipo, caché privada y cabeceras de seguridad
+ok 6 - el negocio dueño recibe su página con tipo, caché privada y cabeceras de seguridad
+  ---
+  duration_ms: 51.158553
+  type: 'test'
+  ...
+# Subtest: aislamiento: otro negocio, o un host sin negocio, no ve el sitio ni se lee nada del disco
+ok 7 - aislamiento: otro negocio, o un host sin negocio, no ve el sitio ni se lee nada del disco
+  ---
+  duration_ms: 4.605378
+  type: 'test'
+  ...
+# Subtest: sólo se sirven los archivos registrados: nada de rutas armadas desde la URL
+ok 8 - sólo se sirven los archivos registrados: nada de rutas armadas desde la URL
+  ---
+  duration_ms: 1.804124
+  type: 'test'
+  ...
+# Subtest: el registro no repite negocios ni subdominios y los subdominios son válidos
+ok 9 - el registro no repite negocios ni subdominios y los subdominios son válidos
+  ---
+  duration_ms: 0.628663
+  type: 'test'
+  ...
+# Subtest: cada archivo registrado existe y su carpeta entra en el trazado de la función
+ok 10 - cada archivo registrado existe y su carpeta entra en el trazado de la función
+  ---
+  duration_ms: 0.658101
+  type: 'test'
+  ...
+# Subtest: el cuerpo del sitio es el que vio el cliente: el pulido sólo tocó el <head>
+ok 11 - el cuerpo del sitio es el que vio el cliente: el pulido sólo tocó el <head>
+  ---
+  duration_ms: 3.9636
+  type: 'test'
+  ...
+# Subtest: metadatos: canónica y tarjeta con la dirección propia, sello GSG sólo en metadatos
+ok 12 - metadatos: canónica y tarjeta con la dirección propia, sello GSG sólo en metadatos
+  ---
+  duration_ms: 1.668708
+  type: 'test'
+  ...
+# Subtest: la tipografía es propia: sin Google Fonts y con la fuente precargada que existe en public/
+ok 13 - la tipografía es propia: sin Google Fonts y con la fuente precargada que existe en public/
+  ---
+  duration_ms: 6.100856
+  type: 'test'
+  ...
+# Subtest: el respaldo de la fuente carga también en Android y Linux, donde no hay Arial
+ok 14 - el respaldo de la fuente carga también en Android y Linux, donde no hay Arial
+  ---
+  duration_ms: 1.69329
+  type: 'test'
+  ...
+# Subtest: toques de 44 px con el dedo en menú, logo, botones, pie y modales
+ok 15 - toques de 44 px con el dedo en menú, logo, botones, pie y modales
+  ---
+  duration_ms: 4.113381
+  type: 'test'
+  ...
+# Subtest: todo foco con teclado se ve: la búsqueda rápida recupera su anillo
+ok 16 - todo foco con teclado se ve: la búsqueda rápida recupera su anillo
+  ---
+  duration_ms: 1.739592
+  type: 'test'
+  ...
+# Subtest: sello GSG sólo en metadatos (ADR-043): el pie no lo muestra
+ok 17 - sello GSG sólo en metadatos (ADR-043): el pie no lo muestra
+  ---
+  duration_ms: 1.653376
+  type: 'test'
+  ...
+# Subtest: el ingreso al panel de WPE lleva su nombre, no el "Mi negocio" de un negocio sin ficha
+ok 18 - el ingreso al panel de WPE lleva su nombre, no el "Mi negocio" de un negocio sin ficha
+  ---
+  duration_ms: 82.367283
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 18
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1411.868306

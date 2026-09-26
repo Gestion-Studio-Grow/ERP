@@ -1,0 +1,19 @@
+wpe.localhost                      /                                          → 200 280711B 0.868038s | text/html; charset=utf-8 |  | h1:1 canonical:1
+wpe.localhost                      /manual.pdf                                → 200 16825B 0.148359s | application/pdf | 
+wpe.localhost                      /og.png                                    → 200 52406B 0.049029s | image/png | 
+wpe.localhost                      /apple-touch-icon.png                      → 200 7942B 0.023478s | image/png | 
+wpe.localhost                      /tenants/circuito-wpe/fuentes/…woff2     → 200 48256B 0.008951s | font/woff2 | 
+wpe.localhost                      /admin                                     → 307 26B 0.006252s |  | /admin/login?next=%2Fadmin
+wpe.localhost                      /admin/login                               → 200 18768B 0.673264s | text/html; charset=utf-8 |  | WPE:0
+chestetica.localhost (CH)          /                                          → 200 63775B 0.371294s | text/html; charset=utf-8 |  | WPE:0 title:Panel de gestión
+chestetica.localhost (CH)          /sitio-estatico (aislamiento)              → 404 13B 0.073385s | text/plain; charset=utf-8 |  | No encontrado
+chestetica.localhost (CH)          /sitio-estatico/manual.pdf                 → 404 13B 0.029593s | text/plain; charset=utf-8 | 
+chestetica.localhost (CH)          /manual.pdf                                → 404 12095B 0.102828s | text/html; charset=utf-8 | 
+magra.localhost                    /                                          → 307 13868B 0.077846s | text/html; charset=utf-8 | /tienda
+adosmanos.localhost                /                                          → 307 13539B 0.057088s | text/html; charset=utf-8 | /tienda
+shinevelas.localhost               /tienda                                    → 200 78367B 0.215545s | text/html; charset=utf-8 |  | WPE:0
+sinnegocio.localhost               /sitio-estatico                            → 404 13B 0.025669s | text/plain; charset=utf-8 | 
+localhost (consola Soporte)        /operador                                  → 200 201018B 0.210816s | text/html; charset=utf-8 |  | 'Circuito WPE':2 circuito-wpe:1
+wpe.localhost SIN negocio          /                                          → 404 13B 0.045299s | text/plain; charset=utf-8 |  | No encontrado | WPE:0
+wpe.localhost SIN negocio          /manual.pdf                                → 404 13B 0.015034s | text/plain; charset=utf-8 | 
+wpe.localhost (restaurado)         /                                          → 200 280711B 0.047473s | text/html; charset=utf-8 | 
