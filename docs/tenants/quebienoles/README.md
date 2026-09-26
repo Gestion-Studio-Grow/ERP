@@ -23,7 +23,8 @@ El pedido es el del ERP: `useVidriera` → `placeOnlineOrder` → bandeja `/admi
 | Recomendador «¿No sabés cuál elegir?» | `recomendador.ts` |
 | Gracias con la marca | `GraciasQuebienoles.tsx` (enganchado en `src/app/tienda/gracias/page.tsx`) |
 | Copy textual de la marca | `src/tenants/storefront.ts` → `quebienoles` |
-| Host publicado | `HOSTS_PUBLICADOS` en `src/lib/tenant.ts` (`quebienoles-erp.vercel.app` → subdominio `quebienoles`) |
+| Dirección | **`https://quebienoles.gsgapp.com.ar`** — dominio propio de GSG (438df9e): `APP_BASE_DOMAIN` + comodín `*.gsgapp.com.ar` en Vercel, resuelve por `Tenant.subdomain = quebienoles` |
+| Dirección alternativa | `https://quebienoles-erp.vercel.app` — `HOSTS_PUBLICADOS` en `src/lib/tenant.ts`; sigue andando |
 | Fuentes (OFL, auto-hospedadas, ADR-099) | `public/tenants/quebienoles/fuentes/` |
 | Fotos de frascos | `public/tenants/quebienoles/perfumes/` (+ `ASSET_MANIFEST.json`) |
 
@@ -47,7 +48,8 @@ DOTENV_CONFIG_PATH=<.env de la base> npx tsx scripts/tenants/quebienoles-catalog
 DOTENV_CONFIG_PATH=<.env de la base> npx tsx scripts/tenants/quebienoles-catalogo.ts --apply
 DOTENV_CONFIG_PATH=<.env de la base> npx tsx scripts/tenants/quebienoles-catalogo.ts
 
-# 3. Dominio: sumar quebienoles-erp.vercel.app al proyecto de Vercel del ERP (el mismo de todos los tenants)
+# 3. Dirección: con el dominio propio alcanza con el subdominio del paso 2 (quebienoles.gsgapp.com.ar la resuelve el
+#    comodín). El .vercel.app (quebienoles-erp.vercel.app, agregado al proyecto el 26/09) queda como alternativa.
 ```
 
 El mail del OWNER es **provisional** (`dueno@quebienoles.com.ar`): cambiarlo por el real del dueño.

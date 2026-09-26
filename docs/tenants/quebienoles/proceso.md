@@ -20,7 +20,7 @@ sin pagar). **Confirmado** también existe (un pedido ya acordado) y **Anulado**
 
 ## Cómo se hace cada paso en el panel (verificado en la demo local el 26/09/2026)
 
-**Entrar:** `https://quebienoles-erp.vercel.app/admin/login`. El **Inicio** muestra ventas e ingresos del día y
+**Entrar:** `https://quebienoles.gsgapp.com.ar/admin/login` (también `quebienoles-erp.vercel.app`). El **Inicio** muestra ventas e ingresos del día y
 **"Perfumes para reponer"** (los que están bajo el mínimo), con acceso directo a Compras.
 
 1. **Un pedido llegó por Instagram** → **Pedidos** → arriba, **"Pedido (punto de encuentro / envío)"**. Buscá el
