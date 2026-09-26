@@ -1,0 +1,54 @@
+# ANTES del arreglo: código del commit b8d2fa3 (sólo el arnés como producción) con el test nuevo/actualizado.
+# Comando: node --import tsx --test <archivo> en /tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/consola-rls/../wt-sinfix
+TAP version 13
+# Subtest: cron de ARCA con la consola sujeta a RLS: encuentra el envío de cada negocio y lo despacha en el suyo; la falla de A queda en A y B se autoriza
+not ok 1 - cron de ARCA con la consola sujeta a RLS: encuentra el envío de cada negocio y lo despacha en el suyo; la falla de A queda en A y B se autoriza
+  ---
+  duration_ms: 4371.616962
+  type: 'test'
+  location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/wt-sinfix/src/lib/arca-procesador-sin-operador-postgres.test.ts:2:2927'
+  failureType: 'testCodeFailure'
+  error: 'procesador de ARCA sin acceso: falta OPERATOR_DATABASE_URL y la conexión de la app (rol app_rls) no ve los envíos de todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño.'
+  code: 'ERR_TEST_FAILURE'
+  name: 'ProcesadorArcaSinAccesoError'
+  stack: |-
+    verificarAccesoDelOperador (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/wt-sinfix/src/lib/arca-reserva.ts:244:9)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Object.processArcaOutbox (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/wt-sinfix/src/lib/arca-dispatch.ts:264:3)
+    async TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/wt-sinfix/src/lib/arca-procesador-sin-operador-postgres.test.ts:89:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# {"ts":"2026-09-26T20:58:11.411Z","level":"error","scope":"arca","msg":"el cron de ARCA no ve los envíos de todos los negocios","err":{"name":"ProcesadorArcaSinAccesoError","message":"procesador de ARCA sin acceso: falta OPERATOR_DATABASE_URL y la conexión de la app (rol app_rls) no ve los envíos de todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño.","stack":"ProcesadorArcaSinAccesoError: procesador de ARCA sin acceso: falta OPERATOR_DATABASE_URL y la conexión de la app (rol app_rls) no ve los envíos de todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño.\\n    at verificarAccesoDelOperador (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/wt-sinfix/src/lib/arca-reserva.ts:244:9)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async processArcaOutbox (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/wt-sinfix/src/lib/arca-dispatch.ts:264:3)\\n    at async GET (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/wt-sinfix/src/app/api/cron/arca-outbox/route.ts:39:21)\\n    at async TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/wt-sinfix/src/lib/arca-procesador-sin-operador-postgres.test.ts:123:14)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# Subtest: la ruta del cron sin OPERATOR_DATABASE_URL responde ok y despacha lo de los dos negocios; /api/ready 200 con la facturación encendida o apagada
+not ok 2 - la ruta del cron sin OPERATOR_DATABASE_URL responde ok y despacha lo de los dos negocios; /api/ready 200 con la facturación encendida o apagada
+  ---
+  duration_ms: 247.608788
+  type: 'test'
+  location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/wt-sinfix/src/lib/arca-procesador-sin-operador-postgres.test.ts:2:4797'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    500 !== 200
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 200
+  actual: 500
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/wt-sinfix/src/lib/arca-procesador-sin-operador-postgres.test.ts:126:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5581.807947

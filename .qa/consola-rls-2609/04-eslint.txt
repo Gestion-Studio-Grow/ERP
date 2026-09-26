@@ -1,0 +1,2 @@
+# npx eslint --max-warnings=0 sobre los 43 archivos .ts/.mts tocados entre 760ea02 y 27b7d82
+exit=0

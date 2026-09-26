@@ -1,0 +1,118 @@
+# Suite completa con SÓLO el arnés como producción (commit b8d2fa3: OPERATOR_DATABASE_URL = app_rls), código sin arreglar.
+# Corrida en un árbol temporal (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/wt-sinfix) al mismo commit, npm test completo, 2026-09-26.
+# tests 4281
+# suites 42
+# pass 4207
+# fail 74
+# cancelled 0
+# skipped 0
+# duration_ms 713364.923932
+
+## Fallas por archivo
+     19 src/lib/arca-dispatch-postgres.test.ts
+      8 src/lib/operador/pase-a-real-postgres.test.ts
+      7 src/lib/umbral-en-los-seis-caminos-postgres.test.ts
+      5 src/app/admin/(dashboard)/vender/vender-pantalla.test.ts
+      3 src/plugins/bancos/parser/xlsx.test.ts
+      3 src/lib/facturar-venta-anulada-postgres.test.ts
+      3 src/lib/facturar-turno-con-cobro-anulado-postgres.test.ts
+      3 src/lib/circuito-fiscal-auditoria-postgres.test.ts
+      3 src/lib/arca-envios-concurrencia-postgres.test.ts
+      2 src/lib/mercadopago-doble-factura-postgres.test.ts
+      2 src/lib/comprobante-autorizado-inmutable-postgres.test.ts
+      2 src/lib/client-actions.test.ts
+      2 src/lib/arca-envios-por-negocio-postgres.test.ts
+      2 src/lib/anular-venta-facturada-postgres.test.ts
+      1 src/plugins/bancos/handler.test.ts
+      1 src/lib/tope-facturas-postgres.test.ts
+      1 src/lib/reintento-de-venta-postgres.test.ts
+      1 src/lib/fiscal/datos-fiscales-de-venta.test.ts
+      1 src/lib/facturar-venta-rechazada-postgres.test.ts
+      1 src/lib/cupones/cupon-de-reserva-postgres.test.ts
+      1 src/lib/caja/un-solo-esperado-relevo-postgres.test.ts
+      1 src/lib/caja/un-solo-esperado-pantalla-postgres.test.ts
+      1 src/lib/caja/un-solo-esperado-dias-cerrados-postgres.test.ts
+      1 src/lib/caja/un-solo-esperado-apertura-postgres.test.ts
+      1 src/cambios/interruptores-escritura.test.ts
+
+## Por causa
+- 'procesador de ARCA sin acceso' (el cron exigía una conexión exenta de RLS; CÓDIGO): 23 tests (primer error de cada falla; ver 01b-causas-por-falla.txt)
+- 'new row violates row-level security policy' (tests que sembraban con la consola como si fuera el dueño): 17 tests
+- el resto: verificaciones que leían con la consola (0 filas o 'Record to update not found'), el test de ENG-012 que exigía operador = dueño, y las previas de entorno (xlsx x4, navegador de Vender x4 + el padre).
+
+## Todas las fallas
+    not ok 49 - POS de la bandeja: un pedido con la red caída conserva los datos del cliente y lo cargado
+    not ok 54 - ticket: después de cargar el peso el foco vuelve al buscador SIN abrir la lista (un toque no cae sobre otro corte)
+    not ok 55 - ticket: se corta la señal a mitad del cobro y el reintento es la MISMA venta (misma clave)
+    not ok 56 - ticket en el celular (412 px) con la piel: el botón de cobrar a la vista, arriba de la cápsula, sin scroll de costado
+not ok 414 - Vender en el navegador
+not ok 746 - contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, aislar y apagar
+not ok 955 - anularVenta: con factura autorizada o en camino se rechaza y el pedido no se anula; con la rechazada se anula; B no la toca
+not ok 956 - anularCobroTurno: con factura autorizada del turno se rechaza y el cobro sigue en pie; rechazada la factura, se anula
+not ok 957 - ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+not ok 958 - ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+not ok 959 - ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+not ok 960 - ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+not ok 961 - ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+not ok 962 - ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+not ok 963 - ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+not ok 964 - ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+not ok 965 - ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+not ok 966 - ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+not ok 967 - aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+not ok 968 - ENG-020 · dos ventas iguales a consumidor final: la que perdió el pedido no adopta el CAE de la otra; cada una con su número
+not ok 969 - ENG-020/021 · la consulta del número anotado falla con un código desconocido: la factura sigue pendiente (no se rechaza) y un solo CAE
+not ok 970 - ENG-021 · volver a facturar con un envío viejo sin cerrar (corte entre el rechazo y el cierre): un solo envío vivo, un CAE, y el CAE es el de los importes nuevos
+not ok 971 - ENG-021 · un despacho viejo que obtiene el CAE DESPUÉS de que la venta se volvió a facturar no lo registra en la factura reabierta
+not ok 972 - ENG-021 · un despacho viejo que recibe un rechazo DESPUÉS de que la venta se volvió a facturar no rechaza la factura reabierta
+not ok 973 - ENG-021 · un envío que quedó abierto para una factura ya rechazada se cierra sin volver a pedirle nada a ARCA
+not ok 974 - ENG-019 · mientras un despacho tiene el envío, otro no lo toma ni le pide nada a ARCA; ARCA termina con un CAE
+not ok 975 - ENG-019 · un despacho que perdió la reserva (se colgó más que ella) no anota ni pide el CAE: lo hace el que la tomó
+not ok 987 - ENG-019 · 4 procesos a la vez sobre 12 pendientes de dos negocios, 3 series seguidas: 12 CAE por serie, ninguno de más, números de ARCA = base
+not ok 988 - ENG-019 · 50 de 50 iteraciones: dos ventas simultáneas de A y una de B con tres despachos a la vez → 0 CAE de más, 0 rechazadas con CAE, números de ARCA = base
+not ok 989 - ENG-019 · 20 envíos de A que fallan y 1 de B: B queda autorizada en la PRIMERA corrida
+not ok 990 - ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan intactos y el resumen cuenta sólo los de A
+not ok 991 - ENG-012 · la acción de A no toma un envío de B aunque sea el único pendiente (0 procesados, B sin intentos)
+not ok 1366 - contra Postgres: la diferencia al abrir se muestra, se confirma y queda una vez, con quién y cuándo; el día no la repite; B no se mezcla
+not ok 1367 - contra Postgres: los días cerrados no se tocan; la diferencia real al abrir y la del arqueo quedan una vez cada una; lo que no pasó por el turno también cuenta
+not ok 1368 - contra Postgres: lo que la pantalla muestra como esperado es lo que el cierre asienta; una pantalla vieja no cierra
+not ok 1369 - contra Postgres: una apertura que coincide con el libro no escribe diferencia (cambio de turno sin plata en juego)
+not ok 1547 - circuito · venta → factura → envío → CAE por el camino de la venta, y dos ventas facturadas a la vez: un CAE y un número cada una; el comprobante con CAE no se edita ni se borra desde la app
+not ok 1548 - ENG-020/021 · volver a facturar la venta A rechazada no cierra el envío abierto de la factura B del mismo negocio: A y B terminan autorizadas, un CAE cada una
+not ok 1549 - aislamiento · el negocio A no puede volver a facturar la venta rechazada del negocio B: error, y la factura de B no cambia ni gana envíos
+not ok 1550 - la dueña guarda la ficha fiscal de su cliente: queda normalizada y auditada con el valor anterior
+not ok 1553 - inscripto: B a consumidor final por el camino completo; la A que el impreso no puede entregar no se promete; la A común a la inscripta sale del despacho del plugin contra el simulador
+not ok 1651 - sin CAE sigue permitido editar y borrar; el paso normal de pendiente a autorizada (código real) funciona
+not ok 1653 - con CAE: vaciar a mano el pedido o el turno falla, como app_rls y como dueño; la venta no se puede facturar dos veces
+not ok 1788 - contra Postgres (app_rls + RLS): la reserva de turno y su vista previa descuentan lo mismo, y un cupón que no descuenta nada no se gasta
+not ok 1972 - anulación del cobro primero: la facturación del turno espera el bloqueo y termina sin factura
+not ok 1973 - se anula una parte del cobro mientras se factura: no sale la factura por el monto viejo; al volver a facturar, sale por lo cobrado
+not ok 1974 - facturación del turno primero: «Anular cobro» espera, ve la factura en camino y no anula
+not ok 1975 - facturar un pedido anulado no crea factura ni envío; con una rechazada, no la reabre
+not ok 1976 - anulación primero: «Facturar» espera el bloqueo del pedido y termina sin factura, con el motivo
+not ok 1977 - facturación primero: «Anular venta» espera, ve la factura en camino y no anula
+not ok 1978 - facturarVenta sobre una venta con factura rechazada: la misma factura se reabre y termina autorizada; B no la ve
+not ok 2049 - lee de la base la ficha del cliente y los productos de la venta con su alícuota; la venta de otro negocio da null
+not ok 2335 - turno cobrado por link de Mercado Pago y facturado por el aviso: «Sincronizar Mercado Pago» no emite otra factura por el mismo cobro
+not ok 2336 - «Sincronizar Mercado Pago»: el cobro del link de un pedido no sale como venta suelta; la venta suelta sí, una sola vez
+    not ok 2 - con todo en regla pasa a real y deja una fila de AuditLog sin material del certificado
+    not ok 3 - la vuelta a pruebas funciona sin ningún dato (ni CUIT, ni certificado, ni huella, ni slug)
+    not ok 4 - dos confirmaciones a la vez: un solo cambio y una sola fila de AuditLog
+    not ok 5 - con la huella vieja (la ficha cambió después de mirarla) no cambia nada
+    not ok 6 - sin el slug escrito no pasa; con el de otro negocio, tampoco
+    not ok 7 - CH: un operador que no es el dueño no pasa ni vuelve; el dueño tiene que escribir el slug
+    not ok 8 - comprobantes de la etapa de pruebas: esperando CAE o autorizados en pruebas niegan sin cambiar nada
+not ok 2509 - pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH y aislamiento
+not ok 2798 - contra Postgres (app_rls + RLS): el reintento con una clave grabada se compara con lo grabado
+not ok 3246 - camino real: emitir suma un lugar del tope y el rechazo de ARCA lo devuelve
+not ok 3357 - pedido (facturarOrden): sin identificar desde el umbral no emite y deja el motivo; un peso menos, emite
+not ok 3358 - pedido (facturarOrden) con emisor inscripto e IVA parejo: no emite y deja el motivo
+not ok 3359 - turno (facturarAppointment): sin identificar desde el umbral no emite; inscripto con IVA parejo tampoco
+not ok 3360 - Mercado Pago (facturarPagoMP): sin identificar desde el umbral no emite; inscripto con IVA parejo tampoco
+not ok 3361 - facturita (emitirFacturitaAction, Server Action real): sin identificar desde el umbral no emite y deja el motivo
+not ok 3362 - bancos (emitirPropuestasAction, Server Action real): un movimiento sin identificar desde el umbral no emite y deja el motivo
+not ok 3363 - API externa (createExternalOrder): un pedido sin identificar desde el umbral no emite y deja el motivo
+not ok 3916 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+not ok 3939 - lee un xlsx con fechas Date y números number
+not ok 3940 - filas totalmente vacías se descartan
+not ok 3941 - esXlsx reconoce el magic ZIP de un .xlsx real
