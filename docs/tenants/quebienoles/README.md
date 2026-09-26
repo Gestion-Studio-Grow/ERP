@@ -5,8 +5,9 @@
 - **26/09/2026 — Maxi (dueño de GSG), en sesión:** pidió relevar `@quebienoles` y desarrollar su tienda con el
   estándar GSG, y autorizó explícitamente "TE AUTORIZO A TODO, GENERA UN SUBLINK EN VERCEL COMO LOS Q ESTAMOS
   TRABAJANDO Y ENTREGAME USUARIO Y PASSWORD PARA OPERARLO".
-- **OK de Qué Bien Olés (el cliente) para usar su marca:** **[A VALIDAR]** — no consta en esta sesión. Lo
-  gestiona el dueño de GSG antes de mostrarle la tienda al cliente.
+- **OK de Qué Bien Olés (el cliente) para usar su marca:** **[VERIFICADO por el dueño de GSG]** — 26/09/2026,
+  Maxi en sesión: "ten el ok, avanza" (respuesta al pendiente "conseguir el OK de Qué Bien Olés para usar su
+  marca antes de mostrarle la tienda").
 
 ## Qué es
 

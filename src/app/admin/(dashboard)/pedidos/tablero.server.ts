@@ -13,6 +13,7 @@
 // «Entregar» y la fila diga «Listo · avisado 10:12». Sólo de los pedidos Listos, filtrada por
 // negocio, y sólo con el diseño nuevo prendido.
 
+import { ENTREGA_POR_DEFECTO, type EntregaWording } from "@/blueprints/retail/rubros";
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -133,6 +134,8 @@ export function armarTablero(e: {
   cerrados: readonly OrdenCerrada[];
   comercio: boolean;
   hoy: string;
+  /** Cómo se llama el retiro en el rubro (entregaDelRubro): "Retira" o "Encuentro". */
+  entrega?: EntregaWording;
   local: { negocio: string; direccion: string | null; horario: string | null } | null;
   links: ReadonlyMap<string, LinkEnviado>;
   cupones: ReadonlyMap<string, CuponDelPedido>;
@@ -143,7 +146,8 @@ export function armarTablero(e: {
 }): { abiertos: PedidoDelTablero[]; cerrados: PedidoCerrado[]; extras: Record<string, ExtraDelPedido> } {
   const extras: Record<string, ExtraDelPedido> = {};
   const abiertos = e.abiertos.map((o): PedidoDelTablero => {
-    const horario = e.comercio && o.scheduledFor ? etiquetaDeHorario(o.scheduledFor, o.fulfillment, e.hoy) : null;
+    const entrega = e.entrega ?? ENTREGA_POR_DEFECTO;
+    const horario = e.comercio && o.scheduledFor ? etiquetaDeHorario(o.scheduledFor, o.fulfillment, e.hoy, entrega.corto) : null;
     const avisoWa =
       e.local && o.status === "READY"
         ? waLinkClienta(
@@ -158,6 +162,7 @@ export function armarTablero(e: {
               negocio: e.local.negocio,
               direccionLocal: e.local.direccion,
               horarioLocal: e.local.horario,
+              listoPara: entrega.listoPara,
             }),
           )
         : null;

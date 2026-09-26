@@ -51,6 +51,8 @@ import {
   type PedidoDelTablero,
 } from "./pedidos-core";
 import type { ExtraDelPedido } from "./tablero.server";
+import { useVocabulario } from "../VocabularioDelNegocio";
+import { tituloDeEntrega } from "@/lib/vocabulario-negocio";
 
 type Anulacion = { motivoObligatorio: boolean } | null;
 
@@ -248,6 +250,7 @@ function LoteDePedidos({
 
 /** Avisar a varios: el WhatsApp lo abre una persona, uno por uno (el sistema no manda nada solo). */
 function AvisarUnoPorUno({ pedidos, onCerrar }: { pedidos: PedidoDelTablero[]; onCerrar: () => void }) {
+  const vocab = useVocabulario();
   const [abiertos, setAbiertos] = useState<Set<string>>(() => new Set());
   return (
     <Dialogo
@@ -267,7 +270,7 @@ function AvisarUnoPorUno({ pedidos, onCerrar }: { pedidos: PedidoDelTablero[]; o
             key={p.id}
             folio={`#${p.code}`}
             titulo={p.cliente}
-            detalle={p.horario?.texto ?? (p.entrega === "DELIVERY" ? "Envío" : "Retira")}
+            detalle={p.horario?.texto ?? (p.entrega === "DELIVERY" ? "Envío" : vocab.corto)}
             tecla={
               abiertos.has(p.id) ? (
                 <Marca tipo="hecho">Abierto</Marca>
@@ -299,6 +302,7 @@ function AvisarUnoPorUno({ pedidos, onCerrar }: { pedidos: PedidoDelTablero[]; o
 // ── Estado del pedido, en la fila ────────────────────────────────────────────
 
 function EstadoDeFila({ p, comercio }: { p: PedidoDelTablero; comercio: boolean }) {
+  const vocab = useVocabulario();
   const riel = rielDelPedido(p, comercio);
   return (
     <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -309,7 +313,7 @@ function EstadoDeFila({ p, comercio }: { p: PedidoDelTablero; comercio: boolean 
       </span>
       <Marca tipo={riel.tipo}>{riel.palabra}</Marca>
       <span className="text-muted sm:hidden">
-        {[p.horario?.texto ?? (p.entrega === "DELIVERY" ? "Envío" : "Retira"), p.status !== "DELIVERED" ? (p.cobrado ? "cobrado" : "a cobrar") : null]
+        {[p.horario?.texto ?? (p.entrega === "DELIVERY" ? "Envío" : vocab.corto), p.status !== "DELIVERED" ? (p.cobrado ? "cobrado" : "a cobrar") : null]
           .filter(Boolean)
           .join(" · ")}
       </span>
@@ -318,7 +322,8 @@ function EstadoDeFila({ p, comercio }: { p: PedidoDelTablero; comercio: boolean 
 }
 
 function Entrega({ p }: { p: PedidoDelTablero }) {
-  const texto = p.horario?.texto ?? (p.entrega === "DELIVERY" ? "Envío" : "Retira");
+  const vocab = useVocabulario();
+  const texto = p.horario?.texto ?? (p.entrega === "DELIVERY" ? "Envío" : vocab.corto);
   return (
     <span className="block max-w-72 truncate">
       <span className={p.horario?.esHoy ? "font-semibold text-strong" : undefined}>{texto}</span>
@@ -349,6 +354,7 @@ export default function TableroPedidos({
   /** «Tomar un pedido» (Vender en modo pedido), si esta persona puede. */
   tomarPedido: string | null;
 }) {
+  const vocab = useVocabulario();
   const params = useSearchParams();
   const ruta = usePathname();
   const filtros = leerFiltrosDelTablero(params);
@@ -425,7 +431,7 @@ export default function TableroPedidos({
       ),
     },
     { clave: "estado", titulo: "Estado", movil: "detalle", celda: (p) => <EstadoDeFila p={p} comercio={comercio} /> },
-    { clave: "entrega", titulo: "Retiro / envío", ordenable: true, movil: "oculta", celda: (p) => <Entrega p={p} /> },
+    { clave: "entrega", titulo: tituloDeEntrega(vocab), ordenable: true, movil: "oculta", celda: (p) => <Entrega p={p} /> },
     { clave: "lineas", titulo: "Líneas", alinear: "derecha", movil: "oculta", celda: (p) => p.lineas.length },
     { clave: "total", titulo: "Total", alinear: "derecha", ordenable: true, movil: "plata", celda: (p) => <Plata valor={p.total} /> },
     {

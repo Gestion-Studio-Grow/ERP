@@ -39,6 +39,37 @@ export interface RetailWording {
   weightNote: string | null;
   /** Placeholder del campo "Nota" del pedido, por rubro (evita wording de otro rubro). */
   notesPlaceholder: string;
+  /**
+   * Cómo se nombra el RETIRO en este rubro, en el panel (tablero, horario, alta manual, aviso al
+   * cliente). Ausente = el de siempre: "Retira en el local". Una perfumería que vende por mensaje no
+   * tiene local: entrega en un punto de encuentro, y el panel tiene que decirlo así.
+   */
+  entrega?: EntregaWording;
+}
+
+/** Las palabras del retiro (el `PICKUP` del pedido). El envío se llama igual en todos los rubros. */
+export interface EntregaWording {
+  /** La opción del formulario: "Retira en el local". */
+  opcion: string;
+  /** El rótulo corto de la tarjeta y del horario: "Retira" ("Retira hoy 18:30"). */
+  corto: string;
+  /** El sustantivo, en minúscula: "retiro" ("Pedido (retiro / envío)"). */
+  nombre: string;
+  /** Cómo sigue la frase "tu pedido #12 ya está …" del aviso al cliente: "listo para retirar". */
+  listoPara: string;
+}
+
+/** Lo de siempre: el retiro en el local. Es lo que ve todo rubro sin `entrega` propia. */
+export const ENTREGA_POR_DEFECTO: EntregaWording = {
+  opcion: "Retira en el local",
+  corto: "Retira",
+  nombre: "retiro",
+  listoPara: "listo para retirar",
+};
+
+/** Las palabras del retiro de un rubro (o las de siempre si el rubro no las define o no hay rubro). */
+export function entregaDelRubro(rubro: Pick<RetailRubro, "wording"> | null | undefined): EntregaWording {
+  return rubro?.wording.entrega ?? ENTREGA_POR_DEFECTO;
 }
 
 // Un ítem del catálogo semilla. `kg` = venta por peso (precio/kg); `u` = por unidad.
@@ -440,6 +471,13 @@ const perfumeria: RetailRubro = {
     orderCta: "Hacer pedido",
     weightNote: null,
     notesPlaceholder: "ej: es para regalo, horario para coordinar la entrega, aclaraciones",
+    // Sin local: se entrega por envío o en un punto de encuentro que se coordina por mensaje.
+    entrega: {
+      opcion: "Punto de encuentro",
+      corto: "Encuentro",
+      nombre: "punto de encuentro",
+      listoPara: "listo; coordinamos el punto de encuentro",
+    },
   },
   modules: ["pos", "stock", "venta-unidad", "proveedores"],
   brandingDefaults: {

@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import AdminShell from "./AdminShell";
 import ToastProvider from "./ToastProvider";
 import GlobalLoadingProvider from "./GlobalLoadingProvider";
+import { VocabularioDelNegocio } from "./VocabularioDelNegocio";
+import { vocabularioDelNegocio } from "@/lib/vocabulario-negocio";
 import DemoBanner from "./DemoBanner";
 import { requireUser } from "@/lib/authz";
 import { mustChangePasswordFor } from "@/lib/must-change-password";
@@ -58,7 +60,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // que su lugar es acá. La lectura de la ficha sigue siendo condicional al flag: con el
   // flag OFF no se consulta nada (`null` sin viaje).
   const useSheet = tenantBrandSheetEnabled();
-  const [user, brand, activeProfile, productoCtx, , , sheet, teamPreset, modoApps, nuevo] = await Promise.all([
+  const [user, brand, activeProfile, productoCtx, , , sheet, teamPreset, modoApps, nuevo, rubroDelNegocio] = await Promise.all([
     requireUser(),
     getTenantBrand(),
     // Perfil activo (ADR-058/059): "lite"/"enterprise" o null si `PROFILES_ENABLED`
@@ -256,7 +258,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             {/* `apps` (para el buscador de Ctrl/⌘K y la barra de espacios del celular) sólo viaja
                 en el piloto: fuera de él la barra busca en su propio menú, como siempre. */}
             <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})}>
-              {children}
+              {/* Cómo se llama el retiro y qué ejemplo lleva la nota, según el rubro (una perfumería
+                  entrega en un punto de encuentro, no en un local): sale del rubro ya leído arriba. */}
+              <VocabularioDelNegocio valor={vocabularioDelNegocio(rubroDelNegocio.rubro)}>{children}</VocabularioDelNegocio>
             </AdminShell>
           </ToastProvider>
         </GlobalLoadingProvider>
