@@ -12,6 +12,8 @@ import {
   normalizeHost,
   parseTenantHostMap,
   hostMapSubdomain,
+  mapaDeHostsVigente,
+  HOSTS_PUBLICADOS,
 } from "./tenant";
 
 before(() => {
@@ -132,6 +134,31 @@ test("hostMapSubdomain: host fuera del mapa → null (cae al método de subdomin
 
 test("hostMapSubdomain: sin TENANT_HOST_MAP → null (no rompe el flujo de subdominio)", () => {
   assert.equal(hostMapSubdomain("chestetica-erp.vercel.app", {}), null);
+});
+
+test("HOSTS_PUBLICADOS: el host del código resuelve sin la variable, y la variable le gana", () => {
+  assert.equal(hostMapSubdomain("quebienoles-erp.vercel.app", {}), "quebienoles");
+  assert.equal(hostMapSubdomain("QUEBIENOLES-erp.vercel.app:443", {}), "quebienoles");
+  // La variable manda sobre el código: se corrige un host sin deploy.
+  assert.equal(
+    hostMapSubdomain("quebienoles-erp.vercel.app", { TENANT_HOST_MAP: "quebienoles-erp.vercel.app=otra-cosa" }),
+    "otra-cosa",
+  );
+  // Sumar hosts en el código no toca a los de la variable.
+  const env = { TENANT_HOST_MAP: "magra-erp.vercel.app=magra" };
+  assert.equal(hostMapSubdomain("magra-erp.vercel.app", env), "magra");
+  assert.equal(mapaDeHostsVigente(env).get("magra-erp.vercel.app"), "magra");
+  assert.equal(mapaDeHostsVigente(env).get("quebienoles-erp.vercel.app"), "quebienoles");
+  // Exacto: un host parecido NO resuelve (no hay comodines).
+  assert.equal(hostMapSubdomain("quebienoles-erp.vercel.app.evil.com", {}), null);
+  assert.equal(hostMapSubdomain("x-quebienoles-erp.vercel.app", {}), null);
+});
+
+test("HOSTS_PUBLICADOS: sólo hosts .vercel.app exactos y en minúscula (lo que compara normalizeHost)", () => {
+  for (const [host, sub] of Object.entries(HOSTS_PUBLICADOS)) {
+    assert.match(host, /^[a-z0-9-]+\.vercel\.app$/, host);
+    assert.match(sub, /^[a-z0-9-]+$/, sub);
+  }
 });
 
 // --- El pin por env NO puede mandar en producción multi-tenant ------------------

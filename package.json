@@ -45,6 +45,7 @@
     "qrcode": "1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "three": "^0.186.1",
     "unpdf": "1.8.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
@@ -58,6 +59,7 @@
     "@types/qrcode": "1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.186.0",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",

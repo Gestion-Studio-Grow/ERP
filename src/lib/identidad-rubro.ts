@@ -55,7 +55,7 @@ export interface TenantIdentity {
  * repo. Lo que NO es una lista a mano es qué TENANT cae en cada marca: eso lo resuelve
  * la familia del slug, así los 5 locales de MAGRA entran solos.
  */
-const EDITORIAL_FRONT_IDS = ["magra", "shinevelas"] as const;
+const EDITORIAL_FRONT_IDS = ["magra", "shinevelas", "quebienoles"] as const;
 export type EditorialFrontId = (typeof EDITORIAL_FRONT_IDS)[number];
 
 /** Qué front editorial le corresponde al tenant, o null → vidriera genérica del rubro. */

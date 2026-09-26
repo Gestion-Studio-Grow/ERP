@@ -75,6 +75,8 @@ export const RETAIL_RUBRO_HINTS: { id: string; keywords: string[] }[] = [
   { id: "fiambreria", keywords: ["fiambreria", "fiambres", "queseria", "quesos", "picada"] },
   { id: "indumentaria", keywords: ["indumentaria", "ropa", "boutique", "moda", "textil", "vestimenta"] },
   { id: "padel", keywords: ["padel", "pádel", "paddle", "palas", "paletas", "zapatillas de padel", "tienda de padel"] },
+  // Antes que velas: "fragancia" también es de velas, y una perfumería no es un bazar de aromas.
+  { id: "perfumeria", keywords: ["perfumeria", "perfumería", "perfume", "perfumes", "perfumes arabes", "perfumes árabes", "decants", "eau de parfum"] },
   { id: "velas", keywords: ["velas", "vela", "aromas", "aromatizante", "difusor", "difusores", "fragancia", "soja", "deco", "hogar", "bazar"] },
 ];
 

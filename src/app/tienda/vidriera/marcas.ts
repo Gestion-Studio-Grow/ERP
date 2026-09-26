@@ -182,5 +182,8 @@ export function usaVidrieraNueva(
   identidad: { isRetail: boolean; brandId: string | null },
   front: string | null,
 ): boolean {
+  // Qué Bien Olés nació con su front de esta generación (tienda/quebienoles): el interruptor no lo
+  // reemplaza por la vidriera común. Prenderlo por error le sacaría el 3D y la vitrina de su marca.
+  if (front === "quebienoles") return false;
   return nuevo && (identidad.isRetail || Boolean(front) || Boolean(identidad.brandId));
 }

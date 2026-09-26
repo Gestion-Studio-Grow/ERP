@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="oro" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6e3a8"/>
+      <stop offset=".45" stop-color="#d8b36a"/>
+      <stop offset="1" stop-color="#8f6726"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0b0908"/>
+  <!-- Corona de la caja -->
+  <path d="M23 17.5 L25.2 10.5 L28.6 14.6 L32 8.5 L35.4 14.6 L38.8 10.5 L41 17.5 Z" fill="url(#oro)"/>
+  <!-- Q didona: laterales gruesos, arriba y abajo finos -->
+  <path fill="url(#oro)" fill-rule="evenodd" d="M32 19.5c-9.6 0-16.5 7.4-16.5 16.6S22.4 52.7 32 52.7s16.5-7.4 16.5-16.6S41.6 19.5 32 19.5Zm0 1.6c-4.6 0-7.2 6.7-7.2 15s2.6 15 7.2 15 7.2-6.7 7.2-15-2.6-15-7.2-15Z"/>
+  <path d="M33.5 50.8c3.4 3.8 7.8 5.6 13.2 5.2" fill="none" stroke="url(#oro)" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

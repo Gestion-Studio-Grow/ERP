@@ -423,6 +423,43 @@ const padel: RetailRubro = {
   ],
 };
 
+// --- Perfumería (rubro de `quebienoles`) — perfumes cerrados, venta por unidad ---
+// Frascos cerrados: sin balanza, sin vencimientos de mostrador, sin despiece. Lo que ordena una
+// perfumería es la FAMILIA (dulce, fresco, versátil, floral) y la casa, no el peso. El catálogo de
+// acá es de EJEMPLO para cualquier perfumería (nombres genéricos por familia, precios de referencia
+// AR mediados 2026, PROVISIONALES): el de un negocio real se carga aparte, como el de Qué Bien Olés
+// (scripts/tenants/quebienoles-catalogo.ts), nunca en el rubro.
+const perfumeria: RetailRubro = {
+  id: "perfumeria",
+  perecederos: false,
+  label: "Perfumería",
+  wording: {
+    catalogHeading: "Las fragancias",
+    itemNoun: "perfume",
+    heroTagline: "Encontrá el perfume que va con vos y hacé tu pedido. Te lo mandamos o lo coordinamos.",
+    orderCta: "Hacer pedido",
+    weightNote: null,
+    notesPlaceholder: "ej: es para regalo, horario para coordinar la entrega, aclaraciones",
+  },
+  modules: ["pos", "stock", "venta-unidad", "proveedores"],
+  brandingDefaults: {
+    shortLabel: "Perfumería",
+    hoursLabel: "Pedidos por mensaje",
+    contactNote: "Perfumes para todos los días, para salir y para regalar.",
+  },
+  catalog: [
+    { name: "Eau de parfum dulce 100 ml", sale: "u", price: 42000, stock: 6 },
+    { name: "Eau de parfum floral 100 ml", sale: "u", price: 39000, stock: 6 },
+    { name: "Eau de parfum fresco cítrico 100 ml", sale: "u", price: 36000, stock: 6 },
+    { name: "Eau de parfum amaderado 100 ml", sale: "u", price: 44000, stock: 6 },
+    { name: "Eau de toilette fresco 100 ml", sale: "u", price: 29000, stock: 6 },
+    { name: "Extrait de parfum oriental 75 ml", sale: "u", price: 55000, stock: 4 },
+    { name: "Decant 10 ml", sale: "u", price: 8500, stock: 20 },
+    { name: "Body splash 250 ml", sale: "u", price: 14000, stock: 10 },
+    { name: "Set de regalo (perfume + crema)", sale: "u", price: 52000, stock: 4 },
+  ],
+};
+
 export const RETAIL_RUBROS: Record<string, RetailRubro> = {
   carniceria,
   verduleria,
@@ -432,6 +469,7 @@ export const RETAIL_RUBROS: Record<string, RetailRubro> = {
   indumentaria,
   velas,
   padel,
+  perfumeria,
 };
 
 export const RETAIL_RUBRO_IDS = Object.keys(RETAIL_RUBROS);
@@ -492,6 +530,7 @@ const RUBRO_BY_SLUG: Record<string, string> = {
   magra: "carniceria",
   shinevelas: "velas",
   adosmanos: "padel",
+  quebienoles: "perfumeria",
 };
 
 /**

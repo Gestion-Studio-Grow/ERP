@@ -86,8 +86,29 @@ export function parseTenantHostMap(raw: string | undefined | null): Map<string, 
 }
 
 /**
- * Subdominio mapeado para un host exacto según `TENANT_HOST_MAP`, o `null` si el host
- * no está en el mapa. PURA (env inyectable para tests).
+ * Hosts `.vercel.app` publicados desde el CÓDIGO, además de `TENANT_HOST_MAP`.
+ *
+ * Por qué existen: en Vercel la variable es SENSIBLE (no se puede leer, sólo reescribir entera).
+ * Sumar un tenant obligaba a reescribir a ciegas el mapa de todos, y un error dejaba sin tienda a
+ * los demás. Un host nuevo se suma acá, revisado en un commit. La variable sigue mandando: si el
+ * mismo host está en `TENANT_HOST_MAP`, gana la variable (se corrige sin deploy). Sólo hosts
+ * EXACTOS, resueltos a un `Tenant.subdomain` por la misma vía y con el mismo fail-closed que el mapa:
+ * si el tenant no tiene ese subdomain, el request falla, no cae a otro tenant.
+ */
+export const HOSTS_PUBLICADOS: Readonly<Record<string, string>> = {
+  "quebienoles-erp.vercel.app": "quebienoles",
+};
+
+/** El mapa de hosts que rige: el del código y, encima, el de `TENANT_HOST_MAP` (que gana). PURA. */
+export function mapaDeHostsVigente(env: Record<string, string | undefined> = process.env): Map<string, string> {
+  const mapa = new Map(Object.entries(HOSTS_PUBLICADOS));
+  for (const [host, sub] of parseTenantHostMap(env.TENANT_HOST_MAP)) mapa.set(host, sub);
+  return mapa;
+}
+
+/**
+ * Subdominio mapeado para un host exacto (`HOSTS_PUBLICADOS` + `TENANT_HOST_MAP`), o `null` si el
+ * host no está en el mapa. PURA (env inyectable para tests).
  */
 export function hostMapSubdomain(
   host: string | null | undefined,
@@ -95,7 +116,7 @@ export function hostMapSubdomain(
 ): string | null {
   const h = normalizeHost(host);
   if (!h) return null;
-  return parseTenantHostMap(env.TENANT_HOST_MAP).get(h) ?? null;
+  return mapaDeHostsVigente(env).get(h) ?? null;
 }
 
 /** Host del request (headers), o null fuera de un request (job/script). */
