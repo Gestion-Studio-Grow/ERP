@@ -1,5 +1,5 @@
 /**
- * ENG-019 · ENG-027 · Quién toma cada envío a ARCA, y si el procesador ve lo que tiene que ver.
+ * ENG-019 · Quién toma cada envío a ARCA.
  *
  * RESERVA (ENG-019). Antes, el despacho leía los pendientes sin reservarlos: dos despachos a la
  * vez tomaban el mismo envío y pedían dos CAE, y dos ventas del mismo negocio a la vez pedían el
@@ -22,11 +22,11 @@
  *   · Turno entre negocios: en cada toma se prueba primero el negocio al que este despacho le
  *     tomó menos envíos en la corrida; 20 envíos trabados de un negocio no frenan al otro.
  *
- * ACCESO DEL OPERADOR (ENG-027). El barrido de todos los negocios usa la conexión del operador
- * (`operator-db.ts`). Si `OPERATOR_DATABASE_URL` falta, esa conexión cae a `DATABASE_URL`
- * (`app_rls`) y RLS le esconde todos los envíos: el procesador devolvía "0 procesados" y ninguna
- * factura se autorizaba. `verificarAccesoDelOperador` lo detecta ANTES de leer y lanza
- * `ProcesadorArcaSinAccesoError`; el cron y `/api/ready` lo informan.
+ * CADA TOMA, PARADA EN SU NEGOCIO. Toda toma y toda escritura corren en la transacción del
+ * negocio del envío (el GUC de RLS puesto), también las del cron que recorre a todos
+ * (`tomarDeLosNegocios`). Antes el cron leía los pendientes de todos de una vez con la conexión
+ * del operador y exigía que esa conexión salteara RLS (ENG-027: si no, error de configuración);
+ * en producción la consola está sujeta a RLS (26/09/2026) y el cron no despachaba nada.
  */
 
 import { randomUUID } from "node:crypto";
@@ -50,7 +50,7 @@ export interface ConSql {
   $executeRaw(query: TemplateStringsArray, ...values: unknown[]): Promise<number>;
 }
 
-/** Corre `fn` en UNA transacción (la del operador, o la del negocio con su contexto de RLS). */
+/** Corre `fn` en UNA transacción del negocio, con su contexto de RLS. */
 export type EnTransaccion = <T>(fn: (tx: ConSql) => Promise<T>) => Promise<T>;
 
 /** Un envío tomado: la fila del outbox con la reserva de este despacho. */
@@ -78,78 +78,97 @@ export class CorridaDeEnvios {
 }
 
 /**
- * Toma el próximo envío pendiente con reserva libre, o `null` si no hay ninguno que se pueda tomar
- * ahora. Con `soloDelNegocio`, sólo de ese negocio (además del filtro de RLS de la transacción).
+ * Toma el próximo envío pendiente de ESTE negocio con reserva libre, o `null` si no hay ninguno que
+ * se pueda tomar ahora (no hay, otro despacho está tomando uno de este negocio, o uno tiene la
+ * reserva vigente). Corre en la transacción del negocio (`enTransaccion`, con su GUC) y además
+ * filtra por negocio en cada sentencia.
  */
 export async function tomarSiguienteEnvio(
   enTransaccion: EnTransaccion,
   corrida: CorridaDeEnvios,
-  soloDelNegocio: string | null,
+  tenantId: string,
 ): Promise<EnvioTomado | null> {
   return enTransaccion(async (tx) => {
-    const candidatos = await tx.$queryRaw<{ tenantId: string; createdAt: Date }[]>`
-      SELECT DISTINCT ON ("tenantId") "tenantId", "createdAt"
-      FROM "OutboxEvent"
-      WHERE "type" = ${OUTBOX_INVOICE_CREATED}
-        AND "processedAt" IS NULL
-        AND NOT ("id" = ANY(${corrida.vistos}::text[]))
-        AND (${soloDelNegocio}::text IS NULL OR "tenantId" = ${soloDelNegocio}::text)
-        AND (("payload"->'reserva') IS NULL OR ("payload"->'reserva'->>'hasta')::timestamptz <= now())
-      ORDER BY "tenantId", "createdAt", "id"`;
+    // Sin candado primero: si el negocio no tiene nada que tomar, no se toma el candado.
+    const [pendiente] = await tx.$queryRaw<{ hay: boolean }[]>`
+      SELECT EXISTS (
+        SELECT 1 FROM "OutboxEvent"
+        WHERE "tenantId" = ${tenantId}::text
+          AND "type" = ${OUTBOX_INVOICE_CREATED}
+          AND "processedAt" IS NULL
+          AND NOT ("id" = ANY(${corrida.vistos}::text[]))
+          AND (("payload"->'reserva') IS NULL OR ("payload"->'reserva'->>'hasta')::timestamptz <= now())
+      ) AS hay`;
+    if (!pendiente?.hay) return null;
 
-    const turno = [...candidatos].sort(
-      (x, y) =>
-        corrida.tomadosDe(x.tenantId) - corrida.tomadosDe(y.tenantId) ||
-        x.createdAt.getTime() - y.createdAt.getTime(),
-    );
+    const [candado] = await tx.$queryRaw<{ tomado: boolean }[]>`
+      SELECT pg_try_advisory_xact_lock(${CANDADO_ENVIOS_ARCA}::int, hashtext(${tenantId}::text)) AS tomado`;
+    if (!candado?.tomado) return null; // otro despacho está tomando un envío de este negocio
 
-    for (const { tenantId } of turno) {
-      const [candado] = await tx.$queryRaw<{ tomado: boolean }[]>`
-        SELECT pg_try_advisory_xact_lock(${CANDADO_ENVIOS_ARCA}::int, hashtext(${tenantId}::text)) AS tomado`;
-      if (!candado?.tomado) continue; // otro despacho está tomando un envío de este negocio
-
-      // Sentencia NUEVA después del candado: ve las reservas que otros confirmaron antes.
-      const tomados = await tx.$queryRaw<EnvioTomado[]>`
-        UPDATE "OutboxEvent" AS e
-        SET "payload" = jsonb_set(
-          e."payload",
-          '{reserva}',
-          jsonb_build_object(
-            'token', ${corrida.token}::text,
-            'hasta', now() + ${RESERVA_DEL_ENVIO_SEGUNDOS}::int * interval '1 second'
-          )
+    // Sentencia NUEVA después del candado: ve las reservas que otros confirmaron antes.
+    const tomados = await tx.$queryRaw<EnvioTomado[]>`
+      UPDATE "OutboxEvent" AS e
+      SET "payload" = jsonb_set(
+        e."payload",
+        '{reserva}',
+        jsonb_build_object(
+          'token', ${corrida.token}::text,
+          'hasta', now() + ${RESERVA_DEL_ENVIO_SEGUNDOS}::int * interval '1 second'
         )
-        WHERE e."id" = (
-            SELECT o."id" FROM "OutboxEvent" AS o
-            WHERE o."tenantId" = ${tenantId}::text
-              AND o."type" = ${OUTBOX_INVOICE_CREATED}
-              AND o."processedAt" IS NULL
-              AND NOT (o."id" = ANY(${corrida.vistos}::text[]))
-              AND ((o."payload"->'reserva') IS NULL OR (o."payload"->'reserva'->>'hasta')::timestamptz <= now())
-            ORDER BY o."createdAt", o."id"
-            LIMIT 1
-            FOR UPDATE SKIP LOCKED
-          )
-          AND e."processedAt" IS NULL
-          AND ((e."payload"->'reserva') IS NULL OR (e."payload"->'reserva'->>'hasta')::timestamptz <= now())
-          AND NOT EXISTS (
-            SELECT 1 FROM "OutboxEvent" AS x
-            WHERE x."tenantId" = e."tenantId"
-              AND x."type" = ${OUTBOX_INVOICE_CREATED}
-              AND x."processedAt" IS NULL
-              AND x."id" <> e."id"
-              AND (x."payload"->'reserva') IS NOT NULL
-              AND (x."payload"->'reserva'->>'hasta')::timestamptz > now()
-          )
-        RETURNING e."id", e."tenantId", e."payload", e."attempts"`;
-      const envio = tomados[0];
-      if (envio) {
-        corrida.anotar(envio);
-        return envio;
-      }
+      )
+      WHERE e."id" = (
+          SELECT o."id" FROM "OutboxEvent" AS o
+          WHERE o."tenantId" = ${tenantId}::text
+            AND o."type" = ${OUTBOX_INVOICE_CREATED}
+            AND o."processedAt" IS NULL
+            AND NOT (o."id" = ANY(${corrida.vistos}::text[]))
+            AND ((o."payload"->'reserva') IS NULL OR (o."payload"->'reserva'->>'hasta')::timestamptz <= now())
+          ORDER BY o."createdAt", o."id"
+          LIMIT 1
+          FOR UPDATE SKIP LOCKED
+        )
+        AND e."processedAt" IS NULL
+        AND ((e."payload"->'reserva') IS NULL OR (e."payload"->'reserva'->>'hasta')::timestamptz <= now())
+        AND NOT EXISTS (
+          SELECT 1 FROM "OutboxEvent" AS x
+          WHERE x."tenantId" = e."tenantId"
+            AND x."type" = ${OUTBOX_INVOICE_CREATED}
+            AND x."processedAt" IS NULL
+            AND x."id" <> e."id"
+            AND (x."payload"->'reserva') IS NOT NULL
+            AND (x."payload"->'reserva'->>'hasta')::timestamptz > now()
+        )
+      RETURNING e."id", e."tenantId", e."payload", e."attempts"`;
+    const envio = tomados[0];
+    if (!envio) return null;
+    corrida.anotar(envio);
+    return envio;
+  });
+}
+
+/**
+ * El cron recorre TODOS los negocios: esto le da el próximo envío de cualquiera de `negocios`,
+ * tomado parado en el suyo (`enTransaccionDe`). Turno entre negocios (ENG-019): primero el negocio
+ * al que esta corrida le tomó menos envíos; a igual cantidad, el orden de `negocios`. Un negocio sin
+ * nada que se pueda tomar ahora sale de la corrida: no se lo vuelve a consultar en cada toma.
+ */
+export function tomarDeLosNegocios(
+  negocios: readonly string[],
+  enTransaccionDe: (tenantId: string) => EnTransaccion,
+): (corrida: CorridaDeEnvios) => Promise<EnvioTomado | null> {
+  const orden = new Map(negocios.map((id, i) => [id, i]));
+  const activos = new Set(negocios);
+  return async (corrida) => {
+    const turno = [...activos].sort(
+      (x, y) => corrida.tomadosDe(x) - corrida.tomadosDe(y) || (orden.get(x) ?? 0) - (orden.get(y) ?? 0),
+    );
+    for (const tenantId of turno) {
+      const envio = await tomarSiguienteEnvio(enTransaccionDe(tenantId), corrida, tenantId);
+      if (envio) return envio;
+      activos.delete(tenantId);
     }
     return null;
-  });
+  };
 }
 
 /**
@@ -207,45 +226,4 @@ export async function soltarReserva(
       AND "tenantId" = ${envio.tenantId}::text
       AND "processedAt" IS NULL
       AND "payload"->'reserva'->>'token' = ${token}::text`);
-}
-
-// ── ENG-027 · el procesador de todos los negocios tiene que poder verlos ─────────────────────
-
-/** Lo que `/api/ready` y el cron muestran. Sin nombres de roles ni de tablas (estándar §4). */
-export const MOTIVO_PROCESADOR_SIN_ACCESO = "procesador de ARCA sin acceso";
-
-/** La conexión del operador no ve los envíos de todos los negocios: error de configuración. */
-export class ProcesadorArcaSinAccesoError extends Error {
-  readonly motivo = MOTIVO_PROCESADOR_SIN_ACCESO;
-  constructor(detalle: string) {
-    super(`${MOTIVO_PROCESADOR_SIN_ACCESO}: ${detalle}`);
-    this.name = "ProcesadorArcaSinAccesoError";
-  }
-}
-
-/**
- * Verifica, antes de leer, que la conexión del operador ve las filas de `OutboxEvent` de todos los
- * negocios: superusuario, `BYPASSRLS`, dueño de la tabla sin `FORCE ROW LEVEL SECURITY`, o la
- * tabla sin RLS. Si no, lanza `ProcesadorArcaSinAccesoError` (el detalle sí nombra el rol: va al
- * log del servidor, no a la respuesta).
- */
-export async function verificarAccesoDelOperador(
-  db: Pick<ConSql, "$queryRaw">,
-  env: Record<string, string | undefined> = process.env,
-): Promise<void> {
-  const [fila] = await db.$queryRaw<{ rol: string; veTodo: boolean }[]>`
-    SELECT current_user::text AS rol,
-      (r.rolsuper OR r.rolbypassrls OR NOT c.relrowsecurity
-        OR (pg_has_role(current_user, c.relowner, 'USAGE') AND NOT c.relforcerowsecurity)) AS "veTodo"
-    FROM pg_roles AS r, pg_class AS c
-    WHERE r.rolname = current_user AND c.oid = '"OutboxEvent"'::regclass`;
-  if (fila?.veTodo) return;
-  const falta = !env.OPERATOR_DATABASE_URL;
-  throw new ProcesadorArcaSinAccesoError(
-    falta
-      ? `falta OPERATOR_DATABASE_URL y la conexión de la app (rol ${fila?.rol ?? "desconocido"}) no ve los envíos de ` +
-          "todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño."
-      : `OPERATOR_DATABASE_URL usa el rol ${fila?.rol ?? "desconocido"}, que no ve los envíos de todos los negocios ` +
-          "(no es dueño de la tabla ni tiene BYPASSRLS); ninguna factura se autorizaría.",
-  );
 }

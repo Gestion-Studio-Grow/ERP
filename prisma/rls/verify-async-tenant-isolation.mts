@@ -3,6 +3,13 @@
 //
 //   tsx prisma/rls/verify-async-tenant-isolation.mts
 //
+// ⚠️ HISTÓRICO (26/09/2026): los dos crons ya NO leen cruzado con `operatorPrisma`. En
+// producción esa conexión está sujeta a RLS y la lectura sin negocio volvía vacía. Ahora recorren
+// los negocios de `Tenant` y leen cada uno parado en él (src/lib/cron/negocios.ts). Lo que dicen
+// los puntos 1 y 2 de abajo sobre `operatorPrisma` es el mecanismo viejo (la sección 2 lo
+// reproduce a mano). La prueba vigente, contra Postgres con `app_rls`:
+// src/lib/cron/reminder-sweep-postgres.test.ts y src/lib/arca-procesador-sin-operador-postgres.test.ts.
+//
 // QUÉ PRUEBA, con 2 tenants sembrados y `RLS_ENFORCEMENT=on` (el estado real
 // que hoy rompe los crons — ver el addendum de arquitectura):
 //   0. REGRESIÓN — el patrón VIEJO (lectura ambiental, sin contexto) SIGUE

@@ -11,16 +11,13 @@
  * uptime-monitor en loop cerrado (para eso está `/api/health`, sin DB). Usa `basePrisma`
  * (cliente crudo, sin RLS): la readiness es de infraestructura, no depende del tenant.
  *
- * ENG-027: con la facturación encendida, verifica además que el procesador de ARCA (la conexión
- * del operador) ve los envíos de todos los negocios. Si no, **503** con el motivo
- * "procesador de ARCA sin acceso": sin eso el cron no autoriza ninguna factura.
+ * Ya no mira si la conexión del operador ve los envíos de todos los negocios (ENG-027): el cron de
+ * ARCA despacha cada envío parado en su negocio con la conexión de la app (arca-dispatch.ts), así
+ * que esa condición dejó de importar. Con la consola sujeta a RLS, como en producción, seguiría
+ * marcando "no listo" con la facturación encendida aunque el cron ya despacha.
  */
 
 import { basePrisma } from "@/lib/prisma-base";
-import { operatorPrisma } from "@/lib/operator-db";
-import { isInvoicingEnabled } from "@/lib/fiscal";
-import { ProcesadorArcaSinAccesoError, verificarAccesoDelOperador } from "@/lib/arca-reserva";
-import { logger } from "@/lib/logger";
 import { withRequestId } from "@/lib/request-context";
 
 export const runtime = "nodejs";
@@ -29,18 +26,6 @@ export const dynamic = "force-dynamic";
 export const GET = withRequestId(async () => {
   try {
     await basePrisma.$queryRaw`SELECT 1`;
-    if (isInvoicingEnabled()) {
-      try {
-        await verificarAccesoDelOperador(operatorPrisma);
-      } catch (err) {
-        if (!(err instanceof ProcesadorArcaSinAccesoError)) throw err;
-        logger.error("ready", "el procesador de ARCA no ve los envíos de todos los negocios", err);
-        return Response.json(
-          { status: "not-ready", motivo: err.motivo, ts: new Date().toISOString() },
-          { status: 503, headers: { "Cache-Control": "no-store" } },
-        );
-      }
-    }
     return Response.json(
       { status: "ready", ts: new Date().toISOString() },
       { headers: { "Cache-Control": "no-store" } },

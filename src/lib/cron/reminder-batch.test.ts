@@ -39,6 +39,19 @@ test("lote vacío → todo en cero", () => {
   });
 });
 
+test("un negocio que no se pudo leer queda nombrado y no cuenta como turno; los demás siguen", () => {
+  const outcomes: ReminderOutcome[] = [{ ok: true, appointmentId: "a1" }];
+  const s = summarizeReminderRun(1, outcomes, [{ tenantId: "t2", error: "no se pudieron leer sus turnos" }]);
+  assert.deepEqual(s, {
+    checked: 1,
+    due: 1,
+    sent: 1,
+    failed: 0,
+    failures: [],
+    negociosSinLeer: [{ tenantId: "t2", error: "no se pudieron leer sus turnos" }],
+  });
+});
+
 test("ningún fallo se pierde: failed + sent = due", () => {
   const outcomes: ReminderOutcome[] = [
     { ok: false, appointmentId: "a1", tenantId: "t1", error: "e1" },
