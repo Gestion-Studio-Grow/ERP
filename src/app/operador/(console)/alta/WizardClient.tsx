@@ -50,6 +50,11 @@ export interface WizardData {
   casas: { id: string; name: string; cuit: string | null }[];
   /** ¿La fábrica da de alta sin el catálogo de ejemplo? Si no, "Local de una red" no se ofrece. */
   altaEnRedDisponible: boolean;
+  /**
+   * El dominio propio del ERP (`APP_BASE_DOMAIN`, p. ej. `gsgapp.com.ar`), o null. Con él, el link
+   * del negocio anda solo apenas se crea (`<subdominio>.<dominio>`): no hay nada que ligar a mano.
+   */
+  dominioPropio: string | null;
 }
 
 const STEPS = ["Negocio", "Rubro", "¿De qué red?", "Módulos", "Marca y link", "Revisar"] as const;
@@ -76,6 +81,12 @@ const STATE_LABEL: Record<ProvisionState, string> = {
 
 /** Pasos que la saga marca como cumplidos pero que hoy son no-ops (quedan a mano). */
 const PASOS_MANUALES: ProvisionState[] = ["HOST_BOUND", "INVITED"];
+
+/** El panel del negocio recién creado con el dominio propio (`<subdominio>.<dominio>/admin`), o null. */
+function direccionDelPanel(subdominio: string | undefined, dominioPropio: string | null): string | null {
+  const sub = subdominio?.trim().toLowerCase();
+  return sub && dominioPropio ? `https://${sub}.${dominioPropio}/admin` : null;
+}
 
 export function AltaWizard({ data }: { data: WizardData }) {
   // `edicion` queda fijo en "comercio" y SIN selector a propósito: el alta lo aceptaba pero no lo
@@ -239,7 +250,7 @@ export function AltaWizard({ data }: { data: WizardData }) {
 
         {result ? (
           <>
-            <ResultPanel result={result} tenantId={result.tenantId} />
+            <ResultPanel result={result} tenantId={result.tenantId} direccion={direccionDelPanel(form.subdomain, data.dominioPropio)} />
             {casaElegida && result.ok && result.tenantId && (
               <PanelDeLaRed
                 casa={casaElegida.name}
@@ -755,7 +766,15 @@ function StepMarca({
         <span className="text-sm text-muted">Así se ve el color sobre el tema elegido.</span>
       </div>
 
-      <Field label="Link propio (subdominio)" htmlFor="w-sub" hint="Su dirección en internet. Única. Opcional.">
+      <Field
+        label="Link propio (subdominio)"
+        htmlFor="w-sub"
+        hint={
+          data.dominioPropio
+            ? `Su dirección en internet: ${form.subdomain?.trim().toLowerCase() || "nombre"}.${data.dominioPropio}. Única. Opcional.`
+            : "Su dirección en internet. Única. Opcional."
+        }
+      >
         <Input id="w-sub" value={form.subdomain ?? ""} onChange={(e) => set({ subdomain: e.target.value })} placeholder="estetica-norte" />
         {subFilled && (
           <Availability pending={planPending} error={msg("host-invalid") ?? msg("host-taken")} ok={!has("host-invalid") && !has("host-taken")} okLabel="disponible" />
@@ -857,13 +876,14 @@ function StepRevisar({
 
 // --- Resultado del commit (saga + bootstrap) ---------------------------------
 
-function SagaStepper({ state }: { state: ProvisionState }) {
+function SagaStepper({ state, linkListo }: { state: ProvisionState; linkListo: boolean }) {
   const reached = HAPPY_PATH.indexOf(state);
   const failed = state === "FAILED_COMPENSATED";
   return (
     <div className="flex flex-wrap items-center gap-2">
       {HAPPY_PATH.map((s, i) => {
-        const manual = PASOS_MANUALES.includes(s);
+        // Con dominio propio el link no se liga: anda solo apenas existe el subdominio.
+        const manual = PASOS_MANUALES.includes(s) && !(s === "HOST_BOUND" && linkListo);
         const done = !failed && reached >= i && !manual;
         return (
           <span
@@ -873,7 +893,8 @@ function SagaStepper({ state }: { state: ProvisionState }) {
               (done ? "bg-success-soft text-success" : manual ? "bg-warning-soft text-warning" : "bg-surface-sunken text-muted")
             }
           >
-            <span aria-hidden>{done ? "✓" : manual ? "⋯" : "○"}</span>{STATE_LABEL[s]}
+            <span aria-hidden>{done ? "✓" : manual ? "⋯" : "○"}</span>
+            {s === "HOST_BOUND" && linkListo ? "Link: listo" : STATE_LABEL[s]}
           </span>
         );
       })}
@@ -881,7 +902,7 @@ function SagaStepper({ state }: { state: ProvisionState }) {
   );
 }
 
-function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantId?: string }) {
+function ResultPanel({ result, tenantId, direccion }: { result: CommitActionResult; tenantId?: string; direccion: string | null }) {
   const outcome = result.outcome;
 
   if (!result.ok && !outcome) {
@@ -899,7 +920,17 @@ function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantI
   return (
     <Card className="p-5 space-y-4">
       <h2 className="font-medium">{result.ok ? "Negocio dado de alta" : "El alta se deshizo a medias"}</h2>
-      <SagaStepper state={state} />
+      <SagaStepper state={state} linkListo={Boolean(direccion)} />
+
+      {/* Con dominio propio, el link anda apenas se crea: se muestra para pasárselo al dueño. */}
+      {result.ok && direccion && (
+        <p className="text-sm">
+          <span className="text-muted">Su dirección: </span>
+          <a href={direccion} target="_blank" rel="noreferrer" className="font-medium text-accent-ink underline underline-offset-4 break-all">
+            {direccion}
+          </a>
+        </p>
+      )}
 
       {state === "FAILED_COMPENSATED" && outcome?.failure && (
         <div className="rounded-md bg-warning-soft text-warning text-sm px-3 py-2" role="alert">
@@ -918,10 +949,12 @@ function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantI
         <div className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning">
           <p className="font-medium">Falta hacer a mano (el alta no lo hace):</p>
           <ul className="mt-1 space-y-0.5 text-xs">
-            <li>
-              • <b>Ligar el link:</b> el subdominio queda guardado en el negocio, pero apuntar el
-              dominio es manual.
-            </li>
+            {!direccion && (
+              <li>
+                • <b>Ligar el link:</b> el subdominio queda guardado en el negocio, pero apuntar el
+                dominio es manual.
+              </li>
+            )}
             <li>
               • <b>Avisarle al dueño:</b> no se envía ningún mail. Pasale por canal seguro la
               contraseña de acá arriba (o generá una nueva en su ficha, pestaña Personas).

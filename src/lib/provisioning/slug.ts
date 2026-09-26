@@ -19,8 +19,14 @@ export function isValidSlug(slug: string): boolean {
   return SLUG_RE.test(slug);
 }
 
+/**
+ * Subdominios que nunca pueden ser de un negocio: `www` es la puerta del dominio propio y el ruteo
+ * lo trata como el dominio a secas (tenant.ts, `extractSubdomain`), así que ese negocio no abriría.
+ */
+const HOSTS_RESERVADOS = new Set(["www"]);
+
 export function isValidHost(subdomain: string): boolean {
-  return HOST_RE.test(subdomain);
+  return HOST_RE.test(subdomain) && !HOSTS_RESERVADOS.has(subdomain);
 }
 
 /**
@@ -31,6 +37,9 @@ export function isValidHost(subdomain: string): boolean {
 export function leerSubdominio(raw: string): { ok: true; subdominio: string | null } | { ok: false; motivo: string } {
   const v = raw.trim().toLowerCase();
   if (v === "") return { ok: true, subdominio: null };
+  if (HOSTS_RESERVADOS.has(v)) {
+    return { ok: false, motivo: `"${raw.trim()}" está reservado para la dirección general: elegí otro nombre para el negocio.` };
+  }
   if (v.length > 63 || !isValidHost(v)) {
     return {
       ok: false,

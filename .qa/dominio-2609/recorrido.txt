@@ -1,0 +1,18 @@
+{
+  "390": {
+    "linksDeLaFicha": [
+      "https://chestetica.gsgapp.com.ar/admin"
+    ],
+    "pistaDelAlta": null,
+    "erroresDeConsola": [],
+    "anchoDePagina": 390
+  },
+  "1440": {
+    "linksDeLaFicha": [
+      "https://chestetica.gsgapp.com.ar/admin"
+    ],
+    "pistaDelAlta": null,
+    "erroresDeConsola": [],
+    "anchoDePagina": 1440
+  }
+}
