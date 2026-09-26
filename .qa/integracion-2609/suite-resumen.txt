@@ -1,0 +1,22 @@
+npm test sobre integracion-2609 (main fa1805f + consola-rls-2609 + wpe-2609 + facturacion-2609):
+# tests 4369
+# pass 4363
+# fail 6
+# cancelled 0
+# skipped 0
+
+Fallas (todas conocidas y previas):
+    not ok 49 - POS de la bandeja: un pedido con la red caída conserva los datos del cliente y lo cargado
+not ok 414 - Vender en el navegador
+    not ok 3 - vista de siempre: lo que se tipea mientras espera la respuesta no se pierde al volver con el error
+not ok 457 - Ingreso en el navegador
+not ok 3996 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+not ok 4019 - lee un xlsx con fechas Date y números number
+not ok 4020 - filas totalmente vacías se descartan
+not ok 4021 - esXlsx reconoce el magic ZIP de un .xlsx real
+
+- XLSX x4: stub local de xlsx (CDN de sheetjs bloqueado en este entorno).
+- POS de la bandeja con la red caída (y su prueba padre «Vender en el navegador»): previa, anotada.
+- «Ingreso en el navegador» subtest 3: intermitente (ENG-138). Corrida sola 7 veces: 5 pasan, 2 fallan con expected '' / actual 'clave-mala' (depende de cuánto tarda la respuesta).
+
+tsc --noEmit: 0 errores.

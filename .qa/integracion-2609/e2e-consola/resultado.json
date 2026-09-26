@@ -1,0 +1,10 @@
+{
+  "slug": "qa-alta-rls-muixgyd6",
+  "pasos": [
+    "login de la consola",
+    "alta de qa-alta-rls-muixgyd6",
+    "ficha con el dueño y 1 persona",
+    "reset del dueño: contraseña nueva generada, sin error"
+  ],
+  "errores": []
+}
