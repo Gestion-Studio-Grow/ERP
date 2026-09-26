@@ -8,7 +8,8 @@
 // apunta a `app_rls`, como en producción, y se recorre lo que el dueño hace en la consola:
 //   · dar de alta un negocio con el asistente (negocio, dueño, datos, catálogo y auditoría);
 //   · resetear la contraseña del dueño de un negocio (y sólo la de ese);
-//   · cargar el certificado de ARCA de un negocio y que la facturación lo encuentre.
+//   · cargar el certificado de ARCA de un negocio y que la facturación lo encuentre;
+//   · cargar el CUIT y el punto de venta del emisor (auditados, con el candado del talonario).
 // Y que parado en un negocio no se ve nada de otro.
 
 import { test } from "node:test";
@@ -79,7 +80,7 @@ test("consola con la conexión sujeta a RLS: alta, reset del dueño, certificado
   const { operatorPrisma, enElNegocio } = await import("@/lib/operator-db");
   const { createOperatorToken } = await import("@/lib/operator-auth");
   const { commitTenantAction } = await import("@/lib/operator-provisioning-actions");
-  const { resetOwnerPassword } = await import("@/lib/operator-actions");
+  const { resetOwnerPassword, setTenantArcaCuit, setTenantArcaPuntoVenta } = await import("@/lib/operator-actions");
   const { cargarCredencialTenant, credencialParaTenant } = await import("@/lib/fiscal/tenant-cert");
   const operador = { cookies: { operator_session: await createOperatorToken("tomas") } };
 
@@ -189,5 +190,52 @@ test("consola con la conexión sujeta a RLS: alta, reset del dueño, certificado
     const rotada = await cargarCredencialTenant({ tenantId: base.a.id, ...otra, actor: "operator:tomas" });
     assert.equal(rotada.rotada, true);
     assert.equal((await credencialParaTenant(base.a.id)).certPem, otra.certPem);
+  });
+
+  await t.test("CUIT y punto de venta del emisor: se guardan, quedan auditados en su negocio y el candado ve a los otros negocios del CUIT", async () => {
+    const formulario = (campos: Record<string, string>) => {
+      const fd = new FormData();
+      for (const [k, v] of Object.entries(campos)) fd.set(k, v);
+      return fd;
+    };
+    /** Corre la acción y devuelve el `ok` o el `error` con que vuelve a la ficha. */
+    const vuelta = async (accion: () => Promise<unknown>) => {
+      const r = await ejecutarAccion(operador, accion);
+      assert.equal(r.tipo, "redireccion", `la acción vuelve a la ficha: ${JSON.stringify(r)}`);
+      const q = new URL(r.tipo === "redireccion" ? r.destino : "/", "http://erp.test").searchParams;
+      return { ok: q.get("ok"), error: q.get("error") };
+    };
+    const fila = (id: string) =>
+      comoDuenio(base, async (c) =>
+        (await c.query(`SELECT "arcaCuit", "arcaPuntoVenta" FROM "Tenant" WHERE id = $1`, [id])).rows[0] as {
+          arcaCuit: string | null;
+          arcaPuntoVenta: number | null;
+        },
+      );
+    const auditadas = (id: string, action: string) =>
+      uno(base, `SELECT count(*) AS n FROM "AuditLog" WHERE "tenantId" = $1 AND action = $2`, [id, action]);
+
+    // B toma el mismo CUIT que A (los locales de una marca): se guarda y queda auditado en B.
+    const cuit = await vuelta(() => setTenantArcaCuit(formulario({ tenantId: base.b.id, arcaCuit: CUIT })));
+    assert.match(cuit.ok ?? "", /CUIT del emisor guardado/, `sin error: ${cuit.error}`);
+    assert.equal((await fila(base.b.id)).arcaCuit, CUIT);
+    assert.equal(await auditadas(base.b.id, "fiscal.cuit.set"), 1);
+    assert.equal(await auditadas(base.a.id, "fiscal.cuit.set"), 0, "la auditoría es del negocio que cambió");
+
+    // A numera con el punto de venta 5.
+    const pvA = await vuelta(() => setTenantArcaPuntoVenta(formulario({ tenantId: base.a.id, arcaPuntoVenta: "5" })));
+    assert.match(pvA.ok ?? "", /Punto de venta guardado \(5\)/, `sin error: ${pvA.error}`);
+    assert.equal(await auditadas(base.a.id, "fiscal.puntoVenta.set"), 1);
+
+    // B no puede repetir el talonario de A: el candado lee al otro negocio del CUIT y no escribe nada.
+    const repetido = await vuelta(() => setTenantArcaPuntoVenta(formulario({ tenantId: base.b.id, arcaPuntoVenta: "5" })));
+    assert.ok(repetido.error, "el mismo CUIT y punto de venta en dos negocios se rechaza");
+    assert.equal((await fila(base.b.id)).arcaPuntoVenta, null);
+    assert.equal(await auditadas(base.b.id, "fiscal.puntoVenta.set"), 0);
+
+    // Con otro punto de venta, sí.
+    const pvB = await vuelta(() => setTenantArcaPuntoVenta(formulario({ tenantId: base.b.id, arcaPuntoVenta: "6" })));
+    assert.match(pvB.ok ?? "", /Punto de venta guardado \(6\)/, `sin error: ${pvB.error}`);
+    assert.deepEqual(await fila(base.b.id), { arcaCuit: CUIT, arcaPuntoVenta: 6 });
   });
 });

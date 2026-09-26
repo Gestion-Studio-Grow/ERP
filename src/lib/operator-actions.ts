@@ -250,8 +250,10 @@ export async function setTenantArcaCuit(formData: FormData) {
 
   // Candado fiscal: si el negocio ya tiene punto de venta, el CUIT nuevo no puede traer un
   // talonario que otro negocio ya numera. Lectura, chequeo y escritura en una transacción con
-  // el lock del CUIT (`bloquearCuit`).
-  const r = await operatorPrisma.$transaction(async (tx) => {
+  // el lock del CUIT (`bloquearCuit`), parada en el negocio: con RLS, sin eso la auditoría no
+  // pasaba la política («new row violates row-level security policy for table "AuditLog"») y el
+  // CUIT no se guardaba. Los otros negocios del CUIT se leen de `Tenant`, que no tiene RLS.
+  const r = await enElNegocio(tenantId, async (tx) => {
     if (nuevoCuit) await bloquearCuit(tx, nuevoCuit);
     const propio = await tx.tenant.findUnique({
       where: { id: tenantId },
@@ -315,8 +317,9 @@ export async function setTenantArcaPuntoVenta(formData: FormData) {
   }
 
   // Candado fiscal: el mismo CUIT no puede repetir punto de venta en otro negocio. Se lee el
-  // CUIT del negocio, se toma su lock y recién ahí se mira a los demás y se escribe.
-  const r = await operatorPrisma.$transaction(async (tx) => {
+  // CUIT del negocio, se toma su lock y recién ahí se mira a los demás y se escribe. Parada en
+  // el negocio, como la del CUIT: la auditoría es una fila suya.
+  const r = await enElNegocio(tenantId, async (tx) => {
     const antes = await tx.tenant.findUnique({ where: { id: tenantId }, select: { arcaCuit: true } });
     if (!antes) return { tipo: "no-existe" as const };
     if (punto && antes.arcaCuit) await bloquearCuit(tx, antes.arcaCuit);
