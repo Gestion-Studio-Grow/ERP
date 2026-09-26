@@ -8,7 +8,7 @@
 import Link from "next/link";
 import { AvisoError, EmptyState, buttonClasses, chipLinkAtributos, cn } from "@/components/ui";
 import { formatDayLabel } from "@/lib/caja/cierre-diario";
-import { parseTenantHostMap } from "@/lib/tenant";
+import { mapaDeHostsVigente } from "@/lib/tenant";
 import type { Role } from "@/lib/capabilities";
 import type { LocalSinLeer } from "@/lib/multilocal/multilocal-actions";
 import { appPorId } from "@/apps/registro";
@@ -18,7 +18,7 @@ import { getNegocioApps } from "@/apps/contexto.server";
 /** Cómo se llega al backoffice de cada negocio en este deploy (lo usa `direccionDelLocal`). */
 export function ruteoDeLocales() {
   return {
-    mapaDeHosts: parseTenantHostMap(process.env.TENANT_HOST_MAP),
+    mapaDeHosts: mapaDeHostsVigente(),
     dominioPropio: process.env.APP_BASE_DOMAIN?.trim() || null,
   };
 }

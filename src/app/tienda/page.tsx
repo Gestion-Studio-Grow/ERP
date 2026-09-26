@@ -27,6 +27,7 @@ import Storefront from "./Storefront";
 import SiteReplica from "./SiteReplica";
 import MagraFront from "./MagraFront";
 import ShineFront from "./ShineFront";
+import QuebienolesFront from "./quebienoles/QuebienolesFront";
 import TiendaNueva from "./vidriera/TiendaNueva";
 import { usaVidrieraNueva } from "./vidriera/marcas";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
@@ -60,7 +61,13 @@ export async function generateMetadata(): Promise<Metadata> {
   const name = data.name;
   // SHINE: favicon = isotipo REAL de marca (manual), no las iniciales genéricas. Por MARCA
   // (identity.brandId), no por slug exacto: `shinevelas-demo` es la misma marca.
-  const iconUri = identity.brandId === "shinevelas" ? "/tenants/shinevelas/brand/favicon.png" : tenantFaviconDataUri(tenantInitials(name), accent);
+  // QUÉ BIEN OLÉS: la Q con corona de su caja, en oro sobre negro.
+  const iconUri =
+    identity.brandId === "shinevelas"
+      ? "/tenants/shinevelas/brand/favicon.png"
+      : identity.brandId === "quebienoles"
+        ? "/tenants/quebienoles/marca/favicon.svg"
+        : tenantFaviconDataUri(tenantInitials(name), accent);
   const suffix = data.copy?.tagline ?? data.branding?.city ?? null;
   const title = suffix ? `${name} · ${suffix}` : name;
   const raw =
@@ -72,6 +79,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title,
     description,
+    // Sello GSG (Gate, bloque 2): invisible en la vidriera; la marca visible es la del negocio.
+    generator: "Gestión Studio Grow",
     openGraph: { title, description, type: "website" },
     icons: { icon: iconUri },
   };
@@ -152,6 +161,21 @@ export default async function TiendaPage({
         copy={data.copy}
         imagery={resolveTenantLayout(brandForSlug(slug)).imagery ?? null}
         tenantKey={slug ?? "shinevelas"}
+      />
+    );
+  }
+
+  // QUÉ BIEN OLÉS — perfumería. Front propio de esta generación: la vitrina de noche (negro laca y
+  // oro, como sus placas de Instagram), el frasco de la casa en 3D, la ficha olfativa de cada perfume
+  // y el «¿No sabés cuál elegir?». Detrás, el mismo pedido del ERP (placeOnlineOrder → bandeja).
+  // El copy es textual de la marca (storefront.ts); la ficha de cada perfume, tienda/quebienoles/perfumes.ts.
+  if (front === "quebienoles" && data.copy) {
+    return (
+      <QuebienolesFront
+        products={data.products}
+        branding={data.branding}
+        copy={data.copy}
+        tenantKey={slug ?? "quebienoles"}
       />
     );
   }

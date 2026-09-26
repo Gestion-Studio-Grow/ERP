@@ -12,6 +12,7 @@ import { editorialFrontFor, getTenantIdentity } from "@/lib/identidad-rubro";
 import { resolveMagraLocal } from "@/tenants/magra-content";
 import { sanitizePhone } from "@/lib/whatsapp-cta";
 import GraciasNueva from "../vidriera/GraciasNueva";
+import GraciasQuebienoles from "../quebienoles/GraciasQuebienoles";
 import { marcaDeLaVidriera, usaVidrieraNueva } from "../vidriera/marcas";
 import { textoDeMediosDePago } from "../reglas-tienda";
 
@@ -25,9 +26,9 @@ const leerTienda = cache(getStorefront);
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const { name } = await leerTienda();
-    return { title: `Pedido recibido · ${name}` };
+    return { title: `Pedido recibido · ${name}`, generator: "Gestión Studio Grow" };
   } catch {
-    return { title: "Pedido recibido" };
+    return { title: "Pedido recibido", generator: "Gestión Studio Grow" };
   }
 }
 
@@ -65,6 +66,20 @@ export default async function GraciasPage({
         pedido={pedido && /^\d{1,9}$/.test(pedido) ? pedido : null}
         whatsapp={whatsapp}
         pago={pago}
+      />
+    );
+  }
+
+  // QUÉ BIEN OLÉS: la confirmación con su marca (negro y oro) y el canal que usa de verdad —
+  // Instagram—; no tiene WhatsApp público, así que no se le ofrece un chat que no existe.
+  if (front === "quebienoles") {
+    const tienda = await leerTienda();
+    return (
+      <GraciasQuebienoles
+        pedido={pedido && /^\d{1,9}$/.test(pedido) ? pedido : null}
+        instagram={tienda.branding?.instagram ?? null}
+        whatsapp={sanitizePhone(tienda.branding?.whatsapp)}
+        tenantKey={identity.slug ?? "quebienoles"}
       />
     );
   }

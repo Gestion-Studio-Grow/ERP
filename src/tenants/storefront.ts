@@ -255,6 +255,45 @@ const adosmanos: StorefrontCopy = {
   // como propuesta de valor, pero no hay tarifa plana real confirmada para el calculador.
 };
 
+// --- QUÉ BIEN OLÉS (`quebienoles`, rubro `perfumeria`) — voz de @quebienoles ---
+// Relevado el 26/09/2026 del Instagram público (bio + posteos del 14, 15 y 17/09): el copy de acá
+// es TEXTUAL de la marca salvo los conectores. Análisis y fuentes en
+// docs/preventa/analisis-redes-quebienoles.md. NO se inventa: sin reseñas (no hay públicas), sin
+// medios de pago (la marca dice "consultanos por medios de pago"), sin tarifa ni zonas de envío (dice
+// "envío o punto de encuentro", Ezeiza) y sin horarios. Lo que falta está pedido al dueño en ese doc.
+const quebienoles: StorefrontCopy = {
+  eyebrow: "QUÉ BIEN OLÉS · Perfumería",
+  tagline: "Perfumes que dejan huella",
+  pitch: "Perfumes árabes al mejor precio.",
+  intro:
+    "Volvimos. Y esta vez, vinimos a hacerte oler muy bien. Queremos ayudarte a encontrar ese perfume que vaya con vos: para todos los días, para una salida, para regalar o simplemente para darte un gustito.",
+  valueProps: [
+    { icon: "◆", title: "Perfumes árabes al mejor precio", text: "Lattafa, Armaf, Afnan, Rasasi, Al Haramain y más." },
+    { icon: "◇", title: "Stock disponible", text: "Consultanos por stock y precios." },
+    { icon: "→", title: "Envío o punto de encuentro", text: "Coordinamos la entrega por mensaje. Estamos en Ezeiza." },
+    { icon: "✉", title: "¿No sabés cuál elegir?", text: "Escribinos y te ayudamos a encontrar el indicado." },
+  ],
+  vacioTitle: "Encontrá tu perfume ideal",
+  vacioLines: [
+    { title: "Dulces", text: "Intensos, adictivos, de noche." },
+    { title: "Frescos", text: "Energía, elegancia, todos los días." },
+    { title: "Versátiles", text: "Para cualquier ocasión." },
+    { title: "Femeninos", text: "Elegancia en cada detalle." },
+  ],
+  gourmetTitle: "Para cada momento",
+  gourmetItems: ["Para todos los días", "Para una salida", "Para regalar", "Para darte un gustito"],
+  // Las casas que se ven en los frascos de sus placas (Lancôme y Kayali NO: su presentación está a
+  // confirmar, ver src/app/tienda/quebienoles/perfumes.ts).
+  providers: ["Lattafa", "Armaf", "Afnan", "Rasasi", "Al Haramain", "French Avenue", "Bharara"],
+  reviews: [],
+  about: {
+    title: "Más que perfumes, experiencias.",
+    body: "Estuvimos un poquito desaparecidos, pero volvimos con muchas ganas y, sobre todo, con muchos perfumes para mostrarles. En Qué Bien Olés queremos ayudarte a encontrar ese perfume que vaya con vos. Se vienen recomendaciones, comparaciones, novedades, mucho stock y alguna que otra sorpresa. Esto recién empieza.",
+  },
+  deliveryZones: ["Envíos", "Punto de encuentro en Ezeiza"],
+  paymentMethods: [],
+};
+
 // Copy por MARCA, no por tenant. Clave = familia del slug (ver `tenantFamilySlug`).
 //
 // La diferencia importa con 5 locales: `magra`, `magra-lomas` y `magra-demo` son
@@ -270,6 +309,7 @@ const COPY_BY_BRAND: Record<string, StorefrontCopy> = {
   magra,
   shinevelas,
   adosmanos,
+  quebienoles,
 };
 
 /**

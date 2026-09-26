@@ -86,6 +86,7 @@ export default async function AltaPage() {
     isSecondTenant: tenantCount >= 1,
     casas,
     altaEnRedDisponible: fabricaDaAltaSinCatalogo(),
+    dominioPropio: process.env.APP_BASE_DOMAIN?.trim().toLowerCase() || null,
   };
 
   return (

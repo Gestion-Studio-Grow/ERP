@@ -14,9 +14,17 @@ test("con dominio propio, cada cliente con subdominio tiene su panel", () => {
   assert.equal(direccionDelPanel(p, "DEL-SUR", "/admin"), "https://del-sur.gestionstudiogrow.com/admin");
 });
 
-test("el mapa exacto gana sobre el dominio propio (misma regla que el ruteo del deploy)", () => {
-  const p = panelesDeLaCartera(["shinevelas"], { TENANT_HOST_MAP: "shinevelas.vercel.app=shinevelas", APP_BASE_DOMAIN: "gsg.com" });
-  assert.equal(direccionDelPanel(p, "shinevelas", "/admin"), "https://shinevelas.vercel.app/admin");
+test("con dominio propio, la dirección es la del dominio aunque el cliente también esté en el mapa", () => {
+  // El mapa (.vercel.app) sigue ruteando igual; la dirección que se muestra y se comparte es la del
+  // dominio propio, la misma que ve Soporte en la consola (direccionDelLocal).
+  const p = panelesDeLaCartera(["shinevelas"], { TENANT_HOST_MAP: "shinevelas.vercel.app=shinevelas", APP_BASE_DOMAIN: "gsgapp.com.ar" });
+  assert.equal(direccionDelPanel(p, "shinevelas", "/admin"), "https://shinevelas.gsgapp.com.ar/admin");
+});
+
+test("sin dominio propio, un host publicado desde el código también da panel", () => {
+  // HOSTS_PUBLICADOS (tenant.ts): el mismo mapa que rutea el deploy, no sólo la variable.
+  const p = panelesDeLaCartera(["quebienoles"], {});
+  assert.equal(direccionDelPanel(p, "quebienoles", "/admin"), "https://quebienoles-erp.vercel.app/admin");
 });
 
 test("sin subdominio, o sin mapa ni dominio propio, no se promete ninguna dirección", () => {

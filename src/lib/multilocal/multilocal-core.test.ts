@@ -486,12 +486,26 @@ test("el CSV: resumen por local, consolidado por CUIT si comparten, y detalle po
   assert.ok(raro.startsWith('Ventas por local;"A;B"'));
 });
 
-test("la dirección de un local: el host del mapa de ruteo, o el dominio propio, o nada", () => {
+test("la dirección de un local: el dominio propio, o el host del mapa de ruteo, o nada", () => {
   const mapa = new Map([["magra-canning-erp.vercel.app", "magra-canning"]]);
   assert.equal(direccionDelLocal("magra-canning", { mapaDeHosts: mapa, dominioPropio: null }, "/admin/caja"), "https://magra-canning-erp.vercel.app/admin/caja");
-  assert.equal(direccionDelLocal("magra-lomas", { mapaDeHosts: mapa, dominioPropio: "magra.com.ar" }, "/admin/caja"), "https://magra-lomas.magra.com.ar/admin/caja");
+  assert.equal(direccionDelLocal("magra-lomas", { mapaDeHosts: mapa, dominioPropio: "gsgapp.com.ar" }, "/admin/caja"), "https://magra-lomas.gsgapp.com.ar/admin/caja");
   assert.equal(direccionDelLocal("magra-lomas", { mapaDeHosts: mapa, dominioPropio: null }, "/admin/caja"), null);
   assert.equal(direccionDelLocal(null, { mapaDeHosts: mapa, dominioPropio: "x.com" }, "/admin"), null);
+});
+
+test("con dominio propio, un negocio que también está en el mapa se muestra con el dominio propio", () => {
+  // El mapa (`.vercel.app`) sigue ruteando, pero la dirección que se muestra y se comparte es la del
+  // dominio propio: todo lo creado antes del dominio lo hereda sin tocar el mapa.
+  const mapa = new Map([["chestetica-erp.vercel.app", "chestetica"]]);
+  assert.equal(
+    direccionDelLocal("chestetica", { mapaDeHosts: mapa, dominioPropio: "gsgapp.com.ar" }, "/admin"),
+    "https://chestetica.gsgapp.com.ar/admin",
+  );
+  assert.equal(
+    direccionDelLocal("Chestetica ", { mapaDeHosts: mapa, dominioPropio: " gsgapp.com.ar " }, "/admin"),
+    "https://chestetica.gsgapp.com.ar/admin",
+  );
 });
 
 // ── El vínculo ───────────────────────────────────────────────────────────────

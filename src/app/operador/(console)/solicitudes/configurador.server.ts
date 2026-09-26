@@ -27,7 +27,7 @@ import type { PrismaClient, Prisma } from "@/generated/prisma/client";
 import { provisionTenant } from "../../../../../scripts/provision-tenant";
 import { generateStrongPassword, hashPassword } from "@/lib/auth-password";
 import { crearClienteProvisioning, resolverSlugCliente } from "@/lib/cartera-core";
-import { parseTenantHostMap } from "@/lib/tenant";
+import { mapaDeHostsVigente } from "@/lib/tenant";
 import { leerLimitesEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { decidirAltaDeUsuarioEnTx } from "@/lib/usuarios-del-plan";
 import { decidirAlta, NO_SE_PUDO_CONTAR } from "@/planes/limites";
@@ -237,7 +237,7 @@ async function columnasDeM1(tx: Tx): Promise<{ condicionIva: boolean; cambioDeCl
 export function direccionDe(subdominio: string | null, ruta: string, env: Readonly<Record<string, string | undefined>> = process.env): string | null {
   return direccionDelLocal(
     subdominio,
-    { mapaDeHosts: parseTenantHostMap(env.TENANT_HOST_MAP), dominioPropio: env.APP_BASE_DOMAIN?.trim() || null },
+    { mapaDeHosts: mapaDeHostsVigente({ ...env }), dominioPropio: env.APP_BASE_DOMAIN?.trim() || null },
     ruta,
   );
 }

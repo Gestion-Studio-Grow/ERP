@@ -42,7 +42,7 @@ import {
 import { modoDesdeEnv } from "@/plugins/arca";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { operatorReadMustChange } from "@/lib/must-change-password";
-import { parseTenantHostMap } from "@/lib/tenant";
+import { mapaDeHostsVigente } from "@/lib/tenant";
 import {
   direccionDelLocal,
   MOTIVO_OK_DEL_DUENIO_RED,
@@ -504,7 +504,7 @@ export default async function FichaDelNegocio({
   const suPanel = direccionDelLocal(
     t.subdomain,
     {
-      mapaDeHosts: parseTenantHostMap(process.env.TENANT_HOST_MAP),
+      mapaDeHosts: mapaDeHostsVigente(),
       dominioPropio: process.env.APP_BASE_DOMAIN?.trim() || null,
     },
     "/admin",

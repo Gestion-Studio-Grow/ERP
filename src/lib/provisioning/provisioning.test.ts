@@ -239,3 +239,12 @@ test("subdominio de la ficha: minúsculas, mismo formato que el alta, vacío = b
     assert.equal(leerSubdominio(malo).ok, false, malo);
   }
 });
+
+test("«www» no puede ser el link de un negocio: con el dominio propio nunca llega a ningún negocio", async () => {
+  // `www.gsgapp.com.ar` es la puerta del dominio, no un negocio: el ruteo lo trata como el dominio a
+  // secas (tenant.ts, extractSubdomain) y ese negocio no abriría nunca. Lo frenan el alta y la ficha.
+  const { leerSubdominio, isValidHost } = await import("./slug");
+  assert.equal(isValidHost("www"), false);
+  assert.equal(leerSubdominio(" WWW ").ok, false);
+  assert.equal(isValidHost("www-norte"), true);
+});

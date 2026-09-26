@@ -166,6 +166,12 @@ const TENANTS: Record<string, TenantBrand> = {
       sectionOrder: ["catalog", "cart", "lines", "gourmet", "providers", "reviews"],
     },
   },
+  // Qué Bien Olés — perfumería: se sirve con su front PROPIO (tienda/quebienoles), negro laca y oro
+  // como sus placas. Acá sólo importa el acento (ámbar: el oro del panel y del favicon) y el tema
+  // oscuro; el layout no se consume porque no cae a la vidriera genérica.
+  "quebienoles": {
+    name: "Qué Bien Olés", monogram: "Q", preset: "ambar", frontTheme: "dark",
+  },
 };
 
 // (resolveTenantLayout / FONT_VAR / DEFAULT_SECTION_ORDER / resolveSectionOrder ahora viven

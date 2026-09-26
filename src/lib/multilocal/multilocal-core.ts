@@ -260,11 +260,13 @@ export function elegirLocal<L extends { localTenantId: string }>(
 }
 
 /**
- * La dirección del backoffice de un local, para el botón "Abrir su caja". Primero el host del
- * mapa de ruteo (`TENANT_HOST_MAP`, host → subdominio: se busca al revés) y si no, el
- * subdominio del dominio propio (`APP_BASE_DOMAIN`). `null` si no tiene ninguna: la pantalla
- * lo dice en vez de armar un link roto. Entrar ahí pide el usuario de ESE local (los usuarios
- * son por negocio). PURA.
+ * La dirección del backoffice de un local, para el botón "Abrir su caja". Primero el subdominio
+ * del dominio propio (`APP_BASE_DOMAIN`, p. ej. `magra.gsgapp.com.ar`): es la dirección que se
+ * muestra y se comparte, y la heredan también los negocios creados antes del dominio. Si no hay
+ * dominio propio, el host del mapa de ruteo (`TENANT_HOST_MAP`, host → subdominio: se busca al
+ * revés). El mapa sigue ruteando igual: las direcciones viejas no dejan de andar. `null` si no
+ * tiene ninguna: la pantalla lo dice en vez de armar un link roto. Entrar ahí pide el usuario de
+ * ESE local (los usuarios son por negocio). PURA.
  */
 export function direccionDelLocal(
   subdomain: string | null,
@@ -273,9 +275,10 @@ export function direccionDelLocal(
 ): string | null {
   const sub = subdomain?.trim().toLowerCase();
   if (!sub) return null;
+  const base = ruteo.dominioPropio?.trim().toLowerCase();
+  if (base) return `https://${sub}.${base}${ruta}`;
   for (const [host, s] of ruteo.mapaDeHosts) if (s === sub) return `https://${host}${ruta}`;
-  const base = ruteo.dominioPropio?.trim();
-  return base ? `https://${sub}.${base}${ruta}` : null;
+  return null;
 }
 
 // ── Días ─────────────────────────────────────────────────────────────────────

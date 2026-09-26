@@ -1,0 +1,370 @@
+{
+ "fuente": "instagram.com/quebienoles/p/DdUdq_BlpYZ (carrusel 15/09/2026, 5 placas 1254x1254)",
+ "nota": "Resolucion de Instagram. Pedir al cliente las fotos originales en alta.",
+ "piezas": [
+  {
+   "slug": "dul-9pm-night-out",
+   "placa": 1,
+   "caja_px": [
+    99,
+    1536,
+    307,
+    1913
+   ],
+   "salida_px": [
+    332,
+    415
+   ]
+  },
+  {
+   "slug": "dul-khamrah",
+   "placa": 1,
+   "caja_px": [
+    365,
+    1580,
+    611,
+    1913
+   ],
+   "salida_px": [
+    293,
+    366
+   ]
+  },
+  {
+   "slug": "dul-liquid-brun",
+   "placa": 1,
+   "caja_px": [
+    661,
+    1542,
+    875,
+    1913
+   ],
+   "salida_px": [
+    326,
+    408
+   ]
+  },
+  {
+   "slug": "dul-yara-candy",
+   "placa": 1,
+   "caja_px": [
+    948,
+    1555,
+    1139,
+    1913
+   ],
+   "salida_px": [
+    315,
+    394
+   ]
+  },
+  {
+   "slug": "dul-give-me-gourmand",
+   "placa": 1,
+   "caja_px": [
+    192,
+    2011,
+    438,
+    2318
+   ],
+   "salida_px": [
+    270,
+    338
+   ]
+  },
+  {
+   "slug": "dul-asad-bourbon",
+   "placa": 1,
+   "caja_px": [
+    533,
+    2011,
+    723,
+    2318
+   ],
+   "salida_px": [
+    270,
+    338
+   ]
+  },
+  {
+   "slug": "dul-cocoa-morado",
+   "placa": 1,
+   "caja_px": [
+    837,
+    2011,
+    1019,
+    2318
+   ],
+   "salida_px": [
+    270,
+    338
+   ]
+  },
+  {
+   "slug": "fre-odyssey-limoni",
+   "placa": 2,
+   "caja_px": [
+    131,
+    2790,
+    397,
+    3143
+   ],
+   "salida_px": [
+    310,
+    388
+   ]
+  },
+  {
+   "slug": "fre-cdn-iconic",
+   "placa": 2,
+   "caja_px": [
+    488,
+    2774,
+    765,
+    3143
+   ],
+   "salida_px": [
+    325,
+    406
+   ]
+  },
+  {
+   "slug": "fre-hawas-ice",
+   "placa": 2,
+   "caja_px": [
+    883,
+    2774,
+    1136,
+    3143
+   ],
+   "salida_px": [
+    325,
+    406
+   ]
+  },
+  {
+   "slug": "fre-9am-dive",
+   "placa": 2,
+   "caja_px": [
+    139,
+    3223,
+    360,
+    3584
+   ],
+   "salida_px": [
+    318,
+    397
+   ]
+  },
+  {
+   "slug": "fre-odyssey-mandarin-sky",
+   "placa": 2,
+   "caja_px": [
+    488,
+    3228,
+    755,
+    3584
+   ],
+   "salida_px": [
+    314,
+    392
+   ]
+  },
+  {
+   "slug": "fre-hawas-tropical",
+   "placa": 2,
+   "caja_px": [
+    883,
+    3223,
+    1139,
+    3584
+   ],
+   "salida_px": [
+    318,
+    397
+   ]
+  },
+  {
+   "slug": "ver-9pm",
+   "placa": 3,
+   "caja_px": [
+    157,
+    4034,
+    384,
+    4424
+   ],
+   "salida_px": [
+    343,
+    429
+   ]
+  },
+  {
+   "slug": "ver-cdn-intense-man",
+   "placa": 3,
+   "caja_px": [
+    483,
+    4040,
+    765,
+    4421
+   ],
+   "salida_px": [
+    335,
+    419
+   ]
+  },
+  {
+   "slug": "ver-supremacy-collector",
+   "placa": 3,
+   "caja_px": [
+    867,
+    4028,
+    1123,
+    4424
+   ],
+   "salida_px": [
+    349,
+    436
+   ]
+  },
+  {
+   "slug": "ver-bharara-bleu",
+   "placa": 3,
+   "caja_px": [
+    163,
+    4511,
+    371,
+    4850
+   ],
+   "salida_px": [
+    298,
+    373
+   ]
+  },
+  {
+   "slug": "ver-bharara-king",
+   "placa": 3,
+   "caja_px": [
+    531,
+    4511,
+    728,
+    4850
+   ],
+   "salida_px": [
+    298,
+    373
+   ]
+  },
+  {
+   "slug": "ver-amber-oud-aqua-dubai",
+   "placa": 3,
+   "caja_px": [
+    875,
+    4511,
+    1116,
+    4850
+   ],
+   "salida_px": [
+    298,
+    373
+   ]
+  },
+  {
+   "slug": "fem-yara",
+   "placa": 4,
+   "caja_px": [
+    152,
+    5288,
+    360,
+    5654
+   ],
+   "salida_px": [
+    322,
+    403
+   ]
+  },
+  {
+   "slug": "fem-la-vie-est-belle",
+   "placa": 4,
+   "caja_px": [
+    473,
+    5294,
+    824,
+    5654
+   ],
+   "salida_px": [
+    379,
+    474
+   ]
+  },
+  {
+   "slug": "fem-eclaire",
+   "placa": 4,
+   "caja_px": [
+    904,
+    5277,
+    1108,
+    5654
+   ],
+   "salida_px": [
+    332,
+    415
+   ]
+  },
+  {
+   "slug": "fem-kayali-vanilla-candy",
+   "placa": 4,
+   "caja_px": [
+    136,
+    5728,
+    376,
+    6073
+   ],
+   "salida_px": [
+    304,
+    380
+   ]
+  },
+  {
+   "slug": "fem-sakeena",
+   "placa": 4,
+   "caja_px": [
+    510,
+    5728,
+    734,
+    6073
+   ],
+   "salida_px": [
+    304,
+    380
+   ]
+  },
+  {
+   "slug": "fem-afeef",
+   "placa": 4,
+   "caja_px": [
+    856,
+    5728,
+    1148,
+    6073
+   ],
+   "salida_px": [
+    315,
+    394
+   ]
+  },
+  {
+   "slug": "marca-caja-q",
+   "placa": 0,
+   "caja_px": [
+    128,
+    771,
+    864,
+    1188
+   ],
+   "salida_px": [
+    795,
+    994
+   ]
+  }
+ ]
+}

@@ -16,7 +16,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 ## Índice
 - **PD** — PD-1 build lento ≠ colgado · PD-2 gates humanos · PD-3 cron Hobby · PD-4 GitHub App en la org
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
-- **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance
+- **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance · MT-6 hosts en código (variable sensible)
 - **DX** — DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
 - **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir)
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit
@@ -132,6 +132,19 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Lección:** **RLS no es solo aislamiento: también es performance** (fuerza el predicado).
 - **Guardarraíl:** toda query con predicado `tenantId` / `tenantTransaction`; RLS enforced en prod (Gate 2).
 - **Refs:** ADR-023, ADR-018.
+
+**[MT-6] Sumar un host obligaba a reescribir a ciegas el mapa de todos (quebienoles, 26/09/2026)**
+- **Síntoma:** para publicar `quebienoles-erp.vercel.app` había que sumar una entrada a `TENANT_HOST_MAP`.
+- **Causa raíz:** en Vercel la variable es **sensible**: no se puede leer, sólo reescribir entera. Reescribirla
+  "de memoria" o desde una plantilla vieja (`.env.vercel.template`) podía borrar hosts vivos (MAGRA, Shine, ADM,
+  los de productos GSG) sin error visible hasta que alguien entra.
+- **Fix:** `HOSTS_PUBLICADOS` en `src/lib/tenant.ts`: hosts exactos en el código, revisados en un commit; la
+  variable **gana** si repite el host (se corrige sin deploy). Mismo fail-closed: sin `Tenant.subdomain`, 500.
+- **Lección:** una configuración que no se puede leer no se puede editar con seguridad; se agrega por un canal
+  que sí se lee y se revisa.
+- **Guardarraíl:** host nuevo → `HOSTS_PUBLICADOS` + test; **nunca** reescribir `TENANT_HOST_MAP` sin tener su
+  valor vigente a la vista.
+- **Refs:** MT-4, `src/lib/tenant.test.ts`, `docs/tenants/quebienoles/README.md`.
 
 ## DX — Demo / UX
 
