@@ -16,7 +16,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
-import { operatorPrisma } from "@/lib/operator-db";
+import { operatorPrisma, enElNegocio } from "@/lib/operator-db";
 import { requireOperator } from "@/lib/operator-session";
 import { operadorParaNegocio, requireOperadorParaNegocio } from "@/lib/operador/guardia-negocio";
 import {
@@ -236,10 +236,9 @@ export async function setTenantArcaCuit(formData: FormData) {
   // inservible (la firma lo va a rechazar). Se avisa en el mensaje, sin romper.
   let aviso = "";
   try {
-    const cred = await operatorPrisma.tenantFiscalCredential.findUnique({
-      where: { tenantId },
-      select: { certCuit: true },
-    });
+    const cred = await enElNegocio(tenantId, (tx) =>
+      tx.tenantFiscalCredential.findUnique({ where: { tenantId }, select: { certCuit: true } }),
+    );
     if (cred && nuevoCuit && cred.certCuit !== nuevoCuit) {
       aviso =
         ` — ojo: el certificado cargado es del CUIT ${cred.certCuit}. ` +
@@ -426,22 +425,24 @@ export async function cambiarFacturacionReal(formData: FormData) {
 // Devuelve el claro UNA vez para que la ficha lo muestre con revelado único (BootstrapReveal):
 // no va por la URL ni queda en ningún lado. Si se pierde, se resetea de nuevo.
 // Guardada por `operadorParaNegocio` (sesión de operador + candado de CH): en CH sólo el dueño.
-// PORT armado sobre el control-plane (operatorPrisma, cross-tenant / BYPASSRLS). El núcleo
-// (`resetOwnerPasswordCore`) es puro y no conoce Prisma → testeable con un doble en memoria.
-function operatorResetPort(): OwnerResetPort {
+// PORT armado sobre UNA transacción parada en el negocio (`enElNegocio`): con RLS es lo que deja
+// ver al OWNER y escribirle; y la contraseña, el cambio forzado y la auditoría quedan todos o
+// ninguno. El núcleo (`resetOwnerPasswordCore`) es puro y no conoce Prisma → testeable con un
+// doble en memoria.
+function operatorResetPort(tx: Prisma.TransactionClient): OwnerResetPort {
   return {
     findOwner: (tid) =>
-      operatorPrisma.user.findFirst({
+      tx.user.findFirst({
         where: { tenantId: tid, role: "OWNER", active: true, deletedAt: null },
         orderBy: { createdAt: "asc" },
         select: { id: true, email: true },
       }),
     setPasswordHash: async (userId, passwordHash) => {
-      await operatorPrisma.user.update({ where: { id: userId }, data: { passwordHash } });
+      await tx.user.update({ where: { id: userId }, data: { passwordHash } });
     },
-    setMustChange: (userId, value) => operatorSetMustChange(operatorPrisma, userId, value),
+    setMustChange: (userId, value) => operatorSetMustChange(tx, userId, value),
     audit: async (entry) => {
-      await operatorPrisma.auditLog.create({
+      await tx.auditLog.create({
         data: { ...entry, changes: entry.changes as Prisma.InputJsonValue },
       });
     },
@@ -452,7 +453,9 @@ export async function resetOwnerPassword(tenantId: string): Promise<OwnerResetRe
   const g = await operadorParaNegocio({ id: tenantId });
   if (!g.ok) return { ok: false, error: g.motivo };
   const op = g.sesion.nombre;
-  const result = await resetOwnerPasswordCore(operatorResetPort(), { tenantId, operatorSubject: op });
+  const result = await enElNegocio(tenantId, (tx) =>
+    resetOwnerPasswordCore(operatorResetPort(tx), { tenantId, operatorSubject: op }),
+  );
   if (result.ok) revalidatePath(`/operador/tenants/${tenantId}`);
   return result;
 }
@@ -517,7 +520,9 @@ export async function resetOwnerPasswordDeTenant(
     };
   }
 
-  const result = await resetOwnerPasswordCore(operatorResetPort(), { tenantId, operatorSubject: op });
+  const result = await enElNegocio(tenantId, (tx) =>
+    resetOwnerPasswordCore(operatorResetPort(tx), { tenantId, operatorSubject: op }),
+  );
   if (result.ok) {
     revalidatePath(`/operador/tenants/${tenantId}`);
     revalidatePath("/operador");

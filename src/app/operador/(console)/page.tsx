@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { operatorPrisma } from "@/lib/operator-db";
+import { operatorPrisma, enElNegocio } from "@/lib/operator-db";
 import { requireSesionOperador } from "@/lib/operator-session";
 import { getBlueprint } from "@/blueprints";
 import { modoDesdeEnv } from "@/plugins/arca";
@@ -51,6 +51,21 @@ export const dynamic = "force-dynamic";
 const uno = (v: string | string[] | undefined) =>
   (Array.isArray(v) ? v[0] : v) ?? "";
 
+// Personas, operaciones y vínculos (red de locales, cartera) de un negocio. Con RLS las filas de un
+// negocio sólo se ven parado en él (ver operator-db.ts): una transacción por negocio. Los conteos
+// de relación sobre `Tenant` (`_count`) volvían 0 para todos en producción.
+async function numerosDe(tenantId: string) {
+  return enElNegocio(tenantId, async (tx) => ({
+    personas: await tx.user.count({ where: { tenantId } }),
+    operaciones:
+      (await tx.appointment.count({ where: { tenantId } })) + (await tx.order.count({ where: { tenantId } })),
+    vinculos: await tx.carteraCliente.findMany({
+      where: { tenantId, estado: { not: "baja" } },
+      select: { tenantId: true, clienteTenantId: true },
+    }),
+  })).catch(() => ({ personas: 0, operaciones: 0, vinculos: [] as { tenantId: string; clienteTenantId: string }[] }));
+}
+
 function rubroDe(id: string | null): string | null {
   if (!id) return null;
   try {
@@ -90,7 +105,7 @@ export default async function Negocios({
   const q = uno(sp.q).slice(0, 80);
   const orden = uno(sp.orden) || null;
 
-  const [tenants, aperturas, vinculos] = await Promise.all([
+  const [tenants, aperturas] = await Promise.all([
     operatorPrisma.tenant.findMany({
       orderBy: { createdAt: "asc" },
       select: {
@@ -103,24 +118,19 @@ export default async function Negocios({
         subdomain: true,
         modules: true,
         arcaHomologacion: true,
-        _count: { select: { users: true, appointments: true, orders: true } },
       },
     }),
     cargarAperturas().catch(() => null),
-    // Quién es local o cliente de quién (la red de locales y la cartera guardan su vínculo acá).
-    operatorPrisma.carteraCliente
-      .findMany({
-        where: { estado: { not: "baja" } },
-        select: { tenantId: true, clienteTenantId: true },
-      })
-      .catch(() => []),
   ]);
+  const numeros = await Promise.all(tenants.map((t) => numerosDe(t.id)));
+  // Quién es local o cliente de quién (la red de locales y la cartera guardan su vínculo acá).
+  const vinculos = numeros.flatMap((n) => n.vinculos);
 
   const aperturaDe = new Map((aperturas ?? []).map((a) => [a.id, a]));
   const nombreDe = new Map(tenants.map((t) => [t.id, t.name]));
   const modulosDe = new Map(tenants.map((t) => [t.id, t.modules]));
 
-  const negocios: NegocioParaLista[] = tenants.map((t) => ({
+  const negocios: NegocioParaLista[] = tenants.map((t, i) => ({
     id: t.id,
     nombre: t.name,
     slug: t.slug,
@@ -129,8 +139,8 @@ export default async function Negocios({
     plan: t.plan,
     rubro: rubroDe(t.blueprintId),
     modulos: t.modules,
-    personas: t._count.users,
-    operaciones: t._count.appointments + t._count.orders,
+    personas: numeros[i].personas,
+    operaciones: numeros[i].operaciones,
     apertura: aperturaDe.get(t.id) ?? null,
     conCandado: requiereOkDelDuenio(t.slug),
   }));

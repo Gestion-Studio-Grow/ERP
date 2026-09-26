@@ -12,8 +12,10 @@
 // RLS (ADR-018): `User` es tabla de-tenant. Con RLS ON, la extensión de `rlsPrisma` NO envuelve
 // las ops crudas (`model === undefined`) con el GUC del tenant → una lectura cruda suelta se
 // filtraría a 0 filas. Por eso el lado APP corre dentro de `tenantTransaction` (setea
-// `app.current_tenant_id`). El lado OPERADOR usa `operatorPrisma` (control-plane, BYPASSRLS) y
-// puede leer/escribir cross-tenant directo.
+// `app.current_tenant_id`). El lado OPERADOR corre dentro de `enElNegocio` (la conexión de la
+// consola también está sujeta a RLS en producción, ver operator-db.ts): por eso ahí NO se puede
+// «probar y tolerar» la columna faltante — en Postgres una sentencia que falla deja abortada la
+// transacción entera y el reset no llegaba a auditar. Primero se pregunta si la columna existe.
 
 import { tenantTransaction } from "@/lib/rls";
 import { basePrisma } from "@/lib/prisma-base";
@@ -123,9 +125,22 @@ export async function clearMustChangePassword(user: { id: string; tenantId: stri
 
 // --- Lado OPERADOR (control-plane, cross-tenant) -----------------------------
 
+// ¿Ya se aplicó la migración de la columna? Una lectura del catálogo, que no falla: dentro de una
+// transacción no se puede probar la columna y tolerar el error (abortaría la transacción).
+async function hayColumnaMustChange(db: RawClient): Promise<boolean> {
+  const filas = await db.$queryRaw<{ hay: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = 'User' AND column_name = 'mustChangePassword'
+    ) AS hay
+  `;
+  return filas[0]?.hay === true;
+}
+
 // Estado del flag para un usuario, visto desde el operador. `"pendiente"` = la columna no está
 // en la base todavía (migración Gate 2 sin aplicar) → la ficha lo muestra como tal.
 export async function operatorReadMustChange(db: RawClient, userId: string): Promise<boolean | "pendiente"> {
+  if (!(await hayColumnaMustChange(db))) return "pendiente";
   try {
     const rows = await db.$queryRaw<{ mustChangePassword: boolean }[]>`
       SELECT "mustChangePassword" FROM "User" WHERE "id" = ${userId} LIMIT 1
@@ -145,6 +160,7 @@ export async function operatorSetMustChange(
   userId: string,
   value: boolean,
 ): Promise<{ persisted: boolean }> {
+  if (!(await hayColumnaMustChange(db))) return { persisted: false };
   try {
     await db.$executeRaw`
       UPDATE "User" SET "mustChangePassword" = ${value} WHERE "id" = ${userId}

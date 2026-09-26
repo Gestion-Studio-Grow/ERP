@@ -24,7 +24,7 @@ import {
   cuitDesdeCertPem,
   vencimientoDesdeCertPem,
 } from "@/plugins/arca";
-import { operatorPrisma } from "@/lib/operator-db";
+import { operatorPrisma, enElNegocio } from "@/lib/operator-db";
 import {
   masterKeyDesdeEnv,
   sealCredential,
@@ -95,10 +95,12 @@ function defaultDeps(): TenantCertDeps {
       });
       return t?.arcaCuit ?? null;
     },
+    // La credencial y su auditoría son filas DEL negocio: con RLS se leen y escriben parado en él
+    // (`enElNegocio`); sin eso, en producción la credencial «no existía» y la carga fallaba.
     leerRegistro: async (tenantId) => {
-      const r = await operatorPrisma.tenantFiscalCredential.findUnique({
-        where: { tenantId },
-      });
+      const r = await enElNegocio(tenantId, (tx) =>
+        tx.tenantFiscalCredential.findUnique({ where: { tenantId } }),
+      );
       return r
         ? {
             certCuit: r.certCuit,
@@ -109,29 +111,32 @@ function defaultDeps(): TenantCertDeps {
           }
         : null;
     },
-    guardarRegistro: async (tenantId, reg, loadedBy) => {
-      const existente = await operatorPrisma.tenantFiscalCredential.findUnique({
-        where: { tenantId },
-        select: { id: true },
-      });
-      const row = await operatorPrisma.tenantFiscalCredential.upsert({
-        where: { tenantId },
-        create: { tenantId, loadedBy, ...reg },
-        update: { loadedBy, ...reg },
-      });
-      return { id: row.id, yaExistia: existente != null };
-    },
+    guardarRegistro: (tenantId, reg, loadedBy) =>
+      enElNegocio(tenantId, async (tx) => {
+        const existente = await tx.tenantFiscalCredential.findUnique({
+          where: { tenantId },
+          select: { id: true },
+        });
+        const row = await tx.tenantFiscalCredential.upsert({
+          where: { tenantId },
+          create: { tenantId, loadedBy, ...reg },
+          update: { loadedBy, ...reg },
+        });
+        return { id: row.id, yaExistia: existente != null };
+      }),
     auditar: async (entry) => {
-      await operatorPrisma.auditLog.create({
-        data: {
-          tenantId: entry.tenantId,
-          actor: entry.actor,
-          action: entry.action,
-          entity: "TenantFiscalCredential",
-          entityId: entry.entityId,
-          changes: entry.changes as object,
-        },
-      });
+      await enElNegocio(entry.tenantId, (tx) =>
+        tx.auditLog.create({
+          data: {
+            tenantId: entry.tenantId,
+            actor: entry.actor,
+            action: entry.action,
+            entity: "TenantFiscalCredential",
+            entityId: entry.entityId,
+            changes: entry.changes as object,
+          },
+        }),
+      );
     },
     master: masterKeyDesdeEnv,
   };

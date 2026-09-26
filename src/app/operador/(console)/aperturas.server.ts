@@ -4,13 +4,20 @@
 //
 // Una sola definición de «listo» (src/lib/operador/checklist-apertura.ts) y una sola lectura: la
 // pregunta del lunes es «¿cuál de los cinco locales está listo?», y no puede exigir entrar de a una
-// en cinco fichas. Cuatro consultas para TODOS los negocios (no una por negocio): el Tablero se
-// refresca cada 30 s y un N+1 acá se paga en conexiones.
+// en cinco fichas.
+//
+// CON RLS (la conexión de operador está sujeta a RLS en producción, ver operator-db.ts): las filas
+// de un negocio sólo se ven parado en él, así que es UNA transacción por negocio (las cuatro
+// lecturas adentro), todas en paralelo. Antes eran cuatro consultas para todos juntos, que con RLS
+// volvían vacías: todos los negocios aparecían sin usuarios, sin contacto y sin catálogo. Costo:
+// una transacción por negocio en cada refresco del Tablero (30 s); para cientos de negocios, el
+// camino es un resumen por negocio del lado de la base (BACKLOG).
 //
 // Sólo metadatos de plataforma y lo mínimo del catálogo que el chequeo compara (nombre y precio),
-// por la conexión de operador (ADR-021). Cada lectura opcional tolera su tabla faltante.
+// por la conexión de operador (ADR-021). Si la lectura de un negocio falla, ese negocio queda como
+// «no se sabe» en el certificado y vacío en lo demás; los otros no se enteran.
 
-import { operatorPrisma } from "@/lib/operator-db";
+import { operatorPrisma, enElNegocio } from "@/lib/operator-db";
 import { modoDesdeEnv } from "@/plugins/arca";
 import { checklistApertura, type EstadoApertura, type ResultadoApertura } from "@/lib/operador/checklist-apertura";
 
@@ -30,59 +37,48 @@ export async function cargarAperturas(): Promise<AperturaDeNegocio[]> {
   });
   if (tenants.length === 0) return [];
 
-  const ids = tenants.map((t) => t.id);
-  const [settings, productos, usuarios, creds] = await Promise.all([
-    operatorPrisma.businessSettings
-      .findMany({ where: { tenantId: { in: ids } }, select: { tenantId: true, addressLine: true, instagram: true, whatsapp: true } })
-      .catch(() => []),
-    operatorPrisma.product
-      .findMany({
-        where: { tenantId: { in: ids }, deletedAt: null },
-        select: { tenantId: true, name: true, price: true, pricePerKg: true },
-        take: 2000, // techo defensivo: el chequeo compara contra catálogos semilla de ~20 ítems
-      })
-      .catch(() => []),
-    operatorPrisma.user.groupBy({
-      by: ["tenantId"],
-      where: { tenantId: { in: ids }, active: true, deletedAt: null },
-      _count: { _all: true },
-    }),
-    // La tabla de credenciales puede no estar aplicada (Gate 2): `null` = «no se sabe», que el
-    // evaluador reporta como bloqueo de migración en vez de como «falta cargar el certificado».
-    operatorPrisma.tenantFiscalCredential
-      .findMany({ where: { tenantId: { in: ids } }, select: { tenantId: true, certCuit: true } })
-      .then((rows) => new Map(rows.map((r) => [r.tenantId, r])))
-      .catch(() => null),
-  ]);
+  // Por negocio: contacto, catálogo, usuarios activos y certificado (`undefined` = no se pudo leer).
+  const lecturas = await Promise.all(
+    tenants.map((t) =>
+      enElNegocio(t.id, async (tx) => ({
+        contacto: await tx.businessSettings.findUnique({
+          where: { tenantId: t.id },
+          select: { addressLine: true, instagram: true, whatsapp: true },
+        }),
+        productos: await tx.product.findMany({
+          where: { tenantId: t.id, deletedAt: null },
+          select: { name: true, price: true, pricePerKg: true },
+          take: 300, // techo defensivo: el chequeo compara contra catálogos semilla de ~20 ítems
+        }),
+        usuarios: await tx.user.count({ where: { tenantId: t.id, active: true, deletedAt: null } }),
+        cred: (await tx.tenantFiscalCredential.findUnique({
+          where: { tenantId: t.id },
+          select: { certCuit: true },
+        })) as { certCuit: string } | null | undefined,
+      })).catch(() => ({ contacto: null, productos: [], usuarios: 0, cred: undefined })),
+    ),
+  );
 
   const modoArca = modoDesdeEnv();
-  type FilaProducto = (typeof productos)[number];
-  const prods = new Map<string, FilaProducto[]>();
-  for (const r of productos) {
-    const acc = prods.get(r.tenantId);
-    if (acc) acc.push(r);
-    else prods.set(r.tenantId, [r]);
-  }
-  const sets = new Map(settings.map((r) => [r.tenantId, r]));
-  const users = new Map(usuarios.map((r) => [r.tenantId, r._count._all]));
 
-  return tenants.map((t) => {
-    const cred = creds?.get(t.id) ?? null;
+  return tenants.map((t, i) => {
+    const { contacto, productos, usuarios, cred } = lecturas[i];
     const estado: EstadoApertura = {
       slug: t.slug,
       blueprintId: t.blueprintId,
       subdomain: t.subdomain,
-      usuariosActivos: users.get(t.id) ?? 0,
+      usuariosActivos: usuarios,
       arcaCuit: t.arcaCuit,
       arcaPuntoVenta: t.arcaPuntoVenta,
       arcaHomologacion: t.arcaHomologacion,
-      certificadoCargado: creds === null ? null : Boolean(cred),
+      // `null` = «no se sabe» (el evaluador lo reporta como bloqueo, no como «falta cargarlo»).
+      certificadoCargado: cred === undefined ? null : cred !== null,
       certCuit: cred?.certCuit ?? null,
       modoArca,
       // La columna `arcaCondicionIva` no existe todavía (ver la ficha del negocio).
       condicionIvaDisponible: false,
-      contacto: sets.get(t.id) ?? null,
-      productos: prods.get(t.id) ?? [],
+      contacto,
+      productos,
     };
     return { id: t.id, name: t.name, slug: t.slug, ...checklistApertura(estado) };
   });

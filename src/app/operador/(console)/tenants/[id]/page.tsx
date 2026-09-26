@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { operatorPrisma } from "@/lib/operator-db";
+import { operatorPrisma, enElNegocio } from "@/lib/operator-db";
 import { requireSesionOperador } from "@/lib/operator-session";
 import { decidirOperadorParaNegocios } from "@/lib/operador/guardia-negocio-core";
 import { getBlueprint } from "@/blueprints";
@@ -123,10 +123,12 @@ async function credencialFiscalDe(
   | "pendiente"
 > {
   try {
-    const r = await operatorPrisma.tenantFiscalCredential.findUnique({
-      where: { tenantId },
-      select: { certCuit: true, certNotAfter: true, updatedAt: true },
-    });
+    const r = await enElNegocio(tenantId, (tx) =>
+      tx.tenantFiscalCredential.findUnique({
+        where: { tenantId },
+        select: { certCuit: true, certNotAfter: true, updatedAt: true },
+      }),
+    );
     return r ?? null;
   } catch {
     return "pendiente";
@@ -187,18 +189,20 @@ function idsDe(valor: unknown): string[] | null {
 async function historialDeModulos(
   tenantId: string,
 ): Promise<CambioRegistrado[]> {
-  const filas = await operatorPrisma.auditLog.findMany({
-    where: { tenantId, action: { in: ACCIONES_DE_MODULOS } },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-    select: {
-      id: true,
-      createdAt: true,
-      actor: true,
-      action: true,
-      changes: true,
-    },
-  });
+  const filas = await enElNegocio(tenantId, (tx) =>
+    tx.auditLog.findMany({
+      where: { tenantId, action: { in: ACCIONES_DE_MODULOS } },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        createdAt: true,
+        actor: true,
+        action: true,
+        changes: true,
+      },
+    }),
+  );
   return filas.map((f) => {
     const c = (
       f.changes && typeof f.changes === "object" && !Array.isArray(f.changes)
@@ -260,16 +264,6 @@ export default async function FichaDelNegocio({
       arcaCuit: true,
       arcaPuntoVenta: true,
       arcaHomologacion: true,
-      _count: {
-        select: {
-          users: true,
-          services: true,
-          products: true,
-          appointments: true,
-          orders: true,
-          clients: true,
-        },
-      },
     },
   });
   if (!tenant) notFound();
@@ -290,38 +284,37 @@ export default async function FichaDelNegocio({
     red,
     candidatosCasa,
     fichaDelPase,
+    conteos,
   ] = await Promise.all([
     credencialFiscalDe(t.id),
     // Dueño del negocio + estado de su contraseña temporal (tolera la migración sin aplicar).
-    operatorPrisma.user
-      .findFirst({
+    // Las filas del negocio se leen parado en él (`enElNegocio`): con RLS, sin eso la ficha
+    // mostraba el negocio sin dueño, sin usuarios y sin catálogo.
+    enElNegocio(t.id, async (tx) => {
+      const owner = await tx.user.findFirst({
         where: { tenantId: t.id, role: "OWNER", active: true, deletedAt: null },
         orderBy: { createdAt: "asc" },
         select: { id: true, email: true },
-      })
-      .then(async (owner) => ({
-        owner,
-        tempPending: owner
-          ? await operatorReadMustChange(operatorPrisma, owner.id)
-          : (false as const),
-      })),
+      });
+      return { owner, tempPending: owner ? await operatorReadMustChange(tx, owner.id) : (false as const) };
+    }),
     // Datos de apertura: contacto público y catálogo, tolerantes a que falten.
-    operatorPrisma.businessSettings
-      .findUnique({
+    enElNegocio(t.id, (tx) =>
+      tx.businessSettings.findUnique({
         where: { tenantId: t.id },
         select: { addressLine: true, instagram: true, whatsapp: true },
-      })
-      .catch(() => null),
-    operatorPrisma.product
-      .findMany({
+      }),
+    ).catch(() => null),
+    enElNegocio(t.id, (tx) =>
+      tx.product.findMany({
         where: { tenantId: t.id, deletedAt: null },
         select: { name: true, price: true, pricePerKg: true },
         take: 300, // techo defensivo: el chequeo compara contra el catálogo semilla (~20 ítems)
-      })
-      .catch(() => []),
-    operatorPrisma.user.count({
-      where: { tenantId: t.id, active: true, deletedAt: null },
-    }),
+      }),
+    ).catch(() => []),
+    enElNegocio(t.id, (tx) =>
+      tx.user.count({ where: { tenantId: t.id, active: true, deletedAt: null } }),
+    ),
     // Candado fiscal: los otros negocios con este CUIT.
     t.arcaCuit
       ? operatorPrisma.tenant.findMany({
@@ -360,6 +353,11 @@ export default async function FichaDelNegocio({
       : Promise.resolve([] as { id: string; name: string; slug: string }[]),
     // La ficha fiscal del pase a real (R2-F5): abre el certificado sólo para ver quién lo firmó.
     leerFichaDelPase(t.id, modoDesdeEnv()),
+    // Personas y clientes del encabezado (con RLS, un `_count` sobre Tenant volvía 0).
+    enElNegocio(t.id, async (tx) => ({
+      personas: await tx.user.count({ where: { tenantId: t.id } }),
+      clientes: await tx.client.count({ where: { tenantId: t.id } }),
+    })).catch(() => ({ personas: 0, clientes: 0 })),
   ]);
   if (!negocio) notFound();
   const { owner, tempPending: ownerTempPending } = ownerYEstado;
@@ -1086,8 +1084,8 @@ export default async function FichaDelNegocio({
                 t.subdomain ?? t.slug,
                 rubro,
                 plan.nota ? `${plan.texto} (${plan.nota})` : plan.texto,
-                `${t._count.users} ${t._count.users === 1 ? "persona" : "personas"}`,
-                `${t._count.clients.toLocaleString("es-AR")} clientes`,
+                `${conteos.personas} ${conteos.personas === 1 ? "persona" : "personas"}`,
+                `${conteos.clientes.toLocaleString("es-AR")} clientes`,
                 `alta el ${dia(t.createdAt)}`,
               ]}
             />

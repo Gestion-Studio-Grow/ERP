@@ -3,13 +3,26 @@ import assert from "node:assert/strict";
 import { operatorReadMustChange, operatorSetMustChange } from "./must-change-password";
 
 // Cliente crudo falso: se le inyecta qué devuelve/lanza cada método. Sirve para probar el
-// comportamiento DEFENSIVO ante la columna sin aplicar (Postgres 42703 / 42P01).
+// comportamiento DEFENSIVO ante la columna sin aplicar (Postgres 42703 / 42P01). La pregunta al
+// catálogo («¿existe la columna?») la contesta `columna` (por defecto, sí) y queda anotada.
 type Raw = Parameters<typeof operatorReadMustChange>[0];
-function fakeRaw(behavior: { query?: () => unknown; exec?: () => number }): Raw {
+function fakeRaw(behavior: { query?: () => unknown; exec?: () => number; columna?: boolean }): Raw & { sentencias: string[] } {
+  const sentencias: string[] = [];
   return {
-    $queryRaw: async () => (behavior.query ? behavior.query() : []),
-    $executeRaw: async () => (behavior.exec ? behavior.exec() : 1),
-  } as unknown as Raw;
+    sentencias,
+    $queryRaw: async (q: TemplateStringsArray) => {
+      if (q.join("?").includes("information_schema.columns")) {
+        sentencias.push("catalogo");
+        return [{ hay: behavior.columna ?? true }];
+      }
+      sentencias.push("select");
+      return behavior.query ? behavior.query() : [];
+    },
+    $executeRaw: async () => {
+      sentencias.push("update");
+      return behavior.exec ? behavior.exec() : 1;
+    },
+  } as unknown as Raw & { sentencias: string[] };
 }
 function pgError(code: string) {
   const e = new Error(`pg ${code}`) as Error & { code: string };
@@ -72,4 +85,18 @@ test("reconoce la columna faltante como la entrega el adaptador de Prisma 7 (P20
   assert.equal(isMissingColumn({ code: "42703" }), true);
   assert.equal(isMissingColumn({ code: "P2010", meta: { driverAdapterError: { cause: { originalCode: "23505" } } } }), false);
   assert.equal(await operatorReadMustChange(fakeRaw({ query: () => { throw delAdaptador; } }), "u1"), "pendiente");
+});
+
+// Dentro de una transacción (la consola corre parada en el negocio, `enElNegocio`) una sentencia
+// que falla aborta TODO lo que sigue: sin la columna no se la toca, se pregunta al catálogo.
+test("sin la columna, el set no intenta el UPDATE (no aborta la transacción del reset)", async () => {
+  const db = fakeRaw({ columna: false, exec: () => { throw new Error("no se tenía que ejecutar"); } });
+  assert.deepEqual(await operatorSetMustChange(db, "u1", true), { persisted: false });
+  assert.deepEqual(db.sentencias, ["catalogo"]);
+});
+
+test("sin la columna, la lectura dice 'pendiente' sin consultar la fila", async () => {
+  const db = fakeRaw({ columna: false, query: () => { throw new Error("no se tenía que consultar"); } });
+  assert.equal(await operatorReadMustChange(db, "u1"), "pendiente");
+  assert.deepEqual(db.sentencias, ["catalogo"]);
 });
