@@ -1,0 +1,256 @@
+TAP version 13
+# Subtest: la URL se lee con cuidado: situación y orden que no existen no filtran ni ordenan
+ok 1 - la URL se lee con cuidado: situación y orden que no existen no filtran ni ordenan
+  ---
+  duration_ms: 5.433021
+  type: 'test'
+  ...
+# Subtest: buscar por nombre sin tildes ni mayúsculas, o por teléfono de corrido
+ok 2 - buscar por nombre sin tildes ni mayúsculas, o por teléfono de corrido
+  ---
+  duration_ms: 1.737589
+  type: 'test'
+  ...
+# Subtest: sin orden elegido: las que vinieron hace poco primero; quien nunca vino, al final
+ok 3 - sin orden elegido: las que vinieron hace poco primero; quien nunca vino, al final
+  ---
+  duration_ms: 1.479277
+  type: 'test'
+  ...
+# Subtest: ordenar por nombre, visitas y próximo turno (sin turno siempre al final)
+ok 4 - ordenar por nombre, visitas y próximo turno (sin turno siempre al final)
+  ---
+  duration_ms: 12.911995
+  type: 'test'
+  ...
+# Subtest: la situación filtra y los números de los filtros cuentan con la búsqueda puesta
+ok 5 - la situación filtra y los números de los filtros cuentan con la búsqueda puesta
+  ---
+  duration_ms: 0.581696
+  type: 'test'
+  ...
+# Subtest: al navegador llega una página; una página que no existe muestra la última
+ok 6 - al navegador llega una página; una página que no existe muestra la última
+  ---
+  duration_ms: 0.758503
+  type: 'test'
+  ...
+# Subtest: la última vez se dice en palabras, sin «ciclos»
+ok 7 - la última vez se dice en palabras, sin «ciclos»
+  ---
+  duration_ms: 0.388336
+  type: 'test'
+  ...
+# Subtest: quien gestiona la agenda da el primer turno desde el estado vacío
+ok 8 - quien gestiona la agenda da el primer turno desde el estado vacío
+  ---
+  duration_ms: 2.609101
+  type: 'test'
+  ...
+# Subtest: sin agenda a mano no hay botón, sólo cómo nacen las fichas
+ok 9 - sin agenda a mano no hay botón, sólo cómo nacen las fichas
+  ---
+  duration_ms: 0.329172
+  type: 'test'
+  ...
+# Subtest: la plata escrita como acá viaja como el número que lee la acción
+ok 10 - la plata escrita como acá viaja como el número que lee la acción
+  ---
+  duration_ms: 1.831524
+  type: 'test'
+  ...
+# Subtest: vacío, cero o algo que no es plata: no se manda
+ok 11 - vacío, cero o algo que no es plata: no se manda
+  ---
+  duration_ms: 0.232295
+  type: 'test'
+  ...
+# Subtest: sin Mercado Pago conectado no se ofrece un link de mentira; con el simulador, sí (marcado de prueba)
+ok 12 - sin Mercado Pago conectado no se ofrece un link de mentira; con el simulador, sí (marcado de prueba)
+  ---
+  duration_ms: 1.331427
+  type: 'test'
+  ...
+# Subtest: sin el módulo de Mercado Pago en el negocio no hay link, aunque el despliegue tenga Mercado Pago real
+ok 13 - sin el módulo de Mercado Pago en el negocio no hay link, aunque el despliegue tenga Mercado Pago real
+  ---
+  duration_ms: 0.342897
+  type: 'test'
+  ...
+# Subtest: el último link de cada pedido sale de la auditoría; una fila rara no tira nada
+ok 14 - el último link de cada pedido sale de la auditoría; una fila rara no tira nada
+  ---
+  duration_ms: 1.699431
+  type: 'test'
+  ...
+# Subtest: el WhatsApp del link dice el pedido, el monto y el link
+ok 15 - el WhatsApp del link dice el pedido, el monto y el link
+  ---
+  duration_ms: 20.443558
+  type: 'test'
+  ...
+# Subtest: la lista de links lee búsqueda, estado y página de la URL; lo que no entiende lo ignora
+ok 16 - la lista de links lee búsqueda, estado y página de la URL; lo que no entiende lo ignora
+  ---
+  duration_ms: 2.363102
+  type: 'test'
+  ...
+# Subtest: la URL de la lista queda en la pestaña de links y cambiar el filtro vuelve a la página 1
+ok 17 - la URL de la lista queda en la pestaña de links y cambiar el filtro vuelve a la página 1
+  ---
+  duration_ms: 0.470113
+  type: 'test'
+  ...
+# Subtest: buscar un número encuentra el pedido; buscar plata escrita como acá encuentra el importe exacto
+ok 18 - buscar un número encuentra el pedido; buscar plata escrita como acá encuentra el importe exacto
+  ---
+  duration_ms: 1.034607
+  type: 'test'
+  ...
+# Subtest: las páginas salen de la cantidad del estado elegido, no del total
+ok 19 - las páginas salen de la cantidad del estado elegido, no del total
+  ---
+  duration_ms: 0.274769
+  type: 'test'
+  ...
+# Subtest: sin nada en la URL la lista muestra el mes en curso, página 1, todos los estados y tipos
+ok 20 - sin nada en la URL la lista muestra el mes en curso, página 1, todos los estados y tipos
+  ---
+  duration_ms: 2.714383
+  type: 'test'
+  ...
+# Subtest: el mes en curso termina el último día del mes, también en febrero bisiesto
+ok 21 - el mes en curso termina el último día del mes, también en febrero bisiesto
+  ---
+  duration_ms: 0.287589
+  type: 'test'
+  ...
+# Subtest: buscar sin período en la URL busca en todos los meses
+ok 22 - buscar sin período en la URL busca en todos los meses
+  ---
+  duration_ms: 0.261538
+  type: 'test'
+  ...
+# Subtest: buscar con período en la URL respeta el período
+ok 23 - buscar con período en la URL respeta el período
+  ---
+  duration_ms: 0.572354
+  type: 'test'
+  ...
+# Subtest: lo inválido en la URL cae al valor por defecto y un período al revés se da vuelta
+ok 24 - lo inválido en la URL cae al valor por defecto y un período al revés se da vuelta
+  ---
+  duration_ms: 0.282042
+  type: 'test'
+  ...
+# Subtest: «necesitan atención» son las pendientes y las rechazadas
+ok 25 - «necesitan atención» son las pendientes y las rechazadas
+  ---
+  duration_ms: 0.170409
+  type: 'test'
+  ...
+# Subtest: el tipo usa los códigos de ARCA: A=1, B=6, C=11, notas de crédito 3, 8 y 13
+ok 26 - el tipo usa los códigos de ARCA: A=1, B=6, C=11, notas de crédito 3, 8 y 13
+  ---
+  duration_ms: 0.343763
+  type: 'test'
+  ...
+# Subtest: buscador: un nombre busca por receptor
+ok 27 - buscador: un nombre busca por receptor
+  ---
+  duration_ms: 0.36034
+  type: 'test'
+  ...
+# Subtest: buscador: «0001-00000123» es punto de venta y número
+ok 28 - buscador: «0001-00000123» es punto de venta y número
+  ---
+  duration_ms: 0.358917
+  type: 'test'
+  ...
+# Subtest: buscador: un CUIT con guiones busca por documento, no por número de comprobante
+ok 29 - buscador: un CUIT con guiones busca por documento, no por número de comprobante
+  ---
+  duration_ms: 0.734023
+  type: 'test'
+  ...
+# Subtest: buscador: una cifra corta puede ser número de comprobante o importe
+ok 30 - buscador: una cifra corta puede ser número de comprobante o importe
+  ---
+  duration_ms: 0.309386
+  type: 'test'
+  ...
+# Subtest: buscador: un importe con centavos a la argentina («12.500,50» o «$ 12.500,50») busca el total
+ok 31 - buscador: un importe con centavos a la argentina («12.500,50» o «$ 12.500,50») busca el total
+  ---
+  duration_ms: 0.470533
+  type: 'test'
+  ...
+# Subtest: buscador: un DNI de 8 cifras busca como documento y como número
+ok 32 - buscador: un DNI de 8 cifras busca como documento y como número
+  ---
+  duration_ms: 0.118966
+  type: 'test'
+  ...
+# Subtest: los comodines de LIKE se buscan como texto
+ok 33 - los comodines de LIKE se buscan como texto
+  ---
+  duration_ms: 0.22302
+  type: 'test'
+  ...
+# Subtest: 50 por página y siempre al menos una página
+ok 34 - 50 por página y siempre al menos una página
+  ---
+  duration_ms: 0.136446
+  type: 'test'
+  ...
+# Subtest: la URL guarda sólo lo que no es por defecto y cambiar un filtro vuelve a la página 1 si se pide
+ok 35 - la URL guarda sólo lo que no es por defecto y cambiar un filtro vuelve a la página 1 si se pide
+  ---
+  duration_ms: 0.316144
+  type: 'test'
+  ...
+# Subtest: el receptor sin nombre se muestra por su documento; el 99 es consumidor final
+ok 36 - el receptor sin nombre se muestra por su documento; el 99 es consumidor final
+  ---
+  duration_ms: 0.152549
+  type: 'test'
+  ...
+# Subtest: el renglón del CSV lleva fecha dd/mm/aaaa, tipo en palabras, estado ante ARCA y el total exacto
+ok 37 - el renglón del CSV lleva fecha dd/mm/aaaa, tipo en palabras, estado ante ARCA y el total exacto
+  ---
+  duration_ms: 0.559817
+  type: 'test'
+  ...
+# Subtest: los cortes de Next se leen del digest que ponen redirect() y notFound() de verdad
+ok 38 - los cortes de Next se leen del digest que ponen redirect() y notFound() de verdad
+  ---
+  duration_ms: 3.069396
+  type: 'test'
+  ...
+# Subtest: las cookies del pedido se leen, se escriben y se borran como en una Server Action
+ok 39 - las cookies del pedido se leen, se escriben y se borran como en una Server Action
+  ---
+  duration_ms: 0.667896
+  type: 'test'
+  ...
+# Subtest: los dobles de Next: dentro del pedido anotan lo que la acción hace; fuera fallan como en Next
+ok 40 - los dobles de Next: dentro del pedido anotan lo que la acción hace; fuera fallan como en Next
+  ---
+  duration_ms: 206.551512
+  type: 'test'
+  ...
+# Subtest: contra Postgres (app_rls + RLS): con la sesión de A, una acción de lectura real devuelve sólo filas de A
+ok 41 - contra Postgres (app_rls + RLS): con la sesión de A, una acción de lectura real devuelve sólo filas de A
+  ---
+  duration_ms: 4623.442805
+  type: 'test'
+  ...
+1..41
+# tests 41
+# suites 0
+# pass 41
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7153.370019

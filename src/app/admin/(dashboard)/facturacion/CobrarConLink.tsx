@@ -12,6 +12,7 @@
 // que la acción lee con `Number()`. Lo prueba cobrar-con-link.test.ts.
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { generarCobro, type GenerarCobroResult } from "@/lib/cobros-actions";
 import { generarCobroDePruebaAction } from "@/lib/mercadopago-pruebas-actions";
 import type { ModoCobros } from "@/lib/mercadopago-cobros-dispatch";
@@ -24,6 +25,7 @@ type LinkListo = Extract<GenerarCobroResult, { ok: true }>;
 
 export default function CobrarConLink({ modo }: { modo: ModoCobros }) {
   const { showError, showSuccess } = useToast();
+  const router = useRouter();
   const [concepto, setConcepto] = useState("");
   const [monto, setMonto] = useState("");
   const [referencia, setReferencia] = useState("");
@@ -52,6 +54,9 @@ export default function CobrarConLink({ modo }: { modo: ModoCobros }) {
       if (r.ok) {
         setLink(r);
         showSuccess("Link de cobro listo.");
+        // La lista de links de abajo (componente de servidor) se vuelve a leer: el link nuevo
+        // aparece primero sin recargar la página.
+        router.refresh();
       } else {
         setError(r.error);
       }

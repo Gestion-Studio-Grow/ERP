@@ -22,6 +22,7 @@
  * el predicado de cada query.
  */
 
+import { facturadoConSigno } from "@/lib/facturacion/lista-core";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { capFacturasMesDelNegocioEnTx } from "@/lib/limites-del-negocio-en-tx";
@@ -560,7 +561,8 @@ export interface KpisFacturacionBancaria {
   capFacturasMes: number;
   capRestante: number;
   /**
-   * Total con CAE (`AUTHORIZED`) del período fiscal, por `Invoice.fecha`. Antes sumaba todo
+   * Total con CAE (`AUTHORIZED`) del período fiscal, por `Invoice.fecha`, CON SIGNO: las notas
+   * de crédito restan (`facturadoConSigno`). Antes sumaba todo
    * lo no rechazado por `createdAt`: entraban los PENDING, que todavía no son factura.
    * Ojo: en homologación ARCA también devuelve CAE, así que esto puede ser plata de PRUEBA;
    * rotularlo es de quien lo muestra (la cartera del contador lo separa).
@@ -580,7 +582,7 @@ export interface KpisFacturacionBancaria {
 export async function kpisFacturacionBancaria(tenantId: string): Promise<KpisFacturacionBancaria> {
   const filtros = filtrosFacturacionMes();
 
-  const [tenant, facturasMes, montoAgg, pendientesRevision, listasParaEmitir, ultimas] =
+  const [tenant, facturasMes, montoPorTipo, pendientesRevision, listasParaEmitir, ultimas] =
     await tenantTransaction(
       (tx) =>
         Promise.all([
@@ -589,7 +591,10 @@ export async function kpisFacturacionBancaria(tenantId: string): Promise<KpisFac
             select: { bancosCapFacturasMes: true },
           }),
           tx.invoice.count({ where: { tenantId, ...filtros.cupo } }),
-          tx.invoice.aggregate({
+          // Por tipo de comprobante: las notas de crédito RESTAN (`facturadoConSigno`, la regla
+          // del Libro IVA y de la lista de Facturación). Antes sumaban como facturas.
+          tx.invoice.groupBy({
+            by: ["tipoComprobante"],
             _sum: { total: true },
             where: { tenantId, ...filtros.facturado },
           }),
@@ -621,7 +626,9 @@ export async function kpisFacturacionBancaria(tenantId: string): Promise<KpisFac
     facturasMes,
     capFacturasMes,
     capRestante: Math.max(0, capFacturasMes - facturasMes),
-    montoFacturadoMes: toNum(montoAgg._sum.total ?? 0),
+    montoFacturadoMes: facturadoConSigno(
+      montoPorTipo.map((g) => ({ tipoComprobante: g.tipoComprobante, total: toNum(g._sum.total ?? 0) })),
+    ),
     pendientesRevision,
     listasParaEmitir,
     ultimasImportaciones: ultimas.map((u) => ({

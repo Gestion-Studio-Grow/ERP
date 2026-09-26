@@ -1,5 +1,6 @@
 "use server";
 
+import { leerPaginaDeFichas, type PaginaDeFichas } from "@/lib/clientes/lista-fichas.server";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { redirect, unstable_rethrow } from "next/navigation";
@@ -1770,15 +1771,16 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
   return { ok: true };
 }
 
-export async function getClients() {
+/**
+ * Una página de la lista de clientes de siempre (50 fichas), con la búsqueda resuelta en la base
+ * (lib/clientes/lista-fichas.server.ts). Antes traía TODAS las fichas y filtraba el navegador.
+ */
+export async function getPaginaDeClientes(p: { q: string; pagina: number; rubro: "servicios" | "mostrador" }): Promise<PaginaDeFichas> {
   await requireCapability("clients:read");
-  // Solo se necesita la CANTIDAD de turnos por cliente (badge en la lista), no las
-  // filas. `_count` lo resuelve en la DB con un COUNT agrupado en vez de traer todos
-  // los `appointments` de todos los clientes a memoria y contar en JS (ADR-023 F5).
-  return prisma.client.findMany({
-    orderBy: { name: "asc" },
-    include: { _count: { select: { appointments: true } } },
-  });
+  const tenantId = await getCurrentTenantId();
+  // El rubro sólo decide QUÉ se cuenta de cada ficha (turnos o compras), siempre del negocio.
+  const rubro = p.rubro === "mostrador" ? "mostrador" : "servicios";
+  return leerPaginaDeFichas(tenantId, { q: String(p.q ?? "").trim().slice(0, 80), pagina: Math.max(1, Math.trunc(Number(p.pagina) || 1)), rubro });
 }
 
 export async function getClient(id: string) {

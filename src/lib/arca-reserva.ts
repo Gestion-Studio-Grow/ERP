@@ -67,6 +67,20 @@ export class CorridaDeEnvios {
   readonly vistos: string[] = [];
   private readonly porNegocio = new Map<string, number>();
 
+  /**
+   * @param saltear envíos que esta corrida no toma aunque sigan pendientes: los que ya fallaron
+   *   por un error nuestro en el mismo toque de «Autorizar los pendientes» (arca-dispatch.ts).
+   */
+  private readonly saltear: readonly string[];
+  constructor(saltear: readonly string[] = []) {
+    this.saltear = saltear;
+  }
+
+  /** Lo que la corrida no toma: lo que ya tomó y lo que le pidieron saltear. */
+  get excluidos(): string[] {
+    return this.saltear.length === 0 ? this.vistos : [...this.vistos, ...this.saltear];
+  }
+
   anotar(envio: EnvioTomado): void {
     this.vistos.push(envio.id);
     this.porNegocio.set(envio.tenantId, (this.porNegocio.get(envio.tenantId) ?? 0) + 1);
@@ -92,7 +106,7 @@ export async function tomarSiguienteEnvio(
       FROM "OutboxEvent"
       WHERE "type" = ${OUTBOX_INVOICE_CREATED}
         AND "processedAt" IS NULL
-        AND NOT ("id" = ANY(${corrida.vistos}::text[]))
+        AND NOT ("id" = ANY(${corrida.excluidos}::text[]))
         AND (${soloDelNegocio}::text IS NULL OR "tenantId" = ${soloDelNegocio}::text)
         AND (("payload"->'reserva') IS NULL OR ("payload"->'reserva'->>'hasta')::timestamptz <= now())
       ORDER BY "tenantId", "createdAt", "id"`;
@@ -124,7 +138,7 @@ export async function tomarSiguienteEnvio(
             WHERE o."tenantId" = ${tenantId}::text
               AND o."type" = ${OUTBOX_INVOICE_CREATED}
               AND o."processedAt" IS NULL
-              AND NOT (o."id" = ANY(${corrida.vistos}::text[]))
+              AND NOT (o."id" = ANY(${corrida.excluidos}::text[]))
               AND ((o."payload"->'reserva') IS NULL OR (o."payload"->'reserva'->>'hasta')::timestamptz <= now())
             ORDER BY o."createdAt", o."id"
             LIMIT 1

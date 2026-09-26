@@ -20,6 +20,10 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { negocioActual } from "@/apps/kpis/negocio.server";
+import { getNegocioApps } from "@/apps/contexto.server";
+import { appPermitida } from "@/apps/visibles";
+import { appPorId } from "@/apps/registro";
+import { rubroDelCrm } from "./personas";
 import { cobrosDetalladosPorTurno } from "@/lib/turnos/anulacion";
 import type { EventoConstancia } from "./constancias";
 import { ultimoPermiso } from "./constancias";
@@ -43,10 +47,14 @@ function faltaLaTabla(e: unknown): boolean {
   return code === "P2021" || code === "P2022";
 }
 
-/** El negocio, el día y el rubro del request, leídos una vez. */
+/**
+ * El negocio, el día y el rubro del request, leídos una vez. ¿Da turnos? Lo del NEGOCIO, no de la
+ * persona: la Agenda disponible para el dueño (módulo, rubro y estado de la app; `appPermitida`).
+ */
 export const contextoCrm = cache(async (): Promise<ContextoCrm> => {
-  const [tenantId, negocio] = await Promise.all([getCurrentTenantId(), negocioActual()]);
-  return { tenantId, hoy: todayInBusinessTz(), ahora: new Date(), rubro: negocio.isRetail ? "mostrador" : "servicios" };
+  const [tenantId, negocio, comoDuenio] = await Promise.all([getCurrentTenantId(), negocioActual(), getNegocioApps("OWNER")]);
+  const rubro = rubroDelCrm({ esMostrador: negocio.isRetail, daTurnos: appPermitida(appPorId("agenda"), comoDuenio) });
+  return { tenantId, hoy: todayInBusinessTz(), ahora: new Date(), rubro };
 });
 
 /** El nombre del negocio, para firmar los mensajes. */

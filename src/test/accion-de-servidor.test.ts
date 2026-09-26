@@ -75,7 +75,8 @@ test("contra Postgres (app_rls + RLS): con la sesión de A, una acción de lectu
   if (!base) return;
   apuntarLaAppA(base);
   prepararAccionesDeServidor();
-  const { getClients } = await import("@/lib/actions");
+  const { getPaginaDeClientes } = await import("@/lib/actions");
+  const getClients = () => getPaginaDeClientes({ q: "", pagina: 1, rubro: "servicios" });
   const { basePrisma } = await import("@/lib/prisma-base");
 
   // La app corre como en producción: un rol sin BYPASSRLS, y sin negocio puesto no ve nada.
@@ -84,14 +85,15 @@ test("contra Postgres (app_rls + RLS): con la sesión de A, una acción de lectu
   assert.deepEqual(rol, { r: "app_rls", bypass: false });
   assert.equal(await basePrisma.client.count(), 0, "sin negocio puesto, RLS no deja ver clientes");
 
-  const ids = (filas: { id: string; tenantId: string }[]) => filas.map((f) => f.id).sort();
+  // La lista de clientes (paginada en la base): los ids de la página y el total del negocio.
+  const ids = (p: { filas: { id: string }[] }) => p.filas.map((f) => f.id).sort();
 
   // La dueña de A: exactamente los clientes de A.
   const comoA = await ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, () => getClients());
   assert.equal(comoA.tipo, "respuesta");
   if (comoA.tipo !== "respuesta") return;
   assert.deepEqual(ids(comoA.valor), [...base.a.clientes].sort());
-  assert.ok(comoA.valor.every((c) => c.tenantId === base.a.id));
+  assert.equal(comoA.valor.total, base.a.clientes.length, "el total cuenta sólo las fichas de A");
 
   // La recepcionista de B, a la vez que la dueña de A: cada una ve lo suyo.
   const [a2, b] = await Promise.all([

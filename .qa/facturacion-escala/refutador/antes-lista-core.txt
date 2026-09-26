@@ -1,0 +1,167 @@
+TAP version 13
+# Subtest: sin nada en la URL la lista muestra el mes en curso, página 1, todos los estados y tipos
+ok 1 - sin nada en la URL la lista muestra el mes en curso, página 1, todos los estados y tipos
+  ---
+  duration_ms: 4.550896
+  type: 'test'
+  ...
+# Subtest: el mes en curso termina el último día del mes, también en febrero bisiesto
+ok 2 - el mes en curso termina el último día del mes, también en febrero bisiesto
+  ---
+  duration_ms: 0.646268
+  type: 'test'
+  ...
+# Subtest: buscar sin período en la URL busca en todos los meses
+ok 3 - buscar sin período en la URL busca en todos los meses
+  ---
+  duration_ms: 0.311845
+  type: 'test'
+  ...
+# Subtest: buscar con período en la URL respeta el período
+ok 4 - buscar con período en la URL respeta el período
+  ---
+  duration_ms: 0.698817
+  type: 'test'
+  ...
+# Subtest: lo inválido en la URL cae al valor por defecto y un período al revés se da vuelta
+ok 5 - lo inválido en la URL cae al valor por defecto y un período al revés se da vuelta
+  ---
+  duration_ms: 0.565917
+  type: 'test'
+  ...
+# Subtest: «necesitan atención» son las pendientes y las rechazadas
+ok 6 - «necesitan atención» son las pendientes y las rechazadas
+  ---
+  duration_ms: 0.275191
+  type: 'test'
+  ...
+# Subtest: el tipo usa los códigos de ARCA: A=1, B=6, C=11, notas de crédito 3, 8 y 13
+ok 7 - el tipo usa los códigos de ARCA: A=1, B=6, C=11, notas de crédito 3, 8 y 13
+  ---
+  duration_ms: 0.518695
+  type: 'test'
+  ...
+# Subtest: buscador: un nombre busca por receptor
+ok 8 - buscador: un nombre busca por receptor
+  ---
+  duration_ms: 0.40924
+  type: 'test'
+  ...
+# Subtest: buscador: «0001-00000123» es punto de venta y número
+ok 9 - buscador: «0001-00000123» es punto de venta y número
+  ---
+  duration_ms: 0.641811
+  type: 'test'
+  ...
+# Subtest: buscador: un CUIT con guiones busca por documento, no por número de comprobante
+ok 10 - buscador: un CUIT con guiones busca por documento, no por número de comprobante
+  ---
+  duration_ms: 1.057343
+  type: 'test'
+  ...
+# Subtest: buscador: una cifra corta puede ser número de comprobante o importe
+ok 11 - buscador: una cifra corta puede ser número de comprobante o importe
+  ---
+  duration_ms: 0.387888
+  type: 'test'
+  ...
+# Subtest: buscador: un importe con centavos a la argentina («12.500,50» o «$ 12.500,50») busca el total
+ok 12 - buscador: un importe con centavos a la argentina («12.500,50» o «$ 12.500,50») busca el total
+  ---
+  duration_ms: 0.605806
+  type: 'test'
+  ...
+# Subtest: buscador: un DNI de 8 cifras busca como documento y como número
+ok 13 - buscador: un DNI de 8 cifras busca como documento y como número
+  ---
+  duration_ms: 0.247936
+  type: 'test'
+  ...
+# Subtest: los comodines de LIKE se buscan como texto
+ok 14 - los comodines de LIKE se buscan como texto
+  ---
+  duration_ms: 0.224269
+  type: 'test'
+  ...
+# Subtest: 50 por página y siempre al menos una página
+ok 15 - 50 por página y siempre al menos una página
+  ---
+  duration_ms: 0.200125
+  type: 'test'
+  ...
+# Subtest: la URL guarda sólo lo que no es por defecto y cambiar un filtro vuelve a la página 1 si se pide
+ok 16 - la URL guarda sólo lo que no es por defecto y cambiar un filtro vuelve a la página 1 si se pide
+  ---
+  duration_ms: 0.580812
+  type: 'test'
+  ...
+# Subtest: el receptor sin nombre se muestra por su documento; el 99 es consumidor final
+ok 17 - el receptor sin nombre se muestra por su documento; el 99 es consumidor final
+  ---
+  duration_ms: 0.266192
+  type: 'test'
+  ...
+# Subtest: el renglón del CSV lleva fecha dd/mm/aaaa, tipo en palabras, estado ante ARCA y el total exacto
+ok 18 - el renglón del CSV lleva fecha dd/mm/aaaa, tipo en palabras, estado ante ARCA y el total exacto
+  ---
+  duration_ms: 0.515355
+  type: 'test'
+  ...
+# Subtest: los tipos que restan en los totales son las notas de crédito del Libro IVA (A, B y C) y ninguno más
+not ok 19 - los tipos que restan en los totales son las notas de crédito del Libro IVA (A, B y C) y ninguno más
+  ---
+  duration_ms: 0.423976
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/facturacion/lista-core.test.ts:2:7816'
+  failureType: 'testCodeFailure'
+  error: 'xs is not iterable'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    ascendente (/home/user/erp-facturacion/src/lib/facturacion/lista-core.test.ts:142:53)
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/facturacion/lista-core.test.ts:143:20)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: en el CSV la nota de crédito va en negativo y la cabecera lo dice: la columna suma como el Libro IVA
+not ok 20 - en el CSV la nota de crédito va en negativo y la cabecera lo dice: la columna suma como el Libro IVA
+  ---
+  duration_ms: 4.889111
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/facturacion/lista-core.test.ts:2:8571'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'Total'
+    - 'Total (las notas de crédito, en negativo)'
+            ^
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'Total (las notas de crédito, en negativo)'
+  actual: 'Total'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/facturacion/lista-core.test.ts:156:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 18
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 718.599923
