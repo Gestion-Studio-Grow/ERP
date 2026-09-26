@@ -81,7 +81,16 @@ export async function generateMetadata(): Promise<Metadata> {
     description,
     // Sello GSG (Gate, bloque 2): invisible en la vidriera; la marca visible es la del negocio.
     generator: "Gestión Studio Grow",
-    openGraph: { title, description, type: "website" },
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      // QUÉ BIEN OLÉS: la placa para compartir (WhatsApp, Instagram) con su marca, hecha con sus letras y
+      // sus frascos (public/tenants/quebienoles/marca/og.jpg, 1200×630). Los demás siguen sin imagen.
+      ...(identity.brandId === "quebienoles"
+        ? { images: [{ url: "/tenants/quebienoles/marca/og.jpg", width: 1200, height: 630, alt: "Qué Bien Olés · Perfumería en Ezeiza" }] }
+        : {}),
+    },
     icons: { icon: iconUri },
   };
 }

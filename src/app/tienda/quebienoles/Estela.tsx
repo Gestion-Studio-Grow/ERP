@@ -82,7 +82,12 @@ export default function Estela({ color, activa }: { color: string; activa: boole
       }
       g.globalAlpha = 1;
       raf = motas.length ? requestAnimationFrame(cuadro) : 0;
-      if (!raf) ultimo = 0;
+      if (!raf) {
+        ultimo = 0;
+        // Sin motas el lienzo se oculta: un lienzo de pantalla completa en modo `screen`, aunque esté
+        // vacío, obliga al compositor a mezclarlo en cada cuadro de scroll.
+        c.style.visibility = "hidden";
+      }
     };
 
     const alMover = (e: PointerEvent) => {
@@ -104,7 +109,10 @@ export default function Estela({ color, activa }: { color: string; activa: boole
           r: 5 + Math.random() * 9,
         });
       }
-      if (!raf) raf = requestAnimationFrame(cuadro);
+      if (!raf) {
+        c.style.visibility = "visible";
+        raf = requestAnimationFrame(cuadro);
+      }
     };
 
     window.addEventListener("pointermove", alMover, { passive: true });
@@ -116,5 +124,6 @@ export default function Estela({ color, activa }: { color: string; activa: boole
     };
   }, [activa]);
 
-  return <canvas ref={lienzo} className="qb-estela" aria-hidden="true" />;
+  // Nace oculto (visibility): se muestra con la primera mota y se vuelve a ocultar cuando no queda ninguna.
+  return <canvas ref={lienzo} className="qb-estela" aria-hidden="true" style={{ visibility: "hidden" }} />;
 }

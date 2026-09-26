@@ -22,15 +22,22 @@ export const CSS_BASE = `
 @font-face{font-family:"QB Bodoni";src:url(${F}/bodoni-moda-italic.woff2) format("woff2");font-weight:400 900;font-style:italic;font-display:swap}
 @font-face{font-family:"QB Jost";src:url(${F}/jost.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
 @font-face{font-family:"QB Pinyon";src:url(${F}/pinyon-script.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
+/* Respaldos con métricas ajustadas (medidos con el cargador de next/font sobre estos archivos, como
+   src/design/fuentes.ts): mientras llega la letra, Times/Arial ocupan EXACTAMENTE el mismo lugar y el
+   cambio de letra no mueve el titular ni la bajada (CLS 0 por fuentes). Sólo actúan si el local() existe. */
+@font-face{font-family:"QB Bodoni Respaldo";src:local("Times New Roman");ascent-override:97.77%;descent-override:34.76%;line-gap-override:0%;size-adjust:115.07%}
+@font-face{font-family:"QB Bodoni Respaldo";font-style:italic;src:local("Times New Roman Italic"),local("TimesNewRomanPS-ItalicMT");ascent-override:105.29%;descent-override:37.44%;line-gap-override:0%;size-adjust:106.85%}
+@font-face{font-family:"QB Jost Respaldo";src:local("Arial");ascent-override:112.02%;descent-override:39.26%;line-gap-override:0%;size-adjust:95.51%}
+@font-face{font-family:"QB Pinyon Respaldo";src:local("Times New Roman");ascent-override:101.28%;descent-override:45.09%;line-gap-override:0%;size-adjust:85.23%}
 
 .qb{
   --fondo:${FONDO};--fondo-2:#12100d;--fondo-3:#1b1713;
   --hueso:#f2eadc;--hueso-2:#bdb1a0;--hueso-3:#948877;
   --oro:${ORO};--oro-claro:#f6e3a8;--oro-oscuro:#8f6726;
   --linea:rgba(216,179,106,.24);--linea-2:rgba(242,234,220,.1);
-  --didona:"QB Bodoni","Bodoni 72","Bodoni MT",Didot,"Times New Roman",serif;
-  --palo:"QB Jost",Futura,"Century Gothic","Avenir Next",system-ui,sans-serif;
-  --caligrafia:"QB Pinyon","Snell Roundhand","Apple Chancery","Segoe Script",cursive;
+  --didona:"QB Bodoni","QB Bodoni Respaldo","Bodoni 72","Bodoni MT",Didot,"Times New Roman",serif;
+  --palo:"QB Jost","QB Jost Respaldo",Futura,"Century Gothic","Avenir Next",system-ui,sans-serif;
+  --caligrafia:"QB Pinyon","QB Pinyon Respaldo","Snell Roundhand","Apple Chancery","Segoe Script",cursive;
   --brillo:.5;--familia:${ORO};
   --curva:cubic-bezier(.2,.8,.2,1);
   position:relative;min-height:100vh;background:var(--fondo);color:var(--hueso);
@@ -44,6 +51,10 @@ html:has(.qb),body:has(.qb){background:${FONDO};color-scheme:dark}
 .qb::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:70;opacity:.055;background-image:${GRANO};mix-blend-mode:overlay}
 .qb a{color:inherit}
 .qb :focus-visible{outline:2px solid var(--oro-claro);outline-offset:3px}
+/* Seleccionar texto también es de la casa: oro sobre negro. El oro en degradé (fondo recortado por la
+   letra) se rellena sólido al seleccionarlo, si no la selección lo dejaría invisible. */
+.qb ::selection{background:var(--oro);color:#140f09;-webkit-text-fill-color:#140f09}
+.qb ::target-text{background:var(--oro);color:#140f09}
 .qb .qb-sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .qb .qb-tenue{color:var(--hueso-3)}
 .qb .qb-num{font-variant-numeric:lining-nums tabular-nums}
@@ -76,6 +87,8 @@ html:has(.qb),body:has(.qb){background:${FONDO};color-scheme:dark}
 .qb .qb-boton-oro:hover{transform:translateY(-2px);box-shadow:0 20px 40px -16px rgba(216,179,106,.8),inset 0 1px 0 rgba(255,255,255,.4)}
 .qb .qb-boton-linea{color:var(--hueso);border-color:var(--linea);background:rgba(242,234,220,.02)}
 .qb .qb-boton-linea:hover{border-color:var(--oro);color:var(--oro-claro)}
+/* Apretar se siente: el botón cede un pelo y vuelve (con la misma curva del hover). */
+.qb .qb-boton:active:not(:disabled){transform:translateY(0) scale(.985);transition-duration:.12s}
 .qb .qb-boton:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
 .qb .qb-boton-ancho{width:100%}
 
@@ -105,6 +118,27 @@ export const CSS =
 }
 @keyframes qb-revela{from{opacity:0;transform:translateY(38px);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
 
+/* Lo que está muy abajo no se calcula ni se pinta hasta que se acerca (content-visibility): la primera
+   pintura y cada scroll pagan sólo lo que está en pantalla. El alto estimado evita que la barra de
+   scroll salte; después de la primera pasada el navegador recuerda el alto real (auto). */
+.qb .qb-guia,.qb .qb-vitrina,.qb .qb-regalo,.qb .qb-como,.qb .qb-pie{content-visibility:auto}
+.qb .qb-guia{contain-intrinsic-size:auto 900px}
+.qb .qb-vitrina{contain-intrinsic-size:auto 3200px}
+.qb .qb-regalo{contain-intrinsic-size:auto 820px}
+.qb .qb-como{contain-intrinsic-size:auto 640px}
+.qb .qb-pie{contain-intrinsic-size:auto 560px}
+
+/* Carruseles del teléfono: las orillas se funden con el fondo, y la orilla del lado donde ya no hay
+   nada se abre (línea de tiempo del scroll del propio carrusel; sin soporte queda el fundido parejo). */
+@property --qb-orilla-i{syntax:"<length>";inherits:false;initial-value:20px}
+@property --qb-orilla-d{syntax:"<length>";inherits:false;initial-value:20px}
+@supports (animation-timeline:scroll()){
+  @media (prefers-reduced-motion:no-preference){
+    .qb .qb-carrusel{animation:qb-orillas linear both;animation-timeline:scroll(self inline)}
+  }
+}
+@keyframes qb-orillas{0%{--qb-orilla-i:0px;--qb-orilla-d:56px}12%,88%{--qb-orilla-i:56px;--qb-orilla-d:56px}100%{--qb-orilla-i:56px;--qb-orilla-d:0px}}
+
 /* ── cabecera ───────────────────────────────────────────────────────────── */
 .qb .qb-cabecera{position:fixed;inset:0 0 auto;z-index:40;display:flex;align-items:center;gap:28px;padding:12px clamp(16px,4vw,48px);min-height:68px;background:linear-gradient(rgba(11,9,8,.9),rgba(11,9,8,0))}
 @supports (animation-timeline:scroll()){
@@ -118,6 +152,7 @@ export const CSS =
 .qb .qb-nav a:hover{color:var(--hueso);background-size:100% 1px}
 .qb .qb-boton-bolsa{position:relative;display:inline-flex;align-items:center;gap:10px;height:46px;padding:0 16px;border:1px solid var(--linea);background:rgba(11,9,8,.4);color:var(--hueso);cursor:pointer;font:500 11.5px/1 var(--palo);letter-spacing:.22em;text-transform:uppercase}
 .qb .qb-boton-bolsa:hover{border-color:var(--oro)}
+.qb .qb-boton-bolsa:active{background:rgba(216,179,106,.12)}
 .qb .qb-icono-bolsa{width:20px;height:20px}
 .qb .qb-bolsa-cuenta{display:grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--oro);color:#140f09;font:600 12px/1 var(--palo);letter-spacing:0}
 .qb .qb-boton-bolsa[data-latido="0"] .qb-icono-bolsa{animation:qb-latido-a .6s var(--curva)}
@@ -129,13 +164,19 @@ export const CSS =
 
 /* ── el portal ──────────────────────────────────────────────────────────── */
 .qb .qb-portal{position:relative;min-height:100svh;display:grid;align-items:center;padding:120px clamp(20px,5vw,72px) 120px;isolation:isolate;overflow:hidden}
-.qb .qb-frasco{position:absolute;inset:0;z-index:-1}
-.qb .qb-frasco-lienzo{display:block;width:100%;height:100%;touch-action:pan-y;cursor:grab;opacity:1;transition:opacity 1.4s ease}
+/* El escenario: la caja de la Q (respaldo, en el HTML del servidor, con prioridad) debajo y el lienzo 3D
+   encima. El lienzo aparece en fundido sobre la caja cuando la escena está lista: nada aparece de golpe. */
+.qb .qb-escenario{position:absolute;inset:0;z-index:-1}
+.qb .qb-frasco{position:absolute;inset:0}
+.qb .qb-frasco-lienzo{display:block;width:100%;height:100%;touch-action:pan-y;cursor:grab;opacity:1;transition:opacity 1.6s ease .1s}
 .qb .qb-frasco-lienzo:active{cursor:grabbing}
 .qb .qb-frasco[data-estado="cargando"] .qb-frasco-lienzo{opacity:0}
 .qb .qb-frasco[data-estado="sin-3d"] .qb-frasco-lienzo{display:none}
-.qb .qb-frasco-respaldo{position:absolute;right:7%;bottom:14%;width:min(34vw,440px);mix-blend-mode:lighten;animation:qb-flotar 7s ease-in-out infinite}
-.qb .qb-frasco-respaldo img{width:100%;height:auto;display:block}
+.qb .qb-frasco-respaldo{position:absolute;right:7%;bottom:14%;width:min(34vw,440px);mix-blend-mode:lighten;pointer-events:none;animation:qb-flotar 7s ease-in-out infinite;transition:opacity 1.4s ease .4s,visibility 0s 1.8s}
+/* La foto viene con su propio fondo (mármol y viñeta, no negro puro): se funde por los bordes para que
+   no se lea el rectángulo de la foto sobre la página. */
+.qb .qb-frasco-respaldo img{width:100%;height:auto;display:block;mask-image:radial-gradient(ellipse 58% 56% at 50% 60%,#000 46%,transparent 100%)}
+.qb .qb-escenario:has(.qb-frasco[data-estado="listo"]) .qb-frasco-respaldo{opacity:0;visibility:hidden}
 .qb .qb-portal-texto{position:relative;max-width:660px;pointer-events:none}
 .qb .qb-portal-texto a,.qb .qb-portal-texto button{pointer-events:auto}
 .qb .qb-titular{margin:0;padding-top:.14em;display:grid;font:500 clamp(76px,11.6vw,184px)/.8 var(--didona);letter-spacing:-.018em;text-transform:uppercase;font-variation-settings:"opsz" 96;text-shadow:0 2px 40px rgba(0,0,0,.5)}
@@ -164,10 +205,10 @@ export const CSS =
   .qb .qb-portal-texto{max-width:none}
   .qb .qb-titular{font-size:clamp(64px,21vw,120px)}
   .qb .qb-bajada{margin-top:26px}
-  .qb .qb-frasco{position:relative;inset:auto;z-index:0;height:min(128vw,600px);margin:4px -20px 0}
+  .qb .qb-escenario{position:relative;inset:auto;z-index:0;height:min(128vw,600px);margin:4px -20px 0}
   .qb .qb-frasco-respaldo{right:auto;left:50%;bottom:10%;width:62vw;margin-left:-31vw}
   .qb .qb-rociar{left:50%;right:auto;bottom:18px;transform:translateX(-50%);white-space:nowrap}
-  .qb .qb-rocio{right:auto;left:10%;top:auto;bottom:34%}
+  .qb .qb-rocio{right:auto;left:6%;top:9%;bottom:auto}
   .qb .qb-hechos{position:static;margin-top:6px}
 }
 
@@ -212,8 +253,13 @@ export const CSS =
 .qb .qb-opcion{position:relative;display:flex;align-items:center;min-height:52px;padding:0 18px;border:1px solid var(--linea-2);cursor:pointer;transition:border-color .3s,background-color .3s,transform .3s var(--curva)}
 .qb .qb-opcion input{position:absolute;opacity:0;pointer-events:none}
 .qb .qb-opcion span{font-size:16px;color:var(--hueso-2);transition:color .3s}
+/* El rombo dorado de los «hechos» del portal marca la opción elegida: se abre al elegir, se cierra al cambiar. */
+.qb .qb-opcion::before{content:"";flex:none;width:6px;height:6px;margin-right:12px;background:var(--oro);transform:rotate(45deg) scale(0);transition:transform .35s var(--curva)}
 .qb .qb-opcion:hover{border-color:var(--linea)}
+.qb .qb-opcion:hover span{color:var(--hueso)}
+.qb .qb-opcion:active{transform:scale(.99)}
 .qb .qb-opcion:has(input:checked){border-color:var(--oro);background:rgba(216,179,106,.08);transform:translateX(4px)}
+.qb .qb-opcion:has(input:checked)::before{transform:rotate(45deg) scale(1)}
 .qb .qb-opcion:has(input:checked) span{color:var(--hueso)}
 .qb .qb-opcion:has(input:focus-visible){outline:2px solid var(--oro-claro);outline-offset:2px}
 .qb .qb-respuesta{padding:48px clamp(20px,5vw,72px) 0}
@@ -247,11 +293,13 @@ export const CSS =
 .qb .qb-vistas button[aria-pressed="true"]{background:var(--oro);color:#140f09}
 .qb .qb-chips{position:sticky;top:67px;z-index:6;display:flex;gap:8px;margin:30px -4px 0;padding:14px 4px 18px;overflow-x:auto;scrollbar-width:none;background:linear-gradient(var(--fondo) 72%,rgba(11,9,8,0))}
 .qb .qb-chips::-webkit-scrollbar{display:none}
-.qb .qb-chips button{display:inline-flex;align-items:center;gap:9px;flex:none;height:44px;padding:0 16px;border:1px solid var(--linea-2);background:rgba(11,9,8,.6);color:var(--hueso-2);font:500 11.5px/1 var(--palo);letter-spacing:.2em;text-transform:uppercase;cursor:pointer;transition:border-color .3s,color .3s,background-color .3s}
-.qb .qb-chips button i{width:8px;height:8px;border-radius:50%;background:var(--color-puerta)}
+.qb .qb-chips button{display:inline-flex;align-items:center;gap:9px;flex:none;height:44px;padding:0 16px;border:1px solid var(--linea-2);background:rgba(11,9,8,.6);color:var(--hueso-2);font:500 11.5px/1 var(--palo);letter-spacing:.2em;text-transform:uppercase;cursor:pointer;transition:border-color .3s,color .3s,background-color .3s,transform .2s var(--curva)}
+.qb .qb-chips button i{width:8px;height:8px;border-radius:50%;background:var(--color-puerta);box-shadow:0 0 0 0 color-mix(in oklab,var(--color-puerta) 60%,transparent);transition:box-shadow .4s}
 .qb .qb-chips button span{color:var(--hueso-3);font-variant-numeric:tabular-nums;letter-spacing:.05em}
-.qb .qb-chips button:hover{border-color:var(--linea)}
+.qb .qb-chips button:hover{border-color:var(--linea);color:var(--hueso)}
+.qb .qb-chips button:active{transform:scale(.97)}
 .qb .qb-chips button[aria-pressed="true"]{border-color:var(--oro);background:rgba(216,179,106,.1);color:var(--hueso)}
+.qb .qb-chips button[aria-pressed="true"] i{box-shadow:0 0 0 3px color-mix(in oklab,var(--color-puerta) 28%,transparent)}
 .qb .qb-vacio{padding:60px 0;text-align:center;color:var(--hueso-2)}
 .qb .qb-vacio p:first-child{font:italic 400 28px var(--didona);color:var(--hueso)}
 .qb .qb-estante{margin-top:clamp(52px,7vw,104px)}
@@ -278,6 +326,7 @@ export const CSS =
 .qb .qb-sumar{width:100%;margin-top:auto;min-height:46px;border:1px solid var(--linea);background:transparent;color:var(--hueso);font:500 11px/1 var(--palo);letter-spacing:.22em;text-transform:uppercase;cursor:pointer;transition:background-color .3s,color .3s,border-color .3s}
 .qb .qb-pieza .qb-sumar,.qb .qb-pieza .qb-cantidad{margin-top:16px}
 .qb .qb-sumar:hover:not(:disabled){background:var(--oro);border-color:var(--oro);color:#140f09}
+.qb .qb-sumar:active:not(:disabled){background:var(--oro-oscuro);border-color:var(--oro-oscuro)}
 .qb .qb-sumar:disabled{opacity:.45;cursor:not-allowed}
 .qb .qb-cantidad{display:grid;grid-template-columns:46px 1fr 46px;align-items:center;height:46px;border:1px solid var(--oro)}
 .qb .qb-cantidad button{height:100%;border:0;background:transparent;color:var(--oro-claro);font:400 22px/1 var(--palo);cursor:pointer}
@@ -285,7 +334,7 @@ export const CSS =
 .qb .qb-cantidad button:disabled{opacity:.35}
 .qb .qb-cantidad span{text-align:center;font-variant-numeric:tabular-nums}
 @media (max-width:719px){
-  .qb .qb-piezas{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:64%;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding:0 20px;margin:0 -20px;padding:4px 20px 20px;scrollbar-width:none}
+  .qb .qb-piezas{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:64%;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding:0 20px;margin:0 -20px;padding:4px 20px 20px;scrollbar-width:none;mask-image:linear-gradient(90deg,transparent,#000 var(--qb-orilla-i),#000 calc(100% - var(--qb-orilla-d)),transparent)}
   .qb .qb-piezas::-webkit-scrollbar{display:none}
   .qb .qb-piezas>li{scroll-snap-align:start}
   .qb .qb-chips{top:67px}
@@ -329,7 +378,7 @@ export const CSS =
 .qb .qb-regalo-nombre{font:400 24px/1.1 var(--didona)}
 .qb .qb-regalo-porque{font-size:14px;color:var(--hueso-2);line-height:1.5}
 .qb .qb-regalo-precio{font:600 19px/1 var(--didona);color:var(--oro)}
-@media (max-width:899px){.qb .qb-regalo{grid-template-columns:1fr}.qb .qb-regalo-lista{grid-template-columns:repeat(3,70%);overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -20px;padding:0 20px 10px}.qb .qb-regalo-lista li{scroll-snap-align:start}.qb .qb-regalo-lista li:nth-child(2){transform:none}}
+@media (max-width:899px){.qb .qb-regalo{grid-template-columns:1fr}.qb .qb-regalo-lista{grid-template-columns:repeat(3,70%);overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding:0 20px;margin:0 -20px;padding:0 20px 10px;scrollbar-width:none;mask-image:linear-gradient(90deg,transparent,#000 var(--qb-orilla-i),#000 calc(100% - var(--qb-orilla-d)),transparent)}.qb .qb-regalo-lista::-webkit-scrollbar{display:none}.qb .qb-regalo-lista li{scroll-snap-align:start}.qb .qb-regalo-lista li:nth-child(2){transform:none}}
 
 /* ── cómo comprar ───────────────────────────────────────────────────────── */
 .qb .qb-como{padding:clamp(80px,10vw,150px) clamp(20px,5vw,72px);border-top:1px solid var(--linea-2)}
@@ -354,13 +403,16 @@ export const CSS =
 
 /* ── la ficha ───────────────────────────────────────────────────────────── */
 .qb .qb-ficha,.qb .qb-bolsa{padding:0;border:0;background:transparent;color:var(--hueso);max-width:none;max-height:none;overflow:visible}
-.qb .qb-ficha::backdrop,.qb .qb-bolsa::backdrop{background:rgba(5,4,3,.74);backdrop-filter:blur(8px)}
+.qb .qb-ficha::backdrop,.qb .qb-bolsa::backdrop{background:rgba(5,4,3,.74);backdrop-filter:blur(8px);animation:qb-velo .45s ease both}
+@keyframes qb-velo{from{opacity:0}}
 .qb .qb-ficha{width:min(1120px,94vw);height:min(780px,92vh);margin:auto}
 .qb .qb-ficha-caja{position:relative;display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);height:100%;overflow:hidden;border:1px solid var(--linea);background:linear-gradient(180deg,#15120f,#0c0a08);animation:qb-abrir .55s var(--curva) both}
 @keyframes qb-abrir{from{opacity:0;transform:translateY(24px) scale(.985)}}
 .qb .qb-cerrar{position:absolute;top:14px;right:14px;z-index:3;display:grid;place-items:center;width:46px;height:46px;border:1px solid var(--linea);background:rgba(11,9,8,.7);color:var(--hueso);cursor:pointer}
-.qb .qb-cerrar svg{width:20px;height:20px}
+.qb .qb-cerrar svg{width:20px;height:20px;transition:transform .4s var(--curva)}
 .qb .qb-cerrar:hover{border-color:var(--oro);color:var(--oro-claro)}
+.qb .qb-cerrar:hover svg{transform:rotate(90deg)}
+.qb .qb-cerrar:active{background:rgba(216,179,106,.12)}
 .qb .qb-ficha-foto{position:relative;display:grid;place-items:center;overflow:hidden;background:radial-gradient(58% 48% at 50% 62%,color-mix(in oklab,var(--color-puerta) 30%,transparent),transparent 72%),#070605}
 .qb .qb-ficha-foto::before{content:"";position:absolute;left:50%;top:-10%;width:60%;height:80%;transform:translateX(-50%);background:linear-gradient(180deg,rgba(255,236,200,.14),transparent);clip-path:polygon(40% 0,60% 0,100% 100%,0 100%);filter:blur(10px)}
 .qb .qb-ficha-foto img{position:relative;width:min(86%,440px);height:auto;mix-blend-mode:lighten;animation:qb-flotar 6.5s ease-in-out infinite}
@@ -411,7 +463,7 @@ export const CSS =
 /* el frasco que viaja de la tarjeta a la ficha (View Transitions) y a la bolsa */
 ::view-transition-group(qb-frasco-activo){animation-duration:.6s;animation-timing-function:cubic-bezier(.2,.8,.2,1)}
 ::view-transition-old(qb-frasco-activo),::view-transition-new(qb-frasco-activo){mix-blend-mode:lighten}
-.qb .qb-vuelo{position:fixed;z-index:85;pointer-events:none;object-fit:contain;mix-blend-mode:lighten;margin:0}
+.qb .qb-vuelo{position:fixed;z-index:85;pointer-events:none;object-fit:contain;mix-blend-mode:lighten;margin:0;filter:drop-shadow(0 12px 26px rgba(216,179,106,.38))}
 
 /* ── la bolsa ───────────────────────────────────────────────────────────── */
 .qb .qb-bolsa{width:min(500px,100vw);height:100dvh;max-height:100dvh;margin:0 0 0 auto}

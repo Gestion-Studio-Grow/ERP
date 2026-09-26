@@ -23,7 +23,7 @@
 
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { flushSync, preload } from "react-dom";
 import type { StorefrontCopy } from "@/tenants/storefront";
 import { usePrefersReducedMotion } from "@/lib/use-reduced-motion";
@@ -43,6 +43,19 @@ import { CSS, FONDO, LETRA_DIDONA, ORO } from "./estilos";
 // three.js sólo se pide en el navegador y después de pintar: el titular nunca espera al 3D.
 const Frasco = dynamic(() => import("./Frasco"), { ssr: false, loading: () => <div className="qb-frasco" data-estado="cargando" /> });
 
+/**
+ * La caja con la Q de su portada, debajo del lienzo 3D: lo que se ve mientras three.js baja y compila
+ * (y lo único que se ve sin WebGL). Va en el HTML del servidor con prioridad, así el navegador la pide
+ * desde el primer byte; cuando la escena está lista, el lienzo se funde encima (estilos: .qb-escenario).
+ */
+function Respaldo() {
+  return (
+    <div className="qb-frasco-respaldo" aria-hidden="true">
+      <Image src="/tenants/quebienoles/perfumes/marca-caja-q.jpg" alt="" width={560} height={700} priority sizes="(max-width: 899px) 62vw, 440px" />
+    </div>
+  );
+}
+
 type Branding = {
   instagram?: string | null;
   whatsapp?: string | null;
@@ -56,8 +69,11 @@ type Props = {
   tenantKey: string;
 };
 
+// Las cuatro letras del portal, incluida la itálica (la bajada «oler muy bien.» está arriba de todo):
+// sin su preload llegaba última y el titular cambiaba de letra dos veces.
 const FUENTES = [
   "/tenants/quebienoles/fuentes/bodoni-moda.woff2",
+  "/tenants/quebienoles/fuentes/bodoni-moda-italic.woff2",
   "/tenants/quebienoles/fuentes/jost.woff2",
   "/tenants/quebienoles/fuentes/pinyon-script.woff2",
 ];
@@ -83,26 +99,35 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey }
   const [fichaId, setFichaId] = useState<string | null>(null);
   const [origen, setOrigen] = useState<string | null>(null);
   const [bolsaAbierta, setBolsaAbierta] = useState(false);
-  const [rociando, setRociando] = useState(false);
-  const [salida, setSalida] = useState(0);
   const [latido, setLatido] = useState(0);
 
   const raiz = useRef<HTMLDivElement>(null);
   const portal = useRef<HTMLElement>(null);
   const botonBolsa = useRef<HTMLButtonElement>(null);
+  // La bolsa de este render, para que los manejadores estables (tarjetas memorizadas) usen siempre la última.
+  const vRef = useRef(v);
+  useEffect(() => {
+    vRef.current = v;
+  });
 
   const colorFamilia = familia ? FAMILIA_POR_ID[familia].color : ORO;
 
   // El brillo del oro sigue al puntero (el foil de su caja); en pantallas táctiles lo mueve el CSS.
+  // Cambiar una variable en la raíz invalida el estilo de todo el árbol: se escribe en pasos de 2 % (el
+  // degradé tarda .8 s en seguirla, la diferencia no se ve) y sólo cuando el paso cambia.
   useEffect(() => {
     const r = raiz.current;
     if (!r || reduce || !window.matchMedia("(pointer: fine)").matches) return;
     let pendiente = 0;
+    let ultimo = -1;
     const alMover = (e: PointerEvent) => {
       if (pendiente) return;
       pendiente = requestAnimationFrame(() => {
         pendiente = 0;
-        r.style.setProperty("--brillo", String(e.clientX / window.innerWidth));
+        const paso = Math.round((e.clientX / window.innerWidth) * 50);
+        if (paso === ultimo) return;
+        ultimo = paso;
+        r.style.setProperty("--brillo", String(paso / 50));
       });
     };
     window.addEventListener("pointermove", alMover, { passive: true });
@@ -111,26 +136,6 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey }
       window.removeEventListener("pointermove", alMover);
     };
   }, [reduce]);
-
-  // Cuánto salió el portal de pantalla: el frasco gira y la cámara sube al bajar.
-  useEffect(() => {
-    let pendiente = 0;
-    const medir = () => {
-      pendiente = 0;
-      const p = portal.current;
-      if (!p) return;
-      const r = p.getBoundingClientRect();
-      setSalida(Math.max(0, Math.min(1, -r.top / Math.max(1, r.height))));
-    };
-    const alScroll = () => {
-      if (!pendiente) pendiente = requestAnimationFrame(medir);
-    };
-    window.addEventListener("scroll", alScroll, { passive: true });
-    return () => {
-      cancelAnimationFrame(pendiente);
-      window.removeEventListener("scroll", alScroll);
-    };
-  }, []);
 
   // ── abrir la ficha con transición de vista: el frasco de la tarjeta "vuela" a la ficha ─────────
   const transicion = useCallback(
@@ -151,9 +156,12 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey }
   const cerrarFicha = useCallback(() => transicion(() => setFichaId(null)), [transicion]);
 
   // ── sumar a la bolsa: el frasco vuela hasta la bolsa de la cabecera ──────────────────────────
+  // Estables (leen la bolsa por vRef): así las tarjetas memorizadas no se vuelven a dibujar todas
+  // cada vez que cambia una cantidad, se abre una ficha o late la bolsa.
+  const sacar = useCallback((p: Pieza) => vRef.current.mover(p, -1), []);
   const sumar = useCallback(
     (p: Pieza, desde?: HTMLElement | null) => {
-      v.mover(p, 1);
+      vRef.current.mover(p, 1);
       setLatido((n) => n + 1);
       const destino = botonBolsa.current;
       const img = desde?.querySelector("img") ?? null;
@@ -178,7 +186,7 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey }
         .finished.catch(() => undefined)
         .finally(() => vuelo.remove());
     },
-    [v, reduce],
+    [reduce],
   );
 
   const visibles = useMemo(() => {
@@ -289,11 +297,11 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey }
             </div>
           </div>
           {/* Después del texto en el DOM: en el teléfono el titular va primero (y el orden de tabulación
-              coincide con el visual); en pantalla ancha el lienzo va detrás, posicionado. */}
-          <Frasco color={colorFamilia} fondo={FONDO} letra={LETRA_DIDONA} movimiento={!reduce} alRociar={setRociando} salida={salida} />
-          <p className="qb-rocio" data-visible={rociando} aria-live="polite">
-            {rociando ? "¡Qué bien olés!" : ""}
-          </p>
+              coincide con el visual); en pantalla ancha el escenario va detrás, posicionado. */}
+          <div className="qb-escenario">
+            <Respaldo />
+            <Frasco color={colorFamilia} fondo={FONDO} letra={LETRA_DIDONA} movimiento={!reduce} portal={portal} />
+          </div>
           <ul className="qb-hechos" aria-label="Cómo trabajamos">
             <li>Stock disponible</li>
             <li>Envío o punto de encuentro</li>
@@ -422,17 +430,10 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey }
                   </h3>
                   <p>{g.familia ? g.familia.bajada : "Lo último que llegó."}</p>
                 </header>
-                <ul className="qb-piezas">
+                <ul className="qb-piezas qb-carrusel">
                   {g.items.map((p) => (
                     <li key={p.id}>
-                      <Tarjeta
-                        p={p}
-                        cantidad={v.cantidadDe(p.id)}
-                        transicion={origen === p.id && fichaId === null}
-                        alVer={() => abrirFicha(p.id)}
-                        alSumar={(el) => sumar(p, el)}
-                        alSacar={() => v.mover(p, -1)}
-                      />
+                      <Tarjeta p={p} cantidad={v.cantidadDe(p.id)} transicion={origen === p.id && fichaId === null} alVer={abrirFicha} alSumar={sumar} alSacar={sacar} />
                     </li>
                   ))}
                 </ul>
@@ -512,7 +513,7 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey }
           instagram={instagram}
           alCerrar={cerrarFicha}
           alSumar={(el) => sumar(ficha, el)}
-          alSacar={() => v.mover(ficha, -1)}
+          alSacar={() => sacar(ficha)}
           alVer={(id) =>
             transicion(() => {
               setOrigen(id);
@@ -539,8 +540,10 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey }
 }
 
 // ── LA TARJETA DE UN PERFUME ──────────────────────────────────────────────────
+// Memorizada: con 25 en pantalla, cada cambio de la vidriera (una cantidad, la ficha, la bolsa) volvía a
+// dibujar las 25. Los manejadores llegan estables del padre y reciben la pieza, no un cierre por tarjeta.
 
-function Tarjeta({
+const Tarjeta = memo(function Tarjeta({
   p,
   cantidad,
   transicion,
@@ -551,9 +554,9 @@ function Tarjeta({
   p: Pieza;
   cantidad: number;
   transicion: boolean;
-  alVer: () => void;
-  alSumar: (el: HTMLElement | null) => void;
-  alSacar: () => void;
+  alVer: (id: string) => void;
+  alSumar: (p: Pieza, el: HTMLElement | null) => void;
+  alSacar: (p: Pieza) => void;
 }) {
   const foto = useRef<HTMLButtonElement>(null);
   const sinStock = p.disponibilidad === "sin-stock";
@@ -579,7 +582,7 @@ function Tarjeta({
         e.currentTarget.style.setProperty("--rx", "0deg");
       }}
     >
-      <button ref={foto} type="button" className="qb-pieza-foto" onClick={alVer} aria-label={`Ver la ficha de ${p.nombre}`}>
+      <button ref={foto} type="button" className="qb-pieza-foto" onClick={() => alVer(p.id)} aria-label={`Ver la ficha de ${p.nombre}`}>
         {p.foto ? (
           <Image
             src={p.foto}
@@ -598,7 +601,7 @@ function Tarjeta({
       <div className="qb-pieza-texto">
         <p className="qb-pieza-casa">{p.casa ?? " "}</p>
         <h4 className="qb-pieza-nombre">
-          <button type="button" onClick={alVer}>
+          <button type="button" onClick={() => alVer(p.id)}>
             {p.nombre}
           </button>
         </h4>
@@ -607,22 +610,22 @@ function Tarjeta({
       </div>
       {cantidad > 0 ? (
         <div className="qb-cantidad" role="group" aria-label={`${p.nombre} en tu bolsa`}>
-          <button type="button" onClick={alSacar} aria-label={`Sacar uno de ${p.nombre}`}>
+          <button type="button" onClick={() => alSacar(p)} aria-label={`Sacar uno de ${p.nombre}`}>
             −
           </button>
           <span aria-live="polite">{cantidad}</span>
-          <button type="button" onClick={() => alSumar(foto.current)} disabled={sinStock} aria-label={`Sumar otro ${p.nombre}`}>
+          <button type="button" onClick={() => alSumar(p, foto.current)} disabled={sinStock} aria-label={`Sumar otro ${p.nombre}`}>
             +
           </button>
         </div>
       ) : (
-        <button type="button" className="qb-sumar" onClick={() => alSumar(foto.current)} disabled={sinStock || !p.price}>
+        <button type="button" className="qb-sumar" onClick={() => alSumar(p, foto.current)} disabled={sinStock || !p.price}>
           {sinStock ? "Sin stock" : "Sumar a la bolsa"}
         </button>
       )}
     </article>
   );
-}
+});
 
 // ── EL ÍNDICE (vista de lista) ────────────────────────────────────────────────
 
@@ -718,7 +721,7 @@ function Regalo({ regalos, alVer }: { regalos: { pieza: Pieza; para: string; por
         </button>
         <p className="qb-regalo-nota">Mandale esta página al que necesite entender la indirecta 😬</p>
       </div>
-      <ul className="qb-regalo-lista">
+      <ul className="qb-regalo-lista qb-carrusel">
         {regalos.map(({ pieza, para, porque }) => (
           <li key={pieza.id} className="qb-revela">
             <button type="button" className="qb-regalo-item" onClick={() => alVer(pieza.id)}>
