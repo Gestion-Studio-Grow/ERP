@@ -19,7 +19,10 @@
  * tumbar la emisión con un 42P01 (mismo criterio que `MustChangePassword`/
  * `ProvisioningRun`). Sin caché, la emisión igual funciona: a lo sumo re-loguea.
  *
- * Es CONTROL-PLANE (cross-tenant, como la credencial): solo lo toca `operatorPrisma`.
+ * Es CONTROL-PLANE (como la credencial): lo toca `operatorPrisma`, SIEMPRE parado en el negocio
+ * que pide (`enElNegocio`). Esa conexión está sujeta a RLS en producción (26/09/2026): sin el
+ * negocio puesto, la credencial "no existía", la huella salía vacía y el ticket no se guardaba
+ * nunca (cada emisión volvía a loguearse contra WSAA).
  *
  * 🔑 LA CLAVE ES EL CERTIFICADO, NO EL NEGOCIO. WSAA bloquea el segundo login POR
  * CERTIFICADO (y servicio), no por negocio del ERP. Dos negocios que firman con el mismo
@@ -30,10 +33,19 @@
  * `tenantId` queda como "quién lo pidió por última vez" (RLS y rastro), no como clave.
  * La firma de las funciones sigue recibiendo el negocio (así la llama arca-dispatch.ts): la
  * huella la resuelve el store desde la credencial cifrada del negocio.
+ *
+ * ⚠️ BAJO RLS, HOY, NO SE COMPARTE. La política de la tabla (`tenant_isolation`, migración
+ * 20260925120000_lanzamiento_base) deja ver y escribir la fila sólo al negocio de su `tenantId`.
+ * Con dos negocios del mismo certificado, la fila es del que la guardó: el otro no la ve (lee
+ * "sin ticket" y se loguea) y no la pisa. El upsert de antes la pisaba y, bajo RLS, chocaba
+ * («new row violates row-level security policy (USING expression)», medido en Postgres 16); ahora
+ * actualiza la fila PROPIA o inserta si no hay ninguna, y si la del certificado es de otro negocio
+ * no escribe y lo dice en el log. Compartirla sin romper el aislamiento pide una migración: que la
+ * política deje ver la fila a todo negocio que tenga cargado ESE certificado (BACKLOG ENG-137).
  */
 
 import { createHash, randomUUID } from "node:crypto";
-import { operatorPrisma } from "@/lib/operator-db";
+import { enElNegocio, operatorPrisma } from "@/lib/operator-db";
 import { logger } from "@/lib/logger";
 import { ticketVigente, type TicketAcceso } from "@/plugins/arca";
 import {
@@ -91,10 +103,12 @@ export function huellaDeCertificado(certPem: string): string {
  * el material no sale de esta función, sólo la huella.
  */
 async function huellaDelNegocio(tenantId: string): Promise<string | null> {
-  const r = await operatorPrisma.tenantFiscalCredential.findUnique({
-    where: { tenantId },
-    select: { kekId: true, wrappedDek: true, sealed: true },
-  });
+  const r = await enElNegocio(tenantId, (tx) =>
+    tx.tenantFiscalCredential.findUnique({
+      where: { tenantId },
+      select: { kekId: true, wrappedDek: true, sealed: true },
+    }),
+  );
   if (!r) return null;
   try {
     return huellaDeCertificado(openCredential(r, masterKeyDesdeEnv()).certPem);
@@ -133,60 +147,89 @@ async function tablaExisteReal(): Promise<boolean> {
 export interface TablaPorCertificado {
   /** La huella del certificado con el que firma el negocio, o `null` si no tiene credencial. */
   huellaDelNegocio: (tenantId: string) => Promise<string | null>;
-  leerPorHuella: (huella: string, servicio: string) => Promise<FilaTicket | null>;
-  /** Pisa la fila de esa huella y servicio; `tenantId` queda como "quién lo pidió último". */
-  upsertPorHuella: (huella: string, servicio: string, tenantId: string, fila: FilaTicket) => Promise<void>;
+  /** La fila de esa huella y servicio que ve el negocio que la pide. */
+  leerPorHuella: (huella: string, servicio: string, tenantId: string) => Promise<FilaTicket | null>;
+  /**
+   * Guarda la fila de esa huella y servicio a nombre de `tenantId` ("quién lo pidió último").
+   * `false` = la fila de ese certificado es de OTRO negocio y no se pisó (ver la cabecera).
+   */
+  upsertPorHuella: (huella: string, servicio: string, tenantId: string, fila: FilaTicket) => Promise<boolean>;
 }
 
 /**
  * Los seams `leerFila`/`upsertFila` (que reciben el negocio) sobre una tabla por certificado:
- * el negocio se traduce a la huella de su certificado y la fila es de ESA huella. Dos negocios
- * con el mismo certificado leen y escriben la misma fila; uno sin credencial no cachea.
- * Separado de la base para que el test ejecute la regla con una tabla en memoria.
+ * el negocio se traduce a la huella de su certificado y la fila es de ESA huella. Con una tabla
+ * que deja ver la fila a todos los negocios del certificado, dos negocios con el mismo certificado
+ * leen y escriben la misma fila; con la política de RLS de hoy, sólo el que la guardó (la
+ * cabecera). Uno sin credencial no cachea. Separado de la base para que el test ejecute la regla
+ * con una tabla en memoria.
  */
 export function depsPorCertificado(t: TablaPorCertificado): Pick<ArcaTaStoreDeps, "leerFila" | "upsertFila"> {
   return {
     leerFila: async (tenantId, servicio) => {
       const huella = await t.huellaDelNegocio(tenantId);
-      return huella ? t.leerPorHuella(huella, servicio) : null;
+      return huella ? t.leerPorHuella(huella, servicio, tenantId) : null;
     },
     upsertFila: async (tenantId, servicio, fila) => {
       const huella = await t.huellaDelNegocio(tenantId);
-      if (huella) await t.upsertPorHuella(huella, servicio, tenantId, fila);
+      if (!huella) return;
+      if (!(await t.upsertPorHuella(huella, servicio, tenantId, fila))) {
+        logger.warn("arca.ta", "El ticket de este certificado lo guardó otro negocio: no se pisa y no se comparte (ENG-137)", {
+          tenantId,
+        });
+      }
     },
+  };
+}
+
+/**
+ * La tabla `ArcaAuthTicket` de la base, leída y escrita PARADA EN EL NEGOCIO que pide
+ * (`enElNegocio`), con el negocio también escrito en cada sentencia (el candado de la app no cubre
+ * el SQL crudo). Guardar actualiza la fila PROPIA del certificado o inserta si no hay ninguna; si
+ * la hay y es de otro negocio, `ON CONFLICT DO NOTHING` la deja como está (no toca una fila que
+ * RLS esconde, que es lo que hacía chocar al upsert de antes).
+ */
+function tablaEnLaBase(): TablaPorCertificado {
+  return {
+    huellaDelNegocio,
+    leerPorHuella: (huella, servicio, tenantId) =>
+      enElNegocio(tenantId, async (tx) => {
+        const rows = await tx.$queryRaw<FilaTicket[]>`
+          SELECT "kekId", "wrappedDek", "sealed", "expiration"
+          FROM "ArcaAuthTicket"
+          WHERE "certHuella" = ${huella} AND "service" = ${servicio} AND "tenantId" = ${tenantId}
+          LIMIT 1
+        `;
+        return rows[0] ?? null;
+      }),
+    upsertPorHuella: (huella, servicio, tenantId, fila) =>
+      enElNegocio(tenantId, async (tx) => {
+        const actualizadas = await tx.$executeRaw`
+          UPDATE "ArcaAuthTicket" SET
+            "kekId"      = ${fila.kekId},
+            "wrappedDek" = ${fila.wrappedDek},
+            "sealed"     = ${fila.sealed},
+            "expiration" = ${fila.expiration},
+            "updatedAt"  = CURRENT_TIMESTAMP
+          WHERE "certHuella" = ${huella} AND "service" = ${servicio} AND "tenantId" = ${tenantId}
+        `;
+        if (actualizadas > 0) return true;
+        const insertadas = await tx.$executeRaw`
+          INSERT INTO "ArcaAuthTicket"
+            ("id", "certHuella", "service", "tenantId", "kekId", "wrappedDek", "sealed", "expiration", "createdAt", "updatedAt")
+          VALUES
+            (${randomUUID()}, ${huella}, ${servicio}, ${tenantId}, ${fila.kekId}, ${fila.wrappedDek}, ${fila.sealed}, ${fila.expiration}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT ("certHuella", "service") DO NOTHING
+        `;
+        return insertadas > 0;
+      }),
   };
 }
 
 function defaultDeps(): ArcaTaStoreDeps {
   return {
     tablaExiste: tablaExisteReal,
-    ...depsPorCertificado({
-      huellaDelNegocio,
-      leerPorHuella: async (huella, servicio) => {
-        const rows = await operatorPrisma.$queryRaw<FilaTicket[]>`
-          SELECT "kekId", "wrappedDek", "sealed", "expiration"
-          FROM "ArcaAuthTicket"
-          WHERE "certHuella" = ${huella} AND "service" = ${servicio}
-          LIMIT 1
-        `;
-        return rows[0] ?? null;
-      },
-      upsertPorHuella: async (huella, servicio, tenantId, fila) => {
-        await operatorPrisma.$executeRaw`
-          INSERT INTO "ArcaAuthTicket"
-            ("id", "certHuella", "service", "tenantId", "kekId", "wrappedDek", "sealed", "expiration", "createdAt", "updatedAt")
-          VALUES
-            (${randomUUID()}, ${huella}, ${servicio}, ${tenantId}, ${fila.kekId}, ${fila.wrappedDek}, ${fila.sealed}, ${fila.expiration}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          ON CONFLICT ("certHuella", "service") DO UPDATE SET
-            "tenantId"   = EXCLUDED."tenantId",
-            "kekId"      = EXCLUDED."kekId",
-            "wrappedDek" = EXCLUDED."wrappedDek",
-            "sealed"     = EXCLUDED."sealed",
-            "expiration" = EXCLUDED."expiration",
-            "updatedAt"  = CURRENT_TIMESTAMP
-        `;
-      },
-    }),
+    ...depsPorCertificado(tablaEnLaBase()),
     master: masterKeyDesdeEnv,
     ahora: () => new Date(),
   };

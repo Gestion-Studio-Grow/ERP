@@ -14,7 +14,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraParaElTest } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 const DIA = 24 * 60 * 60 * 1000;
@@ -32,6 +32,10 @@ test("pedidos de alta: pasado cualquier tope, nada desaparece en silencio", asyn
   const conf = await import("@/app/operador/(console)/solicitudes/configurador.server");
   const panel = await import("@/app/contador/altas-en-curso.server");
   base.alBorrar(() => operatorPrisma.$disconnect());
+  // La consola (`operatorPrisma`) es `app_rls`, como en producción: la bandeja corre con ella. Las filas
+  // se siembran como dueño. A y B son estudios (con la cartera): sólo un estudio pide altas.
+  const duenio = await prismaComoDuenio(base);
+  await duenio.tenant.updateMany({ where: { id: { in: [base.a.id, base.b.id] } }, data: { modules: { push: "cartera" } } });
 
   const ahora = Date.now();
   const fila = (id: string, action: string, createdAt: number, changes: object, entityId = id, tenantId = base.a.id) => ({
@@ -44,8 +48,8 @@ test("pedidos de alta: pasado cualquier tope, nada desaparece en silencio", asyn
   const viejos = Array.from({ length: 500 }, (_, i) =>
     fila(`viejo-${String(i).padStart(3, "0")}`, reglas.ACCION_SOLICITUD_ALTA, ahora - 20 * DIA + i * 1000, pedido(`Viejo ${i}`, "20111111112")),
   );
-  await operatorPrisma.auditLog.createMany({ data: [...viejos, ...viejos.map((v) => cerrar(v.id))] });
-  await operatorPrisma.auditLog.createMany({
+  await duenio.auditLog.createMany({ data: [...viejos, ...viejos.map((v) => cerrar(v.id))] });
+  await duenio.auditLog.createMany({
     data: [
       fila("abierto-501", reglas.ACCION_SOLICITUD_ALTA, ahora - DIA, pedido("Kiosco 501", "20222222223")),
       fila("descartado-502", reglas.ACCION_SOLICITUD_ALTA, ahora - DIA + 1000, pedido("Ferretería 502", "20333333334")),
@@ -67,7 +71,7 @@ test("pedidos de alta: pasado cualquier tope, nada desaparece en silencio", asyn
   const nuevos = Array.from({ length: 120 }, (_, i) =>
     fila(`nuevo-${String(i).padStart(3, "0")}`, reglas.ACCION_SOLICITUD_ALTA, ahora - DIA / 4 + i * 1000, pedido(`Nuevo ${i}`, "20444444445"), undefined, i % 2 ? base.b.id : base.a.id),
   );
-  await operatorPrisma.auditLog.createMany({ data: nuevos });
+  await duenio.auditLog.createMany({ data: nuevos });
   const esperados = ["abierto-501", ...nuevos.map((n) => n.id)];
   const deA = (id: string) => id === "abierto-501" || nuevos.find((n) => n.id === id)?.tenantId === base.a.id;
 
@@ -89,7 +93,7 @@ test("pedidos de alta: pasado cualquier tope, nada desaparece en silencio", asyn
     assert.equal(p1.total, 121);
     assert.deepEqual(p1.pedidos.map((s) => s.id), esperados.slice(0, 50));
     // Soporte configura el primero ya visto: la página 2 no se corre.
-    await operatorPrisma.auditLog.create({ data: cerrar("abierto-501") });
+    await duenio.auditLog.create({ data: cerrar("abierto-501") });
     const p2 = await conf.listarSolicitudesPendientes(operatorPrisma, { desde: p1.siguiente });
     assert.equal(p2.total, 120);
     assert.deepEqual(p2.pedidos.map((s) => s.id), esperados.slice(50, 100));
@@ -99,7 +103,7 @@ test("pedidos de alta: pasado cualquier tope, nada desaparece en silencio", asyn
   });
 
   await t.test("un descarte deja de verse si el estudio vuelve a pedir ese CUIT (el pedido nuevo manda)", async () => {
-    await operatorPrisma.auditLog.create({ data: fila("otra-vez-503", reglas.ACCION_SOLICITUD_ALTA, ahora, pedido("Ferretería 502", "20333333334")) });
+    await duenio.auditLog.create({ data: fila("otra-vez-503", reglas.ACCION_SOLICITUD_ALTA, ahora, pedido("Ferretería 502", "20333333334")) });
     const deEstudioA = await panel.pedidosDeAltaDelEstudio(base.a.id);
     assert.deepEqual([deEstudioA.descartadas, deEstudioA.descartadasTotal], [[], 0]);
     assert.equal(deEstudioA.enCursoTotal, 61, "el 501 se cerró y entró el 503");

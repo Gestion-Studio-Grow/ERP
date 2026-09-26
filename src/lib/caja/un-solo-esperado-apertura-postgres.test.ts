@@ -21,7 +21,7 @@ test("contra Postgres: la diferencia al abrir se muestra, se confirma y queda un
 
   // El libro de A arrastra $12.345,67 en efectivo de ayer (sin cerrar) que no están en el cajón.
   // B tiene lo suyo, distinto, para que se note si algo se cruza.
-  await c.operatorPrisma.cashMovement.createMany({
+  await c.duenio.cashMovement.createMany({
     data: [
       { tenantId: a.id, type: "VENTA", method: "EFECTIVO", amount: 12_345.67, occurredAt: c.alMediodia(c.ayer), createdBy: "seed" },
       { tenantId: a.id, type: "VENTA", method: "MP", amount: 5_000, occurredAt: c.alMediodia(c.ayer), createdBy: "seed" },
@@ -38,14 +38,14 @@ test("contra Postgres: la diferencia al abrir se muestra, se confirma y queda un
   const vieja = await c.abrir(a, "0", 0);
   assert.equal(vieja?.ok, false);
   assert.match((vieja as { error: string }).error, /Mientras contabas cambió el efectivo esperado en el cajón: ahora es \$ ?12\.345,67/);
-  assert.equal(await c.operatorPrisma.cashSession.count({ where: { tenantId: a.id } }), 0, "no se abrió");
+  assert.equal(await c.duenio.cashSession.count({ where: { tenantId: a.id } }), 0, "no se abrió");
   assert.equal((await c.conMarca(a.id, c.marcas.APERTURA_TURNO_ACTOR_PREFIX)).length, 0, "no se asentó nada");
 
   // La cajera cuenta el cajón vacío, ve «faltan $12.345,67», lo confirma y abre con $0.
   const antes = new Date();
   assert.deepEqual(await c.abrir(a, "0"), { ok: true });
   const despues = new Date();
-  const turno = await c.operatorPrisma.cashSession.findFirstOrThrow({ where: { tenantId: a.id, status: "OPEN" } });
+  const turno = await c.duenio.cashSession.findFirstOrThrow({ where: { tenantId: a.id, status: "OPEN" } });
 
   // La diferencia al abrir: UNA fila, faltante por lo que el libro decía de más, en efectivo,
   // atada al turno que la encontró (quién: su `openedBy`; cuándo: `occurredAt`).
@@ -58,7 +58,7 @@ test("contra Postgres: la diferencia al abrir se muestra, se confirma y queda un
   assert.equal(ap.createdBy, c.marcas.aperturaTurnoMarker(turno.id));
   assert.equal(turno.openedBy, `user:${a.duenia.id}`, "quién la encontró");
   assert.ok(ap.occurredAt >= antes && ap.occurredAt <= despues, "cuándo: al abrir");
-  const auditoria = await c.operatorPrisma.auditLog.findFirstOrThrow({ where: { tenantId: a.id, entity: "CashSession", entityId: turno.id, action: "open" } });
+  const auditoria = await c.duenio.auditLog.findFirstOrThrow({ where: { tenantId: a.id, entity: "CashSession", entityId: turno.id, action: "open" } });
   assert.deepEqual(
     (auditoria.changes as { saldoDelLibro?: number; diferenciaDeApertura?: number }).diferenciaDeApertura,
     -12_345.67,
@@ -67,14 +67,14 @@ test("contra Postgres: la diferencia al abrir se muestra, se confirma y queda un
 
   // B no puede cerrar el turno de A ni ve su caja.
   assert.deepEqual(await c.cerrarTurno(b, "0"), { ok: false, error: "No hay una caja abierta para cerrar." });
-  assert.equal((await c.operatorPrisma.cashSession.findUniqueOrThrow({ where: { id: turno.id } })).status, "OPEN");
+  assert.equal((await c.duenio.cashSession.findUniqueOrThrow({ where: { id: turno.id } })).status, "OPEN");
 
   // Vende $1.000 en efectivo en el turno y al cerrar cuenta $1.000: cuadra.
-  await c.operatorPrisma.cashMovement.create({
+  await c.duenio.cashMovement.create({
     data: { tenantId: a.id, sessionId: turno.id, type: "VENTA", method: "EFECTIVO", amount: 1_000, createdBy: `user:${a.duenia.id}` },
   });
   assert.deepEqual(await c.cerrarTurno(a, "1000"), { ok: true });
-  const cerrado = await c.operatorPrisma.cashSession.findUniqueOrThrow({ where: { id: turno.id } });
+  const cerrado = await c.duenio.cashSession.findUniqueOrThrow({ where: { id: turno.id } });
   assert.equal(cerrado.closingExpected, 1_000);
   assert.equal(cerrado.closingDiff, 0);
   assert.equal((await c.conMarca(a.id, c.marcas.ARQUEO_TURNO_ACTOR_PREFIX)).length, 0, "un turno que cuadra no escribe ajuste");
@@ -89,5 +89,5 @@ test("contra Postgres: la diferencia al abrir se muestra, se confirma y queda un
 
   // Nada de todo esto tocó a B.
   assert.deepEqual(await c.fotoDelLibro(b.id), libroDeB, "el libro de B quedó igual");
-  assert.equal(await c.operatorPrisma.cashSession.count({ where: { tenantId: b.id } }), 0);
+  assert.equal(await c.duenio.cashSession.count({ where: { tenantId: b.id } }), 0);
 });

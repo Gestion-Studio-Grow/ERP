@@ -1,0 +1,12 @@
+# LCP móvil, 3 corridas (390 px, CPU 4x, 1,6 Mbps, 150 ms), servidor estático local, brotli q5 como la CDN
+## Corrida 1 (antes = demo publicada; Google Fonts SÍ cargó por el proxy)
+antes-br     mediana de 3: FCP 584 LCP 584 (H1) CLS 0.0246 TBT 756 TTFB 25 htmlFin 523 html 69.9KB fuenteFin 2717 nFuentes 1 errores 0/0/0 | LCPs 668/548/584
+despues-br   mediana de 3: FCP 852 LCP 852 (H1) CLS 0.0002 TBT 78 TTFB 16 htmlFin 658 html 70.2KB fuenteFin 744 nFuentes 1 errores 0/0/0 | LCPs 852/896/812
+sinprec-br   mediana de 3: FCP 672 LCP 672 (H1) CLS 0.0245 TBT 163 TTFB 32 htmlFin 509 html 70.2KB fuenteFin 1036 nFuentes 1 errores 0/0/0 | LCPs 584/816/672
+antes-crudo  mediana de 3: FCP 808 LCP 808 (H1) CLS 0.0246 TBT 552 TTFB 9 htmlFin 1508 html 273.1KB fuenteFin 4711 nFuentes 1 errores 0/0/0 | LCPs 644/828/808
+despues-crudo mediana de 3: FCP 1068 LCP 1068 (H1) CLS 0.0002 TBT 232 TTFB 9 htmlFin 1751 html 274.4KB fuenteFin 857 nFuentes 1 errores 0/0/0 | LCPs 904/1068/1072
+sinprec-crudo mediana de 3: FCP 888 LCP 888 (H1) CLS 0.0245 TBT 287 TTFB 6 htmlFin 1746 html 274.3KB fuenteFin 1269 nFuentes 1 errores 0/0/0 | LCPs 672/916/888
+## Corrida 2 (nuevo = respaldo arreglado; en 'antes' Google Fonts falló por el proxy: optimista)
+antes-br     mediana de 3: FCP 412 LCP 412 (H1) CLS 0.0002 TBT 370 TTFB 70 htmlFin 508 html 69.9KB fuenteFin 9978 nFuentes 1 errores 1/1/1 | LCPs 368/412/492
+nuevo-br     mediana de 3: FCP 896 LCP 896 (H1) CLS 0.0002 TBT 15 TTFB 28 htmlFin 630 html 70.3KB fuenteFin 751 nFuentes 1 errores 0/0/0 | LCPs 740/1180/896
+nuevo-sinprec mediana de 3: FCP 616 LCP 616 (H1) CLS 0.0012 TBT 194 TTFB 21 htmlFin 501 html 70.3KB fuenteFin 956 nFuentes 1 errores 0/0/0 | LCPs 540/684/616

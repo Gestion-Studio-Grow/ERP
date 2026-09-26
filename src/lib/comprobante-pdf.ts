@@ -257,7 +257,7 @@ export function faltantesDelComprobante(d: DatosComprobanteImpreso): Faltante[] 
   const falta = (campo: string, mensaje: string) => f.push({ campo, mensaje });
 
   if (d.estado === "REJECTED") {
-    falta("estado", "ARCA rechazó este comprobante: no es una factura válida y no se puede imprimir. Revisá el motivo en Facturación y emití uno nuevo.");
+    falta("estado", "ARCA rechazó este comprobante: no es una factura válida y no se puede imprimir. El motivo y cómo volver a facturarlo están en su detalle, en Facturación.");
     return f;
   }
   if (d.estado !== "AUTHORIZED" || vacio(d.cae)) {

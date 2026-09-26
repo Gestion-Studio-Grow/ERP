@@ -39,7 +39,12 @@ function baseFalsa() {
         },
       },
     );
-  const tx = new Proxy({}, { get: (_, m) => modelo(String(m)) });
+  // `$executeRaw` es el `set_config` que para la transacción en el negocio (RLS): se anota con el id.
+  const executeRaw = async (_: TemplateStringsArray, ...valores: unknown[]) => {
+    llamadas.push(`guc:${String(valores[0])}`);
+    return 1;
+  };
+  const tx = new Proxy({}, { get: (_, m) => (m === "$executeRaw" ? executeRaw : modelo(String(m))) });
   const prisma = { $transaction: async (cb: (t: unknown) => unknown) => cb(tx) } as unknown as PrismaClient;
   return { prisma, llamadas };
 }
@@ -67,6 +72,16 @@ test("el committer real: con `sinCatalogo` no siembra ningún producto; sin él,
   const s = await adr019Committer(suelto.prisma).commit(buildProvisionInput(FORM, "commit"), PLAN);
   assert.equal(s.catalogSeeded, true, "un negocio suelto sigue naciendo con el catálogo de su rubro");
   assert.ok(suelto.llamadas.filter((l) => l === "product.create").length > 0);
+});
+
+test("el alta se para en el negocio apenas lo crea, antes de escribir el dueño y lo demás (RLS)", async () => {
+  const b = baseFalsa();
+  await adr019Committer(b.prisma).commit(buildProvisionInput(FORM, "commit"), PLAN);
+  const upsert = b.llamadas.indexOf("tenant.upsert");
+  const guc = b.llamadas.indexOf("guc:tenant-1");
+  assert.ok(upsert >= 0 && guc === upsert + 1, `el set_config va justo después del alta del negocio: ${b.llamadas.join(", ")}`);
+  const primeraDelNegocio = b.llamadas.findIndex((l) => /^(user|businessSettings|product|service)\./.test(l));
+  assert.ok(primeraDelNegocio > guc, "nada del negocio se escribe ni se lee antes de pararse en él");
 });
 
 test("el preview no promete un catálogo que el alta no va a sembrar", async () => {

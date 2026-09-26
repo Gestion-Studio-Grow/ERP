@@ -2,7 +2,10 @@
 // EL FRASCO DE LA CASA — la escena 3D del portal de Qué Bien Olés (three.js, sin React).
 // ============================================================================
 //
-// Se carga con import dinámico SÓLO en esta vidriera (Frasco.tsx): el resto del ERP no baja three.js.
+// Corre en un WEB WORKER sobre un OffscreenCanvas (frasco-worker.ts) o, si el navegador no puede, en el
+// hilo principal (Frasco.tsx): por eso no toca `window` ni `document` salvo detrás de un `typeof`, y el
+// tamaño, el DPR y la letra le llegan de afuera. Se carga con import dinámico SÓLO en esta vidriera: el
+// resto del ERP no baja three.js.
 //
 // Qué se ve y de dónde sale:
 //   · El frasco: el de su posteo "Volvimos" (14/09) — tapa negra facetada y virola dorada moleteada —
@@ -19,12 +22,26 @@
 // Presupuesto: un solo objeto transmisivo, texturas de lienzo generadas acá (cero descargas), sombras y
 // dispersión sólo en calidad alta, el bucle se apaga fuera de pantalla y con la pestaña oculta. Con
 // movimiento reducido se pinta un cuadro quieto y no hay bruma.
+//
+// Lo que cuesta de verdad es COMPILAR los shaders físicos (medido: segundos en una GPU integrada). Por
+// eso: (1) los materiales comparten programa donde el ojo no distingue (cuatro programas físicos en vez
+// de ocho), (2) se compilan en paralelo con `compileAsync` (KHR_parallel_shader_compile), (3) la
+// construcción cede el hilo entre bloques, (4) si los primeros cuadros salen lentos, la escena baja sola
+// de resolución, y (5) en el worker todo esto pasa fuera del hilo que responde al toque y al scroll.
+//
+// (Se midió importar de "three" por nombre en vez de `import * as THREE`: el chunk no baja —138,5 → 138,7 KB gz—,
+// Turbopack ya recorta igual; se deja el espacio de nombres, que es como estaba.)
 
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 
 export type OpcionesFrasco = {
-  lienzo: HTMLCanvasElement;
+  /** El lienzo: el `<canvas>` de la página (hilo principal) o su OffscreenCanvas (worker). */
+  lienzo: HTMLCanvasElement | OffscreenCanvas;
+  /** Tamaño CSS del lienzo y densidad de píxeles (el worker no puede medirlos: se los pasan). */
+  ancho: number;
+  alto: number;
+  dpr: number;
   /** Color del líquido (el de la familia). */
   color: string;
   /** Color EXACTO de la página detrás del lienzo: la pared termina en él. */
@@ -32,8 +49,10 @@ export type OpcionesFrasco = {
   /** false = movimiento reducido: un cuadro quieto, sin bruma. */
   movimiento: boolean;
   calidad: "alta" | "baja";
-  /** Familia CSS de la didona ya declarada en la página (para la Q de la etiqueta y del retablo). */
+  /** Familia CSS de la didona (para la Q de la etiqueta y del retablo). */
   letra: string;
+  /** URL absoluta del archivo de la didona: en el worker no hay CSS, se carga con FontFace. */
+  urlLetra?: string;
   /** Se perdió el contexto WebGL (driver, memoria): la vidriera muestra el respaldo. */
   alPerder?: () => void;
 };
@@ -47,7 +66,8 @@ export type Frasco = {
   salida(p: number): void;
   /** Encender/apagar el bucle (fuera de pantalla, pestaña oculta). */
   activo(si: boolean): void;
-  medir(): void;
+  /** Nuevo tamaño CSS del lienzo y DPR. */
+  medir(ancho: number, alto: number, dpr: number): void;
   soltar(): void;
 };
 
@@ -73,23 +93,34 @@ function azar(semilla: number) {
   };
 }
 
+/** Cede el hilo entre bloques pesados (scheduler.yield si existe; si no, una macrotarea). */
+function respirar(): Promise<void> {
+  const s = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+  return s?.yield ? s.yield() : new Promise((r) => setTimeout(r, 0));
+}
+
+/** El pincel 2D con el que se dibujan las texturas: el de un <canvas> o el de un OffscreenCanvas. */
+type Pincel = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
 function lienzo2d(ancho: number, alto: number) {
-  const c = document.createElement("canvas");
+  // En el worker no hay `document`: las texturas se dibujan en OffscreenCanvas (three las sube igual).
+  const c: HTMLCanvasElement | OffscreenCanvas =
+    typeof document !== "undefined" ? document.createElement("canvas") : new OffscreenCanvas(ancho, alto);
   c.width = ancho;
   c.height = alto;
-  const g = c.getContext("2d");
+  const g = c.getContext("2d") as Pincel | null;
   if (!g) throw new Error("sin 2d");
   return { c, g };
 }
 
-function textura(c: HTMLCanvasElement, color = true): THREE.CanvasTexture {
+function textura(c: HTMLCanvasElement | OffscreenCanvas, color = true): THREE.Texture {
   const t = new THREE.CanvasTexture(c);
   if (color) t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
   return t;
 }
 
-function oroLineal(g: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number) {
+function oroLineal(g: Pincel, x0: number, y0: number, x1: number, y1: number) {
   const d = g.createLinearGradient(x0, y0, x1, y1);
   d.addColorStop(0, "#8f6726");
   d.addColorStop(0.35, "#f6e3a8");
@@ -99,7 +130,7 @@ function oroLineal(g: CanvasRenderingContext2D, x0: number, y0: number, x1: numb
 }
 
 /** La corona de la caja (tres puntas), centrada en (x, y), de ancho `a`. */
-function corona(g: CanvasRenderingContext2D, x: number, y: number, a: number) {
+function corona(g: Pincel, x: number, y: number, a: number) {
   const h = a * 0.42;
   g.beginPath();
   g.moveTo(x - a / 2, y + h / 2);
@@ -113,10 +144,32 @@ function corona(g: CanvasRenderingContext2D, x: number, y: number, a: number) {
   g.fill();
 }
 
+/**
+ * La didona tiene que estar cargada antes de dibujar la Q en el lienzo (si no, sale en serif). En la
+ * página la declara el CSS y alcanza con pedirla; en el worker no hay CSS: se carga el archivo con
+ * FontFace y se suma al conjunto del worker (`self.fonts`). Tope de 1,5 s: sin la letra no se frena.
+ */
+async function asegurarLetra(letra: string, urlLetra?: string) {
+  const conjunto: FontFaceSet | undefined =
+    typeof document !== "undefined" ? document.fonts : (globalThis as { fonts?: FontFaceSet }).fonts;
+  if (!conjunto) return;
+  const carga =
+    typeof document === "undefined" && urlLetra
+      ? new FontFace(letra.replace(/"/g, ""), `url(${urlLetra})`, { weight: "400 900" }).load().then((cara) => {
+          conjunto.add(cara);
+        })
+      : conjunto.load(`700 120px ${letra}`).then(() => undefined);
+  try {
+    await Promise.race([carga, new Promise<void>((r) => setTimeout(r, 1500))]);
+  } catch {
+    /* sin la letra: la Q sale en serif del sistema, no se frena la escena */
+  }
+}
+
 // ── texturas ─────────────────────────────────────────────────────────────────
 
 /** Retablo detrás del frasco: halo cálido, la Q con corona y rayos finos. Bordes = fondo exacto. */
-function texturaRetablo(fondo: string, letra: string, lado: number): THREE.CanvasTexture {
+function texturaRetablo(fondo: string, letra: string, lado: number): THREE.Texture {
   const { c, g } = lienzo2d(lado, lado);
   const m = lado / 2;
   g.fillStyle = fondo;
@@ -156,7 +209,7 @@ function texturaRetablo(fondo: string, letra: string, lado: number): THREE.Canva
 }
 
 /** Mármol negro con vetas doradas (portada "Stock disponible"). */
-function texturaMarmol(ancho: number, alto: number): THREE.CanvasTexture {
+function texturaMarmol(ancho: number, alto: number): THREE.Texture {
   const { c, g } = lienzo2d(ancho, alto);
   const r = azar(1504);
   g.fillStyle = "#0c0a09";
@@ -194,13 +247,18 @@ function texturaMarmol(ancho: number, alto: number): THREE.CanvasTexture {
   };
   for (let i = 0; i < 9; i++) veta(1 + r() * 2.2, 0.28 + r() * 0.35, "#b8914c");
   for (let i = 0; i < 26; i++) veta(0.6 + r() * 0.8, 0.12 + r() * 0.18, "#e9dcc4");
+  // La veta gruesa lleva un filo de luz al lado (como el oro real, que no es una línea plana).
+  g.save();
+  g.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 5; i++) veta(0.5 + r() * 0.5, 0.08 + r() * 0.08, "#fff1c8");
+  g.restore();
   const t = textura(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return t;
 }
 
 /** Etiqueta del frente: la Q con corona y "QUÉ BIEN OLÉS · PERFUMERÍA", en oro. */
-function texturaEtiqueta(letra: string, lado: number): THREE.CanvasTexture {
+function texturaEtiqueta(letra: string, lado: number): THREE.Texture {
   const { c, g } = lienzo2d(lado, lado);
   const m = lado / 2;
   g.clearRect(0, 0, lado, lado);
@@ -224,7 +282,7 @@ function texturaEtiqueta(letra: string, lado: number): THREE.CanvasTexture {
 }
 
 /** Moleteado de la virola (relieve en diagonal cruzada), para bumpMap. */
-function texturaMoleteado(): THREE.CanvasTexture {
+function texturaMoleteado(): THREE.Texture {
   const { c, g } = lienzo2d(512, 64);
   g.fillStyle = "#808080";
   g.fillRect(0, 0, 512, 64);
@@ -247,7 +305,7 @@ function texturaMoleteado(): THREE.CanvasTexture {
 }
 
 /** Sombra de contacto (radial) bajo el frasco. */
-function texturaSombra(): THREE.CanvasTexture {
+function texturaSombra(): THREE.Texture {
   const { c, g } = lienzo2d(256, 256);
   const d = g.createRadialGradient(128, 128, 0, 128, 128, 128);
   d.addColorStop(0, "rgba(0,0,0,0.85)");
@@ -259,7 +317,7 @@ function texturaSombra(): THREE.CanvasTexture {
 }
 
 /** Degradé vertical del perfume: hondo abajo, luminoso arriba (el menisco agarra la luz). */
-function texturaLiquido(): THREE.CanvasTexture {
+function texturaLiquido(): THREE.Texture {
   const { c, g } = lienzo2d(16, 256);
   const d = g.createLinearGradient(0, 256, 0, 0);
   d.addColorStop(0, "#6f6f6f");
@@ -272,7 +330,7 @@ function texturaLiquido(): THREE.CanvasTexture {
 }
 
 /** Punto suave para la bruma. */
-function texturaGota(): THREE.CanvasTexture {
+function texturaGota(): THREE.Texture {
   const { c, g } = lienzo2d(64, 64);
   const d = g.createRadialGradient(32, 32, 0, 32, 32, 32);
   d.addColorStop(0, "rgba(255,255,255,1)");
@@ -292,10 +350,7 @@ function estudio(): THREE.Scene {
   const s = new THREE.Scene();
   s.add(new THREE.Mesh(new THREE.BoxGeometry(14, 10, 14), new THREE.MeshBasicMaterial({ color: 0x0b0907, side: THREE.BackSide })));
   const tira = (ancho: number, alto: number, color: number, fuerza: number, x: number, y: number, z: number) => {
-    const m = new THREE.Mesh(
-      new THREE.PlaneGeometry(ancho, alto),
-      new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(fuerza), side: THREE.DoubleSide }),
-    );
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(ancho, alto), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(fuerza), side: THREE.DoubleSide }));
     m.position.set(x, y, z);
     m.lookAt(0, 0.8, 0);
     s.add(m);
@@ -310,6 +365,8 @@ function estudio(): THREE.Scene {
   tira(0.55, 5, 0xfff0d8, 6, -2.4, 1.8, 5.6);
   tira(0.28, 4, 0xffffff, 4, 2.5, 2.1, 6.2);
   tira(8, 3.4, 0x3a2c1e, 3.2, 0, 1.6, 6.6);
+  // Una tira corta y alta, arriba a la derecha: la agarran el bisel y el aro de la tapa al girar.
+  tira(1.6, 0.4, 0xfff6e6, 3, 2.2, 4.4, 3.2);
   return s;
 }
 
@@ -317,15 +374,19 @@ function estudio(): THREE.Scene {
 
 export async function crearFrasco(op: OpcionesFrasco): Promise<Frasco> {
   const alta = op.calidad === "alta";
-  // La didona tiene que estar cargada antes de dibujar la Q en el lienzo (si no, sale en serif).
-  try {
-    await Promise.race([
-      document.fonts.load(`700 120px ${op.letra}`),
-      new Promise((r) => setTimeout(r, 1500)),
-    ]);
-  } catch {
-    /* sin la letra: la Q sale en serif del sistema, no se frena la escena */
-  }
+  let ancho = op.ancho;
+  let alto = op.alto;
+  let dpr = op.dpr;
+  await asegurarLetra(op.letra, op.urlLetra);
+
+  // Las texturas primero (lienzo 2D, sin GPU) y una respiración: el mármol y el retablo son lo más
+  // pesado del hilo y no tienen por qué compartir tarea con la creación del contexto.
+  const mapaRetablo = texturaRetablo(op.fondo, op.letra, alta ? 1024 : 512);
+  const marmol = texturaMarmol(alta ? 1024 : 512, alta ? 512 : 256);
+  await respirar();
+  const mapaEtiqueta = texturaEtiqueta(op.letra, alta ? 1024 : 512);
+  const moleteado = texturaMoleteado();
+  const degradeLiquido = texturaLiquido();
 
   const renderer = new THREE.WebGLRenderer({
     canvas: op.lienzo,
@@ -333,29 +394,25 @@ export async function crearFrasco(op: OpcionesFrasco): Promise<Frasco> {
     alpha: true,
     powerPreference: "high-performance",
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, alta ? 1.75 : 1.25));
+  renderer.setPixelRatio(Math.min(dpr || 1, alta ? 1.75 : 1.25));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = alta;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  if ("transmissionResolutionScale" in renderer) {
-    (renderer as unknown as { transmissionResolutionScale: number }).transmissionResolutionScale = alta ? 1 : 0.5;
-  }
+  renderer.transmissionResolutionScale = alta ? 1 : 0.5;
 
   const escena = new THREE.Scene();
   const pmrem = new THREE.PMREMGenerator(renderer);
   const entorno = pmrem.fromScene(estudio(), 0.035).texture;
   escena.environment = entorno;
+  await respirar();
 
   const camara = new THREE.PerspectiveCamera(28, 1, 0.1, 60);
 
   // Pared de fondo: el color exacto de la página (sin mapeo de tonos).
   const fondo = new THREE.Color(op.fondo);
-  const pared = new THREE.Mesh(
-    new THREE.PlaneGeometry(60, 34),
-    new THREE.MeshBasicMaterial({ color: fondo, toneMapped: false }),
-  );
+  const pared = new THREE.Mesh(new THREE.PlaneGeometry(60, 34), new THREE.MeshBasicMaterial({ color: fondo, toneMapped: false }));
   pared.position.set(0, 1.5, -3.4);
   escena.add(pared);
 
@@ -363,27 +420,52 @@ export async function crearFrasco(op: OpcionesFrasco): Promise<Frasco> {
   const set = new THREE.Group();
   escena.add(set);
 
-  const retablo = new THREE.Mesh(
-    new THREE.PlaneGeometry(7.2, 7.2),
-    new THREE.MeshBasicMaterial({ map: texturaRetablo(op.fondo, op.letra, alta ? 1024 : 512), toneMapped: false }),
-  );
+  const retablo = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 7.2), new THREE.MeshBasicMaterial({ map: mapaRetablo, toneMapped: false }));
   retablo.position.set(0, 1.55, -3.3);
   set.add(retablo);
 
+  // ── materiales: cuatro programas físicos, compartidos a propósito ─────────────────────────
+  // Cada combinación distinta de mapas/rasgos es un programa aparte y cada programa físico tarda en
+  // compilar. Se agrupan: «laqueado» (tapa y cabezal), «oro» (virola, vástago, disco y filete: el mismo
+  // bump con escala distinta), «con mapa» (zócalo, etiqueta y perfume: mapa + laca, todos reciben sombra)
+  // y el vidrio, que es único. Los colores y escalas son uniformes: no cambian el programa.
+  // Laca: las caras planas reflejan las tiras del estudio, pero con un poco de rugosidad en el
+  // barniz, así el reflejo tiene cuerpo (un brillo que se degrada) y no es un rectángulo gris pegado.
+  const laca = new THREE.MeshPhysicalMaterial({
+    color: 0x131014,
+    metalness: 0.4,
+    roughness: 0.16,
+    clearcoat: 1,
+    clearcoatRoughness: 0.1,
+    flatShading: true,
+    envMapIntensity: 2.2,
+  });
+  const oro = new THREE.MeshPhysicalMaterial({
+    color: 0xd4ab62,
+    metalness: 1,
+    roughness: 0.28,
+    bumpMap: moleteado,
+    bumpScale: 1.4,
+    envMapIntensity: 1.5,
+  });
+  const oroLiso = oro.clone();
+  oroLiso.color.set(0xe0bb72);
+  oroLiso.roughness = 0.18;
+  oroLiso.bumpScale = 0;
+  oroLiso.envMapIntensity = 1.6;
+  const conMapa = (map: THREE.Texture, extra: THREE.MeshPhysicalMaterialParameters) =>
+    new THREE.MeshPhysicalMaterial({ map, clearcoat: 1, clearcoatRoughness: 0.08, ...extra });
+
   // Zócalo de mármol.
-  const marmol = texturaMarmol(alta ? 1024 : 512, alta ? 512 : 256);
-  const zocalo = new THREE.Mesh(
-    new RoundedBoxGeometry(4.4, 0.42, 2.4, 3, 0.03),
-    new THREE.MeshPhysicalMaterial({ map: marmol, roughness: 0.16, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 0.9 }),
-  );
+  const zocalo = new THREE.Mesh(new RoundedBoxGeometry(4.4, 0.42, 2.4, 3, 0.03), conMapa(marmol, { roughness: 0.16, metalness: 0, envMapIntensity: 0.9 }));
   zocalo.position.y = -0.21;
   zocalo.receiveShadow = alta;
   set.add(zocalo);
   // Filete de bronce en el canto de arriba: lo que hace que el mármol se lea como una vitrina.
-  const filete = new THREE.Mesh(
-    new THREE.BoxGeometry(4.42, 0.018, 2.42),
-    new THREE.MeshPhysicalMaterial({ color: 0xc9a25a, metalness: 1, roughness: 0.22, envMapIntensity: 1.6 }),
-  );
+  const bronce = oroLiso.clone();
+  bronce.color.set(0xc9a25a);
+  bronce.roughness = 0.22;
+  const filete = new THREE.Mesh(new THREE.BoxGeometry(4.42, 0.018, 2.42), bronce);
   filete.position.y = -0.006;
   set.add(filete);
 
@@ -416,7 +498,7 @@ export async function crearFrasco(op: OpcionesFrasco): Promise<Frasco> {
     specularIntensity: 1,
     envMapIntensity: 1.6,
   });
-  if (alta && "dispersion" in vidrio) (vidrio as unknown as { dispersion: number }).dispersion = 0.2;
+  if (alta) vidrio.dispersion = 0.2;
 
   const cuerpo = new THREE.Mesh(new RoundedBoxGeometry(CUERPO.ancho, CUERPO.alto, CUERPO.fondo, 6, CUERPO.radio), vidrio);
   cuerpo.position.y = CUERPO.alto / 2;
@@ -425,92 +507,66 @@ export async function crearFrasco(op: OpcionesFrasco): Promise<Frasco> {
   // El perfume adentro: un volumen OPACO dentro del vidrio grueso (fondo de 0,1 y paredes de 0,1),
   // lleno hasta el 78 %. Opaco a propósito: así entra al pase de transmisión y el vidrio lo refracta
   // como líquido; arriba queda vidrio limpio y se lee el nivel.
-  const degradeLiquido = texturaLiquido();
-  const perfume = new THREE.MeshPhysicalMaterial({
-    map: degradeLiquido,
-    emissiveMap: degradeLiquido,
-    color: colorLiquido.clone(),
-    emissive: colorLiquido.clone(),
-    emissiveIntensity: 0.05,
-    roughness: 0.18,
-    metalness: 0,
-    envMapIntensity: 0.9,
-  });
+  const perfume = conMapa(degradeLiquido, { color: colorLiquido.clone(), emissive: colorLiquido.clone(), emissiveIntensity: 0.05, roughness: 0.18, metalness: 0, envMapIntensity: 0.9 });
   const altoLiquido = CUERPO.alto * 0.78;
-  const liquido = new THREE.Mesh(
-    new RoundedBoxGeometry(CUERPO.ancho - 0.22, altoLiquido, CUERPO.fondo - 0.22, 4, 0.08),
-    perfume,
-  );
+  const liquido = new THREE.Mesh(new RoundedBoxGeometry(CUERPO.ancho - 0.22, altoLiquido, CUERPO.fondo - 0.22, 4, 0.08), perfume);
   liquido.position.y = 0.11 + altoLiquido / 2;
+  liquido.receiveShadow = alta;
   frasco.add(liquido);
+  // El menisco: una lámina más clara en la superficie, así el nivel se lee como una línea de luz y no
+  // como un cambio de tono. Opaca por lo mismo que el perfume (lo transparente no se refracta).
+  const claroMenisco = new THREE.Color(0xfff4dc);
+  const menisco = new THREE.Mesh(
+    new THREE.BoxGeometry(CUERPO.ancho - 0.24, 0.022, CUERPO.fondo - 0.24),
+    conMapa(degradeLiquido, { color: colorLiquido.clone().lerp(claroMenisco, 0.55), roughness: 0.08, metalness: 0, envMapIntensity: 1.3 }),
+  );
+  menisco.position.y = 0.11 + altoLiquido;
+  menisco.receiveShadow = alta;
+  frasco.add(menisco);
 
   const cuello = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, CUELLO.alto, 48), vidrio);
   cuello.position.y = Y_CUELLO;
   frasco.add(cuello);
 
-  const oro = new THREE.MeshPhysicalMaterial({
-    color: 0xd4ab62,
-    metalness: 1,
-    roughness: 0.28,
-    bumpMap: texturaMoleteado(),
-    bumpScale: 1.4,
-    envMapIntensity: 1.5,
-  });
   const virola = new THREE.Mesh(new THREE.CylinderGeometry(VIROLA.radio, VIROLA.radio, VIROLA.alto, 96), oro);
   virola.position.y = Y_VIROLA;
   virola.castShadow = alta;
   frasco.add(virola);
 
-  const oroLiso = new THREE.MeshPhysicalMaterial({ color: 0xe0bb72, metalness: 1, roughness: 0.18, envMapIntensity: 1.6 });
   const boquilla = new THREE.Group();
   const vastago = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.1, 24), oroLiso);
   vastago.position.y = 0.05;
-  const cabezal = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.1, 0.1, 0.12, 32),
-    new THREE.MeshPhysicalMaterial({ color: 0x111111, roughness: 0.2, clearcoat: 1, envMapIntensity: 1.2 }),
-  );
+  const cabezal = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.12, 32), laca);
   cabezal.position.y = 0.16;
   boquilla.add(vastago, cabezal);
   boquilla.position.y = Y_TAPA;
   frasco.add(boquilla);
 
-  const laca = new THREE.MeshPhysicalMaterial({
-    color: 0x131014,
-    metalness: 0.4,
-    roughness: 0.1,
-    clearcoat: 1,
-    clearcoatRoughness: 0.03,
-    flatShading: true,
-    envMapIntensity: 2.4,
-  });
+  // La tapa: ocho caras planas (flatShading) que agarran las tiras del estudio una por una al girar,
+  // un aro de oro en la base y el disco de arriba. Una cara plana al frente, como en su foto.
   const tapa = new THREE.Group();
   const tapaCuerpo = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.52, TAPA.alto, 8, 1), laca);
   tapaCuerpo.position.y = TAPA.alto / 2;
-  tapaCuerpo.rotation.y = Math.PI / 8; // una cara plana al frente
+  tapaCuerpo.rotation.y = Math.PI / 8;
   const tapaBisel = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.47, TAPA.bisel, 8, 1), laca);
   tapaBisel.position.y = TAPA.alto + TAPA.bisel / 2;
   tapaBisel.rotation.y = Math.PI / 8;
   const tapaDisco = new THREE.Mesh(new THREE.CylinderGeometry(0.29, 0.29, 0.018, 8), oroLiso);
   tapaDisco.position.y = TAPA.alto + TAPA.bisel + 0.009;
   tapaDisco.rotation.y = Math.PI / 8;
-  for (const m of [tapaCuerpo, tapaBisel, tapaDisco]) {
+  const tapaAro = new THREE.Mesh(new THREE.CylinderGeometry(0.525, 0.53, 0.028, 8, 1), oroLiso);
+  tapaAro.position.y = 0.014;
+  tapaAro.rotation.y = Math.PI / 8;
+  for (const m of [tapaCuerpo, tapaBisel, tapaDisco, tapaAro]) {
     m.castShadow = alta;
     tapa.add(m);
   }
   tapa.position.y = Y_TAPA;
   frasco.add(tapa);
 
-  const etiqueta = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.74, 0.74),
-    new THREE.MeshStandardMaterial({
-      map: texturaEtiqueta(op.letra, alta ? 1024 : 512),
-      transparent: true,
-      metalness: 0.9,
-      roughness: 0.3,
-      envMapIntensity: 1.3,
-    }),
-  );
+  const etiqueta = new THREE.Mesh(new THREE.PlaneGeometry(0.74, 0.74), conMapa(mapaEtiqueta, { transparent: true, metalness: 0.9, roughness: 0.3, envMapIntensity: 1.3 }));
   etiqueta.position.set(0, CUERPO.alto * 0.52, CUERPO.fondo / 2 + 0.004);
+  etiqueta.receiveShadow = alta;
   frasco.add(etiqueta);
 
   // Luces: la cálida de las placas, un filo frío y un relleno bajo.
@@ -568,21 +624,26 @@ export async function crearFrasco(op: OpcionesFrasco): Promise<Frasco> {
   let encendido = 0; // intro: la luz se prende
   let vivas = 0;
   let activo = false;
-  let ancho = true;
+  let anchoDePantalla = true;
+  let economia = !alta; // ya bajó de resolución (o nació en calidad baja)
+  let cuadrosMedidos = 0;
+  let tiempoMedido = 0;
   const colorObjetivo = colorLiquido.clone();
+  const colorMenisco = menisco.material.color;
   const colorBrumaBase = new THREE.Color(op.color);
   const blancoBruma = new THREE.Color(0xfff4e0);
-  const reloj = new THREE.Clock();
+  const reloj = new THREE.Timer();
   const tmpV = new THREE.Vector3();
   const tmpQ = new THREE.Quaternion();
+  const tmpC = new THREE.Color();
   const origenBruma = new THREE.Vector3();
 
   function ubicar() {
-    const w = op.lienzo.clientWidth || 1;
-    const h = op.lienzo.clientHeight || 1;
+    const w = ancho || 1;
+    const h = alto || 1;
     renderer.setSize(w, h, false);
     camara.aspect = w / h;
-    ancho = camara.aspect >= 1.05;
+    anchoDePantalla = camara.aspect >= 1.05;
     // Que el frasco entre ENTERO (tapa levantada incluida) en cualquier proporción: la distancia sale
     // del alto que hay que mostrar y, en lo angosto, también del ancho (frasco + un margen).
     const tan = Math.tan(THREE.MathUtils.degToRad(camara.fov / 2));
@@ -591,10 +652,18 @@ export async function crearFrasco(op: OpcionesFrasco): Promise<Frasco> {
     const dist = Math.max(porAlto, porAncho);
     // Pantalla ancha: el frasco a la derecha del titular (≈ 70 % del ancho). Teléfono: centrado.
     const medioAncho = tan * dist * camara.aspect;
-    set.position.x = ancho ? medioAncho * 0.42 : 0;
+    set.position.x = anchoDePantalla ? medioAncho * 0.42 : 0;
     camara.position.set(0, 1.7, dist);
-    camara.lookAt(0, ancho ? 1.42 : 1.3, 0);
+    camara.lookAt(0, anchoDePantalla ? 1.42 : 1.3, 0);
     camara.updateProjectionMatrix();
+  }
+
+  /** Los primeros cuadros salen lentos (GPU integrada, teléfono): menos píxeles, sin recompilar nada. */
+  function economizar() {
+    economia = true;
+    renderer.setPixelRatio(Math.min(dpr || 1, 1));
+    renderer.transmissionResolutionScale = 0.5;
+    ubicar();
   }
 
   function emitir(dt: number) {
@@ -673,10 +742,11 @@ export async function crearFrasco(op: OpcionesFrasco): Promise<Frasco> {
     tapa.position.x = -tapaArriba * 0.16;
     tapa.rotation.z = tapaArriba * 0.24;
 
-    // Color de la familia: el perfume de adentro cambia de a poco.
+    // Color de la familia: el perfume de adentro cambia de a poco (y el menisco, con él).
     const k = 1 - Math.exp(-dt * 3);
     perfume.color.lerp(colorObjetivo, k);
     perfume.emissive.lerp(colorObjetivo, k);
+    colorMenisco.lerp(tmpC.copy(colorObjetivo).lerp(claroMenisco, 0.55), k);
 
     if (rociando && tapaArriba > 0.55) emitir(dt);
     moverBruma(dt);
@@ -684,10 +754,21 @@ export async function crearFrasco(op: OpcionesFrasco): Promise<Frasco> {
     camara.position.y = 1.7 + salida * 0.5;
   }
 
-  function cuadro() {
-    const dt = Math.min(reloj.getDelta(), 1 / 20);
+  function cuadro(tiempo: number) {
+    reloj.update(tiempo);
+    const crudo = reloj.getDelta();
+    const dt = Math.min(crudo, 1 / 20);
     actualizar(dt);
     renderer.render(escena, camara);
+    // Con la luz ya prendida se miden 45 cuadros: si el promedio pasa de 30 ms, se baja de resolución.
+    if (!economia && encendido >= 1) {
+      cuadrosMedidos++;
+      tiempoMedido += crudo;
+      if (cuadrosMedidos >= 45) {
+        if (tiempoMedido / cuadrosMedidos > 0.03) economizar();
+        else economia = true; // anda bien: no se mide más
+      }
+    }
   }
 
   function pintarQuieto() {
@@ -697,6 +778,7 @@ export async function crearFrasco(op: OpcionesFrasco): Promise<Frasco> {
     frasco.rotation.y = 0.42 + mirada.x * 0.3;
     perfume.color.copy(colorObjetivo);
     perfume.emissive.copy(colorObjetivo);
+    colorMenisco.copy(colorObjetivo).lerp(claroMenisco, 0.55);
     renderer.render(escena, camara);
   }
 
@@ -704,7 +786,7 @@ export async function crearFrasco(op: OpcionesFrasco): Promise<Frasco> {
     if (!op.movimiento) return;
     if (si === activo) return;
     activo = si;
-    if (si) reloj.getDelta();
+    if (si) reloj.reset();
     renderer.setAnimationLoop(si ? cuadro : null);
   }
 
@@ -716,6 +798,13 @@ export async function crearFrasco(op: OpcionesFrasco): Promise<Frasco> {
   op.lienzo.addEventListener("webglcontextlost", alPerder);
 
   ubicar();
+  // Los shaders se compilan en paralelo (sin bloquear) antes del primer cuadro: el primer cuadro sale
+  // entero, no a los tirones.
+  try {
+    await renderer.compileAsync(escena, camara);
+  } catch {
+    /* sin la extensión o con un driver raro: el primer render compila como siempre */
+  }
   if (op.movimiento) encender(true);
   else pintarQuieto();
 
@@ -741,12 +830,19 @@ export async function crearFrasco(op: OpcionesFrasco): Promise<Frasco> {
       // Con bruma en el aire se deja terminar el cuadro aunque salga de pantalla un instante.
       encender(si || vivas > 0);
     },
-    medir() {
+    medir(w, h, d) {
+      ancho = w;
+      alto = h;
+      if (d && d !== dpr) {
+        dpr = d;
+        renderer.setPixelRatio(Math.min(dpr, economia ? 1 : alta ? 1.75 : 1.25));
+      }
       ubicar();
       if (!op.movimiento) pintarQuieto();
     },
     soltar() {
       encender(false);
+      reloj.dispose();
       op.lienzo.removeEventListener("webglcontextlost", alPerder);
       escena.traverse((o) => {
         const m = o as THREE.Mesh;

@@ -1,0 +1,74 @@
+[qa-escala] creando la base efímera y sembrando (10.000 fichas, 20.000 pedidos, 50.000 comprobantes, 6.000 links)…
+[qa-escala] mes en curso en A: 3561 comprobantes, 80 rechazados, 273 pendientes
+[qa-escala] OK  siempre 1440 01-lista-del-mes · 3561 del mes (base: 3561), 50 renglones
+[qa-escala] OK  siempre 1440 02-rechazados · 80 rechazados (base: 80)
+[qa-escala] OK  siempre 1440 03-pendientes · 273 pendientes (base: 273)
+[qa-escala] OK  siempre 1440 04-buscar-nombre · «Cliente Escala 1234»: 2 en todos los meses
+[qa-escala] OK  siempre 1440 05-buscar-numero · «0002-00000124»: 1 en todos los meses
+[qa-escala] OK  siempre 1440 06-buscar-cuit · «20000001234»: 5 en todos los meses
+[qa-escala] OK  siempre 1440 07-buscar-importe · «1.452,00»: 6 en todos los meses
+[qa-escala] OK  siempre 1440 08-lo-de-otro-negocio-no-aparece · nombre, CUIT e importe de B: 0 renglones; «Sacar los filtros» vuelve a la lista
+[qa-escala] OK  siempre 1440 09-pagina-2 · 51–100 de 3.561
+[qa-escala] OK  siempre 1440 10-detalle-del-comprobante · Comprobante sin número
+[qa-escala] OK  siempre 1440 11-csv-del-filtro · 81 líneas, 80 rechazados (base: 80)
+[qa-escala] MAL siempre 1440 12-links-generar-y-ver-en-la-lista · el link nuevo aparece arriba en la lista, sin recargar · contraste AA: [{"selector":"div.min-h-screen.bg-surface > div > div.pointer-events-none.fixed > div.pointer-events-auto.rounded-md","text":"Link de cobro generado.","ratio":1.09,"threshold":4.5,"large":false,"fontPx":14,"weight":400,"color":"rgb(255, 255, 255)","bg":"rgb(245,245,247)"}]
+[qa-escala] OK  siempre 1440 13-links-buscar · «Seña número 17»: 50 links, con su estado a la vista
+[qa-escala] OK  siempre 1440 14-links-de-otro-negocio-no-aparecen · los links de B no aparecen; «No hay links que coincidan»
+[qa-escala] OK  siempre 1440 15-clientes · primera página
+[qa-escala] OK  siempre 1440 16-clientes-buscar-sin-tildes · «monica perez» → Mónica Pérez
+[qa-escala] OK  siempre 1440 17-clientes-de-otro-negocio-no-aparecen · la ficha de B no aparece
+[qa-escala] OK  siempre 1440 18-clientes-pagina-2 · página 2
+[qa-escala] OK  siempre 390 01-lista-del-mes · 3561 del mes (base: 3561), 50 renglones
+[qa-escala] OK  siempre 390 02-rechazados · 80 rechazados (base: 80)
+[qa-escala] OK  siempre 390 03-pendientes · 273 pendientes (base: 273)
+[qa-escala] OK  siempre 390 04-buscar-nombre · «Cliente Escala 1234»: 2 en todos los meses
+[qa-escala] OK  siempre 390 05-buscar-numero · «0002-00000124»: 1 en todos los meses
+[qa-escala] OK  siempre 390 06-buscar-cuit · «20000001234»: 5 en todos los meses
+[qa-escala] OK  siempre 390 07-buscar-importe · «1.452,00»: 6 en todos los meses
+[qa-escala] OK  siempre 390 08-lo-de-otro-negocio-no-aparece · nombre, CUIT e importe de B: 0 renglones; «Sacar los filtros» vuelve a la lista
+[qa-escala] OK  siempre 390 09-pagina-2 · 51–100 de 3.561
+[qa-escala] OK  siempre 390 10-detalle-del-comprobante · Comprobante sin número
+[qa-escala] MAL siempre 390 12-links-generar-y-ver-en-la-lista · el link nuevo aparece arriba en la lista, sin recargar · contraste AA: [{"selector":"div.min-h-screen.bg-surface > div > div.pointer-events-none.fixed > div.pointer-events-auto.rounded-md","text":"Link de cobro generado.","ratio":1.09,"threshold":4.5,"large":false,"fontPx":14,"weight":400,"color":"rgb(255, 255, 255)","bg":"rgb(245,245,247)"}]
+[qa-escala] OK  siempre 390 13-links-buscar · «Seña número 17»: 50 links, con su estado a la vista
+[qa-escala] OK  siempre 390 14-links-de-otro-negocio-no-aparecen · los links de B no aparecen; «No hay links que coincidan»
+[qa-escala] OK  siempre 390 15-clientes · primera página
+[qa-escala] OK  siempre 390 16-clientes-buscar-sin-tildes · «monica perez» → Mónica Pérez
+[qa-escala] OK  siempre 390 17-clientes-de-otro-negocio-no-aparecen · la ficha de B no aparece
+[qa-escala] OK  siempre 390 18-clientes-pagina-2 · página 2
+[qa-escala] OK  nuevo 1440 01-lista-del-mes · 3561 del mes (base: 3561), 50 renglones
+[qa-escala] OK  nuevo 1440 02-rechazados · 80 rechazados (base: 80)
+[qa-escala] OK  nuevo 1440 03-pendientes · 273 pendientes (base: 273)
+[qa-escala] OK  nuevo 1440 04-buscar-nombre · «Cliente Escala 1234»: 2 en todos los meses
+[qa-escala] OK  nuevo 1440 05-buscar-numero · «0002-00000124»: 1 en todos los meses
+[qa-escala] OK  nuevo 1440 06-buscar-cuit · «20000001234»: 5 en todos los meses
+[qa-escala] OK  nuevo 1440 07-buscar-importe · «1.452,00»: 6 en todos los meses
+[qa-escala] OK  nuevo 1440 08-lo-de-otro-negocio-no-aparece · nombre, CUIT e importe de B: 0 renglones; «Sacar los filtros» vuelve a la lista
+[qa-escala] OK  nuevo 1440 09-pagina-2 · 51–100 de 3.561
+[qa-escala] OK  nuevo 1440 10-detalle-del-comprobante · Comprobante sin número
+[qa-escala] OK  nuevo 1440 11-csv-del-filtro · 81 líneas, 80 rechazados (base: 80)
+[qa-escala] OK  nuevo 1440 12-links-generar-y-ver-en-la-lista · el link nuevo aparece arriba en la lista, sin recargar
+[qa-escala] OK  nuevo 1440 13-links-buscar · «Seña número 17»: 50 links, con su estado a la vista
+[qa-escala] OK  nuevo 1440 14-links-de-otro-negocio-no-aparecen · los links de B no aparecen; «No hay links que coincidan»
+[qa-escala] OK  nuevo 1440 15-clientes · primera página
+[qa-escala] OK  nuevo 1440 16-clientes-buscar-sin-tildes · «monica perez» → Mónica Pérez
+[qa-escala] OK  nuevo 1440 17-clientes-de-otro-negocio-no-aparecen · la ficha de B no aparece
+[qa-escala] OK  nuevo 1440 18-clientes-pagina-2 · página 2
+[qa-escala] OK  nuevo 390 01-lista-del-mes · 3561 del mes (base: 3561), 50 renglones
+[qa-escala] OK  nuevo 390 02-rechazados · 80 rechazados (base: 80)
+[qa-escala] OK  nuevo 390 03-pendientes · 273 pendientes (base: 273)
+[qa-escala] OK  nuevo 390 04-buscar-nombre · «Cliente Escala 1234»: 2 en todos los meses
+[qa-escala] OK  nuevo 390 05-buscar-numero · «0002-00000124»: 1 en todos los meses
+[qa-escala] OK  nuevo 390 06-buscar-cuit · «20000001234»: 5 en todos los meses
+[qa-escala] OK  nuevo 390 07-buscar-importe · «1.452,00»: 6 en todos los meses
+[qa-escala] OK  nuevo 390 08-lo-de-otro-negocio-no-aparece · nombre, CUIT e importe de B: 0 renglones; «Sacar los filtros» vuelve a la lista
+[qa-escala] OK  nuevo 390 09-pagina-2 · 51–100 de 3.561
+[qa-escala] OK  nuevo 390 10-detalle-del-comprobante · Comprobante sin número
+[qa-escala] OK  nuevo 390 12-links-generar-y-ver-en-la-lista · el link nuevo aparece arriba en la lista, sin recargar
+[qa-escala] OK  nuevo 390 13-links-buscar · «Seña número 17»: 50 links, con su estado a la vista
+[qa-escala] OK  nuevo 390 14-links-de-otro-negocio-no-aparecen · los links de B no aparecen; «No hay links que coincidan»
+[qa-escala] OK  nuevo 390 15-clientes · primera página
+[qa-escala] OK  nuevo 390 16-clientes-buscar-sin-tildes · «monica perez» → Mónica Pérez
+[qa-escala] OK  nuevo 390 17-clientes-de-otro-negocio-no-aparecen · la ficha de B no aparece
+[qa-escala] OK  nuevo 390 18-clientes-pagina-2 · página 2
+[qa-escala] resumen en /home/user/erp-facturacion/.qa/facturacion-escala/e2e/resumen.txt
+EXIT=1

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import { requireUser } from "@/lib/authz";
-import { getTenantBrand, resolveAccent } from "@/lib/branding";
+import { getTenantBrand, resolveAccent, marcaDelNegocio } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import { getProductoContexto } from "@/lib/producto";
 import AdminThemeScript from "../AdminThemeScript";
@@ -37,8 +37,7 @@ export default async function CambiarPasswordPage({
   const preset = (await getTeamAccentPreset()) ?? identidad?.acento ?? brand.preset;
   const accentLight = resolveAccent(preset, "light");
   const accentDark = resolveAccent(preset, "dark");
-  const marcaNombre = identidad?.nombre ?? brand.name;
-  const marcaMonograma = identidad?.monograma ?? brand.monogram;
+  const { nombre: marcaNombre, monograma: marcaMonograma } = marcaDelNegocio(brand, identidad);
   const nuevo = await disenoP;
 
   return (

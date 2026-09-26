@@ -14,7 +14,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraDelArchivo } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { runInTenantContext } from "@/lib/tenant-context";
 
@@ -42,9 +42,9 @@ async function preparar(t: import("node:test").TestContext) {
   const env = process.env as Record<string, string | undefined>;
   Object.assign(env, { DB_CONNECTION_LIMIT: "2", DB_CONNECT_TIMEOUT_MS: "3000", ARCA_INVOICING_ENABLED: "true" });
   delete env.ARCA_MODO; // stub: nada sale a la red
-  const { operatorPrisma } = await import("@/lib/operator-db");
-  const tenant = await operatorPrisma.tenant.findUniqueOrThrow({ where: { id: base.a.id }, select: { modules: true } });
-  await operatorPrisma.tenant.update({
+  const duenio = await prismaComoDuenio(base);
+  const tenant = await duenio.tenant.findUniqueOrThrow({ where: { id: base.a.id }, select: { modules: true } });
+  await duenio.tenant.update({
     where: { id: base.a.id },
     data: {
       arcaCuit: "20111111112",
@@ -54,22 +54,22 @@ async function preparar(t: import("node:test").TestContext) {
     },
   });
   const cuentas = async (orderId: string) => ({
-    facturas: await operatorPrisma.invoice.count({ where: { tenantId: base.a.id, orderId } }),
-    envios: (await operatorPrisma.outboxEvent.findMany({ where: { tenantId: base.a.id } })).length,
+    facturas: await duenio.invoice.count({ where: { tenantId: base.a.id, orderId } }),
+    envios: (await duenio.outboxEvent.findMany({ where: { tenantId: base.a.id } })).length,
   });
-  return { base, operatorPrisma, cuentas };
+  return { base, duenio, cuentas };
 }
 
 test("facturar un pedido anulado no crea factura ni envío; con una rechazada, no la reabre", async (t) => {
   const p = await preparar(t);
   if (!p) return;
-  const { base, operatorPrisma } = p;
+  const { base, duenio } = p;
   const { facturarOrden } = await import("@/lib/invoice-from-order");
   const { createInvoice, VentaAnuladaError } = await import("@/lib/invoice-core");
   const [anulado, anuladoConRechazada] = base.a.pedidos;
   const enviosAntes = (await p.cuentas(anulado)).envios;
 
-  await operatorPrisma.order.update({ where: { id: anulado }, data: { paid: true, total: 1210, status: "CANCELLED" } });
+  await duenio.order.update({ where: { id: anulado }, data: { paid: true, total: 1210, status: "CANCELLED" } });
   await assert.rejects(
     runInTenantContext(base.a.id, () => facturarOrden(anulado, base.a.id)),
     (e: unknown) => e instanceof VentaAnuladaError && /anulada/.test(e.message),
@@ -80,7 +80,7 @@ test("facturar un pedido anulado no crea factura ni envío; con una rechazada, n
 
   // La anulación deja pasar una venta con la factura RECHAZADA (porción 2). Después, «Volver a
   // facturar» no puede reabrirla: la venta ya no existe como venta.
-  await operatorPrisma.order.update({ where: { id: anuladoConRechazada }, data: { paid: true, total: 1210 } });
+  await duenio.order.update({ where: { id: anuladoConRechazada }, data: { paid: true, total: 1210 } });
   const id = await runInTenantContext(base.a.id, () =>
     createInvoice({
       tenantId: base.a.id,
@@ -95,32 +95,32 @@ test("facturar un pedido anulado no crea factura ni envío; con una rechazada, n
       origin: { type: "ORDER", id: anuladoConRechazada },
     }),
   );
-  await operatorPrisma.invoice.update({ where: { id }, data: { status: "REJECTED", rechazoMotivo: "10015: prueba" } });
-  await operatorPrisma.outboxEvent.updateMany({ where: { tenantId: base.a.id, processedAt: null }, data: { processedAt: new Date() } });
-  await operatorPrisma.order.update({ where: { id: anuladoConRechazada }, data: { status: "CANCELLED" } });
-  const abiertosAntes = await operatorPrisma.outboxEvent.count({ where: { tenantId: base.a.id, processedAt: null } });
+  await duenio.invoice.update({ where: { id }, data: { status: "REJECTED", rechazoMotivo: "10015: prueba" } });
+  await duenio.outboxEvent.updateMany({ where: { tenantId: base.a.id, processedAt: null }, data: { processedAt: new Date() } });
+  await duenio.order.update({ where: { id: anuladoConRechazada }, data: { status: "CANCELLED" } });
+  const abiertosAntes = await duenio.outboxEvent.count({ where: { tenantId: base.a.id, processedAt: null } });
 
   await assert.rejects(
     runInTenantContext(base.a.id, () => facturarOrden(anuladoConRechazada, base.a.id, undefined, { reabrirSiRechazada: true })),
     VentaAnuladaError,
   );
-  const f = await operatorPrisma.invoice.findUniqueOrThrow({ where: { id } });
+  const f = await duenio.invoice.findUniqueOrThrow({ where: { id } });
   assert.equal(f.status, "REJECTED", "la factura rechazada no se reabrió");
-  assert.equal(await operatorPrisma.outboxEvent.count({ where: { tenantId: base.a.id, processedAt: null } }), abiertosAntes);
+  assert.equal(await duenio.outboxEvent.count({ where: { tenantId: base.a.id, processedAt: null } }), abiertosAntes);
 });
 
 test("anulación primero: «Facturar» espera el bloqueo del pedido y termina sin factura, con el motivo", async (t) => {
   const p = await preparar(t);
   if (!p) return;
-  const { base, operatorPrisma } = p;
+  const { base, duenio } = p;
   const { facturarVenta } = await import("@/lib/order-actions");
   const pedido = base.a.pedidos[2];
-  await operatorPrisma.order.update({ where: { id: pedido }, data: { paid: true, total: 1210, status: "DELIVERED" } });
+  await duenio.order.update({ where: { id: pedido }, data: { paid: true, total: 1210, status: "DELIVERED" } });
 
   // La anulación tomó la fila (su compare-and-set es este mismo UPDATE) y todavía no confirmó.
   const soltar = puerta();
   const tomada = puerta();
-  const anulacion = operatorPrisma.$transaction(async (tx) => {
+  const anulacion = duenio.$transaction(async (tx) => {
     await tx.order.updateMany({ where: { id: pedido, status: { not: "CANCELLED" } }, data: { status: "CANCELLED" } });
     tomada.abrir();
     await soltar.abierta;
@@ -145,18 +145,18 @@ test("anulación primero: «Facturar» espera el bloqueo del pedido y termina si
 test("facturación primero: «Anular venta» espera, ve la factura en camino y no anula", async (t) => {
   const p = await preparar(t);
   if (!p) return;
-  const { base, operatorPrisma } = p;
+  const { base, duenio } = p;
   const { createInvoiceInTx } = await import("@/lib/invoice-core");
   const { anularVenta } = await import("@/lib/order-actions");
   // En el negocio B: un pedido sin historia de facturas (los de A los usan los otros tests).
   const b = base.b;
   const pedido = b.pedidos[0];
-  await operatorPrisma.order.update({ where: { id: pedido }, data: { paid: true, total: 1210, status: "DELIVERED" } });
+  await duenio.order.update({ where: { id: pedido }, data: { paid: true, total: 1210, status: "DELIVERED" } });
 
   // La facturación creó la factura (con la fila del pedido tomada) y todavía no confirmó.
   const soltar = puerta();
   const creada = puerta();
-  const facturacion = operatorPrisma.$transaction(async (tx) => {
+  const facturacion = duenio.$transaction(async (tx) => {
     await createInvoiceInTx(tx as never, {
       tenantId: b.id,
       concepto: 1,
@@ -189,8 +189,8 @@ test("facturación primero: «Anular venta» espera, ve la factura en camino y n
   if (r.tipo !== "respuesta") return;
   assert.equal(r.valor?.ok, false, JSON.stringify(r.valor));
   assert.match(String((r.valor as { error?: string }).error), /esperando la respuesta de ARCA/);
-  const o = await operatorPrisma.order.findUniqueOrThrow({ where: { id: pedido }, select: { status: true } });
+  const o = await duenio.order.findUniqueOrThrow({ where: { id: pedido }, select: { status: true } });
   assert.equal(o.status, "DELIVERED", "el pedido no quedó anulado");
-  const facturas = await operatorPrisma.invoice.findMany({ where: { orderId: pedido }, select: { tenantId: true, status: true } });
+  const facturas = await duenio.invoice.findMany({ where: { orderId: pedido }, select: { tenantId: true, status: true } });
   assert.deepEqual(facturas, [{ tenantId: b.id, status: "PENDING" }], "una sola factura, en camino");
 });

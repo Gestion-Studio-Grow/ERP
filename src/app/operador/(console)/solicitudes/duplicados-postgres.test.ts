@@ -12,7 +12,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraParaElTest } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 const CUIT_KIOSCO = "20111111112";
@@ -40,11 +40,14 @@ test("configurador: parecidos sin CUIT, ya en la cartera y descarte visible para
   const confReglas = await import("@/app/operador/(console)/solicitudes/configurador-reglas");
   const { pedidosDeAltaDelEstudio } = await import("@/app/contador/altas-en-curso.server");
   base.alBorrar(() => operatorPrisma.$disconnect());
+  // La consola (`operatorPrisma`) es `app_rls`, como en producción: el configurador corre con ella.
+  // Sembrar y mirar desde afuera, como dueño de las tablas.
+  const duenio = await prismaComoDuenio(base);
 
   // A es el estudio; B es «QA Kiosco Lab», un negocio real SIN CUIT cargado.
-  await operatorPrisma.tenant.update({ where: { id: base.a.id }, data: { modules: ["cartera", "clients", "reports"] } });
-  await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { name: "QA Kiosco Lab", arcaCuit: null, arcaPuntoVenta: null, plan: "micro" } });
-  const bAntes = await operatorPrisma.tenant.findUniqueOrThrow({ where: { id: base.b.id } });
+  await duenio.tenant.update({ where: { id: base.a.id }, data: { modules: ["cartera", "clients", "reports"] } });
+  await duenio.tenant.update({ where: { id: base.b.id }, data: { name: "QA Kiosco Lab", arcaCuit: null, arcaPuntoVenta: null, plan: "micro" } });
+  const bAntes = await duenio.tenant.findUniqueOrThrow({ where: { id: base.b.id } });
 
   const pedir = (nombre: string, cuit: string, email: string) =>
     ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, () =>
@@ -71,22 +74,22 @@ test("configurador: parecidos sin CUIT, ya en la cartera y descarte visible para
     razonSocial: "QA Kiosco Lab", cuit: CUIT_KIOSCO, condicionIva: "MONOTRIBUTO", puntoVenta: "3",
     rubro: "mostrador", plan: "micro", email: "kiosco@ejemplo.test", whatsapp: "", subdominio: "",
   };
-  const tenantsAntes = await operatorPrisma.tenant.count();
+  const tenantsAntes = await duenio.tenant.count();
 
   // ── 2) Sin decidir no se crea nada (antes: «Crear el cliente» duplicaba al Kiosco) ──
-  const sinDecidir = await conf.configurarSolicitud(operatorPrisma, { solicitudId: pKiosco.id, sesion: SOPORTE, form });
+  const sinDecidir = await conf.configurarSolicitud(operatorPrisma, { estudioTenantId: base.a.id, solicitudId: pKiosco.id, sesion: SOPORTE, form });
   assert.deepEqual(sinDecidir, { ok: false, error: confReglas.AVISO_POSIBLE_DUPLICADO });
-  assert.equal(await operatorPrisma.tenant.count(), tenantsAntes, "no se duplicó el negocio");
+  assert.equal(await duenio.tenant.count(), tenantsAntes, "no se duplicó el negocio");
 
   // ── 3) «Es otro negocio»: se crea, y queda registrado qué parecido se descartó ──
   const otro = await conf.configurarSolicitud(operatorPrisma, {
-    solicitudId: pSucursal.id,
+    estudioTenantId: base.a.id, solicitudId: pSucursal.id,
     sesion: SOPORTE,
     form: { ...form, razonSocial: "QA Kiosco Lab Sucursal", cuit: CUIT_SUCURSAL, email: "sucursal@ejemplo.test", duplicado: "otro" },
   });
   assert.ok(otro.ok && otro.creado, JSON.stringify(otro));
-  assert.equal(await operatorPrisma.tenant.count(), tenantsAntes + 1);
-  const audOtro = await operatorPrisma.auditLog.findFirst({ where: { action: confReglas.ACCION_CONFIGURADOR_ALTA, entityId: otro.ok ? otro.clienteTenantId : "" } });
+  assert.equal(await duenio.tenant.count(), tenantsAntes + 1);
+  const audOtro = await duenio.auditLog.findFirst({ where: { action: confReglas.ACCION_CONFIGURADOR_ALTA, entityId: otro.ok ? otro.clienteTenantId : "" } });
   assert.deepEqual((audOtro?.changes as { parecidosDescartados?: string[] }).parecidosDescartados, [base.b.id]);
   assert.equal(otro.ok && otro.otrosLocales, false, "un pedido «chico» no lleva el recordatorio de los otros locales");
 
@@ -97,7 +100,7 @@ test("configurador: parecidos sin CUIT, ya en la cartera y descarte visible para
   assert.deepEqual(rRed.tipo === "respuesta" && rRed.valor, esperado);
   const pRed = (await conf.listarSolicitudesPendientes(operatorPrisma)).pedidos.find((s) => s.datos.cuit === CUIT_RED)!;
   const red = await conf.configurarSolicitud(operatorPrisma, {
-    solicitudId: pRed.id,
+    estudioTenantId: base.a.id, solicitudId: pRed.id,
     sesion: SOPORTE,
     form: { ...form, razonSocial: "Autoservicio Red Sur", cuit: CUIT_RED, email: "redsur@ejemplo.test", plan: "pyme", duplicado: "otro" },
   });
@@ -107,12 +110,12 @@ test("configurador: parecidos sin CUIT, ya en la cartera y descarte visible para
 
   // ── 4) «Es este» sin la autorización del dueño: no ── con ella y doble clic: UN resultado ──
   const esEste = { ...form, duplicado: `es:${base.b.id}` };
-  const sinPermiso = await conf.configurarSolicitud(operatorPrisma, { solicitudId: pKiosco.id, sesion: SOPORTE, form: esEste });
+  const sinPermiso = await conf.configurarSolicitud(operatorPrisma, { estudioTenantId: base.a.id, solicitudId: pKiosco.id, sesion: SOPORTE, form: esEste });
   assert.deepEqual(sinPermiso, { ok: false, error: confReglas.AVISO_VINCULO_SIN_AUTORIZACION });
-  assert.equal((await operatorPrisma.tenant.findUniqueOrThrow({ where: { id: base.b.id } })).arcaCuit, null, "nada a medias");
+  assert.equal((await duenio.tenant.findUniqueOrThrow({ where: { id: base.b.id } })).arcaCuit, null, "nada a medias");
   const [uno, dos] = await Promise.all([
-    conf.configurarSolicitud(operatorPrisma, { solicitudId: pKiosco.id, sesion: SOPORTE, form: { ...esEste, autorizaVinculo: "si" } }),
-    conf.configurarSolicitud(operatorPrisma, { solicitudId: pKiosco.id, sesion: SOPORTE, form: { ...esEste, autorizaVinculo: "si" } }),
+    conf.configurarSolicitud(operatorPrisma, { estudioTenantId: base.a.id, solicitudId: pKiosco.id, sesion: SOPORTE, form: { ...esEste, autorizaVinculo: "si" } }),
+    conf.configurarSolicitud(operatorPrisma, { estudioTenantId: base.a.id, solicitudId: pKiosco.id, sesion: SOPORTE, form: { ...esEste, autorizaVinculo: "si" } }),
   ]);
   assert.ok(uno.ok && dos.ok, JSON.stringify([uno, dos]));
   assert.equal([uno, dos].filter((r) => r.ok && !r.yaConfigurada).length, 1, "doble clic: uno configura, el otro ve el pedido cerrado");
@@ -120,14 +123,14 @@ test("configurador: parecidos sin CUIT, ya en la cartera y descarte visible para
   assert.ok(hecho.ok && !hecho.creado && hecho.clienteTenantId === base.b.id);
   assert.ok(hecho.ok && hecho.avisos.some((a) => a.includes("20-11111111-2") && a.includes("QA Kiosco Lab")), "el aviso dice a quién se le cargó el CUIT");
   assert.equal(hecho.ok && hecho.usuarios.some((u) => u.clave !== null), false, "no entrega claves");
-  assert.equal(await operatorPrisma.tenant.count(), tenantsAntes + 2, "no se creó otro negocio (la sucursal y la red del paso 3 bis)");
-  const bDespues = await operatorPrisma.tenant.findUniqueOrThrow({ where: { id: base.b.id } });
+  assert.equal(await duenio.tenant.count(), tenantsAntes + 2, "no se creó otro negocio (la sucursal y la red del paso 3 bis)");
+  const bDespues = await duenio.tenant.findUniqueOrThrow({ where: { id: base.b.id } });
   assert.equal(bDespues.arcaCuit, CUIT_KIOSCO, "se le cargó el CUIT");
   assert.equal(bDespues.arcaPuntoVenta, 3, "y el punto de venta, que no tenía");
   assert.equal(bDespues.plan, bAntes.plan, "conserva su plan");
   assert.deepEqual(bDespues.modules, bAntes.modules, "conserva sus apps");
-  assert.equal(await operatorPrisma.carteraCliente.count({ where: { tenantId: base.a.id, clienteTenantId: base.b.id } }), 1);
-  const audB = await operatorPrisma.auditLog.findFirst({ where: { tenantId: base.b.id, action: confReglas.ACCION_CONFIGURADOR_ALTA } });
+  assert.equal(await duenio.carteraCliente.count({ where: { tenantId: base.a.id, clienteTenantId: base.b.id } }), 1);
+  const audB = await duenio.auditLog.findFirst({ where: { tenantId: base.b.id, action: confReglas.ACCION_CONFIGURADOR_ALTA } });
   assert.equal((audB?.changes as { cuitCargado?: boolean }).cuitCargado, true, "queda en el historial del negocio");
 
   // ── 5) Otro pedido que eligió «Es este» con el Kiosco ya con CUIT: se rechaza (no pisa el CUIT) ──
@@ -135,24 +138,24 @@ test("configurador: parecidos sin CUIT, ya en la cartera y descarte visible para
   const pTarde = (await conf.listarSolicitudesPendientes(operatorPrisma)).pedidos.find((s) => s.datos.cuit === CUIT_TARDE)!;
   assert.deepEqual(pTarde.parecidos, [], "el Kiosco ya tiene CUIT: deja de ser un parecido");
   const tarde = await conf.configurarSolicitud(operatorPrisma, {
-    solicitudId: pTarde.id, sesion: SOPORTE, form: { ...esEste, cuit: CUIT_TARDE, email: "tarde@ejemplo.test", autorizaVinculo: "si" },
+    estudioTenantId: base.a.id, solicitudId: pTarde.id, sesion: SOPORTE, form: { ...esEste, cuit: CUIT_TARDE, email: "tarde@ejemplo.test", autorizaVinculo: "si" },
   });
   assert.equal(tarde.ok, false);
   assert.match(!tarde.ok ? tarde.error : "", /ya no figura/);
-  assert.equal((await operatorPrisma.tenant.findUniqueOrThrow({ where: { id: base.b.id } })).arcaCuit, CUIT_KIOSCO, "el CUIT no se pisó");
-  await conf.descartarSolicitud(operatorPrisma, { solicitudId: pTarde.id, sesion: SOPORTE, motivo: "faltan-datos" });
+  assert.equal((await duenio.tenant.findUniqueOrThrow({ where: { id: base.b.id } })).arcaCuit, CUIT_KIOSCO, "el CUIT no se pisó");
+  await conf.descartarSolicitud(operatorPrisma, { estudioTenantId: base.a.id, solicitudId: pTarde.id, sesion: SOPORTE, motivo: "faltan-datos" });
 
   // ── 6) Pedir de nuevo el Kiosco, que YA está en la cartera: «Ya está en la cartera de este estudio» ──
   await pedir("QA Kiosco Lab", CUIT_KIOSCO, "kiosco@ejemplo.test");
   const pOtraVez = (await conf.listarSolicitudesPendientes(operatorPrisma)).pedidos.find((s) => s.datos.cuit === CUIT_KIOSCO)!;
   assert.deepEqual(pOtraVez.yaExisten.map((x) => [x.id, x.enCartera]), [[base.b.id, true]]);
-  const yaEsta = await conf.configurarSolicitud(operatorPrisma, { solicitudId: pOtraVez.id, sesion: SOPORTE, form: { ...form, autorizaVinculo: "si" } });
+  const yaEsta = await conf.configurarSolicitud(operatorPrisma, { estudioTenantId: base.a.id, solicitudId: pOtraVez.id, sesion: SOPORTE, form: { ...form, autorizaVinculo: "si" } });
   assert.deepEqual(yaEsta, { ok: false, error: confReglas.YA_EN_LA_CARTERA });
-  assert.equal(await operatorPrisma.carteraCliente.count({ where: { tenantId: base.a.id, clienteTenantId: base.b.id } }), 1);
+  assert.equal(await duenio.carteraCliente.count({ where: { tenantId: base.a.id, clienteTenantId: base.b.id } }), 1);
 
   // ── 7) Descartado con motivo: la contadora lo ve; otro estudio (B) no ve nada de A ──
   assert.deepEqual(
-    await conf.descartarSolicitud(operatorPrisma, { solicitudId: pOtraVez.id, sesion: SOPORTE, motivo: "ya-en-cartera" }),
+    await conf.descartarSolicitud(operatorPrisma, { estudioTenantId: base.a.id, solicitudId: pOtraVez.id, sesion: SOPORTE, motivo: "ya-en-cartera" }),
     { ok: true, motivo: "ya-en-cartera" },
   );
   const deA = await pedidosDeAltaDelEstudio(base.a.id);

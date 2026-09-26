@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import AdminShell from "./AdminShell";
 import ToastProvider from "./ToastProvider";
 import GlobalLoadingProvider from "./GlobalLoadingProvider";
+import { VocabularioDelNegocio } from "./VocabularioDelNegocio";
+import { vocabularioDelNegocio } from "@/lib/vocabulario-negocio";
 import DemoBanner from "./DemoBanner";
 import { requireUser } from "@/lib/authz";
 import { mustChangePasswordFor } from "@/lib/must-change-password";
@@ -20,7 +22,7 @@ import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
 import { appsVisibles, conCierreDelMesEnLaBarra, proyectarMenuDeHoy } from "@/apps/visibles";
 import { rutaDeAppDelNegocio } from "@/apps/rutas";
 import { enInicioPorApps } from "./inicio/piloto";
-import { getTenantBrand, resolveAccent } from "@/lib/branding";
+import { getTenantBrand, resolveAccent, marcaDelNegocio } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import AdminThemeScript from "../AdminThemeScript";
 import { getBrandSheet, brandSheetAccent } from "@/lib/brand-sheet";
@@ -58,7 +60,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // que su lugar es acá. La lectura de la ficha sigue siendo condicional al flag: con el
   // flag OFF no se consulta nada (`null` sin viaje).
   const useSheet = tenantBrandSheetEnabled();
-  const [user, brand, activeProfile, productoCtx, , , sheet, teamPreset, modoApps, nuevo] = await Promise.all([
+  const [user, brand, activeProfile, productoCtx, , , sheet, teamPreset, modoApps, nuevo, rubroDelNegocio] = await Promise.all([
     requireUser(),
     getTenantBrand(),
     // Perfil activo (ADR-058/059): "lite"/"enterprise" o null si `PROFILES_ENABLED`
@@ -169,8 +171,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const accentLight = sheet ? brandSheetAccent(sheet, "light") : resolveAccent(preset, "light");
   const accentDark = sheet ? brandSheetAccent(sheet, "dark") : resolveAccent(preset, "dark");
   const dataBrand = sheet ? sheet.themeId : undefined;
-  let brandName = sheet ? sheet.name : (identidad?.nombre ?? brand.name);
-  let monogram = sheet ? initialsOf(sheet.name) : (identidad?.monograma ?? brand.monogram);
+  const marca = marcaDelNegocio(brand, identidad);
+  let brandName = sheet ? sheet.name : marca.nombre;
+  let monogram = sheet ? initialsOf(sheet.name) : marca.monograma;
   // DISEÑO NUEVO — un negocio sin marca propia (cae en la marca neutra de branding.ts: «Mi
   // negocio» con «•») se nombra con SU nombre y sus iniciales: la misma ficha (`getBrandSheet`,
   // cacheada por pedido) que ya se usa con el flag de ficha prendido; acá sólo se toma el nombre,
@@ -268,7 +271,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             {/* `apps` (para el buscador de Ctrl/⌘K y la barra de espacios del celular) sólo viaja
                 en el piloto: fuera de él la barra busca en su propio menú, como siempre. */}
             <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})}>
-              {children}
+              {/* Cómo se llama el retiro y qué ejemplo lleva la nota, según el rubro (una perfumería
+                  entrega en un punto de encuentro, no en un local): sale del rubro ya leído arriba. */}
+              <VocabularioDelNegocio valor={vocabularioDelNegocio(rubroDelNegocio.rubro)}>{children}</VocabularioDelNegocio>
             </AdminShell>
           </ToastProvider>
         </GlobalLoadingProvider>

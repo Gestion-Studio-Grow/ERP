@@ -16,17 +16,17 @@ test("contra Postgres: lo que la pantalla muestra como esperado es lo que el cie
   const c = await preparar(laBase);
   const { a, b } = laBase;
 
-  await c.operatorPrisma.cashMovement.createMany({
+  await c.duenio.cashMovement.createMany({
     data: [
       { tenantId: a.id, type: "VENTA", method: "EFECTIVO", amount: 4_000, occurredAt: c.alMediodia(c.ayer), createdBy: "seed" },
       { tenantId: b.id, type: "VENTA", method: "EFECTIVO", amount: 7_777, occurredAt: c.alMediodia(c.ayer), createdBy: "seed" },
     ],
   });
   assert.deepEqual(await c.abrir(a, "4000"), { ok: true });
-  const turno = await c.operatorPrisma.cashSession.findFirstOrThrow({ where: { tenantId: a.id, status: "OPEN" } });
+  const turno = await c.duenio.cashSession.findFirstOrThrow({ where: { tenantId: a.id, status: "OPEN" } });
 
   // Una devolución en efectivo que no pasó por este turno (sin `sessionId`).
-  await c.operatorPrisma.cashMovement.create({
+  await c.duenio.cashMovement.create({
     data: { tenantId: a.id, sessionId: null, type: "EGRESO", method: "EFECTIVO", amount: 200, reason: "devolución", createdBy: "anulacion-turno:user:x" },
   });
 
@@ -43,14 +43,14 @@ test("contra Postgres: lo que la pantalla muestra como esperado es lo que el cie
   const vieja = await c.cerrarTurno(a, "3300", 4_000);
   assert.equal(vieja?.ok, false);
   assert.match((vieja as { error: string }).error, /ahora es \$ ?3\.800,00, no \$ ?4\.000,00/);
-  assert.equal((await c.operatorPrisma.cashSession.findUniqueOrThrow({ where: { id: turno.id } })).status, "OPEN");
+  assert.equal((await c.duenio.cashSession.findUniqueOrThrow({ where: { id: turno.id } })).status, "OPEN");
   assert.equal((await c.conMarca(a.id, c.marcas.ARQUEO_TURNO_ACTOR_PREFIX)).length, 0, "no se asentó nada");
 
   // Con la pantalla de hoy: cuenta $3.300, confirma «faltante $500» y eso es lo que queda.
   const confirmado = round2(3_300 - pantalla.esperado);
   assert.equal(confirmado, -500);
   assert.deepEqual(await c.cerrarTurno(a, "3300", pantalla.esperado), { ok: true });
-  const cerrado = await c.operatorPrisma.cashSession.findUniqueOrThrow({ where: { id: turno.id } });
+  const cerrado = await c.duenio.cashSession.findUniqueOrThrow({ where: { id: turno.id } });
   assert.equal(cerrado.closingExpected, pantalla.esperado, "el esperado asentado es el que se mostró");
   assert.equal(cerrado.closingDiff, confirmado, "la diferencia asentada es la que se confirmó");
   const arqueos = await c.conMarca(a.id, c.marcas.ARQUEO_TURNO_ACTOR_PREFIX);

@@ -56,6 +56,16 @@ export type Persona = {
 /** ¿Cómo cuenta las visitas este negocio? */
 export type Rubro = "servicios" | "mostrador";
 
+/**
+ * El rubro del CRM: cómo se cuenta la actividad de un cliente. Cuenta turnos («visitas») sólo el
+ * negocio que da turnos (la app Agenda) y no es de mostrador (CH); el de mostrador, o el que no da
+ * turnos, cuenta compras. Antes todo lo que no era un rubro de mostrador conocido contaba turnos:
+ * una ferretería sin agenda le decía «Nunca vino · 0 visitas» a quien le compró 35 veces.
+ */
+export function rubroDelCrm(n: { esMostrador: boolean; daTurnos: boolean }): Rubro {
+  return n.esMostrador || !n.daTurnos ? "mostrador" : "servicios";
+}
+
 export function armarPersona(f: FichaCruda, rubro: Rubro, ahora: Date): Persona {
   const crudas: Visita[] = [];
   let proximoTurno: Persona["proximoTurno"] = null;

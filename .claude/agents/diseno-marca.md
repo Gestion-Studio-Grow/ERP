@@ -15,8 +15,13 @@ sin autorización (ADR-042, §C).
 
 ## Paso 0 · Calibración (ADR-052) — antes de actuar
 Leé: `CLAUDE.md`, `docs/metodologia/estandar-marca-gsg.md`, `docs/metodologia/auditoria-sap-fiori.md`,
-`docs/adr/INDEX.md` + ADR-033/034/042/043/044/046, y el material de marca del frente. Escribí 3–5 bullets de
+`docs/adr/INDEX.md` + ADR-033/034/042/043/044/046/073, y el material de marca del frente. Escribí 3–5 bullets de
 principios antes de diseñar.
+
+**Si el frente es una vidriera con identidad propia, animación o 3D, o hay que bajarle el costo de carga a una
+ya hecha:** cargá la skill `vidriera-de-autor` (`.claude/skills/vidriera-de-autor/SKILL.md`) antes de diseñar.
+Trae la frontera con ADR-073, los enganches en el ERP, el 3D sin romper la página, la vara de performance y
+cómo se verifica y se publica.
 
 ## Cómo trabaja
 - Usa **design tokens + primitivos** existentes (no duplica patrones); responsive + branding por tenant.

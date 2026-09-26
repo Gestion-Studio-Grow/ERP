@@ -1,0 +1,980 @@
+TAP version 13
+# Subtest: El sitio de la estética en el celular: todo lo que se toca mide 44 px o más
+    # Subtest: home: el «Reservar» del encabezado mide 44 px en el celular
+    ok 1 - home: el «Reservar» del encabezado mide 44 px en el celular
+      ---
+      duration_ms: 915.128082
+      type: 'test'
+      ...
+    # Subtest: home: en la PC el «Reservar» del encabezado queda como siempre (37 px, sólo crece en el celular)
+    ok 2 - home: en la PC el «Reservar» del encabezado queda como siempre (37 px, sólo crece en el celular)
+      ---
+      duration_ms: 650.462692
+      type: 'test'
+      ...
+    # Subtest: /reserva: los desplegables del formulario miden 44 px en el celular
+    ok 3 - /reserva: los desplegables del formulario miden 44 px en el celular
+      ---
+      duration_ms: 364.456441
+      type: 'test'
+      ...
+    1..3
+ok 1 - El sitio de la estética en el celular: todo lo que se toca mide 44 px o más
+  ---
+  duration_ms: 9946.355223
+  type: 'suite'
+  ...
+# Subtest: Recuento en el celular
+    # Subtest: 20 productos de una góndola con el teclado; se bloquea la pantalla a la mitad y no se pierde nada
+    ok 1 - 20 productos de una góndola con el teclado; se bloquea la pantalla a la mitad y no se pierde nada
+      ---
+      duration_ms: 5216.684734
+      type: 'test'
+      ...
+    # Subtest: si el servidor rechaza el recuento, lo contado sigue cargado y anotado
+    ok 2 - si el servidor rechaza el recuento, lo contado sigue cargado y anotado
+      ---
+      duration_ms: 1266.783072
+      type: 'test'
+      ...
+    # Subtest: un Guardar que entró pero no respondió: no se puede volver a guardar y al recargar no vuelve
+    ok 3 - un Guardar que entró pero no respondió: no se puede volver a guardar y al recargar no vuelve
+      ---
+      duration_ms: 2277.54
+      type: 'test'
+      ...
+    # Subtest: un Guardar que se cortó antes de llegar: al recargar lo contado vuelve y se puede guardar
+    ok 4 - un Guardar que se cortó antes de llegar: al recargar lo contado vuelve y se puede guardar
+      ---
+      duration_ms: 2323.377009
+      type: 'test'
+      ...
+    # Subtest: reabrir la pantalla no rejuvenece el borrador: la regla de un día vale también para la nota
+    ok 5 - reabrir la pantalla no rejuvenece el borrador: la regla de un día vale también para la nota
+      ---
+      duration_ms: 2213.699157
+      type: 'test'
+      ...
+    # Subtest: 'Empezar de cero' tira el borrador recuperado
+    ok 6 - 'Empezar de cero' tira el borrador recuperado
+      ---
+      duration_ms: 1889.995129
+      type: 'test'
+      ...
+    # Subtest: a 412 px: nada se sale de la pantalla y todo lo que se toca mide 44 px o más
+    ok 7 - a 412 px: nada se sale de la pantalla y todo lo que se toca mide 44 px o más
+      ---
+      duration_ms: 1069.48444
+      type: 'test'
+      ...
+    1..7
+ok 2 - Recuento en el celular
+  ---
+  duration_ms: 22545.24535
+  type: 'suite'
+  ...
+# Subtest: Caja del día abierta, en el navegador
+    # Subtest: el día abierto dice cuánto hay por medio, sólo de los medios que se movieron, y lo que entró hoy
+    ok 1 - el día abierto dice cuánto hay por medio, sólo de los medios que se movieron, y lo que entró hoy
+      ---
+      duration_ms: 1841.300767
+      type: 'test'
+      ...
+    # Subtest: con una devolución que no pasó por el turno, se muestra, se confirma y se manda el esperado del libro
+    ok 2 - con una devolución que no pasó por el turno, se muestra, se confirma y se manda el esperado del libro
+      ---
+      duration_ms: 1577.855229
+      type: 'test'
+      ...
+    # Subtest: sin turno abierto, el fondo se cuenta contra el libro y una diferencia se muestra antes de abrir
+    ok 3 - sin turno abierto, el fondo se cuenta contra el libro y una diferencia se muestra antes de abrir
+      ---
+      duration_ms: 1138.423163
+      type: 'test'
+      ...
+    # Subtest: sin turno abierto, un fondo que coincide con el libro abre sin preguntar
+    ok 4 - sin turno abierto, un fondo que coincide con el libro abre sin preguntar
+      ---
+      duration_ms: 727.507659
+      type: 'test'
+      ...
+    # Subtest: 412 px con el CSS real y la piel: sin scroll horizontal y las teclas de 44 px
+    ok 5 - 412 px con el CSS real y la piel: sin scroll horizontal y las teclas de 44 px
+      ---
+      duration_ms: 1277.794589
+      type: 'test'
+      ...
+    1..5
+ok 3 - Caja del día abierta, en el navegador
+  ---
+  duration_ms: 12445.862919
+  type: 'suite'
+  ...
+# Subtest: Caja en el navegador
+    # Subtest: cierre del día entero con el teclado: contar, anotar la diferencia, revisar, Escape, confirmar
+    ok 1 - cierre del día entero con el teclado: contar, anotar la diferencia, revisar, Escape, confirmar
+      ---
+      duration_ms: 1370.001535
+      type: 'test'
+      ...
+    # Subtest: cierre: sin efectivo, Enter lleva al efectivo y lo dice; lo ilegible se marca en su campo
+    ok 2 - cierre: sin efectivo, Enter lleva al efectivo y lo dice; lo ilegible se marca en su campo
+      ---
+      duration_ms: 1217.840567
+      type: 'test'
+      ...
+    # Subtest: cierre: se corta la señal al confirmar → lo contado queda y se dice cómo saber si se cerró
+    ok 3 - cierre: se corta la señal al confirmar → lo contado queda y se dice cómo saber si se cerró
+      ---
+      duration_ms: 796.820569
+      type: 'test'
+      ...
+    # Subtest: cerrar el turno de cajero pide confirmación con el faltante; Enter confirma
+    ok 4 - cerrar el turno de cajero pide confirmación con el faltante; Enter confirma
+      ---
+      duration_ms: 817.632025
+      type: 'test'
+      ...
+    # Subtest: abrir la caja sin señal: se dice qué pasó y el fondo tipeado queda
+    ok 5 - abrir la caja sin señal: se dice qué pasó y el fondo tipeado queda
+      ---
+      duration_ms: 801.773942
+      type: 'test'
+      ...
+    # Subtest: libro: sin señal al guardar, lo cargado queda y se dice cómo saber si se guardó
+    ok 6 - libro: sin señal al guardar, lo cargado queda y se dice cómo saber si se guardó
+      ---
+      duration_ms: 784.195078
+      type: 'test'
+      ...
+    # Subtest: libro vacío: «Cargar un movimiento» deja el foco en el Detalle, listo para tipear
+    ok 7 - libro vacío: «Cargar un movimiento» deja el foco en el Detalle, listo para tipear
+      ---
+      duration_ms: 768.159551
+      type: 'test'
+      ...
+    # Subtest: 412 px con el CSS real: el cierre entra sin scroll horizontal y sus botones son de 44 px
+    ok 8 - 412 px con el CSS real: el cierre entra sin scroll horizontal y sus botones son de 44 px
+      ---
+      duration_ms: 984.233701
+      type: 'test'
+      ...
+    1..8
+ok 4 - Caja en el navegador
+  ---
+  duration_ms: 13086.386039
+  type: 'suite'
+  ...
+# Subtest: la URL se lee con cuidado: situación y orden que no existen no filtran ni ordenan
+ok 5 - la URL se lee con cuidado: situación y orden que no existen no filtran ni ordenan
+  ---
+  duration_ms: 2.601288
+  type: 'test'
+  ...
+# Subtest: buscar por nombre sin tildes ni mayúsculas, o por teléfono de corrido
+ok 6 - buscar por nombre sin tildes ni mayúsculas, o por teléfono de corrido
+  ---
+  duration_ms: 4.926689
+  type: 'test'
+  ...
+# Subtest: sin orden elegido: las que vinieron hace poco primero; quien nunca vino, al final
+ok 7 - sin orden elegido: las que vinieron hace poco primero; quien nunca vino, al final
+  ---
+  duration_ms: 0.63482
+  type: 'test'
+  ...
+# Subtest: ordenar por nombre, visitas y próximo turno (sin turno siempre al final)
+ok 8 - ordenar por nombre, visitas y próximo turno (sin turno siempre al final)
+  ---
+  duration_ms: 15.864163
+  type: 'test'
+  ...
+# Subtest: la situación filtra y los números de los filtros cuentan con la búsqueda puesta
+ok 9 - la situación filtra y los números de los filtros cuentan con la búsqueda puesta
+  ---
+  duration_ms: 0.57119
+  type: 'test'
+  ...
+# Subtest: al navegador llega una página; una página que no existe muestra la última
+ok 10 - al navegador llega una página; una página que no existe muestra la última
+  ---
+  duration_ms: 0.782816
+  type: 'test'
+  ...
+# Subtest: la última vez se dice en palabras, sin «ciclos»
+ok 11 - la última vez se dice en palabras, sin «ciclos»
+  ---
+  duration_ms: 0.215893
+  type: 'test'
+  ...
+# Subtest: Enlaces de texto del panel sobre el fondo: AA con los 7 acentos de marca
+    # Subtest: el acento crudo como texto NO llega con ámbar (el caso del gate: 4,33:1)
+    ok 1 - el acento crudo como texto NO llega con ámbar (el caso del gate: 4,33:1)
+      ---
+      duration_ms: 443.203158
+      type: 'test'
+      ...
+    # Subtest: /admin/proveedores (compras/page.tsx) se lee con todos los acentos
+    ok 2 - /admin/proveedores (compras/page.tsx) se lee con todos los acentos
+      ---
+      duration_ms: 2410.479006
+      type: 'test'
+      ...
+    # Subtest: /admin/compras/sugerido (compras/page.tsx) se lee con todos los acentos
+    ok 3 - /admin/compras/sugerido (compras/page.tsx) se lee con todos los acentos
+      ---
+      duration_ms: 2091.25771
+      type: 'test'
+      ...
+    # Subtest: /admin/ajustes/recuento (ajustes/page.tsx) se lee con todos los acentos
+    ok 4 - /admin/ajustes/recuento (ajustes/page.tsx) se lee con todos los acentos
+      ---
+      duration_ms: 1925.009469
+      type: 'test'
+      ...
+    # Subtest: /admin/caja/libro (caja/cierre/page.tsx) se lee con todos los acentos
+    ok 5 - /admin/caja/libro (caja/cierre/page.tsx) se lee con todos los acentos
+      ---
+      duration_ms: 2372.05166
+      type: 'test'
+      ...
+    1..5
+ok 12 - Enlaces de texto del panel sobre el fondo: AA con los 7 acentos de marca
+  ---
+  duration_ms: 13168.545092
+  type: 'suite'
+  ...
+# Subtest: la plata escrita como acá viaja como el número que lee la acción
+ok 13 - la plata escrita como acá viaja como el número que lee la acción
+  ---
+  duration_ms: 2.562675
+  type: 'test'
+  ...
+# Subtest: vacío, cero o algo que no es plata: no se manda
+ok 14 - vacío, cero o algo que no es plata: no se manda
+  ---
+  duration_ms: 0.242728
+  type: 'test'
+  ...
+# Subtest: Pies pegados en el iPhone: la zona segura una sola vez
+    # Subtest: Vender con el diseño nuevo, ticket vacío: el pie no se fija y no tapa nada
+    ok 1 - Vender con el diseño nuevo, ticket vacío: el pie no se fija y no tapa nada
+      ---
+      duration_ms: 492.062946
+      type: 'test'
+      ...
+    # Subtest: Vender con el diseño nuevo, con la cápsula: el pie se apoya en ella sin franja vacía
+    ok 2 - Vender con el diseño nuevo, con la cápsula: el pie se apoya en ella sin franja vacía
+      ---
+      duration_ms: 453.470237
+      type: 'test'
+      ...
+    # Subtest: Vender con el diseño nuevo, sin cápsula: el pie deja la zona segura una vez
+    ok 3 - Vender con el diseño nuevo, sin cápsula: el pie deja la zona segura una vez
+      ---
+      duration_ms: 521.50899
+      type: 'test'
+      ...
+    # Subtest: Vender, con la barra de espacios: el pie no vuelve a sumar la zona segura
+    ok 4 - Vender, con la barra de espacios: el pie no vuelve a sumar la zona segura
+      ---
+      duration_ms: 286.274333
+      type: 'test'
+      ...
+    # Subtest: Vender, sin barra (fuera del piloto): el pie deja la zona segura una vez
+    ok 5 - Vender, sin barra (fuera del piloto): el pie deja la zona segura una vez
+      ---
+      duration_ms: 302.727821
+      type: 'test'
+      ...
+    # Subtest: Recuento, con la barra de espacios: el pie no vuelve a sumar la zona segura
+    ok 6 - Recuento, con la barra de espacios: el pie no vuelve a sumar la zona segura
+      ---
+      duration_ms: 310.23533
+      type: 'test'
+      ...
+    # Subtest: Recuento, sin barra (fuera del piloto): el pie deja la zona segura una vez
+    ok 7 - Recuento, sin barra (fuera del piloto): el pie deja la zona segura una vez
+      ---
+      duration_ms: 268.265865
+      type: 'test'
+      ...
+    1..7
+ok 15 - Pies pegados en el iPhone: la zona segura una sola vez
+  ---
+  duration_ms: 6680.900442
+  type: 'suite'
+  ...
+# Subtest: Vender en el navegador
+    # Subtest: Vacío 1,240 + Entraña 0,950 con los botones rápidos, efectivo, pagó con $50.000 → vuelto $17.875
+    ok 1 - Vacío 1,240 + Entraña 0,950 con los botones rápidos, efectivo, pagó con $50.000 → vuelto $17.875
+      ---
+      duration_ms: 1478.467217
+      type: 'test'
+      ...
+    # Subtest: descuento: 15 % con recepción frena el cobro; 10 % pasa y el vuelto se recalcula sobre el total
+    ok 2 - descuento: 15 % con recepción frena el cobro; 10 % pasa y el vuelto se recalcula sobre el total
+      ---
+      duration_ms: 1566.671331
+      type: 'test'
+      ...
+    # Subtest: la dueña no tiene tope: 15 % pasa
+    ok 3 - la dueña no tiene tope: 15 % pasa
+      ---
+      duration_ms: 807.671611
+      type: 'test'
+      ...
+    # Subtest: cupón en el mostrador: sin «Aplicar» no se cobra; aplicado, viaja el código y no un descuento a mano
+    ok 4 - cupón en el mostrador: sin «Aplicar» no se cobra; aplicado, viaja el código y no un descuento a mano
+      ---
+      duration_ms: 1492.935304
+      type: 'test'
+      ...
+    # Subtest: a cuenta: sin la ficha del cliente no se deja; con la ficha viaja aCuenta=1 y ningún medio
+    ok 5 - a cuenta: sin la ficha del cliente no se deja; con la ficha viaja aCuenta=1 y ningún medio
+      ---
+      duration_ms: 1245.416663
+      type: 'test'
+      ...
+    # Subtest: sin cuentas corrientes, «A cuenta» no se ofrece
+    ok 6 - sin cuentas corrientes, «A cuenta» no se ofrece
+      ---
+      duration_ms: 772.698218
+      type: 'test'
+      ...
+    # Subtest: Facturar con la facturación apagada: la venta queda «Sin factura», con el porqué, y se ofrece reintentar
+    ok 7 - Facturar con la facturación apagada: la venta queda «Sin factura», con el porqué, y se ofrece reintentar
+      ---
+      duration_ms: 861.706965
+      type: 'test'
+      ...
+    # Subtest: cliente por teléfono: la ficha se encuentra con el número escrito de otra forma
+    ok 8 - cliente por teléfono: la ficha se encuentra con el número escrito de otra forma
+      ---
+      duration_ms: 1011.133274
+      type: 'test'
+      ...
+    # Subtest: pesar y ajustar: el pedido de 0,5 kg se guarda con 1,240 y el total nuevo se ve antes de guardar
+    ok 9 - pesar y ajustar: el pedido de 0,5 kg se guarda con 1,240 y el total nuevo se ve antes de guardar
+      ---
+      duration_ms: 621.512833
+      type: 'test'
+      ...
+    # Subtest: pesar y ajustar con descuento: 10 kg con el 10 % pesados a 1 kg quedan con el 10 %, no en $0
+    ok 10 - pesar y ajustar con descuento: 10 kg con el 10 % pesados a 1 kg quedan con el 10 %, no en $0
+      ---
+      duration_ms: 734.643093
+      type: 'test'
+      ...
+    # Subtest: tomar un pedido: si el servidor rechaza, horario, dirección y nota quedan escritos
+    ok 11 - tomar un pedido: si el servidor rechaza, horario, dirección y nota quedan escritos
+      ---
+      duration_ms: 873.856894
+      type: 'test'
+      ...
+    # Subtest: anular en la bandeja: el rechazo del servidor y el corte de señal se ven en la fila, sin tirar la pantalla
+    ok 12 - anular en la bandeja: el rechazo del servidor y el corte de señal se ven en la fila, sin tirar la pantalla
+      ---
+      duration_ms: 604.250051
+      type: 'test'
+      ...
+    # Subtest: precio a mano con recepción: un producto del catálogo no se esquiva a mano, y hay un máximo
+    ok 13 - precio a mano con recepción: un producto del catálogo no se esquiva a mano, y hay un máximo
+      ---
+      duration_ms: 750.445468
+      type: 'test'
+      ...
+    # Subtest: sin ningún producto con precio, el formulario sigue: se cobra con precio a mano
+    ok 14 - sin ningún producto con precio, el formulario sigue: se cobra con precio a mano
+      ---
+      duration_ms: 644.931546
+      type: 'test'
+      ...
+    # Subtest: celular 412 px: 2 cortes en 7 toques o menos, con el botón de cobrar a la vista sin bajar
+    ok 15 - celular 412 px: 2 cortes en 7 toques o menos, con el botón de cobrar a la vista sin bajar
+      ---
+      duration_ms: 2014.62431
+      type: 'test'
+      ...
+    # Subtest: se corta la señal a mitad del cobro: lo cargado queda, se reintenta con la misma venta y no se cobra dos veces
+    ok 16 - se corta la señal a mitad del cobro: lo cargado queda, se reintenta con la misma venta y no se cobra dos veces
+      ---
+      duration_ms: 1033.493724
+      type: 'test'
+      ...
+    # Subtest: se corta y el cajero suma un corte: no se reintenta con la clave de la cortada; «Es otra venta» estrena clave
+    ok 17 - se corta y el cajero suma un corte: no se reintenta con la clave de la cortada; «Es otra venta» estrena clave
+      ---
+      duration_ms: 1242.932767
+      type: 'test'
+      ...
+    # Subtest: se corta, se reintenta sin señal y se suma un corte: sigue frenado, y al volver la señal no dice 'no se cobró'
+    ok 18 - se corta, se reintenta sin señal y se suma un corte: sigue frenado, y al volver la señal no dice 'no se cobró'
+      ---
+      duration_ms: 977.701528
+      type: 'test'
+      ...
+    # Subtest: sin señal antes de cobrar: no se manda nada, se dice, y al volver la señal se cobra
+    ok 19 - sin señal antes de cobrar: no se manda nada, se dice, y al volver la señal se cobra
+      ---
+      duration_ms: 770.331808
+      type: 'test'
+      ...
+    # Subtest: el rechazo del servidor queda escrito al lado del botón (no en un aviso que se va) y se puede cerrar
+    ok 20 - el rechazo del servidor queda escrito al lado del botón (no en un aviso que se va) y se puede cerrar
+      ---
+      duration_ms: 673.281392
+      type: 'test'
+      ...
+    # Subtest: R1 a cuenta: se corta y se cambia el CLIENTE → no se reintenta con la clave de la cortada
+    ok 21 - R1 a cuenta: se corta y se cambia el CLIENTE → no se reintenta con la clave de la cortada
+      ---
+      duration_ms: 1063.246663
+      type: 'test'
+      ...
+    # Subtest: «ya grabada» con OTRA cosa (el medio): no se ofrece cobrar nada aparte; se deja así o se anula y se vuelve a consultar
+    ok 22 - «ya grabada» con OTRA cosa (el medio): no se ofrece cobrar nada aparte; se deja así o se anula y se vuelve a consultar
+      ---
+      duration_ms: 1017.950905
+      type: 'test'
+      ...
+    # Subtest: «ya grabada» y lo único distinto es DE MÁS: «Cobrar sólo lo que falta» carga SÓLO eso, con su total
+    ok 23 - «ya grabada» y lo único distinto es DE MÁS: «Cobrar sólo lo que falta» carga SÓLO eso, con su total
+      ---
+      duration_ms: 1000.071865
+      type: 'test'
+      ...
+    # Subtest: la venta con esa clave está ANULADA: se dice, no se muestra como cobrada, y se ofrece cobrarla como otra
+    ok 24 - la venta con esa clave está ANULADA: se dice, no se muestra como cobrada, y se ofrece cobrarla como otra
+      ---
+      duration_ms: 927.408857
+      type: 'test'
+      ...
+    # Subtest: R2 pedido: se corta y se cambia la dirección → frenado; y la respuesta «ya registrado» habla de pedido, no de cobro
+    ok 25 - R2 pedido: se corta y se cambia la dirección → frenado; y la respuesta «ya registrado» habla de pedido, no de cobro
+      ---
+      duration_ms: 905.877151
+      type: 'test'
+      ...
+    # Subtest: R3 el servidor no contesta: a los 25 s deja «Cobrando…» y dice que no sabemos; el reintento lleva la misma clave
+    ok 26 - R3 el servidor no contesta: a los 25 s deja «Cobrando…» y dice que no sabemos; el reintento lleva la misma clave
+      ---
+      duration_ms: 863.090749
+      type: 'test'
+      ...
+    # Subtest: R4 se corta con cupón y se lo cambia por un 10 % a mano del mismo monto → no es la misma venta
+    ok 27 - R4 se corta con cupón y se lo cambia por un 10 % a mano del mismo monto → no es la misma venta
+      ---
+      duration_ms: 825.336106
+      type: 'test'
+      ...
+    # Subtest: R5 se corta y se vuelve a Vender (remonta) o se recarga: la duda vuelve con lo cargado y la MISMA clave
+    ok 28 - R5 se corta y se vuelve a Vender (remonta) o se recarga: la duda vuelve con lo cargado y la MISMA clave
+      ---
+      duration_ms: 1026.125147
+      type: 'test'
+      ...
+    # Subtest: un error del servidor que no es un rechazo de negocio: 'no sabemos', y el reintento con la misma clave lo encuentra
+    ok 29 - un error del servidor que no es un rechazo de negocio: 'no sabemos', y el reintento con la misma clave lo encuentra
+      ---
+      duration_ms: 690.794208
+      type: 'test'
+      ...
+    # Subtest: tras un rechazo de negocio sin corte, lo corregido viaja con otra clave (con esa no se grabó nada)
+    ok 30 - tras un rechazo de negocio sin corte, lo corregido viaja con otra clave (con esa no se grabó nada)
+      ---
+      duration_ms: 836.253348
+      type: 'test'
+      ...
+    # Subtest: la duda que dejó OTRA persona en la pestaña no se restaura: se avisa sin cliente ni lo cargado
+    ok 31 - la duda que dejó OTRA persona en la pestaña no se restaura: se avisa sin cliente ni lo cargado
+      ---
+      duration_ms: 749.626104
+      type: 'test'
+      ...
+    # Subtest: con un envío en duda siempre se puede «Empezar de nuevo», después del aviso de revisar Ventas del día
+    ok 32 - con un envío en duda siempre se puede «Empezar de nuevo», después del aviso de revisar Ventas del día
+      ---
+      duration_ms: 1063.784627
+      type: 'test'
+      ...
+    # Subtest: POS de la bandeja: «ya grabada con otra cosa» se muestra y se sale con «Empezar de nuevo» (antes quedaba trabado)
+    ok 33 - POS de la bandeja: «ya grabada con otra cosa» se muestra y se sale con «Empezar de nuevo» (antes quedaba trabado)
+      ---
+      duration_ms: 861.707386
+      type: 'test'
+      ...
+    # Subtest: RF precio: se recarga con el precio de catálogo NUEVO y la duda sigue siendo la misma venta (se reintenta)
+    ok 34 - RF precio: se recarga con el precio de catálogo NUEVO y la duda sigue siendo la misma venta (se reintenta)
+      ---
+      duration_ms: 1046.251386
+      type: 'test'
+      ...
+    # Subtest: RF2 stock: el envío en duda se llevó la última unidad; al recargar el reintento NO lo frena el stock de la pantalla
+    ok 35 - RF2 stock: el envío en duda se llevó la última unidad; al recargar el reintento NO lo frena el stock de la pantalla
+      ---
+      duration_ms: 1031.719343
+      type: 'test'
+      ...
+    # Subtest: RF3 «Cobrar sólo lo que falta» borra «Pagó con»: el vuelto no sale de la venta entera
+    ok 36 - RF3 «Cobrar sólo lo que falta» borra «Pagó con»: el vuelto no sale de la venta entera
+      ---
+      duration_ms: 1020.839772
+      type: 'test'
+      ...
+    # Subtest: el teléfono se compara como la ficha: «+54 9 11 4000-0000» es el mismo cliente que «11 4000 0000»
+    ok 37 - el teléfono se compara como la ficha: «+54 9 11 4000-0000» es el mismo cliente que «11 4000 0000»
+      ---
+      duration_ms: 877.674708
+      type: 'test'
+      ...
+    # Subtest: POS de la bandeja: si lo distinto es DE MÁS, «Cargar sólo lo que falta» lo deja para cobrarlo aparte
+    ok 38 - POS de la bandeja: si lo distinto es DE MÁS, «Cargar sólo lo que falta» lo deja para cobrarlo aparte
+      ---
+      duration_ms: 1032.092368
+      type: 'test'
+      ...
+    # Subtest: M3 una duda guardada por la versión ANTERIOR (v2, firma vieja) se restaura con su clave, no se pierde
+    ok 39 - M3 una duda guardada por la versión ANTERIOR (v2, firma vieja) se restaura con su clave, no se pierde
+      ---
+      duration_ms: 1094.28118
+      type: 'test'
+      ...
+    # Subtest: M3 una duda guardada que no se puede leer no se descarta en silencio: se avisa revisar Ventas del día
+    ok 40 - M3 una duda guardada que no se puede leer no se descarta en silencio: se avisa revisar Ventas del día
+      ---
+      duration_ms: 750.125972
+      type: 'test'
+      ...
+    # Subtest: M1 un producto que salió del catálogo entre el corte y la recarga sigue en el reintento (y la \#42 vuelve)
+    ok 41 - M1 un producto que salió del catálogo entre el corte y la recarga sigue en el reintento (y la \#42 vuelve)
+      ---
+      duration_ms: 1054.067488
+      type: 'test'
+      ...
+    # Subtest: M7 lo que falta trae un producto que ya no está en el catálogo: no se ofrece cargarlo solo
+    ok 42 - M7 lo que falta trae un producto que ya no está en el catálogo: no se ofrece cargarlo solo
+      ---
+      duration_ms: 1187.330814
+      type: 'test'
+      ...
+    # Subtest: M4 la duda no estaba grabada y el servidor rechaza por stock: 'no se cobró', sin el 'puede que ya se grabó'
+    ok 43 - M4 la duda no estaba grabada y el servidor rechaza por stock: 'no se cobró', sin el 'puede que ya se grabó'
+      ---
+      duration_ms: 990.940425
+      type: 'test'
+      ...
+    # Subtest: M5 la duda no estaba grabada y se graba AHORA a precio de hoy: se dice que quedó por otro total
+    ok 44 - M5 la duda no estaba grabada y se graba AHORA a precio de hoy: se dice que quedó por otro total
+      ---
+      duration_ms: 1060.079086
+      type: 'test'
+      ...
+    # Subtest: M6 POS de la bandeja: en un PEDIDO lo que falta se registra aparte (no se 'cobra'), y «Empezar de nuevo» es un botón visible
+    ok 45 - M6 POS de la bandeja: en un PEDIDO lo que falta se registra aparte (no se 'cobra'), y «Empezar de nuevo» es un botón visible
+      ---
+      duration_ms: 873.433599
+      type: 'test'
+      ...
+    # Subtest: vista de siempre: una línea con producto y sin cantidad frena el cobro y dice cuál (no se cae callada)
+    ok 46 - vista de siempre: una línea con producto y sin cantidad frena el cobro y dice cuál (no se cae callada)
+      ---
+      duration_ms: 913.525993
+      type: 'test'
+      ...
+    # Subtest: POS de la bandeja: una línea con producto y sin cantidad frena el cobro y dice cuál
+    ok 47 - POS de la bandeja: una línea con producto y sin cantidad frena el cobro y dice cuál
+      ---
+      duration_ms: 821.732154
+      type: 'test'
+      ...
+    # Subtest: POS de la bandeja: si se corta la red, no se vacía nada (productos, cantidades, medio, cliente) y se reintenta igual
+    ok 48 - POS de la bandeja: si se corta la red, no se vacía nada (productos, cantidades, medio, cliente) y se reintenta igual
+      ---
+      duration_ms: 890.425458
+      type: 'test'
+      ...
+    # Subtest: POS de la bandeja: un pedido con la red caída conserva los datos del cliente y lo cargado
+    ok 49 - POS de la bandeja: un pedido con la red caída conserva los datos del cliente y lo cargado
+      ---
+      duration_ms: 771.390952
+      type: 'test'
+      ...
+    # Subtest: ticket: la misma venta que la vista de siempre viaja IDÉNTICA al servidor
+    ok 50 - ticket: la misma venta que la vista de siempre viaja IDÉNTICA al servidor
+      ---
+      duration_ms: 1569.850367
+      type: 'test'
+      ...
+    # Subtest: ticket: cada línea dice kilos × precio = importe, se saca con «−», y el total grande es el del botón
+    ok 51 - ticket: cada línea dice kilos × precio = importe, se saca con «−», y el total grande es el del botón
+      ---
+      duration_ms: 976.88127
+      type: 'test'
+      ...
+    # Subtest: ticket: el teclado del mostrador — / busca, Alt+1 es efectivo, F2 cobra, Esc limpia
+    ok 52 - ticket: el teclado del mostrador — / busca, Alt+1 es efectivo, F2 cobra, Esc limpia
+      ---
+      duration_ms: 772.830419
+      type: 'test'
+      ...
+    # Subtest: ticket: una línea con producto y sin cantidad frena el cobro y dice cuál; lo que va por unidad entra con 1
+    ok 53 - ticket: una línea con producto y sin cantidad frena el cobro y dice cuál; lo que va por unidad entra con 1
+      ---
+      duration_ms: 1024.933336
+      type: 'test'
+      ...
+    # Subtest: ticket: después de cargar el peso el foco vuelve al buscador SIN abrir la lista (un toque no cae sobre otro corte)
+    ok 54 - ticket: después de cargar el peso el foco vuelve al buscador SIN abrir la lista (un toque no cae sobre otro corte)
+      ---
+      duration_ms: 666.41425
+      type: 'test'
+      ...
+    # Subtest: ticket: se corta la señal a mitad del cobro y el reintento es la MISMA venta (misma clave)
+    ok 55 - ticket: se corta la señal a mitad del cobro y el reintento es la MISMA venta (misma clave)
+      ---
+      duration_ms: 902.607058
+      type: 'test'
+      ...
+    # Subtest: ticket en el celular (412 px) con la piel: el botón de cobrar a la vista, arriba de la cápsula, sin scroll de costado
+    ok 56 - ticket en el celular (412 px) con la piel: el botón de cobrar a la vista, arriba de la cápsula, sin scroll de costado
+      ---
+      duration_ms: 952.944861
+      type: 'test'
+      ...
+    1..56
+ok 16 - Vender en el navegador
+  ---
+  duration_ms: 59175.356199
+  type: 'suite'
+  ...
+# Subtest: La vidriera de MAGRA en el celular: todo lo que se toca mide 44 px o más
+    # Subtest: magra-demo: ningún botón chico, texto legible y sin scroll de costado
+    ok 1 - magra-demo: ningún botón chico, texto legible y sin scroll de costado
+      ---
+      duration_ms: 690.334064
+      type: 'test'
+      ...
+    1..1
+ok 17 - La vidriera de MAGRA en el celular: todo lo que se toca mide 44 px o más
+  ---
+  duration_ms: 5536.966196
+  type: 'suite'
+  ...
+# Subtest: La vidriera en el celular: todo lo que se toca mide 44 px o más
+    # Subtest: vidriera de velas-demo: ningún botón chico, texto legible y sin scroll de costado
+    ok 1 - vidriera de velas-demo: ningún botón chico, texto legible y sin scroll de costado
+      ---
+      duration_ms: 452.560464
+      type: 'test'
+      ...
+    # Subtest: vidriera de padel-demo: ningún botón chico, texto legible y sin scroll de costado
+    ok 2 - vidriera de padel-demo: ningún botón chico, texto legible y sin scroll de costado
+      ---
+      duration_ms: 299.558716
+      type: 'test'
+      ...
+    # Subtest: vidriera de adosmanos: ningún botón chico, texto legible y sin scroll de costado
+    ok 3 - vidriera de adosmanos: ningún botón chico, texto legible y sin scroll de costado
+      ---
+      duration_ms: 251.515149
+      type: 'test'
+      ...
+    1..3
+ok 18 - La vidriera en el celular: todo lo que se toca mide 44 px o más
+  ---
+  duration_ms: 6134.336743
+  type: 'suite'
+  ...
+# Subtest: contraste WCAG de pares de referencia
+ok 19 - contraste WCAG de pares de referencia
+  ---
+  duration_ms: 3.826242
+  type: 'test'
+  ...
+# Subtest: OKLCH ↔ sRGB: el rojo puro va y vuelve
+ok 20 - OKLCH ↔ sRGB: el rojo puro va y vuelve
+  ---
+  duration_ms: 0.421709
+  type: 'test'
+  ...
+# Subtest: color-mix en oklch: mitad blanco y negro da L = 0,5; con transparente baja el alfa
+ok 21 - color-mix en oklch: mitad blanco y negro da L = 0,5; con transparente baja el alfa
+  ---
+  duration_ms: 1.119156
+  type: 'test'
+  ...
+# Subtest: var() sigue la variable o su respaldo y corta los ciclos
+ok 22 - var() sigue la variable o su respaldo y corta los ciclos
+  ---
+  duration_ms: 1.03937
+  type: 'test'
+  ...
+# Subtest: color relativo: oklch(from <acento> L C h) toma el matiz del acento y fija luz y croma
+ok 23 - color relativo: oklch(from <acento> L C h) toma el matiz del acento y fija luz y croma
+  ---
+  duration_ms: 1.71558
+  type: 'test'
+  ...
+# Subtest: el bloque de tokens de la hoja es el que sale de tokens.ts (lo que se mide es lo que se sirve)
+ok 24 - el bloque de tokens de la hoja es el que sale de tokens.ts (lo que se mide es lo que se sirve)
+  ---
+  duration_ms: 1.52445
+  type: 'test'
+  ...
+# Subtest: la versión de la URL es la del contenido, y ConDiseno pide esa
+ok 25 - la versión de la URL es la del contenido, y ConDiseno pide esa
+  ---
+  duration_ms: 3.299696
+  type: 'test'
+  ...
+# Subtest: todo está acotado bajo [data-diseno="renglon"] y no hay capas
+ok 26 - todo está acotado bajo [data-diseno="renglon"] y no hay capas
+  ---
+  duration_ms: 20.606881
+  type: 'test'
+  ...
+# Subtest: materia plana: ni degradés, ni vidrio, ni sombras de dos capas
+ok 27 - materia plana: ni degradés, ni vidrio, ni sombras de dos capas
+  ---
+  duration_ms: 0.93431
+  type: 'test'
+  ...
+# Subtest: presupuesto: la hoja ≤ 30 KB gzip; la letra, un archivo ≤ 120 KB
+ok 28 - presupuesto: la hoja ≤ 30 KB gzip; la letra, un archivo ≤ 120 KB
+  ---
+  duration_ms: 5.364156
+  type: 'test'
+  ...
+# Subtest: cada par de la piel llega a su mínimo WCAG en claro y en oscuro, con cada acento
+ok 29 - cada par de la piel llega a su mínimo WCAG en claro y en oscuro, con cada acento
+  ---
+  duration_ms: 160.549308
+  type: 'test'
+  ...
+# Subtest: el texto va a 4,5:1 (la tinta principal a 7:1) y lo gráfico (foco, señales, borde de campo) a 3:1
+ok 30 - el texto va a 4,5:1 (la tinta principal a 7:1) y lo gráfico (foco, señales, borde de campo) a 3:1
+  ---
+  duration_ms: 0.557613
+  type: 'test'
+  ...
+# Subtest: los neutros teñidos son los de respaldo con el matiz del acento (misma luz y mismo croma)
+ok 31 - los neutros teñidos son los de respaldo con el matiz del acento (misma luz y mismo croma)
+  ---
+  duration_ms: 0.547
+  type: 'test'
+  ...
+# Subtest: materia plana: ninguna sombra de dos capas ni sombra en lo que no flota
+ok 32 - materia plana: ninguna sombra de dos capas ni sombra en lo que no flota
+  ---
+  duration_ms: 0.397271
+  type: 'test'
+  ...
+# Subtest: los colores literales de la piel están dentro de sRGB (lo que se mide es lo que se ve)
+ok 33 - los colores literales de la piel están dentro de sRGB (lo que se mide es lo que se ve)
+  ---
+  duration_ms: 0.864843
+  type: 'test'
+  ...
+# Subtest: la lista de links lee búsqueda, estado y página de la URL; lo que no entiende lo ignora
+ok 34 - la lista de links lee búsqueda, estado y página de la URL; lo que no entiende lo ignora
+  ---
+  duration_ms: 2.559544
+  type: 'test'
+  ...
+# Subtest: la URL de la lista queda en la pestaña de links y cambiar el filtro vuelve a la página 1
+ok 35 - la URL de la lista queda en la pestaña de links y cambiar el filtro vuelve a la página 1
+  ---
+  duration_ms: 0.46894
+  type: 'test'
+  ...
+# Subtest: buscar un número encuentra el pedido; buscar plata escrita como acá encuentra el importe exacto
+ok 36 - buscar un número encuentra el pedido; buscar plata escrita como acá encuentra el importe exacto
+  ---
+  duration_ms: 1.143422
+  type: 'test'
+  ...
+# Subtest: las páginas salen de la cantidad del estado elegido, no del total
+ok 37 - las páginas salen de la cantidad del estado elegido, no del total
+  ---
+  duration_ms: 0.261785
+  type: 'test'
+  ...
+# Subtest: «Diseño nuevo» está en el catálogo: nombre, qué cambia, cómo figura en la Auditoría, y no toca las apps
+ok 38 - «Diseño nuevo» está en el catálogo: nombre, qué cambia, cómo figura en la Auditoría, y no toca las apps
+  ---
+  duration_ms: 1.502816
+  type: 'test'
+  ...
+# Subtest: beauty-spa: «Diseño nuevo» sólo lo prende el dueño, escribiendo el slug; nadie más lo apaga
+ok 39 - beauty-spa: «Diseño nuevo» sólo lo prende el dueño, escribiendo el slug; nadie más lo apaga
+  ---
+  duration_ms: 23.272393
+  type: 'test'
+  ...
+# Subtest: una fila forjada desde la app del negocio no prende el diseño nuevo, ni apaga el que prendió la consola
+ok 40 - una fila forjada desde la app del negocio no prende el diseño nuevo, ni apaga el que prendió la consola
+  ---
+  duration_ms: 4.595352
+  type: 'test'
+  ...
+# Subtest: si la lectura falla (o viene rota), el diseño es el de siempre, y se avisa
+ok 41 - si la lectura falla (o viene rota), el diseño es el de siempre, y se avisa
+  ---
+  duration_ms: 0.584851
+  type: 'test'
+  ...
+# Subtest: el diseño nuevo se prende aunque 'Trabaja por apps' perdería apps: no quita ninguna, y su fila no promete apps
+ok 42 - el diseño nuevo se prende aunque 'Trabaja por apps' perdería apps: no quita ninguna, y su fila no promete apps
+  ---
+  duration_ms: 1.677304
+  type: 'test'
+  ...
+# Subtest: cada interruptor con su estado: prender uno no prende el otro, y 'lo que viste' se compara con el suyo
+ok 43 - cada interruptor con su estado: prender uno no prende el otro, y 'lo que viste' se compara con el suyo
+  ---
+  duration_ms: 35.727626
+  type: 'test'
+  ...
+# Subtest: la decisión: sólo la última fila válida de la consola prende el diseño nuevo
+ok 44 - la decisión: sólo la última fila válida de la consola prende el diseño nuevo
+  ---
+  duration_ms: 4.270111
+  type: 'test'
+  ...
+# Subtest: ConDiseno apagado devuelve el mismo hijo (ni hoja, ni provider, ni un nodo de más)
+ok 45 - ConDiseno apagado devuelve el mismo hijo (ni hoja, ni provider, ni un nodo de más)
+  ---
+  duration_ms: 10.101633
+  type: 'test'
+  ...
+# Subtest: ConDiseno prendido pide la hoja versionada una vez y deja el contenido igual
+ok 46 - ConDiseno prendido pide la hoja versionada una vez y deja el contenido igual
+  ---
+  duration_ms: 2.93923
+  type: 'test'
+  ...
+# Subtest: cada raíz de un negocio: el atributo sólo con el interruptor, la piel de siempre intacta
+ok 47 - cada raíz de un negocio: el atributo sólo con el interruptor, la piel de siempre intacta
+  ---
+  duration_ms: 1.733475
+  type: 'test'
+  ...
+# Subtest: sin nada en la URL la lista muestra el mes en curso, página 1, todos los estados y tipos
+ok 48 - sin nada en la URL la lista muestra el mes en curso, página 1, todos los estados y tipos
+  ---
+  duration_ms: 3.075351
+  type: 'test'
+  ...
+# Subtest: el mes en curso termina el último día del mes, también en febrero bisiesto
+ok 49 - el mes en curso termina el último día del mes, también en febrero bisiesto
+  ---
+  duration_ms: 1.405889
+  type: 'test'
+  ...
+# Subtest: buscar sin período en la URL busca en todos los meses
+ok 50 - buscar sin período en la URL busca en todos los meses
+  ---
+  duration_ms: 0.346152
+  type: 'test'
+  ...
+# Subtest: buscar con período en la URL respeta el período
+ok 51 - buscar con período en la URL respeta el período
+  ---
+  duration_ms: 0.448107
+  type: 'test'
+  ...
+# Subtest: lo inválido en la URL cae al valor por defecto y un período al revés se da vuelta
+ok 52 - lo inválido en la URL cae al valor por defecto y un período al revés se da vuelta
+  ---
+  duration_ms: 0.38096
+  type: 'test'
+  ...
+# Subtest: «necesitan atención» son las pendientes y las rechazadas
+ok 53 - «necesitan atención» son las pendientes y las rechazadas
+  ---
+  duration_ms: 0.243783
+  type: 'test'
+  ...
+# Subtest: el tipo usa los códigos de ARCA: A=1, B=6, C=11, notas de crédito 3, 8 y 13
+ok 54 - el tipo usa los códigos de ARCA: A=1, B=6, C=11, notas de crédito 3, 8 y 13
+  ---
+  duration_ms: 0.315355
+  type: 'test'
+  ...
+# Subtest: buscador: un nombre busca por receptor
+ok 55 - buscador: un nombre busca por receptor
+  ---
+  duration_ms: 0.374029
+  type: 'test'
+  ...
+# Subtest: buscador: «0001-00000123» es punto de venta y número
+ok 56 - buscador: «0001-00000123» es punto de venta y número
+  ---
+  duration_ms: 0.370894
+  type: 'test'
+  ...
+# Subtest: buscador: un CUIT con guiones busca por documento, no por número de comprobante
+ok 57 - buscador: un CUIT con guiones busca por documento, no por número de comprobante
+  ---
+  duration_ms: 0.673719
+  type: 'test'
+  ...
+# Subtest: buscador: una cifra corta puede ser número de comprobante o importe
+ok 58 - buscador: una cifra corta puede ser número de comprobante o importe
+  ---
+  duration_ms: 0.279725
+  type: 'test'
+  ...
+# Subtest: buscador: un importe con centavos a la argentina («12.500,50» o «$ 12.500,50») busca el total
+ok 59 - buscador: un importe con centavos a la argentina («12.500,50» o «$ 12.500,50») busca el total
+  ---
+  duration_ms: 0.432644
+  type: 'test'
+  ...
+# Subtest: buscador: un DNI de 8 cifras busca como documento y como número
+ok 60 - buscador: un DNI de 8 cifras busca como documento y como número
+  ---
+  duration_ms: 0.132999
+  type: 'test'
+  ...
+# Subtest: los comodines de LIKE se buscan como texto
+ok 61 - los comodines de LIKE se buscan como texto
+  ---
+  duration_ms: 0.180246
+  type: 'test'
+  ...
+# Subtest: 50 por página y siempre al menos una página
+ok 62 - 50 por página y siempre al menos una página
+  ---
+  duration_ms: 0.364798
+  type: 'test'
+  ...
+# Subtest: la URL guarda sólo lo que no es por defecto y cambiar un filtro vuelve a la página 1 si se pide
+ok 63 - la URL guarda sólo lo que no es por defecto y cambiar un filtro vuelve a la página 1 si se pide
+  ---
+  duration_ms: 0.337868
+  type: 'test'
+  ...
+# Subtest: el receptor sin nombre se muestra por su documento; el 99 es consumidor final
+ok 64 - el receptor sin nombre se muestra por su documento; el 99 es consumidor final
+  ---
+  duration_ms: 0.173135
+  type: 'test'
+  ...
+# Subtest: el renglón del CSV lleva fecha dd/mm/aaaa, tipo en palabras, estado ante ARCA y el total exacto
+ok 65 - el renglón del CSV lleva fecha dd/mm/aaaa, tipo en palabras, estado ante ARCA y el total exacto
+  ---
+  duration_ms: 0.358736
+  type: 'test'
+  ...
+1..65
+# tests 151
+# suites 9
+# pass 151
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 86191.124822
+EXIT=0

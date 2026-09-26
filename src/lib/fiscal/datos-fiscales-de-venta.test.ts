@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renglonesDeLaVenta } from "./datos-fiscales-de-venta";
 import { calcularImpuestosPorAlicuota } from "./impuestos-por-alicuota";
-import { apuntarLaAppA, baseEfimeraDelArchivo } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 
 const centavos = (renglones: { total: number }[]) => renglones.reduce((a, r) => a + Math.round(r.total * 100), 0);
 
@@ -51,19 +51,19 @@ test("lee de la base la ficha del cliente y los productos de la venta con su al�
   if (!base) return;
   apuntarLaAppA(base);
   Object.assign(process.env as Record<string, string | undefined>, { NODE_ENV: "development", DB_CONNECTION_LIMIT: "2", DB_CONNECT_TIMEOUT_MS: "3000" });
-  const { operatorPrisma } = await import("@/lib/operator-db");
+  const duenio = await prismaComoDuenio(base);
   const { tenantTransaction } = await import("@/lib/rls");
   const { leerDatosFiscalesDeVenta } = await import("./datos-fiscales-de-venta");
   const a = base.a;
   const [venta, mostrador] = a.pedidos;
   const cliente = a.clientes[0];
   const ficha = { docTipo: 80, docNro: "30500000003", razonSocial: "Distribuidora del Sur SA", condicionIva: "RESPONSABLE_INSCRIPTO", domicilio: "Av. Mitre 1234, Avellaneda" };
-  await operatorPrisma.client.update({ where: { id: cliente }, data: ficha });
-  const al21 = await operatorPrisma.product.create({ data: { tenantId: a.id, name: "Vacío", price: 1000, alicuotaIva: 5 } });
-  const al105 = await operatorPrisma.product.create({ data: { tenantId: a.id, name: "Pan", price: 500, alicuotaIva: 4 } });
-  await operatorPrisma.order.update({ where: { id: venta }, data: { clientId: cliente, subtotal: 1500, discount: 150, total: 1350 } });
+  await duenio.client.update({ where: { id: cliente }, data: ficha });
+  const al21 = await duenio.product.create({ data: { tenantId: a.id, name: "Vacío", price: 1000, alicuotaIva: 5 } });
+  const al105 = await duenio.product.create({ data: { tenantId: a.id, name: "Pan", price: 500, alicuotaIva: 4 } });
+  await duenio.order.update({ where: { id: venta }, data: { clientId: cliente, subtotal: 1500, discount: 150, total: 1350 } });
   for (const [producto, lineTotal] of [[al21, 1000], [al105, 500]] as const) {
-    await operatorPrisma.orderItem.create({
+    await duenio.orderItem.create({
       data: { tenantId: a.id, orderId: venta, productId: producto.id, name: producto.name, quantity: 1, unitPrice: lineTotal, lineTotal },
     });
   }

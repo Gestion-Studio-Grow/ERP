@@ -16,7 +16,8 @@
 // NO se confía en el cliente: el input se re-mapea y re-valida acá; el motor re-corre el dry-run
 // dentro del commit y rechaza (`ProvisionBlockedError`) cualquier plan con colisiones.
 
-import { operatorPrisma } from "@/lib/operator-db";
+// `operatorPrisma` sólo para la red (multilocal-core): cada paso de ahí se para en su negocio (`ponerGuc`).
+import { enElNegocio, operatorPrisma } from "@/lib/operator-db";
 import { operadorParaNegocio } from "@/lib/operador/guardia-negocio";
 import { requestIp } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
@@ -132,13 +133,14 @@ export async function commitTenantAction(raw: RawWizardForm): Promise<CommitActi
   // Auditoría persistente colgada del tenant creado (queda en su historial, control-plane).
   if (commit?.tenantId) {
     try {
-      await operatorPrisma.auditLog.create({
+      const tenantId = commit.tenantId;
+      await enElNegocio(tenantId, (tx) => tx.auditLog.create({
         data: {
-          tenantId: commit.tenantId,
+          tenantId,
           actor: `operator:${actor}`,
           action: "provision",
           entity: "Tenant",
-          entityId: commit.tenantId,
+          entityId: tenantId,
           channel: "admin",
           changes: {
             slug: input.slug,
@@ -151,7 +153,7 @@ export async function commitTenantAction(raw: RawWizardForm): Promise<CommitActi
             ip: ip ?? null,
           },
         },
-      });
+      }));
     } catch (err) {
       // Una falla al auditar no debe tumbar el alta ya cometida; se registra en el log del server.
       logger.error("operator.provisioning", "no se pudo auditar el alta", err, {

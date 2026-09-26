@@ -1226,15 +1226,17 @@ const DIA_CORTO = new Intl.DateTimeFormat("es-AR", {
 /**
  * "Retira hoy 10:00", "Envío mañana 18:30", "Retira sáb 26/09 10:00", en la zona del negocio.
  * `esHoy` marca la tarjeta: es lo que hay que tener listo antes. PURA (recibe el hoy).
+ * `retiro` es cómo se dice el retiro en el rubro ("Encuentro hoy 18:30" en una perfumería).
  */
 export function etiquetaDeHorario(
   horario: Date | string,
   fulfillment: string,
   hoy: DayKey,
+  retiro = "Retira",
 ): { texto: string; esHoy: boolean } {
   const d = new Date(horario);
   const dia = dateStrInBusinessTz(d);
-  const verbo = fulfillment === "DELIVERY" ? "Envío" : "Retira";
+  const verbo = fulfillment === "DELIVERY" ? "Envío" : retiro;
   const cuando = dia === hoy ? "hoy" : dia === nextDayKey(hoy) ? "mañana" : diaCorto(d);
   return { texto: `${verbo} ${cuando} ${fmtTime(d)}`, esHoy: dia === hoy };
 }
@@ -1259,13 +1261,15 @@ export function avisoPedidoListo(p: {
   negocio: string;
   direccionLocal: string | null;
   horarioLocal: string | null;
+  /** Cómo sigue "ya está …" en un retiro, según el rubro. Por defecto, "listo para retirar". */
+  listoPara?: string;
 }): string {
   const nombre = p.cliente.trim().split(/\s+/)[0];
   const saludo = nombre && nombre !== "Mostrador" ? `Hola ${nombre}` : "Hola";
   const listo =
     p.fulfillment === "DELIVERY"
       ? `tu pedido #${p.code} de ${p.negocio} ya está listo y sale${p.direccionEnvio ? ` para ${p.direccionEnvio}` : ""}.`
-      : `tu pedido #${p.code} de ${p.negocio} ya está listo para retirar.`;
+      : `tu pedido #${p.code} de ${p.negocio} ya está ${p.listoPara ?? "listo para retirar"}.`;
   const plata = p.pagado ? "Ya está pago." : `Total a pagar: ${fmtMoneyARS(p.total)}.`;
   const local =
     p.fulfillment !== "DELIVERY" && p.direccionLocal

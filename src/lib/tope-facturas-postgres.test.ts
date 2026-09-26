@@ -18,7 +18,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import pg from "pg";
-import { apuntarLaAppA, baseEfimeraDelArchivo, type BaseEfimera } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimera } from "@/test/base-efimera";
 import { runInTenantContext } from "@/lib/tenant-context";
 
 const laBase = baseEfimeraDelArchivo();
@@ -116,7 +116,7 @@ test("camino real: emitir suma un lugar del tope y el rechazo de ARCA lo devuelv
   prepararEntorno(base);
   const { contarFacturasDelMes } = await import("@/lib/bancos-glue");
   const { createInvoice, markInvoiceRejected } = await import("@/lib/invoice-core");
-  const { operatorPrisma } = await import("@/lib/operator-db");
+  const duenio = await prismaComoDuenio(base);
 
   const antes = await contarFacturasDelMes(base.a.id);
   const antesB = await contarFacturasDelMes(base.b.id);
@@ -137,7 +137,7 @@ test("camino real: emitir suma un lugar del tope y el rechazo de ARCA lo devuelv
   );
   assert.equal(await contarFacturasDelMes(base.a.id), antes + 1, "pendiente de ARCA: ocupa un lugar (va a tener CAE)");
 
-  const envio = await operatorPrisma.outboxEvent.findFirstOrThrow({
+  const envio = await duenio.outboxEvent.findFirstOrThrow({
     where: { tenantId: base.a.id, processedAt: null, payload: { path: ["invoiceId"], equals: id } },
   });
   const quedoRechazada = await markInvoiceRejected(id, base.a.id, "10016: prueba ENG-329", envio.id);

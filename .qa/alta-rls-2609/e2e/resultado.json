@@ -1,0 +1,9 @@
+{
+  "slug": "qa-alta-rls-muiu9yf9",
+  "pasos": [
+    "login de la consola",
+    "ficha con el dueño y 1 persona",
+    "reset del dueño: contraseña nueva generada, sin error"
+  ],
+  "errores": []
+}

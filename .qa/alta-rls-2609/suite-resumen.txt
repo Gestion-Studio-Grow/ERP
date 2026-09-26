@@ -1,0 +1,13 @@
+# tests 4280
+# pass 4274
+# fail 6
+# cancelled 0
+# skipped 0
+Fallas (todas previas a este cambio salvo la de sin-catalogo, ya corregida y re-corrida 21/21):
+    not ok 49 - POS de la bandeja: un pedido con la red caída conserva los datos del cliente y lo cargado
+not ok 414 - Vender en el navegador
+not ok 2765 - el committer real: con `sinCatalogo` no siembra ningún producto; sin él, siembra como siempre
+not ok 3915 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+not ok 3938 - lee un xlsx con fechas Date y números number
+not ok 3939 - filas totalmente vacías se descartan
+not ok 3940 - esXlsx reconoce el magic ZIP de un .xlsx real

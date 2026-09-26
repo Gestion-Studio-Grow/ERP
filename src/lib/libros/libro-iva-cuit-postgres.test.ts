@@ -13,7 +13,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraParaElTest } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 const CUIT = "30712456082";
@@ -32,19 +32,21 @@ test("QA vuelta 6 · el libro y el paquete de la casa suman el local del mismo C
   const { resumirRecibidos } = await import("@/lib/contador/recibidos-formato");
   const { pesosCsv } = await import("@/lib/libros/csv-ar");
   base.alBorrar(() => operatorPrisma.$disconnect());
+  // La consola (`operatorPrisma`) es `app_rls`, como en producción: sembrar y mirar desde afuera como dueño.
+  const duenio = await prismaComoDuenio(base);
 
   const RI = { arcaCondicionIva: "RESPONSABLE_INSCRIPTO" };
-  await operatorPrisma.tenant.update({ where: { id: base.a.id }, data: { modules: ["arca", "clients", "reports", "multilocal"], arcaCuit: CUIT, arcaPuntoVenta: 3, ...RI } });
-  await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { modules: ["arca", "clients", "reports"], arcaCuit: CUIT, arcaPuntoVenta: 4, ...RI } });
+  await duenio.tenant.update({ where: { id: base.a.id }, data: { modules: ["arca", "clients", "reports", "multilocal"], arcaCuit: CUIT, arcaPuntoVenta: 3, ...RI } });
+  await duenio.tenant.update({ where: { id: base.b.id }, data: { modules: ["arca", "clients", "reports"], arcaCuit: CUIT, arcaPuntoVenta: 4, ...RI } });
   const sufijo = base.a.id.slice(-6).toLowerCase();
-  const c = await operatorPrisma.tenant.create({
+  const c = await duenio.tenant.create({
     data: { name: "Lucía Benítez Diseño", slug: `lucia-${sufijo}`, subdomain: `lucia-${sufijo}`, arcaCuit: OTRO_CUIT, arcaPuntoVenta: 1, arcaCondicionIva: "MONOTRIBUTO", modules: ["arca"] },
   });
-  await operatorPrisma.carteraCliente.create({ data: { tenantId: base.a.id, clienteTenantId: base.b.id, alias: "Bernal", estado: "activa" } });
-  await operatorPrisma.carteraCliente.create({ data: { tenantId: base.a.id, clienteTenantId: c.id, alias: "Vínculo viejo", estado: "activa" } });
+  await duenio.carteraCliente.create({ data: { tenantId: base.a.id, clienteTenantId: base.b.id, alias: "Bernal", estado: "activa" } });
+  await duenio.carteraCliente.create({ data: { tenantId: base.a.id, clienteTenantId: c.id, alias: "Vínculo viejo", estado: "activa" } });
 
   const factura = (tenantId: string, tipo: number, pv: number, cae: string, iva: number) =>
-    operatorPrisma.invoice.create({
+    duenio.invoice.create({
       data: { tenantId, status: "AUTHORIZED", tipoComprobante: tipo, puntoVenta: pv, numero: 1, concepto: 1, docTipo: 99, docNro: "0", fecha: "20260815", neto: 1000, iva, total: 1000 + iva, cae },
     });
   await factura(base.a.id, 6, 3, "76123456789012", 210); // B 0003-00000001, real
@@ -54,7 +56,7 @@ test("QA vuelta 6 · el libro y el paquete de la casa suman el local del mismo C
 
   // La misma factura de proveedor, cargada en la casa y en el local: es UNA compra del CUIT.
   const compra = (tenantId: string, code: number) =>
-    operatorPrisma.stockPurchase.create({
+    duenio.stockPurchase.create({
       data: {
         tenantId, code, kind: "COMPRA", supplier: "FERRETERIA NORTE SA", totalCost: 1330, createdBy: "qa",
         facturaTipo: 1, facturaPuntoVenta: 7, facturaNumero: 900, facturaFecha: "20260810", facturaCuit: "30700000008",
@@ -132,7 +134,7 @@ test("QA vuelta 6 · el libro y el paquete de la casa suman el local del mismo C
     // Sin movimientos en ningún lado: se puede (los días vacíos se cierran al congelar).
     assert.equal(congelar(evaluarPasos(await leer(), sinCongelar)).ok, true);
     // El local vende el 20/08 y no cierra la caja: la casa NO puede congelar (su IVA va en el paquete).
-    await operatorPrisma.cashMovement.create({
+    await duenio.cashMovement.create({
       data: { tenantId: base.b.id, type: "INGRESO", amount: 5000, method: "EFECTIVO", reason: "venta de mostrador", occurredAt: new Date("2026-08-20T15:00:00Z"), createdBy: "user:qa" },
     });
     const pasos = evaluarPasos(await leer(), sinCongelar);
@@ -150,7 +152,7 @@ test("QA vuelta 6 · el libro y el paquete de la casa suman el local del mismo C
     const { TITULO_DESPUES_DEL_CONGELADO } = await import("./libro-iva-export");
     const { leerLibroIvaDelCuit } = await import("./libro-iva-red");
     const congeladoEl = new Date(Date.now() + 1_000);
-    await operatorPrisma.auditLog.create({
+    await duenio.auditLog.create({
       data: { tenantId: base.a.id, actor: "user:qa", action: ACCION_CONGELAR, entity: CIERRE_MES_ENTITY, entityId: "2026-08", changes: { por: "Ana" }, channel: "admin", createdAt: congeladoEl },
     });
     const final = () => leerDatosPaquete(base.a.id, "2026-08", { negocio: "Río Chico", pasos: null, ahora }).then(armarPaquete);
@@ -158,7 +160,7 @@ test("QA vuelta 6 · el libro y el paquete de la casa suman el local del mismo C
     assert.match(antes, /^Estado;Versión final/m);
     assert.match(antes, /^IVA débito \(comprobantes emitidos\);420,00\r?$/m);
     // Después del congelado, ARCA le autoriza al local una B con fecha 31/08 (un CAE que llegó tarde).
-    await operatorPrisma.invoice.create({
+    await duenio.invoice.create({
       data: {
         tenantId: base.b.id, status: "AUTHORIZED", tipoComprobante: 6, puntoVenta: 4, numero: 2, concepto: 1, docTipo: 99, docNro: "0",
         fecha: "20260831", neto: 1000, iva: 210, total: 1210, cae: "76123456789015", authorizedAt: new Date(congeladoEl.getTime() + 60_000),

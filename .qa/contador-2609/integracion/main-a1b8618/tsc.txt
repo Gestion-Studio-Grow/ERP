@@ -1,0 +1,11 @@
+# npx prisma generate && npx tsc --noEmit — 2026-09-26T23:17:27+00:00, árbol del merge contador-2609 + origin/main a1b8618
+prisma generate: exit 0
+✔ Generated Prisma Client (7.8.0) to ./src/generated/prisma in 766ms
+
+tsc --noEmit: exit 0, errores: 0
+
+Antes de los arreglos (tras resolver los 5 conflictos): exit 2, 4 errores:
+src/lib/operator-provisioning-actions.ts(83,24): error TS2304: Cannot find name 'operatorPrisma'.
+src/lib/operator-provisioning-actions.ts(83,53): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/lib/operator-provisioning-actions.ts(171,13): error TS2304: Cannot find name 'operatorPrisma'.
+src/lib/operator-provisioning-actions.ts(171,42): error TS7006: Parameter 'tx' implicitly has an 'any' type.

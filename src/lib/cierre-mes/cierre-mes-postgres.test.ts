@@ -13,7 +13,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraParaElTest } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor, type SalidaDeAccion } from "@/test/accion-de-servidor";
 
 const MES = "2026-08";
@@ -38,6 +38,8 @@ test("congelar el mes: cierra los días sin movimientos, frena con caja sin cerr
   const { CIERRE_DIARIO_ACTION, CIERRE_DIARIO_ENTITY, lastClosedDayTx } = await import("@/lib/caja/frontera-cierre");
   const { GET: paquete } = await import("@/app/admin/(dashboard)/cierre-mes/paquete/route");
   base.alBorrar(() => operatorPrisma.$disconnect());
+  // La consola (`operatorPrisma`) es `app_rls`, como en producción: sembrar y mirar desde afuera como dueño.
+  const duenio = await prismaComoDuenio(base);
 
   type E = Awaited<ReturnType<typeof congelarMesAction>>;
   const valor = <R>(s: SalidaDeAccion<R>): R => {
@@ -54,14 +56,14 @@ test("congelar el mes: cierra los días sin movimientos, frena con caja sin cerr
     return f;
   };
   const filasDe = (tenantId: string) =>
-    operatorPrisma.auditLog.findMany({
+    duenio.auditLog.findMany({
       where: { tenantId, entity: { in: [CIERRE_DIARIO_ENTITY, CIERRE_MES_ENTITY] } },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: { action: true, entityId: true, changes: true },
     });
 
   // ── hayMovimientosSinCerrar, contra la base con la RLS de cada negocio ──
-  await operatorPrisma.cashMovement.create({
+  await duenio.cashMovement.create({
     data: { tenantId: base.b.id, type: "INGRESO", amount: 1000, reason: "qa", occurredAt: new Date("2026-08-14T15:00:00Z"), createdBy: "qa" },
   });
   const finDeAgosto = new Date("2026-09-01T03:00:00Z"); // 01/09 00:00 en Buenos Aires

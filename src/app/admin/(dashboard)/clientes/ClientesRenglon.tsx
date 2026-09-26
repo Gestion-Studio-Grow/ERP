@@ -14,7 +14,7 @@ import { Tabla, type ColumnaTabla } from "@/components/ui/Tabla";
 import { hrefConParametros } from "@/components/ui/tabla-core";
 import { fmtShortDate, fmtTime } from "@/lib/datetime";
 import { SEGMENTOS, SEGMENTO_ETIQUETA, type Segmento } from "@/lib/crm/segmentos";
-import type { FilaCliente } from "./ClientesLista";
+import type { FilaCliente } from "./lista-core";
 import { TAMANIO_PAGINA, ultimaVez } from "./lista-core";
 import { EVENTO_FICHA, type PedidoFicha } from "./NuevaFicha";
 
@@ -158,7 +158,7 @@ export default function ClientesRenglon({
     <p>
       Nadie coincide{q ? ` con «${q}»` : ""}
       {situacion ? ` en «${SEGMENTO_ETIQUETA[situacion]}»` : ""}.{" "}
-      <Link href={ruta} className="font-medium text-accent underline-offset-2 hover:underline">
+      <Link href={ruta} className="font-medium text-accent-ink underline-offset-2 hover:underline">
         Ver todos
       </Link>
     </p>

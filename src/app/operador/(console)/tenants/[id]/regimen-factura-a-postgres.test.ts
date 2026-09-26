@@ -7,11 +7,13 @@
 //   · sin sesión de consola (la dueña de un negocio, o una cookie forjada): al login, nada escrito;
 //   · un negocio que no es Responsable Inscripto, uno inexistente o una clase inventada: rechazado;
 //   · CH (beauty-spa): un operador que no es el dueño de GSG no lo toca;
-//   · el caso bueno escribe UNA fila en ESE negocio (y ningún otro la lee como suya).
+//   · el caso bueno escribe UNA fila en ESE negocio (y ningún otro la lee como suya);
+//   · la ficha de la consola (sujeta a RLS, como en producción) muestra la clase guardada: antes la
+//     leía sin pararse en el negocio y con `app_rls` siempre mostraba «sin elegir».
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraParaElTest } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor, type SalidaDeAccion } from "@/test/accion-de-servidor";
 import type { ResultadoRegimenFacturaA } from "./regimen-factura-a-actions";
 
@@ -37,12 +39,20 @@ test("corregir la Factura A desde la consola: sólo con sesión de operador, só
   const { corregirRegimenFacturaAAction } = await import("./regimen-factura-a-actions");
   const { leerRegimenFacturaA } = await import("@/lib/fiscal/regimen-factura-a.server");
   const { ACCION_REGIMEN_FACTURA_A } = await import("@/lib/fiscal/regimen-factura-a");
+  const { FacturaAFicha } = await import("./FacturaAFicha");
   base.alBorrar(() => operatorPrisma.$disconnect());
+  // La consola (`operatorPrisma`) es `app_rls`: sembrar y mirar desde afuera, como dueño de las tablas.
+  const comoDuenio = await prismaComoDuenio(base);
+  /** Lo que la ficha le pasa al formulario como clase vigente, leído por la consola. */
+  const enLaFicha = async (tenantId: string) => {
+    const el = (await FacturaAFicha({ tenantId })) as { props: { children: { props: { actual: unknown } } } } | null;
+    return el === null ? "sin bloque" : el.props.children.props.actual;
+  };
 
-  await operatorPrisma.tenant.update({ where: { id: base.a.id }, data: { arcaCondicionIva: "MONOTRIBUTO" } });
-  await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { arcaCondicionIva: "RESPONSABLE_INSCRIPTO" } });
+  await comoDuenio.tenant.update({ where: { id: base.a.id }, data: { arcaCondicionIva: "MONOTRIBUTO" } });
+  await comoDuenio.tenant.update({ where: { id: base.b.id }, data: { arcaCondicionIva: "RESPONSABLE_INSCRIPTO" } });
   const filas = () =>
-    operatorPrisma.auditLog.findMany({ where: { action: ACCION_REGIMEN_FACTURA_A }, select: { tenantId: true, entityId: true, actor: true, changes: true } });
+    comoDuenio.auditLog.findMany({ where: { action: ACCION_REGIMEN_FACTURA_A }, select: { tenantId: true, entityId: true, actor: true, changes: true } });
   const form = (tenantId: string, regimen: string, confirmaFuera = false) => {
     const f = new FormData();
     f.set("tenantId", tenantId);
@@ -77,7 +87,7 @@ test("corregir la Factura A desde la consola: sólo con sesión de operador, só
 
   // 3) CH: un operador que no es el dueño de GSG no lo toca; el dueño sí.
   const slugB = base.b.slug;
-  await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { slug: "beauty-spa" } });
+  await comoDuenio.tenant.update({ where: { id: base.b.id }, data: { slug: "beauty-spa" } });
   try {
     rechazo(await conSoporte(form(base.b.id, "M")));
     assert.deepEqual(await filas(), [], "CH sin el OK del dueño: nada escrito");
@@ -93,7 +103,7 @@ test("corregir la Factura A desde la consola: sólo con sesión de operador, só
     );
     assert.deepEqual(s.tipo === "respuesta" && s.valor, { ok: true, regimen: "M" });
   } finally {
-    await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { slug: slugB } });
+    await comoDuenio.tenant.update({ where: { id: base.b.id }, data: { slug: slugB } });
   }
 
   // 4) El caso bueno: la fila queda en ESE negocio, con el operador; la más nueva manda.
@@ -106,4 +116,6 @@ test("corregir la Factura A desde la consola: sólo con sesión de operador, só
   assert.deepEqual(escritas.map((f) => f.actor).sort(), [`operator:${operadorDuenio()}`, "operator:soporte-qa"].sort());
   assert.equal(await leerRegimenFacturaA(base.b.id), "A");
   assert.equal(await leerRegimenFacturaA(base.a.id), null, "A no hereda la clase de B");
+  assert.equal(await enLaFicha(base.b.id), "A", "la ficha de la consola muestra la clase guardada");
+  assert.equal(await enLaFicha(base.a.id), "sin bloque", "un monotributista no tiene el bloque");
 });

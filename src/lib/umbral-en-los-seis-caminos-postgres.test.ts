@@ -17,7 +17,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraDelArchivo } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, vigenteEn } from "@/lib/fiscal/vigencias";
 import { runInTenantContext } from "@/lib/tenant-context";
@@ -39,20 +39,20 @@ async function preparar(t: import("node:test").TestContext) {
     ARCA_INVOICING_ENABLED: "true",
   });
   delete env.ARCA_MODO; // stub: nada sale a la red
-  const { operatorPrisma } = await import("@/lib/operator-db");
+  const duenio = await prismaComoDuenio(base);
   const { fechaFiscalDelDia } = await import("@/lib/libros/fecha-fiscal");
   const hoy = fechaFiscalDelDia();
   const vig = vigenteEn(UMBRAL_IDENTIFICACION_CONSUMIDOR_FINAL, hoy);
   assert.ok(vig, "la tabla de vigencias tiene que tener un umbral vigente hoy");
   const umbral = vig.valor;
   // Perfil fiscal real del negocio A: CUIT válido, punto de venta 1, homologación.
-  await operatorPrisma.tenant.update({
+  await duenio.tenant.update({
     where: { id: base.a.id },
     data: { arcaCuit: "20111111112", arcaPuntoVenta: 1, arcaHomologacion: true },
   });
   const factura = (id: string | null) => {
     assert.ok(id, "el camino tiene que haber creado la factura");
-    return operatorPrisma.invoice.findUniqueOrThrow({
+    return duenio.invoice.findUniqueOrThrow({
       where: { id },
       select: { status: true, cae: true, rechazoMotivo: true, tenantId: true },
     });
@@ -72,17 +72,17 @@ async function preparar(t: import("node:test").TestContext) {
   // Los caminos sin sesión (worker, webhook, API externa) corren con el negocio explícito, como
   // en producción.
   const enA = <T,>(fn: () => Promise<T>) => runInTenantContext(base.a.id, fn);
-  return { base, operatorPrisma, hoy, umbral, factura, rechazadaPor, perfilInscripto, enA };
+  return { base, duenio, hoy, umbral, factura, rechazadaPor, perfilInscripto, enA };
 }
 
 test("pedido (facturarOrden): sin identificar desde el umbral no emite y deja el motivo; un peso menos, emite", async (t) => {
   const p = await preparar(t);
   if (!p) return;
-  const { base, operatorPrisma, umbral } = p;
+  const { base, duenio, umbral } = p;
   const { facturarOrden } = await import("@/lib/invoice-from-order");
   const [enElUmbral, debajo] = base.a.pedidos;
-  await operatorPrisma.order.update({ where: { id: enElUmbral }, data: { paid: true, total: umbral } });
-  await operatorPrisma.order.update({ where: { id: debajo }, data: { paid: true, total: umbral - 1 } });
+  await duenio.order.update({ where: { id: enElUmbral }, data: { paid: true, total: umbral } });
+  await duenio.order.update({ where: { id: debajo }, data: { paid: true, total: umbral - 1 } });
 
   await p.rechazadaPor(await p.enA(() => facturarOrden(enElUmbral, base.a.id)), MOTIVO_UMBRAL);
 
@@ -95,15 +95,15 @@ test("pedido (facturarOrden): sin identificar desde el umbral no emite y deja el
 test("pedido (facturarOrden) con emisor inscripto e IVA parejo: no emite y deja el motivo", async (t) => {
   const p = await preparar(t);
   if (!p) return;
-  const { base, operatorPrisma } = p;
+  const { base, duenio } = p;
   const inv = await import("@/lib/invoice-from-order");
   const { createInvoice } = await import("@/lib/invoice-core");
   const { procesarEnviosDelNegocio } = await import("@/lib/arca-dispatch");
   const pedido = base.a.pedidos[2];
-  await operatorPrisma.order.update({ where: { id: pedido }, data: { paid: true, total: 1210 } });
+  await duenio.order.update({ where: { id: pedido }, data: { paid: true, total: 1210 } });
   const id = await p.enA(() => inv.facturarOrden(pedido, base.a.id, {
     leerOrden: (orderId, tenantId) =>
-      operatorPrisma.order.findFirst({ where: { id: orderId, tenantId }, select: { total: true } }),
+      duenio.order.findFirst({ where: { id: orderId, tenantId }, select: { total: true } }),
     getFiscalProfile: p.perfilInscripto,
     createInvoice,
     procesarEnviosDelNegocio,
@@ -114,18 +114,18 @@ test("pedido (facturarOrden) con emisor inscripto e IVA parejo: no emite y deja 
 test("turno (facturarAppointment): sin identificar desde el umbral no emite; inscripto con IVA parejo tampoco", async (t) => {
   const p = await preparar(t);
   if (!p) return;
-  const { base, operatorPrisma, umbral } = p;
+  const { base, duenio, umbral } = p;
   const { facturarAppointment } = await import("@/lib/invoice-from-appointment");
   const { createInvoice } = await import("@/lib/invoice-core");
   const { procesarEnviosDelNegocio } = await import("@/lib/arca-dispatch");
   const a = base.a;
-  const box = await operatorPrisma.box.create({ data: { tenantId: a.id, name: "Gabinete 1" } });
-  const prof = await operatorPrisma.professional.create({ data: { tenantId: a.id, name: "Lucía" } });
-  const serv = await operatorPrisma.service.create({
+  const box = await duenio.box.create({ data: { tenantId: a.id, name: "Gabinete 1" } });
+  const prof = await duenio.professional.create({ data: { tenantId: a.id, name: "Lucía" } });
+  const serv = await duenio.service.create({
     data: { tenantId: a.id, name: "Tratamiento", durationMin: 60, price: 1000 },
   });
   const turno = async (monto: number, hora: number) => {
-    const ap = await operatorPrisma.appointment.create({
+    const ap = await duenio.appointment.create({
       data: {
         tenantId: a.id,
         clientId: a.clientes[0],
@@ -137,7 +137,7 @@ test("turno (facturarAppointment): sin identificar desde el umbral no emite; ins
         status: "COMPLETED",
       },
     });
-    await operatorPrisma.payment.create({
+    await duenio.payment.create({
       data: { tenantId: a.id, appointmentId: ap.id, amount: monto, method: "EFECTIVO", status: "APPROVED" },
     });
     return ap.id;
@@ -149,12 +149,12 @@ test("turno (facturarAppointment): sin identificar desde el umbral no emite; ins
   const conInscripto = await turno(1210, 15);
   const id = await p.enA(() => facturarAppointment(conInscripto, a.id, {
     leerTurno: (appointmentId, tenantId) =>
-      operatorPrisma.appointment.findFirst({
+      duenio.appointment.findFirst({
         where: { id: appointmentId, tenantId },
         include: { service: true, payment: true },
       }),
     marcarPago: (paymentId, invoiceId) =>
-      operatorPrisma.payment.update({ where: { id: paymentId }, data: { comprobanteNro: invoiceId } }),
+      duenio.payment.update({ where: { id: paymentId }, data: { comprobanteNro: invoiceId } }),
     getFiscalProfile: p.perfilInscripto,
     createInvoice,
     procesarEnviosDelNegocio,
@@ -189,12 +189,12 @@ test("Mercado Pago (facturarPagoMP): sin identificar desde el umbral no emite; i
 test("facturita (emitirFacturitaAction, Server Action real): sin identificar desde el umbral no emite y deja el motivo", async (t) => {
   const p = await preparar(t);
   if (!p) return;
-  const { base, operatorPrisma, umbral } = p;
+  const { base, duenio, umbral } = p;
   const { emitirFacturitaAction } = await import("@/lib/facturita-actions");
   // En el negocio B: el tope de 5 facturas por mes de facturita no carga con las que los otros
   // tests dejan en A.
   const b = base.b;
-  await operatorPrisma.tenant.update({
+  await duenio.tenant.update({
     where: { id: b.id },
     data: { arcaCuit: "20111111112", arcaPuntoVenta: 1, arcaHomologacion: true, blueprintId: "facturita" },
   });
@@ -223,12 +223,12 @@ test("facturita (emitirFacturitaAction, Server Action real): sin identificar des
 test("bancos (emitirPropuestasAction, Server Action real): un movimiento sin identificar desde el umbral no emite y deja el motivo", async (t) => {
   const p = await preparar(t);
   if (!p) return;
-  const { base, operatorPrisma, umbral, hoy } = p;
+  const { base, duenio, umbral, hoy } = p;
   const { emitirPropuestasAction } = await import("@/lib/bancos-actions");
-  const imp = await operatorPrisma.importacionBancaria.create({
+  const imp = await duenio.importacionBancaria.create({
     data: { tenantId: base.a.id, nombreArchivo: "extracto.csv", origen: "banco", archivo: Buffer.from("fecha;monto"), mapeoJson: {} },
   });
-  const mov = await operatorPrisma.movimientoImportado.create({
+  const mov = await duenio.movimientoImportado.create({
     data: {
       tenantId: base.a.id,
       importacionId: imp.id,
@@ -244,16 +244,16 @@ test("bancos (emitirPropuestasAction, Server Action real): un movimiento sin ide
     emitirPropuestasAction([mov.id]),
   );
   assert.equal(salida.tipo, "respuesta");
-  const despues = await operatorPrisma.movimientoImportado.findUniqueOrThrow({ where: { id: mov.id } });
+  const despues = await duenio.movimientoImportado.findUniqueOrThrow({ where: { id: mov.id } });
   await p.rechazadaPor(despues.invoiceId, MOTIVO_UMBRAL);
 });
 
 test("API externa (createExternalOrder): un pedido sin identificar desde el umbral no emite y deja el motivo", async (t) => {
   const p = await preparar(t);
   if (!p) return;
-  const { base, operatorPrisma, umbral } = p;
+  const { base, duenio, umbral } = p;
   const { createExternalOrder } = await import("@/lib/external-orders");
-  const prod = await operatorPrisma.product.create({
+  const prod = await duenio.product.create({
     data: { tenantId: base.a.id, name: "Pala de carbono", price: umbral, active: true },
   });
   const r = await p.enA(() => createExternalOrder(base.a.id, {
@@ -263,6 +263,6 @@ test("API externa (createExternalOrder): un pedido sin identificar desde el umbr
     externalRef: "woo-umbral-1",
     invoice: true,
   }));
-  const f = await operatorPrisma.invoice.findFirstOrThrow({ where: { tenantId: base.a.id, orderId: r.id } });
+  const f = await duenio.invoice.findFirstOrThrow({ where: { tenantId: base.a.id, orderId: r.id } });
   await p.rechazadaPor(f.id, MOTIVO_UMBRAL);
 });

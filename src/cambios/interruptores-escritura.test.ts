@@ -19,7 +19,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { apuntarLaAppA, baseEfimeraParaElTest } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 // ── 1. Trinquete ─────────────────────────────────────────────────────────────
@@ -31,6 +31,8 @@ const ESCRITORES_PERMITIDOS: Record<string, string> = {
   "src/lib/operador/interruptores-escritura.server.ts": "la escritura condicional de la consola",
   "scripts/provision-tenant.ts": "el alta integrada (todavía no la escribe)",
   "scripts/qa/visual-audit-gate.mjs": "el gate visual, SÓLO contra su PGlite en memoria (prende el piloto para medirlo)",
+  "scripts/qa/facturacion-escala-e2e.mjs":
+    "el QA de Facturación a escala, SÓLO contra su base efímera local (crearBaseEfimera se niega a un servidor que no sea local): prende el diseño nuevo para recorrerlo",
 };
 
 /** Quién puede importar la escritura real. */
@@ -126,7 +128,10 @@ test("contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, ais
   prepararAccionesDeServidor();
 
   const { basePrisma } = await import("@/lib/prisma-base");
+  // La consola (sujeta a RLS, como en producción): la usan las transacciones que simulan a OTRO
+  // operador reteniendo el candado. Sembrar y mirar desde afuera, como dueño.
   const { operatorPrisma } = await import("@/lib/operator-db");
+  const duenio = await prismaComoDuenio(base);
   const rol = await basePrisma.$queryRaw<{ r: string; bypass: boolean }[]>`
     SELECT current_user AS r, rolbypassrls AS bypass FROM pg_roles WHERE rolname = current_user`;
   assert.equal(rol[0]?.bypass, false, "la app tiene que correr con un rol sin BYPASSRLS");
@@ -161,9 +166,9 @@ test("contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, ais
   );
   assert.ok(fijar.ok);
   const crear = (slug: string, modules: string[]) =>
-    operatorPrisma.tenant.create({ data: { name: slug, slug, blueprintId: "carniceria", modules } });
+    duenio.tenant.create({ data: { name: slug, slug, blueprintId: "carniceria", modules } });
   const filasDe = (tenantId: string) =>
-    operatorPrisma.auditLog.findMany({ where: { tenantId, entity: "Interruptor" }, orderBy: { createdAt: "asc" } });
+    duenio.auditLog.findMany({ where: { tenantId, entity: "Interruptor" }, orderBy: { createdAt: "asc" } });
   const comoPanel = async (slug: string) => {
     e.FORCE_TENANT_SLUG = slug;
     return {
@@ -254,7 +259,7 @@ test("contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, ais
     );
     assert.equal(modulos.tipo, "rechazado");
     assert.match((modulos as { motivo: string }).motivo, /trabaja por apps: con este cambio dejaría de ver .*Stock/);
-    const trasRechazo = await operatorPrisma.tenant.findUniqueOrThrow({ where: { id: carniceria.id }, select: { modules: true } });
+    const trasRechazo = await duenio.tenant.findUniqueOrThrow({ where: { id: carniceria.id }, select: { modules: true } });
     assert.deepEqual([...trasRechazo.modules].sort(), [...negocioReal.modules].sort(), "no se tocó la asignación");
 
     // (b) Carrera: mientras una escritura de módulos tiene el candado, "apagar" espera, y al entrar

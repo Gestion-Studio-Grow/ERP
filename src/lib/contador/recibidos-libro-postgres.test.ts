@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { apuntarLaAppA, baseEfimeraParaElTest } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 const CUIT_DE_B = "30700000067";
@@ -45,10 +45,12 @@ test("compras del cliente en su Libro IVA y en el listado del mes", async (t) =>
   const { leerLibroIva } = await import("@/lib/libros/libro-iva-loader");
   const { GET } = await import("@/app/contador/cliente/[clienteId]/recibidos/csv/route");
   base.alBorrar(() => operatorPrisma.$disconnect());
+  // La consola (`operatorPrisma`) es `app_rls`, como en producción: sembrar y mirar desde afuera como dueño.
+  const duenio = await prismaComoDuenio(base);
 
-  await operatorPrisma.tenant.update({ where: { id: base.a.id }, data: { modules: ["cartera", "clients", "reports"] } });
-  await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { arcaCuit: CUIT_DE_B } });
-  await operatorPrisma.carteraCliente.create({ data: { tenantId: base.a.id, clienteTenantId: base.b.id, alias: "Almacén de B" } });
+  await duenio.tenant.update({ where: { id: base.a.id }, data: { modules: ["cartera", "clients", "reports"] } });
+  await duenio.tenant.update({ where: { id: base.b.id }, data: { arcaCuit: CUIT_DE_B } });
+  await duenio.carteraCliente.create({ data: { tenantId: base.a.id, clienteTenantId: base.b.id, alias: "Almacén de B" } });
   const comoEstudio = <T>(fn: () => Promise<T>) => ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, fn);
   const valor = <R>(s: { tipo: string; valor?: R }) => {
     assert.equal(s.tipo, "respuesta", JSON.stringify(s));
@@ -64,8 +66,8 @@ test("compras del cliente en su Libro IVA y en el listado del mes", async (t) =>
     // Los recibidos de AGOSTO se subieron el 3/9. Y ese día la dueña cargó una compra del
     // mostrador SIN factura: ésa sí va por el día de carga.
     const CARGA = new Date("2026-09-03T15:00:00Z");
-    await operatorPrisma.stockPurchase.updateMany({ where: { tenantId: base.b.id }, data: { createdAt: CARGA } });
-    await operatorPrisma.stockPurchase.create({
+    await duenio.stockPurchase.updateMany({ where: { tenantId: base.b.id }, data: { createdAt: CARGA } });
+    await duenio.stockPurchase.create({
       data: { tenantId: base.b.id, code: 9_999, kind: "COMPRA", supplier: "Mayorista del barrio", totalCost: 5000, createdAt: CARGA, createdBy: "qa" },
     });
     const libroDe = (mes: "2026-08" | "2026-09") => tenantTransaction((tx) => leerLibroIva(tx, base.b.id, mes), { tenantId: base.b.id });
@@ -85,7 +87,7 @@ test("compras del cliente en su Libro IVA y en el listado del mes", async (t) =>
     // QA 26/09, bloqueante 2: Soporte lo dio de alta como RESPONSABLE INSCRIPTO. Sin CAE todavía,
     // manda la condición cargada: el IVA de lo importado es crédito fiscal y el paquete que baja la
     // contadora trae neto e IVA crédito por renglón (antes: sólo el total y «no se sabe si…»).
-    await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { arcaCondicionIva: "RESPONSABLE_INSCRIPTO" } });
+    await duenio.tenant.update({ where: { id: base.b.id }, data: { arcaCondicionIva: "RESPONSABLE_INSCRIPTO" } });
     const declarado = await libroDe("2026-08");
     assert.equal(declarado.resumen.condicion, "responsable-inscripto", "la condición cargada por Soporte manda");
     // QA 26/09, vuelta 4: FERRETERIA NORTE SA (IVA 150 sobre neto 1.000, 15 %: ninguna alícuota vigente)
@@ -102,14 +104,14 @@ test("compras del cliente en su Libro IVA y en el listado del mes", async (t) =>
     assert.match(csv, /^IVA crédito \(facturas de proveedor\);/m, "el resumen trae el IVA crédito");
     assert.doesNotMatch(csv, /no se sabe si el negocio es responsable inscripto/);
     // Monotributista cargado: no computa crédito fiscal aunque tenga facturas A de proveedores.
-    await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { arcaCondicionIva: "MONOTRIBUTO" } });
+    await duenio.tenant.update({ where: { id: base.b.id }, data: { arcaCondicionIva: "MONOTRIBUTO" } });
     const mono = await libroDe("2026-08");
     assert.equal(mono.resumen.condicion, "monotributo");
     assert.equal(mono.resumen.ivaCredito, 0);
-    await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { arcaCondicionIva: null } });
+    await duenio.tenant.update({ where: { id: base.b.id }, data: { arcaCondicionIva: null } });
 
     // Con una Factura B emitida en julio, B es responsable inscripto: el IVA de lo importado es su crédito.
-    await operatorPrisma.invoice.create({
+    await duenio.invoice.create({
       data: {
         tenantId: base.b.id, status: "AUTHORIZED", tipoComprobante: 6, puntoVenta: 3, numero: 1, concepto: 1,
         docTipo: 99, docNro: "0", fecha: "20260715", neto: 1000, iva: 210, total: 1210,
@@ -146,10 +148,10 @@ test("compras del cliente en su Libro IVA y en el listado del mes", async (t) =>
       f.set("compra", compra);
       return f;
     };
-    const notasDe = async (id: string) => (await operatorPrisma.stockPurchase.findUniqueOrThrow({ where: { id }, select: { notes: true } })).notes;
-    const revisiones = () => operatorPrisma.auditLog.count({ where: { action: ACCION_RECIBIDO_REVISADO } });
+    const notasDe = async (id: string) => (await duenio.stockPurchase.findUniqueOrThrow({ where: { id }, select: { notes: true } })).notes;
+    const revisiones = () => duenio.auditLog.count({ where: { action: ACCION_RECIBIDO_REVISADO } });
 
-    const marcada = await operatorPrisma.stockPurchase.findFirstOrThrow({
+    const marcada = await duenio.stockPurchase.findFirstOrThrow({
       where: { tenantId: base.b.id, notes: { contains: "A revisar:" } },
       select: { id: true, notes: true, facturaIva: true },
     });
@@ -166,7 +168,7 @@ test("compras del cliente en su Libro IVA y en el listado del mes", async (t) =>
       error: "Ese cliente no está en tu cartera.",
     });
     // 3) Cliente de la cartera, pero la compra es de OTRO negocio (del estudio): no la encuentra ni la toca.
-    const ajena = await operatorPrisma.stockPurchase.create({
+    const ajena = await duenio.stockPurchase.create({
       data: { tenantId: base.a.id, code: 77_777, kind: "COMPRA", supplier: "Compra del estudio", totalCost: 100, createdBy: "qa", notes: `${NOTA_IMPORTADO}, por qa. A revisar: forjada` },
     });
     assert.equal(valor<RR>(await comoEstudio(() => revisarRecibidoAction(fd(base.b.id, ajena.id)))).ok, false);
@@ -184,7 +186,7 @@ test("compras del cliente en su Libro IVA y en el listado del mes", async (t) =>
     const notas = await notasDe(marcada.id);
     assert.equal(aRevisarDeNotas(notas), null);
     assert.match(notas ?? "", /Revisado por /);
-    const filas = await operatorPrisma.auditLog.findMany({ where: { action: ACCION_RECIBIDO_REVISADO } });
+    const filas = await duenio.auditLog.findMany({ where: { action: ACCION_RECIBIDO_REVISADO } });
     assert.equal(filas.length, 1);
     assert.deepEqual([filas[0].tenantId, filas[0].entityId, filas[0].actor], [base.b.id, marcada.id, `estudio:${base.a.id}`], "queda en la auditoría del CLIENTE");
 
@@ -194,7 +196,7 @@ test("compras del cliente en su Libro IVA y en el listado del mes", async (t) =>
 
   await t.test("cliente grande: más de 5.000 comprobantes en el mes salen TODOS en el archivo y en el resumen", async () => {
     const N = 5_001;
-    await operatorPrisma.stockPurchase.createMany({
+    await duenio.stockPurchase.createMany({
       data: Array.from({ length: N }, (_, i) => ({
         tenantId: base.b.id,
         code: 10_000 + i,

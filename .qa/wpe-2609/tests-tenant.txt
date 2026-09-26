@@ -1,0 +1,170 @@
+TAP version 13
+# Subtest: devuelve el subdominio de un host del dominio base
+ok 1 - devuelve el subdominio de un host del dominio base
+  ---
+  duration_ms: 2.079588
+  type: 'test'
+  ...
+# Subtest: ignora puerto y mayúsculas
+ok 2 - ignora puerto y mayúsculas
+  ---
+  duration_ms: 0.42794
+  type: 'test'
+  ...
+# Subtest: el dominio base pelado o www NO tienen subdominio (fallback single-tenant)
+ok 3 - el dominio base pelado o www NO tienen subdominio (fallback single-tenant)
+  ---
+  duration_ms: 0.335142
+  type: 'test'
+  ...
+# Subtest: un host ajeno al dominio base devuelve null (no cross-tenant por accidente)
+ok 4 - un host ajeno al dominio base devuelve null (no cross-tenant por accidente)
+  ---
+  duration_ms: 0.349745
+  type: 'test'
+  ...
+# Subtest: toma solo el primer host de una lista x-forwarded y el primer label
+ok 5 - toma solo el primer host de una lista x-forwarded y el primer label
+  ---
+  duration_ms: 0.536729
+  type: 'test'
+  ...
+# Subtest: host vacío o ausente devuelve null
+ok 6 - host vacío o ausente devuelve null
+  ---
+  duration_ms: 0.255247
+  type: 'test'
+  ...
+# Subtest: sin APP_BASE_DOMAIN configurado, siempre null (single-tenant)
+ok 7 - sin APP_BASE_DOMAIN configurado, siempre null (single-tenant)
+  ---
+  duration_ms: 0.422034
+  type: 'test'
+  ...
+# Subtest: forcedTenantSlug: null si la env var no está o está vacía
+ok 8 - forcedTenantSlug: null si la env var no está o está vacía
+  ---
+  duration_ms: 0.532879
+  type: 'test'
+  ...
+# Subtest: forcedTenantSlug: normaliza trim + lowercase
+ok 9 - forcedTenantSlug: normaliza trim + lowercase
+  ---
+  duration_ms: 0.613285
+  type: 'test'
+  ...
+# Subtest: resolveForcedTenantId: devuelve el id cuando el slug matchea
+ok 10 - resolveForcedTenantId: devuelve el id cuando el slug matchea
+  ---
+  duration_ms: 0.576604
+  type: 'test'
+  ...
+# Subtest: resolveForcedTenantId: THROW fail-closed si el slug no existe
+ok 11 - resolveForcedTenantId: THROW fail-closed si el slug no existe
+  ---
+  duration_ms: 1.092356
+  type: 'test'
+  ...
+# Subtest: normalizeHost: primer host de la lista, sin puerto, lowercase
+ok 12 - normalizeHost: primer host de la lista, sin puerto, lowercase
+  ---
+  duration_ms: 0.276867
+  type: 'test'
+  ...
+# Subtest: parseTenantHostMap: parsea pares host=sub y tolera espacios/;-sobrante
+ok 13 - parseTenantHostMap: parsea pares host=sub y tolera espacios/;-sobrante
+  ---
+  duration_ms: 0.398616
+  type: 'test'
+  ...
+# Subtest: parseTenantHostMap: vacío/indefinido → mapa vacío
+ok 14 - parseTenantHostMap: vacío/indefinido → mapa vacío
+  ---
+  duration_ms: 0.206164
+  type: 'test'
+  ...
+# Subtest: hostMapSubdomain: matchea el hostname exacto (case/puerto-insensible)
+ok 15 - hostMapSubdomain: matchea el hostname exacto (case/puerto-insensible)
+  ---
+  duration_ms: 0.522278
+  type: 'test'
+  ...
+# Subtest: hostMapSubdomain: host fuera del mapa → null (cae al método de subdominio)
+ok 16 - hostMapSubdomain: host fuera del mapa → null (cae al método de subdominio)
+  ---
+  duration_ms: 0.293394
+  type: 'test'
+  ...
+# Subtest: hostMapSubdomain: sin TENANT_HOST_MAP → null (no rompe el flujo de subdominio)
+ok 17 - hostMapSubdomain: sin TENANT_HOST_MAP → null (no rompe el flujo de subdominio)
+  ---
+  duration_ms: 0.202421
+  type: 'test'
+  ...
+# Subtest: HOSTS_PUBLICADOS: el host del código resuelve sin la variable, y la variable le gana
+ok 18 - HOSTS_PUBLICADOS: el host del código resuelve sin la variable, y la variable le gana
+  ---
+  duration_ms: 0.38277
+  type: 'test'
+  ...
+# Subtest: HOSTS_PUBLICADOS: sólo hosts .vercel.app exactos y en minúscula (lo que compara normalizeHost)
+ok 19 - HOSTS_PUBLICADOS: sólo hosts .vercel.app exactos y en minúscula (lo que compara normalizeHost)
+  ---
+  duration_ms: 0.583929
+  type: 'test'
+  ...
+# Subtest: el pin por env NO lanza fuera de producción, y ni siquiera mira la base
+ok 20 - el pin por env NO lanza fuera de producción, y ni siquiera mira la base
+  ---
+  duration_ms: 0.568375
+  type: 'test'
+  ...
+# Subtest: el pin por env NO lanza en producción con UN solo tenant (no hay a quién filtrarle)
+ok 21 - el pin por env NO lanza en producción con UN solo tenant (no hay a quién filtrarle)
+  ---
+  duration_ms: 0.289513
+  type: 'test'
+  ...
+# Subtest: el pin por env LANZA en producción con más de un tenant
+ok 22 - el pin por env LANZA en producción con más de un tenant
+  ---
+  duration_ms: 0.529215
+  type: 'test'
+  ...
+# Subtest: el mensaje dice QUÉ sacar y DE DÓNDE (si no, el próximo lo saca del código)
+ok 23 - el mensaje dice QUÉ sacar y DE DÓNDE (si no, el próximo lo saca del código)
+  ---
+  duration_ms: 0.486168
+  type: 'test'
+  ...
+# Subtest: getCurrentTenantId: en producción con la base real (>1 tenant) el pin LANZA
+ok 24 - getCurrentTenantId: en producción con la base real (>1 tenant) el pin LANZA
+  ---
+  duration_ms: 34990.633247
+  type: 'test'
+  ...
+# Subtest: getCurrentTenantId: fuera de producción el pin SIGUE funcionando (dev/scripts intactos)
+ok 25 - getCurrentTenantId: fuera de producción el pin SIGUE funcionando (dev/scripts intactos)
+  ---
+  duration_ms: 1916.849866
+  type: 'test'
+  ...
+# Subtest: src/lib/tenant.test.ts
+not ok 1 - src/lib/tenant.test.ts
+  ---
+  duration_ms: 60023.263825
+  type: 'test'
+  location: '/home/user/erp-wpe/src/lib/tenant.test.ts:1:1'
+  failureType: 'testTimeoutFailure'
+  error: 'test timed out after 60000ms'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..26
+# tests 26
+# suites 0
+# pass 25
+# fail 0
+# cancelled 1
+# skipped 0
+# todo 0
+# duration_ms 60037.58244

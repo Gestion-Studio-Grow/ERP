@@ -10,13 +10,13 @@
  * Dos entradas: `processArcaOutbox()` barre todos los negocios y la llama SÓLO el cron
  * (`/api/cron/arca-outbox`); `procesarEnviosDelNegocio(tenantId)` procesa los de un negocio y
  * la llaman las acciones del panel y la facturación (ENG-012). Cada envío se toma con reserva,
- * de a uno por negocio (`arca-reserva.ts`, ENG-019).
+ * de a uno por negocio (`arca-reserva.ts`, ENG-019), y siempre parado en su negocio.
  */
 
 import { leerRegimenFacturaA } from "@/lib/fiscal/regimen-factura-a.server";
 import { Prisma } from "@/generated/prisma/client";
-import { operatorPrisma } from "@/lib/operator-db";
 import { tenantTransaction } from "@/lib/rls";
+import { idsDeLosNegocios } from "@/lib/cron/negocios";
 import { cuitValido, normalizarCuit } from "@/lib/cuit";
 import {
   cerrarEnvioDeFacturaNoPendiente,
@@ -50,8 +50,8 @@ import {
   anotarIntentoConReserva,
   CorridaDeEnvios,
   soltarReserva,
+  tomarDeLosNegocios,
   tomarSiguienteEnvio,
-  verificarAccesoDelOperador,
   type EnTransaccion,
   type EnvioTomado,
 } from "@/lib/arca-reserva";
@@ -245,6 +245,24 @@ export function motivoDelError(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/**
+ * ¿La falla es nuestra y no de ARCA? ARCA caído, lento, con falla interna o con la respuesta
+ * cortada llega como `ArcaPasajeroError` (ENG-021: soap.ts lo arma también ante el corte por
+ * tiempo y el WSAA caído). Todo lo demás es del sistema: la base rechazó la operación (P2002…),
+ * un dato que no cierra, un error de programación. Reintentar enseguida no lo arregla.
+ */
+export function esErrorDelSistema(err: unknown): boolean {
+  return !(err instanceof ArcaPasajeroError);
+}
+
+/** Lo que el despacho de UN negocio hace además de lo de siempre (lo usa «Autorizar los pendientes»). */
+export interface OpcionesDelNegocio {
+  /** Envíos que no toma: los que ya fallaron por un error nuestro en el mismo toque. */
+  saltear?: readonly string[];
+  /** Avisa cada envío que falló por un error nuestro (va dentro de `fallidos`). */
+  alFallarPorElSistema?: (envioId: string) => void;
+}
+
 export interface DispatchResumen {
   procesados: number;
   autorizados: number;
@@ -264,23 +282,15 @@ const enElNegocio =
   (fn) =>
     tenantTransaction((tx) => fn(tx), { tenantId });
 
-/** El cliente del operador (cruza negocios). Inyectable para los tests de ENG-027. */
-export type ClienteOperador = Pick<typeof operatorPrisma, "$queryRaw" | "$transaction">;
-
 /**
- * CRON · Barrido de TODOS los negocios (lo llama sólo `/api/cron/arca-outbox`). Usa la conexión
- * del operador, que tiene que ver los envíos de todos (ADR-021); si no los ve, lanza
- * `ProcesadorArcaSinAccesoError` antes de leer, en vez de devolver "0 procesados" (ENG-027).
- * Cada envío se toma con reserva (`arca-reserva.ts`, ENG-019) y se escribe en la transacción de
- * SU negocio (`tenantTransaction` con el `tenantId` de la fila, ADR-018 §4).
+ * CRON · Barrido de TODOS los negocios (lo llama sólo `/api/cron/arca-outbox`). Recorre los
+ * negocios de `Tenant` (sin RLS) y toma cada envío PARADO EN SU NEGOCIO, con la misma transacción
+ * que `procesarEnviosDelNegocio` y el turno entre negocios de ENG-019 (`tomarDeLosNegocios`). No
+ * depende de una conexión que vea todo: antes leía los pendientes de todos con la del operador y,
+ * como en producción esa conexión está sujeta a RLS (26/09/2026), no despachaba ninguno.
  */
-export async function processArcaOutbox(
-  limit = 20,
-  deps: DepsDespacho = DEPS_DESPACHO,
-  operador: ClienteOperador = operatorPrisma,
-): Promise<DispatchResumen> {
-  await verificarAccesoDelOperador(operador);
-  return despacharEnvios((fn) => operador.$transaction((tx) => fn(tx)), null, limit, deps);
+export async function processArcaOutbox(limit = 20, deps: DepsDespacho = DEPS_DESPACHO): Promise<DispatchResumen> {
+  return despacharEnvios(tomarDeLosNegocios(await idsDeLosNegocios(), enElNegocio), limit, deps);
 }
 
 /**
@@ -293,8 +303,14 @@ export async function procesarEnviosDelNegocio(
   tenantId: string,
   limit = 20,
   deps: DepsDespacho = DEPS_DESPACHO,
+  opciones: OpcionesDelNegocio = {},
 ): Promise<DispatchResumen> {
-  return despacharEnvios(enElNegocio(tenantId), tenantId, limit, deps);
+  return despacharEnvios(
+    (corrida) => tomarSiguienteEnvio(enElNegocio(tenantId), corrida, tenantId),
+    limit,
+    deps,
+    opciones,
+  );
 }
 
 /**
@@ -308,10 +324,10 @@ export async function procesarEnviosDelNegocio(
  *   reserva.
  */
 async function despacharEnvios(
-  tomarEn: EnTransaccion,
-  soloDelNegocio: string | null,
+  tomar: (corrida: CorridaDeEnvios) => Promise<EnvioTomado | null>,
   limit: number,
   deps: DepsDespacho,
+  opciones: OpcionesDelNegocio = {},
 ): Promise<DispatchResumen> {
   const resumen: DispatchResumen = {
     procesados: 0,
@@ -320,18 +336,20 @@ async function despacharEnvios(
     fallidos: 0,
     descartados: 0,
   };
-  const corrida = new CorridaDeEnvios();
+  const corrida = new CorridaDeEnvios(opciones.saltear);
 
   while (corrida.vistos.length < limit) {
-    const envio = await tomarSiguienteEnvio(tomarEn, corrida, soloDelNegocio);
+    const envio = await tomar(corrida);
     if (!envio) break;
     try {
-      await despacharUno(envio, corrida.token, deps, resumen);
+      await despacharUno(envio, corrida.token, deps, resumen, opciones);
     } catch (err) {
-      // Algo falló al anotar la falla misma: se suelta la reserva (si se puede) y sigue el lote.
+      // Algo falló al anotar la falla misma (es nuestro): se suelta la reserva (si se puede) y
+      // sigue el lote.
       await soltarReserva(enElNegocio(envio.tenantId), envio, corrida.token).catch(() => undefined);
       logger.error("arca", "no se pudo cerrar el intento de un envío", err, { tenantId: envio.tenantId });
       resumen.fallidos++;
+      opciones.alFallarPorElSistema?.(envio.id);
     }
   }
 
@@ -343,6 +361,7 @@ async function despacharUno(
   token: string,
   deps: DepsDespacho,
   resumen: DispatchResumen,
+  opciones: OpcionesDelNegocio,
 ): Promise<void> {
   const payload = envio.payload as InvoiceCreatedPayload;
   const enSuNegocio = enElNegocio(envio.tenantId);
@@ -390,17 +409,25 @@ async function despacharUno(
           resumen.descartados++;
         }
       } catch (errAlRechazar) {
-        // No se pudo guardar el rechazo: el envío sigue abierto y se reintenta; el resto del
-        // lote sigue.
+        // No se pudo guardar el rechazo (es nuestro, ARCA contestó): el envío sigue abierto y se
+        // reintenta; el resto del lote sigue.
         await anotarFallaYSoltar(enSuNegocio, envio, token, motivoDelError(errAlRechazar));
+        logger.error("arca", "no se pudo guardar el rechazo de ARCA de un envío", errAlRechazar, { tenantId: envio.tenantId });
         resumen.fallidos++;
+        opciones.alFallarPorElSistema?.(envio.id);
       }
     } else {
       // Error pasajero (ENG-021: sin respuesta a tiempo, 5xx, token, WSAA caído, respuesta
       // cortada, 10016) o cualquier otro que no sea un rechazo: la factura sigue pendiente y
       // el evento se reintenta. El reintento consulta antes de pedir otro CAE (ENG-020).
+      // Si la falla es nuestra (`esErrorDelSistema`), además queda en el log y se avisa: la
+      // pantalla no se la achaca a ARCA ni la vuelve a mandar en el mismo toque.
       await anotarFallaYSoltar(enSuNegocio, envio, token, motivoDelError(err));
       resumen.fallidos++;
+      if (esErrorDelSistema(err)) {
+        logger.error("arca", "un envío falló por un error del sistema, no de ARCA", err, { tenantId: envio.tenantId });
+        opciones.alFallarPorElSistema?.(envio.id);
+      }
     }
   }
 }

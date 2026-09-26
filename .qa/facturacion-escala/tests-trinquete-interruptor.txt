@@ -1,0 +1,36 @@
+TAP version 13
+# Subtest: el detector del trinquete marca las escrituras de la entidad y no las demás
+ok 1 - el detector del trinquete marca las escrituras de la entidad y no las demás
+  ---
+  duration_ms: 1.877422
+  type: 'test'
+  ...
+# Subtest: TRINQUETE: nadie fuera de la consola escribe entity 'Interruptor'
+ok 2 - TRINQUETE: nadie fuera de la consola escribe entity 'Interruptor'
+  ---
+  duration_ms: 61.263989
+  type: 'test'
+  ...
+# Subtest: TRINQUETE: la escritura real sólo la importa la action (detrás de la guardia del negocio)
+ok 3 - TRINQUETE: la escritura real sólo la importa la action (detrás de la guardia del negocio)
+  ---
+  duration_ms: 46.429359
+  type: 'test'
+  ...
+# {"ts":"2026-09-26T15:26:14.579Z","level":"error","scope":"audit","msg":"audit() no escribe interruptores: sólo la consola del operador","action":"interruptor.encender","entity":"Interruptor","entityId":"inicio-por-apps"}
+# Subtest: contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, aislar y apagar
+ok 4 - contra Postgres (app_rls + RLS): prender, leer desde el panel, forjar, aislar y apagar
+  ---
+  duration_ms: 6004.315537
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6866.772127
+EXIT=0

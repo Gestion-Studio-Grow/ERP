@@ -13,7 +13,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraParaElTest } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { ventanaDoceMeses } from "@/lib/monotributo-core";
@@ -33,6 +33,8 @@ test("monitor de monotributo: suma, categoría declarada y aislamiento por negoc
   const { operatorPrisma } = await import("@/lib/operator-db");
   const { monitorMonotributoAction, cargarCategoriaMonotributoAction } = await import("@/lib/monotributo-actions");
   base.alBorrar(() => operatorPrisma.$disconnect());
+  // La consola (`operatorPrisma`) es `app_rls`, como en producción: sembrar y mirar desde afuera como dueño.
+  const duenio = await prismaComoDuenio(base);
 
   const hoy = dateStrInBusinessTz(new Date());
   const { desde } = ventanaDoceMeses(hoy);
@@ -42,10 +44,10 @@ test("monitor de monotributo: suma, categoría declarada y aislamiento por negoc
   d.setUTCDate(d.getUTCDate() - 1);
   const afuera = d.toISOString().slice(0, 10).replaceAll("-", "");
 
-  await operatorPrisma.tenant.update({ where: { id: base.a.id }, data: { modules: ["cartera", "clients", "reports"] } });
-  await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { arcaCondicionIva: "MONOTRIBUTO" } });
+  await duenio.tenant.update({ where: { id: base.a.id }, data: { modules: ["cartera", "clients", "reports"] } });
+  await duenio.tenant.update({ where: { id: base.b.id }, data: { arcaCondicionIva: "MONOTRIBUTO" } });
   const nuevo = (slug: string, condicion: string | null) =>
-    operatorPrisma.tenant.create({ data: { name: slug, slug, arcaCondicionIva: condicion } });
+    duenio.tenant.create({ data: { name: slug, slug, arcaCondicionIva: condicion } });
   const kiosco = await nuevo("kiosco-c3", "MONOTRIBUTO");
   const ferreteria = await nuevo("ferreteria-c3", "MONOTRIBUTO");
   const inscripto = await nuevo("inscripto-c3", "RESPONSABLE_INSCRIPTO");
@@ -56,12 +58,12 @@ test("monitor de monotributo: suma, categoría declarada y aislamiento por negoc
     [inscripto, "Distribuidora Sur"],
     [sinCondicion, "Almacén Nuevo"],
   ] as const) {
-    await operatorPrisma.carteraCliente.create({ data: { tenantId: base.a.id, clienteTenantId: c.id, alias } });
+    await duenio.carteraCliente.create({ data: { tenantId: base.a.id, clienteTenantId: c.id, alias } });
   }
 
   let nro = 1;
   const factura = (tenantId: string, fecha: string, total: number, tipo = 11, status: "AUTHORIZED" | "PENDING" = "AUTHORIZED", cae: string | null = null) =>
-    operatorPrisma.invoice.create({
+    duenio.invoice.create({
       data: {
         tenantId, puntoVenta: 1, tipoComprobante: tipo, concepto: 2, docTipo: 99, docNro: "0", fecha,
         neto: total, iva: 0, total, status, numero: status === "AUTHORIZED" ? nro++ : null, cae,
@@ -115,7 +117,7 @@ test("monitor de monotributo: suma, categoría declarada y aislamiento por negoc
   const k3 = (await leer()).filas.find((f) => f.alias === "Kiosco de Marta")!;
   assert.equal(k3.categoria, "C", "la última declaración manda");
   assert.equal(k3.semaforo, "bien");
-  const rastro = await operatorPrisma.auditLog.findMany({
+  const rastro = await duenio.auditLog.findMany({
     where: { tenantId: base.a.id, entity: "MonotributoCategoria", entityId: kiosco.id },
     orderBy: { createdAt: "asc" },
   });
@@ -135,7 +137,7 @@ test("monitor de monotributo: suma, categoría declarada y aislamiento por negoc
   assert.deepEqual(ajeno.tipo === "respuesta" && ajeno.valor, inexistente.tipo === "respuesta" && inexistente.valor);
   assert.deepEqual(ajeno.tipo === "respuesta" && ajeno.valor, { ok: false, error: "Ese cliente no está en tu cartera." });
   assert.equal(
-    await operatorPrisma.auditLog.count({ where: { entity: "MonotributoCategoria", entityId: base.b.id } }),
+    await duenio.auditLog.count({ where: { entity: "MonotributoCategoria", entityId: base.b.id } }),
     0,
   );
 

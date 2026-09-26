@@ -1,0 +1,11 @@
+Arreglos de la QA vuelta 2 (qa-2.md), 26/09/2026. Sin commit. Sin build ni server (regla del encargo).
+
+tests-antes.txt        Los 5 archivos de tests nuevos o cambiados, contra el código SIN corregir: 18 tests, 9 fallan.
+                       El de «sin RLS» (arca-envios-por-negocio-sin-rls-postgres) ya pasaba: withTenantScope
+                       (src/lib/tenant-scope.ts:63) filtraba por negocio. No había fuga medible; queda como guarda.
+tests-despues.txt      21 archivos de las zonas tocadas (facturacion/, cobros/, clientes/, arca-*, lista-postgres,
+                       ENG-012): 145 tests, 145 pasan, 0 salteados. EXIT 0.
+tests-extra-despues.txt Otros 7 archivos que importan el despacho, la acción o la lista: 35 de 35. EXIT 0.
+tests-lista.txt / tests-extra.txt  Qué archivos corrió cada tanda.
+tsc.txt                tsc --noEmit del proyecto: 0 errores.
+eslint.txt             eslint --max-warnings=0 sobre los 12 archivos de tocados.txt: 0.

@@ -1,0 +1,62 @@
+# npm test (node --import tsx --test "src/**/*.test.ts") — árbol final del merge, 2026-09-26T23:34:20+00:00
+Postgres del laboratorio /tmp/pgrun:5433 (arnés de main: consola = app_rls, verificación con prismaComoDuenio).
+
+## Corrida final (árbol del commit)
+# tests 4593
+# suites 42
+# pass 4587
+# fail 5
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 286916.846821
+rc=1
+Fallas:
+    not ok 49 - POS de la bandeja: un pedido con la red caída conserva los datos del cliente y lo cargado
+not ok 417 - Vender en el navegador
+not ok 4196 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+not ok 4219 - lee un xlsx con fechas Date y números number
+not ok 4220 - filas totalmente vacías se descartan
+not ok 4221 - esXlsx reconoce el magic ZIP de un .xlsx real
+Todas previas y aceptadas: 4 de XLSX (xlsx es un stub en este entorno) y «POS de la bandeja… red caída» con su padre «Vender en el navegador».
+
+## Corrida anterior (antes de adaptar libro-iva-cuit-postgres.test.ts)
+# tests 4586
+# pass 4578
+# fail 7
+# skipped 1
+rc=1
+Fallas:
+    not ok 49 - POS de la bandeja: un pedido con la red caída conserva los datos del cliente y lo cargado
+not ok 417 - Vender en el navegador
+    not ok 3 - vista de siempre: lo que se tipea mientras espera la respuesta no se pierde al volver con el error
+not ok 460 - Ingreso en el navegador
+not ok 2506 - QA vuelta 6 · el libro y el paquete de la casa suman el local del mismo CUIT, sin otro CUIT, con percepciones y sin las de prueba
+not ok 4196 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+not ok 4219 - lee un xlsx con fechas Date y números number
+not ok 4220 - filas totalmente vacías se descartan
+not ok 4221 - esXlsx reconoce el magic ZIP de un .xlsx real
+- 2506 (libro-iva-cuit): el test sembraba con la consola, que con el arnés de main es app_rls («new row violates row-level security policy for table "CarteraCliente"»). Pasa a sembrar con prismaComoDuenio; solo: 8/8.
+# pass 8
+# fail 0
+- «Ingreso en el navegador» (ENG-138, intermitente): repetida sola 3 veces:
+  ingreso-sola: # pass 4 # fail 1     not ok 2 - diseño nuevo: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+  ingreso-sola-2: # pass 5 # fail 0 
+  ingreso-sola-3: # pass 5 # fail 0 
+  El test arma FormularioDeSiempre, LoginRenglon y login-core; el contador no tocó ninguno (sólo page.tsx y DireccionNoHabilitada.tsx).
+
+## Tests de las zonas tocadas (antes de adaptar los tests del contador)
+# tests 735
+# pass 727
+# fail 7
+# skipped 1
+Fallas de esa corrida y qué se hizo:
+not ok 222 - congelar el mes: cierra los días sin movimientos, frena con caja sin cerrar, una vez, sólo en SU negocio, y el paquete sale FINAL
+not ok 279 - compras del cliente en su Libro IVA y en el listado del mes
+not ok 290 - importar recibidos: aislado por cartera, sin duplicar, sin mover stock y con el resumen en cifras
+not ok 539 - monitor de monotributo: suma, categoría declarada y aislamiento por negocio
+    not ok 1 - vincular un local que ya está en otra red se rechaza y no escribe nada
+    not ok 2 - el formulario marca al local de otra red; la ficha ve la red de la casa y la del local
+not ok 643 - guardas de la consola que miran otros negocios, con la consola sujeta a RLS: no quedan desactivadas
+- 222, 279, 290, 539: tests del contador que sembraban con la consola (app_rls) → prismaComoDuenio. Solos: # pass 7, # fail 0.
+- 643 (guardas-de-la-consola, de main): vincular sin la casilla «confirmo» ni el mismo CUIT (reglas de la vuelta 6 del contador) → el test manda confirmo=si y los tres negocios con el CUIT de prueba. Solo: # pass 5, # fail 0.

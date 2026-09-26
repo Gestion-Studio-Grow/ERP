@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { TAMANIO_PAGINA, coincide, leerParametrosLista, ordenarClientes, paginaDeClientes, ultimaVez } from "./lista-core";
-import type { FilaCliente } from "./ClientesLista";
+import type { FilaCliente } from "./lista-core";
 
 const f = (id: string, nombre: string, telefono: string, extra: Partial<FilaCliente> = {}): FilaCliente => ({
   id,

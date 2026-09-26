@@ -233,6 +233,11 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
       },
     });
     const tenantId = tenant.id;
+    // Desde acá todo es del negocio nuevo: se para la transacción en él (ADR-018). Con RLS, sin
+    // esto el OWNER no pasa la policy («new row violates row-level security policy for table
+    // "User"», consola de producción, 26/09/2026) y el alta entera vuelve atrás. Local a la
+    // transacción: no sobrevive al COMMIT ni se hereda en el pool. Sin RLS es inocuo.
+    await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
 
     // --- OWNER: idempotente por (tenantId, email) ---
     // En re-provisioning NO se resetea la contraseña ni el estado del usuario ya

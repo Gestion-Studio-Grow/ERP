@@ -16,7 +16,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraParaElTest } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 test("pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el límite de la ficha sale del plan", async (t) => {
@@ -40,11 +40,14 @@ test("pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el lími
   const { ACCION_PEDIDO_SOPORTE, ACCION_PEDIDO_RESUELTO } = await import("./pedido-soporte");
   const { planPorId } = await import("@/planes/catalogo");
   base.alBorrar(() => operatorPrisma.$disconnect());
+  // La consola (`operatorPrisma`) es `app_rls`, como en producción: la bandeja y el cierre corren con
+  // ella. Sembrar y mirar desde afuera, como dueño de las tablas.
+  const duenio = await prismaComoDuenio(base);
 
-  await operatorPrisma.tenant.update({ where: { id: base.a.id }, data: { modules: ["cartera", "clients", "reports"] } });
-  await operatorPrisma.carteraCliente.create({ data: { tenantId: base.a.id, clienteTenantId: base.b.id, alias: "Kiosco B" } });
+  await duenio.tenant.update({ where: { id: base.a.id }, data: { modules: ["cartera", "clients", "reports"] } });
+  await duenio.carteraCliente.create({ data: { tenantId: base.a.id, clienteTenantId: base.b.id, alias: "Kiosco B" } });
   const comoA = <T>(fn: () => Promise<T>) => ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, fn);
-  const pedidosDeA = () => operatorPrisma.auditLog.count({ where: { tenantId: base.a.id, action: ACCION_PEDIDO_SOPORTE } });
+  const pedidosDeA = () => duenio.auditLog.count({ where: { tenantId: base.a.id, action: ACCION_PEDIDO_SOPORTE } });
 
   // ── 1) Pedido válido por un cliente de la cartera; doble clic simultáneo = un pedido ──
   const [r1, r2] = await Promise.all([
@@ -53,7 +56,7 @@ test("pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el lími
   ]);
   for (const r of [r1, r2]) assert.ok(r.tipo === "respuesta" && r.valor.ok, "los dos clics contestan bien");
   assert.equal(await pedidosDeA(), 1, "un solo pedido abierto");
-  const fila = await operatorPrisma.auditLog.findFirst({ where: { tenantId: base.a.id, action: ACCION_PEDIDO_SOPORTE } });
+  const fila = await duenio.auditLog.findFirst({ where: { tenantId: base.a.id, action: ACCION_PEDIDO_SOPORTE } });
   assert.equal(fila?.entityId, base.b.id);
   assert.equal(fila?.actor, `user:${base.a.duenia.id}`, "queda quién lo pidió");
   assert.deepEqual((fila?.changes as { cuit?: string })?.cuit, "20111111112");
@@ -66,7 +69,7 @@ test("pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el lími
   assert.equal(await pedidosDeA(), 1);
 
   // ── 2) Aislamiento: un negocio fuera de la cartera = mismo error que uno inexistente ──
-  await operatorPrisma.carteraCliente.updateMany({ where: { tenantId: base.a.id }, data: { estado: "baja" } });
+  await duenio.carteraCliente.updateMany({ where: { tenantId: base.a.id }, data: { estado: "baja" } });
   const ajeno = await comoA(() => pedirASoporteAction({ cliente: base.b.id, tipo: "direccion_propia" }));
   const inexistente = await comoA(() => pedirASoporteAction({ cliente: "no-existe", tipo: "direccion_propia" }));
   const propio = await comoA(() => pedirASoporteAction({ cliente: base.a.id, tipo: "direccion_propia" }));
@@ -74,14 +77,14 @@ test("pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el lími
   assert.deepEqual(ajeno.valor, inexistente.valor, "no se distingue un negocio ajeno de uno que no existe");
   assert.deepEqual(propio.valor, inexistente.valor);
   assert.equal(await pedidosDeA(), 1, "nada nuevo escrito");
-  await operatorPrisma.carteraCliente.updateMany({ where: { tenantId: base.a.id }, data: { estado: "activa" } });
+  await duenio.carteraCliente.updateMany({ where: { tenantId: base.a.id }, data: { estado: "activa" } });
 
   // B no tiene cartera: no pide nada, y no ve los pedidos de A.
   const desdeB = await ejecutarAccion({ negocio: base.b, usuario: base.b.duenia }, () =>
     pedirASoporteAction({ cliente: base.a.id, tipo: "asignar_plan" }),
   );
   assert.ok(desdeB.tipo === "respuesta" && !desdeB.valor.ok);
-  assert.equal(await operatorPrisma.auditLog.count({ where: { tenantId: base.b.id, action: ACCION_PEDIDO_SOPORTE } }), 0);
+  assert.equal(await duenio.auditLog.count({ where: { tenantId: base.b.id, action: ACCION_PEDIDO_SOPORTE } }), 0);
   assert.deepEqual(await pedidosAbiertosDelEstudio(base.b.id), [], "B no lee las filas de A (RLS)");
 
   // La recepcionista de A no tiene permiso de cartera: la action la manda afuera antes de escribir.
@@ -99,12 +102,12 @@ test("pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el lími
     assert.ok(f, "B está en la cartera");
     return f!;
   };
-  await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { plan: null, bancosCapFacturasMes: null } });
+  await duenio.tenant.update({ where: { id: base.b.id }, data: { plan: null, bancosCapFacturasMes: null } });
   const sinPlan = await capDe();
   assert.equal(sinPlan.capFacturasMes, 159, "sin plan rige el límite de siempre");
   assert.equal(sinPlan.limitePlan?.origen, "sin-plan");
   for (const plan of ["facturacion", "pyme"] as const) {
-    await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { plan } });
+    await duenio.tenant.update({ where: { id: base.b.id }, data: { plan } });
     const f = await capDe();
     const delCatalogo = planPorId(plan).limites.facturasAutomaticasMes;
     assert.equal(f.limitePlan?.planNombre, planPorId(plan).nombre);
@@ -112,22 +115,22 @@ test("pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el lími
     if (delCatalogo !== null) assert.equal(f.capFacturasMes, delCatalogo, `el número del plan ${plan}`);
   }
   // La columna del negocio sólo BAJA el tope del plan.
-  await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { plan: "facturacion", bancosCapFacturasMes: 40 } });
+  await duenio.tenant.update({ where: { id: base.b.id }, data: { plan: "facturacion", bancosCapFacturasMes: 40 } });
   assert.equal((await capDe()).capFacturasMes, 40);
   // …y NUNCA lo sube: con la columna en 500 vale el del plan (el código viejo mostraba 500).
   const delPlan = planPorId("facturacion").limites.facturasAutomaticasMes;
   assert.ok(delPlan !== null && delPlan < 500, "el plan tiene un tope menor que la columna");
-  await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { bancosCapFacturasMes: 500 } });
+  await duenio.tenant.update({ where: { id: base.b.id }, data: { bancosCapFacturasMes: 500 } });
   assert.equal((await capDe()).capFacturasMes, delPlan, "la columna no le gana al plan");
   // La excepción de GSG (consola) le gana al número del catálogo: 75, con la columna vacía o en 500.
   // Con el código viejo (`columna ?? 159`) esto daba 159 y 500.
-  await operatorPrisma.auditLog.create({
+  await duenio.auditLog.create({
     data: filaDeExcepcionDeLimite({ tenantId: base.b.id, operador: "soporte-qa", plan: "facturacion", limite: "facturasAutomaticasMes", valor: 75 }),
   });
   const conExcepcion = await capDe();
   assert.equal(conExcepcion.capFacturasMes, 75, "la excepción de GSG, con la columna en 500");
   assert.equal(conExcepcion.limitePlan?.origen, "excepcion");
-  await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { bancosCapFacturasMes: null } });
+  await duenio.tenant.update({ where: { id: base.b.id }, data: { bancosCapFacturasMes: null } });
   assert.equal((await capDe()).capFacturasMes, 75, "la excepción de GSG, sin columna");
 
   // ── 4) El pedido le LLEGA a Soporte GSG, que lo cierra, y la contadora ve la respuesta (GSG-22) ──
@@ -141,25 +144,29 @@ test("pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el lími
   assert.deepEqual(bandeja1.map((p) => p.id), [enBandeja.id], "sólo pedidos abiertos, nada inventado");
 
   // «No corresponde» sin porqué: no se cierra.
-  const sinPorque = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: enBandeja.id, sesion: SOPORTE, resultado: "no_corresponde", motivo: " " });
+  const sinPorque = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: enBandeja.id, estudioTenantId: base.a.id, sesion: SOPORTE, resultado: "no_corresponde", motivo: " " });
   assert.equal(sinPorque.ok, false);
-  const cierres = () => operatorPrisma.auditLog.count({ where: { action: ACCION_PEDIDO_RESUELTO } });
+  const cierres = () => duenio.auditLog.count({ where: { action: ACCION_PEDIDO_RESUELTO } });
   assert.equal(await cierres(), 0);
   // Un id que no es un pedido de cartera: rechazado sin escribir.
-  const noPedido = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: fila!.id + "x", sesion: SOPORTE, resultado: "hecho", motivo: null });
+  const noPedido = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: fila!.id + "x", estudioTenantId: base.a.id, sesion: SOPORTE, resultado: "hecho", motivo: null });
   // Texto libre en vez de un código de la lista: rechazado, sin escribir (refutador 26/09).
-  const aMano = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: enBandeja.id, sesion: SOPORTE, resultado: "no_corresponde", motivo: "El CUIT es de QA Kiosco Lab" });
+  const aMano = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: enBandeja.id, estudioTenantId: base.a.id, sesion: SOPORTE, resultado: "no_corresponde", motivo: "El CUIT es de QA Kiosco Lab" });
   assert.equal(aMano.ok, false);
   assert.equal(await cierres(), 0);
   assert.deepEqual(noPedido, { ok: false, error: "Ese pedido no existe." });
+  // El pedido de A, con el formulario diciendo que es de B: parado en B no se ve (RLS). Mismo error, sin escribir.
+  const enOtroEstudio = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: enBandeja.id, estudioTenantId: base.b.id, sesion: SOPORTE, resultado: "hecho", motivo: null });
+  assert.deepEqual(enOtroEstudio, { ok: false, error: "Ese pedido no existe." });
+  assert.equal(await cierres(), 0);
 
   // Doble clic simultáneo: se cierra UNA vez.
   // Un formulario forjado que además manda texto libre en `respuesta`: se ignora (no se guarda).
-  const forjado = { pedidoId: enBandeja.id, sesion: SOPORTE, resultado: "no_corresponde", motivo: "ya-estaba", respuesta: "El CUIT es de QA Kiosco Lab" };
+  const forjado = { pedidoId: enBandeja.id, estudioTenantId: base.a.id, sesion: SOPORTE, resultado: "no_corresponde", motivo: "ya-estaba", respuesta: "El CUIT es de QA Kiosco Lab" };
   const [c1, c2] = await Promise.all([resolverPedidoDeCartera(operatorPrisma, forjado), resolverPedidoDeCartera(operatorPrisma, forjado)]);
   assert.deepEqual([c1.ok, c2.ok].sort(), [false, true], "uno cierra, el otro ve que ya estaba resuelto");
   assert.equal(await cierres(), 1);
-  const cierre = await operatorPrisma.auditLog.findFirst({ where: { action: ACCION_PEDIDO_RESUELTO } });
+  const cierre = await duenio.auditLog.findFirst({ where: { action: ACCION_PEDIDO_RESUELTO } });
   assert.equal(cierre?.tenantId, base.a.id, "el cierre queda en la auditoría del ESTUDIO");
   assert.equal(cierre?.actor, "operator:soporte-qa");
   assert.ok(!JSON.stringify(cierre?.changes).includes("Kiosco"), "la fila del cierre no guarda texto libre");
@@ -180,16 +187,16 @@ test("pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el lími
 
   // CH (beauty-spa) sólo la cierra el dueño de GSG.
   const slugA = base.a.slug;
-  await operatorPrisma.tenant.update({ where: { id: base.a.id }, data: { slug: "beauty-spa" } });
+  await duenio.tenant.update({ where: { id: base.a.id }, data: { slug: "beauty-spa" } });
   try {
     const nuevo = (await listarPedidosDeCartera(operatorPrisma))[0];
     assert.ok(nuevo);
-    const soporte = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: nuevo.id, sesion: SOPORTE, resultado: "hecho", motivo: null });
+    const soporte = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: nuevo.id, estudioTenantId: nuevo.estudio.id, sesion: SOPORTE, resultado: "hecho", motivo: null });
     assert.equal(soporte.ok, false, "Soporte no toca CH");
     assert.equal(await cierres(), 1);
-    const duenio = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: nuevo.id, sesion: { nombre: "duenio", esDuenio: true }, resultado: "hecho", motivo: null });
-    assert.deepEqual(duenio, { ok: true });
+    const delDuenio = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: nuevo.id, estudioTenantId: nuevo.estudio.id, sesion: { nombre: "duenio", esDuenio: true }, resultado: "hecho", motivo: null });
+    assert.deepEqual(delDuenio, { ok: true });
   } finally {
-    await operatorPrisma.tenant.update({ where: { id: base.a.id }, data: { slug: slugA } });
+    await duenio.tenant.update({ where: { id: base.a.id }, data: { slug: slugA } });
   }
 });

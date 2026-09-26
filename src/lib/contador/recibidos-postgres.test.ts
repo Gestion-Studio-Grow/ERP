@@ -15,7 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { apuntarLaAppA, baseEfimeraParaElTest } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 const CUIT_DE_B = "30700000067";
@@ -45,16 +45,18 @@ test("importar recibidos: aislado por cartera, sin duplicar, sin mover stock y c
   const { importarRecibidosAction } = await import("./recibidos-actions");
   const { leerComprasConFactura, ACCION_IMPORTACION } = await import("./recibidos-db");
   base.alBorrar(() => operatorPrisma.$disconnect());
+  // La consola (`operatorPrisma`) es `app_rls`, como en producción: sembrar y mirar desde afuera como dueño.
+  const duenio = await prismaComoDuenio(base);
 
-  await operatorPrisma.tenant.update({ where: { id: base.a.id }, data: { modules: ["cartera", "clients", "reports"] } });
-  await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { arcaCuit: CUIT_DE_B } });
+  await duenio.tenant.update({ where: { id: base.a.id }, data: { modules: ["cartera", "clients", "reports"] } });
+  await duenio.tenant.update({ where: { id: base.b.id }, data: { arcaCuit: CUIT_DE_B } });
 
   const comoEstudio = <T>(fn: () => Promise<T>) => ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, fn);
-  const comprasDe = (tenantId: string) => operatorPrisma.stockPurchase.count({ where: { tenantId } });
+  const comprasDe = (tenantId: string) => duenio.stockPurchase.count({ where: { tenantId } });
   const stockDe = async (tenantId: string) => ({
-    movimientos: await operatorPrisma.stockMovement.count({ where: { tenantId } }),
-    renglones: await operatorPrisma.stockPurchaseItem.count({ where: { tenantId } }),
-    productos: JSON.stringify(await operatorPrisma.product.findMany({ where: { tenantId }, select: { id: true, stock: true }, orderBy: { id: "asc" } })),
+    movimientos: await duenio.stockMovement.count({ where: { tenantId } }),
+    renglones: await duenio.stockPurchaseItem.count({ where: { tenantId } }),
+    productos: JSON.stringify(await duenio.product.findMany({ where: { tenantId }, select: { id: true, stock: true }, orderBy: { id: "asc" } })),
   });
   const valor = <R>(s: { tipo: string; valor?: R }) => {
     assert.equal(s.tipo, "respuesta", JSON.stringify(s));
@@ -75,7 +77,7 @@ test("importar recibidos: aislado por cartera, sin duplicar, sin mover stock y c
   assert.deepEqual(inventado, fuera);
 
   // 2) B entra a la cartera de A. Un archivo de OTRO CUIT no carga nada.
-  await operatorPrisma.carteraCliente.create({ data: { tenantId: base.a.id, clienteTenantId: base.b.id, alias: "Almacén de B" } });
+  await duenio.carteraCliente.create({ data: { tenantId: base.a.id, clienteTenantId: base.b.id, alias: "Almacén de B" } });
   const deOtro = `Mis Comprobantes Recibidos - CUIT 30-70000005-9\n${archivoDeEjemplo().toString("utf8")}`;
   const otroCuit = valor<R>(await comoEstudio(() => importarRecibidosAction(formulario(base.b.id, deOtro))));
   assert.equal(otroCuit.ok, false);
@@ -115,15 +117,15 @@ test("importar recibidos: aislado por cartera, sin duplicar, sin mover stock y c
   assert.equal(await comprasDe(base.a.id), 0, "nada quedó en el estudio");
   assert.deepEqual(await stockDe(base.b.id), stockDeBAntes, "no se movió stock ni hay renglones de mercadería");
 
-  const nc = await operatorPrisma.stockPurchase.findFirst({ where: { tenantId: base.b.id, facturaTipo: 3 } });
+  const nc = await duenio.stockPurchase.findFirst({ where: { tenantId: base.b.id, facturaTipo: 3 } });
   assert.equal(nc?.totalCost, -121, "la nota de crédito resta en los listados de compras");
   assert.equal(nc?.facturaTotal?.toNumber(), 121);
   assert.equal(nc?.createdBy, `estudio:${base.a.id}`);
-  const dolar = await operatorPrisma.stockPurchase.findFirst({ where: { tenantId: base.b.id, facturaNumero: 500 } });
+  const dolar = await duenio.stockPurchase.findFirst({ where: { tenantId: base.b.id, facturaNumero: 500 } });
   assert.equal(dolar?.facturaTotal?.toNumber(), 121060.5);
   assert.match(dolar?.notes ?? "", /Moneda DOL, tipo de cambio 1000,5/);
 
-  const auditoria = await operatorPrisma.auditLog.findFirst({ where: { tenantId: base.b.id, action: ACCION_IMPORTACION } });
+  const auditoria = await duenio.auditLog.findFirst({ where: { tenantId: base.b.id, action: ACCION_IMPORTACION } });
   assert.equal(auditoria?.actor, `estudio:${base.a.id}`, "la dueña ve quién cargó sus compras");
   assert.deepEqual((auditoria?.changes as { cargados?: number })?.cargados, 8);
 
@@ -193,7 +195,7 @@ test("importar recibidos: aislado por cartera, sin duplicar, sin mover stock y c
   assert.equal(await comprasDe(base.a.id), 0);
 
   // 7) Pausado: se consulta, no se le carga nada.
-  await operatorPrisma.carteraCliente.update({
+  await duenio.carteraCliente.update({
     where: { tenantId_clienteTenantId: { tenantId: base.a.id, clienteTenantId: base.b.id } },
     data: { estado: "pausada" },
   });

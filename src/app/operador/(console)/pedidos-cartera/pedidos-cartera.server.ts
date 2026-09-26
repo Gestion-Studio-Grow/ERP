@@ -12,9 +12,16 @@
 // NO lleva "use server": lo llama `actions.ts` después de la sesión de operador, y los tests lo
 // ejecutan contra Postgres con el cliente del operador. Recibe la base por parámetro.
 // CH (beauty-spa) sólo la toca el dueño de GSG: la misma guardia que el resto de la consola.
+//
+// CON RLS (la consola está sujeta a RLS en producción, ver operator-db.ts): las filas del pedido, el
+// usuario que lo pidió, el WhatsApp y el alias son del ESTUDIO, así que se leen parados en cada
+// estudio (`enElNegocio`), uno por transacción. `Tenant` no tiene RLS y se lee directo. Una lectura
+// de todos los estudios juntos volvía vacía con `app_rls`: la bandeja nunca mostraba nada.
 
 import "server-only";
 import type { PrismaClient, Prisma } from "@/generated/prisma/client";
+import { enElNegocio } from "@/lib/operator-db";
+import { MODULO_CARTERA } from "@/lib/cartera-core";
 import { decidirOperadorParaNegocios } from "@/lib/operador/guardia-negocio-core";
 import {
   ACCION_PEDIDO_RESUELTO,
@@ -40,11 +47,11 @@ function campo(c: unknown, k: string): unknown {
   return typeof c === "object" && c !== null && !Array.isArray(c) ? (c as Record<string, unknown>)[k] : undefined;
 }
 
-/** Filas de pedidos y cierres de todos los estudios, dentro de la misma ventana que ve la contadora. */
-function filasDePedidos(db: PrismaClient | Tx, estudioId?: string) {
-  return db.auditLog.findMany({
+/** Filas de pedidos y cierres de UN estudio (`tx` parada en él), en la misma ventana que ve la contadora. */
+function filasDePedidos(tx: Tx, estudioId: string) {
+  return tx.auditLog.findMany({
     where: {
-      ...(estudioId ? { tenantId: estudioId } : {}),
+      tenantId: estudioId,
       entity: ENTIDAD_PEDIDO_SOPORTE,
       action: { in: [ACCION_PEDIDO_SOPORTE, ACCION_PEDIDO_RESUELTO] },
       createdAt: { gte: desdeDeLaVentana() },
@@ -55,29 +62,58 @@ function filasDePedidos(db: PrismaClient | Tx, estudioId?: string) {
   });
 }
 
-/** Los pedidos abiertos de todos los estudios, del más viejo al más nuevo (paginado: `limite`). */
+/**
+ * Los pedidos abiertos de todos los estudios, del más viejo al más nuevo (paginado: `limite`).
+ * Estudio = negocio con la cartera (el único que puede pedir, pedido-soporte-actions.ts).
+ */
 export async function listarPedidosDeCartera(db: PrismaClient, limite = 50): Promise<PedidoDeCartera[]> {
-  const filas = await filasDePedidos(db);
+  const estudiosConCartera = await db.tenant.findMany({
+    where: { modules: { has: MODULO_CARTERA } },
+    select: { id: true, name: true, slug: true },
+  });
+  // Por estudio, parado en él: sus filas de pedidos, y con ellas quién pidió, su WhatsApp y los alias.
+  const porEstudio = await Promise.all(
+    estudiosConCartera.map((e) =>
+      enElNegocio(
+        e.id,
+        async (tx) => {
+          const filas = await filasDePedidos(tx, e.id);
+          const abiertos = pedidosAbiertos(filas);
+          if (abiertos.length === 0) return { filas, usuarios: [], carteras: [], whatsapp: null };
+          const userIds = [
+            ...new Set(
+              filas
+                .filter((f) => f.action === ACCION_PEDIDO_SOPORTE && f.actor.startsWith("user:"))
+                .map((f) => f.actor.slice("user:".length)),
+            ),
+          ];
+          const [usuarios, carteras, ajustes] = await Promise.all([
+            tx.user.findMany({ where: { tenantId: e.id, id: { in: userIds } }, select: { id: true, name: true, email: true } }),
+            tx.carteraCliente.findMany({
+              where: { tenantId: e.id, clienteTenantId: { in: [...new Set(abiertos.map((a) => a.clienteTenantId))] } },
+              select: { tenantId: true, clienteTenantId: true, alias: true },
+            }),
+            tx.businessSettings.findUnique({ where: { tenantId: e.id }, select: { whatsapp: true } }),
+          ]);
+          return { filas, usuarios, carteras, whatsapp: ajustes?.whatsapp ?? null };
+        },
+        db,
+      ),
+    ),
+  );
+  const filas = porEstudio.flatMap((x) => x.filas);
   const porId = new Map(filas.map((f) => [f.id, f]));
   const abiertos = pedidosAbiertos(filas).slice(0, limite);
   if (abiertos.length === 0) return [];
 
-  const estudioIds = [...new Set(abiertos.map((a) => porId.get(a.id)!.tenantId))];
   const clienteIds = [...new Set(abiertos.map((a) => a.clienteTenantId))];
-  const userIds = [
-    ...new Set(
-      abiertos.map((a) => porId.get(a.id)!.actor).filter((x) => x.startsWith("user:")).map((x) => x.slice("user:".length)),
-    ),
-  ];
-  const [estudios, clientes, usuarios, carteras] = await Promise.all([
-    db.tenant.findMany({ where: { id: { in: estudioIds } }, select: { id: true, name: true, slug: true, businessSettings: { select: { whatsapp: true } } } }),
-    db.tenant.findMany({ where: { id: { in: clienteIds } }, select: { id: true, name: true, slug: true, arcaCuit: true, plan: true, subdomain: true } }),
-    db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true } }),
-    db.carteraCliente.findMany({
-      where: { tenantId: { in: estudioIds }, clienteTenantId: { in: clienteIds } },
-      select: { tenantId: true, clienteTenantId: true, alias: true },
-    }),
-  ]);
+  const clientes = await db.tenant.findMany({
+    where: { id: { in: clienteIds } },
+    select: { id: true, name: true, slug: true, arcaCuit: true, plan: true, subdomain: true },
+  });
+  const estudios = estudiosConCartera.map((e, i) => ({ ...e, businessSettings: { whatsapp: porEstudio[i].whatsapp } }));
+  const usuarios = porEstudio.flatMap((x) => x.usuarios);
+  const carteras = porEstudio.flatMap((x) => x.carteras);
   const estudio = new Map(estudios.map((e) => [e.id, e]));
   const cliente = new Map(clientes.map((c) => [c.id, c]));
   const usuario = new Map(usuarios.map((u) => [u.id, u]));
@@ -120,29 +156,28 @@ class Rechazo extends Error {}
  */
 export async function resolverPedidoDeCartera(
   db: PrismaClient,
-  opts: { pedidoId: string; estudioTenantId?: string; sesion: { nombre: string; esDuenio: boolean }; resultado: unknown; motivo: unknown },
+  // El estudio del formulario (el que pasó la guardia): la transacción se para en él para leer el pedido.
+  opts: { pedidoId: string; estudioTenantId: string; sesion: { nombre: string; esDuenio: boolean }; resultado: unknown; motivo: unknown },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   // Sólo el resultado y un código de la lista cerrada: nada escrito a mano llega a la contadora.
   const v = validarResolucion({ resultado: opts.resultado, motivo: opts.motivo });
   if (!v.ok) return v;
   try {
-    return await db.$transaction(async (tx) => {
+    return await enElNegocio(opts.estudioTenantId, async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pedido-soporte-resolver:${opts.pedidoId}`}))`;
-      const pedido = await tx.auditLog.findUnique({
-        where: { id: opts.pedidoId },
+      // Parada en el estudio: un pedido de otro estudio ni se ve (RLS), y además se exige el negocio.
+      const pedido = await tx.auditLog.findFirst({
+        where: { id: opts.pedidoId, tenantId: opts.estudioTenantId },
         select: { id: true, tenantId: true, action: true, entity: true, entityId: true, tenant: { select: { slug: true } } },
       });
       if (!pedido || pedido.action !== ACCION_PEDIDO_SOPORTE || pedido.entity !== ENTIDAD_PEDIDO_SOPORTE || !pedido.entityId) {
         throw new Rechazo("Ese pedido no existe.");
       }
-      // La acción pasó la guardia con el estudio del formulario: el pedido tiene que ser de ESE estudio.
-      if (opts.estudioTenantId !== undefined && pedido.tenantId !== opts.estudioTenantId) throw new Rechazo("Ese pedido no existe.");
       const abierto = pedidosAbiertos(await filasDePedidos(tx, pedido.tenantId)).some((a) => a.id === pedido.id);
       if (!abierto) throw new Rechazo("Ese pedido ya estaba resuelto.");
       const cliente = await tx.tenant.findUnique({ where: { id: pedido.entityId }, select: { slug: true } });
       const g = decidirOperadorParaNegocios(opts.sesion, [pedido.tenant.slug, cliente?.slug]);
       if (!g.ok) throw new Rechazo(g.motivo);
-      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${pedido.tenantId}, true)`;
       await tx.auditLog.create({
         data: {
           tenantId: pedido.tenantId,
@@ -156,7 +191,7 @@ export async function resolverPedidoDeCartera(
         select: { id: true },
       });
       return { ok: true as const };
-    });
+    }, db);
   } catch (e) {
     if (e instanceof Rechazo) return { ok: false, error: e.message };
     throw e;

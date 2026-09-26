@@ -1,0 +1,94 @@
+TAP version 13
+# Subtest: brandForSlug: cada tenant real tiene su propia marca (no comparten identidad)
+ok 1 - brandForSlug: cada tenant real tiene su propia marca (no comparten identidad)
+  ---
+  duration_ms: 3.287665
+  type: 'test'
+  ...
+# Subtest: brandForSlug: slug desconocido o null cae al brand por defecto NEUTRO (RFC-004-D: ya no CH)
+ok 2 - brandForSlug: slug desconocido o null cae al brand por defecto NEUTRO (RFC-004-D: ya no CH)
+  ---
+  duration_ms: 0.273674
+  type: 'test'
+  ...
+# Subtest: brandForSlug: nunca devuelve la marca de CH para el slug de otro tenant
+ok 3 - brandForSlug: nunca devuelve la marca de CH para el slug de otro tenant
+  ---
+  duration_ms: 0.560066
+  type: 'test'
+  ...
+# Subtest: brandForSlug: los locales de MAGRA llevan la marca de la casa, no la neutra
+ok 4 - brandForSlug: los locales de MAGRA llevan la marca de la casa, no la neutra
+  ---
+  duration_ms: 0.226531
+  type: 'test'
+  ...
+# Subtest: resolveAccent + invertTheme: el back va en el tema opuesto al front de cada tenant
+ok 5 - resolveAccent + invertTheme: el back va en el tema opuesto al front de cada tenant
+  ---
+  duration_ms: 0.389924
+  type: 'test'
+  ...
+# Subtest: resolveTenantLayout: Magra es logo CENTRADO, SIN banner, hero EDITORIAL (lo que pidió el dueño)
+ok 6 - resolveTenantLayout: Magra es logo CENTRADO, SIN banner, hero EDITORIAL (lo que pidió el dueño)
+  ---
+  duration_ms: 0.225689
+  type: 'test'
+  ...
+# Subtest: resolveTenantLayout: los tenants NO comparten el mismo molde (se ven distintos entre sí)
+ok 7 - resolveTenantLayout: los tenants NO comparten el mismo molde (se ven distintos entre sí)
+  ---
+  duration_ms: 0.237147
+  type: 'test'
+  ...
+# Subtest: resolveTenantLayout: tenant sin layout declarado cae al molde de hoy (DEFAULT_LAYOUT)
+ok 8 - resolveTenantLayout: tenant sin layout declarado cae al molde de hoy (DEFAULT_LAYOUT)
+  ---
+  duration_ms: 0.303048
+  type: 'test'
+  ...
+# Subtest: Ola1: los 3 retail tienen HERO distinto entre sí (no el mismo molde)
+ok 9 - Ola1: los 3 retail tienen HERO distinto entre sí (no el mismo molde)
+  ---
+  duration_ms: 0.374314
+  type: 'test'
+  ...
+# Subtest: Ola1: cada retail tiene su propia VOZ tipográfica (display font distinto)
+ok 10 - Ola1: cada retail tiene su propia VOZ tipográfica (display font distinto)
+  ---
+  duration_ms: 0.560769
+  type: 'test'
+  ...
+# Subtest: Ola1: cada retail tiene su propio PAPEL (surface distinto) — no el bone de CH
+ok 11 - Ola1: cada retail tiene su propio PAPEL (surface distinto) — no el bone de CH
+  ---
+  duration_ms: 0.295759
+  type: 'test'
+  ...
+# Subtest: Ola1: A Dos Manos y Shine lideran con el catálogo (producto+precio primero)
+ok 12 - Ola1: A Dos Manos y Shine lideran con el catálogo (producto+precio primero)
+  ---
+  duration_ms: 0.238767
+  type: 'test'
+  ...
+# Subtest: resolveSectionOrder: completa las claves faltantes (nunca pierde secciones) y no duplica
+ok 13 - resolveSectionOrder: completa las claves faltantes (nunca pierde secciones) y no duplica
+  ---
+  duration_ms: 0.279173
+  type: 'test'
+  ...
+# Subtest: FONT_VAR: cada clave mapea a una CSS var cargada por el layout raíz
+ok 14 - FONT_VAR: cada clave mapea a una CSS var cargada por el layout raíz
+  ---
+  duration_ms: 0.206256
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 14
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 718.684853

@@ -20,7 +20,7 @@ import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import pg from "pg";
-import { apuntarLaAppA, baseEfimeraDelArchivo, type BaseEfimera } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimera } from "@/test/base-efimera";
 import { runInTenantContext } from "@/lib/tenant-context";
 
 const laBase = baseEfimeraDelArchivo();
@@ -120,7 +120,7 @@ async function sembrarFactura(
 
 /** Un turno del negocio (gabinete, profesional y servicio propios), para enlazarle una factura. */
 async function turnoDePrueba(
-  prisma: typeof import("@/lib/operator-db").operatorPrisma,
+  prisma: import("@/generated/prisma/client").PrismaClient,
   tenantId: string,
   clientId: string,
 ): Promise<string> {
@@ -255,7 +255,7 @@ test("sin CAE sigue permitido editar y borrar; el paso normal de pendiente a aut
 
   // El camino real: createInvoice (PENDING + envío) y registerFiscalDocument (PENDING → AUTHORIZED).
   const { createInvoice, registerFiscalDocument } = await import("@/lib/invoice-core");
-  const { operatorPrisma } = await import("@/lib/operator-db");
+  const duenio = await prismaComoDuenio(base);
   const pedido = base.a.pedidos[2];
   const id = await runInTenantContext(base.a.id, () =>
     createInvoice({
@@ -271,7 +271,7 @@ test("sin CAE sigue permitido editar y borrar; el paso normal de pendiente a aut
       origin: { type: "ORDER", id: pedido },
     }),
   );
-  const envio = await operatorPrisma.outboxEvent.findFirstOrThrow({
+  const envio = await duenio.outboxEvent.findFirstOrThrow({
     where: { tenantId: base.a.id, processedAt: null, payload: { path: ["invoiceId"], equals: id } },
   });
   const tomo = await registerFiscalDocument(
@@ -318,9 +318,9 @@ test("con CAE: vaciar a mano el pedido o el turno falla, como app_rls y como due
   const env = process.env as Record<string, string | undefined>;
   Object.assign(env, { DB_CONNECTION_LIMIT: "2", DB_CONNECT_TIMEOUT_MS: "3000", ARCA_INVOICING_ENABLED: "true" });
   delete env.ARCA_MODO;
-  const { operatorPrisma } = await import("@/lib/operator-db");
+  const duenio = await prismaComoDuenio(base);
   const b = base.b;
-  const turno = await turnoDePrueba(operatorPrisma, b.id, b.clientes[0]);
+  const turno = await turnoDePrueba(duenio, b.id, b.clientes[0]);
   const pedido = b.pedidos[0];
   const conPedido = await sembrarFactura(base, b.id, "AUTHORIZED", pedido);
   const conTurno = await sembrarFactura(base, b.id, "AUTHORIZED", null, turno);
@@ -381,7 +381,7 @@ test("con CAE: vaciar a mano el pedido o el turno falla, como app_rls y como due
     }),
   );
   assert.equal(otra, conPedido, "createInvoice devolvió la autorizada");
-  assert.equal(await operatorPrisma.invoice.count({ where: { orderId: pedido } }), 1, "una sola factura para la venta");
+  assert.equal(await duenio.invoice.count({ where: { orderId: pedido } }), 1, "una sola factura para la venta");
 
   // Lo que sí vale: borrar el origen (como app_rls, con RLS) deja la factura sin enlace (FK SET NULL).
   assert.equal(

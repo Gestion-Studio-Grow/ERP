@@ -28,6 +28,7 @@ import { rechazoDeAccion, sinRespuestaAlAvanzar } from "./avanzar-pedido";
 import { esRedirectDeNext } from "./formularios-del-pedido";
 import { quedoElPedido, rielDelPedido, teclaDelPedido, type PedidoDelTablero } from "./pedidos-core";
 import type { ExtraDelPedido } from "./tablero.server";
+import { useVocabulario } from "../VocabularioDelNegocio";
 
 export type SeccionDelCajon = "cobro" | "ajustar" | "link" | "anular" | null;
 
@@ -110,6 +111,7 @@ export default function PedidoCajon({
   onCerrar: () => void;
 }) {
   const router = useRouter();
+  const vocab = useVocabulario();
   const masRef = useRef<HTMLDetailsElement>(null);
   const cobroRef = useRef<HTMLDivElement>(null);
   // Si se abrió desde «Más» (pesar, link, anular) o desde «Cobrar», se va directo a esa parte.
@@ -223,7 +225,7 @@ export default function PedidoCajon({
             }
           />
           <Renglon
-            folio={pedido.entrega === "DELIVERY" ? "Envío" : "Retira"}
+            folio={pedido.entrega === "DELIVERY" ? "Envío" : vocab.corto}
             titulo={pedido.horario?.texto ?? (pedido.entrega === "DELIVERY" ? "Sin horario pedido" : "En el local, sin horario pedido")}
             detalle={
               [pedido.entrega === "DELIVERY" ? pedido.direccion || "Sin dirección cargada" : null, pedido.nota ? `Nota: ${pedido.nota}` : null]

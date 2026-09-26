@@ -1,0 +1,6 @@
+# npx tsc --noEmit -p . en el commit 27b7d82
+
+real	0m13.871s
+user	0m18.295s
+sys	0m1.432s
+exit=0

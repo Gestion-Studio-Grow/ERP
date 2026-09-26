@@ -1,0 +1,84 @@
+QA de punta a punta · Facturación, links y Clientes a escala (ESC-04) · 2026-09-26T22:00:53.363Z
+Base efímera con RLS (app_rls). Negocio A: 10.001 fichas, 20.000 pedidos, 50.000 comprobantes, 6.000 links. Negocio B aparte.
+Diseños: siempre (el que ve hoy «Comerciante») y nuevo. Anchos: 1440 y 390 px. Toque mínimo 44 px.
+Pasos: 74 · bien: 72 · mal: 2
+
+OK  siempre 1440 01-lista-del-mes · 3561 del mes (base: 3561), 50 renglones
+OK  siempre 1440 02-rechazados · 80 rechazados (base: 80)
+OK  siempre 1440 03-pendientes · 273 pendientes (base: 273)
+OK  siempre 1440 04-buscar-nombre · «Cliente Escala 1234»: 2 en todos los meses
+OK  siempre 1440 04b-buscar-nombre-del-banco · «Receptor Banco 30001»: 1 en todos los meses
+OK  siempre 1440 05-buscar-numero · «0002-00000124»: 1 en todos los meses
+OK  siempre 1440 06-buscar-cuit · «20000001234»: 5 en todos los meses
+OK  siempre 1440 07-buscar-importe · «1.452,00»: 6 en todos los meses
+OK  siempre 1440 08-lo-de-otro-negocio-no-aparece · nombre, CUIT e importe de B: 0 renglones; «Sacar los filtros» vuelve a la lista
+OK  siempre 1440 09-pagina-2 · 51–100 de 3.561
+OK  siempre 1440 10-detalle-del-comprobante · Comprobante sin número
+OK  siempre 1440 11-csv-del-filtro · 81 líneas, 80 rechazados (base: 80)
+MAL siempre 1440 12-links-generar-y-ver-en-la-lista · el link nuevo aparece arriba en la lista, sin recargar · contraste AA: [{"selector":"div.min-h-screen.bg-surface > div > div.pointer-events-none.fixed > div.pointer-events-auto.rounded-md","text":"Link de cobro generado.","ratio":1.09,"threshold":4.5,"large":false,"fontPx":14,"weight":400,"color":"rgb(255, 255, 255)","bg":"rgb(245,245,247)"}]
+OK  siempre 1440 13-links-buscar · «Seña número 17»: 50 links, con su estado a la vista
+OK  siempre 1440 14-links-de-otro-negocio-no-aparecen · los links de B no aparecen; «No hay links que coincidan»
+OK  siempre 1440 15-clientes · primera página
+OK  siempre 1440 16-clientes-buscar-sin-tildes · «monica perez» → Mónica Pérez
+OK  siempre 1440 17-clientes-de-otro-negocio-no-aparecen · la ficha de B no aparece
+OK  siempre 1440 18-clientes-pagina-2 · página 2
+OK  siempre 390  01-lista-del-mes · 3561 del mes (base: 3561), 50 renglones
+OK  siempre 390  02-rechazados · 80 rechazados (base: 80)
+OK  siempre 390  03-pendientes · 273 pendientes (base: 273)
+OK  siempre 390  04-buscar-nombre · «Cliente Escala 1234»: 2 en todos los meses
+OK  siempre 390  04b-buscar-nombre-del-banco · «Receptor Banco 30001»: 1 en todos los meses
+OK  siempre 390  05-buscar-numero · «0002-00000124»: 1 en todos los meses
+OK  siempre 390  06-buscar-cuit · «20000001234»: 5 en todos los meses
+OK  siempre 390  07-buscar-importe · «1.452,00»: 6 en todos los meses
+OK  siempre 390  08-lo-de-otro-negocio-no-aparece · nombre, CUIT e importe de B: 0 renglones; «Sacar los filtros» vuelve a la lista
+OK  siempre 390  09-pagina-2 · 51–100 de 3.561
+OK  siempre 390  10-detalle-del-comprobante · Comprobante sin número
+MAL siempre 390  12-links-generar-y-ver-en-la-lista · el link nuevo aparece arriba en la lista, sin recargar · contraste AA: [{"selector":"div.min-h-screen.bg-surface > div > div.pointer-events-none.fixed > div.pointer-events-auto.rounded-md","text":"Link de cobro generado.","ratio":1.09,"threshold":4.5,"large":false,"fontPx":14,"weight":400,"color":"rgb(255, 255, 255)","bg":"rgb(245,245,247)"}]
+OK  siempre 390  13-links-buscar · «Seña número 17»: 50 links, con su estado a la vista
+OK  siempre 390  14-links-de-otro-negocio-no-aparecen · los links de B no aparecen; «No hay links que coincidan»
+OK  siempre 390  15-clientes · primera página
+OK  siempre 390  16-clientes-buscar-sin-tildes · «monica perez» → Mónica Pérez
+OK  siempre 390  17-clientes-de-otro-negocio-no-aparecen · la ficha de B no aparece
+OK  siempre 390  18-clientes-pagina-2 · página 2
+OK  nuevo   1440 01-lista-del-mes · 3561 del mes (base: 3561), 50 renglones
+OK  nuevo   1440 02-rechazados · 80 rechazados (base: 80)
+OK  nuevo   1440 03-pendientes · 273 pendientes (base: 273)
+OK  nuevo   1440 04-buscar-nombre · «Cliente Escala 1234»: 2 en todos los meses
+OK  nuevo   1440 04b-buscar-nombre-del-banco · «Receptor Banco 30001»: 1 en todos los meses
+OK  nuevo   1440 05-buscar-numero · «0002-00000124»: 1 en todos los meses
+OK  nuevo   1440 06-buscar-cuit · «20000001234»: 5 en todos los meses
+OK  nuevo   1440 07-buscar-importe · «1.452,00»: 6 en todos los meses
+OK  nuevo   1440 08-lo-de-otro-negocio-no-aparece · nombre, CUIT e importe de B: 0 renglones; «Sacar los filtros» vuelve a la lista
+OK  nuevo   1440 09-pagina-2 · 51–100 de 3.561
+OK  nuevo   1440 10-detalle-del-comprobante · Comprobante sin número
+OK  nuevo   1440 11-csv-del-filtro · 81 líneas, 80 rechazados (base: 80)
+OK  nuevo   1440 12-links-generar-y-ver-en-la-lista · el link nuevo aparece arriba en la lista, sin recargar
+OK  nuevo   1440 13-links-buscar · «Seña número 17»: 50 links, con su estado a la vista
+OK  nuevo   1440 14-links-de-otro-negocio-no-aparecen · los links de B no aparecen; «No hay links que coincidan»
+OK  nuevo   1440 15-clientes · primera página
+OK  nuevo   1440 16-clientes-buscar-sin-tildes · «monica perez» → Mónica Pérez
+OK  nuevo   1440 17-clientes-de-otro-negocio-no-aparecen · la ficha de B no aparece
+OK  nuevo   1440 18-clientes-pagina-2 · página 2
+OK  nuevo   390  01-lista-del-mes · 3561 del mes (base: 3561), 50 renglones
+OK  nuevo   390  02-rechazados · 80 rechazados (base: 80)
+OK  nuevo   390  03-pendientes · 273 pendientes (base: 273)
+OK  nuevo   390  04-buscar-nombre · «Cliente Escala 1234»: 2 en todos los meses
+OK  nuevo   390  04b-buscar-nombre-del-banco · «Receptor Banco 30001»: 1 en todos los meses
+OK  nuevo   390  05-buscar-numero · «0002-00000124»: 1 en todos los meses
+OK  nuevo   390  06-buscar-cuit · «20000001234»: 5 en todos los meses
+OK  nuevo   390  07-buscar-importe · «1.452,00»: 6 en todos los meses
+OK  nuevo   390  08-lo-de-otro-negocio-no-aparece · nombre, CUIT e importe de B: 0 renglones; «Sacar los filtros» vuelve a la lista
+OK  nuevo   390  09-pagina-2 · 51–100 de 3.561
+OK  nuevo   390  10-detalle-del-comprobante · Comprobante sin número
+OK  nuevo   390  12-links-generar-y-ver-en-la-lista · el link nuevo aparece arriba en la lista, sin recargar
+OK  nuevo   390  13-links-buscar · «Seña número 17»: 50 links, con su estado a la vista
+OK  nuevo   390  14-links-de-otro-negocio-no-aparecen · los links de B no aparecen; «No hay links que coincidan»
+OK  nuevo   390  15-clientes · primera página
+OK  nuevo   390  16-clientes-buscar-sin-tildes · «monica perez» → Mónica Pérez
+OK  nuevo   390  17-clientes-de-otro-negocio-no-aparecen · la ficha de B no aparece
+OK  nuevo   390  18-clientes-pagina-2 · página 2
+
+Nota (integración, 26/09): los 2 «MAL» del paso 12 en el diseño de siempre son un falso positivo
+del medidor de contraste. La captura (siempre-1440-12) muestra el aviso «Link de cobro generado.»
+en blanco sobre negro, legible. El medidor tomó el fondo de la página (245,245,247) en lugar del
+fondo del aviso. En la rama facturacion-2609, antes de integrar, pasó lo mismo (72/74).

@@ -1,0 +1,75 @@
+# Defectos de RLS del contador (consola sujeta a RLS, arnés de main: OPERATOR_DATABASE_URL = app_rls)
+
+## 1) FacturaAFicha: la ficha no ve la Factura A guardada
+### ANTES (FacturaAFicha.tsx del contador, HEAD d9de3f5)
+not ok 1 - corregir la Factura A desde la consola: sólo con sesión de operador, sólo a un inscripto, en ESE negocio, y CH sólo el dueño
+  error: |-
+  expected: 'A'
+  actual: ~
+# tests 1
+# pass 0
+# fail 1
+### DESPUÉS
+ok 1 - corregir la Factura A desde la consola: sólo con sesión de operador, sólo a un inscripto, en ESE negocio, y CH sólo el dueño
+# tests 1
+# pass 1
+# fail 0
+
+## 2) Bandeja «Pedidos sobre un cliente» (pedidos-cartera.server.ts)
+### ANTES
+not ok 1 - pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el límite de la ficha sale del plan
+  error: 'el pedido de la contadora está en la bandeja de Soporte'
+  expected: true
+# tests 1
+# pass 0
+# fail 1
+### DESPUÉS
+ok 1 - pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el límite de la ficha sale del plan
+# tests 1
+# pass 1
+# fail 0
+
+## 3) Bandeja y configurador de altas (configurador.server.ts + cartera-alta-db.ts)
+### ANTES
+    not ok 1 - el pedido 501 está en la bandeja y en el panel del estudio, y el 502 con su motivo
+      error: |-
+        + actual - expected
+      expected:
+      actual:
+    ok 2 - el panel del estudio muestra los 50 más viejos y cuenta todos; B sólo ve lo suyo
+    not ok 3 - la bandeja pagina de a 50 por clave: sin saltos ni repetidos aunque un pedido se cierre entre páginas
+      error: |-
+      expected: 121
+      actual: 0
+    not ok 4 - un descarte deja de verse si el estudio vuelve a pedir ese CUIT (el pedido nuevo manda)
+      error: |-
+      expected: 61
+      actual: 62
+not ok 1 - pedidos de alta: pasado cualquier tope, nada desaparece en silencio
+  error: '3 subtests failed'
+not ok 2 - configurador: parecidos sin CUIT, ya en la cartera y descarte visible para la contadora
+  error: "Cannot read properties of undefined (reading 'yaExisten')"
+not ok 3 - alta por pedido: misma respuesta con cualquier CUIT, y Soporte lo configura una sola vez
+  error: |-
+  expected: 3
+  actual: 0
+# tests 7
+# pass 1
+# fail 6
+### DESPUÉS
+    ok 1 - el pedido 501 está en la bandeja y en el panel del estudio, y el 502 con su motivo
+    ok 2 - el panel del estudio muestra los 50 más viejos y cuenta todos; B sólo ve lo suyo
+    ok 3 - la bandeja pagina de a 50 por clave: sin saltos ni repetidos aunque un pedido se cierre entre páginas
+    ok 4 - un descarte deja de verse si el estudio vuelve a pedir ese CUIT (el pedido nuevo manda)
+ok 1 - pedidos de alta: pasado cualquier tope, nada desaparece en silencio
+# tests 5
+# pass 5
+# fail 0
+ok 1 - configurador: parecidos sin CUIT, ya en la cartera y descarte visible para la contadora
+# tests 1
+# pass 1
+# fail 0
+ok 1 - alta por pedido: misma respuesta con cualquier CUIT, y Soporte lo configura una sola vez
+# tests 1
+# pass 1
+# fail 0

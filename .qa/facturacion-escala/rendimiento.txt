@@ -1,0 +1,588 @@
+Lista de comprobantes a escala — 2026-09-26T17:42:35.895Z
+Postgres local efímero (src/test/base-efimera.ts), conectado como app_rls con RLS; 20 vueltas por caso, tiempo de la página entera (totales + renglones en una consulta, en su transacción).
+Negocio A: 10.000 clientes, 20.000 pedidos, 50.000 comprobantes en 12 meses, 80.000 movimientos del banco (50.000 atados a un comprobante). Negocio B: 502 comprobantes y 1 movimiento.
+Presupuesto: p95 < 300 ms por página. Peor p95 medido: 169.5 ms.
+
+mes en curso (por defecto)                       4109 en el filtro · 1 consulta · p95 57.4 ms · mediana 32.3 ms
+mes en curso, página 20                          4109 en el filtro · 1 consulta · p95 72.3 ms · mediana 53.8 ms
+todos los meses (50.000)                        50000 en el filtro · 1 consulta · p95 96.3 ms · mediana 77.6 ms
+todos los meses, página 900                     50000 en el filtro · 1 consulta · p95 167.1 ms · mediana 149.4 ms
+necesitan atención, todos los meses              4545 en el filtro · 1 consulta · p95 101.3 ms · mediana 81.6 ms
+rechazados del mes                                 98 en el filtro · 1 consulta · p95 54.4 ms · mediana 48.3 ms
+autorizados del mes                              3738 en el filtro · 1 consulta · p95 61.8 ms · mediana 55.9 ms
+Factura A del mes                                 545 en el filtro · 1 consulta · p95 60.5 ms · mediana 48.8 ms
+notas de crédito del año                         9969 en el filtro · 1 consulta · p95 84.1 ms · mediana 60.7 ms
+punto de venta 2 del mes                         1370 en el filtro · 1 consulta · p95 69.5 ms · mediana 50.7 ms
+período de un trimestre                         12467 en el filtro · 1 consulta · p95 65.4 ms · mediana 39.9 ms
+buscar nombre «Cliente Escala 777»                 22 en el filtro · 1 consulta · p95 147.2 ms · mediana 107.3 ms
+buscar nombre del banco «Receptor Banco 3000»      10 en el filtro · 1 consulta · p95 169.5 ms · mediana 131.4 ms
+buscar CUIT «20-00000077-8»                         5 en el filtro · 1 consulta · p95 64.5 ms · mediana 48.3 ms
+buscar número «0002-00012346»                       1 en el filtro · 1 consulta · p95 18.6 ms · mediana 10.7 ms
+buscar importe «5.445,00»                           6 en el filtro · 1 consulta · p95 63.2 ms · mediana 50.1 ms
+buscar nombre + mes + rechazados                   39 en el filtro · 1 consulta · p95 99.5 ms · mediana 69.7 ms
+
+Aislamiento: A cuenta 50.000 y B 502; A buscando el nombre, el CUIT, el importe y el nombre del banco de B: 0; con la sesión de A pidiendo los de B por su id: 0 (RLS).
+Notas de crédito: una factura de $10.000 anulada con su nota de crédito suma $0 (2 autorizados); el renglón de la nota va en −$10.000; el mes de A coincide con la suma directa con signo.
+
+Índices que faltan (ventana M1, BACKLOG ESC-01): Invoice (tenantId, fecha…) y MovimientoImportado (tenantId, invoiceId).
+Sin ellos: el orden por fecha recorre los comprobantes del negocio (Seq Scan + Sort) y el nombre del banco se busca
+recorriendo una vez los movimientos del negocio por consulta (Seq Scan + Hash), nunca uno por renglón.
+
+Plan: la página por defecto (mes en curso, página 1)
+  Result  (cost=26113.43..26113.44 rows=1 width=64) (actual rows=1 loops=1)
+    CTE totales
+      ->  HashAggregate  (cost=1990.17..1990.24 rows=3 width=72) (actual rows=3 loops=1)
+            Group Key: i.status
+            Batches: 1  Memory Usage: 24kB
+            ->  Result  (cost=0.01..1932.79 rows=4173 width=15) (actual rows=4109 loops=1)
+                  One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                  ->  Seq Scan on "Invoice" i  (cost=0.01..1932.79 rows=4173 width=15) (actual rows=4109 loops=1)
+                        Filter: ((fecha >= '20260901'::text) AND (fecha <= '20260930'::text) AND ("tenantId" = 'tnt_a_70d678c03f'::text))
+                        Rows Removed by Filter: 46393
+    CTE elegidos
+      ->  Limit  (cost=2184.85..2184.98 rows=50 width=30) (actual rows=50 loops=1)
+            InitPlan 2 (returns $1)
+              ->  Aggregate  (cost=0.07..0.08 rows=1 width=8) (actual rows=1 loops=1)
+                    ->  CTE Scan on totales t  (cost=0.00..0.06 rows=3 width=4) (actual rows=3 loops=1)
+            ->  Sort  (cost=2183.73..2194.16 rows=4173 width=30) (actual rows=50 loops=1)
+                  Sort Key: i_1.fecha DESC, i_1."createdAt" DESC, i_1.id DESC
+                  Sort Method: top-N heapsort  Memory: 30kB
+                  ->  Result  (cost=0.01..1932.79 rows=4173 width=30) (actual rows=4109 loops=1)
+                        One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                        ->  Seq Scan on "Invoice" i_1  (cost=0.01..1932.79 rows=4173 width=30) (actual rows=4109 loops=1)
+                              Filter: ((fecha >= '20260901'::text) AND (fecha <= '20260930'::text) AND ("tenantId" = 'tnt_a_70d678c03f'::text))
+                              Rows Removed by Filter: 46393
+    CTE pagina
+      ->  Result  (cost=1.54..407.88 rows=49 width=152) (actual rows=50 loops=1)
+            One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+            ->  Nested Loop  (cost=1.54..407.88 rows=49 width=152) (actual rows=50 loops=1)
+                  ->  HashAggregate  (cost=1.12..1.62 rows=50 width=32) (actual rows=50 loops=1)
+                        Group Key: e.id
+                        Batches: 1  Memory Usage: 24kB
+                        ->  CTE Scan on elegidos e  (cost=0.00..1.00 rows=50 width=32) (actual rows=50 loops=1)
+                  ->  Index Scan using "Invoice_pkey" on "Invoice" i_2  (cost=0.41..8.11 rows=1 width=152) (actual rows=1 loops=50)
+                        Index Cond: (id = e.id)
+                        Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+    CTE con_venta
+      ->  Hash Right Join  (cost=381.57..18432.64 rows=49 width=366) (actual rows=50 loops=1)
+            Hash Cond: (c.id = COALESCE(o."clientId", a."clientId"))
+            ->  Result  (cost=0.01..298.04 rows=10002 width=63) (actual rows=10002 loops=1)
+                  One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                  ->  Seq Scan on "Client" c  (cost=0.01..298.04 rows=10002 width=63) (actual rows=10002 loops=1)
+                        Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                        Rows Removed by Filter: 1
+            ->  Hash  (cost=380.95..380.95 rows=49 width=356) (actual rows=50 loops=1)
+                  Buckets: 1024  Batches: 1  Memory Usage: 16kB
+                  ->  Nested Loop Left Join  (cost=0.43..380.95 rows=49 width=356) (actual rows=50 loops=1)
+                        Join Filter: (a.id = i_3."appointmentId")
+                        ->  Nested Loop Left Join  (cost=0.29..372.05 rows=49 width=324) (actual rows=50 loops=1)
+                              ->  CTE Scan on pagina i_3  (cost=0.00..0.98 rows=49 width=302) (actual rows=50 loops=1)
+                              ->  Result  (cost=0.29..7.57 rows=1 width=35) (actual rows=1 loops=50)
+                                    One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                    ->  Index Scan using "Order_pkey" on "Order" o  (cost=0.29..7.57 rows=1 width=35) (actual rows=1 loops=50)
+                                          Index Cond: (id = i_3."orderId")
+                                          Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                        ->  Materialize  (cost=0.14..8.17 rows=1 width=64) (actual rows=0 loops=50)
+                              ->  Result  (cost=0.14..8.16 rows=1 width=64) (actual rows=0 loops=1)
+                                    One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                    ->  Index Scan using "Appointment_tenantId_startsAt_idx" on "Appointment" a  (cost=0.14..8.16 rows=1 width=64) (actual rows=0 loops=1)
+                                          Index Cond: ("tenantId" = 'tnt_a_70d678c03f'::text)
+            SubPlan 5
+              ->  Result  (cost=24.94..360.50 rows=1 width=32) (never executed)
+                    One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                    ->  Hash Right Join  (cost=24.94..360.50 rows=1 width=61) (never executed)
+                          Hash Cond: (ca.id = COALESCE(oa."clientId", aa."clientId"))
+                          ->  Result  (cost=0.01..298.04 rows=10002 width=63) (never executed)
+                                One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                ->  Seq Scan on "Client" ca  (cost=0.01..298.04 rows=10002 width=63) (never executed)
+                                      Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                          ->  Hash  (cost=24.92..24.92 rows=1 width=54) (never executed)
+                                ->  Nested Loop Left Join  (cost=0.85..24.92 rows=1 width=54) (never executed)
+                                      Join Filter: (aa.id = ia."appointmentId")
+                                      ->  Nested Loop Left Join  (cost=0.70..16.74 rows=1 width=54) (never executed)
+                                            ->  Index Scan using "Invoice_tenantId_id_key" on "Invoice" ia  (cost=0.41..8.43 rows=1 width=45) (never executed)
+                                                  Index Cond: (("tenantId" = 'tnt_a_70d678c03f'::text) AND (id = i_3."comprobanteAsociadoId"))
+                                            ->  Result  (cost=0.29..8.31 rows=1 width=35) (never executed)
+                                                  One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                                  ->  Index Scan using "Order_pkey" on "Order" oa  (cost=0.29..8.31 rows=1 width=35) (never executed)
+                                                        Index Cond: (id = ia."orderId")
+                                                        Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                      ->  Result  (cost=0.14..8.16 rows=1 width=64) (never executed)
+                                            One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                            ->  Index Scan using "Appointment_tenantId_startsAt_idx" on "Appointment" aa  (cost=0.14..8.16 rows=1 width=64) (never executed)
+                                                  Index Cond: ("tenantId" = 'tnt_a_70d678c03f'::text)
+    InitPlan 7 (returns $9)
+      ->  Aggregate  (cost=0.07..0.08 rows=1 width=32) (actual rows=1 loops=1)
+            ->  CTE Scan on totales t_1  (cost=0.00..0.06 rows=3 width=24) (actual rows=3 loops=1)
+    InitPlan 8 (returns $10)
+      ->  Aggregate  (cost=3097.60..3097.61 rows=1 width=32) (actual rows=1 loops=1)
+            ->  Sort  (cost=3096.56..3096.68 rows=49 width=258) (actual rows=50 loops=1)
+                  Sort Key: i_4.fecha DESC, i_4."createdAt" DESC, i_4.id DESC
+                  Sort Method: quicksort  Memory: 31kB
+                  ->  Hash Left Join  (cost=3094.06..3095.18 rows=49 width=258) (actual rows=50 loops=1)
+                        Hash Cond: (i_4.origen_banco = b."invoiceId")
+                        ->  CTE Scan on con_venta i_4  (cost=0.00..0.98 rows=49 width=270) (actual rows=50 loops=1)
+                        ->  Hash  (cost=3094.05..3094.05 rows=1 width=33) (actual rows=0 loops=1)
+                              Buckets: 1024  Batches: 1  Memory Usage: 8kB
+                              ->  Subquery Scan on b  (cost=3094.03..3094.05 rows=1 width=33) (actual rows=0 loops=1)
+                                    ->  Unique  (cost=3094.03..3094.04 rows=1 width=46) (actual rows=0 loops=1)
+                                          ->  Sort  (cost=3094.03..3094.04 rows=1 width=46) (actual rows=0 loops=1)
+                                                Sort Key: m."invoiceId", m.id
+                                                Sort Method: quicksort  Memory: 25kB
+                                                ->  Result  (cost=1.00..3094.02 rows=1 width=46) (actual rows=0 loops=1)
+                                                      One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                                      ->  Hash Semi Join  (cost=1.00..3094.02 rows=1 width=46) (actual rows=0 loops=1)
+                                                            Hash Cond: (m."invoiceId" = v.origen_banco)
+                                                            ->  Seq Scan on "MovimientoImportado" m  (cost=0.00..2883.01 rows=80001 width=46) (actual rows=1 loops=1)
+                                                                  Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                                            ->  Hash  (cost=0.98..0.98 rows=1 width=32) (actual rows=0 loops=1)
+                                                                  Buckets: 1024  Batches: 1  Memory Usage: 8kB
+                                                                  ->  CTE Scan on con_venta v  (cost=0.00..0.98 rows=1 width=32) (actual rows=0 loops=1)
+                                                                        Filter: (receptor_venta IS NULL)
+                                                                        Rows Removed by Filter: 50
+  Planning Time: 3.618 ms
+  Execution Time: 29.702 ms
+
+Plan: la página 900 de todos los meses
+  Result  (cost=29453.13..29453.14 rows=1 width=64) (actual rows=1 loops=1)
+    CTE totales
+      ->  HashAggregate  (cost=2493.88..2493.96 rows=3 width=72) (actual rows=3 loops=1)
+            Group Key: i.status
+            Batches: 1  Memory Usage: 24kB
+            ->  Result  (cost=0.01..1806.53 rows=49989 width=15) (actual rows=50000 loops=1)
+                  One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                  ->  Seq Scan on "Invoice" i  (cost=0.01..1806.53 rows=49989 width=15) (actual rows=50000 loops=1)
+                        Filter: ((fecha >= '20000101'::text) AND ("tenantId" = 'tnt_a_70d678c03f'::text))
+                        Rows Removed by Filter: 502
+    CTE elegidos
+      ->  Limit  (cost=5015.20..5020.95 rows=50 width=30) (actual rows=50 loops=1)
+            InitPlan 2 (returns $1)
+              ->  Aggregate  (cost=0.07..0.08 rows=1 width=8) (actual rows=1 loops=1)
+                    ->  CTE Scan on totales t  (cost=0.00..0.06 rows=3 width=4) (actual rows=3 loops=1)
+            ->  Gather Merge  (cost=4677.03..8058.60 rows=29405 width=30) (actual rows=45000 loops=1)
+                  Workers Planned: 1
+                  Workers Launched: 1
+                  ->  Sort  (cost=3677.02..3750.53 rows=29405 width=30) (actual rows=23076 loops=2)
+                        Sort Key: i_1.fecha DESC, i_1."createdAt" DESC, i_1.id DESC
+                        Sort Method: quicksort  Memory: 3532kB
+                        Worker 0:  Sort Method: quicksort  Memory: 1392kB
+                        ->  Result  (cost=0.01..1494.61 rows=29405 width=30) (actual rows=25000 loops=2)
+                              One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                              ->  Parallel Seq Scan on "Invoice" i_1  (cost=0.01..1494.61 rows=29405 width=30) (actual rows=25000 loops=2)
+                                    Filter: ((fecha >= '20000101'::text) AND ("tenantId" = 'tnt_a_70d678c03f'::text))
+                                    Rows Removed by Filter: 251
+    CTE pagina
+      ->  Result  (cost=1.54..407.88 rows=49 width=152) (actual rows=50 loops=1)
+            One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+            ->  Nested Loop  (cost=1.54..407.88 rows=49 width=152) (actual rows=50 loops=1)
+                  ->  HashAggregate  (cost=1.12..1.62 rows=50 width=32) (actual rows=50 loops=1)
+                        Group Key: e.id
+                        Batches: 1  Memory Usage: 24kB
+                        ->  CTE Scan on elegidos e  (cost=0.00..1.00 rows=50 width=32) (actual rows=50 loops=1)
+                  ->  Index Scan using "Invoice_pkey" on "Invoice" i_2  (cost=0.41..8.11 rows=1 width=152) (actual rows=1 loops=50)
+                        Index Cond: (id = e.id)
+                        Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+    CTE con_venta
+      ->  Hash Right Join  (cost=381.57..18432.64 rows=49 width=366) (actual rows=50 loops=1)
+            Hash Cond: (c.id = COALESCE(o."clientId", a."clientId"))
+            ->  Result  (cost=0.01..298.04 rows=10002 width=63) (actual rows=10002 loops=1)
+                  One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                  ->  Seq Scan on "Client" c  (cost=0.01..298.04 rows=10002 width=63) (actual rows=10002 loops=1)
+                        Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                        Rows Removed by Filter: 1
+            ->  Hash  (cost=380.95..380.95 rows=49 width=356) (actual rows=50 loops=1)
+                  Buckets: 1024  Batches: 1  Memory Usage: 16kB
+                  ->  Nested Loop Left Join  (cost=0.43..380.95 rows=49 width=356) (actual rows=50 loops=1)
+                        Join Filter: (a.id = i_3."appointmentId")
+                        ->  Nested Loop Left Join  (cost=0.29..372.05 rows=49 width=324) (actual rows=50 loops=1)
+                              ->  CTE Scan on pagina i_3  (cost=0.00..0.98 rows=49 width=302) (actual rows=50 loops=1)
+                              ->  Result  (cost=0.29..7.57 rows=1 width=35) (actual rows=1 loops=50)
+                                    One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                    ->  Index Scan using "Order_pkey" on "Order" o  (cost=0.29..7.57 rows=1 width=35) (actual rows=1 loops=50)
+                                          Index Cond: (id = i_3."orderId")
+                                          Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                        ->  Materialize  (cost=0.14..8.17 rows=1 width=64) (actual rows=0 loops=50)
+                              ->  Result  (cost=0.14..8.16 rows=1 width=64) (actual rows=0 loops=1)
+                                    One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                    ->  Index Scan using "Appointment_tenantId_startsAt_idx" on "Appointment" a  (cost=0.14..8.16 rows=1 width=64) (actual rows=0 loops=1)
+                                          Index Cond: ("tenantId" = 'tnt_a_70d678c03f'::text)
+            SubPlan 5
+              ->  Result  (cost=24.94..360.50 rows=1 width=32) (never executed)
+                    One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                    ->  Hash Right Join  (cost=24.94..360.50 rows=1 width=61) (never executed)
+                          Hash Cond: (ca.id = COALESCE(oa."clientId", aa."clientId"))
+                          ->  Result  (cost=0.01..298.04 rows=10002 width=63) (never executed)
+                                One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                ->  Seq Scan on "Client" ca  (cost=0.01..298.04 rows=10002 width=63) (never executed)
+                                      Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                          ->  Hash  (cost=24.92..24.92 rows=1 width=54) (never executed)
+                                ->  Nested Loop Left Join  (cost=0.85..24.92 rows=1 width=54) (never executed)
+                                      Join Filter: (aa.id = ia."appointmentId")
+                                      ->  Nested Loop Left Join  (cost=0.70..16.74 rows=1 width=54) (never executed)
+                                            ->  Index Scan using "Invoice_tenantId_id_key" on "Invoice" ia  (cost=0.41..8.43 rows=1 width=45) (never executed)
+                                                  Index Cond: (("tenantId" = 'tnt_a_70d678c03f'::text) AND (id = i_3."comprobanteAsociadoId"))
+                                            ->  Result  (cost=0.29..8.31 rows=1 width=35) (never executed)
+                                                  One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                                  ->  Index Scan using "Order_pkey" on "Order" oa  (cost=0.29..8.31 rows=1 width=35) (never executed)
+                                                        Index Cond: (id = ia."orderId")
+                                                        Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                      ->  Result  (cost=0.14..8.16 rows=1 width=64) (never executed)
+                                            One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                            ->  Index Scan using "Appointment_tenantId_startsAt_idx" on "Appointment" aa  (cost=0.14..8.16 rows=1 width=64) (never executed)
+                                                  Index Cond: ("tenantId" = 'tnt_a_70d678c03f'::text)
+    InitPlan 7 (returns $10)
+      ->  Aggregate  (cost=0.07..0.08 rows=1 width=32) (actual rows=1 loops=1)
+            ->  CTE Scan on totales t_1  (cost=0.00..0.06 rows=3 width=24) (actual rows=3 loops=1)
+    InitPlan 8 (returns $11)
+      ->  Aggregate  (cost=3097.60..3097.61 rows=1 width=32) (actual rows=1 loops=1)
+            ->  Sort  (cost=3096.56..3096.68 rows=49 width=258) (actual rows=50 loops=1)
+                  Sort Key: i_4.fecha DESC, i_4."createdAt" DESC, i_4.id DESC
+                  Sort Method: quicksort  Memory: 31kB
+                  ->  Hash Left Join  (cost=3094.06..3095.18 rows=49 width=258) (actual rows=50 loops=1)
+                        Hash Cond: (i_4.origen_banco = b."invoiceId")
+                        ->  CTE Scan on con_venta i_4  (cost=0.00..0.98 rows=49 width=270) (actual rows=50 loops=1)
+                        ->  Hash  (cost=3094.05..3094.05 rows=1 width=33) (actual rows=11 loops=1)
+                              Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                              ->  Subquery Scan on b  (cost=3094.03..3094.05 rows=1 width=33) (actual rows=11 loops=1)
+                                    ->  Unique  (cost=3094.03..3094.04 rows=1 width=46) (actual rows=11 loops=1)
+                                          ->  Sort  (cost=3094.03..3094.04 rows=1 width=46) (actual rows=11 loops=1)
+                                                Sort Key: m."invoiceId", m.id
+                                                Sort Method: quicksort  Memory: 25kB
+                                                ->  Result  (cost=1.00..3094.02 rows=1 width=46) (actual rows=11 loops=1)
+                                                      One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                                      ->  Hash Semi Join  (cost=1.00..3094.02 rows=1 width=46) (actual rows=11 loops=1)
+                                                            Hash Cond: (m."invoiceId" = v.origen_banco)
+                                                            ->  Seq Scan on "MovimientoImportado" m  (cost=0.00..2883.01 rows=80001 width=46) (actual rows=80000 loops=1)
+                                                                  Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                                                  Rows Removed by Filter: 1
+                                                            ->  Hash  (cost=0.98..0.98 rows=1 width=32) (actual rows=11 loops=1)
+                                                                  Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                                                  ->  CTE Scan on con_venta v  (cost=0.00..0.98 rows=1 width=32) (actual rows=11 loops=1)
+                                                                        Filter: (receptor_venta IS NULL)
+                                                                        Rows Removed by Filter: 39
+  Planning Time: 3.980 ms
+  Execution Time: 136.496 ms
+
+Plan: «buscar nombre del banco»
+  Result  (cost=37880.23..37880.24 rows=1 width=64) (actual rows=1 loops=1)
+    CTE filtro
+      ->  Result  (cost=5262.04..12900.44 rows=25059 width=66) (actual rows=10 loops=1)
+            One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+            ->  Hash Left Join  (cost=5262.04..12743.82 rows=25059 width=45) (actual rows=10 loops=1)
+                  Hash Cond: (COALESCE(o."clientId", a."clientId") = c.id)
+                  Filter: (CASE WHEN (lower(COALESCE(NULLIF(c."razonSocial", ''::text), NULLIF(c.name, ''::text), NULLIF(o."customerName", ''::text), CASE WHEN (i."comprobanteAsociadoId" IS NOT NULL) THEN (SubPlan 1) ELSE NULL::text END)) ~~ '%r___pt_r b____ 3000%'::text) THEN (translate(lower(COALESCE(NULLIF(c."razonSocial", ''::text), NULLIF(c.name, ''::text), NULLIF(o."customerName", ''::text), CASE WHEN (i."comprobanteAsociadoId" IS NOT NULL) THEN (SubPlan 2) ELSE NULL::text END)), 'áàäâãéèëêíìïîóòöôõúùüûñçÁÀÄÂÃÉÈËÊÍÌÏÎÓÒÖÔÕÚÙÜÛÑÇ'::text, 'aaaaaeeeeiiiiooooouuuuncaaaaaeeeeiiiiooooouuuunc'::text) ~~ '%receptor banco 3000%'::text) ELSE false END OR ((COALESCE(NULLIF(c."razonSocial", ''::text), NULLIF(c.name, ''::text), NULLIF(o."customerName", ''::text), CASE WHEN (i."comprobanteAsociadoId" IS NOT NULL) THEN (SubPlan 3) ELSE NULL::text END) IS NULL) AND (hashed SubPlan 4)))
+                  Rows Removed by Filter: 49990
+                  ->  Hash Left Join  (cost=893.29..2836.05 rows=49994 width=111) (actual rows=50000 loops=1)
+                        Hash Cond: (i."appointmentId" = a.id)
+                        ->  Hash Left Join  (cost=885.12..2696.64 rows=49994 width=111) (actual rows=50000 loops=1)
+                              Hash Cond: (i."orderId" = o.id)
+                              ->  Seq Scan on "Invoice" i  (cost=0.00..1680.28 rows=49994 width=102) (actual rows=50000 loops=1)
+                                    Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                    Rows Removed by Filter: 502
+                              ->  Hash  (cost=635.08..635.08 rows=20003 width=35) (actual rows=20003 loops=1)
+                                    Buckets: 32768  Batches: 1  Memory Usage: 1591kB
+                                    ->  Result  (cost=0.01..635.08 rows=20003 width=35) (actual rows=20003 loops=1)
+                                          One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                          ->  Seq Scan on "Order" o  (cost=0.01..635.08 rows=20003 width=35) (actual rows=20003 loops=1)
+                                                Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                                Rows Removed by Filter: 3
+                        ->  Hash  (cost=8.16..8.16 rows=1 width=64) (actual rows=0 loops=1)
+                              Buckets: 1024  Batches: 1  Memory Usage: 8kB
+                              ->  Result  (cost=0.14..8.16 rows=1 width=64) (actual rows=0 loops=1)
+                                    One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                    ->  Index Scan using "Appointment_tenantId_startsAt_idx" on "Appointment" a  (cost=0.14..8.16 rows=1 width=64) (actual rows=0 loops=1)
+                                          Index Cond: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                  ->  Hash  (cost=298.04..298.04 rows=10002 width=63) (actual rows=10002 loops=1)
+                        Buckets: 16384  Batches: 1  Memory Usage: 761kB
+                        ->  Result  (cost=0.01..298.04 rows=10002 width=63) (actual rows=10002 loops=1)
+                              One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                              ->  Seq Scan on "Client" c  (cost=0.01..298.04 rows=10002 width=63) (actual rows=10002 loops=1)
+                                    Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                    Rows Removed by Filter: 1
+                  SubPlan 1
+                    ->  Result  (cost=24.94..360.50 rows=1 width=32) (never executed)
+                          One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                          ->  Hash Right Join  (cost=24.94..360.50 rows=1 width=61) (never executed)
+                                Hash Cond: (ca.id = COALESCE(oa."clientId", aa."clientId"))
+                                ->  Result  (cost=0.01..298.04 rows=10002 width=63) (never executed)
+                                      One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                      ->  Seq Scan on "Client" ca  (cost=0.01..298.04 rows=10002 width=63) (never executed)
+                                            Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                ->  Hash  (cost=24.92..24.92 rows=1 width=54) (never executed)
+                                      ->  Nested Loop Left Join  (cost=0.85..24.92 rows=1 width=54) (never executed)
+                                            Join Filter: (aa.id = ia."appointmentId")
+                                            ->  Nested Loop Left Join  (cost=0.70..16.74 rows=1 width=54) (never executed)
+                                                  ->  Index Scan using "Invoice_tenantId_id_key" on "Invoice" ia  (cost=0.41..8.43 rows=1 width=45) (never executed)
+                                                        Index Cond: (("tenantId" = 'tnt_a_70d678c03f'::text) AND (id = i."comprobanteAsociadoId"))
+                                                  ->  Result  (cost=0.29..8.31 rows=1 width=35) (never executed)
+                                                        One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                                        ->  Index Scan using "Order_pkey" on "Order" oa  (cost=0.29..8.31 rows=1 width=35) (never executed)
+                                                              Index Cond: (id = ia."orderId")
+                                                              Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                            ->  Result  (cost=0.14..8.16 rows=1 width=64) (never executed)
+                                                  One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                                  ->  Index Scan using "Appointment_tenantId_startsAt_idx" on "Appointment" aa  (cost=0.14..8.16 rows=1 width=64) (never executed)
+                                                        Index Cond: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                  SubPlan 2
+                    ->  Result  (cost=24.94..360.50 rows=1 width=32) (never executed)
+                          One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                          ->  Hash Right Join  (cost=24.94..360.50 rows=1 width=61) (never executed)
+                                Hash Cond: (ca_1.id = COALESCE(oa_1."clientId", aa_1."clientId"))
+                                ->  Result  (cost=0.01..298.04 rows=10002 width=63) (never executed)
+                                      One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                      ->  Seq Scan on "Client" ca_1  (cost=0.01..298.04 rows=10002 width=63) (never executed)
+                                            Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                ->  Hash  (cost=24.92..24.92 rows=1 width=54) (never executed)
+                                      ->  Nested Loop Left Join  (cost=0.85..24.92 rows=1 width=54) (never executed)
+                                            Join Filter: (aa_1.id = ia_1."appointmentId")
+                                            ->  Nested Loop Left Join  (cost=0.70..16.74 rows=1 width=54) (never executed)
+                                                  ->  Index Scan using "Invoice_tenantId_id_key" on "Invoice" ia_1  (cost=0.41..8.43 rows=1 width=45) (never executed)
+                                                        Index Cond: (("tenantId" = 'tnt_a_70d678c03f'::text) AND (id = i."comprobanteAsociadoId"))
+                                                  ->  Result  (cost=0.29..8.31 rows=1 width=35) (never executed)
+                                                        One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                                        ->  Index Scan using "Order_pkey" on "Order" oa_1  (cost=0.29..8.31 rows=1 width=35) (never executed)
+                                                              Index Cond: (id = ia_1."orderId")
+                                                              Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                            ->  Result  (cost=0.14..8.16 rows=1 width=64) (never executed)
+                                                  One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                                  ->  Index Scan using "Appointment_tenantId_startsAt_idx" on "Appointment" aa_1  (cost=0.14..8.16 rows=1 width=64) (never executed)
+                                                        Index Cond: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                  SubPlan 3
+                    ->  Result  (cost=24.94..360.50 rows=1 width=32) (never executed)
+                          One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                          ->  Hash Right Join  (cost=24.94..360.50 rows=1 width=61) (never executed)
+                                Hash Cond: (ca_2.id = COALESCE(oa_2."clientId", aa_2."clientId"))
+                                ->  Result  (cost=0.01..298.04 rows=10002 width=63) (never executed)
+                                      One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                      ->  Seq Scan on "Client" ca_2  (cost=0.01..298.04 rows=10002 width=63) (never executed)
+                                            Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                ->  Hash  (cost=24.92..24.92 rows=1 width=54) (never executed)
+                                      ->  Nested Loop Left Join  (cost=0.85..24.92 rows=1 width=54) (never executed)
+                                            Join Filter: (aa_2.id = ia_2."appointmentId")
+                                            ->  Nested Loop Left Join  (cost=0.70..16.74 rows=1 width=54) (never executed)
+                                                  ->  Index Scan using "Invoice_tenantId_id_key" on "Invoice" ia_2  (cost=0.41..8.43 rows=1 width=45) (never executed)
+                                                        Index Cond: (("tenantId" = 'tnt_a_70d678c03f'::text) AND (id = i."comprobanteAsociadoId"))
+                                                  ->  Result  (cost=0.29..8.31 rows=1 width=35) (never executed)
+                                                        One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                                        ->  Index Scan using "Order_pkey" on "Order" oa_2  (cost=0.29..8.31 rows=1 width=35) (never executed)
+                                                              Index Cond: (id = ia_2."orderId")
+                                                              Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                            ->  Result  (cost=0.14..8.16 rows=1 width=64) (never executed)
+                                                  One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                                  ->  Index Scan using "Appointment_tenantId_startsAt_idx" on "Appointment" aa_2  (cost=0.14..8.16 rows=1 width=64) (never executed)
+                                                        Index Cond: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                  SubPlan 4
+                    ->  Result  (cost=0.01..3883.03 rows=25059 width=13) (actual rows=11 loops=1)
+                          One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                          ->  Seq Scan on "MovimientoImportado" m  (cost=0.01..3883.03 rows=25059 width=13) (actual rows=11 loops=1)
+                                Filter: (("invoiceId" IS NOT NULL) AND ("tenantId" = 'tnt_a_70d678c03f'::text) AND CASE WHEN (lower("nombreReceptor") ~~ '%r___pt_r b____ 3000%'::text) THEN (translate(lower("nombreReceptor"), 'áàäâãéèëêíìïîóòöôõúùüûñçÁÀÄÂÃÉÈËÊÍÌÏÎÓÒÖÔÕÚÙÜÛÑÇ'::text, 'aaaaaeeeeiiiiooooouuuuncaaaaaeeeeiiiiooooouuuunc'::text) ~~ '%receptor banco 3000%'::text) ELSE false END)
+                                Rows Removed by Filter: 79990
+    CTE totales
+      ->  HashAggregate  (cost=689.12..694.12 rows=200 width=72) (actual rows=2 loops=1)
+            Group Key: filtro.status
+            Batches: 1  Memory Usage: 40kB
+            ->  CTE Scan on filtro  (cost=0.00..501.18 rows=25059 width=36) (actual rows=10 loops=1)
+    CTE elegidos
+      ->  Limit  (cost=2342.90..2343.02 rows=50 width=72) (actual rows=10 loops=1)
+            InitPlan 7 (returns $9)
+              ->  Aggregate  (cost=4.50..4.51 rows=1 width=8) (actual rows=1 loops=1)
+                    ->  CTE Scan on totales t  (cost=0.00..4.00 rows=200 width=4) (actual rows=2 loops=1)
+            ->  Sort  (cost=2332.12..2394.77 rows=25059 width=72) (actual rows=10 loops=1)
+                  Sort Key: filtro_1.fecha DESC, filtro_1."createdAt" DESC, filtro_1.id DESC
+                  Sort Method: quicksort  Memory: 25kB
+                  ->  CTE Scan on filtro filtro_1  (cost=0.00..501.18 rows=25059 width=72) (actual rows=10 loops=1)
+    CTE pagina
+      ->  Result  (cost=1.54..407.88 rows=49 width=152) (actual rows=10 loops=1)
+            One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+            ->  Nested Loop  (cost=1.54..407.88 rows=49 width=152) (actual rows=10 loops=1)
+                  ->  HashAggregate  (cost=1.12..1.62 rows=50 width=32) (actual rows=10 loops=1)
+                        Group Key: e.id
+                        Batches: 1  Memory Usage: 24kB
+                        ->  CTE Scan on elegidos e  (cost=0.00..1.00 rows=50 width=32) (actual rows=10 loops=1)
+                  ->  Index Scan using "Invoice_pkey" on "Invoice" i_1  (cost=0.41..8.11 rows=1 width=152) (actual rows=1 loops=10)
+                        Index Cond: (id = e.id)
+                        Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+    CTE con_venta
+      ->  Hash Right Join  (cost=381.57..18432.64 rows=49 width=366) (actual rows=10 loops=1)
+            Hash Cond: (c_1.id = COALESCE(o_1."clientId", a_1."clientId"))
+            ->  Result  (cost=0.01..298.04 rows=10002 width=63) (actual rows=10002 loops=1)
+                  One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                  ->  Seq Scan on "Client" c_1  (cost=0.01..298.04 rows=10002 width=63) (actual rows=10002 loops=1)
+                        Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                        Rows Removed by Filter: 1
+            ->  Hash  (cost=380.95..380.95 rows=49 width=356) (actual rows=10 loops=1)
+                  Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                  ->  Nested Loop Left Join  (cost=0.43..380.95 rows=49 width=356) (actual rows=10 loops=1)
+                        Join Filter: (a_1.id = i_2."appointmentId")
+                        ->  Nested Loop Left Join  (cost=0.29..372.05 rows=49 width=324) (actual rows=10 loops=1)
+                              ->  CTE Scan on pagina i_2  (cost=0.00..0.98 rows=49 width=302) (actual rows=10 loops=1)
+                              ->  Result  (cost=0.29..7.57 rows=1 width=35) (actual rows=0 loops=10)
+                                    One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                    ->  Index Scan using "Order_pkey" on "Order" o_1  (cost=0.29..7.57 rows=1 width=35) (actual rows=0 loops=10)
+                                          Index Cond: (id = i_2."orderId")
+                                          Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                        ->  Materialize  (cost=0.14..8.17 rows=1 width=64) (actual rows=0 loops=10)
+                              ->  Result  (cost=0.14..8.16 rows=1 width=64) (actual rows=0 loops=1)
+                                    One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                    ->  Index Scan using "Appointment_tenantId_startsAt_idx" on "Appointment" a_1  (cost=0.14..8.16 rows=1 width=64) (actual rows=0 loops=1)
+                                          Index Cond: ("tenantId" = 'tnt_a_70d678c03f'::text)
+            SubPlan 10
+              ->  Result  (cost=24.94..360.50 rows=1 width=32) (never executed)
+                    One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                    ->  Hash Right Join  (cost=24.94..360.50 rows=1 width=61) (never executed)
+                          Hash Cond: (ca_3.id = COALESCE(oa_3."clientId", aa_3."clientId"))
+                          ->  Result  (cost=0.01..298.04 rows=10002 width=63) (never executed)
+                                One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                ->  Seq Scan on "Client" ca_3  (cost=0.01..298.04 rows=10002 width=63) (never executed)
+                                      Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                          ->  Hash  (cost=24.92..24.92 rows=1 width=54) (never executed)
+                                ->  Nested Loop Left Join  (cost=0.85..24.92 rows=1 width=54) (never executed)
+                                      Join Filter: (aa_3.id = ia_3."appointmentId")
+                                      ->  Nested Loop Left Join  (cost=0.70..16.74 rows=1 width=54) (never executed)
+                                            ->  Index Scan using "Invoice_tenantId_id_key" on "Invoice" ia_3  (cost=0.41..8.43 rows=1 width=45) (never executed)
+                                                  Index Cond: (("tenantId" = 'tnt_a_70d678c03f'::text) AND (id = i_2."comprobanteAsociadoId"))
+                                            ->  Result  (cost=0.29..8.31 rows=1 width=35) (never executed)
+                                                  One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                                  ->  Index Scan using "Order_pkey" on "Order" oa_3  (cost=0.29..8.31 rows=1 width=35) (never executed)
+                                                        Index Cond: (id = ia_3."orderId")
+                                                        Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                      ->  Result  (cost=0.14..8.16 rows=1 width=64) (never executed)
+                                            One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                            ->  Index Scan using "Appointment_tenantId_startsAt_idx" on "Appointment" aa_3  (cost=0.14..8.16 rows=1 width=64) (never executed)
+                                                  Index Cond: ("tenantId" = 'tnt_a_70d678c03f'::text)
+    InitPlan 12 (returns $17)
+      ->  Aggregate  (cost=4.50..4.51 rows=1 width=32) (actual rows=1 loops=1)
+            ->  CTE Scan on totales t_1  (cost=0.00..4.00 rows=200 width=24) (actual rows=2 loops=1)
+    InitPlan 13 (returns $18)
+      ->  Aggregate  (cost=3097.60..3097.61 rows=1 width=32) (actual rows=1 loops=1)
+            ->  Sort  (cost=3096.56..3096.68 rows=49 width=258) (actual rows=10 loops=1)
+                  Sort Key: i_3.fecha DESC, i_3."createdAt" DESC, i_3.id DESC
+                  Sort Method: quicksort  Memory: 26kB
+                  ->  Hash Left Join  (cost=3094.06..3095.18 rows=49 width=258) (actual rows=10 loops=1)
+                        Hash Cond: (i_3.origen_banco = b."invoiceId")
+                        ->  CTE Scan on con_venta i_3  (cost=0.00..0.98 rows=49 width=270) (actual rows=10 loops=1)
+                        ->  Hash  (cost=3094.05..3094.05 rows=1 width=33) (actual rows=10 loops=1)
+                              Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                              ->  Subquery Scan on b  (cost=3094.03..3094.05 rows=1 width=33) (actual rows=10 loops=1)
+                                    ->  Unique  (cost=3094.03..3094.04 rows=1 width=46) (actual rows=10 loops=1)
+                                          ->  Sort  (cost=3094.03..3094.04 rows=1 width=46) (actual rows=10 loops=1)
+                                                Sort Key: m_1."invoiceId", m_1.id
+                                                Sort Method: quicksort  Memory: 25kB
+                                                ->  Result  (cost=1.00..3094.02 rows=1 width=46) (actual rows=10 loops=1)
+                                                      One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                                      ->  Hash Semi Join  (cost=1.00..3094.02 rows=1 width=46) (actual rows=10 loops=1)
+                                                            Hash Cond: (m_1."invoiceId" = v.origen_banco)
+                                                            ->  Seq Scan on "MovimientoImportado" m_1  (cost=0.00..2883.01 rows=80001 width=46) (actual rows=80000 loops=1)
+                                                                  Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                                                  Rows Removed by Filter: 1
+                                                            ->  Hash  (cost=0.98..0.98 rows=1 width=32) (actual rows=10 loops=1)
+                                                                  Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                                                  ->  CTE Scan on con_venta v  (cost=0.00..0.98 rows=1 width=32) (actual rows=10 loops=1)
+                                                                        Filter: (receptor_venta IS NULL)
+  Planning Time: 5.477 ms
+  Execution Time: 130.100 ms
+
+Plan: el CSV del mes en curso
+  Sort  (cost=1497917.70..1497928.03 rows=4131 width=280) (actual rows=4109 loops=1)
+    Sort Key: i.fecha DESC, i."createdAt" DESC, i.id DESC
+    Sort Method: quicksort  Memory: 786kB
+    CTE elegidos
+      ->  Limit  (cost=2183.73..2194.16 rows=4173 width=30) (actual rows=4109 loops=1)
+            ->  Sort  (cost=2183.73..2194.16 rows=4173 width=30) (actual rows=4109 loops=1)
+                  Sort Key: i_1.fecha DESC, i_1."createdAt" DESC, i_1.id DESC
+                  Sort Method: quicksort  Memory: 481kB
+                  ->  Result  (cost=0.01..1932.79 rows=4173 width=30) (actual rows=4109 loops=1)
+                        One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                        ->  Seq Scan on "Invoice" i_1  (cost=0.01..1932.79 rows=4173 width=30) (actual rows=4109 loops=1)
+                              Filter: ((fecha >= '20260901'::text) AND (fecha <= '20260930'::text) AND ("tenantId" = 'tnt_a_70d678c03f'::text))
+                              Rows Removed by Filter: 46393
+    CTE pagina
+      ->  Result  (cost=94.31..1435.54 rows=4131 width=152) (actual rows=4109 loops=1)
+            One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+            ->  Nested Loop  (cost=94.31..1435.54 rows=4131 width=152) (actual rows=4109 loops=1)
+                  ->  HashAggregate  (cost=93.89..95.89 rows=200 width=32) (actual rows=4109 loops=1)
+                        Group Key: e.id
+                        Batches: 1  Memory Usage: 481kB
+                        ->  CTE Scan on elegidos e  (cost=0.00..83.46 rows=4173 width=32) (actual rows=4109 loops=1)
+                  ->  Index Scan using "Invoice_pkey" on "Invoice" i_2  (cost=0.41..7.18 rows=1 width=152) (actual rows=1 loops=4109)
+                        Index Cond: (id = e.id)
+                        Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+    CTE con_venta
+      ->  Hash Left Join  (cost=1316.36..1490701.86 rows=4131 width=366) (actual rows=4109 loops=1)
+            Hash Cond: (COALESCE(o."clientId", a."clientId") = c.id)
+            ->  Hash Left Join  (cost=893.29..997.82 rows=4131 width=356) (actual rows=4109 loops=1)
+                  Hash Cond: (i_3."appointmentId" = a.id)
+                  ->  Hash Left Join  (cost=885.12..978.58 rows=4131 width=324) (actual rows=4109 loops=1)
+                        Hash Cond: (i_3."orderId" = o.id)
+                        ->  CTE Scan on pagina i_3  (cost=0.00..82.62 rows=4131 width=302) (actual rows=4109 loops=1)
+                        ->  Hash  (cost=635.08..635.08 rows=20003 width=35) (actual rows=20003 loops=1)
+                              Buckets: 32768  Batches: 1  Memory Usage: 1591kB
+                              ->  Result  (cost=0.01..635.08 rows=20003 width=35) (actual rows=20003 loops=1)
+                                    One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                    ->  Seq Scan on "Order" o  (cost=0.01..635.08 rows=20003 width=35) (actual rows=20003 loops=1)
+                                          Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                          Rows Removed by Filter: 3
+                  ->  Hash  (cost=8.16..8.16 rows=1 width=64) (actual rows=0 loops=1)
+                        Buckets: 1024  Batches: 1  Memory Usage: 8kB
+                        ->  Result  (cost=0.14..8.16 rows=1 width=64) (actual rows=0 loops=1)
+                              One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                              ->  Index Scan using "Appointment_tenantId_startsAt_idx" on "Appointment" a  (cost=0.14..8.16 rows=1 width=64) (actual rows=0 loops=1)
+                                    Index Cond: ("tenantId" = 'tnt_a_70d678c03f'::text)
+            ->  Hash  (cost=298.04..298.04 rows=10002 width=63) (actual rows=10002 loops=1)
+                  Buckets: 16384  Batches: 1  Memory Usage: 761kB
+                  ->  Result  (cost=0.01..298.04 rows=10002 width=63) (actual rows=10002 loops=1)
+                        One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                        ->  Seq Scan on "Client" c  (cost=0.01..298.04 rows=10002 width=63) (actual rows=10002 loops=1)
+                              Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                              Rows Removed by Filter: 1
+            SubPlan 3
+              ->  Result  (cost=24.94..360.50 rows=1 width=32) (never executed)
+                    One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                    ->  Hash Right Join  (cost=24.94..360.50 rows=1 width=61) (never executed)
+                          Hash Cond: (ca.id = COALESCE(oa."clientId", aa."clientId"))
+                          ->  Result  (cost=0.01..298.04 rows=10002 width=63) (never executed)
+                                One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                ->  Seq Scan on "Client" ca  (cost=0.01..298.04 rows=10002 width=63) (never executed)
+                                      Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                          ->  Hash  (cost=24.92..24.92 rows=1 width=54) (never executed)
+                                ->  Nested Loop Left Join  (cost=0.85..24.92 rows=1 width=54) (never executed)
+                                      Join Filter: (aa.id = ia."appointmentId")
+                                      ->  Nested Loop Left Join  (cost=0.70..16.74 rows=1 width=54) (never executed)
+                                            ->  Index Scan using "Invoice_tenantId_id_key" on "Invoice" ia  (cost=0.41..8.43 rows=1 width=45) (never executed)
+                                                  Index Cond: (("tenantId" = 'tnt_a_70d678c03f'::text) AND (id = i_3."comprobanteAsociadoId"))
+                                            ->  Result  (cost=0.29..8.31 rows=1 width=35) (never executed)
+                                                  One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                                  ->  Index Scan using "Order_pkey" on "Order" oa  (cost=0.29..8.31 rows=1 width=35) (never executed)
+                                                        Index Cond: (id = ia."orderId")
+                                                        Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                      ->  Result  (cost=0.14..8.16 rows=1 width=64) (never executed)
+                                            One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                            ->  Index Scan using "Appointment_tenantId_startsAt_idx" on "Appointment" aa  (cost=0.14..8.16 rows=1 width=64) (never executed)
+                                                  Index Cond: ("tenantId" = 'tnt_a_70d678c03f'::text)
+    ->  Hash Left Join  (cost=3177.20..3338.03 rows=4131 width=280) (actual rows=4109 loops=1)
+          Hash Cond: (i.origen_banco = b."invoiceId")
+          ->  CTE Scan on con_venta i  (cost=0.00..82.62 rows=4131 width=270) (actual rows=4109 loops=1)
+          ->  Hash  (cost=3176.94..3176.94 rows=21 width=33) (actual rows=2460 loops=1)
+                Buckets: 4096 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 193kB
+                ->  Subquery Scan on b  (cost=3176.62..3176.94 rows=21 width=33) (actual rows=2460 loops=1)
+                      ->  Unique  (cost=3176.62..3176.73 rows=21 width=46) (actual rows=2460 loops=1)
+                            ->  Sort  (cost=3176.62..3176.68 rows=21 width=46) (actual rows=2460 loops=1)
+                                  Sort Key: m."invoiceId", m.id
+                                  Sort Method: quicksort  Memory: 289kB
+                                  ->  Result  (cost=82.89..3176.16 rows=21 width=46) (actual rows=2460 loops=1)
+                                        One-Time Filter: (current_setting('app.current_tenant_id'::text, true) = 'tnt_a_70d678c03f'::text)
+                                        ->  Hash Semi Join  (cost=82.89..3176.16 rows=21 width=46) (actual rows=2460 loops=1)
+                                              Hash Cond: (m."invoiceId" = v.origen_banco)
+                                              ->  Seq Scan on "MovimientoImportado" m  (cost=0.00..2883.01 rows=80001 width=46) (actual rows=80000 loops=1)
+                                                    Filter: ("tenantId" = 'tnt_a_70d678c03f'::text)
+                                                    Rows Removed by Filter: 1
+                                              ->  Hash  (cost=82.62..82.62 rows=21 width=32) (actual rows=2460 loops=1)
+                                                    Buckets: 4096 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 143kB
+                                                    ->  CTE Scan on con_venta v  (cost=0.00..82.62 rows=21 width=32) (actual rows=2460 loops=1)
+                                                          Filter: (receptor_venta IS NULL)
+                                                          Rows Removed by Filter: 1649
+  Planning Time: 3.097 ms
+  JIT:
+    Functions: 121
+    Options: Inlining true, Optimization true, Expressions true, Deforming true
+  Execution Time: 2049.170 ms

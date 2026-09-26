@@ -1,0 +1,52 @@
+# ANTES del arreglo: código del commit b8d2fa3 (sólo el arnés como producción) con el test nuevo/actualizado.
+# Comando: node --import tsx --test <archivo> en /tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/consola-rls/../wt-sinfix
+TAP version 13
+# Subtest: cron de recordatorios con la consola sujeta a RLS: encuentra el turno de cada negocio, con su plantilla, y no toca los demás
+not ok 1 - cron de recordatorios con la consola sujeta a RLS: encuentra el turno de cada negocio, con su plantilla, y no toca los demás
+  ---
+  duration_ms: 4441.846886
+  type: 'test'
+  location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/wt-sinfix/src/lib/cron/reminder-sweep-postgres.test.ts:2:1095'
+  failureType: 'testCodeFailure'
+  error: |-
+    resumen del cron: {"checked":0,"due":0,"sent":0,"failed":0,"failures":[]}
+    + actual - expected
+    
+      {
+    +   checked: 0,
+    +   due: 0,
+    -   checked: 3,
+    -   due: 2,
+        failed: 0,
+    +   sent: 0
+    -   sent: 2
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    checked: 3
+    due: 2
+    sent: 2
+    failed: 0
+  actual:
+    checked: 0
+    due: 0
+    sent: 0
+    failed: 0
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/wt-sinfix/src/lib/cron/reminder-sweep-postgres.test.ts:123:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5419.043264

@@ -31,6 +31,8 @@ import { alcanceDeAnulacion } from "@/lib/capabilities";
 import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getTenantIdentity } from "@/lib/identidad-rubro";
+import { entregaDelRubro } from "@/blueprints/retail/rubros";
+import { vocabularioDelNegocio } from "@/lib/vocabulario-negocio";
 import { prisma } from "@/lib/prisma";
 import { formatearCantidad } from "@/lib/pos-peso";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
@@ -63,7 +65,6 @@ const STATUS: Record<string, Estado> = {
 // botón de cobrar, hasta que se cobre o se anule.
 const ENTREGADO_A_COBRAR: Estado = { label: "Entregado · a cobrar", badge: "bg-warning-soft text-warning" };
 
-const FULFILLMENT: Record<string, string> = { PICKUP: "Retira", DELIVERY: "Envío" };
 
 const EN_CURSO: ReadonlySet<string> = new Set(ESTADOS_EN_CURSO);
 
@@ -91,6 +92,10 @@ export default async function PedidosPage() {
   // Lo nuevo de la bandeja (pesar y ajustar, horario, aviso por WhatsApp, Nuevo → Preparando)
   // es de COMERCIO: en una estética no hay nada que pesar, y su bandeja queda como estaba.
   const comercio = identidad.isRetail;
+  // Cómo se llama el retiro en este rubro: "Retira" en un local, "Encuentro" en una perfumería que
+  // entrega en un punto de encuentro (rubros.ts `entrega`). Lo mismo que ve el tablero nuevo.
+  const entrega = entregaDelRubro(identidad.rubro);
+  const vocab = vocabularioDelNegocio(identidad.rubro);
 
   // Los servicios del mostrador crean un TURNO, así que se ofrecen sólo a quien puede
   // gestionar agenda (OWNER y RECEPCIÓN), y sólo en un negocio de servicios: en un comercio la
@@ -168,6 +173,7 @@ export default async function PedidosPage() {
       cerrados,
       comercio,
       hoy,
+      entrega,
       local,
       links,
       cupones,
@@ -272,9 +278,9 @@ export default async function PedidosPage() {
           <p className="text-muted mb-8">
             {comercio ? (
               <>
-                Atendé en el mostrador: elegí el producto, cargá la cantidad —o el peso, si se
-                vende por kilo—, cobrá y listo. Los pedidos para retiro o envío caen a la bandeja
-                de abajo para seguir su preparación y cobro.
+                Atendé en el mostrador: elegí el {identidad.rubro?.wording.itemNoun ?? "producto"}, cargá la cantidad
+                {vocab.porPeso ? " —o el peso, si se vende por kilo—" : ""}, cobrá y listo. Los pedidos para {entrega.nombre} o
+                envío caen a la bandeja de abajo para seguir su preparación y cobro.
               </>
             ) : (
               <>
@@ -320,7 +326,7 @@ export default async function PedidosPage() {
           const verbo = verboDelPaso(o.status, { comercio });
           // Comercio: el horario pedido (en la zona del negocio), pesar y ajustar mientras no
           // esté cobrado, y avisar por WhatsApp cuando está listo.
-          const horario = comercio && o.scheduledFor ? etiquetaDeHorario(o.scheduledFor, o.fulfillment, hoy) : null;
+          const horario = comercio && o.scheduledFor ? etiquetaDeHorario(o.scheduledFor, o.fulfillment, hoy, entrega.corto) : null;
           const sePuedeAjustar = comercio && !o.paid && EN_CURSO.has(o.status);
           // El último link de pago que se le mandó (si hubo), para no generar otro sin necesidad.
           const enviado = links.get(o.id) ?? null;
@@ -338,6 +344,7 @@ export default async function PedidosPage() {
                     negocio: local.negocio,
                     direccionLocal: local.direccion,
                     horarioLocal: local.horario,
+                    listoPara: entrega.listoPara,
                   }),
                 )
               : null;
@@ -351,7 +358,7 @@ export default async function PedidosPage() {
                       {s.label}
                     </span>
                     <span className="text-xs text-faint">
-                      {o.channel === "ONLINE" ? "Pedido" : "Mostrador"} · {FULFILLMENT[o.fulfillment]}
+                      {o.channel === "ONLINE" ? "Pedido" : "Mostrador"} · {o.fulfillment === "DELIVERY" ? "Envío" : entrega.corto}
                     </span>
                     {horario && (
                       <span

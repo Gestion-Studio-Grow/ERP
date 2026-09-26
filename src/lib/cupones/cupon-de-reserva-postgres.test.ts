@@ -10,7 +10,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraParaElTest } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 test("contra Postgres (app_rls + RLS): la reserva de turno y su vista previa descuentan lo mismo, y un cupón que no descuenta nada no se gasta", async (t) => {
@@ -19,14 +19,14 @@ test("contra Postgres (app_rls + RLS): la reserva de turno y su vista previa des
   apuntarLaAppA(laBase);
   prepararAccionesDeServidor();
   Object.assign(process.env as Record<string, string | undefined>, { DB_CONNECTION_LIMIT: "2", DB_CONNECT_TIMEOUT_MS: "3000" });
-  const { operatorPrisma } = await import("@/lib/operator-db");
+  const duenio = await prismaComoDuenio(laBase);
   const { tenantTransaction } = await import("@/lib/rls");
   const { cuponDeLaReserva } = await import("@/lib/cupones/cupon-de-reserva");
   const { checkCoupon } = await import("@/lib/coupon-actions");
 
   const a = laBase.a.id;
   const b = laBase.b.id;
-  await operatorPrisma.coupon.createMany({
+  await duenio.coupon.createMany({
     data: [
       { tenantId: a, code: "CINCO", type: "PERCENT", value: 5, maxUses: 1 },
       { tenantId: a, code: "VEINTINUEVE", type: "PERCENT", value: 29 },
@@ -37,7 +37,7 @@ test("contra Postgres (app_rls + RLS): la reserva de turno y su vista previa des
     ],
   });
   const usos = async (tenantId: string, code: string) =>
-    (await operatorPrisma.coupon.findUniqueOrThrow({ where: { tenantId_code: { tenantId, code } } })).usedCount;
+    (await duenio.coupon.findUniqueOrThrow({ where: { tenantId_code: { tenantId, code } } })).usedCount;
   const vistaPrevia = async (codigo: string, precio: number) => {
     const r = await ejecutarAccion({ negocio: laBase.a }, () => checkCoupon(codigo, precio));
     assert.equal(r.tipo, "respuesta");

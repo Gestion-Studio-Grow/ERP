@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getTenantBrand, resolveAccent } from "@/lib/branding";
+import { getTenantBrand, resolveAccent, marcaDelNegocio } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import { getProductoContexto } from "@/lib/producto";
 import AdminThemeScript from "../AdminThemeScript";
@@ -57,8 +57,7 @@ export default async function LoginPage({
   const accentDark = resolveAccent(preset, "dark");
 
   // Marca + copy de la pantalla: del producto si lo hay; del tenant (legado) si no.
-  const marcaNombre = identidad?.nombre ?? brand.name;
-  const marcaMonograma = identidad?.monograma ?? brand.monogram;
+  const { nombre: marcaNombre, monograma: marcaMonograma } = marcaDelNegocio(brand, identidad);
   const tituloLogin = identidad?.login.titulo ?? "Ingresá a tu panel";
   const subtituloLogin = identidad?.login.subtitulo ?? "Con el email y la contraseña de tu cuenta.";
   const nuevo = await disenoP;

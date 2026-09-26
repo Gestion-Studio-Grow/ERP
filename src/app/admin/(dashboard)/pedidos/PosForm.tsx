@@ -15,6 +15,7 @@ import {
 } from "@/lib/pos-peso";
 import { lineaSinCantidad, motivoDeLineaSinCantidad } from "../vender/reglas-venta";
 import { useToast } from "../ToastProvider";
+import { useVocabulario } from "../VocabularioDelNegocio";
 
 // Producto vendible que llega del loader (getPosData): ya viene con precio.
 type SellableProduct = {
@@ -107,6 +108,9 @@ export default function PosForm({
   stockById: Record<string, PosStockInfo>;
 }) {
   const { showError, showSuccess } = useToast();
+  // "Retira en el local" o "Punto de encuentro", y el ejemplo de la nota: del rubro (layout), no de
+  // la carnicería para todos.
+  const vocab = useVocabulario();
   // Caja de mostrador (venta rápida, se cobra en el acto) vs. pedido con retiro/envío.
   const [isOrder, setIsOrder] = useState(false);
   const [fulfillment, setFulfillment] = useState<"PICKUP" | "DELIVERY">("PICKUP");
@@ -336,11 +340,11 @@ export default function PosForm({
           }}
           className={`chip-btn text-sm ${isOrder ? "bg-accent text-on-accent" : ""}`}
         >
-          Pedido (retiro / envío)
+          Pedido ({vocab.nombre} / envío)
         </button>
         {!isOrder && (
           <span className="text-xs text-faint">
-            Buscá el producto, cargá la cantidad (o el peso), elegí cómo pagó y cobrá. Enter salta al siguiente.
+            Buscá el producto, cargá la cantidad{vocab.porPeso ? " (o el peso)" : ""}, elegí cómo pagó y cobrá. Enter salta al siguiente.
           </span>
         )}
       </div>
@@ -476,7 +480,7 @@ export default function PosForm({
               value={fulfillment}
               onChange={(e) => setFulfillment(e.target.value as "PICKUP" | "DELIVERY")}
             >
-              <option value="PICKUP">Retira en el local</option>
+              <option value="PICKUP">{vocab.opcion}</option>
               <option value="DELIVERY">Envío a domicilio</option>
             </Select>
           </label>
@@ -498,7 +502,7 @@ export default function PosForm({
           )}
           <label className="text-sm sm:col-span-2">
             <span className="block text-muted mb-1">Nota</span>
-            <Input name="notes" placeholder="Ej.: cortar en milanesas, sin grasa" value={cliente.notes} onChange={escribir("notes")} />
+            <Input name="notes" placeholder={vocab.notasEjemplo} value={cliente.notes} onChange={escribir("notes")} />
           </label>
         </div>
       )}

@@ -5,6 +5,11 @@
 // NO lleva "use server" (no es un endpoint): lo llama `actions.ts` después de la sesión de operador,
 // y los tests lo ejecutan contra Postgres con el cliente del operador. Recibe la base por parámetro.
 //
+// CON RLS (la consola está sujeta a RLS en producción, ver operator-db.ts): el pedido, sus cierres,
+// quién lo pidió y la cartera son filas del ESTUDIO. Todo se lee y se escribe parado en él: la
+// bandeja recorre los estudios (negocios con la cartera) con `enElNegocio`, y configurar/descartar
+// abren la transacción en el estudio del formulario. `Tenant` no tiene RLS y se lee directo.
+//
 // `configurarSolicitud` hace TODO en UNA transacción (todo o nada):
 //   · candado por pedido: un doble clic espera al primero y ve el pedido ya cerrado → un solo negocio;
 //   · candado por CUIT (el mismo que la consola usa para el punto de venta): dos pedidos del mismo CUIT
@@ -24,9 +29,10 @@
 
 import "server-only";
 import type { PrismaClient, Prisma } from "@/generated/prisma/client";
+import { enElNegocio } from "@/lib/operator-db";
 import { provisionTenant } from "../../../../../scripts/provision-tenant";
 import { generateStrongPassword, hashPassword } from "@/lib/auth-password";
-import { crearClienteProvisioning, resolverSlugCliente } from "@/lib/cartera-core";
+import { MODULO_CARTERA, crearClienteProvisioning, resolverSlugCliente } from "@/lib/cartera-core";
 import { mapaDeHostsVigente } from "@/lib/tenant";
 import { leerLimitesEnTx } from "@/lib/limites-del-negocio-en-tx";
 import { decidirAltaDeUsuarioEnTx } from "@/lib/usuarios-del-plan";
@@ -36,7 +42,7 @@ import { decidirAcceso, direccionDelLocal } from "@/lib/multilocal/multilocal-co
 import { decidirOperadorParaNegocios } from "@/lib/operador/guardia-negocio-core";
 import { formatearCuit } from "@/lib/fiscal/cuit";
 import { choqueDePuntoDeVenta } from "@/app/operador/(console)/tenants/[id]/candado-punto-venta";
-import { leerPedidosAbiertos } from "@/lib/cartera-alta-db";
+import { leerPedidosAbiertos, type ClaveDePedido, type PedidoAbierto } from "@/lib/cartera-alta-db";
 import {
   ACCION_NOTA_INTERNA_SOPORTE,
   MOTIVOS_DE_DESCARTE,
@@ -92,7 +98,7 @@ export interface SolicitudPendiente {
 
 /**
  * Los negocios SIN CUIT que pueden ser el del pedido (configurador-reglas.ts, posiblesDuplicados).
- * Nunca el propio estudio. La consola corre exenta de RLS: esto lo ve sólo Soporte.
+ * Nunca el propio estudio. Sólo lee `Tenant` (sin RLS): esto lo ve sólo Soporte.
  */
 async function parecidosSinCuit(
   db: PrismaClient | Tx,
@@ -121,10 +127,11 @@ export interface UsuarioEntregado {
 
 // ── Bandeja ──────────────────────────────────────────────────────────────────
 
-async function cerrados(db: PrismaClient | Tx, ids: string[]): Promise<Map<string, string | null>> {
+/** Los cierres de esos pedidos. `tx` parada en el estudio: el cierre va en su registro, como el pedido. */
+async function cerrados(tx: Tx, estudioId: string, ids: string[]): Promise<Map<string, string | null>> {
   if (ids.length === 0) return new Map();
-  const filas = await db.auditLog.findMany({
-    where: { action: { in: [...ACCIONES_QUE_CIERRAN_LA_SOLICITUD] }, entity: ENTIDAD_SOLICITUD, entityId: { in: ids } },
+  const filas = await tx.auditLog.findMany({
+    where: { tenantId: estudioId, action: { in: [...ACCIONES_QUE_CIERRAN_LA_SOLICITUD] }, entity: ENTIDAD_SOLICITUD, entityId: { in: ids } },
     select: { entityId: true, changes: true },
   });
   return new Map(
@@ -144,26 +151,77 @@ export interface PaginaDeSolicitudes {
   siguiente: string | null;
 }
 
+/** Los estudios: los negocios con la cartera (los únicos que piden altas). `Tenant` no tiene RLS. */
+async function idsDeLosEstudios(db: PrismaClient): Promise<string[]> {
+  const filas = await db.tenant.findMany({ where: { modules: { has: MODULO_CARTERA } }, select: { id: true }, orderBy: { id: "asc" } });
+  return filas.map((f) => f.id);
+}
+
+/** De qué estudio es un pedido de alta: se lo busca parado en cada uno (con RLS, desde afuera no se ve). */
+async function ubicarPedido(db: PrismaClient, id: string): Promise<{ estudioId: string; clave: ClaveDePedido } | null> {
+  for (const estudioId of await idsDeLosEstudios(db)) {
+    const p = await enElNegocio(
+      estudioId,
+      (tx) =>
+        tx.auditLog.findFirst({
+          where: { id, tenantId: estudioId, action: ACCION_SOLICITUD_ALTA, entity: ENTIDAD_SOLICITUD },
+          select: { id: true, createdAt: true },
+        }),
+      db,
+    );
+    if (p) return { estudioId, clave: { createdAt: p.createdAt, id: p.id } };
+  }
+  return null;
+}
+
+/** El orden de la bandeja: fecha y, a igual fecha, id (el mismo que `leerPedidosAbiertos`). */
+function antes(a: ClaveDePedido, b: ClaveDePedido): number {
+  const t = a.createdAt.getTime() - b.createdAt.getTime();
+  return t !== 0 ? t : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
 /**
  * Los pedidos ABIERTOS de todos los estudios, del más viejo al más nuevo, de a `limite`, después del
  * pedido `desde`. El «abierto», el orden y el total se resuelven en la base (cartera-alta-db.ts): antes
  * se traían los 500 pedidos más viejos, abiertos y cerrados, y del 501 en adelante no aparecía nada.
+ * Con RLS, una página por estudio (parado en él), que se juntan acá: la página es la de todos.
  */
 export async function listarSolicitudesPendientes(
   db: PrismaClient,
   opts: { desde?: string | null; limite?: number } = {},
 ): Promise<PaginaDeSolicitudes> {
-  const { filas, total, hayMas } = await leerPedidosAbiertos(db, {
-    estudioTenantId: null,
-    despuesDe: opts.desde ?? null,
-    limite: opts.limite ?? PEDIDOS_POR_PAGINA,
-  });
-  const pedidos: SolicitudPendiente[] = [];
-  for (const p of filas) {
-    const s = await armarSolicitud(db, p);
-    if (s) pedidos.push(s);
-  }
-  return { pedidos, total, siguiente: hayMas ? filas[filas.length - 1].id : null };
+  const limite = opts.limite ?? PEDIDOS_POR_PAGINA;
+  const estudios = await idsDeLosEstudios(db);
+  // `desde` es el id del último pedido de la página anterior: su clave se busca una vez.
+  const cursor = opts.desde ? await ubicarPedido(db, opts.desde) : null;
+  const porEstudio = await Promise.all(
+    estudios.map((estudioTenantId) =>
+      enElNegocio(estudioTenantId, (tx) => leerPedidosAbiertos(tx, { estudioTenantId, despuesDe: cursor?.clave ?? null, limite }), db),
+    ),
+  );
+  const total = porEstudio.reduce((n, r) => n + r.total, 0);
+  // Un `desde` que no es un pedido: nada después de él (como antes), con el total de todos.
+  if (opts.desde && !cursor) return { pedidos: [], total, siguiente: null };
+  const juntos = porEstudio.flatMap((r) => r.filas).sort(antes);
+  const pagina = juntos.slice(0, limite);
+  const hayMas = juntos.length > limite || porEstudio.some((r) => r.hayMas);
+  // Cada pedido se arma parado en SU estudio (quién lo pidió, su WhatsApp, su cartera).
+  const armados = new Map<string, SolicitudPendiente | null>();
+  const deCadaEstudio = new Map<string, PedidoAbierto[]>();
+  for (const p of pagina) deCadaEstudio.set(p.tenantId, [...(deCadaEstudio.get(p.tenantId) ?? []), p]);
+  await Promise.all(
+    [...deCadaEstudio].map(([estudioId, pedidos]) =>
+      enElNegocio(
+        estudioId,
+        async (tx) => {
+          for (const p of pedidos) armados.set(p.id, await armarSolicitud(tx, p));
+        },
+        db,
+      ),
+    ),
+  );
+  const pedidos = pagina.map((p) => armados.get(p.id)).filter((x): x is SolicitudPendiente => Boolean(x));
+  return { pedidos, total, siguiente: hayMas && pagina.length > 0 ? pagina[pagina.length - 1].id : null };
 }
 
 /** Cómo se cerró un pedido: lo que ve Soporte al volver a abrirlo (y justo después de descartarlo). */
@@ -171,28 +229,38 @@ export type CierreDelPedido =
   | { tipo: "descartado"; motivo: MotivoDeDescarte; texto: string; nota: string | null; operador: string | null; cuando: string }
   | { tipo: "configurado"; clienteTenantId: string | null };
 
-/** Un pedido por id (abierto o cerrado). `null` si no es un pedido de alta. */
+/** Un pedido por id (abierto o cerrado). `null` si no es un pedido de alta. Se lee parado en su estudio. */
 export async function leerSolicitud(
   db: PrismaClient,
   id: string,
 ): Promise<(SolicitudPendiente & { cerrada: boolean; cierre: CierreDelPedido | null }) | null> {
-  const p = await db.auditLog.findUnique({
-    where: { id },
+  const ubicado = await ubicarPedido(db, id);
+  if (!ubicado) return null;
+  return enElNegocio(ubicado.estudioId, (tx) => leerSolicitudEnTx(tx, ubicado.estudioId, id), db);
+}
+
+async function leerSolicitudEnTx(
+  tx: Tx,
+  estudioId: string,
+  id: string,
+): Promise<(SolicitudPendiente & { cerrada: boolean; cierre: CierreDelPedido | null }) | null> {
+  const p = await tx.auditLog.findFirst({
+    where: { id, tenantId: estudioId },
     select: { id: true, tenantId: true, actor: true, changes: true, createdAt: true, action: true, entity: true },
   });
   if (!p || p.action !== ACCION_SOLICITUD_ALTA || p.entity !== ENTIDAD_SOLICITUD) return null;
-  const s = await armarSolicitud(db, p);
+  const s = await armarSolicitud(tx, p);
   if (!s) return null;
-  const cierres = await cerrados(db, [id]);
+  const cierres = await cerrados(tx, estudioId, [id]);
   if (!cierres.has(id)) return { ...s, cerrada: false, cierre: null };
-  const descarte = await db.auditLog.findFirst({
-    where: { action: ACCION_SOLICITUD_DESCARTADA, entity: ENTIDAD_SOLICITUD, entityId: id },
+  const descarte = await tx.auditLog.findFirst({
+    where: { tenantId: estudioId, action: ACCION_SOLICITUD_DESCARTADA, entity: ENTIDAD_SOLICITUD, entityId: id },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     select: { createdAt: true, changes: true },
   });
   if (!descarte) return { ...s, cerrada: true, cierre: { tipo: "configurado", clienteTenantId: cierres.get(id) ?? null } };
-  const nota = await db.auditLog.findFirst({
-    where: { action: ACCION_NOTA_INTERNA_SOPORTE, entity: ENTIDAD_SOLICITUD, entityId: id },
+  const nota = await tx.auditLog.findFirst({
+    where: { tenantId: estudioId, action: ACCION_NOTA_INTERNA_SOPORTE, entity: ENTIDAD_SOLICITUD, entityId: id },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     select: { changes: true },
   });
@@ -215,8 +283,9 @@ export async function leerSolicitud(
   };
 }
 
+/** `tx` parada en el estudio del pedido: quién lo pidió, su WhatsApp y su cartera son filas suyas. */
 async function armarSolicitud(
-  db: PrismaClient | Tx,
+  db: Tx,
   p: { id: string; tenantId: string; actor: string; changes: unknown; createdAt: Date },
 ): Promise<SolicitudPendiente | null> {
   const datos = leerSolicitudGuardada(p.changes);
@@ -328,7 +397,8 @@ type Ok = Extract<ResultadoConfigurador, { ok: true }>;
  */
 export async function configurarSolicitud(
   db: PrismaClient,
-  opts: { solicitudId: string; estudioTenantId?: string; sesion: { nombre: string; esDuenio: boolean }; form: FormConfigurador },
+  // El estudio del formulario (el que pasó la guardia): la transacción se para en él para leer el pedido.
+  opts: { solicitudId: string; estudioTenantId: string; sesion: { nombre: string; esDuenio: boolean }; form: FormConfigurador },
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<ResultadoConfigurador> {
   const v = validarConfiguracion(opts.form);
@@ -342,15 +412,15 @@ export async function configurarSolicitud(
       async (tx): Promise<Ok> => {
         // 1) Un pedido a la vez: el doble clic espera acá y encuentra el pedido cerrado.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`configurar-solicitud:${opts.solicitudId}`}))`;
-        const pedido = await tx.auditLog.findUnique({
-          where: { id: opts.solicitudId },
+        // Parada en el estudio del formulario: un pedido de otro estudio ni se ve (RLS), y además se exige el negocio.
+        await enNegocio(tx, opts.estudioTenantId);
+        const pedido = await tx.auditLog.findFirst({
+          where: { id: opts.solicitudId, tenantId: opts.estudioTenantId },
           select: { id: true, tenantId: true, actor: true, action: true, entity: true, changes: true },
         });
         if (!pedido || pedido.action !== ACCION_SOLICITUD_ALTA || pedido.entity !== ENTIDAD_SOLICITUD) {
           throw new Rechazo("Ese pedido no existe.");
         }
-        // La acción pasó la guardia con el estudio del formulario: el pedido tiene que ser de ESE estudio.
-        if (opts.estudioTenantId !== undefined && pedido.tenantId !== opts.estudioTenantId) throw new Rechazo("Ese pedido no existe.");
         const estudioId = pedido.tenantId;
         // Lo que pidió la contadora (no lo que quedó en el formulario): ¿varios locales?
         const avisoLocales = avisoDeOtrosLocales(leerSolicitudGuardada(pedido.changes)?.tamanio);
@@ -363,7 +433,7 @@ export async function configurarSolicitud(
         const datosEstudio = { id: estudio.id, nombre: estudio.name, direccionCartera };
 
         // 2) Idempotencia: pedido ya cerrado → lo que quedó, sin crear nada ni mostrar claves.
-        const previo = (await cerrados(tx, [pedido.id])).get(pedido.id);
+        const previo = (await cerrados(tx, estudioId, [pedido.id])).get(pedido.id);
         if (previo !== undefined) {
           const t = previo
             ? await tx.tenant.findUnique({
@@ -661,7 +731,7 @@ export type ResultadoDescarte =
  */
 export async function descartarSolicitud(
   db: PrismaClient,
-  opts: { solicitudId: string; estudioTenantId?: string; sesion: { nombre: string; esDuenio: boolean }; motivo: unknown; nota?: unknown },
+  opts: { solicitudId: string; estudioTenantId: string; sesion: { nombre: string; esDuenio: boolean }; motivo: unknown; nota?: unknown },
 ): Promise<ResultadoDescarte> {
   const vm = validarMotivoDeDescarte(opts.motivo);
   if (!vm.ok) return { ok: false, error: vm.error, campo: "motivo" };
@@ -670,16 +740,16 @@ export async function descartarSolicitud(
   try {
     return await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`configurar-solicitud:${opts.solicitudId}`}))`;
-      const pedido = await tx.auditLog.findUnique({
-        where: { id: opts.solicitudId },
+      // Parada en el estudio del formulario, como configurar.
+      await enNegocio(tx, opts.estudioTenantId);
+      const pedido = await tx.auditLog.findFirst({
+        where: { id: opts.solicitudId, tenantId: opts.estudioTenantId },
         select: { id: true, tenantId: true, action: true, entity: true, tenant: { select: { slug: true } } },
       });
       if (!pedido || pedido.action !== ACCION_SOLICITUD_ALTA || pedido.entity !== ENTIDAD_SOLICITUD) throw new Rechazo("Ese pedido no existe.");
-      if (opts.estudioTenantId !== undefined && pedido.tenantId !== opts.estudioTenantId) throw new Rechazo("Ese pedido no existe.");
-      if ((await cerrados(tx, [pedido.id])).has(pedido.id)) throw new Rechazo("Ese pedido ya estaba cerrado.");
+      if ((await cerrados(tx, pedido.tenantId, [pedido.id])).has(pedido.id)) throw new Rechazo("Ese pedido ya estaba cerrado.");
       const g = decidirOperadorParaNegocios(opts.sesion, [pedido.tenant.slug]);
       if (!g.ok) throw new Rechazo(g.motivo);
-      await enNegocio(tx, pedido.tenantId);
       const actor = `operator:${opts.sesion.nombre}`;
       await tx.auditLog.create({
         data: {

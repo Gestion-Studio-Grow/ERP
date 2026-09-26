@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { requireUser } from "@/lib/authz";
 import FormCerrarSesion from "../FormCerrarSesion";
-import { getTenantBrand, resolveAccent } from "@/lib/branding";
+import { getTenantBrand, resolveAccent, marcaDelNegocio } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import { getProductoContexto } from "@/lib/producto";
 import { buscarApp } from "@/apps/registro";
@@ -67,7 +67,7 @@ export default async function NoDisponiblePage({
   const preset = teamPreset ?? identidad?.acento ?? brand.preset;
   const accentLight = resolveAccent(preset, "light");
   const accentDark = resolveAccent(preset, "dark");
-  const marcaNombre = identidad?.nombre ?? brand.name;
+  const marcaNombre = marcaDelNegocio(brand, identidad).nombre;
 
   return (
     <main

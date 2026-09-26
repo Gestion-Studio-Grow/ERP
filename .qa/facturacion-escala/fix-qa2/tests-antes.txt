@@ -1,0 +1,325 @@
+TAP version 13
+# Subtest: ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan intactos y el resumen cuenta sólo los de A
+not ok 1 - ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan intactos y el resumen cuenta sólo los de A
+  ---
+  duration_ms: 8341.959909
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/arca-envios-por-negocio-postgres.test.ts:2:2957'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+        autorizados: 1,
+    -   conErrorDelSistema: [],
+        descartados: 0,
+        fallidos: 0,
+        procesados: 1,
+        quedan: 0,
+        rechazados: 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    procesados: 1
+    autorizados: 1
+    rechazados: 0
+    fallidos: 0
+    descartados: 0
+    quedan: 0
+    conErrorDelSistema:
+  actual:
+    procesados: 1
+    autorizados: 1
+    rechazados: 0
+    fallidos: 0
+    descartados: 0
+    quedan: 0
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-por-negocio-postgres.test.ts:75:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: ENG-012 · la acción de A no toma un envío de B aunque sea el único pendiente (0 procesados, B sin intentos)
+not ok 2 - ENG-012 · la acción de A no toma un envío de B aunque sea el único pendiente (0 procesados, B sin intentos)
+  ---
+  duration_ms: 167.821748
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/arca-envios-por-negocio-postgres.test.ts:2:5166'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+        autorizados: 0,
+    -   conErrorDelSistema: [],
+        descartados: 0,
+        fallidos: 0,
+        procesados: 0,
+        quedan: 0,
+        rechazados: 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    procesados: 0
+    autorizados: 0
+    rechazados: 0
+    fallidos: 0
+    descartados: 0
+    quedan: 0
+    conErrorDelSistema:
+  actual:
+    procesados: 0
+    autorizados: 0
+    rechazados: 0
+    fallidos: 0
+    descartados: 0
+    quedan: 0
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-por-negocio-postgres.test.ts:112:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: sin RLS: lo que le queda a A y el número del botón no cuentan los pendientes de B
+ok 3 - sin RLS: lo que le queda a A y el número del botón no cuentan los pendientes de B
+  ---
+  duration_ms: 8813.613688
+  type: 'test'
+  ...
+# Subtest: la misma clienta tiene el mismo número de compras en el listado viejo y en el nuevo
+not ok 4 - la misma clienta tiene el mismo número de compras en el listado viejo y en el nuevo
+  ---
+  duration_ms: 7764.976076
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/clientes/compras-por-ficha-postgres.test.ts:2:1039'
+  failureType: 'testCodeFailure'
+  error: |-
+    diseño viejo: el mismo número que el nuevo
+    
+    2 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 2
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/clientes/compras-por-ficha-postgres.test.ts:56:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: un toque con 59 pendientes manda los 59 (tres tandas de a 20), no 20
+ok 5 - un toque con 59 pendientes manda los 59 (tres tandas de a 20), no 20
+  ---
+  duration_ms: 25.88689
+  type: 'test'
+  ...
+# Subtest: con 300 pendientes, un toque: 15 tandas y ninguno queda
+ok 6 - con 300 pendientes, un toque: 15 tandas y ninguno queda
+  ---
+  duration_ms: 6.23491
+  type: 'test'
+  ...
+# Subtest: si ARCA no responde, para en esa tanda y dice cuántos quedan (no le insiste a ARCA caído)
+not ok 7 - si ARCA no responde, para en esa tanda y dice cuántos quedan (no le insiste a ARCA caído)
+  ---
+  duration_ms: 12.331602
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/facturacion/autorizar-en-tandas.test.ts:2:2971'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    undefined !== 15
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 15
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/facturacion/autorizar-en-tandas.test.ts:67:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: un error nuestro no se le achaca a ARCA ni invita a reintentar: lo dice como es y el toque sigue con el resto
+not ok 8 - un error nuestro no se le achaca a ARCA ni invita a reintentar: lo dice como es y el toque sigue con el resto
+  ---
+  duration_ms: 9.618015
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/facturacion/autorizar-en-tandas.test.ts:2:3774'
+  failureType: 'testCodeFailure'
+  error: |-
+    no corta en la primera tanda: manda todo lo que se puede mandar
+    + actual - expected
+    
+    + 'arca-no-respondio'
+    - 'terminado'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'terminado'
+  actual: 'arca-no-respondio'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/facturacion/autorizar-en-tandas.test.ts:80:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: si todo lo que queda falla por error nuestro, una sola tanda y no gira: el aviso no culpa a ARCA
+not ok 9 - si todo lo que queda falla por error nuestro, una sola tanda y no gira: el aviso no culpa a ARCA
+  ---
+  duration_ms: 0.849086
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/facturacion/autorizar-en-tandas.test.ts:2:5125'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'arca-no-respondio'
+    - 'terminado'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'terminado'
+  actual: 'arca-no-respondio'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/facturacion/autorizar-en-tandas.test.ts:96:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: ARCA sin respuesta y error nuestro en la misma tanda: cada uno con su causa, y el «probá de nuevo» cuenta sólo lo que ARCA dejó
+not ok 10 - ARCA sin respuesta y error nuestro en la misma tanda: cada uno con su causa, y el «probá de nuevo» cuenta sólo lo que ARCA dejó
+  ---
+  duration_ms: 1.224285
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/facturacion/autorizar-en-tandas.test.ts:2:6010'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        9,
+    +   undefined,
+    +   undefined,
+    -   1,
+    -   10,
+        21
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 9
+    1: 1
+    2: 10
+    3: 21
+  actual:
+    0: 9
+    3: 21
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/facturacion/autorizar-en-tandas.test.ts:110:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: una tanda que no avanza corta (no gira en falso) y no persigue sin fin los que van entrando
+ok 11 - una tanda que no avanza corta (no gira en falso) y no persigue sin fin los que van entrando
+  ---
+  duration_ms: 0.454177
+  type: 'test'
+  ...
+# Subtest: el aviso usa el singular con uno
+ok 12 - el aviso usa el singular con uno
+  ---
+  duration_ms: 0.171962
+  type: 'test'
+  ...
+# Subtest: lo que la pantalla pide saltear se valida en el borde: sólo ids con forma de id, sin repetir y con tope
+not ok 13 - lo que la pantalla pide saltear se valida en el borde: sólo ids con forma de id, sin repetir y con tope
+  ---
+  duration_ms: 0.446709
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/facturacion/autorizar-en-tandas.test.ts:2:7928'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_autorizar_en_tandas.enviosASaltear) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/facturacion/autorizar-en-tandas.test.ts:140:20)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: un comprobante rechazado no dice «autorizado»: muestra el motivo de ARCA y ofrece volver a facturar la venta
+ok 14 - un comprobante rechazado no dice «autorizado»: muestra el motivo de ARCA y ofrece volver a facturar la venta
+  ---
+  duration_ms: 4.255531
+  type: 'test'
+  ...
+# Subtest: sin motivo guardado lo dice; del banco lleva a Facturación automática; sin origen, dice desde dónde
+ok 15 - sin motivo guardado lo dice; del banco lleva a Facturación automática; sin origen, dice desde dónde
+  ---
+  duration_ms: 0.409964
+  type: 'test'
+  ...
+# Subtest: autorizado: el texto de siempre; en modo de prueba, el aviso de que no tiene validez fiscal
+ok 16 - autorizado: el texto de siempre; en modo de prueba, el aviso de que no tiene validez fiscal
+  ---
+  duration_ms: 0.265832
+  type: 'test'
+  ...
+# Subtest: rechazado por la regla del inscripto: no manda a volver a facturar (da el mismo rechazo) y dice por dónde se emite
+not ok 17 - rechazado por la regla del inscripto: no manda a volver a facturar (da el mismo rechazo) y dice por dónde se emite
+  ---
+  duration_ms: 2.673917
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/facturacion/detalle-core.test.ts:2:3297'
+  failureType: 'testCodeFailure'
+  error: |-
+    venta: sin el botón que repite el rechazo
+    
+    'ord_1' !== null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual: 'ord_1'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/facturacion/detalle-core.test.ts:44:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: pendiente: todavía no lo autorizó y cómo mandarlo
+ok 18 - pendiente: todavía no lo autorizó y cómo mandarlo
+  ---
+  duration_ms: 0.204607
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 9
+# fail 9
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12257.087279

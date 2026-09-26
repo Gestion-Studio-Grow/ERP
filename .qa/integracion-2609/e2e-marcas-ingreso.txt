@@ -1,0 +1,8 @@
+chestetica.localhost   ingreso muestra: CH Estética
+magra.localhost        ingreso muestra: 
+shinevelas.localhost   ingreso muestra: 
+adosmanos.localhost    ingreso muestra: 
+wpe.localhost          ingreso muestra: Circuito WPE
+magra.localhost        MAGRA:1 Shine:0 ADM:0 Comerciante:0 'Mi negocio':0 title:Ingresá a tu panel
+shinevelas.localhost   MAGRA:0 Shine:1 ADM:0 Comerciante:0 'Mi negocio':0 title:Ingresá a tu panel
+adosmanos.localhost    MAGRA:0 Shine:0 ADM:1 Comerciante:0 'Mi negocio':0 title:Ingresá a tu panel

@@ -5,7 +5,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { brandForSlug, resolveAccent, invertTheme, resolveTenantLayout, DEFAULT_LAYOUT, resolveSectionOrder, DEFAULT_SECTION_ORDER, FONT_VAR } from "./branding";
+import { brandForSlug, marcaDelNegocio, resolveAccent, invertTheme, resolveTenantLayout, DEFAULT_LAYOUT, resolveSectionOrder, DEFAULT_SECTION_ORDER, FONT_VAR } from "./branding";
 
 test("brandForSlug: cada tenant real tiene su propia marca (no comparten identidad)", () => {
   const slugs = ["beauty-spa", "magra", "shinevelas", "adosmanos"];
@@ -135,4 +135,17 @@ test("FONT_VAR: cada clave mapea a una CSS var cargada por el layout raíz", () 
   assert.equal(FONT_VAR.playfair, "var(--font-spa-serif)");
   assert.equal(FONT_VAR.hanken, "var(--font-hanken)");
   assert.ok(Object.values(FONT_VAR).every((v) => /^var\(--font-[a-z-]+\)$/.test(v)));
+});
+
+test("marcaDelNegocio: un negocio con ficha propia entra con SU nombre aunque su producto sea Comerciante", () => {
+  const comerciante = { nombre: "Comerciante", monograma: "C" };
+  assert.deepEqual(marcaDelNegocio(brandForSlug("circuito-wpe"), comerciante), { nombre: "Circuito WPE", monograma: "WPE" });
+  assert.deepEqual(marcaDelNegocio(brandForSlug("magra-lomas"), comerciante).nombre, brandForSlug("magra").name);
+});
+
+test("marcaDelNegocio: sin ficha propia manda la identidad del producto; sin identidad, la marca neutra", () => {
+  const contador = { nombre: "Contador", monograma: "Ct" };
+  assert.deepEqual(marcaDelNegocio(brandForSlug("un-negocio-sin-ficha"), contador), contador);
+  assert.equal(brandForSlug("un-negocio-sin-ficha").propia, undefined);
+  assert.deepEqual(marcaDelNegocio(brandForSlug(null), null), { nombre: "Mi negocio", monograma: "•" });
 });

@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: aislamiento: el negocio A no ve, no cuenta ni encuentra nada del negocio B (tampoco lo que vino del banco)
+ok 1 - aislamiento: el negocio A no ve, no cuenta ni encuentra nada del negocio B (tampoco lo que vino del banco)
+  ---
+  duration_ms: 9145.110705
+  type: 'test'
+  ...
+# Subtest: las notas de crédito restan en los totales, en el renglón y en el CSV (la regla del Libro IVA, libro-iva.ts:272)
+ok 2 - las notas de crédito restan en los totales, en el renglón y en el CSV (la regla del Libro IVA, libro-iva.ts:272)
+  ---
+  duration_ms: 45.013419
+  type: 'test'
+  ...
+# Subtest: los totales son los del filtro entero (suma con signo en la base) y el receptor sigue la precedencia del impreso
+ok 3 - los totales son los del filtro entero (suma con signo en la base) y el receptor sigue la precedencia del impreso
+  ---
+  duration_ms: 2861.432697
+  type: 'test'
+  ...
+# Subtest: cada página es una consulta y su p95 es < 300 ms con 50.000 comprobantes y 80.000 movimientos del banco
+ok 4 - cada página es una consulta y su p95 es < 300 ms con 50.000 comprobantes y 80.000 movimientos del banco
+  ---
+  duration_ms: 27233.51856
+  type: 'test'
+  ...
+# mes en curso (por defecto)                       4109 en el filtro · 1 consulta · p95 52.8 ms · mediana 35.9 ms
+# mes en curso, página 20                          4109 en el filtro · 1 consulta · p95 65.9 ms · mediana 52.1 ms
+# todos los meses (50.000)                        50000 en el filtro · 1 consulta · p95 78.6 ms · mediana 62.0 ms
+# todos los meses, página 900                     50000 en el filtro · 1 consulta · p95 164.7 ms · mediana 131.2 ms
+# necesitan atención, todos los meses              4545 en el filtro · 1 consulta · p95 103.6 ms · mediana 82.3 ms
+# rechazados del mes                                 98 en el filtro · 1 consulta · p95 86.2 ms · mediana 50.4 ms
+# autorizados del mes                              3738 en el filtro · 1 consulta · p95 85.0 ms · mediana 54.0 ms
+# Factura A del mes                                 545 en el filtro · 1 consulta · p95 64.3 ms · mediana 47.4 ms
+# notas de crédito del año                         9969 en el filtro · 1 consulta · p95 115.1 ms · mediana 65.8 ms
+# punto de venta 2 del mes                         1370 en el filtro · 1 consulta · p95 81.3 ms · mediana 55.6 ms
+# período de un trimestre                         12467 en el filtro · 1 consulta · p95 52.2 ms · mediana 41.3 ms
+# buscar nombre «Cliente Escala 777»                 22 en el filtro · 1 consulta · p95 173.4 ms · mediana 106.7 ms
+# buscar nombre del banco «Receptor Banco 3000»      10 en el filtro · 1 consulta · p95 225.6 ms · mediana 147.5 ms
+# buscar CUIT «20-00000077-8»                         5 en el filtro · 1 consulta · p95 64.5 ms · mediana 47.1 ms
+# buscar número «0002-00012346»                       1 en el filtro · 1 consulta · p95 18.9 ms · mediana 16.3 ms
+# buscar importe «5.445,00»                           6 en el filtro · 1 consulta · p95 93.0 ms · mediana 56.2 ms
+# buscar nombre + mes + rechazados                   39 en el filtro · 1 consulta · p95 115.7 ms · mediana 77.1 ms
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 40224.863545
+EXIT 0
