@@ -6,6 +6,8 @@
 // (configurador.server.ts) crea o vincula el negocio en UNA transacción. Estas reglas deciden qué se
 // acepta del formulario y con qué vertical y módulos nace el cliente. No tocan la base.
 
+import { validarRegimenFacturaA } from "@/lib/fiscal/regimen-factura-a";
+import type { RegimenFacturaA } from "@/lib/fiscal/decidir-comprobante";
 import { validarCuit } from "@/lib/fiscal/cuit";
 import { ESCALERA, PLANES, RUBROS, modulosDelPlan, type PlanId } from "@/planes/catalogo";
 import type { RubroApp } from "@/apps/contract";
@@ -50,6 +52,10 @@ export interface FormConfigurador {
   razonSocial?: string;
   cuit?: string;
   condicionIva?: string;
+  /** Sólo Responsable Inscripto: la Factura A que le asignó ARCA (RG 1575). */
+  regimenFacturaA?: string;
+  /** "si": Soporte confirmó que el cliente y la contadora saben que «A con leyenda» o «M» se hacen en ARCA. */
+  confirmaFacturaAFuera?: string;
   puntoVenta?: string;
   rubro?: string;
   plan?: string;
@@ -92,6 +98,8 @@ export interface Configuracion {
   razonSocial: string;
   cuit: string;
   condicionIva: CondicionIva;
+  /** La Factura A que asignó ARCA: obligatoria para un Responsable Inscripto, `null` para el resto. */
+  regimenFacturaA: RegimenFacturaA | null;
   puntoVenta: number;
   rubro: RubroApp;
   plan: PlanId;
@@ -119,6 +127,8 @@ export function validarConfiguracion(f: FormConfigurador): { ok: true; config: C
   const cuit = vc.cuit;
   const condicionIva = (f.condicionIva ?? "").trim();
   if (!esCondicionIva(condicionIva)) return { ok: false, error: "Elegí la condición frente al IVA." };
+  const rfa = validarRegimenFacturaA(condicionIva, (f.regimenFacturaA ?? "").trim(), (f.confirmaFacturaAFuera ?? "").trim() === "si");
+  if (!rfa.ok) return rfa;
   const pv = validarPuntoDeVenta(f.puntoVenta);
   if (!pv.ok) return pv;
   if (pv.puntoVenta === null) {
@@ -152,6 +162,7 @@ export function validarConfiguracion(f: FormConfigurador): { ok: true; config: C
       razonSocial,
       cuit,
       condicionIva,
+      regimenFacturaA: rfa.regimen,
       puntoVenta: pv.puntoVenta,
       rubro,
       plan,
@@ -194,6 +205,19 @@ export function mensajeParaLaContadora(x: {
  * varios locales → PyME; comercio → Micro, salvo que sea Responsable inscripto (necesita el Libro
  * IVA), fíe (cuenta corriente) o lo usen más de 2 personas (tope de Micro): ahí, Comerciante.
  */
+/**
+ * El pedido dice «varios locales»: el alta crea la casa (el primer local), y los otros se dan de alta
+ * aparte. El recordatorio para Soporte en «Pasale esto» (refutador, vuelta 4: sólo lo decía la franja
+ * del configurador). `null` si el pedido no dice varios locales. PURA.
+ */
+export function avisoDeOtrosLocales(tamanio: string | null | undefined): string | null {
+  if (tamanio !== "varios-locales") return null;
+  return (
+    "El pedido dice «varios locales»: con este alta quedó la casa (el primer local). Cada local más se da de alta en " +
+    "«Dar de alta un negocio» → «¿De qué red?», eligiendo esta casa: hereda el CUIT y la condición frente al IVA, y le cargás su punto de venta."
+  );
+}
+
 export function sugerirPlan(
   tamanio: Tamanio | null,
   x: { condicionIva: CondicionIva | null; fia?: boolean; personas?: number },

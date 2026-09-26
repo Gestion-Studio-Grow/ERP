@@ -79,6 +79,16 @@ test("factura de prueba guardada: letra, receptor, numeración, aislamiento y lo
       guardadas.map((f) => [f.status, f.tipoComprobante, f.numero, f.docTipo, Number(f.total)]),
       [["AUTHORIZED", 6, 1, 99, 1210], ["AUTHORIZED", 6, 2, 99, 1210]],
     );
+    // QA 26/09, vuelta 4, bloqueante 2: Soporte GSG carga qué Factura A le asignó ARCA (configurador o
+    // ficha) y la A de prueba sale y se guarda como la B y la C. El negocio B no ve ese dato de A.
+    const { corregirRegimenFacturaA } = await import("@/lib/fiscal/regimen-factura-a.server");
+    assert.deepEqual(await corregirRegimenFacturaA({ tenantId: base.a.id, operador: "soporte", regimen: "A" }), { ok: true, regimen: "A" });
+    const a2 = await emitir(base.a, "responsable-inscripto");
+    assert.equal(a2.ok && a2.comprobante, "Factura A 0002-00000001", JSON.stringify(a2));
+    const conA = await facturasDe(base.a.id);
+    assert.deepEqual(conA.map((f) => [f.status, f.tipoComprobante, f.numero, f.docTipo]).at(-1), ["AUTHORIZED", 1, 1, 80]);
+    const deOtro = await tenantTransaction((tx) => tx.auditLog.count({ where: { action: "fiscal.regimen_factura_a" } }), { tenantId: base.b.id });
+    assert.equal(deOtro, 0, "el negocio B no ve la clase de Factura A de A");
   });
 
   await t.test("monotributista: Factura C, a consumidor final y a un inscripto", async () => {
@@ -95,7 +105,7 @@ test("factura de prueba guardada: letra, receptor, numeración, aislamiento y lo
     const cruzado = await tenantTransaction((tx) => tx.invoice.findMany({ where: { tenantId: base.a.id } }), { tenantId: base.b.id });
     assert.equal(cruzado.length, 0);
     assert.ok((await facturasDe(base.a.id)).every((f) => f.tenantId === base.a.id));
-    assert.equal((await facturasDe(base.a.id)).length, 2, "lo de B no sumó nada en A");
+    assert.equal((await facturasDe(base.a.id)).length, 3, "lo de B no sumó nada en A (las dos B y la A de A)");
   });
 
   await t.test("sin la facturación asignada no emite nada; un receptor inventado tampoco", async () => {
@@ -105,7 +115,7 @@ test("factura de prueba guardada: letra, receptor, numeración, aislamiento y lo
     const inventado = await emitir(base.a, "cualquiera");
     assert.equal(inventado.ok, false);
     assert.equal((await facturasDe(base.b.id)).length, 2);
-    assert.equal((await facturasDe(base.a.id)).length, 2);
+    assert.equal((await facturasDe(base.a.id)).length, 3);
   });
 
   await t.test("el log no guarda el CUIT del negocio (§4)", async () => {

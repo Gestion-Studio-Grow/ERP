@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pasaleEsto } from "./pasale-esto";
+import { LINEA_OTROS_LOCALES, pasaleEsto } from "./pasale-esto";
 
 const base = { negocio: "Estética Norte", usuario: "ana@norte.com", clave: "k3y-Segura" };
 
@@ -33,4 +33,12 @@ test("sin contraseña nueva (el dueño ya existía) no promete una", () => {
   const p = pasaleEsto({ ...base, clave: null, direccion: "https://x.gsg.ar/admin" });
   assert.doesNotMatch(p.mensaje, /Contraseña:/);
   assert.match(p.mensaje, /tu contraseña de siempre/);
+});
+
+test("refutador vuelta 4 · pidió varios locales: el mensaje dice que por ahora quedó el primero y los otros van aparte", () => {
+  const base = { negocio: "Autoservicio Red Sur", direccion: "https://redsur.gsgapp.com.ar/admin", usuario: "duenio@redsur.test", clave: "Clave-1234" };
+  const conLocales = pasaleEsto({ ...base, otrosLocales: true });
+  assert.equal(conLocales.mensaje.split("\n")[1], LINEA_OTROS_LOCALES, "va segunda, antes de la dirección");
+  assert.ok(decodeURIComponent(conLocales.whatsapp).includes(LINEA_OTROS_LOCALES), "también en el WhatsApp");
+  assert.ok(!pasaleEsto(base).mensaje.includes(LINEA_OTROS_LOCALES), "un solo local: no la menciona");
 });

@@ -35,14 +35,17 @@ import {
   type LineaIvaRecibida,
   type RechazoRecibido,
   rotuloRecibido,
+  NOTA_A_REVISAR,
+  aRevisarDeNotas,
+  notasRevisadas,
 } from "./recibidos-formato";
 
 type Tx = Prisma.TransactionClient;
 
 /** Encabezado de `notes` de un comprobante importado del archivo de ARCA. */
 export const NOTA_IMPORTADO = "Importado de Mis Comprobantes Recibidos (ARCA)";
-/** Rótulo de la marca «a revisar» dentro de `notes` (sin columna propia hasta M1). */
-export const NOTA_A_REVISAR = "A revisar:";
+// La marca «a revisar» vive en recibidos-formato.ts (pura: la lee también el Libro IVA).
+export { NOTA_A_REVISAR, aRevisarDeNotas };
 export const ACCION_IMPORTACION = "compras.recibidos-importados";
 
 // ---------------------------------------------------------------------------
@@ -122,12 +125,6 @@ export function notasDelRecibido(c: ComprobanteRecibido, por: string): string {
   return partes.join(" ");
 }
 
-/** La marca «a revisar» de una compra, leída de sus notas; null si no tiene. */
-export function aRevisarDeNotas(notes: string | null): string | null {
-  if (!notes) return null;
-  const i = notes.indexOf(NOTA_A_REVISAR);
-  return i === -1 ? null : notes.slice(i + NOTA_A_REVISAR.length).trim();
-}
 
 export interface ResultadoGuardado {
   cargados: ComprobanteRecibido[];
@@ -223,6 +220,57 @@ export async function guardarRecibidos(
     },
   });
   return { cargados: nuevos, yaCargados };
+}
+
+// ---------------------------------------------------------------------------
+// Revisión: lo marcado «a revisar» vuelve al crédito cuando la contadora lo confirma.
+// ---------------------------------------------------------------------------
+
+export const ACCION_RECIBIDO_REVISADO = "compras.recibido-revisado";
+const NO_ES_DEL_CLIENTE = "Ese comprobante no está entre las compras importadas de este cliente.";
+
+/**
+ * La contadora miró el comprobante original y su IVA es crédito (refutador 26/09: lo marcado «a
+ * revisar» quedaba afuera del crédito para siempre). Sin columna (ventana M1): la marca de `notes`
+ * se reemplaza por quién y cuándo lo revisó (notasRevisadas), con una fila de auditoría en el
+ * CLIENTE. Sólo compras importadas de ESE cliente (RLS del cliente y `tenantId` en el where); con
+ * candado por compra: dos clics revisan una vez. `acceso` sale de accesoAClienteDeCartera(…, true).
+ */
+export async function revisarRecibido(
+  acceso: Extract<AccesoRecibidos, { ok: true }>,
+  compraRaw: unknown,
+  ahora: Date = new Date(),
+): Promise<{ ok: true; mensaje: string } | { ok: false; error: string }> {
+  const compraId = typeof compraRaw === "string" ? compraRaw.trim() : "";
+  if (!compraId) return { ok: false, error: NO_ES_DEL_CLIENTE };
+  const clienteId = acceso.cliente.id;
+  return tenantTransaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`recibido-revisado:${clienteId}:${compraId}`}))`;
+      const c = await tx.stockPurchase.findFirst({ where: { id: compraId, tenantId: clienteId }, select: { id: true, notes: true } });
+      if (!c?.notes?.startsWith(NOTA_IMPORTADO)) return { ok: false as const, error: NO_ES_DEL_CLIENTE };
+      const marcado = aRevisarDeNotas(c.notes);
+      if (marcado == null) return { ok: false as const, error: "Ese comprobante ya estaba revisado: su IVA ya suma al crédito fiscal." };
+      const fecha = new Intl.DateTimeFormat("es-AR", {
+        timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric",
+      }).format(ahora);
+      const por = `${acceso.usuario.name} (${acceso.estudioNombre})`;
+      await tx.stockPurchase.update({ where: { id: c.id }, data: { notes: notasRevisadas(c.notes, por, fecha) } });
+      await tx.auditLog.create({
+        data: {
+          tenantId: clienteId,
+          actor: `estudio:${acceso.estudioTenantId}`,
+          action: ACCION_RECIBIDO_REVISADO,
+          entity: "StockPurchase",
+          entityId: c.id,
+          changes: { por, estabaMarcado: marcado },
+        },
+        select: { id: true },
+      });
+      return { ok: true as const, mensaje: "Listo: quedó revisado y su IVA suma al crédito fiscal del mes." };
+    },
+    { tenantId: clienteId },
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -22,7 +22,9 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
 import { AppNoDisponibleError, requireAppAccion } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
-import { esMesKey, etiquetaDelMes, type MesKey } from "@/lib/libros/fecha-fiscal";
+import { bordesDelMes, esMesKey, etiquetaDelMes, type MesKey } from "@/lib/libros/fecha-fiscal";
+import { CIERRE_DIARIO_ACTION, CIERRE_DIARIO_ENTITY, lastClosedDayTx } from "@/lib/caja/frontera-cierre";
+import { nextDayKey } from "@/lib/caja/cierre-diario";
 import type { SessionUser } from "@/lib/session";
 import {
   ACCION_CONGELAR,
@@ -36,7 +38,7 @@ import {
   validarReabrir,
 } from "./cierre-mes";
 import { mayuscula } from "@/lib/texto";
-import { leerAuditoriaCierre, leerHechosCierreMes } from "./lectura";
+import { hayMovimientosSinCerrar, leerAuditoriaCierre, leerHechosCierreMes } from "./lectura";
 
 export type EstadoAccionCierre = { ok: true; mensaje: string } | { ok: false; error: string } | null;
 
@@ -59,6 +61,8 @@ function leerMes(formData: FormData): MesKey | null {
 
 /** Otra pestaña (o la contadora al mismo tiempo) cambió el estado entre la lectura y la escritura. */
 class CambioDeEstadoError extends Error {}
+/** Entró un movimiento de caja en un día sin cerrar entre la lectura y el congelado. */
+class CajaConMovimientosError extends Error {}
 
 export async function congelarMesAction(_prev: EstadoAccionCierre, formData: FormData): Promise<EstadoAccionCierre> {
   const guarda = await exigirApp();
@@ -83,8 +87,36 @@ export async function congelarMesAction(_prev: EstadoAccionCierre, formData: For
   try {
     await tenantTransaction(
       async (tx) => {
-        // Se vuelve a mirar adentro de la transacción: dos "Congelar" seguidos no dejan dos filas.
+        // Se vuelve a mirar adentro de la transacción, con candado por negocio y mes: dos "Congelar"
+        // simultáneos (doble clic, dos pestañas) no dejan dos congelados ni dos cierres de caja.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cierre-mes:${tenantId}:${mes}`}))`;
         if (estadoDesdeAuditoria(await leerAuditoriaCierre(tx, tenantId, mes)).congelado) throw new CambioDeEstadoError();
+        // Días sin cerrar SIN movimientos (QA 26/09, vuelta 4): el congelado los cierra acá, en la misma
+        // transacción, con la fila que ES la frontera de la caja (frontera-cierre.ts). Así un gasto con
+        // fecha del mes se sigue rechazando después de congelar. Si hay movimientos, no se cierra nada.
+        const bordes = bordesDelMes(mes);
+        const cerradoHasta = await lastClosedDayTx(tx, tenantId);
+        if (!cerradoHasta || cerradoHasta < bordes.ultimoDia) {
+          if (await hayMovimientosSinCerrar(tx, tenantId, cerradoHasta, bordes.instantes.lt)) throw new CajaConMovimientosError();
+          await tx.auditLog.create({
+            data: {
+              tenantId,
+              actor: `user:${user.id}`,
+              action: CIERRE_DIARIO_ACTION,
+              entity: CIERRE_DIARIO_ENTITY,
+              entityId: bordes.ultimoDia,
+              channel: "admin",
+              changes: {
+                day: bordes.ultimoDia,
+                since: cerradoHasta ? nextDayKey(cerradoHasta) : null,
+                movimientos: 0,
+                ajustes: 0,
+                note: `Cerrado al congelar ${etiquetaDelMes(mes)}: no hubo movimientos de caja.`,
+                alCongelarElMes: mes,
+              },
+            },
+          });
+        }
         await tx.auditLog.create({
           data: {
             tenantId,
@@ -105,6 +137,9 @@ export async function congelarMesAction(_prev: EstadoAccionCierre, formData: For
     );
   } catch (e) {
     if (e instanceof CambioDeEstadoError) return { ok: false, error: `${mayuscula(etiquetaDelMes(mes))} ya estaba congelado. Actualizá la página.` };
+    if (e instanceof CajaConMovimientosError) {
+      return { ok: false, error: "Entró un movimiento de caja en un día sin cerrar. Cerrá la caja de ese día y volvé a congelar." };
+    }
     throw e;
   }
 

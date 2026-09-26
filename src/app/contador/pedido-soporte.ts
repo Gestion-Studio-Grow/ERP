@@ -138,24 +138,51 @@ export const TEXTO_RESULTADO: Readonly<Record<ResultadoPedido, string>> = {
   no_corresponde: "No corresponde",
 };
 
-export interface ResolucionValida {
-  resultado: ResultadoPedido;
-  /** Lo que Soporte le contesta a la contadora. Obligatorio si «no corresponde». */
-  respuesta: string | null;
+/**
+ * Por qué «no corresponde»: una LISTA CERRADA, lo único que la contadora lee de Soporte (refutador
+ * 26/09). Antes Soporte escribía la respuesta a mano y le llegaba tal cual a la ficha del cliente:
+ * con el nombre de otro negocio, un estudio se enteraba de que existe. Estos textos no nombran ningún
+ * negocio ni CUIT; lo que haga falta explicar va por WhatsApp. Mismo criterio que el descarte de un
+ * pedido de alta (src/lib/soporte/avisos-a-la-contadora.ts).
+ */
+export const MOTIVOS_NO_CORRESPONDE = {
+  "ya-estaba": "Ya estaba así: no hacía falta cambiar nada.",
+  "falta-constancia": "Hace falta la constancia de inscripción de ARCA del cliente: pedísela y volvé a pedirlo.",
+  "lo-pide-el-cliente": "Esto lo tiene que pedir el cliente (la dueña o el dueño del negocio) a Soporte GSG.",
+  "soporte-escribe": "Soporte GSG te escribe por WhatsApp.",
+} as const;
+export type MotivoNoCorresponde = keyof typeof MOTIVOS_NO_CORRESPONDE;
+export const MOTIVOS_NO_CORRESPONDE_EN_ORDEN = Object.keys(MOTIVOS_NO_CORRESPONDE) as MotivoNoCorresponde[];
+/** Lo que lee la contadora si la fila no trae un código de la lista (una vieja, escrita a mano). */
+export const MOTIVO_NO_CORRESPONDE_POR_DEFECTO: MotivoNoCorresponde = "soporte-escribe";
+
+export function esMotivoNoCorresponde(x: unknown): x is MotivoNoCorresponde {
+  return typeof x === "string" && Object.prototype.hasOwnProperty.call(MOTIVOS_NO_CORRESPONDE, x);
 }
 
-/** Lo que escribió Soporte al cerrar un pedido, validado. PURA. */
-export function validarResolucion(input: { resultado?: unknown; respuesta?: unknown }): { ok: true; resolucion: ResolucionValida } | { ok: false; error: string } {
+export interface ResolucionValida {
+  resultado: ResultadoPedido;
+  /** Sólo con «no corresponde»: un código de MOTIVOS_NO_CORRESPONDE. Nunca texto libre. */
+  motivo: MotivoNoCorresponde | null;
+}
+
+/** Lo que eligió Soporte al cerrar un pedido, validado. No hay campo de texto libre. PURA. */
+export function validarResolucion(input: { resultado?: unknown; motivo?: unknown }): { ok: true; resolucion: ResolucionValida } | { ok: false; error: string } {
   const resultado = input.resultado;
   if (typeof resultado !== "string" || !(RESULTADOS_PEDIDO as readonly string[]).includes(resultado)) {
     return { ok: false, error: "Elegí si quedó hecho o si no corresponde." };
   }
-  const respuesta = typeof input.respuesta === "string" ? input.respuesta.trim().replace(/\s+/g, " ") : "";
-  if (respuesta.length > NOTA_MAX) return { ok: false, error: `La respuesta es muy larga: dejala en ${NOTA_MAX} letras o menos.` };
-  if (resultado === "no_corresponde" && respuesta.length < 3) {
-    return { ok: false, error: "Si no corresponde, escribile a la contadora por qué (lo va a leer en la ficha del cliente)." };
+  if (resultado === "hecho") return { ok: true, resolucion: { resultado: "hecho", motivo: null } };
+  if (!esMotivoNoCorresponde(input.motivo)) {
+    return { ok: false, error: "Si no corresponde, elegí qué le decimos a la contadora (lo lee en la ficha del cliente)." };
   }
-  return { ok: true, resolucion: { resultado: resultado as ResultadoPedido, respuesta: respuesta || null } };
+  return { ok: true, resolucion: { resultado: "no_corresponde", motivo: input.motivo } };
+}
+
+/** El texto que lee la contadora: SIEMPRE uno de la lista, nunca algo guardado como texto. PURA. */
+export function textoDeLaResolucion(resultado: ResultadoPedido, motivo: unknown): string | null {
+  if (resultado === "hecho") return null;
+  return MOTIVOS_NO_CORRESPONDE[esMotivoNoCorresponde(motivo) ? motivo : MOTIVO_NO_CORRESPONDE_POR_DEFECTO];
 }
 
 /** La última respuesta de Soporte GSG sobre un cliente, para mostrarla en la ficha. */
@@ -164,6 +191,7 @@ export interface RespuestaDeSoporte {
   clienteTenantId: string;
   tipo: TipoPedido;
   resultado: ResultadoPedido;
+  /** Lo que lee la contadora: un texto de MOTIVOS_NO_CORRESPONDE (null si «hecho»). Nunca texto libre. */
   respuesta: string | null;
   resueltoEl: string;
 }
@@ -189,13 +217,13 @@ export function respuestasDeSoporte(filas: readonly FilaPedido[]): RespuestaDeSo
     const p = pedidos.get(pedidoId);
     if (!p || typeof resultado !== "string" || !(RESULTADOS_PEDIDO as readonly string[]).includes(resultado)) continue;
     vistos.add(pedidoId);
-    const respuesta = campo(f.changes, "respuesta");
     salida.push({
       pedidoId,
       clienteTenantId: p.clienteTenantId,
       tipo: p.tipo,
       resultado: resultado as ResultadoPedido,
-      respuesta: typeof respuesta === "string" && respuesta ? respuesta : null,
+      // Del código de la lista; `changes.respuesta` (texto de una fila vieja) no se lee nunca.
+      respuesta: textoDeLaResolucion(resultado as ResultadoPedido, campo(f.changes, "motivo")),
       resueltoEl: f.createdAt.toISOString(),
     });
   }

@@ -352,6 +352,8 @@ test("el recorrido encuentra los endpoints con privilegio de operador en TODO sr
   assert.deepEqual(REVISADOS.map((r) => r.archivo).sort(), [
     "src/app/operador/(console)/pedidos-cartera/actions.ts",
     "src/app/operador/(console)/solicitudes/actions.ts",
+    // Refutador 26/09: la Factura A desde la ficha del negocio (su aislamiento: regimen-factura-a-postgres.test.ts).
+    "src/app/operador/(console)/tenants/[id]/regimen-factura-a-actions.ts",
     "src/lib/cartera-actions.ts",
     "src/lib/operador/interruptores-actions.ts",
     "src/lib/operador/plan-actions.ts",
@@ -377,6 +379,7 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
     "src/app/operador/(console)/pedidos-cartera/actions.ts#resolverPedidoDeCarteraAction",
     "src/app/operador/(console)/solicitudes/actions.ts#configurarSolicitudAction",
     "src/app/operador/(console)/solicitudes/actions.ts#descartarSolicitudAction",
+    "src/app/operador/(console)/tenants/[id]/regimen-factura-a-actions.ts#corregirRegimenFacturaAAction",
     "src/lib/cartera-actions.ts#altaClienteCarteraAction",
     "src/lib/cartera-actions.ts#emitirAutomaticasClienteAction",
     "src/lib/cartera-actions.ts#monitorCarteraAction",

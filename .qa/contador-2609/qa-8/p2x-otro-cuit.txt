@@ -1,0 +1,32 @@
+[asistente, CUIT 30-71955049-1 editable=true] prueba en seco: ✓ | ✓ | ✗ El CUIT 30-71955049-1 no es el de «Supermercados La Estrella SA» (30-71955027-0). Un local de la red es el mismo contribuyente que la casa: dejá el CUIT vacío para usar el de la casa. Si es otro contribuyente, es un negocio aparte: elegí «Negocio suelto». No se crea nada hasta que esto cierre. | La Estrella Otro CUIT v8 · Siguiente habilitado=false
+  negocios «Otro CUIT v8» en la base: 0 · consola: []
+[ficha casa] Red de locales | Red Supermercados La Estrella SA: 1 local | Vincular es la única forma de que un negocio lea datos de otro | Vinculado | Quilmes · La Estrella Quilmes (laestrella-quilmes-v8) | Punto de venta 4 · CUIT 30719550270 | Dar de baja | No hay otros negocios con el CUIT de la casa para sumar. Un local nuevo se da de alta en «Dar de alta un negocio» → «¿De qué red?», eligiendo esta casa: hereda el CUIT y le cargás su punto de venta. | Hecho por Gestión Studio Grow
+  opciones ofrecidas: 
+[acción vincular otro-cuit-ceibo] HTTP 500 redirect=-
+   mensaje: 
+   nombres ajenos en respuesta+pantalla: ninguno
+[acción vincular CH] HTTP 500 redirect=-
+   mensaje: 
+   nombres ajenos en respuesta+pantalla: ninguno
+[acción vincular magra-lomas] HTTP 500 redirect=-
+   mensaje: 
+   nombres ajenos en respuesta+pantalla: ninguno
+[acción vincular inexistente] HTTP 500 redirect=-
+   mensaje: 
+   nombres ajenos en respuesta+pantalla: ninguno
+  AuditLog multilocal antes/después: 34/34 · consola: ["[http 500] http://localhost:3210/operador/tenants/cmuixg0z8000j0m7diyllrxu9?pestana=plan","[error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)","[http 500] http://localhost:3210/operador/tenants/cmuixg0z8000j0m7diyllrxu9?pestana=plan","[error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)","[http 500] http://localhost:3210/operador/tenants/cmuixg0z8000j0m7diyllrxu9?pestana=plan","[error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)","[http 500] http://localhost:3210/operador/tenants/cmuixg0z8000j0m7diyllrxu9?pestana=plan","[error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)"]
+[ficha casa] Red de locales | Red Supermercados La Estrella SA: 1 local | Vincular es la única forma de que un negocio lea datos de otro | Vinculado | Quilmes · La Estrella Quilmes (laestrella-quilmes-v8) | Punto de venta 4 · CUIT 30719550270 | Dar de baja | No hay otros negocios con el CUIT de la casa para sumar. Un local nuevo se da de alta en «Dar de alta un negocio» → «¿De qué red?», eligiendo esta casa: hereda el CUIT y le cargás su punto de venta. | Hecho por Gestión Studio Grow
+  opciones ofrecidas: 
+[v2 acción vincular otro-cuit-ceibo] HTTP 200 redirect=/operador?error=notfound;push
+   mensaje: 
+   nombres ajenos en respuesta+pantalla: Ceibo=2 Pinturería=1 CH Estética=2 MAGRA=7 Lomas=1
+[v2 acción vincular CH] HTTP 200 redirect=/operador?error=notfound;push
+   mensaje: 
+   nombres ajenos en respuesta+pantalla: Ceibo=2 Pinturería=1 CH Estética=2 MAGRA=7 Lomas=1
+[v2 acción vincular magra-lomas] HTTP 200 redirect=/operador?error=notfound;push
+   mensaje: 
+   nombres ajenos en respuesta+pantalla: Ceibo=2 Pinturería=1 CH Estética=2 MAGRA=7 Lomas=1
+[v2 acción vincular inexistente] HTTP 200 redirect=/operador?error=notfound;push
+   mensaje: 
+   nombres ajenos en respuesta+pantalla: Ceibo=2 Pinturería=1 CH Estética=2 MAGRA=7 Lomas=1
+  AuditLog multilocal antes/después: 34/34 · consola: []

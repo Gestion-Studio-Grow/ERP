@@ -19,7 +19,7 @@ export default async function SolicitudesPage({ searchParams }: { searchParams: 
   const { desde: crudo } = await searchParams;
   const desde = typeof crudo === "string" && crudo.length > 0 && crudo.length <= 64 ? crudo : null;
   const { pedidos, total, siguiente } = await listarSolicitudesPendientes(operatorPrisma, { desde });
-  const fmt = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Argentina/Buenos_Aires" });
+  const fmt = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", hourCycle: "h23", timeZone: "America/Argentina/Buenos_Aires" });
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">

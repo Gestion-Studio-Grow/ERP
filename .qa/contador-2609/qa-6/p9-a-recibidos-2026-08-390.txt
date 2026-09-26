@@ -1,0 +1,89 @@
+URL http://estudio.localhost:3210/contador/cliente/cmuirtzer0004nx7d38aklpwe/recibidos?mes=2026-08
+E
+Estudio Contable Laboratorio
+Compras de Lucía (mono) v6
+Comprobantes recibidos · CUIT 27-38441267-5. El mes va por la fecha del comprobante, no por el día en que se cargó.
+Mes anterior
+08/2026
+Mes siguiente
+Descargar para el libro de IVA compras
+Volver a la cartera
+CARGAR EL ARCHIVO DE ARCA
+Mis Comprobantes › Recibidos › Descargar (CSV o Excel), sin editarlo.
+Elegir otro archivo
+recibidos-a-2026-08.csv
+Cargar comprobantes
+Entraron 6 comprobantes (1 nota de crédito, que resta). 1 quedó a revisar.
+Neto gravado
+$6.900,00
+IVA 0%
+sobre $1.000,00
+$0,00
+IVA 10,5%
+sobre $1.000,00
+$105,00
+IVA 21%
+sobre $900,00
+$189,00
+IVA a revisar (no suma al crédito)
+$420,00
+Otros tributos y percepciones
+$30,00
+Total
+$7.854,00
+A REVISAR
+Entraron, pero mirá el comprobante antes de cerrar el libro.
+Fila 3
+Factura A 00003-00001101 · DISTRIBUIDORA DEL SUR SA
+El IVA es el 14 % del neto gravado y ninguna alícuota sola da eso. El archivo clásico de ARCA no separa el IVA por alícuota: si es una factura con varias, marcala revisada y suma al crédito.
+RESUMEN DEL MES
+6 comprobantes, 1 notas de crédito (restan).
+Neto gravado
+$6.900,00
+IVA crédito fiscal 0%
+sobre $1.000,00
+$0,00
+IVA crédito fiscal 10,5%
+sobre $1.000,00
+$105,00
+IVA crédito fiscal 21%
+sobre $900,00
+$189,00
+IVA crédito fiscal del mes
+Lo que suma. Es la columna «IVA crédito fiscal» del archivo.
+$294,00
+IVA a revisar
+Lo marcado «A revisar» abajo: no suma al crédito hasta que lo revises.
+$420,00
+No gravado y exento
+$0,00
+Otros tributos y percepciones
+$30,00
+Total
+$7.854,00
+COMPROBANTES DEL MES
+03/08/2026
+Factura A 00003-00001100 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.210,00
+04/08/2026
+Factura A 00003-00001101 · DISTRIBUIDORA DEL SUR SA
+A revisar: El IVA es el 14 % del neto gravado y ninguna alícuota sola da eso. El archivo clásico de ARCA no separa el IVA por alícuota: si es una factura con varias, marcala revisada y suma al crédito.
+$3.420,00
+Lo revisé
+05/08/2026
+Factura A 00007-00000800 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$1.135,00
+06/08/2026
+Factura B 00005-00000080 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.210,00
+08/08/2026
+Nota de crédito A 00003-00000070 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$121,00
+09/08/2026
+Factura A 00003-00001102 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8 · sin crédito fiscal
+$1.000,00

@@ -1,0 +1,48 @@
+URL http://localhost:3210/operador/pedidos-cartera
+
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+Pedidos de las contadoras
+Lo que un estudio no puede cambiar solo en un cliente de su cartera. Resolvelo en la ficha del negocio y después cerrá el pedido: mientras esté abierto, la contadora lo ve marcado y no puede repetirlo.
+Altas de clientes nuevos
+Pedidos sobre un cliente
+Pendientes
+5
+Corregir el CUIT del emisor: Lucía (mono)
+Estudio Contable Laboratorio · pidió Carla Méndez (contador@estudio.lab) · CUIT hoy: 27-34567121-3 · CUIT correcto: 27-34567122-1 · «Se tipeó mal un dígito del DNI en el alta.»
+26/9/26, 10:53 a. m.
+Abrir el negocio
+Cerrar pedido
+Corregir el CUIT del emisor: Don Tito (RI)
+Estudio Contable Laboratorio · pidió Carla Méndez (contador@estudio.lab) · CUIT hoy: 30-71555441-7 · CUIT correcto: 30-71555442-5
+26/9/26, 11:08 a. m.
+Abrir el negocio
+Cerrar pedido
+Corregir el CUIT del emisor: Distribuidora Río Bamba SA
+Estudio Contable Laboratorio · pidió Carla Méndez (contador@estudio.lab) · CUIT hoy: 30-70512347-7 · CUIT correcto: 30-70512348-5 · «Error de tipeo en el alta.»
+26/9/26, 12:39 p. m.
+Abrir el negocio
+Cerrar pedido
+Corregir el CUIT del emisor: El Ceibo (RI) v5
+Estudio Contable Laboratorio · pidió Carla Méndez (contador@estudio.lab) · CUIT hoy: 30-71887633-4 · CUIT correcto: 30-71887640-7 · «La constancia nueva dice otro CUIT: revisar con el cliente.»
+26/9/26, 3:38 p. m.
+Abrir el negocio
+Cerrar pedido
+Corregir el CUIT del emisor: San Telmo (RI) v6
+Estudio Contable Laboratorio · pidió Carla Méndez (contador@estudio.lab) · CUIT hoy: 30-71932251-0 · CUIT correcto: 30-71932252-9 · «La constancia nueva dice otro CUIT: revisar con el cliente.»
+26/9/26, 4:25 p. m.
+Abrir el negocio
+Cerrar pedido
+Hecho por Gestión Studio Grow

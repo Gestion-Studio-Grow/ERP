@@ -14,7 +14,8 @@ import { parsearCsv } from "@/plugins/bancos/parser/csv";
 import { esXlsx, parsearXlsx } from "@/plugins/bancos/parser/xlsx";
 import { tenantTransaction } from "@/lib/rls";
 import { fmtCuit } from "@/components/ui/format";
-import { accesoAClienteDeCartera, guardarRecibidos } from "./recibidos-db";
+import { revalidatePath } from "next/cache";
+import { accesoAClienteDeCartera, guardarRecibidos, revisarRecibido } from "./recibidos-db";
 import {
   leerRecibidos,
   resumirRecibidos,
@@ -36,8 +37,12 @@ export type ResultadoImportacion =
       resumen: ResumenRecibidos;
       rechazados: RechazoRecibido[];
       rechazadosTotal: number;
-      /** De los que no se cargaron: los que ya estaban (no se duplican) y los que tienen errores. */
+      /**
+       * De los que no se cargaron: los que ya estaban (no se duplican), las filas que repiten otra del
+       * mismo archivo (se toman una sola vez) y los que tienen errores. Se cuentan por separado.
+       */
       yaCargadosTotal: number;
+      repetidosTotal: number;
       conErroresTotal: number;
       aRevisar: { fila: number; comprobante: string; motivo: string }[];
     };
@@ -88,17 +93,34 @@ export async function importarRecibidosAction(formData: FormData): Promise<Resul
     { tenantId: acceso.cliente.id },
   );
 
-  const rechazados = [...lectura.rechazos, ...guardado.yaCargados].sort((a, b) => a.fila - b.fila);
+  const rechazados = [...lectura.rechazos, ...lectura.repetidos, ...guardado.yaCargados].sort((a, b) => a.fila - b.fila);
   return {
     ok: true,
     resumen: resumirRecibidos(guardado.cargados),
     rechazados: rechazados.slice(0, TOPE_DE_DETALLE),
     rechazadosTotal: rechazados.length,
     yaCargadosTotal: guardado.yaCargados.length,
+    repetidosTotal: lectura.repetidos.length,
     conErroresTotal: lectura.rechazos.length,
     aRevisar: guardado.cargados
       .filter((c) => c.aRevisar)
       .slice(0, TOPE_DE_DETALLE)
       .map((c) => ({ fila: c.fila, comprobante: `${rotuloRecibido(c)} · ${c.emisor}`, motivo: c.aRevisar! })),
   };
+}
+
+export type ResultadoRevision = { ok: true; mensaje: string } | { ok: false; error: string };
+
+/**
+ * «Lo revisé: suma al crédito» en un comprobante marcado «a revisar». Del formulario llegan SÓLO el
+ * cliente y la compra: el estudio, la persona y el permiso salen de la sesión, y el cliente tiene que
+ * estar ACTIVO en la cartera del estudio (accesoAClienteDeCartera). La compra se busca con la RLS del
+ * cliente (revisarRecibido): la de otro negocio no se encuentra.
+ */
+export async function revisarRecibidoAction(formData: FormData): Promise<ResultadoRevision> {
+  const acceso = await accesoAClienteDeCartera(formData.get("cliente"), true);
+  if (!acceso.ok) return { ok: false, error: acceso.error };
+  const r = await revisarRecibido(acceso, formData.get("compra"));
+  if (r.ok) revalidatePath(`/contador/cliente/${acceso.cliente.id}/recibidos`);
+  return r;
 }

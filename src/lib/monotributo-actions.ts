@@ -23,6 +23,7 @@ import { requireCapability } from "@/lib/authz";
 import { getCurrentUser } from "@/lib/session";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { dateStrInBusinessTz } from "@/lib/datetime";
+import { esCaeDePrueba } from "@/lib/libros/libro-iva";
 import { decidirAcceso } from "@/lib/multilocal/multilocal-core";
 import { exigirClienteDeCartera, type EstadoCartera, type FilaCarteraDb } from "@/lib/cartera-core";
 import {
@@ -139,10 +140,10 @@ export async function monitorMonotributoAction(): Promise<ResultadoMonitorMonotr
               status: "AUTHORIZED",
               fecha: { gte: aAaaammdd(desde), lte: aAaaammdd(hasta) },
             },
-            select: { status: true, tipoComprobante: true, fecha: true, neto: true, total: true },
+            select: { status: true, tipoComprobante: true, fecha: true, neto: true, total: true, cae: true },
           }),
         { tenantId: c.clienteTenantId },
-      );
+      ).then((lista) => lista.filter((f) => !esCaeDePrueba(f.cae))); // QA vuelta 6: las de prueba no cuentan para el tope
       filas.push(
         evaluarMonotributo(
           {

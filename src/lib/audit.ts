@@ -14,7 +14,7 @@ import {
   POR_PAGINA,
   leerFiltros,
   paginaValida,
-  whereAuditoria,
+  whereAuditoriaDelPanel,
   type FiltrosAuditoria,
 } from "@/app/admin/(dashboard)/auditoria/filtros";
 
@@ -37,7 +37,7 @@ export async function getAuditLog(pedido?: unknown) {
       ? (pedido as Record<string, string | string[] | undefined>)
       : null;
   const pedidos = leerFiltros(crudo, new Set(usuarios.map((u) => u.id)));
-  const where = whereAuditoria(pedidos);
+  const where = whereAuditoriaDelPanel(pedidos);
   const total = await prisma.auditLog.count({ where });
   // Una página de más (un link viejo, un filtro que achicó la lista) muestra la última.
   const filtros: FiltrosAuditoria = { ...pedidos, pagina: paginaValida(pedidos.pagina, total) };

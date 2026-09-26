@@ -98,10 +98,15 @@ test("importar recibidos: aislado por cartera, sin duplicar, sin mover stock y c
     { alicuotaId: 4, etiqueta: "10,5%", base: 2000, importe: 210 },
     { alicuotaId: 5, etiqueta: "21%", base: 102050, importe: 21430.5 },
   ]);
-  assert.equal(ok.resumen.ivaSinAlicuota, 150);
+  // Lo marcado va aparte y no suma (QA vuelta 5): el crédito es 210 + 21.430,50, no el IVA total.
+  assert.equal(ok.resumen.ivaARevisar, 150);
+  assert.equal(ok.resumen.ivaSinAlicuota, 0);
+  assert.equal(ok.resumen.creditoFiscal, 21640.5);
   assert.equal(ok.rechazadosTotal, 2);
   assert.equal(ok.yaCargadosTotal, 0);
-  assert.equal(ok.conErroresTotal, 2);
+  // La fila 8 repite la 2 (se toma una sola vez) y la 10 tiene un error: no se mezclan (QA vuelta 7).
+  assert.equal(ok.repetidosTotal, 1);
+  assert.equal(ok.conErroresTotal, 1);
   assert.deepEqual(ok.rechazados.map((x) => x.fila), [8, 10]);
   assert.equal(ok.aRevisar.length, 1);
   assert.match(ok.aRevisar[0].comprobante, /Factura A 00007-00000900 · FERRETERIA NORTE SA/);
@@ -131,11 +136,19 @@ test("importar recibidos: aislado por cartera, sin duplicar, sin mover stock y c
   assert.equal(ok2.rechazados.filter((x) => /Ya estaba cargado/.test(x.motivo)).length, 8);
   // El aviso distingue lo que ya estaba (no se duplica) de lo que tiene errores (QA 26/09).
   assert.equal(ok2.yaCargadosTotal, 8);
-  assert.equal(ok2.conErroresTotal, 2);
+  assert.equal(ok2.repetidosTotal, 1);
+  assert.equal(ok2.conErroresTotal, 1);
   const { avisoDeLaCarga } = await import("@/lib/contador/recibidos-aviso");
   assert.equal(
-    avisoDeLaCarga({ entraron: 0, notasDeCredito: 0, aRevisar: 0, yaCargados: ok2.yaCargadosTotal, conErrores: ok2.conErroresTotal }),
-    "No entró ningún comprobante nuevo. 8 ya estaban cargados (no se duplican). 2 con errores: no se cargaron (el detalle está abajo).",
+    avisoDeLaCarga({
+      entraron: 0,
+      notasDeCredito: 0,
+      aRevisar: 0,
+      yaCargados: ok2.yaCargadosTotal,
+      repetidosEnElArchivo: ok2.repetidosTotal,
+      conErrores: ok2.conErroresTotal,
+    }),
+    "No entró ningún comprobante nuevo. 8 ya estaban cargados (no se duplican). 1 fila estaba repetida en el archivo (se toma una sola vez). 1 con errores: no se cargó (el detalle está abajo).",
   );
   assert.equal(await comprasDe(base.b.id), comprasDeBAntes + 8);
 

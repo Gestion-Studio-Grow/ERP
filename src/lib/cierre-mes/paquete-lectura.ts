@@ -16,7 +16,7 @@
 import "server-only";
 import { tenantTransaction } from "@/lib/rls";
 import { isPrismaError } from "@/lib/prisma-errors";
-import { leerLibroIva } from "@/lib/libros/libro-iva-loader";
+import { leerLibroIvaDelCuit } from "@/lib/libros/libro-iva-red";
 import { bordesDelMes, etiquetaDelMes, type MesKey } from "@/lib/libros/fecha-fiscal";
 import { dateToIso } from "@/lib/libros/libro-iva";
 import {
@@ -195,18 +195,22 @@ export async function leerDatosPaquete(
   mes: MesKey,
   opts: { negocio: string; pasos: Paso[] | null; ahora: Date },
 ): Promise<DatosPaquete> {
-  const [base, cc] = await Promise.all([
-    tenantTransaction(
-      async (tx) => {
-        const libroIva = await leerLibroIva(tx, tenantId, mes);
-        const libroCaja = await lineasLibroCaja(tx, tenantId, mes);
-        const auditoria = await leerAuditoriaCierre(tx, tenantId, mes);
-        const stock = await stockValorizado(tx, tenantId);
-        return { libroIva, libroCaja, estado: estadoDesdeAuditoria(auditoria), stock };
-      },
-      { tenantId },
-    ),
+  const base = await tenantTransaction(
+    async (tx) => {
+      const libroCaja = await lineasLibroCaja(tx, tenantId, mes);
+      const auditoria = await leerAuditoriaCierre(tx, tenantId, mes);
+      const stock = await stockValorizado(tx, tenantId);
+      return { libroCaja, estado: estadoDesdeAuditoria(auditoria), stock };
+    },
+    { tenantId },
+  );
+  // Mes congelado: el libro se lee con el corte del congelado, así el FINAL no cambia si un local (o la
+  // casa) recibe después un CAE con fecha del mes (refutador, vuelta 4). Borrador: lo de hoy.
+  const corte = base.estado.congelado ? base.estado.congeladoEl : null;
+  const [cc, libroIva] = await Promise.all([
     cuentasCorrientes(tenantId, mes),
+    // El IVA es del CUIT: la casa de una red suma sus locales del mismo CUIT (QA vuelta 6).
+    leerLibroIvaDelCuit(tenantId, mes, { corte }),
   ]);
   return {
     mes,
@@ -215,7 +219,7 @@ export async function leerDatosPaquete(
     estado: base.estado,
     pasos: opts.pasos,
     libroCaja: base.libroCaja,
-    libroIva: base.libroIva,
+    libroIva,
     cuentasCorrientes: cc,
     stock: base.stock,
   };

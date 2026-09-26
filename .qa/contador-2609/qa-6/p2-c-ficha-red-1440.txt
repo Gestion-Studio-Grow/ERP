@@ -1,0 +1,79 @@
+URL http://localhost:3210/operador/tenants/cmuirvlzz000jnx7dfnaax36p
+
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Todos
+En producción
+En prueba
+Con pendientes
+Estudios contables
+Dar de alta un negocio
+← Negocios
+Supermercados Río Chico SA
+En prueba
+riochico-v6
+Genérico / Comodín
+PyME (provisional)
+1 persona
+0 clientes
+alta el 26 de septiembre de 2026
+Abrir su panel
+(se abre en otra pestaña; pide un usuario de ese negocio)
+Puesta en marcha
+4
+Fiscal
+3
+Plan y apps
+Marca y vidriera
+Personas
+Historial
+Listo para abrir
+4 pendientes
+Lo que el alta no hace sola, leído del negocio
+No aplica
+Precios propios
+no aplica: no es un comercio de mostrador
+Falta
+Dirección del negocio
+sin cargar
+Es la que ven sus clientes en su página y en los mensajes: sin cargar, no saben dónde atiende.
+lo carga el negocio
+Falta
+Instagram
+sin cargar
+Es un link público: el placeholder deja un enlace roto (y antes apuntaba a una cuenta ajena) en la vidriera del cliente.
+lo carga el negocio
+Falta
+Listo para facturar
+falta el certificado ARCA · ARCA está en modo stub (apagado) en la plataforma · la facturación está apagada para toda la plataforma: la enciende Gestión Studio Grow con el interruptor general
+Si falta un dato fiscal, la venta se cobra igual pero la factura no sale, y se descubre a fin de mes.
+Fiscal
+Listo
+Link propio (subdominio)
+https://riochico-v6.localhost
+Falta
+Más de un usuario
+1 usuario activo
+Con un solo usuario, el día que el dueño no está nadie más puede entrar a facturar.
+Personas
+Estado del negocio
+ESTADO
+En prueba
+En producción
+Suspendido
+Guardar
+Link propio
+La dirección del negocio: única en la plataforma
+SUBDOMINIO
+Guardar
+Hecho por Gestión Studio Grow

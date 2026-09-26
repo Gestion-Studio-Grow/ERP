@@ -21,6 +21,7 @@ import { libroOcultoPara, muestraPosicionIva, type ComprobanteRow } from "@/lib/
 import { diaLegible, esMesKey, etiquetaDelMes, mesDelNegocio, mesVecino, nombreDelMes } from "@/lib/libros/fecha-fiscal";
 import { AvisoError, EmptyState, PageHeader, buttonClasses, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
 import LibrosClient from "./LibrosClient";
+import AvisosDelLibro from "./AvisosDelLibro";
 import { Franja, LineaDeEstado, Marca, Plata, atributosBoton } from "@/components/ui";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { LineaDeCuenta } from "@/components/ui/LineaDeCuenta";
@@ -154,14 +155,14 @@ export default async function LibrosPage({ searchParams }: { searchParams: Promi
                 </div>
                 <LineaDeCuenta concepto="Comprobantes, neto" detalle={`${fmtNumberAR(r.comprobantesCount)} con CAE`} importe={<Plata valor={r.comprobantesNeto} />} />
                 <LineaDeCuenta concepto="IVA débito" detalle="El de los comprobantes emitidos" importe={<Plata valor={r.ivaDebito} />} />
-                <LineaDeCuenta concepto="Menos el IVA crédito" detalle="Sin facturas de proveedor cargadas no hay crédito" importe={<Plata valor={r.ivaCredito} />} />
+                <LineaDeCuenta concepto="Menos el IVA crédito" detalle={r.comprasConFacturaCount > 0 ? "El IVA de las facturas de proveedor cargadas" : "Sin facturas de proveedor cargadas no hay crédito"} importe={<Plata valor={r.ivaCredito} />} />
                 {sinCompro ? (
                   <LineaDeCuenta total concepto="IVA a pagar" detalle={`Todavía no hay comprobantes con CAE de ${nombreMes(mes)}.`} importe={<span className="text-muted">—</span>} />
                 ) : (
                   <LineaDeCuenta
                     total
                     concepto={r.ivaSaldo >= 0 ? "IVA a pagar" : "IVA a favor"}
-                    detalle="Débito menos crédito. Tu contador suma el crédito de tus facturas de compra."
+                    detalle={r.comprasConFacturaCount > 0 ? "Débito menos crédito." : "Débito menos crédito. Tu contador suma el crédito de tus facturas de compra."}
                     importe={<Plata valor={Math.abs(r.ivaSaldo)} tono={r.ivaSaldo > 0 ? "peligro" : "cobrado"} />}
                   />
                 )}
@@ -174,6 +175,7 @@ export default async function LibrosPage({ searchParams }: { searchParams: Promi
                 menos crédito).
               </p>
             )}
+            <AvisosDelLibro libro={libro} />
             <LibrosClient comprobantes={libro.comprobantes} ventasSinComprobante={libro.ventasSinComprobante} compras={libro.compras} conIva={conIva} plegado />
           </>
         )}
@@ -226,7 +228,7 @@ export default async function LibrosPage({ searchParams }: { searchParams: Promi
             hint={`${fmtNumberAR(r.comprobantesCount)} ${r.comprobantesCount === 1 ? "comprobante" : "comprobantes"} con CAE`}
           />
           <Stat label="IVA débito" value={fmtMoneyARS(r.ivaDebito)} hint="El IVA de los comprobantes emitidos" />
-          <Stat label="IVA crédito" value={fmtMoneyARS(r.ivaCredito)} hint="Sin facturas de proveedor cargadas no hay crédito" />
+          <Stat label="IVA crédito" value={fmtMoneyARS(r.ivaCredito)} hint={r.comprasConFacturaCount > 0 ? "El IVA de las facturas de proveedor cargadas" : "Sin facturas de proveedor cargadas no hay crédito"} />
           {sinComprobantesEnElMes ? (
             <Stat label="IVA a pagar" value="—" hint={`Todavía no hay comprobantes con CAE de ${nombreDelMes(mes)}.`} />
           ) : (
@@ -234,7 +236,7 @@ export default async function LibrosPage({ searchParams }: { searchParams: Promi
               label={r.ivaSaldo >= 0 ? "IVA a pagar" : "IVA a favor"}
               value={fmtMoneyARS(Math.abs(r.ivaSaldo))}
               tone={r.ivaSaldo > 0 ? "danger" : "success"}
-              hint="Débito menos crédito. Tu contador suma el crédito de tus facturas de compra."
+              hint={r.comprasConFacturaCount > 0 ? "Débito menos crédito." : "Débito menos crédito. Tu contador suma el crédito de tus facturas de compra."}
             />
           )}
         </div>
@@ -261,6 +263,8 @@ export default async function LibrosPage({ searchParams }: { searchParams: Promi
       )}
 
       <AvisoAnuladas anuladas={anuladas} />
+
+      <AvisosDelLibro libro={libro} />
 
       <LibrosClient
         comprobantes={libro.comprobantes}

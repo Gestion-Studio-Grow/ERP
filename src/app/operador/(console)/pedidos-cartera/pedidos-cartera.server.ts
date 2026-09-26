@@ -120,9 +120,10 @@ class Rechazo extends Error {}
  */
 export async function resolverPedidoDeCartera(
   db: PrismaClient,
-  opts: { pedidoId: string; estudioTenantId?: string; sesion: { nombre: string; esDuenio: boolean }; resultado: unknown; respuesta: unknown },
+  opts: { pedidoId: string; estudioTenantId?: string; sesion: { nombre: string; esDuenio: boolean }; resultado: unknown; motivo: unknown },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const v = validarResolucion({ resultado: opts.resultado, respuesta: opts.respuesta });
+  // Sólo el resultado y un código de la lista cerrada: nada escrito a mano llega a la contadora.
+  const v = validarResolucion({ resultado: opts.resultado, motivo: opts.motivo });
   if (!v.ok) return v;
   try {
     return await db.$transaction(async (tx) => {
@@ -150,7 +151,7 @@ export async function resolverPedidoDeCartera(
           entity: ENTIDAD_PEDIDO_SOPORTE,
           entityId: pedido.entityId,
           channel: "admin",
-          changes: { pedidoId: pedido.id, resultado: v.resolucion.resultado, respuesta: v.resolucion.respuesta, operador: opts.sesion.nombre },
+          changes: { pedidoId: pedido.id, resultado: v.resolucion.resultado, motivo: v.resolucion.motivo, operador: opts.sesion.nombre },
         },
         select: { id: true },
       });

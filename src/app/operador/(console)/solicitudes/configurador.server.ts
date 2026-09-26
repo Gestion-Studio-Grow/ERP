@@ -38,6 +38,18 @@ import { formatearCuit } from "@/lib/fiscal/cuit";
 import { choqueDePuntoDeVenta } from "@/app/operador/(console)/tenants/[id]/candado-punto-venta";
 import { leerPedidosAbiertos } from "@/lib/cartera-alta-db";
 import {
+  ACCION_NOTA_INTERNA_SOPORTE,
+  MOTIVOS_DE_DESCARTE,
+  MOTIVO_POR_DEFECTO,
+  esMotivoDeDescarte,
+  validarMotivoDeDescarte,
+  validarNotaInterna,
+  type MotivoDeDescarte,
+} from "@/lib/soporte/avisos-a-la-contadora";
+import { guardarRegimenFacturaAEnTx } from "@/lib/fiscal/regimen-factura-a.server";
+import { seEmiteFueraDelSistema } from "@/lib/fiscal/regimen-factura-a";
+import type { RegimenFacturaA } from "@/lib/fiscal/decidir-comprobante";
+import {
   ACCION_SOLICITUD_ALTA,
   ACCION_SOLICITUD_CONFIGURADA,
   ACCION_SOLICITUD_DESCARTADA,
@@ -47,6 +59,7 @@ import {
   type SolicitudAlta,
 } from "@/lib/cartera-alta-reglas";
 import {
+  avisoDeOtrosLocales,
   ACCION_ALTA_POR_SOPORTE,
   ACCION_CONFIGURADOR_ALTA,
   AVISO_POSIBLE_DUPLICADO,
@@ -153,8 +166,16 @@ export async function listarSolicitudesPendientes(
   return { pedidos, total, siguiente: hayMas ? filas[filas.length - 1].id : null };
 }
 
+/** Cómo se cerró un pedido: lo que ve Soporte al volver a abrirlo (y justo después de descartarlo). */
+export type CierreDelPedido =
+  | { tipo: "descartado"; motivo: MotivoDeDescarte; texto: string; nota: string | null; operador: string | null; cuando: string }
+  | { tipo: "configurado"; clienteTenantId: string | null };
+
 /** Un pedido por id (abierto o cerrado). `null` si no es un pedido de alta. */
-export async function leerSolicitud(db: PrismaClient, id: string): Promise<(SolicitudPendiente & { cerrada: boolean }) | null> {
+export async function leerSolicitud(
+  db: PrismaClient,
+  id: string,
+): Promise<(SolicitudPendiente & { cerrada: boolean; cierre: CierreDelPedido | null }) | null> {
   const p = await db.auditLog.findUnique({
     where: { id },
     select: { id: true, tenantId: true, actor: true, changes: true, createdAt: true, action: true, entity: true },
@@ -162,7 +183,36 @@ export async function leerSolicitud(db: PrismaClient, id: string): Promise<(Soli
   if (!p || p.action !== ACCION_SOLICITUD_ALTA || p.entity !== ENTIDAD_SOLICITUD) return null;
   const s = await armarSolicitud(db, p);
   if (!s) return null;
-  return { ...s, cerrada: (await cerrados(db, [id])).has(id) };
+  const cierres = await cerrados(db, [id]);
+  if (!cierres.has(id)) return { ...s, cerrada: false, cierre: null };
+  const descarte = await db.auditLog.findFirst({
+    where: { action: ACCION_SOLICITUD_DESCARTADA, entity: ENTIDAD_SOLICITUD, entityId: id },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { createdAt: true, changes: true },
+  });
+  if (!descarte) return { ...s, cerrada: true, cierre: { tipo: "configurado", clienteTenantId: cierres.get(id) ?? null } };
+  const nota = await db.auditLog.findFirst({
+    where: { action: ACCION_NOTA_INTERNA_SOPORTE, entity: ENTIDAD_SOLICITUD, entityId: id },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { changes: true },
+  });
+  const ch = descarte.changes as { motivoCodigo?: unknown; motivo?: unknown; operador?: unknown } | null;
+  const motivo = esMotivoDeDescarte(ch?.motivoCodigo) ? ch.motivoCodigo : MOTIVO_POR_DEFECTO;
+  const notaNueva = (nota?.changes as { nota?: unknown } | null)?.nota;
+  // Un descarte de antes de la lista cerrada guardó el motivo escrito a mano: Soporte lo ve como nota interna.
+  const notaVieja = typeof ch?.motivo === "string" ? ch.motivo : null;
+  return {
+    ...s,
+    cerrada: true,
+    cierre: {
+      tipo: "descartado",
+      motivo,
+      texto: MOTIVOS_DE_DESCARTE[motivo],
+      nota: typeof notaNueva === "string" ? notaNueva : notaVieja,
+      operador: typeof ch?.operador === "string" ? ch.operador : null,
+      cuando: descarte.createdAt.toISOString(),
+    },
+  };
 }
 
 async function armarSolicitud(
@@ -262,6 +312,10 @@ export type ResultadoConfigurador =
       /** Lo que depende de la ventana M1 y no se pudo escribir. */
       pendientes: { condicionIva: boolean; cambioDeClave: boolean };
       avisos: string[];
+      /** El pedido dice «varios locales»: «Pasale esto» se lo recuerda a Soporte y al dueño. */
+      otrosLocales: boolean;
+      /** «A con leyenda» o «M»: el sistema no las emite y «Pasale esto» se lo dice al dueño. */
+      facturaAFuera: RegimenFacturaA | null;
       auditoria: { operador: string; cuando: string };
     }
   | { ok: false; error: string };
@@ -298,6 +352,8 @@ export async function configurarSolicitud(
         // La acción pasó la guardia con el estudio del formulario: el pedido tiene que ser de ESE estudio.
         if (opts.estudioTenantId !== undefined && pedido.tenantId !== opts.estudioTenantId) throw new Rechazo("Ese pedido no existe.");
         const estudioId = pedido.tenantId;
+        // Lo que pidió la contadora (no lo que quedó en el formulario): ¿varios locales?
+        const avisoLocales = avisoDeOtrosLocales(leerSolicitudGuardada(pedido.changes)?.tamanio);
         const estudio = await tx.tenant.findUnique({
           where: { id: estudioId },
           select: { id: true, slug: true, name: true, modules: true, arcaCuit: true, subdomain: true },
@@ -320,7 +376,8 @@ export async function configurarSolicitud(
             ok: true, yaConfigurada: true, clienteTenantId: t.id, nombre: t.name, slug: t.slug,
             cuit: t.arcaCuit ?? c.cuit, puntoVenta: t.arcaPuntoVenta, whatsappCliente: c.whatsapp,
             direccion: direccionDe(t.subdomain, "/admin", env), estudio: datosEstudio, creado: false, usuarios: [],
-            pendientes: { condicionIva: false, cambioDeClave: false }, avisos: [],
+            pendientes: { condicionIva: false, cambioDeClave: false }, avisos: avisoLocales ? [avisoLocales] : [], otrosLocales: avisoLocales !== null,
+            facturaAFuera: seEmiteFueraDelSistema(c.regimenFacturaA) ? c.regimenFacturaA : null,
             auditoria: { operador, cuando: new Date().toISOString() },
           };
         }
@@ -416,7 +473,7 @@ export async function configurarSolicitud(
         }
 
         const m1 = await columnasDeM1(tx);
-        const avisos: string[] = [];
+        const avisos: string[] = avisoLocales ? [avisoLocales] : [];
         const usuarios: UsuarioEntregado[] = [];
         let cliente: { id: string; name: string; slug: string; subdomain: string | null; arcaPuntoVenta: number | null };
         const creado = existente === null;
@@ -546,6 +603,11 @@ export async function configurarSolicitud(
           },
           select: { id: true },
         });
+        // La Factura A que asignó ARCA (RG 1575), para todo Responsable Inscripto: sin ella la A, de
+        // prueba o real, pasa por revisión (QA 26/09, vuelta 4, bloqueante 2). Mismo negocio, misma tx.
+        if (c.regimenFacturaA) {
+          await guardarRegimenFacturaAEnTx(tx, { tenantId: cliente.id, regimen: c.regimenFacturaA, operador, origen: "configurador", solicitudId: pedido.id });
+        }
         await enNegocio(tx, estudioId);
         await tx.auditLog.create({
           data: {
@@ -573,6 +635,8 @@ export async function configurarSolicitud(
           ok: true, yaConfigurada: false, clienteTenantId: cliente.id, nombre: cliente.name, slug: cliente.slug,
           cuit: c.cuit, puntoVenta: cliente.arcaPuntoVenta, whatsappCliente: c.whatsapp, direccion, estudio: datosEstudio,
           creado, usuarios, pendientes: { condicionIva: creado && !m1.condicionIva, cambioDeClave: !m1.cambioDeClave }, avisos,
+          otrosLocales: avisoLocales !== null,
+          facturaAFuera: seEmiteFueraDelSistema(c.regimenFacturaA) ? c.regimenFacturaA : null,
           auditoria: { operador, cuando: cierre.createdAt.toISOString() },
         };
       },
@@ -584,13 +648,25 @@ export async function configurarSolicitud(
   }
 }
 
-/** Soporte descarta un pedido (repetido, datos imposibles). Sale de la bandeja; queda en la auditoría del estudio. */
+/** Lo que devuelve el descarte: el motivo que ve la contadora, o el error con su campo. */
+export type ResultadoDescarte =
+  | { ok: true; motivo: MotivoDeDescarte }
+  | { ok: false; error: string; campo?: "motivo" | "nota" };
+
+/**
+ * Soporte descarta un pedido (repetido, datos imposibles). Sale de la bandeja; queda en la auditoría del
+ * estudio SÓLO el código del motivo, de una lista cerrada (soporte/avisos-a-la-contadora.ts): la contadora
+ * nunca lee texto escrito por Soporte. La nota libre va en otra fila (ACCION_NOTA_INTERNA_SOPORTE), que
+ * ninguna pantalla del negocio lee (ni la cartera ni la auditoría del panel).
+ */
 export async function descartarSolicitud(
   db: PrismaClient,
-  opts: { solicitudId: string; estudioTenantId?: string; sesion: { nombre: string; esDuenio: boolean }; motivo: string },
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const motivo = opts.motivo.trim().replace(/\s+/g, " ");
-  if (motivo.length < 3 || motivo.length > 300) return { ok: false, error: "Escribí por qué se descarta (de 3 a 300 letras)." };
+  opts: { solicitudId: string; estudioTenantId?: string; sesion: { nombre: string; esDuenio: boolean }; motivo: unknown; nota?: unknown },
+): Promise<ResultadoDescarte> {
+  const vm = validarMotivoDeDescarte(opts.motivo);
+  if (!vm.ok) return { ok: false, error: vm.error, campo: "motivo" };
+  const vn = validarNotaInterna(opts.nota);
+  if (!vn.ok) return { ok: false, error: vn.error, campo: "nota" };
   try {
     return await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`configurar-solicitud:${opts.solicitudId}`}))`;
@@ -604,14 +680,24 @@ export async function descartarSolicitud(
       const g = decidirOperadorParaNegocios(opts.sesion, [pedido.tenant.slug]);
       if (!g.ok) throw new Rechazo(g.motivo);
       await enNegocio(tx, pedido.tenantId);
+      const actor = `operator:${opts.sesion.nombre}`;
       await tx.auditLog.create({
         data: {
-          tenantId: pedido.tenantId, actor: `operator:${opts.sesion.nombre}`, action: ACCION_SOLICITUD_DESCARTADA,
-          entity: ENTIDAD_SOLICITUD, entityId: pedido.id, channel: "admin", changes: { motivo, operador: opts.sesion.nombre },
+          tenantId: pedido.tenantId, actor, action: ACCION_SOLICITUD_DESCARTADA,
+          entity: ENTIDAD_SOLICITUD, entityId: pedido.id, channel: "admin", changes: { motivoCodigo: vm.motivo, operador: opts.sesion.nombre },
         },
         select: { id: true },
       });
-      return { ok: true as const };
+      if (vn.nota) {
+        await tx.auditLog.create({
+          data: {
+            tenantId: pedido.tenantId, actor, action: ACCION_NOTA_INTERNA_SOPORTE,
+            entity: ENTIDAD_SOLICITUD, entityId: pedido.id, channel: "admin", changes: { nota: vn.nota, operador: opts.sesion.nombre },
+          },
+          select: { id: true },
+        });
+      }
+      return { ok: true as const, motivo: vm.motivo };
     });
   } catch (e) {
     if (e instanceof Rechazo) return { ok: false, error: e.message };

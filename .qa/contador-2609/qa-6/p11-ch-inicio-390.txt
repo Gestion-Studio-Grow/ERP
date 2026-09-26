@@ -1,0 +1,119 @@
+URL http://chestetica.localhost:3210/admin
+Saltar al contenido
+Inicio
+CH Estética
+Inicio
+Resumen del día.
++ Nuevo turno
+Turnos hoy
+25
+16 confirmados
+Reservados
+20
+a confirmar
+Ingresos 7 días
+$1.264.800
+Clientes
+306
+Agenda de hoy
+Ver agenda completa →
+09:00
+Andrea Flores — Limpieza facial profunda
+Confirmado
+Marina Suárez
+09:00
+Rocío López — Drenaje linfático
+Reservado
+Laura Gómez
+09:30
+Silvina Silva — Depilación definitiva piernas completas
+Confirmado
+Carla Díaz
+10:00
+Laura Pérez — Hidratación facial
+Confirmado
+Marina Suárez
+10:30
+QA Renglón Tomasa — Peeling químico
+Confirmado
+Carla Díaz
+11:15
+Guadalupe Villalba — Masaje con piedras calientes
+Reservado
+Laura Gómez
+11:30
+QA Recorrido 1440 08034 — Depilación definitiva axilas
+Confirmado
+Carla Díaz
+12:00
+UAT On 92009 — Limpieza facial profunda
+Reservado
+Marina Suárez
+12:15
+Guadalupe Álvarez — Maderoterapia
+Confirmado
+Carla Díaz
+12:15
+Rocío Giménez — Manicuría semipermanente
+Reservado
+Valentina Ríos
+13:00
+Soledad Paz — Drenaje linfático
+Confirmado
+Laura Gómez
+13:30
+Belén Suárez — Radiofrecuencia corporal
+Confirmado
+Carla Díaz
+14:15
+Emilia Quiroga — Hidratación facial
+Confirmado
+Marina Suárez
+14:15
+Soledad Quiroga — Drenaje linfático
+Reservado
+Laura Gómez
+14:30
+Lucía Acosta — Depilación definitiva axilas
+Reservado
+Carla Díaz
+15:00
+Rodrigo Sosa — Radiofrecuencia corporal
+Confirmado
+Carla Díaz
+15:15
+Tomás Godoy — Limpieza facial profunda
+Confirmado
+Marina Suárez
+15:45
+Lucas Giménez — Perfilado de cejas
+Reservado
+Valentina Ríos
+16:00
+Camila Giménez — Masaje descontracturante
+Confirmado
+Laura Gómez
+16:00
+Milagros Núñez — Peeling químico
+Confirmado
+Carla Díaz
+16:15
+Agustina Silva — Lifting de pestañas
+Confirmado
+Marina Suárez
+17:00
+QA Recorrido 390 72316 — Depilación definitiva axilas
+Confirmado
+Carla Díaz
+17:30
+Soledad Ríos — Lifting de pestañas
+Confirmado
+Marina Suárez
+17:30
+QA Cajón Renglón Dos — Depilación definitiva cavado
+Reservado
+Carla Díaz
+18:30
+QA Cajón Renglón — Depilación definitiva cavado
+Reservado
+Carla Díaz

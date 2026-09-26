@@ -102,13 +102,16 @@ test("moneda extranjera sin tipo de cambio se rechaza con el motivo", () => {
   assert.match(r.rechazos[0].motivo, /moneda extranjera \(DOL\).*tipo de cambio/);
 });
 
-test("duplicado dentro del archivo: el segundo se rechaza, el primero queda", () => {
+test("fila repetida dentro del archivo: se toma una sola vez y NO cuenta como error (QA vuelta 7, bloqueante 3)", () => {
   const r = leerOk(fixture("recibidos-por-alicuota.csv"));
   assert.equal(r.comprobantes.filter((c) => c.tipo === 1 && c.numero === 1234).length, 1);
-  const rep = r.rechazos.find((x) => /repetido en el archivo/.test(x.motivo));
+  const rep = r.repetidos.find((x) => /repetido en el archivo/.test(x.motivo));
   assert.ok(rep);
   assert.equal(rep.fila, 8);
   assert.equal(rep.comprobante, "Factura A 00003-00001234");
+  assert.match(rep.motivo, /fila 2.*una sola vez/);
+  assert.equal(r.rechazos.some((x) => /repetid/.test(x.motivo)), false, "la repetida no está entre los errores");
+  assert.deepEqual(r.rechazos.map((x) => x.fila), [10], "el único error del archivo es la fila 10");
 });
 
 test("IVA que no cierra con su alícuota: entra marcado «a revisar» y sin desglose inventado", () => {
@@ -118,7 +121,9 @@ test("IVA que no cierra con su alícuota: entra marcado «a revisar» y sin desg
   assert.equal(x.desglose, null);
   const resumen = resumirRecibidos([x]);
   assert.equal(resumen.aRevisar, 1);
-  assert.equal(resumen.ivaSinAlicuota, 150);
+  assert.equal(resumen.ivaARevisar, 150, "lo marcado va aparte");
+  assert.equal(resumen.ivaSinAlicuota, 0, "y no se mezcla con lo que suma sin desglose");
+  assert.equal(resumen.creditoFiscal, 0, "no suma al crédito");
   assert.deepEqual(resumen.ivaPorAlicuota, []);
 });
 
@@ -131,7 +136,8 @@ test("CUIT inválido se rechaza con el motivo; el Tique factura A (81) entra y d
   assert.deepEqual(tique.desglose, [{ alicuotaId: 5, base: 100, importe: 21 }]);
   assert.equal(rotuloRecibido(tique), "Tique factura A 00001-00000015");
   assert.equal(r.comprobantes.length, 8);
-  assert.equal(r.rechazos.length, 2);
+  assert.equal(r.rechazos.length, 1, "sólo la fila 10: la fila repetida no es un error");
+  assert.equal(r.repetidos.length, 1);
 });
 
 // Diseño clásico, una fila por tipo: lo que llega en el mes de un cliente con comercio,
@@ -190,21 +196,76 @@ test("diseño clásico: la alícuota se deduce sólo si una oficial cierra exact
   const r = leerOk(fixture("recibidos-clasico.csv"));
   assert.equal(r.diseno, "clasico");
   assert.deepEqual(buscar(r.comprobantes, 1, 1100).desglose, [{ alicuotaId: 5, base: 1000, importe: 210 }]);
-  // 420 sobre 3000 es 14%: dos alícuotas mezcladas, no se adivina.
+  // 420 sobre 3000 es 14%: ninguna alícuota sola. Puede ser 21 % + 10,5 %, pero el diseño clásico no
+  // lo dice: queda «a revisar» (QA vuelta 5) y la contadora la marca revisada si está bien.
   const mezcla = buscar(r.comprobantes, 1, 1101);
   assert.equal(mezcla.desglose, null);
-  assert.match(mezcla.aRevisar ?? "", /varias/);
+  assert.match(mezcla.aRevisar ?? "", /^El IVA es el 14 % del neto gravado y ninguna alícuota sola da eso\./);
+  assert.equal(mezcla.iva, 420);
   // 10,5% con una percepción de 30 que el diseño clásico no separa: va a otros tributos.
   const conPercepcion = buscar(r.comprobantes, 1, 800);
   assert.deepEqual(conPercepcion.desglose, [{ alicuotaId: 4, base: 1000, importe: 105 }]);
   assert.equal(conPercepcion.otrosTributos, 30);
   assert.equal(conPercepcion.aRevisar, null);
-  // Neto gravado con IVA cero en una A: ¿0% o exento? a revisar.
-  assert.match(buscar(r.comprobantes, 1, 1102).aRevisar ?? "", /IVA en cero/);
+  // Neto gravado con IVA cero en una A: la única alícuota vigente que cierra es 0 %.
+  assert.deepEqual(buscar(r.comprobantes, 1, 1102).desglose, [{ alicuotaId: 3, base: 1000, importe: 0 }]);
+  assert.equal(buscar(r.comprobantes, 1, 1102).aRevisar, null);
   // «3 - Nota de Crédito A» se reconoce por el código.
   assert.equal(buscar(r.comprobantes, 3, 70).total, 121);
   assert.equal(buscar(r.comprobantes, 6, 80).iva, 0);
   assert.equal(r.rechazos.length, 0);
+});
+
+test("QA vuelta 5 · diseño clásico: sin una alícuota que cierre sola, «a revisar» (no suma al crédito hasta revisarlo)", () => {
+  const m = fixture("recibidos-clasico.csv");
+  const i = m.findIndex((f) => String(f[3]) === "1101");
+  assert.ok(i > 0, "la fila modelo está en el archivo");
+  const fila = (numero: string, neto: string, iva: string, total: string) => {
+    const f = [...m[i]];
+    f[3] = numero;
+    f[4] = numero;
+    f[11] = neto;
+    f[14] = iva;
+    f[15] = total;
+    return f;
+  };
+  const r = leerOk([
+    ...m.slice(0, i),
+    fila("2001", "1000,00", "300,00", "1300,00"), // 30 %: más que la alícuota más alta
+    fila("2002", "0", "50,00", "50,00"), // IVA sin neto gravado
+    fila("2003", "1000,00", "270,00", "1270,00"), // 27 % exacto
+    fila("2004", "1000,00", "10,00", "1010,00"), // 1 %: 2,5 % sobre una parte y 0 % sobre el resto
+    fila("2005", "2000,00", "315,00", "2315,00"), // 21 % sobre 1.000 + 10,5 % sobre 1.000
+    fila("2006", "1000,00", "150,00", "1150,00"), // 15 %: la fila de (c) en el QA vuelta 5
+    fila("2007", "1000,00", "210,00", "1210,00"), // 21 % exacto
+  ]);
+  assert.match(buscar(r.comprobantes, 1, 2001).aRevisar ?? "", /más del 27 % del neto gravado/);
+  assert.match(buscar(r.comprobantes, 1, 2002).aRevisar ?? "", /no tiene neto gravado/);
+  assert.deepEqual(buscar(r.comprobantes, 1, 2003).desglose, [{ alicuotaId: 6, base: 1000, importe: 270 }]);
+  assert.equal(buscar(r.comprobantes, 1, 2003).aRevisar, null, "27 % exacto cierra solo");
+  assert.equal(buscar(r.comprobantes, 1, 2007).aRevisar, null, "21 % exacto cierra solo");
+  assert.match(buscar(r.comprobantes, 1, 2004).aRevisar ?? "", /^El IVA es el 1 % del neto gravado/);
+  assert.match(buscar(r.comprobantes, 1, 2005).aRevisar ?? "", /^El IVA es el 15,75 % del neto gravado/);
+  const quince = buscar(r.comprobantes, 1, 2006);
+  assert.match(quince.aRevisar ?? "", /^El IVA es el 15 % del neto gravado y ninguna alícuota sola da eso\. .*marcala revisada y suma al crédito\.$/);
+  assert.equal(quince.desglose, null);
+  // En el resumen del mes, el 15 % y el 30 % no suman al crédito: sólo el 27 % y el 21 % exactos.
+  const resumen = resumirRecibidos([2001, 2003, 2006, 2007].map((n) => buscar(r.comprobantes, 1, n)));
+  assert.equal(resumen.creditoFiscal, 480);
+  assert.equal(resumen.ivaARevisar, 450);
+  assert.equal(resumen.ivaSinAlicuota, 0);
+});
+
+test("refutador 26/09 · revisado: la marca «a revisar» sale de las notas y queda quién y cuándo", async () => {
+  const { notasRevisadas, aRevisarDeNotas, NOTA_REVISADO } = await import("./recibidos-formato");
+  const antes = "Importado de Mis Comprobantes Recibidos (ARCA), por Ana. CAE 76000000000012. A revisar: El IVA es más del 27 % del neto gravado.";
+  const despues = notasRevisadas(antes, "Ana  Pérez", "26/09/2026");
+  assert.equal(aRevisarDeNotas(despues), null, "ya no está a revisar: el libro la cuenta");
+  assert.ok(despues.startsWith("Importado de Mis Comprobantes Recibidos (ARCA), por Ana. CAE 76000000000012."));
+  assert.match(despues, new RegExp(`${NOTA_REVISADO} Ana Pérez el 26/09/2026: su IVA suma al crédito fiscal \\(estaba marcado: El IVA es más del 27 %`));
+  // Un nombre que trae la marca no la vuelve a poner.
+  assert.equal(aRevisarDeNotas(notasRevisadas(antes, "A revisar: x", "26/09/2026")), null);
+  assert.equal(notasRevisadas("sin marca", "Ana", "26/09/2026"), "sin marca");
 });
 
 // En este entorno `xlsx` es un stub (el CDN de SheetJS está bloqueado): el test se saltea CON
@@ -258,7 +319,46 @@ test("listado exportable: IVA por alícuota en columnas, la nota de crédito en 
   assert.equal(nc[col("Comprobante")], "Nota de crédito A");
   assert.equal(nc[col("Total")], "-121,00");
   assert.equal(nc[col("IVA 21%")], "-21,00");
-  assert.equal(revisar[col("IVA sin alícuota (a revisar)")], "150,00");
+  assert.equal(revisar[col("IVA a revisar (no suma)")], "150,00");
+  assert.equal(revisar[col("IVA sin desglose (suma)")], "0,00");
   assert.match(revisar.slice(col("A revisar")).join(";"), /no cierra/);
   assert.equal(a[col("Fecha")], "05/08/2026");
+  // QA vuelta 5: la fila marcada NO suma al crédito en el archivo (sumaba 150 y la pantalla no).
+  assert.equal(revisar[col("IVA crédito fiscal")], "0,00");
+  assert.equal(a[col("IVA crédito fiscal")], "420,00");
+  assert.equal(nc[col("IVA crédito fiscal")], "-21,00");
+  const pesos = (x: string) => Number(x.replace(/\./g, "").replace(",", "."));
+  const columna = [a, nc, revisar].map((f) => pesos(f[col("IVA crédito fiscal")]));
+  assert.equal(columna.reduce((x, y) => x + y, 0), resumirRecibidos(filas).creditoFiscal, "el archivo y la pantalla dan el mismo crédito");
+  assert.equal(resumirRecibidos(filas).creditoFiscal, 399);
+});
+
+test("QA vuelta 5 · el mes de (b): el crédito del archivo es el de la pantalla (21.640,50) y la fila marcada no suma", async () => {
+  const { csvComprasConFactura } = await import("./recibidos-export");
+  const { compraDelLibroDesdeFactura } = await import("./recibidos-libro");
+  // Las filas A de septiembre de (b) (qa-5/recibidos-b-2026-09.csv), como las guarda el importador.
+  const base = { fecha: "20260903", puntoVenta: 3, cuitEmisor: "30700000008", emisor: "X", noGravado: 0, exento: 0 };
+  const filas = [
+    { ...base, tipo: 1, numero: 1234, neto: 1000, iva: 210, otrosTributos: 0, total: 1210, desglose: [{ alicuotaId: 5, base: 1000, importe: 210 }], aRevisar: null },
+    { ...base, tipo: 1, numero: 1240, neto: 3000, iva: 420, otrosTributos: 90, total: 3510, desglose: [{ alicuotaId: 4, base: 2000, importe: 210 }, { alicuotaId: 5, base: 1000, importe: 210 }], aRevisar: null },
+    { ...base, tipo: 3, numero: 77, neto: 100, iva: 21, otrosTributos: 0, total: 121, desglose: [{ alicuotaId: 5, base: 100, importe: 21 }], aRevisar: null },
+    { ...base, tipo: 1, numero: 900, neto: 1000, iva: 150, otrosTributos: 0, total: 1150, desglose: null, aRevisar: "El IVA 21% no cierra con su neto: revisá el comprobante." },
+    { ...base, tipo: 81, numero: 15, neto: 100, iva: 21, otrosTributos: 0, total: 121, desglose: [{ alicuotaId: 5, base: 100, importe: 21 }], aRevisar: null },
+    { ...base, tipo: 1, numero: 500, neto: 100050, iva: 21010.5, otrosTributos: 0, total: 121060.5, desglose: [{ alicuotaId: 5, base: 100050, importe: 21010.5 }], aRevisar: null },
+  ];
+  const csv = csvComprasConFactura(filas);
+  const [titulos, ...cuerpo] = csv.replace(/^﻿/, "").trim().split("\r\n").map((l) => l.split(";"));
+  const credito = cuerpo.map((f) => Number(f[titulos.indexOf("IVA crédito fiscal")].replace(/\./g, "").replace(",", ".")));
+  const suma = Math.round(credito.reduce((x, y) => x + y, 0) * 100) / 100;
+  assert.equal(suma, 21640.5, "antes daba 21.790,50");
+  assert.equal(resumirRecibidos(filas).creditoFiscal, 21640.5);
+  // El Libro IVA del negocio (y el paquete) cuenta lo mismo con la misma regla.
+  const libro = filas.map((f, i) =>
+    compraDelLibroDesdeFactura({
+      id: `c${i}`, proveedor: f.emisor, facturaTipo: f.tipo, facturaPuntoVenta: f.puntoVenta, facturaNumero: f.numero,
+      facturaFecha: f.fecha, facturaCuit: f.cuitEmisor, facturaIva: f.iva, facturaTotal: f.total, facturaNeto: f.neto,
+      notas: f.aRevisar ? `Importado de Mis Comprobantes Recibidos (ARCA), por Ana. A revisar: ${f.aRevisar}` : null,
+    }),
+  );
+  assert.equal(Math.round(libro.reduce((x, c) => x + (c.creditoIva ?? 0), 0) * 100) / 100, 21640.5);
 });

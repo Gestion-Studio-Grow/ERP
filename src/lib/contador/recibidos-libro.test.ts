@@ -21,8 +21,23 @@ const factura = (o: Partial<Parameters<typeof compraDelLibroDesdeFactura>[0]> = 
     facturaCuit: "30700000008",
     facturaIva: 210,
     facturaTotal: 1210,
+    notas: null,
     ...o,
   });
+
+test("QA 26/09 v4 · una compra «a revisar» (IVA 150 sobre 1.000: 15 %, ninguna alícuota vigente) no suma al crédito ni al neto", () => {
+  const f = factura({
+    facturaNeto: 1000,
+    facturaIva: 150,
+    facturaTotal: 1150,
+    notas: "Importado de ARCA. A revisar: El IVA no corresponde a una sola alícuota (puede tener varias): cargá el desglose mirando el comprobante.",
+  });
+  assert.equal(f.creditoIva, 0);
+  assert.equal(f.netoGravado, 0);
+  assert.match(f.aRevisar ?? "", /no corresponde a una sola alícuota/);
+  assert.equal(f.total, 1150, "el total del comprobante se sigue viendo");
+  assert.equal(factura({ facturaNeto: 1000, facturaIva: 210 }).creditoIva, 210, "una bien liquidada sí suma");
+});
 
 test("una factura de proveedor va al libro con la fecha del comprobante, su número y su IVA como crédito", () => {
   assert.deepEqual(factura(), {
@@ -92,11 +107,12 @@ test("la hoja COMPRAS del paquete trae neto gravado, IVA crédito y total de cad
     condicion: "responsable-inscripto",
   });
   const out = lineasLibroIva(libro).join("\n");
-  assert.match(out, /^Fecha;Proveedor;Documento;Número;Neto gravado;IVA crédito fiscal;Total$/m);
-  assert.match(out, /^2026-08-12;DISTRIBUIDORA DEL SUR SA;CUIT 30700000008;Factura A 00003-00001234;1000,00;210,00;1210,00$/m);
-  assert.match(out, /;-100,00;-21,00;-121,00$/m, "la nota de crédito resta en las tres columnas");
-  assert.match(out, /^2026-08-20;Sin factura SRL;—;Compra 3;;sin factura;500,00$/m);
-  assert.match(out, /^Subtotal compras;;;;900,00;189,00;1589,00$/m);
+  // QA vuelta 6: con facturas de proveedor, la hoja lleva también «Percepciones y otros tributos».
+  assert.match(out, /^Fecha;Proveedor;Documento;Número;Neto gravado;IVA crédito fiscal;Percepciones y otros tributos;Total$/m);
+  assert.match(out, /^2026-08-12;DISTRIBUIDORA DEL SUR SA;CUIT 30700000008;Factura A 00003-00001234;1000,00;210,00;;1210,00$/m);
+  assert.match(out, /;-100,00;-21,00;;-121,00$/m, "la nota de crédito resta en las tres columnas");
+  assert.match(out, /^2026-08-20;Sin factura SRL;—;Compra 3;;sin factura;;500,00$/m);
+  assert.match(out, /^Subtotal compras;;;;900,00;189,00;0,00;1589,00$/m);
 });
 
 // Refutador 26/09 (fiscal, punto 7): el crédito fiscal es sólo de un Responsable Inscripto. Un
@@ -115,9 +131,9 @@ for (const [condicion, nota] of [
     assert.equal(libro.resumen.comprasConFacturaCount, 1, "la factura está cargada: lo que cambia es que no da crédito");
     const out = lineasLibroIva(libro).join("\n");
     assert.doesNotMatch(out, /IVA crédito fiscal|Neto gravado/, "ni la columna ni el neto gravado");
-    assert.match(out, /^Fecha;Proveedor;Documento;Número;Total$/m);
-    assert.match(out, /^2026-08-12;DISTRIBUIDORA DEL SUR SA;CUIT 30700000008;Factura A 00003-00001234;1210,00$/m);
-    assert.match(out, /^Subtotal compras;;;;6210,00$/m, "el subtotal va por el total, IVA incluido");
+    assert.match(out, /^Fecha;Proveedor;Documento;Número;Percepciones y otros tributos;Total$/m, "QA vuelta 6: con percepciones");
+    assert.match(out, /^2026-08-12;DISTRIBUIDORA DEL SUR SA;CUIT 30700000008;Factura A 00003-00001234;;1210,00$/m);
+    assert.match(out, /^Subtotal compras;;;;0,00;6210,00$/m, "el subtotal va por el total, IVA incluido");
     assert.doesNotMatch(out, /210,00;|;210,00/, "el IVA de la factura no aparece en ningún renglón");
     assert.match(out, nota);
   });

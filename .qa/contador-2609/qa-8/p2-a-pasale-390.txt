@@ -1,0 +1,35 @@
+URL http://localhost:3210/operador/solicitudes/cmuixd7kf00000m7duuyskgfz
+Saltar al contenido
+G
+Pedidos
+← Pedidos de alta
+Configurar a Lucía Fernández Diseño
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+6 · Pasale esto
+Todavía no se le puede exigir que cambie la contraseña en el primer ingreso: pedile que la cambie al entrar.
+Para el dueño del negocio
+Contraseña temporal para lucia.fernandez@ejemplo.test. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+<TEMPORAL>
+Copiar
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+¡Hola! Ya está listo el sistema de Lucía Fernández Diseño.
+Entrá en: https://lucia-v8.localhost/admin
+Usuario: lucia.fernandez@ejemplo.test
+Contraseña: <TEMPORAL>
+Copiar
+Mandar por WhatsApp
+Para la contadora
+¡Hola! Ya está Lucía Fernández Diseño en tu cartera: CUIT 27-38529164-2, punto de venta 1.
+Entrá en: https://estudio.localhost/contador
+Copiar
+Mandar por WhatsApp
+Quedó registrado: lo dio de alta el dueño de GSG el 26/9/26, 18:52 (Historial de la ficha).
+Ir a la ficha del negocio
+Ir a la ficha del estudio
+Volver a los pedidos
+Hecho por Gestión Studio Grow
+Negocios
+Pedidos
+Dirección
+Diseño
+Alta

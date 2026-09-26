@@ -1,3 +1,4 @@
+import { FacturaAFicha } from "./FacturaAFicha";
 import Link from "next/link";
 import { direccionDelPanel, panelesDeLaCartera } from "@/lib/contador/paneles-de-la-cartera";
 import { notFound } from "next/navigation";
@@ -73,6 +74,7 @@ import { InterruptoresCard } from "./InterruptoresCard";
 import { PaseARealCard } from "./PaseARealCard";
 import PlanDelNegocioCard from "./PlanDelNegocioCard";
 import { leerFichaDelPase } from "@/lib/operador/pase-a-real.server";
+import { mismoCuit } from "@/lib/multilocal/multilocal-core";
 import { RedDeLocalesCard, type CandidatoLocal } from "./RedDeLocalesCard";
 import {
   AppsDelNegocioCard,
@@ -351,17 +353,20 @@ export default async function FichaDelNegocio({
     leerInterruptoresDe(t.id),
     historialDeModulos(t.id),
     leerRedDeLaFicha(t.id),
-    // Los que se le pueden sumar a una red: ni casas, ni estudios, ni CH (sólo con el OK del dueño).
-    esCasa
+    // Los que se le pueden sumar a una red: SÓLO del mismo CUIT que la casa (QA vuelta 6: se ofrecían
+    // los 21 de la plataforma), y ni casas, ni estudios, ni CH (sólo con el OK del dueño). Lo que
+    // decide igual es `validarVinculo`, en el servidor.
+    esCasa && t.arcaCuit
       ? operatorPrisma.tenant
           .findMany({
-            where: { id: { not: t.id } },
+            where: { id: { not: t.id }, arcaCuit: { not: null } },
             orderBy: { name: "asc" },
-            select: { id: true, name: true, slug: true, modules: true },
+            select: { id: true, name: true, slug: true, modules: true, arcaCuit: true },
           })
           .then((ts) =>
             ts.filter(
               (x) =>
+                mismoCuit(t.arcaCuit, x.arcaCuit) &&
                 !x.modules.includes("multilocal") &&
                 !x.modules.includes("cartera") &&
                 !requiereOkDelDuenio(x.slug),
@@ -760,6 +765,8 @@ export default async function FichaDelNegocio({
         )}
       </Bloque>
 
+      <FacturaAFicha tenantId={id} />
+
       <div className="grid gap-8 lg:grid-cols-2">
         <div>
           <Bloque titulo="Paso 1 · CUIT del emisor">
@@ -949,6 +956,7 @@ export default async function FichaDelNegocio({
 
       {/* La red: la única puerta para que un negocio lea datos de otro (auditada en los dos). */}
       <RedDeLocalesCard
+        cuitCasa={t.arcaCuit ?? null}
         tenantId={t.id}
         nombre={t.name}
         esCasa={esCasa}

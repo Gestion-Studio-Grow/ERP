@@ -17,7 +17,7 @@ import { navGroupingEnabled } from "@/modules";
 import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
 import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
-import { appsVisibles, proyectarMenuDeHoy } from "@/apps/visibles";
+import { appsVisibles, conCierreDelMesEnLaBarra, proyectarMenuDeHoy } from "@/apps/visibles";
 import { rutaDeAppDelNegocio } from "@/apps/rutas";
 import { enInicioPorApps } from "./inicio/piloto";
 import { getTenantBrand, resolveAccent } from "@/lib/branding";
@@ -175,6 +175,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // negocio» con «•») se nombra con SU nombre y sus iniciales: la misma ficha (`getBrandSheet`,
   // cacheada por pedido) que ya se usa con el flag de ficha prendido; acá sólo se toma el nombre,
   // no el color ni el tema. Apagado (CH, que además tiene marca propia) no se consulta nada.
+  // QA vuelta 6: con la identidad del producto (Comerciante), la cabecera decía «Comerciante» en el
+  // panel de cada negocio. Manda el nombre del negocio (su ficha); el color sigue siendo el del
+  // producto. CH no tiene identidad de producto (`identidad` null): no entra acá.
+  if (!sheet && identidad) {
+    const ficha = await getBrandSheet();
+    if (ficha.name !== "Mi negocio") {
+      brandName = ficha.name;
+      monogram = initialsOf(ficha.name);
+    }
+  }
   if (nuevo && !sheet && !identidad && brand.monogram === "•") {
     const ficha = await getBrandSheet();
     if (ficha.name !== "Mi negocio") {
@@ -196,7 +206,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // lo prueba src/apps/paridad-menu.test.ts en todos los casos: CH no ve un cambio.
   const negocioApps = await getNegocioApps(user.role);
   const visibles = appsVisibles(negocioApps);
-  const menu = proyectarMenuDeHoy(visibles);
+  // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
+  const menu = conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto));
   // DISEÑO NUEVO: la navegación del armazón nuevo (espacios, comandos de ⌘K, tecla del rubro), con
   // las MISMAS apps que ya decidió `appsVisibles`. Apagado no se arma ni viaja: CH recibe los mismos
   // props de siempre (armazon/armazon-ch.test.ts).

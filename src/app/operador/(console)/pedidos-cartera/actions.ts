@@ -28,7 +28,7 @@ export async function resolverPedidoDeCarteraAction(_previo: ResultadoResolver |
     estudioTenantId,
     sesion,
     resultado: fd.get("resultado"),
-    respuesta: fd.get("respuesta"),
+    motivo: fd.get("motivo"),
   });
   if (r.ok) {
     revalidatePath("/operador/pedidos-cartera");

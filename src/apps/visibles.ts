@@ -183,6 +183,12 @@ function edicionPermite(app: AppDescriptor, n: NegocioApps): boolean {
   // En el piloto manda el módulo asignado: si el negocio tiene `libros`, ve el Libro IVA,
   // sin el callejón de hoy (el menú no lo muestra y la página dice "edición Empresa").
   if (n.contexto?.origen === "piloto") return true;
+  // En el producto con tienda (planes Comerciante y PyME) el plan asigna el módulo de la app: si el
+  // negocio lo tiene, la edición es la de su plan. QA vuelta 5: el configurador le da Comerciante a
+  // un Responsable inscripto porque necesita el Libro IVA (`libros` viene en el plan), y la guardia
+  // pedía además el perfil Empresa, que con el motor de perfiles apagado no tiene nadie: la página
+  // decía «no está disponible». Sin el módulo asignado, sigue decidiendo el perfil, como hoy.
+  if (n.contexto?.origen === "producto" && app.modulo !== null && n.contexto.modulos.has(app.modulo)) return true;
   // Hoy las pantallas de edición sólo se suman con el motor de perfiles prendido
   // (`menuItemsParaTenant`: ENTERPRISE_NAV_ITEMS sólo si `activeProfile !== null`).
   if (n.perfil === null) return false;
@@ -277,6 +283,34 @@ export function proyectarMenuDeHoy(visibles: readonly AppDescriptor[]): ItemMenu
       if (grupo) item.grupo = grupo;
       return item;
     });
+}
+
+/** La pantalla de la barra de hoy detrás de la que va «Cierre del mes». */
+const RUTA_CIERRE_DEL_DIA = "/admin/caja/cierre";
+
+/**
+ * «Cierre del mes» en la barra de hoy de los productos con tienda (Comerciante: los planes que
+ * trabajan con un estudio contable). QA 26/09 (vuelta 4) y refutador: la cartera le dice a la
+ * contadora «congelalo desde su panel, en Cierre del mes» y el dueño no tenía cómo llegar desde su
+ * menú. Va detrás de «Cierre del día», en su mismo grupo, y SÓLO si la app ya es visible para esa
+ * persona (rol, módulo, rubro: `appsVisibles`). El ERP vertical (CH) no lo recibe: su barra queda
+ * idéntica (paridad-menu.test.ts sigue atando `proyectarMenuDeHoy` a la barra de siempre). PURA.
+ */
+export function conCierreDelMesEnLaBarra(
+  menu: readonly ItemMenuDeHoy[],
+  visibles: readonly AppDescriptor[],
+  conTienda: boolean,
+): ItemMenuDeHoy[] {
+  const app = conTienda ? visibles.find((a) => a.id === "cierre-del-mes") : undefined;
+  if (!app || menu.some((i) => i.href === app.ruta)) return [...menu];
+  const item: ItemMenuDeHoy = { href: app.ruta, label: app.nombre, icon: app.icono };
+  if (app.palabras) item.alias = app.palabras;
+  const i = menu.findIndex((m) => m.href === RUTA_CIERRE_DEL_DIA);
+  const grupo = i >= 0 ? menu[i].grupo : grupoDeHoy(app.ruta);
+  if (grupo) item.grupo = grupo;
+  const salida = [...menu];
+  salida.splice(i >= 0 ? i + 1 : salida.length, 0, item);
+  return salida;
 }
 
 // ── Buscador ─────────────────────────────────────────────────────────────────

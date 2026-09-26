@@ -1,0 +1,1079 @@
+TAP version 13
+# Subtest: GUARDIA_EN_EL_LOADER sólo lista páginas que todavía dependen de su loader (sin requireApp)
+ok 1 - GUARDIA_EN_EL_LOADER sólo lista páginas que todavía dependen de su loader (sin requireApp)
+  ---
+  duration_ms: 1.341889
+  type: 'test'
+  ...
+# Subtest: el recorrido encuentra las páginas del panel
+ok 2 - el recorrido encuentra las páginas del panel
+  ---
+  duration_ms: 0.372476
+  type: 'test'
+  ...
+# Subtest: trinquete: páginas sin requireApp ≤ 3
+ok 3 - trinquete: páginas sin requireApp ≤ 3
+  ---
+  duration_ms: 0.287203
+  type: 'test'
+  ...
+# Subtest: toda página del panel pertenece a una app del registro
+ok 4 - toda página del panel pertenece a una app del registro
+  ---
+  duration_ms: 1.002525
+  type: 'test'
+  ...
+# Subtest: requireApp protege la app de SU ruta, no otra
+ok 5 - requireApp protege la app de SU ruta, no otra
+  ---
+  duration_ms: 2.924294
+  type: 'test'
+  ...
+# Subtest: la capability del registro es la que pide la página raíz de cada app (directo o en su loader)
+ok 6 - la capability del registro es la que pide la página raíz de cada app (directo o en su loader)
+  ---
+  duration_ms: 0.944778
+  type: 'test'
+  ...
+# Subtest: el recorrido encuentra los route handlers del panel
+ok 7 - el recorrido encuentra los route handlers del panel
+  ---
+  duration_ms: 0.393318
+  type: 'test'
+  ...
+# Subtest: trinquete: route handlers sin requireApp ≤ 0
+ok 8 - trinquete: route handlers sin requireApp ≤ 0
+  ---
+  duration_ms: 0.213368
+  type: 'test'
+  ...
+# Subtest: todo route handler pertenece a una app, y su requireApp es el de esa app
+ok 9 - todo route handler pertenece a una app, y su requireApp es el de esa app
+  ---
+  duration_ms: 0.590733
+  type: 'test'
+  ...
+# Subtest: ids únicos y en kebab-case
+ok 10 - ids únicos y en kebab-case
+  ---
+  duration_ms: 1.777374
+  type: 'test'
+  ...
+# Subtest: rutas únicas, bajo /admin y sin barra final ni query
+ok 11 - rutas únicas, bajo /admin y sin barra final ni query
+  ---
+  duration_ms: 1.010573
+  type: 'test'
+  ...
+# Subtest: el módulo de cada app existe en el catálogo de módulos
+ok 12 - el módulo de cada app existe en el catálogo de módulos
+  ---
+  duration_ms: 3.187993
+  type: 'test'
+  ...
+# Subtest: moduloDuro exige un módulo, y toda app de Mis locales es moduloDuro
+ok 13 - moduloDuro exige un módulo, y toda app de Mis locales es moduloDuro
+  ---
+  duration_ms: 0.349766
+  type: 'test'
+  ...
+# Subtest: ninguna app declara scopeItems ni campos fuera del contrato
+ok 14 - ninguna app declara scopeItems ni campos fuera del contrato
+  ---
+  duration_ms: 0.600879
+  type: 'test'
+  ...
+# Subtest: trinquete: ningún módulo NUEVO declara scopeItems[].ruta
+ok 15 - trinquete: ningún módulo NUEVO declara scopeItems[].ruta
+  ---
+  duration_ms: 0.940289
+  type: 'test'
+  ...
+# Subtest: cada app cae en un espacio que existe, y los órdenes de espacio no repiten apps
+ok 16 - cada app cae en un espacio que existe, y los órdenes de espacio no repiten apps
+  ---
+  duration_ms: 0.807458
+  type: 'test'
+  ...
+# Subtest: menuDeHoy: posiciones únicas; kpi: ids únicos
+ok 17 - menuDeHoy: posiciones únicas; kpi: ids únicos
+  ---
+  duration_ms: 0.585771
+  type: 'test'
+  ...
+# Subtest: sólo el Inicio es exacta, y sólo 'App no disponible' se abre con la sesión sola
+ok 18 - sólo el Inicio es exacta, y sólo 'App no disponible' se abre con la sesión sola
+  ---
+  duration_ms: 2.647372
+  type: 'test'
+  ...
+# Subtest: las 28 apps de la ola 1 están registradas con su ruta de hoy
+ok 19 - las 28 apps de la ola 1 están registradas con su ruta de hoy
+  ---
+  duration_ms: 0.952438
+  type: 'test'
+  ...
+# Subtest: buscarApp no confía en lo que llega de afuera
+ok 20 - buscarApp no confía en lo que llega de afuera
+  ---
+  duration_ms: 0.491666
+  type: 'test'
+  ...
+# Subtest: para cada pantalla de la barra de hoy y sus sub-rutas, la misma pantalla que navItemForPath
+ok 21 - para cada pantalla de la barra de hoy y sus sub-rutas, la misma pantalla que navItemForPath
+  ---
+  duration_ms: 5.069132
+  type: 'test'
+  ...
+# Subtest: Facturación automática es su propia app, con todo lo que cuelga de ella
+ok 22 - Facturación automática es su propia app, con todo lo que cuelga de ella
+  ---
+  duration_ms: 0.352807
+  type: 'test'
+  ...
+# Subtest: match por segmento, el Inicio sólo exacto, y lo que no es de nadie da undefined
+ok 23 - match por segmento, el Inicio sólo exacto, y lo que no es de nadie da undefined
+  ---
+  duration_ms: 0.257649
+  type: 'test'
+  ...
+# Subtest: sub-rutas de hoy caen en su app
+ok 24 - sub-rutas de hoy caen en su app
+  ---
+  duration_ms: 0.23531
+  type: 'test'
+  ...
+# Subtest: normalizarRuta saca query, hash y la barra final
+ok 25 - normalizarRuta saca query, hash y la barra final
+  ---
+  duration_ms: 0.328548
+  type: 'test'
+  ...
+# Subtest: Comerciante con `pos`: Vender y Ventas del día pasan; sin `pos`, rebotan como antes
+ok 26 - Comerciante con `pos`: Vender y Ventas del día pasan; sin `pos`, rebotan como antes
+  ---
+  duration_ms: 0.368215
+  type: 'test'
+  ...
+# Subtest: una casa Comerciante con `multilocal`: Mis locales y sus sub-apps pasan; sin el módulo, no
+ok 27 - una casa Comerciante con `multilocal`: Mis locales y sus sub-apps pasan; sin el módulo, no
+  ---
+  duration_ms: 0.409744
+  type: 'test'
+  ...
+# Subtest: el gate no se afloja con lo que el Comerciante no tiene, ni con rutas que no son de nadie
+ok 28 - el gate no se afloja con lo que el Comerciante no tiene, ni con rutas que no son de nadie
+  ---
+  duration_ms: 0.265997
+  type: 'test'
+  ...
+# Subtest: Cierre del mes (app del núcleo) pasa el gate por URL en todos los planes con tienda
+ok 29 - Cierre del mes (app del núcleo) pasa el gate por URL en todos los planes con tienda
+  ---
+  duration_ms: 0.766505
+  type: 'test'
+  ...
+# Subtest: el layout del panel arma el gate del Comerciante con las dos reglas
+ok 30 - el layout del panel arma el gate del Comerciante con las dos reglas
+  ---
+  duration_ms: 14.601812
+  type: 'test'
+  ...
+# Subtest: navItemForPath: Inicio solo matchea /admin exacto (no absorbe sub-rutas)
+ok 31 - navItemForPath: Inicio solo matchea /admin exacto (no absorbe sub-rutas)
+  ---
+  duration_ms: 1.83623
+  type: 'test'
+  ...
+# Subtest: navItemForPath: sub-ruta cae en su ítem padre
+ok 32 - navItemForPath: sub-ruta cae en su ítem padre
+  ---
+  duration_ms: 0.38818
+  type: 'test'
+  ...
+# Subtest: navItemForPath: query/hash no rompen el match
+ok 33 - navItemForPath: query/hash no rompen el match
+  ---
+  duration_ms: 0.172865
+  type: 'test'
+  ...
+# Subtest: navItemForPath: ruta fuera del set del backoffice no matchea
+ok 34 - navItemForPath: ruta fuera del set del backoffice no matchea
+  ---
+  duration_ms: 0.272732
+  type: 'test'
+  ...
+# Subtest: Comerciante: Inicio y config (sin módulo) SIEMPRE permitidos
+ok 35 - Comerciante: Inicio y config (sin módulo) SIEMPRE permitidos
+  ---
+  duration_ms: 0.304843
+  type: 'test'
+  ...
+# Subtest: Comerciante: rutas de SUS módulos permitidas (facturación/clientes/reportes)
+ok 36 - Comerciante: rutas de SUS módulos permitidas (facturación/clientes/reportes)
+  ---
+  duration_ms: 0.168389
+  type: 'test'
+  ...
+# Subtest: Comerciante: módulos que NO tiene → bloqueados (la deuda del UAT)
+ok 37 - Comerciante: módulos que NO tiene → bloqueados (la deuda del UAT)
+  ---
+  duration_ms: 0.317944
+  type: 'test'
+  ...
+# Subtest: Comerciante: las tres cajas pasan el gate de módulos (son core, como Ajustes)
+ok 38 - Comerciante: las tres cajas pasan el gate de módulos (son core, como Ajustes)
+  ---
+  duration_ms: 0.270986
+  type: 'test'
+  ...
+# Subtest: Comerciante: ruta fuera del backoffice (inventario/libros) → bloqueada
+ok 39 - Comerciante: ruta fuera del backoffice (inventario/libros) → bloqueada
+  ---
+  duration_ms: 0.419948
+  type: 'test'
+  ...
+# Subtest: las tres cajas NO se gatean por módulo: todo negocio maneja plata
+ok 40 - las tres cajas NO se gatean por módulo: todo negocio maneja plata
+  ---
+  duration_ms: 0.704364
+  type: 'test'
+  ...
+# Subtest: la Caja la ven los tres rubros: no lleva retailOnly
+ok 41 - la Caja la ven los tres rubros: no lleva retailOnly
+  ---
+  duration_ms: 0.303845
+  type: 'test'
+  ...
+# Subtest: buscar "arqueo" lleva al cierre del día, no a la Caja
+ok 42 - buscar "arqueo" lleva al cierre del día, no a la Caja
+  ---
+  duration_ms: 1.734316
+  type: 'test'
+  ...
+# Subtest: los tres ítems de caja no comparten el mismo ícono
+ok 43 - los tres ítems de caja no comparten el mismo ícono
+  ---
+  duration_ms: 0.201682
+  type: 'test'
+  ...
+# Subtest: toNum: number, Decimal-like y basura
+ok 44 - toNum: number, Decimal-like y basura
+  ---
+  duration_ms: 1.479812
+  type: 'test'
+  ...
+# Subtest: rangoMesActual: [00:00 del 1° del mes, 00:00 del 1° del siguiente) en hora argentina
+ok 45 - rangoMesActual: [00:00 del 1° del mes, 00:00 del 1° del siguiente) en hora argentina
+  ---
+  duration_ms: 20.777264
+  type: 'test'
+  ...
+# Subtest: el 31 a las 22:30 hora argentina queda en ESE mes (cupo, fecha y período fiscal)
+ok 46 - el 31 a las 22:30 hora argentina queda en ESE mes (cupo, fecha y período fiscal)
+  ---
+  duration_ms: 2.211799
+  type: 'test'
+  ...
+# Subtest: a las 00:30 del 1° hora argentina ya es el mes nuevo
+ok 47 - a las 00:30 del 1° hora argentina ya es el mes nuevo
+  ---
+  duration_ms: 0.357693
+  type: 'test'
+  ...
+# Subtest: diciembre cruza de año en los dos relojes
+ok 48 - diciembre cruza de año en los dos relojes
+  ---
+  duration_ms: 0.597625
+  type: 'test'
+  ...
+# Subtest: rangoFiscalMes: {gte:'AAAAMM01', lt:'AAAAMM+1 01'} y deja afuera el 1° del siguiente
+ok 49 - rangoFiscalMes: {gte:'AAAAMM01', lt:'AAAAMM+1 01'} y deja afuera el 1° del siguiente
+  ---
+  duration_ms: 0.28879
+  type: 'test'
+  ...
+# Subtest: filtrosFacturacionMes: facturado = sólo AUTHORIZED por fecha fiscal; el cupo cuenta por createdAt sin los rechazados (ENG-329)
+ok 50 - filtrosFacturacionMes: facturado = sólo AUTHORIZED por fecha fiscal; el cupo cuenta por createdAt sin los rechazados (ENG-329)
+  ---
+  duration_ms: 0.632651
+  type: 'test'
+  ...
+# Subtest: rechazados: un extracto de agosto emitido y rechazado en septiembre cuenta en septiembre
+ok 51 - rechazados: un extracto de agosto emitido y rechazado en septiembre cuenta en septiembre
+  ---
+  duration_ms: 0.357029
+  type: 'test'
+  ...
+# Subtest: mapearClasificacion: reglas del plugin → vocabulario de producto
+ok 52 - mapearClasificacion: reglas del plugin → vocabulario de producto
+  ---
+  duration_ms: 0.451157
+  type: 'test'
+  ...
+# Subtest: mapearClasificacion: comision-impuesto se separa por la leyenda
+ok 53 - mapearClasificacion: comision-impuesto se separa por la leyenda
+  ---
+  duration_ms: 0.763911
+  type: 'test'
+  ...
+# Subtest: mapearClasificacion: aprendizaje/REVISAR caen por la clasificación
+ok 54 - mapearClasificacion: aprendizaje/REVISAR caen por la clasificación
+  ---
+  duration_ms: 0.214989
+  type: 'test'
+  ...
+# Subtest: resumirPropuestas: cuenta por estado y separa duplicados
+ok 55 - resumirPropuestas: cuenta por estado y separa duplicados
+  ---
+  duration_ms: 0.267051
+  type: 'test'
+  ...
+# Subtest: configBancosDesdeTenant: nulos = defaults del producto (no pisa con undefined)
+ok 56 - configBancosDesdeTenant: nulos = defaults del producto (no pisa con undefined)
+  ---
+  duration_ms: 1.023444
+  type: 'test'
+  ...
+# Subtest: configBancosDesdeTenant: con el tope del plan, ése manda para la regla y para los mensajes aunque la columna diga otra cosa
+ok 57 - configBancosDesdeTenant: con el tope del plan, ése manda para la regla y para los mensajes aunque la columna diga otra cosa
+  ---
+  duration_ms: 0.185254
+  type: 'test'
+  ...
+# Subtest: configBancosDesdeTenant: valores del tenant (Decimal-like) + CUIT propio normalizado
+ok 58 - configBancosDesdeTenant: valores del tenant (Decimal-like) + CUIT propio normalizado
+  ---
+  duration_ms: 0.401884
+  type: 'test'
+  ...
+# Subtest: validarDatosRevision: CUIT válido con nombre y descripción → ok
+ok 59 - validarDatosRevision: CUIT válido con nombre y descripción → ok
+  ---
+  duration_ms: 0.360207
+  type: 'test'
+  ...
+# Subtest: validarDatosRevision: CUIT con dígito verificador incorrecto → error
+ok 60 - validarDatosRevision: CUIT con dígito verificador incorrecto → error
+  ---
+  duration_ms: 0.37979
+  type: 'test'
+  ...
+# Subtest: validarDatosRevision: identificación sin nombre o sin descripción → error
+ok 61 - validarDatosRevision: identificación sin nombre o sin descripción → error
+  ---
+  duration_ms: 0.152137
+  type: 'test'
+  ...
+# Subtest: validarDatosRevision: DNI de 7-8 dígitos; otro largo falla
+ok 62 - validarDatosRevision: DNI de 7-8 dígitos; otro largo falla
+  ---
+  duration_ms: 0.192902
+  type: 'test'
+  ...
+# Subtest: validarDatosRevision: consumidor final (99) sin datos → ok con doc 0
+ok 63 - validarDatosRevision: consumidor final (99) sin datos → ok con doc 0
+  ---
+  duration_ms: 0.257323
+  type: 'test'
+  ...
+# Subtest: validarDatosRevision: docTipo desconocido → error
+ok 64 - validarDatosRevision: docTipo desconocido → error
+  ---
+  duration_ms: 0.205451
+  type: 'test'
+  ...
+# Subtest: armarFilasMovimientos: propuesta auto → fila completa; descartados NO se persisten
+ok 65 - armarFilasMovimientos: propuesta auto → fila completa; descartados NO se persisten
+  ---
+  duration_ms: 0.436407
+  type: 'test'
+  ...
+# Subtest: armarFilasMovimientos: revisión conserva motivo e identificación pendiente
+ok 66 - armarFilasMovimientos: revisión conserva motivo e identificación pendiente
+  ---
+  duration_ms: 0.29518
+  type: 'test'
+  ...
+# Subtest: Cierre de agosto: el checklist muestra 8 pasos, en orden
+ok 67 - Cierre de agosto: el checklist muestra 8 pasos, en orden
+  ---
+  duration_ms: 7.7758
+  type: 'test'
+  ...
+# Subtest: cada paso pendiente dice qué pasa, con el número, y adónde ir
+ok 68 - cada paso pendiente dice qué pasa, con el número, y adónde ir
+  ---
+  duration_ms: 1.329172
+  type: 'test'
+  ...
+# Subtest: lo que el negocio no usa no aplica (y cuenta como hecho); la caja cerrada hasta fin de mes, siempre
+ok 69 - lo que el negocio no usa no aplica (y cuenta como hecho); la caja cerrada hasta fin de mes, siempre
+  ---
+  duration_ms: 0.824324
+  type: 'test'
+  ...
+# Subtest: congelado el mes, un gasto con fecha 15/08 se rechaza: no se congela sin la caja cerrada hasta el 31
+ok 70 - congelado el mes, un gasto con fecha 15/08 se rechaza: no se congela sin la caja cerrada hasta el 31
+  ---
+  duration_ms: 3.014677
+  type: 'test'
+  ...
+# Subtest: congelar: el mes tiene que haber terminado, no puede estar congelado, y los pendientes se confirman
+ok 71 - congelar: el mes tiene que haber terminado, no puede estar congelado, y los pendientes se confirman
+  ---
+  duration_ms: 1.220926
+  type: 'test'
+  ...
+# Subtest: reabrir exige OWNER y motivo
+ok 72 - reabrir exige OWNER y motivo
+  ---
+  duration_ms: 0.538751
+  type: 'test'
+  ...
+# Subtest: el estado sale de la auditoría en orden, sin importar cómo llegan las filas; lo ajeno no cuenta
+ok 73 - el estado sale de la auditoría en orden, sin importar cómo llegan las filas; lo ajeno no cuenta
+  ---
+  duration_ms: 3.051396
+  type: 'test'
+  ...
+# Subtest: el botón: 'Agosto · 8 de 8 pasos listos · paquete descargado por la contadora el 03/09'
+ok 74 - el botón: 'Agosto · 8 de 8 pasos listos · paquete descargado por la contadora el 03/09'
+  ---
+  duration_ms: 1.241369
+  type: 'test'
+  ...
+# Subtest: el botón sin congelar: los primeros días no alerta; desde el 3, 'Agosto sin cerrar' va a Para atender hoy
+ok 75 - el botón sin congelar: los primeros días no alerta; desde el 3, 'Agosto sin cerrar' va a Para atender hoy
+  ---
+  duration_ms: 0.912705
+  type: 'test'
+  ...
+# Subtest: lo que ve el estudio contable de un cliente
+ok 76 - lo que ve el estudio contable de un cliente
+  ---
+  duration_ms: 1.003161
+  type: 'test'
+  ...
+# Subtest: paso 6: pendiente es sólo lo que la liquidación puede liquidar; con saldo o al 0% no
+ok 77 - paso 6: pendiente es sólo lo que la liquidación puede liquidar; con saldo o al 0% no
+  ---
+  duration_ms: 1.976363
+  type: 'test'
+  ...
+# Subtest: un pendiente no termina en 'App no disponible': sin Libro IVA en el negocio, el paso 3 va sin botón y lo dice
+ok 78 - un pendiente no termina en 'App no disponible': sin Libro IVA en el negocio, el paso 3 va sin botón y lo dice
+  ---
+  duration_ms: 0.717306
+  type: 'test'
+  ...
+# Subtest: la purga de auditoría (18 meses) no borra el cierre del mes: si no, un mes congelado vuelve a 'sin congelar'
+ok 79 - la purga de auditoría (18 meses) no borra el cierre del mes: si no, un mes congelado vuelve a 'sin congelar'
+  ---
+  duration_ms: 0.575871
+  type: 'test'
+  ...
+# Subtest: QA 26/09 v4 · un día sin movimientos no bloquea el congelado; un día CON movimientos sin cerrar, sí
+ok 80 - QA 26/09 v4 · un día sin movimientos no bloquea el congelado; un día CON movimientos sin cerrar, sí
+  ---
+  duration_ms: 0.629551
+  type: 'test'
+  ...
+# Subtest: el QR impreso se lee como la URL de urlQrAfip y su payload trae los datos del comprobante
+ok 81 - el QR impreso se lee como la URL de urlQrAfip y su payload trae los datos del comprobante
+  ---
+  duration_ms: 467.775306
+  type: 'test'
+  ...
+# Subtest: el QR de un comprobante A lleva el CUIT del cliente
+ok 82 - el QR de un comprobante A lleva el CUIT del cliente
+  ---
+  duration_ms: 131.647254
+  type: 'test'
+  ...
+# Subtest: el lector de QR no es un eco: con un módulo de datos cambiado, no lee
+ok 83 - el lector de QR no es un eco: con un módulo de datos cambiado, no lee
+  ---
+  duration_ms: 134.016143
+  type: 'test'
+  ...
+# Subtest: el PDF lleva emisor, receptor, número, fecha, CAE y su vencimiento
+ok 84 - el PDF lleva emisor, receptor, número, fecha, CAE y su vencimiento
+  ---
+  duration_ms: 74.349023
+  type: 'test'
+  ...
+# Subtest: factura B: lleva la leyenda de la Ley 27.743 con el IVA contenido y los otros impuestos
+ok 85 - factura B: lleva la leyenda de la Ley 27.743 con el IVA contenido y los otros impuestos
+  ---
+  duration_ms: 82.367187
+  type: 'test'
+  ...
+# Subtest: nota de crédito B: también lleva la leyenda y el comprobante que anula
+ok 86 - nota de crédito B: también lleva la leyenda y el comprobante que anula
+  ---
+  duration_ms: 70.121434
+  type: 'test'
+  ...
+# Subtest: factura C y factura A: no llevan la leyenda de la Ley 27.743; la A discrimina el IVA
+ok 87 - factura C y factura A: no llevan la leyenda de la Ley 27.743; la A discrimina el IVA
+  ---
+  duration_ms: 141.313561
+  type: 'test'
+  ...
+# Subtest: factura A: cada renglón lleva su precio sin IVA y los subtotales sin IVA suman justo el neto autorizado
+ok 88 - factura A: cada renglón lleva su precio sin IVA y los subtotales sin IVA suman justo el neto autorizado
+  ---
+  duration_ms: 69.070508
+  type: 'test'
+  ...
+# Subtest: factura A: con más de una alícuota el comprobante no guarda cuál lleva cada renglón, así que no se imprime y dice por qué
+ok 89 - factura A: con más de una alícuota el comprobante no guarda cuál lleva cada renglón, así que no se imprime y dice por qué
+  ---
+  duration_ms: 0.833899
+  type: 'test'
+  ...
+# Subtest: factura A: si el neto no coincide con la base del IVA no se imprime un detalle que no cierra
+ok 90 - factura A: si el neto no coincide con la base del IVA no se imprime un detalle que no cierra
+  ---
+  duration_ms: 0.652797
+  type: 'test'
+  ...
+# Subtest: sin los datos fiscales del negocio no hay PDF y el aviso dice qué falta y dónde cargarlo
+ok 91 - sin los datos fiscales del negocio no hay PDF y el aviso dice qué falta y dónde cargarlo
+  ---
+  duration_ms: 0.899382
+  type: 'test'
+  ...
+# Subtest: un CUIT del negocio con el dígito verificador mal no imprime
+ok 92 - un CUIT del negocio con el dígito verificador mal no imprime
+  ---
+  duration_ms: 0.218193
+  type: 'test'
+  ...
+# Subtest: sin CAE no hay PDF: ni pendiente ni rechazado
+ok 93 - sin CAE no hay PDF: ni pendiente ni rechazado
+  ---
+  duration_ms: 0.365058
+  type: 'test'
+  ...
+# Subtest: si la letra no cuadra con la condición del negocio de hoy, no reimprime un dato falso
+ok 94 - si la letra no cuadra con la condición del negocio de hoy, no reimprime un dato falso
+  ---
+  duration_ms: 0.211252
+  type: 'test'
+  ...
+# Subtest: un comprobante A sin CUIT ni domicilio del cliente no se imprime
+ok 95 - un comprobante A sin CUIT ni domicilio del cliente no se imprime
+  ---
+  duration_ms: 0.331959
+  type: 'test'
+  ...
+# Subtest: un tipo de comprobante que no sabe imprimir (Factura de Crédito MiPyME) no genera
+ok 96 - un tipo de comprobante que no sabe imprimir (Factura de Crédito MiPyME) no genera
+  ---
+  duration_ms: 0.179684
+  type: 'test'
+  ...
+# Subtest: en modo de prueba de ARCA la hoja advierte que no tiene validez fiscal
+ok 97 - en modo de prueba de ARCA la hoja advierte que no tiene validez fiscal
+  ---
+  duration_ms: 117.559058
+  type: 'test'
+  ...
+# Subtest: con muchos renglones sigue en otra hoja sin perder ninguno, y el QR va en la última
+ok 98 - con muchos renglones sigue en otra hoja sin perder ninguno, y el QR va en la última
+  ---
+  duration_ms: 84.927194
+  type: 'test'
+  ...
+# Subtest: un nombre con caracteres que la fuente no tiene no rompe el PDF
+ok 99 - un nombre con caracteres que la fuente no tiene no rompe el PDF
+  ---
+  duration_ms: 68.431315
+  type: 'test'
+  ...
+# Subtest: la plata se escribe en pesos argentinos con el redondeo de src/lib/dinero
+ok 100 - la plata se escribe en pesos argentinos con el redondeo de src/lib/dinero
+  ---
+  duration_ms: 0.367136
+  type: 'test'
+  ...
+# Subtest: CUIT: once números con dígito verificador
+ok 101 - CUIT: once números con dígito verificador
+  ---
+  duration_ms: 0.143565
+  type: 'test'
+  ...
+# Subtest: la vista y la descarga exigen la app de facturación y el permiso de facturar antes de leer
+ok 102 - la vista y la descarga exigen la app de facturación y el permiso de facturar antes de leer
+  ---
+  duration_ms: 0.45453
+  type: 'test'
+  ...
+# Subtest: factura A a un monotributista: el PDF lleva la leyenda de la RG 5003/2021 con el texto del motor fiscal
+ok 103 - factura A a un monotributista: el PDF lleva la leyenda de la RG 5003/2021 con el texto del motor fiscal
+  ---
+  duration_ms: 181.731273
+  type: 'test'
+  ...
+# Subtest: factura A a un responsable inscripto y factura B: no llevan la leyenda de la RG 5003/2021
+ok 104 - factura A a un responsable inscripto y factura B: no llevan la leyenda de la RG 5003/2021
+  ---
+  duration_ms: 130.769502
+  type: 'test'
+  ...
+# Subtest: la vista y el PDF toman las leyendas de la A del motor fiscal, no de una copia
+ok 105 - la vista y el PDF toman las leyendas de la A del motor fiscal, no de una copia
+  ---
+  duration_ms: 0.611078
+  type: 'test'
+  ...
+# Subtest: si el cliente figura hoy con una condición que la letra no admite (RG 5616), no se reimprime
+ok 106 - si el cliente figura hoy con una condición que la letra no admite (RG 5616), no se reimprime
+  ---
+  duration_ms: 0.712725
+  type: 'test'
+  ...
+# Subtest: la marca de «sin validez fiscal» sale del ambiente en que ARCA autorizó, no sólo de la ficha del negocio
+ok 107 - la marca de «sin validez fiscal» sale del ambiente en que ARCA autorizó, no sólo de la ficha del negocio
+  ---
+  duration_ms: 0.229804
+  type: 'test'
+  ...
+# Subtest: autorizado antes del último cambio entre prueba y real: no se sabe en cuál fue, así que no se imprime
+ok 108 - autorizado antes del último cambio entre prueba y real: no se sabe en cuál fue, así que no se imprime
+  ---
+  duration_ms: 0.380534
+  type: 'test'
+  ...
+# Subtest: en modo de prueba el pie no dice que ARCA lo autorizó ni invita a verificarlo con el QR
+ok 109 - en modo de prueba el pie no dice que ARCA lo autorizó ni invita a verificarlo con el QR
+  ---
+  duration_ms: 107.740006
+  type: 'test'
+  ...
+# Subtest: fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+ok 110 - fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+  ---
+  duration_ms: 191.199986
+  type: 'test'
+  ...
+# Subtest: el patrón detecta las formas de redondeo a mano que busca
+ok 111 - el patrón detecta las formas de redondeo a mano que busca
+  ---
+  duration_ms: 0.370448
+  type: 'test'
+  ...
+# Subtest: factura de prueba guardada: letra, receptor, numeración, aislamiento y log sin CUIT
+    # Subtest: inscripto: B a consumidor final, correlativa, y A a otro inscripto
+    ok 1 - inscripto: B a consumidor final, correlativa, y A a otro inscripto
+      ---
+      duration_ms: 448.98379
+      type: 'test'
+      ...
+    # Subtest: monotributista: Factura C, a consumidor final y a un inscripto
+    ok 2 - monotributista: Factura C, a consumidor final y a un inscripto
+      ---
+      duration_ms: 165.287845
+      type: 'test'
+      ...
+    # Subtest: aislamiento: B no ve ni recibe lo de A; A no ve lo de B
+    ok 3 - aislamiento: B no ve ni recibe lo de A; A no ve lo de B
+      ---
+      duration_ms: 13.957966
+      type: 'test'
+      ...
+    # Subtest: sin la facturación asignada no emite nada; un receptor inventado tampoco
+    ok 4 - sin la facturación asignada no emite nada; un receptor inventado tampoco
+      ---
+      duration_ms: 66.209237
+      type: 'test'
+      ...
+    # Subtest: el log no guarda el CUIT del negocio (§4)
+    ok 5 - el log no guarda el CUIT del negocio (§4)
+      ---
+      duration_ms: 23.639707
+      type: 'test'
+      ...
+    1..5
+ok 112 - factura de prueba guardada: letra, receptor, numeración, aislamiento y log sin CUIT
+  ---
+  duration_ms: 4810.468442
+  type: 'test'
+  ...
+# Subtest: un cliente sano no genera ninguna señal (el tablero calla cuando todo anda)
+ok 113 - un cliente sano no genera ninguna señal (el tablero calla cuando todo anda)
+  ---
+  duration_ms: 4.627148
+  type: 'test'
+  ...
+# Subtest: sin CUIT cargado: crítico — es exactamente lo que hace fallar la emisión sin avisar
+ok 114 - sin CUIT cargado: crítico — es exactamente lo que hace fallar la emisión sin avisar
+  ---
+  duration_ms: 0.793406
+  type: 'test'
+  ...
+# Subtest: el placeholder histórico 20000000000 NO cuenta como CUIT válido
+ok 115 - el placeholder histórico 20000000000 NO cuenta como CUIT válido
+  ---
+  duration_ms: 0.432411
+  type: 'test'
+  ...
+# Subtest: CUIT de largo inválido y punto de venta faltante: los dos rompen el perfil
+ok 116 - CUIT de largo inválido y punto de venta faltante: los dos rompen el perfil
+  ---
+  duration_ms: 0.312783
+  type: 'test'
+  ...
+# Subtest: el CUIT con guiones se normaliza: no es un error de carga
+ok 117 - el CUIT con guiones se normaliza: no es un error de carga
+  ---
+  duration_ms: 0.173603
+  type: 'test'
+  ...
+# Subtest: sin punto de venta: la acción es pedírselo a GSG, no un botón a una pantalla donde no se puede
+ok 118 - sin punto de venta: la acción es pedírselo a GSG, no un botón a una pantalla donde no se puede
+  ---
+  duration_ms: 0.53024
+  type: 'test'
+  ...
+# Subtest: certificado vencido: crítico, con los días vencidos en el detalle
+ok 119 - certificado vencido: crítico, con los días vencidos en el detalle
+  ---
+  duration_ms: 0.43625
+  type: 'test'
+  ...
+# Subtest: certificado por vencer dentro de la ventana de aviso: atención, no crítico
+ok 120 - certificado por vencer dentro de la ventana de aviso: atención, no crítico
+  ---
+  duration_ms: 0.266485
+  type: 'test'
+  ...
+# Subtest: certificado lejos de vencer: sin señal (la ventana no se adelanta)
+ok 121 - certificado lejos de vencer: sin señal (la ventana no se adelanta)
+  ---
+  duration_ms: 0.394558
+  type: 'test'
+  ...
+# Subtest: sin credencial cargada: crítico y distinto de 'vencido' (la acción es otra)
+ok 122 - sin credencial cargada: crítico y distinto de 'vencido' (la acción es otra)
+  ---
+  duration_ms: 0.608152
+  type: 'test'
+  ...
+# Subtest: credencial cargada sin vencimiento legible: no se inventa 'sin certificado'
+ok 123 - credencial cargada sin vencimiento legible: no se inventa 'sin certificado'
+  ---
+  duration_ms: 0.413124
+  type: 'test'
+  ...
+# Subtest: en homologación del CLIENTE, sin credencial sigue siendo crítico (no se baja por homologación)
+ok 124 - en homologación del CLIENTE, sin credencial sigue siendo crítico (no se baja por homologación)
+  ---
+  duration_ms: 0.628902
+  type: 'test'
+  ...
+# Subtest: con ARCA en modo SIMULADO el certificado no se usa: ni sin_credencial ni cert_* por fila
+ok 125 - con ARCA en modo SIMULADO el certificado no se usa: ni sin_credencial ni cert_* por fila
+  ---
+  duration_ms: 0.47182
+  type: 'test'
+  ...
+# Subtest: comprobantes rechazados por ARCA: crítico
+ok 126 - comprobantes rechazados por ARCA: crítico
+  ---
+  duration_ms: 0.265612
+  type: 'test'
+  ...
+# Subtest: outbox trabado: crítico — el comprobante existe pero no llega a ARCA
+ok 127 - outbox trabado: crítico — el comprobante existe pero no llega a ARCA
+  ---
+  duration_ms: 0.198893
+  type: 'test'
+  ...
+# Subtest: límite del plan alcanzado: crítico, 'cupo_del_plan', y la acción es ampliar el límite
+ok 128 - límite del plan alcanzado: crítico, 'cupo_del_plan', y la acción es ampliar el límite
+  ---
+  duration_ms: 0.348561
+  type: 'test'
+  ...
+# Subtest: cerca del cupo (80%): atención, y no se duplica con 'cupo alcanzado'
+ok 129 - cerca del cupo (80%): atención, y no se duplica con 'cupo alcanzado'
+  ---
+  duration_ms: 0.257958
+  type: 'test'
+  ...
+# Subtest: justo debajo del umbral: sin señal de cupo
+ok 130 - justo debajo del umbral: sin señal de cupo
+  ---
+  duration_ms: 0.153175
+  type: 'test'
+  ...
+# Subtest: ninguna señal manda a RECATEGORIZAR: la cantidad de facturas no decide la categoría
+ok 131 - ninguna señal manda a RECATEGORIZAR: la cantidad de facturas no decide la categoría
+  ---
+  duration_ms: 1.89061
+  type: 'test'
+  ...
+# Subtest: cola de revisión estancada: alerta recién cuando la más vieja pasa el umbral
+ok 132 - cola de revisión estancada: alerta recién cuando la más vieja pasa el umbral
+  ---
+  duration_ms: 0.380829
+  type: 'test'
+  ...
+# Subtest: silencio de ingesta: un cliente activo que hace días no da señales de vida
+ok 133 - silencio de ingesta: un cliente activo que hace días no da señales de vida
+  ---
+  duration_ms: 0.22647
+  type: 'test'
+  ...
+# Subtest: cliente que nunca tuvo actividad: también entra como silencio, con otro detalle
+ok 134 - cliente que nunca tuvo actividad: también entra como silencio, con otro detalle
+  ---
+  duration_ms: 0.252191
+  type: 'test'
+  ...
+# Subtest: caja sin cerrar: 0 días no avisa (hoy todavía no terminó)
+ok 135 - caja sin cerrar: 0 días no avisa (hoy todavía no terminó)
+  ---
+  duration_ms: 0.198528
+  type: 'test'
+  ...
+# Subtest: caja sin cerrar hace 1 día: atención, con el día y el número
+ok 136 - caja sin cerrar hace 1 día: atención, con el día y el número
+  ---
+  duration_ms: 0.355861
+  type: 'test'
+  ...
+# Subtest: caja sin cerrar hace 5 días: el número sale en el detalle
+ok 137 - caja sin cerrar hace 5 días: el número sale en el detalle
+  ---
+  duration_ms: 0.334328
+  type: 'test'
+  ...
+# Subtest: un cliente SIN caja no dispara 'caja sin cerrar' (la cartera nace sin caja)
+ok 138 - un cliente SIN caja no dispara 'caja sin cerrar' (la cartera nace sin caja)
+  ---
+  duration_ms: 0.15112
+  type: 'test'
+  ...
+# Subtest: el día de la caja se cuenta en hora argentina, no en UTC
+ok 139 - el día de la caja se cuenta en hora argentina, no en UTC
+  ---
+  duration_ms: 0.330811
+  type: 'test'
+  ...
+# Subtest: homologación del cliente y emisión apagada NO son señales de fila
+ok 140 - homologación del cliente y emisión apagada NO son señales de fila
+  ---
+  duration_ms: 0.224372
+  type: 'test'
+  ...
+# Subtest: los avisos de plataforma se dicen una vez: apagada + N clientes en prueba (activos)
+ok 141 - los avisos de plataforma se dicen una vez: apagada + N clientes en prueba (activos)
+  ---
+  duration_ms: 0.305767
+  type: 'test'
+  ...
+# Subtest: con ARCA en homologación para toda la plataforma no se cuenta cliente por cliente
+ok 142 - con ARCA en homologación para toda la plataforma no se cuenta cliente por cliente
+  ---
+  duration_ms: 0.283105
+  type: 'test'
+  ...
+# Subtest: titular: con la emisión apagada no dice 'Todos pueden emitir' debajo de un aviso que dice lo contrario
+ok 143 - titular: con la emisión apagada no dice 'Todos pueden emitir' debajo de un aviso que dice lo contrario
+  ---
+  duration_ms: 1.918174
+  type: 'test'
+  ...
+# Subtest: validez fiscal: sólo ARCA real y el cliente fuera de homologación
+ok 144 - validez fiscal: sólo ARCA real y el cliente fuera de homologación
+  ---
+  duration_ms: 0.142655
+  type: 'test'
+  ...
+# Subtest: un cliente pausado no genera señales aunque esté roto
+ok 145 - un cliente pausado no genera señales aunque esté roto
+  ---
+  duration_ms: 0.216731
+  type: 'test'
+  ...
+# Subtest: el orden pone primero lo crítico y desempata alfabético (lista estable)
+ok 146 - el orden pone primero lo crítico y desempata alfabético (lista estable)
+  ---
+  duration_ms: 0.307129
+  type: 'test'
+  ...
+# Subtest: con la misma urgencia, el orden es determinístico entre recargas
+ok 147 - con la misma urgencia, el orden es determinístico entre recargas
+  ---
+  duration_ms: 0.437133
+  type: 'test'
+  ...
+# Subtest: ordenarPorUrgencia es estable aun con el MISMO alias: desempata por id
+ok 148 - ordenarPorUrgencia es estable aun con el MISMO alias: desempata por id
+  ---
+  duration_ms: 0.395895
+  type: 'test'
+  ...
+# Subtest: varias señales suman urgencia: el más roto queda arriba
+ok 149 - varias señales suman urgencia: el más roto queda arriba
+  ---
+  duration_ms: 0.263525
+  type: 'test'
+  ...
+# Subtest: la línea de la bandeja muestra la PEOR señal aunque una de atención vaya antes
+ok 150 - la línea de la bandeja muestra la PEOR señal aunque una de atención vaya antes
+  ---
+  duration_ms: 0.289933
+  type: 'test'
+  ...
+# Subtest: la cabecera cuenta por estado y aparte los que HOY no pueden emitir
+ok 151 - la cabecera cuenta por estado y aparte los que HOY no pueden emitir
+  ---
+  duration_ms: 0.370282
+  type: 'test'
+  ...
+# Subtest: cartera vacía: cabecera en cero, sin romper
+ok 152 - cartera vacía: cabecera en cero, sin romper
+  ---
+  duration_ms: 0.258634
+  type: 'test'
+  ...
+# Subtest: una fecha corrupta no rompe la evaluación ni inventa una señal
+ok 153 - una fecha corrupta no rompe la evaluación ni inventa una señal
+  ---
+  duration_ms: 0.312699
+  type: 'test'
+  ...
+# Subtest: cap en cero no divide por cero ni dispara alerta de cupo
+ok 154 - cap en cero no divide por cero ni dispara alerta de cupo
+  ---
+  duration_ms: 0.186213
+  type: 'test'
+  ...
+# Subtest: resumirMonitor sobre filas ya evaluadas es consistente con evaluarCartera
+ok 155 - resumirMonitor sobre filas ya evaluadas es consistente con evaluarCartera
+  ---
+  duration_ms: 1.349555
+  type: 'test'
+  ...
+# Subtest: el alta que trae el punto de venta deja al cliente sin el rojo de 'no puede emitir'
+ok 156 - el alta que trae el punto de venta deja al cliente sin el rojo de 'no puede emitir'
+  ---
+  duration_ms: 1.422924
+  type: 'test'
+  ...
+# Subtest: decidirPuntoVentaAlta: completa el que falta, nunca pisa, y avisa lo que no hizo
+ok 157 - decidirPuntoVentaAlta: completa el que falta, nunca pisa, y avisa lo que no hizo
+  ---
+  duration_ms: 0.525558
+  type: 'test'
+  ...
+# Subtest: un punto de venta mal tipeado frena el alta en vez de guardarse redondeado
+ok 158 - un punto de venta mal tipeado frena el alta en vez de guardarse redondeado
+  ---
+  duration_ms: 0.326031
+  type: 'test'
+  ...
+# Subtest: recolectarCliente: volumen y hechos en una pasada, con los relojes correctos
+ok 159 - recolectarCliente: volumen y hechos en una pasada, con los relojes correctos
+  ---
+  duration_ms: 4.696493
+  type: 'test'
+  ...
+# Subtest: recolectarCliente: la caja se mide desde el día siguiente al cierre, con la frontera leída con ESTE tx
+ok 160 - recolectarCliente: la caja se mide desde el día siguiente al cierre, con la frontera leída con ESTE tx
+  ---
+  duration_ms: 1.894095
+  type: 'test'
+  ...
+# Subtest: lastClosedDayTx: un cierre con día imposible (9999-12-31) no congela nada; manda el corte
+ok 161 - lastClosedDayTx: un cierre con día imposible (9999-12-31) no congela nada; manda el corte
+  ---
+  duration_ms: 0.755531
+  type: 'test'
+  ...
+# Subtest: recolectarCliente: caja cerrada hasta ayer y movimientos sólo de hoy → nada pendiente
+ok 162 - recolectarCliente: caja cerrada hasta ayer y movimientos sólo de hoy → nada pendiente
+  ---
+  duration_ms: 0.849431
+  type: 'test'
+  ...
+# Subtest: recorrerCartera: la metadata y cada pasada tocan sólo clientes de la cartera de ESTE estudio
+ok 163 - recorrerCartera: la metadata y cada pasada tocan sólo clientes de la cartera de ESTE estudio
+  ---
+  duration_ms: 1.281242
+  type: 'test'
+  ...
+# Subtest: recorrerCartera: cartera vacía no lee metadata
+ok 164 - recorrerCartera: cartera vacía no lee metadata
+  ---
+  duration_ms: 0.322931
+  type: 'test'
+  ...
+# Subtest: cartera-core.ts NO lleva 'use server': recolectarCliente lee con el tenantId que le pasan
+ok 165 - cartera-core.ts NO lleva 'use server': recolectarCliente lee con el tenantId que le pasan
+  ---
+  duration_ms: 0.505895
+  type: 'test'
+  ...
+# Subtest: ningún archivo 'use server' publica recolectarCliente ni recorrerCartera (ni re-exporta cartera-core)
+ok 166 - ningún archivo 'use server' publica recolectarCliente ni recorrerCartera (ni re-exporta cartera-core)
+  ---
+  duration_ms: 117.547657
+  type: 'test'
+  ...
+# Subtest: monitorCarteraAction no recibe parámetros y pasa por exigirEstudio antes de recorrer la cartera
+ok 167 - monitorCarteraAction no recibe parámetros y pasa por exigirEstudio antes de recorrer la cartera
+  ---
+  duration_ms: 0.555703
+  type: 'test'
+  ...
+# Subtest: fechaDePrueba: formatea AAAAMMDD desde un reloj inyectado
+ok 168 - fechaDePrueba: formatea AAAAMMDD desde un reloj inyectado
+  ---
+  duration_ms: 1.522519
+  type: 'test'
+  ...
+# Subtest: comprobanteDePrueba: pasa la validación local (Factura C, consumidor final)
+ok 169 - comprobanteDePrueba: pasa la validación local (Factura C, consumidor final)
+  ---
+  duration_ms: 4.243243
+  type: 'test'
+  ...
+# Subtest: comprobanteDePrueba: respeta overrides de puntoVenta y monto
+ok 170 - comprobanteDePrueba: respeta overrides de puntoVenta y monto
+  ---
+  duration_ms: 0.555477
+  type: 'test'
+  ...
+# Subtest: emitirFacturaDePrueba: con StubAfipClient devuelve CAE simulado
+ok 171 - emitirFacturaDePrueba: con StubAfipClient devuelve CAE simulado
+  ---
+  duration_ms: 1.767987
+  type: 'test'
+  ...
+# Subtest: emitirFacturaDePrueba: mapea ArcaRechazoError a motivo "rechazo"
+ok 172 - emitirFacturaDePrueba: mapea ArcaRechazoError a motivo "rechazo"
+  ---
+  duration_ms: 0.439707
+  type: 'test'
+  ...
+# Subtest: emitirFacturaDePrueba: mapea un error genérico (red/parseo) a motivo "error"
+ok 173 - emitirFacturaDePrueba: mapea un error genérico (red/parseo) a motivo "error"
+  ---
+  duration_ms: 0.296712
+  type: 'test'
+  ...
+1..173
+# tests 178
+# suites 0
+# pass 178
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7521.575397

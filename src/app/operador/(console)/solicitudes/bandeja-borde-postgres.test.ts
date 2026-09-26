@@ -59,7 +59,7 @@ test("pedidos de alta: pasado cualquier tope, nada desaparece en silencio", asyn
     const deA = await panel.pedidosDeAltaDelEstudio(base.a.id);
     assert.deepEqual(deA.enCurso.map((a) => a.id), ["abierto-501"]);
     assert.equal(deA.enCursoTotal, 1);
-    assert.deepEqual(deA.descartadas.map((d) => [d.id, d.motivo]), [["descartado-502", MOTIVO]]);
+    assert.deepEqual(deA.descartadas.map((d) => [d.id, d.motivo]), [["descartado-502", "Soporte GSG te escribe por WhatsApp."]]);
     assert.equal(deA.descartadasTotal, 1);
   });
 

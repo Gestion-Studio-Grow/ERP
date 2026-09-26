@@ -64,8 +64,8 @@ export default function PedirASoporte({
               <>
                 {p.motivo}{" "}
                 <span className="text-strong">
-                  Soporte GSG contestó el {fechaCorta(new Date(p.respuesta.resueltoEl))}: {TEXTO_RESULTADO[p.respuesta.resultado].toLowerCase()}
-                  {p.respuesta.respuesta ? ` («${p.respuesta.respuesta}»)` : ""}. Si sigue igual, pedilo de nuevo.
+                  Soporte GSG contestó el {fechaCorta(new Date(p.respuesta.resueltoEl))}: {TEXTO_RESULTADO[p.respuesta.resultado].toLowerCase()}.
+                  {p.respuesta.respuesta ? ` ${p.respuesta.respuesta}` : ""} Si sigue igual, pedilo de nuevo.
                 </span>
               </>
             ) : (

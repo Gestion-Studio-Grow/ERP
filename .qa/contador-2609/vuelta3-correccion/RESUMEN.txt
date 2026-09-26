@@ -1,0 +1,12 @@
+Corrección vuelta 3 · 26/09 · sin compilar ni reiniciar el servidor, sin migraciones, sin commit.
+ANTES (tests nuevos contra el código de hoy, HEAD 225a948, archivos de producción restaurados por md5): tests-ANTES-codigo-de-hoy.txt · 47 tests, 41 pasan, 6 fallan (los 5 nuevos + 1 padre).
+  - configurador-reglas: RI sin la Factura A que asignó ARCA se configuraba igual.
+  - cartera-alta-postgres: la contadora leía el motivo tal como lo escribía Soporte.
+  - cierre-mes: un día sin movimientos bloqueaba el congelado.
+  - recibidos-libro: la compra «a revisar» (IVA 150 sobre 1.000, 15 %) sumaba 150 al crédito.
+  - factura-de-prueba-postgres: la A a un inscripto no salía ni se guardaba.
+DESPUÉS: tests-DESPUES-final.txt · 235 tests: 232 pasan, 1 se saltea, 2 fallan. Las 2 fallas son de recibidos-libro-postgres
+  (el test padre y un subtest): esperaban el crédito VIEJO de 21.790,50, que incluía los 150 «a revisar». Se corrigió lo que
+  esperan (21.640,50) y se volvió a correr: tests-recibidos-libro-postgres.txt, 3 de 3.
+  Los 5 archivos con fallas intermedias se volvieron a correr juntos (cartera-alta, factura-de-prueba, envíos ARCA por negocio, duplicados, bandeja): 15 de 15.
+tsc: tsc.txt (0 errores). eslint --max-warnings=0 en lo tocado: eslint.txt (todas las pasadas con exit 0).

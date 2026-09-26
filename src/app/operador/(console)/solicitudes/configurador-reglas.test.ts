@@ -7,13 +7,14 @@ import {
   mensajeParaLaContadora,
   modulosDelAlta,
   sugerirPlan,
+  avisoDeOtrosLocales,
   validarConfiguracion,
 } from "./configurador-reglas";
 
 const BASE = {
   razonSocial: "Tienda Alma SRL",
   cuit: "30-71888999-1",
-  condicionIva: "RESPONSABLE_INSCRIPTO",
+  condicionIva: "RESPONSABLE_INSCRIPTO", regimenFacturaA: "A",
   puntoVenta: "3",
   rubro: "mostrador",
   plan: "comerciante",
@@ -126,4 +127,32 @@ test("la decisión ante los parecidos se lee del formulario: sin decidir, «otro
   assert.deepEqual(leerDecisionDuplicado("es:'; drop"), { tipo: "sin-decidir" });
   const v = validar({ razonSocial: "X SA", cuit: "20111111112", condicionIva: "MONOTRIBUTO", puntoVenta: "1", rubro: "mostrador", plan: "micro", email: "x@y.test", duplicado: "otro" });
   assert.ok(v.ok && v.config.duplicado.tipo === "otro");
+});
+
+test("QA 26/09 v4 · un Responsable Inscripto sin la Factura A que asignó ARCA no se configura; con ella, queda", () => {
+  const sin = validarConfiguracion({ ...BASE, regimenFacturaA: "" });
+  assert.equal(sin.ok, false);
+  assert.match(sin.ok ? "" : sin.error, /Factura A le asignó ARCA/);
+  assert.equal(validarConfiguracion({ ...BASE, regimenFacturaA: "B" }).ok, false, "sólo las clases que modela el código");
+  // «A con leyenda» (el sistema no la emite) pide la casilla de Soporte: QA vuelta 7, bloqueante 1.
+  assert.equal(validarConfiguracion({ ...BASE, regimenFacturaA: "A_CON_LEYENDA" }).ok, false);
+  const con = validarConfiguracion({ ...BASE, regimenFacturaA: "A_CON_LEYENDA", confirmaFacturaAFuera: "si" });
+  assert.equal(con.ok && con.config.regimenFacturaA, "A_CON_LEYENDA");
+  const mono = validarConfiguracion({ ...BASE, condicionIva: "MONOTRIBUTO", regimenFacturaA: "A" });
+  assert.equal(mono.ok && mono.config.regimenFacturaA, null);
+});
+
+test("QA 26/09 v4 · la Factura A vigente es la última que cargó Soporte GSG; una fila de otro origen no cuenta", async () => {
+  const { regimenVigente } = await import("@/lib/fiscal/regimen-factura-a");
+  assert.equal(regimenVigente([{ actor: "user:x", changes: { regimen: "M" } }, { actor: "operator:soporte", changes: { regimen: "A" } }]), "A");
+  assert.equal(regimenVigente([{ actor: "operator:soporte", changes: { regimen: "Z" } }]), null);
+  assert.equal(regimenVigente([]), null);
+});
+
+test("refutador vuelta 4 · con «varios locales», el recordatorio del camino real de los otros locales; si no, nada", () => {
+  const aviso = avisoDeOtrosLocales("varios-locales");
+  assert.match(aviso ?? "", /quedó la casa \(el primer local\)/);
+  assert.match(aviso ?? "", /«Dar de alta un negocio» → «¿De qué red\?»/);
+  assert.match(aviso ?? "", /punto de venta/);
+  for (const t of ["chico", "comercio", null, undefined, ""]) assert.equal(avisoDeOtrosLocales(t), null, String(t));
 });

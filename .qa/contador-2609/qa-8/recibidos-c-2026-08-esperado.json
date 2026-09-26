@@ -1,0 +1,11 @@
+{
+ "credito": "197407.93",
+ "percepciones": "20105.72",
+ "neto_gravado": "1083591.82",
+ "filas_validas_sin_revisar": 59,
+ "a_revisar": 2,
+ "iva_a_revisar_no_suma": "450.00",
+ "error": 1,
+ "duplicado_en_archivo": 1,
+ "filas": 63
+}

@@ -64,7 +64,9 @@ test("un pedido descartado se muestra con su motivo; si se volvió a pedir ese C
     { entityId: "p4", createdAt: new Date("2026-07-02T10:00:00Z"), changes: { motivo: "Viejo" } },
   ];
   const r = altasDescartadas(pedidos, descartes, ahora);
-  assert.deepEqual(r.map((x) => [x.id, x.motivo]), [["p1", "Ya está en tu cartera."]], "p2 se volvió a pedir (p3) y p4 tiene más de 30 días");
+  assert.deepEqual(r.map((x) => [x.id, x.motivo]), [["p1", "Soporte GSG te escribe por WhatsApp."]], "p2 se volvió a pedir (p3) y p4 tiene más de 30 días");
+  // QA 26/09, vuelta 4: un descarte viejo con el motivo escrito a mano NO se muestra tal cual: la
+  // contadora lee sólo textos de la lista cerrada (soporte/avisos-a-la-contadora.ts).
   assert.equal(r[0]!.cuit, "20111111112");
   assert.ok(!JSON.stringify(r).includes("soporte"), "no muestra quién de Soporte lo descartó");
 });

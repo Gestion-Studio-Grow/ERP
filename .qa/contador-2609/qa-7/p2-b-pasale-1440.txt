@@ -1,0 +1,41 @@
+URL http://localhost:3210/operador/solicitudes/cmuivqewv0001457d8agfc9qh
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+← Pedidos de alta
+Configurar a Ferretería Los Aromos SRL
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+6 · Pasale esto
+Todavía no se le puede exigir que cambie la contraseña en el primer ingreso: pedile que la cambie al entrar.
+Para el dueño del negocio
+Contraseña temporal para admin@losaromos.ejemplo.test. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+<TEMPORAL>
+Copiar
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+¡Hola! Ya está listo el sistema de Ferretería Los Aromos SRL.
+Entrá en: https://losaromos-v7.localhost/admin
+Usuario: admin@losaromos.ejemplo.test
+Contraseña: <TEMPORAL>
+Copiar
+Mandar por WhatsApp
+Para la contadora
+¡Hola! Ya está Ferretería Los Aromos SRL en tu cartera: CUIT 30-71843217-7, punto de venta 2.
+Entrá en: https://estudio.localhost/contador
+Copiar
+Mandar por WhatsApp
+Quedó registrado: lo dio de alta el dueño de GSG el 26/9/26, 18:07 (Historial de la ficha).
+Ir a la ficha del negocio
+Ir a la ficha del estudio
+Volver a los pedidos
+Hecho por Gestión Studio Grow

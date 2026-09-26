@@ -205,7 +205,13 @@ export type LecturaRecibidos =
       /** «clasico» (neto e IVA en una columna) o «por-alicuota» (diseño 2025). */
       diseno: "clasico" | "por-alicuota";
       comprobantes: ComprobanteRecibido[];
+      /** Filas que no entran por un error del archivo (el detalle dice cuál). */
       rechazos: RechazoRecibido[];
+      /**
+       * Filas que repiten un comprobante que ya está más arriba en el MISMO archivo: no son errores, el
+       * comprobante se toma una sola vez (QA vuelta 7: el aviso las contaba «con errores»).
+       */
+      repetidos: RechazoRecibido[];
     };
 
 export function claveRecibido(c: { cuitEmisor: string; tipo: number; puntoVenta: number; numero: number }): string {
@@ -471,26 +477,53 @@ function ivaEsperado(base: number, alicuotaId: number): number {
   return redondearAlCentavo((base * p) / 100);
 }
 
-/** Diseño clásico: un neto y un IVA. La alícuota se deduce SÓLO si una oficial cierra exacto. */
+/** La alícuota vigente más alta (27 %) y la de 0 %: los bordes de lo que una mezcla puede dar. */
+const ALICUOTA_MAS_ALTA = ALICUOTAS_RECIBIDAS.reduce((a, b) => (b.porcentaje > a.porcentaje ? b : a));
+const ALICUOTA_CERO = ALICUOTAS_RECIBIDAS.find((a) => a.porcentaje === 0)!;
+
+/** «15», «15,75»: el IVA como porcentaje del neto, para el motivo (no es plata). */
+const porcentajeDelNeto = (iva: number, neto: number) =>
+  new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format((iva / neto) * 100);
+
+/**
+ * Diseño clásico: un neto gravado y un IVA, sin el desglose por alícuota. PURA.
+ *   · Si UNA alícuota vigente cierra exacto, ése es el desglose. Con IVA cero, la que cierra es 0 %.
+ *   · Si ninguna cierra sola, queda «a revisar»: no suma al crédito hasta que la contadora mire el
+ *     comprobante y lo marque revisado (revisarRecibido; ahí suma, sin desglose). Puede ser una
+ *     factura con varias alícuotas (21 % + 10,5 % da cualquier cosa entre 10,5 y 21 %), pero con un
+ *     neto y un IVA sueltos no hay forma de distinguirla de un IVA mal informado (QA vuelta 5: un
+ *     15 % entraba al crédito del paquete FINAL), y el Libro IVA Digital pide el IVA por alícuota.
+ *     Reemplaza la regla del refutador 26/09 («la mezcla suma sola»): su objeción era que marcarla
+ *     la dejaba afuera del crédito sin forma de corregirlo, y hoy la corrección existe.
+ *   · Con más IVA que el 27 % del neto, o IVA sin neto gravado, ninguna mezcla lo explica: se dice así.
+ */
 function alicuotaDeduciendo(neto: number, iva: number): { desglose: LineaIvaRecibida[] | null; aRevisar: string | null } {
   if (neto === 0 && iva === 0) return { desglose: [], aRevisar: null };
-  if (neto > 0 && iva === 0) {
-    return {
-      desglose: null,
-      aRevisar: "Tiene neto gravado pero IVA en cero: confirmá si es 0% o si es exento o no gravado.",
-    };
+  if (neto === 0) {
+    return { desglose: null, aRevisar: "Tiene IVA pero no tiene neto gravado: revisá el comprobante." };
   }
+  if (iva === 0) return { desglose: [{ alicuotaId: ALICUOTA_CERO.id, base: neto, importe: 0 }], aRevisar: null };
   const candidatas = ALICUOTAS_RECIBIDAS.filter(
     (a) => a.porcentaje > 0 && Math.abs(ivaEsperado(neto, a.id) - iva) <= TOLERANCIA_IVA,
   );
   if (candidatas.length === 1) {
     return { desglose: [{ alicuotaId: candidatas[0].id, base: neto, importe: iva }], aRevisar: null };
   }
-  return {
-    desglose: null,
-    aRevisar:
-      "El IVA no corresponde a una sola alícuota (puede tener varias): cargá el desglose mirando el comprobante.",
-  };
+  if (iva > ivaEsperado(neto, ALICUOTA_MAS_ALTA.id) + TOLERANCIA_IVA) {
+    return {
+      desglose: null,
+      aRevisar: `El IVA es más del ${ALICUOTA_MAS_ALTA.etiqueta.replace("%", " %")} del neto gravado: ninguna alícuota vigente lo explica. Revisá el comprobante.`,
+    };
+  }
+  if (neto > 0 && iva > 0) {
+    return {
+      desglose: null,
+      aRevisar:
+        `El IVA es el ${porcentajeDelNeto(iva, neto)} % del neto gravado y ninguna alícuota sola da eso. ` +
+        "El archivo clásico de ARCA no separa el IVA por alícuota: si es una factura con varias, marcala revisada y suma al crédito.",
+    };
+  }
+  return { desglose: null, aRevisar: "El IVA no cierra con el neto gravado: revisá el comprobante." };
 }
 
 // ---------------------------------------------------------------------------
@@ -539,6 +572,7 @@ export function leerRecibidos(matriz: readonly (readonly CeldaRecibida[])[]): Le
   const diseno: "clasico" | "por-alicuota" = porAlicuota.size > 0 ? "por-alicuota" : "clasico";
   const comprobantes: ComprobanteRecibido[] = [];
   const rechazos: RechazoRecibido[] = [];
+  const repetidos: RechazoRecibido[] = [];
   const vistas = new Map<string, number>();
 
   filas.forEach((fila, k) => {
@@ -661,7 +695,10 @@ export function leerRecibidos(matriz: readonly (readonly CeldaRecibida[])[]): Le
 
     const clave = claveRecibido({ cuitEmisor, tipo, puntoVenta, numero });
     const previa = vistas.get(clave);
-    if (previa != null) return rechazar(`Está repetido en el archivo (ya aparece en la fila ${previa}).`, rotulo);
+    if (previa != null) {
+      repetidos.push({ fila: nFila, comprobante: rotulo, motivo: `Está repetido en el archivo (ya aparece en la fila ${previa}): se toma una sola vez.` });
+      return;
+    }
     vistas.set(clave, nFila);
 
     // A pesos, con la regla única de redondeo.
@@ -688,7 +725,7 @@ export function leerRecibidos(matriz: readonly (readonly CeldaRecibida[])[]): Le
     });
   });
 
-  return { ok: true, cuitDelArchivo, diseno, comprobantes, rechazos };
+  return { ok: true, cuitDelArchivo, diseno, comprobantes, rechazos, repetidos };
 }
 
 // ---------------------------------------------------------------------------
@@ -705,10 +742,14 @@ export interface ResumenRecibidos {
   exento: number;
   otrosTributos: number;
   iva: number;
-  /** IVA crédito fiscal por alícuota (sólo lo que tiene desglose). */
+  /** IVA crédito fiscal por alícuota: lo que suma y tiene desglose. */
   ivaPorAlicuota: { alicuotaId: number; etiqueta: string; base: number; importe: number }[];
-  /** IVA de comprobantes «a revisar»: está en el total de IVA pero no en ninguna alícuota. */
+  /** IVA que SUMA al crédito sin desglose por alícuota (los «a revisar» que la contadora revisó). */
   ivaSinAlicuota: number;
+  /** IVA de los comprobantes «a revisar»: NO suma al crédito hasta que se revisen. */
+  ivaARevisar: number;
+  /** El crédito fiscal del mes: la suma de `creditoFiscalDelRecibido` (lo mismo que el archivo y el Libro IVA). */
+  creditoFiscal: number;
   total: number;
 }
 
@@ -717,13 +758,31 @@ type ParaResumir = Pick<
   "tipo" | "neto" | "noGravado" | "exento" | "otrosTributos" | "iva" | "total" | "desglose" | "aRevisar"
 >;
 
+/**
+ * Lo que un comprobante recibido suma al crédito fiscal del mes, con su signo (la nota de crédito
+ * resta). Sólo A y M discriminan IVA; «a revisar» suma 0 hasta que la contadora lo revise. PURA.
+ * Es la ÚNICA regla: la usan la pantalla (resumirRecibidos), el archivo para el libro de IVA compras
+ * (recibidos-export.ts) y el Libro IVA y el paquete del negocio (recibidos-libro.ts). QA vuelta 5:
+ * el archivo sumaba la fila marcada y la pantalla no.
+ */
+export function creditoFiscalDelRecibido(c: { tipo: number; iva: number; aRevisar: string | null }): number {
+  if (c.aRevisar != null || c.iva === 0 || !discriminaIva(c.tipo)) return 0;
+  return esNotaDeCreditoRecibida(c.tipo) ? -c.iva : c.iva;
+}
+
 export function resumirRecibidos(lista: readonly ParaResumir[]): ResumenRecibidos {
   const s = (c: ParaResumir) => (esNotaDeCreditoRecibida(c.tipo) ? -1 : 1);
   const sumar = (f: (c: ParaResumir) => number) => sumarAlCentavo(lista.map((c) => s(c) * f(c)));
   const porAlicuota = new Map<number, { base: number[]; importe: number[] }>();
   const sinAlicuota: number[] = [];
+  const aRevisar: number[] = [];
   for (const c of lista) {
     if (!discriminaIva(c.tipo)) continue;
+    // Marcado: afuera del crédito, tenga o no desglose (un total que no cierra conserva sus líneas).
+    if (c.aRevisar != null) {
+      aRevisar.push(s(c) * c.iva);
+      continue;
+    }
     if (c.desglose == null) {
       sinAlicuota.push(s(c) * c.iva);
       continue;
@@ -752,6 +811,34 @@ export function resumirRecibidos(lista: readonly ParaResumir[]): ResumenRecibido
       importe: sumarAlCentavo(porAlicuota.get(a.id)!.importe),
     })),
     ivaSinAlicuota: sumarAlCentavo(sinAlicuota),
+    ivaARevisar: sumarAlCentavo(aRevisar),
+    creditoFiscal: sumarAlCentavo(lista.map(creditoFiscalDelRecibido)),
     total: sumar((c) => c.total),
   };
+}
+
+/** Rótulo de la marca «a revisar» dentro de `notes` de la compra (sin columna propia hasta M1). */
+export const NOTA_A_REVISAR = "A revisar:";
+
+/** La marca «a revisar» de una compra, leída de sus notas; null si no tiene. PURA. */
+export function aRevisarDeNotas(notes: string | null): string | null {
+  if (!notes) return null;
+  const i = notes.indexOf(NOTA_A_REVISAR);
+  return i === -1 ? null : notes.slice(i + NOTA_A_REVISAR.length).trim();
+}
+
+/** Lo que queda en `notes` después de que la contadora revisó el comprobante (revisarRecibido). */
+export const NOTA_REVISADO = "Revisado por";
+
+/**
+ * Las notas de una compra «a revisar» ya revisada: la marca se reemplaza por quién y cuándo la revisó,
+ * con lo que decía (para la auditoría). Sin la marca, el Libro IVA la cuenta. PURA.
+ */
+export function notasRevisadas(notes: string, por: string, fecha: string): string {
+  const i = notes.indexOf(NOTA_A_REVISAR);
+  if (i === -1) return notes;
+  const sinMarca = (s: string) => s.split(NOTA_A_REVISAR).join("").replace(/\s+/g, " ").trim();
+  const motivo = sinMarca(notes.slice(i + NOTA_A_REVISAR.length));
+  const quien = sinMarca(por).slice(0, 80) || "el estudio";
+  return `${notes.slice(0, i).trimEnd()} ${NOTA_REVISADO} ${quien} el ${fecha}: su IVA suma al crédito fiscal (estaba marcado: ${motivo})`.trim();
 }

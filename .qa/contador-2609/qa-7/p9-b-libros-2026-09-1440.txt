@@ -1,0 +1,86 @@
+URL http://losaromos-v7.localhost:3210/admin/libros?mes=2026-09
+
+Saltar al contenido
+FL
+Ferretería Los Aromos SRL
+Buscar en el menú
+Inicio
+Clientes
+Pedidos
+Caja
+Libro de caja
+Cierre del día
+Cierre del mes
+Catálogo
+Compras
+Ajustes
+Reseñas
+Recordatorios
+Facturación
+Reportes
+Campañas
+Auditoría
+Usuarios
+Localización
+Apariencia
+Cuentas a cobrar
+Libros
+F
+Ferretería Los Aromos SRL
+Dueño/a
+Cerrar sesión
+Ferretería Los Aromos SRL
+Panel de administración
+Libro IVA
+El IVA de septiembre 2026: los comprobantes emitidos y, aparte, lo vendido sin comprobante y las compras, como control para tu contador.
+Descargar el mes (CSV)
+← Agosto 2026
+Septiembre 2026
+Comprobantes (neto)
+$0,00
+0 comprobantes con CAE
+IVA débito
+$0,00
+El IVA de los comprobantes emitidos
+IVA crédito
+$24.640,50
+El IVA de las facturas de proveedor cargadas
+IVA a pagar
+—
+Todavía no hay comprobantes con CAE de septiembre.
+Facturas de prueba (2)
+CAE simulado del modo prueba: no se declaran ni cuentan para los topes. No están en los totales de abajo.
+Factura A 00002-00000001 · 26/09/2026 · 20111111112
+$1.210,00
+Factura B 00002-00000001 · 26/09/2026 · Consumidor final
+$1.210,00
+Comprobantes emitidos
+Con CAE de ARCA. Es lo que se declara.
+Comprobantes emitidos del mes
+Fecha
+	TIPO	NÚMERO	CLIENTE	Neto
+	ALÍC.	IVA
+	Total
+	
+No hay comprobantes con CAE este mes
+Las facturas se emiten desde Facturación. Si tu negocio todavía no factura desde el sistema, este bloque queda vacío.
+Ir a Facturación
+Ventas sin comprobante (control)
+Pedidos y turnos cobrados que no tienen factura con CAE. No se declaran ni llevan IVA calculado: son para que tu contador sepa qué se vendió sin facturar.
+Ventas sin comprobante del mes
+Fecha
+	TIPO	REFERENCIA	CLIENTE	Total
+Todo lo cobrado este mes tiene comprobante
+Compras (control)
+Las que tienen la factura del proveedor (las que carga tu contador desde ARCA) dan crédito fiscal; las cargadas sin factura, no. Si te falta alguna, pasale la factura a tu contador.
+Compras del mes
+Fecha
+	PROVEEDOR	DOCUMENTO	NÚMERO	Total
+2026-09-02	DISTRIBUIDORA DEL SUR SA	CUIT 30700000008	Factura A 00003-00002001	$12.100,00
+2026-09-04	DISTRIBUIDORA DEL SUR SA	CUIT 30700000008	Factura A 00003-00002002	$13.830,00
+2026-09-08	ALMACEN LA ESQUINA SRL	CUIT 30700000016	Factura B 00005-00000301	$2.420,00
+2026-09-10	SERVICIOS DE LIMPIEZA MONOTRIBUTO	CUIT 30700000024	Factura C 00002-00000077	$8.000,00
+2026-09-14	DISTRIBUIDORA DEL SUR SA	CUIT 30700000008	Nota de crédito A 00003-00000090	-$1.210,00
+2026-09-15	IMPORTADORA DEL PLATA SA	CUIT 30700000032	Factura A 00010-00000700	$121.060,50
+2026-09-18	FERRETERIA NORTE SA	CUIT 30700000040	Factura A 00007-00000950	$1.150,00
+2026-09-23	ALMACEN LA ESQUINA SRL	CUIT 30700000016	Factura A 00004-00003001	$1.270,00

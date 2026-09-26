@@ -1,0 +1,54 @@
+URL http://delplata-v7.localhost:3210/admin/locales/ventas
+Saltar al contenido
+DD
+Distribuidora Del Plata SA
+Buscar en el menú
+Inicio
+Clientes
+Pedidos
+Caja
+Libro de caja
+Cierre del día
+Cierre del mes
+Catálogo
+Compras
+Ajustes
+Reseñas
+Recordatorios
+Facturación
+Reportes
+Campañas
+Auditoría
+Usuarios
+Localización
+Apariencia
+Cuentas a pagar
+Cuentas a cobrar
+Libros
+Devoluciones a proveedor
+D
+Distribuidora Del Plata SA
+Dueño/a
+Cerrar sesión
+Distribuidora Del Plata SA
+Panel de administración
+Ventas por local
+Distribuidora Del Plata SA
+Del 21/09/2026 al 26/09/2026: lo cobrado por ventas en cada local, menos las anulaciones, según la caja de cada uno.
+Hoy
+Ventas
+Cajas
+Desde
+Hasta
+Local
+Todos los locales
+Sarandí
+Ver
+Total de la red: $0,00 · 0 cobros
+Descargar para la contadora
+Sarandí
+CUIT 30-71843225-8 · punto de venta 4
+$0,00
+Efectivo $0,00 · MP / Transf. $0,00 · Tarjeta $0,00
+0 cobros · 0 días con movimiento
+No hubo ventas en estas fechas. Probá con otro rango.

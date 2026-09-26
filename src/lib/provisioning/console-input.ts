@@ -55,6 +55,17 @@ export interface RawWizardForm {
   contactNote?: string;
   // Paso 3 · Red de locales (opcional)
   /**
+   * «¿De qué red?» del wizard: la casa elegida. El commit deja en el local recién creado la marca del
+   * alta para esa casa (multilocal-core, `marcarAltaParaLaRedEnTx`); sin marca no entra por el alta.
+   */
+  redCasaId?: string;
+  /**
+   * El CUIT y el punto de venta escritos en «¿De qué red?» (vacío = el de la casa). El commit repite con
+   * ellos la revisión de la red ANTES de crear: si no cierra, no crea nada (QA vuelta 7, bloqueante 2).
+   */
+  redCuit?: string;
+  redPuntoVenta?: string;
+  /**
    * Un local que nace dentro de una red (Mis locales) no lleva el catálogo de ejemplo del rubro:
    * nace vacío y recibe la lista de la casa. Sólo el valor `true` lo activa.
    */

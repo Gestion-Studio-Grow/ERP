@@ -288,3 +288,48 @@ test("la purga de auditoría (18 meses) no borra el cierre del mes: si no, un me
   assert.equal(wheres.length, 2);
   for (const w of wheres) assert.ok(w.entity?.notIn?.includes(CIERRE_MES_ENTITY), "la purga tiene que dejar las filas del cierre del mes");
 });
+
+test("QA 26/09 v4 · un día sin movimientos no bloquea el congelado; un día CON movimientos sin cerrar, sí", () => {
+  const sinMov = evaluarPasos(agostoEnOrden({ caja: { usaCaja: false, cerradoHasta: null, movimientosSinCerrar: false } }), ABIERTO);
+  const p1 = sinMov.find((p) => p.id === "dias-cerrados")!;
+  assert.equal(p1.estado, "listo");
+  assert.equal(p1.bloquea, false);
+  assert.equal(validarCongelar({ mes: "2026-08", hoy: HOY, pasos: sinMov, estado: ABIERTO, confirmaPendientes: true }).ok, true);
+  const hasta20 = evaluarPasos(agostoEnOrden({ caja: { usaCaja: true, cerradoHasta: "2026-08-20", movimientosSinCerrar: false } }), ABIERTO);
+  assert.equal(validarCongelar({ mes: "2026-08", hoy: HOY, pasos: hasta20, estado: ABIERTO, confirmaPendientes: true }).ok, true);
+  const conMov = evaluarPasos(agostoEnOrden({ caja: { usaCaja: true, cerradoHasta: "2026-08-20", movimientosSinCerrar: true } }), ABIERTO);
+  assert.equal(conMov.find((p) => p.id === "dias-cerrados")!.bloquea, true);
+  assert.equal(validarCongelar({ mes: "2026-08", hoy: HOY, pasos: conMov, estado: ABIERTO, confirmaPendientes: true }).ok, false);
+});
+
+test("refutador vuelta 4 · casa de una red: un local del mismo CUIT con días con movimientos sin cerrar bloquea el congelado", () => {
+  const bernal = { nombre: "Río Chico Bernal", puntoVenta: 4, cerradoHasta: "2026-08-19", movimientosSinCerrar: true, comprobantes: { total: 2, sinCae: 0, rechazados: 0 } };
+  const pasos = evaluarPasos(agostoEnOrden({ locales: [bernal] }), ABIERTO);
+  const dias = pasos.find((p) => p.id === "dias-cerrados")!;
+  assert.deepEqual([dias.estado, dias.bloquea], ["pendiente", true]);
+  assert.match(dias.detalle, /«Río Chico Bernal» \(punto de venta 4\) tiene días con movimientos de caja sin cerrar hasta el 31\/08\/2026/);
+  assert.equal(dias.accion?.href, "/admin/locales/cajas");
+  const v = validarCongelar({ mes: "2026-08", hoy: HOY, pasos, estado: ABIERTO, confirmaPendientes: true });
+  assert.equal(v.ok, false, "ni confirmando: su IVA va en el mismo paquete");
+  // El local cerró hasta el 31, o no tuvo movimientos: no bloquea.
+  for (const l of [{ ...bernal, cerradoHasta: "2026-08-31" }, { ...bernal, movimientosSinCerrar: false }]) {
+    const ok = evaluarPasos(agostoEnOrden({ locales: [l] }), ABIERTO);
+    assert.equal(ok.find((p) => p.id === "dias-cerrados")!.estado, "listo");
+    assert.equal(validarCongelar({ mes: "2026-08", hoy: HOY, pasos: ok, estado: ABIERTO, confirmaPendientes: true }).ok, true);
+  }
+  // La caja de la casa también sin cerrar: un solo paso, con los dos motivos.
+  const ambos = evaluarPasos(agostoEnOrden({ caja: { usaCaja: true, cerradoHasta: "2026-08-20" }, locales: [bernal] }), ABIERTO);
+  const d2 = ambos.find((p) => p.id === "dias-cerrados")!;
+  assert.match(d2.detalle, /falta cerrar hasta el 31\/08\/2026.*Río Chico Bernal/);
+  assert.equal(ambos.filter((p) => p.id === "dias-cerrados").length, 1);
+});
+
+test("refutador vuelta 4 · los comprobantes sin CAE o rechazados de un local del mismo CUIT cuentan en el paso 2, con su nombre", () => {
+  const bernal = { nombre: "Río Chico Bernal", puntoVenta: 4, cerradoHasta: "2026-08-31", movimientosSinCerrar: false, comprobantes: { total: 5, sinCae: 1, rechazados: 1 } };
+  const paso2 = evaluarPasos(agostoEnOrden({ locales: [bernal] }), ABIERTO).find((p) => p.id === "comprobantes-con-cae")!;
+  assert.equal(paso2.estado, "pendiente");
+  assert.match(paso2.detalle, /^1 comprobante sigue sin CAE · 1 rechazado por ARCA/);
+  assert.match(paso2.detalle, /Incluye los de «Río Chico Bernal» \(punto de venta 4\): se revisan en la Facturación de ese local\./);
+  const todoBien = evaluarPasos(agostoEnOrden({ locales: [{ ...bernal, comprobantes: { total: 5, sinCae: 0, rechazados: 0 } }] }), ABIERTO);
+  assert.equal(todoBien.find((p) => p.id === "comprobantes-con-cae")!.detalle, "45 comprobantes, todos con CAE.", "suma los del local");
+});

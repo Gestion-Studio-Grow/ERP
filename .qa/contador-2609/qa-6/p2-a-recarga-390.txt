@@ -1,0 +1,15 @@
+URL http://localhost:3210/operador/solicitudes/cmuirsdni0000nx7dfykt3n2n
+Saltar al contenido
+G
+Pedidos
+← Pedidos de alta
+Configurar a Lucía Benítez Diseño Gráfico
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+Este pedido ya está cerrado: el cliente quedó configurado. Si hace falta cambiar algo, se hace desde su ficha.
+Ir a la ficha del negocio
+Hecho por Gestión Studio Grow
+Negocios
+Pedidos
+Dirección
+Diseño
+Alta

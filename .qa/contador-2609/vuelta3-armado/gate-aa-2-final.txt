@@ -1,0 +1,760 @@
+GATE_START 18:07:50
+
+> estetica-erp@0.1.0 gate:visual:aa
+> node scripts/qa/visual-audit-gate.mjs
+
+[36m[gate:aa][0m PGlite en 127.0.0.1:54330
+[36m[gate:aa][0m migraciones aplicadas in-process: 47
+[36m[gate:aa][0m seed: tenants QA + magra …
+✔ Tenants QA sembrados (además de magra-demo):
+  · estetica-demo  subdomain=estetica  rubro=servicios   login=admin@estetica-demo / ERP
+      modules=[agenda, catalog, clients, waitlist, reminders, reports, commissions]
+  · velas-demo     subdomain=velas     rubro=velas       login=admin@velas-demo / ERP
+      modules=[pos, catalog, clients, reports]
+  · padel-demo     subdomain=padel     rubro=padel       login=admin@padel-demo / ERP
+      modules=[pos, catalog, clients, reports]
+  (magra-demo lo siembra `npm run seed:magra`, mismo login admin@magra-demo / ERP.)
+✔ Magra DEMO sembrada: slug="magra-demo" profile="lite" (id=cmuipd8gr0000a37d3mvp1n9o)
+  8 productos (2 con stock bajo) · 2 proveedores · 2 compras · 2 ventas · 2 cuentas a pagar (1 con cheque diferido, 1 vencida) · 2 fiados (1 con cobro parcial).
+  👤 Login backoffice → email: admin@magra-demo · contraseña: ERP (rol OWNER, DEMO).
+  Entrá por el slug "magra-demo" en el preview. Perfil actual: Comercio.
+[36m[gate:aa][0m interruptor 'Trabaja por apps': prendido en magra, padel y velas (estetica apagada, como CH)
+[36m[gate:aa][0m fixture: 4 tenants (estetica, magra, padel, velas)
+[36m[gate:aa][0m next start en http://127.0.0.1:3211 …
+▲ Next.js 16.3.4
+- Local:         http://localhost:3211
+- Network:       http://192.0.2.2:3211
+✓ Ready in 229ms
+✓ Running next.config.ts took 70ms
+
+🎨 Auditoría visual — 4 tenants × 59 rutas × {desktop,mobile 412px} · toque ≥ 44px
+⨯ upstream image response failed for https://api.dicebear.com/9.x/lorelei/png?seed=Ana%20(DEMO)&size=128&backgroundColor=e6ddce 403
+  ✓ estetica-home-desktop                  contraste:0  touch:0  overflow:0  (rev 45 txt, 0 s/img)
+  ✓ estetica-home-mobile                   contraste:0  touch:0  overflow:0  (rev 42 txt, 0 s/img)
+  ✓ estetica-reserva-desktop               contraste:0  touch:0  overflow:0  (rev 15 txt, 0 s/img)
+  ✓ estetica-reserva-mobile                contraste:0  touch:0  overflow:0  (rev 12 txt, 0 s/img)
+  ✓ estetica-admin-login-desktop           contraste:0  touch:0  overflow:0  (rev 7 txt, 0 s/img)
+  ✓ estetica-admin-login-mobile            contraste:0  touch:0  overflow:0  (rev 7 txt, 0 s/img)
+  ✓ estetica-admin-no-disponible-desktop   contraste:0  touch:0  overflow:0  (rev 9 txt, 0 s/img)
+  ✓ estetica-admin-no-disponible-mobile    contraste:0  touch:0  overflow:0  (rev 9 txt, 0 s/img)
+  ✓ estetica-admin-auditoria-filtrada-desktop contraste:0  touch:0  overflow:0  (rev 43 txt, 0 s/img)
+  ✓ estetica-admin-auditoria-filtrada-mobile contraste:0  touch:0  overflow:0  (rev 18 txt, 0 s/img)
+  ✓ estetica-app-inicio-desktop            contraste:0  touch:0  overflow:0  (rev 43 txt, 0 s/img)
+  ✓ estetica-app-inicio-mobile             contraste:0  touch:0  overflow:0  (rev 18 txt, 0 s/img)
+  ✓ estetica-app-auditoria-desktop         contraste:0  touch:0  overflow:0  (rev 42 txt, 0 s/img)
+  ✓ estetica-app-auditoria-mobile          contraste:0  touch:0  overflow:0  (rev 17 txt, 0 s/img)
+  ✓ estetica-app-usuarios-desktop          contraste:0  touch:0  overflow:0  (rev 44 txt, 0 s/img)
+  ✓ estetica-app-usuarios-mobile           contraste:0  touch:0  overflow:0  (rev 19 txt, 0 s/img)
+  ✓ estetica-app-datos-del-negocio-desktop contraste:0  touch:0  overflow:0  (rev 46 txt, 0 s/img)
+  ✓ estetica-app-datos-del-negocio-mobile  contraste:0  touch:0  overflow:0  (rev 21 txt, 0 s/img)
+  ✓ estetica-app-apariencia-desktop        contraste:0  touch:0  overflow:0  (rev 44 txt, 0 s/img)
+  ✓ estetica-app-apariencia-mobile         contraste:0  touch:0  overflow:0  (rev 19 txt, 0 s/img)
+  ✓ estetica-app-agenda-desktop            contraste:0  touch:0  overflow:0  (rev 67 txt, 0 s/img)
+  ✓ estetica-app-agenda-mobile             contraste:0  touch:0  overflow:0  (rev 30 txt, 0 s/img)
+  ✓ estetica-app-confirmar-manana-desktop  contraste:0  touch:0  overflow:0  (rev 35 txt, 0 s/img)
+  ✓ estetica-app-confirmar-manana-mobile   contraste:0  touch:0  overflow:0  (rev 10 txt, 0 s/img)
+  ✓ estetica-app-clientes-desktop          contraste:0  touch:0  overflow:0  (rev 32 txt, 0 s/img)
+  ✓ estetica-app-clientes-mobile           contraste:0  touch:0  overflow:0  (rev 7 txt, 0 s/img)
+  ✓ estetica-app-lista-de-espera-desktop   contraste:0  touch:0  overflow:0  (rev 41 txt, 0 s/img)
+  ✓ estetica-app-lista-de-espera-mobile    contraste:0  touch:0  overflow:0  (rev 16 txt, 0 s/img)
+  ✓ estetica-app-para-contactar-hoy-desktop contraste:0  touch:0  overflow:0  (rev 42 txt, 0 s/img)
+  ✓ estetica-app-para-contactar-hoy-mobile contraste:0  touch:0  overflow:0  (rev 17 txt, 0 s/img)
+  ✓ estetica-app-clientas-por-recuperar-desktop contraste:0  touch:0  overflow:0  (rev 37 txt, 0 s/img)
+  ✓ estetica-app-clientas-por-recuperar-mobile contraste:0  touch:0  overflow:0  (rev 12 txt, 0 s/img)
+  ✓ estetica-app-unificar-fichas-desktop   contraste:0  touch:0  overflow:0  (rev 36 txt, 0 s/img)
+  ✓ estetica-app-unificar-fichas-mobile    contraste:0  touch:0  overflow:0  (rev 11 txt, 0 s/img)
+  ✓ estetica-app-resenas-desktop           contraste:0  touch:0  overflow:0  (rev 31 txt, 0 s/img)
+  ✓ estetica-app-resenas-mobile            contraste:0  touch:0  overflow:0  (rev 6 txt, 0 s/img)
+  ✓ estetica-app-recordatorios-desktop     contraste:0  touch:0  overflow:0  (rev 45 txt, 0 s/img)
+  ✓ estetica-app-recordatorios-mobile      contraste:0  touch:0  overflow:0  (rev 20 txt, 0 s/img)
+  ✓ estetica-app-campanias-desktop         contraste:0  touch:0  overflow:0  (rev 35 txt, 0 s/img)
+  ✓ estetica-app-campanias-mobile          contraste:0  touch:0  overflow:0  (rev 10 txt, 0 s/img)
+  · estetica-app-vender-desktop            omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ estetica-app-pedidos-desktop           contraste:0  touch:0  overflow:0  (rev 38 txt, 0 s/img)
+  ✓ estetica-app-pedidos-mobile            contraste:0  touch:0  overflow:0  (rev 13 txt, 0 s/img)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · estetica-app-ventas-del-dia-desktop    omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ estetica-app-catalogo-desktop          contraste:0  touch:0  overflow:0  (rev 124 txt, 0 s/img)
+  ✓ estetica-app-catalogo-mobile           contraste:0  touch:0  overflow:0  (rev 88 txt, 0 s/img)
+  ✓ estetica-app-promociones-desktop       contraste:0  touch:0  overflow:0  (rev 34 txt, 0 s/img)
+  ✓ estetica-app-promociones-mobile        contraste:0  touch:0  overflow:0  (rev 9 txt, 0 s/img)
+  ✓ estetica-app-recibir-mercaderia-desktop contraste:0  touch:0  overflow:0  (rev 32 txt, 0 s/img)
+  ✓ estetica-app-recibir-mercaderia-mobile contraste:0  touch:0  overflow:0  (rev 7 txt, 0 s/img)
+  ✓ estetica-app-mermas-desktop            contraste:0  touch:0  overflow:0  (rev 32 txt, 0 s/img)
+  ✓ estetica-app-mermas-mobile             contraste:0  touch:0  overflow:0  (rev 7 txt, 0 s/img)
+  ✓ estetica-app-proveedores-desktop       contraste:0  touch:0  overflow:0  (rev 40 txt, 0 s/img)
+  ✓ estetica-app-proveedores-mobile        contraste:0  touch:0  overflow:0  (rev 15 txt, 0 s/img)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · estetica-app-devoluciones-a-proveedor-desktop omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ estetica-app-caja-del-dia-desktop      contraste:0  touch:0  overflow:0  (rev 58 txt, 0 s/img)
+  ✓ estetica-app-caja-del-dia-mobile       contraste:0  touch:0  overflow:0  (rev 33 txt, 0 s/img)
+  ✓ estetica-app-libro-de-caja-desktop     contraste:0  touch:0  overflow:0  (rev 78 txt, 0 s/img)
+  ✓ estetica-app-libro-de-caja-mobile      contraste:0  touch:0  overflow:0  (rev 64 txt, 0 s/img)
+  ✓ estetica-app-cierre-del-dia-desktop    contraste:0  touch:0  overflow:0  (rev 83 txt, 0 s/img)
+  ✓ estetica-app-cierre-del-dia-mobile     contraste:0  touch:0  overflow:0  (rev 69 txt, 0 s/img)
+  ✓ estetica-app-facturacion-desktop       contraste:0  touch:0  overflow:0  (rev 55 txt, 0 s/img)
+  ✓ estetica-app-facturacion-mobile        contraste:0  touch:0  overflow:0  (rev 25 txt, 0 s/img)
+  ✓ estetica-app-facturacion-automatica-desktop contraste:0  touch:0  overflow:0  (rev 64 txt, 0 s/img)
+  ✓ estetica-app-facturacion-automatica-mobile contraste:0  touch:0  overflow:0  (rev 39 txt, 0 s/img)
+  ✓ estetica-app-cierre-del-mes-desktop    contraste:0  touch:0  overflow:0  (rev 63 txt, 0 s/img)
+  ✓ estetica-app-cierre-del-mes-mobile     contraste:0  touch:0  overflow:0  (rev 38 txt, 0 s/img)
+  ✓ estetica-app-reportes-desktop          contraste:0  touch:0  overflow:0  (rev 82 txt, 0 s/img)
+  ✓ estetica-app-reportes-mobile           contraste:0  touch:0  overflow:0  (rev 57 txt, 0 s/img)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · estetica-app-cuentas-a-pagar-desktop   omitida: no está en este negocio (fue a /admin/no-disponible)
+  · estetica-app-cuentas-a-cobrar-desktop  omitida: no está en este negocio (fue a /admin/no-disponible)
+  · estetica-app-libro-iva-desktop         omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ estetica-app-margen-desktop            contraste:0  touch:0  overflow:0  (rev 40 txt, 0 s/img)
+  ✓ estetica-app-margen-mobile             contraste:0  touch:0  overflow:0  (rev 15 txt, 0 s/img)
+  ✓ estetica-app-resultado-del-mes-desktop contraste:0  touch:0  overflow:0  (rev 34 txt, 0 s/img)
+  ✓ estetica-app-resultado-del-mes-mobile  contraste:0  touch:0  overflow:0  (rev 9 txt, 0 s/img)
+  ✓ estetica-app-flujo-de-fondos-desktop   contraste:0  touch:0  overflow:0  (rev 66 txt, 0 s/img)
+  ✓ estetica-app-flujo-de-fondos-mobile    contraste:0  touch:0  overflow:0  (rev 41 txt, 0 s/img)
+  ✓ estetica-app-retenciones-y-percepciones-desktop contraste:0  touch:0  overflow:0  (rev 34 txt, 0 s/img)
+  ✓ estetica-app-retenciones-y-percepciones-mobile contraste:0  touch:0  overflow:0  (rev 9 txt, 0 s/img)
+  ✓ estetica-app-comisiones-desktop        contraste:0  touch:0  overflow:0  (rev 38 txt, 0 s/img)
+  ✓ estetica-app-comisiones-mobile         contraste:0  touch:0  overflow:0  (rev 13 txt, 0 s/img)
+  · estetica-app-mis-locales-desktop       omitida: no está en este negocio (fue a /admin/no-disponible)
+  · estetica-app-ventas-por-local-desktop  omitida: no está en este negocio (fue a /admin/no-disponible)
+  · estetica-app-cajas-de-los-locales-desktop omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ magra-home-desktop                     contraste:0  touch:0  overflow:0  (rev 123 txt, 26 s/img)
+  ✓ magra-home-mobile                      contraste:0  touch:0  overflow:0  (rev 121 txt, 20 s/img)
+  ✓ magra-tienda-desktop                   contraste:0  touch:0  overflow:0  (rev 123 txt, 26 s/img)
+  ✓ magra-tienda-mobile                    contraste:0  touch:0  overflow:0  (rev 121 txt, 20 s/img)
+  ✓ magra-admin-login-desktop              contraste:0  touch:0  overflow:0  (rev 7 txt, 0 s/img)
+  ✓ magra-admin-login-mobile               contraste:0  touch:0  overflow:0  (rev 7 txt, 0 s/img)
+  ✓ magra-admin-no-disponible-desktop      contraste:0  touch:0  overflow:0  (rev 9 txt, 0 s/img)
+  ✓ magra-admin-no-disponible-mobile       contraste:0  touch:0  overflow:0  (rev 9 txt, 0 s/img)
+  ✓ magra-admin-auditoria-filtrada-desktop contraste:0  touch:0  overflow:0  (rev 38 txt, 0 s/img)
+  ✓ magra-admin-auditoria-filtrada-mobile  contraste:0  touch:0  overflow:0  (rev 23 txt, 0 s/img)
+{"ts":"2026-09-26T18:11:05.694Z","level":"info","scope":"kpi","msg":"tile","kpi":"vender","ms":27,"espera":5,"estado":"ok"}
+{"ts":"2026-09-26T18:11:05.718Z","level":"info","scope":"kpi","msg":"tile","kpi":"pedidos","ms":25,"espera":31,"estado":"ok"}
+{"ts":"2026-09-26T18:11:05.744Z","level":"info","scope":"kpi","msg":"tile","kpi":"ventas-del-dia","ms":26,"espera":56,"estado":"ok"}
+{"ts":"2026-09-26T18:11:05.761Z","level":"info","scope":"kpi","msg":"tile","kpi":"caja-del-dia","ms":17,"espera":81,"estado":"ok"}
+{"ts":"2026-09-26T18:11:05.767Z","level":"info","scope":"kpi","msg":"tile","kpi":"cierre-del-dia","ms":5,"espera":98,"estado":"ok"}
+{"ts":"2026-09-26T18:11:05.774Z","level":"info","scope":"kpi","msg":"tile","kpi":"clientes","ms":7,"espera":104,"estado":"ok"}
+{"ts":"2026-09-26T18:11:05.817Z","level":"info","scope":"kpi","msg":"tile","kpi":"para-contactar-hoy","ms":44,"espera":111,"estado":"ok"}
+{"ts":"2026-09-26T18:11:05.895Z","level":"info","scope":"kpi","msg":"tile","kpi":"clientas-por-recuperar","ms":77,"espera":154,"estado":"ok"}
+{"ts":"2026-09-26T18:11:05.899Z","level":"info","scope":"kpi","msg":"tile","kpi":"unificar-fichas","ms":4,"espera":232,"estado":"ok"}
+{"ts":"2026-09-26T18:11:05.943Z","level":"info","scope":"kpi","msg":"tile","kpi":"catalogo","ms":45,"espera":236,"estado":"ok"}
+{"ts":"2026-09-26T18:11:05.957Z","level":"info","scope":"kpi","msg":"tile","kpi":"actualizar-precios","ms":14,"espera":280,"estado":"sin-dato"}
+{"ts":"2026-09-26T18:11:05.961Z","level":"info","scope":"kpi","msg":"tile","kpi":"etiquetas-de-precio","ms":4,"espera":294,"estado":"ok"}
+{"ts":"2026-09-26T18:11:05.971Z","level":"info","scope":"kpi","msg":"tile","kpi":"promociones","ms":10,"espera":298,"estado":"ok"}
+{"ts":"2026-09-26T18:11:05.988Z","level":"info","scope":"kpi","msg":"tile","kpi":"facturacion","ms":17,"espera":308,"estado":"ok"}
+{"ts":"2026-09-26T18:11:06.004Z","level":"info","scope":"kpi","msg":"tile","kpi":"cierre-del-mes","ms":16,"espera":325,"estado":"ok"}
+{"ts":"2026-09-26T18:11:06.020Z","level":"info","scope":"kpi","msg":"tile","kpi":"reportes","ms":16,"espera":341,"estado":"ok"}
+{"ts":"2026-09-26T18:11:06.084Z","level":"info","scope":"kpi","msg":"tile","kpi":"margen","ms":64,"espera":357,"estado":"ok"}
+{"ts":"2026-09-26T18:11:06.098Z","level":"info","scope":"kpi","msg":"tile","kpi":"flujo-de-fondos","ms":14,"espera":421,"estado":"ok"}
+{"ts":"2026-09-26T18:11:06.107Z","level":"info","scope":"kpi","msg":"tile","kpi":"usuarios","ms":9,"espera":434,"estado":"ok"}
+{"ts":"2026-09-26T18:11:06.119Z","level":"info","scope":"kpi","msg":"tile","kpi":"auditoria","ms":12,"espera":444,"estado":"ok"}
+  ✓ magra-app-inicio-desktop               contraste:0  touch:0  overflow:0  (rev 109 txt, 0 s/img)
+{"ts":"2026-09-26T18:11:08.972Z","level":"info","scope":"kpi","msg":"tile","kpi":"vender","ms":8,"espera":3,"estado":"ok"}
+{"ts":"2026-09-26T18:11:08.988Z","level":"info","scope":"kpi","msg":"tile","kpi":"pedidos","ms":16,"espera":10,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.019Z","level":"info","scope":"kpi","msg":"tile","kpi":"ventas-del-dia","ms":32,"espera":26,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.026Z","level":"info","scope":"kpi","msg":"tile","kpi":"caja-del-dia","ms":7,"espera":57,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.030Z","level":"info","scope":"kpi","msg":"tile","kpi":"cierre-del-dia","ms":4,"espera":64,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.036Z","level":"info","scope":"kpi","msg":"tile","kpi":"clientes","ms":6,"espera":68,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.087Z","level":"info","scope":"kpi","msg":"tile","kpi":"para-contactar-hoy","ms":51,"espera":74,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.178Z","level":"info","scope":"kpi","msg":"tile","kpi":"clientas-por-recuperar","ms":91,"espera":125,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.282Z","level":"info","scope":"kpi","msg":"tile","kpi":"unificar-fichas","ms":104,"espera":216,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.359Z","level":"info","scope":"kpi","msg":"tile","kpi":"catalogo","ms":77,"espera":320,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.376Z","level":"info","scope":"kpi","msg":"tile","kpi":"actualizar-precios","ms":17,"espera":397,"estado":"sin-dato"}
+{"ts":"2026-09-26T18:11:09.383Z","level":"info","scope":"kpi","msg":"tile","kpi":"etiquetas-de-precio","ms":7,"espera":414,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.395Z","level":"info","scope":"kpi","msg":"tile","kpi":"promociones","ms":12,"espera":421,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.439Z","level":"info","scope":"kpi","msg":"tile","kpi":"facturacion","ms":43,"espera":433,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.480Z","level":"info","scope":"kpi","msg":"tile","kpi":"cierre-del-mes","ms":42,"espera":477,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.485Z","level":"info","scope":"kpi","msg":"tile","kpi":"reportes","ms":5,"espera":518,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.515Z","level":"info","scope":"kpi","msg":"tile","kpi":"margen","ms":30,"espera":523,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.524Z","level":"info","scope":"kpi","msg":"tile","kpi":"flujo-de-fondos","ms":9,"espera":553,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.533Z","level":"info","scope":"kpi","msg":"tile","kpi":"usuarios","ms":9,"espera":562,"estado":"ok"}
+{"ts":"2026-09-26T18:11:09.535Z","level":"info","scope":"kpi","msg":"tile","kpi":"auditoria","ms":3,"espera":571,"estado":"ok"}
+  ✓ magra-app-inicio-mobile                contraste:0  touch:0  overflow:0  (rev 94 txt, 0 s/img)
+  ✓ magra-app-auditoria-desktop            contraste:0  touch:0  overflow:0  (rev 41 txt, 0 s/img)
+  ✓ magra-app-auditoria-mobile             contraste:0  touch:0  overflow:0  (rev 24 txt, 0 s/img)
+  ✓ magra-app-usuarios-desktop             contraste:0  touch:0  overflow:0  (rev 38 txt, 0 s/img)
+  ✓ magra-app-usuarios-mobile              contraste:0  touch:0  overflow:0  (rev 23 txt, 0 s/img)
+  ✓ magra-app-datos-del-negocio-desktop    contraste:0  touch:0  overflow:0  (rev 41 txt, 0 s/img)
+  ✓ magra-app-datos-del-negocio-mobile     contraste:0  touch:0  overflow:0  (rev 26 txt, 0 s/img)
+  ✓ magra-app-apariencia-desktop           contraste:0  touch:0  overflow:0  (rev 39 txt, 0 s/img)
+  ✓ magra-app-apariencia-mobile            contraste:0  touch:0  overflow:0  (rev 24 txt, 0 s/img)
+  ✓ magra-app-clientes-desktop             contraste:0  touch:0  overflow:0  (rev 38 txt, 0 s/img)
+  ✓ magra-app-clientes-mobile              contraste:0  touch:0  overflow:0  (rev 23 txt, 0 s/img)
+  ✓ magra-app-para-contactar-hoy-desktop   contraste:0  touch:0  overflow:0  (rev 36 txt, 0 s/img)
+  ✓ magra-app-para-contactar-hoy-mobile    contraste:0  touch:0  overflow:0  (rev 21 txt, 0 s/img)
+  ✓ magra-app-clientas-por-recuperar-desktop contraste:0  touch:0  overflow:0  (rev 32 txt, 0 s/img)
+  ✓ magra-app-clientas-por-recuperar-mobile contraste:0  touch:0  overflow:0  (rev 17 txt, 0 s/img)
+  ✓ magra-app-unificar-fichas-desktop      contraste:0  touch:0  overflow:0  (rev 31 txt, 0 s/img)
+  ✓ magra-app-unificar-fichas-mobile       contraste:0  touch:0  overflow:0  (rev 16 txt, 0 s/img)
+  · magra-app-campanias-desktop            omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ magra-app-vender-desktop               contraste:0  touch:0  overflow:0  (rev 38 txt, 0 s/img)
+  ✓ magra-app-vender-mobile                contraste:0  touch:0  overflow:0  (rev 23 txt, 0 s/img)
+  ✓ magra-app-pedidos-desktop              contraste:0  touch:0  overflow:0  (rev 46 txt, 0 s/img)
+  ✓ magra-app-pedidos-mobile               contraste:0  touch:0  overflow:0  (rev 31 txt, 0 s/img)
+  ✓ magra-app-ventas-del-dia-desktop       contraste:0  touch:0  overflow:0  (rev 35 txt, 0 s/img)
+  ✓ magra-app-ventas-del-dia-mobile        contraste:0  touch:0  overflow:0  (rev 20 txt, 0 s/img)
+  ✓ magra-app-catalogo-desktop             contraste:0  touch:0  overflow:0  (rev 136 txt, 0 s/img)
+  ✓ magra-app-catalogo-mobile              contraste:0  touch:0  overflow:0  (rev 132 txt, 0 s/img)
+  ✓ magra-app-actualizar-precios-desktop   contraste:0  touch:0  overflow:0  (rev 45 txt, 0 s/img)
+  ✓ magra-app-actualizar-precios-mobile    contraste:0  touch:0  overflow:0  (rev 30 txt, 0 s/img)
+  ✓ magra-app-etiquetas-de-precio-desktop  contraste:0  touch:0  overflow:0  (rev 57 txt, 0 s/img)
+  ✓ magra-app-etiquetas-de-precio-mobile   contraste:0  touch:0  overflow:0  (rev 42 txt, 0 s/img)
+  ✓ magra-app-promociones-desktop          contraste:0  touch:0  overflow:0  (rev 29 txt, 0 s/img)
+  ✓ magra-app-promociones-mobile           contraste:0  touch:0  overflow:0  (rev 14 txt, 0 s/img)
+  · magra-app-inventario-desktop           omitida: no está en este negocio (fue a /admin/no-disponible)
+  · magra-app-movimientos-desktop          omitida: no está en este negocio (fue a /admin/no-disponible)
+  · magra-app-recuento-desktop             omitida: no está en este negocio (fue a /admin/no-disponible)
+  · magra-app-recibir-mercaderia-desktop   omitida: no está en este negocio (fue a /admin/no-disponible)
+  · magra-app-mermas-desktop               omitida: no está en este negocio (fue a /admin/no-disponible)
+  · magra-app-proveedores-desktop          omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · magra-app-sugerido-de-compra-desktop   omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ magra-app-lotes-y-vencimientos-desktop contraste:0  touch:0  overflow:0  (rev 26 txt, 0 s/img)
+  ✓ magra-app-lotes-y-vencimientos-mobile  contraste:0  touch:0  overflow:0  (rev 11 txt, 0 s/img)
+  ✓ magra-app-despiece-desktop             contraste:0  touch:0  overflow:0  (rev 26 txt, 0 s/img)
+  ✓ magra-app-despiece-mobile              contraste:0  touch:0  overflow:0  (rev 11 txt, 0 s/img)
+  · magra-app-devoluciones-a-proveedor-desktop omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ magra-app-caja-del-dia-desktop         contraste:0  touch:0  overflow:0  (rev 62 txt, 0 s/img)
+  ✓ magra-app-caja-del-dia-mobile          contraste:0  touch:0  overflow:0  (rev 47 txt, 0 s/img)
+  ✓ magra-app-libro-de-caja-desktop        contraste:0  touch:0  overflow:0  (rev 73 txt, 0 s/img)
+  ✓ magra-app-libro-de-caja-mobile         contraste:0  touch:0  overflow:0  (rev 69 txt, 0 s/img)
+  ✓ magra-app-cierre-del-dia-desktop       contraste:0  touch:0  overflow:0  (rev 72 txt, 0 s/img)
+  ✓ magra-app-cierre-del-dia-mobile        contraste:0  touch:0  overflow:0  (rev 68 txt, 0 s/img)
+  ✓ magra-app-facturacion-desktop          contraste:0  touch:0  overflow:0  (rev 52 txt, 0 s/img)
+  ✓ magra-app-facturacion-mobile           contraste:0  touch:0  overflow:0  (rev 32 txt, 0 s/img)
+  ✓ magra-app-facturacion-automatica-desktop contraste:0  touch:0  overflow:0  (rev 59 txt, 0 s/img)
+  ✓ magra-app-facturacion-automatica-mobile contraste:0  touch:0  overflow:0  (rev 44 txt, 0 s/img)
+  ✓ magra-app-cierre-del-mes-desktop       contraste:0  touch:0  overflow:0  (rev 58 txt, 0 s/img)
+  ✓ magra-app-cierre-del-mes-mobile        contraste:0  touch:0  overflow:0  (rev 43 txt, 0 s/img)
+  ✓ magra-app-reportes-desktop             contraste:0  touch:0  overflow:0  (rev 51 txt, 0 s/img)
+  ✓ magra-app-reportes-mobile              contraste:0  touch:0  overflow:0  (rev 36 txt, 0 s/img)
+  · magra-app-cuentas-a-pagar-desktop      omitida: no está en este negocio (fue a /admin/no-disponible)
+  · magra-app-cuentas-a-cobrar-desktop     omitida: no está en este negocio (fue a /admin/no-disponible)
+  · magra-app-libro-iva-desktop            omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ magra-app-margen-desktop               contraste:0  touch:0  overflow:0  (rev 59 txt, 0 s/img)
+  ✓ magra-app-margen-mobile                contraste:0  touch:0  overflow:0  (rev 44 txt, 0 s/img)
+  ✓ magra-app-resultado-del-mes-desktop    contraste:0  touch:0  overflow:0  (rev 30 txt, 0 s/img)
+  ✓ magra-app-resultado-del-mes-mobile     contraste:0  touch:0  overflow:0  (rev 15 txt, 0 s/img)
+  ✓ magra-app-flujo-de-fondos-desktop      contraste:0  touch:0  overflow:0  (rev 82 txt, 0 s/img)
+  ✓ magra-app-flujo-de-fondos-mobile       contraste:0  touch:0  overflow:0  (rev 67 txt, 0 s/img)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · magra-app-retenciones-y-percepciones-desktop omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · magra-app-mis-locales-desktop          omitida: no está en este negocio (fue a /admin/no-disponible)
+  · magra-app-ventas-por-local-desktop     omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · magra-app-cajas-de-los-locales-desktop omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · magra-app-stock-por-local-desktop      omitida: no está en este negocio (fue a /admin/no-disponible)
+  · magra-app-catalogo-de-la-marca-desktop omitida: no está en este negocio (fue a /admin/no-disponible)
+  · magra-app-traslados-desktop            omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ padel-home-desktop                     contraste:0  touch:0  overflow:0  (rev 49 txt, 0 s/img)
+  ✓ padel-home-mobile                      contraste:0  touch:0  overflow:0  (rev 49 txt, 0 s/img)
+  ✓ padel-tienda-desktop                   contraste:0  touch:0  overflow:0  (rev 49 txt, 0 s/img)
+  ✓ padel-tienda-mobile                    contraste:0  touch:0  overflow:0  (rev 49 txt, 0 s/img)
+  ✓ padel-admin-login-desktop              contraste:0  touch:0  overflow:0  (rev 7 txt, 0 s/img)
+  ✓ padel-admin-login-mobile               contraste:0  touch:0  overflow:0  (rev 7 txt, 0 s/img)
+  ✓ padel-admin-no-disponible-desktop      contraste:0  touch:0  overflow:0  (rev 8 txt, 0 s/img)
+  ✓ padel-admin-no-disponible-mobile       contraste:0  touch:0  overflow:0  (rev 8 txt, 0 s/img)
+  ✓ padel-admin-auditoria-filtrada-desktop contraste:0  touch:0  overflow:0  (rev 37 txt, 0 s/img)
+  ✓ padel-admin-auditoria-filtrada-mobile  contraste:0  touch:0  overflow:0  (rev 23 txt, 0 s/img)
+{"ts":"2026-09-26T18:13:57.813Z","level":"info","scope":"kpi","msg":"tile","kpi":"vender","ms":5,"espera":2,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.824Z","level":"info","scope":"kpi","msg":"tile","kpi":"pedidos","ms":11,"espera":8,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.835Z","level":"info","scope":"kpi","msg":"tile","kpi":"ventas-del-dia","ms":10,"espera":19,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.844Z","level":"info","scope":"kpi","msg":"tile","kpi":"caja-del-dia","ms":9,"espera":29,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.850Z","level":"info","scope":"kpi","msg":"tile","kpi":"cierre-del-dia","ms":6,"espera":38,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.854Z","level":"info","scope":"kpi","msg":"tile","kpi":"clientes","ms":4,"espera":45,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.865Z","level":"info","scope":"kpi","msg":"tile","kpi":"para-contactar-hoy","ms":11,"espera":49,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.871Z","level":"info","scope":"kpi","msg":"tile","kpi":"clientas-por-recuperar","ms":6,"espera":60,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.874Z","level":"info","scope":"kpi","msg":"tile","kpi":"unificar-fichas","ms":3,"espera":66,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.887Z","level":"info","scope":"kpi","msg":"tile","kpi":"catalogo","ms":13,"espera":69,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.891Z","level":"info","scope":"kpi","msg":"tile","kpi":"actualizar-precios","ms":4,"espera":81,"estado":"sin-dato"}
+{"ts":"2026-09-26T18:13:57.896Z","level":"info","scope":"kpi","msg":"tile","kpi":"etiquetas-de-precio","ms":5,"espera":85,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.900Z","level":"info","scope":"kpi","msg":"tile","kpi":"promociones","ms":5,"espera":90,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.905Z","level":"info","scope":"kpi","msg":"tile","kpi":"cierre-del-mes","ms":5,"espera":95,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.915Z","level":"info","scope":"kpi","msg":"tile","kpi":"reportes","ms":9,"espera":100,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.926Z","level":"info","scope":"kpi","msg":"tile","kpi":"margen","ms":12,"espera":109,"estado":"sin-dato"}
+{"ts":"2026-09-26T18:13:57.930Z","level":"info","scope":"kpi","msg":"tile","kpi":"flujo-de-fondos","ms":5,"espera":120,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.934Z","level":"info","scope":"kpi","msg":"tile","kpi":"usuarios","ms":4,"espera":125,"estado":"ok"}
+{"ts":"2026-09-26T18:13:57.939Z","level":"info","scope":"kpi","msg":"tile","kpi":"auditoria","ms":5,"espera":129,"estado":"ok"}
+  ✓ padel-app-inicio-desktop               contraste:0  touch:0  overflow:0  (rev 105 txt, 0 s/img)
+{"ts":"2026-09-26T18:14:00.499Z","level":"info","scope":"kpi","msg":"tile","kpi":"vender","ms":10,"espera":4,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.505Z","level":"info","scope":"kpi","msg":"tile","kpi":"pedidos","ms":7,"espera":14,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.510Z","level":"info","scope":"kpi","msg":"tile","kpi":"ventas-del-dia","ms":4,"espera":21,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.532Z","level":"info","scope":"kpi","msg":"tile","kpi":"caja-del-dia","ms":23,"espera":25,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.551Z","level":"info","scope":"kpi","msg":"tile","kpi":"cierre-del-dia","ms":18,"espera":47,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.563Z","level":"info","scope":"kpi","msg":"tile","kpi":"clientes","ms":12,"espera":66,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.585Z","level":"info","scope":"kpi","msg":"tile","kpi":"para-contactar-hoy","ms":23,"espera":78,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.593Z","level":"info","scope":"kpi","msg":"tile","kpi":"clientas-por-recuperar","ms":8,"espera":101,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.596Z","level":"info","scope":"kpi","msg":"tile","kpi":"unificar-fichas","ms":2,"espera":108,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.615Z","level":"info","scope":"kpi","msg":"tile","kpi":"catalogo","ms":19,"espera":111,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.619Z","level":"info","scope":"kpi","msg":"tile","kpi":"actualizar-precios","ms":4,"espera":130,"estado":"sin-dato"}
+{"ts":"2026-09-26T18:14:00.622Z","level":"info","scope":"kpi","msg":"tile","kpi":"etiquetas-de-precio","ms":4,"espera":134,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.626Z","level":"info","scope":"kpi","msg":"tile","kpi":"promociones","ms":4,"espera":137,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.637Z","level":"info","scope":"kpi","msg":"tile","kpi":"cierre-del-mes","ms":11,"espera":141,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.647Z","level":"info","scope":"kpi","msg":"tile","kpi":"reportes","ms":10,"espera":152,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.662Z","level":"info","scope":"kpi","msg":"tile","kpi":"margen","ms":15,"espera":162,"estado":"sin-dato"}
+{"ts":"2026-09-26T18:14:00.674Z","level":"info","scope":"kpi","msg":"tile","kpi":"flujo-de-fondos","ms":12,"espera":177,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.679Z","level":"info","scope":"kpi","msg":"tile","kpi":"usuarios","ms":5,"espera":188,"estado":"ok"}
+{"ts":"2026-09-26T18:14:00.686Z","level":"info","scope":"kpi","msg":"tile","kpi":"auditoria","ms":7,"espera":193,"estado":"ok"}
+  ✓ padel-app-inicio-mobile                contraste:0  touch:0  overflow:0  (rev 91 txt, 0 s/img)
+  ✓ padel-app-auditoria-desktop            contraste:0  touch:0  overflow:0  (rev 40 txt, 0 s/img)
+  ✓ padel-app-auditoria-mobile             contraste:0  touch:0  overflow:0  (rev 24 txt, 0 s/img)
+  ✓ padel-app-usuarios-desktop             contraste:0  touch:0  overflow:0  (rev 37 txt, 0 s/img)
+  ✓ padel-app-usuarios-mobile              contraste:0  touch:0  overflow:0  (rev 23 txt, 0 s/img)
+  ✓ padel-app-datos-del-negocio-desktop    contraste:0  touch:0  overflow:0  (rev 40 txt, 0 s/img)
+  ✓ padel-app-datos-del-negocio-mobile     contraste:0  touch:0  overflow:0  (rev 26 txt, 0 s/img)
+  ✓ padel-app-apariencia-desktop           contraste:0  touch:0  overflow:0  (rev 38 txt, 0 s/img)
+  ✓ padel-app-apariencia-mobile            contraste:0  touch:0  overflow:0  (rev 24 txt, 0 s/img)
+  ✓ padel-app-clientes-desktop             contraste:0  touch:0  overflow:0  (rev 33 txt, 0 s/img)
+  ✓ padel-app-clientes-mobile              contraste:0  touch:0  overflow:0  (rev 19 txt, 0 s/img)
+  ✓ padel-app-para-contactar-hoy-desktop   contraste:0  touch:0  overflow:0  (rev 35 txt, 0 s/img)
+  ✓ padel-app-para-contactar-hoy-mobile    contraste:0  touch:0  overflow:0  (rev 21 txt, 0 s/img)
+  ✓ padel-app-clientas-por-recuperar-desktop contraste:0  touch:0  overflow:0  (rev 31 txt, 0 s/img)
+  ✓ padel-app-clientas-por-recuperar-mobile contraste:0  touch:0  overflow:0  (rev 17 txt, 0 s/img)
+  ✓ padel-app-unificar-fichas-desktop      contraste:0  touch:0  overflow:0  (rev 30 txt, 0 s/img)
+  ✓ padel-app-unificar-fichas-mobile       contraste:0  touch:0  overflow:0  (rev 16 txt, 0 s/img)
+  · padel-app-campanias-desktop            omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ padel-app-vender-desktop               contraste:0  touch:0  overflow:0  (rev 37 txt, 0 s/img)
+  ✓ padel-app-vender-mobile                contraste:0  touch:0  overflow:0  (rev 23 txt, 0 s/img)
+  ✓ padel-app-pedidos-desktop              contraste:0  touch:0  overflow:0  (rev 42 txt, 0 s/img)
+  ✓ padel-app-pedidos-mobile               contraste:0  touch:0  overflow:0  (rev 28 txt, 0 s/img)
+  ✓ padel-app-ventas-del-dia-desktop       contraste:0  touch:0  overflow:0  (rev 47 txt, 0 s/img)
+  ✓ padel-app-ventas-del-dia-mobile        contraste:0  touch:0  overflow:0  (rev 33 txt, 0 s/img)
+  ✓ padel-app-catalogo-desktop             contraste:0  touch:0  overflow:0  (rev 135 txt, 0 s/img)
+  ✓ padel-app-catalogo-mobile              contraste:0  touch:0  overflow:0  (rev 155 txt, 0 s/img)
+  ✓ padel-app-actualizar-precios-desktop   contraste:0  touch:0  overflow:0  (rev 43 txt, 0 s/img)
+  ✓ padel-app-actualizar-precios-mobile    contraste:0  touch:0  overflow:0  (rev 29 txt, 0 s/img)
+  ✓ padel-app-etiquetas-de-precio-desktop  contraste:0  touch:0  overflow:0  (rev 59 txt, 0 s/img)
+  ✓ padel-app-etiquetas-de-precio-mobile   contraste:0  touch:0  overflow:0  (rev 45 txt, 0 s/img)
+  ✓ padel-app-promociones-desktop          contraste:0  touch:0  overflow:0  (rev 28 txt, 0 s/img)
+  ✓ padel-app-promociones-mobile           contraste:0  touch:0  overflow:0  (rev 14 txt, 0 s/img)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · padel-app-inventario-desktop           omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · padel-app-movimientos-desktop          omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · padel-app-recuento-desktop             omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · padel-app-recibir-mercaderia-desktop   omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · padel-app-mermas-desktop               omitida: no está en este negocio (fue a /admin/no-disponible)
+  · padel-app-proveedores-desktop          omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · padel-app-sugerido-de-compra-desktop   omitida: no está en este negocio (fue a /admin/no-disponible)
+  · padel-app-devoluciones-a-proveedor-desktop omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ padel-app-caja-del-dia-desktop         contraste:0  touch:0  overflow:0  (rev 61 txt, 0 s/img)
+  ✓ padel-app-caja-del-dia-mobile          contraste:0  touch:0  overflow:0  (rev 47 txt, 0 s/img)
+  ✓ padel-app-libro-de-caja-desktop        contraste:0  touch:0  overflow:0  (rev 72 txt, 0 s/img)
+  ✓ padel-app-libro-de-caja-mobile         contraste:0  touch:0  overflow:0  (rev 69 txt, 0 s/img)
+  ✓ padel-app-cierre-del-dia-desktop       contraste:0  touch:0  overflow:0  (rev 71 txt, 0 s/img)
+  ✓ padel-app-cierre-del-dia-mobile        contraste:0  touch:0  overflow:0  (rev 68 txt, 0 s/img)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · padel-app-facturacion-desktop          omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ padel-app-facturacion-automatica-desktop contraste:0  touch:0  overflow:0  (rev 58 txt, 0 s/img)
+  ✓ padel-app-facturacion-automatica-mobile contraste:0  touch:0  overflow:0  (rev 44 txt, 0 s/img)
+  ✓ padel-app-cierre-del-mes-desktop       contraste:0  touch:0  overflow:0  (rev 57 txt, 0 s/img)
+  ✓ padel-app-cierre-del-mes-mobile        contraste:0  touch:0  overflow:0  (rev 43 txt, 0 s/img)
+  ✓ padel-app-reportes-desktop             contraste:0  touch:0  overflow:0  (rev 53 txt, 0 s/img)
+  ✓ padel-app-reportes-mobile              contraste:0  touch:0  overflow:0  (rev 39 txt, 0 s/img)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · padel-app-cuentas-a-pagar-desktop      omitida: no está en este negocio (fue a /admin/no-disponible)
+  · padel-app-cuentas-a-cobrar-desktop     omitida: no está en este negocio (fue a /admin/no-disponible)
+  · padel-app-libro-iva-desktop            omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ padel-app-margen-desktop               contraste:0  touch:0  overflow:0  (rev 34 txt, 0 s/img)
+  ✓ padel-app-margen-mobile                contraste:0  touch:0  overflow:0  (rev 20 txt, 0 s/img)
+  ✓ padel-app-resultado-del-mes-desktop    contraste:0  touch:0  overflow:0  (rev 29 txt, 0 s/img)
+  ✓ padel-app-resultado-del-mes-mobile     contraste:0  touch:0  overflow:0  (rev 15 txt, 0 s/img)
+  ✓ padel-app-flujo-de-fondos-desktop      contraste:0  touch:0  overflow:0  (rev 60 txt, 0 s/img)
+  ✓ padel-app-flujo-de-fondos-mobile       contraste:0  touch:0  overflow:0  (rev 46 txt, 0 s/img)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · padel-app-retenciones-y-percepciones-desktop omitida: no está en este negocio (fue a /admin/no-disponible)
+  · padel-app-mis-locales-desktop          omitida: no está en este negocio (fue a /admin/no-disponible)
+  · padel-app-ventas-por-local-desktop     omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · padel-app-cajas-de-los-locales-desktop omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · padel-app-stock-por-local-desktop      omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · padel-app-catalogo-de-la-marca-desktop omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · padel-app-traslados-desktop            omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ velas-home-desktop                     contraste:0  touch:0  overflow:0  (rev 49 txt, 0 s/img)
+  ✓ velas-home-mobile                      contraste:0  touch:0  overflow:0  (rev 49 txt, 0 s/img)
+  ✓ velas-tienda-desktop                   contraste:0  touch:0  overflow:0  (rev 49 txt, 0 s/img)
+  ✓ velas-tienda-mobile                    contraste:0  touch:0  overflow:0  (rev 49 txt, 0 s/img)
+  ✓ velas-admin-login-desktop              contraste:0  touch:0  overflow:0  (rev 7 txt, 0 s/img)
+  ✓ velas-admin-login-mobile               contraste:0  touch:0  overflow:0  (rev 7 txt, 0 s/img)
+  ✓ velas-admin-no-disponible-desktop      contraste:0  touch:0  overflow:0  (rev 8 txt, 0 s/img)
+  ✓ velas-admin-no-disponible-mobile       contraste:0  touch:0  overflow:0  (rev 8 txt, 0 s/img)
+  ✓ velas-admin-auditoria-filtrada-desktop contraste:0  touch:0  overflow:0  (rev 37 txt, 0 s/img)
+  ✓ velas-admin-auditoria-filtrada-mobile  contraste:0  touch:0  overflow:0  (rev 23 txt, 0 s/img)
+{"ts":"2026-09-26T18:16:31.693Z","level":"info","scope":"kpi","msg":"tile","kpi":"vender","ms":7,"espera":2,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.700Z","level":"info","scope":"kpi","msg":"tile","kpi":"pedidos","ms":7,"espera":9,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.706Z","level":"info","scope":"kpi","msg":"tile","kpi":"ventas-del-dia","ms":6,"espera":16,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.711Z","level":"info","scope":"kpi","msg":"tile","kpi":"caja-del-dia","ms":5,"espera":22,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.720Z","level":"info","scope":"kpi","msg":"tile","kpi":"cierre-del-dia","ms":9,"espera":27,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.726Z","level":"info","scope":"kpi","msg":"tile","kpi":"clientes","ms":6,"espera":36,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.733Z","level":"info","scope":"kpi","msg":"tile","kpi":"para-contactar-hoy","ms":8,"espera":42,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.739Z","level":"info","scope":"kpi","msg":"tile","kpi":"clientas-por-recuperar","ms":5,"espera":49,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.742Z","level":"info","scope":"kpi","msg":"tile","kpi":"unificar-fichas","ms":3,"espera":54,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.769Z","level":"info","scope":"kpi","msg":"tile","kpi":"catalogo","ms":27,"espera":58,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.775Z","level":"info","scope":"kpi","msg":"tile","kpi":"actualizar-precios","ms":6,"espera":85,"estado":"sin-dato"}
+{"ts":"2026-09-26T18:16:31.779Z","level":"info","scope":"kpi","msg":"tile","kpi":"etiquetas-de-precio","ms":4,"espera":91,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.801Z","level":"info","scope":"kpi","msg":"tile","kpi":"promociones","ms":21,"espera":95,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.809Z","level":"info","scope":"kpi","msg":"tile","kpi":"cierre-del-mes","ms":8,"espera":116,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.828Z","level":"info","scope":"kpi","msg":"tile","kpi":"reportes","ms":20,"espera":125,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.892Z","level":"info","scope":"kpi","msg":"tile","kpi":"margen","ms":64,"espera":144,"estado":"sin-dato"}
+{"ts":"2026-09-26T18:16:31.897Z","level":"info","scope":"kpi","msg":"tile","kpi":"flujo-de-fondos","ms":5,"espera":208,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.913Z","level":"info","scope":"kpi","msg":"tile","kpi":"usuarios","ms":16,"espera":213,"estado":"ok"}
+{"ts":"2026-09-26T18:16:31.928Z","level":"info","scope":"kpi","msg":"tile","kpi":"auditoria","ms":15,"espera":229,"estado":"ok"}
+  ✓ velas-app-inicio-desktop               contraste:0  touch:0  overflow:0  (rev 105 txt, 0 s/img)
+{"ts":"2026-09-26T18:16:34.532Z","level":"info","scope":"kpi","msg":"tile","kpi":"vender","ms":21,"espera":3,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.537Z","level":"info","scope":"kpi","msg":"tile","kpi":"pedidos","ms":5,"espera":24,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.548Z","level":"info","scope":"kpi","msg":"tile","kpi":"ventas-del-dia","ms":12,"espera":29,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.557Z","level":"info","scope":"kpi","msg":"tile","kpi":"caja-del-dia","ms":9,"espera":41,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.588Z","level":"info","scope":"kpi","msg":"tile","kpi":"cierre-del-dia","ms":30,"espera":50,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.597Z","level":"info","scope":"kpi","msg":"tile","kpi":"clientes","ms":9,"espera":81,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.604Z","level":"info","scope":"kpi","msg":"tile","kpi":"para-contactar-hoy","ms":7,"espera":90,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.617Z","level":"info","scope":"kpi","msg":"tile","kpi":"clientas-por-recuperar","ms":13,"espera":97,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.629Z","level":"info","scope":"kpi","msg":"tile","kpi":"unificar-fichas","ms":12,"espera":110,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.879Z","level":"info","scope":"kpi","msg":"tile","kpi":"catalogo","ms":250,"espera":122,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.929Z","level":"info","scope":"kpi","msg":"tile","kpi":"actualizar-precios","ms":53,"espera":368,"estado":"sin-dato"}
+{"ts":"2026-09-26T18:16:34.935Z","level":"info","scope":"kpi","msg":"tile","kpi":"etiquetas-de-precio","ms":7,"espera":421,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.940Z","level":"info","scope":"kpi","msg":"tile","kpi":"promociones","ms":5,"espera":428,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.944Z","level":"info","scope":"kpi","msg":"tile","kpi":"cierre-del-mes","ms":4,"espera":433,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.948Z","level":"info","scope":"kpi","msg":"tile","kpi":"reportes","ms":5,"espera":436,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.963Z","level":"info","scope":"kpi","msg":"tile","kpi":"margen","ms":14,"espera":441,"estado":"sin-dato"}
+{"ts":"2026-09-26T18:16:34.965Z","level":"info","scope":"kpi","msg":"tile","kpi":"flujo-de-fondos","ms":3,"espera":455,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.970Z","level":"info","scope":"kpi","msg":"tile","kpi":"usuarios","ms":4,"espera":458,"estado":"ok"}
+{"ts":"2026-09-26T18:16:34.976Z","level":"info","scope":"kpi","msg":"tile","kpi":"auditoria","ms":6,"espera":462,"estado":"ok"}
+  ✓ velas-app-inicio-mobile                contraste:0  touch:0  overflow:0  (rev 91 txt, 0 s/img)
+  ✓ velas-app-auditoria-desktop            contraste:0  touch:0  overflow:0  (rev 40 txt, 0 s/img)
+  ✓ velas-app-auditoria-mobile             contraste:0  touch:0  overflow:0  (rev 24 txt, 0 s/img)
+  ✓ velas-app-usuarios-desktop             contraste:0  touch:0  overflow:0  (rev 37 txt, 0 s/img)
+  ✓ velas-app-usuarios-mobile              contraste:0  touch:0  overflow:0  (rev 23 txt, 0 s/img)
+  ✓ velas-app-datos-del-negocio-desktop    contraste:0  touch:0  overflow:0  (rev 40 txt, 0 s/img)
+  ✓ velas-app-datos-del-negocio-mobile     contraste:0  touch:0  overflow:0  (rev 26 txt, 0 s/img)
+  ✓ velas-app-apariencia-desktop           contraste:0  touch:0  overflow:0  (rev 38 txt, 0 s/img)
+  ✓ velas-app-apariencia-mobile            contraste:0  touch:0  overflow:0  (rev 24 txt, 0 s/img)
+  ✓ velas-app-clientes-desktop             contraste:0  touch:0  overflow:0  (rev 33 txt, 0 s/img)
+  ✓ velas-app-clientes-mobile              contraste:0  touch:0  overflow:0  (rev 19 txt, 0 s/img)
+  ✓ velas-app-para-contactar-hoy-desktop   contraste:0  touch:0  overflow:0  (rev 35 txt, 0 s/img)
+  ✓ velas-app-para-contactar-hoy-mobile    contraste:0  touch:0  overflow:0  (rev 21 txt, 0 s/img)
+  ✓ velas-app-clientas-por-recuperar-desktop contraste:0  touch:0  overflow:0  (rev 31 txt, 0 s/img)
+  ✓ velas-app-clientas-por-recuperar-mobile contraste:0  touch:0  overflow:0  (rev 17 txt, 0 s/img)
+  ✓ velas-app-unificar-fichas-desktop      contraste:0  touch:0  overflow:0  (rev 30 txt, 0 s/img)
+  ✓ velas-app-unificar-fichas-mobile       contraste:0  touch:0  overflow:0  (rev 16 txt, 0 s/img)
+  · velas-app-campanias-desktop            omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ velas-app-vender-desktop               contraste:0  touch:0  overflow:0  (rev 37 txt, 0 s/img)
+  ✓ velas-app-vender-mobile                contraste:0  touch:0  overflow:0  (rev 23 txt, 0 s/img)
+  ✓ velas-app-pedidos-desktop              contraste:0  touch:0  overflow:0  (rev 42 txt, 0 s/img)
+  ✓ velas-app-pedidos-mobile               contraste:0  touch:0  overflow:0  (rev 28 txt, 0 s/img)
+  ✓ velas-app-ventas-del-dia-desktop       contraste:0  touch:0  overflow:0  (rev 47 txt, 0 s/img)
+  ✓ velas-app-ventas-del-dia-mobile        contraste:0  touch:0  overflow:0  (rev 33 txt, 0 s/img)
+  ✓ velas-app-catalogo-desktop             contraste:0  touch:0  overflow:0  (rev 135 txt, 0 s/img)
+  ✓ velas-app-catalogo-mobile              contraste:0  touch:0  overflow:0  (rev 155 txt, 0 s/img)
+  ✓ velas-app-actualizar-precios-desktop   contraste:0  touch:0  overflow:0  (rev 43 txt, 0 s/img)
+  ✓ velas-app-actualizar-precios-mobile    contraste:0  touch:0  overflow:0  (rev 29 txt, 0 s/img)
+  ✓ velas-app-etiquetas-de-precio-desktop  contraste:0  touch:0  overflow:0  (rev 59 txt, 0 s/img)
+  ✓ velas-app-etiquetas-de-precio-mobile   contraste:0  touch:0  overflow:0  (rev 45 txt, 0 s/img)
+  ✓ velas-app-promociones-desktop          contraste:0  touch:0  overflow:0  (rev 28 txt, 0 s/img)
+  ✓ velas-app-promociones-mobile           contraste:0  touch:0  overflow:0  (rev 14 txt, 0 s/img)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · velas-app-inventario-desktop           omitida: no está en este negocio (fue a /admin/no-disponible)
+  · velas-app-movimientos-desktop          omitida: no está en este negocio (fue a /admin/no-disponible)
+  · velas-app-recuento-desktop             omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · velas-app-recibir-mercaderia-desktop   omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · velas-app-mermas-desktop               omitida: no está en este negocio (fue a /admin/no-disponible)
+  · velas-app-proveedores-desktop          omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · velas-app-sugerido-de-compra-desktop   omitida: no está en este negocio (fue a /admin/no-disponible)
+  · velas-app-devoluciones-a-proveedor-desktop omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ velas-app-caja-del-dia-desktop         contraste:0  touch:0  overflow:0  (rev 61 txt, 0 s/img)
+  ✓ velas-app-caja-del-dia-mobile          contraste:0  touch:0  overflow:0  (rev 47 txt, 0 s/img)
+  ✓ velas-app-libro-de-caja-desktop        contraste:0  touch:0  overflow:0  (rev 72 txt, 0 s/img)
+  ✓ velas-app-libro-de-caja-mobile         contraste:0  touch:0  overflow:0  (rev 69 txt, 0 s/img)
+  ✓ velas-app-cierre-del-dia-desktop       contraste:0  touch:0  overflow:0  (rev 71 txt, 0 s/img)
+  ✓ velas-app-cierre-del-dia-mobile        contraste:0  touch:0  overflow:0  (rev 68 txt, 0 s/img)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · velas-app-facturacion-desktop          omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ velas-app-facturacion-automatica-desktop contraste:0  touch:0  overflow:0  (rev 58 txt, 0 s/img)
+  ✓ velas-app-facturacion-automatica-mobile contraste:0  touch:0  overflow:0  (rev 44 txt, 0 s/img)
+  ✓ velas-app-cierre-del-mes-desktop       contraste:0  touch:0  overflow:0  (rev 57 txt, 0 s/img)
+  ✓ velas-app-cierre-del-mes-mobile        contraste:0  touch:0  overflow:0  (rev 43 txt, 0 s/img)
+  ✓ velas-app-reportes-desktop             contraste:0  touch:0  overflow:0  (rev 53 txt, 0 s/img)
+  ✓ velas-app-reportes-mobile              contraste:0  touch:0  overflow:0  (rev 39 txt, 0 s/img)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · velas-app-cuentas-a-pagar-desktop      omitida: no está en este negocio (fue a /admin/no-disponible)
+  · velas-app-cuentas-a-cobrar-desktop     omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · velas-app-libro-iva-desktop            omitida: no está en este negocio (fue a /admin/no-disponible)
+  ✓ velas-app-margen-desktop               contraste:0  touch:0  overflow:0  (rev 34 txt, 0 s/img)
+  ✓ velas-app-margen-mobile                contraste:0  touch:0  overflow:0  (rev 20 txt, 0 s/img)
+  ✓ velas-app-resultado-del-mes-desktop    contraste:0  touch:0  overflow:0  (rev 29 txt, 0 s/img)
+  ✓ velas-app-resultado-del-mes-mobile     contraste:0  touch:0  overflow:0  (rev 15 txt, 0 s/img)
+  ✓ velas-app-flujo-de-fondos-desktop      contraste:0  touch:0  overflow:0  (rev 60 txt, 0 s/img)
+  ✓ velas-app-flujo-de-fondos-mobile       contraste:0  touch:0  overflow:0  (rev 46 txt, 0 s/img)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · velas-app-retenciones-y-percepciones-desktop omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · velas-app-mis-locales-desktop          omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · velas-app-ventas-por-local-desktop     omitida: no está en este negocio (fue a /admin/no-disponible)
+  · velas-app-cajas-de-los-locales-desktop omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · velas-app-stock-por-local-desktop      omitida: no está en este negocio (fue a /admin/no-disponible)
+⨯ Error: The destination stream closed early.
+    at ignore-listed frames {
+  digest: '2006788813'
+}
+  · velas-app-catalogo-de-la-marca-desktop omitida: no está en este negocio (fue a /admin/no-disponible)
+  · velas-app-traslados-desktop            omitida: no está en este negocio (fue a /admin/no-disponible)
+
+──────── Resumen auditoría visual ────────
+Contraste AA: 0 · Touch (<44px): 0 · Overflow: 0 · HTTP≥400: 0 · En blanco: 0 · Rebote a login: 0 · Errores: 0 · Rebotes del núcleo: 0 · Omitidas: 68
+  omitidas en estetica (9): /admin/vender, /admin/ventas, /admin/devoluciones-proveedor, /admin/cuentas-a-pagar, /admin/cuentas-a-cobrar, /admin/libros, /admin/locales, /admin/locales/ventas, /admin/locales/cajas
+  omitidas en magra (19): /admin/campania, /admin/inventario, /admin/inventario/movimientos, /admin/ajustes/recuento, /admin/compras, /admin/ajustes, /admin/proveedores, /admin/compras/sugerido, /admin/devoluciones-proveedor, /admin/cuentas-a-pagar, /admin/cuentas-a-cobrar, /admin/libros, /admin/retenciones, /admin/locales, /admin/locales/ventas, /admin/locales/cajas, /admin/locales/stock, /admin/locales/catalogo, /admin/locales/traslados
+  omitidas en padel (20): /admin/campania, /admin/inventario, /admin/inventario/movimientos, /admin/ajustes/recuento, /admin/compras, /admin/ajustes, /admin/proveedores, /admin/compras/sugerido, /admin/devoluciones-proveedor, /admin/facturacion, /admin/cuentas-a-pagar, /admin/cuentas-a-cobrar, /admin/libros, /admin/retenciones, /admin/locales, /admin/locales/ventas, /admin/locales/cajas, /admin/locales/stock, /admin/locales/catalogo, /admin/locales/traslados
+  omitidas en velas (20): /admin/campania, /admin/inventario, /admin/inventario/movimientos, /admin/ajustes/recuento, /admin/compras, /admin/ajustes, /admin/proveedores, /admin/compras/sugerido, /admin/devoluciones-proveedor, /admin/facturacion, /admin/cuentas-a-pagar, /admin/cuentas-a-cobrar, /admin/libros, /admin/retenciones, /admin/locales, /admin/locales/ventas, /admin/locales/cajas, /admin/locales/stock, /admin/locales/catalogo, /admin/locales/traslados
+Report: /home/user/erp-contador/qa-shots/audit/report.json
+
+✅ Calidad visual OK (contraste/touch/overflow).
+GATE_AA_EXIT 0 18:18:39

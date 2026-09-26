@@ -27,10 +27,11 @@
 
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
-import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { compraDelLibroDesdeFactura } from "@/lib/contador/recibidos-libro";
+import { leerRegimenFacturaAEnTx } from "@/lib/fiscal/regimen-factura-a.server";
+import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { bordesDelMes, type MesKey } from "./fecha-fiscal";
 import {
   armarLibroIva,
@@ -38,8 +39,12 @@ import {
   condicionDelNegocio,
   dateToIso,
   type CompraRow,
+  type FilasDelLibro,
   type LibroIva,
   type VentaSinComprobanteRow,
+  whereComprobantesDePruebaDelMes,
+  whereAutorizadosDespues,
+  whereAutorizadosHasta,
   whereComprobantesDelMes,
   whereComprobantesEmitidos,
 } from "./libro-iva";
@@ -63,24 +68,45 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** El Libro IVA del mes `mes` del negocio `tenantId`, leído con `db`. */
+const SELECT_COMPROBANTE = {
+  id: true,
+  fecha: true, tipoComprobante: true, puntoVenta: true, numero: true,
+  docTipo: true, docNro: true, neto: true, iva: true, total: true, ivaDesglose: true,
+  order: { select: { status: true } },
+  appointment: { select: { status: true } },
+} as const;
+
+/** El Libro IVA del mes `mes` del negocio `tenantId` (sólo ese negocio), leído con `db`. */
 export async function leerLibroIva(db: DbLibro, tenantId: string, mes: MesKey): Promise<LibroIva> {
+  const f = await leerFilasLibroIva(db, tenantId, mes);
+  return armarLibroIva({ ...f, condicion: condicionDelNegocio(f.condicionCargada, f.tiposEmitidos) });
+}
+
+/** Las filas del libro de UN negocio, sin armar: el libro de un CUIT con locales las junta (libro-iva-red.ts). */
+export async function leerFilasLibroIva(
+  db: DbLibro,
+  tenantId: string,
+  mes: MesKey,
+  /** El instante del congelado: sólo lo autorizado hasta ahí suma (el paquete FINAL). */
+  corte: Date | null = null,
+): Promise<FilasDelLibro> {
   const b = bordesDelMes(mes);
+  const delMes = whereComprobantesDelMes(tenantId, mes);
   const enElMes = { gte: b.instantes.gte, lt: b.instantes.lt };
   const sinComprobanteConCae = { none: { status: "AUTHORIZED" as const } };
 
-  const [invoices, tiposEmitidos, orders, payments, purchases, conFactura, negocio] = await Promise.all([
+  const [invoices, despues, dePrueba, tiposEmitidos, orders, payments, purchases, conFactura, negocio] = await Promise.all([
+    // El mismo `where` que el número del botón (finanzas.server.ts): sin los del modo prueba.
     db.invoice.findMany({
-      // El mismo `where` que el número del botón (finanzas.server.ts).
-      where: whereComprobantesDelMes(tenantId, mes),
-      select: {
-        id: true,
-        fecha: true, tipoComprobante: true, puntoVenta: true, numero: true,
-        docTipo: true, docNro: true, neto: true, iva: true, total: true, ivaDesglose: true,
-        order: { select: { status: true } },
-        appointment: { select: { status: true } },
-      },
+      where: corte ? { ...delMes, AND: [...delMes.AND, whereAutorizadosHasta(corte)] } : delMes,
+      select: SELECT_COMPROBANTE,
     }),
+    // Mes congelado: lo que ARCA autorizó después, aparte y sin sumar (refutador, vuelta 4).
+    corte
+      ? db.invoice.findMany({ where: { ...delMes, AND: [...delMes.AND, whereAutorizadosDespues(corte)] }, select: SELECT_COMPROBANTE })
+      : Promise.resolve([]),
+    // Los del modo prueba (CAE simulado), aparte: se ven como «de prueba» y no suman (QA vuelta 6).
+    db.invoice.findMany({ where: whereComprobantesDePruebaDelMes(tenantId, mes), select: SELECT_COMPROBANTE }),
     db.invoice.groupBy({
       by: ["tipoComprobante"],
       where: whereComprobantesEmitidos(tenantId),
@@ -123,7 +149,8 @@ export async function leerLibroIva(db: DbLibro, tenantId: string, mes: MesKey): 
       select: {
         id: true, supplier: true,
         facturaTipo: true, facturaPuntoVenta: true, facturaNumero: true, facturaFecha: true, facturaCuit: true,
-        facturaNeto: true, facturaIva: true, facturaTotal: true,
+        facturaNeto: true, facturaIva: true, facturaTotal: true, notes: true,
+        facturaOtrosTributos: true, facturaPercepcionIva: true, facturaPercepcionIibb: true,
         supplierRef: { select: { name: true } },
       },
     }),
@@ -131,7 +158,7 @@ export async function leerLibroIva(db: DbLibro, tenantId: string, mes: MesKey): 
     db.tenant.findUnique({ where: { id: tenantId }, select: { arcaCondicionIva: true } }),
   ]);
 
-  const comprobantes = invoices.map((i) =>
+  const comoFila = (i: (typeof invoices)[number]) =>
     comprobanteDesdeInvoice({
       id: i.id,
       fecha: i.fecha,
@@ -145,8 +172,8 @@ export async function leerLibroIva(db: DbLibro, tenantId: string, mes: MesKey): 
       total: num(i.total),
       ivaDesglose: i.ivaDesglose,
       origenAnulado: i.order?.status === "CANCELLED" || i.appointment?.status === "CANCELLED",
-    }),
-  );
+    });
+  const comprobantes = invoices.map(comoFila);
 
   const ventasSinComprobante: VentaSinComprobanteRow[] = [
     ...orders.map((o) => ({
@@ -192,16 +219,24 @@ export async function leerLibroIva(db: DbLibro, tenantId: string, mes: MesKey): 
         facturaIva: num(c.facturaIva),
         facturaTotal: num(c.facturaTotal),
         facturaNeto: num(c.facturaNeto),
+        // Percepciones de IVA e IIBB y otros tributos, juntos: la misma suma que la pantalla (recibidos-db.ts).
+        facturaOtrosTributos: sumarAlCentavo([num(c.facturaOtrosTributos), num(c.facturaPercepcionIva), num(c.facturaPercepcionIibb)]),
+        notas: c.notes,
       }),
     );
   }
 
-  return armarLibroIva({
+  return {
     comprobantes,
+    ...(corte ? { comprobantesDespuesDelCongelado: despues.map(comoFila) } : {}),
+    comprobantesDePrueba: dePrueba.map(comoFila),
     ventasSinComprobante,
     compras,
-    condicion: condicionDelNegocio(negocio?.arcaCondicionIva, tiposEmitidos.map((g) => g.tipoComprobante)),
-  });
+    tiposEmitidos: tiposEmitidos.map((g) => g.tipoComprobante),
+    condicionCargada: negocio?.arcaCondicionIva ?? null,
+    // Con la transacción del negocio (su RLS): la clase que cargó Soporte, para el aviso del libro.
+    regimenFacturaA: await leerRegimenFacturaAEnTx(db, tenantId),
+  };
 }
 
 /**
@@ -211,5 +246,7 @@ export async function leerLibroIva(db: DbLibro, tenantId: string, mes: MesKey): 
 export async function getLibroIva(mes: MesKey): Promise<LibroIva> {
   await requireCapability("reports:read");
   const tenantId = await getCurrentTenantId();
-  return tenantTransaction((tx) => leerLibroIva(tx, tenantId, mes), { tenantId });
+  // El libro del CUIT: la casa de una red suma sus locales del mismo CUIT (QA vuelta 6, bloqueante 2).
+  const { leerLibroIvaDelCuit } = await import("./libro-iva-red");
+  return leerLibroIvaDelCuit(tenantId, mes);
 }

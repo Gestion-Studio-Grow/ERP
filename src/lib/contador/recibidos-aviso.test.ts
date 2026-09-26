@@ -2,7 +2,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { avisoDeLaCarga } from "./recibidos-aviso";
 
-const base = { entraron: 0, notasDeCredito: 0, aRevisar: 0, yaCargados: 0, conErrores: 0 };
+const base = { entraron: 0, notasDeCredito: 0, aRevisar: 0, yaCargados: 0, repetidosEnElArchivo: 0, conErrores: 0 };
+
+test("la fila repetida dentro del archivo no se cuenta como error (QA vuelta 7, bloqueante 3)", () => {
+  assert.equal(
+    avisoDeLaCarga({ ...base, entraron: 8, notasDeCredito: 1, aRevisar: 1, repetidosEnElArchivo: 1, conErrores: 1 }),
+    "Entraron 8 comprobantes (1 nota de crédito, que resta). 1 quedó a revisar. 1 fila estaba repetida en el archivo (se toma una sola vez). 1 con errores: no se cargó (el detalle está abajo).",
+  );
+  // Sólo repetidas: el aviso no habla de errores.
+  const soloRepetidas = avisoDeLaCarga({ ...base, entraron: 3, repetidosEnElArchivo: 2 });
+  assert.equal(soloRepetidas, "Entraron 3 comprobantes. 2 filas estaban repetidas en el archivo (se toman una sola vez).");
+  assert.doesNotMatch(soloRepetidas, /error/);
+});
 
 test("reimportar el mismo archivo dice que ya estaban cargados, no que fallaron", () => {
   assert.equal(avisoDeLaCarga({ ...base, yaCargados: 13 }), "No entró ningún comprobante nuevo. 13 ya estaban cargados (no se duplican).");

@@ -1,0 +1,37 @@
+URL http://estudio.localhost:3210/contador/cliente/cmuivrg1k0004457df3a10t8h/recibidos?mes=2026-08
+E
+Estudio Contable Laboratorio
+Compras de Martina (mono) v7
+Comprobantes recibidos · CUIT 27-41236587-4. El mes va por la fecha del comprobante, no por el día en que se cargó.
+Mes anterior
+08/2026
+Mes siguiente
+Descargar para el libro de IVA compras
+Volver a la cartera
+CARGAR EL ARCHIVO DE ARCA
+Mis Comprobantes › Recibidos › Descargar (CSV o Excel), sin editarlo.
+Elegir el archivo
+Todavía no elegiste ningún archivo.
+Cargar comprobantes
+RESUMEN DEL MES
+2 comprobantes.
+Neto gravado
+$0,00
+IVA crédito fiscal del mes
+Lo que suma. Es la columna «IVA crédito fiscal» del archivo.
+$0,00
+No gravado y exento
+$0,00
+Otros tributos y percepciones
+$0,00
+Total
+$39.200,00
+COMPROBANTES DEL MES
+05/08/2026
+Factura B 00004-00007001 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$24.200,00
+20/08/2026
+Factura C 00002-00007002 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$15.000,00

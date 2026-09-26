@@ -1,0 +1,5 @@
+
+real	0m11.618s
+user	0m15.602s
+sys	0m5.040s
+TSC_EXIT 0

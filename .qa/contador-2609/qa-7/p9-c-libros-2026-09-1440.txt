@@ -1,0 +1,86 @@
+URL http://delplata-v7.localhost:3210/admin/libros?mes=2026-09
+
+Saltar al contenido
+DD
+Distribuidora Del Plata SA
+Buscar en el menú
+Inicio
+Clientes
+Pedidos
+Caja
+Libro de caja
+Cierre del día
+Cierre del mes
+Catálogo
+Compras
+Ajustes
+Reseñas
+Recordatorios
+Facturación
+Reportes
+Campañas
+Auditoría
+Usuarios
+Localización
+Apariencia
+Cuentas a pagar
+Cuentas a cobrar
+Libros
+Devoluciones a proveedor
+D
+Distribuidora Del Plata SA
+Dueño/a
+Cerrar sesión
+Distribuidora Del Plata SA
+Panel de administración
+Libro IVA
+El IVA de septiembre 2026: los comprobantes emitidos y, aparte, lo vendido sin comprobante y las compras, como control para tu contador.
+Descargar el mes (CSV)
+← Agosto 2026
+Septiembre 2026
+Comprobantes (neto)
+$0,00
+0 comprobantes con CAE
+IVA débito
+$0,00
+El IVA de los comprobantes emitidos
+IVA crédito
+$15.300,00
+El IVA de las facturas de proveedor cargadas
+IVA a pagar
+—
+Todavía no hay comprobantes con CAE de septiembre.
+Este libro suma los locales del mismo CUIT: Distribuidora Del Plata SA (punto de venta 3) y Del Plata Sarandí (punto de venta 4). Cada comprobante lleva su punto de venta en el número.
+Facturas de prueba (2)
+CAE simulado del modo prueba: no se declaran ni cuentan para los topes. No están en los totales de abajo.
+Factura B 00003-00000001 · 26/09/2026 · Consumidor final
+$1.210,00
+Factura B 00004-00000001 · 26/09/2026 · Consumidor final
+$1.210,00
+Comprobantes emitidos
+Con CAE de ARCA. Es lo que se declara.
+Comprobantes emitidos del mes
+Fecha
+	TIPO	NÚMERO	CLIENTE	Neto
+	ALÍC.	IVA
+	Total
+	
+No hay comprobantes con CAE este mes
+Las facturas se emiten desde Facturación. Si tu negocio todavía no factura desde el sistema, este bloque queda vacío.
+Ir a Facturación
+Ventas sin comprobante (control)
+Pedidos y turnos cobrados que no tienen factura con CAE. No se declaran ni llevan IVA calculado: son para que tu contador sepa qué se vendió sin facturar.
+Ventas sin comprobante del mes
+Fecha
+	TIPO	REFERENCIA	CLIENTE	Total
+Todo lo cobrado este mes tiene comprobante
+Compras (control)
+Las que tienen la factura del proveedor (las que carga tu contador desde ARCA) dan crédito fiscal; las cargadas sin factura, no. Si te falta alguna, pasale la factura a tu contador.
+Compras del mes
+Fecha
+	PROVEEDOR	DOCUMENTO	NÚMERO	Total
+2026-09-03	DISTRIBUIDORA DEL SUR SA	CUIT 30700000008	Factura A 00011-00005001	$62.000,00
+2026-09-09	LACTEOS DEL OESTE SA	CUIT 30700000024	Factura A 00011-00005002	$22.100,00
+2026-09-12	ALMACEN LA ESQUINA SRL	CUIT 30700000016	Factura B 00012-00006001	$12.100,00
+2026-09-16	FERRETERIA NORTE SA	CUIT 30700000040	Factura A 00011-00005003	$13.000,00
+2026-09-19	FERRETERIA NORTE SA	CUIT 30700000040	Factura A 00011-00005004	$2.300,00

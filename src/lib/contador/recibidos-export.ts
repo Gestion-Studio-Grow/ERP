@@ -8,6 +8,7 @@
 import { BOM, filaCsv, pesosCsv } from "@/lib/libros/csv-ar";
 import {
   ALICUOTAS_RECIBIDAS,
+  creditoFiscalDelRecibido,
   discriminaIva,
   esNotaDeCreditoRecibida,
   nombreDelTipo,
@@ -47,18 +48,24 @@ export function csvComprasConFactura(filas: readonly FilaExportable[]): string {
       "No gravado",
       "Exento",
       ...alicuotas.flatMap((a) => [`Neto ${a.etiqueta}`, `IVA ${a.etiqueta}`]),
-      "IVA sin alícuota (a revisar)",
+      "IVA sin desglose (suma)",
+      "IVA a revisar (no suma)",
       "IVA crédito fiscal",
       "Otros tributos",
       "Total",
       "A revisar",
     ),
   ];
+  // Por fila, lo que suma: IVA por alícuota + «IVA sin desglose (suma)» = «IVA crédito fiscal». Lo
+  // marcado va entero a «IVA a revisar (no suma)», tenga o no desglose: es lo que dice la pantalla.
   for (const f of filas) {
     const s = esNotaDeCreditoRecibida(f.tipo) ? -1 : 1;
     const $ = (n: number) => pesosCsv(s * n);
-    const linea = (id: number) => f.desglose?.find((l) => l.alicuotaId === id);
-    const sinAlicuota = discriminaIva(f.tipo) && f.desglose == null ? f.iva : 0;
+    const marcada = f.aRevisar != null;
+    const linea = (id: number) => (marcada ? undefined : f.desglose?.find((l) => l.alicuotaId === id));
+    const conIva = discriminaIva(f.tipo);
+    const sinDesglose = conIva && !marcada && f.desglose == null ? f.iva : 0;
+    const aRevisar = conIva && marcada ? f.iva : 0;
     lineas.push(
       filaCsv(
         fechaAr(f.fecha),
@@ -71,8 +78,10 @@ export function csvComprasConFactura(filas: readonly FilaExportable[]): string {
         $(f.noGravado),
         $(f.exento),
         ...alicuotas.flatMap((a) => [$(linea(a.id)?.base ?? 0), $(linea(a.id)?.importe ?? 0)]),
-        $(sinAlicuota),
-        $(f.iva),
+        $(sinDesglose),
+        $(aRevisar),
+        // La regla única (QA vuelta 5: acá sumaba la fila «a revisar» y la pantalla no). Ya trae el signo.
+        pesosCsv(creditoFiscalDelRecibido(f)),
         $(f.otrosTributos),
         $(f.total),
         f.aRevisar ?? "",

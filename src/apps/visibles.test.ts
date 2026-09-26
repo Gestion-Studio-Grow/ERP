@@ -171,6 +171,52 @@ test("Comerciante: la guardia usa el módulo de su barra de hoy; el piloto, el d
   assert.equal(motivoNoDisponible(appPorId("recibir-mercaderia"), piloto), "modulo");
 });
 
+test("QA vuelta 5 · Comerciante y PyME del configurador: el Libro IVA que trae el plan se abre y está en la barra", () => {
+  // Las filas de Tenant que dejó el configurador en el laboratorio (qa-5/p2-tenants-db.txt).
+  const comerciante: TenantParaApps = {
+    id: "t-ceibo",
+    slug: "elceibo-v5",
+    blueprintId: "generico",
+    modules: ["clients", "reports", "arca", "bancos", "mercadopago", "pos", "catalog", "inventario", "cuentas-a-cobrar", "libros", "campanias", "reminders", "reviews"],
+  };
+  const pyme: TenantParaApps = {
+    id: "t-tilos",
+    slug: "lostilos-v5",
+    blueprintId: "generico",
+    modules: [...comerciante.modules, "cuentas-a-pagar", "devoluciones-proveedor", "multilocal"],
+  };
+  const facturacion: TenantParaApps = {
+    id: "t-valeria",
+    slug: "valeriaortiz-v5",
+    blueprintId: "generico",
+    modules: ["clients", "reports", "arca", "bancos", "mercadopago"],
+  };
+  const duenia = (t: TenantParaApps) =>
+    negocio({ role: "OWNER", contexto: ctx(t, false), modulosAsignados: t.modules, esMostrador: true });
+  for (const t of [comerciante, pyme]) {
+    assert.equal(ctx(t, false)?.origen, "producto", `${t.slug} es del producto con tienda`);
+    assert.equal(motivoNoDisponible(appPorId("libro-iva"), duenia(t)), null, `${t.slug}: el Libro IVA se abre`);
+    assert.ok(
+      proyectarMenuDeHoy(appsVisibles(duenia(t))).some((i) => i.href === "/admin/libros"),
+      `${t.slug}: «Libros» está en la barra (no queda escondido detrás de la URL)`,
+    );
+  }
+  // PyME: lo que su plan suma (proveedores y devoluciones) también se abre; el Comerciante no lo tiene.
+  assert.equal(motivoNoDisponible(appPorId("cuentas-a-pagar"), duenia(pyme)), null);
+  assert.equal(motivoNoDisponible(appPorId("devoluciones-a-proveedor"), duenia(pyme)), null);
+  assert.equal(motivoNoDisponible(appPorId("cuentas-a-pagar"), duenia(comerciante)), "edicion");
+  // Sin `libros` (plan Facturación) no se abre: el plan no lo trae.
+  assert.equal(motivoNoDisponible(appPorId("libro-iva"), duenia(facturacion)), "edicion");
+  // Un rol sin permiso de reportes sigue afuera aunque el plan traiga el módulo.
+  assert.equal(
+    motivoNoDisponible(appPorId("libro-iva"), negocio({ role: "RECEPTION", contexto: ctx(comerciante, false), modulosAsignados: comerciante.modules })),
+    "rol",
+  );
+  // CH (sin gate) no cambia: el Libro IVA sigue sin ofrecerse, aunque le figurara el módulo.
+  assert.equal(ctx(CH, false), null);
+  assert.equal(motivoNoDisponible(appPorId("libro-iva"), negocio({ role: "OWNER", modulosAsignados: ["libros"] })), "edicion");
+});
+
 // ── Las apps que leen otros negocios exigen su módulo SIEMPRE ─────────────────
 
 const MIS_LOCALES_PRUEBA: AppDescriptor = {

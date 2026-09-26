@@ -13,6 +13,7 @@
  * de a uno por negocio (`arca-reserva.ts`, ENG-019).
  */
 
+import { leerRegimenFacturaA } from "@/lib/fiscal/regimen-factura-a.server";
 import { Prisma } from "@/generated/prisma/client";
 import { operatorPrisma } from "@/lib/operator-db";
 import { tenantTransaction } from "@/lib/rls";
@@ -164,8 +165,19 @@ export function crearClientePara(
  */
 export const clientePara = crearClientePara();
 
+/**
+ * El evento del plugin con la Factura A que le asignó ARCA al inscripto (RG 1575), leída al enviar:
+ * sin columna hasta M1, vive en el registro del negocio (fiscal/regimen-factura-a.ts). Sin esto el
+ * plugin volvía a decidir con «sin cargar» y rechazaba la A (QA 26/09, vuelta 4, bloqueante 2).
+ */
+async function aEventoPlugin(p: InvoiceCreatedPayload): Promise<InvoiceCreatedEvent> {
+  const ev = aEventoPluginBase(p);
+  if (ev.emisor.condicionIva !== "RESPONSABLE_INSCRIPTO") return ev;
+  return { ...ev, emisor: { ...ev.emisor, regimenFacturaA: await leerRegimenFacturaA(ev.tenantId) } };
+}
+
 /** Convierte el payload guardado (condicionIva como texto) al evento del plugin. */
-function aEventoPlugin(p: InvoiceCreatedPayload): InvoiceCreatedEvent {
+function aEventoPluginBase(p: InvoiceCreatedPayload): InvoiceCreatedEvent {
   return {
     invoiceId: p.invoiceId,
     tenantId: p.tenantId,
@@ -340,7 +352,7 @@ async function despacharUno(
       return;
     }
     let registrado = false;
-    await procesarInvoiceCreated(aEventoPlugin(payload), {
+    await procesarInvoiceCreated(await aEventoPlugin(payload), {
       ...deps,
       // El día del negocio en que se pide el CAE: la decisión controla contra él la ventana de ARCA.
       fechaDeEnvio: () => fechaFiscalDelDia(),

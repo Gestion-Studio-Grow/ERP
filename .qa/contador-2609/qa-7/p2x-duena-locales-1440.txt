@@ -1,0 +1,73 @@
+URL http://delplata-v7.localhost:3210/admin/locales
+Saltar al contenido
+DD
+Distribuidora Del Plata SA
+Buscar en el menú
+Inicio
+Clientes
+Pedidos
+Caja
+Libro de caja
+Cierre del día
+Cierre del mes
+Catálogo
+Compras
+Ajustes
+Reseñas
+Recordatorios
+Facturación
+Reportes
+Campañas
+Auditoría
+Usuarios
+Localización
+Apariencia
+Cuentas a pagar
+Cuentas a cobrar
+Libros
+Devoluciones a proveedor
+D
+Distribuidora Del Plata SA
+Dueño/a
+Cerrar sesión
+Distribuidora Del Plata SA
+Panel de administración
+Mis locales
+Distribuidora Del Plata SA
+Cómo viene hoy, 26/09/2026, cada local de tu red. Cada número sale de la caja y el stock de ese local, en este momento.
+Hoy
+Ventas
+Cajas
+Cobrado hoy
+$0,00
+en 1 local, menos lo anulado hoy
+Cajas sin cerrar
+0
+todas cerradas hasta ayer
+Stock bajo el mínimo
+0
+nada por reponer
+Esta semana
+$0
+la semana pasada no hubo ventas para comparar
+Sarandí
+Del Plata Sarandí · punto de venta 4
+Caja al día
+Cobrado hoy
+$0,00
+0 cobros
+Su caja, como la ve el local
+Desde el origen: todavía no hubo ningún cierre
+Efectivo
+$0,00
++ $0,00 · − $0,00
+MP / Transf.
+$0,00
++ $0,00 · − $0,00
+Tarjeta
+$0,00
++ $0,00 · − $0,00
+Total $0,00
+Nada bajo el mínimo
+Abrir su caja
+(se abre en otra pestaña; pide el usuario de ese local)

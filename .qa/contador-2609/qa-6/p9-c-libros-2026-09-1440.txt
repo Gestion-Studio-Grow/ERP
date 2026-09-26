@@ -1,0 +1,74 @@
+URL http://riochico-v6.localhost:3210/admin/libros?mes=2026-09
+
+Saltar al contenido
+C
+Comerciante
+Buscar en el menú
+Inicio
+Clientes
+Pedidos
+Caja
+Libro de caja
+Cierre del día
+Cierre del mes
+Catálogo
+Compras
+Ajustes
+Reseñas
+Recordatorios
+Facturación
+Reportes
+Campañas
+Auditoría
+Usuarios
+Localización
+Apariencia
+Cuentas a pagar
+Cuentas a cobrar
+Libros
+Devoluciones a proveedor
+S
+Supermercados Río Chico SA
+Dueño/a
+Cerrar sesión
+Comerciante
+Panel de administración
+Libro IVA
+El IVA de septiembre 2026: los comprobantes emitidos y, aparte, lo vendido sin comprobante y las compras, como control para tu contador.
+Descargar el mes (CSV)
+← Agosto 2026
+Septiembre 2026
+Comprobantes (neto)
+$2.000,00
+2 comprobantes con CAE
+IVA débito
+$420,00
+El IVA de los comprobantes emitidos
+IVA crédito
+$0,00
+Sin facturas de proveedor cargadas no hay crédito
+IVA a pagar
+$420,00
+Débito menos crédito. Tu contador suma el crédito de tus facturas de compra.
+Comprobantes emitidos
+Con CAE de ARCA. Es lo que se declara.
+Comprobantes emitidos del mes
+Fecha
+	TIPO	NÚMERO	CLIENTE	Neto
+	ALÍC.	IVA
+	Total
+	
+2026-09-26	Factura A	00003-00000001	CUIT 20111111112	$1.000,00	21%	$210,00	$1.210,00	
+2026-09-26	Factura B	00003-00000001	Consumidor final	$1.000,00	21%	$210,00	$1.210,00	
+Ventas sin comprobante (control)
+Pedidos y turnos cobrados que no tienen factura con CAE. No se declaran ni llevan IVA calculado: son para que tu contador sepa qué se vendió sin facturar.
+Ventas sin comprobante del mes
+Fecha
+	TIPO	REFERENCIA	CLIENTE	Total
+Todo lo cobrado este mes tiene comprobante
+Compras (control)
+Se cargan sin la factura del proveedor, y sin ella no dan crédito fiscal. Pasale a tu contador las facturas de compra para que sume el crédito.
+Compras del mes
+Fecha
+	PROVEEDOR	DOCUMENTO	NÚMERO	Total
+No hay compras cargadas este mes

@@ -1,0 +1,2 @@
+apagado 2026-09-26 20:47:33: kill 3453 (next-server :3210) 3452 3440; 3211 sin proceso escuchando; 30321 es de erp-dominio en :3213 (no se toca)
+post-gate 2026-09-26 21:02:17: kill 14103 (next-server huérfano del gate en :3211, cwd erp-contador, base PGlite 54330); 3211 libre

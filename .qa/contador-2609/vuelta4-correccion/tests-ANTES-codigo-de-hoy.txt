@@ -1,0 +1,632 @@
+TAP version 13
+# Subtest: QA 26/09 v4 · una compra «a revisar» (IVA 150 sobre 1.000: 15 %, ninguna alícuota vigente) no suma al crédito ni al neto
+ok 1 - QA 26/09 v4 · una compra «a revisar» (IVA 150 sobre 1.000: 15 %, ninguna alícuota vigente) no suma al crédito ni al neto
+  ---
+  duration_ms: 1.996452
+  type: 'test'
+  ...
+# Subtest: una factura de proveedor va al libro con la fecha del comprobante, su número y su IVA como crédito
+ok 2 - una factura de proveedor va al libro con la fecha del comprobante, su número y su IVA como crédito
+  ---
+  duration_ms: 1.757305
+  type: 'test'
+  ...
+# Subtest: la nota de crédito del proveedor resta el total y el crédito; una B no da crédito
+ok 3 - la nota de crédito del proveedor resta el total y el crédito; una B no da crédito
+  ---
+  duration_ms: 0.292666
+  type: 'test'
+  ...
+# Subtest: el resumen del libro toma como crédito el IVA de las facturas cargadas, con la nota de crédito restando
+ok 4 - el resumen del libro toma como crédito el IVA de las facturas cargadas, con la nota de crédito restando
+  ---
+  duration_ms: 11.114481
+  type: 'test'
+  ...
+# Subtest: con facturas cargadas, la nota del libro ya no dice que las compras van sin factura
+ok 5 - con facturas cargadas, la nota del libro ya no dice que las compras van sin factura
+  ---
+  duration_ms: 1.642459
+  type: 'test'
+  ...
+# Subtest: sin facturas cargadas (CH hoy), el libro sale igual que antes: crédito 0 y la misma nota
+ok 6 - sin facturas cargadas (CH hoy), el libro sale igual que antes: crédito 0 y la misma nota
+  ---
+  duration_ms: 0.396787
+  type: 'test'
+  ...
+# Subtest: la hoja COMPRAS del paquete trae neto gravado, IVA crédito y total de cada factura de proveedor (la NC resta)
+not ok 7 - la hoja COMPRAS del paquete trae neto gravado, IVA crédito y total de cada factura de proveedor (la NC resta)
+  ---
+  duration_ms: 4.746913
+  type: 'test'
+  location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/contador/recibidos-libro.test.ts:2:5115'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /^Fecha;Proveedor;Documento;Número;Neto gravado;IVA crédito fiscal;Percepciones y otros tributos;Total$/m. Input:
+    
+    'COMPROBANTES EMITIDOS (con CAE: es lo que se declara)\n' +
+      'Fecha;Tipo;Número;Cliente;Documento;Neto;Alícuotas;IVA;Total;Observación\n' +
+      'Subtotal comprobantes;;;;;0,00;;0,00;0,00;\n' +
+      '\n' +
+      'VENTAS SIN COMPROBANTE (control: no se declaran ni llevan IVA calculado)\n' +
+      'Fecha;Tipo;Referencia;Cliente;Total\n' +
+      'Subtotal sin comprobante;;;;0,00\n' +
+      '\n' +
+      'COMPRAS (control: sin la factura del proveedor no dan crédito fiscal)\n' +
+      'Fecha;Proveedor;Documento;Número;Neto gravado;IVA crédito fiscal;Total\n' +
+      '2026-08-12;DISTRIBUIDORA DEL SUR SA;CUIT 30700000008;Factura A 00003-00001234;1000,00;210,00;1210,00\n' +
+      '2026-08-12;DISTRIBUIDORA DEL SUR SA;CUIT 30700000008;Nota de crédito A 00003-00000077;-100,00;-21,00;-121,00\n' +
+      '2026-08-20;Sin factura SRL;—;Compra 3;;sin factura;500,00\n' +
+      'Subtotal compras;;;;900,00;189,00;1589,00\n' +
+      '\n' +
+      'RESUMEN\n' +
+      'IVA débito (comprobantes emitidos);0,00\n' +
+      'IVA crédito (facturas de proveedor);189,00\n' +
+      'Saldo IVA a favor;189,00\n' +
+      'Nota;El crédito fiscal sale del IVA de las 2 facturas de proveedor cargadas, por la fecha de cada comprobante (la nota de crédito resta). Las compras cargadas sin factura no dan crédito.'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    COMPROBANTES EMITIDOS (con CAE: es lo que se declara)
+    Fecha;Tipo;Número;Cliente;Documento;Neto;Alícuotas;IVA;Total;Observación
+    Subtotal comprobantes;;;;;0,00;;0,00;0,00;
+    
+    VENTAS SIN COMPROBANTE (control: no se declaran ni llevan IVA calculado)
+    Fecha;Tipo;Referencia;Cliente;Total
+    Subtotal sin comprobante;;;;0,00
+    
+    COMPRAS (control: sin la factura del proveedor no dan crédito fiscal)
+    Fecha;Proveedor;Documento;Número;Neto gravado;IVA crédito fiscal;Total
+    2026-08-12;DISTRIBUIDORA DEL SUR SA;CUIT 30700000008;Factura A 00003-00001234;1000,00;210,00;1210,00
+    2026-08-12;DISTRIBUIDORA DEL SUR SA;CUIT 30700000008;Nota de crédito A 00003-00000077;-100,00;-21,00;-121,00
+    2026-08-20;Sin factura SRL;—;Compra 3;;sin factura;500,00
+    Subtotal compras;;;;900,00;189,00;1589,00
+    
+    RESUMEN
+    IVA débito (comprobantes emitidos);0,00
+    IVA crédito (facturas de proveedor);189,00
+    Saldo IVA a favor;189,00
+    Nota;El crédito fiscal sale del IVA de las 2 facturas de proveedor cargadas, por la fecha de cada comprobante (la nota de crédito resta). Las compras cargadas sin factura no dan crédito.
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/contador/recibidos-libro.test.ts:111:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: monotributo con una Factura A de proveedor: la compra va por el total, sin columna de crédito fiscal y sin crédito en el resumen
+not ok 8 - monotributo con una Factura A de proveedor: la compra va por el total, sin columna de crédito fiscal y sin crédito en el resumen
+  ---
+  duration_ms: 0.810443
+  type: 'test'
+  location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/contador/recibidos-libro.test.ts:2:6793'
+  failureType: 'testCodeFailure'
+  error: 'QA vuelta 6: con percepciones'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    COMPROBANTES EMITIDOS (con CAE: es lo que se declara)
+    Fecha;Tipo;Número;Cliente;Documento;Neto;Alícuotas;IVA;Total;Observación
+    Subtotal comprobantes;;;;;0,00;;0,00;0,00;
+    
+    VENTAS SIN COMPROBANTE (control: no se declaran ni llevan IVA calculado)
+    Fecha;Tipo;Referencia;Cliente;Total
+    Subtotal sin comprobante;;;;0,00
+    
+    COMPRAS (control: sin la factura del proveedor no dan crédito fiscal)
+    Fecha;Proveedor;Documento;Número;Total
+    2026-08-03;Mayorista;—;Compra 1;5000,00
+    2026-08-12;DISTRIBUIDORA DEL SUR SA;CUIT 30700000008;Factura A 00003-00001234;1210,00
+    Subtotal compras;;;;6210,00
+    Nota;Un monotributista no computa crédito fiscal: el IVA de las facturas A de sus proveedores es parte del costo, y cada compra va por el total.
+    
+    RESUMEN
+    Condición;Emite Factura C (monotributo): no liquida IVA.
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/contador/recibidos-libro.test.ts:134:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: sin-comprobantes con una Factura A de proveedor: la compra va por el total, sin columna de crédito fiscal y sin crédito en el resumen
+not ok 9 - sin-comprobantes con una Factura A de proveedor: la compra va por el total, sin columna de crédito fiscal y sin crédito en el resumen
+  ---
+  duration_ms: 0.608371
+  type: 'test'
+  location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/contador/recibidos-libro.test.ts:2:6793'
+  failureType: 'testCodeFailure'
+  error: 'QA vuelta 6: con percepciones'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    COMPROBANTES EMITIDOS (con CAE: es lo que se declara)
+    Fecha;Tipo;Número;Cliente;Documento;Neto;Alícuotas;IVA;Total;Observación
+    Subtotal comprobantes;;;;;0,00;;0,00;0,00;
+    
+    VENTAS SIN COMPROBANTE (control: no se declaran ni llevan IVA calculado)
+    Fecha;Tipo;Referencia;Cliente;Total
+    Subtotal sin comprobante;;;;0,00
+    
+    COMPRAS (control: sin la factura del proveedor no dan crédito fiscal)
+    Fecha;Proveedor;Documento;Número;Total
+    2026-08-03;Mayorista;—;Compra 1;5000,00
+    2026-08-12;DISTRIBUIDORA DEL SUR SA;CUIT 30700000008;Factura A 00003-00001234;1210,00
+    Subtotal compras;;;;6210,00
+    Nota;Todavía no hay comprobantes con CAE: no se sabe si el negocio es responsable inscripto, así que el IVA de las facturas de proveedor no se toma como crédito fiscal. Cada compra va por el total.
+    
+    RESUMEN
+    Condición;No hay comprobantes con CAE: no se puede calcular la posición de IVA.
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/contador/recibidos-libro.test.ts:134:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: monotributo sin facturas de proveedor (CH hoy): la hoja COMPRAS sale igual que siempre, sin nota
+ok 10 - monotributo sin facturas de proveedor (CH hoy): la hoja COMPRAS sale igual que siempre, sin nota
+  ---
+  duration_ms: 0.674298
+  type: 'test'
+  ...
+# Subtest: QA vuelta 6 · el libro y el paquete de la casa suman el local del mismo CUIT, sin otro CUIT, con percepciones y sin las de prueba
+not ok 11 - QA vuelta 6 · el libro y el paquete de la casa suman el local del mismo CUIT, sin otro CUIT, con percepciones y sin las de prueba
+  ---
+  duration_ms: 1843.721634
+  type: 'test'
+  location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva-cuit-postgres.test.ts:2:1141'
+  failureType: 'testCodeFailure'
+  error: |-
+    prisma migrate deploy falló en erp_test_9045_f2da43ae:
+    Prisma schema loaded from prisma/schema.prisma.
+    Error: The datasource.url property is required in your Prisma config file when using prisma migrate deploy.
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    crearBaseEfimera (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/test/base-efimera.ts:269:39)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async baseEfimeraParaElTest (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/test/base-efimera.ts:418:12)
+    async TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva-cuit-postgres.test.ts:23:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: fiscalDateToIso: AAAAMMDD → YYYY-MM-DD; lo que no es fiscal pasa tal cual
+ok 12 - fiscalDateToIso: AAAAMMDD → YYYY-MM-DD; lo que no es fiscal pasa tal cual
+  ---
+  duration_ms: 1.613813
+  type: 'test'
+  ...
+# Subtest: dateToIso fecha en el día de negocio: las 21:30 del 30 NO son el 1 del mes que viene
+ok 13 - dateToIso fecha en el día de negocio: las 21:30 del 30 NO son el 1 del mes que viene
+  ---
+  duration_ms: 25.442156
+  type: 'test'
+  ...
+# Subtest: comprobante: montos exactos, número y documento; la alícuota sale del desglose guardado
+ok 14 - comprobante: montos exactos, número y documento; la alícuota sale del desglose guardado
+  ---
+  duration_ms: 3.068171
+  type: 'test'
+  ...
+# Subtest: alícuotas: una factura con carne al 10,5% y embutidos al 21% se ve con las dos
+ok 15 - alícuotas: una factura con carne al 10,5% y embutidos al 21% se ve con las dos
+  ---
+  duration_ms: 0.411983
+  type: 'test'
+  ...
+# Subtest: alícuotas sin desglose (comprobantes viejos): la oficial más cercana, nunca un 20,98%
+ok 16 - alícuotas sin desglose (comprobantes viejos): la oficial más cercana, nunca un 20,98%
+  ---
+  duration_ms: 0.384634
+  type: 'test'
+  ...
+# Subtest: una nota de crédito RESTA; una venta anulada con factura queda marcada
+ok 17 - una nota de crédito RESTA; una venta anulada con factura queda marcada
+  ---
+  duration_ms: 2.899837
+  type: 'test'
+  ...
+# Subtest: una compra sin factura NO suma crédito; la venta sin comprobante NO suma débito
+ok 18 - una compra sin factura NO suma crédito; la venta sin comprobante NO suma débito
+  ---
+  duration_ms: 0.635213
+  type: 'test'
+  ...
+# Subtest: condición: con A o B es inscripto; sólo C, monotributo; nada, no se afirma
+ok 19 - condición: con A o B es inscripto; sólo C, monotributo; nada, no se afirma
+  ---
+  duration_ms: 0.427486
+  type: 'test'
+  ...
+# Subtest: orden: cada bloque por fecha, y a igual fecha por número
+ok 20 - orden: cada bloque por fecha, y a igual fecha por número
+  ---
+  duration_ms: 1.093915
+  type: 'test'
+  ...
+# Subtest: el archivo: bloques con título, ; como separador, coma decimal y la posición sólo si es inscripto
+ok 21 - el archivo: bloques con título, ; como separador, coma decimal y la posición sólo si es inscripto
+  ---
+  duration_ms: 9.416103
+  type: 'test'
+  ...
+# Subtest: anuladas con factura: el mismo where para el botón (por emisión) y el cierre (por fecha fiscal)
+ok 22 - anuladas con factura: el mismo where para el botón (por emisión) y el cierre (por fecha fiscal)
+  ---
+  duration_ms: 0.505488
+  type: 'test'
+  ...
+# Subtest: la clave de cada fila es el id: dos ventas que se ven iguales no chocan
+ok 23 - la clave de cada fila es el id: dos ventas que se ven iguales no chocan
+  ---
+  duration_ms: 0.369879
+  type: 'test'
+  ...
+# Subtest: el número del botón y la pantalla: el mismo where y la misma cuenta
+not ok 24 - el número del botón y la pantalla: el mismo where y la misma cuenta
+  ---
+  duration_ms: 10.125251
+  type: 'test'
+  location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva.test.ts:2:9697'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    -   AND: [
+    -     {
+    -       OR: [
+    -         {
+    -           cae: null
+    -         },
+    -         {
+    -           NOT: {
+    -             cae: {
+    -               startsWith: 'STUB'
+    -             }
+    -           }
+    -         }
+    -       ]
+    -     }
+    -   ],
+        fecha: {
+          gte: '20260901',
+          lt: '20261001'
+        },
+        status: 'AUTHORIZED',
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    tenantId: 't-1'
+    status: 'AUTHORIZED'
+    fecha:
+      gte: '20260901'
+      lt: '20261001'
+    AND:
+      0:
+        OR:
+          0:
+            cae: ~
+          1:
+            NOT:
+              cae:
+                startsWith: 'STUB'
+  actual:
+    tenantId: 't-1'
+    status: 'AUTHORIZED'
+    fecha:
+      gte: '20260901'
+      lt: '20261001'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva.test.ts:180:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: el libro se le oculta a un monotributista; sin comprobantes todavía, no
+ok 25 - el libro se le oculta a un monotributista; sin comprobantes todavía, no
+  ---
+  duration_ms: 0.335116
+  type: 'test'
+  ...
+# Subtest: un responsable inscripto cargado es inscripto aunque todavía no haya emitido nada con CAE
+ok 26 - un responsable inscripto cargado es inscripto aunque todavía no haya emitido nada con CAE
+  ---
+  duration_ms: 25.219977
+  type: 'test'
+  ...
+# Subtest: QA vuelta 6 · el CAE simulado del modo prueba (STUB) no es un CAE: queda afuera de lo que se declara
+not ok 27 - QA vuelta 6 · el CAE simulado del modo prueba (STUB) no es un CAE: queda afuera de lo que se declara
+  ---
+  duration_ms: 2.824987
+  type: 'test'
+  location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva.test.ts:2:12346'
+  failureType: 'testCodeFailure'
+  error: 'esCaeDePrueba is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva.test.ts:231:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: QA vuelta 6 · un CUIT con dos locales: suma los comprobantes de los dos y una factura de proveedor repetida cuenta una vez
+not ok 28 - QA vuelta 6 · un CUIT con dos locales: suma los comprobantes de los dos y una factura de proveedor repetida cuenta una vez
+  ---
+  duration_ms: 3.269024
+  type: 'test'
+  location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva.test.ts:2:13793'
+  failureType: 'testCodeFailure'
+  error: 'unirFilasDelCuit is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva.test.ts:252:13)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: QA vuelta 6 · sin locales, sin facturas de prueba y sin facturas de proveedor, la hoja no agrega nada (CH igual que siempre)
+ok 29 - QA vuelta 6 · sin locales, sin facturas de prueba y sin facturas de proveedor, la hoja no agrega nada (CH igual que siempre)
+  ---
+  duration_ms: 0.989863
+  type: 'test'
+  ...
+# Subtest: la casa necesita multilocal y no puede tener la cartera del contador
+ok 30 - la casa necesita multilocal y no puede tener la cartera del contador
+  ---
+  duration_ms: 3.203163
+  type: 'test'
+  ...
+# Subtest: el estudio contable rechaza a quien tenga multilocal (exigirEstudio usa la misma regla)
+ok 31 - el estudio contable rechaza a quien tenga multilocal (exigirEstudio usa la misma regla)
+  ---
+  duration_ms: 0.379846
+  type: 'test'
+  ...
+# Subtest: la red se lee sólo de las filas activas de la casa, sin la casa misma ni huérfanas
+ok 32 - la red se lee sólo de las filas activas de la casa, sin la casa misma ni huérfanas
+  ---
+  duration_ms: 0.537858
+  type: 'test'
+  ...
+# Subtest: recorrerLocales abre UNA transacción por local, con el id de la fila (de a uno si se pide de a uno)
+ok 33 - recorrerLocales abre UNA transacción por local, con el id de la fila (de a uno si se pide de a uno)
+  ---
+  duration_ms: 0.783018
+  type: 'test'
+  ...
+# Subtest: un local que falla no tumba la red: los demás se leen y el que falló queda nombrado
+ok 34 - un local que falla no tumba la red: los demás se leen y el que falló queda nombrado
+  ---
+  duration_ms: 1.152108
+  type: 'test'
+  ...
+# Subtest: un local pedido desde afuera sólo vale si es de la red: el ajeno da error
+ok 35 - un local pedido desde afuera sólo vale si es de la red: el ajeno da error
+  ---
+  duration_ms: 0.294277
+  type: 'test'
+  ...
+# Subtest: ventas: cuenta VENTA, resta sólo las anulaciones; compras y retiros no son ventas
+ok 36 - ventas: cuenta VENTA, resta sólo las anulaciones; compras y retiros no son ventas
+  ---
+  duration_ms: 2.54514
+  type: 'test'
+  ...
+# Subtest: ventas por día: el día es el del negocio, no el de UTC
+ok 37 - ventas por día: el día es el del negocio, no el de UTC
+  ---
+  duration_ms: 1.858862
+  type: 'test'
+  ...
+# Subtest: la caja del local: el mismo período, la misma cuenta y los mismos medios que su pantalla de Caja
+ok 38 - la caja del local: el mismo período, la misma cuenta y los mismos medios que su pantalla de Caja
+  ---
+  duration_ms: 3.551884
+  type: 'test'
+  ...
+# Subtest: la caja: hoy ya cerrado no tiene período, y sin movimientos viejos está al día
+ok 39 - la caja: hoy ya cerrado no tiene período, y sin movimientos viejos está al día
+  ---
+  duration_ms: 1.291994
+  type: 'test'
+  ...
+# Subtest: la semana: lunes a hoy contra la semana anterior hasta el MISMO día
+ok 40 - la semana: lunes a hoy contra la semana anterior hasta el MISMO día
+  ---
+  duration_ms: 1.846384
+  type: 'test'
+  ...
+# Subtest: los cierres del local: la diferencia que asentó cada uno, leída de su auditoría
+ok 41 - los cierres del local: la diferencia que asentó cada uno, leída de su auditoría
+  ---
+  duration_ms: 6.487719
+  type: 'test'
+  ...
+# Subtest: resumen de la red: cobrado hoy, cajas sin cerrar, stock bajo y el local que más cambió
+ok 42 - resumen de la red: cobrado hoy, cajas sin cerrar, stock bajo y el local que más cambió
+  ---
+  duration_ms: 1.199073
+  type: 'test'
+  ...
+# Subtest: la matriz de stock cruza por nombre sin acentos ni mayúsculas y por unidad de venta
+ok 43 - la matriz de stock cruza por nombre sin acentos ni mayúsculas y por unidad de venta
+  ---
+  duration_ms: 3.599174
+  type: 'test'
+  ...
+# Subtest: la regla del stock: bajo el mínimo y en negativo sólo cuentan si el producto controla existencias
+ok 44 - la regla del stock: bajo el mínimo y en negativo sólo cuentan si el producto controla existencias
+  ---
+  duration_ms: 0.26714
+  type: 'test'
+  ...
+# Subtest: la regla del stock es la MISMA que la de la pantalla de Stock (valuation.ts), caso por caso
+ok 45 - la regla del stock es la MISMA que la de la pantalla de Stock (valuation.ts), caso por caso
+  ---
+  duration_ms: 60.311942
+  type: 'test'
+  ...
+# Subtest: el rango: la semana por defecto, y lo ilegible, invertido, futuro o largo se dice
+ok 46 - el rango: la semana por defecto, y lo ilegible, invertido, futuro o largo se dice
+  ---
+  duration_ms: 1.856492
+  type: 'test'
+  ...
+# Subtest: el CSV: resumen por local, consolidado por CUIT si comparten, y detalle por día y medio
+ok 47 - el CSV: resumen por local, consolidado por CUIT si comparten, y detalle por día y medio
+  ---
+  duration_ms: 6.530331
+  type: 'test'
+  ...
+# Subtest: la dirección de un local: el dominio propio, o el host del mapa de ruteo, o nada
+ok 48 - la dirección de un local: el dominio propio, o el host del mapa de ruteo, o nada
+  ---
+  duration_ms: 0.530024
+  type: 'test'
+  ...
+# Subtest: con dominio propio, un negocio que también está en el mapa se muestra con el dominio propio
+ok 49 - con dominio propio, un negocio que también está en el mapa se muestra con el dominio propio
+  ---
+  duration_ms: 0.250417
+  type: 'test'
+  ...
+# Subtest: validarVinculo: cada rechazo con su porqué
+not ok 50 - validarVinculo: cada rechazo con su porqué
+  ---
+  duration_ms: 10.946196
+  type: 'test'
+  location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/multilocal/multilocal-core.test.ts:2:23241'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/multilocal/multilocal-core.test.ts:549:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: QA vuelta 6 · vincular uno de otro CUIT falla en el servidor y no expone nada; sin confirmar no se vincula ni se da de baja
+not ok 51 - QA vuelta 6 · vincular uno de otro CUIT falla en el servidor y no expone nada; sin confirmar no se vincula ni se da de baja
+  ---
+  duration_ms: 3.736534
+  type: 'test'
+  location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/multilocal/multilocal-core.test.ts:2:25455'
+  failureType: 'testCodeFailure'
+  error: |-
+    lucia
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/multilocal/multilocal-core.test.ts:568:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: QA vuelta 6 · el libro de la casa suma sólo los locales del MISMO CUIT, y sólo si es casa
+not ok 52 - QA vuelta 6 · el libro de la casa suma sólo los locales del MISMO CUIT, y sólo si es casa
+  ---
+  duration_ms: 0.56985
+  type: 'test'
+  location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/multilocal/multilocal-core.test.ts:2:27582'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_multilocal_core.localesDelMismoCuit) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/multilocal/multilocal-core.test.ts:594:20)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: alias: el escrito, sin espacios de más y corto; si no, el nombre del negocio
+ok 53 - alias: el escrito, sin espacios de más y corto; si no, el nombre del negocio
+  ---
+  duration_ms: 0.286273
+  type: 'test'
+  ...
+# Subtest: vincular: la fila con el GUC de la casa, auditoría en la casa Y en el local, con candado
+ok 54 - vincular: la fila con el GUC de la casa, auditoría en la casa Y en el local, con candado
+  ---
+  duration_ms: 1.582344
+  type: 'test'
+  ...
+# Subtest: vincular: un local que ya está en otra red se rechaza, aunque la tabla sólo se vea con el GUC de cada casa
+ok 55 - vincular: un local que ya está en otra red se rechaza, aunque la tabla sólo se vea con el GUC de cada casa
+  ---
+  duration_ms: 1.353119
+  type: 'test'
+  ...
+# Subtest: la lista de la consola marca los que ya son local de OTRA red, con su casa; los libres y los propios no
+ok 56 - la lista de la consola marca los que ya son local de OTRA red, con su casa; los libres y los propios no
+  ---
+  duration_ms: 3.187007
+  type: 'test'
+  ...
+# Subtest: vincular: un estudio contable no entra a una red; CH sólo con el OK del dueño
+ok 57 - vincular: un estudio contable no entra a una red; CH sólo con el OK del dueño
+  ---
+  duration_ms: 1.013455
+  type: 'test'
+  ...
+# Subtest: dar de baja: el local desaparece de la red y queda auditado en los dos; dar de baja otra vez avisa
+ok 58 - dar de baja: el local desaparece de la red y queda auditado en los dos; dar de baja otra vez avisa
+  ---
+  duration_ms: 14.910829
+  type: 'test'
+  ...
+# Subtest: la ficha: los locales de la casa, a qué red pertenece un local y sus vínculos activos
+ok 59 - la ficha: los locales de la casa, a qué red pertenece un local y sus vínculos activos
+  ---
+  duration_ms: 6.932359
+  type: 'test'
+  ...
+1..59
+# tests 59
+# suites 0
+# pass 49
+# fail 10
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2764.979557

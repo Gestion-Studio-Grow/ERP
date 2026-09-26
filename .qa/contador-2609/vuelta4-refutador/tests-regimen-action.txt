@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: corregir la Factura A desde la consola: sólo con sesión de operador, sólo a un inscripto, en ESE negocio, y CH sólo el dueño
+ok 1 - corregir la Factura A desde la consola: sólo con sesión de operador, sólo a un inscripto, en ESE negocio, y CH sólo el dueño
+  ---
+  duration_ms: 4354.865173
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4737.803463

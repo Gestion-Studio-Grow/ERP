@@ -1,0 +1,146 @@
+[a @390] resumen: Crear: Valeria Ortiz Nutrición · CUIT 27-32218266-5 · Monotributista · punto de venta 1 · Facturación · cartera de Estudio Contable Laboratorio.
+[a @390] tras crear url=http://localhost:3210/operador/solicitudes/cmuipynm10000rr7dunay14oo
+Saltar al contenido
+G
+Pedidos
+← Pedidos de alta
+Configurar a Valeria Ortiz Nutrición
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+6 · Pasale esto
+Todavía no se le puede exigir que cambie la contraseña en el primer ingreso: pedile que la cambie al entrar.
+Para el dueño del negocio
+Contraseña temporal de valeria.ortiz@ejemplo.test. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+<TEMPORAL>
+Copiar
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+¡Hola! Ya está listo el sistema de Valeria Ortiz Nutrición.
+Entrá en: https://valeriaortiz-v5.localhost/admin
+Usuario: valeria.ortiz@ejemplo.test
+Contraseña: <TEMPORAL>
+Copiar
+Mandar por WhatsApp
+Para la contadora
+¡Hola! Ya está Valeria Ortiz Nutrición en tu cartera: CUIT 27-32218266-5, punto de venta 1.
+Entrá en: https://estudio.localhost/contador
+Copiar
+Mandar por WhatsApp
+Quedó registrado: lo dio de alta duenio el 26/9/26, 3:25 p. m. (Historial de la ficha).
+Ir a la ficha del negocio
+Ir a la ficha del estudio
+Volver a los pedidos
+Hecho por Gestión Studio Grow
+Negocios
+Pedidos
+Dirección
+Diseño
+Alta
+   consola: []
+[a] tras recargar: temporal visible de nuevo? false | url http://localhost:3210/operador/solicitudes/cmuipynm10000rr7dunay14oo
+[b] opciones Factura A: =Elegí una opción ; A=A común ; A_CON_LEYENDA=A con leyenda (por ejemplo, «Operación sujeta a retención») ; M=M
+[b] crear sin Factura A -> QUÉ FACTURA A LE ASIGNÓ ARCA* | Sin este dato no puede hacer Factura A (tampoco la de prueba). Si no lo sabés, consultalo con la contadora. | Elegí qué Factura A le asignó ARCA (A común, A con leyenda o M): sin ese dato no puede hacer Factura A. Si no lo sabés, consultalo con la contadora. | Faltan datos para darlo de alta. | Ya está en tu cartera: no hacía falta pedir el alta. | url http://localhost:3210/operador/solicitudes/cmuipyyht0001rr7db0uree9b
+[b] elegida Factura A: A
+[b @1440] resumen: Crear: Distribuidora El Ceibo SRL · CUIT 30-71887633-4 · Responsable inscripto · punto de venta 2 · Comerciante · cartera de Estudio Contable Laboratorio.
+[b @1440] tras crear url=http://localhost:3210/operador/solicitudes/cmuipyyht0001rr7db0uree9b
+
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+← Pedidos de alta
+Configurar a Distribuidora El Ceibo SRL
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+6 · Pasale esto
+Todavía no se le puede exigir que cambie la contraseña en el primer ingreso: pedile que la cambie al entrar.
+Para el dueño del negocio
+Contraseña temporal de administracion@elceibo.ejemplo.test. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+<TEMPORAL>
+Copiar
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+¡Hola! Ya está listo el sistema de Distribuidora El Ceibo SRL.
+Entrá en: https://elceibo-v5.localhost/admin
+Usuario: administracion@elceibo.ejemplo.test
+Contraseña: <TEMPORAL>
+Copiar
+Mandar por WhatsApp
+Para la contadora
+¡Hola! Ya está Distribuidora El Ceibo SRL en tu cartera: CUIT 30-71887633-4, punto de venta 2.
+Entrá en: https://estudio.localhost/contador
+Copiar
+Mandar por WhatsApp
+Quedó registrado: lo dio de alta duenio el 26/9/26, 3:26 p. m. (Historial de la ficha).
+Ir a la ficha del negocio
+Ir a la ficha del estudio
+Volver a los pedidos
+Hecho por Gestión Studio Grow
+   consola: []
+[b] tras recargar: temporal visible de nuevo? false | url http://localhost:3210/operador/solicitudes/cmuipyyht0001rr7db0uree9b
+[c] opciones Factura A: =Elegí una opción ; A=A común ; A_CON_LEYENDA=A con leyenda (por ejemplo, «Operación sujeta a retención») ; M=M
+[c] crear sin Factura A -> QUÉ FACTURA A LE ASIGNÓ ARCA* | Sin este dato no puede hacer Factura A (tampoco la de prueba). Si no lo sabés, consultalo con la contadora. | Elegí qué Factura A le asignó ARCA (A común, A con leyenda o M): sin ese dato no puede hacer Factura A. Si no lo sabés, consultalo con la contadora. | Faltan datos para darlo de alta. | Ya está en tu cartera: no hacía falta pedir el alta. | url http://localhost:3210/operador/solicitudes/cmuipz4330002rr7dcgu4wgku
+[c] elegida Factura A: A
+[c @1440] resumen: Crear: Mayorista Los Tilos SA · CUIT 30-70544296-3 · Responsable inscripto · punto de venta 3 · PyME · cartera de Estudio Contable Laboratorio.
+[c @1440] tras crear url=http://localhost:3210/operador/solicitudes/cmuipz4330002rr7dcgu4wgku
+nido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+← Pedidos de alta
+Configurar a Mayorista Los Tilos SA
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+6 · Pasale esto
+Todavía no se le puede exigir que cambie la contraseña en el primer ingreso: pedile que la cambie al entrar.
+Para el dueño del negocio
+Contraseña temporal de contable@lostilos.ejemplo.test. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+<TEMPORAL>
+Copiar
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+¡Hola! Ya está listo el sistema de Mayorista Los Tilos SA.
+Entrá en: https://lostilos-v5.localhost/admin
+Usuario: contable@lostilos.ejemplo.test
+Contraseña: <TEMPORAL>
+Copiar
+Mandar por WhatsApp
+Para la contadora
+¡Hola! Ya está Mayorista Los Tilos SA en tu cartera: CUIT 30-70544296-3, punto de venta 3.
+Entrá en: https://estudio.localhost/contador
+Copiar
+Mandar por WhatsApp
+Quedó registrado: lo dio de alta duenio el 26/9/26, 3:27 p. m. (Historial de la ficha).
+Ir a la ficha del negocio
+Ir a la ficha del estudio
+Volver a los pedidos
+Hecho por Gestión Studio Grow
+   consola: []
+[c] tras recargar: temporal visible de nuevo? false | url http://localhost:3210/operador/solicitudes/cmuipz4330002rr7dcgu4wgku
+[k descarte] url=http://localhost:3210/operador/solicitudes/cmuipz9e80003rr7di4c80smg
+Configurar a Kiosco Descarte v5
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+Pedido descartado por duenio el 26/9/26, 3:28 p. m.. Estudio Contable Laboratorio ve en su cartera: «Los datos no coinciden con ARCA: revisalos y volvé a pedirlo.»
+Nota interna (sólo la ve Soporte GSG): Lo confunden con CH Estética y con MAGRA Canning; el titular real es cliente de Qué Bien Olés.
+Volver a los pedidos
+Hecho por Gestión Studio Grow
+  consola: []
+[k contadora @1440] CH Estética: txt=0 html=0 ; MAGRA: txt=0 html=0 ; Canning: txt=0 html=0 ; Qué Bien: txt=0 html=0 ; titular real: txt=0 html=0 ; confunden: txt=0 html=0
+   Kiosco Descarte v5 · no se dio de alta | CUIT 20-40111222-8 · Soporte GSG lo descartó el 26/9/26: Los datos no coinciden con ARCA: revisalos y volvé a pedirlo. Si corresponde, pedilo de nuevo con los datos corregidos. | Kiosco Q.A. Lab · no se dio de alta | CUIT 20-33445120-9 · Soporte GSG lo descartó el 
+   consola: []
+[k contadora @390] CH Estética: txt=0 html=0 ; MAGRA: txt=0 html=0 ; Canning: txt=0 html=0 ; Qué Bien: txt=0 html=0 ; titular real: txt=0 html=0 ; confunden: txt=0 html=0
+   Kiosco Descarte v5 · no se dio de alta | CUIT 20-40111222-8 · Soporte GSG lo descartó el 26/9/26: Los datos no coinciden con ARCA: revisalos y volvé a pedirlo. Si corresponde, pedilo de nuevo con los datos corregidos. | Kiosco Q.A. Lab · no se dio de alta | CUIT 20-33445120-9 · Soporte GSG lo descartó el 
+   consola: []

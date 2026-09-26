@@ -1,0 +1,46 @@
+URL http://localhost:3210/operador/alta
+
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Dar de alta
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco; si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+20
+· 3 sin punto de venta (no pueden facturar: se carga en su ficha)
+1
+Negocio
+2
+Rubro
+3
+¿De qué red?
+4
+Módulos
+✓
+Marca y link
+6
+Revisar
+Negocio
+NOMBRE DEL NEGOCIO*
+NOMBRE CORTO (ÚNICO)*
+Minúsculas, números y guiones. Identifica al negocio en la consola.
+NOMBRE DEL DUEÑO
+EMAIL DEL DUEÑO (CON EL QUE ENTRA)*
+Atrás
+Siguiente
+ASÍ VA A QUEDAR
+—
+Nombre del negocio
+nombre-corto
+Hecho por Gestión Studio Grow

@@ -21,6 +21,8 @@ import { operadorParaNegocio } from "@/lib/operador/guardia-negocio";
 import { requestIp } from "@/lib/audit-core";
 import { logger } from "@/lib/logger";
 import { planProvision } from "@/lib/provisioning/dry-run";
+import { marcarAltaParaLaRedEnTx, revisarAltaEnRedEnTx, type RevisionAltaEnRed } from "@/lib/multilocal/multilocal-core";
+import { requiereOkDelDuenio } from "@/app/operador/(console)/tenants/[id]/apps-del-negocio";
 import { runTenantProvisioning, ProvisionBlockedError } from "@/lib/provisioning/provision";
 import { operatorPlanDeps, operatorSagaDeps } from "@/lib/provisioning/runtime";
 import {
@@ -61,9 +63,44 @@ export async function planTenantAction(raw: RawWizardForm): Promise<ProvisionPla
 export async function commitTenantAction(raw: RawWizardForm): Promise<CommitActionResult> {
   const g = await operadorParaNegocio({ slug: String(raw.slug ?? "") });
   if (!g.ok) return { ok: false, error: g.motivo };
+  // «¿De qué red?»: la casa elegida pasa por la misma guarda (candado de CH) que el negocio nuevo.
+  const casaDeLaRed = typeof raw.redCasaId === "string" ? raw.redCasaId.trim() : "";
+  if (casaDeLaRed) {
+    const gc = await operadorParaNegocio({ id: casaDeLaRed });
+    if (!gc.ok) return { ok: false, error: gc.motivo };
+  }
   const actor = g.sesion.nombre;
   const input = buildProvisionInput(raw, "commit");
   const ip = (await requestIp()) ?? undefined;
+
+  // «¿De qué red?»: la misma revisión que la prueba en seco del paso, en el servidor y ANTES de crear
+  // (QA vuelta 7, bloqueante 2: con otro CUIT, el alta creaba el negocio activo y con usuario, y la red
+  // lo rechazaba recién después). Con los módulos reales del plan. Si no cierra, no se crea nada.
+  if (casaDeLaRed) {
+    let revision: RevisionAltaEnRed;
+    try {
+      const plan = await planProvision(buildProvisionInput(raw, "dry-run"), operatorPlanDeps());
+      revision = await operatorPrisma.$transaction((tx) =>
+        revisarAltaEnRedEnTx(
+          tx,
+          {
+            casaId: casaDeLaRed,
+            cuit: typeof raw.redCuit === "string" ? raw.redCuit : "",
+            puntoVenta: typeof raw.redPuntoVenta === "string" ? raw.redPuntoVenta : "",
+            local: { name: input.name, slug: input.slug, modules: plan.modules },
+          },
+          requiereOkDelDuenio,
+        ),
+      );
+    } catch (e) {
+      logger.error("operator.provisioning", "no se pudo revisar la red antes del alta", e, { actor, slug: input.slug });
+      return { ok: false, error: "No se creó ningún negocio: no se pudo revisar la red ahora (la base no contestó). Probá de nuevo en un rato." };
+    }
+    if (!revision.ok) {
+      logger.warn("operator.provisioning", "commit rechazado: la red no cierra", { actor, slug: input.slug, casaId: casaDeLaRed });
+      return { ok: false, error: `No se creó ningún negocio: ${revision.motivo}` };
+    }
+  }
 
   let outcome: ProvisionOutcome;
   try {
@@ -121,6 +158,18 @@ export async function commitTenantAction(raw: RawWizardForm): Promise<CommitActi
         actor,
         tenantId: commit.tenantId,
       });
+    }
+  }
+
+  // La marca del alta en la red (multilocal-core): la prueba de servidor de que ESTE commit creó el
+  // local para ESA casa. Sin ella, `sumarAltaALaRedAction` no le escribe CUIT ni lo vincula. Si no se
+  // pudo escribir, el local no entra por el alta (se suma desde «Red de locales», con confirmación).
+  if (commit?.tenantId && commit.tenantCreated && casaDeLaRed && outcome.state === "ACTIVE") {
+    const localId = commit.tenantId;
+    try {
+      await operatorPrisma.$transaction((tx) => marcarAltaParaLaRedEnTx(tx, { localId, casaId: casaDeLaRed, actor: `operator:${actor}` }));
+    } catch (err) {
+      logger.error("operator.provisioning", "no se pudo dejar la marca del alta en la red", err, { actor, tenantId: localId });
     }
   }
 

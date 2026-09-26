@@ -1,0 +1,11 @@
+CORRECCIÓN VUELTA 4 (QA vuelta 6) · 26/09/2026 · sin compilar ni reiniciar el server, sin migraciones y sin commit
+
+tsc: exit 0 (tsc.txt). eslint --max-warnings=0 en lo tocado: exit 0 (eslint.txt).
+Tests vecinos, incluida la paridad del menú de CH: 590 tests, 589 pasan, 0 fallan, 1 salteado (tests-DESPUES-final.txt).
+
+ANTES, con el código de hoy: las pruebas nuevas se corrieron sobre una copia del árbol con estos cambios revertidos. Fallan 10 de 59 (tests-ANTES-codigo-de-hoy.txt) y las 4 subpruebas contra Postgres (tests-ANTES-postgres-cuit.txt):
+ 1. Vincular otro CUIT: validarVinculo aceptaba con un aviso. Vincular sin confirmar y dar de baja sin confirmar actuaban igual.
+ 2. El paquete de la casa no traía la A 0004-00000001 del segundo local («la A del punto de venta 4»).
+ 3. No había ningún renglón de percepciones y otros tributos (pantalla de recibidos: 120).
+ 4. La factura con CAE STUB sumaba al débito y no había bloque de prueba.
+DESPUÉS: todas pasan (tests-despues-2.txt y tests-DESPUES-final.txt).

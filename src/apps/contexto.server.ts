@@ -62,6 +62,9 @@ const leerTenant = cache(async (): Promise<TenantParaApps | null> => {
  * UNA vez por request (src/cambios/interruptores.server.ts), en paralelo con la fila del negocio;
  * si esa lectura falla, queda apagado.
  */
+/** Los módulos asignados al negocio del request (la misma fila, leída una vez por request). */
+export const modulosDelNegocio = cache(async (): Promise<readonly string[]> => (await leerTenant())?.modules ?? []);
+
 export const getContextoApps = cache(async (): Promise<ContextoApps | null> => {
   const [t, enInicioPorApps] = await Promise.all([leerTenant(), enInicioPorAppsDelNegocio()]);
   if (!t) return null;

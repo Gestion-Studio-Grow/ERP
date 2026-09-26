@@ -1,0 +1,75 @@
+URL http://estudio.localhost:3210/contador/cliente/cmuixf5jl000b0m7djtnkaqsn/recibidos?mes=2026-09
+E
+Estudio Contable Laboratorio
+· panel del contador
+Compras de El Ceibo (RI) v8
+Comprobantes recibidos · CUIT 30-71955012-2. El mes va por la fecha del comprobante, no por el día en que se cargó.
+Mes anterior
+09/2026
+Mes siguiente
+Descargar para el libro de IVA compras
+Volver a la cartera
+CARGAR EL ARCHIVO DE ARCA
+Mis Comprobantes › Recibidos › Descargar (CSV o Excel), sin editarlo.
+Elegir el archivo
+Todavía no elegiste ningún archivo.
+Cargar comprobantes
+RESUMEN DEL MES
+8 comprobantes, 1 notas de crédito (restan).
+Neto gravado
+$123.050,00
+IVA crédito fiscal 10,5%
+sobre $10.000,00
+$1.050,00
+IVA crédito fiscal 21%
+sobre $111.050,00
+$23.320,50
+IVA crédito fiscal 27%
+sobre $1.000,00
+$270,00
+IVA crédito fiscal del mes
+Lo que suma. Es la columna «IVA crédito fiscal» del archivo.
+$24.640,50
+IVA a revisar
+Lo marcado «A revisar» abajo: no suma al crédito hasta que lo revises.
+$150,00
+No gravado y exento
+$0,00
+Otros tributos y percepciones
+$360,00
+Total
+$158.620,50
+COMPROBANTES DEL MES
+02/09/2026
+Factura A 00003-00002001 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$12.100,00
+04/09/2026
+Factura A 00003-00002002 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$13.830,00
+08/09/2026
+Factura B 00005-00000301 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$2.420,00
+10/09/2026
+Factura C 00002-00000077 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$8.000,00
+14/09/2026
+Nota de crédito A 00003-00000090 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$1.210,00
+15/09/2026
+Factura A 00010-00000700 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$121.060,50
+18/09/2026
+Factura A 00007-00000950 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.150,00
+Lo revisé
+23/09/2026
+Factura A 00004-00003001 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6
+$1.270,00

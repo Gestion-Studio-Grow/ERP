@@ -32,6 +32,7 @@ import { pasaleEsto } from "./pasale-esto";
 import { planTenantAction, commitTenantAction } from "@/lib/operator-provisioning-actions";
 import { revisarAltaEnRedAction, sumarAltaALaRedAction, type RevisionAltaEnRed } from "@/lib/operador/red-locales-actions";
 import type { ResultadoAltaEnRed } from "@/lib/multilocal/multilocal-core";
+import { NOMBRE_CONDICION_IVA, esCondicionIva } from "@/lib/cartera-alta-reglas";
 import {
   suggestMonogram,
   type RawWizardForm,
@@ -158,6 +159,7 @@ export function AltaWizard({ data }: { data: WizardData }) {
     const id = ++redReq.current;
     const sinRed = !red.casaId;
     const pedido = { ...red };
+    const nombre = form.name ?? "";
     const t = setTimeout(async () => {
       if (sinRed) {
         setRevisada(null);
@@ -165,7 +167,7 @@ export function AltaWizard({ data }: { data: WizardData }) {
         return;
       }
       setRevisando(true);
-      const r = await revisarRed(pedido);
+      const r = await revisarRed(pedido, nombre);
       if (id === redReq.current) {
         setRevisada({ clave: redKey, r });
         setRevisando(false);
@@ -222,14 +224,18 @@ export function AltaWizard({ data }: { data: WizardData }) {
       // Justo antes de crear, la revisión otra vez contra la base: entre la última revisión y el
       // clic otro operador pudo haber cargado ese punto de venta. Si no pasa, no se crea nada.
       if (red.casaId) {
-        const r = await revisarRed(red);
+        const r = await revisarRed(red, form.name ?? "");
         setRevisada({ clave: redKey, r });
         if (!r.ok) return;
       }
       // `sinCatalogo`: un local de una red no nace con el catálogo de ejemplo del rubro, nace con la
       // lista de la casa. La opción sólo se ofrece si la fábrica lo cumple (`altaEnRedDisponible`);
       // si igual sembrara, el panel del resultado lo avisa y la lista no le pisa esos productos.
-      const conRed: RawWizardForm = red.casaId ? { ...form, sinCatalogo: true } : form;
+      // El CUIT y el punto de venta viajan al commit: el servidor repite la revisión de la red ANTES
+      // de crear y, si no cierra, no crea nada (QA vuelta 7, bloqueante 2).
+      const conRed: RawWizardForm = red.casaId
+        ? { ...form, sinCatalogo: true, redCasaId: red.casaId, redCuit: red.cuit, redPuntoVenta: red.puntoVenta }
+        : form;
       const r = await commitTenantAction(conRed);
       setResult(r);
       if (r.ok && r.tenantId && red.casaId) await sumarALaRed(r.tenantId);
@@ -331,10 +337,11 @@ export function AltaWizard({ data }: { data: WizardData }) {
 }
 
 /** El chequeo del paso "¿De qué red?" contra el servidor, sin escribir. Nunca tira. */
-async function revisarRed(red: DatosRed): Promise<RevisionAltaEnRed> {
+async function revisarRed(red: DatosRed, nombre: string): Promise<RevisionAltaEnRed> {
   try {
     const fd = new FormData();
     fd.set("casaId", red.casaId);
+    fd.set("nombre", nombre);
     fd.set("cuit", red.cuit);
     fd.set("puntoVenta", red.puntoVenta);
     return await revisarAltaEnRedAction(fd);
@@ -621,6 +628,12 @@ function PanelDeLaRed({
             {resultado.puntoVenta ? "✓" : "!"} CUIT {cuitLegible(resultado.cuit)} ·{" "}
             {resultado.puntoVenta ? `punto de venta ${resultado.puntoVenta}` : "sin punto de venta: cargalo en su ficha para que pueda facturar"}
           </li>
+          {resultado.cuit &&
+            (resultado.condicionIva && esCondicionIva(resultado.condicionIva) ? (
+              <li className="text-success">✓ Condición frente al IVA: {NOMBRE_CONDICION_IVA[resultado.condicionIva]}, la de su CUIT.</li>
+            ) : (
+              <li className="text-warning">! Sin condición frente al IVA: cargala en su ficha antes de que facture.</li>
+            ))}
           {catalogo?.estado === "aplicado" ? (
             <li className="text-success">
               ✓ La lista de precios de {casa} quedó cargada ({catalogo.nuevos} productos nuevos
@@ -641,8 +654,8 @@ function PanelDeLaRed({
             ✗ El negocio se creó, pero no se sumó a la red (no quedó nada a medias): {resultado.motivo}
           </p>
           <p className="text-sm text-muted">
-            Si el problema es el CUIT o el punto de venta, corregilo acá y reintentá. Si es otra cosa, seguí desde las
-            fichas: el vínculo se arma en la tarjeta Red de la casa y el punto de venta, en la ficha del local.
+            Si el problema es el CUIT o el punto de venta, corregilo acá y reintentá. Si es otra cosa, reintentá desde acá
+            en un rato: un local sólo entra a la red con el CUIT de la casa, y desde la ficha no se puede sumar uno de otro CUIT.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="CUIT" htmlFor="w-red-cuit-2" hint={`Vacío = el de la casa (${cuitLegible(cuitDeLaCasa)}).`}>

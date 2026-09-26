@@ -1,0 +1,86 @@
+URL http://estudio.localhost:3210/contador/cliente/cmuixg0z8000j0m7diyllrxu9/recibidos?mes=2026-09
+E
+Estudio Contable Laboratorio
+· panel del contador
+Compras de La Estrella (2 locales) v8
+Comprobantes recibidos · CUIT 30-71955027-0. El mes va por la fecha del comprobante, no por el día en que se cargó.
+Mes anterior
+09/2026
+Mes siguiente
+Descargar para el libro de IVA compras
+Volver a la cartera
+CARGAR EL ARCHIVO DE ARCA
+Mis Comprobantes › Recibidos › Descargar (CSV o Excel), sin editarlo.
+Elegir otro archivo
+recibidos-c-2026-09.csv
+Cargar comprobantes
+Entraron 5 comprobantes. 1 quedó a revisar.
+Neto gravado
+$82.000,00
+IVA 10,5%
+sobre $20.000,00
+$2.100,00
+IVA 21%
+sobre $50.000,00
+$10.500,00
+IVA 27%
+sobre $10.000,00
+$2.700,00
+IVA a revisar (no suma al crédito)
+$300,00
+Otros tributos y percepciones
+$1.800,00
+Total
+$111.500,00
+A REVISAR
+Entraron, pero mirá el comprobante antes de cerrar el libro.
+Fila 6
+Factura A 00011-00005004 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+RESUMEN DEL MES
+5 comprobantes.
+Neto gravado
+$82.000,00
+IVA crédito fiscal 10,5%
+sobre $20.000,00
+$2.100,00
+IVA crédito fiscal 21%
+sobre $50.000,00
+$10.500,00
+IVA crédito fiscal 27%
+sobre $10.000,00
+$2.700,00
+IVA crédito fiscal del mes
+Lo que suma. Es la columna «IVA crédito fiscal» del archivo.
+$15.300,00
+IVA a revisar
+Lo marcado «A revisar» abajo: no suma al crédito hasta que lo revises.
+$300,00
+No gravado y exento
+$0,00
+Otros tributos y percepciones
+$1.800,00
+Total
+$111.500,00
+COMPROBANTES DEL MES
+03/09/2026
+Factura A 00011-00005001 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$62.000,00
+09/09/2026
+Factura A 00011-00005002 · LACTEOS DEL OESTE SA
+CUIT 30-70000002-4
+$22.100,00
+12/09/2026
+Factura B 00012-00006001 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$12.100,00
+16/09/2026
+Factura A 00011-00005003 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$13.000,00
+19/09/2026
+Factura A 00011-00005004 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$2.300,00
+Lo revisé

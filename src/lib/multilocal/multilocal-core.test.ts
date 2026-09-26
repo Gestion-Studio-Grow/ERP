@@ -35,6 +35,10 @@ import {
   resumenDeLaFicha,
   resumirRed,
   validarVinculo,
+  MOTIVO_SIN_CONFIRMAR_VINCULO,
+  MOTIVO_SIN_CONFIRMAR_BAJA,
+  localesDelMismoCuit,
+  mismoCuit,
   ventasDe,
   ventasPorDia,
   vincularEnTx,
@@ -540,9 +544,58 @@ test("validarVinculo: cada rechazo con su porqué", () => {
     assert.equal(r.ok, false, String(re));
     assert.match(r.ok ? "" : r.motivo, re);
   }
+  // QA vuelta 6, bloqueante 1: otro CUIT (antes pasaba con un aviso) o sin CUIT se rechaza.
   const otroCuit = validarVinculo({ ...base, casa, local: neg("franquicia", [], { arcaCuit: "27111111113" }) });
-  assert.ok(otroCuit.ok);
-  assert.match(otroCuit.ok ? (otroCuit.aviso ?? "") : "", /otro CUIT/);
+  assert.equal(otroCuit.ok, false);
+  assert.match(otroCuit.ok ? "" : otroCuit.motivo, /no es del mismo CUIT/);
+  const sinCuit = validarVinculo({ ...base, casa, local: neg("franquicia", [], {}) });
+  assert.match(sinCuit.ok ? "" : sinCuit.motivo, /no es del mismo CUIT/);
+  const casaSinCuit = validarVinculo({ ...base, casa: neg("casa", ["multilocal"], { name: "MAGRA" }), local });
+  assert.match(casaSinCuit.ok ? "" : casaSinCuit.motivo, /no tiene CUIT cargado/);
+  // El alta en la red decide con el CUIT con el que el local QUEDA (el de la casa que le copia).
+  assert.ok(validarVinculo({ ...base, casa, local: neg("nuevo", [], {}), cuitConQueQueda: "20-30405060-7" }).ok);
+  assert.equal(validarVinculo({ ...base, casa, local: neg("nuevo", [], {}), cuitConQueQueda: "27111111113" }).ok, false);
+});
+
+test("QA vuelta 6 · vincular uno de otro CUIT falla en el servidor y no expone nada; sin confirmar no se vincula ni se da de baja", async () => {
+  const db = baseConRls([
+    ...TENANTS,
+    neg("lucia", ["pos"], { name: "Lucía Benítez", slug: "lucia", arcaCuit: "27384412675" }),
+    neg("sincuit", ["pos"], { name: "Sin CUIT", slug: "sincuit" }),
+  ]);
+  for (const localId of ["lucia", "sincuit"]) {
+    const r = await vincularEnTx(db.tx, { casaId: "casa", localId, actor: "operator:gsg", confirmado: true }, () => false);
+    assert.equal(r.ok, false, localId);
+    assert.match(r.ok ? "" : r.motivo, /no es del mismo CUIT/);
+  }
+  assert.equal(db.cartera.length, 0, "ninguna fila: la casa no ve nada del otro negocio");
+  assert.equal(db.auditoria.length, 0, "un rechazo no deja escrito nada");
+  const puertos = {
+    filasDeLaRed: async () => db.cartera.filter((f) => f.tenantId === "casa").map((f) => ({ id: "x", localTenantId: String(f.clienteTenantId), alias: String(f.alias), estado: f.estado as FilaRed["estado"] })),
+    metaDeLocales: async (ids: string[]) => new Map(ids.map((id) => [id, { nombre: id, slug: id, subdomain: null, arcaCuit: null, arcaPuntoVenta: null }])),
+  };
+  assert.deepEqual(await localesDeLaRed(puertos, "casa"), [], "la lectura de la dueña de la casa no trae ningún local");
+  const sinConfirmar = await vincularEnTx(db.tx, { casaId: "casa", localId: "canning", actor: "operator:gsg", confirmado: false }, () => false);
+  assert.deepEqual(sinConfirmar, { ok: false, motivo: MOTIVO_SIN_CONFIRMAR_VINCULO });
+  assert.equal(db.cartera.length, 0);
+  await vincularEnTx(db.tx, { casaId: "casa", localId: "canning", actor: "operator:gsg", confirmado: true }, () => false);
+  const baja = await darDeBajaEnTx(db.tx, { casaId: "casa", localId: "canning", actor: "operator:gsg", confirmado: false });
+  assert.deepEqual(baja, { ok: false, motivo: MOTIVO_SIN_CONFIRMAR_BAJA });
+  assert.deepEqual(db.cartera.map((f) => f.estado), ["activa"], "sin confirmar, la baja no toca nada");
+});
+
+test("QA vuelta 6 · el libro de la casa suma sólo los locales del MISMO CUIT, y sólo si es casa", () => {
+  const locales = [
+    { id: "bernal", arcaCuit: "30712456082" },
+    { id: "lucia", arcaCuit: "27384412675" },
+    { id: "sin", arcaCuit: null },
+  ];
+  const casa = { arcaCuit: "30-71245608-2", modules: ["multilocal"] };
+  assert.deepEqual(localesDelMismoCuit(casa, locales).map((l) => l.id), ["bernal"]);
+  assert.deepEqual(localesDelMismoCuit({ ...casa, modules: ["pos"] }, locales), [], "sin el módulo no es casa");
+  assert.deepEqual(localesDelMismoCuit({ ...casa, modules: ["multilocal", "cartera"] }, locales), [], "un estudio no suma su cartera");
+  assert.deepEqual(localesDelMismoCuit({ ...casa, arcaCuit: null }, locales), [], "casa sin CUIT: nada");
+  assert.equal(mismoCuit("", ""), false);
 });
 
 test("alias: el escrito, sin espacios de más y corto; si no, el nombre del negocio", () => {
@@ -634,13 +687,13 @@ const TENANTS = [
   neg("casa", ["multilocal", "pos"], { name: "MAGRA", slug: "magra", arcaCuit: "20304050607" }),
   neg("canning", ["pos"], { name: "MAGRA Canning", slug: "magra-canning", arcaCuit: "20304050607" }),
   neg("lomas", ["pos"], { name: "MAGRA Lomas", slug: "magra-lomas", arcaCuit: "20304050607" }),
-  neg("velas", ["multilocal"], { name: "Velas", slug: "shinevelas" }),
+  neg("velas", ["multilocal"], { name: "Velas", slug: "shinevelas", arcaCuit: "20304050607" }),
   neg("estudio", ["cartera"], { name: "Estudio", slug: "estudio" }),
 ];
 
 test("vincular: la fila con el GUC de la casa, auditoría en la casa Y en el local, con candado", async () => {
   const db = baseConRls(TENANTS);
-  const r = await vincularEnTx(db.tx, { casaId: "casa", localId: "canning", alias: "Canning", actor: "operator:gsg" }, () => false);
+  const r = await vincularEnTx(db.tx, { casaId: "casa", localId: "canning", alias: "Canning", actor: "operator:gsg", confirmado: true }, () => false);
   assert.ok(r.ok);
   assert.equal(r.ok && r.yaEstaba, false);
   assert.deepEqual(db.locks, ["red-locales:canning", "red-locales:casa"], "candado de los dos, en orden");
@@ -650,15 +703,15 @@ test("vincular: la fila con el GUC de la casa, auditoría en la casa Y en el loc
     ["canning", "multilocal.vinculado"],
   ]);
   // Idempotente: vincular de nuevo no escribe nada.
-  const otra = await vincularEnTx(db.tx, { casaId: "casa", localId: "canning", alias: "Canning", actor: "operator:gsg" }, () => false);
+  const otra = await vincularEnTx(db.tx, { casaId: "casa", localId: "canning", alias: "Canning", actor: "operator:gsg", confirmado: true }, () => false);
   assert.ok(otra.ok && otra.yaEstaba);
   assert.equal(db.auditoria.length, 2);
 });
 
 test("vincular: un local que ya está en otra red se rechaza, aunque la tabla sólo se vea con el GUC de cada casa", async () => {
   const db = baseConRls(TENANTS);
-  await vincularEnTx(db.tx, { casaId: "velas", localId: "lomas", actor: "operator:gsg" }, () => false);
-  const r = await vincularEnTx(db.tx, { casaId: "casa", localId: "lomas", actor: "operator:gsg" }, () => false);
+  await vincularEnTx(db.tx, { casaId: "velas", localId: "lomas", actor: "operator:gsg", confirmado: true }, () => false);
+  const r = await vincularEnTx(db.tx, { casaId: "casa", localId: "lomas", actor: "operator:gsg", confirmado: true }, () => false);
   assert.equal(r.ok, false);
   assert.match(r.ok ? "" : r.motivo, /ya es local de «Velas»/);
   assert.equal(db.cartera.filter((f) => f.tenantId === "casa").length, 0);
@@ -666,21 +719,21 @@ test("vincular: un local que ya está en otra red se rechaza, aunque la tabla s�
 
 test("la lista de la consola marca los que ya son local de OTRA red, con su casa; los libres y los propios no", async () => {
   const db = baseConRls(TENANTS);
-  await vincularEnTx(db.tx, { casaId: "velas", localId: "lomas", actor: "operator:gsg" }, () => false);
-  await vincularEnTx(db.tx, { casaId: "casa", localId: "canning", actor: "operator:gsg" }, () => false);
+  await vincularEnTx(db.tx, { casaId: "velas", localId: "lomas", actor: "operator:gsg", confirmado: true }, () => false);
+  await vincularEnTx(db.tx, { casaId: "casa", localId: "canning", actor: "operator:gsg", confirmado: true }, () => false);
   const m = await localesDeOtrasRedes(db.tx, ["canning", "lomas"], "casa");
   assert.deepEqual([...m].map(([id, casas]) => [id, casas.map((c) => c.name)]), [["lomas", ["Velas"]]]);
   // Dado de baja en la otra red, vuelve a estar libre.
-  await darDeBajaEnTx(db.tx, { casaId: "velas", localId: "lomas", actor: "operator:gsg" });
+  await darDeBajaEnTx(db.tx, { casaId: "velas", localId: "lomas", actor: "operator:gsg", confirmado: true });
   assert.equal((await localesDeOtrasRedes(db.tx, ["lomas"], "casa")).size, 0);
   assert.equal((await localesDeOtrasRedes(db.tx, [], "casa")).size, 0);
 });
 
 test("vincular: un estudio contable no entra a una red; CH sólo con el OK del dueño", async () => {
   const db = baseConRls(TENANTS);
-  const estudio = await vincularEnTx(db.tx, { casaId: "casa", localId: "estudio", actor: "operator:gsg" }, () => false);
+  const estudio = await vincularEnTx(db.tx, { casaId: "casa", localId: "estudio", actor: "operator:gsg", confirmado: true }, () => false);
   assert.match(estudio.ok ? "" : estudio.motivo, /panel del contador/);
-  const ch = await vincularEnTx(db.tx, { casaId: "casa", localId: "canning", actor: "operator:gsg" }, (slug) => slug === "magra-canning");
+  const ch = await vincularEnTx(db.tx, { casaId: "casa", localId: "canning", actor: "operator:gsg", confirmado: true }, (slug) => slug === "magra-canning");
   assert.match(ch.ok ? "" : ch.motivo, /OK del dueño/);
   assert.equal(db.cartera.length, 0);
   assert.equal(db.auditoria.length, 0, "un rechazo no deja escrito nada");
@@ -688,9 +741,9 @@ test("vincular: un estudio contable no entra a una red; CH sólo con el OK del d
 
 test("dar de baja: el local desaparece de la red y queda auditado en los dos; dar de baja otra vez avisa", async () => {
   const db = baseConRls(TENANTS);
-  await vincularEnTx(db.tx, { casaId: "casa", localId: "canning", actor: "operator:gsg" }, () => false);
-  await vincularEnTx(db.tx, { casaId: "casa", localId: "lomas", actor: "operator:gsg" }, () => false);
-  const r = await darDeBajaEnTx(db.tx, { casaId: "casa", localId: "lomas", actor: "operator:gsg" });
+  await vincularEnTx(db.tx, { casaId: "casa", localId: "canning", actor: "operator:gsg", confirmado: true }, () => false);
+  await vincularEnTx(db.tx, { casaId: "casa", localId: "lomas", actor: "operator:gsg", confirmado: true }, () => false);
+  const r = await darDeBajaEnTx(db.tx, { casaId: "casa", localId: "lomas", actor: "operator:gsg", confirmado: true });
   assert.ok(r.ok);
   assert.deepEqual(db.auditoria.slice(-2).map((f) => [f.tenantId, f.action]), [
     ["casa", "multilocal.baja"],
@@ -702,18 +755,18 @@ test("dar de baja: el local desaparece de la red y queda auditado en los dos; da
     metaDeLocales: async (ids: string[]) => new Map(ids.map((id) => [id, { nombre: id, slug: id, subdomain: null, arcaCuit: null, arcaPuntoVenta: null }])),
   };
   assert.deepEqual((await localesDeLaRed(puertos, "casa")).map((l) => l.localTenantId), ["canning"]);
-  const otraVez = await darDeBajaEnTx(db.tx, { casaId: "casa", localId: "lomas", actor: "operator:gsg" });
+  const otraVez = await darDeBajaEnTx(db.tx, { casaId: "casa", localId: "lomas", actor: "operator:gsg", confirmado: true });
   assert.equal(otraVez.ok, false);
   // Y después se puede volver a vincular.
-  const vuelve = await vincularEnTx(db.tx, { casaId: "casa", localId: "lomas", actor: "operator:gsg" }, () => false);
+  const vuelve = await vincularEnTx(db.tx, { casaId: "casa", localId: "lomas", actor: "operator:gsg", confirmado: true }, () => false);
   assert.ok(vuelve.ok && !vuelve.yaEstaba);
 });
 
 test("la ficha: los locales de la casa, a qué red pertenece un local y sus vínculos activos", async () => {
   const db = baseConRls(TENANTS);
-  await vincularEnTx(db.tx, { casaId: "casa", localId: "canning", alias: "Canning", actor: "operator:gsg" }, () => false);
-  await vincularEnTx(db.tx, { casaId: "casa", localId: "lomas", alias: "Lomas", actor: "operator:gsg" }, () => false);
-  await darDeBajaEnTx(db.tx, { casaId: "casa", localId: "lomas", actor: "operator:gsg" });
+  await vincularEnTx(db.tx, { casaId: "casa", localId: "canning", alias: "Canning", actor: "operator:gsg", confirmado: true }, () => false);
+  await vincularEnTx(db.tx, { casaId: "casa", localId: "lomas", alias: "Lomas", actor: "operator:gsg", confirmado: true }, () => false);
+  await darDeBajaEnTx(db.tx, { casaId: "casa", localId: "lomas", actor: "operator:gsg", confirmado: true });
   const casa = await leerRedEnTx(db.tx, "casa");
   assert.deepEqual(casa.locales.map((l) => [l.alias, l.estado]), [["Canning", "activa"], ["Lomas", "baja"]]);
   assert.equal(casa.vinculosActivos, 1);

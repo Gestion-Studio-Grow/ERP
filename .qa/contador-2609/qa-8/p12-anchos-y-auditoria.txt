@@ -1,0 +1,31 @@
+[auditoría del estudio (sin filtro)] HTTP 200 /contador · ZZnotav8=0 confunden=0 titular real=0 Qué Bien=0 Lomas=0 CH Estética=0 · filas «Soporte»: 15
+[auditoría del estudio ?tipo=soporte.nota_interna] HTTP 200 /contador · ZZnotav8=0 confunden=0 titular real=0 Qué Bien=0 Lomas=0 CH Estética=0 · filas «Soporte»: 15
+[auditoría del estudio ?tipo=soporte] HTTP 200 /contador · ZZnotav8=0 confunden=0 titular real=0 Qué Bien=0 Lomas=0 CH Estética=0 · filas «Soporte»: 15
+[auditoría del estudio ?sobre=soporte.nota_interna] HTTP 200 /contador · ZZnotav8=0 confunden=0 titular real=0 Qué Bien=0 Lomas=0 CH Estética=0 · filas «Soporte»: 15
+[auditoría del estudio ?quien=operator%3Aduenio] HTTP 200 /contador · ZZnotav8=0 confunden=0 titular real=0 Qué Bien=0 Lomas=0 CH Estética=0 · filas «Soporte»: 15
+[auditoría del estudio ?pagina=2] HTTP 200 /contador · ZZnotav8=0 confunden=0 titular real=0 Qué Bien=0 Lomas=0 CH Estética=0 · filas «Soporte»: 15
+[auditoría del estudio ?pagina=3] HTTP 200 /contador · ZZnotav8=0 confunden=0 titular real=0 Qué Bien=0 Lomas=0 CH Estética=0 · filas «Soporte»: 15
+  consola: []
+[contadora @390] /contador -> HTTP 200 /contador · scrollWidth 390/390
+[contadora @390] /contador/cliente/cmuixf5jl000b0m7djtnkaqsn/recibidos?mes=2026-09 -> HTTP 200 /contador/cliente/cmuixf5jl000b0m7djtnkaqsn/recibidos?mes=2026-09 · scrollWidth 390/390
+[contadora @390] /contador/cliente/cmuixg0z8000j0m7diyllrxu9/recibidos?mes=2026-08 -> HTTP 200 /contador/cliente/cmuixg0z8000j0m7diyllrxu9/recibidos?mes=2026-08 · scrollWidth 390/390
+[contadora @390] /contador?cliente=cmuixg0z8000j0m7diyllrxu9#cartera-cliente -> HTTP 200 /contador?cliente=cmuixg0z8000j0m7diyllrxu9#cartera-cliente · scrollWidth 390/390
+  consola contadora@390: []
+[b @390] /admin -> HTTP 200 /admin · scrollWidth 390/390
+[b @390] /admin/facturacion -> HTTP 200 /admin/facturacion · scrollWidth 390/390
+[b @390] /admin/libros?mes=2026-09 -> HTTP 200 /admin/libros?mes=2026-09 · scrollWidth 390/390
+[b @390] /admin/cierre-mes -> HTTP 200 /admin/cierre-mes · scrollWidth 390/390
+  consola b@390: []
+[c @390] /admin/cierre-mes?mes=2026-08 -> HTTP 200 /admin/cierre-mes?mes=2026-08 · scrollWidth 390/390
+[c @390] /admin/locales -> HTTP 200 /admin/locales · scrollWidth 390/390
+  consola c@390: []
+[operador @390] /operador/pedidos-cartera -> HTTP 200 /operador/pedidos-cartera · scrollWidth 390/390
+[operador @390] /operador/solicitudes -> HTTP 200 /operador/solicitudes · scrollWidth 390/390
+[operador @390] /operador/tenants/cmuixg0z8000j0m7diyllrxu9?pestana=plan -> HTTP 200 /operador/tenants/cmuixg0z8000j0m7diyllrxu9?pestana=plan · scrollWidth 390/390
+  consola operador@390: []
+[a @1440] /admin -> HTTP 200 /admin · scrollWidth 1440/1440 :: Facturado del mes | $2.420 | Facturas emitidas | 157 disponibles este mes | Ver facturas emitidas
+[a @1440] /admin/facturacion -> HTTP 200 /admin/facturacion · scrollWidth 1440/1440
+[a @1440] /admin/cierre-mes?mes=2026-08 -> HTTP 200 /admin/cierre-mes?mes=2026-08 · scrollWidth 1440/1440
+  consola a@1440: []
+[contadora @1440] /contador?cliente=cmuixed5j00040m7d4xiyi5n0#cartera-cliente -> HTTP 200 /contador?cliente=cmuixed5j00040m7d4xiyi5n0#cartera-cliente · scrollWidth 1440/1440 :: Lucía (mono) v8 · Categoría B | Dentro de la B · 0 % del tope | Facturó $ 0,00 en los últimos 12 meses. Le quedan $ 17.595.182,74 hasta el tope de la B. | Tope de la B: $17.595.183 · tope de la C: $24.670.494 | Nada que hacer po
+  consola contadora@1440: []

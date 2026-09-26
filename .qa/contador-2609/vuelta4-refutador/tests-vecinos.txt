@@ -1,0 +1,38 @@
+=== src/lib/factura-de-prueba-postgres.test.ts
+# pass 6
+# fail 0
+# skipped 0
+=== src/app/operador/(console)/solicitudes/configurador-reglas.test.ts
+# pass 16
+# fail 0
+# skipped 0
+=== src/app/operador/(console)/solicitudes/duplicados-postgres.test.ts
+# pass 1
+# fail 0
+# skipped 0
+=== src/app/operador/(console)/solicitudes/bandeja-borde-postgres.test.ts
+# pass 5
+# fail 0
+# skipped 0
+=== src/lib/cartera-alta-postgres.test.ts
+# pass 1
+# fail 0
+# skipped 0
+=== src/lib/contador/recibidos-postgres.test.ts
+# pass 1
+# fail 0
+# skipped 0
+=== src/lib/operador/guardia-negocio.test.ts
+not ok 2 - el recorrido encuentra los endpoints con privilegio de operador en TODO src/ (si no, el trinquete no mira nada)
+not ok 3 - TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guardia del negocio (candado de CH)
+# pass 4
+# fail 2
+# skipped 0
+=== src/app/admin/(dashboard)/auditoria/frase.test.ts
+# pass 8
+# fail 0
+# skipped 0
+=== src/lib/caja/frontera-cierre.test.ts
+# pass 7
+# fail 0
+# skipped 0

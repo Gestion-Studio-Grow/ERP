@@ -1,0 +1,43 @@
+TAP version 13
+# (node:17162) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+# (Use `node --trace-deprecation ...` to show where the warning was created)
+# Subtest: compras del cliente en su Libro IVA y en el listado del mes
+    # Subtest: libro IVA: lo importado va al mes del comprobante (no al de la carga), la nota de crédito resta y su IVA es el crédito
+    ok 1 - libro IVA: lo importado va al mes del comprobante (no al de la carga), la nota de crédito resta y su IVA es el crédito
+      ---
+      duration_ms: 1471.230027
+      type: 'test'
+      ...
+    # Subtest: refutador 26/09 · lo «a revisar» se revisa: la contadora lo confirma y su IVA entra al crédito; nadie de afuera de la cartera puede
+    ok 2 - refutador 26/09 · lo «a revisar» se revisa: la contadora lo confirma y su IVA entra al crédito; nadie de afuera de la cartera puede
+      ---
+      duration_ms: 268.100238
+      type: 'test'
+      ...
+    # Subtest: cliente grande: más de 5.000 comprobantes en el mes salen TODOS en el archivo y en el resumen
+    ok 3 - cliente grande: más de 5.000 comprobantes en el mes salen TODOS en el archivo y en el resumen
+      ---
+      duration_ms: 4692.954981
+      type: 'test'
+      ...
+    1..3
+ok 1 - compras del cliente en su Libro IVA y en el listado del mes
+  ---
+  duration_ms: 11184.217511
+  type: 'test'
+  ...
+# Subtest: importar recibidos: aislado por cartera, sin duplicar, sin mover stock y con el resumen en cifras
+ok 2 - importar recibidos: aislado por cartera, sin duplicar, sin mover stock y con el resumen en cifras
+  ---
+  duration_ms: 6516.499371
+  type: 'test'
+  ...
+1..2
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11852.873136

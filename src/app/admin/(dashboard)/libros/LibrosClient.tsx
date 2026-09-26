@@ -244,8 +244,8 @@ export default function LibrosClient({
           Compras <span className="text-sm font-normal text-muted">(control)</span>
         </h2>
         <p className="mb-3 text-sm text-muted">
-          Se cargan sin la factura del proveedor, y sin ella no dan crédito fiscal. Pasale a tu contador las facturas
-          de compra para que sume el crédito.
+          Las que tienen la factura del proveedor (las que carga tu contador desde ARCA) dan crédito fiscal; las
+          cargadas sin factura, no. Si te falta alguna, pasale la factura a tu contador.
         </p>
         <DataTable
           caption="Compras del mes"

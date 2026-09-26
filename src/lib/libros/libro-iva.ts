@@ -26,9 +26,12 @@
 // deduce de lo que emitió: con alguna A o B es inscripto; sólo C, monotributo.
 
 import { round2 } from "@/lib/round";
+import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { PORCENTAJE_IVA, TipoComprobante } from "@/plugins/arca/domain/catalogos";
 import { bordesDelMes, type MesKey } from "./fecha-fiscal";
+import { seEmiteFueraDelSistema, type RegimenFueraDelSistema } from "@/lib/fiscal/regimen-factura-a";
+import type { RegimenFacturaA } from "@/lib/fiscal/decidir-comprobante";
 
 // ---------------------------------------------------------------------------
 // Fechas.
@@ -153,10 +156,50 @@ export function libroOcultoPara(condicion: CondicionLibro): boolean {
 // paquete. Objeto plano, sin Prisma de valor.
 // ---------------------------------------------------------------------------
 
-/** Los comprobantes con CAE cuya fecha fiscal (AAAAMMDD) cae en el mes. PURA. */
+/** Prefijo del CAE simulado del modo prueba (plugins/arca/afip/stub.ts: «STUB00000001»). */
+export const PREFIJO_CAE_DE_PRUEBA = "STUB";
+
+/**
+ * ¿Es un CAE del modo prueba? El stub de ARCA contesta «STUB» + el número: ARCA no autorizó nada y
+ * no se declara ni cuenta para los topes del monotributo (QA vuelta 6, bloqueante 4). PURA.
+ */
+export function esCaeDePrueba(cae: string | null | undefined): boolean {
+  return (cae ?? "").trim().toUpperCase().startsWith(PREFIJO_CAE_DE_PRUEBA);
+}
+
+/**
+ * Los comprobantes con CAE REAL cuya fecha fiscal (AAAAMMDD) cae en el mes: lo que se declara. Sin
+ * los del modo prueba (un CAE nulo no es de prueba). PURA.
+ */
 export function whereComprobantesDelMes(tenantId: string, mes: MesKey) {
   const { fiscal } = bordesDelMes(mes);
-  return { tenantId, status: "AUTHORIZED" as const, fecha: { gte: fiscal.gte, lt: fiscal.lt } };
+  return {
+    tenantId,
+    status: "AUTHORIZED" as const,
+    fecha: { gte: fiscal.gte, lt: fiscal.lt },
+    AND: [{ OR: [{ cae: null }, { NOT: { cae: { startsWith: PREFIJO_CAE_DE_PRUEBA } } }] }],
+  };
+}
+
+/**
+ * EL CORTE DEL MES CONGELADO (refutador, vuelta 4): el paquete FINAL es la foto del congelado. Un
+ * comprobante entra si ARCA lo autorizó hasta ese instante; los viejos sin `authorizedAt`, por cuándo se
+ * cargaron. Lo que ARCA autorizó DESPUÉS con fecha del mes (un local que siguió emitiendo, un CAE que
+ * llegó tarde) no cambia el FINAL: va aparte, a la vista y sin sumar, hasta que se reabra el mes. PURA.
+ */
+export function whereAutorizadosHasta(corte: Date) {
+  return { OR: [{ authorizedAt: { lte: corte } }, { authorizedAt: null, createdAt: { lte: corte } }] };
+}
+
+/** Lo contrario de `whereAutorizadosHasta`: lo autorizado después del congelado. PURA. */
+export function whereAutorizadosDespues(corte: Date) {
+  return { OR: [{ authorizedAt: { gt: corte } }, { authorizedAt: null, createdAt: { gt: corte } }] };
+}
+
+/** Los del modo prueba del mes: se muestran aparte, como «de prueba». PURA. */
+export function whereComprobantesDePruebaDelMes(tenantId: string, mes: MesKey) {
+  const { fiscal } = bordesDelMes(mes);
+  return { tenantId, status: "AUTHORIZED" as const, fecha: { gte: fiscal.gte, lt: fiscal.lt }, cae: { startsWith: PREFIJO_CAE_DE_PRUEBA } };
 }
 
 /**
@@ -236,6 +279,13 @@ export interface CompraRow {
   creditoIva?: number;
   /** Sólo con la factura del proveedor: el neto gravado, con signo (la nota de crédito resta). */
   netoGravado?: number;
+  /** El comprobante quedó «a revisar» al importarlo: no suma al crédito ni al neto hasta que se revise. */
+  aRevisar?: string;
+  /**
+   * Sólo con la factura del proveedor: percepciones y otros tributos, con signo (la nota de crédito
+   * resta). Es lo mismo que suma la pantalla de recibidos (recibidos-db.ts, `leerComprasConFactura`).
+   */
+  otrosTributos?: number;
 }
 
 function docLabel(docTipo: number, docNro: string): string {
@@ -356,13 +406,85 @@ export interface LibroIvaResumen {
   comprasConFacturaCount: number;
   /** Comprobantes con CAE cuya venta se anuló, sin nota de crédito. */
   anuladasSinNotaDeCredito: number;
+  /** Percepciones y otros tributos de las facturas de proveedor (la nota de crédito resta). */
+  comprasOtrosTributos: number;
+  /** Facturas del modo prueba (CAE simulado): se muestran aparte y no suman a nada. */
+  dePruebaCount: number;
+}
+
+/** Un negocio cuyos comprobantes suma el libro: la casa y sus locales del mismo CUIT. */
+export interface NegocioDelLibro {
+  nombre: string;
+  puntoVenta: number | null;
 }
 
 export interface LibroIva {
   comprobantes: ComprobanteRow[];
+  /**
+   * Sólo en el paquete FINAL (mes congelado): con fecha del mes pero autorizados por ARCA después del
+   * congelado. No suman: para que entren, se reabre el mes y se vuelve a congelar.
+   */
+  comprobantesDespuesDelCongelado?: ComprobanteRow[];
+  /** Con CAE simulado del modo prueba: no se declaran (QA vuelta 6). */
+  comprobantesDePrueba: ComprobanteRow[];
   ventasSinComprobante: VentaSinComprobanteRow[];
   compras: CompraRow[];
   resumen: LibroIvaResumen;
+  /** Sólo si el CUIT tiene más de un local en la red: los negocios que suma, casa primero. */
+  negocios?: NegocioDelLibro[];
+  /**
+   * Sólo si ARCA le asignó «A con leyenda» o «M»: el sistema no emite esas facturas, así que las que se
+   * hicieron en el sitio de ARCA no están en el libro y el débito no las incluye (QA vuelta 7).
+   */
+  facturaAFueraDelSistema?: RegimenFueraDelSistema;
+}
+
+/** Lo que se lee de UN negocio para su libro (libro-iva-loader.ts), antes de armarlo. */
+export interface FilasDelLibro {
+  comprobantes: ComprobanteRow[];
+  /** Con el corte del congelado: los autorizados después (`whereAutorizadosDespues`). */
+  comprobantesDespuesDelCongelado?: ComprobanteRow[];
+  comprobantesDePrueba: ComprobanteRow[];
+  ventasSinComprobante: VentaSinComprobanteRow[];
+  compras: CompraRow[];
+  tiposEmitidos: (number | null)[];
+  /** `Tenant.arcaCondicionIva` del negocio. */
+  condicionCargada: string | null;
+  /** La Factura A que asignó ARCA (la carga Soporte). Con «A con leyenda» o «M», el libro lo avisa. */
+  regimenFacturaA?: RegimenFacturaA | null;
+}
+
+/**
+ * Las filas del libro de UN CUIT con varios locales: la casa primero y después cada local del MISMO
+ * CUIT (quién entra lo decide `localesDelMismoCuit`, multilocal-core.ts). Los comprobantes emitidos
+ * se suman: cada uno lleva su punto de venta en el número. Una factura de proveedor cargada en dos
+ * negocios del mismo CUIT es UNA compra: cuenta una vez (la primera, la de la casa). La condición es
+ * la cargada en la casa. PURA.
+ */
+export function unirFilasDelCuit(partes: readonly FilasDelLibro[]): FilasDelLibro {
+  const vistas = new Set<string>();
+  const compras: CompraRow[] = [];
+  for (const p of partes) {
+    for (const c of p.compras) {
+      if (c.creditoIva !== undefined) {
+        const clave = `${c.doc}|${c.numero}`;
+        if (vistas.has(clave)) continue;
+        vistas.add(clave);
+      }
+      compras.push(c);
+    }
+  }
+  return {
+    comprobantes: partes.flatMap((p) => p.comprobantes),
+    comprobantesDespuesDelCongelado: partes.flatMap((p) => p.comprobantesDespuesDelCongelado ?? []),
+    comprobantesDePrueba: partes.flatMap((p) => p.comprobantesDePrueba),
+    ventasSinComprobante: partes.flatMap((p) => p.ventasSinComprobante),
+    compras,
+    tiposEmitidos: partes.flatMap((p) => p.tiposEmitidos),
+    condicionCargada: partes[0]?.condicionCargada ?? null,
+    // La clase es del CUIT: manda la de la casa; si la casa no la tiene, la de un local.
+    regimenFacturaA: partes.map((p) => p.regimenFacturaA ?? null).find((r) => r !== null) ?? null,
+  };
 }
 
 /** Arma el resumen. PURA. */
@@ -371,6 +493,7 @@ export function resumirLibroIva(
   ventasSinComprobante: readonly VentaSinComprobanteRow[],
   compras: readonly CompraRow[],
   condicion: CondicionLibro,
+  dePruebaCount = 0,
 ): LibroIvaResumen {
   const suma = <T>(xs: readonly T[], f: (x: T) => number) => round2(xs.reduce((s, x) => s + f(x), 0));
   const porAlicuota = new Map<number, TotalAlicuota>();
@@ -383,7 +506,7 @@ export function resumirLibroIva(
     }
   }
   const ivaDebito = suma(comprobantes, (c) => c.iva);
-  const ivaCredito = muestraPosicionIva(condicion) ? suma(compras, (c) => c.creditoIva ?? 0) : 0;
+  const ivaCredito = muestraPosicionIva(condicion) ? suma(compras, (c) => (c.aRevisar ? 0 : (c.creditoIva ?? 0))) : 0;
   return {
     condicion,
     comprobantesCount: comprobantes.length,
@@ -399,6 +522,9 @@ export function resumirLibroIva(
     comprasTotal: suma(compras, (c) => c.total),
     comprasConFacturaCount: compras.filter((c) => c.creditoIva !== undefined).length,
     anuladasSinNotaDeCredito: comprobantes.filter((c) => c.anuladaSinNotaDeCredito).length,
+    // La misma suma que la pantalla de recibidos (`resumirRecibidos`): todas, también las «a revisar».
+    comprasOtrosTributos: sumarAlCentavo(compras.map((c) => c.otrosTributos ?? 0)),
+    dePruebaCount,
   };
 }
 
@@ -414,20 +540,31 @@ export function muestraPosicionIva(condicion: CondicionLibro): boolean {
 /** Ensambla el libro: cada bloque por fecha ascendente, más el resumen. PURA. */
 export function armarLibroIva(input: {
   comprobantes: ComprobanteRow[];
+  comprobantesDePrueba?: ComprobanteRow[];
+  comprobantesDespuesDelCongelado?: ComprobanteRow[];
   ventasSinComprobante: VentaSinComprobanteRow[];
   compras: CompraRow[];
   condicion: CondicionLibro;
+  negocios?: NegocioDelLibro[];
+  regimenFacturaA?: RegimenFacturaA | null;
 }): LibroIva {
   const porFecha = <T extends { fecha: string; numero: string }>(a: T, b: T) =>
     a.fecha.localeCompare(b.fecha) || a.numero.localeCompare(b.numero);
   const comprobantes = [...input.comprobantes].sort(porFecha);
   const ventasSinComprobante = [...input.ventasSinComprobante].sort(porFecha);
   const compras = [...input.compras].sort(porFecha);
+  const comprobantesDePrueba = [...(input.comprobantesDePrueba ?? [])].sort(porFecha);
   return {
     comprobantes,
+    comprobantesDePrueba,
     ventasSinComprobante,
     compras,
-    resumen: resumirLibroIva(comprobantes, ventasSinComprobante, compras, input.condicion),
+    resumen: resumirLibroIva(comprobantes, ventasSinComprobante, compras, input.condicion, comprobantesDePrueba.length),
+    ...(input.negocios && input.negocios.length > 1 ? { negocios: input.negocios } : {}),
+    ...(seEmiteFueraDelSistema(input.regimenFacturaA) ? { facturaAFueraDelSistema: input.regimenFacturaA } : {}),
+    ...(input.comprobantesDespuesDelCongelado?.length
+      ? { comprobantesDespuesDelCongelado: [...input.comprobantesDespuesDelCongelado].sort(porFecha) }
+      : {}),
   };
 }
 

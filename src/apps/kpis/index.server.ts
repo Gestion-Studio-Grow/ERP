@@ -19,6 +19,7 @@ import { logger } from "@/lib/logger";
 import type { Role } from "@/lib/capabilities";
 import type { AppDescriptor } from "@/apps/contract";
 import { buscarApp } from "@/apps/registro";
+import { modulosDelNegocio } from "@/apps/contexto.server";
 import { LOADERS_KPI } from "./loaders.server";
 import { negocioActual } from "./negocio.server";
 import {
@@ -36,7 +37,7 @@ export type { ResultadoKpi, AlertaKpi } from "./nucleo.server";
 export { NO_SE_PUDO } from "./nucleo.server";
 
 const negocioKpi = cache(async (): Promise<NegocioKpi> => {
-  const [tenantId, negocio] = await Promise.all([getCurrentTenantId(), negocioActual()]);
+  const [tenantId, negocio, modulos] = await Promise.all([getCurrentTenantId(), negocioActual(), modulosDelNegocio()]);
   const uno = negocio.rubro?.wording.itemNoun?.trim() || "producto";
   return {
     db: prisma,
@@ -45,6 +46,7 @@ const negocioKpi = cache(async (): Promise<NegocioKpi> => {
     ahora: new Date(),
     esMostrador: negocio.isRetail,
     sustantivo: { uno, varios: pluralDe(uno) },
+    esCasaDeRed: modulos.includes("multilocal"),
   };
 });
 

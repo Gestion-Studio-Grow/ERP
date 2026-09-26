@@ -1,13 +1,16 @@
 // El renglón que resume una carga de «Mis Comprobantes Recibidos». PURO y sin imports: lo usa la
 // pantalla en el navegador. Distingue lo que ya estaba cargado (no es un error: no se duplica) de lo
 // que tiene errores, con los plurales bien dichos (hallazgo QA 26/09: «Entraron 0 comprobantes.
-// 13 no se cargaron.» mezclaba las dos cosas y decía «1 notas de crédito»).
+// 13 no se cargaron.» mezclaba las dos cosas y decía «1 notas de crédito»). La fila que repite otra del
+// MISMO archivo tampoco es un error: el comprobante se toma una sola vez (QA vuelta 7, bloqueante 3).
 
 export interface CuentasDeLaCarga {
   entraron: number;
   notasDeCredito: number;
   aRevisar: number;
   yaCargados: number;
+  /** Filas que repiten otra del mismo archivo: el comprobante entra (o ya estaba) una sola vez. */
+  repetidosEnElArchivo: number;
   conErrores: number;
 }
 
@@ -26,6 +29,13 @@ export function avisoDeLaCarga(c: CuentasDeLaCarga): string {
   if (c.aRevisar > 0) partes.push(`${c.aRevisar} ${plural(c.aRevisar, "quedó a revisar", "quedaron a revisar")}.`);
   if (c.yaCargados > 0) {
     partes.push(`${c.yaCargados} ${plural(c.yaCargados, "ya estaba cargado (no se duplica)", "ya estaban cargados (no se duplican)")}.`);
+  }
+  if (c.repetidosEnElArchivo > 0) {
+    partes.push(
+      c.repetidosEnElArchivo === 1
+        ? "1 fila estaba repetida en el archivo (se toma una sola vez)."
+        : `${c.repetidosEnElArchivo} filas estaban repetidas en el archivo (se toman una sola vez).`,
+    );
   }
   if (c.conErrores > 0) {
     partes.push(`${c.conErrores} con errores: ${plural(c.conErrores, "no se cargó", "no se cargaron")} (el detalle está abajo).`);

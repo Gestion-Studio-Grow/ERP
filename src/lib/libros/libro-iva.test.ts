@@ -181,6 +181,8 @@ test("el número del botón y la pantalla: el mismo where y la misma cuenta", ()
     tenantId: "t-1",
     status: "AUTHORIZED",
     fecha: { gte: "20260901", lt: "20261001" },
+    // QA vuelta 6: sin las facturas del modo prueba (CAE «STUB…»); un CAE nulo sí entra.
+    AND: [{ OR: [{ cae: null }, { NOT: { cae: { startsWith: "STUB" } } }] }],
   });
 
   // Los comprobantes de la pantalla, agrupados por tipo como los agrupa el botón.
@@ -220,4 +222,49 @@ test("un responsable inscripto cargado es inscripto aunque todavía no haya emit
   assert.equal(condicionDelNegocio(undefined, [6]), "responsable-inscripto");
   assert.equal(condicionDelNegocio("EXENTO", [11]), "monotributo");
   assert.equal(condicionDelNegocio("", []), "sin-comprobantes");
+});
+
+// ── QA vuelta 6 ──────────────────────────────────────────────────────────────
+
+test("QA vuelta 6 · el CAE simulado del modo prueba (STUB) no es un CAE: queda afuera de lo que se declara", async () => {
+  const { esCaeDePrueba, whereComprobantesDelMes, armarLibroIva: armar, comprobanteDesdeInvoice: fila } = await import("./libro-iva");
+  assert.equal(esCaeDePrueba("STUB00000001"), true);
+  assert.equal(esCaeDePrueba(" stub00000002"), true);
+  assert.equal(esCaeDePrueba("76123456789012"), false);
+  assert.equal(esCaeDePrueba(null), false);
+  // El `where` del libro y del número del botón deja afuera los del modo prueba (y no pierde un CAE nulo).
+  assert.deepEqual((whereComprobantesDelMes("t", "2026-09") as { AND?: unknown }).AND, [
+    { OR: [{ cae: null }, { NOT: { cae: { startsWith: "STUB" } } }] },
+  ]);
+  const inv = { fecha: "20260926", tipoComprobante: 1, puntoVenta: 2, numero: 1, docTipo: 80, docNro: "30700000008", neto: 1000, iva: 210, total: 1210 };
+  const libro = armar({ comprobantes: [], comprobantesDePrueba: [fila(inv)], ventasSinComprobante: [], compras: [], condicion: "responsable-inscripto" });
+  assert.equal(libro.resumen.ivaDebito, 0);
+  assert.equal(libro.resumen.dePruebaCount, 1);
+  const hoja = armarExportLibroIva(libro, { mes: "2026-09" });
+  assert.match(hoja, /^FACTURAS DE PRUEBA \(CAE simulado del modo prueba: no se declaran ni cuentan para los topes\)\r?$/m);
+  assert.match(hoja, /^IVA débito \(comprobantes emitidos\);0,00\r?$/m);
+});
+
+test("QA vuelta 6 · un CUIT con dos locales: suma los comprobantes de los dos y una factura de proveedor repetida cuenta una vez", async () => {
+  const { unirFilasDelCuit, armarLibroIva: armar, condicionDelNegocio: condicion, comprobanteDesdeInvoice: fila } = await import("./libro-iva");
+  const inv = (pv: number) => fila({ fecha: "20260815", tipoComprobante: 6, puntoVenta: pv, numero: 1, docTipo: 99, docNro: "0", neto: 1000, iva: 210, total: 1210 });
+  const compra = { clave: "compra:x", fecha: "2026-08-10", proveedor: "P", doc: "CUIT 30700000008", numero: "Factura A 00007-00000900", total: 1330, creditoIva: 210, netoGravado: 1000, otrosTributos: 120 };
+  const f = unirFilasDelCuit([
+    { comprobantes: [inv(3)], comprobantesDePrueba: [], ventasSinComprobante: [], compras: [compra], tiposEmitidos: [6], condicionCargada: "RESPONSABLE_INSCRIPTO" },
+    { comprobantes: [inv(4)], comprobantesDePrueba: [], ventasSinComprobante: [], compras: [{ ...compra, clave: "compra:y" }], tiposEmitidos: [6], condicionCargada: null },
+  ]);
+  const libro = armar({ ...f, condicion: condicion(f.condicionCargada, f.tiposEmitidos), negocios: [{ nombre: "Casa", puntoVenta: 3 }, { nombre: "Bernal", puntoVenta: 4 }] });
+  assert.equal(libro.resumen.ivaDebito, 420);
+  assert.equal(libro.resumen.ivaCredito, 210);
+  assert.equal(libro.resumen.comprasOtrosTributos, 120);
+  const hoja = armarExportLibroIva(libro, { mes: "2026-08" });
+  assert.match(hoja, /^Locales del mismo CUIT que suma este libro;Casa \(punto de venta 3\) y Bernal \(punto de venta 4\)\r?$/m);
+  assert.match(hoja, /^Fecha;Proveedor;Documento;Número;Neto gravado;IVA crédito fiscal;Percepciones y otros tributos;Total\r?$/m);
+  assert.match(hoja, /^Percepciones y otros tributos \(facturas de proveedor\);120,00\r?$/m);
+});
+
+test("QA vuelta 6 · sin locales, sin facturas de prueba y sin facturas de proveedor, la hoja no agrega nada (CH igual que siempre)", () => {
+  const libro = armarLibroIva({ comprobantes: [], ventasSinComprobante: [], compras: [], condicion: "sin-comprobantes" });
+  const hoja = armarExportLibroIva(libro, { mes: "2026-08" });
+  assert.doesNotMatch(hoja, /FACTURAS DE PRUEBA|Locales del mismo CUIT|Percepciones y otros tributos|Facturas de prueba/);
 });

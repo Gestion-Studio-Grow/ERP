@@ -22,6 +22,7 @@ import { nucleoParaProducto } from "@/modules/nucleo";
 import { catalogo } from "@/modules/catalog";
 import type { Role } from "@/lib/capabilities";
 import type { Perfil } from "@/modules/perfil";
+import { REGISTRO_APPS } from "./registro";
 import {
   appsVisibles,
   proyectarMenuDeHoy,
@@ -122,8 +123,19 @@ const ASIGNACIONES_COMERCIANTE: { nombre: string; modules: string[] }[] = [
   },
 ];
 
-test("Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros", () => {
+/**
+ * Las pantallas de edición de la barra de hoy (las que la barra vieja sólo muestra con el motor de
+ * perfiles prendido), con el módulo que las trae en el plan.
+ */
+const EDICION = REGISTRO_APPS.filter((a) => a.perfilMin && a.menuDeHoy && a.modulo);
+
+test("Comerciante (y perfil Comercio/Empresa): la barra de hoy, más las pantallas de edición que su plan le asigna", () => {
+  // Diferencia BUSCADA (QA vuelta 5): el plan Comerciante trae `libros` y `cuentas-a-cobrar`, y el
+  // PyME además `cuentas-a-pagar` y `devoluciones-proveedor`; la barra vieja las escondía con el motor
+  // de perfiles apagado (o sea, siempre) y la guardia decía «no está disponible». Ahora, con el
+  // módulo asignado, se ven. Todo lo demás de la barra de hoy sigue igual y en el mismo orden.
   let casos = 0;
+  const conDiferencia: string[] = [];
   for (const asignacion of ASIGNACIONES_COMERCIANTE) {
     // El contexto se calcula con la regla REAL, no a mano: Comerciante = producto con tienda.
     const contexto = resolverContextoApps(
@@ -145,17 +157,32 @@ test("Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignacio
           };
           const hoy = comparableHoy(menuItemsParaTenant(ctx));
           const registro = comparableRegistro(proyectarMenuDeHoy(appsVisibles(negocio(ctx, contexto))));
-          assert.deepEqual(
-            registro,
-            hoy,
-            `Comerciante · ${asignacion.nombre} · ${role} · perfil ${perfil ?? "apagado"} · ${rubro.nombre}`,
-          );
+          const caso = `Comerciante · ${asignacion.nombre} · ${role} · perfil ${perfil ?? "apagado"} · ${rubro.nombre}`;
+          const deHoy = new Set(hoy.map((i) => i.href));
+          assert.deepEqual(registro.filter((i) => deHoy.has(i.href)), hoy, `${caso}: la barra de hoy, igual y en el mismo orden`);
+          const extra = registro.filter((i) => !deHoy.has(i.href));
+          for (const e of extra) {
+            const app = EDICION.find((a) => a.ruta === e.href);
+            assert.ok(app && asignacion.modules.includes(app.modulo!), `${caso}: ${e.href} sólo se suma si es de edición y su módulo está asignado`);
+          }
+          if (extra.length > 0) conDiferencia.push(`${caso}: ${extra.map((e) => e.href).join(" ")}`);
           casos++;
         }
       }
     }
   }
   assert.equal(casos, ASIGNACIONES_COMERCIANTE.length * 3 * 3 * 4);
+  // Los casos exactos: la dueña de un Comerciante con los módulos de edición, sin perfiles.
+  assert.ok(
+    conDiferencia.includes(
+      "Comerciante · núcleo + módulos de edición · OWNER · perfil apagado · servicios: /admin/cuentas-a-pagar /admin/cuentas-a-cobrar /admin/libros /admin/devoluciones-proveedor",
+    ),
+    conDiferencia.join("\n"),
+  );
+  // Sin esos módulos (núcleo, catálogo, inventario, vacía) no cambia nada, en ningún rol ni perfil.
+  assert.equal(conDiferencia.filter((c) => /· (núcleo|vacía|núcleo \+ catalog|núcleo \+ inventario)[^+]* ·/.test(c) && !/edición|catálogo de módulos/.test(c)).length, 0);
+  // Con el perfil Empresa la barra vieja ya las mostraba: ahí no hay diferencia.
+  assert.equal(conDiferencia.filter((c) => c.includes("perfil enterprise")).length, 0);
 });
 
 test("CH hoy: la barra del OWNER de beauty-spa, ítem por ítem", () => {
@@ -202,8 +229,8 @@ test("diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el 
   // En los negocios con "Trabaja por apps" prendido la barra deja de ser la de hoy a propósito:
   // Stock, Compras y Ajustes cuelgan de `inventario` (no de `catalog`) y las pantallas de
   // edición, de su módulo (no del perfil). Esto deja escrita la diferencia para que nadie
-  // la "arregle" copiando la regla del Comerciante. CH y el Comerciante no la tienen: los
-  // cubren los tests de arriba.
+  // la "arregle" copiando la regla del Comerciante. CH no la tiene; el Comerciante sólo tiene
+  // la de las pantallas de edición (QA vuelta 5): los cubren los tests de arriba.
   const modules = ["pos", "catalog", "clients", "reports", "arca", "cuentas-a-cobrar"];
   const contexto = resolverContextoApps(
     { id: "t-piloto", slug: "magra", blueprintId: "carniceria", modules },

@@ -1,0 +1,13 @@
+=== src/app/contador/pedido-soporte-postgres.test.ts
+ok 1 - pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el límite de la ficha sale del plan
+# pass 1
+# fail 0
+# skipped 0
+=== src/app/operador/(console)/tenants/[id]/regimen-factura-a-postgres.test.ts
+ok 1 - corregir la Factura A desde la consola: sólo con sesión de operador, sólo a un inscripto, en ESE negocio, y CH sólo el dueño
+# pass 1
+# fail 0
+# skipped 0
+ok 1 - corregir la Factura A desde la consola: sólo con sesión de operador, sólo a un inscripto, en ESE negocio, y CH sólo el dueño
+# pass 1
+# fail 0

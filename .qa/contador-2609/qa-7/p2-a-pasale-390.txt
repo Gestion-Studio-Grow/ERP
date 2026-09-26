@@ -1,0 +1,35 @@
+URL http://localhost:3210/operador/solicitudes/cmuivq49x0000457d8qo5cufe
+Saltar al contenido
+G
+Pedidos
+← Pedidos de alta
+Configurar a Martina Quiroga Fotografía
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+6 · Pasale esto
+Todavía no se le puede exigir que cambie la contraseña en el primer ingreso: pedile que la cambie al entrar.
+Para el dueño del negocio
+Contraseña temporal para martina.quiroga@ejemplo.test. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+<TEMPORAL>
+Copiar
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+¡Hola! Ya está listo el sistema de Martina Quiroga Fotografía.
+Entrá en: https://martinaq-v7.localhost/admin
+Usuario: martina.quiroga@ejemplo.test
+Contraseña: <TEMPORAL>
+Copiar
+Mandar por WhatsApp
+Para la contadora
+¡Hola! Ya está Martina Quiroga Fotografía en tu cartera: CUIT 27-41236587-4, punto de venta 1.
+Entrá en: https://estudio.localhost/contador
+Copiar
+Mandar por WhatsApp
+Quedó registrado: lo dio de alta el dueño de GSG el 26/9/26, 18:07 (Historial de la ficha).
+Ir a la ficha del negocio
+Ir a la ficha del estudio
+Volver a los pedidos
+Hecho por Gestión Studio Grow
+Negocios
+Pedidos
+Dirección
+Diseño
+Alta

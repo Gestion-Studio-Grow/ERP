@@ -1,0 +1,406 @@
+TAP version 13
+# Subtest: corregir el CUIT exige un CUIT válido (dígito verificador) y lo guarda sin guiones
+ok 1 - corregir el CUIT exige un CUIT válido (dígito verificador) y lo guarda sin guiones
+  ---
+  duration_ms: 3.011135
+  type: 'test'
+  ...
+# Subtest: un tipo de pedido desconocido o una nota larguísima no pasan
+ok 2 - un tipo de pedido desconocido o una nota larguísima no pasan
+  ---
+  duration_ms: 0.331052
+  type: 'test'
+  ...
+# Subtest: un pedido resuelto por Soporte deja de estar abierto; una fila con forma rara se ignora
+ok 3 - un pedido resuelto por Soporte deja de estar abierto; una fila con forma rara se ignora
+  ---
+  duration_ms: 0.900042
+  type: 'test'
+  ...
+# Subtest: el límite de facturas automáticas se dice con el plan del cliente, no con un número fijo
+ok 4 - el límite de facturas automáticas se dice con el plan del cliente, no con un número fijo
+  ---
+  duration_ms: 23.53012
+  type: 'test'
+  ...
+# Subtest: la ficha ofrece sólo los pedidos que aplican, lo urgente primero y lo ya pedido con su fecha
+ok 5 - la ficha ofrece sólo los pedidos que aplican, lo urgente primero y lo ya pedido con su fecha
+  ---
+  duration_ms: 32.91272
+  type: 'test'
+  ...
+# Subtest: Soporte cierra un pedido: «no corresponde» exige un motivo DE LA LISTA; «hecho» no lleva ninguno
+ok 6 - Soporte cierra un pedido: «no corresponde» exige un motivo DE LA LISTA; «hecho» no lleva ninguno
+  ---
+  duration_ms: 5.479119
+  type: 'test'
+  ...
+# Subtest: refutador 26/09 · ningún texto libre de Soporte llega a la ficha de la contadora (ni de filas viejas ni forjadas)
+ok 7 - refutador 26/09 · ningún texto libre de Soporte llega a la ficha de la contadora (ni de filas viejas ni forjadas)
+  ---
+  duration_ms: 13.795244
+  type: 'test'
+  ...
+# Subtest: la respuesta de Soporte cierra el pedido, se muestra en la ficha 60 días y deja pedirlo de nuevo; una respuesta suelta no inventa nada
+ok 8 - la respuesta de Soporte cierra el pedido, se muestra en la ficha 60 días y deja pedirlo de nuevo; una respuesta suelta no inventa nada
+  ---
+  duration_ms: 2.61212
+  type: 'test'
+  ...
+# Subtest: lo que contesta el botón dice dónde queda el pedido (la bandeja de Soporte GSG)
+ok 9 - lo que contesta el botón dice dónde queda el pedido (la bandeja de Soporte GSG)
+  ---
+  duration_ms: 1.281067
+  type: 'test'
+  ...
+# Subtest: con tienda (Comerciante): «Cierre del mes» va detrás de «Cierre del día», en su grupo, una sola vez
+ok 10 - con tienda (Comerciante): «Cierre del mes» va detrás de «Cierre del día», en su grupo, una sola vez
+  ---
+  duration_ms: 2.801398
+  type: 'test'
+  ...
+# Subtest: sin tienda (ERP vertical, CH): la barra queda IDÉNTICA
+ok 11 - sin tienda (ERP vertical, CH): la barra queda IDÉNTICA
+  ---
+  duration_ms: 0.265912
+  type: 'test'
+  ...
+# Subtest: quien no ve la app (sin permiso de reportes, como recepción) no la recibe en la barra
+ok 12 - quien no ve la app (sin permiso de reportes, como recepción) no la recibe en la barra
+  ---
+  duration_ms: 0.304078
+  type: 'test'
+  ...
+# Subtest: sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+ok 13 - sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+  ---
+  duration_ms: 8.716645
+  type: 'test'
+  ...
+# Subtest: Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+ok 14 - Comerciante (y perfil Comercio/Empresa): misma barra en roles × asignaciones × perfiles × rubros
+  ---
+  duration_ms: 32.509992
+  type: 'test'
+  ...
+# Subtest: CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+ok 15 - CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+  ---
+  duration_ms: 0.438644
+  type: 'test'
+  ...
+# Subtest: diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+ok 16 - diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+  ---
+  duration_ms: 0.807333
+  type: 'test'
+  ...
+# Subtest: auditRetentionCutoff resta los meses pedidos respecto de `now`
+ok 17 - auditRetentionCutoff resta los meses pedidos respecto de `now`
+  ---
+  duration_ms: 1.309307
+  type: 'test'
+  ...
+# Subtest: auditRetentionCutoff usa AUDIT_RETENTION_MONTHS por default
+ok 18 - auditRetentionCutoff usa AUDIT_RETENTION_MONTHS por default
+  ---
+  duration_ms: 0.221344
+  type: 'test'
+  ...
+# Subtest: purgeAuditLogs por default es dry-run: cuenta y NO borra
+ok 19 - purgeAuditLogs por default es dry-run: cuenta y NO borra
+  ---
+  duration_ms: 0.462005
+  type: 'test'
+  ...
+# Subtest: purgeAuditLogs con dryRun:false borra de verdad
+ok 20 - purgeAuditLogs con dryRun:false borra de verdad
+  ---
+  duration_ms: 0.236848
+  type: 'test'
+  ...
+# Subtest: purgeAuditLogs filtra por un corte cercano a la ventana `months` pedida
+ok 21 - purgeAuditLogs filtra por un corte cercano a la ventana `months` pedida
+  ---
+  duration_ms: 0.33793
+  type: 'test'
+  ...
+# Subtest: Cierre de agosto: el checklist muestra 8 pasos, en orden
+ok 22 - Cierre de agosto: el checklist muestra 8 pasos, en orden
+  ---
+  duration_ms: 9.884315
+  type: 'test'
+  ...
+# Subtest: cada paso pendiente dice qué pasa, con el número, y adónde ir
+ok 23 - cada paso pendiente dice qué pasa, con el número, y adónde ir
+  ---
+  duration_ms: 0.911867
+  type: 'test'
+  ...
+# Subtest: lo que el negocio no usa no aplica (y cuenta como hecho); la caja cerrada hasta fin de mes, siempre
+ok 24 - lo que el negocio no usa no aplica (y cuenta como hecho); la caja cerrada hasta fin de mes, siempre
+  ---
+  duration_ms: 0.458139
+  type: 'test'
+  ...
+# Subtest: congelado el mes, un gasto con fecha 15/08 se rechaza: no se congela sin la caja cerrada hasta el 31
+ok 25 - congelado el mes, un gasto con fecha 15/08 se rechaza: no se congela sin la caja cerrada hasta el 31
+  ---
+  duration_ms: 2.134621
+  type: 'test'
+  ...
+# Subtest: congelar: el mes tiene que haber terminado, no puede estar congelado, y los pendientes se confirman
+ok 26 - congelar: el mes tiene que haber terminado, no puede estar congelado, y los pendientes se confirman
+  ---
+  duration_ms: 0.831182
+  type: 'test'
+  ...
+# Subtest: reabrir exige OWNER y motivo
+ok 27 - reabrir exige OWNER y motivo
+  ---
+  duration_ms: 0.895547
+  type: 'test'
+  ...
+# Subtest: el estado sale de la auditoría en orden, sin importar cómo llegan las filas; lo ajeno no cuenta
+ok 28 - el estado sale de la auditoría en orden, sin importar cómo llegan las filas; lo ajeno no cuenta
+  ---
+  duration_ms: 2.689719
+  type: 'test'
+  ...
+# Subtest: el botón: 'Agosto · 8 de 8 pasos listos · paquete descargado por la contadora el 03/09'
+ok 29 - el botón: 'Agosto · 8 de 8 pasos listos · paquete descargado por la contadora el 03/09'
+  ---
+  duration_ms: 1.012674
+  type: 'test'
+  ...
+# Subtest: el botón sin congelar: los primeros días no alerta; desde el 3, 'Agosto sin cerrar' va a Para atender hoy
+ok 30 - el botón sin congelar: los primeros días no alerta; desde el 3, 'Agosto sin cerrar' va a Para atender hoy
+  ---
+  duration_ms: 0.818395
+  type: 'test'
+  ...
+# Subtest: lo que ve el estudio contable de un cliente
+ok 31 - lo que ve el estudio contable de un cliente
+  ---
+  duration_ms: 0.909567
+  type: 'test'
+  ...
+# Subtest: paso 6: pendiente es sólo lo que la liquidación puede liquidar; con saldo o al 0% no
+ok 32 - paso 6: pendiente es sólo lo que la liquidación puede liquidar; con saldo o al 0% no
+  ---
+  duration_ms: 1.74723
+  type: 'test'
+  ...
+# Subtest: un pendiente no termina en 'App no disponible': sin Libro IVA en el negocio, el paso 3 va sin botón y lo dice
+ok 33 - un pendiente no termina en 'App no disponible': sin Libro IVA en el negocio, el paso 3 va sin botón y lo dice
+  ---
+  duration_ms: 0.616401
+  type: 'test'
+  ...
+# Subtest: la purga de auditoría (18 meses) no borra el cierre del mes: si no, un mes congelado vuelve a 'sin congelar'
+ok 34 - la purga de auditoría (18 meses) no borra el cierre del mes: si no, un mes congelado vuelve a 'sin congelar'
+  ---
+  duration_ms: 0.654075
+  type: 'test'
+  ...
+# Subtest: QA 26/09 v4 · un día sin movimientos no bloquea el congelado; un día CON movimientos sin cerrar, sí
+ok 35 - QA 26/09 v4 · un día sin movimientos no bloquea el congelado; un día CON movimientos sin cerrar, sí
+  ---
+  duration_ms: 0.658095
+  type: 'test'
+  ...
+# Subtest: diseño por alícuota: factura A al 21% entra con su desglose y sin marcas
+ok 36 - diseño por alícuota: factura A al 21% entra con su desglose y sin marcas
+  ---
+  duration_ms: 9.588099
+  type: 'test'
+  ...
+# Subtest: factura A con dos alícuotas y percepción: desglose 10,5% y 21%, otros tributos aparte
+ok 37 - factura A con dos alícuotas y percepción: desglose 10,5% y 21%, otros tributos aparte
+  ---
+  duration_ms: 3.710477
+  type: 'test'
+  ...
+# Subtest: factura B y factura C recibidas no dan crédito fiscal: IVA cero, sin marca
+ok 38 - factura B y factura C recibidas no dan crédito fiscal: IVA cero, sin marca
+  ---
+  duration_ms: 1.605791
+  type: 'test'
+  ...
+# Subtest: nota de crédito A entra y RESTA en el resumen
+ok 39 - nota de crédito A entra y RESTA en el resumen
+  ---
+  duration_ms: 4.52327
+  type: 'test'
+  ...
+# Subtest: moneda extranjera: se pasa a pesos con el tipo de cambio del archivo, redondeado al centavo
+ok 40 - moneda extranjera: se pasa a pesos con el tipo de cambio del archivo, redondeado al centavo
+  ---
+  duration_ms: 1.581944
+  type: 'test'
+  ...
+# Subtest: moneda extranjera sin tipo de cambio se rechaza con el motivo
+ok 41 - moneda extranjera sin tipo de cambio se rechaza con el motivo
+  ---
+  duration_ms: 2.65361
+  type: 'test'
+  ...
+# Subtest: duplicado dentro del archivo: el segundo se rechaza, el primero queda
+ok 42 - duplicado dentro del archivo: el segundo se rechaza, el primero queda
+  ---
+  duration_ms: 1.49945
+  type: 'test'
+  ...
+# Subtest: IVA que no cierra con su alícuota: entra marcado «a revisar» y sin desglose inventado
+ok 43 - IVA que no cierra con su alícuota: entra marcado «a revisar» y sin desglose inventado
+  ---
+  duration_ms: 1.480032
+  type: 'test'
+  ...
+# Subtest: CUIT inválido se rechaza con el motivo; el Tique factura A (81) entra y da crédito fiscal
+ok 44 - CUIT inválido se rechaza con el motivo; el Tique factura A (81) entra y da crédito fiscal
+  ---
+  duration_ms: 1.680469
+  type: 'test'
+  ...
+# Subtest: letra A y M dan crédito fiscal sea factura, recibo, liquidación o tique; el tique nota de crédito resta
+ok 45 - letra A y M dan crédito fiscal sea factura, recibo, liquidación o tique; el tique nota de crédito resta
+  ---
+  duration_ms: 2.58283
+  type: 'test'
+  ...
+# Subtest: un tipo que no está en la tabla se rechaza sin decir que no va a compras ni mandar a una carga que no existe
+ok 46 - un tipo que no está en la tabla se rechaza sin decir que no va a compras ni mandar a una carga que no existe
+  ---
+  duration_ms: 0.676752
+  type: 'test'
+  ...
+# Subtest: diseño clásico: la alícuota se deduce sólo si una oficial cierra exacto
+ok 47 - diseño clásico: la alícuota se deduce sólo si una oficial cierra exacto
+  ---
+  duration_ms: 0.854527
+  type: 'test'
+  ...
+# Subtest: refutador 26/09 · diseño clásico: «a revisar» (no suma al crédito) queda sólo para lo que ninguna mezcla de alícuotas explica
+ok 48 - refutador 26/09 · diseño clásico: «a revisar» (no suma al crédito) queda sólo para lo que ninguna mezcla de alícuotas explica
+  ---
+  duration_ms: 1.055093
+  type: 'test'
+  ...
+# Subtest: refutador 26/09 · revisado: la marca «a revisar» sale de las notas y queda quién y cuándo
+ok 49 - refutador 26/09 · revisado: la marca «a revisar» sale de las notas y queda quién y cuándo
+  ---
+  duration_ms: 51.512451
+  type: 'test'
+  ...
+# Subtest: Excel con el renglón de título de ARCA: encuentra los títulos y el CUIT del archivo
+ok 50 - Excel con el renglón de título de ARCA: encuentra los títulos y el CUIT del archivo # SKIP xlsx es un stub en este entorno
+  ---
+  duration_ms: 0.358399
+  type: 'test'
+  ...
+# Subtest: Excel con números y fechas de verdad (no texto) se lee igual
+ok 51 - Excel con números y fechas de verdad (no texto) se lee igual
+  ---
+  duration_ms: 1.226801
+  type: 'test'
+  ...
+# Subtest: un archivo que no es de ARCA se rechaza entero, sin leer filas
+ok 52 - un archivo que no es de ARCA se rechaza entero, sin leer filas
+  ---
+  duration_ms: 0.57138
+  type: 'test'
+  ...
+# Subtest: la clave es CUIT del emisor, tipo, punto de venta y número
+ok 53 - la clave es CUIT del emisor, tipo, punto de venta y número
+  ---
+  duration_ms: 0.19195
+  type: 'test'
+  ...
+# Subtest: listado exportable: IVA por alícuota en columnas, la nota de crédito en negativo, a salvo de fórmulas
+ok 54 - listado exportable: IVA por alícuota en columnas, la nota de crédito en negativo, a salvo de fórmulas
+  ---
+  duration_ms: 48.071145
+  type: 'test'
+  ...
+# Subtest: QA 26/09 v4 · una compra «a revisar» (IVA 150 sobre 1.000: 15 %, ninguna alícuota vigente) no suma al crédito ni al neto
+ok 55 - QA 26/09 v4 · una compra «a revisar» (IVA 150 sobre 1.000: 15 %, ninguna alícuota vigente) no suma al crédito ni al neto
+  ---
+  duration_ms: 2.579819
+  type: 'test'
+  ...
+# Subtest: una factura de proveedor va al libro con la fecha del comprobante, su número y su IVA como crédito
+ok 56 - una factura de proveedor va al libro con la fecha del comprobante, su número y su IVA como crédito
+  ---
+  duration_ms: 4.872188
+  type: 'test'
+  ...
+# Subtest: la nota de crédito del proveedor resta el total y el crédito; una B no da crédito
+ok 57 - la nota de crédito del proveedor resta el total y el crédito; una B no da crédito
+  ---
+  duration_ms: 0.439841
+  type: 'test'
+  ...
+# Subtest: el resumen del libro toma como crédito el IVA de las facturas cargadas, con la nota de crédito restando
+ok 58 - el resumen del libro toma como crédito el IVA de las facturas cargadas, con la nota de crédito restando
+  ---
+  duration_ms: 16.581918
+  type: 'test'
+  ...
+# Subtest: con facturas cargadas, la nota del libro ya no dice que las compras van sin factura
+ok 59 - con facturas cargadas, la nota del libro ya no dice que las compras van sin factura
+  ---
+  duration_ms: 1.880642
+  type: 'test'
+  ...
+# Subtest: sin facturas cargadas (CH hoy), el libro sale igual que antes: crédito 0 y la misma nota
+ok 60 - sin facturas cargadas (CH hoy), el libro sale igual que antes: crédito 0 y la misma nota
+  ---
+  duration_ms: 0.449025
+  type: 'test'
+  ...
+# Subtest: la hoja COMPRAS del paquete trae neto gravado, IVA crédito y total de cada factura de proveedor (la NC resta)
+ok 61 - la hoja COMPRAS del paquete trae neto gravado, IVA crédito y total de cada factura de proveedor (la NC resta)
+  ---
+  duration_ms: 0.869829
+  type: 'test'
+  ...
+# Subtest: monotributo con una Factura A de proveedor: la compra va por el total, sin columna de crédito fiscal y sin crédito en el resumen
+ok 62 - monotributo con una Factura A de proveedor: la compra va por el total, sin columna de crédito fiscal y sin crédito en el resumen
+  ---
+  duration_ms: 0.684875
+  type: 'test'
+  ...
+# Subtest: sin-comprobantes con una Factura A de proveedor: la compra va por el total, sin columna de crédito fiscal y sin crédito en el resumen
+ok 63 - sin-comprobantes con una Factura A de proveedor: la compra va por el total, sin columna de crédito fiscal y sin crédito en el resumen
+  ---
+  duration_ms: 0.741267
+  type: 'test'
+  ...
+# Subtest: monotributo sin facturas de proveedor (CH hoy): la hoja COMPRAS sale igual que siempre, sin nota
+ok 64 - monotributo sin facturas de proveedor (CH hoy): la hoja COMPRAS sale igual que siempre, sin nota
+  ---
+  duration_ms: 0.687718
+  type: 'test'
+  ...
+# Subtest: la purga de 18 meses no borra qué Factura A asignó ARCA: el inscripto sigue con su «A común»
+ok 65 - la purga de 18 meses no borra qué Factura A asignó ARCA: el inscripto sigue con su «A común»
+  ---
+  duration_ms: 1.569289
+  type: 'test'
+  ...
+# Subtest: la entidad del dato es propia: no es «Tenant» (que la purga sí borra)
+ok 66 - la entidad del dato es propia: no es «Tenant» (que la purga sí borra)
+  ---
+  duration_ms: 0.210624
+  type: 'test'
+  ...
+1..66
+# tests 66
+# suites 0
+# pass 65
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 2231.564623

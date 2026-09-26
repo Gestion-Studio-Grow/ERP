@@ -12,10 +12,11 @@
 import { revalidatePath } from "next/cache";
 import { operatorPrisma } from "@/lib/operator-db";
 import { operadorParaNegocio } from "@/lib/operador/guardia-negocio";
-import { configurarSolicitud, descartarSolicitud, type ResultadoConfigurador } from "./configurador.server";
+import { configurarSolicitud, descartarSolicitud, type ResultadoConfigurador, type ResultadoDescarte } from "./configurador.server";
 import type { FormConfigurador } from "./configurador-reglas";
 
 const CAMPOS: readonly (keyof FormConfigurador)[] = [
+  "regimenFacturaA", "confirmaFacturaAFuera",
   "razonSocial", "cuit", "condicionIva", "puntoVenta", "rubro", "plan", "email", "whatsapp", "alias",
   "subdominio", "accesoContadora", "contadoraNombre", "contadoraEmail", "autorizaVinculo", "duplicado",
 ];
@@ -47,16 +48,19 @@ export async function configurarSolicitudAction(
 }
 
 export async function descartarSolicitudAction(
-  _previo: { ok: true } | { ok: false; error: string } | null,
+  _previo: ResultadoDescarte | null,
   fd: FormData,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<ResultadoDescarte> {
   const estudioTenantId = texto(fd, "estudioTenantId").trim();
   const g = await operadorParaNegocio({ id: estudioTenantId });
   if (!g.ok) return { ok: false, error: g.motivo };
   const sesion = g.sesion;
   const solicitudId = texto(fd, "solicitudId").trim();
   if (!solicitudId) return { ok: false, error: "Falta el pedido." };
-  const r = await descartarSolicitud(operatorPrisma, { solicitudId, estudioTenantId, sesion, motivo: texto(fd, "motivo") });
-  if (r.ok) revalidatePath("/operador/solicitudes");
+  const r = await descartarSolicitud(operatorPrisma, { solicitudId, estudioTenantId, sesion, motivo: texto(fd, "motivo"), nota: texto(fd, "nota") });
+  if (r.ok) {
+    revalidatePath("/operador/solicitudes");
+    revalidatePath("/contador");
+  }
   return r;
 }

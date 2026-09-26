@@ -1,0 +1,70 @@
+URL http://lostilos-v5.localhost:3210/admin/cierre-mes?mes=2026-08
+
+Saltar al contenido
+C
+Comerciante
+Buscar en el menú
+Inicio
+Clientes
+Pedidos
+Caja
+Libro de caja
+Cierre del día
+Cierre del mes
+Catálogo
+Compras
+Ajustes
+Reseñas
+Recordatorios
+Facturación
+Reportes
+Campañas
+Auditoría
+Usuarios
+Localización
+Apariencia
+M
+Mayorista Los Tilos SA
+Dueño/a
+Cerrar sesión
+Comerciante
+Panel de administración
+Cierre del mes
+Revisá los 8 pasos de agosto 2026, congelá el mes y bajá el paquete para tu contador: libro de caja, ventas con y sin comprobante, compras, cuentas corrientes y stock, en un solo archivo.
+← Julio 2026
+Agosto 2026
+Agosto 2026 está congelado7 de 8 pasos listos
+Lo congeló Mayorista Los Tilos SA el 26/09. La caja de esos días no acepta cambios: una corrección de plata va con la fecha de hoy.
+✓
+1. Días cerrados en la caja Listo
+La caja está cerrada hasta el 31/08/2026.
+–
+2. Comprobantes con CAE No aplica
+No hay comprobantes con fecha de agosto.
+–
+3. Ventas anuladas con nota de crédito No aplica
+Sin comprobantes en agosto, no hay nada que compensar.
+–
+4. Extracto del banco importado No aplica
+Tu negocio no importa extractos del banco.
+–
+5. Compras con proveedor No aplica
+No hubo compras en agosto.
+–
+6. Comisiones liquidadas No aplica
+Tu negocio no liquida comisiones.
+–
+7. Recuento de stock No aplica
+Tu negocio no controla stock.
+!
+8. Paquete para el contador Pendiente
+El mes está congelado: falta descargar el paquete (o que lo baje tu contador desde su cartera).
+Descargar el paquete (CSV)
+¿Hay que corregir algo de Agosto 2026?
+Reabrir el mes no reabre la caja: los días siguen cerrados y una corrección de plata va con la fecha de hoy. El motivo queda en la auditoría y lo ve tu contador.
+Reabrir Agosto 2026
+Lo que pasó con agosto 2026
+26/09 · Mayorista Los Tilos SA congeló el mes
+26/09 · Mayorista Los Tilos SA bajó un borrador del paquete
+26/09 · Mayorista Los Tilos SA bajó un borrador del paquete
+26/09 · Mayorista Los Tilos SA bajó un borrador del paquete

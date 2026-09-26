@@ -88,14 +88,17 @@ test("compras del cliente en su Libro IVA y en el listado del mes", async (t) =>
     await operatorPrisma.tenant.update({ where: { id: base.b.id }, data: { arcaCondicionIva: "RESPONSABLE_INSCRIPTO" } });
     const declarado = await libroDe("2026-08");
     assert.equal(declarado.resumen.condicion, "responsable-inscripto", "la condición cargada por Soporte manda");
-    assert.equal(declarado.resumen.ivaCredito, importado.iva, "el IVA de lo importado es crédito fiscal");
+    // QA 26/09, vuelta 4: FERRETERIA NORTE SA (IVA 150 sobre neto 1.000, 15 %: ninguna alícuota vigente)
+    // queda «a revisar» y NO suma al crédito hasta que se revise: antes sumaba (21.790,50).
+    const { sumarAlCentavo } = await import("@/lib/dinero/redondeo");
+    assert.equal(declarado.resumen.ivaCredito, sumarAlCentavo([importado.iva, -150]), "el IVA de lo importado es crédito fiscal, menos lo que quedó a revisar");
     const { GET: paquete } = await import("@/app/contador/paquete/route");
     const r = valor<Response>(
       await comoEstudio(() => paquete(new Request(`http://qa.local/contador/paquete?cliente=${base.b.id}&mes=2026-08`))),
     );
     assert.equal(r.status, 200);
     const csv = await r.text();
-    assert.match(csv, /^Fecha;Proveedor;Documento;Número;Neto gravado;IVA crédito fiscal;Total\r?$/m, "COMPRAS con neto e IVA crédito");
+    assert.match(csv, /^Fecha;Proveedor;Documento;Número;Neto gravado;IVA crédito fiscal;Percepciones y otros tributos;Total\r?$/m, "COMPRAS con neto e IVA crédito");
     assert.match(csv, /^IVA crédito \(facturas de proveedor\);/m, "el resumen trae el IVA crédito");
     assert.doesNotMatch(csv, /no se sabe si el negocio es responsable inscripto/);
     // Monotributista cargado: no computa crédito fiscal aunque tenga facturas A de proveedores.
@@ -118,7 +121,9 @@ test("compras del cliente en su Libro IVA y en el listado del mes", async (t) =>
     assert.ok(agosto.compras.every((c) => c.fecha.startsWith("2026-08-")), "cada uno con la fecha de su comprobante");
     assert.equal(agosto.resumen.comprasConFacturaCount, 8);
     assert.equal(agosto.resumen.comprasTotal, importado.total, "el subtotal de compras del libro es el del archivo, con la nota de crédito restando");
-    assert.equal(agosto.resumen.ivaCredito, importado.iva, "el crédito fiscal del libro es el IVA de lo importado");
+    // Menos lo que quedó «a revisar» (FERRETERIA NORTE SA, IVA 150 al 15 %): no suma hasta que se revise.
+    const { sumarAlCentavo: alCentavo } = await import("@/lib/dinero/redondeo");
+    assert.equal(agosto.resumen.ivaCredito, alCentavo([importado.iva, -150]), "el crédito fiscal del libro es el IVA de lo importado, menos lo que quedó a revisar");
     const nc = agosto.compras.find((c) => c.numero.startsWith("Nota de crédito A"));
     assert.equal(nc?.total, -121);
     assert.equal(nc?.doc, "CUIT 30700000008");
@@ -126,6 +131,65 @@ test("compras del cliente en su Libro IVA y en el listado del mes", async (t) =>
     // RLS: el libro de B pedido con el negocio A no trae nada de B.
     const cruzado = await tenantTransaction((tx) => leerLibroIva(tx, base.b.id, "2026-08"), { tenantId: base.a.id });
     assert.equal(cruzado.compras.length, 0);
+  });
+
+  await t.test("refutador 26/09 · lo «a revisar» se revisa: la contadora lo confirma y su IVA entra al crédito; nadie de afuera de la cartera puede", async () => {
+    const { revisarRecibidoAction } = await import("./recibidos-actions");
+    const { ACCION_RECIBIDO_REVISADO } = await import("./recibidos-db");
+    const { aRevisarDeNotas } = await import("./recibidos-formato");
+    const { sumarAlCentavo } = await import("@/lib/dinero/redondeo");
+    type RR = Awaited<ReturnType<typeof revisarRecibidoAction>>;
+    const libroAgosto = () => tenantTransaction((tx) => leerLibroIva(tx, base.b.id, "2026-08"), { tenantId: base.b.id });
+    const fd = (cliente: string, compra: string) => {
+      const f = new FormData();
+      f.set("cliente", cliente);
+      f.set("compra", compra);
+      return f;
+    };
+    const notasDe = async (id: string) => (await operatorPrisma.stockPurchase.findUniqueOrThrow({ where: { id }, select: { notes: true } })).notes;
+    const revisiones = () => operatorPrisma.auditLog.count({ where: { action: ACCION_RECIBIDO_REVISADO } });
+
+    const marcada = await operatorPrisma.stockPurchase.findFirstOrThrow({
+      where: { tenantId: base.b.id, notes: { contains: "A revisar:" } },
+      select: { id: true, notes: true, facturaIva: true },
+    });
+    const ivaMarcada = Number(marcada.facturaIva);
+    assert.equal(ivaMarcada, 150, "es la de FERRETERIA NORTE SA (IVA 150 sobre 1.000)");
+    const creditoAntes = (await libroAgosto()).resumen.ivaCredito;
+
+    // 1) La dueña de B, desde su panel (sin cartera): no revisa nada, ni siquiera lo suyo.
+    const deB = await ejecutarAccion({ negocio: base.b, usuario: base.b.duenia }, () => revisarRecibidoAction(fd(base.b.id, marcada.id)));
+    assert.ok(deB.tipo !== "respuesta" || !(deB.valor as RR).ok, JSON.stringify(deB));
+    // 2) El estudio con un «cliente» que no está en su cartera (él mismo): el mismo «no está en tu cartera».
+    assert.deepEqual(valor<RR>(await comoEstudio(() => revisarRecibidoAction(fd(base.a.id, marcada.id)))), {
+      ok: false,
+      error: "Ese cliente no está en tu cartera.",
+    });
+    // 3) Cliente de la cartera, pero la compra es de OTRO negocio (del estudio): no la encuentra ni la toca.
+    const ajena = await operatorPrisma.stockPurchase.create({
+      data: { tenantId: base.a.id, code: 77_777, kind: "COMPRA", supplier: "Compra del estudio", totalCost: 100, createdBy: "qa", notes: `${NOTA_IMPORTADO}, por qa. A revisar: forjada` },
+    });
+    assert.equal(valor<RR>(await comoEstudio(() => revisarRecibidoAction(fd(base.b.id, ajena.id)))).ok, false);
+    assert.equal(await notasDe(ajena.id), ajena.notes, "la compra de otro negocio sigue igual");
+    assert.equal(await notasDe(marcada.id), marcada.notes, "nada se revisó todavía");
+    assert.equal(await revisiones(), 0);
+    assert.equal((await libroAgosto()).resumen.ivaCredito, creditoAntes);
+
+    // 4) La contadora lo revisa; doble clic simultáneo = UNA revisión.
+    const [r1, r2] = await Promise.all([
+      comoEstudio(() => revisarRecibidoAction(fd(base.b.id, marcada.id))),
+      comoEstudio(() => revisarRecibidoAction(fd(base.b.id, marcada.id))),
+    ]);
+    assert.deepEqual([valor<RR>(r1).ok, valor<RR>(r2).ok].sort(), [false, true], "una revisa, la otra ve que ya estaba");
+    const notas = await notasDe(marcada.id);
+    assert.equal(aRevisarDeNotas(notas), null);
+    assert.match(notas ?? "", /Revisado por /);
+    const filas = await operatorPrisma.auditLog.findMany({ where: { action: ACCION_RECIBIDO_REVISADO } });
+    assert.equal(filas.length, 1);
+    assert.deepEqual([filas[0].tenantId, filas[0].entityId, filas[0].actor], [base.b.id, marcada.id, `estudio:${base.a.id}`], "queda en la auditoría del CLIENTE");
+
+    // 5) Su IVA entra al crédito fiscal del libro (y al paquete, que sale del mismo libro).
+    assert.equal((await libroAgosto()).resumen.ivaCredito, sumarAlCentavo([creditoAntes, ivaMarcada]));
   });
 
   await t.test("cliente grande: más de 5.000 comprobantes en el mes salen TODOS en el archivo y en el resumen", async () => {

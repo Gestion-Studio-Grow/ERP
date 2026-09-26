@@ -1,0 +1,24 @@
+[a @390] url=http://valeriaortiz-v5.localhost:3210/admin login ok
+  cabecera: Saltar al contenido | Inicio | Comerciante | Inicio | ARCA · modo prueba (sin red) | Tu facturación al día: lo que cobrás por el banco y por Mercado Pago se factura solo. | Subir extracto | Facturado del mes | $0 | Facturas emitidas | 0 / 159 | 159 disponibles este mes
+  Cierre del mes en menú: [{"t":"Cierre del mes","vis":false},{"t":"Cierre del mes","vis":true}] (menú abierto con: Abrir menú)
+  'Comerciante' en pantalla: 1 · 'turno': 0 · 'kg': 0
+  consola: []
+  -> http://valeriaortiz-v5.localhost:3210/admin/cierre-mes :: Cierre del mes | Comerciante | Cargando…
+[b @1440] url=http://elceibo-v5.localhost:3210/admin login ok
+  cabecera: Saltar al contenido | C | Comerciante | Buscar en el menú | Inicio | Clientes | Pedidos | Caja | Libro de caja | Cierre del día | Cierre del mes | Catálogo
+  Cierre del mes en menú: [{"t":"Cierre del mes","vis":true}] (menú abierto con: -)
+  'Comerciante' en pantalla: 2 · 'turno': 0 · 'kg': 0
+  consola: []
+  -> http://elceibo-v5.localhost:3210/admin/cierre-mes :: Cierre del mes | Catálogo | Compras | Ajustes | Reseñas | Recordatorios | Facturación | Reportes | Campañas | Auditoría | Usuarios | Localización | Apariencia | D | Distribuidora El Ceibo SRL | Dueño/a | Cerrar sesión | Comerciante | Panel de administración | Cargando…
+[c @1440] url=http://lostilos-v5.localhost:3210/admin login ok
+  cabecera: Saltar al contenido | C | Comerciante | Buscar en el menú | Inicio | Clientes | Pedidos | Caja | Libro de caja | Cierre del día | Cierre del mes | Catálogo
+  Cierre del mes en menú: [{"t":"Cierre del mes","vis":true}] (menú abierto con: -)
+  'Comerciante' en pantalla: 2 · 'turno': 0 · 'kg': 0
+  consola: []
+  -> http://lostilos-v5.localhost:3210/admin :: Cierre del mes | Catálogo | Compras | Ajustes | Reseñas | Recordatorios | Facturación | Reportes | Campañas | Auditoría | Usuarios | Localización | Apariencia | M | Mayorista Los Tilos SA | Dueño/a | Cerrar sesión | Comerciante | Panel de administración | Inicio | ARCA · modo prueba (sin red) | Tu facturación al día: lo que cobrás por el banco y por Mercado Pago se factura solo. | Subir extracto | Facturado del mes | $0 | Facturas emitidas | 0 / 3.000 | 3.000 disponibles este mes | Pendientes de revisión | 0 | todo al día | Listas para emitir | 0 | Facturación
+[c2 @390] url=http://lostilos-banfield-v5.localhost:3210/admin login ok
+  cabecera: Saltar al contenido | Inicio | Comerciante | Inicio | ARCA · modo prueba (sin red) | Tu facturación al día: lo que cobrás por el banco y por Mercado Pago se factura solo. | Subir extracto | Facturado del mes | $0 | Facturas emitidas | 0 / 159 | 159 disponibles este mes
+  Cierre del mes en menú: [{"t":"Cierre del mes","vis":false},{"t":"Cierre del mes","vis":true}] (menú abierto con: Abrir menú)
+  'Comerciante' en pantalla: 1 · 'turno': 0 · 'kg': 0
+  consola: []
+  -> http://lostilos-banfield-v5.localhost:3210/admin/cierre-mes :: Cierre del mes | Comerciante | Cargando…

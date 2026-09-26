@@ -1,0 +1,40 @@
+URL http://localhost:3210/operador/solicitudes
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+Pedidos de alta de los estudios
+Cada estudio pide acá los clientes nuevos de su cartera. Abrí un pedido para configurarlo; al terminar, avisale a la contadora por WhatsApp.
+Altas de clientes nuevos
+Pedidos sobre un cliente
+Pendientes
+6
+QA Kiosco Lab
+Estudio Contable Laboratorio · CUIT 20-11111111-2 · Responsable inscripto · Sólo factura (profesional, servicio chico) · puede haber un negocio igual sin CUIT
+26/9/26, 11:04
+Ferretería UAT
+Estudio Contable Laboratorio · CUIT 20-22222222-3 · Monotributista · Sólo factura (profesional, servicio chico) · ese CUIT ya tiene negocio
+26/9/26, 11:05
+Martina Quiroga Fotografía
+Estudio Contable Laboratorio · CUIT 27-41236587-4 · Monotributista · Sólo factura (profesional, servicio chico)
+26/9/26, 18:05
+Ferretería Los Aromos SRL
+Estudio Contable Laboratorio · CUIT 30-71843217-7 · Responsable inscripto · Comercio con mostrador
+26/9/26, 18:06
+Distribuidora Del Plata SA
+Estudio Contable Laboratorio · CUIT 30-71843225-8 · Responsable inscripto · Varios locales
+26/9/26, 18:06
+Kiosco Descarte v7
+Estudio Contable Laboratorio · CUIT 20-45678123-4 · Monotributista
+26/9/26, 18:06
+Hecho por Gestión Studio Grow

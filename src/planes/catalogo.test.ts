@@ -283,14 +283,18 @@ test("cada módulo que vende un plan se nota: alguna app suya aparece en la vitr
   for (const p of PLANES_TODOS) {
     assert.deepEqual(modulosQueNoSeNotan(p), [], `${p.id} vende módulos que el negocio no vería`);
   }
-  // Muerde: comisiones no decide ninguna app, y el Libro IVA no se ve en el menú del estudio.
+  // Muerde: comisiones no decide ninguna app.
   const comerciante = planPorId("comerciante");
   assert.deepEqual(
     modulosQueNoSeNotan({ ...comerciante, porRubro: { servicios: [...(comerciante.porRubro.servicios ?? []), "commissions"] } }),
     ["commissions"],
   );
+  // QA vuelta 5: en los productos con tienda la pantalla de edición la da el módulo asignado
+  // (visibles.ts, edicionPermite), así que el Libro IVA que vende el Comerciante se ve. El Estudio
+  // sigue sin venderlo (catalogo.ts, plan «estudio»): su casa es /contador.
   const estudio = planPorId("estudio");
-  assert.deepEqual(modulosQueNoSeNotan({ ...estudio, agregables: [...estudio.agregables, "libros"] }), ["libros"]);
+  assert.ok(!modulosPosiblesDelPlan(estudio).includes("libros"));
+  assert.deepEqual(modulosQueNoSeNotan({ ...estudio, agregables: [...estudio.agregables, "libros"] }), []);
 });
 
 test("modulosDelPlan: suma los agregables y rechaza con el porqué lo que el plan no ofrece", () => {

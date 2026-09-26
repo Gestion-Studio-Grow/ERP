@@ -43,7 +43,7 @@ import {
   resumenDeLaVista,
   vistaDelLocal,
 } from "./catalogo-marca-core";
-import { AltaEnRedRechazada, leerFiscalDelAlta, sumarAltaEnTx } from "./multilocal-core";
+import { ACCION_ALTA_PARA_LA_RED, AltaEnRedRechazada, MOTIVO_NO_ES_ALTA_DE_LA_RED, MOTIVO_YA_ESTUVO_EN_LA_RED, leerFiscalDelAlta, sumarAltaEnTx } from "./multilocal-core";
 
 // ── La base falsa con RLS ────────────────────────────────────────────────────
 
@@ -645,8 +645,17 @@ function altaDb() {
   ]);
   db.producto("casa", "Vacío", { pricePerKg: 12000, stock: 30 });
   db.producto("casa", "Chorizo", { saleUnit: "UNIT", unit: "u", price: 900, pricePerKg: null });
+  marcarAlta(db, "casa");
   return db;
 }
+
+/** La marca que deja `commitTenantAction` en el local que la fábrica acaba de crear para esa casa. */
+function marcarAlta(db: ReturnType<typeof baseDeLaRed>, casaId: string, localId = "nuevo") {
+  db.estado.auditoria.push({ id: `marca-${casaId}`, tenantId: localId, actor: "operator:gsg", action: ACCION_ALTA_PARA_LA_RED, entity: "Tenant", entityId: localId, changes: { casaId }, createdAt: new Date() });
+}
+
+/** Lo que escribió la corrida (sin la marca del alta, que ya estaba). */
+const escritoPorElAlta = (db: ReturnType<typeof baseDeLaRed>) => db.estado.auditoria.filter((a) => a.action !== ACCION_ALTA_PARA_LA_RED);
 
 const pedidoAlta = (extra: Record<string, unknown> = {}) => ({
   casaId: "casa",
@@ -692,7 +701,7 @@ test("el alta rechaza un CUIT + punto de venta ya usado, y no deja NADA escrito"
   assert.equal(db.estado.cartera.length, 0, "el vínculo se deshizo");
   assert.equal(db.estado.productos.filter((p) => p.tenantId === "nuevo").length, 0);
   assert.equal(db.estado.negocios.find((n) => n.id === "nuevo")!.arcaPuntoVenta, null);
-  assert.equal(db.estado.auditoria.length, 0);
+  assert.equal(escritoPorElAlta(db).length, 0);
 });
 
 test("si la lista no se puede dejar, el local queda en la red igual y la lista queda pendiente con su porqué", async () => {
@@ -744,5 +753,31 @@ test("el alta en la red no se usa para sumar a CH ni a un negocio de otra red", 
     db.transaccion((tx) => sumarAltaEnTx(tx, pedidoAlta(), (slug) => slug === "magra-temperley")),
     /OK del dueño/,
   );
+  assert.equal(escritoPorElAlta(db).length, 0);
+});
+
+test("refutador vuelta 4 · un negocio que ya existía (sin la marca del alta) no entra por el alta: ni CUIT ni vínculo", async () => {
+  const db = altaDb();
+  db.estado.auditoria = []; // sin la marca: como Lucía Benítez, o cualquier negocio sin CUIT de la plataforma
+  const rechazo = (e: unknown) => e instanceof AltaEnRedRechazada && e.message === MOTIVO_NO_ES_ALTA_DE_LA_RED;
+  await assert.rejects(db.transaccion((tx) => sumarAltaEnTx(tx, pedidoAlta({ cuit: "" }), () => false)), rechazo);
+  const nuevo = db.estado.negocios.find((n) => n.id === "nuevo")!;
+  assert.deepEqual([nuevo.arcaCuit, nuevo.arcaPuntoVenta], [null, null], "no se le escribió el CUIT de la casa");
+  assert.equal(db.estado.cartera.length, 0, "la casa no ve su caja ni sus ventas");
   assert.equal(db.estado.auditoria.length, 0);
+  // La marca de OTRA casa tampoco sirve: el alta lo creó para esa red, no para ésta.
+  marcarAlta(db, "lomas");
+  await assert.rejects(db.transaccion((tx) => sumarAltaEnTx(tx, pedidoAlta(), () => false)), rechazo);
+  assert.equal(db.estado.cartera.length, 0);
+});
+
+test("refutador vuelta 4 · un local que se dio de baja no vuelve por el alta (va por Red de locales, con confirmación)", async () => {
+  const db = altaDb();
+  await db.transaccion((tx) => sumarAltaEnTx(tx, pedidoAlta(), () => false));
+  db.estado.cartera[0]!.estado = "baja";
+  await assert.rejects(
+    db.transaccion((tx) => sumarAltaEnTx(tx, pedidoAlta(), () => false)),
+    (e: unknown) => e instanceof AltaEnRedRechazada && e.message === MOTIVO_YA_ESTUVO_EN_LA_RED,
+  );
+  assert.equal(db.estado.cartera[0]!.estado, "baja", "sigue dado de baja");
 });

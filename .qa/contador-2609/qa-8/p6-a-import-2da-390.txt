@@ -1,0 +1,51 @@
+URL http://estudio.localhost:3210/contador/cliente/cmuixed5j00040m7d4xiyi5n0/recibidos?mes=2026-08
+E
+Estudio Contable Laboratorio
+Compras de Lucía (mono) v8
+Comprobantes recibidos · CUIT 27-38529164-2. El mes va por la fecha del comprobante, no por el día en que se cargó.
+Mes anterior
+08/2026
+Mes siguiente
+Descargar para el libro de IVA compras
+Volver a la cartera
+CARGAR EL ARCHIVO DE ARCA
+Mis Comprobantes › Recibidos › Descargar (CSV o Excel), sin editarlo.
+Elegir otro archivo
+recibidos-a-2026-08.csv
+Cargar comprobantes
+No entró ningún comprobante nuevo. 2 ya estaban cargados (no se duplican).
+Neto gravado
+$0,00
+Otros tributos y percepciones
+$0,00
+Total
+$0,00
+NO SE CARGARON
+Fila 2
+Factura B 00004-00007001
+Ya estaba cargado (compra #1): no se duplica.
+Fila 3
+Factura C 00002-00007002
+Ya estaba cargado (compra #2): no se duplica.
+RESUMEN DEL MES
+2 comprobantes.
+Neto gravado
+$0,00
+IVA crédito fiscal del mes
+Lo que suma. Es la columna «IVA crédito fiscal» del archivo.
+$0,00
+No gravado y exento
+$0,00
+Otros tributos y percepciones
+$0,00
+Total
+$39.200,00
+COMPROBANTES DEL MES
+05/08/2026
+Factura B 00004-00007001 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$24.200,00
+20/08/2026
+Factura C 00002-00007002 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$15.000,00

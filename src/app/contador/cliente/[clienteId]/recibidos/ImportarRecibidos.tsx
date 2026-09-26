@@ -69,6 +69,7 @@ export default function ImportarRecibidos({ clienteId }: { clienteId: string }) 
               notasDeCredito: resultado.resumen.notasDeCredito,
               aRevisar: resultado.resumen.aRevisar,
               yaCargados: resultado.yaCargadosTotal,
+              repetidosEnElArchivo: resultado.repetidosTotal,
               conErrores: resultado.conErroresTotal,
             })}
           </Franja>
@@ -76,8 +77,8 @@ export default function ImportarRecibidos({ clienteId }: { clienteId: string }) 
           {resultado.resumen.ivaPorAlicuota.map((a) => (
             <Renglon key={a.alicuotaId} titulo={`IVA ${a.etiqueta}`} detalle={<>sobre <Plata valor={a.base} /></>} plata={<Plata valor={a.importe} />} />
           ))}
-          {resultado.resumen.ivaSinAlicuota !== 0 && (
-            <Renglon titulo="IVA a revisar (sin alícuota)" plata={<Plata valor={resultado.resumen.ivaSinAlicuota} tono="peligro" />} />
+          {resultado.resumen.ivaARevisar !== 0 && (
+            <Renglon titulo="IVA a revisar (no suma al crédito)" plata={<Plata valor={resultado.resumen.ivaARevisar} tono="peligro" />} />
           )}
           <Renglon titulo="Otros tributos y percepciones" plata={<Plata valor={resultado.resumen.otrosTributos} />} />
           <Renglon titulo="Total" plata={<Plata valor={resultado.resumen.total} />} />

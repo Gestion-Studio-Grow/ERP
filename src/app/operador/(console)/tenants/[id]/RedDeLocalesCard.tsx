@@ -22,6 +22,7 @@ export interface CandidatoLocal {
 }
 
 export function RedDeLocalesCard({
+  cuitCasa,
   tenantId,
   nombre,
   esCasa,
@@ -30,6 +31,8 @@ export function RedDeLocalesCard({
   red,
   candidatos,
 }: {
+  /** CUIT de la casa: sólo se ofrecen (y sólo se aceptan) locales del mismo CUIT. */
+  cuitCasa: string | null;
   tenantId: string;
   nombre: string;
   /** ¿Tiene el módulo `multilocal`? Sin él no se vincula nada. */
@@ -111,13 +114,24 @@ export function RedDeLocalesCard({
           detalle={`${l.arcaPuntoVenta ? `Punto de venta ${l.arcaPuntoVenta}` : "Sin punto de venta"}${l.arcaCuit ? ` · CUIT ${l.arcaCuit}` : " · sin CUIT"}`}
           tecla={
             l.estado === "activa" ? (
-              <form action={darDeBajaLocalAction}>
-                <input type="hidden" name="casaId" value={tenantId} />
-                <input type="hidden" name="localId" value={l.localTenantId} />
-                <Button type="submit" variant="outline" size="sm" aria-label={`Dar de baja ${l.alias} de la red`}>
+              // Dos pasos y confirmación explícita (QA vuelta 6: la baja actuaba en un clic). El servidor
+              // rechaza la baja sin la casilla marcada (`darDeBajaEnTx`).
+              <details className="group">
+                <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded border border-line-strong px-4 text-sm">
                   Dar de baja
-                </Button>
-              </form>
+                </summary>
+                <form action={darDeBajaLocalAction} className="mt-2 grid max-w-xs gap-2">
+                  <input type="hidden" name="casaId" value={tenantId} />
+                  <input type="hidden" name="localId" value={l.localTenantId} />
+                  <label className="flex min-h-11 items-center gap-2 text-sm">
+                    <input type="checkbox" name="confirmo" value="si" required className="size-5" />
+                    La casa deja de ver sus ventas, su caja y su stock.
+                  </label>
+                  <Button type="submit" variant="outline" className="min-h-11" aria-label={`Sí, dar de baja ${l.alias} de la red`}>
+                    Sí, dar de baja
+                  </Button>
+                </form>
+              </details>
             ) : null
           }
         />
@@ -127,11 +141,16 @@ export function RedDeLocalesCard({
         !tieneCartera &&
         (bloqueo ? (
           <p className="border-b border-line py-3 text-sm text-muted">{bloqueo}</p>
+        ) : !cuitCasa ? (
+          <p className="border-b border-line py-3 text-sm text-muted">
+            Cargá el CUIT de {nombre} en la pestaña Fiscal: un local tiene que ser del mismo CUIT que la casa.
+          </p>
         ) : libres.length === 0 ? (
           <p className="border-b border-line py-3 text-sm text-muted">
-            No hay otros negocios para sumar
-            {ofrecibles.length > 0 ? ` (los que hay ya son locales de otra red: ${ofrecibles.map((c) => c.name).join(", ")})` : ""}. Dá de
-            alta el local en «Dar de alta un negocio» y volvé acá.
+            No hay otros negocios con el CUIT de la casa para sumar
+            {ofrecibles.length > 0 ? ` (los que hay ya son locales de otra red: ${ofrecibles.map((c) => c.name).join(", ")})` : ""}. Un
+            local nuevo se da de alta en «Dar de alta un negocio» → «¿De qué red?», eligiendo esta casa: hereda el CUIT y le cargás su
+            punto de venta.
           </p>
         ) : (
           <form action={vincularLocalAction} className="grid gap-3 py-4 sm:grid-cols-[1.4fr_1fr_auto] sm:items-end">
@@ -139,7 +158,7 @@ export function RedDeLocalesCard({
             <Field label="Local a sumar" htmlFor="red-local">
               <Select id="red-local" name="localId" required defaultValue="">
                 <option value="" disabled>
-                  Elegí un negocio…
+                  Elegí un negocio del mismo CUIT…
                 </option>
                 {ofrecibles.map((c) => (
                   <option key={c.id} value={c.id} disabled={!!c.enOtraRed}>
@@ -151,7 +170,11 @@ export function RedDeLocalesCard({
             <Field label="Cómo lo llama la casa" htmlFor="red-alias" hint="Opcional. Ej.: Canning.">
               <Input id="red-alias" name="alias" maxLength={60} autoComplete="off" placeholder="Nombre corto" />
             </Field>
-            <Button type="submit" variant="solid">
+            <label className="flex min-h-11 items-center gap-2 text-sm sm:col-span-3">
+              <input type="checkbox" name="confirmo" value="si" required className="size-5" />
+              Confirmo que es del mismo CUIT que {nombre} y que su dueña va a ver las ventas, la caja y el stock de ese local.
+            </label>
+            <Button type="submit" variant="solid" className="min-h-11">
               Vincular local
             </Button>
           </form>

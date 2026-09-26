@@ -1,0 +1,41 @@
+URL http://localhost:3210/operador/solicitudes/cmuipz4330002rr7dcgu4wgku
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+← Pedidos de alta
+Configurar a Mayorista Los Tilos SA
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+6 · Pasale esto
+Todavía no se le puede exigir que cambie la contraseña en el primer ingreso: pedile que la cambie al entrar.
+Para el dueño del negocio
+Contraseña temporal de contable@lostilos.ejemplo.test. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+<TEMPORAL>
+Copiar
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+¡Hola! Ya está listo el sistema de Mayorista Los Tilos SA.
+Entrá en: https://lostilos-v5.localhost/admin
+Usuario: contable@lostilos.ejemplo.test
+Contraseña: <TEMPORAL>
+Copiar
+Mandar por WhatsApp
+Para la contadora
+¡Hola! Ya está Mayorista Los Tilos SA en tu cartera: CUIT 30-70544296-3, punto de venta 3.
+Entrá en: https://estudio.localhost/contador
+Copiar
+Mandar por WhatsApp
+Quedó registrado: lo dio de alta duenio el 26/9/26, 3:27 p. m. (Historial de la ficha).
+Ir a la ficha del negocio
+Ir a la ficha del estudio
+Volver a los pedidos
+Hecho por Gestión Studio Grow

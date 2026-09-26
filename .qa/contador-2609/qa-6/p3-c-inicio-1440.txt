@@ -1,0 +1,56 @@
+URL http://riochico-v6.localhost:3210/admin
+Saltar al contenido
+C
+Comerciante
+Buscar en el menú
+Inicio
+Clientes
+Pedidos
+Caja
+Libro de caja
+Cierre del día
+Cierre del mes
+Catálogo
+Compras
+Ajustes
+Reseñas
+Recordatorios
+Facturación
+Reportes
+Campañas
+Auditoría
+Usuarios
+Localización
+Apariencia
+Cuentas a pagar
+Cuentas a cobrar
+Libros
+Devoluciones a proveedor
+S
+Supermercados Río Chico SA
+Dueño/a
+Cerrar sesión
+Comerciante
+Panel de administración
+Inicio
+ARCA · modo prueba (sin red)
+Tu facturación al día: lo que cobrás por el banco y por Mercado Pago se factura solo.
+Subir extracto
+Facturado del mes
+$0
+Facturas emitidas
+0 / 3.000
+3.000 disponibles este mes
+Pendientes de revisión
+0
+todo al día
+Listas para emitir
+0
+Facturación automática
+Subí el extracto de tu banco o conectá Mercado Pago: el sistema detecta las columnas, separa lo que no se factura y arma las facturas solo.
+Subir extracto
+Conectar Mercado Pago
+Ver facturas emitidas
+Últimas importaciones
+Ver facturación automática →
+Todavía no subiste ningún extracto. El primero se importa desde “Subir extracto”.

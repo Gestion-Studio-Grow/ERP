@@ -44,13 +44,15 @@ export default function FacturaDePrueba() {
         queda guardada, con su letra y su número.
       </p>
       <div className="flex flex-wrap items-end gap-2">
-        <label htmlFor={`${id}-receptor`} className="flex flex-col gap-1 text-sm text-strong">
+        {/* min-w-0/max-w-full + select w-full: a 412 px la opción larga («…CUIT de prueba de ARCA») corría la
+            pantalla 3 px de costado (gate:visual:aa, magra /admin/facturacion mobile); ahora el select se achica. */}
+        <label htmlFor={`${id}-receptor`} className="flex min-w-0 max-w-full flex-col gap-1 text-sm text-strong">
           ¿A quién va?
           <select
             id={`${id}-receptor`}
             value={receptor}
             onChange={(e) => setReceptor(e.target.value as ReceptorDePrueba)}
-            className="h-11 rounded-md border border-line-strong bg-surface-raised px-3 text-sm text-strong"
+            className="h-11 w-full rounded-md border border-line-strong bg-surface-raised px-3 text-sm text-strong"
           >
             {OPCIONES.map((o) => (
               <option key={o.valor} value={o.valor}>

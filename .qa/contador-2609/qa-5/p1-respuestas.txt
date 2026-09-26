@@ -1,0 +1,32 @@
+AuditLog cartera.solicitud_alta antes: 18
+[vacio @390 click] respuesta: Falta el nombre del negocio. | CUIT* | Falta el CUIT: está en la constancia de inscripción de ARCA. | Falta el email del cliente. | Falta el punto de venta: sin él el cliente no puede facturar. | Revisá lo marcado: Falta el nombre del negocio. Falta el CUIT: está en la constancia de inscripción de ARCA. Falta el email del cliente. Falta el punto de venta: sin él el cliente no puede facturar. | Revisá lo marcado: Falta el nombre del negocio. Falta el CUIT: está en la constancia de inscripción de ARCA. Falta el email del cliente. Falta el punto de venta: sin él el cliente no puede facturar.
+   region viva: Revisá lo marcado: Falta el nombre del negocio. Falta el CUIT: está en la constancia de inscripción de ARCA. Falta el email del cliente. Falta el punto de venta: sin él el cliente no puede facturar.
+   aria-invalid: nombre,cuit,email,puntoVenta
+   consola: []
+AuditLog cartera.solicitud_alta antes: 18
+[cuit-malo @390] boton Pedir el alta DESHABILITADO antes de enviar
+[cuit-malo @390 click] respuesta: CUIT* | El CUIT no es válido: revisá los 11 números. | El CUIT no es válido: revisá los 11 números.
+   region viva: El CUIT no es válido: revisá los 11 números.
+   aria-invalid: cuit
+   consola: []
+[a @390 dbl] respuesta: CUIT* | Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp. | Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp.
+   region viva: Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp.
+   aria-invalid: 
+   consola: []
+[existente @390 click] respuesta: CUIT* | Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp. | Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp.
+   region viva: Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp.
+   aria-invalid: 
+   consola: []
+[b @1440 dbl] respuesta: CUIT* | Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp. | Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp.
+   region viva: Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp.
+   aria-invalid: 
+   consola: []
+[c @1440 click] respuesta: CUIT* | Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp. | Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp.
+   region viva: Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp.
+   aria-invalid: 
+   consola: []
+[k @1440 click] respuesta: CUIT* | Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp. | Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp.
+   region viva: Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp.
+   aria-invalid: 
+   consola: []
+AuditLog cartera.solicitud_alta despues: 22

@@ -1,0 +1,27 @@
+ARMADO VUELTA 4 · 26/09/2026 · sin migraciones, sin commit, sin tocar CH ni env-lab.sh
+
+1. tsc: exit 0 (tsc.txt). npm test completo (/tmp/npm-test-v4.txt = npm-test-1-contencion.txt): 4481 tests, 4435 pasan, 45 fallan, 1 salteado, 844 s.
+   - 4 son las conocidas de XLSX (stub): xlsx.test.ts x3 y handler.test.ts x1.
+   - 41 son de src/app/admin/(dashboard)/vender/vender-pantalla.test.ts: la suite «Vender en el navegador» (línea 272, timeout 120 s) se cortó por tiempo
+     con la máquina cargada (loadavg 10 a 15: otra sesión corría su suite en erp-consola-rls). Al cortarse cierra el navegador y arrastra las subpruebas 16 en adelante.
+     Sola, con el mismo código: 56/56 en 79,9 s (vender-pantalla-solo.txt). No es del producto. El margen es justo: 80 s de 120 s.
+2. Paridad CH ANTES, build Ym15ROkg4SM_-f72_zaxI (19:11:40): ch-antes/ (script original) y ch-antes-v4-1/, ch-antes-v4-2/.
+   Una segunda foto con el script original (ch-antes-2/) salió con el esqueleto «Cargando…» (marca <!--$~-->). Es el momento de la foto, no el código:
+   ch-paridad-v4.mjs usa la misma normalización y espera a que React termine de mostrar los bloques. Las fotos v4 dan igual entre sí y a ch-antes/.
+   Datos: huella-datos-ch.sh (sólo lectura en erp_lab) da 560 turnos, md5 db72aab6…, 306 clientes y 447 pagos por 12.656.050.
+   Es igual en las 4 mediciones de antes y en las 2 de después: los turnos no cambiaron entre fotos, así que no hubo que normalizar datos.
+3. Apagado por PID: 3453, 3452 y 3440 (:3210). En :3211 no había proceso. El 30321 es de erp-dominio (:3213) y no se tocó (apagado.txt).
+   Build con env-lab.sh, APP_BASE_DOMAIN=localhost y NODE_ENV=production: exit 0, sin advertencias (build.txt).
+   BUILD_ID YmUp_F6Pcujw3aBAlX-sv, 20:49:53. El archivo de src/ más nuevo es de las 20:23:33; ninguno es posterior al build (build-id.txt).
+   Server :3210: next-server pid 10517 (npm 10456), log en server-3210.log.
+4. Paridad CH DESPUÉS: 0 líneas de diferencia en las 3 páginas y en resumen.json, con el script original y con el v4. Texto visible: 0 (ch-diff.txt).
+   paridad-menu: 4/4 (paridad-menu.txt).
+5. gate:visual:aa: exit 0. Contraste 0, touch 0, overflow 0, HTTP>=400 0, errores 0. 262 pantallas revisadas y 68 omitidas, igual que en la vuelta 3 (gate-aa.txt).
+   El gate dejó un next-server huérfano en :3211 (pid 14103). Lo apagué por PID.
+6. curl a /admin/login (curl/resumen.txt):
+   - luciabenitez-v6 y santelmo-v6 (activos en la cartera del estudio, cartera-nuevos.txt): 200, con el formulario de ingreso del producto Comerciante.
+     El nombre del negocio no aparece: es por diseño, el login usa la identidad del producto (src/app/admin/login/page.tsx:44-62).
+   - no-existe-v4: «Esta dirección todavía no abre ningún panel», sin formulario ni campo de contraseña, pero con HTTP 200, NO 404.
+     page.tsx:36-37 devuelve el componente sin notFound().
+   - A revisar (código anterior, 76a5e2d): en una dirección inexistente, «/» responde 200 con la vidriera genérica de estética:
+     «Mi negocio» y «Atienden Carolina, Macarena y Romina» (src/app/(site)/page.tsx:167).

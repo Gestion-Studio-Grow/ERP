@@ -41,6 +41,9 @@ import { businessWallTimeToUtc, dateStrInBusinessTz, dayOfWeekForDate } from "@/
 import { normalizarNombre } from "@/lib/catalogo/planilla-core";
 import { csvField } from "@/lib/report-csv";
 import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
+import { formatearCuit } from "@/lib/fiscal/cuit";
+import type { RegimenFacturaA } from "@/lib/fiscal/decidir-comprobante";
+import { ACCION_REGIMEN_FACTURA_A, ENTIDAD_REGIMEN_FACTURA_A, regimenVigente } from "@/lib/fiscal/regimen-factura-a";
 import {
   choqueDePuntoDeVenta,
   cuitNormalizado,
@@ -970,7 +973,35 @@ export interface EstadoParaVincular {
   casasDeLaCasa: { id: string; name: string }[];
   /** Negocios que no se tocan sin el OK del dueño (CH). */
   requiereOk: (slug: string) => boolean;
+  /**
+   * Sólo el alta en la red: el CUIT con el que el local QUEDA al terminar la misma transacción (el
+   * suyo o el de la casa que le copia el alta). Sin esto, manda el CUIT cargado del local.
+   */
+  cuitConQueQueda?: string | null;
 }
+
+/** Los dos CUIT son el mismo contribuyente (11 dígitos, sin guiones). Vacío no es igual a nada. PURA. */
+export function mismoCuit(a: string | null | undefined, b: string | null | undefined): boolean {
+  const x = (a ?? "").replace(/\D/g, "");
+  return x.length === 11 && x === (b ?? "").replace(/\D/g, "");
+}
+
+/**
+ * Qué locales de la red suma el libro de IVA de la casa: sólo si la casa es casa (módulo `multilocal`,
+ * sin la cartera del estudio) y sólo los del MISMO CUIT, casa primero. Un vínculo viejo con otro CUIT
+ * (de antes de la regla) no entra: el IVA es del contribuyente. PURA.
+ */
+export function localesDelMismoCuit<T extends { arcaCuit: string | null }>(
+  casa: { arcaCuit: string | null; modules: readonly string[] },
+  locales: readonly T[],
+): T[] {
+  if (!casa.modules.includes(MODULO_MULTILOCAL) || casa.modules.includes(MODULO_CARTERA)) return [];
+  return locales.filter((l) => mismoCuit(casa.arcaCuit, l.arcaCuit));
+}
+
+export const MOTIVO_SIN_CONFIRMAR_VINCULO =
+  "Falta confirmar: marcá que el local es del mismo CUIT y que la dueña de la casa va a ver sus ventas, su caja y su stock, y volvé a tocar «Vincular local».";
+export const MOTIVO_SIN_CONFIRMAR_BAJA = "Falta confirmar la baja: marcá la casilla y volvé a tocar «Sí, dar de baja».";
 
 export const MOTIVO_OK_DEL_DUENIO_RED =
   "Requiere OK del dueño: es un cliente vivo en producción y no se suma a una red sin su aprobación.";
@@ -1020,14 +1051,25 @@ export function validarVinculo(e: EstadoParaVincular): { ok: true; aviso: string
       motivo: `«${casa.name}» es local de la red de «${e.casasDeLaCasa[0].name}»: una casa no puede ser, a la vez, local de otra.`,
     };
   }
-  const cuitCasa = (casa.arcaCuit ?? "").replace(/\D/g, "");
-  const cuitLocal = (local.arcaCuit ?? "").replace(/\D/g, "");
-  const aviso =
-    cuitCasa && cuitLocal && cuitCasa !== cuitLocal
-      ? `Ojo: «${local.name}» tiene otro CUIT que la casa. La dueña va a ver sus ventas, cajas y stock; ` +
-        "los traslados de mercadería (cuando lleguen) sólo van entre locales del mismo CUIT."
-      : null;
-  return { ok: true, aviso };
+  // QA vuelta 6, bloqueante 1: se vinculó a una monotributista de otro CUIT y la dueña de la casa vio
+  // su caja y sus ventas. Un local es el MISMO contribuyente que la casa: con otro CUIT, o sin CUIT
+  // en alguno de los dos, se rechaza acá, en el servidor (antes pasaba con un aviso).
+  if (!(casa.arcaCuit ?? "").replace(/\D/g, "")) {
+    return {
+      ok: false,
+      motivo: `«${casa.name}» no tiene CUIT cargado. Cargalo en su ficha (pestaña Fiscal) antes de sumarle locales: un local tiene que ser del mismo CUIT.`,
+    };
+  }
+  const cuitLocal = e.cuitConQueQueda !== undefined ? e.cuitConQueQueda : local.arcaCuit;
+  if (!mismoCuit(casa.arcaCuit, cuitLocal)) {
+    return {
+      ok: false,
+      motivo:
+        `«${local.name}» no es del mismo CUIT que «${casa.name}». Un local de la red es el mismo contribuyente que la casa; ` +
+        "si es otro negocio, queda aparte. Un local nuevo se da de alta en «Dar de alta un negocio» → «¿De qué red?», eligiendo esta casa.",
+    };
+  }
+  return { ok: true, aviso: null };
 }
 
 /** Alias del local en la red: el que escribió el operador o, si no, el nombre del negocio. */
@@ -1101,6 +1143,10 @@ export interface PedidoVinculo {
   alias?: string | null;
   /** "operator:<quien>", como el resto de la consola. */
   actor: string;
+  /** La persona confirmó (casilla del formulario; el alta en la red confirma en su paso de revisión). */
+  confirmado: boolean;
+  /** Ver `EstadoParaVincular.cuitConQueQueda`: sólo el alta en la red. */
+  cuitConQueQueda?: string | null;
 }
 
 export type ResultadoVinculo =
@@ -1122,6 +1168,8 @@ export async function vincularEnTx(
   p: PedidoVinculo,
   requiereOk: (slug: string) => boolean,
 ): Promise<ResultadoVinculo> {
+  // Sin confirmar no se lee ni se escribe nada (QA vuelta 6: se vinculaba en un clic).
+  if (!p.confirmado) return { ok: false, motivo: MOTIVO_SIN_CONFIRMAR_VINCULO };
   await bloquear(tx, [p.casaId, p.localId]);
   const [casa, local] = await Promise.all([
     tx.tenant.findUnique({ where: { id: p.casaId }, select: SELECT_NEGOCIO }),
@@ -1134,6 +1182,7 @@ export async function vincularEnTx(
     otrasCasasDelLocal: otras.get(p.localId) ?? [],
     casasDeLaCasa: otras.get(p.casaId) ?? [],
     requiereOk,
+    ...(p.cuitConQueQueda !== undefined ? { cuitConQueQueda: p.cuitConQueQueda } : {}),
   });
   if (!v.ok) return v;
   const c = casa!;
@@ -1198,8 +1247,10 @@ export async function vincularEnTx(
  */
 export async function darDeBajaEnTx(
   tx: Tx,
-  p: Omit<PedidoVinculo, "alias">,
+  p: Omit<PedidoVinculo, "alias" | "cuitConQueQueda">,
 ): Promise<{ ok: true; alias: string } | { ok: false; motivo: string }> {
+  // Dar de baja corta la lectura de la casa en el acto: se confirma (QA vuelta 6).
+  if (!p.confirmado) return { ok: false, motivo: MOTIVO_SIN_CONFIRMAR_BAJA };
   await bloquear(tx, [p.casaId, p.localId]);
   await ponerGuc(tx, p.casaId);
   const fila = await tx.carteraCliente.findUnique({
@@ -1346,6 +1397,8 @@ export type ResultadoAltaEnRed =
       aviso: string | null;
       cuit: string | null;
       puntoVenta: number | null;
+      /** La condición frente al IVA con que queda el local (la de la casa si usa su CUIT). */
+      condicionIva: string | null;
       catalogo: ResultadoEmpuje;
     }
   | { ok: false; motivo: string };
@@ -1384,6 +1437,56 @@ export function leerFiscalDelAlta(
 }
 
 /**
+ * Lo que es del CUIT y no del local: con el CUIT de la casa, el local es el MISMO contribuyente ante
+ * ARCA (misma condición frente al IVA, razón social, domicilio fiscal, inicio de actividades e
+ * Ingresos Brutos). QA vuelta 5: el segundo local quedaba sin condición y, en modo prueba, se le
+ * asumía monotributo: emitía Factura C con el CUIT de un Responsable inscripto.
+ */
+export const FISCAL_DEL_CUIT = ["arcaCondicionIva", "arcaRazonSocial", "arcaDomicilioFiscal", "arcaInicioActividades", "arcaIibb"] as const;
+export type CampoFiscalDelCuit = (typeof FISCAL_DEL_CUIT)[number];
+export type FiscalDelCuit = Record<CampoFiscalDelCuit, string | null>;
+
+const lleno = (v: string | null | undefined): v is string => typeof v === "string" && v.trim() !== "";
+
+/**
+ * Qué hereda el local de la casa cuando usa su CUIT. PURA. Sólo completa lo vacío: lo que el local ya
+ * tiene no se pisa. Si el local ya tiene OTRA condición frente al IVA, rechaza: un CUIT tiene una sola.
+ */
+export function heredarFiscalDeLaCasa(
+  casa: { name: string } & Partial<FiscalDelCuit>,
+  local: { name: string } & Partial<FiscalDelCuit>,
+): { ok: true; datos: Partial<FiscalDelCuit> } | { ok: false; motivo: string } {
+  const cCasa = casa.arcaCondicionIva?.trim() ?? "";
+  const cLocal = local.arcaCondicionIva?.trim() ?? "";
+  if (cCasa && cLocal && cCasa !== cLocal) {
+    return {
+      ok: false,
+      motivo:
+        `«${local.name}» tiene cargada otra condición frente al IVA que «${casa.name}», con el mismo CUIT. ` +
+        "Un CUIT tiene una sola: corregí la que esté mal en su ficha y volvé a sumarlo.",
+    };
+  }
+  const datos: Partial<FiscalDelCuit> = {};
+  for (const campo of FISCAL_DEL_CUIT) {
+    const deLaCasa = casa[campo];
+    if (!lleno(local[campo]) && lleno(deLaCasa)) datos[campo] = deLaCasa.trim();
+  }
+  return { ok: true, datos };
+}
+
+/** La clase de Factura A vigente de un negocio (la más nueva de Soporte), leída con SU GUC. */
+async function regimenFacturaAEnTx(tx: Tx, tenantId: string): Promise<RegimenFacturaA | null> {
+  await ponerGuc(tx, tenantId);
+  const filas = await tx.auditLog.findMany({
+    where: { tenantId, action: ACCION_REGIMEN_FACTURA_A, entity: ENTIDAD_REGIMEN_FACTURA_A, entityId: tenantId },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: 20,
+    select: { actor: true, changes: true },
+  });
+  return regimenVigente(filas);
+}
+
+/**
  * ¿Ese CUIT ya usa ese punto de venta en otro negocio? El motivo del rechazo (con los puntos de
  * venta que ese CUIT ya usa) o null. Lee con el `tx` del operador; con `bloquear` = toma antes
  * el MISMO candado por CUIT que la ficha (operator-actions.ts), así dos operadores no se cuelan.
@@ -1405,8 +1508,136 @@ export async function choqueFiscalEnTx(
   return otro ? motivoDeChoque(cuit, puntoVenta, otro, puntosDeVentaUsados(localId, cuit, otros)) : null;
 }
 
+/** Lo que el asistente muestra antes de crear el local: a qué casa va y con qué CUIT y punto de venta. */
+export type RevisionAltaEnRed =
+  | { ok: true; casa: string; cuit: string | null; puntoVenta: number | null }
+  | { ok: false; motivo: string };
+
+export interface EstadoAltaEnRed {
+  casa: NegocioDeLaRed | null;
+  /** Casas que tienen a la CASA como local: una casa no puede ser local de otra red. */
+  casasDeLaCasa: { id: string; name: string }[];
+  requiereOk: (slug: string) => boolean;
+  /** El negocio que el alta va a crear (todavía no existe): su nombre, su slug y los módulos del plan. */
+  local: { name: string; slug: string; modules: readonly string[] };
+  /** Lo que se escribió en «¿De qué red?». */
+  pedido: { cuit?: string | null; puntoVenta?: string | null };
+}
+
+/**
+ * ¿El local que el alta va a crear puede entrar a esta red? PURA. Es la MISMA regla que aplica después
+ * `sumarAltaEnTx` (`validarVinculo` con el CUIT con que el local queda), decidida ANTES de crear: la usan
+ * la prueba en seco del paso «¿De qué red?» y el commit del alta, que no crea nada si no cierra.
+ * QA vuelta 7, bloqueante 2: la prueba en seco no miraba el CUIT, decía «✓ Va a la red…» con otro CUIT
+ * y el alta dejaba un negocio suelto, activo y con usuario, que la red rechazaba recién después.
+ */
+export function decidirAltaEnRed(e: EstadoAltaEnRed): RevisionAltaEnRed {
+  const { casa } = e;
+  if (!casa) return { ok: false, motivo: "Esa casa ya no existe. Recargá el alta." };
+  if (e.requiereOk(casa.slug)) return { ok: false, motivo: MOTIVO_OK_DEL_DUENIO_RED };
+  const fiscal = leerFiscalDelAlta(e.pedido, casa.arcaCuit);
+  if (!fiscal.ok) return fiscal;
+  if (cuitNormalizado(casa.arcaCuit) && fiscal.cuit && !mismoCuit(casa.arcaCuit, fiscal.cuit)) {
+    return {
+      ok: false,
+      motivo:
+        `El CUIT ${formatearCuit(fiscal.cuit) ?? fiscal.cuit} no es el de «${casa.name}» (${formatearCuit(casa.arcaCuit) ?? casa.arcaCuit}). ` +
+        "Un local de la red es el mismo contribuyente que la casa: dejá el CUIT vacío para usar el de la casa. " +
+        "Si es otro contribuyente, es un negocio aparte: elegí «Negocio suelto». No se crea nada hasta que esto cierre.",
+    };
+  }
+  const v = validarVinculo({
+    casa,
+    local: { id: "", name: e.local.name.trim() || "El local nuevo", slug: e.local.slug, modules: e.local.modules, arcaCuit: fiscal.cuit },
+    otrasCasasDelLocal: [],
+    casasDeLaCasa: e.casasDeLaCasa,
+    requiereOk: e.requiereOk,
+    cuitConQueQueda: fiscal.cuit,
+  });
+  if (!v.ok) return v;
+  return { ok: true, casa: casa.name, cuit: fiscal.cuit, puntoVenta: fiscal.puntoVenta };
+}
+
+/**
+ * La revisión del alta en la red contra la base, SIN escribir: la casa (y si es local de otra red), la
+ * regla de `decidirAltaEnRed` y que el CUIT + punto de venta no lo use otro negocio. La corren la prueba
+ * en seco del asistente y el commit del alta ANTES de crear el negocio.
+ */
+export async function revisarAltaEnRedEnTx(
+  tx: Tx,
+  p: { casaId: string; cuit?: string | null; puntoVenta?: string | null; local: EstadoAltaEnRed["local"] },
+  requiereOk: (slug: string) => boolean,
+): Promise<RevisionAltaEnRed> {
+  const casa = await tx.tenant.findUnique({ where: { id: p.casaId }, select: SELECT_NEGOCIO });
+  const otras = casa ? await casasQueTienenA(tx, [p.casaId], p.casaId) : new Map<string, { id: string; name: string }[]>();
+  const r = decidirAltaEnRed({
+    casa,
+    casasDeLaCasa: otras.get(p.casaId) ?? [],
+    requiereOk,
+    local: p.local,
+    pedido: { cuit: p.cuit, puntoVenta: p.puntoVenta },
+  });
+  if (!r.ok) return r;
+  // El local todavía no existe: ningún negocio se excluye del chequeo del punto de venta.
+  const choque = await choqueFiscalEnTx(tx, "", r.cuit, r.puntoVenta, false);
+  return choque ? { ok: false, motivo: choque } : r;
+}
+
+/**
+ * La MARCA DEL ALTA: la prueba, del lado del servidor, de que el local lo creó el alta para ESA casa.
+ * La escribe `commitTenantAction` en el negocio que la fábrica acaba de crear (sólo si lo creó ese
+ * commit), con la casa elegida en «¿De qué red?». El id del local llega por formulario: sin la marca,
+ * `sumarAltaEnTx` no le escribe CUIT ni lo vincula (refutador, vuelta 4: un negocio que ya existía y
+ * no tenía CUIT quedaba con el de la casa y la casa veía su caja y sus ventas).
+ */
+export const ACCION_ALTA_PARA_LA_RED = "multilocal.alta-para-la-red";
+
+export const MOTIVO_NO_ES_ALTA_DE_LA_RED =
+  "Por acá sólo entra a la red un local recién creado en «Dar de alta un negocio» para esta casa. " +
+  "Un negocio que ya existía se suma desde la ficha de la casa, en «Red de locales», que pide confirmación.";
+
+export const MOTIVO_YA_ESTUVO_EN_LA_RED =
+  "Este local ya estuvo en la red y se dio de baja. Para volver a sumarlo, usá «Red de locales» en la ficha de la casa, que pide confirmación.";
+
+/** Deja la marca del alta en el local recién creado, con su GUC (la fila es del local). */
+export async function marcarAltaParaLaRedEnTx(tx: Tx, m: { localId: string; casaId: string; actor: string }): Promise<void> {
+  await ponerGuc(tx, m.localId);
+  await tx.auditLog.create({
+    data: {
+      tenantId: m.localId,
+      actor: m.actor,
+      action: ACCION_ALTA_PARA_LA_RED,
+      entity: "Tenant",
+      entityId: m.localId,
+      changes: { casaId: m.casaId },
+      channel: "admin",
+    },
+  });
+}
+
+/** ¿El local tiene la marca del alta para ESTA casa? Una marca para otra casa no sirve. */
+async function esAltaParaLaCasaEnTx(tx: Tx, localId: string, casaId: string): Promise<boolean> {
+  await ponerGuc(tx, localId);
+  const marcas = await tx.auditLog.findMany({
+    where: { tenantId: localId, action: ACCION_ALTA_PARA_LA_RED, entity: "Tenant", entityId: localId },
+    select: { changes: true },
+  });
+  return marcas.some((m) => (m.changes as { casaId?: unknown } | null)?.casaId === casaId);
+}
+
+/** ¿Ese local estuvo en la red de la casa y se dio de baja? Con el GUC de la casa (la fila es suya). */
+async function dadoDeBajaEnTx(tx: Tx, casaId: string, localId: string): Promise<boolean> {
+  await ponerGuc(tx, casaId);
+  const fila = await tx.carteraCliente.findFirst({
+    where: { tenantId: casaId, clienteTenantId: localId, estado: "baja" },
+    select: { estado: true },
+  });
+  return fila !== null;
+}
+
 /**
  * El local recién dado de alta entra a la red, en la transacción del operador:
+ *   0. sólo si tiene la marca del alta para esta casa y nunca se dio de baja (si no, rechaza);
  *   1. el vínculo casa → local (`vincularEnTx`: sus validaciones, su candado y su auditoría);
  *   2. el CUIT y el punto de venta del local, con el candado por CUIT y sin repetir talonario;
  *   3. la lista de la casa, empujada al local (`empujarEnTx`, sin vista previa: sólo crea), con
@@ -1420,18 +1651,31 @@ export async function sumarAltaEnTx(
   p: PedidoAltaEnRed,
   requiereOk: (slug: string) => boolean,
 ): Promise<Extract<ResultadoAltaEnRed, { ok: true }>> {
-  const vinculo = await vincularEnTx(tx, { casaId: p.casaId, localId: p.localId, alias: p.alias, actor: p.actor }, requiereOk);
-  if (!vinculo.ok) throw new AltaEnRedRechazada(vinculo.motivo);
-
+  // El candado primero (se puede volver a tomar en la misma transacción): el CUIT con el que el
+  // local queda se decide con los datos que ya no cambian hasta el final.
+  await bloquear(tx, [p.casaId, p.localId]);
+  const fiscalDelCuit = Object.fromEntries(FISCAL_DEL_CUIT.map((c) => [c, true])) as Record<CampoFiscalDelCuit, true>;
   const [casa, local] = await Promise.all([
-    tx.tenant.findUnique({ where: { id: p.casaId }, select: { name: true, slug: true, arcaCuit: true } }),
-    tx.tenant.findUnique({ where: { id: p.localId }, select: { name: true, arcaCuit: true, arcaPuntoVenta: true } }),
+    tx.tenant.findUnique({ where: { id: p.casaId }, select: { name: true, slug: true, arcaCuit: true, ...fiscalDelCuit } }),
+    tx.tenant.findUnique({ where: { id: p.localId }, select: { name: true, arcaCuit: true, arcaPuntoVenta: true, ...fiscalDelCuit } }),
   ]);
   if (!casa || !local) throw new AltaEnRedRechazada("La casa o el local ya no existen. Recargá la consola.");
+  // 0. Lo que llegó por formulario no prueba nada: la marca del alta sí (la escribe el servidor al crearlo).
+  if (!(await esAltaParaLaCasaEnTx(tx, p.localId, p.casaId))) throw new AltaEnRedRechazada(MOTIVO_NO_ES_ALTA_DE_LA_RED);
+  if (await dadoDeBajaEnTx(tx, p.casaId, p.localId)) throw new AltaEnRedRechazada(MOTIVO_YA_ESTUVO_EN_LA_RED);
 
   const fiscal = leerFiscalDelAlta(p, casa.arcaCuit);
   if (!fiscal.ok) throw new AltaEnRedRechazada(fiscal.motivo);
   const cuitActual = cuitNormalizado(local.arcaCuit);
+  // El vínculo, con el CUIT con el que el local queda: sólo entra si es el de la casa (QA vuelta 6).
+  // La revisión del wizard («¿De qué red?», con la casa, el CUIT y el punto de venta) es la confirmación,
+  // y vale porque el local es el que ESE alta creó para esta casa (paso 0).
+  const vinculo = await vincularEnTx(
+    tx,
+    { casaId: p.casaId, localId: p.localId, alias: p.alias, actor: p.actor, confirmado: true, cuitConQueQueda: cuitActual ?? fiscal.cuit },
+    requiereOk,
+  );
+  if (!vinculo.ok) throw new AltaEnRedRechazada(vinculo.motivo);
   if (cuitActual && fiscal.cuit && cuitActual !== fiscal.cuit) {
     throw new AltaEnRedRechazada(
       `«${local.name}» ya tiene otro CUIT cargado (${cuitActual}). No se pisa desde el alta: corregilo en su ficha si hace falta.`,
@@ -1447,8 +1691,13 @@ export async function sumarAltaEnTx(
 
   const nuevoCuit = cuitActual ?? fiscal.cuit;
   const nuevoPv = local.arcaPuntoVenta ?? fiscal.puntoVenta;
-  if (nuevoCuit !== cuitActual || nuevoPv !== local.arcaPuntoVenta) {
-    await tx.tenant.update({ where: { id: p.localId }, data: { arcaCuit: nuevoCuit, arcaPuntoVenta: nuevoPv } });
+  // Con el CUIT de la casa, lo del CUIT (condición frente al IVA y demás) viene de la casa.
+  const mismoCuit = nuevoCuit !== null && nuevoCuit === cuitNormalizado(casa.arcaCuit);
+  const herencia = mismoCuit ? heredarFiscalDeLaCasa(casa, local) : { ok: true as const, datos: {} };
+  if (!herencia.ok) throw new AltaEnRedRechazada(herencia.motivo);
+  const heredado = herencia.datos;
+  if (nuevoCuit !== cuitActual || nuevoPv !== local.arcaPuntoVenta || Object.keys(heredado).length > 0) {
+    await tx.tenant.update({ where: { id: p.localId }, data: { arcaCuit: nuevoCuit, arcaPuntoVenta: nuevoPv, ...heredado } });
     await ponerGuc(tx, p.localId);
     await tx.auditLog.create({
       data: {
@@ -1460,11 +1709,37 @@ export async function sumarAltaEnTx(
         changes: {
           arcaCuit: nuevoCuit,
           arcaPuntoVenta: nuevoPv,
+          ...(Object.keys(heredado).length > 0 ? { heredadoDeLaCasa: heredado } : {}),
           antes: { arcaCuit: local.arcaCuit, arcaPuntoVenta: local.arcaPuntoVenta },
           casaId: p.casaId,
         },
       },
     });
+  }
+  // La clase de Factura A también es del CUIT (la asigna ARCA): un inscripto sin ella no emite A.
+  const condicionDelLocal = (heredado.arcaCondicionIva ?? local.arcaCondicionIva ?? "").trim();
+  if (mismoCuit && condicionDelLocal === "RESPONSABLE_INSCRIPTO") {
+    const deLaCasa = await regimenFacturaAEnTx(tx, p.casaId);
+    const delLocal = await regimenFacturaAEnTx(tx, p.localId);
+    if (deLaCasa && delLocal && deLaCasa !== delLocal) {
+      throw new AltaEnRedRechazada(
+        `«${local.name}» tiene otra Factura A que «${casa.name}», con el mismo CUIT. Corregí la que esté mal en su ficha y volvé a sumarlo.`,
+      );
+    }
+    if (deLaCasa && !delLocal) {
+      // regimenFacturaAEnTx dejó el GUC del local: la fila se escribe en SU registro.
+      await tx.auditLog.create({
+        data: {
+          tenantId: p.localId,
+          actor: p.actor,
+          action: ACCION_REGIMEN_FACTURA_A,
+          entity: ENTIDAD_REGIMEN_FACTURA_A,
+          entityId: p.localId,
+          channel: "admin",
+          changes: { regimen: deLaCasa, origen: "alta-en-red", casaId: p.casaId },
+        },
+      });
+    }
   }
 
   // La lista de la casa, leída con SU GUC; después, escrita en el local con el suyo. Lo que impide
@@ -1518,6 +1793,7 @@ export async function sumarAltaEnTx(
     aviso: vinculo.aviso,
     cuit: nuevoCuit,
     puntoVenta: nuevoPv,
+    condicionIva: condicionDelLocal || null,
     catalogo,
   };
 }

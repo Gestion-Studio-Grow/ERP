@@ -1,0 +1,43 @@
+URL http://localhost:3210/operador/solicitudes/cmuixdndd00020m7dgn1r49cl
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+← Pedidos de alta
+Configurar a Supermercados La Estrella SA
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+6 · Pasale esto
+El pedido dice «varios locales»: con este alta quedó la casa (el primer local). Cada local más se da de alta en «Dar de alta un negocio» → «¿De qué red?», eligiendo esta casa: hereda el CUIT y la condición frente al IVA, y le cargás su punto de venta.
+Todavía no se le puede exigir que cambie la contraseña en el primer ingreso: pedile que la cambie al entrar.
+Para el dueño del negocio
+Contraseña temporal para contable@laestrella.ejemplo.test. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+<TEMPORAL>
+Copiar
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+¡Hola! Ya está listo el sistema de Supermercados La Estrella SA.
+Por ahora quedó el primer local. Los otros los sumamos aparte y te aviso cuando estén.
+Entrá en: https://laestrella-v8.localhost/admin
+Usuario: contable@laestrella.ejemplo.test
+Contraseña: <TEMPORAL>
+Copiar
+Mandar por WhatsApp
+Para la contadora
+¡Hola! Ya está Supermercados La Estrella SA en tu cartera: CUIT 30-71955027-0, punto de venta 3.
+Entrá en: https://estudio.localhost/contador
+Copiar
+Mandar por WhatsApp
+Quedó registrado: lo dio de alta el dueño de GSG el 26/9/26, 18:54 (Historial de la ficha).
+Ir a la ficha del negocio
+Ir a la ficha del estudio
+Volver a los pedidos
+Hecho por Gestión Studio Grow

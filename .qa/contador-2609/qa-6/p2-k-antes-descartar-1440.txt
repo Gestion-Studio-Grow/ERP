@@ -1,0 +1,71 @@
+URL http://localhost:3210/operador/solicitudes/cmuirt18l0003nx7diu38qels
+
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+← Pedidos de alta
+Configurar a Kiosco Descarte v6
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+1 · Estudio
+Queda en la cartera de Estudio Contable Laboratorio (lo pidió Carla Méndez).
+2 · Cliente
+CUIT*
+Se controla el dígito verificador. Copialo de la constancia de inscripción de ARCA.
+CONDICIÓN FRENTE AL IVA*
+Elegí…
+Responsable inscripto
+Monotributista
+IVA exento
+RAZÓN SOCIAL*
+Tal cual figura en la constancia de ARCA.
+NOMBRE EN LA CARTERA
+Cómo lo ve la contadora. Vacío: la razón social.
+PUNTO DE VENTA*
+El que dio de alta en ARCA para factura electrónica.
+WHATSAPP DEL DUEÑO
+Con característica, sin 0 ni 15.
+EMAIL DEL DUEÑO (VA A SER SU USUARIO)*
+3 · Plan y rubro
+TAMAÑO
+Sólo factura (profesional, servicio chico)
+Comercio con mostrador
+Varios locales
+PLAN
+Facturación (sugerido)
+Micro comerciante
+Comerciante
+PyME
+Sólo factura lo que cobra: alcanza con Facturación.
+Nace con lo que su plan y su rubro traen (5 apps). Para sumar algo suelto, después, desde su ficha.
+NOMBRE CORTO PARA LA DIRECCIÓN (OPCIONAL)
+Minúsculas, números y guiones. Vacío: sin dirección por ahora.
+4 · Accesos
+Al dueño se le crea el usuario kiosco6@ejemplo.test con una contraseña temporal que vas a ver una sola vez. La contadora lo ve desde la cartera de su estudio; nunca queda como dueña del negocio del cliente.
+ACCESO DE LA CONTADORA
+Ya tiene acceso: contador@estudio.lab
+Crear el acceso de otra persona del estudio
+5 · Revisar y crear
+Crear: Kiosco Descarte v6 · CUIT 20-44455881-5 · Monotributista · punto de venta 1 · Facturación · cartera de Estudio Contable Laboratorio.
+Crear el cliente
+¿No corresponde crearlo?
+Qué ve la contadora en su cartera
+Faltan datos para darlo de alta.
+Los datos no coinciden con ARCA: revisalos y volvé a pedirlo.
+Ya está en tu cartera: no hacía falta pedir el alta.
+El cliente decidió no seguir.
+Soporte GSG te escribe por WhatsApp.
+NOTA INTERNA (OPTATIVA)
+Sólo la ve Soporte GSG: la contadora no la lee nunca. Hasta 300 letras.
+Descartar el pedido
+Hecho por Gestión Studio Grow

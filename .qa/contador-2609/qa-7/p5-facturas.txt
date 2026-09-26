@@ -1,0 +1,20 @@
+[a @390] botón factura de prueba: 1 · estado: Emití facturas electrónicas ante ARCA y generá links de cobro por Mercado Pago. | Creá un link de pago para mandarle al cliente por WhatsApp. Cuando paga, el cobro entra solo.modo prueba — el link no cobra de verdad | Modo prueba: generar cobro de prueba | Facturación electrónica (ARCA) | Comprobantes del negocio y su estado ante ARCA. Las facturas se generan al cobrar; acá se autorizan (se obtiene el CAE). | Modo: modo prueba (sin red)
+  -> consumidor-final: Listo: Factura C 0001-00000001 a Consumidor final por $1.210,00. CAE simulado STUB00000001. Ya está en la lista de comprobantes.
+  -> responsable-inscripto: Listo: Factura C 0001-00000002 a CUIT 20-11111111-2 por $1.210,00. CAE simulado STUB00000002. Ya está en la lista de comprobantes.
+  lista tras recargar: STUB00000002 | Factura C 0001-00000002 | STUB00000001 | Factura C 0001-00000001
+  consola: []
+[b @1440] botón factura de prueba: 1 · estado: Emití facturas electrónicas ante ARCA y generá links de cobro por Mercado Pago. | Creá un link de pago para mandarle al cliente por WhatsApp. Cuando paga, el cobro entra solo.modo prueba — el link no cobra de verdad | Modo prueba: generar cobro de prueba | Facturación electrónica (ARCA) | Comprobantes del negocio y su estado ante ARCA. Las facturas se generan al cobrar; acá se autorizan (se obtiene el CAE). | Modo: modo prueba (sin red)
+  -> responsable-inscripto (doble clic): Listo: Factura A 0002-00000001 a CUIT 20-11111111-2 por $1.210,00. CAE simulado STUB00000001. Ya está en la lista de comprobantes.
+  -> consumidor-final: Listo: Factura B 0002-00000001 a Consumidor final por $1.210,00. CAE simulado STUB00000001. Ya está en la lista de comprobantes.
+  lista tras recargar: Autorizada	$1.210,00	STUB00000001	Factura B 0002-00000001 | Autorizada	$1.210,00	STUB00000001	Factura A 0002-00000001
+  consola: []
+[c @1440] botón factura de prueba: 1 · estado: Emití facturas electrónicas ante ARCA y generá links de cobro por Mercado Pago. | Creá un link de pago para mandarle al cliente por WhatsApp. Cuando paga, el cobro entra solo.modo prueba — el link no cobra de verdad | Modo prueba: generar cobro de prueba | Facturación electrónica (ARCA) | Comprobantes del negocio y su estado ante ARCA. Las facturas se generan al cobrar; acá se autorizan (se obtiene el CAE). | Modo: modo prueba (sin red)
+  -> responsable-inscripto: ARCA te asignó la Factura A con leyenda, y el sistema todavía no la emite. Emitila desde el sitio de ARCA, con la leyenda que te indicaron.
+  -> consumidor-final: Listo: Factura B 0003-00000001 a Consumidor final por $1.210,00. CAE simulado STUB00000001. Ya está en la lista de comprobantes.
+  lista tras recargar: Autorizada	$1.210,00	STUB00000001	Factura B 0003-00000001
+  consola: []
+[c2 @390] botón factura de prueba: 1 · estado: Emití facturas electrónicas ante ARCA y generá links de cobro por Mercado Pago. | Creá un link de pago para mandarle al cliente por WhatsApp. Cuando paga, el cobro entra solo.modo prueba — el link no cobra de verdad | Modo prueba: generar cobro de prueba | Facturación electrónica (ARCA) | Comprobantes del negocio y su estado ante ARCA. Las facturas se generan al cobrar; acá se autorizan (se obtiene el CAE). | Modo: modo prueba (sin red)
+  -> responsable-inscripto: ARCA te asignó la Factura A con leyenda, y el sistema todavía no la emite. Emitila desde el sitio de ARCA, con la leyenda que te indicaron.
+  -> consumidor-final: Listo: Factura B 0004-00000001 a Consumidor final por $1.210,00. CAE simulado STUB00000001. Ya está en la lista de comprobantes.
+  lista tras recargar: STUB00000001 | Factura B 0004-00000001
+  consola: []

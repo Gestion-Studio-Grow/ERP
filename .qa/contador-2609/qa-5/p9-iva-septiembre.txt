@@ -1,0 +1,11 @@
+[b] http://elceibo-v5.localhost:3210/admin/no-disponible?app=libro-iva
+  
+  consola: []
+[c] http://lostilos-v5.localhost:3210/admin/no-disponible?app=libro-iva
+  
+  consola: []
+[b] /admin/libros -> http://elceibo-v5.localhost:3210/admin/no-disponible?app=libro-iva :: Comerciante | Libro IVA no está disponible | El IVA de ventas y compras del mes, para el contador. | Esta app no está incluida en lo que tiene tu negocio hoy. | Si querés sumarla, escribinos a Gestión Studio Grow. | Ir al inicio | Cerrar sesión | Con tecnología de Gestión Studio Grow
+[b] cierre-mes 2026-09: 
+[b] borrador septiembre descargado: paquete-2026-08-distribuidora-el-ceibo-srl-borrador.csv
+  consola: []
+[b contadora] paquete 2026-09 -> HTTP 400 :: No se pudo bajar el paquete del mes | Ese mes todavía no terminó: el paquete se baja cuando el mes cierra. Elegí un mes que ya terminó. | Volver a la cartera

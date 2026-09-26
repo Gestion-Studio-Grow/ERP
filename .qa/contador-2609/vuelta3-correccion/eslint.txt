@@ -1,0 +1,6 @@
+eslint exit 0
+eslint-2 exit 0
+eslint-3 exit 0
+eslint-4 exit 0
+eslint-5 exit 0
+eslint-6 exit 0

@@ -1,0 +1,79 @@
+URL http://santelmo-v6.localhost:3210/admin/libros?mes=2026-09
+
+Saltar al contenido
+C
+Comerciante
+Buscar en el menú
+Inicio
+Clientes
+Pedidos
+Caja
+Libro de caja
+Cierre del día
+Cierre del mes
+Catálogo
+Compras
+Ajustes
+Reseñas
+Recordatorios
+Facturación
+Reportes
+Campañas
+Auditoría
+Usuarios
+Localización
+Apariencia
+Cuentas a cobrar
+Libros
+C
+Comercial San Telmo SRL
+Dueño/a
+Cerrar sesión
+Comerciante
+Panel de administración
+Libro IVA
+El IVA de septiembre 2026: los comprobantes emitidos y, aparte, lo vendido sin comprobante y las compras, como control para tu contador.
+Descargar el mes (CSV)
+← Agosto 2026
+Septiembre 2026
+Comprobantes (neto)
+$2.000,00
+2 comprobantes con CAE
+IVA débito
+$420,00
+El IVA de los comprobantes emitidos
+IVA crédito
+$24.640,50
+Sin facturas de proveedor cargadas no hay crédito
+IVA a favor
+$24.220,50
+Débito menos crédito. Tu contador suma el crédito de tus facturas de compra.
+Comprobantes emitidos
+Con CAE de ARCA. Es lo que se declara.
+Comprobantes emitidos del mes
+Fecha
+	TIPO	NÚMERO	CLIENTE	Neto
+	ALÍC.	IVA
+	Total
+	
+2026-09-26	Factura A	00002-00000001	CUIT 20111111112	$1.000,00	21%	$210,00	$1.210,00	
+2026-09-26	Factura B	00002-00000001	Consumidor final	$1.000,00	21%	$210,00	$1.210,00	
+Ventas sin comprobante (control)
+Pedidos y turnos cobrados que no tienen factura con CAE. No se declaran ni llevan IVA calculado: son para que tu contador sepa qué se vendió sin facturar.
+Ventas sin comprobante del mes
+Fecha
+	TIPO	REFERENCIA	CLIENTE	Total
+Todo lo cobrado este mes tiene comprobante
+Compras (control)
+Se cargan sin la factura del proveedor, y sin ella no dan crédito fiscal. Pasale a tu contador las facturas de compra para que sume el crédito.
+Compras del mes
+Fecha
+	PROVEEDOR	DOCUMENTO	NÚMERO	Total
+2026-09-02	DISTRIBUIDORA DEL SUR SA	CUIT 30700000008	Factura A 00003-00002001	$12.100,00
+2026-09-04	DISTRIBUIDORA DEL SUR SA	CUIT 30700000008	Factura A 00003-00002002	$13.830,00
+2026-09-08	ALMACEN LA ESQUINA SRL	CUIT 30700000016	Factura B 00005-00000301	$2.420,00
+2026-09-10	SERVICIOS DE LIMPIEZA MONOTRIBUTO	CUIT 30700000024	Factura C 00002-00000077	$8.000,00
+2026-09-14	DISTRIBUIDORA DEL SUR SA	CUIT 30700000008	Nota de crédito A 00003-00000090	-$1.210,00
+2026-09-15	IMPORTADORA DEL PLATA SA	CUIT 30700000032	Factura A 00010-00000700	$121.060,50
+2026-09-18	FERRETERIA NORTE SA	CUIT 30700000040	Factura A 00007-00000950	$1.150,00
+2026-09-23	ALMACEN LA ESQUINA SRL	CUIT 30700000016	Factura A 00004-00003001	$1.270,00

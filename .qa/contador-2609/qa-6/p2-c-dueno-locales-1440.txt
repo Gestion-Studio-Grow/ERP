@@ -1,0 +1,94 @@
+URL http://riochico-v6.localhost:3210/admin/locales
+Saltar al contenido
+C
+Comerciante
+Buscar en el menú
+Inicio
+Clientes
+Pedidos
+Caja
+Libro de caja
+Cierre del día
+Cierre del mes
+Catálogo
+Compras
+Ajustes
+Reseñas
+Recordatorios
+Facturación
+Reportes
+Campañas
+Auditoría
+Usuarios
+Localización
+Apariencia
+Cuentas a pagar
+Cuentas a cobrar
+Libros
+Devoluciones a proveedor
+S
+Supermercados Río Chico SA
+Dueño/a
+Cerrar sesión
+Comerciante
+Panel de administración
+Mis locales
+Supermercados Río Chico SA
+Cómo viene hoy, 26/09/2026, cada local de tu red. Cada número sale de la caja y el stock de ese local, en este momento.
+Hoy
+Ventas
+Cajas
+Cobrado hoy
+$0,00
+en 2 locales, menos lo anulado hoy
+Cajas sin cerrar
+0
+todas cerradas hasta ayer
+Stock bajo el mínimo
+0
+nada por reponer
+Esta semana
+$0
+la semana pasada no hubo ventas para comparar
+Bernal
+Río Chico Bernal · punto de venta 4
+Caja al día
+Cobrado hoy
+$0,00
+0 cobros
+Su caja, como la ve el local
+Desde el origen: todavía no hubo ningún cierre
+Efectivo
+$0,00
++ $0,00 · − $0,00
+MP / Transf.
+$0,00
++ $0,00 · − $0,00
+Tarjeta
+$0,00
++ $0,00 · − $0,00
+Total $0,00
+Nada bajo el mínimo
+Abrir su caja
+(se abre en otra pestaña; pide el usuario de ese local)
+Error de prueba v6
+Lucía Benítez Diseño Gráfico · punto de venta 1
+Caja al día
+Cobrado hoy
+$0,00
+0 cobros
+Su caja, como la ve el local
+Desde el 01/09/2026 · último cierre: 31/08/2026
+Efectivo
+$0,00
++ $0,00 · − $0,00
+MP / Transf.
+$0,00
++ $0,00 · − $0,00
+Tarjeta
+$0,00
++ $0,00 · − $0,00
+Total $0,00
+Nada bajo el mínimo
+Abrir su caja
+(se abre en otra pestaña; pide el usuario de ese local)

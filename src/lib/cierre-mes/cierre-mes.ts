@@ -210,10 +210,33 @@ export interface Paso {
   bloquea: boolean;
 }
 
+/** Un local del MISMO CUIT de la casa: su IVA va en el paquete de la casa (libro-iva-red.ts). */
+export interface LocalDelCierre {
+  nombre: string;
+  puntoVenta: number | null;
+  cerradoHasta: string | null;
+  /** ¿Hay movimientos de caja en días sin cerrar hasta el último del mes? */
+  movimientosSinCerrar: boolean;
+  comprobantes: { total: number; sinCae: number; rechazados: number };
+}
+
 /** Lo que se lee de la base para evaluar los pasos (lectura.ts). */
 export interface HechosCierreMes {
   mes: MesKey;
-  caja: { usaCaja: boolean; cerradoHasta: string | null };
+  /**
+   * La casa de una red: los locales del mismo CUIT, que el paquete suma. Su caja y sus comprobantes
+   * cuentan para congelar (refutador, vuelta 4). Ausente = no es casa de una red.
+   */
+  locales?: LocalDelCierre[];
+  caja: {
+    usaCaja: boolean;
+    cerradoHasta: string | null;
+    /**
+     * ¿Hubo movimientos de caja después del último día cerrado y dentro del mes? `false`: los días
+     * sin cerrar no tuvieron movimientos y el congelado los cierra (acciones.ts). Ausente = sí (lo prudente).
+     */
+    movimientosSinCerrar?: boolean;
+  };
   comprobantes: { total: number; sinCae: number; rechazados: number };
   anuladasConFactura: number;
   /** `null` = el negocio no importa extractos (o la tabla no está en esta base). */
@@ -234,6 +257,11 @@ const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno
 function paso(id: PasoId, estado: EstadoPaso, detalle: string, extra: Partial<Pick<Paso, "accion" | "bloquea">> = {}): Paso {
   const titulo = PASOS.find((p) => p.id === id)!.titulo;
   return { id, titulo, estado, detalle, bloquea: false, ...extra };
+}
+
+/** «Río Chico Bernal» (punto de venta 4). */
+function nombreDelLocal(l: Pick<LocalDelCierre, "nombre" | "puntoVenta">): string {
+  return `«${l.nombre}»${l.puntoVenta ? ` (punto de venta ${l.puntoVenta})` : ""}`;
 }
 
 /** "20260828" → "28/08/2026". */
@@ -257,6 +285,19 @@ export function evaluarPasos(h: HechosCierreMes, estado: EstadoCierreMes): Paso[
   const cerrarUltimo = { texto: `Cerrar la caja hasta el ${ultimo}`, href: `/admin/caja/cierre?dia=${b.ultimoDia}` };
   if (h.caja.cerradoHasta && h.caja.cerradoHasta >= b.ultimoDia) {
     pasos.push(paso("dias-cerrados", "listo", `La caja está cerrada hasta el ${diaLegible(h.caja.cerradoHasta)}.`));
+  } else if (h.caja.movimientosSinCerrar === false) {
+    // Días sin cerrar SIN movimientos: no bloquean (QA 26/09, vuelta 4). Al congelar se cierran solos,
+    // sin arqueo porque no hubo nada que contar, y la garantía de arriba sigue: nada se carga después
+    // con fecha del mes. Un día CON movimientos sin cerrar sigue bloqueando (rama de abajo).
+    pasos.push(
+      paso(
+        "dias-cerrados",
+        "listo",
+        h.caja.cerradoHasta
+          ? `La caja está cerrada hasta el ${diaLegible(h.caja.cerradoHasta)} y después no hubo movimientos: al congelar, los días hasta el ${ultimo} quedan cerrados.`
+          : `No hubo movimientos de caja hasta el ${ultimo}: al congelar, esos días quedan cerrados.`,
+      ),
+    );
   } else if (!h.caja.usaCaja && !h.caja.cerradoHasta) {
     pasos.push(
       paso(
@@ -279,8 +320,26 @@ export function evaluarPasos(h: HechosCierreMes, estado: EstadoCierreMes): Paso[
     );
   }
 
-  // 2. Comprobantes con CAE.
-  const { total, sinCae, rechazados } = h.comprobantes;
+  // 1 bis. Los locales del mismo CUIT (la casa de una red): su IVA va en este paquete, así que un local
+  //    con movimientos en días sin cerrar BLOQUEA igual que la caja de la casa (refutador, vuelta 4).
+  const localesSinCerrar = (h.locales ?? []).filter((l) => l.movimientosSinCerrar && !(l.cerradoHasta && l.cerradoHasta >= b.ultimoDia));
+  if (localesSinCerrar.length > 0) {
+    const uno = localesSinCerrar.length === 1;
+    const texto =
+      `${localesSinCerrar.map(nombreDelLocal).join(" y ")} ${uno ? "tiene" : "tienen"} días con movimientos de caja sin cerrar hasta el ${ultimo}, ` +
+      `y ${uno ? "su" : "sus"} IVA va en este mismo paquete (mismo CUIT). Se cierran en ${uno ? "ese local" : "esos locales"}.`;
+    const deLaCasa = pasos[0]!;
+    pasos[0] =
+      deLaCasa.estado === "pendiente"
+        ? { ...deLaCasa, detalle: `${deLaCasa.detalle} ${texto}` }
+        : paso("dias-cerrados", "pendiente", texto, { accion: { texto: "Ver las cajas de los locales", href: "/admin/locales/cajas" }, bloquea: true });
+  }
+
+  // 2. Comprobantes con CAE (de la casa y de los locales del mismo CUIT: van en el mismo libro).
+  const deLosLocales = (h.locales ?? []).filter((l) => l.comprobantes.sinCae > 0 || l.comprobantes.rechazados > 0);
+  const total = h.comprobantes.total + (h.locales ?? []).reduce((s, l) => s + l.comprobantes.total, 0);
+  const sinCae = h.comprobantes.sinCae + (h.locales ?? []).reduce((s, l) => s + l.comprobantes.sinCae, 0);
+  const rechazados = h.comprobantes.rechazados + (h.locales ?? []).reduce((s, l) => s + l.comprobantes.rechazados, 0);
   if (total === 0) {
     pasos.push(paso("comprobantes-con-cae", "no-aplica", `No hay comprobantes con fecha de ${mes}.`));
   } else if (sinCae > 0 || rechazados > 0) {
@@ -288,8 +347,9 @@ export function evaluarPasos(h: HechosCierreMes, estado: EstadoCierreMes): Paso[
       sinCae > 0 ? `${plural(sinCae, "comprobante sigue", "comprobantes siguen")} sin CAE` : null,
       rechazados > 0 ? `${plural(rechazados, "rechazado", "rechazados")} por ARCA (revisá que se hayan vuelto a emitir)` : null,
     ].filter(Boolean);
+    const enLocales = deLosLocales.length > 0 ? ` Incluye los de ${deLosLocales.map(nombreDelLocal).join(" y ")}: se revisan en la Facturación de ese local.` : "";
     pasos.push(
-      paso("comprobantes-con-cae", "pendiente", `${partes.join(" · ")}.`, {
+      paso("comprobantes-con-cae", "pendiente", `${partes.join(" · ")}.${enLocales}`, {
         accion: { texto: "Revisar en Facturación", href: "/admin/facturacion" },
       }),
     );

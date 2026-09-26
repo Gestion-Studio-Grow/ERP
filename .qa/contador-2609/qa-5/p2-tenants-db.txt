@@ -1,0 +1,5 @@
+cmuiq0cxx0004rr7ddu3j5kcb|valeria-ortiz-nutricion|valeriaortiz-v5|facturacion|MONOTRIBUTO|1|{clients,reports,arca,bancos,mercadopago}|generico
+cmuiq15hm000brr7d51yr11m0|distribuidora-el-ceibo-srl|elceibo-v5|comerciante|RESPONSABLE_INSCRIPTO|2|{clients,reports,arca,bancos,mercadopago,pos,catalog,inventario,cuentas-a-cobrar,libros,campanias,reminders,reviews}|generico
+cmuiq1y4v000jrr7dctlngra4|mayorista-los-tilos-sa|lostilos-v5|pyme|RESPONSABLE_INSCRIPTO|3|{clients,reports,arca,bancos,mercadopago,pos,catalog,inventario,cuentas-a-cobrar,libros,campanias,reminders,reviews,cuentas-a-pagar,devoluciones-proveedor,multilocal}|generico
+cmuiq1y4v000jrr7dctlngra4|mayorista-los-tilos-sa|lostilos-v5|30705442963|3|pyme|RESPONSABLE_INSCRIPTO|0
+cmuiq7kxl000trr7d1u3zu79v|lostilos-banfield-v5|lostilos-banfield-v5|30705442963|4|||0

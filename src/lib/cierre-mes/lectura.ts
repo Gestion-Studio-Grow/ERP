@@ -15,10 +15,14 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { lastClosedDayTx } from "@/lib/caja/frontera-cierre";
+import { nextDayKey } from "@/lib/caja/cierre-diario";
+import { businessWallTimeToUtc } from "@/lib/datetime";
 import { isPrismaError } from "@/lib/prisma-errors";
 import { whereAnuladasConFactura } from "@/lib/libros/libro-iva";
 import { bordesDelMes, type MesKey } from "@/lib/libros/fecha-fiscal";
-import { consultaAuditoriaCierre, type HechosCierreMes, type RegistroCierre } from "./cierre-mes";
+import { tenantTransaction } from "@/lib/rls";
+import { localesDelCuitDeLaCasa } from "@/lib/libros/libro-iva-red";
+import { consultaAuditoriaCierre, type HechosCierreMes, type LocalDelCierre, type RegistroCierre } from "./cierre-mes";
 import { contarComisionesDelMes } from "./comisiones";
 // El AJUSTE de un recuento se reconoce por el motivo que le pone la app de Recuento: la misma
 // constante que usan la planilla y el botón de Recuento (no hay columna para distinguirlo).
@@ -41,6 +45,56 @@ async function siExisteLaTabla<T>(leer: () => Promise<T>): Promise<T | null> {
     if (isPrismaError(e, "P2021") || isPrismaError(e, "P2022")) return null;
     throw e;
   }
+}
+
+/**
+ * ¿Hay movimientos de caja después del último día cerrado (`cerradoHasta`, o desde siempre si nunca se
+ * cerró) y antes de `hasta`? Los ajustes de un cierre caen dentro de su día: no cuentan.
+ */
+export async function hayMovimientosSinCerrar(db: DbCierre, tenantId: string, cerradoHasta: string | null, hasta: Date): Promise<boolean> {
+  const desde = cerradoHasta ? businessWallTimeToUtc(nextDayKey(cerradoHasta), "00:00") : null;
+  const m = await db.cashMovement.findFirst({
+    where: { tenantId, occurredAt: { ...(desde ? { gte: desde } : {}), lt: hasta } },
+    select: { id: true },
+  });
+  return m !== null;
+}
+
+/** Cuántos comprobantes del mes hay, y cuántos sin CAE o rechazados. */
+async function comprobantesDelMes(db: DbCierre, tenantId: string, mes: MesKey) {
+  const b = bordesDelMes(mes);
+  const porEstado = await db.invoice.groupBy({
+    by: ["status"],
+    where: { tenantId, fecha: { gte: b.fiscal.gte, lt: b.fiscal.lt } },
+    _count: { _all: true },
+  });
+  const cuenta = (s: string) => porEstado.find((g) => g.status === s)?._count._all ?? 0;
+  return { total: porEstado.reduce((s, g) => s + g._count._all, 0), sinCae: cuenta("PENDING"), rechazados: cuenta("REJECTED") };
+}
+
+/**
+ * La casa de una red: la caja y los comprobantes del mes de cada local del MISMO CUIT, que son los que
+ * suma el paquete (libro-iva-red.ts). Cada local en SU transacción, con su GUC (refutador, vuelta 4: la
+ * casa congelaba aunque el segundo local tuviera días con movimientos sin cerrar).
+ */
+async function leerLocalesDelCierre(casaId: string, mes: MesKey): Promise<LocalDelCierre[]> {
+  const locales = await localesDelCuitDeLaCasa(casaId);
+  const b = bordesDelMes(mes);
+  const out: LocalDelCierre[] = [];
+  for (const l of locales) {
+    out.push(
+      await tenantTransaction(
+        async (tx) => {
+          const cerradoHasta = await lastClosedDayTx(tx, l.id);
+          const movimientosSinCerrar =
+            cerradoHasta !== null && cerradoHasta >= b.ultimoDia ? false : await hayMovimientosSinCerrar(tx, l.id, cerradoHasta, b.instantes.lt);
+          return { nombre: l.name, puntoVenta: l.arcaPuntoVenta, cerradoHasta, movimientosSinCerrar, comprobantes: await comprobantesDelMes(tx, l.id, mes) };
+        },
+        { tenantId: l.id },
+      ),
+    );
+  }
+  return out;
 }
 
 /** Los hechos del mes para los ocho pasos. */
@@ -155,10 +209,14 @@ export async function leerHechosCierreMes(
     })(),
   ]);
 
+  const movimientosSinCerrar =
+    cerradoHasta !== null && cerradoHasta >= b.ultimoDia ? false : await hayMovimientosSinCerrar(db, tenantId, cerradoHasta, b.instantes.lt);
   const cuenta = (s: string) => porEstado.find((g) => g.status === s)?._count._all ?? 0;
+  const locales = await leerLocalesDelCierre(tenantId, mes);
   return {
     mes,
-    caja: { usaCaja: movimientoDeCaja !== null, cerradoHasta },
+    ...(locales.length > 0 ? { locales } : {}),
+    caja: { usaCaja: movimientoDeCaja !== null, cerradoHasta, movimientosSinCerrar },
     comprobantes: {
       total: porEstado.reduce((s, g) => s + g._count._all, 0),
       sinCae: cuenta("PENDING"),

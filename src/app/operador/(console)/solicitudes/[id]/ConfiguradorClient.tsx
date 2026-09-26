@@ -23,7 +23,18 @@ import {
 import { pasaleEsto } from "../../alta/pasale-esto";
 import { RevelarClave } from "../../RevelarClave";
 import { NOMBRE_RUBRO, YA_EN_LA_CARTERA, esRubro, mensajeParaLaContadora, modulosDelAlta, sugerirPlan } from "../configurador-reglas";
-import type { ResultadoConfigurador } from "../configurador.server";
+import type { CierreDelPedido, ResultadoConfigurador, ResultadoDescarte } from "../configurador.server";
+import { MOTIVOS_DE_DESCARTE, MOTIVOS_DE_DESCARTE_EN_ORDEN, NOTA_INTERNA_MAX, type MotivoDeDescarte } from "@/lib/soporte/avisos-a-la-contadora";
+import {
+  CAMPO_CONFIRMA_FACTURA_A_FUERA,
+  NOMBRE_REGIMEN_FACTURA_A,
+  REGIMENES_FACTURA_A,
+  TEXTO_CONFIRMA_FACTURA_A_FUERA,
+  avisoFacturaAFuera,
+  esRegimenFacturaA,
+  seEmiteFueraDelSistema,
+  type RegimenFueraDelSistema,
+} from "@/lib/fiscal/regimen-factura-a";
 import { accionDelPedido, vistaDelPedido } from "../vista-del-pedido";
 import { formatearCuit } from "@/lib/fiscal/cuit";
 import { configurarSolicitudAction, descartarSolicitudAction } from "../actions";
@@ -32,6 +43,8 @@ interface Props {
   operador: string;
   /** El pedido ya figura cerrado en la base. La pantalla igual se monta: si el alta salió bien acá, manda «Pasale esto». */
   cerrada: boolean;
+  /** Cómo se cerró (descartado o configurado), leído del servidor. */
+  cierre: CierreDelPedido | null;
   pedido: {
     id: string;
     estudio: { id: string; nombre: string; whatsapp: string | null };
@@ -71,13 +84,18 @@ function Copiar({ texto, etiqueta }: { texto: string; etiqueta: string }) {
   );
 }
 
-export function ConfiguradorClient({ operador, cerrada, pedido }: Props) {
+/** «duenio» es el usuario del dueño de GSG en la consola (operator-auth.ts): se nombra como persona. */
+const nombreDelOperador = (n: string) => (n.trim().toLowerCase() === "duenio" ? "el dueño de GSG" : n);
+
+export function ConfiguradorClient({ operador, cerrada, cierre, pedido }: Props) {
   const d = pedido.datos;
   const existe = pedido.yaExisten.length > 0;
   const [f, setF] = useState({
     razonSocial: d.nombre,
     cuit: d.cuit,
     condicionIva: d.condicionIva ?? "",
+    regimenFacturaA: "",
+    confirmaFacturaAFuera: false,
     puntoVenta: d.puntoVenta ? String(d.puntoVenta) : "",
     email: d.email,
     whatsapp: d.whatsapp ?? "",
@@ -122,7 +140,18 @@ export function ConfiguradorClient({ operador, cerrada, pedido }: Props) {
   const vista = vistaDelPedido(cerrada, r);
   if (vista === "pasale-esto" && r?.ok) return <PasaleEsto r={r} operador={operador} />;
   if (vista === "cerrado") {
-    return <Franja>Este pedido ya está cerrado. Si hace falta cambiar algo, se hace desde la ficha del negocio.</Franja>;
+    if (cierre?.tipo === "descartado") return <DescarteHecho cierre={cierre} estudioNombre={pedido.estudio.nombre} />;
+    const ficha = cierre?.tipo === "configurado" ? cierre.clienteTenantId : null;
+    return (
+      <Franja>
+        Este pedido ya está cerrado: el cliente quedó configurado. Si hace falta cambiar algo, se hace desde su ficha.{" "}
+        {ficha && (
+          <Link href={`/operador/tenants/${encodeURIComponent(ficha)}`} className="inline-flex min-h-11 items-center font-medium underline">
+            Ir a la ficha del negocio
+          </Link>
+        )}
+      </Franja>
+    );
   }
 
   return (
@@ -133,6 +162,7 @@ export function ConfiguradorClient({ operador, cerrada, pedido }: Props) {
       <input type="hidden" name="plan" value={plan} />
       <input type="hidden" name="rubro" value={rubro} />
       <input type="hidden" name="autorizaVinculo" value={f.autorizaVinculo ? "si" : ""} />
+      <input type="hidden" name={CAMPO_CONFIRMA_FACTURA_A_FUERA} value={f.confirmaFacturaAFuera ? "si" : ""} />
       <input type="hidden" name="duplicado" value={f.duplicado} />
 
       <Paso n={1} titulo="Estudio">
@@ -155,6 +185,31 @@ export function ConfiguradorClient({ operador, cerrada, pedido }: Props) {
             ))}
           </Select>
         </Field>
+        {f.condicionIva === "RESPONSABLE_INSCRIPTO" && (
+          <Field
+            label="Qué Factura A le asignó ARCA"
+            htmlFor="regimenFacturaA"
+            required
+            hint="Sin este dato no puede hacer Factura A (tampoco la de prueba). Si no lo sabés, consultalo con la contadora."
+          >
+            <Select id="regimenFacturaA" name="regimenFacturaA" value={f.regimenFacturaA} onChange={set("regimenFacturaA")} className="min-h-11">
+              <option value="">Elegí una opción</option>
+              {REGIMENES_FACTURA_A.map((x) => (
+                <option key={x} value={x}>{NOMBRE_REGIMEN_FACTURA_A[x]}</option>
+              ))}
+            </Select>
+          </Field>
+        )}
+        {/* «A con leyenda» o «M»: el sistema no las emite. Se dice ACÁ, al elegir, y se confirma (QA vuelta 7). */}
+        {f.condicionIva === "RESPONSABLE_INSCRIPTO" && seEmiteFueraDelSistema(esRegimenFacturaA(f.regimenFacturaA) ? f.regimenFacturaA : null) && (
+          <div role="alert" className="space-y-2 rounded-lg border border-warning/25 bg-warning-soft px-4 py-3 text-sm md:col-span-2">
+            <p>{avisoFacturaAFuera(f.regimenFacturaA as RegimenFueraDelSistema)}</p>
+            <label className="flex min-h-11 items-center gap-3">
+              <input type="checkbox" checked={f.confirmaFacturaAFuera} onChange={set("confirmaFacturaAFuera")} className="h-5 w-5" />
+              {TEXTO_CONFIRMA_FACTURA_A_FUERA}.
+            </label>
+          </div>
+        )}
         <Field label="Razón social" htmlFor="razonSocial" hint="Tal cual figura en la constancia de ARCA." required>
           <Input id="razonSocial" name="razonSocial" value={f.razonSocial} onChange={set("razonSocial")} className="min-h-11" />
         </Field>
@@ -236,8 +291,8 @@ export function ConfiguradorClient({ operador, cerrada, pedido }: Props) {
           </Field>
           {tamanio === "varios-locales" && (
             <Franja tono="atencion" className="md:col-span-2">
-              Se crea la casa (el primer local). Los otros locales se suman después desde su ficha, en Red, cada uno con su
-              punto de venta.
+              Se crea la casa (el primer local). Cada local más se da de alta después en «Dar de alta un negocio» →
+              «¿De qué red?», eligiendo esta casa: hereda el CUIT y la condición frente al IVA, y le cargás su punto de venta.
             </Franja>
           )}
           {tamanio !== "chico" && (
@@ -332,49 +387,90 @@ export function ConfiguradorClient({ operador, cerrada, pedido }: Props) {
       solicitudId={pedido.id}
       estudioTenantId={pedido.estudio.id}
       estudioNombre={pedido.estudio.nombre}
-      motivoSugerido={que.tipo === "ya-en-cartera" ? "Ya está en tu cartera: no hacía falta pedir el alta." : ""}
+      motivoInicial={que.tipo === "ya-en-cartera" ? "ya-en-cartera" : ""}
     />
     </>
   );
 }
 
-/** Descartar el pedido (datos mal, duplicado, no corresponde): queda cerrado y el estudio puede volver a pedirlo. */
+/** Lo que ve Soporte con el pedido ya descartado (al descartarlo y cada vez que lo vuelve a abrir). */
+function DescarteHecho({ cierre, estudioNombre }: { cierre: Extract<CierreDelPedido, { tipo: "descartado" }>; estudioNombre: string }) {
+  const cuando = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", hourCycle: "h23", timeZone: "America/Argentina/Buenos_Aires" }).format(
+    new Date(cierre.cuando),
+  );
+  return (
+    <Franja>
+      <span className="block">
+        Pedido descartado{cierre.operador ? ` por ${cierre.operador}` : ""} el {cuando}. {estudioNombre} ve en su cartera: «{cierre.texto}»
+      </span>
+      {cierre.nota && <span className="block break-words">Nota interna (sólo la ve Soporte GSG): {cierre.nota}</span>}
+      <Link href="/operador/solicitudes" className="inline-flex min-h-11 items-center font-medium underline">
+        Volver a los pedidos
+      </Link>
+    </Franja>
+  );
+}
+
+/**
+ * Descartar el pedido (datos mal, duplicado, no corresponde): queda cerrado y el estudio puede volver a
+ * pedirlo. La contadora lee SÓLO un motivo de la lista cerrada; la nota es interna de Soporte.
+ */
 function DescartarPedido({
   solicitudId,
   estudioTenantId,
   estudioNombre,
-  motivoSugerido,
+  motivoInicial,
 }: {
   solicitudId: string;
   estudioTenantId: string;
   estudioNombre: string;
-  motivoSugerido: string;
+  motivoInicial: MotivoDeDescarte | "";
 }) {
-  const [r, accion, pendiente] = useActionState<{ ok: true } | { ok: false; error: string } | null, FormData>(descartarSolicitudAction, null);
+  const [r, accion, pendiente] = useActionState<ResultadoDescarte | null, FormData>(descartarSolicitudAction, null);
   if (r?.ok) {
     return (
       <Franja>
-        Pedido descartado. {estudioNombre} ve el motivo en su cartera («Pedidos de alta»); si hace falta, avisale por WhatsApp: puede volver a pedirlo con los datos corregidos.{" "}
+        Pedido descartado. {estudioNombre} ve en su cartera: «{MOTIVOS_DE_DESCARTE[r.motivo]}»{" "}
         <Link href="/operador/solicitudes" className="inline-flex min-h-11 items-center font-medium underline">Volver a los pedidos</Link>
       </Franja>
     );
   }
+  const errorMotivo = r && !r.ok && r.campo === "motivo" ? r.error : null;
+  const errorNota = r && !r.ok && r.campo === "nota" ? r.error : null;
+  const errorGeneral = r && !r.ok && !r.campo ? r.error : null;
   return (
-    <form action={accion} className="mt-8 space-y-3">
+    <form action={accion} className="mt-8 space-y-3" noValidate>
       <Bloque titulo="¿No corresponde crearlo?" id="descartar">
         <div className="grid gap-3 pt-3">
           <input type="hidden" name="solicitudId" value={solicitudId} />
           <input type="hidden" name="estudioTenantId" value={estudioTenantId} />
+          <fieldset className="grid gap-1" aria-describedby={errorMotivo ? "motivo-descarte-error" : undefined}>
+            <legend className="text-sm font-medium text-strong">Qué ve la contadora en su cartera</legend>
+            {MOTIVOS_DE_DESCARTE_EN_ORDEN.map((m) => (
+              <label key={m} className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
+                <input type="radio" name="motivo" value={m} defaultChecked={m === motivoInicial} className="h-5 w-5 shrink-0" />
+                {MOTIVOS_DE_DESCARTE[m]}
+              </label>
+            ))}
+            {errorMotivo && <p id="motivo-descarte-error" className="text-sm text-danger">{errorMotivo}</p>}
+          </fieldset>
           <Field
-            label="Motivo del descarte"
-            htmlFor="motivo-descarte"
-            hint="De 3 a 300 letras. La contadora lo ve en su cartera: no nombres otros negocios ni sus datos."
+            label="Nota interna (optativa)"
+            htmlFor="nota-descarte"
+            hint={`Sólo la ve Soporte GSG: la contadora no la lee nunca. Hasta ${NOTA_INTERNA_MAX} letras.`}
           >
-            <Textarea id="motivo-descarte" name="motivo" minLength={3} maxLength={300} rows={2} required defaultValue={motivoSugerido} />
+            <Textarea
+              id="nota-descarte"
+              name="nota"
+              maxLength={NOTA_INTERNA_MAX}
+              rows={2}
+              aria-invalid={errorNota ? true : undefined}
+              aria-describedby={errorNota ? "nota-descarte-error" : undefined}
+            />
           </Field>
-          {r && !r.ok && (
-            <p role="alert" className="text-sm text-danger">{r.error}</p>
-          )}
+          {errorNota && <p id="nota-descarte-error" className="text-sm text-danger">{errorNota}</p>}
+          {errorGeneral && <p className="text-sm text-danger">{errorGeneral}</p>}
+          <p className="sr-only" role="status" aria-live="polite">{errorMotivo ?? errorNota ?? errorGeneral ?? ""}</p>
           <div>
             <Button type="submit" variant="outline" className="min-h-11" disabled={pendiente}>
               {pendiente ? "Descartando…" : "Descartar el pedido"}
@@ -390,7 +486,7 @@ function PasaleEsto({ r, operador }: { r: Extract<ResultadoConfigurador, { ok: t
   const cliente = r.usuarios.find((u) => u.quien === "cliente");
   const contadora = r.usuarios.find((u) => u.quien === "contadora");
   const alDuenio = cliente
-    ? pasaleEsto({ negocio: r.nombre, direccion: r.direccion, usuario: cliente.email, clave: cliente.clave })
+    ? pasaleEsto({ negocio: r.nombre, direccion: r.direccion, usuario: cliente.email, clave: cliente.clave, otrosLocales: r.otrosLocales, facturaAFuera: r.facturaAFuera })
     : null;
   const aLaContadora = mensajeParaLaContadora({
     cliente: r.nombre,
@@ -399,7 +495,7 @@ function PasaleEsto({ r, operador }: { r: Extract<ResultadoConfigurador, { ok: t
     direccionCartera: r.estudio.direccionCartera,
     acceso: contadora?.clave ? { usuario: contadora.email, clave: contadora.clave } : null,
   });
-  const cuando = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(r.auditoria.cuando));
+  const cuando = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", hourCycle: "h23", timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(r.auditoria.cuando));
 
   return (
     <div className="space-y-8">
@@ -455,7 +551,7 @@ function PasaleEsto({ r, operador }: { r: Extract<ResultadoConfigurador, { ok: t
             </div>
           </section>
           <p className="text-[13px] text-muted">
-            Quedó registrado: lo {r.creado ? "dio de alta" : "sumó a la cartera"} {r.auditoria.operador || operador} el {cuando}{" "}
+            Quedó registrado: lo {r.creado ? "dio de alta" : "sumó a la cartera"} {nombreDelOperador(r.auditoria.operador || operador)} el {cuando}{" "}
             (Historial de la ficha).
           </p>
           <div className="flex flex-wrap gap-4 text-sm">

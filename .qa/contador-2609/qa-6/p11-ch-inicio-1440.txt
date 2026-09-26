@@ -1,0 +1,33 @@
+URL http://chestetica.localhost:3210/admin
+Saltar al contenido
+CH
+CH Estética
+Buscar en el menú
+Inicio
+Agenda
+Clientes
+Lista de espera
+Pedidos
+Caja
+Libro de caja
+Cierre del día
+Catálogo
+Compras
+Ajustes
+Reseñas
+Recordatorios
+Facturación
+Reportes
+Campañas
+Auditoría
+Usuarios
+Localización
+Apariencia
+C
+Cecilia Herrera
+Dueño/a
+Ver sitio público →
+Cerrar sesión
+CH Estética
+Panel de administración
+Cargando…

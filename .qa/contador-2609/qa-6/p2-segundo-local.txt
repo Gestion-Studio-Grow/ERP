@@ -1,0 +1,427 @@
+ficha http://localhost:3210/operador/tenants/cmuirvlzz000jnx7dfnaax36p
+ controles con red/local/plan: Abrir su panel (se abre en otra pestaña; pide un u -> https://riochico-v6.localhost/admin ; Puesta en marcha 4 -> ?pestana=puesta ; Fiscal 3 -> ?pestana=fiscal ; Plan y apps -> ?pestana=plan ; Marca y vidriera -> ?pestana=marca ; Personas -> ?pestana=personas ; Historial -> ?pestana=historial ; Fiscal -> ?pestana=fiscal ; Personas -> ?pestana=personas ; Pasar al plan Facturación ->  ; Pasar al plan Micro comerciante ->  ; Pasar al plan Comerciante ->  ; Pasar al plan PyME ->  ; Pasar al plan Estudio contable ->  ; Activar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=agenda#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=pos#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=catalog#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=clients#apps ; Activar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=waitlist#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=reminders#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=reports#apps ; Activar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=commissions#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=reviews#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=campanias#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=inventario#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=cuentas-a-pagar#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=cuentas-a-cobrar#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=libros#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=devoluciones-proveedor#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=arca#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=mercadopago#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=bancos#apps ; Activar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=cartera#apps ; Apagar… -> /operador/tenants/cmuirvlzz000jnx7dfnaax36p?pestana=plan&modulo=multilocal#apps ; Vincular local -> 
+pestaña Red url=http://localhost:3210/operador/tenants/cmuirvlzz000jnx7dfnaax36p
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Todos
+En producción
+En prueba
+Con pendientes
+Estudios contables
+Dar de alta un negocio
+← Negocios
+Supermercados Río Chico SA
+En prueba
+riochico-v6
+Genérico / Comodín
+PyME (provisional)
+1 persona
+0 clientes
+alta el 26 de septiembre de 2026
+Abrir su panel
+(se abre en otra pestaña; pide un usuario de ese negocio)
+Puesta en marcha
+4
+Fiscal
+3
+Plan y apps
+Marca y vidriera
+Personas
+Historial
+Listo para abrir
+4 pendientes
+Lo que el alta no hace sola, leído del negocio
+No aplica
+Precios propios
+no aplica: no es un comercio de mostrador
+Falta
+Dirección del negocio
+sin cargar
+Es la que ven sus clientes en su página y en los mensajes: sin cargar, no saben dónde atiende.
+lo carga el negocio
+Falta
+Instagram
+sin cargar
+Es un link público: el placeholder deja un enlace roto (y antes apuntaba a una cuenta ajena) en la vidriera del cliente.
+lo carga el negocio
+Falta
+Listo para facturar
+falta el certificado ARCA · ARCA está en modo stub (apagado) en la plataforma · la facturación está apagada para toda la plataforma: la enciende Gestión Studio Grow con el interruptor general
+Si falta un dato fiscal, la venta se cobra igual pero la factura no sale, y se descubre a fin de mes.
+Fiscal
+Listo
+Link propio (subdominio)
+https://riochico-v6.localhost
+Falta
+Más de un usuario
+1 usuario activo
+Con un solo usuario, el día que el dueño no está nadie más puede entrar a facturar.
+Personas
+Estado del negocio
+ESTADO
+En prueba
+En producción
+Suspendido
+Guardar
+Link pro
+consola []
+--- paso 2 ---
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco; si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+24
+· 3 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+2
+Rubro
+3
+¿De qué red?
+4
+Módulos
+✓
+Marca y link
+6
+Revisar
+Rubro del negocio
+Define con qué nace el local: su catálogo de ejemplo, las palabras de su vidriera y sus pantallas. Es obligatorio.
+RUBRO, EN PALABRAS
+Se busca el rubro que corresponde; si no hay, el genérico.
+…O ELEGILO DE LA LISTA
+Según lo escrito
+Carnicería boutique
+Verdulería
+Dietética
+Kiosco
+Fiambrería
+Indumentaria
+Velas & deco
+Tienda de pádel
+Perfumería
+Estética / Spa
+Peluquería / Barbería
+Veterinaria
+Consultorio / Salud
+Plomería
+Electricidad
+Cerrajería
+Refrigeración / Climatización
+Fletes / Mudanzas
+Restaurante / Parrilla
+Cafetería
+Panadería
+Rotisería
+Pizzería
+Heladería
+Servicios / Turnos
+Genérico / Comodín
+Facturita
+Si lo elegís, manda sobre lo escrito.
+Elegí el rubro para seguir. Si se pasa de largo, el negocio nace como uno de servicios (agenda de turnos, lista de espera, catálogo de servicios), aunque sea una carnicería. Corregirlo después es rehacer el alta.
+Atrás
+Siguiente
+ASÍ VA A QUEDAR
+RC
+Río Chico Bernal
+riochico-bernal-v6
+Servicios / Turnos
+Módulos (7)
+Agenda / Turnos
+Catálogo
+Clientes
+Lista de espera
+Recordatorios
+Reportes
+Comisiones
+rubros: =Según lo escrito ; carniceria=Carnicería boutique ; verduleria=Verdulería ; dietetica=Dietética ; kiosco=Kiosco ; fiambreria=Fiambrería ; indumentaria=Indumentaria ; velas=Velas & deco ; padel=Tienda de pádel ; perfumeria=Perfumería ; estetica=Estética / Spa ; peluqueria=Peluquería / Barbería ; veterinaria=Veterinaria ; consultorio=Consultorio / Salud ; plomeria=Plomería ; electricista=Electricidad ; cerrajeria=Cerrajería ; refrigeracion=Refrigeración / Climatización ; fletes=Fletes / Mudanzas ; restaurante=Restaurante / Parrilla ; cafeteria=Cafetería ; panaderia=Panadería ; rotiseria=Rotisería ; pizzeria=Pizzería ; heladeria=Heladería ; servicios=Servicios / Turnos ; generico=Genérico / Comodín ; facturita=Facturita
+--- paso 3 ---
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco; si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+24
+· 3 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+✓
+Rubro
+3
+¿De qué red?
+4
+Módulos
+✓
+Marca y link
+6
+Revisar
+¿De qué red?
+Si el local es de una marca con varios locales, elegí su casa: al crearlo queda vinculado a ella, con su CUIT y punto de venta, y con la lista de precios de la casa, en la misma corrida. Si es un negocio suelto, seguí de largo.
+Negocio suelto (como hasta hoy)
+Local de una red
+Atrás
+Siguiente
+ASÍ VA A QUEDAR
+RC
+Río Chico Bernal
+riochico-bernal-v6
+Genérico / Comodín
+Módulos (5)
+Clientes
+Reportes
+ARCA — Facturación electrónica
+Mercado Pago — Cobros
+Bancos — Facturación desde el extracto
+radio "Local de una red" habilitado: true
+casas: cmuijm529000bac7dp0pabyzv=Distribuidora Río Bamba SA ; cmuig4ikq000ia17d65vmicjs=Distribuidora del Sur SA ; cmuigqmjl00a9a17d73aw68db=Grupo Andino SA ; cmrhv1kwk0018ww7dsn4r2df2=MAGRA ; cmuiq1y4v000jrr7dctlngra4=Mayorista Los Tilos SA ; cmuilesi3000r7k7dst9862tq=Supermercados Norte Grande SA ; cmuirvlzz000jnx7dfnaax36p=Supermercados Río Chico SA
+cuit precargado:  | pv precargado: 
+--- paso 4 ---
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco; si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+24
+· 3 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+✓
+Rubro
+✓
+¿De qué red?
+4
+Módulos
+✓
+Marca y link
+6
+Revisar
+Módulos que trae
+Salen del rubro. Quedan guardados en el negocio: mientras no trabaje por apps, sus pantallas las decide el rubro, así que esta lista es lo que contrata el local, no un interruptor de pantallas.
+Base del rubro
+Clientes
+Ficha de clientes e historial.
+Reportes
+Ingresos, comisiones y métricas.
+ARCA — Facturación electrónica
+Autorización fiscal de comprobantes ante ARCA (ex-AFIP): obtiene el CAE vía WSAA + WSFEv1. No calcula impuestos (eso vive en el Core, ADR-006).
+Mercado Pago — Cobros
+Cobros por Mercado Pago: genera links de pago (Checkout Pro) y recibe notificaciones; al acreditarse un pago, auto-factura el turno asociado (ADR-024). No calcula impuestos ni escribe la DB del Core.
+Bancos — Facturación desde el extracto
+Importa extractos bancarios (CSV/XLSX), detecta solo las columnas, separa ventas de comisiones/impuestos/transferencias y propone las facturas. No calcula impuestos (eso vive en el Core, ADR-006).
+Atrás
+Siguiente
+ASÍ VA A QUEDAR
+RC
+Río Chico Bernal
+riochico-bernal-v6
+Genérico / Comodín
+Red de Supermercados Río Chico SA
+Módulos (5)
+Clientes
+Reportes
+ARCA — Facturación electrónica
+Mercado Pago — Cobros
+Bancos — Facturación desde el extracto
+--- paso 5 ---
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco; si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+24
+· 3 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+✓
+Rubro
+✓
+¿De qué red?
+✓
+Módulos
+5
+Marca y link
+6
+Revisar
+Marca y link
+COLOR DE LA MARCA
+petroleo
+oxblood
+rosa
+celeste
+verde
+ambar
+azul
+TEMA DE LA VIDRIERA
+Claro
+Oscuro
+MONOGRAMA
+Si lo dejás vacío, se sugiere del nombre.
+RC
+Así se ve el color sobre el tema elegido.
+LINK PROPIO (SUBDOMINIO)
+Su dirección en internet: nombre.localhost. Única. Opcional.
+Datos de contacto del negocio (opcional)
+Atrás
+Siguiente
+ASÍ VA A QUEDAR
+RC
+Río Chico Bernal
+riochico-bernal-v6
+Genérico / Comodín
+Red de Supermercados Río Chico SA
+Módulos (5)
+Clientes
+Reportes
+ARCA — Facturación electrónica
+Mercado Pago — Cobros
+Bancos — Facturación desde el extracto
+--- paso 6 ---
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco; si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+24
+· 3 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+✓
+Rubro
+✓
+¿De qué red?
+✓
+Módulos
+✓
+Marca y link
+6
+Revisar
+Revisar y dar de alta
+Con más de un negocio en la base, el alta exige el aislamiento entre negocios prendido. Si no lo está, el alta se frena con un error que lo dice, y no se escribe nada.
+Negocio
+Río Chico Bernal
+Nombre corto
+riochico-bernal-v6
+Dueño
+bernal@riochico.ejemplo.test
+Rubro
+Genérico / Comodín
+Módulos
+5 activos
+Color y tema
+el del rubro · claro
+Link
+riochico-bernal-v6
+Red
+Local de Supermercados Río Chico SA · CUIT 30712456082 · punto de venta 4
+Al crear, en la misma corrida: queda vinculado a Supermercados Río Chico SA (con auditoría en los dos), con su CUIT y punto de venta, y con la lista de precios de la casa. El stock no se copia: entra por recuento o por un traslado.
+Se va a crear
++
+Tenant · Río Chico Bernal · /riochico-bernal-v6
++
+Usuario OWNER · bernal@riochico.ejemplo.test
++
+BusinessSettings · branding/localización del negocio
++
+Catálogo del blueprint · sembrado por "generico" si el tenant está vacío
+Atrás
+Dar de alta el negocio
+ASÍ VA A QUEDAR
+RC
+Río Chico Bernal
+riochico-bernal-v6
+Genérico / Comodín
+Red de Supermercados Río Chico SA
+Módulos (5)
+Clientes
+Reportes
+ARCA — Facturación electrónica
+Mercado Pago — Cobros
+Bancos — Facturación desde el extracto
+Link: riochico-bernal-v6
+boton crear: Dar de alta el negocio
+--- resultado --- url http://localhost:3210/operador/alta
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco; si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+25
+· 3 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+✓
+Rubro
+✓
+¿De qué red?
+✓
+Módulos
+✓
+Marca y link
+6
+Revisar
+Negocio dado de alta
+✓
+Pendiente
+✓
+Datos creados
+✓
+Link: listo
+⋯
+Aviso al dueño: pendiente — manual
+✓
+Activo
+Su dirección: https://riochico-bernal-v6.localhost/admin
+Contraseña temporal de el dueño. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+<TEMPORAL>
+Copiar
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+Pasale esto
+¡Hola! Ya está listo el sistema de Río Chico Bernal.
+Entrá en: https://riochico-bernal-v6.localhost/admin
+Usuario: bernal@riochico.ejemplo.test
+Contraseña: <TEMPORAL>
+Copiar
+Mandar por WhatsApp
+Falta hacer a mano (el alta no lo hace):
+• Avisarle al dueño: no se envía ningún mail. Mandale el mensaje de «Pasale esto» por un canal suyo (o generá una contraseña nueva en su ficha, pestaña Personas).
+• Datos fiscales y de contacto: CUIT, punto de venta de ARCA, dirección real e Instagram. La ficha tiene el checklist “Listo para abrir” con lo que falta.
+Ir a la ficha del negocio
+Red de Supermercados Río Chico SA
+✓ Vinculado a Supermercados Río Chico SA como «Bernal». Quedó en la auditoría de los dos negocios.
+✓ CUIT 30-71245608-2 · punto de venta 4
+✓ Condición frente al IVA: Responsable inscripto, la de su CUIT.
+! La lista de precios quedó pendiente: Supermercados Río Chico SA todavía no tiene productos activos con precio: no hay lista para mandar. Cuando la cargue, la manda desde «Catálogo y precios de la marca».
+Abrir la ficha del local
+Abrir la red de Supermercados Río Chico SA
+ASÍ VA A QUEDAR
+RC
+Río Chico Bernal
+riochico-bernal-v6
+Genérico / Comodín
+Red de Supermercados Río Chico SA
+Módulos (5)
+Clientes
+Reportes
+ARCA — Facturación electrónica
+Mercado Pago — Cobros
+Bancos — Facturación desde el extracto
+Link: riochico-bernal-v6
+consola: []
+[Red «Vincular local»] 21 negocios ofrecidos; incluye: A Dos Manos Pádel (adosmanos) ; Comercial San Telmo SRL (comercial-san-telmo-srl) ; Estudio de Diseño Lucía Ferro (estudio-de-diseno-lucia-ferro) ; Lucía Benítez Diseño Gráfico (lucia-benitez-diseno-grafico) ; MAGRA Canning (magra-canning) — ya es local de «MAGRA» ; MAGRA Lomas (magra-lomas) — ya es local de «MAGRA» ; QA MAGRA Adrogué (qa-magra-adrogue) — ya es local de «MAGRA» ; Shine Velas (shinevelas)
+[Red] sección: Red de locales | Red Supermercados Río Chico SA: 1 local | Vincular es la única forma de que un negocio lea datos de otro | Vinculado | Bernal · Río Chico Bernal (riochico-bernal-v6) | Punto de venta 4 · CUIT 30712456082 | Dar de baja | LOCAL A SUMAR | Elegí un negocio… | A Dos Manos Pádel (adosmanos) | Almacén Mayorista Don Tito SRL (almacen-mayorista-don-tito-srl) | Bazar La Esquina SRL (bazar-la-esquina-srl) | Comercial San Telmo SRL (comercial-san-telmo-srl) | Distribuidora El Ceibo SRL (distribuidora-el-ceibo-srl) | Estudio de Diseño Lucía Ferro (estudio-de-diseno-lucia-ferro) | Ferretería El Tornillo SRL (ferreteria-el-tornillo-srl) | Ferretería El Tornillo UAT (ferreteria-el-tornillo-
+[Red] vincular a Lucía (monotributista, otro CUIT) -> Listo: «Lucía Benítez Diseño Gráfico» es local de Supermercados Río Chico SA como «Error de prueba v6». Quedó registrado en la auditoría de los dos negocios. Ojo: «Lucía Benítez Diseño Gráfico» tiene otro CUIT que la casa. La dueña va a ver sus ventas, cajas y stock; los traslados de mercadería (cuando lleguen) sólo van entre locales del mismo CUIT. | Todavía no puede facturar. Si vende así, el cobro entra igual y la factura no sale: el descuadre aparece a fin de mes. | Desde que pasa a real, cada comprobante que emita sale con CAE de ARCA y tiene validez fiscal: no se edita ni se borra, se an
+[Red] tras vincular, «Error de prueba v6» en la ficha: true :: 0 clientes | alta el 26 de septiembre de 2026 | Abrir su panel | (se abre en otra pestaña; pide un usuario de ese negocio) | Listo: «Lucía Benítez Diseño Gráfico» es local de Supermercados Río Chico SA como «Error de prueba v6». Quedó registrado en la auditoría de los dos negocios. Ojo: «Lucía Benítez Diseño Gráfico» tiene otro CUIT que la casa. La dueña va a ver sus ventas, cajas y stock; los traslados de mercadería (cuando lleguen) sólo van entre locales del mismo CUIT. | Puesta en marcha | 4 | Fiscal | 3 | Pla
+  consola: []
+[dueño Río Chico /admin/locales] HTTP 200 Lucía Benítez=1 Error de prueba v6=1 Bernal=2 ::  hoy | $0,00 | 0 cobros | Su caja, como la ve el local | Desde el origen: todavía no hubo ningún cierre | Efectivo | $0,00 | + $0,00 · − $0,00 | MP / Transf. | $0,00 | + $0,00 · − $0,00 | Tarjeta | $0,00 | + $0,00 · − $0,00 | Total $0,00 | Nada bajo el mínimo | Abrir su caja | (se abre en otra pestaña; pide el usuario de ese local) | Error de prueba v6 | Lucía Benítez Diseño Gráfico · punto de venta 1 | Caja al día | Cobrado hoy | $0,00 | 0 cobros | Su caja, como la ve el local | Desde el 01/09/2026 · último cierre: 31/08/2026 | Efectivo | $0,00 | + $0,00 · − $0,00 | MP / Transf. | $0,00 | + $0,00 · − $0,00 | Tarjeta | $0,00 | + $0,00 · − $0,00 | Total $0,00 | Nada bajo el mínimo | Abrir su caja | (se abre en otra pestaña; pide el usuario de ese local)
+[dueño Río Chico /admin/locales/ventas] HTTP 200 Lucía Benítez=0 Error de prueba v6=2 Bernal=2 :: ercados Río Chico SA | Dueño/a | Cerrar sesión | Comerciante | Panel de administración | Ventas por local | Supermercados Río Chico SA | Del 21/09/2026 al 26/09/2026: lo cobrado por ventas en cada local, menos las anulaciones, según la caja de cada uno. | Hoy | Ventas | Cajas | Desde | Hasta | Local | Todos los locales | Bernal | Error de prueba v6 | Ver | Total de la red: $0,00 · 0 cobros | Descargar para la contadora | Bernal | CUIT 30-71245608-2 · punto de venta 4 | $0,00 | Efectivo $0,00 · MP / Transf. $0,00 · Tarjeta $0,00 | 0 cobros · 0 días con movimiento | Error de prueba v6 | CUIT 27-38441267-5 · punto de venta 1 | $0,00 | Efectivo $0,00 · MP / Transf. $0,00 · Tarjeta $0,00 | 0 cobros · 0 días con movimiento | No hubo ventas en estas fechas. Probá con otro rango.
+  consola: []
+[limpieza] tras «Dar de baja»: Diste de baja «Bernal»: la casa ya no ve sus ventas, su caja ni su stock. Se puede volver a vincular cuando quieras. | Todavía no puede facturar. Si vende así, el cobro entra igual y la factura no sale: el descuadre aparece a fin de mes. | Desde que pasa a real, cada comprobante que emita sale con C · sigue en la ficha: true
+[limpieza 2] botón de la fila: NO
+[revinculo Bernal] -> Listo: «Río Chico Bernal» es local de Supermercados Río Chico SA como «Bernal». Quedó registrado en la auditoría de los dos negocios. | Todavía no puede facturar. Si vende así, el cobro entra igual y la factura no sale: el descuadre aparece a fin de mes. | Desde que pasa a real, cada comprobante que
+[estado final Red] Red de locales | Red Supermercados Río Chico SA: 1 local | Vincular es la única forma de que un negocio lea datos de otro | Vinculado | Bernal · Río Chico Bernal (riochico-bernal-v6) | Punto de venta 4 · CUIT 30712456082 | Dar de baja | De baja | Error de prueba v6 · Lucía Benítez Diseño Gráfico (lucia-benitez-diseno-grafico) | Punto de venta 1 ·
+  consola: []

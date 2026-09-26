@@ -182,7 +182,7 @@ export const facturacion: LoaderKpi = async ({ db, tenantId, ahora }) => {
  * facturación en cada carga del Inicio; lo resuelve la condición leída una vez por request
  * (el mismo pedido a plataforma que saca el Libro IVA del Inicio a un monotributista).
  */
-export const libroIva: LoaderKpi = async ({ db, tenantId, ahora, monto }) => {
+export const libroIva: LoaderKpi = async ({ db, tenantId, ahora, monto, esCasaDeRed }) => {
   if (!monto) return null;
   const mes = mesDelNegocio(ahora);
   const grupos = await db.invoice.groupBy({
@@ -190,7 +190,13 @@ export const libroIva: LoaderKpi = async ({ db, tenantId, ahora, monto }) => {
     where: whereComprobantesDelMes(tenantId, mes),
     _sum: { iva: true },
   });
-  const r = saldoIvaDesdeGrupos(grupos.map((g) => ({ tipoComprobante: g.tipoComprobante, iva: Number(g._sum.iva ?? 0) })));
+  // La casa de una red: el IVA es del CUIT y la pantalla suma los locales del mismo CUIT; el botón,
+  // igual (refutador, vuelta 4: la dueña veía dos «IVA a pagar» para el mismo mes).
+  const deLosLocales = esCasaDeRed ? await (await import("@/lib/libros/libro-iva-red")).ivaDeLosLocalesDelCuit(tenantId, mes) : [];
+  const r = saldoIvaDesdeGrupos([
+    ...grupos.map((g) => ({ tipoComprobante: g.tipoComprobante, iva: Number(g._sum.iva ?? 0) })),
+    ...deLosLocales,
+  ]);
   if (r.condicion === "monotributo") return null;
   if (r.condicion === "sin-comprobantes") {
     return { sinDato: `Todavía no hay comprobantes con CAE de ${nombreDelMes(mes)}` };

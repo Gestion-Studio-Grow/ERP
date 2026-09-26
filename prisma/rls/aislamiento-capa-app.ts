@@ -257,9 +257,11 @@ async function ataquesMisLocales(exento: boolean) {
     exento ? Promise.resolve(console.log(`—     ${nombre} — SALTEADO: el rol está exento de RLS`)) : ok().then(([b, d]) => chequear(nombre, b, d));
 
   // 1) El vínculo, por el camino de la consola: fila con el GUC de la casa y auditoría en los dos.
+  // Desde la vuelta 6 un local sólo entra con el CUIT de la casa: los tres, con el CUIT de prueba.
+  for (const id of [ids.casa, ids.local1, ids.local2]) await basePrisma.tenant.update({ where: { id }, data: { arcaCuit: CUIT_QA } });
   const t0 = Date.now();
-  const v1 = await basePrisma.$transaction((tx) => vincularEnTx(tx, { casaId: ids.casa, localId: ids.local1, alias: "qa Local 1", actor: ACTOR }, () => false));
-  const v2 = await basePrisma.$transaction((tx) => vincularEnTx(tx, { casaId: ids.casa, localId: ids.local2, alias: "qa Local 2", actor: ACTOR }, () => false));
+  const v1 = await basePrisma.$transaction((tx) => vincularEnTx(tx, { casaId: ids.casa, localId: ids.local1, alias: "qa Local 1", actor: ACTOR, confirmado: true }, () => false));
+  const v2 = await basePrisma.$transaction((tx) => vincularEnTx(tx, { casaId: ids.casa, localId: ids.local2, alias: "qa Local 2", actor: ACTOR, confirmado: true }, () => false));
   chequear("el operador vincula dos locales a la casa", v1.ok && v2.ok, `${v1.ok ? "ok" : v1.motivo} / ${v2.ok ? "ok" : v2.motivo} (${Date.now() - t0} ms)`);
   const auditoria = await Promise.all(
     [ids.casa, ids.local1, ids.local2].map((id) =>
@@ -304,7 +306,7 @@ async function ataquesMisLocales(exento: boolean) {
   });
 
   // 5) Las validaciones de la consola, contra la base real.
-  const otraRed = await basePrisma.$transaction((tx) => vincularEnTx(tx, { casaId: ids.otraCasa, localId: ids.local1, actor: ACTOR }, () => false));
+  const otraRed = await basePrisma.$transaction((tx) => vincularEnTx(tx, { casaId: ids.otraCasa, localId: ids.local1, actor: ACTOR, confirmado: true }, () => false));
   chequear("un local que ya está en una red no entra en otra", !otraRed.ok, otraRed.ok ? "LO VINCULÓ" : otraRed.motivo);
   // La lista del formulario de la otra casa ya lo marca, con el nombre de su casa (misma lectura
   // con el GUC de cada casa: con app_rls, sin GUC no vería nada y lo ofrecería como libre).
@@ -314,7 +316,7 @@ async function ataquesMisLocales(exento: boolean) {
     marcados.size === 1 && (marcados.get(ids.local1) ?? []).some((c) => c.id === ids.casa),
     [...marcados].map(([id, casas]) => `${id} → ${casas.map((c) => c.name).join(", ")}`).join("; ") || "nada",
   );
-  const estudio = await basePrisma.$transaction((tx) => vincularEnTx(tx, { casaId: ids.casa, localId: ids.estudio, actor: ACTOR }, () => false));
+  const estudio = await basePrisma.$transaction((tx) => vincularEnTx(tx, { casaId: ids.casa, localId: ids.estudio, actor: ACTOR, confirmado: true }, () => false));
   chequear("un estudio contable no entra a una red", !estudio.ok, estudio.ok ? "LO VINCULÓ" : estudio.motivo);
   chequear(
     "un estudio no abre Mis locales, ni una casa el panel del contador",
@@ -336,7 +338,7 @@ async function ataquesMisLocales(exento: boolean) {
   });
 
   // 7) Un vínculo dado de baja → el local desaparece de la red en el acto.
-  const baja = await basePrisma.$transaction((tx) => darDeBajaEnTx(tx, { casaId: ids.casa, localId: ids.local2, actor: ACTOR }));
+  const baja = await basePrisma.$transaction((tx) => darDeBajaEnTx(tx, { casaId: ids.casa, localId: ids.local2, actor: ACTOR, confirmado: true }));
   const despues = await localesDeLaRed(puertos, ids.casa);
   chequear(
     "un vínculo dado de baja → el local desaparece",
@@ -378,8 +380,18 @@ async function escrituraMisLocales(exento: boolean) {
   await basePrisma.tenant.update({ where: { id: ids.casa }, data: { arcaCuit: CUIT_QA } });
   await basePrisma.tenant.update({ where: { id: ids.local1 }, data: { arcaCuit: CUIT_QA } });
   await basePrisma.tenant.update({ where: { id: ids.local2 }, data: { arcaCuit: OTRO_CUIT_QA } });
-  await basePrisma.$transaction((tx) => vincularEnTx(tx, { casaId: ids.casa, localId: ids.local1, alias: "qa Local 1", actor: ACTOR }, () => false));
-  await basePrisma.$transaction((tx) => vincularEnTx(tx, { casaId: ids.casa, localId: ids.local2, alias: "qa Local 2", actor: ACTOR }, () => false));
+  await basePrisma.$transaction((tx) => vincularEnTx(tx, { casaId: ids.casa, localId: ids.local1, alias: "qa Local 1", actor: ACTOR, confirmado: true }, () => false));
+  // El local 2 es de OTRO CUIT: la consola ya no lo deja vincular (QA vuelta 6). Se siembra el vínculo
+  // viejo a mano, con el GUC de la casa, para seguir probando que un traslado entre CUIT distintos se niega.
+  await tenantTransaction(
+    (tx) =>
+      tx.carteraCliente.upsert({
+        where: { tenantId_clienteTenantId: { tenantId: ids.casa, clienteTenantId: ids.local2 } },
+        update: { estado: "activa", alias: "qa Local 2" },
+        create: { tenantId: ids.casa, clienteTenantId: ids.local2, alias: "qa Local 2", estado: "activa" },
+      }),
+    { tenantId: ids.casa },
+  );
   // Estado conocido: se borra lo que dejaron las corridas anteriores en estos negocios de prueba.
   for (const id of Object.values(ids)) {
     await tenantTransaction(
@@ -559,7 +571,7 @@ async function escrituraMisLocales(exento: boolean) {
   });
   await basePrisma.tenant.update({ where: { id: ids.local1 }, data: { arcaPuntoVenta: 98 } });
   const fila = await tenantTransaction((tx) => tx.carteraCliente.findFirst({ where: { tenantId: ids.casa, clienteTenantId: nuevo.id, estado: "activa" } }), { tenantId: ids.casa });
-  if (fila) await basePrisma.$transaction((tx) => darDeBajaEnTx(tx, { casaId: ids.casa, localId: nuevo.id, actor: ACTOR }));
+  if (fila) await basePrisma.$transaction((tx) => darDeBajaEnTx(tx, { casaId: ids.casa, localId: nuevo.id, actor: ACTOR, confirmado: true }));
   await tenantTransaction((tx) => tx.product.deleteMany({ where: { tenantId: nuevo.id, name: { startsWith: "qa " } } }), { tenantId: nuevo.id });
   const alta = (puntoVenta: string) =>
     basePrisma.$transaction(
@@ -594,7 +606,7 @@ async function escrituraMisLocales(exento: boolean) {
   chequear("reintentar el alta en la red no escribe nada nuevo", otraVez.catalogo.estado === "al-dia", otraVez.catalogo.estado);
   // Se deja la red como la espera la segunda parte en la próxima corrida (dos locales): el local
   // nuevo sale de la red por el camino de la consola (queda en baja, con su historia).
-  await basePrisma.$transaction((tx) => darDeBajaEnTx(tx, { casaId: ids.casa, localId: nuevo.id, actor: ACTOR }));
+  await basePrisma.$transaction((tx) => darDeBajaEnTx(tx, { casaId: ids.casa, localId: nuevo.id, actor: ACTOR, confirmado: true }));
 }
 
 main().catch((e) => {

@@ -14,6 +14,7 @@
 //
 // Sin imports de valor de Prisma: sólo el tipo del `where`.
 
+import { ACCIONES_SOLO_SOPORTE } from "@/lib/soporte/avisos-a-la-contadora";
 import type { Prisma } from "@/generated/prisma/client";
 import { businessWallTimeToUtc } from "@/lib/datetime";
 
@@ -246,6 +247,14 @@ export function whereAuditoria(f: FiltrosAuditoria): Prisma.AuditLogWhereInput {
     partes.push({ entity: { in: [...grupo.entidades] } });
   }
   return partes.length === 0 ? {} : partes.length === 1 ? partes[0] : { AND: partes };
+}
+
+/**
+ * Lo que lee la auditoría del panel del negocio: los filtros pedidos y NUNCA las notas internas de
+ * Soporte GSG (QA 26/09, vuelta 4: una nota libre puede nombrar a otro negocio).
+ */
+export function whereAuditoriaDelPanel(f: FiltrosAuditoria): Prisma.AuditLogWhereInput {
+  return { AND: [whereAuditoria(f), { action: { notIn: [...ACCIONES_SOLO_SOPORTE] } }] };
 }
 
 /** La página pedida dentro de las que hay (una página de más muestra la última, no un vacío). */

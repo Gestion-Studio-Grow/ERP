@@ -1,0 +1,153 @@
+solicitudes (6): QA Kiosco Lab ; Ferretería UAT ; Martina Quiroga Fotografía ; Ferretería Los Aromos SRL ; Distribuidora Del Plata SA ; Kiosco Descarte v7
+  consola []
+[a @390] configurador (texto):
+Saltar al contenido / Pedidos / ← Pedidos de alta / Configurar a Martina Quiroga Fotografía / Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio. / 1 · Estudio / Queda en la cartera de Estudio Contable Laboratorio (lo pidió Carla Méndez). / Nota del estudio: Fotógrafa: factura servicios a particulares y a una agencia. / 2 · Cliente / CUIT* / Se controla el dígito verificador. Copialo de la constancia de inscripción de ARCA. / CONDICIÓN FRENTE AL IVA* / Elegí… / Responsable inscripto / Monotributista / IVA exento / RAZÓN SOCIAL* / Tal cual figura en la constancia de ARCA. / NOMBRE EN LA CARTERA / Cómo lo ve la contadora. Vacío: la razón social. / PUNTO DE VENTA* / El que dio de alta en ARCA para factura electrónica. / WHATSAPP DEL DUEÑO / Con característica, sin 0 ni 15. / EMAIL DEL DUEÑO (VA A SER SU USUARIO)* / 3 · Plan y rubro / TAMAÑO / Sólo factura (profesional, servicio chico) / Comercio con mostrador / Varios locales / PLAN / Facturación (sugerido) / Micro comerciante / Comerciante / PyME / Sólo factura lo que cobra: alcanza con Facturación. / Nace con lo que su plan y su rubro traen (5 apps). Para sumar algo suelto, después, desde su ficha. / NOMBRE CORTO PARA LA DIRECCIÓN (OPCIONAL) / Minúsculas, números y guiones. Vacío: sin dirección por ahora. / 4 · Accesos / Al dueño se le crea el usuario martina.quiroga@ejemplo.test con una contraseña temporal que vas a ver una sola vez. La contadora lo ve desde la cartera de su estudio; nunca queda como dueña del negocio del cliente. / ACCESO DE LA CONTADORA / Ya tiene acceso: contador@estudio.lab / Crear el acceso de otra persona del estudio / 5 · Revisar y crear / Crear: Martina Quiroga Fotografía · CUIT 27-41236587-4 · Monotributista · punto de venta 1 · Facturación · cartera de Estudio Contable Laboratorio. / Crear el cliente / ¿No corresponde crearlo? / Qué ve la contadora en su cartera / Faltan datos para darlo de alta. / Los datos no coinciden con ARCA: revisalos y volvé a pedirlo. / Ya está en tu cartera: no hacía falta pedir el alta. / El cliente decidió no seguir. / Soporte GSG te escribe por WhatsApp. / NOTA INTERNA (OPTATIVA) / Sólo la ve Soporte GSG: la contadora no la lee nunca. Hasta 300 letras. / Descartar el pedido / Hecho por Gestión Studio Grow / Negocios / Pedidos / Dirección / Diseño / Alta
+[a] selects: condicionIva=MONOTRIBUTO (Monotributista) ; =chico (Sólo factura (profesional, servicio chico)) ; =facturacion (Facturación (sugerido)) ; accesoContadora=ya-tiene (Ya tiene acceso: contador@estudio.lab)
+[a @390] tras crear url=http://localhost:3210/operador/solicitudes/cmuivq49x0000457d8qo5cufe
+Saltar al contenido
+G
+Pedidos
+← Pedidos de alta
+Configurar a Martina Quiroga Fotografía
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+6 · Pasale esto
+Todavía no se le puede exigir que cambie la contraseña en el primer ingreso: pedile que la cambie al entrar.
+Para el dueño del negocio
+Contraseña temporal para martina.quiroga@ejemplo.test. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+<TEMPORAL>
+Copiar
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+¡Hola! Ya está listo el sistema de Martina Quiroga Fotografía.
+Entrá en: https://martinaq-v7.localhost/admin
+Usuario: martina.quiroga@ejemplo.test
+Contraseña: <TEMPORAL>
+Copiar
+Mandar por WhatsApp
+Para la contadora
+¡Hola! Ya está Martina Quiroga Fotografía en tu cartera: CUIT 27-41236587-4, punto de venta 1.
+Entrá en: https://estudio.localhost/contador
+Copiar
+Mandar por WhatsApp
+Quedó registrado: lo dio de alta el dueño de GSG el 26/9/26, 18:07 (Historial de la ficha).
+Ir a la ficha del negocio
+Ir a la ficha del estudio
+Volver a los pedidos
+Hecho por Gestión Studio Grow
+Negocios
+Pedidos
+Dirección
+Diseño
+Alta
+   consola: []
+[a] links en la pantalla: ← Pedidos de alta -> /operador/solicitudes ; Mandar por WhatsApp -> https://wa.me/5491155559101?text=%C2%A1Hola!%20Ya%20est%C3%A1%20listo%20el%20sistema%20de%20Martina%20Quiroga%20Fotograf%C3%ADa.%0AEntr%C3%A1%20en%3A%20https%3A%2F%2Fmartinaq-v7.localhost%2Fadmin%0AUsuario%3A%20martina.quiroga%40ejemplo.test%0AContrase%C3%B1a%3A%20<TEMPORAL> ; Mandar por WhatsApp -> https://wa.me/?text=%C2%A1Hola!%20Ya%20est%C3%A1%20Martina%20Quiroga%20Fotograf%C3%ADa%20en%20tu%20cartera%3A%20CUIT%2027-41236587-4%2C%20punto%20de%20venta%201.%0AEntr%C3%A1%20en%3A%20https%3A%2F%2Festudio.localhost%2Fcontador ; Ir a la ficha del negocio -> /operador/tenants/cmuivrg1k0004457df3a10t8h ; Ir a la ficha del estudio -> /operador/tenants/cmug9wg9u0000x27dsddmm05p ; Volver a los pedidos -> /operador/solicitudes
+[a] tras recargar: temporal visible de nuevo? false
+[b @1440] configurador (texto):
+Saltar al contenido / CONSOLA GSG / Negocios / Dar de alta / Pedidos / Dirección / Diseño / Buscar un negocio por nombre, slug o link / Ctrl K / Dueño de GSG / Pedidos / Dar de alta un negocio / ← Pedidos de alta / Configurar a Ferretería Los Aromos SRL / Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio. / 1 · Estudio / Queda en la cartera de Estudio Contable Laboratorio (lo pidió Carla Méndez). / Nota del estudio: Vende a constructoras (Factura A) y al público (B). / 2 · Cliente / CUIT* / Se controla el dígito verificador. Copialo de la constancia de inscripción de ARCA. / CONDICIÓN FRENTE AL IVA* / Elegí… / Responsable inscripto / Monotributista / IVA exento / QUÉ FACTURA A LE ASIGNÓ ARCA* / Elegí una opción / A común / A con leyenda (por ejemplo, «Operación sujeta a retención») / Sin este dato no puede hacer Factura A (tampoco la de prueba). Si no lo sabés, consultalo con la contadora. / RAZÓN SOCIAL* / Tal cual figura en la constancia de ARCA. / NOMBRE EN LA CARTERA / Cómo lo ve la contadora. Vacío: la razón social. / PUNTO DE VENTA* / El que dio de alta en ARCA para factura electrónica. / WHATSAPP DEL DUEÑO / Con característica, sin 0 ni 15. / EMAIL DEL DUEÑO (VA A SER SU USUARIO)* / 3 · Plan y rubro / TAMAÑO / Sólo factura (profesional, servicio chico) / Comercio con mostrador / Varios locales / RUBRO / Servicios (turnos, profesionales) / Comercio de mostrador / Carnicería (vende por kilo) / ¿CUÁNTAS PERSONAS LO VAN A USAR? / Le fía a clientes (cuenta corriente) / PLAN / Micro comerciante / Comerciante (sugerido) / Comerciante: es Responsable inscripto y necesita el Libro IVA. / Nace con lo que su plan y su rubro traen (13 apps). Para sumar algo suelto, después, desde su ficha. / NOMBRE CORTO PARA LA DIRECCIÓN (OPCIONAL) / Minúsculas, números y guiones. Vacío: sin dirección por ahora. / 4 · Accesos / Al dueño se le crea el usuario admin@losaromos.ejemplo.test con una contraseña temporal que vas a ver una sola vez. La contadora lo ve desde la cartera de su estudio; nunca queda como dueña del negocio del cliente. / ACCESO DE LA CONTADORA / Ya tiene acceso: contador@estudio.lab / Crear el acceso de otra persona del estudio / 5 · Revisar y crear / Crear: Ferretería Los Aromos SRL · CUIT 30-71843217-7 · Responsable inscripto · punto de venta 2 · Comerciante · cartera de Estudio Contable Laboratorio. / Crear el cliente / ¿No corresponde crearlo? / Qué ve la contadora en su cartera / Faltan datos para darlo de alta. / Los datos no coinciden con ARCA: revisalos y volvé a pedirlo. / Ya está en tu cartera: no hacía falta pedir el alta. / El cliente decidió no seguir. / Soporte GSG te escribe por WhatsApp. / NOTA INTERNA (OPTATIVA) / Sólo la ve Soporte GSG: la contadora no la lee nunca. Hasta 300 letras. / Descartar el pedido / Hecho por Gestión Studio Grow
+[b] opciones Factura A: =Elegí una opción ; A=A común ; A_CON_LEYENDA=A con leyenda (por ejemplo, «Operación sujeta a retención») ; M=M
+[b] crear sin Factura A -> Nota del estudio: Vende a constructoras (Factura A) y al público (B). | QUÉ FACTURA A LE ASIGNÓ ARCA* | Sin este dato no puede hacer Factura A (tampoco la de prueba). Si no lo sabés, consultalo con la contadora. | Elegí qué Factura A le asignó ARCA (A común, A con leyenda o M): sin ese dato no puede hacer Factura A. Si no lo sabés, consultalo con la contadora. | Faltan datos para darlo de alta. |  | url http://localhost:3210/operador/solicitudes/cmuivqewv0001457d8agfc9qh
+[b] elegida Factura A: A
+[b] selects: condicionIva=RESPONSABLE_INSCRIPTO (Responsable inscripto) ; regimenFacturaA=A (A común) ; =comercio (Comercio con mostrador) ; =mostrador (Comercio de mostrador) ; =comerciante (Comerciante (sugerido)) ; accesoContadora=ya-tiene (Ya tiene acceso: contador@estudio.lab)
+[b @1440] tras crear url=http://localhost:3210/operador/solicitudes/cmuivqewv0001457d8agfc9qh
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+← Pedidos de alta
+Configurar a Ferretería Los Aromos SRL
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+6 · Pasale esto
+Todavía no se le puede exigir que cambie la contraseña en el primer ingreso: pedile que la cambie al entrar.
+Para el dueño del negocio
+Contraseña temporal para admin@losaromos.ejemplo.test. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+<TEMPORAL>
+Copiar
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+¡Hola! Ya está listo el sistema de Ferretería Los Aromos SRL.
+Entrá en: https://losaromos-v7.localhost/admin
+Usuario: admin@losaromos.ejemplo.test
+Contraseña: <TEMPORAL>
+Copiar
+Mandar por WhatsApp
+Para la contadora
+¡Hola! Ya está Ferretería Los Aromos SRL en tu cartera: CUIT 30-71843217-7, punto de venta 2.
+Entrá en: https://estudio.localhost/contador
+Copiar
+Mandar por WhatsApp
+Quedó registrado: lo dio de alta el dueño de GSG el 26/9/26, 18:07 (Historial de la ficha).
+Ir a la ficha del negocio
+Ir a la ficha del estudio
+Volver a los pedidos
+Hecho por Gestión Studio Grow
+   consola: []
+[b] links en la pantalla: ← Pedidos de alta -> /operador/solicitudes ; Mandar por WhatsApp -> https://wa.me/5491155559202?text=%C2%A1Hola!%20Ya%20est%C3%A1%20listo%20el%20sistema%20de%20Ferreter%C3%ADa%20Los%20Aromos%20SRL.%0AEntr%C3%A1%20en%3A%20https%3A%2F%2Flosaromos-v7.localhost%2Fadmin%0AUsuario%3A%20admin%40losaromos.ejemplo.test%0AContrase%C3%B1a%3A%20<TEMPORAL> ; Mandar por WhatsApp -> https://wa.me/?text=%C2%A1Hola!%20Ya%20est%C3%A1%20Ferreter%C3%ADa%20Los%20Aromos%20SRL%20en%20tu%20cartera%3A%20CUIT%2030-71843217-7%2C%20punto%20de%20venta%202.%0AEntr%C3%A1%20en%3A%20https%3A%2F%2Festudio.localhost%2Fcontador ; Ir a la ficha del negocio -> /operador/tenants/cmuivs987000b457debr88d8q ; Ir a la ficha del estudio -> /operador/tenants/cmug9wg9u0000x27dsddmm05p ; Volver a los pedidos -> /operador/solicitudes
+[b] tras recargar: temporal visible de nuevo? false
+[c @1440] configurador (texto):
+Saltar al contenido / CONSOLA GSG / Negocios / Dar de alta / Pedidos / Dirección / Diseño / Buscar un negocio por nombre, slug o link / Ctrl K / Dueño de GSG / Pedidos / Dar de alta un negocio / ← Pedidos de alta / Configurar a Distribuidora Del Plata SA / Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio. / 1 · Estudio / Queda en la cartera de Estudio Contable Laboratorio (lo pidió Carla Méndez). / Nota del estudio: 2 locales: la casa en Avellaneda y un segundo local en Sarandí. / 2 · Cliente / CUIT* / Se controla el dígito verificador. Copialo de la constancia de inscripción de ARCA. / CONDICIÓN FRENTE AL IVA* / Elegí… / Responsable inscripto / Monotributista / IVA exento / QUÉ FACTURA A LE ASIGNÓ ARCA* / Elegí una opción / A común / A con leyenda (por ejemplo, «Operación sujeta a retención») / Sin este dato no puede hacer Factura A (tampoco la de prueba). Si no lo sabés, consultalo con la contadora. / RAZÓN SOCIAL* / Tal cual figura en la constancia de ARCA. / NOMBRE EN LA CARTERA / Cómo lo ve la contadora. Vacío: la razón social. / PUNTO DE VENTA* / El que dio de alta en ARCA para factura electrónica. / WHATSAPP DEL DUEÑO / Con característica, sin 0 ni 15. / EMAIL DEL DUEÑO (VA A SER SU USUARIO)* / 3 · Plan y rubro / TAMAÑO / Sólo factura (profesional, servicio chico) / Comercio con mostrador / Varios locales / Se crea la casa (el primer local). Cada local más se da de alta después en «Dar de alta un negocio» → «¿De qué red?», eligiendo esta casa: hereda el CUIT y la condición frente al IVA, y le cargás su punto de venta. / RUBRO / Servicios (turnos, profesionales) / Comercio de mostrador / Carnicería (vende por kilo) / PLAN / PyME (sugerido) / Tiene varios locales: PyME los maneja juntos. / Nace con lo que su plan y su rubro traen (16 apps). Para sumar algo suelto, después, desde su ficha. / NOMBRE CORTO PARA LA DIRECCIÓN (OPCIONAL) / Minúsculas, números y guiones. Vacío: sin dirección por ahora. / 4 · Accesos / Al dueño se le crea el usuario contable@delplata.ejemplo.test con una contraseña temporal que vas a ver una sola vez. La contadora lo ve desde la cartera de su estudio; nunca queda como dueña del negocio del cliente. / ACCESO DE LA CONTADORA / Ya tiene acceso: contador@estudio.lab / Crear el acceso de otra persona del estudio / 5 · Revisar y crear / Crear: Distribuidora Del Plata SA · CUIT 30-71843225-8 · Responsable inscripto · punto de venta 3 · PyME · cartera de Estudio Contable Laboratorio. / Crear el cliente / ¿No corresponde crearlo? / Qué ve la contadora en su cartera / Faltan datos para darlo de alta. / Los datos no coinciden con ARCA: revisalos y volvé a pedirlo. / Ya está en tu cartera: no hacía falta pedir el alta. / El cliente decidió no seguir. / Soporte GSG te escribe por WhatsApp. / NOTA INTERNA (OPTATIVA) / Sólo la ve Soporte GSG: la contadora no la lee nunca. Hasta 300 letras. / Descartar el pedido / Hecho por Gestión Studio Grow
+[c] opciones Factura A: =Elegí una opción ; A=A común ; A_CON_LEYENDA=A con leyenda (por ejemplo, «Operación sujeta a retención») ; M=M
+[c] crear sin Factura A -> QUÉ FACTURA A LE ASIGNÓ ARCA* | Sin este dato no puede hacer Factura A (tampoco la de prueba). Si no lo sabés, consultalo con la contadora. | Elegí qué Factura A le asignó ARCA (A común, A con leyenda o M): sin ese dato no puede hacer Factura A. Si no lo sabés, consultalo con la contadora. | Faltan datos para darlo de alta. | Ya está en tu cartera: no hacía falta pedir el alta. | url http://localhost:3210/operador/solicitudes/cmuivqkme0002457dyjl15isl
+[c] elegida Factura A: A_CON_LEYENDA
+[c] selects: condicionIva=RESPONSABLE_INSCRIPTO (Responsable inscripto) ; regimenFacturaA=A_CON_LEYENDA (A con leyenda (por ejemplo, «Operación sujeta a retención»)) ; =varios-locales (Varios locales) ; =mostrador (Comercio de mostrador) ; =pyme (PyME (sugerido)) ; accesoContadora=ya-tiene (Ya tiene acceso: contador@estudio.lab)
+[c @1440] tras crear url=http://localhost:3210/operador/solicitudes/cmuivqkme0002457dyjl15isl
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+← Pedidos de alta
+Configurar a Distribuidora Del Plata SA
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+6 · Pasale esto
+El pedido dice «varios locales»: con este alta quedó la casa (el primer local). Cada local más se da de alta en «Dar de alta un negocio» → «¿De qué red?», eligiendo esta casa: hereda el CUIT y la condición frente al IVA, y le cargás su punto de venta.
+Todavía no se le puede exigir que cambie la contraseña en el primer ingreso: pedile que la cambie al entrar.
+Para el dueño del negocio
+Contraseña temporal para contable@delplata.ejemplo.test. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+<TEMPORAL>
+Copiar
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+¡Hola! Ya está listo el sistema de Distribuidora Del Plata SA.
+Por ahora quedó el primer local. Los otros los sumamos aparte y te aviso cuando estén.
+Entrá en: https://delplata-v7.localhost/admin
+Usuario: contable@delplata.ejemplo.test
+Contraseña: <TEMPORAL>
+Copiar
+Mandar por WhatsApp
+Para la contadora
+¡Hola! Ya está Distribuidora Del Plata SA en tu cartera: CUIT 30-71843225-8, punto de venta 3.
+Entrá en: https://estudio.localhost/contador
+Copiar
+Mandar por WhatsApp
+Quedó registrado: lo dio de alta el dueño de GSG el 26/9/26, 18:08 (Historial de la ficha).
+Ir a la ficha del negocio
+Ir a la ficha del estudio
+Volver a los pedidos
+Hecho por Gestión Studio Grow
+   consola: []
+[c] links en la pantalla: ← Pedidos de alta -> /operador/solicitudes ; Mandar por WhatsApp -> https://wa.me/5491155559303?text=%C2%A1Hola!%20Ya%20est%C3%A1%20listo%20el%20sistema%20de%20Distribuidora%20Del%20Plata%20SA.%0APor%20ahora%20qued%C3%B3%20el%20primer%20local.%20Los%20otros%20los%20sumamos%20aparte%20y%20te%20aviso%20cuando%20est%C3%A9n.%0AEntr%C3%A1%20en%3A%20https%3A%2F%2Fdelplata-v7.localhost%2Fadmin%0AUsuario%3A%20contable%40delplata.ejemplo.test%0AContrase%C3%B1a%3A%20<TEMPORAL> ; Mandar por WhatsApp -> https://wa.me/?text=%C2%A1Hola!%20Ya%20est%C3%A1%20Distribuidora%20Del%20Plata%20SA%20en%20tu%20cartera%3A%20CUIT%2030-71843225-8%2C%20punto%20de%20venta%203.%0AEntr%C3%A1%20en%3A%20https%3A%2F%2Festudio.localhost%2Fcontador ; Ir a la ficha del negocio -> /operador/tenants/cmuivt274000j457doybapf0u ; Ir a la ficha del estudio -> /operador/tenants/cmug9wg9u0000x27dsddmm05p ; Volver a los pedidos -> /operador/solicitudes
+[c] tras recargar: temporal visible de nuevo? false
+[k descarte] url=http://localhost:3210/operador/solicitudes/cmuivqqev0003457dpsyt5z8o consola []
+Configurar a Kiosco Descarte v7 / Pedido descartado por duenio el 26/9/26, 18:08. Estudio Contable Laboratorio ve en su cartera: «Los datos no coinciden con ARCA: revisalos y volvé a pedirlo.» / Nota interna (sólo la ve Soporte GSG): Lo confunden con CH Estética y con MAGRA Lomas; el titular real es cliente de Qué Bien Olés. ZZnotav7
+[k contadora @1440] CH Estética: txt=0 html=0 ; MAGRA: txt=0 html=0 ; Lomas: txt=0 html=0 ; Qué Bien: txt=0 html=0 ; titular real: txt=0 html=0 ; confunden: txt=0 html=0 ; ZZnotav7: txt=0 html=0
+   Kiosco Descarte v7 · no se dio de alta | CUIT 20-45678123-4 · Soporte GSG lo descartó el 26/9/26: Los datos no coinciden con ARCA: revisalos y volvé a pedirlo. Si corresponde, pedilo de nuevo con los datos corregidos. | Kiosco Descarte v6 · no se dio de alta | CUIT 20-44455881-5 · Soporte GSG lo descartó el 26/9/26: Los dato
+   consola: []
+[k contadora @390] CH Estética: txt=0 html=0 ; MAGRA: txt=0 html=0 ; Lomas: txt=0 html=0 ; Qué Bien: txt=0 html=0 ; titular real: txt=0 html=0 ; confunden: txt=0 html=0 ; ZZnotav7: txt=0 html=0
+   Kiosco Descarte v7 · no se dio de alta | CUIT 20-45678123-4 · Soporte GSG lo descartó el 26/9/26: Los datos no coinciden con ARCA: revisalos y volvé a pedirlo. Si corresponde, pedilo de nuevo con los datos corregidos. | Kiosco Descarte v6 · no se dio de alta | CUIT 20-44455881-5 · Soporte GSG lo descartó el 26/9/26: Los dato
+   consola: []

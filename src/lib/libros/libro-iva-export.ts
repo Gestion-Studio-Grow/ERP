@@ -14,11 +14,38 @@ import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { alicuotaCsv, filaCsv, pesosCsv } from "./csv-ar";
 import { bordesDelMes, diaLegible, etiquetaDelMes, type MesKey } from "./fecha-fiscal";
 import { muestraPosicionIva, type LibroIva } from "./libro-iva";
+import { avisoDelLibroFacturaAFuera } from "@/lib/fiscal/regimen-factura-a";
+
+/**
+ * «Negocio A (punto de venta 3) y Negocio B (punto de venta 4)»: los locales del mismo CUIT que suma el
+ * libro, o null si es uno solo. La misma lista en el CSV, el paquete y la pantalla (AvisosDelLibro). PURA.
+ */
+export function listaDeLocalesDelLibro(negocios: LibroIva["negocios"]): string | null {
+  if (!negocios || negocios.length < 2) return null;
+  return negocios.map((n) => `${n.nombre} (punto de venta ${n.puntoVenta ?? "sin cargar"})`).join(" y ");
+}
+
+/** Por qué las facturas de prueba van aparte. El mismo texto en el CSV y en la pantalla. */
+export const EXPLICACION_FACTURAS_DE_PRUEBA = "CAE simulado del modo prueba: no se declaran ni cuentan para los topes";
+
+export const TITULO_DESPUES_DEL_CONGELADO =
+  "AUTORIZADOS POR ARCA DESPUÉS DEL CONGELADO (tienen fecha de este mes y no están en los totales: para sumarlos, reabrí el mes y volvé a congelar)";
 
 /** Las líneas del libro, para usarlas sueltas (el paquete del mes las incluye). PURA. */
 export function lineasLibroIva(libro: LibroIva): string[] {
   const { comprobantes, ventasSinComprobante, compras, resumen } = libro;
   const L: string[] = [];
+  const facturaAFuera = avisoDelLibroFacturaAFuera(libro.facturaAFueraDelSistema);
+  if (facturaAFuera) {
+    L.push(filaCsv(facturaAFuera));
+    L.push("");
+  }
+  const locales = listaDeLocalesDelLibro(libro.negocios);
+  if (locales) {
+    // Un CUIT con varios locales: el libro los suma (QA vuelta 6). Sin locales, la hoja no cambia.
+    L.push(filaCsv("Locales del mismo CUIT que suma este libro", locales));
+    L.push("");
+  }
 
   L.push(filaCsv("COMPROBANTES EMITIDOS (con CAE: es lo que se declara)"));
   L.push(filaCsv("Fecha", "Tipo", "Número", "Cliente", "Documento", "Neto", "Alícuotas", "IVA", "Total", "Observación"));
@@ -46,6 +73,22 @@ export function lineasLibroIva(libro: LibroIva): string[] {
     for (const a of resumen.porAlicuota) L.push(filaCsv(alicuotaCsv(a.alicuota), pesosCsv(a.neto), pesosCsv(a.iva)));
   }
   L.push("");
+  const despues = libro.comprobantesDespuesDelCongelado ?? [];
+  if (despues.length > 0) {
+    // El FINAL es la foto del congelado (refutador, vuelta 4): lo que ARCA autorizó después, a la vista y sin sumar.
+    L.push(filaCsv(TITULO_DESPUES_DEL_CONGELADO));
+    L.push(filaCsv("Fecha", "Tipo", "Número", "Cliente", "Documento", "IVA", "Total"));
+    for (const c of despues) L.push(filaCsv(c.fecha, c.tipo, c.numero, c.cliente, c.doc, pesosCsv(c.iva), pesosCsv(c.total)));
+    L.push("");
+  }
+  const dePrueba = libro.comprobantesDePrueba ?? [];
+  if (dePrueba.length > 0) {
+    // QA vuelta 6: con CAE simulado entraban como reales. Aparte, a la vista y sin sumar.
+    L.push(filaCsv(`FACTURAS DE PRUEBA (${EXPLICACION_FACTURAS_DE_PRUEBA})`));
+    L.push(filaCsv("Fecha", "Tipo", "Número", "Cliente", "Documento", "Total"));
+    for (const c of dePrueba) L.push(filaCsv(c.fecha, c.tipo, c.numero, c.cliente, c.doc, pesosCsv(c.total)));
+    L.push("");
+  }
 
   L.push(filaCsv("VENTAS SIN COMPROBANTE (control: no se declaran ni llevan IVA calculado)"));
   L.push(filaCsv("Fecha", "Tipo", "Referencia", "Cliente", "Total"));
@@ -57,27 +100,34 @@ export function lineasLibroIva(libro: LibroIva): string[] {
   if (resumen.comprasConFacturaCount > 0 && muestraPosicionIva(resumen.condicion)) {
     // Un inscripto con facturas de proveedor cargadas (Mis Comprobantes Recibidos): neto gravado,
     // IVA crédito fiscal y total por renglón. Sin ninguna (CH hoy), la hoja sale igual que siempre.
-    L.push(filaCsv("Fecha", "Proveedor", "Documento", "Número", "Neto gravado", "IVA crédito fiscal", "Total"));
+    L.push(filaCsv("Fecha", "Proveedor", "Documento", "Número", "Neto gravado", "IVA crédito fiscal", "Percepciones y otros tributos", "Total"));
     for (const c of compras) {
       const conFactura = c.creditoIva !== undefined;
       L.push(
         filaCsv(
           c.fecha, c.proveedor, c.doc, c.numero,
-          conFactura && c.netoGravado !== undefined ? pesosCsv(c.netoGravado) : "",
-          conFactura ? pesosCsv(c.creditoIva ?? 0) : "sin factura",
+          c.aRevisar ? "a revisar" : conFactura && c.netoGravado !== undefined ? pesosCsv(c.netoGravado) : "",
+          c.aRevisar ? `a revisar, no suma: ${c.aRevisar}` : conFactura ? pesosCsv(c.creditoIva ?? 0) : "sin factura",
+          c.otrosTributos !== undefined ? pesosCsv(c.otrosTributos) : "",
           pesosCsv(c.total),
         ),
       );
     }
-    const neto = sumarAlCentavo(compras.map((c) => (c.creditoIva !== undefined ? (c.netoGravado ?? 0) : 0)));
-    L.push(filaCsv("Subtotal compras", "", "", "", pesosCsv(neto), pesosCsv(resumen.ivaCredito), pesosCsv(resumen.comprasTotal)));
+    const neto = sumarAlCentavo(compras.map((c) => (c.creditoIva !== undefined && !c.aRevisar ? (c.netoGravado ?? 0) : 0)));
+    L.push(filaCsv("Subtotal compras", "", "", "", pesosCsv(neto), pesosCsv(resumen.ivaCredito), pesosCsv(resumen.comprasOtrosTributos), pesosCsv(resumen.comprasTotal)));
+  } else if (resumen.comprasConFacturaCount > 0) {
+    L.push(filaCsv("Fecha", "Proveedor", "Documento", "Número", "Percepciones y otros tributos", "Total"));
+    for (const c of compras) {
+      L.push(filaCsv(c.fecha, c.proveedor, c.doc, c.numero, c.otrosTributos !== undefined ? pesosCsv(c.otrosTributos) : "", pesosCsv(c.total)));
+    }
+    L.push(filaCsv("Subtotal compras", "", "", "", pesosCsv(resumen.comprasOtrosTributos), pesosCsv(resumen.comprasTotal)));
+    // Con facturas cargadas y sin ser inscripto, el renglón dice por qué no está el IVA.
+    L.push(filaCsv("Nota", notaComprasSinCredito(resumen.condicion)));
   } else {
     L.push(filaCsv("Fecha", "Proveedor", "Documento", "Número", "Total"));
     for (const c of compras) L.push(filaCsv(c.fecha, c.proveedor, c.doc, c.numero, pesosCsv(c.total)));
     L.push(filaCsv("Subtotal compras", "", "", "", pesosCsv(resumen.comprasTotal)));
-    // Con facturas cargadas y sin ser inscripto, el renglón dice por qué no está el IVA. Sin
-    // facturas (CH hoy) no se agrega nada: la hoja queda letra por letra como siempre.
-    if (resumen.comprasConFacturaCount > 0) L.push(filaCsv("Nota", notaComprasSinCredito(resumen.condicion)));
+    // Sin facturas de proveedor (CH hoy) no se agrega nada: la hoja queda letra por letra como siempre.
   }
   L.push("");
 
@@ -99,6 +149,19 @@ export function lineasLibroIva(libro: LibroIva): string[] {
     L.push(filaCsv("Condición", "Emite Factura C (monotributo): no liquida IVA."));
   } else {
     L.push(filaCsv("Condición", "No hay comprobantes con CAE: no se puede calcular la posición de IVA."));
+  }
+  if (resumen.comprasConFacturaCount > 0) {
+    // QA vuelta 6, bloqueante 3: el paquete no traía las percepciones que la pantalla sí mostraba.
+    L.push(filaCsv("Percepciones y otros tributos (facturas de proveedor)", pesosCsv(resumen.comprasOtrosTributos)));
+    L.push(
+      filaCsv(
+        "Nota",
+        "Es la columna «Otros tributos» de cada comprobante recibido: percepciones de IVA, de Ingresos Brutos y otros tributos, juntos como los trae ARCA. Para imputarlos hay que ver cada comprobante.",
+      ),
+    );
+  }
+  if (resumen.dePruebaCount > 0) {
+    L.push(filaCsv("Facturas de prueba", `${resumen.dePruebaCount} con CAE simulado: no se declaran y no suman al débito.`));
   }
   if (resumen.anuladasSinNotaDeCredito > 0) {
     L.push(

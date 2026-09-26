@@ -103,7 +103,7 @@ export default function AltaCliente() {
               name="nombre"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              placeholder="Kiosco La Esquina"
+              placeholder="Como figura en ARCA"
               autoComplete="organization"
               required
               minLength={2}
@@ -124,7 +124,7 @@ export default function AltaCliente() {
               value={cuit}
               onChange={(e) => setCuit(e.target.value)}
               onBlur={() => setCuitTocado(true)}
-              placeholder="20-12345678-3"
+              placeholder="11 números, con o sin guiones"
               inputMode="numeric"
               autoComplete="off"
               required

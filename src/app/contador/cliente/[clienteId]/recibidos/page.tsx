@@ -9,6 +9,7 @@ import { MES_DEMASIADO_GRANDE, accesoAClienteDeCartera, leerComprasConFactura } 
 import { esNotaDeCreditoRecibida, resumirRecibidos, rotuloRecibido } from "@/lib/contador/recibidos-formato";
 import { ButtonLink, Franja, PageContainer, PageHeader, Plata, Renglon, Seccion, fmtCuit } from "@/components/ui";
 import ImportarRecibidos from "./ImportarRecibidos";
+import RevisarRecibido from "./RevisarRecibido";
 
 /** El mes anterior al de hoy en Argentina (UTC−3): lo que la contadora cierra. */
 function mesAnterior(ahora: Date): string {
@@ -79,7 +80,19 @@ export default async function RecibidosDelCliente({
           <Renglon key={a.alicuotaId} titulo={`IVA crédito fiscal ${a.etiqueta}`} detalle={<>sobre <Plata valor={a.base} /></>} plata={<Plata valor={a.importe} />} />
         ))}
         {resumen.ivaSinAlicuota !== 0 && (
-          <Renglon titulo="IVA a revisar (sin alícuota)" plata={<Plata valor={resumen.ivaSinAlicuota} tono="peligro" />} />
+          <Renglon
+            titulo="IVA crédito fiscal sin desglose"
+            detalle="Comprobantes que revisaste a mano: suman al crédito sin el IVA separado por alícuota."
+            plata={<Plata valor={resumen.ivaSinAlicuota} />}
+          />
+        )}
+        <Renglon titulo="IVA crédito fiscal del mes" detalle="Lo que suma. Es la columna «IVA crédito fiscal» del archivo." plata={<Plata valor={resumen.creditoFiscal} />} />
+        {resumen.ivaARevisar !== 0 && (
+          <Renglon
+            titulo="IVA a revisar"
+            detalle="Lo marcado «A revisar» abajo: no suma al crédito hasta que lo revises."
+            plata={<Plata valor={resumen.ivaARevisar} tono="peligro" />}
+          />
         )}
         <Renglon titulo="No gravado y exento" plata={<Plata valor={sumarAlCentavo([resumen.noGravado, resumen.exento])} />} />
         <Renglon titulo="Otros tributos y percepciones" plata={<Plata valor={resumen.otrosTributos} />} />
@@ -106,6 +119,7 @@ export default async function RecibidosDelCliente({
                 titulo={`${rotuloRecibido(c)} · ${c.emisor}`}
                 detalle={c.aRevisar ? `A revisar: ${c.aRevisar}` : `CUIT ${fmtCuit(c.cuitEmisor)}${c.iva ? "" : " · sin crédito fiscal"}`}
                 plata={<Plata valor={esNotaDeCreditoRecibida(c.tipo) ? -c.total : c.total} tono={c.aRevisar ? "peligro" : undefined} />}
+                tecla={c.aRevisar ? <RevisarRecibido clienteId={acceso.cliente.id} compraId={c.id} /> : undefined}
               />
             ))}
           </ul>

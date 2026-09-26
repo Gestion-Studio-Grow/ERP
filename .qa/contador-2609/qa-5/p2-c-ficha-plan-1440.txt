@@ -1,0 +1,208 @@
+URL http://localhost:3210/operador/tenants/cmuiq1y4v000jrr7dctlngra4?pestana=plan
+
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Todos
+En producción
+En prueba
+Con pendientes
+Estudios contables
+Dar de alta un negocio
+← Negocios
+Mayorista Los Tilos SA
+En prueba
+lostilos-v5
+Genérico / Comodín
+PyME (provisional)
+1 persona
+0 clientes
+alta el 26 de septiembre de 2026
+Abrir su panel
+(se abre en otra pestaña; pide un usuario de ese negocio)
+Puesta en marcha
+4
+Fiscal
+3
+Plan y apps
+Marca y vidriera
+Personas
+Historial
+Plan del negocio
+Plan PyME
+Cambiar de plan sólo prende o apaga pantallas. Los datos quedan.
+Plan Facturación
+Plan Micro comerciante
+Plan Comerciante
+Plan PyME
+Plan Estudio contable
+Del plan
+Personas con usuario
+Vale 30.
+Tope nuevo de Personas con usuario
+Guardar
+Del plan
+Locales
+Vale 3.
+Tope nuevo de Locales
+Guardar
+Del plan
+Comprobantes por mes
+Vale 3000.
+Tope nuevo de Comprobantes por mes
+Guardar
+Del plan
+Cuentas bancarias
+Vale sin tope.
+Tope nuevo de Cuentas bancarias
+Guardar
+Del plan
+Clientes en la cartera
+Vale 0.
+Tope nuevo de Clientes en la cartera
+Guardar
+Del plan
+Facturas automáticas por mes
+Vale 3000.
+Tope nuevo de Facturas automáticas por mes
+Guardar
+Interruptores
+Se nota la próxima vez que abran su panel, sin publicar nada nuevo
+Apagado
+Trabaja por apps
+El Inicio por apps y la barra por módulos: sus módulos deciden qué apps ve cada persona. Apagado, ve el menú de siempre.
+0 apps perdidas frente a su menú de siempre.
+Prender
+Apagado
+Diseño nuevo
+El diseño nuevo en su panel: botones, cifras y pantallas renovados, con las mismas apps y los mismos datos. Apagado, se ve como siempre.
+No cambia qué apps ve cada persona ni sus datos: sólo cómo se ven.
+Prender
+Apps del negocio
+35 apps · 16 módulos
+Es un producto con tienda (Comerciante o Contador): sus módulos ya deciden su menú. Un cambio acá se nota apenas lo confirmás.
+0 perdidas
+Con el Inicio por apps, frente a lo que ve hoy
+0 apps perdidas frente a lo que ve hoy.
+Al día
+Fijar la asignación actual
+Con sus módulos ya ve todas las apps de su menú de siempre: no hace falta sumar ninguno.
+Fijar
+Módulos
+16 de 20 activos
+Apagado
+Agenda / Turnos
+2 apps · Reservas por profesional, boxes y horarios.
+Activar…
+Activo
+Caja / Pedidos (POS)
+3 apps · Venta de mostrador y toma de pedidos.
+Apagar…
+Activo
+Catálogo
+4 apps · Servicios y productos del negocio.
+Apagar…
+Activo
+Clientes
+4 apps · Ficha de clientes e historial.
+Apagar…
+Apagado
+Lista de espera
+1 app · Cola de cancelaciones / no-shows.
+Activar…
+Activo
+Recordatorios
+1 app · Avisos y difusión (WhatsApp cuando se conecte).
+Apagar…
+Activo
+Reportes
+5 apps · Ingresos, comisiones y métricas.
+Apagar…
+Apagado
+Comisiones
+Todavía no abre ninguna app · Liquidación por profesional.
+Activar…
+Activo
+Reseñas
+1 app · Opiniones y calificaciones de clientes.
+Apagar…
+Activo
+Campañas
+1 app · Captación de contactos por QR en eventos y acciones presenciales.
+Apagar…
+Activo
+Inventario
+9 apps · Niveles de stock actuales y valuación a costo.
+Apagar…
+Activo
+Cuentas a pagar
+1 app · Deudas a proveedores, con cheque diferido: qué debés, a quién y cuándo.
+Apagar…
+Activo
+Cuentas a cobrar
+1 app · Fiado de clientes: saldo, vencimiento y cobros parciales.
+Apagar…
+Activo
+Libros / Exportar al contador
+1 app · Libro IVA (ventas y compras) para exportar al contador.
+Apagar…
+Activo
+Devoluciones a proveedor
+1 app · Devolver mercadería: baja de stock + crédito en cuentas a pagar.
+Apagar…
+Activo
+ARCA — Facturación electrónica
+1 app · integración · Autorización fiscal de comprobantes ante ARCA (ex-AFIP): obtiene el CAE vía WSAA + WSFEv1. No calcula impuestos (eso vive en el Core, ADR-006).
+Apagar…
+Activo
+Mercado Pago — Cobros
+Todavía no abre ninguna app · integración · Cobros por Mercado Pago: genera links de pago (Checkout Pro) y recibe notificaciones; al acreditarse un pago, auto-factura el turno asociado (ADR-024). No calcula impuestos ni escribe la DB del Core.
+Apagar…
+Activo
+Bancos — Facturación desde el extracto
+2 apps · integración · Importa extractos bancarios (CSV/XLSX), detecta solo las columnas, separa ventas de comisiones/impuestos/transferencias y propone las facturas. No calcula impuestos (eso vive en el Core, ADR-006).
+Apagar…
+Apagado
+Cartera del contador
+Todavía no abre ninguna app · Panel para estudios contables: cartera de clientes con alta/pausa/baja, resumen fiscal por cliente (facturas vs tope, pendientes de revisión, últimas importaciones) y emisión de facturas automáticas en lote. Cada cliente es un tenant del ERP.
+Activar…
+Activo
+Mis locales
+6 apps · Para la casa de una marca con varios locales: ver las ventas, las cajas y el stock de los locales que GSG le vinculó. Cada local sigue siendo un negocio con sus datos separados.
+Apagar…
+Red de locales
+Red Mayorista Los Tilos SA: 0 locales
+Vincular es la única forma de que un negocio lea datos de otro
+LOCAL A SUMAR
+Elegí un negocio…
+A Dos Manos Pádel (adosmanos)
+Almacén Mayorista Don Tito SRL (almacen-mayorista-don-tito-srl)
+Bazar La Esquina SRL (bazar-la-esquina-srl)
+Distribuidora El Ceibo SRL (distribuidora-el-ceibo-srl)
+Estudio de Diseño Lucía Ferro (estudio-de-diseno-lucia-ferro)
+Ferretería El Tornillo SRL (ferreteria-el-tornillo-srl)
+Ferretería El Tornillo UAT (ferreteria-el-tornillo-uat)
+Librería Los Andes SRL (libreria-los-andes-srl)
+MAGRA Canning (magra-canning) — ya es local de «MAGRA»
+MAGRA Lomas (magra-lomas) — ya es local de «MAGRA»
+Martina Gómez Psicopedagogía (martina-gomez-psicopedagogia)
+Paula Ríos Fonoaudiología (paula-rios-fonoaudiologia)
+QA Kiosco Lab (qa-kiosco-lab)
+QA MAGRA Adrogué (qa-magra-adrogue) — ya es local de «MAGRA»
+Shine Velas (shinevelas)
+Sofía Benítez Kinesiología (sofia-benitez-kinesiologia)
+Valeria Ortiz Nutrición (valeria-ortiz-nutricion)
+Verdulería La Huerta UAT (verduleria-la-huerta-uat)
+CÓMO LO LLAMA LA CASA
+Opcional. Ej.: Canning.
+Vincular local
+Hecho por Gestión Studio Grow

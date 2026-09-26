@@ -1,0 +1,442 @@
+TAP version 13
+# (node:9211) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+# (Use `node --trace-deprecation ...` to show where the warning was created)
+# Subtest: QA vuelta 6 · el libro y el paquete de la casa suman el local del mismo CUIT, sin otro CUIT, con percepciones y sin las de prueba
+    # Subtest: 1 · las ventas del segundo local llegan al paquete de la casa; las de otro CUIT, no
+    not ok 1 - 1 · las ventas del segundo local llegan al paquete de la casa; las de otro CUIT, no
+      ---
+      duration_ms: 3.383989
+      type: 'test'
+      location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva-cuit-postgres.test.ts:2:4577'
+      failureType: 'testCodeFailure'
+      error: 'la A del punto de venta 4'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected:
+      actual: |-
+        Paquete del mes para el contador;Río Chico;agosto 2026 (del 01/08/2026 al 31/08/2026)
+        Estado;BORRADOR: el mes no está congelado y los números todavía pueden cambiar
+        Generado;10/09/2026, 09:00
+        
+        1. LIBRO DE CAJA
+        Libro de caja — agosto 2026
+        
+        RESUMEN;Efectivo;MP / Transf.;Tarjeta;Total
+        Saldo inicial;0,00;0,00;0,00;0,00
+        Ingresos (+);0,00;0,00;0,00;0,00
+        Egresos (-);0,00;0,00;0,00;0,00
+        Saldo actual;0,00;0,00;0,00;0,00
+        
+        EGRESOS POR ORIGEN (de los movimientos de abajo);Efectivo;MP / Transf.;Tarjeta;Total
+        (sin egresos)
+        
+        Fecha;Detalle;Medio;Ingreso;Egreso;Saldo;Origen;Referencia
+        ;(sin movimientos en el mes)
+        
+        2. LIBRO IVA: ventas con comprobante, ventas sin comprobante y compras
+        COMPROBANTES EMITIDOS (con CAE: es lo que se declara)
+        Fecha;Tipo;Número;Cliente;Documento;Neto;Alícuotas;IVA;Total;Observación
+        2026-08-15;Factura B;00003-00000001;Consumidor final;Consumidor final;1000,00;21%;210,00;1210,00;
+        2026-08-15;Factura A;00003-00000001;Consumidor final;Consumidor final;1000,00;21%;210,00;1210,00;
+        Subtotal comprobantes;;;;;2000,00;;420,00;2420,00;
+        
+        IVA POR ALÍCUOTA
+        Alícuota;Neto;IVA
+        21%;2000,00;420,00
+        
+        VENTAS SIN COMPROBANTE (control: no se declaran ni llevan IVA calculado)
+        Fecha;Tipo;Referencia;Cliente;Total
+        Subtotal sin comprobante;;;;0,00
+        
+        COMPRAS (control: sin la factura del proveedor no dan crédito fiscal)
+        Fecha;Proveedor;Documento;Número;Neto gravado;IVA crédito fiscal;Total
+        2026-08-10;FERRETERIA NORTE SA;CUIT 30700000008;Factura A 00007-00000900;1000,00;210,00;1330,00
+        Subtotal compras;;;;1000,00;210,00;1330,00
+        
+        RESUMEN
+        IVA débito (comprobantes emitidos);420,00
+        IVA crédito (facturas de proveedor);210,00
+        Saldo IVA a pagar;210,00
+        Nota;El crédito fiscal sale del IVA de la factura de proveedor cargada, por la fecha de cada comprobante (la nota de crédito resta). Las compras cargadas sin factura no dan crédito.
+        
+        3. COBRANZAS Y PAGOS DE CUENTAS CORRIENTES
+        Fecha;Tipo;Cliente o proveedor;Medio;Monto;Nota
+        ;(sin cobranzas ni pagos en el mes)
+        Total cobrado;;;;0,00
+        Total pagado;;;;0,00
+        
+        4. SALDOS AL 31/08/2026
+        CLIENTES (lo que te deben)
+        Nombre;Concepto;Vence;Saldo
+        (sin saldos)
+        Total;;;0,00
+        PROVEEDORES (lo que debés)
+        Nombre;Concepto;Vence;Saldo
+        (sin saldos)
+        Total;;;0,00
+        
+        5. STOCK VALORIZADO (al momento de la descarga)
+        Producto;Unidad;Stock;Costo;Valor
+        (el negocio no controla stock)
+        
+      operator: 'match'
+      stack: |-
+        TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva-cuit-postgres.test.ts:72:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva-cuit-postgres.test.ts:71:11)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: 2 · el paquete trae las percepciones con el mismo total que la pantalla de recibidos
+    not ok 2 - 2 · el paquete trae las percepciones con el mismo total que la pantalla de recibidos
+      ---
+      duration_ms: 24.562602
+      type: 'test'
+      location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva-cuit-postgres.test.ts:2:5289'
+      failureType: 'testCodeFailure'
+      error: |-
+        The input did not match the regular expression /^Percepciones y otros tributos \(facturas de proveedor\);120,00\r?$/m. Input:
+        
+        'Paquete del mes para el contador;Río Chico;agosto 2026 (del 01/08/2026 al 31/08/2026)\r\n' +
+          'Estado;BORRADOR: el mes no está congelado y los números todavía pueden cambiar\r\n' +
+          'Generado;10/09/2026, 09:00\r\n' +
+          '\r\n' +
+          '1. LIBRO DE CAJA\r\n' +
+          'Libro de caja — agosto 2026\r\n' +
+          '\r\n' +
+          'RESUMEN;Efectivo;MP / Transf.;Tarjeta;Total\r\n' +
+          'Saldo inicial;0,00;0,00;0,00;0,00\r\n' +
+          'Ingresos (+);0,00;0,00;0,00;0,00\r\n' +
+          'Egresos (-);0,00;0,00;0,00;0,00\r\n' +
+          'Saldo actual;0,00;0,00;0,00;0,00\r\n' +
+          '\r\n' +
+          'EGRESOS POR ORIGEN (de los movimientos de abajo);Efectivo;MP / Transf.;Tarjeta;Total\r\n' +
+          '(sin egresos)\r\n' +
+          '\r\n' +
+          'Fecha;Detalle;Medio;Ingreso;Egreso;Saldo;Origen;Referencia\r\n' +
+          ';(sin movimientos en el mes)\r\n' +
+          '\r\n' +
+          '2. LIBRO IVA: ventas con comprobante, ventas sin comprobante y compras\r\n' +
+          'COMPROBANTES EMITIDOS (con CAE: es lo que se declara)\r\n' +
+          'Fecha;Tipo;Número;Cliente;Documento;Neto;Alícuotas;IVA;Total;Observación\r\n' +
+          '2026-08-15;Factura B;00003-00000001;Consumidor final;Consumidor final;1000,00;21%;210,00;1210,00;\r\n' +
+          '2026-08-15;Factura A;00003-00000001;Consumidor final;Consumidor final;1000,00;21%;210,00;1210,00;\r\n' +
+          'Subtotal comprobantes;;;;;2000,00;;420,00;2420,00;\r\n' +
+          '\r\n' +
+          'IVA POR ALÍCUOTA\r\n' +
+          'Alícuota;Neto;IVA\r\n' +
+          '21%;2000,00;420,00\r\n' +
+          '\r\n' +
+          'VENTAS SIN COMPROBANTE (control: no se declaran ni llevan IVA calculado)\r\n' +
+          'Fecha;Tipo;Referencia;Cliente;Total\r\n' +
+          'Subtotal sin comprobante;;;;0,00\r\n' +
+          '\r\n' +
+          'COMPRAS (control: sin la factura del proveedor no dan crédito fiscal)\r\n' +
+          'Fecha;Proveedor;Documento;Número;Neto gravado;IVA crédito fiscal;Total\r\n' +
+          '2026-08-10;FERRETERIA NORTE SA;CUIT 30700000008;Factura A 00007-00000900;1000,00;210,00;1330,00\r\n' +
+          'Subtotal compras;;;;1000,00;210,00;1330,00\r\n' +
+          '\r\n' +
+          'RESUMEN\r\n' +
+          'IVA débito (comprobantes emitidos);420,00\r\n' +
+          'IVA crédito (facturas de proveedor);210,00\r\n' +
+          'Saldo IVA a pagar;210,00\r\n' +
+          'Nota;El crédito fiscal sale del IVA de la factura de proveedor cargada, por la fecha de cada comprobante (la nota de crédito resta). Las compras cargadas sin factura no dan crédito.\r\n' +
+          '\r\n' +
+          '3. COBRANZAS Y PAGOS DE CUENTAS CORRIENTES\r\n' +
+          'Fecha;Tipo;Cliente o proveedor;Medio;Monto;Nota\r\n' +
+          ';(sin cobranzas ni pagos en el mes)\r\n' +
+          'Total cobrado;;;;0,00\r\n' +
+          'Total pagado;;;;0,00\r\n' +
+          '\r\n' +
+          '4. SALDOS AL 31/08/2026\r\n' +
+          'CLIENTES (lo que te deben)\r\n' +
+          'Nombre;Concepto;Vence;Saldo\r\n' +
+          '(sin saldos)\r\n' +
+          'Total;;;0,00\r\n' +
+          'PROVEEDORES (lo que debés)\r\n' +
+          'Nombre;Concepto;Vence;Saldo\r\n' +
+          '(sin saldos)\r\n' +
+          'Total;;;0,00\r\n' +
+          '\r\n' +
+          '5. STOCK VALORIZADO (al momento de la descarga)\r\n' +
+          'Producto;Unidad;Stock;Costo;Valor\r\n' +
+          '(el negocio no controla stock)\r\n'
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected:
+      actual: |-
+        Paquete del mes para el contador;Río Chico;agosto 2026 (del 01/08/2026 al 31/08/2026)
+        Estado;BORRADOR: el mes no está congelado y los números todavía pueden cambiar
+        Generado;10/09/2026, 09:00
+        
+        1. LIBRO DE CAJA
+        Libro de caja — agosto 2026
+        
+        RESUMEN;Efectivo;MP / Transf.;Tarjeta;Total
+        Saldo inicial;0,00;0,00;0,00;0,00
+        Ingresos (+);0,00;0,00;0,00;0,00
+        Egresos (-);0,00;0,00;0,00;0,00
+        Saldo actual;0,00;0,00;0,00;0,00
+        
+        EGRESOS POR ORIGEN (de los movimientos de abajo);Efectivo;MP / Transf.;Tarjeta;Total
+        (sin egresos)
+        
+        Fecha;Detalle;Medio;Ingreso;Egreso;Saldo;Origen;Referencia
+        ;(sin movimientos en el mes)
+        
+        2. LIBRO IVA: ventas con comprobante, ventas sin comprobante y compras
+        COMPROBANTES EMITIDOS (con CAE: es lo que se declara)
+        Fecha;Tipo;Número;Cliente;Documento;Neto;Alícuotas;IVA;Total;Observación
+        2026-08-15;Factura B;00003-00000001;Consumidor final;Consumidor final;1000,00;21%;210,00;1210,00;
+        2026-08-15;Factura A;00003-00000001;Consumidor final;Consumidor final;1000,00;21%;210,00;1210,00;
+        Subtotal comprobantes;;;;;2000,00;;420,00;2420,00;
+        
+        IVA POR ALÍCUOTA
+        Alícuota;Neto;IVA
+        21%;2000,00;420,00
+        
+        VENTAS SIN COMPROBANTE (control: no se declaran ni llevan IVA calculado)
+        Fecha;Tipo;Referencia;Cliente;Total
+        Subtotal sin comprobante;;;;0,00
+        
+        COMPRAS (control: sin la factura del proveedor no dan crédito fiscal)
+        Fecha;Proveedor;Documento;Número;Neto gravado;IVA crédito fiscal;Total
+        2026-08-10;FERRETERIA NORTE SA;CUIT 30700000008;Factura A 00007-00000900;1000,00;210,00;1330,00
+        Subtotal compras;;;;1000,00;210,00;1330,00
+        
+        RESUMEN
+        IVA débito (comprobantes emitidos);420,00
+        IVA crédito (facturas de proveedor);210,00
+        Saldo IVA a pagar;210,00
+        Nota;El crédito fiscal sale del IVA de la factura de proveedor cargada, por la fecha de cada comprobante (la nota de crédito resta). Las compras cargadas sin factura no dan crédito.
+        
+        3. COBRANZAS Y PAGOS DE CUENTAS CORRIENTES
+        Fecha;Tipo;Cliente o proveedor;Medio;Monto;Nota
+        ;(sin cobranzas ni pagos en el mes)
+        Total cobrado;;;;0,00
+        Total pagado;;;;0,00
+        
+        4. SALDOS AL 31/08/2026
+        CLIENTES (lo que te deben)
+        Nombre;Concepto;Vence;Saldo
+        (sin saldos)
+        Total;;;0,00
+        PROVEEDORES (lo que debés)
+        Nombre;Concepto;Vence;Saldo
+        (sin saldos)
+        Total;;;0,00
+        
+        5. STOCK VALORIZADO (al momento de la descarga)
+        Producto;Unidad;Stock;Costo;Valor
+        (el negocio no controla stock)
+        
+      operator: 'match'
+      stack: |-
+        TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva-cuit-postgres.test.ts:83:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva-cuit-postgres.test.ts:80:3)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: 3 · la factura con CAE simulado queda aparte, de prueba, y no suma
+    not ok 3 - 3 · la factura con CAE simulado queda aparte, de prueba, y no suma
+      ---
+      duration_ms: 1.218257
+      type: 'test'
+      location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva-cuit-postgres.test.ts:2:5900'
+      failureType: 'testCodeFailure'
+      error: |-
+        The input did not match the regular expression /^FACTURAS DE PRUEBA \(CAE simulado/m. Input:
+        
+        'Paquete del mes para el contador;Río Chico;agosto 2026 (del 01/08/2026 al 31/08/2026)\r\n' +
+          'Estado;BORRADOR: el mes no está congelado y los números todavía pueden cambiar\r\n' +
+          'Generado;10/09/2026, 09:00\r\n' +
+          '\r\n' +
+          '1. LIBRO DE CAJA\r\n' +
+          'Libro de caja — agosto 2026\r\n' +
+          '\r\n' +
+          'RESUMEN;Efectivo;MP / Transf.;Tarjeta;Total\r\n' +
+          'Saldo inicial;0,00;0,00;0,00;0,00\r\n' +
+          'Ingresos (+);0,00;0,00;0,00;0,00\r\n' +
+          'Egresos (-);0,00;0,00;0,00;0,00\r\n' +
+          'Saldo actual;0,00;0,00;0,00;0,00\r\n' +
+          '\r\n' +
+          'EGRESOS POR ORIGEN (de los movimientos de abajo);Efectivo;MP / Transf.;Tarjeta;Total\r\n' +
+          '(sin egresos)\r\n' +
+          '\r\n' +
+          'Fecha;Detalle;Medio;Ingreso;Egreso;Saldo;Origen;Referencia\r\n' +
+          ';(sin movimientos en el mes)\r\n' +
+          '\r\n' +
+          '2. LIBRO IVA: ventas con comprobante, ventas sin comprobante y compras\r\n' +
+          'COMPROBANTES EMITIDOS (con CAE: es lo que se declara)\r\n' +
+          'Fecha;Tipo;Número;Cliente;Documento;Neto;Alícuotas;IVA;Total;Observación\r\n' +
+          '2026-08-15;Factura B;00003-00000001;Consumidor final;Consumidor final;1000,00;21%;210,00;1210,00;\r\n' +
+          '2026-08-15;Factura A;00003-00000001;Consumidor final;Consumidor final;1000,00;21%;210,00;1210,00;\r\n' +
+          'Subtotal comprobantes;;;;;2000,00;;420,00;2420,00;\r\n' +
+          '\r\n' +
+          'IVA POR ALÍCUOTA\r\n' +
+          'Alícuota;Neto;IVA\r\n' +
+          '21%;2000,00;420,00\r\n' +
+          '\r\n' +
+          'VENTAS SIN COMPROBANTE (control: no se declaran ni llevan IVA calculado)\r\n' +
+          'Fecha;Tipo;Referencia;Cliente;Total\r\n' +
+          'Subtotal sin comprobante;;;;0,00\r\n' +
+          '\r\n' +
+          'COMPRAS (control: sin la factura del proveedor no dan crédito fiscal)\r\n' +
+          'Fecha;Proveedor;Documento;Número;Neto gravado;IVA crédito fiscal;Total\r\n' +
+          '2026-08-10;FERRETERIA NORTE SA;CUIT 30700000008;Factura A 00007-00000900;1000,00;210,00;1330,00\r\n' +
+          'Subtotal compras;;;;1000,00;210,00;1330,00\r\n' +
+          '\r\n' +
+          'RESUMEN\r\n' +
+          'IVA débito (comprobantes emitidos);420,00\r\n' +
+          'IVA crédito (facturas de proveedor);210,00\r\n' +
+          'Saldo IVA a pagar;210,00\r\n' +
+          'Nota;El crédito fiscal sale del IVA de la factura de proveedor cargada, por la fecha de cada comprobante (la nota de crédito resta). Las compras cargadas sin factura no dan crédito.\r\n' +
+          '\r\n' +
+          '3. COBRANZAS Y PAGOS DE CUENTAS CORRIENTES\r\n' +
+          'Fecha;Tipo;Cliente o proveedor;Medio;Monto;Nota\r\n' +
+          ';(sin cobranzas ni pagos en el mes)\r\n' +
+          'Total cobrado;;;;0,00\r\n' +
+          'Total pagado;;;;0,00\r\n' +
+          '\r\n' +
+          '4. SALDOS AL 31/08/2026\r\n' +
+          'CLIENTES (lo que te deben)\r\n' +
+          'Nombre;Concepto;Vence;Saldo\r\n' +
+          '(sin saldos)\r\n' +
+          'Total;;;0,00\r\n' +
+          'PROVEEDORES (lo que debés)\r\n' +
+          'Nombre;Concepto;Vence;Saldo\r\n' +
+          '(sin saldos)\r\n' +
+          'Total;;;0,00\r\n' +
+          '\r\n' +
+          '5. STOCK VALORIZADO (al momento de la descarga)\r\n' +
+          'Producto;Unidad;Stock;Costo;Valor\r\n' +
+          '(el negocio no controla stock)\r\n'
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected:
+      actual: |-
+        Paquete del mes para el contador;Río Chico;agosto 2026 (del 01/08/2026 al 31/08/2026)
+        Estado;BORRADOR: el mes no está congelado y los números todavía pueden cambiar
+        Generado;10/09/2026, 09:00
+        
+        1. LIBRO DE CAJA
+        Libro de caja — agosto 2026
+        
+        RESUMEN;Efectivo;MP / Transf.;Tarjeta;Total
+        Saldo inicial;0,00;0,00;0,00;0,00
+        Ingresos (+);0,00;0,00;0,00;0,00
+        Egresos (-);0,00;0,00;0,00;0,00
+        Saldo actual;0,00;0,00;0,00;0,00
+        
+        EGRESOS POR ORIGEN (de los movimientos de abajo);Efectivo;MP / Transf.;Tarjeta;Total
+        (sin egresos)
+        
+        Fecha;Detalle;Medio;Ingreso;Egreso;Saldo;Origen;Referencia
+        ;(sin movimientos en el mes)
+        
+        2. LIBRO IVA: ventas con comprobante, ventas sin comprobante y compras
+        COMPROBANTES EMITIDOS (con CAE: es lo que se declara)
+        Fecha;Tipo;Número;Cliente;Documento;Neto;Alícuotas;IVA;Total;Observación
+        2026-08-15;Factura B;00003-00000001;Consumidor final;Consumidor final;1000,00;21%;210,00;1210,00;
+        2026-08-15;Factura A;00003-00000001;Consumidor final;Consumidor final;1000,00;21%;210,00;1210,00;
+        Subtotal comprobantes;;;;;2000,00;;420,00;2420,00;
+        
+        IVA POR ALÍCUOTA
+        Alícuota;Neto;IVA
+        21%;2000,00;420,00
+        
+        VENTAS SIN COMPROBANTE (control: no se declaran ni llevan IVA calculado)
+        Fecha;Tipo;Referencia;Cliente;Total
+        Subtotal sin comprobante;;;;0,00
+        
+        COMPRAS (control: sin la factura del proveedor no dan crédito fiscal)
+        Fecha;Proveedor;Documento;Número;Neto gravado;IVA crédito fiscal;Total
+        2026-08-10;FERRETERIA NORTE SA;CUIT 30700000008;Factura A 00007-00000900;1000,00;210,00;1330,00
+        Subtotal compras;;;;1000,00;210,00;1330,00
+        
+        RESUMEN
+        IVA débito (comprobantes emitidos);420,00
+        IVA crédito (facturas de proveedor);210,00
+        Saldo IVA a pagar;210,00
+        Nota;El crédito fiscal sale del IVA de la factura de proveedor cargada, por la fecha de cada comprobante (la nota de crédito resta). Las compras cargadas sin factura no dan crédito.
+        
+        3. COBRANZAS Y PAGOS DE CUENTAS CORRIENTES
+        Fecha;Tipo;Cliente o proveedor;Medio;Monto;Nota
+        ;(sin cobranzas ni pagos en el mes)
+        Total cobrado;;;;0,00
+        Total pagado;;;;0,00
+        
+        4. SALDOS AL 31/08/2026
+        CLIENTES (lo que te deben)
+        Nombre;Concepto;Vence;Saldo
+        (sin saldos)
+        Total;;;0,00
+        PROVEEDORES (lo que debés)
+        Nombre;Concepto;Vence;Saldo
+        (sin saldos)
+        Total;;;0,00
+        
+        5. STOCK VALORIZADO (al momento de la descarga)
+        Producto;Unidad;Stock;Costo;Valor
+        (el negocio no controla stock)
+        
+      operator: 'match'
+      stack: |-
+        TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva-cuit-postgres.test.ts:88:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva-cuit-postgres.test.ts:87:11)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: 4 · la pantalla del Libro IVA de la casa dice lo mismo; el local solo ve lo suyo; RLS intacto
+    not ok 4 - 4 · la pantalla del Libro IVA de la casa dice lo mismo; el local solo ve lo suyo; RLS intacto
+      ---
+      duration_ms: 7.745544
+      type: 'test'
+      location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva-cuit-postgres.test.ts:2:6269'
+      failureType: 'testCodeFailure'
+      error: "Cannot find module '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva-red' imported from /tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva-cuit-postgres.test.ts"
+      code: 'ERR_MODULE_NOT_FOUND'
+      stack: |-
+        finalizeResolution (node:internal/modules/esm/resolve:275:11)
+        moduleResolve (node:internal/modules/esm/resolve:861:10)
+        defaultResolve (node:internal/modules/esm/resolve:985:11)
+        nextResolve (node:internal/modules/esm/hooks:748:28)
+        resolveBase (file:///home/user/erp-contador/node_modules/tsx/dist/register-CqMfTiWi.mjs:2:8141)
+        async resolveDirectory (file:///home/user/erp-contador/node_modules/tsx/dist/register-CqMfTiWi.mjs:2:9221)
+        async resolve2 (file:///home/user/erp-contador/node_modules/tsx/dist/register-CqMfTiWi.mjs:2:11932)
+        async nextResolve (node:internal/modules/esm/hooks:748:22)
+        async Hooks.resolve (node:internal/modules/esm/hooks:240:24)
+        async handleMessage (node:internal/modules/esm/worker:199:18)
+      ...
+    1..4
+not ok 1 - QA vuelta 6 · el libro y el paquete de la casa suman el local del mismo CUIT, sin otro CUIT, con percepciones y sin las de prueba
+  ---
+  duration_ms: 5486.320623
+  type: 'test'
+  location: '/tmp/claude-0/-home-user-Factory-GSG/12bc8dd5-60d3-5e22-95c1-3816d17ad0a9/scratchpad/antes/src/lib/libros/libro-iva-cuit-postgres.test.ts:2:1141'
+  failureType: 'subtestsFailed'
+  error: '4 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 5
+# suites 0
+# pass 0
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6473.489686

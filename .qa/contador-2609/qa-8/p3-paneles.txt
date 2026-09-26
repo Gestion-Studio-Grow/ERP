@@ -1,0 +1,16 @@
+[a @390] login -> http://lucia-v8.localhost:3210/admin
+  cabecera: Saltar al contenido / Inicio / Lucía Fernández Diseño / Inicio / ARCA · modo prueba (sin red) / Tu facturación al día: lo que cobrás por el banco y por Mercado Pago se factura solo. / Subir extracto / Facturado del mes / $0 / Facturas emitidas / 0 / 159 / 159 disponibles este mes / Pendientes de revisión / 0
+  «Cierre del mes» visible: true (tras abrir el menú) -> http://lucia-v8.localhost:3210/admin/cierre-mes
+  consola: []
+[b @1440] login -> http://elceibo-v8.localhost:3210/admin
+  cabecera: Saltar al contenido / PE / Pinturería El Ceibo SRL / Buscar en el menú / Inicio / Clientes / Pedidos / Caja / Libro de caja / Cierre del día / Cierre del mes / Catálogo / Compras / Ajustes
+  «Cierre del mes» visible: true -> http://elceibo-v8.localhost:3210/admin/cierre-mes
+  consola: []
+[c @1440] login -> http://laestrella-v8.localhost:3210/admin
+  cabecera: Saltar al contenido / SL / Supermercados La Estrella SA / Buscar en el menú / Inicio / Clientes / Pedidos / Caja / Libro de caja / Cierre del día / Cierre del mes / Catálogo / Compras / Ajustes
+  «Cierre del mes» visible: true -> http://laestrella-v8.localhost:3210/admin/cierre-mes
+  consola: []
+[c2 @390] login -> http://laestrella-quilmes-v8.localhost:3210/admin
+  cabecera: Saltar al contenido / Inicio / La Estrella Quilmes / Inicio / ARCA · modo prueba (sin red) / Tu facturación al día: lo que cobrás por el banco y por Mercado Pago se factura solo. / Subir extracto / Facturado del mes / $0 / Facturas emitidas / 0 / 159 / 159 disponibles este mes / Pendientes de revisión / 0
+  «Cierre del mes» visible: true (tras abrir el menú) -> http://laestrella-quilmes-v8.localhost:3210/admin/cierre-mes
+  consola: []

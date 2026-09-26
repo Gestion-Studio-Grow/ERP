@@ -1,0 +1,204 @@
+TAP version 13
+# Subtest: diseño por alícuota: factura A al 21% entra con su desglose y sin marcas
+ok 1 - diseño por alícuota: factura A al 21% entra con su desglose y sin marcas
+  ---
+  duration_ms: 9.063638
+  type: 'test'
+  ...
+# Subtest: factura A con dos alícuotas y percepción: desglose 10,5% y 21%, otros tributos aparte
+ok 2 - factura A con dos alícuotas y percepción: desglose 10,5% y 21%, otros tributos aparte
+  ---
+  duration_ms: 1.984982
+  type: 'test'
+  ...
+# Subtest: factura B y factura C recibidas no dan crédito fiscal: IVA cero, sin marca
+ok 3 - factura B y factura C recibidas no dan crédito fiscal: IVA cero, sin marca
+  ---
+  duration_ms: 1.86962
+  type: 'test'
+  ...
+# Subtest: nota de crédito A entra y RESTA en el resumen
+ok 4 - nota de crédito A entra y RESTA en el resumen
+  ---
+  duration_ms: 2.278171
+  type: 'test'
+  ...
+# Subtest: moneda extranjera: se pasa a pesos con el tipo de cambio del archivo, redondeado al centavo
+ok 5 - moneda extranjera: se pasa a pesos con el tipo de cambio del archivo, redondeado al centavo
+  ---
+  duration_ms: 1.466737
+  type: 'test'
+  ...
+# Subtest: moneda extranjera sin tipo de cambio se rechaza con el motivo
+ok 6 - moneda extranjera sin tipo de cambio se rechaza con el motivo
+  ---
+  duration_ms: 0.903921
+  type: 'test'
+  ...
+# Subtest: duplicado dentro del archivo: el segundo se rechaza, el primero queda
+ok 7 - duplicado dentro del archivo: el segundo se rechaza, el primero queda
+  ---
+  duration_ms: 1.655288
+  type: 'test'
+  ...
+# Subtest: IVA que no cierra con su alícuota: entra marcado «a revisar» y sin desglose inventado
+ok 8 - IVA que no cierra con su alícuota: entra marcado «a revisar» y sin desglose inventado
+  ---
+  duration_ms: 1.539839
+  type: 'test'
+  ...
+# Subtest: CUIT inválido se rechaza con el motivo; el Tique factura A (81) entra y da crédito fiscal
+ok 9 - CUIT inválido se rechaza con el motivo; el Tique factura A (81) entra y da crédito fiscal
+  ---
+  duration_ms: 1.753646
+  type: 'test'
+  ...
+# Subtest: letra A y M dan crédito fiscal sea factura, recibo, liquidación o tique; el tique nota de crédito resta
+ok 10 - letra A y M dan crédito fiscal sea factura, recibo, liquidación o tique; el tique nota de crédito resta
+  ---
+  duration_ms: 2.995108
+  type: 'test'
+  ...
+# Subtest: un tipo que no está en la tabla se rechaza sin decir que no va a compras ni mandar a una carga que no existe
+ok 11 - un tipo que no está en la tabla se rechaza sin decir que no va a compras ni mandar a una carga que no existe
+  ---
+  duration_ms: 0.846735
+  type: 'test'
+  ...
+# Subtest: diseño clásico: la alícuota se deduce sólo si una oficial cierra exacto
+not ok 12 - diseño clásico: la alícuota se deduce sólo si una oficial cierra exacto
+  ---
+  duration_ms: 5.738922
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/contador/recibidos-formato.test.ts:2:9229'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /^El IVA es el 14 % del neto gravado y ninguna alícuota sola da eso\./. Input:
+    
+    ''
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: ''
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/contador/recibidos-formato.test.ts:199:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: QA vuelta 5 · diseño clásico: sin una alícuota que cierre sola, «a revisar» (no suma al crédito hasta revisarlo)
+not ok 13 - QA vuelta 5 · diseño clásico: sin una alícuota que cierre sola, «a revisar» (no suma al crédito hasta revisarlo)
+  ---
+  duration_ms: 2.131927
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/contador/recibidos-formato.test.ts:2:10432'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /^El IVA es el 1 % del neto gravado/. Input:
+    
+    ''
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: ''
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/contador/recibidos-formato.test.ts:243:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: refutador 26/09 · revisado: la marca «a revisar» sale de las notas y queda quién y cuándo
+ok 14 - refutador 26/09 · revisado: la marca «a revisar» sale de las notas y queda quién y cuándo
+  ---
+  duration_ms: 19.225529
+  type: 'test'
+  ...
+# Subtest: Excel con el renglón de título de ARCA: encuentra los títulos y el CUIT del archivo
+ok 15 - Excel con el renglón de título de ARCA: encuentra los títulos y el CUIT del archivo # SKIP xlsx es un stub en este entorno
+  ---
+  duration_ms: 0.335252
+  type: 'test'
+  ...
+# Subtest: Excel con números y fechas de verdad (no texto) se lee igual
+ok 16 - Excel con números y fechas de verdad (no texto) se lee igual
+  ---
+  duration_ms: 1.443745
+  type: 'test'
+  ...
+# Subtest: un archivo que no es de ARCA se rechaza entero, sin leer filas
+ok 17 - un archivo que no es de ARCA se rechaza entero, sin leer filas
+  ---
+  duration_ms: 0.555501
+  type: 'test'
+  ...
+# Subtest: la clave es CUIT del emisor, tipo, punto de venta y número
+ok 18 - la clave es CUIT del emisor, tipo, punto de venta y número
+  ---
+  duration_ms: 0.237603
+  type: 'test'
+  ...
+# Subtest: listado exportable: IVA por alícuota en columnas, la nota de crédito en negativo, a salvo de fórmulas
+not ok 19 - listado exportable: IVA por alícuota en columnas, la nota de crédito en negativo, a salvo de fórmulas
+  ---
+  duration_ms: 43.546724
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/contador/recibidos-formato.test.ts:2:15368'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    '150,00' !== '0,00'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '0,00'
+  actual: '150,00'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/contador/recibidos-formato.test.ts:323:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: QA vuelta 5 · el mes de (b): el crédito del archivo es el de la pantalla (21.640,50) y la fila marcada no suma
+not ok 20 - QA vuelta 5 · el mes de (b): el crédito del archivo es el de la pantalla (21.640,50) y la fila marcada no suma
+  ---
+  duration_ms: 26.393667
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/contador/recibidos-formato.test.ts:2:17477'
+  failureType: 'testCodeFailure'
+  error: |-
+    antes daba 21.790,50
+    + actual - expected
+    
+    + 21790.5
+    - 21640.5
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 21640.5
+  actual: 21790.5
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/contador/recibidos-formato.test.ts:349:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 15
+# fail 4
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 785.568682

@@ -65,16 +65,47 @@ test("la ficha ofrece sólo los pedidos que aplican, lo urgente primero y lo ya 
 
 // ── GSG-22 (refutador): el pedido tiene otra punta, Soporte GSG, que lo cierra con una respuesta ──
 
-test("Soporte cierra un pedido: «no corresponde» exige el porqué; «hecho» no", async () => {
+test("Soporte cierra un pedido: «no corresponde» exige un motivo DE LA LISTA; «hecho» no lleva ninguno", async () => {
   const { validarResolucion } = await import("./pedido-soporte");
-  assert.equal(validarResolucion({ resultado: "no_corresponde", respuesta: "  " }).ok, false);
+  assert.equal(validarResolucion({ resultado: "no_corresponde", motivo: "  " }).ok, false);
   assert.equal(validarResolucion({ resultado: "cualquiera" }).ok, false);
-  assert.equal(validarResolucion({ resultado: "hecho", respuesta: "x".repeat(301) }).ok, false);
-  assert.deepEqual(validarResolucion({ resultado: "hecho" }), { ok: true, resolucion: { resultado: "hecho", respuesta: null } });
-  assert.deepEqual(validarResolucion({ resultado: "no_corresponde", respuesta: " ya  está bien " }), {
+  // Texto libre en vez de un código: rechazado (antes se guardaba y la contadora lo leía tal cual).
+  assert.equal(validarResolucion({ resultado: "no_corresponde", motivo: "QA Kiosco Lab ya tiene ese CUIT" }).ok, false);
+  assert.equal(validarResolucion({ resultado: "no_corresponde", motivo: "toString" }).ok, false, "ni una propiedad heredada");
+  assert.deepEqual(validarResolucion({ resultado: "hecho", motivo: "ya-estaba" }), { ok: true, resolucion: { resultado: "hecho", motivo: null } });
+  assert.deepEqual(validarResolucion({ resultado: "no_corresponde", motivo: "ya-estaba" }), {
     ok: true,
-    resolucion: { resultado: "no_corresponde", respuesta: "ya está bien" },
+    resolucion: { resultado: "no_corresponde", motivo: "ya-estaba" },
   });
+});
+
+test("refutador 26/09 · ningún texto libre de Soporte llega a la ficha de la contadora (ni de filas viejas ni forjadas)", async () => {
+  const { respuestasDeSoporte, pedidosDeLaFicha, MOTIVOS_NO_CORRESPONDE, MOTIVO_NO_CORRESPONDE_POR_DEFECTO } = await import("./pedido-soporte");
+  const AJENO = "QA Kiosco Lab";
+  const el = new Date("2026-09-20T12:00:00Z");
+  const filas = [
+    { id: "p1", action: ACCION_PEDIDO_SOPORTE, entityId: "cli", changes: { tipo: "corregir_cuit" }, createdAt: el },
+    { id: "p2", action: ACCION_PEDIDO_SOPORTE, entityId: "cli", changes: { tipo: "asignar_plan" }, createdAt: el },
+    { id: "p3", action: ACCION_PEDIDO_SOPORTE, entityId: "cli", changes: { tipo: "direccion_propia" }, createdAt: el },
+    // Fila vieja: Soporte escribió a mano el nombre de otro negocio.
+    { id: "r1", action: ACCION_PEDIDO_RESUELTO, entityId: "cli", changes: { pedidoId: "p1", resultado: "no_corresponde", respuesta: `El CUIT es de ${AJENO}` }, createdAt: el },
+    // Fila forjada: el texto ajeno en el lugar del código.
+    { id: "r2", action: ACCION_PEDIDO_RESUELTO, entityId: "cli", changes: { pedidoId: "p2", resultado: "no_corresponde", motivo: AJENO }, createdAt: el },
+    // «Hecho» con texto: no se muestra ningún texto.
+    { id: "r3", action: ACCION_PEDIDO_RESUELTO, entityId: "cli", changes: { pedidoId: "p3", resultado: "hecho", respuesta: AJENO, motivo: "ya-estaba" }, createdAt: el },
+  ];
+  const respuestas = respuestasDeSoporte(filas);
+  const porPedido = Object.fromEntries(respuestas.map((r) => [r.pedidoId, r.respuesta]));
+  assert.deepEqual(porPedido, {
+    p1: MOTIVOS_NO_CORRESPONDE[MOTIVO_NO_CORRESPONDE_POR_DEFECTO],
+    p2: MOTIVOS_NO_CORRESPONDE[MOTIVO_NO_CORRESPONDE_POR_DEFECTO],
+    p3: null,
+  });
+  const permitidos = new Set<string | null>([...Object.values(MOTIVOS_NO_CORRESPONDE), null]);
+  for (const r of respuestas) assert.ok(permitidos.has(r.respuesta), `sólo textos de la lista: ${String(r.respuesta)}`);
+  const ficha = pedidosDeLaFicha({ clienteTenantId: "cli", tieneDireccion: false, sinPlan: true, cuitIncompleto: false, abiertos: [], respuestas, ahora: el });
+  assert.equal(ficha.length, 3);
+  assert.ok(!JSON.stringify(ficha).includes(AJENO), "lo que pinta la ficha no trae el texto ajeno");
 });
 
 test("la respuesta de Soporte cierra el pedido, se muestra en la ficha 60 días y deja pedirlo de nuevo; una respuesta suelta no inventa nada", async () => {

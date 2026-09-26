@@ -48,6 +48,11 @@ export interface NegocioKpi {
   esMostrador: boolean;
   /** Cómo llama el rubro a lo que vende: "corte"/"cortes" en la carnicería, "producto" en velas. */
   sustantivo: { uno: string; varios: string };
+  /**
+   * ¿Casa de una red (módulo `multilocal`)? Entonces el IVA del Libro IVA suma los locales del mismo
+   * CUIT, como la pantalla (libro-iva-red.ts). Ausente = no.
+   */
+  esCasaDeRed?: boolean;
 }
 
 export interface ContextoLoader extends NegocioKpi {

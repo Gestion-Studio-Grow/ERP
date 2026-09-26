@@ -1,0 +1,16 @@
+[a @390] login -> http://martinaq-v7.localhost:3210/admin
+  cabecera: Saltar al contenido / Inicio / Martina Quiroga Fotografía / Cargando…
+  «Cierre del mes» visible: true (tras abrir el menú) -> http://martinaq-v7.localhost:3210/admin/cierre-mes
+  consola: []
+[b @1440] login -> http://losaromos-v7.localhost:3210/admin
+  cabecera: Saltar al contenido / FL / Ferretería Los Aromos SRL / Buscar en el menú / Inicio / Clientes / Pedidos / Caja / Libro de caja / Cierre del día / Cierre del mes / Catálogo / Compras / Ajustes
+  «Cierre del mes» visible: true -> http://losaromos-v7.localhost:3210/admin/cierre-mes
+  consola: []
+[c @1440] login -> http://delplata-v7.localhost:3210/admin
+  cabecera: Saltar al contenido / DD / Distribuidora Del Plata SA / Buscar en el menú / Inicio / Clientes / Pedidos / Caja / Libro de caja / Cierre del día / Cierre del mes / Catálogo / Compras / Ajustes
+  «Cierre del mes» visible: true -> http://delplata-v7.localhost:3210/admin/cierre-mes
+  consola: []
+[c2 @390] login -> http://delplata-sarandi-v7.localhost:3210/admin
+  cabecera: Saltar al contenido / Inicio / Del Plata Sarandí / Inicio / ARCA · modo prueba (sin red) / Tu facturación al día: lo que cobrás por el banco y por Mercado Pago se factura solo. / Subir extracto / Facturado del mes / $0 / Facturas emitidas / 0 / 159 / 159 disponibles este mes / Pendientes de revisión / 0
+  «Cierre del mes» visible: true (tras abrir el menú) -> http://delplata-sarandi-v7.localhost:3210/admin/cierre-mes
+  consola: []

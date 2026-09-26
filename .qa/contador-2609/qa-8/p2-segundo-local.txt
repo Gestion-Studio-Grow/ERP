@@ -1,0 +1,339 @@
+--- paso 2 ---
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco (con la red incluida, si el local es de una: si la red no lo acepta, no se crea el negocio); si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+36
+· 7 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+2
+Rubro
+3
+¿De qué red?
+4
+Módulos
+✓
+Marca y link
+6
+Revisar
+Rubro del negocio
+Define con qué nace el local: su catálogo de ejemplo, las palabras de su vidriera y sus pantallas. Es obligatorio.
+RUBRO, EN PALABRAS
+Se busca el rubro que corresponde; si no hay, el genérico.
+…O ELEGILO DE LA LISTA
+Según lo escrito
+Carnicería boutique
+Verdulería
+Dietética
+Kiosco
+Fiambrería
+Indumentaria
+Velas & deco
+Tienda de pádel
+Perfumería
+Estética / Spa
+Peluquería / Barbería
+Veterinaria
+Consultorio / Salud
+Plomería
+Electricidad
+Cerrajería
+Refrigeración / Climatización
+Fletes / Mudanzas
+Restaurante / Parrilla
+Cafetería
+Panadería
+Rotisería
+Pizzería
+Heladería
+Servicios / Turnos
+Genérico / Comodín
+Facturita
+Si lo elegís, manda sobre lo escrito.
+Elegí el rubro para seguir. Si se pasa de largo, el negocio nace como uno de servicios (agenda de turnos, lista de espera, catálogo de servicios), aunque sea una carnicería. Corregirlo después es rehacer el alta.
+Atrás
+Siguiente
+ASÍ VA A QUEDAR
+LE
+La Estrella Quilmes
+laestrella-quilmes-v8
+Servicios / Turnos
+Módulos (7)
+Agenda / Turnos
+Catálogo
+Clientes
+Lista de espera
+Recordatorios
+Reportes
+Comisiones
+rubros: =Según lo escrito ; carniceria=Carnicería boutique ; verduleria=Verdulería ; dietetica=Dietética ; kiosco=Kiosco ; fiambreria=Fiambrería ; indumentaria=Indumentaria ; velas=Velas & deco ; padel=Tienda de pádel ; perfumeria=Perfumería ; estetica=Estética / Spa ; peluqueria=Peluquería / Barbería ; veterinaria=Veterinaria ; consultorio=Consultorio / Salud ; plomeria=Plomería ; electricista=Electricidad ; cerrajeria=Cerrajería ; refrigeracion=Refrigeración / Climatización ; fletes=Fletes / Mudanzas ; restaurante=Restaurante / Parrilla ; cafeteria=Cafetería ; panaderia=Panadería ; rotiseria=Rotisería ; pizzeria=Pizzería ; heladeria=Heladería ; servicios=Servicios / Turnos ; generico=Genérico / Comodín ; facturita=Facturita
+rubro elegido: generico=Genérico / Comodín
+--- paso 3 ---
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco (con la red incluida, si el local es de una: si la red no lo acepta, no se crea el negocio); si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+36
+· 7 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+✓
+Rubro
+3
+¿De qué red?
+4
+Módulos
+✓
+Marca y link
+6
+Revisar
+¿De qué red?
+Si el local es de una marca con varios locales, elegí su casa: al crearlo queda vinculado a ella, con su CUIT y punto de venta, y con la lista de precios de la casa, en la misma corrida. Si es un negocio suelto, seguí de largo.
+Negocio suelto (como hasta hoy)
+Local de una red
+Atrás
+Siguiente
+ASÍ VA A QUEDAR
+LE
+La Estrella Quilmes
+laestrella-quilmes-v8
+Genérico / Comodín
+Módulos (5)
+Clientes
+Reportes
+ARCA — Facturación electrónica
+Mercado Pago — Cobros
+Bancos — Facturación desde el extracto
+radio "Local de una red" habilitado: true
+casas: cmuivt274000j457doybapf0u=Distribuidora Del Plata SA ; cmuijm529000bac7dp0pabyzv=Distribuidora Río Bamba SA ; cmuig4ikq000ia17d65vmicjs=Distribuidora del Sur SA ; cmuigqmjl00a9a17d73aw68db=Grupo Andino SA ; cmrhv1kwk0018ww7dsn4r2df2=MAGRA ; cmuiq1y4v000jrr7dctlngra4=Mayorista Los Tilos SA ; cmuixg0z8000j0m7diyllrxu9=Supermercados La Estrella SA ; cmuilesi3000r7k7dst9862tq=Supermercados Norte Grande SA ; cmuirvlzz000jnx7dfnaax36p=Supermercados Río Chico SA
+cuit precargado:  | pv precargado: 
+cuit editable: true
+[ataque otro-cuit] Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco (con la red incluida, si el local es de una: si la red no lo acepta, no se crea el negocio); si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida. | · 7 sin punto de venta (no pueden facturar: se carga en su ficha) | ✓ | ✓ | ✓ | Si el local es de una marca con varios locales, elegí su casa: al crearlo queda vinculado a ella, con su CUIT y punto de venta, y con la lista de precios de la cas
+[ataque pv-de-la-casa] Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco (con la red incluida, si el local es de una: si la red no lo acepta, no se crea el negocio); si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida. | · 7 sin punto de venta (no pueden facturar: se carga en su ficha) | ✓ | ✓ | ✓ | Si el local es de una marca con varios locales, elegí su casa: al crearlo queda vinculado a ella, con su CUIT y punto de venta, y con la lista de precios de la cas
+con pv 3, Siguiente habilitado: false
+[ataque pv-4] Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco (con la red incluida, si el local es de una: si la red no lo acepta, no se crea el negocio); si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida. | · 7 sin punto de venta (no pueden facturar: se carga en su ficha) | ✓ | ✓ | ✓ | Si el local es de una marca con varios locales, elegí su casa: al crearlo queda vinculado a ella, con su CUIT y punto de venta, y con la lista de precios de la cas
+--- paso 4 ---
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco (con la red incluida, si el local es de una: si la red no lo acepta, no se crea el negocio); si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+36
+· 7 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+✓
+Rubro
+✓
+¿De qué red?
+4
+Módulos
+✓
+Marca y link
+6
+Revisar
+Módulos que trae
+Salen del rubro. Quedan guardados en el negocio: mientras no trabaje por apps, sus pantallas las decide el rubro, así que esta lista es lo que contrata el local, no un interruptor de pantallas.
+Base del rubro
+Clientes
+Ficha de clientes e historial.
+Reportes
+Ingresos, comisiones y métricas.
+ARCA — Facturación electrónica
+Autorización fiscal de comprobantes ante ARCA (ex-AFIP): obtiene el CAE vía WSAA + WSFEv1. No calcula impuestos (eso vive en el Core, ADR-006).
+Mercado Pago — Cobros
+Cobros por Mercado Pago: genera links de pago (Checkout Pro) y recibe notificaciones; al acreditarse un pago, auto-factura el turno asociado (ADR-024). No calcula impuestos ni escribe la DB del Core.
+Bancos — Facturación desde el extracto
+Importa extractos bancarios (CSV/XLSX), detecta solo las columnas, separa ventas de comisiones/impuestos/transferencias y propone las facturas. No calcula impuestos (eso vive en el Core, ADR-006).
+Atrás
+Siguiente
+ASÍ VA A QUEDAR
+LE
+La Estrella Quilmes
+laestrella-quilmes-v8
+Genérico / Comodín
+Red de Supermercados La Estrella SA
+Módulos (5)
+Clientes
+Reportes
+ARCA — Facturación electrónica
+Mercado Pago
+--- paso 5 ---
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco (con la red incluida, si el local es de una: si la red no lo acepta, no se crea el negocio); si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+36
+· 7 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+✓
+Rubro
+✓
+¿De qué red?
+✓
+Módulos
+5
+Marca y link
+6
+Revisar
+Marca y link
+COLOR DE LA MARCA
+petroleo
+oxblood
+rosa
+celeste
+verde
+ambar
+azul
+TEMA DE LA VIDRIERA
+Claro
+Oscuro
+MONOGRAMA
+Si lo dejás vacío, se sugiere del nombre.
+LE
+Así se ve el color sobre el tema elegido.
+LINK PROPIO (SUBDOMINIO)
+Su dirección en internet: nombre.localhost. Única. Opcional.
+Datos de contacto del negocio (opcional)
+Atrás
+Siguiente
+ASÍ VA A QUEDAR
+LE
+La Estrella Quilmes
+laestrella-quilmes-v8
+Genérico / Comodín
+Red de Supermercados La Estrella SA
+Módulos (5)
+Clientes
+Reportes
+ARCA — Facturación electrónica
+Mercado Pago — Cobros
+Bancos — Facturación desde el extracto
+--- paso 6 ---
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco (con la red incluida, si el local es de una: si la red no lo acepta, no se crea el negocio); si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+36
+· 7 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+✓
+Rubro
+✓
+¿De qué red?
+✓
+Módulos
+✓
+Marca y link
+6
+Revisar
+Revisar y dar de alta
+Con más de un negocio en la base, el alta exige el aislamiento entre negocios prendido. Si no lo está, el alta se frena con un error que lo dice, y no se escribe nada.
+Negocio
+La Estrella Quilmes
+Nombre corto
+laestrella-quilmes-v8
+Dueño
+quilmes@laestrella.ejemplo.test
+Rubro
+Genérico / Comodín
+Módulos
+5 activos
+Color y tema
+el del rubro · claro
+Link
+laestrella-quilmes-v8
+Red
+Local de Supermercados La Estrella SA · CUIT 30719550270 · punto de venta 4
+Al crear, en la misma corrida: queda vinculado a Supermercados La Estrella SA (con auditoría en los dos), con su CUIT y punto de venta, y con la lista de precios de la casa. El stock no se copia: entra por recuento o por un traslado.
+Se va a crear
++
+Tenant · La Estrella Quilmes · /laestrella-quilmes-v8
++
+Usuario OWNER · quilmes@laestrella.ejemplo.test
++
+BusinessSettings · branding/localización del negocio
++
+Catálogo del blueprint · sembrado por "generico" si el tenant está vacío
+Atrás
+Dar de alta el negocio
+ASÍ VA A QUEDAR
+LE
+La Estrella Quilmes
+laestrella-quilmes-v8
+Genérico / Comodín
+Red de Supermercados La Estrella SA
+Módulos (5)
+Clientes
+Reportes
+ARCA — Factu
+boton crear: Dar de alta el negocio
+--- resultado --- url http://localhost:3210/operador/alta
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco (con la red incluida, si el local es de una: si la red no lo acepta, no se crea el negocio); si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+37
+· 7 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+✓
+Rubro
+✓
+¿De qué red?
+✓
+Módulos
+✓
+Marca y link
+6
+Revisar
+Negocio dado de alta
+✓
+Pendiente
+✓
+Datos creados
+✓
+Link: listo
+⋯
+Aviso al dueño: pendiente — manual
+✓
+Activo
+Su dirección: https://laestrella-quilmes-v8.localhost/admin
+Contraseña temporal para el dueño. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+<TEMPORAL>
+Copiar
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+Pasale esto
+¡Hola! Ya está listo el sistema de La Estrella Quilmes.
+Entrá en: https://laestrella-quilmes-v8.localhost/admin
+Usuario: quilmes@laestrella.ejemplo.test
+Contraseña: <TEMPORAL>
+Copiar
+Mandar por WhatsApp
+Falta hacer a mano (el alta no lo hace):
+• Avisarle al dueño: no se envía ningún mail. Mandale el mensaje de «Pasale esto» por un canal suyo (o generá una contraseña nueva en su ficha, pestaña Personas).
+• Datos fiscales y de contacto: CUIT, punto de venta de ARCA, dirección real e Instagram. La ficha tiene el checklist “Listo para abrir” con lo que falta.
+Ir a la ficha del negocio
+Red de Supermercados La Estrella SA
+✓ Vinculado a Supermercados La Estrella SA como «Quilmes». Quedó en la auditoría de los dos negocios.
+✓ CUIT 30-71955027-0 · punto de venta 4
+✓ Condición frente al IVA: Responsable inscripto, la de su CUIT.
+! La lista de precios quedó pendiente: Supermercados La Estrella SA todavía no tiene productos activos con precio: no hay lista para mandar. Cuando la cargue, la manda desde «Catálogo y precios de la marca».
+Abrir la ficha del local
+Abrir la red de Supermercados La Estrella SA
+ASÍ VA A QUEDAR
+LE
+La Estrella Quilmes
+laestrella-quilmes-v8
+Genérico / Comodín
+Red de Supermercados La Estrella SA
+Módulos (5)
+Clientes
+Reportes
+ARCA — Facturación electrónica
+Mercado Pago — Cobros
+Bancos — Facturación desde el extracto
+Link: laestrella-quilmes-v8
+consola: []

@@ -1,0 +1,10 @@
+URL http://lostilos-v5.localhost:3210/admin/no-disponible?app=libro-iva
+
+Comerciante
+Libro IVA no está disponible
+El IVA de ventas y compras del mes, para el contador.
+Esta app no está incluida en lo que tiene tu negocio hoy.
+Si querés sumarla, escribinos a Gestión Studio Grow.
+Ir al inicio
+Cerrar sesión
+Con tecnología de Gestión Studio Grow

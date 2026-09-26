@@ -1,0 +1,21 @@
+URL http://localhost:3210/operador/solicitudes/cmuivqewv0001457d8agfc9qh
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+← Pedidos de alta
+Configurar a Ferretería Los Aromos SRL
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+Este pedido ya está cerrado: el cliente quedó configurado. Si hace falta cambiar algo, se hace desde su ficha.
+Ir a la ficha del negocio
+Hecho por Gestión Studio Grow

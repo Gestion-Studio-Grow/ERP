@@ -1,0 +1,107 @@
+URL http://estudio.localhost:3210/contador/cliente/cmuiq15hm000brr7d51yr11m0/recibidos?mes=2026-09
+E
+Estudio Contable Laboratorio
+· panel del contador
+Compras de El Ceibo (RI) v5
+Comprobantes recibidos · CUIT 30-71887633-4. El mes va por la fecha del comprobante, no por el día en que se cargó.
+Mes anterior
+09/2026
+Mes siguiente
+Descargar para el libro de IVA compras
+Volver a la cartera
+CARGAR EL ARCHIVO DE ARCA
+Mis Comprobantes › Recibidos › Descargar (CSV o Excel), sin editarlo.
+Elegir otro archivo
+recibidos-b-2026-09.csv
+Cargar comprobantes
+No entró ningún comprobante nuevo. 8 ya estaban cargados (no se duplican). 2 con errores: no se cargaron (el detalle está abajo).
+Neto gravado
+$0,00
+Otros tributos y percepciones
+$0,00
+Total
+$0,00
+NO SE CARGARON
+Fila 2
+Factura A 00003-00001234
+Ya estaba cargado (compra #1): no se duplica.
+Fila 3
+Factura A 00003-00001240
+Ya estaba cargado (compra #2): no se duplica.
+Fila 4
+Factura B 00005-00000088
+Ya estaba cargado (compra #3): no se duplica.
+Fila 5
+Factura C 00002-00000045
+Ya estaba cargado (compra #4): no se duplica.
+Fila 6
+Nota de crédito A 00003-00000077
+Ya estaba cargado (compra #5): no se duplica.
+Fila 7
+Factura A 00010-00000500
+Ya estaba cargado (compra #6): no se duplica.
+Fila 8
+Factura A 00003-00001234
+Está repetido en el archivo (ya aparece en la fila 2).
+Fila 9
+Factura A 00007-00000900
+Ya estaba cargado (compra #7): no se duplica.
+Fila 10
+Factura A 00007-00000901
+El CUIT del emisor no es válido.
+Fila 11
+Tique factura A 00001-00000015
+Ya estaba cargado (compra #8): no se duplica.
+RESUMEN DEL MES
+8 comprobantes, 1 notas de crédito (restan).
+Neto gravado
+$105.050,00
+IVA crédito fiscal 10,5%
+sobre $2.000,00
+$210,00
+IVA crédito fiscal 21%
+sobre $102.050,00
+$21.430,50
+IVA sin desglose por alícuota
+Comprobantes con varias alícuotas (el archivo clásico de ARCA no las separa) o marcados «A revisar» abajo: lo marcado no suma al crédito hasta que lo revises.
+$150,00
+No gravado y exento
+$0,00
+Otros tributos y percepciones
+$90,00
+Total
+$133.140,50
+COMPROBANTES DEL MES
+03/09/2026
+Factura A 00003-00001234 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.210,00
+05/09/2026
+Factura A 00003-00001240 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$3.510,00
+07/09/2026
+Factura B 00005-00000088 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.210,00
+09/09/2026
+Factura C 00002-00000045 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.000,00
+12/09/2026
+Nota de crédito A 00003-00000077 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$121,00
+15/09/2026
+Factura A 00010-00000500 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$121.060,50
+18/09/2026
+Factura A 00007-00000900 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.150,00
+Lo revisé
+22/09/2026
+Tique factura A 00001-00000015 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$121,00

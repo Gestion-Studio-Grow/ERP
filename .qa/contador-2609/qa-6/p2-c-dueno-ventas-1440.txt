@@ -1,0 +1,60 @@
+URL http://riochico-v6.localhost:3210/admin/locales/ventas
+Saltar al contenido
+C
+Comerciante
+Buscar en el menú
+Inicio
+Clientes
+Pedidos
+Caja
+Libro de caja
+Cierre del día
+Cierre del mes
+Catálogo
+Compras
+Ajustes
+Reseñas
+Recordatorios
+Facturación
+Reportes
+Campañas
+Auditoría
+Usuarios
+Localización
+Apariencia
+Cuentas a pagar
+Cuentas a cobrar
+Libros
+Devoluciones a proveedor
+S
+Supermercados Río Chico SA
+Dueño/a
+Cerrar sesión
+Comerciante
+Panel de administración
+Ventas por local
+Supermercados Río Chico SA
+Del 21/09/2026 al 26/09/2026: lo cobrado por ventas en cada local, menos las anulaciones, según la caja de cada uno.
+Hoy
+Ventas
+Cajas
+Desde
+Hasta
+Local
+Todos los locales
+Bernal
+Error de prueba v6
+Ver
+Total de la red: $0,00 · 0 cobros
+Descargar para la contadora
+Bernal
+CUIT 30-71245608-2 · punto de venta 4
+$0,00
+Efectivo $0,00 · MP / Transf. $0,00 · Tarjeta $0,00
+0 cobros · 0 días con movimiento
+Error de prueba v6
+CUIT 27-38441267-5 · punto de venta 1
+$0,00
+Efectivo $0,00 · MP / Transf. $0,00 · Tarjeta $0,00
+0 cobros · 0 días con movimiento
+No hubo ventas en estas fechas. Probá con otro rango.

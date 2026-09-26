@@ -15,7 +15,7 @@ export function RevelarClave({ clave, para }: { clave: string; para: React.React
   return (
     <div role="status" className="space-y-2 border-y border-line-strong bg-surface-raised px-3 py-3">
       <p className="text-sm text-strong">
-        Contraseña temporal de {para}. Se muestra <b>una sola vez</b>: copiala y pasásela por un canal seguro.
+        Contraseña temporal para {para}. Se muestra <b>una sola vez</b>: copiala y pasásela por un canal seguro.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <code className="select-all break-all rounded bg-surface-sunken px-2 py-1.5 font-mono text-base text-strong">{clave}</code>

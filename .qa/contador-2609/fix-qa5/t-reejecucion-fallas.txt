@@ -1,0 +1,671 @@
+TAP version 13
+# Subtest: Ingreso en el navegador
+    # Subtest: vista de siempre: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+    ok 1 - vista de siempre: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+      ---
+      duration_ms: 758.766095
+      type: 'test'
+      ...
+    # Subtest: diseño nuevo: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+    ok 2 - diseño nuevo: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+      ---
+      duration_ms: 629.180572
+      type: 'test'
+      ...
+    # Subtest: vista de siempre: lo que se tipea mientras espera la respuesta no se pierde al volver con el error
+    ok 3 - vista de siempre: lo que se tipea mientras espera la respuesta no se pierde al volver con el error
+      ---
+      duration_ms: 571.464907
+      type: 'test'
+      ...
+    # Subtest: vista de siempre: segunda clave equivocada (la pantalla no se rearma) → el email queda, la clave se vacía
+    ok 4 - vista de siempre: segunda clave equivocada (la pantalla no se rearma) → el email queda, la clave se vacía
+      ---
+      duration_ms: 493.712679
+      type: 'test'
+      ...
+    # Subtest: vista de siempre: entrando sin error, el email no aparece solo (se borra lo guardado)
+    ok 5 - vista de siempre: entrando sin error, el email no aparece solo (se borra lo guardado)
+      ---
+      duration_ms: 414.5375
+      type: 'test'
+      ...
+    1..5
+ok 1 - Ingreso en el navegador
+  ---
+  duration_ms: 4164.309269
+  type: 'suite'
+  ...
+# Subtest: el enlace de cada acción es de la app que declara (appDeRuta), y los ids no se repiten
+ok 2 - el enlace de cada acción es de la app que declara (appDeRuta), y los ids no se repiten
+  ---
+  duration_ms: 2.720123
+  type: 'test'
+  ...
+# Subtest: una acción aparece sólo si la persona ve su app
+ok 3 - una acción aparece sólo si la persona ve su app
+  ---
+  duration_ms: 2.616325
+  type: 'test'
+  ...
+# Subtest: el profesional ve su agenda pero no da turnos: la acción pide agenda:manage
+ok 4 - el profesional ve su agenda pero no da turnos: la acción pide agenda:manage
+  ---
+  duration_ms: 0.902892
+  type: 'test'
+  ...
+# Subtest: con la barra de siempre (CH), sólo las acciones de sus pantallas
+ok 5 - con la barra de siempre (CH), sólo las acciones de sus pantallas
+  ---
+  duration_ms: 5.083169
+  type: 'test'
+  ...
+# Subtest: con tienda (Comerciante): «Cierre del mes» va detrás de «Cierre del día», en su grupo, una sola vez
+ok 6 - con tienda (Comerciante): «Cierre del mes» va detrás de «Cierre del día», en su grupo, una sola vez
+  ---
+  duration_ms: 2.855542
+  type: 'test'
+  ...
+# Subtest: sin tienda (ERP vertical, CH): la barra queda IDÉNTICA
+ok 7 - sin tienda (ERP vertical, CH): la barra queda IDÉNTICA
+  ---
+  duration_ms: 0.284558
+  type: 'test'
+  ...
+# Subtest: quien no ve la app (sin permiso de reportes, como recepción) no la recibe en la barra
+ok 8 - quien no ve la app (sin permiso de reportes, como recepción) no la recibe en la barra
+  ---
+  duration_ms: 0.386781
+  type: 'test'
+  ...
+# Subtest: diez espacios, en el orden de la pantalla, sin apps repetidas entre listas
+ok 9 - diez espacios, en el orden de la pantalla, sin apps repetidas entre listas
+  ---
+  duration_ms: 4.106557
+  type: 'test'
+  ...
+# Subtest: toda app de un estante del Inicio tiene un espacio de la navegación; el Inicio y la consola, ninguno
+ok 10 - toda app de un estante del Inicio tiene un espacio de la navegación; el Inicio y la consola, ninguno
+  ---
+  duration_ms: 0.984462
+  type: 'test'
+  ...
+# Subtest: cada deuda al lado de su contraparte y el cierre del mes con los del día (A1)
+ok 11 - cada deuda al lado de su contraparte y el cierre del mes con los del día (A1)
+  ---
+  duration_ms: 0.515123
+  type: 'test'
+  ...
+# Subtest: «Facturas e impuestos» tiene exactamente las apps de los módulos argentinos (A10)
+ok 12 - «Facturas e impuestos» tiene exactamente las apps de los módulos argentinos (A10)
+  ---
+  duration_ms: 0.556551
+  type: 'test'
+  ...
+# Subtest: ningún espacio pasa de 8 apps por rubro con el registro de hoy
+ok 13 - ningún espacio pasa de 8 apps por rubro con el registro de hoy
+  ---
+  duration_ms: 1.039619
+  type: 'test'
+  ...
+# Subtest: el primer espacio se llama Recepción en servicios; los nombres no llevan siglas
+ok 14 - el primer espacio se llama Recepción en servicios; los nombres no llevan siglas
+  ---
+  duration_ms: 0.567711
+  type: 'test'
+  ...
+# Subtest: GUARDIA_EN_EL_LOADER sólo lista páginas que todavía dependen de su loader (sin requireApp)
+ok 15 - GUARDIA_EN_EL_LOADER sólo lista páginas que todavía dependen de su loader (sin requireApp)
+  ---
+  duration_ms: 1.29345
+  type: 'test'
+  ...
+# Subtest: el recorrido encuentra las páginas del panel
+ok 16 - el recorrido encuentra las páginas del panel
+  ---
+  duration_ms: 0.362888
+  type: 'test'
+  ...
+# Subtest: trinquete: páginas sin requireApp ≤ 3
+ok 17 - trinquete: páginas sin requireApp ≤ 3
+  ---
+  duration_ms: 0.22266
+  type: 'test'
+  ...
+# Subtest: toda página del panel pertenece a una app del registro
+ok 18 - toda página del panel pertenece a una app del registro
+  ---
+  duration_ms: 0.912538
+  type: 'test'
+  ...
+# Subtest: requireApp protege la app de SU ruta, no otra
+ok 19 - requireApp protege la app de SU ruta, no otra
+  ---
+  duration_ms: 2.161093
+  type: 'test'
+  ...
+# Subtest: la capability del registro es la que pide la página raíz de cada app (directo o en su loader)
+ok 20 - la capability del registro es la que pide la página raíz de cada app (directo o en su loader)
+  ---
+  duration_ms: 1.339718
+  type: 'test'
+  ...
+# Subtest: el recorrido encuentra los route handlers del panel
+ok 21 - el recorrido encuentra los route handlers del panel
+  ---
+  duration_ms: 0.387334
+  type: 'test'
+  ...
+# Subtest: trinquete: route handlers sin requireApp ≤ 0
+ok 22 - trinquete: route handlers sin requireApp ≤ 0
+  ---
+  duration_ms: 1.01831
+  type: 'test'
+  ...
+# Subtest: todo route handler pertenece a una app, y su requireApp es el de esa app
+ok 23 - todo route handler pertenece a una app, y su requireApp es el de esa app
+  ---
+  duration_ms: 0.823536
+  type: 'test'
+  ...
+# Subtest: sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+ok 24 - sin gate (CH y todo negocio fuera del piloto): misma barra en los 3 roles × 4 rubros × 3 perfiles
+  ---
+  duration_ms: 11.940653
+  type: 'test'
+  ...
+# Subtest: Comerciante (y perfil Comercio/Empresa): la barra de hoy, más las pantallas de edición que su plan le asigna
+ok 25 - Comerciante (y perfil Comercio/Empresa): la barra de hoy, más las pantallas de edición que su plan le asigna
+  ---
+  duration_ms: 44.186351
+  type: 'test'
+  ...
+# Subtest: CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+ok 26 - CH hoy: la barra del OWNER de beauty-spa, ítem por ítem
+  ---
+  duration_ms: 0.559154
+  type: 'test'
+  ...
+# Subtest: diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+ok 27 - diferencia BUSCADA, sólo en el piloto: manda el módulo de la app, no el de la barra de hoy
+  ---
+  duration_ms: 0.976945
+  type: 'test'
+  ...
+# Subtest: ids únicos y en kebab-case
+ok 28 - ids únicos y en kebab-case
+  ---
+  duration_ms: 2.544352
+  type: 'test'
+  ...
+# Subtest: rutas únicas, bajo /admin y sin barra final ni query
+ok 29 - rutas únicas, bajo /admin y sin barra final ni query
+  ---
+  duration_ms: 0.553457
+  type: 'test'
+  ...
+# Subtest: el módulo de cada app existe en el catálogo de módulos
+ok 30 - el módulo de cada app existe en el catálogo de módulos
+  ---
+  duration_ms: 1.711682
+  type: 'test'
+  ...
+# Subtest: moduloDuro exige un módulo, y toda app de Mis locales es moduloDuro
+ok 31 - moduloDuro exige un módulo, y toda app de Mis locales es moduloDuro
+  ---
+  duration_ms: 0.381111
+  type: 'test'
+  ...
+# Subtest: ninguna app declara scopeItems ni campos fuera del contrato
+ok 32 - ninguna app declara scopeItems ni campos fuera del contrato
+  ---
+  duration_ms: 0.442783
+  type: 'test'
+  ...
+# Subtest: trinquete: ningún módulo NUEVO declara scopeItems[].ruta
+ok 33 - trinquete: ningún módulo NUEVO declara scopeItems[].ruta
+  ---
+  duration_ms: 0.464728
+  type: 'test'
+  ...
+# Subtest: cada app cae en un espacio que existe, y los órdenes de espacio no repiten apps
+ok 34 - cada app cae en un espacio que existe, y los órdenes de espacio no repiten apps
+  ---
+  duration_ms: 0.458217
+  type: 'test'
+  ...
+# Subtest: menuDeHoy: posiciones únicas; kpi: ids únicos
+ok 35 - menuDeHoy: posiciones únicas; kpi: ids únicos
+  ---
+  duration_ms: 0.343297
+  type: 'test'
+  ...
+# Subtest: sólo el Inicio es exacta, y sólo 'App no disponible' se abre con la sesión sola
+ok 36 - sólo el Inicio es exacta, y sólo 'App no disponible' se abre con la sesión sola
+  ---
+  duration_ms: 1.814861
+  type: 'test'
+  ...
+# Subtest: las 28 apps de la ola 1 están registradas con su ruta de hoy
+ok 37 - las 28 apps de la ola 1 están registradas con su ruta de hoy
+  ---
+  duration_ms: 0.848372
+  type: 'test'
+  ...
+# Subtest: buscarApp no confía en lo que llega de afuera
+ok 38 - buscarApp no confía en lo que llega de afuera
+  ---
+  duration_ms: 0.319349
+  type: 'test'
+  ...
+# Subtest: para cada pantalla de la barra de hoy y sus sub-rutas, la misma pantalla que navItemForPath
+ok 39 - para cada pantalla de la barra de hoy y sus sub-rutas, la misma pantalla que navItemForPath
+  ---
+  duration_ms: 3.951676
+  type: 'test'
+  ...
+# Subtest: Facturación automática es su propia app, con todo lo que cuelga de ella
+ok 40 - Facturación automática es su propia app, con todo lo que cuelga de ella
+  ---
+  duration_ms: 0.240901
+  type: 'test'
+  ...
+# Subtest: match por segmento, el Inicio sólo exacto, y lo que no es de nadie da undefined
+ok 41 - match por segmento, el Inicio sólo exacto, y lo que no es de nadie da undefined
+  ---
+  duration_ms: 0.240734
+  type: 'test'
+  ...
+# Subtest: sub-rutas de hoy caen en su app
+ok 42 - sub-rutas de hoy caen en su app
+  ---
+  duration_ms: 0.203779
+  type: 'test'
+  ...
+# Subtest: normalizarRuta saca query, hash y la barra final
+ok 43 - normalizarRuta saca query, hash y la barra final
+  ---
+  duration_ms: 0.211346
+  type: 'test'
+  ...
+# Subtest: Comerciante con `pos`: Vender y Ventas del día pasan; sin `pos`, rebotan como antes
+ok 44 - Comerciante con `pos`: Vender y Ventas del día pasan; sin `pos`, rebotan como antes
+  ---
+  duration_ms: 0.330694
+  type: 'test'
+  ...
+# Subtest: una casa Comerciante con `multilocal`: Mis locales y sus sub-apps pasan; sin el módulo, no
+ok 45 - una casa Comerciante con `multilocal`: Mis locales y sus sub-apps pasan; sin el módulo, no
+  ---
+  duration_ms: 0.431515
+  type: 'test'
+  ...
+# Subtest: el gate no se afloja con lo que el Comerciante no tiene, ni con rutas que no son de nadie
+ok 46 - el gate no se afloja con lo que el Comerciante no tiene, ni con rutas que no son de nadie
+  ---
+  duration_ms: 0.215705
+  type: 'test'
+  ...
+# Subtest: Cierre del mes (app del núcleo) pasa el gate por URL en todos los planes con tienda
+ok 47 - Cierre del mes (app del núcleo) pasa el gate por URL en todos los planes con tienda
+  ---
+  duration_ms: 0.620849
+  type: 'test'
+  ...
+# Subtest: el layout del panel arma el gate del Comerciante con las dos reglas
+ok 48 - el layout del panel arma el gate del Comerciante con las dos reglas
+  ---
+  duration_ms: 9.407997
+  type: 'test'
+  ...
+# Subtest: el interruptor decide por negocio: apagado, sin gate; prendido y con asignación, piloto
+ok 49 - el interruptor decide por negocio: apagado, sin gate; prendido y con asignación, piloto
+  ---
+  duration_ms: 2.069813
+  type: 'test'
+  ...
+# Subtest: CH queda SIN gate aun con el interruptor prendido: su asignación está vacía
+ok 50 - CH queda SIN gate aun con el interruptor prendido: su asignación está vacía
+  ---
+  duration_ms: 0.367006
+  type: 'test'
+  ...
+# Subtest: magra: sin gate con el interruptor apagado; prendido, sus módulos resueltos
+ok 51 - magra: sin gate con el interruptor apagado; prendido, sus módulos resueltos
+  ---
+  duration_ms: 2.617656
+  type: 'test'
+  ...
+# Subtest: piloto: un módulo sin su dependencia no habilita nada (resolverActivacion real)
+ok 52 - piloto: un módulo sin su dependencia no habilita nada (resolverActivacion real)
+  ---
+  duration_ms: 0.769469
+  type: 'test'
+  ...
+# Subtest: Comerciante: el set asignado tal cual, con o sin piloto; el flag global manda sobre todo
+ok 53 - Comerciante: el set asignado tal cual, con o sin piloto; el flag global manda sobre todo
+  ---
+  duration_ms: 0.657072
+  type: 'test'
+  ...
+# Subtest: sin gate, el módulo no decide nada: CH ve Facturación aunque no tenga `arca` asignado
+ok 54 - sin gate, el módulo no decide nada: CH ve Facturación aunque no tenga `arca` asignado
+  ---
+  duration_ms: 0.464277
+  type: 'test'
+  ...
+# Subtest: piloto: el gate saca sólo lo no asignado; con inventario, bancos y campañas, magra no pierde nada
+ok 55 - piloto: el gate saca sólo lo no asignado; con inventario, bancos y campañas, magra no pierde nada
+  ---
+  duration_ms: 14.23696
+  type: 'test'
+  ...
+# Subtest: piloto: manda el módulo, no el perfil (Libro IVA sin el callejón de 'edición Empresa')
+ok 56 - piloto: manda el módulo, no el perfil (Libro IVA sin el callejón de 'edición Empresa')
+  ---
+  duration_ms: 1.893253
+  type: 'test'
+  ...
+# Subtest: Comerciante: la guardia usa el módulo de su barra de hoy; el piloto, el de la app
+ok 57 - Comerciante: la guardia usa el módulo de su barra de hoy; el piloto, el de la app
+  ---
+  duration_ms: 0.760956
+  type: 'test'
+  ...
+# Subtest: QA vuelta 5 · Comerciante y PyME del configurador: el Libro IVA que trae el plan se abre y está en la barra
+ok 58 - QA vuelta 5 · Comerciante y PyME del configurador: el Libro IVA que trae el plan se abre y está en la barra
+  ---
+  duration_ms: 1.420146
+  type: 'test'
+  ...
+# Subtest: moduloDuro: invisible con contexto null si el negocio no tiene el módulo
+ok 59 - moduloDuro: invisible con contexto null si el negocio no tiene el módulo
+  ---
+  duration_ms: 0.344311
+  type: 'test'
+  ...
+# Subtest: moduloDuro: el módulo de la barra de hoy no lo afloja en el Comerciante
+ok 60 - moduloDuro: el módulo de la barra de hoy no lo afloja en el Comerciante
+  ---
+  duration_ms: 3.992268
+  type: 'test'
+  ...
+# Subtest: moduloDuro: la casa (con el módulo asignado) la ve, con o sin gate
+ok 61 - moduloDuro: la casa (con el módulo asignado) la ve, con o sin gate
+  ---
+  duration_ms: 0.284992
+  type: 'test'
+  ...
+# Subtest: motivos: rol primero, después en preparación, módulo, rubro y edición
+ok 62 - motivos: rol primero, después en preparación, módulo, rubro y edición
+  ---
+  duration_ms: 0.299089
+  type: 'test'
+  ...
+# Subtest: 'App no disponible' la abre cualquiera con sesión, y nunca se ofrece en un lanzador
+ok 63 - 'App no disponible' la abre cualquiera con sesión, y nunca se ofrece en un lanzador
+  ---
+  duration_ms: 0.430232
+  type: 'test'
+  ...
+# Subtest: el buscador no revela apps ocultas, ni tecleando su nombre, sus palabras o su rótulo de hoy
+ok 64 - el buscador no revela apps ocultas, ni tecleando su nombre, sus palabras o su rótulo de hoy
+  ---
+  duration_ms: 110.135497
+  type: 'test'
+  ...
+# Subtest: el buscador encuentra lo que la persona sí ve, por nombre, palabra o rótulo de hoy
+ok 65 - el buscador encuentra lo que la persona sí ve, por nombre, palabra o rótulo de hoy
+  ---
+  duration_ms: 0.965402
+  type: 'test'
+  ...
+# Subtest: appsVisibles sale ordenada por espacio y, adentro, por el orden decidido
+ok 66 - appsVisibles sale ordenada por espacio y, adentro, por el orden decidido
+  ---
+  duration_ms: 0.578929
+  type: 'test'
+  ...
+# Subtest: PROFESSIONAL teclea /admin/facturacion: el porqué es su rol y el botón va a su agenda
+ok 67 - PROFESSIONAL teclea /admin/facturacion: el porqué es su rol y el botón va a su agenda
+  ---
+  duration_ms: 0.690267
+  type: 'test'
+  ...
+# Subtest: a quién pedírsela: la dueña o el dueño a GSG, el resto del equipo a la dueña o el dueño
+ok 68 - a quién pedírsela: la dueña o el dueño a GSG, el resto del equipo a la dueña o el dueño
+  ---
+  duration_ms: 0.419443
+  type: 'test'
+  ...
+# Subtest: sin loop: si la casa del rol tampoco se puede abrir, no hay botón de vuelta
+ok 69 - sin loop: si la casa del rol tampoco se puede abrir, no hay botón de vuelta
+  ---
+  duration_ms: 0.282211
+  type: 'test'
+  ...
+# Subtest: número del botón: RECEPTION ve cuántos, nunca cuánta plata
+ok 70 - número del botón: RECEPTION ve cuántos, nunca cuánta plata
+  ---
+  duration_ms: 0.270558
+  type: 'test'
+  ...
+# Subtest: número del botón: ninguna app con plata en su número se la muestra a quien no tiene reports:read
+ok 71 - número del botón: ninguna app con plata en su número se la muestra a quien no tiene reports:read
+  ---
+  duration_ms: 0.359237
+  type: 'test'
+  ...
+# Subtest: el encargado: RECEPTION de un mostrador del piloto abre Stock, Recibir mercadería y Mermas; en CH, no
+ok 72 - el encargado: RECEPTION de un mostrador del piloto abre Stock, Recibir mercadería y Mermas; en CH, no
+  ---
+  duration_ms: 0.223494
+  type: 'test'
+  ...
+# Subtest: Vender y Ventas del día: CH no las ve ni por URL; un comercio con pos sí
+ok 73 - Vender y Ventas del día: CH no las ve ni por URL; un comercio con pos sí
+  ---
+  duration_ms: 36.119942
+  type: 'test'
+  ...
+# Subtest: catálogo: cinco planes, uno por id, con nombre y a quién le sirve
+ok 74 - catálogo: cinco planes, uno por id, con nombre y a quién le sirve
+  ---
+  duration_ms: 3.133019
+  type: 'test'
+  ...
+# Subtest: esPlanId es estricto: el texto libre de antes en Tenant.plan no se lee como un plan
+ok 75 - esPlanId es estricto: el texto libre de antes en Tenant.plan no se lee como un plan
+  ---
+  duration_ms: 0.390655
+  type: 'test'
+  ...
+# Subtest: rubroDelNegocio usa los dos datos de la barra
+ok 76 - rubroDelNegocio usa los dos datos de la barra
+  ---
+  duration_ms: 0.343602
+  type: 'test'
+  ...
+# Subtest: 1a. todo módulo de cada plan (propios, por rubro y agregables) existe en el catálogo de módulos
+ok 77 - 1a. todo módulo de cada plan (propios, por rubro y agregables) existe en el catálogo de módulos
+  ---
+  duration_ms: 0.454626
+  type: 'test'
+  ...
+# Subtest: 1b. las dependencias de cada módulo están dentro del plan, en cada rubro y con cada agregado
+ok 78 - 1b. las dependencias de cada módulo están dentro del plan, en cada rubro y con cada agregado
+  ---
+  duration_ms: 1.355507
+  type: 'test'
+  ...
+# Subtest: 1c. el gate real no descarta nada del plan en NINGÚN blueprint: ni desconocidos, ni de otro rubro, ni con dependencias colgadas
+ok 79 - 1c. el gate real no descarta nada del plan en NINGÚN blueprint: ni desconocidos, ni de otro rubro, ni con dependencias colgadas
+  ---
+  duration_ms: 4.336196
+  type: 'test'
+  ...
+# Subtest: 1c'. el plan se aplica por el camino de la consola (validarCambio, de a un módulo) en cualquier blueprint
+ok 80 - 1c'. el plan se aplica por el camino de la consola (validarCambio, de a un módulo) en cualquier blueprint
+  ---
+  duration_ms: 15.318417
+  type: 'test'
+  ...
+# Subtest: 1c''. las pruebas de rubro muerden: un módulo de un solo blueprint en el plan se detecta en una estética
+ok 81 - 1c''. las pruebas de rubro muerden: un módulo de un solo blueprint en el plan se detecta en una estética
+  ---
+  duration_ms: 0.526358
+  type: 'test'
+  ...
+# Subtest: 1d. la prueba de dependencias muerde: un plan con inventario sin catálogo se detecta
+ok 82 - 1d. la prueba de dependencias muerde: un plan con inventario sin catálogo se detecta
+  ---
+  duration_ms: 1.014082
+  type: 'test'
+  ...
+# Subtest: agregables: no repiten lo del plan, y lo que un plan suma suelto el siguiente lo trae o lo ofrece
+ok 83 - agregables: no repiten lo del plan, y lo que un plan suma suelto el siguiente lo trae o lo ofrece
+  ---
+  duration_ms: 0.763725
+  type: 'test'
+  ...
+# Subtest: cada módulo que vende un plan se nota: alguna app suya aparece en la vitrina, o trabaja de fondo
+ok 84 - cada módulo que vende un plan se nota: alguna app suya aparece en la vitrina, o trabaja de fondo
+  ---
+  duration_ms: 11.603727
+  type: 'test'
+  ...
+# Subtest: modulosDelPlan: suma los agregables y rechaza con el porqué lo que el plan no ofrece
+ok 85 - modulosDelPlan: suma los agregables y rechaza con el porqué lo que el plan no ofrece
+  ---
+  duration_ms: 0.47005
+  type: 'test'
+  ...
+# Subtest: 2a. escalera en MÓDULOS, en cada rubro
+ok 86 - 2a. escalera en MÓDULOS, en cada rubro
+  ---
+  duration_ms: 6.38232
+  type: 'test'
+  ...
+# Subtest: 2b. escalera en APPS, en cada rubro (con el mismo gate que el Inicio)
+ok 87 - 2b. escalera en APPS, en cada rubro (con el mismo gate que el Inicio)
+  ---
+  duration_ms: 10.951996
+  type: 'test'
+  ...
+# Subtest: 2c. escalera en LÍMITES: ningún tope baja al subir de plan (sin tope = el más alto)
+ok 88 - 2c. escalera en LÍMITES: ningún tope baja al subir de plan (sin tope = el más alto)
+  ---
+  duration_ms: 0.440508
+  type: 'test'
+  ...
+# Subtest: 2d. escalera en PERFIL: subir nunca pasa de Empresa a Comercio
+ok 89 - 2d. escalera en PERFIL: subir nunca pasa de Empresa a Comercio
+  ---
+  duration_ms: 0.174514
+  type: 'test'
+  ...
+# Subtest: 2e. cada escalón suma algo: ningún plan de la escalera es igual al anterior en módulos y límites
+ok 90 - 2e. cada escalón suma algo: ningún plan de la escalera es igual al anterior en módulos y límites
+  ---
+  duration_ms: 0.21949
+  type: 'test'
+  ...
+# Subtest: 3a. ningún plan vende un módulo cuya app está en preparación
+ok 91 - 3a. ningún plan vende un módulo cuya app está en preparación
+  ---
+  duration_ms: 0.319891
+  type: 'test'
+  ...
+# Subtest: 3b. la vitrina no regala: cada app que muestra es del núcleo o de un módulo que el plan trae
+ok 92 - 3b. la vitrina no regala: cada app que muestra es del núcleo o de un módulo que el plan trae
+  ---
+  duration_ms: 5.269956
+  type: 'test'
+  ...
+# Subtest: 3c. la prueba de 'en preparación' muerde: una app en preparación de un módulo del plan se detecta y no se muestra
+ok 93 - 3c. la prueba de 'en preparación' muerde: una app en preparación de un módulo del plan se detecta y no se muestra
+  ---
+  duration_ms: 0.447503
+  type: 'test'
+  ...
+# Subtest: 4a. el Estudio trae la cartera y no Mis locales, ni en su rubro ni con agregados
+ok 94 - 4a. el Estudio trae la cartera y no Mis locales, ni en su rubro ni con agregados
+  ---
+  duration_ms: 0.344652
+  type: 'test'
+  ...
+# Subtest: 4b. ningún plan junta cartera y Mis locales, y la cartera es sólo del Estudio
+ok 95 - 4b. ningún plan junta cartera y Mis locales, y la cartera es sólo del Estudio
+  ---
+  duration_ms: 0.184945
+  type: 'test'
+  ...
+# Subtest: 4c. el Estudio, con el menú real de su producto, no ve Mis locales ni el mostrador
+ok 96 - 4c. el Estudio, con el menú real de su producto, no ve Mis locales ni el mostrador
+  ---
+  duration_ms: 0.423697
+  type: 'test'
+  ...
+# Subtest: Facturación es el núcleo del producto de facturación de hoy; el Estudio, el del contador
+ok 97 - Facturación es el núcleo del producto de facturación de hoy; el Estudio, el del contador
+  ---
+  duration_ms: 0.34258
+  type: 'test'
+  ...
+# Subtest: appsDelPlan usa el mismo gate que un negocio real que trabaja por apps (el Estudio, con el de su producto)
+ok 98 - appsDelPlan usa el mismo gate que un negocio real que trabaja por apps (el Estudio, con el de su producto)
+  ---
+  duration_ms: 3.882548
+  type: 'test'
+  ...
+# Subtest: la vitrina no promete de más en ningún blueprint (salvo el de menú de producto, que se conoce)
+ok 99 - la vitrina no promete de más en ningún blueprint (salvo el de menú de producto, que se conoce)
+  ---
+  duration_ms: 45.748674
+  type: 'test'
+  ...
+# Subtest: en un negocio de menú de producto la escalera NO decide sus apps: se sabe y se mide
+ok 100 - en un negocio de menú de producto la escalera NO decide sus apps: se sabe y se mide
+  ---
+  duration_ms: 1.276836
+  type: 'test'
+  ...
+# Subtest: lo que ve la dueña cubre lo que ve todo el equipo
+ok 101 - lo que ve la dueña cubre lo que ve todo el equipo
+  ---
+  duration_ms: 8.648423
+  type: 'test'
+  ...
+# Subtest: la vitrina dice lo que cada plan vende (casos concretos)
+ok 102 - la vitrina dice lo que cada plan vende (casos concretos)
+  ---
+  duration_ms: 4.117115
+  type: 'test'
+  ...
+# Subtest: precios: uno por plan, todos provisionales a confirmar
+ok 103 - precios: uno por plan, todos provisionales a confirmar
+  ---
+  duration_ms: 0.317404
+  type: 'test'
+  ...
+# Subtest: ningún archivo que decide importa los precios
+ok 104 - ningún archivo que decide importa los precios
+  ---
+  duration_ms: 60.223105
+  type: 'test'
+  ...
+# Subtest: el catálogo es dato puro: sólo importa tipos (se puede leer desde el navegador)
+ok 105 - el catálogo es dato puro: sólo importa tipos (se puede leer desde el navegador)
+  ---
+  duration_ms: 5.781274
+  type: 'test'
+  ...
+1..105
+# tests 109
+# suites 1
+# pass 109
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4805.769598

@@ -60,11 +60,11 @@ test("monitor de monotributo: suma, categoría declarada y aislamiento por negoc
   }
 
   let nro = 1;
-  const factura = (tenantId: string, fecha: string, total: number, tipo = 11, status: "AUTHORIZED" | "PENDING" = "AUTHORIZED") =>
+  const factura = (tenantId: string, fecha: string, total: number, tipo = 11, status: "AUTHORIZED" | "PENDING" = "AUTHORIZED", cae: string | null = null) =>
     operatorPrisma.invoice.create({
       data: {
         tenantId, puntoVenta: 1, tipoComprobante: tipo, concepto: 2, docTipo: 99, docNro: "0", fecha,
-        neto: total, iva: 0, total, status, numero: status === "AUTHORIZED" ? nro++ : null,
+        neto: total, iva: 0, total, status, numero: status === "AUTHORIZED" ? nro++ : null, cae,
       },
     });
   await factura(kiosco.id, dentro, 9_000_000);
@@ -72,6 +72,8 @@ test("monitor de monotributo: suma, categoría declarada y aislamiento por negoc
   await factura(kiosco.id, dentro, 500_000, 13); // nota de crédito C: resta
   await factura(kiosco.id, afuera, 50_000_000); // fuera de los 12 meses
   await factura(kiosco.id, dentro, 70_000_000, 11, "PENDING"); // sin CAE: no cuenta
+  // Refutador vuelta 4: la factura de prueba (CAE simulado del modo prueba) no es ingreso para el tope.
+  await factura(kiosco.id, dentro, 3_000_000, 11, "AUTHORIZED", "STUB00000077");
   await factura(ferreteria.id, dentro, 1_000);
   await factura(base.b.id, dentro, 99_000_000); // ajeno
 
@@ -94,7 +96,7 @@ test("monitor de monotributo: suma, categoría declarada y aislamiento por negoc
     "el cuadro de la recategorización se informa sólo con la ventana en curso",
   );
   const k1 = m1.filas.find((f) => f.alias === "Kiosco de Marta")!;
-  assert.equal(k1.ingresos.ingresos, 10_000_000, "9.000.000 + 1.500.000 − 500.000; ni la vieja ni la pendiente");
+  assert.equal(k1.ingresos.ingresos, 10_000_000, "9.000.000 + 1.500.000 − 500.000; ni la vieja, ni la pendiente, ni la de prueba (STUB)");
   assert.equal(k1.ingresos.notasDeCredito, 1);
   assert.equal(k1.semaforo, "sin_categoria");
   assert.equal(k1.categoria, null);

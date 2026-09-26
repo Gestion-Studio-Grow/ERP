@@ -34,6 +34,7 @@ export default async function ConfigurarSolicitudPage({ params }: { params: Prom
       <ConfiguradorClient
         operador={sesion.nombre}
         cerrada={s.cerrada}
+        cierre={s.cierre}
         pedido={{
           id: s.id,
           estudio: { id: s.estudio.id, nombre: s.estudio.nombre, whatsapp: s.estudio.whatsapp },

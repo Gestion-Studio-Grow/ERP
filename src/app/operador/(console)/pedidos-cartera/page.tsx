@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function PedidosCarteraPage() {
   await requireSesionOperador();
   const pedidos = await listarPedidosDeCartera(operatorPrisma);
-  const fmt = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Argentina/Buenos_Aires" });
+  const fmt = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", hourCycle: "h23", timeZone: "America/Argentina/Buenos_Aires" });
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">

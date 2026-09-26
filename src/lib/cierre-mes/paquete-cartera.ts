@@ -23,7 +23,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { MODULO_CARTERA, exigirClienteDeCartera, type EstadoCartera, type FilaCarteraDb } from "@/lib/cartera-core";
-import { esMesKey } from "@/lib/libros/fecha-fiscal";
+import { esMesKey, etiquetaDelMes } from "@/lib/libros/fecha-fiscal";
 import { mesCerrable } from "./cierre-mes";
 import { armarPaquete, nombreDelPaquete } from "./paquete";
 import { leerDatosPaquete, registrarDescarga } from "./paquete-lectura";
@@ -60,8 +60,10 @@ export async function paqueteDelClienteParaElEstudio(
   if (!estudio?.modules?.includes(MODULO_CARTERA)) {
     return { ok: false, status: 404, error: "Tu negocio no tiene la cartera del estudio contable." };
   }
-  if (!esMesKey(mesRaw) || !mesCerrable(mesRaw, ahora)) {
-    return { ok: false, status: 400, error: "Ese mes todavía no terminó: el paquete se baja cuando el mes cierra. Elegí un mes que ya terminó." };
+  if (!esMesKey(mesRaw)) return { ok: false, status: 400, error: "El mes pedido no es válido. Volvé a la cartera y elegilo de nuevo." };
+  if (!mesCerrable(mesRaw, ahora)) {
+    // QA vuelta 6: el mes en curso no es un error del pedido: se explica, sin 400.
+    return { ok: false, status: 200, error: `${etiquetaDelMes(mesRaw).replace(/^./, (l) => l.toUpperCase())} todavía no terminó: el paquete se baja desde el día 1 del mes siguiente.` };
   }
   const clienteTenantId = String(clienteRaw ?? "").trim();
   if (!clienteTenantId) return { ok: false, status: 400, error: "Falta el cliente." };

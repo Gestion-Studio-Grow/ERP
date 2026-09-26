@@ -1,0 +1,270 @@
+--- paso 2 ---
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco; si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+20
+· 3 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+2
+Rubro
+3
+¿De qué red?
+4
+Módulos
+✓
+Marca y link
+6
+Revisar
+Rubro del negocio
+Define con qué nace el local: su catálogo de ejemplo, las palabras de su vidriera y sus pantallas. Es obligatorio.
+RUBRO, EN PALABRAS
+Se busca el rubro que corresponde; si no hay, el genérico.
+…O ELEGILO DE LA LISTA
+Según lo escrito
+Carnicería boutique
+Verdulería
+Dietética
+Kiosco
+Fiambrería
+Indumentaria
+Velas & deco
+Tienda de pádel
+Perfumería
+Estética / Spa
+Peluquería / Barbería
+Veterinaria
+Consultorio / Salud
+Plomería
+Electricidad
+Cerrajería
+Refrigeración / Climatización
+Fletes / Mudanzas
+Restaurante / Parrilla
+Cafetería
+Panadería
+Rotisería
+Pizzería
+Heladería
+Servicios / Turnos
+Genérico / Comodín
+Facturita
+Si lo elegís, manda sobre lo escrito.
+Elegí el rubro para seguir. Si se pasa de largo, el negocio nace como uno de servicios (agenda de turnos, lista de espera, catálogo de servicios), aunque sea una carnicería. Corregirlo después es rehacer el alta.
+Atrás
+Siguiente
+ASÍ VA A QUEDAR
+LT
+Los Tilos Banfield
+<TEMPORAL>
+Servicios / Turnos
+Módulos (7)
+Agenda / Turnos
+Catálogo
+Clientes
+Lista de espera
+Recordatorios
+Reportes
+Comisiones
+rubros: =Según lo escrito ; carniceria=Carnicería boutique ; verduleria=Verdulería ; dietetica=Dietética ; kiosco=Kiosco ; fiambreria=Fiambrería ; indumentaria=Indumentaria ; velas=Velas & deco ; padel=Tienda de pádel ; perfumeria=Perfumería ; estetica=Estética / Spa ; peluqueria=Peluquería / Barbería ; veterinaria=Veterinaria ; consultorio=Consultorio / Salud ; plomeria=Plomería ; electricista=Electricidad ; cerrajeria=Cerrajería ; refrigeracion=Refrigeración / Climatización ; fletes=Fletes / Mudanzas ; restaurante=Restaurante / Parrilla ; cafeteria=Cafetería ; panaderia=Panadería ; rotiseria=Rotisería ; pizzeria=Pizzería ; heladeria=Heladería ; servicios=Servicios / Turnos ; generico=Genérico / Comodín ; facturita=Facturita
+--- paso 3 ---
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco; si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+20
+· 3 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+✓
+Rubro
+3
+¿De qué red?
+4
+Módulos
+✓
+Marca y link
+6
+Revisar
+¿De qué red?
+Si el local es de una marca con varios locales, elegí su casa: al crearlo queda vinculado a ella, con su CUIT y punto de venta, y con la lista de precios de la casa, en la misma corrida. Si es un negocio suelto, seguí de largo.
+Negocio suelto (como hasta hoy)
+Local de una red
+Atrás
+Siguiente
+ASÍ VA A QUEDAR
+LT
+Los Tilos Banfield
+<TEMPORAL>
+Genérico / Comodín
+Módulos (5)
+Clientes
+Reportes
+ARCA — Facturación electrónica
+Mercado Pago — Cobros
+Bancos — Facturación desde el extracto
+radio "Local de una red" habilitado: true
+casas: cmuijm529000bac7dp0pabyzv=Distribuidora Río Bamba SA ; cmuig4ikq000ia17d65vmicjs=Distribuidora del Sur SA ; cmuigqmjl00a9a17d73aw68db=Grupo Andino SA ; cmrhv1kwk0018ww7dsn4r2df2=MAGRA ; cmuiq1y4v000jrr7dctlngra4=Mayorista Los Tilos SA ; cmuilesi3000r7k7dst9862tq=Supermercados Norte Grande SA
+cuit precargado: 
+--- paso 4 ---
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco; si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+20
+· 3 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+✓
+Rubro
+✓
+¿De qué red?
+4
+Módulos
+✓
+Marca y link
+6
+Revisar
+Módulos que trae
+Salen del rubro. Quedan guardados en el negocio: mientras no trabaje por apps, sus pantallas las decide el rubro, así que esta lista es lo que contrata el local, no un interruptor de pantallas.
+Base del rubro
+Clientes
+Ficha de clientes e historial.
+Reportes
+Ingresos, comisiones y métricas.
+ARCA — Facturación electrónica
+Autorización fiscal de comprobantes ante ARCA (ex-AFIP): obtiene el CAE vía WSAA + WSFEv1. No calcula impuestos (eso vive en el Core, ADR-006).
+Mercado Pago — Cobros
+Cobros por Mercado Pago: genera links de pago (Checkout Pro) y recibe notificaciones; al acreditarse un pago, auto-factura el turno asociado (ADR-024). No calcula impuestos ni escribe la DB del Core.
+Bancos — Facturación desde el extracto
+Importa extractos bancarios (CSV/XLSX), detecta solo las columnas, separa ventas de comisiones/impuestos/transferencias y propone las facturas. No calcula impuestos (eso vive en el Core, ADR-006).
+Atrás
+Siguiente
+ASÍ VA A QUEDAR
+LT
+Los Tilos Banfield
+<TEMPORAL>
+Genérico / Comodín
+Red de Mayorista Los Tilos SA
+Módulos (5)
+Clientes
+Reportes
+ARCA — Facturación electrónica
+Mercado Pago — Cobros
+Bancos — Facturación desde el extracto
+--- paso 5 ---
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco; si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+20
+· 3 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+✓
+Rubro
+✓
+¿De qué red?
+✓
+Módulos
+5
+Marca y link
+6
+Revisar
+Marca y link
+COLOR DE LA MARCA
+petroleo
+oxblood
+rosa
+celeste
+verde
+ambar
+azul
+TEMA DE LA VIDRIERA
+Claro
+Oscuro
+MONOGRAMA
+Si lo dejás vacío, se sugiere del nombre.
+LT
+Así se ve el color sobre el tema elegido.
+LINK PROPIO (SUBDOMINIO)
+Su dirección en internet: nombre.localhost. Única. Opcional.
+Datos de contacto del negocio (opcional)
+Atrás
+Siguiente
+ASÍ VA A QUEDAR
+LT
+Los Tilos Banfield
+<TEMPORAL>
+Genérico / Comodín
+Red de Mayorista Los Tilos SA
+Módulos (5)
+Clientes
+Reportes
+ARCA — Facturación electrónica
+Mercado Pago — Cobros
+Bancos — Facturación desde el extracto
+--- paso 6 ---
+← Negocios
+Dar de alta un negocio
+Paso a paso, con la vista previa de cómo queda. Antes de crear nada se hace una prueba en seco; si algo falla a mitad de camino, no queda nada a medias, y repetir el alta no lo duplica. Si el local es de una marca con varios locales, el paso «¿De qué red?» lo deja vinculado a su casa, con su punto de venta y la lista de precios de la casa, en la misma corrida.
+Negocios abiertos este mes:
+20
+· 3 sin punto de venta (no pueden facturar: se carga en su ficha)
+✓
+Negocio
+✓
+Rubro
+✓
+¿De qué red?
+✓
+Módulos
+✓
+Marca y link
+6
+Revisar
+Revisar y dar de alta
+Con más de un negocio en la base, el alta exige el aislamiento entre negocios prendido. Si no lo está, el alta se frena con un error que lo dice, y no se escribe nada.
+Negocio
+Los Tilos Banfield
+Nombre corto
+<TEMPORAL>
+Dueño
+banfield@lostilos.ejemplo.test
+Rubro
+Genérico / Comodín
+Módulos
+5 activos
+Color y tema
+el del rubro · claro
+Link
+<TEMPORAL>
+Red
+Local de Mayorista Los Tilos SA · CUIT 30705442963 · punto de venta 4
+Al crear, en la misma corrida: queda vinculado a Mayorista Los Tilos SA (con auditoría en los dos), con su CUIT y punto de venta, y con la lista de precios de la casa. El stock no se copia: entra por recuento o por un traslado.
+Se va a crear
++
+Tenant · Los Tilos Banfield · /<TEMPORAL>
++
+Usuario OWNER · banfield@lostilos.ejemplo.test
++
+BusinessSettings · branding/localización del negocio
++
+Catálogo del blueprint · sembrado por "generico" si el tenant está vacío
+Atrás
+Dar de alta el negocio
+ASÍ VA A QUEDAR
+LT
+Los Tilos Banfield
+<TEMPORAL>
+Genérico / Comodín
+Red de Mayorista Los Tilos SA
+Módulos (5)
+Clientes
+Reportes
+ARCA — Facturación electrónica
+Mercado Pago — Cobros
+Bancos — Facturación desde el extracto
+Link: <TEMPORAL>
+boton crear: no hay

@@ -1,0 +1,4 @@
+[aisl csv propio-b] HTTP 200 md5=be19f768 len=1784 :: ﻿Fecha;Comprobante;Punto de venta;Número;CUIT del emisor;Emisor;Neto gravado;No gravado
+[aisl csv magraLomas] HTTP 404 md5=6c1c8f7d len=35 :: Ese cliente no está en tu cartera.
+[aisl csv sarandi] HTTP 404 md5=6c1c8f7d len=35 :: Ese cliente no está en tu cartera.
+[aisl csv inexistente] HTTP 404 md5=6c1c8f7d len=35 :: Ese cliente no está en tu cartera.

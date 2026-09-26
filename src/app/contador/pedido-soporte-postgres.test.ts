@@ -141,24 +141,29 @@ test("pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el lími
   assert.deepEqual(bandeja1.map((p) => p.id), [enBandeja.id], "sólo pedidos abiertos, nada inventado");
 
   // «No corresponde» sin porqué: no se cierra.
-  const sinPorque = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: enBandeja.id, sesion: SOPORTE, resultado: "no_corresponde", respuesta: " " });
+  const sinPorque = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: enBandeja.id, sesion: SOPORTE, resultado: "no_corresponde", motivo: " " });
   assert.equal(sinPorque.ok, false);
   const cierres = () => operatorPrisma.auditLog.count({ where: { action: ACCION_PEDIDO_RESUELTO } });
   assert.equal(await cierres(), 0);
   // Un id que no es un pedido de cartera: rechazado sin escribir.
-  const noPedido = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: fila!.id + "x", sesion: SOPORTE, resultado: "hecho", respuesta: "" });
+  const noPedido = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: fila!.id + "x", sesion: SOPORTE, resultado: "hecho", motivo: null });
+  // Texto libre en vez de un código de la lista: rechazado, sin escribir (refutador 26/09).
+  const aMano = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: enBandeja.id, sesion: SOPORTE, resultado: "no_corresponde", motivo: "El CUIT es de QA Kiosco Lab" });
+  assert.equal(aMano.ok, false);
+  assert.equal(await cierres(), 0);
   assert.deepEqual(noPedido, { ok: false, error: "Ese pedido no existe." });
 
   // Doble clic simultáneo: se cierra UNA vez.
-  const [c1, c2] = await Promise.all([
-    resolverPedidoDeCartera(operatorPrisma, { pedidoId: enBandeja.id, sesion: SOPORTE, resultado: "no_corresponde", respuesta: "El CUIT que figura ya es el de su constancia." }),
-    resolverPedidoDeCartera(operatorPrisma, { pedidoId: enBandeja.id, sesion: SOPORTE, resultado: "no_corresponde", respuesta: "El CUIT que figura ya es el de su constancia." }),
-  ]);
+  // Un formulario forjado que además manda texto libre en `respuesta`: se ignora (no se guarda).
+  const forjado = { pedidoId: enBandeja.id, sesion: SOPORTE, resultado: "no_corresponde", motivo: "ya-estaba", respuesta: "El CUIT es de QA Kiosco Lab" };
+  const [c1, c2] = await Promise.all([resolverPedidoDeCartera(operatorPrisma, forjado), resolverPedidoDeCartera(operatorPrisma, forjado)]);
   assert.deepEqual([c1.ok, c2.ok].sort(), [false, true], "uno cierra, el otro ve que ya estaba resuelto");
   assert.equal(await cierres(), 1);
   const cierre = await operatorPrisma.auditLog.findFirst({ where: { action: ACCION_PEDIDO_RESUELTO } });
   assert.equal(cierre?.tenantId, base.a.id, "el cierre queda en la auditoría del ESTUDIO");
   assert.equal(cierre?.actor, "operator:soporte-qa");
+  assert.ok(!JSON.stringify(cierre?.changes).includes("Kiosco"), "la fila del cierre no guarda texto libre");
+  assert.equal((cierre?.changes as { motivo?: string })?.motivo, "ya-estaba");
 
   // Sale de la bandeja y de la ficha; la contadora ve la respuesta y puede volver a pedirlo.
   assert.deepEqual(await listarPedidosDeCartera(operatorPrisma), []);
@@ -166,7 +171,7 @@ test("pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el lími
   assert.deepEqual(deA.abiertos, []);
   assert.deepEqual(
     deA.respuestas.map((r) => [r.clienteTenantId, r.tipo, r.resultado, r.respuesta]),
-    [[base.b.id, "corregir_cuit", "no_corresponde", "El CUIT que figura ya es el de su constancia."]],
+    [[base.b.id, "corregir_cuit", "no_corresponde", "Ya estaba así: no hacía falta cambiar nada."]],
   );
   assert.deepEqual(await pedidosDelEstudio(base.b.id), { abiertos: [], respuestas: [] }, "B no ve la respuesta a A (RLS)");
   const otraVez = await comoA(() => pedirASoporteAction({ cliente: base.b.id, tipo: "corregir_cuit", cuit: "20-11111111-2" }));
@@ -179,10 +184,10 @@ test("pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el lími
   try {
     const nuevo = (await listarPedidosDeCartera(operatorPrisma))[0];
     assert.ok(nuevo);
-    const soporte = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: nuevo.id, sesion: SOPORTE, resultado: "hecho", respuesta: "" });
+    const soporte = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: nuevo.id, sesion: SOPORTE, resultado: "hecho", motivo: null });
     assert.equal(soporte.ok, false, "Soporte no toca CH");
     assert.equal(await cierres(), 1);
-    const duenio = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: nuevo.id, sesion: { nombre: "duenio", esDuenio: true }, resultado: "hecho", respuesta: "" });
+    const duenio = await resolverPedidoDeCartera(operatorPrisma, { pedidoId: nuevo.id, sesion: { nombre: "duenio", esDuenio: true }, resultado: "hecho", motivo: null });
     assert.deepEqual(duenio, { ok: true });
   } finally {
     await operatorPrisma.tenant.update({ where: { id: base.a.id }, data: { slug: slugA } });

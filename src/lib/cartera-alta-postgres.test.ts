@@ -107,7 +107,7 @@ test("alta por pedido: misma respuesta con cualquier CUIT, y Soporte lo configur
   const form = {
     razonSocial: "Ferretería El Tornillo SRL",
     cuit: CUIT_NUEVO,
-    condicionIva: "RESPONSABLE_INSCRIPTO",
+    condicionIva: "RESPONSABLE_INSCRIPTO", regimenFacturaA: "A",
     puntoVenta: "3",
     rubro: "mostrador",
     plan: "micro",
@@ -156,7 +156,7 @@ test("alta por pedido: misma respuesta con cualquier CUIT, y Soporte lo configur
     where: { OR: [{ tenantId: creado.id }, { tenantId: base.a.id }], actor: "operator:soporte" },
     select: { action: true, changes: true },
   });
-  assert.deepEqual(auditoria.map((a) => a.action).sort(), ["cartera.alta-por-soporte", "cartera.solicitud_configurada", "configurador.alta"]);
+  assert.deepEqual(auditoria.map((a) => a.action).sort(), ["cartera.alta-por-soporte", "cartera.solicitud_configurada", "configurador.alta", "fiscal.regimen_factura_a"]);
   assert.doesNotMatch(JSON.stringify(auditoria), new RegExp(claveDuenio!), "la clave no queda en la auditoría");
   assert.doesNotMatch(JSON.stringify(auditoria), /1155554444/, "el teléfono no queda en la auditoría");
   assert.equal((await conf.listarSolicitudesPendientes(operatorPrisma)).pedidos.length, 2, "el pedido sale de la bandeja");
@@ -233,8 +233,33 @@ test("alta por pedido: misma respuesta con cualquier CUIT, y Soporte lo configur
   // ── 8) Descartar: sale de la bandeja, queda en la auditoría y ya no se puede configurar ──
   await pedir("Pedido Repetido", CUIT_A_DESCARTAR, "repetido@ejemplo.test");
   const aDescartar = (await conf.listarSolicitudesPendientes(operatorPrisma)).pedidos.find((s) => s.datos.cuit === CUIT_A_DESCARTAR)!;
-  assert.deepEqual(await conf.descartarSolicitud(operatorPrisma, { solicitudId: aDescartar.id, sesion: SOPORTE, motivo: "Ya lo pidió otra persona del estudio" }), { ok: true });
+  assert.deepEqual(await conf.descartarSolicitud(operatorPrisma, { solicitudId: aDescartar.id, sesion: SOPORTE, motivo: "faltan-datos", nota: "NEGOCIO-AJENO-XYZ: ya lo pidió otra persona del estudio" }), { ok: true, motivo: "faltan-datos" });
   assert.equal((await conf.listarSolicitudesPendientes(operatorPrisma)).pedidos.length, 0, "bandeja vacía");
+  // QA 26/09, vuelta 4, bloqueante 1: la contadora lee SÓLO un motivo de la lista cerrada. La nota libre
+  // (acá, con el nombre de un negocio ajeno) no llega a la cartera ni a la auditoría del panel del
+  // estudio, queda para Soporte, y el estudio B no ve nada del descarte de A. Un motivo libre se rechaza.
+  {
+    const { leerPedidosDeAltaDelEstudio } = await import("@/app/contador/altas-en-curso.server");
+    const { whereAuditoriaDelPanel } = await import("@/app/admin/(dashboard)/auditoria/filtros");
+    const { tenantTransaction } = await import("@/lib/rls");
+    const vistaA = await tenantTransaction((tx) => leerPedidosDeAltaDelEstudio(tx, base.a.id, new Date()), { tenantId: base.a.id });
+    assert.deepEqual(vistaA.descartadas.map((d) => d.motivo), ["Faltan datos para darlo de alta."]);
+    assert.ok(!JSON.stringify(vistaA).includes("NEGOCIO-AJENO-XYZ"), "la nota interna no llega a la cartera");
+    const auditoriaA = await tenantTransaction(
+      (tx) =>
+        tx.auditLog.findMany({
+          where: { AND: [{ tenantId: base.a.id }, whereAuditoriaDelPanel({} as Parameters<typeof whereAuditoriaDelPanel>[0])] },
+          select: { action: true, changes: true },
+        }),
+      { tenantId: base.a.id },
+    );
+    assert.ok(auditoriaA.length > 0 && !JSON.stringify(auditoriaA).includes("NEGOCIO-AJENO-XYZ"), "ni a la auditoría del panel del estudio");
+    assert.equal(await operatorPrisma.auditLog.count({ where: { tenantId: base.a.id, action: "soporte.nota_interna" } }), 1, "la nota queda para Soporte");
+    const vistaB = await tenantTransaction((tx) => leerPedidosDeAltaDelEstudio(tx, base.b.id, new Date()), { tenantId: base.b.id });
+    assert.equal(vistaB.descartadas.length, 0, "el estudio B no ve el descarte de A");
+    const libre = await conf.descartarSolicitud(operatorPrisma, { solicitudId: aDescartar.id, sesion: SOPORTE, motivo: "QA Kiosco Lab" });
+    assert.equal(libre.ok, false, "un motivo escrito a mano no se acepta");
+  }
   const tarde = await conf.configurarSolicitud(operatorPrisma, { solicitudId: aDescartar.id, sesion: SOPORTE, form: { ...form, cuit: CUIT_A_DESCARTAR } });
   assert.equal(tarde.ok, false, "un pedido descartado no crea nada");
 
@@ -257,8 +282,8 @@ test("alta por pedido: misma respuesta con cualquier CUIT, y Soporte lo configur
   assert.equal(await pedidosDelCuit(), 2, "con uno abierto no se crea otro");
   // Y al descartarlo también, se puede volver a pedir (no es un candado de una sola vez).
   assert.deepEqual(
-    await conf.descartarSolicitud(operatorPrisma, { solicitudId: bandejaDespues[0]!.id, sesion: SOPORTE, motivo: "Faltaba el punto de venta" }),
-    { ok: true },
+    await conf.descartarSolicitud(operatorPrisma, { solicitudId: bandejaDespues[0]!.id, sesion: SOPORTE, motivo: "faltan-datos" }),
+    { ok: true, motivo: "faltan-datos" },
   );
   await pedir("Pedido Repetido", CUIT_A_DESCARTAR, "repetido@ejemplo.test");
   assert.equal(await pedidosDelCuit(), 3, "tras el segundo descarte, el tercer pedido también se guarda");
@@ -278,7 +303,7 @@ test("alta por pedido: misma respuesta con cualquier CUIT, y Soporte lo configur
   // La acción pasa la guardia con el estudio del formulario: con otro estudio, el pedido de A «no existe»
   // (ni se descarta ni se configura) y sigue pendiente.
   assert.deepEqual(
-    await conf.descartarSolicitud(operatorPrisma, { solicitudId: enCursoA[0]!.id, estudioTenantId: base.b.id, sesion: SOPORTE, motivo: "Con el estudio equivocado" }),
+    await conf.descartarSolicitud(operatorPrisma, { solicitudId: enCursoA[0]!.id, estudioTenantId: base.b.id, sesion: SOPORTE, motivo: "soporte-escribe" }),
     { ok: false, error: "Ese pedido no existe." },
   );
   const tenantsAntesDelCruce = await operatorPrisma.tenant.count();

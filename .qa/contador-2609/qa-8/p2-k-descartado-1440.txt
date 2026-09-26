@@ -1,0 +1,23 @@
+URL http://localhost:3210/operador/solicitudes/cmuixdsmz00030m7d5sg4e5om
+
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+← Pedidos de alta
+Configurar a Kiosco Descarte v8
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+Pedido descartado por duenio el 26/9/26, 18:54. Estudio Contable Laboratorio ve en su cartera: «Los datos no coinciden con ARCA: revisalos y volvé a pedirlo.»
+Nota interna (sólo la ve Soporte GSG): Lo confunden con CH Estética y con MAGRA Lomas; el titular real es cliente de Qué Bien Olés. ZZnotav8
+Volver a los pedidos
+Hecho por Gestión Studio Grow

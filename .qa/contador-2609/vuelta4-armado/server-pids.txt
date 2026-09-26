@@ -1,0 +1,8 @@
+10454 /bin/bash -c source /root/.claude/shell-snapshots/
+for i in $(seq 1 60); do c=$(curl -s -o /dev/null 
+10456 npm exec next start -p 3210                 
+10516 sh -c next start -p 3210 
+10517 next-server (v16.3.4)                             
+11021 /bin/bash -c source /root/.claude/shell-snapshots/
+11023 /bin/bash -c source /root/.claude/shell-snapshots/
+11024 tee .qa/contador-2609/vuelta4-armado/server-pids.t

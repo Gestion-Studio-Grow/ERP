@@ -1,0 +1,481 @@
+URL http://estudio.localhost:3210/contador/cliente/cmuixg0z8000j0m7diyllrxu9/recibidos?mes=2026-08
+E
+Estudio Contable Laboratorio
+Compras de La Estrella (2 locales) v8
+Comprobantes recibidos · CUIT 30-71955027-0. El mes va por la fecha del comprobante, no por el día en que se cargó.
+Mes anterior
+08/2026
+Mes siguiente
+Descargar para el libro de IVA compras
+Volver a la cartera
+CARGAR EL ARCHIVO DE ARCA
+Mis Comprobantes › Recibidos › Descargar (CSV o Excel), sin editarlo.
+Elegir otro archivo
+recibidos-c-2026-08.csv
+Cargar comprobantes
+No entró ningún comprobante nuevo. 61 ya estaban cargados (no se duplican). 1 fila estaba repetida en el archivo (se toma una sola vez). 1 con errores: no se cargó (el detalle está abajo).
+Neto gravado
+$0,00
+Otros tributos y percepciones
+$0,00
+Total
+$0,00
+NO SE CARGARON
+Fila 2
+Factura A 00006-00004001
+Ya estaba cargado (compra #1): no se duplica.
+Fila 3
+Factura A 00007-00004002
+Ya estaba cargado (compra #2): no se duplica.
+Fila 4
+Factura A 00008-00004003
+Ya estaba cargado (compra #3): no se duplica.
+Fila 5
+Factura A 00009-00004004
+Ya estaba cargado (compra #4): no se duplica.
+Fila 6
+Factura A 00005-00004005
+Ya estaba cargado (compra #5): no se duplica.
+Fila 7
+Factura A 00006-00004006
+Ya estaba cargado (compra #6): no se duplica.
+Fila 8
+Factura A 00007-00004007
+Ya estaba cargado (compra #7): no se duplica.
+Fila 9
+Factura A 00008-00004008
+Ya estaba cargado (compra #8): no se duplica.
+Fila 10
+Factura A 00009-00004009
+Ya estaba cargado (compra #9): no se duplica.
+Fila 11
+Factura A 00005-00004010
+Ya estaba cargado (compra #10): no se duplica.
+Fila 12
+Factura A 00006-00004011
+Ya estaba cargado (compra #11): no se duplica.
+Fila 13
+Factura A 00007-00004012
+Ya estaba cargado (compra #12): no se duplica.
+Fila 14
+Factura A 00008-00004013
+Ya estaba cargado (compra #13): no se duplica.
+Fila 15
+Factura A 00009-00004014
+Ya estaba cargado (compra #14): no se duplica.
+Fila 16
+Factura A 00005-00004015
+Ya estaba cargado (compra #15): no se duplica.
+Fila 17
+Factura A 00006-00004016
+Ya estaba cargado (compra #16): no se duplica.
+Fila 18
+Factura A 00007-00004017
+Ya estaba cargado (compra #17): no se duplica.
+Fila 19
+Factura A 00008-00004018
+Ya estaba cargado (compra #18): no se duplica.
+Fila 20
+Factura A 00009-00004019
+Ya estaba cargado (compra #19): no se duplica.
+Fila 21
+Factura A 00005-00004020
+Ya estaba cargado (compra #20): no se duplica.
+Fila 22
+Factura A 00006-00004021
+Ya estaba cargado (compra #21): no se duplica.
+Fila 23
+Factura A 00007-00004022
+Ya estaba cargado (compra #22): no se duplica.
+Fila 24
+Factura A 00008-00004023
+Ya estaba cargado (compra #23): no se duplica.
+Fila 25
+Factura A 00009-00004024
+Ya estaba cargado (compra #24): no se duplica.
+Fila 26
+Factura A 00005-00004025
+Ya estaba cargado (compra #25): no se duplica.
+Fila 27
+Factura A 00006-00004026
+Ya estaba cargado (compra #26): no se duplica.
+Fila 28
+Factura A 00007-00004027
+Ya estaba cargado (compra #27): no se duplica.
+Fila 29
+Factura A 00008-00004028
+Ya estaba cargado (compra #28): no se duplica.
+Fila 30
+Factura A 00009-00004029
+Ya estaba cargado (compra #29): no se duplica.
+Fila 31
+Factura A 00005-00004030
+Ya estaba cargado (compra #30): no se duplica.
+Fila 32
+Factura A 00006-00004031
+Ya estaba cargado (compra #31): no se duplica.
+Fila 33
+Factura A 00007-00004032
+Ya estaba cargado (compra #32): no se duplica.
+Fila 34
+Factura A 00008-00004033
+Ya estaba cargado (compra #33): no se duplica.
+Fila 35
+Factura A 00009-00004034
+Ya estaba cargado (compra #34): no se duplica.
+Fila 36
+Factura A 00005-00004035
+Ya estaba cargado (compra #35): no se duplica.
+Fila 37
+Factura A 00006-00004036
+Ya estaba cargado (compra #36): no se duplica.
+Fila 38
+Factura A 00007-00004037
+Ya estaba cargado (compra #37): no se duplica.
+Fila 39
+Factura A 00008-00004038
+Ya estaba cargado (compra #38): no se duplica.
+Fila 40
+Factura A 00009-00004039
+Ya estaba cargado (compra #39): no se duplica.
+Fila 41
+Factura A 00005-00004040
+Ya estaba cargado (compra #40): no se duplica.
+Fila 42
+Factura A 00006-00004041
+Ya estaba cargado (compra #41): no se duplica.
+Fila 43
+Factura A 00007-00004042
+Ya estaba cargado (compra #42): no se duplica.
+Fila 44
+Factura A 00008-00004043
+Ya estaba cargado (compra #43): no se duplica.
+Fila 45
+Factura A 00009-00004044
+Ya estaba cargado (compra #44): no se duplica.
+Fila 46
+Factura A 00005-00004045
+Ya estaba cargado (compra #45): no se duplica.
+Fila 47
+Factura A 00006-00004046
+Ya estaba cargado (compra #46): no se duplica.
+Fila 48
+Factura A 00007-00004047
+Ya estaba cargado (compra #47): no se duplica.
+Fila 49
+Factura A 00008-00004048
+Ya estaba cargado (compra #48): no se duplica.
+Fila 50
+Factura A 00009-00004049
+Ya estaba cargado (compra #49): no se duplica.
+Fila 51
+Factura A 00005-00004050
+Ya estaba cargado (compra #50): no se duplica.
+Fila 52
+Factura A 00006-00004051
+Ya estaba cargado (compra #51): no se duplica.
+Fila 53
+Factura A 00007-00004052
+Ya estaba cargado (compra #52): no se duplica.
+Fila 54
+Nota de crédito A 00006-00000601
+Ya estaba cargado (compra #53): no se duplica.
+Fila 55
+Nota de crédito A 00006-00000602
+Ya estaba cargado (compra #54): no se duplica.
+Fila 56
+Factura B 00009-00000801
+Ya estaba cargado (compra #55): no se duplica.
+Fila 57
+Factura B 00009-00000802
+Ya estaba cargado (compra #56): no se duplica.
+Fila 58
+Factura B 00009-00000803
+Ya estaba cargado (compra #57): no se duplica.
+Fila 59
+Factura C 00002-00000901
+Ya estaba cargado (compra #58): no se duplica.
+Fila 60
+Factura C 00002-00000902
+Ya estaba cargado (compra #59): no se duplica.
+Fila 61
+Factura A 00007-00000990
+Ya estaba cargado (compra #60): no se duplica.
+Fila 62
+Factura A 00007-00000991
+Ya estaba cargado (compra #61): no se duplica.
+Fila 63
+Factura A 00007-00000992
+El CUIT del emisor no es válido.
+Fila 64
+Factura A 00006-00004001
+Está repetido en el archivo (ya aparece en la fila 2): se toma una sola vez.
+RESUMEN DEL MES
+61 comprobantes, 2 notas de crédito (restan).
+Neto gravado
+$1.085.591,82
+IVA crédito fiscal 10,5%
+sobre $287.109,16
+$30.146,48
+IVA crédito fiscal 21%
+sobre $796.482,66
+$167.261,45
+IVA crédito fiscal del mes
+Lo que suma. Es la columna «IVA crédito fiscal» del archivo.
+$197.407,93
+IVA a revisar
+Lo marcado «A revisar» abajo: no suma al crédito hasta que lo revises.
+$450,00
+No gravado y exento
+$0,00
+Otros tributos y percepciones
+$20.105,72
+Total
+$1.404.655,47
+COMPROBANTES DEL MES
+01/08/2026
+Factura A 00008-00004028 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$24.956,41
+02/08/2026
+Factura A 00006-00004001 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6
+$2.760,46
+02/08/2026
+Factura A 00009-00004029 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$27.612,82
+03/08/2026
+Factura A 00007-00004002 · LACTEOS DEL OESTE SA
+CUIT 30-70000002-4
+$3.594,16
+03/08/2026
+Factura A 00005-00004030 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$29.209,07
+04/08/2026
+Factura A 00008-00004003 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$4.594,91
+04/08/2026
+Factura A 00006-00004031 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6
+$29.999,25
+05/08/2026
+Factura A 00009-00004004 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$5.018,06
+05/08/2026
+Factura A 00007-00004032 · LACTEOS DEL OESTE SA
+CUIT 30-70000002-4
+$27.653,82
+06/08/2026
+Factura A 00005-00004005 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$6.262,90
+06/08/2026
+Factura A 00008-00004033 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$31.943,98
+07/08/2026
+Factura A 00006-00004006 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6
+$7.329,81
+07/08/2026
+Factura A 00009-00004034 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$32.723,13
+08/08/2026
+Factura A 00007-00004007 · LACTEOS DEL OESTE SA
+CUIT 30-70000002-4
+$8.208,22
+08/08/2026
+Factura A 00005-00004035 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$32.950,30
+09/08/2026
+Factura A 00008-00004008 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$8.156,58
+09/08/2026
+Factura A 00006-00004036 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6
+$31.742,37
+10/08/2026
+Factura A 00009-00004009 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$10.064,72
+10/08/2026
+Factura A 00007-00004037 · LACTEOS DEL OESTE SA
+CUIT 30-70000002-4
+$35.447,01
+11/08/2026
+Factura A 00005-00004010 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$10.932,10
+11/08/2026
+Factura A 00008-00004038 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$35.619,04
+11/08/2026
+Factura B 00009-00000801 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$12.100,00
+12/08/2026
+Factura A 00006-00004011 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6
+$11.600,38
+12/08/2026
+Factura A 00009-00004039 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$37.413,79
+12/08/2026
+Factura B 00009-00000802 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$24.200,00
+13/08/2026
+Factura A 00007-00004012 · LACTEOS DEL OESTE SA
+CUIT 30-70000002-4
+$11.715,79
+13/08/2026
+Factura A 00005-00004040 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$34.925,59
+13/08/2026
+Factura B 00009-00000803 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$36.300,00
+13/08/2026
+Factura C 00002-00000901 · LACTEOS DEL OESTE SA
+CUIT 30-70000002-4 · sin crédito fiscal
+$9.500,00
+14/08/2026
+Factura A 00008-00004013 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$13.655,98
+14/08/2026
+Factura A 00006-00004041 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6
+$38.287,78
+14/08/2026
+Factura C 00002-00000902 · LACTEOS DEL OESTE SA
+CUIT 30-70000002-4 · sin crédito fiscal
+$19.000,00
+15/08/2026
+Factura A 00009-00004014 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$14.269,12
+15/08/2026
+Factura A 00007-00004042 · LACTEOS DEL OESTE SA
+CUIT 30-70000002-4
+$40.148,70
+16/08/2026
+Factura A 00005-00004015 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$15.534,54
+16/08/2026
+Factura A 00008-00004043 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$40.894,77
+17/08/2026
+Factura A 00006-00004016 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6
+$14.987,24
+17/08/2026
+Factura A 00009-00004044 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$37.402,44
+18/08/2026
+Factura A 00007-00004017 · LACTEOS DEL OESTE SA
+CUIT 30-70000002-4
+$16.937,86
+18/08/2026
+Factura A 00005-00004045 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$42.883,61
+19/08/2026
+Factura A 00008-00004018 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$18.269,44
+19/08/2026
+Factura A 00006-00004046 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6
+$43.618,65
+20/08/2026
+Factura A 00009-00004019 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$19.103,74
+20/08/2026
+Factura A 00007-00004047 · LACTEOS DEL OESTE SA
+CUIT 30-70000002-4
+$43.625,26
+21/08/2026
+Factura A 00005-00004020 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$17.905,20
+21/08/2026
+Factura A 00008-00004048 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$41.755,65
+21/08/2026
+Nota de crédito A 00006-00000601 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$6.200,00
+22/08/2026
+Factura A 00006-00004021 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6
+$21.004,35
+22/08/2026
+Factura A 00009-00004049 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$46.342,53
+22/08/2026
+Nota de crédito A 00006-00000602 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$3.100,00
+23/08/2026
+Factura A 00007-00004022 · LACTEOS DEL OESTE SA
+CUIT 30-70000002-4
+$21.827,61
+23/08/2026
+Factura A 00005-00004050 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$46.294,00
+24/08/2026
+Factura A 00008-00004023 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$22.275,34
+24/08/2026
+Factura A 00006-00004051 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6
+$48.353,41
+25/08/2026
+Factura A 00009-00004024 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$21.729,08
+25/08/2026
+Factura A 00007-00004052 · LACTEOS DEL OESTE SA
+CUIT 30-70000002-4
+$44.894,77
+25/08/2026
+Factura A 00007-00000990 · FERRETERIA NORTE SA
+A revisar: El IVA es el 15 % del neto gravado y ninguna alícuota sola da eso. El archivo clásico de ARCA no separa el IVA por alícuota: si es una factura con varias, marcala revisada y suma al crédito.
+$1.150,00
+Lo revisé
+26/08/2026
+Factura A 00005-00004025 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$24.551,49
+26/08/2026
+Factura A 00007-00000991 · FERRETERIA NORTE SA
+A revisar: El IVA es más del 27 % del neto gravado: ninguna alícuota vigente lo explica. Revisá el comprobante.
+$1.300,00
+Lo revisé
+27/08/2026
+Factura A 00006-00004026 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6
+$24.944,08
+28/08/2026
+Factura A 00007-00004027 · LACTEOS DEL OESTE SA
+CUIT 30-70000002-4
+$26.474,16

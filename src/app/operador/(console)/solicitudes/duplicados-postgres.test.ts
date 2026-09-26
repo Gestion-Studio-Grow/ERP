@@ -17,6 +17,7 @@ import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-ser
 
 const CUIT_KIOSCO = "20111111112";
 const CUIT_SUCURSAL = "20222222223";
+const CUIT_RED = "20301112220";
 const CUIT_TARDE = "20333333334";
 const SOPORTE = { nombre: "soporte", esDuenio: false };
 
@@ -87,6 +88,22 @@ test("configurador: parecidos sin CUIT, ya en la cartera y descarte visible para
   assert.equal(await operatorPrisma.tenant.count(), tenantsAntes + 1);
   const audOtro = await operatorPrisma.auditLog.findFirst({ where: { action: confReglas.ACCION_CONFIGURADOR_ALTA, entityId: otro.ok ? otro.clienteTenantId : "" } });
   assert.deepEqual((audOtro?.changes as { parecidosDescartados?: string[] }).parecidosDescartados, [base.b.id]);
+  assert.equal(otro.ok && otro.otrosLocales, false, "un pedido «chico» no lleva el recordatorio de los otros locales");
+
+  // ── 3 bis) Refutador vuelta 4: un pedido de «varios locales» lo recuerda en «Pasale esto» ──
+  const rRed = await ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, () =>
+    altaClienteCarteraAction({ nombre: "Autoservicio Red Sur", cuit: CUIT_RED, email: "redsur@ejemplo.test", puntoVenta: "3", condicionIva: "MONOTRIBUTO", tamanio: "varios-locales" }),
+  );
+  assert.deepEqual(rRed.tipo === "respuesta" && rRed.valor, esperado);
+  const pRed = (await conf.listarSolicitudesPendientes(operatorPrisma)).pedidos.find((s) => s.datos.cuit === CUIT_RED)!;
+  const red = await conf.configurarSolicitud(operatorPrisma, {
+    solicitudId: pRed.id,
+    sesion: SOPORTE,
+    form: { ...form, razonSocial: "Autoservicio Red Sur", cuit: CUIT_RED, email: "redsur@ejemplo.test", plan: "pyme", duplicado: "otro" },
+  });
+  assert.ok(red.ok, JSON.stringify(red));
+  assert.equal(red.otrosLocales, true);
+  assert.ok(red.avisos.includes(confReglas.avisoDeOtrosLocales("varios-locales")!), JSON.stringify(red.avisos));
 
   // ── 4) «Es este» sin la autorización del dueño: no ── con ella y doble clic: UN resultado ──
   const esEste = { ...form, duplicado: `es:${base.b.id}` };
@@ -103,7 +120,7 @@ test("configurador: parecidos sin CUIT, ya en la cartera y descarte visible para
   assert.ok(hecho.ok && !hecho.creado && hecho.clienteTenantId === base.b.id);
   assert.ok(hecho.ok && hecho.avisos.some((a) => a.includes("20-11111111-2") && a.includes("QA Kiosco Lab")), "el aviso dice a quién se le cargó el CUIT");
   assert.equal(hecho.ok && hecho.usuarios.some((u) => u.clave !== null), false, "no entrega claves");
-  assert.equal(await operatorPrisma.tenant.count(), tenantsAntes + 1, "no se creó otro negocio");
+  assert.equal(await operatorPrisma.tenant.count(), tenantsAntes + 2, "no se creó otro negocio (la sucursal y la red del paso 3 bis)");
   const bDespues = await operatorPrisma.tenant.findUniqueOrThrow({ where: { id: base.b.id } });
   assert.equal(bDespues.arcaCuit, CUIT_KIOSCO, "se le cargó el CUIT");
   assert.equal(bDespues.arcaPuntoVenta, 3, "y el punto de venta, que no tenía");
@@ -123,7 +140,7 @@ test("configurador: parecidos sin CUIT, ya en la cartera y descarte visible para
   assert.equal(tarde.ok, false);
   assert.match(!tarde.ok ? tarde.error : "", /ya no figura/);
   assert.equal((await operatorPrisma.tenant.findUniqueOrThrow({ where: { id: base.b.id } })).arcaCuit, CUIT_KIOSCO, "el CUIT no se pisó");
-  await conf.descartarSolicitud(operatorPrisma, { solicitudId: pTarde.id, sesion: SOPORTE, motivo: "Datos repetidos" });
+  await conf.descartarSolicitud(operatorPrisma, { solicitudId: pTarde.id, sesion: SOPORTE, motivo: "faltan-datos" });
 
   // ── 6) Pedir de nuevo el Kiosco, que YA está en la cartera: «Ya está en la cartera de este estudio» ──
   await pedir("QA Kiosco Lab", CUIT_KIOSCO, "kiosco@ejemplo.test");
@@ -135,15 +152,15 @@ test("configurador: parecidos sin CUIT, ya en la cartera y descarte visible para
 
   // ── 7) Descartado con motivo: la contadora lo ve; otro estudio (B) no ve nada de A ──
   assert.deepEqual(
-    await conf.descartarSolicitud(operatorPrisma, { solicitudId: pOtraVez.id, sesion: SOPORTE, motivo: "Ya está en tu cartera: no hacía falta pedir el alta." }),
-    { ok: true },
+    await conf.descartarSolicitud(operatorPrisma, { solicitudId: pOtraVez.id, sesion: SOPORTE, motivo: "ya-en-cartera" }),
+    { ok: true, motivo: "ya-en-cartera" },
   );
   const deA = await pedidosDeAltaDelEstudio(base.a.id);
   assert.deepEqual(deA.enCurso, [], "no queda nada en curso");
   const motivos = deA.descartadas.map((d) => [d.cuit, d.motivo]);
   assert.deepEqual(motivos, [
     [CUIT_KIOSCO, "Ya está en tu cartera: no hacía falta pedir el alta."],
-    [CUIT_TARDE, "Datos repetidos"],
+    [CUIT_TARDE, "Faltan datos para darlo de alta."],
   ]);
   const deB = await pedidosDeAltaDelEstudio(base.b.id);
   assert.deepEqual(deB, { enCurso: [], enCursoTotal: 0, descartadas: [], descartadasTotal: 0 }, "B no ve pedidos ni descartes de A");

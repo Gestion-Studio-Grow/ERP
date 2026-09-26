@@ -12,6 +12,7 @@
 // lo que se escribió (dígito verificador, email) y guarda el pedido. Soporte GSG lo configura desde
 // la consola (/operador/solicitudes) y decide ahí, con criterio, si el CUIT ya existe.
 
+import { textoDelDescarte } from "@/lib/soporte/avisos-a-la-contadora";
 import { cuitValido, normalizarCuit } from "@/plugins/bancos/domain/cuit";
 import type { PlanId } from "@/planes/catalogo";
 
@@ -299,12 +300,13 @@ export function altasDescartadas(
     if (!pedido) continue;
     const pidioDespues = leidos.some((x) => x.s.cuit === pedido.s.cuit && x.p.createdAt.getTime() > pedido.p.createdAt.getTime());
     if (pidioDespues) continue;
-    const m = (d.changes as { motivo?: unknown } | null)?.motivo;
+    // La contadora lee SÓLO un texto de la lista cerrada, nunca lo que escribió Soporte (QA 26/09, vuelta 4).
+    const codigo = (d.changes as { motivoCodigo?: unknown } | null)?.motivoCodigo;
     salida.push({
       id: pedido.p.id,
       nombre: pedido.s.nombre,
       cuit: pedido.s.cuit,
-      motivo: typeof m === "string" && m.trim() !== "" ? m.trim() : "Soporte GSG no dejó el motivo.",
+      motivo: textoDelDescarte(codigo),
       descartadoEl: d.createdAt,
     });
   }

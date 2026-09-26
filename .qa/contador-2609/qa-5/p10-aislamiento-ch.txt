@@ -1,0 +1,16 @@
+[b] IVA compras septiembre: compras-El_Ceibo__RI__v5-2026-09.csv
+[aisl magra recibidos] HTTP 200 md5=b537afa1 len=126 nombres en html: ninguno :: E Estudio Contable Laboratorio · panel del contador Compras del cliente Ese cliente no está en tu cartera. Volver a la cartera
+[aisl magra paquete] HTTP 404 md5=09540a71 len=90 nombres en html: ninguno :: No se pudo bajar el paquete del mes Ese cliente no está en tu cartera. Volver a la cartera
+[aisl magra ficha] HTTP 200 md5=85ac059a len=119 nombres en html: ninguno :: Elegí un cliente de la tabla: acá aparecen sus cifras, el paquete del mes y las acciones (emitir, pausar, dar de baja).
+[aisl banfield recibidos] HTTP 200 md5=b537afa1 len=126 nombres en html: ninguno :: E Estudio Contable Laboratorio · panel del contador Compras del cliente Ese cliente no está en tu cartera. Volver a la cartera
+[aisl banfield paquete] HTTP 404 md5=09540a71 len=90 nombres en html: ninguno :: No se pudo bajar el paquete del mes Ese cliente no está en tu cartera. Volver a la cartera
+[aisl banfield ficha] HTTP 200 md5=85ac059a len=119 nombres en html: ninguno :: Elegí un cliente de la tabla: acá aparecen sus cifras, el paquete del mes y las acciones (emitir, pausar, dar de baja).
+[aisl inexistente recibidos] HTTP 200 md5=b537afa1 len=126 nombres en html: ninguno :: E Estudio Contable Laboratorio · panel del contador Compras del cliente Ese cliente no está en tu cartera. Volver a la cartera
+[aisl inexistente paquete] HTTP 404 md5=09540a71 len=90 nombres en html: ninguno :: No se pudo bajar el paquete del mes Ese cliente no está en tu cartera. Volver a la cartera
+[aisl inexistente ficha] HTTP 200 md5=85ac059a len=119 nombres en html: ninguno :: Elegí un cliente de la tabla: acá aparecen sus cifras, el paquete del mes y las acciones (emitir, pausar, dar de baja).
+[aisl panel ajeno con sesión de la contadora] magra.localhost/admin -> http://magra.localhost:3210/admin/login?next=%2Fadmin HTTP 200
+  consola: ["[error] Failed to load resource: the server responded with a status of 404 (Not Found)","[error] Failed to load resource: the server responded with a status of 404 (Not Found)","[error] Failed to load resource: the server responded with a status of 404 (Not Found)"]
+[CH @1440] http://chestetica.localhost:3210/admin · CH Estética: true · Comerciante: 0 · Turnos hoy:  · menú: Inicio, Agenda, Clientes, Lista de espera, Pedidos, Caja, Libro de caja, Cierre del día, Catálogo, Compras, Ajustes, Reseñas
+  consola: []
+[CH @390] http://chestetica.localhost:3210/admin · CH Estética: true · Comerciante: 0 · Turnos hoy:  · menú: Inicio, Agenda, Clientes, Lista de espera, Pedidos, Caja, Libro de caja, Cierre del día, Catálogo, Compras, Ajustes, Reseñas
+  consola: []

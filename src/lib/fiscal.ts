@@ -13,6 +13,7 @@
  * reversible; emitir mal, no.
  */
 
+import { leerRegimenFacturaA } from "@/lib/fiscal/regimen-factura-a.server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 // Validador ÚNICO de CUIT del repo (dígito verificador + prefijo de tipo). Vive
@@ -119,8 +120,9 @@ export interface RegistroFiscalTenant {
    */
   arcaCondicionIva?: string | null;
   /**
-   * Clase A asignada al inscripto (RG 1575). TODAVÍA SIN COLUMNA en `Tenant`: el lector de Prisma
-   * no la trae, así que desde la base siempre llega "sin cargar" y cada A pasa por revisión.
+   * Clase A asignada al inscripto (RG 1575). SIN COLUMNA en `Tenant` hasta la ventana M1: el lector
+   * de Prisma la toma del registro del negocio (fiscal/regimen-factura-a.ts), donde la carga Soporte
+   * GSG desde el configurador o la ficha. Sin cargar, cada A pasa por revisión.
    */
   arcaRegimenFacturaA?: string | null;
 }
@@ -259,11 +261,15 @@ export function construirPerfilFiscal(
  * negocio y no la asumida; vacío, rige `construirPerfilFiscal` (homologación asume,
  * producción se niega).
  */
-export const leerRegistroFiscalPrisma: LeerRegistroFiscal = async (tenantId) =>
-  prisma.tenant.findUnique({
+export const leerRegistroFiscalPrisma: LeerRegistroFiscal = async (tenantId) => {
+  const t = await prisma.tenant.findUnique({
     where: { id: tenantId },
     select: { arcaCuit: true, arcaPuntoVenta: true, arcaHomologacion: true, arcaCondicionIva: true },
   });
+  if (!t || (t.arcaCondicionIva ?? "").trim() !== "RESPONSABLE_INSCRIPTO") return t;
+  // La Factura A que asignó ARCA (RG 1575): sin columna hasta M1, la última que cargó Soporte GSG.
+  return { ...t, arcaRegimenFacturaA: await leerRegimenFacturaA(tenantId) };
+};
 
 /**
  * Construye el resolvedor de perfil fiscal a partir de un lector. Testeable

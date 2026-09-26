@@ -30,7 +30,9 @@
 // escribir: el wizard lo usa mientras se carga el paso y otra vez justo antes de crear, para no
 // crear un local con un punto de venta ya usado.
 //
-// El id del local llega por formulario: esta puerta no le pisa el catálogo a un negocio que ya
+// El id del local llega por formulario, y no prueba nada: `sumarAltaEnTx` sólo acepta un local con la
+// marca del alta para ESTA casa, que escribe el servidor al crearlo (`commitTenantAction`); cualquier
+// otro negocio se rechaza. Tampoco le pisa el catálogo a un negocio que ya
 // existía. Sin vista previa, la lista de la casa sólo CREA productos; si el local ya tenía precios
 // propios, la lista queda pendiente y se manda desde la casa, con vista previa (multilocal-core).
 
@@ -43,13 +45,12 @@ import { logger } from "@/lib/logger";
 import { requiereOkDelDuenio } from "@/app/operador/(console)/tenants/[id]/apps-del-negocio";
 import {
   AltaEnRedRechazada,
-  choqueFiscalEnTx,
   darDeBajaEnTx,
-  decidirAcceso,
-  leerFiscalDelAlta,
+  revisarAltaEnRedEnTx,
   sumarAltaEnTx,
   vincularEnTx,
   type ResultadoAltaEnRed,
+  type RevisionAltaEnRed as Revision,
 } from "@/lib/multilocal/multilocal-core";
 
 /** Vuelve a la tarjeta de la red en la ficha de la casa, con el mensaje. */
@@ -71,7 +72,7 @@ export async function vincularLocalAction(formData: FormData) {
   if (!localId) volverARed(casaId, { error: "Elegí el local que querés sumar a la red." });
 
   const r = await operatorPrisma.$transaction((tx) =>
-    vincularEnTx(tx, { casaId, localId, alias, actor: `operator:${op}` }, requiereOkDelDuenio),
+    vincularEnTx(tx, { casaId, localId, alias, actor: `operator:${op}`, confirmado: campo(formData, "confirmo") === "si" }, requiereOkDelDuenio),
   );
   if (!r.ok) volverARed(casaId, { error: r.motivo });
 
@@ -91,7 +92,7 @@ export async function darDeBajaLocalAction(formData: FormData) {
   if (!casaId) redirect("/operador?error=notfound");
   if (!localId) volverARed(casaId, { error: "El pedido llegó incompleto. Recargá la ficha y probá de nuevo." });
 
-  const r = await operatorPrisma.$transaction((tx) => darDeBajaEnTx(tx, { casaId, localId, actor: `operator:${op}` }));
+  const r = await operatorPrisma.$transaction((tx) => darDeBajaEnTx(tx, { casaId, localId, actor: `operator:${op}`, confirmado: campo(formData, "confirmo") === "si" }));
   if (!r.ok) volverARed(casaId, { error: r.motivo });
 
   revalidatePath(`/operador/tenants/${casaId}`);
@@ -102,15 +103,13 @@ export async function darDeBajaLocalAction(formData: FormData) {
 }
 
 /** Lo que el wizard muestra antes de crear el local: a qué casa va y con qué CUIT y punto de venta. */
-export type RevisionAltaEnRed =
-  | { ok: true; casa: string; cuit: string | null; puntoVenta: number | null }
-  | { ok: false; motivo: string };
+export type RevisionAltaEnRed = Revision;
 
 /**
- * El chequeo del paso "¿de qué red?", SIN escribir: la casa existe y es casa, y el CUIT + punto
- * de venta no lo usa otro negocio. Lo que decide de verdad es `sumarAltaALaRedAction`, adentro
- * de su transacción y con el candado del CUIT: esto sólo evita crear un local que después no
- * puede entrar a la red.
+ * El chequeo del paso "¿de qué red?", SIN escribir: la MISMA regla que aplica después la red
+ * (`revisarAltaEnRedEnTx`: la casa, el mismo CUIT que la casa y el CUIT + punto de venta libre). El
+ * commit del alta la repite en el servidor antes de crear (`commitTenantAction`). Lo que decide de
+ * verdad es `sumarAltaALaRedAction`, adentro de su transacción y con el candado del CUIT.
  */
 export async function revisarAltaEnRedAction(formData: FormData): Promise<RevisionAltaEnRed> {
   const casaId = campo(formData, "casaId");
@@ -119,19 +118,19 @@ export async function revisarAltaEnRedAction(formData: FormData): Promise<Revisi
   const op = g.sesion.nombre;
   if (!casaId) return { ok: false, motivo: "Elegí la casa de la red." };
   try {
-    return await operatorPrisma.$transaction(async (tx) => {
-      const casa = await tx.tenant.findUnique({ where: { id: casaId }, select: { name: true, slug: true, modules: true, arcaCuit: true } });
-      if (!casa) return { ok: false as const, motivo: "Esa casa ya no existe. Recargá el alta." };
-      if (requiereOkDelDuenio(casa.slug)) return { ok: false as const, motivo: "Esa casa es un cliente vivo: no se le suman locales sin el OK del dueño." };
-      const acceso = decidirAcceso(casa.modules, "casa");
-      if (!acceso.ok) return { ok: false as const, motivo: `«${casa.name}» no puede ser casa de una red: ${acceso.error}` };
-      const fiscal = leerFiscalDelAlta({ cuit: campo(formData, "cuit"), puntoVenta: campo(formData, "puntoVenta") }, casa.arcaCuit);
-      if (!fiscal.ok) return fiscal;
-      // El local todavía no existe: ningún negocio se excluye del chequeo.
-      const choque = await choqueFiscalEnTx(tx, "", fiscal.cuit, fiscal.puntoVenta, false);
-      if (choque) return { ok: false as const, motivo: choque };
-      return { ok: true as const, casa: casa.name, cuit: fiscal.cuit, puntoVenta: fiscal.puntoVenta };
-    });
+    // Los módulos del local nuevo los mira el commit (salen del plan); acá, el nombre para el mensaje.
+    return await operatorPrisma.$transaction((tx) =>
+      revisarAltaEnRedEnTx(
+        tx,
+        {
+          casaId,
+          cuit: campo(formData, "cuit"),
+          puntoVenta: campo(formData, "puntoVenta"),
+          local: { name: campo(formData, "nombre"), slug: campo(formData, "slug"), modules: [] },
+        },
+        requiereOkDelDuenio,
+      ),
+    );
   } catch (e) {
     logger.error("operador.red-locales", "no se pudo revisar el alta en la red", e, { actor: op, casaId });
     return { ok: false, motivo: "No se pudo revisar ahora: la base no contestó. Probá de nuevo en un rato." };
@@ -180,7 +179,7 @@ export async function sumarAltaALaRedAction(formData: FormData): Promise<Resulta
     logger.error("operador.red-locales", "no se pudo sumar el alta a la red", e, { actor: op, casaId, localId });
     return {
       ok: false,
-      motivo: "No se pudo sumar el local a la red: no quedó nada a medias. Probá de nuevo en un rato; si sigue, vinculalo desde la ficha de la casa (tarjeta Red) y cargale el punto de venta en la suya.",
+      motivo: "No se pudo sumar el local a la red: no quedó nada a medias. Reintentá en un rato desde este mismo resultado del alta: es seguro, no duplica nada.",
     };
   }
 }
