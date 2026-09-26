@@ -17,7 +17,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraDelArchivo } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { runInTenantContext } from "@/lib/tenant-context";
 
@@ -34,10 +34,10 @@ async function preparar(t: import("node:test").TestContext, cual: "a" | "b") {
   Object.assign(env, { DB_CONNECTION_LIMIT: "2", DB_CONNECT_TIMEOUT_MS: "3000", ARCA_INVOICING_ENABLED: "true" });
   delete env.ARCA_MODO; // stub: nada sale a la red
   delete env.MP_ACCESS_TOKEN;
-  const { operatorPrisma } = await import("@/lib/operator-db");
+  const duenio = await prismaComoDuenio(base);
   const a = base[cual];
-  const tenant = await operatorPrisma.tenant.findUniqueOrThrow({ where: { id: a.id }, select: { modules: true } });
-  await operatorPrisma.tenant.update({
+  const tenant = await duenio.tenant.findUniqueOrThrow({ where: { id: a.id }, select: { modules: true } });
+  await duenio.tenant.update({
     where: { id: a.id },
     data: {
       arcaCuit: "20111111112",
@@ -46,13 +46,13 @@ async function preparar(t: import("node:test").TestContext, cual: "a" | "b") {
       modules: [...new Set([...tenant.modules, "arca"])],
     },
   });
-  const box = await operatorPrisma.box.create({ data: { tenantId: a.id, name: "Gabinete 1" } });
-  const prof = await operatorPrisma.professional.create({ data: { tenantId: a.id, name: "Lucía" } });
-  const serv = await operatorPrisma.service.create({ data: { tenantId: a.id, name: "Limpieza facial", durationMin: 60, price: 18000 } });
+  const box = await duenio.box.create({ data: { tenantId: a.id, name: "Gabinete 1" } });
+  const prof = await duenio.professional.create({ data: { tenantId: a.id, name: "Lucía" } });
+  const serv = await duenio.service.create({ data: { tenantId: a.id, name: "Limpieza facial", durationMin: 60, price: 18000 } });
 
   /** Un turno cobrado con el link de Mercado Pago (el pago aprobado, su cobro en el libro). */
   async function turnoCobradoPorLink() {
-    const turno = await operatorPrisma.appointment.create({
+    const turno = await duenio.appointment.create({
       data: {
         tenantId: a.id,
         clientId: a.clientes[0],
@@ -64,10 +64,10 @@ async function preparar(t: import("node:test").TestContext, cual: "a" | "b") {
         status: "COMPLETED",
       },
     });
-    await operatorPrisma.payment.create({
+    await duenio.payment.create({
       data: { tenantId: a.id, appointmentId: turno.id, amount: 18000, method: "MERCADOPAGO", status: "APPROVED" },
     });
-    await operatorPrisma.collection.create({
+    await duenio.collection.create({
       data: {
         tenantId: a.id,
         originType: "APPOINTMENT",
@@ -95,17 +95,17 @@ async function preparar(t: import("node:test").TestContext, cual: "a" | "b") {
   }
 
   const facturas = () =>
-    operatorPrisma.invoice.findMany({
+    duenio.invoice.findMany({
       where: { tenantId: a.id },
       select: { id: true, status: true, cae: true, appointmentId: true, orderId: true, mpPaymentId: true, total: true },
       orderBy: { createdAt: "asc" },
     });
   const movimiento = (paymentId: string) =>
-    operatorPrisma.movimientoImportado.findFirst({
+    duenio.movimientoImportado.findFirst({
       where: { tenantId: a.id, referencia: paymentId },
       select: { estadoPropuesta: true, motivoRevision: true, invoiceId: true },
     });
-  return { base, a, operatorPrisma, turnoCobradoPorLink, sincronizar, facturas, movimiento };
+  return { base, a, duenio, turnoCobradoPorLink, sincronizar, facturas, movimiento };
 }
 
 const cobroMP = (id: string, externalReference: string, monto = 18000) => ({

@@ -15,6 +15,12 @@ export type OutcomeOk = { ok: true; appointmentId: string };
 export type OutcomeFail = { ok: false; appointmentId: string; tenantId: string; error: string };
 export type ReminderOutcome = OutcomeOk | OutcomeFail;
 
+/** Un negocio cuyos turnos no se pudieron leer: no frena a los demás y no se pierde. */
+export interface NegocioSinLeer {
+  tenantId: string;
+  error: string;
+}
+
 export interface ReminderRunSummary {
   /** Turnos revisados (rango amplio traído de la DB). */
   checked: number;
@@ -26,15 +32,19 @@ export interface ReminderRunSummary {
   failed: number;
   /** Detalle de los fallos (para logs / observabilidad). */
   failures: OutcomeFail[];
+  /** Negocios cuyos turnos no se pudieron leer (sólo si hubo alguno). */
+  negociosSinLeer?: NegocioSinLeer[];
 }
 
 /**
  * Arma el resumen del lote a partir de los resultados por-ítem. PURA. Garantiza que un
- * fallo NO reduce el conteo de enviados y que ningún fallo se pierde (queda en `failures`).
+ * fallo NO reduce el conteo de enviados y que ningún fallo se pierde (queda en `failures`),
+ * y que un negocio que no se pudo leer queda nombrado (no cuenta como turno).
  */
 export function summarizeReminderRun(
   checked: number,
   outcomes: readonly ReminderOutcome[],
+  negociosSinLeer: readonly NegocioSinLeer[] = [],
 ): ReminderRunSummary {
   const failures = outcomes.filter((o): o is OutcomeFail => !o.ok);
   const sent = outcomes.length - failures.length;
@@ -44,5 +54,6 @@ export function summarizeReminderRun(
     sent,
     failed: failures.length,
     failures,
+    ...(negociosSinLeer.length > 0 ? { negociosSinLeer: [...negociosSinLeer] } : {}),
   };
 }

@@ -117,10 +117,12 @@ de dominio sin framework.
    `Tenant`) y `operatorPrisma` (16 archivos lo importan; otros 11 sólo lo nombran en comentarios).
    `operatorPrisma` salta RLS **sólo si `OPERATOR_DATABASE_URL` apunta al rol dueño** o a uno con
    BYPASSRLS; si la variable falta, usa `DATABASE_URL` (`operator-db.ts:21`), que en producción es
-   `app_rls`, y entonces no ve nada de ningún negocio. Qué tiene Vercel: sin medir (ENG-204). El
-   drenaje del outbox de ARCA usa `operatorPrisma` y se llama también desde acciones del negocio:
-   con el rol dueño procesa envíos de otros negocios (ENG-012); sin la variable no ve ningún
-   pendiente (ENG-027).
+   `app_rls`, y entonces no ve nada de ningún negocio sin el negocio puesto. **Medido el
+   2026-09-26: en producción la consola está sujeta a RLS**, y la decisión es que siga así
+   (`operator-db.ts`): todo lo de un negocio pasa por `enElNegocio`. Los crons ya no usan
+   `operatorPrisma`: recorren los negocios de `Tenant` y trabajan parados en cada uno
+   (`src/lib/cron/negocios.ts`; el drenaje de ARCA, `arca-dispatch.ts`). El arnés de tests conecta
+   la consola como `app_rls` (`src/test/base-efimera.ts`, `apuntarLaAppA`).
 5. RLS no viaja en las migraciones: `prisma/rls/0001_enable_rls.sql` y `0002_app_role.sql`
    se corren a mano después de `migrate deploy`. Una base nueva creada sólo con migraciones
    queda con 1 de 44 tablas protegidas (ver BACKLOG ENG-102).

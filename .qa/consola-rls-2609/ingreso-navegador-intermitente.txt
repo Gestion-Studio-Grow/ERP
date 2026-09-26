@@ -1,0 +1,15 @@
+# 'Ingreso en el navegador' > 'vista de siempre: lo que se tipea mientras espera la respuesta no se pierde al volver con el error'
+# (src/app/admin/login/ingreso-pantalla.test.ts): falló en la suite final. Test de navegador, sin base ni arnés; ningún archivo del login cambió.
+
+Corridas del archivo solo (node --import tsx --test src/app/admin/login/ingreso-pantalla.test.ts):
+- base 760ea02, seguidas: 0 de 5 fallan
+- base 760ea02, alternadas con la rama: 1 de 14 fallan
+- rama, seguidas: 3 de 8 fallan
+- rama, alternadas con la base: 4 de 14 fallan
+Siempre el mismo subtest y la misma aserción ('lo corregido queda': expected 'ana@chestetica.com', actual '').
+
+El código que ese test arma con esbuild es el MISMO en la base y en la rama:
+- mismo bundle sin los comentarios de ruta: 626521 bytes cada uno, cmp = iguales
+- mismos 74 archivos de entrada (metafile de esbuild)
+
+Conclusión medida: el test es intermitente también en la base. Con la misma carga (corridas alternadas) fue 1 de 14 en la base y 4 de 14 en la rama: diferencia no concluyente (Fisher exacto bilateral ≈ 0,33). Las corridas seguidas no controlan la carga (había otras dos sesiones corriendo suites). No encontré una causa en el código: el que ejecuta es idéntico. Queda anotado en BACKLOG (ENG-138).

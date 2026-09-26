@@ -34,10 +34,11 @@
 //   test("…", async (t) => { const base = await laBase(t); if (!base) return; … });
 //
 // Qué trae la base (`BaseEfimera`):
-//   · `urlDuenio`: conexión como `neondb_owner`, dueño de las tablas → EXENTO de RLS (como la
-//     consola del operador y las migraciones en producción). Para sembrar y para mirar "desde
-//     afuera" lo que la app escribió.
-//   · `urlApp`: conexión como `app_rls` → RLS aplicado. Es la de la app (`DATABASE_URL`).
+//   · `urlDuenio`: conexión como `neondb_owner`, dueño de las tablas → EXENTO de RLS (como las
+//     migraciones en producción). Para sembrar y para mirar "desde afuera" lo que la app escribió:
+//     `prismaComoDuenio(base)` da un cliente de Prisma con esta conexión.
+//   · `urlApp`: conexión como `app_rls` → RLS aplicado. Es la de la app (`DATABASE_URL`) y la de la
+//     consola (`OPERATOR_DATABASE_URL`), como en producción.
 //   · `a` y `b`: los dos negocios (`NegocioDePrueba`), con id, slug, subdominio y `host`
 //     (`negocio-a.erp.test`), una dueña (OWNER) y una recepcionista (RECEPTION) con la clave
 //     `CLAVE_DE_PRUEBA`, clientes (A: 2, B: 1) y pedidos (A: 3, B: 2). Los ids llevan una parte al
@@ -45,10 +46,14 @@
 //   · `alBorrar(fn)`: algo que tiene que pasar antes del DROP (cerrar clientes de Prisma).
 //
 // `apuntarLaAppA(base)` deja el entorno como el de producción con RLS: `DATABASE_URL` = app_rls,
-// `OPERATOR_DATABASE_URL` = dueño, `RLS_ENFORCEMENT=on`, y el negocio se resuelve por el HOST del
-// pedido (`APP_BASE_DOMAIN=erp.test`; se sacan `FORCE_TENANT_SLUG`, `TENANT_HOST_MAP` y el modo
-// demo). Los módulos de la app leen el entorno AL IMPORTARSE (`prisma-base.ts`): por eso se
-// importan después, con `await import(...)`. Cada archivo de test es su propio proceso.
+// `OPERATOR_DATABASE_URL` = app_rls (en producción la conexión de la consola está sujeta a RLS,
+// medido el 26/09/2026: el alta de un negocio falló con «new row violates row-level security
+// policy for table "User"»; con el dueño acá, ningún test lo había visto), `RLS_ENFORCEMENT=on`,
+// y el negocio se resuelve por el HOST del pedido (`APP_BASE_DOMAIN=erp.test`; se sacan
+// `FORCE_TENANT_SLUG`, `TENANT_HOST_MAP` y el modo demo). Un test que necesita ver todo para
+// verificar usa `prismaComoDuenio(base)`, nunca la conexión de la consola. Los módulos de la app
+// leen el entorno AL IMPORTARSE (`prisma-base.ts`): por eso se importan después, con
+// `await import(...)`. Cada archivo de test es su propio proceso.
 // Para ejecutar una Server Action real con la sesión de un usuario: `src/test/accion-de-servidor.ts`.
 //
 // ── EL SERVIDOR ───────────────────────────────────────────────────────────────────────────────
@@ -79,6 +84,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import pg from "pg";
+import type { PrismaClient } from "@/generated/prisma/client";
 import { baseLocalParaSeed } from "@/lib/seed/guarda-base";
 import { hashPassword } from "@/lib/auth-password";
 
@@ -454,7 +460,8 @@ export function baseEfimeraDelArchivo(env: Record<string, string | undefined> = 
 export function apuntarLaAppA(base: BaseEfimera, env: Record<string, string | undefined> = process.env): void {
   Object.assign(env, {
     DATABASE_URL: base.urlApp,
-    OPERATOR_DATABASE_URL: base.urlDuenio,
+    // Como producción: la consola también está sujeta a RLS (ver la cabecera).
+    OPERATOR_DATABASE_URL: base.urlApp,
     MIGRATE_DATABASE_URL: base.urlDuenio,
     RLS_ENFORCEMENT: "on",
     APP_BASE_DOMAIN: DOMINIO_DE_PRUEBA,
@@ -464,4 +471,28 @@ export function apuntarLaAppA(base: BaseEfimera, env: Record<string, string | un
     const [{ basePrisma }, { operatorPrisma }] = await Promise.all([import("@/lib/prisma-base"), import("@/lib/operator-db")]);
     await Promise.all([basePrisma.$disconnect(), operatorPrisma.$disconnect()]);
   });
+}
+
+const clientesComoDuenio = new WeakMap<BaseEfimera, Promise<PrismaClient>>();
+
+/**
+ * Un cliente de Prisma como DUEÑO de las tablas (exento de RLS), para sembrar y para mirar desde
+ * afuera lo que la app escribió. NO es la consola: la consola (`OPERATOR_DATABASE_URL`) está sujeta
+ * a RLS, como en producción. Uno por base; se cierra solo antes de borrarla.
+ */
+export function prismaComoDuenio(base: BaseEfimera): Promise<PrismaClient> {
+  let cliente = clientesComoDuenio.get(base);
+  if (!cliente) {
+    cliente = (async () => {
+      const [{ PrismaClient: Cliente }, { PrismaPg }] = await Promise.all([
+        import("@/generated/prisma/client"),
+        import("@prisma/adapter-pg"),
+      ]);
+      const c = new Cliente({ adapter: new PrismaPg({ connectionString: base.urlDuenio }) });
+      base.alBorrar(() => c.$disconnect());
+      return c;
+    })();
+    clientesComoDuenio.set(base, cliente);
+  }
+  return cliente;
 }

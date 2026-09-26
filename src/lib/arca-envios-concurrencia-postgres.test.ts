@@ -17,7 +17,7 @@ import { createServer, type Server } from "node:http";
 import { once } from "node:events";
 import { createInterface } from "node:readline";
 import path from "node:path";
-import { apuntarLaAppA, baseEfimeraDelArchivo } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { SimuladorArca } from "@/plugins/arca/afip/simulador";
 
 const laBase = baseEfimeraDelArchivo();
@@ -36,12 +36,12 @@ async function preparar(t: import("node:test").TestContext) {
     DB_CONNECTION_LIMIT: "4",
     DB_CONNECT_TIMEOUT_MS: "3000",
   });
-  const { operatorPrisma } = await import("@/lib/operator-db");
+  const duenio = await prismaComoDuenio(base);
   const invoiceCore = await import("@/lib/invoice-core");
   const { processArcaOutbox, procesarEnviosDelNegocio } = await import("@/lib/arca-dispatch");
   const { SoapAfipClient, FetchSoapTransport } = await import("@/plugins/arca/afip/soap");
 
-  await operatorPrisma.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
+  await duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
 
   const deps = {
     clientePara: async (tenantId: string) =>
@@ -69,7 +69,7 @@ async function preparar(t: import("node:test").TestContext) {
       vencimientoPago: "20260924",
       origin: { type: "MP_PAYMENT" as const, id: `${prefijo}_${++venta}` },
     });
-  return { base, operatorPrisma, invoiceCore, deps, processArcaOutbox, procesarEnviosDelNegocio, facturar };
+  return { base, duenio, invoiceCore, deps, processArcaOutbox, procesarEnviosDelNegocio, facturar };
 }
 
 type Preparado = NonNullable<Awaited<ReturnType<typeof preparar>>>;
@@ -81,7 +81,7 @@ type Preparado = NonNullable<Awaited<ReturnType<typeof preparar>>>;
  */
 async function controlar(p: Preparado, tenantId: string, ids: string[], caeAntes: number) {
   const sim = simDe(tenantId);
-  const facturas = await p.operatorPrisma.invoice.findMany({ where: { id: { in: ids } } });
+  const facturas = await p.duenio.invoice.findMany({ where: { id: { in: ids } } });
   const nuevosEnArca = sim.comprobantesAutorizados().filter((c) => c.numero > caeAntes);
   const porCae = new Map(nuevosEnArca.map((c) => [c.cae, c]));
   return {
@@ -93,7 +93,7 @@ async function controlar(p: Preparado, tenantId: string, ids: string[], caeAntes
     numerosIgualesAArca: facturas.every((f) => f.cae !== null && porCae.get(f.cae)?.numero === f.numero),
     numerosDeLaBase: facturas.map((f) => f.numero ?? 0).sort((x, y) => x - y),
     numerosEsperados: Array.from({ length: ids.length }, (_, i) => caeAntes + i + 1),
-    enviosAbiertos: await p.operatorPrisma.outboxEvent.count({ where: { processedAt: null, tenantId } }),
+    enviosAbiertos: await p.duenio.outboxEvent.count({ where: { processedAt: null, tenantId } }),
   };
 }
 
@@ -137,8 +137,14 @@ interface Hijo {
   stderr: string[];
 }
 
-function lanzarHijo(modo: string, simUrl: string): Hijo {
-  const env: Record<string, string | undefined> = { ...process.env, ARCA_SIM_URL: simUrl, DESPACHO_MODO: modo };
+function lanzarHijo(modo: string, simUrl: string, urlDuenio: string): Hijo {
+  // DUENIO_DATABASE_URL: sólo para que el hijo sepa si quedan pendientes de todos (arnés, no el despacho).
+  const env: Record<string, string | undefined> = {
+    ...process.env,
+    ARCA_SIM_URL: simUrl,
+    DESPACHO_MODO: modo,
+    DUENIO_DATABASE_URL: urlDuenio,
+  };
   delete env.NODE_TEST_CONTEXT;
   env.NO_PROXY = "127.0.0.1,localhost";
   env.no_proxy = env.NO_PROXY;
@@ -176,7 +182,7 @@ test("ENG-019 · 4 procesos a la vez sobre 12 pendientes de dos negocios, 3 seri
   t.after(() => server.close());
   const [a, b] = [p.base.a.id, p.base.b.id];
   const modos = ["cron", "cron", `negocio:${a}`, `negocio:${b}`].slice(0, PROCESOS);
-  const hijos = modos.map((m) => lanzarHijo(m, url));
+  const hijos = modos.map((m) => lanzarHijo(m, url, p.base.urlDuenio));
   t.after(() => hijos.forEach((h) => h.proc.kill()));
   await Promise.all(hijos.map((h) => h.linea("LISTO")));
 
@@ -234,7 +240,7 @@ test("ENG-019 · 50 de 50 iteraciones: dos ventas simultáneas de A y una de B c
       p.procesarEnviosDelNegocio(a, 20, p.deps),
     ]);
     // Lo que quedó (lo tenía otro despacho cuando éste miró) lo toma la corrida siguiente.
-    for (let resto = 0; resto < 5 && (await p.operatorPrisma.outboxEvent.count({ where: { processedAt: null } })) > 0; resto++) {
+    for (let resto = 0; resto < 5 && (await p.duenio.outboxEvent.count({ where: { processedAt: null } })) > 0; resto++) {
       vueltas.push(await p.processArcaOutbox(20, p.deps));
     }
     const ca = await controlar(p, a, [a1, a2], caeAntes.a);
@@ -267,14 +273,14 @@ test("ENG-019 · 20 envíos de A que fallan y 1 de B: B queda autorizada en la P
   };
 
   const r = await p.processArcaOutbox(20, depsConATrabado);
-  assert.equal((await p.operatorPrisma.invoice.findUniqueOrThrow({ where: { id: deB } })).status, "AUTHORIZED");
+  assert.equal((await p.duenio.invoice.findUniqueOrThrow({ where: { id: deB } })).status, "AUTHORIZED");
   assert.equal(r.autorizados, 1);
   assert.equal(r.fallidos, 19, "los otros 19 turnos de la corrida fueron de A");
   // Los envíos de A que fallaron quedan pendientes, con el intento contado y SIN reserva: el
   // próximo despacho los puede tomar enseguida.
-  const deA = await p.operatorPrisma.outboxEvent.findMany({ where: { tenantId: a, processedAt: null } });
+  const deA = await p.duenio.outboxEvent.findMany({ where: { tenantId: a, processedAt: null } });
   assert.equal(deA.length, 20);
   assert.equal(deA.filter((e) => e.attempts === 1).length, 19);
   assert.equal(deA.filter((e) => (e.payload as { reserva?: unknown }).reserva !== undefined).length, 0);
-  await p.operatorPrisma.outboxEvent.updateMany({ where: { tenantId: a, processedAt: null }, data: { processedAt: new Date() } });
+  await p.duenio.outboxEvent.updateMany({ where: { tenantId: a, processedAt: null }, data: { processedAt: new Date() } });
 });

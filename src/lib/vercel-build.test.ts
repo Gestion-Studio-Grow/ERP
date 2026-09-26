@@ -294,7 +294,8 @@ test("vercel.json usa este script como build", () => {
 });
 
 // ── Preview contra la base de producción ─────────────────────────────────────────────────────
-// La app se conecta como `app_rls` (DATABASE_URL) y la consola como dueño (OPERATOR_DATABASE_URL).
+// La app se conecta con DATABASE_URL y la consola con OPERATOR_DATABASE_URL; el guardián lee sólo
+// `Tenant` (sin RLS), así que mira lo mismo con el rol de la app o con el dueño.
 
 test("preview contra una base con el negocio vivo → bloqueado", async (t) => {
   const prod = await baseConElNegocioVivo(t);

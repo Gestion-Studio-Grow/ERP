@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { authorizeCron } from "@/lib/cron-auth";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { processArcaOutbox } from "@/lib/arca-dispatch";
-import { ProcesadorArcaSinAccesoError } from "@/lib/arca-reserva";
-import { logger } from "@/lib/logger";
 
 // Worker del outbox de ARCA (ADR-002 / ADR-022): drena los eventos `InvoiceCreated`
 // pendientes y los despacha al plugin (emisión del comprobante + registro del CAE, o
@@ -21,6 +19,9 @@ import { logger } from "@/lib/logger";
 // CADENCIA: registrado en `vercel.json` a diario (compatible con el plan actual). Cuando
 // ARCA esté en real y se necesite menor latencia de emisión, apretar la frecuencia del
 // cron (requiere el plan de Vercel que lo permita).
+//
+// NEGOCIOS: `processArcaOutbox` recorre los negocios y despacha cada envío parado en el suyo,
+// con la conexión de la app. No necesita una conexión que vea todo (ver arca-dispatch.ts).
 
 export const dynamic = "force-dynamic";
 
@@ -35,16 +36,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ skipped: true, reason: "ARCA_INVOICING_ENABLED off" });
   }
 
-  try {
-    const resumen = await processArcaOutbox();
-    return NextResponse.json({ ok: true, ...resumen });
-  } catch (err) {
-    // ENG-027: sin acceso a los envíos de todos los negocios, el cron FALLA a la vista (el log
-    // lleva el detalle; la respuesta, sólo el motivo) en vez de responder "0 procesados".
-    if (err instanceof ProcesadorArcaSinAccesoError) {
-      logger.error("arca", "el cron de ARCA no ve los envíos de todos los negocios", err);
-      return NextResponse.json({ ok: false, error: err.motivo }, { status: 500 });
-    }
-    throw err;
-  }
+  const resumen = await processArcaOutbox();
+  return NextResponse.json({ ok: true, ...resumen });
 }

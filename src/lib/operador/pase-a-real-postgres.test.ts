@@ -24,7 +24,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import forge from "node-forge";
-import { apuntarLaAppA, baseEfimeraParaElTest } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { valorDeClave } from "./clave-operador";
 
@@ -73,7 +73,7 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
   });
   prepararAccionesDeServidor();
 
-  const { operatorPrisma } = await import("@/lib/operator-db");
+  const dbDuenio = await prismaComoDuenio(base);
   const { cargarCredencialTenant } = await import("@/lib/fiscal/tenant-cert");
   const { createOperatorToken } = await import("@/lib/operator-auth");
   const { cambiarFacturacionReal } = await import("@/lib/operator-actions");
@@ -92,7 +92,7 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
     await cargarCredencialTenant({ tenantId, ...par, actor: "operator:tomas" });
   }
   async function fichaEnRegla(tenantId: string) {
-    await operatorPrisma.tenant.update({
+    await dbDuenio.tenant.update({
       where: { id: tenantId },
       data: { arcaCuit: CUIT, arcaPuntoVenta: 3, arcaCondicionIva: "RESPONSABLE_INSCRIPTO" },
     });
@@ -117,18 +117,18 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
     return { ok: u.searchParams.get("ok"), error: u.searchParams.get("error"), destino };
   }
   async function estado(tenantId: string) {
-    const fila = await operatorPrisma.tenant.findUniqueOrThrow({
+    const fila = await dbDuenio.tenant.findUniqueOrThrow({
       where: { id: tenantId },
       select: { arcaHomologacion: true },
     });
-    const auditorias = await operatorPrisma.auditLog.count({
+    const auditorias = await dbDuenio.auditLog.count({
       where: { tenantId, action: { in: Object.values(ACCION_AUDITORIA) } },
     });
     return { homologacion: fila.arcaHomologacion, auditorias };
   }
   const deB = async () => ({
-    tenant: await operatorPrisma.tenant.findUniqueOrThrow({ where: { id: B.id } }),
-    auditorias: await operatorPrisma.auditLog.count({ where: { tenantId: B.id } }),
+    tenant: await dbDuenio.tenant.findUniqueOrThrow({ where: { id: B.id } }),
+    auditorias: await dbDuenio.auditLog.count({ where: { tenantId: B.id } }),
   });
   const bAlEmpezar = await deB();
 
@@ -139,12 +139,12 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
     const casos: { nombre: string; romper: () => Promise<void>; motivo: RegExp }[] = [
       {
         nombre: "sin CUIT",
-        romper: () => operatorPrisma.tenant.update({ where: { id: A.id }, data: { arcaCuit: null } }).then(() => {}),
+        romper: () => dbDuenio.tenant.update({ where: { id: A.id }, data: { arcaCuit: null } }).then(() => {}),
         motivo: /Falta el CUIT del negocio\./,
       },
       {
         nombre: "sin punto de venta",
-        romper: () => operatorPrisma.tenant.update({ where: { id: A.id }, data: { arcaPuntoVenta: null } }).then(() => {}),
+        romper: () => dbDuenio.tenant.update({ where: { id: A.id }, data: { arcaPuntoVenta: null } }).then(() => {}),
         motivo: /Falta el punto de venta que ARCA habilitó/,
       },
       {
@@ -154,7 +154,7 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
       },
       {
         nombre: "sin condición de IVA",
-        romper: () => operatorPrisma.tenant.update({ where: { id: A.id }, data: { arcaCondicionIva: null } }).then(() => {}),
+        romper: () => dbDuenio.tenant.update({ where: { id: A.id }, data: { arcaCondicionIva: null } }).then(() => {}),
         motivo: /Falta la condición del negocio frente al IVA\./,
       },
       {
@@ -185,7 +185,7 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
     assert.equal(r.error, null);
     assert.match(r.ok ?? "", /pasó a facturación real/);
     assert.deepEqual(await estado(A.id), { homologacion: false, auditorias: 1 });
-    const fila = await operatorPrisma.auditLog.findFirstOrThrow({
+    const fila = await dbDuenio.auditLog.findFirstOrThrow({
       where: { tenantId: A.id, action: ACCION_AUDITORIA["pasar-a-real"] },
     });
     assert.equal(fila.actor, "operator:tomas");
@@ -204,17 +204,17 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
   });
 
   await t.test("la vuelta a pruebas funciona sin ningún dato (ni CUIT, ni certificado, ni huella, ni slug)", async () => {
-    await operatorPrisma.tenant.update({
+    await dbDuenio.tenant.update({
       where: { id: A.id },
       data: { arcaCuit: null, arcaPuntoVenta: null, arcaCondicionIva: null },
     });
-    await operatorPrisma.tenantFiscalCredential.deleteMany({ where: { tenantId: A.id } });
+    await dbDuenio.tenantFiscalCredential.deleteMany({ where: { tenantId: A.id } });
     process.env.ARCA_MODO = "stub";
     const r = await confirmar(A.id, { accion: "volver-a-pruebas", huella: "v1|una-huella-vieja" });
     assert.equal(r.error, null);
     assert.match(r.ok ?? "", /volvió a facturar en pruebas/);
     assert.deepEqual(await estado(A.id), { homologacion: true, auditorias: 2 });
-    const fila = await operatorPrisma.auditLog.findFirstOrThrow({
+    const fila = await dbDuenio.auditLog.findFirstOrThrow({
       where: { tenantId: A.id, action: ACCION_AUDITORIA["volver-a-pruebas"] },
     });
     assert.deepEqual((fila.changes as Record<string, unknown>).arcaHomologacion, { antes: false, despues: true });
@@ -245,7 +245,7 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
     await fichaEnRegla(A.id);
     const vieja = await huella(A.id);
     const antesDelCambio = await estado(A.id);
-    await operatorPrisma.tenant.update({ where: { id: A.id }, data: { arcaPuntoVenta: 4 } });
+    await dbDuenio.tenant.update({ where: { id: A.id }, data: { arcaPuntoVenta: 4 } });
     const r = await confirmar(A.id, { accion: "pasar-a-real", huella: vieja, slug: A.slug });
     assert.equal(r.error, FICHA_CAMBIO_MIENTRAS_MIRABAS);
     assert.deepEqual(await estado(A.id), antesDelCambio);
@@ -269,7 +269,7 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
   });
 
   await t.test("CH: un operador que no es el dueño no pasa ni vuelve; el dueño tiene que escribir el slug", async () => {
-    const ch = await operatorPrisma.tenant.create({
+    const ch = await dbDuenio.tenant.create({
       data: { name: "CH (copia de prueba)", slug: "beauty-spa", subdomain: "qa-ch-pase", arcaHomologacion: true },
     });
     await fichaEnRegla(ch.id);
@@ -302,7 +302,7 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
   });
 
   await t.test("comprobantes de la etapa de pruebas: esperando CAE o autorizados en pruebas niegan sin cambiar nada", async () => {
-    const C = await operatorPrisma.tenant.create({
+    const C = await dbDuenio.tenant.create({
       data: { name: "QA comprobantes de prueba", slug: "qa-pase-comprobantes", subdomain: "qa-pase-comprobantes", arcaHomologacion: true },
     });
     await fichaEnRegla(C.id);
@@ -310,8 +310,8 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
     const pedirPase = async () => confirmar(C.id, { accion: "pasar-a-real", huella: await huella(C.id), slug: C.slug });
 
     // 1. Una factura de la etapa de pruebas PENDING, con su envío a ARCA abierto.
-    const pendiente = await operatorPrisma.invoice.create({ data: factura });
-    await operatorPrisma.outboxEvent.create({ data: { tenantId: C.id, type: "InvoiceCreated", payload: { invoiceId: pendiente.id } } });
+    const pendiente = await dbDuenio.invoice.create({ data: factura });
+    await dbDuenio.outboxEvent.create({ data: { tenantId: C.id, type: "InvoiceCreated", payload: { invoiceId: pendiente.id } } });
     const f1 = await leerFichaDelPase(C.id, "real");
     assert.deepEqual(f1?.comprobantesDePrueba, { esperandoCae: 1, enviosAbiertos: 1, autorizados: 0, desde: null });
     const alEmpezar = await estado(C.id);
@@ -330,10 +330,10 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
     assert.deepEqual(await estado(C.id), alEmpezar);
 
     // 2. ARCA la rechazó y el envío se cerró: eso ya no frena. Una autorizada en pruebas, sí.
-    await operatorPrisma.invoice.update({ where: { id: pendiente.id }, data: { status: "REJECTED", rechazoMotivo: "qa" } });
-    await operatorPrisma.outboxEvent.updateMany({ where: { tenantId: C.id }, data: { processedAt: new Date() } });
+    await dbDuenio.invoice.update({ where: { id: pendiente.id }, data: { status: "REJECTED", rechazoMotivo: "qa" } });
+    await dbDuenio.outboxEvent.updateMany({ where: { tenantId: C.id }, data: { processedAt: new Date() } });
     const autorizada = { ...factura, status: "AUTHORIZED" as const, tipoComprobante: 11, caeVencimiento: "20261001" };
-    await operatorPrisma.invoice.create({
+    await dbDuenio.invoice.create({
       data: { ...autorizada, numero: 1, cae: "70000000000001", authorizedAt: new Date(Date.now() - 3 * 3_600_000) },
     });
     const r2 = await pedirPase();
@@ -342,7 +342,7 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
     assert.deepEqual(await estado(C.id), alEmpezar, "1 autorizada en pruebas: no cambió nada");
 
     // 3. Una vuelta a pruebas registrada DESPUÉS de esa factura: fue de la etapa real, ya no cuenta.
-    const vuelta = await operatorPrisma.auditLog.create({
+    const vuelta = await dbDuenio.auditLog.create({
       data: {
         tenantId: C.id,
         actor: "operator:tomas",
@@ -357,12 +357,12 @@ test("pase a real contra Postgres: condiciones, vuelta, concurrencia, huella, CH
     assert.deepEqual(f3?.comprobantesDePrueba, { esperandoCae: 0, enviosAbiertos: 0, autorizados: 0, desde: vuelta.createdAt.toISOString() });
     const r3 = await pedirPase();
     assert.match(r3.ok ?? "", /pasó a facturación real/);
-    const pase = await operatorPrisma.auditLog.findFirstOrThrow({ where: { tenantId: C.id, action: ACCION_AUDITORIA["pasar-a-real"] } });
+    const pase = await dbDuenio.auditLog.findFirstOrThrow({ where: { tenantId: C.id, action: ACCION_AUDITORIA["pasar-a-real"] } });
     assert.deepEqual((pase.changes as Record<string, unknown>).comprobantesDePrueba, f3?.comprobantesDePrueba, "el conteo queda en AuditLog");
 
     // 4. Vuelve a pruebas y se autoriza una en pruebas: el próximo pase se niega y dice desde cuándo.
     assert.match((await confirmar(C.id, { accion: "volver-a-pruebas" })).ok ?? "", /volvió a facturar en pruebas/);
-    await operatorPrisma.invoice.create({
+    await dbDuenio.invoice.create({
       data: { ...autorizada, numero: 2, cae: "70000000000002", authorizedAt: new Date(Date.now() + 1_000) },
     });
     const antesDelSegundo = await estado(C.id);

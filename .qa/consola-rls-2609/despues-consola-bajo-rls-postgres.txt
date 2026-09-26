@@ -1,0 +1,57 @@
+# DESPUÉS del arreglo: rama consola-rls-2609 (código arreglado), 2026-09-26T21:20:22Z
+# Comando: node --import tsx --test src/lib/operador/consola-bajo-rls-postgres.test.ts
+TAP version 13
+# Subtest: consola con la conexión sujeta a RLS: alta, reset del dueño, certificado y aislamiento
+    # Subtest: la conexión de la consola está de verdad sujeta a RLS (sin negocio no ve filas)
+    ok 1 - la conexión de la consola está de verdad sujeta a RLS (sin negocio no ve filas)
+      ---
+      duration_ms: 213.300503
+      type: 'test'
+      ...
+    # Subtest: parada en un negocio, la consola ve sólo lo de ese negocio
+    ok 2 - parada en un negocio, la consola ve sólo lo de ese negocio
+      ---
+      duration_ms: 37.477475
+      type: 'test'
+      ...
+# {"ts":"2026-09-26T21:20:27.767Z","level":"info","scope":"operator.provisioning","msg":"commit","actor":"tomas","slug":"circuito-wpe","edicion":"comercio","state":"ACTIVE","tenantId":"cmuiw8r9o0000r87dsk0zf7i0","tenantCreated":true}
+# {"ts":"2026-09-26T21:20:27.838Z","level":"info","scope":"operator.provisioning","msg":"commit","actor":"tomas","slug":"circuito-wpe","edicion":"comercio","state":"ACTIVE","tenantId":"cmuiw8r9o0000r87dsk0zf7i0","tenantCreated":true}
+    # Subtest: alta de un negocio desde el asistente: negocio, dueño, datos, catálogo y auditoría
+    ok 3 - alta de un negocio desde el asistente: negocio, dueño, datos, catálogo y auditoría
+      ---
+      duration_ms: 249.876377
+      type: 'test'
+      ...
+    # Subtest: reset de la contraseña del dueño: cambia la de ese negocio y queda auditado
+    ok 4 - reset de la contraseña del dueño: cambia la de ese negocio y queda auditado
+      ---
+      duration_ms: 142.67754
+      type: 'test'
+      ...
+    # Subtest: certificado de ARCA: se carga desde la consola y la facturación lo encuentra
+    ok 5 - certificado de ARCA: se carga desde la consola y la facturación lo encuentra
+      ---
+      duration_ms: 209.629296
+      type: 'test'
+      ...
+    # Subtest: CUIT y punto de venta del emisor: se guardan, quedan auditados en su negocio y el candado ve a los otros negocios del CUIT
+    ok 6 - CUIT y punto de venta del emisor: se guardan, quedan auditados en su negocio y el candado ve a los otros negocios del CUIT
+      ---
+      duration_ms: 176.701825
+      type: 'test'
+      ...
+    1..6
+ok 1 - consola con la conexión sujeta a RLS: alta, reset del dueño, certificado y aislamiento
+  ---
+  duration_ms: 5084.781053
+  type: 'test'
+  ...
+1..1
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5773.613784

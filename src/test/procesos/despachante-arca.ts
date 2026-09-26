@@ -15,7 +15,9 @@
 //   test  → "FIN"                         (cierra conexiones y sale)
 //
 // Entorno: el de la base efímera (`apuntarLaAppA`) más ARCA_SIM_URL y DESPACHO_MODO = "cron" o
-// "negocio:<tenantId>". No es un test (no lo toma el patrón de `npm test`).
+// "negocio:<tenantId>". En modo "cron", DUENIO_DATABASE_URL: la conexión de dueño con la que el
+// ARNÉS mira si quedan pendientes de todos (el despacho no la usa: corre parado en cada negocio).
+// No es un test (no lo toma el patrón de `npm test`).
 
 import { createInterface } from "node:readline";
 
@@ -35,13 +37,16 @@ async function main(): Promise<void> {
     throw new Error("Faltan ARCA_SIM_URL o DESPACHO_MODO (cron | negocio:<tenantId>).");
   }
   const negocio = modo.startsWith("negocio:") ? modo.slice("negocio:".length) : null;
+  const urlDuenio = process.env.DUENIO_DATABASE_URL;
 
   const { processArcaOutbox, procesarEnviosDelNegocio } = await import("@/lib/arca-dispatch");
   const { numeroUsadoPorOtraFactura, OUTBOX_INVOICE_CREATED } = await import("@/lib/invoice-core");
   const { SoapAfipClient, FetchSoapTransport } = await import("@/plugins/arca/afip/soap");
-  const { operatorPrisma } = await import("@/lib/operator-db");
+  const { PrismaClient } = await import("@/generated/prisma/client");
+  const { PrismaPg } = await import("@prisma/adapter-pg");
   const { tenantTransaction } = await import("@/lib/rls");
   const { prisma } = await import("@/lib/prisma");
+  const duenio = urlDuenio ? new PrismaClient({ adapter: new PrismaPg({ connectionString: urlDuenio }) }) : null;
 
   /** El fetch del cliente SOAP va al simulador compartido, con la URL de ARCA y el negocio. */
   const alSimulador =
@@ -67,15 +72,15 @@ async function main(): Promise<void> {
 
   const despachar = () =>
     negocio ? procesarEnviosDelNegocio(negocio, 20, deps) : processArcaOutbox(20, deps);
-  const quedanPendientes = async (): Promise<boolean> => {
-    const donde = { type: OUTBOX_INVOICE_CREATED, processedAt: null };
-    const n = negocio
-      ? await tenantTransaction((tx) => tx.outboxEvent.count({ where: { ...donde, tenantId: negocio } }), {
-          tenantId: negocio,
-        })
-      : await operatorPrisma.outboxEvent.count({ where: donde });
-    return n > 0;
+  const donde = { type: OUTBOX_INVOICE_CREATED, processedAt: null };
+  const contarPendientes = (): Promise<number> => {
+    if (negocio) {
+      return tenantTransaction((tx) => tx.outboxEvent.count({ where: { ...donde, tenantId: negocio } }), { tenantId: negocio });
+    }
+    if (!duenio) throw new Error("En modo cron falta DUENIO_DATABASE_URL (para mirar los pendientes de todos).");
+    return duenio.outboxEvent.count({ where: donde });
   };
+  const quedanPendientes = async (): Promise<boolean> => (await contarPendientes()) > 0;
 
   // Abre las conexiones ANTES de la largada, para que la carrera sea del despacho y no del arranque.
   await quedanPendientes();
@@ -101,7 +106,7 @@ async function main(): Promise<void> {
     process.stdout.write(`RESUMEN ${serie} ${JSON.stringify(suma)}\n`);
   }
   lineas.close();
-  await Promise.all([operatorPrisma.$disconnect(), prisma.$disconnect()]);
+  await Promise.all([duenio?.$disconnect(), prisma.$disconnect()]);
 }
 
 main().then(

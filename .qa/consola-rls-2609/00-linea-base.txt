@@ -1,0 +1,25 @@
+# Línea base (commit 760ea02, sin cambios), npm test completo en /home/user/erp-consola-rls, 2026-09-26
+# Otras dos sesiones corrían su suite en paralelo contra el mismo Postgres (4 CPU).
+# tests 4281
+# suites 42
+# pass 4275
+# fail 6
+# cancelled 0
+# skipped 0
+# duration_ms 1087579.96826
+
+Fallas:
+    not ok 49 - POS de la bandeja: un pedido con la red caída conserva los datos del cliente y lo cargado
+not ok 414 - Vender en el navegador
+not ok 1367 - contra Postgres: los días cerrados no se tocan; la diferencia real al abrir y la del arqueo quedan una vez cada una; lo que no pasó por el turno también cuenta
+not ok 3916 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+not ok 3939 - lee un xlsx con fechas Date y números number
+not ok 3940 - filas totalmente vacías se descartan
+not ok 3941 - esXlsx reconoce el magic ZIP de un .xlsx real
+
+La de caja (días cerrados) fue del arnés, no del código: 'prisma migrate deploy falló' al crear la base efímera (377 s de archivo bajo carga).
+El mismo archivo solo, sin cambios:
+# tests 1
+# pass 1
+# fail 0
+real	0m7.974s

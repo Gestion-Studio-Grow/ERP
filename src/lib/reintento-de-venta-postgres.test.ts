@@ -10,7 +10,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraParaElTest } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 
 test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se compara con lo grabado", async (t) => {
   const laBase = await baseEfimeraParaElTest(t);
@@ -18,7 +18,7 @@ test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se com
   apuntarLaAppA(laBase);
   const e = process.env as Record<string, string | undefined>;
   Object.assign(e, { NODE_ENV: "development", DB_CONNECTION_LIMIT: "2", DB_CONNECT_TIMEOUT_MS: "3000" });
-  const { operatorPrisma } = await import("@/lib/operator-db");
+  const duenio = await prismaComoDuenio(laBase);
   const { basePrisma } = await import("@/lib/prisma-base");
   const rol = await basePrisma.$queryRaw<{ bypass: boolean }[]>`
     SELECT rolbypassrls AS bypass FROM pg_roles WHERE rolname = current_user`;
@@ -29,18 +29,18 @@ test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se com
   const { prisma } = await import("@/lib/prisma");
 
   const slug = `qa-reintento-${Date.now().toString(36)}`;
-  const tn = await operatorPrisma.tenant.create({ data: { name: slug, slug, blueprintId: "carniceria", modules: ["pos", "catalog", "clients"] } });
+  const tn = await duenio.tenant.create({ data: { name: slug, slug, blueprintId: "carniceria", modules: ["pos", "catalog", "clients"] } });
   const tenantId = tn.id;
   try {
-    const vacio = await operatorPrisma.product.create({
+    const vacio = await duenio.product.create({
       data: { tenantId, name: "Vacío", saleUnit: "WEIGHT", pricePerKg: 12500, unit: "kg", trackStock: true, stock: 30 },
     });
-    const entrana = await operatorPrisma.product.create({
+    const entrana = await duenio.product.create({
       data: { tenantId, name: "Entraña", saleUnit: "WEIGHT", pricePerKg: 17500, unit: "kg", trackStock: true, stock: 0.5 },
     });
-    const maria = await operatorPrisma.client.create({ data: { tenantId, name: "María Pérez", phone: "11 4000 0000" } });
-    await operatorPrisma.client.create({ data: { tenantId, name: "Juan Gómez", phone: "11 5000 0000" } });
-    await operatorPrisma.coupon.create({ data: { tenantId, code: "VERANO10", type: "PERCENT", value: 10, maxUses: 1 } });
+    const maria = await duenio.client.create({ data: { tenantId, name: "María Pérez", phone: "11 4000 0000" } });
+    await duenio.client.create({ data: { tenantId, name: "Juan Gómez", phone: "11 5000 0000" } });
+    await duenio.coupon.create({ data: { tenantId, code: "VERANO10", type: "PERCENT", value: 10, maxUses: 1 } });
     e.FORCE_TENANT_SLUG = slug;
 
     const base = {
@@ -55,7 +55,7 @@ test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se com
       paymentMethod: null,
       items: [{ productId: vacio.id, qty: 1.24 }],
     };
-    const ordenesCon = (idempotencyKey: string) => operatorPrisma.order.count({ where: { tenantId, idempotencyKey } });
+    const ordenesCon = (idempotencyKey: string) => duenio.order.count({ where: { tenantId, idempotencyKey } });
 
     // ── R1: a cuenta de María; el reintento llega con Juan ────────────────────────────────
     const k1 = `qa-k1-${slug}`;
@@ -78,9 +78,9 @@ test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se com
     );
     // No se grabó nada nuevo: una venta, una deuda (de María), el stock descontado una vez.
     assert.equal(await ordenesCon(k1), 1);
-    const deudas = await operatorPrisma.accountReceivable.findMany({ where: { tenantId }, select: { clientId: true, amount: true } });
+    const deudas = await duenio.accountReceivable.findMany({ where: { tenantId }, select: { clientId: true, amount: true } });
     assert.deepEqual(deudas.map((d) => ({ clientId: d.clientId, amount: Number(d.amount) })), [{ clientId: maria.id, amount: 15500 }]);
-    assert.equal((await operatorPrisma.product.findUniqueOrThrow({ where: { id: vacio.id } })).stock, 28.76);
+    assert.equal((await duenio.product.findUniqueOrThrow({ where: { id: vacio.id } })).stock, 28.76);
     // El mismo reintento, igual (el teléfono escrito de otra forma): la grabada, con su ticket.
     const igual = await insertOrder(tenantId, { ...base, customerPhone: "1140000000" }, aCuenta);
     const resp1b = await respuestaAlReintento(tenantId, igual, { conTicket: true });
@@ -113,7 +113,7 @@ test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se com
     ]);
     assert.match(resp2.error, new RegExp(`^El pedido #${r2.code} ya se había registrado con \\$25\\.000,00 \\(sin cobrar, María Pérez\\)\\.`));
     assert.equal(await ordenesCon(k2), 1);
-    const grabado2 = await operatorPrisma.order.findUniqueOrThrow({ where: { id: r2.id } });
+    const grabado2 = await duenio.order.findUniqueOrThrow({ where: { id: r2.id } });
     assert.equal(grabado2.address, "Av. Mitre 1234", "lo grabado no se tocó");
     const igual2 = await respuestaAlReintento(tenantId, await insertOrder(tenantId, pedido, { idempotencyKey: k2 }), { conTicket: true });
     assert.ok(igual2.ok);
@@ -144,11 +144,11 @@ test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se com
     assert.ok(!aMano.ok && aMano.tipo === "ya-grabada-distinta");
     assert.deepEqual(aMano.grabada.diferencias, ["Cupón: se grabó el cupón VERANO10; ahora sin cupón."]);
     assert.equal(await ordenesCon(k4), 1);
-    assert.equal((await operatorPrisma.coupon.findFirstOrThrow({ where: { tenantId, code: "VERANO10" } })).usedCount, 1);
-    assert.equal(await operatorPrisma.cashMovement.count({ where: { tenantId, orderId: r4.id } }), 1, "un solo asiento en el libro");
+    assert.equal((await duenio.coupon.findFirstOrThrow({ where: { tenantId, code: "VERANO10" } })).usedCount, 1);
+    assert.equal(await duenio.cashMovement.count({ where: { tenantId, orderId: r4.id } }), 1, "un solo asiento en el libro");
 
     // ── Anulada: el mismo reintento no la devuelve como cobrada ─────────────────────────
-    await operatorPrisma.order.update({ where: { id: r4.id }, data: { status: "CANCELLED" } });
+    await duenio.order.update({ where: { id: r4.id }, data: { status: "CANCELLED" } });
     const anulada = await respuestaAlReintento(
       tenantId,
       await insertOrder(tenantId, efectivo, { idempotencyKey: k4, cupon: "VERANO10", imputarCajaActor: "user:qa" }),
@@ -164,16 +164,16 @@ test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se com
     const ana = { ...efectivo, customerName: "Ana", customerPhone: "11 7000 0000" };
     const r6 = await insertOrder(tenantId, ana, { idempotencyKey: k6, imputarCajaActor: "user:qa" });
     // S1: la dueña cambia el precio; S2: aparece la ficha de ese teléfono; S3: desactiva el producto.
-    await operatorPrisma.product.update({ where: { id: vacio.id }, data: { pricePerKg: 13000 } });
-    await operatorPrisma.client.create({ data: { tenantId, name: "Ana", phone: "1170000000" } });
-    await operatorPrisma.product.update({ where: { id: vacio.id }, data: { active: false } });
+    await duenio.product.update({ where: { id: vacio.id }, data: { pricePerKg: 13000 } });
+    await duenio.client.create({ data: { tenantId, name: "Ana", phone: "1170000000" } });
+    await duenio.product.update({ where: { id: vacio.id }, data: { active: false } });
     const reintento6 = await insertOrder(tenantId, ana, { idempotencyKey: k6, imputarCajaActor: "user:qa" });
     assert.equal(reintento6.dedup, true, "la clave se busca antes de validar: no es un rechazo");
     const resp6 = await respuestaAlReintento(tenantId, reintento6, { conTicket: true });
     assert.ok(resp6.ok, JSON.stringify(resp6));
     assert.equal(resp6.mensaje, `Esa venta ya estaba registrada (#${r6.code}): no se cobró dos veces.`);
     assert.equal(resp6.venta?.total, 12500, "el ticket es lo grabado, al precio de entonces");
-    await operatorPrisma.product.update({ where: { id: vacio.id }, data: { active: true, pricePerKg: 12500 } });
+    await duenio.product.update({ where: { id: vacio.id }, data: { active: true, pricePerKg: 12500 } });
 
     // ── Todo lo distinto es de más: lo que falta, con el nombre del producto (nunca su precio) ─
     const k7 = `qa-k7-${slug}`;
@@ -190,7 +190,7 @@ test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se com
     assert.equal(await ordenesCon(k7), 1);
 
     // ── Un rechazo de negocio de verdad (sin stock) es "no se cobró": y no quedó nada ─────
-    let antes = await operatorPrisma.order.count({ where: { tenantId } });
+    let antes = await duenio.order.count({ where: { tenantId } });
     let rechazo: unknown = null;
     try {
       await insertOrder(tenantId, { ...efectivo, customerName: "", items: [{ productId: entrana.id, qty: 2 }] }, { idempotencyKey: `qa-k5-${slug}` });
@@ -198,12 +198,12 @@ test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se com
       rechazo = err;
     }
     assert.match(motivoDelRechazoDelAlta(rechazo) ?? "", /^Sin stock suficiente de "Entraña"/);
-    assert.equal(await operatorPrisma.order.count({ where: { tenantId } }), antes, "el rechazo no grabó nada");
+    assert.equal(await duenio.order.count({ where: { tenantId } }), antes, "el rechazo no grabó nada");
 
     // ── M4: rechazo de negocio con clave: ¿quedó algo grabado con ella? ──────────────────────
     const { rechazoDelAltaConClave } = await import("@/lib/respuesta-al-reintento");
     const { pedidoDelReintento } = await import("@/lib/reintento-de-venta");
-    const ultima = await operatorPrisma.product.create({
+    const ultima = await duenio.product.create({
       data: { tenantId, name: "Crema", saleUnit: "UNIT", price: 9000, unit: "u", trackStock: true, stock: 1 },
     });
     const crema = { ...efectivo, items: [{ productId: ultima.id, qty: 1 }] };
@@ -259,7 +259,7 @@ test("contra Postgres (app_rls + RLS): el reintento con una clave grabada se com
     assert.ok(retoma.tipo === "tomado" && retoma.pedido.id === propio.id);
 
     // Todo lo de arriba se leyó y escribió como la app (RLS): el negocio de al lado no ve nada.
-    antes = await operatorPrisma.order.count({ where: { tenantId } });
+    antes = await duenio.order.count({ where: { tenantId } });
     assert.equal(await prisma.order.count({ where: { tenantId } }), antes);
   } finally {
     // El negocio de prueba se va con la base efímera; los clientes de Prisma los cierra el arnés.

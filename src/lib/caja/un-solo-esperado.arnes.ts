@@ -19,7 +19,7 @@
  *   · dos negocios no se mezclan.
  */
 import assert from "node:assert/strict";
-import { apuntarLaAppA, type BaseEfimera, type NegocioDePrueba } from "@/test/base-efimera";
+import { apuntarLaAppA, prismaComoDuenio, type BaseEfimera, type NegocioDePrueba } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 const DIA_MS = 24 * 60 * 60 * 1000;
@@ -28,7 +28,7 @@ export async function preparar(laBase: BaseEfimera) {
   apuntarLaAppA(laBase);
   prepararAccionesDeServidor();
   Object.assign(process.env as Record<string, string | undefined>, { DB_CONNECTION_LIMIT: "2", DB_CONNECT_TIMEOUT_MS: "3000" });
-  const { operatorPrisma } = await import("@/lib/operator-db");
+  const duenio = await prismaComoDuenio(laBase);
   const { openCashSession, closeCashSession, getCajaData } = await import("@/lib/caja-actions");
   const { CAMPO_ESPERADO_CONFIRMADO, esperadoDelCajon, esperadoParaElFormulario } = await import("@/lib/caja/esperado-del-cajon");
   const { cerrarDia } = await import("@/lib/cierre-diario-actions");
@@ -70,10 +70,10 @@ export async function preparar(laBase: BaseEfimera) {
     comoDuenia(n, () => cerrarDia(form({ day: dia, declarado_EFECTIVO: efectivo })));
 
   const conMarca = (tenantId: string, prefijo: string) =>
-    operatorPrisma.cashMovement.findMany({ where: { tenantId, createdBy: { startsWith: prefijo } }, orderBy: { occurredAt: "asc" } });
+    duenio.cashMovement.findMany({ where: { tenantId, createdBy: { startsWith: prefijo } }, orderBy: { occurredAt: "asc" } });
   const fotoDelLibro = async (tenantId: string, hasta?: Date) =>
     (
-      await operatorPrisma.cashMovement.findMany({
+      await duenio.cashMovement.findMany({
         where: { tenantId, ...(hasta ? { occurredAt: { lt: hasta } } : {}) },
         orderBy: { id: "asc" },
         select: { id: true, type: true, method: true, amount: true, occurredAt: true, createdBy: true, reason: true },
@@ -81,7 +81,7 @@ export async function preparar(laBase: BaseEfimera) {
     ).map((m) => ({ ...m, occurredAt: m.occurredAt.toISOString() }));
 
   return {
-    operatorPrisma, marcas, hoy, ayer, inicioDeHoy, alMediodia,
+    duenio, marcas, hoy, ayer, inicioDeHoy, alMediodia,
     abrir, cerrarTurno, cerrarElDia, conMarca, fotoDelLibro, leerCaja, esperadoEnPantalla,
   };
 }

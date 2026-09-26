@@ -3,6 +3,10 @@
 // solo CUIT) comparten el ticket; el segundo NO pide otro login, que ARCA bloquearía 10-15
 // minutos. Otro certificado, otra fila. Sin credencial, no se cachea.
 //
+// La tabla en memoria NO tiene RLS: esto prueba la regla del store (negocio → huella → fila). En
+// la base, con la política de hoy, la fila la ve sólo el negocio que la guardó y los negocios del
+// mismo certificado todavía no la comparten: lo prueba arca-ta-store-postgres.test.ts (ENG-137).
+//
 // Los certificados son de prueba (generados con openssl para este test, sin clave privada).
 
 import { test } from "node:test";
@@ -63,6 +67,7 @@ function tablaEnMemoria(certificados: Record<string, string | null>) {
       leerPorHuella: async (huella, servicio) => filas.get(`${huella}|${servicio}`) ?? null,
       upsertPorHuella: async (huella, servicio, tenantId, fila) => {
         filas.set(`${huella}|${servicio}`, { ...fila, tenantId });
+        return true;
       },
     }),
     master,

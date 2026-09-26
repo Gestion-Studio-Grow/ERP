@@ -1,0 +1,79 @@
+# Upsert por huella bajo RLS, medido en el Postgres del laboratorio (base de prueba propia, borrada al terminar).
+# Tabla t = misma forma que ArcaAuthTicket: única (huella, service) y política tenant_isolation. La fila ('H','wsfe') es del negocio A; se escribe parado en B.
+# 1) el upsert de antes (DO UPDATE sin condición): choca; 2) con WHERE del mismo negocio: 0 filas, sin error; 3) el camino nuevo (UPDATE propio + INSERT ... DO NOTHING): 0/0, sin error, la fila de A intacta.
+
+DROP ROLE IF EXISTS scratch_rls_app;
+psql:upsert-rls.sql:2: NOTICE:  role "scratch_rls_app" does not exist, skipping
+DROP ROLE
+CREATE ROLE scratch_rls_app LOGIN NOBYPASSRLS;
+CREATE ROLE
+CREATE TABLE t (id text primary key, huella text, service text, "tenantId" text, v text);
+CREATE TABLE
+CREATE UNIQUE INDEX t_hs ON t(huella, service);
+CREATE INDEX
+ALTER TABLE t ENABLE ROW LEVEL SECURITY;
+ALTER TABLE
+CREATE POLICY tenant_isolation ON t USING ("tenantId" = current_setting('app.current_tenant_id', true)) WITH CHECK ("tenantId" = current_setting('app.current_tenant_id', true));
+CREATE POLICY
+GRANT SELECT, INSERT, UPDATE, DELETE ON t TO scratch_rls_app;
+GRANT
+INSERT INTO t VALUES ('1','H','wsfe','A','de A');
+INSERT 0 1
+SET ROLE scratch_rls_app;
+SET
+BEGIN;
+BEGIN
+SELECT set_config('app.current_tenant_id','B',true);
+ set_config 
+------------
+ B
+(1 row)
+
+SELECT 'B ve' AS caso, count(*) FROM t WHERE huella='H';
+ caso | count 
+------+-------
+ B ve |     0
+(1 row)
+
+--- 1) upsert plano desde B (DO UPDATE sin WHERE)
+INSERT INTO t VALUES ('2','H','wsfe','B','de B') ON CONFLICT (huella, service) DO UPDATE SET "tenantId"=EXCLUDED."tenantId", v=EXCLUDED.v;
+psql:upsert-rls.sql:14: ERROR:  new row violates row-level security policy (USING expression) for table "t"
+ROLLBACK;
+ROLLBACK
+BEGIN;
+BEGIN
+SELECT set_config('app.current_tenant_id','B',true);
+ set_config 
+------------
+ B
+(1 row)
+
+--- 2) upsert desde B con WHERE t.tenantId = EXCLUDED.tenantId
+INSERT INTO t VALUES ('2','H','wsfe','B','de B') ON CONFLICT (huella, service) DO UPDATE SET v=EXCLUDED.v WHERE t."tenantId" = EXCLUDED."tenantId";
+INSERT 0 0
+ROLLBACK;
+ROLLBACK
+BEGIN;
+BEGIN
+SELECT set_config('app.current_tenant_id','B',true);
+ set_config 
+------------
+ B
+(1 row)
+
+--- 3) UPDATE propio + INSERT ... ON CONFLICT DO NOTHING desde B
+UPDATE t SET v='de B' WHERE huella='H' AND service='wsfe' AND "tenantId"='B';
+UPDATE 0
+INSERT INTO t VALUES ('2','H','wsfe','B','de B') ON CONFLICT (huella, service) DO NOTHING;
+INSERT 0 0
+COMMIT;
+COMMIT
+RESET ROLE;
+RESET
+SELECT 'queda' AS caso, id, "tenantId", v FROM t;
+ caso  | id | tenantId |  v   
+-------+----+----------+------
+ queda | 1  | A        | de A
+(1 row)
+
+PostgreSQL 16.13 (Ubuntu 16.13-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit
