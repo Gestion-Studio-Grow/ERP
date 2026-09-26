@@ -1,0 +1,17 @@
+URL: http://losandes-lab.localhost:3210/admin/login
+scrollWidth/innerWidth: 390/390
+consola+http>=400: 4
+[http 500] POST http://losandes-lab.localhost:3210/admin/login
+[error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+[error] Error: Minified React error #441; visit https://react.dev/errors/441 for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+[error] {"level":"error","scope":"global-error-boundary","msg":"unhandled error reached global boundary","digest":"2131535357","name":"Error","message":"Minified React error #441; visit https://react.dev/errors/441 for the full message or use the non-minified dev environment for full errors and additional h
+---- CONTROLES
+button «Reintentar»
+---- TEXTO
+Se produjo un error inesperado
+
+Ya quedó registrado y lo estamos viendo. Podés reintentar; si sigue fallando, volvé a entrar en unos minutos.
+
+Reintentar
+
+Código de referencia: 2131535357

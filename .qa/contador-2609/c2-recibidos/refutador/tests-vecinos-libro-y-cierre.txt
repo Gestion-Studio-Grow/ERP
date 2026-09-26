@@ -1,0 +1,327 @@
+TAP version 13
+# Subtest: Cierre de agosto: el checklist muestra 8 pasos, en orden
+ok 1 - Cierre de agosto: el checklist muestra 8 pasos, en orden
+  ---
+  duration_ms: 7.023984
+  type: 'test'
+  ...
+# Subtest: cada paso pendiente dice qué pasa, con el número, y adónde ir
+ok 2 - cada paso pendiente dice qué pasa, con el número, y adónde ir
+  ---
+  duration_ms: 1.279428
+  type: 'test'
+  ...
+# Subtest: lo que el negocio no usa no aplica (y cuenta como hecho); la caja cerrada hasta fin de mes, siempre
+ok 3 - lo que el negocio no usa no aplica (y cuenta como hecho); la caja cerrada hasta fin de mes, siempre
+  ---
+  duration_ms: 0.728205
+  type: 'test'
+  ...
+# Subtest: congelado el mes, un gasto con fecha 15/08 se rechaza: no se congela sin la caja cerrada hasta el 31
+ok 4 - congelado el mes, un gasto con fecha 15/08 se rechaza: no se congela sin la caja cerrada hasta el 31
+  ---
+  duration_ms: 2.999702
+  type: 'test'
+  ...
+# Subtest: congelar: el mes tiene que haber terminado, no puede estar congelado, y los pendientes se confirman
+ok 5 - congelar: el mes tiene que haber terminado, no puede estar congelado, y los pendientes se confirman
+  ---
+  duration_ms: 1.229618
+  type: 'test'
+  ...
+# Subtest: reabrir exige OWNER y motivo
+ok 6 - reabrir exige OWNER y motivo
+  ---
+  duration_ms: 0.473724
+  type: 'test'
+  ...
+# Subtest: el estado sale de la auditoría en orden, sin importar cómo llegan las filas; lo ajeno no cuenta
+ok 7 - el estado sale de la auditoría en orden, sin importar cómo llegan las filas; lo ajeno no cuenta
+  ---
+  duration_ms: 2.36343
+  type: 'test'
+  ...
+# Subtest: el botón: 'Agosto · 8 de 8 pasos listos · paquete descargado por la contadora el 03/09'
+ok 8 - el botón: 'Agosto · 8 de 8 pasos listos · paquete descargado por la contadora el 03/09'
+  ---
+  duration_ms: 1.073115
+  type: 'test'
+  ...
+# Subtest: el botón sin congelar: los primeros días no alerta; desde el 3, 'Agosto sin cerrar' va a Para atender hoy
+ok 9 - el botón sin congelar: los primeros días no alerta; desde el 3, 'Agosto sin cerrar' va a Para atender hoy
+  ---
+  duration_ms: 0.794985
+  type: 'test'
+  ...
+# Subtest: lo que ve el estudio contable de un cliente
+ok 10 - lo que ve el estudio contable de un cliente
+  ---
+  duration_ms: 0.945969
+  type: 'test'
+  ...
+# Subtest: paso 6: pendiente es sólo lo que la liquidación puede liquidar; con saldo o al 0% no
+ok 11 - paso 6: pendiente es sólo lo que la liquidación puede liquidar; con saldo o al 0% no
+  ---
+  duration_ms: 1.732357
+  type: 'test'
+  ...
+# Subtest: un pendiente no termina en 'App no disponible': sin Libro IVA en el negocio, el paso 3 va sin botón y lo dice
+ok 12 - un pendiente no termina en 'App no disponible': sin Libro IVA en el negocio, el paso 3 va sin botón y lo dice
+  ---
+  duration_ms: 0.655821
+  type: 'test'
+  ...
+# Subtest: la purga de auditoría (18 meses) no borra el cierre del mes: si no, un mes congelado vuelve a 'sin congelar'
+ok 13 - la purga de auditoría (18 meses) no borra el cierre del mes: si no, un mes congelado vuelve a 'sin congelar'
+  ---
+  duration_ms: 0.632947
+  type: 'test'
+  ...
+# Subtest: Facturación: las ventas anuladas con factura sin nota de crédito van en alerta, con el where del cierre
+ok 14 - Facturación: las ventas anuladas con factura sin nota de crédito van en alerta, con el where del cierre
+  ---
+  duration_ms: 17.242955
+  type: 'test'
+  ...
+# Subtest: Libro IVA: 'IVA de septiembre a pagar', con el where y la cuenta de la pantalla; las notas de crédito restan
+ok 15 - Libro IVA: 'IVA de septiembre a pagar', con el where y la cuenta de la pantalla; las notas de crédito restan
+  ---
+  duration_ms: 2.812596
+  type: 'test'
+  ...
+# Subtest: Cierre del mes: una consulta a la auditoría de agosto; desde el 3 sin congelar, alerta
+ok 16 - Cierre del mes: una consulta a la auditoría de agosto; desde el 3 sin congelar, alerta
+  ---
+  duration_ms: 1.938878
+  type: 'test'
+  ...
+# Subtest: el paquete se abre bien en Excel: ';', coma decimal, CRLF y el BOM lo pone la descarga
+ok 17 - el paquete se abre bien en Excel: ';', coma decimal, CRLF y el BOM lo pone la descarga
+  ---
+  duration_ms: 45.668321
+  type: 'test'
+  ...
+# Subtest: con el mes abierto, el paquete dice BORRADOR arriba y el archivo se llama así
+ok 18 - con el mes abierto, el paquete dice BORRADOR arriba y el archivo se llama así
+  ---
+  duration_ms: 1.648955
+  type: 'test'
+  ...
+# Subtest: si las cuentas corrientes no están en la base, dice 'No disponible' (no una sección vacía)
+ok 19 - si las cuentas corrientes no están en la base, dice 'No disponible' (no una sección vacía)
+  ---
+  duration_ms: 1.263698
+  type: 'test'
+  ...
+# Subtest: lo que carga cualquiera no se ejecuta en la computadora de la contadora; los importes negativos siguen siendo números
+ok 20 - lo que carga cualquiera no se ejecuta en la computadora de la contadora; los importes negativos siguen siendo números
+  ---
+  duration_ms: 1.212802
+  type: 'test'
+  ...
+# Subtest: un nombre que empieza con =, +, -, @ o tabulación sale con apóstrofo adelante
+ok 21 - un nombre que empieza con =, +, -, @ o tabulación sale con apóstrofo adelante
+  ---
+  duration_ms: 1.444356
+  type: 'test'
+  ...
+# Subtest: los números no se tocan: importes con signo, miles con punto, porcentajes
+ok 22 - los números no se tocan: importes con signo, miles con punto, porcentajes
+  ---
+  duration_ms: 0.238637
+  type: 'test'
+  ...
+# Subtest: filaCsv: neutraliza y además escapa ; y comillas
+ok 23 - filaCsv: neutraliza y además escapa ; y comillas
+  ---
+  duration_ms: 0.318489
+  type: 'test'
+  ...
+# Subtest: una línea ajena (el libro de caja) se relee campo por campo y vuelve igual, salvo la fórmula
+ok 24 - una línea ajena (el libro de caja) se relee campo por campo y vuelve igual, salvo la fórmula
+  ---
+  duration_ms: 1.770158
+  type: 'test'
+  ...
+# Subtest: un campo con saltos de línea queda en una línea; el que empezaba con un salto no esquiva la guarda de fórmulas
+ok 25 - un campo con saltos de línea queda en una línea; el que empezaba con un salto no esquiva la guarda de fórmulas
+  ---
+  duration_ms: 0.302687
+  type: 'test'
+  ...
+# Subtest: el Libro IVA exportado sólo usa CRLF, aunque un cliente o un proveedor traiga un salto adentro
+ok 26 - el Libro IVA exportado sólo usa CRLF, aunque un cliente o un proveedor traiga un salto adentro
+  ---
+  duration_ms: 24.45923
+  type: 'test'
+  ...
+# Subtest: un importe del libro IVA sale con coma y la regla única de redondeo: 2,135 → 2,14
+ok 27 - un importe del libro IVA sale con coma y la regla única de redondeo: 2,135 → 2,14
+  ---
+  duration_ms: 0.291274
+  type: 'test'
+  ...
+# Subtest: un monto que no es un número no se escribe en el libro IVA: tira en vez de dejar NaN
+ok 28 - un monto que no es un número no se escribe en el libro IVA: tira en vez de dejar NaN
+  ---
+  duration_ms: 0.672545
+  type: 'test'
+  ...
+# (node:2375) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: facturarOrden: la venta de las 23:30 del 31/08 sale con fecha 20260831
+ok 29 - facturarOrden: la venta de las 23:30 del 31/08 sale con fecha 20260831
+  ---
+  duration_ms: 26.818338
+  type: 'test'
+  ...
+# Subtest: facturarAppointment: el turno cobrado a las 23:30 del 31/08 sale con fecha y servicio del 31/08
+ok 30 - facturarAppointment: el turno cobrado a las 23:30 del 31/08 sale con fecha y servicio del 31/08
+  ---
+  duration_ms: 0.865555
+  type: 'test'
+  ...
+# Subtest: facturarPagoMP: sin fecha de acreditación, el día del negocio; con fecha, la de Mercado Pago
+ok 31 - facturarPagoMP: sin fecha de acreditación, el día del negocio; con fecha, la de Mercado Pago
+  ---
+  duration_ms: 0.732437
+  type: 'test'
+  ...
+# Subtest: a la medianoche argentina ya es el día siguiente
+ok 32 - a la medianoche argentina ya es el día siguiente
+  ---
+  duration_ms: 0.601794
+  type: 'test'
+  ...
+# (node:2393) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: una factura a las 23:30 hora argentina del 31/08 lleva fecha 20260831 (reloj fijo)
+ok 33 - una factura a las 23:30 hora argentina del 31/08 lleva fecha 20260831 (reloj fijo)
+  ---
+  duration_ms: 20.783387
+  type: 'test'
+  ...
+# Subtest: los bordes del día argentino: 00:00 y 23:59 no se corren
+ok 34 - los bordes del día argentino: 00:00 y 23:59 no se corren
+  ---
+  duration_ms: 0.278459
+  type: 'test'
+  ...
+# Subtest: el Libro IVA de septiembre toma del 1 al 30, en hora argentina
+ok 35 - el Libro IVA de septiembre toma del 1 al 30, en hora argentina
+  ---
+  duration_ms: 2.857721
+  type: 'test'
+  ...
+# Subtest: meses: largo, vecinos que cruzan el año, validación de lo que llega por URL
+ok 36 - meses: largo, vecinos que cruzan el año, validación de lo que llega por URL
+  ---
+  duration_ms: 0.696047
+  type: 'test'
+  ...
+# Subtest: ya facturada: la factura puede ser de hasta 3 días antes de la acreditación, nunca después
+ok 37 - ya facturada: la factura puede ser de hasta 3 días antes de la acreditación, nunca después
+  ---
+  duration_ms: 0.385195
+  type: 'test'
+  ...
+# Subtest: el where del extracto: mismo total, la ventana de 3 días y sin los rechazados por ARCA
+ok 38 - el where del extracto: mismo total, la ventana de 3 días y sin los rechazados por ARCA
+  ---
+  duration_ms: 0.442751
+  type: 'test'
+  ...
+# Subtest: fiscalDateToIso: AAAAMMDD → YYYY-MM-DD; lo que no es fiscal pasa tal cual
+ok 39 - fiscalDateToIso: AAAAMMDD → YYYY-MM-DD; lo que no es fiscal pasa tal cual
+  ---
+  duration_ms: 1.451764
+  type: 'test'
+  ...
+# Subtest: dateToIso fecha en el día de negocio: las 21:30 del 30 NO son el 1 del mes que viene
+ok 40 - dateToIso fecha en el día de negocio: las 21:30 del 30 NO son el 1 del mes que viene
+  ---
+  duration_ms: 22.827298
+  type: 'test'
+  ...
+# Subtest: comprobante: montos exactos, número y documento; la alícuota sale del desglose guardado
+ok 41 - comprobante: montos exactos, número y documento; la alícuota sale del desglose guardado
+  ---
+  duration_ms: 4.062043
+  type: 'test'
+  ...
+# Subtest: alícuotas: una factura con carne al 10,5% y embutidos al 21% se ve con las dos
+ok 42 - alícuotas: una factura con carne al 10,5% y embutidos al 21% se ve con las dos
+  ---
+  duration_ms: 0.702777
+  type: 'test'
+  ...
+# Subtest: alícuotas sin desglose (comprobantes viejos): la oficial más cercana, nunca un 20,98%
+ok 43 - alícuotas sin desglose (comprobantes viejos): la oficial más cercana, nunca un 20,98%
+  ---
+  duration_ms: 0.918189
+  type: 'test'
+  ...
+# Subtest: una nota de crédito RESTA; una venta anulada con factura queda marcada
+ok 44 - una nota de crédito RESTA; una venta anulada con factura queda marcada
+  ---
+  duration_ms: 2.9327
+  type: 'test'
+  ...
+# Subtest: una compra sin factura NO suma crédito; la venta sin comprobante NO suma débito
+ok 45 - una compra sin factura NO suma crédito; la venta sin comprobante NO suma débito
+  ---
+  duration_ms: 0.877567
+  type: 'test'
+  ...
+# Subtest: condición: con A o B es inscripto; sólo C, monotributo; nada, no se afirma
+ok 46 - condición: con A o B es inscripto; sólo C, monotributo; nada, no se afirma
+  ---
+  duration_ms: 0.477219
+  type: 'test'
+  ...
+# Subtest: orden: cada bloque por fecha, y a igual fecha por número
+ok 47 - orden: cada bloque por fecha, y a igual fecha por número
+  ---
+  duration_ms: 1.106106
+  type: 'test'
+  ...
+# Subtest: el archivo: bloques con título, ; como separador, coma decimal y la posición sólo si es inscripto
+ok 48 - el archivo: bloques con título, ; como separador, coma decimal y la posición sólo si es inscripto
+  ---
+  duration_ms: 14.640671
+  type: 'test'
+  ...
+# Subtest: anuladas con factura: el mismo where para el botón (por emisión) y el cierre (por fecha fiscal)
+ok 49 - anuladas con factura: el mismo where para el botón (por emisión) y el cierre (por fecha fiscal)
+  ---
+  duration_ms: 0.853015
+  type: 'test'
+  ...
+# Subtest: la clave de cada fila es el id: dos ventas que se ven iguales no chocan
+ok 50 - la clave de cada fila es el id: dos ventas que se ven iguales no chocan
+  ---
+  duration_ms: 0.848804
+  type: 'test'
+  ...
+# Subtest: el número del botón y la pantalla: el mismo where y la misma cuenta
+ok 51 - el número del botón y la pantalla: el mismo where y la misma cuenta
+  ---
+  duration_ms: 1.004298
+  type: 'test'
+  ...
+# Subtest: el libro se le oculta a un monotributista; sin comprobantes todavía, no
+ok 52 - el libro se le oculta a un monotributista; sin comprobantes todavía, no
+  ---
+  duration_ms: 0.258032
+  type: 'test'
+  ...
+1..52
+# tests 52
+# suites 0
+# pass 52
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2553.543999
+exit 0

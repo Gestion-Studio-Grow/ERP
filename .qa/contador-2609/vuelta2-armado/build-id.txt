@@ -1,0 +1,5 @@
+BUILD_ID WEkOlqpVBfu82scQWZWSH 2026-09-26 15:03:34 UTC
+src más nuevo: 2026-09-26 14:52:35 UTC src/lib/cartera-alta-postgres.test.ts
+archivos de src más nuevos que BUILD_ID: 0
+server :3210 PIDs: 12017 (bash, setsid) > 12020 (npm exec next start -p 3210) > 12035 (sh) > 12036 (next-server), cwd /home/user/erp-contador
+HTTP chestetica /admin/login: 200

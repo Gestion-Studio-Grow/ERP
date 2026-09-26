@@ -44,7 +44,9 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
     <div data-skin="fable" data-diseno={PIEL_RENGLON} data-theme="light" suppressHydrationWarning className="min-h-screen">
       {/* Corrige el tema antes del primer paint (lo elegido a mano, o el del sistema). */}
       <AdminThemeScript nuevo />
-      <ConDiseno nuevo>
+      {/* Sin precarga de la letra: en la consola el navegador avisaba «precargada y sin usar» (QA-1,
+          criterio 9). La hoja la baja igual cuando la usa. El ingreso (/operador/login) sí la precarga. */}
+      <ConDiseno nuevo precargarLetra={false}>
         <div data-ui="armazon">
           <Suspense fallback={null}>
             <CabeceraConsola

@@ -1,0 +1,308 @@
+TAP version 13
+# Subtest: diseño por alícuota: factura A al 21% entra con su desglose y sin marcas
+ok 1 - diseño por alícuota: factura A al 21% entra con su desglose y sin marcas
+  ---
+  duration_ms: 18.115919
+  type: 'test'
+  ...
+# Subtest: factura A con dos alícuotas y percepción: desglose 10,5% y 21%, otros tributos aparte
+ok 2 - factura A con dos alícuotas y percepción: desglose 10,5% y 21%, otros tributos aparte
+  ---
+  duration_ms: 3.640944
+  type: 'test'
+  ...
+# Subtest: factura B y factura C recibidas no dan crédito fiscal: IVA cero, sin marca
+ok 3 - factura B y factura C recibidas no dan crédito fiscal: IVA cero, sin marca
+  ---
+  duration_ms: 1.446496
+  type: 'test'
+  ...
+# Subtest: nota de crédito A entra y RESTA en el resumen
+ok 4 - nota de crédito A entra y RESTA en el resumen
+  ---
+  duration_ms: 1.865888
+  type: 'test'
+  ...
+# Subtest: moneda extranjera: se pasa a pesos con el tipo de cambio del archivo, redondeado al centavo
+ok 5 - moneda extranjera: se pasa a pesos con el tipo de cambio del archivo, redondeado al centavo
+  ---
+  duration_ms: 5.455529
+  type: 'test'
+  ...
+# Subtest: moneda extranjera sin tipo de cambio se rechaza con el motivo
+ok 6 - moneda extranjera sin tipo de cambio se rechaza con el motivo
+  ---
+  duration_ms: 0.762869
+  type: 'test'
+  ...
+# Subtest: duplicado dentro del archivo: el segundo se rechaza, el primero queda
+ok 7 - duplicado dentro del archivo: el segundo se rechaza, el primero queda
+  ---
+  duration_ms: 2.136497
+  type: 'test'
+  ...
+# Subtest: IVA que no cierra con su alícuota: entra marcado «a revisar» y sin desglose inventado
+ok 8 - IVA que no cierra con su alícuota: entra marcado «a revisar» y sin desglose inventado
+  ---
+  duration_ms: 1.702113
+  type: 'test'
+  ...
+# Subtest: CUIT inválido se rechaza con el motivo; el Tique factura A (81) entra y da crédito fiscal
+not ok 9 - CUIT inválido se rechaza con el motivo; el Tique factura A (81) entra y da crédito fiscal
+  ---
+  duration_ms: 6.683505
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/contador/recibidos-formato.test.ts:2:5840'
+  failureType: 'testCodeFailure'
+  error: 'el tique factura A no se rechaza'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/contador/recibidos-formato.test.ts:128:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: letra A y M dan crédito fiscal sea factura, recibo, liquidación o tique; el tique nota de crédito resta
+not ok 10 - letra A y M dan crédito fiscal sea factura, recibo, liquidación o tique; el tique nota de crédito resta
+  ---
+  duration_ms: 2.009128
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/contador/recibidos-formato.test.ts:2:6915'
+  failureType: 'testCodeFailure'
+  error: |-
+    [{"fila":2,"comprobante":null,"motivo":"Comprobante tipo 4: este tipo no va al libro de IVA compras desde el archivo. Si corresponde, cargalo a mano."},{"fila":3,"comprobante":null,"motivo":"Comprobante tipo 5: este tipo no va al libro de IVA compras desde el archivo. Si corresponde, cargalo a mano."},{"fila":4,"comprobante":null,"motivo":"Comprobante tipo 63: este tipo no va al libro de IVA compras desde el archivo. Si corresponde, cargalo a mano."},{"fila":5,"comprobante":null,"motivo":"Comprobante tipo 17: este tipo no va al libro de IVA compras desde el archivo. Si corresponde, cargalo a mano."},{"fila":6,"comprobante":null,"motivo":"No se entiende el tipo de comprobante."},{"fila":7,"comprobante":null,"motivo":"Comprobante tipo 118: este tipo no va al libro de IVA compras desde el archivo. Si corresponde, cargalo a mano."},{"fila":8,"comprobante":null,"motivo":"Comprobante tipo 112: este tipo no va al libro de IVA compras desde el archivo. Si corresponde, cargalo a mano."},{"fila":9,"comprobante":null,"motivo":"Comprobante tipo 82: este tipo no va al libro de IVA compras desde el archivo. Si corresponde, cargalo a mano."}]
+    
+    8 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 8
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/contador/recibidos-formato.test.ts:155:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: un tipo que no está en la tabla se rechaza sin decir que no va a compras ni mandar a una carga que no existe
+not ok 11 - un tipo que no está en la tabla se rechaza sin decir que no va a compras ni mandar a una carga que no existe
+  ---
+  duration_ms: 1.000352
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/contador/recibidos-formato.test.ts:2:8421'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input was expected to not match the regular expression /no va al libro|cargalo a mano/. Input:
+    
+    'Comprobante tipo 99: este tipo no va al libro de IVA compras desde el archivo. Si corresponde, cargalo a mano.'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: 'Comprobante tipo 99: este tipo no va al libro de IVA compras desde el archivo. Si corresponde, cargalo a mano.'
+  operator: 'doesNotMatch'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/contador/recibidos-formato.test.ts:184:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: diseño clásico: la alícuota se deduce sólo si una oficial cierra exacto
+ok 12 - diseño clásico: la alícuota se deduce sólo si una oficial cierra exacto
+  ---
+  duration_ms: 1.029724
+  type: 'test'
+  ...
+# Subtest: Excel con el renglón de título de ARCA: encuentra los títulos y el CUIT del archivo
+ok 13 - Excel con el renglón de título de ARCA: encuentra los títulos y el CUIT del archivo # SKIP xlsx es un stub en este entorno
+  ---
+  duration_ms: 0.083736
+  type: 'test'
+  ...
+# Subtest: Excel con números y fechas de verdad (no texto) se lee igual
+ok 14 - Excel con números y fechas de verdad (no texto) se lee igual
+  ---
+  duration_ms: 0.837144
+  type: 'test'
+  ...
+# Subtest: un archivo que no es de ARCA se rechaza entero, sin leer filas
+ok 15 - un archivo que no es de ARCA se rechaza entero, sin leer filas
+  ---
+  duration_ms: 0.374258
+  type: 'test'
+  ...
+# Subtest: la clave es CUIT del emisor, tipo, punto de venta y número
+ok 16 - la clave es CUIT del emisor, tipo, punto de venta y número
+  ---
+  duration_ms: 0.120934
+  type: 'test'
+  ...
+# Subtest: listado exportable: IVA por alícuota en columnas, la nota de crédito en negativo, a salvo de fórmulas
+ok 17 - listado exportable: IVA por alícuota en columnas, la nota de crédito en negativo, a salvo de fórmulas
+  ---
+  duration_ms: 70.088468
+  type: 'test'
+  ...
+# Subtest: compras del cliente en su Libro IVA y en el listado del mes
+    # Subtest: libro IVA: lo importado va al mes del comprobante (no al de la carga), la nota de crédito resta y su IVA es el crédito
+    not ok 1 - libro IVA: lo importado va al mes del comprobante (no al de la carga), la nota de crédito resta y su IVA es el crédito
+      ---
+      duration_ms: 246.886999
+      type: 'test'
+      location: '/home/user/erp-contador/src/lib/contador/recibidos-libro-postgres.test.ts:2:3736'
+      failureType: 'testCodeFailure'
+      error: |-
+        septiembre no trae los comprobantes de agosto
+        + actual - expected
+        
+          [
+        +   'DISTRIBUIDORA DEL SUR SA',
+        +   'DISTRIBUIDORA DEL SUR SA',
+        +   'ALMACEN LA ESQUINA SRL',
+        +   'SERVICIOS DE LIMPIEZA MONOTRIBUTO',
+        +   'DISTRIBUIDORA DEL SUR SA',
+        +   'IMPORTADORA DEL PLATA SA',
+        +   'FERRETERIA NORTE SA',
+            'Mayorista del barrio'
+          ]
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected:
+        0: 'Mayorista del barrio'
+      actual:
+        0: 'DISTRIBUIDORA DEL SUR SA'
+        1: 'DISTRIBUIDORA DEL SUR SA'
+        2: 'ALMACEN LA ESQUINA SRL'
+        3: 'SERVICIOS DE LIMPIEZA MONOTRIBUTO'
+        4: 'DISTRIBUIDORA DEL SUR SA'
+        5: 'IMPORTADORA DEL PLATA SA'
+        6: 'FERRETERIA NORTE SA'
+        7: 'Mayorista del barrio'
+      operator: 'deepStrictEqual'
+      stack: |-
+        TestContext.<anonymous> (/home/user/erp-contador/src/lib/contador/recibidos-libro-postgres.test.ts:74:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async TestContext.<anonymous> (/home/user/erp-contador/src/lib/contador/recibidos-libro-postgres.test.ts:59:3)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+# (node:1385) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+# (Use `node --trace-deprecation ...` to show where the warning was created)
+    # Subtest: cliente grande: más de 5.000 comprobantes en el mes salen TODOS en el archivo y en el resumen
+    not ok 2 - cliente grande: más de 5.000 comprobantes en el mes salen TODOS en el archivo y en el resumen
+      ---
+      duration_ms: 3587.978189
+      type: 'test'
+      location: '/home/user/erp-contador/src/lib/contador/recibidos-libro-postgres.test.ts:2:5738'
+      failureType: 'testCodeFailure'
+      error: |-
+        títulos + los 5.001 comprobantes: ninguno queda afuera del archivo
+        
+        5001 !== 5002
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 5002
+      actual: 5001
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/home/user/erp-contador/src/lib/contador/recibidos-libro-postgres.test.ts:127:12)
+        process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async TestContext.<anonymous> (/home/user/erp-contador/src/lib/contador/recibidos-libro-postgres.test.ts:93:3)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    1..2
+not ok 18 - compras del cliente en su Libro IVA y en el listado del mes
+  ---
+  duration_ms: 7949.799583
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/contador/recibidos-libro-postgres.test.ts:2:1583'
+  failureType: 'subtestsFailed'
+  error: '2 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/cjs/loader:1383
+#   const err = new Error(message);
+#               ^
+# Error: Cannot find module './recibidos-libro'
+# Require stack:
+# - /home/user/erp-contador/src/lib/contador/recibidos-libro.test.ts
+#     at node:internal/modules/cjs/loader:1383:15
+#     at T._resolveFilename (file:///home/user/erp-contador/node_modules/tsx/dist/register-CqMfTiWi.mjs:2:14889)
+#     at nextResolveSimple (/home/user/erp-contador/node_modules/tsx/dist/register-BOkp8V6j.cjs:10:1017)
+#     at /home/user/erp-contador/node_modules/tsx/dist/register-BOkp8V6j.cjs:9:4388
+#     at /home/user/erp-contador/node_modules/tsx/dist/register-BOkp8V6j.cjs:9:3818
+#     at resolveTsPaths (/home/user/erp-contador/node_modules/tsx/dist/register-BOkp8V6j.cjs:10:770)
+#     at Function._resolveFilename (/home/user/erp-contador/node_modules/tsx/dist/register-BOkp8V6j.cjs:10:1155)
+#     at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)
+#     at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)
+#     at Function._load (node:internal/modules/cjs/loader:1192:37) {
+#   code: 'MODULE_NOT_FOUND',
+#   requireStack: [
+#     '/home/user/erp-contador/src/lib/contador/recibidos-libro.test.ts'
+#   ]
+# }
+# Node.js v22.22.2
+# Subtest: src/lib/contador/recibidos-libro.test.ts
+not ok 3 - src/lib/contador/recibidos-libro.test.ts
+  ---
+  duration_ms: 693.501417
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/contador/recibidos-libro.test.ts:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: importar recibidos: aislado por cartera, sin duplicar, sin mover stock y con el resumen en cifras
+not ok 20 - importar recibidos: aislado por cartera, sin duplicar, sin mover stock y con el resumen en cifras
+  ---
+  duration_ms: 4532.416709
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/contador/recibidos-postgres.test.ts:2:1635'
+  failureType: 'testCodeFailure'
+  error: |-
+    las 7 facturas y notas + el Tique factura A (81), que da crédito fiscal
+    
+    7 !== 8
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 8
+  actual: 7
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/contador/recibidos-postgres.test.ts:89:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..20
+# tests 22
+# suites 0
+# pass 13
+# fail 8
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 8727.605979
+exit 1

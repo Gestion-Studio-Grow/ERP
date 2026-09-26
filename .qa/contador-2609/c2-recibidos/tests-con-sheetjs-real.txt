@@ -1,0 +1,131 @@
+TAP version 13
+# Subtest: diseño por alícuota: factura A al 21% entra con su desglose y sin marcas
+ok 1 - diseño por alícuota: factura A al 21% entra con su desglose y sin marcas
+  ---
+  duration_ms: 8.800628
+  type: 'test'
+  ...
+# Subtest: factura A con dos alícuotas y percepción: desglose 10,5% y 21%, otros tributos aparte
+ok 2 - factura A con dos alícuotas y percepción: desglose 10,5% y 21%, otros tributos aparte
+  ---
+  duration_ms: 2.015468
+  type: 'test'
+  ...
+# Subtest: factura B y factura C recibidas no dan crédito fiscal: IVA cero, sin marca
+ok 3 - factura B y factura C recibidas no dan crédito fiscal: IVA cero, sin marca
+  ---
+  duration_ms: 1.861178
+  type: 'test'
+  ...
+# Subtest: nota de crédito A entra y RESTA en el resumen
+ok 4 - nota de crédito A entra y RESTA en el resumen
+  ---
+  duration_ms: 1.881355
+  type: 'test'
+  ...
+# Subtest: moneda extranjera: se pasa a pesos con el tipo de cambio del archivo, redondeado al centavo
+ok 5 - moneda extranjera: se pasa a pesos con el tipo de cambio del archivo, redondeado al centavo
+  ---
+  duration_ms: 1.59601
+  type: 'test'
+  ...
+# Subtest: moneda extranjera sin tipo de cambio se rechaza con el motivo
+ok 6 - moneda extranjera sin tipo de cambio se rechaza con el motivo
+  ---
+  duration_ms: 0.932994
+  type: 'test'
+  ...
+# Subtest: duplicado dentro del archivo: el segundo se rechaza, el primero queda
+ok 7 - duplicado dentro del archivo: el segundo se rechaza, el primero queda
+  ---
+  duration_ms: 1.389762
+  type: 'test'
+  ...
+# Subtest: IVA que no cierra con su alícuota: entra marcado «a revisar» y sin desglose inventado
+ok 8 - IVA que no cierra con su alícuota: entra marcado «a revisar» y sin desglose inventado
+  ---
+  duration_ms: 1.501585
+  type: 'test'
+  ...
+# Subtest: CUIT inválido y tipo que no es de compras se rechazan con el motivo
+ok 9 - CUIT inválido y tipo que no es de compras se rechazan con el motivo
+  ---
+  duration_ms: 1.972365
+  type: 'test'
+  ...
+# Subtest: diseño clásico: la alícuota se deduce sólo si una oficial cierra exacto
+ok 10 - diseño clásico: la alícuota se deduce sólo si una oficial cierra exacto
+  ---
+  duration_ms: 1.48336
+  type: 'test'
+  ...
+# Subtest: Excel con el renglón de título de ARCA: encuentra los títulos y el CUIT del archivo
+ok 11 - Excel con el renglón de título de ARCA: encuentra los títulos y el CUIT del archivo
+  ---
+  duration_ms: 36.988115
+  type: 'test'
+  ...
+# Subtest: Excel con números y fechas de verdad (no texto) se lee igual
+ok 12 - Excel con números y fechas de verdad (no texto) se lee igual
+  ---
+  duration_ms: 0.689069
+  type: 'test'
+  ...
+# Subtest: un archivo que no es de ARCA se rechaza entero, sin leer filas
+ok 13 - un archivo que no es de ARCA se rechaza entero, sin leer filas
+  ---
+  duration_ms: 0.180343
+  type: 'test'
+  ...
+# Subtest: la clave es CUIT del emisor, tipo, punto de venta y número
+ok 14 - la clave es CUIT del emisor, tipo, punto de venta y número
+  ---
+  duration_ms: 0.154793
+  type: 'test'
+  ...
+# Subtest: listado exportable: IVA por alícuota en columnas, la nota de crédito en negativo, a salvo de fórmulas
+ok 15 - listado exportable: IVA por alícuota en columnas, la nota de crédito en negativo, a salvo de fórmulas
+  ---
+  duration_ms: 28.276089
+  type: 'test'
+  ...
+# Subtest: lee un xlsx con fechas Date y números number
+ok 16 - lee un xlsx con fechas Date y números number
+  ---
+  duration_ms: 29.054548
+  type: 'test'
+  ...
+# Subtest: filas totalmente vacías se descartan
+ok 17 - filas totalmente vacías se descartan
+  ---
+  duration_ms: 7.395935
+  type: 'test'
+  ...
+# Subtest: esXlsx reconoce el magic ZIP de un .xlsx real
+ok 18 - esXlsx reconoce el magic ZIP de un .xlsx real
+  ---
+  duration_ms: 3.271983
+  type: 'test'
+  ...
+# Subtest: esXlsx reconoce el magic OLE de un .xls viejo
+ok 19 - esXlsx reconoce el magic OLE de un .xls viejo
+  ---
+  duration_ms: 0.235762
+  type: 'test'
+  ...
+# Subtest: esXlsx rechaza un CSV de texto plano
+ok 20 - esXlsx rechaza un CSV de texto plano
+  ---
+  duration_ms: 0.230044
+  type: 'test'
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 20
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 735.236693
+exit 0

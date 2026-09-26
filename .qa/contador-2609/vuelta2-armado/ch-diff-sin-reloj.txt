@@ -1,0 +1,4 @@
+inicio.html DIFF_EXIT 0
+admin-login.html DIFF_EXIT 0
+resumen.json DIFF_EXIT 0
+admin-duena.html (sólo la línea 330 «Reservados» con el número tapado) DIFF_EXIT 0

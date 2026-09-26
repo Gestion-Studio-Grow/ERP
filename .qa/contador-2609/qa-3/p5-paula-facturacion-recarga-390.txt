@@ -1,0 +1,52 @@
+URL: http://paularios-lab.localhost:3210/admin/facturacion
+scrollWidth/innerWidth: 390/390
+consola+http>=400: 0
+
+---- CONTROLES
+a #contenido «Saltar al contenido»
+input:hidden «$ACTION_ID_00dd02a857b20806a9a76e6fb427e1bd9f2d243498» name=$ACTION_ID_00dd02a857b20806a9a76e6fb427e1bd9f2d243498
+button «Abrir menú»
+button «Cambiar tema»
+a /admin/facturacion/bancos «Abrir el tablero →»
+input:text «concepto» name=concepto
+input:number «monto» name=monto
+input:text «referenciaExterna» name=referenciaExterna
+input:email «emailPagador» name=emailPagador
+button «Generar link de cobro»
+button «Modo prueba: generar cobro de prueba»
+button[disabled] «Procesar pendientes (0)»
+button «Modo prueba: emitir factura de prueba»
+---- TEXTO
+Saltar al contenido
+Facturación
+Comerciante
+Facturación y cobros
+
+Emití facturas electrónicas ante ARCA y generá links de cobro por Mercado Pago.
+
+Facturación automática
+
+Subí el extracto de tu banco y el sistema arma las facturas solo — vos revisás únicamente las ventas que necesitan los datos del comprador.
+
+Abrir el tablero →
+Generar cobro (Mercado Pago)
+
+Creá un link de pago para mandarle al cliente por WhatsApp. Cuando paga, el cobro entra solo.modo prueba — el link no cobra de verdad
+
+Generar link de cobro
+Modo prueba: generar cobro de prueba
+Facturación electrónica (ARCA)
+
+Comprobantes del negocio y su estado ante ARCA. Las facturas se generan al cobrar; acá se autorizan (se obtiene el CAE).
+
+Modo: modo prueba (sin red)
+CUIT: 27-29876541-7
+Punto de venta: 3
+Ambiente: homologación
+
+En modo prueba se obtiene un CAE simulado (sin red). Para probar contra ARCA de verdad sin arriesgar nada, el dueño carga el certificado de prueba y activa el modo homologación (lo hace Gestión Studio Grow); para facturar de verdad, se activa el modo real con el certificado productivo.
+
+Procesar pendientes (0)
+No hay facturas pendientes de autorización.
+Modo prueba: emitir factura de prueba
+Todavía no hay facturas. Se generan al cobrar (turnos/pedidos) o desde el módulo de cobros.

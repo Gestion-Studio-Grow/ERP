@@ -1,0 +1,31 @@
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+Pedidos de las contadoras
+Lo que un estudio no puede cambiar solo en un cliente de su cartera. Resolvelo en la ficha del negocio y después cerrá el pedido: mientras esté abierto, la contadora lo ve marcado y no puede repetirlo.
+Altas de clientes nuevos
+Pedidos sobre un cliente
+Pendientes
+2
+Corregir el CUIT del emisor: Lucía (mono)
+Estudio Contable Laboratorio · pidió Carla Méndez (contador@estudio.lab) · CUIT hoy: 27345671213 · CUIT correcto: 27345671221 · «Se tipeó mal un dígito del DNI en el alta.»
+26/9/26, 10:53 a. m.
+Abrir el negocio
+Cerrar pedido
+Corregir el CUIT del emisor: Don Tito (RI)
+Estudio Contable Laboratorio · pidió Carla Méndez (contador@estudio.lab) · CUIT hoy: 30715554417 · CUIT correcto: 30715554425
+26/9/26, 11:08 a. m.
+Abrir el negocio
+Cerrar pedido
+Hecho por Gestión Studio Grow

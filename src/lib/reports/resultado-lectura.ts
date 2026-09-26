@@ -22,7 +22,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { SELECT_INGRESOS, costosVigentesDe } from "@/lib/stock/costo";
 import { bordesDelMes, type MesKey } from "@/lib/libros/fecha-fiscal";
-import { condicionPorTipos, whereComprobantesEmitidos, type CondicionLibro } from "@/lib/libros/libro-iva";
+import { condicionDelNegocio, whereComprobantesEmitidos, type CondicionLibro } from "@/lib/libros/libro-iva";
 import { aNumero } from "@/lib/debts/resumen-cuentas";
 import { calcularResultado, type HechosDelMes, type MovimientoDeCaja, type ResultadoDelMes } from "./resultado";
 import type { PedidoDelPeriodo, SalidaDeStock } from "./costo-vendido";
@@ -66,14 +66,17 @@ export function whereCajaDelMes(tenantId: string, mes: MesKey) {
   return { tenantId, occurredAt: { gte: instantes.gte, lt: instantes.lt } };
 }
 
-/** La condición fiscal deducida de lo emitido (A/B inscripto, sólo C monotributo). */
+/** La condición fiscal: la cargada del negocio o, sin ella, la deducida de lo emitido (`condicionDelNegocio`). */
 export async function leerCondicion(db: DbReportes, tenantId: string): Promise<CondicionLibro> {
-  const grupos = await db.invoice.groupBy({
-    by: ["tipoComprobante"],
-    where: whereComprobantesEmitidos(tenantId),
-    _count: { _all: true },
-  });
-  return condicionPorTipos(grupos.map((g) => g.tipoComprobante));
+  const [grupos, negocio] = await Promise.all([
+    db.invoice.groupBy({
+      by: ["tipoComprobante"],
+      where: whereComprobantesEmitidos(tenantId),
+      _count: { _all: true },
+    }),
+    db.tenant.findUnique({ where: { id: tenantId }, select: { arcaCondicionIva: true } }),
+  ]);
+  return condicionDelNegocio(negocio?.arcaCondicionIva, grupos.map((g) => g.tipoComprobante));
 }
 
 /** Los hechos del mes. `costosDelCatalogo`: el costo fijado a mano (Product.cost), si se leyó. */

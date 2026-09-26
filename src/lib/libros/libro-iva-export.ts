@@ -10,6 +10,7 @@
 // Devuelve el texto SIN BOM: la ruta HTTP lo antepone (`BOM`, csv-ar.ts). Líneas con CRLF,
 // igual que el paquete del mes y el libro de caja.
 
+import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 import { alicuotaCsv, filaCsv, pesosCsv } from "./csv-ar";
 import { bordesDelMes, diaLegible, etiquetaDelMes, type MesKey } from "./fecha-fiscal";
 import { muestraPosicionIva, type LibroIva } from "./libro-iva";
@@ -53,9 +54,31 @@ export function lineasLibroIva(libro: LibroIva): string[] {
   L.push("");
 
   L.push(filaCsv("COMPRAS (control: sin la factura del proveedor no dan crédito fiscal)"));
-  L.push(filaCsv("Fecha", "Proveedor", "Documento", "Número", "Total"));
-  for (const c of compras) L.push(filaCsv(c.fecha, c.proveedor, c.doc, c.numero, pesosCsv(c.total)));
-  L.push(filaCsv("Subtotal compras", "", "", "", pesosCsv(resumen.comprasTotal)));
+  if (resumen.comprasConFacturaCount > 0 && muestraPosicionIva(resumen.condicion)) {
+    // Un inscripto con facturas de proveedor cargadas (Mis Comprobantes Recibidos): neto gravado,
+    // IVA crédito fiscal y total por renglón. Sin ninguna (CH hoy), la hoja sale igual que siempre.
+    L.push(filaCsv("Fecha", "Proveedor", "Documento", "Número", "Neto gravado", "IVA crédito fiscal", "Total"));
+    for (const c of compras) {
+      const conFactura = c.creditoIva !== undefined;
+      L.push(
+        filaCsv(
+          c.fecha, c.proveedor, c.doc, c.numero,
+          conFactura && c.netoGravado !== undefined ? pesosCsv(c.netoGravado) : "",
+          conFactura ? pesosCsv(c.creditoIva ?? 0) : "sin factura",
+          pesosCsv(c.total),
+        ),
+      );
+    }
+    const neto = sumarAlCentavo(compras.map((c) => (c.creditoIva !== undefined ? (c.netoGravado ?? 0) : 0)));
+    L.push(filaCsv("Subtotal compras", "", "", "", pesosCsv(neto), pesosCsv(resumen.ivaCredito), pesosCsv(resumen.comprasTotal)));
+  } else {
+    L.push(filaCsv("Fecha", "Proveedor", "Documento", "Número", "Total"));
+    for (const c of compras) L.push(filaCsv(c.fecha, c.proveedor, c.doc, c.numero, pesosCsv(c.total)));
+    L.push(filaCsv("Subtotal compras", "", "", "", pesosCsv(resumen.comprasTotal)));
+    // Con facturas cargadas y sin ser inscripto, el renglón dice por qué no está el IVA. Sin
+    // facturas (CH hoy) no se agrega nada: la hoja queda letra por letra como siempre.
+    if (resumen.comprasConFacturaCount > 0) L.push(filaCsv("Nota", notaComprasSinCredito(resumen.condicion)));
+  }
   L.push("");
 
   L.push(filaCsv("RESUMEN"));
@@ -63,10 +86,13 @@ export function lineasLibroIva(libro: LibroIva): string[] {
     L.push(filaCsv("IVA débito (comprobantes emitidos)", pesosCsv(resumen.ivaDebito)));
     L.push(filaCsv("IVA crédito (facturas de proveedor)", pesosCsv(resumen.ivaCredito)));
     L.push(filaCsv(resumen.ivaSaldo >= 0 ? "Saldo IVA a pagar" : "Saldo IVA a favor", pesosCsv(Math.abs(resumen.ivaSaldo))));
+    const n = resumen.comprasConFacturaCount;
     L.push(
       filaCsv(
         "Nota",
-        "El crédito fiscal va en 0: las compras se cargan sin la factura del proveedor y sin ella no hay crédito. Sumá el crédito de las facturas de compra que tengas.",
+        n === 0
+          ? "El crédito fiscal va en 0: las compras se cargan sin la factura del proveedor y sin ella no hay crédito. Sumá el crédito de las facturas de compra que tengas."
+          : `El crédito fiscal sale del IVA de ${n === 1 ? "la factura de proveedor cargada" : `las ${n} facturas de proveedor cargadas`}, por la fecha de cada comprobante (la nota de crédito resta). Las compras cargadas sin factura no dan crédito.`,
       ),
     );
   } else if (resumen.condicion === "monotributo") {
@@ -83,6 +109,13 @@ export function lineasLibroIva(libro: LibroIva): string[] {
     );
   }
   return L;
+}
+
+/** Por qué las facturas de proveedor no dan crédito fiscal a quien no es inscripto. PURA. */
+function notaComprasSinCredito(condicion: LibroIva["resumen"]["condicion"]): string {
+  return condicion === "monotributo"
+    ? "Un monotributista no computa crédito fiscal: el IVA de las facturas A de sus proveedores es parte del costo, y cada compra va por el total."
+    : "Todavía no hay comprobantes con CAE: no se sabe si el negocio es responsable inscripto, así que el IVA de las facturas de proveedor no se toma como crédito fiscal. Cada compra va por el total.";
 }
 
 /**

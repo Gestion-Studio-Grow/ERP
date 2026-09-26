@@ -119,6 +119,9 @@ test("con la facturación apagada no se emite: 'Sin factura' con el porqué", ()
   const r = puedeFacturarVenta({ facturacionEncendida: false, perfil: null, venta: COBRADA });
   assert.equal(r.ok, false);
   assert.match(r.ok ? "" : r.motivo, /no está encendida.*Reintentá/);
+  // GSG-15: dice quién la enciende, para que el negocio no busque un interruptor que no tiene.
+  assert.match(r.ok ? "" : r.motivo, /La enciende Gestión Studio Grow/);
+  assert.doesNotMatch(r.ok ? "" : r.motivo, /ARCA_|ADR|flag|tenant/i);
   assert.deepEqual(SIN_FACTURA, { estado: "sin-factura", texto: "Sin factura" });
 });
 

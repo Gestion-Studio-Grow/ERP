@@ -61,7 +61,7 @@ export async function paqueteDelClienteParaElEstudio(
     return { ok: false, status: 404, error: "Tu negocio no tiene la cartera del estudio contable." };
   }
   if (!esMesKey(mesRaw) || !mesCerrable(mesRaw, ahora)) {
-    return { ok: false, status: 400, error: "Elegí un mes que ya terminó." };
+    return { ok: false, status: 400, error: "Ese mes todavía no terminó: el paquete se baja cuando el mes cierra. Elegí un mes que ya terminó." };
   }
   const clienteTenantId = String(clienteRaw ?? "").trim();
   if (!clienteTenantId) return { ok: false, status: 400, error: "Falta el cliente." };

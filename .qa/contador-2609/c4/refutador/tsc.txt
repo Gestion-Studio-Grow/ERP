@@ -1,0 +1,3 @@
+src/app/contador/cliente/[clienteId]/recibidos/csv/route.ts(7,10): error TS2305: Module '"@/lib/contador/recibidos-db"' has no exported member 'MES_DEMASIADO_GRANDE'.
+src/app/contador/cliente/[clienteId]/recibidos/page.tsx(8,10): error TS2305: Module '"@/lib/contador/recibidos-db"' has no exported member 'MES_DEMASIADO_GRANDE'.
+tsc exit 2

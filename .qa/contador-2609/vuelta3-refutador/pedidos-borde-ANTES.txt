@@ -1,0 +1,61 @@
+TAP version 13
+# Subtest: FASE A (código viejo): pasado el tope, el pedido nuevo y el descarte siguen apareciendo
+not ok 1 - FASE A (código viejo): pasado el tope, el pedido nuevo y el descarte siguen apareciendo
+  ---
+  duration_ms: 4316.145947
+  type: 'test'
+  location: '/home/user/erp-contador/src/app/operador/(console)/solicitudes/bandeja-borde-postgres.test.ts:2:1255'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   contadoraDescartes: [],
+    +   contadoraEnCurso: [],
+    +   soporte: []
+    -   contadoraDescartes: [
+    -     [
+    -       'descartado-502',
+    -       'Ese CUIT es de otro estudio.'
+    -     ]
+    -   ],
+    -   contadoraEnCurso: [
+    -     'abierto-501'
+    -   ],
+    -   soporte: [
+    -     'abierto-501'
+    -   ]
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    soporte:
+      0: 'abierto-501'
+    contadoraEnCurso:
+      0: 'abierto-501'
+    contadoraDescartes:
+      0:
+        0: 'descartado-502'
+        1: 'Ese CUIT es de otro estudio.'
+  actual:
+    soporte:
+    contadoraEnCurso:
+    contadoraDescartes:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/app/operador/(console)/solicitudes/bandeja-borde-postgres.test.ts:40:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4960.156876

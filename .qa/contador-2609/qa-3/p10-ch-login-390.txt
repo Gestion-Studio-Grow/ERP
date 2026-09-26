@@ -1,0 +1,24 @@
+URL: http://chestetica.localhost:3210/admin/login
+scrollWidth/innerWidth: 390/390
+consola+http>=400: 0
+
+---- CONTROLES
+input:hidden «$ACTION_ID_4054512fc153b8295c7023c9d6b44afa90ab2e65bd» name=$ACTION_ID_4054512fc153b8295c7023c9d6b44afa90ab2e65bd
+input:hidden «next» name=next
+input:email «email» name=email
+input:password «password» name=password
+button «Ingresar»
+---- TEXTO
+CH
+
+CH Estética
+
+Ingresá a tu panel
+
+Con el email y la contraseña de tu cuenta.
+
+Email
+Contraseña
+Ingresar
+
+Con tecnología de Gestión Studio Grow

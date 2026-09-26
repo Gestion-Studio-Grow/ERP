@@ -12,7 +12,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ALL_ITEMS, navItemForPath, rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
-import { appDeRuta, normalizarRuta, rutaDeAppConModulo } from "./rutas";
+import { appDeRuta, normalizarRuta, rutaDeAppDelNegocio } from "./rutas";
+import { PLAN_IDS, planPorId } from "@/planes/catalogo";
 
 const id = (path: string) => appDeRuta(path)?.id;
 
@@ -70,7 +71,7 @@ test("normalizarRuta saca query, hash y la barra final", () => {
 
 /** El gate tal como lo arma layout.tsx para un producto con tienda. */
 const pasaElGate = (path: string, modules: readonly string[]) =>
-  rutaPermitidaParaModulos(path, modules) || rutaDeAppConModulo(path, modules);
+  rutaPermitidaParaModulos(path, modules) || rutaDeAppDelNegocio(path, modules);
 
 const COMERCIANTE = ["arca", "bancos", "mercadopago", "clients", "reports"];
 
@@ -94,8 +95,22 @@ test("el gate no se afloja con lo que el Comerciante no tiene, ni con rutas que 
   for (const p of ["/admin/turnos", "/admin/pedidos", "/admin/catalogo", "/admin/inventario", "/admin/libros", "/admin/inexistente"]) {
     assert.equal(pasaElGate(p, COMERCIANTE), false, p);
   }
-  // Una app del núcleo (sin módulo) que la barra de hoy no conoce no entra por el registro.
-  assert.equal(rutaDeAppConModulo("/admin/cierre-mes", COMERCIANTE), false);
+});
+
+// QA 26/09, bloqueante 1: en Comerciante y PyME, /admin/cierre-mes rebotaba al Inicio sin aviso
+// y la bandeja del estudio mandaba a congelar el mes ahí. Cierre del mes es del núcleo: pasa el
+// gate con los módulos REALES de cada plan (y la página sigue con su `requireApp`).
+test("Cierre del mes (app del núcleo) pasa el gate por URL en todos los planes con tienda", () => {
+  for (const plan of PLAN_IDS) {
+    const modulos = planPorId(plan).modulos;
+    for (const p of ["/admin/cierre-mes", "/admin/cierre-mes?mes=2026-08", "/admin/cierre-mes/paquete?mes=2026-08"]) {
+      assert.equal(pasaElGate(p, modulos), true, `${plan}: ${p}`);
+    }
+  }
+  assert.equal(rutaDeAppDelNegocio("/admin/cierre-mes", COMERCIANTE), true);
+  // Las apps con módulo siguen exigiéndolo: aflojar el núcleo no abre lo que no se vendió.
+  assert.equal(rutaDeAppDelNegocio("/admin/vender", COMERCIANTE), false);
+  assert.equal(rutaDeAppDelNegocio("/admin/inexistente", COMERCIANTE), false);
 });
 
 test("el layout del panel arma el gate del Comerciante con las dos reglas", async () => {
@@ -103,7 +118,7 @@ test("el layout del panel arma el gate del Comerciante con las dos reglas", asyn
   const layout = readFileSync("src/app/admin/(dashboard)/layout.tsx", "utf8");
   assert.match(
     layout,
-    /!rutaPermitidaParaModulos\(pathname, productoCtx\.modules\) &&\s*!rutaDeAppConModulo\(pathname, productoCtx\.modules\)/,
+    /!rutaPermitidaParaModulos\(pathname, productoCtx\.modules\) &&\s*!rutaDeAppDelNegocio\(pathname, productoCtx\.modules\)/,
     "el gate por URL tiene que dejar pasar las apps del registro con su módulo asignado",
   );
 });

@@ -1,0 +1,56 @@
+http://riobamba-lab.localhost:3210/admin/facturacion
+Saltar al contenido
+C
+Comerciante
+Buscar en el menú
+Inicio
+Clientes
+Pedidos
+Caja
+Libro de caja
+Cierre del día
+Catálogo
+Compras
+Ajustes
+Reseñas
+Recordatorios
+Facturación
+Reportes
+Campañas
+Auditoría
+Usuarios
+Localización
+Apariencia
+D
+Distribuidora Río Bamba SA
+Dueño/a
+Cerrar sesión
+Comerciante
+Panel de administración
+Facturación y cobros
+Emití facturas electrónicas ante ARCA y generá links de cobro por Mercado Pago.
+Facturación automática
+Subí el extracto de tu banco y el sistema arma las facturas solo — vos revisás únicamente las ventas que necesitan los datos del comprador.
+Abrir el tablero →
+Generar cobro (Mercado Pago)
+Creá un link de pago para mandarle al cliente por WhatsApp. Cuando paga, el cobro entra solo.modo prueba — el link no cobra de verdad
+Generar link de cobro
+Modo prueba: generar cobro de prueba
+Facturación electrónica (ARCA)
+Comprobantes del negocio y su estado ante ARCA. Las facturas se generan al cobrar; acá se autorizan (se obtiene el CAE).
+Modo: modo prueba (sin red)
+CUIT: 30-70512347-7
+Punto de venta: 3
+Ambiente: homologación
+En modo prueba se obtiene un CAE simulado (sin red). Para probar contra ARCA de verdad sin arriesgar nada, el dueño carga el certificado de prueba y activa el modo homologación (lo hace Gestión Studio Grow); para facturar de verdad, se activa el modo real con el certificado productivo.
+Procesar pendientes (0)
+No hay facturas pendientes de autorización.
+Factura de prueba: ARCA está en modo prueba, así que el CAE es simulado y no vale ante ARCA. La factura sí queda guardada, con su letra y su número.
+¿A quién va?
+A un consumidor final
+A un responsable inscripto (CUIT de prueba de ARCA)
+Emitir factura de prueba
+Listo: Factura B 0003-00000001 a Consumidor final por $1.210,00. CAE simulado STUB00000001. Ya está en la lista de comprobantes.
+FECHA	ESTADO	TOTAL	CAE	Nº
+26/09/2026	
+Autorizada	$1.210,00	STUB00000001	Factura B 0003-00000001

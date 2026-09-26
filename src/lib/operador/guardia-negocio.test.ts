@@ -344,10 +344,14 @@ const REVISADOS = archivos(join(RAIZ, "src"))
     const archivo = relative(RAIZ, p).split(sep).join("/");
     return { archivo, ...revisarArchivo(archivo, readFileSync(p, "utf8")) };
   })
-  .filter((r) => r.useServer && r.privilegiado);
+  // Los del otro plano (OTRO_PLANO) se revisan siempre, importen o no algo del operador: su guardia
+  // propia no deja de exigirse porque el archivo haya dejado de tocar la consola.
+  .filter((r) => r.useServer && (r.privilegiado || r.archivo in OTRO_PLANO));
 
 test("el recorrido encuentra los endpoints con privilegio de operador en TODO src/ (si no, el trinquete no mira nada)", () => {
   assert.deepEqual(REVISADOS.map((r) => r.archivo).sort(), [
+    "src/app/operador/(console)/pedidos-cartera/actions.ts",
+    "src/app/operador/(console)/solicitudes/actions.ts",
     "src/lib/cartera-actions.ts",
     "src/lib/operador/interruptores-actions.ts",
     "src/lib/operador/plan-actions.ts",
@@ -370,6 +374,9 @@ test("TRINQUETE: todo endpoint con privilegio de operador tiene PRIMERO la guard
   }
   assert.deepEqual(faltan, [], `endpoints sin la guardia del negocio:\n${faltan.join("\n")}`);
   assert.deepEqual(cubiertas.sort(), [
+    "src/app/operador/(console)/pedidos-cartera/actions.ts#resolverPedidoDeCarteraAction",
+    "src/app/operador/(console)/solicitudes/actions.ts#configurarSolicitudAction",
+    "src/app/operador/(console)/solicitudes/actions.ts#descartarSolicitudAction",
     "src/lib/cartera-actions.ts#altaClienteCarteraAction",
     "src/lib/cartera-actions.ts#emitirAutomaticasClienteAction",
     "src/lib/cartera-actions.ts#monitorCarteraAction",

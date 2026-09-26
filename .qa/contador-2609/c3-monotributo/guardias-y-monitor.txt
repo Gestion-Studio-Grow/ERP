@@ -1,0 +1,679 @@
+TAP version 13
+# Subtest: GUARDIA_EN_EL_LOADER sólo lista páginas que todavía dependen de su loader (sin requireApp)
+ok 1 - GUARDIA_EN_EL_LOADER sólo lista páginas que todavía dependen de su loader (sin requireApp)
+  ---
+  duration_ms: 1.140217
+  type: 'test'
+  ...
+# Subtest: el recorrido encuentra las páginas del panel
+ok 2 - el recorrido encuentra las páginas del panel
+  ---
+  duration_ms: 0.366055
+  type: 'test'
+  ...
+# Subtest: trinquete: páginas sin requireApp ≤ 3
+ok 3 - trinquete: páginas sin requireApp ≤ 3
+  ---
+  duration_ms: 0.321158
+  type: 'test'
+  ...
+# Subtest: toda página del panel pertenece a una app del registro
+ok 4 - toda página del panel pertenece a una app del registro
+  ---
+  duration_ms: 0.905433
+  type: 'test'
+  ...
+# Subtest: requireApp protege la app de SU ruta, no otra
+ok 5 - requireApp protege la app de SU ruta, no otra
+  ---
+  duration_ms: 2.569253
+  type: 'test'
+  ...
+# Subtest: la capability del registro es la que pide la página raíz de cada app (directo o en su loader)
+ok 6 - la capability del registro es la que pide la página raíz de cada app (directo o en su loader)
+  ---
+  duration_ms: 0.836653
+  type: 'test'
+  ...
+# Subtest: el recorrido encuentra los route handlers del panel
+ok 7 - el recorrido encuentra los route handlers del panel
+  ---
+  duration_ms: 0.15726
+  type: 'test'
+  ...
+# Subtest: trinquete: route handlers sin requireApp ≤ 0
+ok 8 - trinquete: route handlers sin requireApp ≤ 0
+  ---
+  duration_ms: 0.154313
+  type: 'test'
+  ...
+# Subtest: todo route handler pertenece a una app, y su requireApp es el de esa app
+ok 9 - todo route handler pertenece a una app, y su requireApp es el de esa app
+  ---
+  duration_ms: 0.61558
+  type: 'test'
+  ...
+# Subtest: caso histórico: AppointmentRow (client) → anulacion.ts → Prisma por valor ROMPE, con la cadena completa
+ok 10 - caso histórico: AppointmentRow (client) → anulacion.ts → Prisma por valor ROMPE, con la cadena completa
+  ---
+  duration_ms: 42.731815
+  type: 'test'
+  ...
+# Subtest: caso histórico arreglado: `import type` + chequeo por forma NO rompe
+ok 11 - caso histórico arreglado: `import type` + chequeo por forma NO rompe
+  ---
+  duration_ms: 19.279434
+  type: 'test'
+  ...
+# Subtest: prisma-errors: importar Prisma por valor en un helper intermedio también se ve, dos saltos más abajo
+ok 12 - prisma-errors: importar Prisma por valor en un helper intermedio también se ve, dos saltos más abajo
+  ---
+  duration_ms: 9.925091
+  type: 'test'
+  ...
+# Subtest: lo que NO cuenta: import type, { type X } puro, uso sólo como tipo (elidido), enums/browser, 'use server' y 'use cache'
+ok 13 - lo que NO cuenta: import type, { type X } puro, uso sólo como tipo (elidido), enums/browser, 'use server' y 'use cache'
+  ---
+  duration_ms: 13.732951
+  type: 'test'
+  ...
+# Subtest: lo que SÍ cuenta: import(), export *, efecto lateral, JSX, extends, builtins, pg, next/headers, *.server.ts, lib/rls
+ok 14 - lo que SÍ cuenta: import(), export *, efecto lateral, JSX, extends, builtins, pg, next/headers, *.server.ts, lib/rls
+  ---
+  duration_ms: 71.334055
+  type: 'test'
+  ...
+# Subtest: builtins con polyfill de Next (crypto, buffer, path…): AVISO con cadena, no falla
+ok 15 - builtins con polyfill de Next (crypto, buffer, path…): AVISO con cadena, no falla
+  ---
+  duration_ms: 4.336384
+  type: 'test'
+  ...
+# Subtest: sin `prisma generate` (src/generated ausente) el import histórico se atrapa igual, por especificador
+ok 16 - sin `prisma generate` (src/generated ausente) el import histórico se atrapa igual, por especificador
+  ---
+  duration_ms: 7.287398
+  type: 'test'
+  ...
+# Subtest: validador de Next: revalidatePath/revalidateTag/cacheLife/cacheTag de next/cache, after de next/server y next/root-params ROMPEN
+ok 17 - validador de Next: revalidatePath/revalidateTag/cacheLife/cacheTag de next/cache, after de next/server y next/root-params ROMPEN
+  ---
+  duration_ms: 26.341885
+  type: 'test'
+  ...
+# Subtest: validador de Next corre ANTES del strip de TS: next/headers usado sólo como tipo o con `{ type X }` ROMPE; `import type` no
+ok 18 - validador de Next corre ANTES del strip de TS: next/headers usado sólo como tipo o con `{ type X }` ROMPE; `import type` no
+  ---
+  duration_ms: 13.099354
+  type: 'test'
+  ...
+# Subtest: 'use client' en .jsx/.js también es entrada
+ok 19 - 'use client' en .jsx/.js también es entrada
+  ---
+  duration_ms: 6.741462
+  type: 'test'
+  ...
+# Subtest: en .js/.jsx/.mjs no hay strip de TS: un import sin usar se conserva y ROMPE; el mismo en .ts se elide
+ok 20 - en .js/.jsx/.mjs no hay strip de TS: un import sin usar se conserva y ROMPE; el mismo en .ts se elide
+  ---
+  duration_ms: 15.501791
+  type: 'test'
+  ...
+# Subtest: entradas del browser sin directiva: src/instrumentation-client.ts; el Pages Router queda como NO MODELADO
+ok 21 - entradas del browser sin directiva: src/instrumentation-client.ts; el Pages Router queda como NO MODELADO
+  ---
+  duration_ms: 4.813524
+  type: 'test'
+  ...
+# Subtest: orden de resolución de Turbopack: con x.ts y x.tsx hermanos gana x.tsx
+ok 22 - orden de resolución de Turbopack: con x.ts y x.tsx hermanos gana x.tsx
+  ---
+  duration_ms: 3.672575
+  type: 'test'
+  ...
+# Subtest: import() con plantilla se expande como en Turbopack; new Worker(new URL(…)) se sigue; import(x) sin prefijo queda en dinamicos
+ok 23 - import() con plantilla se expande como en Turbopack; new Worker(new URL(…)) se sigue; import(x) sin prefijo queda en dinamicos
+  ---
+  duration_ms: 8.898537
+  type: 'test'
+  ...
+# Subtest: paquetes de terceros: se entra con la resolución del browser (exports, module, campo browser) y se ve lo de servidor adentro
+ok 24 - paquetes de terceros: se entra con la resolución del browser (exports, module, campo browser) y se ve lo de servidor adentro
+  ---
+  duration_ms: 9.042524
+  type: 'test'
+  ...
+# Subtest: verbatimModuleSyntax apaga la elisión, también heredado por `extends`
+ok 25 - verbatimModuleSyntax apaga la elisión, también heredado por `extends`
+  ---
+  duration_ms: 9.190583
+  type: 'test'
+  ...
+# Subtest: huérfanos: un 'use client' que nadie importa (salvo un test) no rompe el build; en cuanto una ruta lo importa, sí
+ok 26 - huérfanos: un 'use client' que nadie importa (salvo un test) no rompe el build; en cuanto una ruta lo importa, sí
+  ---
+  duration_ms: 9.238131
+  type: 'test'
+  ...
+# Subtest: árbol real: ningún client component alcanza por valor un módulo de servidor
+ok 27 - árbol real: ningún client component alcanza por valor un módulo de servidor
+  ---
+  duration_ms: 4683.962885
+  type: 'test'
+  ...
+# 180 client components compilados, 4 huérfanos, 373 módulos alcanzables, 4682 ms
+# huérfano (nadie lo importa: Turbopack no lo compila): src/components/BootstrapReveal.tsx
+# huérfano (nadie lo importa: Turbopack no lo compila): src/components/devoluciones/ReturnForm.tsx
+# huérfano (nadie lo importa: Turbopack no lo compila): src/components/devoluciones/ReturnHistoryTable.tsx
+# huérfano (nadie lo importa: Turbopack no lo compila): src/components/inventario/InventoryTable.tsx
+# aviso: src/plugins/bancos/domain/valores.ts:12 → "node:crypto"  (builtin de Node con polyfill de Next (crypto): pasa el build, pesa en el bundle)
+#   cadena más corta (desde 1 client component(s)):
+#       src/app/contador/CarteraPanel.tsx:29
+#     → src/lib/cartera-core.ts:32
+#     → src/plugins/bancos/index.ts:68  [export-from]
+#     → src/plugins/bancos/domain/valores.ts:12
+#     → node:crypto
+# Subtest: mutación sobre el árbol real (en memoria): reintroducir el import histórico en anulacion.ts lo atrapa
+ok 28 - mutación sobre el árbol real (en memoria): reintroducir el import histórico en anulacion.ts lo atrapa
+  ---
+  duration_ms: 2353.171362
+  type: 'test'
+  ...
+# Subtest: mutación real: revalidatePath en lib/cartera-core.ts (sin 'use server') rompe desde CarteraPanel.tsx
+ok 29 - mutación real: revalidatePath en lib/cartera-core.ts (sin 'use server') rompe desde CarteraPanel.tsx
+  ---
+  duration_ms: 1089.263833
+  type: 'test'
+  ...
+# Subtest: mutación real: pg-pool y @electric-sql/pglite-socket (node_modules de verdad) rompen, con la cadena adentro del paquete
+ok 30 - mutación real: pg-pool y @electric-sql/pglite-socket (node_modules de verdad) rompen, con la cadena adentro del paquete
+  ---
+  duration_ms: 1157.10513
+  type: 'test'
+  ...
+# Subtest: un cliente sano no genera ninguna señal (el tablero calla cuando todo anda)
+ok 31 - un cliente sano no genera ninguna señal (el tablero calla cuando todo anda)
+  ---
+  duration_ms: 3.470273
+  type: 'test'
+  ...
+# Subtest: sin CUIT cargado: crítico — es exactamente lo que hace fallar la emisión sin avisar
+ok 32 - sin CUIT cargado: crítico — es exactamente lo que hace fallar la emisión sin avisar
+  ---
+  duration_ms: 0.52336
+  type: 'test'
+  ...
+# Subtest: el placeholder histórico 20000000000 NO cuenta como CUIT válido
+ok 33 - el placeholder histórico 20000000000 NO cuenta como CUIT válido
+  ---
+  duration_ms: 0.306797
+  type: 'test'
+  ...
+# Subtest: CUIT de largo inválido y punto de venta faltante: los dos rompen el perfil
+ok 34 - CUIT de largo inválido y punto de venta faltante: los dos rompen el perfil
+  ---
+  duration_ms: 0.196304
+  type: 'test'
+  ...
+# Subtest: el CUIT con guiones se normaliza: no es un error de carga
+ok 35 - el CUIT con guiones se normaliza: no es un error de carga
+  ---
+  duration_ms: 0.227775
+  type: 'test'
+  ...
+# Subtest: sin punto de venta: la acción es pedírselo a GSG, no un botón a una pantalla donde no se puede
+ok 36 - sin punto de venta: la acción es pedírselo a GSG, no un botón a una pantalla donde no se puede
+  ---
+  duration_ms: 0.464001
+  type: 'test'
+  ...
+# Subtest: certificado vencido: crítico, con los días vencidos en el detalle
+ok 37 - certificado vencido: crítico, con los días vencidos en el detalle
+  ---
+  duration_ms: 0.400189
+  type: 'test'
+  ...
+# Subtest: certificado por vencer dentro de la ventana de aviso: atención, no crítico
+ok 38 - certificado por vencer dentro de la ventana de aviso: atención, no crítico
+  ---
+  duration_ms: 0.217418
+  type: 'test'
+  ...
+# Subtest: certificado lejos de vencer: sin señal (la ventana no se adelanta)
+ok 39 - certificado lejos de vencer: sin señal (la ventana no se adelanta)
+  ---
+  duration_ms: 0.390373
+  type: 'test'
+  ...
+# Subtest: sin credencial cargada: crítico y distinto de 'vencido' (la acción es otra)
+ok 40 - sin credencial cargada: crítico y distinto de 'vencido' (la acción es otra)
+  ---
+  duration_ms: 0.663427
+  type: 'test'
+  ...
+# Subtest: credencial cargada sin vencimiento legible: no se inventa 'sin certificado'
+ok 41 - credencial cargada sin vencimiento legible: no se inventa 'sin certificado'
+  ---
+  duration_ms: 0.356964
+  type: 'test'
+  ...
+# Subtest: en homologación del CLIENTE, sin credencial sigue siendo crítico (no se baja por homologación)
+ok 42 - en homologación del CLIENTE, sin credencial sigue siendo crítico (no se baja por homologación)
+  ---
+  duration_ms: 0.292549
+  type: 'test'
+  ...
+# Subtest: con ARCA en modo SIMULADO el certificado no se usa: ni sin_credencial ni cert_* por fila
+ok 43 - con ARCA en modo SIMULADO el certificado no se usa: ni sin_credencial ni cert_* por fila
+  ---
+  duration_ms: 0.359283
+  type: 'test'
+  ...
+# Subtest: comprobantes rechazados por ARCA: crítico
+ok 44 - comprobantes rechazados por ARCA: crítico
+  ---
+  duration_ms: 0.175676
+  type: 'test'
+  ...
+# Subtest: outbox trabado: crítico — el comprobante existe pero no llega a ARCA
+ok 45 - outbox trabado: crítico — el comprobante existe pero no llega a ARCA
+  ---
+  duration_ms: 0.127094
+  type: 'test'
+  ...
+# Subtest: límite del plan alcanzado: crítico, 'cupo_del_plan', y la acción es ampliar el límite
+ok 46 - límite del plan alcanzado: crítico, 'cupo_del_plan', y la acción es ampliar el límite
+  ---
+  duration_ms: 3.960848
+  type: 'test'
+  ...
+# Subtest: cerca del cupo (80%): atención, y no se duplica con 'cupo alcanzado'
+ok 47 - cerca del cupo (80%): atención, y no se duplica con 'cupo alcanzado'
+  ---
+  duration_ms: 0.277144
+  type: 'test'
+  ...
+# Subtest: justo debajo del umbral: sin señal de cupo
+ok 48 - justo debajo del umbral: sin señal de cupo
+  ---
+  duration_ms: 0.125018
+  type: 'test'
+  ...
+# Subtest: ninguna señal manda a RECATEGORIZAR: la cantidad de facturas no decide la categoría
+ok 49 - ninguna señal manda a RECATEGORIZAR: la cantidad de facturas no decide la categoría
+  ---
+  duration_ms: 1.529097
+  type: 'test'
+  ...
+# Subtest: cola de revisión estancada: alerta recién cuando la más vieja pasa el umbral
+ok 50 - cola de revisión estancada: alerta recién cuando la más vieja pasa el umbral
+  ---
+  duration_ms: 0.213808
+  type: 'test'
+  ...
+# Subtest: silencio de ingesta: un cliente activo que hace días no da señales de vida
+ok 51 - silencio de ingesta: un cliente activo que hace días no da señales de vida
+  ---
+  duration_ms: 0.147074
+  type: 'test'
+  ...
+# Subtest: cliente que nunca tuvo actividad: también entra como silencio, con otro detalle
+ok 52 - cliente que nunca tuvo actividad: también entra como silencio, con otro detalle
+  ---
+  duration_ms: 0.235768
+  type: 'test'
+  ...
+# Subtest: caja sin cerrar: 0 días no avisa (hoy todavía no terminó)
+ok 53 - caja sin cerrar: 0 días no avisa (hoy todavía no terminó)
+  ---
+  duration_ms: 0.171467
+  type: 'test'
+  ...
+# Subtest: caja sin cerrar hace 1 día: atención, con el día y el número
+ok 54 - caja sin cerrar hace 1 día: atención, con el día y el número
+  ---
+  duration_ms: 0.229232
+  type: 'test'
+  ...
+# Subtest: caja sin cerrar hace 5 días: el número sale en el detalle
+ok 55 - caja sin cerrar hace 5 días: el número sale en el detalle
+  ---
+  duration_ms: 0.309884
+  type: 'test'
+  ...
+# Subtest: un cliente SIN caja no dispara 'caja sin cerrar' (la cartera nace sin caja)
+ok 56 - un cliente SIN caja no dispara 'caja sin cerrar' (la cartera nace sin caja)
+  ---
+  duration_ms: 0.142642
+  type: 'test'
+  ...
+# Subtest: el día de la caja se cuenta en hora argentina, no en UTC
+ok 57 - el día de la caja se cuenta en hora argentina, no en UTC
+  ---
+  duration_ms: 0.14762
+  type: 'test'
+  ...
+# Subtest: homologación del cliente y emisión apagada NO son señales de fila
+ok 58 - homologación del cliente y emisión apagada NO son señales de fila
+  ---
+  duration_ms: 0.120389
+  type: 'test'
+  ...
+# Subtest: los avisos de plataforma se dicen una vez: apagada + N clientes en prueba (activos)
+ok 59 - los avisos de plataforma se dicen una vez: apagada + N clientes en prueba (activos)
+  ---
+  duration_ms: 0.298451
+  type: 'test'
+  ...
+# Subtest: con ARCA en homologación para toda la plataforma no se cuenta cliente por cliente
+ok 60 - con ARCA en homologación para toda la plataforma no se cuenta cliente por cliente
+  ---
+  duration_ms: 0.171201
+  type: 'test'
+  ...
+# Subtest: titular: con la emisión apagada no dice 'Todos pueden emitir' debajo de un aviso que dice lo contrario
+ok 61 - titular: con la emisión apagada no dice 'Todos pueden emitir' debajo de un aviso que dice lo contrario
+  ---
+  duration_ms: 1.601499
+  type: 'test'
+  ...
+# Subtest: validez fiscal: sólo ARCA real y el cliente fuera de homologación
+ok 62 - validez fiscal: sólo ARCA real y el cliente fuera de homologación
+  ---
+  duration_ms: 0.143637
+  type: 'test'
+  ...
+# Subtest: un cliente pausado no genera señales aunque esté roto
+ok 63 - un cliente pausado no genera señales aunque esté roto
+  ---
+  duration_ms: 0.201153
+  type: 'test'
+  ...
+# Subtest: el orden pone primero lo crítico y desempata alfabético (lista estable)
+ok 64 - el orden pone primero lo crítico y desempata alfabético (lista estable)
+  ---
+  duration_ms: 0.252634
+  type: 'test'
+  ...
+# Subtest: con la misma urgencia, el orden es determinístico entre recargas
+ok 65 - con la misma urgencia, el orden es determinístico entre recargas
+  ---
+  duration_ms: 0.310886
+  type: 'test'
+  ...
+# Subtest: ordenarPorUrgencia es estable aun con el MISMO alias: desempata por id
+ok 66 - ordenarPorUrgencia es estable aun con el MISMO alias: desempata por id
+  ---
+  duration_ms: 0.459219
+  type: 'test'
+  ...
+# Subtest: varias señales suman urgencia: el más roto queda arriba
+ok 67 - varias señales suman urgencia: el más roto queda arriba
+  ---
+  duration_ms: 0.169013
+  type: 'test'
+  ...
+# Subtest: la línea de la bandeja muestra la PEOR señal aunque una de atención vaya antes
+ok 68 - la línea de la bandeja muestra la PEOR señal aunque una de atención vaya antes
+  ---
+  duration_ms: 0.178392
+  type: 'test'
+  ...
+# Subtest: la cabecera cuenta por estado y aparte los que HOY no pueden emitir
+ok 69 - la cabecera cuenta por estado y aparte los que HOY no pueden emitir
+  ---
+  duration_ms: 0.324125
+  type: 'test'
+  ...
+# Subtest: cartera vacía: cabecera en cero, sin romper
+ok 70 - cartera vacía: cabecera en cero, sin romper
+  ---
+  duration_ms: 0.185114
+  type: 'test'
+  ...
+# Subtest: una fecha corrupta no rompe la evaluación ni inventa una señal
+ok 71 - una fecha corrupta no rompe la evaluación ni inventa una señal
+  ---
+  duration_ms: 0.244817
+  type: 'test'
+  ...
+# Subtest: cap en cero no divide por cero ni dispara alerta de cupo
+ok 72 - cap en cero no divide por cero ni dispara alerta de cupo
+  ---
+  duration_ms: 0.122393
+  type: 'test'
+  ...
+# Subtest: resumirMonitor sobre filas ya evaluadas es consistente con evaluarCartera
+ok 73 - resumirMonitor sobre filas ya evaluadas es consistente con evaluarCartera
+  ---
+  duration_ms: 0.210842
+  type: 'test'
+  ...
+# Subtest: el alta que trae el punto de venta deja al cliente sin el rojo de 'no puede emitir'
+ok 74 - el alta que trae el punto de venta deja al cliente sin el rojo de 'no puede emitir'
+  ---
+  duration_ms: 1.629125
+  type: 'test'
+  ...
+# Subtest: decidirPuntoVentaAlta: completa el que falta, nunca pisa, y avisa lo que no hizo
+ok 75 - decidirPuntoVentaAlta: completa el que falta, nunca pisa, y avisa lo que no hizo
+  ---
+  duration_ms: 0.370255
+  type: 'test'
+  ...
+# Subtest: un punto de venta mal tipeado frena el alta en vez de guardarse redondeado
+ok 76 - un punto de venta mal tipeado frena el alta en vez de guardarse redondeado
+  ---
+  duration_ms: 0.328072
+  type: 'test'
+  ...
+# Subtest: recolectarCliente: volumen y hechos en una pasada, con los relojes correctos
+not ok 77 - recolectarCliente: volumen y hechos en una pasada, con los relojes correctos
+  ---
+  duration_ms: 3.070235
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/monitor-core.test.ts:2:24546'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'findUnique')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    leerLimitesEnTx (/home/user/erp-contador/src/lib/limites-del-negocio-en-tx.ts:19:29)
+    recolectarCliente (/home/user/erp-contador/src/lib/cartera-core.ts:376:5)
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/monitor-core.test.ts:651:37)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: recolectarCliente: la caja se mide desde el día siguiente al cierre, con la frontera leída con ESTE tx
+not ok 78 - recolectarCliente: la caja se mide desde el día siguiente al cierre, con la frontera leída con ESTE tx
+  ---
+  duration_ms: 0.602918
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/monitor-core.test.ts:2:26322'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'findUnique')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    leerLimitesEnTx (/home/user/erp-contador/src/lib/limites-del-negocio-en-tx.ts:19:29)
+    recolectarCliente (/home/user/erp-contador/src/lib/cartera-core.ts:376:5)
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/monitor-core.test.ts:693:28)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: lastClosedDayTx: un cierre con día imposible (9999-12-31) no congela nada; manda el corte
+ok 79 - lastClosedDayTx: un cierre con día imposible (9999-12-31) no congela nada; manda el corte
+  ---
+  duration_ms: 0.81917
+  type: 'test'
+  ...
+# Subtest: recolectarCliente: caja cerrada hasta ayer y movimientos sólo de hoy → nada pendiente
+not ok 80 - recolectarCliente: caja cerrada hasta ayer y movimientos sólo de hoy → nada pendiente
+  ---
+  duration_ms: 0.603162
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/monitor-core.test.ts:2:27952'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'findUnique')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    leerLimitesEnTx (/home/user/erp-contador/src/lib/limites-del-negocio-en-tx.ts:19:29)
+    recolectarCliente (/home/user/erp-contador/src/lib/cartera-core.ts:376:5)
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/monitor-core.test.ts:720:28)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: recorrerCartera: la metadata y cada pasada tocan sólo clientes de la cartera de ESTE estudio
+ok 81 - recorrerCartera: la metadata y cada pasada tocan sólo clientes de la cartera de ESTE estudio
+  ---
+  duration_ms: 1.688873
+  type: 'test'
+  ...
+# Subtest: recorrerCartera: cartera vacía no lee metadata
+ok 82 - recorrerCartera: cartera vacía no lee metadata
+  ---
+  duration_ms: 0.2017
+  type: 'test'
+  ...
+# Subtest: cartera-core.ts NO lleva 'use server': recolectarCliente lee con el tenantId que le pasan
+ok 83 - cartera-core.ts NO lleva 'use server': recolectarCliente lee con el tenantId que le pasan
+  ---
+  duration_ms: 0.334927
+  type: 'test'
+  ...
+# Subtest: ningún archivo 'use server' publica recolectarCliente ni recorrerCartera (ni re-exporta cartera-core)
+ok 84 - ningún archivo 'use server' publica recolectarCliente ni recorrerCartera (ni re-exporta cartera-core)
+  ---
+  duration_ms: 63.728103
+  type: 'test'
+  ...
+# Subtest: monitorCarteraAction no recibe parámetros y pasa por exigirEstudio antes de recorrer la cartera
+ok 85 - monitorCarteraAction no recibe parámetros y pasa por exigirEstudio antes de recorrer la cartera
+  ---
+  duration_ms: 0.48175
+  type: 'test'
+  ...
+# Subtest: la tabla vigente tiene las 11 categorías con topes crecientes y queda marcada provisional
+ok 86 - la tabla vigente tiene las 11 categorías con topes crecientes y queda marcada provisional
+  ---
+  duration_ms: 1.448791
+  type: 'test'
+  ...
+# Subtest: la categoría siguiente de la K no existe; letras válidas A a K
+ok 87 - la categoría siguiente de la K no existe; letras válidas A a K
+  ---
+  duration_ms: 0.313758
+  type: 'test'
+  ...
+# Subtest: facturar exactamente el tope de la A sigue siendo A; un centavo más ya es B
+ok 88 - facturar exactamente el tope de la A sigue siendo A; un centavo más ya es B
+  ---
+  duration_ms: 0.535954
+  type: 'test'
+  ...
+# Subtest: en el tope justo de su categoría está cerca, no excedido
+ok 89 - en el tope justo de su categoría está cerca, no excedido
+  ---
+  duration_ms: 19.766349
+  type: 'test'
+  ...
+# Subtest: un centavo arriba del tope de la B: excedido y le corresponde la C
+ok 90 - un centavo arriba del tope de la B: excedido y le corresponde la C
+  ---
+  duration_ms: 0.553544
+  type: 'test'
+  ...
+# Subtest: el 80 % del tope es cerca; apenas menos es bien
+ok 91 - el 80 % del tope es cerca; apenas menos es bien
+  ---
+  duration_ms: 0.862448
+  type: 'test'
+  ...
+# Subtest: un cliente de la K que supera su tope: corresponde la exclusión, no otra letra
+ok 92 - un cliente de la K que supera su tope: corresponde la exclusión, no otra letra
+  ---
+  duration_ms: 0.476352
+  type: 'test'
+  ...
+# Subtest: un cliente de la K cerca del tope no tiene categoría siguiente para ofrecer
+ok 93 - un cliente de la K cerca del tope no tiene categoría siguiente para ofrecer
+  ---
+  duration_ms: 0.508577
+  type: 'test'
+  ...
+# Subtest: la ventana va del día siguiente al mismo día del año pasado hasta hoy
+ok 94 - la ventana va del día siguiente al mismo día del año pasado hasta hoy
+  ---
+  duration_ms: 1.920458
+  type: 'test'
+  ...
+# Subtest: 12 meses móviles: lo del mismo día del año pasado ya no cuenta; lo del día siguiente sí
+ok 95 - 12 meses móviles: lo del mismo día del año pasado ya no cuenta; lo del día siguiente sí
+  ---
+  duration_ms: 0.564571
+  type: 'test'
+  ...
+# Subtest: una factura grande que sale de la ventana devuelve al cliente a su categoría
+ok 96 - una factura grande que sale de la ventana devuelve al cliente a su categoría
+  ---
+  duration_ms: 0.633409
+  type: 'test'
+  ...
+# Subtest: las notas de crédito restan: sin ellas estaría excedido, con ellas no
+ok 97 - las notas de crédito restan: sin ellas estaría excedido, con ellas no
+  ---
+  duration_ms: 0.552744
+  type: 'test'
+  ...
+# Subtest: sólo cuenta lo autorizado por ARCA: pendientes y rechazadas no suman
+ok 98 - sólo cuenta lo autorizado por ARCA: pendientes y rechazadas no suman
+  ---
+  duration_ms: 0.196907
+  type: 'test'
+  ...
+# Subtest: en una factura A o B cuenta el neto (el IVA no es ingreso); en la C, el total
+ok 99 - en una factura A o B cuenta el neto (el IVA no es ingreso); en la C, el total
+  ---
+  duration_ms: 0.21118
+  type: 'test'
+  ...
+# Subtest: sin categoría cargada NO asume la A: pide cargarla y no inventa tope
+ok 100 - sin categoría cargada NO asume la A: pide cargarla y no inventa tope
+  ---
+  duration_ms: 0.405321
+  type: 'test'
+  ...
+# Subtest: próxima recategorización: julio en el primer semestre, enero en el segundo
+ok 101 - próxima recategorización: julio en el primer semestre, enero en el segundo
+  ---
+  duration_ms: 0.302886
+  type: 'test'
+  ...
+# Subtest: orden: excedidos, después sin categoría, después cerca (el más apretado primero), después bien
+ok 102 - orden: excedidos, después sin categoría, después cerca (el más apretado primero), después bien
+  ---
+  duration_ms: 1.028189
+  type: 'test'
+  ...
+1..102
+# tests 102
+# suites 0
+# pass 99
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10764.779638

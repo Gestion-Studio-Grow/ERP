@@ -1,0 +1,51 @@
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+← Pedidos de alta
+Configurar a Ferretería UAT
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+1 · Estudio
+Queda en la cartera de Estudio Contable Laboratorio (lo pidió Carla Méndez).
+2 · Cliente
+CUIT*
+Se controla el dígito verificador. Copialo de la constancia de inscripción de ARCA.
+CONDICIÓN FRENTE AL IVA*
+Elegí…
+Responsable inscripto
+Monotributista
+IVA exento
+RAZÓN SOCIAL*
+Tal cual figura en la constancia de ARCA.
+NOMBRE EN LA CARTERA
+Cómo lo ve la contadora. Vacío: la razón social.
+PUNTO DE VENTA*
+El que dio de alta en ARCA para factura electrónica.
+WHATSAPP DEL DUEÑO
+Con característica, sin 0 ni 15.
+EMAIL DEL DUEÑO (VA A SER SU USUARIO)*
+Ese CUIT ya tiene negocio en la plataforma: Ferretería El Tornillo UAT (punto de venta 3). No se crea otro: se suma el existente a la cartera, con su plan, sus apps y sus usuarios. Eso le abre sus datos al estudio.
+El dueño de ese negocio autorizó que el estudio vea sus datos.
+3 · Accesos
+El negocio conserva sus usuarios: no se crea ninguno. La contadora lo ve desde la cartera de su estudio; nunca queda como dueña del negocio del cliente.
+ACCESO DE LA CONTADORA
+Ya tiene acceso: contador@estudio.lab
+Crear el acceso de otra persona del estudio
+4 · Revisar y crear
+Sumar a la cartera: Ferretería UAT · CUIT 20222222223 · Monotributista · punto de venta 1 · cartera de Estudio Contable Laboratorio.
+Sumar a la cartera
+¿No corresponde crearlo?
+MOTIVO DEL DESCARTE
+De 3 a 300 letras. Queda en el registro del estudio.
+Descartar el pedido
+Hecho por Gestión Studio Grow

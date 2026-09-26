@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: un cliente ruteado por el mapa de hosts tiene panel aunque no haya dominio propio
+ok 1 - un cliente ruteado por el mapa de hosts tiene panel aunque no haya dominio propio
+  ---
+  duration_ms: 1.43412
+  type: 'test'
+  ...
+# Subtest: con dominio propio, cada cliente con subdominio tiene su panel
+ok 2 - con dominio propio, cada cliente con subdominio tiene su panel
+  ---
+  duration_ms: 0.260014
+  type: 'test'
+  ...
+# Subtest: el mapa exacto gana sobre el dominio propio (misma regla que el ruteo del deploy)
+ok 3 - el mapa exacto gana sobre el dominio propio (misma regla que el ruteo del deploy)
+  ---
+  duration_ms: 0.289126
+  type: 'test'
+  ...
+# Subtest: sin subdominio, o sin mapa ni dominio propio, no se promete ninguna dirección
+ok 4 - sin subdominio, o sin mapa ni dominio propio, no se promete ninguna dirección
+  ---
+  duration_ms: 1.48785
+  type: 'test'
+  ...
+# Subtest: las pantallas de /contador no leen APP_BASE_DOMAIN ni TENANT_HOST_MAP por su cuenta
+ok 5 - las pantallas de /contador no leen APP_BASE_DOMAIN ni TENANT_HOST_MAP por su cuenta
+  ---
+  duration_ms: 18.868278
+  type: 'test'
+  ...
+# Subtest: la regla que usa el navegador no importa nada (ni Prisma ni el ruteo del servidor)
+ok 6 - la regla que usa el navegador no importa nada (ni Prisma ni el ruteo del servidor)
+  ---
+  duration_ms: 1.621993
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 975.020163

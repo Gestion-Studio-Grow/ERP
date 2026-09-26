@@ -1,0 +1,2 @@
+Only in .qa/contador-2609/qa-1/ch-ahora: salida.txt
+DIFF_EXIT 1

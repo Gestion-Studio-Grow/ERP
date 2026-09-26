@@ -41,6 +41,11 @@ export interface EstadoApertura {
   slug: string;
   blueprintId: string | null;
   subdomain: string | null;
+  /**
+   * La dirección que la plataforma SÍ publica para este negocio (direccion-del-panel.ts, la MISMA
+   * regla que ve la contadora), o `null`. Un subdominio cargado que no se publica no es «Listo».
+   */
+  direccionPropia: string | null;
   /** Usuarios activos del tenant (`User.active && !deletedAt`). */
   usuariosActivos: number;
   arcaCuit: string | null;
@@ -55,6 +60,11 @@ export interface EstadoApertura {
   /** CUIT del certificado cargado, para detectar el mismatch con el del tenant. */
   certCuit: string | null;
   modoArca: ModoArcaPlataforma;
+  /**
+   * Interruptor general de la plataforma (`isInvoicingEnabled`, src/lib/fiscal.ts:28-30). Apagado,
+   * ningún negocio emite aunque tenga todo cargado (GSG-15): el checklist tiene que decirlo.
+   */
+  facturacionEncendida: boolean;
   /**
    * ¿La columna `Tenant.arcaCondicionIva` existe en la base? HOY es `false`: la columna está
    * declarada schema-ahead en src/lib/fiscal.ts:108-119 pero la migración NO está aplicada.
@@ -195,7 +205,14 @@ export interface EvaluacionFiscal {
 export function evaluarListoParaFacturar(
   e: Pick<
     EstadoApertura,
-    "arcaCuit" | "arcaPuntoVenta" | "arcaHomologacion" | "certificadoCargado" | "certCuit" | "modoArca" | "condicionIvaDisponible"
+    | "arcaCuit"
+    | "arcaPuntoVenta"
+    | "arcaHomologacion"
+    | "certificadoCargado"
+    | "certCuit"
+    | "modoArca"
+    | "facturacionEncendida"
+    | "condicionIvaDisponible"
   >,
 ): EvaluacionFiscal {
   const faltantes: string[] = [];
@@ -211,7 +228,7 @@ export function evaluarListoParaFacturar(
   } else if (!e.certificadoCargado) {
     faltantes.push("falta el certificado ARCA");
   } else if (e.arcaCuit?.trim() && e.certCuit && e.certCuit !== e.arcaCuit.trim()) {
-    faltantes.push("el CUIT del certificado no coincide con el del tenant");
+    faltantes.push("el CUIT del certificado no coincide con el del negocio");
   }
 
   // En modo `homologacion` el plugin FUERZA homologación aunque el tenant diga producción
@@ -226,6 +243,11 @@ export function evaluarListoParaFacturar(
   }
 
   if (e.modoArca === "stub") faltantes.push("ARCA está en modo stub (apagado) en la plataforma");
+  if (!e.facturacionEncendida) {
+    faltantes.push(
+      "la facturación está apagada para toda la plataforma: la enciende Gestión Studio Grow con el interruptor general",
+    );
+  }
 
   return { listo: faltantes.length === 0, faltantes, bloqueadoPorMigracion };
 }
@@ -234,6 +256,11 @@ export function evaluarListoParaFacturar(
 
 export function checklistApertura(e: EstadoApertura): ResultadoApertura {
   const items: ItemApertura[] = [];
+  // ¿Comercio de mostrador (rubro retail con su vidriera)? Si no (Genérico, servicios profesionales),
+  // los textos no hablan de local, retiro ni caja (hallazgo QA 26/09: una fonoaudióloga).
+  const rubroId = resolveRubroId({ blueprintId: e.blueprintId, slug: e.slug });
+  const defaults = rubroId ? getRetailRubro(rubroId)?.brandingDefaults : undefined;
+  const deMostrador = defaults !== undefined;
 
   // 1 · Precios propios (sólo aplica a locales de mostrador con catálogo del blueprint).
   const semilla = catalogoSemillaDe(e);
@@ -242,8 +269,8 @@ export function checklistApertura(e: EstadoApertura): ResultadoApertura {
       id: "precios",
       label: "Precios propios",
       ok: null,
-      detalle: "no aplica (el tenant no es un local de mostrador)",
-      porQue: "El chequeo compara contra el catálogo semilla del rubro retail; sin rubro no hay contra qué comparar.",
+      detalle: "no aplica: no es un comercio de mostrador",
+      porQue: "Sólo se controla en comercios de mostrador, contra los precios de ejemplo de su rubro.",
     });
   } else if (e.productos.length === 0) {
     items.push({
@@ -268,13 +295,11 @@ export function checklistApertura(e: EstadoApertura): ResultadoApertura {
   }
 
   // 2 y 3 · Dirección e Instagram: los defaults del rubro salen publicados en la vidriera.
-  const rubroId = resolveRubroId({ blueprintId: e.blueprintId, slug: e.slug });
-  const defaults = rubroId ? getRetailRubro(rubroId)?.brandingDefaults : undefined;
 
   const dir = estadoDelValor(e.contacto?.addressLine, defaults?.addressLine);
   items.push({
     id: "direccion",
-    label: "Dirección del local",
+    label: deMostrador ? "Dirección del local" : "Dirección del negocio",
     ok: dir === "propio",
     detalle:
       dir === "vacio"
@@ -282,7 +307,9 @@ export function checklistApertura(e: EstadoApertura): ResultadoApertura {
         : dir === "provisional"
           ? `todavía la provisional ("${e.contacto?.addressLine}")`
           : (e.contacto?.addressLine ?? ""),
-    porQue: "La dirección se publica en la vidriera y arma el link del mapa: con la provisional, el cliente que va a retirar llega a una dirección que no existe.",
+    porQue: deMostrador
+      ? "La dirección se publica en la vidriera y arma el link del mapa: con la provisional, el cliente que va a retirar llega a una dirección que no existe."
+      : "Es la que ven sus clientes en su página y en los mensajes: sin cargar, no saben dónde atiende.",
   });
 
   const ig = estadoDelValor(e.contacto?.instagram, defaults?.instagram);
@@ -306,16 +333,24 @@ export function checklistApertura(e: EstadoApertura): ResultadoApertura {
     label: "Listo para facturar",
     ok: fiscal.listo,
     detalle: fiscal.listo ? "CUIT, punto de venta y certificado en orden" : fiscal.faltantes.join(" · "),
-    porQue: "La emisión corre best-effort: si el perfil fiscal está incompleto, la venta se cobra igual y la factura no sale — se descubre a fin de mes.",
+    porQue: "Si falta un dato fiscal, la venta se cobra igual pero la factura no sale, y se descubre a fin de mes.",
   });
 
-  // 5 · Subdominio ruteado.
+  // 5 · Dirección propia PUBLICADA: la misma regla que la cartera de la contadora (un subdominio
+  //     cargado que la plataforma no publica no es «Listo»: la contadora vería «sin dirección»).
+  const sub = e.subdomain?.trim() ?? "";
   items.push({
     id: "subdominio",
     label: "Link propio (subdominio)",
-    ok: Boolean(e.subdomain?.trim()),
-    detalle: e.subdomain?.trim() ? e.subdomain.trim() : "sin subdominio",
-    porQue: "Sin subdominio el local no tiene URL propia para poner en el perfil, el volante o el WhatsApp.",
+    ok: e.direccionPropia !== null,
+    detalle: e.direccionPropia
+      ? e.direccionPropia
+      : sub
+        ? `«${sub}» cargado, pero todavía no abre: la plataforma no publica esa dirección`
+        : "sin subdominio",
+    porQue: deMostrador
+      ? "Sin dirección propia el local no tiene URL para poner en el perfil, el volante o el WhatsApp."
+      : "Sin dirección propia el negocio no tiene un link para entrar a su panel, y su contadora lo ve «sin dirección».",
   });
 
   // 6 · Más de un usuario.
@@ -324,7 +359,9 @@ export function checklistApertura(e: EstadoApertura): ResultadoApertura {
     label: "Más de un usuario",
     ok: e.usuariosActivos > 1,
     detalle: `${e.usuariosActivos} usuario${e.usuariosActivos === 1 ? "" : "s"} activo${e.usuariosActivos === 1 ? "" : "s"}`,
-    porQue: "Con un solo login, el día que el dueño no está nadie puede abrir la caja ni atender el mostrador.",
+    porQue: deMostrador
+      ? "Con un solo login, el día que el dueño no está nadie puede abrir la caja ni atender el mostrador."
+      : "Con un solo usuario, el día que el dueño no está nadie más puede entrar a facturar.",
   });
 
   const pendientes = items.filter((i) => i.ok === false).length;

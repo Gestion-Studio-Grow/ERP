@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: alta por pedido: misma respuesta con cualquier CUIT, y Soporte lo configura una sola vez
+ok 1 - alta por pedido: misma respuesta con cualquier CUIT, y Soporte lo configura una sola vez
+  ---
+  duration_ms: 5391.256127
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6066.742937

@@ -42,6 +42,11 @@ export interface CrearAfipClientOpts {
   ticketInicial?: TicketAcceso;
   /** Callback para PERSISTIR el TA cuando el cliente lo renueva contra WSAA. */
   alRenovarTicket?: (ta: TicketAcceso) => void | Promise<void>;
+  /**
+   * Sólo modo stub: el último número que el negocio ya tiene autorizado (lo guardado), para que
+   * el modo prueba siga la numeración como ARCA y no vuelva al 1 en cada pedido.
+   */
+  ultimoEmitido?: (puntoVenta: number, tipo: number) => Promise<number>;
 }
 
 /** Modo de ARCA declarado por entorno. Default `stub` (seguro). */
@@ -101,5 +106,5 @@ export function crearAfipClient(
       alRenovarTicket: opts.alRenovarTicket,
     });
   }
-  return new StubAfipClient(config);
+  return new StubAfipClient(config, undefined, opts.ultimoEmitido);
 }

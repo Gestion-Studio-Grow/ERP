@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { direccionDelPanel, panelesDeLaCartera } from "@/lib/contador/paneles-de-la-cartera";
 import { notFound } from "next/navigation";
 import { operatorPrisma } from "@/lib/operator-db";
 import { requireSesionOperador } from "@/lib/operator-session";
@@ -39,6 +40,7 @@ import {
   fmtCuit,
 } from "@/components/ui";
 import { modoDesdeEnv } from "@/plugins/arca";
+import { isInvoicingEnabled } from "@/lib/fiscal";
 import { operatorReadMustChange } from "@/lib/must-change-password";
 import { parseTenantHostMap } from "@/lib/tenant";
 import {
@@ -50,6 +52,7 @@ import { INTERRUPTORES, interruptorPorId } from "@/cambios/interruptores";
 import { todosApagados } from "@/cambios/interruptores-core";
 import { operadorDuenio } from "@/lib/operator-auth";
 import { ResetOwnerPasswordCard } from "./ResetOwnerPasswordCard";
+import { motivoFueraDelPlan } from "./modulos-y-plan";
 import {
   appsPorModulo,
   estadoDeApps,
@@ -57,6 +60,7 @@ import {
   requiereOkDelDuenio,
   vistaPreviaDeCambio,
   MOTIVO_OK_DEL_DUENIO,
+  type VistaPreviaDeCambio,
 } from "./apps-del-negocio";
 import {
   candidatosEnOtraRed,
@@ -83,6 +87,7 @@ import {
   type NegocioFiscal,
 } from "./candado-punto-venta";
 import FichaConPestanas, { type PestanaDeFicha } from "./FichaConPestanas";
+import { escritoEnFiscal } from "./fiscal-vuelta";
 import {
   estadoEnPalabras,
   leerPestana,
@@ -235,13 +240,18 @@ export default async function FichaDelNegocio({
     pestana?: string;
     /** `?plan=` que deja la tarjeta Plan del negocio al volver: abre su vista previa. */
     plan?: string;
+    /** Lo que se escribió en Fiscal y no se guardó (GSG-14): vuelve al campo junto al error. */
+    cuit?: string;
+    pv?: string;
   }>;
 }) {
   // Guardia en la página, no sólo en el layout: el layout no se vuelve a ejecutar al navegar del
   // lado del cliente, y esta ficha lee y cambia datos de cualquier negocio.
   const sesion = await requireSesionOperador();
   const { id } = await params;
-  const { created, ok, error, modulo, pestana, plan: planAbierto } = await searchParams;
+  const sp = await searchParams;
+  const { created, ok, error, modulo, pestana, plan: planAbierto } = sp;
+  const escrito = escritoEnFiscal(sp);
 
   const tenant = await operatorPrisma.tenant.findUnique({
     where: { id },
@@ -397,6 +407,8 @@ export default async function FichaDelNegocio({
     slug: t.slug,
     blueprintId: t.blueprintId,
     subdomain: t.subdomain,
+    // La MISMA regla que la cartera de la contadora: sólo cuenta la dirección que se publica.
+    direccionPropia: direccionDelPanel(panelesDeLaCartera([t.subdomain]), t.subdomain, ""),
     usuariosActivos,
     arcaCuit: t.arcaCuit,
     arcaPuntoVenta: t.arcaPuntoVenta,
@@ -404,6 +416,7 @@ export default async function FichaDelNegocio({
     certificadoCargado: credFiscal === "pendiente" ? null : certOk,
     certCuit: credLoaded?.certCuit ?? null,
     modoArca,
+    facturacionEncendida: isInvoicingEnabled(),
     // HOY siempre false: la columna `arcaCondicionIva` está declarada schema-ahead en
     // src/lib/fiscal.ts pero su migración NO está aplicada. Importa porque en producción fiscal sin
     // condición de IVA `construirPerfilFiscal` lanza y la factura no sale.
@@ -431,7 +444,18 @@ export default async function FichaDelNegocio({
     ? null
     : paraEsteOperador.motivo.replace(" No se hizo nada.", "");
   const estadoApps = estadoDeApps(negocio!, flags, cat);
-  const fijar = planFijarAsignacion(negocio!, flags, cat);
+  const fijarSinTope = planFijarAsignacion(negocio!, flags, cat);
+  // Fijar tampoco regala módulos de otro plan (GSG-19): mismo tope que la action.
+  const motivoFijar =
+    fijarSinTope.ok && !fijarSinTope.sinCambios
+      ? motivoFueraDelPlan(
+          { ...negocio!, plan: t.plan },
+          negocio!.modules,
+          fijarSinTope.despues,
+          (idModulo) => cat.buscar(idModulo)?.nombre ?? idModulo,
+        )
+      : null;
+  const fijar = motivoFijar ? ({ ok: false, motivo: motivoFijar } as const) : fijarSinTope;
   const appsDeCadaModulo = appsPorModulo();
   const activos = new Set(negocio!.modules);
   const filasModulos: FilaModuloFicha[] = MODULES.map((m) => ({
@@ -442,6 +466,18 @@ export default async function FichaDelNegocio({
     activo: activos.has(m.id),
     apps: appsDeCadaModulo.get(m.id) ?? 0,
   }));
+  // La vista previa avisa, antes de confirmar, si lo que se suma no entra en el plan del negocio
+  // (GSG-19). La misma regla que aplica la action (modulos-y-plan.ts): la tarjeta no deja confirmar.
+  const conTopeDelPlan = (p: VistaPreviaDeCambio): VistaPreviaDeCambio => {
+    if (!p.ok || p.sinCambios) return p;
+    const motivo = motivoFueraDelPlan(
+      { ...negocio!, plan: t.plan },
+      negocio!.modules,
+      p.despues,
+      (idModulo) => cat.buscar(idModulo)?.nombre ?? idModulo,
+    );
+    return motivo ? { ok: false, motivo } : p;
+  };
   const moduloPrevia = modulo?.trim() || null;
   const accionPrevia =
     moduloPrevia && activos.has(moduloPrevia) ? "desactivar" : "activar";
@@ -450,11 +486,13 @@ export default async function FichaDelNegocio({
         moduloId: moduloPrevia,
         modulo: filasModulos.find((m) => m.id === moduloPrevia) ?? null,
         accion: accionPrevia,
-        plan: vistaPreviaDeCambio(
-          negocio!,
-          { accion: accionPrevia, modulo: moduloPrevia },
-          flags,
-          cat,
+        plan: conTopeDelPlan(
+          vistaPreviaDeCambio(
+            negocio!,
+            { accion: accionPrevia, modulo: moduloPrevia },
+            flags,
+            cat,
+          ),
         ),
       } as const)
     : null;
@@ -733,9 +771,10 @@ export default async function FichaDelNegocio({
                 hint="11 números, con o sin guiones. Vacío lo borra."
               >
                 <Input
+                  key={`cuit-${escrito.cuit ?? t.arcaCuit ?? ""}`}
                   id="ficha-cuit"
                   name="arcaCuit"
-                  defaultValue={t.arcaCuit ?? ""}
+                  defaultValue={escrito.cuit ?? t.arcaCuit ?? ""}
                   placeholder="20-30405060-7"
                   inputMode="numeric"
                   autoComplete="off"
@@ -758,9 +797,10 @@ export default async function FichaDelNegocio({
                 hint="De 1 a 99999. Sin esto el cobro entra y la factura no sale. Vacío lo borra."
               >
                 <Input
+                  key={`pv-${escrito.pv ?? t.arcaPuntoVenta ?? ""}`}
                   id="ficha-pv"
                   name="arcaPuntoVenta"
-                  defaultValue={t.arcaPuntoVenta ?? ""}
+                  defaultValue={escrito.pv ?? t.arcaPuntoVenta ?? ""}
                   placeholder="4"
                   inputMode="numeric"
                   autoComplete="off"

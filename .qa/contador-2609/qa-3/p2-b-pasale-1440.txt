@@ -1,0 +1,79 @@
+URL: http://localhost:3210/operador/solicitudes/cmuijgtb60000ac7d5n3p3zt8
+scrollWidth/innerWidth: 1440/1440
+consola+http>=400: 0
+
+---- CONTROLES
+a #contenido «Saltar al contenido»
+a /operador «G CONSOLA GSG»
+a /operador «Negocios»
+a /operador/alta «Dar de alta»
+a /operador/solicitudes «Pedidos»
+a /operador/direccion «Dirección»
+a /operador/diseno «Diseño»
+input:search «q» name=q
+button «DG Dueño de GSG»
+a /operador/solicitudes «Pedidos»
+a /operador/alta «Dar de alta un negocio»
+input:hidden «$ACTION_ID_0069814f2f43495045d0025115b8274715c190f0ab» name=$ACTION_ID_0069814f2f43495045d0025115b8274715c190f0ab
+a /operador/solicitudes «← Pedidos de alta»
+button «Copiar»
+button «Copiar igual»
+a https://wa.me/5491155553102?text=%C2%A1Hola!%20Ya%20est%C3%A1%20listo%20el%20sistema%20de%20Librer%C3%ADa%20Los%20Andes%20SRL.%0ALa%20direcci%C3%B3n%20para%20entrar%20te%20la%20paso%20cuando%20est%C3%A9%20lista.%0AUsuario%3A%20admin%40losandes.lab%0AContrase%C3%B1a%3A%20[contraseña temporal] «Mandar igual»
+button «Copiar»
+a https://wa.me/?text=%C2%A1Hola!%20Ya%20est%C3%A1%20Librer%C3%ADa%20Los%20Andes%20SRL%20en%20tu%20cartera%3A%20CUIT%2030-71620345-6%2C%20punto%20de%20venta%202.%0AEntr%C3%A1%20en%3A%20https%3A%2F%2Festudio.localhost%2Fcontador «Mandar por WhatsApp»
+a /operador/tenants/cmuijlv610004ac7das83hj7j «Ir a la ficha del negocio»
+a /operador/tenants/cmug9wg9u0000x27dsddmm05p «Ir a la ficha del estudio»
+a /operador/solicitudes «Volver a los pedidos»
+---- TEXTO
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+
+← Pedidos de alta
+
+Configurar a Librería Los Andes SRL
+
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+
+6 · Pasale esto
+Todavía no se le puede exigir que cambie la contraseña en el primer ingreso: pedile que la cambie al entrar.
+Para el dueño del negocio
+Este negocio todavía no tiene dirección para entrar. Hasta que la tenga, no le mandes la contraseña: el mensaje ya dice que la dirección se la pasás cuando esté lista.
+
+Contraseña temporal de admin@losandes.lab. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+
+••••••••••••••••••••••••
+Copiar
+
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+
+¡Hola! Ya está listo el sistema de Librería Los Andes SRL.
+La dirección para entrar te la paso cuando esté lista.
+Usuario: admin@losandes.lab
+Contraseña: ••••••••••••••••••••••••
+Copiar igual
+Mandar igual
+Para la contadora
+¡Hola! Ya está Librería Los Andes SRL en tu cartera: CUIT 30-71620345-6, punto de venta 2.
+Entrá en: https://estudio.localhost/contador
+Copiar
+Mandar por WhatsApp
+
+Quedó registrado: lo dio de alta duenio el 26/9/26, 12:26 p. m. (Historial de la ficha).
+
+Ir a la ficha del negocio
+Ir a la ficha del estudio
+Volver a los pedidos
+
+Hecho por Gestión Studio Grow

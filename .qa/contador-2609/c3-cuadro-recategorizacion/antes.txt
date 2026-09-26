@@ -1,0 +1,307 @@
+TAP version 13
+# Subtest: la tabla vigente tiene las 11 categorías con topes crecientes y queda marcada provisional
+ok 1 - la tabla vigente tiene las 11 categorías con topes crecientes y queda marcada provisional
+  ---
+  duration_ms: 1.797231
+  type: 'test'
+  ...
+# Subtest: la categoría siguiente de la K no existe; letras válidas A a K
+ok 2 - la categoría siguiente de la K no existe; letras válidas A a K
+  ---
+  duration_ms: 0.269075
+  type: 'test'
+  ...
+# Subtest: facturar exactamente el tope de la A sigue siendo A; un centavo más ya es B
+ok 3 - facturar exactamente el tope de la A sigue siendo A; un centavo más ya es B
+  ---
+  duration_ms: 3.901128
+  type: 'test'
+  ...
+# Subtest: en el tope justo de su categoría está cerca, no excedido
+ok 4 - en el tope justo de su categoría está cerca, no excedido
+  ---
+  duration_ms: 20.291457
+  type: 'test'
+  ...
+# Subtest: un centavo arriba del tope de la B: excedido y le corresponde la C
+ok 5 - un centavo arriba del tope de la B: excedido y le corresponde la C
+  ---
+  duration_ms: 0.735766
+  type: 'test'
+  ...
+# Subtest: el 80 % del tope es cerca; apenas menos es bien
+ok 6 - el 80 % del tope es cerca; apenas menos es bien
+  ---
+  duration_ms: 0.687342
+  type: 'test'
+  ...
+# Subtest: un cliente de la K que supera su tope: corresponde la exclusión, no otra letra
+ok 7 - un cliente de la K que supera su tope: corresponde la exclusión, no otra letra
+  ---
+  duration_ms: 0.467155
+  type: 'test'
+  ...
+# Subtest: un cliente de la K cerca del tope no tiene categoría siguiente para ofrecer
+ok 8 - un cliente de la K cerca del tope no tiene categoría siguiente para ofrecer
+  ---
+  duration_ms: 0.492398
+  type: 'test'
+  ...
+# Subtest: la ventana va del día siguiente al mismo día del año pasado hasta hoy
+ok 9 - la ventana va del día siguiente al mismo día del año pasado hasta hoy
+  ---
+  duration_ms: 1.861691
+  type: 'test'
+  ...
+# Subtest: 12 meses móviles: lo del mismo día del año pasado ya no cuenta; lo del día siguiente sí
+ok 10 - 12 meses móviles: lo del mismo día del año pasado ya no cuenta; lo del día siguiente sí
+  ---
+  duration_ms: 0.520433
+  type: 'test'
+  ...
+# Subtest: una factura grande que sale de la ventana devuelve al cliente a su categoría
+ok 11 - una factura grande que sale de la ventana devuelve al cliente a su categoría
+  ---
+  duration_ms: 0.544775
+  type: 'test'
+  ...
+# Subtest: las notas de crédito restan: sin ellas estaría excedido, con ellas no
+ok 12 - las notas de crédito restan: sin ellas estaría excedido, con ellas no
+  ---
+  duration_ms: 0.639604
+  type: 'test'
+  ...
+# Subtest: sólo cuenta lo autorizado por ARCA: pendientes y rechazadas no suman
+ok 13 - sólo cuenta lo autorizado por ARCA: pendientes y rechazadas no suman
+  ---
+  duration_ms: 0.138823
+  type: 'test'
+  ...
+# Subtest: en una factura A o B cuenta el neto (el IVA no es ingreso); en la C, el total
+ok 14 - en una factura A o B cuenta el neto (el IVA no es ingreso); en la C, el total
+  ---
+  duration_ms: 0.13616
+  type: 'test'
+  ...
+# Subtest: sin categoría cargada NO asume la A: pide cargarla y no inventa tope
+ok 15 - sin categoría cargada NO asume la A: pide cargarla y no inventa tope
+  ---
+  duration_ms: 0.358411
+  type: 'test'
+  ...
+# Subtest: próxima recategorización: la de febrero mira hasta el 31/12 y vence el 5; la de agosto, hasta el 30/06
+ok 16 - próxima recategorización: la de febrero mira hasta el 31/12 y vence el 5; la de agosto, hasta el 30/06
+  ---
+  duration_ms: 0.258123
+  type: 'test'
+  ...
+# Subtest: recategorización: en curso desde el cierre del semestre hasta el día 5, inclusive
+ok 17 - recategorización: en curso desde el cierre del semestre hasta el día 5, inclusive
+  ---
+  duration_ms: 0.162538
+  type: 'test'
+  ...
+# Subtest: orden: excedidos, después sin categoría, después cerca (el más apretado primero), después bien
+ok 18 - orden: excedidos, después sin categoría, después cerca (el más apretado primero), después bien
+  ---
+  duration_ms: 1.102775
+  type: 'test'
+  ...
+# Subtest: fuera de la ventana de recategorización no se informa el cierre del semestre
+ok 19 - fuera de la ventana de recategorización no se informa el cierre del semestre
+  ---
+  duration_ms: 0.300887
+  type: 'test'
+  ...
+# Subtest: en la ventana de agosto mira los 12 meses al 30/06: lo de julio no cuenta, lo de julio del año pasado sí
+ok 20 - en la ventana de agosto mira los 12 meses al 30/06: lo de julio no cuenta, lo de julio del año pasado sí
+  ---
+  duration_ms: 0.625165
+  type: 'test'
+  ...
+# Subtest: al cierre sigue en su categoría: no pide recategorizar
+ok 21 - al cierre sigue en su categoría: no pide recategorizar
+  ---
+  duration_ms: 0.453899
+  type: 'test'
+  ...
+# Subtest: al cierre facturó menos: también cambia (baja de categoría y paga menos)
+ok 22 - al cierre facturó menos: también cambia (baja de categoría y paga menos)
+  ---
+  duration_ms: 0.371711
+  type: 'test'
+  ...
+# Subtest: al cierre sin categoría cargada informa la letra pero no dice que cambia
+ok 23 - al cierre sin categoría cargada informa la letra pero no dice que cambia
+  ---
+  duration_ms: 0.399458
+  type: 'test'
+  ...
+# Subtest: al cierre por encima de la K: pide revisarlo antes del vencimiento
+ok 24 - al cierre por encima de la K: pide revisarlo antes del vencimiento
+  ---
+  duration_ms: 0.456344
+  type: 'test'
+  ...
+# Subtest: al cierre las notas de crédito del semestre también restan
+ok 25 - al cierre las notas de crédito del semestre también restan
+  ---
+  duration_ms: 0.459076
+  type: 'test'
+  ...
+# Subtest: ventana de lectura: en la recategorización arranca en el inicio de los 12 meses al cierre
+ok 26 - ventana de lectura: en la recategorización arranca en el inicio de los 12 meses al cierre
+  ---
+  duration_ms: 0.37913
+  type: 'test'
+  ...
+# Subtest: orden: a igual semáforo, primero quien tiene que recategorizarse ahora
+ok 27 - orden: a igual semáforo, primero quien tiene que recategorizarse ahora
+  ---
+  duration_ms: 1.683699
+  type: 'test'
+  ...
+# Subtest: 15 de enero: sin el cuadro de febrero cargado NO da letra; pide revisar (caso del refutador)
+not ok 28 - 15 de enero: sin el cuadro de febrero cargado NO da letra; pide revisar (caso del refutador)
+  ---
+  duration_ms: 4.41862
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/monotributo-core.test.ts:2:16111'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/monotributo-core.test.ts:314:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: 15 de enero con el cuadro de febrero cargado: recategoriza con ése, no con el que se va
+not ok 29 - 15 de enero con el cuadro de febrero cargado: recategoriza con ése, no con el que se va
+  ---
+  duration_ms: 0.288712
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/monotributo-core.test.ts:2:16896'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'A')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    categoriaPorIngresos (/home/user/erp-contador/src/lib/monotributo-core.ts:82:31)
+    evaluarMonotributo (/home/user/erp-contador/src/lib/monotributo-core.ts:330:23)
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/monotributo-core.test.ts:323:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: baja de categoría: también espera el cuadro nuevo
+not ok 30 - baja de categoría: también espera el cuadro nuevo
+  ---
+  duration_ms: 0.822487
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/monotributo-core.test.ts:2:17495'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    'A' !== null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual: 'A'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/monotributo-core.test.ts:334:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: 15 de julio de 2027: sin el cuadro de agosto de 2027 tampoco da letra
+not ok 31 - 15 de julio de 2027: sin el cuadro de agosto de 2027 tampoco da letra
+  ---
+  duration_ms: 0.319619
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/monotributo-core.test.ts:2:18052'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'A')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    categoriaPorIngresos (/home/user/erp-contador/src/lib/monotributo-core.ts:82:31)
+    evaluarMonotributo (/home/user/erp-contador/src/lib/monotributo-core.ts:330:23)
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/monotributo-core.test.ts:342:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: el cuadro de la recategorización es el que empieza el 1 del mes en que vence
+not ok 32 - el cuadro de la recategorización es el que empieza el 1 del mes en que vence
+  ---
+  duration_ms: 0.221945
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/monotributo-core.test.ts:2:18453'
+  failureType: 'testCodeFailure'
+  error: '(0 , import_monotributo_core.cuadroDeLaRecategorizacion) is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/monotributo-core.test.ts:348:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: el semáforo del día usa el cuadro vigente hoy: desde febrero, el nuevo
+not ok 33 - el semáforo del día usa el cuadro vigente hoy: desde febrero, el nuevo
+  ---
+  duration_ms: 0.185938
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/monotributo-core.test.ts:2:19275'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'A')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    categoriaPorIngresos (/home/user/erp-contador/src/lib/monotributo-core.ts:82:31)
+    evaluarMonotributo (/home/user/erp-contador/src/lib/monotributo-core.ts:330:23)
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/monotributo-core.test.ts:359:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..33
+# tests 33
+# suites 0
+# pass 27
+# fail 6
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 738.032907

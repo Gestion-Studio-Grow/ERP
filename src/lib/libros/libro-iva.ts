@@ -99,9 +99,9 @@ export function esNotaDeCredito(tipo: number | null | undefined): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * `responsable-inscripto`: emitió alguna A o B (discrimina IVA).
- * `monotributo`: sólo C.
- * `sin-comprobantes`: no emitió nada con CAE; no se puede afirmar ninguna de las dos.
+ * `responsable-inscripto`: cargado como inscripto, o (sin condición cargada) emitió alguna A o B.
+ * `monotributo`: cargado como monotributista, o (sin condición cargada) sólo emitió C.
+ * `sin-comprobantes`: sin condición cargada y sin nada emitido con CAE; no se puede afirmar ninguna.
  */
 export type CondicionLibro = "responsable-inscripto" | "monotributo" | "sin-comprobantes";
 
@@ -112,6 +112,23 @@ export type CondicionLibro = "responsable-inscripto" | "monotributo" | "sin-comp
  */
 export function whereComprobantesEmitidos(tenantId: string) {
   return { tenantId, status: "AUTHORIZED" as const };
+}
+
+/**
+ * La condición del negocio para el Libro IVA y el paquete del mes. Manda la CARGADA
+ * (`Tenant.arcaCondicionIva`, la que dejó Soporte o el alta fiscal): un inscripto recién dado de
+ * alta todavía no emitió nada con CAE y sus facturas de proveedor ya son crédito fiscal (QA 26/09:
+ * el paquete de un RI salía sin neto ni IVA crédito). Sin condición cargada, o con una que el
+ * libro no distingue (exento, consumidor final), se deduce de lo emitido, como antes. PURA.
+ */
+export function condicionDelNegocio(
+  cargada: string | null | undefined,
+  tipos: readonly (number | null | undefined)[],
+): CondicionLibro {
+  const c = (cargada ?? "").trim().toUpperCase();
+  if (c === "RESPONSABLE_INSCRIPTO") return "responsable-inscripto";
+  if (c === "MONOTRIBUTO") return "monotributo";
+  return condicionPorTipos(tipos);
 }
 
 /** Deduce la condición de los tipos emitidos (de cualquier período). PURA. */
@@ -211,6 +228,14 @@ export interface CompraRow {
   doc: string;
   numero: string;
   total: number;
+  /**
+   * Sólo en las compras CON la factura del proveedor (contador/recibidos-libro.ts): el IVA que
+   * computa como crédito fiscal, con signo (la nota de crédito resta; B y C, 0). Sin factura,
+   * no está: esa compra no da crédito.
+   */
+  creditoIva?: number;
+  /** Sólo con la factura del proveedor: el neto gravado, con signo (la nota de crédito resta). */
+  netoGravado?: number;
 }
 
 function docLabel(docTipo: number, docNro: string): string {
@@ -314,8 +339,11 @@ export interface LibroIvaResumen {
   /** IVA débito: el IVA de los comprobantes (una C no discrimina: su IVA es 0). */
   ivaDebito: number;
   /**
-   * IVA crédito: 0 mientras no se carguen facturas de proveedor con el IVA discriminado. No
-   * es un olvido: sin comprobante, la compra no da crédito (y estimarla lo inventaba).
+   * IVA crédito: el IVA de las compras cargadas CON la factura del proveedor (la nota de crédito
+   * resta). Una compra sin factura no suma: sin comprobante no hay crédito (y estimarlo lo
+   * inventaba). Sin facturas cargadas, 0. Y SÓLO para un Responsable Inscripto (`muestraPosicionIva`):
+   * un monotributista no computa crédito fiscal aunque reciba Factura A con el IVA discriminado
+   * (desde la RG 5003 es lo común), y sin comprobantes con CAE no se sabe si es inscripto: 0.
    */
   ivaCredito: number;
   /** Débito − crédito. Positivo = a pagar. */
@@ -324,6 +352,8 @@ export interface LibroIvaResumen {
   sinComprobanteTotal: number;
   comprasCount: number;
   comprasTotal: number;
+  /** Cuántas de esas compras tienen la factura del proveedor cargada (a un inscripto le dan el crédito). */
+  comprasConFacturaCount: number;
   /** Comprobantes con CAE cuya venta se anuló, sin nota de crédito. */
   anuladasSinNotaDeCredito: number;
 }
@@ -353,7 +383,7 @@ export function resumirLibroIva(
     }
   }
   const ivaDebito = suma(comprobantes, (c) => c.iva);
-  const ivaCredito = 0;
+  const ivaCredito = muestraPosicionIva(condicion) ? suma(compras, (c) => c.creditoIva ?? 0) : 0;
   return {
     condicion,
     comprobantesCount: comprobantes.length,
@@ -367,11 +397,16 @@ export function resumirLibroIva(
     sinComprobanteTotal: suma(ventasSinComprobante, (v) => v.total),
     comprasCount: compras.length,
     comprasTotal: suma(compras, (c) => c.total),
+    comprasConFacturaCount: compras.filter((c) => c.creditoIva !== undefined).length,
     anuladasSinNotaDeCredito: comprobantes.filter((c) => c.anuladaSinNotaDeCredito).length,
   };
 }
 
-/** ¿Se muestra la posición de IVA? Sólo a un Responsable Inscripto. PURA. */
+/**
+ * ¿Se muestra la posición de IVA (débito, crédito fiscal y saldo)? Sólo a un Responsable Inscripto:
+ * es el único que liquida IVA y computa crédito fiscal. La misma regla decide si la hoja COMPRAS
+ * lleva la columna del crédito y si el resumen lo suma. PURA.
+ */
 export function muestraPosicionIva(condicion: CondicionLibro): boolean {
   return condicion === "responsable-inscripto";
 }

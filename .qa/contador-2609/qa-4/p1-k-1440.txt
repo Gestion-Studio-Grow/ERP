@@ -1,0 +1,368 @@
+http://estudio.localhost:3210/contador
+E
+Estudio Contable Laboratorio
+· panel del contador
+Mi cartera
+La facturación está apagada: nada sale hacia ARCA
+12 clientes
+Emitido en prueba este mes $351.840.276
+900 facturas automáticas
+0 para revisar
+0 de 12 con agosto cerrado
+Además, 2 tienen un bloqueo propio que les va a impedir emitir cuando se encienda.
+La facturación electrónica está apagada en toda la plataforma: ningún comprobante sale hacia ARCA hasta que Gestión Studio Grow la encienda.
+ARCA está en modo simulado: los comprobantes no llegan a ARCA y sus CAE no son reales. Por eso todavía no se revisan los certificados.
+De qué cliente me ocupo hoy
+9
+Primero lo más grave y lo que vence; a la derecha, lo emitido en prueba este mes
+Faltan datos
+A Dos Manos Pádel: No puede emitir
+Falta el punto de venta de ARCA: sin él no sale ningún comprobante. · Pedíselo a Gestión Studio Grow: el punto de venta lo cargan ellos. · y 2 cosas más
+$0
+Faltan datos
+Shine Velas: No puede emitir
+Falta el punto de venta de ARCA: sin él no sale ningún comprobante. · Pedíselo a Gestión Studio Grow: el punto de venta lo cargan ellos. · y 2 cosas más
+$0
+Rechazos
+El Tornillo (RI): Comprobantes rechazados
+ARCA rechazó 47 comprobantes emitidos este mes. · Revisar el motivo del rechazo y reemitir. · y 1 cosa más
+$351.835.436
+Abrir su panel
+Para ver
+Andino (2 locales): Sin actividad registrada
+Nunca importó movimientos ni emitió comprobantes. · Confirmar que el cliente esté operando y con la ingesta conectada.
+$0
+Abrir su panel
+Para ver
+Del Sur (2 locales): Sin actividad registrada
+Nunca importó movimientos ni emitió comprobantes. · Confirmar que el cliente esté operando y con la ingesta conectada.
+$0
+Abrir su panel
+Para ver
+Distribuidora Río Bamba SA: Sin actividad registrada
+Nunca importó movimientos ni emitió comprobantes. · Confirmar que el cliente esté operando y con la ingesta conectada.
+$0
+Abrir su panel
+Para ver
+Ferretería El Tornillo UAT: Sin actividad registrada
+Nunca importó movimientos ni emitió comprobantes. · Confirmar que el cliente esté operando y con la ingesta conectada.
+$0
+Para ver
+Lucía (mono): Sin actividad registrada
+Nunca importó movimientos ni emitió comprobantes. · Confirmar que el cliente esté operando y con la ingesta conectada.
+$0
+Abrir su panel
+Para ver
+Paula (mono): Sin actividad registrada
+Nunca importó movimientos ni emitió comprobantes. · Confirmar que el cliente esté operando y con la ingesta conectada.
+$0
+Abrir su panel
+3 al día
+26 cosas pendientes en septiembre, lo más grave primero. Dentro de cada grupo, primero el cliente que más factura.
+No pueden facturar
+2
+Soporte GSG
+A Dos Manos Pádel
+No puede emitir. Falta el punto de venta de ARCA: sin él no sale ningún comprobante.
+Pedíselo a Gestión Studio Grow: el punto de venta lo cargan ellos.
+Ver
+Soporte GSG
+Shine Velas
+No puede emitir. Falta el punto de venta de ARCA: sin él no sale ningún comprobante.
+Pedíselo a Gestión Studio Grow: el punto de venta lo cargan ellos.
+Ver
+Vence o se agota este mes
+1
+El Tornillo (RI)
+Cerca del límite del plan. 896 de 1000 facturas automáticas del mes (90% del límite del plan).
+Ampliar el límite de facturas automáticas del plan antes de que frene la emisión automática.
+Ver
+Falta cerrar agosto
+12
+El Tornillo (RI)
+agosto sigue abierto: el paquete que bajes es un borrador.
+Pedile a la dueña o al dueño que lo revise y lo congele desde su panel, en «Cierre del mes». Después bajá el paquete final.
+Ver
+Don Tito (RI)
+agosto sigue abierto: el paquete que bajes es un borrador.
+Pedile a la dueña o al dueño que lo revise y lo congele desde su panel, en «Cierre del mes». Después bajá el paquete final.
+Ver
+Librería Los Andes SRL
+agosto sigue abierto: el paquete que bajes es un borrador.
+Pedile a la dueña o al dueño que lo revise y lo congele desde su panel, en «Cierre del mes». Después bajá el paquete final.
+Ver
+Martina Gómez Psicopedagogía
+agosto sigue abierto: el paquete que bajes es un borrador.
+Pedile a la dueña o al dueño que lo revise y lo congele desde su panel, en «Cierre del mes». Después bajá el paquete final.
+Ver
+A Dos Manos Pádel
+agosto sigue abierto: el paquete que bajes es un borrador.
+Pedile a la dueña o al dueño que lo revise y lo congele desde su panel, en «Cierre del mes». Después bajá el paquete final.
+Ver
+Andino (2 locales)
+agosto sigue abierto: el paquete que bajes es un borrador.
+Pedile a la dueña o al dueño que lo revise y lo congele desde su panel, en «Cierre del mes». Después bajá el paquete final.
+Ver
+Ver los otros 6
+Sin extracto de septiembre
+11
+Don Tito (RI)
+Nunca se le cargó un extracto.
+Bajá el extracto del banco (o el resumen de Mercado Pago) y subilo desde su panel: Facturación automática, «Traer movimientos».
+Ver
+Librería Los Andes SRL
+Nunca se le cargó un extracto.
+Bajá el extracto del banco (o el resumen de Mercado Pago) y subilo desde su panel: Facturación automática, «Traer movimientos».
+Ver
+Martina Gómez Psicopedagogía
+Nunca se le cargó un extracto.
+Bajá el extracto del banco (o el resumen de Mercado Pago) y subilo desde su panel: Facturación automática, «Traer movimientos».
+Ver
+A Dos Manos Pádel
+Nunca se le cargó un extracto.
+Bajá el extracto del banco (o el resumen de Mercado Pago) y subilo desde su panel: Facturación automática, «Traer movimientos».
+Ver
+Andino (2 locales)
+Nunca se le cargó un extracto.
+Bajá el extracto del banco (o el resumen de Mercado Pago) y subilo desde su panel: Facturación automática, «Traer movimientos».
+Ver
+Del Sur (2 locales)
+Nunca se le cargó un extracto.
+Bajá el extracto del banco (o el resumen de Mercado Pago) y subilo desde su panel: Facturación automática, «Traer movimientos».
+Ver
+Ver los otros 5
+Monotributo de la cartera
+3 clientes
+Próxima recategorización: vence el 05/02/2027, con lo facturado en los 12 meses al 31/12/2026. Si ARCA prorroga, vale la fecha nueva.
+Cuenta lo facturado desde el sistema en los últimos 12 meses, con CAE, menos las notas de crédito. Lo que el cliente facture por afuera no está sumado. La categoría también depende de la superficie, la energía eléctrica y los alquileres: eso lo sabés vos.
+Topes de ingresos brutos vigentes del 01/08/2026 al 31/01/2027. Provisional a confirmar: cotejalos con el cuadro de categorías de ARCA.
+3 clientes de la cartera no tienen cargada su condición frente al IVA: si son monotributistas, no aparecen acá.
+Bien
+Martina Gómez Psicopedagogía · Categoría A
+Dentro de la A · 0 % del tope
+Facturó $ 1.210,00 en los últimos 12 meses. Le quedan $ 12.008.200,45 hasta el tope de la A.
+Tope de la A: $12.009.410 · tope de la B: $17.595.183
+Nada que hacer por ahora.
+$1.210
+Categoría de Martina Gómez Psicopedagogía
+Elegí la categoría
+Categoría A
+Categoría B
+Categoría C
+Categoría D
+Categoría E
+Categoría F
+Categoría G
+Categoría H
+Categoría I
+Categoría J
+Categoría K
+Cambiar
+Bien
+Lucía (mono) · Categoría C
+Dentro de la C · 0 % del tope
+Facturó $ 0,00 en los últimos 12 meses. Le quedan $ 24.670.494,31 hasta el tope de la C.
+Tope de la C: $24.670.494 · tope de la D: $30.628.651
+Nada que hacer por ahora.
+$0
+Categoría de Lucía (mono)
+Elegí la categoría
+Categoría A
+Categoría B
+Categoría C
+Categoría D
+Categoría E
+Categoría F
+Categoría G
+Categoría H
+Categoría I
+Categoría J
+Categoría K
+Cambiar
+Bien
+Paula (mono) · Categoría B
+Dentro de la B · 0 % del tope
+Facturó $ 0,00 en los últimos 12 meses. Le quedan $ 17.595.182,74 hasta el tope de la B.
+Tope de la B: $17.595.183 · tope de la C: $24.670.494
+Nada que hacer por ahora.
+$0
+Categoría de Paula (mono)
+Elegí la categoría
+Categoría A
+Categoría B
+Categoría C
+Categoría D
+Categoría E
+Categoría F
+Categoría G
+Categoría H
+Categoría I
+Categoría J
+Categoría K
+Cambiar
+La cartera este mes
+12 clientes
+Emitido en prueba: con CAE de prueba, todavía no es facturación
+Clientes de la cartera con su resumen fiscal del mes
+CLIENTE	EMITIDO EN PRUEBA	FACTURAS DEL MES	PARA REVISAR	AGOSTO	ARCA	
+A Dos Manos Pádel
+30-71888801-4
+	
+$0
+	
+0 / 159
+	0	
+Sin cerrar	
+Homologación	Abrir
+Andino (2 locales)
+30-70888771-0
+	
+$0
+	
+0 / 3.000
+	0	
+Sin cerrar	
+Homologación	Abrir
+Del Sur (2 locales)
+30-70999881-8
+	
+$0
+	
+0 / 3.000
+	0	
+Sin cerrar	
+Homologación	Abrir
+Distribuidora Río Bamba SA
+30-70512347-7
+	
+$0
+	
+0 / 3.000
+	0	
+Sin cerrar	
+Homologación	Abrir
+Don Tito (RI)
+30-71555441-7
+	
+$2.420
+	
+2 / 1.000
+	0	
+Sin cerrar	
+Homologación	Abrir
+El Tornillo (RI)
+30-71234561-2
+	
+$351.835.436
+	
+896 / 1.000
+cerca del límite
+	0	
+Sin cerrar	
+Homologación	Abrir
+Ferretería El Tornillo UAT
+20-22222222-3
+	
+$0
+	
+0 / 159
+	0	
+Sin cerrar	
+Homologación	Abrir
+Librería Los Andes SRL
+30-71620345-6
+	
+$1.210
+	
+1 / 300
+	0	
+Sin cerrar	
+Homologación	Abrir
+Lucía (mono)
+27-34567121-3
+	
+$0
+	
+0 / 159
+	0	
+Sin cerrar	
+Homologación	Abrir
+Martina Gómez Psicopedagogía
+27-31456782-5
+	
+$1.210
+	
+1 / 159
+	0	
+Sin cerrar	
+Homologación	Abrir
+Paula (mono)
+27-29876541-7
+	
+$0
+	
+0 / 159
+	0	
+Sin cerrar	
+Homologación	Abrir
+Shine Velas
+27-33444555-6
+	
+$0
+	
+0 / 159
+	0	
+Sin cerrar	
+Homologación	Abrir
+Emitido en prueba en total $351.840.276
+900 facturas · 0 para revisar
+Elegí un cliente de la tabla: acá aparecen sus cifras, el paquete del mes y las acciones (emitir, pausar, dar de baja).
+Pedidos de alta en curso
+6
+Soporte GSG los configura y te avisa por WhatsApp
+QA Kiosco Lab
+CUIT 20-11111111-2 · pedido el 26/9/26
+Ferretería UAT
+CUIT 20-22222222-3 · pedido el 26/9/26
+Sofía Benítez Kinesiología
+CUIT 27-36112457-5 · pedido el 26/9/26
+Bazar La Esquina SRL
+CUIT 30-71844562-7 · pedido el 26/9/26
+Supermercados Norte Grande SA
+CUIT 30-71399128-3 · pedido el 26/9/26
+Kiosco Q.A. Lab
+CUIT 20-33445120-9 · pedido el 26/9/26
+Kiosco QA Lab · no se dio de alta
+CUIT 20-33901234-3 · Soporte GSG lo descartó el 26/9/26: Ya tiene cuenta en la plataforma con otro nombre: te escribimos por WhatsApp para sumarlo a tu cartera sin duplicarlo. Si corresponde, pedilo de nuevo con los datos corregidos.
+Agregar un cliente
+Mandás el pedido · Soporte GSG lo configura y te avisa por WhatsApp
+NOMBRE DEL NEGOCIO*
+Como lo conocés; Soporte carga la razón social de la constancia.
+CUIT*
+Con o sin guiones, como te quede cómodo.
+EMAIL DEL CLIENTE*
+Va a ser su usuario si algún día entra a su propio panel.
+PUNTO DE VENTA*
+El que diste de alta en ARCA para factura electrónica (hasta 5 cifras).
+CONDICIÓN FRENTE AL IVA
+No la sé todavía
+Responsable inscripto
+Monotributista
+IVA exento
+La que figura en su constancia de inscripción de ARCA.
+¿QUÉ TIPO DE CLIENTE ES?
+No sé
+Sólo factura (profesional, servicio chico)
+Comercio con mostrador
+Varios locales
+Con esto Soporte elige el plan.
+WHATSAPP DEL CLIENTE
+Opcional. Con característica, sin 0 ni 15.
+ALIAS EN TU CARTERA
+Opcional: cómo lo querés ver en la tabla.
+ALGO QUE SOPORTE TENGA QUE SABER
+Opcional: cuántos locales, si fía, cuántas personas lo usan.
+Pedir el alta a Soporte GSG
+Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp.
+Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp.
+Con tecnología de Gestión Studio Grow

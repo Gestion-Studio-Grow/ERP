@@ -21,6 +21,7 @@ import {
   cerrarEnvioDeFacturaNoPendiente,
   markInvoiceRejected,
   numeroUsadoPorOtraFactura,
+  ultimoNumeroAutorizado,
   registerFiscalDocument,
   type InvoiceCreatedPayload,
 } from "@/lib/invoice-core";
@@ -115,6 +116,7 @@ export function crearClientePara(
   resolverCredencial: (tenantId: string) => Promise<CredencialEmisor> = credencialParaTenant,
   leerTicket: (tenantId: string) => Promise<TicketAcceso | undefined> = leerTicketAcceso,
   guardarTicket: (tenantId: string, ta: TicketAcceso) => Promise<void> = guardarTicketAcceso,
+  leerUltimoEmitido: (tenantId: string, puntoVenta: number, tipo: number) => Promise<number> = ultimoNumeroAutorizado,
 ): (tenantId: string) => Promise<AfipClient> {
   return async (tenantId) => {
     const cfg = await leer(tenantId);
@@ -128,9 +130,13 @@ export function crearClientePara(
     const config: EmisorConfig = cfg ?? { cuit: 0, homologacion: true };
     const modo = modoDesdeEnv(env);
 
-    // En stub NO se firma ni se autentica → no se toca la credencial ni el TA.
+    // En stub NO se firma ni se autentica → no se toca la credencial ni el TA. Sí sigue la
+    // numeración guardada del negocio, como ARCA: sin eso cada factura de prueba pedía el 1.
     if (modo !== "real" && modo !== "homologacion") {
-      return crearAfipClient(config, { env });
+      return crearAfipClient(config, {
+        env,
+        ultimoEmitido: (puntoVenta, tipo) => leerUltimoEmitido(tenantId, puntoVenta, tipo),
+      });
     }
 
     // 🔒 ADR-066: la credencial se resuelve POR TENANT (cifrada en la DB), NUNCA de un env

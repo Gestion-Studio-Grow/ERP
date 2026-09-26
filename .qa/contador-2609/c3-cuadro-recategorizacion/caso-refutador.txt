@@ -1,0 +1,3 @@
+hoy=2027-01-15, cliente en C, $25.000.000 facturados al 31/12/2026 (sin cuadro de febrero 2027 cargado)
+semaforo: excedido | accion: Para recategorizar vale lo facturado al cierre del semestre, con el cuadro nuevo: mirá abajo.
+alCierre: Al 31/12/2026 facturó $ 25.000.000,00 en 12 meses. A revisar: falta cargar el cuadro de categorías de febrero de 2027, que es con el que ARCA recategoriza. Con el cuadro anterior la letra puede salir mal. Vence el 05/02/2027.

@@ -1,0 +1,94 @@
+TAP version 13
+# Subtest: con dirección: el mensaje lleva dirección, usuario y contraseña, y el WhatsApp no apunta a nadie fijo
+ok 1 - con dirección: el mensaje lleva dirección, usuario y contraseña, y el WhatsApp no apunta a nadie fijo
+  ---
+  duration_ms: 1.491658
+  type: 'test'
+  ...
+# Subtest: sin dirección: lo dice honestamente y no inventa un link
+ok 2 - sin dirección: lo dice honestamente y no inventa un link
+  ---
+  duration_ms: 0.486805
+  type: 'test'
+  ...
+# Subtest: si todavía no se sabe la dirección, no afirma que no la tiene
+ok 3 - si todavía no se sabe la dirección, no afirma que no la tiene
+  ---
+  duration_ms: 0.21689
+  type: 'test'
+  ...
+# Subtest: sin contraseña nueva (el dueño ya existía) no promete una
+ok 4 - sin contraseña nueva (el dueño ya existía) no promete una
+  ---
+  duration_ms: 0.289749
+  type: 'test'
+  ...
+# Subtest: un CUIT con el dígito verificador mal se rechaza con el motivo, sin sugerir el dígito
+ok 5 - un CUIT con el dígito verificador mal se rechaza con el motivo, sin sugerir el dígito
+  ---
+  duration_ms: 1.921713
+  type: 'test'
+  ...
+# Subtest: un formulario completo de comercio Responsable inscripto se acepta y normaliza
+ok 6 - un formulario completo de comercio Responsable inscripto se acepta y normaliza
+  ---
+  duration_ms: 2.077908
+  type: 'test'
+  ...
+# Subtest: consumidor final no es una condición válida para quien factura
+ok 7 - consumidor final no es una condición válida para quien factura
+  ---
+  duration_ms: 0.204351
+  type: 'test'
+  ...
+# Subtest: sin punto de venta el cliente no emite: se rechaza
+ok 8 - sin punto de venta el cliente no emite: se rechaza
+  ---
+  duration_ms: 0.208594
+  type: 'test'
+  ...
+# Subtest: el email de la persona nueva del estudio no puede ser el del dueño
+ok 9 - el email de la persona nueva del estudio no puede ser el del dueño
+  ---
+  duration_ms: 0.44681
+  type: 'test'
+  ...
+# Subtest: el plan del estudio no se le da a un cliente
+ok 10 - el plan del estudio no se le da a un cliente
+  ---
+  duration_ms: 0.159099
+  type: 'test'
+  ...
+# Subtest: sugerencia de plan: chico → Facturación, varios locales → PyME, comercio monotributo sin fiado → Micro
+ok 11 - sugerencia de plan: chico → Facturación, varios locales → PyME, comercio monotributo sin fiado → Micro
+  ---
+  duration_ms: 0.300969
+  type: 'test'
+  ...
+# Subtest: comercio Responsable inscripto, que fía o con 3 personas → Comerciante, con el porqué
+ok 12 - comercio Responsable inscripto, que fía o con 3 personas → Comerciante, con el porqué
+  ---
+  duration_ms: 0.242756
+  type: 'test'
+  ...
+# Subtest: los módulos del alta son exactamente los del plan y el rubro (catalogo.ts)
+ok 13 - los módulos del alta son exactamente los del plan y el rubro (catalogo.ts)
+  ---
+  duration_ms: 0.812498
+  type: 'test'
+  ...
+# Subtest: el mensaje para la contadora nunca lleva la contraseña del dueño y sin dirección no inventa un link
+ok 14 - el mensaje para la contadora nunca lleva la contraseña del dueño y sin dirección no inventa un link
+  ---
+  duration_ms: 0.591826
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 14
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 604.770623

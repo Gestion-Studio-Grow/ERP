@@ -49,20 +49,25 @@ export function appDeRuta(
 }
 
 /**
- * ¿`path` es de una app del registro cuyo módulo el negocio tiene ASIGNADO? PURA.
+ * ¿`path` es de una app del registro que este negocio puede tener? PURA.
  *
  * Es lo que le falta al gate por URL de los productos con tienda (Comerciante, layout.tsx):
  * `rutaPermitidaParaModulos` busca en la barra de hoy (ALL_ITEMS), que no conoce las apps
- * nuevas del registro (Vender y Ventas del día, de `pos`; Mis locales, de `multilocal`), así
- * que un Comerciante con ese módulo rebotaba al Inicio. Con el módulo asignado, la ruta pasa;
- * la PÁGINA igual pasa por su guardia (`requireApp`, y en Mis locales `exigirCasa`). Las apps
- * del núcleo (`modulo: null`) no entran por acá: siguen la barra de hoy.
+ * nuevas del registro. Pasan:
+ *   - las apps con módulo, si el negocio lo tiene ASIGNADO (Vender y Ventas del día, de `pos`;
+ *     Mis locales, de `multilocal`);
+ *   - las apps del núcleo (`modulo: null`), que no se venden por módulo: todo negocio que
+ *     maneja plata cierra el mes para su contador (Cierre del mes). Antes rebotaban al Inicio
+ *     sin aviso, mientras la bandeja del estudio mandaba a congelar el mes ahí (QA 26/09).
+ * La PÁGINA igual pasa por su guardia (`requireApp`: rol, rubro y edición; en Mis locales
+ * además `exigirCasa`), así que abrir la ruta no saltea ninguna regla del menú.
  */
-export function rutaDeAppConModulo(
+export function rutaDeAppDelNegocio(
   path: string,
   modules: readonly string[],
   apps: readonly AppDescriptor[] = REGISTRO_APPS,
 ): boolean {
   const app = appDeRuta(path, apps);
-  return !!app && app.modulo !== null && modules.includes(app.modulo);
+  if (!app) return false;
+  return app.modulo === null || modules.includes(app.modulo);
 }

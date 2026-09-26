@@ -626,6 +626,9 @@ function txFalso(caja: { movimientos: string[]; corte: string | null; cierre: st
     auditLog: {
       findFirst: op("auditLog", "findFirst", () => (caja.cierre ? { entityId: caja.cierre } : null)),
     },
+    // El plan del cliente (leerLimitesEnTx): sin plan del catálogo, rige la columna o el de siempre.
+    // Lo cubre con base real src/app/contador/pedido-soporte-postgres.test.ts.
+    tenant: { findUnique: async () => null },
   };
   return { tx: tx as unknown as Prisma.TransactionClient, llamadas };
 }
@@ -668,6 +671,7 @@ test("recolectarCliente: volumen y hechos en una pasada, con los relojes correct
     montoFacturadoMes: 12345.5,
     pendientesRevision: 4,
     listasParaEmitir: 6,
+    limitePlan: { planId: null, planNombre: null, origen: "sin-plan", delPlan: null },
     ultimaImportacion: { nombreArchivo: "extracto-agosto.csv", createdAt: "2026-08-22T15:00:00.000Z" },
   });
   assert.equal(hechos.rechazadasMes, 2);

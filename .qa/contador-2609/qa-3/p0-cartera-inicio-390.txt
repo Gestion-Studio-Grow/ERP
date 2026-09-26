@@ -1,0 +1,10 @@
+URL: http://estudio.localhost:3210/contador
+scrollWidth/innerWidth: 390/390
+consola+http>=400: 0
+
+---- CONTROLES
+button «Cambiar tema»
+---- TEXTO
+E
+Estudio Contable Laboratorio
+Cargando…

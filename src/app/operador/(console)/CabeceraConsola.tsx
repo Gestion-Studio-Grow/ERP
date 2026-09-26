@@ -28,7 +28,7 @@ import type { NombreIcono } from "@/apps/contract";
 import ThemeToggle from "@/app/admin/(dashboard)/ThemeToggle";
 
 type Seccion = {
-  id: "negocios" | "alta" | "tablero" | "direccion" | "diseno";
+  id: "negocios" | "alta" | "pedidos" | "tablero" | "direccion" | "diseno";
   href: string;
   etiqueta: string;
   icono: NombreIcono;
@@ -46,6 +46,8 @@ export const VISTAS_DE_NEGOCIOS = [
 function seccionActual(ruta: string): Seccion["id"] | null {
   if (ruta === "/operador" || ruta.startsWith("/operador/tenants")) return "negocios";
   if (ruta.startsWith("/operador/alta")) return "alta";
+  // Los pedidos de los estudios: altas nuevas (solicitudes) y pedidos sobre un cliente (pedidos-cartera).
+  if (ruta.startsWith("/operador/solicitudes") || ruta.startsWith("/operador/pedidos-cartera")) return "pedidos";
   if (ruta.startsWith("/operador/cockpit")) return "tablero";
   if (ruta.startsWith("/operador/direccion")) return "direccion";
   if (ruta.startsWith("/operador/diseno")) return "diseno";
@@ -78,6 +80,7 @@ export default function CabeceraConsola({
   const secciones: Seccion[] = [
     { id: "negocios", href: "/operador", etiqueta: "Negocios", icono: "modulos" },
     { id: "alta", href: "/operador/alta", etiqueta: "Dar de alta", icono: "usuarios" },
+    { id: "pedidos", href: "/operador/solicitudes", etiqueta: "Pedidos", icono: "pedidos" },
     ...(conTablero ? [{ id: "tablero", href: "/operador/cockpit", etiqueta: "Tablero", icono: "reportes" } as Seccion] : []),
     { id: "direccion", href: "/operador/direccion", etiqueta: "Dirección", icono: "dashboard" },
     { id: "diseno", href: "/operador/diseno", etiqueta: "Diseño", icono: "apariencia" },
@@ -227,6 +230,7 @@ export function CapsulaConsola({ conTablero }: { conTablero: boolean }) {
   const actual = seccionActual(ruta);
   const lugares: { id: Seccion["id"]; href: string; etiqueta: string; icono: NombreIcono }[] = [
     { id: "negocios", href: "/operador", etiqueta: "Negocios", icono: "modulos" },
+    { id: "pedidos", href: "/operador/solicitudes", etiqueta: "Pedidos", icono: "pedidos" },
     ...(conTablero ? [{ id: "tablero" as const, href: "/operador/cockpit", etiqueta: "Tablero", icono: "reportes" as NombreIcono }] : []),
     { id: "direccion", href: "/operador/direccion", etiqueta: "Dirección", icono: "dashboard" },
     { id: "diseno", href: "/operador/diseno", etiqueta: "Diseño", icono: "apariencia" },

@@ -1,0 +1,8 @@
+
+/home/user/erp-contador/src/app/operador/(console)/solicitudes/[id]/ConfiguradorClient.tsx
+  276:9   error  Do not use an `<a>` element to navigate to `/operador/solicitudes/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+  382:13  error  Do not use an `<a>` element to navigate to `/operador/solicitudes/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+
+✖ 2 problems (2 errors, 0 warnings)
+
+EXIT 1

@@ -1,0 +1,112 @@
+TAP version 13
+# Subtest: un CUIT con el dígito verificador mal se rechaza con el motivo, sin sugerir el dígito
+ok 1 - un CUIT con el dígito verificador mal se rechaza con el motivo, sin sugerir el dígito
+  ---
+  duration_ms: 1.911796
+  type: 'test'
+  ...
+# Subtest: un formulario completo de comercio Responsable inscripto se acepta y normaliza
+ok 2 - un formulario completo de comercio Responsable inscripto se acepta y normaliza
+  ---
+  duration_ms: 1.932148
+  type: 'test'
+  ...
+# Subtest: consumidor final no es una condición válida para quien factura
+ok 3 - consumidor final no es una condición válida para quien factura
+  ---
+  duration_ms: 0.175891
+  type: 'test'
+  ...
+# Subtest: sin punto de venta el cliente no emite: se rechaza
+ok 4 - sin punto de venta el cliente no emite: se rechaza
+  ---
+  duration_ms: 0.257333
+  type: 'test'
+  ...
+# Subtest: el email de la persona nueva del estudio no puede ser el del dueño
+ok 5 - el email de la persona nueva del estudio no puede ser el del dueño
+  ---
+  duration_ms: 0.342469
+  type: 'test'
+  ...
+# Subtest: el plan del estudio no se le da a un cliente
+ok 6 - el plan del estudio no se le da a un cliente
+  ---
+  duration_ms: 0.220405
+  type: 'test'
+  ...
+# Subtest: sugerencia de plan: chico → Facturación, varios locales → PyME, comercio monotributo sin fiado → Micro
+ok 7 - sugerencia de plan: chico → Facturación, varios locales → PyME, comercio monotributo sin fiado → Micro
+  ---
+  duration_ms: 0.332856
+  type: 'test'
+  ...
+# Subtest: comercio Responsable inscripto, que fía o con 3 personas → Comerciante, con el porqué
+ok 8 - comercio Responsable inscripto, que fía o con 3 personas → Comerciante, con el porqué
+  ---
+  duration_ms: 0.170408
+  type: 'test'
+  ...
+# Subtest: los módulos del alta son exactamente los del plan y el rubro (catalogo.ts)
+ok 9 - los módulos del alta son exactamente los del plan y el rubro (catalogo.ts)
+  ---
+  duration_ms: 0.763593
+  type: 'test'
+  ...
+# Subtest: el mensaje para la contadora nunca lleva la contraseña del dueño y sin dirección no inventa un link
+ok 10 - el mensaje para la contadora nunca lleva la contraseña del dueño y sin dirección no inventa un link
+  ---
+  duration_ms: 0.56098
+  type: 'test'
+  ...
+# Subtest: alta por pedido: misma respuesta con cualquier CUIT, y Soporte lo configura una sola vez
+ok 11 - alta por pedido: misma respuesta con cualquier CUIT, y Soporte lo configura una sola vez
+  ---
+  duration_ms: 4812.756657
+  type: 'test'
+  ...
+# Subtest: un pedido descartado cuenta como cerrado, igual que uno configurado
+ok 12 - un pedido descartado cuenta como cerrado, igual que uno configurado
+  ---
+  duration_ms: 2.579558
+  type: 'test'
+  ...
+# Subtest: sin pedidos previos no hay ninguno abierto
+ok 13 - sin pedidos previos no hay ninguno abierto
+  ---
+  duration_ms: 0.271307
+  type: 'test'
+  ...
+# Subtest: un pedido sin cierre está abierto
+ok 14 - un pedido sin cierre está abierto
+  ---
+  duration_ms: 0.140593
+  type: 'test'
+  ...
+# Subtest: todos los pedidos cerrados (descartados o configurados): se puede volver a pedir
+ok 15 - todos los pedidos cerrados (descartados o configurados): se puede volver a pedir
+  ---
+  duration_ms: 0.215374
+  type: 'test'
+  ...
+# Subtest: uno cerrado y otro sin cerrar: sigue habiendo uno abierto
+ok 16 - uno cerrado y otro sin cerrar: sigue habiendo uno abierto
+  ---
+  duration_ms: 0.14294
+  type: 'test'
+  ...
+# Subtest: un cierre de otro pedido o sin id no cierra el del CUIT
+ok 17 - un cierre de otro pedido o sin id no cierra el del CUIT
+  ---
+  duration_ms: 0.179135
+  type: 'test'
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5461.726359

@@ -1,0 +1,23 @@
+URL: http://dontito-lab.localhost:3210/admin/no-disponible?app=libro-iva
+scrollWidth/innerWidth: 1440/1440
+consola+http>=400: 0
+
+---- CONTROLES
+a /admin «Ir al inicio»
+input:hidden «$ACTION_ID_00dd02a857b20806a9a76e6fb427e1bd9f2d243498» name=$ACTION_ID_00dd02a857b20806a9a76e6fb427e1bd9f2d243498
+button «Cerrar sesión»
+---- TEXTO
+Comerciante
+
+Libro IVA no está disponible
+
+El IVA de ventas y compras del mes, para el contador.
+
+Esta app no está incluida en lo que tiene tu negocio hoy.
+
+Si querés sumarla, escribinos a Gestión Studio Grow.
+
+Ir al inicio
+Cerrar sesión
+
+Con tecnología de Gestión Studio Grow

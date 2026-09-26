@@ -18,7 +18,7 @@ import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
 import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
 import { appsVisibles, proyectarMenuDeHoy } from "@/apps/visibles";
-import { rutaDeAppConModulo } from "@/apps/rutas";
+import { rutaDeAppDelNegocio } from "@/apps/rutas";
 import { enInicioPorApps } from "./inicio/piloto";
 import { getTenantBrand, resolveAccent } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
@@ -122,14 +122,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // hoy; Pyme a futuro); Contador/Facturita ya salieron por su redirect de casa arriba, y el
   // ERP vertical → `productoUsaTienda` false, NO se toca (chestetica/magra conservan su
   // backoffice completo). Fail-open: sin header, no gatea (no rompe render).
-  // Las apps nuevas del registro (Vender, Ventas del día, Mis locales) no están en esa barra:
-  // pasan si su módulo está asignado (`rutaDeAppConModulo`), y su página igual las guarda.
+  // Las apps nuevas del registro (Vender, Ventas del día, Mis locales, Cierre del mes) no están
+  // en esa barra: pasan si su módulo está asignado o si son del núcleo (`rutaDeAppDelNegocio`),
+  // y su página igual las guarda con `requireApp`.
   if (productoUsaTienda(productoCtx.producto)) {
     const pathname = (await headers()).get("x-pathname");
     if (
       pathname &&
       !rutaPermitidaParaModulos(pathname, productoCtx.modules) &&
-      !rutaDeAppConModulo(pathname, productoCtx.modules)
+      !rutaDeAppDelNegocio(pathname, productoCtx.modules)
     ) {
       redirect("/admin");
     }

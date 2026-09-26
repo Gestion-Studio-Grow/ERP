@@ -1,0 +1,56 @@
+TAP version 13
+# Subtest: la decisión: sólo la última fila válida de la consola prende el diseño nuevo
+ok 1 - la decisión: sólo la última fila válida de la consola prende el diseño nuevo
+  ---
+  duration_ms: 2.05381
+  type: 'test'
+  ...
+# Subtest: ConDiseno apagado devuelve el mismo hijo (ni hoja, ni provider, ni un nodo de más)
+ok 2 - ConDiseno apagado devuelve el mismo hijo (ni hoja, ni provider, ni un nodo de más)
+  ---
+  duration_ms: 7.22923
+  type: 'test'
+  ...
+# Subtest: ConDiseno prendido pide la hoja versionada una vez y deja el contenido igual
+ok 3 - ConDiseno prendido pide la hoja versionada una vez y deja el contenido igual
+  ---
+  duration_ms: 2.736346
+  type: 'test'
+  ...
+# Subtest: cada raíz de un negocio: el atributo sólo con el interruptor, la piel de siempre intacta
+ok 4 - cada raíz de un negocio: el atributo sólo con el interruptor, la piel de siempre intacta
+  ---
+  duration_ms: 1.265387
+  type: 'test'
+  ...
+# Subtest: la consola no precarga la letra; las demás raíces sí
+not ok 5 - la consola no precarga la letra; las demás raíces sí
+  ---
+  duration_ms: 4.778804
+  type: 'test'
+  location: '/home/user/erp-contador/src/lib/diseno/raices-ch.test.ts:2:5716'
+  failureType: 'testCodeFailure'
+  error: '<link rel="preload" href="/diseno/archivo-latin.woff2" as="font" crossorigin="" type="font/woff2"/><link rel="stylesheet" href="/diseno/renglon.css?v=bbba6ab7fb" data-precedence="diseno-renglon"/><p>x</p>'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/lib/diseno/raices-ch.test.ts:115:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 4
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 682.372241

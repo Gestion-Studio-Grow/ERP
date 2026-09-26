@@ -21,11 +21,23 @@ import { preload } from "react-dom";
 import { DisenoProvider } from "./DisenoProvider";
 import { HOJAS_DEL_DISENO, LETRA_DEL_DISENO, PRECEDENCIA_DEL_DISENO } from "./diseno";
 
-export function ConDiseno({ nuevo, children }: { nuevo: boolean; children: ReactNode }) {
+export function ConDiseno({
+  nuevo,
+  precargarLetra = true,
+  children,
+}: {
+  nuevo: boolean;
+  /**
+   * `false` en la consola de GSG: ahí el navegador avisaba que la letra se precargó y no se usó
+   * (QA-1, criterio 9). Sin precarga la hoja la pide igual, con su @font-face, cuando la usa.
+   */
+  precargarLetra?: boolean;
+  children: ReactNode;
+}) {
   if (!nuevo) return children;
   // La letra se pide ya (no cuando el navegador termine de leer la hoja): menos tiempo con el
   // respaldo. `preload` de React la sube al <head> una sola vez aunque haya dos layouts.
-  preload(LETRA_DEL_DISENO, { as: "font", type: "font/woff2", crossOrigin: "anonymous" });
+  if (precargarLetra) preload(LETRA_DEL_DISENO, { as: "font", type: "font/woff2", crossOrigin: "anonymous" });
   return (
     <>
       {HOJAS_DEL_DISENO.map((href) => (

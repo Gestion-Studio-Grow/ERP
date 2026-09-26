@@ -164,7 +164,8 @@ const PLANES_LISTA: readonly PlanDescriptor[] = [
       comprobantesMes: 300,
       cuentasBancarias: 1,
       clientesCartera: 0,
-      facturasAutomaticasMes: 159,
+      // Escalonado por plan, igual que comprobantesMes: provisional a confirmar (dueño comercial).
+      facturasAutomaticasMes: 300,
     },
   },
   {
@@ -181,7 +182,8 @@ const PLANES_LISTA: readonly PlanDescriptor[] = [
       comprobantesMes: 1000,
       cuentasBancarias: 3,
       clientesCartera: 0,
-      facturasAutomaticasMes: 159,
+      // Escalonado por plan, igual que comprobantesMes: provisional a confirmar (dueño comercial).
+      facturasAutomaticasMes: 1000,
     },
   },
   {
@@ -204,7 +206,8 @@ const PLANES_LISTA: readonly PlanDescriptor[] = [
       comprobantesMes: 3000,
       cuentasBancarias: null,
       clientesCartera: 0,
-      facturasAutomaticasMes: 159,
+      // Escalonado por plan, igual que comprobantesMes: provisional a confirmar (dueño comercial).
+      facturasAutomaticasMes: 3000,
     },
   },
   {

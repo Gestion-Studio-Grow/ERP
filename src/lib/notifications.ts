@@ -49,7 +49,8 @@ async function sendEmailReminder(payload: ReminderPayload) {
 
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.log(`[recordatorio-email:SIMULADO] Para: ${payload.clientEmail} | ${subject} | ${body}`);
+    // Sin email, teléfono ni texto (lleva el nombre de la clienta) en el log: estándar §4.
+    console.log(`[recordatorio-email:SIMULADO] negocio ${payload.tenantId} · ${body.length} caracteres`);
     return { sent: false, channel: "email", reason: "RESEND_API_KEY no configurada (modo simulado)" };
   }
 
@@ -74,7 +75,8 @@ async function sendWhatsAppReminder(payload: ReminderPayload) {
   // Requiere conectar WhatsApp Business API (Meta Cloud API) o Twilio.
   // Cuando se tenga la cuenta, reemplazar este bloque por la llamada real,
   // usando payload.clientPhone como destinatario.
-  console.log(`[recordatorio-whatsapp:SIMULADO] Para: ${payload.clientPhone} | ${message}`);
+  // Sin teléfono ni texto (lleva el nombre de la clienta) en el log: estándar §4.
+  console.log(`[recordatorio-whatsapp:SIMULADO] negocio ${payload.tenantId} · ${message.length} caracteres`);
   return { sent: false, channel: "whatsapp", reason: "proveedor de WhatsApp no conectado (modo simulado)" };
 }
 

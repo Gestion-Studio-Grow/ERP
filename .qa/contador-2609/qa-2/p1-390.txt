@@ -1,0 +1,39 @@
+antes de enviar 20-11111111-2: disabled=false texto=Pedir el alta a Soporte GSG
+20-11111111-2 (QA Kiosco Lab) -> ["La facturación electrónica está apagada en toda la plataforma: ningún comprobante sale hacia ARCA hasta que Gestión Studio Grow la encienda.","ARCA está en modo simulado: los comprobantes no llegan a ARCA y sus CAE no son reales. Por eso todavía no se revisan los certificados.","Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp."] [676ms]
+antes de enviar 30-71234561-2: disabled=false texto=Pedir el alta a Soporte GSG
+30-71234561-2 (Ferretería El Tornillo SRL) -> ["La facturación electrónica está apagada en toda la plataforma: ningún comprobante sale hacia ARCA hasta que Gestión Studio Grow la encienda.","ARCA está en modo simulado: los comprobantes no llegan a ARCA y sus CAE no son reales. Por eso todavía no se revisan los certificados.","Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp."] [629ms]
+antes de enviar 30-71765432-9: disabled=true texto=Pedir el alta a Soporte GSG
+FORM:  Con característica, sin 0 ni 15. | ALIAS EN TU CARTERA | Opcional: cómo lo querés ver en la tabla. | ALGO QUE SOPORTE TENGA QUE SABER | Opcional: cuántos locales, si fía, cuántas personas lo usan. | Pedir el alta a Soporte GSG | Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp.
+EN CURSO: Pedidos de alta en curso
+5
+Soporte GSG los configura y te avisa por WhatsApp
+Paula Ríos Fonoaudiología
+CUIT 27298765417 · pedido el 26/9/26
+Almacén Mayorista Don Tito SRL
+CUIT 30715554417 · pedido el 26/9/26
+Grupo Andino SA
+CUIT 30708887710 · pedido el 26/9/26
+QA Kiosco Lab
+CUIT 20111111112 · pedido el 26/9/26
+Ferretería El Tornillo SRL
+CUIT 30712345612 · pedido el 26/9/26
+Agregar un cliente
+Mandás el pedido · Soporte GSG lo configura y te avisa por WhatsApp
+NOMBRE DEL NEGOCIO*
+CUIT*
+Con o sin guiones, como te quede cómodo.
+EMAIL DEL CLIENTE*
+Va a ser su usuario si algún día entra a su propio panel.
+PUNTO DE VENTA*
+El que diste de alta en ARCA para factura electrónica (hasta 5 cifras).
+CONDICIÓN FRENTE AL IVA
+No la sé todavía
+Responsable inscripto
+Monotributista
+IVA exento
+La que figura en su constancia de inscripción de ARCA.
+¿QUÉ TIPO DE CLIENTE ES?
+No sé
+Sólo factura (profesional, ser
+scrollWidth 390
+ERRORES []

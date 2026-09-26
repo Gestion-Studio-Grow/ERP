@@ -1,0 +1,5 @@
+facturacion: /admin/cierre-mes pasa el gate = false  -> redirect(/admin)
+micro: /admin/cierre-mes pasa el gate = false  -> redirect(/admin)
+comerciante: /admin/cierre-mes pasa el gate = false  -> redirect(/admin)
+pyme: /admin/cierre-mes pasa el gate = false  -> redirect(/admin)
+estudio: /admin/cierre-mes pasa el gate = false  -> redirect(/admin)

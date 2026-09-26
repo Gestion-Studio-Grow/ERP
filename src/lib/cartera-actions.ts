@@ -46,16 +46,24 @@
 // Hasta que se corran, nadie puede afirmar ninguna de las dos cosas — ni que sí ni que no.
 
 import { revalidatePath } from "next/cache";
-import type { PrismaClient } from "@/generated/prisma/client";
 import { basePrisma } from "@/lib/prisma-base";
 import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
-// Alta de cartera = crear un tenant y abrir una concesión para emitir facturas ARCA a
-// nombre de un CUIT ajeno. `audit-core.ts` dice que toda mutación de negocio pasa por acá,
-// y este camino era el que no pasaba. `audit()` nunca lanza: auditar no puede voltear el alta.
+// `audit()` nunca lanza: auditar no puede voltear la operación. (El pedido de alta NO pasa por acá:
+// si no se guarda, el estudio tiene que saberlo, así que se escribe con su propia transacción.)
 import { auditAdmin } from "@/lib/audit-core";
+import { getCurrentUser } from "@/lib/session";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { provisionTenant } from "../../scripts/provision-tenant";
+import {
+  ACCION_SOLICITUD_ALTA,
+  ACCIONES_QUE_CIERRAN_LA_SOLICITUD,
+  hayPedidoAbierto,
+  ENTIDAD_SOLICITUD,
+  ERROR_AL_GUARDAR_SOLICITUD,
+  RESPUESTA_SOLICITUD_ALTA,
+  validarSolicitudAlta,
+  type SolicitudAltaInput,
+} from "@/lib/cartera-alta-reglas";
 import {
   emitirPropuestas,
   filtrosFacturacionMes,
@@ -74,20 +82,9 @@ import {
 } from "@/lib/monitor-core";
 import { decidirAcceso } from "@/lib/multilocal/multilocal-core";
 import {
-  avisoDeChoqueAlContador,
-  choqueDePuntoDeVenta,
-  elegirNegocioDelCuit,
-  motivoCuitAmbiguo,
-} from "@/app/operador/(console)/tenants/[id]/candado-punto-venta";
-import {
-  crearClienteProvisioning,
-  decidirPuntoVentaAlta,
   exigirClienteDeCartera,
   recolectarCliente,
   recorrerCartera,
-  resolverSlugCliente,
-  validarAltaCliente,
-  type AltaClienteInput,
   type ContextoRecoleccion,
   type EstadoCartera,
   type FilaCartera,
@@ -98,9 +95,6 @@ import {
 } from "@/lib/cartera-core";
 
 const CONTADOR_PATH = "/contador";
-
-/** Módulos que se le asignan a cada cliente del contador (facturación pura). */
-const MODULOS_CLIENTE = ["arca", "bancos"] as const;
 
 // ── Tipos de retorno (los consume la UI de /contador) ────────────────────────
 // FilaCartera/ResumenCartera/EstadoCartera NO se re-exportan desde acá (Turbopack
@@ -116,21 +110,6 @@ export type ResultadoMonitorCartera =
       monitor: { filas: FilaMonitor[]; resumen: ResumenMonitor; avisos: AvisoPlataforma[] };
     }
   | { ok: false; error: string; migracionPendiente?: boolean };
-
-export type ResultadoAlta =
-  | {
-      ok: true;
-      clienteTenantId: string;
-      slug: string;
-      alias: string;
-      /** Solo si el alta creó el OWNER del cliente: mostrar UNA vez (patrón ADR-019). */
-      passwordBootstrap?: string;
-      /** true si el cliente ya estaba en la cartera (alta idempotente). */
-      yaEstaba: boolean;
-      /** Algo que el alta NO hizo y el contador tiene que saber (hoy: el punto de venta). */
-      aviso?: string;
-    }
-  | { ok: false; error: string };
 
 export type ResultadoSimpleCartera = { ok: true } | { ok: false; error: string };
 
@@ -158,48 +137,6 @@ async function exigirEstudio(): Promise<Gate> {
   const acceso = decidirAcceso(tenant?.modules ?? null, "estudio");
   if (!acceso.ok) return acceso;
   return { ok: true, estudioTenantId };
-}
-
-/**
- * Escribe los datos fiscales de un cliente con el candado del punto de venta: el mismo lock por
- * CUIT que la consola de operador (`arca-punto-venta:<cuit>`, operator-actions.ts) y la misma
- * regla (`choqueDePuntoDeVenta`). Si otro negocio de ese CUIT ya numera con ese punto de venta,
- * el punto de venta NO se escribe (el resto sí) y se avisa: dos negocios con el mismo talonario
- * en ARCA se rechazan las facturas entre sí.
- *
- * `soloSiNoTenia`: la re-alta completa el punto de venta si faltaba y nunca lo pisa; si otro lo
- * cargó entre la lectura y acá, no escribe.
- */
-async function escribirFiscalConCandado(opts: {
-  tenantId: string;
-  cuit: string;
-  puntoVenta: number | null;
-  soloSiNoTenia: boolean;
-  data: { arcaCuit?: string; arcaHomologacion?: boolean; modules?: string[] };
-}): Promise<{ pvCargado: boolean; choque: boolean }> {
-  const { tenantId, cuit, soloSiNoTenia, data } = opts;
-  return basePrisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`arca-punto-venta:${cuit}`}))`;
-    let pv = opts.puntoVenta;
-    let choque = false;
-    if (pv !== null) {
-      // Tenant está fuera de RLS: se leen los otros negocios del CUIT, sólo datos de control.
-      const otros = await tx.tenant.findMany({
-        where: { arcaCuit: cuit, id: { not: tenantId } },
-        select: { id: true, name: true, slug: true, arcaCuit: true, arcaPuntoVenta: true },
-      });
-      if (choqueDePuntoDeVenta({ tenantId, cuit, puntoVenta: pv }, otros)) {
-        pv = null;
-        choque = true;
-      }
-    }
-    if (pv === null && Object.keys(data).length === 0) return { pvCargado: false, choque };
-    const r = await tx.tenant.updateMany({
-      where: { id: tenantId, ...(soloSiNoTenia && pv !== null ? { arcaPuntoVenta: null } : {}) },
-      data: { ...data, ...(pv !== null ? { arcaPuntoVenta: pv } : {}) },
-    });
-    return { pvCargado: pv !== null && r.count === 1, choque };
-  });
 }
 
 // ── Puertos reales del core ───────────────────────────────────────────────────
@@ -339,223 +276,88 @@ export async function monitorCarteraAction(): Promise<ResultadoMonitorCartera> {
   }
 }
 
+/** Lo que contesta «Agregar un cliente». El éxito lleva SIEMPRE la misma frase, con cualquier CUIT. */
+export type ResultadoSolicitudAlta = { ok: true; mensaje: string } | { ok: false; error: string };
+
 /**
- * Alta de un cliente en la cartera: valida CUIT/email, REUSA el core de
- * provisioning (ADR-019) para crear el tenant del cliente (blueprint generico,
- * sin catálogo demo, módulos arca+bancos), setea su config ARCA (CUIT +
- * homologación — modelo de cert delegado de GSG) y crea la fila CarteraCliente.
- * Idempotente por CUIT (re-alta del mismo negocio no duplica) y por slug (el
- * core de ADR-019). La contraseña de bootstrap del OWNER del cliente se devuelve
- * UNA vez y no se persiste en claro.
+ * «Agregar un cliente» del panel del contador: deja un PEDIDO de alta para Soporte GSG, que lo
+ * configura desde la consola (/operador/solicitudes). GSG-20 de raíz: la action NO mira la
+ * plataforma —ni la tabla Tenant, ni otros negocios, ni la fábrica—, así que un CUIT libre, uno de
+ * otro negocio y uno inexistente recorren el MISMO camino y reciben la MISMA respuesta. Los únicos
+ * errores posibles dependen de lo que se escribió (`validarSolicitudAlta`, pura) o de que la base no
+ * responda (igual para cualquier CUIT).
+ *
+ * DÓNDE SE GUARDA (sin migración): una fila de `AuditLog` del ESTUDIO, acción
+ * `cartera.solicitud_alta`. Por qué AuditLog y no OutboxEvent: el outbox tiene despachantes que
+ * toman todo evento pendiente (ARCA e integraciones, con reintentos y `muertoEn`); un pedido que
+ * resuelve una persona no es un evento a despachar, y meterlo ahí arriesga que un worker lo tome o
+ * lo cuente como envío fallido. AuditLog es de sólo agregar, tiene RLS por el tenant del estudio y
+ * es exactamente «quién pidió qué y cuándo». El cierre del pedido es otra fila (acción
+ * `cartera.solicitud_configurada`, entityId = id del pedido): nada se edita.
+ *
+ * Idempotente: con un pedido ABIERTO del mismo CUIT en este estudio, no se crea otro (candado por
+ * estudio+CUIT dentro de la transacción: dos clics simultáneos dejan uno). Sólo lee filas del propio
+ * estudio: no revela nada ajeno.
  */
-export async function altaClienteCarteraAction(input: AltaClienteInput): Promise<ResultadoAlta> {
+export async function altaClienteCarteraAction(input: SolicitudAltaInput): Promise<ResultadoSolicitudAlta> {
   const gate = await exigirEstudio();
   if (!gate.ok) return gate;
   const estudioTenantId = gate.estudioTenantId;
 
-  const v = validarAltaCliente(input);
+  const v = validarSolicitudAlta(input ?? {});
   if (!v.ok) return v;
+  const s = v.solicitud;
+  const usuario = await getCurrentUser();
 
-  // Idempotencia por CUIT: si ya hay un negocio con ese CUIT, no se provisiona otro. Pueden ser
-  // VARIOS (una marca con un negocio por local, todos con el mismo CUIT): se elige entre los de
-  // ESTA cartera, desempatando por el punto de venta, y nunca uno cualquiera
-  // (`elegirNegocioDelCuit`). Antes era un `findFirst`: el primero que devolviera la base.
-  const conEseCuit = await basePrisma.tenant.findMany({
-    where: { arcaCuit: v.cuit },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, slug: true, arcaPuntoVenta: true },
-  });
-  const filasDeCartera = new Map<string, FilaCarteraDb>();
-  for (const t of conEseCuit) {
-    if (t.id === estudioTenantId) continue;
-    const f = await buscarFilaCartera(estudioTenantId, t.id);
-    if (f) filasDeCartera.set(t.id, f);
-  }
-  const eleccion = elegirNegocioDelCuit(
-    estudioTenantId,
-    conEseCuit.map((t) => ({ ...t, enMiCartera: filasDeCartera.has(t.id) })),
-    v.puntoVenta,
-  );
-  if (eleccion.tipo === "propio") {
-    return { ok: false, error: "Ese CUIT es el de tu propio estudio: no se agrega a la cartera." };
-  }
-  if (eleccion.tipo === "ambiguo") {
-    return { ok: false, error: motivoCuitAmbiguo(eleccion.cantidad, eleccion.puntosDeVenta) };
-  }
-  if (eleccion.tipo !== "nuevo") {
-    const porCuit = eleccion.tipo === "realta" ? eleccion.negocio : null;
-    const fila = porCuit ? filasDeCartera.get(porCuit.id) : undefined;
-    if (porCuit && fila) {
-      // Re-alta idempotente: si estaba pausado o de baja, vuelve a activo.
-      if (fila.estado !== "activa") {
-        await tenantTransaction(
-          (tx) =>
-            tx.carteraCliente.update({
-              where: { tenantId_clienteTenantId: { tenantId: estudioTenantId, clienteTenantId: porCuit.id } },
-              data: { estado: "activa" },
-            }),
-          { tenantId: estudioTenantId },
-        );
-      }
-      // Punto de venta: la re-alta de un cliente de ESTA cartera puede completarlo si
-      // faltaba — es el mismo dato que acepta el alta. Nunca lo PISA (`decidirPuntoVentaAlta`),
-      // y si otro lo cargó entre la lectura y acá, no escribe (`soloSiNoTenia`). Pasa por el
-      // candado: si otro negocio de ese CUIT ya numera con ese punto de venta, no se escribe
-      // (antes se escribía sin mirar a los demás).
-      const pv = decidirPuntoVentaAlta(v.puntoVenta, porCuit.arcaPuntoVenta);
-      const escrito =
-        pv.escribir !== null
-          ? await escribirFiscalConCandado({
-              tenantId: porCuit.id,
-              cuit: v.cuit,
-              puntoVenta: pv.escribir,
-              soloSiNoTenia: true,
-              data: {},
-            })
-          : { pvCargado: false, choque: false };
-      const pvCargado = escrito.pvCargado;
-      const aviso =
-        pv.escribir !== null && escrito.choque
-          ? avisoDeChoqueAlContador(pv.escribir)
-          : pv.escribir !== null && !pvCargado
-            ? "No se cargó el punto de venta: alguien lo cargó mientras tanto. Si está mal, pedíselo a Gestión Studio Grow."
-            : pv.aviso;
-      if (fila.estado !== "activa" || pvCargado) revalidatePath(CONTADOR_PATH);
-      await auditAdmin({
-        action: "cartera.realta",
-        entity: "CarteraCliente",
-        entityId: porCuit.id,
-        changes: {
-          estudioTenantId,
-          clienteTenantId: porCuit.id,
-          cuit: v.cuit,
-          estadoAnterior: fila.estado,
-          estado: "activa",
-          ...(pvCargado ? { arcaPuntoVenta: pv.escribir } : {}),
-        },
-      });
-      return {
-        ok: true,
-        clienteTenantId: porCuit.id,
-        slug: porCuit.slug,
-        alias: fila.alias,
-        yaEstaba: true,
-        ...(aviso ? { aviso } : {}),
-      };
-    }
-    // Existe en la plataforma pero NO en esta cartera: vincularlo es una decisión
-    // de gobierno (¿de quién es ese tenant?), no un auto-attach. Cero fuga de datos.
-    return {
-      ok: false,
-      error:
-        "Ese CUIT ya está registrado en la plataforma. Escribile a Gestión Studio Grow para vincularlo a tu cartera.",
-    };
-  }
-
-  // Slug seguro: jamás adjuntarse por slug a un negocio de OTRO CUIT.
-  const slugRes = await resolverSlugCliente(v.slugBase, v.cuit, (slug) =>
-    basePrisma.tenant.findUnique({ where: { slug }, select: { arcaCuit: true } }),
-  );
-  if (!slugRes.ok) return slugRes;
-
-  // REUSO del core de ADR-019 (no se reinventa el alta): atómico e idempotente.
-  // La fachada setea el GUC de RLS apenas existe la fila Tenant → funciona con el
-  // rol de la app (app_rls), sin operatorPrisma (ver cartera-core).
-  let resultado;
   try {
-    resultado = await provisionTenant(
-      crearClienteProvisioning(basePrisma) as unknown as PrismaClient,
-      {
-        name: v.nombre,
-        slug: slugRes.slug,
-        owner: { name: v.nombre, email: v.email },
-        blueprint: "generico",
-        // Cliente de facturación pura: sin catálogo demo (menos ruido, alta liviana).
-        skipCatalog: true,
-        platform: { modules: [...MODULOS_CLIENTE] },
+    await tenantTransaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`solicitud-alta:${estudioTenantId}:${s.cuit}`}))`;
+        const pedidos = await tx.auditLog.findMany({
+          where: {
+            tenantId: estudioTenantId,
+            action: ACCION_SOLICITUD_ALTA,
+            entity: ENTIDAD_SOLICITUD,
+            changes: { path: ["cuit"], equals: s.cuit },
+          },
+          select: { id: true },
+        });
+        if (pedidos.length > 0) {
+          // Cerrado = configurado O descartado: la misma lista que usa la bandeja de Soporte.
+          const cerrados = await tx.auditLog.findMany({
+            where: {
+              tenantId: estudioTenantId,
+              action: { in: [...ACCIONES_QUE_CIERRAN_LA_SOLICITUD] },
+              entity: ENTIDAD_SOLICITUD,
+              entityId: { in: pedidos.map((p) => p.id) },
+            },
+            select: { entityId: true },
+          });
+          const ids = pedidos.map((p) => p.id);
+          if (hayPedidoAbierto(ids, cerrados.map((c) => c.entityId))) return; // ya hay uno abierto: no se duplica
+        }
+        await tx.auditLog.create({
+          data: {
+            tenantId: estudioTenantId,
+            actor: usuario ? `user:${usuario.id}` : "admin",
+            action: ACCION_SOLICITUD_ALTA,
+            entity: ENTIDAD_SOLICITUD,
+            channel: "admin",
+            changes: { ...s },
+          },
+        });
       },
+      { tenantId: estudioTenantId },
     );
   } catch (e) {
-    // Acá cae, entre otros, el gate ADR-018 (no crear tenant sin RLS activa).
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
-  }
-
-  // Config fiscal del cliente + módulos garantizados (aditivo, idempotente).
-  // Tenant está fuera de RLS; es metadata de control del tenant recién creado/reusado.
-  const actual = await basePrisma.tenant.findUnique({
-    where: { id: resultado.tenantId },
-    select: { modules: true, arcaPuntoVenta: true },
-  });
-  const modulos = new Set([...(actual?.modules ?? []), ...MODULOS_CLIENTE]);
-  // El punto de venta del alta sólo entra si el tenant no tenía uno, y si el que tenía es
-  // otro se avisa (mismo criterio que la re-alta: `decidirPuntoVentaAlta`). Y pasa por el
-  // candado: si otro negocio de ese CUIT ya numera con ese punto de venta, no se carga.
-  const pv = decidirPuntoVentaAlta(v.puntoVenta, actual?.arcaPuntoVenta ?? null);
-  const escrito = await escribirFiscalConCandado({
-    tenantId: resultado.tenantId,
-    cuit: v.cuit,
-    puntoVenta: pv.escribir,
-    soloSiNoTenia: false,
-    data: {
-      arcaCuit: v.cuit,
-      // Modelo de delegación: UN cert de GSG para N CUITs — hoy SIEMPRE homologación
-      // (CUIT 20376833098); producción ARCA es un paso posterior del dueño.
-      arcaHomologacion: true,
-      modules: [...modulos],
-    },
-  });
-  const puntoVenta = escrito.pvCargado ? pv.escribir : null;
-  const avisoPv = escrito.choque && pv.escribir !== null ? avisoDeChoqueAlContador(pv.escribir) : pv.aviso;
-
-  // La fila de la cartera (dato del ESTUDIO — tenant del estudio, RLS incluida).
-  await tenantTransaction(
-    (tx) =>
-      tx.carteraCliente.upsert({
-        where: {
-          tenantId_clienteTenantId: {
-            tenantId: estudioTenantId,
-            clienteTenantId: resultado.tenantId,
-          },
-        },
-        update: { estado: "activa" },
-        create: {
-          tenantId: estudioTenantId,
-          clienteTenantId: resultado.tenantId,
-          alias: v.alias,
-          estado: "activa",
-        },
-      }),
-    { tenantId: estudioTenantId },
-  );
-
-  await auditAdmin({
-    action: "cartera.alta",
-    entity: "CarteraCliente",
-    entityId: resultado.tenantId,
-    changes: {
+    // Sin datos del cliente en el log (ni CUIT ni email): sólo el estudio y el tipo de error.
+    console.error("[cartera.solicitud_alta] no se pudo guardar el pedido", {
       estudioTenantId,
-      clienteTenantId: resultado.tenantId,
-      slug: resultado.slug,
-      alias: v.alias,
-      // El dato que importa reconstruir seis meses después: a nombre de qué CUIT quedó
-      // habilitado este estudio para emitir, y con qué módulos.
-      cuit: v.cuit,
-      arcaHomologacion: true,
-      ...(puntoVenta !== null ? { arcaPuntoVenta: puntoVenta } : {}),
-      modulos: [...modulos],
-    },
-  });
-
-  revalidatePath(CONTADOR_PATH);
-  return {
-    ok: true,
-    clienteTenantId: resultado.tenantId,
-    slug: resultado.slug,
-    alias: v.alias,
-    yaEstaba: false,
-    ...(resultado.generatedPassword ? { passwordBootstrap: resultado.generatedPassword } : {}),
-    ...(avisoPv ? { aviso: avisoPv } : {}),
-  };
+      error: e instanceof Error ? e.name : "desconocido",
+    });
+    return { ok: false, error: ERROR_AL_GUARDAR_SOLICITUD };
+  }
+  return { ok: true, mensaje: RESPUESTA_SOLICITUD_ALTA };
 }
 
 /** Pausar / reactivar / dar de baja una fila de la cartera (nunca borra datos). */

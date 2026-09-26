@@ -20,7 +20,7 @@ import { estadoDesdeFilas, filaDeInterruptor, todosApagados } from "@/cambios/in
 import { DISENO_NUEVO, INICIO_POR_APPS } from "@/cambios/interruptores";
 import { leerDisenoNuevoCon } from "./diseno-core";
 import { ConDiseno } from "./ConDiseno";
-import { HOJAS_DEL_DISENO, PIEL_RENGLON } from "./diseno";
+import { HOJAS_DEL_DISENO, LETRA_DEL_DISENO, PIEL_RENGLON } from "./diseno";
 
 let id = 0;
 const fila = (interruptor: typeof DISENO_NUEVO, accion: "encender" | "apagar", actor?: string) => {
@@ -102,4 +102,24 @@ test("cada raíz de un negocio: el atributo sólo con el interruptor, la piel de
     renderToStaticMarkup(createElement("div", { "data-skin": "fable", "data-diseno": undefined, "data-theme": "light" })),
     '<div data-skin="fable" data-theme="light"></div>',
   );
+});
+
+// QA-1 (criterio 9): en la consola el navegador avisaba que `archivo-latin.woff2` se precargó y no se
+// usó. La consola (sólo GSG) no la precarga: la hoja la pide con su @font-face cuando hace falta, y
+// sin <link rel="preload"> ese aviso no puede salir. El resto de las raíces la sigue precargando.
+test("la consola no precarga la letra; las demás raíces sí", () => {
+  const hijo = createElement("p", null, "x");
+  // ConDiseno corre DENTRO de un render (así `preload` de React escribe su <link> en el HTML).
+  const renderizar = (precargarLetra?: boolean) =>
+    renderToStaticMarkup(createElement(() => ConDiseno({ nuevo: true, precargarLetra, children: hijo }) as ReactElement));
+  const conPrecarga = renderizar();
+  assert.ok(conPrecarga.includes(`<link rel="preload" href="${LETRA_DEL_DISENO}" as="font"`), conPrecarga);
+  const sinPrecarga = renderizar(false);
+  assert.ok(!sinPrecarga.includes('rel="preload"'), sinPrecarga);
+  assert.ok(sinPrecarga.includes(`href="${HOJAS_DEL_DISENO[0].replace(/&/g, "&amp;")}"`), "la hoja (con la letra) sigue");
+  assert.ok(sinPrecarga.includes("<p>x</p>"));
+  const consola = readFileSync(join(process.cwd(), "src/app/operador/(console)/layout.tsx"), "utf8");
+  assert.equal((consola.match(/<ConDiseno nuevo precargarLetra=\{false\}>/g) ?? []).length, 1, "la consola monta ConDiseno sin precarga");
+  const ingreso = readFileSync(join(process.cwd(), "src/app/operador/login/page.tsx"), "utf8");
+  assert.ok(ingreso.includes("<ConDiseno nuevo>"), "el ingreso de la consola la sigue precargando (ahí se usa: fuente-login-3210.txt)");
 });

@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: cliente al día este mes: no le falta nada
+ok 1 - cliente al día este mes: no le falta nada
+  ---
+  duration_ms: 2.976485
+  type: 'test'
+  ...
+# Subtest: sin CUIT no puede facturar, y va primero que el cierre abierto y el extracto que falta
+ok 2 - sin CUIT no puede facturar, y va primero que el cierre abierto y el extracto que falta
+  ---
+  duration_ms: 19.149672
+  type: 'test'
+  ...
+# Subtest: un extracto cargado el mes pasado cuenta como que falta el de este mes
+ok 3 - un extracto cargado el mes pasado cuenta como que falta el de este mes
+  ---
+  duration_ms: 0.426562
+  type: 'test'
+  ...
+# Subtest: sin dirección propia el extracto no se puede subir: la acción es pedírsela a Soporte GSG
+ok 4 - sin dirección propia el extracto no se puede subir: la acción es pedírsela a Soporte GSG
+  ---
+  duration_ms: 0.215908
+  type: 'test'
+  ...
+# Subtest: los clientes en pausa o de baja no aparecen en el mes
+ok 5 - los clientes en pausa o de baja no aparecen en el mes
+  ---
+  duration_ms: 0.175776
+  type: 'test'
+  ...
+# Subtest: el mes de la cartera: grupos en orden de gravedad y, adentro, primero el que más factura
+ok 6 - el mes de la cartera: grupos en orden de gravedad y, adentro, primero el que más factura
+  ---
+  duration_ms: 1.000695
+  type: 'test'
+  ...
+# Subtest: cartera vacía: no hay nada pendiente
+ok 7 - cartera vacía: no hay nada pendiente
+  ---
+  duration_ms: 0.411005
+  type: 'test'
+  ...
+# Subtest: certificado vencido: no puede facturar, va en «No pueden facturar» y antes que uno que sólo está por vencer aunque facture más
+ok 8 - certificado vencido: no puede facturar, va en «No pueden facturar» y antes que uno que sólo está por vencer aunque facture más
+  ---
+  duration_ms: 0.697742
+  type: 'test'
+  ...
+# Subtest: límite del plan agotado: no puede facturar, va en «No pueden facturar»
+ok 9 - límite del plan agotado: no puede facturar, va en «No pueden facturar»
+  ---
+  duration_ms: 0.473465
+  type: 'test'
+  ...
+# Subtest: sin dirección propia: el texto del extracto no promete que las ventas se facturan igual; avisa el plazo de ARCA (5 días bienes, 10 servicios)
+ok 10 - sin dirección propia: el texto del extracto no promete que las ventas se facturan igual; avisa el plazo de ARCA (5 días bienes, 10 servicios)
+  ---
+  duration_ms: 0.712006
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 555.418957

@@ -1,0 +1,51 @@
+http://localhost:3210/operador/tenants/cmuijmcla000iac7dxh7au17q
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Todos
+En producción
+En prueba
+Con pendientes
+Estudios contables
+Dar de alta un negocio
+← Negocios
+Martina Gómez Psicopedagogía
+En prueba
+martinagomez-lab
+Genérico / Comodín
+Facturación (provisional)
+1 persona
+0 clientes
+alta el 26 de septiembre de 2026
+Abrir su panel
+(se abre en otra pestaña; pide un usuario de ese negocio)
+Puesta en marcha
+4
+Fiscal
+3
+Plan y apps
+Marca y vidriera
+Personas
+Historial
+La contraseña del dueño
+1 persona entra a su panel
+Sin dato
+martina@gomez.lab
+No se sabe si ya cambió la temporal: falta la migración de la columna que lo guarda.
+Resetear de nuevo…
+Contraseña temporal de martina@gomez.lab. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+«tachada»
+Copiar
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+La contraseña quedó reseteada, pero no se le puede exigir que la cambie al entrar: la columna «tachada» todavía no está en la base (migración sin aplicar). Pedile que la cambie a mano.
+El resto de las personas las da de alta el dueño desde su panel (Configuración › Usuarios y permisos).
+Hecho por Gestión Studio Grow

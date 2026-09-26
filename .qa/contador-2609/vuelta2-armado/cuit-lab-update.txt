@@ -1,0 +1,11 @@
+current_database
+erp_lab
+(1 row)
+subdomain|arcaCuit
+adosmanos|30718888014
+(1 row)
+UPDATE 1
+subdomain|arcaCuit
+shinevelas|27334445556
+(1 row)
+UPDATE 1

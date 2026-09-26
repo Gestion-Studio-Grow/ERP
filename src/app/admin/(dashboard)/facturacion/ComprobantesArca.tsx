@@ -14,6 +14,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { procesarFacturacionPendiente, type EstadoFiscal, type FacturaVista } from "@/lib/facturacion-actions";
 import { emitirFacturaDePruebaAction } from "@/lib/arca-pruebas-actions";
+import FacturaDePrueba from "./FacturaDePrueba";
 import { Tabla } from "@/components/ui/Tabla";
 import { Button, Marca, Plata } from "@/components/ui";
 import { useToast } from "../ToastProvider";
@@ -59,12 +60,17 @@ export default function ComprobantesArca({ facturas, estado }: { facturas: Factu
         <Button onClick={autorizar} disabled={procesando || estado.pendientes === 0} estado={procesando ? "cargando" : undefined}>
           {estado.pendientes === 0 ? "Nada pendiente de autorizar" : `Autorizar ${estado.pendientes === 1 ? "el pendiente" : `los ${estado.pendientes} pendientes`}`}
         </Button>
-        {estado.modo !== "real" && (
+        {!estado.facturaDePrueba && estado.modo !== "real" && (
           <Button variant="outline" onClick={probar} disabled={probando} estado={probando ? "cargando" : undefined}>
             Probar la conexión con ARCA
           </Button>
         )}
       </div>
+      {estado.facturaDePrueba && (
+        <div className="mb-3">
+          <FacturaDePrueba />
+        </div>
+      )}
       <Tabla<FacturaVista>
         titulo="Comprobantes emitidos y su estado ante ARCA"
         filas={facturas}

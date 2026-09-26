@@ -1,0 +1,6 @@
+startsAt|status|updatedAt
+2026-09-26 15:00:00|PENDING|2026-09-26 04:31:41
+(1 row)
+pending_futuros_ahora
+24
+(1 row)

@@ -1,0 +1,1 @@
+src/app/operador/(console)/solicitudes/configurador.server.ts(314,13): error TS2339: Property 'usuarioContadora' does not exist on type 'Configuracion'.

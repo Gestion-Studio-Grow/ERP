@@ -1,0 +1,5 @@
+Antes (servidor :3210 sin reiniciar, código previo): GET http://losandes-lab.localhost:3210/admin/login
+<title>Ingresá a tu panel</title>
+HTTP 200
+Al ingresar, el log del servidor (qa-3/server-3210-durante-qa3.log:17):
+⨯ Error: getCurrentTenantId: hay más de un tenant y el request no trae subdominio para resolver (ADR-015 / ADR-018 §4). Cada tenant debe accederse por su su

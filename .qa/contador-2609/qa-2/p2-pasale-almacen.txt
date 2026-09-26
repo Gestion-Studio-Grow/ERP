@@ -1,0 +1,19 @@
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+← Pedidos de alta
+Configurar a Almacén Mayorista Don Tito SRL
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+Este pedido ya está cerrado. Si hace falta cambiar algo, se hace desde la ficha del negocio.
+Hecho por Gestión Studio Grow

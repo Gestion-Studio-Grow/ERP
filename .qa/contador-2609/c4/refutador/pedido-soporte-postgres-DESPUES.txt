@@ -1,0 +1,18 @@
+TAP version 13
+# (node:1610) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+# (Use `node --trace-deprecation ...` to show where the warning was created)
+# Subtest: pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el límite de la ficha sale del plan
+ok 1 - pedir a Soporte GSG: sólo por clientes de la cartera, una vez, y el límite de la ficha sale del plan
+  ---
+  duration_ms: 4540.649666
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5152.560973

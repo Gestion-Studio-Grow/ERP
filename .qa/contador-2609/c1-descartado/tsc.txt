@@ -1,0 +1,1 @@
+tsc --noEmit -p . rc=0, 0 errores

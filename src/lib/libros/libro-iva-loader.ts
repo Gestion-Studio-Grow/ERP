@@ -11,7 +11,11 @@
 //     tienen un comprobante con CAE, de ningún mes. Se decide con la relación
 //     (`invoices: none AUTHORIZED`), no con los comprobantes de ESTE mes: una venta del 31 a
 //     las 23 facturada el 1 no puede aparecer como "sin comprobante".
-//   - COMPRAS (control): `StockPurchase` COMPRA del mes. Sin factura de proveedor, sin crédito.
+//   - COMPRAS (control): `StockPurchase` COMPRA. Las que NO tienen la factura del proveedor, por
+//     el día de carga (`createdAt`) y sin crédito. Las que SÍ la tienen (hoy, las importadas de
+//     «Mis Comprobantes Recibidos»), por la FECHA DEL COMPROBANTE (`facturaFecha`, AAAAMMDD), con
+//     sus importes y su IVA como crédito (contador/recibidos-libro.ts). Antes entraban todas por
+//     el día de carga con `totalCost`: los recibidos de julio subidos el 3/9 caían en septiembre.
 //   - CONDICIÓN: de los tipos que el negocio emitió alguna vez (A/B = inscripto, sólo C =
 //     monotributo). Se mira todo el historial y no sólo el mes: un inscripto que este mes no
 //     facturó sigue siendo inscripto.
@@ -26,11 +30,12 @@ import type { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
+import { compraDelLibroDesdeFactura } from "@/lib/contador/recibidos-libro";
 import { bordesDelMes, type MesKey } from "./fecha-fiscal";
 import {
   armarLibroIva,
   comprobanteDesdeInvoice,
-  condicionPorTipos,
+  condicionDelNegocio,
   dateToIso,
   type CompraRow,
   type LibroIva,
@@ -64,7 +69,7 @@ export async function leerLibroIva(db: DbLibro, tenantId: string, mes: MesKey): 
   const enElMes = { gte: b.instantes.gte, lt: b.instantes.lt };
   const sinComprobanteConCae = { none: { status: "AUTHORIZED" as const } };
 
-  const [invoices, tiposEmitidos, orders, payments, purchases] = await Promise.all([
+  const [invoices, tiposEmitidos, orders, payments, purchases, conFactura, negocio] = await Promise.all([
     db.invoice.findMany({
       // El mismo `where` que el número del botón (finanzas.server.ts).
       where: whereComprobantesDelMes(tenantId, mes),
@@ -106,12 +111,24 @@ export async function leerLibroIva(db: DbLibro, tenantId: string, mes: MesKey): 
       },
     }),
     db.stockPurchase.findMany({
-      where: { tenantId, kind: "COMPRA", createdAt: enElMes },
+      where: { tenantId, kind: "COMPRA", facturaTipo: null, createdAt: enElMes },
       select: {
         id: true, code: true, supplier: true, totalCost: true, createdAt: true, notes: true,
         supplierRef: { select: { name: true, taxId: true } },
       },
     }),
+    db.stockPurchase.findMany({
+      where: { tenantId, kind: "COMPRA", facturaTipo: { not: null }, facturaFecha: { startsWith: mes.replace("-", "") } },
+      orderBy: [{ facturaFecha: "asc" }, { code: "asc" }],
+      select: {
+        id: true, supplier: true,
+        facturaTipo: true, facturaPuntoVenta: true, facturaNumero: true, facturaFecha: true, facturaCuit: true,
+        facturaNeto: true, facturaIva: true, facturaTotal: true,
+        supplierRef: { select: { name: true } },
+      },
+    }),
+    // La condición CARGADA del negocio (Tenant está fuera de RLS por diseño; se lee con su id).
+    db.tenant.findUnique({ where: { id: tenantId }, select: { arcaCondicionIva: true } }),
   ]);
 
   const comprobantes = invoices.map((i) =>
@@ -162,12 +179,28 @@ export async function leerLibroIva(db: DbLibro, tenantId: string, mes: MesKey): 
       total: c.totalCost,
     };
   });
+  for (const c of conFactura) {
+    compras.push(
+      compraDelLibroDesdeFactura({
+        id: c.id,
+        proveedor: c.supplierRef?.name?.trim() || c.supplier?.trim() || "Proveedor sin identificar",
+        facturaTipo: c.facturaTipo ?? 0,
+        facturaPuntoVenta: c.facturaPuntoVenta ?? 0,
+        facturaNumero: c.facturaNumero ?? 0,
+        facturaFecha: c.facturaFecha ?? "",
+        facturaCuit: c.facturaCuit ?? "",
+        facturaIva: num(c.facturaIva),
+        facturaTotal: num(c.facturaTotal),
+        facturaNeto: num(c.facturaNeto),
+      }),
+    );
+  }
 
   return armarLibroIva({
     comprobantes,
     ventasSinComprobante,
     compras,
-    condicion: condicionPorTipos(tiposEmitidos.map((g) => g.tipoComprobante)),
+    condicion: condicionDelNegocio(negocio?.arcaCondicionIva, tiposEmitidos.map((g) => g.tipoComprobante)),
   });
 }
 

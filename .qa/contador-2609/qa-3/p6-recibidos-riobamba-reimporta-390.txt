@@ -1,0 +1,1659 @@
+URL: http://estudio.localhost:3210/contador/cliente/cmuijm529000bac7dp0pabyzv/recibidos
+scrollWidth/innerWidth: 390/390
+consola+http>=400: 1
+[warning] The resource http://estudio.localhost:3210/diseno/archivo-latin.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+---- CONTROLES
+button «Cambiar tema»
+a /contador/cliente/cmuijm529000bac7dp0pabyzv/recibidos?mes=2026-07 «Mes anterior»
+a /contador/cliente/cmuijm529000bac7dp0pabyzv/recibidos?mes=2026-09 «Mes siguiente»
+a /contador/cliente/cmuijm529000bac7dp0pabyzv/recibidos/csv?mes=2026-08 «Descargar para el libro de IVA compras»
+a /contador «Volver a la cartera»
+input:file «archivo» name=archivo
+button «Elegir otro archivo»
+button «Cargar comprobantes»
+---- TEXTO
+E
+Estudio Contable Laboratorio
+Compras de Distribuidora Río Bamba SA
+
+Comprobantes recibidos · CUIT 30-70512347-7. El mes va por la fecha del comprobante, no por el día en que se cargó.
+
+Mes anterior
+08/2026
+Mes siguiente
+Descargar para el libro de IVA compras
+Volver a la cartera
+CARGAR EL ARCHIVO DE ARCA
+Mis Comprobantes › Recibidos › Descargar (CSV o Excel), sin editarlo.
+Elegir otro archivo
+p6-recibidos-riobamba-grande.csv
+Cargar comprobantes
+No entró ningún comprobante nuevo. 216 ya estaban cargados (no se duplican). 30 con errores: no se cargaron (el detalle está abajo).
+Neto gravado
+$0,00
+Otros tributos y percepciones
+$0,00
+Total
+$0,00
+NO SE CARGARON
+Fila 2
+Factura A 00003-00050001
+Ya estaba cargado (compra #1): no se duplica.
+Fila 3
+Factura A 00003-00050002
+Ya estaba cargado (compra #2): no se duplica.
+Fila 4
+Factura B 00005-00050003
+Ya estaba cargado (compra #3): no se duplica.
+Fila 5
+Factura C 00002-00050004
+Ya estaba cargado (compra #4): no se duplica.
+Fila 6
+Nota de crédito A 00003-00050005
+Ya estaba cargado (compra #5): no se duplica.
+Fila 7
+Factura A 00010-00050006
+Ya estaba cargado (compra #6): no se duplica.
+Fila 8
+Factura A 00003-00050007
+Ya estaba cargado (compra #7): no se duplica.
+Fila 9
+Factura A 00007-00050008
+Ya estaba cargado (compra #8): no se duplica.
+Fila 10
+Factura A 00007-00050009
+El CUIT del emisor no es válido.
+Fila 11
+Tique factura A 00001-00050010
+Ya estaba cargado (compra #9): no se duplica.
+Fila 12
+Factura A 00003-00050011
+Ya estaba cargado (compra #10): no se duplica.
+Fila 13
+Factura A 00003-00050012
+Ya estaba cargado (compra #11): no se duplica.
+Fila 14
+Factura B 00005-00050013
+Ya estaba cargado (compra #12): no se duplica.
+Fila 15
+Factura C 00002-00050014
+Ya estaba cargado (compra #13): no se duplica.
+Fila 16
+Nota de crédito A 00003-00050015
+Ya estaba cargado (compra #14): no se duplica.
+Fila 17
+Factura A 00010-00050016
+Ya estaba cargado (compra #15): no se duplica.
+Fila 18
+Factura A 00003-00050017
+Ya estaba cargado (compra #16): no se duplica.
+Fila 19
+Factura A 00007-00050018
+Ya estaba cargado (compra #17): no se duplica.
+Fila 20
+Factura A 00007-00050019
+El CUIT del emisor no es válido.
+Fila 21
+Tique factura A 00001-00050020
+Ya estaba cargado (compra #18): no se duplica.
+Fila 22
+Factura A 00003-00050021
+Ya estaba cargado (compra #19): no se duplica.
+Fila 23
+Factura A 00003-00050022
+Ya estaba cargado (compra #20): no se duplica.
+Fila 24
+Factura B 00005-00050023
+Ya estaba cargado (compra #21): no se duplica.
+Fila 25
+Factura C 00002-00050024
+Ya estaba cargado (compra #22): no se duplica.
+Fila 26
+Nota de crédito A 00003-00050025
+Ya estaba cargado (compra #23): no se duplica.
+Fila 27
+Factura A 00010-00050026
+Ya estaba cargado (compra #24): no se duplica.
+Fila 28
+Factura A 00003-00050027
+Ya estaba cargado (compra #25): no se duplica.
+Fila 29
+Factura A 00007-00050028
+Ya estaba cargado (compra #26): no se duplica.
+Fila 30
+Factura A 00007-00050029
+El CUIT del emisor no es válido.
+Fila 31
+Tique factura A 00001-00050030
+Ya estaba cargado (compra #27): no se duplica.
+Fila 32
+Factura A 00003-00050031
+Ya estaba cargado (compra #28): no se duplica.
+Fila 33
+Factura A 00003-00050032
+Ya estaba cargado (compra #29): no se duplica.
+Fila 34
+Factura B 00005-00050033
+Ya estaba cargado (compra #30): no se duplica.
+Fila 35
+Factura C 00002-00050034
+Ya estaba cargado (compra #31): no se duplica.
+Fila 36
+Nota de crédito A 00003-00050035
+Ya estaba cargado (compra #32): no se duplica.
+Fila 37
+Factura A 00010-00050036
+Ya estaba cargado (compra #33): no se duplica.
+Fila 38
+Factura A 00003-00050037
+Ya estaba cargado (compra #34): no se duplica.
+Fila 39
+Factura A 00007-00050038
+Ya estaba cargado (compra #35): no se duplica.
+Fila 40
+Factura A 00007-00050039
+El CUIT del emisor no es válido.
+Fila 41
+Tique factura A 00001-00050040
+Ya estaba cargado (compra #36): no se duplica.
+Fila 42
+Factura A 00003-00050041
+Ya estaba cargado (compra #37): no se duplica.
+Fila 43
+Factura A 00003-00050042
+Ya estaba cargado (compra #38): no se duplica.
+Fila 44
+Factura B 00005-00050043
+Ya estaba cargado (compra #39): no se duplica.
+Fila 45
+Factura C 00002-00050044
+Ya estaba cargado (compra #40): no se duplica.
+Fila 46
+Nota de crédito A 00003-00050045
+Ya estaba cargado (compra #41): no se duplica.
+Fila 47
+Factura A 00010-00050046
+Ya estaba cargado (compra #42): no se duplica.
+Fila 48
+Factura A 00003-00050047
+Ya estaba cargado (compra #43): no se duplica.
+Fila 49
+Factura A 00007-00050048
+Ya estaba cargado (compra #44): no se duplica.
+Fila 50
+Factura A 00007-00050049
+El CUIT del emisor no es válido.
+Fila 51
+Tique factura A 00001-00050050
+Ya estaba cargado (compra #45): no se duplica.
+Fila 52
+Factura A 00003-00050051
+Ya estaba cargado (compra #46): no se duplica.
+Fila 53
+Factura A 00003-00050052
+Ya estaba cargado (compra #47): no se duplica.
+Fila 54
+Factura B 00005-00050053
+Ya estaba cargado (compra #48): no se duplica.
+Fila 55
+Factura C 00002-00050054
+Ya estaba cargado (compra #49): no se duplica.
+Fila 56
+Nota de crédito A 00003-00050055
+Ya estaba cargado (compra #50): no se duplica.
+Fila 57
+Factura A 00010-00050056
+Ya estaba cargado (compra #51): no se duplica.
+Fila 58
+Factura A 00003-00050057
+Ya estaba cargado (compra #52): no se duplica.
+Fila 59
+Factura A 00007-00050058
+Ya estaba cargado (compra #53): no se duplica.
+Fila 60
+Factura A 00007-00050059
+El CUIT del emisor no es válido.
+Fila 61
+Tique factura A 00001-00050060
+Ya estaba cargado (compra #54): no se duplica.
+Fila 62
+Factura A 00003-00050061
+Ya estaba cargado (compra #55): no se duplica.
+Fila 63
+Factura A 00003-00050062
+Ya estaba cargado (compra #56): no se duplica.
+Fila 64
+Factura B 00005-00050063
+Ya estaba cargado (compra #57): no se duplica.
+Fila 65
+Factura C 00002-00050064
+Ya estaba cargado (compra #58): no se duplica.
+Fila 66
+Nota de crédito A 00003-00050065
+Ya estaba cargado (compra #59): no se duplica.
+Fila 67
+Factura A 00010-00050066
+Ya estaba cargado (compra #60): no se duplica.
+Fila 68
+Factura A 00003-00050067
+Ya estaba cargado (compra #61): no se duplica.
+Fila 69
+Factura A 00007-00050068
+Ya estaba cargado (compra #62): no se duplica.
+Fila 70
+Factura A 00007-00050069
+El CUIT del emisor no es válido.
+Fila 71
+Tique factura A 00001-00050070
+Ya estaba cargado (compra #63): no se duplica.
+Fila 72
+Factura A 00003-00050071
+Ya estaba cargado (compra #64): no se duplica.
+Fila 73
+Factura A 00003-00050072
+Ya estaba cargado (compra #65): no se duplica.
+Fila 74
+Factura B 00005-00050073
+Ya estaba cargado (compra #66): no se duplica.
+Fila 75
+Factura C 00002-00050074
+Ya estaba cargado (compra #67): no se duplica.
+Fila 76
+Nota de crédito A 00003-00050075
+Ya estaba cargado (compra #68): no se duplica.
+Fila 77
+Factura A 00010-00050076
+Ya estaba cargado (compra #69): no se duplica.
+Fila 78
+Factura A 00003-00050077
+Ya estaba cargado (compra #70): no se duplica.
+Fila 79
+Factura A 00007-00050078
+Ya estaba cargado (compra #71): no se duplica.
+Fila 80
+Factura A 00007-00050079
+El CUIT del emisor no es válido.
+Fila 81
+Tique factura A 00001-00050080
+Ya estaba cargado (compra #72): no se duplica.
+Fila 82
+Factura A 00003-00050081
+Ya estaba cargado (compra #73): no se duplica.
+Fila 83
+Factura A 00003-00050082
+Ya estaba cargado (compra #74): no se duplica.
+Fila 84
+Factura B 00005-00050083
+Ya estaba cargado (compra #75): no se duplica.
+Fila 85
+Factura C 00002-00050084
+Ya estaba cargado (compra #76): no se duplica.
+Fila 86
+Nota de crédito A 00003-00050085
+Ya estaba cargado (compra #77): no se duplica.
+Fila 87
+Factura A 00010-00050086
+Ya estaba cargado (compra #78): no se duplica.
+Fila 88
+Factura A 00003-00050087
+Ya estaba cargado (compra #79): no se duplica.
+Fila 89
+Factura A 00007-00050088
+Ya estaba cargado (compra #80): no se duplica.
+Fila 90
+Factura A 00007-00050089
+El CUIT del emisor no es válido.
+Fila 91
+Tique factura A 00001-00050090
+Ya estaba cargado (compra #81): no se duplica.
+Fila 92
+Factura A 00003-00050091
+Ya estaba cargado (compra #82): no se duplica.
+Fila 93
+Factura A 00003-00050092
+Ya estaba cargado (compra #83): no se duplica.
+Fila 94
+Factura B 00005-00050093
+Ya estaba cargado (compra #84): no se duplica.
+Fila 95
+Factura C 00002-00050094
+Ya estaba cargado (compra #85): no se duplica.
+Fila 96
+Nota de crédito A 00003-00050095
+Ya estaba cargado (compra #86): no se duplica.
+Fila 97
+Factura A 00010-00050096
+Ya estaba cargado (compra #87): no se duplica.
+Fila 98
+Factura A 00003-00050097
+Ya estaba cargado (compra #88): no se duplica.
+Fila 99
+Factura A 00007-00050098
+Ya estaba cargado (compra #89): no se duplica.
+Fila 100
+Factura A 00007-00050099
+El CUIT del emisor no es válido.
+Fila 101
+Tique factura A 00001-00050100
+Ya estaba cargado (compra #90): no se duplica.
+Fila 102
+Factura A 00003-00050101
+Ya estaba cargado (compra #91): no se duplica.
+Fila 103
+Factura A 00003-00050102
+Ya estaba cargado (compra #92): no se duplica.
+Fila 104
+Factura B 00005-00050103
+Ya estaba cargado (compra #93): no se duplica.
+Fila 105
+Factura C 00002-00050104
+Ya estaba cargado (compra #94): no se duplica.
+Fila 106
+Nota de crédito A 00003-00050105
+Ya estaba cargado (compra #95): no se duplica.
+Fila 107
+Factura A 00010-00050106
+Ya estaba cargado (compra #96): no se duplica.
+Fila 108
+Factura A 00003-00050107
+Ya estaba cargado (compra #97): no se duplica.
+Fila 109
+Factura A 00007-00050108
+Ya estaba cargado (compra #98): no se duplica.
+Fila 110
+Factura A 00007-00050109
+El CUIT del emisor no es válido.
+Fila 111
+Tique factura A 00001-00050110
+Ya estaba cargado (compra #99): no se duplica.
+Fila 112
+Factura A 00003-00050111
+Ya estaba cargado (compra #100): no se duplica.
+Fila 113
+Factura A 00003-00050112
+Ya estaba cargado (compra #101): no se duplica.
+Fila 114
+Factura B 00005-00050113
+Ya estaba cargado (compra #102): no se duplica.
+Fila 115
+Factura C 00002-00050114
+Ya estaba cargado (compra #103): no se duplica.
+Fila 116
+Nota de crédito A 00003-00050115
+Ya estaba cargado (compra #104): no se duplica.
+Fila 117
+Factura A 00010-00050116
+Ya estaba cargado (compra #105): no se duplica.
+Fila 118
+Factura A 00003-00050117
+Ya estaba cargado (compra #106): no se duplica.
+Fila 119
+Factura A 00007-00050118
+Ya estaba cargado (compra #107): no se duplica.
+Fila 120
+Factura A 00007-00050119
+El CUIT del emisor no es válido.
+Fila 121
+Tique factura A 00001-00050120
+Ya estaba cargado (compra #108): no se duplica.
+Fila 122
+Factura A 00003-00050121
+Ya estaba cargado (compra #109): no se duplica.
+Fila 123
+Factura A 00003-00050122
+Ya estaba cargado (compra #110): no se duplica.
+Fila 124
+Factura B 00005-00050123
+Ya estaba cargado (compra #111): no se duplica.
+Fila 125
+Factura C 00002-00050124
+Ya estaba cargado (compra #112): no se duplica.
+Fila 126
+Nota de crédito A 00003-00050125
+Ya estaba cargado (compra #113): no se duplica.
+Fila 127
+Factura A 00010-00050126
+Ya estaba cargado (compra #114): no se duplica.
+Fila 128
+Factura A 00003-00050127
+Ya estaba cargado (compra #115): no se duplica.
+Fila 129
+Factura A 00007-00050128
+Ya estaba cargado (compra #116): no se duplica.
+Fila 130
+Factura A 00007-00050129
+El CUIT del emisor no es válido.
+Fila 131
+Tique factura A 00001-00050130
+Ya estaba cargado (compra #117): no se duplica.
+Fila 132
+Factura A 00003-00050131
+Ya estaba cargado (compra #118): no se duplica.
+Fila 133
+Factura A 00003-00050132
+Ya estaba cargado (compra #119): no se duplica.
+Fila 134
+Factura B 00005-00050133
+Ya estaba cargado (compra #120): no se duplica.
+Fila 135
+Factura C 00002-00050134
+Ya estaba cargado (compra #121): no se duplica.
+Fila 136
+Nota de crédito A 00003-00050135
+Ya estaba cargado (compra #122): no se duplica.
+Fila 137
+Factura A 00010-00050136
+Ya estaba cargado (compra #123): no se duplica.
+Fila 138
+Factura A 00003-00050137
+Ya estaba cargado (compra #124): no se duplica.
+Fila 139
+Factura A 00007-00050138
+Ya estaba cargado (compra #125): no se duplica.
+Fila 140
+Factura A 00007-00050139
+El CUIT del emisor no es válido.
+Fila 141
+Tique factura A 00001-00050140
+Ya estaba cargado (compra #126): no se duplica.
+Fila 142
+Factura A 00003-00050141
+Ya estaba cargado (compra #127): no se duplica.
+Fila 143
+Factura A 00003-00050142
+Ya estaba cargado (compra #128): no se duplica.
+Fila 144
+Factura B 00005-00050143
+Ya estaba cargado (compra #129): no se duplica.
+Fila 145
+Factura C 00002-00050144
+Ya estaba cargado (compra #130): no se duplica.
+Fila 146
+Nota de crédito A 00003-00050145
+Ya estaba cargado (compra #131): no se duplica.
+Fila 147
+Factura A 00010-00050146
+Ya estaba cargado (compra #132): no se duplica.
+Fila 148
+Factura A 00003-00050147
+Ya estaba cargado (compra #133): no se duplica.
+Fila 149
+Factura A 00007-00050148
+Ya estaba cargado (compra #134): no se duplica.
+Fila 150
+Factura A 00007-00050149
+El CUIT del emisor no es válido.
+Fila 151
+Tique factura A 00001-00050150
+Ya estaba cargado (compra #135): no se duplica.
+Fila 152
+Factura A 00003-00050151
+Ya estaba cargado (compra #136): no se duplica.
+Fila 153
+Factura A 00003-00050152
+Ya estaba cargado (compra #137): no se duplica.
+Fila 154
+Factura B 00005-00050153
+Ya estaba cargado (compra #138): no se duplica.
+Fila 155
+Factura C 00002-00050154
+Ya estaba cargado (compra #139): no se duplica.
+Fila 156
+Nota de crédito A 00003-00050155
+Ya estaba cargado (compra #140): no se duplica.
+Fila 157
+Factura A 00010-00050156
+Ya estaba cargado (compra #141): no se duplica.
+Fila 158
+Factura A 00003-00050157
+Ya estaba cargado (compra #142): no se duplica.
+Fila 159
+Factura A 00007-00050158
+Ya estaba cargado (compra #143): no se duplica.
+Fila 160
+Factura A 00007-00050159
+El CUIT del emisor no es válido.
+Fila 161
+Tique factura A 00001-00050160
+Ya estaba cargado (compra #144): no se duplica.
+Fila 162
+Factura A 00003-00050161
+Ya estaba cargado (compra #145): no se duplica.
+Fila 163
+Factura A 00003-00050162
+Ya estaba cargado (compra #146): no se duplica.
+Fila 164
+Factura B 00005-00050163
+Ya estaba cargado (compra #147): no se duplica.
+Fila 165
+Factura C 00002-00050164
+Ya estaba cargado (compra #148): no se duplica.
+Fila 166
+Nota de crédito A 00003-00050165
+Ya estaba cargado (compra #149): no se duplica.
+Fila 167
+Factura A 00010-00050166
+Ya estaba cargado (compra #150): no se duplica.
+Fila 168
+Factura A 00003-00050167
+Ya estaba cargado (compra #151): no se duplica.
+Fila 169
+Factura A 00007-00050168
+Ya estaba cargado (compra #152): no se duplica.
+Fila 170
+Factura A 00007-00050169
+El CUIT del emisor no es válido.
+Fila 171
+Tique factura A 00001-00050170
+Ya estaba cargado (compra #153): no se duplica.
+Fila 172
+Factura A 00003-00050171
+Ya estaba cargado (compra #154): no se duplica.
+Fila 173
+Factura A 00003-00050172
+Ya estaba cargado (compra #155): no se duplica.
+Fila 174
+Factura B 00005-00050173
+Ya estaba cargado (compra #156): no se duplica.
+Fila 175
+Factura C 00002-00050174
+Ya estaba cargado (compra #157): no se duplica.
+Fila 176
+Nota de crédito A 00003-00050175
+Ya estaba cargado (compra #158): no se duplica.
+Fila 177
+Factura A 00010-00050176
+Ya estaba cargado (compra #159): no se duplica.
+Fila 178
+Factura A 00003-00050177
+Ya estaba cargado (compra #160): no se duplica.
+Fila 179
+Factura A 00007-00050178
+Ya estaba cargado (compra #161): no se duplica.
+Fila 180
+Factura A 00007-00050179
+El CUIT del emisor no es válido.
+Fila 181
+Tique factura A 00001-00050180
+Ya estaba cargado (compra #162): no se duplica.
+Fila 182
+Factura A 00003-00050181
+Ya estaba cargado (compra #163): no se duplica.
+Fila 183
+Factura A 00003-00050182
+Ya estaba cargado (compra #164): no se duplica.
+Fila 184
+Factura B 00005-00050183
+Ya estaba cargado (compra #165): no se duplica.
+Fila 185
+Factura C 00002-00050184
+Ya estaba cargado (compra #166): no se duplica.
+Fila 186
+Nota de crédito A 00003-00050185
+Ya estaba cargado (compra #167): no se duplica.
+Fila 187
+Factura A 00010-00050186
+Ya estaba cargado (compra #168): no se duplica.
+Fila 188
+Factura A 00003-00050187
+Ya estaba cargado (compra #169): no se duplica.
+Fila 189
+Factura A 00007-00050188
+Ya estaba cargado (compra #170): no se duplica.
+Fila 190
+Factura A 00007-00050189
+El CUIT del emisor no es válido.
+Fila 191
+Tique factura A 00001-00050190
+Ya estaba cargado (compra #171): no se duplica.
+Fila 192
+Factura A 00003-00050191
+Ya estaba cargado (compra #172): no se duplica.
+Fila 193
+Factura A 00003-00050192
+Ya estaba cargado (compra #173): no se duplica.
+Fila 194
+Factura B 00005-00050193
+Ya estaba cargado (compra #174): no se duplica.
+Fila 195
+Factura C 00002-00050194
+Ya estaba cargado (compra #175): no se duplica.
+Fila 196
+Nota de crédito A 00003-00050195
+Ya estaba cargado (compra #176): no se duplica.
+Fila 197
+Factura A 00010-00050196
+Ya estaba cargado (compra #177): no se duplica.
+Fila 198
+Factura A 00003-00050197
+Ya estaba cargado (compra #178): no se duplica.
+Fila 199
+Factura A 00007-00050198
+Ya estaba cargado (compra #179): no se duplica.
+Fila 200
+Factura A 00007-00050199
+El CUIT del emisor no es válido.
+Fila 201
+Tique factura A 00001-00050200
+Ya estaba cargado (compra #180): no se duplica.
+Fila 202
+Factura A 00003-00050201
+Ya estaba cargado (compra #181): no se duplica.
+Fila 203
+Factura A 00003-00050202
+Ya estaba cargado (compra #182): no se duplica.
+Fila 204
+Factura B 00005-00050203
+Ya estaba cargado (compra #183): no se duplica.
+Fila 205
+Factura C 00002-00050204
+Ya estaba cargado (compra #184): no se duplica.
+Fila 206
+Nota de crédito A 00003-00050205
+Ya estaba cargado (compra #185): no se duplica.
+Fila 207
+Factura A 00010-00050206
+Ya estaba cargado (compra #186): no se duplica.
+Fila 208
+Factura A 00003-00050207
+Ya estaba cargado (compra #187): no se duplica.
+Fila 209
+Factura A 00007-00050208
+Ya estaba cargado (compra #188): no se duplica.
+Fila 210
+Factura A 00007-00050209
+El CUIT del emisor no es válido.
+Fila 211
+Tique factura A 00001-00050210
+Ya estaba cargado (compra #189): no se duplica.
+Fila 212
+Factura A 00003-00050211
+Ya estaba cargado (compra #190): no se duplica.
+Fila 213
+Factura A 00003-00050212
+Ya estaba cargado (compra #191): no se duplica.
+Fila 214
+Factura B 00005-00050213
+Ya estaba cargado (compra #192): no se duplica.
+Fila 215
+Factura C 00002-00050214
+Ya estaba cargado (compra #193): no se duplica.
+Fila 216
+Nota de crédito A 00003-00050215
+Ya estaba cargado (compra #194): no se duplica.
+Fila 217
+Factura A 00010-00050216
+Ya estaba cargado (compra #195): no se duplica.
+Fila 218
+Factura A 00003-00050217
+Ya estaba cargado (compra #196): no se duplica.
+Fila 219
+Factura A 00007-00050218
+Ya estaba cargado (compra #197): no se duplica.
+Fila 220
+Factura A 00007-00050219
+El CUIT del emisor no es válido.
+Fila 221
+Tique factura A 00001-00050220
+Ya estaba cargado (compra #198): no se duplica.
+Fila 222
+Factura A 00003-00050221
+Ya estaba cargado (compra #199): no se duplica.
+Fila 223
+Factura A 00003-00050222
+Ya estaba cargado (compra #200): no se duplica.
+Fila 224
+Factura B 00005-00050223
+Ya estaba cargado (compra #201): no se duplica.
+Fila 225
+Factura C 00002-00050224
+Ya estaba cargado (compra #202): no se duplica.
+Fila 226
+Nota de crédito A 00003-00050225
+Ya estaba cargado (compra #203): no se duplica.
+Fila 227
+Factura A 00010-00050226
+Ya estaba cargado (compra #204): no se duplica.
+Fila 228
+Factura A 00003-00050227
+Ya estaba cargado (compra #205): no se duplica.
+Fila 229
+Factura A 00007-00050228
+Ya estaba cargado (compra #206): no se duplica.
+Fila 230
+Factura A 00007-00050229
+El CUIT del emisor no es válido.
+Fila 231
+Tique factura A 00001-00050230
+Ya estaba cargado (compra #207): no se duplica.
+Fila 232
+Factura A 00003-00050231
+Ya estaba cargado (compra #208): no se duplica.
+Fila 233
+Factura A 00003-00050232
+Ya estaba cargado (compra #209): no se duplica.
+Fila 234
+Factura B 00005-00050233
+Ya estaba cargado (compra #210): no se duplica.
+Fila 235
+Factura C 00002-00050234
+Ya estaba cargado (compra #211): no se duplica.
+Fila 236
+Nota de crédito A 00003-00050235
+Ya estaba cargado (compra #212): no se duplica.
+Fila 237
+Factura A 00010-00050236
+Ya estaba cargado (compra #213): no se duplica.
+Fila 238
+Factura A 00003-00050237
+Ya estaba cargado (compra #214): no se duplica.
+Fila 239
+Factura A 00007-00050238
+Ya estaba cargado (compra #215): no se duplica.
+Fila 240
+Factura A 00007-00050239
+El CUIT del emisor no es válido.
+Fila 241
+Tique factura A 00001-00050240
+Ya estaba cargado (compra #216): no se duplica.
+Fila 242
+Factura A 00003-00090000
+La fecha no es válida (se espera dd/mm/aaaa).
+Fila 243
+Factura A 00003-00090001
+La fecha no es válida (se espera dd/mm/aaaa).
+Fila 244
+Factura A 00003-00090002
+La fecha no es válida (se espera dd/mm/aaaa).
+Fila 245
+Factura A 00003-00090003
+La fecha no es válida (se espera dd/mm/aaaa).
+Fila 246
+Factura A 00003-00090004
+La fecha no es válida (se espera dd/mm/aaaa).
+Fila 247
+Factura A 00003-00090005
+La fecha no es válida (se espera dd/mm/aaaa).
+RESUMEN DEL MES
+216 comprobantes, 24 notas de crédito (restan).
+Neto gravado
+$2.545.200,00
+IVA crédito fiscal 10,5%
+sobre $48.000,00
+$5.040,00
+IVA crédito fiscal 21%
+sobre $2.473.200,00
+$519.372,00
+IVA a revisar (sin alícuota)
+$3.600,00
+No gravado y exento
+$0,00
+Otros tributos y percepciones
+$362.340,00
+Total
+$3.586.752,00
+COMPROBANTES DEL MES
+03/08/2026
+Factura A 00003-00050001 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050011 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050021 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050031 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050041 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050051 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050061 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050071 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050081 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050091 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050101 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050111 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050121 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050131 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050141 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050151 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050161 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050171 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050181 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050191 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050201 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050211 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050221 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050231 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+05/08/2026
+Factura A 00003-00050002 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050012 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050022 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050032 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050042 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050052 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050062 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050072 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050082 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050092 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050102 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050112 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050122 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050132 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050142 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050152 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050162 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050172 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050182 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050192 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050202 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050212 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050222 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050232 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+07/08/2026
+Factura B 00005-00050003 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050013 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050023 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050033 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050043 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050053 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050063 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050073 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050083 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050093 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050103 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050113 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050123 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050133 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050143 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050153 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050163 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050173 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050183 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050193 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050203 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050213 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050223 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050233 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+09/08/2026
+Factura C 00002-00050004 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050014 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050024 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050034 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050044 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050054 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050064 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050074 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050084 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050094 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050104 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050114 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050124 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050134 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050144 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050154 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050164 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050174 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050184 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050194 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050204 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050214 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050224 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050234 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+12/08/2026
+Nota de crédito A 00003-00050005 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050015 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050025 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050035 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050045 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050055 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050065 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050075 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050085 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050095 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050105 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050115 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050125 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050135 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050145 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050155 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050165 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050175 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050185 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050195 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050205 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050215 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050225 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050235 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+15/08/2026
+Factura A 00010-00050006 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050016 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050026 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050036 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050046 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050056 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050066 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050076 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050086 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050096 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050106 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050116 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050126 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050136 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050146 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050156 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050166 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050176 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050186 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050196 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050206 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050216 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050226 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050236 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+16/08/2026
+Factura A 00003-00050007 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050017 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050027 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050037 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050047 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050057 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050067 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050077 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050087 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050097 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050107 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050117 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050127 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050137 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050147 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050157 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050167 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050177 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050187 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050197 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050207 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050217 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050227 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050237 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+18/08/2026
+Factura A 00007-00050008 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050018 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050028 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050038 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050048 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050058 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050068 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050078 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050088 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050098 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050108 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050118 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050128 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050138 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050148 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050158 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050168 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050178 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050188 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050198 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050208 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050218 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050228 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050238 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+22/08/2026
+Tique factura A 00001-00050010 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050020 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050030 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050040 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050050 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050060 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050070 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050080 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050090 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050100 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050110 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050120 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050130 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050140 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050150 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050160 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050170 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050180 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050190 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050200 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050210 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050220 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050230 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050240 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00

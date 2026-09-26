@@ -1,0 +1,33 @@
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+Pedidos de alta de los estudios
+Cada estudio pide acá los clientes nuevos de su cartera. Abrí un pedido para configurarlo; al terminar, avisale a la contadora por WhatsApp.
+Altas de clientes nuevos
+Pedidos sobre un cliente
+Pendientes
+4
+Estudio de Diseño Lucía Ferro
+Estudio Contable Laboratorio · CUIT 27345671213 · Responsable inscripto · Sólo factura (profesional, servicio chico)
+26/9/26, 10:47 a. m.
+Ferretería El Tornillo SRL
+Estudio Contable Laboratorio · CUIT 30712345612 · Monotributista · Comercio con mostrador
+26/9/26, 10:47 a. m.
+Distribuidora del Sur SA
+Estudio Contable Laboratorio · CUIT 30709998818 · Monotributista · Varios locales
+26/9/26, 10:47 a. m.
+QA Kiosco Lab
+Estudio Contable Laboratorio · CUIT 20111111112 · Responsable inscripto · Sólo factura (profesional, servicio chico)
+26/9/26, 10:47 a. m.
+Hecho por Gestión Studio Grow

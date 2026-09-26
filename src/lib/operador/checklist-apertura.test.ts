@@ -36,6 +36,7 @@ function magraLomasReciénCreada(over: Partial<EstadoApertura> = {}): EstadoAper
     slug: "magra-lomas",
     blueprintId: "carniceria",
     subdomain: null,
+    direccionPropia: null,
     usuariosActivos: 1,
     arcaCuit: null,
     arcaPuntoVenta: null,
@@ -43,6 +44,7 @@ function magraLomasReciénCreada(over: Partial<EstadoApertura> = {}): EstadoAper
     certificadoCargado: false,
     certCuit: null,
     modoArca: "homologacion",
+    facturacionEncendida: true,
     condicionIvaDisponible: false,
     contacto: {
       addressLine: CARNICERIA.brandingDefaults.addressLine ?? null,
@@ -58,6 +60,7 @@ function magraLomasReciénCreada(over: Partial<EstadoApertura> = {}): EstadoAper
 function magraLomasLista(over: Partial<EstadoApertura> = {}): EstadoApertura {
   return magraLomasReciénCreada({
     subdomain: "magra-lomas",
+    direccionPropia: "https://magra-lomas.gsg.test",
     usuariosActivos: 3,
     arcaCuit: CUIT_OK,
     arcaPuntoVenta: 4,
@@ -238,6 +241,19 @@ test("modo stub nunca es 'listo para facturar'", () => {
   assert.equal(evaluarListoParaFacturar(magraLomasLista({ modoArca: "stub" })).listo, false);
 });
 
+test("GSG-15: con la facturación apagada en toda la plataforma, ningún negocio está listo para facturar", () => {
+  const e = magraLomasLista({ modoArca: "real", arcaHomologacion: true, facturacionEncendida: false });
+  const r = evaluarListoParaFacturar(e);
+  assert.equal(r.listo, false);
+  assert.equal(r.bloqueadoPorMigracion, false);
+  assert.ok(r.faltantes.some((f) => /facturación está apagada para toda la plataforma/.test(f)));
+  const fila = item(e, "facturacion");
+  assert.equal(fila.ok, false);
+  assert.match(fila.detalle, /apagada para toda la plataforma/);
+  // Encendida, el mismo negocio sí está listo: el interruptor es lo único que faltaba.
+  assert.equal(evaluarListoParaFacturar({ ...e, facturacionEncendida: true }).listo, true);
+});
+
 test("CUIT del certificado distinto al del tenant bloquea (la firma lo rechaza)", () => {
   const f = evaluarListoParaFacturar(magraLomasLista({ certCuit: "27222222228" }));
   assert.equal(f.listo, false);
@@ -253,8 +269,26 @@ test("tabla de credenciales sin aplicar se reporta como bloqueo de migración, n
 // --- Subdominio y usuarios ---------------------------------------------------
 
 test("subdominio vacío o en blanco cuenta como pendiente", () => {
-  assert.equal(item(magraLomasLista({ subdomain: "   " }), "subdominio").ok, false);
+  assert.equal(item(magraLomasLista({ subdomain: "   ", direccionPropia: null }), "subdominio").ok, false);
   assert.equal(item(magraLomasLista({ subdomain: "magra-lomas" }), "subdominio").ok, true);
+});
+
+test("un subdominio cargado que la plataforma no publica NO es «Listo» (la contadora lo ve sin dirección)", () => {
+  const i = item(magraLomasLista({ subdomain: "paularios-lab", direccionPropia: null }), "subdominio");
+  assert.equal(i.ok, false);
+  assert.match(i.detalle, /paularios-lab.*todavía no abre/);
+  assert.equal(item(magraLomasLista({ subdomain: "paularios-lab", direccionPropia: "https://paularios-lab.gsg.test" }), "subdominio").ok, true);
+});
+
+test("un negocio que no es de mostrador (Genérico, una fonoaudióloga) no lee textos de retiro, caja ni «tenant»", () => {
+  const fono = magraLomasReciénCreada({ slug: "paularios-lab", blueprintId: "generico", productos: [], contacto: null });
+  const r = checklistApertura(fono);
+  const todo = r.items.map((x) => `${x.label} ${x.detalle} ${x.porQue}`).join(" | ");
+  assert.doesNotMatch(todo, /retirar|mostrador\.|abrir la caja|tenant|best-effort|blueprint|semilla/i);
+  assert.equal(item(fono, "direccion").label, "Dirección del negocio");
+  assert.equal(item(fono, "precios").ok, null, "precios no aplica");
+  // Y el comercio de mostrador conserva lo suyo.
+  assert.match(item(magraLomasReciénCreada(), "direccion").porQue, /retirar/);
 });
 
 test("un solo usuario es pendiente; dos ya no", () => {

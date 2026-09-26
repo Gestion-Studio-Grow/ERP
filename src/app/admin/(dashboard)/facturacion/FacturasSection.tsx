@@ -11,6 +11,8 @@ import {
   type EstadoFiscal,
 } from "@/lib/facturacion-actions";
 import { emitirFacturaDePruebaAction } from "@/lib/arca-pruebas-actions";
+import { nombreDelComprobante } from "@/lib/factura-de-prueba";
+import FacturaDePrueba from "./FacturaDePrueba";
 import type { ModoArca } from "@/plugins/arca";
 import { useToast } from "../ToastProvider";
 import { Badge, Button, fmtCuit, fmtMoneyARS, type BadgeTone } from "@/components/ui";
@@ -122,10 +124,14 @@ export default function FacturasSection({
         {estado.pendientes === 0 && (
           <span className="text-sm text-muted">No hay facturas pendientes de autorización.</span>
         )}
-        {estado.modo !== "real" && (
-          <Button type="button" variant="outline" size="sm" disabled={probando} onClick={probarFactura}>
-            {probando ? "Probando…" : "Modo prueba: emitir factura de prueba"}
-          </Button>
+        {estado.facturaDePrueba ? (
+          <FacturaDePrueba />
+        ) : (
+          estado.modo !== "real" && (
+            <Button type="button" variant="outline" size="sm" disabled={probando} onClick={probarFactura}>
+              {probando ? "Probando…" : "Modo prueba: emitir factura de prueba"}
+            </Button>
+          )
         )}
       </div>
 
@@ -155,7 +161,9 @@ export default function FacturasSection({
                   </td>
                   <td className="block px-4 py-2 text-sm tabular-nums sm:table-cell sm:px-[22px] sm:py-[13px] sm:text-right">{fmtMoneyARS(f.total)}</td>
                   <td className="block px-4 py-2 font-mono text-sm text-muted sm:table-cell sm:px-[22px] sm:py-[13px]">{f.cae ?? "—"}</td>
-                  <td className="block px-4 py-2 text-sm tabular-nums text-muted sm:table-cell sm:px-[22px] sm:py-[13px]">{f.numero ?? "—"}</td>
+                  <td className="block px-4 py-2 text-sm tabular-nums text-muted sm:table-cell sm:px-[22px] sm:py-[13px]">
+                    {(estado.conLetra ? nombreDelComprobante(f.tipoComprobante, f.puntoVenta, f.numero) : null) ?? f.numero ?? "—"}
+                  </td>
                 </tr>
               );
             })}

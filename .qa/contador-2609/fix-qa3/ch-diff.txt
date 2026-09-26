@@ -1,0 +1,8 @@
+diff -r .qa/contador-2609/integracion/ch-antes/admin-duena.html .qa/contador-2609/fix-qa3/ch-despues/admin-duena.html
+330c330
+< <p data-parte="valor" class="mt-[7px] text-[27px] font-bold leading-tight tracking-[-0.03em] tabular-nums text-strong">26</p>
+---
+> <p data-parte="valor" class="mt-[7px] text-[27px] font-bold leading-tight tracking-[-0.03em] tabular-nums text-strong">23</p>
+DIFF_EXIT 1
+pendientes desde la hora de la línea base (13:23 UTC): 26
+pendientes desde ahora: 23 (lo que muestra la pantalla)

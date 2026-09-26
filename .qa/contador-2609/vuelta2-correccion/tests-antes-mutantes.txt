@@ -1,0 +1,25 @@
+== MUTANTE: sin exigir decisión ante parecidos / sin rechazo ya-en-cartera / checklist por subdominio cargado / CUIT en minúsculas ==
+not ok 8 - lo que contesta el botón dice dónde queda el pedido (la bandeja de Soporte GSG)
+  name: 'AssertionError'
+  expected:
+  actual: 'Listo: quedó en la bandeja de pedidos de Soporte GSG (corregir el cuit del emisor). Queda marcado en la ficha hasta que lo resuelvan.'
+not ok 9 - configurador: parecidos sin CUIT, ya en la cartera y descarte visible para la contadora
+    -   error: 'Puede haber un negocio igual sin CUIT cargado. Marcá «Es otro negocio» o elegí cuál es para cargarle el CUIT.',
+  name: 'AssertionError'
+  expected:
+    error: 'Puede haber un negocio igual sin CUIT cargado. Marcá «Es otro negocio» o elegí cuál es para cargarle el CUIT.'
+  actual:
+not ok 28 - un subdominio cargado que la plataforma no publica NO es «Listo» (la contadora lo ve sin dirección)
+  name: 'AssertionError'
+  expected: false
+  actual: true
+# pass 27
+# fail 3
+== MUTANTE: sin rechazo «ya en la cartera» ==
+not ok 1 - configurador: parecidos sin CUIT, ya en la cartera y descarte visible para la contadora
+    +   yaConfigurada: false
+    -   error: 'Ya está en la cartera de este estudio.',
+    error: 'Ya está en la cartera de este estudio.'
+    yaConfigurada: false
+# pass 0
+# fail 1

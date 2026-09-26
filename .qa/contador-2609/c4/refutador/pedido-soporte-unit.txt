@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: corregir el CUIT exige un CUIT válido (dígito verificador) y lo guarda sin guiones
+ok 1 - corregir el CUIT exige un CUIT válido (dígito verificador) y lo guarda sin guiones
+  ---
+  duration_ms: 4.442021
+  type: 'test'
+  ...
+# Subtest: un tipo de pedido desconocido o una nota larguísima no pasan
+ok 2 - un tipo de pedido desconocido o una nota larguísima no pasan
+  ---
+  duration_ms: 0.595381
+  type: 'test'
+  ...
+# Subtest: un pedido resuelto por Soporte deja de estar abierto; una fila con forma rara se ignora
+ok 3 - un pedido resuelto por Soporte deja de estar abierto; una fila con forma rara se ignora
+  ---
+  duration_ms: 0.863159
+  type: 'test'
+  ...
+# Subtest: el límite de facturas automáticas se dice con el plan del cliente, no con un número fijo
+ok 4 - el límite de facturas automáticas se dice con el plan del cliente, no con un número fijo
+  ---
+  duration_ms: 27.262156
+  type: 'test'
+  ...
+# Subtest: la ficha ofrece sólo los pedidos que aplican, lo urgente primero y lo ya pedido con su fecha
+ok 5 - la ficha ofrece sólo los pedidos que aplican, lo urgente primero y lo ya pedido con su fecha
+  ---
+  duration_ms: 28.683886
+  type: 'test'
+  ...
+# Subtest: Soporte cierra un pedido: «no corresponde» exige el porqué; «hecho» no
+ok 6 - Soporte cierra un pedido: «no corresponde» exige el porqué; «hecho» no
+  ---
+  duration_ms: 1.471518
+  type: 'test'
+  ...
+# Subtest: la respuesta de Soporte cierra el pedido, se muestra en la ficha 60 días y deja pedirlo de nuevo; una respuesta suelta no inventa nada
+ok 7 - la respuesta de Soporte cierra el pedido, se muestra en la ficha 60 días y deja pedirlo de nuevo; una respuesta suelta no inventa nada
+  ---
+  duration_ms: 1.543813
+  type: 'test'
+  ...
+# Subtest: lo que contesta el botón dice dónde queda el pedido (la bandeja de Soporte GSG)
+ok 8 - lo que contesta el botón dice dónde queda el pedido (la bandeja de Soporte GSG)
+  ---
+  duration_ms: 1.26011
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 790.518687

@@ -1,0 +1,16 @@
+ABRE Paula Ríos Fonoaudiología http://localhost:3210/operador/solicitudes/cmuignw8y009pa17d9ybf8gx9 botones=["Salir de la consola","Crear el cliente","Descartar el pedido"] | aviso CUIT: Ya tiene acceso: contador@estudio.lab
+PLAN Facturación (sugerido)
+PASALE Paula Ríos Fonoaudiología: idx=-1 Saltar al contenido | G | CONSOLA GSG | Negocios | Dar de alta | Pedidos | Dirección | Diseño | Buscar un negocio por nombre, slug o link | Ctrl K | DG | Dueño de GSG | Pedidos | Dar de alta un negocio | ← Pedidos de alta | Configurar a Paula Ríos Fonoaudiología | Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio. | Este pedido ya está cerrado. Si hace falta cambiar algo, se hace desde la ficha del negocio. | Hecho por Gestión Studio Grow
+ALERT [""]
+ABRE Almacén Mayorista Don Tito SRL http://localhost:3210/operador/solicitudes/cmuignwz5009qa17dipqi101r botones=["Salir de la consola","Crear el cliente","Descartar el pedido"] | aviso CUIT: Ya tiene acceso: contador@estudio.lab
+PLAN Comerciante (sugerido)
+PASALE Almacén Mayorista Don Tito SRL: idx=-1 Saltar al contenido | G | CONSOLA GSG | Negocios | Dar de alta | Pedidos | Dirección | Diseño | Buscar un negocio por nombre, slug o link | Ctrl K | DG | Dueño de GSG | Pedidos | Dar de alta un negocio | ← Pedidos de alta | Configurar a Almacén Mayorista Don Tito SRL | Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio. | Este pedido ya está cerrado. Si hace falta cambiar algo, se hace desde la ficha del negocio. | Hecho por Gestión Studio Grow
+ALERT [""]
+ABRE Grupo Andino SA http://localhost:3210/operador/solicitudes/cmuignxmy009ra17dlmkwr7g8 botones=["Salir de la consola","Crear el cliente","Descartar el pedido"] | aviso CUIT: Ya tiene acceso: contador@estudio.lab
+PLAN PyME (sugerido)
+PASALE Grupo Andino SA: idx=-1 Saltar al contenido | G | CONSOLA GSG | Negocios | Dar de alta | Pedidos | Dirección | Diseño | Buscar un negocio por nombre, slug o link | Ctrl K | DG | Dueño de GSG | Pedidos | Dar de alta un negocio | ← Pedidos de alta | Configurar a Grupo Andino SA | Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio. | Este pedido ya está cerrado. Si hace falta cambiar algo, se hace desde la ficha del negocio. | Hecho por Gestión Studio Grow
+ALERT [""]
+ABRE QA Kiosco Lab http://localhost:3210/operador/solicitudes/cmuigo13n009sa17dagdu4mu6 botones=["Salir de la consola","Crear el cliente","Descartar el pedido"] | aviso CUIT: Ya tiene acceso: contador@estudio.lab
+ABRE Ferretería El Tornillo SRL http://localhost:3210/operador/solicitudes/cmuigo1qk009ta17d46vilukv botones=["Salir de la consola","Sumar a la cartera","Descartar el pedido"] | aviso CUIT: Ese CUIT ya tiene negocio en la plataforma: Ferretería El Tornillo SRL (punto de venta 4). No se crea otro: se suma el existente a la cartera, con su plan, sus apps y sus usuarios. Eso le abre sus datos al estudio.
+ABRE Ferretería UAT http://localhost:3210/operador/solicitudes/cmuigpuou009ua17dxrie9bt9 botones=["Salir de la consola","Sumar a la cartera","Descartar el pedido"] | aviso CUIT: Ese CUIT ya tiene negocio en la plataforma: Ferretería El Tornillo UAT (punto de venta 3). No se crea otro: se suma el existente a la cartera, con su plan, sus apps y sus usuarios. Eso le abre sus datos al estudio.
+ERRORES []

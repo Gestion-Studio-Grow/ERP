@@ -1,0 +1,32 @@
+{
+  "status": 200,
+  "url": "http://estudio.localhost:3210/contador",
+  "links": [
+    {
+      "href": "https://andino-lab.localhost/admin/facturacion/bancos",
+      "texto": "Abrir su panel"
+    },
+    {
+      "href": "https://delsur-lab.localhost/admin/facturacion/bancos",
+      "texto": "Abrir su panel"
+    },
+    {
+      "href": "https://dontito-lab.localhost/admin/facturacion/bancos",
+      "texto": "Abrir su panel"
+    },
+    {
+      "href": "https://tornillo-lab.localhost/admin/facturacion/bancos",
+      "texto": "Abrir su panel"
+    },
+    {
+      "href": "https://luciaferro-lab.localhost/admin/facturacion/bancos",
+      "texto": "Abrir su panel"
+    },
+    {
+      "href": "https://paularios-lab.localhost/admin/facturacion/bancos",
+      "texto": "Abrir su panel"
+    }
+  ],
+  "sinDireccion": 0,
+  "erroresDeConsola": []
+}

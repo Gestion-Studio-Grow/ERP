@@ -1,0 +1,25 @@
+b1-dontito-cierre-mes-1440 -> /admin/cierre-mes | h1: Cierre del mes | consola sin errores
+b3-dontito-facturacion-1440 -> /admin/facturacion | h1: Facturación y cobros | consola sin errores
+b3-dontito-factura-B-1 -> Listo: Factura B 0002-00000001 a Consumidor final por $1.210,00. CAE simulado STUB00000001. Ya está en la lista de comprobantes.
+b3-dontito-factura-B-1 (a los 8 s sigue a la vista) -> sí
+b3-dontito-factura-B-2 -> Listo: Factura B 0002-00000002 a Consumidor final por $1.210,00. CAE simulado STUB00000002. Ya está en la lista de comprobantes.
+b3-dontito-factura-B-2 (a los 8 s sigue a la vista) -> sí
+b3-dontito-factura-A -> Falta cargar qué Factura A te asignó ARCA (A común, A con leyenda o M). Consultalo en ARCA o con tu contador y cargalo en tus datos fiscales; hasta entonces, cada Factura A pasa por revisión.
+b3-dontito-factura-A (a los 8 s sigue a la vista) -> sí
+b1-andino-cierre-mes-1440 -> /admin/cierre-mes | h1: Cierre del mes | consola sin errores
+b1-riobamba-cierre-mes-1440 -> /admin/cierre-mes | h1: Cierre del mes | consola sin errores
+b4-losandes-panel-390 -> /admin | h1: Inicio | consola sin errores
+b1-losandes-cierre-mes-390 -> /admin/cierre-mes | h1: Cierre del mes | consola sin errores
+b3-losandes-facturacion-390 -> /admin/facturacion | h1: Facturación y cobros | consola sin errores
+b3-losandes-factura-B-390 -> Listo: Factura B 0002-00000001 a Consumidor final por $1.210,00. CAE simulado STUB00000001. Ya está en la lista de comprobantes.
+b3-losandes-factura-B-390 (a los 8 s sigue a la vista) -> sí
+b4-martina-panel-390 -> /admin | h1: Inicio | consola sin errores
+b3-martina-facturacion-390 -> /admin/facturacion | h1: Facturación y cobros | consola sin errores
+b3-martina-factura-C-390 -> Listo: Factura C 0001-00000001 a Consumidor final por $1.210,00. CAE simulado STUB00000001. Ya está en la lista de comprobantes.
+b3-martina-factura-C-390 (a los 8 s sigue a la vista) -> sí
+b3-contadora-cartera-1440 -> /contador | h1: Mi cartera | consola sin errores
+cartera, renglón de Los Andes: Librería Los Andes SRL · Librería Los Andes SRL · Librería Los Andes SRL
+paquete Los Andes 2026-08, encabezado de COMPRAS: Fecha;Proveedor;Documento;Número;Neto gravado;IVA crédito fiscal;Total
+paquete Los Andes 2026-08, IVA crédito: IVA crédito (facturas de proveedor);21790,50
+paquete Los Andes 2026-08, nota «no se sabe si…»: ya no
+dirección sin negocio (sinmapa-lab) -> /admin/login | Esta dirección todavía no abre ningún panel | salidas: Probar de nuevo

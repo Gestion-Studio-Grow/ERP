@@ -118,6 +118,9 @@ test("nadie fuera de la consola de GSG (y de la cartera del contador) escribe Ca
     ["src", "lib", "cartera-actions.ts"].join(sep),
     // El vínculo casa → local: vincularEnTx / darDeBajaEnTx, que sólo importa la consola.
     ["src", "lib", "multilocal", "multilocal-core.ts"].join(sep),
+    // El configurador de Soporte GSG (consola): suma a la cartera el cliente que el estudio pidió,
+    // con la guardia del negocio primero en la acción (guardia-negocio.test.ts) y el pedido del estudio.
+    ["src", "app", "operador", "(console)", "solicitudes", "configurador.server.ts"].join(sep),
   ]);
   const escribe = /\bcarteraCliente\s*\.\s*(create|createMany|createManyAndReturn|upsert|update|updateMany|updateManyAndReturn|delete|deleteMany)\s*\(/;
   const fuentes = archivos(SRC, (n) => /\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n));

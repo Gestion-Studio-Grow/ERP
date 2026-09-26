@@ -208,3 +208,16 @@ test("el libro se le oculta a un monotributista; sin comprobantes todavía, no",
   assert.equal(libroOcultoPara("responsable-inscripto"), false);
   assert.equal(libroOcultoPara("sin-comprobantes"), false, "todavía no se sabe qué es");
 });
+
+// QA 26/09, bloqueante 2: la condición CARGADA manda sobre la deducida de lo emitido.
+test("un responsable inscripto cargado es inscripto aunque todavía no haya emitido nada con CAE", async () => {
+  const { condicionDelNegocio } = await import("./libro-iva");
+  assert.equal(condicionDelNegocio("RESPONSABLE_INSCRIPTO", []), "responsable-inscripto");
+  assert.equal(condicionDelNegocio(" responsable_inscripto ", [11]), "responsable-inscripto");
+  assert.equal(condicionDelNegocio("MONOTRIBUTO", [1, 6]), "monotributo");
+  // Sin condición cargada (o una que el libro no distingue), se deduce como antes.
+  assert.equal(condicionDelNegocio(null, []), "sin-comprobantes");
+  assert.equal(condicionDelNegocio(undefined, [6]), "responsable-inscripto");
+  assert.equal(condicionDelNegocio("EXENTO", [11]), "monotributo");
+  assert.equal(condicionDelNegocio("", []), "sin-comprobantes");
+});

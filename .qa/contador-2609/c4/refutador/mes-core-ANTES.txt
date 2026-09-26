@@ -1,0 +1,154 @@
+TAP version 13
+# Subtest: cliente al día este mes: no le falta nada
+ok 1 - cliente al día este mes: no le falta nada
+  ---
+  duration_ms: 2.756448
+  type: 'test'
+  ...
+# Subtest: sin CUIT no puede facturar, y va primero que el cierre abierto y el extracto que falta
+ok 2 - sin CUIT no puede facturar, y va primero que el cierre abierto y el extracto que falta
+  ---
+  duration_ms: 18.642423
+  type: 'test'
+  ...
+# Subtest: un extracto cargado el mes pasado cuenta como que falta el de este mes
+ok 3 - un extracto cargado el mes pasado cuenta como que falta el de este mes
+  ---
+  duration_ms: 0.289571
+  type: 'test'
+  ...
+# Subtest: sin dirección propia el extracto no se puede subir: la acción es pedírsela a Soporte GSG
+ok 4 - sin dirección propia el extracto no se puede subir: la acción es pedírsela a Soporte GSG
+  ---
+  duration_ms: 0.191211
+  type: 'test'
+  ...
+# Subtest: los clientes en pausa o de baja no aparecen en el mes
+ok 5 - los clientes en pausa o de baja no aparecen en el mes
+  ---
+  duration_ms: 0.170377
+  type: 'test'
+  ...
+# Subtest: el mes de la cartera: grupos en orden de gravedad y, adentro, primero el que más factura
+ok 6 - el mes de la cartera: grupos en orden de gravedad y, adentro, primero el que más factura
+  ---
+  duration_ms: 0.546142
+  type: 'test'
+  ...
+# Subtest: cartera vacía: no hay nada pendiente
+ok 7 - cartera vacía: no hay nada pendiente
+  ---
+  duration_ms: 0.227786
+  type: 'test'
+  ...
+# Subtest: certificado vencido: no puede facturar, va en «No pueden facturar» y antes que uno que sólo está por vencer aunque facture más
+not ok 8 - certificado vencido: no puede facturar, va en «No pueden facturar» y antes que uno que sólo está por vencer aunque facture más
+  ---
+  duration_ms: 5.169856
+  type: 'test'
+  location: '/home/user/erp-contador/src/app/contador/mes-core.test.ts:2:6003'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+    -   'no_emite',
+        'vence'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'no_emite'
+    1: 'vence'
+  actual:
+    0: 'vence'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/app/contador/mes-core.test.ts:141:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: límite del plan agotado: no puede facturar, va en «No pueden facturar»
+not ok 9 - límite del plan agotado: no puede facturar, va en «No pueden facturar»
+  ---
+  duration_ms: 1.210454
+  type: 'test'
+  location: '/home/user/erp-contador/src/app/contador/mes-core.test.ts:2:7015'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        [
+    +     'vence',
+    -     'no_emite',
+          'Llegó al límite de facturas automáticas del plan'
+        ],
+        [
+          'vence',
+          'El certificado vence pronto'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: 'no_emite'
+      1: 'Llegó al límite de facturas automáticas del plan'
+    1:
+      0: 'vence'
+      1: 'El certificado vence pronto'
+  actual:
+    0:
+      0: 'vence'
+      1: 'Llegó al límite de facturas automáticas del plan'
+    1:
+      0: 'vence'
+      1: 'El certificado vence pronto'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/app/contador/mes-core.test.ts:153:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: sin dirección propia: el texto del extracto no promete que las ventas se facturan igual; avisa el plazo de ARCA (5 días bienes, 10 servicios)
+not ok 10 - sin dirección propia: el texto del extracto no promete que las ventas se facturan igual; avisa el plazo de ARCA (5 días bienes, 10 servicios)
+  ---
+  duration_ms: 0.696514
+  type: 'test'
+  location: '/home/user/erp-contador/src/app/contador/mes-core.test.ts:2:7478'
+  failureType: 'testCodeFailure'
+  error: 'Pedile a Soporte GSG que le active la dirección. Mientras tanto, guardá el extracto: las ventas del mes se facturan cuando lo subas.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: 'Pedile a Soporte GSG que le active la dirección. Mientras tanto, guardá el extracto: las ventas del mes se facturan cuando lo subas.'
+  operator: 'doesNotMatch'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-contador/src/app/contador/mes-core.test.ts:162:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 7
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 638.04868

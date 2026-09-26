@@ -1,0 +1,65 @@
+http://dontito-lab.localhost:3210/admin/cierre-mes
+Saltar al contenido
+C
+Comerciante
+Buscar en el menú
+Inicio
+Clientes
+Pedidos
+Caja
+Libro de caja
+Cierre del día
+Catálogo
+Compras
+Ajustes
+Reseñas
+Recordatorios
+Facturación
+Reportes
+Campañas
+Auditoría
+Usuarios
+Localización
+Apariencia
+A
+Almacén Mayorista Don Tito SRL
+Dueño/a
+Cerrar sesión
+Comerciante
+Panel de administración
+Cierre del mes
+Revisá los 8 pasos de agosto 2026, congelá el mes y bajá el paquete para tu contador: libro de caja, ventas con y sin comprobante, compras, cuentas corrientes y stock, en un solo archivo.
+← Julio 2026
+Agosto 2026
+Agosto 2026 está abierto6 de 8 pasos listos
+Revisá los pasos de abajo. Cuando estén listos (o sepas por qué no), congelá el mes.
+!
+1. Días cerrados en la caja Pendiente
+No hubo movimientos de caja hasta el 31/08/2026: cerrá igual ese día (con $0), así nada se puede cargar después con fecha de agosto.
+Cerrar la caja hasta el 31/08/2026
+–
+2. Comprobantes con CAE No aplica
+No hay comprobantes con fecha de agosto.
+–
+3. Ventas anuladas con nota de crédito No aplica
+Sin comprobantes en agosto, no hay nada que compensar.
+–
+4. Extracto del banco importado No aplica
+Tu negocio no importa extractos del banco.
+–
+5. Compras con proveedor No aplica
+No hubo compras en agosto.
+–
+6. Comisiones liquidadas No aplica
+Tu negocio no liquida comisiones.
+–
+7. Recuento de stock No aplica
+Tu negocio no controla stock.
+!
+8. Paquete para el contador Pendiente
+Se descarga con el mes congelado: ésa es la versión final para tu contador. Antes, es un borrador.
+Congelar Agosto 2026
+Todavía no se puede. No hubo movimientos de caja hasta el 31/08/2026: cerrá igual ese día (con $0), así nada se puede cargar después con fecha de agosto. Cerrá esos días desde el paso 1 y volvé.
+¿Tu contador necesita algo antes? Bajá un borrador del paquete. Dice que es borrador: los números todavía pueden cambiar.
+Lo que pasó con agosto 2026
+26/09 · Carla Méndez (Estudio Contable Laboratorio) bajó un borrador del paquete

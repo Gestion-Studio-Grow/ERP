@@ -26,10 +26,107 @@ import {
 import { Tabla, type ColumnaTabla } from "@/components/ui/Tabla";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import { fmtDateTimeAr } from "@/lib/datetime";
-import { UMBRAL_ALERTA_CAP, type EstadoCartera, type FilaCartera } from "@/lib/cartera-core";
+import { UMBRAL_ALERTA_CAP, textoLimiteDelPlan, type EstadoCartera, type FilaCartera } from "@/lib/cartera-core";
 import { emitirAutomaticasClienteAction, setEstadoCarteraAction } from "@/lib/cartera-actions";
 import { fechaCorta, type CierreMesCliente } from "@/lib/cierre-mes/cierre-mes";
 import { nombreDelMes } from "@/lib/libros/fecha-fiscal";
+import { noPuedeEmitir, type FilaMonitor } from "@/lib/monitor-core";
+import { AVISO_PLAZO_ARCA, EXTRACTO_SIN_DIRECCION, pendientesDelCliente, type GrupoId } from "./mes-core";
+import { pedidosDeLaFicha, type PedidoAbierto, type RespuestaDeSoporte } from "./pedido-soporte";
+import PedirASoporte from "./PedirASoporte";
+import { direccionDelPanel, type PanelesDeLaCartera } from "@/lib/contador/direccion-del-panel";
+
+const ROTULO_GRUPO: Readonly<Record<GrupoId, string>> = {
+  no_emite: "No puede facturar",
+  vence: "Vence",
+  cierre: "Cierre",
+  extracto: "Extracto",
+  revisar: "Revisar",
+};
+
+/**
+ * Lo que le falta a UN cliente este mes (mismas reglas que «El mes» de arriba), los pedidos a
+ * Soporte GSG que aplican y cómo entrar a su negocio. Va en la ficha de los dos diseños.
+ */
+function LoQueFalta({
+  fila,
+  monitor,
+  pedidos,
+  respuestas,
+  inicioDelMes,
+  linkPanel,
+}: {
+  fila: FilaCartera;
+  monitor: FilaMonitor | undefined;
+  pedidos: readonly PedidoAbierto[];
+  respuestas: readonly RespuestaDeSoporte[];
+  inicioDelMes: Date;
+  linkPanel: string | null;
+}) {
+  const tieneDireccion = linkPanel !== null;
+  const falta = pendientesDelCliente(fila, monitor, inicioDelMes, tieneDireccion);
+  const cuitIncompleto = (monitor?.senales ?? []).some((s) => s.id === "perfil_fiscal_incompleto");
+  const pedibles = pedidosDeLaFicha({
+    clienteTenantId: fila.clienteTenantId,
+    tieneDireccion,
+    sinPlan: !fila.limitePlan || fila.limitePlan.origen === "sin-plan",
+    cuitIncompleto,
+    abiertos: pedidos,
+    respuestas,
+  });
+  return (
+    <>
+      <Bloque id="cliente-falta" titulo="Lo que falta este mes" cuenta={falta.length > 0 ? fmtNumberAR(falta.length) : undefined} className="mt-6">
+        {fila.estado !== "activa" ? (
+          <Renglon titulo="En pausa" detalle="No se le sigue el mes mientras esté en pausa. Reactivalo desde «Más» para volver a verlo." />
+        ) : falta.length === 0 ? (
+          <Renglon folio={<Marca tipo="hecho">Al día</Marca>} titulo="Nada pendiente" detalle="Puede facturar, el cierre está congelado y el extracto del mes está cargado." />
+        ) : (
+          falta.map((p, i) => (
+            <Renglon
+              key={`${p.grupo}-${i}`}
+              folio={<Marca tipo={p.grupo === "no_emite" ? "atencion" : "pendiente"}>{ROTULO_GRUPO[p.grupo]}</Marca>}
+              titulo={p.detalle}
+              detalle={p.quien === "gsg" ? `Lo resuelve Soporte GSG. ${p.accion}` : p.accion}
+            />
+          ))
+        )}
+        {monitor && noPuedeEmitir(monitor) && fila.estado === "activa" && (
+          <p className="pt-2 text-[13px] text-muted">Hasta que se resuelva, sus ventas quedan guardadas. {AVISO_PLAZO_ARCA}</p>
+        )}
+      </Bloque>
+      <Bloque id="cliente-acceso" titulo="Entrar a su negocio" className="mt-6">
+        {linkPanel ? (
+          <Renglon
+            titulo="Su panel"
+            detalle="Se abre en otra pestaña y se entra con el email y la clave del alta de ese negocio: ahí se suben extractos, se revisan ventas y se cierra el mes."
+            tecla={
+              <a href={linkPanel} target="_blank" rel="noreferrer" className={buttonClasses("outline", "sm")} data-ui="button" data-variant="outline" data-size="sm">
+                Abrir
+              </a>
+            }
+          />
+        ) : (
+          <Renglon
+            folio={<Marca tipo="atencion">Sin dirección</Marca>}
+            titulo="Todavía no tiene su dirección propia"
+            detalle="Desde acá podés emitir sus facturas automáticas, bajar el paquete del mes y cargar sus comprobantes recibidos; para subir el extracto y entrar a su panel necesita la dirección, que la activa Soporte GSG."
+          />
+        )}
+        <Renglon
+          titulo="Comprobantes recibidos"
+          detalle="Las compras del mes con el archivo de «Mis Comprobantes» de ARCA."
+          tecla={
+            <a href={`/contador/cliente/${encodeURIComponent(fila.clienteTenantId)}/recibidos`} className={buttonClasses("outline", "sm")} data-ui="button" data-variant="outline" data-size="sm">
+              Cargar
+            </a>
+          }
+        />
+      </Bloque>
+      <PedirASoporte clienteTenantId={fila.clienteTenantId} alias={fila.alias} pedidos={pedibles} />
+    </>
+  );
+}
 
 /**
  * Mini barra de objetivo (facturas automáticas del mes vs el límite del plan) para la celda
@@ -109,14 +206,34 @@ function EstadoBadge({ estado }: { estado: EstadoCartera }) {
 
 export default function CarteraPanel({
   filas,
-  baseDomain,
+  paneles,
+  monitor = [],
+  pedidos = [],
+  respuestasSoporte = [],
+  inicioDelMes,
+  clienteInicial = null,
 }: {
   filas: FilaCartera[];
-  baseDomain: string | null;
+  /** Qué clientes tienen panel propio y en qué dirección (lo arma el servidor con la regla del deploy). */
+  paneles: PanelesDeLaCartera;
+  /** Las señales de cada cliente (la misma pasada que «El mes»). */
+  monitor?: FilaMonitor[];
+  /** Los pedidos a Soporte GSG sin resolver del estudio. */
+  pedidos?: PedidoAbierto[];
+  /** Lo que Soporte GSG ya contestó a los pedidos del estudio (la más nueva primero). */
+  respuestasSoporte?: RespuestaDeSoporte[];
+  /** Comienzo del mes en curso (ISO, hora de Argentina): desde cuándo un extracto es «de este mes». */
+  inicioDelMes: string;
+  /** Ficha abierta de entrada (`?cliente=`), sólo si ese cliente está en la cartera. */
+  clienteInicial?: string | null;
 }) {
   const router = useRouter();
   const nuevo = useDiseno();
-  const [seleccionId, setSeleccionId] = useState<string | null>(null);
+  const [seleccionId, setSeleccionId] = useState<string | null>(
+    clienteInicial && filas.some((f) => f.clienteTenantId === clienteInicial) ? clienteInicial : null,
+  );
+  const monitorPorId = useMemo(() => new Map(monitor.map((m) => [m.clienteTenantId, m])), [monitor]);
+  const inicio = useMemo(() => new Date(inicioDelMes), [inicioDelMes]);
   const [confirmaBaja, setConfirmaBaja] = useState(false);
   const [mensaje, setMensaje] = useState<{ tono: "ok" | "error"; texto: string } | null>(null);
   const [pendiente, startTransition] = useTransition();
@@ -167,7 +284,7 @@ export default function CarteraPanel({
     });
 
   const urlCliente = (f: FilaCartera, path: string): string | null =>
-    f.subdomain && baseDomain ? `https://${f.subdomain}.${baseDomain}${path}` : null;
+    direccionDelPanel(paneles, f.subdomain, path);
 
   // El mes de cierre es el mismo para toda la cartera (el anterior al de hoy).
   const mesCierre = filas.find((f) => f.cierreMes)?.cierreMes?.mes ?? null;
@@ -367,7 +484,7 @@ export default function CarteraPanel({
                     detalle={seleccion.validezFiscal ? "Con CAE de ARCA" : "Sin validez fiscal"}
                     valor={<Plata valor={seleccion.montoFacturadoMes} sinCentavos />}
                   />
-                  <Cifra titulo="Facturas automáticas" detalle={`Límite del plan: ${fmtNumberAR(seleccion.capFacturasMes)} por mes`} valor={fmtNumberAR(seleccion.facturasMes)} />
+                  <Cifra titulo="Facturas automáticas" detalle={textoLimiteDelPlan(seleccion.capFacturasMes, seleccion.limitePlan)} valor={fmtNumberAR(seleccion.facturasMes)} />
                   <Cifra titulo="Para revisar" detalle="Ventas que necesitan datos del comprador" valor={fmtNumberAR(seleccion.pendientesRevision)} />
                   <Cifra titulo="Listas para emitir" detalle="Propuestas automáticas esperando un clic" valor={fmtNumberAR(seleccion.listasParaEmitir)} />
                   {seleccion.cierreMes && (
@@ -403,7 +520,7 @@ export default function CarteraPanel({
                         ? `Último: ${seleccion.ultimaImportacion.nombreArchivo} · ${fmtDateTimeAr(seleccion.ultimaImportacion.createdAt)}`
                         : linkImportar
                           ? "Sin extractos importados todavía"
-                          : "Sin dirección propia todavía: no se puede importar"
+                          : EXTRACTO_SIN_DIRECCION
                     }
                     tecla={
                       linkImportar ? (
@@ -443,6 +560,14 @@ export default function CarteraPanel({
                     </MenuMas>
                     {seleccion.estado !== "activa" && <span className="text-[13px] text-muted">En pausa: reactivalo para emitir.</span>}
                   </div>
+                  <LoQueFalta
+                    fila={seleccion}
+                    monitor={monitorPorId.get(seleccion.clienteTenantId)}
+                    pedidos={pedidos}
+                    respuestas={respuestasSoporte}
+                    inicioDelMes={inicio}
+                    linkPanel={linkPanel}
+                  />
                   {confirmaBaja && (
                     <Franja tono="peligro" className="mt-3">
                       <span className="block">La baja saca a {seleccion.alias} de tu cartera; sus datos y facturas quedan intactos en su propio negocio.</span>
@@ -623,7 +748,7 @@ export default function CarteraPanel({
         </div>
 
         {/* Panel de detalle pegajoso */}
-        <aside className="xl:sticky xl:top-6 xl:self-start" aria-label="Detalle del cliente seleccionado">
+        <aside id="cartera-cliente" className="xl:sticky xl:top-6 xl:self-start" aria-label="Detalle del cliente seleccionado">
           {seleccion ? (
             <div className="rounded-xl border border-line bg-surface-raised p-5 shadow-card">
               <h2 className="text-lg font-semibold tracking-[-0.02em] text-strong">{seleccion.alias}</h2>
@@ -711,8 +836,8 @@ export default function CarteraPanel({
                   </a>
                 ) : (
                   <p className="text-xs text-muted">
-                    Este cliente todavía no tiene URL propia: los extractos se importan desde su
-                    backoffice cuando el dueño le asigne una.
+                    Sin dirección propia todavía: no hay un panel donde subir el extracto. Guardá el
+                    archivo del banco o de Mercado Pago y pedí la dirección acá abajo.
                   </p>
                 )}
                 {urlCliente(seleccion, "/admin") && (
@@ -778,6 +903,14 @@ export default function CarteraPanel({
                     propio negocio.
                   </p>
                 )}
+                <LoQueFalta
+                  fila={seleccion}
+                  monitor={monitorPorId.get(seleccion.clienteTenantId)}
+                  pedidos={pedidos}
+                  respuestas={respuestasSoporte}
+                  inicioDelMes={inicio}
+                  linkPanel={urlCliente(seleccion, "/admin")}
+                />
               </div>
             </div>
           ) : (

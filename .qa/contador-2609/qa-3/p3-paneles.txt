@@ -1,0 +1,9 @@
+dontito login -> http://dontito-lab.localhost:3210/admin
+dontito /admin -> /admin | h1: Inicio | botones: Subir extracto · Facturado del mes $0 · Facturas emitidas 0 / 1.000 1.000 dispon · Pendientes de revisión 0 todo al día · Listas para emitir 0 · Conectar Mercado Pago · Ver facturas emitidas · Ver facturación automática →
+dontito /admin/facturacion -> /admin/facturacion | h1: Facturación y cobros | botones: Abrir el tablero → · Generar link de cobro · Modo prueba: generar cobro de prueba · Procesar pendientes (0) · Modo prueba: emitir factura de prueba
+dontito /admin/cierre-mes -> /admin | h1: Inicio | botones: Subir extracto · Facturado del mes $0 · Facturas emitidas 0 / 1.000 1.000 dispon · Pendientes de revisión 0 todo al día · Listas para emitir 0 · Conectar Mercado Pago · Ver facturas emitidas · Ver facturación automática →
+dontito /admin/libros -> /admin/no-disponible?app=libro-iva | h1: Libro IVA no está disponible | botones: Ir al inicio · Cerrar sesión
+paula login -> http://paularios-lab.localhost:3210/admin
+paula /admin -> /admin | h1: Inicio | botones: Subir extracto · Facturado del mes $0 · Facturas emitidas 0 / 159 159 disponible · Pendientes de revisión 0 todo al día · Listas para emitir 0 · Conectar Mercado Pago · Ver facturas emitidas · Ver facturación automática →
+paula /admin/facturacion -> /admin/facturacion | h1: Facturación y cobros | botones: Abrir el tablero → · Generar link de cobro · Modo prueba: generar cobro de prueba · Procesar pendientes (0) · Modo prueba: emitir factura de prueba
+paula /admin/facturacion/bancos -> /admin/facturacion/bancos | h1: Facturación automática | botones: ← Facturación y cobros · Configuración · Pendientes de revisión 0 Nada para revis · Traer cobros históricos

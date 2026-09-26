@@ -1,0 +1,172 @@
+TAP version 13
+# Subtest: la tabla vigente tiene las 11 categorías con topes crecientes y queda marcada provisional
+ok 1 - la tabla vigente tiene las 11 categorías con topes crecientes y queda marcada provisional
+  ---
+  duration_ms: 1.634114
+  type: 'test'
+  ...
+# Subtest: la categoría siguiente de la K no existe; letras válidas A a K
+ok 2 - la categoría siguiente de la K no existe; letras válidas A a K
+  ---
+  duration_ms: 0.238724
+  type: 'test'
+  ...
+# Subtest: facturar exactamente el tope de la A sigue siendo A; un centavo más ya es B
+ok 3 - facturar exactamente el tope de la A sigue siendo A; un centavo más ya es B
+  ---
+  duration_ms: 0.569397
+  type: 'test'
+  ...
+# Subtest: en el tope justo de su categoría está cerca, no excedido
+ok 4 - en el tope justo de su categoría está cerca, no excedido
+  ---
+  duration_ms: 21.016935
+  type: 'test'
+  ...
+# Subtest: un centavo arriba del tope de la B: excedido y le corresponde la C
+ok 5 - un centavo arriba del tope de la B: excedido y le corresponde la C
+  ---
+  duration_ms: 0.726726
+  type: 'test'
+  ...
+# Subtest: el 80 % del tope es cerca; apenas menos es bien
+ok 6 - el 80 % del tope es cerca; apenas menos es bien
+  ---
+  duration_ms: 0.719948
+  type: 'test'
+  ...
+# Subtest: un cliente de la K que supera su tope: corresponde la exclusión, no otra letra
+ok 7 - un cliente de la K que supera su tope: corresponde la exclusión, no otra letra
+  ---
+  duration_ms: 0.52139
+  type: 'test'
+  ...
+# Subtest: un cliente de la K cerca del tope no tiene categoría siguiente para ofrecer
+ok 8 - un cliente de la K cerca del tope no tiene categoría siguiente para ofrecer
+  ---
+  duration_ms: 0.445962
+  type: 'test'
+  ...
+# Subtest: la ventana va del día siguiente al mismo día del año pasado hasta hoy
+ok 9 - la ventana va del día siguiente al mismo día del año pasado hasta hoy
+  ---
+  duration_ms: 1.748188
+  type: 'test'
+  ...
+# Subtest: 12 meses móviles: lo del mismo día del año pasado ya no cuenta; lo del día siguiente sí
+ok 10 - 12 meses móviles: lo del mismo día del año pasado ya no cuenta; lo del día siguiente sí
+  ---
+  duration_ms: 0.564659
+  type: 'test'
+  ...
+# Subtest: una factura grande que sale de la ventana devuelve al cliente a su categoría
+ok 11 - una factura grande que sale de la ventana devuelve al cliente a su categoría
+  ---
+  duration_ms: 0.640848
+  type: 'test'
+  ...
+# Subtest: las notas de crédito restan: sin ellas estaría excedido, con ellas no
+ok 12 - las notas de crédito restan: sin ellas estaría excedido, con ellas no
+  ---
+  duration_ms: 0.604781
+  type: 'test'
+  ...
+# Subtest: sólo cuenta lo autorizado por ARCA: pendientes y rechazadas no suman
+ok 13 - sólo cuenta lo autorizado por ARCA: pendientes y rechazadas no suman
+  ---
+  duration_ms: 0.18023
+  type: 'test'
+  ...
+# Subtest: en una factura A o B cuenta el neto (el IVA no es ingreso); en la C, el total
+ok 14 - en una factura A o B cuenta el neto (el IVA no es ingreso); en la C, el total
+  ---
+  duration_ms: 0.158079
+  type: 'test'
+  ...
+# Subtest: sin categoría cargada NO asume la A: pide cargarla y no inventa tope
+ok 15 - sin categoría cargada NO asume la A: pide cargarla y no inventa tope
+  ---
+  duration_ms: 0.355962
+  type: 'test'
+  ...
+# Subtest: próxima recategorización: la de febrero mira hasta el 31/12 y vence el 5; la de agosto, hasta el 30/06
+ok 16 - próxima recategorización: la de febrero mira hasta el 31/12 y vence el 5; la de agosto, hasta el 30/06
+  ---
+  duration_ms: 2.542384
+  type: 'test'
+  ...
+# Subtest: recategorización: en curso desde el cierre del semestre hasta el día 5, inclusive
+ok 17 - recategorización: en curso desde el cierre del semestre hasta el día 5, inclusive
+  ---
+  duration_ms: 0.245304
+  type: 'test'
+  ...
+# Subtest: orden: excedidos, después sin categoría, después cerca (el más apretado primero), después bien
+ok 18 - orden: excedidos, después sin categoría, después cerca (el más apretado primero), después bien
+  ---
+  duration_ms: 1.06445
+  type: 'test'
+  ...
+# Subtest: fuera de la ventana de recategorización no se informa el cierre del semestre
+ok 19 - fuera de la ventana de recategorización no se informa el cierre del semestre
+  ---
+  duration_ms: 0.278357
+  type: 'test'
+  ...
+# Subtest: en la ventana de agosto mira los 12 meses al 30/06: lo de julio no cuenta, lo de julio del año pasado sí
+ok 20 - en la ventana de agosto mira los 12 meses al 30/06: lo de julio no cuenta, lo de julio del año pasado sí
+  ---
+  duration_ms: 0.610394
+  type: 'test'
+  ...
+# Subtest: al cierre sigue en su categoría: no pide recategorizar
+ok 21 - al cierre sigue en su categoría: no pide recategorizar
+  ---
+  duration_ms: 0.508802
+  type: 'test'
+  ...
+# Subtest: al cierre facturó menos: también cambia (baja de categoría y paga menos)
+ok 22 - al cierre facturó menos: también cambia (baja de categoría y paga menos)
+  ---
+  duration_ms: 0.366447
+  type: 'test'
+  ...
+# Subtest: al cierre sin categoría cargada informa la letra pero no dice que cambia
+ok 23 - al cierre sin categoría cargada informa la letra pero no dice que cambia
+  ---
+  duration_ms: 0.445483
+  type: 'test'
+  ...
+# Subtest: al cierre por encima de la K: pide revisarlo antes del vencimiento
+ok 24 - al cierre por encima de la K: pide revisarlo antes del vencimiento
+  ---
+  duration_ms: 0.431823
+  type: 'test'
+  ...
+# Subtest: al cierre las notas de crédito del semestre también restan
+ok 25 - al cierre las notas de crédito del semestre también restan
+  ---
+  duration_ms: 0.382062
+  type: 'test'
+  ...
+# Subtest: ventana de lectura: en la recategorización arranca en el inicio de los 12 meses al cierre
+ok 26 - ventana de lectura: en la recategorización arranca en el inicio de los 12 meses al cierre
+  ---
+  duration_ms: 0.356934
+  type: 'test'
+  ...
+# Subtest: orden: a igual semáforo, primero quien tiene que recategorizarse ahora
+ok 27 - orden: a igual semáforo, primero quien tiene que recategorizarse ahora
+  ---
+  duration_ms: 1.652677
+  type: 'test'
+  ...
+1..27
+# tests 27
+# suites 0
+# pass 27
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 570.080802

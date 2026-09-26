@@ -1,0 +1,1166 @@
+URL: http://estudio.localhost:3210/contador/cliente/cmuijm529000bac7dp0pabyzv/recibidos
+scrollWidth/innerWidth: 390/390
+consola+http>=400: 2
+[warning] The resource http://estudio.localhost:3210/diseno/archivo-latin.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+[warning] The resource http://estudio.localhost:3210/diseno/archivo-latin.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+---- CONTROLES
+button «Cambiar tema»
+a /contador/cliente/cmuijm529000bac7dp0pabyzv/recibidos?mes=2026-07 «Mes anterior»
+a /contador/cliente/cmuijm529000bac7dp0pabyzv/recibidos?mes=2026-09 «Mes siguiente»
+a /contador/cliente/cmuijm529000bac7dp0pabyzv/recibidos/csv?mes=2026-08 «Descargar para el libro de IVA compras»
+a /contador «Volver a la cartera»
+input:file «archivo» name=archivo
+button «Elegir otro archivo»
+button «Cargar comprobantes»
+---- TEXTO
+E
+Estudio Contable Laboratorio
+Compras de Distribuidora Río Bamba SA
+
+Comprobantes recibidos · CUIT 30-70512347-7. El mes va por la fecha del comprobante, no por el día en que se cargó.
+
+Mes anterior
+08/2026
+Mes siguiente
+Descargar para el libro de IVA compras
+Volver a la cartera
+CARGAR EL ARCHIVO DE ARCA
+Mis Comprobantes › Recibidos › Descargar (CSV o Excel), sin editarlo.
+Elegir otro archivo
+p6-recibidos-riobamba-grande.csv
+Cargar comprobantes
+Entraron 216 comprobantes (24 notas de crédito, que restan). 48 quedaron a revisar. 30 con errores: no se cargaron (el detalle está abajo).
+Neto gravado
+$2.545.200,00
+IVA 10,5%
+sobre $48.000,00
+$5.040,00
+IVA 21%
+sobre $2.473.200,00
+$519.372,00
+IVA a revisar (sin alícuota)
+$3.600,00
+Otros tributos y percepciones
+$362.340,00
+Total
+$3.586.752,00
+A REVISAR
+Entraron, pero mirá el comprobante antes de cerrar el libro.
+Fila 3
+Factura A 00003-00050002 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 9
+Factura A 00007-00050008 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 13
+Factura A 00003-00050012 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 19
+Factura A 00007-00050018 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 23
+Factura A 00003-00050022 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 29
+Factura A 00007-00050028 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 33
+Factura A 00003-00050032 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 39
+Factura A 00007-00050038 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 43
+Factura A 00003-00050042 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 49
+Factura A 00007-00050048 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 53
+Factura A 00003-00050052 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 59
+Factura A 00007-00050058 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 63
+Factura A 00003-00050062 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 69
+Factura A 00007-00050068 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 73
+Factura A 00003-00050072 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 79
+Factura A 00007-00050078 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 83
+Factura A 00003-00050082 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 89
+Factura A 00007-00050088 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 93
+Factura A 00003-00050092 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 99
+Factura A 00007-00050098 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 103
+Factura A 00003-00050102 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 109
+Factura A 00007-00050108 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 113
+Factura A 00003-00050112 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 119
+Factura A 00007-00050118 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 123
+Factura A 00003-00050122 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 129
+Factura A 00007-00050128 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 133
+Factura A 00003-00050132 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 139
+Factura A 00007-00050138 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 143
+Factura A 00003-00050142 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 149
+Factura A 00007-00050148 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 153
+Factura A 00003-00050152 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 159
+Factura A 00007-00050158 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 163
+Factura A 00003-00050162 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 169
+Factura A 00007-00050168 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 173
+Factura A 00003-00050172 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 179
+Factura A 00007-00050178 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 183
+Factura A 00003-00050182 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 189
+Factura A 00007-00050188 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 193
+Factura A 00003-00050192 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 199
+Factura A 00007-00050198 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 203
+Factura A 00003-00050202 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 209
+Factura A 00007-00050208 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 213
+Factura A 00003-00050212 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 219
+Factura A 00007-00050218 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 223
+Factura A 00003-00050222 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 229
+Factura A 00007-00050228 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+Fila 233
+Factura A 00003-00050232 · DISTRIBUIDORA DEL SUR SA
+Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+Fila 239
+Factura A 00007-00050238 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+NO SE CARGARON
+Fila 10
+Factura A 00007-00050009
+El CUIT del emisor no es válido.
+Fila 20
+Factura A 00007-00050019
+El CUIT del emisor no es válido.
+Fila 30
+Factura A 00007-00050029
+El CUIT del emisor no es válido.
+Fila 40
+Factura A 00007-00050039
+El CUIT del emisor no es válido.
+Fila 50
+Factura A 00007-00050049
+El CUIT del emisor no es válido.
+Fila 60
+Factura A 00007-00050059
+El CUIT del emisor no es válido.
+Fila 70
+Factura A 00007-00050069
+El CUIT del emisor no es válido.
+Fila 80
+Factura A 00007-00050079
+El CUIT del emisor no es válido.
+Fila 90
+Factura A 00007-00050089
+El CUIT del emisor no es válido.
+Fila 100
+Factura A 00007-00050099
+El CUIT del emisor no es válido.
+Fila 110
+Factura A 00007-00050109
+El CUIT del emisor no es válido.
+Fila 120
+Factura A 00007-00050119
+El CUIT del emisor no es válido.
+Fila 130
+Factura A 00007-00050129
+El CUIT del emisor no es válido.
+Fila 140
+Factura A 00007-00050139
+El CUIT del emisor no es válido.
+Fila 150
+Factura A 00007-00050149
+El CUIT del emisor no es válido.
+Fila 160
+Factura A 00007-00050159
+El CUIT del emisor no es válido.
+Fila 170
+Factura A 00007-00050169
+El CUIT del emisor no es válido.
+Fila 180
+Factura A 00007-00050179
+El CUIT del emisor no es válido.
+Fila 190
+Factura A 00007-00050189
+El CUIT del emisor no es válido.
+Fila 200
+Factura A 00007-00050199
+El CUIT del emisor no es válido.
+Fila 210
+Factura A 00007-00050209
+El CUIT del emisor no es válido.
+Fila 220
+Factura A 00007-00050219
+El CUIT del emisor no es válido.
+Fila 230
+Factura A 00007-00050229
+El CUIT del emisor no es válido.
+Fila 240
+Factura A 00007-00050239
+El CUIT del emisor no es válido.
+Fila 242
+Factura A 00003-00090000
+La fecha no es válida (se espera dd/mm/aaaa).
+Fila 243
+Factura A 00003-00090001
+La fecha no es válida (se espera dd/mm/aaaa).
+Fila 244
+Factura A 00003-00090002
+La fecha no es válida (se espera dd/mm/aaaa).
+Fila 245
+Factura A 00003-00090003
+La fecha no es válida (se espera dd/mm/aaaa).
+Fila 246
+Factura A 00003-00090004
+La fecha no es válida (se espera dd/mm/aaaa).
+Fila 247
+Factura A 00003-00090005
+La fecha no es válida (se espera dd/mm/aaaa).
+RESUMEN DEL MES
+216 comprobantes, 24 notas de crédito (restan).
+Neto gravado
+$2.545.200,00
+IVA crédito fiscal 10,5%
+sobre $48.000,00
+$5.040,00
+IVA crédito fiscal 21%
+sobre $2.473.200,00
+$519.372,00
+IVA a revisar (sin alícuota)
+$3.600,00
+No gravado y exento
+$0,00
+Otros tributos y percepciones
+$362.340,00
+Total
+$3.586.752,00
+COMPROBANTES DEL MES
+03/08/2026
+Factura A 00003-00050001 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050011 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050021 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050031 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050041 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050051 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050061 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050071 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050081 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050091 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050101 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050111 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050121 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050131 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050141 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050151 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050161 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050171 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050181 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050191 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050201 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050211 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050221 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+03/08/2026
+Factura A 00003-00050231 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+05/08/2026
+Factura A 00003-00050002 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050012 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050022 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050032 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050042 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050052 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050062 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050072 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050082 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050092 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050102 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050112 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050122 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050132 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050142 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050152 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050162 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050172 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050182 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050192 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050202 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050212 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050222 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+05/08/2026
+Factura A 00003-00050232 · DISTRIBUIDORA DEL SUR SA
+A revisar: Neto, IVA, no gravado, exento y otros tributos no suman el total: revisá el comprobante.
+$3.525,00
+07/08/2026
+Factura B 00005-00050003 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050013 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050023 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050033 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050043 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050053 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050063 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050073 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050083 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050093 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050103 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050113 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050123 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050133 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050143 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050153 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050163 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050173 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050183 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050193 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050203 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050213 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050223 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+07/08/2026
+Factura B 00005-00050233 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.225,00
+09/08/2026
+Factura C 00002-00050004 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050014 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050024 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050034 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050044 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050054 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050064 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050074 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050084 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050094 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050104 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050114 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050124 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050134 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050144 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050154 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050164 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050174 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050184 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050194 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050204 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050214 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050224 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+09/08/2026
+Factura C 00002-00050234 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.015,00
+12/08/2026
+Nota de crédito A 00003-00050005 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050015 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050025 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050035 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050045 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050055 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050065 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050075 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050085 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050095 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050105 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050115 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050125 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050135 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050145 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050155 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050165 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050175 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050185 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050195 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050205 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050215 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050225 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+12/08/2026
+Nota de crédito A 00003-00050235 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$136,00
+15/08/2026
+Factura A 00010-00050006 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050016 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050026 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050036 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050046 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050056 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050066 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050076 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050086 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050096 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050106 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050116 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050126 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050136 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050146 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050156 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050166 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050176 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050186 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050196 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050206 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050216 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050226 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+15/08/2026
+Factura A 00010-00050236 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$136.068,00
+16/08/2026
+Factura A 00003-00050007 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050017 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050027 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050037 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050047 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050057 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050067 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050077 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050087 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050097 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050107 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050117 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050127 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050137 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050147 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050157 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050167 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050177 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050187 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050197 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050207 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050217 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050227 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+16/08/2026
+Factura A 00003-00050237 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.225,00
+18/08/2026
+Factura A 00007-00050008 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050018 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050028 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050038 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050048 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050058 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050068 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050078 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050088 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050098 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050108 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050118 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050128 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050138 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050148 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050158 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050168 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050178 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050188 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050198 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050208 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050218 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050228 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+18/08/2026
+Factura A 00007-00050238 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.165,00
+22/08/2026
+Tique factura A 00001-00050010 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050020 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050030 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050040 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050050 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050060 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050070 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050080 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050090 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050100 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050110 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050120 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050130 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050140 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050150 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050160 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050170 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050180 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050190 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050200 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050210 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050220 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050230 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00
+22/08/2026
+Tique factura A 00001-00050240 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$136,00

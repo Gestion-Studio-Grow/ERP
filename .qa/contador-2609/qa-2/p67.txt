@@ -1,0 +1,8 @@
+Abrir visible 390: true
+FICHA: Lo que no podés cambiar vos en Don Tito (RI) | Falta | Activar la dirección propia del cliente | Sin su dirección propia no hay un panel donde subir el extracto ni entrar a su negocio. | Pedir | Corregir el CUIT del emisor | Si el CUIT que ves no es el de su constancia de ARCA, pedí que lo corrijan. | Pedir | Pedidos de alta en curso | 3 | Soporte GSG los configura y te avisa por WhatsApp | QA Kiosco Lab | CUIT 20111111112 · pedido el 26/9/26 | Ferretería El Tornillo SRL | CUIT 30712345612 · pedido el 26/9/26 | Ferretería UA
+pedir CUIT visible true
+CUIT MALO -> ["Ese CUIT no es válido: revisá los números (el último es el dígito verificador).","Ese CUIT no es válido: revisá los números (el último es el dígito verificador).","Ese CUIT no es válido: revisá los números (el último es el dígito verificador)."]
+CUIT BUENO -> ["Listo: quedó en la bandeja de pedidos de Soporte GSG (corregir el cuit del emisor). Queda marcado en la ficha hasta que lo resuelvan.","Listo: quedó en la bandeja de pedidos de Soporte GSG (corregir el cuit del emisor). Queda marcado en la ficha hasta que lo resuelvan."]
+ERR390 [] scrollW 390
+SOPORTE ve Don Tito: ["Corregir el CUIT del emisor: Don Tito (RI)\nEstudio Contable Laboratorio · pidió Carla Méndez (contador@estudio.lab) · CUIT hoy: 30715554417 · CUIT correcto: 30715554425\n26/9/26, 11:08 a. m."]
+ERRop []

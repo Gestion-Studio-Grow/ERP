@@ -425,6 +425,23 @@ export async function registerFiscalDocument(
  * número) ya lo tiene registrado OTRA factura del negocio? El plugin la usa antes de adoptar un
  * comprobante que encontró autorizado en ARCA: si ya es de otra venta, no lo adopta.
  */
+/**
+ * El último número AUTORIZADO que el negocio tiene guardado para ese punto de venta y tipo (0 si
+ * ninguno). Es lo que ARCA contestaría a `FECompUltimoAutorizado`; lo usa el modo prueba (stub),
+ * que no tiene memoria entre pedidos. Con la RLS del negocio.
+ */
+export async function ultimoNumeroAutorizado(tenantId: string, puntoVenta: number, tipo: number): Promise<number> {
+  const r = await tenantTransaction(
+    (tx) =>
+      tx.invoice.aggregate({
+        where: { tenantId, puntoVenta, tipoComprobante: tipo, status: "AUTHORIZED", numero: { not: null } },
+        _max: { numero: true },
+      }),
+    { tenantId },
+  );
+  return r._max.numero ?? 0;
+}
+
 export async function numeroUsadoPorOtraFactura(consulta: {
   tenantId: string;
   invoiceId: string;

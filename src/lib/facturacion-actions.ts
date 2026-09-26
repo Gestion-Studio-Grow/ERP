@@ -27,6 +27,8 @@ export interface FacturaVista {
   numero: number | null;
   puntoVenta: number;
   rechazoMotivo: string | null;
+  /** Tipo de ARCA (1 = A, 6 = B, 11 = C); nulo hasta que se autoriza. */
+  tipoComprobante: number | null;
 }
 
 export interface EstadoFiscal {
@@ -40,6 +42,14 @@ export interface EstadoFiscal {
   homologacion: boolean;
   /** Cantidad de facturas pendientes de autorización (status PENDING). */
   pendientes: number;
+  /**
+   * ¿Puede emitir una factura de prueba DE VERDAD (guardada, con letra y receptor)? Sólo con ARCA
+   * en modo prueba y la facturación electrónica asignada (módulo `arca`). Es la misma regla que
+   * `emitirFacturaDePruebaGuardadaAction`; sin ella (CH incluida), el banco de pruebas de siempre.
+   */
+  facturaDePrueba: boolean;
+  /** ¿Se muestra la letra del comprobante en la lista? Con la facturación electrónica asignada. */
+  conLetra: boolean;
 }
 
 /**
@@ -60,7 +70,7 @@ function toNum(v: unknown): number {
 
 /** Estado fiscal "vacío pero válido" — para degradar sin romper la pantalla. */
 function estadoFiscalVacio(): EstadoFiscal {
-  return { modo: modoDesdeEnv(), cuit: null, puntoVenta: null, homologacion: true, pendientes: 0 };
+  return { modo: modoDesdeEnv(), cuit: null, puntoVenta: null, homologacion: true, pendientes: 0, facturaDePrueba: false, conLetra: false };
 }
 
 /**
@@ -90,6 +100,7 @@ export async function getFacturacion(): Promise<{ facturas: FacturaVista[]; esta
         select: {
           id: true, fecha: true, total: true, neto: true, iva: true, status: true,
           cae: true, caeVencimiento: true, numero: true, puntoVenta: true, rechazoMotivo: true,
+          tipoComprobante: true,
         },
       }),
       // Config fiscal aislada: si faltan las columnas `arca*` (schema viejo), no debe
@@ -97,7 +108,7 @@ export async function getFacturacion(): Promise<{ facturas: FacturaVista[]; esta
       prisma.tenant
         .findUnique({
           where: { id: tenantId },
-          select: { arcaCuit: true, arcaPuntoVenta: true, arcaHomologacion: true },
+          select: { arcaCuit: true, arcaPuntoVenta: true, arcaHomologacion: true, modules: true },
         })
         .catch(() => null),
       prisma.invoice.count({ where: { status: "PENDING" } }),
@@ -118,6 +129,8 @@ export async function getFacturacion(): Promise<{ facturas: FacturaVista[]; esta
         puntoVenta: tenant?.arcaPuntoVenta ?? null,
         homologacion: tenant?.arcaHomologacion ?? true,
         pendientes,
+        facturaDePrueba: modoDesdeEnv() === "stub" && (tenant?.modules ?? []).includes("arca"),
+        conLetra: (tenant?.modules ?? []).includes("arca"),
       },
     };
   } catch (err) {

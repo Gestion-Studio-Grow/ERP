@@ -1,0 +1,6 @@
+diff -r .qa/contador-2609/vuelta2-armado/ch-antes/admin-duena.html .qa/contador-2609/vuelta2-armado/ch-despues/admin-duena.html
+330c330
+< <p data-parte="valor" class="mt-[7px] text-[27px] font-bold leading-tight tracking-[-0.03em] tabular-nums text-strong">25</p>
+---
+> <p data-parte="valor" class="mt-[7px] text-[27px] font-bold leading-tight tracking-[-0.03em] tabular-nums text-strong">24</p>
+DIFF_EXIT 1

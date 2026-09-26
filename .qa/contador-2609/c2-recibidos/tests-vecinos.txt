@@ -1,0 +1,757 @@
+TAP version 13
+# Subtest: guard /contador: sin sesión → redirect a /admin/login
+ok 1 - guard /contador: sin sesión → redirect a /admin/login
+  ---
+  duration_ms: 5.730936
+  type: 'test'
+  ...
+# Subtest: guard /contador: cookie de sesión tampereada → redirect a login
+ok 2 - guard /contador: cookie de sesión tampereada → redirect a login
+  ---
+  duration_ms: 9.577672
+  type: 'test'
+  ...
+# Subtest: guard /contador: con sesión de tenant válida → pasa (NextResponse.next)
+ok 3 - guard /contador: con sesión de tenant válida → pasa (NextResponse.next)
+  ---
+  duration_ms: 32.155362
+  type: 'test'
+  ...
+# Subtest: el matcher del proxy cubre /contador (regresión de configuración)
+ok 4 - el matcher del proxy cubre /contador (regresión de configuración)
+  ---
+  duration_ms: 5.050243
+  type: 'test'
+  ...
+# Subtest: armarFilaCartera: combina fila + tenant + resumen y calcula pctCap
+ok 5 - armarFilaCartera: combina fila + tenant + resumen y calcula pctCap
+  ---
+  duration_ms: 1.374512
+  type: 'test'
+  ...
+# Subtest: armarFilaCartera: cap inválido cae al default del producto (no divide por cero)
+ok 6 - armarFilaCartera: cap inválido cae al default del producto (no divide por cero)
+  ---
+  duration_ms: 0.278093
+  type: 'test'
+  ...
+# Subtest: resumirCartera: agrega activos/pausados, sumas y alerta de tope (≥ 80%)
+ok 7 - resumirCartera: agrega activos/pausados, sumas y alerta de tope (≥ 80%)
+  ---
+  duration_ms: 0.551663
+  type: 'test'
+  ...
+# Subtest: listarCarteraCore: estudio A solo recibe SUS filas (jamás las de B)
+ok 8 - listarCarteraCore: estudio A solo recibe SUS filas (jamás las de B)
+  ---
+  duration_ms: 1.947272
+  type: 'test'
+  ...
+# Subtest: listarCarteraCore: fila huérfana (tenant borrado) no rompe el panel
+ok 9 - listarCarteraCore: fila huérfana (tenant borrado) no rompe el panel
+  ---
+  duration_ms: 0.401248
+  type: 'test'
+  ...
+# Subtest: exigirClienteDeCartera: cliente de OTRO estudio se rechaza (sin fugar info)
+ok 10 - exigirClienteDeCartera: cliente de OTRO estudio se rechaza (sin fugar info)
+  ---
+  duration_ms: 0.539271
+  type: 'test'
+  ...
+# Subtest: exigirClienteDeCartera: activa pasa; baja se trata como inexistente
+ok 11 - exigirClienteDeCartera: activa pasa; baja se trata como inexistente
+  ---
+  duration_ms: 0.293838
+  type: 'test'
+  ...
+# Subtest: exigirClienteDeCartera: pausada solo pasa con permitirPausada
+ok 12 - exigirClienteDeCartera: pausada solo pasa con permitirPausada
+  ---
+  duration_ms: 0.288143
+  type: 'test'
+  ...
+# Subtest: validarAltaCliente: alta válida normaliza CUIT/email y sugiere slug
+ok 13 - validarAltaCliente: alta válida normaliza CUIT/email y sugiere slug
+  ---
+  duration_ms: 0.98846
+  type: 'test'
+  ...
+# Subtest: validarAltaCliente: CUIT con dígito verificador malo, email inválido y nombre corto fallan
+ok 14 - validarAltaCliente: CUIT con dígito verificador malo, email inválido y nombre corto fallan
+  ---
+  duration_ms: 0.53965
+  type: 'test'
+  ...
+# Subtest: validarAltaCliente: alias default = nombre
+ok 15 - validarAltaCliente: alias default = nombre
+  ---
+  duration_ms: 0.29389
+  type: 'test'
+  ...
+# Subtest: resolverSlugCliente: slug libre se usa directo
+ok 16 - resolverSlugCliente: slug libre se usa directo
+  ---
+  duration_ms: 0.247806
+  type: 'test'
+  ...
+# Subtest: resolverSlugCliente: slug tomado por el MISMO CUIT ⇒ re-alta idempotente
+ok 17 - resolverSlugCliente: slug tomado por el MISMO CUIT ⇒ re-alta idempotente
+  ---
+  duration_ms: 0.18831
+  type: 'test'
+  ...
+# Subtest: resolverSlugCliente: slug tomado por OTRO CUIT ⇒ jamás se adjunta, cae a la variante
+ok 18 - resolverSlugCliente: slug tomado por OTRO CUIT ⇒ jamás se adjunta, cae a la variante
+  ---
+  duration_ms: 0.168991
+  type: 'test'
+  ...
+# Subtest: resolverSlugCliente: base y variante tomadas por otros ⇒ error claro (no un 3er invento)
+ok 19 - resolverSlugCliente: base y variante tomadas por otros ⇒ error claro (no un 3er invento)
+  ---
+  duration_ms: 0.270961
+  type: 'test'
+  ...
+# Subtest: conGucTrasCrearTenant: setea app.current_tenant_id INMEDIATAMENTE después del upsert de Tenant
+ok 20 - conGucTrasCrearTenant: setea app.current_tenant_id INMEDIATAMENTE después del upsert de Tenant
+  ---
+  duration_ms: 0.559736
+  type: 'test'
+  ...
+# Subtest: crearClienteProvisioning: envuelve $transaction y le da a provisionTenant el tx proxied
+ok 21 - crearClienteProvisioning: envuelve $transaction y le da a provisionTenant el tx proxied
+  ---
+  duration_ms: 0.342216
+  type: 'test'
+  ...
+# Subtest: un total con medio centavo no llega a escribirse: el plugin lo rechaza antes de ARCA
+ok 22 - un total con medio centavo no llega a escribirse: el plugin lo rechaza antes de ARCA
+  ---
+  duration_ms: 2.101854
+  type: 'test'
+  ...
+# Subtest: el Core deja 1,005 en 1,01: viaja 1.01 y la decisión cuenta 1,01
+ok 23 - el Core deja 1,005 en 1,01: viaja 1.01 y la decisión cuenta 1,01
+  ---
+  duration_ms: 21.820431
+  type: 'test'
+  ...
+# Subtest: 9.999.999,995 viaja como 10.000.000,00 y la decisión pide identificar por ley
+ok 24 - 9.999.999,995 viaja como 10.000.000,00 y la decisión pide identificar por ley
+  ---
+  duration_ms: 0.846332
+  type: 'test'
+  ...
+# Subtest: 599.999,995 viaja como 600.000,00 y alcanza un umbral del negocio de 600.000
+ok 25 - 599.999,995 viaja como 600.000,00 y alcanza un umbral del negocio de 600.000
+  ---
+  duration_ms: 0.690433
+  type: 'test'
+  ...
+# Subtest: en 20.000 cobros con medio centavo, lo que pasa la validación se decide justo en el ImpTotal que viaja
+ok 26 - en 20.000 cobros con medio centavo, lo que pasa la validación se decide justo en el ImpTotal que viaja
+  ---
+  duration_ms: 2672.354241
+  type: 'test'
+  ...
+# Subtest: todo cobro que arma el Core pasa la validación exacta: de $0,01 a $5.000, inscripto y monotributo
+ok 27 - todo cobro que arma el Core pasa la validación exacta: de $0,01 a $5.000, inscripto y monotributo
+  ---
+  duration_ms: 7194.266981
+  type: 'test'
+  ...
+# Subtest: un punto o una coma seguidos de tres cifras son de miles: 12.500 y 12,500 son $12.500
+ok 28 - un punto o una coma seguidos de tres cifras son de miles: 12.500 y 12,500 son $12.500
+  ---
+  duration_ms: 1.765351
+  type: 'test'
+  ...
+# Subtest: con dos separadores distintos, el último es el de los centavos: 1.234,56 y 1,234.56
+ok 29 - con dos separadores distintos, el último es el de los centavos: 1.234,56 y 1,234.56
+  ---
+  duration_ms: 0.439565
+  type: 'test'
+  ...
+# Subtest: una o dos cifras después del separador son centavos: 12,5 → $12,50 y 12.05 → $12,05
+ok 30 - una o dos cifras después del separador son centavos: 12,5 → $12,50 y 12.05 → $12,05
+  ---
+  duration_ms: 0.311726
+  type: 'test'
+  ...
+# Subtest: la forma en que viaja un importe desde la pantalla se relee igual (punto decimal, sin miles)
+ok 31 - la forma en que viaja un importe desde la pantalla se relee igual (punto decimal, sin miles)
+  ---
+  duration_ms: 0.216016
+  type: 'test'
+  ...
+# Subtest: un tercer decimal no es plata y rebota: 1234,567 y 0,555
+ok 32 - un tercer decimal no es plata y rebota: 1234,567 y 0,555
+  ---
+  duration_ms: 0.136097
+  type: 'test'
+  ...
+# Subtest: se toleran el signo $ y los espacios que se arrastran al copiar de un extracto
+ok 33 - se toleran el signo $ y los espacios que se arrastran al copiar de un extracto
+  ---
+  duration_ms: 0.183874
+  type: 'test'
+  ...
+# Subtest: un campo vacío es vacío, no cero
+ok 34 - un campo vacío es vacío, no cero
+  ---
+  duration_ms: 0.130344
+  type: 'test'
+  ...
+# Subtest: lo que no es un importe rebota: negativos, notación científica, letras y separadores dobles
+ok 35 - lo que no es un importe rebota: negativos, notación científica, letras y separadores dobles
+  ---
+  duration_ms: 0.204548
+  type: 'test'
+  ...
+# Subtest: importeONaN: vacío, ilegible o un archivo dan NaN, y la validación de cada acción lo rechaza
+ok 36 - importeONaN: vacío, ilegible o un archivo dan NaN, y la validación de cada acción lo rechaza
+  ---
+  duration_ms: 3.337867
+  type: 'test'
+  ...
+# Subtest: el mostrador y el servidor usan el mismo lector: pos-peso lo re-exporta, no tiene otra copia
+ok 37 - el mostrador y el servidor usan el mismo lector: pos-peso lo re-exporta, no tiene otra copia
+  ---
+  duration_ms: 0.508018
+  type: 'test'
+  ...
+# Subtest: las acciones de turnos, cobros y catálogo leen cada campo de plata con el lector, nunca con Number
+ok 38 - las acciones de turnos, cobros y catálogo leen cada campo de plata con el lector, nunca con Number
+  ---
+  duration_ms: 6.594672
+  type: 'test'
+  ...
+# Subtest: medio peso va hacia arriba: 1.234,50 → 1.235; 0,50 → 1; 12.344,5 → 12.345
+ok 39 - medio peso va hacia arriba: 1.234,50 → 1.235; 0,50 → 1; 12.344,5 → 12.345
+  ---
+  duration_ms: 1.324829
+  type: 'test'
+  ...
+# Subtest: menos de medio peso va hacia abajo: 1.234,49 → 1.234; 0,49 → 0
+ok 40 - menos de medio peso va hacia abajo: 1.234,49 → 1.234; 0,49 → 0
+  ---
+  duration_ms: 0.29052
+  type: 'test'
+  ...
+# Subtest: un solo redondeo: 1.234,495 va a 1.234 (al centavo daría 1.234,50 y al peso 1.235)
+ok 41 - un solo redondeo: 1.234,495 va a 1.234 (al centavo daría 1.234,50 y al peso 1.235)
+  ---
+  duration_ms: 0.19271
+  type: 'test'
+  ...
+# Subtest: un número vale sus 15 cifras: 1.234,4999999999998 es 1.234,5 y sube
+ok 42 - un número vale sus 15 cifras: 1.234,4999999999998 es 1.234,5 y sube
+  ---
+  duration_ms: 0.185402
+  type: 'test'
+  ...
+# Subtest: negativos: el medio peso se aleja del cero y lo que redondea a cero da 0, nunca −0
+ok 43 - negativos: el medio peso se aleja del cero y lo que redondea a cero da 0, nunca −0
+  ---
+  duration_ms: 0.214785
+  type: 'test'
+  ...
+# Subtest: lo que no es un número pasa sin cambios, como con Math.round
+ok 44 - lo que no es un número pasa sin cambios, como con Math.round
+  ---
+  duration_ms: 0.340822
+  type: 'test'
+  ...
+# Subtest: barrido: los 1.000.000 de x,50 de $0 a $1.000.000 suben y los x,49 bajan
+ok 45 - barrido: los 1.000.000 de x,50 de $0 a $1.000.000 suben y los x,49 bajan
+  ---
+  duration_ms: 698.482038
+  type: 'test'
+  ...
+# Subtest: porcentaje: 10 % de $12.345 da $1.235 al peso y $1.234,50 al centavo
+ok 46 - porcentaje: 10 % de $12.345 da $1.235 al peso y $1.234,50 al centavo
+  ---
+  duration_ms: 0.640352
+  type: 'test'
+  ...
+# Subtest: porcentaje: todos los % enteros de 1 a 100 sobre cada centavo de $0 a $1.000 dan el exacto
+ok 47 - porcentaje: todos los % enteros de 1 a 100 sobre cada centavo de $0 a $1.000 dan el exacto
+  ---
+  duration_ms: 18207.807294
+  type: 'test'
+  ...
+# Subtest: porcentaje: 1.000.000 de bases al azar hasta $1.000.000.000 con % de dos decimales dan el exacto
+ok 48 - porcentaje: 1.000.000 de bases al azar hasta $1.000.000.000 con % de dos decimales dan el exacto
+  ---
+  duration_ms: 1380.753667
+  type: 'test'
+  ...
+# Subtest: un porcentaje vale con dos decimales: 12,345 % se toma 12,35 % (R1 y R7 sobre el %)
+ok 49 - un porcentaje vale con dos decimales: 12,345 % se toma 12,35 % (R1 y R7 sobre el %)
+  ---
+  duration_ms: 0.308847
+  type: 'test'
+  ...
+# Subtest: lo que no es un número pasa sin cambios por el porcentaje
+ok 50 - lo que no es un número pasa sin cambios por el porcentaje
+  ---
+  duration_ms: 0.263825
+  type: 'test'
+  ...
+# Subtest: porcentaje de una base enorme (el producto no entra entero): igual redondea por R7
+ok 51 - porcentaje de una base enorme (el producto no entra entero): igual redondea por R7
+  ---
+  duration_ms: 0.292078
+  type: 'test'
+  ...
+# Subtest: porcentaje de un negativo se aleja del cero: 10 % de −$12.345 da −$1.235
+ok 52 - porcentaje de un negativo se aleja del cero: 10 % de −$12.345 da −$1.235
+  ---
+  duration_ms: 0.113639
+  type: 'test'
+  ...
+# Subtest: medio centavo va hacia arriba: 1,005 → 1,01; 2,675 → 2,68; 0,005 → 0,01
+ok 53 - medio centavo va hacia arriba: 1,005 → 1,01; 2,675 → 2,68; 0,005 → 0,01
+  ---
+  duration_ms: 1.391336
+  type: 'test'
+  ...
+# Subtest: menos de medio centavo va hacia abajo: 1,004 → 1,00; 0,004 → 0; 2,6749 → 2,67
+ok 54 - menos de medio centavo va hacia abajo: 1,004 → 1,00; 0,004 → 0; 2,6749 → 2,67
+  ---
+  duration_ms: 0.212049
+  type: 'test'
+  ...
+# Subtest: negativos: el medio centavo se aleja del cero (−2,675 → −2,68; −0,005 → −0,01)
+ok 55 - negativos: el medio centavo se aleja del cero (−2,675 → −2,68; −0,005 → −0,01)
+  ---
+  duration_ms: 0.230345
+  type: 'test'
+  ...
+# Subtest: un negativo que redondea a cero da 0, nunca −0 (−0,004 y −0)
+ok 56 - un negativo que redondea a cero da 0, nunca −0 (−0,004 y −0)
+  ---
+  duration_ms: 0.245391
+  type: 'test'
+  ...
+# Subtest: un número vale lo que dicen sus 15 cifras: 0,1 + 0,2 → 0,30; 1234,5650000000001 → 1234,57
+ok 57 - un número vale lo que dicen sus 15 cifras: 0,1 + 0,2 → 0,30; 1234,5650000000001 → 1234,57
+  ---
+  duration_ms: 0.135703
+  type: 'test'
+  ...
+# Subtest: el redondeo arrastra a los enteros: 999,995 → 1.000,00; 9,995 → 10,00
+ok 58 - el redondeo arrastra a los enteros: 999,995 → 1.000,00; 9,995 → 10,00
+  ---
+  duration_ms: 0.198453
+  type: 'test'
+  ...
+# Subtest: barrido: los 100.000.000 de x,xx5 de $0 a $1.000.000 van todos hacia arriba
+ok 59 - barrido: los 100.000.000 de x,xx5 de $0 a $1.000.000 van todos hacia arriba
+  ---
+  duration_ms: 23739.340493
+  type: 'test'
+  ...
+# Subtest: barrido negativo: los 10.000.000 de −x,xx5 de −$100.000 a $0 se alejan del cero
+ok 60 - barrido negativo: los 10.000.000 de −x,xx5 de −$100.000 a $0 se alejan del cero
+  ---
+  duration_ms: 2378.629276
+  type: 'test'
+  ...
+# Subtest: lo que ya está al centavo no cambia: 1.000.000 de importes al azar de hasta ±$1.000.000.000.000
+ok 61 - lo que ya está al centavo no cambia: 1.000.000 de importes al azar de hasta ±$1.000.000.000.000
+  ---
+  duration_ms: 1504.061504
+  type: 'test'
+  ...
+# Subtest: suma de renglones: cada renglón al centavo y el total es la suma exacta
+ok 62 - suma de renglones: cada renglón al centavo y el total es la suma exacta
+  ---
+  duration_ms: 51.507123
+  type: 'test'
+  ...
+# Subtest: texto para ARCA: siempre dos decimales con punto
+ok 63 - texto para ARCA: siempre dos decimales con punto
+  ---
+  duration_ms: 0.292139
+  type: 'test'
+  ...
+# Subtest: texto para ARCA: lo que no es un importe no sale (NaN, infinito, 13 cifras enteras o más)
+ok 64 - texto para ARCA: lo que no es un importe no sale (NaN, infinito, 13 cifras enteras o más)
+  ---
+  duration_ms: 0.709612
+  type: 'test'
+  ...
+# Subtest: lo que no es un número pasa sin cambios por el redondeo, como con Math.round
+ok 65 - lo que no es un número pasa sin cambios por el redondeo, como con Math.round
+  ---
+  duration_ms: 0.193297
+  type: 'test'
+  ...
+# Subtest: el módulo de redondeo no importa nada (lo usan el navegador y el plugin ARCA)
+ok 66 - el módulo de redondeo no importa nada (lo usan el navegador y el plugin ARCA)
+  ---
+  duration_ms: 0.42818
+  type: 'test'
+  ...
+# Subtest: el plugin ARCA sólo trae del Core el módulo de redondeo y la decisión fiscal única (ADR-022, ADR-100 y D4)
+ok 67 - el plugin ARCA sólo trae del Core el módulo de redondeo y la decisión fiscal única (ADR-022, ADR-100 y D4)
+  ---
+  duration_ms: 3.369007
+  type: 'test'
+  ...
+# Subtest: en el camino de la plata fiscal no queda redondeo a mano fuera de este módulo
+ok 68 - en el camino de la plata fiscal no queda redondeo a mano fuera de este módulo
+  ---
+  duration_ms: 5.31082
+  type: 'test'
+  ...
+# Subtest: fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+ok 69 - fuera del módulo de plata no aparecen redondeos a mano nuevos (sólo los pendientes con motivo)
+  ---
+  duration_ms: 171.423675
+  type: 'test'
+  ...
+# Subtest: el patrón detecta las formas de redondeo a mano que busca
+ok 70 - el patrón detecta las formas de redondeo a mano que busca
+  ---
+  duration_ms: 0.359588
+  type: 'test'
+  ...
+# Subtest: un nombre que empieza con =, +, -, @ o tabulación sale con apóstrofo adelante
+ok 71 - un nombre que empieza con =, +, -, @ o tabulación sale con apóstrofo adelante
+  ---
+  duration_ms: 1.446245
+  type: 'test'
+  ...
+# Subtest: los números no se tocan: importes con signo, miles con punto, porcentajes
+ok 72 - los números no se tocan: importes con signo, miles con punto, porcentajes
+  ---
+  duration_ms: 0.205906
+  type: 'test'
+  ...
+# Subtest: filaCsv: neutraliza y además escapa ; y comillas
+ok 73 - filaCsv: neutraliza y además escapa ; y comillas
+  ---
+  duration_ms: 0.426314
+  type: 'test'
+  ...
+# Subtest: una línea ajena (el libro de caja) se relee campo por campo y vuelve igual, salvo la fórmula
+ok 74 - una línea ajena (el libro de caja) se relee campo por campo y vuelve igual, salvo la fórmula
+  ---
+  duration_ms: 1.618048
+  type: 'test'
+  ...
+# Subtest: un campo con saltos de línea queda en una línea; el que empezaba con un salto no esquiva la guarda de fórmulas
+ok 75 - un campo con saltos de línea queda en una línea; el que empezaba con un salto no esquiva la guarda de fórmulas
+  ---
+  duration_ms: 0.338996
+  type: 'test'
+  ...
+# Subtest: el Libro IVA exportado sólo usa CRLF, aunque un cliente o un proveedor traiga un salto adentro
+ok 76 - el Libro IVA exportado sólo usa CRLF, aunque un cliente o un proveedor traiga un salto adentro
+  ---
+  duration_ms: 22.791793
+  type: 'test'
+  ...
+# Subtest: un importe del libro IVA sale con coma y la regla única de redondeo: 2,135 → 2,14
+ok 77 - un importe del libro IVA sale con coma y la regla única de redondeo: 2,135 → 2,14
+  ---
+  duration_ms: 0.281629
+  type: 'test'
+  ...
+# Subtest: un monto que no es un número no se escribe en el libro IVA: tira en vez de dejar NaN
+ok 78 - un monto que no es un número no se escribe en el libro IVA: tira en vez de dejar NaN
+  ---
+  duration_ms: 0.60585
+  type: 'test'
+  ...
+# (node:26839) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: facturarOrden: la venta de las 23:30 del 31/08 sale con fecha 20260831
+ok 79 - facturarOrden: la venta de las 23:30 del 31/08 sale con fecha 20260831
+  ---
+  duration_ms: 22.405372
+  type: 'test'
+  ...
+# Subtest: facturarAppointment: el turno cobrado a las 23:30 del 31/08 sale con fecha y servicio del 31/08
+ok 80 - facturarAppointment: el turno cobrado a las 23:30 del 31/08 sale con fecha y servicio del 31/08
+  ---
+  duration_ms: 0.809084
+  type: 'test'
+  ...
+# Subtest: facturarPagoMP: sin fecha de acreditación, el día del negocio; con fecha, la de Mercado Pago
+ok 81 - facturarPagoMP: sin fecha de acreditación, el día del negocio; con fecha, la de Mercado Pago
+  ---
+  duration_ms: 0.638654
+  type: 'test'
+  ...
+# Subtest: a la medianoche argentina ya es el día siguiente
+ok 82 - a la medianoche argentina ya es el día siguiente
+  ---
+  duration_ms: 0.471046
+  type: 'test'
+  ...
+# (node:26864) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: una factura a las 23:30 hora argentina del 31/08 lleva fecha 20260831 (reloj fijo)
+ok 83 - una factura a las 23:30 hora argentina del 31/08 lleva fecha 20260831 (reloj fijo)
+  ---
+  duration_ms: 25.106657
+  type: 'test'
+  ...
+# Subtest: los bordes del día argentino: 00:00 y 23:59 no se corren
+ok 84 - los bordes del día argentino: 00:00 y 23:59 no se corren
+  ---
+  duration_ms: 0.434225
+  type: 'test'
+  ...
+# Subtest: el Libro IVA de septiembre toma del 1 al 30, en hora argentina
+ok 85 - el Libro IVA de septiembre toma del 1 al 30, en hora argentina
+  ---
+  duration_ms: 4.248216
+  type: 'test'
+  ...
+# Subtest: meses: largo, vecinos que cruzan el año, validación de lo que llega por URL
+ok 86 - meses: largo, vecinos que cruzan el año, validación de lo que llega por URL
+  ---
+  duration_ms: 0.871563
+  type: 'test'
+  ...
+# Subtest: ya facturada: la factura puede ser de hasta 3 días antes de la acreditación, nunca después
+ok 87 - ya facturada: la factura puede ser de hasta 3 días antes de la acreditación, nunca después
+  ---
+  duration_ms: 0.475787
+  type: 'test'
+  ...
+# Subtest: el where del extracto: mismo total, la ventana de 3 días y sin los rechazados por ARCA
+ok 88 - el where del extracto: mismo total, la ventana de 3 días y sin los rechazados por ARCA
+  ---
+  duration_ms: 0.314287
+  type: 'test'
+  ...
+# Subtest: fiscalDateToIso: AAAAMMDD → YYYY-MM-DD; lo que no es fiscal pasa tal cual
+ok 89 - fiscalDateToIso: AAAAMMDD → YYYY-MM-DD; lo que no es fiscal pasa tal cual
+  ---
+  duration_ms: 1.384447
+  type: 'test'
+  ...
+# Subtest: dateToIso fecha en el día de negocio: las 21:30 del 30 NO son el 1 del mes que viene
+ok 90 - dateToIso fecha en el día de negocio: las 21:30 del 30 NO son el 1 del mes que viene
+  ---
+  duration_ms: 20.122972
+  type: 'test'
+  ...
+# Subtest: comprobante: montos exactos, número y documento; la alícuota sale del desglose guardado
+ok 91 - comprobante: montos exactos, número y documento; la alícuota sale del desglose guardado
+  ---
+  duration_ms: 2.2012
+  type: 'test'
+  ...
+# Subtest: alícuotas: una factura con carne al 10,5% y embutidos al 21% se ve con las dos
+ok 92 - alícuotas: una factura con carne al 10,5% y embutidos al 21% se ve con las dos
+  ---
+  duration_ms: 0.408135
+  type: 'test'
+  ...
+# Subtest: alícuotas sin desglose (comprobantes viejos): la oficial más cercana, nunca un 20,98%
+ok 93 - alícuotas sin desglose (comprobantes viejos): la oficial más cercana, nunca un 20,98%
+  ---
+  duration_ms: 0.337792
+  type: 'test'
+  ...
+# Subtest: una nota de crédito RESTA; una venta anulada con factura queda marcada
+ok 94 - una nota de crédito RESTA; una venta anulada con factura queda marcada
+  ---
+  duration_ms: 4.148588
+  type: 'test'
+  ...
+# Subtest: una compra sin factura NO suma crédito; la venta sin comprobante NO suma débito
+ok 95 - una compra sin factura NO suma crédito; la venta sin comprobante NO suma débito
+  ---
+  duration_ms: 0.388039
+  type: 'test'
+  ...
+# Subtest: condición: con A o B es inscripto; sólo C, monotributo; nada, no se afirma
+ok 96 - condición: con A o B es inscripto; sólo C, monotributo; nada, no se afirma
+  ---
+  duration_ms: 0.568416
+  type: 'test'
+  ...
+# Subtest: orden: cada bloque por fecha, y a igual fecha por número
+ok 97 - orden: cada bloque por fecha, y a igual fecha por número
+  ---
+  duration_ms: 0.740503
+  type: 'test'
+  ...
+# Subtest: el archivo: bloques con título, ; como separador, coma decimal y la posición sólo si es inscripto
+ok 98 - el archivo: bloques con título, ; como separador, coma decimal y la posición sólo si es inscripto
+  ---
+  duration_ms: 9.473066
+  type: 'test'
+  ...
+# Subtest: anuladas con factura: el mismo where para el botón (por emisión) y el cierre (por fecha fiscal)
+ok 99 - anuladas con factura: el mismo where para el botón (por emisión) y el cierre (por fecha fiscal)
+  ---
+  duration_ms: 0.572577
+  type: 'test'
+  ...
+# Subtest: la clave de cada fila es el id: dos ventas que se ven iguales no chocan
+ok 100 - la clave de cada fila es el id: dos ventas que se ven iguales no chocan
+  ---
+  duration_ms: 0.348021
+  type: 'test'
+  ...
+# Subtest: el número del botón y la pantalla: el mismo where y la misma cuenta
+ok 101 - el número del botón y la pantalla: el mismo where y la misma cuenta
+  ---
+  duration_ms: 0.566306
+  type: 'test'
+  ...
+# Subtest: el libro se le oculta a un monotributista; sin comprobantes todavía, no
+ok 102 - el libro se le oculta a un monotributista; sin comprobantes todavía, no
+  ---
+  duration_ms: 0.121385
+  type: 'test'
+  ...
+# Subtest: autodetecta punto y coma (el clásico de los bancos AR)
+ok 103 - autodetecta punto y coma (el clásico de los bancos AR)
+  ---
+  duration_ms: 3.423683
+  type: 'test'
+  ...
+# Subtest: autodetecta coma cuando el archivo es coma-separado
+ok 104 - autodetecta coma cuando el archivo es coma-separado
+  ---
+  duration_ms: 0.275865
+  type: 'test'
+  ...
+# Subtest: comillas: separador y comillas escapadas adentro de la celda
+ok 105 - comillas: separador y comillas escapadas adentro de la celda
+  ---
+  duration_ms: 0.27027
+  type: 'test'
+  ...
+# Subtest: BOM UTF-8 no ensucia la primera celda
+ok 106 - BOM UTF-8 no ensucia la primera celda
+  ---
+  duration_ms: 0.443352
+  type: 'test'
+  ...
+# Subtest: latin1: los acentos de un export viejo de Windows sobreviven
+ok 107 - latin1: los acentos de un export viejo de Windows sobreviven
+  ---
+  duration_ms: 0.356053
+  type: 'test'
+  ...
+# Subtest: UTF-8 válido se decodifica como UTF-8
+ok 108 - UTF-8 válido se decodifica como UTF-8
+  ---
+  duration_ms: 0.270059
+  type: 'test'
+  ...
+# Subtest: finales de línea CRLF y CR pelado
+ok 109 - finales de línea CRLF y CR pelado
+  ---
+  duration_ms: 0.423935
+  type: 'test'
+  ...
+# Subtest: salto de línea DENTRO de comillas no corta la fila
+ok 110 - salto de línea DENTRO de comillas no corta la fila
+  ---
+  duration_ms: 0.153822
+  type: 'test'
+  ...
+# Subtest: filas vacías decorativas se descartan
+ok 111 - filas vacías decorativas se descartan
+  ---
+  duration_ms: 0.519573
+  type: 'test'
+  ...
+# Subtest: archivo vacío devuelve matriz vacía
+ok 112 - archivo vacío devuelve matriz vacía
+  ---
+  duration_ms: 0.428067
+  type: 'test'
+  ...
+# Subtest: lee un xlsx con fechas Date y números number
+not ok 113 - lee un xlsx con fechas Date y números number
+  ---
+  duration_ms: 1.200541
+  type: 'test'
+  location: '/home/user/erp-contador/src/plugins/bancos/parser/xlsx.test.ts:2:1343'
+  failureType: 'testCodeFailure'
+  error: 'stub local de xlsx (CDN de sheetjs bloqueado en este entorno)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Proxy.nope (/home/user/erp-contador/node_modules/xlsx/index.js:1:25)
+    xlsxDesdeMatriz (/home/user/erp-contador/src/plugins/bancos/parser/xlsx.test.ts:12:27)
+    TestContext.<anonymous> (/home/user/erp-contador/src/plugins/bancos/parser/xlsx.test.ts:19:17)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: filas totalmente vacías se descartan
+not ok 114 - filas totalmente vacías se descartan
+  ---
+  duration_ms: 0.230694
+  type: 'test'
+  location: '/home/user/erp-contador/src/plugins/bancos/parser/xlsx.test.ts:2:2107'
+  failureType: 'testCodeFailure'
+  error: 'stub local de xlsx (CDN de sheetjs bloqueado en este entorno)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Proxy.nope (/home/user/erp-contador/node_modules/xlsx/index.js:1:25)
+    xlsxDesdeMatriz (/home/user/erp-contador/src/plugins/bancos/parser/xlsx.test.ts:12:27)
+    TestContext.<anonymous> (/home/user/erp-contador/src/plugins/bancos/parser/xlsx.test.ts:37:17)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: esXlsx reconoce el magic ZIP de un .xlsx real
+not ok 115 - esXlsx reconoce el magic ZIP de un .xlsx real
+  ---
+  duration_ms: 0.173383
+  type: 'test'
+  location: '/home/user/erp-contador/src/plugins/bancos/parser/xlsx.test.ts:2:2363'
+  failureType: 'testCodeFailure'
+  error: 'stub local de xlsx (CDN de sheetjs bloqueado en este entorno)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Proxy.nope (/home/user/erp-contador/node_modules/xlsx/index.js:1:25)
+    xlsxDesdeMatriz (/home/user/erp-contador/src/plugins/bancos/parser/xlsx.test.ts:12:27)
+    TestContext.<anonymous> (/home/user/erp-contador/src/plugins/bancos/parser/xlsx.test.ts:47:17)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: esXlsx reconoce el magic OLE de un .xls viejo
+ok 116 - esXlsx reconoce el magic OLE de un .xls viejo
+  ---
+  duration_ms: 0.346293
+  type: 'test'
+  ...
+# Subtest: esXlsx rechaza un CSV de texto plano
+ok 117 - esXlsx rechaza un CSV de texto plano
+  ---
+  duration_ms: 0.140325
+  type: 'test'
+  ...
+1..117
+# tests 117
+# suites 0
+# pass 114
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 29473.370574
+exit 1

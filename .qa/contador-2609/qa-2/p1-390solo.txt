@@ -1,0 +1,35 @@
+antes de enviar 20-22222222-3: disabled=false texto=Pedir el alta a Soporte GSG
+20-22222222-3 (Ferretería UAT) -> ["La facturación electrónica está apagada en toda la plataforma: ningún comprobante sale hacia ARCA hasta que Gestión Studio Grow la encienda.","ARCA está en modo simulado: los comprobantes no llegan a ARCA y sus CAE no son reales. Por eso todavía no se revisan los certificados.","Recibimos el pedido. Soporte GSG lo configura y te avisa por WhatsApp."] [736ms]
+EN CURSO: Pedidos de alta en curso
+6
+Soporte GSG los configura y te avisa por WhatsApp
+Paula Ríos Fonoaudiología
+CUIT 27298765417 · pedido el 26/9/26
+Almacén Mayorista Don Tito SRL
+CUIT 30715554417 · pedido el 26/9/26
+Grupo Andino SA
+CUIT 30708887710 · pedido el 26/9/26
+QA Kiosco Lab
+CUIT 20111111112 · pedido el 26/9/26
+Ferretería El Tornillo SRL
+CUIT 30712345612 · pedido el 26/9/26
+Ferretería UAT
+CUIT 20222222223 · pedido el 26/9/26
+Agregar un cliente
+Mandás el pedido · Soporte GSG lo configura y te avisa por WhatsApp
+NOMBRE DEL NEGOCIO*
+CUIT*
+Con o sin guiones, como te quede cómodo.
+EMAIL DEL CLIENTE*
+Va a ser su usuario si algún día entra a su propio panel.
+PUNTO DE VENTA*
+El que diste de alta en ARCA para factura electrónica (hasta 5 cifras).
+CONDICIÓN FRENTE AL IVA
+No la sé todavía
+Responsable inscripto
+Monotributista
+IVA exento
+La que figura en su constancia de inscripción de ARCA.
+¿QUÉ TIPO
+scrollWidth 390
+ERRORES []

@@ -1,0 +1,14 @@
+{
+  "inicio": {
+    "status": 200,
+    "url": "http://chestetica.localhost:3210/"
+  },
+  "admin-login": {
+    "status": 200,
+    "url": "http://chestetica.localhost:3210/admin/login"
+  },
+  "admin-duena": {
+    "status": 200,
+    "url": "http://chestetica.localhost:3210/admin"
+  }
+}

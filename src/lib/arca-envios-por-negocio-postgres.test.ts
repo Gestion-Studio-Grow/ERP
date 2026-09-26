@@ -59,9 +59,9 @@ test("ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan
   const p = await preparar(t);
   if (!p) return;
   const [a, b] = [p.base.a, p.base.b];
-  // Uno de A y dos de B. (Con ARCA simulado por defecto, cada envío arma un simulador nuevo que
-  // arranca en el número 1: un segundo envío del mismo negocio choca con el primero. Es previo a
-  // este cambio y está anotado en BACKLOG; acá no cambia lo que se mide.)
+  // Uno de A y dos de B. (Con ARCA simulado por defecto, cada envío arma un simulador nuevo; desde
+  // el arreglo del QA del 26/09 sigue la numeración guardada del negocio, así que el segundo envío
+  // de B ya no choca con el primero.)
   const deA = [await p.facturar(a.id)];
   const deB = [await p.facturar(b.id), await p.facturar(b.id)];
   const enviosDeBAntes = await p.enviosDe(b.id);
@@ -84,10 +84,12 @@ test("ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan
   const rb = await ejecutarAccion({ negocio: b, usuario: b.duenia }, () => p.facturacion.procesarFacturacionPendiente());
   assert.equal(rb.tipo, "respuesta");
   if (rb.tipo !== "respuesta") return;
-  // El resumen de B cuenta sus dos envíos y nada más (el segundo choca con el simulador por defecto).
-  assert.equal(rb.valor.autorizados, 1);
+  // El resumen de B cuenta sus dos envíos y nada más: los dos autorizados, con números 1 y 2.
+  assert.equal(rb.valor.autorizados, 2);
   assert.equal(rb.valor.procesados + rb.valor.fallidos + rb.valor.descartados, 2);
   assert.deepEqual(await p.enviosDe(a.id), enviosDeAAntes);
+  const numerosDeB = await Promise.all(deB.map(async (id) => (await p.operatorPrisma.invoice.findUniqueOrThrow({ where: { id } })).numero));
+  assert.deepEqual(numerosDeB.sort(), [1, 2], "correlativos, sin repetir el 1");
   await p.operatorPrisma.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
 });
 

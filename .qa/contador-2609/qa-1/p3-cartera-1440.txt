@@ -1,0 +1,151 @@
+E
+Estudio Contable Laboratorio
+· panel del contador
+Mi cartera
+La facturación está apagada: nada sale hacia ARCA
+3 clientes
+Emitido en prueba este mes $0
+0 facturas automáticas
+0 para revisar
+0 de 3 con agosto cerrado
+Además, 2 tienen un bloqueo propio que les va a impedir emitir cuando se encienda.
+La facturación electrónica está apagada en toda la plataforma: ningún comprobante sale hacia ARCA hasta que Gestión Studio Grow la encienda.
+ARCA está en modo simulado: los comprobantes no llegan a ARCA y sus CAE no son reales. Por eso todavía no se revisan los certificados.
+De qué cliente me ocupo hoy
+3
+Primero lo más grave y lo que vence; a la derecha, lo emitido en prueba este mes
+Faltan datos
+A Dos Manos Pádel: No puede emitir
+No tiene CUIT cargado. · Pedíselo a Gestión Studio Grow: el CUIT del emisor se corrige desde su consola. · y 2 cosas más
+$0
+Faltan datos
+Shine Velas: No puede emitir
+No tiene CUIT cargado. · Pedíselo a Gestión Studio Grow: el CUIT del emisor se corrige desde su consola. · y 2 cosas más
+$0
+Para ver
+Ferretería El Tornillo UAT: Sin actividad registrada
+Nunca importó movimientos ni emitió comprobantes. · Confirmar que el cliente esté operando y con la ingesta conectada.
+$0
+8 cosas pendientes en septiembre, lo más grave primero. Dentro de cada grupo, primero el cliente que más factura.
+No pueden facturar
+2
+Soporte GSG
+A Dos Manos Pádel
+No puede emitir. No tiene CUIT cargado.
+Pedíselo a Gestión Studio Grow: el CUIT del emisor se corrige desde su consola.
+Ver
+Soporte GSG
+Shine Velas
+No puede emitir. No tiene CUIT cargado.
+Pedíselo a Gestión Studio Grow: el CUIT del emisor se corrige desde su consola.
+Ver
+Falta cerrar agosto
+3
+A Dos Manos Pádel
+agosto sigue abierto: el paquete que bajes es un borrador.
+Revisalo y congelalo desde su panel, en «Cierre del mes»; después bajá el paquete final.
+Ver
+Ferretería El Tornillo UAT
+agosto sigue abierto: el paquete que bajes es un borrador.
+Revisalo y congelalo desde su panel, en «Cierre del mes»; después bajá el paquete final.
+Ver
+Shine Velas
+agosto sigue abierto: el paquete que bajes es un borrador.
+Revisalo y congelalo desde su panel, en «Cierre del mes»; después bajá el paquete final.
+Ver
+Sin extracto de septiembre
+3
+Soporte GSG
+A Dos Manos Pádel
+Nunca se le cargó un extracto. Todavía no tiene su dirección propia, así que no hay un panel dónde subirlo.
+Pedile a Soporte GSG que le active la dirección, desde «Pedir a Soporte GSG» en su ficha. Ojo con el plazo de ARCA: la factura lleva la fecha de la venta y ARCA la acepta hasta 5 días después en bienes y 10 en servicios. Las ventas más viejas que eso no se facturan solas: quedan para revisar y se emiten con la fecha del día.
+Ver
+Soporte GSG
+Ferretería El Tornillo UAT
+Nunca se le cargó un extracto. Todavía no tiene su dirección propia, así que no hay un panel dónde subirlo.
+Pedile a Soporte GSG que le active la dirección, desde «Pedir a Soporte GSG» en su ficha. Ojo con el plazo de ARCA: la factura lleva la fecha de la venta y ARCA la acepta hasta 5 días después en bienes y 10 en servicios. Las ventas más viejas que eso no se facturan solas: quedan para revisar y se emiten con la fecha del día.
+Ver
+Soporte GSG
+Shine Velas
+Nunca se le cargó un extracto. Todavía no tiene su dirección propia, así que no hay un panel dónde subirlo.
+Pedile a Soporte GSG que le active la dirección, desde «Pedir a Soporte GSG» en su ficha. Ojo con el plazo de ARCA: la factura lleva la fecha de la venta y ARCA la acepta hasta 5 días después en bienes y 10 en servicios. Las ventas más viejas que eso no se facturan solas: quedan para revisar y se emiten con la fecha del día.
+Ver
+Monotributo de la cartera
+Próxima recategorización: vence el 05/02/2027, con lo facturado en los 12 meses al 31/12/2026. Si ARCA prorroga, vale la fecha nueva.
+Cuenta lo facturado desde el sistema en los últimos 12 meses, con CAE, menos las notas de crédito. Lo que el cliente facture por afuera no está sumado. La categoría también depende de la superficie, la energía eléctrica y los alquileres: eso lo sabés vos.
+Topes de ingresos brutos vigentes del 01/08/2026 al 31/01/2027. Provisional a confirmar: cotejalos con el cuadro de categorías de ARCA.
+3 clientes de la cartera no tienen cargada su condición frente al IVA: si son monotributistas, no aparecen acá.
+No hay clientes monotributistas en tu cartera. Cuando sumes uno con condición «Monotributo», aparece acá con lo que lleva facturado.
+La cartera este mes
+3 clientes
+Emitido en prueba: con CAE de prueba, todavía no es facturación
+Clientes de la cartera con su resumen fiscal del mes
+CLIENTE	EMITIDO EN PRUEBA	FACTURAS DEL MES	PARA REVISAR	AGOSTO	ARCA	
+A Dos Manos Pádel
+	
+$0
+	
+0 / 159
+	0	
+Sin cerrar	
+Sin CUIT	Abrir
+Ferretería El Tornillo UAT
+20-22222222-3
+	
+$0
+	
+0 / 159
+	0	
+Sin cerrar	
+Homologación	Abrir
+Shine Velas
+	
+$0
+	
+0 / 159
+	0	
+Sin cerrar	
+Sin CUIT	Abrir
+Emitido en prueba en total $0
+0 facturas · 0 para revisar
+Elegí un cliente de la tabla: acá aparecen sus cifras, el paquete del mes y las acciones (emitir, pausar, dar de baja).
+Pedidos de alta en curso
+4
+Soporte GSG los configura y te avisa por WhatsApp
+Estudio de Diseño Lucía Ferro
+CUIT 27345671213 · pedido el 26/9/26
+Ferretería El Tornillo SRL
+CUIT 30712345612 · pedido el 26/9/26
+Distribuidora del Sur SA
+CUIT 30709998818 · pedido el 26/9/26
+QA Kiosco Lab
+CUIT 20111111112 · pedido el 26/9/26
+Agregar un cliente
+Mandás el pedido · Soporte GSG lo configura y te avisa por WhatsApp
+NOMBRE DEL NEGOCIO*
+CUIT*
+Con o sin guiones, como te quede cómodo.
+EMAIL DEL CLIENTE*
+Va a ser su usuario si algún día entra a su propio panel.
+PUNTO DE VENTA*
+El que diste de alta en ARCA para factura electrónica (hasta 5 cifras).
+CONDICIÓN FRENTE AL IVA
+No la sé todavía
+Responsable inscripto
+Monotributista
+IVA exento
+La que figura en su constancia de inscripción de ARCA.
+¿QUÉ TIPO DE CLIENTE ES?
+No sé
+Sólo factura (profesional, servicio chico)
+Comercio con mostrador
+Varios locales
+Con esto Soporte elige el plan.
+WHATSAPP DEL CLIENTE
+Opcional. Con característica, sin 0 ni 15.
+ALIAS EN TU CARTERA
+Opcional: cómo lo querés ver en la tabla.
+ALGO QUE SOPORTE TENGA QUE SABER
+Opcional: cuántos locales, si fía, cuántas personas lo usan.
+Pedir el alta a Soporte GSG
+Con tecnología de Gestión Studio Grow

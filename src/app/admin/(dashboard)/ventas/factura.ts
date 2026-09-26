@@ -115,7 +115,11 @@ export function puedeFacturarVenta(input: {
   if (!input.facturacionEncendida) {
     return {
       ok: false,
-      motivo: "La facturación electrónica no está encendida en este negocio: la venta queda sin factura. Reintentá cuando esté encendida.",
+      // GSG-15: el negocio no tiene un interruptor para esto; se dice quién lo enciende.
+      motivo:
+        "La facturación electrónica no está encendida en este negocio: la venta queda sin factura. " +
+        "La enciende Gestión Studio Grow cuando termina de configurarla; si la necesitás ya, escribinos. " +
+        "Reintentá cuando esté encendida.",
     };
   }
   const p = input.perfil;

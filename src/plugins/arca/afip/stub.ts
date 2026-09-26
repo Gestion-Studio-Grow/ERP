@@ -29,6 +29,10 @@ export class StubAfipClient implements AfipClient {
   /**
    * @param config  emisor (se usa solo para simular; `homologacion` se ignora).
    * @param genCae  generador de CAE determinístico inyectable (para tests).
+   * @param ultimoEmitido  el último número que el negocio YA tiene autorizado para ese punto de
+   *   venta y tipo (lo guardado en la base). ARCA recuerda lo que autorizó; un stub nuevo por
+   *   pedido no: sin esto, cada factura del modo prueba volvía a pedir el número 1 (QA 26/09) y
+   *   la segunda chocaba con la primera. Sin pasarlo, el stub cuenta sólo en memoria (tests).
    */
   constructor(
     private readonly config: EmisorConfig,
@@ -36,13 +40,16 @@ export class StubAfipClient implements AfipClient {
       _comp,
       numero,
     ) => `STUB${String(numero).padStart(8, '0')}`,
+    private readonly ultimoEmitido?: (puntoVenta: number, tipo: TipoComprobante) => Promise<number>,
   ) {}
 
   async ultimoAutorizado(
     puntoVenta: number,
     tipo: TipoComprobante,
   ): Promise<number> {
-    return this.contadores.get(clave(puntoVenta, tipo)) ?? 0;
+    const enMemoria = this.contadores.get(clave(puntoVenta, tipo)) ?? 0;
+    const guardado = this.ultimoEmitido ? await this.ultimoEmitido(puntoVenta, tipo) : 0;
+    return Math.max(enMemoria, guardado);
   }
 
   async solicitarCae(comp: ComprobanteArca): Promise<ResultadoCae> {
@@ -58,7 +65,7 @@ export class StubAfipClient implements AfipClient {
     }
 
     const k = clave(comp.puntoVenta, comp.tipo);
-    const ultimo = this.contadores.get(k) ?? 0;
+    const ultimo = await this.ultimoAutorizado(comp.puntoVenta, comp.tipo);
     const numero = comp.numero ?? ultimo + 1;
 
     if (numero !== ultimo + 1) {

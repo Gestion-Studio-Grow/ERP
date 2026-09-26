@@ -1,0 +1,41 @@
+TAP version 13
+# Subtest: pedidos de alta: pasado cualquier tope, nada desaparece en silencio
+    # Subtest: el pedido 501 está en la bandeja y en el panel del estudio, y el 502 con su motivo
+    ok 1 - el pedido 501 está en la bandeja y en el panel del estudio, y el 502 con su motivo
+      ---
+      duration_ms: 101.689504
+      type: 'test'
+      ...
+    # Subtest: el panel del estudio muestra los 50 más viejos y cuenta todos; B sólo ve lo suyo
+    ok 2 - el panel del estudio muestra los 50 más viejos y cuenta todos; B sólo ve lo suyo
+      ---
+      duration_ms: 29.35004
+      type: 'test'
+      ...
+    # Subtest: la bandeja pagina de a 50 por clave: sin saltos ni repetidos aunque un pedido se cierre entre páginas
+    ok 3 - la bandeja pagina de a 50 por clave: sin saltos ni repetidos aunque un pedido se cierre entre páginas
+      ---
+      duration_ms: 446.648541
+      type: 'test'
+      ...
+    # Subtest: un descarte deja de verse si el estudio vuelve a pedir ese CUIT (el pedido nuevo manda)
+    ok 4 - un descarte deja de verse si el estudio vuelve a pedir ese CUIT (el pedido nuevo manda)
+      ---
+      duration_ms: 15.50368
+      type: 'test'
+      ...
+    1..4
+ok 1 - pedidos de alta: pasado cualquier tope, nada desaparece en silencio
+  ---
+  duration_ms: 4755.555095
+  type: 'test'
+  ...
+1..1
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5383.9483

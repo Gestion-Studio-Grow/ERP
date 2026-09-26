@@ -1,0 +1,172 @@
+URL: http://localhost:3210/operador/tenants/cmuigqmjl00a9a17d73aw68db
+scrollWidth/innerWidth: 1440/1440
+consola+http>=400: 0
+
+---- CONTROLES
+a #contenido «Saltar al contenido»
+a /operador «G CONSOLA GSG»
+a /operador «Negocios»
+a /operador/alta «Dar de alta»
+a /operador/solicitudes «Pedidos»
+a /operador/direccion «Dirección»
+a /operador/diseno «Diseño»
+input:search «q» name=q
+button «DG Dueño de GSG»
+a /operador «Todos»
+a /operador?estado=produccion «En producción»
+a /operador?estado=prueba «En prueba»
+a /operador?estado=pendientes «Con pendientes»
+a /operador?estado=estudios «Estudios contables»
+a /operador/alta «Dar de alta un negocio»
+input:hidden «$ACTION_ID_0069814f2f43495045d0025115b8274715c190f0ab» name=$ACTION_ID_0069814f2f43495045d0025115b8274715c190f0ab
+a /operador «← Negocios»
+a https://andino-lab.localhost/admin «Abrir su panel (se abre en otra pestaña; pide un usuario de ese negoci»
+a ?pestana=puesta «Puesta en marcha 4»
+a ?pestana=fiscal «Fiscal 3»
+a ?pestana=plan «Plan y apps»
+a ?pestana=marca «Marca y vidriera»
+a ?pestana=personas «Personas»
+a ?pestana=historial «Historial»
+input:hidden «$ACTION_ID_40ed3c35cc6df4f3745c72bd77d14b04d8c3778744» name=$ACTION_ID_40ed3c35cc6df4f3745c72bd77d14b04d8c3778744
+input:hidden «tenantId» name=tenantId
+input:hidden «$ACTION_ID_401f32da8391b31a6c3ee65c4bbaab010292b2dbe3» name=$ACTION_ID_401f32da8391b31a6c3ee65c4bbaab010292b2dbe3
+input:hidden «tenantId» name=tenantId
+input:hidden «$ACTION_ID_40f76b926e2aa0c4737bfd0bb2363f8d0d23f3a427» name=$ACTION_ID_40f76b926e2aa0c4737bfd0bb2363f8d0d23f3a427
+input:hidden «tenantId» name=tenantId
+input:hidden «$ACTION_ID_40f35068ea87d4b1c23f781f54a785e45e988299ea» name=$ACTION_ID_40f35068ea87d4b1c23f781f54a785e45e988299ea
+input:hidden «tenantId» name=tenantId
+input:hidden «$ACTION_ID_40d7830aef60facaea20c2569770db545fc9ca2de7» name=$ACTION_ID_40d7830aef60facaea20c2569770db545fc9ca2de7
+input:hidden «tenantId» name=tenantId
+input:hidden «$ACTION_ID_404e43fe03904da814cf8d84fbe637af6416117ebd» name=$ACTION_ID_404e43fe03904da814cf8d84fbe637af6416117ebd
+input:hidden «tenantId» name=tenantId
+input:hidden «accion» name=accion
+input:hidden «huella» name=huella
+input:hidden «$ACTION_ID_4012a397023ff70e99be7a09ad43bd0a5745436802» name=$ACTION_ID_4012a397023ff70e99be7a09ad43bd0a5745436802
+input:hidden «tenantId» name=tenantId
+input:hidden «plan» name=plan
+input:hidden «planVisto» name=planVisto
+input:hidden «modulosVistos» name=modulosVistos
+input:hidden «$ACTION_ID_4012a397023ff70e99be7a09ad43bd0a5745436802» name=$ACTION_ID_4012a397023ff70e99be7a09ad43bd0a5745436802
+input:hidden «tenantId» name=tenantId
+input:hidden «plan» name=plan
+input:hidden «planVisto» name=planVisto
+input:hidden «modulosVistos» name=modulosVistos
+input:hidden «$ACTION_ID_4012a397023ff70e99be7a09ad43bd0a5745436802» name=$ACTION_ID_4012a397023ff70e99be7a09ad43bd0a5745436802
+input:hidden «tenantId» name=tenantId
+input:hidden «plan» name=plan
+input:hidden «planVisto» name=planVisto
+input:hidden «modulosVistos» name=modulosVistos
+input:hidden «$ACTION_ID_4012a397023ff70e99be7a09ad43bd0a5745436802» name=$ACTION_ID_4012a397023ff70e99be7a09ad43bd0a5745436802
+input:hidden «tenantId» name=tenantId
+input:hidden «plan» name=plan
+input:hidden «planVisto» name=planVisto
+input:hidden «modulosVistos» name=modulosVistos
+input:hidden «$ACTION_ID_4012a397023ff70e99be7a09ad43bd0a5745436802» name=$ACTION_ID_4012a397023ff70e99be7a09ad43bd0a5745436802
+input:hidden «tenantId» name=tenantId
+input:hidden «plan» name=plan
+input:hidden «planVisto» name=planVisto
+input:hidden «modulosVistos» name=modulosVistos
+input:hidden «$ACTION_ID_40fa3c6c529233a707b14c3f5f24c08080f3f29709» name=$ACTION_ID_40fa3c6c529233a707b14c3f5f24c08080f3f29709
+input:hidden «tenantId» name=tenantId
+input:hidden «planVisto» name=planVisto
+input:hidden «limite» name=limite
+input:hidden «$ACTION_ID_40fa3c6c529233a707b14c3f5f24c08080f3f29709» name=$ACTION_ID_40fa3c6c529233a707b14c3f5f24c08080f3f29709
+input:hidden «tenantId» name=tenantId
+input:hidden «planVisto» name=planVisto
+input:hidden «limite» name=limite
+input:hidden «$ACTION_ID_40fa3c6c529233a707b14c3f5f24c08080f3f29709» name=$ACTION_ID_40fa3c6c529233a707b14c3f5f24c08080f3f29709
+input:hidden «tenantId» name=tenantId
+input:hidden «planVisto» name=planVisto
+input:hidden «limite» name=limite
+input:hidden «$ACTION_ID_40fa3c6c529233a707b14c3f5f24c08080f3f29709» name=$ACTION_ID_40fa3c6c529233a707b14c3f5f24c08080f3f29709
+input:hidden «tenantId» name=tenantId
+input:hidden «planVisto» name=planVisto
+input:hidden «limite» name=limite
+input:hidden «$ACTION_ID_40fa3c6c529233a707b14c3f5f24c08080f3f29709» name=$ACTION_ID_40fa3c6c529233a707b14c3f5f24c08080f3f29709
+input:hidden «tenantId» name=tenantId
+input:hidden «planVisto» name=planVisto
+input:hidden «limite» name=limite
+input:hidden «$ACTION_ID_40fa3c6c529233a707b14c3f5f24c08080f3f29709» name=$ACTION_ID_40fa3c6c529233a707b14c3f5f24c08080f3f29709
+input:hidden «tenantId» name=tenantId
+input:hidden «planVisto» name=planVisto
+input:hidden «limite» name=limite
+input:hidden «$ACTION_ID_4093b8c76277f534659c33ce4a130e1f46bb32df41» name=$ACTION_ID_4093b8c76277f534659c33ce4a130e1f46bb32df41
+input:hidden «tenantId» name=tenantId
+input:hidden «interruptor» name=interruptor
+input:hidden «accion» name=accion
+input:hidden «visto» name=visto
+input:hidden «modulosVistos» name=modulosVistos
+input:hidden «$ACTION_ID_4093b8c76277f534659c33ce4a130e1f46bb32df41» name=$ACTION_ID_4093b8c76277f534659c33ce4a130e1f46bb32df41
+input:hidden «tenantId» name=tenantId
+input:hidden «interruptor» name=interruptor
+input:hidden «accion» name=accion
+input:hidden «visto» name=visto
+input:hidden «modulosVistos» name=modulosVistos
+input:hidden «$ACTION_ID_40e9db591ab18dff5600a744dbfa2eefcefca7c9fb» name=$ACTION_ID_40e9db591ab18dff5600a744dbfa2eefcefca7c9fb
+input:hidden «tenantId» name=tenantId
+input:hidden «vistos» name=vistos
+input:hidden «$ACTION_ID_403594c9447afc966cbef2bfc69d98ceacb133803e» name=$ACTION_ID_403594c9447afc966cbef2bfc69d98ceacb133803e
+input:hidden «casaId» name=casaId
+input:hidden «$ACTION_ID_40566e8e17d0fb0f624ffbcc9a4eb51f7cef1a3300» name=$ACTION_ID_40566e8e17d0fb0f624ffbcc9a4eb51f7cef1a3300
+input:hidden «tenantId» name=tenantId
+button «Resetear de nuevo…»
+button «Copiar»
+---- TEXTO
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Todos
+En producción
+En prueba
+Con pendientes
+Estudios contables
+Dar de alta un negocio
+← Negocios
+Grupo Andino SA
+En prueba
+
+andino-lab
+Genérico / Comodín
+PyME (provisional)
+1 persona
+0 clientes
+alta el 26 de septiembre de 2026
+
+Abrir su panel
+(se abre en otra pestaña; pide un usuario de ese negocio)
+Puesta en marcha
+4
+Fiscal
+3
+Plan y apps
+Marca y vidriera
+Personas
+Historial
+La contraseña del dueño
+1 persona entra a su panel
+Sin dato
+admin@andino.lab
+No se sabe si ya cambió la temporal: falta la migración de la columna que lo guarda.
+Resetear de nuevo…
+
+Contraseña temporal de admin@andino.lab. Se muestra una sola vez: copiala y pasásela por un canal seguro.
+
+[contraseña temporal]
+Copiar
+
+Si cerrás o recargás esta pantalla, no vuelve a aparecer: se resetea de nuevo.
+
+La contraseña quedó reseteada, pero no se le puede exigir que la cambie al entrar: la columna mustChangePassword todavía no está en la base (migración sin aplicar). Pedile que la cambie a mano.
+
+El resto de las personas las da de alta el dueño desde su panel (Configuración › Usuarios y permisos).
+
+Hecho por Gestión Studio Grow

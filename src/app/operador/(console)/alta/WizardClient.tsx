@@ -28,6 +28,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Card, Field, Input, Select, Button, Badge, buttonClasses } from "@/components/ui";
 import { RevelarClave } from "../RevelarClave";
+import { pasaleEsto } from "./pasale-esto";
 import { planTenantAction, commitTenantAction } from "@/lib/operator-provisioning-actions";
 import { revisarAltaEnRedAction, sumarAltaALaRedAction, type RevisionAltaEnRed } from "@/lib/operador/red-locales-actions";
 import type { ResultadoAltaEnRed } from "@/lib/multilocal/multilocal-core";
@@ -239,7 +240,7 @@ export function AltaWizard({ data }: { data: WizardData }) {
 
         {result ? (
           <>
-            <ResultPanel result={result} tenantId={result.tenantId} />
+            <ResultPanel result={result} tenantId={result.tenantId} negocio={form.name?.trim() ?? ""} usuario={form.ownerEmail?.trim() ?? ""} />
             {casaElegida && result.ok && result.tenantId && (
               <PanelDeLaRed
                 casa={casaElegida.name}
@@ -881,7 +882,9 @@ function SagaStepper({ state }: { state: ProvisionState }) {
   );
 }
 
-function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantId?: string }) {
+function ResultPanel({
+  result, tenantId, negocio, usuario,
+}: { result: CommitActionResult; tenantId?: string; negocio: string; usuario: string }) {
   const outcome = result.outcome;
 
   if (!result.ok && !outcome) {
@@ -912,6 +915,16 @@ function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantI
       {/* La contraseña del dueño: fuera de la URL, se copia, se muestra una sola vez. */}
       {result.generatedPassword && <RevelarClave clave={result.generatedPassword} para="el dueño" />}
 
+      {result.ok && (
+        <PasaleEsto
+          negocio={negocio}
+          usuario={usuario}
+          clave={result.generatedPassword ?? null}
+          // `direccion` la agrega el alta del servidor (console-input.ts); mientras no venga, «sin saber».
+          direccion={(result as CommitActionResult & { direccion?: string | null }).direccion}
+        />
+      )}
+
       {/* Lo que la saga NO hizo. Va acá, pegado al resultado, porque es el único momento en que el
           operador tiene el alta fresca: después se olvida y el local abre sin link y sin aviso. */}
       {result.ok && (
@@ -923,8 +936,8 @@ function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantI
               dominio es manual.
             </li>
             <li>
-              • <b>Avisarle al dueño:</b> no se envía ningún mail. Pasale por canal seguro la
-              contraseña de acá arriba (o generá una nueva en su ficha, pestaña Personas).
+              • <b>Avisarle al dueño:</b> no se envía ningún mail. Mandale el mensaje de «Pasale
+              esto» por un canal suyo (o generá una contraseña nueva en su ficha, pestaña Personas).
             </li>
             <li>
               • <b>Datos fiscales y de contacto:</b> CUIT, punto de venta de ARCA, dirección real e
@@ -940,6 +953,46 @@ function ResultPanel({ result, tenantId }: { result: CommitActionResult; tenantI
         </Link>
       )}
     </Card>
+  );
+}
+
+/** «Pasale esto»: el mensaje para el dueño, con Copiar y WhatsApp (GSG-02/GSG-07). */
+function PasaleEsto(props: { negocio: string; usuario: string; clave: string | null; direccion: string | null | undefined }) {
+  const p = pasaleEsto(props);
+  const [copiado, setCopiado] = useState(false);
+  return (
+    <section aria-labelledby="pasale-esto" className="space-y-2 rounded-md border border-line px-3 py-3">
+      <h3 id="pasale-esto" className="font-medium">Pasale esto</h3>
+      {p.estado === "sin-direccion" && (
+        <p className="text-sm text-warning" role="status">
+          Este negocio todavía no tiene dirección: cargale el link en su ficha y después se la pasás.
+        </p>
+      )}
+      {p.estado === "sin-saber" && (
+        <p className="text-sm text-muted">La dirección para entrar la ves en la ficha del negocio.</p>
+      )}
+      <pre className="whitespace-pre-wrap break-words rounded bg-surface-sunken px-3 py-2 text-sm">{p.mensaje}</pre>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(p.mensaje);
+              setCopiado(true);
+            } catch {
+              setCopiado(false);
+            }
+          }}
+        >
+          {copiado ? "Copiado" : "Copiar"}
+        </Button>
+        <a href={p.whatsapp} target="_blank" rel="noopener noreferrer" className={`${buttonClasses("outline", "md")} min-h-11`}>
+          Mandar por WhatsApp
+        </a>
+      </div>
+    </section>
   );
 }
 

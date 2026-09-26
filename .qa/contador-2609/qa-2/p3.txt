@@ -1,0 +1,12 @@
+FICHA OPERADOR (acceso/clave): []
+ERR op []
+1440 Paula: menciones=4 | Paula (mono): Sin actividad registrada // Paula (mono) · sin categoría // Categoría de Paula (mono) // Paula (mono)
+1440 Don Tito: menciones=4 | Don Tito (RI): Sin actividad registrada // Don Tito (RI) // Don Tito (RI) // Don Tito (RI)
+1440 Andino: menciones=4 | Andino (2 locales): Sin actividad registrada // Andino (2 locales) // Andino (2 locales) // Andino (2 locales)
+1440 EN CURSO: Pedidos de alta en curso | 3 | Soporte GSG los configura y te avisa por WhatsApp | QA Kiosco Lab | CUIT 20111111112 · pedido el 26/9/26 | Ferretería El Tornillo SRL | CUIT 30712345612 · pedido el 26/9/26 | Ferretería UAT | CUIT 20222222223 · pedido el 26/9/26 | Agregar un cliente | Mandás el pedido · Soporte GSG lo configura y te avisa por WhatsApp | NOMBRE DEL NEGOCIO* | CUIT* | Con o sin guiones, como te quede cómodo. | EM
+1440 scrollWidth=1440 ERR=[]
+390 Paula: menciones=4 | Paula (mono): Sin actividad registrada // Paula (mono) · sin categoría // Categoría de Paula (mono) // Paula (mono)
+390 Don Tito: menciones=4 | Don Tito (RI): Sin actividad registrada // Don Tito (RI) // Don Tito (RI) // Don Tito (RI)
+390 Andino: menciones=4 | Andino (2 locales): Sin actividad registrada // Andino (2 locales) // Andino (2 locales) // Andino (2 locales)
+390 EN CURSO: Pedidos de alta en curso | 3 | Soporte GSG los configura y te avisa por WhatsApp | QA Kiosco Lab | CUIT 20111111112 · pedido el 26/9/26 | Ferretería El Tornillo SRL | CUIT 30712345612 · pedido el 26/9/26 | Ferretería UAT | CUIT 20222222223 · pedido el 26/9/26 | Agregar un cliente | Mandás el pedido · Soporte GSG lo configura y te avisa por WhatsApp | NOMBRE DEL NEGOCIO* | CUIT* | Con o sin guiones, como te quede cómodo. | EM
+390 scrollWidth=390 ERR=[]

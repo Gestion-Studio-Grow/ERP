@@ -1,0 +1,6 @@
+paso 1 -> http://dontito-lab.localhost:3210/admin/caja/cierre?dia=2026-08-31 :: ["",""]
+congelar habilitado: no está
+tras congelar: Agosto 2026 está abierto6 de 8 pasos listos | 1. Días cerrados en la caja Pendiente | Se descarga con el mes congelado: ésa es la versión final para tu contador. Antes, es un borrador.
+consola: []
+CH (1440) -> http://chestetica.localhost:3210/admin :: Saltar al contenido ⏎ CH ⏎ CH Estética ⏎ Buscar en el menú ⏎ Inicio ⏎ Agenda ⏎ Clientes ⏎ Lista de espera ⏎ Pedidos ⏎ Caja ⏎ Libro de caja ⏎ Cierre del día ⏎ Catálogo ⏎ Compras ⏎ Ajustes ⏎ Reseñas ⏎ Recordatorios ⏎ Facturación ⏎ Reportes ⏎ Campañas ⏎ Auditoría ⏎ Usuarios ⏎ Localización ⏎ Apariencia ⏎ C ⏎ Ceci · dice Comerciante: false · consola []
+CH (390) -> http://chestetica.localhost:3210/admin :: Saltar al contenido ⏎ Inicio ⏎ CH Estética ⏎ Inicio ⏎ Resumen del día. ⏎ + Nuevo turno ⏎ Turnos hoy ⏎ 25 ⏎ 16 confirmados ⏎ Reservados ⏎ 23 ⏎ a confirmar ⏎ Ingresos 7 días ⏎ $1.264.800 ⏎ Clientes ⏎ 306 ⏎ Agenda de hoy ⏎ Ver agenda completa → ⏎ 09:00 ⏎ Andrea Flores — Limpieza facial profunda ⏎ Confi · dice Comerciante: false · consola []

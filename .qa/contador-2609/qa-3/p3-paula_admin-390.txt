@@ -1,0 +1,60 @@
+URL: http://paularios-lab.localhost:3210/admin
+scrollWidth/innerWidth: 390/390
+consola+http>=400: 0
+
+---- CONTROLES
+a #contenido «Saltar al contenido»
+input:hidden «$ACTION_ID_00dd02a857b20806a9a76e6fb427e1bd9f2d243498» name=$ACTION_ID_00dd02a857b20806a9a76e6fb427e1bd9f2d243498
+button «Abrir menú»
+button «Cambiar tema»
+a /admin/facturacion/bancos «Subir extracto»
+a /admin/facturacion «Facturado del mes $0»
+a /admin/facturacion «Facturas emitidas 0 / 159 159 disponibles este mes»
+a /admin/facturacion/bancos#cola-revision «Pendientes de revisión 0 todo al día»
+a /admin/facturacion/bancos «Listas para emitir 0»
+a /admin/facturacion/bancos «Subir extracto»
+a /admin/facturacion/bancos «Conectar Mercado Pago»
+a /admin/facturacion «Ver facturas emitidas»
+a /admin/facturacion/bancos «Ver facturación automática →»
+---- TEXTO
+Saltar al contenido
+Inicio
+Comerciante
+Inicio
+ARCA · modo prueba (sin red)
+
+Tu facturación al día: lo que cobrás por el banco y por Mercado Pago se factura solo.
+
+Subir extracto
+
+Facturado del mes
+
+$0
+
+Facturas emitidas
+
+0 / 159
+
+159 disponibles este mes
+
+Pendientes de revisión
+
+0
+
+todo al día
+
+Listas para emitir
+
+0
+
+Facturación automática
+
+Subí el extracto de tu banco o conectá Mercado Pago: el sistema detecta las columnas, separa lo que no se factura y arma las facturas solo.
+
+Subir extracto
+Conectar Mercado Pago
+Ver facturas emitidas
+Últimas importaciones
+Ver facturación automática →
+
+Todavía no subiste ningún extracto. El primero se importa desde “Subir extracto”.

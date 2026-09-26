@@ -1,0 +1,1 @@
+export TENANT_HOST_MAP="chestetica.localhost=chestetica;magra.localhost=magra;magra-canning.localhost=magra-canning;magra-lomas.localhost=magra-lomas;shinevelas.localhost=shinevelas;adosmanos.localhost=adosmanos;estudio.localhost=estudio;qa-kiosco-lab.localhost=qa-kiosco-lab;qa-magra-adrogue.localhost=qa-magra-adrogue"

@@ -1,0 +1,267 @@
+URL: http://localhost:3210/operador
+scrollWidth/innerWidth: 1440/1440
+consola+http>=400: 0
+
+---- CONTROLES
+a #contenido «Saltar al contenido»
+a /operador «G CONSOLA GSG»
+a /operador «Negocios»
+a /operador/alta «Dar de alta»
+a /operador/solicitudes «Pedidos»
+a /operador/direccion «Dirección»
+a /operador/diseno «Diseño»
+input:search «q» name=q
+button «DG Dueño de GSG»
+a /operador «Todos»
+a /operador?estado=produccion «En producción»
+a /operador?estado=prueba «En prueba»
+a /operador?estado=pendientes «Con pendientes»
+a /operador?estado=estudios «Estudios contables»
+a /operador/alta «Dar de alta un negocio»
+input:hidden «$ACTION_ID_0069814f2f43495045d0025115b8274715c190f0ab» name=$ACTION_ID_0069814f2f43495045d0025115b8274715c190f0ab
+a /operador?estado=pendientes «Ver los 18 con pendientes»
+a /operador/tenants/cmuhxf9ky004zcf7doaemnfwt?pestana=puesta «Puesta en marcha de Verdulería La Huerta UAT»
+a /operador/tenants/cmuhxydvc006wcf7dlg88yd4b?pestana=puesta «Puesta en marcha de Ferretería El Tornillo UAT»
+a /operador/tenants/cmuijlv610004ac7das83hj7j?pestana=puesta «Puesta en marcha de Librería Los Andes SRL»
+a /operador/tenants/cmuigqjgw00a2a17da59z46x7?pestana=puesta «Puesta en marcha de Almacén Mayorista Don Tito SRL»
+a /operador/tenants/cmuig4ikq000ia17d65vmicjs?pestana=puesta «Puesta en marcha de Distribuidora del Sur SA»
+a /operador?orden=nombre «NEGOCIO»
+a /operador?orden=personas «PERSONAS»
+a /operador?orden=pendientes «LISTO PARA ABRIR»
+a /operador?orden=actividad «ACTIVIDAD»
+a /operador/tenants/cmuf1ub190000vu7d06np040t «CH Estética»
+a /operador/tenants/cmuf1ub190000vu7d06np040t «Abrir»
+a /operador/tenants/cmrhv1kwk0018ww7dsn4r2df2 «MAGRA»
+a /operador/tenants/cmrhv1kwk0018ww7dsn4r2df2 «Abrir»
+a /operador/tenants/cmrhw45s7001yww7dshs68gpr «MAGRA Canning»
+a /operador/tenants/cmrhw45s7001yww7dshs68gpr «Abrir»
+a /operador/tenants/cmrhx6qo6003bww7dtgtbxgk5 «MAGRA Lomas»
+a /operador/tenants/cmrhx6qo6003bww7dtgtbxgk5 «Abrir»
+a /operador/tenants/cmrj8c9s7004rww7d1ino07pg «Shine Velas»
+a /operador/tenants/cmrj8c9s7004rww7d1ino07pg «Abrir»
+a /operador/tenants/cmrj9euo4005hww7du06r0nrj «A Dos Manos Pádel»
+a /operador/tenants/cmrj9euo4005hww7du06r0nrj «Abrir»
+a /operador/tenants/cmufyfulg00c2an7dh7k5yluf «QA Kiosco Lab»
+a /operador/tenants/cmufyfulg00c2an7dh7k5yluf «Abrir»
+a /operador/tenants/cmufyijv200001m7dhn93d5rw «QA MAGRA Adrogué»
+a /operador/tenants/cmufyijv200001m7dhn93d5rw «Abrir»
+a /operador/tenants/cmug9wg9u0000x27dsddmm05p «Estudio Contable Laboratorio»
+a /operador/tenants/cmug9wg9u0000x27dsddmm05p «Abrir»
+a /operador/tenants/cmuhxf9ky004zcf7doaemnfwt «Verdulería La Huerta UAT»
+a /operador/tenants/cmuhxf9ky004zcf7doaemnfwt «Abrir»
+a /operador/tenants/cmuhxydvc006wcf7dlg88yd4b «Ferretería El Tornillo UAT»
+a /operador/tenants/cmuhxydvc006wcf7dlg88yd4b «Abrir»
+a /operador/tenants/cmuig42uc0004a17de67ni5v0 «Estudio de Diseño Lucía Ferro»
+a /operador/tenants/cmuig42uc0004a17de67ni5v0 «Abrir»
+a /operador/tenants/cmuig4ar2000ba17d167ragcn «Ferretería El Tornillo SRL»
+a /operador/tenants/cmuig4ar2000ba17d167ragcn «Abrir»
+a /operador/tenants/cmuig4ikq000ia17d65vmicjs «Distribuidora del Sur SA»
+a /operador/tenants/cmuig4ikq000ia17d65vmicjs «Abrir»
+a /operador/tenants/cmuigqgb7009va17dxam0n050 «Paula Ríos Fonoaudiología»
+a /operador/tenants/cmuigqgb7009va17dxam0n050 «Abrir»
+a /operador/tenants/cmuigqjgw00a2a17da59z46x7 «Almacén Mayorista Don Tito SRL»
+a /operador/tenants/cmuigqjgw00a2a17da59z46x7 «Abrir»
+a /operador/tenants/cmuigqmjl00a9a17d73aw68db «Grupo Andino SA»
+a /operador/tenants/cmuigqmjl00a9a17d73aw68db «Abrir»
+a /operador/tenants/cmuijlv610004ac7das83hj7j «Librería Los Andes SRL»
+a /operador/tenants/cmuijlv610004ac7das83hj7j «Abrir»
+---- TEXTO
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Todos
+En producción
+En prueba
+Con pendientes
+Estudios contables
+Dar de alta un negocio
+Negocios
+
+18 negocios
+1 en producción
+17 en prueba
+18 con pendientes para abrir
+
+Aislamiento entre negocios: prendido
+CH Estética con candado: cambia sólo con el OK del dueño
+ARCA simulado en este entorno: no se emite nada
+Para atender
+18
+Ver los 18 con pendientes
+6 pendientes
+Verdulería La Huerta UAT
+Falta: Precios propios · Dirección del local · Instagram · Listo para facturar · Link propio (subdominio) · Más de un usuario
+Puesta en marcha
+de Verdulería La Huerta UAT
+5 pendientes
+Ferretería El Tornillo UAT
+Falta: Dirección del negocio · Instagram · Listo para facturar · Link propio (subdominio) · Más de un usuario
+Puesta en marcha
+de Ferretería El Tornillo UAT
+5 pendientes
+Librería Los Andes SRL
+Falta: Dirección del negocio · Instagram · Listo para facturar · Link propio (subdominio) · Más de un usuario
+Puesta en marcha
+de Librería Los Andes SRL
+4 pendientes
+Almacén Mayorista Don Tito SRL
+Falta: Dirección del negocio · Instagram · Listo para facturar · Más de un usuario
+Puesta en marcha
+de Almacén Mayorista Don Tito SRL
+4 pendientes
+Distribuidora del Sur SA
+Falta: Dirección del negocio · Instagram · Listo para facturar · Más de un usuario
+Puesta en marcha
+de Distribuidora del Sur SA
+Todos los negocios
+Negocios de la plataforma
+NEGOCIO
+	ESTADO	PLAN	RUBRO	PERSONAS
+	LISTO PARA ABRIR
+	ACTIVIDAD
+	
+
+CH Estéticachestetica
+	
+En producción
+con candado
+	Sin plan	Sin rubro cargado	5	
+3 pendientes
+	561 operaciones	Abrir
+
+MAGRAmagra · casa de la red
+	
+En prueba
+	Sin plan	Carnicería boutique	3	
+3 pendientes
+	510 operaciones	Abrir
+
+MAGRA Canningmagra-canning · local de MAGRA
+	
+En prueba
+	Sin plan	Carnicería boutique	3	
+3 pendientes
+	1.310 operaciones	Abrir
+
+MAGRA Lomasmagra-lomas · local de MAGRA
+	
+En prueba
+	Sin plan	Carnicería boutique	3	
+3 pendientes
+	828 operaciones	Abrir
+
+Shine Velasshinevelas · cliente de Estudio Contable Laboratorio
+	
+En prueba
+	Sin plan	Velas & deco	3	
+3 pendientes
+	337 operaciones	Abrir
+
+A Dos Manos Pádeladosmanos · cliente de Estudio Contable Laboratorio
+	
+En prueba
+	Sin plan	Tienda de pádel	3	
+3 pendientes
+	202 operaciones	Abrir
+
+QA Kiosco Labqa-kiosco-lab
+	
+En prueba
+	Sin plan	Kiosco	2	
+4 pendientes
+	3 operaciones	Abrir
+
+QA MAGRA Adroguéqa-magra-adrogue · local de MAGRA
+	
+En prueba
+	Sin plan	Carnicería boutique	2	
+3 pendientes
+	0 operaciones	Abrir
+
+Estudio Contable Laboratorioestudio · estudio contable
+	
+En prueba
+	Sin plan	Genérico / Comodín	2	
+2 pendientes
+	0 operaciones	Abrir
+
+Verdulería La Huerta UAThuertauat
+	
+En prueba
+	Micro comerciante · provisional	Verdulería	1	
+6 pendientes
+	0 operaciones	Abrir
+
+Ferretería El Tornillo UATferreteria-el-tornillo-uat · cliente de Estudio Contable Laboratorio
+	
+En prueba
+	Sin plan	Genérico / Comodín	1	
+5 pendientes
+	0 operaciones	Abrir
+
+Estudio de Diseño Lucía Ferroluciaferro-lab · cliente de Estudio Contable Laboratorio
+	
+En prueba
+	Facturación · provisional	Genérico / Comodín	1	
+4 pendientes
+	0 operaciones	Abrir
+
+Ferretería El Tornillo SRLtornillo-lab · cliente de Estudio Contable Laboratorio
+	
+En prueba
+	Comerciante · provisional	Genérico / Comodín	1	
+4 pendientes
+	0 operaciones	Abrir
+
+Distribuidora del Sur SAdelsur-lab · casa de la red
+	
+En prueba
+	PyME · provisional	Genérico / Comodín	1	
+4 pendientes
+	0 operaciones	Abrir
+
+Paula Ríos Fonoaudiologíapaularios-lab · cliente de Estudio Contable Laboratorio
+	
+En prueba
+	Facturación · provisional	Genérico / Comodín	1	
+4 pendientes
+	0 operaciones	Abrir
+
+Almacén Mayorista Don Tito SRLdontito-lab · cliente de Estudio Contable Laboratorio
+	
+En prueba
+	Comerciante · provisional	Genérico / Comodín	1	
+4 pendientes
+	0 operaciones	Abrir
+
+Grupo Andino SAandino-lab · casa de la red
+	
+En prueba
+	PyME · provisional	Genérico / Comodín	1	
+4 pendientes
+	0 operaciones	Abrir
+
+Librería Los Andes SRLlosandes-lab · cliente de Estudio Contable Laboratorio
+	
+En prueba
+	Micro comerciante · provisional	Genérico / Comodín	1	
+5 pendientes
+	0 operaciones	Abrir
+18 de 18 negocios
+
+↑
+↓
+mover
+Enter
+abrir
+
+Hecho por Gestión Studio Grow

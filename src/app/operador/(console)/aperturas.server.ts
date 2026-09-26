@@ -12,6 +12,8 @@
 
 import { operatorPrisma } from "@/lib/operator-db";
 import { modoDesdeEnv } from "@/plugins/arca";
+import { isInvoicingEnabled } from "@/lib/fiscal";
+import { direccionDelPanel, panelesDeLaCartera } from "@/lib/contador/paneles-de-la-cartera";
 import { checklistApertura, type EstadoApertura, type ResultadoApertura } from "@/lib/operador/checklist-apertura";
 
 export interface AperturaDeNegocio extends ResultadoApertura {
@@ -56,6 +58,8 @@ export async function cargarAperturas(): Promise<AperturaDeNegocio[]> {
   ]);
 
   const modoArca = modoDesdeEnv();
+  // La dirección publicada: la MISMA regla que la cartera de la contadora (paneles-de-la-cartera.ts).
+  const paneles = panelesDeLaCartera(tenants.map((t) => t.subdomain));
   type FilaProducto = (typeof productos)[number];
   const prods = new Map<string, FilaProducto[]>();
   for (const r of productos) {
@@ -72,6 +76,7 @@ export async function cargarAperturas(): Promise<AperturaDeNegocio[]> {
       slug: t.slug,
       blueprintId: t.blueprintId,
       subdomain: t.subdomain,
+      direccionPropia: direccionDelPanel(paneles, t.subdomain, ""),
       usuariosActivos: users.get(t.id) ?? 0,
       arcaCuit: t.arcaCuit,
       arcaPuntoVenta: t.arcaPuntoVenta,
@@ -79,6 +84,7 @@ export async function cargarAperturas(): Promise<AperturaDeNegocio[]> {
       certificadoCargado: creds === null ? null : Boolean(cred),
       certCuit: cred?.certCuit ?? null,
       modoArca,
+      facturacionEncendida: isInvoicingEnabled(),
       // La columna `arcaCondicionIva` no existe todavía (ver la ficha del negocio).
       condicionIvaDisponible: false,
       contacto: sets.get(t.id) ?? null,

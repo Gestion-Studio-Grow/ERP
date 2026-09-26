@@ -11,6 +11,8 @@ import FormularioDeSiempre from "./FormularioDeSiempre";
 import { RAIZ_HOJA_DE_INGRESO } from "./HojaDeIngreso";
 import { avisoDeIngreso, folioDelDia } from "./login-core";
 import type { CSSProperties } from "react";
+import { direccionConNegocio } from "@/lib/tenant";
+import DireccionNoHabilitada from "./DireccionNoHabilitada";
 
 // Título neutro + sin indexar, igual que el resto de /admin — esta pantalla vive
 // FUERA de (dashboard) (proxy.ts la deja pasar sin sesión) así que no hereda su
@@ -29,6 +31,11 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ next?: string; error?: string }>;
 }) {
+  // Una dirección que no lleva a ningún negocio no muestra el formulario: se dice qué pasa y se da
+  // una salida (antes: clave y «Se produjo un error inesperado»). Con negocio, nada cambia.
+  if (!(await direccionConNegocio())) {
+    return <DireccionNoHabilitada whatsappGsg={process.env.WHATSAPP_GSG?.trim() || null} />;
+  }
   // Diseño nuevo del negocio (interruptor "Diseño nuevo"): se larga ya y se espera al final, así
   // corre en paralelo con las lecturas de abajo. Nunca rechaza: si falla, el de siempre.
   const disenoP = disenoNuevo();

@@ -1,0 +1,1 @@
+107:  const base = process.env.APP_BASE_DOMAIN?.trim() || null;

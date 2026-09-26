@@ -1,0 +1,105 @@
+URL: http://estudio.localhost:3210/contador/cliente/cmuijlv610004ac7das83hj7j/recibidos
+scrollWidth/innerWidth: 1440/1440
+consola+http>=400: 1
+[warning] The resource http://estudio.localhost:3210/diseno/archivo-latin.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+---- CONTROLES
+button «Cambiar tema»
+a /contador/cliente/cmuijlv610004ac7das83hj7j/recibidos?mes=2026-07 «Mes anterior»
+a /contador/cliente/cmuijlv610004ac7das83hj7j/recibidos?mes=2026-09 «Mes siguiente»
+a /contador/cliente/cmuijlv610004ac7das83hj7j/recibidos/csv?mes=2026-08 «Descargar para el libro de IVA compras»
+a /contador «Volver a la cartera»
+input:file «archivo» name=archivo
+button «Elegir otro archivo»
+button «Cargar comprobantes»
+---- TEXTO
+E
+Estudio Contable Laboratorio
+· panel del contador
+Compras de Librería Los Andes SRL
+
+Comprobantes recibidos · CUIT 30-71620345-6. El mes va por la fecha del comprobante, no por el día en que se cargó.
+
+Mes anterior
+08/2026
+Mes siguiente
+Descargar para el libro de IVA compras
+Volver a la cartera
+CARGAR EL ARCHIVO DE ARCA
+Mis Comprobantes › Recibidos › Descargar (CSV o Excel), sin editarlo.
+Elegir otro archivo
+recibidos-clasico.csv
+Cargar comprobantes
+Entraron 6 comprobantes (1 nota de crédito, que resta). 2 quedaron a revisar.
+Neto gravado
+$6.900,00
+IVA 10,5%
+sobre $1.000,00
+$105,00
+IVA 21%
+sobre $900,00
+$189,00
+IVA a revisar (sin alícuota)
+$420,00
+Otros tributos y percepciones
+$30,00
+Total
+$7.854,00
+A REVISAR
+Entraron, pero mirá el comprobante antes de cerrar el libro.
+Fila 3
+Factura A 00003-00001101 · DISTRIBUIDORA DEL SUR SA
+El IVA no corresponde a una sola alícuota (puede tener varias): cargá el desglose mirando el comprobante.
+Fila 7
+Factura A 00003-00001102 · DISTRIBUIDORA DEL SUR SA
+Tiene neto gravado pero IVA en cero: confirmá si es 0% o si es exento o no gravado.
+RESUMEN DEL MES
+8 comprobantes, 1 notas de crédito (restan).
+Neto gravado
+$105.050,00
+IVA crédito fiscal 10,5%
+sobre $2.000,00
+$210,00
+IVA crédito fiscal 21%
+sobre $102.050,00
+$21.430,50
+IVA a revisar (sin alícuota)
+$150,00
+No gravado y exento
+$0,00
+Otros tributos y percepciones
+$90,00
+Total
+$133.140,50
+COMPROBANTES DEL MES
+03/08/2026
+Factura A 00003-00001234 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$1.210,00
+05/08/2026
+Factura A 00003-00001240 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+$3.510,00
+07/08/2026
+Factura B 00005-00000088 · ALMACEN LA ESQUINA SRL
+CUIT 30-70000001-6 · sin crédito fiscal
+$1.210,00
+09/08/2026
+Factura C 00002-00000045 · SERVICIOS DE LIMPIEZA MONOTRIBUTO
+CUIT 30-70000002-4 · sin crédito fiscal
+$5.000,00
+12/08/2026
+Nota de crédito A 00003-00000077 · DISTRIBUIDORA DEL SUR SA
+CUIT 30-70000000-8
+−$121,00
+15/08/2026
+Factura A 00010-00000500 · IMPORTADORA DEL PLATA SA
+CUIT 30-70000003-2
+$121.060,50
+18/08/2026
+Factura A 00007-00000900 · FERRETERIA NORTE SA
+A revisar: El IVA 21% no cierra con su neto: revisá el comprobante.
+$1.150,00
+22/08/2026
+Tique factura A 00001-00000015 · FERRETERIA NORTE SA
+CUIT 30-70000004-0
+$121,00

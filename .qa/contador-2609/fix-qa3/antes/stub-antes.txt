@@ -1,0 +1,3 @@
+pedido 1: número 1, CAE STUB00000001 (con 7 ya autorizadas, se esperaba 8)
+pedido 2: número 1, CAE STUB00000001 (con 7 ya autorizadas, se esperaba 8)
+pedido 3: número 1, CAE STUB00000001 (con 7 ya autorizadas, se esperaba 8)

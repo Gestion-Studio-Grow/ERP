@@ -1,0 +1,14 @@
+C2 recibidos - corrección de los 3 hallazgos del refutador - 26/09/2026
+
+ANTES (tests-ANTES-del-arreglo.txt): 22 tests, 8 fallan, y reproducen los hallazgos:
+  - libro IVA de septiembre traía los 7 recibidos de agosto subidos el 3/9 (mes de la carga);
+  - la bajada del mes con 5.001 comprobantes traía 5.000 (5.001 líneas contra 5.002 esperadas);
+  - el Tique factura A (81) se rechazaba con «no va al libro de IVA compras ... cargalo a mano»;
+  - recibo A, nota de venta al contado A, liquidación A, servicios públicos A y tiques M: rechazados.
+DESPUÉS (tests-DESPUES-del-arreglo.txt): 26 tests, 25 pasan, 0 fallan, 1 salteado (Excel real:
+  node_modules/xlsx es un stub en este árbol; ya medido con la SheetJS real en la porción anterior).
+  Base efímera real (Postgres 5433, /tmp/pgrun), ~10 s en total.
+Vecinos (tests-vecinos-libro-y-cierre.txt): libros + cierre del mes, 52 de 52 pasan (el libro de un
+  negocio sin facturas de proveedor cargadas, o sea CH, sale igual letra por letra: test propio).
+tsc.txt: proyecto entero, 0 errores. eslint.txt: src/lib/contador, src/lib/libros, src/app/contador/cliente: 0 avisos.
+Sin navegador: esta porción no puede levantar next dev (prohibido).

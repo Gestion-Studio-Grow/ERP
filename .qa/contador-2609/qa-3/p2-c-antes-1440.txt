@@ -1,0 +1,140 @@
+URL: http://localhost:3210/operador/solicitudes/cmuijh7960001ac7drub2b1x5
+scrollWidth/innerWidth: 1440/1440
+consola+http>=400: 0
+
+---- CONTROLES
+a #contenido «Saltar al contenido»
+a /operador «G CONSOLA GSG»
+a /operador «Negocios»
+a /operador/alta «Dar de alta»
+a /operador/solicitudes «Pedidos»
+a /operador/direccion «Dirección»
+a /operador/diseno «Diseño»
+input:search «q» name=q
+button «DG Dueño de GSG»
+a /operador/solicitudes «Pedidos»
+a /operador/alta «Dar de alta un negocio»
+input:hidden «$ACTION_ID_0069814f2f43495045d0025115b8274715c190f0ab» name=$ACTION_ID_0069814f2f43495045d0025115b8274715c190f0ab
+a /operador/solicitudes «← Pedidos de alta»
+input:hidden «solicitudId» name=solicitudId
+input:hidden «estudioTenantId» name=estudioTenantId
+input:hidden «plan» name=plan
+input:hidden «rubro» name=rubro
+input:hidden «autorizaVinculo» name=autorizaVinculo
+input:hidden «duplicado» name=duplicado
+input:text «cuit» name=cuit
+select «Elegí… Responsable inscripto Monotributista IVA exento» name=condicionIva
+input:text «razonSocial» name=razonSocial
+input:text «alias» name=alias
+input:text «puntoVenta» name=puntoVenta
+input:text «whatsapp» name=whatsapp
+input:email «email» name=email
+select «Sólo factura (profesional, servicio chico) Comercio con mostrador Vari»
+select «Servicios (turnos, profesionales) Comercio de mostrador Carnicería (ve»
+select «PyME (sugerido)»
+input:text «subdominio» name=subdominio
+select «Ya tiene acceso: contador@estudio.lab Crear el acceso de otra persona » name=accesoContadora
+button «Crear el cliente»
+input:hidden «$ACTION_REF_2» name=$ACTION_REF_2
+input:hidden «$ACTION_2:0» name=$ACTION_2:0
+input:hidden «$ACTION_2:1» name=$ACTION_2:1
+input:hidden «$ACTION_KEY» name=$ACTION_KEY
+input:hidden «solicitudId» name=solicitudId
+input:hidden «estudioTenantId» name=estudioTenantId
+textarea «motivo» name=motivo
+button «Descartar el pedido»
+---- TEXTO
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+
+← Pedidos de alta
+
+Configurar a Distribuidora Río Bamba SA
+
+Lo pidió Carla Méndez (contador@estudio.lab) desde Estudio Contable Laboratorio.
+
+1 · Estudio
+
+Queda en la cartera de Estudio Contable Laboratorio (lo pidió Carla Méndez).
+Nota del estudio: Dos locales: Centro y Norte. Agente de percepción IIBB.
+
+2 · Cliente
+CUIT*
+
+Se controla el dígito verificador. Copialo de la constancia de inscripción de ARCA.
+
+CONDICIÓN FRENTE AL IVA*
+Elegí…
+Responsable inscripto
+Monotributista
+IVA exento
+RAZÓN SOCIAL*
+
+Tal cual figura en la constancia de ARCA.
+
+NOMBRE EN LA CARTERA
+
+Cómo lo ve la contadora. Vacío: la razón social.
+
+PUNTO DE VENTA*
+
+El que dio de alta en ARCA para factura electrónica.
+
+WHATSAPP DEL DUEÑO
+
+Con característica, sin 0 ni 15.
+
+EMAIL DEL DUEÑO (VA A SER SU USUARIO)*
+3 · Plan y rubro
+TAMAÑO
+Sólo factura (profesional, servicio chico)
+Comercio con mostrador
+Varios locales
+Se crea la casa (el primer local). Los otros locales se suman después desde su ficha, en Red, cada uno con su punto de venta.
+RUBRO
+Servicios (turnos, profesionales)
+Comercio de mostrador
+Carnicería (vende por kilo)
+PLAN
+PyME (sugerido)
+
+Tiene varios locales: PyME los maneja juntos.
+
+Nace con lo que su plan y su rubro traen (16 apps). Para sumar algo suelto, después, desde su ficha.
+
+NOMBRE CORTO PARA LA DIRECCIÓN (OPCIONAL)
+
+Minúsculas, números y guiones. Vacío: sin dirección por ahora.
+
+4 · Accesos
+
+Al dueño se le crea el usuario admin@riobamba.lab con una contraseña temporal que vas a ver una sola vez. La contadora lo ve desde la cartera de su estudio; nunca queda como dueña del negocio del cliente.
+
+ACCESO DE LA CONTADORA
+Ya tiene acceso: contador@estudio.lab
+Crear el acceso de otra persona del estudio
+5 · Revisar y crear
+
+Crear: Distribuidora Río Bamba SA · CUIT 30-70512347-7 · Responsable inscripto · punto de venta 3 · PyME · cartera de Estudio Contable Laboratorio.
+
+Crear el cliente
+¿No corresponde crearlo?
+MOTIVO DEL DESCARTE
+
+De 3 a 300 letras. La contadora lo ve en su cartera: no nombres otros negocios ni sus datos.
+
+Descartar el pedido
+
+Hecho por Gestión Studio Grow

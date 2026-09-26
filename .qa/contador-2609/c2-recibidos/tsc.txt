@@ -1,0 +1,7 @@
+src/app/operador/(console)/solicitudes/[id]/page.tsx(7,36): error TS2307: Cannot find module './ConfiguradorClient' or its corresponding type declarations.
+src/app/operador/(console)/solicitudes/configurador.server.ts(362,41): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(message?: string | undefined, options?: ErrorOptions | undefined): Rechazo', gave the following error.
+    Argument of type 'NegocioFiscal' is not assignable to parameter of type 'string'.
+  Overload 2 of 2, '(message?: string | undefined): Rechazo', gave the following error.
+    Argument of type 'NegocioFiscal' is not assignable to parameter of type 'string'.
+tsc exit 2

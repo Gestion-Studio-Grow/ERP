@@ -30,6 +30,10 @@
  */
 
 import { CAP_FACTURAS_MES_DEFAULT, cuitValido, normalizarCuit } from "@/plugins/bancos";
+import { capFacturasMesEfectivo } from "@/plugins/bancos/domain/reglas";
+import { leerLimitesEnTx } from "@/lib/limites-del-negocio-en-tx";
+import { TOPE_MAXIMO } from "@/planes/limites";
+import { planPorId, esPlanId } from "@/planes/catalogo";
 import { isValidEmail, suggestSlug } from "@/lib/provisioning/slug";
 import { businessWallTimeToUtc, dateStrInBusinessTz } from "@/lib/datetime";
 import {
@@ -74,6 +78,39 @@ export interface ResumenFiscalCliente {
   /** Propuestas listas para "Emitir automáticas (N)". */
   listasParaEmitir: number;
   ultimaImportacion: { nombreArchivo: string; createdAt: string } | null;
+  /**
+   * De dónde sale `capFacturasMes`: el plan del cliente en el catálogo (o la excepción que cargó
+   * GSG), o ninguno. Opcional: los recolectores de prueba viejos no lo traen.
+   */
+  limitePlan?: LimitePlanCliente;
+}
+
+/** El plan del cliente, dicho para la contadora junto al límite de facturas automáticas. */
+export interface LimitePlanCliente {
+  /** Id del plan del catálogo (`facturacion`, `micro`…), o `null` si no tiene uno válido. */
+  planId: string | null;
+  /** Nombre de cara al cliente ("Micro comerciante"), o `null` sin plan. */
+  planNombre: string | null;
+  /** "plan": el del catálogo; "excepcion": GSG le dio otro número; "sin-plan": rige el de siempre. */
+  origen: "plan" | "excepcion" | "sin-plan";
+  /** Lo que trae el plan (para "tu plan trae N, GSG le dio M"); `null` sin plan o sin tope. */
+  delPlan: number | null;
+}
+
+/**
+ * El límite de facturas automáticas del cliente, en una línea para la ficha. PURA. Usa el mismo
+ * número que frena la emisión (`capFacturasMesEfectivo`), no uno fijo para todos.
+ */
+export function textoLimiteDelPlan(capFacturasMes: number, l: LimitePlanCliente | undefined): string {
+  const n = capFacturasMes.toLocaleString("es-AR");
+  if (!l || l.origen === "sin-plan" || !l.planNombre) {
+    return `Sin plan asignado: rige el límite de siempre, ${n} por mes. Soporte GSG le asigna el plan.`;
+  }
+  if (l.origen === "excepcion") {
+    const trae = l.delPlan === null ? "sin límite" : `${l.delPlan.toLocaleString("es-AR")} por mes`;
+    return `Plan ${l.planNombre} (trae ${trae}); GSG le dejó ${n} por mes.`;
+  }
+  return `Plan ${l.planNombre}: hasta ${n} por mes.`;
 }
 
 /** Una fila de la cartera del contador (conserva el contrato del scaffold, ahora real). */
@@ -295,6 +332,7 @@ export async function recolectarCliente(
     outboxTrabados,
     credencial,
     ultimoMovimientoCaja,
+    limites,
   ] = await Promise.all([
     // Cierre del mes: dos filas de SU auditoría (la última de congelar/reabrir y la última
     // descarga del paquete), con el `tx` del cliente como todo lo demás.
@@ -334,6 +372,8 @@ export async function recolectarCliente(
       orderBy: { occurredAt: "desc" },
       select: { occurredAt: true },
     }),
+    // El plan del cliente y la excepción de GSG, con SU tx (las mismas filas que frenan la emisión).
+    leerLimitesEnTx(tx, tenantId),
   ]);
 
   // Caja: sólo si el cliente tiene movimientos. La cartera nace con facturación pura y
@@ -355,7 +395,17 @@ export async function recolectarCliente(
     };
   }
 
-  const capFacturasMes = meta.capFacturasMes ?? CAP_FACTURAS_MES_DEFAULT;
+  // El límite que vale de verdad: el del plan (o la excepción de GSG), que la columna del negocio
+  // sólo puede bajar. Antes se mostraba la columna o 159 para todos (hallazgo del Bloque 8).
+  const topePlan = limites?.limites.topes.facturasAutomaticasMes;
+  const capFacturasMes = capFacturasMesEfectivo(meta.capFacturasMes, topePlan, TOPE_MAXIMO);
+  const planId = limites?.limites.plan ?? null;
+  const limitePlan: LimitePlanCliente = {
+    planId,
+    planNombre: planId && esPlanId(planId) ? planPorId(planId).nombre : null,
+    origen: topePlan?.origen ?? "sin-plan",
+    delPlan: topePlan?.delPlan ?? null,
+  };
   const actividad = [ultimaImportacion?.createdAt, ultimaFactura?.createdAt]
     .filter((d): d is Date => d instanceof Date)
     .map((d) => d.getTime());
@@ -371,6 +421,7 @@ export async function recolectarCliente(
       montoFacturadoMes: aNumero(facturado._sum.total),
       pendientesRevision,
       listasParaEmitir,
+      limitePlan,
       ultimaImportacion: ultimaImportacion
         ? {
             nombreArchivo: ultimaImportacion.nombreArchivo,

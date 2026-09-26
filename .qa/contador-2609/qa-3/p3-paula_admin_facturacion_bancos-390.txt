@@ -1,0 +1,88 @@
+URL: http://paularios-lab.localhost:3210/admin/facturacion/bancos
+scrollWidth/innerWidth: 390/390
+consola+http>=400: 0
+
+---- CONTROLES
+a #contenido «Saltar al contenido»
+input:hidden «$ACTION_ID_00dd02a857b20806a9a76e6fb427e1bd9f2d243498» name=$ACTION_ID_00dd02a857b20806a9a76e6fb427e1bd9f2d243498
+button «Abrir menú»
+button «Cambiar tema»
+a /admin/facturacion «← Facturación y cobros»
+a /admin/facturacion/bancos/configuracion «Configuración»
+a #cola-revision «Pendientes de revisión 0 Nada para revisar. Todo al día.»
+input:file «archivo» name=archivo
+button «Traer cobros históricos»
+---- TEXTO
+Saltar al contenido
+Facturación
+Comerciante
+Facturación automática
+ARCA · modo prueba (sin red)
+
+Subí el extracto de tu banco y el sistema arma las facturas solo: detecta las columnas, separa lo que no se factura y te pide una mano únicamente cuando una venta necesita los datos del comprador.
+
+← Facturación y cobros
+Configuración
+
+Facturado del mes
+
+$0
+
+Con CAE de ARCA, por la fecha del comprobante (en homologación es de prueba).
+
+Facturas emitidas
+
+0 / 159
+
+Límite del plan: 159 facturas automáticas por mes
+0%
+
+Pendientes de revisión
+
+0
+
+Nada para revisar. Todo al día.
+
+Últimas importaciones
+
+0
+
+Todavía no subiste ningún extracto.
+
+Importar extracto
+
+El archivo tal cual lo baja el homebanking. Los movimientos repetidos se detectan solos: podés subir el mismo extracto dos veces sin miedo.
+
+Subí el extracto de tu banco
+Arrastralo acá o tocá para elegirlo · CSV o Excel (.csv, .xlsx, .xls), tal cual lo baja el homebanking
+Cobros de Mercado Pago
+
+Lo que cobrás por Mercado Pago entra al mismo tablero y se factura por las mismas reglas. Si el mismo cobro aparece también en el extracto del banco, se detecta y no se duplica.
+
+Modo prueba (sin credenciales)
+La facturación todavía no está encendida: los cobros se registran cuando se active.
+
+Los cobros nuevos entran solos apenas se acreditan. Con este botón traés el historial de tu cuenta y lo facturás por el mismo camino: podés correrlo las veces que quieras, no duplica.
+
+Traer cobros históricos
+Emitir facturas
+
+Las ventas clasificadas y por debajo del umbral se facturan en lote, respetando el límite de facturas automáticas del plan.
+
+No hay facturas listas para emitir. Subí un extracto o completá las ventas en revisión.
+
+Cola de revisión
+
+Estas ventas superan el umbral de identificación o parecen duplicadas: completá los datos del comprador o marcalas como no facturables.
+
+No hay nada para revisar
+
+Cuando una venta supere el umbral de identificación o parezca duplicada, va a aparecer acá para que la mires antes de facturar.
+
+Últimas importaciones
+
+Los últimos extractos procesados y cómo quedó el reconocimiento de columnas.
+
+Todavía no subiste ningún extracto. El primero se importa acá arriba.
+
+Con tecnología de Gestión Studio Grow

@@ -1,0 +1,39 @@
+Saltar al contenido
+G
+CONSOLA GSG
+Negocios
+Dar de alta
+Pedidos
+Dirección
+Diseño
+Buscar un negocio por nombre, slug o link
+Ctrl K
+DG
+Dueño de GSG
+Pedidos
+Dar de alta un negocio
+Pedidos de alta de los estudios
+Cada estudio pide acá los clientes nuevos de su cartera. Abrí un pedido para configurarlo; al terminar, avisale a la contadora por WhatsApp.
+Altas de clientes nuevos
+Pedidos sobre un cliente
+Pendientes
+6
+Paula Ríos Fonoaudiología
+Estudio Contable Laboratorio · CUIT 27298765417 · Responsable inscripto · Sólo factura (profesional, servicio chico)
+26/9/26, 11:04 a. m.
+Almacén Mayorista Don Tito SRL
+Estudio Contable Laboratorio · CUIT 30715554417 · Monotributista · Comercio con mostrador
+26/9/26, 11:04 a. m.
+Grupo Andino SA
+Estudio Contable Laboratorio · CUIT 30708887710 · Monotributista · Varios locales
+26/9/26, 11:04 a. m.
+QA Kiosco Lab
+Estudio Contable Laboratorio · CUIT 20111111112 · Responsable inscripto · Sólo factura (profesional, servicio chico)
+26/9/26, 11:04 a. m.
+Ferretería El Tornillo SRL
+Estudio Contable Laboratorio · CUIT 30712345612 · Monotributista · Comercio con mostrador · ese CUIT ya tiene negocio
+26/9/26, 11:04 a. m.
+Ferretería UAT
+Estudio Contable Laboratorio · CUIT 20222222223 · Monotributista · Sólo factura (profesional, servicio chico) · ese CUIT ya tiene negocio
+26/9/26, 11:05 a. m.
+Hecho por Gestión Studio Grow

@@ -1,0 +1,55 @@
+http://estudio.localhost:3210/contador/cliente/cmuigqjgw00a2a17da59z46x7/recibidos
+E
+Estudio Contable Laboratorio
+· panel del contador
+Compras de Don Tito (RI)
+Comprobantes recibidos · CUIT 30-71555441-7. El mes va por la fecha del comprobante, no por el día en que se cargó.
+Mes anterior
+08/2026
+Mes siguiente
+Descargar para el libro de IVA compras
+Volver a la cartera
+CARGAR EL ARCHIVO DE ARCA
+Mis Comprobantes › Recibidos › Descargar (CSV o Excel), sin editarlo.
+Elegir otro archivo
+«tachada».csv
+Cargar comprobantes
+Entraron 8 comprobantes (1 nota de crédito, que resta). 1 quedó a revisar. 2 con errores: no se cargaron (el detalle está abajo).
+Neto gravado
+$105.050,00
+IVA 10,5%
+sobre $2.000,00
+$210,00
+IVA 21%
+sobre $102.050,00
+$21.430,50
+IVA a revisar (sin alícuota)
+$150,00
+Otros tributos y percepciones
+$90,00
+Total
+$133.140,50
+A REVISAR
+Entraron, pero mirá el comprobante antes de cerrar el libro.
+Fila 9
+Factura A 00007-00005900 · FERRETERIA NORTE SA
+El IVA 21% no cierra con su neto: revisá el comprobante.
+NO SE CARGARON
+Fila 8
+Factura A 00003-00006234
+Está repetido en el archivo (ya aparece en la fila 2).
+Fila 10
+Factura A 00007-00005901
+El CUIT del emisor no es válido.
+RESUMEN DEL MES
+0 comprobantes.
+Neto gravado
+$0,00
+No gravado y exento
+$0,00
+Otros tributos y percepciones
+$0,00
+Total
+$0,00
+COMPROBANTES DEL MES
+Todavía no hay compras con factura en este mes. Cargá el archivo de ARCA arriba.

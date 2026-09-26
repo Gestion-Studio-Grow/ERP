@@ -1,0 +1,21 @@
+C2 comprobantes recibidos (compras del cliente) - porción 2 - 26/09/2026
+
+tests-recibidos.txt: recibidos-formato + recibidos-postgres: 16 tests, 15 pass, 0 fail, 1 skip
+  (el skip es el Excel real: en este árbol node_modules/xlsx es un stub de 262 bytes).
+tests-con-sheetjs-real.txt: el mismo recibidos-formato + bancos/parser/xlsx.test.ts corridos con la
+  SheetJS real (xlsx 0.18.5 bajada de registry.npmjs.org a la carpeta temporal, sin tocar node_modules):
+  20 tests, 20 pass, 0 skip. Excel con el renglón de título de ARCA: leído y probado.
+recibidos-postgres: base efímera real (Postgres 5433, /tmp/pgrun), ~3,7 s, 0 salteados. Prueba la
+  acción de importar Y (nuevo en esta porción) la ruta del listado exportable (CSV): el estudio baja las
+  7 compras de su cliente; id inventado y el propio estudio responden 404 con el mismo texto; mes mal
+  escrito 400; desde el cliente (sin cartera) 404 y sin datos.
+tests-vecinos.txt: guard /contador, dinero, libros, parsers de bancos, cartera-core: 117 tests, 114 pass,
+  3 fail. Las 3 son bancos/parser/xlsx.test.ts por el stub de xlsx; con la SheetJS real pasan (ver
+  tests-con-sheetjs-real.txt). No son de este frente ni se tocaron.
+tsc.txt: 2 errores, ambos en src/app/operador/(console)/solicitudes/ (configurador de otro frente, en
+  curso). 0 errores en archivos de C2.
+eslint.txt: src/lib/contador y src/app/contador/cliente: exit 0, 0 avisos.
+Cambios de esta porción: guardado de importes con textoAlCentavo (regla única de src/lib/dinero) en vez
+  de toFixed; texto de la pantalla corregido (el mes va por la fecha del comprobante); fuentes del
+  formato citadas con URL completa; test de aislamiento de la ruta CSV.
+Sin navegador: esta porción no puede levantar next dev (prohibido).

@@ -1,0 +1,61 @@
+http://dontito-lab.localhost:3210/admin/caja/cierre?dia=2026-08-31
+Saltar al contenido
+C
+Comerciante
+Buscar en el menú
+Inicio
+Clientes
+Pedidos
+Caja
+Libro de caja
+Cierre del día
+Catálogo
+Compras
+Ajustes
+Reseñas
+Recordatorios
+Facturación
+Reportes
+Campañas
+Auditoría
+Usuarios
+Localización
+Apariencia
+A
+Almacén Mayorista Don Tito SRL
+Dueño/a
+Cerrar sesión
+Comerciante
+Panel de administración
+Cierre de caja
+Contá la plata al final del día y dejá la diferencia asentada. Después de cerrar, el día queda congelado y el siguiente arranca con lo que contaste.
+← 30/08/2026
+31/08/2026
+01/09/2026 →
+Hoy
+Ver el libro del mes →
+Lo que el libro dice que hay
+Todo lo cargado hasta el 31/08/2026 — 0 movimientos. Todavía no hay ningún cierre anterior.
+Concepto	Efectivo	MP / Transf.	Tarjeta	Total
+Saldo al abrir	$0,00	$0,00	$0,00	$0,00
+Ingresos	$0,00	$0,00	$0,00	$0,00
+Egresos	$0,00	$0,00	$0,00	$0,00
+Debería haber	$0,00	$0,00	$0,00	$0,00
+Lo que contaste
+Escribí lo que hay de verdad. Si no coincide con el libro, la diferencia se asienta como una fila más — que es exactamente lo que la planilla nunca hacía.
+Efectivo
+El libro dice $0,00
+Contá el cajón. Obligatorio, aunque sea 0.
+MP / Transf.
+El libro dice $0,00
+Mirá el saldo de la app. Es por donde entra y sale la mayor parte de la plata.
+Tarjeta
+El libro dice $0,00
+Opcional: se liquida a los días. Dejalo vacío si no lo conciliás hoy.
+Qué pasó
+Opcional.
+Cerrar el día
+Falta el efectivo contado.
+Movimientos del período
+No hay movimientos en el período
+Se puede cerrar igual: el cierre confirma que lo que hay es lo que el libro dice.

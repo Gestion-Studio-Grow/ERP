@@ -1,0 +1,108 @@
+URL: http://dontito-lab.localhost:3210/admin
+scrollWidth/innerWidth: 1440/1440
+consola+http>=400: 0
+
+---- CONTROLES
+a #contenido «Saltar al contenido»
+input:text «Buscar…»
+a /admin «Inicio»
+a /admin/clientes «Clientes»
+a /admin/pedidos «Pedidos»
+a /admin/caja «Caja»
+a /admin/caja/libro «Libro de caja»
+a /admin/caja/cierre «Cierre del día»
+a /admin/catalogo «Catálogo»
+a /admin/compras «Compras»
+a /admin/ajustes «Ajustes»
+a /admin/resenas «Reseñas»
+a /admin/recordatorios «Recordatorios»
+a /admin/facturacion «Facturación»
+a /admin/reportes «Reportes»
+a /admin/campania «Campañas»
+a /admin/auditoria «Auditoría»
+a /admin/usuarios «Usuarios»
+a /admin/localizacion «Localización»
+a /admin/apariencia «Apariencia»
+input:hidden «$ACTION_ID_00dd02a857b20806a9a76e6fb427e1bd9f2d243498» name=$ACTION_ID_00dd02a857b20806a9a76e6fb427e1bd9f2d243498
+button «Cerrar sesión»
+button «Cambiar tema»
+a /admin/facturacion/bancos «Subir extracto»
+a /admin/facturacion «Facturado del mes $0»
+a /admin/facturacion «Facturas emitidas 0 / 1.000 1.000 disponibles este mes»
+a /admin/facturacion/bancos#cola-revision «Pendientes de revisión 0 todo al día»
+a /admin/facturacion/bancos «Listas para emitir 0»
+a /admin/facturacion/bancos «Subir extracto»
+a /admin/facturacion/bancos «Conectar Mercado Pago»
+a /admin/facturacion «Ver facturas emitidas»
+a /admin/facturacion/bancos «Ver facturación automática →»
+---- TEXTO
+Saltar al contenido
+C
+Comerciante
+Buscar en el menú
+
+Inicio
+Clientes
+Pedidos
+Caja
+Libro de caja
+Cierre del día
+Catálogo
+Compras
+Ajustes
+Reseñas
+Recordatorios
+Facturación
+Reportes
+Campañas
+Auditoría
+Usuarios
+Localización
+Apariencia
+A
+
+Almacén Mayorista Don Tito SRL
+
+Dueño/a
+
+Cerrar sesión
+Comerciante
+Panel de administración
+Inicio
+ARCA · modo prueba (sin red)
+
+Tu facturación al día: lo que cobrás por el banco y por Mercado Pago se factura solo.
+
+Subir extracto
+
+Facturado del mes
+
+$0
+
+Facturas emitidas
+
+0 / 1.000
+
+1.000 disponibles este mes
+
+Pendientes de revisión
+
+0
+
+todo al día
+
+Listas para emitir
+
+0
+
+Facturación automática
+
+Subí el extracto de tu banco o conectá Mercado Pago: el sistema detecta las columnas, separa lo que no se factura y arma las facturas solo.
+
+Subir extracto
+Conectar Mercado Pago
+Ver facturas emitidas
+Últimas importaciones
+Ver facturación automática →
+
+Todavía no subiste ningún extracto. El primero se importa desde “Subir extracto”.

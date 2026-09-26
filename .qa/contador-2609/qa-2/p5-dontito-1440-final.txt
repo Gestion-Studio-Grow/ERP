@@ -1,0 +1,76 @@
+E
+Estudio Contable Laboratorio
+· panel del contador
+Compras de Don Tito (RI)
+Comprobantes recibidos · CUIT 30-71555441-7. El mes va por la fecha del comprobante, no por el día en que se cargó.
+Mes anterior
+09/2026
+Mes siguiente
+Descargar para el libro de IVA compras
+Volver a la cartera
+CARGAR EL ARCHIVO DE ARCA
+Mis Comprobantes › Recibidos › Descargar (CSV o Excel), sin editarlo.
+Archivo de Mis Comprobantes Recibidos
+Cargar comprobantes
+RESUMEN DEL MES
+12 comprobantes, 1 notas de crédito (restan).
+Neto gravado
+$116.562,50
+IVA crédito fiscal 21%
+sobre $116.562,50
+$24.478,15
+No gravado y exento
+$0,00
+Otros tributos y percepciones
+$0,00
+Total
+$141.040,65
+COMPROBANTES DEL MES
+02/09/2026
+Factura A 00003-00002000 · DISTRIBUIDORA NORTE SA
+CUIT 30-70000000-8
+$12.100,00
+04/09/2026
+Factura A 00003-00002001 · MAYORISTA BULONES SRL
+CUIT 30-70000001-6
+$12.266,38
+06/09/2026
+Factura A 00003-00002002 · PINTURERIA CENTRAL SA
+CUIT 30-70000004-0
+$12.432,75
+08/09/2026
+Factura A 00003-00002003 · DISTRIBUIDORA NORTE SA
+CUIT 30-70000000-8
+$12.599,13
+10/09/2026
+Factura A 00003-00002004 · MAYORISTA BULONES SRL
+CUIT 30-70000001-6
+$12.765,50
+12/09/2026
+Factura A 00003-00002005 · PINTURERIA CENTRAL SA
+CUIT 30-70000004-0
+$12.931,88
+14/09/2026
+Factura A 00003-00002006 · DISTRIBUIDORA NORTE SA
+CUIT 30-70000000-8
+$13.098,25
+15/09/2026
+Nota de crédito A 00003-00000090 · DISTRIBUIDORA NORTE SA
+CUIT 30-70000000-8
+−$1.210,00
+16/09/2026
+Factura A 00003-00002007 · MAYORISTA BULONES SRL
+CUIT 30-70000001-6
+$13.264,63
+18/09/2026
+Factura A 00003-00002008 · PINTURERIA CENTRAL SA
+CUIT 30-70000004-0
+$13.431,00
+20/09/2026
+Factura A 00003-00002009 · DISTRIBUIDORA NORTE SA
+CUIT 30-70000000-8
+$13.597,38
+22/09/2026
+Factura A 00003-00002010 · MAYORISTA BULONES SRL
+CUIT 30-70000001-6
+$13.763,75

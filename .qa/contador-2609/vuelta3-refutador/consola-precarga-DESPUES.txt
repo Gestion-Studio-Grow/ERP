@@ -1,0 +1,166 @@
+TAP version 13
+# Subtest: contraste WCAG de pares de referencia
+ok 1 - contraste WCAG de pares de referencia
+  ---
+  duration_ms: 2.104767
+  type: 'test'
+  ...
+# Subtest: OKLCH ↔ sRGB: el rojo puro va y vuelve
+ok 2 - OKLCH ↔ sRGB: el rojo puro va y vuelve
+  ---
+  duration_ms: 0.389774
+  type: 'test'
+  ...
+# Subtest: color-mix en oklch: mitad blanco y negro da L = 0,5; con transparente baja el alfa
+ok 3 - color-mix en oklch: mitad blanco y negro da L = 0,5; con transparente baja el alfa
+  ---
+  duration_ms: 1.177183
+  type: 'test'
+  ...
+# Subtest: var() sigue la variable o su respaldo y corta los ciclos
+ok 4 - var() sigue la variable o su respaldo y corta los ciclos
+  ---
+  duration_ms: 1.121021
+  type: 'test'
+  ...
+# Subtest: color relativo: oklch(from <acento> L C h) toma el matiz del acento y fija luz y croma
+ok 5 - color relativo: oklch(from <acento> L C h) toma el matiz del acento y fija luz y croma
+  ---
+  duration_ms: 0.998633
+  type: 'test'
+  ...
+# Subtest: el bloque de tokens de la hoja es el que sale de tokens.ts (lo que se mide es lo que se sirve)
+ok 6 - el bloque de tokens de la hoja es el que sale de tokens.ts (lo que se mide es lo que se sirve)
+  ---
+  duration_ms: 1.874769
+  type: 'test'
+  ...
+# Subtest: la versión de la URL es la del contenido, y ConDiseno pide esa
+ok 7 - la versión de la URL es la del contenido, y ConDiseno pide esa
+  ---
+  duration_ms: 2.19364
+  type: 'test'
+  ...
+# Subtest: todo está acotado bajo [data-diseno="renglon"] y no hay capas
+ok 8 - todo está acotado bajo [data-diseno="renglon"] y no hay capas
+  ---
+  duration_ms: 34.791604
+  type: 'test'
+  ...
+# Subtest: materia plana: ni degradés, ni vidrio, ni sombras de dos capas
+ok 9 - materia plana: ni degradés, ni vidrio, ni sombras de dos capas
+  ---
+  duration_ms: 1.014361
+  type: 'test'
+  ...
+# Subtest: presupuesto: la hoja ≤ 30 KB gzip; la letra, un archivo ≤ 120 KB
+ok 10 - presupuesto: la hoja ≤ 30 KB gzip; la letra, un archivo ≤ 120 KB
+  ---
+  duration_ms: 4.450281
+  type: 'test'
+  ...
+# Subtest: cada par de la piel llega a su mínimo WCAG en claro y en oscuro, con cada acento
+ok 11 - cada par de la piel llega a su mínimo WCAG en claro y en oscuro, con cada acento
+  ---
+  duration_ms: 174.970378
+  type: 'test'
+  ...
+# Subtest: el texto va a 4,5:1 (la tinta principal a 7:1) y lo gráfico (foco, señales, borde de campo) a 3:1
+ok 12 - el texto va a 4,5:1 (la tinta principal a 7:1) y lo gráfico (foco, señales, borde de campo) a 3:1
+  ---
+  duration_ms: 0.549359
+  type: 'test'
+  ...
+# Subtest: los neutros teñidos son los de respaldo con el matiz del acento (misma luz y mismo croma)
+ok 13 - los neutros teñidos son los de respaldo con el matiz del acento (misma luz y mismo croma)
+  ---
+  duration_ms: 0.657072
+  type: 'test'
+  ...
+# Subtest: materia plana: ninguna sombra de dos capas ni sombra en lo que no flota
+ok 14 - materia plana: ninguna sombra de dos capas ni sombra en lo que no flota
+  ---
+  duration_ms: 0.483064
+  type: 'test'
+  ...
+# Subtest: los colores literales de la piel están dentro de sRGB (lo que se mide es lo que se ve)
+ok 15 - los colores literales de la piel están dentro de sRGB (lo que se mide es lo que se ve)
+  ---
+  duration_ms: 0.878853
+  type: 'test'
+  ...
+# Subtest: «Diseño nuevo» está en el catálogo: nombre, qué cambia, cómo figura en la Auditoría, y no toca las apps
+ok 16 - «Diseño nuevo» está en el catálogo: nombre, qué cambia, cómo figura en la Auditoría, y no toca las apps
+  ---
+  duration_ms: 1.796409
+  type: 'test'
+  ...
+# Subtest: beauty-spa: «Diseño nuevo» sólo lo prende el dueño, escribiendo el slug; nadie más lo apaga
+ok 17 - beauty-spa: «Diseño nuevo» sólo lo prende el dueño, escribiendo el slug; nadie más lo apaga
+  ---
+  duration_ms: 21.213705
+  type: 'test'
+  ...
+# Subtest: una fila forjada desde la app del negocio no prende el diseño nuevo, ni apaga el que prendió la consola
+ok 18 - una fila forjada desde la app del negocio no prende el diseño nuevo, ni apaga el que prendió la consola
+  ---
+  duration_ms: 2.005232
+  type: 'test'
+  ...
+# Subtest: si la lectura falla (o viene rota), el diseño es el de siempre, y se avisa
+ok 19 - si la lectura falla (o viene rota), el diseño es el de siempre, y se avisa
+  ---
+  duration_ms: 0.622292
+  type: 'test'
+  ...
+# Subtest: el diseño nuevo se prende aunque 'Trabaja por apps' perdería apps: no quita ninguna, y su fila no promete apps
+ok 20 - el diseño nuevo se prende aunque 'Trabaja por apps' perdería apps: no quita ninguna, y su fila no promete apps
+  ---
+  duration_ms: 1.649601
+  type: 'test'
+  ...
+# Subtest: cada interruptor con su estado: prender uno no prende el otro, y 'lo que viste' se compara con el suyo
+ok 21 - cada interruptor con su estado: prender uno no prende el otro, y 'lo que viste' se compara con el suyo
+  ---
+  duration_ms: 7.296003
+  type: 'test'
+  ...
+# Subtest: la decisión: sólo la última fila válida de la consola prende el diseño nuevo
+ok 22 - la decisión: sólo la última fila válida de la consola prende el diseño nuevo
+  ---
+  duration_ms: 2.107279
+  type: 'test'
+  ...
+# Subtest: ConDiseno apagado devuelve el mismo hijo (ni hoja, ni provider, ni un nodo de más)
+ok 23 - ConDiseno apagado devuelve el mismo hijo (ni hoja, ni provider, ni un nodo de más)
+  ---
+  duration_ms: 6.703713
+  type: 'test'
+  ...
+# Subtest: ConDiseno prendido pide la hoja versionada una vez y deja el contenido igual
+ok 24 - ConDiseno prendido pide la hoja versionada una vez y deja el contenido igual
+  ---
+  duration_ms: 2.732107
+  type: 'test'
+  ...
+# Subtest: cada raíz de un negocio: el atributo sólo con el interruptor, la piel de siempre intacta
+ok 25 - cada raíz de un negocio: el atributo sólo con el interruptor, la piel de siempre intacta
+  ---
+  duration_ms: 1.344384
+  type: 'test'
+  ...
+# Subtest: la consola no precarga la letra; las demás raíces sí
+ok 26 - la consola no precarga la letra; las demás raíces sí
+  ---
+  duration_ms: 2.85633
+  type: 'test'
+  ...
+1..26
+# tests 26
+# suites 0
+# pass 26
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1761.199595

@@ -110,6 +110,19 @@ async function hostFromRequest(): Promise<string | null> {
 }
 
 /**
+ * El host del pedido no lleva a ningún negocio: una dirección que la plataforma todavía no publica
+ * (no está en `TENANT_HOST_MAP` ni es subdominio de `APP_BASE_DOMAIN`), mal escrita, o de un
+ * negocio que no existe. Sigue siendo fail-closed (ADR-015); el tipo existe para que la pantalla
+ * de ingreso diga eso en vez de «Se produjo un error inesperado» (QA 26/09, bloqueante 4).
+ */
+export class DireccionSinNegocioError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DireccionSinNegocioError";
+  }
+}
+
+/**
  * Resuelve el tenantId a partir de un host. PURO respecto de Next (recibe el host),
  * así es testeable sin request. Fail-closed (ADR-015).
  *
@@ -127,7 +140,7 @@ export async function resolveTenantId(host: string | null | undefined): Promise<
       select: { id: true },
     });
     if (t) return t.id;
-    throw new Error(
+    throw new DireccionSinNegocioError(
       `getCurrentTenantId: no hay tenant para el subdominio "${sub}"` +
         (mapped ? " (vía TENANT_HOST_MAP)" : "") +
         " (fail-closed, ADR-015). Revisá que el tenant tenga ese subdomain, el mapa de hosts, " +
@@ -147,7 +160,7 @@ export async function resolveTenantId(host: string | null | undefined): Promise<
       "getCurrentTenantId: no hay ningún tenant en la base. Se esperaba exactamente uno (ADR-015).",
     );
   }
-  throw new Error(
+  throw new DireccionSinNegocioError(
     "getCurrentTenantId: hay más de un tenant y el request no trae subdominio para resolver " +
       "(ADR-015 / ADR-018 §4). Cada tenant debe accederse por su subdominio; los paths sin host " +
       "(jobs/API) deben resolver el tenant con contexto explícito (runInTenantContext).",
@@ -252,3 +265,18 @@ export const getCurrentTenantId = cache(async (): Promise<string> => {
   }
   return resolveTenantId(await hostFromRequest());
 });
+
+/**
+ * ¿La dirección de este pedido lleva a un negocio? `false` SÓLO si el host no resuelve
+ * (`DireccionSinNegocioError`); cualquier otra falla (la base caída) se propaga: no se disfraza
+ * de «dirección no habilitada». `resolver` inyectable para testear sin request.
+ */
+export async function direccionConNegocio(resolver: () => Promise<string> = getCurrentTenantId): Promise<boolean> {
+  try {
+    await resolver();
+    return true;
+  } catch (e) {
+    if (e instanceof DireccionSinNegocioError) return false;
+    throw e;
+  }
+}

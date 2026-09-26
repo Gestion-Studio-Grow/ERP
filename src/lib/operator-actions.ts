@@ -26,6 +26,8 @@ import {
   verificarOperador,
 } from "@/lib/operator-auth";
 import { isModuleId } from "@/lib/operator-config";
+import { motivoFueraDelPlan } from "@/app/operador/(console)/tenants/[id]/modulos-y-plan";
+import { vueltaAFiscal } from "@/app/operador/(console)/tenants/[id]/fiscal-vuelta";
 import { leerSubdominio } from "@/lib/provisioning/slug";
 import { requestIp } from "@/lib/audit-core";
 import { loginRateLimiter, loginKey } from "@/lib/rate-limit";
@@ -228,7 +230,7 @@ export async function setTenantArcaCuit(formData: FormData) {
 
   const parsed = interpretarCuitInput(raw);
   if (parsed.accion === "error") {
-    redirect(`/operador/tenants/${tenantId}?error=${encodeURIComponent(parsed.motivo)}`);
+    redirect(vueltaAFiscal(tenantId, { error: parsed.motivo, cuit: raw }));
   }
   const nuevoCuit = parsed.accion === "set" ? parsed.cuit : null;
 
@@ -277,12 +279,12 @@ export async function setTenantArcaCuit(formData: FormData) {
   });
   if (r.tipo === "no-existe") redirect("/operador?error=notfound");
   if (r.tipo === "choque") {
-    redirect(`/operador/tenants/${tenantId}?error=${encodeURIComponent(r.motivo)}`);
+    redirect(vueltaAFiscal(tenantId, { error: r.motivo, cuit: raw }));
   }
 
   revalidatePath(`/operador/tenants/${tenantId}`);
   const msg = nuevoCuit ? `CUIT del emisor guardado (${nuevoCuit})${aviso}` : "CUIT del emisor borrado";
-  redirect(`/operador/tenants/${tenantId}?ok=${encodeURIComponent(msg)}`);
+  redirect(vueltaAFiscal(tenantId, { ok: msg }));
 }
 
 // --- Punto de venta de ARCA por tenant ----------------------------------------
@@ -302,16 +304,15 @@ export async function setTenantArcaPuntoVenta(formData: FormData) {
     // Sólo dígitos: ARCA numera los puntos de venta de 1 a 99999 (5 dígitos en el CAE).
     if (!/^\d{1,5}$/.test(raw)) {
       redirect(
-        `/operador/tenants/${tenantId}?error=${encodeURIComponent(
-          `"${raw}" no es un punto de venta válido: va un número entero de 1 a 99999 (el que ARCA habilitó para este CUIT).`,
-        )}`,
+        vueltaAFiscal(tenantId, {
+          error: `"${raw.slice(0, 32)}" no es un punto de venta válido: va un número entero de 1 a 99999 (el que ARCA habilitó para este CUIT).`,
+          pv: raw,
+        }),
       );
     }
     punto = Number(raw);
     if (punto <= 0) {
-      redirect(
-        `/operador/tenants/${tenantId}?error=${encodeURIComponent("El punto de venta tiene que ser mayor que cero.")}`,
-      );
+      redirect(vueltaAFiscal(tenantId, { error: "El punto de venta tiene que ser mayor que cero.", pv: raw }));
     }
   }
 
@@ -347,18 +348,20 @@ export async function setTenantArcaPuntoVenta(formData: FormData) {
   if (r.tipo === "no-existe") redirect("/operador?error=notfound");
   if (r.tipo === "cambio") {
     redirect(
-      `/operador/tenants/${tenantId}?error=${encodeURIComponent(
-        "El CUIT de este negocio cambió mientras editabas. No se guardó nada: revisá los datos de ahora y cargá el punto de venta de nuevo.",
-      )}`,
+      vueltaAFiscal(tenantId, {
+        error:
+          "El CUIT de este negocio cambió mientras editabas. No se guardó nada: revisá los datos de ahora y cargá el punto de venta de nuevo.",
+        pv: raw,
+      }),
     );
   }
   if (r.tipo === "choque") {
-    redirect(`/operador/tenants/${tenantId}?error=${encodeURIComponent(r.motivo)}`);
+    redirect(vueltaAFiscal(tenantId, { error: r.motivo, pv: raw }));
   }
 
   revalidatePath(`/operador/tenants/${tenantId}`);
   const msg = punto ? `Punto de venta guardado (${punto})` : "Punto de venta borrado";
-  redirect(`/operador/tenants/${tenantId}?ok=${encodeURIComponent(msg)}`);
+  redirect(vueltaAFiscal(tenantId, { ok: msg }));
 }
 
 // --- Credencial fiscal ARCA por tenant (ADR-066) ------------------------------
@@ -373,7 +376,8 @@ export async function cargarCredencialFiscal(formData: FormData) {
   const keyPem = String(formData.get("keyPem") || "").trim();
 
   if (!tenantId || !certPem || !keyPem) {
-    redirect(`/operador/tenants/${tenantId}?error=${encodeURIComponent("Pegá el certificado y la clave (PEM).")}`);
+    // Sin eco de lo pegado: la clave privada nunca viaja en la dirección.
+    redirect(vueltaAFiscal(tenantId, { error: "Pegá el certificado y la clave (PEM)." }));
   }
 
   // El trabajo va en try/catch; el redirect de éxito queda AFUERA (redirect() lanza por
@@ -383,10 +387,10 @@ export async function cargarCredencialFiscal(formData: FormData) {
     const r = await cargarCredencialTenant({ tenantId, certPem, keyPem, actor: `operator:${op}` });
     mensajeOk = `credencial fiscal ${r.rotada ? "rotada" : "cargada"} (CUIT ${r.certCuit})`;
   } catch (e) {
-    redirect(`/operador/tenants/${tenantId}?error=${encodeURIComponent(e instanceof Error ? e.message : String(e))}`);
+    redirect(vueltaAFiscal(tenantId, { error: e instanceof Error ? e.message : String(e) }));
   }
   revalidatePath(`/operador/tenants/${tenantId}`);
-  redirect(`/operador/tenants/${tenantId}?ok=${encodeURIComponent(mensajeOk)}`);
+  redirect(vueltaAFiscal(tenantId, { ok: mensajeOk }));
 }
 
 // --- Pase a facturación real y vuelta a pruebas (R2-F5) -----------------------
@@ -559,6 +563,16 @@ function leerVistos(valor: FormDataEntryValue | null): string[] | null {
   }
 }
 
+function nombreDeModulo(id: string): string {
+  return catalogo().buscar(id)?.nombre ?? id;
+}
+
+/** `Tenant.plan` del negocio (la ficha lo cambia aparte, en «Plan del negocio»). */
+async function planDe(tenantId: string): Promise<string | null> {
+  const t = await operatorPrisma.tenant.findUnique({ where: { id: tenantId }, select: { plan: true } });
+  return t?.plan ?? null;
+}
+
 function nombresDeModulos(ids: readonly string[]): string {
   const cat = catalogo();
   return ids.map((id) => `“${cat.buscar(id)?.nombre ?? id}”`).join(", ");
@@ -596,6 +610,15 @@ export async function toggleTenantModule(formData: FormData) {
   if (plan.sinCambios) {
     volverAApps(tenantId, { ok: `No había nada que cambiar: ${nombre} ya estaba ${accion === "activar" ? "activo" : "apagado"}.` });
   }
+  // El plan del negocio (GSG-19): lo que el cambio suma tiene que entrar en su plan. Antes a un
+  // Micro se le prendía «Cuentas a pagar» sin aviso. La regla es la del catálogo (modulos-y-plan.ts).
+  const fueraDelPlan = motivoFueraDelPlan(
+    { ...negocio, plan: await planDe(tenantId) },
+    negocio.modules,
+    plan.despues,
+    nombreDeModulo,
+  );
+  if (fueraDelPlan) volverAApps(tenantId, { modulo, error: fueraDelPlan });
 
   // Con el candado de las apps del negocio: el interruptor se lee ahí adentro, así un "prender" que
   // corre a la vez no deja a este cambio decidiendo con la foto de antes.
@@ -643,6 +666,14 @@ export async function fijarAsignacionActual(formData: FormData) {
   if (plan.sinCambios) {
     volverAApps(tenantId, { ok: "No había nada que fijar: con sus módulos ya ve todas las apps de su menú de siempre." });
   }
+  // Fijar tampoco regala módulos de otro plan (GSG-19): se frena igual que el interruptor.
+  const fueraDelPlan = motivoFueraDelPlan(
+    { ...negocio, plan: await planDe(tenantId) },
+    negocio.modules,
+    plan.despues,
+    nombreDeModulo,
+  );
+  if (fueraDelPlan) volverAApps(tenantId, { error: fueraDelPlan });
 
   // Sólo suma módulos: no le saca apps a nadie. Igual toma el candado de las apps del negocio.
   const guardado = await escribirModulosConCandado(tenantId, negocio.modules, plan.despues, {

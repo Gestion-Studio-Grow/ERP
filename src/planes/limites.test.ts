@@ -27,6 +27,7 @@ import {
   type FilaDeLimite,
   type LimiteQueBloquea,
 } from "./limites";
+import type { PlanId } from "./catalogo";
 
 const T = "tenant-1";
 let secuencia = 0;
@@ -381,4 +382,21 @@ test("cada límite tiene nombre, unidad y cómo se cuenta, en castellano", () =>
   }
   const bloquean = LIMITE_IDS.filter((id) => LIMITES[id].bloquea).sort();
   assert.deepEqual(bloquean, ["clientesCartera", "cuentasBancarias", "locales", "usuarios"]);
+});
+
+test("facturas automáticas por plan: escalonadas de Facturación a PyME, nunca más que los comprobantes del plan, y CH sigue con su tope de siempre", () => {
+  const tope = (plan: PlanId) => limitesDelNegocio({ slug: "negocio", plan }, []).topes.facturasAutomaticasMes;
+  const escalera: PlanId[] = ["facturacion", "micro", "comerciante", "pyme"];
+  const valores = escalera.map((p) => tope(p).valor);
+  for (const v of valores) assert.equal(typeof v, "number", "cada plan comercial tiene un tope concreto");
+  for (let i = 1; i < valores.length; i++) {
+    assert.ok((valores[i] as number) > (valores[i - 1] as number), `${escalera[i]} da más facturas automáticas que ${escalera[i - 1]}`);
+  }
+  for (const p of escalera) {
+    const comprobantes = limitesDelNegocio({ slug: "negocio", plan: p }, []).topes.comprobantesMes.valor;
+    if (comprobantes !== null) assert.ok((tope(p).valor as number) <= comprobantes, `${p}: automáticas <= comprobantes del plan`);
+    assert.equal(tope(p).origen, "plan");
+  }
+  // CH (beauty-spa) no toma el catálogo: queda sin plan, con la columna o el default de siempre.
+  assert.equal(limitesDelNegocio({ slug: "beauty-spa", plan: "pyme" }, []).topes.facturasAutomaticasMes.origen, "sin-plan");
 });

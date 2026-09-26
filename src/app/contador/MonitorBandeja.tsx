@@ -19,6 +19,7 @@ import { Badge, Bloque, Button, Franja, Marca, MenuMas, Plata, Renglon, buttonCl
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import { folioDeBandeja, ordenarBandeja } from "./bandeja-core";
 import type { FilaCartera } from "@/lib/cartera-core";
+import { direccionDelPanel, type PanelesDeLaCartera } from "@/lib/contador/direccion-del-panel";
 import {
   noPuedeEmitir,
   peorSenal,
@@ -34,7 +35,7 @@ export default function MonitorBandeja({
   resumen,
   avisos,
   cartera,
-  baseDomain,
+  paneles,
 }: {
   /** Ya ordenadas por urgencia (evaluarCartera). */
   filas: FilaMonitor[];
@@ -42,7 +43,8 @@ export default function MonitorBandeja({
   avisos: AvisoPlataforma[];
   /** Las filas del panel de volumen: de ahí salen el subdominio y las listas para emitir. */
   cartera: FilaCartera[];
-  baseDomain: string | null;
+  /** Qué clientes tienen panel propio y en qué dirección (lo arma el servidor con la regla del deploy). */
+  paneles: PanelesDeLaCartera;
 }) {
   const router = useRouter();
   const nuevo = useDiseno();
@@ -86,8 +88,7 @@ export default function MonitorBandeja({
     });
 
   const urlCliente = (clienteTenantId: string, ruta: string): string | null => {
-    const sub = porId.get(clienteTenantId)?.subdomain;
-    return sub && baseDomain ? `https://${sub}.${baseDomain}${ruta}` : null;
+    return direccionDelPanel(paneles, porId.get(clienteTenantId)?.subdomain, ruta);
   };
 
   // Sin cartera no hay bandeja: el panel de abajo ya dice "tu cartera está vacía".

@@ -1,0 +1,7 @@
+"Fecha","Tipo","Punto de Venta","Número Desde","Número Hasta","Cód. Autorización","Tipo Doc. Emisor","Nro. Doc. Emisor","Denominación Emisor","Tipo Cambio","Moneda","Imp. Neto Gravado","Imp. Neto No Gravado","Imp. Op. Exentas","IVA","Imp. Total"
+"03/07/2026","1 - Factura A","3","1100","1100","76000000000011","80","30700000008","DISTRIBUIDORA DEL SUR SA","1","$","1000,00","0","0","210,00","1210,00"
+"04/07/2026","1 - Factura A","3","1101","1101","76000000000012","80","30700000008","DISTRIBUIDORA DEL SUR SA","1","$","3000,00","0","0","420,00","3420,00"
+"05/07/2026","1 - Factura A","7","800","800","76000000000013","80","30700000040","FERRETERIA NORTE SA","1","$","1000,00","0","0","105,00","1135,00"
+"06/07/2026","6 - Factura B","5","80","80","76000000000014","80","30700000016","ALMACEN LA ESQUINA SRL","1","$","1000,00","0","0","0","1210,00"
+"08/07/2026","3 - Nota de Crédito A","3","70","70","76000000000015","80","30700000008","DISTRIBUIDORA DEL SUR SA","1","$","100,00","0","0","21,00","121,00"
+"09/07/2026","1 - Factura A","3","1102","1102","76000000000016","80","30700000008","DISTRIBUIDORA DEL SUR SA","1","$","1000,00","0","0","0","1000,00"

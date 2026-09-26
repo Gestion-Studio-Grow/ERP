@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createSessionToken, getSessionCookieName } from "@/lib/auth";
 import { verifyPassword } from "@/lib/auth-password";
 import { prisma } from "@/lib/prisma";
-import { getCurrentTenantId } from "@/lib/tenant";
+import { DireccionSinNegocioError, getCurrentTenantId } from "@/lib/tenant";
 import { requestIp } from "@/lib/audit-core";
 import { loginRateLimiter, loginKey } from "@/lib/rate-limit";
 import { getProductoContexto } from "@/lib/producto";
@@ -24,7 +24,14 @@ export async function login(formData: FormData) {
     redirect(`/admin/login?error=throttled&next=${encodeURIComponent(next)}`);
   }
 
-  const tenantId = await getCurrentTenantId();
+  // Una dirección sin negocio vuelve al ingreso, que explica qué pasa (no un error genérico).
+  let tenantId: string;
+  try {
+    tenantId = await getCurrentTenantId();
+  } catch (e) {
+    if (e instanceof DireccionSinNegocioError) redirect("/admin/login");
+    throw e;
+  }
   const user = await prisma.user.findFirst({
     where: { tenantId, email, active: true, deletedAt: null },
   });

@@ -1,0 +1,1 @@
+22:-  logger.info("arca.prueba", "Emitiendo factura de prueba", { tenantId, modo, cuit, puntoVenta });

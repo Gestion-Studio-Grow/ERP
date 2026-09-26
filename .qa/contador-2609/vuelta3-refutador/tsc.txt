@@ -1,0 +1,2 @@
+exit 0
+(npx tsc --noEmit -p . — salida vacía = 0 errores)
