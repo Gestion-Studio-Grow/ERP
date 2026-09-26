@@ -6,10 +6,13 @@
 // conexión ve los envíos de TODOS los negocios), la acción "Procesar facturación pendiente" del
 // panel de A se ejecuta TAL CUAL (Server Action real, sesión real de la dueña de A, ARCA en modo
 // simulado por defecto). Antes tomaba también los envíos de B y los contaba en el resumen de A.
+//
+// El arnés conecta la consola como en producción (`app_rls`); este test la pone a propósito como
+// dueño, el peor caso: el aislamiento de la acción no puede depender de que la consola no vea.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraDelArchivo } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 const laBase = baseEfimeraDelArchivo();
@@ -23,13 +26,17 @@ async function preparar(t: import("node:test").TestContext) {
     DB_CONNECTION_LIMIT: "2",
     DB_CONNECT_TIMEOUT_MS: "3000",
     ARCA_MODO: "", // simulado (stub): lo que se mide es qué envíos se toman, no ARCA
+    OPERATOR_DATABASE_URL: base.urlDuenio, // el peor caso: la consola ve todos los negocios
   });
-  assert.equal(process.env.OPERATOR_DATABASE_URL, base.urlDuenio, "el operador es el rol dueño: ve todos los negocios");
   prepararAccionesDeServidor();
   const { operatorPrisma } = await import("@/lib/operator-db");
+  const [rol] = await operatorPrisma.$queryRaw<{ duenio: boolean }[]>`
+    SELECT pg_has_role(current_user, c.relowner, 'USAGE') AS duenio FROM pg_class AS c WHERE c.oid = '"OutboxEvent"'::regclass`;
+  assert.equal(rol?.duenio, true, "la consola es el rol dueño: ve todos los negocios");
+  const duenio = await prismaComoDuenio(base);
   const invoiceCore = await import("@/lib/invoice-core");
   const facturacion = await import("@/lib/facturacion-actions");
-  await operatorPrisma.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
+  await duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
 
   let venta = 0;
   const facturar = (tenantId: string) =>
@@ -47,12 +54,12 @@ async function preparar(t: import("node:test").TestContext) {
       origin: { type: "MP_PAYMENT" as const, id: `mp_eng012_${++venta}` },
     });
   const enviosDe = (tenantId: string) =>
-    operatorPrisma.outboxEvent.findMany({
+    duenio.outboxEvent.findMany({
       where: { tenantId },
       orderBy: { id: "asc" },
       select: { id: true, attempts: true, lastError: true, processedAt: true, payload: true },
     });
-  return { base, operatorPrisma, facturacion, facturar, enviosDe };
+  return { base, duenio, facturacion, facturar, enviosDe };
 }
 
 test("ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan intactos y el resumen cuenta sólo los de A", async (t) => {
@@ -73,10 +80,10 @@ test("ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan
 
   assert.deepEqual(await p.enviosDe(b.id), enviosDeBAntes, "intentos, error, fecha de proceso y payload de B sin cambio");
   for (const id of deB) {
-    assert.equal((await p.operatorPrisma.invoice.findUniqueOrThrow({ where: { id } })).status, "PENDING");
+    assert.equal((await p.duenio.invoice.findUniqueOrThrow({ where: { id } })).status, "PENDING");
   }
   for (const id of deA) {
-    assert.equal((await p.operatorPrisma.invoice.findUniqueOrThrow({ where: { id } })).status, "AUTHORIZED");
+    assert.equal((await p.duenio.invoice.findUniqueOrThrow({ where: { id } })).status, "AUTHORIZED");
   }
 
   // Y al revés: la acción de B toma el suyo y nada de A.
@@ -88,7 +95,7 @@ test("ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan
   assert.equal(rb.valor.autorizados, 1);
   assert.equal(rb.valor.procesados + rb.valor.fallidos + rb.valor.descartados, 2);
   assert.deepEqual(await p.enviosDe(a.id), enviosDeAAntes);
-  await p.operatorPrisma.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
+  await p.duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
 });
 
 test("ENG-012 · la acción de A no toma un envío de B aunque sea el único pendiente (0 procesados, B sin intentos)", async (t) => {
@@ -102,5 +109,5 @@ test("ENG-012 · la acción de A no toma un envío de B aunque sea el único pen
   if (r.tipo !== "respuesta") return;
   assert.deepEqual(r.valor, { procesados: 0, autorizados: 0, rechazados: 0, fallidos: 0, descartados: 0 });
   assert.deepEqual(await p.enviosDe(b.id), antes);
-  await p.operatorPrisma.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
+  await p.duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
 });

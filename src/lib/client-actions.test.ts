@@ -13,7 +13,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraDelArchivo, type BaseEfimera } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimera } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { SimuladorArca } from "@/plugins/arca/afip/simulador";
 
@@ -40,8 +40,8 @@ async function preparar(t: import("node:test").TestContext) {
   });
   prepararAccionesDeServidor();
   const { guardarFichaFiscal } = await import("@/lib/client-actions");
-  const { operatorPrisma } = await import("@/lib/operator-db");
-  return { base, guardarFichaFiscal, operatorPrisma };
+  const duenio = await prismaComoDuenio(base);
+  return { base, guardarFichaFiscal, duenio };
 }
 
 function formulario(campos: Record<string, string>): FormData {
@@ -68,7 +68,7 @@ async function perfilDe(negocio: BaseEfimera["a"]) {
 }
 
 const fichaDe = (p: Preparado, id: string) =>
-  p.operatorPrisma.client.findUnique({
+  p.duenio.client.findUnique({
     where: { id },
     select: { docTipo: true, docNro: true, razonSocial: true, condicionIva: true, domicilio: true },
   });
@@ -93,7 +93,7 @@ test("la dueña guarda la ficha fiscal de su cliente: queda normalizada y audita
     condicionIva: "RESPONSABLE_INSCRIPTO",
     domicilio: "Av. Mitre 1234, Avellaneda",
   });
-  const audit = await p.operatorPrisma.auditLog.findFirst({ where: { entity: "Client", entityId: id, action: "update" } });
+  const audit = await p.duenio.auditLog.findFirst({ where: { entity: "Client", entityId: id, action: "update" } });
   assert.ok(audit, "queda en la auditoría");
   assert.deepEqual((audit!.changes as Record<string, unknown>).docNro, { antes: null, despues: CUIT_CLIENTE_INSCRIPTO });
   assert.equal(audit!.tenantId, p.base.a.id);
@@ -126,7 +126,7 @@ test("aislamiento: con el id de una ficha de otro negocio da 'no existe' y la fi
   });
   assert.deepEqual(r, { ok: false, error: "Esa ficha de cliente no existe." });
   assert.deepEqual(await fichaDe(p, ajena), antes);
-  assert.equal(await p.operatorPrisma.auditLog.count({ where: { entityId: ajena, action: "update" } }), 0);
+  assert.equal(await p.duenio.auditLog.count({ where: { entityId: ajena, action: "update" } }), 0);
 });
 
 test("inscripto: B a consumidor final por el camino completo; la A que el impreso no puede entregar no se promete; la A común a la inscripta sale del despacho del plugin contra el simulador", async (t) => {
@@ -137,7 +137,7 @@ test("inscripto: B a consumidor final por el camino completo; la A que el impres
     id: a.clientes[1], docTipo: "80", docNro: CUIT_CLIENTE_MONOTRIBUTISTA, razonSocial: "Ana Gómez", condicionIva: "MONOTRIBUTO",
     domicilio: "Calle 12 Nº 345, La Plata",
   });
-  await p.operatorPrisma.tenant.update({
+  await p.duenio.tenant.update({
     where: { id: a.id },
     data: { arcaCondicionIva: "RESPONSABLE_INSCRIPTO", arcaCuit: CUIT_NEGOCIO, arcaPuntoVenta: 1, arcaHomologacion: true },
   });
@@ -180,7 +180,7 @@ test("inscripto: B a consumidor final por el camino completo; la A que el impres
     puedeFacturarVenta({ facturacionEncendida: true, perfil: perfilVenta, venta, receptor: null, renglones, hoy }),
     { ok: true, letra: "B" },
   );
-  await p.operatorPrisma.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
+  await p.duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
   const invoiceId = await invoiceCore.createInvoice({
     tenantId: a.id,
     concepto: 1,
@@ -192,7 +192,7 @@ test("inscripto: B a consumidor final por el camino completo; la A que el impres
     vencimientoPago: hoy,
   });
   await processArcaOutbox(20, { clientePara: clienteSoap, numeroUsadoPorOtraFactura: invoiceCore.numeroUsadoPorOtraFactura });
-  const inv = await p.operatorPrisma.invoice.findUnique({ where: { id: invoiceId }, select: { status: true, tipoComprobante: true, rechazoMotivo: true } });
+  const inv = await p.duenio.invoice.findUnique({ where: { id: invoiceId }, select: { status: true, tipoComprobante: true, rechazoMotivo: true } });
   assert.equal(inv?.status, "AUTHORIZED", inv?.rechazoMotivo ?? "");
   assert.equal(inv?.tipoComprobante, 6, "Factura B");
 
@@ -256,7 +256,7 @@ test("monotributo sin condición cargada (el caso de CH): en homologación igual
   const p = await preparar(t);
   if (!p) return;
   const b = p.base.b;
-  await p.operatorPrisma.tenant.update({
+  await p.duenio.tenant.update({
     where: { id: b.id },
     data: { arcaCondicionIva: null, arcaCuit: "20304050609", arcaPuntoVenta: 2, arcaHomologacion: true },
   });
@@ -272,12 +272,12 @@ test("monotributo sin condición cargada (el caso de CH): en homologación igual
     total: 15500,
   });
 
-  await p.operatorPrisma.tenant.update({ where: { id: b.id }, data: { arcaHomologacion: false } });
+  await p.duenio.tenant.update({ where: { id: b.id }, data: { arcaHomologacion: false } });
   await assert.rejects(
     perfilDe(b),
     (e: unknown) => e instanceof PerfilFiscalIncompletoError && e.campo === "condicionIva" && /no tiene condición de IVA/.test(e.message),
   );
-  await p.operatorPrisma.tenant.update({ where: { id: b.id }, data: { arcaCondicionIva: "MONOTRIBUTO" } });
+  await p.duenio.tenant.update({ where: { id: b.id }, data: { arcaCondicionIva: "MONOTRIBUTO" } });
   const cargado = await perfilDe(b);
   assert.deepEqual({ c: cargado.condicionIva, asumida: cargado.condicionIvaAsumida }, { c: "MONOTRIBUTO", asumida: false });
 });

@@ -12,7 +12,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraDelArchivo } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { SimuladorArca, type FallaSimulada, type MetodoArca } from "@/plugins/arca/afip/simulador";
 
 const laBase = baseEfimeraDelArchivo();
@@ -33,13 +33,13 @@ async function preparar(t: import("node:test").TestContext) {
     DB_CONNECTION_LIMIT: "2",
     DB_CONNECT_TIMEOUT_MS: "3000",
   });
-  const { operatorPrisma } = await import("@/lib/operator-db");
+  const duenio = await prismaComoDuenio(base);
   const invoiceCore = await import("@/lib/invoice-core");
   const { processArcaOutbox } = await import("@/lib/arca-dispatch");
   const { SoapAfipClient, FetchSoapTransport } = await import("@/plugins/arca/afip/soap");
 
   // Todo envío que otro test dejó pendiente se da por procesado: cada test mira sólo lo suyo.
-  await operatorPrisma.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
+  await duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
 
   const sims = { get: simDe };
   const deps = {
@@ -87,12 +87,12 @@ async function preparar(t: import("node:test").TestContext) {
       origin: { type: "MP_PAYMENT" as const, id: mpPaymentId },
       ...(reabrirSiRechazada ? { reabrirSiRechazada } : {}),
     });
-  const factura = (id: string) => operatorPrisma.invoice.findUniqueOrThrow({ where: { id } });
+  const factura = (id: string) => duenio.invoice.findUniqueOrThrow({ where: { id } });
   const envios = (invoiceId: string) =>
-    operatorPrisma.outboxEvent
+    duenio.outboxEvent
       .findMany({ orderBy: { createdAt: "asc" } })
       .then((es) => es.filter((e) => (e.payload as { invoiceId?: string }).invoiceId === invoiceId));
-  return { base, operatorPrisma, invoiceCore, sims, deps, processArcaOutbox, despachar, facturar, facturarPago, factura, envios };
+  return { base, duenio, invoiceCore, sims, deps, processArcaOutbox, despachar, facturar, facturarPago, factura, envios };
 }
 
 test("ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE", async (t) => {
@@ -198,7 +198,7 @@ test("ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuel
   const autorizada = await p.factura(id);
   assert.equal(autorizada.status, "AUTHORIZED");
   assert.equal(autorizada.numero, caeAntes + 1);
-  assert.equal(await p.operatorPrisma.invoice.count({ where: { tenantId: p.base.a.id, orderId: pedido } }), 1);
+  assert.equal(await p.duenio.invoice.count({ where: { tenantId: p.base.a.id, orderId: pedido } }), 1);
   assert.equal(simA.cantidadDeCae(), caeAntes + 1);
 
   // Ya autorizada: volver a facturar devuelve la misma y no encola nada.
@@ -342,7 +342,7 @@ function clienteQueSeFrena(
  */
 async function vencerReservas(p: NonNullable<Awaited<ReturnType<typeof preparar>>>, invoiceId: string) {
   for (const e of await p.envios(invoiceId)) {
-    await p.operatorPrisma.$executeRaw`
+    await p.duenio.$executeRaw`
       UPDATE "OutboxEvent"
       SET "payload" = jsonb_set("payload", '{reserva,hasta}', to_jsonb(now() - interval '1 second'))
       WHERE "id" = ${e.id} AND "payload" ? 'reserva'`;
@@ -366,7 +366,7 @@ test("ENG-021 · volver a facturar con un envío viejo sin cerrar (corte entre e
   assert.equal((await p.factura(id)).status, "REJECTED");
   // Lo que dejaba el código anterior si la función se cortaba entre el rechazo y el cierre.
   const [viejo] = await p.envios(id);
-  await p.operatorPrisma.outboxEvent.update({ where: { id: viejo.id }, data: { processedAt: null } });
+  await p.duenio.outboxEvent.update({ where: { id: viejo.id }, data: { processedAt: null } });
 
   const caeAntes = simA.cantidadDeCae();
   assert.equal(await p.facturarPago(p.base.a.id, "mp_v3_reabrir", 2420, true), id);
@@ -461,7 +461,7 @@ test("ENG-021 · un envío que quedó abierto para una factura ya rechazada se c
   assert.equal((await p.despachar()).rechazados, 1);
   const [envio] = await p.envios(id);
   // Un envío que el código ANTERIOR dejó abierto: sin cerrar y sin reserva (esa versión no reservaba).
-  await p.operatorPrisma.$executeRaw`
+  await p.duenio.$executeRaw`
     UPDATE "OutboxEvent" SET "processedAt" = NULL, "payload" = "payload" - 'reserva' WHERE "id" = ${envio.id}`;
 
   const [llamadosAntes, caeAntes] = [simA.llamados.length, simA.cantidadDeCae()];

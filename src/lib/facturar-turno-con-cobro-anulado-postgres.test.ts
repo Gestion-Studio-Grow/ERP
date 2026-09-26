@@ -20,7 +20,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraDelArchivo } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { runInTenantContext } from "@/lib/tenant-context";
 
@@ -48,9 +48,9 @@ async function preparar(t: import("node:test").TestContext) {
   const env = process.env as Record<string, string | undefined>;
   Object.assign(env, { DB_CONNECTION_LIMIT: "2", DB_CONNECT_TIMEOUT_MS: "3000", ARCA_INVOICING_ENABLED: "true" });
   delete env.ARCA_MODO; // stub: nada sale a la red
-  const { operatorPrisma } = await import("@/lib/operator-db");
-  const tenant = await operatorPrisma.tenant.findUniqueOrThrow({ where: { id: base.a.id }, select: { modules: true } });
-  await operatorPrisma.tenant.update({
+  const duenio = await prismaComoDuenio(base);
+  const tenant = await duenio.tenant.findUniqueOrThrow({ where: { id: base.a.id }, select: { modules: true } });
+  await duenio.tenant.update({
     where: { id: base.a.id },
     data: {
       arcaCuit: "20111111112",
@@ -60,13 +60,13 @@ async function preparar(t: import("node:test").TestContext) {
     },
   });
   const a = base.a;
-  const box = await operatorPrisma.box.create({ data: { tenantId: a.id, name: "Gabinete 1" } });
-  const prof = await operatorPrisma.professional.create({ data: { tenantId: a.id, name: "Lucía" } });
-  const serv = await operatorPrisma.service.create({ data: { tenantId: a.id, name: "Limpieza facial", durationMin: 60, price: 18000 } });
+  const box = await duenio.box.create({ data: { tenantId: a.id, name: "Gabinete 1" } });
+  const prof = await duenio.professional.create({ data: { tenantId: a.id, name: "Lucía" } });
+  const serv = await duenio.service.create({ data: { tenantId: a.id, name: "Limpieza facial", durationMin: 60, price: 18000 } });
 
   /** Un turno completado, con su `Payment` (el agregado) y un cobro por cada importe. */
   async function turnoCobrado(cobros: number[], hora: number) {
-    const turno = await operatorPrisma.appointment.create({
+    const turno = await duenio.appointment.create({
       data: {
         tenantId: a.id,
         clientId: a.clientes[0],
@@ -79,12 +79,12 @@ async function preparar(t: import("node:test").TestContext) {
       },
     });
     const total = cobros.reduce((s, c) => s + c, 0);
-    await operatorPrisma.payment.create({
+    await duenio.payment.create({
       data: { tenantId: a.id, appointmentId: turno.id, amount: total, method: "EFECTIVO", status: "APPROVED" },
     });
     const ids: string[] = [];
     for (const c of cobros) {
-      const cobro = await operatorPrisma.collection.create({
+      const cobro = await duenio.collection.create({
         data: {
           tenantId: a.id,
           originType: "APPOINTMENT",
@@ -101,10 +101,10 @@ async function preparar(t: import("node:test").TestContext) {
   }
 
   const cuentas = async (appointmentId: string) => ({
-    facturas: await operatorPrisma.invoice.findMany({ where: { tenantId: a.id, appointmentId }, select: { status: true, total: true } }),
-    envios: await operatorPrisma.outboxEvent.count({ where: { tenantId: a.id } }),
+    facturas: await duenio.invoice.findMany({ where: { tenantId: a.id, appointmentId }, select: { status: true, total: true } }),
+    envios: await duenio.outboxEvent.count({ where: { tenantId: a.id } }),
   });
-  return { base, operatorPrisma, turnoCobrado, cuentas };
+  return { base, duenio, turnoCobrado, cuentas };
 }
 
 /** La anulación del cobro, con el código real, sostenida abierta hasta que el test la suelte. */
@@ -118,7 +118,7 @@ async function anulacionSostenida(
   const soltar = puerta();
   const tomada = puerta();
   const tenantId = p.base.a.id;
-  const anulacion = p.operatorPrisma.$transaction(
+  const anulacion = p.duenio.$transaction(
     async (tx) => {
       const r = await anularCobroTurnoInTx(tx as never, tenantId, {
         collectionId,
@@ -189,7 +189,7 @@ test("se anula una parte del cobro mientras se factura: no sale la factura por e
 test("facturación del turno primero: «Anular cobro» espera, ve la factura en camino y no anula", async (t) => {
   const p = await preparar(t);
   if (!p) return;
-  const { base, operatorPrisma } = p;
+  const { base, duenio } = p;
   const { createInvoiceInTx } = await import("@/lib/invoice-core");
   const { anularCobroTurno } = await import("@/lib/actions");
   const a = base.a;
@@ -198,7 +198,7 @@ test("facturación del turno primero: «Anular cobro» espera, ve la factura en 
   // La facturación creó la factura (con la fila del turno tomada) y todavía no confirmó.
   const soltar = puerta();
   const creada = puerta();
-  const facturacion = operatorPrisma.$transaction(async (tx) => {
+  const facturacion = duenio.$transaction(async (tx) => {
     await createInvoiceInTx(tx as never, {
       tenantId: a.id,
       concepto: 2,
@@ -232,7 +232,7 @@ test("facturación del turno primero: «Anular cobro» espera, ve la factura en 
   if (r.tipo !== "respuesta") return;
   assert.equal(r.valor?.ok, false, JSON.stringify(r.valor));
   assert.match(String((r.valor as { error?: string }).error), /esperando la respuesta de ARCA/);
-  assert.equal(await operatorPrisma.collection.count({ where: { tenantId: a.id, originId: turno } }), 1, "ninguna contrapartida");
-  assert.equal((await operatorPrisma.payment.findUniqueOrThrow({ where: { appointmentId: turno } })).amount, 18000);
+  assert.equal(await duenio.collection.count({ where: { tenantId: a.id, originId: turno } }), 1, "ninguna contrapartida");
+  assert.equal((await duenio.payment.findUniqueOrThrow({ where: { appointmentId: turno } })).amount, 18000);
   assert.deepEqual((await p.cuentas(turno)).facturas.map((f) => f.status), ["PENDING"], "una sola factura, en camino");
 });

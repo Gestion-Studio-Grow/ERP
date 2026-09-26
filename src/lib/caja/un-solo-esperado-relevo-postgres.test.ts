@@ -9,7 +9,7 @@ test("contra Postgres: una apertura que coincide con el libro no escribe diferen
   if (!laBase) return;
   const c = await preparar(laBase);
   const { a } = laBase;
-  await c.operatorPrisma.cashMovement.create({
+  await c.duenio.cashMovement.create({
     data: { tenantId: a.id, type: "VENTA", method: "EFECTIVO", amount: 2_500.5, occurredAt: c.alMediodia(c.ayer), createdBy: "seed" },
   });
   assert.deepEqual(await c.abrir(a, "2.500,50"), { ok: true });

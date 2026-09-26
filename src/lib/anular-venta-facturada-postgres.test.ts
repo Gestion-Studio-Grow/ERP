@@ -12,7 +12,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraDelArchivo } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 const laBase = baseEfimeraDelArchivo();
@@ -48,24 +48,24 @@ async function preparar(t: import("node:test").TestContext) {
   apuntarLaAppA(base);
   prepararAccionesDeServidor();
   Object.assign(process.env, { DB_CONNECTION_LIMIT: "2", DB_CONNECT_TIMEOUT_MS: "3000" });
-  const { operatorPrisma } = await import("@/lib/operator-db");
-  return { base, operatorPrisma };
+  const duenio = await prismaComoDuenio(base);
+  return { base, duenio };
 }
 
 test("anularVenta: con factura autorizada o en camino se rechaza y el pedido no se anula; con la rechazada se anula; B no la toca", async (t) => {
   const listo = await preparar(t);
   if (!listo) return;
-  const { base, operatorPrisma } = listo;
+  const { base, duenio } = listo;
   const { anularVenta } = await import("@/lib/order-actions");
   const a = base.a;
   const [conCae, enCamino, rechazada] = a.pedidos;
 
   for (const id of a.pedidos) {
-    await operatorPrisma.order.update({ where: { id }, data: { paid: true, total: 121000, status: "DELIVERED" } });
+    await duenio.order.update({ where: { id }, data: { paid: true, total: 121000, status: "DELIVERED" } });
   }
-  await operatorPrisma.invoice.create({ data: factura(a.id, { orderId: conCae }, "AUTHORIZED", 1) });
-  await operatorPrisma.invoice.create({ data: factura(a.id, { orderId: enCamino }, "PENDING", 0) });
-  await operatorPrisma.invoice.create({ data: factura(a.id, { orderId: rechazada }, "REJECTED", 0) });
+  await duenio.invoice.create({ data: factura(a.id, { orderId: conCae }, "AUTHORIZED", 1) });
+  await duenio.invoice.create({ data: factura(a.id, { orderId: enCamino }, "PENDING", 0) });
+  await duenio.invoice.create({ data: factura(a.id, { orderId: rechazada }, "REJECTED", 0) });
 
   const fd = (id: string) => {
     const f = new FormData();
@@ -99,31 +99,31 @@ test("anularVenta: con factura autorizada o en camino se rechaza y el pedido no 
   assert.equal(r3.tipo, "respuesta");
   if (r3.tipo === "respuesta") assert.equal(r3.valor?.ok, true, JSON.stringify(r3.valor));
 
-  const pedidos = await operatorPrisma.order.findMany({ where: { id: { in: a.pedidos } }, select: { id: true, status: true } });
+  const pedidos = await duenio.order.findMany({ where: { id: { in: a.pedidos } }, select: { id: true, status: true } });
   const estado = new Map(pedidos.map((p) => [p.id, p.status]));
   assert.equal(estado.get(conCae), "DELIVERED", "con CAE: el pedido no quedó anulado");
   assert.equal(estado.get(enCamino), "DELIVERED", "en camino: el pedido no quedó anulado");
   assert.equal(estado.get(rechazada), "CANCELLED", "rechazada por ARCA: se anula como siempre");
 
-  const egresos = await operatorPrisma.cashMovement.count({ where: { tenantId: a.id, orderId: { in: [conCae, enCamino] } } });
+  const egresos = await duenio.cashMovement.count({ where: { tenantId: a.id, orderId: { in: [conCae, enCamino] } } });
   assert.equal(egresos, 0, "ninguna devolución en el libro de las ventas facturadas");
-  const viva = await operatorPrisma.invoice.findFirstOrThrow({ where: { orderId: conCae } });
+  const viva = await duenio.invoice.findFirstOrThrow({ where: { orderId: conCae } });
   assert.equal(viva.status, "AUTHORIZED");
 });
 
 test("anularCobroTurno: con factura autorizada del turno se rechaza y el cobro sigue en pie; rechazada la factura, se anula", async (t) => {
   const listo = await preparar(t);
   if (!listo) return;
-  const { base, operatorPrisma } = listo;
+  const { base, duenio } = listo;
   const { anularCobroTurno } = await import("@/lib/actions");
   const a = base.a;
 
-  const box = await operatorPrisma.box.create({ data: { tenantId: a.id, name: "Gabinete 1" } });
-  const prof = await operatorPrisma.professional.create({ data: { tenantId: a.id, name: "Lucía" } });
-  const serv = await operatorPrisma.service.create({ data: { tenantId: a.id, name: "Limpieza facial", durationMin: 60, price: 18000 } });
+  const box = await duenio.box.create({ data: { tenantId: a.id, name: "Gabinete 1" } });
+  const prof = await duenio.professional.create({ data: { tenantId: a.id, name: "Lucía" } });
+  const serv = await duenio.service.create({ data: { tenantId: a.id, name: "Limpieza facial", durationMin: 60, price: 18000 } });
   /** Un turno completado, cobrado en efectivo, con su factura en el estado pedido. */
   const turnoCobradoYFacturado = async (hora: string, status: "AUTHORIZED" | "REJECTED", numero: number) => {
-    const turno = await operatorPrisma.appointment.create({
+    const turno = await duenio.appointment.create({
       data: {
         tenantId: a.id,
         clientId: a.clientes[0],
@@ -135,10 +135,10 @@ test("anularCobroTurno: con factura autorizada del turno se rechaza y el cobro s
         status: "COMPLETED",
       },
     });
-    await operatorPrisma.payment.create({
+    await duenio.payment.create({
       data: { tenantId: a.id, appointmentId: turno.id, amount: 18000, method: "EFECTIVO", status: "APPROVED" },
     });
-    const cobro = await operatorPrisma.collection.create({
+    const cobro = await duenio.collection.create({
       data: {
         tenantId: a.id,
         originType: "APPOINTMENT",
@@ -149,7 +149,7 @@ test("anularCobroTurno: con factura autorizada del turno se rechaza y el cobro s
         collectedBy: `user:${a.duenia.id}`,
       },
     });
-    await operatorPrisma.invoice.create({ data: factura(a.id, { appointmentId: turno.id }, status, numero) });
+    await duenio.invoice.create({ data: factura(a.id, { appointmentId: turno.id }, status, numero) });
     return { turno, cobro };
   };
   const anular = (x: { turno: { id: string }; cobro: { id: string } }) => {
@@ -167,8 +167,8 @@ test("anularCobroTurno: con factura autorizada del turno se rechaza y el cobro s
     assert.equal(r1.valor?.ok, false, JSON.stringify(r1.valor));
     assert.match(String((r1.valor as { error?: string }).error), /^Ese turno tiene factura electrónica autorizada por ARCA/);
   }
-  assert.equal(await operatorPrisma.collection.count({ where: { tenantId: a.id, originId: conCae.turno.id } }), 1, "ninguna contrapartida");
-  assert.equal((await operatorPrisma.payment.findUniqueOrThrow({ where: { appointmentId: conCae.turno.id } })).amount, 18000);
+  assert.equal(await duenio.collection.count({ where: { tenantId: a.id, originId: conCae.turno.id } }), 1, "ninguna contrapartida");
+  assert.equal((await duenio.payment.findUniqueOrThrow({ where: { appointmentId: conCae.turno.id } })).amount, 18000);
 
   // La misma anulación en otro turno igual pero con la factura rechazada por ARCA (sin CAE): pasa.
   // Lo que la frenaba era la factura, no otra cosa del turno. (Un turno aparte: la autorizada no se
@@ -177,6 +177,6 @@ test("anularCobroTurno: con factura autorizada del turno se rechaza y el cobro s
   const r2 = await anular(rechazada);
   assert.equal(r2.tipo, "respuesta");
   if (r2.tipo === "respuesta") assert.equal(r2.valor?.ok, true, JSON.stringify(r2.valor));
-  assert.equal(await operatorPrisma.collection.count({ where: { tenantId: a.id, originId: rechazada.turno.id } }), 2, "cobro + contrapartida");
-  assert.equal(await operatorPrisma.collection.count({ where: { tenantId: a.id, originId: conCae.turno.id } }), 1, "el turno con CAE, intacto");
+  assert.equal(await duenio.collection.count({ where: { tenantId: a.id, originId: rechazada.turno.id } }), 2, "cobro + contrapartida");
+  assert.equal(await duenio.collection.count({ where: { tenantId: a.id, originId: conCae.turno.id } }), 1, "el turno con CAE, intacto");
 });

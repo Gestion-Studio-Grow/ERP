@@ -17,7 +17,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraDelArchivo } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { SimuladorArca } from "@/plugins/arca/afip/simulador";
 
 const laBase = baseEfimeraDelArchivo();
@@ -36,13 +36,13 @@ async function preparar(t: import("node:test").TestContext) {
     DB_CONNECTION_LIMIT: "4",
     DB_CONNECT_TIMEOUT_MS: "3000",
   });
-  const { operatorPrisma } = await import("@/lib/operator-db");
+  const duenio = await prismaComoDuenio(base);
   const invoiceCore = await import("@/lib/invoice-core");
   const { processArcaOutbox, procesarEnviosDelNegocio } = await import("@/lib/arca-dispatch");
   const { SoapAfipClient, FetchSoapTransport } = await import("@/plugins/arca/afip/soap");
 
   // Cada test mira sólo lo suyo.
-  await operatorPrisma.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
+  await duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
 
   const deps = {
     clientePara: (tenantId: string) =>
@@ -71,12 +71,12 @@ async function preparar(t: import("node:test").TestContext) {
       origin: { type: "MP_PAYMENT" as const, id: mpPaymentId },
       ...(reabrirSiRechazada ? { reabrirSiRechazada } : {}),
     });
-  const factura = (id: string) => operatorPrisma.invoice.findUniqueOrThrow({ where: { id } });
+  const factura = (id: string) => duenio.invoice.findUniqueOrThrow({ where: { id } });
   const envios = (invoiceId: string) =>
-    operatorPrisma.outboxEvent
+    duenio.outboxEvent
       .findMany({ orderBy: { createdAt: "asc" } })
       .then((es) => es.filter((e) => (e.payload as { invoiceId?: string }).invoiceId === invoiceId));
-  return { base, operatorPrisma, invoiceCore, deps, despachar, procesarEnviosDelNegocio, facturarPago, factura, envios };
+  return { base, duenio, invoiceCore, deps, despachar, procesarEnviosDelNegocio, facturarPago, factura, envios };
 }
 
 async function centavosEnArca(sim: SimuladorArca, cae: string | null) {
@@ -94,11 +94,11 @@ test("circuito · venta → factura → envío → CAE por el camino de la venta
   const { getFiscalProfile } = await import("@/lib/fiscal");
   const { prisma } = await import("@/lib/prisma");
   const a = p.base.a;
-  await p.operatorPrisma.tenant.update({ where: { id: a.id }, data: { arcaCuit: "20111111112", arcaPuntoVenta: 1 } });
+  await p.duenio.tenant.update({ where: { id: a.id }, data: { arcaCuit: "20111111112", arcaPuntoVenta: 1 } });
   const [v1, v2, v3] = a.pedidos;
-  await p.operatorPrisma.order.update({ where: { id: v1 }, data: { paid: true, total: 1210 } });
-  await p.operatorPrisma.order.update({ where: { id: v2 }, data: { paid: true, total: 1500.5 } });
-  await p.operatorPrisma.order.update({ where: { id: v3 }, data: { paid: true, total: 999.99 } });
+  await p.duenio.order.update({ where: { id: v1 }, data: { paid: true, total: 1210 } });
+  await p.duenio.order.update({ where: { id: v2 }, data: { paid: true, total: 1500.5 } });
+  await p.duenio.order.update({ where: { id: v3 }, data: { paid: true, total: 999.99 } });
 
   const sim = simDe(a.id);
   const antes = sim.comprobantesAutorizados().length;
@@ -252,7 +252,7 @@ test("aislamiento · el negocio A no puede volver a facturar la venta rechazada 
   assert.equal(fB.status, "REJECTED");
   assert.equal(fB.total.toString(), "1210");
   assert.equal((await p.envios(idB)).length, enviosAntes);
-  assert.equal(await p.operatorPrisma.invoice.count({ where: { orderId: pedidoB } }), 1, "A no se creó una factura con la venta de B");
+  assert.equal(await p.duenio.invoice.count({ where: { orderId: pedidoB } }), 1, "A no se creó una factura con la venta de B");
   // Y el despacho de A no toca nada de B.
   await p.procesarEnviosDelNegocio(a.id, 20, p.deps);
   assert.equal((await p.factura(idB)).status, "REJECTED");
