@@ -22,7 +22,7 @@ import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
 import { appsVisibles, proyectarMenuDeHoy } from "@/apps/visibles";
 import { rutaDeAppConModulo } from "@/apps/rutas";
 import { enInicioPorApps } from "./inicio/piloto";
-import { getTenantBrand, resolveAccent } from "@/lib/branding";
+import { getTenantBrand, resolveAccent, marcaDelNegocio } from "@/lib/branding";
 import { getTeamAccentPreset } from "@/lib/team-accent";
 import AdminThemeScript from "../AdminThemeScript";
 import { getBrandSheet, brandSheetAccent } from "@/lib/brand-sheet";
@@ -170,8 +170,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const accentLight = sheet ? brandSheetAccent(sheet, "light") : resolveAccent(preset, "light");
   const accentDark = sheet ? brandSheetAccent(sheet, "dark") : resolveAccent(preset, "dark");
   const dataBrand = sheet ? sheet.themeId : undefined;
-  let brandName = sheet ? sheet.name : (identidad?.nombre ?? brand.name);
-  let monogram = sheet ? initialsOf(sheet.name) : (identidad?.monograma ?? brand.monogram);
+  const marca = marcaDelNegocio(brand, identidad);
+  let brandName = sheet ? sheet.name : marca.nombre;
+  let monogram = sheet ? initialsOf(sheet.name) : marca.monograma;
   // DISEÑO NUEVO — un negocio sin marca propia (cae en la marca neutra de branding.ts: «Mi
   // negocio» con «•») se nombra con SU nombre y sus iniciales: la misma ficha (`getBrandSheet`,
   // cacheada por pedido) que ya se usa con el flag de ficha prendido; acá sólo se toma el nombre,

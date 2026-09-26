@@ -89,6 +89,11 @@ import type { TenantLayout } from "./tenant-layout";
 export type TenantBrand = {
   name: string;
   monogram: string;
+  /**
+   * El negocio tiene ficha de marca propia (está en TENANTS o es un local de una familia que la
+   * tiene). La pone `brandForSlug`; en las fichas no se escribe.
+   */
+  propia?: boolean;
   preset: AccentPreset;
   frontTheme: Theme;
   /** Logo real del tenant (URL o data-URI). Ausente → se usa el monograma sobre el acento. */
@@ -172,6 +177,13 @@ const TENANTS: Record<string, TenantBrand> = {
   "quebienoles": {
     name: "Qué Bien Olés", monogram: "Q", preset: "ambar", frontTheme: "dark",
   },
+  // Circuito WPE — torneos de pádel amateur: su sitio es un HTML propio servido tal cual en
+  // wpe.gsgapp.com.ar (src/lib/sitio-estatico.ts), negro y lima. Acá sólo el nombre y el monograma
+  // del ingreso y del panel (sin esta ficha dicen "Mi negocio"). El acento lo elige el dueño en el
+  // alta (Tenant.accentPreset, gana siempre); "verde" es el respaldo más cercano: no hay lima.
+  "circuito-wpe": {
+    name: "Circuito WPE", monogram: "WPE", preset: "verde", frontTheme: "dark",
+  },
 };
 
 // (resolveTenantLayout / FONT_VAR / DEFAULT_SECTION_ORDER / resolveSectionOrder ahora viven
@@ -195,7 +207,23 @@ const DEFAULT_BRAND: TenantBrand = {
 export function brandForSlug(slug: string | null): TenantBrand {
   if (!slug) return DEFAULT_BRAND;
   const familia = tenantFamilySlug(slug);
-  return TENANTS[slug] ?? (familia ? TENANTS[familia] : undefined) ?? DEFAULT_BRAND;
+  const ficha = TENANTS[slug] ?? (familia ? TENANTS[familia] : undefined);
+  return ficha ? { ...ficha, propia: true } : DEFAULT_BRAND;
+}
+
+/**
+ * Nombre y monograma con que se presenta el negocio en el ingreso y en su panel. Un negocio con
+ * ficha propia se presenta con SU nombre: los que entran a wpe.gsgapp.com.ar entran a «Circuito
+ * WPE», aunque por su núcleo el producto sea Comerciante. Sin ficha manda la identidad del producto
+ * (los negocios vidriera de Comerciante, Contador y Facturita) y, si no hay, la marca por defecto.
+ * PURA.
+ */
+export function marcaDelNegocio(
+  brand: TenantBrand,
+  identidad: { nombre: string; monograma: string } | null,
+): { nombre: string; monograma: string } {
+  if (brand.propia || !identidad) return { nombre: brand.name, monograma: brand.monogram };
+  return { nombre: identidad.nombre, monograma: identidad.monograma };
 }
 
 // Acento resuelto (hex + texto-sobre-acento) para una superficie según SU tema.

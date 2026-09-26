@@ -1,0 +1,138 @@
+{
+  "etiqueta": "despues-erp",
+  "url": "http://wpe.localhost:3246/",
+  "fecha": "2026-09-26T20:09:10.543Z",
+  "perfiles": {
+    "movil": {
+      "cargaMs": 1984,
+      "ttfbMs": 81,
+      "dclMs": 1892,
+      "loadMs": 1924,
+      "htmlKbCodificado": 274.1,
+      "htmlKbTransferido": 274.4,
+      "fcpMs": 1160,
+      "lcp": {
+        "t": 1160,
+        "tam": 58282,
+        "el": "h1",
+        "texto": "Etapa 4Major 2026",
+        "url": null
+      },
+      "cls": 0.0002,
+      "tbtMs": 183,
+      "tareasLargas": 6,
+      "recursos": {
+        "woff2 @ wpe.localhost:3246": {
+          "n": 1,
+          "kbCodificado": 47.1,
+          "kbTransferido": 47.4
+        }
+      },
+      "anchoDoc": 390,
+      "anchoVista": 390,
+      "desbordan": [
+        "div.glow right=745",
+        "svg.[object right=468",
+        "g.[object right=413",
+        "path.[object right=413"
+      ],
+      "interactivos": 70,
+      "toquesMenores44": 11,
+      "muestraToques": [
+        "a. 334x34 \"Torneos y eventos\"",
+        "a. 334x34 \"Ranking\"",
+        "a. 334x34 \"Jugadores\"",
+        "a. 334x34 \"Sedes\"",
+        "a. 334x34 \"Quiénes somos\"",
+        "a. 334x34 \"Reglamento\"",
+        "a. 334x34 \"Recategorizaciones\"",
+        "a. 334x34 \"Sanciones\"",
+        "a. 334x34 \"@circuitowpe\"",
+        "a. 334x34 \"Accesos rápidos\"",
+        "button.f-orglink 104x19 \"Modo organizador\""
+      ],
+      "contraste": {
+        "evaluados": 641,
+        "sinFondoMedible": 2,
+        "fallanAA": 2,
+        "muestra": [
+          "13.04 button.btn \"Sin cupo\" op=0.42",
+          "13.04 button.btn \"Sin cupo\" op=0.42"
+        ]
+      },
+      "titulo": "Circuito WPE · Pádel Amateur AMBA — Etapa 4 Major 2026",
+      "canonical": "https://wpe.gsgapp.com.ar/",
+      "ogImage": "https://wpe.gsgapp.com.ar/og.png",
+      "descripcion": "Circuito WPE — torneos de pádel amateur en AMBA. Etapa 4 Major 2026: inscripción abierta.",
+      "generator": "Gestión Studio Grow",
+      "focoSinIndicador": 0,
+      "muestraFoco": [],
+      "errores": []
+    },
+    "escritorio": {
+      "cargaMs": 222,
+      "ttfbMs": 30,
+      "dclMs": 201,
+      "loadMs": 210,
+      "htmlKbCodificado": 274.1,
+      "htmlKbTransferido": 274.4,
+      "fcpMs": 324,
+      "lcp": {
+        "t": 324,
+        "tam": 132980,
+        "el": "h1",
+        "texto": "Etapa 4Major 2026",
+        "url": null
+      },
+      "cls": 0,
+      "tbtMs": 0,
+      "tareasLargas": 1,
+      "recursos": {
+        "woff2 @ wpe.localhost:3246": {
+          "n": 1,
+          "kbCodificado": 47.1,
+          "kbTransferido": 47.4
+        }
+      },
+      "anchoDoc": 1430,
+      "anchoVista": 1440,
+      "desbordan": [],
+      "interactivos": 77,
+      "toquesMenores44": 64,
+      "muestraToques": [
+        "a.wm 172x40 \"\"",
+        "a.on 61x35 \"Inicio\"",
+        "a. 104x35 \"Institucional\"",
+        "a. 145x35 \"Torneos y Eventos\"",
+        "a. 95x35 \"Jugadores\"",
+        "a. 78x35 \"Ranking\"",
+        "a. 66x35 \"Sedes\"",
+        "input. 210x36 \"Buscador del sitio\"",
+        "button.btn 91x40 \"Acceder\"",
+        "button.btn 105x40 \"Inscribirse\"",
+        "button.on 65x30 \"Todas\"",
+        "button. 92x30 \"Caballeros\""
+      ],
+      "contraste": {
+        "evaluados": 659,
+        "sinFondoMedible": 2,
+        "fallanAA": 2,
+        "muestra": [
+          "13.04 button.btn \"Sin cupo\" op=0.42",
+          "13.04 button.btn \"Sin cupo\" op=0.42"
+        ]
+      },
+      "titulo": "Circuito WPE · Pádel Amateur AMBA — Etapa 4 Major 2026",
+      "canonical": "https://wpe.gsgapp.com.ar/",
+      "ogImage": "https://wpe.gsgapp.com.ar/og.png",
+      "descripcion": "Circuito WPE — torneos de pádel amateur en AMBA. Etapa 4 Major 2026: inscripción abierta.",
+      "generator": "Gestión Studio Grow",
+      "focoSinIndicador": 2,
+      "muestraFoco": [
+        "input. \"\"",
+        "input. \"\""
+      ],
+      "errores": []
+    }
+  }
+}
