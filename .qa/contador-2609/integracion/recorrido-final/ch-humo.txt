@@ -1,0 +1,8 @@
+CH /                  → 200 err500:0
+CH /admin             → 200 err500:0
+CH /admin/agenda      → 404 err500:0
+CH /admin/caja        → 200 err500:0
+CH /admin/facturacion → 200 err500:0
+CH /admin/clientes    → 200 err500:0
+CH /reserva           → 200 err500:0
+CH /admin/turnos → 200
