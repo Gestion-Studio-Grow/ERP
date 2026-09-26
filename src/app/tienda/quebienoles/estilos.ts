@@ -6,12 +6,12 @@
 // espaciadas, filetes dorados finos, mármol negro. Contraste medido sobre el fondo (#0b0908):
 // hueso 16:1 · hueso-2 9,2:1 · hueso-3 5,6:1 · oro 9,9:1 — todo AA o más para texto chico.
 
-export const FONDO = "#0b0908";
-export const ORO = "#d8b36a";
-/** La familia CSS de la didona, tal como se declara abajo (la usa el lienzo 3D para dibujar la Q). */
-export const LETRA_DIDONA = '"QB Bodoni"';
+// Los tokens (fondo, oro, didona) están en tokens.ts: este módulo lo importa SÓLO el servidor
+// (QuebienolesVidriera.tsx y GraciasQuebienoles.tsx); ningún componente de cliente lo toca, así la piel
+// viaja una sola vez, en el HTML, y no también dentro del JS del navegador.
+import { CARPETA_FUENTES, FONDO, ORO } from "./tokens";
 
-const F = "/tenants/quebienoles/fuentes";
+const F = CARPETA_FUENTES;
 
 const GRANO =
   "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")";
@@ -172,11 +172,13 @@ export const CSS =
 .qb .qb-frasco-lienzo:active{cursor:grabbing}
 .qb .qb-frasco[data-estado="cargando"] .qb-frasco-lienzo{opacity:0}
 .qb .qb-frasco[data-estado="sin-3d"] .qb-frasco-lienzo{display:none}
-.qb .qb-frasco-respaldo{position:absolute;right:7%;bottom:14%;width:min(34vw,440px);mix-blend-mode:lighten;pointer-events:none;animation:qb-flotar 7s ease-in-out infinite;transition:opacity 1.4s ease .4s,visibility 0s 1.8s}
+.qb .qb-frasco-respaldo{position:absolute;right:7%;bottom:14%;width:min(34vw,440px);mix-blend-mode:lighten;pointer-events:none;animation:qb-flotar 7s ease-in-out infinite;transition:opacity 1.4s ease .4s,visibility 0s}
 /* La foto viene con su propio fondo (mármol y viñeta, no negro puro): se funde por los bordes para que
    no se lea el rectángulo de la foto sobre la página. */
 .qb .qb-frasco-respaldo img{width:100%;height:auto;display:block;mask-image:radial-gradient(ellipse 58% 56% at 50% 60%,#000 46%,transparent 100%)}
-.qb .qb-escenario:has(.qb-frasco[data-estado="listo"]) .qb-frasco-respaldo{opacity:0;visibility:hidden}
+/* Con la escena lista la caja se va en fundido (y se oculta recién al final); si el 3D se pierde después
+   (contexto WebGL), vuelve al instante. */
+.qb .qb-escenario:has(.qb-frasco[data-estado="listo"]) .qb-frasco-respaldo{opacity:0;visibility:hidden;transition:opacity 1.4s ease .4s,visibility 0s 1.8s}
 .qb .qb-portal-texto{position:relative;max-width:660px;pointer-events:none}
 .qb .qb-portal-texto a,.qb .qb-portal-texto button{pointer-events:auto}
 .qb .qb-titular{margin:0;padding-top:.14em;display:grid;font:500 clamp(76px,11.6vw,184px)/.8 var(--didona);letter-spacing:-.018em;text-transform:uppercase;font-variation-settings:"opsz" 96;text-shadow:0 2px 40px rgba(0,0,0,.5)}
@@ -184,7 +186,9 @@ export const CSS =
 .qb .qb-t-que{animation-delay:.15s!important}
 .qb .qb-t-bien{font:400 .74em/.9 var(--caligrafia);text-transform:none;letter-spacing:0;margin:-.24em 0 -.3em .82em;transform:rotate(-7deg);position:relative;z-index:1;text-shadow:none;animation:qb-escribir 1.6s cubic-bezier(.6,0,.2,1) .55s both!important;padding-right:.12em}
 .qb .qb-t-oles{animation-delay:.32s!important}
-@keyframes qb-subir{from{opacity:0;transform:translateY(.28em);filter:blur(10px)}to{opacity:1;transform:none;filter:none}}
+/* La entrada del titular NO toca la opacidad: Chrome no toma como candidato a LCP un texto que empieza en
+   opacity 0, y el titular (o la bajada) tiene que contar desde el primer pintado. Sube y enfoca, nada más. */
+@keyframes qb-subir{from{transform:translateY(.28em);filter:blur(12px)}to{transform:none;filter:none}}
 @keyframes qb-escribir{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 -5% 0 0)}}
 .qb .qb-bajada{margin:34px 0 0;font:400 clamp(20px,2vw,27px)/1.35 var(--didona);max-width:26ch;animation:qb-subir 1.2s var(--curva) .7s both}
 .qb .qb-bajada strong{font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:.82em}

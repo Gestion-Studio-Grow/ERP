@@ -16,6 +16,7 @@
 
 import { cache } from "react";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { getStorefront } from "@/lib/order-actions";
 import { getTenantAccent, tenantFaviconDataUri, brandForSlug, resolveTenantLayout } from "@/lib/branding";
 import { tenantFidelityEnabled, tenantBrandSheetEnabled } from "@/lib/identity";
@@ -27,7 +28,7 @@ import Storefront from "./Storefront";
 import SiteReplica from "./SiteReplica";
 import MagraFront from "./MagraFront";
 import ShineFront from "./ShineFront";
-import QuebienolesFront from "./quebienoles/QuebienolesFront";
+import QuebienolesVidriera from "./quebienoles/QuebienolesVidriera";
 import TiendaNueva from "./vidriera/TiendaNueva";
 import { usaVidrieraNueva } from "./vidriera/marcas";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
@@ -53,6 +54,17 @@ function tenantInitials(name: string): string {
 // storefront en vez del monograma del brand map. Antes la vidriera de cualquier
 // tenant mostraba el ícono "CH" del layout raíz (p. ej. Magra, con el del spa).
 
+// Base de las URL absolutas de la metadata (og:image), sacada del host del request. Sin `metadataBase`
+// Next resuelve las imágenes contra VERCEL_PROJECT_PRODUCTION_URL (el .vercel.app del proyecto) y la
+// placa de Qué Bien Olés salía con ese host en vez de quebienoles.gsgapp.com.ar. Sólo la usa esa marca.
+async function baseDelRequest(): Promise<URL | null> {
+  const h = await headers();
+  const host = (h.get("x-forwarded-host") ?? h.get("host") ?? "").split(",")[0].trim();
+  if (!/^[a-z0-9.-]+(:\d{1,5})?$/i.test(host)) return null;
+  const local = /^(localhost|127\.0\.0\.1)(:|$)/.test(host);
+  return new URL(`${local ? "http" : "https"}://${host}`);
+}
+
 // Metadata POR TENANT. Antes la vidriera heredaba el <title> del layout raíz
 // ("CH Estética…"), así que el storefront de Magra decía "CH Estética" en la
 // pestaña, al compartir en redes y en buscadores. Ahora sale del tenant.
@@ -76,9 +88,11 @@ export async function generateMetadata(): Promise<Metadata> {
     data.branding?.contactNote ??
     `Comprá online en ${name}${data.branding?.city ? `, ${data.branding.city}` : ""}.`;
   const description = raw.length > 160 ? `${raw.slice(0, 157)}…` : raw;
+  const base = identity.brandId === "quebienoles" ? await baseDelRequest() : null;
   return {
     title,
     description,
+    ...(base ? { metadataBase: base } : {}),
     // Sello GSG (Gate, bloque 2): invisible en la vidriera; la marca visible es la del negocio.
     generator: "Gestión Studio Grow",
     openGraph: {
@@ -180,7 +194,7 @@ export default async function TiendaPage({
   // El copy es textual de la marca (storefront.ts); la ficha de cada perfume, tienda/quebienoles/perfumes.ts.
   if (front === "quebienoles" && data.copy) {
     return (
-      <QuebienolesFront
+      <QuebienolesVidriera
         products={data.products}
         branding={data.branding}
         copy={data.copy}

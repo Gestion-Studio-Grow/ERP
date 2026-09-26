@@ -14,7 +14,7 @@ import { etiquetaDeDisponibilidad } from "../reglas-tienda";
 import { FAMILIA_POR_ID } from "./perfumes";
 import { mensajeDirecto, seccionPorId, type Pieza } from "./vitrina";
 import { IconoCerrar, IconoFamilia, IconoInstagram } from "./Iconos";
-import { ORO } from "./estilos";
+import { ORO } from "./tokens";
 
 const CAPAS = [
   { id: "salida", nombre: "Salida", cuando: "Lo primero que sentís" },

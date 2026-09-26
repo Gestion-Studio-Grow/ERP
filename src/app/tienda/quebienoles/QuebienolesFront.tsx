@@ -38,7 +38,7 @@ import Estela from "./Estela";
 import Ficha from "./Ficha";
 import Bolsa from "./Bolsa";
 import Guia from "./Guia";
-import { CSS, FONDO, LETRA_DIDONA, ORO } from "./estilos";
+import { CARPETA_FUENTES, FONDO, LETRA_DIDONA, ORO } from "./tokens";
 
 // three.js sólo se pide en el navegador y después de pintar: el titular nunca espera al 3D.
 const Frasco = dynamic(() => import("./Frasco"), { ssr: false, loading: () => <div className="qb-frasco" data-estado="cargando" /> });
@@ -62,7 +62,7 @@ type Branding = {
   city?: string | null;
 } | null;
 
-type Props = {
+export type PropsFront = {
   products: ProductoVidriera[];
   branding: Branding;
   copy: StorefrontCopy;
@@ -71,14 +71,10 @@ type Props = {
 
 // Las cuatro letras del portal, incluida la itálica (la bajada «oler muy bien.» está arriba de todo):
 // sin su preload llegaba última y el titular cambiaba de letra dos veces.
-const FUENTES = [
-  "/tenants/quebienoles/fuentes/bodoni-moda.woff2",
-  "/tenants/quebienoles/fuentes/bodoni-moda-italic.woff2",
-  "/tenants/quebienoles/fuentes/jost.woff2",
-  "/tenants/quebienoles/fuentes/pinyon-script.woff2",
-];
+const FUENTES = [`${CARPETA_FUENTES}/bodoni-moda.woff2`, `${CARPETA_FUENTES}/bodoni-moda-italic.woff2`, `${CARPETA_FUENTES}/jost.woff2`, `${CARPETA_FUENTES}/pinyon-script.woff2`];
 
-export default function QuebienolesFront({ products, branding, copy, tenantKey }: Props) {
+// La piel (estilos.ts) NO se importa acá: la escribe QuebienolesVidriera.tsx (servidor) en el HTML.
+export default function QuebienolesFront({ products, branding, copy, tenantKey }: PropsFront) {
   for (const f of FUENTES) preload(f, { as: "font", type: "font/woff2", crossOrigin: "anonymous" });
 
   const reduce = usePrefersReducedMotion();
@@ -238,7 +234,6 @@ export default function QuebienolesFront({ products, branding, copy, tenantKey }
       data-familia={familia ?? "todas"}
       style={{ "--familia": colorFamilia } as CSSProperties}
     >
-      <style>{CSS}</style>
       <a className="qb-saltar" href="#vitrina">
         Saltar a los perfumes
       </a>
