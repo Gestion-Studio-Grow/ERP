@@ -11,7 +11,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apuntarLaAppA, baseEfimeraDelArchivo } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
 const laBase = baseEfimeraDelArchivo();
@@ -31,10 +31,11 @@ test("sin RLS: lo que le queda a A y el número del botón no cuentan los pendie
   prepararAccionesDeServidor();
   const { RLS_ENFORCEMENT } = await import("@/lib/prisma-base");
   assert.equal(RLS_ENFORCEMENT, false, "la app corre sin RLS");
-  const { operatorPrisma } = await import("@/lib/operator-db");
+  // Siembra y verificación como dueño de las tablas (ve todo): la consola ya no lo es (como producción).
+  const duenio = await prismaComoDuenio(base);
   const invoiceCore = await import("@/lib/invoice-core");
   const facturacion = await import("@/lib/facturacion-actions");
-  await operatorPrisma.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
+  await duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
 
   let venta = 0;
   const facturar = (tenantId: string) =>
@@ -51,7 +52,7 @@ test("sin RLS: lo que le queda a A y el número del botón no cuentan los pendie
       vencimientoPago: "20260924",
       origin: { type: "MP_PAYMENT" as const, id: `mp_sinrls_${++venta}` },
     });
-  const pendientesDe = (tenantId: string) => operatorPrisma.invoice.count({ where: { tenantId, status: "PENDING" } });
+  const pendientesDe = (tenantId: string) => duenio.invoice.count({ where: { tenantId, status: "PENDING" } });
   const [a, b] = [base.a, base.b];
   await facturar(a.id);
   for (let i = 0; i < 3; i++) await facturar(b.id);
@@ -70,5 +71,5 @@ test("sin RLS: lo que le queda a A y el número del botón no cuentan los pendie
   assert.equal(r.valor.quedan, await pendientesDe(a.id), "lo que le queda a A es lo de A");
   assert.equal(r.valor.quedan, 0, "y no los 3 de B");
   assert.equal(await pendientesDe(b.id), 3, "B sigue con sus 3 pendientes, sin tocar");
-  await operatorPrisma.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
+  await duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
 });
