@@ -26,6 +26,7 @@ import {
   type EstadoComprobante,
   type RenglonImpreso,
 } from "@/lib/comprobante-pdf";
+import type { OrigenDelComprobante } from "@/lib/facturacion/detalle-core";
 
 type Importe = { toNumber(): number } | number | string | null | undefined;
 
@@ -50,14 +51,20 @@ const CONCEPTO: Readonly<Record<number, string>> = { 1: "Productos", 2: "Servici
 
 const CLIENTE = { select: { name: true, razonSocial: true, condicionIva: true, domicilio: true } } as const;
 
+/**
+ * Lo impreso más lo que el detalle muestra de un comprobante que no se imprime: el motivo del
+ * rechazo de ARCA y de dónde salió (para volver a facturarlo).
+ */
+export type ComprobanteLeido = DatosComprobanteImpreso & { rechazoMotivo: string | null; origen: OrigenDelComprobante };
+
 /** Todo lo que el comprobante impreso necesita, o `null` si el id no es de este negocio. */
-export async function leerComprobanteImpreso(invoiceId: string, tenantId: string): Promise<DatosComprobanteImpreso | null> {
+export async function leerComprobanteImpreso(invoiceId: string, tenantId: string): Promise<ComprobanteLeido | null> {
   const inv = await prisma.invoice.findFirst({
     where: { id: invoiceId, tenantId },
     select: {
       status: true, tipoComprobante: true, puntoVenta: true, numero: true, fecha: true, concepto: true,
       cae: true, caeVencimiento: true, neto: true, iva: true, total: true, ivaDesglose: true,
-      docTipo: true, docNro: true, authorizedAt: true, createdAt: true,
+      docTipo: true, docNro: true, authorizedAt: true, createdAt: true, rechazoMotivo: true, orderId: true, appointmentId: true,
       comprobanteAsociado: { select: { tipoComprobante: true, puntoVenta: true, numero: true } },
       order: {
         select: {
@@ -134,7 +141,16 @@ export async function leerComprobanteImpreso(invoiceId: string, tenantId: string
   }
 
   const cliente = inv.order?.client ?? inv.appointment?.client ?? null;
+  const origen: OrigenDelComprobante = inv.orderId
+    ? { tipo: "venta", orderId: inv.orderId }
+    : inv.appointmentId
+      ? { tipo: "turno" }
+      : movimiento
+        ? { tipo: "banco" }
+        : { tipo: "otro" };
   return {
+    rechazoMotivo: inv.rechazoMotivo,
+    origen,
     estado: inv.status as EstadoComprobante,
     tipoComprobante: inv.tipoComprobante,
     puntoVenta: inv.puntoVenta,

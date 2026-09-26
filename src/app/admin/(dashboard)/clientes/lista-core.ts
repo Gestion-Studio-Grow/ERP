@@ -10,7 +10,18 @@
 import { normalizarTelefono } from "@/lib/clientes/telefono";
 import { SEGMENTOS, esSegmento, type Segmento } from "@/lib/crm/segmentos";
 import { ordenDesdeUrl, type OrdenTabla } from "@/components/ui/tabla-core";
-import type { FilaCliente } from "./ClientesLista";
+
+/** Una fila de la lista con situación (diseño nuevo y piloto), armada con el motor comercial. */
+export type FilaCliente = {
+  id: string;
+  nombre: string;
+  telefono: string;
+  segmento: Segmento;
+  diasSinVenir: number | null;
+  /** ISO del próximo turno, si tiene. */
+  proximoTurno: string | null;
+  visitas: number;
+};
 
 export const TAMANIO_PAGINA = 50;
 
@@ -49,7 +60,7 @@ function sinTildes(s: string): string {
 /**
  * ¿La fila coincide con lo buscado? Por nombre sin tildes ni mayúsculas, o por teléfono: tal
  * como está guardado o de corrido («1155552036» encuentra «11 5555-2036»). La misma regla que la
- * búsqueda de la lista del piloto (ClientesLista.tsx).
+ * búsqueda que tenía la lista del piloto (y la de siempre: lib/clientes/lista-fichas.server.ts).
  */
 export function coincide(f: FilaCliente, q: string): boolean {
   const texto = sinTildes(q.trim());

@@ -896,3 +896,150 @@ summary:focus-visible {
     animation: none !important;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   LA TABLA DENSA EN EL DISEÑO DE SIEMPRE (src/components/ui/Tabla.tsx)
+   La piel de <Tabla> vive en public/diseno/renglon.css y sólo viste bajo
+   [data-diseno="renglon"]. Las listas que usan la MISMA <Tabla> en los dos diseños
+   (Facturación: comprobantes y links de cobro; Clientes del piloto) necesitan en el
+   diseño de siempre lo mínimo para trabajar: renglones separados, encabezado, y con
+   el contenedor angosto (celular, ≤ 40rem) la misma tarjeta de Renglón: folio y plata
+   arriba, asunto y detalle abajo, sin scroll horizontal. Colores del tema de siempre
+   (claro y oscuro salen de las variables del layout). En @layer components: una
+   clase suelta en la celda sigue ganando.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* «Sólo con la tabla angosta»: el mismo corte que la hoja (≤ 40rem del contenedor).
+   Para mostrar en el celular, dentro de la celda que se ve, lo de una celda que el
+   celular esconde (el estado ante ARCA junto al receptor). */
+@custom-variant tabla-movil {
+  @container (max-width: 40rem) {
+    @slot;
+  }
+}
+
+@layer components {
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) {
+    container-type: inline-size;
+    min-width: 0;
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    color: var(--text);
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) thead th {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--line-strong);
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) :is(th, td)[data-alinear="derecha"] {
+    text-align: right;
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) tbody tr {
+    border-bottom: 1px solid var(--line);
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) tbody tr[data-enlace] {
+    cursor: pointer;
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) tbody tr:hover {
+    background: var(--surface-sunken);
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) tbody tr[data-foco] {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td {
+    padding: 0.625rem 0.75rem;
+    vertical-align: middle;
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td[data-movil="folio"],
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td[data-movil="plata"] {
+    white-space: nowrap;
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td[data-movil="asunto"] {
+    color: var(--text-strong);
+    font-weight: 500;
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) :is(th, td)[data-parte="seleccion"] {
+    width: 2.75rem;
+    padding: 0;
+    text-align: center;
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) [data-parte="seleccion"] label {
+    display: inline-grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) [data-parte="vacio"] td {
+    padding: 1rem 0.75rem;
+    color: var(--text-muted);
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) :is([data-parte="pie"], [data-parte="lote"], [data-parte="barra"]) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) [data-parte="orden-movil"] {
+    display: none;
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) [data-ui="atajos"] {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) [data-ui="kbd"] {
+    padding: 0 0.25rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 0.25rem;
+    font-size: 0.6875rem;
+  }
+
+  @container (max-width: 40rem) {
+    [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) :is(table, tbody) {
+      display: block;
+    }
+    [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) thead,
+    [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) [data-ui="atajos"] {
+      display: none;
+    }
+    [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) tbody tr {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-areas: "sel folio plata" "sel asunto tecla" "sel detalle tecla";
+      align-items: center;
+      column-gap: 0.75rem;
+      min-height: 3.5rem;
+      padding: 0.5rem 0.25rem 0.5rem 0;
+    }
+    [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) tbody tr:not(:has(td[data-parte="seleccion"])) {
+      grid-template-columns: 0 minmax(0, 1fr) auto;
+      column-gap: 0;
+      padding-left: 0.25rem;
+    }
+    [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) tbody tr > td {
+      display: block;
+      width: auto;
+      padding: 0;
+    }
+    [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td[data-parte="seleccion"] { grid-area: sel; }
+    [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td[data-movil="folio"] { grid-area: folio; font-size: 0.8125rem; color: var(--text-muted); }
+    [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td[data-movil="asunto"] { grid-area: asunto; font-size: 1rem; }
+    [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td[data-movil="detalle"] { grid-area: detalle; font-size: 0.8125rem; color: var(--text-muted); }
+    [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td[data-movil="detalle"] + td[data-movil="detalle"] { display: none; }
+    [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td[data-movil="plata"] { grid-area: plata; text-align: right; }
+    [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td[data-movil="tecla"] { grid-area: tecla; }
+    [data-ui="tabla-densa"]:not([data-diseno="renglon"] *) td[data-movil="oculta"] { display: none; }
+  }
+}

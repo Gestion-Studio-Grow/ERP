@@ -27,9 +27,9 @@
 //   if (!base) return;
 //   apuntarLaAppA(base);                 // src/test/base-efimera.ts
 //   prepararAccionesDeServidor();        // ANTES de importar módulos de la app
-//   const { getClients } = await import("@/lib/actions");
+//   const { getPaginaDeClientes } = await import("@/lib/actions");
 //
-//   const r = await ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, () => getClients());
+//   const r = await ejecutarAccion({ negocio: base.a, usuario: base.a.duenia }, () => getPaginaDeClientes({ q: "", pagina: 1 }));
 //   assert.equal(r.tipo, "respuesta");   // "respuesta" | "redireccion" | "no-encontrado"
 //   // r.valor: lo que devolvió la acción · r.revalidadas: rutas y tags invalidados
 //   // r.cookiesPuestas / r.cookiesBorradas: lo que la acción escribió en las cookies

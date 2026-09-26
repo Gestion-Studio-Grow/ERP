@@ -7,6 +7,7 @@
 // El botón de banco de pruebas genera un cobro de prueba sin usar el formulario.
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { generarCobro, type GenerarCobroResult } from "@/lib/cobros-actions";
 import { generarCobroDePruebaAction } from "@/lib/mercadopago-pruebas-actions";
 import type { ModoCobros } from "@/lib/mercadopago-cobros-dispatch";
@@ -25,6 +26,7 @@ export default function CobrosSection({ modo }: { modo: ModoCobros }) {
   const [probando, setProbando] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const { showError, showSuccess } = useToast();
+  const router = useRouter();
 
   async function probarCobro() {
     setProbando(true);
@@ -75,6 +77,9 @@ export default function CobrosSection({ modo }: { modo: ModoCobros }) {
             if (res.ok) {
               setLink(res);
               showSuccess("Link de cobro generado.");
+              // La lista de links de abajo (componente de servidor) se vuelve a leer: el link
+              // nuevo aparece primero sin recargar la página.
+              router.refresh();
             } else {
               showError(res.error);
             }

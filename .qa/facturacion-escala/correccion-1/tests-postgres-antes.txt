@@ -1,0 +1,141 @@
+TAP version 13
+# Subtest: buscar un nombre sin tildes encuentra al que las tiene (y al revés), también el nombre que vino del banco
+not ok 1 - buscar un nombre sin tildes encuentra al que las tiene (y al revés), también el nombre que vino del banco
+  ---
+  duration_ms: 3534.15744
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/facturacion/busqueda-postgres.test.ts:3:542'
+  failureType: 'testCodeFailure'
+  error: |-
+    «monica perez» encuentra a Mónica Pérez (sólo la de A)
+    + actual - expected
+    
+    + []
+    - [
+    -   'fac_monica_a'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'fac_monica_a'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/facturacion/busqueda-postgres.test.ts:79:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: la nota de crédito lleva el nombre de la factura que anula: la búsqueda por nombre la trae y el total por nombre es el total por CUIT
+not ok 2 - la nota de crédito lleva el nombre de la factura que anula: la búsqueda por nombre la trae y el total por nombre es el total por CUIT
+  ---
+  duration_ms: 42.023918
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/facturacion/busqueda-postgres.test.ts:3:1421'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   [
+    -     'fac_nandu',
+    -     'Ñandú SRL',
+    -     5000
+    -   ],
+    -   [
+    -     'nc_nandu',
+    -     'Ñandú SRL',
+    -     -1210
+    -   ]
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: 'fac_nandu'
+      1: 'Ñandú SRL'
+      2: 5000
+    1:
+      0: 'nc_nandu'
+      1: 'Ñandú SRL'
+      2: -1210
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/facturacion/busqueda-postgres.test.ts:92:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: «Facturado del mes» del Inicio resta las notas de crédito (lo mismo que la lista)
+not ok 3 - «Facturado del mes» del Inicio resta las notas de crédito (lo mismo que la lista)
+  ---
+  duration_ms: 480.443465
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/facturacion/busqueda-postgres.test.ts:3:2629'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    8810 !== 4790
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 4790
+  actual: 8810
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/facturacion/busqueda-postgres.test.ts:108:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: la lista de clientes de siempre cuenta compras (no anuladas) en un comercio y turnos en un negocio de turnos
+not ok 4 - la lista de clientes de siempre cuenta compras (no anuladas) en un comercio y turnos en un negocio de turnos
+  ---
+  duration_ms: 38.929226
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/facturacion/busqueda-postgres.test.ts:3:3505'
+  failureType: 'testCodeFailure'
+  error: |-
+    una compra; la anulada no cuenta
+    + actual - expected
+    
+      [
+        [
+          'cli_monica_a',
+    +     undefined
+    -     1
+        ]
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: 'cli_monica_a'
+      1: 1
+  actual:
+    0:
+      0: 'cli_monica_a'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/facturacion/busqueda-postgres.test.ts:121:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 0
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4717.030508
+EXIT 1

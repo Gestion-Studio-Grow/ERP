@@ -59,7 +59,9 @@ async function preparar(t: import("node:test").TestContext) {
       orderBy: { id: "asc" },
       select: { id: true, attempts: true, lastError: true, processedAt: true, payload: true },
     });
-  return { base, duenio, facturacion, facturar, enviosDe };
+  /** Los pendientes de un negocio, contados como dueño (ve todos): la verdad contra la que va `quedan`. */
+  const pendientesDe = (tenantId: string) => duenio.invoice.count({ where: { tenantId, status: "PENDING" } });
+  return { base, duenio, facturacion, facturar, enviosDe, pendientesDe };
 }
 
 test("ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan intactos y el resumen cuenta sólo los de A", async (t) => {
@@ -76,7 +78,9 @@ test("ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan
   const r = await ejecutarAccion({ negocio: a, usuario: a.duenia }, () => p.facturacion.procesarFacturacionPendiente());
   assert.equal(r.tipo, "respuesta");
   if (r.tipo !== "respuesta") return;
-  assert.deepEqual(r.valor, { procesados: 1, autorizados: 1, rechazados: 0, fallidos: 0, descartados: 0 });
+  // `quedan: 0` con 2 pendientes de B: lo que le queda a A no cuenta nada de B.
+  assert.deepEqual(r.valor, { procesados: 1, autorizados: 1, rechazados: 0, fallidos: 0, descartados: 0, quedan: 0, conErrorDelSistema: [] });
+  assert.equal(await p.pendientesDe(b.id), 2, "B tenía pendientes mientras A contaba los suyos");
 
   assert.deepEqual(await p.enviosDe(b.id), enviosDeBAntes, "intentos, error, fecha de proceso y payload de B sin cambio");
   for (const id of deB) {
@@ -94,6 +98,11 @@ test("ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan
   // El resumen de B cuenta sus dos envíos y nada más (el segundo choca con el simulador por defecto).
   assert.equal(rb.valor.autorizados, 1);
   assert.equal(rb.valor.procesados + rb.valor.fallidos + rb.valor.descartados, 2);
+  // Lo que le queda a B son SUS pendientes, y lo que falló por error nuestro son SUS envíos.
+  assert.equal(rb.valor.quedan, await p.pendientesDe(b.id));
+  const idsDeB = new Set((await p.enviosDe(b.id)).map((e) => e.id));
+  assert.equal(rb.valor.conErrorDelSistema.length, rb.valor.fallidos, "con ARCA simulado, toda falla es nuestra (la base), no de ARCA");
+  for (const id of rb.valor.conErrorDelSistema) assert.ok(idsDeB.has(id), "sólo envíos de B");
   assert.deepEqual(await p.enviosDe(a.id), enviosDeAAntes);
   await p.duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
 });
@@ -107,7 +116,13 @@ test("ENG-012 · la acción de A no toma un envío de B aunque sea el único pen
   const r = await ejecutarAccion({ negocio: a, usuario: a.duenia }, () => p.facturacion.procesarFacturacionPendiente());
   assert.equal(r.tipo, "respuesta");
   if (r.tipo !== "respuesta") return;
-  assert.deepEqual(r.valor, { procesados: 0, autorizados: 0, rechazados: 0, fallidos: 0, descartados: 0 });
+  assert.deepEqual(r.valor, { procesados: 0, autorizados: 0, rechazados: 0, fallidos: 0, descartados: 0, quedan: 0, conErrorDelSistema: [] });
+  assert.deepEqual(await p.enviosDe(b.id), antes);
+  // Pedir que saltee un envío de B no le da nada sobre B ni lo toca (sólo excluye, dentro de A).
+  const conIdDeB = await ejecutarAccion({ negocio: a, usuario: a.duenia }, () => p.facturacion.procesarFacturacionPendiente(antes.map((e) => e.id)));
+  assert.equal(conIdDeB.tipo, "respuesta");
+  if (conIdDeB.tipo !== "respuesta") return;
+  assert.deepEqual(conIdDeB.valor, r.valor);
   assert.deepEqual(await p.enviosDe(b.id), antes);
   await p.duenio.outboxEvent.updateMany({ where: { processedAt: null }, data: { processedAt: new Date() } });
 });

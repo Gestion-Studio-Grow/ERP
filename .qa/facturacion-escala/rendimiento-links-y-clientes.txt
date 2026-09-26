@@ -1,0 +1,23 @@
+Links de cobro y lista de clientes a escala — 2026-09-26T17:42:29.175Z
+Postgres local efímero (src/test/base-efimera.ts), conectado como app_rls con RLS; 20 vueltas por caso, tiempo de la página entera (en su transacción).
+Negocio A: 10.001 fichas, 20.000 pedidos, 300.000 constancias de auditoría de otras cosas y 6.000 links (4.000 de pedidos, 2.000 libres). Negocio B: 6 fichas y 51 links.
+Presupuesto: p95 < 300 ms por página. Peor p95 medido: 193.5 ms.
+
+links: todos, página 1                           6000 en el filtro · 2 consultas · p95 68.5 ms · mediana 58.4 ms
+links: todos, página 100                         6000 en el filtro · 2 consultas · p95 152.7 ms · mediana 123.0 ms
+links: sin pagar                                 6000 en el filtro · 2 consultas · p95 129.5 ms · mediana 117.9 ms
+links: pagados, página 20                        6000 en el filtro · 2 consultas · p95 188.3 ms · mediana 132.2 ms
+links: buscar concepto «seña número 1234»           1 en el filtro · 2 consultas · p95 153.4 ms · mediana 133.2 ms
+links: buscar cliente «Cliente Escala 51»          11 en el filtro · 2 consultas · p95 162.0 ms · mediana 150.4 ms
+links: buscar pedido «#100050»                      1 en el filtro · 2 consultas · p95 176.4 ms · mediana 148.7 ms
+links: buscar importe «3.450,00»                    2 en el filtro · 2 consultas · p95 193.5 ms · mediana 141.0 ms
+clientes (diseño de siempre): página 1          10003 en el filtro · 2 consultas · p95 12.8 ms · mediana 9.7 ms
+clientes (diseño de siempre): página 150        10003 en el filtro · 2 consultas · p95 19.0 ms · mediana 14.3 ms
+clientes: buscar nombre «escala 77»               280 en el filtro · 2 consultas · p95 122.9 ms · mediana 96.0 ms
+clientes: buscar sin tildes «maria perez»           1 en el filtro · 2 consultas · p95 101.1 ms · mediana 84.2 ms
+clientes: buscar teléfono «+54 9 11 4000-7919»      1 en el filtro · 2 consultas · p95 123.9 ms · mediana 96.5 ms
+
+Motor comercial (lista con situación del diseño nuevo y del piloto): 10003 fichas con sus pedidos, lectura + evaluación en memoria: p95 479.0 ms (5 vueltas). Sin presupuesto de página: es el techo medido antes de pasar a agregados en SQL.
+Vender — buscar la ficha por teléfono (lee los teléfonos de todas las fichas): p95 35.2 ms (20 vueltas).
+
+Aislamiento: A cuenta 6.000 links y B 51; A buscando el concepto, el importe y el pedido de B: 0; A buscando fichas de B por nombre y teléfono: 0; con la sesión de A pidiendo links y fichas de B por su id: 0 (RLS).

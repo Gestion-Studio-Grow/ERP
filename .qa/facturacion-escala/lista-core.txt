@@ -1,0 +1,118 @@
+TAP version 13
+# Subtest: sin nada en la URL la lista muestra el mes en curso, página 1, todos los estados y tipos
+ok 1 - sin nada en la URL la lista muestra el mes en curso, página 1, todos los estados y tipos
+  ---
+  duration_ms: 5.918785
+  type: 'test'
+  ...
+# Subtest: el mes en curso termina el último día del mes, también en febrero bisiesto
+ok 2 - el mes en curso termina el último día del mes, también en febrero bisiesto
+  ---
+  duration_ms: 0.306026
+  type: 'test'
+  ...
+# Subtest: buscar sin período en la URL busca en todos los meses
+ok 3 - buscar sin período en la URL busca en todos los meses
+  ---
+  duration_ms: 0.31385
+  type: 'test'
+  ...
+# Subtest: buscar con período en la URL respeta el período
+ok 4 - buscar con período en la URL respeta el período
+  ---
+  duration_ms: 0.483199
+  type: 'test'
+  ...
+# Subtest: lo inválido en la URL cae al valor por defecto y un período al revés se da vuelta
+ok 5 - lo inválido en la URL cae al valor por defecto y un período al revés se da vuelta
+  ---
+  duration_ms: 0.374502
+  type: 'test'
+  ...
+# Subtest: «necesitan atención» son las pendientes y las rechazadas
+ok 6 - «necesitan atención» son las pendientes y las rechazadas
+  ---
+  duration_ms: 0.181982
+  type: 'test'
+  ...
+# Subtest: el tipo usa los códigos de ARCA: A=1, B=6, C=11, notas de crédito 3, 8 y 13
+ok 7 - el tipo usa los códigos de ARCA: A=1, B=6, C=11, notas de crédito 3, 8 y 13
+  ---
+  duration_ms: 0.363665
+  type: 'test'
+  ...
+# Subtest: buscador: un nombre busca por receptor
+ok 8 - buscador: un nombre busca por receptor
+  ---
+  duration_ms: 0.395733
+  type: 'test'
+  ...
+# Subtest: buscador: «0001-00000123» es punto de venta y número
+ok 9 - buscador: «0001-00000123» es punto de venta y número
+  ---
+  duration_ms: 0.481275
+  type: 'test'
+  ...
+# Subtest: buscador: un CUIT con guiones busca por documento, no por número de comprobante
+ok 10 - buscador: un CUIT con guiones busca por documento, no por número de comprobante
+  ---
+  duration_ms: 0.917294
+  type: 'test'
+  ...
+# Subtest: buscador: una cifra corta puede ser número de comprobante o importe
+ok 11 - buscador: una cifra corta puede ser número de comprobante o importe
+  ---
+  duration_ms: 0.256981
+  type: 'test'
+  ...
+# Subtest: buscador: un importe con centavos a la argentina («12.500,50» o «$ 12.500,50») busca el total
+ok 12 - buscador: un importe con centavos a la argentina («12.500,50» o «$ 12.500,50») busca el total
+  ---
+  duration_ms: 0.501289
+  type: 'test'
+  ...
+# Subtest: buscador: un DNI de 8 cifras busca como documento y como número
+ok 13 - buscador: un DNI de 8 cifras busca como documento y como número
+  ---
+  duration_ms: 0.14134
+  type: 'test'
+  ...
+# Subtest: los comodines de LIKE se buscan como texto
+ok 14 - los comodines de LIKE se buscan como texto
+  ---
+  duration_ms: 0.21153
+  type: 'test'
+  ...
+# Subtest: 50 por página y siempre al menos una página
+ok 15 - 50 por página y siempre al menos una página
+  ---
+  duration_ms: 0.254131
+  type: 'test'
+  ...
+# Subtest: la URL guarda sólo lo que no es por defecto y cambiar un filtro vuelve a la página 1 si se pide
+ok 16 - la URL guarda sólo lo que no es por defecto y cambiar un filtro vuelve a la página 1 si se pide
+  ---
+  duration_ms: 0.4424
+  type: 'test'
+  ...
+# Subtest: el receptor sin nombre se muestra por su documento; el 99 es consumidor final
+ok 17 - el receptor sin nombre se muestra por su documento; el 99 es consumidor final
+  ---
+  duration_ms: 0.171487
+  type: 'test'
+  ...
+# Subtest: el renglón del CSV lleva fecha dd/mm/aaaa, tipo en palabras, estado ante ARCA y el total exacto
+ok 18 - el renglón del CSV lleva fecha dd/mm/aaaa, tipo en palabras, estado ante ARCA y el total exacto
+  ---
+  duration_ms: 0.365274
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 18
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 525.658002

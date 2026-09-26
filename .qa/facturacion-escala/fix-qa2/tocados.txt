@@ -1,0 +1,12 @@
+src/lib/arca-reserva.ts
+src/lib/arca-dispatch.ts
+src/lib/facturacion/autorizar-en-tandas.ts
+src/lib/facturacion/autorizar-en-tandas.test.ts
+src/lib/facturacion-actions.ts
+src/app/admin/(dashboard)/facturacion/ComprobantesArca.tsx
+src/lib/facturacion/detalle-core.ts
+src/lib/facturacion/detalle-core.test.ts
+src/lib/clientes/lista-fichas.server.ts
+src/lib/arca-envios-por-negocio-postgres.test.ts
+src/lib/arca-envios-por-negocio-sin-rls-postgres.test.ts
+src/lib/clientes/compras-por-ficha-postgres.test.ts

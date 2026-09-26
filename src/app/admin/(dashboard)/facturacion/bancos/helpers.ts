@@ -5,7 +5,7 @@
 
 import type { BadgeTone } from "@/components/ui";
 
-/** AAAAMMDD → DD/MM/AAAA (criollo, mismo criterio que FacturasSection). */
+/** AAAAMMDD → DD/MM/AAAA (criollo, mismo criterio que la lista de comprobantes). */
 export function fechaAr(aaaammdd: string): string {
   if (!/^\d{8}$/.test(aaaammdd)) return aaaammdd;
   return `${aaaammdd.slice(6, 8)}/${aaaammdd.slice(4, 6)}/${aaaammdd.slice(0, 4)}`;

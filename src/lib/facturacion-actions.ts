@@ -12,6 +12,10 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { procesarEnviosDelNegocio, type DispatchResumen } from "@/lib/arca-dispatch";
 import { modoDesdeEnv, type ModoArca } from "@/plugins/arca";
 import { logger } from "@/lib/logger";
+import { todayInBusinessTz } from "@/lib/datetime";
+import { leerFiltros, totalesVacios, type FiltrosComprobantes, type PaginaDeComprobantes } from "@/lib/facturacion/lista-core";
+import { leerPaginaDeComprobantes } from "@/lib/facturacion/lista.server";
+import { TANDA_DE_ARCA, enviosASaltear } from "@/lib/facturacion/autorizar-en-tandas";
 
 const FACTURACION_PATH = "/admin/facturacion";
 
@@ -40,6 +44,8 @@ export interface EstadoFiscal {
   homologacion: boolean;
   /** Cantidad de facturas pendientes de autorización (status PENDING). */
   pendientes: number;
+  /** ¿El negocio tiene algún comprobante (de cualquier mes y estado)? Decide qué pestaña abre. */
+  hayComprobantes: boolean;
 }
 
 /**
@@ -60,7 +66,61 @@ function toNum(v: unknown): number {
 
 /** Estado fiscal "vacío pero válido" — para degradar sin romper la pantalla. */
 function estadoFiscalVacio(): EstadoFiscal {
-  return { modo: modoDesdeEnv(), cuit: null, puntoVenta: null, homologacion: true, pendientes: 0 };
+  return { modo: modoDesdeEnv(), cuit: null, puntoVenta: null, homologacion: true, pendientes: 0, hayComprobantes: false };
+}
+
+/**
+ * Los comprobantes del negocio que esperan autorización. Con el negocio EXPLÍCITO en la consulta
+ * (QA vuelta 2): no depende de que el cliente sea el de RLS ni del filtro por negocio del otro.
+ */
+function contarPendientes(tenantId: string): Promise<number> {
+  return prisma.invoice.count({ where: { tenantId, status: "PENDING" } });
+}
+
+/** El estado fiscal del negocio: config de ARCA y cuántos comprobantes esperan autorización. */
+async function leerEstadoFiscal(tenantId: string): Promise<EstadoFiscal> {
+  const [tenant, pendientes, alguno] = await Promise.all([
+    // Config fiscal aislada: si faltan las columnas `arca*` (schema viejo), no debe
+    // voltear la lectura de facturas — cae a `null` y el estado usa sus defaults.
+    prisma.tenant
+      .findUnique({
+        where: { id: tenantId },
+        select: { arcaCuit: true, arcaPuntoVenta: true, arcaHomologacion: true },
+      })
+      .catch(() => null),
+    contarPendientes(tenantId),
+    // Uno solo, por el índice (tenantId, status): no cuenta los miles de un comercio.
+    prisma.invoice.findFirst({ where: { tenantId }, select: { id: true } }),
+  ]);
+  return {
+    modo: modoDesdeEnv(),
+    cuit: tenant?.arcaCuit ?? null,
+    puntoVenta: tenant?.arcaPuntoVenta ?? null,
+    homologacion: tenant?.arcaHomologacion ?? true,
+    pendientes,
+    hayComprobantes: alguno !== null,
+  };
+}
+
+/**
+ * El panel de Facturación: el estado fiscal y UNA página de comprobantes con los filtros de la
+ * URL (lista-core.ts) y los totales del filtro entero, calculados en la base (lista.server.ts).
+ * Mismo criterio defensivo que `getFacturacion`: la barrera de rol bloquea; un fallo de lectura
+ * deja la pantalla con la lista vacía y el aviso, no rompe.
+ */
+export async function getPanelDeFacturacion(
+  sp: Record<string, string | string[] | undefined>,
+): Promise<{ estado: EstadoFiscal; filtros: FiltrosComprobantes; lista: PaginaDeComprobantes; fallo: boolean }> {
+  await requireCapability("billing:manage");
+  const filtros = leerFiltros(sp, todayInBusinessTz());
+  try {
+    const tenantId = await getCurrentTenantId();
+    const [estado, lista] = await Promise.all([leerEstadoFiscal(tenantId), leerPaginaDeComprobantes(tenantId, filtros)]);
+    return { estado, filtros, lista, fallo: false };
+  } catch (err) {
+    logger.error("facturacion", "no se pudo leer la lista de comprobantes", err);
+    return { estado: estadoFiscalVacio(), filtros, lista: { renglones: [], totales: totalesVacios(), pagina: 1, paginas: 1 }, fallo: true };
+  }
 }
 
 /**
@@ -83,7 +143,7 @@ export async function getFacturacion(): Promise<{ facturas: FacturaVista[]; esta
   try {
     const tenantId = await getCurrentTenantId();
 
-    const [invoices, tenant, pendientes] = await Promise.all([
+    const [invoices, estado] = await Promise.all([
       prisma.invoice.findMany({
         orderBy: { createdAt: "desc" },
         take: 100,
@@ -92,15 +152,7 @@ export async function getFacturacion(): Promise<{ facturas: FacturaVista[]; esta
           cae: true, caeVencimiento: true, numero: true, puntoVenta: true, rechazoMotivo: true,
         },
       }),
-      // Config fiscal aislada: si faltan las columnas `arca*` (schema viejo), no debe
-      // voltear la lectura de facturas — cae a `null` y el estado usa sus defaults.
-      prisma.tenant
-        .findUnique({
-          where: { id: tenantId },
-          select: { arcaCuit: true, arcaPuntoVenta: true, arcaHomologacion: true },
-        })
-        .catch(() => null),
-      prisma.invoice.count({ where: { status: "PENDING" } }),
+      leerEstadoFiscal(tenantId),
     ]);
 
     return {
@@ -112,13 +164,7 @@ export async function getFacturacion(): Promise<{ facturas: FacturaVista[]; esta
         iva: toNum(f.iva),
         total: toNum(f.total),
       })),
-      estado: {
-        modo: modoDesdeEnv(),
-        cuit: tenant?.arcaCuit ?? null,
-        puntoVenta: tenant?.arcaPuntoVenta ?? null,
-        homologacion: tenant?.arcaHomologacion ?? true,
-        pendientes,
-      },
+      estado,
     };
   } catch (err) {
     // Schema pre-migración (tabla/columna/tipo que no existe) o cualquier fallo de lectura:
@@ -130,13 +176,25 @@ export async function getFacturacion(): Promise<{ facturas: FacturaVista[]; esta
 }
 
 /**
- * Dispara el despacho de las facturas pendientes a ARCA (drena el outbox). En modo
- * stub obtiene un CAE simulado; en modo real, el CAE de ARCA. Devuelve el resumen.
+ * Manda UNA tanda de pendientes a ARCA (drena el outbox, a lo sumo 20: cabe en el tiempo de una
+ * función). En modo stub obtiene un CAE simulado; en modo real, el CAE de ARCA. Devuelve el
+ * resumen y cuántos quedan pendientes: la pantalla pide tandas hasta que no quede ninguno
+ * (lib/facturacion/autorizar-en-tandas.ts), así «Autorizar los 59 pendientes» manda los 59.
+ * `saltear`: los envíos que en el mismo toque ya fallaron por un error nuestro (no se vuelven a
+ * mandar); `conErrorDelSistema`: los de esta tanda. Sólo excluye, y dentro de este negocio.
  */
-export async function procesarFacturacionPendiente(): Promise<DispatchResumen> {
+export async function procesarFacturacionPendiente(
+  saltear: unknown = [],
+): Promise<DispatchResumen & { quedan: number; conErrorDelSistema: string[] }> {
   await requireCapability("billing:manage");
+  const tenantId = await getCurrentTenantId();
+  const conErrorDelSistema: string[] = [];
   // ENG-012: sólo los envíos de ESTE negocio; el barrido de todos es del cron.
-  const resumen = await procesarEnviosDelNegocio(await getCurrentTenantId());
+  const resumen = await procesarEnviosDelNegocio(tenantId, TANDA_DE_ARCA, undefined, {
+    saltear: enviosASaltear(saltear),
+    alFallarPorElSistema: (envioId) => conErrorDelSistema.push(envioId),
+  });
+  const quedan = await contarPendientes(tenantId);
   revalidatePath(FACTURACION_PATH);
-  return resumen;
+  return { ...resumen, quedan, conErrorDelSistema };
 }

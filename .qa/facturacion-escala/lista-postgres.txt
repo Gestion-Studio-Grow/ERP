@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: lista de comprobantes a escala: aislamiento, totales reales, dos consultas por página y p95 < 300 ms
+ok 1 - lista de comprobantes a escala: aislamiento, totales reales, dos consultas por página y p95 < 300 ms
+  ---
+  duration_ms: 27943.193113
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 28732.158807

@@ -1,5 +1,6 @@
 // Vista imprimible de un comprobante (R3-F1): lo que dice el comprobante autorizado y el botón
 // «Descargar PDF». Si falta un dato obligatorio no hay descarga: se dice qué falta y dónde se carga.
+// Si ARCA lo rechazó, el motivo y cómo volver a facturarlo (la venta, ahí mismo).
 // Sólo el negocio dueño: la app y el permiso de facturar antes de leer, y el lector único
 // (`leerComprobanteImpreso`) no ve comprobantes de otro negocio (RLS + tenantId).
 import { notFound } from "next/navigation";
@@ -22,6 +23,8 @@ import {
   tipoImpreso,
 } from "@/lib/comprobante-pdf";
 import { ButtonLink, DosColumnas, Franja, PageContainer, PageHeader, Renglon, Seccion, fmtCuit } from "@/components/ui";
+import { estadoDelDetalle } from "@/lib/facturacion/detalle-core";
+import FacturarVenta from "../../../ventas/FacturarVenta";
 
 function fecha(aaaammdd: string | null): string {
   return aaaammdd && /^\d{8}$/.test(aaaammdd) ? fechaImpresa(aaaammdd) : "Sin cargar";
@@ -48,6 +51,8 @@ export default async function ComprobanteImpresoPage({ params }: { params: Promi
   const sinIva = tipo?.letra === "A" ? detalleSinIva(d) : null;
   // Las mismas leyendas que imprime el PDF: las decide el motor fiscal (RG 5003/2021 al monotributista).
   const leyendasA = tipo?.letra === "A" ? (leyendasDeLaA(d) ?? []) : [];
+  // Cada estado dice lo que es; el rechazado, el motivo de ARCA y cómo seguir (detalle-core.ts).
+  const aviso = estadoDelDetalle(d);
   const volver = (
     <ButtonLink href="/admin/facturacion" variant="outline">
       Volver a Facturación
@@ -57,9 +62,9 @@ export default async function ComprobanteImpresoPage({ params }: { params: Promi
   return (
     <PageContainer>
       <PageHeader
-        title={`${nombre} ${numero}`}
-        description="Lo que dice el comprobante autorizado por ARCA. El PDF es el que le das al cliente."
-        estado={[`Emitido el ${fecha(d.fecha)}`, pesosImpresos(d.total)]}
+        title={aviso.rechazo ? `${nombre} rechazado por ARCA` : `${nombre} ${numero}`}
+        description={aviso.descripcion}
+        estado={[`${d.estado === "AUTHORIZED" ? "Emitido" : "Armado"} el ${fecha(d.fecha)}`, pesosImpresos(d.total)]}
         actions={
           faltantes.length === 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -74,14 +79,31 @@ export default async function ComprobanteImpresoPage({ params }: { params: Promi
         }
       />
 
-      {d.ambiente === "prueba" && (
+      {aviso.prueba && <Franja tono="peligro">{aviso.prueba}</Franja>}
+
+      {aviso.rechazo && (
         <Franja tono="peligro">
-          ARCA autorizó este comprobante en su modo de prueba: no tiene validez fiscal. El PDF lo dice arriba de
-          todo.
+          <p className="font-semibold">Por qué lo rechazó ARCA</p>
+          <p className="mt-1 break-words">{aviso.rechazo.motivo}</p>
+          <p className="mt-3 font-semibold">Cómo seguir</p>
+          <p className="mt-1">{aviso.rechazo.comoSeguir}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {aviso.rechazo.reFacturarVenta && (
+              <FacturarVenta
+                orderId={aviso.rechazo.reFacturarVenta}
+                inicial={{ estado: "sin-factura", texto: "Rechazada por ARCA: se puede volver a facturar." }}
+              />
+            )}
+            {aviso.rechazo.enlace && (
+              <ButtonLink href={aviso.rechazo.enlace.href} variant="outline">
+                {aviso.rechazo.enlace.etiqueta}
+              </ButtonLink>
+            )}
+          </div>
         </Franja>
       )}
 
-      {faltantes.length > 0 && (
+      {!aviso.rechazo && faltantes.length > 0 && (
         <Franja tono="atencion">
           <p className="font-semibold">Todavía no se puede descargar este comprobante. Falta:</p>
           <ul className="mt-1 list-disc space-y-1 pl-5">

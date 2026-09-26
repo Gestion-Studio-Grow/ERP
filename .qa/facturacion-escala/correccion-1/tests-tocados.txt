@@ -1,0 +1,497 @@
+TAP version 13
+# Subtest: la URL se lee con cuidado: situación y orden que no existen no filtran ni ordenan
+ok 1 - la URL se lee con cuidado: situación y orden que no existen no filtran ni ordenan
+  ---
+  duration_ms: 2.925813
+  type: 'test'
+  ...
+# Subtest: buscar por nombre sin tildes ni mayúsculas, o por teléfono de corrido
+ok 2 - buscar por nombre sin tildes ni mayúsculas, o por teléfono de corrido
+  ---
+  duration_ms: 0.983772
+  type: 'test'
+  ...
+# Subtest: sin orden elegido: las que vinieron hace poco primero; quien nunca vino, al final
+ok 3 - sin orden elegido: las que vinieron hace poco primero; quien nunca vino, al final
+  ---
+  duration_ms: 0.739325
+  type: 'test'
+  ...
+# Subtest: ordenar por nombre, visitas y próximo turno (sin turno siempre al final)
+ok 4 - ordenar por nombre, visitas y próximo turno (sin turno siempre al final)
+  ---
+  duration_ms: 11.459043
+  type: 'test'
+  ...
+# Subtest: la situación filtra y los números de los filtros cuentan con la búsqueda puesta
+ok 5 - la situación filtra y los números de los filtros cuentan con la búsqueda puesta
+  ---
+  duration_ms: 0.866117
+  type: 'test'
+  ...
+# Subtest: al navegador llega una página; una página que no existe muestra la última
+ok 6 - al navegador llega una página; una página que no existe muestra la última
+  ---
+  duration_ms: 1.036547
+  type: 'test'
+  ...
+# Subtest: la última vez se dice en palabras, sin «ciclos»
+ok 7 - la última vez se dice en palabras, sin «ciclos»
+  ---
+  duration_ms: 0.260952
+  type: 'test'
+  ...
+# Subtest: links de cobro y lista de clientes a escala: aislamiento, totales reales, dos consultas por página y p95 < 300 ms
+ok 8 - links de cobro y lista de clientes a escala: aislamiento, totales reales, dos consultas por página y p95 < 300 ms
+  ---
+  duration_ms: 39949.785347
+  type: 'test'
+  ...
+# Subtest: el QR impreso se lee como la URL de urlQrAfip y su payload trae los datos del comprobante
+ok 9 - el QR impreso se lee como la URL de urlQrAfip y su payload trae los datos del comprobante
+  ---
+  duration_ms: 362.353304
+  type: 'test'
+  ...
+# Subtest: el QR de un comprobante A lleva el CUIT del cliente
+ok 10 - el QR de un comprobante A lleva el CUIT del cliente
+  ---
+  duration_ms: 156.47543
+  type: 'test'
+  ...
+# Subtest: el lector de QR no es un eco: con un módulo de datos cambiado, no lee
+ok 11 - el lector de QR no es un eco: con un módulo de datos cambiado, no lee
+  ---
+  duration_ms: 133.858545
+  type: 'test'
+  ...
+# Subtest: el PDF lleva emisor, receptor, número, fecha, CAE y su vencimiento
+ok 12 - el PDF lleva emisor, receptor, número, fecha, CAE y su vencimiento
+  ---
+  duration_ms: 105.03377
+  type: 'test'
+  ...
+# Subtest: factura B: lleva la leyenda de la Ley 27.743 con el IVA contenido y los otros impuestos
+ok 13 - factura B: lleva la leyenda de la Ley 27.743 con el IVA contenido y los otros impuestos
+  ---
+  duration_ms: 70.686039
+  type: 'test'
+  ...
+# Subtest: nota de crédito B: también lleva la leyenda y el comprobante que anula
+ok 14 - nota de crédito B: también lleva la leyenda y el comprobante que anula
+  ---
+  duration_ms: 76.471888
+  type: 'test'
+  ...
+# Subtest: factura C y factura A: no llevan la leyenda de la Ley 27.743; la A discrimina el IVA
+ok 15 - factura C y factura A: no llevan la leyenda de la Ley 27.743; la A discrimina el IVA
+  ---
+  duration_ms: 179.556422
+  type: 'test'
+  ...
+# Subtest: factura A: cada renglón lleva su precio sin IVA y los subtotales sin IVA suman justo el neto autorizado
+ok 16 - factura A: cada renglón lleva su precio sin IVA y los subtotales sin IVA suman justo el neto autorizado
+  ---
+  duration_ms: 72.925351
+  type: 'test'
+  ...
+# Subtest: factura A: con más de una alícuota el comprobante no guarda cuál lleva cada renglón, así que no se imprime y dice por qué
+ok 17 - factura A: con más de una alícuota el comprobante no guarda cuál lleva cada renglón, así que no se imprime y dice por qué
+  ---
+  duration_ms: 1.045052
+  type: 'test'
+  ...
+# Subtest: factura A: si el neto no coincide con la base del IVA no se imprime un detalle que no cierra
+ok 18 - factura A: si el neto no coincide con la base del IVA no se imprime un detalle que no cierra
+  ---
+  duration_ms: 0.755695
+  type: 'test'
+  ...
+# Subtest: sin los datos fiscales del negocio no hay PDF y el aviso dice qué falta y dónde cargarlo
+ok 19 - sin los datos fiscales del negocio no hay PDF y el aviso dice qué falta y dónde cargarlo
+  ---
+  duration_ms: 0.602357
+  type: 'test'
+  ...
+# Subtest: un CUIT del negocio con el dígito verificador mal no imprime
+ok 20 - un CUIT del negocio con el dígito verificador mal no imprime
+  ---
+  duration_ms: 0.369282
+  type: 'test'
+  ...
+# Subtest: sin CAE no hay PDF: ni pendiente ni rechazado
+ok 21 - sin CAE no hay PDF: ni pendiente ni rechazado
+  ---
+  duration_ms: 0.33623
+  type: 'test'
+  ...
+# Subtest: si la letra no cuadra con la condición del negocio de hoy, no reimprime un dato falso
+ok 22 - si la letra no cuadra con la condición del negocio de hoy, no reimprime un dato falso
+  ---
+  duration_ms: 0.212519
+  type: 'test'
+  ...
+# Subtest: un comprobante A sin CUIT ni domicilio del cliente no se imprime
+ok 23 - un comprobante A sin CUIT ni domicilio del cliente no se imprime
+  ---
+  duration_ms: 0.484148
+  type: 'test'
+  ...
+# Subtest: un tipo de comprobante que no sabe imprimir (Factura de Crédito MiPyME) no genera
+ok 24 - un tipo de comprobante que no sabe imprimir (Factura de Crédito MiPyME) no genera
+  ---
+  duration_ms: 0.32154
+  type: 'test'
+  ...
+# Subtest: en modo de prueba de ARCA la hoja advierte que no tiene validez fiscal
+ok 25 - en modo de prueba de ARCA la hoja advierte que no tiene validez fiscal
+  ---
+  duration_ms: 194.321191
+  type: 'test'
+  ...
+# Subtest: con muchos renglones sigue en otra hoja sin perder ninguno, y el QR va en la última
+ok 26 - con muchos renglones sigue en otra hoja sin perder ninguno, y el QR va en la última
+  ---
+  duration_ms: 136.984003
+  type: 'test'
+  ...
+# Subtest: un nombre con caracteres que la fuente no tiene no rompe el PDF
+ok 27 - un nombre con caracteres que la fuente no tiene no rompe el PDF
+  ---
+  duration_ms: 67.933046
+  type: 'test'
+  ...
+# Subtest: la plata se escribe en pesos argentinos con el redondeo de src/lib/dinero
+ok 28 - la plata se escribe en pesos argentinos con el redondeo de src/lib/dinero
+  ---
+  duration_ms: 0.408349
+  type: 'test'
+  ...
+# Subtest: CUIT: once números con dígito verificador
+ok 29 - CUIT: once números con dígito verificador
+  ---
+  duration_ms: 0.277594
+  type: 'test'
+  ...
+# Subtest: la vista y la descarga exigen la app de facturación y el permiso de facturar antes de leer
+ok 30 - la vista y la descarga exigen la app de facturación y el permiso de facturar antes de leer
+  ---
+  duration_ms: 0.398215
+  type: 'test'
+  ...
+# Subtest: factura A a un monotributista: el PDF lleva la leyenda de la RG 5003/2021 con el texto del motor fiscal
+ok 31 - factura A a un monotributista: el PDF lleva la leyenda de la RG 5003/2021 con el texto del motor fiscal
+  ---
+  duration_ms: 120.368006
+  type: 'test'
+  ...
+# Subtest: factura A a un responsable inscripto y factura B: no llevan la leyenda de la RG 5003/2021
+ok 32 - factura A a un responsable inscripto y factura B: no llevan la leyenda de la RG 5003/2021
+  ---
+  duration_ms: 112.982359
+  type: 'test'
+  ...
+# Subtest: la vista y el PDF toman las leyendas de la A del motor fiscal, no de una copia
+ok 33 - la vista y el PDF toman las leyendas de la A del motor fiscal, no de una copia
+  ---
+  duration_ms: 0.656892
+  type: 'test'
+  ...
+# Subtest: si el cliente figura hoy con una condición que la letra no admite (RG 5616), no se reimprime
+ok 34 - si el cliente figura hoy con una condición que la letra no admite (RG 5616), no se reimprime
+  ---
+  duration_ms: 0.702501
+  type: 'test'
+  ...
+# Subtest: la marca de «sin validez fiscal» sale del ambiente en que ARCA autorizó, no sólo de la ficha del negocio
+ok 35 - la marca de «sin validez fiscal» sale del ambiente en que ARCA autorizó, no sólo de la ficha del negocio
+  ---
+  duration_ms: 0.254727
+  type: 'test'
+  ...
+# Subtest: autorizado antes del último cambio entre prueba y real: no se sabe en cuál fue, así que no se imprime
+ok 36 - autorizado antes del último cambio entre prueba y real: no se sabe en cuál fue, así que no se imprime
+  ---
+  duration_ms: 0.405003
+  type: 'test'
+  ...
+# Subtest: en modo de prueba el pie no dice que ARCA lo autorizó ni invita a verificarlo con el QR
+ok 37 - en modo de prueba el pie no dice que ARCA lo autorizó ni invita a verificarlo con el QR
+  ---
+  duration_ms: 138.969842
+  type: 'test'
+  ...
+# Subtest: un comercio que no da turnos cuenta compras, aunque su rubro no sea uno de mostrador conocido
+ok 38 - un comercio que no da turnos cuenta compras, aunque su rubro no sea uno de mostrador conocido
+  ---
+  duration_ms: 1.221481
+  type: 'test'
+  ...
+# Subtest: CH (da turnos, no es de mostrador) sigue contando visitas; una carnicería, compras
+ok 39 - CH (da turnos, no es de mostrador) sigue contando visitas; una carnicería, compras
+  ---
+  duration_ms: 0.211667
+  type: 'test'
+  ...
+# Subtest: un toque con 59 pendientes manda los 59 (tres tandas de a 20), no 20
+ok 40 - un toque con 59 pendientes manda los 59 (tres tandas de a 20), no 20
+  ---
+  duration_ms: 37.988264
+  type: 'test'
+  ...
+# Subtest: con 300 pendientes, un toque: 15 tandas y ninguno queda
+ok 41 - con 300 pendientes, un toque: 15 tandas y ninguno queda
+  ---
+  duration_ms: 0.773692
+  type: 'test'
+  ...
+# Subtest: si ARCA no responde, para en esa tanda y dice cuántos quedan (no le insiste a ARCA caído)
+ok 42 - si ARCA no responde, para en esa tanda y dice cuántos quedan (no le insiste a ARCA caído)
+  ---
+  duration_ms: 0.460856
+  type: 'test'
+  ...
+# Subtest: una tanda que no avanza corta (no gira en falso) y no persigue sin fin los que van entrando
+ok 43 - una tanda que no avanza corta (no gira en falso) y no persigue sin fin los que van entrando
+  ---
+  duration_ms: 0.474064
+  type: 'test'
+  ...
+# Subtest: el aviso usa el singular con uno
+ok 44 - el aviso usa el singular con uno
+  ---
+  duration_ms: 0.227754
+  type: 'test'
+  ...
+# Subtest: buscar un nombre sin tildes encuentra al que las tiene (y al revés), también el nombre que vino del banco
+ok 45 - buscar un nombre sin tildes encuentra al que las tiene (y al revés), también el nombre que vino del banco
+  ---
+  duration_ms: 4423.896924
+  type: 'test'
+  ...
+# Subtest: la nota de crédito lleva el nombre de la factura que anula: la búsqueda por nombre la trae y el total por nombre es el total por CUIT
+ok 46 - la nota de crédito lleva el nombre de la factura que anula: la búsqueda por nombre la trae y el total por nombre es el total por CUIT
+  ---
+  duration_ms: 63.383283
+  type: 'test'
+  ...
+# Subtest: «Facturado del mes» del Inicio resta las notas de crédito (lo mismo que la lista)
+ok 47 - «Facturado del mes» del Inicio resta las notas de crédito (lo mismo que la lista)
+  ---
+  duration_ms: 457.511709
+  type: 'test'
+  ...
+# Subtest: la lista de clientes de siempre cuenta compras (no anuladas) en un comercio y turnos en un negocio de turnos
+ok 48 - la lista de clientes de siempre cuenta compras (no anuladas) en un comercio y turnos en un negocio de turnos
+  ---
+  duration_ms: 58.972425
+  type: 'test'
+  ...
+# Subtest: un comprobante rechazado no dice «autorizado»: muestra el motivo de ARCA y ofrece volver a facturar la venta
+ok 49 - un comprobante rechazado no dice «autorizado»: muestra el motivo de ARCA y ofrece volver a facturar la venta
+  ---
+  duration_ms: 3.032796
+  type: 'test'
+  ...
+# Subtest: sin motivo guardado lo dice; del banco lleva a Facturación automática; sin origen, dice desde dónde
+ok 50 - sin motivo guardado lo dice; del banco lleva a Facturación automática; sin origen, dice desde dónde
+  ---
+  duration_ms: 0.300382
+  type: 'test'
+  ...
+# Subtest: autorizado: el texto de siempre; en modo de prueba, el aviso de que no tiene validez fiscal
+ok 51 - autorizado: el texto de siempre; en modo de prueba, el aviso de que no tiene validez fiscal
+  ---
+  duration_ms: 0.18734
+  type: 'test'
+  ...
+# Subtest: pendiente: todavía no lo autorizó y cómo mandarlo
+ok 52 - pendiente: todavía no lo autorizó y cómo mandarlo
+  ---
+  duration_ms: 0.352413
+  type: 'test'
+  ...
+# Subtest: un negocio sin comprobantes (CH, con ARCA apagado) abre en «Cobrar con link», como antes
+ok 53 - un negocio sin comprobantes (CH, con ARCA apagado) abre en «Cobrar con link», como antes
+  ---
+  duration_ms: 1.057083
+  type: 'test'
+  ...
+# Subtest: con comprobantes abre en la lista; la pestaña pedida manda; un filtro o una búsqueda abren la lista
+ok 54 - con comprobantes abre en la lista; la pestaña pedida manda; un filtro o una búsqueda abren la lista
+  ---
+  duration_ms: 0.337253
+  type: 'test'
+  ...
+# Subtest: la tabla de tildes de la base saca la tilde igual que el buscador (letra por letra, mayúsculas incluidas)
+ok 55 - la tabla de tildes de la base saca la tilde igual que el buscador (letra por letra, mayúsculas incluidas)
+  ---
+  duration_ms: 0.58802
+  type: 'test'
+  ...
+# Subtest: lo facturado del mes resta las notas de crédito, al centavo
+ok 56 - lo facturado del mes resta las notas de crédito, al centavo
+  ---
+  duration_ms: 0.412255
+  type: 'test'
+  ...
+# Subtest: el filtro barato deja pasar todo lo que encuentra la comparación sin tildes (cada letra que puede llevar tilde, «_»)
+ok 57 - el filtro barato deja pasar todo lo que encuentra la comparación sin tildes (cada letra que puede llevar tilde, «_»)
+  ---
+  duration_ms: 0.346872
+  type: 'test'
+  ...
+# Subtest: sin nada en la URL la lista muestra el mes en curso, página 1, todos los estados y tipos
+ok 58 - sin nada en la URL la lista muestra el mes en curso, página 1, todos los estados y tipos
+  ---
+  duration_ms: 6.002552
+  type: 'test'
+  ...
+# Subtest: el mes en curso termina el último día del mes, también en febrero bisiesto
+ok 59 - el mes en curso termina el último día del mes, también en febrero bisiesto
+  ---
+  duration_ms: 0.422069
+  type: 'test'
+  ...
+# Subtest: buscar sin período en la URL busca en todos los meses
+ok 60 - buscar sin período en la URL busca en todos los meses
+  ---
+  duration_ms: 0.456442
+  type: 'test'
+  ...
+# Subtest: buscar con período en la URL respeta el período
+ok 61 - buscar con período en la URL respeta el período
+  ---
+  duration_ms: 1.075339
+  type: 'test'
+  ...
+# Subtest: lo inválido en la URL cae al valor por defecto y un período al revés se da vuelta
+ok 62 - lo inválido en la URL cae al valor por defecto y un período al revés se da vuelta
+  ---
+  duration_ms: 0.744178
+  type: 'test'
+  ...
+# Subtest: «necesitan atención» son las pendientes y las rechazadas
+ok 63 - «necesitan atención» son las pendientes y las rechazadas
+  ---
+  duration_ms: 0.872694
+  type: 'test'
+  ...
+# Subtest: el tipo usa los códigos de ARCA: A=1, B=6, C=11, notas de crédito 3, 8 y 13
+ok 64 - el tipo usa los códigos de ARCA: A=1, B=6, C=11, notas de crédito 3, 8 y 13
+  ---
+  duration_ms: 0.341585
+  type: 'test'
+  ...
+# Subtest: buscador: un nombre busca por receptor
+ok 65 - buscador: un nombre busca por receptor
+  ---
+  duration_ms: 0.403406
+  type: 'test'
+  ...
+# Subtest: buscador: «0001-00000123» es punto de venta y número
+ok 66 - buscador: «0001-00000123» es punto de venta y número
+  ---
+  duration_ms: 0.367476
+  type: 'test'
+  ...
+# Subtest: buscador: un CUIT con guiones busca por documento, no por número de comprobante
+ok 67 - buscador: un CUIT con guiones busca por documento, no por número de comprobante
+  ---
+  duration_ms: 0.93112
+  type: 'test'
+  ...
+# Subtest: buscador: una cifra corta puede ser número de comprobante o importe
+ok 68 - buscador: una cifra corta puede ser número de comprobante o importe
+  ---
+  duration_ms: 0.240386
+  type: 'test'
+  ...
+# Subtest: buscador: un importe con centavos a la argentina («12.500,50» o «$ 12.500,50») busca el total
+ok 69 - buscador: un importe con centavos a la argentina («12.500,50» o «$ 12.500,50») busca el total
+  ---
+  duration_ms: 0.481267
+  type: 'test'
+  ...
+# Subtest: buscador: un DNI de 8 cifras busca como documento y como número
+ok 70 - buscador: un DNI de 8 cifras busca como documento y como número
+  ---
+  duration_ms: 0.268522
+  type: 'test'
+  ...
+# Subtest: los comodines de LIKE se buscan como texto
+ok 71 - los comodines de LIKE se buscan como texto
+  ---
+  duration_ms: 0.186984
+  type: 'test'
+  ...
+# Subtest: 50 por página y siempre al menos una página
+ok 72 - 50 por página y siempre al menos una página
+  ---
+  duration_ms: 0.119393
+  type: 'test'
+  ...
+# Subtest: la URL guarda sólo lo que no es por defecto y cambiar un filtro vuelve a la página 1 si se pide
+ok 73 - la URL guarda sólo lo que no es por defecto y cambiar un filtro vuelve a la página 1 si se pide
+  ---
+  duration_ms: 0.352856
+  type: 'test'
+  ...
+# Subtest: el receptor sin nombre se muestra por su documento; el 99 es consumidor final
+ok 74 - el receptor sin nombre se muestra por su documento; el 99 es consumidor final
+  ---
+  duration_ms: 0.265201
+  type: 'test'
+  ...
+# Subtest: el renglón del CSV lleva fecha dd/mm/aaaa, tipo en palabras, estado ante ARCA y el total exacto
+ok 75 - el renglón del CSV lleva fecha dd/mm/aaaa, tipo en palabras, estado ante ARCA y el total exacto
+  ---
+  duration_ms: 0.374506
+  type: 'test'
+  ...
+# Subtest: los tipos que restan en los totales son las notas de crédito del Libro IVA (A, B y C) y ninguno más
+ok 76 - los tipos que restan en los totales son las notas de crédito del Libro IVA (A, B y C) y ninguno más
+  ---
+  duration_ms: 0.346449
+  type: 'test'
+  ...
+# Subtest: en el CSV la nota de crédito va en negativo y la cabecera lo dice: la columna suma como el Libro IVA
+ok 77 - en el CSV la nota de crédito va en negativo y la cabecera lo dice: la columna suma como el Libro IVA
+  ---
+  duration_ms: 0.233366
+  type: 'test'
+  ...
+# Subtest: los cortes de Next se leen del digest que ponen redirect() y notFound() de verdad
+ok 78 - los cortes de Next se leen del digest que ponen redirect() y notFound() de verdad
+  ---
+  duration_ms: 2.878853
+  type: 'test'
+  ...
+# Subtest: las cookies del pedido se leen, se escriben y se borran como en una Server Action
+ok 79 - las cookies del pedido se leen, se escriben y se borran como en una Server Action
+  ---
+  duration_ms: 0.548792
+  type: 'test'
+  ...
+# Subtest: los dobles de Next: dentro del pedido anotan lo que la acción hace; fuera fallan como en Next
+ok 80 - los dobles de Next: dentro del pedido anotan lo que la acción hace; fuera fallan como en Next
+  ---
+  duration_ms: 255.100233
+  type: 'test'
+  ...
+# Subtest: contra Postgres (app_rls + RLS): con la sesión de A, una acción de lectura real devuelve sólo filas de A
+ok 81 - contra Postgres (app_rls + RLS): con la sesión de A, una acción de lectura real devuelve sólo filas de A
+  ---
+  duration_ms: 4769.517213
+  type: 'test'
+  ...
+1..81
+# tests 81
+# suites 0
+# pass 81
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 41091.266211
+EXIT 0

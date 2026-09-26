@@ -1,0 +1,7 @@
+src/lib/cuit.test.ts
+src/lib/invoice-from-order.test.ts
+src/lib/libros/facturadores-fecha.test.ts
+src/lib/client-actions.test.ts
+src/lib/umbral-en-los-seis-caminos-postgres.test.ts
+src/lib/circuito-fiscal-auditoria-postgres.test.ts
+src/plugins/bancos/domain/cuit.test.ts

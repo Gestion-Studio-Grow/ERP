@@ -1,0 +1,241 @@
+TAP version 13
+# {"ts":"2026-09-26T17:42:52.554Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_4c9cc409ad","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-26T17:42:52.743Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_4c9cc409ad","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-26T17:42:52.760Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_4c9cc409ad","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-26T17:42:52.887Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_4c9cc409ad","condicionIva":"MONOTRIBUTO"}
+# Subtest: circuito · venta → factura → envío → CAE por el camino de la venta, y dos ventas facturadas a la vez: un CAE y un número cada una; el comprobante con CAE no se edita ni se borra desde la app
+ok 1 - circuito · venta → factura → envío → CAE por el camino de la venta, y dos ventas facturadas a la vez: un CAE y un número cada una; el comprobante con CAE no se edita ni se borra desde la app
+  ---
+  duration_ms: 4013.615197
+  type: 'test'
+  ...
+# Subtest: ENG-020/021 · volver a facturar la venta A rechazada no cierra el envío abierto de la factura B del mismo negocio: A y B terminan autorizadas, un CAE cada una
+ok 2 - ENG-020/021 · volver a facturar la venta A rechazada no cierra el envío abierto de la factura B del mismo negocio: A y B terminan autorizadas, un CAE cada una
+  ---
+  duration_ms: 171.550473
+  type: 'test'
+  ...
+# Subtest: aislamiento · el negocio A no puede volver a facturar la venta rechazada del negocio B: error, y la factura de B no cambia ni gana envíos
+ok 3 - aislamiento · el negocio A no puede volver a facturar la venta rechazada del negocio B: error, y la factura de B no cambia ni gana envíos
+  ---
+  duration_ms: 93.467068
+  type: 'test'
+  ...
+# Subtest: la dueña guarda la ficha fiscal de su cliente: queda normalizada y auditada con el valor anterior
+ok 4 - la dueña guarda la ficha fiscal de su cliente: queda normalizada y auditada con el valor anterior
+  ---
+  duration_ms: 4170.996351
+  type: 'test'
+  ...
+# Subtest: un CUIT con el dígito verificador cambiado, o sin condición frente al IVA, no se guarda
+ok 5 - un CUIT con el dígito verificador cambiado, o sin condición frente al IVA, no se guarda
+  ---
+  duration_ms: 34.308667
+  type: 'test'
+  ...
+# Subtest: aislamiento: con el id de una ficha de otro negocio da 'no existe' y la ficha ajena no cambia
+ok 6 - aislamiento: con el id de una ficha de otro negocio da 'no existe' y la ficha ajena no cambia
+  ---
+  duration_ms: 28.99835
+  type: 'test'
+  ...
+# Subtest: inscripto: B a consumidor final por el camino completo; la A que el impreso no puede entregar no se promete; la A común a la inscripta sale del despacho del plugin contra el simulador
+ok 7 - inscripto: B a consumidor final por el camino completo; la A que el impreso no puede entregar no se promete; la A común a la inscripta sale del despacho del plugin contra el simulador
+  ---
+  duration_ms: 285.471214
+  type: 'test'
+  ...
+# {"ts":"2026-09-26T17:42:53.577Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_b_213757e605","condicionIva":"MONOTRIBUTO"}
+# Subtest: monotributo sin condición cargada (el caso de CH): en homologación igual que antes, C; en producción se niega
+ok 8 - monotributo sin condición cargada (el caso de CH): en homologación igual que antes, C; en producción se niega
+  ---
+  duration_ms: 63.981283
+  type: 'test'
+  ...
+# Subtest: CUITs válidos (verificador correcto)
+ok 9 - CUITs válidos (verificador correcto)
+  ---
+  duration_ms: 1.407503
+  type: 'test'
+  ...
+# Subtest: tolera guiones, espacios y puntos (formatos de carga humana)
+ok 10 - tolera guiones, espacios y puntos (formatos de carga humana)
+  ---
+  duration_ms: 0.271176
+  type: 'test'
+  ...
+# Subtest: verificador incorrecto → inválido
+ok 11 - verificador incorrecto → inválido
+  ---
+  duration_ms: 0.248955
+  type: 'test'
+  ...
+# Subtest: dv = 10 es inválido por definición (ARCA no lo emite)
+ok 12 - dv = 10 es inválido por definición (ARCA no lo emite)
+  ---
+  duration_ms: 0.259303
+  type: 'test'
+  ...
+# Subtest: forma inválida → inválido (largo, letras, prefijo desconocido)
+ok 13 - forma inválida → inválido (largo, letras, prefijo desconocido)
+  ---
+  duration_ms: 0.148833
+  type: 'test'
+  ...
+# {"ts":"2026-09-26T17:42:54.726Z","level":"warn","scope":"facturacion","msg":"orden sin factura: falta lo que la factura del inscripto necesita","tenantId":"negocio-1","orderId":"orden-4","etapa":"decision"}
+# {"ts":"2026-09-26T17:42:54.728Z","level":"warn","scope":"facturacion","msg":"orden sin factura: falta lo que la factura del inscripto necesita","tenantId":"negocio-1","orderId":"orden-6","etapa":"impreso"}
+# Subtest: monotributo (como CH): el pedido a ARCA es el de siempre y no se lee la ficha del cliente
+ok 14 - monotributo (como CH): el pedido a ARCA es el de siempre y no se lee la ficha del cliente
+  ---
+  duration_ms: 22.222568
+  type: 'test'
+  ...
+# Subtest: inscripto a consumidor final: IVA por alícuota (21 % y 10,5 %), sin identificar, marcado ivaPorProducto
+ok 15 - inscripto a consumidor final: IVA por alícuota (21 % y 10,5 %), sin identificar, marcado ivaPorProducto
+  ---
+  duration_ms: 3.196649
+  type: 'test'
+  ...
+# Subtest: inscripto con un producto sin alícuota cargada: sale como antes, sin marcar ivaPorProducto, para que el plugin la rechace con el motivo (ENG-024)
+ok 16 - inscripto con un producto sin alícuota cargada: sale como antes, sin marcar ivaPorProducto, para que el plugin la rechace con el motivo (ENG-024)
+  ---
+  duration_ms: 0.602859
+  type: 'test'
+  ...
+# Subtest: inscripto que le vende a otro inscripto sin la clase A cargada (RG 1575): no sale sola, queda sin factura
+ok 17 - inscripto que le vende a otro inscripto sin la clase A cargada (RG 1575): no sale sola, queda sin factura
+  ---
+  duration_ms: 1.92319
+  type: 'test'
+  ...
+# Subtest: inscripto con clase A común y cliente inscripto con domicilio: Factura A al CUIT del cliente
+ok 18 - inscripto con clase A común y cliente inscripto con domicilio: Factura A al CUIT del cliente
+  ---
+  duration_ms: 0.672502
+  type: 'test'
+  ...
+# Subtest: inscripto con cliente inscripto SIN domicilio: la A no se puede imprimir, no se pide el CAE
+ok 19 - inscripto con cliente inscripto SIN domicilio: la A no se puede imprimir, no se pide el CAE
+  ---
+  duration_ms: 0.497828
+  type: 'test'
+  ...
+# (node:31595) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: facturarOrden: la venta de las 23:30 del 31/08 sale con fecha 20260831
+ok 20 - facturarOrden: la venta de las 23:30 del 31/08 sale con fecha 20260831
+  ---
+  duration_ms: 22.996444
+  type: 'test'
+  ...
+# Subtest: facturarAppointment: el turno cobrado a las 23:30 del 31/08 sale con fecha y servicio del 31/08
+ok 21 - facturarAppointment: el turno cobrado a las 23:30 del 31/08 sale con fecha y servicio del 31/08
+  ---
+  duration_ms: 0.815807
+  type: 'test'
+  ...
+# Subtest: facturarPagoMP: sin fecha de acreditación, el día del negocio; con fecha, la de Mercado Pago
+ok 22 - facturarPagoMP: sin fecha de acreditación, el día del negocio; con fecha, la de Mercado Pago
+  ---
+  duration_ms: 0.627848
+  type: 'test'
+  ...
+# Subtest: a la medianoche argentina ya es el día siguiente
+ok 23 - a la medianoche argentina ya es el día siguiente
+  ---
+  duration_ms: 0.511262
+  type: 'test'
+  ...
+# {"ts":"2026-09-26T17:42:59.008Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_27659c5b35","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-26T17:42:59.100Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_27659c5b35","condicionIva":"MONOTRIBUTO"}
+# Subtest: pedido (facturarOrden): sin identificar desde el umbral no emite y deja el motivo; un peso menos, emite
+ok 24 - pedido (facturarOrden): sin identificar desde el umbral no emite y deja el motivo; un peso menos, emite
+  ---
+  duration_ms: 3886.827602
+  type: 'test'
+  ...
+# {"ts":"2026-09-26T17:42:59.178Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_27659c5b35","condicionIva":"MONOTRIBUTO"}
+# Subtest: pedido (facturarOrden) con emisor inscripto e IVA parejo: no emite y deja el motivo
+ok 25 - pedido (facturarOrden) con emisor inscripto e IVA parejo: no emite y deja el motivo
+  ---
+  duration_ms: 79.114529
+  type: 'test'
+  ...
+# {"ts":"2026-09-26T17:42:59.280Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_27659c5b35","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-26T17:42:59.337Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_27659c5b35","condicionIva":"MONOTRIBUTO"}
+# Subtest: turno (facturarAppointment): sin identificar desde el umbral no emite; inscripto con IVA parejo tampoco
+ok 26 - turno (facturarAppointment): sin identificar desde el umbral no emite; inscripto con IVA parejo tampoco
+  ---
+  duration_ms: 148.476822
+  type: 'test'
+  ...
+# {"ts":"2026-09-26T17:42:59.404Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_27659c5b35","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-26T17:42:59.439Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_27659c5b35","condicionIva":"MONOTRIBUTO"}
+# Subtest: Mercado Pago (facturarPagoMP): sin identificar desde el umbral no emite; inscripto con IVA parejo tampoco
+ok 27 - Mercado Pago (facturarPagoMP): sin identificar desde el umbral no emite; inscripto con IVA parejo tampoco
+  ---
+  duration_ms: 96.922129
+  type: 'test'
+  ...
+# {"ts":"2026-09-26T17:42:59.709Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_b_b0439a6d11","condicionIva":"MONOTRIBUTO"}
+# {"ts":"2026-09-26T17:42:59.766Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_b_b0439a6d11","condicionIva":"MONOTRIBUTO"}
+# Subtest: facturita (emitirFacturitaAction, Server Action real): sin identificar desde el umbral no emite y deja el motivo
+ok 28 - facturita (emitirFacturitaAction, Server Action real): sin identificar desde el umbral no emite y deja el motivo
+  ---
+  duration_ms: 347.600652
+  type: 'test'
+  ...
+# {"ts":"2026-09-26T17:42:59.896Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_27659c5b35","condicionIva":"MONOTRIBUTO"}
+# Subtest: bancos (emitirPropuestasAction, Server Action real): un movimiento sin identificar desde el umbral no emite y deja el motivo
+ok 29 - bancos (emitirPropuestasAction, Server Action real): un movimiento sin identificar desde el umbral no emite y deja el motivo
+  ---
+  duration_ms: 118.500941
+  type: 'test'
+  ...
+# {"ts":"2026-09-26T17:43:00.088Z","level":"warn","scope":"fiscal","msg":"condición de IVA asumida (solo homologación)","tenantId":"tnt_a_27659c5b35","condicionIva":"MONOTRIBUTO"}
+# Subtest: API externa (createExternalOrder): un pedido sin identificar desde el umbral no emite y deja el motivo
+ok 30 - API externa (createExternalOrder): un pedido sin identificar desde el umbral no emite y deja el motivo
+  ---
+  duration_ms: 184.359981
+  type: 'test'
+  ...
+# Subtest: CUITs válidos (verificador correcto)
+ok 31 - CUITs válidos (verificador correcto)
+  ---
+  duration_ms: 1.519279
+  type: 'test'
+  ...
+# Subtest: tolera guiones, espacios y puntos (formatos de carga humana)
+ok 32 - tolera guiones, espacios y puntos (formatos de carga humana)
+  ---
+  duration_ms: 0.319879
+  type: 'test'
+  ...
+# Subtest: verificador incorrecto → inválido
+ok 33 - verificador incorrecto → inválido
+  ---
+  duration_ms: 0.158238
+  type: 'test'
+  ...
+# Subtest: dv = 10 es inválido por definición (ARCA no lo emite)
+ok 34 - dv = 10 es inválido por definición (ARCA no lo emite)
+  ---
+  duration_ms: 0.267472
+  type: 'test'
+  ...
+# Subtest: forma inválida → inválido (largo, letras, prefijo desconocido)
+ok 35 - forma inválida → inválido (largo, letras, prefijo desconocido)
+  ---
+  duration_ms: 0.263882
+  type: 'test'
+  ...
+1..35
+# tests 35
+# suites 0
+# pass 35
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11825.503679
+EXIT 0

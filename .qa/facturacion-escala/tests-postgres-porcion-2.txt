@@ -1,0 +1,340 @@
+TAP version 13
+# Subtest: links de cobro y lista de clientes a escala: aislamiento, totales reales, dos consultas por página y p95 < 300 ms
+ok 1 - links de cobro y lista de clientes a escala: aislamiento, totales reales, dos consultas por página y p95 < 300 ms
+  ---
+  duration_ms: 38306.657007
+  type: 'test'
+  ...
+# Subtest: motivos: pasada > reseña de ayer > cumpleaños > por recuperar (una fila por clienta)
+ok 2 - motivos: pasada > reseña de ayer > cumpleaños > por recuperar (una fila por clienta)
+  ---
+  duration_ms: 30.263266
+  type: 'test'
+  ...
+# Subtest: sin reseñas en un mostrador; la reseña es sólo del turno de AYER
+ok 3 - sin reseñas en un mostrador; la reseña es sólo del turno de AYER
+  ---
+  duration_ms: 0.794904
+  type: 'test'
+  ...
+# Subtest: cumpleaños que cruza el año entra en la bandeja del 30/12
+ok 4 - cumpleaños que cruza el año entra en la bandeja del 30/12
+  ---
+  duration_ms: 0.963372
+  type: 'test'
+  ...
+# Subtest: exclusiones: baja, contactada hace menos de 14 días, turno futuro y sin celular — y se cuentan
+ok 5 - exclusiones: baja, contactada hace menos de 14 días, turno futuro y sin celular — y se cuentan
+  ---
+  duration_ms: 1.911027
+  type: 'test'
+  ...
+# Subtest: tope del día: 15 contando las ya contactadas hoy, las de más valor primero
+ok 6 - tope del día: 15 contando las ya contactadas hoy, las de más valor primero
+  ---
+  duration_ms: 0.897687
+  type: 'test'
+  ...
+# Subtest: la bandeja leída con una base falsa: dos lecturas, el negocio en el where, y al contactar sale
+ok 7 - la bandeja leída con una base falsa: dos lecturas, el negocio en el where, y al contactar sale
+  ---
+  duration_ms: 2.439936
+  type: 'test'
+  ...
+# Subtest: sin motivo no es candidata: una frecuente al día no entra
+ok 8 - sin motivo no es candidata: una frecuente al día no entra
+  ---
+  duration_ms: 0.297399
+  type: 'test'
+  ...
+# Subtest: Agenda: '18 turnos hoy · 77% de los que faltan confirmados' con el where de getAgendaDay
+ok 9 - Agenda: '18 turnos hoy · 77% de los que faltan confirmados' con el where de getAgendaDay
+  ---
+  duration_ms: 27.434773
+  type: 'test'
+  ...
+# Subtest: Agenda: completados y 'no se presentó' NO cuentan como confirmados
+ok 10 - Agenda: completados y 'no se presentó' NO cuentan como confirmados
+  ---
+  duration_ms: 0.796569
+  type: 'test'
+  ...
+# Subtest: Confirmar mañana: los de getMananaConfirmar sin aviso; Recordatorios: la cobertura, '—' sin turnos
+ok 11 - Confirmar mañana: los de getMananaConfirmar sin aviso; Recordatorios: la cobertura, '—' sin turnos
+  ---
+  duration_ms: 1.411143
+  type: 'test'
+  ...
+# Subtest: Lista de espera: el where de getWaitlist
+ok 12 - Lista de espera: el where de getWaitlist
+  ---
+  duration_ms: 0.483092
+  type: 'test'
+  ...
+# Subtest: Reseñas: promedio ponderado y sin publicar; '—' si no hay
+ok 13 - Reseñas: promedio ponderado y sin publicar; '—' si no hay
+  ---
+  duration_ms: 0.726269
+  type: 'test'
+  ...
+# Subtest: Clientes nuevos del mes: primera visita de TODA la historia, por turnos o por pedidos según el rubro
+ok 14 - Clientes nuevos del mes: primera visita de TODA la historia, por turnos o por pedidos según el rubro
+  ---
+  duration_ms: 1.049784
+  type: 'test'
+  ...
+# Subtest: Por recuperar: cuenta las en riesgo; la plata sólo con reports:read
+ok 15 - Por recuperar: cuenta las en riesgo; la plata sólo con reports:read
+  ---
+  duration_ms: 3.561775
+  type: 'test'
+  ...
+# Subtest: Fichas duplicadas: grupos por la clave del teléfono
+ok 16 - Fichas duplicadas: grupos por la clave del teléfono
+  ---
+  duration_ms: 1.088718
+  type: 'test'
+  ...
+# Subtest: apps nuevas: CH (sin gate) no las ve en su barra de hoy; en el Inicio, sí
+ok 17 - apps nuevas: CH (sin gate) no las ve en su barra de hoy; en el Inicio, sí
+  ---
+  duration_ms: 1.914726
+  type: 'test'
+  ...
+# Subtest: apps nuevas: la recepción abre la bandeja y Por recuperar sin plata; unificar es de la dueña
+ok 18 - apps nuevas: la recepción abre la bandeja y Por recuperar sin plata; unificar es de la dueña
+  ---
+  duration_ms: 0.690146
+  type: 'test'
+  ...
+# Subtest: mediana: impar, par, vacía y desordenada
+ok 19 - mediana: impar, par, vacía y desordenada
+  ---
+  duration_ms: 1.701639
+  type: 'test'
+  ...
+# Subtest: ciclo propio = mediana de los intervalos: un viaje largo no lo corre
+ok 20 - ciclo propio = mediana de los intervalos: un viaje largo no lo corre
+  ---
+  duration_ms: 1.952201
+  type: 'test'
+  ...
+# Subtest: ciclo: sin intervalos usa el del servicio; sin servicio, 45 días (provisional)
+ok 21 - ciclo: sin intervalos usa el del servicio; sin servicio, 45 días (provisional)
+  ---
+  duration_ms: 1.000825
+  type: 'test'
+  ...
+# Subtest: ciclo: se acota a [7, 365] (dos visitas el mismo fin de semana no dan un ciclo de 2 días)
+ok 22 - ciclo: se acota a [7, 365] (dos visitas el mismo fin de semana no dan un ciclo de 2 días)
+  ---
+  duration_ms: 0.213938
+  type: 'test'
+  ...
+# Subtest: ciclo del servicio: sólo visitas consecutivas del MISMO servicio y con casos suficientes
+ok 23 - ciclo del servicio: sólo visitas consecutivas del MISMO servicio y con casos suficientes
+  ---
+  duration_ms: 0.422481
+  type: 'test'
+  ...
+# Subtest: bordes de segmento: 1,5 y 3 ciclos adentro de 'en riesgo', más de 3 es 'no volvió'
+ok 24 - bordes de segmento: 1,5 y 3 ciclos adentro de 'en riesgo', más de 3 es 'no volvió'
+  ---
+  duration_ms: 0.274442
+  type: 'test'
+  ...
+# Subtest: evaluarPersona: días sin venir, ciclos con un decimal y valor por año
+ok 25 - evaluarPersona: días sin venir, ciclos con un decimal y valor por año
+  ---
+  duration_ms: 0.595564
+  type: 'test'
+  ...
+# Subtest: porRecuperar: sólo 'en riesgo', la que más vale primero
+ok 26 - porRecuperar: sólo 'en riesgo', la que más vale primero
+  ---
+  duration_ms: 0.336446
+  type: 'test'
+  ...
+# Subtest: armarPersona: turnos completados son visitas (una por día), el reservado es el próximo, los sin reseña se anotan
+ok 27 - armarPersona: turnos completados son visitas (una por día), el reservado es el próximo, los sin reseña se anotan
+  ---
+  duration_ms: 22.467627
+  type: 'test'
+  ...
+# Subtest: armarPersona en un mostrador: las visitas son los pedidos
+ok 28 - armarPersona en un mostrador: las visitas son los pedidos
+  ---
+  duration_ms: 0.734699
+  type: 'test'
+  ...
+# Subtest: cumpleaños que cruza el año: el 30/12, uno del 2/1 está a 3 días
+ok 29 - cumpleaños que cruza el año: el 30/12, uno del 2/1 está a 3 días
+  ---
+  duration_ms: 0.421737
+  type: 'test'
+  ...
+# Subtest: 29 de febrero: en un año no bisiesto se festeja el 28 (provisional)
+ok 30 - 29 de febrero: en un año no bisiesto se festeja el 28 (provisional)
+  ---
+  duration_ms: 0.202505
+  type: 'test'
+  ...
+# Subtest: el cumpleaños se lee con la convención de las 12:00Z (no se corre un día)
+ok 31 - el cumpleaños se lee con la convención de las 12:00Z (no se corre un día)
+  ---
+  duration_ms: 0.172137
+  type: 'test'
+  ...
+# Subtest: nuevos del mes: primera visita dentro del mes del negocio, con sus bordes
+ok 32 - nuevos del mes: primera visita dentro del mes del negocio, con sus bordes
+  ---
+  duration_ms: 1.418384
+  type: 'test'
+  ...
+# Subtest: permiso: vale el ÚLTIMO evento; sin eventos no hay baja
+ok 33 - permiso: vale el ÚLTIMO evento; sin eventos no hay baja
+  ---
+  duration_ms: 0.428822
+  type: 'test'
+  ...
+# Subtest: constancias del día: contactos de hoy (día del negocio), pasadas a la bandeja y bajas
+ok 34 - constancias del día: contactos de hoy (día del negocio), pasadas a la bandeja y bajas
+  ---
+  duration_ms: 0.402021
+  type: 'test'
+  ...
+# Subtest: al unificar, el permiso que queda es el último que expresó la persona en cualquiera de sus fichas
+ok 35 - al unificar, el permiso que queda es el último que expresó la persona en cualquiera de sus fichas
+  ---
+  duration_ms: 0.32661
+  type: 'test'
+  ...
+# Subtest: fichas duplicadas: el mismo número escrito distinto agrupa; sin dígitos no
+ok 36 - fichas duplicadas: el mismo número escrito distinto agrupa; sin dígitos no
+  ---
+  duration_ms: 0.708834
+  type: 'test'
+  ...
+# Subtest: pedidos de la ficha: los atados y los que llegaron sin ficha con su número
+ok 37 - pedidos de la ficha: los atados y los que llegaron sin ficha con su número
+  ---
+  duration_ms: 0.233814
+  type: 'test'
+  ...
+# Subtest: compradores sin ficha: agrupa por número, saca los que ya tienen ficha y los números a medias
+ok 38 - compradores sin ficha: agrupa por número, saca los que ya tienen ficha y los números a medias
+  ---
+  duration_ms: 0.47021
+  type: 'test'
+  ...
+# Subtest: cancelar: sólo un turno Reservado o Confirmado; completado, ausente o cancelado se rechaza
+ok 39 - cancelar: sólo un turno Reservado o Confirmado; completado, ausente o cancelado se rechaza
+  ---
+  duration_ms: 3.029486
+  type: 'test'
+  ...
+# Subtest: cancelar EJECUTADO: una base con turnos en todos los estados y de dos negocios; sólo cambian los vivos del negocio
+ok 40 - cancelar EJECUTADO: una base con turnos en todos los estados y de dos negocios; sólo cambian los vivos del negocio
+  ---
+  duration_ms: 0.970072
+  type: 'test'
+  ...
+# Subtest: los where de las pantallas llevan el negocio
+ok 41 - los where de las pantallas llevan el negocio
+  ---
+  duration_ms: 0.294977
+  type: 'test'
+  ...
+# Subtest: hueco liberado: mismo servicio, y el profesional que pidió o cualquiera; el que más espera primero
+ok 42 - hueco liberado: mismo servicio, y el profesional que pidió o cualquiera; el que más espera primero
+  ---
+  duration_ms: 0.66
+  type: 'test'
+  ...
+# Subtest: hueco liberado: no se ofrece si ya pasó, si alguien volvió a ocupar el horario o si no le sirve a nadie
+ok 43 - hueco liberado: no se ofrece si ya pasó, si alguien volvió a ocupar el horario o si no le sirve a nadie
+  ---
+  duration_ms: 0.301589
+  type: 'test'
+  ...
+# Subtest: unificar: completa lo que falta sin pisar, y suma las notas con de dónde vinieron
+ok 44 - unificar: completa lo que falta sin pisar, y suma las notas con de dónde vinieron
+  ---
+  duration_ms: 0.927028
+  type: 'test'
+  ...
+# Subtest: unificar: rechaza otro teléfono, la misma ficha dos veces o fichas que ya no están
+ok 45 - unificar: rechaza otro teléfono, la misma ficha dos veces o fichas que ya no están
+  ---
+  duration_ms: 0.820328
+  type: 'test'
+  ...
+# Subtest: ficha única: próximo turno, faltazos, lo que debe (como la agenda) y lo gastado en el año
+ok 46 - ficha única: próximo turno, faltazos, lo que debe (como la agenda) y lo gastado en el año
+  ---
+  duration_ms: 1.61918
+  type: 'test'
+  ...
+# Subtest: ficha única: un saldo dado de baja no es plata que entró (no suma a lo gastado) y ya no se debe
+ok 47 - ficha única: un saldo dado de baja no es plata que entró (no suma a lo gastado) y ya no se debe
+  ---
+  duration_ms: 0.692889
+  type: 'test'
+  ...
+# Subtest: reseñas: promedio con un decimal, sin publicar, y por profesional (más reseñas primero)
+ok 48 - reseñas: promedio con un decimal, sin publicar, y por profesional (más reseñas primero)
+  ---
+  duration_ms: 1.153535
+  type: 'test'
+  ...
+# Subtest: textos de contacto: primer nombre, link de la reseña, y según el rubro
+ok 49 - textos de contacto: primer nombre, link de la reseña, y según el rubro
+  ---
+  duration_ms: 0.711238
+  type: 'test'
+  ...
+# Subtest: mueve las TRES claves foráneas (turnos, pedidos, fiado) a la ficha que queda y borra la duplicada
+ok 50 - mueve las TRES claves foráneas (turnos, pedidos, fiado) a la ficha que queda y borra la duplicada
+  ---
+  duration_ms: 4.472527
+  type: 'test'
+  ...
+# Subtest: no toca NADA del otro negocio, aunque le pasen sus ids
+ok 51 - no toca NADA del otro negocio, aunque le pasen sus ids
+  ---
+  duration_ms: 0.459912
+  type: 'test'
+  ...
+# Subtest: audita los ids movidos y la foto de la ficha borrada, en la misma transacción
+ok 52 - audita los ids movidos y la foto de la ficha borrada, en la misma transacción
+  ---
+  duration_ms: 0.671255
+  type: 'test'
+  ...
+# Subtest: sin la tabla del fiado (migración sin aplicar) no la nombra: turnos y pedidos se mueven igual
+ok 53 - sin la tabla del fiado (migración sin aplicar) no la nombra: turnos y pedidos se mueven igual
+  ---
+  duration_ms: 0.465521
+  type: 'test'
+  ...
+# Subtest: un turno cargado en la duplicada mientras tanto: la clave foránea frena y se propaga P2003
+ok 54 - un turno cargado en la duplicada mientras tanto: la clave foránea frena y se propaga P2003
+  ---
+  duration_ms: 0.934272
+  type: 'test'
+  ...
+# Subtest: lista de comprobantes a escala: aislamiento, totales reales, dos consultas por página y p95 < 300 ms
+ok 55 - lista de comprobantes a escala: aislamiento, totales reales, dos consultas por página y p95 < 300 ms
+  ---
+  duration_ms: 30592.466478
+  type: 'test'
+  ...
+1..55
+# tests 55
+# suites 0
+# pass 55
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 39276.805122

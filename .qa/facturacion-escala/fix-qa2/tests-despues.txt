@@ -1,0 +1,921 @@
+TAP version 13
+# Subtest: un celular tipeado de cualquier forma da el botón al 549 + área + número
+ok 1 - un celular tipeado de cualquier forma da el botón al 549 + área + número
+  ---
+  duration_ms: 2.611231
+  type: 'test'
+  ...
+# Subtest: si pidió no recibir mensajes no hay botón, aunque el número sea bueno
+ok 2 - si pidió no recibir mensajes no hay botón, aunque el número sea bueno
+  ---
+  duration_ms: 0.276551
+  type: 'test'
+  ...
+# Subtest: un número que no es celular lo dice, y a quien puede editar le dice dónde corregirlo
+ok 3 - un número que no es celular lo dice, y a quien puede editar le dice dónde corregirlo
+  ---
+  duration_ms: 0.407459
+  type: 'test'
+  ...
+# Subtest: la URL se lee con cuidado: situación y orden que no existen no filtran ni ordenan
+ok 4 - la URL se lee con cuidado: situación y orden que no existen no filtran ni ordenan
+  ---
+  duration_ms: 2.581974
+  type: 'test'
+  ...
+# Subtest: buscar por nombre sin tildes ni mayúsculas, o por teléfono de corrido
+ok 5 - buscar por nombre sin tildes ni mayúsculas, o por teléfono de corrido
+  ---
+  duration_ms: 0.500561
+  type: 'test'
+  ...
+# Subtest: sin orden elegido: las que vinieron hace poco primero; quien nunca vino, al final
+ok 6 - sin orden elegido: las que vinieron hace poco primero; quien nunca vino, al final
+  ---
+  duration_ms: 0.47
+  type: 'test'
+  ...
+# Subtest: ordenar por nombre, visitas y próximo turno (sin turno siempre al final)
+ok 7 - ordenar por nombre, visitas y próximo turno (sin turno siempre al final)
+  ---
+  duration_ms: 10.885151
+  type: 'test'
+  ...
+# Subtest: la situación filtra y los números de los filtros cuentan con la búsqueda puesta
+ok 8 - la situación filtra y los números de los filtros cuentan con la búsqueda puesta
+  ---
+  duration_ms: 0.563335
+  type: 'test'
+  ...
+# Subtest: al navegador llega una página; una página que no existe muestra la última
+ok 9 - al navegador llega una página; una página que no existe muestra la última
+  ---
+  duration_ms: 0.80391
+  type: 'test'
+  ...
+# Subtest: la última vez se dice en palabras, sin «ciclos»
+ok 10 - la última vez se dice en palabras, sin «ciclos»
+  ---
+  duration_ms: 0.253991
+  type: 'test'
+  ...
+# Subtest: quien gestiona la agenda da el primer turno desde el estado vacío
+ok 11 - quien gestiona la agenda da el primer turno desde el estado vacío
+  ---
+  duration_ms: 2.907275
+  type: 'test'
+  ...
+# Subtest: sin agenda a mano no hay botón, sólo cómo nacen las fichas
+ok 12 - sin agenda a mano no hay botón, sólo cómo nacen las fichas
+  ---
+  duration_ms: 0.433389
+  type: 'test'
+  ...
+# Subtest: ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+ok 13 - ENG-020 · ARCA autoriza y se pierde la respuesta: el reintento registra el número 1 y ARCA tiene un solo CAE
+  ---
+  duration_ms: 4590.979293
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 14 - ENG-021 · 600 (token inválido): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 165.897549
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 15 - ENG-021 · 10016 (número tomado): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 101.736478
+  type: 'test'
+  ...
+# Subtest: ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 16 - ENG-021 · 501 (error interno de ARCA): el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 63.274088
+  type: 'test'
+  ...
+# Subtest: ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 17 - ENG-021 · HTTP 503 de WSFEv1: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 87.904843
+  type: 'test'
+  ...
+# Subtest: ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 18 - ENG-021 · timeout: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 109.231278
+  type: 'test'
+  ...
+# Subtest: ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 19 - ENG-021 · WSAA caído: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 49.195549
+  type: 'test'
+  ...
+# Subtest: ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+ok 20 - ENG-021 · WSAA sin red: el envío queda pendiente, la factura no se rechaza y el reintento la autoriza
+  ---
+  duration_ms: 54.159077
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+ok 21 - ENG-021 · un rechazo del comprobante rechaza la factura; la venta se vuelve a facturar en la misma fila y termina autorizada
+  ---
+  duration_ms: 143.166627
+  type: 'test'
+  ...
+# Subtest: ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+ok 22 - ENG-021 · una venta que quedó rechazada por un error pasajero (600, antes de este arreglo) se vuelve a facturar
+  ---
+  duration_ms: 66.62107
+  type: 'test'
+  ...
+# Subtest: aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+ok 23 - aislamiento · la falla de ARCA en el negocio A no toca al B: cada uno queda con lo suyo
+  ---
+  duration_ms: 191.04943
+  type: 'test'
+  ...
+# Subtest: ENG-020 · dos ventas iguales a consumidor final: la que perdió el pedido no adopta el CAE de la otra; cada una con su número
+ok 24 - ENG-020 · dos ventas iguales a consumidor final: la que perdió el pedido no adopta el CAE de la otra; cada una con su número
+  ---
+  duration_ms: 175.580176
+  type: 'test'
+  ...
+# Subtest: ENG-020/021 · la consulta del número anotado falla con un código desconocido: la factura sigue pendiente (no se rechaza) y un solo CAE
+ok 25 - ENG-020/021 · la consulta del número anotado falla con un código desconocido: la factura sigue pendiente (no se rechaza) y un solo CAE
+  ---
+  duration_ms: 162.399883
+  type: 'test'
+  ...
+# Subtest: ENG-021 · volver a facturar con un envío viejo sin cerrar (corte entre el rechazo y el cierre): un solo envío vivo, un CAE, y el CAE es el de los importes nuevos
+ok 26 - ENG-021 · volver a facturar con un envío viejo sin cerrar (corte entre el rechazo y el cierre): un solo envío vivo, un CAE, y el CAE es el de los importes nuevos
+  ---
+  duration_ms: 107.634133
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un despacho viejo que obtiene el CAE DESPUÉS de que la venta se volvió a facturar no lo registra en la factura reabierta
+ok 27 - ENG-021 · un despacho viejo que obtiene el CAE DESPUÉS de que la venta se volvió a facturar no lo registra en la factura reabierta
+  ---
+  duration_ms: 129.586844
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un despacho viejo que recibe un rechazo DESPUÉS de que la venta se volvió a facturar no rechaza la factura reabierta
+ok 28 - ENG-021 · un despacho viejo que recibe un rechazo DESPUÉS de que la venta se volvió a facturar no rechaza la factura reabierta
+  ---
+  duration_ms: 144.039735
+  type: 'test'
+  ...
+# Subtest: ENG-021 · un envío que quedó abierto para una factura ya rechazada se cierra sin volver a pedirle nada a ARCA
+ok 29 - ENG-021 · un envío que quedó abierto para una factura ya rechazada se cierra sin volver a pedirle nada a ARCA
+  ---
+  duration_ms: 72.210653
+  type: 'test'
+  ...
+# Subtest: ENG-019 · mientras un despacho tiene el envío, otro no lo toma ni le pide nada a ARCA; ARCA termina con un CAE
+ok 30 - ENG-019 · mientras un despacho tiene el envío, otro no lo toma ni le pide nada a ARCA; ARCA termina con un CAE
+  ---
+  duration_ms: 55.268072
+  type: 'test'
+  ...
+# Subtest: ENG-019 · un despacho que perdió la reserva (se colgó más que ella) no anota ni pide el CAE: lo hace el que la tomó
+ok 31 - ENG-019 · un despacho que perdió la reserva (se colgó más que ella) no anota ni pide el CAE: lo hace el que la tomó
+  ---
+  duration_ms: 89.989113
+  type: 'test'
+  ...
+# Subtest: clientePara: sin ARCA_MODO devuelve el stub aunque haya config del tenant
+ok 32 - clientePara: sin ARCA_MODO devuelve el stub aunque haya config del tenant
+  ---
+  duration_ms: 2.266451
+  type: 'test'
+  ...
+# Subtest: clientePara: tenant sin config fiscal cae a un stub cuit:0 (inofensivo)
+ok 33 - clientePara: tenant sin config fiscal cae a un stub cuit:0 (inofensivo)
+  ---
+  duration_ms: 0.482618
+  type: 'test'
+  ...
+# Subtest: clientePara: stub NO resuelve credencial (ni toca el store)
+ok 34 - clientePara: stub NO resuelve credencial (ni toca el store)
+  ---
+  duration_ms: 0.387069
+  type: 'test'
+  ...
+# Subtest: clientePara: ARCA_MODO=real sin credencial cargada → propaga el error (no emite falso)
+ok 35 - clientePara: ARCA_MODO=real sin credencial cargada → propaga el error (no emite falso)
+  ---
+  duration_ms: 1.419284
+  type: 'test'
+  ...
+# Subtest: 🔒 ADR-066: ARCA_MODO=real con credencial del CUIT correcto → SOAP real por tenant
+ok 36 - 🔒 ADR-066: ARCA_MODO=real con credencial del CUIT correcto → SOAP real por tenant
+  ---
+  duration_ms: 354.271675
+  type: 'test'
+  ...
+# Subtest: 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed en el factory)
+ok 37 - 🔒 ADR-066: ARCA_MODO=real con cert de OTRO CUIT → aborta (guard fail-closed en el factory)
+  ---
+  duration_ms: 39.610602
+  type: 'test'
+  ...
+# Subtest: clientePara (stub): NO toca el store del TA
+ok 38 - clientePara (stub): NO toca el store del TA
+  ---
+  duration_ms: 0.372896
+  type: 'test'
+  ...
+# Subtest: clientePara (homologación): carga el TA persistido del tenant (ticketInicial)
+ok 39 - clientePara (homologación): carga el TA persistido del tenant (ticketInicial)
+  ---
+  duration_ms: 21.882528
+  type: 'test'
+  ...
+# Subtest: clientePara: en modo real, tenant sin CUIT válido LANZA (no despacha con cuit:0)
+ok 40 - clientePara: en modo real, tenant sin CUIT válido LANZA (no despacha con cuit:0)
+  ---
+  duration_ms: 0.602754
+  type: 'test'
+  ...
+# Subtest: clientePara: en modo homologación, tenant sin config fiscal también LANZA
+ok 41 - clientePara: en modo homologación, tenant sin config fiscal también LANZA
+  ---
+  duration_ms: 0.700607
+  type: 'test'
+  ...
+# Subtest: ENG-021 · el motivo que queda en el envío no filtra la estructura interna de un error de la base
+ok 42 - ENG-021 · el motivo que queda en el envío no filtra la estructura interna de un error de la base
+  ---
+  duration_ms: 10.133923
+  type: 'test'
+  ...
+# \# EVIDENCIA [{"serie":1,"porProceso":[{"modo":"cron","cuentas":{"procesados":3,"autorizados":3,"rechazados":0,"fallidos":0,"descartados":0,"corridas":31}},{"modo":"cron","cuentas":{"procesados":1,"autorizados":1,"rechazados":0,"fallidos":0,"descartados":0,"corridas":42}},{"modo":"negocio:A","cuentas":{"procesados":3,"autorizados":3,"rechazados":0,"fallidos":0,"descartados":0,"corridas":31}},{"modo":"negocio:B","cuentas":{"procesados":5,"autorizados":5,"rechazados":0,"fallidos":0,"descartados":0,"corridas":5}}],"A":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[1,2,3,4,5,6],"numerosEsperados":[1,2,3,4,5,6],"enviosAbiertos":0},"B":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[1,2,3,4,5,6],"numerosEsperados":[1,2,3,4,5,6],"enviosAbiertos":0}},{"serie":2,"porProceso":[{"modo":"cron","cuentas":{"procesados":4,"autorizados":4,"rechazados":0,"fallidos":0,"descartados":0,"corridas":6}},{"modo":"cron","cuentas":{"procesados":1,"autorizados":1,"rechazados":0,"fallidos":0,"descartados":0,"corridas":11}},{"modo":"negocio:A","cuentas":{"procesados":3,"autorizados":3,"rechazados":0,"fallidos":0,"descartados":0,"corridas":7}},{"modo":"negocio:B","cuentas":{"procesados":4,"autorizados":4,"rechazados":0,"fallidos":0,"descartados":0,"corridas":6}}],"A":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[7,8,9,10,11,12],"numerosEsperados":[7,8,9,10,11,12],"enviosAbiertos":0},"B":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[7,8,9,10,11,12],"numerosEsperados":[7,8,9,10,11,12],"enviosAbiertos":0}},{"serie":3,"porProceso":[{"modo":"cron","cuentas":{"procesados":3,"autorizados":3,"rechazados":0,"fallidos":0,"descartados":0,"corridas":7}},{"modo":"cron","cuentas":{"procesados":3,"autorizados":3,"rechazados":0,"fallidos":0,"descartados":0,"corridas":6}},{"modo":"negocio:A","cuentas":{"procesados":2,"autorizados":2,"rechazados":0,"fallidos":0,"descartados":0,"corridas":9}},{"modo":"negocio:B","cuentas":{"procesados":4,"autorizados":4,"rechazados":0,"fallidos":0,"descartados":0,"corridas":7}}],"A":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[13,14,15,16,17,18],"numerosEsperados":[13,14,15,16,17,18],"enviosAbiertos":0},"B":{"facturas":6,"autorizadas":6,"rechazadas":0,"caeEnArca":6,"caeDistintosEnLaBase":6,"numerosIgualesAArca":true,"numerosDeLaBase":[13,14,15,16,17,18],"numerosEsperados":[13,14,15,16,17,18],"enviosAbiertos":0}}]
+# Subtest: ENG-019 · 4 procesos a la vez sobre 12 pendientes de dos negocios, 3 series seguidas: 12 CAE por serie, ninguno de más, números de ARCA = base
+ok 43 - ENG-019 · 4 procesos a la vez sobre 12 pendientes de dos negocios, 3 series seguidas: 12 CAE por serie, ninguno de más, números de ARCA = base
+  ---
+  duration_ms: 10979.706877
+  type: 'test'
+  ...
+# Subtest: ENG-019 · 50 de 50 iteraciones: dos ventas simultáneas de A y una de B con tres despachos a la vez → 0 CAE de más, 0 rechazadas con CAE, números de ARCA = base
+ok 44 - ENG-019 · 50 de 50 iteraciones: dos ventas simultáneas de A y una de B con tres despachos a la vez → 0 CAE de más, 0 rechazadas con CAE, números de ARCA = base
+  ---
+  duration_ms: 4902.224498
+  type: 'test'
+  ...
+# {"ts":"2026-09-26T17:41:38.019Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.052Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.061Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.072Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.085Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.104Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.119Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.129Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.146Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.184Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.198Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.209Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.227Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.239Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.267Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.291Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.301Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.310Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# {"ts":"2026-09-26T17:41:38.320Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_a_9b4076c926","err":{"name":"Error","message":"ARCA no responde para este negocio (simulado).","stack":"Error: ARCA no responde para este negocio (simulado).\\n    at Object.clientePara (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:264:33)\\n    at procesarInvoiceCreated (/home/user/erp-facturacion/src/plugins/arca/handler.ts:152:28)\\n    at despacharUno (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:360:11)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async despacharEnvios (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:331:7)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-envios-concurrencia-postgres.test.ts:269:13)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)"}}
+# Subtest: ENG-019 · 20 envíos de A que fallan y 1 de B: B queda autorizada en la PRIMERA corrida
+ok 45 - ENG-019 · 20 envíos de A que fallan y 1 de B: B queda autorizada en la PRIMERA corrida
+  ---
+  duration_ms: 574.478104
+  type: 'test'
+  ...
+# {"ts":"2026-09-26T17:41:35.215Z","level":"error","scope":"arca","msg":"un envío falló por un error del sistema, no de ARCA","tenantId":"tnt_b_a90c383f8b","err":{"name":"PrismaClientKnownRequestError","message":"\\nInvalid `tx.invoice.updateMany()` invocation in\\n/home/user/erp-facturacion/src/lib/invoice-core.ts:409:16\\n\\n  406   envioId: string,\\n  407 ): Promise<boolean> {\\n  408   return escribirSiElEnvioSigueAbierto(input.tenantId, envioId, (tx) =>\\n→ 409     tx.invoice.updateMany(\\nUnique constraint failed on the (not available)","stack":"PrismaClientKnownRequestError: \\nInvalid `tx.invoice.updateMany()` invocation in\\n/home/user/erp-facturacion/src/lib/invoice-core.ts:409:16\\n\\n  406   envioId: string,\\n  407 ): Promise<boolean> {\\n  408   return escribirSiElEnvioSigueAbierto(input.tenantId, envioId, (tx) =>\\n→ 409     tx.invoice.updateMany(\\nUnique constraint failed on the (not available)\\n    at zr.handleRequestError (/home/user/erp-facturacion/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)\\n    at zr.handleAndLogRequestError (/home/user/erp-facturacion/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)\\n    at zr.request (/home/user/erp-facturacion/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async a (/home/user/erp-facturacion/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)\\n    at async tenantId.tenantId (/home/user/erp-facturacion/src/lib/invoice-core.ts:141:25)\\n    at async Proxy._transactionWithCallback (/home/user/erp-facturacion/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:810:18)\\n    at async tenantTransaction (/home/user/erp-facturacion/src/lib/rls.ts:206:14)\\n    at async escribirSiElEnvioSigueAbierto (/home/user/erp-facturacion/src/lib/invoice-core.ts:137:12)\\n    at async Object.registrar (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:370:22)"}}
+# Subtest: ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan intactos y el resumen cuenta sólo los de A
+ok 46 - ENG-012 · la acción de A procesa sólo los envíos de A: los de B quedan intactos y el resumen cuenta sólo los de A
+  ---
+  duration_ms: 8003.698119
+  type: 'test'
+  ...
+# Subtest: ENG-012 · la acción de A no toma un envío de B aunque sea el único pendiente (0 procesados, B sin intentos)
+ok 47 - ENG-012 · la acción de A no toma un envío de B aunque sea el único pendiente (0 procesados, B sin intentos)
+  ---
+  duration_ms: 95.565661
+  type: 'test'
+  ...
+# Subtest: sin RLS: lo que le queda a A y el número del botón no cuentan los pendientes de B
+ok 48 - sin RLS: lo que le queda a A y el número del botón no cuentan los pendientes de B
+  ---
+  duration_ms: 4982.439998
+  type: 'test'
+  ...
+# {"ts":"2026-09-26T17:41:43.964Z","level":"error","scope":"arca","msg":"el cron de ARCA no ve los envíos de todos los negocios","err":{"name":"ProcesadorArcaSinAccesoError","message":"procesador de ARCA sin acceso: falta OPERATOR_DATABASE_URL y la conexión de la app (rol app_rls) no ve los envíos de todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño.","stack":"ProcesadorArcaSinAccesoError: procesador de ARCA sin acceso: falta OPERATOR_DATABASE_URL y la conexión de la app (rol app_rls) no ve los envíos de todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño.\\n    at verificarAccesoDelOperador (/home/user/erp-facturacion/src/lib/arca-reserva.ts:258:9)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async processArcaOutbox (/home/user/erp-facturacion/src/lib/arca-dispatch.ts:282:3)\\n    at async GET (/home/user/erp-facturacion/src/app/api/cron/arca-outbox/route.ts:39:21)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-procesador-sin-operador-postgres.test.ts:84:14)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)"}}
+# {"ts":"2026-09-26T17:41:44.013Z","level":"error","scope":"ready","msg":"el procesador de ARCA no ve los envíos de todos los negocios","requestId":"773ee12d-4139-488b-a078-463d4e85a4fe","err":{"name":"ProcesadorArcaSinAccesoError","message":"procesador de ARCA sin acceso: falta OPERATOR_DATABASE_URL y la conexión de la app (rol app_rls) no ve los envíos de todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño.","stack":"ProcesadorArcaSinAccesoError: procesador de ARCA sin acceso: falta OPERATOR_DATABASE_URL y la conexión de la app (rol app_rls) no ve los envíos de todos los negocios; ninguna factura se autorizaría. Configurar OPERATOR_DATABASE_URL con el rol dueño.\\n    at verificarAccesoDelOperador (/home/user/erp-facturacion/src/lib/arca-reserva.ts:258:9)\\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\\n    at async <anonymous> (/home/user/erp-facturacion/src/app/api/ready/route.ts:34:9)\\n    at async <anonymous> (/home/user/erp-facturacion/src/lib/request-context.ts:96:19)\\n    at async TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/arca-procesador-sin-operador-postgres.test.ts:90:14)\\n    at async Test.run (node:internal/test_runner/test:1054:7)\\n    at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)"}}
+# Subtest: ENG-027 · sin OPERATOR_DATABASE_URL (app_rls): el procesador lanza un error de configuración, el cron responde error y /api/ready 503; con el rol dueño procesa los dos negocios
+ok 49 - ENG-027 · sin OPERATOR_DATABASE_URL (app_rls): el procesador lanza un error de configuración, el cron responde error y /api/ready 503; con el rol dueño procesa los dos negocios
+  ---
+  duration_ms: 5057.655187
+  type: 'test'
+  ...
+# Subtest: ENG-027 · con la facturación apagada /api/ready no mira el procesador (sigue 200 aunque falte el operador)
+ok 50 - ENG-027 · con la facturación apagada /api/ready no mira el procesador (sigue 200 aunque falte el operador)
+  ---
+  duration_ms: 125.837583
+  type: 'test'
+  ...
+# Subtest: ENG-027 · un rol que no es dueño ni tiene BYPASSRLS, puesto como OPERATOR_DATABASE_URL, también es error de configuración
+ok 51 - ENG-027 · un rol que no es dueño ni tiene BYPASSRLS, puesto como OPERATOR_DATABASE_URL, también es error de configuración
+  ---
+  duration_ms: 156.278016
+  type: 'test'
+  ...
+# Subtest: la misma clienta tiene el mismo número de compras en el listado viejo y en el nuevo
+ok 52 - la misma clienta tiene el mismo número de compras en el listado viejo y en el nuevo
+  ---
+  duration_ms: 4450.985847
+  type: 'test'
+  ...
+# Subtest: dos altas SIMULTÁNEAS del mismo número (escrito distinto): una ficha, y la otra dice cuál
+ok 53 - dos altas SIMULTÁNEAS del mismo número (escrito distinto): una ficha, y la otra dice cuál
+  ---
+  duration_ms: 10.668142
+  type: 'test'
+  ...
+# Subtest: el mismo número en OTRO negocio no choca, y números distintos no comparten candado
+ok 54 - el mismo número en OTRO negocio no choca, y números distintos no comparten candado
+  ---
+  duration_ms: 11.214706
+  type: 'test'
+  ...
+# Subtest: otro número que TERMINA igual no es duplicado: el filtro exacto lo saca
+ok 55 - otro número que TERMINA igual no es duplicado: el filtro exacto lo saca
+  ---
+  duration_ms: 5.980175
+  type: 'test'
+  ...
+# Subtest: ata sólo los pedidos sin ficha de ESE número (y de este negocio); lee sólo candidatas
+ok 56 - ata sólo los pedidos sin ficha de ESE número (y de este negocio); lee sólo candidatas
+  ---
+  duration_ms: 6.906727
+  type: 'test'
+  ...
+# Subtest: el patrón de SQL es un sufijo de la clave: toda escritura del número lo cumple
+ok 57 - el patrón de SQL es un sufijo de la clave: toda escritura del número lo cumple
+  ---
+  duration_ms: 0.572353
+  type: 'test'
+  ...
+# Subtest: '11 4000-7919', '1140007919' y '+54 9 11 4000-7919' encuentran la misma ficha
+ok 58 - '11 4000-7919', '1140007919' y '+54 9 11 4000-7919' encuentran la misma ficha
+  ---
+  duration_ms: 3.651141
+  type: 'test'
+  ...
+# Subtest: la búsqueda no cruza de tenant: el mismo número en MAGRA no es la ficha de CH
+ok 59 - la búsqueda no cruza de tenant: el mismo número en MAGRA no es la ficha de CH
+  ---
+  duration_ms: 0.427882
+  type: 'test'
+  ...
+# Subtest: un teléfono sin dígitos no busca nada (ni toca la base)
+ok 60 - un teléfono sin dígitos no busca nada (ni toca la base)
+  ---
+  duration_ms: 0.187951
+  type: 'test'
+  ...
+# Subtest: empate: dos fichas del mismo número → gana la de más turnos y se informa el empate
+ok 61 - empate: dos fichas del mismo número → gana la de más turnos y se informa el empate
+  ---
+  duration_ms: 0.614424
+  type: 'test'
+  ...
+# Subtest: empate con los mismos turnos: la ficha más vieja, y si no, el id menor (no el orden de la base)
+ok 62 - empate con los mismos turnos: la ficha más vieja, y si no, el id menor (no el orden de la base)
+  ---
+  duration_ms: 0.362496
+  type: 'test'
+  ...
+# Subtest: el resumen trae la última visita completada y el saldo de lo prestado sin cobrar
+ok 63 - el resumen trae la última visita completada y el saldo de lo prestado sin cobrar
+  ---
+  duration_ms: 0.662
+  type: 'test'
+  ...
+# Subtest: el pago previo a los cobros parciales cuenta como cobrado: no aparece como deuda
+ok 64 - el pago previo a los cobros parciales cuenta como cobrado: no aparece como deuda
+  ---
+  duration_ms: 0.318642
+  type: 'test'
+  ...
+# Subtest: las notas largas se recortan para no inflar la página
+ok 65 - las notas largas se recortan para no inflar la página
+  ---
+  duration_ms: 0.184936
+  type: 'test'
+  ...
+# Subtest: tipear '1140007919' en el alta reconoce la ficha cargada como '11 4000-7919'
+ok 66 - tipear '1140007919' en el alta reconoce la ficha cargada como '11 4000-7919'
+  ---
+  duration_ms: 0.554152
+  type: 'test'
+  ...
+# Subtest: en el buscador 'Clienta', tipear '1140007919' encuentra a la cargada como '11 4000-7919'
+ok 67 - en el buscador 'Clienta', tipear '1140007919' encuentra a la cargada como '11 4000-7919'
+  ---
+  duration_ms: 1.043148
+  type: 'test'
+  ...
+# Subtest: tipear el teléfono de una vecina completa el nombre y tilda 'de la zona' como dice su ficha
+ok 68 - tipear el teléfono de una vecina completa el nombre y tilda 'de la zona' como dice su ficha
+  ---
+  duration_ms: 0.360993
+  type: 'test'
+  ...
+# Subtest: corregir el teléfono a uno sin ficha DESTILDA y borra el nombre que había puesto la precarga
+ok 69 - corregir el teléfono a uno sin ficha DESTILDA y borra el nombre que había puesto la precarga
+  ---
+  duration_ms: 0.160587
+  type: 'test'
+  ...
+# Subtest: tecla por tecla: reconoce al completar el número y deshace al borrar un dígito
+ok 70 - tecla por tecla: reconoce al completar el número y deshace al borrar un dígito
+  ---
+  duration_ms: 0.228093
+  type: 'test'
+  ...
+# Subtest: lo que la recepción escribió o tildó a mano no se pisa, ni al precargar ni al deshacer
+ok 71 - lo que la recepción escribió o tildó a mano no se pisa, ni al precargar ni al deshacer
+  ---
+  duration_ms: 0.180965
+  type: 'test'
+  ...
+# Subtest: de una ficha a otra: se deshace la primera y se aplica la segunda
+ok 72 - de una ficha a otra: se deshace la primera y se aplica la segunda
+  ---
+  duration_ms: 0.214234
+  type: 'test'
+  ...
+# Subtest: el mismo número escrito de otra forma no toca nada, ni lo corregido a mano
+ok 73 - el mismo número escrito de otra forma no toca nada, ni lo corregido a mano
+  ---
+  duration_ms: 0.152558
+  type: 'test'
+  ...
+# Subtest: una ficha sin el dato (isResident null) no tilda: el beneficio se otorga, no se presume
+ok 74 - una ficha sin el dato (isResident null) no tilda: el beneficio se otorga, no se presume
+  ---
+  duration_ms: 0.127594
+  type: 'test'
+  ...
+# Subtest: elegir en el buscador pisa el nombre y pone el teléfono; con duplicadas manda la ficha del servidor
+ok 75 - elegir en el buscador pisa el nombre y pone el teléfono; con duplicadas manda la ficha del servidor
+  ---
+  duration_ms: 0.454936
+  type: 'test'
+  ...
+# Subtest: el precio del alta sigue al tilde: vecina reconocida → el local; ficha perdida → el general
+ok 76 - el precio del alta sigue al tilde: vecina reconocida → el local; ficha perdida → el general
+  ---
+  duration_ms: 0.845175
+  type: 'test'
+  ...
+# Subtest: ningún camino de alta busca la clienta por el teléfono tipeado tal cual
+ok 77 - ningún camino de alta busca la clienta por el teléfono tipeado tal cual
+  ---
+  duration_ms: 0.474425
+  type: 'test'
+  ...
+# Subtest: los cuatro caminos de alta pasan por buscarFichaPorTelefono
+ok 78 - los cuatro caminos de alta pasan por buscarFichaPorTelefono
+  ---
+  duration_ms: 0.252738
+  type: 'test'
+  ...
+# Subtest: la reserva pública no modifica una ficha existente (ni isResident ni nada)
+ok 79 - la reserva pública no modifica una ficha existente (ni isResident ni nada)
+  ---
+  duration_ms: 0.506122
+  type: 'test'
+  ...
+# Subtest: el alta usa la precarga pura y el precio del servidor, sin reglas propias
+ok 80 - el alta usa la precarga pura y el precio del servidor, sin reglas propias
+  ---
+  duration_ms: 0.496535
+  type: 'test'
+  ...
+# Subtest: las páginas públicas del turno no muestran datos de la ficha
+ok 81 - las páginas públicas del turno no muestran datos de la ficha
+  ---
+  duration_ms: 0.645569
+  type: 'test'
+  ...
+# Subtest: cada forma de escribir un mismo número da la misma clave
+ok 82 - cada forma de escribir un mismo número da la misma clave
+  ---
+  duration_ms: 1.87839
+  type: 'test'
+  ...
+# Subtest: dos números distintos nunca comparten clave
+ok 83 - dos números distintos nunca comparten clave
+  ---
+  duration_ms: 0.485665
+  type: 'test'
+  ...
+# Subtest: un número que ya viene limpio no se toca
+ok 84 - un número que ya viene limpio no se toca
+  ---
+  duration_ms: 0.176542
+  type: 'test'
+  ...
+# Subtest: sin dígitos no hay clave (y una clave vacía nunca matchea)
+ok 85 - sin dígitos no hay clave (y una clave vacía nunca matchea)
+  ---
+  duration_ms: 0.211789
+  type: 'test'
+  ...
+# Subtest: mismoTelefono reconoce las variantes y separa lo distinto
+ok 86 - mismoTelefono reconoce las variantes y separa lo distinto
+  ---
+  duration_ms: 0.271831
+  type: 'test'
+  ...
+# Subtest: updateClient exige clients:manage antes de escribir
+ok 87 - updateClient exige clients:manage antes de escribir
+  ---
+  duration_ms: 0.278812
+  type: 'test'
+  ...
+# Subtest: updateClient audita el cambio con el antes y el después
+ok 88 - updateClient audita el cambio con el antes y el después
+  ---
+  duration_ms: 0.257869
+  type: 'test'
+  ...
+# Subtest: editar una ficha al teléfono de otra CHOCA, escrito como esté
+ok 89 - editar una ficha al teléfono de otra CHOCA, escrito como esté
+  ---
+  duration_ms: 0.449794
+  type: 'test'
+  ...
+# Subtest: reescribir el PROPIO teléfono con otro formato no choca
+ok 90 - reescribir el PROPIO teléfono con otro formato no choca
+  ---
+  duration_ms: 0.527473
+  type: 'test'
+  ...
+# Subtest: un teléfono libre entra, y uno sin dígitos no bloquea
+ok 91 - un teléfono libre entra, y uno sin dígitos no bloquea
+  ---
+  duration_ms: 0.438534
+  type: 'test'
+  ...
+# Subtest: una ficha sin teléfono nunca es el choque
+ok 92 - una ficha sin teléfono nunca es el choque
+  ---
+  duration_ms: 0.145464
+  type: 'test'
+  ...
+# Subtest: updateClient usa esa decisión y no una copia suya
+ok 93 - updateClient usa esa decisión y no una copia suya
+  ---
+  duration_ms: 0.201412
+  type: 'test'
+  ...
+# Subtest: la lista de links lee búsqueda, estado y página de la URL; lo que no entiende lo ignora
+ok 94 - la lista de links lee búsqueda, estado y página de la URL; lo que no entiende lo ignora
+  ---
+  duration_ms: 2.467007
+  type: 'test'
+  ...
+# Subtest: la URL de la lista queda en la pestaña de links y cambiar el filtro vuelve a la página 1
+ok 95 - la URL de la lista queda en la pestaña de links y cambiar el filtro vuelve a la página 1
+  ---
+  duration_ms: 0.59267
+  type: 'test'
+  ...
+# Subtest: buscar un número encuentra el pedido; buscar plata escrita como acá encuentra el importe exacto
+ok 96 - buscar un número encuentra el pedido; buscar plata escrita como acá encuentra el importe exacto
+  ---
+  duration_ms: 1.092802
+  type: 'test'
+  ...
+# Subtest: las páginas salen de la cantidad del estado elegido, no del total
+ok 97 - las páginas salen de la cantidad del estado elegido, no del total
+  ---
+  duration_ms: 0.300144
+  type: 'test'
+  ...
+# Subtest: links de cobro y lista de clientes a escala: aislamiento, totales reales, dos consultas por página y p95 < 300 ms
+ok 98 - links de cobro y lista de clientes a escala: aislamiento, totales reales, dos consultas por página y p95 < 300 ms
+  ---
+  duration_ms: 41671.192323
+  type: 'test'
+  ...
+# Subtest: un toque con 59 pendientes manda los 59 (tres tandas de a 20), no 20
+ok 99 - un toque con 59 pendientes manda los 59 (tres tandas de a 20), no 20
+  ---
+  duration_ms: 23.935008
+  type: 'test'
+  ...
+# Subtest: con 300 pendientes, un toque: 15 tandas y ninguno queda
+ok 100 - con 300 pendientes, un toque: 15 tandas y ninguno queda
+  ---
+  duration_ms: 11.805232
+  type: 'test'
+  ...
+# Subtest: si ARCA no responde, para en esa tanda y dice cuántos quedan (no le insiste a ARCA caído)
+ok 101 - si ARCA no responde, para en esa tanda y dice cuántos quedan (no le insiste a ARCA caído)
+  ---
+  duration_ms: 0.553973
+  type: 'test'
+  ...
+# Subtest: un error nuestro no se le achaca a ARCA ni invita a reintentar: lo dice como es y el toque sigue con el resto
+ok 102 - un error nuestro no se le achaca a ARCA ni invita a reintentar: lo dice como es y el toque sigue con el resto
+  ---
+  duration_ms: 0.677634
+  type: 'test'
+  ...
+# Subtest: si todo lo que queda falla por error nuestro, una sola tanda y no gira: el aviso no culpa a ARCA
+ok 103 - si todo lo que queda falla por error nuestro, una sola tanda y no gira: el aviso no culpa a ARCA
+  ---
+  duration_ms: 0.479118
+  type: 'test'
+  ...
+# Subtest: ARCA sin respuesta y error nuestro en la misma tanda: cada uno con su causa, y el «probá de nuevo» cuenta sólo lo que ARCA dejó
+ok 104 - ARCA sin respuesta y error nuestro en la misma tanda: cada uno con su causa, y el «probá de nuevo» cuenta sólo lo que ARCA dejó
+  ---
+  duration_ms: 0.521041
+  type: 'test'
+  ...
+# Subtest: una tanda que no avanza corta (no gira en falso) y no persigue sin fin los que van entrando
+ok 105 - una tanda que no avanza corta (no gira en falso) y no persigue sin fin los que van entrando
+  ---
+  duration_ms: 0.491333
+  type: 'test'
+  ...
+# Subtest: el aviso usa el singular con uno
+ok 106 - el aviso usa el singular con uno
+  ---
+  duration_ms: 0.155978
+  type: 'test'
+  ...
+# Subtest: lo que la pantalla pide saltear se valida en el borde: sólo ids con forma de id, sin repetir y con tope
+ok 107 - lo que la pantalla pide saltear se valida en el borde: sólo ids con forma de id, sin repetir y con tope
+  ---
+  duration_ms: 3.068669
+  type: 'test'
+  ...
+# Subtest: buscar un nombre sin tildes encuentra al que las tiene (y al revés), también el nombre que vino del banco
+ok 108 - buscar un nombre sin tildes encuentra al que las tiene (y al revés), también el nombre que vino del banco
+  ---
+  duration_ms: 4479.73065
+  type: 'test'
+  ...
+# Subtest: la nota de crédito lleva el nombre de la factura que anula: la búsqueda por nombre la trae y el total por nombre es el total por CUIT
+ok 109 - la nota de crédito lleva el nombre de la factura que anula: la búsqueda por nombre la trae y el total por nombre es el total por CUIT
+  ---
+  duration_ms: 36.991759
+  type: 'test'
+  ...
+# Subtest: «Facturado del mes» del Inicio resta las notas de crédito (lo mismo que la lista)
+ok 110 - «Facturado del mes» del Inicio resta las notas de crédito (lo mismo que la lista)
+  ---
+  duration_ms: 430.880677
+  type: 'test'
+  ...
+# Subtest: la lista de clientes de siempre cuenta compras (no anuladas) en un comercio y turnos en un negocio de turnos
+ok 111 - la lista de clientes de siempre cuenta compras (no anuladas) en un comercio y turnos en un negocio de turnos
+  ---
+  duration_ms: 73.762289
+  type: 'test'
+  ...
+# Subtest: un comprobante rechazado no dice «autorizado»: muestra el motivo de ARCA y ofrece volver a facturar la venta
+ok 112 - un comprobante rechazado no dice «autorizado»: muestra el motivo de ARCA y ofrece volver a facturar la venta
+  ---
+  duration_ms: 2.697162
+  type: 'test'
+  ...
+# Subtest: sin motivo guardado lo dice; del banco lleva a Facturación automática; sin origen, dice desde dónde
+ok 113 - sin motivo guardado lo dice; del banco lleva a Facturación automática; sin origen, dice desde dónde
+  ---
+  duration_ms: 0.367451
+  type: 'test'
+  ...
+# Subtest: autorizado: el texto de siempre; en modo de prueba, el aviso de que no tiene validez fiscal
+ok 114 - autorizado: el texto de siempre; en modo de prueba, el aviso de que no tiene validez fiscal
+  ---
+  duration_ms: 0.29069
+  type: 'test'
+  ...
+# Subtest: rechazado por la regla del inscripto: no manda a volver a facturar (da el mismo rechazo) y dice por dónde se emite
+ok 115 - rechazado por la regla del inscripto: no manda a volver a facturar (da el mismo rechazo) y dice por dónde se emite
+  ---
+  duration_ms: 0.439744
+  type: 'test'
+  ...
+# Subtest: pendiente: todavía no lo autorizó y cómo mandarlo
+ok 116 - pendiente: todavía no lo autorizó y cómo mandarlo
+  ---
+  duration_ms: 0.261333
+  type: 'test'
+  ...
+# Subtest: un negocio sin comprobantes (CH, con ARCA apagado) abre en «Cobrar con link», como antes
+ok 117 - un negocio sin comprobantes (CH, con ARCA apagado) abre en «Cobrar con link», como antes
+  ---
+  duration_ms: 1.122826
+  type: 'test'
+  ...
+# Subtest: con comprobantes abre en la lista; la pestaña pedida manda; un filtro o una búsqueda abren la lista
+ok 118 - con comprobantes abre en la lista; la pestaña pedida manda; un filtro o una búsqueda abren la lista
+  ---
+  duration_ms: 0.332414
+  type: 'test'
+  ...
+# Subtest: la tabla de tildes de la base saca la tilde igual que el buscador (letra por letra, mayúsculas incluidas)
+ok 119 - la tabla de tildes de la base saca la tilde igual que el buscador (letra por letra, mayúsculas incluidas)
+  ---
+  duration_ms: 0.514244
+  type: 'test'
+  ...
+# Subtest: lo facturado del mes resta las notas de crédito, al centavo
+ok 120 - lo facturado del mes resta las notas de crédito, al centavo
+  ---
+  duration_ms: 0.404697
+  type: 'test'
+  ...
+# Subtest: el filtro barato deja pasar todo lo que encuentra la comparación sin tildes (cada letra que puede llevar tilde, «_»)
+ok 121 - el filtro barato deja pasar todo lo que encuentra la comparación sin tildes (cada letra que puede llevar tilde, «_»)
+  ---
+  duration_ms: 0.667787
+  type: 'test'
+  ...
+# Subtest: sin nada en la URL la lista muestra el mes en curso, página 1, todos los estados y tipos
+ok 122 - sin nada en la URL la lista muestra el mes en curso, página 1, todos los estados y tipos
+  ---
+  duration_ms: 3.318494
+  type: 'test'
+  ...
+# Subtest: el mes en curso termina el último día del mes, también en febrero bisiesto
+ok 123 - el mes en curso termina el último día del mes, también en febrero bisiesto
+  ---
+  duration_ms: 0.274242
+  type: 'test'
+  ...
+# Subtest: buscar sin período en la URL busca en todos los meses
+ok 124 - buscar sin período en la URL busca en todos los meses
+  ---
+  duration_ms: 0.452625
+  type: 'test'
+  ...
+# Subtest: buscar con período en la URL respeta el período
+ok 125 - buscar con período en la URL respeta el período
+  ---
+  duration_ms: 0.449734
+  type: 'test'
+  ...
+# Subtest: lo inválido en la URL cae al valor por defecto y un período al revés se da vuelta
+ok 126 - lo inválido en la URL cae al valor por defecto y un período al revés se da vuelta
+  ---
+  duration_ms: 0.344226
+  type: 'test'
+  ...
+# Subtest: «necesitan atención» son las pendientes y las rechazadas
+ok 127 - «necesitan atención» son las pendientes y las rechazadas
+  ---
+  duration_ms: 0.195373
+  type: 'test'
+  ...
+# Subtest: el tipo usa los códigos de ARCA: A=1, B=6, C=11, notas de crédito 3, 8 y 13
+ok 128 - el tipo usa los códigos de ARCA: A=1, B=6, C=11, notas de crédito 3, 8 y 13
+  ---
+  duration_ms: 0.309171
+  type: 'test'
+  ...
+# Subtest: buscador: un nombre busca por receptor
+ok 129 - buscador: un nombre busca por receptor
+  ---
+  duration_ms: 0.427204
+  type: 'test'
+  ...
+# Subtest: buscador: «0001-00000123» es punto de venta y número
+ok 130 - buscador: «0001-00000123» es punto de venta y número
+  ---
+  duration_ms: 0.479367
+  type: 'test'
+  ...
+# Subtest: buscador: un CUIT con guiones busca por documento, no por número de comprobante
+ok 131 - buscador: un CUIT con guiones busca por documento, no por número de comprobante
+  ---
+  duration_ms: 1.01383
+  type: 'test'
+  ...
+# Subtest: buscador: una cifra corta puede ser número de comprobante o importe
+ok 132 - buscador: una cifra corta puede ser número de comprobante o importe
+  ---
+  duration_ms: 0.259536
+  type: 'test'
+  ...
+# Subtest: buscador: un importe con centavos a la argentina («12.500,50» o «$ 12.500,50») busca el total
+ok 133 - buscador: un importe con centavos a la argentina («12.500,50» o «$ 12.500,50») busca el total
+  ---
+  duration_ms: 0.408899
+  type: 'test'
+  ...
+# Subtest: buscador: un DNI de 8 cifras busca como documento y como número
+ok 134 - buscador: un DNI de 8 cifras busca como documento y como número
+  ---
+  duration_ms: 0.135642
+  type: 'test'
+  ...
+# Subtest: los comodines de LIKE se buscan como texto
+ok 135 - los comodines de LIKE se buscan como texto
+  ---
+  duration_ms: 0.244889
+  type: 'test'
+  ...
+# Subtest: 50 por página y siempre al menos una página
+ok 136 - 50 por página y siempre al menos una página
+  ---
+  duration_ms: 0.129071
+  type: 'test'
+  ...
+# Subtest: la URL guarda sólo lo que no es por defecto y cambiar un filtro vuelve a la página 1 si se pide
+ok 137 - la URL guarda sólo lo que no es por defecto y cambiar un filtro vuelve a la página 1 si se pide
+  ---
+  duration_ms: 0.328073
+  type: 'test'
+  ...
+# Subtest: el receptor sin nombre se muestra por su documento; el 99 es consumidor final
+ok 138 - el receptor sin nombre se muestra por su documento; el 99 es consumidor final
+  ---
+  duration_ms: 0.18322
+  type: 'test'
+  ...
+# Subtest: el renglón del CSV lleva fecha dd/mm/aaaa, tipo en palabras, estado ante ARCA y el total exacto
+ok 139 - el renglón del CSV lleva fecha dd/mm/aaaa, tipo en palabras, estado ante ARCA y el total exacto
+  ---
+  duration_ms: 0.359148
+  type: 'test'
+  ...
+# Subtest: los tipos que restan en los totales son las notas de crédito del Libro IVA (A, B y C) y ninguno más
+ok 140 - los tipos que restan en los totales son las notas de crédito del Libro IVA (A, B y C) y ninguno más
+  ---
+  duration_ms: 0.32427
+  type: 'test'
+  ...
+# Subtest: en el CSV la nota de crédito va en negativo y la cabecera lo dice: la columna suma como el Libro IVA
+ok 141 - en el CSV la nota de crédito va en negativo y la cabecera lo dice: la columna suma como el Libro IVA
+  ---
+  duration_ms: 0.226009
+  type: 'test'
+  ...
+# Subtest: aislamiento: el negocio A no ve, no cuenta ni encuentra nada del negocio B (tampoco lo que vino del banco)
+ok 142 - aislamiento: el negocio A no ve, no cuenta ni encuentra nada del negocio B (tampoco lo que vino del banco)
+  ---
+  duration_ms: 10813.500365
+  type: 'test'
+  ...
+# Subtest: las notas de crédito restan en los totales, en el renglón y en el CSV (la regla del Libro IVA, libro-iva.ts:272)
+ok 143 - las notas de crédito restan en los totales, en el renglón y en el CSV (la regla del Libro IVA, libro-iva.ts:272)
+  ---
+  duration_ms: 33.044291
+  type: 'test'
+  ...
+# Subtest: los totales son los del filtro entero (suma con signo en la base) y el receptor sigue la precedencia del impreso
+ok 144 - los totales son los del filtro entero (suma con signo en la base) y el receptor sigue la precedencia del impreso
+  ---
+  duration_ms: 3106.428372
+  type: 'test'
+  ...
+# Subtest: cada página es una consulta y su p95 es < 300 ms con 50.000 comprobantes y 80.000 movimientos del banco
+ok 145 - cada página es una consulta y su p95 es < 300 ms con 50.000 comprobantes y 80.000 movimientos del banco
+  ---
+  duration_ms: 25758.556885
+  type: 'test'
+  ...
+# mes en curso (por defecto)                       4109 en el filtro · 1 consulta · p95 57.4 ms · mediana 32.3 ms
+# mes en curso, página 20                          4109 en el filtro · 1 consulta · p95 72.3 ms · mediana 53.8 ms
+# todos los meses (50.000)                        50000 en el filtro · 1 consulta · p95 96.3 ms · mediana 77.6 ms
+# todos los meses, página 900                     50000 en el filtro · 1 consulta · p95 167.1 ms · mediana 149.4 ms
+# necesitan atención, todos los meses              4545 en el filtro · 1 consulta · p95 101.3 ms · mediana 81.6 ms
+# rechazados del mes                                 98 en el filtro · 1 consulta · p95 54.4 ms · mediana 48.3 ms
+# autorizados del mes                              3738 en el filtro · 1 consulta · p95 61.8 ms · mediana 55.9 ms
+# Factura A del mes                                 545 en el filtro · 1 consulta · p95 60.5 ms · mediana 48.8 ms
+# notas de crédito del año                         9969 en el filtro · 1 consulta · p95 84.1 ms · mediana 60.7 ms
+# punto de venta 2 del mes                         1370 en el filtro · 1 consulta · p95 69.5 ms · mediana 50.7 ms
+# período de un trimestre                         12467 en el filtro · 1 consulta · p95 65.4 ms · mediana 39.9 ms
+# buscar nombre «Cliente Escala 777»                 22 en el filtro · 1 consulta · p95 147.2 ms · mediana 107.3 ms
+# buscar nombre del banco «Receptor Banco 3000»      10 en el filtro · 1 consulta · p95 169.5 ms · mediana 131.4 ms
+# buscar CUIT «20-00000077-8»                         5 en el filtro · 1 consulta · p95 64.5 ms · mediana 48.3 ms
+# buscar número «0002-00012346»                       1 en el filtro · 1 consulta · p95 18.6 ms · mediana 10.7 ms
+# buscar importe «5.445,00»                           6 en el filtro · 1 consulta · p95 63.2 ms · mediana 50.1 ms
+# buscar nombre + mes + rechazados                   39 en el filtro · 1 consulta · p95 99.5 ms · mediana 69.7 ms
+1..145
+# tests 145
+# suites 0
+# pass 145
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 78064.388129
+EXIT 0

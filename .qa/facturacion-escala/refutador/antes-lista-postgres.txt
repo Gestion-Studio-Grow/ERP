@@ -1,0 +1,98 @@
+TAP version 13
+# Subtest: aislamiento: el negocio A no ve, no cuenta ni encuentra nada del negocio B (tampoco lo que vino del banco)
+ok 1 - aislamiento: el negocio A no ve, no cuenta ni encuentra nada del negocio B (tampoco lo que vino del banco)
+  ---
+  duration_ms: 9609.645709
+  type: 'test'
+  ...
+# Subtest: las notas de crédito restan en los totales, en el renglón y en el CSV (la regla del Libro IVA, libro-iva.ts:272)
+not ok 2 - las notas de crédito restan en los totales, en el renglón y en el CSV (la regla del Libro IVA, libro-iva.ts:272)
+  ---
+  duration_ms: 15.690258
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/facturacion/lista-postgres.test.ts:42:3691'
+  failureType: 'testCodeFailure'
+  error: |-
+    factura de $10.000 anulada con su nota de crédito: $0, no $20.000
+    
+    20000 !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 20000
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/facturacion/lista-postgres.test.ts:226:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: los totales son los del filtro entero (suma con signo en la base) y el receptor sigue la precedencia del impreso
+not ok 3 - los totales son los del filtro entero (suma con signo en la base) y el receptor sigue la precedencia del impreso
+  ---
+  duration_ms: 184.733333
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/facturacion/lista-postgres.test.ts:42:5088'
+  failureType: 'testCodeFailure'
+  error: |-
+    suma con signo de REJECTED
+    + actual - expected
+    
+    + 640817.21
+    - 296315.69
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 296315.69
+  actual: 640817.21
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/facturacion/lista-postgres.test.ts:261:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: cada página hace dos consultas y su p95 es < 300 ms con 50.000 comprobantes y 80.000 movimientos del banco
+not ok 4 - cada página hace dos consultas y su p95 es < 300 ms con 50.000 comprobantes y 80.000 movimientos del banco
+  ---
+  duration_ms: 64541.34826
+  type: 'test'
+  location: '/home/user/erp-facturacion/src/lib/facturacion/lista-postgres.test.ts:45:2974'
+  failureType: 'testCodeFailure'
+  error: 'consultaDeRenglones is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (/home/user/erp-facturacion/src/lib/facturacion/lista-postgres.test.ts:361:69)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# mes en curso (por defecto)                       4109 en el filtro · 2 consultas · p95 188.8 ms · mediana 138.2 ms
+# mes en curso, página 20                          4109 en el filtro · 2 consultas · p95 171.0 ms · mediana 132.6 ms
+# todos los meses (50.000)                        50000 en el filtro · 2 consultas · p95 255.1 ms · mediana 224.6 ms
+# todos los meses, página 900                     50000 en el filtro · 2 consultas · p95 380.9 ms · mediana 325.8 ms
+# necesitan atención, todos los meses              4545 en el filtro · 2 consultas · p95 190.5 ms · mediana 164.1 ms
+# rechazados del mes                                 98 en el filtro · 2 consultas · p95 148.6 ms · mediana 114.1 ms
+# autorizados del mes                              3738 en el filtro · 2 consultas · p95 203.6 ms · mediana 135.0 ms
+# Factura A del mes                                 545 en el filtro · 2 consultas · p95 158.8 ms · mediana 116.2 ms
+# notas de crédito del año                         9969 en el filtro · 2 consultas · p95 247.1 ms · mediana 187.0 ms
+# punto de venta 2 del mes                         1370 en el filtro · 2 consultas · p95 140.0 ms · mediana 113.3 ms
+# período de un trimestre                         12467 en el filtro · 2 consultas · p95 251.6 ms · mediana 178.1 ms
+# buscar nombre «Cliente Escala 777»                 22 en el filtro · 2 consultas · p95 479.7 ms · mediana 415.7 ms
+# buscar nombre del banco «Receptor Banco 3000»      10 en el filtro · 2 consultas · p95 492.6 ms · mediana 390.7 ms
+# buscar CUIT «20-00000077-8»                         5 en el filtro · 2 consultas · p95 122.1 ms · mediana 93.9 ms
+# buscar número «0002-00012346»                       1 en el filtro · 2 consultas · p95 91.4 ms · mediana 71.2 ms
+# buscar importe «5.445,00»                           6 en el filtro · 2 consultas · p95 138.7 ms · mediana 102.7 ms
+# buscar nombre + mes + rechazados                   39 en el filtro · 2 consultas · p95 299.9 ms · mediana 200.4 ms
+1..4
+# tests 4
+# suites 0
+# pass 1
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 75448.287291
+exit 1

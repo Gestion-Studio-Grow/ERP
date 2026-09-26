@@ -28,6 +28,8 @@ import { procesarNotificacionPago } from "@/plugins/mercadopago/handler";
 import { referenciaDePedido } from "@/plugins/mercadopago/core-contract";
 import { StubMercadoPagoClient } from "@/plugins/mercadopago/stub";
 import { importeONaN } from "@/lib/dinero/leer";
+import { leerFiltrosLinks, type FiltrosLinks, type PaginaDeLinks } from "@/lib/cobros/links-core";
+import { leerPaginaDeLinks } from "@/lib/cobros/links.server";
 import {
   ACCION_LINK_DE_PAGO,
   linkDePagoDisponible,
@@ -95,6 +97,24 @@ export async function generarCobro(formData: FormData): Promise<GenerarCobroResu
       };
     }
     return { ok: false, error: e instanceof Error ? e.message : "No se pudo generar el cobro." };
+  }
+}
+
+/**
+ * Los links de cobro generados, paginados en el servidor con sus totales por estado (pestaña
+ * «Cobrar con link», los dos diseños). Mismo permiso que generar un link libre.
+ */
+export async function getLinksDeCobro(
+  sp: Readonly<Record<string, string | string[] | undefined>>,
+): Promise<{ filtros: FiltrosLinks; pagina: PaginaDeLinks | null; fallo: string | null }> {
+  await requireCapability("payments:manage");
+  const tenantId = await getCurrentTenantId();
+  const filtros = leerFiltrosLinks(sp);
+  try {
+    return { filtros, pagina: await leerPaginaDeLinks(tenantId, filtros), fallo: null };
+  } catch (e) {
+    console.error("[cobros] no se pudo leer la lista de links", { tenantId, error: e instanceof Error ? e.message : String(e) });
+    return { filtros, pagina: null, fallo: "No pudimos leer los links ahora. Recargá la página en un rato; si sigue, avisanos." };
   }
 }
 
