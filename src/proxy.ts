@@ -60,9 +60,13 @@ export async function proxy(request: NextRequest) {
   // --- Plano de OPERADOR (control-plane, ADR-021) — portón separado del de tenant.
   // Cookie propia y secreto propio; nunca comparte llavero con la sesión de un tenant.
   if (pathname.startsWith("/operador")) {
-    // Públicas: el login y /operador/clave, que arma en el navegador la línea de OPERADORES (no
-    // lee ni escribe nada del servidor: la clave no sale de la pantalla).
-    if (pathname === "/operador/login" || pathname === "/operador/clave") return NextResponse.next();
+    // Públicas: el login, adonde postea su formulario (/operador/login/ingresar, la ruta que
+    // verifica la clave: sin sesión todavía, por definición) y /operador/clave, que arma en el
+    // navegador la línea de OPERADORES (no lee ni escribe nada del servidor: la clave no sale de la
+    // pantalla). Por ruta exacta: nada debajo de ellas queda público.
+    if (pathname === "/operador/login" || pathname === "/operador/login/ingresar" || pathname === "/operador/clave") {
+      return NextResponse.next();
+    }
     const opToken = request.cookies.get(getOperatorCookieName())?.value;
     if (!(await readOperatorToken(opToken))) {
       const loginUrl = new URL("/operador/login", request.url);

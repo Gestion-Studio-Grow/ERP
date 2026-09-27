@@ -5,8 +5,8 @@
 //    prisma de la app del tenant ni por `getCurrentTenantId()` (que es fail-closed).
 //  - las que reciben o afectan un negocio pasan PRIMERO por `requireOperadorParaNegocio` /
 //    `operadorParaNegocio` (src/lib/operador/guardia-negocio.ts): sesión de operador y candado de
-//    CH (sólo el dueño). Lo exige el trinquete de guardia-negocio.test.ts. Sólo el login, el logout
-//    y el reset masivo deshabilitado quedan afuera, con su motivo.
+//    CH (sólo el dueño). Lo exige el trinquete de guardia-negocio.test.ts. Sólo el logout y el
+//    reset masivo deshabilitado quedan afuera, con su motivo (el login ya no es una action).
 // El alta de negocios vive en operator-provisioning-actions.ts (el wizard de /operador/alta, que
 // envuelve la saga de ADR-074). La acción vieja de alta que vivía acá se borró en la tanda 2b:
 // no tenía llamadores y escribía módulos sin el candado de CH ni la validación de
@@ -19,18 +19,11 @@ import { Prisma } from "@/generated/prisma/client";
 import { operatorPrisma, enElNegocio } from "@/lib/operator-db";
 import { requireOperator } from "@/lib/operator-session";
 import { operadorParaNegocio, requireOperadorParaNegocio } from "@/lib/operador/guardia-negocio";
-import {
-  createOperatorToken,
-  getOperatorCookieName,
-  VIGENCIA_SESION_MS,
-  verificarOperador,
-} from "@/lib/operator-auth";
+import { getOperatorCookieName } from "@/lib/operator-auth";
 import { isModuleId } from "@/lib/operator-config";
 import { motivoFueraDelPlan } from "@/app/operador/(console)/tenants/[id]/modulos-y-plan";
 import { vueltaAFiscal } from "@/app/operador/(console)/tenants/[id]/fiscal-vuelta";
 import { leerSubdominio } from "@/lib/provisioning/slug";
-import { requestIp } from "@/lib/audit-core";
-import { loginRateLimiter, loginKey } from "@/lib/rate-limit";
 import { cargarCredencialTenant } from "@/lib/fiscal/tenant-cert";
 import { interpretarCuitInput } from "@/lib/fiscal/cuit-input";
 import { operatorSetMustChange } from "@/lib/must-change-password";
@@ -65,37 +58,10 @@ import { modoDesdeEnv } from "@/plugins/arca";
 
 // --- Sesión de operador -------------------------------------------------------
 
-export async function operatorLogin(formData: FormData) {
-  const nombre = String(formData.get("nombre") || "");
-  const password = String(formData.get("password") || "");
-  const next = String(formData.get("next") || "/operador");
-
-  // Rate limiting anti fuerza bruta (Célula 2): 5 fallos / 15 min por IP. El plano
-  // de operador es cross-tenant (más sensible) → mismo freno que /admin.
-  const key = loginKey("operator", (await requestIp()) ?? "unknown");
-  if (loginRateLimiter.blocked(key)) {
-    redirect(`/operador/login?error=throttled&next=${encodeURIComponent(next)}`);
-  }
-
-  // Nombre y clave: el dueño con OPERATOR_PASSWORD (nombre vacío = el dueño, el login de siempre)
-  // o un operador de OPERADORES con su línea PBKDF2. El token lleva el nombre y la hora: vence a
-  // las 8 h en el servidor, no sólo en el navegador.
-  const operador = await verificarOperador(nombre, password);
-  if (!operador) {
-    loginRateLimiter.fail(key);
-    redirect(`/operador/login?error=1&next=${encodeURIComponent(next)}`);
-  }
-  loginRateLimiter.reset(key);
-  const cookieStore = await cookies();
-  cookieStore.set(getOperatorCookieName(), await createOperatorToken(operador), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: VIGENCIA_SESION_MS / 1000,
-  });
-  redirect(next.startsWith("/operador") ? next : "/operador");
-}
+// El INGRESO no es una Server Action: es un formulario HTML común contra una ruta de dirección fija,
+// src/app/operador/login/ingresar/route.ts. El id de una Server Action cambia en cada build, y una
+// página abierta antes de publicar mandaba un id que la versión nueva no conocía ("Se produjo un
+// error inesperado" en el login del dueño, 2026-09-27).
 
 export async function operatorLogout() {
   const cookieStore = await cookies();

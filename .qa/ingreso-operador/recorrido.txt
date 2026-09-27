@@ -1,0 +1,29 @@
+OK   rótulo del campo = Usuario
+OK   pista visible: "Si sos el dueño: dejalo vacío o escribí «duenio»"
+OK   pista asociada al campo (aria-describedby)
+OK   sin el placeholder viejo
+OK   clave oculta por defecto
+OK   Mostrar → la clave se ve
+OK   Ocultar → vuelve a ocultarse
+OK   campos vacíos antes de la captura
+OK   usuario vacío (variable con Enter al final) → entra a /operador, sesión de dueño
+OK   usuario «duenio» (variable con Enter al final) → entra a /operador, sesión de dueño
+OK   clave tipeada con un espacio al final (variable con Enter al final) → entra a /operador, sesión de dueño
+OK   clave mal → "Usuario o clave incorrectos. Si sos el dueño, el usuario va vacío o «duenio», y la clave es la de OPERATOR_PASSWORD en Vercel (Production)."
+OK   clave mal → sin sesión
+OK   campos vacíos antes de la captura
+OK   quinto fallo → error=throttled
+OK   frenado → "Demasiados intentos fallidos desde esta conexión. Esperá 15 minutos y volvé a probar. El freno cuenta por conexión: si cambiás de red (por ejemplo, a los datos del celular), arranca de cero."
+OK   frenado → menciona cambiar de red
+OK   campos vacíos antes de la captura
+OK   frenado + clave buena → sigue frenado, con minutos
+OK   frenado → sin sesión
+OK   form: POST nativo a /operador/login/ingresar
+OK   pedido sin cabecera next-action (/operador/login/ingresar)
+OK   entra por la ruta fija (desde otra conexión, con la primera todavía frenada)
+OK   con JavaScript apagado, entra igual
+OK   campos vacíos antes de la captura (1440)
+
+errores de consola: 0
+
+RESULTADO: OK

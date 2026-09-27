@@ -62,7 +62,6 @@ const RAIZ = process.cwd();
 
 /** Endpoints que no reciben ni afectan un negocio, con el porqué. */
 const EXENTAS: Record<string, string> = {
-  "src/lib/operator-actions.ts#operatorLogin": "todavía no hay sesión: es el login",
   "src/lib/operator-actions.ts#operatorLogout": "sólo borra la cookie del operador",
   "src/lib/operator-actions.ts#resetAllOwnerPasswords": "deshabilitada: no toca ningún negocio y devuelve el motivo",
 };

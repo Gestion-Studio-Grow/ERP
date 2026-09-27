@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { operatorLogin } from "@/lib/operator-actions";
 import SubmitButton from "@/components/SubmitButton";
 import { Input, Rotulo, buttonClasses } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
@@ -9,10 +8,13 @@ import { folioDelDia } from "@/app/admin/login/login-core";
 import AdminThemeScript from "@/app/admin/AdminThemeScript";
 import { PIEL_RENGLON } from "@/lib/diseno/diseno";
 import { ConDiseno } from "@/lib/diseno/ConDiseno";
+import { operadorDuenio } from "@/lib/operator-auth";
+import { avisoDeIngreso, leerMinutos, pistaDelUsuario } from "./aviso-ingreso";
 
 // Login del PLANO DE OPERADOR (control-plane, ADR-021) — separado del login de tenant
 // (/admin/login). Nombre y clave:
-//   · el dueño de GSG: su clave de siempre (OPERATOR_PASSWORD); el nombre puede quedar vacío;
+//   · el dueño de GSG: su clave de siempre (OPERATOR_PASSWORD); el usuario vacío o su nombre
+//     (OPERADOR_DUENIO, "duenio" si no está), que la pantalla muestra debajo del campo;
 //   · otro operador: su nombre y la clave con la que armó su línea de OPERADORES (/operador/clave).
 // Cada cosa que se hace en la consola queda firmada con ese nombre. La sesión vence a las 8 h.
 // En dev, sin OPERATOR_PASSWORD, la clave del dueño es "operador".
@@ -20,22 +22,20 @@ import { ConDiseno } from "@/lib/diseno/ConDiseno";
 // La consola es un producto de GSG: lleva siempre el diseño «Renglón» (como su armazón,
 // (console)/layout.tsx), sin interruptor. La misma hoja de ingreso que el panel de un negocio
 // (HojaDeIngreso): el renglón de la marca con el día como folio, el título y el formulario como
-// renglones. Mismo `action`, mismos nombres de campo (`nombre`, `password`, `next`).
+// renglones. Mismos nombres de campo (`nombre`, `password`, `next`), que lee ingresar/route.ts.
 const ROTULO_CAMPO = "text-[11.5px] font-semibold uppercase tracking-[.06em] text-muted";
 const RENGLON_CAMPO = "grid gap-1.5 border-b border-line py-3 sm:grid-cols-[8rem_1fr] sm:items-center sm:gap-4";
 
 export default async function OperatorLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; error?: string }>;
+  searchParams: Promise<{ next?: string; error?: string; min?: string }>;
 }) {
-  const { next, error } = await searchParams;
-  const aviso =
-    error === "throttled"
-      ? { titulo: "Demasiados intentos fallidos.", detalle: "Esperá unos minutos y volvé a probar." }
-      : error
-        ? { titulo: "Nombre o clave incorrectos.", detalle: "Revisá las mayúsculas y probá de nuevo." }
-        : null;
+  const { next, error, min } = await searchParams;
+  // El nombre del dueño configurado (OPERADOR_DUENIO o "duenio"): no es secreto, y mostrarlo es lo
+  // que evita adivinar con qué usuario se entra. Los textos viven en aviso-ingreso.ts (testeados).
+  const duenio = operadorDuenio();
+  const aviso = avisoDeIngreso(error, leerMinutos(min), duenio);
 
   return (
     <div data-skin="fable" data-diseno={PIEL_RENGLON} data-theme="light" suppressHydrationWarning className="min-h-screen">
@@ -58,23 +58,31 @@ export default async function OperatorLoginPage({
               </div>
             )}
 
-            <form action={operatorLogin} aria-labelledby="login-titulo" className="mt-6 border-t border-line">
+            {/* Formulario HTML común contra una ruta fija (ingresar/route.ts), no una Server Action:
+                el id de una action cambia en cada build y una página abierta antes de publicar
+                fallaba con "Se produjo un error inesperado". Así entra desde cualquier versión. */}
+            <form action="/operador/login/ingresar" method="post" aria-labelledby="login-titulo" className="mt-6 border-t border-line">
               <input type="hidden" name="next" value={next ?? "/operador"} />
               <div className={RENGLON_CAMPO}>
                 <label htmlFor="operador-nombre" data-ui="rotulo" className={ROTULO_CAMPO}>
-                  Operador
+                  Usuario
                 </label>
-                <Input
-                  id="operador-nombre"
-                  type="text"
-                  name="nombre"
-                  autoFocus
-                  autoComplete="username"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  placeholder="Vacío si sos el dueño"
-                  className="min-h-11"
-                />
+                <div className="min-w-0">
+                  <Input
+                    id="operador-nombre"
+                    type="text"
+                    name="nombre"
+                    autoFocus
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    aria-describedby="operador-nombre-pista"
+                    className="min-h-11"
+                  />
+                  <p id="operador-nombre-pista" className="mt-1.5 text-[13px] text-muted">
+                    {pistaDelUsuario(duenio)}
+                  </p>
+                </div>
               </div>
               <div className={RENGLON_CAMPO}>
                 <label htmlFor="operador-clave" data-ui="rotulo" className={ROTULO_CAMPO}>
