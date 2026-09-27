@@ -6,12 +6,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RETAIL_RUBROS, resolveRubroId, rubroConPerecederos } from "./rubros";
 
-test("venden comida que vence: carnicería, fiambrería, verdulería y dietética; el resto no", () => {
+test("venden comida que vence: carnicería, fiambrería, verdulería, dietética y supermercado; el resto no", () => {
   const conPerecederos = Object.values(RETAIL_RUBROS)
     .filter((r) => r.perecederos)
     .map((r) => r.id)
     .sort();
-  assert.deepEqual(conPerecederos, ["carniceria", "dietetica", "fiambreria", "verduleria"]);
+  assert.deepEqual(conPerecederos, ["carniceria", "dietetica", "fiambreria", "supermercado", "verduleria"]);
 });
 
 test("los negocios reales: MAGRA y sus locales sí; Shine (velas), A Dos Manos (pádel) y CH no", () => {

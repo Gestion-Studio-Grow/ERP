@@ -11,7 +11,28 @@
 // `RETAIL_RUBRO_HINTS` (pistas rubro→blueprint para su `resolveBlueprint`).
 
 import type { Blueprint, PrismaTx } from "../types";
-import { RETAIL_RUBROS, RETAIL_RUBRO_IDS, getRetailRubro, type RetailRubro } from "./rubros";
+import { RETAIL_RUBRO_IDS, getRetailRubro, type RetailRubro, type RetailCatalogItem } from "./rubros";
+import { CATALOGO_SUPERMERCADO } from "./supermercado-catalogo";
+import { sembrarSupermercado } from "./supermercado-semilla";
+
+// Rubros con catálogo semilla GRANDE, en su propio archivo (ver `catalogoAparte` en rubros.ts):
+// su sembrador y su catálogo aplanado.
+const CATALOGOS_APARTE: Record<string, (tx: PrismaTx, tenantId: string) => Promise<boolean>> = {
+  supermercado: sembrarSupermercado,
+};
+
+/**
+ * El catálogo semilla COMPLETO de un rubro (con el que vive aparte). Servidor: arrastra el
+ * catálogo grande. Lo usa, por ejemplo, el aviso de "precios de ejemplo sin cambiar".
+ */
+export function catalogoDelRubro(rubroId: string): RetailCatalogItem[] {
+  if (rubroId === "supermercado") {
+    return CATALOGO_SUPERMERCADO.map((c) =>
+      c.sale === "kg" ? { name: c.name, sale: "kg" as const, pricePerKg: c.pricePerKg, stock: c.stock } : { name: c.name, sale: "u" as const, price: c.price, stock: c.stock },
+    );
+  }
+  return getRetailRubro(rubroId)?.catalog ?? [];
+}
 
 // Capabilities del Core que todo rubro retail usa de forma central (gating efectivo
 // por rol en capabilities.ts; acá es config para la futura activación por tenant).
@@ -22,6 +43,8 @@ const RETAIL_CAPABILITIES = ["catalog:manage", "orders:manage", "clients:manage"
 // (kg → venta por peso; u → por unidad). Idempotente: sólo siembra si el tenant no
 // tiene productos (re-provisionar no pisa lo cargado, ADR-019 §2.b).
 function seederFor(rubro: RetailRubro) {
+  const aparte = CATALOGOS_APARTE[rubro.id];
+  if (aparte) return aparte;
   return async (tx: PrismaTx, tenantId: string): Promise<boolean> => {
     const productCount = await tx.product.count({ where: { tenantId } });
     if (productCount > 0) return false;
@@ -68,6 +91,8 @@ export const RETAIL_BLUEPRINTS: Record<string, Blueprint> = Object.fromEntries(
 // Pistas rubro→blueprint para el `resolveBlueprint(rubro)` del onboarding (keyword
 // match sobre el rubro libre del descubrimiento). Listo para concatenar a sus HINTS.
 export const RETAIL_RUBRO_HINTS: { id: string; keywords: string[] }[] = [
+  // Primero el supermercado: "supermercado con carnicería" es un súper, no una carnicería.
+  { id: "supermercado", keywords: ["supermercado", "supermercados", "minimercado", "minimarket", "hipermercado", "super de barrio", "almacen de barrio", "autoservicio mayorista"] },
   { id: "carniceria", keywords: ["carniceria", "carne", "carnes", "achuras", "pollo", "cerdo", "frigorifico", "granja"] },
   { id: "verduleria", keywords: ["verduleria", "verduras", "verdura", "fruteria", "frutas", "fruta"] },
   { id: "dietetica", keywords: ["dietetica", "almacen natural", "frutos secos", "granel", "organico", "natural"] },

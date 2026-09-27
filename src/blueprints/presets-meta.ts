@@ -51,6 +51,9 @@ const RETAIL_LITE_MODULES_BY_RUBRO: Record<string, string[]> = {
   // La perfumería vive de reponer: compra a proveedores, controla el stock de cada perfume y avisa
   // "últimas unidades" en la vidriera. Sin inventario, "Trabaja por apps" le escondería Compras.
   perfumeria: [...RETAIL_LITE_MODULES, "inventario"],
+  // El supermercado trae de fábrica lo que usa todos los días: la caja con lector y balanza, las
+  // promos automáticas, el stock (compras, vencimientos, mermas) y la facturación.
+  supermercado: [...RETAIL_LITE_MODULES, "inventario", "arca", "caja-rapida", "ofertas"],
 };
 function retailLiteModules(rubroId: string): string[] {
   return RETAIL_LITE_MODULES_BY_RUBRO[rubroId] ?? RETAIL_LITE_MODULES;

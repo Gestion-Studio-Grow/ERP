@@ -11,6 +11,8 @@
 // El negocio los edita. Marcados como provisionales acá y en la doc del blueprint.
 
 import type { TenantBrandingDefaults } from "../types";
+import { SECCIONES_SUPERMERCADO } from "./supermercado-tipos";
+import { seccionDe as seccionSuper } from "@/lib/supermercado/secciones";
 
 // Módulos del blueprint retail (set definido por PO). Cada rubro declara cuáles usa
 // de forma central; hoy es config informativa (feeds la futura activación de pantallas
@@ -96,6 +98,50 @@ export interface RetailRubro {
   brandingDefaults: TenantBrandingDefaults;
   /** Catálogo semilla del rubro. */
   catalog: RetailCatalogItem[];
+  /**
+   * El catálogo semilla es GRANDE y vive en su propio archivo (el del supermercado: 380 productos
+   * con código de barras, IVA y presentación, supermercado-catalogo.ts). Este archivo lo importa
+   * el navegador (vocabulario del negocio): el catálogo no viaja con él. `catalog` queda vacío y
+   * `catalogoDelRubro` (retail/index.ts, servidor) lo junta.
+   */
+  catalogoAparte?: true;
+  /**
+   * La vidriera online del rubro, cuando la de siempre no alcanza (cientos de productos): la
+   * vidriera nueva con buscador y secciones, sin esperar al interruptor «Diseño nuevo». Dice qué
+   * secciones tiene, a cuál va cada producto, cómo se nombra lo que se vende y si cada producto
+   * muestra su precio por kilo o litro (ley de góndolas). Sin esto, la vidriera de siempre.
+   */
+  vidriera?: VidrieraDelRubro;
+  /**
+   * Las secciones del salón (almacén, bebidas, lácteos…), si el rubro las tiene: ordenan la
+   * vidriera, filtran los carteles y eligen "subir los precios de una sección". Sin esto, las
+   * pantallas usan lo de siempre (las góndolas de la carnicería, o nada).
+   */
+  secciones?: SeccionesDelRubro;
+}
+
+/** Ver `RetailRubro.secciones`. */
+export interface SeccionesDelRubro {
+  lista: readonly { id: string; titulo: string }[];
+  /** La sección de un producto: la explícita (`category`) si es válida; si no, por el nombre. */
+  de: (p: { name: string; saleUnit: string; category?: string | null }) => string;
+}
+
+/** Ver `RetailRubro.vidriera`. Dato puro: lo lee el servidor de la tienda y viaja resuelto. */
+export interface VidrieraDelRubro {
+  /** Las secciones de la carta: las del rubro. */
+  secciones: SeccionesDelRubro;
+  palabras: {
+    uno: string;
+    varios: string;
+    buscar: string;
+    carta: string;
+    bolsaVacia: string;
+    notaPlaceholder: string;
+  };
+  /** ¿Cada producto por unidad muestra su precio por kilo, litro o unidad? */
+  precioPorMedida: boolean;
+  entregaPorDefecto: "PICKUP" | "DELIVERY";
 }
 
 // --- Carnicería (rubro de `magra`, primera instancia) ---
@@ -498,6 +544,52 @@ const perfumeria: RetailRubro = {
   ],
 };
 
+const SECCIONES_DEL_SUPER: SeccionesDelRubro = {
+  lista: SECCIONES_SUPERMERCADO.map((x) => ({ id: x.id, titulo: x.nombre })),
+  de: seccionSuper,
+};
+
+// --- Supermercado (de barrio o cadena chica) ---
+// Autoservicio con góndolas, caja con lector de código de barras, balanza con etiqueta en
+// fiambrería, carnicería y verdulería, promos (2×1, 3×2, % por día y medio de pago) y pedido
+// online. Vende perecederos: lotes, vencimientos y mermas de comida. El catálogo semilla
+// (380 productos de ejemplo con EAN-13, IVA y presentación) vive aparte: supermercado-catalogo.ts.
+const supermercado: RetailRubro = {
+  id: "supermercado",
+  perecederos: true,
+  label: "Supermercado",
+  wording: {
+    catalogHeading: "Nuestra góndola",
+    itemNoun: "producto",
+    heroTagline: "El súper del barrio, online: armá tu compra y pasá a buscarla o te la llevamos.",
+    orderCta: "Hacer el pedido",
+    weightNote: "Lo que se vende por peso se ajusta al peso real cuando armamos tu pedido.",
+    notesPlaceholder: "ej: si falta algo, qué lo reemplaza; horario para recibir",
+  },
+  modules: ["pos", "stock", "venta-peso", "venta-unidad", "proveedores", "listas-precio", "cuenta-corriente"],
+  brandingDefaults: {
+    shortLabel: "Supermercado de barrio",
+    hoursLabel: "Lun a sáb · 8 a 21 h · dom · 9 a 13 h",
+    contactNote: "Almacén, frescos, carnicería y verdulería. Pedí online y retirá o te lo llevamos.",
+  },
+  catalog: [],
+  catalogoAparte: true,
+  secciones: SECCIONES_DEL_SUPER,
+  vidriera: {
+    secciones: SECCIONES_DEL_SUPER,
+    palabras: {
+      uno: "producto",
+      varios: "productos",
+      buscar: "Buscar un producto o una marca",
+      carta: "Las góndolas",
+      bolsaVacia: "Sumá productos con el «+». Lo que va por kilo se pesa cuando armamos tu pedido.",
+      notaPlaceholder: "Si falta algo, qué lo reemplaza; horario para recibir",
+    },
+    precioPorMedida: true,
+    entregaPorDefecto: "PICKUP",
+  },
+};
+
 export const RETAIL_RUBROS: Record<string, RetailRubro> = {
   carniceria,
   verduleria,
@@ -508,6 +600,7 @@ export const RETAIL_RUBROS: Record<string, RetailRubro> = {
   velas,
   padel,
   perfumeria,
+  supermercado,
 };
 
 export const RETAIL_RUBRO_IDS = Object.keys(RETAIL_RUBROS);

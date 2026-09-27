@@ -16,6 +16,7 @@
 // una verdulería o una tienda de velas, el chequeo funciona igual sin tocar este archivo.
 
 import { getRetailRubro, resolveRubroId } from "@/blueprints/retail/rubros";
+import { catalogoDelRubro } from "@/blueprints/retail";
 
 /** Modo ARCA de la PLATAFORMA (env), no del tenant. `modoDesdeEnv()` del plugin. */
 export type ModoArcaPlataforma = "stub" | "homologacion" | "real";
@@ -174,8 +175,9 @@ export function catalogoSemillaDe(
 ): { name: string; precio: number }[] | null {
   const rubroId = resolveRubroId({ blueprintId: e.blueprintId, slug: e.slug });
   const rubro = rubroId ? getRetailRubro(rubroId) : null;
-  if (!rubro) return null;
-  return rubro.catalog.map((c) => ({
+  if (!rubro || !rubroId) return null;
+  // Con el catálogo que vive aparte (el del supermercado), no sólo el de rubros.ts.
+  return catalogoDelRubro(rubroId).map((c) => ({
     name: c.name,
     precio: c.sale === "kg" ? c.pricePerKg : c.price,
   }));
