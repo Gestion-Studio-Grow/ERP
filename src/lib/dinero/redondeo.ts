@@ -9,6 +9,8 @@
  * R3 · Una suma de renglones redondea cada renglón y suma exacto (`sumarAlCentavo`).
  * R4 · El porcentaje de un importe (`porcentajeDe`) se redondea UNA vez, desde el valor
  *      exacto, a la unidad que se pida (peso o centavo): nunca centavo primero y peso después.
+ * R5 · Una proporción entera de un importe (`proporcionAlCentavo`: el precio por litro de una
+ *      botella, la parte de un descuento) se redondea UNA vez, en enteros.
  *
  * Sin importaciones, a propósito: lo usan pantallas del navegador y el plugin ARCA
  * (que no puede traer el resto del Core, ADR-022). `redondeo.test.ts` lo verifica.
@@ -117,6 +119,29 @@ export function porcentajeDe(base: number, porcentaje: number, unidad: UnidadDeR
   if (cociente === 0) return 0;
   const redondeado = unidad === "peso" ? cociente : cociente / 100;
   return producto < 0 ? -redondeado : redondeado;
+}
+
+/**
+ * R5: la parte `numerador / denominador` de un importe, redondeada UNA vez al centavo (R1: medio
+ * centavo hacia arriba, lejos del cero). Numerador y denominador son ENTEROS (gramos, mililitros,
+ * unidades de una promo, centavos de una proporción): la cuenta va en enteros y no arrastra el
+ * error del binario. $1.299 por 900 ml da $1.443,33 el litro (129900 × 1000 / 900 = 144333,3…).
+ * Si el producto no entra entero en un `number`, la hace en binario con R7. Lo que no es número
+ * pasa sin cambios, como en el resto del módulo; numerador o denominador que no son enteros
+ * válidos son un error de quien llama.
+ */
+export function proporcionAlCentavo(importe: number, numerador: number, denominador: number): number {
+  if (!Number.isInteger(numerador) || numerador < 0 || !Number.isInteger(denominador) || denominador <= 0) {
+    throw new RangeError(`Proporción inválida: ${numerador}/${denominador}.`);
+  }
+  if (!Number.isFinite(importe)) return (importe * numerador) / denominador;
+  const centavos = centavosDe(importe);
+  const producto = Math.abs(centavos) * numerador;
+  if (!Number.isSafeInteger(producto)) return redondearAlCentavo((importe * numerador) / denominador);
+  const resto = producto % denominador;
+  const cociente = (producto - resto) / denominador + (2 * resto >= denominador ? 1 : 0);
+  if (cociente === 0) return 0;
+  return (centavos < 0 ? -cociente : cociente) / 100;
 }
 
 /**

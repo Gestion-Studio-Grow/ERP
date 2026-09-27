@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import {
   admiteCentavos,
   centavosDe,
+  proporcionAlCentavo,
   redondearAlCentavo,
   sumarAlCentavo,
   textoAlCentavo,
@@ -226,4 +227,23 @@ test("en el camino de la plata fiscal no queda redondeo a mano fuera de este mó
       });
   }
   assert.deepEqual(conRedondeo, []);
+});
+
+test("R5 proporción entera: $1.299 por 900 ml da $1.443,33 el litro y medio centavo va hacia arriba", () => {
+  assert.equal(proporcionAlCentavo(1299, 1000, 900), 1443.33);
+  // 0,01 × 1 / 2 = medio centavo → 0,01 (lejos del cero); −0,01 × 1 / 2 → −0,01.
+  assert.equal(proporcionAlCentavo(0.01, 1, 2), 0.01);
+  assert.equal(proporcionAlCentavo(-0.01, 1, 2), -0.01);
+  // 0,01 × 1 / 3 → 0 (nunca −0).
+  assert.equal(Object.is(proporcionAlCentavo(-0.01, 1, 3), 0), true);
+  // Lo exacto no se mueve: $3.500 × 1 / 2 = $1.750.
+  assert.equal(proporcionAlCentavo(3500, 1, 2), 1750);
+  // Barrido: todo precio de $0,01 a $200 dividido por 3 queda a menos de medio centavo del exacto.
+  for (let c = 1; c <= 20000; c++) {
+    const r = proporcionAlCentavo(c / 100, 1, 3);
+    assert.ok(Math.abs(r * 300 - c) <= 1.5 + 1e-9, `c=${c} r=${r}`);
+  }
+  assert.throws(() => proporcionAlCentavo(10, 1.5, 3), RangeError);
+  assert.throws(() => proporcionAlCentavo(10, 1, 0), RangeError);
+  assert.ok(Number.isNaN(proporcionAlCentavo(Number.NaN, 1, 2)));
 });
