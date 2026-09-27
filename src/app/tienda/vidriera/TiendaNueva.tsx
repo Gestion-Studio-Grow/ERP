@@ -20,6 +20,7 @@ import s from "./vidriera.module.css";
 import Vidriera, { type DatosVidriera, type SeccionVista } from "./Vidriera";
 import { ConsejoDePala } from "./ConsejoDePala";
 import { IconoWhatsApp } from "./Iconos";
+import VelaDiferida from "../shine/VelaDiferida";
 import { CONFIG, marcaDeLaVidriera, seccionDe, type MarcaId } from "./marcas";
 import { leerFiltros, marcaYModelo, plata, precioDe, type ProductoVidriera } from "./catalogo-core";
 import { buildWhatsAppHref, sanitizePhone } from "@/lib/whatsapp-cta";
@@ -399,12 +400,16 @@ function PortadaShine({ copy, e, whatsapp }: Ctx) {
   const hero = e.imagery?.heroImage ?? null;
   return (
     <section id="top" className={s.portadaSangre}>
+      {/* En el celular la foto (y la vela) ganan alto; la franja de la etiqueta deja pasar el toque. */}
+      <style>{ESCENARIO_SHINE}</style>
       {hero && (
-        <div className={s.sangreFoto}>
+        <div className={`${s.sangreFoto} shv-escenario`}>
           <Image src={hero} alt="Velas de soja encendidas en un living" fill priority fetchPriority="high" sizes="100vw" />
+          {/* La vela 3D (chunk aparte, después del LCP): se funde sobre la foto cuando está lista. */}
+          <VelaDiferida aromas={copy?.gourmetItems ?? []} encuadre="sangre" />
         </div>
       )}
-      <div className={`${s.env} ${s.portadaSangreEnv}`}>
+      <div className={`${s.env} ${s.portadaSangreEnv} shv-paso`}>
         <div className={s.portadaEtiqueta}>
           <span className={s.kicker}>{copy?.eyebrow}</span>
           <h1 className={`${s.titulo} ${s.portadaH1}`}>{copy?.tagline}</h1>
@@ -425,6 +430,13 @@ function PortadaShine({ copy, e, whatsapp }: Ctx) {
     </section>
   );
 }
+
+// Sólo en la portada de Shine (se escribe en su HTML, no en el CSS que comparten las vidrieras).
+const ESCENARIO_SHINE = `
+.shv-paso{pointer-events:none}
+.shv-paso>*{pointer-events:auto}
+@media (max-width:719px){.shv-escenario{height:min(104vw,440px)}}
+`;
 
 function PortadaAdm({ copy, whatsapp, productos, seccionDeProducto, marcaDe, marcasPresentes }: Ctx) {
   const palas = productos.filter((p) => seccionDeProducto[p.id] === "palas" && precioDe(p) > 0);

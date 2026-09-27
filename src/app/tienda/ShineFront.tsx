@@ -11,6 +11,7 @@ import { nuevaClaveDePedido, etiquetaDeDisponibilidad, type Disponibilidad } fro
 import type { StorefrontCopy } from "@/tenants/storefront";
 import type { TenantImagery } from "@/lib/tenant-layout";
 import { usePrefersReducedMotion } from "@/lib/use-reduced-motion";
+import VelaDiferida from "./shine/VelaDiferida";
 
 // ── VIDRIERA SHINE — front público editorial LUMINOSO (manual de marca Shine 2026).
 // "Que tu luz nunca se apague": velas aromáticas + aromas + deco. Es la CONTRACARA de
@@ -240,6 +241,8 @@ function ShineContent({
               ) : (
                 <div aria-hidden className="sh-hero-fallback" />
               )}
+              {/* La vela 3D (chunk aparte, después del LCP): se funde sobre la foto cuando está lista. */}
+              <VelaDiferida aromas={copy.gourmetItems} encuadre="columna" />
               <div aria-hidden className="sh-hero-veil" />
               <div aria-hidden className="sh-hero-halo" />
               <Seal size={116} />
@@ -727,7 +730,8 @@ const CSS = `
 .shine .sh-hero{position:relative;min-height:80vh;display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);align-items:stretch}
 @media(max-width:900px){.shine .sh-hero{grid-template-columns:minmax(0,1fr);min-height:auto}}
 .shine .sh-hero-visual{position:relative;order:2;min-width:0;min-height:80vh;background:var(--blush)}
-@media(max-width:900px){.shine .sh-hero-visual{order:1;min-height:0;width:100%;aspect-ratio:16/11}}
+/* Celular: la foto (y la vela 3D que se funde encima) cuadrada, para que entren la vela y sus mandos. */
+@media(max-width:900px){.shine .sh-hero-visual{order:1;min-height:0;width:100%;aspect-ratio:1/1;max-height:560px}}
 .shine .sh-hero-img{object-fit:cover}
 .shine .sh-hero-fallback{position:absolute;inset:0;background:radial-gradient(60% 55% at 55% 42%,var(--nude),var(--malva) 60%,var(--vino))}
 .shine .sh-hero-veil{position:absolute;inset:0;background:linear-gradient(90deg,rgba(243,235,225,.9),rgba(243,235,225,.15) 30%,transparent 55%),linear-gradient(0deg,rgba(103,17,40,.16),transparent 40%)}
