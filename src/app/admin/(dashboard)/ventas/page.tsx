@@ -7,6 +7,7 @@ import { alcanceDeAnulacion, roleHasCapability } from "@/lib/capabilities";
 import { businessWallTimeToUtc, fmtShortDate, fmtTime, todayInBusinessTz } from "@/lib/datetime";
 import { nextDayKey } from "@/lib/caja/cierre-diario";
 import { MEDIOS_DE_COBRO } from "@/lib/caja/medio-cobro";
+import { ACCION_PROMOS_DE_LA_VENTA } from "@/lib/supermercado/marcas";
 import {
   whereVentasCobradas,
   whereVentasAnuladas,
@@ -68,6 +69,8 @@ const SELECT_VENTA = {
     select: { productId: true, name: true, saleUnit: true, quantity: true, unitPrice: true, lineTotal: true },
     orderBy: { id: "asc" },
   },
+  // Los cobros de una venta con varios medios (supermercado/pago-mixto-tx.ts); vacío en las demás.
+  collections: { where: { originType: "ORDER" }, select: { method: true, amount: true }, orderBy: { id: "asc" } },
 } satisfies Prisma.OrderSelect;
 
 export default async function VentasPage({
@@ -130,9 +133,15 @@ export default async function VentasPage({
           tenantId,
           entity: "Order",
           entityId: { in: ids },
-          OR: [{ action: "create" }, { action: "update", changes: { path: ["status"], equals: "CANCELLED" } }],
+          OR: [
+            { action: "create" },
+            { action: "update", changes: { path: ["status"], equals: "CANCELLED" } },
+            // Las promos automáticas que aplicó la caja con lector (el ticket las muestra).
+            { action: ACCION_PROMOS_DE_LA_VENTA },
+          ],
         },
         select: { entityId: true, action: true, actor: true, changes: true },
+        orderBy: { createdAt: "asc" },
       })
     : [];
   const rastrosPorVenta = new Map<string, typeof rastros>();
@@ -140,9 +149,14 @@ export default async function VentasPage({
     if (!r.entityId) continue;
     rastrosPorVenta.set(r.entityId, [...(rastrosPorVenta.get(r.entityId) ?? []), r]);
   }
+  // La venta como la lee el ticket, con la fila de sus promos si la tiene (la última: al pesar un
+  // pedido las promos se vuelven a aplicar y queda una fila nueva).
+  const ventaConPromos = (o: (typeof vigentes)[number]) =>
+    ventaDeOrden({ ...o, promos: [...(rastrosPorVenta.get(o.id) ?? [])].reverse().find((r) => r.action === ACCION_PROMOS_DE_LA_VENTA)?.changes });
   const notasDe = (o: { id: string; subtotal: number; discount: number }): string[] => {
     const out: string[] = [];
     for (const r of rastrosPorVenta.get(o.id) ?? []) {
+      if (r.action === ACCION_PROMOS_DE_LA_VENTA) continue;
       if (r.action === "update") {
         const a = leerAnulacion(r, nombres);
         out.push(`Anuló ${a.quien}${a.motivo ? `: ${a.motivo}` : ""}.`);
@@ -205,7 +219,7 @@ export default async function VentasPage({
   if (nuevo) {
     const RUTA = "/admin/ventas";
     const filas: FilaDeVenta[] = lista.map((o) => {
-      const venta = ventaDeOrden(o);
+      const venta = ventaConPromos(o);
       return {
         venta,
         hora: fmtTime(o.createdAt),
@@ -436,7 +450,7 @@ export default async function VentasPage({
         <>
           <ul className="space-y-3">
             {lista.map((o) => {
-              const venta = ventaDeOrden(o);
+              const venta = ventaConPromos(o);
               return (
                 <FilaVenta
                   key={o.id}

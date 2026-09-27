@@ -220,7 +220,7 @@ export async function getCierreDiarioData(
       orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
       select: {
         id: true, occurredAt: true, type: true, method: true,
-        amount: true, reason: true, orderId: true, collectionId: true,
+        amount: true, reason: true, orderId: true, collectionId: true, createdBy: true,
         // El ORIGEN del cobro, no sólo su id: es lo que separa un cobro de fiado de un
         // cobro de turno en el resumen del cierre (ver CierreMovement).
         collection: { select: { originType: true } },
@@ -269,7 +269,7 @@ export async function getCierreDiarioData(
       method: r.method as CashMethod,
       amount: r.amount,
       detail: r.reason ?? "",
-      origin: libroOrigin({ type: r.type as CashMovementType, orderId: r.orderId }),
+      origin: libroOrigin({ type: r.type as CashMovementType, orderId: r.orderId, createdBy: r.createdBy }),
     })),
     yaCerrado: false,
     enElFuturo: compareDayKeys(day, today) > 0,

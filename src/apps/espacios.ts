@@ -56,7 +56,7 @@ export const ESPACIOS: readonly EspacioMeta[] = [
     nombre: "Mostrador",
     nombreEnServicios: "Recepción",
     enInicio: true,
-    apps: ["vender", "pedidos", "ventas-del-dia", "agenda", "confirmar-manana", "lista-de-espera", "tienda-online", "devoluciones-y-cambios"],
+    apps: ["vender", "caja-rapida", "pedidos", "ventas-del-dia", "agenda", "confirmar-manana", "lista-de-espera", "tienda-online", "devoluciones-y-cambios"],
   },
   { id: "caja", nombre: "Caja", enInicio: true, apps: ["caja-del-dia", "cierre-del-dia", "libro-de-caja"] },
   {
@@ -69,14 +69,14 @@ export const ESPACIOS: readonly EspacioMeta[] = [
     id: "precios",
     nombre: "Catálogo y precios",
     enInicio: true,
-    apps: ["catalogo", "actualizar-precios", "etiquetas-de-precio", "promociones", "listas-de-precio"],
+    apps: ["catalogo", "actualizar-precios", "etiquetas-de-precio", "promociones", "ofertas", "listas-de-precio"],
   },
   {
     id: "stock",
     nombre: "Stock y compras",
     enInicio: true,
     apps: [
-      "inventario", "movimientos", "recuento", "mermas", "recibir-mercaderia", "proveedores", "sugerido-de-compra",
+      "inventario", "movimientos", "recuento", "mermas", "recibir-mercaderia", "proveedores", "listas-de-proveedores", "sugerido-de-compra",
       "devoluciones-a-proveedor", "lotes-y-vencimientos", "despiece", "pedidos-a-proveedor", "talles-y-colores",
     ],
   },
@@ -201,7 +201,7 @@ export const ESPACIOS_NAV: readonly EspacioNav[] = [
     nombreEnServicios: "Recepción",
     objetivo: "Atender y cobrar",
     apps: [
-      "vender", "agenda", "pedidos", "ventas-del-dia", "confirmar-manana", "lista-de-espera", "vales-de-regalo",
+      "vender", "caja-rapida", "agenda", "pedidos", "ventas-del-dia", "confirmar-manana", "lista-de-espera", "vales-de-regalo",
       "paquetes-y-abonos", "devoluciones-y-cambios", "presupuestos", "envios-y-reparto", "tienda-online", "huecos-de-la-semana",
     ],
   },
@@ -232,7 +232,7 @@ export const ESPACIOS_NAV: readonly EspacioNav[] = [
     nombre: "Catálogo y precios",
     rotulo: "Catálogo",
     objetivo: "Qué vendo y a cuánto",
-    apps: ["catalogo", "actualizar-precios", "etiquetas-de-precio", "promociones", "listas-de-precio", "precio-segun-como-paga", "kits-y-sets", "lista-para-compartir"],
+    apps: ["catalogo", "actualizar-precios", "etiquetas-de-precio", "promociones", "ofertas", "listas-de-precio", "precio-segun-como-paga", "kits-y-sets", "lista-para-compartir"],
   },
   {
     id: "stock",
@@ -246,7 +246,7 @@ export const ESPACIOS_NAV: readonly EspacioNav[] = [
     rotulo: "Compras",
     objetivo: "Pedir, recibir y pagar",
     apps: [
-      "recibir-mercaderia", "proveedores", "sugerido-de-compra", "cuentas-a-pagar", "devoluciones-a-proveedor", "recibir-traslado",
+      "recibir-mercaderia", "proveedores", "listas-de-proveedores", "sugerido-de-compra", "cuentas-a-pagar", "devoluciones-a-proveedor", "recibir-traslado",
       "fechas-que-venden", "pedidos-a-proveedor",
     ],
   },

@@ -15,6 +15,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { ENTIDAD_PERMISO } from "./crm/reglas";
 import { ENTIDAD_INTERRUPTOR } from "../cambios/interruptores";
 import { ENTIDAD_REGIMEN_FACTURA_A } from "./fiscal/regimen-factura-a";
+import { ENTIDAD_CONFIG_CAJA, ENTIDAD_LISTA_PROVEEDOR, ENTIDAD_PROMOCION } from "./supermercado/marcas";
 
 // Entidades de `AuditLog` que la purga nunca borra (ver el comentario en `purgeAuditLogs`).
 // Se definen acá y no se importan de `frontera-cierre.ts` a propósito: ese módulo trae el
@@ -30,6 +31,11 @@ export const PURGE_EXEMPT_ENTITIES = [
   ENTIDAD_PERMISO,
   ENTIDAD_INTERRUPTOR,
   ENTIDAD_REGIMEN_FACTURA_A,
+  // Configuración del supermercado guardada como fila vigente (supermercado/marcas.ts): purgada,
+  // una promo, la configuración de la caja o la lista de un proveedor desaparecerían solas.
+  ENTIDAD_PROMOCION,
+  ENTIDAD_CONFIG_CAJA,
+  ENTIDAD_LISTA_PROVEEDOR,
 ] as const;
 
 /** @deprecated Usar `PURGE_EXEMPT_ENTITIES`. Se conserva por compatibilidad de llamadores. */

@@ -27,6 +27,7 @@ import { ANULACION_VENTA_ACTOR_PREFIX } from "@/lib/order-anulacion";
 import { APERTURA_TURNO_ACTOR_PREFIX, ARQUEO_TURNO_ACTOR_PREFIX, CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marca";
 import { CORTE_INICIAL_ACTOR_PREFIX } from "@/lib/caja/corte-inicial";
 import { IMPORT_ACTOR_PREFIX } from "@/lib/caja/import-caja";
+import { PAGO_MIXTO_ACTOR_PREFIX, esAsientoDePagoMixto } from "@/lib/supermercado/marcas";
 // Ciclo de imports: asiento-libro → cierre-diario → este archivo. Por eso la marca de cuenta
 // corriente se LEE dentro de las funciones (`marcasDelSistema`, `motivoParaNoBorrar`), nunca
 // al cargar el módulo.
@@ -73,9 +74,11 @@ export type LibroMovement = {
 // libro-caja-actions.ts): con `orderId` es una venta del mostrador (cash-sale.ts); sin
 // `orderId` es un cobro de turno (cobro-turno.ts, rastro por `paymentId`). Derivarlo así
 // evita leer `paymentId` en la pantalla, que tiene su migración escrita y sin aplicar.
-export function libroOrigin(m: { type: CashMovementType; orderId?: string | null }): LibroOrigin {
+export function libroOrigin(m: { type: CashMovementType; orderId?: string | null; createdBy?: string | null }): LibroOrigin {
   if (m.type !== "VENTA") return "manual";
-  return m.orderId ? "pos" : "turno";
+  // Una venta cobrada con varios medios asienta cada medio colgado de su cobro, sin `orderId`
+  // (supermercado/pago-mixto-tx.ts): su marca dice que es del mostrador, no de un turno.
+  return m.orderId || esAsientoDePagoMixto(m) ? "pos" : "turno";
 }
 
 export const LIBRO_ORIGIN_LABEL: Record<Exclude<LibroOrigin, "manual">, string> = {
@@ -193,6 +196,8 @@ function marcasDelSistema(): readonly {
     }, // collectionId
     { prefijo: COMISION_ACTOR_PREFIX, origen: "comision", referenciaEnMarca: true }, // payoutId
     { prefijo: ANULACION_VENTA_ACTOR_PREFIX, origen: "anulacion", referenciaEnMarca: false },
+    // Cada medio de una venta cobrada con varios medios: `venta-pago-mixto:<orderId>`.
+    { prefijo: PAGO_MIXTO_ACTOR_PREFIX, origen: "venta-mostrador", referenciaEnMarca: true }, // orderId
     { prefijo: ANULACION_TURNO_ACTOR_PREFIX, origen: "anulacion", referenciaEnMarca: false },
     { prefijo: CIERRE_DIARIO_ACTOR_PREFIX, origen: "diferencia-caja", referenciaEnMarca: true }, // día
     { prefijo: ARQUEO_TURNO_ACTOR_PREFIX, origen: "diferencia-caja", referenciaEnMarca: true }, // sessionId
@@ -259,7 +264,12 @@ export function origenContable(m: FilaParaOrigen): OrigenContable {
  * candado de día cerrado va aparte, porque depende de la frontera del cierre.
  */
 export function motivoParaNoBorrar(m: { type: CashMovementType; orderId?: string | null; createdBy?: string | null }): string | null {
-  const origen = libroOrigin({ type: m.type, orderId: m.orderId });
+  const origen = libroOrigin({ type: m.type, orderId: m.orderId, createdBy: m.createdBy });
+  // La reversa de una venta anulada, también cuando la venta se cobró con varios medios (la
+  // reversa de cada medio cuelga de su cobro y no lleva `orderId`).
+  if (String(m.createdBy ?? "").startsWith(ANULACION_VENTA_ACTOR_PREFIX)) {
+    return "Ese egreso lo asentó la anulación de una venta. No se borra desde el libro: si la anulación estuvo mal, cargá una corrección con la fecha de hoy.";
+  }
   if (origen === "turno") {
     return `Ese movimiento es un ${LIBRO_ORIGIN_LABEL.turno.toLowerCase()}: lo registró el sistema al confirmar el pago. Si está mal, corregilo desde Turnos, no desde el libro.`;
   }

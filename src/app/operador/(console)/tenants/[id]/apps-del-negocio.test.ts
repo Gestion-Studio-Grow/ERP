@@ -69,8 +69,8 @@ test("activar inventario en magra: con el Inicio por apps gana Stock y las apps 
   const v = vistaPreviaDeCambio(MAGRA, { accion: "activar", modulo: "inventario" }, SIN_PILOTO, cat);
   assert.ok(v.ok);
   // La lista EXACTA, en el orden del espacio: las de la ola 1, las que sumó el frente de stock
-  // en la ola 2 (Movimientos, Recuento y Proveedores) y el Sugerido de compra de la ola 3,
-  // todas colgando de `inventario`.
+  // en la ola 2 (Movimientos, Recuento y Proveedores), el Sugerido de compra de la ola 3 y las
+  // Listas de proveedores (frente supermercado), todas colgando de `inventario`.
   assert.deepEqual(ids(v.conInicio.gana), [
     "inventario",
     "movimientos",
@@ -78,6 +78,7 @@ test("activar inventario en magra: con el Inicio por apps gana Stock y las apps 
     "mermas",
     "recibir-mercaderia",
     "proveedores",
+    "listas-de-proveedores",
     "sugerido-de-compra",
     "lotes-y-vencimientos",
     "despiece",
@@ -234,12 +235,14 @@ test("magra hoy: fuera del Inicio por apps, y con su asignación perdería apps 
   // La lista EXACTA: una app de más acá es una pantalla que magra dejaría de ver sin que nadie
   // lo decida. Fuera de stock, Campañas, Facturación automática y Retenciones (las dos de
   // bancos); de stock, las de la ola 1, las que sumó el frente de stock en la ola 2
-  // (Movimientos, Recuento y Proveedores) y el Sugerido de compra de la ola 3.
+  // (Movimientos, Recuento y Proveedores), el Sugerido de compra de la ola 3 y las Listas de
+  // proveedores (frente supermercado).
   assert.deepEqual(ids(pierde).sort(), [
     "campanias",
     "despiece",
     "facturacion-automatica",
     "inventario",
+    "listas-de-proveedores",
     "lotes-y-vencimientos",
     "mermas",
     "movimientos",

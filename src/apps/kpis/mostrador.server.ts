@@ -27,6 +27,7 @@ import {
 } from "@/lib/order-anulacion";
 import { fmtMoneyARS, fmtNumberAR } from "@/components/ui/format";
 import { plural, type DatoKpi, type LoaderKpi } from "./nucleo.server";
+import { cajaRapida } from "./supermercado.server";
 
 // ── Pedidos para preparar ────────────────────────────────────────────────────
 
@@ -159,4 +160,6 @@ export const LOADERS_MOSTRADOR: Readonly<Record<string, LoaderKpi>> = {
   pedidos,
   vender,
   "ventas-del-dia": ventasDelDia,
+  // Caja con lector (supermercado): el loader vive con los del súper.
+  "caja-rapida": cajaRapida,
 };

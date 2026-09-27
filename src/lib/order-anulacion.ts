@@ -61,6 +61,9 @@ import {
 } from "@/lib/venta-reglas";
 import type { AlcanceDeAnulacion } from "@/lib/capabilities";
 import type { Prisma } from "@/generated/prisma/client";
+import { aplicarPromociones, type ContextoDePromo, type Promocion } from "@/lib/supermercado/promociones";
+import { reemplazarPromocionesDeLaVentaEnTx } from "@/lib/supermercado/promos-de-la-venta";
+import type { PromosDeLaVenta } from "@/lib/order-core";
 
 export type AnulacionVentaTx = Prisma.TransactionClient;
 
@@ -180,7 +183,8 @@ export function fronteraDeVenta(input: {
  */
 export type ContextoDeCobro =
   | "alta" // el POS, cobrando una venta nueva
-  | "cobro"; // la bandeja, cobrando un pedido que ya estaba tomado
+  | "cobro" // la bandeja, cobrando un pedido que ya estaba tomado
+  | "caja-con-lector"; // la caja del súper: no tiene «Cobrado» para destildar
 
 export function mensajeVentaEnDiaCerrado(
   hoy: DayKey,
@@ -192,8 +196,11 @@ export function mensajeVentaEnDiaCerrado(
     contexto === "alta"
       ? `Destildá «Cobrado» para dejar la venta registrada y marcala cobrada el ${formatDayLabel(abierto)}, ` +
         `cuando la caja vuelva a estar abierta.`
-      : `Dejá el pedido sin cobrar y marcalo cobrado el ${formatDayLabel(abierto)}, cuando la caja vuelva ` +
-        `a estar abierta: la mercadería se entrega igual.`;
+      : contexto === "caja-con-lector"
+        ? `Esta caja vuelve a cobrar el ${formatDayLabel(abierto)}. Si hay que vender igual, cargá la venta en ` +
+          `Vender sin tildar «Cobrado» y marcala cobrada el ${formatDayLabel(abierto)}.`
+        : `Dejá el pedido sin cobrar y marcalo cobrado el ${formatDayLabel(abierto)}, cuando la caja vuelva ` +
+          `a estar abierta: la mercadería se entrega igual.`;
   return (
     `El día de caja ya está cerrado (último cierre: ${formatDayLabel(cerradoHasta)}), así que una venta ` +
     `cobrada del ${formatDayLabel(hoy)} no puede entrar al libro sin descuadrar el arqueo que ya se firmó. ` +
@@ -363,6 +370,7 @@ export async function anularVentaInTx(
       id: true,
       code: true,
       status: true,
+      paid: true,
       createdAt: true,
       items: {
         select: {
@@ -377,12 +385,26 @@ export async function anularVentaInTx(
 
   // El asiento original se busca ANTES de decidir: su `occurredAt` —no el `createdAt` del
   // pedido— es la FECHA CONTABLE que define si el día está cerrado.
-  const leerAsiento = () =>
-    tx.cashMovement.findFirst({
+  //
+  // Una venta cobrada con VARIOS medios (supermercado/pago-mixto-tx.ts) no tiene un asiento con
+  // `orderId`: tiene uno por medio, colgado de su cobro. Se leen todos; el primero da la fecha
+  // (se asientan juntos, en la transacción del alta) y cada uno se revierte con su contrapartida.
+  const leerAsientos = async () => {
+    const unico = await tx.cashMovement.findFirst({
       where: { tenantId, orderId: args.orderId, type: "VENTA" },
-      select: { id: true, occurredAt: true, sessionId: true, method: true, amount: true },
+      select: { id: true, occurredAt: true, sessionId: true, method: true, amount: true, collectionId: true },
     });
-  type Asiento = Awaited<ReturnType<typeof leerAsiento>>;
+    // Los asientos por medio sólo existen en una venta que nació cobrada (el alta de la caja con
+    // lector): un pedido sin cobrar, o a cuenta, no los tiene y no se buscan.
+    if (unico || !order?.paid) return unico ? [unico] : [];
+    return tx.cashMovement.findMany({
+      where: { tenantId, type: "VENTA", orderId: null, collection: { is: { tenantId, orderId: args.orderId, originType: "ORDER" } } },
+      orderBy: { id: "asc" },
+      select: { id: true, occurredAt: true, sessionId: true, method: true, amount: true, collectionId: true },
+    });
+  };
+  type Asiento = Awaited<ReturnType<typeof leerAsientos>>[number] | null;
+  const leerAsiento = async (): Promise<Asiento> => (await leerAsientos())[0] ?? null;
 
   // ENG-023: la factura de la venta, por su enlace (`Invoice.orderId`) y dentro del negocio.
   const leerFactura = async () =>
@@ -444,7 +466,7 @@ export async function anularVentaInTx(
   // es un hecho histórico, y el par VENTA + EGRESO ya cuenta la historia completa.
   let reversaId: string | null = null;
   let montoRevertido = 0;
-  if (asiento) {
+  if (asiento && asiento.collectionId == null) {
     const mov = await tx.cashMovement.create({
       data: {
         tenantId,
@@ -461,6 +483,29 @@ export async function anularVentaInTx(
     });
     reversaId = mov.id;
     montoRevertido = round2(asiento.amount);
+  } else if (asiento) {
+    // PAGO MIXTO: una contrapartida por medio, colgada del MISMO cobro (`@@unique(tenantId,
+    // collectionId, type)` es el árbitro de la carrera, como el de `orderId` en la venta de un
+    // medio). Sin `orderId`: ése admite un solo EGRESO por pedido. La marca de la anulación la
+    // protege en el libro (libro-caja.ts, `motivoParaNoBorrar`).
+    for (const a of await leerAsientos()) {
+      const mov = await tx.cashMovement.create({
+        data: {
+          tenantId,
+          sessionId: a.sessionId,
+          type: "EGRESO",
+          method: a.method,
+          amount: round2(a.amount),
+          reason: detalleReversaVenta(order!.code, args.motivo),
+          occurredAt: a.occurredAt,
+          collectionId: a.collectionId,
+          createdBy: `${ANULACION_VENTA_ACTOR_PREFIX}${args.actor}`,
+        },
+        select: { id: true },
+      });
+      reversaId ??= mov.id;
+      montoRevertido = round2(montoRevertido + a.amount);
+    }
   }
 
   // (3) Los kilos vuelven. Sólo de los productos con control de stock, igual que la venta.
@@ -758,6 +803,13 @@ export type AjustarPedidoArgs = {
    * `insertOrder` recibe la lista ya decidida: acá se ejecuta, no se infiere la excepción.
    */
   permiteNegativo: (saleUnit: string) => boolean;
+  /**
+   * Las ofertas del negocio para este pedido (supermercado/promos-del-negocio.ts). Con ellas, las
+   * líneas pesadas vuelven a llevar su promo en el renglón, como en el alta. `null`: el negocio
+   * tiene Ofertas pero hoy no vale ninguna (si el pedido tenía promos, el ticket las pierde).
+   * `undefined`: el negocio no usa Ofertas; ni se miran.
+   */
+  promociones?: { vigentes: readonly Promocion[]; contexto: ContextoDePromo; seccionPorProducto: Readonly<Record<string, string>> } | null;
 };
 
 export type AjustarPedidoResult = {
@@ -836,11 +888,15 @@ export async function ajustarPedidoInTx(
     : [];
   // El precio es el del PEDIDO (el snapshot), no el del catálogo de hoy; y las líneas con
   // precio a mano se conservan. El porqué, en `lineasDelAjuste`.
-  const { lineas: lines, aMano } = lineasDelAjuste(
+  const ajuste = lineasDelAjuste(
     order?.items ?? [],
     products.map((p) => ({ ...p, vendible: p.active && p.deletedAt == null })),
     args.pedidas,
   );
+  const { aMano } = ajuste;
+  // Las ofertas vuelven a aplicarse sobre lo pesado (el mismo motor que el alta).
+  const conPromos = args.promociones ? lineasConPromociones(ajuste.lineas, args.promociones) : null;
+  const lines = conPromos?.lineas ?? ajuste.lineas;
 
   const plan = planEdicionDeLineas({
     existe: Boolean(order),
@@ -928,6 +984,9 @@ export async function ajustarPedidoInTx(
       })),
     ],
   });
+
+  // Las promos que quedaron después de pesar, para el ticket (una fila nueva: manda la última).
+  if (args.promociones !== undefined) await reemplazarPromocionesDeLaVentaEnTx(tx, { tenantId, orderId: id, promos: conPromos?.promos ?? null });
 
   // El descuento a mano conserva el % con el que se cargó la venta; el cupón, su regla
   // (`totalesDelAjuste`).
@@ -1391,5 +1450,39 @@ export function resumirAnulaciones(
     cantidad: leidas.length,
     monto: round2(leidas.reduce((s, a) => s + a.monto, 0)),
     quienes: [...new Set(leidas.map((a) => a.quien))],
+  };
+}
+
+/**
+ * Las líneas de un pedido con las promos aplicadas en su renglón, y lo que descontaron. PURA.
+ * El mismo motor y la misma forma que el alta (order-core.ts, `decidirAlta`).
+ */
+export function lineasConPromociones<L extends { productId: string; name: string; saleUnit: string; quantity: number; unitPrice: number; lineTotal: number }>(
+  lineas: readonly L[],
+  p: { vigentes: readonly Promocion[]; contexto: ContextoDePromo; seccionPorProducto: Readonly<Record<string, string>> },
+): { lineas: L[]; promos: PromosDeLaVenta | null } {
+  if (p.vigentes.length === 0 || lineas.length === 0) return { lineas: [...lineas], promos: null };
+  const r = aplicarPromociones(
+    lineas.map((l, i) => ({
+      clave: String(i),
+      productId: l.productId,
+      seccion: p.seccionPorProducto[l.productId] ?? "",
+      saleUnit: l.saleUnit === "WEIGHT" ? ("WEIGHT" as const) : ("UNIT" as const),
+      cantidad: l.quantity,
+      precioUnitario: l.unitPrice,
+      importe: l.lineTotal,
+    })),
+    p.vigentes,
+    p.contexto,
+  );
+  if (r.totalDescuento <= 0) return { lineas: [...lineas], promos: null };
+  return {
+    lineas: lineas.map((l, i) => ({ ...l, lineTotal: r.renglones[i].neto })),
+    promos: {
+      aplicadas: r.aplicadas,
+      renglones: lineas
+        .map((l, i) => ({ productId: l.productId, nombre: l.name, bruto: l.lineTotal, descuento: r.renglones[i].descuento, promos: r.renglones[i].promos }))
+        .filter((x) => x.descuento > 0),
+    },
   };
 }

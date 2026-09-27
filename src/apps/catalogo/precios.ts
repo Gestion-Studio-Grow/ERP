@@ -84,4 +84,23 @@ export const APPS_PRECIOS = [
     kpi: { id: "promociones", mide: "Cupones prendidos y sin vencer, y cuántas veces se usaron." },
     palabras: ["cupones", "cupon", "descuento", "promo", "codigo de descuento"],
   },
+  {
+    // Promos AUTOMÁTICAS (2×1, 3×2, segunda unidad, % por sección, día y medio de pago, combos):
+    // la caja con lector las aplica sola y la vidriera las muestra. Distinta de "Promociones y
+    // cupones" (un código que alguien escribe). Módulo propio (`ofertas`).
+    id: "ofertas",
+    nombre: "Ofertas de la semana",
+    descripcion: "2×1, 3×2, segunda unidad, % por sección, por día o por medio de pago, y combos.",
+    icono: "catalogo",
+    ruta: "/admin/ofertas",
+    espacio: "precios",
+    capability: "catalog:manage",
+    modulo: "ofertas",
+    // Módulo que se vende: sin él no se abre ni por URL (como la caja con lector).
+    moduloDuro: true,
+    rubro: "mostrador",
+    estado: "lista",
+    kpi: { id: "ofertas", mide: "Promos que valen hoy y las que vencen esta semana." },
+    palabras: ["promos", "promociones", "2x1", "3x2", "combo", "descuento", "segunda unidad", "oferta"],
+  },
 ] as const satisfies readonly AppDescriptor[];

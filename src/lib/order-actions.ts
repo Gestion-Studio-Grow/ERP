@@ -58,6 +58,7 @@ import {
 } from "@/app/admin/(dashboard)/ventas/factura";
 import { permiteVenderSinStock, productosQuePuedenQuedarNegativos } from "@/lib/stock/pos-stock-rules";
 import { tenantTransaction } from "@/lib/rls";
+import { negocioConOfertas, promosParaUnaVenta } from "@/lib/supermercado/promos-del-negocio";
 import { leerDatosFiscalesDeVenta, type DatosFiscalesDeVenta } from "@/lib/fiscal/datos-fiscales-de-venta";
 import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
 import { isUniqueViolation } from "@/lib/prisma-errors";
@@ -571,6 +572,10 @@ export async function placeOnlineOrder(
   const ip = cupon ? await requestIp() : undefined;
   if (cupon && frenoDeCupones.frenado(tenantId, ip)) return { ok: false, error: CUPON_FRENADO, campo: "cupon" };
 
+  // Las ofertas de la semana (si el negocio tiene el módulo): las mismas que muestra la vidriera,
+  // en el renglón de cada producto. El medio de pago todavía no se sabe: las de medio no aplican.
+  const promociones = await promosParaUnaVenta(tenantId, items.map((l) => l.productId), dateStrInBusinessTz(new Date()), null);
+
   // El orden de las guardas (clave anti-duplicado, bolsa, alta) vive en
   // `tomarPedidoOnlineGuarded`, con su porqué y su test.
   const toma = await tomarPedidoOnlineGuarded({
@@ -589,7 +594,7 @@ export async function placeOnlineOrder(
         paid: false,
         paymentMethod: null,
         items,
-      }, { idempotencyKey, envio, cupon }),
+      }, { idempotencyKey, envio, cupon, promociones }),
   });
   if (toma.tipo === "cupon") {
     // Hacia afuera, el texto único ("venció el…" diría que el código existe) y suma al freno.
@@ -1043,6 +1048,13 @@ export async function updateOrderItems(
   if (!id) return { ok: false, error: "Falta identificar el pedido a editar." };
 
   const wanted = parseItems(formData).filter((l) => l.productId && l.qty > 0);
+  // Las ofertas con las que se tomó el pedido se vuelven a aplicar al pesarlo (las del día en
+  // que se tomó): si no, pesar el pedido le sacaba al cliente la promo que vio en la vidriera.
+  const tomado = await prisma.order.findFirst({ where: { id, tenantId }, select: { createdAt: true } });
+  // Sin el módulo de Ofertas, `undefined`: el reajuste de siempre, sin mirar promos.
+  const promociones = tomado && (await negocioConOfertas(tenantId))
+    ? await promosParaUnaVenta(tenantId, wanted.map((l) => l.productId), dateStrInBusinessTz(tomado.createdAt), null)
+    : undefined;
 
   let out: AjustarPedidoResult;
   try {
@@ -1052,6 +1064,7 @@ export async function updateOrderItems(
           orderId: id,
           pedidas: wanted,
           actor: `user:${user.id}`,
+          promociones,
           // MAG-4: el aumento de un corte por PESO sale aunque el stock quede en negativo (el
           // paquete ya está pesado en la mano). La regla es la de pos-stock-rules.ts.
           permiteNegativo: (saleUnit) => permiteVenderSinStock({ saleUnit, contexto: "EDICION_PESO_REAL" }),

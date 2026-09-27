@@ -35,6 +35,11 @@ export interface VentaDelMostrador {
    * y SIN medio (order-core.ts): sin esta marca caía en "Sin medio registrado".
    */
   aCuenta?: boolean;
+  /**
+   * Cobrada con VARIOS medios (supermercado/pago-mixto-tx.ts): lo de cada medio. Con esto la venta
+   * se reparte entre sus medios en "por medio"; sin esto, va entera a `paymentMethod`.
+   */
+  pagos?: readonly { medio: string; monto: number }[];
   /** Sus líneas. Vacío si las líneas llegan ya agrupadas aparte (ver `agruparVentasMostrador`). */
   items: readonly LineaDelMostrador[];
 }
@@ -100,16 +105,23 @@ export function agruparVentasMostrador(
     d.cantidad++;
     porDia.set(dia, d);
 
-    const medio = v.paymentMethod ?? (v.aCuenta ? "A_CUENTA" : "SIN_MEDIO");
-    const m = porMedio.get(medio) ?? {
-      medio,
-      etiqueta: v.paymentMethod ? etiquetaDeMedio(v.paymentMethod) : v.aCuenta ? "A cuenta (fiado)" : "Sin medio registrado",
-      total: 0,
-      cantidad: 0,
-    };
-    m.total += monto;
-    m.cantidad++;
-    porMedio.set(medio, m);
+    // Un pago mixto suma a cada medio lo suyo (y cuenta una venta en cada uno).
+    const partes =
+      v.pagos && v.pagos.length > 1
+        ? v.pagos.map((x) => ({ medio: x.medio, monto: Number.isFinite(x.monto) ? x.monto : 0 }))
+        : [{ medio: v.paymentMethod ?? (v.aCuenta ? "A_CUENTA" : "SIN_MEDIO"), monto }];
+    for (const parte of partes) {
+      const conMedio = parte.medio !== "A_CUENTA" && parte.medio !== "SIN_MEDIO";
+      const m = porMedio.get(parte.medio) ?? {
+        medio: parte.medio,
+        etiqueta: conMedio ? etiquetaDeMedio(parte.medio) : parte.medio === "A_CUENTA" ? "A cuenta (fiado)" : "Sin medio registrado",
+        total: 0,
+        cantidad: 0,
+      };
+      m.total += parte.monto;
+      m.cantidad++;
+      porMedio.set(parte.medio, m);
+    }
 
   }
 

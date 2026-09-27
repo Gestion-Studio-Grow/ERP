@@ -32,6 +32,7 @@ import { precioDeVenta } from "@/lib/catalogo/aumento-core";
 import { whereCuponesVigentes } from "@/lib/venta-reglas";
 import { fmtNumberAR } from "@/components/ui/format";
 import { plural, type DatoKpi, type LoaderKpi } from "./nucleo.server";
+import { ofertas } from "./supermercado.server";
 
 // ── Catálogo ─────────────────────────────────────────────────────────────────
 
@@ -167,4 +168,6 @@ export const LOADERS_PRECIOS: Readonly<Record<string, LoaderKpi>> = {
   "actualizar-precios": actualizarPrecios,
   "etiquetas-de-precio": etiquetasDePrecio,
   promociones,
+  // Ofertas de la semana (promos automáticas del súper): el loader vive con los del súper.
+  ofertas,
 };

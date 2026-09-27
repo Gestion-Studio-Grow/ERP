@@ -51,6 +51,11 @@ import {
   type PedidoDeDescuento,
   type TopePrecioAMano,
 } from "@/lib/venta-reglas";
+import { pesoDeUnImporte } from "@/lib/supermercado/balanza";
+import { aplicarPromociones, type ContextoDePromo, type Promocion, type PromoAplicada } from "@/lib/supermercado/promociones";
+import { imputarPagosMixtosEnTx, validarPagosContraElTotal, type AsientoDePago } from "@/lib/supermercado/pago-mixto-tx";
+import { medioPrincipal } from "@/lib/supermercado/pago-mixto";
+import { registrarPromocionesDeLaVentaEnTx } from "@/lib/supermercado/promos-de-la-venta";
 import type { Prisma, ProductSaleUnit } from "@/generated/prisma/client";
 
 export type OrderPaymentMethod = "MERCADOPAGO" | "EFECTIVO" | "TRANSFERENCIA";
@@ -65,7 +70,12 @@ export type OrderInput = {
   scheduledFor: Date | null;
   paid: boolean;
   paymentMethod: OrderPaymentMethod | null;
-  items: { productId: string; qty: number }[];
+  /**
+   * `importe`: sólo en un producto por PESO leído de una etiqueta de balanza con IMPORTE
+   * (supermercado/balanza.ts). Se cobra ese importe exacto y el peso para el stock se deduce del
+   * precio por kilo de la base (`pesoDeUnImporte`): la `qty` que manda la pantalla no se usa.
+   */
+  items: { productId: string; qty: number; importe?: number | null }[];
   /**
    * Líneas con PRECIO A MANO (sin producto): ya validadas por el llamador con
    * `validarLineaAMano`. No mueven stock. Hoy sólo las manda el mostrador (/admin/vender);
@@ -170,6 +180,21 @@ export class PrecioAManoRechazado extends RechazoDeDominio {
 // `topePrecioAMano`: el tope de las líneas a mano de quien vende (null = sin tope). Se controla
 // dentro de la transacción, con el catálogo leído ahí.
 export type InsertOrderOpts = {
+  /**
+   * Promos automáticas (supermercado/promociones.ts). Las pasan la caja con lector y la tienda
+   * online (si el negocio tiene Ofertas; supermercado/promos-del-negocio.ts): las promos
+   * vigentes leídas de la base, el contexto (fecha, día y medio de pago en la zona del negocio) y
+   * la sección de cada producto. El descuento va en el RENGLÓN que lo generó (`lineTotal` neto):
+   * la factura de un inscripto sale por alícuota, renglón por renglón.
+   */
+  promociones?: { vigentes: readonly Promocion[]; contexto: ContextoDePromo; seccionPorProducto: Readonly<Record<string, string>> } | null;
+  /**
+   * PAGO CON VARIOS MEDIOS (supermercado/pago-mixto.ts). Los asientos por medio, que tienen que
+   * sumar EXACTO el total que decide el alta (con promos, descuento y cupón). La venta lleva como
+   * medio el principal (`medioPrincipal`, el de más plata) y cada medio entra al libro como un
+   * cobro de la venta (`Collection`) con su asiento. Sólo con `imputarCajaActor` (el mostrador).
+   */
+  pagosMixtos?: { asientos: readonly AsientoDePago[] } | null;
   imputarCajaActor?: string;
   idempotencyKey?: string | null;
   permitirNegativoPorProducto?: readonly string[];
@@ -264,7 +289,7 @@ export type OrderLine = {
 // a 2 decimales. No confía en el input: precio y nombre salen del producto real.
 export function buildOrderLines(
   products: OrderProduct[],
-  wanted: { productId: string; qty: number }[],
+  wanted: { productId: string; qty: number; importe?: number | null }[],
 ): OrderLine[] {
   const byId = new Map(products.map((p) => [p.id, p]));
   return wanted
@@ -273,6 +298,18 @@ export function buildOrderLines(
       if (!p) return null;
       const unitPrice = sellPrice(p);
       if (unitPrice == null || unitPrice <= 0) return null;
+      // Etiqueta de balanza con IMPORTE: manda el importe impreso; el peso sale del precio por
+      // kilo de la base. Sólo para lo que se vende por peso: en otro producto es un error de la
+      // pantalla o un código mal cargado, y se rechaza en vez de cobrar otra cosa.
+      if (l.importe != null) {
+        if (p.saleUnit !== "WEIGHT") {
+          throw new RechazoDeDominio(`"${p.name}" se vende por unidad y llegó con el importe de una etiqueta de balanza. Revisá su código en la balanza.`);
+        }
+        const importe = round2(l.importe);
+        const quantity = Number.isFinite(importe) && importe > 0 ? pesoDeUnImporte(importe, unitPrice) : 0;
+        if (!(quantity > 0)) throw new RechazoDeDominio(`El importe de la etiqueta de "${p.name}" no alcanza para un gramo: volvé a pesar.`);
+        return { productId: p.id, name: p.name, saleUnit: p.saleUnit, quantity, unitPrice, lineTotal: importe, trackStock: p.trackStock };
+      }
       return {
         productId: p.id,
         name: p.name,
@@ -306,7 +343,7 @@ export function canDecrementStock(available: number, quantity: number): boolean 
 }
 
 // Las líneas pedidas que cuentan: con producto y con cantidad positiva y finita.
-function pedidasValidas(items: OrderInput["items"]): { productId: string; qty: number }[] {
+function pedidasValidas(items: OrderInput["items"]): OrderInput["items"] {
   return items.filter((l) => l.productId && Number.isFinite(l.qty) && l.qty > 0);
 }
 
@@ -334,12 +371,54 @@ export function decidirAlta(p: {
   tenantId: string;
   input: OrderInput;
   products: OrderProduct[];
-  opts?: Pick<InsertOrderOpts, "descuento" | "imputarCajaActor" | "envio" | "cupon" | "aCuenta">;
+  opts?: Pick<InsertOrderOpts, "descuento" | "imputarCajaActor" | "envio" | "cupon" | "aCuenta" | "promociones" | "pagosMixtos">;
 }): AltaDecidida {
-  const lines = buildOrderLines(p.products, pedidasValidas(p.input.items));
+  const brutas = buildOrderLines(p.products, pedidasValidas(p.input.items));
   const aMano = p.input.lineasAMano ?? [];
-  if (lines.length === 0 && aMano.length === 0) {
+  if (brutas.length === 0 && aMano.length === 0) {
     throw new RechazoDeDominio("Ninguno de los productos elegidos tiene precio de venta cargado.");
+  }
+  // PROMOS AUTOMÁTICAS: el descuento de cada una va en el renglón que la generó. Se calcula acá,
+  // con los precios de la base y las promos que leyó el llamador: el navegador sólo muestra la
+  // vista previa. Sin promos pedidas, las líneas son las de siempre.
+  const promos = p.opts?.promociones ?? null;
+  let lines: OrderLine[] = brutas;
+  let promosDeLaVenta: PromosDeLaVenta | undefined;
+  if (promos && promos.vigentes.length > 0 && brutas.length > 0) {
+    const r = aplicarPromociones(
+      brutas.map((l, i) => ({
+        clave: String(i),
+        productId: l.productId,
+        seccion: promos.seccionPorProducto[l.productId] ?? "",
+        saleUnit: l.saleUnit === "WEIGHT" ? "WEIGHT" : "UNIT",
+        cantidad: l.quantity,
+        precioUnitario: l.unitPrice,
+        importe: l.lineTotal,
+      })),
+      promos.vigentes,
+      promos.contexto,
+    );
+    if (r.totalDescuento > 0) {
+      lines = brutas.map((l, i) => ({ ...l, lineTotal: r.renglones[i].neto }));
+      promosDeLaVenta = {
+        aplicadas: r.aplicadas,
+        renglones: brutas
+          .map((l, i) => ({ productId: l.productId, nombre: l.name, bruto: l.lineTotal, descuento: r.renglones[i].descuento, promos: r.renglones[i].promos }))
+          .filter((x) => x.descuento > 0),
+      };
+    }
+  }
+  if (p.opts?.pagosMixtos) {
+    if (p.input.channel !== "COUNTER" || !p.opts.imputarCajaActor) {
+      throw new RechazoDeDominio("El pago con varios medios es para la venta de mostrador.");
+    }
+    if (p.opts.aCuenta) throw new RechazoDeDominio("Una venta a cuenta no se cobra con varios medios.");
+    // La venta lleva como medio el PRINCIPAL (el de más plata, `medioPrincipal`): así sigue siendo
+    // una venta cobrada con medio para todo lo que cuenta ventas, y no se confunde con una venta a
+    // cuenta (cobrada y sin medio). El detalle por medio vive en sus cobros.
+    if (!p.input.paid || p.input.paymentMethod !== medioPrincipal(p.opts.pagosMixtos.asientos)) {
+      throw new RechazoDeDominio("El medio de la venta tiene que ser el principal del pago mixto.");
+    }
   }
   // Lo que se compra: las líneas con producto (precio de la base) más las de precio a mano.
   const productos = round2(orderSubtotal(lines) + aMano.reduce((s, l) => s + l.importe, 0));
@@ -367,8 +446,16 @@ export function decidirAlta(p: {
     ...(envio > 0 ? { envio } : {}),
     ...(cupon ? { cupon } : {}),
     ...(p.opts?.aCuenta ? { aCuenta: p.opts.aCuenta } : {}),
+    ...(promosDeLaVenta ? { promos: promosDeLaVenta } : {}),
+    ...(p.opts?.pagosMixtos ? { pagosMixtos: p.opts.pagosMixtos.asientos } : {}),
   };
 }
+
+/** Lo que las promos automáticas descontaron en la venta: se guarda para el ticket. */
+export type PromosDeLaVenta = {
+  aplicadas: PromoAplicada[];
+  renglones: { productId: string; nombre: string; bruto: number; descuento: number; promos: string[] }[];
+};
 
 /**
  * El cupón del alta, DENTRO de su transacción: se lee, se decide con `aplicarCupon` y se
@@ -576,7 +663,26 @@ export async function insertOrder(
           });
         }
 
-        const cashSale = await imputarVentaEnTx(tx, datos, created);
+        // Las promos que se aplicaron, para el ticket y la auditoría (misma transacción).
+        await registrarPromocionesDeLaVentaEnTx(tx, { tenantId, orderId: created.id, promos: datos.promos });
+
+        // PAGO MIXTO: cada medio es un cobro de la venta con su asiento en el libro. Los asientos
+        // tienen que sumar EXACTO el total que quedó adentro de la transacción (con el cupón ya
+        // aplicado): si no, la venta no se graba y la caja pide revisar los pagos.
+        if (datos.pagosMixtos) {
+          const problema = validarPagosContraElTotal(datos.pagosMixtos, datos.total);
+          if (problema) throw new RechazoDeDominio(problema);
+          await imputarPagosMixtosEnTx(tx, tenantId, {
+            orderId: created.id,
+            orderCode: created.code,
+            asientos: datos.pagosMixtos,
+            actor: datos.imputarCajaActor!,
+          });
+        }
+
+        // Con pago mixto el libro ya quedó escrito medio por medio: el asiento único de la venta
+        // (`imputarVentaEnTx`) sumaría el total entero otra vez en el medio principal.
+        const cashSale = datos.pagosMixtos ? undefined : await imputarVentaEnTx(tx, datos, created);
         return {
           id: created.id,
           code: created.code,
@@ -650,6 +756,10 @@ export type DatosDelAlta = {
   cuponDelPedido?: CuponDelPedido;
   /** La venta queda en la cuenta corriente del cliente: saldada, sin medio y sin libro. */
   aCuenta?: { createdBy: string } | null;
+  /** Lo que descontaron las promos automáticas (ya está en el `lineTotal` de cada línea). */
+  promos?: PromosDeLaVenta;
+  /** Pago con varios medios: un cobro y un asiento por medio; la venta lleva el principal. */
+  pagosMixtos?: readonly AsientoDePago[];
 };
 
 /**

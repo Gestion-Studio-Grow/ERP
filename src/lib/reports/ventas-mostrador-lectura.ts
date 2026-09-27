@@ -40,14 +40,22 @@ export async function leerVentasMostrador(
   dias: number,
 ): Promise<ReporteMostrador & { desde: Date; hasta: Date }> {
   const { where, desde, hasta } = whereVentasDelPeriodo(tenantId, hoy, dias);
-  const [ventas, lineas] = await Promise.all([
+  const [ventas, lineas, cobros] = await Promise.all([
     db.order.findMany({ where, select: { id: true, createdAt: true, total: true, paymentMethod: true } }),
     db.orderItem.groupBy({
       by: ["productId", "name", "saleUnit"],
       where: { tenantId, order: where },
       _sum: { quantity: true, lineTotal: true },
     }),
+    // Los cobros de las ventas con varios medios (supermercado/pago-mixto-tx.ts): una fila por
+    // medio. Sin pagos mixtos en el período, no trae nada.
+    db.collection.findMany({ where: { tenantId, originType: "ORDER", order: where }, select: { orderId: true, method: true, amount: true } }),
   ]);
+  const pagosPorVenta = new Map<string, { medio: string; monto: number }[]>();
+  for (const c of cobros) {
+    if (!c.orderId) continue;
+    pagosPorVenta.set(c.orderId, [...(pagosPorVenta.get(c.orderId) ?? []), { medio: c.method, monto: aNumero(c.amount) }]);
+  }
   const sinMedio = ventas.filter((v) => v.paymentMethod == null).map((v) => v.id);
   const aCuenta = new Set<string>();
   if (sinMedio.length > 0) {
@@ -66,6 +74,7 @@ export async function leerVentasMostrador(
       total: aNumero(v.total),
       paymentMethod: v.paymentMethod,
       aCuenta: aCuenta.has(v.id),
+      pagos: pagosPorVenta.get(v.id),
       items: [],
     })),
     dateStrInBusinessTz,

@@ -200,4 +200,19 @@ export const APPS_LOGISTICA = [
     kpi: { id: "devoluciones-a-proveedor", mide: "Plata devuelta a proveedores este mes.", capability: "reports:read" },
     menuDeHoy: { etiqueta: "Devoluciones a proveedor", orden: 280, moduloDeHoy: null },
   },
+  {
+    // La lista de precios que manda cada proveedor (planilla con código y costo): se carga, se
+    // compara con los costos de hoy y deja el costo de referencia para el precio por margen.
+    id: "listas-de-proveedores",
+    nombre: "Listas de proveedores",
+    descripcion: "Cargar la lista de precios de cada proveedor y ver qué costo cambió.",
+    icono: "compras",
+    ruta: "/admin/compras/listas",
+    espacio: "stock",
+    capability: "purchasing:manage",
+    modulo: "inventario",
+    rubro: "mostrador",
+    estado: "lista",
+    palabras: ["lista de precios", "costos", "proveedor", "planilla del proveedor", "aumento del proveedor"],
+  },
 ] as const satisfies readonly AppDescriptor[];

@@ -78,4 +78,27 @@ export const APPS_MOSTRADOR = [
     },
     palabras: ["anular", "anulaciones", "tickets", "ventas de hoy", "corregir una venta", "reenviar ticket"],
   },
+  {
+    // La caja del supermercado: lector de código de barras, etiqueta de balanza, multiplicador,
+    // promos solas y varios medios de pago. Módulo propio (`caja-rapida`): la trae de fábrica el
+    // blueprint del supermercado y GSG la asigna a otro comercio que tenga lector. CH no la ve ni
+    // por URL (moduloDuro), como Vender.
+    id: "caja-rapida",
+    nombre: "Caja con lector",
+    descripcion: "Pasar el lector y la balanza, con las promos solas y uno o varios medios de pago.",
+    icono: "vender",
+    ruta: "/admin/caja-rapida",
+    espacio: "mostrador",
+    // Cobra: la misma capability que Vender (`orders:manage`).
+    capability: "orders:manage",
+    modulo: "caja-rapida",
+    moduloDuro: true,
+    rubro: "mostrador",
+    estado: "lista",
+    kpi: {
+      id: "caja-rapida",
+      mide: "Tickets de hoy que llevaron promo.",
+    },
+    palabras: ["lector", "codigo de barras", "escaner", "balanza", "super", "supermercado", "caja rapida", "ticket", "cobrar"],
+  },
 ] as const satisfies readonly AppDescriptor[];

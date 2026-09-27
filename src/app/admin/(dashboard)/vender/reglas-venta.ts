@@ -162,6 +162,11 @@ export type LineaTicket = {
   aMano: boolean;
   /** El envío de la tienda (una línea sin producto, pero NO un precio a mano). */
   envio?: true;
+  /**
+   * Promos automáticas del renglón (caja con lector): `total` es lo que valía sin promo y esto
+   * es lo que descontaron, con el nombre de cada promo. Ausente = sin promo.
+   */
+  promo?: { nombres: string[]; descuento: number };
 };
 
 /** Una venta tal como la muestra el ticket. Serializable: viaja del servidor a la pantalla. */
@@ -182,6 +187,10 @@ export type VentaTicket = {
   anulada: boolean;
   /** Saldada contra la cuenta corriente del cliente: sin medio, no entró plata. */
   aCuenta?: true;
+  /** Cobrada con VARIOS medios: cuánto por cada uno (`medio` queda null en el ticket). */
+  pagos?: { medio: string; monto: number }[];
+  /** Lo que ahorró el cliente con las promos automáticas (ya está descontado en el subtotal). */
+  ahorroPromos?: number;
 };
 
 export type OrdenParaTicket = {
@@ -197,6 +206,13 @@ export type OrdenParaTicket = {
   status: string;
   /** Con `paid` y sin medio, la venta quedó a cuenta. Opcional: los lectores viejos no lo traen. */
   paid?: boolean;
+  /**
+   * Los cobros de la venta (`Collection` de origen ORDER): existen sólo en una venta cobrada con
+   * varios medios (supermercado/pago-mixto-tx.ts). La venta guarda el medio principal.
+   */
+  collections?: readonly { method: string; amount: unknown }[];
+  /** La fila de promos de la venta (supermercado/promos-de-la-venta.ts), si la hay. */
+  promos?: unknown;
   items: readonly {
     productId: string | null;
     name: string;
@@ -212,6 +228,11 @@ const SIN_CLIENTE = "Mostrador";
 
 export function ventaDeOrden(o: OrdenParaTicket): VentaTicket {
   const nombre = o.customerName.trim();
+  const pagos = (o.collections ?? [])
+    .map((c) => ({ medio: String(c.method), monto: Number(c.amount) }))
+    .filter((c) => Number.isFinite(c.monto) && c.monto > 0);
+  const promosPorRenglon = renglonesConPromo(o.promos);
+  const ahorro = round2(promosPorRenglon.reduce((s, r) => s + r.descuento, 0));
   return {
     id: o.id,
     code: o.code,
@@ -219,25 +240,52 @@ export function ventaDeOrden(o: OrdenParaTicket): VentaTicket {
     lineas: o.items.map((it) => {
       // El envío de la tienda no tiene producto, pero no es un precio a mano: no se marca.
       const envio = esLineaDeEnvio(it);
+      const promo = it.productId ? promoDelRenglon(promosPorRenglon, it.productId, it.lineTotal) : null;
       return {
         nombre: it.name,
         cantidad: it.quantity,
         porPeso: it.saleUnit === "WEIGHT",
         precio: it.unitPrice,
-        total: it.lineTotal,
+        total: promo ? promo.bruto : it.lineTotal,
         aMano: it.productId == null && !envio,
         ...(envio ? { envio: true as const } : {}),
+        ...(promo ? { promo: { nombres: promo.promos, descuento: promo.descuento } } : {}),
       };
     }),
     subtotal: o.subtotal,
     descuento: o.discount,
     total: o.total,
-    medio: o.paymentMethod,
+    // Con varios medios, el ticket muestra el detalle y no el principal (que es lo que guarda la venta).
+    medio: pagos.length > 1 ? null : o.paymentMethod,
     cliente: nombre && nombre !== SIN_CLIENTE ? nombre : null,
     telefono: o.customerPhone.trim() || null,
     anulada: o.status === "CANCELLED",
     ...(o.paid && !o.paymentMethod ? { aCuenta: true as const } : {}),
+    ...(pagos.length > 1 ? { pagos } : {}),
+    ...(ahorro > 0 ? { ahorroPromos: ahorro } : {}),
   };
+}
+
+type RenglonConPromo = { productId: string; bruto: number; descuento: number; promos: string[]; usado?: boolean };
+
+/** Los renglones con promo de la fila de la venta. No confía en la forma. PURA. */
+function renglonesConPromo(changes: unknown): RenglonConPromo[] {
+  const rs = (changes as { renglones?: unknown } | null)?.renglones;
+  if (!Array.isArray(rs)) return [];
+  return rs.flatMap((x) => {
+    const r = x as Partial<RenglonConPromo>;
+    return typeof r.productId === "string" && typeof r.bruto === "number" && typeof r.descuento === "number" && Array.isArray(r.promos)
+      ? [{ productId: r.productId, bruto: r.bruto, descuento: r.descuento, promos: r.promos.filter((n): n is string => typeof n === "string") }]
+      : [];
+  });
+}
+
+/** La promo que corresponde a un renglón: mismo producto y bruto − descuento = lo cobrado. */
+function promoDelRenglon(rs: RenglonConPromo[], productId: string, lineTotal: number): RenglonConPromo | null {
+  const r = rs.find((x) => !x.usado && x.productId === productId && round2(x.bruto - x.descuento) === round2(lineTotal));
+  if (!r) return null;
+  r.usado = true;
+  return r;
 }
 
 /** "1,24 kg × $12.500,00" o "2 u × $3.900,00". */
@@ -265,7 +313,9 @@ export function renglonesDelTicket(
     r.push({ texto: l.nombre, importe: fmtMoneyARS(l.total) });
     const det = detalleDeLinea(l);
     if (det) r.push({ texto: `  ${det}`, chico: true });
+    if (l.promo) r.push({ texto: `  ${l.promo.nombres.join(" + ")}`, importe: `−${fmtMoneyARS(l.promo.descuento)}`, chico: true });
   }
+  if (v.ahorroPromos) r.push({ texto: "Ahorraste con promos", importe: `−${fmtMoneyARS(v.ahorroPromos)}` });
   if (v.descuento > 0) {
     const pct = v.subtotal > 0 ? round2((v.descuento / v.subtotal) * 100) : 0;
     r.push({ texto: "Subtotal", importe: fmtMoneyARS(v.subtotal) });
@@ -276,7 +326,10 @@ export function renglonesDelTicket(
   }
   r.push({ texto: "TOTAL", importe: fmtMoneyARS(v.total), fuerte: true });
   if (v.medio) r.push({ texto: `Pagó con ${etiquetaDeMedio(v.medio).toLowerCase()}`, chico: true });
-  else if (v.aCuenta) r.push({ texto: "Queda a cuenta", chico: true });
+  else if (v.pagos && v.pagos.length > 0) {
+    r.push({ texto: "Pagó con:", chico: true });
+    for (const p of v.pagos) r.push({ texto: `  ${etiquetaDeMedio(p.medio)}`, importe: fmtMoneyARS(p.monto), chico: true });
+  } else if (v.aCuenta) r.push({ texto: "Queda a cuenta", chico: true });
   if (v.medio === "EFECTIVO" && opts.pagoCon != null) {
     const vuelto = round2(opts.pagoCon - v.total);
     if (vuelto >= 0) {

@@ -19,12 +19,14 @@
 //   - Multilocal (nativo, la casa de una marca con varios locales):
 //     src/modules/descriptors/multilocal.ts. Va al final: la consola deriva su lista de
 //     módulos de este orden (operator-config.ts) y así los de siempre no cambian de lugar.
+//   - Caja con lector y Ofertas (mostrador de supermercado): src/modules/descriptors/supermercado.ts.
 
 import { ModuleRegistry } from "./registry";
 import { MODULOS_NATIVOS } from "./descriptors/nativos";
 import { mercadopagoModule } from "./descriptors/mercadopago";
 import { carteraModule } from "./descriptors/cartera";
 import { multilocalModule } from "./descriptors/multilocal";
+import { cajaRapidaModule, ofertasModule } from "./descriptors/supermercado";
 import { arcaModule } from "@/plugins/arca/module";
 import { bancosModule } from "@/plugins/bancos/module";
 
@@ -36,6 +38,10 @@ export const DESCRIPTORES_CATALOGO = [
   bancosModule,
   carteraModule,
   multilocalModule,
+  // Mostrador de supermercado (src/modules/descriptors/supermercado.ts). Al final, por la misma
+  // razón que multilocal: la consola deriva su lista de este orden.
+  cajaRapidaModule,
+  ofertasModule,
 ];
 
 /**
