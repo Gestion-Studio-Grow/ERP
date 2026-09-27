@@ -157,6 +157,12 @@ export function BolsaPanel({
               Te faltan <b>{plata(v.faltaParaSinCargo)}</b> para el envío sin cargo.
             </p>
           )}
+          {v.ofertasAplicadas.map((o) => (
+            <div key={o.nombre} className={`${s.fila} ${s.filaOferta}`}>
+              <span>Oferta · {o.nombre}</span>
+              <span className={s.num}>−{plata(o.descuento)}</span>
+            </div>
+          ))}
           {cupon.descuento > 0 && (
             <div className={s.fila}>
               <span>Cupón {cupon.aplicado?.codigo}</span>
@@ -289,6 +295,7 @@ export function BolsaPanel({
       )}
       <p className={s.nota}>
         {v.hayPeso ? "El total final sale del peso real. " : ""}
+        {v.ahorro > 0 ? "Las ofertas se confirman al tomar el pedido. " : ""}
         {textoPago}
       </p>
     </form>

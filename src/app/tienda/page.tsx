@@ -32,6 +32,8 @@ import QuebienolesVidriera from "./quebienoles/QuebienolesVidriera";
 import TiendaNueva from "./vidriera/TiendaNueva";
 import { usaVidrieraNueva } from "./vidriera/marcas";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { getCurrentTenantId } from "@/lib/tenant";
+import { gondolasDeLaVidriera, ofertasDeLaVidriera } from "@/lib/supermercado/vidriera-ofertas";
 
 export const dynamic = "force-dynamic";
 
@@ -128,9 +130,20 @@ export default async function TiendaPage({
   // siempre). Sólo para negocios de mostrador o con marca propia: CH (servicios) no tiene tienda y
   // sigue con lo de siempre aunque el interruptor esté prendido. Lee lo mismo que la vidriera de hoy
   // (`getStorefront`, sin consultas nuevas); ver vidriera/TiendaNueva.tsx.
-  if (usaVidrieraNueva(nuevo, identity, front)) {
+  // Un rubro con cientos de productos (el supermercado) declara su vidriera en su configuración
+  // (rubros.ts `vidriera`): la nueva, con buscador, secciones y ofertas, sin esperar al interruptor.
+  const vidrieraDelRubro = front ? null : (identity.rubro?.vidriera ?? null);
+  if (usaVidrieraNueva(nuevo || vidrieraDelRubro != null, identity, front)) {
+    const tenantId = await getCurrentTenantId();
+    const [ofertas, gondolas] = await Promise.all([
+      ofertasDeLaVidriera(tenantId),
+      vidrieraDelRubro ? gondolasDeLaVidriera(tenantId) : Promise.resolve({}),
+    ]);
     return (
       <TiendaNueva
+        vidrieraDelRubro={vidrieraDelRubro}
+        gondolas={gondolas}
+        ofertas={ofertas}
         nombre={data.name}
         branding={data.branding}
         wording={identity.rubro?.wording ?? data.wording}

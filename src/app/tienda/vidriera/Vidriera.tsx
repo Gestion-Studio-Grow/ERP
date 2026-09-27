@@ -39,6 +39,9 @@ import { Paso } from "./Paso";
 import { Ficha } from "./Ficha";
 import { BolsaPanel } from "./BolsaPanel";
 import { IconoBolsa, IconoCerrar, IconoLupa } from "./Iconos";
+import { condicionesDePromocion, rotuloDePromocion, rotulosDePromoPorProducto } from "@/lib/supermercado/promociones";
+import { precioPorUnidadDeMedida } from "@/lib/supermercado/unidad-medida";
+import type { OfertasDeLaVidriera } from "@/lib/supermercado/vidriera-ofertas";
 
 export type SeccionVista = {
   id: string;
@@ -78,6 +81,10 @@ export type DatosVidriera = {
   cartaKicker: string;
   cartaTitulo: string;
   cartaIntro: string | null;
+  /** ¿Cada producto por unidad muestra su precio por kilo o litro? (ley de góndolas; el rubro lo dice). */
+  precioPorMedida?: boolean;
+  /** Las ofertas de la semana, si el negocio tiene el módulo de Ofertas. */
+  ofertas?: OfertasDeLaVidriera | null;
 };
 
 type Slots = {
@@ -96,6 +103,9 @@ export default function Vidriera(props: DatosVidriera & Slots) {
     envio: props.envio,
     entregaPorDefecto: props.entregaPorDefecto,
     hayWhatsApp,
+    promos: props.ofertas
+      ? { vigentes: props.ofertas.promos, hoy: props.ofertas.hoy, diaSemana: props.ofertas.diaSemana, seccionDe }
+      : null,
   });
 
   const [filtros, setFiltros] = useState<Filtros>(props.filtrosIniciales);
@@ -211,6 +221,21 @@ export default function Vidriera(props: DatosVidriera & Slots) {
             <h2 className={s.cartaTit}>{props.cartaTitulo}</h2>
             {props.cartaIntro && <p className={s.cartaIntro}>{props.cartaIntro}</p>}
           </div>
+
+          {props.ofertas && !hayFiltros(filtros) && (
+            <OfertasDeLaSemana
+              ofertas={props.ofertas}
+              productos={productos}
+              secciones={secciones}
+              v={v}
+              props={props}
+              onAbrir={abrirFicha}
+              onSeccion={(id) => {
+                cambiar({ seccion: id });
+                document.getElementById("carta")?.scrollIntoView({ block: "start" });
+              }}
+            />
+          )}
 
           {/* ── Buscar, filtrar, ordenar: una línea pegada arriba mientras se baja. ── */}
           <div className={s.herr} role="search">
@@ -533,6 +558,86 @@ function Grupo({
   );
 }
 
+// ── Ofertas de la semana ─────────────────────────────────────────────────────
+//
+// Cada oferta con su rótulo grande (2×1, 20 % off), cuándo vale y sus productos con el «+», para
+// sumarlos sin buscarlos. La de una sección lleva a esa sección; la de medio de pago dice que es
+// para toda la compra. La bolsa muestra cuánto se ahorra; el servidor lo confirma al tomar el pedido.
+
+const MAX_OFERTAS = 8;
+const MAX_PRODUCTOS_POR_OFERTA = 4;
+
+function OfertasDeLaSemana({
+  ofertas,
+  productos,
+  secciones,
+  v,
+  props,
+  onAbrir,
+  onSeccion,
+}: {
+  ofertas: OfertasDeLaVidriera;
+  productos: ProductoVidriera[];
+  secciones: SeccionVista[];
+  v: EstadoVidriera;
+  props: DatosVidriera;
+  onAbrir: (id: string) => void;
+  onSeccion: (id: string) => void;
+}) {
+  const porId = new Map(productos.map((p) => [p.id, p]));
+  const titulo = new Map(secciones.map((x) => [x.id, x.titulo]));
+  const lista = ofertas.promos.slice(0, MAX_OFERTAS);
+  return (
+    <section id="ofertas" className={s.ofertas} aria-labelledby="ofertas-tit">
+      <div className={s.grupoCab}>
+        <h3 className={s.grupoTit} id="ofertas-tit">
+          Ofertas de la semana
+        </h3>
+        <span className={s.grupoBaj}>Se descuentan solas en tu pedido.</span>
+      </div>
+      <div className={s.ofertasLista}>
+        {lista.map((o) => {
+          const ids = o.tipo === "combo" ? (o.combo?.componentes.map((c) => c.productId) ?? []) : o.productos;
+          const suyos = ids.map((id) => porId.get(id)).filter((p): p is ProductoVidriera => Boolean(p));
+          return (
+            <article key={o.id} className={s.oferta} data-oferta={o.id}>
+              <div className={s.ofertaCab}>
+                <span className={s.ofertaRot}>{rotuloDePromocion(o)}</span>
+                <div>
+                  <p className={s.ofertaNom}>{o.nombre}</p>
+                  <p className={s.ofertaCond}>
+                    {o.tipo === "combo" && o.combo ? `Todo junto a ${plata(o.combo.precio)}. ` : ""}
+                    {condicionesDePromocion(o)}
+                  </p>
+                </div>
+              </div>
+              {suyos.length > 0 ? (
+                <div className={s.renglones} data-disposicion="lista">
+                  {suyos.slice(0, MAX_PRODUCTOS_POR_OFERTA).map((p) => (
+                    <Renglon key={p.id} p={p} v={v} props={props} onAbrir={onAbrir} />
+                  ))}
+                </div>
+              ) : o.secciones.length > 0 ? (
+                <div className={s.ofertaSecs}>
+                  {o.secciones
+                    .filter((id) => titulo.has(id))
+                    .map((id) => (
+                      <button key={id} type="button" className={`${s.btn} ${s.btnSec}`} onClick={() => onSeccion(id)}>
+                        Ver {titulo.get(id)}
+                      </button>
+                    ))}
+                </div>
+              ) : (
+                <p className={s.ofertaCond}>Vale para toda la compra.</p>
+              )}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function Renglon({
   p,
   v,
@@ -548,7 +653,21 @@ function Renglon({
   const img = props.imagenDe[p.id] ?? null;
   const disp = etiquetaDeDisponibilidad(p.disponibilidad ?? null);
   const pizarra = props.marca === "magra";
-  const meta = pizarra ? (p.saleUnit === "WEIGHT" ? "Por kilo · se pesa al envasar" : "Por unidad") : null;
+  // Ley de góndolas: el precio por kilo o por litro al lado del de la unidad (si el rubro lo pide).
+  const porMedida =
+    props.precioPorMedida && p.saleUnit === "UNIT"
+      ? precioPorUnidadDeMedida({ saleUnit: p.saleUnit, price: p.price, pricePerKg: p.pricePerKg, presentacion: p.unit })
+      : null;
+  const rotulo = props.ofertas ? rotulosDe(props.ofertas).get(p.id) : undefined;
+  const meta = pizarra
+    ? p.saleUnit === "WEIGHT"
+      ? "Por kilo · se pesa al envasar"
+      : "Por unidad"
+    : porMedida
+      ? `${p.unit} · ${plata(porMedida.importe)} ${porMedida.rotulo}`
+      : props.precioPorMedida && p.saleUnit === "WEIGHT"
+        ? "Por kilo · se pesa al armar el pedido"
+        : null;
   return (
     <div className={s.ren} data-en-bolsa={q > 0 || undefined} data-sin-stock={p.disponibilidad === "sin-stock" || undefined}>
       {pizarra &&
@@ -564,8 +683,9 @@ function Renglon({
         <button type="button" className={s.renNom} onClick={() => onAbrir(p.id)}>
           {p.name}
         </button>
-        {(meta || disp) && (
+        {(meta || disp || rotulo) && (
           <span className={s.renMeta}>
+            {rotulo && <span className={s.renOferta}>{rotulo}</span>}
             {meta}
             {disp && (
               <span className={s.estado} data-estado={p.disponibilidad}>
@@ -582,6 +702,17 @@ function Renglon({
       <Paso p={p} q={q} onMover={(d) => v.mover(p, d)} />
     </div>
   );
+}
+
+// El rótulo de oferta de cada producto, una vez por juego de ofertas (no en cada renglón).
+const cacheDeRotulos = new WeakMap<OfertasDeLaVidriera, Map<string, string>>();
+function rotulosDe(o: OfertasDeLaVidriera): Map<string, string> {
+  let m = cacheDeRotulos.get(o);
+  if (!m) {
+    m = rotulosDePromoPorProducto(o.promos, o.hoy, o.diaSemana);
+    cacheDeRotulos.set(o, m);
+  }
+  return m;
 }
 
 function iniciales(nombre: string): string {

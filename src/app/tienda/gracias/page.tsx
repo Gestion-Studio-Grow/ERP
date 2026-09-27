@@ -47,7 +47,8 @@ export default async function GraciasPage({
   // DISEÑO NUEVO (interruptor del negocio): el número del pedido y cómo sigue, con la marca de la
   // tienda. Apagado, lo de siempre (abajo, sin cambios). Sólo negocios de mostrador o con marca.
   const front = editorialFrontFor(identity);
-  if (usaVidrieraNueva(nuevo, identity, front)) {
+  // El rubro que declara su vidriera (rubros.ts `vidriera`) sigue con la nueva también acá.
+  if (usaVidrieraNueva(nuevo || (!front && identity.rubro?.vidriera != null), identity, front)) {
     const tienda = await leerTienda();
     const marca = marcaDeLaVidriera(front, identity.brandId);
     const whatsapp = marca === "magra" ? resolveMagraLocal(tienda.branding).whatsapp : sanitizePhone(tienda.branding?.whatsapp);

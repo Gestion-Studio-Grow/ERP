@@ -21,7 +21,9 @@ import Vidriera, { type DatosVidriera, type SeccionVista } from "./Vidriera";
 import { ConsejoDePala } from "./ConsejoDePala";
 import { IconoWhatsApp } from "./Iconos";
 import VelaDiferida from "../shine/VelaDiferida";
-import { CONFIG, marcaDeLaVidriera, seccionDe, type MarcaId } from "./marcas";
+import { CONFIG, marcaDeLaVidriera, seccionDe, type ConfigDeMarca, type MarcaId } from "./marcas";
+import type { VidrieraDelRubro } from "@/blueprints/retail/rubros";
+import type { OfertasDeLaVidriera } from "@/lib/supermercado/vidriera-ofertas";
 import { leerFiltros, marcaYModelo, plata, precioDe, type ProductoVidriera } from "./catalogo-core";
 import { buildWhatsAppHref, sanitizePhone } from "@/lib/whatsapp-cta";
 import { textoDeMediosDePago } from "../reglas-tienda";
@@ -62,6 +64,15 @@ export type EntradaTienda = {
   imagery: TenantImagery | null;
   acento: string;
   searchParams: Record<string, string | string[] | undefined>;
+  /**
+   * La vidriera que declara el RUBRO (rubros.ts `vidriera`: secciones, palabras, precio por kilo o
+   * litro). Sólo se usa en la piel genérica: las marcas con front propio tienen la suya.
+   */
+  vidrieraDelRubro?: VidrieraDelRubro | null;
+  /** La sección explícita de cada producto que la tiene (columna de góndola). */
+  gondolas?: Record<string, string>;
+  /** Las ofertas de la semana, si el negocio tiene el módulo de Ofertas. */
+  ofertas?: OfertasDeLaVidriera | null;
 };
 
 const ANIO = 2026;
@@ -92,7 +103,16 @@ function WaLink({
 
 export default function TiendaNueva(e: EntradaTienda) {
   const marca: MarcaId = marcaDeLaVidriera(e.front, e.brandId);
-  const cfg = CONFIG[marca];
+  // El rubro puede traer su propia carta (secciones y palabras) para la piel genérica.
+  const delRubro = marca === "generica" ? (e.vidrieraDelRubro ?? null) : null;
+  const cfg: ConfigDeMarca = delRubro
+    ? {
+        ...CONFIG.generica,
+        secciones: delRubro.secciones.lista.map((x) => ({ id: x.id, titulo: x.titulo, disposicion: "lista" as const })),
+        palabras: delRubro.palabras,
+        entregaPorDefecto: delRubro.entregaPorDefecto,
+      }
+    : CONFIG[marca];
   const copy = e.copy;
   const productos = e.productos;
 
@@ -103,7 +123,9 @@ export default function TiendaNueva(e: EntradaTienda) {
   const imagenDe: Record<string, string> = {};
   const marcasCopy = marca === "adosmanos" ? (copy?.providers ?? []) : [];
   for (const p of productos) {
-    seccionDeProducto[p.id] = seccionDe(marca, p.name);
+    seccionDeProducto[p.id] = delRubro
+      ? delRubro.secciones.de({ name: p.name, saleUnit: p.saleUnit, category: e.gondolas?.[p.id] ?? null })
+      : seccionDe(marca, p.name);
     if (marcasCopy.length) {
       const mm = marcaYModelo(p.name, marcasCopy);
       if (mm.marca) marcaDe[p.id] = mm.marca;
@@ -155,6 +177,7 @@ export default function TiendaNueva(e: EntradaTienda) {
   const productoInicial = typeof e.searchParams.producto === "string" ? e.searchParams.producto : null;
 
   const carta = cartaDe(marca, copy, e.wording);
+  if (delRubro) carta.cartaTitulo = delRubro.palabras.carta;
 
   const datos: DatosVidriera = {
     marca,
@@ -175,6 +198,8 @@ export default function TiendaNueva(e: EntradaTienda) {
     palabras: cfg.palabras,
     filtrosIniciales: filtros,
     productoInicial,
+    precioPorMedida: Boolean(delRubro?.precioPorMedida),
+    ofertas: e.ofertas && e.ofertas.promos.length > 0 ? e.ofertas : null,
     ...carta,
   };
 
@@ -270,7 +295,8 @@ function Cabecera({ marca, e, local, whatsapp }: Ctx) {
               ["#contacto", "Contacto"],
             ]
           : [
-              ["#carta", "Productos"],
+              ...(e.ofertas && e.ofertas.promos.length > 0 ? [["#ofertas", "Ofertas"]] : []),
+              ["#carta", e.vidrieraDelRubro ? e.vidrieraDelRubro.palabras.carta : "Productos"],
               ["#contacto", "Contacto"],
             ];
   return (

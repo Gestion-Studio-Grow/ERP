@@ -19,7 +19,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { shippingCost, amountToFreeShipping, type ShippingConfig } from "@/lib/storefront-shipping";
 import { usePedidoOnline, useCuponDePedido } from "../pedido-online";
 import { nuevaClaveDePedido } from "../reglas-tienda";
-import { bolsaGuardada, fijar, lineas, mover, resumen, textoCantidad, type Bolsa, type ProductoVidriera } from "./catalogo-core";
+import { bolsaGuardada, fijar, lineas, mover, precioDe, resumen, textoCantidad, type Bolsa, type ProductoVidriera } from "./catalogo-core";
+import { aplicarPromociones, type Promocion } from "@/lib/supermercado/promociones";
+import { sumarAlCentavo } from "@/lib/dinero/redondeo";
 
 /** Dónde se guarda la bolsa de cada negocio en el navegador. */
 export const CLAVE_BOLSA = (tenantKey: string) => `gsg:bolsa:${tenantKey}`;
@@ -32,6 +34,12 @@ export function useVidriera(opts: {
   envio: ShippingConfig | null;
   entregaPorDefecto: "PICKUP" | "DELIVERY";
   hayWhatsApp: boolean;
+  /**
+   * Las ofertas del negocio (si tiene el módulo) y la sección de cada producto: con ellas la bolsa
+   * muestra cuánto se ahorra. Es la vista previa: el alta vuelve a aplicarlas en el servidor, con
+   * el mismo motor (supermercado/promociones.ts), y ese es el total que vale.
+   */
+  promos?: { vigentes: readonly Promocion[]; hoy: string; diaSemana: number; seccionDe: Readonly<Record<string, string>> } | null;
 }) {
   const { tenantKey, productos, envio, hayWhatsApp } = opts;
   const porId = useMemo(() => new Map(productos.map((p) => [p.id, p])), [productos]);
@@ -68,7 +76,29 @@ export function useVidriera(opts: {
   }, [bolsa, tenantKey]);
 
   const ls = lineas(bolsa, porId);
-  const { subtotal, piezas } = resumen(ls);
+  const { subtotal: bruto, piezas } = resumen(ls);
+  // Las ofertas descuentan en el renglón; el envío y el cupón se cuentan sobre lo que queda, como
+  // en el alta (order-core.ts `decidirAlta`).
+  const promos = opts.promos;
+  const conPromos =
+    promos && promos.vigentes.length > 0 && ls.length > 0
+      ? aplicarPromociones(
+          ls.map((l, i) => ({
+            clave: String(i),
+            productId: l.p.id,
+            seccion: promos.seccionDe[l.p.id] ?? "",
+            saleUnit: l.p.saleUnit,
+            cantidad: l.q,
+            precioUnitario: precioDe(l.p),
+            importe: l.importe,
+          })),
+          promos.vigentes,
+          { fecha: promos.hoy, diaSemana: promos.diaSemana, medio: null },
+        )
+      : null;
+  const ahorro = conPromos?.totalDescuento ?? 0;
+  const ofertasAplicadas = conPromos?.aplicadas.map((a) => ({ nombre: a.nombre, descuento: a.descuento })) ?? [];
+  const subtotal = ahorro > 0 ? sumarAlCentavo([bruto, -ahorro]) : bruto;
   const costoEnvio = shippingCost(subtotal, fulfillment, envio);
   const faltaParaSinCargo = fulfillment === "DELIVERY" ? amountToFreeShipping(subtotal, envio) : 0;
   const cupon = useCuponDePedido(subtotal);
@@ -98,6 +128,9 @@ export function useVidriera(opts: {
     bolsa,
     lineas: ls,
     subtotal,
+    /** Lo que descuentan las ofertas (vista previa) y cuáles. */
+    ahorro,
+    ofertasAplicadas,
     piezas,
     total,
     hayPeso,

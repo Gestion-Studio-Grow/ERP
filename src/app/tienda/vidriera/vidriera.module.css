@@ -554,3 +554,18 @@
 .segAcc { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
 @media (max-width: 719px) { .segAcc .btn { flex: 1 1 100%; } .cabVolver { display: none; } }
 .banda .condiciones { border-color: currentColor; }
+
+/* ── Ofertas de la semana (negocios con el módulo de Ofertas) ─────────────── */
+
+.ofertas { scroll-margin-top: calc(var(--cab-alto) + 20px); margin-bottom: 8px; }
+.ofertasLista { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); padding-top: 14px; }
+.oferta { background: var(--hoja); border: 1px solid var(--linea); border-radius: var(--radio, 12px); padding: 14px 16px 6px; }
+.ofertaCab { display: flex; gap: 12px; align-items: flex-start; }
+.ofertaRot { flex: none; min-width: 64px; padding: 8px 10px; border-radius: 10px; background: var(--acento); color: var(--sobre-acento); font-weight: 800; font-size: 17px; text-align: center; line-height: 1.1; }
+.ofertaNom { margin: 0; font-weight: 700; color: var(--tinta); }
+.ofertaCond { margin: 2px 0 8px; font-size: 13px; color: var(--tinta-2); }
+.ofertaSecs { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 0 10px; }
+.oferta .renglones[data-disposicion="lista"] { grid-template-columns: minmax(0, 1fr); }
+.oferta .ren:last-child { border-bottom: 0; }
+.renOferta { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; background: var(--acento); color: var(--sobre-acento); font-weight: 800; font-size: 12px; letter-spacing: .02em; }
+.filaOferta { color: var(--ok); font-weight: 600; }
