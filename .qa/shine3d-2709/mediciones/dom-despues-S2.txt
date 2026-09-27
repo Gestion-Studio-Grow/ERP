@@ -1,0 +1,12 @@
+chestetica/@390              fb8c01c4a9aeef01 e98d58362f22bb26   492198 10 0
+chestetica/@1440             4dde1c88e4745fe4 4892d97ae2374546   492198 10 4
+chestetica/tienda@390        1608c9e0a2efcbd2 cc81d5607c3dcb08   735068 12 0
+chestetica/tienda@1440       1608c9e0a2efcbd2 4ac6dc6f90c53ee0   735068 12 0
+magra/tienda@390             705f5185b75b3122 bf405b28c3042bf3   735068 12 0
+magra/tienda@1440            705f5185b75b3122 8984e0693d979e83   735068 12 0
+adosmanos/tienda@390         4cf2843a488d0236 af706e5190a4fb59   735068 12 0
+adosmanos/tienda@1440        4cf2843a488d0236 37ad970fb1c5085c   735068 12 0
+quebienoles/tienda@390       925f562aba724663 541abf26fdf12cf1  1340574 17 0
+quebienoles/tienda@1440      3b413f1df02bd5bb 70ea7a10a96cba5b  1340574 17 0
+wpe/@390                     f85f3c79a50a2e0e 458134c95fb564f9        0 0 0
+wpe/@1440                    f85f3c79a50a2e0e aa7642879f0fc515        0 0 0

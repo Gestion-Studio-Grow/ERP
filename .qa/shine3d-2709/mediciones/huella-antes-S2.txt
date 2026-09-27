@@ -1,0 +1,8 @@
+chestetica/              200   63741 9413706103e3d9b6 
+chestetica/tienda        200   18714 a7105845d70a63dc 
+magra/tienda             200   61429 0be863dd536a4d9d 
+magra/                   307   13868 cf832c443ac20dac /tienda
+adosmanos/tienda         200   91476 b983f57bfbab6b1d 
+quebienoles/tienda       200  212978 4f491757d9bc5a95 
+wpe/                     200  281187 cc9a97a2b4906d80 
+wpe/tienda               307       1 8a5edab282632443 /

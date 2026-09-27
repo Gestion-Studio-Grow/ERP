@@ -1,0 +1,13 @@
+    not ok 49 - POS de la bandeja: un pedido con la red caída conserva los datos del cliente y lo cargado
+not ok 417 - Vender en el navegador
+    not ok 2 - diseño nuevo: clave equivocada → vuelve el email, la clave vuelve vacía y el cursor está en la contraseña
+    not ok 3 - vista de siempre: lo que se tipea mientras espera la respuesta no se pierde al volver con el error
+not ok 460 - Ingreso en el navegador
+not ok 4203 - el mismo extracto en XLSX (fechas Date, números number) da lo mismo
+not ok 4226 - lee un xlsx con fechas Date y números number
+not ok 4227 - filas totalmente vacías se descartan
+not ok 4228 - esXlsx reconoce el magic ZIP de un .xlsx real
+# tests 4608
+# pass 4600
+# fail 7
+# skipped 1

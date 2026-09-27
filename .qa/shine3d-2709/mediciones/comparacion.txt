@@ -1,0 +1,46 @@
+== estado S1 (interruptores del laboratorio: MAGRA y A Dos Manos con el diseño nuevo, CH con el de siempre)
+  HTML chestetica/            200->200 bytes 63741->63741 marcado IGUAL chunks que cambian 0
+  HTML chestetica/tienda      200->200 bytes 18714->18714 marcado IGUAL chunks que cambian 3
+  HTML magra/tienda           200->200 bytes 70762->70762 marcado IGUAL chunks que cambian 3
+  HTML magra/                 307->307 bytes 13868->13868 marcado IGUAL chunks que cambian 0
+  HTML adosmanos/tienda       200->200 bytes 69214->69214 marcado IGUAL chunks que cambian 3
+  HTML quebienoles/tienda     200->200 bytes 212978->212978 marcado IGUAL chunks que cambian 3
+  HTML wpe/                   200->200 bytes 281187->281187 marcado IGUAL chunks que cambian 0
+  HTML wpe/tienda             307->307 bytes 1->1 marcado IGUAL chunks que cambian 0
+  DOM  chestetica/@390              dom IGUAL pixeles IGUALES js 492198->492198 (+0 B) chunks distintos 0 errores 0->0
+  DOM  chestetica/@1440             dom IGUAL pixeles DISTINTOS js 492198->492198 (+0 B) chunks distintos 0 errores 4->4
+  DOM  chestetica/tienda@390        dom IGUAL pixeles IGUALES js 734634->735068 (+434 B) chunks distintos 3 errores 0->0
+  DOM  chestetica/tienda@1440       dom IGUAL pixeles IGUALES js 734634->735068 (+434 B) chunks distintos 3 errores 0->0
+  DOM  magra/tienda@390             dom IGUAL pixeles IGUALES js 734634->735068 (+434 B) chunks distintos 3 errores 0->0
+  DOM  magra/tienda@1440            dom IGUAL pixeles IGUALES js 734634->735068 (+434 B) chunks distintos 3 errores 0->0
+  DOM  adosmanos/tienda@390         dom IGUAL pixeles IGUALES js 734634->735068 (+434 B) chunks distintos 3 errores 0->0
+  DOM  adosmanos/tienda@1440        dom IGUAL pixeles IGUALES js 734634->735068 (+434 B) chunks distintos 3 errores 0->0
+  DOM  quebienoles/tienda@390       dom DISTINTO pixeles IGUALES js 1313127->1340574 (+27447 B) chunks distintos 7 errores 0->0
+  DOM  quebienoles/tienda@1440      dom IGUAL pixeles DISTINTOS js 1313127->1340574 (+27447 B) chunks distintos 7 errores 0->0
+  DOM  wpe/@390                     dom IGUAL pixeles DISTINTOS js 0->0 (+0 B) chunks distintos 0 errores 0->0
+  DOM  wpe/@1440                    dom IGUAL pixeles DISTINTOS js 0->0 (+0 B) chunks distintos 0 errores 0->0
+== estado S2 (MAGRA y A Dos Manos con el diseño de siempre)
+  HTML chestetica/            200->200 bytes 63741->63741 marcado IGUAL chunks que cambian 0
+  HTML chestetica/tienda      200->200 bytes 18714->18714 marcado IGUAL chunks que cambian 3
+  HTML magra/tienda           200->200 bytes 61429->61429 marcado IGUAL chunks que cambian 3
+  HTML magra/                 307->307 bytes 13868->13868 marcado IGUAL chunks que cambian 0
+  HTML adosmanos/tienda       200->200 bytes 91476->91476 marcado IGUAL chunks que cambian 3
+  HTML quebienoles/tienda     200->200 bytes 212978->212978 marcado IGUAL chunks que cambian 3
+  HTML wpe/                   200->200 bytes 281187->281187 marcado IGUAL chunks que cambian 0
+  HTML wpe/tienda             307->307 bytes 1->1 marcado IGUAL chunks que cambian 0
+  DOM  chestetica/@390              dom IGUAL pixeles IGUALES js 492198->492198 (+0 B) chunks distintos 0 errores 0->0
+  DOM  chestetica/@1440             dom IGUAL pixeles DISTINTOS js 492198->492198 (+0 B) chunks distintos 0 errores 4->4
+  DOM  chestetica/tienda@390        dom IGUAL pixeles IGUALES js 734634->735068 (+434 B) chunks distintos 3 errores 0->0
+  DOM  chestetica/tienda@1440       dom IGUAL pixeles IGUALES js 734634->735068 (+434 B) chunks distintos 3 errores 0->0
+  DOM  magra/tienda@390             dom IGUAL pixeles IGUALES js 734634->735068 (+434 B) chunks distintos 3 errores 0->0
+  DOM  magra/tienda@1440            dom IGUAL pixeles IGUALES js 734634->735068 (+434 B) chunks distintos 3 errores 0->0
+  DOM  adosmanos/tienda@390         dom IGUAL pixeles IGUALES js 734634->735068 (+434 B) chunks distintos 3 errores 0->0
+  DOM  adosmanos/tienda@1440        dom IGUAL pixeles IGUALES js 734634->735068 (+434 B) chunks distintos 3 errores 0->0
+  DOM  quebienoles/tienda@390       dom IGUAL pixeles DISTINTOS js 1313127->1340574 (+27447 B) chunks distintos 7 errores 0->0
+  DOM  quebienoles/tienda@1440      dom IGUAL pixeles DISTINTOS js 1313127->1340574 (+27447 B) chunks distintos 7 errores 0->0
+  DOM  wpe/@390                     dom IGUAL pixeles DISTINTOS js 0->0 (+0 B) chunks distintos 0 errores 0->0
+  DOM  wpe/@1440                    dom IGUAL pixeles DISTINTOS js 0->0 (+0 B) chunks distintos 0 errores 0->0
+
+Nota (27/09): el CSS global (chunks/2g8rgndeg8bfu.css) del build final es idéntico byte a byte al del
+build de base original (cmp). En las huellas "antes" del build desacoplado aparecía distinto porque
+Tailwind escaneó los bundles vela.js del arnés que en ese momento estaban en .qa/ (ya borrados).

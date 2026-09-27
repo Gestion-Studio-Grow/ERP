@@ -1,0 +1,164 @@
+{
+ "390": {
+  "lcp": 672,
+  "fcp": 672,
+  "load": 733,
+  "tbt": 377,
+  "largas": 4,
+  "largaMax": 291,
+  "scrollHorizontal": 0,
+  "jsAntesDelLoad": 212584,
+  "jsDespues": 4821,
+  "jsArchivos": 13,
+  "jsDiferidos": [
+   [
+    "1415ucw3teins.js",
+    4821
+   ]
+  ],
+  "escena": "listo",
+  "escenaListaMs": 1917,
+  "fps": "14.3",
+  "calidad": "3",
+  "redJsAntesDelLoad": 212872,
+  "redJsDespues": 158728,
+  "redJsDiferidos": [
+   [
+    "1415ucw3teins.js",
+    4839
+   ],
+   [
+    "turbopack-44vyp7_ppnjxr.js",
+    4295
+   ],
+   [
+    "13_s-dyt7bx95.js",
+    140905
+   ],
+   [
+    "2gygx70x8ky20.js",
+    8689
+   ],
+   [
+    "turbopack-worker-2ru9m5gbh1na6.js",
+    0
+   ]
+  ],
+  "boton": {
+   "antes": "Apagar la vela",
+   "despues": "Encender la vela",
+   "reencendida": "Apagar la vela"
+  },
+  "aroma": "Lavanda",
+  "fpsFinal": "20.5",
+  "errores": []
+ },
+ "1440": {
+  "lcp": 296,
+  "fcp": 296,
+  "load": 240,
+  "tbt": 30,
+  "largas": 1,
+  "largaMax": 80,
+  "scrollHorizontal": 0,
+  "jsAntesDelLoad": 212584,
+  "jsDespues": 4821,
+  "jsArchivos": 13,
+  "jsDiferidos": [
+   [
+    "1415ucw3teins.js",
+    4821
+   ]
+  ],
+  "escena": "listo",
+  "escenaListaMs": 1054,
+  "fps": "10.1",
+  "calidad": "3",
+  "redJsAntesDelLoad": 212872,
+  "redJsDespues": 158728,
+  "redJsDiferidos": [
+   [
+    "1415ucw3teins.js",
+    4839
+   ],
+   [
+    "turbopack-44vyp7_ppnjxr.js",
+    4295
+   ],
+   [
+    "13_s-dyt7bx95.js",
+    140905
+   ],
+   [
+    "2gygx70x8ky20.js",
+    8689
+   ],
+   [
+    "turbopack-worker-2ru9m5gbh1na6.js",
+    0
+   ]
+  ],
+  "boton": {
+   "antes": "Apagar la vela",
+   "despues": "Encender la vela",
+   "reencendida": "Apagar la vela"
+  },
+  "aroma": "Lavanda",
+  "fpsFinal": "9.4",
+  "errores": []
+ },
+ "fps390": {
+  "lcp": 448,
+  "fcp": 448,
+  "load": 684,
+  "tbt": 391,
+  "largas": 5,
+  "largaMax": 264,
+  "scrollHorizontal": 0,
+  "jsAntesDelLoad": 212584,
+  "jsDespues": 4821,
+  "jsArchivos": 13,
+  "jsDiferidos": [
+   [
+    "1415ucw3teins.js",
+    4821
+   ]
+  ],
+  "escena": "listo",
+  "escenaListaMs": 1690,
+  "fps": "12.4",
+  "calidad": "3",
+  "redJsAntesDelLoad": 212872,
+  "redJsDespues": 158728,
+  "redJsDiferidos": [
+   [
+    "1415ucw3teins.js",
+    4839
+   ],
+   [
+    "turbopack-44vyp7_ppnjxr.js",
+    4295
+   ],
+   [
+    "13_s-dyt7bx95.js",
+    140905
+   ],
+   [
+    "2gygx70x8ky20.js",
+    8689
+   ],
+   [
+    "turbopack-worker-2ru9m5gbh1na6.js",
+    0
+   ]
+  ],
+  "fpsSeguidos": [
+   "20",
+   "21",
+   "21.8",
+   "21.8"
+  ],
+  "pasoFinal": "3",
+  "errores": []
+ }
+}

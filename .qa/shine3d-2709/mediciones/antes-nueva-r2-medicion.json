@@ -1,0 +1,38 @@
+{
+ "390": {
+  "lcp": 608,
+  "fcp": 608,
+  "load": 644,
+  "tbt": 314,
+  "largas": 4,
+  "largaMax": 256,
+  "scrollHorizontal": 0,
+  "jsAntesDelLoad": 212344,
+  "jsDespues": 0,
+  "jsArchivos": 12,
+  "jsDiferidos": [],
+  "escena": null,
+  "escenaListaMs": null,
+  "fps": null,
+  "calidad": null,
+  "errores": []
+ },
+ "1440": {
+  "lcp": 352,
+  "fcp": 272,
+  "load": 213,
+  "tbt": 46,
+  "largas": 1,
+  "largaMax": 96,
+  "scrollHorizontal": 0,
+  "jsAntesDelLoad": 212344,
+  "jsDespues": 0,
+  "jsArchivos": 12,
+  "jsDiferidos": [],
+  "escena": null,
+  "escenaListaMs": null,
+  "fps": null,
+  "calidad": null,
+  "errores": []
+ }
+}
