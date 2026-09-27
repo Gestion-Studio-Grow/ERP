@@ -1,0 +1,80 @@
+{
+  "pasos": [
+    "dueño entra; el Inicio muestra Caja con lector y Ofertas",
+    "caja abierta con $20.000 de fondo",
+    "dos promos cargadas en Ofertas: 2×1 Coca-Cola 2,25 L y 2.ª unidad al 50 % en Magistral limón",
+    "etiqueta de balanza con verificador malo: rechazada («La etiqueta de la balanza se leyó mal (el último dígito no cierra). Pasala de nuevo por el lector o tipeá el código.»)",
+    "ticket de 15 renglones (3 de balanza, 2 con promo, Chocolinas anulada): total $39.989,18",
+    "venta #1 cobrada con efectivo y Mercado Pago; el ticket muestra las promos y el ahorro",
+    "la venta aparece en Ventas del día",
+    "proveedor «Distribuidora Norte SA» dado de alta",
+    "lista de precios del proveedor pegada, comparada y guardada (5 productos)",
+    "precios por margen del 45 % sobre la lista del proveedor: vista previa de 5 y aplicados",
+    "5 carteles con precio, precio por litro o kilo, código y la promo; mandados a imprimir",
+    "pedido online #2: 2 Coca-Cola con el 2×1 en la bolsa, 250 g de papa, retiro en el local",
+    "vidriera a 390 px: ofertas, secciones y precio por litro sin salirse de la pantalla",
+    "el pedido online llega a la bandeja de pedidos",
+    "Ofertas, Listas de proveedores, Lector y balanza y Precios a 390 px sin salirse de la pantalla",
+    "cajera a 390 px: anular un renglón pide mail y clave del encargado; con la clave mala no anula, con la buena sí",
+    "cajera cobra en efectivo con $2.000: Vuelto: $550,00",
+    "en el cobro a 390 px todos los toques miden 44 px o más",
+    "cierre del día hecho: cada columna cuadra con el libro",
+    "con el día cerrado la caja con lector no cobra: «El día de caja ya está cerrado (último cierre: 27/09/2026), así que una venta cobrada del …»"
+  ],
+  "errores": [],
+  "medidas": {
+    "totalVenta": 39989.18,
+    "ventaCaja": "1",
+    "filtroDeCarteles": [
+      "Todas",
+      "Almacén",
+      "Bebidas",
+      "Lácteos",
+      "Fiambrería",
+      "Carnicería",
+      "Verdulería",
+      "Panadería",
+      "Congelados",
+      "Limpieza",
+      "Perfumería"
+    ],
+    "ancho-C1440-vidriera": {
+      "scrollWidth": 1440,
+      "viewport": 1440
+    },
+    "pedidoOnline": "2",
+    "ancho-C390-vidriera": {
+      "scrollWidth": 390,
+      "viewport": 390
+    },
+    "ancho-C390-limpieza": {
+      "scrollWidth": 390,
+      "viewport": 390
+    },
+    "ancho-E01-ofertas-390": {
+      "scrollWidth": 390,
+      "viewport": 390
+    },
+    "ancho-E02-listas-390": {
+      "scrollWidth": 390,
+      "viewport": 390
+    },
+    "ancho-E03-lector-y-balanza-390": {
+      "scrollWidth": 390,
+      "viewport": 390
+    },
+    "ancho-E04-precios-390": {
+      "scrollWidth": 390,
+      "viewport": 390
+    },
+    "ancho-D-caja-390": {
+      "scrollWidth": 390,
+      "viewport": 390
+    },
+    "ancho-D-cobrada-390": {
+      "scrollWidth": 390,
+      "viewport": 390
+    },
+    "toquesChicosEnCobro390": []
+  }
+}
