@@ -776,17 +776,20 @@ export async function crearVela(op: OpcionesVela): Promise<Vela> {
     camara.aspect = w / h;
     const tan = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
     // Que la vela entre entera con aire (llama incluida) en cualquier proporción.
-    distancia = Math.max(4.1 / (2 * tan), 4.2 / (2 * tan * camara.aspect));
+    // (Los mandos van en dos filas debajo de 720 px en la portada a todo el ancho y de 900 en la columna.)
+    const compacto = w < 720 || (op.encuadre === "columna" && w <= 900);
+    // En pantalla chica, más aire: arriba la barra fija y abajo los mandos tapan parte del lienzo.
+    distancia = compacto ? Math.max(4.9 / (2 * tan), 4.6 / (2 * tan * camara.aspect)) : Math.max(4.1 / (2 * tan), 4.2 / (2 * tan * camara.aspect));
     const medioAncho = tan * distancia * camara.aspect;
     // La niebla se mide desde la cámara: empieza pasando la vela, así la vela nunca queda adentro
     // (con un lienzo alto la cámara se aleja y, con la niebla fija, la cera salía casi negra).
     niebla.near = distancia + 2.5;
     niebla.far = distancia + 8.5;
     // Pantalla ancha: la vela corrida a la derecha (el texto va a la izquierda). Angosta: al centro.
+    // En la columna, sólo en PC (a la izquierda está el velo crema); en el celular, centrada.
     desplazo =
-      op.encuadre === "sangre" ? (camara.aspect >= 1.25 ? medioAncho * 0.46 : 0) : camara.aspect >= 0.95 ? medioAncho * 0.2 : 0;
-    // (Los mandos van en dos filas debajo de 720 px en la portada a todo el ancho y de 900 en la columna.)
-    miraY = w < 720 || (op.encuadre === "columna" && w <= 900) ? 0.6 : 1.12;
+      op.encuadre === "sangre" ? (camara.aspect >= 1.25 ? medioAncho * 0.46 : 0) : !compacto && camara.aspect >= 0.95 ? medioAncho * 0.2 : 0;
+    miraY = compacto ? 0.6 : 1.12;
     const buf = renderer.getDrawingBufferSize(tmpV2);
     humoMat.uniforms.uEscala.value = buf.y / (2 * tan);
     colocarCamara();

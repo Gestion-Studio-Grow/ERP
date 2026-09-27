@@ -310,7 +310,7 @@ const ESTILOS = `
 /* Celular: dos filas — el botón con el rótulo, y abajo los aromas a todo el ancho (se deslizan). */
 @media(max-width:900px){
   .shv[data-encuadre="columna"] .shv-mandos{left:12px;right:12px;bottom:calc(6vh + 8px);max-width:none;flex-wrap:wrap;row-gap:6px}
-  .shv[data-encuadre="columna"] .shv-aromas{flex-basis:100%}
+  .shv[data-encuadre="columna"] .shv-aromas{flex-basis:100%;margin-right:96px} /* el sello ocupa la esquina */
 }
 @media(max-width:719px){
   .shv[data-encuadre="sangre"] .shv-mandos{flex-wrap:wrap;row-gap:6px}
