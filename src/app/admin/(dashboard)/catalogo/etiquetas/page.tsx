@@ -10,6 +10,8 @@ import { EmptyState, PageHeader, buttonClasses, fmtNumberAR } from "@/components
 import { pendientesEnLaLista } from "@/apps/kpis/precios.server";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import Etiquetas, { type ProductoEtiqueta } from "./Etiquetas";
+import { leerPromociones } from "@/lib/supermercado/config-repo";
+import { diaDeLaSemana, rotulosDePromoPorProducto } from "@/lib/supermercado/promociones";
 
 export const dynamic = "force-dynamic";
 
@@ -20,13 +22,20 @@ export const dynamic = "force-dynamic";
 export default async function EtiquetasPage() {
   await requireApp("etiquetas-de-precio");
   const tenantId = await getCurrentTenantId();
-  const [productos, estado, rubro, tenant] = await Promise.all([
+  const [productos, estado, rubro, tenant, promos] = await Promise.all([
     cargarProductosParaPrecios(tenantId),
     cargarEstadoEtiquetas(tenantId),
     getCurrentTenantRubro(),
     prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+    leerPromociones(prisma, tenantId),
   ]);
+  // La promo de cada producto va en el cartel ("2×1"), si tiene una que lo nombra.
+  const hoy = todayInBusinessTz();
+  const promoDe = rotulosDePromoPorProducto(promos, hoy, diaDeLaSemana(hoy));
   const uno = rubro.rubro?.wording.itemNoun?.trim() || "producto";
+  // Las secciones del salón, si el rubro las declara: el filtro de los carteles las usa.
+  const seccionesDelRubro = rubro.rubro?.secciones ?? null;
+  const secciones = seccionesDelRubro?.lista.map((x) => ({ id: x.id, label: x.titulo }));
   const varios = uno.endsWith("s") ? uno : `${uno}s`;
 
   // Sólo lo que tiene precio lleva etiqueta.
@@ -41,7 +50,9 @@ export default async function EtiquetasPage() {
         saleUnit: p.saleUnit,
         precio,
         unidad: p.unit,
-        gondola: gondolaDe(p),
+        codigo: p.codigo ?? null,
+        promo: promoDe.get(p.id) ?? null,
+        gondola: seccionesDelRubro ? seccionesDelRubro.de({ name: p.name, saleUnit: p.saleUnit, category: p.seccion ?? null }) : gondolaDe(p),
         pausado: !p.active,
         cambioPendiente: cambio ? cambio.toISOString() : null,
       },
@@ -84,7 +95,7 @@ export default async function EtiquetasPage() {
             </Link>
           </p>
         ) : (
-          <Etiquetas productos={conPrecio} negocio={tenant?.name ?? ""} hoy={todayInBusinessTz()} sustantivo={{ uno, varios }} renglon />
+          <Etiquetas productos={conPrecio} negocio={tenant?.name ?? ""} hoy={todayInBusinessTz()} sustantivo={{ uno, varios }} secciones={secciones} renglon />
         )}
       </main>
     );
@@ -126,7 +137,7 @@ export default async function EtiquetasPage() {
           }
         />
       ) : (
-        <Etiquetas productos={conPrecio} negocio={tenant?.name ?? ""} hoy={todayInBusinessTz()} sustantivo={{ uno, varios }} />
+        <Etiquetas productos={conPrecio} negocio={tenant?.name ?? ""} hoy={todayInBusinessTz()} sustantivo={{ uno, varios }} secciones={secciones} />
       )}
     </main>
   );

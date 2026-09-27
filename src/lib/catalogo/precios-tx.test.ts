@@ -36,6 +36,8 @@ function txFalsa(catalogo: Fila[], opciones: { registrosDevueltos?: number } = {
       return (valores[0] as unknown[]).length;
     },
     auditLog: {
+      // Las listas de precios de proveedores (supermercado): ninguna cargada.
+      findMany: async () => [],
       createMany: async (args: { data: Record<string, unknown>[] }) => {
         log.auditoria = args.data;
         return { count: opciones.registrosDevueltos ?? args.data.length };

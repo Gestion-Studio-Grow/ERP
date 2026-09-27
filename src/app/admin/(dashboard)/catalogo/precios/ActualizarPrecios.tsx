@@ -29,6 +29,7 @@ import {
   precioDeVenta,
   textoDelPorcentaje,
   type Alcance,
+  type ModoAumento,
   type PasoRedondeo,
   type PedidoAumento,
   type ProductoParaPrecios,
@@ -118,8 +119,14 @@ export default function ActualizarPrecios({
   veEtiquetas,
   tildadosIniciales = [],
   renglon = false,
+  secciones = [],
+  proveedores = [],
 }: {
   productos: ProductoParaPrecios[];
+  /** Secciones del súper (sólo en un supermercado): "subir Bebidas un 8 %". */
+  secciones?: readonly { id: string; nombre: string }[];
+  /** Proveedores con productos (sus compras o su lista): "subir lo de Distribuidora X". */
+  proveedores?: readonly { id: string; nombre: string }[];
   sustantivo: { uno: string; varios: string };
   veEtiquetas: boolean;
   /** Los que llegan tildados desde la selección del catálogo (`?ids=`). Sólo los que existen. */
@@ -135,6 +142,9 @@ export default function ActualizarPrecios({
   });
   const [tipo, setTipo] = useState<TipoAlcance>(inicial.size > 0 ? "tildados" : "todos");
   const [gondola, setGondola] = useState<CorteCategoria | "">("");
+  const [seccion, setSeccion] = useState("");
+  const [proveedor, setProveedor] = useState("");
+  const [modo, setModo] = useState<ModoAumento>("porcentaje");
   const [texto, setTexto] = useState("");
   const [tildados, setTildados] = useState<ReadonlySet<string>>(inicial);
   const [filtroLista, setFiltroLista] = useState("");
@@ -158,6 +168,10 @@ export default function ActualizarPrecios({
       case "gondola":
         // Eligió "una góndola" pero todavía no cuál: no hay nada elegido.
         return gondola ? { tipo: "gondola", gondola } : { tipo: "tildados", ids: [] };
+      case "seccion":
+        return seccion ? { tipo: "seccion", seccion } : { tipo: "tildados", ids: [] };
+      case "proveedor":
+        return proveedor ? { tipo: "proveedor", proveedorId: proveedor } : { tipo: "tildados", ids: [] };
       case "texto":
         return { tipo: "texto", texto };
       case "tildados":
@@ -167,11 +181,19 @@ export default function ActualizarPrecios({
     }
   }
   const alcance = alcanceElegido();
-  const pedido: PedidoAumento = { alcance, sentido, porcentaje, redondeo };
+  const margen = modo === "margen";
+  const pedido: PedidoAumento = { alcance, sentido: margen ? "subir" : sentido, porcentaje, redondeo, ...(margen ? { modo } : {}) };
   // Sin memo: son cientos de productos y una cuenta con enteros; recalcular en cada tecla es
   // lo que hace que la vista previa esté siempre al día.
   const plan = planificarAumento(productos, pedido);
-  const lecturaPct = leerPorcentaje(porcentaje, sentido);
+  const lecturaPct = leerPorcentaje(porcentaje, margen ? "subir" : sentido);
+  // Secciones y proveedores con productos, para no ofrecer una opción vacía.
+  const seccionesConProductos = secciones
+    .map((x) => ({ ...x, n: productos.filter((p) => p.seccion === x.id).length }))
+    .filter((x) => x.n > 0);
+  const proveedoresConProductos = proveedores
+    .map((x) => ({ ...x, n: productos.filter((p) => (p.proveedores ?? []).includes(x.id)).length }))
+    .filter((x) => x.n > 0);
   const aplicable = aumentoAplicable(plan);
   // Con el diseño nuevo, la cuenta de elegidos no espera al porcentaje: «Todos (19)» tildado y
   // «Todavía no elegiste» abajo se contradecían. Misma función que usa el plan.
@@ -211,7 +233,10 @@ export default function ActualizarPrecios({
       const r = await aplicarAumento(pedido, enviado.plan.huella, enviado.pideConfirmacion ? true : false);
       setConfirmando(false);
       if (r.ok) {
-        setListo({ cambiados: r.cambiados, porcentaje: textoDelPorcentaje(enviado.sentido, enviado.porcentaje ?? 0) });
+        setListo({
+          cambiados: r.cambiados,
+          porcentaje: enviado.modo === "margen" ? `margen del ${(enviado.porcentaje ?? 0).toLocaleString("es-AR")} % sobre el costo` : textoDelPorcentaje(enviado.sentido, enviado.porcentaje ?? 0),
+        });
         setMensaje(null);
         // El porcentaje queda vacío: la vista previa no vuelve a ofrecer el mismo aumento
         // sobre los precios que ya subieron.
@@ -234,7 +259,7 @@ export default function ActualizarPrecios({
   }
 
   const conPrecio = (lista: readonly ProductoParaPrecios[]) => lista.filter((p) => precioDeVenta(p) !== null).length;
-  const ejemplo = plan.porcentaje !== null ? precioConPorcentaje(10000, plan.porcentaje, sentido, redondeo) : null;
+  const ejemplo = plan.porcentaje !== null ? precioConPorcentaje(10000, plan.porcentaje, margen ? "subir" : sentido, redondeo) : null;
 
   return (
     <div className={renglon ? "grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start" : "space-y-5"}>
@@ -260,9 +285,19 @@ export default function ActualizarPrecios({
           <Opcion name={`${ids}-alcance`} value="todos" checked={tipo === "todos"} onChange={() => cambiar(setTipo)("todos")}>
             Todos ({fmtNumberAR(conPrecio(productos))})
           </Opcion>
-          {gondolas.length > 1 && (
+          {gondolas.length > 1 && seccionesConProductos.length === 0 && (
             <Opcion name={`${ids}-alcance`} value="gondola" checked={tipo === "gondola"} onChange={() => cambiar(setTipo)("gondola")}>
               Una góndola
+            </Opcion>
+          )}
+          {seccionesConProductos.length > 1 && (
+            <Opcion name={`${ids}-alcance`} value="seccion" checked={tipo === "seccion"} onChange={() => cambiar(setTipo)("seccion")}>
+              Una sección
+            </Opcion>
+          )}
+          {proveedoresConProductos.length > 0 && (
+            <Opcion name={`${ids}-alcance`} value="proveedor" checked={tipo === "proveedor"} onChange={() => cambiar(setTipo)("proveedor")}>
+              De un proveedor
             </Opcion>
           )}
           <Opcion name={`${ids}-alcance`} value="texto" checked={tipo === "texto"} onChange={() => cambiar(setTipo)("texto")}>
@@ -291,6 +326,49 @@ export default function ActualizarPrecios({
                 </option>
               ))}
             </select>
+          </div>
+        )}
+
+        {tipo === "seccion" && (
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor={`${ids}-seccion`} className="text-sm font-medium text-strong">
+              Sección
+            </label>
+            <select
+              id={`${ids}-seccion`}
+              value={seccion}
+              onChange={(e) => cambiar(setSeccion)(e.target.value)}
+              className="h-11 w-full rounded-md border border-line-strong bg-surface-raised px-3 text-sm text-strong sm:max-w-xs"
+            >
+              <option value="">Elegí una…</option>
+              {seccionesConProductos.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.nombre} ({x.n})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {tipo === "proveedor" && (
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor={`${ids}-proveedor`} className="text-sm font-medium text-strong">
+              Proveedor
+            </label>
+            <select
+              id={`${ids}-proveedor`}
+              value={proveedor}
+              onChange={(e) => cambiar(setProveedor)(e.target.value)}
+              className="h-11 w-full rounded-md border border-line-strong bg-surface-raised px-3 text-sm text-strong sm:max-w-xs"
+            >
+              <option value="">Elegí uno…</option>
+              {proveedoresConProductos.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.nombre} ({x.n})
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted">Los productos que le compraste o que están en su lista de precios.</p>
           </div>
         )}
 
@@ -358,7 +436,16 @@ export default function ActualizarPrecios({
       </Paso>
 
       <Paso renglon={renglon} n={2} titulo="¿Cuánto?">
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Sobre qué se calcula">
+          <Opcion name={`${ids}-modo`} value="porcentaje" checked={!margen} onChange={() => cambiar(setModo)("porcentaje")}>
+            Sobre el precio de hoy
+          </Opcion>
+          <Opcion name={`${ids}-modo`} value="margen" checked={margen} onChange={() => cambiar(setModo)("margen")}>
+            Margen sobre el costo
+          </Opcion>
+        </div>
         <div className="flex flex-wrap items-end gap-3">
+          {!margen && (
           <div className="flex gap-2" role="radiogroup" aria-label="Suben o bajan">
             <Opcion name={`${ids}-sentido`} value="subir" checked={sentido === "subir"} onChange={() => cambiar(setSentido)("subir")}>
               Suben
@@ -367,9 +454,10 @@ export default function ActualizarPrecios({
               Bajan
             </Opcion>
           </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <label htmlFor={`${ids}-pct`} className="text-sm font-medium text-strong">
-              Porcentaje
+              {margen ? "Margen" : "Porcentaje"}
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -390,7 +478,9 @@ export default function ActualizarPrecios({
         <p id={`${ids}-pct-ayuda`} className={cn("text-xs", lecturaPct.estado === "invalido" ? "text-danger" : "text-muted")} role={lecturaPct.estado === "invalido" ? "alert" : undefined}>
           {lecturaPct.estado === "invalido"
             ? lecturaPct.mensaje
-            : `Con coma si hace falta: 8,5. Un cambio de más del ${UMBRAL_CONFIRMACION} % se confirma dos veces.`}
+            : margen
+              ? `El precio nuevo es el costo más este porcentaje (un costo de $1.000 con 40 % queda en $1.400). Sin costo cargado, el producto no se toca. Si un precio se mueve más del ${UMBRAL_CONFIRMACION} %, se confirma dos veces.`
+              : `Con coma si hace falta: 8,5. Un cambio de más del ${UMBRAL_CONFIRMACION} % se confirma dos veces.`}
         </p>
       </Paso>
 
@@ -403,8 +493,8 @@ export default function ActualizarPrecios({
           ))}
         </div>
         <p className="text-xs text-muted">
-          {sentido === "subir" ? "En un aumento se redondea siempre para arriba" : "En una baja se redondea siempre para abajo"}
-          {ejemplo !== null && `: un precio de $10.000 queda en ${fmtMoneyARS(ejemplo, 0)}`}.
+          {margen ? "Con margen se redondea siempre para arriba" : sentido === "subir" ? "En un aumento se redondea siempre para arriba" : "En una baja se redondea siempre para abajo"}
+          {ejemplo !== null && (margen ? `: un costo de $10.000 queda en un precio de ${fmtMoneyARS(ejemplo, 0)}` : `: un precio de $10.000 queda en ${fmtMoneyARS(ejemplo, 0)}`)}.
         </p>
       </Paso>
       </ColumnaDePasos>
@@ -419,9 +509,10 @@ export default function ActualizarPrecios({
             {renglon ? (
               <p className="text-sm text-body" aria-live="polite">
                 <strong className="text-strong">{`${fmtNumberAR(plan.filas.length)} ${plan.filas.length === 1 ? "cambia" : "cambian"}`}</strong>
-                {plan.porcentaje !== null && ` · ${textoDelPorcentaje(plan.sentido, plan.porcentaje)}`}
+                {plan.porcentaje !== null && (margen ? ` · margen ${plan.porcentaje.toLocaleString("es-AR")} %` : ` · ${textoDelPorcentaje(plan.sentido, plan.porcentaje)}`)}
                 {plan.sinCambios > 0 && ` · ${fmtNumberAR(plan.sinCambios)} quedan igual`}
                 {plan.sinPrecio.length > 0 && ` · ${fmtNumberAR(plan.sinPrecio.length)} sin precio`}
+                {plan.sinCosto.length > 0 && ` · ${fmtNumberAR(plan.sinCosto.length)} sin costo`}
               </p>
             ) : (
             <div className="flex flex-wrap gap-2" aria-live="polite">
@@ -430,7 +521,10 @@ export default function ActualizarPrecios({
               </Badge>
               {plan.sinCambios > 0 && <Badge>{fmtNumberAR(plan.sinCambios)} quedan igual</Badge>}
               {plan.sinPrecio.length > 0 && <Badge>{fmtNumberAR(plan.sinPrecio.length)} sin precio</Badge>}
-              {plan.porcentaje !== null && <Badge tone="accent">{textoDelPorcentaje(plan.sentido, plan.porcentaje)}</Badge>}
+              {plan.sinCosto.length > 0 && <Badge tone="warning">{fmtNumberAR(plan.sinCosto.length)} sin costo: no se tocan</Badge>}
+              {plan.porcentaje !== null && (
+                <Badge tone="accent">{margen ? `Margen ${plan.porcentaje.toLocaleString("es-AR")} %` : textoDelPorcentaje(plan.sentido, plan.porcentaje)}</Badge>
+              )}
             </div>
             )}
             {/* Con su propio alto: con 200 cortes, el botón de Aplicar no queda a diez pantallas. */}
@@ -467,16 +561,17 @@ export default function ActualizarPrecios({
         {confirmando && aplicable ? (
           <div role="alert" aria-labelledby={`${ids}-conf`} className="rounded-lg border border-warning/40 bg-warning-soft p-4 text-sm">
             <p id={`${ids}-conf`} className="font-semibold text-strong">
-              ¿Seguro? Es {plan.sentido === "subir" ? "un aumento" : "una baja"} del{" "}
-              {plan.porcentaje?.toLocaleString("es-AR")} %.
+              {margen
+                ? `¿Seguro? Con este margen hay precios que se mueven más del ${UMBRAL_CONFIRMACION} %.`
+                : `¿Seguro? Es ${plan.sentido === "subir" ? "un aumento" : "una baja"} del ${plan.porcentaje?.toLocaleString("es-AR")} %.`}
             </p>
             <p className="mt-1 text-body">
-              {ejemplo !== null && `Un precio de $10.000 pasa a ${fmtMoneyARS(ejemplo, 0)}. `}
+              {ejemplo !== null && !margen && `Un precio de $10.000 pasa a ${fmtMoneyARS(ejemplo, 0)}. `}
               Cambia {fmtNumberAR(plan.filas.length)} {plan.filas.length === 1 ? sustantivo.uno : sustantivo.varios}.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button variant="danger" onClick={aplicar} disabled={pendiente}>
-                {pendiente ? "Aplicando…" : `Sí, aplicar ${textoDelPorcentaje(plan.sentido, plan.porcentaje ?? 0)}`}
+                {pendiente ? "Aplicando…" : margen ? "Sí, aplicar el margen" : `Sí, aplicar ${textoDelPorcentaje(plan.sentido, plan.porcentaje ?? 0)}`}
               </Button>
               <Button variant="ghost" onClick={() => setConfirmando(false)} disabled={pendiente}>
                 Revisar

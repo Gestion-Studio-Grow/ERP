@@ -46,14 +46,33 @@ export type ProductoParaPrecios = {
   pricePerKg: number | null;
   /** `Product.category` si la columna existe y está cargada; si no, la góndola sale del nombre. */
   category: string | null;
+  /**
+   * Sección del supermercado (supermercado/secciones.ts), si el negocio es un súper. Con ella se
+   * puede elegir "toda la sección Bebidas". Ausente en los demás rubros.
+   */
+  seccion?: string | null;
+  /** Proveedores que le venden este producto (compras cargadas o su lista de precios). */
+  proveedores?: readonly string[];
+  /** Costo de referencia por unidad de venta (por kilo en lo pesado), para el precio por margen. */
+  costo?: number | null;
 };
 
 /** Qué productos toca el cambio. */
 export type Alcance =
   | { tipo: "todos" }
   | { tipo: "gondola"; gondola: CorteCategoria }
+  | { tipo: "seccion"; seccion: string }
+  | { tipo: "proveedor"; proveedorId: string }
   | { tipo: "texto"; texto: string }
   | { tipo: "tildados"; ids: readonly string[] };
+
+/**
+ * Cómo se calcula el precio nuevo:
+ *   · "porcentaje": el precio de hoy más o menos un porcentaje (lo de siempre);
+ *   · "margen": el COSTO más un porcentaje de recargo (precio = costo × (1 + margen)),
+ *     redondeado siempre para arriba. El precio puede subir o bajar respecto del de hoy.
+ */
+export type ModoAumento = "porcentaje" | "margen";
 
 export type Sentido = "subir" | "bajar";
 
@@ -67,6 +86,8 @@ export type PedidoAumento = {
   sentido: Sentido;
   porcentaje: string;
   redondeo: PasoRedondeo;
+  /** Ausente = "porcentaje" (lo de siempre). En "margen", `porcentaje` es el margen y `sentido` no cuenta. */
+  modo?: ModoAumento;
 };
 
 /** Pasado este porcentaje (en cualquiera de los dos sentidos) se pide una confirmación extra. */
@@ -109,6 +130,10 @@ export type PlanAumento = {
   sinCambios: number;
   /** El porcentaje pasa el umbral: la pantalla pide confirmar dos veces y el servidor lo exige. */
   pideConfirmacion: boolean;
+  /** "porcentaje" o "margen" (ver `ModoAumento`). */
+  modo: ModoAumento;
+  /** Con margen: los elegidos sin costo cargado (no hay de qué calcular). No se tocan. */
+  sinCosto: { id: string; nombre: string }[];
   /** El plan en el formato de la planilla: lo que escribe `escribirPlan`, con su huella. */
   plan: PlanPlanilla;
 };
@@ -204,6 +229,10 @@ export function elegirProductos(
       return [...productos];
     case "gondola":
       return productos.filter((p) => gondolaDe(p) === alcance.gondola);
+    case "seccion":
+      return productos.filter((p) => p.seccion === alcance.seccion);
+    case "proveedor":
+      return productos.filter((p) => (p.proveedores ?? []).includes(alcance.proveedorId));
     case "texto": {
       const buscado = normalizarNombre(alcance.texto);
       if (!buscado) return [];
@@ -231,6 +260,8 @@ function planVacio(pedido: PedidoAumento, error: string, elegidos = 0): PlanAume
     sinPrecio: [],
     sinCambios: 0,
     pideConfirmacion: false,
+    modo: pedido.modo ?? "porcentaje",
+    sinCosto: [],
     plan: armarPlanDeCambios([]),
   };
 }
@@ -247,11 +278,13 @@ function pasoValido(v: unknown): v is PasoRedondeo {
  * (en el servidor, contra el catálogo leído adentro de la transacción que escribe).
  */
 export function planificarAumento(productos: readonly ProductoParaPrecios[], pedido: PedidoAumento): PlanAumento {
-  if (pedido.sentido !== "subir" && pedido.sentido !== "bajar") return planVacio(pedido, "Elegí si los precios suben o bajan.");
+  const margen = pedido.modo === "margen";
+  if (!margen && pedido.sentido !== "subir" && pedido.sentido !== "bajar") return planVacio(pedido, "Elegí si los precios suben o bajan.");
   if (!pasoValido(pedido.redondeo)) return planVacio(pedido, "Elegí cómo redondear: $1, $10, $50 o $100.");
 
-  const lectura = leerPorcentaje(pedido.porcentaje, pedido.sentido);
-  if (lectura.estado === "vacio") return planVacio(pedido, "Escribí el porcentaje.");
+  // Con margen, el porcentaje se lee como un aumento (sobre el costo) y se redondea para arriba.
+  const lectura = leerPorcentaje(pedido.porcentaje, margen ? "subir" : pedido.sentido);
+  if (lectura.estado === "vacio") return planVacio(pedido, margen ? "Escribí el margen sobre el costo." : "Escribí el porcentaje.");
   if (lectura.estado === "invalido") return planVacio(pedido, lectura.mensaje);
   const porcentaje = lectura.valor;
 
@@ -264,8 +297,10 @@ export function planificarAumento(productos: readonly ProductoParaPrecios[], ped
   const filas: FilaAumento[] = [];
   const cambios: Cambio[] = [];
   const sinPrecio: { id: string; nombre: string }[] = [];
+  const sinCosto: { id: string; nombre: string }[] = [];
   const quedanEnCero: string[] = [];
   let sinCambios = 0;
+  let saltoGrande = false;
 
   for (const p of elegidos) {
     const antes = precioDeVenta(p);
@@ -273,7 +308,13 @@ export function planificarAumento(productos: readonly ProductoParaPrecios[], ped
       sinPrecio.push({ id: p.id, nombre: p.name });
       continue;
     }
-    const despues = precioConPorcentaje(antes, porcentaje, pedido.sentido, pedido.redondeo);
+    if (margen && !(typeof p.costo === "number" && Number.isFinite(p.costo) && p.costo > 0)) {
+      sinCosto.push({ id: p.id, nombre: p.name });
+      continue;
+    }
+    const despues = margen
+      ? precioConPorcentaje(p.costo as number, porcentaje, "subir", pedido.redondeo)
+      : precioConPorcentaje(antes, porcentaje, pedido.sentido, pedido.redondeo);
     if (!(despues > 0)) {
       quedanEnCero.push(p.name);
       continue;
@@ -283,7 +324,9 @@ export function planificarAumento(productos: readonly ProductoParaPrecios[], ped
       continue;
     }
     const efectivo = conUnDecimal(((despues - antes) / antes) * 100);
-    const pedidoConSigno = pedido.sentido === "subir" ? porcentaje : -porcentaje;
+    // Con margen no hay un "porcentaje pedido" sobre el precio de hoy: se marca el salto grande.
+    const pedidoConSigno = margen ? efectivo : pedido.sentido === "subir" ? porcentaje : -porcentaje;
+    if (margen && Math.abs(efectivo) > UMBRAL_CONFIRMACION) saltoGrande = true;
     filas.push({
       productId: p.id,
       nombre: p.name,
@@ -310,13 +353,16 @@ export function planificarAumento(productos: readonly ProductoParaPrecios[], ped
 
   const base = {
     porcentaje,
-    sentido: pedido.sentido,
+    sentido: margen ? ("subir" as const) : pedido.sentido,
     redondeo: pedido.redondeo,
     elegidos: elegidos.length,
     filas,
     sinPrecio,
     sinCambios,
-    pideConfirmacion: pideConfirmacionExtra(porcentaje),
+    // Con margen, lo que pide confirmar dos veces es un precio que se mueve más del 30 %.
+    pideConfirmacion: margen ? saltoGrande : pideConfirmacionExtra(porcentaje),
+    modo: pedido.modo ?? ("porcentaje" as const),
+    sinCosto,
     plan: armarPlanDeCambios(cambios),
   };
 
@@ -332,7 +378,14 @@ export function planificarAumento(productos: readonly ProductoParaPrecios[], ped
   if (filas.length === 0) {
     return {
       ...base,
-      error: sinPrecio.length === elegidos.length ? "Ninguno de los elegidos tiene precio de venta." : "Con este porcentaje y este redondeo no cambia ningún precio.",
+      error:
+        sinPrecio.length === elegidos.length
+          ? "Ninguno de los elegidos tiene precio de venta."
+          : margen && sinCosto.length + sinPrecio.length === elegidos.length
+            ? "Ninguno de los elegidos tiene costo cargado: cargá una compra o la lista del proveedor."
+            : margen
+              ? "Con este margen y este redondeo no cambia ningún precio."
+              : "Con este porcentaje y este redondeo no cambia ningún precio.",
     };
   }
   return { ...base, error: null };
@@ -360,7 +413,10 @@ export function pedidoDesdeAfuera(v: unknown): PedidoAumento | null {
   let alcance: Alcance;
   if (a.tipo === "todos") alcance = { tipo: "todos" };
   else if (a.tipo === "gondola" && GONDOLAS.includes(a.gondola as CorteCategoria)) alcance = { tipo: "gondola", gondola: a.gondola as CorteCategoria };
-  else if (a.tipo === "texto" && typeof a.texto === "string" && a.texto.length <= 120) alcance = { tipo: "texto", texto: a.texto };
+  else if (a.tipo === "seccion" && typeof a.seccion === "string" && /^[a-z-]{1,40}$/.test(a.seccion)) alcance = { tipo: "seccion", seccion: a.seccion };
+  else if (a.tipo === "proveedor" && typeof a.proveedorId === "string" && a.proveedorId.length > 0 && a.proveedorId.length <= 64) {
+    alcance = { tipo: "proveedor", proveedorId: a.proveedorId };
+  } else if (a.tipo === "texto" && typeof a.texto === "string" && a.texto.length <= 120) alcance = { tipo: "texto", texto: a.texto };
   else if (
     a.tipo === "tildados" &&
     Array.isArray(a.ids) &&
@@ -372,7 +428,8 @@ export function pedidoDesdeAfuera(v: unknown): PedidoAumento | null {
   if (o.sentido !== "subir" && o.sentido !== "bajar") return null;
   if (typeof o.porcentaje !== "string" || o.porcentaje.length > 20) return null;
   if (!pasoValido(o.redondeo)) return null;
-  return { alcance, sentido: o.sentido, porcentaje: o.porcentaje, redondeo: o.redondeo };
+  if (o.modo !== undefined && o.modo !== "porcentaje" && o.modo !== "margen") return null;
+  return { alcance, sentido: o.sentido, porcentaje: o.porcentaje, redondeo: o.redondeo, ...(o.modo === "margen" ? { modo: "margen" as const } : {}) };
 }
 
 /** Cómo se cuenta el aumento en palabras: "+8 %", "−5 %". */

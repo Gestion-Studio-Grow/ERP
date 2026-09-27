@@ -11,6 +11,7 @@ import { haceCuanto } from "@/lib/catalogo/precios-auditoria";
 import { EmptyState, PageHeader, buttonClasses } from "@/components/ui";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import ActualizarPrecios from "./ActualizarPrecios";
+import { prisma } from "@/lib/prisma";
 import { leerIdsTildados } from "../lista-core";
 
 export const dynamic = "force-dynamic";
@@ -53,7 +54,18 @@ export default async function ActualizarPreciosPage({
     price: p.price,
     pricePerKg: p.pricePerKg,
     category: p.category,
+    seccion: p.seccion,
+    proveedores: p.proveedores,
+    costo: p.costo,
   }));
+  // Supermercado: elegir por sección. Cualquier comercio con proveedores: elegir por proveedor.
+  // Las secciones del salón, si el rubro las declara (rubros.ts `secciones`): "subir una sección".
+  const secciones = rubro.rubro?.secciones?.lista.map((s) => ({ id: s.id, nombre: s.titulo })) ?? [];
+  const conProveedor = new Set(productos.flatMap((p) => p.proveedores ?? []));
+  const proveedores = conProveedor.size
+    ? await prisma.supplier.findMany({ where: { tenantId, id: { in: [...conProveedor] } }, orderBy: { name: "asc" }, select: { id: true, name: true } })
+    : [];
+  const extras = { secciones, proveedores: proveedores.map((x) => ({ id: x.id, nombre: x.name })) };
 
   // DISEÑO NUEVO («Renglón»): el título con el último cambio en una línea; los pasos a la
   // izquierda y la pizarra (antes → después, con Aplicar) a la derecha. Mismo componente y
@@ -78,7 +90,7 @@ export default async function ActualizarPreciosPage({
             </Link>
           </p>
         ) : (
-          <ActualizarPrecios productos={paraLaPantalla} sustantivo={{ uno, varios }} veEtiquetas={veEtiquetas} tildadosIniciales={tildados} renglon />
+          <ActualizarPrecios productos={paraLaPantalla} sustantivo={{ uno, varios }} veEtiquetas={veEtiquetas} tildadosIniciales={tildados} renglon {...extras} />
         )}
       </main>
     );
@@ -112,6 +124,7 @@ export default async function ActualizarPreciosPage({
           sustantivo={{ uno, varios }}
           veEtiquetas={veEtiquetas}
           tildadosIniciales={tildados}
+          {...extras}
         />
       )}
     </main>

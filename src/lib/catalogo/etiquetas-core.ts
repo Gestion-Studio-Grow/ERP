@@ -20,6 +20,7 @@
 // PURO: lo usan la pantalla (vista previa e impresión) y los tests.
 
 import { centavosDe } from "@/lib/dinero/redondeo";
+import { precioPorUnidadDeMedida } from "@/lib/supermercado/unidad-medida";
 import type { FormaDeVenta } from "./planilla-core";
 
 export type PlantillaId = "a4" | "rollo";
@@ -49,7 +50,23 @@ export type DatosEtiqueta = {
   precio: number;
   /** `Product.unit` de los que se venden por unidad ("unidad", "docena", "frasco"). */
   unidad: string;
+  /** Código de barras o interno: va en chico al pie, para encontrar el producto. */
+  codigo?: string | null;
+  /** La promo del producto en dos o tres palabras ("2×1", "20 % off"), si tiene. */
+  promo?: string | null;
 };
+
+/**
+ * El renglón del precio por unidad de medida: "$1.443,33 el litro". Lo exige la normativa de
+ * exhibición de precios (supermercado/unidad-medida.ts: A VALIDAR cuál rige). Lo pesado ya tiene
+ * su precio por kilo en grande: no lleva este renglón. PURA.
+ */
+export function lineaPorUnidadDeMedida(e: Pick<DatosEtiqueta, "saleUnit" | "precio" | "unidad">): string | null {
+  if (e.saleUnit === "WEIGHT") return null;
+  const r = precioPorUnidadDeMedida({ saleUnit: "UNIT", price: e.precio, pricePerKg: null, presentacion: e.unidad });
+  if (!r) return null;
+  return `${precioDeEtiqueta(r.importe)} ${r.rotulo === "c/u" ? "la unidad" : r.rotulo}`;
+}
 
 /** Precio sin centavos si es redondo, con centavos si los tiene: "$12.500", "$1.234,50". */
 export function precioDeEtiqueta(n: number): string {
@@ -110,6 +127,8 @@ const CSS_COMUN =
   ".p b{font-weight:800;letter-spacing:-.02em;line-height:1}" +
   ".u{font-weight:700}" +
   ".f{color:#444}" +
+  ".m{font-weight:700;font-size:8pt}" +
+  ".o{font-style:normal;font-weight:800;font-size:10pt;border:0.4mm solid #000;padding:0 1mm;margin-left:auto}" +
   // En pantalla (la vista previa) se ve el borde de cada etiqueta y el papel sobre gris; en el
   // papel no se imprime ningún borde: en una hoja autoadhesiva, una línea corrida se nota.
   "@media screen{body{background:#d9d9d9}.h{background:#fff;margin:0 auto 6mm}.e{outline:0.3mm dashed #aaa;outline-offset:-0.3mm}}";
@@ -142,12 +161,17 @@ export function htmlDeEtiquetas(etiquetas: readonly DatosEtiqueta[], plantilla: 
         hoja
           .map((e) => {
             const precio = precioDeEtiqueta(e.precio);
+            const porUnidad = lineaPorUnidadDeMedida(e);
+            const pieConCodigo = e.codigo ? `${e.codigo} · ${pie}` : pie;
             return (
               `<div class="e">` +
               `<div class="n">${escaparHtml(e.nombre)}</div>` +
-              `<div class="p"><b style="font-size:${tamanioDelPrecio(precio, plantilla)}pt">${escaparHtml(precio)}</b>` +
-              `<span class="u">${escaparHtml(unidadDeEtiqueta(e))}</span></div>` +
-              `<div class="f">${escaparHtml(pie)}</div>` +
+              `<div class="p"><b style="font-size:${tamanioDelPrecio(precio, plantilla) - (porUnidad ? 4 : 0)}pt">${escaparHtml(precio)}</b>` +
+              `<span class="u">${escaparHtml(unidadDeEtiqueta(e))}</span>` +
+              (e.promo ? `<i class="o">${escaparHtml(e.promo)}</i>` : "") +
+              `</div>` +
+              (porUnidad ? `<div class="m">${escaparHtml(porUnidad)}</div>` : "") +
+              `<div class="f">${escaparHtml(pieConCodigo)}</div>` +
               `</div>`
             );
           })

@@ -14,7 +14,7 @@
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AvisoError, Badge, Button, cn, fmtNumberAR } from "@/components/ui";
-import { CORTE_CATEGORIAS, type CorteCategoria } from "@/lib/carniceria/cortes";
+import { CORTE_CATEGORIAS } from "@/lib/carniceria/cortes";
 import { normalizarNombre } from "@/lib/catalogo/planilla-core";
 import {
   PLANTILLAS,
@@ -28,7 +28,8 @@ import {
 import { registrarImpresion } from "@/lib/catalogo/precios-actions";
 
 export type ProductoEtiqueta = DatosEtiqueta & {
-  gondola: CorteCategoria;
+  /** La góndola de la carnicería, o la sección del salón si el rubro las declara (`secciones`). */
+  gondola: string;
   pausado: boolean;
   /** Fecha (ISO) del cambio de precio que todavía no se imprimió, o null si está al día. */
   cambioPendiente: string | null;
@@ -55,8 +56,11 @@ export default function Etiquetas({
   hoy,
   sustantivo,
   renglon = false,
+  secciones,
 }: {
   productos: ProductoEtiqueta[];
+  /** Las secciones del salón del rubro (rubros.ts `secciones`); sin ellas, las góndolas de la carnicería. */
+  secciones?: readonly { id: string; label: string }[];
   negocio: string;
   /** Hoy en la zona del negocio (AAAA-MM-DD), para el pie de la vista previa. */
   hoy: string;
@@ -71,7 +75,7 @@ export default function Etiquetas({
   const ids = useId();
   const cambiaron = useMemo(() => productos.filter((p) => p.cambioPendiente !== null), [productos]);
   const [vista, setVista] = useState<Vista>(cambiaron.length > 0 ? "cambiaron" : "todos");
-  const [gondola, setGondola] = useState<CorteCategoria | "">("");
+  const [gondola, setGondola] = useState<string>("");
   const [buscar, setBuscar] = useState("");
   const [elegidos, setElegidos] = useState<ReadonlySet<string>>(() => new Set(cambiaron.map((p) => p.id)));
   const [plantilla, setPlantilla] = useState<PlantillaId>("a4");
@@ -82,8 +86,9 @@ export default function Etiquetas({
 
   const gondolas = useMemo(() => {
     const hay = new Set(productos.map((p) => p.gondola));
-    return CORTE_CATEGORIAS.filter((c) => hay.has(c.id));
-  }, [productos]);
+    const opciones: readonly { id: string; label: string }[] = secciones ?? CORTE_CATEGORIAS;
+    return opciones.filter((c) => hay.has(c.id));
+  }, [productos, secciones]);
 
   const lista = useMemo(() => {
     const base = vista === "cambiaron" ? cambiaron : productos;
@@ -215,7 +220,7 @@ export default function Etiquetas({
               <select
                 id={`${ids}-gondola`}
                 value={gondola}
-                onChange={(e) => setGondola(e.target.value as CorteCategoria | "")}
+                onChange={(e) => setGondola(e.target.value)}
                 className="h-11 w-full rounded-md border border-line-strong bg-surface-raised px-3 text-sm text-strong"
               >
                 <option value="">Todas</option>

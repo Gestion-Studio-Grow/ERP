@@ -35,6 +35,8 @@ import { pedidoDesdeAfuera, precioDeVenta } from "./aumento-core";
 import { aplicarAumentoEnTx, esConflictoDeSerializacion, type ResultadoAumento } from "./precios-tx";
 import { filasEtiquetaImpresa } from "./precios-auditoria";
 import { esPlantilla, idsDesdeAfuera, type DatosEtiqueta } from "./etiquetas-core";
+import { leerPromociones } from "@/lib/supermercado/config-repo";
+import { diaDeLaSemana, rotulosDePromoPorProducto } from "@/lib/supermercado/promociones";
 
 /** Reintentos ante un conflicto con otro "Aplicar" simultáneo. El segundo intento ya alcanza. */
 const MAX_INTENTOS = 3;
@@ -119,15 +121,22 @@ export async function registrarImpresion(idsCrudos: unknown, plantillaCruda: unk
   try {
     const etiquetas = await tenantTransaction(
       async (tx) => {
-        const productos = await tx.product.findMany({
-          where: { tenantId, deletedAt: null, id: { in: ids } },
-          select: { id: true, name: true, unit: true, saleUnit: true, price: true, pricePerKg: true },
-          orderBy: { name: "asc" },
-        });
+        const [productos, promos] = await Promise.all([
+          tx.product.findMany({
+            where: { tenantId, deletedAt: null, id: { in: ids } },
+            select: { id: true, name: true, unit: true, saleUnit: true, price: true, pricePerKg: true, codigo: true },
+            orderBy: { name: "asc" },
+          }),
+          leerPromociones(tx, tenantId),
+        ]);
+        const hoy = todayInBusinessTz();
+        const promoDe = rotulosDePromoPorProducto(promos, hoy, diaDeLaSemana(hoy));
         const salen: DatosEtiqueta[] = productos.flatMap((p) => {
           const saleUnit = p.saleUnit === "WEIGHT" ? "WEIGHT" : "UNIT";
           const precio = precioDeVenta({ saleUnit, price: p.price, pricePerKg: p.pricePerKg });
-          return precio === null ? [] : [{ id: p.id, nombre: p.name, saleUnit, precio, unidad: p.unit }];
+          return precio === null
+            ? []
+            : [{ id: p.id, nombre: p.name, saleUnit, precio, unidad: p.unit, codigo: p.codigo, promo: promoDe.get(p.id) ?? null }];
         });
         if (salen.length > 0) {
           await tx.auditLog.createMany({

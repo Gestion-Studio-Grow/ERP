@@ -51,6 +51,8 @@ export type LoteDeCambio = {
   sentido?: "subir" | "bajar";
   porcentaje?: number;
   redondeo?: number;
+  /** "margen": `porcentaje` es el margen sobre el costo, no un aumento sobre el precio. */
+  modo?: "margen";
 };
 
 type TxAuditoria = Pick<Prisma.TransactionClient, "auditLog">;
@@ -277,9 +279,11 @@ export function resumirUltimoAumento(fila: { diaDelCambio: string; changes: unkn
   const origen = typeof c.origen === "string" && (ORIGENES_GENERALES as readonly string[]).includes(c.origen) ? (c.origen as OrigenCambio) : null;
   const lote = (c.lote && typeof c.lote === "object" ? c.lote : {}) as Record<string, unknown>;
   const porcentaje =
-    typeof lote.porcentaje === "number" && (lote.sentido === "subir" || lote.sentido === "bajar")
-      ? `${lote.sentido === "subir" ? "+" : "−"}${lote.porcentaje.toLocaleString("es-AR", { maximumFractionDigits: 2 })} %`
-      : null;
+    typeof lote.porcentaje === "number" && lote.modo === "margen"
+      ? `margen ${lote.porcentaje.toLocaleString("es-AR", { maximumFractionDigits: 2 })} % sobre el costo`
+      : typeof lote.porcentaje === "number" && (lote.sentido === "subir" || lote.sentido === "bajar")
+        ? `${lote.sentido === "subir" ? "+" : "−"}${lote.porcentaje.toLocaleString("es-AR", { maximumFractionDigits: 2 })} %`
+        : null;
   return { dias: Math.max(0, diasEntre(fila.diaDelCambio, hoy)), origen, porcentaje };
 }
 
