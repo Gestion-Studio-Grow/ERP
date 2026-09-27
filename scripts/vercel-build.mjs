@@ -110,6 +110,18 @@ if (esProduccion) {
   dueño para /operador/login, larga y distinta de todo lo demás. Después, Redeploy.`,
     );
   }
+  // Un espacio o un Enter pegado al principio o al final: el login los recorta (lo tipeado y la
+  // variable), así que el dueño entra igual, pero se avisa para que la variable quede limpia. Aviso,
+  // no freno. Nunca se imprime el valor ni su largo.
+  const claveCruda = process.env.OPERATOR_PASSWORD ?? "";
+  if (claveCruda !== claveCruda.trim()) {
+    log(
+      `${AMBAR}⚠ OPERATOR_PASSWORD tiene espacios o un salto de línea al principio o al final.${FIN}\n` +
+        `  El login de /operador los ignora (los recorta): la clave que vale es la de sin espacios.\n` +
+        `  Para dejarla limpia: Vercel → Settings → Environment Variables → OPERATOR_PASSWORD → Edit,\n` +
+        `  borrar los espacios y el Enter de los bordes. Después, Redeploy.`,
+    );
+  }
 }
 
 /**

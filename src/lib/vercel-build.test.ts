@@ -153,6 +153,24 @@ test("producción sin OPERATOR_PASSWORD, o vacía, no se publica (y el valor no 
   assert.doesNotMatch(ok.salida, /clave-secreta-del-duenio-7731/);
 });
 
+test("OPERATOR_PASSWORD con espacios o un Enter en los bordes: avisa, sin imprimir el valor ni su largo", () => {
+  const base = { VERCEL_ENV: "production", AUTH_SECRET: "x", OPERATOR_SECRET: "op", DATABASE_URL: HOST_MUERTO };
+  for (const clave of ["clave-secreta-7731 ", "clave-secreta-7731\n", " clave-secreta-7731", "\tclave-secreta-7731\r\n"]) {
+    const r = corre({ ...base, OPERATOR_PASSWORD: clave });
+    const que = JSON.stringify(clave);
+    assert.match(r.salida, /OPERATOR_PASSWORD tiene espacios o un salto de línea/, que);
+    assert.doesNotMatch(r.salida, /Falta OPERATOR_PASSWORD/, "es un aviso, no el freno de la clave vacía");
+    assert.doesNotMatch(r.salida, /clave-secreta/, "el valor no se imprime");
+    // Ni el largo: las líneas que nombran la variable no llevan ningún número (sin los colores ANSI).
+    const lineas = r.salida.replace(/\x1b\[\d+m/g, "").split("\n").filter((l) => l.includes("OPERATOR_PASSWORD"));
+    assert.ok(lineas.length > 0 && lineas.every((l) => !/\d/.test(l)), `${que}: ${lineas.join(" | ")}`);
+    assert.ok(r.llamadas.some((l) => l.includes("predeploy-check.mts")), "y el build sigue: no es un freno");
+  }
+  // Una clave limpia (con espacios ADENTRO, que sí cuentan) no dispara el aviso.
+  const limpia = corre({ ...base, OPERATOR_PASSWORD: "clave con espacios adentro" });
+  assert.doesNotMatch(limpia.salida, /OPERATOR_PASSWORD tiene espacios/);
+});
+
 test("producción sin AUTH_SECRET no se publica", () => {
   const r = corre({ VERCEL_ENV: "production", DATABASE_URL: HOST_MUERTO });
   assert.equal(r.status, 1);

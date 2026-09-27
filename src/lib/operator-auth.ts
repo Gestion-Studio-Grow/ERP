@@ -243,6 +243,14 @@ export async function readOperatorToken(
 /** Un valor cualquiera para gastar el mismo tiempo cuando el nombre no existe. */
 const VALOR_SENUELO = `pbkdf2$${"0".repeat(32)}$${"0".repeat(64)}`;
 
+/**
+ * La clave del dueño, sin espacios ni saltos de línea en los bordes, o `undefined` si no hay.
+ *
+ * POR QUÉ SE RECORTA (2026-09-27). Pegar el valor en Vercel con un espacio o un Enter al final es el
+ * error clásico: la variable queda "clave\n", el dueño tipea "clave" y no entra, sin nada en pantalla
+ * que lo explique. Los bordes se recortan acá y en lo tipeado (`verificarOperador`); los espacios de
+ * ADENTRO cuentan. El build avisa si la variable trae bordes sucios (scripts/vercel-build.mjs).
+ */
 function passwordDelDuenio(env: Env): string | undefined {
   // En desarrollo, sin OPERATOR_PASSWORD, "operador" para probar la consola local sin configurar
   // nada. Nunca en producción: ahí sin OPERATOR_PASSWORD (o vacía) el dueño no entra, y el build de
@@ -251,16 +259,18 @@ function passwordDelDuenio(env: Env): string | undefined {
   // el mismo criterio). La clave de desarrollo, SÓLO con NODE_ENV exactamente "development": no con
   // la variable ausente, ni "test", ni "Production" mal escrito.
   const propia = env.OPERATOR_PASSWORD;
-  if (propia !== undefined) return propia.trim() === "" ? undefined : propia;
+  if (propia !== undefined) return propia.trim() === "" ? undefined : propia.trim();
   return env.NODE_ENV === "development" ? "operador" : undefined;
 }
 
 /**
  * ¿Nombre y clave son de un operador? Devuelve el nombre normalizado, o null.
  *   · el DUEÑO (nombre vacío, el login de siempre, o su nombre): SÓLO con OPERATOR_PASSWORD, que
- *     tiene que existir y no estar vacía. Una línea de OPERADORES con su nombre no cuenta;
- *   · otro nombre: contra su línea PBKDF2 de OPERADORES.
- * Una clave vacía nunca entra, por ningún camino.
+ *     tiene que existir y no estar vacía. Una línea de OPERADORES con su nombre no cuenta. Lo
+ *     tipeado y la variable se comparan sin los espacios/saltos de línea de los bordes;
+ *   · otro nombre: contra su línea PBKDF2 de OPERADORES, tal cual se tipeó (la línea se armó en
+ *     /operador/clave con la clave exacta: recortar acá dejaría afuera a quien la armó con un espacio).
+ * Una clave vacía (o de puros espacios, para el dueño) nunca entra, por ningún camino.
  */
 export async function verificarOperador(
   nombreTipeado: string,
@@ -271,10 +281,12 @@ export async function verificarOperador(
   const nombre = nombreTipeado.trim() === "" ? duenio : normalizarNombreOperador(nombreTipeado);
   if (nombre && nombre === duenio) {
     const esperada = passwordDelDuenio(env);
-    return clave !== "" && esperada !== undefined && igualesEnTiempoConstante(clave, esperada) ? nombre : null;
+    const tipeada = clave.trim();
+    return tipeada !== "" && esperada !== undefined && igualesEnTiempoConstante(tipeada, esperada) ? nombre : null;
   }
   const linea = nombre ? operadoresConfigurados(env).get(nombre) : undefined;
-  // Nombre desconocido: se gasta el mismo trabajo que una verificación real.
+  // Nombre desconocido: se gasta el mismo trabajo que una verificación real. Un nombre que NO es
+  // el del dueño nunca llega a compararse con OPERATOR_PASSWORD: sólo con su propia línea.
   const coincide = await claveCoincide(clave, linea ?? VALOR_SENUELO);
   return nombre && linea && clave !== "" && coincide ? nombre : null;
 }

@@ -295,6 +295,101 @@ test("REPRO r12.ts: OPERATOR_PASSWORD de puros espacios no autentica; la clave '
     assert.equal(await verificarOperador("", "operador", { NODE_ENV: nodeEnv }), null, String(nodeEnv));
   }
   assert.equal(await verificarOperador("", "operador", { NODE_ENV: "development" }), "duenio");
-  // Una clave real con espacios adentro o alrededor sigue valiendo tal cual.
+  // Una clave real con espacios adentro o alrededor sigue valiendo (los bordes se recortan en los dos
+  // lados; los de adentro cuentan: ver "Ingreso a prueba de errores" abajo).
   assert.equal(await verificarOperador("", " con espacios ", { NODE_ENV: "production", OPERATOR_PASSWORD: " con espacios " }), "duenio");
+});
+
+// ── Ingreso a prueba de errores (2026-09-27): los bordes de la clave del dueño ──────────────────
+// El dueño cambió OPERATOR_PASSWORD en Vercel y no pudo entrar. Pegar el valor con un espacio o un
+// Enter al final es el error clásico: la clave del dueño se compara sin los bordes, en la variable
+// y en lo tipeado, siempre en tiempo constante. Vacía o de puros espacios, nunca entra.
+
+const PROD = { NODE_ENV: "production", OPERADORES: undefined, OPERADOR_DUENIO: undefined };
+
+test("OPERATOR_PASSWORD con un espacio o un Enter al final en Vercel: el dueño entra con la clave limpia", async () => {
+  for (const guardada of ["la-del-duenio ", "la-del-duenio\n", "la-del-duenio\r\n", " \tla-del-duenio \n"]) {
+    const env = { ...PROD, OPERATOR_PASSWORD: guardada };
+    const que = JSON.stringify(guardada);
+    assert.equal(await verificarOperador("", "la-del-duenio", env), "duenio", que);
+    assert.equal(await verificarOperador("duenio", "la-del-duenio", env), "duenio", que);
+    // Una clave distinta sigue sin entrar: recortar los bordes no afloja la comparación.
+    assert.equal(await verificarOperador("", "la-del-duenio2", env), null, que);
+    assert.equal(await verificarOperador("", "la-del-dueni", env), null, que);
+    assert.equal(await verificarOperador("", "LA-DEL-DUENIO", env), null, que);
+  }
+});
+
+test("lo tipeado con un Enter o espacios en los bordes: el dueño entra igual", async () => {
+  const env = { ...PROD, OPERATOR_PASSWORD: "la-del-duenio" };
+  for (const tipeada of ["la-del-duenio\n", "la-del-duenio ", " la-del-duenio", "\tla-del-duenio\r\n"]) {
+    assert.equal(await verificarOperador("", tipeada, env), "duenio", JSON.stringify(tipeada));
+  }
+  // Los de ADENTRO cuentan: no se recortan ni se juntan.
+  const dos = { ...PROD, OPERATOR_PASSWORD: "dos palabras" };
+  assert.equal(await verificarOperador("", "dos palabras", dos), "duenio");
+  assert.equal(await verificarOperador("", "dos  palabras", dos), null);
+  assert.equal(await verificarOperador("", "dospalabras", dos), null);
+});
+
+test("clave de puros espacios o vacía nunca entra: ni guardada en la variable ni tipeada", async () => {
+  // La variable de puros espacios (o vacía) no es una clave: nada entra, ni lo vacío ni lo mismo.
+  for (const guardada of [" ", "\n", " \r\n\t ", ""]) {
+    for (const nodeEnv of ["production", "development"]) {
+      const env = { ...PROD, NODE_ENV: nodeEnv, OPERATOR_PASSWORD: guardada };
+      for (const tipeada of ["", " ", "\n", guardada, "operador"]) {
+        assert.equal(await verificarOperador("", tipeada, env), null, `${nodeEnv} ${JSON.stringify(guardada)} / ${JSON.stringify(tipeada)}`);
+      }
+    }
+  }
+  // Con la clave buena guardada, lo tipeado vacío o de espacios no entra.
+  const env = { ...PROD, OPERATOR_PASSWORD: "la-buena" };
+  for (const tipeada of ["", " ", "\n", "\r\n", "\t \t"]) {
+    assert.equal(await verificarOperador("", tipeada, env), null, JSON.stringify(tipeada));
+    assert.equal(await verificarOperador("duenio", tipeada, env), null, JSON.stringify(tipeada));
+  }
+});
+
+test("el dueño entra con el usuario vacío o con su nombre configurado (el que muestra la pantalla)", async () => {
+  // Sin OPERADOR_DUENIO: el usuario es "duenio".
+  const porDefecto = { ...PROD, OPERATOR_PASSWORD: "la-del-duenio\n" };
+  // "DUEÑIO": el nombre se normaliza (sin tildes ni mayúsculas), así que tipearlo con ñ también vale.
+  for (const usuario of ["", "   ", "duenio", "Duenio ", "DUEÑIO"]) {
+    assert.equal(await verificarOperador(usuario, "la-del-duenio", porDefecto), "duenio", JSON.stringify(usuario));
+  }
+  // Con OPERADOR_DUENIO: su nombre (normalizado) o vacío. "duenio" ya no es el dueño.
+  const conNombre = { ...PROD, OPERADOR_DUENIO: "Tomás", OPERATOR_PASSWORD: "la-del-duenio " };
+  assert.equal(operadorDuenio(conNombre), "tomas");
+  for (const usuario of ["", "tomas", "Tomás", " TOMAS "]) {
+    assert.equal(await verificarOperador(usuario, "la-del-duenio", conNombre), "tomas", JSON.stringify(usuario));
+  }
+  assert.equal(await verificarOperador("duenio", "la-del-duenio", conNombre), null);
+});
+
+test("un operador con nombre no se hace pasar por el dueño, con o sin espacios", async () => {
+  const facu = await valorDeClave("clave-de-facu", new Uint8Array(16).fill(7));
+  const env = {
+    ...PROD,
+    AUTH_SECRET: "a".repeat(40),
+    OPERATOR_SECRET: "s".repeat(40),
+    OPERATOR_PASSWORD: "la-del-duenio",
+    OPERADORES: `facu=${facu}`,
+  };
+  // Facu entra como Facu...
+  assert.equal(await verificarOperador("facu", "clave-de-facu", env), "facu");
+  // ...pero su clave no abre el usuario del dueño (vacío o por nombre), con o sin bordes.
+  for (const usuario of ["", "duenio", " duenio "]) {
+    for (const clave of ["clave-de-facu", "clave-de-facu ", "\nclave-de-facu\n"]) {
+      assert.equal(await verificarOperador(usuario, clave, env), null, `${JSON.stringify(usuario)} / ${JSON.stringify(clave)}`);
+    }
+  }
+  // Y la clave del dueño no abre a Facu: su nombre sólo se compara contra su línea.
+  for (const clave of ["la-del-duenio", "la-del-duenio\n"]) {
+    assert.equal(await verificarOperador("facu", clave, env), null, JSON.stringify(clave));
+  }
+  // La sesión de Facu es de rol "o", nunca dueña.
+  await conEntorno(env, async () => {
+    const tok = await createOperatorToken((await verificarOperador("facu", "clave-de-facu"))!);
+    assert.deepEqual(await leerSesionOperador(tok), { nombre: "facu", rol: "o", esDuenio: false });
+  });
 });
