@@ -1,7 +1,6 @@
 {
-  "model": "claude-opus-5-5",
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
-    "defaultMode": "auto",
     "allow": [
       "Read",
       "Edit",
@@ -21,13 +20,25 @@
       "Bash(npx prisma generate:*)",
       "Bash(npx prisma migrate dev:*)",
       "Bash(prisma generate:*)",
-      "Bash(prisma migrate dev:*)"
-    ],
-    "ask": [
-      "Bash(npx prisma migrate deploy:*)",
-      "Bash(prisma migrate deploy:*)",
-      "Bash(pnpm prisma migrate deploy:*)",
-      "Bash(yarn prisma migrate deploy:*)"
+      "Bash(prisma migrate dev:*)",
+      "Bash(npm run *)",
+      "Bash(npm test *)",
+      "Bash(pnpm run *)",
+      "Bash(pnpm test *)",
+      "Bash(npx prettier *)",
+      "Bash(npx biome *)",
+      "Bash(npx tsc *)",
+      "Bash(npx eslint *)",
+      "Bash(npx lighthouse *)",
+      "Bash(npx playwright *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git checkout -b *)",
+      "Bash(git switch *)",
+      "Bash(gh pr *)"
     ],
     "deny": [
       "Bash(rm -rf:*)",
@@ -44,7 +55,38 @@
       "Bash(curl:*)",
       "Bash(wget:*)",
       "Bash(nc:*)",
-      "Bash(scp:*)"
+      "Bash(scp:*)",
+      "Bash(rm -rf *)",
+      "Bash(git push --force *)",
+      "Bash(git reset --hard *)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/*.pem)"
+    ],
+    "defaultMode": "auto",
+    "ask": [
+      "Bash(npx prisma migrate deploy:*)",
+      "Bash(prisma migrate deploy:*)",
+      "Bash(pnpm prisma migrate deploy:*)",
+      "Bash(yarn prisma migrate deploy:*)"
     ]
-  }
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/format.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/design-lint.js\""
+          }
+        ]
+      }
+    ]
+  },
+  "model": "claude-opus-5-5"
 }

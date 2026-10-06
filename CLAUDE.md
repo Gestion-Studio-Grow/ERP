@@ -271,3 +271,11 @@ propio y la persistencia con datos reales son inversión POST-venta, nunca antes
 - **Gate 2 — `prisma migrate deploy`:** cambiar la estructura de la DB de producción (Neon) se **pausa y se reporta**; no se corre solo. Es lo único irreversible.
 - **Neon en PLAN GRATUITO — cuidá el consumo:** minimizá conexiones y queries contra la DB de prod, evitá operaciones pesadas / escaneos completos / benchmarks contra prod, cuidá el compute time y el límite de horas del plan free. Para análisis o pruebas, leé schema/migraciones del **repo** (`prisma/schema.prisma`, `prisma/migrations/`) en vez de golpear la base real salvo que sea imprescindible.
 - **Destructivo bloqueado** por config (force push, `reset --hard`, `migrate reset`, DROP, `rm -rf`).
+
+<!-- factory-kit:start -->
+## Kit GSG (piezas visuales) — complementa lo de arriba; ante conflicto gana este archivo
+- Flujo: `/gsg-brief` → `/gsg-build` → `/gsg-review` → `/gsg-ship`. Correcciones → `/gsg-regla`. Plan corto en castellano simple y **avanzar**; se frena sólo por producción, migraciones de DB, gasto o cliente.
+- Identidad visual en `DESIGN.md`; reglas por ruta en `.claude/rules/` (marca, movimiento, código frontend, 3D); guardias PostToolUse en `.claude/hooks/` (format + design-lint). Sin dependencias nuevas sin preguntar.
+- Verificación = la de siempre: `npm run gates` · `npx tsc --noEmit` · `npm test` · `npm run build`. QA = recorrido clic por clic con el agente `qa` (o `gsg-qa`), no "que cargue"; capturas con `visual-verifier`.
+- Agentes del kit (`brand-guardian`, `visual-verifier`, `code-simplifier`) complementan a `qa`, `constructor`, `challenger`; no los reemplazan. Cierre: 3 líneas (qué, cómo se verificó, qué falta).
+<!-- factory-kit:end -->
