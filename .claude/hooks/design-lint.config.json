@@ -1,5 +1,10 @@
 {
   "_ayuda": "Completá allowedFonts y allowedHexColors desde DESIGN.md (o con /gsg-regla). Mientras estén vacíos, esas dos reglas no se aplican. Para exceptuar una línea, agregale el comentario design-lint-ignore.",
+  "scope": "changed",
+  "_scope": "changed = sólo juzga las líneas que la sesión tocó respecto de HEAD (lo viejo no frena a nadie; archivo nuevo = entero). file = todo el archivo. Medido el 2026-10-06: en modo file, 131 de 1595 archivos de src/ ya traían 533 problemas.",
+  "ignoreFiles": [".test.", ".spec.", "/__tests__/", "/generated/"],
+  "brandedPaths": ["src/app/tienda/", "src/lib/branding", "src/lib/brand-detection/", "src/lib/premium-brand", "src/components/premium/"],
+  "_brandedPaths": "Superficies con la marca del NEGOCIO (vidrieras) o que guardan su paleta como dato: ahí no se exige color ni tipografía de DESIGN.md (el tenant conserva su marca). Las reglas de movimiento sí corren.",
   "allowedFonts": [
     "Fraunces",
     "Hanken Grotesk",
