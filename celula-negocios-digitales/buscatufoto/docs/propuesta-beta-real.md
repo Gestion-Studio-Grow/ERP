@@ -80,3 +80,17 @@ Las fases 1 a 3 son el mínimo para salir con Valentina. La 3 no es opcional: su
 - **Fotos de menores:** el riesgo legal y de reputación más alto del producto. Mitigado por la política.
 
 — Elaborado por GSG
+
+## 7. Revisión del Challenger (ADR-045) — 08/10/2026
+
+Veredicto: **no se adopta tal cual.** Cambios pedidos antes de adoptar:
+
+1. **Proyecto de Vercel separado de `erp-ch`** para la beta real: no redeployar al cliente CH por cambios de
+   buscatufoto, no mezclar claves, y no arriesgar el proyecto del ERP si su plan no admite uso comercial (verificar).
+2. **Abogado antes de la primera venta con menores**, con autorización de los padres juntada vía el club (modelo
+   que damos armado); código de evento rotable y con límite de intentos.
+3. **Pádel no usa dorsal** (a confirmar con Valentina): navegar el álbum por categoría, partido y cancha.
+4. **Unificar precios:** `src/lib/planes.ts` todavía muestra el modelo con comisión.
+5. **Medir en la beta antes de fijar el precio:** ventas reales, horas de confirmación de pagos y disposición a
+   pagar de unos 10 fotógrafos. Probar en paralelo **pase por evento** y **cobro al club u organizador**.
+6. Conciliación de transferencias más liviana (monto con centavos únicos por pedido) o Mercado Pago desde la fase 2.
