@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" role="img" aria-label="Taller Mecánico AGR">
+  <ellipse cx="160" cy="100" rx="152" ry="92" fill="#fff" stroke="#111" stroke-width="9"/>
+  <text x="160" y="50" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="27" fill="#111">Taller</text>
+  <text x="160" y="128" text-anchor="middle" font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif" font-weight="900" font-size="86" letter-spacing="-2" fill="#c8102e">AGR</text>
+  <text x="160" y="168" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="27" fill="#111">Mecánico</text>
+</svg>

@@ -74,6 +74,8 @@ export default async function Home() {
   // CH, que es el comportamiento de siempre.
   const identity = await getTenantIdentity();
   if (identity.isRetail) redirect("/tienda");
+  // Taller mecánico: su portada es la página del taller (src/app/taller), no la de turnos.
+  if (identity.blueprintId === "taller") redirect("/taller");
 
   // FICHA DE MARCA (RFC-004-D, frente A), detrás de `TENANT_BRAND_SHEET_ENABLED`: con el flag
   // ON, los textos de la landing salen del nombre del tenant en vez de decir "CH". Flag OFF →
