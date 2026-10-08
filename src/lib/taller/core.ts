@@ -3,6 +3,8 @@
 // plantillas de WhatsApp y avisos. Todo lo que se puede probar sin levantar nada.
 // ============================================================================
 
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
+
 // ── Patente ─────────────────────────────────────────────────────────────────
 // Autos: vieja ABC123 (1995–2016) y Mercosur AB123CD (2016+). Motos: vieja 123ABC
 // y Mercosur A123BCD. Se guarda SIEMPRE normalizada (mayúsculas, sin espacios ni guiones).
@@ -83,7 +85,8 @@ export function siguienteEstado(e: EstadoOrden): EstadoOrden | null {
 
 // ── Plata ───────────────────────────────────────────────────────────────────
 
-export const redondear = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
+/** Al centavo, con el redondeo de la casa (una sola regla para toda la plata del motor). */
+export const redondear = redondearAlCentavo;
 
 /** $ 1.234.567,89 — formato argentino, siempre con dos decimales. */
 export function pesos(n: number | null | undefined): string {

@@ -453,8 +453,8 @@ export async function reportesTaller() {
     facturado: redondear(facturado),
     entregadas,
     ticketPromedio: entregadas ? redondear(facturado / entregadas) : 0,
-    tasaAprobacion: presupuestadas ? Math.round((aprobadas / presupuestadas) * 100) : null,
-    tasaItems: itemsOfrecidos ? Math.round((itemsAprobados / itemsOfrecidos) * 100) : null,
+    tasaAprobacion: presupuestadas ? Math.round((aprobadas / presupuestadas) * 100) : null, // no-es-plata: porcentaje de presupuestos
+    tasaItems: itemsOfrecidos ? Math.round((itemsAprobados / itemsOfrecidos) * 100) : null, // no-es-plata: porcentaje de ítems
     porMes: [...porMes.entries()].sort().map(([mes, v]) => ({ mes, total: redondear(v.total), ordenes: v.ordenes })),
     trabajos: [...trabajos.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10),
     mecanicos: [...mecanicos.entries()].map(([nombre, v]) => ({ nombre, ...v, total: redondear(v.total) })).sort((a, b) => b.total - a.total),

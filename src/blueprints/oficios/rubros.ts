@@ -188,7 +188,8 @@ export const OFICIOS_RUBROS: OficiosRubro[] = [
     // es el módulo `taller`; acá va sólo la config del rubro.
     id: "taller",
     label: "Taller mecánico",
-    keywords: ["taller", "mecanico", "mecanica", "automotor", "frenos", "tren delantero", "inyeccion", "lubricentro"],
+    // Sin "taller" a secas: también hay talleres de costura, de cerámica o de robótica.
+    keywords: ["taller mecanico", "mecanico", "mecanica", "automotor", "tren delantero", "lubricentro", "gomeria"],
     categories: ["Service y mantenimiento", "Frenos y suspensión", "Motor e inyección", "Diagnóstico"],
     services: [
       { name: "Diagnóstico computarizado (escáner)", cat: "Diagnóstico", durationMin: 45, price: 25000 },
