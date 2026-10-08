@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { carpetasParaTrazar, redireccionesDeSitiosEstaticos, reescriturasDeSitiosEstaticos } from "./src/lib/sitio-estatico";
+import { CARPETA_BUSCATUFOTO, reescrituraDeBuscatufoto } from "./src/lib/sitio-buscatufoto";
 
 const nextConfig: NextConfig = {
   // Lo fija scripts/vercel-build.mjs en un preview que apunta a la base de producción: se inlinea
@@ -7,13 +8,18 @@ const nextConfig: NextConfig = {
   env: { GSG_PREVIEW_BLOQUEADO: process.env.GSG_PREVIEW_BLOQUEADO ?? "" },
   // Sitios estáticos por negocio (hoy Circuito WPE en wpe.*): `/` y sus adjuntos van al manejador
   // que resuelve el negocio del host y falla cerrado. Reglas y porqué: src/lib/sitio-estatico.ts.
+  // buscatufoto (producto de GSG, app sin servidor) en su host propio: TODO va a su manejador, que sólo
+  // atiende ese host. Reglas y porqué: src/lib/sitio-buscatufoto.ts.
   async rewrites() {
-    return { beforeFiles: reescriturasDeSitiosEstaticos(), afterFiles: [], fallback: [] };
+    return { beforeFiles: [reescrituraDeBuscatufoto(), ...reescriturasDeSitiosEstaticos()], afterFiles: [], fallback: [] };
   },
   async redirects() {
     return redireccionesDeSitiosEstaticos();
   },
-  outputFileTracingIncludes: { "/sitio-estatico/**": carpetasParaTrazar() },
+  outputFileTracingIncludes: {
+    "/sitio-estatico/**": carpetasParaTrazar(),
+    "/sitio-buscatufoto/**": [`./${CARPETA_BUSCATUFOTO}/**/*`],
+  },
   images: {
     remotePatterns: [
       {

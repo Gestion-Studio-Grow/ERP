@@ -1,0 +1,1 @@
+self.__SSG_MANIFEST=new Set(["\u002Fa\u002F[album]","\u002Fa\u002F[album]\u002Fpedido\u002F[pedido]","\u002Fblog\u002F[slug]","\u002Ff\u002F[usuario]","\u002Fpanel\u002Falbumes\u002F[id]"]);self.__SSG_MANIFEST_CB&&self.__SSG_MANIFEST_CB()

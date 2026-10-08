@@ -1,0 +1,21 @@
+import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+const B='http://localhost:3100';
+const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome'});
+const ctx=await b.newContext({viewport:{width:1280,height:900}}); const c=await ctx.newPage();
+await c.goto(B+'/a/10k-costanera-muestra'); await c.waitForFunction(()=>document.querySelectorAll('img[src^="blob:"]').length>=18,null,{timeout:60000});
+await c.getByRole('button',{name:'Agregar'}).first().click(); await c.getByRole('button',{name:/Ver carrito/}).click();
+const d=c.locator('dialog[open]'); await d.getByRole('button',{name:/Continuar al pago/}).click();
+await c.getByLabel('Tu nombre').fill('X'); await d.getByLabel('Email').fill('x@qa.test'); await d.getByRole('button',{name:/^Pagar/}).click(); await c.waitForURL(/pedido/);
+const p=await ctx.newPage(); await p.goto(B+'/panel'); await p.getByRole('button',{name:/cuenta de muestra/}).click(); await p.waitForTimeout(1500);
+await p.getByRole('link',{name:/10K de la Costanera/}).first().click(); await p.waitForTimeout(600);
+await p.getByRole('link',{name:'Datos'}).last().click(); await p.waitForTimeout(500);
+await p.getByRole('button',{name:'Eliminar este álbum'}).click(); await p.getByRole('button',{name:/Sí, eliminar/}).click(); await p.waitForTimeout(700);
+console.log('álbum con ventas:', await p.locator('dialog[open] [role=alert]').innerText(), '|', p.url());
+await p.keyboard.press('Escape');
+// borrar foto vendida
+await p.getByRole('link',{name:'Fotos y videos'}).last().click(); await p.waitForTimeout(800);
+const borrar=p.getByRole('button',{name:/Borrar|Eliminar/}).first(); console.log('botón borrar foto:', await borrar.getAttribute('aria-label'));
+await borrar.click(); await p.waitForTimeout(300);
+const conf=p.locator('dialog[open]').getByRole('button',{name:/borrar|eliminar/i}).first(); await conf.click(); await p.waitForTimeout(700);
+console.log('foto vendida:', (await p.locator('[role=alert]').allInnerTexts()).join(' / ').slice(0,200));
+await b.close();

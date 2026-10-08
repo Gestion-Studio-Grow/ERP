@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // buscatufoto: exportación compilada (JS minificado) y su fuente, que tiene su propio lint.
+    "src/tenants/buscatufoto/sitio/**",
+    "celula-negocios-digitales/buscatufoto/**",
   ]),
 ]);
 

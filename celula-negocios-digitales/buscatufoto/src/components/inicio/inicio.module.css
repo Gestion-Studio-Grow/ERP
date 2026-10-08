@@ -1,0 +1,709 @@
+/* Inicio de buscatufoto. Fondos transparentes: la pista B/N fija se ve detrás.
+   Sólo se animan transform y opacity, ≤ 240 ms, curva --ease-out. */
+
+/* ---------- Secciones ---------- */
+.seccion {
+  padding-block: clamp(72px, 11vw, 136px);
+}
+.cabezaSeccion {
+  display: grid;
+  gap: 14px;
+  margin-bottom: clamp(32px, 5vw, 56px);
+  max-width: 62ch;
+}
+.cabezaFila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px 32px;
+  margin-bottom: clamp(32px, 5vw, 56px);
+}
+.cabezaFila .cabezaSeccion {
+  margin-bottom: 0;
+}
+
+/* ---------- Héroe ---------- */
+.heroe {
+  position: relative;
+  min-height: calc(100svh - var(--barra));
+  display: grid;
+  align-items: center;
+  padding-block: 56px 88px;
+}
+.heroeInterior {
+  display: grid;
+  justify-items: start;
+  gap: 22px;
+}
+.heroeTitulo {
+  max-width: 17ch;
+  line-height: 1.02;
+  animation: subir var(--t-lento) var(--ease-out) both;
+}
+.heroeBajada {
+  max-width: 46ch;
+  animation: aparecer var(--t-lento) var(--ease-out) 60ms both;
+}
+.heroeAcciones {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  margin-top: 6px;
+  animation: aparecer var(--t-lento) var(--ease-out) 120ms both;
+}
+.enlaceSuave {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  font-size: 14px;
+  color: var(--fg-2);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 5px;
+  transition: color var(--t-medio) var(--ease-out);
+}
+.enlaceSuave svg {
+  transition: transform var(--t-medio) var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .enlaceSuave:hover {
+    color: var(--fg);
+  }
+  .enlaceSuave:hover svg {
+    transform: translateX(3px);
+  }
+}
+
+/* "la suya" entre esquinas de visor, como el "tu" del logo: hace foco al entrar. */
+.visor {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+  padding: 0 0.1em;
+  margin: 0 -0.04em;
+  color: var(--accent);
+}
+.visor::before {
+  content: "";
+  position: absolute;
+  inset: 0.08em -0.06em 0.02em;
+  pointer-events: none;
+  --l: 0.22em;
+  --g: 2px;
+  background:
+    linear-gradient(currentColor, currentColor) top left / var(--l) var(--g) no-repeat,
+    linear-gradient(currentColor, currentColor) top left / var(--g) var(--l) no-repeat,
+    linear-gradient(currentColor, currentColor) top right / var(--l) var(--g) no-repeat,
+    linear-gradient(currentColor, currentColor) top right / var(--g) var(--l) no-repeat,
+    linear-gradient(currentColor, currentColor) bottom left / var(--l) var(--g) no-repeat,
+    linear-gradient(currentColor, currentColor) bottom left / var(--g) var(--l) no-repeat,
+    linear-gradient(currentColor, currentColor) bottom right / var(--l) var(--g) no-repeat,
+    linear-gradient(currentColor, currentColor) bottom right / var(--g) var(--l) no-repeat;
+  animation: enfocar var(--t-lento) var(--ease-out) 160ms both;
+}
+
+.heroePie {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 24px;
+}
+.heroePieInterior {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.heroePieInterior :global(.mono) {
+  color: var(--fg-2);
+}
+
+@keyframes subir {
+  from {
+    transform: translateY(10px);
+  }
+}
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes enfocar {
+  from {
+    opacity: 0;
+    transform: scale(1.18);
+  }
+}
+
+/* ---------- ¿Cómo funciona? ---------- */
+.comoGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr);
+  gap: clamp(32px, 6vw, 80px);
+  align-items: center;
+}
+.pasos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+  counter-reset: none;
+}
+.paso {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 16px;
+  padding: 22px 0;
+  border-top: 1px solid var(--line);
+}
+.paso:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.pasoNum {
+  font-size: 13px;
+  color: var(--accent);
+  padding-top: 4px;
+}
+.paso h3 {
+  margin-bottom: 6px;
+}
+.paso p {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.ilustracion {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-elev) 86%, transparent);
+  box-shadow: var(--sombra);
+}
+.ilustracion .ilCampo {
+  fill: var(--surface-2);
+  stroke: var(--line-2);
+}
+.ilustracion .ilTexto {
+  fill: var(--muted);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+.ilustracion .ilNumero {
+  fill: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+}
+.ilustracion .ilTrazo {
+  stroke: var(--muted);
+  fill: none;
+}
+.ilustracion .ilCursor {
+  fill: var(--accent);
+}
+.ilustracion .ilFoto {
+  fill: var(--surface-2);
+}
+.ilustracion .ilCielo {
+  fill: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+.ilustracion .ilSuelo {
+  fill: color-mix(in srgb, var(--fg) 13%, transparent);
+}
+.ilustracion .ilPersona {
+  fill: color-mix(in srgb, var(--fg) 34%, transparent);
+}
+.ilustracion .ilPierna {
+  stroke: color-mix(in srgb, var(--fg) 34%, transparent);
+}
+.ilustracion .ilDorsal {
+  fill: var(--bg-elev);
+}
+.ilustracion .ilDorsalTexto {
+  fill: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 6.5px;
+}
+.ilustracion .ilMarca {
+  fill: var(--fg);
+  opacity: 0.22;
+  font-family: var(--font-sans);
+  font-size: 8px;
+  letter-spacing: -0.02em;
+}
+.ilustracion .ilApagada {
+  opacity: 0.32;
+}
+.ilustracion .ilBorde {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.ilustracion .ilChip {
+  fill: var(--accent);
+}
+.ilustracion .ilChipTexto {
+  fill: var(--accent-fg);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+}
+.ilustracion .ilPie {
+  fill: var(--fg-2);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+.ilustracion .ilBoton {
+  fill: var(--fg);
+}
+.ilustracion .ilBotonTexto {
+  fill: var(--bg);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+/* ---------- Funciones ---------- */
+/* Tinte por función: se fija en el contenedor (li) y lo heredan las tarjetas. Nunca violeta. */
+.conTinte {
+  --tinte: var(--tinte-naranja);
+}
+.conTinte[data-tinte="amarillo"] {
+  --tinte: var(--tinte-amarillo);
+}
+.conTinte[data-tinte="verde"] {
+  --tinte: var(--tinte-verde);
+}
+.conTinte[data-tinte="azul"] {
+  --tinte: var(--tinte-azul);
+}
+.conTinte[data-tinte="agua"] {
+  --tinte: var(--tinte-agua);
+}
+.conTinte[data-tinte="rosa"] {
+  --tinte: var(--tinte-rosa);
+}
+.grilla {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.grilla > li {
+  display: grid;
+}
+.funcion.funcion {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 248px;
+  background:
+    radial-gradient(120% 95% at 0% 0%, var(--tinte), transparent 62%),
+    color-mix(in srgb, var(--bg-elev) 84%, transparent);
+}
+.funcion p {
+  color: var(--muted);
+  font-size: 14.5px;
+}
+.funcionCabeza {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Muestras: un pedacito de la interfaz real en cada tarjeta (no íconos genéricos). */
+.muestra {
+  height: 76px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mFoto {
+  position: relative;
+  width: 112px;
+  height: 72px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--fg) 14%, transparent), color-mix(in srgb, var(--fg) 4%, transparent));
+}
+.mFotoMarca {
+  position: absolute;
+  inset: -40%;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  transform: rotate(-24deg);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--fg);
+  opacity: 0.38;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+}
+.mNota {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+  max-width: 14ch;
+}
+.mBuscador {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--muted);
+}
+.mBuscador :global(.mono) {
+  color: var(--fg);
+  font-size: 15px;
+}
+.mCursor {
+  width: 1.5px;
+  height: 18px;
+  background: var(--accent);
+}
+.mFilas {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  max-width: 240px;
+}
+.mFila {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 12.5px;
+}
+.mFila :global(.mono) {
+  color: var(--fg);
+}
+.mCupon {
+  display: grid;
+  gap: 2px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1.5px dashed var(--line-2);
+  background: var(--surface);
+}
+.mCupon :global(.mono) {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+.mCupon span:last-child {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.mPersonas {
+  display: flex;
+}
+.mPersona {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-right: -8px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-elev);
+  background: color-mix(in srgb, var(--fg) 16%, var(--bg-elev));
+  font-size: 12px;
+  font-weight: 500;
+}
+.mPersona:last-child {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.mHistoria {
+  display: grid;
+  align-content: end;
+  gap: 4px;
+  width: 42px;
+  height: 74px;
+  padding: 6px;
+  border-radius: 7px;
+  border: 1px solid var(--line-2);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--fg) 14%, transparent), color-mix(in srgb, var(--fg) 4%, transparent));
+}
+.mHistoria i {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--fg);
+  opacity: 0.55;
+}
+.mHistoria i:nth-child(2) {
+  width: 70%;
+  opacity: 0.35;
+}
+.mHistoria i:last-child {
+  height: 7px;
+  background: var(--accent);
+  opacity: 1;
+}
+
+/* ---------- Carrusel ---------- */
+.carrusel {
+  margin-top: clamp(40px, 6vw, 64px);
+}
+.carruselCabeza {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.carruselBotones {
+  display: flex;
+  gap: 8px;
+}
+.pista {
+  list-style: none;
+  margin: 0;
+  padding: 2px 2px 14px;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(260px, calc((100% - 28px) / 3));
+  gap: 14px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+.pista:focus-visible {
+  outline-offset: 4px;
+}
+.diapo {
+  scroll-snap-align: start;
+  display: grid;
+}
+.extra.extra {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  height: 100%;
+  background:
+    radial-gradient(110% 80% at 100% 0%, var(--tinte), transparent 60%),
+    color-mix(in srgb, var(--bg-elev) 84%, transparent);
+}
+.extra h4 {
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+.extra p {
+  font-size: 14px;
+  color: var(--muted);
+}
+.extraInsignias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 22px;
+}
+.verTodas {
+  margin-top: 20px;
+}
+
+/* ---------- Precios ---------- */
+.planes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 920px;
+}
+.plan {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto;
+  gap: 18px;
+  padding: clamp(22px, 3vw, 32px);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: var(--sombra);
+}
+/* Cada plan fija sus propios tokens: el oscuro es oscuro y el claro es claro en los dos temas. */
+.planOscuro {
+  color-scheme: dark;
+  --bg: var(--plan-oscuro-bg);
+  --bg-elev: #161a21;
+  --fg: var(--plan-oscuro-fg);
+  --fg-2: #c9cdd4;
+  --muted: #9aa1ac;
+  --line: rgb(255 255 255 / 0.12);
+  --line-2: rgb(255 255 255 / 0.2);
+  --surface: rgb(255 255 255 / 0.04);
+  --surface-2: rgb(255 255 255 / 0.08);
+  --accent: #ff6a3d;
+  --accent-fg: #170904;
+  --accent-soft: rgb(255 106 61 / 0.14);
+  --sombra: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 16px 40px -16px rgb(0 0 0 / 0.6);
+}
+.planClaro {
+  color-scheme: light;
+  --bg: var(--plan-claro-bg);
+  --bg-elev: #ffffff;
+  --fg: var(--plan-claro-fg);
+  --fg-2: #2b2f36;
+  --muted: #555b65;
+  --line: rgb(0 0 0 / 0.12);
+  --line-2: rgb(0 0 0 / 0.2);
+  --surface: rgb(0 0 0 / 0.03);
+  --surface-2: rgb(0 0 0 / 0.06);
+  --accent: #c8421a;
+  --accent-fg: #ffffff;
+  --accent-soft: rgb(200 66 26 / 0.1);
+  --sombra: 0 1px 0 rgb(255 255 255 / 0.8) inset, 0 16px 40px -18px rgb(0 0 0 / 0.45);
+}
+.planCabeza {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.planCabeza h3 {
+  font-size: 26px;
+  font-weight: 300;
+}
+.planBajada {
+  color: var(--muted);
+  font-size: 14.5px;
+  margin-top: -10px;
+}
+.precio {
+  display: grid;
+  gap: 4px;
+}
+.precioMonto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+.precioMonto :global(.mono) {
+  font-size: clamp(32px, 4vw, 42px);
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.precioMonto span:last-child {
+  color: var(--muted);
+  font-size: 14px;
+}
+.precioNota {
+  font-size: 13px;
+  color: var(--muted);
+  min-height: 1.55em;
+}
+.incluye {
+  list-style: none;
+  margin: 0;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--line);
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  font-size: 14.5px;
+}
+.incluye li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.incluye svg {
+  margin-top: 2px;
+  color: var(--accent);
+}
+.incluye li.incluyeTitulo {
+  display: block;
+  color: var(--muted);
+}
+.leyenda {
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 70ch;
+}
+.preciosPie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  margin-top: 6px;
+}
+
+/* ---------- Responsivo ---------- */
+@media (max-width: 960px) {
+  .grilla {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .comoGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ilustracion {
+    max-width: 520px;
+  }
+  .pista {
+    grid-auto-columns: minmax(260px, calc((100% - 14px) / 2));
+  }
+}
+@media (max-width: 640px) {
+  .grilla {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .funcion.funcion {
+    min-height: 0;
+  }
+  .planes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pista {
+    grid-auto-columns: 82%;
+  }
+  .heroe {
+    padding-block: 40px 96px;
+  }
+  .paso {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heroeTitulo,
+  .heroeBajada,
+  .heroeAcciones,
+  .visor::before {
+    animation: none;
+  }
+  .enlaceSuave:hover svg {
+    transform: none;
+  }
+  .pista {
+    scroll-behavior: auto;
+  }
+}

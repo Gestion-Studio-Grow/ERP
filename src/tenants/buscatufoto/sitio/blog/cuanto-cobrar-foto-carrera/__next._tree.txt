@@ -1,0 +1,8 @@
+:HL["/btf/_next/static/chunks/33ozshyhx8e-y.css","style"]
+:HL["/btf/_next/static/chunks/0226oe4-k_2cr.css","style"]
+:HC["/",""]
+4:[["children",{"s":"__PAGE__","h":160}]]
+3:[["children",{"s":{"n":"slug","t":"d","k":"cuanto-cobrar-foto-carrera","s":[]},"h":65632,"c":"$Q4"}]]
+2:[["children",{"s":"blog","h":131168,"c":"$Q3"}]]
+1:[["children",{"s":"(sitio)","h":131168,"c":"$Q2"}]]
+0:{"b":"gZilsmaJ_4MTvsxiVbiST","t":{"t":{"s":"","h":131152,"c":"$Q1"}}}
