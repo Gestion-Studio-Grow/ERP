@@ -27,6 +27,7 @@ import { mercadopagoModule } from "./descriptors/mercadopago";
 import { carteraModule } from "./descriptors/cartera";
 import { multilocalModule } from "./descriptors/multilocal";
 import { cajaRapidaModule, ofertasModule } from "./descriptors/supermercado";
+import { tallerModule } from "./descriptors/taller";
 import { arcaModule } from "@/plugins/arca/module";
 import { bancosModule } from "@/plugins/bancos/module";
 
@@ -42,6 +43,8 @@ export const DESCRIPTORES_CATALOGO = [
   // razón que multilocal: la consola deriva su lista de este orden.
   cajaRapidaModule,
   ofertasModule,
+  // Taller mecánico (src/modules/descriptors/taller.ts). Al final, como los anteriores.
+  tallerModule,
 ];
 
 /**

@@ -182,6 +182,42 @@ export const OFICIOS_RUBROS: OficiosRubro[] = [
     suggestedAccent: "ambar",
     suggestedTheme: "light",
   },
+  {
+    // Taller mecánico: a diferencia del resto de la familia, el cliente TRAE el auto y el
+    // taller sí maneja repuestos. El circuito propio (orden de trabajo, presupuesto, seguimiento)
+    // es el módulo `taller`; acá va sólo la config del rubro.
+    id: "taller",
+    label: "Taller mecánico",
+    keywords: ["taller", "mecanico", "mecanica", "automotor", "frenos", "tren delantero", "inyeccion", "lubricentro"],
+    categories: ["Service y mantenimiento", "Frenos y suspensión", "Motor e inyección", "Diagnóstico"],
+    services: [
+      { name: "Diagnóstico computarizado (escáner)", cat: "Diagnóstico", durationMin: 45, price: 25000 },
+      { name: "Revisión general pre-VTV", cat: "Diagnóstico", durationMin: 60, price: 30000 },
+      { name: "Service completo (aceite y filtros)", cat: "Service y mantenimiento", durationMin: 90, price: 95000 },
+      { name: "Cambio de aceite y filtro", cat: "Service y mantenimiento", durationMin: 45, price: 60000 },
+      { name: "Cambio de correa de distribución", cat: "Service y mantenimiento", durationMin: 240, price: 180000 },
+      { name: "Cambio de pastillas de freno (eje)", cat: "Frenos y suspensión", durationMin: 60, price: 45000 },
+      { name: "Tren delantero: revisión y ajuste", cat: "Frenos y suspensión", durationMin: 120, price: 70000 },
+      { name: "Cambio de amortiguadores (par)", cat: "Frenos y suspensión", durationMin: 120, price: 80000 },
+      { name: "Limpieza de inyectores", cat: "Motor e inyección", durationMin: 90, price: 65000 },
+      { name: "Cambio de embrague", cat: "Motor e inyección", durationMin: 300, price: 220000 },
+    ],
+    exampleProfessional: "Mecánico de ejemplo (editable)",
+    wording: {
+      catalogHeading: "Qué hacemos",
+      providerNoun: "mecánico",
+      heroTagline: "Tu auto en buenas manos. Diagnóstico preciso y presupuesto claro.",
+      bookCta: "Sacar turno",
+      priceNote: "Mano de obra de referencia; el presupuesto final se confirma al revisar el auto.",
+    },
+    brandingDefaults: {
+      shortLabel: "Tu taller de confianza",
+      hoursLabel: "Lun a vie · 8:30 a 12 y 14:30 a 19 h",
+      contactNote: "Motores, frenos, suspensión e inyección. Turnos por mensaje.",
+    },
+    suggestedAccent: "oxblood",
+    suggestedTheme: "dark",
+  },
 ];
 
 export const OFICIOS_RUBRO_IDS = OFICIOS_RUBROS.map((r) => r.id);

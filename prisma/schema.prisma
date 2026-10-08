@@ -215,6 +215,13 @@ model Tenant {
   businessSettings         BusinessSettings?
   commissionPayouts        CommissionPayout[]
   waitlistEntries          WaitlistEntry[]
+  tallerVehiculos          TallerVehiculo[] // módulo taller
+  tallerOrdenes            TallerOrden[]
+  tallerItems              TallerItem[]
+  tallerFotos              TallerFoto[]
+  tallerPagos              TallerPago[]
+  tallerConfig             TallerConfig?
+  tallerAvisosEnviados     TallerAvisoEnviado[]
   invoices                 Invoice[]
   outboxEvents             OutboxEvent[]
   orders                   Order[]
@@ -644,6 +651,11 @@ model Client {
   appointments Appointment[]
   orders       Order[]
   receivables  AccountReceivable[] // D3 — fiado de este cliente (ADR-060 Fase E)
+  // Módulo taller: los autos del cliente, sus etiquetas y si puede dejar saldo.
+  tallerVehiculos TallerVehiculo[]
+  tallerOrdenes   TallerOrden[]
+  tallerEtiquetas String[]            @default([]) // particular · flota · empresa · VIP
+  tallerCtaCte    Boolean             @default(false)
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
@@ -2280,4 +2292,159 @@ model ArcaAuthTicket {
 
   @@unique([certHuella, service])
   @@index([tenantId])
+}
+
+// ============================================================================
+// MÓDULO TALLER (blueprint `taller`): vehículos, órdenes de trabajo, presupuesto ítem
+// por ítem, fotos, cobros y avisos. Sólo lo usan los negocios con el módulo `taller`.
+// Estados, tipos y medios son texto validado en src/lib/taller/core.ts (sin enums de
+// Postgres: agregar un estado no pide migración).
+// ============================================================================
+
+model TallerVehiculo {
+  id                  String        @id @default(cuid())
+  tenant              Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId            String
+  client              Client        @relation(fields: [clientId], references: [id])
+  clientId            String
+  patente             String // normalizada: mayúsculas, sin espacios (ABC123 / AB123CD)
+  marca               String        @default("")
+  modelo              String        @default("")
+  anio                Int?
+  color               String?
+  km                  Int?
+  vtvVence            DateTime?
+  proximoServiceFecha DateTime?
+  proximoServiceKm    Int?
+  notas               String?
+  ordenes             TallerOrden[]
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@unique([tenantId, patente])
+  @@index([tenantId, clientId])
+}
+
+model TallerOrden {
+  id                      String         @id @default(cuid())
+  tenant                  Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId                String
+  numero                  Int // correlativo por negocio
+  vehiculo                TallerVehiculo @relation(fields: [vehiculoId], references: [id])
+  vehiculoId              String
+  client                  Client         @relation(fields: [clientId], references: [id])
+  clientId                String
+  estado                  String         @default("RECIBIDO")
+  km                      Int?
+  combustible             Int? // octavos de tanque: 0 a 8
+  problema                String         @default("")
+  diagnostico             String?
+  mecanicoUserId          String?
+  mecanicoNombre          String?
+  horas                   Float          @default(0)
+  // Link público sin login (seguimiento + aprobación). Largo y al azar: es la llave.
+  token                   String         @unique
+  firmaIngreso            String? // PNG en data URL, chico (trazo negro sobre blanco)
+  firmaNombre             String?
+  presupuestoEnviadoEl    DateTime?
+  presupuestoValidoHasta  DateTime?
+  presupuestoRespondidoEl DateTime?
+  entregadoEl             DateTime?
+  garantiaHasta           DateTime?
+  garantiaDetalle         String?
+  resenaPedidaEl          DateTime?
+  // Preparado para ARCA: hoy sale "comprobante no válido como factura".
+  comprobanteTipo         String? // A · B · C
+  invoiceId               String? // comprobante fiscal, cuando se integre
+  items                   TallerItem[]
+  fotos                   TallerFoto[]
+  pagos                   TallerPago[]
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, estado])
+  @@index([tenantId, vehiculoId])
+  @@index([tenantId, clientId])
+}
+
+model TallerItem {
+  id               String      @id @default(cuid())
+  tenant           Tenant      @relation(fields: [tenantId], references: [id])
+  tenantId         String
+  orden            TallerOrden @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  ordenId          String
+  tipo             String // MANO_OBRA · REPUESTO
+  descripcion      String
+  cantidad         Float       @default(1)
+  costo            Float       @default(0)
+  precio           Float       @default(0)
+  productId        String? // repuesto del catálogo, si salió de stock
+  traidoPorCliente Boolean     @default(false)
+  decision         String      @default("PENDIENTE") // PENDIENTE · APROBADO · RECHAZADO
+  posicion         Int         @default(0)
+  createdAt        DateTime    @default(now())
+
+  @@index([tenantId, ordenId])
+}
+
+model TallerFoto {
+  id             String      @id @default(cuid())
+  tenant         Tenant      @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  orden          TallerOrden @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  ordenId        String
+  momento        String      @default("INGRESO") // INGRESO · TRABAJO · ENTREGA
+  // JPEG achicado en el teléfono (lado mayor 1024 px, ~100 KB) como data URL. Tope por orden
+  // en src/lib/taller/acciones.ts: no hay almacenamiento de archivos y así no cuesta nada.
+  datos          String
+  visibleCliente Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+
+  @@index([tenantId, ordenId])
+}
+
+model TallerPago {
+  id         String      @id @default(cuid())
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  orden      TallerOrden @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  ordenId    String
+  medio      String // EFECTIVO · TRANSFERENCIA · MERCADO_PAGO · DEBITO · CREDITO · CUENTA_CORRIENTE
+  monto      Float // lo que baja de la deuda del trabajo
+  recargo    Float       @default(0) // lo que se cobró de más por tarjeta
+  cuotas     Int         @default(1)
+  nota       String?
+  cobradoPor String?
+  createdAt  DateTime    @default(now())
+
+  @@index([tenantId, ordenId])
+  @@index([tenantId, createdAt])
+}
+
+model TallerConfig {
+  id              String   @id @default(cuid())
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId        String   @unique
+  margenPct       Float    @default(35)
+  validezDias     Int      @default(7)
+  garantiaDias    Int      @default(90)
+  valorHora       Float    @default(0)
+  aliasCbu        String?
+  linkMercadoPago String?
+  linkResena      String?
+  condicionIva    String   @default("MONOTRIBUTO") // MONOTRIBUTO → C · RESPONSABLE_INSCRIPTO → A/B
+  recargos        Json? // { debito, cuotas1, cuotas3, cuotas6, cuotas12 } en %
+  plantillas      Json? // { clave: texto } — sólo las que el taller editó
+  updatedAt       DateTime @updatedAt
+}
+
+model TallerAvisoEnviado {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  clave     String // tipo:referencia:año-mes (src/lib/taller/core.ts → claveAviso)
+  enviadoEl DateTime @default(now())
+
+  @@unique([tenantId, clave])
 }

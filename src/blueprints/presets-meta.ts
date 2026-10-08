@@ -102,6 +102,9 @@ const EXPLICIT_BLUEPRINT_MODULES: Record<string, string[]> = {
   generico: ["catalog", "clients", "pos", "agenda", "reports"],
   // Producto C de la suite (ADR-076): tenant liviano SOLO facturación + receptores.
   facturita: ["arca", "clients"],
+  // Taller mecánico: los turnos y recordatorios de la familia oficios, más lo que un taller sí
+  // usa y un plomero no (repuestos en stock) y su circuito propio (módulo `taller`).
+  taller: ["taller", "agenda", "catalog", "clients", "reminders", "reports", "inventario", "arca"],
 };
 
 /**

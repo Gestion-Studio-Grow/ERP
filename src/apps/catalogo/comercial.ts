@@ -179,4 +179,22 @@ export const APPS_COMERCIAL = [
     palabras: ["obsequio", "promociones", "leads", "anotados", "apertura"],
     menuDeHoy: { etiqueta: "Campañas", orden: 190 },
   },
+  {
+    // El circuito del taller mecánico: tablero del día, ingreso del auto, orden de trabajo,
+    // presupuesto, cobro y avisos. Una sola app con sus pantallas adentro (/admin/taller/...).
+    // Pide agenda:read porque el mecánico (PROFESSIONAL) entra a ver y mover SUS autos; la plata
+    // (precios, cobros, configuración) la piden aparte las acciones con agenda:manage.
+    id: "taller",
+    nombre: "Taller",
+    descripcion: "Los autos que hay hoy en el taller, por estado: ingresar, presupuestar, avisar y cobrar.",
+    icono: "pedidos",
+    ruta: "/admin/taller",
+    espacio: "mostrador",
+    capability: "agenda:read",
+    modulo: "taller",
+    // Módulo propio del rubro: sin él no se abre ni por URL.
+    moduloDuro: true,
+    estado: "lista",
+    palabras: ["autos", "patente", "orden de trabajo", "presupuesto", "ingreso", "vehiculo", "mecanico", "service", "vtv"],
+  },
 ] as const satisfies readonly AppDescriptor[];
