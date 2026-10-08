@@ -29,11 +29,11 @@ El dueño de GSG confirmó el 08/10/2026 que el cliente autorizó usar su Instag
 (`@tallermecanicoagr`) para tomar logo, temática y servicios. Leído ese día de Instagram y de su ficha
 de Google Maps:
 
-- Logo: óvalo blanco con borde negro, "AGR" en rojo, "Taller / Mecánico" con serifa. **El SVG del repo
-  es un redibujo provisional**: falta el archivo original.
+- Logo: óvalo blanco con borde negro, "AGR" en rojo, "Taller / Mecánico" con serifa. Es el suyo,
+  recortado de su posteo del 25/04/2026 (`logo.webp`, 498×247). Si mandan el original, reemplazarlo.
 - Av. Pedro Dreyer 870, Monte Grande · tel. 011 5183-9732 · 4,6 en Google.
 - Horario: jueves 8:30–12 y 14:30–19 (verificado). **El resto de la semana, provisional a confirmar.**
-- WhatsApp: se cargó el teléfono fijo publicado. **Falta el celular real.**
+- WhatsApp: 11 5183-9732 (lo publica su flyer con el ícono de WhatsApp).
 
 ## Permisos
 

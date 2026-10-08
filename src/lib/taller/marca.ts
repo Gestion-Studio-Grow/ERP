@@ -26,10 +26,10 @@ const NEUTRA: MarcaTaller = {
 
 // Taller Mecánico AGR — Monte Grande. Leído de su Instagram (@tallermecanicoagr) y de su ficha de
 // Google Maps el 08/10/2026, con autorización del dueño: óvalo blanco de borde negro, "AGR" en
-// rojo, "Taller / Mecánico" en letra con serifa. El logo es un redibujo provisional hasta tener
-// el archivo original.
+// rojo, "Taller / Mecánico" en letra con serifa. El logo es el suyo: recortado de su posteo del
+// 25/04/2026 (498×247, fondo transparente por fuera del óvalo).
 const AGR: MarcaTaller = {
-  logo: "/tenants/taller-agr/marca/logo.svg",
+  logo: "/tenants/taller-agr/marca/logo.webp",
   rojo: "#c8102e",
   tinta: "#111111",
   papel: "#ffffff",

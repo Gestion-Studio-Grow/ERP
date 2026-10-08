@@ -28,7 +28,7 @@ export async function GET() {
       lang: "es-AR",
       background_color: m.tinta,
       theme_color: m.tinta,
-      icons: [{ src: m.logo ?? "/favicon.ico", sizes: "any", type: m.logo ? "image/svg+xml" : "image/x-icon", purpose: "any" }],
+      icons: [{ src: m.logo ?? "/favicon.ico", sizes: m.logo ? "498x247" : "any", type: m.logo ? "image/webp" : "image/x-icon", purpose: "any" }],
     },
     { headers: { "Content-Type": "application/manifest+json", "Cache-Control": "public, max-age=3600" } },
   );

@@ -52,8 +52,8 @@ async function main() {
       city: "Monte Grande",
       // Jueves confirmado en Google Maps (8:30–12 y 14:30–19). El resto, provisional a confirmar.
       hoursLabel: "Lun a vie · 8:30 a 12 y 14:30 a 19 h",
-      // Provisional a confirmar: es el teléfono publicado en Google; falta el celular de WhatsApp.
-      whatsapp: "541151839732",
+      // El de su flyer de Instagram (ícono de WhatsApp + 11 5183-9732), el mismo de Google Maps.
+      whatsapp: "5491151839732",
       instagram: "@tallermecanicoagr",
       mapsUrl: "https://maps.app.goo.gl/7JRjRZ53rN3Chx5x8",
       contactNote: "Motores, frenos, suspensión e inyección. Diagnóstico preciso. Turnos por mensaje.",
