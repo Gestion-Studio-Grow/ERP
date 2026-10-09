@@ -1435,6 +1435,12 @@ model CashMovement {
   collection   Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   collectionId String?
 
+  // Puente TALLER → libro de caja: el cobro de una orden de trabajo (src/lib/taller/caja.ts).
+  // Misma idea que `collectionId`: es la clave del asiento, con su árbitro
+  // `@@unique(tenantId, tallerPagoId, type)` — una VENTA por cobro y, si se anula, un EGRESO.
+  tallerPago   TallerPago? @relation(fields: [tallerPagoId], references: [id], onDelete: SetNull)
+  tallerPagoId String?
+
   createdBy String // actor "user:<id>"
   createdAt DateTime @default(now())
 
@@ -1457,6 +1463,7 @@ model CashMovement {
   // Cobros PARCIALES de turno (seña / saldo): UN asiento por (cobro, tipo). Es la clave de
   // idempotencia vigente del puente turnos → libro; `paymentId` es la anterior.
   @@unique([tenantId, collectionId, type])
+  @@unique([tenantId, tallerPagoId, type])
   @@index([tenantId])
   @@index([sessionId, createdAt])
   @@index([orderId])
@@ -2416,6 +2423,10 @@ model TallerPago {
   cuotas     Int         @default(1)
   nota       String?
   cobradoPor String?
+  // Un cobro no se borra: se anula y queda el rastro (y su contrapartida en el libro de caja).
+  anuladoEl  DateTime?
+  anuladoPor String?
+  cashMovements CashMovement[]
   createdAt  DateTime    @default(now())
 
   @@index([tenantId, ordenId])

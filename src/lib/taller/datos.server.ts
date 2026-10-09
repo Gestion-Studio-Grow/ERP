@@ -134,7 +134,7 @@ export async function tablero() {
         vehiculo: { select: { patente: true, marca: true, modelo: true } },
         client: { select: { name: true, phone: true } },
         items: { select: { tipo: true, cantidad: true, precio: true, decision: true, traidoPorCliente: true } },
-        pagos: { select: { monto: true } },
+        pagos: { where: { anuladoEl: null }, select: { monto: true } },
       },
     }),
     prisma.appointment.findMany({
@@ -143,7 +143,7 @@ export async function tablero() {
       include: { client: { select: { name: true, phone: true } }, service: { select: { name: true } } },
     }),
     veLaPlata(user)
-      ? prisma.tallerPago.findMany({ where: { tenantId, createdAt: { gte: hoy } }, select: { medio: true, monto: true, recargo: true } })
+      ? prisma.tallerPago.findMany({ where: { tenantId, anuladoEl: null, createdAt: { gte: hoy } }, select: { medio: true, monto: true, recargo: true } })
       : Promise.resolve([]),
     prisma.product.findMany({
       where: { tenantId, active: true, deletedAt: null, trackStock: true },
@@ -225,7 +225,8 @@ export async function ordenCompleta(id: string) {
     }),
   ]);
   const t = totales(orden.items);
-  const pagado = redondear(orden.pagos.reduce((s, p) => s + p.monto, 0));
+  // Los anulados se muestran tachados en la orden, pero no cuentan.
+  const pagado = redondear(orden.pagos.filter((p) => !p.anuladoEl).reduce((s, p) => s + p.monto, 0));
   return { user, conPlata: veLaPlata(user), orden, config, negocio, mecanicos, repuestos, totales: t, pagado, saldo: redondear(t.aprobado - pagado) };
 }
 
@@ -280,7 +281,7 @@ export async function historialVehiculo(id: string) {
         orderBy: { createdAt: "desc" },
         include: {
           items: { select: { tipo: true, descripcion: true, cantidad: true, precio: true, decision: true, traidoPorCliente: true } },
-          pagos: { select: { monto: true } },
+          pagos: { where: { anuladoEl: null }, select: { monto: true } },
         },
       },
     },
@@ -323,7 +324,7 @@ export async function bandejaDeAvisos() {
         vehiculo: { select: { patente: true, marca: true, modelo: true } },
         client: { select: { name: true, phone: true } },
         items: { select: { tipo: true, cantidad: true, precio: true, decision: true, traidoPorCliente: true } },
-        pagos: { select: { monto: true } },
+        pagos: { where: { anuladoEl: null }, select: { monto: true } },
       },
     }),
     prisma.tallerAvisoEnviado.findMany({ where: { tenantId }, select: { clave: true } }),
@@ -474,7 +475,7 @@ export async function ordenPublica(token: string) {
       client: { select: { name: true } },
       items: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }] },
       fotos: { where: { visibleCliente: true }, orderBy: { createdAt: "asc" }, select: { id: true, momento: true, datos: true } },
-      pagos: { select: { monto: true } },
+      pagos: { where: { anuladoEl: null }, select: { monto: true } },
     },
   });
   if (!orden) return null;

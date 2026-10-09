@@ -45,11 +45,19 @@ de Google Maps:
 
 ## Qué NO está hecho (dicho de frente)
 
-1. **La migración no está aplicada en Neon.** Sin ella, `/admin/taller` falla. Aplicarla es irreversible
-   y requiere orden expresa del dueño (`prisma migrate deploy`).
-2. **Los cobros del taller no entran a la Caja del motor.** Se registran en `TallerPago` y el tablero
-   muestra "Cobrado hoy", pero el cierre de caja (`/admin/caja`) no los ve todavía.
-3. **El stock no se descuenta** al usar un repuesto del catálogo en una orden.
+1. **Las dos migraciones no están aplicadas en Neon** (`20261008120000_modulo_taller` y
+   `20261009120000_taller_caja`, declaradas en `prisma/lote-deploy.txt`). El código está en `main`
+   desde el 09/10, pero el deploy de producción frena hasta que el dueño cargue
+   `MIGRATE_DATABASE_URL` en Vercel (runbook `migracion-caja-neon.md` §A). Mientras tanto producción
+   sirve el código anterior.
+2. ~~Los cobros del taller no entran a la Caja del motor.~~ **Hecho el 09/10** (`src/lib/taller/caja.ts`):
+   cada cobro asienta una VENTA en el libro de caja dentro de la misma transacción; anularlo
+   escribe su contrapartida (EGRESO, con fecha de hoy) y el cobro queda marcado, no se borra.
+   Pide la migración `20261009120000_taller_caja`.
+3. ~~El stock no se descuenta.~~ **Hecho el 09/10**: al entregar el auto salen del stock los
+   repuestos del catálogo aprobados y puestos por el taller (ledger de siempre, tipo CONSUMO). No
+   frena la entrega por faltante. La pantalla "Movimientos de un producto" es sólo de mostrador:
+   el taller ve el stock en Inventario y Catálogo, pero no el detalle de cada movimiento.
 4. **Sin modo offline real.** Hay borrador del ingreso guardado en el teléfono y reintento, y la app
    es instalable; no hay service worker que abra el panel sin conexión.
 5. **PDF = imprimir/guardar como PDF del navegador** sobre un papel con marca. No hay generador propio.

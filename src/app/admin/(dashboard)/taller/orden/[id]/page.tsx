@@ -334,8 +334,8 @@ export default async function OrdenPage({ params, searchParams }: { params: Prom
           {orden.pagos.length > 0 && (
             <ul className="mb-3 grid grid-cols-1 gap-1.5 text-sm">
               {orden.pagos.map((p) => (
-                <li key={p.id} className="flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2">
-                  <span>
+                <li key={p.id} className={cn("flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2", p.anuladoEl && "opacity-60")}>
+                  <span className={p.anuladoEl ? "line-through" : undefined}>
                     {fechaCorta(p.createdAt)} · {MEDIO_LABEL[p.medio as MedioPago] ?? p.medio}
                     {p.cuotas > 1 && ` en ${p.cuotas} cuotas`}
                     {p.recargo > 0 && <span className="text-muted"> (+{pesos(p.recargo)} de recargo)</span>}
@@ -343,16 +343,20 @@ export default async function OrdenPage({ params, searchParams }: { params: Prom
                   </span>
                   <span className="flex items-center gap-2">
                     <span className="font-semibold tabular-nums text-strong">{pesos(p.monto)}</span>
-                    <form action={anularPago}>
-                      <input type="hidden" name="id" value={p.id} />
-                      <button className="h-9 px-2 text-xs underline" aria-label="Anular este cobro">Anular</button>
-                    </form>
+                    {p.anuladoEl ? (
+                      <span className="text-xs font-semibold">Anulado</span>
+                    ) : (
+                      <form action={anularPago}>
+                        <input type="hidden" name="id" value={p.id} />
+                        <button className="h-11 px-2 text-xs underline" aria-label="Anular este cobro">Anular</button>
+                      </form>
+                    )}
                   </span>
                 </li>
               ))}
             </ul>
           )}
-          <CobroForm key={`${saldo}-${orden.pagos.length}`} ordenId={orden.id} saldo={Math.max(0, saldo)} recargos={config.recargos} alias={config.aliasCbu} linkMp={config.linkMercadoPago} sinAprobados={t.aprobado === 0} />
+          <CobroForm key={`${saldo}-${orden.pagos.length}-${orden.pagos.filter((p) => p.anuladoEl).length}`} ordenId={orden.id} saldo={Math.max(0, saldo)} recargos={config.recargos} alias={config.aliasCbu} linkMp={config.linkMercadoPago} sinAprobados={t.aprobado === 0} />
           {saldo > 0.5 && entregado && <div className="mt-3"><EnviarWhatsApp telefono={tel} texto={msg("deuda")} etiqueta="Recordarle el saldo" variante="outline" chico /></div>}
         </section>
       )}

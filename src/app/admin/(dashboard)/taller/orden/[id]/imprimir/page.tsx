@@ -136,9 +136,9 @@ export default async function ImprimirPage({ params, searchParams }: { params: P
           </div>
         )}
 
-        {tipo === "comprobante" && orden.pagos.length > 0 && (
+        {tipo === "comprobante" && orden.pagos.some((p) => !p.anuladoEl) && (
           <p style={{ marginTop: 10, fontSize: 12 }}>
-            <strong>Pagos:</strong> {orden.pagos.map((p) => `${fechaCorta(p.createdAt)} ${MEDIO_LABEL[p.medio as MedioPago] ?? p.medio} ${pesos(p.monto)}`).join(" · ")}
+            <strong>Pagos:</strong> {orden.pagos.filter((p) => !p.anuladoEl).map((p) => `${fechaCorta(p.createdAt)} ${MEDIO_LABEL[p.medio as MedioPago] ?? p.medio} ${pesos(p.monto)}`).join(" · ")}
           </p>
         )}
 

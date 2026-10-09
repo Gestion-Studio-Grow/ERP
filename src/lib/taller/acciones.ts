@@ -27,6 +27,7 @@ import {
   totales,
   type MedioPago,
 } from "./core";
+import { asentarCobroInTx, descontarRepuestosInTx, detalleDelCobro, revertirCobroInTx } from "./caja";
 import { configTaller, vehiculoPorPatente } from "./datos.server";
 
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -366,41 +367,74 @@ export async function registrarPago(formData: FormData) {
   const medio = txt(formData.get("medio")) as MedioPago;
   const monto = redondear(numero(formData.get("monto")));
   if (!MEDIOS.includes(medio) || monto <= 0) return;
-  const orden = await prisma.tallerOrden.findFirst({ where: { id: ordenId, tenantId }, select: { id: true } });
+  const orden = await prisma.tallerOrden.findFirst({
+    where: { id: ordenId, tenantId },
+    select: { id: true, numero: true, vehiculo: { select: { patente: true } } },
+  });
   if (!orden) return;
   const cuotas = Math.max(1, entero(formData.get("cuotas")) ?? 1);
+  const nota = txt(formData.get("nota")) || null;
   const { recargos } = await configTaller(tenantId);
   const { recargo } = conRecargo(monto, recargoPct(medio, cuotas, recargos));
-  const pago = await prisma.tallerPago.create({
-    data: { tenantId, ordenId, medio, monto, recargo, cuotas: medio === "CREDITO" ? cuotas : 1, nota: txt(formData.get("nota")) || null, cobradoPor: user.name },
+  // El cobro y su asiento en el libro de caja van juntos: o entran los dos o ninguno.
+  const pago = await tenantTransaction(async (tx) => {
+    const creado = await tx.tallerPago.create({
+      data: { tenantId, ordenId, medio, monto, recargo, cuotas: medio === "CREDITO" ? cuotas : 1, nota, cobradoPor: user.name },
+    });
+    await asentarCobroInTx(tx, tenantId, {
+      pagoId: creado.id,
+      medio,
+      monto,
+      recargo,
+      detalle: detalleDelCobro(orden.numero, orden.vehiculo.patente, nota),
+      actor: `user:${user.id}`,
+    });
+    return creado;
   });
   await auditAdmin({ action: "taller.cobro", entity: "TallerPago", entityId: pago.id, changes: { ordenId, medio, monto, recargo } });
   refrescar(ordenId);
+  revalidatePath("/admin/caja");
 }
 
+/** Un cobro no se borra: queda anulado, con su contrapartida en el libro de caja. */
 export async function anularPago(formData: FormData) {
-  await requireCapability("agenda:manage");
+  const user = await requireCapability("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
-  const pago = await prisma.tallerPago.findFirst({ where: { id, tenantId } });
+  const pago = await prisma.tallerPago.findFirst({
+    where: { id, tenantId, anuladoEl: null },
+    include: { orden: { select: { numero: true, vehiculo: { select: { patente: true } } } } },
+  });
   if (!pago) return;
-  await prisma.tallerPago.deleteMany({ where: { id, tenantId } });
+  const hecho = await tenantTransaction(async (tx) => {
+    // Sólo anula quien llega primero: un doble toque no escribe dos contrapartidas.
+    const r = await tx.tallerPago.updateMany({ where: { id, tenantId, anuladoEl: null }, data: { anuladoEl: new Date(), anuladoPor: user.name } });
+    if (r.count !== 1) return false;
+    await revertirCobroInTx(tx, tenantId, {
+      pagoId: id,
+      detalle: detalleDelCobro(pago.orden.numero, pago.orden.vehiculo.patente),
+      actor: `user:${user.id}`,
+    });
+    return true;
+  });
+  if (!hecho) return;
   await auditAdmin({ action: "taller.cobro.anulado", entity: "TallerPago", entityId: id, changes: { ordenId: pago.ordenId, medio: pago.medio, monto: pago.monto } });
   refrescar(pago.ordenId);
+  revalidatePath("/admin/caja");
 }
 
 // ── Entrega ─────────────────────────────────────────────────────────────────
 
 export async function entregar(formData: FormData): Promise<void> {
-  await requireCapability("agenda:manage");
+  const user = await requireCapability("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
   const orden = await prisma.tallerOrden.findFirst({
     where: { id, tenantId },
     include: {
       client: { select: { tallerCtaCte: true } },
-      items: { select: { tipo: true, cantidad: true, precio: true, decision: true, traidoPorCliente: true } },
-      pagos: { select: { monto: true } },
+      items: { select: { tipo: true, cantidad: true, precio: true, decision: true, traidoPorCliente: true, productId: true, descripcion: true } },
+      pagos: { where: { anuladoEl: null }, select: { monto: true } },
     },
   });
   if (!orden || orden.estado === "ENTREGADO") return;
@@ -413,8 +447,10 @@ export async function entregar(formData: FormData): Promise<void> {
   const dias = Math.max(0, entero(formData.get("garantiaDias")) ?? config.garantiaDias);
   const condicion = config.condicionIva;
   await tenantTransaction(async (tx) => {
-    await tx.tallerOrden.updateMany({
-      where: { id, tenantId },
+    // La condición va en el WHERE: si dos personas entregan a la vez, sólo una pasa, y el stock
+    // se descuenta una sola vez.
+    const entregada = await tx.tallerOrden.updateMany({
+      where: { id, tenantId, estado: { not: "ENTREGADO" } },
       data: {
         estado: "ENTREGADO",
         entregadoEl: ahora,
@@ -423,6 +459,8 @@ export async function entregar(formData: FormData): Promise<void> {
         comprobanteTipo: condicion === "MONOTRIBUTO" ? "C" : "B",
       },
     });
+    if (entregada.count !== 1) return;
+    await descontarRepuestosInTx(tx, tenantId, { numero: orden.numero, items: orden.items, actor: `user:${user.id}` });
     const proxKm = entero(formData.get("proximoServiceKm"));
     const proxFecha = fecha(formData.get("proximoServiceFecha"));
     await tx.tallerVehiculo.updateMany({

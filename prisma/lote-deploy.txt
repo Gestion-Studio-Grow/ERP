@@ -15,3 +15,6 @@
 # septiembre salen de la lista: según el registro del pase del 24/09 ya están en producción. Si
 # alguna siguiera pendiente, el build frena acá sin tocar la base y lo dice.
 20261008120000_modulo_taller
+# 2026-10-09: segunda del taller, en la misma ventana: cobros al libro de caja (clave del asiento en
+# "CashMovement" + rastro de anulación en "TallerPago"). Aditiva.
+20261009120000_taller_caja
