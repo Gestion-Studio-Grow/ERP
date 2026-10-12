@@ -1,0 +1,64 @@
+<svg viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg">
+  <!-- Seidorito, rediseño 2026-07: la cara acompaña la voz real (cálida, grave,
+       jovial). Cejas asimétricas, mirada al frente, sonrisa ladeada, cachetes en
+       el ámbar de firma y contorno de marca. Debe mantenerse en sincronía con la
+       copia inline de src/components/SeidoritoPlayer.tsx. -->
+  <defs>
+    <linearGradient id="cuerpo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3DC0F0"/>
+      <stop offset="1" stop-color="#3857A3"/>
+    </linearGradient>
+    <linearGradient id="estela" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3DC0F0" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#3DC0F0" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .flota { animation: flota 3.2s ease-in-out infinite; transform-origin: 100px 110px; }
+    @keyframes flota { 0%,100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-7px) rotate(1.2deg); } }
+    .parpadeo { animation: parpadeo 4.6s infinite; transform-origin: center; transform-box: fill-box; }
+    @keyframes parpadeo { 0%, 91%, 100% { transform: scaleY(1); } 94%, 96% { transform: scaleY(0.08); } }
+    .saludo { animation: saludo 2.6s ease-in-out infinite; transform-origin: 156px 96px; }
+    @keyframes saludo { 0%, 55%, 100% { transform: rotate(0deg); } 68% { transform: rotate(-16deg); } 82% { transform: rotate(10deg); } }
+    .antena { animation: antena 3.2s ease-in-out infinite; }
+    @keyframes antena { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+    .estela-anim { animation: estela 3.2s ease-in-out infinite; }
+    @keyframes estela { 0%,100% { opacity: 0.9; } 50% { opacity: 0.5; } }
+    @media (prefers-reduced-motion: reduce) {
+      .flota, .parpadeo, .saludo, .antena, .estela-anim { animation: none; }
+    }
+  </style>
+  <g class="flota">
+    <g class="estela-anim">
+      <ellipse cx="128" cy="98" rx="66" ry="60" fill="url(#estela)"/>
+      <ellipse cx="118" cy="98" rx="63" ry="60" fill="url(#estela)"/>
+    </g>
+    <line x1="100" y1="30" x2="100" y2="12" stroke="#3857A3" stroke-width="5" stroke-linecap="round"/>
+    <circle class="antena" cx="100" cy="9" r="7" fill="#3DC0F0" stroke="#3857A3" stroke-width="2"/>
+    <!-- contorno en el azul profundo del propio gradiente: silueta legible sobre
+         panel claro sin salir de la marca; sin brillo "de vidrio" -->
+    <circle cx="100" cy="98" r="62" fill="url(#cuerpo)" stroke="#3857A3" stroke-width="3"/>
+    <!-- cejas: la derecha nace más alta — ya está entusiasmado con lo que te va a contar -->
+    <path d="M 67 78 Q 79 71 91 75" fill="none" stroke="#12222F" stroke-width="4" stroke-linecap="round"/>
+    <path d="M 109 73 Q 121 66 133 71" fill="none" stroke="#12222F" stroke-width="4" stroke-linecap="round"/>
+    <!-- ojos: pupilas grandes, mirada al frente; borde fino donde el gradiente aclara -->
+    <g class="parpadeo">
+      <ellipse cx="80" cy="92" rx="11" ry="13" fill="#fff" stroke="#3857A3" stroke-width="1.5"/>
+      <ellipse cx="120" cy="92" rx="11" ry="13" fill="#fff" stroke="#3857A3" stroke-width="1.5"/>
+      <circle cx="80.5" cy="95" r="6" fill="#12222F"/>
+      <circle cx="120.5" cy="95" r="6" fill="#12222F"/>
+      <circle cx="78.6" cy="93" r="1.9" fill="#fff"/>
+      <circle cx="118.6" cy="93" r="1.9" fill="#fff"/>
+    </g>
+    <!-- cachetes en el ámbar de firma (decorativos) -->
+    <!-- sonrisa ladeada: la comisura derecha (la de la ceja alzada) sube más -->
+    <path d="M 78 119 Q 101 137 122 114" fill="none" stroke="#12222F" stroke-width="4.5" stroke-linecap="round"/>
+    <ellipse cx="78" cy="170" rx="14" ry="8" fill="#3857A3"/>
+    <ellipse cx="122" cy="170" rx="14" ry="8" fill="#3857A3"/>
+    <g class="saludo">
+      <path d="M 158 92 Q 176 78 182 58" fill="none" stroke="#3857A3" stroke-width="9" stroke-linecap="round"/>
+      <circle cx="184" cy="54" r="9" fill="#3DC0F0" stroke="#3857A3" stroke-width="2"/>
+    </g>
+    <path d="M 100 158 l -12 8 l 12 8 l 12 -8 z" fill="#12222F"/>
+  </g>
+</svg>
