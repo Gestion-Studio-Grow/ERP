@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-08-02 01:53 UTC
+generado_el: 2026-10-12 15:20 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-08-02 01:53 UTC sobre `e078f64`.**
+> ⏱️ **Foto tomada el 2026-10-12 15:20 UTC sobre `921e0d2`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -18,32 +18,30 @@ tags: [brain/estado, fase-0]
 
 | Campo | Valor |
 |---|---|
-| Rama actual | `claude/token-saving-brain-clients-5rur0j` |
-| HEAD | `e078f64` (2026-08-01) |
-| Árbol | **2 archivo(s) sin commitear** _(sin contar `brain/`)_ |
-| Tip de `main` | d5185e1 · 2026-07-13 · Merge fix/fiscal-master-key-runtime — lectura runtime robusta de FISCAL_MASTER_KEY + diagnóstico sin exponer valor |
-
-**Ramas locales (2, más reciente primero):** `claude/token-saving-brain-clients-5rur0j` · `main`
+| Rama actual | `main` |
+| HEAD | `921e0d2` (2026-10-12) |
+| Árbol | limpio _(sin contar `brain/`)_ |
+| Tip de `main` | 921e0d2 · 2026-10-12 · fix(taller): la portada no muestra los servicios de ejemplo del alta |
 
 **Últimos commits**
 
-- e078f64 · 2026-08-01 · docs(rfc-005): el parche exacto de activación, para aprobar o rechazar
-- 5080895 · 2026-08-01 · feat(brain): configurar el grafo para que se lea como un cerebro, no como una madeja
-- 434f4ac · 2026-07-31 · feat(brain): tres zonas nuevas — metodología, calibración y mapa código↔decisión
-- 27586ed · 2026-07-31 · fix(brain): pasada de excelencia — 10 defectos encontrados por auditoría de 3 frentes
-- 84f4126 · 2026-07-31 · feat(brain): el grafo de verdad — un nodo por decisión, dependencias como enlaces reales
-- f2e8670 · 2026-07-31 · feat(brain): abrir el cerebro desde el móvil + arreglar la semántica de brain:check
-- 7341ae2 · 2026-07-31 · feat(brain): segundo cerebro — vault de notas atómicas derivado del repo (Fase 0 a ~15% del costo)
-- d5185e1 · 2026-07-13 · Merge fix/fiscal-master-key-runtime — lectura runtime robusta de FISCAL_MASTER_KEY + diagnóstico sin exponer valor
-- ee25ed2 · 2026-07-13 · fix(fiscal): endurecer lectura runtime de FISCAL_MASTER_KEY + diagnóstico sin exponer valor
-- 1d48135 · 2026-07-13 · test(shine): actualizar contrato de orden de secciones tras edición de densidad
-- 15a8ddd · 2026-07-13 · Merge diseno/shine-resumido — densidad del front de Shine: colección comprable primero (producto+precio a ~1.7 pantallas mobile) + fix overflow hero mobile
-- fc0dede · 2026-07-13 · Merge ci/senal-verde — vallas del gate en jobs separados (visual/visual-aa BLOQUEANTES; lint no-bloqueante) + fix contraste badge 'Por kg' (ADR-040)
+- 921e0d2 · 2026-10-12 · fix(taller): la portada no muestra los servicios de ejemplo del alta
+- 590bd8e · 2026-10-11 · chore: reintento del deploy (falló la descarga de una fuente de Google en el build)
+- 3d35eb9 · 2026-10-11 · chore(taller): script del camino B del runbook para migrar producción a mano
+- 050e8c2 · 2026-10-09 · feat(taller): los cobros entran al libro de caja y la entrega descuenta el stock
+- f6527e0 · 2026-10-08 · fix(taller): redondeo de la casa, pista de rubro sin 'taller' a secas y migración declarada en el lote
+- 168ca94 · 2026-10-08 · feat(taller): logo real de AGR tomado de su Instagram y WhatsApp confirmado
+- 9e9b8d7 · 2026-10-08 · feat(taller): panel, link del cliente y página pública de Taller Mecánico AGR
+- e4d436b · 2026-10-08 · feat(taller): rubro y módulo de taller mecánico (tablas con RLS, reglas y acciones)
+- 5df8208 · 2026-10-08 · buscatufoto: producto de GSG servido en su propio host (buscatufoto.gsgapp.com.ar)
+- 3c2bcf7 · 2026-09-27 · consola: el login dice con qué usuario se entra y no depende del id de una action
+- ce36bd3 · 2026-09-27 · consola: la clave del dueño se compara sin espacios ni Enter en los bordes
+- 440e5fc · 2026-09-27 · supermercado: fit-gap y recorrido de punta a punta
 
 ## Migraciones (Prisma)
 
-- **Total en el repo:** 40
-- **Últimas 5:** `20260710120000_invoice_origin_idempotency_unique` · `20260711120000_add_bancos_importacion` · `20260711140000_add_cartera_cliente` · `20260711140000_add_tenant_fiscal_credential` · `20260712120000_sprint_entregable_concurrency_guards`
+- **Total en el repo:** 49
+- **Últimas 5:** `20260911120000_profesional_cobra_en_mostrador` · `20260925120000_lanzamiento_base` · `20260925150000_comprobante_autorizado_inmutable` · `20261008120000_modulo_taller` · `20261009120000_taller_caja`
 
 > ⚠️ **Colisión de timestamp** — dos migraciones comparten prefijo, así que el orden de
 > aplicación depende del desempate alfabético. Revisar antes de cualquier Gate 2:
@@ -56,10 +54,10 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 297 |
-| Palabras en `docs/` | 426.576 |
-| ADRs | 81 |
-| Nodos en el grafo | 87 _(los 81 ADR + 6 enmiendas)_ |
+| Documentos en `docs/` | 323 |
+| Palabras en `docs/` | 511.117 |
+| ADRs | 87 |
+| Nodos en el grafo | 93 _(los 87 ADR + 6 enmiendas)_ |
 
 ## Superficies con front propio
 

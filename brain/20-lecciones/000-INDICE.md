@@ -7,7 +7,7 @@ tags: [brain/indice]
 
 # 🛡️ Lecciones — índice de guardarraíles
 
-> 38 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
+> 39 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
 > — no el registro entero. Calibración obligatoria antes de tocar Prod/Deploy · Datos/DB ·
 > Multi-tenant · Seguridad (ADR-052).
 
@@ -32,6 +32,7 @@ tags: [brain/indice]
 - **[MT-3](MT-3-con-2-tenants-resolvia-el-mas-viejo-en-silencio.md)** — resolución de tenant fail-closed; el alta del 2º tenant dispara RLS (Gate).
 - **[MT-4](MT-4-home-pelada-con-1-tenant-a-quien-sirvo.md)** — mapear cada host; nunca `APP_BASE_DOMAIN=vercel.app`; home pelada solo para `/demo`.
 - **[MT-5](MT-5-indices-compuestos-que-no-rendian.md)** — toda query con predicado `tenantId` / `tenantTransaction`; RLS enforced en prod (Gate 2).
+- **[MT-6](MT-6-sumar-un-host-obligaba-a-reescribir-a-ciegas-el-mapa-de.md)** — host nuevo → `HOSTS_PUBLICADOS` + test; nunca reescribir `TENANT_HOST_MAP` sin tener su valor vigente a la vista.
 
 ## DX — Demo / UX
 
