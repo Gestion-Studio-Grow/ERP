@@ -29,7 +29,13 @@ export default async function TallerLanding() {
   const tenantId = await getCurrentTenantId();
   const [negocio, servicios, resenas] = await Promise.all([
     datosDelNegocio(tenantId),
-    prisma.service.findMany({ where: { tenantId, active: true, deletedAt: null }, orderBy: { name: "asc" }, select: { id: true, name: true, price: true }, take: 12 }),
+    // Sólo servicios reales y con precio: los "de ejemplo" que deja el alta no salen a la calle.
+    prisma.service.findMany({
+      where: { tenantId, active: true, deletedAt: null, price: { gt: 0 }, NOT: { name: { contains: "de ejemplo", mode: "insensitive" } } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, price: true },
+      take: 12,
+    }),
     getPublishedReviews(),
   ]);
   const m = marcaTaller(negocio.slug);
