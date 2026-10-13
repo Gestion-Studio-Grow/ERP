@@ -18,11 +18,16 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import type { SessionUser } from "@/lib/session";
+import { createRateLimiter } from "@/lib/rate-limit";
+import { headers } from "next/headers";
+import { sitioInmo } from "./sitio.server";
+import { horarioDeNegocioDelFormulario } from "@/lib/datetime";
 import { importeONaN } from "@/lib/dinero/leer";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import {
   calcularAjuste,
   CLAVES_PLANTILLA,
+  diaCorto,
   diaDe,
   esDia,
   esEstadoConsulta,
@@ -86,7 +91,7 @@ const decimal = (v: FormDataEntryValue | null | undefined): number | null => {
 /** Plata de un formulario ("12.500" se lee 12500). Null si vino vacío o no es un importe. */
 const importe = (v: FormDataEntryValue | null | undefined): number | null => {
   const x = importeONaN(v);
-  return Number.isFinite(x) && x >= 0 ? x : null;
+  return Number.isFinite(x) && x >= 0 && x < TOPE_IMPORTE ? x : null;
 };
 const plata = (x: number): string => textoAlCentavo(x);
 const plataONada = (x: number | null): string | null => (x != null && x > 0 ? plata(x) : null);
@@ -98,6 +103,12 @@ const diaCampo = (v: FormDataEntryValue | null | undefined): Dia | null => {
 const pct = (v: FormDataEntryValue | null | undefined, tope: number): number => Math.max(0, Math.min(tope, decimal(v) ?? 0));
 const llave = (): string => randomBytes(18).toString("base64url");
 const repetido = (e: unknown): boolean => (e as { code?: string }).code === "P2002";
+/** Para lo que lee un saldo y lo reescribe: que dos a la vez no partan del mismo número. */
+const SERIAL = { isolationLevel: "Serializable" as const };
+/** Un importe más grande que esto no es un precio ni un alquiler: es un error de tipeo. */
+const TOPE_IMPORTE = 1e11;
+/** Consultas del sitio: hasta 6 cada 10 minutos por conexión. */
+const frenoDeConsultas = createRateLimiter({ max: 6, windowMs: 10 * 60 * 1000 });
 /** Objetos planos de textos y números, tal como los guarda una columna JSON. */
 const json = (v: unknown): Prisma.InputJsonValue => v as Prisma.InputJsonValue;
 
@@ -249,6 +260,7 @@ export async function alternarDestacada(formData: FormData) {
 /** `datos`: un JPEG achicado en el navegador (data URL), una dirección https o un archivo de /public. */
 export async function agregarFotoPropiedad(propiedadId: string, datos: string): Promise<Resultado> {
   await requireCapability("agenda:read");
+  if (typeof propiedadId !== "string") return { ok: false, error: "Esa propiedad no existe." };
   const tenantId = await getCurrentTenantId();
   const esData = typeof datos === "string" && datos.startsWith("data:image/jpeg;base64,") && datos.length <= MAX_FOTO;
   const esLink = typeof datos === "string" && datos.length <= 500 && (/^https:\/\/[^\s"'<>]+$/.test(datos) || /^\/[A-Za-z0-9._\-/]+\.(jpe?g|png|webp|svg)$/.test(datos));
@@ -300,18 +312,29 @@ export interface ConsultaDelSitio {
 /** PÚBLICA: el formulario del sitio. Sin sesión; el negocio sale del dominio. */
 export async function enviarConsulta(c: ConsultaDelSitio): Promise<Resultado> {
   // Un robot que llena el campo trampa recibe un "gracias" y no deja nada.
-  if ((c.web ?? "").trim()) return { ok: true };
-  const v = validarConsulta(c);
+  // Llega de afuera: cada campo tiene que ser texto (un objeto podría colarse como filtro).
+  const texto = (x: unknown): string => (typeof x === "string" ? x : "");
+  if (!c || typeof c !== "object") return { ok: false, error: "No se pudo enviar. Probá de nuevo." };
+  if (texto(c.web).trim()) return { ok: true };
+  const v = validarConsulta({ nombre: texto(c.nombre), telefono: texto(c.telefono), email: texto(c.email), mensaje: texto(c.mensaje) });
   if (!v.ok) return v;
-  const tenantId = await getCurrentTenantId();
+  // Sólo existe para inmobiliarias: en cualquier otro negocio del motor no escribe nada.
+  const sitio = await sitioInmo();
+  if (!sitio) return { ok: false, error: "No se pudo enviar. Probá de nuevo." };
+  const tenantId = sitio.tenantId;
   const hace = (min: number) => new Date(Date.now() - min * 60_000);
+  const muchas = { ok: false as const, error: "Recibimos varias consultas seguidas. Probá de nuevo en unos minutos o escribinos por WhatsApp." };
 
-  // Freno simple contra el envío en masa: no más de 20 consultas por minuto en todo el negocio.
-  if ((await prisma.inmoConsulta.count({ where: { tenantId, origen: "WEB", createdAt: { gte: hace(1) } } })) >= 20) {
-    return { ok: false, error: "Estamos recibiendo muchas consultas. Probá de nuevo en un minuto o escribinos por WhatsApp." };
-  }
-  const propiedad = c.propiedadId
-    ? await prisma.inmoPropiedad.findFirst({ where: { id: c.propiedadId, tenantId, estado: { in: [...ESTADOS_EN_LA_WEB] as string[] } }, select: { id: true } })
+  // Freno por conexión (el que insiste queda afuera sin frenar a los demás) y un tope general alto.
+  const h = await headers();
+  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip")?.trim() || "sin-ip";
+  const clave = `inmo-consulta:${tenantId}:${ip}`;
+  if (frenoDeConsultas.blocked(clave)) return muchas;
+  frenoDeConsultas.fail(clave);
+  if ((await prisma.inmoConsulta.count({ where: { tenantId, origen: "WEB", createdAt: { gte: hace(60) } } })) >= 300) return muchas;
+  const propiedadId = texto(c.propiedadId);
+  const propiedad = propiedadId
+    ? await prisma.inmoPropiedad.findFirst({ where: { id: propiedadId, tenantId, estado: { in: [...ESTADOS_EN_LA_WEB] as string[] } }, select: { id: true } })
     : null;
   const tipo = esTipoConsulta(c.tipo) ? c.tipo : "CONSULTA";
   // El mismo teléfono (o mail) por la misma propiedad en los últimos 10 minutos: ya está anotado.
@@ -363,11 +386,12 @@ async function consultaDe(tenantId: string, id: string, user: SessionUser) {
 /** Deja asentado que se respondió (al tocar "Responder por WhatsApp"): frena el reloj y la toma. */
 export async function marcarRespondida(id: string): Promise<void> {
   const user = await requireCapability("agenda:read");
+  if (typeof id !== "string") return;
   const tenantId = await getCurrentTenantId();
   const c = await consultaDe(tenantId, id, user);
   if (!c) return;
   await prisma.inmoConsulta.updateMany({
-    where: { id, tenantId },
+    where: { id: c.id, tenantId },
     data: {
       respondidaEl: c.respondidaEl ?? new Date(),
       ...(c.estado === "NUEVA" ? { estado: "CONTACTADA" } : {}),
@@ -405,9 +429,8 @@ export async function guardarConsulta(formData: FormData) {
   const id = txt(formData.get("id"));
   const c = await consultaDe(tenantId, id, user);
   if (!c) return;
-  // Fecha y hora de la visita tal como se cargó en el reloj de acá (Argentina, UTC−3).
-  const cuando = txt(formData.get("visitaEl"));
-  const visitaEl = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(cuando) ? new Date(`${cuando}:00-03:00`) : null;
+  // Fecha y hora de la visita, leída en el reloj del negocio (la misma lectura que los turnos).
+  const visitaEl = horarioDeNegocioDelFormulario(txt(formData.get("visitaEl")));
   let asignada = {};
   if (veLaPlata(user) && formData.has("asignadaUserId")) {
     const uid = txt(formData.get("asignadaUserId"));
@@ -552,7 +575,7 @@ export async function aplicarAjuste(formData: FormData): Promise<Resultado<{ nue
   };
   const tramo = c.tramosAplicados + 1;
   const meses = mesesDelContrato(calc.inicio, calc.fin);
-  if (calc.ajusteIndice === "SIN_AJUSTE" || meses < 1 || tramo > tramoDe(meses - 1, calc)) return { ok: false, error: "Este contrato ya no tiene actualizaciones pendientes." };
+  if (calc.ajusteIndice === "SIN_AJUSTE" || calc.ajusteIndice === "FIJO" || meses < 1 || tramo > tramoDe(meses - 1, calc)) return { ok: false, error: "Este contrato no tiene actualizaciones para aplicar a mano." };
   const vigente = n(c.ajustes[0]?.montoNuevo ?? c.montoInicial);
   let nuevo: number;
   let coeficiente: number;
@@ -567,11 +590,16 @@ export async function aplicarAjuste(formData: FormData): Promise<Resultado<{ nue
       const filas = await prisma.inmoIndice.findMany({ where: { tenantId, indice: c.ajusteIndice }, select: { fecha: true, valor: true } });
       serie = filas.map((f) => ({ fecha: diaDe(f.fecha), valor: f.valor }));
     }
+    // Con el índice sólo se aplica cuando llegó la fecha: antes, el valor de ese día no existe.
+    if (hoyDia() < inicioDeTramo(calc, tramo)) return { ok: false, error: `Todavía no llegó la fecha de la actualización (${diaCorto(inicioDeTramo(calc, tramo))}). Si ya se acordó el monto, cargalo a mano.` };
     const r = calcularAjuste(calc, tramo, vigente, serie);
     if (!r.ok) return { ok: false, error: `${r.falta} También podés cargar el monto nuevo a mano.` };
     ({ nuevo, coeficiente, detalle } = r);
   }
 
+  // El monto nuevo no puede dejar una cuota valiendo menos de lo que ya se cobró por ella.
+  const cobradas = await prisma.inmoCuota.findMany({ where: { tenantId, contratoId: c.id, tramo: { gte: tramo }, anulada: false, pagado: { gt: 0 } }, select: { pagado: true } });
+  if (cobradas.some((q) => n(q.pagado) > nuevo + 0.005)) return { ok: false, error: "Ya hay cuotas de ese tramo cobradas por más que ese monto. Revisá el número." };
   try {
     await tenantTransaction(async (tx) => {
       // La condición sobre tramosAplicados evita aplicar dos veces el mismo tramo.
@@ -629,6 +657,7 @@ export async function registrarCobro(formData: FormData): Promise<Resultado<{ sa
   if (!esMedio(medio)) return { ok: false, error: "Elegí el medio de pago." };
   const hoy = hoyDia();
   try {
+    // Serializable: dos cobros a la vez sobre la misma cuota no pueden leer el mismo saldo.
     const r = await tenantTransaction(async (tx): Promise<{ error: string } | { contratoId: string; saldo: number }> => {
       const q = await tx.inmoCuota.findFirst({ where: { id: cuotaId, tenantId, anulada: false }, include: { contrato: { select: { id: true, punitorioDiarioPct: true } } } });
       if (!q) return { error: "Esa cuota no existe." };
@@ -642,7 +671,7 @@ export async function registrarCobro(formData: FormData): Promise<Resultado<{ sa
       const pagado = redondear(base.pagado + monto);
       await tx.inmoCuota.updateMany({ where: { id: cuotaId, tenantId }, data: { pagado: plata(pagado), punitorios: plata(base.punitorios) } });
       return { contratoId: q.contrato.id, saldo: redondear(saldo - monto) };
-    });
+    }, SERIAL);
     if ("error" in r) return { ok: false, error: r.error };
     await auditAdmin({ action: "inmobiliaria.cobro", entity: "InmoCuota", entityId: cuotaId, changes: { monto, medio } });
     refrescar(`${RAIZ}/alquileres`, `${RAIZ}/alquileres/${r.contratoId}`, `${RAIZ}/liquidaciones`);
@@ -666,7 +695,7 @@ export async function anularCobro(formData: FormData): Promise<Resultado> {
       await tx.inmoPago.updateMany({ where: { id, tenantId }, data: { anuladoEl: new Date(), anuladoPor: user.name } });
       await tx.inmoCuota.updateMany({ where: { id: p.cuota.id, tenantId }, data: { pagado: plata(Math.max(0, pagado)) } });
       return { contratoId: p.cuota.contratoId, monto: n(p.monto) };
-    });
+    }, SERIAL);
     if ("error" in r) return { ok: false, error: r.error };
     await auditAdmin({ action: "inmobiliaria.cobro.anular", entity: "InmoPago", entityId: id, changes: { monto: r.monto } });
     refrescar(`${RAIZ}/alquileres`, `${RAIZ}/alquileres/${r.contratoId}`, `${RAIZ}/liquidaciones`);
@@ -744,6 +773,9 @@ export async function emitirLiquidacion(formData: FormData): Promise<Resultado<{
   if (pendientes.length === 0) return { ok: false, error: "No hay cobros sin liquidar para este propietario." };
   const cobros = pendientes.map((p) => p.cobro);
   const totales = liquidarPorContrato(cobros, gastos, config);
+  // La pantalla manda lo cobrado que mostró: si entró otro cobro mientras tanto, se vuelve a mirar.
+  const visto = importe(formData.get("cobradoVisto"));
+  if (visto != null && Math.abs(visto - totales.cobrado) > 0.005) return { ok: false, error: "Entraron o se anularon cobros desde que abriste esta pantalla. Ya se actualizó: revisá los números y emitila de nuevo." };
 
   for (let intento = 0; intento < 3; intento++) {
     try {
@@ -814,7 +846,7 @@ export async function anularLiquidacion(formData: FormData): Promise<Resultado> 
         const devuelto = redondear((Number(c.alquiler) || 0) + (Number(c.extras) || 0) + (Number(c.punitorios) || 0));
         await tx.inmoCuota.updateMany({ where: { id: c.cuotaId, tenantId }, data: { liquidado: plata(Math.max(0, redondear(n(q.liquidado) - devuelto))) } });
       }
-    });
+    }, SERIAL);
   } catch (e) {
     console.error("[inmobiliaria] anular liquidación", e);
     return { ok: false, error: "No se pudo anular la liquidación. Probá de nuevo." };

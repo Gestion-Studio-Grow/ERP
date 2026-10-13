@@ -520,9 +520,15 @@ export interface ContratoCalc {
 /** Cuántas cuotas mensuales tiene el contrato. Un resto de mes cuenta como una cuota más. */
 export function mesesDelContrato(inicio: Dia, fin: Dia): number {
   if (!esDia(inicio) || !esDia(fin) || fin < inicio) return 0;
-  const [y1, m1, d1] = partes(inicio);
-  const [y2, m2, d2] = partes(sumarDias(fin, 1));
-  return (y2 - y1) * 12 + (m2 - m1) + (d2 > d1 ? 1 : 0);
+  // Meses enteros que entran hasta el día siguiente al fin; si sobra un resto, una cuota más.
+  // Se cuenta con la misma suma de meses del cronograma: del 31/08 al 28/02 son 6, no 7.
+  const tope = sumarDias(fin, 1);
+  let k = 0;
+  while (k < 1200 && sumarMesesADia(inicio, k + 1) <= tope) k++;
+  // Si el mes k es más corto que el día de inicio (31 → 28), ese mes entero ya está contado.
+  const corte = sumarMesesADia(inicio, k);
+  const cierre = corte.slice(8) < inicio.slice(8) ? `${sumarMeses(periodoDe(corte), 1)}-01` : corte;
+  return k + (cierre < tope ? 1 : 0);
 }
 
 /** En qué tramo de precio cae la cuota número `n` (desde 0). El tramo 0 es el precio inicial. */
@@ -618,8 +624,9 @@ export function calcularAjuste(c: ContratoCalc, tramo: number, montoVigente: num
     if (!a) return { ok: false, falta: `Falta cargar el IPC de ${nombrePeriodo(periodoDe(mesA))}.` };
     if (!b) return { ok: false, falta: `Falta cargar el IPC de ${nombrePeriodo(periodoDe(mesB))}.` };
   } else {
-    a = valorAl(serie, desde);
-    b = valorAl(serie, hasta);
+    // El valor de ESE día, no uno cercano: un ajuste aplicado con un dato viejo queda firme.
+    a = valorAl(serie, desde, 0);
+    b = valorAl(serie, hasta, 0);
     if (!a) return { ok: false, falta: `Falta cargar el índice del ${diaCorto(desde)}.` };
     if (!b) return { ok: false, falta: `Falta cargar el índice del ${diaCorto(hasta)}.` };
   }

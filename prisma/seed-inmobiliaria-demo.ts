@@ -122,6 +122,10 @@ async function main() {
 
   // Re-sembrado limpio de lo propio del módulo (idempotente). El orden respeta las claves foráneas.
   await prisma.inmoLiquidacion.deleteMany({ where: { tenantId } });
+  // La historia de plata no se borra en cascada: acá, que es una base de ejemplo, se limpia a mano.
+  await prisma.inmoPago.deleteMany({ where: { tenantId } });
+  await prisma.inmoCuota.deleteMany({ where: { tenantId } });
+  await prisma.inmoAjuste.deleteMany({ where: { tenantId } });
   await prisma.inmoContrato.deleteMany({ where: { tenantId } });
   await prisma.inmoConsulta.deleteMany({ where: { tenantId } });
   await prisma.inmoPropiedad.deleteMany({ where: { tenantId } });

@@ -205,6 +205,10 @@ test("contrato: cantidad de cuotas, también cuando no empieza el día 1", () =>
   assert.equal(mesesDelContrato("2026-11-15", "2028-11-14"), 24);
   assert.equal(mesesDelContrato("2026-11-01", "2028-11-15"), 25);
   assert.equal(mesesDelContrato("2026-11-01", "2026-10-01"), 0);
+  // Empieza a fin de mes y termina en un mes más corto: no sobra una cuota.
+  assert.equal(mesesDelContrato("2026-08-31", "2027-02-28"), 6);
+  assert.equal(mesesDelContrato("2026-01-31", "2026-02-28"), 1);
+  assert.equal(mesesDelContrato("2026-11-01", "2026-11-10"), 1);
 });
 
 test("cronograma: 24 cuotas, vencen el 10, y desde la séptima falta aplicar el índice", () => {
@@ -239,6 +243,8 @@ test("ajuste por ICL: valor del día del ajuste sobre el del ajuste anterior", (
   // Sin el dato del día, no inventa: dice qué falta cargar.
   const falta = calcularAjuste(CONTRATO, 2, 660000, serie);
   assert.deepEqual(falta, { ok: false, falta: "Falta cargar el índice del 01/11/2027." });
+  // Un dato de unos días antes no sirve: tiene que ser el del día del ajuste.
+  assert.equal(calcularAjuste(CONTRATO, 1, 480000, [serie[0], { fecha: "2027-04-28", valor: 27 }]).ok, false);
 });
 
 test("ajuste por IPC: compara el mes anterior al ajuste con el mes anterior al tramo previo", () => {

@@ -2645,7 +2645,7 @@ model InmoAjuste {
   id            String       @id @default(cuid())
   tenant        Tenant       @relation(fields: [tenantId], references: [id])
   tenantId      String
-  contrato      InmoContrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  contrato      InmoContrato @relation(fields: [contratoId], references: [id])
   contratoId    String
   tramo         Int
   desde         DateTime
@@ -2664,7 +2664,7 @@ model InmoCuota {
   id              String       @id @default(cuid())
   tenant          Tenant       @relation(fields: [tenantId], references: [id])
   tenantId        String
-  contrato        InmoContrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  contrato        InmoContrato @relation(fields: [contratoId], references: [id])
   contratoId      String
   numero          Int
   periodo         String // AAAA-MM
@@ -2692,7 +2692,7 @@ model InmoPago {
   id         String    @id @default(cuid())
   tenant     Tenant    @relation(fields: [tenantId], references: [id])
   tenantId   String
-  cuota      InmoCuota @relation(fields: [cuotaId], references: [id], onDelete: Cascade)
+  cuota      InmoCuota @relation(fields: [cuotaId], references: [id])
   cuotaId    String
   medio      String // TRANSFERENCIA · EFECTIVO · MERCADO_PAGO · DEPOSITO · CHEQUE
   monto      Decimal   @db.Decimal(14, 2)

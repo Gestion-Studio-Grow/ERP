@@ -232,7 +232,7 @@ function whereDeBusqueda(tenantId: string, f: Filtros): Prisma.InmoPropiedadWher
   }
   if (f.texto) {
     const contiene = { contains: f.texto, mode: "insensitive" as const };
-    and.push({ OR: [{ titulo: contiene }, { codigo: contiene }, { barrio: contiene }, { localidad: contiene }, { direccion: contiene }, { descripcion: contiene }] });
+    and.push({ OR: [{ titulo: contiene }, { codigo: contiene }, { barrio: contiene }, { localidad: contiene }, { mostrarDireccion: true, direccion: contiene }, { descripcion: contiene }] });
   }
   return { tenantId, estado: EN_LA_WEB, AND: and };
 }
@@ -304,7 +304,8 @@ export async function propiedadPublica(tenantId: string, slug: string) {
     slug: p.slug,
     codigo: p.codigo,
     titulo: tituloProlijo(p.titulo, [p.localidad, p.barrio]),
-    descripcion: tituloProlijo(p.descripcion, [p.localidad, p.barrio]),
+    // Párrafo por párrafo, para no perder los saltos de línea.
+    descripcion: p.descripcion.split(/\n+/).map((parrafo) => tituloProlijo(parrafo, [p.localidad, p.barrio])).filter(Boolean).join("\n\n"),
     tipo: p.tipo,
     estado: p.estado as EstadoPropiedad,
     enVenta: p.enVenta,
@@ -346,7 +347,8 @@ export type PropiedadPublica = NonNullable<Awaited<ReturnType<typeof propiedadPu
 export async function fotoGuardada(tenantId: string, id: string): Promise<{ tipo: string; bytes: Buffer } | null> {
   if (!/^[a-z0-9]{10,40}$/.test(id)) return null;
   const f = await prisma.inmoFoto.findFirst({ where: { id, tenantId }, select: { url: true } });
-  const m = f?.url.match(/^data:(image\/(?:jpeg|png|webp|svg\+xml));base64,(.+)$/);
+  // Sólo formatos de foto: un SVG subido por alguien podría traer código adentro.
+  const m = f?.url.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);
   if (!m) return null;
   return { tipo: m[1], bytes: Buffer.from(m[2], "base64") };
 }
@@ -835,8 +837,14 @@ export async function propiedadesParaContrato(): Promise<{ id: string; nombre: s
 export async function indicesCargados() {
   await requireCapability("agenda:manage");
   const tenantId = await getCurrentTenantId();
-  const filas = await prisma.inmoIndice.findMany({ where: { tenantId }, orderBy: [{ indice: "asc" }, { fecha: "desc" }], take: 400 });
-  return filas.map((f) => ({ id: f.id, indice: f.indice, fecha: diaDe(f.fecha), valor: f.valor }));
+  // Los últimos de cada índice y cuántos hay: el ICL es diario y taparía a los otros.
+  return Promise.all(
+    ["ICL", "IPC", "CASA_PROPIA"].map(async (indice) => ({
+      indice,
+      total: await prisma.inmoIndice.count({ where: { tenantId, indice } }),
+      ultimos: (await prisma.inmoIndice.findMany({ where: { tenantId, indice }, orderBy: { fecha: "desc" }, take: 4 })).map((f) => ({ id: f.id, fecha: diaDe(f.fecha), valor: f.valor })),
+    })),
+  );
 }
 
 // ── Panel: liquidaciones ────────────────────────────────────────────────────

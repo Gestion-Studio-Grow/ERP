@@ -345,19 +345,19 @@ ALTER TABLE "InmoContrato" ADD CONSTRAINT "InmoContrato_propietarioId_fkey" FORE
 ALTER TABLE "InmoAjuste" ADD CONSTRAINT "InmoAjuste_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "InmoAjuste" ADD CONSTRAINT "InmoAjuste_contratoId_fkey" FOREIGN KEY ("contratoId") REFERENCES "InmoContrato"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "InmoAjuste" ADD CONSTRAINT "InmoAjuste_contratoId_fkey" FOREIGN KEY ("contratoId") REFERENCES "InmoContrato"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "InmoCuota" ADD CONSTRAINT "InmoCuota_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "InmoCuota" ADD CONSTRAINT "InmoCuota_contratoId_fkey" FOREIGN KEY ("contratoId") REFERENCES "InmoContrato"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "InmoCuota" ADD CONSTRAINT "InmoCuota_contratoId_fkey" FOREIGN KEY ("contratoId") REFERENCES "InmoContrato"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "InmoPago" ADD CONSTRAINT "InmoPago_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "InmoPago" ADD CONSTRAINT "InmoPago_cuotaId_fkey" FOREIGN KEY ("cuotaId") REFERENCES "InmoCuota"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "InmoPago" ADD CONSTRAINT "InmoPago_cuotaId_fkey" FOREIGN KEY ("cuotaId") REFERENCES "InmoCuota"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "InmoLiquidacion" ADD CONSTRAINT "InmoLiquidacion_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
