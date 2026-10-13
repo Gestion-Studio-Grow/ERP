@@ -14,10 +14,11 @@
 # tablas nuevas con RLS adentro y dos columnas con default en "Client". Las cuatro de caja de
 # septiembre salen de la lista: según el registro del pase del 24/09 ya están en producción. Si
 # alguna siguiera pendiente, el build frena acá sin tocar la base y lo dice.
-20261008120000_modulo_taller
 # 2026-10-09: segunda del taller, en la misma ventana: cobros al libro de caja (clave del asiento en
 # "CashMovement" + rastro de anulación en "TallerPago"). Aditiva.
-20261009120000_taller_caja
+#
 # 2026-10-13: módulo INMOBILIARIA, publicación pedida por el dueño. Aditiva: diez tablas nuevas
-# con RLS adentro. No agrega ni cambia columnas de ninguna tabla existente.
+# con RLS adentro. No agrega ni cambia columnas de ninguna tabla existente. Las dos del taller
+# salen de la lista: MEDIDO ese día contra Neon (scripts/taller/migrar-produccion.mjs, sólo
+# lectura), ya estaban aplicadas. Pendiente de verdad: ésta sola.
 20261013120000_modulo_inmobiliaria
