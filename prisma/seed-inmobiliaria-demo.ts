@@ -214,6 +214,8 @@ async function main() {
 
   // Contratos administrados. Las cuotas salen de la misma regla que usa el panel.
   let numero = 0;
+  // Cada cobro de muestra lleva su número de recibo, como los reales.
+  let recibo = 0;
   async function contrato(c: { codigo: string; inquilino: keyof typeof gente; propietario: keyof typeof gente; haceMeses: number; monto: number; dia: number; indice: string; cada: number; fijo?: number; cobradas: number; parcial?: number }) {
     const inicio: Dia = `${sumarMeses(mesActual, -c.haceMeses)}-01`;
     const calc: ContratoCalc = { inicio, fin: sumarDias(sumarMesesADia(inicio, 24), -1), montoInicial: c.monto, diaVencimiento: c.dia, ajusteIndice: c.indice as ContratoCalc["ajusteIndice"], ajusteCadaMeses: c.cada, ajusteFijoPct: c.fijo ?? null };
@@ -235,7 +237,7 @@ async function main() {
         data: {
           tenantId, contratoId: creado.id, numero: q.numero, periodo: q.periodo, vence: instanteDe(q.vence), tramo: q.tramo, alquiler: q.alquiler, ajustePendiente: q.ajustePendiente,
           extras, pagado: total,
-          pagos: total > 0 ? { create: [{ tenantId, medio: q.numero % 2 ? "TRANSFERENCIA" : "EFECTIVO", monto: total, cobradoPor: duenia.name, createdAt: instanteDe(sumarDias(q.vence, -2)) }] } : undefined,
+          pagos: total > 0 ? { create: [{ tenantId, medio: q.numero % 2 ? "TRANSFERENCIA" : "EFECTIVO", monto: total, cobradoPor: duenia.name, createdAt: instanteDe(sumarDias(q.vence, -2)), reciboNumero: ++recibo }] } : undefined,
         },
       });
     }
