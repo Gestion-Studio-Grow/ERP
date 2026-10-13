@@ -203,8 +203,8 @@ export default async function FichaPropiedad({ params }: { params: Params }) {
               </Link>
             </div>
             <ul className={s.grilla}>
-              {p.parecidas.map((x) => (
-                <Tarjeta key={x.id} p={x} />
+              {p.parecidas.map((x, i) => (
+                <Tarjeta key={x.id} p={x} orden={i} />
               ))}
             </ul>
           </section>

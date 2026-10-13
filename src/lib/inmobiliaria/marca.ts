@@ -45,8 +45,26 @@ const DEMO: MarcaInmo = {
   desde: 2009,
 };
 
+// PDC Propiedades (Monte Grande). El dueño de GSG confirmó el 13/10/2026 que el cliente autorizó
+// usar su marca: logo, colores y textos tomados ese día de www.pdcpropiedades.com.ar (rojo #e42528,
+// gris #545456, lema de portada, "desde 2009", matrícula). El logo es el suyo (logo.png, 3152×1686);
+// si mandan uno en vectores, reemplazarlo. Fotos de propiedades: todavía las de muestra.
+const PDC: MarcaInmo = {
+  logo: "/tenants/pdcinmobiliaria/marca/logo.png",
+  acento: "#e42528",
+  acentoTinta: "#ffffff",
+  tinta: "#2b2b2d",
+  papel: "#ffffff",
+  lema: "Tu próxima propiedad en Monte Grande.",
+  bajada: "Venta, alquiler y tasaciones en Esteban Echeverría y zona sur.",
+  // La foto del local (Ramón Santamarina 1128), tomada de la portada de su sitio.
+  portada: "/tenants/pdcinmobiliaria/marca/portada.jpg",
+  desde: 2009,
+};
+
 const POR_SLUG: Record<string, MarcaInmo> = {
   "inmo-demo": DEMO,
+  pdcinmobiliaria: PDC,
 };
 
 export function marcaInmo(slug: string | null | undefined): MarcaInmo {

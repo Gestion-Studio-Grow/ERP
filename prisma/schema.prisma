@@ -2557,6 +2557,9 @@ model InmoFoto {
   // El data URL nunca viaja dentro de la página: lo sirve /propiedades/foto/[id]. Tope por
   // ficha en src/lib/inmobiliaria/acciones.ts: todavía no hay almacenamiento de archivos.
   url         String
+  // true: `url` es un data URL (pesado). Los listados leen sólo esta marca y el id, y arman el
+  // link a la ruta; la columna `url` se lee únicamente para las fotos que son un link.
+  esData      Boolean       @default(false)
   alt         String        @default("")
   posicion    Int           @default(0)
   createdAt   DateTime      @default(now())
@@ -2680,6 +2683,14 @@ model InmoCuota {
   // De lo cobrado, cuánto ya se le liquidó al propietario. Una cuota pagada en dos veces puede
   // entrar en dos liquidaciones: en cada una entra sólo lo que todavía no se había liquidado.
   liquidado       Decimal      @default(0) @db.Decimal(14, 2)
+  // Lo mismo, abierto por rubro: si después de liquidar en parte se le suman expensas o mora a
+  // la cuota, la liquidación siguiente resta lo ya liquidado de CADA rubro (y la comisión, que
+  // va sobre el alquiler, sale bien). `liquidado` sigue siendo el total, para compatibilidad.
+  liquidadoAlquiler   Decimal  @default(0) @db.Decimal(14, 2)
+  liquidadoExtras     Decimal  @default(0) @db.Decimal(14, 2)
+  liquidadoPunitorios Decimal  @default(0) @db.Decimal(14, 2)
+  // true: la mora se perdonó a propósito (queda en 0 y el panel no la vuelve a sugerir).
+  moraPerdonada   Boolean      @default(false)
   pagos           InmoPago[]
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt

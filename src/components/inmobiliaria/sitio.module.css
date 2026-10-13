@@ -20,7 +20,9 @@
   display: flex;
   flex-direction: column;
 }
-.sitio a { color: inherit; }
+/* :where() deja esta regla sin peso: así los botones (.boton, .whatsapp…) sí pueden fijar su color.
+   Antes `.sitio a` le ganaba a `.whatsapp` y el texto del botón verde salía oscuro (3,8:1). */
+:where(.sitio) a { color: inherit; }
 .sitio :focus-visible { outline: 3px solid var(--acento); outline-offset: 3px; border-radius: 6px; }
 .ancho { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 20px; }
 .principal { flex: 1; }
@@ -45,7 +47,8 @@
 .botonClaro { background: #fff; color: var(--tinta); }
 .botonLinea { background: transparent; color: inherit; border-color: currentColor; }
 .botonLinea:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
-.whatsapp { background: #128c4a; color: #fff; }
+/* Verde de WhatsApp apenas más oscuro: blanco encima da 5,1:1 (el #128c4a daba 4,3:1, bajo AA). */
+.whatsapp { background: #0f7f43; color: #fff; }
 
 /* ── Portada ──────────────────────────────────────────────────────────────── */
 .hero { position: relative; isolation: isolate; min-height: min(86vh, 820px); display: grid; align-items: end; color: #fff; background: var(--tinta); }
@@ -98,9 +101,10 @@
 .tarjetaFoto { position: relative; aspect-ratio: 4 / 3; background: var(--suave); overflow: hidden; }
 .tarjetaFoto img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
 .tarjeta:hover .tarjetaFoto img { transform: scale(1.04); }
-.tarjetaFoto::after { content: ""; position: absolute; inset: 45% 0 0 0; background: linear-gradient(180deg, transparent, rgba(8, 14, 20, 0.72)); }
 .sinFoto { display: grid; place-items: center; height: 100%; color: var(--gris); font-size: 0.95rem; }
-.cartel { position: absolute; left: 16px; right: 16px; bottom: 12px; z-index: 1; display: flex; flex-direction: column; gap: 2px; color: #fff; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35); }
+/* El degradé oscuro va en el mismo cartel (no en un ::after aparte): es lo que de verdad hay
+   detrás del precio blanco, y así la valla de contraste lo ve como texto sobre imagen. */
+.cartel { position: absolute; inset: 45% 0 0 0; z-index: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; padding: 0 16px 12px; color: #fff; background: linear-gradient(180deg, transparent, rgba(8, 14, 20, 0.72)); text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35); }
 .precio { font-family: var(--serif); font-weight: 600; font-size: 1.55rem; letter-spacing: -0.01em; line-height: 1.15; }
 .operacion { font-size: 0.74rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.92; }
 .etiquetas { position: absolute; top: 14px; left: 14px; z-index: 1; display: flex; flex-wrap: wrap; gap: 6px; }
@@ -140,6 +144,9 @@
 .encabezadoPagina { padding: 34px 0 22px; }
 .h1 { margin: 0; font-family: var(--serif); font-weight: 500; font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.06; letter-spacing: -0.02em; text-wrap: balance; }
 .contador { margin: 10px 0 0; color: var(--gris); }
+/* "Quitar filtros" va dentro de la oración: el relleno con margen negativo le da 44 px de alto
+   para el dedo sin mover el renglón. */
+.contador a { display: inline-block; padding: 11px 0; margin: -11px 0; }
 .paginas { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-top: 40px; }
 .paginas a, .paginas span { display: inline-grid; place-items: center; min-width: 46px; min-height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--linea); background: #fff; text-decoration: none; font-weight: 700; }
 .paginas span { background: var(--tinta); color: var(--papel); border-color: var(--tinta); }
@@ -201,7 +208,7 @@
 .pie a { display: inline-flex; align-items: center; min-height: 44px; text-underline-offset: 4px; }
 .pieNombre { font-family: var(--serif); font-size: 1.6rem; color: var(--papel); line-height: 1.1; margin-bottom: 10px; }
 .pieBase { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 36px; padding-top: 18px; border-top: 1px solid color-mix(in srgb, var(--papel) 18%, transparent); font-size: 0.88rem; }
-.flotante { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: inline-flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 20px; border-radius: 999px; background: #128c4a; color: #fff !important; font-weight: 700; text-decoration: none; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3); }
+.flotante { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: inline-flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 20px; border-radius: 999px; background: #0f7f43; color: #fff !important; font-weight: 700; text-decoration: none; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3); }
 
 @media (min-width: 960px) {
   .ficha { grid-template-columns: minmax(0, 1fr) 380px; }

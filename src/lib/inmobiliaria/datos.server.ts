@@ -25,15 +25,16 @@ import {
   estadoCuota,
   ESTADOS_EN_LA_WEB,
   etiquetas,
-  imputar,
   inicioDeTramo,
   instanteDe,
   liquidarPorContrato,
   mesesDelContrato,
   minutosSinResponder,
+  pendienteDeLiquidar,
   PLANTILLAS_DEFAULT,
   punitorioSugerido,
   redondear,
+  repartoLiquidado,
   revisarFicha,
   saldoCuota,
   sumarDias,
@@ -55,6 +56,7 @@ import {
   type IndiceAjuste,
   type Liquidacion,
   type Periodo,
+  type PorRubro,
   type PuntoIndice,
   type ResultadoAjuste,
   type RevisionFicha,
@@ -67,8 +69,30 @@ const nN = (v: unknown): number | null => (v == null ? null : Number(v));
 const dia = (d: Date | null | undefined): Dia | null => (d ? diaDe(d) : null);
 export const hoyDia = (): Dia => todayInBusinessTz();
 
-/** Una foto guardada como data URL nunca viaja dentro de la página: la sirve su propia ruta. */
-export const srcDeFoto = (f: { id: string; url: string }): string => (f.url.startsWith("data:") ? `/propiedades/foto/${f.id}` : f.url);
+/**
+ * Una foto guardada como data URL nunca viaja dentro de la página: la sirve su propia ruta.
+ * Los listados no leen la columna `url` de esas fotos (pesa cientos de KB cada una): con `esData`
+ * alcanza para armar el link. `url` llega sólo para las fotos que son un link.
+ */
+export const srcDeFoto = (f: { id: string; url?: string | null; esData: boolean }): string =>
+  f.esData || !f.url || f.url.startsWith("data:") ? `/propiedades/foto/${f.id}` : f.url;
+
+/** Lo mínimo que un listado lee de cada foto. */
+const SELECT_FOTO_LIVIANA = { id: true, esData: true } satisfies Prisma.InmoFotoSelect;
+type FotoLiviana = { id: string; esData: boolean };
+
+/**
+ * El `src` de cada foto de una lista, en UNA consulta más que trae la `url` sólo de las que son
+ * un link (las data URL no se leen: su src es la ruta). Devuelve id → src.
+ */
+async function srcsDeFotos(tenantId: string, fotos: readonly FotoLiviana[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const links = fotos.filter((f) => !f.esData).map((f) => f.id);
+  const urls = links.length ? await prisma.inmoFoto.findMany({ where: { tenantId, id: { in: links }, esData: false }, select: { id: true, url: true } }) : [];
+  const porId = new Map(urls.map((u) => [u.id, u.url]));
+  for (const f of fotos) out.set(f.id, srcDeFoto({ id: f.id, esData: f.esData, url: porId.get(f.id) ?? null }));
+  return out;
+}
 
 export function leerExtras(json: unknown): Extra[] {
   if (!Array.isArray(json)) return [];
@@ -174,13 +198,16 @@ const SELECT_TARJETA = {
   enVenta: true, enAlquiler: true, precioVenta: true, monedaVenta: true, precioAlquiler: true, monedaAlquiler: true, expensas: true,
   ambientes: true, dormitorios: true, banos: true, cocheras: true, supCubierta: true, supTotal: true,
   aptoCredito: true, destacada: true, publicadaEl: true, bajoDePrecioEl: true,
-  fotos: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }], take: 1, select: { id: true, url: true } },
+  fotos: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }], take: 1, select: SELECT_FOTO_LIVIANA },
   _count: { select: { fotos: true } },
 } satisfies Prisma.InmoPropiedadSelect;
 
 type FilaTarjeta = Prisma.InmoPropiedadGetPayload<{ select: typeof SELECT_TARJETA }>;
 
-function aTarjeta(p: FilaTarjeta, hoy: Dia): TarjetaPropiedad {
+/** Los src de las tapas de una lista de fichas (una consulta para todas). */
+const tapasDe = (tenantId: string, filas: readonly FilaTarjeta[]) => srcsDeFotos(tenantId, filas.flatMap((p) => p.fotos));
+
+function aTarjeta(p: FilaTarjeta, hoy: Dia, tapas: ReadonlyMap<string, string>): TarjetaPropiedad {
   const primera = p.fotos[0];
   return {
     id: p.id,
@@ -206,7 +233,7 @@ function aTarjeta(p: FilaTarjeta, hoy: Dia): TarjetaPropiedad {
     supTotal: p.supTotal,
     aptoCredito: p.aptoCredito,
     destacada: p.destacada,
-    foto: primera ? srcDeFoto(primera) : null,
+    foto: primera ? (tapas.get(primera.id) ?? srcDeFoto(primera)) : null,
     fotos: p._count.fotos,
     etiquetas: etiquetas({ estado: p.estado, publicadaEl: dia(p.publicadaEl), bajoDePrecioEl: dia(p.bajoDePrecioEl), aptoCredito: p.aptoCredito, enVenta: p.enVenta }, hoy),
   };
@@ -253,7 +280,8 @@ export async function buscarPropiedades(tenantId: string, f: Filtros) {
     prisma.inmoPropiedad.findMany({ where, orderBy, skip: (f.pagina - 1) * POR_PAGINA, take: POR_PAGINA, select: SELECT_TARJETA }),
   ]);
   const hoy = hoyDia();
-  return { total, paginas: Math.max(1, Math.ceil(total / POR_PAGINA)), items: filas.map((p) => aTarjeta(p, hoy)) };
+  const tapas = await tapasDe(tenantId, filas);
+  return { total, paginas: Math.max(1, Math.ceil(total / POR_PAGINA)), items: filas.map((p) => aTarjeta(p, hoy, tapas)) };
 }
 
 /** Lo que va en la portada: las destacadas y, si no alcanzan, las últimas publicadas. */
@@ -265,7 +293,8 @@ export async function propiedadesDePortada(tenantId: string, cuantas = 6): Promi
     select: SELECT_TARJETA,
   });
   const hoy = hoyDia();
-  return filas.map((p) => aTarjeta(p, hoy));
+  const tapas = await tapasDe(tenantId, filas);
+  return filas.map((p) => aTarjeta(p, hoy, tapas));
 }
 
 /** Las zonas donde hay algo publicado, con su cantidad: arma el buscador y "Dónde trabajamos". */
@@ -287,7 +316,7 @@ export async function propiedadPublica(tenantId: string, slug: string) {
   if (!/^[a-z0-9-]{3,120}$/.test(slug)) return null;
   const p = await prisma.inmoPropiedad.findFirst({
     where: { tenantId, slug, estado: EN_LA_WEB },
-    include: { fotos: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }], select: { id: true, url: true, alt: true } } },
+    include: { fotos: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }], select: { ...SELECT_FOTO_LIVIANA, alt: true } } },
   });
   if (!p) return null;
   const hoy = hoyDia();
@@ -299,6 +328,8 @@ export async function propiedadPublica(tenantId: string, slug: string) {
   });
   // Primero las de la misma localidad.
   const ordenadas = [...parecidas].sort((a, b) => Number(b.localidad === p.localidad) - Number(a.localidad === p.localidad)).slice(0, 3);
+  // Las fotos de la ficha y las tapas de las parecidas, con la url leída sólo de las que son un link.
+  const srcs = await srcsDeFotos(tenantId, [...p.fotos, ...ordenadas.flatMap((x) => x.fotos)]);
   return {
     id: p.id,
     slug: p.slug,
@@ -335,10 +366,10 @@ export async function propiedadPublica(tenantId: string, slug: string) {
     antiguedad: p.antiguedad,
     comodidades: p.comodidades,
     videoUrl: p.videoUrl,
-    fotos: p.fotos.map((f) => ({ id: f.id, src: srcDeFoto(f), alt: f.alt })),
+    fotos: p.fotos.map((f) => ({ id: f.id, src: srcs.get(f.id) ?? srcDeFoto(f), alt: f.alt })),
     etiquetas: etiquetas({ estado: p.estado, publicadaEl: dia(p.publicadaEl), bajoDePrecioEl: dia(p.bajoDePrecioEl), aptoCredito: p.aptoCredito, enVenta: p.enVenta }, hoy),
     precioAnterior: dia(p.bajoDePrecioEl) ? nN(p.precioAnterior) : null,
-    parecidas: ordenadas.map((x) => aTarjeta(x, hoy)),
+    parecidas: ordenadas.map((x) => aTarjeta(x, hoy, srcs)),
   };
 }
 export type PropiedadPublica = NonNullable<Awaited<ReturnType<typeof propiedadPublica>>>;
@@ -428,6 +459,8 @@ export interface CuotaVista {
   saldo: number;
   estado: EstadoCuota;
   liquidada: boolean;
+  /** true: la mora se perdonó a propósito (no se sugiere ni se cobra). */
+  moraPerdonada: boolean;
   mora: { dias: number; monto: number };
 }
 
@@ -445,10 +478,11 @@ interface FilaCuota {
   pagado: unknown;
   anulada: boolean;
   liquidado: unknown;
+  moraPerdonada: boolean;
 }
 
 function aCuota(c: FilaCuota, hoy: Dia, tasaDiariaPct: number): CuotaVista {
-  const calc = { alquiler: n(c.alquiler), extras: leerExtras(c.extras), punitorios: n(c.punitorios), pagado: n(c.pagado), vence: diaDe(c.vence), anulada: c.anulada };
+  const calc = { alquiler: n(c.alquiler), extras: leerExtras(c.extras), punitorios: n(c.punitorios), pagado: n(c.pagado), vence: diaDe(c.vence), anulada: c.anulada, moraPerdonada: c.moraPerdonada };
   const estado = estadoCuota(calc, hoy);
   return {
     id: c.id,
@@ -466,7 +500,9 @@ function aCuota(c: FilaCuota, hoy: Dia, tasaDiariaPct: number): CuotaVista {
     saldo: c.anulada ? 0 : saldoCuota(calc),
     estado,
     liquidada: calc.pagado > 0.005 && n(c.liquidado) >= calc.pagado - 0.005,
-    // La mora se sugiere sólo si todavía no se cargó ninguna en la cuota.
+    moraPerdonada: c.moraPerdonada,
+    // La mora se sugiere sólo si todavía no se cargó ninguna en la cuota y no se perdonó
+    // (`punitorioSugerido` devuelve 0 con `moraPerdonada`).
     mora: estado === "VENCIDA" || estado === "PARCIAL" ? (calc.punitorios > 0 ? { dias: 0, monto: 0 } : punitorioSugerido(calc, hoy, tasaDiariaPct)) : { dias: 0, monto: 0 },
   };
 }
@@ -483,6 +519,8 @@ const aContratoCalc = (c: { inicio: Date; fin: Date; montoInicial: unknown; diaV
 
 export interface PorCobrar extends CuotaVista {
   contratoNumero: number;
+  /** VIGENTE, FINALIZADO o RESCINDIDO: una deuda de un contrato cerrado sigue siendo deuda. */
+  contratoEstado: string;
   propiedad: string;
   inquilino: string;
   telefono: string;
@@ -525,11 +563,22 @@ export async function tableroInmo() {
     const inicioMes = new Date(`${hoy.slice(0, 7)}-01T00:00:00-03:00`);
     const [cuotas, contratos, pagos, liqs] = await Promise.all([
       prisma.inmoCuota.findMany({
-        where: { tenantId, anulada: false, contrato: { estado: "VIGENTE" }, vence: { gte: instanteDe(sumarDias(hoy, -400)), lte: instanteDe(sumarDias(hoy, 7)) } },
+        where: {
+          tenantId,
+          anulada: false,
+          OR: [
+            // Del contrato vigente: lo vencido del último año y lo que vence en la semana.
+            { contrato: { estado: "VIGENTE" }, vence: { gte: instanteDe(sumarDias(hoy, -400)), lte: instanteDe(sumarDias(hoy, 7)) } },
+            // De los contratos cerrados: toda cuota vencida que quedó sin anular. Si quedó sin pagar
+            // es una deuda real (cerrar el contrato anula sólo las futuras sin cobrar). El saldo se
+            // filtra abajo: una cuota vieja pagada no viene.
+            { contrato: { estado: { in: ["FINALIZADO", "RESCINDIDO"] } }, vence: { lt: instanteDe(hoy) } },
+          ],
+        },
         orderBy: { vence: "asc" },
         include: {
           contrato: {
-            select: { numero: true, punitorioDiarioPct: true, tokenInquilino: true, propiedad: { select: { titulo: true, direccion: true, localidad: true, barrio: true } }, inquilino: { select: { name: true, phone: true } } },
+            select: { numero: true, estado: true, punitorioDiarioPct: true, tokenInquilino: true, propiedad: { select: { titulo: true, direccion: true, localidad: true, barrio: true } }, inquilino: { select: { name: true, phone: true } } },
           },
         },
       }),
@@ -548,6 +597,7 @@ export async function tableroInmo() {
       .map((c) => ({
         ...aCuota(c, hoy, c.contrato.punitorioDiarioPct),
         contratoNumero: c.contrato.numero,
+        contratoEstado: c.contrato.estado,
         propiedad: c.contrato.propiedad.direccion || tituloProlijo(c.contrato.propiedad.titulo, [c.contrato.propiedad.localidad, c.contrato.propiedad.barrio]),
         inquilino: c.contrato.inquilino.name,
         telefono: c.contrato.inquilino.phone,
@@ -620,13 +670,14 @@ export async function listaPropiedades(filtro: { estado?: string; texto?: string
     select: SELECT_FILA,
   });
   const hoy = hoyDia();
+  const tapas = await tapasDe(tenantId, filas);
   return filas.map((p) => {
     const r = revisarFicha({
       titulo: p.titulo, descripcion: p.descripcion, localidad: p.localidad, direccion: p.direccion, enVenta: p.enVenta, enAlquiler: p.enAlquiler,
       precioVenta: nN(p.precioVenta), precioAlquiler: nN(p.precioAlquiler), tipo: p.tipo, ambientes: p.ambientes, supCubierta: p.supCubierta, supTotal: p.supTotal,
       fotos: p._count.fotos, lat: p.lat, lng: p.lng,
     });
-    return { ...aTarjeta(p, hoy), direccion: p.direccion, propietario: p.propietario?.name ?? null, consultas: p._count.consultas, puntaje: r.puntaje, bloqueos: r.bloqueos.length };
+    return { ...aTarjeta(p, hoy, tapas), direccion: p.direccion, propietario: p.propietario?.name ?? null, consultas: p._count.consultas, puntaje: r.puntaje, bloqueos: r.bloqueos.length };
   });
 }
 
@@ -636,12 +687,13 @@ export async function propiedadAdmin(id: string) {
   const p = await prisma.inmoPropiedad.findFirst({
     where: { id, tenantId },
     include: {
-      fotos: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }], select: { id: true, url: true, alt: true } },
+      fotos: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }], select: { ...SELECT_FOTO_LIVIANA, alt: true } },
       propietario: { select: { id: true, name: true, phone: true } },
       _count: { select: { consultas: true, contratos: true } },
     },
   });
   if (!p) return null;
+  const srcs = await srcsDeFotos(tenantId, p.fotos);
   const revision: RevisionFicha = revisarFicha({
     titulo: p.titulo, descripcion: p.descripcion, localidad: p.localidad, direccion: p.direccion, enVenta: p.enVenta, enAlquiler: p.enAlquiler,
     precioVenta: nN(p.precioVenta), precioAlquiler: nN(p.precioAlquiler), tipo: p.tipo, ambientes: p.ambientes, supCubierta: p.supCubierta, supTotal: p.supTotal,
@@ -658,7 +710,7 @@ export async function propiedadAdmin(id: string) {
     supCubierta: p.supCubierta, supTotal: p.supTotal, antiguedad: p.antiguedad, comodidades: p.comodidades, videoUrl: p.videoUrl ?? "",
     notasInternas: p.notasInternas ?? "",
     propietario: p.propietario,
-    fotos: p.fotos.map((f) => ({ id: f.id, src: srcDeFoto(f), alt: f.alt })),
+    fotos: p.fotos.map((f) => ({ id: f.id, src: srcs.get(f.id) ?? srcDeFoto(f), alt: f.alt })),
     consultas: p._count.consultas,
     contratos: p._count.contratos,
     revision,
@@ -860,11 +912,25 @@ export interface ParaLiquidar {
 
 export type CobroPendiente = CobroALiquidar & { cuotaId: string; comisionPct: number };
 
+/** Una cuota tal como se la leyó para liquidar: lo que la liquidación compara antes de marcarla. */
+export interface CuotaLeidaParaLiquidar {
+  pagado: number;
+  alquiler: number;
+  punitorios: number;
+  /** Total liquidado antes (columna `liquidado`). */
+  liquidadoAntes: number;
+  /** Lo liquidado antes por rubro, ya reparado si la cuota venía de antes de las columnas por rubro. */
+  liquidadoPorRubro: PorRubro;
+  /** Cambia con cualquier escritura sobre la cuota (extras, mora, cobros): la foto de lo leído. */
+  updatedAt: Date;
+}
+
 /**
  * Lo cobrado de las cuotas que todavía no se le liquidó al propietario, renglón por renglón.
- * De cada cuota entra la diferencia entre lo cobrado y lo ya liquidado, repartida en mora,
- * extras y alquiler con la misma regla de imputación. `liquidadoAntes` viaja con cada renglón
- * para que quien liquide pueda comprobar que nadie liquidó esa cuota mientras tanto.
+ * De cada cuota entra, RUBRO POR RUBRO, lo cobrado imputado hoy menos lo ya liquidado de ese
+ * rubro (`pendienteDeLiquidar`): si después de liquidar en parte se le sumaron expensas o mora,
+ * lo nuevo entra como expensas o mora y no como alquiler (que paga comisión). La foto de la
+ * cuota leída viaja con cada renglón para que quien liquide compruebe que nadie la tocó.
  */
 export async function cobrosSinLiquidar(tenantId: string, propietarioId?: string) {
   const cuotas = await prisma.inmoCuota.findMany({
@@ -876,27 +942,27 @@ export async function cobrosSinLiquidar(tenantId: string, propietarioId?: string
       },
     },
   });
-  const out: { propietarioId: string; propietario: string; telefono: string; pagado: number; liquidadoAntes: number; cobro: CobroPendiente }[] = [];
+  const out: { propietarioId: string; propietario: string; telefono: string; leida: CuotaLeidaParaLiquidar; cobro: CobroPendiente }[] = [];
   for (const q of cuotas) {
     const pagado = n(q.pagado);
     const liquidado = n(q.liquidado);
     if (pagado - liquidado <= 0.005) continue;
     const cuota = { alquiler: n(q.alquiler), extras: leerExtras(q.extras), punitorios: n(q.punitorios) };
-    const ahora = imputar(cuota, pagado);
-    const antes = imputar(cuota, liquidado);
+    const yaLiquidado = repartoLiquidado(cuota, liquidado, { alquiler: n(q.liquidadoAlquiler), extras: n(q.liquidadoExtras), punitorios: n(q.liquidadoPunitorios) });
+    const pendiente = pendienteDeLiquidar(cuota, pagado, yaLiquidado);
+    if (pendiente.alquiler + pendiente.extras + pendiente.punitorios <= 0.005) continue;
     const lugar = q.contrato.propiedad.direccion || tituloProlijo(q.contrato.propiedad.titulo, [q.contrato.propiedad.localidad, q.contrato.propiedad.barrio]);
     out.push({
       propietarioId: q.contrato.propietarioId,
       propietario: q.contrato.propietario.name,
       telefono: q.contrato.propietario.phone,
-      pagado,
-      liquidadoAntes: liquidado,
+      leida: { pagado, alquiler: cuota.alquiler, punitorios: cuota.punitorios, liquidadoAntes: liquidado, liquidadoPorRubro: yaLiquidado, updatedAt: q.updatedAt },
       cobro: {
         cuotaId: q.id,
         concepto: `${lugar} · ${q.periodo}`,
-        alquiler: redondear(ahora.alquiler - antes.alquiler),
-        extras: redondear(ahora.extras - antes.extras),
-        punitorios: redondear(ahora.punitorios - antes.punitorios),
+        alquiler: pendiente.alquiler,
+        extras: pendiente.extras,
+        punitorios: pendiente.punitorios,
         comisionPct: q.contrato.comisionPct,
       },
     });

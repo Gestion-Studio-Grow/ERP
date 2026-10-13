@@ -1,0 +1,129 @@
+/* ============================================================================
+   Movimiento 3D del sitio de la inmobiliaria. Todo con transformaciones CSS (sin librerías):
+   · Escena: la portada tiene capas con profundidad que siguen al mouse y al scroll.
+   · Inclinar: una tarjeta se inclina hacia el puntero y su precio flota por encima.
+   · Revelar: lo que entra en pantalla se levanta y se endereza.
+   Si la persona pidió menos movimiento (prefers-reduced-motion), nada se mueve.
+   ============================================================================ */
+
+.escena {
+  --mx: 0;
+  --my: 0;
+  --sy: 0;
+  perspective: 1200px;
+  transform-style: preserve-3d;
+  overflow: hidden;
+}
+.escena [data-capa="fondo"] {
+  transform: translate3d(calc(var(--mx) * -18px), calc(var(--my) * -12px + var(--sy) * 0.22px), -80px) scale(1.14);
+  transition: transform 0.12s linear;
+  will-change: transform;
+}
+.escena [data-capa="texto"] {
+  transform: translate3d(calc(var(--mx) * 10px), calc(var(--my) * 6px + var(--sy) * -0.08px), 40px);
+  transition: transform 0.12s linear;
+  will-change: transform;
+}
+.escena [data-capa="frente"] {
+  transform: translate3d(calc(var(--mx) * 16px), calc(var(--my) * 10px + var(--sy) * -0.14px), 90px);
+  transition: transform 0.12s linear;
+  will-change: transform;
+}
+
+/* Entrada de la portada: el título sube desde abajo mientras la foto se acerca. */
+.escena [data-capa="texto"] > * {
+  animation: subir 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.escena [data-capa="texto"] > :nth-child(2) { animation-delay: 0.08s; }
+.escena [data-capa="texto"] > :nth-child(3) { animation-delay: 0.16s; }
+.escena [data-capa="frente"] { animation: aparecer 1s 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.escena [data-capa="fondo"] { animation: acercar 1.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes subir { from { opacity: 0; transform: translate3d(0, 28px, 0); } }
+@keyframes aparecer { from { opacity: 0; transform: translate3d(0, 40px, 90px) rotateX(14deg); } }
+@keyframes acercar { from { transform: translate3d(0, 0, -80px) scale(1.24); } }
+
+/* ── Inclinar ─────────────────────────────────────────────────────────────── */
+.inclinable {
+  height: 100%;
+  --rx: 0deg;
+  --ry: 0deg;
+  --brillo-x: 50%;
+  --brillo-y: 50%;
+  perspective: 900px;
+}
+.inclinable > * {
+  height: 100%;
+  transform: rotateX(var(--rx)) rotateY(var(--ry)) translateZ(0);
+  transform-style: preserve-3d;
+  transition: transform 0.18s ease-out, box-shadow 0.18s ease-out;
+  will-change: transform;
+  position: relative;
+}
+.inclinable[data-activo="1"] > * {
+  box-shadow: 0 30px 60px rgba(8, 14, 20, 0.22);
+  transition-duration: 0.06s;
+}
+/* Un reflejo que sigue al puntero, como si la tarjeta tuviera vidrio adelante. */
+.inclinable[data-activo="1"] > *::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  border-radius: inherit;
+  background: radial-gradient(420px circle at var(--brillo-x) var(--brillo-y), rgba(255, 255, 255, 0.22), transparent 60%);
+}
+/* Lo marcado como "flota" se despega del plano de la tarjeta. */
+.inclinable [data-flota] {
+  transform: translateZ(40px);
+  transition: transform 0.18s ease-out;
+}
+.inclinable[data-activo="1"] [data-flota] { transform: translateZ(70px) scale(1.04); }
+
+/* ── Revelar ──────────────────────────────────────────────────────────────── */
+.revelar {
+  --i: 0;
+  perspective: 1000px;
+}
+.revelar > * {
+  opacity: 0;
+  transform: translate3d(0, 36px, -40px) rotateX(10deg);
+  transform-origin: 50% 100%;
+  transition: opacity 0.7s ease-out, transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: calc(var(--i) * 70ms);
+  will-change: transform, opacity;
+}
+.revelar[data-visto="1"] > * {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── Giro suave de la ilustración (cuando no hay foto real) ───────────────── */
+.flotar {
+  animation: flotar 7s ease-in-out infinite;
+}
+@keyframes flotar {
+  0%, 100% { transform: translate3d(0, 0, 0) rotateY(-3deg); }
+  50% { transform: translate3d(0, -10px, 20px) rotateY(3deg); }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .inclinable > * { transform: none !important; }
+  .inclinable > *::after { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .escena [data-capa],
+  .escena [data-capa="texto"] > *,
+  .inclinable > *,
+  .inclinable [data-flota],
+  .flotar {
+    animation: none !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .revelar > * {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

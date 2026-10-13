@@ -77,7 +77,7 @@ export default async function Propiedades({ searchParams }: { searchParams: Crud
             <>
               <ul className={s.grilla}>
                 {items.map((p, i) => (
-                  <Tarjeta key={p.id} p={p} operacion={f.operacion} prioridad={i < 3} />
+                  <Tarjeta key={p.id} p={p} operacion={f.operacion} prioridad={i < 3} orden={i} />
                 ))}
               </ul>
               {paginas > 1 && (

@@ -25,6 +25,7 @@ import { horarioDeNegocioDelFormulario } from "@/lib/datetime";
 import { importeONaN } from "@/lib/dinero/leer";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import {
+  alquilerCobrado,
   calcularAjuste,
   CLAVES_PLANTILLA,
   diaCorto,
@@ -50,6 +51,7 @@ import {
   pesos,
   planDeCuotas,
   punitorioSugerido,
+  quitarExtraDe,
   redondear,
   revisarFicha,
   saldoCuota,
@@ -269,7 +271,8 @@ export async function agregarFotoPropiedad(propiedadId: string, datos: string): 
   if (!p) return { ok: false, error: "Esa propiedad no existe." };
   if (p._count.fotos >= MAX_FOTOS) return { ok: false, error: `Hasta ${MAX_FOTOS} fotos por propiedad.` };
   const ultima = await prisma.inmoFoto.findFirst({ where: { tenantId, propiedadId }, orderBy: { posicion: "desc" }, select: { posicion: true } });
-  await prisma.inmoFoto.create({ data: { tenantId, propiedadId, url: datos, posicion: (ultima?.posicion ?? -1) + 1 } });
+  // `esData` marca las fotos pesadas: los listados leen la marca y el id, nunca el data URL.
+  await prisma.inmoFoto.create({ data: { tenantId, propiedadId, url: datos, esData, posicion: (ultima?.posicion ?? -1) + 1 } });
   refrescar(`${RAIZ}/propiedades/${propiedadId}`, `/propiedades/${p.slug}`);
   return { ok: true };
 }
@@ -597,9 +600,14 @@ export async function aplicarAjuste(formData: FormData): Promise<Resultado<{ nue
     ({ nuevo, coeficiente, detalle } = r);
   }
 
-  // El monto nuevo no puede dejar una cuota valiendo menos de lo que ya se cobró por ella.
-  const cobradas = await prisma.inmoCuota.findMany({ where: { tenantId, contratoId: c.id, tramo: { gte: tramo }, anulada: false, pagado: { gt: 0 } }, select: { pagado: true } });
-  if (cobradas.some((q) => n(q.pagado) > nuevo + 0.005)) return { ok: false, error: "Ya hay cuotas de ese tramo cobradas por más que ese monto. Revisá el número." };
+  // Actualización aplicada tarde sobre cuotas ya cobradas (ver `alquilerCobrado` en core.ts): la
+  // diferencia queda en la misma cuota, que pasa a "pago parcial" y se reclama como saldo. Lo que
+  // no puede pasar es que el monto nuevo sea MENOR al alquiler que ya se cobró por una cuota del
+  // tramo (sin contar expensas ni mora, que se imputan antes): eso es un número mal tipeado.
+  const cobradas = await prisma.inmoCuota.findMany({ where: { tenantId, contratoId: c.id, tramo: { gte: tramo }, anulada: false, pagado: { gt: 0 } }, select: { alquiler: true, extras: true, punitorios: true, pagado: true } });
+  if (cobradas.some((q) => alquilerCobrado({ alquiler: n(q.alquiler), extras: leerExtras(q.extras), punitorios: n(q.punitorios) }, n(q.pagado)) > nuevo + 0.005)) {
+    return { ok: false, error: "Ya hay cuotas de ese tramo cobradas por más que ese monto. Revisá el número." };
+  }
   try {
     await tenantTransaction(async (tx) => {
       // La condición sobre tramosAplicados evita aplicar dos veces el mismo tramo.
@@ -661,8 +669,9 @@ export async function registrarCobro(formData: FormData): Promise<Resultado<{ sa
     const r = await tenantTransaction(async (tx): Promise<{ error: string } | { contratoId: string; saldo: number }> => {
       const q = await tx.inmoCuota.findFirst({ where: { id: cuotaId, tenantId, anulada: false }, include: { contrato: { select: { id: true, punitorioDiarioPct: true } } } });
       if (!q) return { error: "Esa cuota no existe." };
-      const base = { alquiler: n(q.alquiler), extras: leerExtras(q.extras), punitorios: n(q.punitorios), pagado: n(q.pagado), vence: diaDe(q.vence) };
-      // La mora sugerida se asienta en la cuota recién cuando se decide cobrarla.
+      const base = { alquiler: n(q.alquiler), extras: leerExtras(q.extras), punitorios: n(q.punitorios), pagado: n(q.pagado), vence: diaDe(q.vence), moraPerdonada: q.moraPerdonada };
+      // La mora sugerida se asienta en la cuota recién cuando se decide cobrarla. Si se perdonó,
+      // `punitorioSugerido` da 0 y no se asienta nada.
       if (conMora && base.punitorios === 0) base.punitorios = punitorioSugerido(base, hoy, q.contrato.punitorioDiarioPct).monto;
       const saldo = saldoCuota(base);
       if (saldo <= 0.005) return { error: "Esa cuota ya está paga." };
@@ -706,6 +715,9 @@ export async function anularCobro(formData: FormData): Promise<Resultado> {
   }
 }
 
+// Extras y mora se leen y se reescriben enteros (los extras son un JSON): dos personas cargando a
+// la vez sobre la misma cuota se pisarían. Van en transacción serializable, como los cobros.
+
 /** Suma un concepto a la cuota (expensas, luz, ABL a cargo del inquilino). */
 export async function agregarExtra(formData: FormData): Promise<Resultado> {
   await requireCapability("agenda:manage");
@@ -714,44 +726,86 @@ export async function agregarExtra(formData: FormData): Promise<Resultado> {
   const concepto = txt(formData.get("concepto")).slice(0, 60);
   const monto = importe(formData.get("monto"));
   if (!concepto || !monto || monto <= 0) return { ok: false, error: "Cargá el concepto y el monto." };
-  const q = await prisma.inmoCuota.findFirst({ where: { id: cuotaId, tenantId, anulada: false }, select: { extras: true, contratoId: true } });
-  if (!q) return { ok: false, error: "Esa cuota no existe." };
-  const extras = leerExtras(q.extras);
-  if (extras.length >= 12) return { ok: false, error: "Hasta 12 conceptos por cuota." };
-  await prisma.inmoCuota.updateMany({ where: { id: cuotaId, tenantId }, data: { extras: json([...extras, { concepto, monto: redondear(monto) }]) } });
-  refrescar(`${RAIZ}/alquileres`, `${RAIZ}/alquileres/${q.contratoId}`);
-  return { ok: true };
+  try {
+    const r = await tenantTransaction(async (tx): Promise<{ error: string } | { contratoId: string }> => {
+      const q = await tx.inmoCuota.findFirst({ where: { id: cuotaId, tenantId, anulada: false }, select: { extras: true, contratoId: true } });
+      if (!q) return { error: "Esa cuota no existe." };
+      const extras = leerExtras(q.extras);
+      if (extras.length >= 12) return { error: "Hasta 12 conceptos por cuota." };
+      await tx.inmoCuota.updateMany({ where: { id: cuotaId, tenantId }, data: { extras: json([...extras, { concepto, monto: redondear(monto) }]) } });
+      return { contratoId: q.contratoId };
+    }, SERIAL);
+    if ("error" in r) return { ok: false, error: r.error };
+    refrescar(`${RAIZ}/alquileres`, `${RAIZ}/alquileres/${r.contratoId}`);
+    return { ok: true };
+  } catch (e) {
+    console.error("[inmobiliaria] agregar concepto", e);
+    return { ok: false, error: "No se pudo sumar el concepto. Probá de nuevo." };
+  }
 }
 
+/**
+ * Saca un concepto de la cuota. Se identifica por concepto y monto (lo que la pantalla mostró),
+ * no por la posición en la lista: si otra persona cambió la lista mientras tanto, sale el que se
+ * pidió o no sale ninguno. El `indice` solo se acepta por compatibilidad con pantallas viejas.
+ */
 export async function quitarExtra(formData: FormData): Promise<Resultado> {
   await requireCapability("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const cuotaId = txt(formData.get("cuotaId"));
+  const concepto = txt(formData.get("concepto")).slice(0, 60);
+  const monto = importe(formData.get("monto"));
   const indice = entero(formData.get("indice"));
-  const q = await prisma.inmoCuota.findFirst({ where: { id: cuotaId, tenantId, anulada: false }, select: { extras: true, contratoId: true, alquiler: true, punitorios: true, pagado: true } });
-  if (!q || indice == null) return { ok: false, error: "Esa cuota no existe." };
-  const extras = leerExtras(q.extras).filter((_, i) => i !== indice);
-  // No se puede dejar la cuota valiendo menos de lo que ya se cobró.
-  if (redondear(n(q.alquiler) + n(q.punitorios) + sumaExtras(extras)) < n(q.pagado) - 0.005) return { ok: false, error: "Ese concepto ya está cobrado: anulá primero el cobro." };
-  await prisma.inmoCuota.updateMany({ where: { id: cuotaId, tenantId }, data: { extras: json(extras) } });
-  refrescar(`${RAIZ}/alquileres`, `${RAIZ}/alquileres/${q.contratoId}`);
-  return { ok: true };
+  if (!(concepto && monto != null) && indice == null) return { ok: false, error: "No se entendió qué concepto quitar." };
+  try {
+    const r = await tenantTransaction(async (tx): Promise<{ error: string } | { contratoId: string }> => {
+      const q = await tx.inmoCuota.findFirst({ where: { id: cuotaId, tenantId, anulada: false }, select: { extras: true, contratoId: true, alquiler: true, punitorios: true, pagado: true } });
+      if (!q) return { error: "Esa cuota no existe." };
+      const actuales = leerExtras(q.extras);
+      const buscado = concepto && monto != null ? { concepto, monto } : indice != null ? actuales[indice] : undefined;
+      const { extras, quedo } = buscado ? quitarExtraDe(actuales, buscado) : { extras: actuales, quedo: false };
+      if (!quedo) return { error: "Ese concepto ya no está en la cuota. Actualizá la pantalla." };
+      // No se puede dejar la cuota valiendo menos de lo que ya se cobró.
+      if (redondear(n(q.alquiler) + n(q.punitorios) + sumaExtras(extras)) < n(q.pagado) - 0.005) return { error: "Ese concepto ya está cobrado: anulá primero el cobro." };
+      await tx.inmoCuota.updateMany({ where: { id: cuotaId, tenantId }, data: { extras: json(extras) } });
+      return { contratoId: q.contratoId };
+    }, SERIAL);
+    if ("error" in r) return { ok: false, error: r.error };
+    refrescar(`${RAIZ}/alquileres`, `${RAIZ}/alquileres/${r.contratoId}`);
+    return { ok: true };
+  } catch (e) {
+    console.error("[inmobiliaria] quitar concepto", e);
+    return { ok: false, error: "No se pudo quitar el concepto. Probá de nuevo." };
+  }
 }
 
-/** Fija (o perdona, con 0) la mora de una cuota. */
+/**
+ * Fija la mora de una cuota, o la perdona con 0. Perdonarla deja la marca `moraPerdonada`: no es
+ * lo mismo que "nunca se cargó" y el panel no la vuelve a sugerir. Cargar un monto la saca.
+ */
 export async function cargarMora(formData: FormData): Promise<Resultado> {
   await requireCapability("agenda:manage");
   const tenantId = await getCurrentTenantId();
   const cuotaId = txt(formData.get("cuotaId"));
   const monto = importe(formData.get("monto"));
   if (monto == null) return { ok: false, error: "Cargá el monto de la mora (0 para perdonarla)." };
-  const q = await prisma.inmoCuota.findFirst({ where: { id: cuotaId, tenantId, anulada: false }, select: { extras: true, contratoId: true, alquiler: true, pagado: true } });
-  if (!q) return { ok: false, error: "Esa cuota no existe." };
-  if (redondear(n(q.alquiler) + monto + sumaExtras(leerExtras(q.extras))) < n(q.pagado) - 0.005) return { ok: false, error: "Esa mora ya está cobrada: anulá primero el cobro." };
-  await prisma.inmoCuota.updateMany({ where: { id: cuotaId, tenantId }, data: { punitorios: plata(redondear(monto)) } });
-  await auditAdmin({ action: "inmobiliaria.cuota.mora", entity: "InmoCuota", entityId: cuotaId, changes: { monto } });
-  refrescar(`${RAIZ}/alquileres`, `${RAIZ}/alquileres/${q.contratoId}`);
-  return { ok: true };
+  const perdonada = redondear(monto) === 0;
+  try {
+    const r = await tenantTransaction(async (tx): Promise<{ error: string } | { contratoId: string }> => {
+      const q = await tx.inmoCuota.findFirst({ where: { id: cuotaId, tenantId, anulada: false }, select: { extras: true, contratoId: true, alquiler: true, pagado: true } });
+      if (!q) return { error: "Esa cuota no existe." };
+      if (redondear(n(q.alquiler) + monto + sumaExtras(leerExtras(q.extras))) < n(q.pagado) - 0.005) return { error: "Esa mora ya está cobrada: anulá primero el cobro." };
+      await tx.inmoCuota.updateMany({ where: { id: cuotaId, tenantId }, data: { punitorios: plata(redondear(monto)), moraPerdonada: perdonada } });
+      return { contratoId: q.contratoId };
+    }, SERIAL);
+    if ("error" in r) return { ok: false, error: r.error };
+    await auditAdmin({ action: "inmobiliaria.cuota.mora", entity: "InmoCuota", entityId: cuotaId, changes: { monto, perdonada } });
+    refrescar(`${RAIZ}/alquileres`, `${RAIZ}/alquileres/${r.contratoId}`);
+    return { ok: true };
+  } catch (e) {
+    console.error("[inmobiliaria] mora", e);
+    return { ok: false, error: "No se pudo cargar la mora. Probá de nuevo." };
+  }
 }
 
 // ── Liquidaciones al propietario ────────────────────────────────────────────
@@ -780,12 +834,23 @@ export async function emitirLiquidacion(formData: FormData): Promise<Resultado<{
   for (let intento = 0; intento < 3; intento++) {
     try {
       const creada = await tenantTransaction(async (tx) => {
-        // Cada cuota se marca sólo si sigue como se la leyó: si alguien liquidó o anuló un
-        // cobro mientras tanto, se corta todo y no se liquida nada dos veces.
+        // Cada cuota se marca sólo si sigue EXACTAMENTE como se la leyó (cobrado, alquiler, mora,
+        // lo ya liquidado y la última escritura, que cubre también los extras): si alguien cobró,
+        // anuló, sumó un concepto o liquidó mientras tanto, se corta todo y no se liquida nada
+        // dos veces ni con un reparto viejo.
         for (const p of pendientes) {
+          const l = p.leida;
           const m = await tx.inmoCuota.updateMany({
-            where: { id: p.cobro.cuotaId, tenantId, pagado: plata(p.pagado), liquidado: plata(p.liquidadoAntes) },
-            data: { liquidado: plata(p.pagado) },
+            where: {
+              id: p.cobro.cuotaId, tenantId,
+              pagado: plata(l.pagado), alquiler: plata(l.alquiler), punitorios: plata(l.punitorios), liquidado: plata(l.liquidadoAntes), updatedAt: l.updatedAt,
+            },
+            data: {
+              liquidado: plata(l.pagado),
+              liquidadoAlquiler: plata(redondear(l.liquidadoPorRubro.alquiler + p.cobro.alquiler)),
+              liquidadoExtras: plata(redondear(l.liquidadoPorRubro.extras + p.cobro.extras)),
+              liquidadoPunitorios: plata(redondear(l.liquidadoPorRubro.punitorios + p.cobro.punitorios)),
+            },
           });
           if (m.count !== 1) throw new Error("cambio-mientras-tanto");
         }
@@ -841,10 +906,20 @@ export async function anularLiquidacion(formData: FormData): Promise<Resultado> 
       const m = await tx.inmoLiquidacion.updateMany({ where: { id, tenantId, estado: "EMITIDA" }, data: { estado: "ANULADA" } });
       if (m.count !== 1) throw new Error("ya-no-emitida");
       for (const c of cobros) {
-        const q = await tx.inmoCuota.findFirst({ where: { id: c.cuotaId, tenantId }, select: { liquidado: true } });
+        const q = await tx.inmoCuota.findFirst({ where: { id: c.cuotaId, tenantId }, select: { liquidado: true, liquidadoAlquiler: true, liquidadoExtras: true, liquidadoPunitorios: true } });
         if (!q) continue;
-        const devuelto = redondear((Number(c.alquiler) || 0) + (Number(c.extras) || 0) + (Number(c.punitorios) || 0));
-        await tx.inmoCuota.updateMany({ where: { id: c.cuotaId, tenantId }, data: { liquidado: plata(Math.max(0, redondear(n(q.liquidado) - devuelto))) } });
+        // Se devuelve rubro por rubro lo que esa liquidación se había llevado, y el total.
+        const [alq, ext, pun] = [Number(c.alquiler) || 0, Number(c.extras) || 0, Number(c.punitorios) || 0];
+        const menos = (actual: unknown, devuelto: number): string => plata(Math.max(0, redondear(n(actual) - devuelto)));
+        await tx.inmoCuota.updateMany({
+          where: { id: c.cuotaId, tenantId },
+          data: {
+            liquidado: menos(q.liquidado, redondear(alq + ext + pun)),
+            liquidadoAlquiler: menos(q.liquidadoAlquiler, alq),
+            liquidadoExtras: menos(q.liquidadoExtras, ext),
+            liquidadoPunitorios: menos(q.liquidadoPunitorios, pun),
+          },
+        });
       }
     }, SERIAL);
   } catch (e) {

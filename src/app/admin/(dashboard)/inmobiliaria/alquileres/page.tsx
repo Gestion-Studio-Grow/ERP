@@ -51,7 +51,8 @@ export default async function Alquileres() {
                     {diaCorto(c.inicio)} → {diaCorto(c.fin)}
                   </span>
                 </span>
-                <Link href={`${RAIZ}/alquileres/${c.id}`} className="font-semibold text-strong after:absolute after:inset-0 after:content-['']">
+                {/* py/-my: el link mide 44 px para el dedo sin mover el renglón (toda la tarjeta ya es clickeable). */}
+                <Link href={`${RAIZ}/alquileres/${c.id}`} className="-my-2.5 block py-2.5 font-semibold text-strong after:absolute after:inset-0 after:content-['']">
                   {c.propiedad}
                 </Link>
                 <span className="text-sm text-muted">

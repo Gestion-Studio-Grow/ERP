@@ -65,7 +65,7 @@ export default async function Propiedades({ searchParams }: { searchParams: Prom
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={p.foto} alt="" className="size-full object-cover" loading="lazy" />
                 ) : (
-                  <span className="grid size-full place-items-center text-xs text-muted">Sin fotos</span>
+                  <span className="grid size-full place-items-center text-xs text-body">Sin fotos</span>
                 )}
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -75,7 +75,8 @@ export default async function Propiedades({ searchParams }: { searchParams: Prom
                     {p.codigo} · {TIPO_LABEL[p.tipo as TipoPropiedad] ?? p.tipo}
                   </span>
                 </span>
-                <Link href={`${RAIZ}/propiedades/${p.id}`} className="line-clamp-2 font-semibold text-strong after:absolute after:inset-0 after:content-['']">
+                {/* py/-my: el link mide 44 px para el dedo sin mover el renglón (toda la tarjeta ya es clickeable). */}
+                <Link href={`${RAIZ}/propiedades/${p.id}`} className="-my-2.5 line-clamp-2 py-2.5 font-semibold text-strong after:absolute after:inset-0 after:content-['']">
                   {p.titulo}
                 </Link>
                 <span className="truncate text-sm text-muted">{[p.direccion, p.zona].filter(Boolean).join(" · ") || "Sin dirección"}</span>

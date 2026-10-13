@@ -54,7 +54,7 @@ const PORT = Number(process.env.PORT ?? 3220);
 const OUT_DIR = path.resolve(process.env.OUT_DIR ?? "qa-shots/audit");
 const FIXTURE = process.env.FIXTURE ?? path.resolve("../qa-tenants.json");
 const ONLY = (process.env.ONLY ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-const GROUPS = (process.env.GROUPS ?? "public,flow,admin,operador").split(",").map((s) => s.trim());
+const GROUPS = (process.env.GROUPS ?? "public,flow,admin,operador,inmobiliaria").split(",").map((s) => s.trim());
 
 // El celular de referencia de la casa es de 412 px (principios de UX de la ola 4).
 export const VIEWPORTS = [
@@ -83,6 +83,20 @@ export const RUTAS_FIJAS = [
   // La Auditoría con un filtro: mide el estado vacío "No hay acciones con estos filtros" y el
   // formulario de filtros cargado (la del registro se mide sin filtros).
   { path: "/admin/auditoria?tipo=anulaciones", label: "admin-auditoria-filtrada", group: "admin", auth: "admin" },
+  // ── Inmobiliaria (rubro propio, fuera del registro de apps): sitio público y panel ──
+  // Sólo las rutas fijas; la ficha (/propiedades/<slug>), el contrato (/alquileres/<id>) y los
+  // links sin login (/alquiler/<token>, /liquidacion/<token>) dependen de datos sembrados.
+  // Grupo aparte (`inmobiliaria`) para poder correrlas solas con GROUPS=inmobiliaria.
+  { path: "/inmobiliaria", label: "inmo-inicio", group: "inmobiliaria", blueprints: ["inmobiliaria"] },
+  { path: "/propiedades?operacion=alquiler", label: "inmo-resultados", group: "inmobiliaria", blueprints: ["inmobiliaria"] },
+  { path: "/admin/inmobiliaria", label: "inmo-hoy", group: "inmobiliaria", auth: "admin", blueprints: ["inmobiliaria"] },
+  { path: "/admin/inmobiliaria/propiedades", label: "inmo-propiedades", group: "inmobiliaria", auth: "admin", blueprints: ["inmobiliaria"] },
+  { path: "/admin/inmobiliaria/propiedades/nueva", label: "inmo-propiedad-nueva", group: "inmobiliaria", auth: "admin", blueprints: ["inmobiliaria"] },
+  { path: "/admin/inmobiliaria/consultas", label: "inmo-consultas", group: "inmobiliaria", auth: "admin", blueprints: ["inmobiliaria"] },
+  { path: "/admin/inmobiliaria/alquileres", label: "inmo-alquileres", group: "inmobiliaria", auth: "admin", blueprints: ["inmobiliaria"] },
+  { path: "/admin/inmobiliaria/alquileres/nuevo", label: "inmo-alquiler-nuevo", group: "inmobiliaria", auth: "admin", blueprints: ["inmobiliaria"] },
+  { path: "/admin/inmobiliaria/liquidaciones", label: "inmo-liquidaciones", group: "inmobiliaria", auth: "admin", blueprints: ["inmobiliaria"] },
+  { path: "/admin/inmobiliaria/config", label: "inmo-config", group: "inmobiliaria", auth: "admin", blueprints: ["inmobiliaria"] },
 ];
 
 /**

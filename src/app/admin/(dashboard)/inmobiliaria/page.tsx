@@ -88,7 +88,7 @@ export default async function InmobiliariaHoy() {
         <section className={cn(tarjeta, "mb-6")} aria-label="Próximas visitas">
           <div className="mb-2 flex items-center justify-between">
             <h2 className={subtitulo}>Próximas visitas</h2>
-            <Link href={`${RAIZ}/consultas?estado=VISITA`} className="text-sm underline">
+            <Link href={`${RAIZ}/consultas?estado=VISITA`} className="inline-flex min-h-11 items-center text-sm underline">
               Ver todas
             </Link>
           </div>
@@ -120,7 +120,8 @@ export default async function InmobiliariaHoy() {
                     : a.faltan < 0
                       ? `El contrato venció el ${diaCorto(a.dia)}`
                       : `El contrato vence el ${diaCorto(a.dia)} (en ${a.faltan} días)`}
-                  <span className="font-normal text-muted">
+                  {/* text-body y no text-muted: el gris secundario sobre el fondo ámbar no llega a AA (4,2:1). */}
+                  <span className="font-normal text-body">
                     · Nº {a.contratoNumero} · {a.propiedad} · {a.inquilino}
                   </span>
                 </Link>
@@ -134,7 +135,7 @@ export default async function InmobiliariaHoy() {
         <section className="mb-6" aria-label="Alquileres por cobrar">
           <div className="mb-2 flex items-center justify-between">
             <h2 className={subtitulo}>Alquileres por cobrar</h2>
-            <Link href={`${RAIZ}/alquileres`} className="text-sm underline">
+            <Link href={`${RAIZ}/alquileres`} className="inline-flex min-h-11 items-center text-sm underline">
               Todos los contratos
             </Link>
           </div>
@@ -156,6 +157,7 @@ export default async function InmobiliariaHoy() {
                     <span className="block font-semibold text-strong">{q.propiedad}</span>
                     <span className="block text-sm text-muted">
                       {q.inquilino} · {nombrePeriodo(q.periodo)} · {vencida ? `venció el ${diaCorto(q.vence)}` : `vence el ${diaCorto(q.vence)}`}
+                      {q.contratoEstado !== "VIGENTE" && <strong> · contrato {q.contratoEstado === "RESCINDIDO" ? "rescindido" : "finalizado"}</strong>}
                     </span>
                   </Link>
                   <span className="text-right">

@@ -59,19 +59,26 @@ está en producción: cualquier cambio en esa página obliga a tocarla a propós
 alcanza a negocios del rubro inmobiliaria, pero **necesita el visto bueno del dueño antes de pasar a
 `main`**.
 
-## Marca — autorización
+## Marca — autorización registrada
 
-**No hay ninguna marca de cliente cargada.** Lo único que existe es una marca inventada para mostrar
-el producto: "Inmobiliaria Demo", slug `inmo-demo`. Nombres, direcciones, teléfonos y precios del
-seed son de ejemplo, y las imágenes son ilustraciones propias con la leyenda "Imagen de ejemplo".
+**PDC Propiedades** (slug `pdcinmobiliaria`, sitio `pdcinmobiliaria.gsgapp.com.ar`). El dueño de GSG
+confirmó el **13/10/2026** en la sesión de trabajo que el cliente autorizó usar su marca. Ese día se
+tomó de su sitio público (www.pdcpropiedades.com.ar, hoy sobre Mapaprop):
 
-El cliente pensado es **PDC Propiedades** (Monte Grande, hoy en Mapaprop). Su marca, sus fotos y
-sus propiedades **no están cargadas**: la regla de la casa pide primero la autorización registrada
-del cliente, y el dueño todavía no la confirmó. Cuando esté:
+- Logo: `public/tenants/pdcinmobiliaria/marca/logo.png` (el suyo, PNG 3152×1686) e `isologo.svg`.
+- Colores: rojo `#e42528`, gris `#545456`, tinta `#2b2b2d`, fondo blanco. Su tipografía es Archivo /
+  Montserrat; acá sale con Hanken Grotesk, que el motor ya hospeda (sumar una fuente toca el layout
+  raíz, que es de todos los negocios).
+- Textos: "Tu próxima propiedad en Monte Grande", "Venta, alquiler y tasaciones en Esteban
+  Echeverría y zona sur", "desde 2009". Matrícula: Ariel Eduardo Pericullo, Mat. 3721 CPMCLZ.
+- Contacto: Ramón Santamarina 1128, Monte Grande · 11 5306-5098 · info@pdcpropiedades.com.ar ·
+  Instagram, Facebook y YouTube de su sitio.
 
-- sumar su fila en `src/lib/inmobiliaria/marca.ts` (logo, colores, frase de portada);
-- poner sus archivos en `public/tenants/<slug>/marca/`;
-- dejar asentado en este apartado quién autorizó, qué y en qué fecha.
+**Lo que NO se tomó:** sus propiedades y sus fotos (103 publicadas en Mapaprop). El negocio salió
+con la cartera de MUESTRA del seed (fichas inventadas, ilustraciones propias). Migrar la cartera
+real es el paso siguiente y pide decidir dónde se guardan las fotos.
+
+Antes de eso existía sólo "Inmobiliaria Demo" (`inmo-demo`), marca inventada para la demo local.
 
 ## Permisos
 
@@ -132,30 +139,51 @@ carga. A validar con el colegio de martilleros que corresponda.
 
 El detalle de la competencia y de las fuentes está en `benchmark-2026-10-13.md`, en esta carpeta.
 
-## Defectos conocidos que quedaron abiertos (de la revisión del 13/10/2026)
+## Defectos de la revisión del 13/10/2026: qué se cerró y qué queda
 
-Una revisión independiente del código encontró estos puntos. Los que se podían cerrar en el día se
-cerraron (ver abajo); éstos piden una decisión o un cambio de fondo y hay que resolverlos **antes de
-usarlo con plata real**:
+Una revisión independiente del código encontró ocho puntos de plata. Siete se cerraron el mismo
+día en una segunda pasada (migración `20261013180000_inmobiliaria_ajustes`, aditiva, listada en
+`prisma/lote-deploy.txt` **sin aplicar en Neon**). Queda uno, que no es un error del código sino
+una convención que define el contador.
 
-1. **Reparto de una liquidación parcial.** Si a una cuota ya liquidada en parte se le suman
-   después expensas o mora, la liquidación siguiente da bien el total pero reparte mal entre
-   alquiler, extras y mora (y por lo tanto calcula mal la comisión). Arreglo: guardar lo liquidado
-   por rubro en la cuota. Mientras tanto: no sumar conceptos a una cuota que ya se liquidó en parte.
-2. **Actualización aplicada tarde sobre cuotas ya cobradas.** La cuota pasa a "pago parcial" por la
-   diferencia. Es lo esperable, pero falta decidir si esa diferencia va en la misma cuota (como hoy)
-   o como concepto aparte.
-3. **Perdonar la mora** la deja en cero, que es lo mismo que "nunca se cargó": el panel la vuelve a
-   sugerir. Falta una marca de "perdonada". (El link del inquilino ya muestra sólo la mora asentada.)
-4. **Unificar clientes** (CRM del motor) no conoce las tablas de la inmobiliaria: unificar a un
-   propietario o inquilino con contrato falla, y a uno con sólo una ficha le quita el dueño a la ficha.
-5. **Fotos en la base:** el listado lee la foto entera para armar cada tarjeta. Con fotos subidas
-   desde el panel va a ser lento; se resuelve junto con el almacenamiento de archivos.
-6. **Contratos que empiezan a mitad de mes:** la primera cuota de un tramo nuevo puede vencer unos
-   días antes de la fecha del índice que la ajusta. A confirmar con el contador cómo se quiere.
-7. **Deudas de contratos cerrados** no aparecen en "Hoy" (sólo en la ficha del contrato).
-8. Expensas y mora de una cuota se guardan sin candado: si dos personas cargan a la vez sobre la
-   misma cuota, puede perderse un concepto.
+1. **Reparto de una liquidación parcial — cerrado.** La cuota guarda lo liquidado por rubro
+   (`liquidadoAlquiler`, `liquidadoExtras`, `liquidadoPunitorios`; `liquidado` sigue como total).
+   Lo que se suma después a una cuota ya liquidada en parte entra en su rubro
+   (`pendienteDeLiquidar` en `core.ts`) y la comisión sale sólo sobre el alquiler. Las cuotas
+   liquidadas antes de estas columnas (total sin rubros) se reparten con la regla de imputación de
+   siempre (`repartoLiquidado`). Emitir una liquidación comprueba que cada cuota siga exactamente
+   como se la leyó (cobrado, alquiler, mora, liquidado y última escritura); anularla devuelve rubro
+   por rubro.
+2. **Actualización aplicada tarde sobre cuotas ya cobradas — decidido y documentado.** La
+   diferencia queda **en la misma cuota**: pasa a "pago parcial", se reclama y se cobra como saldo,
+   y al liquidar entra como alquiler de ese período. No se abre un concepto aparte (mezclaría
+   alquiler con extras y rompería la comisión). El freno que ya existía se afinó: el monto nuevo no
+   puede ser menor al **alquiler** ya cobrado por una cuota del tramo, sin contar expensas ni mora
+   (`alquilerCobrado`). Con prueba.
+3. **Perdonar la mora — cerrado.** Marca `moraPerdonada` en la cuota: cargar 0 la prende, cargar
+   un monto la apaga. Con la marca, el panel no vuelve a sugerir mora y un cobro "con mora" no
+   asienta nada. El saldo y el estado de la cuota no cambian.
+4. **Unificar clientes — cerrado.** `src/lib/crm/unificar-en-tx.ts` mueve también las cinco claves
+   de la inmobiliaria (dueño de la ficha, inquilino y propietario del contrato, propietario de la
+   liquidación, interesado de la consulta), en la misma transacción y con el negocio en cada
+   `where`. Queda en la auditoría qué se movió. Con prueba.
+5. **Fotos en la base — cerrado en su mitad que no depende del almacenamiento.** `InmoFoto.esData`
+   marca las fotos pesadas; los listados, la ficha pública y la ficha del panel leen sólo id y marca
+   y arman el link a `/propiedades/foto/[id]`; la columna `url` se lee en una consulta aparte sólo
+   para las fotos que son un link. La migración marca las ya guardadas. El almacenamiento de
+   archivos sigue pendiente (ítem 4 de "Qué NO está hecho").
+6. **Contratos que empiezan a mitad de mes — A CONFIRMAR CON EL CONTADOR.** El tramo arranca el
+   mismo día del mes que el contrato (firmado el 15, ajusta el 15), pero la cuota vence el día de
+   vencimiento (el 10): la primera cuota de un tramo nuevo puede vencer unos días antes del índice
+   que la ajusta. Las dos convenciones existen (ajustar desde la cuota cuyo período contiene la
+   fecha, o desde la siguiente). Está explicado en `planDeCuotas` (`core.ts`); cuando se defina,
+   cambia sólo `tramoDe`. Mientras tanto, el monto se puede cargar a mano.
+7. **Deudas de contratos cerrados — cerrado.** "Hoy" muestra también las cuotas vencidas sin pagar
+   de contratos finalizados o rescindidos, con la etiqueta "contrato finalizado/rescindido"
+   (`PorCobrar.contratoEstado`).
+8. **Expensas y mora sin candado — cerrado.** Sumar o quitar un concepto y cargar la mora van en
+   transacción serializable, como los cobros. Quitar un concepto se hace por concepto y monto (lo
+   que la pantalla mostró), no por la posición en la lista.
 
 ## Verificación hecha (13/10/2026)
 
@@ -178,5 +206,17 @@ usarlo con plata real**:
 - **No corrido:** las dos vallas visuales del Gate (Playwright), el recorrido a 375 px, la subida
   de fotos desde un teléfono, el alta de un contrato nuevo desde el formulario y el ingreso como
   agente. La app arrancó en modo desarrollo, no con el build de producción.
+
+### Segunda pasada (cierre de defectos, mismo día)
+
+- `tsc --noEmit` y `eslint` (módulo, CRM y páginas tocadas): limpios.
+- Pruebas: 85 de 85 (`src/lib/inmobiliaria/*.test.ts` + `src/lib/crm/*.test.ts`); 29 del núcleo
+  de la inmobiliaria (4 nuevas) y 6 de unificar fichas (1 nueva).
+- `prisma validate` OK; `prisma migrate diff` entre el esquema de `HEAD` y el nuevo da exactamente
+  las seis columnas de la migración (más el backfill de `esData`, escrito a mano).
+- Las 51 migraciones aplican de corrido sobre una base en memoria (PGlite) y el seed de la demo
+  corre entero sobre ellas. `check-coverage.mjs`: OK.
+- **No corrido:** el recorrido en el navegador de la segunda pasada (liquidar en dos veces, perdonar
+  la mora, unificar un propietario) y `next build`.
 
 — Elaborado por GSG

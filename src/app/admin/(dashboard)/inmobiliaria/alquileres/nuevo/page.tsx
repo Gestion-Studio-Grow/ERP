@@ -29,7 +29,7 @@ export default async function NuevoContrato() {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <header className="mb-4">
-        <Link href={`${RAIZ}/alquileres`} className="text-sm underline">
+        <Link href={`${RAIZ}/alquileres`} className="inline-flex min-h-11 items-center text-sm underline">
           ← Alquileres
         </Link>
         <h1 className={titulo}>Nuevo contrato</h1>

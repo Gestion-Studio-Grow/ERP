@@ -8,9 +8,10 @@
 //
 // En UNA transacción:
 //   1. vuelve a leer las fichas (si otra persona ya las unificó, no hace nada);
-//   2. mueve las TRES claves foráneas a Client que hay en el esquema —Appointment, Order y
-//      AccountReceivable (el fiado, sólo si la tabla está)— de las duplicadas a la que queda,
-//      siempre con el negocio en el `where`;
+//   2. mueve las claves foráneas a Client de las duplicadas a la que queda, siempre con el
+//      negocio en el `where`: Appointment, Order, AccountReceivable (el fiado, sólo si la tabla
+//      está) y las del módulo inmobiliaria (propietario de una ficha, inquilino y propietario de
+//      un contrato, propietario de una liquidación, interesado de una consulta);
 //   3. completa en la que queda los datos que le faltaban y suma las notas (unificar.ts);
 //   4. borra las duplicadas;
 //   5. deja en la auditoría la foto de cada ficha borrada y los ids movidos, para poder
@@ -24,8 +25,39 @@ import { ENTIDAD_PERMISO } from "./reglas";
 import { fotoParaAuditoria, planUnificacion } from "./unificar";
 
 export type ResultadoUnificacion =
-  | { ok: true; nombre: string; turnos: number; pedidos: number; fiado: number; fichas: number }
+  | { ok: true; nombre: string; turnos: number; pedidos: number; fiado: number; inmobiliaria: number; fichas: number }
   | { ok: false; error: string };
+
+/** Los ids movidos en las tablas de la inmobiliaria, por columna. */
+interface MovidosInmo {
+  propiedades: string[];
+  contratosInquilino: string[];
+  contratosPropietario: string[];
+  liquidaciones: string[];
+  consultas: string[];
+}
+
+/**
+ * Las cinco claves a Client del módulo inmobiliaria. Las tablas existen desde la migración
+ * 20261013120000_modulo_inmobiliaria (viaja con este código en prisma/lote-deploy.txt); si en
+ * una base no estuvieran, el `findMany` revienta con P2021 y la transacción entera vuelve atrás.
+ */
+async function moverInmobiliaria(tx: Prisma.TransactionClient, tenantId: string, eliminaIds: readonly string[], conservaId: string): Promise<MovidosInmo> {
+  const de = { in: [...eliminaIds] };
+  const ids = (filas: { id: string }[]) => filas.map((f) => f.id);
+  const propiedades = ids(await tx.inmoPropiedad.findMany({ where: { tenantId, propietarioId: de }, select: { id: true } }));
+  const contratosInquilino = ids(await tx.inmoContrato.findMany({ where: { tenantId, inquilinoId: de }, select: { id: true } }));
+  const contratosPropietario = ids(await tx.inmoContrato.findMany({ where: { tenantId, propietarioId: de }, select: { id: true } }));
+  const liquidaciones = ids(await tx.inmoLiquidacion.findMany({ where: { tenantId, propietarioId: de }, select: { id: true } }));
+  const consultas = ids(await tx.inmoConsulta.findMany({ where: { tenantId, clientId: de }, select: { id: true } }));
+
+  if (propiedades.length) await tx.inmoPropiedad.updateMany({ where: { tenantId, id: { in: propiedades } }, data: { propietarioId: conservaId } });
+  if (contratosInquilino.length) await tx.inmoContrato.updateMany({ where: { tenantId, id: { in: contratosInquilino } }, data: { inquilinoId: conservaId } });
+  if (contratosPropietario.length) await tx.inmoContrato.updateMany({ where: { tenantId, id: { in: contratosPropietario } }, data: { propietarioId: conservaId } });
+  if (liquidaciones.length) await tx.inmoLiquidacion.updateMany({ where: { tenantId, id: { in: liquidaciones } }, data: { propietarioId: conservaId } });
+  if (consultas.length) await tx.inmoConsulta.updateMany({ where: { tenantId, id: { in: consultas } }, data: { clientId: conservaId } });
+  return { propiedades, contratosInquilino, contratosPropietario, liquidaciones, consultas };
+}
 
 export async function unificarFichasEnTx(
   tx: Prisma.TransactionClient,
@@ -62,6 +94,11 @@ export async function unificarFichasEnTx(
   if (turnos.length) await tx.appointment.updateMany({ where: { tenantId, id: { in: turnos } }, data: { clientId: conservaId } });
   if (pedidos.length) await tx.order.updateMany({ where: { tenantId, id: { in: pedidos } }, data: { clientId: conservaId } });
   if (fiado.length) await tx.accountReceivable.updateMany({ where: { tenantId, id: { in: fiado } }, data: { clientId: conservaId } });
+  // Un propietario o inquilino duplicado: sus fichas, contratos, liquidaciones y consultas pasan
+  // a la persona que queda (si no, el borrado fallaría por la clave foránea o la ficha de la
+  // propiedad quedaría sin dueño).
+  const inmo = await moverInmobiliaria(tx, tenantId, eliminaIds, conservaId);
+  const movidosInmo = inmo.propiedades.length + inmo.contratosInquilino.length + inmo.contratosPropietario.length + inmo.liquidaciones.length + inmo.consultas.length;
 
   const antes: Record<string, unknown> = {};
   for (const k of Object.keys(plan.cambios) as (keyof typeof plan.cambios)[]) antes[k] = conserva[k];
@@ -100,7 +137,7 @@ export async function unificarFichasEnTx(
         JSON.stringify({
           conserva: { id: conserva.id, name: conserva.name, phone: conserva.phone },
           eliminadas: eliminadas.map(fotoParaAuditoria),
-          movidos: { turnos, pedidos, fiado },
+          movidos: { turnos, pedidos, fiado, inmobiliaria: inmo },
           cambios: { antes, despues: plan.cambios },
           ...(permiso ? { permisoCopiado: permiso } : {}),
         }),
@@ -109,5 +146,5 @@ export async function unificarFichasEnTx(
     },
   });
 
-  return { ok: true, nombre: conserva.name, turnos: turnos.length, pedidos: pedidos.length, fiado: fiado.length, fichas: eliminadas.length };
+  return { ok: true, nombre: conserva.name, turnos: turnos.length, pedidos: pedidos.length, fiado: fiado.length, inmobiliaria: movidosInmo, fichas: eliminadas.length };
 }

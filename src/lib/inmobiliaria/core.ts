@@ -554,6 +554,16 @@ export interface CuotaPlan {
  * El cronograma completo del contrato. Las cuotas del tramo 0 salen con el precio inicial.
  * Con porcentaje fijo salen todas calculadas; con índice, las de los tramos siguientes quedan
  * marcadas "falta ajustar" con el último monto conocido, hasta que se aplique el índice.
+ *
+ * 🔶 A CONFIRMAR CON EL CONTADOR — contratos que empiezan a mitad de mes. El tramo nuevo arranca
+ * el mismo día del mes que el contrato (`inicioDeTramo`: firmado el 15/11, el tramo 1 a seis
+ * meses arranca el 15/05), pero la cuota del período 2027-05 vence el día de vencimiento (el 10).
+ * Así, la primera cuota de un tramo nuevo puede vencer unos días ANTES de la fecha del índice que
+ * la ajusta: se cobra con el monto viejo, o se espera al índice y vence sin ajustar. Las dos
+ * convenciones existen en la práctica (ajustar desde la cuota cuyo período contiene la fecha del
+ * tramo, o desde la siguiente). Hoy se deja como está: el tramo va por número de cuota y el que
+ * aplica el ajuste puede cargar el monto a mano. Cuando el contador defina la convención, cambia
+ * `tramoDe` (y sólo eso).
  */
 export function planDeCuotas(c: ContratoCalc): CuotaPlan[] {
   const meses = mesesDelContrato(c.inicio, c.fin);
@@ -659,6 +669,8 @@ export interface CuotaCalc {
   pagado: number;
   vence: Dia;
   anulada?: boolean;
+  /** true: la mora se perdonó a propósito. Queda en 0 y no se vuelve a sugerir. */
+  moraPerdonada?: boolean;
 }
 
 export const sumaExtras = (extras: readonly Extra[]): number => redondear(extras.reduce((s, e) => s + redondear(e.monto), 0));
@@ -666,13 +678,38 @@ export const totalCuota = (c: Pick<CuotaCalc, "alquiler" | "extras" | "punitorio
 export const saldoCuota = (c: Pick<CuotaCalc, "alquiler" | "extras" | "punitorios" | "pagado">): number => Math.max(0, redondear(totalCuota(c) - c.pagado));
 
 /**
+ * Saca de la cuota un concepto por lo que ES (concepto y monto), no por el lugar que ocupaba en
+ * la lista: entre que la pantalla se dibujó y alguien tocó "quitar", otra persona pudo haber
+ * sumado o sacado otro concepto. Si hay dos iguales, sale uno solo. Si no está, la lista vuelve
+ * igual (`quedo: false`).
+ */
+export function quitarExtraDe(extras: readonly Extra[], buscado: Extra): { extras: Extra[]; quedo: boolean } {
+  const i = extras.findIndex((e) => e.concepto === buscado.concepto && Math.abs(redondear(e.monto) - redondear(buscado.monto)) < 0.005);
+  if (i < 0) return { extras: [...extras], quedo: false };
+  return { extras: extras.filter((_, k) => k !== i), quedo: true };
+}
+
+/**
+ * ACTUALIZACIÓN APLICADA TARDE sobre una cuota ya cobrada (decisión, antes "a decidir"):
+ * la diferencia queda EN LA MISMA CUOTA. Si la cuota de mayo se cobró a $480.000 y después se
+ * aplica el índice que la lleva a $528.000, la cuota pasa a "pago parcial" con un saldo de
+ * $48.000, se reclama y se cobra como cualquier saldo, y al liquidar al propietario entra como
+ * alquiler de mayo (`imputar` reparte sobre el total nuevo). No se abre un concepto aparte:
+ * mezclaría alquiler con extras y la comisión de administración saldría mal.
+ * Lo único que NO se permite es que el monto nuevo deje la cuota valiendo menos que el alquiler
+ * que ya se cobró por ella: eso es un error de tipeo, no un ajuste (`alquilerCobrado`).
+ */
+export const alquilerCobrado = (c: Pick<CuotaCalc, "alquiler" | "extras" | "punitorios">, pagado: number): number => imputar(c, pagado).alquiler;
+
+/**
  * Mora de una cuota vencida: interés simple por día corrido sobre lo que falta pagar del
  * alquiler y los extras (no se cobra mora sobre la mora). 🔶 A validar contra la cláusula.
  */
-export function punitorioSugerido(c: Pick<CuotaCalc, "alquiler" | "extras" | "pagado" | "vence">, hoy: Dia, tasaDiariaPct: number): { dias: number; monto: number } {
+export function punitorioSugerido(c: Pick<CuotaCalc, "alquiler" | "extras" | "pagado" | "vence" | "moraPerdonada">, hoy: Dia, tasaDiariaPct: number): { dias: number; monto: number } {
   const dias = Math.max(0, diasEntre(c.vence, hoy));
   const base = Math.max(0, redondear(c.alquiler + sumaExtras(c.extras) - c.pagado));
-  if (dias === 0 || base === 0 || tasaDiariaPct <= 0) return { dias, monto: 0 };
+  // Mora perdonada: no se sugiere más, aunque la cuota siga vencida.
+  if (dias === 0 || base === 0 || tasaDiariaPct <= 0 || c.moraPerdonada) return { dias, monto: 0 };
   return { dias, monto: redondear((base * tasaDiariaPct * dias) / 100) };
 }
 
@@ -747,6 +784,35 @@ export interface CobroALiquidar {
   alquiler: number;
   extras: number;
   punitorios: number;
+}
+
+/** Lo ya liquidado de una cuota, abierto por rubro (columnas liquidado* de InmoCuota). */
+export type PorRubro = Pick<CobroALiquidar, "alquiler" | "extras" | "punitorios">;
+
+/**
+ * Qué se le liquidó ya de una cuota, por rubro. Las cuotas liquidadas antes de que existieran
+ * las columnas por rubro tienen el total en `liquidado` y los rubros en 0: a ésas se les reparte
+ * el total con la regla de imputación de ese momento (mora, extras, alquiler).
+ */
+export function repartoLiquidado(c: Pick<CuotaCalc, "alquiler" | "extras" | "punitorios">, liquidadoTotal: number, porRubro: PorRubro): PorRubro {
+  const suma = redondear(porRubro.alquiler + porRubro.extras + porRubro.punitorios);
+  if (suma < 0.005 && liquidadoTotal > 0.005) return imputar(c, liquidadoTotal);
+  return { alquiler: redondear(porRubro.alquiler), extras: redondear(porRubro.extras), punitorios: redondear(porRubro.punitorios) };
+}
+
+/**
+ * Lo que falta liquidar de una cuota, rubro por rubro: lo cobrado imputado hoy menos lo que ya
+ * se liquidó de cada rubro. Así, si a una cuota liquidada en parte se le suman después expensas
+ * o mora, lo nuevo entra en su rubro y el alquiler ya liquidado no se vuelve a liquidar ni se
+ * mezcla con los extras (que no pagan comisión).
+ */
+export function pendienteDeLiquidar(c: Pick<CuotaCalc, "alquiler" | "extras" | "punitorios">, pagado: number, yaLiquidado: PorRubro): PorRubro {
+  const ahora = imputar(c, pagado);
+  return {
+    alquiler: Math.max(0, redondear(ahora.alquiler - yaLiquidado.alquiler)),
+    extras: Math.max(0, redondear(ahora.extras - yaLiquidado.extras)),
+    punitorios: Math.max(0, redondear(ahora.punitorios - yaLiquidado.punitorios)),
+  };
 }
 
 export interface ReglasLiquidacion {

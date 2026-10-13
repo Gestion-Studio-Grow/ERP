@@ -11,12 +11,16 @@
 // de ninguna persona. Las imágenes son ilustraciones propias (public/demo-inmo). Los valores de
 // los índices son de ejemplo; los reales se bajan con el botón del panel.
 //
-// 🔴 SÓLO BASE LOCAL. La guarda de abajo corta si DATABASE_URL no apunta a esta máquina: jamás
-//    corre contra Neon. Para verlo andando: `node scripts/inmobiliaria/demo-local.mjs`.
+// 🔴 SÓLO BASE LOCAL, salvo orden expresa. La guarda de abajo corta si DATABASE_URL no apunta a
+//    esta máquina. La única excepción es `scripts/inmobiliaria/alta-produccion.mjs`, que lo corre
+//    contra producción por orden del dueño para dar de alta un negocio con cartera de muestra:
+//    manda INMO_SEED_PRODUCCION=1 junto con el slug, el nombre y el mail del dueño.
+//    Para verlo andando acá: `node scripts/inmobiliaria/demo-local.mjs`.
 //
-// Ingreso de prueba (NO son credenciales reales; sólo existen en la base local de la demo):
+// Ingreso de prueba de la demo local (NO son credenciales reales; sólo existen en esa base):
 //   dueño:  admin@inmo-demo.demo  ·  agente: agente@inmo-demo.demo
-//   la clave sale de INMO_DEMO_PASSWORD (default abajo).
+//   la clave sale de INMO_DEMO_PASSWORD (default abajo). En producción no hay default: la
+//   clave del dueño la genera el alta y se muestra una sola vez.
 
 import "dotenv/config";
 import { randomBytes } from "node:crypto";
@@ -28,8 +32,9 @@ import { baseLocalParaSeed } from "../src/lib/seed/guarda-base";
 import { provisionTenant } from "../scripts/provision-tenant";
 import { diaDe, instanteDe, planDeCuotas, slugDePropiedad, sumarDias, sumarMeses, sumarMesesADia, type ContratoCalc, type Dia } from "../src/lib/inmobiliaria/core";
 
+const EN_PRODUCCION = process.env.INMO_SEED_PRODUCCION === "1";
 const guarda = baseLocalParaSeed(process.env.DATABASE_URL);
-if (!guarda.ok) {
+if (!guarda.ok && !EN_PRODUCCION) {
   console.error(`❌ seed-inmobiliaria-demo sólo corre contra una base local. ${guarda.motivo}`);
   process.exit(1);
 }
@@ -37,8 +42,12 @@ if (!guarda.ok) {
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL, max: Number(process.env.SEED_DB_MAX ?? 0) || undefined });
 const prisma = new PrismaClient({ adapter });
 
-const SLUG = "inmo-demo";
-const CLAVE = process.env.INMO_DEMO_PASSWORD ?? "inmo-demo-2026";
+const SLUG = process.env.INMO_SEED_SLUG ?? "inmo-demo";
+const NOMBRE = process.env.INMO_SEED_NOMBRE ?? "Inmobiliaria Demo";
+const DUENIO_EMAIL = process.env.INMO_SEED_DUENIO_EMAIL ?? `admin@${SLUG}.demo`;
+// En producción no hay clave por defecto: la genera el alta (y el agente recibe otra al azar).
+const CLAVE = EN_PRODUCCION ? process.env.INMO_DEMO_PASSWORD : (process.env.INMO_DEMO_PASSWORD ?? "inmo-demo-2026");
+const CLAVE_AGENTE = EN_PRODUCCION ? randomBytes(9).toString("base64url") : (CLAVE as string);
 const MIN = 60_000;
 const hoy: Dia = diaDe(new Date());
 const haceMin = (m: number) => new Date(Date.now() - m * MIN);
@@ -104,16 +113,16 @@ const FICHAS: Ficha[] = [
 
 async function main() {
   const r = await provisionTenant(prisma, {
-    name: "Inmobiliaria Demo",
+    name: NOMBRE,
     slug: SLUG,
-    owner: { name: "Laura (dueña)", email: `admin@${SLUG}.demo`, password: CLAVE },
+    owner: { name: process.env.INMO_SEED_DUENIO_NOMBRE ?? "Laura (dueña)", email: DUENIO_EMAIL, password: CLAVE },
     blueprint: "inmobiliaria",
     branding: {
-      shortLabel: "Venta, alquiler y tasaciones en zona sur",
-      addressLine: "Av. de Ejemplo 1128",
-      city: "Monte Grande",
-      hoursLabel: "Lun a vie · 10 a 13 y 16 a 19:30 h",
-      whatsapp: "5491100000000",
+      shortLabel: process.env.INMO_SEED_LEMA ?? "Venta, alquiler y tasaciones en zona sur",
+      addressLine: process.env.INMO_SEED_DIRECCION ?? "Av. de Ejemplo 1128",
+      city: process.env.INMO_SEED_CIUDAD ?? "Monte Grande",
+      hoursLabel: process.env.INMO_SEED_HORARIO ?? "Lun a vie · 10 a 13 y 16 a 19:30 h",
+      whatsapp: process.env.INMO_SEED_WHATSAPP ?? "5491100000000",
       contactNote: "Venta, alquiler, tasaciones y administración de alquileres.",
     },
     platform: { status: "ACTIVE", subdomain: SLUG, modules: defaultModulesForBlueprint("inmobiliaria"), accentPreset: "petroleo", frontTheme: "light" },
@@ -134,7 +143,7 @@ async function main() {
   const agenteEmail = `agente@${SLUG}.demo`;
   const agente =
     (await prisma.user.findFirst({ where: { tenantId, email: agenteEmail } })) ??
-    (await prisma.user.create({ data: { tenantId, name: "Martín Quiroga", email: agenteEmail, passwordHash: await hashPassword(CLAVE), role: "PROFESSIONAL" } }));
+    (await prisma.user.create({ data: { tenantId, name: "Martín Quiroga", email: agenteEmail, passwordHash: await hashPassword(CLAVE_AGENTE), role: "PROFESSIONAL" } }));
   const duenia = await prisma.user.findFirstOrThrow({ where: { tenantId, role: "OWNER" } });
 
   await prisma.inmoConfig.upsert({
@@ -255,7 +264,12 @@ async function main() {
   for (const q of viejas) await prisma.inmoCuota.update({ where: { id: q.id }, data: { liquidado: q.alquiler } });
 
   console.log(`✅ ${r.tenantCreated ? "Creado" : "Actualizado"} ${SLUG}: ${FICHAS.length} fichas, 7 consultas, ${numero} contratos, 1 liquidación.`);
-  console.log(`   Sitio: http://${SLUG}.localhost:<puerto>  ·  panel: /admin con admin@${SLUG}.demo (dueña) o agente@${SLUG}.demo.`);
+  if (EN_PRODUCCION) {
+    console.log(`   Dueño: ${DUENIO_EMAIL}${r.generatedPassword ? ` · clave generada (se muestra UNA vez): ${r.generatedPassword}` : " · ya existía (clave sin cambios)"}`);
+    console.log(`   Agente: ${agenteEmail} · clave: ${CLAVE_AGENTE}`);
+  } else {
+    console.log(`   Sitio: http://${SLUG}.localhost:<puerto>  ·  panel: /admin con admin@${SLUG}.demo (dueña) o agente@${SLUG}.demo.`);
+  }
 }
 
 main()

@@ -102,7 +102,7 @@ export default async function Consultas({ searchParams }: { searchParams: Promis
                   )}
                 </p>
                 {c.propiedad && (
-                  <Link href={`${RAIZ}/propiedades/${c.propiedad.id}`} className="text-sm underline">
+                  <Link href={`${RAIZ}/propiedades/${c.propiedad.id}`} className="flex min-h-11 items-center self-start text-sm underline">
                     {c.propiedad.codigo} · {c.propiedad.titulo}
                   </Link>
                 )}

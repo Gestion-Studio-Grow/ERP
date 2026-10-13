@@ -50,7 +50,7 @@ export default async function Contrato({ params }: { params: Promise<{ id: strin
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-5">
       <header className="mb-4 flex flex-col gap-1">
-        <Link href={`${RAIZ}/alquileres`} className="text-sm underline">
+        <Link href={`${RAIZ}/alquileres`} className="inline-flex min-h-11 items-center self-start text-sm underline">
           ← Alquileres
         </Link>
         <span className="text-sm text-muted">
@@ -138,7 +138,8 @@ export default async function Contrato({ params }: { params: Promise<{ id: strin
                       {q.saldo > 0.005 && (
                         <FormAccion accion={quitarExtra} className="inline">
                           <input type="hidden" name="cuotaId" value={q.id} />
-                          <input type="hidden" name="indice" value={i} />
+                          <input type="hidden" name="concepto" value={e.concepto} />
+                          <input type="hidden" name="monto" value={e.monto.toFixed(2)} />
                           <button type="submit" className="min-h-11 px-2 text-xs underline" aria-label={`Quitar ${e.concepto}`}>
                             quitar
                           </button>

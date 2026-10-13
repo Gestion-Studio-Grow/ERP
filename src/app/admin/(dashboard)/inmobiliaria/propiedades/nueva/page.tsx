@@ -14,7 +14,7 @@ export default async function NuevaPropiedad() {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <header className="mb-4">
-        <Link href={`${RAIZ}/propiedades`} className="text-sm underline">
+        <Link href={`${RAIZ}/propiedades`} className="inline-flex min-h-11 items-center text-sm underline">
           ← Propiedades
         </Link>
         <h1 className={titulo}>Cargar propiedad</h1>

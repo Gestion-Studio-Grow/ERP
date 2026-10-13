@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  alquilerCobrado,
   aSlug,
   avisosDeContrato,
   calcularAjuste,
@@ -22,10 +23,13 @@ import {
   mesesDelContrato,
   minutosSinResponder,
   nombrePeriodo,
+  pendienteDeLiquidar,
   planDeCuotas,
   precio,
   precioDeCartel,
   punitorioSugerido,
+  quitarExtraDe,
+  repartoLiquidado,
   revisarFicha,
   saldoCuota,
   siguienteCodigo,
@@ -42,6 +46,7 @@ import {
   valorAl,
   variacion,
   type ContratoCalc,
+  type CuotaCalc,
   type FichaParaRevisar,
 } from "./core";
 
@@ -289,6 +294,69 @@ test("cobro parcial: primero la mora, después expensas y al final el alquiler",
   assert.deepEqual(imputar(cuota, 100000), { punitorios: 5150, extras: 35000, alquiler: 59850 });
   assert.deepEqual(imputar(cuota, 520150), { punitorios: 5150, extras: 35000, alquiler: 480000 });
   assert.deepEqual(imputar(cuota, 3000), { punitorios: 3000, extras: 0, alquiler: 0 });
+});
+
+test("mora perdonada: queda en cero y no se vuelve a sugerir aunque la cuota siga vencida", () => {
+  const cuota: CuotaCalc = { alquiler: 480000, extras: [], punitorios: 0, pagado: 0, vence: "2026-11-10" };
+  const perdonada: CuotaCalc = { ...cuota, moraPerdonada: true };
+  assert.deepEqual(punitorioSugerido(cuota, "2026-11-20", 0.1), { dias: 10, monto: 4800 });
+  assert.deepEqual(punitorioSugerido(perdonada, "2026-11-20", 0.1), { dias: 10, monto: 0 });
+  // Perdonarla no cambia el saldo ni el estado: lo que debe es el alquiler.
+  assert.equal(saldoCuota(perdonada), 480000);
+  assert.equal(estadoCuota(perdonada, "2026-11-20"), "VENCIDA");
+});
+
+test("quitar un concepto: por lo que es, no por el lugar que ocupaba", () => {
+  const extras = [
+    { concepto: "Expensas", monto: 35000 },
+    { concepto: "ABL", monto: 12000 },
+    { concepto: "Expensas", monto: 35000 },
+  ];
+  // Otra persona sacó el primero mientras tanto: el que se pide sigue saliendo bien.
+  assert.deepEqual(quitarExtraDe(extras.slice(1), { concepto: "ABL", monto: 12000 }), { extras: [{ concepto: "Expensas", monto: 35000 }], quedo: true });
+  // Dos iguales: sale uno solo.
+  assert.equal(quitarExtraDe(extras, { concepto: "Expensas", monto: 35000 }).extras.length, 2);
+  // El monto se compara al centavo, no como texto.
+  assert.equal(quitarExtraDe(extras, { concepto: "ABL", monto: 12000.004 }).quedo, true);
+  // Lo que no está no se inventa.
+  assert.deepEqual(quitarExtraDe(extras, { concepto: "Luz", monto: 1 }), { extras, quedo: false });
+});
+
+test("actualización aplicada tarde: la diferencia queda en la misma cuota y se cobra como saldo", () => {
+  // La cuota de mayo se cobró entera a $480.000 y después se aplicó el índice (+10 %).
+  const cobrada = { alquiler: 480000, extras: [{ concepto: "Expensas", monto: 35000 }], punitorios: 0, pagado: 515000, vence: "2027-05-10" };
+  assert.equal(estadoCuota(cobrada, "2027-05-20"), "PAGADA");
+  const ajustada = { ...cobrada, alquiler: 528000 };
+  assert.equal(estadoCuota(ajustada, "2027-05-20"), "PARCIAL");
+  assert.equal(saldoCuota(ajustada), 48000);
+  // Lo cobrado sigue imputado como alquiler de mayo: al liquidar, la diferencia entra en el mismo renglón.
+  assert.deepEqual(imputar(ajustada, 515000), { punitorios: 0, extras: 35000, alquiler: 480000 });
+  assert.deepEqual(pendienteDeLiquidar(ajustada, 563000, { alquiler: 480000, extras: 35000, punitorios: 0 }), { alquiler: 48000, extras: 0, punitorios: 0 });
+  // El freno: el alquiler nuevo no puede ser menor al alquiler que ya se cobró (sin contar expensas).
+  assert.equal(alquilerCobrado(cobrada, 515000), 480000);
+  assert.ok(470000 < alquilerCobrado(cobrada, 515000), "un monto menor al cobrado se rechaza");
+  assert.ok(500000 >= alquilerCobrado(cobrada, 515000), "pagó 515.000 con expensas: un alquiler de 500.000 es válido");
+  // Si se cobró a medias, lo que se cobró de alquiler es lo que quedó después de mora y extras.
+  assert.equal(alquilerCobrado(cobrada, 100000), 65000);
+});
+
+test("liquidación parcial por rubro: lo que se suma después entra en su rubro, no se mezcla con el alquiler", () => {
+  // Noviembre: se cobró y liquidó el alquiler entero. Después se cargaron expensas y se cobraron.
+  const cuota = { alquiler: 480000, extras: [{ concepto: "Expensas", monto: 35000 }], punitorios: 0 };
+  const yaLiquidado = { alquiler: 480000, extras: 0, punitorios: 0 };
+  assert.deepEqual(pendienteDeLiquidar(cuota, 515000, yaLiquidado), { alquiler: 0, extras: 35000, punitorios: 0 });
+  // Con el reparto viejo (sólo el total) daba alquiler 35.000 y extras 0: comisión sobre expensas.
+  const viejo = imputar(cuota, 515000).alquiler - imputar(cuota, 480000).alquiler;
+  assert.equal(viejo, 35000);
+  // Después entra una mora cobrada: va a mora.
+  const conMora = { ...cuota, punitorios: 4800 };
+  assert.deepEqual(pendienteDeLiquidar(conMora, 519800, { alquiler: 480000, extras: 35000, punitorios: 0 }), { alquiler: 0, extras: 0, punitorios: 4800 });
+  // Nada nuevo cobrado: nada que liquidar (y nunca negativo).
+  assert.deepEqual(pendienteDeLiquidar(cuota, 515000, { alquiler: 480000, extras: 35000, punitorios: 0 }), { alquiler: 0, extras: 0, punitorios: 0 });
+  // Cuotas liquidadas antes de las columnas por rubro: total en `liquidado`, rubros en 0 → se reparte por imputación.
+  assert.deepEqual(repartoLiquidado(cuota, 480000, { alquiler: 0, extras: 0, punitorios: 0 }), { punitorios: 0, extras: 35000, alquiler: 445000 });
+  assert.deepEqual(repartoLiquidado(cuota, 480000, yaLiquidado), yaLiquidado);
+  assert.deepEqual(repartoLiquidado(cuota, 0, { alquiler: 0, extras: 0, punitorios: 0 }), { alquiler: 0, extras: 0, punitorios: 0 });
 });
 
 test("avisos del contrato: ajuste a 30 días y fin de contrato a 60", () => {

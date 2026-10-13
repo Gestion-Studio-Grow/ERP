@@ -24,7 +24,7 @@ export default async function FichaDePropiedad({ params }: { params: Promise<{ i
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <header className="mb-4 flex flex-col gap-2">
-        <Link href={`${RAIZ}/propiedades`} className="text-sm underline">
+        <Link href={`${RAIZ}/propiedades`} className="inline-flex min-h-11 items-center self-start text-sm underline">
           ← Propiedades
         </Link>
         <span className="flex flex-wrap items-center gap-2">
@@ -90,13 +90,13 @@ export default async function FichaDePropiedad({ params }: { params: Promise<{ i
         {(p.consultas > 0 || p.contratos > 0) && (
           <p className="text-sm text-muted">
             {p.consultas > 0 && (
-              <Link href={`${RAIZ}/consultas`} className="underline">
+              <Link href={`${RAIZ}/consultas`} className="inline-flex min-h-11 items-center underline">
                 {p.consultas} consulta{p.consultas > 1 ? "s" : ""} recibida{p.consultas > 1 ? "s" : ""}
               </Link>
             )}
             {p.consultas > 0 && p.contratos > 0 && " · "}
             {p.contratos > 0 && p.conPlata && (
-              <Link href={`${RAIZ}/alquileres`} className="underline">
+              <Link href={`${RAIZ}/alquileres`} className="inline-flex min-h-11 items-center underline">
                 {p.contratos} contrato{p.contratos > 1 ? "s" : ""}
               </Link>
             )}
