@@ -197,4 +197,23 @@ export const APPS_COMERCIAL = [
     estado: "lista",
     palabras: ["autos", "patente", "orden de trabajo", "presupuesto", "ingreso", "vehiculo", "mecanico", "service", "vtv"],
   },
+  {
+    // El circuito de la inmobiliaria: lo de hoy, propiedades, consultas, alquileres administrados
+    // y liquidaciones. Una sola app con sus pantallas adentro (/admin/inmobiliaria/...).
+    // Pide agenda:read porque el agente (PROFESSIONAL) entra a cargar fichas y atender SUS
+    // consultas; la plata (contratos, cobros, liquidaciones, configuración) la piden aparte las
+    // acciones con agenda:manage.
+    id: "inmobiliaria",
+    nombre: "Inmobiliaria",
+    descripcion: "Lo que hay que atender hoy: consultas sin responder, alquileres por cobrar, ajustes y liquidaciones.",
+    icono: "localizacion",
+    ruta: "/admin/inmobiliaria",
+    espacio: "mostrador",
+    capability: "agenda:read",
+    modulo: "inmobiliaria",
+    // Módulo propio del rubro: sin él no se abre ni por URL.
+    moduloDuro: true,
+    estado: "lista",
+    palabras: ["propiedades", "casas", "departamentos", "alquileres", "inquilinos", "propietarios", "consultas", "contratos", "liquidaciones", "tasacion", "visitas"],
+  },
 ] as const satisfies readonly AppDescriptor[];

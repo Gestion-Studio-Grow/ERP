@@ -28,6 +28,7 @@ import { carteraModule } from "./descriptors/cartera";
 import { multilocalModule } from "./descriptors/multilocal";
 import { cajaRapidaModule, ofertasModule } from "./descriptors/supermercado";
 import { tallerModule } from "./descriptors/taller";
+import { inmobiliariaModule } from "./descriptors/inmobiliaria";
 import { arcaModule } from "@/plugins/arca/module";
 import { bancosModule } from "@/plugins/bancos/module";
 
@@ -45,6 +46,8 @@ export const DESCRIPTORES_CATALOGO = [
   ofertasModule,
   // Taller mecánico (src/modules/descriptors/taller.ts). Al final, como los anteriores.
   tallerModule,
+  // Inmobiliaria (src/modules/descriptors/inmobiliaria.ts). Al final, como los anteriores.
+  inmobiliariaModule,
 ];
 
 /**

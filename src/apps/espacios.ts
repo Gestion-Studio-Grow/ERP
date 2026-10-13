@@ -56,7 +56,7 @@ export const ESPACIOS: readonly EspacioMeta[] = [
     nombre: "Mostrador",
     nombreEnServicios: "Recepción",
     enInicio: true,
-    apps: ["taller", "vender", "caja-rapida", "pedidos", "ventas-del-dia", "agenda", "confirmar-manana", "lista-de-espera", "tienda-online", "devoluciones-y-cambios"],
+    apps: ["taller", "inmobiliaria", "vender", "caja-rapida", "pedidos", "ventas-del-dia", "agenda", "confirmar-manana", "lista-de-espera", "tienda-online", "devoluciones-y-cambios"],
   },
   { id: "caja", nombre: "Caja", enInicio: true, apps: ["caja-del-dia", "cierre-del-dia", "libro-de-caja"] },
   {
@@ -201,7 +201,7 @@ export const ESPACIOS_NAV: readonly EspacioNav[] = [
     nombreEnServicios: "Recepción",
     objetivo: "Atender y cobrar",
     apps: [
-      "taller", "vender", "caja-rapida", "agenda", "pedidos", "ventas-del-dia", "confirmar-manana", "lista-de-espera", "vales-de-regalo",
+      "taller", "inmobiliaria", "vender", "caja-rapida", "agenda", "pedidos", "ventas-del-dia", "confirmar-manana", "lista-de-espera", "vales-de-regalo",
       "paquetes-y-abonos", "devoluciones-y-cambios", "presupuestos", "envios-y-reparto", "tienda-online", "huecos-de-la-semana",
     ],
   },

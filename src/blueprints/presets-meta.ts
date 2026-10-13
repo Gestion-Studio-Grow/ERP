@@ -105,6 +105,9 @@ const EXPLICIT_BLUEPRINT_MODULES: Record<string, string[]> = {
   // Taller mecánico: los turnos y recordatorios de la familia oficios, más lo que un taller sí
   // usa y un plomero no (repuestos en stock) y su circuito propio (módulo `taller`).
   taller: ["taller", "agenda", "catalog", "clients", "reminders", "reports", "inventario", "arca"],
+  // Inmobiliaria: su circuito propio (módulo `inmobiliaria`), la agenda para visitas y
+  // tasaciones, los clientes (propietarios, inquilinos, interesados) y la factura de la comisión.
+  inmobiliaria: ["inmobiliaria", "agenda", "catalog", "clients", "reminders", "reports", "arca"],
 };
 
 /**

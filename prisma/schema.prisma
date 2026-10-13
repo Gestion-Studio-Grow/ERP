@@ -222,6 +222,16 @@ model Tenant {
   tallerPagos              TallerPago[]
   tallerConfig             TallerConfig?
   tallerAvisosEnviados     TallerAvisoEnviado[]
+  inmoPropiedades          InmoPropiedad[] // módulo inmobiliaria
+  inmoFotos                InmoFoto[]
+  inmoConsultas            InmoConsulta[]
+  inmoContratos            InmoContrato[]
+  inmoAjustes              InmoAjuste[]
+  inmoCuotas               InmoCuota[]
+  inmoPagos                InmoPago[]
+  inmoLiquidaciones        InmoLiquidacion[]
+  inmoIndices              InmoIndice[]
+  inmoConfig               InmoConfig?
   invoices                 Invoice[]
   outboxEvents             OutboxEvent[]
   orders                   Order[]
@@ -656,6 +666,12 @@ model Client {
   tallerOrdenes   TallerOrden[]
   tallerEtiquetas String[]            @default([]) // particular · flota · empresa · VIP
   tallerCtaCte    Boolean             @default(false)
+  // Módulo inmobiliaria: la misma persona puede ser propietaria, inquilina y haber consultado.
+  inmoPropiedades          InmoPropiedad[]   @relation("InmoPropietario")
+  inmoConsultas            InmoConsulta[]
+  inmoContratosInquilino   InmoContrato[]    @relation("InmoInquilino")
+  inmoContratosPropietario InmoContrato[]    @relation("InmoLocador")
+  inmoLiquidaciones        InmoLiquidacion[]
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
@@ -2458,4 +2474,297 @@ model TallerAvisoEnviado {
   enviadoEl DateTime @default(now())
 
   @@unique([tenantId, clave])
+}
+
+// ============================================================================
+// MÓDULO INMOBILIARIA (blueprint `inmobiliaria`): propiedades con sus fotos, consultas,
+// contratos de alquiler con ajuste por índice, cuotas, cobros y liquidaciones al propietario.
+// Sólo lo usan los negocios con el módulo `inmobiliaria`. Estados, tipos, índices y medios son
+// texto validado en src/lib/inmobiliaria/core.ts (sin enums de Postgres: sumar uno no pide
+// migración). Las personas (propietario, inquilino, interesado) son `Client` del Core.
+// Plata: numeric(14,2) desde el día uno (ADR-100); porcentajes, coeficientes, valores de
+// índice y metros siguen en Float (no son importes). Los DÍAS de negocio (inicio, fin, vence,
+// fecha de índice) se guardan a mediodía de Argentina.
+// ============================================================================
+
+model InmoPropiedad {
+  id               String         @id @default(cuid())
+  tenant           Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId         String
+  codigo           String // correlativo de la casa: PRO-0001
+  slug             String // link público: título legible + código
+  titulo           String
+  descripcion      String         @default("")
+  tipo             String         @default("DEPARTAMENTO")
+  estado           String         @default("BORRADOR") // BORRADOR · PUBLICADA · RESERVADA · ALQUILADA · VENDIDA · PAUSADA
+  destacada        Boolean        @default(false)
+  // Una misma ficha puede estar en venta y en alquiler a la vez. El precio de cartel lleva su
+  // moneda (ARS o USD): es un precio de lista, no un hecho de plata.
+  enVenta          Boolean        @default(false)
+  precioVenta      Decimal?       @db.Decimal(14, 2)
+  monedaVenta      String         @default("USD")
+  enAlquiler       Boolean        @default(false)
+  precioAlquiler   Decimal?       @db.Decimal(14, 2)
+  monedaAlquiler   String         @default("ARS")
+  expensas         Decimal?       @db.Decimal(14, 2)
+  aptoCredito      Boolean        @default(false)
+  aptoMascotas     Boolean        @default(false)
+  direccion        String         @default("")
+  // false: la web muestra sólo barrio y localidad (el dueño no quiere el número a la vista).
+  mostrarDireccion Boolean        @default(true)
+  barrio           String         @default("")
+  localidad        String         @default("")
+  partido          String         @default("")
+  provincia        String         @default("Buenos Aires")
+  lat              Float?
+  lng              Float?
+  ambientes        Int?
+  dormitorios      Int?
+  banos            Int?
+  cocheras         Int?
+  supCubierta      Float?
+  supTotal         Float?
+  antiguedad       Int? // años
+  comodidades      String[]       @default([])
+  videoUrl         String?
+  propietario      Client?        @relation("InmoPropietario", fields: [propietarioId], references: [id])
+  propietarioId    String?
+  captadaPorUserId String?
+  notasInternas    String?
+  publicadaEl      DateTime?
+  // Para el cartel "Bajó de precio": qué valía y desde cuándo vale menos.
+  precioAnterior   Decimal?       @db.Decimal(14, 2)
+  bajoDePrecioEl   DateTime?
+  fotos            InmoFoto[]
+  consultas        InmoConsulta[]
+  contratos        InmoContrato[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([tenantId, codigo])
+  @@unique([tenantId, slug])
+  @@index([tenantId, estado])
+  @@index([tenantId, localidad])
+}
+
+model InmoFoto {
+  id          String        @id @default(cuid())
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  propiedad   InmoPropiedad @relation(fields: [propiedadId], references: [id], onDelete: Cascade)
+  propiedadId String
+  // Una dirección (https://… o /tenants/…) o un JPEG achicado en el navegador como data URL.
+  // El data URL nunca viaja dentro de la página: lo sirve /propiedades/foto/[id]. Tope por
+  // ficha en src/lib/inmobiliaria/acciones.ts: todavía no hay almacenamiento de archivos.
+  url         String
+  alt         String        @default("")
+  posicion    Int           @default(0)
+  createdAt   DateTime      @default(now())
+
+  @@index([tenantId, propiedadId, posicion])
+}
+
+model InmoConsulta {
+  id             String         @id @default(cuid())
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  propiedad      InmoPropiedad? @relation(fields: [propiedadId], references: [id], onDelete: SetNull)
+  propiedadId    String?
+  tipo           String         @default("CONSULTA") // CONSULTA · VISITA · TASACION
+  origen         String         @default("WEB") // WEB · WHATSAPP · PORTAL · MOSTRADOR · REFERIDO
+  estado         String         @default("NUEVA") // NUEVA · CONTACTADA · VISITA · NEGOCIACION · GANADA · PERDIDA
+  nombre         String
+  telefono       String         @default("")
+  email          String         @default("")
+  mensaje        String         @default("")
+  // Se enlaza a un cliente recién cuando alguien de la inmobiliaria lo decide: un formulario
+  // público no crea clientes solo.
+  client         Client?        @relation(fields: [clientId], references: [id])
+  clientId       String?
+  asignadaUserId String?
+  asignadaNombre String?
+  visitaEl       DateTime?
+  notas          String?
+  // Primera respuesta: de acá sale el reloj "sin responder hace…".
+  respondidaEl   DateTime?
+  cerradaEl      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([tenantId, estado])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, propiedadId])
+}
+
+model InmoContrato {
+  id                 String        @id @default(cuid())
+  tenant             Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId           String
+  numero             Int // correlativo por negocio
+  propiedad          InmoPropiedad @relation(fields: [propiedadId], references: [id])
+  propiedadId        String
+  inquilino          Client        @relation("InmoInquilino", fields: [inquilinoId], references: [id])
+  inquilinoId        String
+  propietario        Client        @relation("InmoLocador", fields: [propietarioId], references: [id])
+  propietarioId      String
+  estado             String        @default("VIGENTE") // VIGENTE · FINALIZADO · RESCINDIDO
+  inicio             DateTime
+  fin                DateTime
+  montoInicial       Decimal       @db.Decimal(14, 2)
+  // Sólo pesos por ahora (CHECK en la migración, ADR-100 §5): cobrar y liquidar en dólares es
+  // operar otra moneda y pide su propia decisión.
+  moneda             String        @default("ARS")
+  diaVencimiento     Int           @default(10)
+  // Las reglas viven en CADA contrato (índice, cada cuánto, mora, comisión): la ley cambió
+  // varias veces y un contrato sigue con las reglas con las que se firmó.
+  ajusteIndice       String        @default("ICL") // ICL · IPC · CASA_PROPIA · FIJO · SIN_AJUSTE
+  ajusteCadaMeses    Int           @default(6)
+  ajusteFijoPct      Float?
+  tramosAplicados    Int           @default(0)
+  comisionPct        Float         @default(0)
+  punitorioDiarioPct Float         @default(0)
+  deposito           Decimal       @default(0) @db.Decimal(14, 2)
+  garantia           String? // garantes o seguro de caución, en texto
+  notas              String?
+  // Link del inquilino sin login (estado de cuenta y cómo pagar). Largo y al azar: es la llave.
+  tokenInquilino     String        @unique
+  cuotas             InmoCuota[]
+  ajustes            InmoAjuste[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, estado])
+  @@index([tenantId, propietarioId])
+  @@index([tenantId, inquilinoId])
+  @@index([tenantId, propiedadId])
+}
+
+// El rastro de cada actualización aplicada: con qué índice, qué coeficiente y quién la aplicó.
+model InmoAjuste {
+  id            String       @id @default(cuid())
+  tenant        Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  contrato      InmoContrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  contratoId    String
+  tramo         Int
+  desde         DateTime
+  indice        String
+  coeficiente   Float
+  montoAnterior Decimal      @db.Decimal(14, 2)
+  montoNuevo    Decimal      @db.Decimal(14, 2)
+  detalle       String       @default("")
+  aplicadoPor   String?
+  createdAt     DateTime     @default(now())
+
+  @@unique([tenantId, contratoId, tramo])
+}
+
+model InmoCuota {
+  id              String       @id @default(cuid())
+  tenant          Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId        String
+  contrato        InmoContrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  contratoId      String
+  numero          Int
+  periodo         String // AAAA-MM
+  vence           DateTime
+  tramo           Int          @default(0)
+  alquiler        Decimal      @db.Decimal(14, 2)
+  // true: el monto es el último conocido; falta aplicar el índice de su tramo.
+  ajustePendiente Boolean      @default(false)
+  extras          Json? // [{ concepto, monto }] — expensas, servicios, ABL a cargo del inquilino
+  punitorios      Decimal      @default(0) @db.Decimal(14, 2)
+  pagado          Decimal      @default(0) @db.Decimal(14, 2) // suma de los cobros no anulados
+  anulada         Boolean      @default(false)
+  // De lo cobrado, cuánto ya se le liquidó al propietario. Una cuota pagada en dos veces puede
+  // entrar en dos liquidaciones: en cada una entra sólo lo que todavía no se había liquidado.
+  liquidado       Decimal      @default(0) @db.Decimal(14, 2)
+  pagos           InmoPago[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([tenantId, contratoId, periodo])
+  @@index([tenantId, vence])
+}
+
+model InmoPago {
+  id         String    @id @default(cuid())
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  cuota      InmoCuota @relation(fields: [cuotaId], references: [id], onDelete: Cascade)
+  cuotaId    String
+  medio      String // TRANSFERENCIA · EFECTIVO · MERCADO_PAGO · DEPOSITO · CHEQUE
+  monto      Decimal   @db.Decimal(14, 2)
+  nota       String?
+  cobradoPor String?
+  // Un cobro no se borra: se anula y queda el rastro.
+  anuladoEl  DateTime?
+  anuladoPor String?
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId, cuotaId])
+  @@index([tenantId, createdAt])
+}
+
+model InmoLiquidacion {
+  id            String    @id @default(cuid())
+  tenant        Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  numero        Int // correlativo por negocio
+  propietario   Client    @relation(fields: [propietarioId], references: [id])
+  propietarioId String
+  periodo       String // AAAA-MM
+  estado        String    @default("EMITIDA") // EMITIDA · PAGADA · ANULADA
+  alquileres    Decimal   @default(0) @db.Decimal(14, 2)
+  extras        Decimal   @default(0) @db.Decimal(14, 2)
+  punitorios    Decimal   @default(0) @db.Decimal(14, 2)
+  comision      Decimal   @default(0) @db.Decimal(14, 2)
+  ivaComision   Decimal   @default(0) @db.Decimal(14, 2)
+  gastos        Decimal   @default(0) @db.Decimal(14, 2)
+  neto          Decimal   @default(0) @db.Decimal(14, 2)
+  // La foto de lo liquidado: { cobros: [{ cuotaId, concepto, alquiler, extras, punitorios,
+  // comisionPct }], gastos: [...] }. No se recalcula; anular la liquidación devuelve cada cobro
+  // a "sin liquidar" con estos mismos números.
+  detalle       Json?
+  // Link del propietario sin login.
+  token         String    @unique
+  pagadaEl      DateTime?
+  medio         String?
+  nota          String?
+  createdAt     DateTime  @default(now())
+
+  @@unique([tenantId, numero])
+  @@index([tenantId, propietarioId])
+  @@index([tenantId, periodo])
+}
+
+// Valores publicados de los índices de ajuste. Los carga (o los baja) cada inmobiliaria.
+model InmoIndice {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  indice    String // ICL · IPC · CASA_PROPIA
+  fecha     DateTime // el día del valor; para el IPC, el día 1 del mes
+  valor     Float
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, indice, fecha])
+}
+
+model InmoConfig {
+  id                      String   @id @default(cuid())
+  tenant                  Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId                String   @unique
+  prefijoCodigo           String   @default("PRO")
+  // Valores con los que nace un contrato nuevo (cada contrato guarda los suyos).
+  comisionAdminPct        Float    @default(0)
+  ivaComisionPct          Float    @default(0)
+  punitorioDiarioPct      Float    @default(0)
+  punitoriosAlPropietario Boolean  @default(true)
+  aliasCbu                String?
+  linkMercadoPago         String?
+  matricula               String? // corredor matriculado: va al pie del sitio
+  plantillas              Json? // { clave: texto } — sólo las que la inmobiliaria editó
+  updatedAt               DateTime @updatedAt
 }

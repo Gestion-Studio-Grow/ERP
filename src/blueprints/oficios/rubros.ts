@@ -219,6 +219,38 @@ export const OFICIOS_RUBROS: OficiosRubro[] = [
     suggestedAccent: "oxblood",
     suggestedTheme: "dark",
   },
+  {
+    // Inmobiliaria: de la familia toma la agenda (visitas, tasaciones, firmas) y los clientes.
+    // Su circuito propio (propiedades, consultas, alquileres administrados, liquidaciones) es el
+    // módulo `inmobiliaria`; acá va sólo la config del rubro. Los servicios son sin cargo: son
+    // los motivos por los que alguien pide un turno, no una lista de precios.
+    id: "inmobiliaria",
+    label: "Inmobiliaria",
+    keywords: ["inmobiliaria", "inmobiliario", "propiedades", "bienes raices", "martillero", "corredor inmobiliario", "alquileres", "tasaciones"],
+    categories: ["Atención", "Operaciones"],
+    services: [
+      { name: "Tasación de una propiedad", cat: "Atención", durationMin: 60, price: 0 },
+      { name: "Visita a una propiedad", cat: "Atención", durationMin: 30, price: 0 },
+      { name: "Asesoramiento para vender o alquilar", cat: "Atención", durationMin: 45, price: 0 },
+      { name: "Firma de reserva", cat: "Operaciones", durationMin: 45, price: 0 },
+      { name: "Firma de contrato de alquiler", cat: "Operaciones", durationMin: 60, price: 0 },
+    ],
+    exampleProfessional: "Agente de ejemplo (editable)",
+    wording: {
+      catalogHeading: "En qué te ayudamos",
+      providerNoun: "agente",
+      heroTagline: "Tu próxima propiedad, con alguien que conoce el barrio.",
+      bookCta: "Coordinar una visita",
+      priceNote: "Sin cargo. Los honorarios se acuerdan por escrito en cada operación.",
+    },
+    brandingDefaults: {
+      shortLabel: "Venta, alquiler y tasaciones",
+      hoursLabel: "Lun a vie · 10 a 13 y 16 a 19:30 h",
+      contactNote: "Venta, alquiler, tasaciones y administración de alquileres.",
+    },
+    suggestedAccent: "petroleo",
+    suggestedTheme: "light",
+  },
 ];
 
 export const OFICIOS_RUBRO_IDS = OFICIOS_RUBROS.map((r) => r.id);
