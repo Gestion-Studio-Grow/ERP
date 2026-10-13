@@ -18,3 +18,6 @@
 # 2026-10-09: segunda del taller, en la misma ventana: cobros al libro de caja (clave del asiento en
 # "CashMovement" + rastro de anulación en "TallerPago"). Aditiva.
 20261009120000_taller_caja
+# 2026-10-13: módulo INMOBILIARIA, publicación pedida por el dueño. Aditiva: diez tablas nuevas
+# con RLS adentro. No agrega ni cambia columnas de ninguna tabla existente.
+20261013120000_modulo_inmobiliaria
