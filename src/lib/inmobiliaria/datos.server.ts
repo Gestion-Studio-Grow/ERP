@@ -42,8 +42,11 @@ import {
   totalCuota,
   tramoDe,
   usaSerie,
+  leerReciboConfig,
+  numeroDeRecibo,
   type AvisoContrato,
   type ClavePlantilla,
+  type ReciboConfig,
   type CobroALiquidar,
   type ContratoCalc,
   type Dia,
@@ -117,6 +120,7 @@ export interface ConfigInmo {
   linkMercadoPago: string;
   matricula: string;
   plantillas: Record<ClavePlantilla, string>;
+  recibo: ReciboConfig;
 }
 
 export async function configInmo(tenantId: string): Promise<ConfigInmo> {
@@ -136,6 +140,7 @@ export async function configInmo(tenantId: string): Promise<ConfigInmo> {
     linkMercadoPago: c?.linkMercadoPago ?? "",
     matricula: c?.matricula ?? "",
     plantillas,
+    recibo: leerReciboConfig(c?.recibo),
   };
 }
 
@@ -834,7 +839,7 @@ export async function contratoAdmin(id: string) {
   const calc = aContratoCalc(c);
   const cuotas = c.cuotas.map((q) => ({
     ...aCuota(q, hoy, c.punitorioDiarioPct),
-    pagos: q.pagos.map((p) => ({ id: p.id, medio: p.medio, monto: n(p.monto), nota: p.nota ?? "", cobradoPor: p.cobradoPor ?? "", fecha: diaDe(p.createdAt), anulado: !!p.anuladoEl })),
+    pagos: q.pagos.map((p) => ({ id: p.id, medio: p.medio, monto: n(p.monto), nota: p.nota ?? "", cobradoPor: p.cobradoPor ?? "", fecha: diaDe(p.createdAt), anulado: !!p.anuladoEl, recibo: p.reciboNumero })),
   }));
   // El próximo ajuste por aplicar, ya calculado si el índice está cargado.
   const meses = mesesDelContrato(calc.inicio, calc.fin);
@@ -1069,7 +1074,7 @@ export async function cuentaDelInquilino(token: string) {
   const calc = aContratoCalc(c);
   const cuotas = c.cuotas.map((q) => ({
     ...aCuota(q, hoy, c.punitorioDiarioPct),
-    pagos: q.pagos.map((p) => ({ medio: p.medio, monto: n(p.monto), fecha: diaDe(p.createdAt) })),
+    pagos: q.pagos.map((p) => ({ id: p.id, medio: p.medio, monto: n(p.monto), fecha: diaDe(p.createdAt), recibo: p.reciboNumero })),
   }));
   // Lo que le importa hoy: lo vencido, lo de este mes y la próxima. El resto del cronograma no.
   const mes = hoy.slice(0, 7);
@@ -1100,4 +1105,127 @@ export async function liquidacionPublica(token: string) {
   const l = await prisma.inmoLiquidacion.findFirst({ where: { tenantId, token, estado: { not: "ANULADA" } }, include: { propietario: { select: { name: true, phone: true } } } });
   if (!l) return null;
   return { negocio: await negocioInmo(tenantId), liquidacion: aLiquidacion(l) };
+}
+
+// ── Recibos ─────────────────────────────────────────────────────────────────
+
+export interface ReciboDatos {
+  numero: string;
+  fecha: Dia;
+  anulado: boolean;
+  config: ReciboConfig;
+  negocio: NegocioInmo;
+  /** Quién emite (la configuración o el nombre del negocio). */
+  emisor: string;
+  matricula: string;
+  inquilino: string;
+  propiedad: string;
+  periodo: Periodo;
+  contratoNumero: number;
+  medio: string;
+  monto: number;
+  nota: string;
+  cobradoPor: string;
+  /** La cuota como quedó: su detalle, lo cobrado hasta este recibo y el saldo después. */
+  cuota: { alquiler: number; extras: Extra[]; punitorios: number; total: number; cobradoHasta: number; saldoDespues: number };
+  /** Link público del recibo (para el QR, el WhatsApp y el botón de copiar). */
+  link: string;
+}
+
+const INCLUDE_RECIBO = {
+  cuota: {
+    include: {
+      pagos: { orderBy: { createdAt: "asc" as const }, select: { id: true, monto: true, anuladoEl: true } },
+      contrato: {
+        select: {
+          numero: true,
+          tokenInquilino: true,
+          inquilino: { select: { name: true } },
+          propiedad: { select: { titulo: true, direccion: true, localidad: true, barrio: true } },
+        },
+      },
+    },
+  },
+} satisfies Prisma.InmoPagoInclude;
+
+type FilaRecibo = Prisma.InmoPagoGetPayload<{ include: typeof INCLUDE_RECIBO }>;
+
+async function armarRecibo(tenantId: string, p: FilaRecibo, origen: string): Promise<ReciboDatos> {
+  const [config, negocio] = await Promise.all([configInmo(tenantId), negocioInmo(tenantId)]);
+  const q = p.cuota;
+  const extras = leerExtras(q.extras);
+  const total = totalCuota({ alquiler: n(q.alquiler), extras, punitorios: n(q.punitorios) });
+  // Lo cobrado hasta este recibo inclusive (sin los anulados), en orden de fecha.
+  let cobradoHasta = 0;
+  for (const x of q.pagos) {
+    if (x.anuladoEl) continue;
+    cobradoHasta = redondear(cobradoHasta + n(x.monto));
+    if (x.id === p.id) break;
+  }
+  const propiedad = q.contrato.propiedad.direccion || tituloProlijo(q.contrato.propiedad.titulo, [q.contrato.propiedad.localidad, q.contrato.propiedad.barrio]);
+  return {
+    numero: numeroDeRecibo(config.recibo.prefijo, p.reciboNumero),
+    fecha: diaDe(p.createdAt),
+    anulado: !!p.anuladoEl,
+    config: config.recibo,
+    negocio,
+    emisor: config.recibo.emisor.trim() || negocio.nombre,
+    matricula: config.matricula,
+    inquilino: q.contrato.inquilino.name,
+    propiedad,
+    periodo: q.periodo,
+    contratoNumero: q.contrato.numero,
+    medio: p.medio,
+    monto: n(p.monto),
+    nota: p.nota ?? "",
+    cobradoPor: p.cobradoPor ?? "",
+    cuota: { alquiler: n(q.alquiler), extras, punitorios: n(q.punitorios), total, cobradoHasta, saldoDespues: Math.max(0, redondear(total - cobradoHasta)) },
+    link: `${origen}/alquiler/${q.contrato.tokenInquilino}/recibo/${p.id}`,
+  };
+}
+
+/** El recibo de un cobro, para el panel. */
+export async function reciboAdmin(pagoId: string, origen: string): Promise<ReciboDatos | null> {
+  await requireCapability("agenda:manage");
+  const tenantId = await getCurrentTenantId();
+  if (!/^[a-z0-9]{10,40}$/.test(pagoId)) return null;
+  const p = await prisma.inmoPago.findFirst({ where: { id: pagoId, tenantId }, include: INCLUDE_RECIBO });
+  return p ? armarRecibo(tenantId, p, origen) : null;
+}
+
+/** El recibo desde el link del inquilino: la llave es el token del contrato, y el cobro tiene que ser de ese contrato. */
+export async function reciboPublico(token: string, pagoId: string, origen: string): Promise<ReciboDatos | null> {
+  if (!TOKEN.test(token) || !/^[a-z0-9]{10,40}$/.test(pagoId)) return null;
+  const tenantId = await getCurrentTenantId();
+  const p = await prisma.inmoPago.findFirst({ where: { id: pagoId, tenantId, anuladoEl: null, cuota: { contrato: { tokenInquilino: token } } }, include: INCLUDE_RECIBO });
+  return p ? armarRecibo(tenantId, p, origen) : null;
+}
+
+/** Un recibo de muestra con la configuración actual, para la vista previa del configurador. */
+export async function reciboDeMuestra(origen: string): Promise<ReciboDatos> {
+  await requireCapability("users:manage");
+  const tenantId = await getCurrentTenantId();
+  const ultimo = await prisma.inmoPago.findFirst({ where: { tenantId, anuladoEl: null }, orderBy: { createdAt: "desc" }, include: INCLUDE_RECIBO });
+  if (ultimo) return armarRecibo(tenantId, ultimo, origen);
+  const [config, negocio] = await Promise.all([configInmo(tenantId), negocioInmo(tenantId)]);
+  const extras = [{ concepto: "Expensas", monto: 35000 }];
+  return {
+    numero: numeroDeRecibo(config.recibo.prefijo, 1),
+    fecha: hoyDia(),
+    anulado: false,
+    config: config.recibo,
+    negocio,
+    emisor: config.recibo.emisor.trim() || negocio.nombre,
+    matricula: config.matricula,
+    inquilino: "Inquilino de ejemplo",
+    propiedad: "Calle de ejemplo 123, 2º A",
+    periodo: hoyDia().slice(0, 7),
+    contratoNumero: 1,
+    medio: "TRANSFERENCIA",
+    monto: 515000,
+    nota: "",
+    cobradoPor: "",
+    cuota: { alquiler: 480000, extras, punitorios: 0, total: 515000, cobradoHasta: 515000, saldoDespues: 0 },
+    link: `${origen}/alquiler/ejemplo/recibo/ejemplo`,
+  };
 }

@@ -2709,11 +2709,14 @@ model InmoPago {
   monto      Decimal   @db.Decimal(14, 2)
   nota       String?
   cobradoPor String?
+  // Número de recibo, correlativo por negocio. Nace con el cobro; un cobro anulado lo conserva.
+  reciboNumero Int?
   // Un cobro no se borra: se anula y queda el rastro.
   anuladoEl  DateTime?
   anuladoPor String?
   createdAt  DateTime  @default(now())
 
+  @@unique([tenantId, reciboNumero])
   @@index([tenantId, cuotaId])
   @@index([tenantId, createdAt])
 }
@@ -2777,5 +2780,6 @@ model InmoConfig {
   linkMercadoPago         String?
   matricula               String? // corredor matriculado: va al pie del sitio
   plantillas              Json? // { clave: texto } — sólo las que la inmobiliaria editó
+  recibo                  Json? // cómo se ven los recibos (src/lib/inmobiliaria/core.ts → ReciboConfig)
   updatedAt               DateTime @updatedAt
 }

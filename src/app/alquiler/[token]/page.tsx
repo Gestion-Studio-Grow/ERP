@@ -136,7 +136,20 @@ export default async function CuentaDelInquilino({ params }: { params: Promise<{
                 {c.pagadas.map((q) => (
                   <tr key={q.id}>
                     <td className={s.inicial}>{nombrePeriodo(q.periodo)}</td>
-                    <td>{q.pagos.map((p) => `${diaCorto(p.fecha)} · ${MEDIO_LABEL[p.medio as MedioPago] ?? p.medio}`).join(" / ")}</td>
+                    <td>
+                      {q.pagos.map((p, i) => (
+                        <span key={p.id}>
+                          {i > 0 && " / "}
+                          {p.recibo != null ? (
+                            <a href={`/alquiler/${token}/recibo/${p.id}`}>
+                              {diaCorto(p.fecha)} · {MEDIO_LABEL[p.medio as MedioPago] ?? p.medio} · recibo
+                            </a>
+                          ) : (
+                            `${diaCorto(p.fecha)} · ${MEDIO_LABEL[p.medio as MedioPago] ?? p.medio}`
+                          )}
+                        </span>
+                      ))}
+                    </td>
                     <td>{pesos(q.pagado)}</td>
                   </tr>
                 ))}

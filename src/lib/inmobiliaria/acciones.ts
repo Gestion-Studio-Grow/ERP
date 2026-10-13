@@ -44,8 +44,10 @@ import {
   FUENTE_IPC,
   inicioDeTramo,
   instanteDe,
+  leerReciboConfig,
   leerRespuestaBcra,
   leerRespuestaDatosGobAr,
+  RECIBO_DEFAULT,
   liquidarPorContrato,
   mesesDelContrato,
   pesos,
@@ -676,7 +678,12 @@ export async function registrarCobro(formData: FormData): Promise<Resultado<{ sa
       const saldo = saldoCuota(base);
       if (saldo <= 0.005) return { error: "Esa cuota ya está paga." };
       if (monto > saldo + 0.005) return { error: `Es más de lo que debe. El saldo es ${pesos(saldo)}.` };
-      await tx.inmoPago.create({ data: { tenantId, cuotaId, medio, monto: plata(monto), nota: txt(formData.get("nota")).slice(0, 300) || null, cobradoPor: user.name } });
+      // El número de recibo es correlativo por negocio; la transacción serializable y el índice
+      // único garantizan que dos cobros a la vez no salgan con el mismo.
+      const ultimoRecibo = await tx.inmoPago.findFirst({ where: { tenantId, reciboNumero: { not: null } }, orderBy: { reciboNumero: "desc" }, select: { reciboNumero: true } });
+      await tx.inmoPago.create({
+        data: { tenantId, cuotaId, medio, monto: plata(monto), nota: txt(formData.get("nota")).slice(0, 300) || null, cobradoPor: user.name, reciboNumero: (ultimoRecibo?.reciboNumero ?? 0) + 1 },
+      });
       const pagado = redondear(base.pagado + monto);
       await tx.inmoCuota.updateMany({ where: { id: cuotaId, tenantId }, data: { pagado: plata(pagado), punitorios: plata(base.punitorios) } });
       return { contratoId: q.contrato.id, saldo: redondear(saldo - monto) };
@@ -999,6 +1006,21 @@ export async function traerIndicesOficiales(): Promise<Resultado<{ icl: number; 
 }
 
 // ── Configuración ───────────────────────────────────────────────────────────
+
+/** Cómo se ven los recibos de alquiler. Sólo el dueño. */
+export async function guardarConfigRecibo(formData: FormData): Promise<Resultado> {
+  await requireCapability("users:manage");
+  const tenantId = await getCurrentTenantId();
+  const recibo: Record<string, string | boolean> = {};
+  for (const k of Object.keys(RECIBO_DEFAULT) as (keyof typeof RECIBO_DEFAULT)[]) {
+    recibo[k] = typeof RECIBO_DEFAULT[k] === "boolean" ? si(formData.get(k)) : txt(formData.get(k)).slice(0, 400);
+  }
+  const limpio = leerReciboConfig(recibo);
+  await prisma.inmoConfig.upsert({ where: { tenantId }, create: { tenantId, recibo: json(limpio) }, update: { recibo: json(limpio) } });
+  await auditAdmin({ action: "inmobiliaria.config.recibo", entity: "InmoConfig", changes: { prefijo: limpio.prefijo } });
+  refrescar(`${RAIZ}/config/recibos`);
+  return { ok: true };
+}
 
 export async function guardarConfigInmo(formData: FormData) {
   // Comisiones, mora y datos de cobro: sólo el dueño.

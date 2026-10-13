@@ -16,6 +16,7 @@ import {
   MEDIO_LABEL,
   MEDIOS,
   nombrePeriodo,
+  numeroDeRecibo,
   pesos,
   variacion,
   type EstadoContrato,
@@ -179,6 +180,14 @@ export default async function Contrato({ params }: { params: Promise<{ id: strin
                         {diaCorto(p.fecha)} · {MEDIO_LABEL[p.medio as MedioPago] ?? p.medio} · {pesos(p.monto)}
                         {p.cobradoPor ? ` · ${p.cobradoPor}` : ""}
                         {p.nota ? ` · ${p.nota}` : ""}
+                        {p.recibo != null && (
+                          <>
+                            {" · "}
+                            <Link href={`${RAIZ}/recibos/${p.id}`} className="inline-flex min-h-11 items-center underline">
+                              Recibo {numeroDeRecibo(config.recibo.prefijo, p.recibo)}
+                            </Link>
+                          </>
+                        )}
                       </span>
                       {!p.anulado && vigente && (
                         <FormAccion accion={anularCobro} confirmar="¿Anular este cobro? Queda el rastro de que se anuló.">
@@ -263,7 +272,7 @@ export default async function Contrato({ params }: { params: Promise<{ id: strin
                 <Avisar
                   telefono={c.inquilino.telefono}
                   etiqueta="Mandar el recibo"
-                  texto={armarMensaje(config.plantillas.recibo, { nombre, monto: pesos(q.pagado), propiedad: c.propiedad.nombre, periodo: nombrePeriodo(q.periodo), link })}
+                  texto={armarMensaje(config.plantillas.recibo, { nombre, monto: pesos(q.pagado), propiedad: c.propiedad.nombre, periodo: nombrePeriodo(q.periodo), link: q.pagos.filter((p) => !p.anulado).at(-1) ? `${link}/recibo/${q.pagos.filter((p) => !p.anulado).at(-1)!.id}` : link })}
                 />
               )}
             </article>

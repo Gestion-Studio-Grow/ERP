@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { requireCapability } from "@/lib/authz";
 import { cn, Field, Input, Select, Textarea } from "@/components/ui";
@@ -30,6 +31,10 @@ export default async function Configuracion() {
       </header>
 
       <BarraInmo activa={`${RAIZ}/config`} conPlata esDuenio />
+
+      <Link href={`${RAIZ}/config/recibos`} className={cn(tarjeta, "mb-4 block text-sm font-medium text-strong")}>
+        Recibos de alquiler: cómo se ven, qué muestran y con qué número salen →
+      </Link>
 
       <form action={guardarConfigInmo} className="grid grid-cols-1 gap-4">
         <section className={cn(tarjeta, "grid grid-cols-1 gap-3 sm:grid-cols-2")} aria-label="Administración de alquileres">

@@ -25,4 +25,7 @@
 # Aditiva: cinco columnas con default en "InmoCuota" (lo liquidado por rubro + mora perdonada) y
 # una en "InmoFoto" (marca de data URL, con backfill sobre las fotos ya guardadas). No crea tablas
 # ni toca otros módulos. Va en la misma ventana que la anterior: sin la primera no existe la tabla.
-20261013180000_inmobiliaria_ajustes
+# (aplicada a mano ese mismo día, camino B: sale de la lista.)
+# 2026-10-13 (tercera): recibos de alquiler. Aditiva: número de recibo en "InmoPago" (con
+# numeración de los cobros existentes) y configuración del recibo en "InmoConfig".
+20261013210000_inmobiliaria_recibos

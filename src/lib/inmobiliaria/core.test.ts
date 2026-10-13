@@ -16,6 +16,10 @@ import {
   haceCuanto,
   imputar,
   leerFiltros,
+  leerReciboConfig,
+  enLetras,
+  numeroDeRecibo,
+  RECIBO_DEFAULT,
   leerRespuestaBcra,
   leerRespuestaDatosGobAr,
   liquidar,
@@ -418,4 +422,28 @@ test("crédito orientativo: cuota del sistema francés", () => {
   assert.equal(cuotaFrancesa(1000, 12, 12), 88.85);
   assert.equal(cuotaFrancesa(10_000_000, 0, 100), 100000);
   assert.equal(cuotaFrancesa(0, 12, 12), 0);
+});
+
+test("recibos: la configuración se lee con sus valores de fábrica y el número se arma con prefijo", () => {
+  assert.deepEqual(leerReciboConfig(null), RECIBO_DEFAULT);
+  const c = leerReciboConfig({ prefijo: "pdc-1", titulo: "Recibo", enLetras: false, detalle: "sí", basura: 1 });
+  assert.equal(c.prefijo, "PDC1");
+  assert.equal(c.titulo, "Recibo");
+  assert.equal(c.enLetras, false);
+  assert.equal(c.detalle, true);
+  assert.equal(numeroDeRecibo("PDC", 12), "PDC-00012");
+  assert.equal(numeroDeRecibo("PDC", null), "sin número");
+});
+
+test("importe en letras, como se escribe en un recibo", () => {
+  assert.equal(enLetras(0), "cero con 00/100");
+  assert.equal(enLetras(21), "veintiuno con 00/100");
+  assert.equal(enLetras(100), "cien con 00/100");
+  assert.equal(enLetras(101), "ciento uno con 00/100");
+  assert.equal(enLetras(1000), "mil con 00/100");
+  assert.equal(enLetras(480000), "cuatrocientos ochenta mil con 00/100");
+  assert.equal(enLetras(515150.5), "quinientos quince mil ciento cincuenta con 50/100");
+  assert.equal(enLetras(1234567.89), "un millón doscientos treinta y cuatro mil quinientos sesenta y siete con 89/100");
+  assert.equal(enLetras(21000000), "veintiún millones con 00/100");
+  assert.equal(enLetras(31000), "treinta y un mil con 00/100");
 });

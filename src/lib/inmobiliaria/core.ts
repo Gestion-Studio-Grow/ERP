@@ -978,3 +978,108 @@ export const ACCION_ESTADO: Record<EstadoPropiedad, string> = {
   ALQUILADA: "Marcar alquilada",
   VENDIDA: "Marcar vendida",
 };
+
+// ── Recibos de alquiler ─────────────────────────────────────────────────────
+// Cada cobro genera un recibo numerado. Cómo se ve lo decide la inmobiliaria en Configuración
+// → Recibos: encabezado, quién firma, qué detalle muestra y el pie legal. Todo es texto o
+// sí/no; la plata y la numeración salen del cobro, nunca del formulario.
+
+export interface ReciboConfig {
+  /** Va adelante del número: "PDC" → PDC-00012. */
+  prefijo: string;
+  titulo: string;
+  /** Quién emite: razón social o nombre del corredor. Vacío = el nombre del negocio. */
+  emisor: string;
+  cuit: string;
+  /** Texto del pie, chico. */
+  pie: string;
+  /** Lo que se pone debajo de la firma. */
+  firma: string;
+  /** "Son pesos …" en letras. */
+  enLetras: boolean;
+  /** El detalle de la cuota: alquiler, expensas y otros, mora. */
+  detalle: boolean;
+  /** El saldo que queda después del cobro, si queda. */
+  saldo: boolean;
+  /** Dirección y teléfono del negocio en el encabezado. */
+  contacto: boolean;
+  /** Línea de agradecimiento al final. */
+  gracias: string;
+}
+
+export const RECIBO_DEFAULT: ReciboConfig = {
+  prefijo: "REC",
+  titulo: "Recibo de alquiler",
+  emisor: "",
+  cuit: "",
+  pie: "Documento no válido como factura. El comprobante fiscal, cuando corresponde, se emite aparte.",
+  firma: "Por la administración",
+  enLetras: true,
+  detalle: true,
+  saldo: true,
+  contacto: true,
+  gracias: "¡Gracias por pagar a tiempo!",
+};
+
+const CLAVES_RECIBO = Object.keys(RECIBO_DEFAULT) as (keyof ReciboConfig)[];
+
+/** Lo guardado en la base (JSON) completado con los valores de fábrica. Lo que no entiende, lo ignora. */
+export function leerReciboConfig(json: unknown): ReciboConfig {
+  const r = { ...RECIBO_DEFAULT };
+  if (!json || typeof json !== "object") return r;
+  const j = json as Record<string, unknown>;
+  for (const k of CLAVES_RECIBO) {
+    const v = j[k];
+    if (typeof RECIBO_DEFAULT[k] === "boolean") {
+      if (typeof v === "boolean") (r as Record<string, unknown>)[k] = v;
+    } else if (typeof v === "string") {
+      (r as Record<string, unknown>)[k] = v.slice(0, 400);
+    }
+  }
+  r.prefijo = r.prefijo.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) || RECIBO_DEFAULT.prefijo;
+  return r;
+}
+
+/** REC-00012 */
+export const numeroDeRecibo = (prefijo: string, n: number | null | undefined): string => (n ? `${prefijo}-${String(n).padStart(5, "0")}` : "sin número");
+
+const UNIDADES = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve", "veinte", "veintiuno", "veintidós", "veintitrés", "veinticuatro", "veinticinco", "veintiséis", "veintisiete", "veintiocho", "veintinueve"];
+const DECENAS = ["", "", "", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"];
+const CENTENAS = ["", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos", "setecientos", "ochocientos", "novecientos"];
+
+function hastaMil(n: number): string {
+  if (n === 0) return "";
+  if (n === 100) return "cien";
+  const c = Math.floor(n / 100);
+  const r = n % 100;
+  const partes: string[] = [];
+  if (c) partes.push(CENTENAS[c]);
+  if (r < 30) {
+    if (r) partes.push(UNIDADES[r]);
+  } else {
+    const d = Math.floor(r / 10);
+    const u = r % 10;
+    partes.push(u ? `${DECENAS[d]} y ${UNIDADES[u]}` : DECENAS[d]);
+  }
+  return partes.join(" ");
+}
+
+/** 1.234.567,89 → "un millón doscientos treinta y cuatro mil quinientos sesenta y siete con 89/100". */
+export function enLetras(importe: number): string {
+  const total = Math.round(Math.abs(importe) * 100);
+  const entero = Math.floor(total / 100);
+  const centavos = total % 100;
+  let texto: string;
+  if (entero === 0) texto = "cero";
+  else {
+    const millones = Math.floor(entero / 1_000_000);
+    const miles = Math.floor((entero % 1_000_000) / 1000);
+    const resto = entero % 1000;
+    const partes: string[] = [];
+    if (millones) partes.push(millones === 1 ? "un millón" : `${hastaMil(millones).replace(/ uno$/, " un").replace(/veintiuno$/, "veintiún")} millones`);
+    if (miles) partes.push(miles === 1 ? "mil" : `${hastaMil(miles).replace(/ uno$/, " un").replace(/^uno$/, "un").replace(/veintiuno$/, "veintiún")} mil`);
+    if (resto) partes.push(hastaMil(resto));
+    texto = partes.join(" ");
+  }
+  return `${texto} con ${String(centavos).padStart(2, "0")}/100`;
+}
