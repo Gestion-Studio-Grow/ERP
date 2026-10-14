@@ -200,7 +200,8 @@ export function huecosLibres(estado, fecha, canchaId, duracion, desde = estado.c
 
 // ───────────────────────── reservas ─────────────────────────
 
-/** ¿Este cliente tiene que dejar seña? Política: reincidentes de no-show, partidos abiertos y torneos. */
+/** ¿Este cliente tiene que dejar seña? Política: reincidentes de no-show, clientes con deuda y turnos sin ficha
+ *  (o todos, si el club lo prende con `senaSiempre`). Clases y fijos no la piden: los arma el club. */
 export function requiereSena(estado, clienteId, tipo) {
   const { politica } = estado.config;
   if (tipo === "clase" || tipo === "fijo") return false;
@@ -336,6 +337,7 @@ export function agregarConsumo(estado, reservaId, productoId, cant = 1, ahora) {
 /** Venta de mostrador sin turno (agua, grip, pelotas): baja stock y entra a caja en el acto. */
 export function ventaMostrador(estado, items, medio, ahora) {
   if (!items.length) return { ok: false, motivo: "No hay nada cargado." };
+  if (!MEDIOS[medio] || medio === "monedero") return { ok: false, motivo: "Elegí cómo paga (efectivo, Mercado Pago, transferencia o tarjeta)." };
   for (const { productoId, cant } of items) {
     const p = producto(estado, productoId);
     if (!p || p.stock < cant) return { ok: false, motivo: `No alcanza el stock de ${p?.nombre ?? "un producto"}.` };
@@ -352,6 +354,69 @@ export function ventaMostrador(estado, items, medio, ahora) {
   return { ok: true, total };
 }
 
+/** El cliente salda lo que dejó a cuenta. Entra a caja por el medio que eligió. */
+export function cobrarDeuda(estado, clienteId, medio, ahora) {
+  const cl = cliente(estado, clienteId);
+  if (!cl) return { ok: false, motivo: "No encuentro al cliente." };
+  if (!(cl.deuda > 0)) return { ok: false, motivo: `${cl.nombre} no debe nada.` };
+  if (!MEDIOS[medio] || medio === "monedero") return { ok: false, motivo: "Elegí cómo paga (efectivo, Mercado Pago, transferencia o tarjeta)." };
+  const monto = cl.deuda;
+  movimientoCaja(estado, { tipo: "ingreso", medio, monto, concepto: `Deuda de ${cl.nombre}` }, ahora);
+  cl.deuda = 0;
+  registrar(estado, `${cl.nombre} saldó ${pesos(monto)} (${MEDIOS[medio]}).`, ahora);
+  return { ok: true, monto };
+}
+
+export function sumarJugador(estado, reservaId, nombre) {
+  const r = reserva(estado, reservaId);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  const limpio = String(nombre ?? "").trim();
+  if (!limpio) return { ok: false, motivo: "Escribí el nombre del jugador." };
+  if (r.jugadores.length >= 4) return { ok: false, motivo: "Ya están los cuatro." };
+  r.jugadores.push({ nombre: limpio });
+  return { ok: true };
+}
+
+/** Entra mercadería al depósito (compra al proveedor). */
+export function ingresarStock(estado, productoId, cant, ahora) {
+  const p = producto(estado, productoId);
+  if (!p) return { ok: false, motivo: "No encuentro el producto." };
+  const n = Math.round(Number(cant));
+  if (!(n > 0)) return { ok: false, motivo: "Poné cuántos entran." };
+  p.stock += n;
+  registrar(estado, `Entraron ${n} × ${p.nombre}.`, ahora);
+  return { ok: true, stock: p.stock };
+}
+
+/** Límites de las reglas que el dueño edita en vivo: fuera de rango, la regla deja de tener sentido. */
+export const LIMITES_POLITICA = Object.freeze({
+  horasCancelacionLibre: [0, 72],
+  senaPct: [0, 100],
+  strikesParaSena: [1, 10],
+  toleranciaMin: [0, 60],
+});
+
+export function ajustarPolitica(estado, clave, valor) {
+  const lim = LIMITES_POLITICA[clave];
+  if (!lim) return { ok: false, motivo: "Esa regla no existe." };
+  const v = Math.round(Number(valor));
+  if (!Number.isFinite(v) || v < lim[0] || v > lim[1]) return { ok: false, motivo: `Tiene que ser entre ${lim[0]} y ${lim[1]}.` };
+  estado.config.politica[clave] = v;
+  return { ok: true, valor: v };
+}
+
+/** Se devolvió en mano (o por transferencia) lo que se le debía a alguien sin ficha. Sale de caja. */
+export function marcarDevuelto(estado, reservaId, medio, ahora) {
+  const r = reserva(estado, reservaId);
+  if (!r || !(r.devolucionPendiente > 0)) return { ok: false, motivo: "No hay nada para devolver en ese turno." };
+  if (!MEDIOS[medio] || medio === "monedero") return { ok: false, motivo: "Elegí cómo se devolvió." };
+  const monto = r.devolucionPendiente;
+  movimientoCaja(estado, { tipo: "egreso", medio, monto, concepto: `Devolución a ${r.titular}`, reservaId }, ahora);
+  r.devolucionPendiente = 0;
+  registrar(estado, `Se devolvieron ${pesos(monto)} a ${r.titular} (${MEDIOS[medio]}).`, ahora);
+  return { ok: true, monto };
+}
+
 // ───────────────────────── ciclo del turno ─────────────────────────
 
 export function checkIn(estado, id, ahora) {
@@ -359,6 +424,14 @@ export function checkIn(estado, id, ahora) {
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
   if (r.estado !== "reservada") return { ok: false, motivo: `El turno está ${ESTADOS[r.estado].toLowerCase()}.` };
   if (r.sena.monto > 0 && !r.sena.pagada) return { ok: false, motivo: "Falta la seña: cobrala antes de dar la cancha." };
+  if (ahora) {
+    const falta = minutosHasta(ahora, r.fecha, r.inicio);
+    if (falta > estado.config.politica.minutosAntesParaEntrar)
+      return { ok: false, motivo: `Todavía es temprano: la cancha se da desde ${estado.config.politica.minutosAntesParaEntrar} min antes del turno.` };
+    if (falta + r.duracion <= 0) return { ok: false, motivo: "El horario de ese turno ya terminó." };
+  }
+  const ocupada = estado.reservas.find((x) => x.id !== r.id && x.fecha === r.fecha && x.canchaId === r.canchaId && x.estado === "en_cancha");
+  if (ocupada) return { ok: false, motivo: `${cancha(estado, r.canchaId).nombre} sigue ocupada por ${ocupada.titular}: cerrá ese turno primero.` };
   r.estado = "en_cancha";
   r.checkIn = ahora ? { ...ahora } : null;
   estado.luces[r.canchaId] = true;
@@ -403,6 +476,9 @@ export function marcarNoShow(estado, id, ahora) {
   const r = reserva(estado, id);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
   if (r.estado !== "reservada") return { ok: false, motivo: "Sólo un turno reservado puede quedar como 'no vino'." };
+  if (ahora && minutosHasta(ahora, r.fecha, r.inicio) > -estado.config.politica.toleranciaMin)
+    return { ok: false, motivo: `Todavía está dentro de la tolerancia: se marca 'no vino' a los ${estado.config.politica.toleranciaMin} min del inicio.` };
+  devolverAlquileres(estado, r);
   r.estado = "no_show";
   const cl = r.clienteId ? cliente(estado, r.clienteId) : null;
   if (cl) cl.strikes += 1;
@@ -424,17 +500,23 @@ export function cancelar(estado, id, { porClub = false, motivo = "" } = {}, ahor
   const aTiempo = porClub || horas >= estado.config.politica.horasCancelacionLibre;
   const pagado = cobrado(r);
   const cl = r.clienteId ? cliente(estado, r.clienteId) : null;
+  devolverAlquileres(estado, r);
   r.estado = "cancelada";
   r.motivoCancelacion = motivo || (porClub ? "Cancela el club" : "Cancela el cliente");
   let devuelto = 0;
+  let devolverEnMano = 0;
   if (pagado > 0 && aTiempo && cl) {
     cl.monedero += pagado;
     devuelto = pagado;
+  } else if (pagado > 0 && aTiempo) {
+    // Sin ficha no hay saldo a favor donde acreditar: queda anotado para devolverlo en mano o por transferencia.
+    r.devolucionPendiente = pagado;
+    devolverEnMano = pagado;
   } else if (pagado > 0 && !aTiempo) {
     r.senaEnSuspenso = true;
   }
-  registrar(estado, `Canceló ${r.titular} (${hhmm(r.inicio)}). ${devuelto ? `${pesos(devuelto)} a saldo a favor.` : r.senaEnSuspenso ? "Seña en suspenso hasta que se vuelva a vender el hueco." : ""}`, ahora);
-  return { ok: true, aTiempo, devuelto, enSuspenso: r.senaEnSuspenso, ofertas: ofertasEspera(estado, r.fecha, r.canchaId, r.inicio, r.duracion) };
+  registrar(estado, `Canceló ${r.titular} (${hhmm(r.inicio)}). ${devuelto ? `${pesos(devuelto)} a saldo a favor.` : devolverEnMano ? `Hay que devolverle ${pesos(devolverEnMano)} (no tiene ficha).` : r.senaEnSuspenso ? "Seña en suspenso hasta que se vuelva a vender el hueco." : ""}`, ahora);
+  return { ok: true, aTiempo, devuelto, devolverEnMano, enSuspenso: r.senaEnSuspenso, ofertas: ofertasEspera(estado, r.fecha, r.canchaId, r.inicio, r.duracion) };
 }
 
 /** Pasar el turno a otra cancha (o a otro horario) sin perder pagos ni consumos. */
@@ -476,7 +558,9 @@ export function interrumpir(estado, id, motivo, ahora) {
   const r = reserva(estado, id);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
   if (r.estado !== "en_cancha") return { ok: false, motivo: "Sólo se interrumpe un turno que está en cancha." };
+  if (r.interrumpido) return { ok: false, motivo: "Este turno ya se interrumpió: cobrá lo jugado y cerralo." };
   const jugados = Math.max(0, Math.min(r.duracion, minutosHasta({ fecha: r.fecha, min: r.inicio }, ahora.fecha, ahora.min)));
+  if (jugados === 0) return { ok: false, motivo: "Todavía no empezaron a jugar: cancelá el turno como 'cancela el club'." };
   const noJugados = r.duracion - jugados;
   const credito = redondear100((r.precio * noJugados) / r.duracion);
   const cl = r.clienteId ? cliente(estado, r.clienteId) : null;
@@ -485,6 +569,8 @@ export function interrumpir(estado, id, motivo, ahora) {
   r.precio -= credito;
   const excedente = Math.max(0, pagado - totalReserva(r));
   if (excedente > 0 && cl) cl.monedero += excedente;
+  else if (excedente > 0) r.devolucionPendiente = (r.devolucionPendiente ?? 0) + excedente;
+  r.interrumpido = true;
   r.notas = `${r.notas ? r.notas + " · " : ""}Interrumpido: ${motivo} (${noJugados} min sin jugar)`;
   r.duracion = jugados;
   registrar(estado, `Interrupción en ${cancha(estado, r.canchaId).nombre} (${motivo}): ${pesos(credito)} reconocidos a ${r.titular}.`, ahora);
@@ -511,13 +597,24 @@ export function planLluvia(estado, fecha, desde, hasta, ahora) {
       mover(estado, r.id, { canchaId: destino }, ahora);
       resultado.push({ reservaId: r.id, titular: r.titular, accion: "movido", cancha: cancha(estado, destino).nombre });
     } else {
+      // Si ya estaban jugando, vale la regla del corte: se reconoce sólo el tiempo que no se jugó, y lo jugado
+      // y lo consumido se cobra y se cierra normalmente.
+      if (r.estado === "en_cancha" && !r.interrumpido && minutosHasta({ fecha: r.fecha, min: r.inicio }, ahora.fecha, ahora.min) > 0) {
+        const corte = interrumpir(estado, r.id, "lluvia", ahora);
+        if (corte.ok) {
+          resultado.push({ reservaId: r.id, titular: r.titular, accion: "cortado", credito: corte.credito, noJugados: corte.noJugados });
+          continue;
+        }
+      }
       const pagado = cobrado(r);
       const cl = r.clienteId ? cliente(estado, r.clienteId) : null;
       if (pagado > 0 && cl) cl.monedero += pagado;
+      else if (pagado > 0) r.devolucionPendiente = pagado;
+      devolverAlquileres(estado, r);
       if (r.estado === "en_cancha") estado.luces[r.canchaId] = false;
       r.estado = "suspendida";
       r.motivoCancelacion = "Lluvia";
-      resultado.push({ reservaId: r.id, titular: r.titular, accion: "suspendido", credito: pagado });
+      resultado.push({ reservaId: r.id, titular: r.titular, accion: "suspendido", credito: cl ? pagado : 0, devolverEnMano: cl ? 0 : pagado });
     }
   }
   estado.clima.lluvia = { fecha, desde, hasta };
@@ -642,6 +739,8 @@ export function mensajeWhatsApp(tipo, d) {
       return d.credito
         ? `¡Hola ${d.nombre}! Por la lluvia suspendimos tu turno de las ${d.hora}. Te dejamos ${d.credito} de saldo a favor para cuando quieras volver. ¡Disculpá!`
         : `¡Hola ${d.nombre}! Por la lluvia suspendimos tu turno de las ${d.hora}. No se te cobra nada; avisanos y te lo reprogramamos sin cargo. ¡Disculpá!`;
+    case "lluvia_devolucion":
+      return `¡Hola ${d.nombre}! Por la lluvia suspendimos tu turno de las ${d.hora}. Te devolvemos los ${d.monto} que habías pagado: ¿te lo pasamos por transferencia o lo retirás en el club? ¡Disculpá!`;
     case "deuda":
       return `¡Hola ${d.nombre}! Te quedó un saldo de ${d.monto} del último turno. Lo podés pasar por transferencia o Mercado Pago cuando puedas. ¡Gracias!`;
     case "reposicion":
@@ -681,6 +780,9 @@ export function alertas(estado, ahora) {
     if (r.estado === "en_cancha" && fin > 0 && fin <= 10)
       out.push({ nivel: "info", tipo: "termina", reservaId: r.id, texto: `${r.titular} termina en ${fin} min (${nombreCancha}).${saldo(r) > 0 ? ` Saldo: ${pesos(saldo(r))}.` : ""}`, accion: "Ofrecer extender" });
   }
+  // Plata para devolver a alguien sin ficha (canceló a tiempo, lluvia, corte).
+  for (const r of hoy.filter((x) => x.devolucionPendiente > 0))
+    out.push({ nivel: "media", tipo: "devolucion", reservaId: r.id, texto: `Hay que devolverle ${pesos(r.devolucionPendiente)} a ${r.titular} (no tiene ficha).`, accion: "Registrar la devolución" });
   // Luz encendida sin nadie jugando: plata que se va por el medidor.
   for (const c of estado.canchas) {
     if (!estado.luces[c.id]) continue;
@@ -733,8 +835,12 @@ export function kpis(estado, fecha, ahora) {
     porFranja[f].total += canchasActivas.length * 30;
     for (const r of ocupan) if (m >= r.inicio && m < r.inicio + r.duracion) porFranja[f].ocupado += 30;
   }
-  const facturado = ocupan.reduce((s, r) => s + totalReserva(r), 0);
+  const vendido = ocupan.reduce((s, r) => s + totalReserva(r), 0);
   const cobradoTotal = delDia.reduce((s, r) => s + cobrado(r), 0);
+  // Por cobrar = lo que ya se está jugando o se jugó y todavía no se pagó. Lo que se dejó a cuenta va en
+  // "deuda de clientes"; los turnos que todavía no empezaron no son deuda de nadie.
+  const yaEmpezo = (r) => !ahora || fecha < ahora.fecha || (fecha === ahora.fecha && r.inicio <= ahora.min);
+  const porCobrar = delDia.filter((r) => r.estado === "en_cancha" || (r.estado === "reservada" && yaEmpezo(r))).reduce((s, r) => s + Math.max(0, saldo(r)), 0);
   const noShows = delDia.filter((r) => r.estado === "no_show").length;
   const caja = resumenCaja(estado, fecha);
   const stockValorizado = estado.productos.reduce((s, p) => s + p.costo * (p.stock + (p.prestados ?? 0)), 0);
@@ -747,10 +853,10 @@ export function kpis(estado, fecha, ahora) {
     ocupacionValle: porFranja.valle.total ? porFranja.valle.ocupado / porFranja.valle.total : 0,
     ocupacionPico: porFranja.pico.total ? porFranja.pico.ocupado / porFranja.pico.total : 0,
     turnos: ocupan.length,
-    facturado,
+    vendido,
     cobrado: cobradoTotal,
-    pendiente: Math.max(0, facturado - cobradoTotal),
-    ticketPromedio: ocupan.length ? Math.round(facturado / ocupan.length) : 0,
+    porCobrar,
+    ticketPromedio: ocupan.length ? Math.round(vendido / ocupan.length) : 0,
     consumos,
     noShows,
     cancelados: delDia.filter((r) => r.estado === "cancelada").length,
@@ -805,6 +911,7 @@ export const CONFIG_DEMO = Object.freeze({
     strikesParaSena: 2,
     toleranciaMin: 15,
     minutosAvisoSena: 180,
+    minutosAntesParaEntrar: 30,
   },
 });
 
@@ -848,7 +955,7 @@ export function generarDemo(hoy, ahoraMin = 19 * 60 + 10) {
   secuencia = 0;
   const rnd = azar(hoy.split("-").reduce((s, x) => s * 31 + Number(x), 7));
   const clientes = NOMBRES.map((nombre, i) => ({
-    id: `k${i + 1}`, nombre, tel: `54911${String(40000000 + Math.floor(rnd() * 9999999)).slice(0, 8)}`,
+    id: `k${i + 1}`, nombre, tel: `5491100000${String(i + 1).padStart(3, "0")}`, // ficticio a propósito
     socio: i % 3 === 0, strikes: i === 5 ? 2 : i === 11 ? 1 : 0, monedero: i === 2 ? 15000 : 0, deuda: i === 9 ? 21000 : 0,
     nivel: ["3ra", "4ta", "5ta", "6ta", "7ma"][i % 5],
   }));
@@ -867,6 +974,14 @@ export function generarDemo(hoy, ahoraMin = 19 * 60 + 10) {
   for (let d = -6; d <= 0; d++) {
     const fecha = sumarDias(hoy, d);
     materializarFijos(e, fecha);
+    if (d < 0) {
+      // Los fijos de días pasados se jugaron y se cobraron, como el resto de la historia.
+      for (const r of e.reservas.filter((x) => x.fecha === fecha && x.fijoId && x.estado === "reservada")) {
+        r.pagos.push({ medio: "transferencia", monto: r.precio, fecha, min: r.inicio });
+        e.caja.movimientos.push({ id: nuevoId("m"), tipo: "ingreso", medio: "transferencia", monto: r.precio, concepto: `Turno ${r.titular}`, reservaId: r.id, fecha, min: r.inicio });
+        r.estado = "finalizada";
+      }
+    }
     const finde = [0, 6].includes(diaSemana(fecha));
     for (const c of e.canchas) {
       for (let m = e.config.apertura; m + 90 <= e.config.cierre; m += 90) {
@@ -908,7 +1023,7 @@ export function generarDemo(hoy, ahoraMin = 19 * 60 + 10) {
   r1.estado = "en_cancha"; r1.checkIn = { fecha: hoy, min: h(17, 28) }; e.luces.c1 = true;
   agregarConsumo(e, r1.id, "p2", 4); agregarConsumo(e, r1.id, "p3", 2);
   registrarPago(e, r1.id, { medio: "mercadopago", monto: 21000, jugador: 0 }, { fecha: hoy, min: h(17, 30) });
-  // 2) En juego, al día.
+  // 2) En juego: pagaron el turno por transferencia, pero las palas alquiladas quedan por cobrar.
   const r2 = turno("c2", h(18, 30), "k8", { jugadores: ["Julieta Acosta", "Camila Sosa", "Rocío Giménez", "Paula Ibáñez"] });
   registrarPago(e, r2.id, { medio: "transferencia", monto: totalReserva(r2) }, { fecha: hoy, min: h(18, 25) });
   r2.estado = "en_cancha"; r2.checkIn = { fecha: hoy, min: h(18, 27) }; e.luces.c2 = true;
@@ -916,7 +1031,7 @@ export function generarDemo(hoy, ahoraMin = 19 * 60 + 10) {
   // 3) No llegó: van 40 minutos (cliente con 2 faltas → tenía seña obligatoria y la pagó).
   const r3 = turno("c3", h(18, 30), "k6");
   registrarPago(e, r3.id, { medio: "transferencia", monto: r3.sena.monto }, { fecha: hoy, min: h(14) });
-  // 4) Entra en 10 minutos, sin seña (cliente nuevo de mostrador, seña obligatoria por política).
+  // 4) Entra en 20 minutos, sin seña (cliente nuevo de mostrador, seña obligatoria por política).
   turno("c4", h(19, 30), null, { titular: "Grupo de Bruno (nuevo)", origen: "mostrador" });
   // 5) La cancha 3 tiene luz prendida de más (el turno anterior se fue y nadie apagó).
   e.luces.c3 = true;

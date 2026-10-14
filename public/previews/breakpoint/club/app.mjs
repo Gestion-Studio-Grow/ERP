@@ -25,7 +25,17 @@ function iniciar() {
   render();
 }
 
-function toast(texto) {
+function toast(texto, { error = false } = {}) {
+  const dlg = $("#dlg");
+  if (dlg.open) {
+    const aviso = $("#dlg-aviso", dlg);
+    if (aviso) {
+      aviso.textContent = texto;
+      aviso.className = error ? "err" : "small";
+      aviso.setAttribute("role", error ? "alert" : "status");
+      return;
+    }
+  }
   const t = document.createElement("div");
   t.className = "toast";
   t.textContent = texto;
@@ -37,15 +47,30 @@ function toast(texto) {
 
 /** Muestra el motivo si la regla rechazó; si salió bien, re-pinta y avisa. */
 function hecho(res, okTexto) {
-  if (!res.ok) { toast(res.motivo); return false; }
-  if (okTexto) toast(okTexto);
+  if (!res.ok) { toast(res.motivo, { error: true }); return false; }
   render();
+  if (okTexto) toast(okTexto);
   return true;
+}
+
+/** Clave estable del elemento con foco, para devolvérselo después de re-pintar (navegación con teclado). */
+function claveFoco() {
+  const a = document.activeElement;
+  if (!a || a === document.body) return null;
+  if (a.id) return `#${CSS.escape(a.id)}`;
+  if (a.dataset?.a) return `[data-a="${CSS.escape(a.dataset.a)}"]${a.dataset.v != null ? `[data-v="${CSS.escape(a.dataset.v)}"]` : ""}${a.dataset.c != null ? `[data-c="${CSS.escape(a.dataset.c)}"]` : ""}${a.dataset.m != null ? `[data-m="${CSS.escape(a.dataset.m)}"]` : ""}`;
+  return null;
+}
+function devolverFoco(clave, raiz = document) {
+  if (!clave) return;
+  const el = raiz.querySelector(clave);
+  if (el && typeof el.focus === "function") el.focus({ preventScroll: true });
 }
 
 // ═════════════════════════════════ RENDER ═════════════════════════════════
 
 function render() {
+  const foco = claveFoco();
   $("#reloj").textContent = M.hhmm(AHORA.min);
   document.querySelectorAll('[data-a="rol"]').forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === ROL)));
   if (VISTA >= HOY) M.materializarFijos(E, VISTA);
@@ -61,6 +86,7 @@ function render() {
   camaras.parar();
   if (ROL === "duenio") camaras.arrancar();
   if ($("#dlg").open && dialogoActual) dialogoActual.refrescar?.();
+  devolverFoco(foco);
 }
 
 function chipsReserva(r) {
@@ -111,7 +137,7 @@ function vistaRecepcion() {
           <span><i style="border-left:4px solid var(--orange)"></i>Clase / partido abierto</span>
           <span><i style="box-shadow:0 0 0 2px var(--bad) inset"></i>Necesita atención</span>
         </div>
-        ${fuera.length ? `<details style="margin-top:10px"><summary class="small muted">Cancelados, suspendidos y "no vino" de este día (${fuera.length})</summary><ul class="small">${fuera.map((r) => `<li>${M.hhmm(r.inicio)} · ${esc(M.cancha(E, r.canchaId).nombre)} · ${esc(r.titular)} — ${M.ESTADOS[r.estado]}${r.motivoCancelacion ? ` (${esc(r.motivoCancelacion)})` : ""}${r.senaEnSuspenso ? " · seña en suspenso hasta que se venda el hueco" : ""}</li>`).join("")}</ul></details>` : ""}
+        ${fuera.length ? `<details style="margin-top:10px"><summary class="small muted">Cancelados, suspendidos y "no vino" de este día (${fuera.length})</summary><ul class="small">${fuera.map((r) => `<li>${M.hhmm(r.inicio)} · ${esc(M.cancha(E, r.canchaId).nombre)} · ${esc(r.titular)} — ${M.ESTADOS[r.estado]}${r.motivoCancelacion ? ` (${esc(r.motivoCancelacion)})` : ""}${r.senaEnSuspenso ? " · seña en suspenso hasta que se venda el hueco" : ""}${r.devolucionPendiente ? ` · <b>devolver ${M.pesos(r.devolucionPendiente)}</b>` : ""}</li>`).join("")}</ul></details>` : ""}
       </div>
     </section>
     <aside class="stack" aria-label="Pendientes y caja">
@@ -212,8 +238,8 @@ function vistaDuenio() {
       <h2 id="t-kpis" class="sr">Indicadores de hoy</h2>
       <div class="kpis num">
         ${kpi("Ocupación de hoy", pct(k.ocupacion), `Pico ${pct(k.ocupacionPico)} · valle ${pct(k.ocupacionValle)}`)}
-        ${kpi("Facturado del día", M.pesos(k.facturado), `${k.turnos} turnos · ticket ${M.pesos(k.ticketPromedio)}`)}
-        ${kpi("Cobrado", M.pesos(k.cobrado), `Falta cobrar ${M.pesos(k.pendiente)}`)}
+        ${kpi("Turnos vendidos hoy", M.pesos(k.vendido), `${k.turnos} turnos · ticket ${M.pesos(k.ticketPromedio)}`)}
+        ${kpi("Cobrado hoy", M.pesos(k.cobrado), `Por cobrar de lo que ya se juega: ${M.pesos(k.porCobrar)}`)}
         ${kpi("Bar y shop en turnos", M.pesos(k.consumos), "Consumos cargados a la cuenta de la cancha")}
         ${kpi("No vinieron / cancelaron", `${k.noShows} / ${k.cancelados}`, "Hoy")}
         ${kpi("Stock valorizado", M.pesos(k.stockValorizado), `${bajos.length} producto(s) bajo mínimo`)}
@@ -298,7 +324,7 @@ function vistaDuenio() {
 }
 
 const kpi = (l, v, s) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
-const regla = (k, l, v) => `<label class="f">${l}<input type="number" min="0" value="${v}" data-a="regla" data-v="${k}"></label>`;
+const regla = (k, l, v) => `<label class="f">${l}<input type="number" min="${M.LIMITES_POLITICA[k][0]}" max="${M.LIMITES_POLITICA[k][1]}" value="${v}" data-a="regla" data-v="${k}"></label>`;
 
 function mapaCalor({ horas, filas }) {
   // Secuencial de un solo tono (azul de la marca): más oscuro = más ocupado. El número va en el título y en la tabla.
@@ -330,7 +356,7 @@ const camaras = (() => {
       const pie = cam.cancha ? (r ? `${esc(r.titular)} · ${M.saldo(r) > 0 ? `debe ${M.pesos(M.saldo(r))}` : "al día"}` : E.luces[cam.cancha] ? "Sin turno · luz prendida" : "Sin turno") : "General";
       return `<button type="button" class="cam" data-a="cam" data-v="${i}" aria-label="Cámara ${esc(cam.nombre)}: ${pie}. Ampliar">
         <canvas width="320" height="200" data-cam="${i}" aria-hidden="true"></canvas>
-        <span class="ov"><span class="top"><span>CAM ${pad(i + 1)} · ${esc(cam.nombre)}</span><span class="live">EN VIVO</span></span><span class="bot">${pie}</span></span>
+        <span class="ov"><span class="top"><span>CAM ${pad(i + 1)} · ${esc(cam.nombre)}</span><span class="live">DEMO</span></span><span class="bot">${pie}</span></span>
       </button>`;
     }).join("");
   }
@@ -410,15 +436,17 @@ let dialogoActual = null;
 
 function abrir({ titulo, sub = "", cuerpo, pie = "", ancho = false, alAbrir, refrescar }) {
   const d = $("#dlg");
+  const foco = d.open ? claveFoco() : null;
   d.className = ancho ? "wide" : "";
   d.innerHTML = `
     <div class="dlg-h"><div><h2 id="dlg-titulo">${titulo}</h2>${sub ? `<p class="small muted" style="margin:4px 0 0">${sub}</p>` : ""}</div>
       <button type="button" class="btn sm ghost" data-a="cerrar" aria-label="Cerrar">✕</button></div>
-    <div class="dlg-b">${cuerpo}</div>
+    <div class="dlg-b"><p id="dlg-aviso" class="small" role="status" aria-live="polite" style="margin:0"></p>${cuerpo}</div>
     ${pie ? `<div class="dlg-f">${pie}</div>` : ""}`;
   dialogoActual = { refrescar };
   if (!d.open) d.showModal();
   alAbrir?.(d);
+  devolverFoco(foco, d);
 }
 
 function cerrarDialogo() { const d = $("#dlg"); if (d.open) d.close(); dialogoActual = null; }
@@ -426,6 +454,7 @@ function cerrarDialogo() { const d = $("#dlg"); if (d.open) d.close(); dialogoAc
 // ───── detalle del turno: cobrar, dar cancha, mover, cancelar ─────
 
 function verReserva(id) {
+  ui.medio = "efectivo";
   const pintar = () => {
     const r = M.reserva(E, id);
     if (!r) return cerrarDialogo();
@@ -499,7 +528,7 @@ function verReserva(id) {
           ${r.fijoId ? `<button type="button" class="btn" data-a="liberarFijo" data-v="${r.id}">Esta semana no vienen</button>` : ""}
           <button type="button" class="btn danger" data-a="cancelar" data-v="${r.id}">Cancelar turno</button>
           <button type="button" class="btn primary" data-a="checkin" data-v="${r.id}">Dar la cancha</button>` : ""}
-        ${r.estado === "en_cancha" ? `<button type="button" class="btn danger" data-a="interrumpir" data-v="${r.id}">Corte de luz / se suspende</button>
+        ${r.estado === "en_cancha" ? `${r.interrumpido ? "" : `<button type="button" class="btn danger" data-a="interrumpir" data-v="${r.id}">Corte de luz / se suspende</button>`}
           ${s > 0 && cl ? `<button type="button" class="btn" data-a="aCuenta" data-v="${r.id}">Cerrar y dejar ${M.pesos(s)} a cuenta</button>` : ""}
           <button type="button" class="btn primary" data-a="finalizar" data-v="${r.id}" ${s > 0 ? "disabled" : ""}>Cerrar turno${s > 0 ? " (falta cobrar)" : ""}</button>` : ""}`
         : `<button type="button" class="btn" data-a="cerrar">Listo</button>`,
@@ -593,6 +622,7 @@ function nuevoTurno({ canchaId, inicio } = {}) {
 
 function mostrador() {
   ui.carrito = {};
+  ui.medio = "efectivo";
   const pintar = () => {
     const enCancha = E.reservas.filter((r) => r.fecha === HOY && ["en_cancha", "reservada"].includes(r.estado) && M.minutosHasta(AHORA, r.fecha, r.inicio) < 60);
     const total = Object.entries(ui.carrito).reduce((s, [id, n]) => s + M.producto(E, id).precio * n, 0);
@@ -712,13 +742,15 @@ function egreso() {
 // ───── clientes ─────
 
 function clientes() {
+  ui.medio = "efectivo";
   const pintar = () => {
     const lista = [...E.clientes].sort((a, b) => (b.deuda - a.deuda) || (b.strikes - a.strikes) || a.nombre.localeCompare(b.nombre));
     abrir({
       titulo: "Clientes",
       ancho: true,
       refrescar: pintar,
-      cuerpo: `<div class="tbl-wrap"><table class="num"><thead><tr><th>Nombre</th><th>Nivel</th><th>Socio</th><th class="r">Faltas</th><th class="r">Debe</th><th class="r">Saldo a favor</th><th></th></tr></thead><tbody>
+      cuerpo: `<div><p class="small muted" style="margin:0 0 6px">Cuando alguien salda una deuda, ¿cómo paga?</p><div class="medio-pick" role="group" aria-label="Medio de pago de la deuda">${Object.entries(M.MEDIOS).filter(([k]) => k !== "monedero").map(([k, v]) => `<button type="button" data-a="medio" data-v="${k}" aria-pressed="${ui.medio === k}">${v}</button>`).join("")}</div></div>
+        <div class="tbl-wrap"><table class="num"><thead><tr><th>Nombre</th><th>Nivel</th><th>Socio</th><th class="r">Faltas</th><th class="r">Debe</th><th class="r">Saldo a favor</th><th></th></tr></thead><tbody>
         ${lista.map((c) => `<tr><td>${esc(c.nombre)}</td><td>${esc(c.nivel || "—")}</td><td>${c.socio ? "Sí" : ""}</td><td class="r">${c.strikes || ""}</td><td class="r">${c.deuda ? `<span class="chip bad">${M.pesos(c.deuda)}</span>` : ""}</td><td class="r">${c.monedero ? M.pesos(c.monedero) : ""}</td>
           <td>${c.deuda ? `<a class="btn sm" target="_blank" rel="noopener" href="${esc(wa(M.mensajeWhatsApp("deuda", { nombre: c.nombre.split(" ")[0], monto: M.pesos(c.deuda) })))}">Recordar por WhatsApp</a> <button type="button" class="btn sm" data-a="saldarDeuda" data-v="${c.id}">Cobró</button>` : ""}${c.strikes ? ` <button type="button" class="btn sm ghost" data-a="perdonar" data-v="${c.id}">Perdonar faltas</button>` : ""}</td></tr>`).join("")}
       </tbody></table></div>`,
@@ -736,7 +768,8 @@ function camaraGrande(i) {
     cuerpo: `<canvas class="cam-big" width="960" height="540" id="cam-big" aria-label="Vista ampliada de la cámara ${esc(cam.nombre)}"></canvas>`,
     alAbrir(d) {
       const cv = $("#cam-big", d);
-      const loop = () => { if (!d.open || !$("#cam-big", d)) return; camaras.dibujar(cv, cam, performance.now()); requestAnimationFrame(loop); };
+      const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const loop = () => { if (!d.open || !$("#cam-big", d)) return; camaras.dibujar(cv, cam, performance.now()); if (!quieto) requestAnimationFrame(loop); };
       loop();
     },
   });
@@ -773,6 +806,17 @@ const acciones = {
   alerta: (b) => {
     const a = ALERTAS[Number(b.dataset.v)];
     if (!a) return;
+    if (a.tipo === "devolucion") {
+      const r = M.reserva(E, a.reservaId);
+      ui.medio = "efectivo";
+      return abrir({
+        titulo: "Devolver plata",
+        sub: `${esc(r.titular)} · ${M.pesos(r.devolucionPendiente)} · ${esc(r.motivoCancelacion ?? "interrupción")}`,
+        cuerpo: `<p class="small" style="margin:0">No tiene ficha de cliente, así que no se le puede dejar saldo a favor: se le devuelve. ¿Cómo?</p>
+          <div class="medio-pick" role="group" aria-label="Medio de la devolución">${Object.entries(M.MEDIOS).filter(([k]) => k !== "monedero").map(([k, v]) => `<button type="button" data-a="medio" data-v="${k}" aria-pressed="${ui.medio === k}">${v}</button>`).join("")}</div>`,
+        pie: `<button type="button" class="btn" data-a="cerrar">Después</button><button type="button" class="btn primary" data-a="devueltoYCerrar" data-v="${r.id}">Ya se devolvió</button>`,
+      });
+    }
     if (a.reservaId) return verReserva(a.reservaId);
     if (a.tipo === "luz") { E.luces[a.canchaId] = false; toast(`Luz de ${M.cancha(E, a.canchaId).nombre} apagada.`); return render(); }
     if (a.tipo === "lluvia") return planLluvia();
@@ -798,21 +842,33 @@ const acciones = {
   pagar: (b) => { const monto = Number($("#monto").value); hecho(M.registrarPago(E, b.dataset.v, { medio: ui.medio, monto }, AHORA), `Cobrado ${M.pesos(monto)} (${M.MEDIOS[ui.medio]}).`); },
   pagarParte: (b) => { const monto = Number(b.dataset.m); hecho(M.registrarPago(E, b.dataset.v, { medio: ui.medio, monto, jugador: Number(b.dataset.j) }, AHORA), `Cobrado ${M.pesos(monto)} a ${M.reserva(E, b.dataset.v).jugadores[b.dataset.j].nombre}.`); },
   consumo: (b) => hecho(M.agregarConsumo(E, b.dataset.v, $("#cons-prod").value, 1, AHORA), "Sumado a la cuenta."),
-  sumarJugador: (b) => { const n = $("#nuevo-jug").value.trim(); if (!n) return toast("Escribí el nombre."); M.reserva(E, b.dataset.v).jugadores.push({ nombre: n }); render(); },
+  sumarJugador: (b) => hecho(M.sumarJugador(E, b.dataset.v, $("#nuevo-jug").value), "Jugador sumado."),
   checkin: (b) => hecho(M.checkIn(E, b.dataset.v, AHORA), "Cancha entregada y luz prendida."),
-  finalizar: (b) => { if (hecho(M.finalizar(E, b.dataset.v, {}, AHORA), "Turno cerrado. Luz apagada.")) cerrarDialogo(); },
-  aCuenta: (b) => { if (hecho(M.finalizar(E, b.dataset.v, { dejarDeuda: true }, AHORA), "Turno cerrado con saldo a cuenta del cliente.")) cerrarDialogo(); },
+  finalizar: (b) => cerrarSiSale(M.finalizar(E, b.dataset.v, {}, AHORA), "Turno cerrado. Luz apagada."),
+  aCuenta: (b) => cerrarSiSale(M.finalizar(E, b.dataset.v, { dejarDeuda: true }, AHORA), "Turno cerrado con saldo a cuenta del cliente."),
   noShow: (b) => {
     const res = M.marcarNoShow(E, b.dataset.v, AHORA);
-    if (!hecho(res, "Marcado como 'no vino'. Se sumó una falta.")) return;
-    ofrecer(res.ofertas);
+    if (!res.ok) return toast(res.motivo, { error: true });
+    if (!res.ofertas.length) return cerrarSiSale(res, "Marcado como 'no vino'. Se sumó una falta.");
+    render();
+    ofrecer(res.ofertas, "Marcado como 'no vino'. Se sumó una falta.");
   },
   cancelar: (b) => {
     const res = M.cancelar(E, b.dataset.v, {}, AHORA);
-    if (!hecho(res, res.aTiempo ? (res.devuelto ? `Cancelado a tiempo: ${M.pesos(res.devuelto)} a saldo a favor.` : "Cancelado a tiempo.") : res.enSuspenso ? "Cancelado tarde: la seña queda en suspenso hasta que se venda el hueco." : "Cancelado.")) return;
-    ofrecer(res.ofertas);
+    if (!res.ok) return toast(res.motivo, { error: true });
+    const texto = res.aTiempo ? (res.devuelto ? `Cancelado a tiempo: ${M.pesos(res.devuelto)} a saldo a favor.` : res.devolverEnMano ? `Cancelado a tiempo: hay que devolverle ${M.pesos(res.devolverEnMano)} (no tiene ficha).` : "Cancelado a tiempo.") : res.enSuspenso ? "Cancelado tarde: la seña queda en suspenso hasta que se venda el hueco." : "Cancelado.";
+    if (!res.ofertas.length) return cerrarSiSale(res, texto);
+    render();
+    ofrecer(res.ofertas, texto);
   },
-  liberarFijo: (b) => { const r = M.reserva(E, b.dataset.v); const res = M.liberarFijo(E, r.fijoId, r.fecha, AHORA); if (hecho(res, "Liberado sólo esta semana; el turno fijo sigue.")) ofrecer(res.ofertas ?? []); },
+  liberarFijo: (b) => {
+    const r = M.reserva(E, b.dataset.v);
+    const res = M.liberarFijo(E, r.fijoId, r.fecha, AHORA);
+    if (!res.ok) return toast(res.motivo, { error: true });
+    if (!res.ofertas?.length) return cerrarSiSale(res, "Liberado sólo esta semana; el turno fijo sigue.");
+    render();
+    ofrecer(res.ofertas, "Liberado sólo esta semana; el turno fijo sigue.");
+  },
   mover: (b) => hecho(M.mover(E, b.dataset.v, { canchaId: $("#mover-c").value }, AHORA), "Turno movido."),
   extender: (b) => { const res = M.extender(E, b.dataset.v, 30, AHORA); hecho(res, res.ok ? `Extendido 30′ (+${M.pesos(res.extra)}).` : ""); },
   interrumpir: (b) => { const res = M.interrumpir(E, b.dataset.v, "corte de luz", AHORA); hecho(res, res.ok ? `Se reconocen ${M.pesos(res.credito)} por ${res.noJugados}′ sin jugar.` : ""); },
@@ -845,7 +901,11 @@ const acciones = {
     M.anotarEspera(E, { titular: nombre, fecha: $("#e-dia").value, desde, hasta, soloCubierta: $("#e-techo").checked }, AHORA);
     toast(`${nombre} quedó en la lista de espera.`); render();
   },
-  asignarEspera: (b) => { if (hecho(M.asignarDesdeEspera(E, b.dataset.v, { canchaId: b.dataset.c, inicio: Number(b.dataset.m) }, AHORA), "Turno reservado desde la lista de espera.")) { if (!dialogoActual?.refrescar) cerrarDialogo(); } },
+  asignarEspera: (b) => {
+    const res = M.asignarDesdeEspera(E, b.dataset.v, { canchaId: b.dataset.c, inicio: Number(b.dataset.m) }, AHORA);
+    if (dialogoActual?.refrescar) return hecho(res, "Turno reservado desde la lista de espera.");
+    cerrarSiSale(res, "Turno reservado desde la lista de espera.");
+  },
   sacarEspera: (b) => { E.espera = E.espera.filter((e) => e.id !== b.dataset.v); render(); },
 
   aplicarLluvia: () => {
@@ -856,10 +916,16 @@ const acciones = {
       sub: res.resultado.length ? `${res.resultado.length} turno(s) resueltos. Avisá a cada uno:` : "No había turnos en canchas descubiertas en ese horario.",
       cuerpo: res.resultado.map((x) => {
         const r = M.reserva(E, x.reservaId);
+        const nombre = x.titular.split(" ")[0];
+        if (x.accion === "cortado")
+          return `<div><p style="margin:0"><b>${esc(x.titular)}</b> — estaban jugando: se cortó con ${x.noJugados}′ sin jugar y se reconocen ${M.pesos(x.credito)}. Cobrá lo jugado y lo consumido, y cerrá el turno.</p><button type="button" class="btn sm" style="margin-top:6px" data-a="ver" data-v="${r.id}">Abrir el turno</button></div>`;
         const msj = x.accion === "movido"
-          ? M.mensajeWhatsApp("lluvia_movido", { nombre: x.titular.split(" ")[0], hora: M.hhmm(r.inicio), cancha: x.cancha })
-          : M.mensajeWhatsApp("lluvia_suspendido", { nombre: x.titular.split(" ")[0], hora: M.hhmm(r.inicio), credito: x.credito ? M.pesos(x.credito) : "" });
-        return `<div><p style="margin:0 0 4px"><b>${esc(x.titular)}</b> — ${x.accion === "movido" ? `pasa a ${esc(x.cancha)}` : `suspendido${x.credito ? `, ${M.pesos(x.credito)} a saldo a favor` : ""}`}</p><div class="wa">${esc(msj)}</div><a class="btn sm" style="margin-top:6px" target="_blank" rel="noopener" href="${esc(wa(msj))}">Mandar</a></div>`;
+          ? M.mensajeWhatsApp("lluvia_movido", { nombre, hora: M.hhmm(r.inicio), cancha: x.cancha })
+          : x.devolverEnMano
+            ? M.mensajeWhatsApp("lluvia_devolucion", { nombre, hora: M.hhmm(r.inicio), monto: M.pesos(x.devolverEnMano) })
+            : M.mensajeWhatsApp("lluvia_suspendido", { nombre, hora: M.hhmm(r.inicio), credito: x.credito ? M.pesos(x.credito) : "" });
+        const que = x.accion === "movido" ? `pasa a ${esc(x.cancha)}` : `suspendido${x.credito ? `, ${M.pesos(x.credito)} a saldo a favor` : x.devolverEnMano ? `, hay que devolverle ${M.pesos(x.devolverEnMano)}` : ""}`;
+        return `<div><p style="margin:0 0 4px"><b>${esc(x.titular)}</b> — ${que}</p><div class="wa">${esc(msj)}</div><a class="btn sm" style="margin-top:6px" target="_blank" rel="noopener" href="${esc(wa(msj))}">Mandar</a></div>`;
       }).join("") || `<p class="empty">Nada que mover.</p>`,
       pie: `<button type="button" class="btn primary" data-a="cerrar">Listo</button>`,
     });
@@ -880,24 +946,30 @@ const acciones = {
     if (!res.ok) { $("#g-err").textContent = res.motivo; return; }
     cerrarDialogo(); render(); toast("Gasto registrado.");
   },
-  saldarDeuda: (b) => {
-    const c = M.cliente(E, b.dataset.v);
-    E.caja.movimientos.push({ id: `m-deuda-${c.id}-${E.caja.movimientos.length}`, tipo: "ingreso", medio: ui.medio, monto: c.deuda, concepto: `Deuda de ${c.nombre}`, fecha: HOY, min: AHORA.min });
-    toast(`${c.nombre} saldó ${M.pesos(c.deuda)} (${M.MEDIOS[ui.medio]}).`);
-    c.deuda = 0; render();
-  },
+  saldarDeuda: (b) => { const res = M.cobrarDeuda(E, b.dataset.v, ui.medio, AHORA); hecho(res, res.ok ? `Saldó ${M.pesos(res.monto)} (${M.MEDIOS[ui.medio]}).` : ""); },
+  devueltoYCerrar: (b) => { const res = M.marcarDevuelto(E, b.dataset.v, ui.medio, AHORA); if (!res.ok) return toast(res.motivo, { error: true }); cerrarDialogo(); render(); toast(`Devolución de ${M.pesos(res.monto)} registrada.`); },
+  devuelto: (b) => { const res = M.marcarDevuelto(E, b.dataset.v, ui.medio, AHORA); hecho(res, res.ok ? `Devolución de ${M.pesos(res.monto)} registrada.` : ""); },
   perdonar: (b) => { M.cliente(E, b.dataset.v).strikes = 0; render(); },
 
   // dueño
-  ingreso: (b) => { const p = M.producto(E, b.dataset.v); const n = Math.round(Number($(`#in-${p.id}`).value)); if (!(n > 0)) return toast("Poné cuántos entran."); p.stock += n; toast(`Entraron ${n} × ${p.nombre}.`); render(); },
+  ingreso: (b) => { const n = $(`#in-${CSS.escape(b.dataset.v)}`).value; hecho(M.ingresarStock(E, b.dataset.v, n, AHORA), `Entraron ${Math.round(Number(n))} × ${M.producto(E, b.dataset.v).nombre}.`); },
 };
 
-function ofrecer(ofertas) {
+/** Para acciones que terminan la ventana: si sale bien se cierra y avisa afuera; si no, el error queda adentro. */
+function cerrarSiSale(res, okTexto) {
+  if (!res.ok) { toast(res.motivo, { error: true }); return false; }
+  cerrarDialogo();
+  render();
+  if (okTexto) toast(okTexto);
+  return true;
+}
+
+function ofrecer(ofertas, previo = "") {
   if (!ofertas?.length) return;
   const o = ofertas[0];
   abrir({
     titulo: "Se liberó un hueco",
-    sub: `${esc(M.cancha(E, o.canchaId).nombre)} ${M.hhmm(o.inicio)} — ${ofertas.length} en lista de espera lo aceptarían`,
+    sub: `${previo ? `${esc(previo)} ` : ""}${esc(M.cancha(E, o.canchaId).nombre)} ${M.hhmm(o.inicio)} — ${ofertas.length} en lista de espera lo aceptarían`,
     cuerpo: `<p class="small" style="margin:0">Primero en la lista: <b>${esc(o.titular)}</b></p><div class="wa">${esc(o.mensaje)}</div>`,
     pie: `<button type="button" class="btn" data-a="cerrar">Ahora no</button><a class="btn" target="_blank" rel="noopener" href="${esc(wa(o.mensaje))}">Mandar por WhatsApp</a><button type="button" class="btn primary" data-a="asignarEspera" data-v="${o.id}" data-c="${o.canchaId}" data-m="${o.inicio}">Dijo que sí: reservar</button>`,
   });
@@ -909,9 +981,16 @@ document.addEventListener("change", (ev) => {
   if (!(t instanceof HTMLInputElement)) return;
   const v = Number(t.value);
   if (!(v >= 0)) return;
-  if (t.dataset.a === "regla") { E.config.politica[t.dataset.v] = v; toast("Regla actualizada."); render(); }
-  if (t.dataset.a === "tarifa") { E.config.tarifas[Number(t.dataset.v)].precioHora = v; toast("Precio actualizado para turnos nuevos."); render(); }
-  if (t.dataset.a === "socio") { E.config.descuentoSocioPct = Math.min(100, v); toast("Descuento de socio actualizado."); render(); }
+  if (t.dataset.a === "regla") {
+    const res = M.ajustarPolitica(E, t.dataset.v, v);
+    if (!res.ok) { t.value = E.config.politica[t.dataset.v]; return toast(res.motivo, { error: true }); }
+    render(); toast("Regla actualizada.");
+  }
+  if (t.dataset.a === "tarifa") { E.config.tarifas[Number(t.dataset.v)].precioHora = Math.round(v); render(); toast("Precio actualizado para turnos nuevos."); }
+  if (t.dataset.a === "socio") {
+    if (v > 100) { t.value = E.config.descuentoSocioPct; return toast("El descuento va de 0 a 100 %.", { error: true }); }
+    E.config.descuentoSocioPct = Math.round(v); render(); toast("Descuento de socio actualizado.");
+  }
 });
 
 document.addEventListener("click", (ev) => {

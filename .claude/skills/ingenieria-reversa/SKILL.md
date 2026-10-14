@@ -7,7 +7,7 @@ description: Método de GSG para hacer ingeniería reversa de los mejores sistem
 
 Método probado en **Break Point Pádel** (14/10/2026): de "así se gestiona un club de pádel en Europa" a un
 backoffice de club que la recepcionista puede usar con gente esperando en el mostrador, con la vista del dueño
-(cámaras, stock, turnos) y un motor de reglas con 18 tests. Cada paso dice **qué se hace, por qué y qué entrega**.
+(cámaras, stock, turnos) y un motor de reglas con 28 tests. Cada paso dice **qué se hace, por qué y qué entrega**.
 
 > **Frontera de honestidad (no negociable).** Ingeniería reversa es leer **lo que el referente muestra en
 > público** (centro de ayuda, documentación, sitio comercial, reseñas) e inferir el modelo. **No** se copia

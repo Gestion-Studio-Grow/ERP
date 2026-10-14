@@ -3,7 +3,7 @@
 **Fecha:** 2026-10-14 · **Método:** skill `ingenieria-reversa` (`.claude/skills/ingenieria-reversa/SKILL.md`)
 **Etapa comercial:** preventa → **todo es DEMO a costo cero** (sin datos reales, sin persistencia, sin dominio).
 **Entregable vivo:** `public/previews/breakpoint/club/` (servido en `/previews/breakpoint/club/index.html`, enlazado desde la vidriera de preventa)
-· motor `motor.mjs` · backoffice `index.html` + `app.mjs` · tests `src/tenants/breakpoint/motor-club.test.ts` (18).
+· motor `motor.mjs` · backoffice `index.html` + `app.mjs` · tests `src/tenants/breakpoint/motor-club.test.ts` (28).
 
 > **Qué es esto.** Tomamos cómo gestionan un club de pádel los sistemas de referencia en Europa, separamos lo
 > que es del rubro de lo que es de su mercado, lo adaptamos a un club de Ezeiza y lo construimos: un backoffice
@@ -96,14 +96,15 @@ Cada fila tiene regla, función del motor y test (`src/tenants/breakpoint/motor-
 | 3 | Turno que cruza la medianoche (cierre 01:00) | Se permite hasta el cierre | Grilla hasta 01:00 | `config.cierre = 1500` | ✔ |
 | 4 | Cliente con faltas, con deuda, o sin ficha | **Seña obligatoria** (50 %) | Chip "Falta seña" + alerta 3 h antes | `requiereSena` | ✔ |
 | 5 | Llega sin pagar la seña | No se entrega la cancha | "Falta la seña: cobrala antes de dar la cancha" | `checkIn` | ✔ |
+| 5b | Llegan muy temprano, o la cancha sigue ocupada por el turno anterior | La cancha se da desde 30′ antes y sólo si está libre | "Sigue ocupada por…: cerrá ese turno primero" | `checkIn` | ✔ |
 | 6 | Pagan los cuatro por separado | Partes que suman exacto; no se cobra de más | Botón "Cobrar $X" por jugador | `dividir`, `registrarPago` | ✔ |
 | 7 | Paga con saldo a favor | Descuenta del monedero, **no** entra a caja | Medio "Saldo a favor ($…)" | `registrarPago` | ✔ |
-| 8 | Cancela con tiempo (≥ 12 h, editable) | Lo pagado vuelve como saldo a favor | Toast con el monto | `cancelar` | ✔ |
+| 8 | Cancela con tiempo (≥ 12 h, editable) | Lo pagado vuelve como saldo a favor; **sin ficha**, queda anotada la devolución y sale de caja al registrarla | Toast con el monto · alerta "Hay que devolverle…" | `cancelar`, `marcarDevuelto` | ✔ |
 | 9 | Cancela tarde | **Seña en suspenso**: si el hueco se vuelve a vender, se libera sola | "Seña en suspenso hasta que se venda el hueco" | `cancelar` + `liberarSenasPorRelleno` | ✔ |
-| 10 | No vino (pasada la tolerancia de 15 min) | Suma falta, libera cancha, ofrece a lista de espera | Alerta urgente + "Se liberó un hueco" | `marcarNoShow`, `ofertasEspera` | ✔ |
+| 10 | No vino (pasada la tolerancia de 15 min, controlada por el motor) | Suma falta, libera cancha, devuelve lo alquilado, ofrece a lista de espera | Alerta urgente + "Se liberó un hueco" | `marcarNoShow`, `ofertasEspera` | ✔ |
 | 11 | Lista de espera | Primero que encaje (día, franja, techada) | "Hay lugar para Daniela: Cancha 2 21:00" | `anotarEspera`, `asignarDesdeEspera` | ✔ |
-| 12 | Lluvia sobre la descubierta | Mover a techada libre; si no hay, suspender y acreditar | Lista de afectados con WhatsApp de cada uno | `planLluvia` | ✔ |
-| 13 | Corte de luz / lesión en pleno partido | Crédito proporcional al tiempo no jugado | "Se reconocen $14.000 por 30′ sin jugar" | `interrumpir` | ✔ |
+| 12 | Lluvia sobre la descubierta | Mover a techada libre; si no hay: **antes de empezar**, suspender y acreditar lo pagado (sin ficha: devolución anotada); **ya jugando**, misma regla que el corte (sólo lo no jugado; bebidas y alquiler se cobran) | Lista de afectados con WhatsApp de cada uno | `planLluvia` | ✔ |
+| 13 | Corte de luz / lesión en pleno partido | Crédito proporcional al tiempo no jugado; una sola vez y nunca con 0′ jugados | "Se reconocen $14.000 por 30′ sin jugar" | `interrumpir` | ✔ |
 | 14 | Quieren seguir jugando | Extender sólo si el hueco siguiente está libre; cobra la diferencia | "Extendido 30′ (+$…)" | `extender` | ✔ |
 | 15 | Hay que cambiarlos de cancha | Mover sin perder pagos ni consumos | Selector de cancha | `mover` | (vía 12) ✔ |
 | 16 | Se quieren ir con saldo | No se cierra; o se deja **a cuenta** (deuda visible + seña obligatoria la próxima) | Alerta "terminó y debe $…" | `finalizar` | ✔ |
@@ -113,7 +114,9 @@ Cada fila tiene regla, función del motor y test (`src/tenants/breakpoint/motor-
 | 20 | Luz prendida sin turno en juego | Alerta | "Luz prendida en Cancha 3 sin turno" + Apagar | `alertas` | ✔ |
 | 21 | Stock bajo el mínimo | Alerta + pedido al proveedor por WhatsApp | Dueño: "Pedir lo que falta" | `alertas`, `mensajeWhatsApp("reposicion")` | ✔ |
 | 22 | La caja no cuadra | Arqueo con diferencia explícita, visible al dueño | Cierre con "Diferencia −$…" | `cerrarCaja` | ✔ |
-| 23 | Venta de mostrador sin turno | Baja stock y entra a caja; el alquiler no se vende suelto | "Venta cobrada" | `ventaMostrador` | ✔ |
+| 23 | Venta de mostrador sin turno | Baja stock y entra a caja; el alquiler no se vende suelto; "saldo a favor" no es medio de mostrador | "Venta cobrada" | `ventaMostrador` | ✔ |
+| 24 | Saldan una deuda vieja | Entra a caja por el medio elegido | Clientes → "Cobró" | `cobrarDeuda` | ✔ |
+| 25 | El dueño pone una regla absurda (seña 500 %) | Topes por regla | "Tiene que ser entre 0 y 100" | `ajustarPolitica` | ✔ |
 
 **Fuera de alcance de esta pasada** (con el porqué): reembolso a tarjeta (en demo no hay pasarela real; con
 venta, plugin `mercadopago`) · partido abierto con inscripción por app (hoy se arma desde recepción como turno
@@ -186,6 +189,19 @@ tipo "Partido abierto"; la app de jugador es otra fase) · niveles/ranking (el n
    **N/A en demo** (sin DB) — el modelo propuesto lleva `tenantId` + RLS (§7).
 4. **Confiabilidad:** tests verdes; recorrido Playwright escritorio + celular, claro + oscuro, **cero errores
    de consola**; no toca prod, ni schema, ni deploy.
+
+**Gate de Excelencia corrido (Auditoría GSG, 2026-10-14): APROBADO CON OBSERVACIONES, sin bloqueantes.**
+Corregido en la misma pasada (28 tests): plan lluvia que devolvía de más con el turno en juego; dar la cancha
+a cualquier hora o con la cancha ocupada; `$ NaN` por interrupción con 0′; "saldo a favor" arrastrado como medio
+de mostrador/deudas; "no vino" sin tolerancia; cancelación sin ficha que se quedaba la plata sin registro;
+alquileres que no volvían al stock al cancelar; indicadores "Facturado/Falta cobrar" engañosos (ahora "Turnos
+vendidos" y "Por cobrar de lo que ya se juega"); datos de demo incoherentes; teléfonos con pinta de reales;
+errores invisibles dentro de las ventanas (ahora se anuncian adentro); foco de teclado perdido al re-pintar;
+reglas sin topes; reglas de negocio que mutaban estado desde la pantalla; cámaras rotuladas "DEMO".
+**Pendiente (C1):** `tsc` del archivo de test y `eslint` de los archivos nuevos pasan; el `tsc` + `next build`
+**del proyecto completo** no se pudo correr acá (sin `node_modules`): correrlo antes de integrar a `main`.
+**Deuda anotada:** el motor vive en `public/` y el test lo importa desde ahí (DX-3); se jubila al portarlo a
+`src/modules` (§7).
 
 ---
 

@@ -222,7 +222,120 @@ test("demo: el día arranca con cada eventualidad en la bandeja y nada se pisa",
 });
 
 test("WhatsApp: el link lleva el número limpio y el texto codificado", () => {
-  const url = M.linkWhatsApp("+54 9 11 6187-0066", M.mensajeWhatsApp("recordatorio", { nombre: "Ana", hora: "20:00", cancha: "Cancha 1" }));
-  assert.match(url, /^https:\/\/wa\.me\/5491161870066\?text=/);
+  const url = M.linkWhatsApp("+54 9 11 0000-0001", M.mensajeWhatsApp("recordatorio", { nombre: "Ana", hora: "20:00", cancha: "Cancha 1" }));
+  assert.match(url, /^https:\/\/wa\.me\/5491100000001\?text=/);
   assert.match(decodeURIComponent(url), /Ana/);
+});
+
+// ── Hallazgos del Gate (2026-10-14): cada uno queda cubierto para que no vuelva al portar el motor ──
+
+test("dar la cancha: no antes de 30 min, no con el turno terminado, no con la cancha ocupada", () => {
+  const e = club();
+  const a = M.crearReserva(e, { canchaId: "c1", fecha: HOY, inicio: 20 * 60, clienteId: "a" }, ahora(10)).reserva;
+  const b = M.crearReserva(e, { canchaId: "c1", fecha: HOY, inicio: 21 * 60 + 30, clienteId: "b" }, ahora(10)).reserva;
+  assert.match(M.checkIn(e, a.id, ahora(17)).motivo, /temprano/);
+  assert.ok(M.checkIn(e, a.id, ahora(19, 40)).ok);
+  // El siguiente llega temprano y el anterior sigue en cancha: no se superponen.
+  assert.match(M.checkIn(e, b.id, ahora(21, 10)).motivo, /sigue ocupada/);
+  assert.match(M.checkIn(e, M.crearReserva(e, { canchaId: "c2", fecha: HOY, inicio: 8 * 60, clienteId: "a" }).reserva.id, ahora(12)).motivo, /terminó/);
+});
+
+test("'no vino' sólo pasada la tolerancia, y lo alquilado vuelve al stock", () => {
+  const e = club();
+  const r = M.crearReserva(e, { canchaId: "c1", fecha: HOY, inicio: 20 * 60, clienteId: "a" }, ahora(10)).reserva;
+  M.agregarConsumo(e, r.id, "p6", 2, ahora(10));
+  assert.equal(M.marcarNoShow(e, r.id, ahora(20, 5)).ok, false);
+  assert.equal(M.cliente(e, "a").strikes, 0);
+  assert.ok(M.marcarNoShow(e, r.id, ahora(20, 15)).ok);
+  assert.equal(M.producto(e, "p6").stock, 8);
+});
+
+test("cancelar a tiempo sin ficha: queda la devolución anotada y se registra al devolverla", () => {
+  const e = club();
+  const r = M.crearReserva(e, { canchaId: "c1", fecha: HOY, inicio: 22 * 60, titular: "Walk-in" }, ahora(8)).reserva;
+  M.registrarPago(e, r.id, { medio: "efectivo", monto: r.sena.monto }, ahora(8));
+  M.agregarConsumo(e, r.id, "p6", 1, ahora(8));
+  const res = M.cancelar(e, r.id, {}, ahora(9));
+  assert.equal(res.devolverEnMano, r.sena.monto);
+  assert.equal(M.producto(e, "p6").stock, 8);
+  assert.ok(M.alertas(e, ahora(9)).some((x: { tipo: string }) => x.tipo === "devolucion"));
+  assert.ok(M.marcarDevuelto(e, r.id, "efectivo", ahora(9, 30)).ok);
+  assert.equal(M.resumenCaja(e, HOY).efectivoEsperado, 0);
+  assert.equal(M.marcarDevuelto(e, r.id, "efectivo", ahora(9, 30)).ok, false);
+});
+
+test("interrupción: una sola vez y nunca con cero minutos jugados (sin NaN)", () => {
+  const e = club();
+  const r = M.crearReserva(e, { canchaId: "c1", fecha: HOY, inicio: 20 * 60, clienteId: "a" }, ahora(10)).reserva;
+  M.checkIn(e, r.id, ahora(19, 50));
+  assert.match(M.interrumpir(e, r.id, "corte de luz", ahora(19, 55)).motivo, /no empezaron/);
+  assert.ok(M.interrumpir(e, r.id, "corte de luz", ahora(20, 30)).ok);
+  assert.equal(M.interrumpir(e, r.id, "corte de luz", ahora(20, 40)).ok, false);
+  assert.ok(Number.isFinite(r.precio) && r.precio > 0);
+});
+
+test("lluvia con el turno en juego: se reconoce sólo lo no jugado; lo consumido se sigue cobrando", () => {
+  const e = club();
+  for (const c of ["c1", "c2", "c3"]) M.crearReserva(e, { canchaId: c, fecha: HOY, inicio: 20 * 60, titular: `Ocupa ${c}` }, ahora(10));
+  const r = M.crearReserva(e, { canchaId: "c4", fecha: HOY, inicio: 20 * 60, clienteId: "a" }, ahora(10)).reserva;
+  M.checkIn(e, r.id, ahora(20));
+  M.agregarConsumo(e, r.id, "p2", 4, ahora(20));
+  M.agregarConsumo(e, r.id, "p6", 2, ahora(20));
+  M.registrarPago(e, r.id, { medio: "efectivo", monto: M.saldo(r) }, ahora(20, 5));
+  const { resultado } = M.planLluvia(e, HOY, 20 * 60 + 30, 24 * 60, ahora(20, 30));
+  assert.equal(resultado[0].accion, "cortado");
+  assert.equal(resultado[0].noJugados, 60);
+  // Pagó turno (42.000) + agua (8.000) + palas (10.000); se le reconocen 2/3 del turno, no lo consumido.
+  assert.equal(M.cliente(e, "a").monedero, 28000);
+  assert.ok(M.finalizar(e, r.id, {}, ahora(20, 35)).ok);
+  assert.equal(M.producto(e, "p6").stock, 8);
+});
+
+test("lluvia antes de empezar, sin ficha: no promete saldo a favor, anota la devolución", () => {
+  const e = club();
+  for (const c of ["c1", "c2", "c3"]) M.crearReserva(e, { canchaId: c, fecha: HOY, inicio: 21 * 60, titular: `Ocupa ${c}` }, ahora(10));
+  const r = M.crearReserva(e, { canchaId: "c4", fecha: HOY, inicio: 21 * 60, titular: "Walk-in" }, ahora(10)).reserva;
+  M.registrarPago(e, r.id, { medio: "efectivo", monto: r.sena.monto }, ahora(10));
+  const { resultado } = M.planLluvia(e, HOY, 20 * 60, 24 * 60, ahora(19));
+  assert.equal(resultado[0].credito, 0);
+  assert.equal(resultado[0].devolverEnMano, r.sena.monto);
+  assert.equal(r.devolucionPendiente, r.sena.monto);
+});
+
+test("caja: 'saldo a favor' no es un medio de cobro de mostrador ni de deudas", () => {
+  const e = club();
+  assert.equal(M.ventaMostrador(e, [{ productoId: "p2", cant: 1 }], "monedero", ahora(18)).ok, false);
+  M.cliente(e, "a").deuda = 9000;
+  assert.equal(M.cobrarDeuda(e, "a", "monedero", ahora(18)).ok, false);
+  assert.ok(M.cobrarDeuda(e, "a", "mercadopago", ahora(18)).ok);
+  assert.equal(M.cliente(e, "a").deuda, 0);
+  assert.equal(M.resumenCaja(e, HOY).porMedio.mercadopago, 9000);
+});
+
+test("reglas del dueño con topes, jugadores y mercadería pasan por el motor", () => {
+  const e = club();
+  assert.equal(M.ajustarPolitica(e, "senaPct", 500).ok, false);
+  assert.equal(e.config.politica.senaPct, 50);
+  assert.ok(M.ajustarPolitica(e, "senaPct", 30).ok);
+  const r = M.crearReserva(e, { canchaId: "c1", fecha: HOY, inicio: 20 * 60, clienteId: "a" }, ahora(10)).reserva;
+  for (const n of ["B", "C", "D"]) assert.ok(M.sumarJugador(e, r.id, n).ok);
+  assert.equal(M.sumarJugador(e, r.id, "E").ok, false);
+  assert.equal(M.ingresarStock(e, "p3", 0).ok, false);
+  assert.equal(M.ingresarStock(e, "p3", 12).stock, 21);
+});
+
+test("tablero: 'por cobrar' es sólo lo que ya se juega, no los turnos de más tarde", () => {
+  const e = club();
+  const jugando = M.crearReserva(e, { canchaId: "c1", fecha: HOY, inicio: 19 * 60, clienteId: "a" }, ahora(10)).reserva;
+  M.crearReserva(e, { canchaId: "c2", fecha: HOY, inicio: 22 * 60, clienteId: "a" }, ahora(10));
+  M.checkIn(e, jugando.id, ahora(19));
+  const k = M.kpis(e, HOY, ahora(19, 30));
+  assert.equal(k.porCobrar, M.saldo(jugando));
+  assert.ok(k.vendido > k.porCobrar);
+});
+
+test("demo: ningún turno de días pasados queda abierto", () => {
+  const e = M.generarDemo(HOY);
+  const abiertos = e.reservas.filter((r: { fecha: string; estado: string }) => r.fecha < HOY && ["reservada", "en_cancha"].includes(r.estado));
+  assert.equal(abiertos.length, 0);
 });

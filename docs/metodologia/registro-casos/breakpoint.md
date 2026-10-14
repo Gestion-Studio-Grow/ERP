@@ -49,15 +49,15 @@
 
 - **Qué se hizo:** ingeniería reversa de Playtomic Manager, MATCHi, Doinsport y la automatización de clubes
   europea → backoffice del club en demo del flujo: `public/previews/breakpoint/club/` (Recepción + Dueño con
-  cámaras, stock y turnos). Motor puro con 18 tests (`src/tenants/breakpoint/motor-club.test.ts`).
-  Detalle completo, matriz de 23 eventualidades y camino a producción: `docs/tenants/breakpoint/REINGENIERIA.md`.
+  cámaras, stock y turnos). Motor puro con 28 tests (`src/tenants/breakpoint/motor-club.test.ts`).
+  Detalle completo, matriz de 26 eventualidades y camino a producción: `docs/tenants/breakpoint/REINGENIERIA.md`.
 - **Método:** nace la skill `ingenieria-reversa` (`.claude/skills/ingenieria-reversa/SKILL.md`, copia en Factory-GSG).
 - **Sigue provisional:** logo vectorial oficial (el club lo tiene, falta que lo pase), autorización registrada
   de marca (ADR-034) antes de mostrar, techadas vs. descubiertas, precios, horarios y cámaras reales.
 
 ### Heurística nueva
 - **La matriz de eventualidades es el entregable que más vale** de una ingeniería reversa: recorrer el ciclo
-  de vida preguntando "¿y si no pasa / pasa tarde / pasa dos veces / pasa a medias?" encontró 23 casos, y los
+  de vida preguntando "¿y si no pasa / pasa tarde / pasa dos veces / pasa a medias?" encontró 23 casos (26 tras el Gate), y los
   que los referentes dejan "a criterio del club" fueron justo donde apareció la innovación (seña en suspenso).
 - **Trampa de maquetado:** un texto para lector de pantalla (`position:absolute`) dentro de una tabla con
   scroll horizontal se escapa del contenedor y ensancha la página en el celular → el contenedor con scroll
