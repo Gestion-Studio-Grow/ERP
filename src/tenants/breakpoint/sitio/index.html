@@ -1,0 +1,2337 @@
+<!doctype html>
+<!-- GENERADO por src/tenants/breakpoint/empaquetar.mjs desde public/previews/breakpoint/club/ — no editar a mano -->
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Break Point · Gestión del club</title>
+<meta name="description" content="Demo del backoffice de Break Point Pádel: recepción, turnos, caja, stock y vista del dueño con cámaras. Datos de ejemplo, no se guarda nada.">
+<meta name="generator" content="Gestión Studio Grow">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0b5fb0">
+<style>
+  :root{
+    --royal:#0b5fb0; --royal-deep:#0a4d90; --royal-soft:#e3eef9; --royal-line:#a9c8ea;
+    --orange:#f07a0c; --orange-deep:#b85400; --orange-soft:#fdeedd;
+    --ok:#1d7a46; --ok-soft:#e1f3e8; --warn:#a15c00; --warn-soft:#fdf0d8; --bad:#b42318; --bad-soft:#fde7e5;
+    --ink:#221d17; --ink-2:#463f36; --muted:#6e6558; --line:#e5ddcf; --line-2:#efe9de;
+    --paper:#fffdf8; --cream:#f7f2ea; --panel:#ffffff; --overlay:rgba(23,18,12,.5);
+    --grid-past:#f3eee6; --hatch:rgba(34,29,23,.06);
+    --display:"Arial Narrow","Helvetica Neue",ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --row:30px; --radius:10px; --ease:cubic-bezier(.22,.61,.36,1);
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --royal:#5ea4ec; --royal-deep:#8cc0f3; --royal-soft:#14273d; --royal-line:#2f5680;
+      --orange:#ff9a3d; --orange-deep:#ffb36b; --orange-soft:#3a2510;
+      --ok:#5cc98a; --ok-soft:#12301f; --warn:#f0b04f; --warn-soft:#352610; --bad:#ff8a80; --bad-soft:#3a1714;
+      --ink:#efe7db; --ink-2:#d4cabb; --muted:#b0a695; --line:#3a3127; --line-2:#2b241c;
+      --paper:#17120c; --cream:#1e1811; --panel:#211a12; --overlay:rgba(0,0,0,.6);
+      --grid-past:#1b150f; --hatch:rgba(255,255,255,.05); color-scheme:dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --royal:#5ea4ec; --royal-deep:#8cc0f3; --royal-soft:#14273d; --royal-line:#2f5680;
+    --orange:#ff9a3d; --orange-deep:#ffb36b; --orange-soft:#3a2510;
+    --ok:#5cc98a; --ok-soft:#12301f; --warn:#f0b04f; --warn-soft:#352610; --bad:#ff8a80; --bad-soft:#3a1714;
+    --ink:#efe7db; --ink-2:#d4cabb; --muted:#b0a695; --line:#3a3127; --line-2:#2b241c;
+    --paper:#17120c; --cream:#1e1811; --panel:#211a12; --overlay:rgba(0,0,0,.6);
+    --grid-past:#1b150f; --hatch:rgba(255,255,255,.05); color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:var(--sans);color:var(--ink);background:var(--cream);font-size:14.5px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  button,input,select{font:inherit;color:inherit}
+  button{cursor:pointer}
+  :focus-visible{outline:2px solid var(--royal);outline-offset:2px;box-shadow:0 0 0 4px var(--paper)}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .num{font-variant-numeric:tabular-nums}
+
+  /* ── logo (recreación fiel para demo; el vectorial oficial lo pasa el club) ── */
+  .ball{display:inline-block;width:.72em;height:.72em;border-radius:50%;background:#f07a0c;position:relative;transform:translateY(.02em)}
+  .ball::after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 33% 30%,rgba(255,255,255,.6),transparent 44%)}
+  .emblem{position:relative;border-radius:50%;background:#0b5fb0;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:none;width:40px;height:40px;font-size:8px}
+  .emblem .ring{position:absolute;inset:7.5%;border:1.5px solid rgba(255,255,255,.5);border-radius:50%}
+  .emblem b{font-family:var(--display);font-stretch:condensed;text-transform:uppercase;font-weight:800;line-height:.9;position:relative}
+  .emblem .t{font-size:.82em;letter-spacing:.16em}.emblem .m{font-size:1.18em;display:flex;align-items:center}.emblem .bt{font-size:.66em;letter-spacing:.3em;text-indent:.3em}
+
+  /* ── barra superior ── */
+  .demo-ribbon{background:var(--ink);color:var(--paper);font-size:12px;padding:6px 16px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;text-align:center}
+  .demo-ribbon button{background:none;border:1px solid currentColor;border-radius:6px;padding:2px 8px;font-size:12px;color:inherit}
+  header.top{position:sticky;top:0;z-index:30;background:var(--paper);border-bottom:1px solid var(--line)}
+  .top-in{display:flex;align-items:center;gap:14px;padding:10px 16px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:10px;margin-right:auto}
+  .brand .w1{font-family:var(--display);font-stretch:condensed;font-weight:800;text-transform:uppercase;font-size:18px;letter-spacing:.02em;display:flex;align-items:center;line-height:1}
+  .brand .w2{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:3px;background:var(--cream)}
+  .seg button{border:0;background:none;padding:7px 14px;border-radius:7px;font-weight:700;font-size:13.5px;color:var(--ink-2);min-height:36px}
+  .seg button[aria-pressed="true"]{background:var(--royal);color:#fff}
+  :root[data-theme="dark"] .seg button[aria-pressed="true"]{color:#0b1a2a}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .seg button[aria-pressed="true"]{color:#0b1a2a}}
+  .clock{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+  .clock b{font-family:var(--display);font-stretch:condensed;font-size:22px;color:var(--ink);min-width:58px;text-align:center}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:8px 13px;font-weight:650;font-size:13.5px;min-height:38px;transition:background .15s var(--ease),border-color .15s var(--ease)}
+  .btn:hover{border-color:var(--royal-line)}
+  .btn.primary{background:var(--royal);border-color:var(--royal);color:#fff}
+  .btn.accent{background:var(--orange);border-color:var(--orange);color:#1d1003}
+  .btn.danger{color:var(--bad);border-color:var(--bad)}
+  .btn.ghost{background:none}
+  .btn.sm{min-height:32px;padding:5px 10px;font-size:12.5px}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  :root[data-theme="dark"] .btn.primary{color:#0b1a2a}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.primary{color:#0b1a2a}}
+  .icon-btn{min-width:38px;padding:8px}
+
+  main{padding:16px;max-width:1500px;margin:0 auto}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+  @media (max-width:1080px){.layout{grid-template-columns:minmax(0,1fr)}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .card h2,.card h3{margin:0;font-family:var(--display);font-stretch:condensed;text-transform:uppercase;letter-spacing:.02em;font-weight:800}
+  .card h2{font-size:20px}.card h3{font-size:16px}
+  .card-head{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px}
+  .muted{color:var(--muted)}
+  .small{font-size:12.5px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .stack{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
+
+  /* ── día y acciones ── */
+  .days{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+  .days button{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:6px 11px;min-width:64px;text-align:center;line-height:1.15;min-height:44px}
+  .days button[aria-pressed="true"]{border-color:var(--royal);background:var(--royal-soft);color:var(--ink)}
+  .days small{display:block;font-size:11px;color:var(--muted);text-transform:capitalize}
+  .days b{font-size:14px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+
+  /* ── grilla ── */
+  .grid-wrap{position:relative;overflow:auto;max-height:72vh;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+  .grilla{display:grid;min-width:640px;position:relative}
+  .gh{position:sticky;top:0;z-index:5;background:var(--paper);border-bottom:1px solid var(--line);padding:8px 8px;display:flex;align-items:center;gap:6px;justify-content:space-between;min-height:52px}
+  .gh .n{font-weight:800;font-family:var(--display);font-stretch:condensed;text-transform:uppercase;font-size:15px;letter-spacing:.02em}
+  .gh .tag{font-size:11px;color:var(--muted)}
+  .luz{border:1px solid var(--line);background:none;border-radius:8px;width:34px;height:34px;display:inline-grid;place-items:center}
+  .luz[aria-pressed="true"]{background:#ffe7a8;border-color:#e2b14a;color:#5a3d00}
+  .tcol{position:relative;border-right:1px solid var(--line)}
+  .tcol span{position:absolute;right:6px;font-size:11.5px;color:var(--muted);transform:translateY(-50%)}
+  .ccol{position:relative;border-right:1px solid var(--line-2)}
+  .ccol:last-child{border-right:0}
+  .ccol.mant{background:repeating-linear-gradient(135deg,var(--hatch) 0 8px,transparent 8px 16px)}
+  .slot{position:absolute;left:0;right:0;height:var(--row);border:0;border-top:1px solid var(--line-2);background:none;padding:0 8px;text-align:left;font-size:11.5px;color:transparent}
+  .slot.hora{border-top-color:var(--line)}
+  .slot:hover,.slot:focus-visible{background:var(--royal-soft);color:var(--royal-deep)}
+  .slot.pasado{background:var(--grid-past);cursor:default}
+  .slot.pasado:hover{color:transparent}
+  .blk{position:absolute;left:4px;right:4px;border-radius:9px;padding:5px 8px;border:1px solid var(--royal-line);background:var(--royal-soft);text-align:left;overflow:hidden;display:flex;flex-direction:column;gap:2px;z-index:2;font-size:12.5px;line-height:1.25;color:var(--ink);transition:transform .12s var(--ease),box-shadow .12s var(--ease)}
+  .blk:hover{transform:translateY(-1px);box-shadow:0 6px 18px -10px rgba(0,0,0,.4)}
+  .blk .tt{font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .blk .meta{color:var(--muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .blk .chips{display:flex;gap:4px;flex-wrap:nowrap;overflow:hidden;margin-top:auto;min-height:18px}
+  .blk.en_cancha{background:var(--ok-soft);border-color:var(--ok)}
+  .blk.finalizada{background:var(--grid-past);border-color:var(--line);opacity:.85}
+  .blk.fijo{border-left:4px solid var(--royal)}
+  .blk.clase{border-left:4px solid var(--orange)}
+  .blk.abierto{border-left:4px dashed var(--orange)}
+  .blk.alerta{box-shadow:0 0 0 2px var(--bad) inset}
+  .blk.bloqueo{background:repeating-linear-gradient(135deg,var(--hatch) 0 6px,transparent 6px 12px),var(--cream);border-style:dashed;border-color:var(--muted);cursor:default}
+  .chip{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--panel);border:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
+  .chip.bad{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}
+  .chip.warn{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+  .chip.ok{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+  .chip.info{background:var(--royal-soft);border-color:var(--royal-line);color:var(--royal-deep)}
+  .now{position:absolute;left:0;right:0;height:0;border-top:2px solid var(--orange);z-index:4;pointer-events:none}
+  .now::before{content:attr(data-h);position:absolute;left:2px;top:-10px;background:var(--orange);color:#1d1003;font-size:10.5px;font-weight:800;padding:1px 5px;border-radius:5px}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
+  .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:4px;border:1px solid var(--line)}
+
+  /* ── bandeja ── */
+  .inbox{display:grid;gap:8px}
+  .al{border:1px solid var(--line);border-radius:11px;padding:10px 11px;background:var(--paper);display:grid;gap:6px;border-left:4px solid var(--muted)}
+  .al.alta{border-left-color:var(--bad)}.al.media{border-left-color:var(--warn)}.al.info{border-left-color:var(--royal)}
+  .al .lvl{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+  .al.alta .lvl{color:var(--bad)}.al.media .lvl{color:var(--warn)}.al.info .lvl{color:var(--royal-deep)}
+  .al p{margin:0;font-size:13.5px}
+  .empty{padding:18px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:11px}
+  .kv{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:13.5px}
+  .kv dt{color:var(--muted)}.kv dd{margin:0;text-align:right;font-weight:650}
+  .kv .tot{border-top:1px solid var(--line);padding-top:6px;font-weight:800}
+
+  /* ── dueño ── */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .kpi .l{font-size:12px;color:var(--muted);font-weight:600}
+  .kpi .v{font-family:var(--display);font-stretch:condensed;font-size:30px;font-weight:800;line-height:1.05;margin-top:4px}
+  .kpi .s{font-size:12px;color:var(--muted);margin-top:2px}
+  .owner{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
+  .owner>*,.layout>*{min-width:0}
+  a.btn{text-decoration:none;color:inherit}
+  .span-12{grid-column:span 12}.span-8{grid-column:span 8}.span-7{grid-column:span 7}.span-6{grid-column:span 6}.span-5{grid-column:span 5}.span-4{grid-column:span 4}
+  @media (max-width:1080px){.span-8,.span-7,.span-6,.span-5,.span-4{grid-column:span 12}}
+  .cams{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+  .cam{position:relative;border-radius:11px;overflow:hidden;background:#0b0f14;border:1px solid var(--line);aspect-ratio:16/10;padding:0;display:block;width:100%}
+  .cam canvas{width:100%;height:100%;display:block}
+  .cam .ov{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;padding:7px 9px;color:#fff;font-size:11.5px;text-shadow:0 1px 2px rgba(0,0,0,.8);pointer-events:none;text-align:left}
+  .cam .ov .top{display:flex;justify-content:space-between;gap:6px}
+  .cam .live{display:inline-flex;align-items:center;gap:4px;font-weight:800;letter-spacing:.08em}
+  .cam .live::before{content:"";width:7px;height:7px;border-radius:50%;background:#ff3b30}
+  .cam .bot{background:rgba(0,0,0,.45);border-radius:6px;padding:4px 6px;font-weight:600}
+  .torre{display:grid;gap:8px}
+  .torre .t{display:grid;grid-template-columns:92px 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--paper)}
+  .bar{height:8px;border-radius:999px;background:var(--line-2);overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:999px;background:var(--royal)}
+  .heat{display:grid;gap:2px;font-size:11px}
+  .heat .c{height:24px;border-radius:4px;border:0;padding:0}
+  .heat .lab{color:var(--muted);display:flex;align-items:center;white-space:nowrap}
+  .heat-scale{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);margin-top:8px}
+  .heat-scale i{display:inline-block;width:18px;height:12px;border-radius:3px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{padding:7px 8px;border-bottom:1px solid var(--line-2);text-align:left;vertical-align:middle}
+  th{font-size:12px;color:var(--muted);font-weight:650}
+  td.r,th.r{text-align:right}
+  .tbl-wrap{overflow-x:auto;position:relative}
+  .medios{display:grid;gap:8px}
+  .medios .m{display:grid;grid-template-columns:130px 1fr 96px;gap:8px;align-items:center;font-size:13px}
+  .log{max-height:260px;overflow:auto;display:grid;gap:4px;font-size:12.5px}
+  .log div{padding:4px 0;border-bottom:1px solid var(--line-2)}
+  .reglas{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+  label.f{display:grid;gap:4px;font-size:12.5px;font-weight:650;color:var(--ink-2)}
+  input,select{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--paper);min-height:40px;width:100%}
+  input[type="checkbox"]{width:auto;min-height:0}
+  .honesto{font-size:12px;color:var(--muted);border-left:3px solid var(--orange);padding:6px 10px;background:var(--orange-soft);border-radius:0 8px 8px 0;margin-top:10px}
+
+  /* ── diálogos ── */
+  dialog{border:0;border-radius:16px;padding:0;max-width:min(640px,calc(100vw - 24px));width:100%;background:var(--panel);color:var(--ink);box-shadow:0 30px 80px -20px rgba(0,0,0,.5)}
+  dialog.wide{max-width:min(920px,calc(100vw - 24px))}
+  dialog::backdrop{background:var(--overlay)}
+  .dlg-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 18px 10px;border-bottom:1px solid var(--line)}
+  .dlg-h h2{margin:0;font-family:var(--display);font-stretch:condensed;text-transform:uppercase;font-size:22px;letter-spacing:.02em}
+  .dlg-b{padding:14px 18px;display:grid;gap:14px;max-height:70vh;overflow:auto}
+  .dlg-f{padding:12px 18px 16px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .players{display:grid;gap:6px}
+  .player{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--line-2);border-radius:9px}
+  .medio-pick{display:flex;gap:6px;flex-wrap:wrap}
+  .medio-pick button{border:1px solid var(--line);background:var(--paper);border-radius:9px;padding:7px 10px;font-size:13px;font-weight:650;min-height:38px}
+  .medio-pick button[aria-pressed="true"]{border-color:var(--royal);background:var(--royal-soft)}
+  .sug{display:grid;gap:4px;margin-top:4px}
+  .sug button{text-align:left;border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:7px 9px}
+  .err{color:var(--bad);font-weight:650;font-size:13px;margin:0}
+  .wa{white-space:pre-wrap;background:var(--cream);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:13.5px}
+  .prod-list{display:grid;gap:6px}
+  .prod{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;border:1px solid var(--line-2);border-radius:9px;padding:6px 8px}
+  .qty{display:inline-flex;align-items:center;gap:6px}
+  .qty button{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--paper);font-weight:800}
+  .cam-big{width:100%;aspect-ratio:16/9;background:#000;display:block;border-radius:10px}
+
+  #toasts{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);display:grid;gap:8px;z-index:100;width:min(520px,calc(100vw - 32px))}
+  .toast{background:var(--ink);color:var(--paper);padding:10px 14px;border-radius:11px;font-size:13.5px;box-shadow:0 12px 30px -12px rgba(0,0,0,.5)}
+  footer.gsg{text-align:center;font-size:11.5px;color:var(--muted);padding:18px 16px 28px}
+  footer.gsg a{color:inherit}
+  @media (max-width:640px){
+    main{padding:12px}
+    .top-in{gap:10px;padding:8px 12px}
+    .brand .w2{display:none}
+    .clock b{font-size:18px;min-width:48px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="demo-ribbon" role="note">
+  <span><b>Demo de la gestión del club</b> · datos de ejemplo · no se guarda nada (al recargar vuelve a empezar)</span>
+  <button type="button" data-a="reiniciar">Reiniciar demo</button>
+</div>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <span class="emblem" role="img" aria-label="Logo Break Point Pádel"><span class="ring"></span><b class="t">Break</b><b class="m">P<span class="ball"></span>int</b><b class="bt">Pádel</b></span>
+      <span><span class="w1">Break&nbsp;P<span class="ball"></span>int</span><span class="w2">Gestión del club</span></span>
+    </div>
+    <div class="seg" role="group" aria-label="Vista">
+      <button type="button" data-a="rol" data-v="recepcion" aria-pressed="true">Recepción</button>
+      <button type="button" data-a="rol" data-v="duenio" aria-pressed="false">Dueño</button>
+    </div>
+    <div class="clock" aria-live="polite">
+      <button type="button" class="btn sm ghost" data-a="reloj" data-v="-30" aria-label="Atrasar el reloj de la demo 30 minutos">−30′</button>
+      <span><span class="sr">Hora de la demo: </span><b id="reloj" class="num">19:10</b></span>
+      <button type="button" class="btn sm ghost" data-a="reloj" data-v="30" aria-label="Adelantar el reloj de la demo 30 minutos">+30′</button>
+    </div>
+    <button type="button" class="btn icon-btn ghost" data-a="tema" aria-label="Cambiar entre tema claro y oscuro">☾</button>
+  </div>
+</header>
+
+<main id="app" tabindex="-1"></main>
+
+<footer class="gsg">Sistema hecho por <b>Gestión Studio Grow</b> · demo del flujo para Break Point Pádel</footer>
+
+<dialog id="dlg" aria-labelledby="dlg-titulo"></dialog>
+<div id="toasts" role="status" aria-live="polite"></div>
+
+<script type="module">
+const M = (() => {
+// MOTOR DEL CLUB — Break Point Pádel (demo del flujo, ADR-028 · demo pública a costo cero).
+//
+// Reingeniería de la gestión de canchas de los referentes europeos (Playtomic Manager, MATCHi, Syltek,
+// Doinsport), adaptada al club argentino: seña por transferencia o Mercado Pago, aviso por WhatsApp,
+// lluvia en cancha descubierta, cortes de luz y caja con efectivo. El detalle y el porqué de cada regla
+// viven en docs/tenants/breakpoint/REINGENIERIA.md.
+//
+// Reglas de este archivo:
+//   · Puro: no toca el DOM, la red ni el disco. Lo usan el backoffice (index.html) y los tests de Node.
+//   · Sin persistencia: el estado vive en memoria (DEMO → VENTA → INVERSIÓN: antes de la venta no se guarda nada).
+//   · El tiempo es { fecha: "AAAA-MM-DD", min: minutos desde las 00:00 }. Un turno que cruza la
+//     medianoche se modela con `cierre` > 1440 (el club cierra a la 01:00 → 1500).
+//   · Toda operación devuelve { ok: true, ... } o { ok: false, motivo } en criollo, nunca tira excepción
+//     por una regla de negocio: la recepcionista tiene que leer qué pasó, no un error técnico.
+
+const MEDIOS = Object.freeze({
+  efectivo: "Efectivo",
+  mercadopago: "Mercado Pago (QR)",
+  transferencia: "Transferencia",
+  debito: "Débito / crédito",
+  monedero: "Saldo a favor",
+});
+
+const ESTADOS = Object.freeze({
+  reservada: "Reservada",
+  en_cancha: "En cancha",
+  finalizada: "Finalizada",
+  cancelada: "Cancelada",
+  no_show: "No vino",
+  suspendida: "Suspendida",
+});
+
+const TIPOS = Object.freeze({
+  turno: "Turno",
+  fijo: "Turno fijo",
+  clase: "Clase",
+  abierto: "Partido abierto",
+  torneo: "Torneo",
+});
+
+/** Estados que ocupan la cancha (los demás liberan el hueco). */
+const OCUPA = new Set(["reservada", "en_cancha", "finalizada"]);
+
+// ───────────────────────── utilidades de tiempo ─────────────────────────
+
+function hhmm(min) {
+  const m = ((min % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
+function aMinutos(texto) {
+  const [h, m] = String(texto).split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+/** 0 = domingo … 6 = sábado. La fecha se interpreta como día civil (sin zona horaria). */
+function diaSemana(fecha) {
+  const [a, m, d] = fecha.split("-").map(Number);
+  return new Date(Date.UTC(a, m - 1, d)).getUTCDay();
+}
+
+function sumarDias(fecha, dias) {
+  const [a, m, d] = fecha.split("-").map(Number);
+  const t = new Date(Date.UTC(a, m - 1, d + dias));
+  return t.toISOString().slice(0, 10);
+}
+
+/** Minutos entre `ahora` y el inicio del turno (negativo si ya empezó). */
+function minutosHasta(ahora, fecha, min) {
+  const [a1, m1, d1] = ahora.fecha.split("-").map(Number);
+  const [a2, m2, d2] = fecha.split("-").map(Number);
+  const dias = (Date.UTC(a2, m2 - 1, d2) - Date.UTC(a1, m1 - 1, d1)) / 86400000;
+  return dias * 1440 + min - ahora.min;
+}
+
+const solapa = (a0, a1, b0, b1) => a0 < b1 && b0 < a1;
+
+function pesos(n) {
+  const v = Math.round(n);
+  return (v < 0 ? "-$ " : "$ ") + Math.abs(v).toLocaleString("es-AR");
+}
+
+const redondear100 = (n) => Math.round(n / 100) * 100;
+
+let secuencia = 0;
+const nuevoId = (prefijo) => `${prefijo}${(++secuencia).toString(36)}`;
+
+function registrar(estado, texto, ahora) {
+  estado.log.unshift({ fecha: ahora?.fecha ?? null, min: ahora?.min ?? null, texto });
+  if (estado.log.length > 200) estado.log.length = 200;
+}
+
+// ───────────────────────── estado del club ─────────────────────────
+
+function crearEstado({ config, canchas, clientes = [], productos = [] }) {
+  return {
+    config: structuredClone(config),
+    canchas: structuredClone(canchas),
+    clientes: structuredClone(clientes),
+    productos: structuredClone(productos),
+    reservas: [],
+    fijos: [],
+    bloqueos: [],
+    espera: [],
+    caja: { abierta: true, responsable: "Recepción", fondo: 0, movimientos: [], cierres: [] },
+    luces: Object.fromEntries(canchas.map((c) => [c.id, false])),
+    clima: { lluvia: null }, // { fecha, desde, hasta } cuando hay alerta de lluvia
+    avisos: [],
+    log: [],
+  };
+}
+
+const cancha = (estado, id) => estado.canchas.find((c) => c.id === id);
+const cliente = (estado, id) => estado.clientes.find((c) => c.id === id);
+const reserva = (estado, id) => estado.reservas.find((r) => r.id === id);
+const producto = (estado, id) => estado.productos.find((p) => p.id === id);
+
+function buscarClientes(estado, texto) {
+  const q = texto.trim().toLowerCase();
+  if (!q) return [];
+  return estado.clientes.filter((c) => c.nombre.toLowerCase().includes(q) || c.tel.replace(/\D/g, "").includes(q.replace(/\D/g, "") || "§"));
+}
+
+function altaCliente(estado, { nombre, tel = "", socio = false }) {
+  const limpio = nombre.trim();
+  if (!limpio) return { ok: false, motivo: "Falta el nombre del cliente." };
+  const c = { id: nuevoId("cl"), nombre: limpio, tel, socio, strikes: 0, monedero: 0, deuda: 0, nivel: "" };
+  estado.clientes.push(c);
+  return { ok: true, cliente: c };
+}
+
+// ───────────────────────── tarifas ─────────────────────────
+
+/**
+ * Precio de un turno: se integra minuto a minuto contra las franjas (un turno de 17:00 a 18:30 cobra
+ * 30 min de valle y 60 de pico, como hace la grilla de precios dinámicos de los sistemas europeos).
+ * Fines de semana y feriados son todo pico. Socio: descuento. Redondeo a $100 (nadie da vuelto de $37).
+ */
+function precioTurno(estado, { fecha, inicio, duracion, canchaId }, clienteId) {
+  const { tarifas, descuentoSocioPct, feriados = [] } = estado.config;
+  const findeOFeriado = [0, 6].includes(diaSemana(fecha)) || feriados.includes(fecha);
+  const pico = tarifas.find((t) => t.pico) ?? tarifas[tarifas.length - 1];
+  const c = cancha(estado, canchaId);
+  let total = 0;
+  for (let m = inicio; m < inicio + duracion; m++) {
+    const franja = findeOFeriado ? pico : tarifas.find((t) => m >= t.desde && m < t.hasta) ?? pico;
+    total += franja.precioHora / 60;
+  }
+  if (c?.recargoPct) total *= 1 + c.recargoPct / 100;
+  const cl = clienteId ? cliente(estado, clienteId) : null;
+  if (cl?.socio) total *= 1 - descuentoSocioPct / 100;
+  return redondear100(total);
+}
+
+function franjaDe(estado, fecha, min) {
+  const findeOFeriado = [0, 6].includes(diaSemana(fecha)) || (estado.config.feriados ?? []).includes(fecha);
+  if (findeOFeriado) return "pico";
+  const f = estado.config.tarifas.find((t) => min >= t.desde && min < t.hasta);
+  return f?.pico ? "pico" : "valle";
+}
+
+// ───────────────────────── disponibilidad ─────────────────────────
+
+function ocupantes(estado, fecha, canchaId, ignorarId) {
+  const reservas = estado.reservas.filter(
+    (r) => r.fecha === fecha && r.canchaId === canchaId && r.id !== ignorarId && OCUPA.has(r.estado),
+  );
+  const bloqueos = estado.bloqueos.filter((b) => b.fecha === fecha && (b.canchaId === canchaId || b.canchaId === "*"));
+  return { reservas, bloqueos };
+}
+
+/** ¿Se puede ocupar este hueco? Devuelve el primer motivo en criollo si no. */
+function validarHueco(estado, { canchaId, fecha, inicio, duracion }, ignorarId) {
+  const { apertura, cierre, paso } = estado.config;
+  const c = cancha(estado, canchaId);
+  if (!c) return { ok: false, motivo: "Esa cancha no existe." };
+  if (c.estado === "mantenimiento") return { ok: false, motivo: `${c.nombre} está en mantenimiento.` };
+  if (!(duracion > 0)) return { ok: false, motivo: "La duración tiene que ser mayor a cero." };
+  if (inicio < apertura || inicio + duracion > cierre)
+    return { ok: false, motivo: `El club abre de ${hhmm(apertura)} a ${hhmm(cierre)}.` };
+  if (inicio % paso !== 0) return { ok: false, motivo: `Los turnos arrancan cada ${paso} minutos.` };
+  const { reservas, bloqueos } = ocupantes(estado, fecha, canchaId, ignorarId);
+  const choque = reservas.find((r) => solapa(inicio, inicio + duracion, r.inicio, r.inicio + r.duracion));
+  if (choque) return { ok: false, motivo: `Se pisa con ${choque.titular} (${hhmm(choque.inicio)}–${hhmm(choque.inicio + choque.duracion)}).` };
+  const bloqueo = bloqueos.find((b) => solapa(inicio, inicio + duracion, b.desde, b.hasta));
+  if (bloqueo) return { ok: false, motivo: `${c.nombre} está bloqueada: ${bloqueo.motivo}.` };
+  return { ok: true };
+}
+
+/** Huecos libres de una cancha para una duración, alineados a la grilla. */
+function huecosLibres(estado, fecha, canchaId, duracion, desde = estado.config.apertura) {
+  const out = [];
+  const { paso, cierre } = estado.config;
+  const inicio0 = Math.ceil(desde / paso) * paso;
+  for (let m = inicio0; m + duracion <= cierre; m += paso) {
+    if (validarHueco(estado, { canchaId, fecha, inicio: m, duracion }).ok) out.push(m);
+  }
+  return out;
+}
+
+// ───────────────────────── reservas ─────────────────────────
+
+/** ¿Este cliente tiene que dejar seña? Política: reincidentes de no-show, clientes con deuda y turnos sin ficha
+ *  (o todos, si el club lo prende con `senaSiempre`). Clases y fijos no la piden: los arma el club. */
+function requiereSena(estado, clienteId, tipo) {
+  const { politica } = estado.config;
+  if (tipo === "clase" || tipo === "fijo") return false;
+  const cl = clienteId ? cliente(estado, clienteId) : null;
+  if (!cl) return politica.senaSinCliente;
+  if (cl.strikes >= politica.strikesParaSena) return true;
+  if (cl.deuda > 0) return true;
+  return politica.senaSiempre;
+}
+
+function crearReserva(estado, datos, ahora) {
+  const {
+    canchaId, fecha, inicio, duracion = estado.config.duracionTurno, tipo = "turno", clienteId = null,
+    titular, jugadores, origen = "mostrador", notas = "", fijoId = null, precio: precioFijo,
+  } = datos;
+  const cl = clienteId ? cliente(estado, clienteId) : null;
+  const nombre = (titular ?? cl?.nombre ?? "").trim();
+  if (!nombre) return { ok: false, motivo: "¿A nombre de quién va el turno?" };
+  if (ahora && minutosHasta(ahora, fecha, inicio) < -estado.config.paso)
+    return { ok: false, motivo: "Ese horario ya pasó." };
+  const v = validarHueco(estado, { canchaId, fecha, inicio, duracion });
+  if (!v.ok) return v;
+
+  const precio = precioFijo ?? precioTurno(estado, { fecha, inicio, duracion, canchaId }, clienteId);
+  const senaMonto = requiereSena(estado, clienteId, tipo) ? redondear100((precio * estado.config.politica.senaPct) / 100) : 0;
+  const r = {
+    id: nuevoId("r"),
+    canchaId, fecha, inicio, duracion, tipo, clienteId, titular: nombre, origen, notas, fijoId,
+    jugadores: (jugadores?.length ? jugadores : [nombre]).slice(0, 4).map((j) => (typeof j === "string" ? { nombre: j } : j)),
+    precio,
+    sena: { monto: senaMonto, pagada: false },
+    consumos: [],
+    pagos: [],
+    estado: "reservada",
+    checkIn: null,
+    creada: ahora ? { ...ahora } : null,
+    senaEnSuspenso: false,
+  };
+  estado.reservas.push(r);
+
+  // Seña protegida por relleno: si este turno ocupa el hueco de una cancelación tardía, la seña retenida
+  // de aquel cliente vuelve como saldo a favor (el club no perdió nada, el cliente no pierde nada).
+  const liberadas = liberarSenasPorRelleno(estado, r, ahora);
+  registrar(estado, `Turno ${hhmm(inicio)} en ${cancha(estado, canchaId).nombre} para ${nombre}.`, ahora);
+  return { ok: true, reserva: r, liberadas };
+}
+
+function liberarSenasPorRelleno(estado, nueva, ahora) {
+  const out = [];
+  for (const r of estado.reservas) {
+    if (!r.senaEnSuspenso || r.fecha !== nueva.fecha || r.canchaId !== nueva.canchaId) continue;
+    if (nueva.inicio <= r.inicio && nueva.inicio + nueva.duracion >= r.inicio + r.duracion) {
+      r.senaEnSuspenso = false;
+      const retenida = cobrado(r);
+      const cl = r.clienteId ? cliente(estado, r.clienteId) : null;
+      if (cl && retenida > 0) {
+        cl.monedero += retenida;
+        out.push({ cliente: cl.nombre, monto: retenida });
+        registrar(estado, `Se rellenó el hueco de ${cl.nombre}: ${pesos(retenida)} vuelven a su saldo a favor.`, ahora);
+      }
+    }
+  }
+  return out;
+}
+
+// ───────────────────────── plata de la reserva ─────────────────────────
+
+const totalConsumos = (r) => r.consumos.reduce((s, c) => s + c.cant * c.precioUnit, 0);
+const cobrado = (r) => r.pagos.reduce((s, p) => s + p.monto, 0);
+const totalReserva = (r) => r.precio + totalConsumos(r);
+const saldo = (r) => totalReserva(r) - cobrado(r);
+
+/** Divide el total entre los jugadores en partes que suman exacto (el resto va a los primeros). */
+function dividir(total, n) {
+  const partes = Math.max(1, n);
+  const base = Math.floor(total / partes / 10) * 10;
+  const out = Array(partes).fill(base);
+  let resto = total - base * partes;
+  for (let i = 0; resto > 0; i = (i + 1) % partes) {
+    const paso = Math.min(10, resto);
+    out[i] += paso;
+    resto -= paso;
+  }
+  return out;
+}
+
+function movimientoCaja(estado, { tipo, medio, monto, concepto, reservaId = null }, ahora) {
+  const mov = { id: nuevoId("m"), tipo, medio, monto, concepto, reservaId, fecha: ahora?.fecha ?? null, min: ahora?.min ?? null };
+  estado.caja.movimientos.push(mov);
+  return mov;
+}
+
+function registrarPago(estado, reservaId, { medio, monto, jugador = null, concepto }, ahora) {
+  const r = reserva(estado, reservaId);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  if (!MEDIOS[medio]) return { ok: false, motivo: "Elegí cómo paga." };
+  const importe = Math.round(Number(monto));
+  if (!(importe > 0)) return { ok: false, motivo: "El monto tiene que ser mayor a cero." };
+  if (importe > saldo(r)) return { ok: false, motivo: `Está cobrando de más: el saldo es ${pesos(saldo(r))}.` };
+  if (medio === "monedero") {
+    const cl = r.clienteId ? cliente(estado, r.clienteId) : null;
+    if (!cl || cl.monedero < importe) return { ok: false, motivo: "No le alcanza el saldo a favor." };
+    cl.monedero -= importe;
+  }
+  const esSena = !r.sena.pagada && r.sena.monto > 0 && r.estado === "reservada";
+  r.pagos.push({ medio, monto: importe, jugador, fecha: ahora?.fecha ?? null, min: ahora?.min ?? null });
+  if (esSena && cobrado(r) >= r.sena.monto) r.sena.pagada = true;
+  if (medio !== "monedero") {
+    movimientoCaja(estado, { tipo: "ingreso", medio, monto: importe, concepto: concepto ?? `${esSena ? "Seña" : "Turno"} ${r.titular}`, reservaId }, ahora);
+  }
+  if (jugador != null && r.jugadores[jugador]) r.jugadores[jugador].pagado = (r.jugadores[jugador].pagado ?? 0) + importe;
+  registrar(estado, `Cobro ${pesos(importe)} (${MEDIOS[medio]}) — ${r.titular}.`, ahora);
+  return { ok: true, saldo: saldo(r) };
+}
+
+function agregarConsumo(estado, reservaId, productoId, cant = 1, ahora) {
+  const p = producto(estado, productoId);
+  if (!p) return { ok: false, motivo: "No encuentro el producto." };
+  if (p.stock < cant) return { ok: false, motivo: `No queda stock de ${p.nombre}.` };
+  const r = reservaId ? reserva(estado, reservaId) : null;
+  if (reservaId && !r) return { ok: false, motivo: "No encuentro el turno." };
+  p.stock -= cant;
+  if (p.alquiler) p.prestados = (p.prestados ?? 0) + cant;
+  if (r) {
+    const ya = r.consumos.find((c) => c.productoId === productoId);
+    if (ya) ya.cant += cant;
+    else r.consumos.push({ productoId, nombre: p.nombre, cant, precioUnit: p.precio, alquiler: !!p.alquiler });
+  }
+  registrar(estado, `${cant} × ${p.nombre}${r ? ` a la cuenta de ${r.titular}` : ""}.`, ahora);
+  return { ok: true };
+}
+
+/** Venta de mostrador sin turno (agua, grip, pelotas): baja stock y entra a caja en el acto. */
+function ventaMostrador(estado, items, medio, ahora) {
+  if (!items.length) return { ok: false, motivo: "No hay nada cargado." };
+  if (!MEDIOS[medio] || medio === "monedero") return { ok: false, motivo: "Elegí cómo paga (efectivo, Mercado Pago, transferencia o tarjeta)." };
+  for (const { productoId, cant } of items) {
+    const p = producto(estado, productoId);
+    if (!p || p.stock < cant) return { ok: false, motivo: `No alcanza el stock de ${p?.nombre ?? "un producto"}.` };
+    if (p.alquiler) return { ok: false, motivo: `${p.nombre} es de alquiler: va a la cuenta de un turno.` };
+  }
+  let total = 0;
+  for (const { productoId, cant } of items) {
+    const p = producto(estado, productoId);
+    p.stock -= cant;
+    total += p.precio * cant;
+  }
+  movimientoCaja(estado, { tipo: "ingreso", medio, monto: total, concepto: "Venta de mostrador" }, ahora);
+  registrar(estado, `Venta de mostrador ${pesos(total)} (${MEDIOS[medio]}).`, ahora);
+  return { ok: true, total };
+}
+
+/** El cliente salda lo que dejó a cuenta. Entra a caja por el medio que eligió. */
+function cobrarDeuda(estado, clienteId, medio, ahora) {
+  const cl = cliente(estado, clienteId);
+  if (!cl) return { ok: false, motivo: "No encuentro al cliente." };
+  if (!(cl.deuda > 0)) return { ok: false, motivo: `${cl.nombre} no debe nada.` };
+  if (!MEDIOS[medio] || medio === "monedero") return { ok: false, motivo: "Elegí cómo paga (efectivo, Mercado Pago, transferencia o tarjeta)." };
+  const monto = cl.deuda;
+  movimientoCaja(estado, { tipo: "ingreso", medio, monto, concepto: `Deuda de ${cl.nombre}` }, ahora);
+  cl.deuda = 0;
+  registrar(estado, `${cl.nombre} saldó ${pesos(monto)} (${MEDIOS[medio]}).`, ahora);
+  return { ok: true, monto };
+}
+
+function sumarJugador(estado, reservaId, nombre) {
+  const r = reserva(estado, reservaId);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  const limpio = String(nombre ?? "").trim();
+  if (!limpio) return { ok: false, motivo: "Escribí el nombre del jugador." };
+  if (r.jugadores.length >= 4) return { ok: false, motivo: "Ya están los cuatro." };
+  r.jugadores.push({ nombre: limpio });
+  return { ok: true };
+}
+
+/** Entra mercadería al depósito (compra al proveedor). */
+function ingresarStock(estado, productoId, cant, ahora) {
+  const p = producto(estado, productoId);
+  if (!p) return { ok: false, motivo: "No encuentro el producto." };
+  const n = Math.round(Number(cant));
+  if (!(n > 0)) return { ok: false, motivo: "Poné cuántos entran." };
+  p.stock += n;
+  registrar(estado, `Entraron ${n} × ${p.nombre}.`, ahora);
+  return { ok: true, stock: p.stock };
+}
+
+/** Límites de las reglas que el dueño edita en vivo: fuera de rango, la regla deja de tener sentido. */
+const LIMITES_POLITICA = Object.freeze({
+  horasCancelacionLibre: [0, 72],
+  senaPct: [0, 100],
+  strikesParaSena: [1, 10],
+  toleranciaMin: [0, 60],
+});
+
+function ajustarPolitica(estado, clave, valor) {
+  const lim = LIMITES_POLITICA[clave];
+  if (!lim) return { ok: false, motivo: "Esa regla no existe." };
+  const v = Math.round(Number(valor));
+  if (!Number.isFinite(v) || v < lim[0] || v > lim[1]) return { ok: false, motivo: `Tiene que ser entre ${lim[0]} y ${lim[1]}.` };
+  estado.config.politica[clave] = v;
+  return { ok: true, valor: v };
+}
+
+/** Se devolvió en mano (o por transferencia) lo que se le debía a alguien sin ficha. Sale de caja. */
+function marcarDevuelto(estado, reservaId, medio, ahora) {
+  const r = reserva(estado, reservaId);
+  if (!r || !(r.devolucionPendiente > 0)) return { ok: false, motivo: "No hay nada para devolver en ese turno." };
+  if (!MEDIOS[medio] || medio === "monedero") return { ok: false, motivo: "Elegí cómo se devolvió." };
+  const monto = r.devolucionPendiente;
+  movimientoCaja(estado, { tipo: "egreso", medio, monto, concepto: `Devolución a ${r.titular}`, reservaId }, ahora);
+  r.devolucionPendiente = 0;
+  registrar(estado, `Se devolvieron ${pesos(monto)} a ${r.titular} (${MEDIOS[medio]}).`, ahora);
+  return { ok: true, monto };
+}
+
+// ───────────────────────── ciclo del turno ─────────────────────────
+
+function checkIn(estado, id, ahora) {
+  const r = reserva(estado, id);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  if (r.estado !== "reservada") return { ok: false, motivo: `El turno está ${ESTADOS[r.estado].toLowerCase()}.` };
+  if (r.sena.monto > 0 && !r.sena.pagada) return { ok: false, motivo: "Falta la seña: cobrala antes de dar la cancha." };
+  if (ahora) {
+    const falta = minutosHasta(ahora, r.fecha, r.inicio);
+    if (falta > estado.config.politica.minutosAntesParaEntrar)
+      return { ok: false, motivo: `Todavía es temprano: la cancha se da desde ${estado.config.politica.minutosAntesParaEntrar} min antes del turno.` };
+    if (falta + r.duracion <= 0) return { ok: false, motivo: "El horario de ese turno ya terminó." };
+  }
+  const ocupada = estado.reservas.find((x) => x.id !== r.id && x.fecha === r.fecha && x.canchaId === r.canchaId && x.estado === "en_cancha");
+  if (ocupada) return { ok: false, motivo: `${cancha(estado, r.canchaId).nombre} sigue ocupada por ${ocupada.titular}: cerrá ese turno primero.` };
+  r.estado = "en_cancha";
+  r.checkIn = ahora ? { ...ahora } : null;
+  estado.luces[r.canchaId] = true;
+  registrar(estado, `${r.titular} entró a ${cancha(estado, r.canchaId).nombre}.`, ahora);
+  return { ok: true };
+}
+
+/**
+ * Cerrar el turno. Si queda saldo, la recepcionista elige: cobrar ahora o dejarlo en la cuenta del
+ * cliente (deuda visible, que dispara seña obligatoria la próxima vez). Lo alquilado vuelve al stock.
+ */
+function finalizar(estado, id, { dejarDeuda = false } = {}, ahora) {
+  const r = reserva(estado, id);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  if (!["reservada", "en_cancha"].includes(r.estado)) return { ok: false, motivo: "Ese turno ya está cerrado." };
+  const debe = saldo(r);
+  if (debe > 0 && !dejarDeuda) return { ok: false, motivo: `Quedan ${pesos(debe)} sin cobrar.`, saldo: debe };
+  if (debe > 0) {
+    const cl = r.clienteId ? cliente(estado, r.clienteId) : null;
+    if (!cl) return { ok: false, motivo: "Sin cliente cargado no se puede dejar a cuenta." };
+    cl.deuda += debe;
+    r.deudaDejada = debe;
+  }
+  devolverAlquileres(estado, r);
+  r.estado = "finalizada";
+  estado.luces[r.canchaId] = false;
+  registrar(estado, `Cerró el turno de ${r.titular}${debe > 0 ? ` con ${pesos(debe)} a cuenta` : ""}.`, ahora);
+  return { ok: true };
+}
+
+function devolverAlquileres(estado, r) {
+  for (const c of r.consumos) {
+    if (!c.alquiler) continue;
+    const p = producto(estado, c.productoId);
+    if (!p) continue;
+    p.stock += c.cant;
+    p.prestados = Math.max(0, (p.prestados ?? 0) - c.cant);
+  }
+}
+
+function marcarNoShow(estado, id, ahora) {
+  const r = reserva(estado, id);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  if (r.estado !== "reservada") return { ok: false, motivo: "Sólo un turno reservado puede quedar como 'no vino'." };
+  if (ahora && minutosHasta(ahora, r.fecha, r.inicio) > -estado.config.politica.toleranciaMin)
+    return { ok: false, motivo: `Todavía está dentro de la tolerancia: se marca 'no vino' a los ${estado.config.politica.toleranciaMin} min del inicio.` };
+  devolverAlquileres(estado, r);
+  r.estado = "no_show";
+  const cl = r.clienteId ? cliente(estado, r.clienteId) : null;
+  if (cl) cl.strikes += 1;
+  registrar(estado, `${r.titular} no vino. ${cl ? `Lleva ${cl.strikes} falta(s).` : ""}`, ahora);
+  return { ok: true, ofertas: ofertasEspera(estado, r.fecha, r.canchaId, r.inicio, r.duracion) };
+}
+
+/**
+ * Cancelación con la política del club:
+ *  · Con más de `horasCancelacionLibre` de aviso, o si cancela el club → lo pagado vuelve como saldo a favor.
+ *  · Con menos aviso → la seña queda RETENIDA EN SUSPENSO: si el hueco se vuelve a vender (lista de espera,
+ *    mostrador, WhatsApp), se libera sola al saldo del cliente. Si no se vende, el club la conserva.
+ */
+function cancelar(estado, id, { porClub = false, motivo = "" } = {}, ahora) {
+  const r = reserva(estado, id);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  if (r.estado !== "reservada") return { ok: false, motivo: "Sólo se cancela un turno que todavía no empezó." };
+  const horas = ahora ? minutosHasta(ahora, r.fecha, r.inicio) / 60 : Infinity;
+  const aTiempo = porClub || horas >= estado.config.politica.horasCancelacionLibre;
+  const pagado = cobrado(r);
+  const cl = r.clienteId ? cliente(estado, r.clienteId) : null;
+  devolverAlquileres(estado, r);
+  r.estado = "cancelada";
+  r.motivoCancelacion = motivo || (porClub ? "Cancela el club" : "Cancela el cliente");
+  let devuelto = 0;
+  let devolverEnMano = 0;
+  if (pagado > 0 && aTiempo && cl) {
+    cl.monedero += pagado;
+    devuelto = pagado;
+  } else if (pagado > 0 && aTiempo) {
+    // Sin ficha no hay saldo a favor donde acreditar: queda anotado para devolverlo en mano o por transferencia.
+    r.devolucionPendiente = pagado;
+    devolverEnMano = pagado;
+  } else if (pagado > 0 && !aTiempo) {
+    r.senaEnSuspenso = true;
+  }
+  registrar(estado, `Canceló ${r.titular} (${hhmm(r.inicio)}). ${devuelto ? `${pesos(devuelto)} a saldo a favor.` : devolverEnMano ? `Hay que devolverle ${pesos(devolverEnMano)} (no tiene ficha).` : r.senaEnSuspenso ? "Seña en suspenso hasta que se vuelva a vender el hueco." : ""}`, ahora);
+  return { ok: true, aTiempo, devuelto, devolverEnMano, enSuspenso: r.senaEnSuspenso, ofertas: ofertasEspera(estado, r.fecha, r.canchaId, r.inicio, r.duracion) };
+}
+
+/** Pasar el turno a otra cancha (o a otro horario) sin perder pagos ni consumos. */
+function mover(estado, id, { canchaId, inicio }, ahora) {
+  const r = reserva(estado, id);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  if (!["reservada", "en_cancha"].includes(r.estado)) return { ok: false, motivo: "Ese turno ya está cerrado." };
+  const destino = { canchaId: canchaId ?? r.canchaId, fecha: r.fecha, inicio: inicio ?? r.inicio, duracion: r.duracion };
+  const v = validarHueco(estado, destino, r.id);
+  if (!v.ok) return v;
+  const antes = cancha(estado, r.canchaId).nombre;
+  if (r.estado === "en_cancha") { estado.luces[r.canchaId] = false; estado.luces[destino.canchaId] = true; }
+  r.canchaId = destino.canchaId;
+  r.inicio = destino.inicio;
+  registrar(estado, `${r.titular}: de ${antes} a ${cancha(estado, r.canchaId).nombre} ${hhmm(r.inicio)}.`, ahora);
+  return { ok: true };
+}
+
+/** Extender el turno si el hueco siguiente está libre; suma la diferencia de precio. */
+function extender(estado, id, minutos, ahora) {
+  const r = reserva(estado, id);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  if (!["reservada", "en_cancha"].includes(r.estado)) return { ok: false, motivo: "Ese turno ya está cerrado." };
+  const v = validarHueco(estado, { canchaId: r.canchaId, fecha: r.fecha, inicio: r.inicio + r.duracion, duracion: minutos });
+  if (!v.ok) return { ok: false, motivo: `No se puede extender: ${v.motivo}` };
+  const extra = precioTurno(estado, { fecha: r.fecha, inicio: r.inicio + r.duracion, duracion: minutos, canchaId: r.canchaId }, r.clienteId);
+  r.duracion += minutos;
+  r.precio += extra;
+  registrar(estado, `${r.titular} extendió ${minutos} min (+${pesos(extra)}).`, ahora);
+  return { ok: true, extra };
+}
+
+/**
+ * Interrupción (corte de luz, lesión, cancha que se moja): se acredita en saldo a favor la parte
+ * proporcional del tiempo no jugado. Es la eventualidad que ningún sistema europeo resuelve porque allá
+ * no se corta la luz; acá pasa.
+ */
+function interrumpir(estado, id, motivo, ahora) {
+  const r = reserva(estado, id);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  if (r.estado !== "en_cancha") return { ok: false, motivo: "Sólo se interrumpe un turno que está en cancha." };
+  if (r.interrumpido) return { ok: false, motivo: "Este turno ya se interrumpió: cobrá lo jugado y cerralo." };
+  const jugados = Math.max(0, Math.min(r.duracion, minutosHasta({ fecha: r.fecha, min: r.inicio }, ahora.fecha, ahora.min)));
+  if (jugados === 0) return { ok: false, motivo: "Todavía no empezaron a jugar: cancelá el turno como 'cancela el club'." };
+  const noJugados = r.duracion - jugados;
+  const credito = redondear100((r.precio * noJugados) / r.duracion);
+  const cl = r.clienteId ? cliente(estado, r.clienteId) : null;
+  const pagado = cobrado(r);
+  // Lo que se le reconoce: baja el precio; si ya había pagado de más, el excedente va a su saldo.
+  r.precio -= credito;
+  const excedente = Math.max(0, pagado - totalReserva(r));
+  if (excedente > 0 && cl) cl.monedero += excedente;
+  else if (excedente > 0) r.devolucionPendiente = (r.devolucionPendiente ?? 0) + excedente;
+  r.interrumpido = true;
+  r.notas = `${r.notas ? r.notas + " · " : ""}Interrumpido: ${motivo} (${noJugados} min sin jugar)`;
+  r.duracion = jugados;
+  registrar(estado, `Interrupción en ${cancha(estado, r.canchaId).nombre} (${motivo}): ${pesos(credito)} reconocidos a ${r.titular}.`, ahora);
+  return { ok: true, credito, noJugados };
+}
+
+// ───────────────────────── lluvia (canchas descubiertas) ─────────────────────────
+
+/**
+ * Plan lluvia: para cada turno en cancha descubierta dentro de la ventana, primero intenta pasarlo a una
+ * cubierta libre en el mismo horario; si no hay, lo suspende y devuelve lo pagado a saldo a favor.
+ * Devuelve el detalle para avisar a cada titular por WhatsApp.
+ */
+function planLluvia(estado, fecha, desde, hasta, ahora) {
+  const descubiertas = estado.canchas.filter((c) => !c.cubierta).map((c) => c.id);
+  const cubiertas = estado.canchas.filter((c) => c.cubierta && c.estado !== "mantenimiento").map((c) => c.id);
+  const afectadas = estado.reservas.filter(
+    (r) => r.fecha === fecha && descubiertas.includes(r.canchaId) && ["reservada", "en_cancha"].includes(r.estado) && solapa(r.inicio, r.inicio + r.duracion, desde, hasta),
+  ).sort((a, b) => a.inicio - b.inicio);
+  const resultado = [];
+  for (const r of afectadas) {
+    const destino = cubiertas.find((id) => validarHueco(estado, { canchaId: id, fecha, inicio: r.inicio, duracion: r.duracion }, r.id).ok);
+    if (destino) {
+      mover(estado, r.id, { canchaId: destino }, ahora);
+      resultado.push({ reservaId: r.id, titular: r.titular, accion: "movido", cancha: cancha(estado, destino).nombre });
+    } else {
+      // Si ya estaban jugando, vale la regla del corte: se reconoce sólo el tiempo que no se jugó, y lo jugado
+      // y lo consumido se cobra y se cierra normalmente.
+      if (r.estado === "en_cancha" && !r.interrumpido && minutosHasta({ fecha: r.fecha, min: r.inicio }, ahora.fecha, ahora.min) > 0) {
+        const corte = interrumpir(estado, r.id, "lluvia", ahora);
+        if (corte.ok) {
+          resultado.push({ reservaId: r.id, titular: r.titular, accion: "cortado", credito: corte.credito, noJugados: corte.noJugados });
+          continue;
+        }
+      }
+      const pagado = cobrado(r);
+      const cl = r.clienteId ? cliente(estado, r.clienteId) : null;
+      if (pagado > 0 && cl) cl.monedero += pagado;
+      else if (pagado > 0) r.devolucionPendiente = pagado;
+      devolverAlquileres(estado, r);
+      if (r.estado === "en_cancha") estado.luces[r.canchaId] = false;
+      r.estado = "suspendida";
+      r.motivoCancelacion = "Lluvia";
+      resultado.push({ reservaId: r.id, titular: r.titular, accion: "suspendido", credito: cl ? pagado : 0, devolverEnMano: cl ? 0 : pagado });
+    }
+  }
+  estado.clima.lluvia = { fecha, desde, hasta };
+  registrar(estado, `Plan lluvia ${hhmm(desde)}–${hhmm(hasta)}: ${resultado.length} turno(s) resueltos.`, ahora);
+  return { ok: true, resultado };
+}
+
+// ───────────────────────── turnos fijos ─────────────────────────
+
+function crearFijo(estado, { clienteId, canchaId, dia, inicio, duracion = estado.config.duracionTurno, titular }) {
+  const f = { id: nuevoId("f"), clienteId, canchaId, dia, inicio, duracion, titular: titular ?? cliente(estado, clienteId)?.nombre, excepciones: [] };
+  estado.fijos.push(f);
+  return f;
+}
+
+/** Baja a la grilla los turnos fijos del día (idempotente). Un fijo que choca no pisa: avisa. */
+function materializarFijos(estado, fecha) {
+  const dia = diaSemana(fecha);
+  const conflictos = [];
+  for (const f of estado.fijos) {
+    if (f.dia !== dia || f.excepciones.includes(fecha)) continue;
+    if (estado.reservas.some((r) => r.fijoId === f.id && r.fecha === fecha)) continue;
+    const res = crearReserva(estado, { canchaId: f.canchaId, fecha, inicio: f.inicio, duracion: f.duracion, tipo: "fijo", clienteId: f.clienteId, titular: f.titular, fijoId: f.id, origen: "fijo" });
+    if (!res.ok) conflictos.push({ fijo: f, motivo: res.motivo });
+  }
+  return conflictos;
+}
+
+/** "Esta semana no venimos": libera un día sin dar de baja el fijo. */
+function liberarFijo(estado, fijoId, fecha, ahora) {
+  const f = estado.fijos.find((x) => x.id === fijoId);
+  if (!f) return { ok: false, motivo: "No encuentro el turno fijo." };
+  if (!f.excepciones.includes(fecha)) f.excepciones.push(fecha);
+  const r = estado.reservas.find((x) => x.fijoId === fijoId && x.fecha === fecha && x.estado === "reservada");
+  if (r) return cancelar(estado, r.id, { motivo: "Libera el turno fijo de esta semana" }, ahora);
+  return { ok: true };
+}
+
+// ───────────────────────── lista de espera ─────────────────────────
+
+function anotarEspera(estado, { clienteId, titular, tel, fecha, desde, hasta, duracion = estado.config.duracionTurno, soloCubierta = false }, ahora) {
+  const e = { id: nuevoId("e"), clienteId, titular, tel, fecha, desde, hasta, duracion, soloCubierta, creado: ahora ? { ...ahora } : null };
+  estado.espera.push(e);
+  return e;
+}
+
+/** Quiénes de la lista de espera aceptarían este hueco, por orden de llegada. */
+function ofertasEspera(estado, fecha, canchaId, inicio, duracion) {
+  const c = cancha(estado, canchaId);
+  return estado.espera
+    .filter((e) => e.fecha === fecha && inicio >= e.desde && inicio <= e.hasta && e.duracion <= duracion && (!e.soloCubierta || c?.cubierta))
+    .map((e) => ({ ...e, canchaId, inicio, mensaje: mensajeWhatsApp("espera", { nombre: e.titular, cancha: c.nombre, hora: hhmm(inicio), fecha }) }));
+}
+
+function asignarDesdeEspera(estado, esperaId, { canchaId, inicio }, ahora) {
+  const e = estado.espera.find((x) => x.id === esperaId);
+  if (!e) return { ok: false, motivo: "Ya no está en la lista de espera." };
+  const res = crearReserva(estado, { canchaId, fecha: e.fecha, inicio, duracion: e.duracion, clienteId: e.clienteId, titular: e.titular, origen: "lista de espera" }, ahora);
+  if (res.ok) estado.espera = estado.espera.filter((x) => x.id !== esperaId);
+  return res;
+}
+
+// ───────────────────────── bloqueos ─────────────────────────
+
+function bloquear(estado, { canchaId, fecha, desde, hasta, motivo }, ahora) {
+  const choques = estado.reservas.filter((r) => r.fecha === fecha && (canchaId === "*" || r.canchaId === canchaId) && ["reservada", "en_cancha"].includes(r.estado) && solapa(r.inicio, r.inicio + r.duracion, desde, hasta));
+  if (choques.length) return { ok: false, motivo: `Hay ${choques.length} turno(s) en ese rango: movelos primero.`, choques };
+  const b = { id: nuevoId("b"), canchaId, fecha, desde, hasta, motivo };
+  estado.bloqueos.push(b);
+  registrar(estado, `Bloqueo ${canchaId === "*" ? "de todo el club" : cancha(estado, canchaId).nombre} ${hhmm(desde)}–${hhmm(hasta)}: ${motivo}.`, ahora);
+  return { ok: true, bloqueo: b };
+}
+
+// ───────────────────────── caja ─────────────────────────
+
+function egresoCaja(estado, { medio = "efectivo", monto, concepto }, ahora) {
+  const importe = Math.round(Number(monto));
+  if (!(importe > 0)) return { ok: false, motivo: "El monto tiene que ser mayor a cero." };
+  if (!concepto?.trim()) return { ok: false, motivo: "Poné en qué se gastó." };
+  movimientoCaja(estado, { tipo: "egreso", medio, monto: importe, concepto: concepto.trim() }, ahora);
+  return { ok: true };
+}
+
+function resumenCaja(estado, fecha) {
+  const movs = estado.caja.movimientos.filter((m) => !fecha || m.fecha === fecha);
+  const porMedio = Object.fromEntries(Object.keys(MEDIOS).filter((k) => k !== "monedero").map((k) => [k, 0]));
+  let ingresos = 0, egresos = 0;
+  for (const m of movs) {
+    const signo = m.tipo === "ingreso" ? 1 : -1;
+    porMedio[m.medio] = (porMedio[m.medio] ?? 0) + signo * m.monto;
+    if (m.tipo === "ingreso") ingresos += m.monto; else egresos += m.monto;
+  }
+  const efectivoEsperado = estado.caja.fondo + porMedio.efectivo;
+  return { porMedio, ingresos, egresos, neto: ingresos - egresos, efectivoEsperado, movimientos: movs.length };
+}
+
+/** Arqueo del turno de la recepcionista: lo contado contra lo esperado, con diferencia explícita. */
+function cerrarCaja(estado, { contado, responsable }, ahora) {
+  const r = resumenCaja(estado, ahora?.fecha);
+  const n = Math.round(Number(contado));
+  if (!(n >= 0)) return { ok: false, motivo: "Contá el efectivo del cajón y cargalo." };
+  const cierre = { responsable: responsable ?? estado.caja.responsable, fecha: ahora?.fecha, min: ahora?.min, esperado: r.efectivoEsperado, contado: n, diferencia: n - r.efectivoEsperado, ingresos: r.ingresos };
+  estado.caja.cierres.push(cierre);
+  registrar(estado, `Cierre de caja de ${cierre.responsable}: diferencia ${pesos(cierre.diferencia)}.`, ahora);
+  return { ok: true, cierre };
+}
+
+// ───────────────────────── WhatsApp ─────────────────────────
+
+function mensajeWhatsApp(tipo, d) {
+  const club = "Break Point Pádel";
+  switch (tipo) {
+    case "confirmacion":
+      return `¡Hola ${d.nombre}! Te confirmamos el turno en ${club}: ${d.cancha}, ${d.fecha} a las ${d.hora}.${d.sena ? ` Para dejarlo firme falta la seña de ${d.sena} (transferencia o Mercado Pago).` : ""} ¡Nos vemos en la cancha! 🎾`;
+    case "recordatorio":
+      return `¡Hola ${d.nombre}! Te esperamos hoy a las ${d.hora} en ${d.cancha}. Si no llegan, avisanos así le damos la cancha a otro grupo. ¡Gracias!`;
+    case "espera":
+      return `¡Hola ${d.nombre}! Se liberó un turno: ${d.cancha} a las ${d.hora} (${d.fecha}). ¿Lo querés? Respondé SÍ y te lo reservamos.`;
+    case "lluvia_movido":
+      return `¡Hola ${d.nombre}! Por la lluvia pasamos tu turno de las ${d.hora} a ${d.cancha} (techada). Mismo horario, mismo precio. ¡Los esperamos!`;
+    case "lluvia_suspendido":
+      return d.credito
+        ? `¡Hola ${d.nombre}! Por la lluvia suspendimos tu turno de las ${d.hora}. Te dejamos ${d.credito} de saldo a favor para cuando quieras volver. ¡Disculpá!`
+        : `¡Hola ${d.nombre}! Por la lluvia suspendimos tu turno de las ${d.hora}. No se te cobra nada; avisanos y te lo reprogramamos sin cargo. ¡Disculpá!`;
+    case "lluvia_devolucion":
+      return `¡Hola ${d.nombre}! Por la lluvia suspendimos tu turno de las ${d.hora}. Te devolvemos los ${d.monto} que habías pagado: ¿te lo pasamos por transferencia o lo retirás en el club? ¡Disculpá!`;
+    case "deuda":
+      return `¡Hola ${d.nombre}! Te quedó un saldo de ${d.monto} del último turno. Lo podés pasar por transferencia o Mercado Pago cuando puedas. ¡Gracias!`;
+    case "reposicion":
+      return `Hola, te escribo de ${club}. Necesitamos reponer: ${d.lista}. ¿Me pasás precio y cuándo lo podés traer?`;
+    default:
+      return d.texto ?? "";
+  }
+}
+
+function linkWhatsApp(tel, texto) {
+  const numero = String(tel ?? "").replace(/\D/g, "");
+  return `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`;
+}
+
+// ───────────────────────── eventualidades (la bandeja de la recepcionista) ─────────────────────────
+
+/**
+ * Lo que la recepcionista tiene que resolver AHORA, ordenado por urgencia. Es el corazón del backoffice:
+ * en vez de que ella descubra el problema mirando la grilla, la grilla le avisa.
+ */
+function alertas(estado, ahora) {
+  const out = [];
+  const { politica } = estado.config;
+  const hoy = estado.reservas.filter((r) => r.fecha === ahora.fecha);
+  for (const r of hoy) {
+    const falta = minutosHasta(ahora, r.fecha, r.inicio);
+    const fin = falta + r.duracion;
+    const nombreCancha = cancha(estado, r.canchaId)?.nombre ?? "";
+    if (r.estado === "reservada" && r.sena.monto > 0 && !r.sena.pagada && falta > 0 && falta <= politica.minutosAvisoSena)
+      out.push({ nivel: "alta", tipo: "sena", reservaId: r.id, texto: `${r.titular} (${hhmm(r.inicio)}, ${nombreCancha}) no pagó la seña.`, accion: "Pedir seña o liberar" });
+    if (r.estado === "reservada" && falta < 0 && -falta >= politica.toleranciaMin && fin > 0)
+      out.push({ nivel: "alta", tipo: "no_show", reservaId: r.id, texto: `${r.titular} no llegó: van ${-falta} min del turno de las ${hhmm(r.inicio)} (${nombreCancha}).`, accion: "Llamar o marcar 'no vino'" });
+    if (r.estado === "reservada" && falta > 0 && falta <= 15)
+      out.push({ nivel: "info", tipo: "llega", reservaId: r.id, texto: `${r.titular} entra en ${falta} min a ${nombreCancha}.`, accion: "Recibir" });
+    if (r.estado === "en_cancha" && fin <= 0)
+      out.push({ nivel: saldo(r) > 0 ? "alta" : "media", tipo: "cerrar", reservaId: r.id, texto: saldo(r) > 0 ? `${r.titular} terminó y debe ${pesos(saldo(r))}.` : `${r.titular} terminó: cerrá el turno y apagá la luz.`, accion: saldo(r) > 0 ? "Cobrar antes de que se vayan" : "Cerrar turno" });
+    if (r.estado === "en_cancha" && fin > 0 && fin <= 10)
+      out.push({ nivel: "info", tipo: "termina", reservaId: r.id, texto: `${r.titular} termina en ${fin} min (${nombreCancha}).${saldo(r) > 0 ? ` Saldo: ${pesos(saldo(r))}.` : ""}`, accion: "Ofrecer extender" });
+  }
+  // Plata para devolver a alguien sin ficha (canceló a tiempo, lluvia, corte).
+  for (const r of hoy.filter((x) => x.devolucionPendiente > 0))
+    out.push({ nivel: "media", tipo: "devolucion", reservaId: r.id, texto: `Hay que devolverle ${pesos(r.devolucionPendiente)} a ${r.titular} (no tiene ficha).`, accion: "Registrar la devolución" });
+  // Luz encendida sin nadie jugando: plata que se va por el medidor.
+  for (const c of estado.canchas) {
+    if (!estado.luces[c.id]) continue;
+    const jugando = hoy.some((r) => r.canchaId === c.id && r.estado === "en_cancha");
+    if (!jugando) out.push({ nivel: "media", tipo: "luz", canchaId: c.id, texto: `Luz prendida en ${c.nombre} sin turno en juego.`, accion: "Apagar" });
+  }
+  // Cancha en mantenimiento con turnos por delante.
+  for (const c of estado.canchas.filter((x) => x.estado === "mantenimiento")) {
+    const n = hoy.filter((r) => r.canchaId === c.id && r.estado === "reservada" && minutosHasta(ahora, r.fecha, r.inicio) > 0).length;
+    if (n) out.push({ nivel: "alta", tipo: "mantenimiento", canchaId: c.id, texto: `${c.nombre} está en mantenimiento y tiene ${n} turno(s) por delante.`, accion: "Reubicar" });
+  }
+  // Lluvia anunciada sobre canchas descubiertas.
+  const lluvia = estado.clima.pronostico;
+  if (lluvia && lluvia.fecha === ahora.fecha && !estado.clima.lluvia) {
+    const descubiertas = new Set(estado.canchas.filter((c) => !c.cubierta).map((c) => c.id));
+    const n = hoy.filter((r) => descubiertas.has(r.canchaId) && ["reservada", "en_cancha"].includes(r.estado) && solapa(r.inicio, r.inicio + r.duracion, lluvia.desde, lluvia.hasta)).length;
+    if (n) out.push({ nivel: "alta", tipo: "lluvia", texto: `Anuncian lluvia ${hhmm(lluvia.desde)}–${hhmm(lluvia.hasta)}: ${n} turno(s) en cancha descubierta.`, accion: "Activar plan lluvia" });
+  }
+  // Huecos que la lista de espera compraría.
+  for (const e of estado.espera.filter((x) => x.fecha === ahora.fecha)) {
+    for (const c of estado.canchas) {
+      const libres = huecosLibres(estado, e.fecha, c.id, e.duracion, Math.max(e.desde, ahora.min)).filter((m) => m <= e.hasta);
+      if (libres.length && (!e.soloCubierta || c.cubierta)) {
+        out.push({ nivel: "media", tipo: "espera", esperaId: e.id, canchaId: c.id, inicio: libres[0], texto: `Hay lugar para ${e.titular} (lista de espera): ${c.nombre} ${hhmm(libres[0])}.`, accion: "Ofrecer por WhatsApp" });
+        break;
+      }
+    }
+  }
+  // Stock bajo el mínimo.
+  for (const p of estado.productos) {
+    if (!p.alquiler && p.stock <= p.minimo)
+      out.push({ nivel: p.stock === 0 ? "alta" : "media", tipo: "stock", productoId: p.id, texto: `${p.nombre}: quedan ${p.stock} (mínimo ${p.minimo}).`, accion: "Pedir reposición" });
+  }
+  const peso = { alta: 0, media: 1, info: 2 };
+  return out.sort((a, b) => peso[a.nivel] - peso[b.nivel]);
+}
+
+// ───────────────────────── tablero del dueño ─────────────────────────
+
+function kpis(estado, fecha, ahora) {
+  const { apertura, cierre } = estado.config;
+  const canchasActivas = estado.canchas.filter((c) => c.estado !== "mantenimiento");
+  const delDia = estado.reservas.filter((r) => r.fecha === fecha);
+  const ocupan = delDia.filter((r) => OCUPA.has(r.estado));
+  const minutosDisponibles = canchasActivas.length * (cierre - apertura);
+  const minutosOcupados = ocupan.reduce((s, r) => s + r.duracion, 0);
+  const porFranja = { valle: { ocupado: 0, total: 0 }, pico: { ocupado: 0, total: 0 } };
+  for (let m = apertura; m < cierre; m += 30) {
+    const f = franjaDe(estado, fecha, m);
+    porFranja[f].total += canchasActivas.length * 30;
+    for (const r of ocupan) if (m >= r.inicio && m < r.inicio + r.duracion) porFranja[f].ocupado += 30;
+  }
+  const vendido = ocupan.reduce((s, r) => s + totalReserva(r), 0);
+  const cobradoTotal = delDia.reduce((s, r) => s + cobrado(r), 0);
+  // Por cobrar = lo que ya se está jugando o se jugó y todavía no se pagó. Lo que se dejó a cuenta va en
+  // "deuda de clientes"; los turnos que todavía no empezaron no son deuda de nadie.
+  const yaEmpezo = (r) => !ahora || fecha < ahora.fecha || (fecha === ahora.fecha && r.inicio <= ahora.min);
+  const porCobrar = delDia.filter((r) => r.estado === "en_cancha" || (r.estado === "reservada" && yaEmpezo(r))).reduce((s, r) => s + Math.max(0, saldo(r)), 0);
+  const noShows = delDia.filter((r) => r.estado === "no_show").length;
+  const caja = resumenCaja(estado, fecha);
+  const stockValorizado = estado.productos.reduce((s, p) => s + p.costo * (p.stock + (p.prestados ?? 0)), 0);
+  const consumos = ocupan.reduce((s, r) => s + totalConsumos(r), 0);
+  const proximoLibre = ahora && fecha === ahora.fecha
+    ? canchasActivas.map((c) => ({ cancha: c.nombre, min: huecosLibres(estado, fecha, c.id, estado.config.duracionTurno, ahora.min)[0] })).filter((x) => x.min != null).sort((a, b) => a.min - b.min)[0] ?? null
+    : null;
+  return {
+    ocupacion: minutosDisponibles ? minutosOcupados / minutosDisponibles : 0,
+    ocupacionValle: porFranja.valle.total ? porFranja.valle.ocupado / porFranja.valle.total : 0,
+    ocupacionPico: porFranja.pico.total ? porFranja.pico.ocupado / porFranja.pico.total : 0,
+    turnos: ocupan.length,
+    vendido,
+    cobrado: cobradoTotal,
+    porCobrar,
+    ticketPromedio: ocupan.length ? Math.round(vendido / ocupan.length) : 0,
+    consumos,
+    noShows,
+    cancelados: delDia.filter((r) => r.estado === "cancelada").length,
+    caja,
+    stockValorizado,
+    proximoLibre,
+    deudaClientes: estado.clientes.reduce((s, c) => s + c.deuda, 0),
+    saldoAFavor: estado.clientes.reduce((s, c) => s + c.monedero, 0),
+  };
+}
+
+/** Matriz de ocupación día × hora (0..1) para el mapa de calor del dueño. */
+function mapaDeCalor(estado, fechas) {
+  const { apertura, cierre } = estado.config;
+  const horas = [];
+  for (let h = apertura; h < cierre; h += 60) horas.push(h);
+  const n = estado.canchas.filter((c) => c.estado !== "mantenimiento").length || 1;
+  const filas = fechas.map((fecha) => {
+    const ocupan = estado.reservas.filter((r) => r.fecha === fecha && OCUPA.has(r.estado));
+    return {
+      fecha,
+      valores: horas.map((h) => {
+        let ocupado = 0;
+        for (const r of ocupan) ocupado += Math.max(0, Math.min(h + 60, r.inicio + r.duracion) - Math.max(h, r.inicio));
+        return Math.min(1, ocupado / (60 * n));
+      }),
+    };
+  });
+  return { horas, filas };
+}
+
+// ───────────────────────── datos de demo ─────────────────────────
+
+/** Configuración de ejemplo (precios y horarios provisionales a confirmar con el club). */
+const CONFIG_DEMO = Object.freeze({
+  nombre: "Break Point Pádel",
+  apertura: 8 * 60,
+  cierre: 25 * 60, // 01:00
+  paso: 30,
+  duracionTurno: 90,
+  descuentoSocioPct: 15,
+  feriados: [],
+  tarifas: [
+    { nombre: "Valle", desde: 8 * 60, hasta: 17 * 60, precioHora: 20000 },
+    { nombre: "Pico", desde: 17 * 60, hasta: 25 * 60, precioHora: 28000, pico: true },
+  ],
+  politica: {
+    horasCancelacionLibre: 12,
+    senaPct: 50,
+    senaSiempre: false,
+    senaSinCliente: true,
+    strikesParaSena: 2,
+    toleranciaMin: 15,
+    minutosAvisoSena: 180,
+    minutosAntesParaEntrar: 30,
+  },
+});
+
+const CANCHAS_DEMO = Object.freeze([
+  { id: "c1", nombre: "Cancha 1", cubierta: true, panoramica: true, estado: "ok", camara: "cam-c1" },
+  { id: "c2", nombre: "Cancha 2", cubierta: true, panoramica: true, estado: "ok", camara: "cam-c2" },
+  { id: "c3", nombre: "Cancha 3", cubierta: true, panoramica: true, estado: "ok", camara: "cam-c3" },
+  { id: "c4", nombre: "Cancha 4", cubierta: false, panoramica: true, estado: "ok", camara: "cam-c4" },
+]);
+
+const NOMBRES = [
+  "Lucas Fernández", "Sofía Gómez", "Martín Ríos", "Valentina Paz", "Nicolás Herrera", "Camila Sosa",
+  "Federico Luna", "Julieta Acosta", "Tomás Medina", "Agustina Romero", "Matías Benítez", "Florencia Díaz",
+  "Gonzalo Vera", "Micaela Ortiz", "Diego Castro", "Carolina Molina", "Pablo Suárez", "Lucía Torres",
+  "Ezequiel Rojas", "Daniela Navarro", "Santiago Aguirre", "Rocío Giménez", "Facundo Ledesma", "Paula Ibáñez",
+];
+
+const PRODUCTOS_DEMO = Object.freeze([
+  { id: "p1", nombre: "Tubo de pelotas (3)", categoria: "Pelotas", precio: 12000, costo: 7800, stock: 18, minimo: 10 },
+  { id: "p2", nombre: "Agua 500 ml", categoria: "Bebidas", precio: 2000, costo: 700, stock: 42, minimo: 24 },
+  { id: "p3", nombre: "Bebida isotónica", categoria: "Bebidas", precio: 3500, costo: 1500, stock: 9, minimo: 12 },
+  { id: "p4", nombre: "Overgrip", categoria: "Accesorios", precio: 4500, costo: 2100, stock: 30, minimo: 10 },
+  { id: "p5", nombre: "Muñequera", categoria: "Accesorios", precio: 6000, costo: 2800, stock: 4, minimo: 6 },
+  { id: "p6", nombre: "Alquiler de pala", categoria: "Alquiler", precio: 5000, costo: 0, stock: 8, minimo: 0, alquiler: true },
+  { id: "p7", nombre: "Pala Break Point (shop)", categoria: "Shop", precio: 185000, costo: 118000, stock: 3, minimo: 2 },
+  { id: "p8", nombre: "Remera técnica del club", categoria: "Shop", precio: 28000, costo: 13500, stock: 0, minimo: 5 },
+]);
+
+/** Generador pseudoaleatorio con semilla: la demo se ve igual cada vez que se abre el mismo día. */
+function azar(semilla) {
+  let s = semilla >>> 0;
+  return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+}
+
+/**
+ * Arma un club con vida: una semana de historia para el mapa de calor y un día de hoy con todas las
+ * eventualidades a la vista (seña pendiente, alguien que no llegó, un turno que se va debiendo, lluvia
+ * anunciada sobre la descubierta, lista de espera, stock bajo, luz prendida de más).
+ */
+function generarDemo(hoy, ahoraMin = 19 * 60 + 10) {
+  secuencia = 0;
+  const rnd = azar(hoy.split("-").reduce((s, x) => s * 31 + Number(x), 7));
+  const clientes = NOMBRES.map((nombre, i) => ({
+    id: `k${i + 1}`, nombre, tel: `5491100000${String(i + 1).padStart(3, "0")}`, // ficticio a propósito
+    socio: i % 3 === 0, strikes: i === 5 ? 2 : i === 11 ? 1 : 0, monedero: i === 2 ? 15000 : 0, deuda: i === 9 ? 21000 : 0,
+    nivel: ["3ra", "4ta", "5ta", "6ta", "7ma"][i % 5],
+  }));
+  const e = crearEstado({ config: CONFIG_DEMO, canchas: CANCHAS_DEMO, clientes, productos: PRODUCTOS_DEMO });
+  e.caja.fondo = 30000;
+  const ahora = { fecha: hoy, min: ahoraMin };
+  const elegir = () => clientes[Math.floor(rnd() * clientes.length)];
+  const medios = ["efectivo", "mercadopago", "transferencia", "debito"];
+
+  // Turnos fijos: el corazón de la recurrencia de un club de barrio.
+  crearFijo(e, { clienteId: "k1", canchaId: "c1", dia: diaSemana(hoy), inicio: 20 * 60 + 30 });
+  crearFijo(e, { clienteId: "k4", canchaId: "c2", dia: diaSemana(hoy), inicio: 22 * 60 + 30 });
+  crearFijo(e, { clienteId: "k7", canchaId: "c3", dia: (diaSemana(hoy) + 1) % 7, inicio: 19 * 60 });
+
+  // Historia: los 6 días anteriores, todos cerrados y cobrados (para el mapa de calor y la tendencia).
+  for (let d = -6; d <= 0; d++) {
+    const fecha = sumarDias(hoy, d);
+    materializarFijos(e, fecha);
+    if (d < 0) {
+      // Los fijos de días pasados se jugaron y se cobraron, como el resto de la historia.
+      for (const r of e.reservas.filter((x) => x.fecha === fecha && x.fijoId && x.estado === "reservada")) {
+        r.pagos.push({ medio: "transferencia", monto: r.precio, fecha, min: r.inicio });
+        e.caja.movimientos.push({ id: nuevoId("m"), tipo: "ingreso", medio: "transferencia", monto: r.precio, concepto: `Turno ${r.titular}`, reservaId: r.id, fecha, min: r.inicio });
+        r.estado = "finalizada";
+      }
+    }
+    const finde = [0, 6].includes(diaSemana(fecha));
+    for (const c of e.canchas) {
+      for (let m = e.config.apertura; m + 90 <= e.config.cierre; m += 90) {
+        const pico = m >= 17 * 60;
+        const prob = finde ? 0.78 : pico ? 0.9 : m < 11 * 60 ? 0.25 : 0.4;
+        if (d === 0 && m + 90 > ahoraMin - 90 && m < ahoraMin + 300) continue; // hoy se arma a mano abajo
+        if (rnd() > prob) continue;
+        const k = elegir();
+        const res = crearReserva(e, { canchaId: c.id, fecha, inicio: m, clienteId: k.id, origen: rnd() > 0.5 ? "whatsapp" : "web" });
+        if (!res.ok) continue;
+        const r = res.reserva;
+        if (d === 0 && m + 90 > ahoraMin) continue; // los de más tarde quedan reservados
+        r.estado = "en_cancha";
+        if (rnd() > 0.55) agregarConsumo(e, r.id, "p2", 2);
+        if (rnd() > 0.8) agregarConsumo(e, r.id, "p1", 1);
+        r.estado = rnd() > 0.96 ? "no_show" : "finalizada";
+        if (r.estado === "finalizada") {
+          const total = totalReserva(r);
+          const quien = { fecha, min: m + 90 };
+          for (const parte of dividir(total, rnd() > 0.5 ? 4 : 1)) {
+            r.pagos.push({ medio: medios[Math.floor(rnd() * 4)], monto: parte, fecha, min: quien.min });
+            e.caja.movimientos.push({ id: nuevoId("m"), tipo: "ingreso", medio: r.pagos.at(-1).medio, monto: parte, concepto: `Turno ${r.titular}`, reservaId: r.id, fecha, min: quien.min });
+          }
+        }
+      }
+    }
+  }
+
+  // La historia no se come el stock de hoy: el depósito arranca el día como en el inventario.
+  e.productos = structuredClone(PRODUCTOS_DEMO);
+
+  // HOY — escenario armado para que cada eventualidad aparezca en la bandeja.
+  const h = (hh, mm = 0) => hh * 60 + mm;
+  const turno = (canchaId, inicio, clienteId, extra = {}) => crearReserva(e, { canchaId, fecha: hoy, inicio, clienteId, origen: "whatsapp", ...extra }, { fecha: hoy, min: inicio - 600 }).reserva;
+  materializarFijos(e, hoy);
+
+  // 1) Termina ahora, se está yendo con saldo (pagaron la mitad y pidieron bebidas).
+  const r1 = turno("c1", h(17, 30), "k3", { jugadores: ["Martín Ríos", "Sofía Gómez", "Tomás Medina", "Lucía Torres"] });
+  r1.estado = "en_cancha"; r1.checkIn = { fecha: hoy, min: h(17, 28) }; e.luces.c1 = true;
+  agregarConsumo(e, r1.id, "p2", 4); agregarConsumo(e, r1.id, "p3", 2);
+  registrarPago(e, r1.id, { medio: "mercadopago", monto: 21000, jugador: 0 }, { fecha: hoy, min: h(17, 30) });
+  // 2) En juego: pagaron el turno por transferencia, pero las palas alquiladas quedan por cobrar.
+  const r2 = turno("c2", h(18, 30), "k8", { jugadores: ["Julieta Acosta", "Camila Sosa", "Rocío Giménez", "Paula Ibáñez"] });
+  registrarPago(e, r2.id, { medio: "transferencia", monto: totalReserva(r2) }, { fecha: hoy, min: h(18, 25) });
+  r2.estado = "en_cancha"; r2.checkIn = { fecha: hoy, min: h(18, 27) }; e.luces.c2 = true;
+  agregarConsumo(e, r2.id, "p6", 2);
+  // 3) No llegó: van 40 minutos (cliente con 2 faltas → tenía seña obligatoria y la pagó).
+  const r3 = turno("c3", h(18, 30), "k6");
+  registrarPago(e, r3.id, { medio: "transferencia", monto: r3.sena.monto }, { fecha: hoy, min: h(14) });
+  // 4) Entra en 20 minutos, sin seña (cliente nuevo de mostrador, seña obligatoria por política).
+  turno("c4", h(19, 30), null, { titular: "Grupo de Bruno (nuevo)", origen: "mostrador" });
+  // 5) La cancha 3 tiene luz prendida de más (el turno anterior se fue y nadie apagó).
+  e.luces.c3 = true;
+  // 6) Más tarde: turnos reservados, uno en la descubierta para cuando anuncian lluvia.
+  turno("c4", h(21), "k10");
+  turno("c4", h(22, 30), "k13");
+  turno("c3", h(20, 30), "k15", { tipo: "clase", titular: "Clase 4ta — Profe Ezequiel" });
+  turno("c1", h(22), "k17");
+  turno("c3", h(22), "k21", { tipo: "abierto", titular: "Partido abierto 5ta (3/4)", jugadores: ["Santiago Aguirre", "Gonzalo Vera", "Facundo Ledesma"] });
+  turno("c1", h(23, 30), "k19");
+  e.clima.pronostico = { fecha: hoy, desde: h(20, 45), hasta: h(23, 59) };
+  // 7) Lista de espera: alguien quiere jugar hoy después de las 21.
+  anotarEspera(e, { clienteId: "k20", titular: "Daniela Navarro", tel: clientes[19].tel, fecha: hoy, desde: h(21), hasta: h(23, 30), soloCubierta: true }, ahora);
+  // 8) Caja del turno tarde: un egreso (compra de hielo).
+  egresoCaja(e, { medio: "efectivo", monto: 6500, concepto: "Hielo para el bar" }, { fecha: hoy, min: h(16, 40) });
+
+  e.log.length = 0;
+  registrar(e, "Arrancó el turno tarde de recepción.", { fecha: hoy, min: h(16) });
+  return e;
+}
+
+return { MEDIOS, ESTADOS, TIPOS, hhmm, aMinutos, diaSemana, sumarDias, minutosHasta, pesos, crearEstado, cancha, cliente, reserva, producto, buscarClientes, altaCliente, precioTurno, franjaDe, ocupantes, validarHueco, huecosLibres, requiereSena, crearReserva, totalConsumos, cobrado, totalReserva, saldo, dividir, registrarPago, agregarConsumo, ventaMostrador, cobrarDeuda, sumarJugador, ingresarStock, LIMITES_POLITICA, ajustarPolitica, marcarDevuelto, checkIn, finalizar, marcarNoShow, cancelar, mover, extender, interrumpir, planLluvia, crearFijo, materializarFijos, liberarFijo, anotarEspera, ofertasEspera, asignarDesdeEspera, bloquear, egresoCaja, resumenCaja, cerrarCaja, mensajeWhatsApp, linkWhatsApp, alertas, kpis, mapaDeCalor, CONFIG_DEMO, CANCHAS_DEMO, PRODUCTOS_DEMO, generarDemo };
+})();
+// BACKOFFICE DEL CLUB — Break Point Pádel (demo del flujo). Toda la regla de negocio vive en motor.mjs;
+// este archivo sólo pinta y conecta botones. Sin persistencia: el estado vive en memoria.
+
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const pad = (n) => String(n).padStart(2, "0");
+const hoyLocal = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+const fechaCorta = (f) => { const [, m, d] = f.split("-"); return `${DIAS[M.diaSemana(f)]} ${Number(d)}/${Number(m)}`; };
+// En la demo el WhatsApp abre sin número (elegís el contacto): los teléfonos de ejemplo podrían ser de alguien real.
+const wa = (texto) => M.linkWhatsApp("", texto);
+const ROW = 30;
+
+let E, AHORA, VISTA, HOY, ROL = "recepcion";
+let ALERTAS = [];
+const ui = { medio: "efectivo", carrito: {}, cuentaDe: "" };
+
+function iniciar() {
+  HOY = hoyLocal();
+  E = M.generarDemo(HOY);
+  AHORA = { fecha: HOY, min: 19 * 60 + 10 };
+  VISTA = HOY;
+  for (let d = 1; d <= 6; d++) M.materializarFijos(E, M.sumarDias(HOY, d));
+  render();
+}
+
+function toast(texto, { error = false } = {}) {
+  const dlg = $("#dlg");
+  if (dlg.open) {
+    const aviso = $("#dlg-aviso", dlg);
+    if (aviso) {
+      aviso.textContent = texto;
+      aviso.className = error ? "err" : "small";
+      aviso.setAttribute("role", error ? "alert" : "status");
+      return;
+    }
+  }
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.textContent = texto;
+  const pila = $("#toasts");
+  pila.append(t);
+  while (pila.children.length > 2) pila.firstElementChild.remove();
+  setTimeout(() => t.remove(), 4000);
+}
+
+/** Muestra el motivo si la regla rechazó; si salió bien, re-pinta y avisa. */
+function hecho(res, okTexto) {
+  if (!res.ok) { toast(res.motivo, { error: true }); return false; }
+  render();
+  if (okTexto) toast(okTexto);
+  return true;
+}
+
+/** Clave estable del elemento con foco, para devolvérselo después de re-pintar (navegación con teclado). */
+function claveFoco() {
+  const a = document.activeElement;
+  if (!a || a === document.body) return null;
+  if (a.id) return `#${CSS.escape(a.id)}`;
+  if (a.dataset?.a) return `[data-a="${CSS.escape(a.dataset.a)}"]${a.dataset.v != null ? `[data-v="${CSS.escape(a.dataset.v)}"]` : ""}${a.dataset.c != null ? `[data-c="${CSS.escape(a.dataset.c)}"]` : ""}${a.dataset.m != null ? `[data-m="${CSS.escape(a.dataset.m)}"]` : ""}`;
+  return null;
+}
+function devolverFoco(clave, raiz = document) {
+  if (!clave) return;
+  const el = raiz.querySelector(clave);
+  if (el && typeof el.focus === "function") el.focus({ preventScroll: true });
+}
+
+// ═════════════════════════════════ RENDER ═════════════════════════════════
+
+function render() {
+  const foco = claveFoco();
+  $("#reloj").textContent = M.hhmm(AHORA.min);
+  document.querySelectorAll('[data-a="rol"]').forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === ROL)));
+  if (VISTA >= HOY) M.materializarFijos(E, VISTA);
+  ALERTAS = M.alertas(E, AHORA);
+  const previo = $("#grid-wrap");
+  const scroll = previo ? { top: previo.scrollTop, left: previo.scrollLeft, vista: previo.dataset.vista } : null;
+  $("#app").innerHTML = ROL === "recepcion" ? vistaRecepcion() : vistaDuenio();
+  const gw = $("#grid-wrap");
+  if (gw) {
+    if (scroll && scroll.vista === VISTA) { gw.scrollTop = scroll.top; gw.scrollLeft = scroll.left; }
+    else gw.scrollTop = Math.max(0, ((AHORA.min - E.config.apertura) / E.config.paso) * ROW - 150);
+  }
+  camaras.parar();
+  if (ROL === "duenio") camaras.arrancar();
+  if ($("#dlg").open && dialogoActual) dialogoActual.refrescar?.();
+  devolverFoco(foco);
+}
+
+function chipsReserva(r) {
+  const s = M.saldo(r);
+  const out = [];
+  if (r.sena.monto > 0 && !r.sena.pagada && r.estado === "reservada") out.push(`<span class="chip bad">Falta seña ${M.pesos(r.sena.monto)}</span>`);
+  else if (s <= 0) out.push(`<span class="chip ok">Pagado</span>`);
+  else if (M.cobrado(r) > 0) out.push(`<span class="chip warn">Debe ${M.pesos(s)}</span>`);
+  else out.push(`<span class="chip">A cobrar ${M.pesos(s)}</span>`);
+  if (r.estado === "en_cancha") out.push(`<span class="chip ok">En cancha</span>`);
+  if (r.tipo !== "turno") out.push(`<span class="chip info">${M.TIPOS[r.tipo]}</span>`);
+  if (r.consumos.length) out.push(`<span class="chip">+${r.consumos.reduce((n, c) => n + c.cant, 0)} consumos</span>`);
+  return out.join("");
+}
+
+// ───────────────────────────── Recepción ─────────────────────────────
+
+function vistaRecepcion() {
+  const dias = [-1, 0, 1, 2, 3, 4, 5].map((d) => M.sumarDias(HOY, d));
+  const caja = M.resumenCaja(E, HOY);
+  const fuera = E.reservas.filter((r) => r.fecha === VISTA && ["cancelada", "no_show", "suspendida"].includes(r.estado));
+  const urg = ALERTAS.filter((a) => a.nivel === "alta").length;
+  return `
+  <div class="layout">
+    <section aria-labelledby="t-grilla">
+      <div class="card">
+        <div class="card-head">
+          <h2 id="t-grilla">Turnos · ${esc(fechaCorta(VISTA))}${VISTA === HOY ? " (hoy)" : ""}</h2>
+          <span class="muted small">Tocá un hueco libre para reservar · tocá un turno para cobrar, dar la cancha o moverlo</span>
+        </div>
+        <div class="days" role="group" aria-label="Elegir día">
+          ${dias.map((f) => `<button type="button" data-a="dia" data-v="${f}" aria-pressed="${f === VISTA}"><small>${f === HOY ? "Hoy" : DIAS[M.diaSemana(f)]}</small><b class="num">${Number(f.slice(8))}/${Number(f.slice(5, 7))}</b></button>`).join("")}
+        </div>
+        <div class="toolbar">
+          <button type="button" class="btn primary" data-a="nuevo">+ Turno</button>
+          <button type="button" class="btn accent" data-a="mostrador">Venta de mostrador</button>
+          <button type="button" class="btn" data-a="espera">Lista de espera (${E.espera.filter((e) => e.fecha >= HOY).length})</button>
+          <button type="button" class="btn" data-a="lluvia">Plan lluvia</button>
+          <button type="button" class="btn" data-a="bloqueo">Bloquear cancha</button>
+          <button type="button" class="btn" data-a="clientes">Clientes</button>
+        </div>
+        ${grilla()}
+        <div class="legend" aria-hidden="true">
+          <span><i style="background:var(--royal-soft);border-color:var(--royal-line)"></i>Reservado</span>
+          <span><i style="background:var(--ok-soft);border-color:var(--ok)"></i>En cancha</span>
+          <span><i style="background:var(--grid-past)"></i>Terminado</span>
+          <span><i style="border-left:4px solid var(--royal)"></i>Turno fijo</span>
+          <span><i style="border-left:4px solid var(--orange)"></i>Clase / partido abierto</span>
+          <span><i style="box-shadow:0 0 0 2px var(--bad) inset"></i>Necesita atención</span>
+        </div>
+        ${fuera.length ? `<details style="margin-top:10px"><summary class="small muted">Cancelados, suspendidos y "no vino" de este día (${fuera.length})</summary><ul class="small">${fuera.map((r) => `<li>${M.hhmm(r.inicio)} · ${esc(M.cancha(E, r.canchaId).nombre)} · ${esc(r.titular)} — ${M.ESTADOS[r.estado]}${r.motivoCancelacion ? ` (${esc(r.motivoCancelacion)})` : ""}${r.senaEnSuspenso ? " · seña en suspenso hasta que se venda el hueco" : ""}${r.devolucionPendiente ? ` · <b>devolver ${M.pesos(r.devolucionPendiente)}</b>` : ""}</li>`).join("")}</ul></details>` : ""}
+      </div>
+    </section>
+    <aside class="stack" aria-label="Pendientes y caja">
+      <section class="card" aria-labelledby="t-bandeja">
+        <div class="card-head"><h2 id="t-bandeja">Para resolver ahora</h2><span class="chip ${urg ? "bad" : "info"}">${urg ? `${urg} urgente${urg > 1 ? "s" : ""}` : `${ALERTAS.length}`}</span></div>
+        <div class="inbox">
+          ${ALERTAS.length ? ALERTAS.map((a, i) => `
+            <div class="al ${a.nivel}">
+              <span class="lvl">${a.nivel === "alta" ? "Urgente" : a.nivel === "media" ? "Atender" : "Aviso"}</span>
+              <p>${esc(a.texto)}</p>
+              <div class="row"><button type="button" class="btn sm primary" data-a="alerta" data-v="${i}">${esc(a.accion)}</button></div>
+            </div>`).join("") : `<p class="empty">Todo en orden. 🎾</p>`}
+        </div>
+      </section>
+      <section class="card" aria-labelledby="t-caja">
+        <div class="card-head"><h2 id="t-caja">Caja de hoy</h2><button type="button" class="btn sm" data-a="cerrarCaja">Cerrar caja</button></div>
+        <dl class="kv num">
+          ${Object.entries(caja.porMedio).map(([k, v]) => `<dt>${M.MEDIOS[k]}</dt><dd>${M.pesos(v)}</dd>`).join("")}
+          <dt>Gastos</dt><dd>${M.pesos(-caja.egresos)}</dd>
+          <dt class="tot">Efectivo que tiene que haber</dt><dd class="tot">${M.pesos(caja.efectivoEsperado)}</dd>
+        </dl>
+        <p class="small muted" style="margin:8px 0 0">Fondo inicial ${M.pesos(E.caja.fondo)} · ${caja.movimientos} movimientos hoy</p>
+        <div class="row" style="margin-top:8px"><button type="button" class="btn sm" data-a="egreso">Registrar un gasto</button></div>
+      </section>
+    </aside>
+  </div>`;
+}
+
+function grilla() {
+  const { apertura, cierre, paso } = E.config;
+  const filas = (cierre - apertura) / paso;
+  const top = (m) => ((m - apertura) / paso) * ROW;
+  const delDia = E.reservas.filter((r) => r.fecha === VISTA && ["reservada", "en_cancha", "finalizada"].includes(r.estado));
+  const conAlerta = VISTA === HOY ? new Set(ALERTAS.filter((a) => a.nivel === "alta" && a.reservaId).map((a) => a.reservaId)) : new Set();
+  const pasado = (m) => M.minutosHasta(AHORA, VISTA, m) < -paso;
+  const n = E.canchas.length;
+
+  const cabecera = `<div class="gh" style="grid-column:1;grid-row:1"><span class="tag">Hora</span></div>` + E.canchas.map((c, i) => `
+    <div class="gh" style="grid-column:${i + 2};grid-row:1">
+      <div><div class="n">${esc(c.nombre)}</div><div class="tag">${c.cubierta ? "Techada" : "Descubierta"}${c.estado === "mantenimiento" ? " · en mantenimiento" : ""}</div></div>
+      <div class="row" style="gap:4px">
+        <button type="button" class="luz" data-a="luz" data-v="${c.id}" aria-pressed="${!!E.luces[c.id]}" aria-label="Luz de ${esc(c.nombre)}: ${E.luces[c.id] ? "prendida, tocar para apagar" : "apagada, tocar para prender"}">💡</button>
+        <button type="button" class="luz" data-a="mant" data-v="${c.id}" aria-pressed="${c.estado === "mantenimiento"}" aria-label="${c.estado === "mantenimiento" ? "Sacar de mantenimiento" : "Poner en mantenimiento"} ${esc(c.nombre)}">🔧</button>
+      </div>
+    </div>`).join("");
+
+  let horas = "";
+  for (let m = apertura; m < cierre; m += 60) horas += `<span class="num" style="top:${top(m) + 8}px">${M.hhmm(m)}</span>`;
+  const columnaHora = `<div class="tcol" style="grid-column:1;grid-row:2;height:${filas * ROW}px">${horas}</div>`;
+
+  const columnas = E.canchas.map((c, idx) => {
+    let slots = "";
+    for (let i = 0; i < filas; i++) {
+      const m = apertura + i * paso;
+      const fueAntes = pasado(m);
+      slots += fueAntes
+        ? `<div class="slot pasado ${m % 60 === 0 ? "hora" : ""}" style="top:${i * ROW}px" aria-hidden="true"></div>`
+        : `<button type="button" class="slot ${m % 60 === 0 ? "hora" : ""}" style="top:${i * ROW}px" data-a="nuevo" data-c="${c.id}" data-m="${m}" aria-label="${esc(c.nombre)}, ${M.hhmm(m)}, libre. Reservar">+ ${M.hhmm(m)}</button>`;
+    }
+    const turnos = delDia.filter((r) => r.canchaId === c.id).map((r) => {
+      const h = (r.duracion / paso) * ROW - 3;
+      return `<button type="button" class="blk ${r.estado} ${r.tipo} ${conAlerta.has(r.id) ? "alerta" : ""}" style="top:${top(r.inicio) + 1}px;height:${h}px" data-a="ver" data-v="${r.id}" aria-label="${esc(r.titular)}, ${M.hhmm(r.inicio)} a ${M.hhmm(r.inicio + r.duracion)}, ${M.ESTADOS[r.estado]}, saldo ${M.pesos(M.saldo(r))}">
+        <span class="tt">${esc(r.titular)}</span>
+        <span class="meta num">${M.hhmm(r.inicio)}–${M.hhmm(r.inicio + r.duracion)} · ${r.jugadores.length}/4 · ${esc(r.origen)}</span>
+        ${h > 58 ? `<span class="chips">${chipsReserva(r)}</span>` : ""}
+      </button>`;
+    }).join("");
+    const bloqueos = E.bloqueos.filter((b) => b.fecha === VISTA && (b.canchaId === c.id || b.canchaId === "*")).map((b) =>
+      `<div class="blk bloqueo" style="top:${top(b.desde) + 1}px;height:${((b.hasta - b.desde) / paso) * ROW - 3}px"><span class="tt">Bloqueada</span><span class="meta">${esc(b.motivo)}</span></div>`).join("");
+    return `<div class="ccol ${c.estado === "mantenimiento" ? "mant" : ""}" style="grid-column:${idx + 2};grid-row:2;height:${filas * ROW}px">${slots}${bloqueos}${turnos}</div>`;
+  }).join("");
+
+  const ahoraLinea = VISTA === HOY && AHORA.min >= apertura && AHORA.min <= cierre
+    ? `<div style="grid-column:2 / -1;grid-row:2;position:relative;pointer-events:none;z-index:4" aria-hidden="true"><div class="now" style="top:${top(AHORA.min)}px" data-h="${M.hhmm(AHORA.min)}"></div></div>` : "";
+
+  return `<div class="grid-wrap" id="grid-wrap" data-vista="${VISTA}"><div class="grilla" style="grid-template-columns:56px repeat(${n},minmax(140px,1fr))" role="group" aria-label="Grilla de turnos por cancha">
+    ${cabecera}${columnaHora}${columnas}${ahoraLinea}
+  </div></div>`;
+}
+
+// ───────────────────────────── Dueño ─────────────────────────────
+
+function vistaDuenio() {
+  const k = M.kpis(E, HOY, AHORA);
+  const pct = (x) => `${Math.round(x * 100)}%`;
+  const semana = Array.from({ length: 7 }, (_, i) => M.sumarDias(HOY, i - 6));
+  const calor = M.mapaDeCalor(E, semana);
+  const bajos = E.productos.filter((p) => !p.alquiler && p.stock <= p.minimo);
+  const maxMedio = Math.max(1, ...Object.values(k.caja.porMedio).map(Math.abs));
+  const enCancha = E.canchas.map((c) => {
+    const r = E.reservas.find((x) => x.fecha === HOY && x.canchaId === c.id && x.estado === "en_cancha");
+    const prox = E.reservas.filter((x) => x.fecha === HOY && x.canchaId === c.id && x.estado === "reservada" && x.inicio >= AHORA.min - 30).sort((a, b) => a.inicio - b.inicio)[0];
+    return { c, r, prox };
+  });
+  return `
+  <div class="stack">
+    <section aria-labelledby="t-kpis">
+      <h2 id="t-kpis" class="sr">Indicadores de hoy</h2>
+      <div class="kpis num">
+        ${kpi("Ocupación de hoy", pct(k.ocupacion), `Pico ${pct(k.ocupacionPico)} · valle ${pct(k.ocupacionValle)}`)}
+        ${kpi("Turnos vendidos hoy", M.pesos(k.vendido), `${k.turnos} turnos · ticket ${M.pesos(k.ticketPromedio)}`)}
+        ${kpi("Cobrado hoy", M.pesos(k.cobrado), `Por cobrar de lo que ya se juega: ${M.pesos(k.porCobrar)}`)}
+        ${kpi("Bar y shop en turnos", M.pesos(k.consumos), "Consumos cargados a la cuenta de la cancha")}
+        ${kpi("No vinieron / cancelaron", `${k.noShows} / ${k.cancelados}`, "Hoy")}
+        ${kpi("Stock valorizado", M.pesos(k.stockValorizado), `${bajos.length} producto(s) bajo mínimo`)}
+        ${kpi("Clientes que deben", M.pesos(k.deudaClientes), `Saldo a favor emitido ${M.pesos(k.saldoAFavor)}`)}
+      </div>
+    </section>
+
+    <div class="owner">
+      <section class="card span-8" aria-labelledby="t-cams">
+        <div class="card-head"><h2 id="t-cams">Cámaras</h2><span class="muted small">Cada cámara muestra el turno que está en esa cancha y lo que debe</span></div>
+        <div class="cams">${camaras.tiles()}</div>
+        <p class="honesto">Simulación de demo. En el club se conecta la grabadora (NVR) que ya tienen: cada cámara se asocia a su cancha y se ve en vivo desde acá, sin abrir otra app.</p>
+      </section>
+
+      <section class="card span-4" aria-labelledby="t-torre">
+        <div class="card-head"><h2 id="t-torre">Canchas ahora</h2><span class="muted small num">${M.hhmm(AHORA.min)}</span></div>
+        <div class="torre">
+          ${enCancha.map(({ c, r, prox }) => {
+            const pctJugado = r ? Math.min(1, Math.max(0, (AHORA.min - r.inicio) / r.duracion)) : 0;
+            return `<div class="t">
+              <b>${esc(c.nombre)}</b>
+              <div>
+                ${r ? `<div class="small"><b>${esc(r.titular)}</b> · termina ${M.hhmm(r.inicio + r.duracion)}</div><div class="bar" role="img" aria-label="Jugado ${Math.round(pctJugado * 100)}%"><i style="width:${pctJugado * 100}%"></i></div>`
+                  : `<div class="small muted">Libre${prox ? ` · próximo ${M.hhmm(prox.inicio)} ${esc(prox.titular)}` : ""}</div>`}
+              </div>
+              ${r ? (M.saldo(r) > 0 ? `<span class="chip warn">Debe ${M.pesos(M.saldo(r))}</span>` : `<span class="chip ok">Al día</span>`) : (E.luces[c.id] ? `<span class="chip bad">Luz prendida</span>` : `<span class="chip">—</span>`)}
+            </div>`;
+          }).join("")}
+        </div>
+      </section>
+
+      <section class="card span-7" aria-labelledby="t-calor">
+        <div class="card-head"><h2 id="t-calor">Ocupación de la semana</h2><span class="muted small">Dónde sobran horas para vender (promos de valle, clases, escuelita)</span></div>
+        ${mapaCalor(calor)}
+      </section>
+
+      <section class="card span-5" aria-labelledby="t-plata">
+        <div class="card-head"><h2 id="t-plata">Plata de hoy por medio</h2><span class="muted small num">Neto ${M.pesos(k.caja.neto)}</span></div>
+        <div class="medios num">
+          ${Object.entries(k.caja.porMedio).map(([m, v]) => `<div class="m"><span>${M.MEDIOS[m]}</span><div class="bar" role="img" aria-label="${M.MEDIOS[m]}: ${M.pesos(v)}"><i style="width:${(Math.max(0, v) / maxMedio) * 100}%"></i></div><b style="text-align:right">${M.pesos(v)}</b></div>`).join("")}
+        </div>
+        <h3 style="margin-top:14px">Cierres de caja</h3>
+        ${E.caja.cierres.length ? `<table class="num"><thead><tr><th>Quién</th><th class="r">Esperado</th><th class="r">Contado</th><th class="r">Diferencia</th></tr></thead><tbody>${E.caja.cierres.map((c) => `<tr><td>${esc(c.responsable)} · ${M.hhmm(c.min)}</td><td class="r">${M.pesos(c.esperado)}</td><td class="r">${M.pesos(c.contado)}</td><td class="r">${c.diferencia === 0 ? `<span class="chip ok">Cuadra</span>` : `<span class="chip ${c.diferencia < 0 ? "bad" : "warn"}">${M.pesos(c.diferencia)}</span>`}</td></tr>`).join("")}</tbody></table>`
+          : `<p class="small muted">Todavía nadie cerró caja hoy. El cierre lo hace recepción y acá ves si cuadró.</p>`}
+      </section>
+
+      <section class="card span-12" aria-labelledby="t-stock">
+        <div class="card-head"><h2 id="t-stock">Stock</h2>
+          <div class="row">${bajos.length ? `<a class="btn sm accent" target="_blank" rel="noopener" href="${esc(wa(M.mensajeWhatsApp("reposicion", { lista: bajos.map((p) => `${p.nombre} (${Math.max(p.minimo * 2 - p.stock, 1)})`).join(", ") })))}">Pedir lo que falta por WhatsApp</a>` : ""}</div>
+        </div>
+        <div class="tbl-wrap"><table class="num">
+          <thead><tr><th>Producto</th><th>Rubro</th><th class="r">Precio</th><th class="r">Stock</th><th class="r">Mínimo</th><th>Estado</th><th class="r">Valorizado</th><th>Ingresar mercadería</th></tr></thead>
+          <tbody>${E.productos.map((p) => `<tr>
+            <td>${esc(p.nombre)}</td><td>${esc(p.categoria)}</td><td class="r">${M.pesos(p.precio)}</td>
+            <td class="r">${p.stock}${p.alquiler ? ` <span class="muted small">(${p.prestados ?? 0} en cancha)</span>` : ""}</td><td class="r">${p.alquiler ? "—" : p.minimo}</td>
+            <td>${p.alquiler ? `<span class="chip info">Alquiler</span>` : p.stock === 0 ? `<span class="chip bad">Sin stock</span>` : p.stock <= p.minimo ? `<span class="chip warn">Reponer</span>` : `<span class="chip ok">OK</span>`}</td>
+            <td class="r">${M.pesos(p.costo * (p.stock + (p.prestados ?? 0)))}</td>
+            <td><div class="row" style="flex-wrap:nowrap"><label class="sr" for="in-${p.id}">Cantidad que entra de ${esc(p.nombre)}</label><input id="in-${p.id}" type="number" min="1" value="6" style="width:72px;min-height:34px"><button type="button" class="btn sm" data-a="ingreso" data-v="${p.id}">Sumar</button></div></td>
+          </tr>`).join("")}</tbody>
+        </table></div>
+      </section>
+
+      <section class="card span-7" aria-labelledby="t-reglas">
+        <div class="card-head"><h2 id="t-reglas">Reglas del club</h2><span class="muted small">Cambian en vivo lo que ve recepción</span></div>
+        <div class="reglas">
+          ${regla("horasCancelacionLibre", "Cancelar sin perder la seña hasta (horas antes)", E.config.politica.horasCancelacionLibre)}
+          ${regla("senaPct", "Seña (% del turno)", E.config.politica.senaPct)}
+          ${regla("strikesParaSena", "Faltas para pedir seña siempre", E.config.politica.strikesParaSena)}
+          ${regla("toleranciaMin", "Tolerancia de llegada (minutos)", E.config.politica.toleranciaMin)}
+          ${E.config.tarifas.map((t, i) => `<label class="f">Precio por hora ${esc(t.nombre.toLowerCase())} (${M.hhmm(t.desde)}–${M.hhmm(t.hasta)})<input type="number" min="0" step="500" value="${t.precioHora}" data-a="tarifa" data-v="${i}"></label>`).join("")}
+          <label class="f">Descuento socio (%)<input type="number" min="0" max="100" value="${E.config.descuentoSocioPct}" data-a="socio"></label>
+        </div>
+        <p class="small muted" style="margin:10px 0 0">Precios y reglas de ejemplo, a confirmar con el club. Los cambios valen para turnos nuevos; lo ya reservado mantiene su precio.</p>
+      </section>
+
+      <section class="card span-5" aria-labelledby="t-log">
+        <div class="card-head"><h2 id="t-log">Qué pasó hoy</h2></div>
+        <div class="log">${E.log.slice(0, 40).map((l) => `<div><span class="muted num">${l.min != null ? M.hhmm(l.min) : ""}</span> ${esc(l.texto)}</div>`).join("") || `<p class="small muted">Sin movimientos todavía.</p>`}</div>
+      </section>
+    </div>
+  </div>`;
+}
+
+const kpi = (l, v, s) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+const regla = (k, l, v) => `<label class="f">${l}<input type="number" min="${M.LIMITES_POLITICA[k][0]}" max="${M.LIMITES_POLITICA[k][1]}" value="${v}" data-a="regla" data-v="${k}"></label>`;
+
+function mapaCalor({ horas, filas }) {
+  // Secuencial de un solo tono (azul de la marca): más oscuro = más ocupado. El número va en el título y en la tabla.
+  const color = (v) => `color-mix(in oklab, var(--royal) ${Math.round(8 + v * 92)}%, var(--paper))`;
+  const cols = `grid-template-columns:64px repeat(${horas.length},minmax(14px,1fr))`;
+  return `<div class="tbl-wrap"><div class="heat" style="${cols};min-width:520px" role="img" aria-label="Mapa de ocupación de los últimos 7 días por hora. Detalle en la tabla de abajo.">
+    <span></span>${horas.map((h) => `<span class="lab num" style="justify-content:center">${(h / 60) % 24}</span>`).join("")}
+    ${filas.map((f) => `<span class="lab">${esc(fechaCorta(f.fecha))}</span>${f.valores.map((v, i) => `<span class="c" style="background:${color(v)}" title="${esc(fechaCorta(f.fecha))} ${M.hhmm(horas[i])}: ${Math.round(v * 100)}% ocupado"></span>`).join("")}`).join("")}
+  </div></div>
+  <div class="heat-scale" aria-hidden="true">Vacío <i style="background:${color(0)}"></i><i style="background:${color(0.33)}"></i><i style="background:${color(0.66)}"></i><i style="background:${color(1)}"></i> Lleno</div>
+  <details style="margin-top:8px"><summary class="small muted">Ver como tabla</summary><div class="tbl-wrap"><table class="num small"><thead><tr><th>Día</th>${horas.map((h) => `<th class="r">${M.hhmm(h)}</th>`).join("")}</tr></thead><tbody>${filas.map((f) => `<tr><td>${esc(fechaCorta(f.fecha))}</td>${f.valores.map((v) => `<td class="r">${Math.round(v * 100)}%</td>`).join("")}</tr>`).join("")}</tbody></table></div></details>`;
+}
+
+// ───────────────────────────── Cámaras (simuladas) ─────────────────────────────
+
+const camaras = (() => {
+  const LISTA = () => [
+    ...E.canchas.map((c) => ({ id: c.camara, nombre: c.nombre, cancha: c.id })),
+    { id: "cam-rec", nombre: "Recepción y caja", escena: "recepcion" },
+    { id: "cam-bar", nombre: "Delicias (bar)", escena: "bar" },
+    { id: "cam-est", nombre: "Estacionamiento", escena: "estacionamiento" },
+  ];
+  let timer = null;
+  const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function tiles() {
+    return LISTA().map((cam, i) => {
+      const r = cam.cancha ? E.reservas.find((x) => x.fecha === HOY && x.canchaId === cam.cancha && x.estado === "en_cancha") : null;
+      const pie = cam.cancha ? (r ? `${esc(r.titular)} · ${M.saldo(r) > 0 ? `debe ${M.pesos(M.saldo(r))}` : "al día"}` : E.luces[cam.cancha] ? "Sin turno · luz prendida" : "Sin turno") : "General";
+      return `<button type="button" class="cam" data-a="cam" data-v="${i}" aria-label="Cámara ${esc(cam.nombre)}: ${pie}. Ampliar">
+        <canvas width="320" height="200" data-cam="${i}" aria-hidden="true"></canvas>
+        <span class="ov"><span class="top"><span>CAM ${pad(i + 1)} · ${esc(cam.nombre)}</span><span class="live">DEMO</span></span><span class="bot">${pie}</span></span>
+      </button>`;
+    }).join("");
+  }
+
+  function dibujar(cv, cam, t) {
+    const g = cv.getContext("2d");
+    const W = cv.width, H = cv.height;
+    const luz = cam.cancha ? E.luces[cam.cancha] : true;
+    const r = cam.cancha ? E.reservas.find((x) => x.fecha === HOY && x.canchaId === cam.cancha && x.estado === "en_cancha") : null;
+    g.fillStyle = luz ? "#1b2a1f" : "#07090b";
+    g.fillRect(0, 0, W, H);
+    if (cam.cancha) {
+      // Cancha vista desde arriba, en perspectiva leve: césped azul, líneas, red y vidrios.
+      g.save();
+      g.translate(W / 2, H / 2);
+      const cw = W * 0.78, ch = H * 0.62;
+      g.fillStyle = luz ? "#1f5fa8" : "#0d243f";
+      g.fillRect(-cw / 2, -ch / 2, cw, ch);
+      g.strokeStyle = luz ? "rgba(255,255,255,.85)" : "rgba(255,255,255,.25)";
+      g.lineWidth = 2;
+      g.strokeRect(-cw / 2, -ch / 2, cw, ch);
+      g.beginPath(); g.moveTo(0, -ch / 2); g.lineTo(0, ch / 2); g.stroke(); // red
+      g.lineWidth = 1;
+      g.beginPath(); g.moveTo(-cw * 0.33, -ch / 2); g.lineTo(-cw * 0.33, ch / 2); g.moveTo(cw * 0.33, -ch / 2); g.lineTo(cw * 0.33, ch / 2);
+      g.moveTo(-cw * 0.33, 0); g.lineTo(cw * 0.33, 0); g.stroke();
+      g.strokeStyle = "rgba(180,220,255,.35)"; g.lineWidth = 4;
+      g.strokeRect(-cw / 2 - 6, -ch / 2 - 6, cw + 12, ch + 12);
+      if (r && luz) {
+        const jugadores = Math.max(2, r.jugadores.length);
+        const pos = [[-0.3, -0.25], [-0.3, 0.25], [0.3, -0.25], [0.3, 0.25]].slice(0, jugadores === 3 ? 4 : jugadores);
+        pos.forEach(([x, y], k) => {
+          const px = x * cw + Math.sin(t / 700 + k * 1.7) * cw * 0.08;
+          const py = y * ch + Math.cos(t / 900 + k) * ch * 0.12;
+          g.fillStyle = k < 2 ? "#ffd5a8" : "#f2f2f2";
+          g.beginPath(); g.arc(px, py, 6, 0, Math.PI * 2); g.fill();
+        });
+        const bx = Math.sin(t / 380) * cw * 0.38, by = Math.sin(t / 530) * ch * 0.3;
+        g.fillStyle = "#e9ff3c"; g.beginPath(); g.arc(bx, by, 2.6, 0, Math.PI * 2); g.fill();
+      }
+      g.restore();
+    } else {
+      // Escena genérica: piso, mostrador / mesas / autos, y alguien que se mueve.
+      g.fillStyle = "#2a2622"; g.fillRect(0, H * 0.55, W, H * 0.45);
+      g.fillStyle = cam.escena === "estacionamiento" ? "#3a3a3a" : "#5a4632";
+      if (cam.escena === "recepcion") g.fillRect(W * 0.15, H * 0.5, W * 0.55, H * 0.14);
+      if (cam.escena === "bar") for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(W * (0.2 + k * 0.2), H * 0.72, 14, 0, Math.PI * 2); g.fill(); }
+      if (cam.escena === "estacionamiento") for (let k = 0; k < 4; k++) { g.fillStyle = ["#7a1f1f", "#20406a", "#cfcfcf", "#2e2e2e"][k]; g.fillRect(W * (0.08 + k * 0.23), H * 0.66, W * 0.16, H * 0.16); }
+      const x = W * (0.5 + Math.sin(t / 2500) * 0.35);
+      g.fillStyle = "#d9c7b3"; g.beginPath(); g.arc(x, H * 0.48, 7, 0, Math.PI * 2); g.fill();
+      g.fillRect(x - 6, H * 0.5, 12, 22);
+    }
+    // Grano y sello de hora: la marca de agua de cualquier NVR.
+    g.fillStyle = "rgba(255,255,255,.05)";
+    for (let k = 0; k < 120; k++) g.fillRect(Math.random() * W, Math.random() * H, 1, 1);
+    g.fillStyle = "rgba(255,255,255,.75)"; g.font = "10px ui-monospace,monospace";
+    g.fillText(`${HOY} ${M.hhmm(AHORA.min)}:${pad(Math.floor(t / 1000) % 60)}`, 8, Math.round(H * 0.2));
+  }
+
+  function frame() {
+    const lista = LISTA();
+    const t = performance.now();
+    document.querySelectorAll("canvas[data-cam]").forEach((cv) => dibujar(cv, lista[Number(cv.dataset.cam)], t));
+  }
+
+  return {
+    tiles,
+    lista: LISTA,
+    dibujar,
+    arrancar() { frame(); if (!quieto) timer = setInterval(frame, 120); },
+    parar() { clearInterval(timer); timer = null; },
+  };
+})();
+
+// ═════════════════════════════════ DIÁLOGOS ═════════════════════════════════
+
+let dialogoActual = null;
+
+function abrir({ titulo, sub = "", cuerpo, pie = "", ancho = false, alAbrir, refrescar }) {
+  const d = $("#dlg");
+  const foco = d.open ? claveFoco() : null;
+  d.className = ancho ? "wide" : "";
+  d.innerHTML = `
+    <div class="dlg-h"><div><h2 id="dlg-titulo">${titulo}</h2>${sub ? `<p class="small muted" style="margin:4px 0 0">${sub}</p>` : ""}</div>
+      <button type="button" class="btn sm ghost" data-a="cerrar" aria-label="Cerrar">✕</button></div>
+    <div class="dlg-b"><p id="dlg-aviso" class="small" role="status" aria-live="polite" style="margin:0"></p>${cuerpo}</div>
+    ${pie ? `<div class="dlg-f">${pie}</div>` : ""}`;
+  dialogoActual = { refrescar };
+  if (!d.open) d.showModal();
+  alAbrir?.(d);
+  devolverFoco(foco, d);
+}
+
+function cerrarDialogo() { const d = $("#dlg"); if (d.open) d.close(); dialogoActual = null; }
+
+// ───── detalle del turno: cobrar, dar cancha, mover, cancelar ─────
+
+function verReserva(id) {
+  ui.medio = "efectivo";
+  const pintar = () => {
+    const r = M.reserva(E, id);
+    if (!r) return cerrarDialogo();
+    const c = M.cancha(E, r.canchaId);
+    const cl = r.clienteId ? M.cliente(E, r.clienteId) : null;
+    const abierto = ["reservada", "en_cancha"].includes(r.estado);
+    const s = M.saldo(r);
+    // El saldo se reparte entre los que todavía no pusieron nada (si ya pusieron todos, entre todos).
+    const sinPagar = r.jugadores.map((j, i) => (j.pagado ? -1 : i)).filter((i) => i >= 0);
+    const quienes = sinPagar.length ? sinPagar : r.jugadores.map((_, i) => i);
+    const cuotas = M.dividir(Math.max(0, s), quienes.length);
+    const partes = r.jugadores.map((_, i) => (quienes.includes(i) ? cuotas[quienes.indexOf(i)] : 0));
+    const otras = E.canchas.filter((x) => x.id !== r.canchaId);
+    const vendibles = E.productos.filter((p) => p.stock > 0);
+    abrir({
+      titulo: esc(r.titular),
+      sub: `${esc(c.nombre)} · ${esc(fechaCorta(r.fecha))} ${M.hhmm(r.inicio)}–${M.hhmm(r.inicio + r.duracion)} · ${M.TIPOS[r.tipo]} · ${M.ESTADOS[r.estado]} · vino por ${esc(r.origen)}`,
+      ancho: true,
+      refrescar: pintar,
+      cuerpo: `
+        ${cl ? `<div class="row small">${cl.socio ? `<span class="chip info">Socio</span>` : ""}${cl.nivel ? `<span class="chip">Nivel ${esc(cl.nivel)}</span>` : ""}${cl.strikes ? `<span class="chip warn">${cl.strikes} falta(s)</span>` : ""}${cl.deuda ? `<span class="chip bad">Debe ${M.pesos(cl.deuda)} de antes</span>` : ""}${cl.monedero ? `<span class="chip ok">Saldo a favor ${M.pesos(cl.monedero)}</span>` : ""}</div>` : `<p class="small muted" style="margin:0">Sin ficha de cliente (turno de mostrador).</p>`}
+        ${r.notas ? `<p class="small" style="margin:0">📝 ${esc(r.notas)}</p>` : ""}
+        <div class="grid2">
+          <div>
+            <h3>Cuenta de la cancha</h3>
+            <dl class="kv num" style="margin-top:6px">
+              <dt>Turno (${r.duracion}′)</dt><dd>${M.pesos(r.precio)}</dd>
+              ${r.consumos.map((x) => `<dt>${x.cant} × ${esc(x.nombre)}</dt><dd>${M.pesos(x.cant * x.precioUnit)}</dd>`).join("")}
+              <dt>Cobrado</dt><dd>${M.pesos(-M.cobrado(r))}</dd>
+              <dt class="tot">Saldo</dt><dd class="tot">${M.pesos(s)}</dd>
+            </dl>
+            ${r.sena.monto > 0 ? `<p class="small" style="margin:6px 0 0">Seña ${M.pesos(r.sena.monto)}: ${r.sena.pagada ? "✔ pagada" : "<b>pendiente</b>"}</p>` : ""}
+            ${abierto && vendibles.length ? `<div class="row" style="margin-top:10px">
+              <label class="sr" for="cons-prod">Producto para sumar a la cuenta</label>
+              <select id="cons-prod" style="flex:1;min-width:160px">${vendibles.map((p) => `<option value="${p.id}">${esc(p.nombre)} · ${M.pesos(p.precio)}</option>`).join("")}</select>
+              <button type="button" class="btn sm" data-a="consumo" data-v="${r.id}">+ A la cuenta</button>
+            </div>` : ""}
+          </div>
+          <div>
+            <h3>Jugadores</h3>
+            <div class="players" style="margin-top:6px">
+              ${r.jugadores.map((j, i) => `<div class="player"><span>${esc(j.nombre)}</span><span class="small muted num">${j.pagado ? `pagó ${M.pesos(j.pagado)}` : ""}</span>
+                ${abierto && s > 0 && r.jugadores.length > 1 && partes[i] > 0 ? `<button type="button" class="btn sm" data-a="pagarParte" data-v="${r.id}" data-j="${i}" data-m="${partes[i] ?? 0}">Cobrar ${M.pesos(partes[i] ?? 0)}</button>` : "<span></span>"}</div>`).join("")}
+            </div>
+            ${abierto && r.jugadores.length < 4 ? `<div class="row" style="margin-top:6px"><label class="sr" for="nuevo-jug">Nombre del jugador</label><input id="nuevo-jug" placeholder="Sumar jugador" style="flex:1"><button type="button" class="btn sm" data-a="sumarJugador" data-v="${r.id}">Sumar</button></div>` : ""}
+          </div>
+        </div>
+        ${abierto && s > 0 ? `<div>
+          <h3>Cobrar</h3>
+          <div class="medio-pick" role="group" aria-label="Medio de pago" style="margin-top:6px">
+            ${Object.entries(M.MEDIOS).filter(([k]) => k !== "monedero" || (cl && cl.monedero > 0)).map(([k, v]) => `<button type="button" data-a="medio" data-v="${k}" aria-pressed="${ui.medio === k}">${v}${k === "monedero" ? ` (${M.pesos(cl.monedero)})` : ""}</button>`).join("")}
+          </div>
+          <div class="row" style="margin-top:8px">
+            <label class="sr" for="monto">Monto a cobrar</label>
+            <input id="monto" type="number" min="1" value="${r.sena.monto > 0 && !r.sena.pagada ? r.sena.monto : s}" style="max-width:160px">
+            <button type="button" class="btn primary" data-a="pagar" data-v="${r.id}">Cobrar</button>
+            ${r.jugadores.length > 1 ? `<span class="small muted">o dividido entre ${quienes.length}: ${M.pesos(cuotas[0] ?? 0)} c/u (botón de cada jugador)</span>` : ""}
+          </div>
+        </div>` : ""}
+        ${abierto ? `<details><summary><b>Mover o extender</b></summary>
+          <div class="row" style="margin-top:8px">
+            <label class="sr" for="mover-c">Cancha destino</label>
+            <select id="mover-c" style="max-width:200px">${otras.map((x) => `<option value="${x.id}">${esc(x.nombre)}${x.cubierta ? "" : " (descubierta)"}</option>`).join("")}</select>
+            <button type="button" class="btn sm" data-a="mover" data-v="${r.id}">Pasar a esa cancha</button>
+            <button type="button" class="btn sm" data-a="extender" data-v="${r.id}">Extender 30′</button>
+          </div></details>` : ""}
+      `,
+      pie: abierto ? `
+        ${cl?.tel ? `<a class="btn" target="_blank" rel="noopener" href="${esc(wa(M.mensajeWhatsApp("recordatorio", { nombre: r.titular.split(" ")[0], hora: M.hhmm(r.inicio), cancha: c.nombre })))}">WhatsApp</a>` : ""}
+        ${r.estado === "reservada" ? `<button type="button" class="btn danger" data-a="noShow" data-v="${r.id}">No vino</button>
+          ${r.fijoId ? `<button type="button" class="btn" data-a="liberarFijo" data-v="${r.id}">Esta semana no vienen</button>` : ""}
+          <button type="button" class="btn danger" data-a="cancelar" data-v="${r.id}">Cancelar turno</button>
+          <button type="button" class="btn primary" data-a="checkin" data-v="${r.id}">Dar la cancha</button>` : ""}
+        ${r.estado === "en_cancha" ? `${r.interrumpido ? "" : `<button type="button" class="btn danger" data-a="interrumpir" data-v="${r.id}">Corte de luz / se suspende</button>`}
+          ${s > 0 && cl ? `<button type="button" class="btn" data-a="aCuenta" data-v="${r.id}">Cerrar y dejar ${M.pesos(s)} a cuenta</button>` : ""}
+          <button type="button" class="btn primary" data-a="finalizar" data-v="${r.id}" ${s > 0 ? "disabled" : ""}>Cerrar turno${s > 0 ? " (falta cobrar)" : ""}</button>` : ""}`
+        : `<button type="button" class="btn" data-a="cerrar">Listo</button>`,
+    });
+  };
+  pintar();
+}
+
+// ───── nuevo turno ─────
+
+function nuevoTurno({ canchaId, inicio } = {}) {
+  const estadoForm = { canchaId: canchaId ?? E.canchas[0].id, inicio: inicio ?? null, duracion: E.config.duracionTurno, clienteId: null, nuevo: false, tipo: "turno", origen: "mostrador" };
+  const pintar = () => {
+    const libres = M.huecosLibres(E, VISTA, estadoForm.canchaId, estadoForm.duracion, VISTA === HOY ? Math.floor((AHORA.min - E.config.paso) / E.config.paso) * E.config.paso + E.config.paso : E.config.apertura);
+    if (estadoForm.inicio == null || !libres.includes(estadoForm.inicio)) estadoForm.inicio = libres[0] ?? null;
+    const cl = estadoForm.clienteId ? M.cliente(E, estadoForm.clienteId) : null;
+    const precio = estadoForm.inicio != null ? M.precioTurno(E, { fecha: VISTA, inicio: estadoForm.inicio, duracion: estadoForm.duracion, canchaId: estadoForm.canchaId }, estadoForm.clienteId) : 0;
+    const pideSena = M.requiereSena(E, estadoForm.clienteId, estadoForm.tipo);
+    abrir({
+      titulo: "Nuevo turno",
+      sub: `${esc(fechaCorta(VISTA))}`,
+      refrescar: null,
+      cuerpo: `
+        <div class="grid2">
+          <label class="f">Cancha<select id="f-cancha">${E.canchas.map((c) => `<option value="${c.id}" ${c.id === estadoForm.canchaId ? "selected" : ""}>${esc(c.nombre)}${c.cubierta ? "" : " (descubierta)"}</option>`).join("")}</select></label>
+          <label class="f">Duración<select id="f-dur">${[60, 90, 120].map((d) => `<option value="${d}" ${d === estadoForm.duracion ? "selected" : ""}>${d} min</option>`).join("")}</select></label>
+          <label class="f">Hora (sólo libres)<select id="f-hora">${libres.length ? libres.map((m) => `<option value="${m}" ${m === estadoForm.inicio ? "selected" : ""}>${M.hhmm(m)}</option>`).join("") : `<option value="">No hay huecos</option>`}</select></label>
+          <label class="f">Tipo<select id="f-tipo">${Object.entries(M.TIPOS).filter(([k]) => k !== "fijo").map(([k, v]) => `<option value="${k}" ${k === estadoForm.tipo ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+          <label class="f">Llegó por<select id="f-origen">${["mostrador", "whatsapp", "teléfono", "instagram"].map((o) => `<option ${o === estadoForm.origen ? "selected" : ""}>${o}</option>`).join("")}</select></label>
+        </div>
+        <div>
+          <label class="f" for="f-cli">Cliente (nombre o teléfono)</label>
+          ${cl ? `<div class="row" style="margin-top:4px"><span class="chip info">${esc(cl.nombre)}</span>${cl.socio ? `<span class="chip ok">Socio −${E.config.descuentoSocioPct}%</span>` : ""}${cl.strikes ? `<span class="chip warn">${cl.strikes} falta(s)</span>` : ""}${cl.deuda ? `<span class="chip bad">Debe ${M.pesos(cl.deuda)}</span>` : ""}<button type="button" class="btn sm ghost" data-a="quitarCliente">Cambiar</button></div>`
+            : `<input id="f-cli" autocomplete="off" placeholder="Escribí para buscar…" style="margin-top:4px"><div class="sug" id="f-sug"></div>
+               <div class="grid2" style="margin-top:6px"><label class="f">O a nombre de (sin ficha)<input id="f-titular" placeholder="Ej.: Grupo de Bruno"></label><label class="f">Teléfono (opcional)<input id="f-tel" inputmode="tel"></label></div>`}
+        </div>
+        <dl class="kv num"><dt>Precio</dt><dd>${M.pesos(precio)}</dd>${pideSena ? `<dt>Seña que corresponde (${E.config.politica.senaPct}%)</dt><dd>${M.pesos(Math.round((precio * E.config.politica.senaPct) / 100 / 100) * 100)}</dd>` : ""}</dl>
+        ${pideSena ? `<p class="small muted" style="margin:0">Pide seña porque ${cl ? (cl.deuda ? "debe de un turno anterior" : "tiene faltas sin aviso") : "no tiene ficha de cliente"}. Se confirma por transferencia o Mercado Pago.</p>` : ""}
+        <p class="err" id="f-err" role="alert"></p>`,
+      pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="confirmarTurno">Reservar</button>`,
+      alAbrir(d) {
+        const leer = () => {
+          estadoForm.canchaId = $("#f-cancha", d).value;
+          estadoForm.duracion = Number($("#f-dur", d).value);
+          estadoForm.inicio = $("#f-hora", d).value === "" ? null : Number($("#f-hora", d).value);
+          estadoForm.tipo = $("#f-tipo", d).value;
+          estadoForm.origen = $("#f-origen", d).value;
+        };
+        ["#f-cancha", "#f-dur", "#f-hora", "#f-tipo"].forEach((s) => $(s, d).addEventListener("change", () => { leer(); pintar(); }));
+        $("#f-origen", d).addEventListener("change", leer);
+        const input = $("#f-cli", d);
+        if (input) {
+          input.addEventListener("input", () => {
+            const res = M.buscarClientes(E, input.value).slice(0, 6);
+            $("#f-sug", d).innerHTML = res.map((c) => `<button type="button" data-a="elegirCliente" data-v="${c.id}">${esc(c.nombre)} <span class="muted small">${c.socio ? "· socio " : ""}${c.strikes ? `· ${c.strikes} falta(s)` : ""}</span></button>`).join("");
+          });
+          input.focus();
+        }
+        estadoForm.elegir = (id) => { leer(); estadoForm.clienteId = id; pintar(); };
+        estadoForm.quitar = () => { leer(); estadoForm.clienteId = null; pintar(); };
+        estadoForm.confirmar = () => {
+          leer();
+          if (estadoForm.inicio == null) { $("#f-err", d).textContent = "No hay horario libre con esa cancha y duración."; return; }
+          let clienteId = estadoForm.clienteId;
+          let titular;
+          if (!clienteId) {
+            titular = $("#f-titular", d)?.value.trim() || $("#f-cli", d)?.value.trim();
+            const tel = $("#f-tel", d)?.value.trim();
+            if (titular && tel) { const alta = M.altaCliente(E, { nombre: titular, tel }); if (alta.ok) clienteId = alta.cliente.id; }
+          }
+          const res = M.crearReserva(E, { canchaId: estadoForm.canchaId, fecha: VISTA, inicio: estadoForm.inicio, duracion: estadoForm.duracion, tipo: estadoForm.tipo, origen: estadoForm.origen, clienteId, titular }, AHORA);
+          if (!res.ok) { $("#f-err", d).textContent = res.motivo; return; }
+          const r = res.reserva;
+          render();
+          const msj = M.mensajeWhatsApp("confirmacion", { nombre: r.titular.split(" ")[0], cancha: M.cancha(E, r.canchaId).nombre, fecha: fechaCorta(r.fecha), hora: M.hhmm(r.inicio), sena: r.sena.monto ? M.pesos(r.sena.monto) : "" });
+          abrir({
+            titulo: "Turno reservado ✔",
+            sub: `${esc(r.titular)} · ${esc(M.cancha(E, r.canchaId).nombre)} ${M.hhmm(r.inicio)}`,
+            cuerpo: `${res.liberadas?.length ? `<p class="small">Se rellenó un hueco cancelado tarde: ${res.liberadas.map((x) => `${esc(x.cliente)} recupera ${M.pesos(x.monto)} como saldo a favor`).join(", ")}.</p>` : ""}<p class="small muted" style="margin:0">Mensaje de confirmación listo para mandar:</p><div class="wa">${esc(msj)}</div>`,
+            pie: `<a class="btn" target="_blank" rel="noopener" href="${esc(wa(msj))}">Mandar por WhatsApp</a><button type="button" class="btn" data-a="ver" data-v="${r.id}">Abrir el turno</button><button type="button" class="btn primary" data-a="cerrar">Listo</button>`,
+          });
+        };
+        acciones.formTurno = estadoForm;
+      },
+    });
+  };
+  pintar();
+}
+
+// ───── venta de mostrador ─────
+
+function mostrador() {
+  ui.carrito = {};
+  ui.medio = "efectivo";
+  const pintar = () => {
+    const enCancha = E.reservas.filter((r) => r.fecha === HOY && ["en_cancha", "reservada"].includes(r.estado) && M.minutosHasta(AHORA, r.fecha, r.inicio) < 60);
+    const total = Object.entries(ui.carrito).reduce((s, [id, n]) => s + M.producto(E, id).precio * n, 0);
+    abrir({
+      titulo: "Venta de mostrador",
+      sub: "Bebidas, pelotas, grips y shop. Lo de alquiler va a la cuenta de un turno.",
+      refrescar: pintar,
+      cuerpo: `
+        <div class="prod-list">${E.productos.map((p) => `<div class="prod">
+          <span>${esc(p.nombre)} <span class="small muted num">· ${M.pesos(p.precio)} · quedan ${p.stock}</span></span>
+          <span class="qty"><button type="button" data-a="qty" data-v="${p.id}" data-m="-1" aria-label="Uno menos de ${esc(p.nombre)}">−</button><b class="num" aria-live="polite">${ui.carrito[p.id] ?? 0}</b><button type="button" data-a="qty" data-v="${p.id}" data-m="1" aria-label="Uno más de ${esc(p.nombre)}" ${p.stock <= (ui.carrito[p.id] ?? 0) ? "disabled" : ""}>+</button></span>
+          <span class="num small" style="min-width:80px;text-align:right">${ui.carrito[p.id] ? M.pesos(p.precio * ui.carrito[p.id]) : ""}</span>
+        </div>`).join("")}</div>
+        <label class="f">¿Cómo lo paga?
+          <select id="v-dest">
+            <option value="">Paga ahora</option>
+            ${enCancha.map((r) => `<option value="${r.id}" ${ui.cuentaDe === r.id ? "selected" : ""}>A la cuenta de ${esc(r.titular)} (${esc(M.cancha(E, r.canchaId).nombre)})</option>`).join("")}
+          </select></label>
+        <div class="medio-pick" role="group" aria-label="Medio de pago">${Object.entries(M.MEDIOS).filter(([k]) => k !== "monedero").map(([k, v]) => `<button type="button" data-a="medio" data-v="${k}" aria-pressed="${ui.medio === k}">${v}</button>`).join("")}</div>
+        <dl class="kv num"><dt class="tot">Total</dt><dd class="tot">${M.pesos(total)}</dd></dl>`,
+      pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="cobrarMostrador" ${total ? "" : "disabled"}>Cobrar ${M.pesos(total)}</button>`,
+      alAbrir(d) { $("#v-dest", d).addEventListener("change", (ev) => { ui.cuentaDe = ev.target.value; }); },
+    });
+  };
+  pintar();
+}
+
+// ───── lista de espera ─────
+
+function listaEspera() {
+  const pintar = () => {
+    const lista = E.espera.filter((e) => e.fecha >= HOY);
+    abrir({
+      titulo: "Lista de espera",
+      sub: "Cuando alguien cancela o no viene, el sistema le ofrece el hueco al primero que encaje.",
+      refrescar: pintar,
+      cuerpo: `
+        ${lista.length ? `<table><thead><tr><th>Quién</th><th>Día</th><th>Desde–hasta</th><th></th></tr></thead><tbody>${lista.map((e) => {
+          const oferta = E.canchas.map((c) => ({ c, m: M.huecosLibres(E, e.fecha, c.id, e.duracion, Math.max(e.desde, e.fecha === HOY ? AHORA.min : 0)).find((m) => m <= e.hasta) })).find((x) => x.m != null && (!e.soloCubierta || x.c.cubierta));
+          return `<tr><td>${esc(e.titular)}${e.soloCubierta ? ` <span class="chip">techada</span>` : ""}</td><td>${esc(fechaCorta(e.fecha))}</td><td class="num">${M.hhmm(e.desde)}–${M.hhmm(e.hasta)}</td>
+            <td>${oferta ? `<button type="button" class="btn sm primary" data-a="asignarEspera" data-v="${e.id}" data-c="${oferta.c.id}" data-m="${oferta.m}">Dar ${esc(oferta.c.nombre)} ${M.hhmm(oferta.m)}</button>` : `<span class="small muted">Sin hueco todavía</span>`}
+            <button type="button" class="btn sm ghost" data-a="sacarEspera" data-v="${e.id}">Sacar</button></td></tr>`;
+        }).join("")}</tbody></table>` : `<p class="empty">Nadie esperando.</p>`}
+        <h3>Anotar</h3>
+        <div class="grid2">
+          <label class="f">Nombre<input id="e-nom"></label>
+          <label class="f">Día<select id="e-dia">${[0, 1, 2, 3].map((d) => M.sumarDias(HOY, d)).map((f) => `<option value="${f}">${esc(fechaCorta(f))}</option>`).join("")}</select></label>
+          <label class="f">Desde<select id="e-desde">${horasOpc(18 * 60)}</select></label>
+          <label class="f">Hasta<select id="e-hasta">${horasOpc(23 * 60)}</select></label>
+        </div>
+        <label class="row small"><input type="checkbox" id="e-techo"> Sólo cancha techada</label>
+        <p class="err" id="e-err" role="alert"></p>`,
+      pie: `<button type="button" class="btn" data-a="cerrar">Cerrar</button><button type="button" class="btn primary" data-a="anotarEspera">Anotar</button>`,
+    });
+  };
+  pintar();
+}
+
+const horasOpc = (sel) => { let o = ""; for (let m = E.config.apertura; m < E.config.cierre; m += E.config.paso) o += `<option value="${m}" ${m === sel ? "selected" : ""}>${M.hhmm(m)}</option>`; return o; };
+
+// ───── plan lluvia ─────
+
+function planLluvia() {
+  const p = E.clima.pronostico?.fecha === HOY ? E.clima.pronostico : { desde: Math.ceil(AHORA.min / 30) * 30, hasta: E.config.cierre };
+  const descubiertas = E.canchas.filter((c) => !c.cubierta);
+  abrir({
+    titulo: "Plan lluvia",
+    sub: `Para ${descubiertas.map((c) => esc(c.nombre)).join(", ") || "ninguna cancha descubierta"}. Primero intenta pasar cada turno a una techada libre; si no hay, lo suspende y deja saldo a favor.`,
+    cuerpo: `
+      ${E.clima.pronostico?.fecha === HOY ? `<p class="small" style="margin:0">🌧️ Pronóstico de ejemplo: lluvia de ${M.hhmm(p.desde)} a ${M.hhmm(p.hasta)}.</p>` : ""}
+      <div class="grid2">
+        <label class="f">Desde<select id="l-desde">${horasOpc(Math.max(E.config.apertura, Math.min(p.desde - (p.desde % 30), E.config.cierre - 30)))}</select></label>
+        <label class="f">Hasta<select id="l-hasta">${horasOpc(Math.min(E.config.cierre - 30, p.hasta - (p.hasta % 30)))}</select></label>
+      </div>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="aplicarLluvia">Aplicar plan lluvia</button>`,
+  });
+}
+
+// ───── bloqueo ─────
+
+function bloqueo() {
+  abrir({
+    titulo: "Bloquear cancha",
+    sub: "Mantenimiento, torneo, evento privado. No pisa turnos: si hay alguno, primero hay que moverlo.",
+    cuerpo: `<div class="grid2">
+      <label class="f">Cancha<select id="b-c"><option value="*">Todo el club</option>${E.canchas.map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join("")}</select></label>
+      <label class="f">Desde<select id="b-d">${horasOpc(9 * 60)}</select></label>
+      <label class="f">Hasta<select id="b-h">${horasOpc(11 * 60)}</select></label>
+      <label class="f">Motivo<input id="b-m" value="Cambio de red"></label>
+    </div><p class="err" id="b-err" role="alert"></p>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="aplicarBloqueo">Bloquear ${esc(fechaCorta(VISTA))}</button>`,
+  });
+}
+
+// ───── caja ─────
+
+function cierreCaja() {
+  const r = M.resumenCaja(E, HOY);
+  abrir({
+    titulo: "Cerrar caja",
+    sub: "Contá el efectivo del cajón. Lo digital (Mercado Pago, transferencias, tarjeta) ya está registrado.",
+    cuerpo: `<dl class="kv num">${Object.entries(r.porMedio).map(([k, v]) => `<dt>${M.MEDIOS[k]}</dt><dd>${M.pesos(v)}</dd>`).join("")}<dt>Fondo inicial</dt><dd>${M.pesos(E.caja.fondo)}</dd><dt class="tot">Efectivo que tiene que haber</dt><dd class="tot">${M.pesos(r.efectivoEsperado)}</dd></dl>
+      <div class="grid2"><label class="f">Quién cierra<input id="k-quien" value="Mica (recepción tarde)"></label><label class="f">Efectivo contado<input id="k-cont" type="number" min="0" value="${r.efectivoEsperado}"></label></div>
+      <p class="err" id="k-err" role="alert"></p>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="aplicarCierre">Cerrar caja</button>`,
+  });
+}
+
+function egreso() {
+  abrir({
+    titulo: "Registrar un gasto",
+    cuerpo: `<div class="grid2"><label class="f">Concepto<input id="g-c" placeholder="Ej.: hielo, artículos de limpieza"></label><label class="f">Monto<input id="g-m" type="number" min="1"></label></div><p class="err" id="g-err" role="alert"></p>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="aplicarEgreso">Registrar (sale del efectivo)</button>`,
+  });
+}
+
+// ───── clientes ─────
+
+function clientes() {
+  ui.medio = "efectivo";
+  const pintar = () => {
+    const lista = [...E.clientes].sort((a, b) => (b.deuda - a.deuda) || (b.strikes - a.strikes) || a.nombre.localeCompare(b.nombre));
+    abrir({
+      titulo: "Clientes",
+      ancho: true,
+      refrescar: pintar,
+      cuerpo: `<div><p class="small muted" style="margin:0 0 6px">Cuando alguien salda una deuda, ¿cómo paga?</p><div class="medio-pick" role="group" aria-label="Medio de pago de la deuda">${Object.entries(M.MEDIOS).filter(([k]) => k !== "monedero").map(([k, v]) => `<button type="button" data-a="medio" data-v="${k}" aria-pressed="${ui.medio === k}">${v}</button>`).join("")}</div></div>
+        <div class="tbl-wrap"><table class="num"><thead><tr><th>Nombre</th><th>Nivel</th><th>Socio</th><th class="r">Faltas</th><th class="r">Debe</th><th class="r">Saldo a favor</th><th></th></tr></thead><tbody>
+        ${lista.map((c) => `<tr><td>${esc(c.nombre)}</td><td>${esc(c.nivel || "—")}</td><td>${c.socio ? "Sí" : ""}</td><td class="r">${c.strikes || ""}</td><td class="r">${c.deuda ? `<span class="chip bad">${M.pesos(c.deuda)}</span>` : ""}</td><td class="r">${c.monedero ? M.pesos(c.monedero) : ""}</td>
+          <td>${c.deuda ? `<a class="btn sm" target="_blank" rel="noopener" href="${esc(wa(M.mensajeWhatsApp("deuda", { nombre: c.nombre.split(" ")[0], monto: M.pesos(c.deuda) })))}">Recordar por WhatsApp</a> <button type="button" class="btn sm" data-a="saldarDeuda" data-v="${c.id}">Cobró</button>` : ""}${c.strikes ? ` <button type="button" class="btn sm ghost" data-a="perdonar" data-v="${c.id}">Perdonar faltas</button>` : ""}</td></tr>`).join("")}
+      </tbody></table></div>`,
+    });
+  };
+  pintar();
+}
+
+function camaraGrande(i) {
+  const cam = camaras.lista()[i];
+  abrir({
+    titulo: `CAM ${pad(i + 1)} · ${esc(cam.nombre)}`,
+    sub: "Simulación de demo — en el club se conecta a la grabadora existente.",
+    ancho: true,
+    cuerpo: `<canvas class="cam-big" width="960" height="540" id="cam-big" aria-label="Vista ampliada de la cámara ${esc(cam.nombre)}"></canvas>`,
+    alAbrir(d) {
+      const cv = $("#cam-big", d);
+      const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const loop = () => { if (!d.open || !$("#cam-big", d)) return; camaras.dibujar(cv, cam, performance.now()); if (!quieto) requestAnimationFrame(loop); };
+      loop();
+    },
+  });
+}
+
+// ═════════════════════════════════ ACCIONES ═════════════════════════════════
+
+const acciones = {
+  formTurno: null,
+  rol: (b) => { ROL = b.dataset.v; render(); $("#app").focus(); },
+  reloj: (b) => { AHORA.min = Math.min(E.config.cierre, Math.max(E.config.apertura, AHORA.min + Number(b.dataset.v))); render(); },
+  tema: () => {
+    const raiz = document.documentElement;
+    const oscuroAhora = raiz.dataset.theme ? raiz.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    raiz.dataset.theme = oscuroAhora ? "light" : "dark";
+    try { localStorage.setItem("bp-tema", raiz.dataset.theme); } catch { /* sin almacenamiento: vale para esta visita */ }
+  },
+  reiniciar: () => { cerrarDialogo(); iniciar(); toast("Demo reiniciada."); },
+  dia: (b) => { VISTA = b.dataset.v; render(); },
+  nuevo: (b) => nuevoTurno({ canchaId: b.dataset.c, inicio: b.dataset.m != null ? Number(b.dataset.m) : undefined }),
+  ver: (b) => verReserva(b.dataset.v),
+  cerrar: () => cerrarDialogo(),
+  luz: (b) => { E.luces[b.dataset.v] = !E.luces[b.dataset.v]; render(); },
+  mant: (b) => { const c = M.cancha(E, b.dataset.v); c.estado = c.estado === "mantenimiento" ? "ok" : "mantenimiento"; toast(`${c.nombre}: ${c.estado === "mantenimiento" ? "en mantenimiento" : "habilitada"}.`); render(); },
+  mostrador: () => mostrador(),
+  espera: () => listaEspera(),
+  lluvia: () => planLluvia(),
+  bloqueo: () => bloqueo(),
+  clientes: () => clientes(),
+  cerrarCaja: () => cierreCaja(),
+  egreso: () => egreso(),
+  cam: (b) => camaraGrande(Number(b.dataset.v)),
+
+  alerta: (b) => {
+    const a = ALERTAS[Number(b.dataset.v)];
+    if (!a) return;
+    if (a.tipo === "devolucion") {
+      const r = M.reserva(E, a.reservaId);
+      ui.medio = "efectivo";
+      return abrir({
+        titulo: "Devolver plata",
+        sub: `${esc(r.titular)} · ${M.pesos(r.devolucionPendiente)} · ${esc(r.motivoCancelacion ?? "interrupción")}`,
+        cuerpo: `<p class="small" style="margin:0">No tiene ficha de cliente, así que no se le puede dejar saldo a favor: se le devuelve. ¿Cómo?</p>
+          <div class="medio-pick" role="group" aria-label="Medio de la devolución">${Object.entries(M.MEDIOS).filter(([k]) => k !== "monedero").map(([k, v]) => `<button type="button" data-a="medio" data-v="${k}" aria-pressed="${ui.medio === k}">${v}</button>`).join("")}</div>`,
+        pie: `<button type="button" class="btn" data-a="cerrar">Después</button><button type="button" class="btn primary" data-a="devueltoYCerrar" data-v="${r.id}">Ya se devolvió</button>`,
+      });
+    }
+    if (a.reservaId) return verReserva(a.reservaId);
+    if (a.tipo === "luz") { E.luces[a.canchaId] = false; toast(`Luz de ${M.cancha(E, a.canchaId).nombre} apagada.`); return render(); }
+    if (a.tipo === "lluvia") return planLluvia();
+    if (a.tipo === "espera") {
+      const e = E.espera.find((x) => x.id === a.esperaId);
+      const msj = M.mensajeWhatsApp("espera", { nombre: e.titular.split(" ")[0], cancha: M.cancha(E, a.canchaId).nombre, hora: M.hhmm(a.inicio), fecha: "hoy" });
+      return abrir({
+        titulo: "Ofrecer el hueco",
+        sub: `${esc(e.titular)} · ${esc(M.cancha(E, a.canchaId).nombre)} ${M.hhmm(a.inicio)}`,
+        cuerpo: `<div class="wa">${esc(msj)}</div><p class="small muted" style="margin:0">Cuando conteste que sí, reservale el turno con un toque.</p>`,
+        pie: `<a class="btn" target="_blank" rel="noopener" href="${esc(wa(msj))}">Mandar por WhatsApp</a><button type="button" class="btn primary" data-a="asignarEspera" data-v="${e.id}" data-c="${a.canchaId}" data-m="${a.inicio}">Dijo que sí: reservar</button>`,
+      });
+    }
+    if (a.tipo === "stock") { ROL = "duenio"; render(); return $("#t-stock")?.scrollIntoView({ behavior: "smooth" }); }
+    if (a.tipo === "mantenimiento") {
+      const r = E.reservas.find((x) => x.fecha === HOY && x.canchaId === a.canchaId && x.estado === "reservada" && x.inicio > AHORA.min);
+      if (r) return verReserva(r.id);
+    }
+  },
+
+  // turno
+  medio: (b) => { ui.medio = b.dataset.v; b.parentElement.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); },
+  pagar: (b) => { const monto = Number($("#monto").value); hecho(M.registrarPago(E, b.dataset.v, { medio: ui.medio, monto }, AHORA), `Cobrado ${M.pesos(monto)} (${M.MEDIOS[ui.medio]}).`); },
+  pagarParte: (b) => { const monto = Number(b.dataset.m); hecho(M.registrarPago(E, b.dataset.v, { medio: ui.medio, monto, jugador: Number(b.dataset.j) }, AHORA), `Cobrado ${M.pesos(monto)} a ${M.reserva(E, b.dataset.v).jugadores[b.dataset.j].nombre}.`); },
+  consumo: (b) => hecho(M.agregarConsumo(E, b.dataset.v, $("#cons-prod").value, 1, AHORA), "Sumado a la cuenta."),
+  sumarJugador: (b) => hecho(M.sumarJugador(E, b.dataset.v, $("#nuevo-jug").value), "Jugador sumado."),
+  checkin: (b) => hecho(M.checkIn(E, b.dataset.v, AHORA), "Cancha entregada y luz prendida."),
+  finalizar: (b) => cerrarSiSale(M.finalizar(E, b.dataset.v, {}, AHORA), "Turno cerrado. Luz apagada."),
+  aCuenta: (b) => cerrarSiSale(M.finalizar(E, b.dataset.v, { dejarDeuda: true }, AHORA), "Turno cerrado con saldo a cuenta del cliente."),
+  noShow: (b) => {
+    const res = M.marcarNoShow(E, b.dataset.v, AHORA);
+    if (!res.ok) return toast(res.motivo, { error: true });
+    if (!res.ofertas.length) return cerrarSiSale(res, "Marcado como 'no vino'. Se sumó una falta.");
+    render();
+    ofrecer(res.ofertas, "Marcado como 'no vino'. Se sumó una falta.");
+  },
+  cancelar: (b) => {
+    const res = M.cancelar(E, b.dataset.v, {}, AHORA);
+    if (!res.ok) return toast(res.motivo, { error: true });
+    const texto = res.aTiempo ? (res.devuelto ? `Cancelado a tiempo: ${M.pesos(res.devuelto)} a saldo a favor.` : res.devolverEnMano ? `Cancelado a tiempo: hay que devolverle ${M.pesos(res.devolverEnMano)} (no tiene ficha).` : "Cancelado a tiempo.") : res.enSuspenso ? "Cancelado tarde: la seña queda en suspenso hasta que se venda el hueco." : "Cancelado.";
+    if (!res.ofertas.length) return cerrarSiSale(res, texto);
+    render();
+    ofrecer(res.ofertas, texto);
+  },
+  liberarFijo: (b) => {
+    const r = M.reserva(E, b.dataset.v);
+    const res = M.liberarFijo(E, r.fijoId, r.fecha, AHORA);
+    if (!res.ok) return toast(res.motivo, { error: true });
+    if (!res.ofertas?.length) return cerrarSiSale(res, "Liberado sólo esta semana; el turno fijo sigue.");
+    render();
+    ofrecer(res.ofertas, "Liberado sólo esta semana; el turno fijo sigue.");
+  },
+  mover: (b) => hecho(M.mover(E, b.dataset.v, { canchaId: $("#mover-c").value }, AHORA), "Turno movido."),
+  extender: (b) => { const res = M.extender(E, b.dataset.v, 30, AHORA); hecho(res, res.ok ? `Extendido 30′ (+${M.pesos(res.extra)}).` : ""); },
+  interrumpir: (b) => { const res = M.interrumpir(E, b.dataset.v, "corte de luz", AHORA); hecho(res, res.ok ? `Se reconocen ${M.pesos(res.credito)} por ${res.noJugados}′ sin jugar.` : ""); },
+
+  // nuevo turno
+  elegirCliente: (b) => acciones.formTurno?.elegir(b.dataset.v),
+  quitarCliente: () => acciones.formTurno?.quitar(),
+  confirmarTurno: () => acciones.formTurno?.confirmar(),
+
+  // mostrador
+  qty: (b) => { const id = b.dataset.v; ui.carrito[id] = Math.max(0, (ui.carrito[id] ?? 0) + Number(b.dataset.m)); if (!ui.carrito[id]) delete ui.carrito[id]; dialogoActual?.refrescar?.(); },
+  cobrarMostrador: () => {
+    const items = Object.entries(ui.carrito).map(([productoId, cant]) => ({ productoId, cant }));
+    const destino = $("#v-dest")?.value;
+    if (destino) {
+      for (const it of items) { const res = M.agregarConsumo(E, destino, it.productoId, it.cant, AHORA); if (!res.ok) return toast(res.motivo); }
+      ui.carrito = {}; ui.cuentaDe = ""; cerrarDialogo(); render(); return toast("Cargado a la cuenta del turno.");
+    }
+    const res = M.ventaMostrador(E, items, ui.medio, AHORA);
+    if (!res.ok) return toast(res.motivo);
+    ui.carrito = {}; cerrarDialogo(); render(); toast(`Venta cobrada: ${M.pesos(res.total)}.`);
+  },
+
+  // espera
+  anotarEspera: () => {
+    const nombre = $("#e-nom").value.trim();
+    if (!nombre) { $("#e-err").textContent = "Falta el nombre."; return; }
+    const desde = Number($("#e-desde").value), hasta = Number($("#e-hasta").value);
+    if (hasta < desde) { $("#e-err").textContent = "El 'hasta' tiene que ser después del 'desde'."; return; }
+    M.anotarEspera(E, { titular: nombre, fecha: $("#e-dia").value, desde, hasta, soloCubierta: $("#e-techo").checked }, AHORA);
+    toast(`${nombre} quedó en la lista de espera.`); render();
+  },
+  asignarEspera: (b) => {
+    const res = M.asignarDesdeEspera(E, b.dataset.v, { canchaId: b.dataset.c, inicio: Number(b.dataset.m) }, AHORA);
+    if (dialogoActual?.refrescar) return hecho(res, "Turno reservado desde la lista de espera.");
+    cerrarSiSale(res, "Turno reservado desde la lista de espera.");
+  },
+  sacarEspera: (b) => { E.espera = E.espera.filter((e) => e.id !== b.dataset.v); render(); },
+
+  aplicarLluvia: () => {
+    const res = M.planLluvia(E, HOY, Number($("#l-desde").value), Number($("#l-hasta").value) + E.config.paso, AHORA);
+    render();
+    abrir({
+      titulo: "Plan lluvia aplicado",
+      sub: res.resultado.length ? `${res.resultado.length} turno(s) resueltos. Avisá a cada uno:` : "No había turnos en canchas descubiertas en ese horario.",
+      cuerpo: res.resultado.map((x) => {
+        const r = M.reserva(E, x.reservaId);
+        const nombre = x.titular.split(" ")[0];
+        if (x.accion === "cortado")
+          return `<div><p style="margin:0"><b>${esc(x.titular)}</b> — estaban jugando: se cortó con ${x.noJugados}′ sin jugar y se reconocen ${M.pesos(x.credito)}. Cobrá lo jugado y lo consumido, y cerrá el turno.</p><button type="button" class="btn sm" style="margin-top:6px" data-a="ver" data-v="${r.id}">Abrir el turno</button></div>`;
+        const msj = x.accion === "movido"
+          ? M.mensajeWhatsApp("lluvia_movido", { nombre, hora: M.hhmm(r.inicio), cancha: x.cancha })
+          : x.devolverEnMano
+            ? M.mensajeWhatsApp("lluvia_devolucion", { nombre, hora: M.hhmm(r.inicio), monto: M.pesos(x.devolverEnMano) })
+            : M.mensajeWhatsApp("lluvia_suspendido", { nombre, hora: M.hhmm(r.inicio), credito: x.credito ? M.pesos(x.credito) : "" });
+        const que = x.accion === "movido" ? `pasa a ${esc(x.cancha)}` : `suspendido${x.credito ? `, ${M.pesos(x.credito)} a saldo a favor` : x.devolverEnMano ? `, hay que devolverle ${M.pesos(x.devolverEnMano)}` : ""}`;
+        return `<div><p style="margin:0 0 4px"><b>${esc(x.titular)}</b> — ${que}</p><div class="wa">${esc(msj)}</div><a class="btn sm" style="margin-top:6px" target="_blank" rel="noopener" href="${esc(wa(msj))}">Mandar</a></div>`;
+      }).join("") || `<p class="empty">Nada que mover.</p>`,
+      pie: `<button type="button" class="btn primary" data-a="cerrar">Listo</button>`,
+    });
+  },
+  aplicarBloqueo: () => {
+    const res = M.bloquear(E, { canchaId: $("#b-c").value, fecha: VISTA, desde: Number($("#b-d").value), hasta: Number($("#b-h").value), motivo: $("#b-m").value.trim() || "Bloqueo" }, AHORA);
+    if (!res.ok) { $("#b-err").textContent = res.motivo; return; }
+    cerrarDialogo(); render(); toast("Cancha bloqueada.");
+  },
+  aplicarCierre: () => {
+    const res = M.cerrarCaja(E, { contado: $("#k-cont").value, responsable: $("#k-quien").value.trim() || "Recepción" }, AHORA);
+    if (!res.ok) { $("#k-err").textContent = res.motivo; return; }
+    cerrarDialogo(); render();
+    toast(res.cierre.diferencia === 0 ? "Caja cerrada: cuadra justo." : `Caja cerrada con diferencia de ${M.pesos(res.cierre.diferencia)}. El dueño la ve en su tablero.`);
+  },
+  aplicarEgreso: () => {
+    const res = M.egresoCaja(E, { monto: $("#g-m").value, concepto: $("#g-c").value }, AHORA);
+    if (!res.ok) { $("#g-err").textContent = res.motivo; return; }
+    cerrarDialogo(); render(); toast("Gasto registrado.");
+  },
+  saldarDeuda: (b) => { const res = M.cobrarDeuda(E, b.dataset.v, ui.medio, AHORA); hecho(res, res.ok ? `Saldó ${M.pesos(res.monto)} (${M.MEDIOS[ui.medio]}).` : ""); },
+  devueltoYCerrar: (b) => { const res = M.marcarDevuelto(E, b.dataset.v, ui.medio, AHORA); if (!res.ok) return toast(res.motivo, { error: true }); cerrarDialogo(); render(); toast(`Devolución de ${M.pesos(res.monto)} registrada.`); },
+  devuelto: (b) => { const res = M.marcarDevuelto(E, b.dataset.v, ui.medio, AHORA); hecho(res, res.ok ? `Devolución de ${M.pesos(res.monto)} registrada.` : ""); },
+  perdonar: (b) => { M.cliente(E, b.dataset.v).strikes = 0; render(); },
+
+  // dueño
+  ingreso: (b) => { const n = $(`#in-${CSS.escape(b.dataset.v)}`).value; hecho(M.ingresarStock(E, b.dataset.v, n, AHORA), `Entraron ${Math.round(Number(n))} × ${M.producto(E, b.dataset.v).nombre}.`); },
+};
+
+/** Para acciones que terminan la ventana: si sale bien se cierra y avisa afuera; si no, el error queda adentro. */
+function cerrarSiSale(res, okTexto) {
+  if (!res.ok) { toast(res.motivo, { error: true }); return false; }
+  cerrarDialogo();
+  render();
+  if (okTexto) toast(okTexto);
+  return true;
+}
+
+function ofrecer(ofertas, previo = "") {
+  if (!ofertas?.length) return;
+  const o = ofertas[0];
+  abrir({
+    titulo: "Se liberó un hueco",
+    sub: `${previo ? `${esc(previo)} ` : ""}${esc(M.cancha(E, o.canchaId).nombre)} ${M.hhmm(o.inicio)} — ${ofertas.length} en lista de espera lo aceptarían`,
+    cuerpo: `<p class="small" style="margin:0">Primero en la lista: <b>${esc(o.titular)}</b></p><div class="wa">${esc(o.mensaje)}</div>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Ahora no</button><a class="btn" target="_blank" rel="noopener" href="${esc(wa(o.mensaje))}">Mandar por WhatsApp</a><button type="button" class="btn primary" data-a="asignarEspera" data-v="${o.id}" data-c="${o.canchaId}" data-m="${o.inicio}">Dijo que sí: reservar</button>`,
+  });
+}
+
+// Inputs de reglas (dueño): cambian la política en vivo.
+document.addEventListener("change", (ev) => {
+  const t = ev.target;
+  if (!(t instanceof HTMLInputElement)) return;
+  const v = Number(t.value);
+  if (!(v >= 0)) return;
+  if (t.dataset.a === "regla") {
+    const res = M.ajustarPolitica(E, t.dataset.v, v);
+    if (!res.ok) { t.value = E.config.politica[t.dataset.v]; return toast(res.motivo, { error: true }); }
+    render(); toast("Regla actualizada.");
+  }
+  if (t.dataset.a === "tarifa") { E.config.tarifas[Number(t.dataset.v)].precioHora = Math.round(v); render(); toast("Precio actualizado para turnos nuevos."); }
+  if (t.dataset.a === "socio") {
+    if (v > 100) { t.value = E.config.descuentoSocioPct; return toast("El descuento va de 0 a 100 %.", { error: true }); }
+    E.config.descuentoSocioPct = Math.round(v); render(); toast("Descuento de socio actualizado.");
+  }
+});
+
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-a]");
+  if (!b || b.tagName === "INPUT" || b.disabled) return;
+  const fn = acciones[b.dataset.a];
+  if (typeof fn === "function") { ev.preventDefault(); fn(b); }
+});
+
+$("#dlg").addEventListener("close", () => { dialogoActual = null; });
+
+try { const t = localStorage.getItem("bp-tema"); if (t) document.documentElement.dataset.theme = t; } catch { /* sin almacenamiento */ }
+iniciar();
+
+</script>
+</body>
+</html>

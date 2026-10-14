@@ -1,6 +1,7 @@
 // SITIOS ESTÁTICOS POR NEGOCIO — el ERP sirve, en el subdominio de un negocio, un sitio ya hecho (un
-// HTML de un solo archivo y sus adjuntos) en lugar de la vidriera de React. Caso único hoy: Circuito
-// WPE, cuya demo aprobada es un HTML con el motor de torneo adentro (docs/tenants/circuito-wpe/README.md).
+// HTML de un solo archivo y sus adjuntos) en lugar de la vidriera de React. Hoy: Circuito WPE, cuya demo
+// aprobada es un HTML con el motor de torneo adentro (docs/tenants/circuito-wpe/README.md), y Break Point,
+// la demo de gestión del club de pádel (docs/tenants/breakpoint/README.md).
 //
 // Dos llaves, las dos por configuración (ninguna es un `if (tenant === X)` en una pantalla):
 //   1. `next.config.ts` reescribe `/`, `/manual.pdf`… hacia `/sitio-estatico/…` sólo cuando el host
@@ -50,6 +51,16 @@ export const SITIOS_ESTATICOS: readonly SitioEstatico[] = [
       "manual.pdf": { archivo: "manual.pdf", ...ADJUNTO_PDF },
       "og.png": { archivo: "og.png", ...IMAGEN_PNG },
       "apple-touch-icon.png": { archivo: "apple-touch-icon.png", ...IMAGEN_PNG },
+    },
+  },
+  {
+    // Break Point Pádel (prospecto, demo a costo cero): la gestión del club en un solo archivo, sin datos
+    // reales ni persistencia. Se genera con src/tenants/breakpoint/empaquetar.mjs (docs/tenants/breakpoint/).
+    slug: "breakpoint",
+    subdominio: "breakpoint",
+    carpeta: "src/tenants/breakpoint/sitio",
+    archivos: {
+      "": { archivo: "index.html", ...PAGINA },
     },
   },
 ];

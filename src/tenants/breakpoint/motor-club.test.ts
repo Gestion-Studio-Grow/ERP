@@ -339,3 +339,14 @@ test("demo: ningún turno de días pasados queda abierto", () => {
   const abiertos = e.reservas.filter((r: { fecha: string; estado: string }) => r.fecha < HOY && ["reservada", "en_cancha"].includes(r.estado));
   assert.equal(abiertos.length, 0);
 });
+
+test("el sitio de breakpoint.gsgapp.com.ar está empaquetado con la última versión de la demo", async () => {
+  const { empaquetar, leerFuente, SALIDA } = await import("./empaquetar.mjs");
+  const { readFileSync } = await import("node:fs");
+  const path = await import("node:path");
+  const raiz = path.resolve(import.meta.dirname, "../../..");
+  const servido = readFileSync(path.join(raiz, SALIDA), "utf8");
+  assert.equal(servido, empaquetar(leerFuente(raiz)), "falta correr: node src/tenants/breakpoint/empaquetar.mjs");
+  assert.match(servido, /^<!doctype html>/i);
+  assert.doesNotMatch(servido, /src="\.\/app\.mjs"/);
+});

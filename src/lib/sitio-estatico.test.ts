@@ -139,7 +139,7 @@ test("cada archivo registrado existe y su carpeta entra en el trazado de la func
       assert.ok(existsSync(path.join(RAIZ, sitio.carpeta, archivo)), `${sitio.carpeta}/${archivo}`);
     }
   }
-  assert.deepEqual(carpetasParaTrazar(), ["./src/tenants/circuito-wpe/sitio/**/*"]);
+  assert.deepEqual(carpetasParaTrazar(), ["./src/tenants/circuito-wpe/sitio/**/*", "./src/tenants/breakpoint/sitio/**/*"]);
 });
 
 test("el cuerpo del sitio es el que vio el cliente: el pulido sólo tocó el <head>", () => {

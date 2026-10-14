@@ -184,6 +184,10 @@ const TENANTS: Record<string, TenantBrand> = {
   "circuito-wpe": {
     name: "Circuito WPE", monogram: "WPE", preset: "verde", frontTheme: "dark",
   },
+  // Break Point Pádel: prospecto; su sitio es la demo de gestión del club (src/lib/sitio-estatico.ts).
+  breakpoint: {
+    name: "Break Point Pádel", monogram: "BP", preset: "celeste", frontTheme: "light",
+  },
 };
 
 // (resolveTenantLayout / FONT_VAR / DEFAULT_SECTION_ORDER / resolveSectionOrder ahora viven
