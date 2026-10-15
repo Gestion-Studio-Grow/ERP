@@ -1,7 +1,6 @@
 {
-  "model": "claude-opus-5-5",
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
-    "defaultMode": "auto",
     "allow": [
       "Read",
       "Edit",
@@ -23,12 +22,6 @@
       "Bash(prisma generate:*)",
       "Bash(prisma migrate dev:*)"
     ],
-    "ask": [
-      "Bash(npx prisma migrate deploy:*)",
-      "Bash(prisma migrate deploy:*)",
-      "Bash(pnpm prisma migrate deploy:*)",
-      "Bash(yarn prisma migrate deploy:*)"
-    ],
     "deny": [
       "Bash(rm -rf:*)",
       "Bash(rm -fr:*)",
@@ -44,7 +37,34 @@
       "Bash(curl:*)",
       "Bash(wget:*)",
       "Bash(nc:*)",
-      "Bash(scp:*)"
+      "Bash(scp:*)",
+      "Bash(rm -rf *)",
+      "Bash(git push --force *)",
+      "Bash(git reset --hard *)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/*.pem)"
+    ],
+    "defaultMode": "auto",
+    "ask": [
+      "Bash(npx prisma migrate deploy:*)",
+      "Bash(prisma migrate deploy:*)",
+      "Bash(pnpm prisma migrate deploy:*)",
+      "Bash(yarn prisma migrate deploy:*)"
     ]
-  }
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/design-lint.js\""
+          }
+        ]
+      }
+    ]
+  },
+  "model": "claude-opus-5-5"
 }

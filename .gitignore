@@ -68,3 +68,6 @@ qa-shots/
 .obsidian/workspace-mobile.json
 .obsidian/cache
 .obsidian/plugins/*/data.json
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/.kit-backup/
