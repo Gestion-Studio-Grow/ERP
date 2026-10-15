@@ -476,16 +476,43 @@ test("cancha a cargo de otro con créditos: descuenta los créditos del que paga
   const e = club();
   const r = turno(e, "c1", 10, { clienteId: "a", jugadores: [{ nombre: "Ana", clienteId: "a" }, { nombre: "Beto", clienteId: "b" }] });
   M.asignarCargoCancha(e, r.id, 0, 1, ahora(9));
-  const antes = M.cliente(e, "b").monedero;
+  // Beto tiene 10.000 en créditos y paga el turno entero de valle (las dos partes).
   const parte = M.partesCancha(r)[1].aPagar;
+  assert.equal(parte, r.precio);
+  assert.ok(parte > 10000);
+  assert.match(M.cobrarParte(e, r.id, 1, { medio: "monedero" }, ahora(9)).motivo, /créditos|alcanza/i);
+  assert.equal(M.cliente(e, "b").monedero, 10000);
+  assert.equal(M.cliente(e, "a").monedero ?? 0, 0);
+  // Con un turno más barato (sólo la parte de Ana más la suya, ya cobrado el resto) los créditos son de Beto.
+  M.registrarPago(e, r.id, { medio: "efectivo", monto: r.precio - 8000 }, ahora(9));
   const res = M.cobrarParte(e, r.id, 1, { medio: "monedero" }, ahora(9));
-  if (parte <= antes) {
-    assert.ok(res.ok);
-    assert.equal(M.cliente(e, "b").monedero, antes - parte);
-  } else {
-    assert.equal(res.ok, false);
-    assert.equal(M.cliente(e, "b").monedero, antes);
-  }
+  assert.ok(res.ok);
+  assert.equal(res.monto, 8000);
+  assert.equal(M.cliente(e, "b").monedero, 2000);
+  assert.equal(r.jugadores[0].pagadoPor, 1);
+});
+
+test("pasar cargos: un descuento no se mueve de cuenta y el destino nunca queda por debajo de lo pagado", () => {
+  const e = club();
+  const { cuenta: a } = M.abrirCuenta(e, { clienteId: "a" }, ahora(20));
+  const { cuenta: b } = M.abrirCuenta(e, { clienteId: "b" }, ahora(20));
+  M.cargarEnCuenta(e, a.id, "p2", 2, ahora(20));
+  M.cargoManual(e, a.id, { concepto: "Descuento", monto: -1500 }, DUENO, ahora(20));
+  M.cargarEnCuenta(e, b.id, "p2", 1, ahora(20));
+  M.pagarCuenta(e, b.id, { medio: "efectivo", monto: 2000 }, ahora(20));
+  const desc = a.items.findIndex((i: any) => i.precioUnit < 0);
+  assert.match(M.transferirCargo(e, a.id, desc, b.id, null, ahora(20, 5)).motivo, /descuento/i);
+  assert.equal(M.saldoCuenta(b), 0);
+  assert.equal(M.totalCuenta(a), 2500);
+});
+
+test("editar producto: un código rechazado no deja el precio cambiado; los códigos no distinguen mayúsculas", () => {
+  const e = club();
+  const precio = M.producto(e, "p2").precio;
+  assert.match(M.editarProducto(e, "p2", { precio: 9999, codigo: "BP-001" }, DUENO).motivo, /otro producto/);
+  assert.equal(M.producto(e, "p2").precio, precio);
+  assert.match(M.altaProducto(e, { nombre: "Copia", precio: 100, codigo: "bp-001" }, DUENO, ahora(10)).motivo, /otro producto/);
+  assert.match(M.altaProducto(e, { nombre: "Otro", precio: 100, codigo: "x9", codigoExterno: "X9" }, DUENO, ahora(10)).motivo, /mismo/);
 });
 
 test("cargos maleables: sumar y restar unidades devuelve stock; no deja la cuenta por debajo de lo pagado", () => {

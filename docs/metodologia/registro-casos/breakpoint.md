@@ -100,8 +100,12 @@
   - se suma el código de fábrica al lado del interno;
   - en Stock, una vista editable de precios y rentabilidad;
   - bloqueo con PIN propio por inactividad o al apagar la pantalla.
-- **Funcionó:** toda regla de plata vive en el motor con tests antes que la pantalla (7 tests nuevos). El invariante
-  «una cuenta nunca queda por debajo de lo ya pagado» quedó en las tres operaciones que mueven cargos.
+- **Funcionó:** toda regla de plata vive en el motor con tests antes que la pantalla (9 tests nuevos).
+- **El Gate la rechazó una vez (bien rechazada):** el invariante «una cuenta nunca queda por debajo de lo ya pagado»
+  se controlaba en la cuenta de ORIGEN al pasar un cargo, no en la de DESTINO. Pasar un descuento (precio negativo)
+  dejaba la cuenta de destino con saldo negativo, y recepción movía un descuento firmado por el dueño sin su PIN.
+  Arreglado: un descuento no se pasa de cuenta y el destino también se controla. Heurística: un invariante sobre plata
+  se controla en **todas** las cuentas que toca la operación, y se prueba con montos negativos.
 - **Falló:**
   - El descuento pedía el PIN del dueño, pero lo validaba contra el usuario logueado (recepción), así que nunca pasaba.
     Lo detectó el QA clic por clic, no los tests del motor: la regla estaba bien, el cableado no.

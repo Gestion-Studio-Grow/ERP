@@ -225,7 +225,7 @@ function vistaAgenda() {
         </div>
         <div class="toolbar">
           <button type="button" class="btn primary" data-a="nuevo" aria-keyshortcuts="N">+ Turno</button>
-          <button type="button" class="btn accent" data-a="abrirConsumo" aria-keyshortcuts="C">Abrir cargo</button>
+          <button type="button" class="btn accent" data-a="abrirConsumo" aria-keyshortcuts="C">Abrir cuenta</button>
           <button type="button" class="btn ghost" data-a="espera">Lista de espera (${E.espera.filter((e) => e.fecha >= HOY).length})</button>
           <button type="button" class="btn ghost" data-a="mantenimiento">Mantenimiento y lluvia</button>
         </div>
@@ -330,7 +330,7 @@ function vistaBuffet() {
   return `<div class="stack">
     <section class="card" aria-labelledby="t-buffet">
       <div class="card-head"><h2 id="t-buffet" class="pantalla">Buffet · cuentas abiertas (${abiertas.length})</h2>
-        <div class="row"><button type="button" class="btn primary" data-a="abrirConsumo">Abrir cargo</button><button type="button" class="btn accent" data-a="mostrador">Venta rápida</button></div></div>
+        <div class="row"><button type="button" class="btn primary" data-a="abrirConsumo">Abrir cuenta</button><button type="button" class="btn accent" data-a="mostrador">Venta rápida</button></div></div>
       <p class="small muted" style="margin:0 0 10px">Los cargos del buffet son una cuenta aparte de la cancha: quedan abiertos a nombre del cliente y se cobran cuando se va, o pasan a su cuenta corriente.</p>
       <div class="search" style="max-width:360px;margin-bottom:10px"><label class="sr" for="busca-buffet">Buscar cuenta</label><input id="busca-buffet" data-busca="buffet" placeholder="Buscar por nombre" value="${esc(q)}"></div>
       <div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${lista.map(tarjetaCuenta).join("") || `<p class="empty">No hay cuentas abiertas.</p>`}</div>
@@ -503,11 +503,11 @@ function tablaPrecios(lista) {
   const fila = new Map(rent.filas.map((f) => [f.productoId, f]));
   const pct = (x) => (x == null ? "—" : `${Math.round(x * 100)}%`);
   const filas = lista.map((p) => fila.get(p.id)).filter(Boolean);
-  return `<p class="small muted" style="margin:0 0 10px">Tocá el costo, el markup o el precio: el precio de venta cambia en el acto para lo que se cargue de acá en más. Lo vendido es de los últimos 7 días (${ddmm(desde)} al ${ddmm(HOY)}).</p>
-    <div class="tbl-wrap"><table class="num precios"><thead><tr><th>Producto</th><th class="r">Costo</th><th class="r">Markup</th><th class="r">Precio</th><th class="r">Margen</th><th class="r">Margen %</th><th class="r">Vendidos</th><th class="r">Facturado</th><th class="r">Ganancia</th></tr></thead><tbody>
+  return `<p class="small muted" style="margin:0 0 10px">Tocá el costo, el % sobre costo o el precio: el precio de venta cambia en el acto para lo que se cargue de acá en más. Lo vendido es de los últimos 7 días (${ddmm(desde)} al ${ddmm(HOY)}).</p>
+    <div class="tbl-wrap"><table class="num precios"><thead><tr><th>Producto</th><th class="r">Costo</th><th class="r">% sobre costo</th><th class="r">Precio</th><th class="r">Margen</th><th class="r">Margen %</th><th class="r">Vendidos</th><th class="r">Facturado</th><th class="r">Ganancia</th></tr></thead><tbody>
       ${filas.map((f) => `<tr><td>${esc(f.nombre)}<br><span class="small muted">${esc(f.codigo || "—")}${f.codigoExterno ? ` · ${esc(f.codigoExterno)}` : ""}</span></td>
         <td class="r"><label class="sr" for="px-c-${f.productoId}">Costo de ${esc(f.nombre)}</label><input id="px-c-${f.productoId}" type="number" min="0" step="50" value="${f.costo}" data-a="px" data-v="${f.productoId}" data-c="costo"></td>
-        <td class="r"><label class="sr" for="px-m-${f.productoId}">Markup de ${esc(f.nombre)} (%)</label><input id="px-m-${f.productoId}" type="number" step="5" value="${f.markupPct == null ? "" : Math.round(f.markupPct * 100)}" placeholder="—" data-a="px" data-v="${f.productoId}" data-c="markup" ${f.costo > 0 ? "" : "disabled"}></td>
+        <td class="r"><label class="sr" for="px-m-${f.productoId}">Porcentaje sobre el costo de ${esc(f.nombre)}</label><input id="px-m-${f.productoId}" type="number" step="5" value="${f.markupPct == null ? "" : Math.round(f.markupPct * 100)}" placeholder="—" data-a="px" data-v="${f.productoId}" data-c="markup" ${f.costo > 0 ? "" : "disabled"}></td>
         <td class="r"><label class="sr" for="px-p-${f.productoId}">Precio de ${esc(f.nombre)}</label><input id="px-p-${f.productoId}" type="number" min="1" step="50" value="${f.precio}" data-a="px" data-v="${f.productoId}" data-c="precio"></td>
         <td class="r">${M.pesos(f.margen)}</td><td class="r"><span class="chip ${f.margenPct >= 0.5 ? "ok" : f.margenPct >= 0.3 ? "warn" : "bad"}">${pct(f.margenPct)}</span></td>
         <td class="r">${f.unidades}</td><td class="r">${M.pesos(f.facturado)}</td><td class="r">${M.pesos(f.ganancia)}</td></tr>`).join("") || `<tr><td colspan="9" class="muted">No hay productos con ese nombre.</td></tr>`}
@@ -718,7 +718,7 @@ function itemsPaleta(q) {
   const tabs = pestanias().orden;
   const hacer = [
     { k: "a-nuevo", g: "Hacer", t: "Nuevo turno", atajo: "N", ok: puedo("agenda"), run: () => nuevoTurno({}) },
-    { k: "a-consumo", g: "Hacer", t: "Abrir cargo del buffet", atajo: "C", ok: puedo("buffet"), run: () => abrirConsumo() },
+    { k: "a-consumo", g: "Hacer", t: "Abrir cuenta del buffet", atajo: "C", ok: puedo("buffet"), run: () => abrirConsumo() },
     { k: "a-venta", g: "Hacer", t: "Venta rápida de mostrador", ok: puedo("buffet"), run: () => mostrador() },
     { k: "a-egreso", g: "Hacer", t: "Egreso de caja en efectivo", ok: puedo("egreso"), run: () => egresoDialogo() },
     { k: "a-remito", g: "Hacer", t: "Registrar remito de proveedor", ok: puedo("remito"), run: () => remitoDialogo() },
@@ -806,7 +806,7 @@ function ayudaAtajos() {
     sub: "Funcionan cuando no estás escribiendo en un campo. Todo se puede hacer también con el mouse o el dedo.",
     cuerpo: `<table><tbody>
       ${fila([ES_MAC ? "⌘" : "Ctrl", "K"], "Buscar y hacer (clientes, turnos, productos, acciones)")}${fila(["/"], "Lo mismo, con una sola tecla")}
-      ${fila(["N"], "Nuevo turno")}${fila(["C"], "Abrir cargo del buffet")}
+      ${fila(["N"], "Nuevo turno")}${fila(["C"], "Abrir cuenta del buffet")}
       ${fila(["←", "→"], "Día anterior / siguiente en la agenda")}${fila(["T"], "Volver a hoy")}
       ${fila(["1", "…", "9"], "Ir a cada pestaña")}${fila([ES_MAC ? "⌘" : "Ctrl", "Z"], "Deshacer lo último (mientras se ve el aviso)")}
       ${fila(["Clic derecho"], "Acciones rápidas sobre un turno (en el celular: mantener apretado)")}${fila(["Esc"], "Cerrar la ventana")}
@@ -1044,10 +1044,11 @@ function mesaCompleja(cta) {
           <label class="sr" for="tc-dest">A la cuenta de</label><select id="tc-dest" style="flex:1;min-width:150px">${otras.map((x) => `<option value="${x.id}">${esc(x.titular)}</option>`).join("")}</select>
           <button type="button" class="btn" data-a="pasarCargo" data-v="${cta.id}">Pasar</button></div>
         <p class="small muted" style="margin:4px 0 0">Vacío = el cargo entero. Cada uno paga lo suyo, como quieran repartirlo.</p>`
-        : `<p class="small muted" style="margin:0">No hay otra cuenta abierta. Abrí la de la otra persona con «Abrir cargo» y volvé.</p>`}</div>` : ""}
+        : `<p class="small muted" style="margin:0">No hay otra cuenta abierta. Abrí la de la otra persona con «Abrir cuenta» y volvé.</p>`}</div>` : ""}
       <div><h3 style="margin:0 0 6px">Cargo manual (excepción)</h3>
         <div class="row"><label class="sr" for="cm-con">Concepto</label><input id="cm-con" placeholder="Concepto (ej.: torta de cumpleaños)" style="flex:2;min-width:180px" maxlength="60">
-          <label class="sr" for="cm-mon">Monto</label><input id="cm-mon" type="number" step="50" placeholder="$ (negativo = descuento)" style="max-width:190px">
+          <label class="sr" for="cm-tipo">Tipo</label><select id="cm-tipo" style="max-width:130px"><option value="cargo">Cargo</option><option value="descuento">Descuento</option></select>
+          <label class="sr" for="cm-mon">Monto</label><input id="cm-mon" type="number" min="1" step="50" placeholder="$" style="max-width:130px">
           <label class="sr" for="cm-pin">PIN del dueño (sólo descuentos)</label><input id="cm-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="PIN dueño" style="max-width:110px">
           <button type="button" class="btn" data-a="cargoManual" data-v="${cta.id}">Cargar</button></div>
         <p class="small muted" style="margin:4px 0 0">El PIN del dueño sólo hace falta para un descuento.</p></div>
@@ -1059,7 +1060,7 @@ function abrirConsumo() {
     const q = ui.busca.cliCons ?? "";
     const res = q ? M.buscarClientes(E, q).slice(0, 6) : [];
     abrir({
-      titulo: "Abrir cargo",
+      titulo: "Abrir cuenta de cargos",
       sub: "A nombre de un cliente (queda abierto hasta que se cobre) o de alguien sin ficha.",
       refrescar: pintar,
       cuerpo: `<div class="search"><label class="sr" for="cli-cons">Buscar cliente</label><input id="cli-cons" data-busca="cliCons" placeholder="Buscar cliente por nombre o teléfono" value="${esc(q)}" autocomplete="off"></div>
@@ -1077,7 +1078,7 @@ function mostrador() {
     const total = Object.entries(ui.carrito).reduce((s, [id, n]) => s + M.producto(E, id).precio * n, 0);
     abrir({
       titulo: "Venta rápida",
-      sub: "Se cobra en el acto. Para dejarlo a nombre de alguien, usá «Abrir cargo».",
+      sub: "Se cobra en el acto. Para dejarlo a nombre de alguien, usá «Abrir cuenta».",
       refrescar: pintar,
       cuerpo: `${buscadorProductos("mostrador")}
         <div class="row"><button type="button" class="btn sm" data-a="sumarCarrito">Agregar el elegido</button></div>
@@ -1671,7 +1672,7 @@ const acciones = {
     if (ui.medio === "monedero") return pedirConfirmacionCredito({ dueno: `c-${cta.id}`, tipo: "cuenta", id: cta.id, monto: Math.round(Number(val("#monto-cta"))), clienteId: cta.clienteId, que: `Cargos del buffet de ${cta.titular}` });
     hecho(M.pagarCuenta(E, cta.id, { medio: ui.medio, monto: val("#monto-cta") }, AHORA), "Cobrado.");
   },
-  ajustar: (b) => hecho(M.ajustarCargo(E, b.dataset.v, Number(b.dataset.j), Number(b.dataset.m), AHORA), Number(b.dataset.m) > 0 ? "Uno más." : "Uno menos (vuelve al stock)."),
+  ajustar: (b) => hecho(M.ajustarCargo(E, b.dataset.v, Number(b.dataset.j), Number(b.dataset.m), AHORA), Number(b.dataset.m) > 0 ? "Uno más." : "Uno menos."),
   pasarCargo: (b) => {
     const dest = val("#tc-dest");
     const res = M.transferirCargo(E, b.dataset.v, Number(val("#tc-item")), dest, val("#tc-cant") || null, AHORA);
@@ -1680,9 +1681,10 @@ const acciones = {
   cargoManual: (b) => {
     // Un descuento lo firma el dueño con SU PIN, aunque quien esté usando el sistema sea recepción.
     const pin = val("#cm-pin");
-    const firma = Number(val("#cm-mon")) < 0 && pin ? M.usuarioPorPin(E, pin) : null;
+    const monto = Math.abs(Number(val("#cm-mon"))) * (val("#cm-tipo") === "descuento" ? -1 : 1);
+    const firma = monto < 0 && pin ? M.usuarioPorPin(E, pin) : null;
     const quien = firma?.ok && firma.usuario.rol === "duenio" ? { usuarioId: firma.usuario.id, pin } : auth(pin);
-    const res = M.cargoManual(E, b.dataset.v, { concepto: val("#cm-con"), monto: val("#cm-mon") }, quien, AHORA);
+    const res = M.cargoManual(E, b.dataset.v, { concepto: val("#cm-con"), monto }, quien, AHORA);
     if (res.ok) for (const sel of ["#cm-con", "#cm-mon", "#cm-pin"]) { const el = $(sel); if (el) el.value = ""; }
     hecho(res, (r) => (r.item.precioUnit < 0 ? "Descuento aplicado." : "Cargo manual sumado."));
   },
@@ -1808,6 +1810,7 @@ document.addEventListener("input", (ev) => {
 document.addEventListener("change", (ev) => {
   const t = ev.target;
   if (t instanceof HTMLSelectElement && t.dataset.a === "aCargo") {
+    ui.pendienteCredito = null; // los montos cambian: la confirmación de créditos se vuelve a pedir
     PREVIO = { json: JSON.stringify(E), v: t.dataset.v };
     try { hecho(M.asignarCargoCancha(E, t.dataset.v, Number(t.dataset.j), t.value === "" ? null : Number(t.value), AHORA), t.value === "" ? "Paga su propia parte." : "Listo: esa parte la paga otro jugador."); } finally { PREVIO = null; }
     return;
@@ -1815,9 +1818,10 @@ document.addEventListener("change", (ev) => {
   if (!(t instanceof HTMLInputElement)) return;
   if (t.dataset.a === "px") {
     const p = M.producto(E, t.dataset.v);
+    if (t.value.trim() === "") { render(); return toast("Ese campo no puede quedar vacío: no se cambió nada.", { error: true }); }
     const v = Number(t.value);
     const cambios = t.dataset.c === "costo" ? { costo: v } : t.dataset.c === "precio" ? { precio: v } : { precio: M.precioDesdeMarkup(p.costo, v) };
-    if (cambios.precio === null) { t.value = ""; return toast("Para calcular por markup el producto necesita costo.", { error: true }); }
+    if (cambios.precio === null) { t.value = ""; return toast("Para calcular el precio por % sobre costo, el producto necesita costo.", { error: true }); }
     const res = M.editarProducto(E, p.id, cambios, auth(), AHORA);
     if (!res.ok) { render(); return toast(res.motivo, { error: true }); }
     render();
@@ -2002,6 +2006,12 @@ function bloquear(motivo) {
   bloqueo.otro = false;
   bloqueo.elegido = null;
   cerrarMenuTurno();
+  // Lo que quedó abierto es del usuario que se fue: se cierra, y su «Deshacer» ya no vale.
+  cerrarDialogo();
+  if ($("#cmdk").open) $("#cmdk").close();
+  UNDO = null;
+  ui.pendienteCredito = null;
+  $("#toasts").replaceChildren();
   for (const id of ["mas-menu", "estilo-menu"]) { const m = $(`#${id}`); if (SOPORTA_POPOVER && m.matches(":popover-open")) m.hidePopover(); }
   document.documentElement.classList.add("bloqueada");
   pintarBloqueo();
@@ -2026,7 +2036,7 @@ function pintarBloqueo() {
       : `<div class="bl-quien"><span class="avatar" aria-hidden="true">${esc(quien.nombre.slice(0, 1).toUpperCase())}</span><span><b>${esc(quien.nombre)}</b><br><span class="small muted">${M.ROLES[quien.rol]}</span></span></div>
         <label class="f bl-pin-l" for="bl-pin">${bloqueo.otro ? `PIN de ${esc(quien.nombre.split(" ")[0])}` : "Tu PIN para seguir"}</label>
         <input id="bl-pin" class="pin-in num" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••" ${espera ? "disabled" : ""} aria-describedby="bl-aviso">
-        <p id="bl-aviso" class="${espera || bloqueo.fallos ? "err" : "small muted"}" role="${espera || bloqueo.fallos ? "alert" : "status"}" style="margin:0;min-height:1.4em">${espera ? `Demasiados intentos. Probá de nuevo en ${espera} s.` : bloqueo.fallos ? `PIN incorrecto (${bloqueo.fallos} de 5).` : ""}</p>
+        <p id="bl-aviso" class="${espera || bloqueo.fallos ? "err" : "small muted"}" role="status" style="margin:0;min-height:1.4em">${espera ? `Demasiados intentos: esperá 30 segundos. <span aria-hidden="true">(${espera} s)</span>` : bloqueo.fallos ? `PIN incorrecto (${bloqueo.fallos} de 5).` : ""}</p>
         <button type="button" class="btn primary" data-a="desbloquear" ${espera ? "disabled" : ""}>Desbloquear</button>
         ${bloqueo.otro ? `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Elegir otro usuario</button>` : `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Entrar con otro usuario</button>`}`}
     <p class="demo-pins">PIN de la demo: ${activos.map((x) => `${esc(x.nombre.split(" ")[0])} ${esc(x.pin)}`).join(" · ")}</p>

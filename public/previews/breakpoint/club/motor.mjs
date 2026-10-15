@@ -703,8 +703,8 @@ export function asignarCargoCancha(estado, reservaId, deIdx, aIdx, ahora) {
   const a = r.jugadores[k];
   if (!a) return { ok: false, motivo: "Elegí quién paga." };
   if (a.pagado || a.pagadoPor != null) return { ok: false, motivo: `${a.nombre} ya pagó: cobrale aparte o elegí a otro.` };
-  if (a.aCargoDe != null) return { ok: false, motivo: `${a.nombre} ya está a cargo de ${r.jugadores[a.aCargoDe]?.nombre ?? "otro"}.` };
-  if (r.jugadores.some((j, i) => i !== deIdx && j.aCargoDe === Number(deIdx))) return { ok: false, motivo: `${de.nombre} ya paga la parte de otro: no puede pasar a cargo de nadie.` };
+  if (partesCancha(r)[k].aCargoDe != null) return { ok: false, motivo: `${a.nombre} ya está a cargo de ${r.jugadores[a.aCargoDe]?.nombre ?? "otro"}.` };
+  if (partesCancha(r).some((x, i) => i !== Number(deIdx) && x.aCargoDe === Number(deIdx))) return { ok: false, motivo: `${de.nombre} ya paga la parte de otro: no puede pasar a cargo de nadie.` };
   de.aCargoDe = k;
   registrar(estado, `La parte de cancha de ${de.nombre} queda a cargo de ${a.nombre}.`, ahora);
   return { ok: true };
@@ -860,9 +860,11 @@ export function transferirCargo(estado, deCuentaId, itemIdx, aCuentaId, cant, ah
   if (de.id === a.id) return { ok: false, motivo: "Elegí otra cuenta." };
   const item = de.items[itemIdx];
   if (!item) return { ok: false, motivo: "No encuentro ese cargo." };
+  if (item.precioUnit < 0) return { ok: false, motivo: "Un descuento queda en la cuenta donde lo autorizó el dueño: no se pasa a otra." };
   const n = cant == null || cant === "" ? item.cant : Math.round(Number(cant));
   if (!(n > 0) || n > item.cant) return { ok: false, motivo: `Se pueden pasar de 1 a ${item.cant}.` };
   if (totalCuenta(de) - n * item.precioUnit < cobradoCuenta(de)) return { ok: false, motivo: `De la cuenta de ${de.titular} ya se pagaron ${pesos(cobradoCuenta(de))}: ese cargo no se puede pasar.` };
+  if (totalCuenta(a) + n * item.precioUnit < Math.max(0, cobradoCuenta(a))) return { ok: false, motivo: `La cuenta de ${a.titular} quedaría por debajo de lo que ya pagó.` };
   const movido = { ...item, cant: n, transferidoDe: de.titular };
   if (n === item.cant) de.items.splice(itemIdx, 1); else item.cant -= n;
   a.items.push(movido);
@@ -1322,14 +1324,15 @@ export function productoPorCodigo(estado, codigo) {
   const c = String(codigo ?? "").trim();
   if (!c) return { ok: false, motivo: "No llegó ningún código." };
   // El lector lee el código de barras del fabricante (externo); a mano se tipea el interno. Sirven los dos.
-  const p = estado.productos.find((x) => x.activo !== false && (String(x.codigo ?? "").toUpperCase() === c.toUpperCase() || String(x.codigoExterno ?? "") === c));
+  const p = estado.productos.find((x) => x.activo !== false && (mismoCodigo(c, x.codigo) || mismoCodigo(c, x.codigoExterno)));
   return p ? { ok: true, producto: p } : { ok: false, motivo: `El código ${c} no está cargado en ningún producto.` };
 }
 
 /** Un código (interno o de fabricación) no puede repetirse en otro producto, ni cruzado entre los dos campos. */
+// Los códigos se comparan sin distinguir mayúsculas (el interno se tipea a mano: «bp-001» es «BP-001»).
+const mismoCodigo = (a, b) => String(a ?? "").trim() !== "" && String(a ?? "").trim().toUpperCase() === String(b ?? "").trim().toUpperCase();
 function codigoUsado(estado, codigo, salvoId = null) {
-  const c = String(codigo ?? "").trim();
-  return c !== "" && estado.productos.some((x) => x.id !== salvoId && (String(x.codigo ?? "") === c || String(x.codigoExterno ?? "") === c));
+  return estado.productos.some((x) => x.id !== salvoId && (mismoCodigo(codigo, x.codigo) || mismoCodigo(codigo, x.codigoExterno)));
 }
 export function altaProducto(estado, { nombre, categoria, precio, costo = 0, stock = 0, minimo = 0, codigo = "", codigoExterno = "", plato = false }, auth, ahora) {
   const a = autorizar(estado, auth, "stock", false);
@@ -1338,7 +1341,7 @@ export function altaProducto(estado, { nombre, categoria, precio, costo = 0, sto
   if (!limpio) return { ok: false, motivo: "Falta el nombre del producto." };
   if (!(Number(precio) > 0)) return { ok: false, motivo: "Poné el precio de venta." };
   if (codigoUsado(estado, codigo) || codigoUsado(estado, codigoExterno)) return { ok: false, motivo: "Ese código ya está en otro producto." };
-  if (codigo && String(codigo).trim() === String(codigoExterno).trim()) return { ok: false, motivo: "El código interno y el de fabricación no pueden ser el mismo." };
+  if (mismoCodigo(codigo, codigoExterno)) return { ok: false, motivo: "El código interno y el de fabricación no pueden ser el mismo." };
   const p = { id: nuevoId("p"), nombre: limpio, categoria: String(categoria || (plato ? "Cocina" : "Varios")), precio: Math.round(Number(precio)), costo: Math.round(Number(costo) || 0), stock: plato ? null : Math.round(Number(stock) || 0), minimo: plato ? 0 : Math.round(Number(minimo) || 0), codigo: String(codigo || "").trim(), codigoExterno: String(codigoExterno || "").trim(), plato: !!plato, activo: true };
   estado.productos.push(p);
   registrar(estado, `Alta de producto: ${p.nombre}.`, ahora);
@@ -1352,15 +1355,18 @@ export function editarProducto(estado, productoId, cambios, auth, ahora) {
   if (!p) return { ok: false, motivo: "No encuentro el producto." };
   if (cambios.precio != null && !(Number(cambios.precio) > 0)) return { ok: false, motivo: "El precio tiene que ser mayor a cero." };
   if (cambios.costo != null && !(Number(cambios.costo) >= 0)) return { ok: false, motivo: "El costo no puede ser negativo." };
-  for (const k of ["precio", "costo", "minimo"]) if (cambios[k] != null) p[k] = Math.round(Number(cambios[k]));
-  if (cambios.nombre != null && String(cambios.nombre).trim()) p.nombre = String(cambios.nombre).trim();
+  // Primero se valida todo y recién después se graba: un rechazo no deja cambios a medias.
+  const codigos = {};
   for (const k of ["codigo", "codigoExterno"]) {
     if (cambios[k] == null) continue;
     const c = String(cambios[k]).trim();
     if (codigoUsado(estado, c, p.id)) return { ok: false, motivo: "Ese código ya está en otro producto." };
-    if (c && c === String(k === "codigo" ? cambios.codigoExterno ?? p.codigoExterno ?? "" : cambios.codigo ?? p.codigo ?? "").trim()) return { ok: false, motivo: "El código interno y el de fabricación no pueden ser el mismo." };
-    p[k] = c;
+    if (c && mismoCodigo(c, k === "codigo" ? cambios.codigoExterno ?? p.codigoExterno : cambios.codigo ?? p.codigo)) return { ok: false, motivo: "El código interno y el de fabricación no pueden ser el mismo." };
+    codigos[k] = c;
   }
+  for (const k of ["precio", "costo", "minimo"]) if (cambios[k] != null) p[k] = Math.round(Number(cambios[k]));
+  if (cambios.nombre != null && String(cambios.nombre).trim()) p.nombre = String(cambios.nombre).trim();
+  Object.assign(p, codigos);
   registrar(estado, `Se editó el producto ${p.nombre}.`, ahora);
   return { ok: true };
 }
@@ -1745,7 +1751,6 @@ export function mapaDeCalor(estado, fechas) {
 
 // ───────────────────────── reglas editables ─────────────────────────
 
-/** Límites de las reglas que el dueño edita en vivo. `minutosAntesParaEntrar` vacío = sin límite. */
 /** Minutos sin uso hasta bloquear la pantalla (0 = sólo al apagarse o esconderse la pantalla). */
 export const LIMITES_BLOQUEO = Object.freeze([0, 60]);
 export function ajustarBloqueo(estado, minutos, auth) {
@@ -1757,6 +1762,7 @@ export function ajustarBloqueo(estado, minutos, auth) {
   return { ok: true, valor: v };
 }
 
+/** Límites de las reglas que el dueño edita en vivo. `minutosAntesParaEntrar` vacío = sin límite. */
 export const LIMITES_POLITICA = Object.freeze({
   horasCancelacionLibre: [0, 72],
   senaPct: [0, 100],
