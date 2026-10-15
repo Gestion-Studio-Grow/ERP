@@ -25,7 +25,9 @@ const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const FRONT_DIR = path.resolve(AQUI, "../../../../../public/previews/breakpoint/turnero");
 const SALIDA = process.env.E2E_SALIDA ?? "/tmp/turnero-e2e";
 mkdirSync(SALIDA, { recursive: true });
-const AXE = readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
+// axe-core: el del proyecto, o uno fijo con AXE_PATH (ej. otra versión para comparar entornos). Se informa la versión.
+const AXE = readFileSync(process.env.AXE_PATH ?? createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
+const AXE_VERSION = /axe v([\d.]+)/.exec(AXE)?.[1] ?? "?";
 
 // Reloj del club: hoy a las 15:00 (hora argentina), corriendo a velocidad real desde el arranque.
 const t0 = Date.now();
@@ -33,7 +35,7 @@ const hoy = aMotor(t0).fecha;
 const base15 = aEpoch({ fecha: hoy, min: 15 * 60 });
 const reloj = () => base15 + (Date.now() - t0);
 
-const fallas = [], resumen = { anchos: {}, rendimiento: null, axe: {}, flujos: [] };
+const fallas = [], resumen = { anchos: {}, rendimiento: null, axe: {}, axeVersion: null, flujos: [] };
 const check = (cond, msj) => { if (!cond) { fallas.push(msj); console.error(`  ✗ ${msj}`); } else console.log(`  ✓ ${msj}`); };
 
 const back = crearApp({ entorno: { TURNERO_STAFF_CLAVE: "clave-e2e", TURNERO_ORIGENES: "" }, reloj, log: () => {} });
@@ -70,6 +72,7 @@ async function axe(p, nombre) {
     return out.violations.map((v) => ({ id: v.id, impacto: v.impact, nodos: v.nodes.length, ejemplo: v.nodes[0]?.target?.join(" ") }));
   });
   resumen.axe[nombre] = r;
+  resumen.axeVersion = AXE_VERSION;
   const graves = r.filter((v) => v.impacto === "serious" || v.impacto === "critical");
   check(!graves.length, `axe ${nombre}: sin violaciones graves${graves.length ? ` → ${JSON.stringify(graves)}` : ""}`);
 }

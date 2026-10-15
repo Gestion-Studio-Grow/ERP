@@ -20,6 +20,7 @@ const API = (() => {
 })().replace(/\/$/, "");
 let LOCAL = null; // adaptador local (local.mjs): sólo se descarga si hace falta
 const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const pesos = (n) => `$${Math.round(n).toLocaleString("es-AR")}`;
 const hhmm = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
@@ -64,7 +65,8 @@ function pintarDias() {
   const hoy = S.config.dias[0].fecha;
   $("#dias").innerHTML = S.config.dias.map(({ fecha, dia }) => {
     const n = Number(fecha.slice(8));
-    return `<button type="button" class="dia" data-fecha="${fecha}" aria-pressed="${fecha === S.fecha}" aria-label="${fecha === hoy ? "Hoy, " : ""}${fechaLarga(fecha)}"><span class="dia-sem">${fecha === hoy ? "hoy" : DIAS[dia]}</span><span class="dia-num">${n}</span></button>`;
+    // WCAG 2.5.3 (el nombre contiene lo visible): sin aria-label; lo visible ("jue 15") + el mes, oculto para la vista.
+    return `<button type="button" class="dia" data-fecha="${fecha}" aria-pressed="${fecha === S.fecha}"><span class="dia-sem">${fecha === hoy ? "hoy" : DIAS[dia]}</span> <span class="dia-num">${n}</span><span class="sr"> de ${MESES_LARGOS[Number(fecha.slice(5, 7)) - 1]}</span></button>`;
   }).join("");
 }
 
@@ -80,7 +82,8 @@ const clave = () => `${S.fecha}|${S.duracion}|${S.techadas ? 1 : 0}`;
 const FRANJAS = [["manana", "Mañana", 0, 720], ["tarde", "Tarde", 720, 1080], ["noche", "Noche", 1080, 2000]];
 
 function htmlSlot(s) {
-  return `<button type="button" class="slot" data-inicio="${s.inicio}" data-cancha="${esc(s.canchaId)}" data-pico="${s.pico ? 1 : 0}" aria-label="${hhmm(s.inicio)} a ${hhmm(s.fin)}, ${esc(s.cancha)}${s.techada ? ", techada" : ""}, ${pesos(s.precio)}"><span class="slot-hora">${hhmm(s.inicio)}</span><span class="slot-cancha">${esc(s.cancha)}</span><span class="slot-tags">${s.techada ? '<span class="tag tag-techada">Techada</span>' : ""}${s.pico ? '<span class="tag tag-pico">Pico</span>' : ""}</span><span class="slot-precio">${pesos(s.precio)}</span></button>`;
+  // Mismo criterio (WCAG 2.5.3): el nombre es el texto visible; el fin del turno y las pausas van ocultos para la vista.
+  return `<button type="button" class="slot" data-inicio="${s.inicio}" data-cancha="${esc(s.canchaId)}" data-pico="${s.pico ? 1 : 0}"><span class="slot-hora">${hhmm(s.inicio)}</span><span class="sr"> a ${hhmm(s.fin)}, </span><span class="slot-cancha">${esc(s.cancha)}</span><span class="slot-tags">${s.techada ? '<span class="sr">, </span><span class="tag tag-techada">Techada</span>' : ""}${s.pico ? '<span class="sr">, </span><span class="tag tag-pico">Pico</span>' : ""}</span><span class="sr">, </span><span class="slot-precio">${pesos(s.precio)}</span></button>`;
 }
 
 function pintarGrilla(slots, { animar = false } = {}) {
