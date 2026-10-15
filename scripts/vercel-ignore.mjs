@@ -7,8 +7,8 @@
 // scripts/vercel-build.mjs), y un push a main ES un despliegue a producción aunque sólo cambie un .md.
 //
 // Regla:
-//   · Rama que no es main  → no construye, salvo que el mensaje del commit traiga [preview].
-//   · main                 → construye SIEMPRE, salvo que el mensaje traiga [sin-deploy] Y todo lo que
+//   · Rama que no es main  → no construye, salvo que la PRIMERA línea del commit traiga [preview].
+//   · main                 → construye SIEMPRE, salvo que la primera línea traiga [sin-deploy] Y todo lo que
 //                            cambió sea documentación o configuración de .claude/ (nada que la app use).
 //
 // Ante cualquier duda o error se construye: es lo que pasaba antes de que existiera este control.
@@ -37,7 +37,9 @@ const esInocuo = (f) =>
 
 try {
   const rama = process.env.VERCEL_GIT_COMMIT_REF || "";
-  const mensaje = process.env.VERCEL_GIT_COMMIT_MESSAGE || "";
+  // Sólo cuenta la PRIMERA línea del mensaje: el cuerpo puede nombrar las marcas al explicarlas.
+  const mensaje = (process.env.VERCEL_GIT_COMMIT_MESSAGE || "").split(/?
+/)[0];
   if (!rama) construir("no se sabe de qué rama viene el push");
 
   if (rama !== "main") {
