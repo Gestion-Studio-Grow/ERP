@@ -7,7 +7,7 @@ tags: [brain/indice]
 
 # 🛡️ Lecciones — índice de guardarraíles
 
-> 38 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
+> 41 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
 > — no el registro entero. Calibración obligatoria antes de tocar Prod/Deploy · Datos/DB ·
 > Multi-tenant · Seguridad (ADR-052).
 
@@ -32,6 +32,7 @@ tags: [brain/indice]
 - **[MT-3](MT-3-con-2-tenants-resolvia-el-mas-viejo-en-silencio.md)** — resolución de tenant fail-closed; el alta del 2º tenant dispara RLS (Gate).
 - **[MT-4](MT-4-home-pelada-con-1-tenant-a-quien-sirvo.md)** — mapear cada host; nunca `APP_BASE_DOMAIN=vercel.app`; home pelada solo para `/demo`.
 - **[MT-5](MT-5-indices-compuestos-que-no-rendian.md)** — toda query con predicado `tenantId` / `tenantTransaction`; RLS enforced en prod (Gate 2).
+- **[MT-6](MT-6-sumar-un-host-obligaba-a-reescribir-a-ciegas-el-mapa-de.md)** — host nuevo → `HOSTS_PUBLICADOS` + test; nunca reescribir `TENANT_HOST_MAP` sin tener su valor vigente a la vista.
 
 ## DX — Demo / UX
 
@@ -42,6 +43,7 @@ tags: [brain/indice]
 - **[DX-5](DX-5-no-es-la-copia-de-la-web-real-hay-que-afinar-el-lapiz.md)** — en todo cliente "réplica exacta" — (a) extraer el sitio real con navegador (tree + `innerText` de header/footer), no solo `WebFetch`; (b) correr el checklist de réplica exacta […]
 - **[DX-6](DX-6-una-relacion-seedeada-uniforme-hace-que-el-front-mienta-por.md)** — (1) el provisioning/import de catálogo real captura y aplica la asignación por profesional (nunca `connect`-a-todo ni dejar vacío) — es parte del relevamiento, no un default; si el mapeo real no […]
 - **[DX-7](DX-7-fix-de-dato-de-prod-con-guardarrail-sin-seed-sin-deletemany.md)** — todo fix de dato de prod (no-migración) usa script versionado con dry-run default + `--apply` explícito; el diff se imprime campo por campo antes de escribir; scope por `tenantId` de un único tenant, […]
+- **[DX-8](DX-8-demo-publica-en-host-serverless-un-back-con-estado-y-tiempo.md)** — todo back de demo con estado o tiempo real se diseña con núcleo isomórfico + adaptador local desde el día 1; el servidor es sólo transporte (HTTP, firma, cookies). Se prueba el modo local en el E2E.
 
 ## MP — Metodología / Proceso
 
@@ -66,6 +68,7 @@ tags: [brain/indice]
 - **[SEC-1](SEC-1-secretos-en-el-chat-credenciales-expuestas.md)** — el agente NUNCA toca secretos; si un secreto se expuso, se ROTA de inmediato; el repo lleva solo la plantilla (`.env.vercel.template`).
 - **[SEC-2](SEC-2-un-rol-de-app-que-evade-rls.md)** — la app conecta siempre con un rol sin `BYPASSRLS`; verificar aislamiento antes del go-live.
 - **[SEC-3](SEC-3-webhooks-y-logins-sin-defensa.md)** — verificar firma de todo webhook; rate-limit en endpoints de auth y API pública.
+- **[SEC-4](SEC-4-superficie-publica-un-limite-por-ip-que-bloquea-al-club-y.md)** — en superficies públicas, rate-limit por usuario (fallos) + por IP sólo fallos y con techo generoso; nunca devolver el `motivo` del motor a un tercero sin pasarlo por un filtro de "qué puede ver este […]
 
 ---
 

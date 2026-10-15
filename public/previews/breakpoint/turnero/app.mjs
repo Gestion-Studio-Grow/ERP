@@ -1,10 +1,12 @@
 // TURNERO WEB — Break Point Pádel. Front vanilla, separado del back (contrato: docs/tenants/breakpoint/TURNERO-API.md).
 // Sin framework a propósito: el presupuesto es < 60 KB de JS comprimido y LCP < 1,5 s en 4G.
-// El back se elige con ?api=… o <meta name="turnero-api">; por defecto, el mismo host en el puerto 8787.
+// El back se elige con ?api=… o <meta name="turnero-api">; en localhost, el puerto 8787. En cualquier otro host
+// (la demo pública a costo cero, sin servidor) corre el adaptador local: el mismo núcleo, dentro del navegador.
 
 const $ = (s, r = document) => r.querySelector(s);
 const qs = new URLSearchParams(location.search);
-const API = (qs.get("api") ?? $('meta[name="turnero-api"]')?.content ?? `${location.protocol}//${location.hostname}:8787`).replace(/\/$/, "");
+const API = (qs.get("api") || $('meta[name="turnero-api"]')?.content || (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? `${location.protocol}//${location.hostname}:8787` : "local")).replace(/\/$/, "");
+let LOCAL = null; // adaptador local (local.mjs): sólo se descarga si hace falta
 const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const pesos = (n) => `$${Math.round(n).toLocaleString("es-AR")}`;
@@ -17,6 +19,7 @@ const S = { config: null, fecha: null, duracion: 90, techadas: false, usuario: n
 
 // ───────────── API ─────────────
 async function api(ruta, { metodo = "GET", cuerpo, idem } = {}) {
+  if (LOCAL) return LOCAL.api(ruta, { metodo, cuerpo });
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), 10000);
   try {
@@ -318,11 +321,13 @@ function pintarUsuario() {
 let fuente = null;
 function conectarVivo() {
   fuente?.close();
-  const ev = new EventSource(`${API}/api/turnero/eventos`, { withCredentials: true });
+  const ev = LOCAL ? LOCAL.fuente() : new EventSource(`${API}/api/turnero/eventos`, { withCredentials: true });
   fuente = ev;
   const estado = (on) => { const el = $("#en-vivo"); el.classList.toggle("on", on); el.classList.toggle("off", !on); el.textContent = on ? "En vivo" : "Reconectando…"; };
-  ev.onopen = () => estado(true);
-  ev.onerror = () => estado(false);
+  // Si se cortó (túnel, 4G que va y viene), al volver se re-pide todo: lo que pasó en el medio no se pierde.
+  let caido = false;
+  ev.onopen = () => { estado(true); if (caido) { caido = false; S.cache.clear(); cargarSlots({ animar: true, forzar: true }); cargarReservas(); } };
+  ev.onerror = () => { caido = true; estado(false); };
   ev.addEventListener("disponibilidad", (e) => {
     const d = JSON.parse(e.data);
     for (const k of S.cache.keys()) if (k.startsWith(d.fecha)) S.cache.delete(k);
@@ -395,20 +400,34 @@ async function anotarEspera() {
   const dia = S.config.dias.find((d) => d.fecha === S.fecha);
   const r = await api("/api/turnero/espera", { metodo: "POST", cuerpo: { fecha: S.fecha, desde: dia.abre, hasta: dia.cierra - S.duracion, duracion: S.duracion, techadas: S.techadas } });
   if (r.ok) { aviso("¡Listo! Si se libera un turno ese día, te avisamos por WhatsApp."); return; }
-  if (/celular/i.test(r.motivo ?? "")) {
-    const tel = window.prompt("¿A qué celular te avisamos? (código de área + número)");
-    if (!tel) return;
-    const c = await api("/api/auth/celular", { metodo: "POST", cuerpo: { tel } });
-    if (!c.ok) { aviso(c.motivo); return; }
-    S.usuario = c.usuario;
-    return anotarEspera();
-  }
+  if (/celular/i.test(r.motivo ?? "")) return pedirCelular();
   aviso(r.motivo);
+}
+
+/** Entró con Google (no da el celular): se lo pedimos ahí mismo, con un campo de verdad (no un prompt()). */
+function pedirCelular() {
+  const caja = $("#espera");
+  if ($("#form-cel")) return $("#esp-tel").focus();
+  const f = document.createElement("form");
+  f.id = "form-cel";
+  f.className = "campo";
+  f.innerHTML = `<label for="esp-tel">¿A qué celular te avisamos por WhatsApp?</label><input id="esp-tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="11 6187 0066" required><p id="esp-err" class="error" role="alert"></p><button type="submit" class="btn btn-pri">Guardar y anotarme</button>`;
+  f.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const c = await api("/api/auth/celular", { metodo: "POST", cuerpo: { tel: $("#esp-tel").value } });
+    if (!c.ok) { $("#esp-err").textContent = c.motivo; return; }
+    S.usuario = c.usuario;
+    f.remove();
+    anotarEspera();
+  });
+  caja.append(f);
+  $("#esp-tel").focus();
 }
 
 // ───────────── arranque ─────────────
 async function iniciar() {
   cablear();
+  if (API === "local") LOCAL = (await import("./local.mjs")).crearLocal();
   const [cfg, yo] = await Promise.all([api("/api/turnero/config"), api("/api/auth/yo")]);
   if (!cfg.club) {
     document.body.dataset.estado = "sin-conexion";

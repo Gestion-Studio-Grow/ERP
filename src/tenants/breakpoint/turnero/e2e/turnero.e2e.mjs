@@ -19,7 +19,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { crearApp } from "../back/servidor.mjs";
 import { crearFront } from "../servir-front.mjs";
-import { aMotor, aEpoch } from "../back/nucleo.mjs";
+import { aMotor, aEpoch } from "../../../../../public/previews/breakpoint/turnero/dominio/nucleo.mjs";
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const FRONT_DIR = path.resolve(AQUI, "../../../../../public/previews/breakpoint/turnero");
@@ -282,6 +282,50 @@ console.log("\n▶ movimiento reducido y teclado");
   check(await p.locator("#dlg-reserva[open]").count() === 1, "Enter sobre un turno abre la confirmación");
   await p.keyboard.press("Escape");
   check(await p.locator("#dlg-reserva[open]").count() === 0, "Escape cierra el diálogo");
+  await ctx.close();
+}
+
+// ───────────── 7: demo pública sin servidor (adaptador local) ─────────────
+console.log("\n▶ demo pública sin servidor (adaptador local)");
+{
+  const { ctx, p } = await pagina(390, 844);
+  const pedidosApi = [];
+  p.on("request", (r) => { if (r.url().includes("/api/")) pedidosApi.push(r.url()); });
+  const bytes = { js: 0 };
+  p.on("response", async (r) => { if (/\.m?js$/.test(new URL(r.url()).pathname)) bytes.js += Number(r.headers()["content-length"] ?? 0); });
+  const t = Date.now();
+  await p.goto(`${FRONT}/turnero/?api=local`);
+  await listo(p);
+  check(await p.locator(".slot").count() > 0, `local: turnos libres sin servidor (${Date.now() - t} ms)`);
+  await p.locator(".slot").first().click();
+  await p.click("#btn-confirmar");
+  await p.click("#btn-google");
+  await p.waitForSelector("#dlg-pago[open]", { timeout: 5000 }).catch(() => {});
+  const pendiente = await p.locator("#dlg-pago[open]").count() === 1;
+  if (pendiente) {
+    await p.click("#btn-simular");
+    await p.waitForSelector("#dlg-pago.is-firme", { timeout: 5000 }).catch(() => {});
+  }
+  check(pendiente && await p.locator("#dlg-pago.is-firme").count() === 1, "local: reservar con Google (demo) + comprobante simulado → turno firme");
+  // Lista de espera con cuenta de Google (sin celular): se pide el celular inline, con label, sin prompt().
+  await p.click("#btn-cerrar-pago").catch(() => {});
+  await p.evaluate(() => { document.querySelector("#espera").hidden = false; });
+  await p.click("#btn-espera");
+  await p.waitForSelector("#esp-tel", { timeout: 3000 }).catch(() => {});
+  check(await p.locator('label[for="esp-tel"]').count() === 1, "lista de espera: pide el celular en un campo con label (no prompt)");
+  await p.fill("#esp-tel", "123");
+  await p.click("#form-cel [type=submit]");
+  await p.waitForTimeout(200);
+  check(/celular/i.test(await p.textContent("#esp-err")), "lista de espera: celular inválido → error al lado del campo");
+  await p.fill("#esp-tel", "11 6000 7000");
+  await p.click("#form-cel [type=submit]");
+  await p.waitForFunction(() => /avisamos por WhatsApp/.test(document.querySelector("#aviso")?.textContent ?? ""), null, { timeout: 3000 }).catch(() => {});
+  check(/avisamos por WhatsApp/.test(await p.textContent("#aviso")), "lista de espera: queda anotado y se confirma");
+  check(pedidosApi.length === 0, `local: ningún pedido a una API (todo queda en el navegador)${pedidosApi.length ? ` → ${pedidosApi[0]}` : ""}`);
+  check(bytes.js > 0 && bytes.js < 60 * 1024, `local: JS comprimido total ${(bytes.js / 1024).toFixed(1)} KB < 60 KB`);
+  check(!p.errores.length, `local: cero errores de consola${p.errores.length ? ` → ${p.errores.join(" | ")}` : ""}`);
+  await p.screenshot({ path: `${SALIDA}/local-firme.png` });
+  resumen.local = { jsComprimido: bytes.js };
   await ctx.close();
 }
 

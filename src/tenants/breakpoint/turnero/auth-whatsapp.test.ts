@@ -12,7 +12,7 @@ const W: any = waMod;
 test("la contraseña se guarda con scrypt y sal: nunca en texto plano, y dos hashes de la misma clave difieren", async () => {
   const h1 = await A.hashClave("canchaazul9");
   const h2 = await A.hashClave("canchaazul9");
-  assert.match(h1, /^scrypt\$16384\$8\$1\$/);
+  assert.match(h1, /^scrypt\$16384\$8\$5\$/);
   assert.ok(!h1.includes("canchaazul9"));
   assert.notEqual(h1, h2);
   assert.equal(await A.verificarClave("canchaazul9", h1), true);

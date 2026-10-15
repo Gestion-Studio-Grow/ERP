@@ -11,8 +11,8 @@
 import { createServer } from "node:http";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { crearTurnero } from "./nucleo.mjs";
-import { crearLimitador, crearSesiones, leerCookies, cookieSesion, verificarIdTokenGoogle, jwksDeGoogle } from "./auth.mjs";
+import { crearTurnero } from "../../../../../public/previews/breakpoint/turnero/dominio/nucleo.mjs";
+import { crearLimitador, crearSesiones, leerCookies, cookieSesion, verificarIdTokenGoogle, jwksDeGoogle, hashClave, verificarClave } from "./auth.mjs";
 import { verificarFirma, verificarSuscripcion, extraerMensajes, payloadCloud, firmar, crearCanalDemo, crearCanalCloud, crearLectorDemo } from "./whatsapp.mjs";
 
 const json = (res, status, cuerpo, extra = {}) => {
@@ -36,7 +36,7 @@ export function crearApp({
   const demo = !entorno.WHATSAPP_TOKEN; // sin token de Meta, todo WhatsApp es simulado
   const canal = demo ? crearCanalDemo({ ahora: reloj }) : crearCanalCloud({ token: entorno.WHATSAPP_TOKEN, phoneId: entorno.WHATSAPP_PHONE_ID });
   const lector = crearLectorDemo();
-  const turnero = turneroInyectado ?? crearTurnero({ reloj, canal, lector, urlTurnero: entorno.TURNERO_URL ?? "" });
+  const turnero = turneroInyectado ?? crearTurnero({ reloj, canal, lector, urlTurnero: entorno.TURNERO_URL ?? "", claves: { hash: hashClave, verificar: verificarClave } });
   const origenes = new Set(String(entorno.TURNERO_ORIGENES ?? "http://localhost:5173,http://127.0.0.1:5173").split(",").map((s) => s.trim()).filter(Boolean));
   const staffClave = entorno.TURNERO_STAFF_CLAVE || randomBytes(9).toString("base64url");
   const secretoWhatsApp = entorno.WHATSAPP_APP_SECRET || randomBytes(32).toString("hex"); // demo: secreto efímero
@@ -175,18 +175,12 @@ export function crearApp({
   // DEMO: el cliente "manda" un comprobante. Entra por el MISMO webhook firmado que usará WhatsApp de verdad.
   ruta("POST", "/api/turnero/reservas/([\\w-]{1,40})/simular-comprobante", async (req, res, { cuerpo, usuario, m }) => {
     if (!demo) return json(res, 404, { ok: false });
-    const r = turnero.misReservas(usuario.id).find((x) => x.id === m[1]);
-    if (!r) return json(res, 404, { ok: false, motivo: "No encontramos ese turno." });
-    const variante = ["ok", "parcial", "ajeno", "imagen", "sin-codigo"].includes(cuerpo.variante) ? cuerpo.variante : "ok";
-    const monto = variante === "parcial" ? Math.round(r.sena.falta / 2) : r.sena.falta || r.saldo;
-    const hoy = turnero.ahora().fecha.split("-").reverse().join("/");
-    const op = String(70000000000 + Math.floor(Math.random() * 9999999999));
-    const destino = variante === "ajeno" ? "Alias destino: otro.club.demo" : `Alias destino: ${turnero.config().cuentas.alias}`;
-    const texto = `Comprobante de transferencia\nMercado Pago\n${hoy} 19:42\nMonto $ ${monto.toLocaleString("es-AR")},00\nDe: ${usuario.nombre}\n${destino}\nN° de operación ${op}${variante === "sin-codigo" ? "" : `\nConcepto: ${r.ref ?? ""}`}`;
-    const de = usuario.tel ?? "5491100009999";
+    const c = turnero.comprobanteDemo(usuario.id, m[1], cuerpo.variante);
+    if (!c.ok) return json(res, 404, c);
+    const { texto, de } = c;
     const id = `wamid.DEMO${randomBytes(8).toString("hex")}`;
     let payload;
-    if (variante === "imagen") {
+    if (c.imagen) {
       const mediaId = `media-demo-${randomBytes(6).toString("hex")}`;
       lector.guardarMedio(mediaId, texto, 0.9);
       payload = payloadCloud({ de, id, mediaId, texto: "" });

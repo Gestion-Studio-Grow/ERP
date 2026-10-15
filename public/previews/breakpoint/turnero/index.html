@@ -15,6 +15,8 @@
 <link rel="stylesheet" href="./turnero.css">
 <!-- Anton sólo con los glifos que usamos en mayúsculas (títulos y número del día): pocos KB, no bloquea el render -->
 <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Anton&display=swap&text=ABCDEFGHIJKLMNOPQRSTUVWXYZ%C3%81%C3%89%C3%8D%C3%93%C3%9A%C3%91%C3%9C0123456789%C2%A1!%C2%BF%3F%24.%2C%3A-%20">
+<!-- Montserrat 500 sólo con las letras del logo (BREAK POINT PADEL): el logo oficial es texto SVG -->
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500&display=swap&text=BREAKPOINTDL">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&display=swap&text=ABCDEFGHIJKLMNOPQRSTUVWXYZ%C3%81%C3%89%C3%8D%C3%93%C3%9A%C3%91%C3%9C0123456789%C2%A1!%C2%BF%3F%24.%2C%3A-%20"></noscript>
 </head>
 <body data-estado="cargando">
@@ -23,29 +25,8 @@
 
 <header class="top">
   <div class="top-in">
-    <!-- LOGO: reemplazar por el SVG oficial de ccr-63ed11dc-brcdpp -->
-    <svg id="logo" viewBox="0 0 100 100" role="img" aria-labelledby="logo-t">
-      <title id="logo-t">Break Point Pádel</title>
-      <rect width="100" height="100" fill="#035BA8"/>
-      <g transform="translate(-1.5 0)" fill="none" stroke="#fff" stroke-width="2.2" stroke-miterlimit="2">
-        <path d="M16 17V83"/>
-        <path transform="translate(22 18)" d="M0 0V18H5.5a4.7 4.7 0 0 0 0-9.4H0M0 8.6H5a4.3 4.3 0 0 0 0-8.6H0"/>
-        <path transform="translate(35.5 18)" d="M0 18V0H5a4.5 4.5 0 0 1 0 9H0M5 9l5.5 9"/>
-        <path transform="translate(49 18)" d="M9.5 0H0V18H9.5M0 8.8H8.5"/>
-        <path transform="translate(61.3 18)" d="M0 18 6.5 0 13 18M2.35 11.5h8.3"/>
-        <path transform="translate(77 18)" d="M0 0V18M10.2 0 0 10.6M3.7 6.8 10.5 18"/>
-        <path transform="translate(22 41)" d="M0 18V0H5.5a4.75 4.75 0 0 1 0 9.5H0"/>
-        <path transform="translate(57.4 41)" d="M0 0V18"/>
-        <path transform="translate(61 41)" d="M0 18V0L12 18V0"/>
-        <path transform="translate(76.5 41)" d="M0 0H11M5.5 0V18"/>
-        <path transform="translate(22 64)" d="M0 18V0H5.5a4.75 4.75 0 0 1 0 9.5H0"/>
-        <path transform="translate(35 64)" d="M0 18 6.5 0 13 18M2.35 11.5h8.3"/>
-        <path transform="translate(50.8 64)" d="M0 0V18H3.5a9 9 0 0 0 0-18Z"/>
-        <path transform="translate(66.1 64)" d="M9.5 0H0V18H9.5M0 8.8H8.5"/>
-        <path transform="translate(78.5 64)" d="M0 0V18H9"/>
-        <g stroke="#DC6E22"><circle cx="44.8" cy="50" r="8.2"/><path d="M43 42.4c4.6 3.4 4.6 11.8 0 15.2"/></g>
-      </g>
-    </svg>
+    <!-- Logo oficial del club (SVG de ccr-63ed11dc-brcdpp, el mismo del backoffice), sobre su cuadrado azul. -->
+    <svg id="logo" viewBox="0 0 120 120" role="img" aria-label="Break Point Pádel"><rect width="120" height="120" fill="#035BA8"/><g transform="translate(8 20)" color="#fff"><rect x="0.5" y="3.5" width="3.6" height="73" fill="currentColor"/><g fill="currentColor" font-family="Montserrat,'Century Gothic','Avenir Next',sans-serif" font-weight="500" font-size="24.5"><text x="9.5" y="25" textLength="92" lengthAdjust="spacingAndGlyphs">BREAK</text><text x="9.5" y="51" textLength="15.5" lengthAdjust="spacingAndGlyphs">P</text><text x="45" y="51" textLength="56.5" lengthAdjust="spacingAndGlyphs">INT</text><text x="9.5" y="77" textLength="92" lengthAdjust="spacingAndGlyphs">PADEL</text></g><g fill="none" stroke="#DC6E22" stroke-width="3.3" stroke-linecap="round"><circle cx="35" cy="42.4" r="8.1"/><path d="M34.2 35.6a7.6 7.6 0 0 0 0 13.6"/></g></g></svg>
     <span id="en-vivo" class="vivo" role="status">En vivo</span>
     <button id="btn-ingresar" class="btn-head" type="button">Ingresar</button>
     <div id="usuario" class="usuario" hidden></div>

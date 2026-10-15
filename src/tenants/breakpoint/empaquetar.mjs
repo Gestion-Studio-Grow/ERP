@@ -17,7 +17,10 @@ const RAIZ = path.resolve(AQUI, "../../..");
 export const FUENTE = "public/previews/breakpoint/club";
 export const SALIDA = "src/tenants/breakpoint/sitio/index.html";
 
-/** Arma el HTML de un solo archivo: el motor queda como `const M = {…}` y la app lo usa igual. PURA. */
+/**
+ * Arma el HTML de un solo archivo: el motor queda como `const M = {…}` y la app lo usa igual. PURA.
+ * @param {{ html: string, app: string, motor: string, morph?: string | null }} fuente
+ */
 export function empaquetar({ html, app, motor, morph = null }) {
   const nombres = [...motor.matchAll(/^export (?:const|function) (\w+)/gm)].map((m) => m[1]);
   const cuerpoMotor = motor.replace(/^export (const|function) /gm, "$1 ");

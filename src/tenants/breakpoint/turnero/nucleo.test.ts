@@ -1,8 +1,8 @@
-// Tests del núcleo del turnero (back/nucleo.mjs) sobre el motor del club: reservas online, privacidad, límites,
+// Tests del núcleo del turnero (public/previews/breakpoint/turnero/dominio/nucleo.mjs) sobre el motor del club: reservas online, privacidad, límites,
 // seña con plazo, conciliación por WhatsApp de punta a punta, lista de espera y sincronización con el backoffice.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import * as nucleoMod from "./back/nucleo.mjs";
+import * as nucleoMod from "../../../../public/previews/breakpoint/turnero/dominio/nucleo.mjs";
 import * as waMod from "./back/whatsapp.mjs";
 import * as motorMod from "../../../../public/previews/breakpoint/club/motor.mjs";
 

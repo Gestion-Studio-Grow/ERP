@@ -22,6 +22,24 @@ En `breakpoint.<dominio>`, `/` se reescribe a `/sitio-estatico` y el manejador s
 host resuelve al negocio `breakpoint`**. Sin ese negocio en la base, responde 404 (falla cerrado): el código
 puede estar publicado antes del alta sin exponer nada.
 
+## Turnero web de canchas (para los jugadores)
+
+Front del jugador y back **separados**, sincronizados **en vivo** con el backoffice; ingreso con Google o con
+celular y contraseña; seña por transferencia con comprobante por **WhatsApp** y conciliación automática (con bandeja
+"a revisar" para lo dudoso). Todo en DEMO: Google, WhatsApp y las cuentas del club son simulados y nada se guarda.
+
+| Pieza | Archivo |
+|---|---|
+| Plan (RAE con Fable: dolores de los turneros, matriz, conciliación, evaluación de mesa del bodegón) + desvíos de la ejecución | [`TURNERO-PLAN.md`](TURNERO-PLAN.md) |
+| Contrato de la API (lo construido) | [`TURNERO-API.md`](TURNERO-API.md) |
+| Diseño (marca, motion, performance, accesibilidad) | [`TURNERO-DISENO.md`](TURNERO-DISENO.md) |
+| Tests, defectos corregidos (antes/después) y mediciones | [`TURNERO-QA.md`](TURNERO-QA.md) |
+| Front (estático, vanilla) · adaptador local de la demo pública | `public/previews/breakpoint/turnero/{index.html, turnero.css, app.mjs, local.mjs}` |
+| Dominio isomórfico (lo usan el back y el adaptador local) | `public/previews/breakpoint/turnero/dominio/{nucleo, conciliacion, identidad}.mjs` + `club/motor.mjs` |
+| Back (Node, sin dependencias) | `src/tenants/breakpoint/turnero/back/{servidor, auth, whatsapp}.mjs` |
+| Modo conectado del backoffice (`?api=`) | `public/previews/breakpoint/club/conectado.mjs` |
+| Levantar todo | `npm run turnero` · E2E: `npm run test:turnero-e2e` |
+
 ## Para que quede en vivo (dos pasos del dueño)
 
 1. **Publicar** (Gate 1): merge de la rama a `main` + deploy del proyecto `erp-ch`. Antes: `tsc` + `next build`

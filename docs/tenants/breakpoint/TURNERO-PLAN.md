@@ -394,4 +394,29 @@ tests, QA Playwright y Gate) corre en **Opus 5.5**. Sin commits en esta pasada; 
 - Restaurantes (§9): [Cronista](https://www.cronista.com/clase/gourmet/es-una-estafa-me-quieren-cobrar-la-reserva-en-un-restaurante/) · [Qamarero](https://qamarero.com/blog/no-shows-en-restaurantes/) · [Aurora Inbox](https://www.aurorainbox.com/en/2026/05/03/whatsapp-reservation-system-for-restaurants/)
 - Internas: `brain/20-lecciones/DB-4`, `SEC-3`, `DX-4`, `DX-1` · `src/plugins/mercadopago/signature.ts` · `src/lib/rate-limit.ts` · `src/lib/auth-password.ts` · `src/lib/whatsapp-cta.ts` · `src/integraciones/redaccion.ts`
 
+## 13. Ejecución (Opus 5.5): lo que se construyó y en qué se apartó del plan
+
+> **Modelos (excepción autorizada por el dueño en esta tarea):** el plan lo hizo un agente en **Fable** porque el dueño
+> lo pidió explícitamente ("planificá con Fable y ejecutá con Opus"). El resto (diseño, código, tests, QA y Gate)
+> corrió en **Opus 5.5**, como dice la norma de `CLAUDE.md`.
+
+Lo construido está en `TURNERO-API.md` (contrato), `TURNERO-DISENO.md` (diseño) y `TURNERO-QA.md` (tests, defectos y
+mediciones). Cada desvío de este plan es **reversible** (ADR-048) y lleva una línea con el porqué:
+
+| Plan (Fable) | Construido (Opus) | Por qué |
+|---|---|---|
+| Hold explícito de 15′ (`POST /holds` + `confirmar`), con cookie `bp_hold` antes del login | La reserva se crea al confirmar, ya con sesión, y queda `pendiente` con seña y plazo. La reserva misma hace de hold. | Un paso menos para el jugador y ningún estado nuevo en `OCUPA`, que el backoffice no sabe pintar. **Riesgo que queda:** mientras el jugador se registra (unos segundos), otro puede tomar el hueco. Si pasa, recibe 409 con 3 alternativas. Pendiente C20. |
+| `minutosParaSena` = 180; liberar es decisión humana | Adoptado el criterio: `liberarSinSena: "manual"` por defecto. El turno se marca `senaVencida`, entra a la bandeja y se le escribe al jugador. Plazo de 60′ (`minutosParaSenar`). Hay modo `"auto"` opcional, que el dueño puede editar. | Una transferencia puede demorar; liberar solo enoja. El modo auto queda para el club que lo prefiera. |
+| Backoffice conectado con `POST /api/club/comandos` y lista blanca de mutadores | `conectado.mjs`: después de cada pintada, el puesto **compara la agenda** (reservas, bloqueos, canchas, fijos, lluvia, reglas) y manda lo que cambió. El back rechaza todo lo que pise un turno activo (409) y el puesto lo deshace. | Las más de 60 acciones del backoffice llaman al motor directo, y reescribirlas era el mayor riesgo de romper la demo. Comparar la agenda las cubre a todas sin tocarlas. **Alcance:** se sincroniza la agenda; buffet, caja y stock siguen locales en cada puesto (en producción viven en la base del ERP). |
+| Router, sesiones, idempotencia y SSE en módulos separados; `src/lib/auth-password.ts` y `rate-limit.ts` reutilizados | `servidor.mjs` + `auth.mjs` + `whatsapp.mjs` en Node puro. Se implementaron equivalentes: scrypt con parámetros OWASP (N=2¹⁴, r=8, p=5) y un limitador de ventana deslizante. | El back es Node sin build ni dependencias: no puede importar el TypeScript de la app Next. El contrato es el mismo. |
+| Google con redirect + PKCE + state + nonce | Google Identity Services (ID token), **verificado en el back**: RS256 contra el JWKS, `iss`, `aud`, `exp` y mail verificado. | Es un toque, sin redirect, y anda igual en la demo local. El CSRF lo cubren el `Origin` y el JSON. |
+| OTP por WhatsApp como ingreso principal después de la venta | **No construido.** | Requiere plantillas aprobadas por Meta (post-venta, §C). Queda como siguiente paso recomendado. |
+| Link firmado de cancelación (`/reservas/cancelar?t=`) | No construido: se cancela desde "Mis reservas". | Sin mails ni WhatsApp reales en la demo, nadie recibe el link. Va post-venta, junto con los recordatorios. |
+| `Last-Event-ID` con replay | Al reconectar, el front vuelve a pedir la disponibilidad y "Mis reservas". | Más simple, y sin estado de eventos en el back. |
+| `POST /reservas/:id/comprobante` (subirlo desde la web) | El comprobante entra **sólo por WhatsApp**, como pidió el dueño. En demo, `simular-comprobante` pasa por el webhook firmado. | El canal es WhatsApp. Subirlo desde la web queda como opción. |
+| SSE público con `libre:true/false` por hueco | El SSE público avisa `{fecha, canchaId, version}` y el front vuelve a pedir ese día. | Tampoco lleva datos personales, el payload es mínimo y la grilla queda siempre consistente con el back. |
+| Dominio del back en `src/` | Lo isomórfico (`nucleo`, `conciliacion`, `identidad`) vive en `public/previews/breakpoint/turnero/dominio/`, igual que `motor.mjs`. Lo exclusivo del servidor (HTTP, scrypt, firma, Google) queda en `src/…/back/`. | Así la **demo pública sin servidor** (adaptador `local.mjs`, §8.1 del plan) corre el MISMO núcleo, sin duplicar reglas. |
+| Empaquetar el turnero en `sitio/turnero.html` | No hecho: el front se sirve como archivos estáticos. | Publicar es Gate 1. Hay que decidir el host del turnero junto con el dominio post-venta. |
+| Texto "¿Querés mesa después del partido?" (§9) | No agregado. | El dueño pidió "por ahora solamente turnero de canchas". Queda listo para cuando el club lo pida. |
+
 — Elaborado por GSG

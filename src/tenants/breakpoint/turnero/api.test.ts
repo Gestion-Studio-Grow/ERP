@@ -85,7 +85,7 @@ test("registro → cookie de sesión HttpOnly/SameSite=Lax; /api/auth/yo la reco
   const c = cliente();
   const r = await c("POST", "/api/auth/registro", { nombre: "Caro Sesión", tel: "1155556666", clave: "canchaazul9" });
   assert.equal(r.status, 201);
-  assert.match(r.setCookie, /bp_sesion=.+; Path=\/; HttpOnly; SameSite=Lax/);
+  assert.match(String(r.setCookie), /bp_sesion=.+; Path=\/; HttpOnly; SameSite=Lax/);
   assert.ok(!JSON.stringify(r.json).includes("canchaazul9") && !JSON.stringify(r.json).includes("scrypt"));
   assert.equal((await c("GET", "/api/auth/yo")).json.usuario.nombre, "Caro Sesión");
   await c("POST", "/api/auth/salir", {});
@@ -185,12 +185,12 @@ test("tiempo real + WhatsApp de punta a punta: reservar → SSE público y del b
   assert.equal((await staff("POST", "/api/staff/ingresar", { clave: "mala" })).status, 401);
   const ing = await staff("POST", "/api/staff/ingresar", { clave: "clave-del-club" });
   assert.equal(ing.status, 200);
-  const cookieStaff = ing.setCookie.split(";")[0];
+  const cookieStaff = String(ing.setCookie).split(";")[0];
   assert.equal((await cliente()("GET", "/api/staff/estado")).status, 401); // un jugador no ve la agenda completa
 
   const c = cliente();
   const reg = await c("POST", "/api/auth/registro", { nombre: "Vivo Test", tel: "1177778888", clave: "canchaazul9" });
-  const cookieJugador = reg.setCookie.split(";")[0];
+  const cookieJugador = String(reg.setCookie).split(";")[0];
   const { fecha, s } = await huecoLibre(c, 4);
 
   const publico = escuchar("/api/turnero/eventos", "", (ev) => ev.some((e) => e.tipo === "disponibilidad"));

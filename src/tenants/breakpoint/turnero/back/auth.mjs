@@ -10,22 +10,16 @@
 // (demo: no se persiste nada — ciclo DEMO → VENTA → INVERSIÓN).
 import { randomBytes, scrypt as scryptCb, timingSafeEqual, createPublicKey, createVerify } from "node:crypto";
 import { promisify } from "node:util";
+import { normalizarEmail } from "../../../../../public/previews/breakpoint/turnero/dominio/identidad.mjs";
+
+// Lo puro (reglas de contraseña, celular, mail, cuentas de demo) vive en el dominio compartido con el front.
+export { problemaDeClave, normalizarCelular, normalizarEmail, GOOGLE_DEMO } from "../../../../../public/previews/breakpoint/turnero/dominio/identidad.mjs";
 
 const scrypt = promisify(scryptCb);
-const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 64 };
+// Parámetros OWASP de baja memoria (N=2^14, r=8, p=5 ≈ 16 MB por hash): mismo costo que N=2^17,p=1 sin 128 MB por pedido.
+const SCRYPT = { N: 16384, r: 8, p: 5, keylen: 64 };
 
 // ───────────────────────── contraseñas ─────────────────────────
-
-const COMUNES = new Set(["12345678", "123456789", "1234567890", "password", "contraseña", "contrasena", "qwertyui", "11111111", "00000000", "breakpoint", "padel123", "padelpadel", "abcd1234"]);
-
-/** Reglas de la contraseña en criollo. null = está bien. */
-export function problemaDeClave(clave) {
-  const c = String(clave ?? "");
-  if (c.length < 8) return "La contraseña tiene que tener al menos 8 caracteres.";
-  if (c.length > 128) return "La contraseña es demasiado larga.";
-  if (COMUNES.has(c.toLowerCase())) return "Esa contraseña es muy fácil de adivinar. Probá con otra.";
-  return null;
-}
 
 export async function hashClave(clave) {
   const sal = randomBytes(16);
@@ -106,21 +100,6 @@ export function cookieSesion(nombre, valor, { maxAge, seguro }) {
 
 // ───────────────────────── identidad ─────────────────────────
 
-/** "11 6187-0066" · "+54 9 11 6187 0066" → "5491161870066". Celular argentino (10 dígitos con característica). */
-export function normalizarCelular(tel) {
-  let d = String(tel ?? "").replace(/\D/g, "");
-  if (d.startsWith("54")) d = d.slice(2);
-  if (d.startsWith("9")) d = d.slice(1);
-  if (d.startsWith("0")) d = d.slice(1);
-  if (d.length === 12) d = d.replace(/^(\d{2,4})15(\d{6,8})$/, "$1$2"); // 011 15 xxxx → sin el 15
-  return d.length === 10 ? `549${d}` : null;
-}
-
-export function normalizarEmail(e) {
-  const v = String(e ?? "").trim().toLowerCase();
-  return /^[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,}$/.test(v) ? v : null;
-}
-
 // ───────────────────────── Google (OpenID Connect) ─────────────────────────
 
 const EMISORES_GOOGLE = new Set(["accounts.google.com", "https://accounts.google.com"]);
@@ -167,9 +146,3 @@ export function jwksDeGoogle({ fetch: f = globalThis.fetch, ahora = () => Date.n
     return cache;
   };
 }
-
-/** Cuentas de Google de DEMO (ficticias: dominio example.com reservado por RFC 2606). */
-export const GOOGLE_DEMO = Object.freeze([
-  { sub: "demo-google-1", email: "jugador.demo@example.com", nombre: "Jugador Demo" },
-  { sub: "demo-google-2", email: "jugadora.demo@example.com", nombre: "Jugadora Demo" },
-]);

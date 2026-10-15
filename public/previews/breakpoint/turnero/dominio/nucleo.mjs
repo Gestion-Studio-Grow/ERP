@@ -1,4 +1,5 @@
-// NÚCLEO DEL TURNERO — Break Point Pádel.
+// NÚCLEO DEL TURNERO — Break Point Pádel. Isomórfico: lo corre el back (src/tenants/breakpoint/turnero/back) y,
+// en la demo pública sin servidor, el adaptador local del front (../local.mjs). Sin `node:*`: sólo Web Crypto.
 //
 // El dominio es el motor del club (public/previews/breakpoint/club/motor.mjs): disponibilidad, precio, seña,
 // cancelación, lista de espera y vencimientos salen de ahí. Este archivo NO repite reglas: orquesta el canal
@@ -9,10 +10,9 @@
 // (validar + insertar sin un `await` en el medio), y Node corre una sola a la vez: el event loop es el punto de
 // serialización. En producción, con base de datos, la exclusión la impone la base (constraint EXCLUDE o
 // transacción serializable — Gate 2), no la app.
-import { randomInt } from "node:crypto";
-import * as M from "../../../../../public/previews/breakpoint/club/motor.mjs";
+import * as M from "../../club/motor.mjs";
 import { leerComprobante, conciliar, enmascarar, mismoTel } from "./conciliacion.mjs";
-import { normalizarCelular, normalizarEmail, hashClave, verificarClave, problemaDeClave, GOOGLE_DEMO } from "./auth.mjs";
+import { normalizarCelular, normalizarEmail, problemaDeClave, GOOGLE_DEMO, hashPbkdf2, verificarPbkdf2, azar } from "./identidad.mjs";
 
 const OFFSET_AR = -3 * 3600000; // Argentina no tiene horario de verano
 const pad = (n) => String(n).padStart(2, "0");
@@ -45,6 +45,7 @@ export function crearTurnero({
   diasVista = 14,
   limites = { pendientes: 2, activas: 4 },
   urlTurnero = "",
+  claves = { hash: hashPbkdf2, verificar: verificarPbkdf2 }, // el back inyecta scrypt
 } = {}) {
   const ahora = () => aMotor(reloj());
   // La demo del club arma "hoy" alrededor de las 19:10 (así cada eventualidad queda a la vista en el backoffice).
@@ -93,7 +94,7 @@ export function crearTurnero({
     const p = problemaDeClave(clave);
     if (p) return { ok: false, motivo: p };
     if (buscarUsuario((u) => u.tel === cel || (mail && u.email === mail))) return { ok: false, motivo: "Ya hay una cuenta con ese celular o mail. Probá ingresar." };
-    const u = { id: `w${++secUsuario}`, nombre: n, tel: cel, email: mail, claveHash: await hashClave(clave), googleSub: null, clienteId: null };
+    const u = { id: `w${++secUsuario}`, nombre: n, tel: cel, email: mail, claveHash: await claves.hash(clave), googleSub: null, clienteId: null };
     usuarios.set(u.id, u);
     vincularCliente(u);
     return { ok: true, usuario: u };
@@ -102,7 +103,7 @@ export function crearTurnero({
   async function ingresar({ usuario, clave }) {
     const cel = normalizarCelular(usuario), mail = normalizarEmail(usuario);
     const u = buscarUsuario((x) => (cel && x.tel === cel) || (mail && x.email === mail));
-    const ok = await verificarClave(clave, u?.claveHash ?? null); // se verifica igual si no existe (mismo tiempo)
+    const ok = await claves.verificar(clave, u?.claveHash ?? null); // se verifica igual si no existe (mismo tiempo)
     if (!ok) return { ok: false, motivo: "El usuario o la contraseña no coinciden." };
     return { ok: true, usuario: u };
   }
@@ -189,7 +190,7 @@ export function crearTurnero({
     };
   }
 
-  const nuevaRef = () => { let s; do { s = "BP-" + Array.from({ length: 4 }, () => LETRAS_REF[randomInt(LETRAS_REF.length)]).join(""); } while (E.reservas.some((r) => r.ref === s)); return s; };
+  const nuevaRef = () => { let s; do { s = "BP-" + Array.from({ length: 4 }, () => LETRAS_REF[azar(LETRAS_REF.length)]).join(""); } while (E.reservas.some((r) => r.ref === s)); return s; };
 
   /** Alternativas cercanas cuando el turno elegido ya no está (dolor: "elegí, pagué y no había"). */
   function alternativas(fecha, inicio, duracion) {
@@ -383,6 +384,22 @@ export function crearTurnero({
     return { ok: true };
   }
 
+  /**
+   * DEMO: arma el comprobante que "manda" el jugador (texto con la forma de Mercado Pago, datos ficticios).
+   * Variantes para mostrar cada regla: ok · parcial · ajeno · imagen · sin-codigo.
+   */
+  function comprobanteDemo(usuarioId, reservaId, variante = "ok") {
+    const u = usuarios.get(usuarioId);
+    const r = u ? misReservas(u.id).find((x) => x.id === reservaId) : null;
+    if (!r) return { ok: false, codigo: 404, motivo: "No encontramos ese turno." };
+    const v = ["ok", "parcial", "ajeno", "imagen", "sin-codigo"].includes(variante) ? variante : "ok";
+    const monto = v === "parcial" ? Math.round(r.sena.falta / 2) : r.sena.falta || r.saldo;
+    const op = String(70000000000 + azar(2 ** 31));
+    const destino = v === "ajeno" ? "Alias destino: otro.club.demo" : `Alias destino: ${cuentasClub.alias[0]}`;
+    const texto = `Comprobante de transferencia\nMercado Pago\n${ahora().fecha.split("-").reverse().join("/")} 19:42\nMonto $ ${monto.toLocaleString("es-AR")},00\nDe: ${u.nombre}\n${destino}\nN° de operación ${op}${v === "sin-codigo" ? "" : `\nConcepto: ${r.ref ?? ""}`}`;
+    return { ok: true, texto, de: u.tel ?? "5491100009999", imagen: v === "imagen" };
+  }
+
   // ───────────── reloj del club: vencimientos ─────────────
   function tick() {
     const t = reloj();
@@ -447,7 +464,7 @@ export function crearTurnero({
     // cliente
     dias, disponibilidad, reservar, misReservas, cancelarReserva, anotarEnEspera, publica,
     // whatsapp
-    procesarMensaje, resolverRevision, revisiones: () => revisiones.map(revisionPublica),
+    procesarMensaje, resolverRevision, revisiones: () => revisiones.map(revisionPublica), comprobanteDemo,
     // reloj
     tick,
     // staff

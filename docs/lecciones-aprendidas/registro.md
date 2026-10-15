@@ -17,9 +17,9 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **PD** — PD-1 build lento ≠ colgado · PD-2 gates humanos · PD-3 cron Hobby · PD-4 GitHub App en la org
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance · MT-6 hosts en código (variable sensible)
-- **DX** — DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
+- **DX** — DX-8 demo pública en host serverless: back con estado no corre → dominio isomórfico + adaptador local · DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
 - **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir)
-- **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit
+- **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit · SEC-4 superficie pública: límite por IP sólo con fallos + motivos del dominio que nombran a terceros
 
 ---
 
@@ -266,6 +266,21 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Refs:** ADR-018 (aislamiento `tenantId`), ADR-019 (provisioning aditivo/idempotente), DB-1 (seed
   destructivo), DX-5, DX-6; `docs/tenants/magra/provisioning-magra.md`.
 
+**[DX-8] Demo pública en host serverless: un back con estado y tiempo real no corre ahí**
+- **Síntoma:** el turnero de Break Point necesita un back con estado en memoria y SSE (tiempo real); la demo pública a
+  costo cero vive en un host serverless (Vercel/Next) que no sostiene ni lo uno ni lo otro. Detectado por el plan
+  de Fable antes de publicar (15/10/2026).
+- **Causa raíz:** se diseña el back para la demo local (Node persistente) y se asume que "el mismo front + back" va a
+  andar en la URL gratuita.
+- **Fix:** el dominio del turnero quedó **isomórfico** (sin `node:*`, sólo Web Crypto) junto al motor del club en
+  `public/…`, y el front trae un **adaptador local** que corre el MISMO núcleo en el navegador con el mismo contrato
+  (se activa fuera de localhost o con `?api=local`). E2E: sin pedidos a ninguna API, 47 KB de JS comprimido.
+- **Lección:** en preventa, "front y back separados" es una decisión de arquitectura **y** de hosting: si la demo
+  pública es serverless, el dominio tiene que poder correr del lado del cliente sin duplicar reglas.
+- **Guardarraíl:** todo back de demo con estado o tiempo real se diseña con **núcleo isomórfico + adaptador local**
+  desde el día 1; el servidor es sólo transporte (HTTP, firma, cookies). Se prueba el modo local en el E2E.
+- **Refs:** `docs/metodologia/demo-publica-costo-cero.md`; `docs/tenants/breakpoint/TURNERO-PLAN.md §13`; TURNERO-QA D12.
+
 ## MP — Metodología / Proceso
 
 **[MP-1] Archivos corrompidos al editar**
@@ -406,6 +421,20 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Lección:** toda superficie pública necesita **autenticación de origen** y **límite de tasa**.
 - **Guardarraíl:** verificar **firma** de todo webhook; **rate-limit** en endpoints de auth y API pública.
 - **Refs:** memoria Célula 2 hardening.
+
+**[SEC-4] Superficie pública: un límite por IP que bloquea al club y un "motivo" que nombra a otro cliente**
+- **Síntoma:** en el turnero de Break Point (15/10/2026), (a) el límite de intentos de ingreso por IP contaba también
+  los ingresos **exitosos**: con el Wi-Fi del club (decenas de jugadores detrás de una IP) se bloqueaba en una noche
+  movida; (b) el 409 de "turno ocupado" devolvía el motivo del motor tal cual: «Se pisa con Ana Test (23:30–01:00)».
+- **Causa raíz:** (a) se copió el patrón "contar pedidos" en vez de "contar fallos"; (b) los motivos del motor están
+  escritos para la recepcionista (que puede ver nombres), y se reusaron en una API pública sin filtrar.
+- **Fix:** por IP cuentan sólo los fallos (30/15'), por usuario 5/15'; el 409 público es genérico + alternativas.
+  Tests: 20 registros desde la misma IP pasan; ningún nombre en el 409 ni en el SSE público.
+- **Lección:** el límite por IP castiga al NAT compartido (club, oficina, 4G con CGNAT); y un mensaje de dominio "en
+  criollo" puede llevar datos de terceros: hay que **decidir quién lo lee** antes de exponerlo.
+- **Guardarraíl:** en superficies públicas, rate-limit **por usuario** (fallos) + por IP **sólo fallos** y con techo
+  generoso; nunca devolver el `motivo` del motor a un tercero sin pasarlo por un filtro de "qué puede ver este rol".
+- **Refs:** SEC-3; `src/tenants/breakpoint/turnero/back/servidor.mjs`; `docs/tenants/breakpoint/TURNERO-QA.md` (D1, D3).
 
 **[MP-15] Deviación de una decisión de ADR citando una autoridad no trazable en el repo**
 - **Síntoma:** en el Gate de PR-2/M2, S4 renombró los 5 grupos de nav de las etiquetas **criollas** que fija

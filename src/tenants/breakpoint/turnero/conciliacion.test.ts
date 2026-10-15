@@ -1,8 +1,8 @@
-// Tests de la conciliación de comprobantes del turnero (src/tenants/breakpoint/turnero/back/conciliacion.mjs).
+// Tests de la conciliación de comprobantes del turnero (public/previews/breakpoint/turnero/dominio/conciliacion.mjs).
 // Los comprobantes son textos redactados por nosotros con la forma de los bancos/billeteras argentinos (datos ficticios).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import * as modulo from "./back/conciliacion.mjs";
+import * as modulo from "../../../../public/previews/breakpoint/turnero/dominio/conciliacion.mjs";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- el módulo es JS plano (lo carga Node sin build); se usa sin tipar */
 const C: any = modulo;
