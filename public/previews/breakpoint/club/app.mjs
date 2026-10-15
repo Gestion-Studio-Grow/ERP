@@ -1,4 +1,4 @@
-// BACKOFFICE DEL CLUB — Break Point Pádel (demo del flujo). Toda la regla de negocio vive en motor.mjs;
+// GESTIÓN DEL CLUB — Break Point Pádel (demo del flujo). Toda la regla de negocio vive en motor.mjs;
 // este archivo sólo pinta y conecta botones. Sin persistencia: el estado vive en memoria.
 import * as M from "./motor.mjs";
 
@@ -8,19 +8,44 @@ const pad = (n) => String(n).padStart(2, "0");
 const hoyLocal = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const fechaCorta = (f) => { const [, m, d] = f.split("-"); return `${DIAS[M.diaSemana(f)]} ${Number(d)}/${Number(m)}`; };
+const ddmm = (f) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
 // En la demo el WhatsApp abre sin número (elegís el contacto): los teléfonos de ejemplo podrían ser de alguien real.
 const wa = (texto) => M.linkWhatsApp("", texto);
 const ROW = 30;
+const MEDIOS_CAJA = ["efectivo", "mercadopago", "transferencia", "debito"];
 
-let E, AHORA, VISTA, HOY, ROL = "recepcion";
+let E, AHORA, VISTA, HOY, USUARIO = "u-lu", TAB = "agenda";
 let ALERTAS = [];
-const ui = { medio: "efectivo", carrito: {}, cuentaDe: "" };
+const ui = { medio: "efectivo", carrito: {}, busca: {}, producto: {}, mes: null, remito: null };
+
+const TABS = [
+  { id: "agenda", nombre: "Agenda", permiso: "agenda" },
+  { id: "buffet", nombre: "Buffet", permiso: "buffet" },
+  { id: "caja", nombre: "Caja", permiso: "cerrarCaja" },
+  { id: "clientes", nombre: "Clientes", permiso: "clientes" },
+  { id: "tablero", nombre: "Tablero", permiso: "metricas" },
+  { id: "proveedores", nombre: "Proveedores", permiso: "verProveedores" },
+  { id: "stock", nombre: "Stock", permiso: "stock" },
+  { id: "contenido", nombre: "Contenido", permiso: "contenido" },
+  { id: "ajustes", nombre: "Ajustes", permiso: "configurar" },
+];
+
+const yo = () => M.usuario(E, USUARIO);
+const puedo = (accion) => M.puede(E, USUARIO, accion);
+const auth = (pin) => ({ usuarioId: USUARIO, pin });
+const esDuenio = () => yo()?.rol === "duenio";
 
 function iniciar() {
   HOY = hoyLocal();
   E = M.generarDemo(HOY);
   AHORA = { fecha: HOY, min: 19 * 60 + 10 };
   VISTA = HOY;
+  USUARIO = "u-lu";
+  TAB = "agenda";
+  ui.mes = HOY.slice(0, 7);
+  ui.busca = {};
+  ui.producto = {};
+  ui.remito = null;
   for (let d = 1; d <= 6; d++) M.materializarFijos(E, M.sumarDias(HOY, d));
   render();
 }
@@ -45,20 +70,28 @@ function toast(texto, { error = false } = {}) {
   setTimeout(() => t.remove(), 4000);
 }
 
-/** Muestra el motivo si la regla rechazó; si salió bien, re-pinta y avisa. */
+const textoOk = (okTexto, res) => (typeof okTexto === "function" ? okTexto(res) : okTexto);
+
 function hecho(res, okTexto) {
   if (!res.ok) { toast(res.motivo, { error: true }); return false; }
   render();
-  if (okTexto) toast(okTexto);
+  if (okTexto) toast(textoOk(okTexto, res));
   return true;
 }
 
-/** Clave estable del elemento con foco, para devolvérselo después de re-pintar (navegación con teclado). */
+function cerrarSiSale(res, okTexto) {
+  if (!res.ok) { toast(res.motivo, { error: true }); return false; }
+  cerrarDialogo();
+  render();
+  if (okTexto) toast(textoOk(okTexto, res));
+  return true;
+}
+
 function claveFoco() {
   const a = document.activeElement;
   if (!a || a === document.body) return null;
   if (a.id) return `#${CSS.escape(a.id)}`;
-  if (a.dataset?.a) return `[data-a="${CSS.escape(a.dataset.a)}"]${a.dataset.v != null ? `[data-v="${CSS.escape(a.dataset.v)}"]` : ""}${a.dataset.c != null ? `[data-c="${CSS.escape(a.dataset.c)}"]` : ""}${a.dataset.m != null ? `[data-m="${CSS.escape(a.dataset.m)}"]` : ""}`;
+  if (a.dataset?.a) return `[data-a="${CSS.escape(a.dataset.a)}"]${["v", "c", "m", "j"].map((k) => (a.dataset[k] != null ? `[data-${k}="${CSS.escape(a.dataset[k])}"]` : "")).join("")}`;
   return null;
 }
 function devolverFoco(clave, raiz = document) {
@@ -71,251 +104,296 @@ function devolverFoco(clave, raiz = document) {
 
 function render() {
   const foco = claveFoco();
+  const u = yo();
   $("#reloj").textContent = M.hhmm(AHORA.min);
-  document.querySelectorAll('[data-a="rol"]').forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === ROL)));
+  $("#u-nombre").textContent = u.nombre;
+  $("#u-rol").textContent = M.ROLES[u.rol];
+  $("#u-avatar").textContent = u.nombre.slice(0, 1).toUpperCase();
+  if (!TABS.find((t) => t.id === TAB && puedo(t.permiso))) TAB = "agenda";
   if (VISTA >= HOY) M.materializarFijos(E, VISTA);
-  ALERTAS = M.alertas(E, AHORA);
+  ALERTAS = M.alertas(E, AHORA).filter((a) => !a.paraDuenio || esDuenio());
+  const pendDuenio = ALERTAS.filter((a) => a.paraDuenio).length;
+  $("#tabs").innerHTML = TABS.filter((t) => puedo(t.permiso)).map((t) => `<button type="button" data-a="tab" data-v="${t.id}" ${t.id === TAB ? 'aria-current="page"' : ""}>${t.nombre}${t.id === "tablero" && pendDuenio ? `<span class="badge" aria-label="${pendDuenio} pendientes">${pendDuenio}</span>` : ""}</button>`).join("");
   const previo = $("#grid-wrap");
   const scroll = previo ? { top: previo.scrollTop, left: previo.scrollLeft, vista: previo.dataset.vista } : null;
-  $("#app").innerHTML = ROL === "recepcion" ? vistaRecepcion() : vistaDuenio();
+  const vistas = { agenda: vistaAgenda, buffet: vistaBuffet, caja: vistaCaja, clientes: vistaClientes, tablero: vistaTablero, proveedores: vistaProveedores, stock: vistaStock, contenido: vistaContenido, ajustes: vistaAjustes };
+  $("#app").innerHTML = vistas[TAB]();
   const gw = $("#grid-wrap");
   if (gw) {
     if (scroll && scroll.vista === VISTA) { gw.scrollTop = scroll.top; gw.scrollLeft = scroll.left; }
-    else gw.scrollTop = Math.max(0, ((AHORA.min - E.config.apertura) / E.config.paso) * ROW - 150);
+    else gw.scrollTop = Math.max(0, ((AHORA.min - M.horarioDe(E, VISTA).abre) / E.config.paso) * ROW - 150);
   }
   camaras.parar();
-  if (ROL === "duenio") camaras.arrancar();
+  if (TAB === "tablero") camaras.arrancar();
   if ($("#dlg").open && dialogoActual) dialogoActual.refrescar?.();
   devolverFoco(foco);
 }
 
+const marcaRoja = (c) => (c?.deuda > 0 ? `<span class="marca-roja" title="Saldo deudor">⚠ debe ${M.pesos(c.deuda)}</span>` : "");
+
 function chipsReserva(r) {
   const s = M.saldo(r);
   const out = [];
+  const titular = r.clienteId ? M.cliente(E, r.clienteId) : null;
   if (r.sena.monto > 0 && !r.sena.pagada && r.estado === "reservada") out.push(`<span class="chip bad">Falta seña ${M.pesos(r.sena.monto)}</span>`);
-  else if (s <= 0) out.push(`<span class="chip ok">Pagado</span>`);
-  else if (M.cobrado(r) > 0) out.push(`<span class="chip warn">Debe ${M.pesos(s)}</span>`);
-  else out.push(`<span class="chip">A cobrar ${M.pesos(s)}</span>`);
-  if (r.estado === "en_cancha") out.push(`<span class="chip ok">En cancha</span>`);
-  if (r.tipo !== "turno") out.push(`<span class="chip info">${M.TIPOS[r.tipo]}</span>`);
-  if (r.consumos.length) out.push(`<span class="chip">+${r.consumos.reduce((n, c) => n + c.cant, 0)} consumos</span>`);
+  else if (s <= 0) out.push(`<span class="chip ok">Cancha paga</span>`);
+  else if (M.cobrado(r) > 0) out.push(`<span class="chip warn">Cancha debe ${M.pesos(s)}</span>`);
+  else out.push(`<span class="chip">Cancha ${M.pesos(s)}</span>`);
+  if (titular?.deuda > 0) out.push(`<span class="chip bad">⚠ debe</span>`);
+  if (r.tipo === "clase" || r.tipo === "abierto") out.push(`<span class="chip info">${M.TIPOS[r.tipo]}</span>`);
+  const consumos = E.cuentas.filter((c) => c.reservaId === r.id && c.estado === "abierta" && M.saldoCuenta(c) > 0).length;
+  if (consumos) out.push(`<span class="chip">${consumos} cuenta${consumos > 1 ? "s" : ""} buffet</span>`);
   return out.join("");
 }
 
-// ───────────────────────────── Recepción ─────────────────────────────
+// ───────────────────────────── Agenda ─────────────────────────────
 
-function vistaRecepcion() {
+function vistaAgenda() {
   const dias = [-1, 0, 1, 2, 3, 4, 5].map((d) => M.sumarDias(HOY, d));
-  const caja = M.resumenCaja(E, HOY);
   const fuera = E.reservas.filter((r) => r.fecha === VISTA && ["cancelada", "no_show", "suspendida"].includes(r.estado));
   const urg = ALERTAS.filter((a) => a.nivel === "alta").length;
+  const h = M.horarioDe(E, VISTA);
+  const caja = M.resumenCaja(E, M.diaDeCaja(E, AHORA.fecha, AHORA.min));
   return `
   <div class="layout">
     <section aria-labelledby="t-grilla">
       <div class="card">
         <div class="card-head">
-          <h2 id="t-grilla">Turnos · ${esc(fechaCorta(VISTA))}${VISTA === HOY ? " (hoy)" : ""}</h2>
-          <span class="muted small">Tocá un hueco libre para reservar · tocá un turno para cobrar, dar la cancha o moverlo</span>
+          <h2 id="t-grilla">Agenda · ${esc(fechaCorta(VISTA))}${VISTA === HOY ? " (hoy)" : ""}</h2>
+          <div class="row small"><span class="muted">Horario de los ${M.NOMBRE_DIA[M.diaSemana(VISTA)].toLowerCase()}: <b class="num">${M.hhmm(h.abre)} a ${M.hhmm(h.cierra)}</b></span>${puedo("configurar") ? `<button type="button" class="btn sm" data-a="horarioDia">Cambiar horario</button>` : ""}</div>
         </div>
         <div class="days" role="group" aria-label="Elegir día">
-          ${dias.map((f) => `<button type="button" data-a="dia" data-v="${f}" aria-pressed="${f === VISTA}"><small>${f === HOY ? "Hoy" : DIAS[M.diaSemana(f)]}</small><b class="num">${Number(f.slice(8))}/${Number(f.slice(5, 7))}</b></button>`).join("")}
+          ${dias.map((f) => `<button type="button" data-a="dia" data-v="${f}" aria-pressed="${f === VISTA}"><small>${f === HOY ? "Hoy" : DIAS[M.diaSemana(f)]}</small><b class="num">${ddmm(f)}</b></button>`).join("")}
         </div>
         <div class="toolbar">
           <button type="button" class="btn primary" data-a="nuevo">+ Turno</button>
-          <button type="button" class="btn accent" data-a="mostrador">Venta de mostrador</button>
+          <button type="button" class="btn accent" data-a="abrirConsumo">Abrir consumo</button>
           <button type="button" class="btn" data-a="espera">Lista de espera (${E.espera.filter((e) => e.fecha >= HOY).length})</button>
-          <button type="button" class="btn" data-a="lluvia">Plan lluvia</button>
-          <button type="button" class="btn" data-a="bloqueo">Bloquear cancha</button>
-          <button type="button" class="btn" data-a="clientes">Clientes</button>
+          <button type="button" class="btn" data-a="mantenimiento">Mantenimiento y lluvia</button>
         </div>
         ${grilla()}
         <div class="legend" aria-hidden="true">
           <span><i style="background:var(--royal-soft);border-color:var(--royal-line)"></i>Reservado</span>
+          <span><i style="background:var(--orange-soft);border-color:var(--orange)"></i>Turno fijo</span>
           <span><i style="background:var(--ok-soft);border-color:var(--ok)"></i>En cancha</span>
-          <span><i style="background:var(--grid-past)"></i>Terminado</span>
-          <span><i style="border-left:4px solid var(--royal)"></i>Turno fijo</span>
-          <span><i style="border-left:4px solid var(--orange)"></i>Clase / partido abierto</span>
+          <span><i style="background:var(--grid-past)"></i>Cancha cerrada</span>
           <span><i style="box-shadow:0 0 0 2px var(--bad) inset"></i>Necesita atención</span>
         </div>
-        ${fuera.length ? `<details style="margin-top:10px"><summary class="small muted">Cancelados, suspendidos y "no vino" de este día (${fuera.length})</summary><ul class="small">${fuera.map((r) => `<li>${M.hhmm(r.inicio)} · ${esc(M.cancha(E, r.canchaId).nombre)} · ${esc(r.titular)} — ${M.ESTADOS[r.estado]}${r.motivoCancelacion ? ` (${esc(r.motivoCancelacion)})` : ""}${r.senaEnSuspenso ? " · seña en suspenso hasta que se venda el hueco" : ""}${r.devolucionPendiente ? ` · <b>devolver ${M.pesos(r.devolucionPendiente)}</b>` : ""}</li>`).join("")}</ul></details>` : ""}
+        ${fuera.length ? `<details style="margin-top:10px"><summary class="small muted">Cancelados, suspendidos y faltas de este día (${fuera.length})</summary><ul class="small">${fuera.map((r) => `<li>${M.hhmm(r.inicio)} · ${esc(M.cancha(E, r.canchaId).nombre)} · ${esc(r.titular)} — ${M.ESTADOS[r.estado]}${r.motivoCancelacion ? ` (${esc(r.motivoCancelacion)})` : ""}${r.faltaCobrada ? ` · se cobró ${M.pesos(r.faltaCobrada)}` : ""}${r.senaEnSuspenso ? " · seña en suspenso" : ""}${r.devolucionPendiente ? ` · <b>devolver ${M.pesos(r.devolucionPendiente)}</b>` : ""}</li>`).join("")}</ul></details>` : ""}
       </div>
     </section>
-    <aside class="stack" aria-label="Pendientes y caja">
+    <aside class="stack" aria-label="Pendientes">
       <section class="card" aria-labelledby="t-bandeja">
-        <div class="card-head"><h2 id="t-bandeja">Para resolver ahora</h2><span class="chip ${urg ? "bad" : "info"}">${urg ? `${urg} urgente${urg > 1 ? "s" : ""}` : `${ALERTAS.length}`}</span></div>
+        <div class="card-head"><h2 id="t-bandeja">Para resolver ahora</h2><span class="chip ${urg ? "bad" : "info"}">${urg ? `${urg} urgente${urg > 1 ? "s" : ""}` : ALERTAS.length}</span></div>
         <div class="inbox">
           ${ALERTAS.length ? ALERTAS.map((a, i) => `
             <div class="al ${a.nivel}">
-              <span class="lvl">${a.nivel === "alta" ? "Urgente" : a.nivel === "media" ? "Atender" : "Aviso"}</span>
+              <span class="lvl">${a.paraDuenio ? "Para el dueño" : a.nivel === "alta" ? "Urgente" : a.nivel === "media" ? "Atender" : "Aviso"}</span>
               <p>${esc(a.texto)}</p>
               <div class="row"><button type="button" class="btn sm primary" data-a="alerta" data-v="${i}">${esc(a.accion)}</button></div>
             </div>`).join("") : `<p class="empty">Todo en orden. 🎾</p>`}
         </div>
       </section>
-      <section class="card" aria-labelledby="t-caja">
-        <div class="card-head"><h2 id="t-caja">Caja de hoy</h2><button type="button" class="btn sm" data-a="cerrarCaja">Cerrar caja</button></div>
-        <dl class="kv num">
-          ${Object.entries(caja.porMedio).map(([k, v]) => `<dt>${M.MEDIOS[k]}</dt><dd>${M.pesos(v)}</dd>`).join("")}
-          <dt>Gastos</dt><dd>${M.pesos(-caja.egresos)}</dd>
-          <dt class="tot">Efectivo que tiene que haber</dt><dd class="tot">${M.pesos(caja.efectivoEsperado)}</dd>
-        </dl>
-        <p class="small muted" style="margin:8px 0 0">Fondo inicial ${M.pesos(E.caja.fondo)} · ${caja.movimientos} movimientos hoy</p>
-        <div class="row" style="margin-top:8px"><button type="button" class="btn sm" data-a="egreso">Registrar un gasto</button></div>
+      <section class="card" aria-labelledby="t-mini-caja">
+        <div class="card-head"><h2 id="t-mini-caja">Caja del día</h2><button type="button" class="btn sm" data-a="tab" data-v="caja">Ver caja</button></div>
+        <dl class="kv num"><dt>Efectivo en el cajón</dt><dd>${M.pesos(caja.efectivoEsperado)}</dd><dt>Ingresos</dt><dd>${M.pesos(caja.ingresos)}</dd></dl>
+        <p class="small muted" style="margin:6px 0 0">La caja corre de 12:00 a 12:00.</p>
       </section>
     </aside>
   </div>`;
 }
 
 function grilla() {
-  const { apertura, cierre, paso } = E.config;
-  const filas = (cierre - apertura) / paso;
-  const top = (m) => ((m - apertura) / paso) * ROW;
+  const { paso } = E.config;
+  const { abre, cierra } = M.horarioDe(E, VISTA);
+  const filas = (cierra - abre) / paso;
+  const top = (m) => ((m - abre) / paso) * ROW;
   const delDia = E.reservas.filter((r) => r.fecha === VISTA && ["reservada", "en_cancha", "finalizada"].includes(r.estado));
   const conAlerta = VISTA === HOY ? new Set(ALERTAS.filter((a) => a.nivel === "alta" && a.reservaId).map((a) => a.reservaId)) : new Set();
   const pasado = (m) => M.minutosHasta(AHORA, VISTA, m) < -paso;
   const n = E.canchas.length;
-
   const cabecera = `<div class="gh" style="grid-column:1;grid-row:1"><span class="tag">Hora</span></div>` + E.canchas.map((c, i) => `
     <div class="gh" style="grid-column:${i + 2};grid-row:1">
-      <div><div class="n">${esc(c.nombre)}</div><div class="tag">${c.cubierta ? "Techada" : "Descubierta"}${c.estado === "mantenimiento" ? " · en mantenimiento" : ""}</div></div>
-      <div class="row" style="gap:4px">
-        <button type="button" class="luz" data-a="luz" data-v="${c.id}" aria-pressed="${!!E.luces[c.id]}" aria-label="Luz de ${esc(c.nombre)}: ${E.luces[c.id] ? "prendida, tocar para apagar" : "apagada, tocar para prender"}">💡</button>
-        <button type="button" class="luz" data-a="mant" data-v="${c.id}" aria-pressed="${c.estado === "mantenimiento"}" aria-label="${c.estado === "mantenimiento" ? "Sacar de mantenimiento" : "Poner en mantenimiento"} ${esc(c.nombre)}">🔧</button>
-      </div>
+      <div><div class="n">${esc(c.nombre)}</div><div class="tag">${c.cubierta ? "Techada" : "Descubierta"}${c.estado === "mantenimiento" ? ` · <b class="rojo">en mantenimiento</b>` : ""}</div></div>
+      <button type="button" class="luz" data-a="luz" data-v="${c.id}" aria-pressed="${!!E.luces[c.id]}" aria-label="Luz de ${esc(c.nombre)}: ${E.luces[c.id] ? "prendida, tocar para apagar" : "apagada, tocar para prender"}">💡</button>
     </div>`).join("");
-
   let horas = "";
-  for (let m = apertura; m < cierre; m += 60) horas += `<span class="num" style="top:${top(m) + 8}px">${M.hhmm(m)}</span>`;
+  for (let m = abre; m < cierra; m += 60) horas += `<span class="num" style="top:${top(m) + 8}px">${M.hhmm(m)}</span>`;
   const columnaHora = `<div class="tcol" style="grid-column:1;grid-row:2;height:${filas * ROW}px">${horas}</div>`;
-
   const columnas = E.canchas.map((c, idx) => {
     let slots = "";
     for (let i = 0; i < filas; i++) {
-      const m = apertura + i * paso;
-      const fueAntes = pasado(m);
-      slots += fueAntes
+      const m = abre + i * paso;
+      slots += pasado(m)
         ? `<div class="slot pasado ${m % 60 === 0 ? "hora" : ""}" style="top:${i * ROW}px" aria-hidden="true"></div>`
         : `<button type="button" class="slot ${m % 60 === 0 ? "hora" : ""}" style="top:${i * ROW}px" data-a="nuevo" data-c="${c.id}" data-m="${m}" aria-label="${esc(c.nombre)}, ${M.hhmm(m)}, libre. Reservar">+ ${M.hhmm(m)}</button>`;
     }
     const turnos = delDia.filter((r) => r.canchaId === c.id).map((r) => {
-      const h = (r.duracion / paso) * ROW - 3;
-      return `<button type="button" class="blk ${r.estado} ${r.tipo} ${conAlerta.has(r.id) ? "alerta" : ""}" style="top:${top(r.inicio) + 1}px;height:${h}px" data-a="ver" data-v="${r.id}" aria-label="${esc(r.titular)}, ${M.hhmm(r.inicio)} a ${M.hhmm(r.inicio + r.duracion)}, ${M.ESTADOS[r.estado]}, saldo ${M.pesos(M.saldo(r))}">
+      const hgt = (r.duracion / paso) * ROW - 3;
+      return `<button type="button" class="blk ${r.estado} ${r.tipo} ${conAlerta.has(r.id) ? "alerta" : ""}" style="top:${top(r.inicio) + 1}px;height:${hgt}px" data-a="ver" data-v="${r.id}" aria-label="${esc(r.titular)}${r.tipo === "fijo" ? ", turno fijo" : ""}, ${M.hhmm(r.inicio)} a ${M.hhmm(r.inicio + r.duracion)}, ${M.ESTADOS[r.estado]}, cancha debe ${M.pesos(M.saldo(r))}">
         <span class="tt">${esc(r.titular)}</span>
         <span class="meta num">${M.hhmm(r.inicio)}–${M.hhmm(r.inicio + r.duracion)} · ${r.jugadores.length}/4 · ${esc(r.origen)}</span>
-        ${h > 58 ? `<span class="chips">${chipsReserva(r)}</span>` : ""}
+        ${hgt > 58 ? `<span class="chips">${chipsReserva(r)}</span>` : ""}
       </button>`;
     }).join("");
     const bloqueos = E.bloqueos.filter((b) => b.fecha === VISTA && (b.canchaId === c.id || b.canchaId === "*")).map((b) =>
       `<div class="blk bloqueo" style="top:${top(b.desde) + 1}px;height:${((b.hasta - b.desde) / paso) * ROW - 3}px"><span class="tt">Bloqueada</span><span class="meta">${esc(b.motivo)}</span></div>`).join("");
     return `<div class="ccol ${c.estado === "mantenimiento" ? "mant" : ""}" style="grid-column:${idx + 2};grid-row:2;height:${filas * ROW}px">${slots}${bloqueos}${turnos}</div>`;
   }).join("");
-
-  const ahoraLinea = VISTA === HOY && AHORA.min >= apertura && AHORA.min <= cierre
+  const ahoraLinea = VISTA === HOY && AHORA.min >= abre && AHORA.min <= cierra
     ? `<div style="grid-column:2 / -1;grid-row:2;position:relative;pointer-events:none;z-index:4" aria-hidden="true"><div class="now" style="top:${top(AHORA.min)}px" data-h="${M.hhmm(AHORA.min)}"></div></div>` : "";
-
-  return `<div class="grid-wrap" id="grid-wrap" data-vista="${VISTA}"><div class="grilla" style="grid-template-columns:56px repeat(${n},minmax(140px,1fr))" role="group" aria-label="Grilla de turnos por cancha">
-    ${cabecera}${columnaHora}${columnas}${ahoraLinea}
-  </div></div>`;
+  return `<div class="grid-wrap" id="grid-wrap" data-vista="${VISTA}"><div class="grilla" style="grid-template-columns:56px repeat(${n},minmax(140px,1fr))" role="group" aria-label="Grilla de turnos por cancha">${cabecera}${columnaHora}${columnas}${ahoraLinea}</div></div>`;
 }
 
-// ───────────────────────────── Dueño ─────────────────────────────
+// ───────────────────────────── Buffet ─────────────────────────────
 
-function vistaDuenio() {
+function tarjetaCuenta(cta) {
+  const c = cta.clienteId ? M.cliente(E, cta.clienteId) : null;
+  const r = cta.reservaId ? M.reserva(E, cta.reservaId) : null;
+  const s = M.saldoCuenta(cta);
+  return `<div class="cta">
+    <div class="cta-h"><b>${esc(cta.titular)}</b><span class="row" style="gap:6px">${marcaRoja(c)}${c?.cc.habilitada ? `<span class="chip info">Cuenta corriente</span>` : ""}<b class="num">${M.pesos(s)}</b></span></div>
+    <div class="small muted">${r ? `Turno ${M.hhmm(r.inicio)} · ${esc(M.cancha(E, r.canchaId)?.nombre ?? "")}` : "Consumo abierto a nivel cliente"} · desde ${cta.abierta.min != null ? M.hhmm(cta.abierta.min) : "—"}</div>
+    ${cta.items.length ? `<ul>${cta.items.map((i) => `<li class="num">${i.cant} × ${esc(i.nombre)} · ${M.pesos(i.cant * i.precioUnit)}${i.alquiler ? (i.devuelto ? " (devuelta)" : " (en uso)") : ""}</li>`).join("")}</ul>` : `<p class="small muted" style="margin:0">Sin consumos todavía.</p>`}
+    ${M.cobradoCuenta(cta) ? `<div class="small">Pagado: ${M.pesos(M.cobradoCuenta(cta))}</div>` : ""}
+    <div class="row"><button type="button" class="btn sm primary" data-a="verCuenta" data-v="${cta.id}">Cargar / cobrar</button></div>
+  </div>`;
+}
+
+function vistaBuffet() {
+  const abiertas = M.cuentasAbiertas(E).filter((c) => c.titular !== "Mostrador");
+  const q = ui.busca.buffet ?? "";
+  const lista = q ? abiertas.filter((c) => c.titular.toLowerCase().includes(q.toLowerCase())) : abiertas;
+  return `<div class="stack">
+    <section class="card" aria-labelledby="t-buffet">
+      <div class="card-head"><h2 id="t-buffet">Buffet · cuentas abiertas (${abiertas.length})</h2>
+        <div class="row"><button type="button" class="btn primary" data-a="abrirConsumo">Abrir consumo</button><button type="button" class="btn accent" data-a="mostrador">Venta rápida</button></div></div>
+      <p class="small muted" style="margin:0 0 10px">Los consumos son una cuenta aparte de la cancha: quedan abiertos a nombre del cliente y se cobran cuando se va, o pasan a su cuenta corriente.</p>
+      <div class="search" style="max-width:360px;margin-bottom:10px"><label class="sr" for="busca-buffet">Buscar cuenta</label><input id="busca-buffet" data-busca="buffet" placeholder="Buscar por nombre" value="${esc(q)}"></div>
+      <div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${lista.map(tarjetaCuenta).join("") || `<p class="empty">No hay cuentas abiertas.</p>`}</div>
+    </section>
+  </div>`;
+}
+
+// ───────────────────────────── Caja ─────────────────────────────
+
+function vistaCaja() {
+  const dia = M.diaDeCaja(E, AHORA.fecha, AHORA.min);
+  const r = M.resumenCaja(E, dia);
+  const cierres = E.caja.cierres.filter((c) => c.dia === dia);
+  return `<div class="stack">
+    <section class="card" aria-labelledby="t-caja">
+      <div class="card-head"><h2 id="t-caja">Caja del ${esc(fechaCorta(dia))} · de 12:00 a 12:00</h2>
+        <div class="row">
+          ${puedo("egreso") ? `<button type="button" class="btn" data-a="egreso">Egreso en efectivo</button>` : ""}
+          ${puedo("remito") ? `<button type="button" class="btn" data-a="remito">Registrar remito</button>` : ""}
+          <button type="button" class="btn primary" data-a="cerrarCaja">Cerrar caja</button>
+        </div></div>
+      <div class="dos-cols">
+        <dl class="kv num">
+          ${MEDIOS_CAJA.map((k) => `<dt>${M.MEDIOS[k]}</dt><dd>${M.pesos(r.porMedio[k])}</dd>`).join("")}
+          <dt>Fondo inicial</dt><dd>${M.pesos(E.caja.fondo)}</dd>
+          <dt class="tot">Efectivo que tiene que haber</dt><dd class="tot">${M.pesos(r.efectivoEsperado)}</dd>
+        </dl>
+        <div>
+          <h3>Cierres de esta caja</h3>
+          ${cierres.length ? `<table class="num small"><thead><tr><th>Quién</th><th class="r">Esperado</th><th class="r">Contado</th><th class="r">Diferencia</th></tr></thead><tbody>${cierres.map((c) => `<tr><td>${esc(c.responsable)} · ${M.hhmm(c.min)}</td><td class="r">${M.pesos(c.esperado)}</td><td class="r">${M.pesos(c.contado)}</td><td class="r">${c.diferencia === 0 ? `<span class="chip ok">Cuadra</span>` : `<span class="chip ${c.diferencia < 0 ? "bad" : "warn"}">${M.pesos(c.diferencia)}</span>`}</td></tr>`).join("")}</tbody></table>` : `<p class="small muted">Todavía no se cerró. El cierre pide el PIN de quien cierra.</p>`}
+        </div>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="t-movs">
+      <div class="card-head"><h2 id="t-movs">Movimientos (${r.movimientos})</h2></div>
+      <div class="tbl-wrap"><table class="num small"><thead><tr><th>Hora</th><th>Concepto</th><th>Medio</th><th class="r">Ingreso</th><th class="r">Egreso</th></tr></thead><tbody>
+        ${r.lista.slice().reverse().map((m) => `<tr><td>${m.fecha !== dia ? `${ddmm(m.fecha)} ` : ""}${M.hhmm(m.min)}</td><td>${esc(m.concepto)}${m.usuario ? ` <span class="muted">· ${esc(m.usuario)}</span>` : ""}</td><td>${M.MEDIOS[m.medio]}</td><td class="r">${m.tipo === "ingreso" ? M.pesos(m.monto) : ""}</td><td class="r">${m.tipo === "egreso" ? M.pesos(m.monto) : ""}</td></tr>`).join("") || `<tr><td colspan="5" class="muted">Sin movimientos.</td></tr>`}
+      </tbody></table></div>
+    </section>
+  </div>`;
+}
+
+// ───────────────────────────── Clientes ─────────────────────────────
+
+function vistaClientes() {
+  const q = ui.busca.clientes ?? "";
+  const lista = M.buscarClientes(E, q).slice().sort((a, b) => (b.deuda - a.deuda) || a.nombre.localeCompare(b.nombre));
+  return `<section class="card" aria-labelledby="t-clientes">
+    <div class="card-head"><h2 id="t-clientes">Clientes (${lista.length})</h2><button type="button" class="btn primary" data-a="altaCliente">+ Alta de cliente</button></div>
+    <div class="search" style="max-width:360px;margin-bottom:10px"><label class="sr" for="busca-clientes">Buscar cliente</label><input id="busca-clientes" data-busca="clientes" placeholder="Nombre o teléfono" value="${esc(q)}"></div>
+    <div class="tbl-wrap"><table class="num"><thead><tr><th>Nombre</th><th>Nivel</th><th>Cuenta corriente</th><th class="r">Saldo</th><th class="r">Créditos</th><th class="r">Faltas</th><th></th></tr></thead><tbody>
+      ${lista.map((c) => `<tr>
+        <td>${esc(c.nombre)}</td><td>${esc(c.nivel || "—")}</td>
+        <td>${c.cc.habilitada ? `<span class="chip info">Hasta ${M.pesos(c.cc.limite)}</span>` : E.novedades.some((n) => n.estado === "pendiente" && n.clienteId === c.id) ? `<span class="chip warn">Pedida</span>` : `<span class="muted small">No</span>`}</td>
+        <td class="r">${c.deuda > 0 ? `<span class="rojo">⚠ ${M.pesos(c.deuda)}</span>` : M.pesos(0)}</td>
+        <td class="r">${c.monedero ? M.pesos(c.monedero) : ""}</td><td class="r">${c.strikes || ""}</td>
+        <td><button type="button" class="btn sm" data-a="fichaCliente" data-v="${c.id}">Ficha</button></td>
+      </tr>`).join("") || `<tr><td colspan="7" class="muted">No hay clientes con ese nombre.</td></tr>`}
+    </tbody></table></div>
+  </section>`;
+}
+
+// ───────────────────────────── Tablero (dueño) ─────────────────────────────
+
+function vistaTablero() {
   const k = M.kpis(E, HOY, AHORA);
   const pct = (x) => `${Math.round(x * 100)}%`;
   const semana = Array.from({ length: 7 }, (_, i) => M.sumarDias(HOY, i - 6));
   const calor = M.mapaDeCalor(E, semana);
-  const bajos = E.productos.filter((p) => !p.alquiler && p.stock <= p.minimo);
+  const platos = M.metricasPlatos(E, { desde: M.sumarDias(HOY, -6), hasta: HOY });
   const maxMedio = Math.max(1, ...Object.values(k.caja.porMedio).map(Math.abs));
+  const novedadesCC = E.novedades.filter((n) => n.estado === "pendiente");
+  const accesos = E.solicitudesAcceso.filter((s) => s.estado === "pendiente");
   const enCancha = E.canchas.map((c) => {
     const r = E.reservas.find((x) => x.fecha === HOY && x.canchaId === c.id && x.estado === "en_cancha");
     const prox = E.reservas.filter((x) => x.fecha === HOY && x.canchaId === c.id && x.estado === "reservada" && x.inicio >= AHORA.min - 30).sort((a, b) => a.inicio - b.inicio)[0];
     return { c, r, prox };
   });
-  return `
-  <div class="stack">
+  return `<div class="stack">
+    ${novedadesCC.length || accesos.length ? `<section class="card" aria-labelledby="t-nov">
+      <div class="card-head"><h2 id="t-nov">Novedades para autorizar</h2></div>
+      <div class="inbox">
+        ${novedadesCC.map((n) => { const c = M.cliente(E, n.clienteId); return `<div class="al media"><span class="lvl">Cuenta corriente</span><p><b>${esc(n.pidio)}</b> pide cuenta corriente para <b>${esc(c.nombre)}</b> hasta ${M.pesos(n.limite)}.${n.nota ? ` «${esc(n.nota)}»` : ""} ${marcaRoja(c)}</p><div class="row"><label class="sr" for="lim-${n.id}">Límite</label><input id="lim-${n.id}" type="number" min="1000" step="1000" value="${n.limite}" style="max-width:140px"><button type="button" class="btn sm primary" data-a="aprobarCC" data-v="${n.id}">Autorizar</button><button type="button" class="btn sm danger" data-a="rechazarCC" data-v="${n.id}">Rechazar</button></div></div>`; }).join("")}
+        ${accesos.map((s) => `<div class="al media"><span class="lvl">Acceso al sistema</span><p><b>${esc(s.nombre)}</b> pidió acceso.</p><div class="row"><button type="button" class="btn sm primary" data-a="otorgar" data-v="${s.id}">Dar acceso</button><button type="button" class="btn sm danger" data-a="rechazarAcceso" data-v="${s.id}">Rechazar</button></div></div>`).join("")}
+      </div>
+    </section>` : ""}
     <section aria-labelledby="t-kpis">
       <h2 id="t-kpis" class="sr">Indicadores de hoy</h2>
       <div class="kpis num">
         ${kpi("Ocupación de hoy", pct(k.ocupacion), `Pico ${pct(k.ocupacionPico)} · valle ${pct(k.ocupacionValle)}`)}
-        ${kpi("Turnos vendidos hoy", M.pesos(k.vendido), `${k.turnos} turnos · ticket ${M.pesos(k.ticketPromedio)}`)}
-        ${kpi("Cobrado hoy", M.pesos(k.cobrado), `Por cobrar de lo que ya se juega: ${M.pesos(k.porCobrar)}`)}
-        ${kpi("Bar y shop en turnos", M.pesos(k.consumos), "Consumos cargados a la cuenta de la cancha")}
-        ${kpi("No vinieron / cancelaron", `${k.noShows} / ${k.cancelados}`, "Hoy")}
-        ${kpi("Stock valorizado", M.pesos(k.stockValorizado), `${bajos.length} producto(s) bajo mínimo`)}
-        ${kpi("Clientes que deben", M.pesos(k.deudaClientes), `Saldo a favor emitido ${M.pesos(k.saldoAFavor)}`)}
+        ${kpi("Canchas vendidas hoy", M.pesos(k.vendido), `${k.turnos} turnos · ticket ${M.pesos(k.ticketPromedio)}`)}
+        ${kpi("Cobrado de canchas", M.pesos(k.cobrado), `Por cobrar de lo que ya se juega: ${M.pesos(k.porCobrar)}`)}
+        ${kpi("Buffet del día", M.pesos(k.buffet), `${k.cuentasAbiertas} cuentas abiertas · ${M.pesos(k.cuentasAbiertasSaldo)}`)}
+        ${kpi("Cuentas corrientes", M.pesos(k.deudaClientes), `Créditos emitidos ${M.pesos(k.creditos)}`)}
+        ${kpi("Le debemos a proveedores", M.pesos(k.deudaProveedores), "Ver Proveedores")}
+        ${kpi("Stock valorizado", M.pesos(k.stockValorizado), `Faltas hoy: ${k.faltas}`)}
       </div>
     </section>
-
     <div class="owner">
       <section class="card span-8" aria-labelledby="t-cams">
         <div class="card-head"><h2 id="t-cams">Cámaras</h2><span class="muted small">Cada cámara muestra el turno que está en esa cancha y lo que debe</span></div>
         <div class="cams">${camaras.tiles()}</div>
         <p class="honesto">Simulación de demo. En el club se conecta la grabadora (NVR) que ya tienen: cada cámara se asocia a su cancha y se ve en vivo desde acá, sin abrir otra app.</p>
       </section>
-
       <section class="card span-4" aria-labelledby="t-torre">
         <div class="card-head"><h2 id="t-torre">Canchas ahora</h2><span class="muted small num">${M.hhmm(AHORA.min)}</span></div>
-        <div class="torre">
-          ${enCancha.map(({ c, r, prox }) => {
-            const pctJugado = r ? Math.min(1, Math.max(0, (AHORA.min - r.inicio) / r.duracion)) : 0;
-            return `<div class="t">
-              <b>${esc(c.nombre)}</b>
-              <div>
-                ${r ? `<div class="small"><b>${esc(r.titular)}</b> · termina ${M.hhmm(r.inicio + r.duracion)}</div><div class="bar" role="img" aria-label="Jugado ${Math.round(pctJugado * 100)}%"><i style="width:${pctJugado * 100}%"></i></div>`
-                  : `<div class="small muted">Libre${prox ? ` · próximo ${M.hhmm(prox.inicio)} ${esc(prox.titular)}` : ""}</div>`}
-              </div>
-              ${r ? (M.saldo(r) > 0 ? `<span class="chip warn">Debe ${M.pesos(M.saldo(r))}</span>` : `<span class="chip ok">Al día</span>`) : (E.luces[c.id] ? `<span class="chip bad">Luz prendida</span>` : `<span class="chip">—</span>`)}
-            </div>`;
-          }).join("")}
-        </div>
+        <div class="torre">${enCancha.map(({ c, r, prox }) => {
+          const p = r ? Math.min(1, Math.max(0, (AHORA.min - r.inicio) / r.duracion)) : 0;
+          return `<div class="t"><b>${esc(c.nombre)}</b><div>${r ? `<div class="small"><b>${esc(r.titular)}</b> · termina ${M.hhmm(r.inicio + r.duracion)}</div><div class="bar" role="img" aria-label="Jugado ${Math.round(p * 100)}%"><i style="width:${p * 100}%"></i></div>` : `<div class="small muted">${c.estado === "mantenimiento" ? "En mantenimiento" : "Libre"}${prox ? ` · próximo ${M.hhmm(prox.inicio)} ${esc(prox.titular)}` : ""}</div>`}</div>${r ? (M.saldo(r) > 0 ? `<span class="chip warn">Debe ${M.pesos(M.saldo(r))}</span>` : `<span class="chip ok">Paga</span>`) : E.luces[c.id] ? `<span class="chip bad">Luz prendida</span>` : `<span class="chip">—</span>`}</div>`;
+        }).join("")}</div>
       </section>
-
       <section class="card span-7" aria-labelledby="t-calor">
-        <div class="card-head"><h2 id="t-calor">Ocupación de la semana</h2><span class="muted small">Dónde sobran horas para vender (promos de valle, clases, escuelita)</span></div>
+        <div class="card-head"><h2 id="t-calor">Ocupación de la semana</h2><span class="muted small">Dónde sobran horas para vender</span></div>
         ${mapaCalor(calor)}
       </section>
-
       <section class="card span-5" aria-labelledby="t-plata">
-        <div class="card-head"><h2 id="t-plata">Plata de hoy por medio</h2><span class="muted small num">Neto ${M.pesos(k.caja.neto)}</span></div>
-        <div class="medios num">
-          ${Object.entries(k.caja.porMedio).map(([m, v]) => `<div class="m"><span>${M.MEDIOS[m]}</span><div class="bar" role="img" aria-label="${M.MEDIOS[m]}: ${M.pesos(v)}"><i style="width:${(Math.max(0, v) / maxMedio) * 100}%"></i></div><b style="text-align:right">${M.pesos(v)}</b></div>`).join("")}
-        </div>
-        <h3 style="margin-top:14px">Cierres de caja</h3>
-        ${E.caja.cierres.length ? `<table class="num"><thead><tr><th>Quién</th><th class="r">Esperado</th><th class="r">Contado</th><th class="r">Diferencia</th></tr></thead><tbody>${E.caja.cierres.map((c) => `<tr><td>${esc(c.responsable)} · ${M.hhmm(c.min)}</td><td class="r">${M.pesos(c.esperado)}</td><td class="r">${M.pesos(c.contado)}</td><td class="r">${c.diferencia === 0 ? `<span class="chip ok">Cuadra</span>` : `<span class="chip ${c.diferencia < 0 ? "bad" : "warn"}">${M.pesos(c.diferencia)}</span>`}</td></tr>`).join("")}</tbody></table>`
-          : `<p class="small muted">Todavía nadie cerró caja hoy. El cierre lo hace recepción y acá ves si cuadró.</p>`}
+        <div class="card-head"><h2 id="t-plata">Caja del día por medio</h2><span class="muted small num">Neto ${M.pesos(k.caja.neto)}</span></div>
+        <div class="medios num">${Object.entries(k.caja.porMedio).map(([m, v]) => `<div class="m"><span>${M.MEDIOS[m]}</span><div class="bar" role="img" aria-label="${M.MEDIOS[m]}: ${M.pesos(v)}"><i style="width:${(Math.max(0, v) / maxMedio) * 100}%"></i></div><b style="text-align:right">${M.pesos(v)}</b></div>`).join("")}</div>
       </section>
-
-      <section class="card span-12" aria-labelledby="t-stock">
-        <div class="card-head"><h2 id="t-stock">Stock</h2>
-          <div class="row">${bajos.length ? `<a class="btn sm accent" target="_blank" rel="noopener" href="${esc(wa(M.mensajeWhatsApp("reposicion", { lista: bajos.map((p) => `${p.nombre} (${Math.max(p.minimo * 2 - p.stock, 1)})`).join(", ") })))}">Pedir lo que falta por WhatsApp</a>` : ""}</div>
-        </div>
-        <div class="tbl-wrap"><table class="num">
-          <thead><tr><th>Producto</th><th>Rubro</th><th class="r">Precio</th><th class="r">Stock</th><th class="r">Mínimo</th><th>Estado</th><th class="r">Valorizado</th><th>Ingresar mercadería</th></tr></thead>
-          <tbody>${E.productos.map((p) => `<tr>
-            <td>${esc(p.nombre)}</td><td>${esc(p.categoria)}</td><td class="r">${M.pesos(p.precio)}</td>
-            <td class="r">${p.stock}${p.alquiler ? ` <span class="muted small">(${p.prestados ?? 0} en cancha)</span>` : ""}</td><td class="r">${p.alquiler ? "—" : p.minimo}</td>
-            <td>${p.alquiler ? `<span class="chip info">Alquiler</span>` : p.stock === 0 ? `<span class="chip bad">Sin stock</span>` : p.stock <= p.minimo ? `<span class="chip warn">Reponer</span>` : `<span class="chip ok">OK</span>`}</td>
-            <td class="r">${M.pesos(p.costo * (p.stock + (p.prestados ?? 0)))}</td>
-            <td><div class="row" style="flex-wrap:nowrap"><label class="sr" for="in-${p.id}">Cantidad que entra de ${esc(p.nombre)}</label><input id="in-${p.id}" type="number" min="1" value="6" style="width:72px;min-height:34px"><button type="button" class="btn sm" data-a="ingreso" data-v="${p.id}">Sumar</button></div></td>
-          </tr>`).join("")}</tbody>
-        </table></div>
+      <section class="card span-12" aria-labelledby="t-platos">
+        <div class="card-head"><h2 id="t-platos">Venta de platos · últimos 7 días</h2><span class="muted small num">Total ${M.pesos(platos.total)} · ${platos.dias} días</span></div>
+        <div class="tbl-wrap"><table class="num"><thead><tr><th>Plato</th><th class="r">Unidades</th><th class="r">Por día</th><th class="r">Facturado</th><th class="r">Margen</th><th>Participación</th></tr></thead><tbody>
+          ${platos.filas.map((f) => `<tr><td>${esc(f.plato)}</td><td class="r">${f.unidades}</td><td class="r">${f.porDia.toFixed(1)}</td><td class="r">${M.pesos(f.facturado)}</td><td class="r">${M.pesos(f.margen)}</td><td style="min-width:140px"><div class="bar" role="img" aria-label="${Math.round(f.participacion * 100)}%"><i style="width:${f.participacion * 100}%"></i></div></td></tr>`).join("") || `<tr><td colspan="6" class="muted">Todavía no hay ventas de cocina.</td></tr>`}
+        </tbody></table></div>
       </section>
-
-      <section class="card span-7" aria-labelledby="t-reglas">
-        <div class="card-head"><h2 id="t-reglas">Reglas del club</h2><span class="muted small">Cambian en vivo lo que ve recepción</span></div>
-        <div class="reglas">
-          ${regla("horasCancelacionLibre", "Cancelar sin perder la seña hasta (horas antes)", E.config.politica.horasCancelacionLibre)}
-          ${regla("senaPct", "Seña (% del turno)", E.config.politica.senaPct)}
-          ${regla("strikesParaSena", "Faltas para pedir seña siempre", E.config.politica.strikesParaSena)}
-          ${regla("toleranciaMin", "Tolerancia de llegada (minutos)", E.config.politica.toleranciaMin)}
-          ${E.config.tarifas.map((t, i) => `<label class="f">Precio por hora ${esc(t.nombre.toLowerCase())} (${M.hhmm(t.desde)}–${M.hhmm(t.hasta)})<input type="number" min="0" step="500" value="${t.precioHora}" data-a="tarifa" data-v="${i}"></label>`).join("")}
-          <label class="f">Descuento socio (%)<input type="number" min="0" max="100" value="${E.config.descuentoSocioPct}" data-a="socio"></label>
-        </div>
-        <p class="small muted" style="margin:10px 0 0">Precios y reglas de ejemplo, a confirmar con el club. Los cambios valen para turnos nuevos; lo ya reservado mantiene su precio.</p>
-      </section>
-
-      <section class="card span-5" aria-labelledby="t-log">
+      <section class="card span-12" aria-labelledby="t-log">
         <div class="card-head"><h2 id="t-log">Qué pasó hoy</h2></div>
         <div class="log">${E.log.slice(0, 40).map((l) => `<div><span class="muted num">${l.min != null ? M.hhmm(l.min) : ""}</span> ${esc(l.texto)}</div>`).join("") || `<p class="small muted">Sin movimientos todavía.</p>`}</div>
       </section>
@@ -324,10 +402,8 @@ function vistaDuenio() {
 }
 
 const kpi = (l, v, s) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
-const regla = (k, l, v) => `<label class="f">${l}<input type="number" min="${M.LIMITES_POLITICA[k][0]}" max="${M.LIMITES_POLITICA[k][1]}" value="${v}" data-a="regla" data-v="${k}"></label>`;
 
 function mapaCalor({ horas, filas }) {
-  // Secuencial de un solo tono (azul de la marca): más oscuro = más ocupado. El número va en el título y en la tabla.
   const color = (v) => `color-mix(in oklab, var(--royal) ${Math.round(8 + v * 92)}%, var(--paper))`;
   const cols = `grid-template-columns:64px repeat(${horas.length},minmax(14px,1fr))`;
   return `<div class="tbl-wrap"><div class="heat" style="${cols};min-width:520px" role="img" aria-label="Mapa de ocupación de los últimos 7 días por hora. Detalle en la tabla de abajo.">
@@ -337,6 +413,104 @@ function mapaCalor({ horas, filas }) {
   <div class="heat-scale" aria-hidden="true">Vacío <i style="background:${color(0)}"></i><i style="background:${color(0.33)}"></i><i style="background:${color(0.66)}"></i><i style="background:${color(1)}"></i> Lleno</div>
   <details style="margin-top:8px"><summary class="small muted">Ver como tabla</summary><div class="tbl-wrap"><table class="num small"><thead><tr><th>Día</th>${horas.map((h) => `<th class="r">${M.hhmm(h)}</th>`).join("")}</tr></thead><tbody>${filas.map((f) => `<tr><td>${esc(fechaCorta(f.fecha))}</td>${f.valores.map((v) => `<td class="r">${Math.round(v * 100)}%</td>`).join("")}</tr>`).join("")}</tbody></table></div></details>`;
 }
+
+// ───────────────────────────── Proveedores (dueño) ─────────────────────────────
+
+function vistaProveedores() {
+  return `<section class="card" aria-labelledby="t-prov">
+    <div class="card-head"><h2 id="t-prov">Proveedores</h2><div class="row"><button type="button" class="btn" data-a="remito">Registrar remito</button><button type="button" class="btn primary" data-a="altaProveedor">+ Alta de proveedor</button></div></div>
+    <div class="tbl-wrap"><table class="num"><thead><tr><th>Proveedor</th><th>Rubro</th><th>CUIT</th><th class="r">Le debemos</th><th></th></tr></thead><tbody>
+      ${E.proveedores.filter((p) => p.activo !== false).map((p) => { const d = M.deudaConProveedor(E, p.id); return `<tr><td>${esc(p.nombre)}</td><td>${esc(p.rubro)}</td><td>${esc(p.cuit)}</td><td class="r">${d > 0 ? `<b>${M.pesos(d)}</b>` : M.pesos(0)}</td><td><button type="button" class="btn sm" data-a="fichaProveedor" data-v="${p.id}">Cuenta y pagos</button></td></tr>`; }).join("")}
+    </tbody></table></div>
+    <p class="small muted" style="margin:10px 0 0">Recepción sólo carga remitos y egresos en efectivo. Pagar a proveedores (en efectivo o por transferencia) y ver su cuenta corriente es de Rober y Majo, con PIN.</p>
+  </section>`;
+}
+
+// ───────────────────────────── Stock (dueño) ─────────────────────────────
+
+function vistaStock() {
+  const q = ui.busca.stock ?? "";
+  const lista = M.buscarProductos(E, q);
+  const bajos = E.productos.filter((p) => p.activo !== false && !p.alquiler && p.stock != null && p.stock <= p.minimo);
+  return `<section class="card" aria-labelledby="t-stock">
+    <div class="card-head"><h2 id="t-stock">Stock y productos</h2>
+      <div class="row">${bajos.length ? `<a class="btn sm accent" target="_blank" rel="noopener" href="${esc(wa(M.mensajeWhatsApp("reposicion", { lista: bajos.map((p) => `${p.nombre} (${Math.max(p.minimo * 2 - p.stock, 1)})`).join(", ") })))}">Pedir lo que falta por WhatsApp</a>` : ""}<button type="button" class="btn" data-a="remito">Ingresar por remito</button><button type="button" class="btn primary" data-a="altaProducto">+ Producto o plato</button></div></div>
+    <div class="search" style="max-width:360px;margin-bottom:10px"><label class="sr" for="busca-stock">Buscar producto</label><input id="busca-stock" data-busca="stock" placeholder="Nombre, rubro o código" value="${esc(q)}"></div>
+    <div class="tbl-wrap"><table class="num"><thead><tr><th>Producto</th><th>Rubro</th><th>Código</th><th class="r">Precio</th><th class="r">Costo</th><th class="r">Stock</th><th class="r">Mínimo</th><th>Estado</th><th></th></tr></thead><tbody>
+      ${lista.map((p) => `<tr><td>${esc(p.nombre)}</td><td>${esc(p.categoria)}</td><td class="small">${esc(p.codigo || "—")}</td><td class="r">${M.pesos(p.precio)}</td><td class="r">${M.pesos(p.costo)}</td>
+        <td class="r">${p.stock == null ? "—" : p.stock}${p.alquiler ? ` <span class="muted small">(${p.prestados ?? 0} en uso)</span>` : ""}</td><td class="r">${p.stock == null || p.alquiler ? "—" : p.minimo}</td>
+        <td>${p.plato ? `<span class="chip info">Plato</span>` : p.alquiler ? `<span class="chip info">Alquiler</span>` : p.stock === 0 ? `<span class="chip bad">Sin stock</span>` : p.stock <= p.minimo ? `<span class="chip warn">Reponer</span>` : `<span class="chip ok">OK</span>`}</td>
+        <td><button type="button" class="btn sm" data-a="editarProducto" data-v="${p.id}">Editar</button></td></tr>`).join("") || `<tr><td colspan="9" class="muted">No hay productos con ese nombre.</td></tr>`}
+    </tbody></table></div>
+  </section>`;
+}
+
+// ───────────────────────────── Contenido (dueño) ─────────────────────────────
+
+function vistaContenido() {
+  const [anio, mes] = ui.mes.split("-").map(Number);
+  const offset = (M.diaSemana(`${ui.mes}-01`) + 6) % 7; // la semana arranca el lunes
+  const diasMes = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
+  const pubs = M.contenidoDelMes(E, anio, mes);
+  const nombreMes = new Date(Date.UTC(anio, mes - 1, 1)).toLocaleDateString("es-AR", { month: "long", year: "numeric", timeZone: "UTC" });
+  let celdas = "";
+  for (let i = 0; i < offset; i++) celdas += `<div class="dia fuera" aria-hidden="true"></div>`;
+  for (let d = 1; d <= diasMes; d++) {
+    const f = `${ui.mes}-${pad(d)}`;
+    const delDia = pubs.filter((p) => p.fecha === f);
+    celdas += `<div class="dia ${f === HOY ? "hoy" : ""}"><div class="n"><span>${d}</span><button type="button" data-a="nuevoContenido" data-v="${f}" aria-label="Agregar publicación el ${d}">+</button></div>
+      ${delDia.map((p) => `<button type="button" class="pub ${p.estado}" data-a="verContenido" data-v="${p.id}" title="${esc(M.CANALES[p.canal])} · ${esc(M.ESTADOS_CONTENIDO[p.estado])}">${esc(p.hora)} <span class="t">${esc(p.titulo)}</span></button>`).join("")}
+    </div>`;
+  }
+  const porEstado = Object.keys(M.ESTADOS_CONTENIDO).map((k) => `${M.ESTADOS_CONTENIDO[k]}: ${pubs.filter((p) => p.estado === k).length}`).join(" · ");
+  return `<section class="card" aria-labelledby="t-cont">
+    <div class="card-head"><h2 id="t-cont">Contenido · ${esc(nombreMes)}</h2>
+      <div class="row"><button type="button" class="btn sm" data-a="mes" data-v="-1" aria-label="Mes anterior">‹</button><button type="button" class="btn sm" data-a="mes" data-v="0">Hoy</button><button type="button" class="btn sm" data-a="mes" data-v="1" aria-label="Mes siguiente">›</button><button type="button" class="btn primary" data-a="nuevoContenido" data-v="${HOY}">+ Publicación</button></div></div>
+    <p class="small muted" style="margin:0 0 8px">Calendario de redes y WhatsApp del club. ${porEstado}</p>
+    <div class="tbl-wrap"><div class="cal" style="min-width:560px">${["lun", "mar", "mié", "jue", "vie", "sáb", "dom"].map((d) => `<div class="dow">${d}</div>`).join("")}${celdas}</div></div>
+    <div class="legend"><span><i style="background:var(--cream)"></i>Idea</span><span><i style="background:var(--royal-soft)"></i>Programado</span><span><i style="background:var(--ok-soft)"></i>Publicado</span></div>
+  </section>`;
+}
+
+// ───────────────────────────── Ajustes (dueño) ─────────────────────────────
+
+function vistaAjustes() {
+  const P = E.config.politica;
+  return `<div class="stack">
+    <section class="card" aria-labelledby="t-reglas">
+      <div class="card-head"><h2 id="t-reglas">Reglas del club</h2><span class="muted small">Cambian en vivo lo que ve recepción</span></div>
+      <div class="reglas">
+        ${regla("horasCancelacionLibre", "Cancelar sin perder la seña hasta (horas antes)", P.horasCancelacionLibre)}
+        ${regla("senaPct", "Seña (% del turno)", P.senaPct)}
+        ${regla("strikesParaSena", "Faltas para pedir seña siempre", P.strikesParaSena)}
+        ${regla("toleranciaMin", "Tolerancia de llegada antes de la falta (min)", P.toleranciaMin)}
+        <label class="f">Abrir la cancha hasta (min antes) · vacío = sin límite<input type="number" min="0" max="240" value="${P.minutosAntesParaEntrar ?? ""}" placeholder="Sin límite" data-a="regla" data-v="minutosAntesParaEntrar"></label>
+        ${E.config.tarifas.map((t, i) => `<label class="f">Precio por hora ${esc(t.nombre.toLowerCase())} (${M.hhmm(t.desde)}–${M.hhmm(t.hasta)})<input type="number" min="0" step="500" value="${t.precioHora}" data-a="tarifa" data-v="${i}"></label>`).join("")}
+      </div>
+      <p class="small muted" style="margin:10px 0 0">Las faltas se cobran enteras (al titular o repartidas en el grupo). Precios de ejemplo, a confirmar con el club.</p>
+    </section>
+    <section class="card" aria-labelledby="t-horarios">
+      <div class="card-head"><h2 id="t-horarios">Horario por día</h2></div>
+      <div class="tbl-wrap"><table class="num"><thead><tr><th>Día</th><th>Abre</th><th>Cierra</th><th></th></tr></thead><tbody>
+        ${[1, 2, 3, 4, 5, 6, 0].map((d) => { const h = E.config.horarios[d]; return `<tr><td>${M.NOMBRE_DIA[d]}</td><td><label class="sr" for="ha-${d}">Abre</label><select id="ha-${d}">${opcionesHora(h.abre, 0, 23 * 60)}</select></td><td><label class="sr" for="hc-${d}">Cierra</label><select id="hc-${d}">${opcionesHora(h.cierra, 9 * 60, 26 * 60)}</select></td><td><button type="button" class="btn sm" data-a="guardarHorario" data-v="${d}">Guardar</button></td></tr>`; }).join("")}
+      </tbody></table></div>
+    </section>
+    <section class="card" aria-labelledby="t-usuarios">
+      <div class="card-head"><h2 id="t-usuarios">Usuarios y accesos</h2></div>
+      <div class="tbl-wrap"><table><thead><tr><th>Usuario</th><th>Rol</th><th>Puede</th><th></th></tr></thead><tbody>
+        ${E.usuarios.filter((u) => u.activo !== false).map((u) => `<tr><td>${esc(u.nombre)}</td><td>${M.ROLES[u.rol]}</td><td class="small muted">${u.rol === "duenio" ? "Todo: pagos a proveedores, cuentas corrientes, ajustes" : "Agenda, cobros, buffet, remitos, egreso en efectivo, cierre de caja"}</td><td><div class="row"><button type="button" class="btn sm" data-a="regenerarPin" data-v="${u.id}">PIN nuevo</button>${u.id !== USUARIO ? `<button type="button" class="btn sm danger" data-a="revocar" data-v="${u.id}">Sacar acceso</button>` : ""}</div></td></tr>`).join("")}
+      </tbody></table></div>
+      ${E.solicitudesAcceso.filter((s) => s.estado === "pendiente").map((s) => `<div class="al media" style="margin-top:8px"><span class="lvl">Pidió acceso</span><p><b>${esc(s.nombre)}</b></p><div class="row"><button type="button" class="btn sm primary" data-a="otorgar" data-v="${s.id}">Dar acceso</button><button type="button" class="btn sm danger" data-a="rechazarAcceso" data-v="${s.id}">Rechazar</button></div></div>`).join("")}
+      <p class="small muted" style="margin:10px 0 0">El acceso es con PIN de 2 dígitos que genera el sistema. Lo que mueve plata sensible (egresos, cierre de caja, pagos a proveedores, accesos) vuelve a pedir el PIN.</p>
+    </section>
+  </div>`;
+}
+
+const regla = (k, l, v) => `<label class="f">${l}<input type="number" min="${M.LIMITES_POLITICA[k][0]}" max="${M.LIMITES_POLITICA[k][1]}" value="${v}" data-a="regla" data-v="${k}"></label>`;
+const opcionesHora = (sel, desde, hasta) => { let o = ""; for (let m = desde; m <= hasta; m += E.config.paso) o += `<option value="${m}" ${m === sel ? "selected" : ""}>${M.hhmm(m)}${m >= 1440 ? " (+1)" : ""}</option>`; return o; };
+const horasOpc = (sel, fecha = VISTA) => { const { abre, cierra } = M.horarioDe(E, fecha); let o = ""; for (let m = abre; m <= cierra; m += E.config.paso) o += `<option value="${m}" ${m === sel ? "selected" : ""}>${M.hhmm(m)}</option>`; return o; };
+const pickMedios = (incluirCreditos = false, cl = null, soloProveedor = false) => `<div class="medio-pick" role="group" aria-label="Medio de pago">${(soloProveedor ? ["efectivo", "transferencia"] : [...MEDIOS_CAJA, ...(incluirCreditos && cl?.monedero > 0 ? ["monedero"] : [])]).map((k) => `<button type="button" data-a="medio" data-v="${k}" aria-pressed="${ui.medio === k}">${M.MEDIOS[k]}${k === "monedero" ? ` (${M.pesos(cl.monedero)})` : ""}</button>`).join("")}</div>`;
+const campoPin = (id = "pin", etiqueta = "Tu PIN") => `<label class="f" style="max-width:160px">${etiqueta}<input id="${id}" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label>`;
 
 // ───────────────────────────── Cámaras (simuladas) ─────────────────────────────
 
@@ -349,85 +523,54 @@ const camaras = (() => {
   ];
   let timer = null;
   const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
-
   function tiles() {
     return LISTA().map((cam, i) => {
       const r = cam.cancha ? E.reservas.find((x) => x.fecha === HOY && x.canchaId === cam.cancha && x.estado === "en_cancha") : null;
-      const pie = cam.cancha ? (r ? `${esc(r.titular)} · ${M.saldo(r) > 0 ? `debe ${M.pesos(M.saldo(r))}` : "al día"}` : E.luces[cam.cancha] ? "Sin turno · luz prendida" : "Sin turno") : "General";
+      const pie = cam.cancha ? (r ? `${esc(r.titular)} · ${M.saldo(r) > 0 ? `debe ${M.pesos(M.saldo(r))}` : "al día"}` : E.luces[cam.cancha] ? "Sin juego · luz prendida" : "Sin juego") : "General";
       return `<button type="button" class="cam" data-a="cam" data-v="${i}" aria-label="Cámara ${esc(cam.nombre)}: ${pie}. Ampliar">
         <canvas width="320" height="200" data-cam="${i}" aria-hidden="true"></canvas>
         <span class="ov"><span class="top"><span>CAM ${pad(i + 1)} · ${esc(cam.nombre)}</span><span class="live">DEMO</span></span><span class="bot">${pie}</span></span>
       </button>`;
     }).join("");
   }
-
   function dibujar(cv, cam, t) {
     const g = cv.getContext("2d");
-    const W = cv.width, H = cv.height;
+    const W = cv.width, Hh = cv.height;
     const luz = cam.cancha ? E.luces[cam.cancha] : true;
     const r = cam.cancha ? E.reservas.find((x) => x.fecha === HOY && x.canchaId === cam.cancha && x.estado === "en_cancha") : null;
     g.fillStyle = luz ? "#1b2a1f" : "#07090b";
-    g.fillRect(0, 0, W, H);
+    g.fillRect(0, 0, W, Hh);
     if (cam.cancha) {
-      // Cancha vista desde arriba, en perspectiva leve: césped azul, líneas, red y vidrios.
-      g.save();
-      g.translate(W / 2, H / 2);
-      const cw = W * 0.78, ch = H * 0.62;
-      g.fillStyle = luz ? "#1f5fa8" : "#0d243f";
-      g.fillRect(-cw / 2, -ch / 2, cw, ch);
-      g.strokeStyle = luz ? "rgba(255,255,255,.85)" : "rgba(255,255,255,.25)";
-      g.lineWidth = 2;
-      g.strokeRect(-cw / 2, -ch / 2, cw, ch);
-      g.beginPath(); g.moveTo(0, -ch / 2); g.lineTo(0, ch / 2); g.stroke(); // red
-      g.lineWidth = 1;
-      g.beginPath(); g.moveTo(-cw * 0.33, -ch / 2); g.lineTo(-cw * 0.33, ch / 2); g.moveTo(cw * 0.33, -ch / 2); g.lineTo(cw * 0.33, ch / 2);
-      g.moveTo(-cw * 0.33, 0); g.lineTo(cw * 0.33, 0); g.stroke();
-      g.strokeStyle = "rgba(180,220,255,.35)"; g.lineWidth = 4;
-      g.strokeRect(-cw / 2 - 6, -ch / 2 - 6, cw + 12, ch + 12);
+      g.save(); g.translate(W / 2, Hh / 2);
+      const cw = W * 0.78, ch = Hh * 0.62;
+      g.fillStyle = luz ? "#1f5fa8" : "#0d243f"; g.fillRect(-cw / 2, -ch / 2, cw, ch);
+      g.strokeStyle = luz ? "rgba(255,255,255,.85)" : "rgba(255,255,255,.25)"; g.lineWidth = 2; g.strokeRect(-cw / 2, -ch / 2, cw, ch);
+      g.beginPath(); g.moveTo(0, -ch / 2); g.lineTo(0, ch / 2); g.stroke();
+      g.lineWidth = 1; g.beginPath(); g.moveTo(-cw * 0.33, -ch / 2); g.lineTo(-cw * 0.33, ch / 2); g.moveTo(cw * 0.33, -ch / 2); g.lineTo(cw * 0.33, ch / 2); g.moveTo(-cw * 0.33, 0); g.lineTo(cw * 0.33, 0); g.stroke();
+      g.strokeStyle = "rgba(180,220,255,.35)"; g.lineWidth = 4; g.strokeRect(-cw / 2 - 6, -ch / 2 - 6, cw + 12, ch + 12);
       if (r && luz) {
-        const jugadores = Math.max(2, r.jugadores.length);
-        const pos = [[-0.3, -0.25], [-0.3, 0.25], [0.3, -0.25], [0.3, 0.25]].slice(0, jugadores === 3 ? 4 : jugadores);
-        pos.forEach(([x, y], k) => {
-          const px = x * cw + Math.sin(t / 700 + k * 1.7) * cw * 0.08;
-          const py = y * ch + Math.cos(t / 900 + k) * ch * 0.12;
-          g.fillStyle = k < 2 ? "#ffd5a8" : "#f2f2f2";
-          g.beginPath(); g.arc(px, py, 6, 0, Math.PI * 2); g.fill();
-        });
-        const bx = Math.sin(t / 380) * cw * 0.38, by = Math.sin(t / 530) * ch * 0.3;
-        g.fillStyle = "#e9ff3c"; g.beginPath(); g.arc(bx, by, 2.6, 0, Math.PI * 2); g.fill();
+        const n = Math.max(2, r.jugadores.length);
+        const pos = [[-0.3, -0.25], [-0.3, 0.25], [0.3, -0.25], [0.3, 0.25]].slice(0, n === 3 ? 4 : n);
+        pos.forEach(([x, y], k) => { g.fillStyle = k < 2 ? "#ffd5a8" : "#f2f2f2"; g.beginPath(); g.arc(x * cw + Math.sin(t / 700 + k * 1.7) * cw * 0.08, y * ch + Math.cos(t / 900 + k) * ch * 0.12, 6, 0, Math.PI * 2); g.fill(); });
+        g.fillStyle = "#e9ff3c"; g.beginPath(); g.arc(Math.sin(t / 380) * cw * 0.38, Math.sin(t / 530) * ch * 0.3, 2.6, 0, Math.PI * 2); g.fill();
       }
       g.restore();
     } else {
-      // Escena genérica: piso, mostrador / mesas / autos, y alguien que se mueve.
-      g.fillStyle = "#2a2622"; g.fillRect(0, H * 0.55, W, H * 0.45);
+      g.fillStyle = "#2a2622"; g.fillRect(0, Hh * 0.55, W, Hh * 0.45);
       g.fillStyle = cam.escena === "estacionamiento" ? "#3a3a3a" : "#5a4632";
-      if (cam.escena === "recepcion") g.fillRect(W * 0.15, H * 0.5, W * 0.55, H * 0.14);
-      if (cam.escena === "bar") for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(W * (0.2 + k * 0.2), H * 0.72, 14, 0, Math.PI * 2); g.fill(); }
-      if (cam.escena === "estacionamiento") for (let k = 0; k < 4; k++) { g.fillStyle = ["#7a1f1f", "#20406a", "#cfcfcf", "#2e2e2e"][k]; g.fillRect(W * (0.08 + k * 0.23), H * 0.66, W * 0.16, H * 0.16); }
+      if (cam.escena === "recepcion") g.fillRect(W * 0.15, Hh * 0.5, W * 0.55, Hh * 0.14);
+      if (cam.escena === "bar") for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(W * (0.2 + k * 0.2), Hh * 0.72, 14, 0, Math.PI * 2); g.fill(); }
+      if (cam.escena === "estacionamiento") for (let k = 0; k < 4; k++) { g.fillStyle = ["#7a1f1f", "#20406a", "#cfcfcf", "#2e2e2e"][k]; g.fillRect(W * (0.08 + k * 0.23), Hh * 0.66, W * 0.16, Hh * 0.16); }
       const x = W * (0.5 + Math.sin(t / 2500) * 0.35);
-      g.fillStyle = "#d9c7b3"; g.beginPath(); g.arc(x, H * 0.48, 7, 0, Math.PI * 2); g.fill();
-      g.fillRect(x - 6, H * 0.5, 12, 22);
+      g.fillStyle = "#d9c7b3"; g.beginPath(); g.arc(x, Hh * 0.48, 7, 0, Math.PI * 2); g.fill(); g.fillRect(x - 6, Hh * 0.5, 12, 22);
     }
-    // Grano y sello de hora: la marca de agua de cualquier NVR.
     g.fillStyle = "rgba(255,255,255,.05)";
-    for (let k = 0; k < 120; k++) g.fillRect(Math.random() * W, Math.random() * H, 1, 1);
+    for (let k = 0; k < 120; k++) g.fillRect(Math.random() * W, Math.random() * Hh, 1, 1);
     g.fillStyle = "rgba(255,255,255,.75)"; g.font = "10px ui-monospace,monospace";
-    g.fillText(`${HOY} ${M.hhmm(AHORA.min)}:${pad(Math.floor(t / 1000) % 60)}`, 8, Math.round(H * 0.2));
+    g.fillText(`${HOY} ${M.hhmm(AHORA.min)}:${pad(Math.floor(t / 1000) % 60)}`, 8, Math.round(Hh * 0.2));
   }
-
-  function frame() {
-    const lista = LISTA();
-    const t = performance.now();
-    document.querySelectorAll("canvas[data-cam]").forEach((cv) => dibujar(cv, lista[Number(cv.dataset.cam)], t));
-  }
-
-  return {
-    tiles,
-    lista: LISTA,
-    dibujar,
-    arrancar() { frame(); if (!quieto) timer = setInterval(frame, 120); },
-    parar() { clearInterval(timer); timer = null; },
-  };
+  function frame() { const lista = LISTA(); const t = performance.now(); document.querySelectorAll("canvas[data-cam]").forEach((cv) => dibujar(cv, lista[Number(cv.dataset.cam)], t)); }
+  return { tiles, lista: LISTA, dibujar, arrancar() { frame(); if (!quieto) timer = setInterval(frame, 120); }, parar() { clearInterval(timer); timer = null; } };
 })();
 
 // ═════════════════════════════════ DIÁLOGOS ═════════════════════════════════
@@ -448,13 +591,43 @@ function abrir({ titulo, sub = "", cuerpo, pie = "", ancho = false, alAbrir, ref
   alAbrir?.(d);
   devolverFoco(foco, d);
 }
-
 function cerrarDialogo() { const d = $("#dlg"); if (d.open) d.close(); dialogoActual = null; }
 
-// ───── detalle del turno: cobrar, dar cancha, mover, cancelar ─────
+// Buscador de productos con lupa, reutilizable dentro de cualquier ventana.
+function buscadorProductos(clave, { soloVendibles = true } = {}) {
+  const q = ui.busca[clave] ?? "";
+  const res = q ? M.buscarProductos(E, q, { soloVendibles }).slice(0, 8) : [];
+  const elegido = ui.producto[clave] ? M.producto(E, ui.producto[clave]) : null;
+  return `<div class="search"><label class="sr" for="bp-${clave}">Buscar producto</label><input id="bp-${clave}" data-busca="${clave}" placeholder="Buscar producto o plato (o pasá el lector)" value="${esc(q)}" autocomplete="off"></div>
+    <div class="sug">${res.map((p) => `<button type="button" data-a="elegirProducto" data-c="${clave}" data-v="${p.id}" aria-pressed="${ui.producto[clave] === p.id}">${esc(p.nombre)} <span class="small muted">· ${M.pesos(p.precio)}${p.stock != null ? ` · quedan ${p.stock}` : ""}</span></button>`).join("")}</div>
+    ${elegido ? `<p class="small" style="margin:4px 0 0">Elegido: <b>${esc(elegido.nombre)}</b> · ${M.pesos(elegido.precio)}</p>` : ""}`;
+}
+
+// ───── usuario y PIN ─────
+
+function cambiarUsuario() {
+  let elegido = USUARIO;
+  abrir({
+    titulo: "¿Quién usa el sistema?",
+    sub: "Elegí tu usuario y poné tu PIN de 2 dígitos.",
+    cuerpo: `<div class="usuarios" role="group" aria-label="Usuarios">${E.usuarios.filter((u) => u.activo !== false).map((u) => `<button type="button" data-a="elegirUsuario" data-v="${u.id}" aria-pressed="${u.id === elegido}"><span><b>${esc(u.nombre)}</b></span><span class="small muted">${M.ROLES[u.rol]}</span></button>`).join("")}</div>
+      ${campoPin("pin-usuario", "PIN")}
+      <p class="demo-pins">PIN de la demo: ${E.usuarios.filter((u) => u.activo !== false).map((u) => `${esc(u.nombre.split(" ")[0])} ${esc(u.pin)}`).join(" · ")}</p>
+      <details><summary class="small">¿Sos nuevo/a? Pedí acceso</summary><div class="row" style="margin-top:8px"><label class="sr" for="nuevo-acceso">Tu nombre</label><input id="nuevo-acceso" placeholder="Tu nombre" style="max-width:220px"><button type="button" class="btn sm" data-a="pedirAcceso">Pedir acceso</button></div><p class="small muted">Le llega al dueño; cuando lo aprueba te da un PIN.</p></details>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="entrar">Entrar</button>`,
+    alAbrir(d) {
+      $("#pin-usuario", d).focus();
+      acciones._elegido = () => elegido;
+      acciones._setElegido = (v) => { elegido = v; d.querySelectorAll('[data-a="elegirUsuario"]').forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v))); $("#pin-usuario", d).focus(); };
+    },
+  });
+}
+
+// ───── turno: la cuenta de la cancha y la de cada jugador ─────
 
 function verReserva(id) {
   ui.medio = "efectivo";
+  let jugadorSel = 0;
   const pintar = () => {
     const r = M.reserva(E, id);
     if (!r) return cerrarDialogo();
@@ -462,76 +635,139 @@ function verReserva(id) {
     const cl = r.clienteId ? M.cliente(E, r.clienteId) : null;
     const abierto = ["reservada", "en_cancha"].includes(r.estado);
     const s = M.saldo(r);
-    // El saldo se reparte entre los que todavía no pusieron nada (si ya pusieron todos, entre todos).
     const sinPagar = r.jugadores.map((j, i) => (j.pagado ? -1 : i)).filter((i) => i >= 0);
     const quienes = sinPagar.length ? sinPagar : r.jugadores.map((_, i) => i);
     const cuotas = M.dividir(Math.max(0, s), quienes.length);
     const partes = r.jugadores.map((_, i) => (quienes.includes(i) ? cuotas[quienes.indexOf(i)] : 0));
-    const otras = E.canchas.filter((x) => x.id !== r.canchaId);
-    const vendibles = E.productos.filter((p) => p.stock > 0);
+    const cuentasJug = r.jugadores.map((j, i) => E.cuentas.find((x) => x.estado === "abierta" && ((j.clienteId && x.clienteId === j.clienteId) || (!j.clienteId && x.reservaId === r.id && x.jugadorIdx === i))));
+    const puedeCC = !!cl?.cc.habilitada;
     abrir({
-      titulo: esc(r.titular),
-      sub: `${esc(c.nombre)} · ${esc(fechaCorta(r.fecha))} ${M.hhmm(r.inicio)}–${M.hhmm(r.inicio + r.duracion)} · ${M.TIPOS[r.tipo]} · ${M.ESTADOS[r.estado]} · vino por ${esc(r.origen)}`,
+      titulo: `${esc(r.titular)} ${marcaRoja(cl)}`,
+      sub: `${esc(c.nombre)} · ${esc(fechaCorta(r.fecha))} ${M.hhmm(r.inicio)}–${M.hhmm(r.inicio + r.duracion)} · ${M.TIPOS[r.tipo]} · ${M.ESTADOS[r.estado]}`,
       ancho: true,
       refrescar: pintar,
       cuerpo: `
-        ${cl ? `<div class="row small">${cl.socio ? `<span class="chip info">Socio</span>` : ""}${cl.nivel ? `<span class="chip">Nivel ${esc(cl.nivel)}</span>` : ""}${cl.strikes ? `<span class="chip warn">${cl.strikes} falta(s)</span>` : ""}${cl.deuda ? `<span class="chip bad">Debe ${M.pesos(cl.deuda)} de antes</span>` : ""}${cl.monedero ? `<span class="chip ok">Saldo a favor ${M.pesos(cl.monedero)}</span>` : ""}</div>` : `<p class="small muted" style="margin:0">Sin ficha de cliente (turno de mostrador).</p>`}
         ${r.notas ? `<p class="small" style="margin:0">📝 ${esc(r.notas)}</p>` : ""}
-        <div class="grid2">
-          <div>
-            <h3>Cuenta de la cancha</h3>
-            <dl class="kv num" style="margin-top:6px">
-              <dt>Turno (${r.duracion}′)</dt><dd>${M.pesos(r.precio)}</dd>
-              ${r.consumos.map((x) => `<dt>${x.cant} × ${esc(x.nombre)}</dt><dd>${M.pesos(x.cant * x.precioUnit)}</dd>`).join("")}
-              <dt>Cobrado</dt><dd>${M.pesos(-M.cobrado(r))}</dd>
-              <dt class="tot">Saldo</dt><dd class="tot">${M.pesos(s)}</dd>
-            </dl>
-            ${r.sena.monto > 0 ? `<p class="small" style="margin:6px 0 0">Seña ${M.pesos(r.sena.monto)}: ${r.sena.pagada ? "✔ pagada" : "<b>pendiente</b>"}</p>` : ""}
-            ${abierto && vendibles.length ? `<div class="row" style="margin-top:10px">
-              <label class="sr" for="cons-prod">Producto para sumar a la cuenta</label>
-              <select id="cons-prod" style="flex:1;min-width:160px">${vendibles.map((p) => `<option value="${p.id}">${esc(p.nombre)} · ${M.pesos(p.precio)}</option>`).join("")}</select>
-              <button type="button" class="btn sm" data-a="consumo" data-v="${r.id}">+ A la cuenta</button>
-            </div>` : ""}
-          </div>
-          <div>
-            <h3>Jugadores</h3>
-            <div class="players" style="margin-top:6px">
-              ${r.jugadores.map((j, i) => `<div class="player"><span>${esc(j.nombre)}</span><span class="small muted num">${j.pagado ? `pagó ${M.pesos(j.pagado)}` : ""}</span>
-                ${abierto && s > 0 && r.jugadores.length > 1 && partes[i] > 0 ? `<button type="button" class="btn sm" data-a="pagarParte" data-v="${r.id}" data-j="${i}" data-m="${partes[i] ?? 0}">Cobrar ${M.pesos(partes[i] ?? 0)}</button>` : "<span></span>"}</div>`).join("")}
+        <div class="dos-cols">
+          <div class="seccion">
+            <h3>Cuenta de la cancha <span class="num">${M.pesos(s)}</span></h3>
+            <dl class="kv num"><dt>Turno (${r.duracion}′)</dt><dd>${M.pesos(r.precio)}</dd><dt>Cobrado</dt><dd>${M.pesos(-M.cobrado(r))}</dd><dt class="tot">Le queda</dt><dd class="tot">${M.pesos(s)}</dd></dl>
+            ${r.sena.monto > 0 ? `<p class="small" style="margin:0">Seña ${M.pesos(r.sena.monto)}: ${r.sena.pagada ? "✔ pagada" : "<b>pendiente</b>"}</p>` : ""}
+            ${cl ? `<p class="small" style="margin:0">${puedeCC ? `Cuenta corriente hasta ${M.pesos(cl.cc.limite)} · debe ${M.pesos(cl.deuda)}` : "Sin cuenta corriente habilitada"}${cl.monedero ? ` · créditos ${M.pesos(cl.monedero)}` : ""}</p>` : ""}
+            ${abierto && s > 0 ? `${pickMedios(true, cl)}
+              <div class="row"><label class="sr" for="monto">Monto</label><input id="monto" type="number" min="1" value="${r.sena.monto > 0 && !r.sena.pagada ? r.sena.monto : s}" style="max-width:150px"><button type="button" class="btn primary" data-a="pagar" data-v="${r.id}">Cobrar cancha</button></div>
+              ${r.jugadores.length > 1 ? `<div class="players">${r.jugadores.map((j, i) => (partes[i] > 0 ? `<div class="player"><span>${esc(j.nombre)}</span><span></span><button type="button" class="btn sm" data-a="pagarParte" data-v="${r.id}" data-j="${i}" data-m="${partes[i]}">Cobrar su parte ${M.pesos(partes[i])}</button></div>` : "")).join("")}</div>` : ""}` : ""}
+            <div class="row">
+              ${r.estado === "reservada" ? `<button type="button" class="btn primary" data-a="checkin" data-v="${r.id}">Abrir cancha</button>` : ""}
+              ${abierto ? `<button type="button" class="btn ${s > 0 ? "" : "primary"}" data-a="finalizar" data-v="${r.id}" ${s > 0 ? "disabled" : ""}>Cerrar cancha${s > 0 ? " (falta cobrar)" : ""}</button>` : ""}
+              ${abierto && s > 0 ? `<button type="button" class="btn" data-a="aCuenta" data-v="${r.id}" ${puedeCC ? "" : "disabled"} title="${puedeCC ? "" : "Sin cuenta corriente habilitada"}">Cerrar y sumar ${M.pesos(s)} a su cuenta</button>` : ""}
             </div>
-            ${abierto && r.jugadores.length < 4 ? `<div class="row" style="margin-top:6px"><label class="sr" for="nuevo-jug">Nombre del jugador</label><input id="nuevo-jug" placeholder="Sumar jugador" style="flex:1"><button type="button" class="btn sm" data-a="sumarJugador" data-v="${r.id}">Sumar</button></div>` : ""}
+            <p class="small muted" style="margin:0">Cerrar la cancha no cierra los consumos: el buffet de cada jugador sigue abierto.</p>
+          </div>
+          <div class="seccion">
+            <h3>Consumos de los jugadores</h3>
+            <div class="players">${r.jugadores.map((j, i) => {
+              const cta = cuentasJug[i];
+              const jc = j.clienteId ? M.cliente(E, j.clienteId) : null;
+              return `<div class="player" style="grid-template-columns:auto 1fr auto"><input type="radio" name="jug" id="jug-${i}" data-a="jugador" data-v="${i}" ${i === jugadorSel ? "checked" : ""}><label for="jug-${i}">${esc(j.nombre)} ${marcaRoja(jc)}<br><span class="small muted">${cta ? `Cuenta abierta: ${M.pesos(M.saldoCuenta(cta))}` : "Sin consumos"}</span></label>${cta ? `<button type="button" class="btn sm" data-a="verCuenta" data-v="${cta.id}">Ver / cobrar</button>` : "<span></span>"}</div>`;
+            }).join("")}</div>
+            ${r.estado !== "cancelada" && r.estado !== "suspendida" && r.estado !== "no_show" ? `${buscadorProductos("turno")}
+              <div class="row"><label class="sr" for="cant-turno">Cantidad</label><input id="cant-turno" type="number" min="1" value="1" style="max-width:80px">
+                <button type="button" class="btn" data-a="consumo" data-v="${r.id}" data-m="cuenta">Sumar a su cuenta</button>
+                <button type="button" class="btn accent" data-a="consumo" data-v="${r.id}" data-m="cobrar">Cobrar ahora</button></div>
+              <p class="small muted" style="margin:0">«Cobrar ahora» usa el medio elegido arriba (${M.MEDIOS[ui.medio === "monedero" ? "efectivo" : ui.medio]}).</p>` : ""}
+            ${abierto && r.jugadores.length < 4 ? `<div class="row"><label class="sr" for="nuevo-jug">Jugador</label><input id="nuevo-jug" placeholder="Sumar jugador (nombre)" style="flex:1"><button type="button" class="btn sm" data-a="sumarJugador" data-v="${r.id}">Sumar</button></div>` : ""}
           </div>
         </div>
-        ${abierto && s > 0 ? `<div>
-          <h3>Cobrar</h3>
-          <div class="medio-pick" role="group" aria-label="Medio de pago" style="margin-top:6px">
-            ${Object.entries(M.MEDIOS).filter(([k]) => k !== "monedero" || (cl && cl.monedero > 0)).map(([k, v]) => `<button type="button" data-a="medio" data-v="${k}" aria-pressed="${ui.medio === k}">${v}${k === "monedero" ? ` (${M.pesos(cl.monedero)})` : ""}</button>`).join("")}
-          </div>
-          <div class="row" style="margin-top:8px">
-            <label class="sr" for="monto">Monto a cobrar</label>
-            <input id="monto" type="number" min="1" value="${r.sena.monto > 0 && !r.sena.pagada ? r.sena.monto : s}" style="max-width:160px">
-            <button type="button" class="btn primary" data-a="pagar" data-v="${r.id}">Cobrar</button>
-            ${r.jugadores.length > 1 ? `<span class="small muted">o dividido entre ${quienes.length}: ${M.pesos(cuotas[0] ?? 0)} c/u (botón de cada jugador)</span>` : ""}
-          </div>
-        </div>` : ""}
-        ${abierto ? `<details><summary><b>Mover o extender</b></summary>
-          <div class="row" style="margin-top:8px">
-            <label class="sr" for="mover-c">Cancha destino</label>
-            <select id="mover-c" style="max-width:200px">${otras.map((x) => `<option value="${x.id}">${esc(x.nombre)}${x.cubierta ? "" : " (descubierta)"}</option>`).join("")}</select>
-            <button type="button" class="btn sm" data-a="mover" data-v="${r.id}">Pasar a esa cancha</button>
-            <button type="button" class="btn sm" data-a="extender" data-v="${r.id}">Extender 30′</button>
-          </div></details>` : ""}
+        ${abierto ? `<details><summary><b>Mover o extender</b></summary><div class="row" style="margin-top:8px"><label class="sr" for="mover-c">Cancha destino</label><select id="mover-c" style="max-width:200px">${E.canchas.filter((x) => x.id !== r.canchaId).map((x) => `<option value="${x.id}">${esc(x.nombre)}${x.cubierta ? "" : " (descubierta)"}</option>`).join("")}</select><button type="button" class="btn sm" data-a="mover" data-v="${r.id}">Pasar a esa cancha</button><button type="button" class="btn sm" data-a="extender" data-v="${r.id}">Extender 30′</button></div></details>` : ""}
       `,
       pie: abierto ? `
-        ${cl?.tel ? `<a class="btn" target="_blank" rel="noopener" href="${esc(wa(M.mensajeWhatsApp("recordatorio", { nombre: r.titular.split(" ")[0], hora: M.hhmm(r.inicio), cancha: c.nombre })))}">WhatsApp</a>` : ""}
-        ${r.estado === "reservada" ? `<button type="button" class="btn danger" data-a="noShow" data-v="${r.id}">No vino</button>
-          ${r.fijoId ? `<button type="button" class="btn" data-a="liberarFijo" data-v="${r.id}">Esta semana no vienen</button>` : ""}
-          <button type="button" class="btn danger" data-a="cancelar" data-v="${r.id}">Cancelar turno</button>
-          <button type="button" class="btn primary" data-a="checkin" data-v="${r.id}">Dar la cancha</button>` : ""}
-        ${r.estado === "en_cancha" ? `${r.interrumpido ? "" : `<button type="button" class="btn danger" data-a="interrumpir" data-v="${r.id}">Corte de luz / se suspende</button>`}
-          ${s > 0 && cl ? `<button type="button" class="btn" data-a="aCuenta" data-v="${r.id}">Cerrar y dejar ${M.pesos(s)} a cuenta</button>` : ""}
-          <button type="button" class="btn primary" data-a="finalizar" data-v="${r.id}" ${s > 0 ? "disabled" : ""}>Cerrar turno${s > 0 ? " (falta cobrar)" : ""}</button>` : ""}`
+        <a class="btn" target="_blank" rel="noopener" href="${esc(wa(M.mensajeWhatsApp("recordatorio", { nombre: r.titular.split(" ")[0], hora: M.hhmm(r.inicio), cancha: c.nombre })))}">WhatsApp</a>
+        ${r.estado === "reservada" ? `<button type="button" class="btn danger" data-a="falta" data-v="${r.id}">Falta (no vino)</button>${r.fijoId ? `<button type="button" class="btn" data-a="liberarFijo" data-v="${r.id}">Esta semana no vienen</button>` : ""}<button type="button" class="btn danger" data-a="cancelar" data-v="${r.id}">Cancelar turno</button>` : ""}
+        ${r.estado === "en_cancha" && !r.interrumpido ? `<button type="button" class="btn danger" data-a="interrumpir" data-v="${r.id}">Corte de luz / se suspende</button>` : ""}`
         : `<button type="button" class="btn" data-a="cerrar">Listo</button>`,
+      alAbrir() { acciones._jugador = (v) => { jugadorSel = Number(v); }; acciones._jugadorSel = () => jugadorSel; },
+    });
+  };
+  pintar();
+}
+
+function faltaDialogo(id) {
+  const r = M.reserva(E, id);
+  const importe = Math.max(0, M.saldo(r));
+  const conFicha = r.jugadores.filter((j, i) => (i === 0 ? j.clienteId ?? r.clienteId : j.clienteId)).length;
+  abrir({
+    titulo: "Falta: se cobra el turno entero",
+    sub: `${esc(r.titular)} · ${M.hhmm(r.inicio)} · ${M.pesos(r.precio)}${M.cobrado(r) ? ` (ya pagó ${M.pesos(M.cobrado(r))} de seña)` : ""}`,
+    cuerpo: `<p style="margin:0">Quedan <b>${M.pesos(importe)}</b> para cobrar. Va a la cuenta corriente aunque no la tenga habilitada (es una deuda, no un fiado).</p>
+      <p class="small muted" style="margin:0">Repartir en el grupo: cada jugador con ficha (${conFicha} de ${r.jugadores.length}) paga su parte; la de los que no tienen ficha queda a cargo del titular.</p>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Volver</button>${esDuenio() ? `<button type="button" class="btn" data-a="marcarFalta" data-v="${r.id}" data-m="nadie">Sin cargo (excepción)</button>` : ""}<button type="button" class="btn" data-a="marcarFalta" data-v="${r.id}" data-m="grupo" ${r.jugadores.length > 1 ? "" : "disabled"}>Repartir en el grupo</button><button type="button" class="btn danger" data-a="marcarFalta" data-v="${r.id}" data-m="titular">Cobrar todo al titular</button>`,
+  });
+}
+
+// ───── cuenta de consumo ─────
+
+function verCuenta(id) {
+  ui.medio = "efectivo";
+  const pintar = () => {
+    const cta = M.cuenta(E, id);
+    if (!cta) return cerrarDialogo();
+    const c = cta.clienteId ? M.cliente(E, cta.clienteId) : null;
+    const s = M.saldoCuenta(cta);
+    const abierta = cta.estado === "abierta";
+    abrir({
+      titulo: `Consumos de ${esc(cta.titular)} ${marcaRoja(c)}`,
+      sub: abierta ? `Cuenta abierta · debe ${M.pesos(s)}` : "Cuenta cerrada",
+      ancho: true,
+      refrescar: pintar,
+      cuerpo: `
+        <div class="dos-cols">
+          <div class="seccion"><h3>Detalle <span class="num">${M.pesos(M.totalCuenta(cta))}</span></h3>
+            ${cta.items.length ? `<table class="num small"><tbody>${cta.items.map((i) => `<tr><td>${i.min != null ? M.hhmm(i.min) : ""}</td><td>${i.cant} × ${esc(i.nombre)}${i.alquiler ? (i.devuelto ? " (devuelta)" : " (en uso)") : ""}</td><td class="r">${M.pesos(i.cant * i.precioUnit)}</td></tr>`).join("")}</tbody></table>` : `<p class="small muted">Sin consumos.</p>`}
+            <dl class="kv num"><dt>Pagado</dt><dd>${M.pesos(M.cobradoCuenta(cta))}</dd><dt class="tot">Debe</dt><dd class="tot">${M.pesos(s)}</dd></dl>
+          </div>
+          ${abierta ? `<div class="seccion"><h3>Cargar</h3>${buscadorProductos("cuenta")}
+            <div class="row"><label class="sr" for="cant-cuenta">Cantidad</label><input id="cant-cuenta" type="number" min="1" value="1" style="max-width:80px"><button type="button" class="btn primary" data-a="cargarCuenta" data-v="${cta.id}">Cargar</button></div>
+            <div class="row">${E.productos.filter((p) => p.plato && p.activo !== false).slice(0, 6).map((p) => `<button type="button" class="btn sm" data-a="rapido" data-v="${cta.id}" data-c="${p.id}">+ ${esc(p.nombre.split(" con ")[0])}</button>`).join("")}</div>
+          </div>` : ""}
+        </div>
+        ${abierta && s > 0 ? `<div class="seccion"><h3>Cobrar</h3>${pickMedios(true, c)}<div class="row"><label class="sr" for="monto-cta">Monto</label><input id="monto-cta" type="number" min="1" value="${s}" style="max-width:150px"><button type="button" class="btn primary" data-a="pagarCuenta" data-v="${cta.id}">Cobrar</button></div></div>` : ""}`,
+      pie: abierta ? `<button type="button" class="btn" data-a="cerrar">Dejar abierta</button>${s > 0 ? `<button type="button" class="btn" data-a="cerrarCuenta" data-v="${cta.id}" data-m="cuenta" ${c?.cc.habilitada ? "" : "disabled"} title="${c?.cc.habilitada ? "" : "Sin cuenta corriente habilitada"}">Sumar ${M.pesos(s)} a su cuenta corriente</button>` : ""}<button type="button" class="btn primary" data-a="cerrarCuenta" data-v="${cta.id}" ${s > 0 ? "disabled" : ""}>Cerrar cuenta${s > 0 ? " (falta cobrar)" : ""}</button>` : `<button type="button" class="btn" data-a="cerrar">Listo</button>`,
+    });
+  };
+  pintar();
+}
+
+function abrirConsumo() {
+  const pintar = () => {
+    const q = ui.busca.cliCons ?? "";
+    const res = q ? M.buscarClientes(E, q).slice(0, 6) : [];
+    abrir({
+      titulo: "Abrir consumo",
+      sub: "A nombre de un cliente (queda abierto hasta que se cobre) o de alguien sin ficha.",
+      refrescar: pintar,
+      cuerpo: `<div class="search"><label class="sr" for="cli-cons">Buscar cliente</label><input id="cli-cons" data-busca="cliCons" placeholder="Buscar cliente por nombre o teléfono" value="${esc(q)}" autocomplete="off"></div>
+        <div class="sug">${res.map((c) => `<button type="button" data-a="abrirCuentaCliente" data-v="${c.id}">${esc(c.nombre)} ${marcaRoja(c)}</button>`).join("")}</div>
+        <div class="row"><label class="sr" for="cons-libre">Nombre sin ficha</label><input id="cons-libre" placeholder="O a nombre de (ej.: Mesa 4)" style="max-width:260px"><button type="button" class="btn" data-a="abrirCuentaLibre">Abrir</button></div>`,
+    });
+  };
+  pintar();
+}
+
+function mostrador() {
+  ui.carrito = {};
+  ui.medio = "efectivo";
+  const pintar = () => {
+    const total = Object.entries(ui.carrito).reduce((s, [id, n]) => s + M.producto(E, id).precio * n, 0);
+    abrir({
+      titulo: "Venta rápida",
+      sub: "Se cobra en el acto. Para dejarlo a nombre de alguien, usá «Abrir consumo».",
+      refrescar: pintar,
+      cuerpo: `${buscadorProductos("mostrador")}
+        <div class="row"><button type="button" class="btn sm" data-a="sumarCarrito">Agregar el elegido</button></div>
+        <div class="prod-list">${Object.entries(ui.carrito).map(([id, n]) => { const p = M.producto(E, id); return `<div class="prod"><span>${esc(p.nombre)}</span><span class="qty"><button type="button" data-a="qty" data-v="${id}" data-m="-1" aria-label="Uno menos de ${esc(p.nombre)}">−</button><b class="num">${n}</b><button type="button" data-a="qty" data-v="${id}" data-m="1" aria-label="Uno más de ${esc(p.nombre)}">+</button></span><span class="num">${M.pesos(p.precio * n)}</span></div>`; }).join("") || `<p class="small muted">Buscá y agregá productos.</p>`}</div>
+        ${pickMedios()}<dl class="kv num"><dt class="tot">Total</dt><dd class="tot">${M.pesos(total)}</dd></dl>`,
+      pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="cobrarMostrador" ${total ? "" : "disabled"}>Cobrar ${M.pesos(total)}</button>`,
     });
   };
   pintar();
@@ -540,223 +776,341 @@ function verReserva(id) {
 // ───── nuevo turno ─────
 
 function nuevoTurno({ canchaId, inicio } = {}) {
-  const estadoForm = { canchaId: canchaId ?? E.canchas[0].id, inicio: inicio ?? null, duracion: E.config.duracionTurno, clienteId: null, nuevo: false, tipo: "turno", origen: "mostrador" };
+  const f = { canchaId: canchaId ?? E.canchas[0].id, inicio: inicio ?? null, duracion: E.config.duracionTurno, clienteId: null, tipo: "turno", origen: "mostrador" };
+  ui.busca.cliTurno = "";
   const pintar = () => {
-    const libres = M.huecosLibres(E, VISTA, estadoForm.canchaId, estadoForm.duracion, VISTA === HOY ? Math.floor((AHORA.min - E.config.paso) / E.config.paso) * E.config.paso + E.config.paso : E.config.apertura);
-    if (estadoForm.inicio == null || !libres.includes(estadoForm.inicio)) estadoForm.inicio = libres[0] ?? null;
-    const cl = estadoForm.clienteId ? M.cliente(E, estadoForm.clienteId) : null;
-    const precio = estadoForm.inicio != null ? M.precioTurno(E, { fecha: VISTA, inicio: estadoForm.inicio, duracion: estadoForm.duracion, canchaId: estadoForm.canchaId }, estadoForm.clienteId) : 0;
-    const pideSena = M.requiereSena(E, estadoForm.clienteId, estadoForm.tipo);
+    const desde = VISTA === HOY ? Math.floor(AHORA.min / E.config.paso) * E.config.paso : undefined;
+    const libres = M.huecosLibres(E, VISTA, f.canchaId, f.duracion, desde);
+    if (f.inicio == null || !libres.includes(f.inicio)) f.inicio = libres[0] ?? null;
+    const cl = f.clienteId ? M.cliente(E, f.clienteId) : null;
+    const precio = f.inicio != null ? M.precioTurno(E, { fecha: VISTA, inicio: f.inicio, duracion: f.duracion, canchaId: f.canchaId }) : 0;
+    const pideSena = M.requiereSena(E, f.clienteId, f.tipo);
+    const q = ui.busca.cliTurno ?? "";
+    const res = q && !cl ? M.buscarClientes(E, q).slice(0, 6) : [];
     abrir({
       titulo: "Nuevo turno",
-      sub: `${esc(fechaCorta(VISTA))}`,
-      refrescar: null,
+      sub: esc(fechaCorta(VISTA)),
+      refrescar: pintar,
       cuerpo: `
         <div class="grid2">
-          <label class="f">Cancha<select id="f-cancha">${E.canchas.map((c) => `<option value="${c.id}" ${c.id === estadoForm.canchaId ? "selected" : ""}>${esc(c.nombre)}${c.cubierta ? "" : " (descubierta)"}</option>`).join("")}</select></label>
-          <label class="f">Duración<select id="f-dur">${[60, 90, 120].map((d) => `<option value="${d}" ${d === estadoForm.duracion ? "selected" : ""}>${d} min</option>`).join("")}</select></label>
-          <label class="f">Hora (sólo libres)<select id="f-hora">${libres.length ? libres.map((m) => `<option value="${m}" ${m === estadoForm.inicio ? "selected" : ""}>${M.hhmm(m)}</option>`).join("") : `<option value="">No hay huecos</option>`}</select></label>
-          <label class="f">Tipo<select id="f-tipo">${Object.entries(M.TIPOS).filter(([k]) => k !== "fijo").map(([k, v]) => `<option value="${k}" ${k === estadoForm.tipo ? "selected" : ""}>${v}</option>`).join("")}</select></label>
-          <label class="f">Llegó por<select id="f-origen">${["mostrador", "whatsapp", "teléfono", "instagram"].map((o) => `<option ${o === estadoForm.origen ? "selected" : ""}>${o}</option>`).join("")}</select></label>
+          <label class="f">Cancha<select id="f-cancha">${E.canchas.map((c) => `<option value="${c.id}" ${c.id === f.canchaId ? "selected" : ""}>${esc(c.nombre)}${c.cubierta ? "" : " (descubierta)"}</option>`).join("")}</select></label>
+          <label class="f">Duración<select id="f-dur">${[60, 90, 120].map((d) => `<option value="${d}" ${d === f.duracion ? "selected" : ""}>${d} min</option>`).join("")}</select></label>
+          <label class="f">Hora (sólo libres)<select id="f-hora">${libres.length ? libres.map((m) => `<option value="${m}" ${m === f.inicio ? "selected" : ""}>${M.hhmm(m)}</option>`).join("") : `<option value="">No hay huecos</option>`}</select></label>
+          <label class="f">Tipo<select id="f-tipo">${Object.entries(M.TIPOS).filter(([k]) => k !== "fijo").map(([k, v]) => `<option value="${k}" ${k === f.tipo ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+          <label class="f">Llegó por<select id="f-origen">${["mostrador", "whatsapp", "teléfono", "instagram"].map((o) => `<option ${o === f.origen ? "selected" : ""}>${o}</option>`).join("")}</select></label>
         </div>
         <div>
-          <label class="f" for="f-cli">Cliente (nombre o teléfono)</label>
-          ${cl ? `<div class="row" style="margin-top:4px"><span class="chip info">${esc(cl.nombre)}</span>${cl.socio ? `<span class="chip ok">Socio −${E.config.descuentoSocioPct}%</span>` : ""}${cl.strikes ? `<span class="chip warn">${cl.strikes} falta(s)</span>` : ""}${cl.deuda ? `<span class="chip bad">Debe ${M.pesos(cl.deuda)}</span>` : ""}<button type="button" class="btn sm ghost" data-a="quitarCliente">Cambiar</button></div>`
-            : `<input id="f-cli" autocomplete="off" placeholder="Escribí para buscar…" style="margin-top:4px"><div class="sug" id="f-sug"></div>
-               <div class="grid2" style="margin-top:6px"><label class="f">O a nombre de (sin ficha)<input id="f-titular" placeholder="Ej.: Grupo de Bruno"></label><label class="f">Teléfono (opcional)<input id="f-tel" inputmode="tel"></label></div>`}
+          ${cl ? `<div class="row"><span class="chip info">${esc(cl.nombre)}</span>${marcaRoja(cl)}${cl.strikes ? `<span class="chip warn">${cl.strikes} falta(s)</span>` : ""}${cl.cc.habilitada ? `<span class="chip ok">Cuenta corriente</span>` : ""}<button type="button" class="btn sm ghost" data-a="quitarCliente">Cambiar</button></div>`
+            : `<div class="search"><label class="sr" for="cli-turno">Buscar cliente</label><input id="cli-turno" data-busca="cliTurno" placeholder="Buscar cliente (nombre o teléfono)" value="${esc(q)}" autocomplete="off"></div><div class="sug">${res.map((c) => `<button type="button" data-a="elegirCliente" data-v="${c.id}">${esc(c.nombre)} ${marcaRoja(c)}</button>`).join("")}</div>
+               <div class="grid2" style="margin-top:6px"><label class="f">O a nombre de (sin ficha)<input id="f-titular" placeholder="Ej.: Grupo de Bruno"></label><label class="f">Teléfono (para darlo de alta)<input id="f-tel" inputmode="tel"></label></div>`}
         </div>
-        <dl class="kv num"><dt>Precio</dt><dd>${M.pesos(precio)}</dd>${pideSena ? `<dt>Seña que corresponde (${E.config.politica.senaPct}%)</dt><dd>${M.pesos(Math.round((precio * E.config.politica.senaPct) / 100 / 100) * 100)}</dd>` : ""}</dl>
-        ${pideSena ? `<p class="small muted" style="margin:0">Pide seña porque ${cl ? (cl.deuda ? "debe de un turno anterior" : "tiene faltas sin aviso") : "no tiene ficha de cliente"}. Se confirma por transferencia o Mercado Pago.</p>` : ""}
+        <dl class="kv num"><dt>Precio de la cancha</dt><dd>${M.pesos(precio)}</dd>${pideSena ? `<dt>Seña (${E.config.politica.senaPct}%)</dt><dd>${M.pesos(Math.round((precio * E.config.politica.senaPct) / 100 / 100) * 100)}</dd>` : ""}</dl>
         <p class="err" id="f-err" role="alert"></p>`,
       pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="confirmarTurno">Reservar</button>`,
       alAbrir(d) {
-        const leer = () => {
-          estadoForm.canchaId = $("#f-cancha", d).value;
-          estadoForm.duracion = Number($("#f-dur", d).value);
-          estadoForm.inicio = $("#f-hora", d).value === "" ? null : Number($("#f-hora", d).value);
-          estadoForm.tipo = $("#f-tipo", d).value;
-          estadoForm.origen = $("#f-origen", d).value;
-        };
+        const leer = () => { f.canchaId = $("#f-cancha", d).value; f.duracion = Number($("#f-dur", d).value); f.inicio = $("#f-hora", d).value === "" ? null : Number($("#f-hora", d).value); f.tipo = $("#f-tipo", d).value; f.origen = $("#f-origen", d).value; };
         ["#f-cancha", "#f-dur", "#f-hora", "#f-tipo"].forEach((s) => $(s, d).addEventListener("change", () => { leer(); pintar(); }));
         $("#f-origen", d).addEventListener("change", leer);
-        const input = $("#f-cli", d);
-        if (input) {
-          input.addEventListener("input", () => {
-            const res = M.buscarClientes(E, input.value).slice(0, 6);
-            $("#f-sug", d).innerHTML = res.map((c) => `<button type="button" data-a="elegirCliente" data-v="${c.id}">${esc(c.nombre)} <span class="muted small">${c.socio ? "· socio " : ""}${c.strikes ? `· ${c.strikes} falta(s)` : ""}</span></button>`).join("");
-          });
-          input.focus();
-        }
-        estadoForm.elegir = (id) => { leer(); estadoForm.clienteId = id; pintar(); };
-        estadoForm.quitar = () => { leer(); estadoForm.clienteId = null; pintar(); };
-        estadoForm.confirmar = () => {
-          leer();
-          if (estadoForm.inicio == null) { $("#f-err", d).textContent = "No hay horario libre con esa cancha y duración."; return; }
-          let clienteId = estadoForm.clienteId;
-          let titular;
-          if (!clienteId) {
-            titular = $("#f-titular", d)?.value.trim() || $("#f-cli", d)?.value.trim();
-            const tel = $("#f-tel", d)?.value.trim();
-            if (titular && tel) { const alta = M.altaCliente(E, { nombre: titular, tel }); if (alta.ok) clienteId = alta.cliente.id; }
-          }
-          const res = M.crearReserva(E, { canchaId: estadoForm.canchaId, fecha: VISTA, inicio: estadoForm.inicio, duracion: estadoForm.duracion, tipo: estadoForm.tipo, origen: estadoForm.origen, clienteId, titular }, AHORA);
-          if (!res.ok) { $("#f-err", d).textContent = res.motivo; return; }
-          const r = res.reserva;
-          render();
-          const msj = M.mensajeWhatsApp("confirmacion", { nombre: r.titular.split(" ")[0], cancha: M.cancha(E, r.canchaId).nombre, fecha: fechaCorta(r.fecha), hora: M.hhmm(r.inicio), sena: r.sena.monto ? M.pesos(r.sena.monto) : "" });
-          abrir({
-            titulo: "Turno reservado ✔",
-            sub: `${esc(r.titular)} · ${esc(M.cancha(E, r.canchaId).nombre)} ${M.hhmm(r.inicio)}`,
-            cuerpo: `${res.liberadas?.length ? `<p class="small">Se rellenó un hueco cancelado tarde: ${res.liberadas.map((x) => `${esc(x.cliente)} recupera ${M.pesos(x.monto)} como saldo a favor`).join(", ")}.</p>` : ""}<p class="small muted" style="margin:0">Mensaje de confirmación listo para mandar:</p><div class="wa">${esc(msj)}</div>`,
-            pie: `<a class="btn" target="_blank" rel="noopener" href="${esc(wa(msj))}">Mandar por WhatsApp</a><button type="button" class="btn" data-a="ver" data-v="${r.id}">Abrir el turno</button><button type="button" class="btn primary" data-a="cerrar">Listo</button>`,
-          });
+        acciones._turno = {
+          elegir(cid) { leer(); f.clienteId = cid; ui.busca.cliTurno = ""; pintar(); },
+          quitar() { leer(); f.clienteId = null; pintar(); },
+          confirmar() {
+            leer();
+            if (f.inicio == null) { $("#f-err", d).textContent = "No hay horario libre con esa cancha y duración."; return; }
+            let clienteId = f.clienteId, titular;
+            if (!clienteId) {
+              titular = $("#f-titular", d)?.value.trim() || ui.busca.cliTurno?.trim();
+              const tel = $("#f-tel", d)?.value.trim();
+              if (titular && tel) { const alta = M.altaCliente(E, { nombre: titular, tel }, AHORA); if (alta.ok) clienteId = alta.cliente.id; }
+            }
+            const res2 = M.crearReserva(E, { canchaId: f.canchaId, fecha: VISTA, inicio: f.inicio, duracion: f.duracion, tipo: f.tipo, origen: f.origen, clienteId, titular }, AHORA);
+            if (!res2.ok) { $("#f-err", d).textContent = res2.motivo; return; }
+            ui.busca.cliTurno = "";
+            const r = res2.reserva;
+            render();
+            const msj = M.mensajeWhatsApp("confirmacion", { nombre: r.titular.split(" ")[0], cancha: M.cancha(E, r.canchaId).nombre, fecha: fechaCorta(r.fecha), hora: M.hhmm(r.inicio), sena: r.sena.monto ? M.pesos(r.sena.monto) : "" });
+            abrir({ titulo: "Turno reservado ✔", sub: `${esc(r.titular)} · ${esc(M.cancha(E, r.canchaId).nombre)} ${M.hhmm(r.inicio)}`, cuerpo: `<p class="small muted" style="margin:0">Mensaje de confirmación listo para mandar:</p><div class="wa">${esc(msj)}</div>`, pie: `<a class="btn" target="_blank" rel="noopener" href="${esc(wa(msj))}">Mandar por WhatsApp</a><button type="button" class="btn" data-a="ver" data-v="${r.id}">Abrir el turno</button><button type="button" class="btn primary" data-a="cerrar">Listo</button>` });
+          },
         };
-        acciones.formTurno = estadoForm;
       },
     });
   };
   pintar();
 }
 
-// ───── venta de mostrador ─────
+// ───── caja ─────
 
-function mostrador() {
-  ui.carrito = {};
-  ui.medio = "efectivo";
+function egresoDialogo() {
+  abrir({
+    titulo: "Egreso en efectivo",
+    sub: "Sale del cajón. Pide concepto y el PIN de quien lo hace.",
+    cuerpo: `<div class="grid2"><label class="f">Concepto<input id="g-c" placeholder="Ej.: hielo, artículos de limpieza"></label><label class="f">Monto<input id="g-m" type="number" min="1"></label></div>${campoPin("g-pin")}`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="aplicarEgreso">Registrar egreso</button>`,
+    alAbrir(d) { $("#g-c", d).focus(); },
+  });
+}
+
+function cierreCajaDialogo() {
+  const dia = M.diaDeCaja(E, AHORA.fecha, AHORA.min);
+  const r = M.resumenCaja(E, dia);
+  abrir({
+    titulo: `Cerrar la caja del ${esc(fechaCorta(dia))}`,
+    sub: "La caja diaria va de 12:00 a 12:00. Contá el efectivo del cajón; lo digital ya está registrado.",
+    cuerpo: `<dl class="kv num">${MEDIOS_CAJA.map((k) => `<dt>${M.MEDIOS[k]}</dt><dd>${M.pesos(r.porMedio[k])}</dd>`).join("")}<dt>Fondo inicial</dt><dd>${M.pesos(E.caja.fondo)}</dd><dt class="tot">Efectivo que tiene que haber</dt><dd class="tot">${M.pesos(r.efectivoEsperado)}</dd></dl>
+      <div class="grid2"><label class="f">Efectivo contado<input id="k-cont" type="number" min="0" value="${r.efectivoEsperado}"></label>${campoPin("k-pin", `PIN de ${esc(yo().nombre.split(" ")[0])}`)}</div>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="aplicarCierre">Cerrar caja</button>`,
+  });
+}
+
+function remitoDialogo() {
+  ui.remito = ui.remito ?? { proveedorId: E.proveedores.find((p) => p.activo !== false)?.id, numero: "", items: [] };
   const pintar = () => {
-    const enCancha = E.reservas.filter((r) => r.fecha === HOY && ["en_cancha", "reservada"].includes(r.estado) && M.minutosHasta(AHORA, r.fecha, r.inicio) < 60);
-    const total = Object.entries(ui.carrito).reduce((s, [id, n]) => s + M.producto(E, id).precio * n, 0);
+    const R = ui.remito;
+    const total = R.items.reduce((s, i) => s + i.cant * i.costo, 0);
     abrir({
-      titulo: "Venta de mostrador",
-      sub: "Bebidas, pelotas, grips y shop. Lo de alquiler va a la cuenta de un turno.",
+      titulo: "Registrar remito",
+      sub: "Entra mercadería: suma stock y queda la deuda con el proveedor.",
+      ancho: true,
       refrescar: pintar,
-      cuerpo: `
-        <div class="prod-list">${E.productos.map((p) => `<div class="prod">
-          <span>${esc(p.nombre)} <span class="small muted num">· ${M.pesos(p.precio)} · quedan ${p.stock}</span></span>
-          <span class="qty"><button type="button" data-a="qty" data-v="${p.id}" data-m="-1" aria-label="Uno menos de ${esc(p.nombre)}">−</button><b class="num" aria-live="polite">${ui.carrito[p.id] ?? 0}</b><button type="button" data-a="qty" data-v="${p.id}" data-m="1" aria-label="Uno más de ${esc(p.nombre)}" ${p.stock <= (ui.carrito[p.id] ?? 0) ? "disabled" : ""}>+</button></span>
-          <span class="num small" style="min-width:80px;text-align:right">${ui.carrito[p.id] ? M.pesos(p.precio * ui.carrito[p.id]) : ""}</span>
-        </div>`).join("")}</div>
-        <label class="f">¿Cómo lo paga?
-          <select id="v-dest">
-            <option value="">Paga ahora</option>
-            ${enCancha.map((r) => `<option value="${r.id}" ${ui.cuentaDe === r.id ? "selected" : ""}>A la cuenta de ${esc(r.titular)} (${esc(M.cancha(E, r.canchaId).nombre)})</option>`).join("")}
-          </select></label>
-        <div class="medio-pick" role="group" aria-label="Medio de pago">${Object.entries(M.MEDIOS).filter(([k]) => k !== "monedero").map(([k, v]) => `<button type="button" data-a="medio" data-v="${k}" aria-pressed="${ui.medio === k}">${v}</button>`).join("")}</div>
-        <dl class="kv num"><dt class="tot">Total</dt><dd class="tot">${M.pesos(total)}</dd></dl>`,
-      pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="cobrarMostrador" ${total ? "" : "disabled"}>Cobrar ${M.pesos(total)}</button>`,
-      alAbrir(d) { $("#v-dest", d).addEventListener("change", (ev) => { ui.cuentaDe = ev.target.value; }); },
+      cuerpo: `<div class="grid2">
+          <label class="f">Proveedor<select id="r-prov">${E.proveedores.filter((p) => p.activo !== false).map((p) => `<option value="${p.id}" ${p.id === R.proveedorId ? "selected" : ""}>${esc(p.nombre)}</option>`).join("")}</select></label>
+          <label class="f">Número de remito<input id="r-num" value="${esc(R.numero)}" placeholder="0001-00001234"></label>
+        </div>
+        <div class="seccion"><h3>Lector</h3>
+          <label class="f" for="r-scan">Pasá el lector (código de barras o etiqueta RF): cada lectura suma 1</label>
+          <input id="r-scan" placeholder="Esperando lectura…" autocomplete="off">
+          <p class="small muted" style="margin:0">Preparado para lectores que escriben el código y un Enter (USB o Bluetooth, como un teclado). Para probar: escribí 7790000000028 y Enter.</p>
+        </div>
+        <div class="seccion"><h3>O buscalo</h3>${buscadorProductos("remito", { soloVendibles: false })}<div class="row"><button type="button" class="btn sm" data-a="remitoAgregar">Agregar al remito</button></div></div>
+        ${R.items.length ? `<table class="num"><thead><tr><th>Producto</th><th class="r">Cantidad</th><th class="r">Costo unitario</th><th class="r">Subtotal</th><th></th></tr></thead><tbody>${R.items.map((i, k) => `<tr><td>${esc(M.producto(E, i.productoId).nombre)}</td><td class="r"><label class="sr" for="rc-${k}">Cantidad</label><input id="rc-${k}" type="number" min="1" value="${i.cant}" data-rem="cant" data-k="${k}" style="max-width:80px"></td><td class="r"><label class="sr" for="rk-${k}">Costo</label><input id="rk-${k}" type="number" min="0" value="${i.costo}" data-rem="costo" data-k="${k}" style="max-width:110px"></td><td class="r">${M.pesos(i.cant * i.costo)}</td><td><button type="button" class="btn sm ghost" data-a="remitoQuitar" data-v="${k}" aria-label="Quitar ${esc(M.producto(E, i.productoId).nombre)}">✕</button></td></tr>`).join("")}</tbody></table>
+          <dl class="kv num"><dt class="tot">Total del remito</dt><dd class="tot">${M.pesos(total)}</dd></dl>` : `<p class="small muted">Todavía no hay productos.</p>`}`,
+      pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="guardarRemito" ${R.items.length ? "" : "disabled"}>Registrar remito</button>`,
+      alAbrir(d) {
+        $("#r-prov", d).addEventListener("change", (ev) => { R.proveedorId = ev.target.value; });
+        $("#r-num", d).addEventListener("input", (ev) => { R.numero = ev.target.value; });
+        const scan = $("#r-scan", d);
+        scan.addEventListener("keydown", (ev) => {
+          if (ev.key !== "Enter") return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          const res = M.productoPorCodigo(E, scan.value);
+          scan.value = "";
+          if (!res.ok) return toast(res.motivo, { error: true });
+          sumarAlRemito(res.producto.id, 1);
+          pintar();
+          $("#r-scan").focus();
+          toast(`+1 ${res.producto.nombre}`);
+        });
+        if (!R.items.length && !R.numero) $("#r-num", d).focus();
+      },
     });
   };
   pintar();
 }
 
-// ───── lista de espera ─────
+function sumarAlRemito(productoId, cant) {
+  const R = ui.remito;
+  const ya = R.items.find((i) => i.productoId === productoId);
+  if (ya) ya.cant += cant;
+  else R.items.push({ productoId, cant, costo: M.producto(E, productoId).costo });
+}
+
+// ───── clientes ─────
+
+function fichaCliente(id) {
+  ui.medio = "efectivo";
+  const pintar = () => {
+    const c = M.cliente(E, id);
+    if (!c || c.activo === false) return cerrarDialogo();
+    const ec = M.estadoDeCuenta(E, id);
+    const pedido = E.novedades.find((n) => n.estado === "pendiente" && n.clienteId === id);
+    abrir({
+      titulo: `${esc(c.nombre)} ${marcaRoja(c)}`,
+      sub: `${c.tel ? esc(c.tel) + " · " : ""}${c.nivel ? `Nivel ${esc(c.nivel)} · ` : ""}${c.strikes} falta(s)${c.monedero ? ` · créditos ${M.pesos(c.monedero)}` : ""}`,
+      ancho: true,
+      refrescar: pintar,
+      cuerpo: `<div class="dos-cols">
+        <div class="seccion"><h3>Datos</h3>
+          <div class="grid2"><label class="f">Nombre<input id="c-nom" value="${esc(c.nombre)}"></label><label class="f">Teléfono<input id="c-tel" value="${esc(c.tel)}" inputmode="tel"></label><label class="f">Nivel<input id="c-niv" value="${esc(c.nivel)}"></label></div>
+          <div class="row"><button type="button" class="btn sm" data-a="guardarCliente" data-v="${c.id}">Guardar cambios</button><button type="button" class="btn sm danger" data-a="bajaCliente" data-v="${c.id}">Dar de baja</button></div>
+        </div>
+        <div class="seccion"><h3>Cuenta corriente ${c.cc.habilitada ? `<span class="chip info">Hasta ${M.pesos(c.cc.limite)}</span>` : `<span class="chip">No habilitada</span>`}</h3>
+          ${puedo("autorizarCC") ? `<div class="row"><label class="sr" for="cc-lim">Límite</label><input id="cc-lim" type="number" min="1000" step="1000" value="${c.cc.limite || 50000}" style="max-width:140px"><button type="button" class="btn sm primary" data-a="ccGuardar" data-v="${c.id}">${c.cc.habilitada ? "Cambiar límite" : "Habilitar"}</button>${c.cc.habilitada ? `<button type="button" class="btn sm danger" data-a="ccCortar" data-v="${c.id}">Cortar</button>` : ""}</div>`
+            : pedido ? `<p class="small" style="margin:0">Pedido al dueño por ${M.pesos(pedido.limite)}: esperando autorización.</p>`
+            : c.cc.habilitada ? "" : `<div class="row"><label class="sr" for="cc-pedir">Límite pedido</label><input id="cc-pedir" type="number" min="1000" step="1000" value="50000" style="max-width:140px"><label class="sr" for="cc-nota">Motivo</label><input id="cc-nota" placeholder="Motivo (opcional)" style="max-width:200px"><button type="button" class="btn sm" data-a="ccPedir" data-v="${c.id}">Pedir autorización al dueño</button></div>`}
+          <h3 style="margin-top:6px">Estado de cuenta <span class="num ${c.deuda > 0 ? "rojo" : ""}">${M.pesos(c.deuda)}</span></h3>
+          ${ec.movimientos.length ? `<div class="tbl-wrap"><table class="num small"><thead><tr><th>Fecha</th><th>Concepto</th><th class="r">Importe</th><th class="r">Saldo</th></tr></thead><tbody>${ec.movimientos.map((m) => `<tr><td>${m.fecha ? ddmm(m.fecha) : ""} ${m.min != null ? M.hhmm(m.min) : ""}</td><td>${esc(m.concepto)}</td><td class="r ${m.importe > 0 ? "rojo" : ""}">${M.pesos(m.importe)}</td><td class="r">${M.pesos(m.saldo)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="small muted" style="margin:0">Sin movimientos.</p>`}
+          ${c.deuda > 0 ? `${pickMedios()}<div class="row"><label class="sr" for="cc-monto">Monto</label><input id="cc-monto" type="number" min="1" value="${c.deuda}" style="max-width:140px"><button type="button" class="btn primary" data-a="cobrarDeuda" data-v="${c.id}">Cobrar</button><a class="btn sm" target="_blank" rel="noopener" href="${esc(wa(M.mensajeWhatsApp("deuda", { nombre: c.nombre.split(" ")[0], monto: M.pesos(c.deuda) })))}">Recordar por WhatsApp</a></div>` : ""}
+        </div></div>`,
+    });
+  };
+  pintar();
+}
+
+function altaClienteDialogo() {
+  abrir({
+    titulo: "Alta de cliente",
+    sub: "En Break Point todos son clientes (no hay socios ni beneficios).",
+    cuerpo: `<div class="grid2"><label class="f">Nombre y apellido<input id="n-nom"></label><label class="f">Teléfono<input id="n-tel" inputmode="tel"></label><label class="f">Nivel (opcional)<input id="n-niv" placeholder="Ej.: 5ta"></label></div>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="guardarAltaCliente">Dar de alta</button>`,
+    alAbrir(d) { $("#n-nom", d).focus(); },
+  });
+}
+
+// ───── proveedores ─────
+
+function fichaProveedor(id) {
+  ui.medio = "transferencia";
+  const pintar = () => {
+    const cc = M.ccProveedor(E, id, auth());
+    if (!cc.ok) { cerrarDialogo(); return toast(cc.motivo, { error: true }); }
+    const p = cc.proveedor;
+    abrir({
+      titulo: esc(p.nombre),
+      sub: `${esc(p.rubro)}${p.cuit ? ` · CUIT ${esc(p.cuit)}` : ""} · le debemos ${M.pesos(cc.saldo)}`,
+      ancho: true,
+      refrescar: pintar,
+      cuerpo: `<div class="seccion"><h3>Cuenta corriente</h3>
+          ${cc.movimientos.length ? `<div class="tbl-wrap"><table class="num small"><thead><tr><th>Fecha</th><th>Concepto</th><th class="r">Debe</th><th class="r">Pagado</th><th class="r">Saldo</th></tr></thead><tbody>${cc.movimientos.map((m) => `<tr><td>${ddmm(m.fecha)} ${M.hhmm(m.min)}</td><td>${esc(m.concepto)}</td><td class="r">${m.debe ? M.pesos(m.debe) : ""}</td><td class="r">${m.haber ? M.pesos(m.haber) : ""}</td><td class="r">${M.pesos(m.saldo)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="small muted">Sin movimientos.</p>`}
+        </div>
+        ${cc.saldo > 0 ? `<div class="seccion"><h3>Pagar</h3>${pickMedios(false, null, true)}<div class="row"><label class="f" style="max-width:160px">Monto<input id="pp-monto" type="number" min="1" value="${cc.saldo}"></label>${campoPin("pp-pin")}</div><p class="small muted" style="margin:0">El efectivo sale del cajón (queda en la caja del día); la transferencia queda registrada como egreso.</p></div>` : ""}
+        <details><summary class="small">Editar datos</summary><div class="grid2" style="margin-top:8px"><label class="f">Nombre<input id="pv-nom" value="${esc(p.nombre)}"></label><label class="f">Rubro<input id="pv-rub" value="${esc(p.rubro)}"></label><label class="f">CUIT<input id="pv-cuit" value="${esc(p.cuit)}"></label><label class="f">Teléfono<input id="pv-tel" value="${esc(p.tel)}"></label></div><button type="button" class="btn sm" data-a="guardarProveedor" data-v="${p.id}" style="margin-top:8px">Guardar</button></details>`,
+      pie: `<button type="button" class="btn" data-a="cerrar">Listo</button>${cc.saldo > 0 ? `<button type="button" class="btn primary" data-a="pagarProveedor" data-v="${p.id}">Registrar pago</button>` : ""}`,
+    });
+  };
+  pintar();
+}
+
+function altaProveedorDialogo() {
+  abrir({
+    titulo: "Alta de proveedor",
+    cuerpo: `<div class="grid2"><label class="f">Nombre<input id="np-nom"></label><label class="f">Rubro<input id="np-rub" placeholder="Bebidas, cocina, insumos…"></label><label class="f">CUIT<input id="np-cuit"></label><label class="f">Teléfono<input id="np-tel" inputmode="tel"></label></div>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="guardarAltaProveedor">Dar de alta</button>`,
+    alAbrir(d) { $("#np-nom", d).focus(); },
+  });
+}
+
+// ───── stock ─────
+
+function productoDialogo(id) {
+  const p = id ? M.producto(E, id) : null;
+  abrir({
+    titulo: p ? `Editar ${esc(p.nombre)}` : "Nuevo producto o plato",
+    cuerpo: `<div class="grid2">
+        <label class="f">Nombre<input id="pr-nom" value="${esc(p?.nombre ?? "")}"></label>
+        ${p ? "" : `<label class="f">Rubro<input id="pr-cat" placeholder="Bebidas, Cocina, Shop…"></label>`}
+        <label class="f">Precio de venta<input id="pr-pre" type="number" min="1" value="${p?.precio ?? ""}"></label>
+        <label class="f">Costo<input id="pr-cos" type="number" min="0" value="${p?.costo ?? ""}"></label>
+        ${p && p.stock === null ? "" : `<label class="f">Mínimo de stock<input id="pr-min" type="number" min="0" value="${p?.minimo ?? 0}"></label>`}
+        ${p ? "" : `<label class="f">Stock inicial<input id="pr-stk" type="number" min="0" value="0"></label>`}
+        <label class="f">Código (barras / RF)<input id="pr-cod" value="${esc(p?.codigo ?? "")}" placeholder="Pasá el lector o escribilo"></label>
+      </div>
+      ${p ? "" : `<label class="row small"><input type="checkbox" id="pr-plato"> Es un plato de cocina (no lleva stock; se mide por venta)</label>`}`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="guardarProducto" data-v="${p?.id ?? ""}">${p ? "Guardar" : "Dar de alta"}</button>`,
+    alAbrir(d) { $("#pr-nom", d).focus(); },
+  });
+}
+
+// ───── contenido ─────
+
+function contenidoDialogo({ id, fecha }) {
+  const c = id ? E.contenido.find((x) => x.id === id) : null;
+  abrir({
+    titulo: c ? "Publicación" : "Nueva publicación",
+    cuerpo: `<div class="grid2">
+        <label class="f">Fecha<input id="ct-fecha" type="date" value="${esc(c?.fecha ?? fecha)}"></label>
+        <label class="f">Hora<input id="ct-hora" type="time" value="${esc(c?.hora ?? "19:00")}"></label>
+        <label class="f">Canal<select id="ct-canal">${Object.entries(M.CANALES).map(([k, v]) => `<option value="${k}" ${k === (c?.canal ?? "post") ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+        <label class="f">Estado<select id="ct-estado">${Object.entries(M.ESTADOS_CONTENIDO).map(([k, v]) => `<option value="${k}" ${k === (c?.estado ?? "idea") ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+      </div>
+      <label class="f">De qué se trata<input id="ct-titulo" value="${esc(c?.titulo ?? "")}" placeholder="Ej.: Torneo relámpago del sábado"></label>
+      <label class="f">Texto / guion<textarea id="ct-texto" rows="4" style="border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--paper);font:inherit;color:inherit">${esc(c?.texto ?? "")}</textarea></label>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button>${c ? `<button type="button" class="btn danger" data-a="borrarContenido" data-v="${c.id}">Borrar</button>` : ""}<button type="button" class="btn primary" data-a="guardarContenido" data-v="${c?.id ?? ""}">Guardar</button>`,
+    alAbrir(d) { $("#ct-titulo", d).focus(); },
+  });
+}
+
+// ───── mantenimiento y lluvia ─────
+
+function mantenimientoDialogo() {
+  const pintar = () => {
+    const p = E.clima.pronostico?.fecha === HOY ? E.clima.pronostico : { desde: Math.ceil(AHORA.min / 30) * 30, hasta: M.horarioDe(E, HOY).cierra };
+    abrir({
+      titulo: "Mantenimiento y lluvia",
+      sub: "Estado de las canchas, bloqueos de horario y plan lluvia, en un solo lugar.",
+      ancho: true,
+      refrescar: pintar,
+      cuerpo: `
+        <div class="seccion"><h3>Canchas</h3>
+          ${E.canchas.map((c) => `<div class="row" style="justify-content:space-between;border-bottom:1px solid var(--line-2);padding:6px 0"><span><b>${esc(c.nombre)}</b> · ${c.cubierta ? "techada" : "descubierta"} · ${c.estado === "mantenimiento" ? `<span class="rojo">en mantenimiento (${esc(c.motivoMantenimiento)})</span>` : "habilitada"}</span>
+            ${c.estado === "mantenimiento" ? `<button type="button" class="btn sm" data-a="mantOff" data-v="${c.id}">Habilitar</button>` : `<span class="row"><label class="sr" for="mm-${c.id}">Motivo</label><input id="mm-${c.id}" placeholder="Motivo" style="max-width:180px"><button type="button" class="btn sm" data-a="mantOn" data-v="${c.id}">Poner en mantenimiento</button></span>`}</div>`).join("")}
+        </div>
+        <div class="seccion"><h3>Bloquear un horario (${esc(fechaCorta(VISTA))})</h3>
+          <div class="grid2"><label class="f">Cancha<select id="b-c"><option value="*">Todo el club</option>${E.canchas.map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join("")}</select></label><label class="f">Desde<select id="b-d">${horasOpc(9 * 60)}</select></label><label class="f">Hasta<select id="b-h">${horasOpc(11 * 60)}</select></label><label class="f">Motivo<input id="b-m" value="Cambio de red"></label></div>
+          <div class="row"><button type="button" class="btn sm primary" data-a="aplicarBloqueo">Bloquear</button></div>
+          ${E.bloqueos.filter((b) => b.fecha >= HOY).map((b) => `<div class="row small">${esc(fechaCorta(b.fecha))} ${M.hhmm(b.desde)}–${M.hhmm(b.hasta)} · ${b.canchaId === "*" ? "todo el club" : esc(M.cancha(E, b.canchaId).nombre)} · ${esc(b.motivo)} <button type="button" class="btn sm ghost" data-a="quitarBloqueo" data-v="${b.id}">Quitar</button></div>`).join("")}
+        </div>
+        <div class="seccion"><h3>Plan lluvia (hoy)</h3>
+          ${E.clima.pronostico?.fecha === HOY ? `<p class="small" style="margin:0">🌧️ Pronóstico de ejemplo: lluvia de ${M.hhmm(p.desde)} a ${M.hhmm(p.hasta)}.</p>` : ""}
+          <p class="small muted" style="margin:0">Pasa cada turno de la descubierta a una techada libre; si no hay, lo suspende (lo pagado vuelve como crédito; si ya estaban jugando, se reconoce sólo el tiempo no jugado).</p>
+          <div class="grid2"><label class="f">Desde<select id="l-desde">${horasOpc(p.desde - (p.desde % 30), HOY)}</select></label><label class="f">Hasta<select id="l-hasta">${horasOpc(Math.min(M.horarioDe(E, HOY).cierra, p.hasta - (p.hasta % 30)), HOY)}</select></label></div>
+          <div class="row"><button type="button" class="btn sm primary" data-a="aplicarLluvia">Aplicar plan lluvia</button></div>
+        </div>`,
+      pie: `<button type="button" class="btn" data-a="cerrar">Listo</button>`,
+    });
+  };
+  pintar();
+}
 
 function listaEspera() {
   const pintar = () => {
     const lista = E.espera.filter((e) => e.fecha >= HOY);
     abrir({
       titulo: "Lista de espera",
-      sub: "Cuando alguien cancela o no viene, el sistema le ofrece el hueco al primero que encaje.",
+      sub: "Cuando alguien cancela o falta, el sistema le ofrece el hueco al primero que encaje.",
       refrescar: pintar,
-      cuerpo: `
-        ${lista.length ? `<table><thead><tr><th>Quién</th><th>Día</th><th>Desde–hasta</th><th></th></tr></thead><tbody>${lista.map((e) => {
+      cuerpo: `${lista.length ? `<table><thead><tr><th>Quién</th><th>Día</th><th>Desde–hasta</th><th></th></tr></thead><tbody>${lista.map((e) => {
           const oferta = E.canchas.map((c) => ({ c, m: M.huecosLibres(E, e.fecha, c.id, e.duracion, Math.max(e.desde, e.fecha === HOY ? AHORA.min : 0)).find((m) => m <= e.hasta) })).find((x) => x.m != null && (!e.soloCubierta || x.c.cubierta));
-          return `<tr><td>${esc(e.titular)}${e.soloCubierta ? ` <span class="chip">techada</span>` : ""}</td><td>${esc(fechaCorta(e.fecha))}</td><td class="num">${M.hhmm(e.desde)}–${M.hhmm(e.hasta)}</td>
-            <td>${oferta ? `<button type="button" class="btn sm primary" data-a="asignarEspera" data-v="${e.id}" data-c="${oferta.c.id}" data-m="${oferta.m}">Dar ${esc(oferta.c.nombre)} ${M.hhmm(oferta.m)}</button>` : `<span class="small muted">Sin hueco todavía</span>`}
-            <button type="button" class="btn sm ghost" data-a="sacarEspera" data-v="${e.id}">Sacar</button></td></tr>`;
+          return `<tr><td>${esc(e.titular)}${e.soloCubierta ? ` <span class="chip">techada</span>` : ""}</td><td>${esc(fechaCorta(e.fecha))}</td><td class="num">${M.hhmm(e.desde)}–${M.hhmm(e.hasta)}</td><td>${oferta ? `<button type="button" class="btn sm primary" data-a="asignarEspera" data-v="${e.id}" data-c="${oferta.c.id}" data-m="${oferta.m}">Dar ${esc(oferta.c.nombre)} ${M.hhmm(oferta.m)}</button>` : `<span class="small muted">Sin hueco</span>`} <button type="button" class="btn sm ghost" data-a="sacarEspera" data-v="${e.id}">Sacar</button></td></tr>`;
         }).join("")}</tbody></table>` : `<p class="empty">Nadie esperando.</p>`}
         <h3>Anotar</h3>
-        <div class="grid2">
-          <label class="f">Nombre<input id="e-nom"></label>
-          <label class="f">Día<select id="e-dia">${[0, 1, 2, 3].map((d) => M.sumarDias(HOY, d)).map((f) => `<option value="${f}">${esc(fechaCorta(f))}</option>`).join("")}</select></label>
-          <label class="f">Desde<select id="e-desde">${horasOpc(18 * 60)}</select></label>
-          <label class="f">Hasta<select id="e-hasta">${horasOpc(23 * 60)}</select></label>
-        </div>
-        <label class="row small"><input type="checkbox" id="e-techo"> Sólo cancha techada</label>
-        <p class="err" id="e-err" role="alert"></p>`,
+        <div class="grid2"><label class="f">Nombre<input id="e-nom"></label><label class="f">Día<select id="e-dia">${[0, 1, 2, 3].map((d) => M.sumarDias(HOY, d)).map((f) => `<option value="${f}">${esc(fechaCorta(f))}</option>`).join("")}</select></label><label class="f">Desde<select id="e-desde">${horasOpc(18 * 60, HOY)}</select></label><label class="f">Hasta<select id="e-hasta">${horasOpc(23 * 60, HOY)}</select></label></div>
+        <label class="row small"><input type="checkbox" id="e-techo"> Sólo cancha techada</label>`,
       pie: `<button type="button" class="btn" data-a="cerrar">Cerrar</button><button type="button" class="btn primary" data-a="anotarEspera">Anotar</button>`,
     });
   };
   pintar();
 }
 
-const horasOpc = (sel) => { let o = ""; for (let m = E.config.apertura; m < E.config.cierre; m += E.config.paso) o += `<option value="${m}" ${m === sel ? "selected" : ""}>${M.hhmm(m)}</option>`; return o; };
-
-// ───── plan lluvia ─────
-
-function planLluvia() {
-  const p = E.clima.pronostico?.fecha === HOY ? E.clima.pronostico : { desde: Math.ceil(AHORA.min / 30) * 30, hasta: E.config.cierre };
-  const descubiertas = E.canchas.filter((c) => !c.cubierta);
+function horarioDiaDialogo() {
+  const d = M.diaSemana(VISTA);
+  const h = E.config.horarios[d];
   abrir({
-    titulo: "Plan lluvia",
-    sub: `Para ${descubiertas.map((c) => esc(c.nombre)).join(", ") || "ninguna cancha descubierta"}. Primero intenta pasar cada turno a una techada libre; si no hay, lo suspende y deja saldo a favor.`,
-    cuerpo: `
-      ${E.clima.pronostico?.fecha === HOY ? `<p class="small" style="margin:0">🌧️ Pronóstico de ejemplo: lluvia de ${M.hhmm(p.desde)} a ${M.hhmm(p.hasta)}.</p>` : ""}
-      <div class="grid2">
-        <label class="f">Desde<select id="l-desde">${horasOpc(Math.max(E.config.apertura, Math.min(p.desde - (p.desde % 30), E.config.cierre - 30)))}</select></label>
-        <label class="f">Hasta<select id="l-hasta">${horasOpc(Math.min(E.config.cierre - 30, p.hasta - (p.hasta % 30)))}</select></label>
-      </div>`,
-    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="aplicarLluvia">Aplicar plan lluvia</button>`,
+    titulo: `Horario de los ${M.NOMBRE_DIA[d].toLowerCase()}`,
+    sub: "Cambia la agenda de todos los días iguales a este. Avisa si hay turnos reservados que quedan afuera.",
+    cuerpo: `<div class="grid2"><label class="f">Abre<select id="hd-a">${opcionesHora(h.abre, 0, 23 * 60)}</select></label><label class="f">Cierra<select id="hd-c">${opcionesHora(h.cierra, 9 * 60, 26 * 60)}</select></label></div>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="guardarHorarioDia" data-v="${d}">Guardar</button>`,
   });
 }
 
-// ───── bloqueo ─────
-
-function bloqueo() {
+function otorgarDialogo(solicitudId) {
+  const s = E.solicitudesAcceso.find((x) => x.id === solicitudId);
   abrir({
-    titulo: "Bloquear cancha",
-    sub: "Mantenimiento, torneo, evento privado. No pisa turnos: si hay alguno, primero hay que moverlo.",
-    cuerpo: `<div class="grid2">
-      <label class="f">Cancha<select id="b-c"><option value="*">Todo el club</option>${E.canchas.map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join("")}</select></label>
-      <label class="f">Desde<select id="b-d">${horasOpc(9 * 60)}</select></label>
-      <label class="f">Hasta<select id="b-h">${horasOpc(11 * 60)}</select></label>
-      <label class="f">Motivo<input id="b-m" value="Cambio de red"></label>
-    </div><p class="err" id="b-err" role="alert"></p>`,
-    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="aplicarBloqueo">Bloquear ${esc(fechaCorta(VISTA))}</button>`,
+    titulo: `Dar acceso a ${esc(s.nombre)}`,
+    sub: "El sistema genera un PIN de 2 dígitos que no repite ningún otro. Se muestra una sola vez para que se lo des.",
+    cuerpo: `<label class="f">Rol<select id="og-rol"><option value="recepcion">Recepción (agenda, cobros, buffet, remitos, egreso en efectivo)</option><option value="duenio">Dueño/a (todo)</option></select></label>${campoPin("og-pin")}`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="confirmarOtorgar" data-v="${s.id}">Dar acceso</button>`,
   });
 }
 
-// ───── caja ─────
-
-function cierreCaja() {
-  const r = M.resumenCaja(E, HOY);
+function pinPara(accion, objetivoId, titulo) {
   abrir({
-    titulo: "Cerrar caja",
-    sub: "Contá el efectivo del cajón. Lo digital (Mercado Pago, transferencias, tarjeta) ya está registrado.",
-    cuerpo: `<dl class="kv num">${Object.entries(r.porMedio).map(([k, v]) => `<dt>${M.MEDIOS[k]}</dt><dd>${M.pesos(v)}</dd>`).join("")}<dt>Fondo inicial</dt><dd>${M.pesos(E.caja.fondo)}</dd><dt class="tot">Efectivo que tiene que haber</dt><dd class="tot">${M.pesos(r.efectivoEsperado)}</dd></dl>
-      <div class="grid2"><label class="f">Quién cierra<input id="k-quien" value="Mica (recepción tarde)"></label><label class="f">Efectivo contado<input id="k-cont" type="number" min="0" value="${r.efectivoEsperado}"></label></div>
-      <p class="err" id="k-err" role="alert"></p>`,
-    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="aplicarCierre">Cerrar caja</button>`,
+    titulo,
+    sub: "Confirmá con tu PIN.",
+    cuerpo: campoPin("cf-pin"),
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="${accion}" data-v="${objetivoId}">Confirmar</button>`,
+    alAbrir(d) { $("#cf-pin", d).focus(); },
   });
-}
-
-function egreso() {
-  abrir({
-    titulo: "Registrar un gasto",
-    cuerpo: `<div class="grid2"><label class="f">Concepto<input id="g-c" placeholder="Ej.: hielo, artículos de limpieza"></label><label class="f">Monto<input id="g-m" type="number" min="1"></label></div><p class="err" id="g-err" role="alert"></p>`,
-    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="aplicarEgreso">Registrar (sale del efectivo)</button>`,
-  });
-}
-
-// ───── clientes ─────
-
-function clientes() {
-  ui.medio = "efectivo";
-  const pintar = () => {
-    const lista = [...E.clientes].sort((a, b) => (b.deuda - a.deuda) || (b.strikes - a.strikes) || a.nombre.localeCompare(b.nombre));
-    abrir({
-      titulo: "Clientes",
-      ancho: true,
-      refrescar: pintar,
-      cuerpo: `<div><p class="small muted" style="margin:0 0 6px">Cuando alguien salda una deuda, ¿cómo paga?</p><div class="medio-pick" role="group" aria-label="Medio de pago de la deuda">${Object.entries(M.MEDIOS).filter(([k]) => k !== "monedero").map(([k, v]) => `<button type="button" data-a="medio" data-v="${k}" aria-pressed="${ui.medio === k}">${v}</button>`).join("")}</div></div>
-        <div class="tbl-wrap"><table class="num"><thead><tr><th>Nombre</th><th>Nivel</th><th>Socio</th><th class="r">Faltas</th><th class="r">Debe</th><th class="r">Saldo a favor</th><th></th></tr></thead><tbody>
-        ${lista.map((c) => `<tr><td>${esc(c.nombre)}</td><td>${esc(c.nivel || "—")}</td><td>${c.socio ? "Sí" : ""}</td><td class="r">${c.strikes || ""}</td><td class="r">${c.deuda ? `<span class="chip bad">${M.pesos(c.deuda)}</span>` : ""}</td><td class="r">${c.monedero ? M.pesos(c.monedero) : ""}</td>
-          <td>${c.deuda ? `<a class="btn sm" target="_blank" rel="noopener" href="${esc(wa(M.mensajeWhatsApp("deuda", { nombre: c.nombre.split(" ")[0], monto: M.pesos(c.deuda) })))}">Recordar por WhatsApp</a> <button type="button" class="btn sm" data-a="saldarDeuda" data-v="${c.id}">Cobró</button>` : ""}${c.strikes ? ` <button type="button" class="btn sm ghost" data-a="perdonar" data-v="${c.id}">Perdonar faltas</button>` : ""}</td></tr>`).join("")}
-      </tbody></table></div>`,
-    });
-  };
-  pintar();
 }
 
 function camaraGrande(i) {
@@ -775,195 +1129,6 @@ function camaraGrande(i) {
   });
 }
 
-// ═════════════════════════════════ ACCIONES ═════════════════════════════════
-
-const acciones = {
-  formTurno: null,
-  rol: (b) => { ROL = b.dataset.v; render(); $("#app").focus(); },
-  reloj: (b) => { AHORA.min = Math.min(E.config.cierre, Math.max(E.config.apertura, AHORA.min + Number(b.dataset.v))); render(); },
-  tema: () => {
-    const raiz = document.documentElement;
-    const oscuroAhora = raiz.dataset.theme ? raiz.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-    raiz.dataset.theme = oscuroAhora ? "light" : "dark";
-    try { localStorage.setItem("bp-tema", raiz.dataset.theme); } catch { /* sin almacenamiento: vale para esta visita */ }
-  },
-  reiniciar: () => { cerrarDialogo(); iniciar(); toast("Demo reiniciada."); },
-  dia: (b) => { VISTA = b.dataset.v; render(); },
-  nuevo: (b) => nuevoTurno({ canchaId: b.dataset.c, inicio: b.dataset.m != null ? Number(b.dataset.m) : undefined }),
-  ver: (b) => verReserva(b.dataset.v),
-  cerrar: () => cerrarDialogo(),
-  luz: (b) => { E.luces[b.dataset.v] = !E.luces[b.dataset.v]; render(); },
-  mant: (b) => { const c = M.cancha(E, b.dataset.v); c.estado = c.estado === "mantenimiento" ? "ok" : "mantenimiento"; toast(`${c.nombre}: ${c.estado === "mantenimiento" ? "en mantenimiento" : "habilitada"}.`); render(); },
-  mostrador: () => mostrador(),
-  espera: () => listaEspera(),
-  lluvia: () => planLluvia(),
-  bloqueo: () => bloqueo(),
-  clientes: () => clientes(),
-  cerrarCaja: () => cierreCaja(),
-  egreso: () => egreso(),
-  cam: (b) => camaraGrande(Number(b.dataset.v)),
-
-  alerta: (b) => {
-    const a = ALERTAS[Number(b.dataset.v)];
-    if (!a) return;
-    if (a.tipo === "devolucion") {
-      const r = M.reserva(E, a.reservaId);
-      ui.medio = "efectivo";
-      return abrir({
-        titulo: "Devolver plata",
-        sub: `${esc(r.titular)} · ${M.pesos(r.devolucionPendiente)} · ${esc(r.motivoCancelacion ?? "interrupción")}`,
-        cuerpo: `<p class="small" style="margin:0">No tiene ficha de cliente, así que no se le puede dejar saldo a favor: se le devuelve. ¿Cómo?</p>
-          <div class="medio-pick" role="group" aria-label="Medio de la devolución">${Object.entries(M.MEDIOS).filter(([k]) => k !== "monedero").map(([k, v]) => `<button type="button" data-a="medio" data-v="${k}" aria-pressed="${ui.medio === k}">${v}</button>`).join("")}</div>`,
-        pie: `<button type="button" class="btn" data-a="cerrar">Después</button><button type="button" class="btn primary" data-a="devueltoYCerrar" data-v="${r.id}">Ya se devolvió</button>`,
-      });
-    }
-    if (a.reservaId) return verReserva(a.reservaId);
-    if (a.tipo === "luz") { E.luces[a.canchaId] = false; toast(`Luz de ${M.cancha(E, a.canchaId).nombre} apagada.`); return render(); }
-    if (a.tipo === "lluvia") return planLluvia();
-    if (a.tipo === "espera") {
-      const e = E.espera.find((x) => x.id === a.esperaId);
-      const msj = M.mensajeWhatsApp("espera", { nombre: e.titular.split(" ")[0], cancha: M.cancha(E, a.canchaId).nombre, hora: M.hhmm(a.inicio), fecha: "hoy" });
-      return abrir({
-        titulo: "Ofrecer el hueco",
-        sub: `${esc(e.titular)} · ${esc(M.cancha(E, a.canchaId).nombre)} ${M.hhmm(a.inicio)}`,
-        cuerpo: `<div class="wa">${esc(msj)}</div><p class="small muted" style="margin:0">Cuando conteste que sí, reservale el turno con un toque.</p>`,
-        pie: `<a class="btn" target="_blank" rel="noopener" href="${esc(wa(msj))}">Mandar por WhatsApp</a><button type="button" class="btn primary" data-a="asignarEspera" data-v="${e.id}" data-c="${a.canchaId}" data-m="${a.inicio}">Dijo que sí: reservar</button>`,
-      });
-    }
-    if (a.tipo === "stock") { ROL = "duenio"; render(); return $("#t-stock")?.scrollIntoView({ behavior: "smooth" }); }
-    if (a.tipo === "mantenimiento") {
-      const r = E.reservas.find((x) => x.fecha === HOY && x.canchaId === a.canchaId && x.estado === "reservada" && x.inicio > AHORA.min);
-      if (r) return verReserva(r.id);
-    }
-  },
-
-  // turno
-  medio: (b) => { ui.medio = b.dataset.v; b.parentElement.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); },
-  pagar: (b) => { const monto = Number($("#monto").value); hecho(M.registrarPago(E, b.dataset.v, { medio: ui.medio, monto }, AHORA), `Cobrado ${M.pesos(monto)} (${M.MEDIOS[ui.medio]}).`); },
-  pagarParte: (b) => { const monto = Number(b.dataset.m); hecho(M.registrarPago(E, b.dataset.v, { medio: ui.medio, monto, jugador: Number(b.dataset.j) }, AHORA), `Cobrado ${M.pesos(monto)} a ${M.reserva(E, b.dataset.v).jugadores[b.dataset.j].nombre}.`); },
-  consumo: (b) => hecho(M.agregarConsumo(E, b.dataset.v, $("#cons-prod").value, 1, AHORA), "Sumado a la cuenta."),
-  sumarJugador: (b) => hecho(M.sumarJugador(E, b.dataset.v, $("#nuevo-jug").value), "Jugador sumado."),
-  checkin: (b) => hecho(M.checkIn(E, b.dataset.v, AHORA), "Cancha entregada y luz prendida."),
-  finalizar: (b) => cerrarSiSale(M.finalizar(E, b.dataset.v, {}, AHORA), "Turno cerrado. Luz apagada."),
-  aCuenta: (b) => cerrarSiSale(M.finalizar(E, b.dataset.v, { dejarDeuda: true }, AHORA), "Turno cerrado con saldo a cuenta del cliente."),
-  noShow: (b) => {
-    const res = M.marcarNoShow(E, b.dataset.v, AHORA);
-    if (!res.ok) return toast(res.motivo, { error: true });
-    if (!res.ofertas.length) return cerrarSiSale(res, "Marcado como 'no vino'. Se sumó una falta.");
-    render();
-    ofrecer(res.ofertas, "Marcado como 'no vino'. Se sumó una falta.");
-  },
-  cancelar: (b) => {
-    const res = M.cancelar(E, b.dataset.v, {}, AHORA);
-    if (!res.ok) return toast(res.motivo, { error: true });
-    const texto = res.aTiempo ? (res.devuelto ? `Cancelado a tiempo: ${M.pesos(res.devuelto)} a saldo a favor.` : res.devolverEnMano ? `Cancelado a tiempo: hay que devolverle ${M.pesos(res.devolverEnMano)} (no tiene ficha).` : "Cancelado a tiempo.") : res.enSuspenso ? "Cancelado tarde: la seña queda en suspenso hasta que se venda el hueco." : "Cancelado.";
-    if (!res.ofertas.length) return cerrarSiSale(res, texto);
-    render();
-    ofrecer(res.ofertas, texto);
-  },
-  liberarFijo: (b) => {
-    const r = M.reserva(E, b.dataset.v);
-    const res = M.liberarFijo(E, r.fijoId, r.fecha, AHORA);
-    if (!res.ok) return toast(res.motivo, { error: true });
-    if (!res.ofertas?.length) return cerrarSiSale(res, "Liberado sólo esta semana; el turno fijo sigue.");
-    render();
-    ofrecer(res.ofertas, "Liberado sólo esta semana; el turno fijo sigue.");
-  },
-  mover: (b) => hecho(M.mover(E, b.dataset.v, { canchaId: $("#mover-c").value }, AHORA), "Turno movido."),
-  extender: (b) => { const res = M.extender(E, b.dataset.v, 30, AHORA); hecho(res, res.ok ? `Extendido 30′ (+${M.pesos(res.extra)}).` : ""); },
-  interrumpir: (b) => { const res = M.interrumpir(E, b.dataset.v, "corte de luz", AHORA); hecho(res, res.ok ? `Se reconocen ${M.pesos(res.credito)} por ${res.noJugados}′ sin jugar.` : ""); },
-
-  // nuevo turno
-  elegirCliente: (b) => acciones.formTurno?.elegir(b.dataset.v),
-  quitarCliente: () => acciones.formTurno?.quitar(),
-  confirmarTurno: () => acciones.formTurno?.confirmar(),
-
-  // mostrador
-  qty: (b) => { const id = b.dataset.v; ui.carrito[id] = Math.max(0, (ui.carrito[id] ?? 0) + Number(b.dataset.m)); if (!ui.carrito[id]) delete ui.carrito[id]; dialogoActual?.refrescar?.(); },
-  cobrarMostrador: () => {
-    const items = Object.entries(ui.carrito).map(([productoId, cant]) => ({ productoId, cant }));
-    const destino = $("#v-dest")?.value;
-    if (destino) {
-      for (const it of items) { const res = M.agregarConsumo(E, destino, it.productoId, it.cant, AHORA); if (!res.ok) return toast(res.motivo); }
-      ui.carrito = {}; ui.cuentaDe = ""; cerrarDialogo(); render(); return toast("Cargado a la cuenta del turno.");
-    }
-    const res = M.ventaMostrador(E, items, ui.medio, AHORA);
-    if (!res.ok) return toast(res.motivo);
-    ui.carrito = {}; cerrarDialogo(); render(); toast(`Venta cobrada: ${M.pesos(res.total)}.`);
-  },
-
-  // espera
-  anotarEspera: () => {
-    const nombre = $("#e-nom").value.trim();
-    if (!nombre) { $("#e-err").textContent = "Falta el nombre."; return; }
-    const desde = Number($("#e-desde").value), hasta = Number($("#e-hasta").value);
-    if (hasta < desde) { $("#e-err").textContent = "El 'hasta' tiene que ser después del 'desde'."; return; }
-    M.anotarEspera(E, { titular: nombre, fecha: $("#e-dia").value, desde, hasta, soloCubierta: $("#e-techo").checked }, AHORA);
-    toast(`${nombre} quedó en la lista de espera.`); render();
-  },
-  asignarEspera: (b) => {
-    const res = M.asignarDesdeEspera(E, b.dataset.v, { canchaId: b.dataset.c, inicio: Number(b.dataset.m) }, AHORA);
-    if (dialogoActual?.refrescar) return hecho(res, "Turno reservado desde la lista de espera.");
-    cerrarSiSale(res, "Turno reservado desde la lista de espera.");
-  },
-  sacarEspera: (b) => { E.espera = E.espera.filter((e) => e.id !== b.dataset.v); render(); },
-
-  aplicarLluvia: () => {
-    const res = M.planLluvia(E, HOY, Number($("#l-desde").value), Number($("#l-hasta").value) + E.config.paso, AHORA);
-    render();
-    abrir({
-      titulo: "Plan lluvia aplicado",
-      sub: res.resultado.length ? `${res.resultado.length} turno(s) resueltos. Avisá a cada uno:` : "No había turnos en canchas descubiertas en ese horario.",
-      cuerpo: res.resultado.map((x) => {
-        const r = M.reserva(E, x.reservaId);
-        const nombre = x.titular.split(" ")[0];
-        if (x.accion === "cortado")
-          return `<div><p style="margin:0"><b>${esc(x.titular)}</b> — estaban jugando: se cortó con ${x.noJugados}′ sin jugar y se reconocen ${M.pesos(x.credito)}. Cobrá lo jugado y lo consumido, y cerrá el turno.</p><button type="button" class="btn sm" style="margin-top:6px" data-a="ver" data-v="${r.id}">Abrir el turno</button></div>`;
-        const msj = x.accion === "movido"
-          ? M.mensajeWhatsApp("lluvia_movido", { nombre, hora: M.hhmm(r.inicio), cancha: x.cancha })
-          : x.devolverEnMano
-            ? M.mensajeWhatsApp("lluvia_devolucion", { nombre, hora: M.hhmm(r.inicio), monto: M.pesos(x.devolverEnMano) })
-            : M.mensajeWhatsApp("lluvia_suspendido", { nombre, hora: M.hhmm(r.inicio), credito: x.credito ? M.pesos(x.credito) : "" });
-        const que = x.accion === "movido" ? `pasa a ${esc(x.cancha)}` : `suspendido${x.credito ? `, ${M.pesos(x.credito)} a saldo a favor` : x.devolverEnMano ? `, hay que devolverle ${M.pesos(x.devolverEnMano)}` : ""}`;
-        return `<div><p style="margin:0 0 4px"><b>${esc(x.titular)}</b> — ${que}</p><div class="wa">${esc(msj)}</div><a class="btn sm" style="margin-top:6px" target="_blank" rel="noopener" href="${esc(wa(msj))}">Mandar</a></div>`;
-      }).join("") || `<p class="empty">Nada que mover.</p>`,
-      pie: `<button type="button" class="btn primary" data-a="cerrar">Listo</button>`,
-    });
-  },
-  aplicarBloqueo: () => {
-    const res = M.bloquear(E, { canchaId: $("#b-c").value, fecha: VISTA, desde: Number($("#b-d").value), hasta: Number($("#b-h").value), motivo: $("#b-m").value.trim() || "Bloqueo" }, AHORA);
-    if (!res.ok) { $("#b-err").textContent = res.motivo; return; }
-    cerrarDialogo(); render(); toast("Cancha bloqueada.");
-  },
-  aplicarCierre: () => {
-    const res = M.cerrarCaja(E, { contado: $("#k-cont").value, responsable: $("#k-quien").value.trim() || "Recepción" }, AHORA);
-    if (!res.ok) { $("#k-err").textContent = res.motivo; return; }
-    cerrarDialogo(); render();
-    toast(res.cierre.diferencia === 0 ? "Caja cerrada: cuadra justo." : `Caja cerrada con diferencia de ${M.pesos(res.cierre.diferencia)}. El dueño la ve en su tablero.`);
-  },
-  aplicarEgreso: () => {
-    const res = M.egresoCaja(E, { monto: $("#g-m").value, concepto: $("#g-c").value }, AHORA);
-    if (!res.ok) { $("#g-err").textContent = res.motivo; return; }
-    cerrarDialogo(); render(); toast("Gasto registrado.");
-  },
-  saldarDeuda: (b) => { const res = M.cobrarDeuda(E, b.dataset.v, ui.medio, AHORA); hecho(res, res.ok ? `Saldó ${M.pesos(res.monto)} (${M.MEDIOS[ui.medio]}).` : ""); },
-  devueltoYCerrar: (b) => { const res = M.marcarDevuelto(E, b.dataset.v, ui.medio, AHORA); if (!res.ok) return toast(res.motivo, { error: true }); cerrarDialogo(); render(); toast(`Devolución de ${M.pesos(res.monto)} registrada.`); },
-  devuelto: (b) => { const res = M.marcarDevuelto(E, b.dataset.v, ui.medio, AHORA); hecho(res, res.ok ? `Devolución de ${M.pesos(res.monto)} registrada.` : ""); },
-  perdonar: (b) => { M.cliente(E, b.dataset.v).strikes = 0; render(); },
-
-  // dueño
-  ingreso: (b) => { const n = $(`#in-${CSS.escape(b.dataset.v)}`).value; hecho(M.ingresarStock(E, b.dataset.v, n, AHORA), `Entraron ${Math.round(Number(n))} × ${M.producto(E, b.dataset.v).nombre}.`); },
-};
-
-/** Para acciones que terminan la ventana: si sale bien se cierra y avisa afuera; si no, el error queda adentro. */
-function cerrarSiSale(res, okTexto) {
-  if (!res.ok) { toast(res.motivo, { error: true }); return false; }
-  cerrarDialogo();
-  render();
-  if (okTexto) toast(okTexto);
-  return true;
-}
-
 function ofrecer(ofertas, previo = "") {
   if (!ofertas?.length) return;
   const o = ofertas[0];
@@ -975,22 +1140,289 @@ function ofrecer(ofertas, previo = "") {
   });
 }
 
-// Inputs de reglas (dueño): cambian la política en vivo.
+// ═════════════════════════════════ ACCIONES ═════════════════════════════════
+
+const val = (sel) => $(sel)?.value ?? "";
+const ultimoMedio = () => (ui.medio === "monedero" ? "efectivo" : ui.medio);
+
+const acciones = {
+  tab: (b) => { TAB = b.dataset.v; cerrarDialogo(); render(); $("#app").focus(); },
+  reloj: (b) => { const { abre, cierra } = M.horarioDe(E, HOY); AHORA.min = Math.min(cierra, Math.max(abre, AHORA.min + Number(b.dataset.v))); render(); },
+  tema: () => {
+    const raiz = document.documentElement;
+    const oscuroAhora = raiz.dataset.theme ? raiz.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    raiz.dataset.theme = oscuroAhora ? "light" : "dark";
+    try { localStorage.setItem("bp-tema", raiz.dataset.theme); } catch { /* sin almacenamiento: vale para esta visita */ }
+  },
+  reiniciar: () => { cerrarDialogo(); iniciar(); toast("Demo reiniciada."); },
+  cerrar: () => cerrarDialogo(),
+  dia: (b) => { VISTA = b.dataset.v; render(); },
+  luz: (b) => { E.luces[b.dataset.v] = !E.luces[b.dataset.v]; render(); },
+  medio: (b) => { ui.medio = b.dataset.v; b.parentElement.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); },
+
+  // usuario y accesos
+  usuario: () => cambiarUsuario(),
+  elegirUsuario: (b) => acciones._setElegido?.(b.dataset.v),
+  entrar: () => {
+    const res = M.verificarPin(E, acciones._elegido?.(), val("#pin-usuario"));
+    if (!res.ok) return toast(res.motivo, { error: true });
+    USUARIO = res.usuario.id;
+    cerrarSiSale(res, `Hola, ${res.usuario.nombre.split(" ")[0]}.`);
+  },
+  pedirAcceso: () => cerrarSiSale(M.solicitarAcceso(E, val("#nuevo-acceso"), AHORA), "Listo: el pedido le llegó al dueño. Cuando lo apruebe te da el PIN."),
+  otorgar: (b) => otorgarDialogo(b.dataset.v),
+  confirmarOtorgar: (b) => {
+    const res = M.otorgarAcceso(E, b.dataset.v, { rol: val("#og-rol") }, auth(val("#og-pin")), AHORA);
+    if (!res.ok) return toast(res.motivo, { error: true });
+    render();
+    abrir({ titulo: "Acceso otorgado ✔", sub: `${esc(res.usuario.nombre)} · ${M.ROLES[res.usuario.rol]}`, cuerpo: `<p style="margin:0">Su PIN es</p><p class="pin-in num" style="margin:8px auto">${esc(res.pin)}</p><p class="small muted" style="margin:0">Dáselo en persona. No se vuelve a mostrar; si lo pierde, generá uno nuevo desde Ajustes.</p>`, pie: `<button type="button" class="btn primary" data-a="cerrar">Listo</button>` });
+  },
+  rechazarAcceso: (b) => hecho(M.rechazarAcceso(E, b.dataset.v, auth(), AHORA), "Pedido de acceso rechazado."),
+  revocar: (b) => pinPara("confirmarRevocar", b.dataset.v, `Sacar el acceso a ${M.usuario(E, b.dataset.v).nombre}`),
+  confirmarRevocar: (b) => cerrarSiSale(M.revocarAcceso(E, b.dataset.v, auth(val("#cf-pin")), AHORA), "Acceso revocado."),
+  regenerarPin: (b) => pinPara("confirmarRegenerar", b.dataset.v, `PIN nuevo para ${M.usuario(E, b.dataset.v).nombre}`),
+  confirmarRegenerar: (b) => {
+    const res = M.regenerarPin(E, b.dataset.v, auth(val("#cf-pin")), AHORA);
+    if (!res.ok) return toast(res.motivo, { error: true });
+    render();
+    abrir({ titulo: "PIN nuevo ✔", cuerpo: `<p class="pin-in num">${esc(res.pin)}</p><p class="small muted">Dáselo en persona; no se vuelve a mostrar.</p>`, pie: `<button type="button" class="btn primary" data-a="cerrar">Listo</button>` });
+  },
+
+  alerta: (b) => {
+    const a = ALERTAS[Number(b.dataset.v)];
+    if (!a) return;
+    if (a.tipo === "devolucion") {
+      const r = M.reserva(E, a.reservaId);
+      ui.medio = "efectivo";
+      return abrir({ titulo: "Devolver plata", sub: `${esc(r.titular)} · ${M.pesos(r.devolucionPendiente)}`, cuerpo: `<p class="small" style="margin:0">No tiene ficha de cliente, así que no se le pueden dejar créditos: se le devuelve. ¿Cómo?</p>${pickMedios()}`, pie: `<button type="button" class="btn" data-a="cerrar">Después</button><button type="button" class="btn primary" data-a="devuelto" data-v="${r.id}">Ya se devolvió</button>` });
+    }
+    if (a.tipo === "falta_sin_ficha") {
+      const r = M.reserva(E, a.reservaId);
+      ui.medio = "efectivo";
+      return abrir({ titulo: "Cobrar la falta", sub: `${esc(r.titular)} · ${M.pesos(r.deudaSinFicha)}`, cuerpo: pickMedios(), pie: `<button type="button" class="btn" data-a="cerrar">Después</button><button type="button" class="btn primary" data-a="cobrarFalta" data-v="${r.id}">Cobrar</button>` });
+    }
+    if (a.reservaId) return verReserva(a.reservaId);
+    if (a.tipo === "luz") { E.luces[a.canchaId] = false; render(); return toast(`Luz de ${M.cancha(E, a.canchaId).nombre} apagada.`); }
+    if (a.tipo === "lluvia" || a.tipo === "mantenimiento") return mantenimientoDialogo();
+    if (a.tipo === "autorizacion" || a.tipo === "acceso") { TAB = "tablero"; return render(); }
+    if (a.tipo === "stock") { if (puedo("stock")) { TAB = "stock"; return render(); } return toast("Avisale al dueño: hay que reponer."); }
+    if (a.tipo === "espera") {
+      const e = E.espera.find((x) => x.id === a.esperaId);
+      const msj = M.mensajeWhatsApp("espera", { nombre: e.titular.split(" ")[0], cancha: M.cancha(E, a.canchaId).nombre, hora: M.hhmm(a.inicio), fecha: "hoy" });
+      return abrir({ titulo: "Ofrecer el hueco", sub: `${esc(e.titular)} · ${esc(M.cancha(E, a.canchaId).nombre)} ${M.hhmm(a.inicio)}`, cuerpo: `<div class="wa">${esc(msj)}</div>`, pie: `<a class="btn" target="_blank" rel="noopener" href="${esc(wa(msj))}">Mandar por WhatsApp</a><button type="button" class="btn primary" data-a="asignarEspera" data-v="${e.id}" data-c="${a.canchaId}" data-m="${a.inicio}">Dijo que sí: reservar</button>` });
+    }
+  },
+
+  // agenda
+  nuevo: (b) => nuevoTurno({ canchaId: b.dataset.c, inicio: b.dataset.m != null ? Number(b.dataset.m) : undefined }),
+  ver: (b) => verReserva(b.dataset.v),
+  elegirCliente: (b) => acciones._turno?.elegir(b.dataset.v),
+  quitarCliente: () => acciones._turno?.quitar(),
+  confirmarTurno: () => acciones._turno?.confirmar(),
+  espera: () => listaEspera(),
+  mantenimiento: () => mantenimientoDialogo(),
+  horarioDia: () => horarioDiaDialogo(),
+  guardarHorarioDia: (b) => cerrarSiSale(M.ajustarHorario(E, Number(b.dataset.v), { abre: val("#hd-a"), cierra: val("#hd-c") }, auth(), AHORA), (r) => (r.afuera.length ? `Horario guardado. Ojo: ${r.afuera.length} turno(s) reservado(s) quedan fuera del horario nuevo.` : "Horario guardado.")),
+  guardarHorario: (b) => {
+    const d = Number(b.dataset.v);
+    hecho(M.ajustarHorario(E, d, { abre: val(`#ha-${d}`), cierra: val(`#hc-${d}`) }, auth(), AHORA), (r) => `Horario de los ${M.NOMBRE_DIA[d].toLowerCase()} guardado.${r.afuera.length ? ` ${r.afuera.length} turno(s) quedan afuera.` : ""}`);
+  },
+
+  // turno
+  pagar: (b) => { const monto = Number(val("#monto")); hecho(M.registrarPago(E, b.dataset.v, { medio: ui.medio, monto }, AHORA), `Cobrado ${M.pesos(monto)} de cancha.`); },
+  pagarParte: (b) => { const monto = Number(b.dataset.m); hecho(M.registrarPago(E, b.dataset.v, { medio: ui.medio, monto, jugador: Number(b.dataset.j) }, AHORA), `Cobrado ${M.pesos(monto)}.`); },
+  jugador: (b) => acciones._jugador?.(b.dataset.v),
+  consumo: (b) => {
+    const pid = ui.producto.turno;
+    if (!pid) return toast("Buscá y elegí un producto.", { error: true });
+    const res = M.consumoJugador(E, b.dataset.v, acciones._jugadorSel?.() ?? 0, pid, Number(val("#cant-turno")) || 1, { modo: b.dataset.m, medio: ultimoMedio() }, AHORA);
+    if (res.ok) { ui.producto.turno = null; ui.busca.turno = ""; }
+    hecho(res, b.dataset.m === "cobrar" ? "Cargado y cobrado." : "Sumado a su cuenta.");
+  },
+  sumarJugador: (b) => hecho(M.sumarJugador(E, b.dataset.v, val("#nuevo-jug")), "Jugador sumado."),
+  checkin: (b) => hecho(M.checkIn(E, b.dataset.v, AHORA), "Cancha abierta y luz prendida."),
+  finalizar: (b) => cerrarSiSale(M.finalizar(E, b.dataset.v, {}, AHORA), (r) => `Cancha cerrada.${r.cuentasAbiertas.length ? ` Quedan ${r.cuentasAbiertas.length} cuenta(s) de buffet abiertas.` : ""}`),
+  aCuenta: (b) => cerrarSiSale(M.finalizar(E, b.dataset.v, { aCuenta: true }, AHORA), "Cancha cerrada; el saldo pasó a la cuenta corriente."),
+  falta: (b) => faltaDialogo(b.dataset.v),
+  marcarFalta: (b) => {
+    const res = M.marcarNoShow(E, b.dataset.v, { cobrarA: b.dataset.m }, AHORA);
+    if (!res.ok) return toast(res.motivo, { error: true });
+    const texto = res.cargos.length ? `Falta cobrada: ${res.cargos.map((c) => `${c.nombre} ${M.pesos(c.monto)}`).join(", ")}.` : "Falta registrada sin cargo.";
+    if (!res.ofertas.length) return cerrarSiSale(res, texto);
+    render();
+    ofrecer(res.ofertas, texto);
+  },
+  cancelar: (b) => {
+    const res = M.cancelar(E, b.dataset.v, {}, AHORA);
+    if (!res.ok) return toast(res.motivo, { error: true });
+    const texto = res.aTiempo ? (res.devuelto ? `Cancelado a tiempo: ${M.pesos(res.devuelto)} como crédito.` : res.devolverEnMano ? `Cancelado a tiempo: hay que devolverle ${M.pesos(res.devolverEnMano)}.` : "Cancelado a tiempo.") : res.enSuspenso ? "Cancelado tarde: la seña queda en suspenso hasta que se venda el hueco." : "Cancelado.";
+    if (!res.ofertas.length) return cerrarSiSale(res, texto);
+    render();
+    ofrecer(res.ofertas, texto);
+  },
+  liberarFijo: (b) => {
+    const r = M.reserva(E, b.dataset.v);
+    const res = M.liberarFijo(E, r.fijoId, r.fecha, AHORA);
+    if (!res.ok) return toast(res.motivo, { error: true });
+    if (!res.ofertas?.length) return cerrarSiSale(res, "Liberado sólo esta semana; el turno fijo sigue.");
+    render();
+    ofrecer(res.ofertas, "Liberado sólo esta semana.");
+  },
+  mover: (b) => hecho(M.mover(E, b.dataset.v, { canchaId: val("#mover-c") }, AHORA), "Turno movido."),
+  extender: (b) => hecho(M.extender(E, b.dataset.v, 30, AHORA), (r) => `Extendido 30′ (+${M.pesos(r.extra)}).`),
+  interrumpir: (b) => hecho(M.interrumpir(E, b.dataset.v, "corte de luz", AHORA), (r) => `Se reconocen ${M.pesos(r.credito)} por ${r.noJugados}′ sin jugar.`),
+  devuelto: (b) => cerrarSiSale(M.marcarDevuelto(E, b.dataset.v, ultimoMedio(), AHORA), (r) => `Devolución de ${M.pesos(r.monto)} registrada.`),
+  cobrarFalta: (b) => cerrarSiSale(M.cobrarFaltaSinFicha(E, b.dataset.v, ultimoMedio(), AHORA), (r) => `Falta cobrada: ${M.pesos(r.monto)}.`),
+
+  // buffet
+  elegirProducto: (b) => { ui.producto[b.dataset.c] = b.dataset.v; if (dialogoActual?.refrescar) dialogoActual.refrescar(); else render(); },
+  abrirConsumo: () => abrirConsumo(),
+  abrirCuentaCliente: (b) => { const res = M.abrirCuenta(E, { clienteId: b.dataset.v }, AHORA); if (!res.ok) return toast(res.motivo, { error: true }); ui.busca.cliCons = ""; render(); verCuenta(res.cuenta.id); },
+  abrirCuentaLibre: () => { const res = M.abrirCuenta(E, { titular: val("#cons-libre"), reservaId: `libre-${Date.now()}` }, AHORA); if (!res.ok) return toast(res.motivo, { error: true }); render(); verCuenta(res.cuenta.id); },
+  verCuenta: (b) => verCuenta(b.dataset.v),
+  cargarCuenta: (b) => {
+    const pid = ui.producto.cuenta;
+    if (!pid) return toast("Buscá y elegí un producto.", { error: true });
+    const res = M.cargarEnCuenta(E, b.dataset.v, pid, Number(val("#cant-cuenta")) || 1, AHORA);
+    if (res.ok) { ui.producto.cuenta = null; ui.busca.cuenta = ""; }
+    hecho(res, "Cargado.");
+  },
+  rapido: (b) => hecho(M.cargarEnCuenta(E, b.dataset.v, b.dataset.c, 1, AHORA), "Cargado."),
+  pagarCuenta: (b) => hecho(M.pagarCuenta(E, b.dataset.v, { medio: ui.medio, monto: val("#monto-cta") }, AHORA), "Cobrado."),
+  cerrarCuenta: (b) => cerrarSiSale(M.cerrarCuenta(E, b.dataset.v, { aCuenta: b.dataset.m === "cuenta" }, AHORA), b.dataset.m === "cuenta" ? "Cuenta cerrada; el saldo pasó a la cuenta corriente." : "Cuenta cerrada."),
+  mostrador: () => mostrador(),
+  sumarCarrito: () => { const pid = ui.producto.mostrador; if (!pid) return toast("Buscá y elegí un producto.", { error: true }); ui.carrito[pid] = (ui.carrito[pid] ?? 0) + 1; ui.producto.mostrador = null; ui.busca.mostrador = ""; dialogoActual?.refrescar?.(); },
+  qty: (b) => { const id = b.dataset.v; ui.carrito[id] = Math.max(0, (ui.carrito[id] ?? 0) + Number(b.dataset.m)); if (!ui.carrito[id]) delete ui.carrito[id]; dialogoActual?.refrescar?.(); },
+  cobrarMostrador: () => { const res = M.ventaMostrador(E, Object.entries(ui.carrito).map(([productoId, cant]) => ({ productoId, cant })), ultimoMedio(), AHORA); if (res.ok) ui.carrito = {}; cerrarSiSale(res, (r) => `Venta cobrada: ${M.pesos(r.total)}.`); },
+
+  // caja
+  egreso: () => egresoDialogo(),
+  aplicarEgreso: () => cerrarSiSale(M.egresoCaja(E, { monto: val("#g-m"), concepto: val("#g-c"), usuarioId: USUARIO, pin: val("#g-pin") }, AHORA), "Egreso registrado."),
+  cerrarCaja: () => cierreCajaDialogo(),
+  aplicarCierre: () => cerrarSiSale(M.cerrarCaja(E, { contado: val("#k-cont"), usuarioId: USUARIO, pin: val("#k-pin") }, AHORA), (r) => (r.cierre.diferencia === 0 ? "Caja cerrada: cuadra justo." : `Caja cerrada con diferencia de ${M.pesos(r.cierre.diferencia)}.`)),
+  remito: () => remitoDialogo(),
+  remitoAgregar: () => { const pid = ui.producto.remito; if (!pid) return toast("Buscá y elegí un producto.", { error: true }); sumarAlRemito(pid, 1); ui.producto.remito = null; ui.busca.remito = ""; dialogoActual?.refrescar?.(); },
+  remitoQuitar: (b) => { ui.remito.items.splice(Number(b.dataset.v), 1); dialogoActual?.refrescar?.(); },
+  guardarRemito: () => {
+    const R = ui.remito;
+    const res = M.registrarRemito(E, { proveedorId: R.proveedorId, numero: R.numero, items: R.items }, auth(), AHORA);
+    if (res.ok) ui.remito = null;
+    cerrarSiSale(res, (r) => `Remito ${r.remito.numero} cargado: ${M.pesos(r.remito.total)}.`);
+  },
+
+  // clientes
+  altaCliente: () => altaClienteDialogo(),
+  guardarAltaCliente: () => { const res = M.altaCliente(E, { nombre: val("#n-nom"), tel: val("#n-tel"), nivel: val("#n-niv") }, AHORA); if (!res.ok) return toast(res.motivo, { error: true }); render(); fichaCliente(res.cliente.id); toast("Cliente dado de alta."); },
+  fichaCliente: (b) => fichaCliente(b.dataset.v),
+  guardarCliente: (b) => hecho(M.editarCliente(E, b.dataset.v, { nombre: val("#c-nom"), tel: val("#c-tel"), nivel: val("#c-niv") }, AHORA), "Ficha guardada."),
+  bajaCliente: (b) => cerrarSiSale(M.bajaCliente(E, b.dataset.v, AHORA), "Cliente dado de baja."),
+  ccPedir: (b) => hecho(M.solicitarCC(E, b.dataset.v, { limite: val("#cc-pedir"), nota: val("#cc-nota") }, auth(), AHORA), "Pedido enviado al dueño."),
+  ccGuardar: (b) => hecho(M.configurarCC(E, b.dataset.v, { habilitada: true, limite: val("#cc-lim") }, auth(), AHORA), "Cuenta corriente actualizada."),
+  ccCortar: (b) => hecho(M.configurarCC(E, b.dataset.v, { habilitada: false }, auth(), AHORA), "Cuenta corriente cortada."),
+  cobrarDeuda: (b) => hecho(M.cobrarDeuda(E, b.dataset.v, { medio: ultimoMedio(), monto: val("#cc-monto") }, AHORA), (r) => `Cobrado ${M.pesos(r.monto)}. Saldo: ${M.pesos(r.saldo)}.`),
+  aprobarCC: (b) => hecho(M.resolverCC(E, b.dataset.v, { aprobar: true, limite: val(`#lim-${b.dataset.v}`) }, auth(), AHORA), "Cuenta corriente habilitada."),
+  rechazarCC: (b) => hecho(M.resolverCC(E, b.dataset.v, { aprobar: false }, auth(), AHORA), "Pedido rechazado."),
+
+  // proveedores
+  altaProveedor: () => altaProveedorDialogo(),
+  guardarAltaProveedor: () => cerrarSiSale(M.altaProveedor(E, { nombre: val("#np-nom"), rubro: val("#np-rub"), cuit: val("#np-cuit"), tel: val("#np-tel") }, auth(), AHORA), "Proveedor dado de alta."),
+  fichaProveedor: (b) => fichaProveedor(b.dataset.v),
+  guardarProveedor: (b) => hecho(M.editarProveedor(E, b.dataset.v, { nombre: val("#pv-nom"), rubro: val("#pv-rub"), cuit: val("#pv-cuit"), tel: val("#pv-tel") }, auth(), AHORA), "Proveedor guardado."),
+  pagarProveedor: (b) => hecho(M.pagarProveedor(E, { proveedorId: b.dataset.v, medio: ui.medio, monto: val("#pp-monto") }, auth(val("#pp-pin")), AHORA), (r) => `Pago registrado. Saldo: ${M.pesos(r.saldo)}.`),
+
+  // stock
+  altaProducto: () => productoDialogo(null),
+  editarProducto: (b) => productoDialogo(b.dataset.v),
+  guardarProducto: (b) => {
+    const id = b.dataset.v;
+    const res = id
+      ? M.editarProducto(E, id, { nombre: val("#pr-nom"), precio: val("#pr-pre"), costo: val("#pr-cos"), minimo: $("#pr-min") ? val("#pr-min") : null, codigo: val("#pr-cod") }, auth(), AHORA)
+      : M.altaProducto(E, { nombre: val("#pr-nom"), categoria: val("#pr-cat"), precio: val("#pr-pre"), costo: val("#pr-cos"), minimo: val("#pr-min"), stock: val("#pr-stk"), codigo: val("#pr-cod"), plato: $("#pr-plato")?.checked }, auth(), AHORA);
+    cerrarSiSale(res, id ? "Producto guardado." : "Producto dado de alta.");
+  },
+
+  // contenido
+  mes: (b) => { const n = Number(b.dataset.v); if (n === 0) ui.mes = HOY.slice(0, 7); else { const [a, m] = ui.mes.split("-").map(Number); ui.mes = new Date(Date.UTC(a, m - 1 + n, 1)).toISOString().slice(0, 7); } render(); },
+  nuevoContenido: (b) => contenidoDialogo({ fecha: b.dataset.v }),
+  verContenido: (b) => contenidoDialogo({ id: b.dataset.v }),
+  guardarContenido: (b) => {
+    const datos = { fecha: val("#ct-fecha"), hora: val("#ct-hora"), canal: val("#ct-canal"), estado: val("#ct-estado"), titulo: val("#ct-titulo"), texto: val("#ct-texto") };
+    cerrarSiSale(b.dataset.v ? M.editarContenido(E, b.dataset.v, datos, auth()) : M.agregarContenido(E, datos, auth()), "Publicación guardada.");
+  },
+  borrarContenido: (b) => cerrarSiSale(M.borrarContenido(E, b.dataset.v, auth()), "Publicación borrada."),
+
+  // mantenimiento y lluvia
+  mantOn: (b) => hecho(M.configurarMantenimiento(E, b.dataset.v, { activo: true, motivo: val(`#mm-${b.dataset.v}`) }, AHORA), "Cancha en mantenimiento."),
+  mantOff: (b) => hecho(M.configurarMantenimiento(E, b.dataset.v, { activo: false }, AHORA), "Cancha habilitada."),
+  aplicarBloqueo: () => hecho(M.bloquear(E, { canchaId: val("#b-c"), fecha: VISTA, desde: Number(val("#b-d")), hasta: Number(val("#b-h")), motivo: val("#b-m").trim() || "Bloqueo" }, AHORA), "Horario bloqueado."),
+  quitarBloqueo: (b) => hecho(M.quitarBloqueo(E, b.dataset.v, AHORA), "Bloqueo quitado."),
+  aplicarLluvia: () => {
+    const res = M.planLluvia(E, HOY, Number(val("#l-desde")), Number(val("#l-hasta")) + E.config.paso, AHORA);
+    render();
+    abrir({
+      titulo: "Plan lluvia aplicado",
+      sub: res.resultado.length ? `${res.resultado.length} turno(s) resueltos. Avisá a cada uno:` : "No había turnos en canchas descubiertas en ese horario.",
+      cuerpo: res.resultado.map((x) => {
+        const r = M.reserva(E, x.reservaId);
+        const nombre = x.titular.split(" ")[0];
+        if (x.accion === "cortado") return `<div><p style="margin:0"><b>${esc(x.titular)}</b> — estaban jugando: ${x.noJugados}′ sin jugar, se reconocen ${M.pesos(x.credito)}. Cobrá lo jugado y cerrá la cancha.</p><button type="button" class="btn sm" style="margin-top:6px" data-a="ver" data-v="${r.id}">Abrir el turno</button></div>`;
+        const msj = x.accion === "movido" ? M.mensajeWhatsApp("lluvia_movido", { nombre, hora: M.hhmm(r.inicio), cancha: x.cancha })
+          : x.devolverEnMano ? M.mensajeWhatsApp("lluvia_devolucion", { nombre, hora: M.hhmm(r.inicio), monto: M.pesos(x.devolverEnMano) })
+          : M.mensajeWhatsApp("lluvia_suspendido", { nombre, hora: M.hhmm(r.inicio), credito: x.credito ? M.pesos(x.credito) : "" });
+        const que = x.accion === "movido" ? `pasa a ${esc(x.cancha)}` : `suspendido${x.credito ? `, ${M.pesos(x.credito)} como crédito` : x.devolverEnMano ? `, hay que devolverle ${M.pesos(x.devolverEnMano)}` : ""}`;
+        return `<div><p style="margin:0 0 4px"><b>${esc(x.titular)}</b> — ${que}</p><div class="wa">${esc(msj)}</div><a class="btn sm" style="margin-top:6px" target="_blank" rel="noopener" href="${esc(wa(msj))}">Mandar</a></div>`;
+      }).join("") || `<p class="empty">Nada que mover.</p>`,
+      pie: `<button type="button" class="btn primary" data-a="cerrar">Listo</button>`,
+    });
+  },
+
+  // espera
+  anotarEspera: () => {
+    const nombre = val("#e-nom").trim();
+    if (!nombre) return toast("Falta el nombre.", { error: true });
+    const desde = Number(val("#e-desde")), hasta = Number(val("#e-hasta"));
+    if (hasta < desde) return toast("El 'hasta' tiene que ser después del 'desde'.", { error: true });
+    M.anotarEspera(E, { titular: nombre, fecha: val("#e-dia"), desde, hasta, soloCubierta: $("#e-techo").checked }, AHORA);
+    render(); toast(`${nombre} quedó en la lista de espera.`);
+  },
+  asignarEspera: (b) => {
+    const res = M.asignarDesdeEspera(E, b.dataset.v, { canchaId: b.dataset.c, inicio: Number(b.dataset.m) }, AHORA);
+    if (dialogoActual?.refrescar) return hecho(res, "Turno reservado desde la lista de espera.");
+    cerrarSiSale(res, "Turno reservado desde la lista de espera.");
+  },
+  sacarEspera: (b) => { E.espera = E.espera.filter((e) => e.id !== b.dataset.v); render(); },
+
+  cam: (b) => camaraGrande(Number(b.dataset.v)),
+};
+
+// Buscadores con lupa: re-pintan al escribir sin perder el foco ni el cursor.
+document.addEventListener("input", (ev) => {
+  const t = ev.target;
+  if (!(t instanceof HTMLInputElement) || !t.dataset.busca) return;
+  ui.busca[t.dataset.busca] = t.value;
+  const pos = t.selectionStart;
+  const id = t.id;
+  if ($("#dlg").open && t.closest("dialog")) dialogoActual?.refrescar?.(); else render();
+  const otra = document.getElementById(id);
+  if (otra) { otra.focus(); try { otra.setSelectionRange(pos, pos); } catch { /* algunos tipos no admiten selección */ } }
+});
+
 document.addEventListener("change", (ev) => {
   const t = ev.target;
   if (!(t instanceof HTMLInputElement)) return;
-  const v = Number(t.value);
-  if (!(v >= 0)) return;
+  if (t.dataset.rem && ui.remito) {
+    const i = ui.remito.items[Number(t.dataset.k)];
+    const v = Math.round(Number(t.value));
+    if (i && v >= 0) { i[t.dataset.rem] = t.dataset.rem === "cant" ? Math.max(1, v) : v; dialogoActual?.refrescar?.(); }
+    return;
+  }
+  if (t.dataset.a === "jugador") return acciones.jugador(t);
   if (t.dataset.a === "regla") {
-    const res = M.ajustarPolitica(E, t.dataset.v, v);
-    if (!res.ok) { t.value = E.config.politica[t.dataset.v]; return toast(res.motivo, { error: true }); }
+    const res = M.ajustarPolitica(E, t.dataset.v, t.value);
+    if (!res.ok) { t.value = E.config.politica[t.dataset.v] ?? ""; return toast(res.motivo, { error: true }); }
     render(); toast("Regla actualizada.");
   }
-  if (t.dataset.a === "tarifa") { E.config.tarifas[Number(t.dataset.v)].precioHora = Math.round(v); render(); toast("Precio actualizado para turnos nuevos."); }
-  if (t.dataset.a === "socio") {
-    if (v > 100) { t.value = E.config.descuentoSocioPct; return toast("El descuento va de 0 a 100 %.", { error: true }); }
-    E.config.descuentoSocioPct = Math.round(v); render(); toast("Descuento de socio actualizado.");
-  }
+  if (t.dataset.a === "tarifa") { const v = Number(t.value); if (!(v >= 0)) return; E.config.tarifas[Number(t.dataset.v)].precioHora = Math.round(v); render(); toast("Precio actualizado para turnos nuevos."); }
 });
 
 document.addEventListener("click", (ev) => {
@@ -998,6 +1430,14 @@ document.addEventListener("click", (ev) => {
   if (!b || b.tagName === "INPUT" || b.disabled) return;
   const fn = acciones[b.dataset.a];
   if (typeof fn === "function") { ev.preventDefault(); fn(b); }
+});
+
+// Enter en un campo de PIN confirma la ventana.
+document.addEventListener("keydown", (ev) => {
+  const t = ev.target;
+  if (ev.key !== "Enter" || !(t instanceof HTMLInputElement) || t.type !== "password") return;
+  const primario = t.closest("dialog")?.querySelector(".dlg-f .btn.primary");
+  if (primario && !primario.disabled) { ev.preventDefault(); primario.click(); }
 });
 
 $("#dlg").addEventListener("close", () => { dialogoActual = null; });

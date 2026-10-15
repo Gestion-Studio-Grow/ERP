@@ -1,7 +1,8 @@
 # Break Point Pádel — negocio de la plataforma con su sitio en breakpoint.gsgapp.com.ar
 
 Prospecto en preventa (club de pádel, Ezeiza). Su "sitio" es la **demo de gestión del club**
-(recepción + dueño con cámaras, stock y turnos), en un solo archivo. **Es demo a costo cero:** datos de
+(agenda, buffet, caja de 12 a 12, clientes con cuenta corriente, proveedores, stock, contenido y tablero del
+dueño con cámaras; usuarios con PIN), en un solo archivo. **Es demo a costo cero:** datos de
 ejemplo, sin persistencia ni credenciales (ciclo DEMO → VENTA → INVERSIÓN). Análisis y reglas:
 [`REINGENIERIA.md`](REINGENIERIA.md).
 

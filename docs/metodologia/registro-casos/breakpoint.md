@@ -62,3 +62,10 @@
 - **Trampa de maquetado:** un texto para lector de pantalla (`position:absolute`) dentro de una tabla con
   scroll horizontal se escapa del contenedor y ensancha la página en el celular → el contenedor con scroll
   lleva `position:relative`.
+
+### Segunda vuelta (pedido del club, 14/10)
+- El club pidió 20+ cambios después de recorrer la demo: el más profundo fue **separar la cuenta de la cancha
+  de la del buffet** (en Europa el consumo va dentro de la reserva; acá el buffet es otro negocio dentro del
+  club). Mapa pedido → implementación en `docs/tenants/breakpoint/REINGENIERIA.md` §10.
+- **Heurística:** en la ingeniería reversa, la "cuenta" no es una sola: preguntar al cliente **cuántas cajas
+  y cuántas cuentas distintas maneja** (cancha, buffet, shop, proveedores) antes de modelar el cobro.

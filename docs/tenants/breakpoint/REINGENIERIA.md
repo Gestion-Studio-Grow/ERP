@@ -3,7 +3,7 @@
 **Fecha:** 2026-10-14 · **Método:** skill `ingenieria-reversa` (`.claude/skills/ingenieria-reversa/SKILL.md`)
 **Etapa comercial:** preventa → **todo es DEMO a costo cero** (sin datos reales, sin persistencia, sin dominio).
 **Entregable vivo:** `public/previews/breakpoint/club/` (servido en `/previews/breakpoint/club/index.html`, enlazado desde la vidriera de preventa)
-· motor `motor.mjs` · backoffice `index.html` + `app.mjs` · tests `src/tenants/breakpoint/motor-club.test.ts` (28).
+· motor `motor.mjs` · backoffice `index.html` + `app.mjs` · tests `src/tenants/breakpoint/motor-club.test.ts` (29).
 
 > **Qué es esto.** Tomamos cómo gestionan un club de pádel los sistemas de referencia en Europa, separamos lo
 > que es del rubro de lo que es de su mercado, lo adaptamos a un club de Ezeiza y lo construimos: un backoffice
@@ -214,6 +214,45 @@ reglas sin topes; reglas de negocio que mutaban estado desde la pantalla; cámar
 - Horario real, duración de turno (90′), precios valle/pico, descuento socio, % de seña, horas de cancelación.
 - Cámaras existentes (marca/modelo de la grabadora, cuántas, qué cubren).
 - Productos, precios y stock del bar y del shop; proveedores para el pedido por WhatsApp.
+
+## 10. Segunda vuelta — pedido del club (14/10/2026)
+
+El club recorrió la demo y pidió cambios concretos. Todos están en el motor (con test) y en la pantalla.
+**Lo que cambió de fondo: la cancha y el buffet son dos cuentas separadas.**
+
+| Pedido del club | Cómo quedó | Motor |
+|---|---|---|
+| Separar en el mismo turno **cuenta y cancha**; abrir y cerrar la cancha (el juego) sin cerrar la cuenta del buffet | El turno sólo lleva la cancha. Cada jugador tiene su **cuenta de consumo** aparte, que sigue abierta al cerrar la cancha | `finalizar`, `abrirCuenta`, `consumoJugador` |
+| Abrir el turno **sin límite horario anterior** (configurable) | `minutosAntesParaEntrar` vacío = sin límite (default); el dueño le pone minutos si quiere | `checkIn`, `ajustarPolitica` |
+| Consumos del buffet **abiertos a nivel cliente**; aperturar consumo; gestionar buffet | Pestaña **Buffet**: cuentas abiertas por cliente (una por cliente), «Abrir consumo» sin turno, venta rápida | `abrirCuenta`, `cargarEnCuenta`, `pagarCuenta`, `cerrarCuenta` |
+| Sumar a la cuenta de **cada jugador** un producto + **2 opciones** | Se elige el jugador y el producto, y: **«Sumar a su cuenta»** o **«Cobrar ahora»** | `consumoJugador` (`modo: cuenta | cobrar`) |
+| **Lupita** de búsqueda en el stock | Buscador por nombre, rubro o código en Stock, Buffet, Clientes, turno y remito | `buscarProductos`, `buscarClientes` |
+| **Créditos por cliente** y **novedad de autorización**; **cuenta corriente** con habilitación, **estado de cuenta**, **marca roja**; al cerrar cancha **sumar a cuenta o cobrar** | Créditos = saldo a favor. La cuenta corriente la **pide recepción** y la **autoriza el dueño** (novedad con límite). Ficha con estado de cuenta y saldo corrido. Marca roja ⚠ en grilla, turno, buffet y clientes. Al cerrar la cancha: cobrar o «cerrar y sumar a su cuenta» (si está habilitada y le da el límite) | `solicitarCC`, `resolverCC`, `configurarCC`, `estadoDeCuenta`, `puedeACuenta`, `cobrarDeuda` |
+| **Acceso con PIN de 2 dígitos**, otorgamiento **dinámico** | Cambio de usuario con PIN. Quien es nuevo **pide acceso**; el dueño lo otorga con rol y el sistema genera un PIN único (se muestra una vez). Revocar y PIN nuevo, con PIN del dueño | `solicitarAcceso`, `otorgarAcceso`, `revocarAcceso`, `regenerarPin`, `usuarioPorPin` |
+| **Rango horario por día** en la agenda principal | «Cambiar horario» en la agenda (dueño) y tabla por día en Ajustes. Avisa qué turnos quedan afuera | `horarioDe`, `ajustarHorario` |
+| **De 12 a 12 cerramos caja diaria** | La caja del día va de 12:00 a 12:00; lo de la madrugada es del día que abrió | `diaDeCaja`, `resumenCaja` |
+| **PIN para cierre de caja** | El cierre pide el PIN de quien cierra | `cerrarCaja` |
+| **Egresos de caja con PIN y concepto** | Egreso en efectivo con concepto obligatorio + PIN | `egresoCaja` |
+| **Turno fijo pintado naranja** y sin etiqueta | Bloque naranja, sin chip «Turno fijo» | (pantalla) |
+| **Sacar beneficios de socio**; sólo clientes; **ABM de clientes** | Sin socios ni descuentos. Alta (sin duplicar teléfono), edición y baja (sólo sin deuda ni consumos abiertos) | `altaCliente`, `editarCliente`, `bajaCliente` |
+| **Cargar proveedores** | ABM de proveedores | `altaProveedor`, `editarProveedor` |
+| **Carga de stock con radiofrecuencia** | El remito tiene un campo de **lector**: cada lectura (código + Enter, como hacen los lectores USB/Bluetooth de barras o RF) suma 1. Productos con código | `productoPorCodigo`, `registrarRemito` |
+| **Pagan a proveedores con transferencia y efectivo** | Sólo esos dos medios; el efectivo sale del cajón | `pagarProveedor` |
+| **Rober y Majo**: pago a proveedores y ver cuenta corriente | Rol dueño: pagos con PIN y cuenta corriente del proveedor | `ccProveedor`, `PERMISOS.duenio` |
+| **Recepcionistas: sólo remito y egreso en efectivo** | Rol recepción: puede cargar remitos y egresos en efectivo; no ve proveedores, stock ni ajustes | `PERMISOS.recepcion` |
+| **Venta de platos: métrica por plato** para Rober | Tablero: unidades, por día, facturado, margen y participación por plato (7 días). Los platos no llevan stock | `metricasPlatos` |
+| **Plataforma de contenido con calendario** | Pestaña **Contenido**: calendario mensual con publicaciones (Instagram post/reel/historia, WhatsApp), estado idea → programado → publicado | `agregarContenido`, `editarContenido`, `contenidoDelMes` |
+| **Mantenimiento: quitar los botones en la agenda**; plan lluvia con configurar mantenimiento | Sin 🔧 en la grilla. Un solo lugar, **«Mantenimiento y lluvia»**: canchas en mantenimiento con motivo, bloqueos de horario y plan lluvia | `configurarMantenimiento`, `bloquear`, `quitarBloqueo`, `planLluvia` |
+| **Faltas: se cobra el turno entero** al cliente o al grupo | «Falta (no vino)»: cobrar todo al titular o repartir en el grupo (cada jugador con ficha paga su parte; la de los sin ficha, el titular). Va a la cuenta corriente aunque no esté habilitada; sin ficha queda la deuda en el turno. «Sin cargo» sólo el dueño | `marcarNoShow({ cobrarA })`, `cobrarFaltaSinFicha` |
+
+**Notas de criterio (decididas con el supuesto más simple; a confirmar con el club):**
+- **PIN de 2 dígitos:** es lo que pidió el club y alcanza para el mostrador (identifica quién hizo qué). Para
+  producción con datos reales se recomienda subirlo a 4 dígitos y bloquear tras varios intentos fallidos
+  (anotado para la revisión de seguridad de Facu, ADR-068).
+- **Cambiar el horario de un día** es del dueño; recepción lo ve pero no lo cambia.
+- **Falta repartida en el grupo:** se divide entre los cuatro jugadores del turno; la parte de los que no
+  tienen ficha la absorbe el titular.
+- **Los PIN de la demo se muestran en pantalla** a propósito (Rober 11 · Majo 22 · Lu 33 · Caro 44).
 
 ## Fuentes
 
