@@ -309,8 +309,9 @@ console.log("\n▶ demo pública sin servidor (adaptador local)");
   check(pendiente && await p.locator("#dlg-pago.is-firme").count() === 1, "local: reservar con Google (demo) + comprobante simulado → turno firme");
   // Lista de espera con cuenta de Google (sin celular): se pide el celular inline, con label, sin prompt().
   await p.click("#btn-cerrar-pago").catch(() => {});
-  await p.evaluate(() => { document.querySelector("#espera").hidden = false; });
-  await p.click("#btn-espera");
+  await p.waitForTimeout(400); // que terminen los repintados en vivo de la reserva recién hecha
+  // (No hay un día garantizado sin turnos libres: se muestra el bloque a mano y se dispara el botón en el mismo paso.)
+  await p.evaluate(() => { document.querySelector("#espera").hidden = false; document.querySelector("#btn-espera").click(); });
   await p.waitForSelector("#esp-tel", { timeout: 3000 }).catch(() => {});
   check(await p.locator('label[for="esp-tel"]').count() === 1, "lista de espera: pide el celular en un campo con label (no prompt)");
   await p.fill("#esp-tel", "123");
@@ -327,6 +328,39 @@ console.log("\n▶ demo pública sin servidor (adaptador local)");
   await p.screenshot({ path: `${SALIDA}/local-firme.png` });
   resumen.local = { jsComprimido: bytes.js };
   await ctx.close();
+}
+
+// ───────────── 8: con la CSP de verdad (sin bypass): el turnero y el backoffice andan y no hay violaciones ─────────────
+console.log("\n▶ CSP estricta");
+{
+  const ctx = await navegador.newContext({ viewport: { width: 390, height: 844 } });
+  const p = await ctx.newPage();
+  const violaciones = [];
+  p.on("console", (m) => { if (/Content Security Policy|Refused to/.test(m.text())) violaciones.push(m.text()); });
+  await p.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  await p.goto(URL_T);
+  await listo(p);
+  check(await p.locator(".slot").count() > 0 && !violaciones.length, `turnero con CSP sin 'unsafe-inline' en scripts: anda y sin violaciones${violaciones.length ? ` → ${violaciones[0]}` : ""}`);
+  violaciones.length = 0;
+  await p.goto(`${FRONT}/club/`);
+  await p.waitForTimeout(800);
+  check(!violaciones.length, `backoffice con su CSP: sin violaciones${violaciones.length ? ` → ${violaciones[0]}` : ""}`);
+  await ctx.close();
+}
+
+// ───────────── 9: desde un host público, ?api= no se acepta (un link armado no puede robar contraseñas) ─────────────
+console.log("\n▶ host público: ?api= ignorado");
+{
+  const publico = await chromium.launch({ executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium", args: ["--host-resolver-rules=MAP turnero.test 127.0.0.1"] }).catch(() => chromium.launch({ args: ["--host-resolver-rules=MAP turnero.test 127.0.0.1"] }));
+  const p = await publico.newPage();
+  const ajenos = [];
+  p.on("request", (r) => { if (!r.url().startsWith(`http://turnero.test:${PF}/`) && !/fonts\.|accounts\.google/.test(r.url())) ajenos.push(r.url()); });
+  await p.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  await p.goto(`http://turnero.test:${PF}/turnero/?api=${encodeURIComponent("http://evil.example")}`);
+  await listo(p);
+  check(!ajenos.length, `?api= hostil desde un host público: ningún pedido sale a otro servidor${ajenos.length ? ` → ${ajenos[0]}` : ""}`);
+  check(await p.locator(".slot").count() > 0, "y el turnero sigue andando en modo demo local (marca turnero-modo=demo)");
+  await publico.close();
 }
 
 await navegador.close();

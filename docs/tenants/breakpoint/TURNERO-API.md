@@ -17,6 +17,7 @@
 - **Sesión del jugador:** cookie `bp_sesion` (HttpOnly, SameSite=Lax y Secure si `TURNERO_SEGURO=1`). Dura 30 días
   y se renueva con el uso.
 - **Sesión del club:** cookie `bp_staff` (12 h), que se obtiene con la clave del club.
+- **Modo:** `TURNERO_MODO=demo` (por defecto: Google, WhatsApp y cuentas simulados, y un comprobante que coincide deja el turno firme) o `real`. En real, el back **no arranca** si falta `GOOGLE_CLIENT_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `TURNERO_STAFF_CLAVE` o `TURNERO_ORIGENES`, y **ningún comprobante confirma solo**: va a la bandeja como «pre-conciliado» hasta verlo acreditado.
 - **Límites:** 300 pedidos por minuto por IP. En el ingreso, 5 fallos por usuario y 30 fallos por IP cada 15 minutos.
   Por IP cuentan **sólo los fallos**, porque en el Wi-Fi del club muchos jugadores comparten IP.
 - Códigos: `200` ok · `201` creado · `400` datos inválidos · `401` sin sesión o credenciales malas · `403` origen no
@@ -77,14 +78,20 @@ con él.
 | `GET /api/staff/sesion` | — | `{ ok, staff: bool }`. Siempre responde 200, así no ensucia la consola con un 401. | — |
 | `GET /api/staff/estado` | — | `{ ok, estado (snapshot del motor), version, ahora:{fecha, min} }` | 401 |
 | `GET /api/staff/eventos` | SSE | `reserva {reserva, motivo: nueva\|cancelada\|sena-confirmada\|sena-parcial\|sena-demorada\|sena-vencida\|desde-espera}` · `sync {puesto, reservas, bloqueos?, canchas?, fijos?, clima?, politica?}` · `revision {revision}` · `comprobante-rechazado {motivo, monto, operacion}` · `espera {espera}` | 401 |
-| `POST /api/staff/sync` | `{ puesto, reservas:[reserva completa del motor], bloqueos?, canchas?, fijos?, clima?, politica? }` (hasta 4 MB) | `{ ok, aplicadas:[id], rechazadas:[{id, motivo, actual}], version }`. Si alguna reserva pisa un turno activo (por ejemplo, uno vendido online en el medio), responde **409** y el puesto la deshace. | 401 · 409 |
+| `POST /api/staff/sync` | `{ puesto, reservas:[reserva completa del motor, con su `rev`], bloqueos?, canchas?, fijos?, clima?, politica? }` (hasta 4 MB; ids `[\w-]{1,40}`) | `{ ok, aplicadas:[id], rechazadas:[{id, motivo, actual}], version, revs:{id: rev} }`. Responde **409** si una reserva pisa un turno activo (por ejemplo, uno vendido online en el medio) o si su `rev` no coincide con la del back (el puesto tenía una copia vieja: se le devuelve la actual). El puesto adopta `revs` para su próxima edición. | 401 · 409 |
 | `GET /api/staff/revisiones` | — | `{ ok, revisiones:[{ id, tipo, cuando, tel:"••• 1234", monto, fecha, operacion:"••••1234", ref, motivo, sugerida, reservaId, estado }] }`. No incluye el teléfono completo ni el comprobante. | 401 |
 | `POST /api/staff/revisiones/:id` | `{ aprobar, reservaId? }` | `{ ok }`. Aplica el pago al turno elegido o lo rechaza, y le avisa al jugador por WhatsApp. | 400 · 404 · 409 si el comprobante ya se usó |
 | `GET /api/staff/buzon` | — | `{ ok, mensajes:[{ a:"••• 1234", texto, cuando }] }`. Sólo en DEMO: los WhatsApp que se "mandaron". | 401 |
 
+## Qué back usa el front
+
+- `?api=` **sólo se acepta en localhost** (en el backoffice: en localhost o con el mismo origen). En un host público, un link armado no puede mandar la contraseña del jugador ni la clave del club a otro servidor.
+- En producción manda `<meta name="turnero-api" content="https://…">`.
+- Sin back configurado, el modo local se activa **sólo** con la marca `<meta name="turnero-modo" content="demo">`. Sin back ni marca, el turnero avisa que no está configurado; nunca "reserva" en el navegador en silencio.
+
 ## Modo local (demo pública sin servidor)
 
-Fuera de `localhost`, o con `?api=local`, el front no habla con un back. Carga `local.mjs`, que corre **el mismo
+Con la marca de demo y sin back (o con `?api=local` en localhost), el front no habla con un back. Carga `local.mjs`, que corre **el mismo
 núcleo** (`dominio/nucleo.mjs` sobre `club/motor.mjs`) dentro del navegador y responde estas mismas rutas con las
 mismas formas. El SSE se reemplaza por un emisor local. Nada sale del navegador. No hay firma de webhook (no hay
 red): el comprobante simulado entra directo al mismo procesador de mensajes.

@@ -5,7 +5,19 @@
 
 const $ = (s, r = document) => r.querySelector(s);
 const qs = new URLSearchParams(location.search);
-const API = (qs.get("api") || $('meta[name="turnero-api"]')?.content || (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? `${location.protocol}//${location.hostname}:8787` : "local")).replace(/\/$/, "");
+const ES_LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+const MODO_DEMO = $('meta[name="turnero-modo"]')?.content === "demo";
+const API = (() => {
+  // ?api= sólo en desarrollo local: en un host público, un link armado podría mandar la contraseña del jugador a
+  // otro servidor. En producción manda <meta name="turnero-api">. El modo local (sin servidor) sólo con la marca
+  // explícita de demo: así nunca alguien "reserva" en su navegador creyendo que reservó en el club.
+  const q = qs.get("api");
+  if (q && /^(local|https?:\/\/[\w.:[\]-]+)$/.test(q) && (ES_LOCAL || (q === "local" && MODO_DEMO))) return q;
+  const meta = $('meta[name="turnero-api"]')?.content;
+  if (meta) return meta;
+  if (ES_LOCAL) return `${location.protocol}//${location.hostname}:8787`;
+  return MODO_DEMO ? "local" : "";
+})().replace(/\/$/, "");
 let LOCAL = null; // adaptador local (local.mjs): sólo se descarga si hace falta
 const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -68,7 +80,7 @@ const clave = () => `${S.fecha}|${S.duracion}|${S.techadas ? 1 : 0}`;
 const FRANJAS = [["manana", "Mañana", 0, 720], ["tarde", "Tarde", 720, 1080], ["noche", "Noche", 1080, 2000]];
 
 function htmlSlot(s) {
-  return `<button type="button" class="slot" data-inicio="${s.inicio}" data-cancha="${s.canchaId}" data-pico="${s.pico ? 1 : 0}" aria-label="${hhmm(s.inicio)} a ${hhmm(s.fin)}, ${esc(s.cancha)}${s.techada ? ", techada" : ""}, ${pesos(s.precio)}"><span class="slot-hora">${hhmm(s.inicio)}</span><span class="slot-cancha">${esc(s.cancha)}</span><span class="slot-tags">${s.techada ? '<span class="tag tag-techada">Techada</span>' : ""}${s.pico ? '<span class="tag tag-pico">Pico</span>' : ""}</span><span class="slot-precio">${pesos(s.precio)}</span></button>`;
+  return `<button type="button" class="slot" data-inicio="${s.inicio}" data-cancha="${esc(s.canchaId)}" data-pico="${s.pico ? 1 : 0}" aria-label="${hhmm(s.inicio)} a ${hhmm(s.fin)}, ${esc(s.cancha)}${s.techada ? ", techada" : ""}, ${pesos(s.precio)}"><span class="slot-hora">${hhmm(s.inicio)}</span><span class="slot-cancha">${esc(s.cancha)}</span><span class="slot-tags">${s.techada ? '<span class="tag tag-techada">Techada</span>' : ""}${s.pico ? '<span class="tag tag-pico">Pico</span>' : ""}</span><span class="slot-precio">${pesos(s.precio)}</span></button>`;
 }
 
 function pintarGrilla(slots, { animar = false } = {}) {
@@ -92,7 +104,7 @@ function pintarGrilla(slots, { animar = false } = {}) {
     $("#espera").hidden = false;
     return;
   }
-  $("#espera").hidden = true;
+  $("#espera").hidden = !$("#form-cel"); // si está cargando el celular, un repintado en vivo no se lo saca
   g.innerHTML = FRANJAS.map(([id, nombre, d, h]) => {
     const del = slots.filter((s) => s.inicio >= d && s.inicio < h);
     return del.length ? `<section class="franja" data-franja="${id}"><h2>${nombre}</h2><div class="slots">${del.map(htmlSlot).join("")}</div></section>` : "";
@@ -152,7 +164,7 @@ async function confirmarReserva(ev) {
   const r = await api("/api/turnero/reservas", { metodo: "POST", idem: s.idem, cuerpo: { fecha: S.fecha, inicio: s.inicio, canchaId: s.canchaId, duracion: S.duracion, jugadores } });
   btn.disabled = false;
   if (!r.ok) {
-    $("#res-error").innerHTML = `${esc(r.motivo)}${r.alternativas?.length ? `<span class="alternativas">${r.alternativas.map((a) => `<button type="button" class="alt" data-inicio="${a.inicio}" data-cancha="${a.canchaId}">${hhmm(a.inicio)} · ${esc(a.cancha)}</button>`).join("")}</span>` : ""}`;
+    $("#res-error").innerHTML = `${esc(r.motivo)}${r.alternativas?.length ? `<span class="alternativas">${r.alternativas.map((a) => `<button type="button" class="alt" data-inicio="${a.inicio}" data-cancha="${esc(a.canchaId)}">${hhmm(a.inicio)} · ${esc(a.cancha)}</button>`).join("")}</span>` : ""}`;
     if (r.status === 409) { S.cache.delete(clave()); cargarSlots({ animar: true, forzar: true }); }
     if (r.status === 401) { S.usuario = null; pintarUsuario(); }
     return;
@@ -230,7 +242,7 @@ function pintarReservas() {
   if (!vivas.length) { ul.innerHTML = `<li class="reserva-vacia">Todavía no tenés reservas.</li>`; return; }
   ul.innerHTML = vivas.map((r) => {
     const activa = r.estado === "pendiente" || r.estado === "firme";
-    return `<li class="reserva" data-id="${r.id}" data-estado="${r.estado}">
+    return `<li class="reserva" data-id="${esc(r.id)}" data-estado="${esc(r.estado)}">
       <span class="reserva-cuando">${fechaLarga(r.fecha)} · ${hhmm(r.inicio)}–${hhmm(r.fin)}</span>
       <span class="reserva-cancha">${esc(r.cancha)}${r.techada ? " · techada" : ""} · ${pesos(r.precio)}</span>
       <span class="badge">${ETIQUETA[r.estado] ?? r.estado}</span>
@@ -425,8 +437,23 @@ function pedirCelular() {
 }
 
 // ───────────── arranque ─────────────
+/** Fuentes de la marca sin bloquear el render (y sin manejadores inline: la CSP no permite scripts inline). */
+function cargarFuentes() {
+  for (const href of [
+    "https://fonts.googleapis.com/css2?family=Anton&display=swap&text=ABCDEFGHIJKLMNOPQRSTUVWXYZ%C3%81%C3%89%C3%8D%C3%93%C3%9A%C3%91%C3%9C0123456789%C2%A1!%C2%BF%3F%24.%2C%3A-%20",
+    "https://fonts.googleapis.com/css2?family=Montserrat:wght@500&display=swap&text=BREAKPOINTDL",
+  ]) { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; document.head.append(l); }
+}
+
 async function iniciar() {
+  cargarFuentes();
   cablear();
+  if (!API) {
+    document.body.dataset.estado = "sin-conexion";
+    $("#grilla").innerHTML = `<p class="vacio" role="alert">El turnero no está configurado todavía. Escribinos por WhatsApp y te reservamos.</p>`;
+    $("#grilla").setAttribute("aria-busy", "false");
+    return;
+  }
   if (API === "local") LOCAL = (await import("./local.mjs")).crearLocal();
   const [cfg, yo] = await Promise.all([api("/api/turnero/config"), api("/api/auth/yo")]);
   if (!cfg.club) {

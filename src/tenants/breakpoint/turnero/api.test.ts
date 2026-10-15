@@ -239,3 +239,13 @@ test("backoffice conectado: lo que el mostrador sincroniza aparece en el turnero
   assert.match(choque.json.rechazadas[0].motivo, /web/);
   assert.ok(Array.isArray(estado.reservas));
 });
+
+test("Gate 4: TURNERO_MODO=real sin los secretos no arranca (nada de «medio demo» en silencio)", () => {
+  assert.throws(() => S.crearApp({ entorno: { TURNERO_MODO: "real", WHATSAPP_TOKEN: "x" }, tickMs: 0, log: () => {} }), /TURNERO_MODO=real sin: GOOGLE_CLIENT_ID/);
+});
+
+test("Gate (menor): una cookie mal formada no tira un 500", async () => {
+  const r = await fetch(`${base}/api/auth/yo`, { headers: { Cookie: "bp_sesion=%E0%A4%A" } });
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).usuario, null);
+});

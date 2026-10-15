@@ -4589,7 +4589,10 @@ const puente = {
   render: () => render(), toast: (t, o) => toast(t, o), despues: null, conectado: false,
 };
 iniciar();
-if (API_TURNERO && /^https?:\/\//.test(API_TURNERO)) {
+// Sólo en desarrollo local o contra el mismo origen: un link armado no puede mandar la clave del club a otro servidor.
+const API_PERMITIDA = API_TURNERO && /^https?:\/\/[\w.:[\]-]+\/?$/.test(API_TURNERO)
+  && (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || new URL(API_TURNERO).origin === location.origin);
+if (API_PERMITIDA) {
   import("./conectado.mjs")
     .then((m) => m.conectar(puente, API_TURNERO))
     .then(() => { puente.conectado = Boolean(puente.despues); })

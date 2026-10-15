@@ -46,6 +46,9 @@ export function crearTurnero({
   limites = { pendientes: 2, activas: 4 },
   urlTurnero = "",
   claves = { hash: hashPbkdf2, verificar: verificarPbkdf2 }, // el back inyecta scrypt
+  // DEMO: un comprobante que coincide deja el turno firme solo. REAL: una captura o un texto se pueden inventar, así
+  // que todo va a la bandeja como "pre-conciliado" hasta verlo ACREDITADO en la cuenta del club (Mercado Pago/banco).
+  autoConfirmar = true,
 } = {}) {
   const ahora = () => aMotor(reloj());
   // La demo del club arma "hoy" alrededor de las 19:10 (así cada eventualidad queda a la vista en el backoffice).
@@ -65,6 +68,7 @@ export function crearTurnero({
   }
   function cambioReserva(r, motivo) {
     version++;
+    r.rev = (r.rev ?? 0) + 1; // versión de la reserva: un puesto con una copia vieja no la puede pisar
     emitir("publico", "disponibilidad", { fecha: r.fecha, canchaId: r.canchaId, version });
     emitir("staff", "reserva", { reserva: r, motivo, version });
     if (r.webUsuarioId) emitir(`usuario:${r.webUsuarioId}`, "mi-reserva", { reserva: publica(r), motivo });
@@ -75,13 +79,18 @@ export function crearTurnero({
   const buscarUsuario = (pred) => { for (const u of usuarios.values()) if (pred(u)) return u; return null; };
   const perfil = (u) => u && { id: u.id, nombre: u.nombre, email: u.email, tel: u.tel ? `••• ${u.tel.slice(-4)}` : null, tieneCelular: Boolean(u.tel), google: Boolean(u.googleSub), pideSena: u.clienteId ? M.requiereSenaWeb(E, u.clienteId) : true };
 
-  /** Vincula al usuario con su ficha de cliente del club (por celular) o le crea una. */
+  /**
+   * Ficha de cliente del club para el usuario. Sólo se engancha a una ficha EXISTENTE si el celular está
+   * verificado (OTP por WhatsApp, post-venta): si no, cualquiera que tipee el número de otro heredaría su historial
+   * y su confianza (sin seña). Sin verificar, se le abre una ficha propia y el club las une si corresponde.
+   */
   function vincularCliente(u) {
     if (u.clienteId && M.cliente(E, u.clienteId)) return;
-    const existente = u.tel ? E.clientes.find((c) => c.activo !== false && mismoTel(c.tel, u.tel)) : null;
+    const existente = u.tel && u.telVerificado ? E.clientes.find((c) => c.activo !== false && mismoTel(c.tel, u.tel)) : null;
     if (existente) { u.clienteId = existente.id; return; }
-    const r = M.altaCliente(E, { nombre: u.nombre, tel: u.tel ?? "" }, ahora());
-    if (r.ok) u.clienteId = r.cliente?.id ?? E.clientes[E.clientes.length - 1].id;
+    const telLibre = u.tel && !E.clientes.some((c) => c.activo !== false && mismoTel(c.tel, u.tel));
+    const r = M.altaCliente(E, { nombre: u.nombre, tel: telLibre ? u.tel : "" }, ahora());
+    if (r.ok) u.clienteId = r.cliente.id;
   }
 
   async function registrar({ nombre, tel, email, clave }) {
@@ -102,16 +111,18 @@ export function crearTurnero({
 
   async function ingresar({ usuario, clave }) {
     const cel = normalizarCelular(usuario), mail = normalizarEmail(usuario);
-    const u = buscarUsuario((x) => (cel && x.tel === cel) || (mail && x.email === mail));
+    const u = buscarUsuario((x) => Boolean(x.claveHash) && ((cel && x.tel === cel) || (mail && x.email === mail)));
     const ok = await claves.verificar(clave, u?.claveHash ?? null); // se verifica igual si no existe (mismo tiempo)
     if (!ok) return { ok: false, motivo: "El usuario o la contraseña no coinciden." };
     return { ok: true, usuario: u };
   }
 
   function ingresarConGoogle(perfilGoogle) {
-    let u = buscarUsuario((x) => x.googleSub === perfilGoogle.sub) ?? (perfilGoogle.email ? buscarUsuario((x) => x.email === perfilGoogle.email) : null);
+    // Se une a una cuenta con contraseña por el mail SÓLO si ese mail estaba verificado: si no, quien registró
+    // antes el mail de otro se quedaría con acceso a la cuenta de Google de la víctima (toma previa de cuentas).
+    let u = buscarUsuario((x) => x.googleSub === perfilGoogle.sub) ?? (perfilGoogle.email ? buscarUsuario((x) => x.email === perfilGoogle.email && x.emailVerificado) : null);
     if (!u) {
-      u = { id: `w${++secUsuario}`, nombre: perfilGoogle.nombre, tel: null, email: perfilGoogle.email, claveHash: null, googleSub: perfilGoogle.sub, clienteId: null };
+      u = { id: `w${++secUsuario}`, nombre: perfilGoogle.nombre, tel: null, email: perfilGoogle.email, emailVerificado: true, claveHash: null, googleSub: perfilGoogle.sub, clienteId: null };
       usuarios.set(u.id, u);
     } else u.googleSub ??= perfilGoogle.sub;
     vincularCliente(u);
@@ -128,7 +139,7 @@ export function crearTurnero({
     if (buscarUsuario((x) => x.tel === cel && x.id !== u.id)) return { ok: false, motivo: "Ese celular ya está en otra cuenta." };
     u.tel = cel;
     const cl = u.clienteId ? M.cliente(E, u.clienteId) : null;
-    if (cl && !cl.tel) cl.tel = cel;
+    if (cl && !cl.tel && !E.clientes.some((c) => c !== cl && c.activo !== false && mismoTel(c.tel, cel))) cl.tel = cel;
     return { ok: true, usuario: u };
   }
 
@@ -314,6 +325,15 @@ export function crearTurnero({
     if (!m.id || mensajesVistos.has(m.id)) return { ok: true, duplicado: true };
     mensajesVistos.add(m.id);
     if (mensajesVistos.size > 5000) mensajesVistos.delete(mensajesVistos.values().next().value);
+    try {
+      return await procesarMensajeNuevo(m);
+    } catch (e) {
+      mensajesVistos.delete(m.id); // si algo falló, el reintento de Meta tiene que poder entrar
+      throw e;
+    }
+  }
+
+  async function procesarMensajeNuevo(m) {
     const tel = m.de;
     if (m.ignorado) { await canal.enviar(tel, "¡Hola! Por acá recibimos los comprobantes de seña (foto o texto de la transferencia). Para reservar, entrá al turnero 🎾"); return { ok: true, decision: "ignorado" }; }
 
@@ -334,7 +354,10 @@ export function crearTurnero({
 
     const { texto, confianzaOcr } = await lector.leer(m);
     const c = leerComprobante(texto, { confianzaOcr });
-    const d = conciliar({ comprobante: c, remitenteTel: tel, pendientes: pendientesDeSena(), club: cuentasClub, usados, hoy: ahora().fecha });
+    const d0 = conciliar({ comprobante: c, remitenteTel: tel, pendientes: pendientesDeSena(), club: cuentasClub, usados, hoy: ahora().fecha });
+    const d = !autoConfirmar && (d0.decision === "confirmar" || d0.decision === "parcial")
+      ? { ...d0, decision: "revisar", motivo: `Pre-conciliado (${d0.motivo.toLowerCase()}) Falta verlo acreditado en la cuenta del club.` }
+      : d0;
     // Lo único que queda en el log: decisión, monto y operación enmascarada. Nunca el comprobante.
     E.log.unshift({ ...ahora(), texto: `WhatsApp ${tel ? `••• ${String(tel).slice(-4)}` : ""}: comprobante ${c.monto != null ? M.pesos(c.monto) : "sin monto"} op. ${enmascarar(c.operacion)} → ${d.decision}.` });
 
@@ -430,14 +453,18 @@ export function crearTurnero({
     if (clima && typeof clima === "object") E.clima = clima;
     if (politica && typeof politica === "object") for (const [k, v] of Object.entries(politica)) if (k in E.config.politica) E.config.politica[k] = v;
     for (const inc of Array.isArray(reservas) ? reservas.slice(0, 500) : []) {
-      if (!inc || typeof inc.id !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(String(inc.fecha)) || !Number.isFinite(inc.inicio) || !Number.isFinite(inc.duracion) || !M.cancha(E, inc.canchaId)) { rechazadas.push({ id: inc?.id ?? null, motivo: "Datos incompletos." }); continue; }
+      if (!inc || typeof inc.id !== "string" || !/^[\w-]{1,40}$/.test(inc.id) || !/^\d{4}-\d{2}-\d{2}$/.test(String(inc.fecha)) || !Number.isFinite(inc.inicio) || !Number.isFinite(inc.duracion) || !M.cancha(E, inc.canchaId)) { rechazadas.push({ id: inc?.id ?? null, motivo: "Datos incompletos." }); continue; }
       const previa = M.reserva(E, inc.id);
+      // Concurrencia optimista: si la reserva cambió desde que el puesto la bajó (p. ej. se confirmó la seña por
+      // WhatsApp), el puesto tiene una copia vieja y no la pisa: se le devuelve la actual.
+      if (previa && (previa.rev ?? 0) !== (inc.rev ?? 0)) { rechazadas.push({ id: inc.id, motivo: "Ese turno cambió recién (web o WhatsApp). Ya se actualizó en pantalla: revisalo.", actual: previa }); continue; }
       const ocupa = ["reservada", "en_cancha", "finalizada"].includes(inc.estado);
       if (ocupa) {
         const choque = M.ocupantes(E, inc.fecha, inc.canchaId, inc.id).reservas.find((r) => solapa(inc.inicio, inc.inicio + inc.duracion, r.inicio, r.inicio + r.duracion));
         if (choque) { rechazadas.push({ id: inc.id, motivo: `Se pisa con un turno de ${choque.origen === "web" ? "la web" : "otro puesto"} (${M.hhmm(choque.inicio)}).`, actual: previa ?? null }); continue; }
       }
       const r = previa ? Object.assign(previa, inc, { webUsuarioId: previa.webUsuarioId ?? inc.webUsuarioId, ref: previa.ref ?? inc.ref }) : { ...inc };
+      r.rev = (previa?.rev ?? 0) + 1;
       if (r.sena?.pagada) delete r.venceSena;
       if (!previa) E.reservas.push(r);
       fechas.add(r.fecha);
@@ -454,7 +481,8 @@ export function crearTurnero({
         ...(Array.isArray(fijos) && { fijos: E.fijos }), ...(clima && { clima: E.clima }), ...(politica && { politica: E.config.politica }),
       });
     }
-    return { ok: true, aplicadas, rechazadas, version };
+    // Las versiones nuevas vuelven al puesto que mandó el cambio: así su próxima edición no choca con su propio eco.
+    return { ok: true, aplicadas, rechazadas, version, revs: Object.fromEntries(aplicadas.map((id) => [id, M.reserva(E, id).rev])) };
   }
 
   return {

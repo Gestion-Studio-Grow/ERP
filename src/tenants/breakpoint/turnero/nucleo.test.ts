@@ -298,3 +298,71 @@ test("Google (demo): crea la cuenta una vez y la vincula a una ficha de cliente 
   assert.ok(M.cliente(tn.estado, a.clienteId));
   assert.equal(tn.cargarCelular(a.id, "11 5555 6666").ok, true);
 });
+
+// ───── hallazgos del Gate de Excelencia (15/10) ─────
+
+test("Gate 1: un puesto con una copia vieja no pisa una reserva web que se confirmó por WhatsApp (versión por reserva)", async () => {
+  const { tn } = armar();
+  const u = await usuario(tn);
+  const s = libre(tn);
+  const r = tn.reservar(u.id, { fecha: MANIANA, inicio: s.inicio, canchaId: s.canchaId, duracion: 90 }).reserva;
+  const copiaVieja = structuredClone(M.reserva(tn.estado, r.id)); // el puesto la bajó acá
+  await tn.procesarMensaje(mensaje("x", comprobante({ monto: r.sena.monto, ref: r.ref }))); // se confirma la seña
+  const out = tn.sincronizar({ reservas: [{ ...copiaVieja, notas: "editada en el mostrador" }] });
+  assert.equal(out.aplicadas.length, 0);
+  assert.equal(out.rechazadas[0].actual.sena.pagada, true);
+  assert.equal(tn.misReservas(u.id)[0].estado, "firme", "el pago no se borró");
+  // Con la versión al día sí entra, y el puesto recibe la versión nueva para su próxima edición.
+  const alDia = { ...structuredClone(M.reserva(tn.estado, r.id)), notas: "ok" };
+  const ok = tn.sincronizar({ reservas: [alDia] });
+  assert.deepEqual(ok.aplicadas, [r.id]);
+  assert.equal(ok.revs[r.id], alDia.rev + 1);
+});
+
+test("Gate 1: ids raros en el sync se rechazan (no llegan al HTML de nadie)", () => {
+  const { tn } = armar();
+  const base = { fecha: MANIANA, duracion: 60, inicio: 600, canchaId: "c1", estado: "cancelada", jugadores: [], pagos: [], sena: { monto: 0, pagada: false }, precio: 0 };
+  const out = tn.sincronizar({ reservas: [{ ...base, id: '"><img src=x onerror=alert(1)>' }] });
+  assert.equal(out.aplicadas.length, 0);
+  assert.equal(out.rechazadas.length, 1);
+});
+
+test("Gate 2: registrarse con el celular de una ficha existente NO hereda esa ficha (sin verificar el celular)", async () => {
+  const { tn } = armar();
+  const ajena = tn.estado.clientes[0];
+  const r = await tn.registrar({ nombre: "Impostor", tel: ajena.tel, clave: "canchaazul9" });
+  assert.equal(r.ok, true);
+  assert.notEqual(r.usuario.clienteId, ajena.id);
+  assert.equal(tn.perfil(r.usuario).pideSena, true, "no hereda la confianza de otro");
+});
+
+test("Gate 3: Google no se une a una cuenta con contraseña cuyo mail nunca se verificó", async () => {
+  const { tn } = armar();
+  const previa = await tn.registrar({ nombre: "Quien Llegó Antes", tel: "1166667777", email: "jugador.demo@example.com", clave: "canchaazul9" });
+  const g = tn.ingresarGoogleDemo(0).usuario; // jugador.demo@example.com
+  assert.notEqual(g.id, previa.usuario.id);
+  assert.equal((await tn.ingresar({ usuario: "jugador.demo@example.com", clave: "canchaazul9" })).usuario.id, previa.usuario.id);
+});
+
+test("Gate 5: en modo real (autoConfirmar:false) ningún comprobante confirma solo: queda pre-conciliado en la bandeja", async () => {
+  let t = MIERCOLES_15H;
+  const tn = N.crearTurnero({ reloj: () => t, canal: W.crearCanalDemo(), lector: W.crearLectorDemo(), autoConfirmar: false });
+  const u = (await tn.registrar({ nombre: "Real Uno", tel: "1177001100", clave: "canchaazul9" })).usuario;
+  const s = tn.disponibilidad({ fecha: MANIANA, duracion: 90 }).slots.at(-1);
+  const r = tn.reservar(u.id, { fecha: MANIANA, inicio: s.inicio, canchaId: s.canchaId, duracion: 90 }).reserva;
+  const out = await tn.procesarMensaje(mensaje("x", comprobante({ monto: r.sena.monto, ref: r.ref })));
+  assert.equal(out.decision, "revisar");
+  assert.match(tn.revisiones()[0].motivo, /Pre-conciliado/);
+  assert.equal(tn.revisiones()[0].reservaId, r.id);
+  assert.equal(tn.misReservas(u.id)[0].estado, "pendiente");
+  t += 1;
+});
+
+test("Gate (menor): si algo falla al procesar un mensaje, el reintento de Meta entra de nuevo", async () => {
+  let falla = true;
+  const canal = { tipo: "demo", async enviar() { if (falla) { falla = false; throw new Error("caído"); } return { ok: true }; } };
+  const tn = N.crearTurnero({ reloj: () => MIERCOLES_15H, canal, lector: W.crearLectorDemo() });
+  const m = { id: "wamid.reintento", de: "x", tipo: "audio", ignorado: true };
+  await assert.rejects(() => tn.procesarMensaje(m));
+  assert.equal((await tn.procesarMensaje(m)).decision, "ignorado");
+});

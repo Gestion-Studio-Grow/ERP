@@ -8,6 +8,8 @@
 //   si falta se genera una al azar y se imprime UNA vez en la consola) · GOOGLE_CLIENT_ID · WHATSAPP_APP_SECRET ·
 //   WHATSAPP_VERIFY_TOKEN · WHATSAPP_TOKEN · WHATSAPP_PHONE_ID · TURNERO_WHATSAPP_CLUB (número del club) ·
 //   TURNERO_URL (link público del turnero, para los mensajes) · TURNERO_SEGURO=1 (cookies Secure, detrás de HTTPS).
+//   TURNERO_MODO=demo|real (por defecto demo). En REAL el back NO arranca si falta un secreto (nada de "medio demo"
+//   en silencio) y ningún comprobante confirma solo: todo va a la bandeja hasta verlo acreditado.
 import { createServer } from "node:http";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { pathToFileURL } from "node:url";
@@ -33,10 +35,15 @@ export function crearApp({
   tickMs = 30000,
   log = (...a) => console.log(...a),
 } = {}) {
-  const demo = !entorno.WHATSAPP_TOKEN; // sin token de Meta, todo WhatsApp es simulado
+  const real = entorno.TURNERO_MODO === "real";
+  if (real) {
+    const faltan = ["GOOGLE_CLIENT_ID", "WHATSAPP_APP_SECRET", "WHATSAPP_VERIFY_TOKEN", "WHATSAPP_TOKEN", "WHATSAPP_PHONE_ID", "TURNERO_STAFF_CLAVE", "TURNERO_ORIGENES"].filter((k) => !entorno[k]);
+    if (faltan.length) throw new Error(`TURNERO_MODO=real sin: ${faltan.join(", ")}. Las credenciales las carga el dueño.`);
+  }
+  const demo = !real; // en demo todo WhatsApp y Google son simulados
   const canal = demo ? crearCanalDemo({ ahora: reloj }) : crearCanalCloud({ token: entorno.WHATSAPP_TOKEN, phoneId: entorno.WHATSAPP_PHONE_ID });
   const lector = crearLectorDemo();
-  const turnero = turneroInyectado ?? crearTurnero({ reloj, canal, lector, urlTurnero: entorno.TURNERO_URL ?? "", claves: { hash: hashClave, verificar: verificarClave } });
+  const turnero = turneroInyectado ?? crearTurnero({ reloj, canal, lector, urlTurnero: entorno.TURNERO_URL ?? "", claves: { hash: hashClave, verificar: verificarClave }, autoConfirmar: demo });
   const origenes = new Set(String(entorno.TURNERO_ORIGENES ?? "http://localhost:5173,http://127.0.0.1:5173").split(",").map((s) => s.trim()).filter(Boolean));
   const staffClave = entorno.TURNERO_STAFF_CLAVE || randomBytes(9).toString("base64url");
   const secretoWhatsApp = entorno.WHATSAPP_APP_SECRET || randomBytes(32).toString("hex"); // demo: secreto efímero
@@ -69,14 +76,18 @@ export function crearApp({
     try { return crudo.length ? JSON.parse(crudo.toString("utf8")) : {}; } catch { throw Object.assign(new Error("json"), { status: 400 }); }
   }
 
+  const ssePorIp = new Map();
   function sse(req, res, canales) {
+    const ip = ipDe(req);
+    if ((ssePorIp.get(ip) ?? 0) >= 30) return json(res, 429, { ok: false, motivo: "Demasiadas pestañas abiertas." });
+    ssePorIp.set(ip, (ssePorIp.get(ip) ?? 0) + 1);
     res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store", Connection: "keep-alive", "X-Accel-Buffering": "no" });
     res.write(`retry: 3000\n: hola\n\n`);
     const enviar = (tipo, datos) => res.write(`event: ${tipo}\ndata: ${JSON.stringify(datos)}\n\n`);
     const bajas = canales.map((c) => turnero.suscribir(c, enviar));
     enviar("version", { version: turnero.version() });
     const latido = setInterval(() => res.write(`: latido\n\n`), 25000);
-    req.on("close", () => { clearInterval(latido); bajas.forEach((b) => b()); });
+    req.on("close", () => { clearInterval(latido); bajas.forEach((b) => b()); const n = (ssePorIp.get(ip) ?? 1) - 1; if (n > 0) ssePorIp.set(ip, n); else ssePorIp.delete(ip); });
   }
 
   function iniciarSesion(res, usuario, status = 200) {
@@ -101,7 +112,7 @@ export function crearApp({
   ruta("GET", "/api/salud", (req, res) => json(res, 200, { ok: true, demo, version: turnero.version() }));
   ruta("GET", "/api/turnero/config", (req, res) => json(res, 200, {
     ...turnero.config(), demo,
-    google: { clientId: googleClientId, demo: !googleClientId },
+    google: { clientId: demo ? null : googleClientId, demo },
     whatsapp: { numero: entorno.TURNERO_WHATSAPP_CLUB || null, demo },
   }));
   ruta("GET", "/api/turnero/disponibilidad", (req, res, { url }) => {
@@ -129,7 +140,7 @@ export function crearApp({
     iniciarSesion(res, r.usuario);
   }, { auth: true });
   ruta("POST", "/api/auth/google", async (req, res, { cuerpo }) => {
-    if (!googleClientId) {
+    if (demo) {
       // DEMO: Google simulado (no hay client id). Se dice en la respuesta para que el front lo muestre.
       const r = turnero.ingresarGoogleDemo(Number(cuerpo.cuentaDemo ?? 0));
       return iniciarSesion(res, r.usuario);

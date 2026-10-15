@@ -26,12 +26,13 @@ navegador (`local.mjs`). Así se puede mostrar en la URL gratuita del cliente si
 |---|---|---|---|
 | Unidad: motor | `src/tenants/breakpoint/motor-club.test.ts` | Los 29 de antes, más 4 nuevos: seña online para nuevos y de confianza, plazo de seña (manual/auto, se avisa una sola vez, nunca pasa del inicio), `conSena`, `prefijoIds` | **33/33** |
 | Unidad: conciliación | `turnero/conciliacion.test.ts` | Formatos de Mercado Pago y de bancos (fecha en letras, CBU/CVU, importe sin signo), números argentinos, exacto/parcial/excedente, duplicado por operación y por huella, cuenta ajena, ilegible/viejo/futuro → revisar, código inexistente, dos turnos sin código, sólo por monto → revisar con sugerencia, enmascarado | **17/17** |
-| Unidad: ingreso y WhatsApp | `turnero/auth-whatsapp.test.ts` | scrypt con sal (nunca texto plano), reglas de clave, límite de intentos, sesión deslizante y que vence, cookie HttpOnly/SameSite/Secure, celulares argentinos, ID token de Google (válido; audiencia ajena, vencido, emisor falso, mail sin verificar, otra clave, `alg:none` y basura se rechazan), firma del webhook, `hub.challenge`, payloads de WhatsApp Cloud, canal y lector de demo | **14/14** |
-| Dominio del turnero | `turnero/nucleo.test.ts` | Disponibilidad sin datos personales; respeta ocupados, fijos y el margen de hoy; doble reserva → 1 sola con alternativas; anti-acaparamiento; cliente de confianza sin seña; cancelar sólo lo propio; seña vencida en manual y en auto (con oferta a la lista de espera); WhatsApp de punta a punta; reintento de Meta y comprobante repetido; bandeja "a revisar" sin datos sensibles; pago parcial; imagen con OCR simulado; «Sí» a la lista de espera; sync del mostrador (acepta, rechaza lo que pisa, conserva de quién es la reserva); mantenimiento y bloqueos; registro e ingreso; Google demo | **21/21** |
-| Contrato HTTP (integración) | `turnero/api.test.ts` | El back real por HTTP: config, CORS con credenciales y CSRF por `Origin`, 415/400/404, cookie de sesión, error genérico y bloqueo al 5.º intento, Google demo, sesión obligatoria, **20 jugadores al mismo turno a la vez → 1**, `Idempotency-Key`, firma del webhook y verificación, **SSE público + staff + jugador con un comprobante que entra por el webhook firmado**, cuenta ajena/imagen, sync del backoffice con 409 | **13/13** |
-| E2E (Playwright, Chromium) | `turnero/e2e/turnero.e2e.mjs` (`npm run test:turnero-e2e`) | Recorrido completo en **390 y 1440 px**, axe-core (WCAG 2.1 AA) en la pantalla y en los 3 diálogos, tiempo real entre dos navegadores, **backoffice conectado en ambos sentidos por la UI real**, rendimiento con 4G lenta + CPU x4, movimiento reducido, teclado, demo pública sin servidor y lista de espera | **64/64 verificaciones** |
+| Unidad: ingreso y WhatsApp | `turnero/auth-whatsapp.test.ts` | scrypt con sal (nunca texto plano), reglas de clave, límite de intentos, sesión deslizante y que vence, cookie HttpOnly/SameSite/Secure, celulares argentinos, ID token de Google (válido; audiencia ajena, vencido, emisor falso, mail sin verificar, otra clave, `alg:none` y basura se rechazan), firma del webhook, `hub.challenge`, payloads de WhatsApp Cloud, canal y lector de demo | **13/13** |
+| Dominio del turnero | `turnero/nucleo.test.ts` | Disponibilidad sin datos personales; respeta ocupados, fijos y el margen de hoy; doble reserva → 1 sola con alternativas; anti-acaparamiento; cliente de confianza sin seña; cancelar sólo lo propio; seña vencida en manual y en auto (con oferta a la lista de espera); WhatsApp de punta a punta; reintento de Meta y comprobante repetido; bandeja "a revisar" sin datos sensibles; pago parcial; imagen con OCR simulado; «Sí» a la lista de espera; sync del mostrador (acepta, rechaza lo que pisa, conserva de quién es la reserva); mantenimiento y bloqueos; registro e ingreso; Google demo; **y los arreglos del Gate**: versión por reserva, ids raros, celular sin verificar, mail sin verificar, modo real sin auto-confirmar, reintento tras un error | **27/27** |
+| Contrato HTTP (integración) | `turnero/api.test.ts` | El back real por HTTP: config, CORS con credenciales y CSRF por `Origin`, 415/400/404, cookie de sesión, error genérico y bloqueo al 5.º intento, Google demo, sesión obligatoria, **20 jugadores al mismo turno a la vez → 1**, `Idempotency-Key`, firma del webhook y verificación, **SSE público + staff + jugador con un comprobante que entra por el webhook firmado**, cuenta ajena/imagen, sync del backoffice con 409, `TURNERO_MODO=real` sin secretos no arranca, cookie mal formada no da 500 | **15/15** |
+| E2E (Playwright, Chromium) | `turnero/e2e/turnero.e2e.mjs` (`npm run test:turnero-e2e`) | Recorrido completo en **390 y 1440 px**, axe-core (WCAG 2.1 AA) en la pantalla y en los 3 diálogos, tiempo real entre dos navegadores, **backoffice conectado en ambos sentidos por la UI real**, rendimiento con 4G lenta + CPU x4, movimiento reducido, teclado, demo pública sin servidor, lista de espera, **CSP estricta sin bypass** y `?api=` hostil desde un host público | **68/68 verificaciones** (2 corridas seguidas en verde) |
 
-Total de unidad e integración del turnero y el motor: **98 tests en verde**, más **64 verificaciones E2E**.
+Total de unidad e integración del turnero y el motor: **105 tests en verde**, más **68 verificaciones E2E**.
+`tsc` del proyecto completo: verde. `next build`: verde. `npm test` del repo: las 24 fallas que quedan son ajenas al turnero (inmobiliaria, contrato ARCA, POS, sitio de la estética) y no tocan archivos de esta rama.
 
 ## Mediciones (se miden, no se prometen)
 
@@ -39,8 +40,8 @@ Total de unidad e integración del turnero y el motor: **98 tests en verde**, m�
 |---|---|---|
 | LCP, celular 390 px, red «4G lenta» (150 ms, 1,6 Mbps) + CPU x4 | < 1,5 s | **≈ 0,52 s** |
 | CLS | 0 | **0** |
-| JS del turnero comprimido, modo con back | < 60 KB | **8,6 KB** gzip (`app.mjs`) |
-| JS comprimido, demo pública sin servidor (app + núcleo + motor) | < 60 KB | **≈ 47 KB** brotli |
+| JS del turnero comprimido, modo con back | < 60 KB | **9,3 KB** gzip (`app.mjs`) |
+| JS comprimido, demo pública sin servidor (app + núcleo + motor) | < 60 KB | **≈ 49 KB** brotli |
 | Confirmación «¡Turno firme!» desde que llega el comprobante | en vivo | **80–130 ms** |
 | Turno tomado que desaparece en el otro navegador | en vivo, sin recargar | **≈ 0,8 s** (incluye la animación de salida) |
 | axe-core (WCAG 2.1 A/AA) en inicio y en los diálogos de reserva, ingreso y seña, a 390 y 1440 px | 0 graves | **0 violaciones** de cualquier nivel |
@@ -73,6 +74,26 @@ con `display=swap` y subsets de pocos KB, la fuente no bloquea el render.
 | D17 | revisión del código | La lista de espera pedía el celular con `window.prompt()` (inaccesible, feo) | Campo inline con label y error al lado. Test E2E |
 | D18 | `tsc` del proyecto | Error de tipos preexistente en el test del empaquetador (`morph = null` inferido como `null`) | JSDoc en `empaquetar()`. `tsc` del proyecto en verde |
 
+## Hallazgos del Gate de Excelencia (Auditoría GSG, Opus) y cómo quedaron
+
+Veredicto: **APRUEBA CON OBSERVACIONES**. Se corrigieron todos los hallazgos que el Gate marcó como bloqueantes para la
+venta y los menores, salvo los anotados en «Pendientes».
+
+| # | Hallazgo | Arreglo | Test |
+|---|---|---|---|
+| G1 (mayor) | El backoffice podía pisar una reserva web con una copia vieja (el último que escribe gana): podía borrar una seña confirmada por WhatsApp | Versión `rev` por reserva: el back rechaza las copias viejas con 409 y devuelve la actual. El puesto adopta las versiones nuevas y, al reconectar, vuelve a bajar toda la agenda | `nucleo.test` Gate 1 |
+| G2 (mayor) | Con un celular sin verificar alguien heredaba la ficha de otro cliente (y su confianza: sin seña) | Sólo se engancha a una ficha existente con el celular verificado (OTP, post-venta); si no, ficha propia | Gate 2 |
+| G3 (mayor) | Toma previa de cuentas: Google se unía a una cuenta con contraseña cuyo mail nunca se verificó | Sólo se une si el mail de la cuenta está verificado; el ingreso con contraseña busca sólo cuentas con contraseña | Gate 3 |
+| G4 (mayor) | El modo real podía arrancar con partes en demo sin avisar (Google demo abierto, secreto de WhatsApp al azar) | `TURNERO_MODO=demo\|real` explícito: en real no arranca si falta un secreto | `api.test` Gate 4 |
+| G5 (mayor) | Un texto tipeado como comprobante dejaba el turno firme solo | En real, `autoConfirmar: false`: todo va a la bandeja como «pre-conciliado» hasta verlo acreditado en Mercado Pago o el banco | Gate 5 |
+| G6 (mayor) | `?api=` aceptaba cualquier servidor (un link armado podía robar contraseñas o la clave del club), y en producción se caía al modo local en silencio | `?api=` sólo en localhost (backoffice: localhost o el mismo origen). El modo local sólo con la marca `<meta name="turnero-modo" content="demo">`; sin back ni marca, se avisa que no está configurado | E2E «host público» |
+| G7 | `prompt()` para la clave del club | `<dialog>` con label | E2E backoffice |
+| G8 | XSS por ids sin `esc()` + CSP con `'unsafe-inline'` en scripts | `esc()` en todos los atributos, ids validados en el sync, fuentes cargadas desde JS y CSP del turnero sin `'unsafe-inline'` en scripts | Gate 1 ids + E2E CSP estricta |
+| G9 | Una cookie mal formada daba 500 | Se ignora la cookie (200) | `api.test` |
+| G10 | Si fallaba el procesamiento, el reintento de Meta se ignoraba | El mensaje se marca como visto, pero si algo falla se desmarca | `nucleo.test` |
+| G11 | SSE sin tope por IP | Máximo 30 conexiones por IP | — |
+| G12 | E2E inestable: un repintado en vivo ocultaba el formulario de la lista de espera | El bloque no se oculta mientras el jugador carga el celular; el test espera a que terminen los repintados | 2 corridas seguidas en verde |
+
 ## Pendientes conocidos (no se corrigieron, con el porqué)
 
 - **Hold antes del login (C20 del plan):** mientras alguien se registra, otro puede ganarle el hueco. Hoy recibe 409
@@ -84,6 +105,7 @@ con `display=swap` y subsets de pocos KB, la fuente no bloquea el render.
 - **Persistencia:** el back guarda todo en memoria y un reinicio lo borra. Es a propósito (demo). En producción, la
   base del ERP con la exclusión de solapes en la base (DB-4, Gate 2).
 - **Alcance del modo conectado:** se sincroniza la agenda; buffet, caja y stock siguen locales en cada puesto.
+- **Del Gate, para post-venta:** detrás de un proxy hay que configurar qué IP se toma (`X-Forwarded-For` de confianza); si no, los límites por IP se vuelven globales. La verificación del celular (OTP) es la que habilita unir fichas.
 - La ubicación «Ezeiza» y los precios y horarios son provisionales, a confirmar con el club.
 
 — Elaborado por GSG

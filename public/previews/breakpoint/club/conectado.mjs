@@ -26,7 +26,7 @@ export async function conectar(puente, api) {
   const sesion = await f("/api/staff/sesion").then((r) => r.json()).catch(() => null);
   if (!sesion) return puente.toast("No se pudo conectar con el turnero. Sigue en modo demo.", { error: true });
   if (!sesion.staff) {
-    const clave = new URLSearchParams(location.hash.slice(1)).get("clave") ?? prompt("Clave del club para conectar el backoffice con el turnero:");
+    const clave = new URLSearchParams(location.hash.slice(1)).get("clave") ?? await pedirClave();
     if (!clave) return puente.toast("Sigue en modo demo (sin conectar).");
     history.replaceState(null, "", location.pathname + location.search); // la clave no queda en la barra
     const r = await f("/api/staff/ingresar", { method: "POST", body: json({ clave }) });
@@ -35,6 +35,7 @@ export async function conectar(puente, api) {
   const estado = await f("/api/staff/estado");
   if (!estado.ok) return puente.toast("No se pudo conectar con el turnero. Sigue en modo demo.", { error: true });
   const datos = await estado.json();
+  let caido = false;
 
   // 2) La agenda del back pasa a ser la del puesto; el reloj, el real del club.
   puente.E = datos.estado;
@@ -62,6 +63,10 @@ export async function conectar(puente, api) {
     try {
       const res = await f("/api/staff/sync", { method: "POST", body: json({ puesto, reservas: cambiadas, ...extra }) });
       const out = await res.json().catch(() => ({}));
+      for (const [id, rev] of Object.entries(out.revs ?? {})) {
+        const r = E.reservas.find((x) => x.id === id);
+        if (r) { r.rev = rev; base0.set(id, json(r)); }
+      }
       for (const x of out.rechazadas ?? []) {
         const i = E.reservas.findIndex((r) => r.id === x.id);
         if (x.actual) { E.reservas[i] = x.actual; base0.set(x.id, json(x.actual)); }
@@ -82,8 +87,20 @@ export async function conectar(puente, api) {
     base0.set(r.id, json(r));
   };
   const ev = new EventSource(`${base}/api/staff/eventos`, { withCredentials: true });
-  ev.onopen = () => marcarConectado(true);
-  ev.onerror = () => marcarConectado(false);
+  // Al volver de un corte se baja la agenda entera: lo que pasó en el medio no queda como copia vieja (que el
+  // back, además, rechazaría por versión).
+  ev.onopen = async () => {
+    marcarConectado(true);
+    if (!caido) return;
+    caido = false;
+    const r = await f("/api/staff/estado").then((x) => x.json()).catch(() => null);
+    if (!r?.ok) return;
+    for (const k of ["reservas", "bloqueos", "canchas", "fijos", "clima"]) puente.E[k] = r.estado[k];
+    puente.E.config.politica = r.estado.config.politica;
+    agenda = bajarBase();
+    puente.render();
+  };
+  ev.onerror = () => { caido = true; marcarConectado(false); };
   ev.addEventListener("reserva", (e) => {
     const { reserva: r, motivo } = JSON.parse(e.data);
     upsert(r);
@@ -156,6 +173,24 @@ export async function conectar(puente, api) {
 
   puente.render();
   puente.toast("Conectado con el turnero web: las reservas online entran solas a la agenda.");
+}
+
+/** La clave del club en un diálogo de verdad (con label), no en un prompt() del navegador. */
+function pedirClave() {
+  return new Promise((listo) => {
+    const d = document.createElement("dialog");
+    d.setAttribute("aria-labelledby", "bp-clave-t");
+    d.style.cssText = "border:0;border-radius:12px;padding:20px;max-width:min(380px,calc(100vw - 32px));font:14px/1.45 system-ui,sans-serif";
+    d.innerHTML = `<form method="dialog" style="display:grid;gap:10px">
+      <strong id="bp-clave-t" style="font-size:16px">Conectar con el turnero web</strong>
+      <label for="bp-clave">Clave del club</label>
+      <input id="bp-clave" type="password" autocomplete="current-password" required style="font:inherit;padding:10px;border:1px solid #767676;border-radius:8px">
+      <div style="display:flex;gap:8px;justify-content:flex-end"><button value="no" formnovalidate style="font:inherit;padding:10px 14px">Seguir en demo</button><button value="si" style="font:inherit;padding:10px 14px;background:#035BA8;color:#fff;border:0;border-radius:8px">Conectar</button></div>
+    </form>`;
+    document.body.append(d);
+    d.addEventListener("close", () => { const v = d.returnValue === "si" ? d.querySelector("#bp-clave").value : null; d.remove(); listo(v); });
+    d.showModal();
+  });
 }
 
 function marcarConectado(on) {

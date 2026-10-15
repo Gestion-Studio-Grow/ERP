@@ -89,7 +89,8 @@ export function leerCookies(header) {
   const out = {};
   for (const parte of String(header ?? "").split(";")) {
     const i = parte.indexOf("=");
-    if (i > 0) out[parte.slice(0, i).trim()] = decodeURIComponent(parte.slice(i + 1).trim());
+    if (i <= 0) continue;
+    try { out[parte.slice(0, i).trim()] = decodeURIComponent(parte.slice(i + 1).trim()); } catch { /* cookie mal formada: se ignora (no es un 500) */ }
   }
   return out;
 }

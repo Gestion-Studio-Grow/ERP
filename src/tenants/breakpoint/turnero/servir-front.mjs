@@ -17,12 +17,14 @@ const TIPOS = { ".html": "text/html; charset=utf-8", ".mjs": "text/javascript; c
 
 export function crearFront({ api = "http://localhost:8787" } = {}) {
   const cache = new Map();
-  // CSP: sólo nuestro origen, el back y Google (fuentes y Sign-In). Nada de inline salvo estilos (el diseño los usa).
+  // CSP: sólo nuestro origen, el back y Google (fuentes y Sign-In). Sin scripts inline; estilos inline sí (el diseño).
   const csp = [
     "default-src 'self'", `connect-src 'self' ${api}`, "img-src 'self' data:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com", "font-src https://fonts.gstatic.com",
-    "script-src 'self' 'unsafe-inline' https://accounts.google.com", "frame-src https://accounts.google.com", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'",
+    "script-src 'self' https://accounts.google.com", "frame-src https://accounts.google.com", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'",
   ].join("; ");
+  // El backoffice del club trae un <script> inline propio (tema y fuentes): su CSP lo permite; la del turnero no.
+  const cspClub = csp.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'");
   return createServer(async (req, res) => {
     try {
       const url = new URL(req.url, "http://x");
@@ -43,7 +45,7 @@ export function crearFront({ api = "http://localhost:8787" } = {}) {
       }
       const cab = {
         "Content-Type": TIPOS[path.extname(archivo)] ?? "application/octet-stream", ETag: e.etag, "Cache-Control": "no-cache", Vary: "Accept-Encoding",
-        "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", ...(archivo.endsWith(".html") && { "Content-Security-Policy": csp }),
+        "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", ...(archivo.endsWith(".html") && { "Content-Security-Policy": archivo.includes(`${path.sep}club${path.sep}`) ? cspClub : csp }),
       };
       if (req.headers["if-none-match"] === e.etag) { res.writeHead(304, cab); return res.end(); }
       const acepta = String(req.headers["accept-encoding"] ?? "");
