@@ -189,6 +189,7 @@ function render() {
   if (TAB === "tablero") camaras.arrancar();
   if ($("#dlg").open && dialogoActual) dialogoActual.refrescar?.();
   devolverFoco(foco);
+  puente.despues?.();
 }
 
 const marcaRoja = (c) => (c?.deuda > 0 ? `<span class="marca-roja" title="Saldo deudor">⚠ debe ${M.pesos(c.deuda)}</span>` : "");
@@ -1394,7 +1395,7 @@ const acciones = {
     raiz.dataset.theme = oscuroAhora ? "light" : "dark";
     try { localStorage.setItem("bp-tema", raiz.dataset.theme); } catch { /* sin almacenamiento: vale para esta visita */ }
   },
-  reiniciar: () => { cerrarDialogo(); iniciar(); toast("Demo reiniciada."); },
+  reiniciar: () => { if (puente.conectado) return toast("Conectado al turnero: la agenda es la del club y no se reinicia.", { error: true }); cerrarDialogo(); iniciar(); toast("Demo reiniciada."); },
   cerrar: () => cerrarDialogo(),
   luz: (b) => { E.luces[b.dataset.v] = !E.luces[b.dataset.v]; render(); },
   medio: (b) => { ui.medio = b.dataset.v; b.parentElement.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); },
@@ -1810,4 +1811,19 @@ $("#dlg").addEventListener("close", () => { dialogoActual = null; });
 
 try { const t = localStorage.getItem("bp-tema"); if (t) document.documentElement.dataset.theme = t; } catch { /* sin almacenamiento */ }
 $("#kbd-k").textContent = ES_MAC ? "⌘K" : "Ctrl K";
+// MODO CONECTADO (opcional): con ?api=<back del turnero> la agenda se sincroniza en vivo con las reservas web y
+// los comprobantes de WhatsApp (conectado.mjs). Sin ?api= es la demo de siempre: nada sale del navegador.
+const API_TURNERO = new URLSearchParams(location.search).get("api");
+const puente = {
+  M,
+  get E() { return E; }, set E(v) { E = v; },
+  get AHORA() { return AHORA; }, set AHORA(v) { AHORA = v; HOY = v.fecha; VISTA = v.fecha; },
+  render: () => render(), toast: (t, o) => toast(t, o), despues: null, conectado: false,
+};
 iniciar();
+if (API_TURNERO && /^https?:\/\//.test(API_TURNERO)) {
+  import("./conectado.mjs")
+    .then((m) => m.conectar(puente, API_TURNERO))
+    .then(() => { puente.conectado = Boolean(puente.despues); })
+    .catch(() => toast("No se pudo conectar con el turnero. Sigue en modo demo.", { error: true }));
+}

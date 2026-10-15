@@ -387,3 +387,55 @@ test("el sitio de breakpoint.gsgapp.com.ar está empaquetado con la última vers
   assert.match(servido, /^<!doctype html>/i);
   assert.doesNotMatch(servido, /src="\.\/app\.mjs"/);
 });
+
+// ───── extensiones para el turnero web (docs/tenants/breakpoint/TURNERO-PLAN.md) ─────
+
+test("turnero: seña online — al nuevo se le pide; al de confianza (3 jugados, sin faltas) no; las reglas del mostrador mandan", () => {
+  const e = club();
+  assert.equal(M.requiereSenaWeb(e, null), true);
+  assert.equal(M.requiereSenaWeb(e, "a"), true); // todavía no jugó
+  for (let i = 0; i < 3; i++) e.reservas.push({ id: `h${i}`, clienteId: "a", estado: "finalizada", fecha: "2026-10-01", canchaId: "c1", inicio: 600, duracion: 90, pagos: [], jugadores: [], sena: { monto: 0, pagada: false }, precio: 0 });
+  assert.equal(M.requiereSenaWeb(e, "a"), false);
+  M.cliente(e, "a").strikes = 2; // reincidente: el mostrador pide seña → online también
+  assert.equal(M.requiereSenaWeb(e, "a"), true);
+  e.config.politica.senaWeb = "siempre";
+  M.cliente(e, "a").strikes = 0;
+  assert.equal(M.requiereSenaWeb(e, "a"), true);
+});
+
+test("turnero: crearReserva con conSena y plazo deja el vencimiento; vencerSenas manual marca, auto libera", () => {
+  const e = club();
+  const r = M.crearReserva(e, { canchaId: "c1", fecha: HOY, inicio: 20 * 60, clienteId: "a", origen: "web", conSena: true, plazoSenaMin: 60 }, ahora(15)).reserva;
+  assert.ok(r.sena.monto > 0);
+  assert.deepEqual(r.venceSena, { fecha: HOY, min: 16 * 60 });
+  assert.equal(M.alertas(e, ahora(15, 30)).some((a: any) => a.tipo === "sena" && a.reservaId === r.id), false, "en plazo no es urgente");
+  assert.equal(M.vencerSenas(e, ahora(15, 59)).length, 0);
+  const [v] = M.vencerSenas(e, ahora(16));
+  assert.equal(v.liberada, false);
+  assert.equal(r.estado, "reservada");
+  assert.equal(M.vencerSenas(e, ahora(16, 5)).length, 0, "se informa una sola vez");
+  e.config.politica.liberarSinSena = "auto";
+  const r2 = M.crearReserva(e, { canchaId: "c2", fecha: HOY, inicio: 20 * 60, clienteId: "b", origen: "web", conSena: true, plazoSenaMin: 30 }, ahora(15)).reserva;
+  const out = M.vencerSenas(e, ahora(15, 31));
+  assert.equal(out.find((x: any) => x.reserva === r2).liberada, true);
+  assert.equal(r2.estado, "cancelada");
+  assert.equal(M.validarHueco(e, { canchaId: "c2", fecha: HOY, inicio: 20 * 60, duracion: 90 }).ok, true);
+});
+
+test("turnero: el plazo de la seña nunca pasa el inicio del turno, y conSena:false no pide seña", () => {
+  const e = club();
+  const r = M.crearReserva(e, { canchaId: "c1", fecha: HOY, inicio: 15 * 60 + 30, clienteId: null, titular: "X", origen: "web", conSena: true, plazoSenaMin: 60 }, ahora(15)).reserva;
+  assert.deepEqual(r.venceSena, { fecha: HOY, min: 15 * 60 + 30 });
+  const r2 = M.crearReserva(e, { canchaId: "c2", fecha: HOY, inicio: 20 * 60, clienteId: null, titular: "Y", conSena: false }, ahora(15)).reserva;
+  assert.equal(r2.sena.monto, 0);
+});
+
+test("turnero: prefijoIds separa los ids de cada puesto (el back y el backoffice conectado no chocan)", () => {
+  const e = club();
+  M.prefijoIds("bx1-");
+  const a = M.crearReserva(e, { canchaId: "c1", fecha: HOY, inicio: 20 * 60, titular: "A" }).reserva;
+  M.prefijoIds("");
+  const b = M.crearReserva(e, { canchaId: "c2", fecha: HOY, inicio: 20 * 60, titular: "B" }).reserva;
+  assert.match(a.id, /^bx1-r/);
+  assert.match(b.id, /^r/);
+});

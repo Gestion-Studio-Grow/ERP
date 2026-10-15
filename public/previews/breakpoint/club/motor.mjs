@@ -101,7 +101,16 @@ export function pesos(n) {
 const redondear100 = (n) => Math.round(n / 100) * 100;
 
 let secuencia = 0;
-const nuevoId = (prefijo) => `${prefijo}${(++secuencia).toString(36)}`;
+let origenIds = "";
+const nuevoId = (prefijo) => `${origenIds}${prefijo}${(++secuencia).toString(36)}`;
+
+/**
+ * Marca los ids que crea ESTE proceso (ej. "b-" en el backoffice conectado): dos procesos que comparten agenda
+ * (el back del turnero y el backoffice) nunca generan el mismo id aunque sus contadores coincidan.
+ */
+export function prefijoIds(prefijo = "") {
+  origenIds = String(prefijo).replace(/[^a-z0-9-]/gi, "");
+}
 
 function registrar(estado, texto, ahora) {
   estado.log.unshift({ fecha: ahora?.fecha ?? null, min: ahora?.min ?? null, texto });
@@ -491,10 +500,51 @@ export function requiereSena(estado, clienteId, tipo) {
   return politica.senaSiempre;
 }
 
+/**
+ * Seña para reservas ONLINE (turnero web). Online no hay nadie mirando a la cara, así que la seña se pide salvo
+ * a quien ya es de confianza: `senaWeb` = "siempre" | "nuevos" (pide a quien jugó menos de `turnosConfianza`
+ * turnos o tiene faltas) | "politica" (igual que el mostrador). Las reglas del mostrador mandan siempre.
+ */
+export function requiereSenaWeb(estado, clienteId) {
+  const { politica } = estado.config;
+  const modo = politica.senaWeb ?? "nuevos";
+  if (requiereSena(estado, clienteId, "turno")) return true;
+  if (modo === "politica") return false;
+  if (modo === "siempre") return true;
+  const cl = clienteId ? cliente(estado, clienteId) : null;
+  if (!cl || cl.strikes > 0) return true;
+  const jugados = estado.reservas.filter((r) => r.clienteId === cl.id && r.estado === "finalizada").length;
+  return jugados < (politica.turnosConfianza ?? 3);
+}
+
+/**
+ * Turnos online cuya seña no llegó a tiempo. Con `liberarSinSena: "manual"` (por defecto) el turno NO se cae solo:
+ * queda marcado `senaVencida` y aparece en la bandeja para que el club decida (una transferencia puede demorar).
+ * Con "auto" se libera y se ofrece a la lista de espera. Cada turno se informa una sola vez.
+ */
+export function vencerSenas(estado, ahora) {
+  const out = [];
+  const auto = estado.config.politica.liberarSinSena === "auto";
+  for (const r of estado.reservas) {
+    if (r.estado !== "reservada" || !r.venceSena || r.sena.pagada || !(r.sena.monto > 0) || r.senaVencida) continue;
+    if (minutosHasta(ahora, r.venceSena.fecha, r.venceSena.min) > 0) continue;
+    if (!auto) {
+      r.senaVencida = true;
+      registrar(estado, `Venció el plazo de la seña de ${r.titular} (${hhmm(r.inicio)}): el club decide si lo libera.`, ahora);
+      out.push({ reserva: r, liberada: false, ofertas: [] });
+      continue;
+    }
+    const res = cancelar(estado, r.id, { porClub: true, motivo: "Venció el plazo de la seña" }, ahora);
+    if (res.ok) out.push({ reserva: r, liberada: true, ofertas: res.ofertas });
+  }
+  return out;
+}
+
 export function crearReserva(estado, datos, ahora) {
   const {
     canchaId, fecha, inicio, duracion = estado.config.duracionTurno, tipo = "turno", clienteId = null,
     titular, jugadores, origen = "mostrador", notas = "", fijoId = null, precio: precioFijo,
+    conSena, plazoSenaMin = 0,
   } = datos;
   const cl = clienteId ? cliente(estado, clienteId) : null;
   const nombre = String(titular ?? cl?.nombre ?? "").trim();
@@ -504,7 +554,8 @@ export function crearReserva(estado, datos, ahora) {
   if (!v.ok) return v;
 
   const precio = precioFijo ?? precioTurno(estado, { fecha, inicio, duracion, canchaId });
-  const senaMonto = requiereSena(estado, clienteId, tipo) ? redondear100((precio * estado.config.politica.senaPct) / 100) : 0;
+  const pideSena = conSena ?? requiereSena(estado, clienteId, tipo);
+  const senaMonto = pideSena ? redondear100((precio * estado.config.politica.senaPct) / 100) : 0;
   const lista = (jugadores?.length ? jugadores : [nombre]).slice(0, 4).map((j) => (typeof j === "string" ? { nombre: j } : { ...j }));
   if (cl && !lista[0].clienteId && lista[0].nombre === nombre) lista[0].clienteId = cl.id;
   const r = {
@@ -519,6 +570,12 @@ export function crearReserva(estado, datos, ahora) {
     creada: ahora ? { ...ahora } : null,
     senaEnSuspenso: false,
   };
+  // Seña con plazo (reservas online): si no llega a tiempo, el turno se libera solo (vencerSenas).
+  if (senaMonto > 0 && plazoSenaMin > 0 && ahora) {
+    const hastaTurno = minutosHasta(ahora, fecha, inicio);
+    const plazo = Math.max(5, Math.min(plazoSenaMin, hastaTurno));
+    r.venceSena = { fecha: ahora.fecha, min: ahora.min + plazo };
+  }
   estado.reservas.push(r);
   const liberadas = liberarSenasPorRelleno(estado, r, ahora);
   registrar(estado, `Turno ${hhmm(inicio)} en ${cancha(estado, canchaId).nombre} para ${nombre}.`, ahora);
@@ -1372,7 +1429,9 @@ export function alertas(estado, ahora) {
     const nombreCancha = cancha(estado, r.canchaId)?.nombre ?? "";
     const titular = r.clienteId ? cliente(estado, r.clienteId) : null;
     const marcaRoja = titular?.deuda > 0 ? ` ⚠ Debe ${pesos(titular.deuda)} de antes.` : "";
-    if (r.estado === "reservada" && r.sena.monto > 0 && !r.sena.pagada && falta > 0 && falta <= politica.minutosAvisoSena)
+    // Una reserva online dentro de su plazo de seña todavía no es urgente: el jugador está transfiriendo.
+    const enPlazo = r.venceSena && minutosHasta(ahora, r.venceSena.fecha, r.venceSena.min) > 0;
+    if (r.estado === "reservada" && r.sena.monto > 0 && !r.sena.pagada && !enPlazo && falta > 0 && falta <= politica.minutosAvisoSena)
       out.push({ nivel: "alta", tipo: "sena", reservaId: r.id, texto: `${r.titular} (${hhmm(r.inicio)}, ${nombreCancha}) no pagó la seña.`, accion: "Pedir seña o liberar" });
     if (r.estado === "reservada" && falta < 0 && -falta >= politica.toleranciaMin && fin > 0)
       out.push({ nivel: "alta", tipo: "no_show", reservaId: r.id, texto: `${r.titular} no llegó: van ${-falta} min del turno de las ${hhmm(r.inicio)} (${nombreCancha}). La falta se cobra entera.`, accion: "Llamar o marcar la falta" });
@@ -1545,6 +1604,10 @@ export const CONFIG_DEMO = Object.freeze({
     strikesParaSena: 2,
     toleranciaMin: 15,
     minutosAvisoSena: 180,
+    senaWeb: "nuevos", // turnero online: seña a quien todavía no es de confianza
+    turnosConfianza: 3,
+    minutosParaSenar: 60, // plazo para mandar la seña de una reserva online
+    liberarSinSena: "manual", // "manual": vencida la seña decide el club (bandeja) · "auto": se libera sola
     minutosAntesParaEntrar: null, // sin límite: se abre la cancha cuando el club quiere
   },
 });

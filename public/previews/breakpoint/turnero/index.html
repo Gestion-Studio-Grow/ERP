@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reservá tu cancha · Break Point Pádel</title>
+<meta name="description" content="Turnero de Break Point Pádel, Ezeiza: mirá los horarios libres en vivo y reservá tu cancha.">
+<meta name="generator" content="Gestión Studio Grow">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#035BA8">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='3' fill='%23035BA8'/%3E%3Ccircle cx='16' cy='16' r='8' fill='none' stroke='%23DC6E22' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="./turnero.css">
+<!-- Anton sólo con los glifos que usamos en mayúsculas (títulos y número del día): pocos KB, no bloquea el render -->
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Anton&display=swap&text=ABCDEFGHIJKLMNOPQRSTUVWXYZ%C3%81%C3%89%C3%8D%C3%93%C3%9A%C3%91%C3%9C0123456789%C2%A1!%C2%BF%3F%24.%2C%3A-%20">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&display=swap&text=ABCDEFGHIJKLMNOPQRSTUVWXYZ%C3%81%C3%89%C3%8D%C3%93%C3%9A%C3%91%C3%9C0123456789%C2%A1!%C2%BF%3F%24.%2C%3A-%20"></noscript>
+</head>
+<body data-estado="cargando">
+
+<p class="cinta" role="note">Demo: los datos son de ejemplo y no se guardan</p>
+
+<header class="top">
+  <div class="top-in">
+    <!-- LOGO: reemplazar por el SVG oficial de ccr-63ed11dc-brcdpp -->
+    <svg id="logo" viewBox="0 0 100 100" role="img" aria-labelledby="logo-t">
+      <title id="logo-t">Break Point Pádel</title>
+      <rect width="100" height="100" fill="#035BA8"/>
+      <g transform="translate(-1.5 0)" fill="none" stroke="#fff" stroke-width="2.2" stroke-miterlimit="2">
+        <path d="M16 17V83"/>
+        <path transform="translate(22 18)" d="M0 0V18H5.5a4.7 4.7 0 0 0 0-9.4H0M0 8.6H5a4.3 4.3 0 0 0 0-8.6H0"/>
+        <path transform="translate(35.5 18)" d="M0 18V0H5a4.5 4.5 0 0 1 0 9H0M5 9l5.5 9"/>
+        <path transform="translate(49 18)" d="M9.5 0H0V18H9.5M0 8.8H8.5"/>
+        <path transform="translate(61.3 18)" d="M0 18 6.5 0 13 18M2.35 11.5h8.3"/>
+        <path transform="translate(77 18)" d="M0 0V18M10.2 0 0 10.6M3.7 6.8 10.5 18"/>
+        <path transform="translate(22 41)" d="M0 18V0H5.5a4.75 4.75 0 0 1 0 9.5H0"/>
+        <path transform="translate(57.4 41)" d="M0 0V18"/>
+        <path transform="translate(61 41)" d="M0 18V0L12 18V0"/>
+        <path transform="translate(76.5 41)" d="M0 0H11M5.5 0V18"/>
+        <path transform="translate(22 64)" d="M0 18V0H5.5a4.75 4.75 0 0 1 0 9.5H0"/>
+        <path transform="translate(35 64)" d="M0 18 6.5 0 13 18M2.35 11.5h8.3"/>
+        <path transform="translate(50.8 64)" d="M0 0V18H3.5a9 9 0 0 0 0-18Z"/>
+        <path transform="translate(66.1 64)" d="M9.5 0H0V18H9.5M0 8.8H8.5"/>
+        <path transform="translate(78.5 64)" d="M0 0V18H9"/>
+        <g stroke="#DC6E22"><circle cx="44.8" cy="50" r="8.2"/><path d="M43 42.4c4.6 3.4 4.6 11.8 0 15.2"/></g>
+      </g>
+    </svg>
+    <span id="en-vivo" class="vivo" role="status">En vivo</span>
+    <button id="btn-ingresar" class="btn-head" type="button">Ingresar</button>
+    <div id="usuario" class="usuario" hidden></div>
+  </div>
+</header>
+
+<main class="app">
+  <div class="principal">
+    <section class="hero" aria-labelledby="titulo">
+      <h1 id="titulo"><span>Reservá</span> <span class="trazo">tu cancha</span></h1>
+      <p id="subtitulo">Elegí el día y el horario que te quede cómodo. Si lo ves libre, es tuyo.</p>
+    </section>
+
+    <p class="paso" id="t-dias">Elegí el día</p>
+    <div id="dias" role="group" aria-labelledby="t-dias"></div>
+
+    <div id="filtros">
+      <fieldset id="duracion">
+        <legend>Duración</legend>
+        <div class="seg">
+          <input type="radio" name="duracion" id="dur-60" value="60"><label for="dur-60">1 h</label>
+          <input type="radio" name="duracion" id="dur-90" value="90" checked><label for="dur-90">1 h 30</label>
+          <input type="radio" name="duracion" id="dur-120" value="120"><label for="dur-120">2 h</label>
+        </div>
+      </fieldset>
+      <label class="check" for="techadas"><input type="checkbox" id="techadas" name="techadas">Sólo techadas (por si llueve)</label>
+    </div>
+
+    <div id="grilla" aria-live="polite" aria-busy="true">
+      <p class="sr">Cargando los turnos libres…</p>
+      <div class="skeleton" aria-hidden="true">
+        <span class="sk sk-h"></span>
+        <div class="slots">
+          <span class="sk sk-slot"></span><span class="sk sk-slot"></span><span class="sk sk-slot"></span>
+          <span class="sk sk-slot"></span><span class="sk sk-slot"></span><span class="sk sk-slot"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="espera" class="espera" hidden>
+      <p>No quedan canchas libres con estos filtros. Si alguien suelta un turno, te avisamos al toque.</p>
+      <button id="btn-espera" type="button" class="btn">Avisame si se libera</button>
+    </div>
+  </div>
+
+  <aside class="lateral">
+    <section id="mis-reservas" class="card" aria-labelledby="t-mis">
+      <h2 id="t-mis">Mis reservas</h2>
+      <ul id="lista-reservas">
+        <li class="reserva-vacia">Todavía no tenés reservas</li>
+      </ul>
+    </section>
+    <section class="card como" aria-labelledby="t-como">
+      <h2 id="t-como">Cómo es</h2>
+      <ol>
+        <li><b>Elegí</b> el día, el horario y la cancha.</li>
+        <li><b>Reservá</b> con tu cuenta o con Google.</li>
+        <li><b>Si el turno pide seña,</b> transferí con el código y queda firme.</li>
+      </ol>
+    </section>
+  </aside>
+</main>
+
+<footer class="pie">
+  <p><b>Break Point Pádel</b> · Ezeiza</p>
+  <p><a href="https://www.instagram.com/breakpointpadel_/" target="_blank" rel="noopener">Instagram @breakpointpadel_</a></p>
+</footer>
+
+<!-- Reserva -->
+<dialog id="dlg-reserva" aria-labelledby="t-res">
+  <div class="dlg-cab"><h2 id="t-res">Confirmá tu turno</h2></div>
+  <div class="dlg-cuerpo">
+    <div id="res-resumen" class="resumen"></div>
+    <dl class="cuenta">
+      <dt>Precio del turno</dt><dd id="res-precio" class="num"></dd>
+      <dt>Seña</dt><dd id="res-sena"></dd>
+    </dl>
+    <form id="form-reserva" class="dlg-form">
+      <div class="campo">
+        <label for="res-jugadores">¿Con quién jugás? (opcional)</label>
+        <input id="res-jugadores" name="jugadores" type="text" autocomplete="off" maxlength="120" placeholder="Los nombres de tus compañeros">
+      </div>
+      <p id="res-error" class="error" role="alert"></p>
+      <div class="acciones">
+        <button id="btn-cancelar-dlg" type="button" class="btn">Volver</button>
+        <button id="btn-confirmar" type="submit" class="btn btn-pri">Reservar</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<!-- Ingreso / registro -->
+<dialog id="dlg-login" aria-labelledby="t-login">
+  <div class="dlg-cab">
+    <h2 id="t-login">Entrá para reservar</h2>
+    <form method="dialog"><button class="dlg-x" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></form>
+  </div>
+  <div class="dlg-cuerpo">
+    <button id="btn-google" type="button" class="btn btn-google btn-block">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Continuar con Google
+    </button>
+    <p class="sep">o</p>
+    <form id="form-login" class="dlg-form">
+      <div class="campo">
+        <label for="login-usuario">Email o celular</label>
+        <input id="login-usuario" name="usuario" type="text" autocomplete="username" inputmode="email" required>
+      </div>
+      <div class="campo">
+        <label for="login-clave">Contraseña</label>
+        <input id="login-clave" name="clave" type="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-pri btn-block">Entrar</button>
+      <p class="cambio">¿Primera vez? <button id="btn-ir-registro" type="button" class="btn-link">Crear cuenta</button></p>
+    </form>
+    <form id="form-registro" class="dlg-form" hidden>
+      <div class="campo">
+        <label for="reg-nombre">Nombre y apellido</label>
+        <input id="reg-nombre" name="nombre" type="text" autocomplete="name" required>
+      </div>
+      <div class="campo">
+        <label for="reg-tel">Celular (WhatsApp)</label>
+        <input id="reg-tel" name="tel" type="tel" autocomplete="tel" inputmode="tel" required>
+      </div>
+      <div class="campo">
+        <label for="reg-email">Email <span class="hint">(opcional)</span></label>
+        <input id="reg-email" name="email" type="email" autocomplete="email">
+      </div>
+      <div class="campo">
+        <label for="reg-clave">Contraseña</label>
+        <input id="reg-clave" name="clave" type="password" autocomplete="new-password" minlength="8" aria-describedby="reg-clave-hint" required>
+        <p id="reg-clave-hint" class="hint">Mínimo 8 caracteres.</p>
+      </div>
+      <button type="submit" class="btn btn-pri btn-block">Crear cuenta</button>
+      <p class="cambio">¿Ya tenés cuenta? <button id="btn-ir-login" type="button" class="btn-link">Entrar</button></p>
+    </form>
+    <p id="login-error" class="error" role="alert"></p>
+    <p class="nota-demo">Demo: Google está simulado; no se usan cuentas reales.</p>
+  </div>
+</dialog>
+
+<!-- Seña -->
+<dialog id="dlg-pago" aria-labelledby="t-pago">
+  <div class="dlg-cab pago-cab">
+    <div id="pago-ok" aria-hidden="true">
+      <span class="aro"></span>
+      <svg class="ok-svg" viewBox="0 0 72 72"><circle class="ok-c" cx="36" cy="36" r="33"/><path class="ok-check" pathLength="1" d="M22 37l9 9 19-20"/></svg>
+      <span class="pelota"></span>
+    </div>
+    <span id="pago-estado" class="badge" role="status">Esperando seña</span>
+    <h2 id="t-pago">Mandá la seña y listo</h2>
+    <p class="cuenta-reg">La reserva se sostiene <span id="pago-cuenta" class="num" role="timer">--:--</span> min</p>
+  </div>
+  <div class="dlg-cuerpo">
+    <dl class="datos">
+      <div class="dato"><dt>Monto de la seña</dt><dd id="pago-monto" class="num monto"></dd></div>
+      <div class="dato"><dt>Alias</dt><dd><span id="pago-alias" class="mono"></span><button id="btn-copiar-alias" type="button" class="copiar" aria-label="Copiar alias"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>Copiar</button></dd></div>
+      <div class="dato"><dt>Código de la reserva</dt><dd><span id="pago-ref" class="mono"></span><button id="btn-copiar-ref" type="button" class="copiar" aria-label="Copiar código"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>Copiar</button></dd></div>
+    </dl>
+    <p class="instr"><b>Poné el código en el concepto de la transferencia.</b> Así la encontramos al toque y tu turno queda firme.</p>
+    <div class="col">
+      <a id="btn-whatsapp" class="btn btn-wa btn-block" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 18.8z"/></svg>Mandar comprobante por WhatsApp</a>
+      <button id="btn-simular" type="button" class="btn btn-demo btn-block">Simular comprobante (demo)</button>
+      <button id="btn-cerrar-pago" type="button" class="btn btn-pri btn-block">Listo</button>
+    </div>
+  </div>
+</dialog>
+
+<div id="aviso" role="status" aria-live="polite"></div>
+
+<script type="module" src="./app.mjs"></script>
+</body>
+</html>
