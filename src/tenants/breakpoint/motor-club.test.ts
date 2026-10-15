@@ -442,3 +442,149 @@ test("turnero: prefijoIds separa los ids de cada puesto (el back y el backoffice
   assert.match(a.id, /^bx1-r/);
   assert.match(b.id, /^r/);
 });
+
+// ── Pedidos del club del 15/10: cargos maleables, mesa compleja, códigos, rentabilidad, bloqueo ──
+
+test("cancha a cargo de otro jugador: Beto paga su parte y la de Ana; sin cadenas ni a cargo de quien ya pagó", () => {
+  const e = club();
+  const r = turno(e, "c1", 20, { clienteId: "a", jugadores: [{ nombre: "Ana", clienteId: "a" }, { nombre: "Beto", clienteId: "b" }, "Caro", "Dani"] });
+  const cuota = r.precio / 4;
+  assert.ok(M.asignarCargoCancha(e, r.id, 0, 1, ahora(19)).ok);
+  const partes = M.partesCancha(r);
+  assert.deepEqual(partes.map((p: any) => p.aPagar), [0, cuota * 2, cuota, cuota]);
+  assert.equal(partes[0].aCargoDe, 1);
+  // Beto ya paga por Ana: no puede pasar a cargo de nadie, y nadie puede quedar a cargo de Ana.
+  assert.match(M.asignarCargoCancha(e, r.id, 1, 2, ahora(19)).motivo, /ya paga la parte de otro/);
+  assert.match(M.asignarCargoCancha(e, r.id, 2, 0, ahora(19)).motivo, /ya está a cargo/);
+  const cobro = M.cobrarParte(e, r.id, 1, { medio: "efectivo" }, ahora(21, 30));
+  assert.ok(cobro.ok);
+  assert.equal(cobro.monto, cuota * 2);
+  assert.deepEqual(cobro.cubiertos, ["Ana"]);
+  assert.equal(r.jugadores[0].pagadoPor, 1);
+  assert.equal(M.saldo(r), cuota * 2);
+  // Quien ya pagó (o quedó cubierto) no se reasigna.
+  assert.match(M.asignarCargoCancha(e, r.id, 0, 2, ahora(21, 31)).motivo, /ya pagó/);
+  assert.match(M.asignarCargoCancha(e, r.id, 2, 1, ahora(21, 31)).motivo, /ya pagó/);
+  // El resto se reparte entre los que faltan y se puede volver atrás una asignación.
+  assert.ok(M.asignarCargoCancha(e, r.id, 3, 2, ahora(21, 32)).ok);
+  assert.deepEqual(M.partesCancha(r).map((p: any) => p.aPagar), [0, 0, cuota * 2, 0]);
+  assert.ok(M.asignarCargoCancha(e, r.id, 3, null, ahora(21, 33)).ok);
+  assert.deepEqual(M.partesCancha(r).map((p: any) => p.aPagar), [0, 0, cuota, cuota]);
+});
+
+test("cancha a cargo de otro con créditos: descuenta los créditos del que paga, no del invitado", () => {
+  const e = club();
+  const r = turno(e, "c1", 10, { clienteId: "a", jugadores: [{ nombre: "Ana", clienteId: "a" }, { nombre: "Beto", clienteId: "b" }] });
+  M.asignarCargoCancha(e, r.id, 0, 1, ahora(9));
+  const antes = M.cliente(e, "b").monedero;
+  const parte = M.partesCancha(r)[1].aPagar;
+  const res = M.cobrarParte(e, r.id, 1, { medio: "monedero" }, ahora(9));
+  if (parte <= antes) {
+    assert.ok(res.ok);
+    assert.equal(M.cliente(e, "b").monedero, antes - parte);
+  } else {
+    assert.equal(res.ok, false);
+    assert.equal(M.cliente(e, "b").monedero, antes);
+  }
+});
+
+test("cargos maleables: sumar y restar unidades devuelve stock; no deja la cuenta por debajo de lo pagado", () => {
+  const e = club();
+  const { cuenta: c } = M.abrirCuenta(e, { clienteId: "a" }, ahora(18));
+  const agua = M.producto(e, "p2");
+  const stock0 = agua.stock;
+  M.cargarEnCuenta(e, c.id, "p2", 3, ahora(18));
+  assert.equal(agua.stock, stock0 - 3);
+  assert.ok(M.ajustarCargo(e, c.id, 0, -1, ahora(18, 5)).ok);
+  assert.equal(c.items[0].cant, 2);
+  assert.equal(agua.stock, stock0 - 2);
+  assert.ok(M.ajustarCargo(e, c.id, 0, +2, ahora(18, 6)).ok);
+  assert.equal(c.items[0].cant, 4);
+  assert.match(M.ajustarCargo(e, c.id, 0, -5, ahora(18, 7)).motivo, /No se pueden sacar/);
+  M.pagarCuenta(e, c.id, { medio: "efectivo", monto: 6000 }, ahora(18, 8));
+  assert.match(M.ajustarCargo(e, c.id, 0, -2, ahora(18, 9)).motivo, /ya se pagaron/i);
+  assert.ok(M.ajustarCargo(e, c.id, 0, -1, ahora(18, 9)).ok); // 3 × 2000 = 6000: justo lo pagado
+  // Llevado a cero, el cargo desaparece.
+  const { cuenta: c2 } = M.abrirCuenta(e, { titular: "Mesa 2" }, ahora(19));
+  M.cargarEnCuenta(e, c2.id, "k-tost", 1, ahora(19));
+  assert.ok(M.ajustarCargo(e, c2.id, 0, -1, ahora(19, 1)).ok);
+  assert.equal(c2.items.length, 0);
+});
+
+test("mesa compleja: un cargo se pasa entero o en partes a otra cuenta; cargo manual y descuento con PIN del dueño", () => {
+  const e = club();
+  const { cuenta: mesa } = M.abrirCuenta(e, { titular: "Mesa 5" }, ahora(21));
+  const { cuenta: ana } = M.abrirCuenta(e, { clienteId: "a" }, ahora(21));
+  const { cuenta: beto } = M.abrirCuenta(e, { clienteId: "b" }, ahora(21));
+  M.cargarEnCuenta(e, mesa.id, "k-empa", 6, ahora(21));
+  M.cargarEnCuenta(e, mesa.id, "p9", 2, ahora(21));
+  assert.ok(M.transferirCargo(e, mesa.id, 0, ana.id, 3, ahora(21, 30)).ok);
+  assert.equal(mesa.items[0].cant, 3);
+  assert.equal(ana.items[0].cant, 3);
+  assert.equal(ana.items[0].transferidoDe, "Mesa 5");
+  assert.ok(M.transferirCargo(e, mesa.id, 1, beto.id, null, ahora(21, 31)).ok); // sin cantidad: entero
+  assert.equal(mesa.items.length, 1);
+  assert.equal(M.totalCuenta(beto), 2 * 3800);
+  assert.match(M.transferirCargo(e, mesa.id, 0, mesa.id, 1, ahora(21, 32)).motivo, /otra cuenta/);
+  assert.match(M.transferirCargo(e, mesa.id, 0, ana.id, 9, ahora(21, 32)).motivo, /de 1 a 3/);
+  // Lo ya pagado en el origen no queda sin respaldo.
+  M.pagarCuenta(e, mesa.id, { medio: "efectivo", monto: 4400 }, ahora(21, 33));
+  assert.match(M.transferirCargo(e, mesa.id, 0, ana.id, 2, ahora(21, 34)).motivo, /ya se pagaron/);
+  assert.ok(M.transferirCargo(e, mesa.id, 0, ana.id, 1, ahora(21, 34)).ok);
+  // Cargo manual (la excepción que se cobra a mano) y descuento.
+  assert.ok(M.cargoManual(e, ana.id, { concepto: "Torta de cumple", monto: 15000 }, RECEP, ahora(22)).ok);
+  assert.equal(ana.items.at(-1).manual, true);
+  assert.match(M.cargoManual(e, ana.id, { concepto: "Descuento", monto: -3000 }, RECEP, ahora(22)).motivo, /dueño/);
+  assert.match(M.cargoManual(e, ana.id, { concepto: "Descuento", monto: -3000 }, { usuarioId: "u-rober", pin: "99" }, ahora(22)).motivo, /PIN/);
+  const antes = M.totalCuenta(ana);
+  assert.ok(M.cargoManual(e, ana.id, { concepto: "Descuento cumpleañera", monto: -3000 }, DUENO, ahora(22)).ok);
+  assert.equal(M.totalCuenta(ana), antes - 3000);
+  assert.match(M.cargoManual(e, ana.id, { concepto: "", monto: 100 }, RECEP, ahora(22)).motivo, /concepto/);
+  assert.match(M.ajustarCargo(e, ana.id, ana.items.length - 2, +1, ahora(22)).motivo, /manual/);
+  // Un cargo manual no cuenta como venta de producto en la rentabilidad.
+  assert.equal(M.rentabilidad(e).filas.find((f: any) => f.productoId === "k-empa").unidades, 6);
+});
+
+test("código interno y código de fabricación: se busca y se escanea por cualquiera de los dos, sin repetir", () => {
+  const e = club();
+  assert.equal(M.productoPorCodigo(e, "bp-002").producto.nombre, "Agua 500 ml");
+  assert.equal(M.productoPorCodigo(e, "7790000000028").producto.nombre, "Agua 500 ml");
+  assert.deepEqual(M.buscarProductos(e, "bp-001").map((p: any) => p.id), ["p1"]);
+  const alta = M.altaProducto(e, { nombre: "Grip pro", categoria: "Accesorios", precio: 5000, costo: 2000, stock: 5, codigo: "BP-100", codigoExterno: "7791234567890" }, DUENO, ahora(10));
+  assert.ok(alta.ok);
+  assert.equal(M.productoPorCodigo(e, "7791234567890").producto.id, alta.producto.id);
+  assert.match(M.altaProducto(e, { nombre: "Otro", precio: 100, codigoExterno: "BP-002" }, DUENO, ahora(10)).motivo, /otro producto/);
+  assert.match(M.altaProducto(e, { nombre: "Otro", precio: 100, codigo: "X1", codigoExterno: "X1" }, DUENO, ahora(10)).motivo, /mismo/);
+  assert.ok(M.editarProducto(e, "p2", { codigoExterno: "7790000009999" }, DUENO).ok);
+  assert.equal(M.productoPorCodigo(e, "7790000009999").producto.id, "p2");
+  assert.match(M.editarProducto(e, "p2", { codigoExterno: "7790000000011" }, DUENO).motivo, /otro producto/);
+});
+
+test("pricing y revenue: margen, markup y lo vendido; precio sugerido desde el markup", () => {
+  const e = club();
+  const { cuenta: c } = M.abrirCuenta(e, { titular: "Mesa 1" }, ahora(13));
+  M.cargarEnCuenta(e, c.id, "p2", 4, ahora(13));
+  M.cargarEnCuenta(e, c.id, "k-mila", 1, ahora(13));
+  const r = M.rentabilidad(e, { desde: HOY, hasta: HOY });
+  const agua = r.filas.find((f: any) => f.productoId === "p2");
+  assert.equal(agua.margen, 1300);
+  assert.equal(agua.unidades, 4);
+  assert.equal(agua.facturado, 8000);
+  assert.equal(agua.ganancia, 8000 - 4 * 700);
+  assert.ok(Math.abs(agua.markupPct - 1300 / 700) < 1e-9);
+  assert.equal(r.facturado, 8000 + 14500);
+  assert.equal(r.ganancia, 8000 - 2800 + 14500 - 6200);
+  assert.equal(M.rentabilidad(e, { desde: "2026-10-20" }).facturado, 0);
+  assert.equal(M.precioDesdeMarkup(700, 100), 1400);
+  assert.equal(M.precioDesdeMarkup(1500, 133), 3500);
+  assert.equal(M.precioDesdeMarkup(0, 50), null);
+});
+
+test("bloqueo por inactividad: lo configura el dueño, entre 0 y 60 minutos", () => {
+  const e = club();
+  assert.equal(e.config.bloqueoMin, 5);
+  assert.ok(M.ajustarBloqueo(e, 10, DUENO).ok);
+  assert.equal(e.config.bloqueoMin, 10);
+  assert.match(M.ajustarBloqueo(e, 10, RECEP).motivo, /permiso/);
+  assert.match(M.ajustarBloqueo(e, 90, DUENO).motivo, /Entre/);
+});

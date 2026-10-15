@@ -282,6 +282,35 @@
   .qty button{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--paper);font-weight:800}
   .cam-big{width:100%;aspect-ratio:16/9;background:#000;display:block;border-radius:10px}
 
+  /* ── cargos maleables, créditos, mesa compleja, precios ── */
+  .cargos{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+  .cargos li{display:grid;grid-template-columns:1fr auto minmax(80px,auto);gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line-2);font-size:13.5px}
+  .cargos li:last-child{border-bottom:0}
+  .cargos .r{text-align:right}
+  .cargos .qty button{width:30px;height:30px}
+  .cargos.compacta{grid-column:1/-1;margin-top:4px}
+  .cargos.compacta li{font-size:12.5px;padding:2px 0}
+  .player.jug-cargos{grid-template-columns:auto 1fr auto}
+  .player select.sm{min-height:34px;padding:4px 8px;font-size:12.5px;max-width:180px}
+  .confirma-credito{display:grid;gap:8px;border:1.5px solid var(--royal);background:var(--royal-soft);border-radius:12px;padding:12px}
+  details.mesa > summary{cursor:pointer;min-height:32px;display:flex;align-items:center}
+  table.precios input{max-width:110px;min-height:34px;padding:4px 8px;text-align:right}
+  table.precios tfoot td{border-top:2px solid var(--line);padding-top:8px}
+
+  /* ── bloqueo de pantalla ── */
+  dialog.bloqueo{max-width:min(380px,calc(100vw - 24px))}
+  dialog.bloqueo::backdrop{-webkit-backdrop-filter:blur(16px) saturate(.8);backdrop-filter:blur(16px) saturate(.8)}
+  dialog.bloqueo[open]::backdrop{background:color-mix(in srgb,var(--ink) 55%,transparent)}
+  .bl-in{display:grid;gap:12px;padding:22px 20px 18px;text-align:center}
+  .bl-in h2{margin:0;font-size:20px}
+  .bl-marca{margin:0;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .bl-quien{display:flex;gap:10px;align-items:center;justify-content:center;text-align:left}
+  .bl-quien .avatar{width:40px;height:40px;border-radius:50%;background:var(--royal);color:#fff;display:grid;place-items:center;font-weight:800;font-size:18px}
+  .bl-pin-l{justify-items:center}
+  .bl-in .usuarios{text-align:left}
+  html.bloqueada body > :not(dialog){filter:blur(6px)}
+  @media (prefers-reduced-motion: reduce){html.bloqueada body > :not(dialog){filter:none}}
+
 
   /* ── usuario, pestañas, PIN ── */
   .user-chip{display:flex;align-items:center;gap:8px;border:1px solid transparent;background:var(--panel);border-radius:999px;padding:4px 12px 4px 4px;min-height:42px;text-align:left}
@@ -433,7 +462,7 @@
 :root[data-estilo] .kpi .v{white-space:nowrap}
 @media (max-width:640px){
   :root[data-estilo] dialog:not(#cmdk){border-radius:var(--r-sheet,16px) var(--r-sheet,16px) 0 0}
-  :root[data-estilo] dialog:not(#cmdk)::before{content:"";position:absolute;top:6px;left:50%;width:36px;height:4px;margin-left:-18px;border-radius:2px;background:var(--line)}
+  :root[data-estilo] dialog:not(#cmdk):not(#bloqueo)::before{content:"";position:absolute;top:6px;left:50%;width:36px;height:4px;margin-left:-18px;border-radius:2px;background:var(--line)}
 }
 :root[data-estilo="chapa"]{--display:"Archivo",ui-sans-serif,system-ui,sans-serif; --sans:"Archivo",ui-sans-serif,system-ui,sans-serif; --fs:14px;
   --royal:#035BA8; --royal-deep:#084A8A; --royal-soft:#E4EEF8; --royal-line:#035BA8;
@@ -846,6 +875,7 @@
       <button type="button" class="btn sm ghost" data-a="reloj" data-v="30" aria-label="Adelantar el reloj de la demo 30 minutos">+30′</button>
     </div>
     <button type="button" class="btn ghost estilo-btn" id="btn-estilo" popovertarget="estilo-menu" aria-haspopup="menu" aria-label="Elegir el estilo visual"><span class="muestra" aria-hidden="true"></span><span class="estilo-t">Estilo</span></button>
+    <button type="button" class="btn icon-btn ghost" data-a="bloquearYa" aria-label="Bloquear la pantalla (atajo L)" aria-keyshortcuts="L" title="Bloquear la pantalla"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
     <button type="button" class="btn icon-btn ghost" data-a="tema" aria-label="Cambiar entre tema claro y oscuro">☾</button>
   </div>
 </header>
@@ -856,6 +886,7 @@
 <footer class="gsg">Sistema hecho por <b>Gestión Studio Grow</b> · demo del flujo para Break Point Pádel</footer>
 
 <dialog id="dlg" aria-labelledby="dlg-titulo"></dialog>
+<dialog id="bloqueo" class="bloqueo" aria-labelledby="bl-titulo"></dialog>
 <dialog id="cmdk" aria-label="Buscar y hacer">
   <div class="q"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg><input id="cmdk-q" role="combobox" aria-expanded="true" aria-controls="cmdk-l" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Buscá un cliente, un turno, un producto o qué querés hacer"></div>
   <ul id="cmdk-l" role="listbox" aria-label="Resultados"></ul>

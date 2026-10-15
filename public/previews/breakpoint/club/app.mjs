@@ -17,10 +17,10 @@ const MEDIOS_CAJA = ["efectivo", "mercadopago", "transferencia", "debito"];
 
 let E, AHORA, VISTA, HOY, USUARIO = "u-lu", TAB = "agenda";
 let ALERTAS = [];
-const ui = { medio: "efectivo", carrito: {}, busca: {}, producto: {}, mes: null, remito: null };
+const ui = { medio: "efectivo", carrito: {}, busca: {}, producto: {}, mes: null, remito: null, pendienteCredito: null, stockModo: "inventario" };
 // «Deshacer»: foto del estado antes de la acción que se está ejecutando (sólo las operativas, nunca las que piden PIN).
 let PREVIO = null, UNDO = null, timerToast = null;
-const DESHACIBLES = new Set(["pagar", "pagarParte", "consumo", "sumarJugador", "checkin", "finalizar", "aCuenta", "marcarFalta", "cancelar", "liberarFijo", "mover", "extender", "interrumpir", "cargarCuenta", "rapido", "pagarCuenta", "cerrarCuenta", "cobrarMostrador", "confirmarTurno", "asignarEspera", "anotarEspera", "luz", "qm", "devuelto", "cobrarFalta", "abrirCuentaCliente", "abrirCuentaLibre"]);
+const DESHACIBLES = new Set(["pagar", "pagarParte", "consumo", "sumarJugador", "checkin", "finalizar", "aCuenta", "marcarFalta", "cancelar", "liberarFijo", "mover", "extender", "interrumpir", "cargarCuenta", "rapido", "pagarCuenta", "cerrarCuenta", "cobrarMostrador", "confirmarTurno", "asignarEspera", "anotarEspera", "luz", "qm", "devuelto", "cobrarFalta", "abrirCuentaCliente", "abrirCuentaLibre", "confirmarCredito", "ajustar", "pasarCargo", "cargoManual", "cobrarParte"]);
 const SOPORTA_POPOVER = typeof HTMLElement !== "undefined" && "showPopover" in HTMLElement.prototype;
 const sinMovimiento = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 // Transición nativa del navegador (View Transitions) para cambiar de pestaña o de día: 150 ms, nunca obligatoria.
@@ -69,6 +69,7 @@ function elegirEstilo(id) {
 }
 
 const yo = () => M.usuario(E, USUARIO);
+const minutosBloqueo = () => E?.config?.bloqueoMin ?? 5;
 const puedo = (accion) => M.puede(E, USUARIO, accion);
 const auth = (pin) => ({ usuarioId: USUARIO, pin });
 const esDuenio = () => yo()?.rol === "duenio";
@@ -224,7 +225,7 @@ function vistaAgenda() {
         </div>
         <div class="toolbar">
           <button type="button" class="btn primary" data-a="nuevo" aria-keyshortcuts="N">+ Turno</button>
-          <button type="button" class="btn accent" data-a="abrirConsumo" aria-keyshortcuts="C">Abrir consumo</button>
+          <button type="button" class="btn accent" data-a="abrirConsumo" aria-keyshortcuts="C">Abrir cargo</button>
           <button type="button" class="btn ghost" data-a="espera">Lista de espera (${E.espera.filter((e) => e.fecha >= HOY).length})</button>
           <button type="button" class="btn ghost" data-a="mantenimiento">Mantenimiento y lluvia</button>
         </div>
@@ -315,8 +316,8 @@ function tarjetaCuenta(cta) {
   const s = M.saldoCuenta(cta);
   return `<div class="cta">
     <div class="cta-h"><b>${esc(cta.titular)}</b><span class="row" style="gap:6px">${marcaRoja(c)}${c?.cc.habilitada ? `<span class="chip info">Cuenta corriente</span>` : ""}<b class="num">${M.pesos(s)}</b></span></div>
-    <div class="small muted">${r ? `Turno ${M.hhmm(r.inicio)} · ${esc(M.cancha(E, r.canchaId)?.nombre ?? "")}` : "Consumo abierto a nivel cliente"} · desde ${cta.abierta.min != null ? M.hhmm(cta.abierta.min) : "—"}</div>
-    ${cta.items.length ? `<ul>${cta.items.map((i) => `<li class="num">${i.cant} × ${esc(i.nombre)} · ${M.pesos(i.cant * i.precioUnit)}${i.alquiler ? (i.devuelto ? " (devuelta)" : " (en uso)") : ""}</li>`).join("")}</ul>` : `<p class="small muted" style="margin:0">Sin consumos todavía.</p>`}
+    <div class="small muted">${r ? `Turno ${M.hhmm(r.inicio)} · ${esc(M.cancha(E, r.canchaId)?.nombre ?? "")}` : "Cuenta abierta a nivel cliente"} · desde ${cta.abierta.min != null ? M.hhmm(cta.abierta.min) : "—"}</div>
+    ${cta.items.length ? `<ul>${cta.items.map((i) => `<li class="num">${i.cant} × ${esc(i.nombre)} · ${M.pesos(i.cant * i.precioUnit)}${i.alquiler ? (i.devuelto ? " (devuelta)" : " (en uso)") : ""}</li>`).join("")}</ul>` : `<p class="small muted" style="margin:0">Sin cargos todavía.</p>`}
     ${M.cobradoCuenta(cta) ? `<div class="small">Pagado: ${M.pesos(M.cobradoCuenta(cta))}</div>` : ""}
     <div class="row"><button type="button" class="btn sm primary" data-a="verCuenta" data-v="${cta.id}">Cargar / cobrar</button></div>
   </div>`;
@@ -329,8 +330,8 @@ function vistaBuffet() {
   return `<div class="stack">
     <section class="card" aria-labelledby="t-buffet">
       <div class="card-head"><h2 id="t-buffet" class="pantalla">Buffet · cuentas abiertas (${abiertas.length})</h2>
-        <div class="row"><button type="button" class="btn primary" data-a="abrirConsumo">Abrir consumo</button><button type="button" class="btn accent" data-a="mostrador">Venta rápida</button></div></div>
-      <p class="small muted" style="margin:0 0 10px">Los consumos son una cuenta aparte de la cancha: quedan abiertos a nombre del cliente y se cobran cuando se va, o pasan a su cuenta corriente.</p>
+        <div class="row"><button type="button" class="btn primary" data-a="abrirConsumo">Abrir cargo</button><button type="button" class="btn accent" data-a="mostrador">Venta rápida</button></div></div>
+      <p class="small muted" style="margin:0 0 10px">Los cargos del buffet son una cuenta aparte de la cancha: quedan abiertos a nombre del cliente y se cobran cuando se va, o pasan a su cuenta corriente.</p>
       <div class="search" style="max-width:360px;margin-bottom:10px"><label class="sr" for="busca-buffet">Buscar cuenta</label><input id="busca-buffet" data-busca="buffet" placeholder="Buscar por nombre" value="${esc(q)}"></div>
       <div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${lista.map(tarjetaCuenta).join("") || `<p class="empty">No hay cuentas abiertas.</p>`}</div>
     </section>
@@ -495,20 +496,42 @@ function vistaProveedores() {
 
 // ───────────────────────────── Stock (dueño) ─────────────────────────────
 
+// Pricing y revenue: la misma lista, para tocar costo, markup y precio y ver qué deja cada producto.
+function tablaPrecios(lista) {
+  const desde = M.sumarDias(HOY, -6);
+  const rent = M.rentabilidad(E, { desde, hasta: HOY });
+  const fila = new Map(rent.filas.map((f) => [f.productoId, f]));
+  const pct = (x) => (x == null ? "—" : `${Math.round(x * 100)}%`);
+  const filas = lista.map((p) => fila.get(p.id)).filter(Boolean);
+  return `<p class="small muted" style="margin:0 0 10px">Tocá el costo, el markup o el precio: el precio de venta cambia en el acto para lo que se cargue de acá en más. Lo vendido es de los últimos 7 días (${ddmm(desde)} al ${ddmm(HOY)}).</p>
+    <div class="tbl-wrap"><table class="num precios"><thead><tr><th>Producto</th><th class="r">Costo</th><th class="r">Markup</th><th class="r">Precio</th><th class="r">Margen</th><th class="r">Margen %</th><th class="r">Vendidos</th><th class="r">Facturado</th><th class="r">Ganancia</th></tr></thead><tbody>
+      ${filas.map((f) => `<tr><td>${esc(f.nombre)}<br><span class="small muted">${esc(f.codigo || "—")}${f.codigoExterno ? ` · ${esc(f.codigoExterno)}` : ""}</span></td>
+        <td class="r"><label class="sr" for="px-c-${f.productoId}">Costo de ${esc(f.nombre)}</label><input id="px-c-${f.productoId}" type="number" min="0" step="50" value="${f.costo}" data-a="px" data-v="${f.productoId}" data-c="costo"></td>
+        <td class="r"><label class="sr" for="px-m-${f.productoId}">Markup de ${esc(f.nombre)} (%)</label><input id="px-m-${f.productoId}" type="number" step="5" value="${f.markupPct == null ? "" : Math.round(f.markupPct * 100)}" placeholder="—" data-a="px" data-v="${f.productoId}" data-c="markup" ${f.costo > 0 ? "" : "disabled"}></td>
+        <td class="r"><label class="sr" for="px-p-${f.productoId}">Precio de ${esc(f.nombre)}</label><input id="px-p-${f.productoId}" type="number" min="1" step="50" value="${f.precio}" data-a="px" data-v="${f.productoId}" data-c="precio"></td>
+        <td class="r">${M.pesos(f.margen)}</td><td class="r"><span class="chip ${f.margenPct >= 0.5 ? "ok" : f.margenPct >= 0.3 ? "warn" : "bad"}">${pct(f.margenPct)}</span></td>
+        <td class="r">${f.unidades}</td><td class="r">${M.pesos(f.facturado)}</td><td class="r">${M.pesos(f.ganancia)}</td></tr>`).join("") || `<tr><td colspan="9" class="muted">No hay productos con ese nombre.</td></tr>`}
+    </tbody><tfoot><tr><td colspan="7"><b>Total 7 días</b> · margen ${pct(rent.margenPct)}</td><td class="r"><b>${M.pesos(rent.facturado)}</b></td><td class="r"><b>${M.pesos(rent.ganancia)}</b></td></tr></tfoot></table></div>`;
+}
+
 function vistaStock() {
   const q = ui.busca.stock ?? "";
+  const precios = ui.stockModo === "precios";
   const lista = M.buscarProductos(E, q);
   const bajos = E.productos.filter((p) => p.activo !== false && !p.alquiler && p.stock != null && p.stock <= p.minimo);
   return `<section class="card" aria-labelledby="t-stock">
     <div class="card-head"><h2 id="t-stock" class="pantalla">Stock y productos</h2>
       <div class="row">${bajos.length ? `<a class="btn sm accent" target="_blank" rel="noopener" href="${esc(wa(M.mensajeWhatsApp("reposicion", { lista: bajos.map((p) => `${p.nombre} (${Math.max(p.minimo * 2 - p.stock, 1)})`).join(", ") })))}">Pedir lo que falta por WhatsApp</a>` : ""}<button type="button" class="btn" data-a="remito">Ingresar por remito</button><button type="button" class="btn primary" data-a="altaProducto">+ Producto o plato</button></div></div>
-    <div class="search" style="max-width:360px;margin-bottom:10px"><label class="sr" for="busca-stock">Buscar producto</label><input id="busca-stock" data-busca="stock" placeholder="Nombre, rubro o código" value="${esc(q)}"></div>
-    <div class="tbl-wrap"><table class="num"><thead><tr><th>Producto</th><th>Rubro</th><th>Código</th><th class="r">Precio</th><th class="r">Costo</th><th class="r">Stock</th><th class="r">Mínimo</th><th>Estado</th><th></th></tr></thead><tbody>
-      ${lista.map((p) => `<tr><td>${esc(p.nombre)}</td><td>${esc(p.categoria)}</td><td class="small">${esc(p.codigo || "—")}</td><td class="r">${M.pesos(p.precio)}</td><td class="r">${M.pesos(p.costo)}</td>
+    <div class="row" style="margin-bottom:10px;justify-content:space-between">
+      <div class="search" style="max-width:360px;flex:1"><label class="sr" for="busca-stock">Buscar producto</label><input id="busca-stock" data-busca="stock" placeholder="Nombre, rubro o código" value="${esc(q)}"></div>
+      <div class="medio-pick" role="group" aria-label="Qué ver"><button type="button" data-a="stockModo" data-v="inventario" aria-pressed="${!precios}">Inventario</button><button type="button" data-a="stockModo" data-v="precios" aria-pressed="${precios}">Precios y rentabilidad</button></div>
+    </div>
+    ${precios ? tablaPrecios(lista) : `<div class="tbl-wrap"><table class="num"><thead><tr><th>Producto</th><th>Rubro</th><th>Cód. interno</th><th>Cód. fábrica</th><th class="r">Precio</th><th class="r">Costo</th><th class="r">Stock</th><th class="r">Mínimo</th><th>Estado</th><th></th></tr></thead><tbody>
+      ${lista.map((p) => `<tr><td>${esc(p.nombre)}</td><td>${esc(p.categoria)}</td><td class="small">${esc(p.codigo || "—")}</td><td class="small">${esc(p.codigoExterno || "—")}</td><td class="r">${M.pesos(p.precio)}</td><td class="r">${M.pesos(p.costo)}</td>
         <td class="r">${p.stock == null ? "—" : p.stock}${p.alquiler ? ` <span class="muted small">(${p.prestados ?? 0} en uso)</span>` : ""}</td><td class="r">${p.stock == null || p.alquiler ? "—" : p.minimo}</td>
         <td>${p.plato ? `<span class="chip info">Plato</span>` : p.alquiler ? `<span class="chip info">Alquiler</span>` : p.stock === 0 ? `<span class="chip bad">Sin stock</span>` : p.stock <= p.minimo ? `<span class="chip warn">Reponer</span>` : `<span class="chip ok">OK</span>`}</td>
-        <td><button type="button" class="btn sm" data-a="editarProducto" data-v="${p.id}">Editar</button></td></tr>`).join("") || `<tr><td colspan="9" class="muted">No hay productos con ese nombre.</td></tr>`}
-    </tbody></table></div>
+        <td><button type="button" class="btn sm" data-a="editarProducto" data-v="${p.id}">Editar</button></td></tr>`).join("") || `<tr><td colspan="10" class="muted">No hay productos con ese nombre.</td></tr>`}
+    </tbody></table></div>`}
   </section>`;
 }
 
@@ -551,6 +574,7 @@ function vistaAjustes() {
         ${regla("senaPct", "Seña (% del turno)", P.senaPct)}
         ${regla("strikesParaSena", "Faltas para pedir seña siempre", P.strikesParaSena)}
         ${regla("toleranciaMin", "Tolerancia de llegada antes de la falta (min)", P.toleranciaMin)}
+        <label class="f">Bloquear la pantalla tras (min sin uso) · 0 = sólo al apagarse<input type="number" min="${M.LIMITES_BLOQUEO[0]}" max="${M.LIMITES_BLOQUEO[1]}" value="${minutosBloqueo()}" data-a="bloqueoMin"></label>
         <label class="f">Abrir la cancha hasta (min antes) · vacío = sin límite<input type="number" min="0" max="240" value="${P.minutosAntesParaEntrar ?? ""}" placeholder="Sin límite" data-a="regla" data-v="minutosAntesParaEntrar"></label>
         ${E.config.tarifas.map((t, i) => `<label class="f">Precio por hora ${esc(t.nombre.toLowerCase())} (${M.hhmm(t.desde)}–${M.hhmm(t.hasta)})<input type="number" min="0" step="500" value="${t.precioHora}" data-a="tarifa" data-v="${i}"></label>`).join("")}
       </div>
@@ -694,7 +718,7 @@ function itemsPaleta(q) {
   const tabs = pestanias().orden;
   const hacer = [
     { k: "a-nuevo", g: "Hacer", t: "Nuevo turno", atajo: "N", ok: puedo("agenda"), run: () => nuevoTurno({}) },
-    { k: "a-consumo", g: "Hacer", t: "Abrir consumo del buffet", atajo: "C", ok: puedo("buffet"), run: () => abrirConsumo() },
+    { k: "a-consumo", g: "Hacer", t: "Abrir cargo del buffet", atajo: "C", ok: puedo("buffet"), run: () => abrirConsumo() },
     { k: "a-venta", g: "Hacer", t: "Venta rápida de mostrador", ok: puedo("buffet"), run: () => mostrador() },
     { k: "a-egreso", g: "Hacer", t: "Egreso de caja en efectivo", ok: puedo("egreso"), run: () => egresoDialogo() },
     { k: "a-remito", g: "Hacer", t: "Registrar remito de proveedor", ok: puedo("remito"), run: () => remitoDialogo() },
@@ -782,7 +806,7 @@ function ayudaAtajos() {
     sub: "Funcionan cuando no estás escribiendo en un campo. Todo se puede hacer también con el mouse o el dedo.",
     cuerpo: `<table><tbody>
       ${fila([ES_MAC ? "⌘" : "Ctrl", "K"], "Buscar y hacer (clientes, turnos, productos, acciones)")}${fila(["/"], "Lo mismo, con una sola tecla")}
-      ${fila(["N"], "Nuevo turno")}${fila(["C"], "Abrir consumo del buffet")}
+      ${fila(["N"], "Nuevo turno")}${fila(["C"], "Abrir cargo del buffet")}
       ${fila(["←", "→"], "Día anterior / siguiente en la agenda")}${fila(["T"], "Volver a hoy")}
       ${fila(["1", "…", "9"], "Ir a cada pestaña")}${fila([ES_MAC ? "⌘" : "Ctrl", "Z"], "Deshacer lo último (mientras se ve el aviso)")}
       ${fila(["Clic derecho"], "Acciones rápidas sobre un turno (en el celular: mantener apretado)")}${fila(["Esc"], "Cerrar la ventana")}
@@ -812,6 +836,8 @@ function abrir({ titulo, sub = "", cuerpo, pie = "", ancho = false, alAbrir, ref
   d.innerHTML = html;
   dialogoActual = { refrescar };
   if (!d.open) d.showModal();
+  // Si algo abre una ventana mientras la pantalla está bloqueada, el bloqueo vuelve a quedar arriba de todo.
+  if (bloqueo.activo) { const bl = $("#bloqueo"); bl.close(); bl.showModal(); }
   alAbrir?.(d);
   devolverFoco(foco, d);
   // Si la ventana cambió de contenido (p. ej. «Nuevo turno» → «Turno reservado ✔»), el foco no puede quedar en el body.
@@ -849,10 +875,45 @@ function cambiarUsuario() {
   });
 }
 
+// ───── créditos: paso previo de confirmación ─────
+// Pagar con créditos no sale de la caja: antes de descontarlos se muestra de quién son, cuánto se usa, qué cubre
+// (la seña, la parte de un jugador o la cuenta del buffet) y con cuánto queda.
+function pedirConfirmacionCredito(op) {
+  const cl = op.clienteId ? M.cliente(E, op.clienteId) : null;
+  if (!cl) return toast("Ese jugador no tiene ficha de cliente: no tiene créditos para usar.", { error: true });
+  if (!(op.monto > 0)) return toast("El monto tiene que ser mayor a cero.", { error: true });
+  if (cl.monedero < op.monto) return toast(`${cl.nombre} tiene ${M.pesos(cl.monedero)} en créditos: no alcanza para ${M.pesos(op.monto)}.`, { error: true });
+  ui.pendienteCredito = op;
+  dialogoActual?.refrescar?.();
+  requestAnimationFrame(() => $('#dlg [data-a="confirmarCredito"]')?.focus());
+}
+function panelCredito(dueno) {
+  const op = ui.pendienteCredito;
+  if (!op || op.dueno !== dueno) return "";
+  const cl = M.cliente(E, op.clienteId);
+  return `<div class="confirma-credito" role="group" aria-labelledby="cc-t">
+    <p id="cc-t" style="margin:0"><b>¿Usamos los créditos de ${esc(cl.nombre)}?</b></p>
+    <dl class="kv num"><dt>${esc(op.que)}</dt><dd>${M.pesos(op.monto)}</dd><dt>Créditos hoy</dt><dd>${M.pesos(cl.monedero)}</dd><dt class="tot">Le quedan</dt><dd class="tot">${M.pesos(cl.monedero - op.monto)}</dd></dl>
+    ${op.cubreSena ? `<p class="small" style="margin:0">Con esto queda <b>pagada la seña</b> del turno.</p>` : ""}
+    <div class="row"><button type="button" class="btn primary" data-a="confirmarCredito">Sí, usar ${M.pesos(op.monto)} de créditos</button><button type="button" class="btn" data-a="anularCredito">No, elegir otro medio</button></div>
+  </div>`;
+}
+
+// Cargos de una cuenta, con − / + para corregir sin borrar y rehacer.
+function listaCargos(cta, { compacta = false } = {}) {
+  if (!cta.items.length) return `<p class="small muted" style="margin:0">Sin cargos.</p>`;
+  const abierta = cta.estado === "abierta";
+  return `<ul class="cargos${compacta ? " compacta" : ""}">${cta.items.map((i, k) => `<li class="num">
+      <span>${i.min != null && !compacta ? `<span class="muted small">${M.hhmm(i.min)}</span> ` : ""}${esc(i.nombre)}${i.manual ? ` <span class="chip info">manual</span>` : ""}${i.alquiler ? (i.devuelto ? " (devuelta)" : " (en uso)") : ""}${i.transferidoDe ? ` <span class="small muted">· de ${esc(i.transferidoDe)}</span>` : ""}</span>
+      ${abierta ? `<span class="qty"><button type="button" data-a="ajustar" data-v="${cta.id}" data-j="${k}" data-m="-1" aria-label="Uno menos de ${esc(i.nombre)}">−</button><b>${i.cant}</b><button type="button" data-a="ajustar" data-v="${cta.id}" data-j="${k}" data-m="1" aria-label="Uno más de ${esc(i.nombre)}" ${i.manual ? "disabled" : ""}>+</button></span>` : `<b>${i.cant} ×</b>`}
+      <span class="r">${M.pesos(i.cant * i.precioUnit)}</span></li>`).join("")}</ul>`;
+}
+
 // ───── turno: la cuenta de la cancha y la de cada jugador ─────
 
 function verReserva(id) {
   ui.medio = "efectivo";
+  ui.pendienteCredito = null;
   let jugadorSel = 0;
   const pintar = () => {
     const r = M.reserva(E, id);
@@ -861,10 +922,7 @@ function verReserva(id) {
     const cl = r.clienteId ? M.cliente(E, r.clienteId) : null;
     const abierto = ["reservada", "en_cancha"].includes(r.estado);
     const s = M.saldo(r);
-    const sinPagar = r.jugadores.map((j, i) => (j.pagado ? -1 : i)).filter((i) => i >= 0);
-    const quienes = sinPagar.length ? sinPagar : r.jugadores.map((_, i) => i);
-    const cuotas = M.dividir(Math.max(0, s), quienes.length);
-    const partes = r.jugadores.map((_, i) => (quienes.includes(i) ? cuotas[quienes.indexOf(i)] : 0));
+    const partes = M.partesCancha(r);
     const cuentasJug = r.jugadores.map((j, i) => E.cuentas.find((x) => x.estado === "abierta" && ((j.clienteId && x.clienteId === j.clienteId) || (!j.clienteId && x.reservaId === r.id && x.jugadorIdx === i))));
     const puedeCC = !!cl?.cc.habilitada;
     abrir({
@@ -882,20 +940,28 @@ function verReserva(id) {
             ${cl ? `<p class="small" style="margin:0">${puedeCC ? `Cuenta corriente hasta ${M.pesos(cl.cc.limite)} · debe ${M.pesos(cl.deuda)}` : "Sin cuenta corriente habilitada"}${cl.monedero ? ` · créditos ${M.pesos(cl.monedero)}` : ""}</p>` : ""}
             ${abierto && s > 0 ? `${pickMedios(true, cl)}
               <div class="row"><label class="sr" for="monto">Monto</label><input id="monto" type="number" min="1" value="${r.sena.monto > 0 && !r.sena.pagada ? r.sena.monto : s}" style="max-width:150px"><button type="button" class="btn primary" data-a="pagar" data-v="${r.id}">Cobrar cancha</button></div>
-              ${r.jugadores.length > 1 ? `<div class="players">${r.jugadores.map((j, i) => (partes[i] > 0 ? `<div class="player"><span>${esc(j.nombre)}</span><span></span><button type="button" class="btn sm" data-a="pagarParte" data-v="${r.id}" data-j="${i}" data-m="${partes[i]}">Cobrar su parte ${M.pesos(partes[i])}</button></div>` : "")).join("")}</div>` : ""}` : ""}
+              ${r.jugadores.length > 1 ? `<div class="players partes" role="group" aria-label="Parte de la cancha de cada jugador">${r.jugadores.map((j, i) => {
+                const p = partes[i];
+                if (p.pago) return `<div class="player"><span>${esc(j.nombre)}</span><span class="small muted">${j.pagadoPor != null ? `✔ la pagó ${esc(r.jugadores[j.pagadoPor]?.nombre ?? "otro")}` : "✔ pagó su parte"}</span><span></span></div>`;
+                const otros = r.jugadores.map((x, k) => ({ x, k })).filter(({ k }) => k !== i && !partes[k].pago && partes[k].aCargoDe == null);
+                return `<div class="player"><span>${esc(j.nombre)}${p.aPagar > p.propia ? `<br><span class="small muted">paga también por ${esc(partes.map((x, k) => (x.aCargoDe === i ? r.jugadores[k].nombre : null)).filter(Boolean).join(", "))}</span>` : ""}</span>
+                  <label class="sr" for="acargo-${i}">Quién paga la parte de ${esc(j.nombre)}</label><select id="acargo-${i}" class="sm" data-a="aCargo" data-v="${r.id}" data-j="${i}">${`<option value="">Paga su parte</option>`}${otros.map(({ x, k }) => `<option value="${k}" ${p.aCargoDe === k ? "selected" : ""}>A cargo de ${esc(x.nombre)}</option>`).join("")}</select>
+                  ${p.aCargoDe != null ? `<span class="small muted">${M.pesos(p.propia)} → ${esc(r.jugadores[p.aCargoDe].nombre)}</span>` : `<button type="button" class="btn sm" data-a="pagarParte" data-v="${r.id}" data-j="${i}" data-m="${p.aPagar}">Cobrar ${M.pesos(p.aPagar)}</button>`}</div>`;
+              }).join("")}</div>` : ""}
+              ${panelCredito(`r-${r.id}`)}` : ""}
             <div class="row">
               ${r.estado === "reservada" ? `<button type="button" class="btn primary" data-a="checkin" data-v="${r.id}">Abrir cancha</button>` : ""}
               ${abierto ? `<button type="button" class="btn ${s > 0 ? "" : "primary"}" data-a="finalizar" data-v="${r.id}" ${s > 0 ? "disabled" : ""}>Cerrar cancha${s > 0 ? " (falta cobrar)" : ""}</button>` : ""}
               ${abierto && s > 0 ? `<button type="button" class="btn" data-a="aCuenta" data-v="${r.id}" ${puedeCC ? "" : "disabled"} title="${puedeCC ? "" : "Sin cuenta corriente habilitada"}">Cerrar y sumar ${M.pesos(s)} a su cuenta</button>` : ""}
             </div>
-            <p class="small muted" style="margin:0">Cerrar la cancha no cierra los consumos: el buffet de cada jugador sigue abierto.</p>
+            <p class="small muted" style="margin:0">Cerrar la cancha no cierra los cargos: el buffet de cada jugador sigue abierto.</p>
           </div>
           <div class="seccion">
-            <h3>Consumos de los jugadores</h3>
+            <h3>Cargos de los jugadores</h3>
             <div class="players">${r.jugadores.map((j, i) => {
               const cta = cuentasJug[i];
               const jc = j.clienteId ? M.cliente(E, j.clienteId) : null;
-              return `<div class="player" style="grid-template-columns:auto 1fr auto"><input type="radio" name="jug" id="jug-${i}" data-a="jugador" data-v="${i}" ${i === jugadorSel ? "checked" : ""}><label for="jug-${i}">${esc(j.nombre)} ${marcaRoja(jc)}<br><span class="small muted">${cta ? `Cuenta abierta: ${M.pesos(M.saldoCuenta(cta))}` : "Sin consumos"}</span></label>${cta ? `<button type="button" class="btn sm" data-a="verCuenta" data-v="${cta.id}">Ver / cobrar</button>` : "<span></span>"}</div>`;
+              return `<div class="player jug-cargos"><input type="radio" name="jug" id="jug-${i}" data-a="jugador" data-v="${i}" ${i === jugadorSel ? "checked" : ""}><label for="jug-${i}">${esc(j.nombre)} ${marcaRoja(jc)}<br><span class="small muted">${cta ? `Cuenta abierta: ${M.pesos(M.saldoCuenta(cta))}` : "Sin cargos"}</span></label>${cta ? `<button type="button" class="btn sm" data-a="verCuenta" data-v="${cta.id}">Ver / cobrar</button>` : "<span></span>"}${cta?.items.length ? listaCargos(cta, { compacta: true }) : ""}</div>`;
             }).join("")}</div>
             ${r.estado !== "cancelada" && r.estado !== "suspendida" && r.estado !== "no_show" ? `${buscadorProductos("turno")}
               <div class="row"><label class="sr" for="cant-turno">Cantidad</label><input id="cant-turno" type="number" min="1" value="1" style="max-width:80px">
@@ -931,10 +997,11 @@ function faltaDialogo(id) {
   });
 }
 
-// ───── cuenta de consumo ─────
+// ───── cuenta de cargos ─────
 
 function verCuenta(id) {
   ui.medio = "efectivo";
+  ui.pendienteCredito = null;
   const pintar = () => {
     const cta = M.cuenta(E, id);
     if (!cta) return cerrarDialogo();
@@ -942,14 +1009,14 @@ function verCuenta(id) {
     const s = M.saldoCuenta(cta);
     const abierta = cta.estado === "abierta";
     abrir({
-      titulo: `Consumos de ${esc(cta.titular)} ${marcaRoja(c)}`,
+      titulo: `Cargos de ${esc(cta.titular)} ${marcaRoja(c)}`,
       sub: abierta ? `Cuenta abierta · debe ${M.pesos(s)}` : "Cuenta cerrada",
       ancho: true,
       refrescar: pintar,
       cuerpo: `
         <div class="dos-cols">
           <div class="seccion"><h3>Detalle <span class="num">${M.pesos(M.totalCuenta(cta))}</span></h3>
-            ${cta.items.length ? `<table class="num small"><tbody>${cta.items.map((i) => `<tr><td>${i.min != null ? M.hhmm(i.min) : ""}</td><td>${i.cant} × ${esc(i.nombre)}${i.alquiler ? (i.devuelto ? " (devuelta)" : " (en uso)") : ""}</td><td class="r">${M.pesos(i.cant * i.precioUnit)}</td></tr>`).join("")}</tbody></table>` : `<p class="small muted">Sin consumos.</p>`}
+            ${listaCargos(cta)}
             <dl class="kv num"><dt>Pagado</dt><dd>${M.pesos(M.cobradoCuenta(cta))}</dd><dt class="tot">Debe</dt><dd class="tot">${M.pesos(s)}</dd></dl>
           </div>
           ${abierta ? `<div class="seccion"><h3>Cargar</h3>${buscadorProductos("cuenta")}
@@ -957,11 +1024,34 @@ function verCuenta(id) {
             <div class="row">${E.productos.filter((p) => p.plato && p.activo !== false).slice(0, 6).map((p) => `<button type="button" class="btn sm" data-a="rapido" data-v="${cta.id}" data-c="${p.id}">+ ${esc(p.nombre.split(" con ")[0])}</button>`).join("")}</div>
           </div>` : ""}
         </div>
-        ${abierta && s > 0 ? `<div class="seccion"><h3>Cobrar</h3>${pickMedios(true, c)}<div class="row"><label class="sr" for="monto-cta">Monto</label><input id="monto-cta" type="number" min="1" value="${s}" style="max-width:150px"><button type="button" class="btn primary" data-a="pagarCuenta" data-v="${cta.id}">Cobrar</button></div></div>` : ""}`,
+        ${abierta ? mesaCompleja(cta) : ""}
+        ${abierta && s > 0 ? `<div class="seccion"><h3>Cobrar</h3>${pickMedios(true, c)}<div class="row"><label class="sr" for="monto-cta">Monto</label><input id="monto-cta" type="number" min="1" value="${s}" style="max-width:150px"><button type="button" class="btn primary" data-a="pagarCuenta" data-v="${cta.id}">Cobrar</button></div>${panelCredito(`c-${cta.id}`)}</div>` : ""}`,
       pie: abierta ? `<button type="button" class="btn" data-a="cerrar">Dejar abierta</button>${s > 0 ? `<button type="button" class="btn" data-a="cerrarCuenta" data-v="${cta.id}" data-m="cuenta" ${c?.cc.habilitada ? "" : "disabled"} title="${c?.cc.habilitada ? "" : "Sin cuenta corriente habilitada"}">Sumar ${M.pesos(s)} a su cuenta corriente</button>` : ""}<button type="button" class="btn primary" data-a="cerrarCuenta" data-v="${cta.id}" ${s > 0 ? "disabled" : ""}>Cerrar cuenta${s > 0 ? " (falta cobrar)" : ""}</button>` : `<button type="button" class="btn" data-a="cerrar">Listo</button>`,
     });
   };
   pintar();
+}
+
+// Mesa compleja: cada cargo se pasa (entero o en parte) a la cuenta de quien lo paga, y lo que no está en la
+// lista se carga a mano. Un descuento (monto negativo) lo autoriza el dueño con su PIN.
+function mesaCompleja(cta) {
+  const otras = M.cuentasAbiertas(E).filter((x) => x.id !== cta.id && x.titular !== "Mostrador");
+  return `<details class="seccion mesa"><summary><b>Mesa compleja: repartir o cargar a mano</b></summary>
+    <div class="stack" style="margin-top:10px">
+      ${cta.items.length ? `<div><h3 style="margin:0 0 6px">Pasar un cargo a otra cuenta</h3>
+        ${otras.length ? `<div class="row"><label class="sr" for="tc-item">Cargo</label><select id="tc-item" style="flex:2;min-width:180px">${cta.items.map((i, k) => `<option value="${k}">${i.cant} × ${esc(i.nombre)} · ${M.pesos(i.cant * i.precioUnit)}</option>`).join("")}</select>
+          <label class="sr" for="tc-cant">Cuántos</label><input id="tc-cant" type="number" min="1" placeholder="Todos" style="max-width:90px">
+          <label class="sr" for="tc-dest">A la cuenta de</label><select id="tc-dest" style="flex:1;min-width:150px">${otras.map((x) => `<option value="${x.id}">${esc(x.titular)}</option>`).join("")}</select>
+          <button type="button" class="btn" data-a="pasarCargo" data-v="${cta.id}">Pasar</button></div>
+        <p class="small muted" style="margin:4px 0 0">Vacío = el cargo entero. Cada uno paga lo suyo, como quieran repartirlo.</p>`
+        : `<p class="small muted" style="margin:0">No hay otra cuenta abierta. Abrí la de la otra persona con «Abrir cargo» y volvé.</p>`}</div>` : ""}
+      <div><h3 style="margin:0 0 6px">Cargo manual (excepción)</h3>
+        <div class="row"><label class="sr" for="cm-con">Concepto</label><input id="cm-con" placeholder="Concepto (ej.: torta de cumpleaños)" style="flex:2;min-width:180px" maxlength="60">
+          <label class="sr" for="cm-mon">Monto</label><input id="cm-mon" type="number" step="50" placeholder="$ (negativo = descuento)" style="max-width:190px">
+          <label class="sr" for="cm-pin">PIN del dueño (sólo descuentos)</label><input id="cm-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="PIN dueño" style="max-width:110px">
+          <button type="button" class="btn" data-a="cargoManual" data-v="${cta.id}">Cargar</button></div>
+        <p class="small muted" style="margin:4px 0 0">El PIN del dueño sólo hace falta para un descuento.</p></div>
+    </div></details>`;
 }
 
 function abrirConsumo() {
@@ -969,7 +1059,7 @@ function abrirConsumo() {
     const q = ui.busca.cliCons ?? "";
     const res = q ? M.buscarClientes(E, q).slice(0, 6) : [];
     abrir({
-      titulo: "Abrir consumo",
+      titulo: "Abrir cargo",
       sub: "A nombre de un cliente (queda abierto hasta que se cobre) o de alguien sin ficha.",
       refrescar: pintar,
       cuerpo: `<div class="search"><label class="sr" for="cli-cons">Buscar cliente</label><input id="cli-cons" data-busca="cliCons" placeholder="Buscar cliente por nombre o teléfono" value="${esc(q)}" autocomplete="off"></div>
@@ -987,7 +1077,7 @@ function mostrador() {
     const total = Object.entries(ui.carrito).reduce((s, [id, n]) => s + M.producto(E, id).precio * n, 0);
     abrir({
       titulo: "Venta rápida",
-      sub: "Se cobra en el acto. Para dejarlo a nombre de alguien, usá «Abrir consumo».",
+      sub: "Se cobra en el acto. Para dejarlo a nombre de alguien, usá «Abrir cargo».",
       refrescar: pintar,
       cuerpo: `${buscadorProductos("mostrador")}
         <div class="row"><button type="button" class="btn sm" data-a="sumarCarrito">Agregar el elegido</button></div>
@@ -1229,7 +1319,8 @@ function productoDialogo(id) {
         <label class="f">Costo<input id="pr-cos" type="number" min="0" value="${p?.costo ?? ""}"></label>
         ${p && p.stock === null ? "" : `<label class="f">Mínimo de stock<input id="pr-min" type="number" min="0" value="${p?.minimo ?? 0}"></label>`}
         ${p ? "" : `<label class="f">Stock inicial<input id="pr-stk" type="number" min="0" value="0"></label>`}
-        <label class="f">Código (barras / RF)<input id="pr-cod" value="${esc(p?.codigo ?? "")}" placeholder="Pasá el lector o escribilo"></label>
+        <label class="f">Código interno<input id="pr-cod" value="${esc(p?.codigo ?? "")}" placeholder="Ej.: BP-020"></label>
+        <label class="f">Código de fábrica / externo<input id="pr-ext" value="${esc(p?.codigoExterno ?? "")}" placeholder="Pasá el lector (código de barras)" inputmode="numeric"></label>
       </div>
       ${p ? "" : `<label class="row small"><input type="checkbox" id="pr-plato"> Es un plato de cocina (no lleva stock; se mide por venta)</label>`}`,
     pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="guardarProducto" data-v="${p?.id ?? ""}">${p ? "Guardar" : "Dar de alta"}</button>`,
@@ -1407,7 +1498,18 @@ const acciones = {
   reiniciar: () => { if (puente.conectado) return toast("Conectado al turnero: la agenda es la del club y no se reinicia.", { error: true }); cerrarDialogo(); iniciar(); toast("Demo reiniciada."); },
   cerrar: () => cerrarDialogo(),
   luz: (b) => { E.luces[b.dataset.v] = !E.luces[b.dataset.v]; render(); },
-  medio: (b) => { ui.medio = b.dataset.v; b.parentElement.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); },
+  medio: (b) => {
+    ui.medio = b.dataset.v;
+    b.parentElement.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    if (ui.pendienteCredito && ui.medio !== "monedero") { ui.pendienteCredito = null; dialogoActual?.refrescar?.(); }
+  },
+
+  // bloqueo de pantalla
+  bloquearYa: () => bloquear("manual"),
+  desbloquear: () => desbloquear(),
+  bloqueoOtro: () => { bloqueo.otro = true; bloqueo.elegido = null; pintarBloqueo(); },
+  bloqueoVolver: () => { bloqueo.otro = false; pintarBloqueo(); },
+  bloqueoUsuario: (b) => { bloqueo.elegido = b.dataset.v; pintarBloqueo(); },
 
   // usuario y accesos
   usuario: () => cambiarUsuario(),
@@ -1478,8 +1580,35 @@ const acciones = {
   },
 
   // turno
-  pagar: (b) => { const monto = Number(val("#monto")); hecho(M.registrarPago(E, b.dataset.v, { medio: ui.medio, monto }, AHORA), `Cobrado ${M.pesos(monto)} de cancha.`); },
-  pagarParte: (b) => { const monto = Number(b.dataset.m); hecho(M.registrarPago(E, b.dataset.v, { medio: ui.medio, monto, jugador: Number(b.dataset.j) }, AHORA), `Cobrado ${M.pesos(monto)}.`); },
+  pagar: (b) => {
+    const monto = Number(val("#monto"));
+    const r = M.reserva(E, b.dataset.v);
+    if (ui.medio === "monedero") {
+      const cubreSena = r.sena.monto > 0 && !r.sena.pagada && r.estado === "reservada" && M.cobrado(r) + monto >= r.sena.monto;
+      return pedirConfirmacionCredito({ dueno: `r-${r.id}`, tipo: "cancha", id: r.id, monto, clienteId: r.clienteId, que: cubreSena ? "Seña de la cancha" : "Cancha", cubreSena });
+    }
+    hecho(M.registrarPago(E, r.id, { medio: ui.medio, monto }, AHORA), `Cobrado ${M.pesos(monto)} de cancha.`);
+  },
+  pagarParte: (b) => {
+    const r = M.reserva(E, b.dataset.v);
+    const j = Number(b.dataset.j);
+    const monto = M.partesCancha(r)[j]?.aPagar ?? 0;
+    if (ui.medio === "monedero") return pedirConfirmacionCredito({ dueno: `r-${r.id}`, tipo: "parte", id: r.id, j, monto, clienteId: r.jugadores[j]?.clienteId ?? r.clienteId, que: `Parte de ${r.jugadores[j]?.nombre ?? "el jugador"}` });
+    acciones.cobrarParte(b);
+  },
+  cobrarParte: (b) => {
+    const j = Number(b.dataset.j);
+    hecho(M.cobrarParte(E, b.dataset.v, j, { medio: ui.medio }, AHORA), (r) => `Cobrado ${M.pesos(r.monto)}${r.cubiertos.length ? ` (incluye la parte de ${r.cubiertos.join(", ")})` : ""}.`);
+  },
+  confirmarCredito: () => {
+    const op = ui.pendienteCredito;
+    if (!op) return;
+    ui.pendienteCredito = null;
+    if (op.tipo === "cancha") return hecho(M.registrarPago(E, op.id, { medio: "monedero", monto: op.monto }, AHORA), `Se usaron ${M.pesos(op.monto)} de créditos${op.cubreSena ? ": seña pagada" : ""}.`);
+    if (op.tipo === "parte") return hecho(M.cobrarParte(E, op.id, op.j, { medio: "monedero" }, AHORA), (r) => `Se usaron ${M.pesos(r.monto)} de créditos.`);
+    if (op.tipo === "cuenta") return hecho(M.pagarCuenta(E, op.id, { medio: "monedero", monto: op.monto }, AHORA), `Se usaron ${M.pesos(op.monto)} de créditos.`);
+  },
+  anularCredito: () => { ui.pendienteCredito = null; ui.medio = "efectivo"; dialogoActual?.refrescar?.(); toast("No se usaron créditos. Elegí otro medio."); },
   jugador: (b) => acciones._jugador?.(b.dataset.v),
   consumo: (b) => {
     const pid = ui.producto.turno;
@@ -1537,7 +1666,26 @@ const acciones = {
     hecho(res, "Cargado.");
   },
   rapido: (b) => hecho(M.cargarEnCuenta(E, b.dataset.v, b.dataset.c, 1, AHORA), "Cargado."),
-  pagarCuenta: (b) => hecho(M.pagarCuenta(E, b.dataset.v, { medio: ui.medio, monto: val("#monto-cta") }, AHORA), "Cobrado."),
+  pagarCuenta: (b) => {
+    const cta = M.cuenta(E, b.dataset.v);
+    if (ui.medio === "monedero") return pedirConfirmacionCredito({ dueno: `c-${cta.id}`, tipo: "cuenta", id: cta.id, monto: Math.round(Number(val("#monto-cta"))), clienteId: cta.clienteId, que: `Cargos del buffet de ${cta.titular}` });
+    hecho(M.pagarCuenta(E, cta.id, { medio: ui.medio, monto: val("#monto-cta") }, AHORA), "Cobrado.");
+  },
+  ajustar: (b) => hecho(M.ajustarCargo(E, b.dataset.v, Number(b.dataset.j), Number(b.dataset.m), AHORA), Number(b.dataset.m) > 0 ? "Uno más." : "Uno menos (vuelve al stock)."),
+  pasarCargo: (b) => {
+    const dest = val("#tc-dest");
+    const res = M.transferirCargo(E, b.dataset.v, Number(val("#tc-item")), dest, val("#tc-cant") || null, AHORA);
+    hecho(res, `Cargo pasado a la cuenta de ${M.cuenta(E, dest)?.titular ?? "la otra persona"}.`);
+  },
+  cargoManual: (b) => {
+    // Un descuento lo firma el dueño con SU PIN, aunque quien esté usando el sistema sea recepción.
+    const pin = val("#cm-pin");
+    const firma = Number(val("#cm-mon")) < 0 && pin ? M.usuarioPorPin(E, pin) : null;
+    const quien = firma?.ok && firma.usuario.rol === "duenio" ? { usuarioId: firma.usuario.id, pin } : auth(pin);
+    const res = M.cargoManual(E, b.dataset.v, { concepto: val("#cm-con"), monto: val("#cm-mon") }, quien, AHORA);
+    if (res.ok) for (const sel of ["#cm-con", "#cm-mon", "#cm-pin"]) { const el = $(sel); if (el) el.value = ""; }
+    hecho(res, (r) => (r.item.precioUnit < 0 ? "Descuento aplicado." : "Cargo manual sumado."));
+  },
   cerrarCuenta: (b) => cerrarSiSale(M.cerrarCuenta(E, b.dataset.v, { aCuenta: b.dataset.m === "cuenta" }, AHORA), b.dataset.m === "cuenta" ? "Cuenta cerrada; el saldo pasó a la cuenta corriente." : "Cuenta cerrada."),
   mostrador: () => mostrador(),
   sumarCarrito: () => { const pid = ui.producto.mostrador; if (!pid) return toast("Buscá y elegí un producto.", { error: true }); ui.carrito[pid] = (ui.carrito[pid] ?? 0) + 1; ui.producto.mostrador = null; ui.busca.mostrador = ""; dialogoActual?.refrescar?.(); },
@@ -1581,12 +1729,13 @@ const acciones = {
 
   // stock
   altaProducto: () => productoDialogo(null),
+  stockModo: (b) => { ui.stockModo = b.dataset.v; render(); },
   editarProducto: (b) => productoDialogo(b.dataset.v),
   guardarProducto: (b) => {
     const id = b.dataset.v;
     const res = id
-      ? M.editarProducto(E, id, { nombre: val("#pr-nom"), precio: val("#pr-pre"), costo: val("#pr-cos"), minimo: $("#pr-min") ? val("#pr-min") : null, codigo: val("#pr-cod") }, auth(), AHORA)
-      : M.altaProducto(E, { nombre: val("#pr-nom"), categoria: val("#pr-cat"), precio: val("#pr-pre"), costo: val("#pr-cos"), minimo: val("#pr-min"), stock: val("#pr-stk"), codigo: val("#pr-cod"), plato: $("#pr-plato")?.checked }, auth(), AHORA);
+      ? M.editarProducto(E, id, { nombre: val("#pr-nom"), precio: val("#pr-pre"), costo: val("#pr-cos"), minimo: $("#pr-min") ? val("#pr-min") : null, codigo: val("#pr-cod"), codigoExterno: val("#pr-ext") }, auth(), AHORA)
+      : M.altaProducto(E, { nombre: val("#pr-nom"), categoria: val("#pr-cat"), precio: val("#pr-pre"), costo: val("#pr-cos"), minimo: val("#pr-min"), stock: val("#pr-stk"), codigo: val("#pr-cod"), codigoExterno: val("#pr-ext"), plato: $("#pr-plato")?.checked }, auth(), AHORA);
     cerrarSiSale(res, id ? "Producto guardado." : "Producto dado de alta.");
   },
 
@@ -1658,7 +1807,27 @@ document.addEventListener("input", (ev) => {
 
 document.addEventListener("change", (ev) => {
   const t = ev.target;
+  if (t instanceof HTMLSelectElement && t.dataset.a === "aCargo") {
+    PREVIO = { json: JSON.stringify(E), v: t.dataset.v };
+    try { hecho(M.asignarCargoCancha(E, t.dataset.v, Number(t.dataset.j), t.value === "" ? null : Number(t.value), AHORA), t.value === "" ? "Paga su propia parte." : "Listo: esa parte la paga otro jugador."); } finally { PREVIO = null; }
+    return;
+  }
   if (!(t instanceof HTMLInputElement)) return;
+  if (t.dataset.a === "px") {
+    const p = M.producto(E, t.dataset.v);
+    const v = Number(t.value);
+    const cambios = t.dataset.c === "costo" ? { costo: v } : t.dataset.c === "precio" ? { precio: v } : { precio: M.precioDesdeMarkup(p.costo, v) };
+    if (cambios.precio === null) { t.value = ""; return toast("Para calcular por markup el producto necesita costo.", { error: true }); }
+    const res = M.editarProducto(E, p.id, cambios, auth(), AHORA);
+    if (!res.ok) { render(); return toast(res.motivo, { error: true }); }
+    render();
+    return toast(`${p.nombre}: precio ${M.pesos(p.precio)} · margen ${Math.round(((p.precio - p.costo) / p.precio) * 100)}%.`);
+  }
+  if (t.dataset.a === "bloqueoMin") {
+    const res = M.ajustarBloqueo(E, t.value, auth());
+    if (!res.ok) { t.value = minutosBloqueo(); return toast(res.motivo, { error: true }); }
+    render(); return toast(res.valor ? `La pantalla se bloquea tras ${res.valor} min sin uso.` : "La pantalla se bloquea sólo al apagarse o al cambiar de app.");
+  }
   if (t.dataset.rem && ui.remito) {
     const i = ui.remito.items[Number(t.dataset.k)];
     const v = Math.round(Number(t.value));
@@ -1698,7 +1867,7 @@ function menuTurno(id, x, y, origen) {
   qm.innerHTML = `<div class="mh">${esc(r.titular)} · ${M.hhmm(r.inicio)} · ${esc(M.cancha(E, r.canchaId).nombre)}</div>
     ${r.estado === "reservada" && r.fecha === HOY ? op("checkin", "Abrir cancha") : ""}
     ${r.estado === "en_cancha" && s <= 0 ? op("finalizar", "Cerrar cancha") : ""}
-    ${op("ver", abierto && s > 0 ? `Cobrar · ${M.pesos(s)}` : "Ver turno y consumos")}
+    ${op("ver", abierto && s > 0 ? `Cobrar · ${M.pesos(s)}` : "Ver turno y cargos")}
     ${abierto ? op("mover", "Mover a otra cancha…") : ""}
     ${r.estado === "reservada" ? `<hr>${op("falta", "Marcar falta…", 'class="peligro"')}` : ""}`;
   qm.showPopover();
@@ -1783,6 +1952,7 @@ document.addEventListener("keydown", (ev) => {
   const t = ev.target;
   const escribiendo = t instanceof HTMLElement && (t.matches("input, select, textarea") || t.isContentEditable);
   const hayVentana = $("#dlg").open || $("#cmdk").open;
+  if (bloqueo.activo) return; // bloqueada: ningún atajo abre nada detrás del PIN
   if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && ev.key.toLowerCase() === "k") {
     ev.preventDefault();
     if ($("#cmdk").open) $("#cmdk").close(); else if (!$("#dlg").open) abrirPaleta();
@@ -1799,6 +1969,7 @@ document.addEventListener("keydown", (ev) => {
   else if (k === "?") ayudaAtajos();
   else if ((k === "n" || k === "N") && puedo("agenda")) nuevoTurno({});
   else if ((k === "c" || k === "C") && puedo("buffet")) abrirConsumo();
+  else if (k === "l" || k === "L") bloquear("manual");
   else if ((k === "t" || k === "T") && puedo("agenda")) { if (TAB !== "agenda") irTab("agenda"); irDia(HOY); }
   else if ((k === "ArrowLeft" || k === "ArrowRight") && TAB === "agenda" && !t.closest?.("#grid-wrap, .days")) {
     const d = M.sumarDias(VISTA, k === "ArrowLeft" ? -1 : 1);
@@ -1817,6 +1988,96 @@ document.addEventListener("keydown", (ev) => {
 });
 
 $("#dlg").addEventListener("close", () => { dialogoActual = null; });
+
+// ───── bloqueo de pantalla: cada vez que el puesto queda sin uso o la pantalla se apaga, se vuelve con el PIN propio ─────
+// Celular, tablet, compu o POS: se bloquea tras N minutos sin tocar nada (Ajustes) y siempre que la pantalla se apagó
+// o se cambió de app por más de 30 segundos. Se desbloquea con el PIN de quien estaba usando el sistema; si es otra
+// persona, entra con su usuario y su PIN. 5 PIN mal → 30 segundos de espera. No hay forma de cerrarlo sin PIN.
+const OCULTA_MAX_MS = 30_000;
+const bloqueo = { activo: false, motivo: "", ultimo: Date.now(), ocultaDesde: null, fallos: 0, esperaHasta: 0, otro: false, elegido: null, timer: null };
+function bloquear(motivo) {
+  if (bloqueo.activo) return;
+  bloqueo.activo = true;
+  bloqueo.motivo = motivo;
+  bloqueo.otro = false;
+  bloqueo.elegido = null;
+  cerrarMenuTurno();
+  for (const id of ["mas-menu", "estilo-menu"]) { const m = $(`#${id}`); if (SOPORTA_POPOVER && m.matches(":popover-open")) m.hidePopover(); }
+  document.documentElement.classList.add("bloqueada");
+  pintarBloqueo();
+  const d = $("#bloqueo");
+  if (!d.open) d.showModal();
+  $("#bl-pin", d)?.focus();
+}
+function pintarBloqueo() {
+  const d = $("#bloqueo");
+  const u = yo();
+  const espera = Math.max(0, Math.ceil((bloqueo.esperaHasta - Date.now()) / 1000));
+  const quien = bloqueo.otro ? (bloqueo.elegido ? M.usuario(E, bloqueo.elegido) : null) : u;
+  const motivo = { inactividad: `Pasaron ${minutosBloqueo()} minutos sin uso.`, pantalla: "La pantalla se apagó o se cambió de app.", manual: "Se bloqueó a mano." }[bloqueo.motivo] ?? "";
+  const activos = E.usuarios.filter((x) => x.activo !== false);
+  morph(d, `<div class="bl-in">
+    <p class="bl-marca">Break Point · Gestión del club</p>
+    <h2 id="bl-titulo">Pantalla bloqueada</h2>
+    <p class="small muted" style="margin:0">${esc(motivo)}</p>
+    ${bloqueo.otro && !bloqueo.elegido
+      ? `<div class="usuarios" role="group" aria-label="¿Quién entra?">${activos.map((x) => `<button type="button" data-a="bloqueoUsuario" data-v="${x.id}"><span><b>${esc(x.nombre)}</b></span><span class="small muted">${M.ROLES[x.rol]}</span></button>`).join("")}</div>
+        <button type="button" class="btn ghost sm" data-a="bloqueoVolver">Volver</button>`
+      : `<div class="bl-quien"><span class="avatar" aria-hidden="true">${esc(quien.nombre.slice(0, 1).toUpperCase())}</span><span><b>${esc(quien.nombre)}</b><br><span class="small muted">${M.ROLES[quien.rol]}</span></span></div>
+        <label class="f bl-pin-l" for="bl-pin">${bloqueo.otro ? `PIN de ${esc(quien.nombre.split(" ")[0])}` : "Tu PIN para seguir"}</label>
+        <input id="bl-pin" class="pin-in num" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••" ${espera ? "disabled" : ""} aria-describedby="bl-aviso">
+        <p id="bl-aviso" class="${espera || bloqueo.fallos ? "err" : "small muted"}" role="${espera || bloqueo.fallos ? "alert" : "status"}" style="margin:0;min-height:1.4em">${espera ? `Demasiados intentos. Probá de nuevo en ${espera} s.` : bloqueo.fallos ? `PIN incorrecto (${bloqueo.fallos} de 5).` : ""}</p>
+        <button type="button" class="btn primary" data-a="desbloquear" ${espera ? "disabled" : ""}>Desbloquear</button>
+        ${bloqueo.otro ? `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Elegir otro usuario</button>` : `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Entrar con otro usuario</button>`}`}
+    <p class="demo-pins">PIN de la demo: ${activos.map((x) => `${esc(x.nombre.split(" ")[0])} ${esc(x.pin)}`).join(" · ")}</p>
+  </div>`);
+  if (espera) { clearTimeout(bloqueo.timer); bloqueo.timer = setTimeout(() => { if (bloqueo.activo) { if (Date.now() >= bloqueo.esperaHasta) bloqueo.fallos = 0; pintarBloqueo(); $("#bl-pin")?.focus(); } }, 1000); }
+  if (bloqueo.otro && bloqueo.elegido) $("#bl-pin", d)?.focus();
+}
+function desbloquear() {
+  if (Date.now() < bloqueo.esperaHasta) return pintarBloqueo();
+  const quien = bloqueo.otro ? bloqueo.elegido : USUARIO;
+  const res = M.verificarPin(E, quien, $("#bl-pin")?.value);
+  if (!res.ok) {
+    bloqueo.fallos += 1;
+    if (bloqueo.fallos >= 5) bloqueo.esperaHasta = Date.now() + 30_000;
+    pintarBloqueo();
+    const pin = $("#bl-pin");
+    if (pin && !pin.disabled) { pin.value = ""; pin.focus(); }
+    return;
+  }
+  const cambio = res.usuario.id !== USUARIO;
+  USUARIO = res.usuario.id;
+  bloqueo.activo = false;
+  bloqueo.fallos = 0;
+  bloqueo.ultimo = Date.now();
+  document.documentElement.classList.remove("bloqueada");
+  $("#bloqueo").close();
+  render();
+  toast(cambio ? `Hola, ${res.usuario.nombre.split(" ")[0]}.` : "Desbloqueado.");
+}
+// Sin PIN no se cierra: Esc no hace nada y, si el navegador lo cierra igual, se vuelve a abrir.
+$("#bloqueo").addEventListener("cancel", (ev) => ev.preventDefault());
+$("#bloqueo").addEventListener("close", () => { if (bloqueo.activo) requestAnimationFrame(() => { if (bloqueo.activo && !$("#bloqueo").open) $("#bloqueo").showModal(); }); });
+$("#bloqueo").addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter" && ev.target.id === "bl-pin") { ev.preventDefault(); desbloquear(); }
+});
+$("#bloqueo").addEventListener("input", (ev) => { if (ev.target.id === "bl-pin" && ev.target.value.length === 2) desbloquear(); });
+const marcarUso = () => { if (!bloqueo.activo) bloqueo.ultimo = Date.now(); };
+for (const tipo of ["pointerdown", "keydown", "wheel", "touchstart"]) document.addEventListener(tipo, marcarUso, { capture: true, passive: true });
+const revisarInactividad = () => {
+  const min = minutosBloqueo();
+  if (!bloqueo.activo && min > 0 && Date.now() - bloqueo.ultimo >= min * 60_000) bloquear("inactividad");
+};
+setInterval(revisarInactividad, 15_000);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { bloqueo.ocultaDesde = Date.now(); return; }
+  const fuera = bloqueo.ocultaDesde ? Date.now() - bloqueo.ocultaDesde : 0;
+  bloqueo.ocultaDesde = null;
+  if (fuera >= OCULTA_MAX_MS) bloquear("pantalla"); else revisarInactividad();
+});
+// iOS congela la página al apagar la pantalla sin avisar siempre con visibilitychange: al volver, pageshow lo cubre.
+addEventListener("pageshow", (ev) => { if (ev.persisted) bloquear("pantalla"); });
 
 try { const t = localStorage.getItem("bp-tema"); if (t) document.documentElement.dataset.theme = t; } catch { /* sin almacenamiento */ }
 $("#kbd-k").textContent = ES_MAC ? "⌘K" : "Ctrl K";

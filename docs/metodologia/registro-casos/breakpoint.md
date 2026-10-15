@@ -89,3 +89,23 @@
   como aro naranja, blanco sobre cuadrado azul. Rehecho en SVG en el backoffice; el vectorial oficial lo pasa el club.
 - **Heurística:** recrear un logo "de memoria" o desde una descripción falla en lo esencial (forma y tipografía). Antes de
   recrear, **mirar el píxel** (aunque sea la foto de perfil de 150 px) y comparar lado a lado.
+
+### Cuarta vuelta — 8 pedidos del club sobre cargos, precios y bloqueo (15/10)
+- **Qué se hizo:**
+  - la parte de cancha de un jugador queda a cargo de otro;
+  - un panel confirma antes de usar créditos (y avisa si cubre la seña);
+  - «consumo» pasó a «cargo»;
+  - para la mesa compleja: pasar cargos entre cuentas y cargo manual (el descuento lo autoriza el dueño con su PIN);
+  - cada cargo tiene − / +;
+  - se suma el código de fábrica al lado del interno;
+  - en Stock, una vista editable de precios y rentabilidad;
+  - bloqueo con PIN propio por inactividad o al apagar la pantalla.
+- **Funcionó:** toda regla de plata vive en el motor con tests antes que la pantalla (7 tests nuevos). El invariante
+  «una cuenta nunca queda por debajo de lo ya pagado» quedó en las tres operaciones que mueven cargos.
+- **Falló:**
+  - El descuento pedía el PIN del dueño, pero lo validaba contra el usuario logueado (recepción), así que nunca pasaba.
+    Lo detectó el QA clic por clic, no los tests del motor: la regla estaba bien, el cableado no.
+  - Un E2E dependía de la hora real: elegía las 16:00 y fallaba corrido después de esa hora.
+- **Heurística:**
+  - cuando la UI pide «el PIN de OTRA persona», el cableado tiene que resolver a quién pertenece ese PIN, no usar el usuario activo;
+  - un E2E que elige horarios los elige entre los que la otra punta muestra en ese momento, nunca fijos.

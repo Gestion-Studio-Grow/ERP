@@ -397,7 +397,7 @@ export function bajaCliente(estado, clienteId, ahora) {
   const c = cliente(estado, clienteId);
   if (!c) return { ok: false, motivo: "No encuentro al cliente." };
   if (c.deuda > 0) return { ok: false, motivo: `${c.nombre} debe ${pesos(c.deuda)}: primero saldá la cuenta.` };
-  if (estado.cuentas.some((x) => x.clienteId === clienteId && x.estado === "abierta")) return { ok: false, motivo: `${c.nombre} tiene consumos abiertos en el buffet.` };
+  if (estado.cuentas.some((x) => x.clienteId === clienteId && x.estado === "abierta")) return { ok: false, motivo: `${c.nombre} tiene cargos abiertos en el buffet.` };
   c.activo = false;
   registrar(estado, `Baja de cliente: ${c.nombre}.`, ahora);
   return { ok: true };
@@ -668,6 +668,64 @@ export function registrarPago(estado, reservaId, { medio, monto, jugador = null,
   return { ok: true, saldo: saldo(r) };
 }
 
+/**
+ * Partes de la cancha por jugador. Lo que queda por cobrar se reparte entre los que no pagaron; si alguien está
+ * «a cargo de» otro jugador, su parte la paga ese otro (la suya más la del que invita).
+ */
+export function partesCancha(r) {
+  const pago = (j) => Boolean(j.pagado) || j.pagadoPor != null;
+  const libres = r.jugadores.map((j, i) => (pago(j) ? -1 : i)).filter((i) => i >= 0);
+  const quienes = libres.length ? libres : r.jugadores.map((_, i) => i);
+  const cuotas = dividir(Math.max(0, saldo(r)), quienes.length);
+  const propia = r.jugadores.map((_, i) => (quienes.includes(i) ? cuotas[quienes.indexOf(i)] : 0));
+  const pagador = (i) => {
+    const k = r.jugadores[i]?.aCargoDe;
+    return k != null && k !== i && r.jugadores[k] && !pago(r.jugadores[k]) && !pago(r.jugadores[i]) ? k : i;
+  };
+  const aPagar = r.jugadores.map(() => 0);
+  propia.forEach((m, i) => { aPagar[pagador(i)] += m; });
+  return r.jugadores.map((j, i) => ({ propia: propia[i], aPagar: aPagar[i], aCargoDe: pagador(i) !== i ? pagador(i) : null, pago: pago(j) }));
+}
+
+/** La parte de la cancha de un jugador pasa a cargo de otro (null: vuelve a pagar la suya). */
+export function asignarCargoCancha(estado, reservaId, deIdx, aIdx, ahora) {
+  const r = reserva(estado, reservaId);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  const de = r.jugadores[deIdx];
+  if (!de) return { ok: false, motivo: "Elegí el jugador." };
+  if (de.pagado || de.pagadoPor != null) return { ok: false, motivo: `${de.nombre} ya pagó su parte.` };
+  if (aIdx == null || aIdx === "" || Number(aIdx) === Number(deIdx)) {
+    delete de.aCargoDe;
+    registrar(estado, `${de.nombre} paga su propia parte de la cancha.`, ahora);
+    return { ok: true };
+  }
+  const k = Number(aIdx);
+  const a = r.jugadores[k];
+  if (!a) return { ok: false, motivo: "Elegí quién paga." };
+  if (a.pagado || a.pagadoPor != null) return { ok: false, motivo: `${a.nombre} ya pagó: cobrale aparte o elegí a otro.` };
+  if (a.aCargoDe != null) return { ok: false, motivo: `${a.nombre} ya está a cargo de ${r.jugadores[a.aCargoDe]?.nombre ?? "otro"}.` };
+  if (r.jugadores.some((j, i) => i !== deIdx && j.aCargoDe === Number(deIdx))) return { ok: false, motivo: `${de.nombre} ya paga la parte de otro: no puede pasar a cargo de nadie.` };
+  de.aCargoDe = k;
+  registrar(estado, `La parte de cancha de ${de.nombre} queda a cargo de ${a.nombre}.`, ahora);
+  return { ok: true };
+}
+
+/** Cobra la parte de un jugador (con las de los que tiene a cargo) y marca pagados a todos. */
+export function cobrarParte(estado, reservaId, idx, { medio }, ahora) {
+  const r = reserva(estado, reservaId);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  const partes = partesCancha(r);
+  const p = partes[idx];
+  if (!p || !(p.aPagar > 0)) return { ok: false, motivo: "Ese jugador no tiene nada para pagar de la cancha." };
+  const cubiertos = partes.map((x, i) => (x.aCargoDe === idx ? i : -1)).filter((i) => i >= 0);
+  const quien = r.jugadores[idx].nombre;
+  const concepto = cubiertos.length ? `Cancha ${r.titular} — ${quien} paga también por ${cubiertos.map((i) => r.jugadores[i].nombre).join(", ")}` : undefined;
+  const res = registrarPago(estado, reservaId, { medio, monto: p.aPagar, jugador: idx, ...(concepto && { concepto }) }, ahora);
+  if (!res.ok) return res;
+  for (const i of cubiertos) r.jugadores[i].pagadoPor = idx;
+  return { ...res, monto: p.aPagar, cubiertos: cubiertos.map((i) => r.jugadores[i].nombre) };
+}
+
 export function sumarJugador(estado, reservaId, nombre, clienteId = null) {
   const r = reserva(estado, reservaId);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
@@ -701,7 +759,7 @@ export function abrirCuenta(estado, { clienteId = null, titular, reservaId = nul
   }
   const nueva = { id: nuevoId("cta"), clienteId, titular: nombre, reservaId, jugadorIdx, items: [], pagos: [], estado: "abierta", abierta: sello(ahora) };
   estado.cuentas.push(nueva);
-  registrar(estado, `Se abrió la cuenta de consumo de ${nombre}.`, ahora);
+  registrar(estado, `Se abrió la cuenta de cargos de ${nombre}.`, ahora);
   return { ok: true, cuenta: nueva };
 }
 
@@ -735,7 +793,7 @@ export function pagarCuenta(estado, cuentaId, { medio, monto }, ahora) {
     movimientoCaja(estado, { tipo: "ingreso", medio, monto: importe, concepto: `Buffet ${cta.titular}` }, ahora);
   }
   cta.pagos.push({ medio, monto: importe, ...sello(ahora) });
-  registrar(estado, `Cobro de consumos ${pesos(importe)} (${MEDIOS[medio]}) — ${cta.titular}.`, ahora);
+  registrar(estado, `Cobro de cargos ${pesos(importe)} (${MEDIOS[medio]}) — ${cta.titular}.`, ahora);
   return { ok: true, saldo: saldoCuenta(cta) };
 }
 
@@ -762,6 +820,74 @@ export function consumoJugador(estado, reservaId, jugadorIdx, productoId, cant, 
     if (saldoCuenta(cta) === 0 && !cta.items.some((i) => i.alquiler && !i.devuelto)) cerrarCuenta(estado, cta.id, {}, ahora);
   }
   return { ok: true, cuenta: abierta.cuenta };
+}
+
+/**
+ * Suma o resta unidades de un cargo ya cargado (uno de más, uno de menos, se equivocaron de producto). Lo que
+ * vuelve, vuelve al stock. Nunca deja la cuenta por debajo de lo que ya se pagó.
+ */
+export function ajustarCargo(estado, cuentaId, itemIdx, delta, ahora) {
+  const cta = cuenta(estado, cuentaId);
+  if (!cta || cta.estado !== "abierta") return { ok: false, motivo: "Esa cuenta no está abierta." };
+  const item = cta.items[itemIdx];
+  if (!item) return { ok: false, motivo: "No encuentro ese cargo." };
+  const d = Math.round(Number(delta));
+  if (!d) return { ok: false, motivo: "Decí cuánto sumar o restar." };
+  const nueva = item.cant + d;
+  if (nueva < 0) return { ok: false, motivo: `No se pueden sacar más de ${item.cant}.` };
+  if (totalCuenta(cta) + d * item.precioUnit < cobradoCuenta(cta)) return { ok: false, motivo: `Ya se pagaron ${pesos(cobradoCuenta(cta))} de esta cuenta: no puede quedar en menos.` };
+  const p = item.productoId ? producto(estado, item.productoId) : null;
+  if (item.manual && d > 0) return { ok: false, motivo: "Un cargo manual no se multiplica: cargá otro." };
+  if (p && p.stock != null && !(item.alquiler && item.devuelto)) {
+    if (d > 0 && p.stock < d) return { ok: false, motivo: `No queda stock de ${p.nombre} (quedan ${p.stock}).` };
+    p.stock -= d;
+    if (item.alquiler) p.prestados = Math.max(0, (p.prestados ?? 0) + d);
+  }
+  item.cant = nueva;
+  if (nueva === 0) cta.items.splice(itemIdx, 1);
+  registrar(estado, `${d > 0 ? "Se sumó" : "Se restó"} ${Math.abs(d)} × ${item.nombre} en la cuenta de ${cta.titular}.`, ahora);
+  return { ok: true, cuenta: cta };
+}
+
+/**
+ * Pasa un cargo (o parte de sus unidades) a la cuenta de otra persona: la mesa compleja se reparte como
+ * quieran, cargo por cargo. Lo que ya está pagado en la cuenta de origen no puede quedar sin respaldo.
+ */
+export function transferirCargo(estado, deCuentaId, itemIdx, aCuentaId, cant, ahora) {
+  const de = cuenta(estado, deCuentaId);
+  const a = cuenta(estado, aCuentaId);
+  if (!de || de.estado !== "abierta" || !a || a.estado !== "abierta") return { ok: false, motivo: "Las dos cuentas tienen que estar abiertas." };
+  if (de.id === a.id) return { ok: false, motivo: "Elegí otra cuenta." };
+  const item = de.items[itemIdx];
+  if (!item) return { ok: false, motivo: "No encuentro ese cargo." };
+  const n = cant == null || cant === "" ? item.cant : Math.round(Number(cant));
+  if (!(n > 0) || n > item.cant) return { ok: false, motivo: `Se pueden pasar de 1 a ${item.cant}.` };
+  if (totalCuenta(de) - n * item.precioUnit < cobradoCuenta(de)) return { ok: false, motivo: `De la cuenta de ${de.titular} ya se pagaron ${pesos(cobradoCuenta(de))}: ese cargo no se puede pasar.` };
+  const movido = { ...item, cant: n, transferidoDe: de.titular };
+  if (n === item.cant) de.items.splice(itemIdx, 1); else item.cant -= n;
+  a.items.push(movido);
+  registrar(estado, `${n} × ${item.nombre} pasó de la cuenta de ${de.titular} a la de ${a.titular}.`, ahora);
+  return { ok: true };
+}
+
+/**
+ * Cargo manual para la excepción (mesa compleja, un precio especial, algo que no está en la lista). Un monto
+ * negativo es un descuento: sólo el dueño, con su PIN, y nunca deja la cuenta por debajo de lo pagado.
+ */
+export function cargoManual(estado, cuentaId, { concepto, monto }, auth, ahora) {
+  const cta = cuenta(estado, cuentaId);
+  if (!cta || cta.estado !== "abierta") return { ok: false, motivo: "Esa cuenta no está abierta." };
+  const texto = String(concepto ?? "").trim().slice(0, 60);
+  if (!texto) return { ok: false, motivo: "Escribí el concepto del cargo." };
+  const m = Math.round(Number(monto));
+  if (!m) return { ok: false, motivo: "Poné el monto (negativo si es un descuento)." };
+  const a = autorizar(estado, auth, m < 0 ? "configurar" : "cobrar", m < 0);
+  if (!a.ok) return m < 0 && a.motivo?.includes("permiso") ? { ok: false, motivo: "Un descuento lo autoriza el dueño con su PIN." } : a;
+  if (totalCuenta(cta) + m < Math.max(0, cobradoCuenta(cta))) return { ok: false, motivo: "El descuento deja la cuenta por debajo de lo que ya se pagó." };
+  const item = { productoId: null, nombre: texto, cant: 1, precioUnit: m, manual: true, alquiler: false, plato: false, devuelto: false, por: a.usuario?.nombre ?? null, ...sello(ahora) };
+  cta.items.push(item);
+  registrar(estado, `Cargo manual a ${cta.titular}: ${texto} ${pesos(m)}${a.usuario ? ` (${a.usuario.nombre})` : ""}.`, ahora);
+  return { ok: true, item };
 }
 
 /** Compatibilidad: consumo a la cuenta del titular del turno (o del jugador indicado). */
@@ -793,13 +919,13 @@ export function cerrarCuenta(estado, cuentaId, { aCuenta = false } = {}, ahora) 
     const c = cta.clienteId ? cliente(estado, cta.clienteId) : null;
     const p = puedeACuenta(c, debe);
     if (!p.ok) return p;
-    movimientoCC(estado, c, debe, "Consumos del buffet", ahora);
+    movimientoCC(estado, c, debe, "Cargos del buffet", ahora);
     cta.aCuentaCorriente = debe;
   }
   devolverAlquileresDeCuenta(estado, cta);
   cta.estado = "cerrada";
   cta.cerrada = sello(ahora);
-  registrar(estado, `Se cerró la cuenta de consumo de ${cta.titular}${debe > 0 ? ` (${pesos(debe)} a cuenta corriente)` : ""}.`, ahora);
+  registrar(estado, `Se cerró la cuenta de cargos de ${cta.titular}${debe > 0 ? ` (${pesos(debe)} a cuenta corriente)` : ""}.`, ahora);
   return { ok: true };
 }
 
@@ -1188,25 +1314,32 @@ export function cerrarCaja(estado, { contado, usuarioId, pin }, ahora) {
 export function buscarProductos(estado, texto, { soloVendibles = false } = {}) {
   const q = String(texto ?? "").trim().toLowerCase();
   return estado.productos.filter((p) => p.activo !== false && (!soloVendibles || p.stock == null || p.stock > 0) &&
-    (!q || p.nombre.toLowerCase().includes(q) || p.categoria.toLowerCase().includes(q) || String(p.codigo ?? "").includes(q)));
+    (!q || p.nombre.toLowerCase().includes(q) || p.categoria.toLowerCase().includes(q) || String(p.codigo ?? "").toLowerCase().includes(q) || String(p.codigoExterno ?? "").includes(q)));
 }
 
 /** Lo que devuelve el lector (código de barras o etiqueta RF): el producto, o qué pasó. */
 export function productoPorCodigo(estado, codigo) {
   const c = String(codigo ?? "").trim();
   if (!c) return { ok: false, motivo: "No llegó ningún código." };
-  const p = estado.productos.find((x) => x.activo !== false && String(x.codigo ?? "") === c);
+  // El lector lee el código de barras del fabricante (externo); a mano se tipea el interno. Sirven los dos.
+  const p = estado.productos.find((x) => x.activo !== false && (String(x.codigo ?? "").toUpperCase() === c.toUpperCase() || String(x.codigoExterno ?? "") === c));
   return p ? { ok: true, producto: p } : { ok: false, motivo: `El código ${c} no está cargado en ningún producto.` };
 }
 
-export function altaProducto(estado, { nombre, categoria, precio, costo = 0, stock = 0, minimo = 0, codigo = "", plato = false }, auth, ahora) {
+/** Un código (interno o de fabricación) no puede repetirse en otro producto, ni cruzado entre los dos campos. */
+function codigoUsado(estado, codigo, salvoId = null) {
+  const c = String(codigo ?? "").trim();
+  return c !== "" && estado.productos.some((x) => x.id !== salvoId && (String(x.codigo ?? "") === c || String(x.codigoExterno ?? "") === c));
+}
+export function altaProducto(estado, { nombre, categoria, precio, costo = 0, stock = 0, minimo = 0, codigo = "", codigoExterno = "", plato = false }, auth, ahora) {
   const a = autorizar(estado, auth, "stock", false);
   if (!a.ok) return a;
   const limpio = String(nombre ?? "").trim();
   if (!limpio) return { ok: false, motivo: "Falta el nombre del producto." };
   if (!(Number(precio) > 0)) return { ok: false, motivo: "Poné el precio de venta." };
-  if (codigo && estado.productos.some((p) => String(p.codigo) === String(codigo))) return { ok: false, motivo: "Ese código ya está en otro producto." };
-  const p = { id: nuevoId("p"), nombre: limpio, categoria: String(categoria || (plato ? "Cocina" : "Varios")), precio: Math.round(Number(precio)), costo: Math.round(Number(costo) || 0), stock: plato ? null : Math.round(Number(stock) || 0), minimo: plato ? 0 : Math.round(Number(minimo) || 0), codigo: String(codigo || ""), plato: !!plato, activo: true };
+  if (codigoUsado(estado, codigo) || codigoUsado(estado, codigoExterno)) return { ok: false, motivo: "Ese código ya está en otro producto." };
+  if (codigo && String(codigo).trim() === String(codigoExterno).trim()) return { ok: false, motivo: "El código interno y el de fabricación no pueden ser el mismo." };
+  const p = { id: nuevoId("p"), nombre: limpio, categoria: String(categoria || (plato ? "Cocina" : "Varios")), precio: Math.round(Number(precio)), costo: Math.round(Number(costo) || 0), stock: plato ? null : Math.round(Number(stock) || 0), minimo: plato ? 0 : Math.round(Number(minimo) || 0), codigo: String(codigo || "").trim(), codigoExterno: String(codigoExterno || "").trim(), plato: !!plato, activo: true };
   estado.productos.push(p);
   registrar(estado, `Alta de producto: ${p.nombre}.`, ahora);
   return { ok: true, producto: p };
@@ -1218,11 +1351,15 @@ export function editarProducto(estado, productoId, cambios, auth, ahora) {
   const p = producto(estado, productoId);
   if (!p) return { ok: false, motivo: "No encuentro el producto." };
   if (cambios.precio != null && !(Number(cambios.precio) > 0)) return { ok: false, motivo: "El precio tiene que ser mayor a cero." };
+  if (cambios.costo != null && !(Number(cambios.costo) >= 0)) return { ok: false, motivo: "El costo no puede ser negativo." };
   for (const k of ["precio", "costo", "minimo"]) if (cambios[k] != null) p[k] = Math.round(Number(cambios[k]));
   if (cambios.nombre != null && String(cambios.nombre).trim()) p.nombre = String(cambios.nombre).trim();
-  if (cambios.codigo != null) {
-    if (cambios.codigo && estado.productos.some((x) => x.id !== p.id && String(x.codigo) === String(cambios.codigo))) return { ok: false, motivo: "Ese código ya está en otro producto." };
-    p.codigo = String(cambios.codigo);
+  for (const k of ["codigo", "codigoExterno"]) {
+    if (cambios[k] == null) continue;
+    const c = String(cambios[k]).trim();
+    if (codigoUsado(estado, c, p.id)) return { ok: false, motivo: "Ese código ya está en otro producto." };
+    if (c && c === String(k === "codigo" ? cambios.codigoExterno ?? p.codigoExterno ?? "" : cambios.codigo ?? p.codigo ?? "").trim()) return { ok: false, motivo: "El código interno y el de fabricación no pueden ser el mismo." };
+    p[k] = c;
   }
   registrar(estado, `Se editó el producto ${p.nombre}.`, ahora);
   return { ok: true };
@@ -1348,6 +1485,47 @@ export function metricasPlatos(estado, { desde, hasta }) {
   const filas = [...porPlato.values()].map((x) => ({ ...x, margen: x.facturado - x.costo, porDia: x.unidades / n })).sort((a, b) => b.facturado - a.facturado);
   const total = filas.reduce((s, x) => s + x.facturado, 0);
   return { filas: filas.map((x) => ({ ...x, participacion: total ? x.facturado / total : 0 })), total, dias: dias.size };
+}
+
+/** Precio sugerido desde el costo y el markup (% sobre costo), redondeado a $50 como se cobra en el mostrador. */
+export function precioDesdeMarkup(costo, markupPct) {
+  const c = Number(costo), m = Number(markupPct);
+  if (!(c > 0) || !Number.isFinite(m) || m <= -100) return null;
+  return Math.max(50, Math.round((c * (1 + m / 100)) / 50) * 50);
+}
+
+/**
+ * Pricing y revenue por producto: margen y markup de lista, y lo vendido en el período (unidades, facturado,
+ * costo y ganancia bruta). Todo lo cargado a cuentas (incluida la venta de mostrador) cuenta como venta.
+ */
+export function rentabilidad(estado, { desde, hasta } = {}) {
+  const ventas = new Map();
+  for (const cta of estado.cuentas) {
+    for (const i of cta.items) {
+      if (!i.productoId || !i.fecha) continue;
+      const d = diaDeCaja(estado, i.fecha, i.min ?? 0);
+      if ((desde && d < desde) || (hasta && d > hasta)) continue;
+      const v = ventas.get(i.productoId) ?? { unidades: 0, facturado: 0 };
+      v.unidades += i.cant;
+      v.facturado += i.cant * i.precioUnit;
+      ventas.set(i.productoId, v);
+    }
+  }
+  const filas = estado.productos.filter((p) => p.activo !== false).map((p) => {
+    const v = ventas.get(p.id) ?? { unidades: 0, facturado: 0 };
+    const costoVendido = v.unidades * (p.costo ?? 0);
+    return {
+      productoId: p.id, nombre: p.nombre, categoria: p.categoria, codigo: p.codigo ?? "", codigoExterno: p.codigoExterno ?? "",
+      precio: p.precio, costo: p.costo ?? 0,
+      margen: p.precio - (p.costo ?? 0),
+      margenPct: p.precio > 0 ? (p.precio - (p.costo ?? 0)) / p.precio : 0,
+      markupPct: p.costo > 0 ? (p.precio - p.costo) / p.costo : null,
+      unidades: v.unidades, facturado: v.facturado, costoVendido, ganancia: v.facturado - costoVendido,
+    };
+  });
+  const facturado = filas.reduce((s, f) => s + f.facturado, 0);
+  const ganancia = filas.reduce((s, f) => s + f.ganancia, 0);
+  return { filas, facturado, ganancia, margenPct: facturado ? ganancia / facturado : 0 };
 }
 
 // ───────────────────────── plataforma de contenido ─────────────────────────
@@ -1568,6 +1746,17 @@ export function mapaDeCalor(estado, fechas) {
 // ───────────────────────── reglas editables ─────────────────────────
 
 /** Límites de las reglas que el dueño edita en vivo. `minutosAntesParaEntrar` vacío = sin límite. */
+/** Minutos sin uso hasta bloquear la pantalla (0 = sólo al apagarse o esconderse la pantalla). */
+export const LIMITES_BLOQUEO = Object.freeze([0, 60]);
+export function ajustarBloqueo(estado, minutos, auth) {
+  const a = autorizar(estado, auth, "configurar", false);
+  if (!a.ok) return a;
+  const v = Math.round(Number(minutos));
+  if (!Number.isFinite(v) || v < LIMITES_BLOQUEO[0] || v > LIMITES_BLOQUEO[1]) return { ok: false, motivo: `Entre ${LIMITES_BLOQUEO[0]} y ${LIMITES_BLOQUEO[1]} minutos.` };
+  estado.config.bloqueoMin = v;
+  return { ok: true, valor: v };
+}
+
 export const LIMITES_POLITICA = Object.freeze({
   horasCancelacionLibre: [0, 72],
   senaPct: [0, 100],
@@ -1603,6 +1792,7 @@ export const CONFIG_DEMO = Object.freeze({
     { abre: H(9), cierra: H(25) },
   ],
   corteCaja: H(12), // la caja diaria corre de 12 a 12
+  bloqueoMin: 5, // minutos sin uso hasta pedir el PIN otra vez (0 = sólo al apagar/esconder la pantalla)
   cobro: { alias: "bp.demo.ficticio" }, // DEMO: alias ficticio rotulado; el real lo carga el dueño post-venta
   paso: 30,
   duracionTurno: 90,
@@ -1659,23 +1849,23 @@ const NOMBRES = [
 
 // Códigos de ejemplo (formato EAN-13 con prefijo 779 de Argentina; ficticios).
 export const PRODUCTOS_DEMO = Object.freeze([
-  { id: "p1", nombre: "Tubo de pelotas (3)", categoria: "Pelotas", precio: 12000, costo: 7800, stock: 18, minimo: 10, codigo: "7790000000011" },
-  { id: "p2", nombre: "Agua 500 ml", categoria: "Bebidas", precio: 2000, costo: 700, stock: 42, minimo: 24, codigo: "7790000000028" },
-  { id: "p3", nombre: "Bebida isotónica", categoria: "Bebidas", precio: 3500, costo: 1500, stock: 9, minimo: 12, codigo: "7790000000035" },
-  { id: "p9", nombre: "Cerveza lata 473 ml", categoria: "Bebidas", precio: 3800, costo: 1700, stock: 48, minimo: 24, codigo: "7790000000097" },
-  { id: "p10", nombre: "Gaseosa 500 ml", categoria: "Bebidas", precio: 2800, costo: 1100, stock: 30, minimo: 18, codigo: "7790000000103" },
-  { id: "p4", nombre: "Overgrip", categoria: "Accesorios", precio: 4500, costo: 2100, stock: 30, minimo: 10, codigo: "7790000000042" },
-  { id: "p5", nombre: "Muñequera", categoria: "Accesorios", precio: 6000, costo: 2800, stock: 4, minimo: 6, codigo: "7790000000059" },
-  { id: "p6", nombre: "Alquiler de pala", categoria: "Alquiler", precio: 5000, costo: 0, stock: 8, minimo: 0, alquiler: true, codigo: "" },
-  { id: "p7", nombre: "Pala Break Point (shop)", categoria: "Shop", precio: 185000, costo: 118000, stock: 3, minimo: 2, codigo: "7790000000073" },
-  { id: "p8", nombre: "Remera técnica del club", categoria: "Shop", precio: 28000, costo: 13500, stock: 0, minimo: 5, codigo: "7790000000080" },
+  { id: "p1", nombre: "Tubo de pelotas (3)", categoria: "Pelotas", precio: 12000, costo: 7800, stock: 18, minimo: 10, codigo: "BP-001", codigoExterno: "7790000000011" },
+  { id: "p2", nombre: "Agua 500 ml", categoria: "Bebidas", precio: 2000, costo: 700, stock: 42, minimo: 24, codigo: "BP-002", codigoExterno: "7790000000028" },
+  { id: "p3", nombre: "Bebida isotónica", categoria: "Bebidas", precio: 3500, costo: 1500, stock: 9, minimo: 12, codigo: "BP-003", codigoExterno: "7790000000035" },
+  { id: "p9", nombre: "Cerveza lata 473 ml", categoria: "Bebidas", precio: 3800, costo: 1700, stock: 48, minimo: 24, codigo: "BP-004", codigoExterno: "7790000000097" },
+  { id: "p10", nombre: "Gaseosa 500 ml", categoria: "Bebidas", precio: 2800, costo: 1100, stock: 30, minimo: 18, codigo: "BP-005", codigoExterno: "7790000000103" },
+  { id: "p4", nombre: "Overgrip", categoria: "Accesorios", precio: 4500, costo: 2100, stock: 30, minimo: 10, codigo: "BP-006", codigoExterno: "7790000000042" },
+  { id: "p5", nombre: "Muñequera", categoria: "Accesorios", precio: 6000, costo: 2800, stock: 4, minimo: 6, codigo: "BP-007", codigoExterno: "7790000000059" },
+  { id: "p6", nombre: "Alquiler de pala", categoria: "Alquiler", precio: 5000, costo: 0, stock: 8, minimo: 0, alquiler: true, codigo: "BP-008", codigoExterno: "" },
+  { id: "p7", nombre: "Pala Break Point (shop)", categoria: "Shop", precio: 185000, costo: 118000, stock: 3, minimo: 2, codigo: "BP-009", codigoExterno: "7790000000073" },
+  { id: "p8", nombre: "Remera técnica del club", categoria: "Shop", precio: 28000, costo: 13500, stock: 0, minimo: 5, codigo: "BP-010", codigoExterno: "7790000000080" },
   // Cocina (Delicias): los platos no llevan stock; se miden por venta.
-  { id: "k-mila", nombre: "Milanesa napolitana con papas", categoria: "Cocina", precio: 14500, costo: 6200, stock: null, minimo: 0, plato: true },
-  { id: "k-hamb", nombre: "Hamburguesa Break con papas", categoria: "Cocina", precio: 12000, costo: 4800, stock: null, minimo: 0, plato: true },
-  { id: "k-tost", nombre: "Tostado jamón y queso", categoria: "Cocina", precio: 6500, costo: 2300, stock: null, minimo: 0, plato: true },
-  { id: "k-empa", nombre: "Empanada de carne", categoria: "Cocina", precio: 2200, costo: 800, stock: null, minimo: 0, plato: true },
-  { id: "k-cesar", nombre: "Ensalada César", categoria: "Cocina", precio: 9800, costo: 3900, stock: null, minimo: 0, plato: true },
-  { id: "k-pica", nombre: "Picada para 4", categoria: "Cocina", precio: 21000, costo: 9500, stock: null, minimo: 0, plato: true },
+  { id: "k-mila", nombre: "Milanesa napolitana con papas", categoria: "Cocina", precio: 14500, costo: 6200, stock: null, minimo: 0, plato: true, codigo: "BP-011", codigoExterno: "" },
+  { id: "k-hamb", nombre: "Hamburguesa Break con papas", categoria: "Cocina", precio: 12000, costo: 4800, stock: null, minimo: 0, plato: true, codigo: "BP-012", codigoExterno: "" },
+  { id: "k-tost", nombre: "Tostado jamón y queso", categoria: "Cocina", precio: 6500, costo: 2300, stock: null, minimo: 0, plato: true, codigo: "BP-013", codigoExterno: "" },
+  { id: "k-empa", nombre: "Empanada de carne", categoria: "Cocina", precio: 2200, costo: 800, stock: null, minimo: 0, plato: true, codigo: "BP-014", codigoExterno: "" },
+  { id: "k-cesar", nombre: "Ensalada César", categoria: "Cocina", precio: 9800, costo: 3900, stock: null, minimo: 0, plato: true, codigo: "BP-015", codigoExterno: "" },
+  { id: "k-pica", nombre: "Picada para 4", categoria: "Cocina", precio: 21000, costo: 9500, stock: null, minimo: 0, plato: true, codigo: "BP-016", codigoExterno: "" },
 ]);
 
 /** Generador pseudoaleatorio con semilla: la demo se ve igual cada vez que se abre el mismo día. */
@@ -1804,7 +1994,7 @@ export function generarDemo(hoy, ahoraMin = H(19, 10)) {
   // Cuenta corriente con historia: Agustina debe dos cosas viejas.
   const agus = cliente(e, "k10");
   agus.movCC.push({ fecha: sumarDias(hoy, -6), min: H(21, 30), concepto: "Cancha (sumada a cuenta)", importe: 14000, saldo: 14000 });
-  agus.movCC.push({ fecha: sumarDias(hoy, -2), min: H(22, 40), concepto: "Consumos del buffet", importe: 7000, saldo: 21000 });
+  agus.movCC.push({ fecha: sumarDias(hoy, -2), min: H(22, 40), concepto: "Cargos del buffet", importe: 7000, saldo: 21000 });
   agus.deuda = 21000;
 
   // Novedades para el dueño: un pedido de cuenta corriente y uno de acceso.

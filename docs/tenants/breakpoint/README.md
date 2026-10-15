@@ -51,6 +51,23 @@ celular y contraseña; seña por transferencia con comprobante por **WhatsApp** 
 | E2E del sitio servido (portada → turnero → reserva → seña, con el club en otra pestaña) | `src/tenants/breakpoint/turnero/e2e/sitio.e2e.mjs` (dentro de `npm run test:turnero-e2e`) |
 | QA en Chrome real (sesión local) | [`TURNERO-QA-CHROME.md`](TURNERO-QA-CHROME.md) · defectos D21–D34 resueltos en [`TURNERO-QA.md`](TURNERO-QA.md) |
 
+## Pedidos del club del 15/10 (gestión del club)
+
+| Pedido | Cómo quedó | Dónde |
+|---|---|---|
+| La parte de la cancha de un jugador, a cargo de otro | En el turno, cada jugador tiene «Paga su parte / A cargo de X». Quien paga, paga lo suyo más lo de los que invita. No se encadena, y no se reasigna a quien ya pagó. | `motor.mjs` → `partesCancha`, `asignarCargoCancha`, `cobrarParte` |
+| Paso previo para confirmar créditos (seña) | Con «Créditos del cliente», antes de descontar se ve un panel con de quién son, cuánto se usa, qué cubre (avisa si queda **pagada la seña**) y con cuánto queda. Se confirma o se vuelve atrás. | `app.mjs` → `pedirConfirmacionCredito`, `panelCredito` |
+| «Consumo» → «cargo» | Todos los textos que se leen dicen «cargo». Los nombres internos no cambian. | `app.mjs`, `motor.mjs` |
+| Mesa compleja: se cobra a mano y cada cargo se reparte como quieran | Dentro de la cuenta, «Mesa compleja» tiene dos cosas: **pasar un cargo** (entero o algunas unidades) a la cuenta de otra persona, y **cargo manual** para la excepción. Un monto negativo es un descuento y lo autoriza el dueño con su PIN. | `transferirCargo`, `cargoManual` |
+| Sumar o restar cargos | Cada cargo tiene − / +, en la cuenta y en «Cargos de los jugadores» del turno. Lo que se resta vuelve al stock. La cuenta nunca queda por debajo de lo que ya se pagó. | `ajustarCargo` |
+| Código de fábrica al lado del interno | Hay dos columnas: «Cód. interno» (BP-###) y «Cód. fábrica» (el código de barras). El lector y el buscador encuentran el producto por cualquiera de los dos. No se puede repetir un código. | `codigoExterno`, `productoPorCodigo` |
+| Pricing / revenue editable | En Stock, la vista «Precios y rentabilidad» permite editar costo, markup % y precio, y muestra margen, margen %, vendidos, facturado y ganancia de los últimos 7 días, con totales. | `rentabilidad`, `precioDesdeMarkup` · `tablaPrecios` |
+| Bloqueo con PIN propio (celular, compu, tablet, POS) | Se bloquea tras N minutos sin uso (Ajustes, 5 por defecto) y cada vez que la pantalla se apaga o se cambia de app por más de 30 s. También a mano con el candado o la tecla L. Se desbloquea con el PIN de quien estaba usando el sistema o con «Entrar con otro usuario». Esc no lo cierra y ningún atajo abre nada detrás. 5 PIN mal → 30 s de espera. | `app.mjs` → `bloquear`/`desbloquear` · `ajustarBloqueo` |
+
+Supuestos, a confirmar con el club:
+- la gracia de 30 s al apagar la pantalla, para que mirar un WhatsApp no obligue a poner el PIN;
+- el redondeo del precio por markup a $50.
+
 ## Para que quede en vivo (dos pasos del dueño)
 
 1. **Publicar** (Gate 1): merge de la rama a `main` + deploy del proyecto `erp-ch`. Antes: `tsc` + `next build`

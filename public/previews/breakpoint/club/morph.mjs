@@ -9,9 +9,11 @@
 const claveDe = (n) => (n.nodeType === 1 ? n.id || n.getAttribute("data-k") || "" : "");
 const mismo = (a, b) => a.nodeType === b.nodeType && a.nodeName === b.nodeName && claveDe(a) === claveDe(b);
 
+// Un <details> que el usuario abrió (o cerró) queda como lo dejó: refrescar la pantalla no se lo cambia.
+const delUsuario = (a, name) => name === "open" && a.tagName === "DETAILS";
 function atributos(a, b) {
-  for (const { name } of [...a.attributes]) if (!b.hasAttribute(name)) a.removeAttribute(name);
-  for (const { name, value } of [...b.attributes]) if (a.getAttribute(name) !== value) a.setAttribute(name, value);
+  for (const { name } of [...a.attributes]) if (!b.hasAttribute(name) && !delUsuario(a, name)) a.removeAttribute(name);
+  for (const { name, value } of [...b.attributes]) if (a.getAttribute(name) !== value && !delUsuario(a, name)) a.setAttribute(name, value);
 }
 
 function nodo(a, b) {

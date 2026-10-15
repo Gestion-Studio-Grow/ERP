@@ -137,7 +137,13 @@ await club.click('button[data-a="nuevo"]:has-text("+ Turno")');
 await club.waitForSelector("#f-hora");
 await club.selectOption("#f-dur", "90");
 await club.waitForTimeout(150);
-const cancha = await club.inputValue("#f-cancha"), hora = await club.inputValue("#f-hora");
+const cancha = await club.inputValue("#f-cancha");
+// Un horario libre que el turnero muestre AHORA: el primero que ofrece el club puede haber pasado ya según la hora
+// real en que corre el test (el turnero no muestra horarios pasados), así que se busca uno que esté en los dos lados.
+const horas = await club.$$eval("#f-hora option", (o) => o.map((x) => x.value).filter(Boolean));
+let hora = horas[0];
+for (const h of horas) if (await turnero.locator(`.slot[data-inicio="${h}"][data-cancha="${cancha}"]`).count() === 1) { hora = h; break; }
+if (hora !== await club.inputValue("#f-hora")) { await club.selectOption("#f-hora", hora); await club.waitForTimeout(150); }
 await club.fill("#f-titular", "Por teléfono publicado");
 const sel = `.slot[data-inicio="${hora}"][data-cancha="${cancha}"]`;
 const estabaLibre = await turnero.locator(sel).count() === 1;
