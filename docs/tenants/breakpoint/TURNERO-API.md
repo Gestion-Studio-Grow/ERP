@@ -17,8 +17,8 @@
 - **Sesión del jugador:** cookie `bp_sesion` (HttpOnly, SameSite=Lax y Secure si `TURNERO_SEGURO=1`). Dura 30 días
   y se renueva con el uso.
 - **Sesión del club:** cookie `bp_staff` (12 h), que se obtiene con la clave del club.
-- **Modo:** `TURNERO_MODO=demo` (por defecto: Google, WhatsApp y cuentas simulados, y un comprobante que coincide deja el turno firme) o `real`. En real, el back **no arranca** si falta `GOOGLE_CLIENT_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `TURNERO_STAFF_CLAVE` o `TURNERO_ORIGENES`, y **ningún comprobante confirma solo**: va a la bandeja como «pre-conciliado» hasta verlo acreditado.
-- **Límites:** 300 pedidos por minuto por IP. En el ingreso, 5 fallos por usuario y 30 fallos por IP cada 15 minutos.
+- **Modo:** `TURNERO_MODO=demo` (por defecto: Google, WhatsApp y cuentas simulados, y un comprobante que coincide deja el turno firme) o `real`. En real, el back **no arranca** si falta `GOOGLE_CLIENT_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `TURNERO_STAFF_CLAVE`, `TURNERO_ORIGENES` o `TURNERO_WHATSAPP_CLUB` (sin él, el comprobante no tendría destinatario), y **ningún comprobante confirma solo**: va a la bandeja como «pre-conciliado» hasta verlo acreditado.
+- **Límites:** 1.200 pedidos por minuto por IP (el Wi-Fi del club comparte IP). En el ingreso, 5 fallos por usuario y 30 fallos por IP cada 15 minutos.
   Por IP cuentan **sólo los fallos**, porque en el Wi-Fi del club muchos jugadores comparten IP.
 - Códigos: `200` ok · `201` creado · `400` datos inválidos · `401` sin sesión o credenciales malas · `403` origen no
   permitido o firma inválida · `404` no existe · `409` turno ocupado (con `alternativas`) · `413` cuerpo muy grande ·
@@ -77,8 +77,8 @@ con él.
 | `POST /api/staff/ingresar` | `{ clave }` (`TURNERO_STAFF_CLAVE`; en demo se imprime una al azar al arrancar) | `{ ok }` + `Set-Cookie: bp_staff` | 401 · 429 al 5.º fallo por IP |
 | `GET /api/staff/sesion` | — | `{ ok, staff: bool }`. Siempre responde 200, así no ensucia la consola con un 401. | — |
 | `GET /api/staff/estado` | — | `{ ok, estado (snapshot del motor), version, ahora:{fecha, min} }` | 401 |
-| `GET /api/staff/eventos` | SSE | `reserva {reserva, motivo: nueva\|cancelada\|sena-confirmada\|sena-parcial\|sena-demorada\|sena-vencida\|desde-espera}` · `sync {puesto, reservas, bloqueos?, canchas?, fijos?, clima?, politica?}` · `revision {revision}` · `comprobante-rechazado {motivo, monto, operacion}` · `espera {espera}` | 401 |
-| `POST /api/staff/sync` | `{ puesto, reservas:[reserva completa del motor, con su `rev`], bloqueos?, canchas?, fijos?, clima?, politica? }` (hasta 4 MB; ids `[\w-]{1,40}`) | `{ ok, aplicadas:[id], rechazadas:[{id, motivo, actual}], version, revs:{id: rev} }`. Responde **409** si una reserva pisa un turno activo (por ejemplo, uno vendido online en el medio) o si su `rev` no coincide con la del back (el puesto tenía una copia vieja: se le devuelve la actual). El puesto adopta `revs` para su próxima edición. | 401 · 409 |
+| `GET /api/staff/eventos` | SSE | `reserva {reserva, motivo: nueva\|cancelada\|sena-confirmada\|sena-parcial\|sena-demorada\|sena-vencida\|desde-espera}` · `sync {puesto, reservas, bloqueos?, canchas?, fijos?, clima?, politica?}` · `revision {revision}` · `clientes {clientes:[ficha]}` (altas web, créditos, deudas: sólo las que cambiaron) · `comprobante-rechazado {motivo, monto, operacion}` · `espera {espera}` | 401 |
+| `POST /api/staff/sync` | `{ puesto, reservas:[reserva completa del motor, con su `rev`], clientes?:[ficha], bloqueos?, canchas?, fijos?, clima?, politica? }` (hasta 4 MB; ids `[\w-]{1,40}`) | `{ ok, aplicadas:[id], rechazadas:[{id, motivo, actual}], version, revs:{id: rev}, refs:{id: "BP-XXXX"|null} }`. Toda reserva con seña sale con código BP (D28). Responde **409** si una reserva pisa un turno activo (por ejemplo, uno vendido online en el medio) o si su `rev` no coincide con la del back (el puesto tenía una copia vieja: se le devuelve la actual). El puesto adopta `revs` para su próxima edición. | 401 · 409 |
 | `GET /api/staff/revisiones` | — | `{ ok, revisiones:[{ id, tipo, cuando, tel:"••• 1234", monto, fecha, operacion:"••••1234", ref, motivo, sugerida, reservaId, estado }] }`. No incluye el teléfono completo ni el comprobante. | 401 |
 | `POST /api/staff/revisiones/:id` | `{ aprobar, reservaId? }` | `{ ok }`. Aplica el pago al turno elegido o lo rechaza, y le avisa al jugador por WhatsApp. | 400 · 404 · 409 si el comprobante ya se usó |
 | `GET /api/staff/buzon` | — | `{ ok, mensajes:[{ a:"••• 1234", texto, cuando }] }`. Sólo en DEMO: los WhatsApp que se "mandaron". | 401 |
@@ -97,3 +97,11 @@ mismas formas. El SSE se reemplaza por un emisor local. Nada sale del navegador.
 red): el comprobante simulado entra directo al mismo procesador de mensajes.
 
 — Elaborado por GSG
+
+## Demo publicada (breakpoint-erp, estática)
+
+`npm run turnero:publicar` arma `dist/breakpoint-erp/` (portada + `/turnero/` + `/club/` + `vercel.json` + `robots.txt`).
+No hay back: con el turnero y la gestión del club abiertos en pestañas del mismo navegador, una de ellas hace de
+servidor (`turnero/bus.mjs`, elegida con Web Locks) y las demás le hablan por `BroadcastChannel` con **las mismas
+rutas de esta tabla**. El club entra al bus por `<meta name="bp-demo-bus" content="1">` y no pide clave (es el mismo
+navegador). Si se cierra la pestaña servidor, otra toma la posta y las pantallas se re-sincronizan.

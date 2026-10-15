@@ -20,6 +20,7 @@
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&display=swap&text=ABCDEFGHIJKLMNOPQRSTUVWXYZ%C3%81%C3%89%C3%8D%C3%93%C3%9A%C3%91%C3%9C0123456789%C2%A1!%C2%BF%3F%24.%2C%3A-%20"></noscript>
 </head>
 <body data-estado="cargando">
+<a class="saltar" href="#mis-reservas">Saltar a Mis reservas</a>
 
 <p class="cinta" role="note">Demo: los datos son de ejemplo y no se guardan</p>
 
@@ -27,7 +28,7 @@
   <div class="top-in">
     <!-- Logo oficial del club (SVG de ccr-63ed11dc-brcdpp, el mismo del backoffice), sobre su cuadrado azul. -->
     <svg id="logo" viewBox="0 0 120 120" role="img" aria-label="Break Point Pádel"><rect width="120" height="120" fill="#035BA8"/><g transform="translate(8 20)" color="#fff"><rect x="0.5" y="3.5" width="3.6" height="73" fill="currentColor"/><g fill="currentColor" font-family="Montserrat,'Century Gothic','Avenir Next',sans-serif" font-weight="500" font-size="24.5"><text x="9.5" y="25" textLength="92" lengthAdjust="spacingAndGlyphs">BREAK</text><text x="9.5" y="51" textLength="15.5" lengthAdjust="spacingAndGlyphs">P</text><text x="45" y="51" textLength="56.5" lengthAdjust="spacingAndGlyphs">INT</text><text x="9.5" y="77" textLength="92" lengthAdjust="spacingAndGlyphs">PADEL</text></g><g fill="none" stroke="#DC6E22" stroke-width="3.3" stroke-linecap="round"><circle cx="35" cy="42.4" r="8.1"/><path d="M34.2 35.6a7.6 7.6 0 0 0 0 13.6"/></g></g></svg>
-    <span id="en-vivo" class="vivo" role="status">En vivo</span>
+    <span id="en-vivo" class="vivo off" role="status">Conectando…</span>
     <button id="btn-ingresar" class="btn-head" type="button">Ingresar</button>
     <div id="usuario" class="usuario" hidden></div>
   </div>
@@ -55,7 +56,7 @@
       <label class="check" for="techadas"><input type="checkbox" id="techadas" name="techadas">Sólo techadas (por si llueve)</label>
     </div>
 
-    <div id="grilla" aria-live="polite" aria-busy="true">
+    <div id="grilla" aria-busy="true">
       <p class="sr">Cargando los turnos libres…</p>
       <div class="skeleton" aria-hidden="true">
         <span class="sk sk-h"></span>
@@ -74,7 +75,8 @@
 
   <aside class="lateral">
     <section id="mis-reservas" class="card" aria-labelledby="t-mis">
-      <h2 id="t-mis">Mis reservas</h2>
+      <h2 id="t-mis" tabindex="-1">Mis reservas</h2>
+      <p id="credito" class="credito" hidden></p>
       <ul id="lista-reservas">
         <li class="reserva-vacia">Todavía no tenés reservas</li>
       </ul>
@@ -196,6 +198,8 @@
 </dialog>
 
 <div id="aviso" role="status" aria-live="polite"></div>
+<!-- Lo que cambia en la grilla en vivo se anuncia acá (la grilla no es región viva: tiene más de 100 botones). -->
+<p id="anuncio" class="sr" role="status" aria-live="polite"></p>
 
 <script type="module" src="./app.mjs"></script>
 </body>

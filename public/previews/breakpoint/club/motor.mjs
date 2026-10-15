@@ -540,6 +540,19 @@ export function vencerSenas(estado, ahora) {
   return out;
 }
 
+const LETRAS_REF = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sin 0/O ni 1/I: se dictan por teléfono sin confusión
+
+/**
+ * Código de la seña (BP-XXXX) para el concepto de la transferencia: así el comprobante se ata solo al turno,
+ * venga de la web o del mostrador. No es un secreto (nada se confirma sólo por el código en modo real).
+ */
+export function nuevaRefPago(estado, azar = Math.random) {
+  let s;
+  do s = "BP-" + Array.from({ length: 4 }, () => LETRAS_REF[Math.floor(azar() * LETRAS_REF.length)]).join("");
+  while (estado.reservas.some((r) => r.ref === s));
+  return s;
+}
+
 export function crearReserva(estado, datos, ahora) {
   const {
     canchaId, fecha, inicio, duracion = estado.config.duracionTurno, tipo = "turno", clienteId = null,
@@ -570,6 +583,7 @@ export function crearReserva(estado, datos, ahora) {
     creada: ahora ? { ...ahora } : null,
     senaEnSuspenso: false,
   };
+  if (senaMonto > 0) r.ref = nuevaRefPago(estado);
   // Seña con plazo (reservas online): si no llega a tiempo, el turno se libera solo (vencerSenas).
   if (senaMonto > 0 && plazoSenaMin > 0 && ahora) {
     const hastaTurno = minutosHasta(ahora, fecha, inicio);
@@ -1384,7 +1398,7 @@ export function mensajeWhatsApp(tipo, d) {
   const club = "Break Point Pádel";
   switch (tipo) {
     case "confirmacion":
-      return `¡Hola ${d.nombre}! Te confirmamos el turno en ${club}: ${d.cancha}, ${d.fecha} a las ${d.hora}.${d.sena ? ` Para dejarlo firme falta la seña de ${d.sena} (transferencia o Mercado Pago).` : ""} ¡Nos vemos en la cancha! 🎾`;
+      return `¡Hola ${d.nombre}! Te confirmamos el turno en ${club}: ${d.cancha}, ${d.fecha} a las ${d.hora}.${d.sena ? ` Para dejarlo firme falta la seña de ${d.sena}${d.alias ? `: transferí al alias ${d.alias}${d.ref ? ` y poné el código ${d.ref} en el concepto` : ""} y mandanos el comprobante por acá.` : " (transferencia o Mercado Pago)."}` : ""} ¡Nos vemos en la cancha! 🎾`;
     case "recordatorio":
       return `¡Hola ${d.nombre}! Te esperamos hoy a las ${d.hora} en ${d.cancha}. Si no llegan, avisanos así le damos la cancha a otro grupo. ¡Gracias!`;
     case "espera":
@@ -1589,6 +1603,7 @@ export const CONFIG_DEMO = Object.freeze({
     { abre: H(9), cierra: H(25) },
   ],
   corteCaja: H(12), // la caja diaria corre de 12 a 12
+  cobro: { alias: "bp.demo.ficticio" }, // DEMO: alias ficticio rotulado; el real lo carga el dueño post-venta
   paso: 30,
   duracionTurno: 90,
   feriados: [],
@@ -1608,6 +1623,7 @@ export const CONFIG_DEMO = Object.freeze({
     turnosConfianza: 3,
     minutosParaSenar: 60, // plazo para mandar la seña de una reserva online
     liberarSinSena: "manual", // "manual": vencida la seña decide el club (bandeja) · "auto": se libera sola
+    unaCanchaPorHorario: false, // turnero: ¿un jugador puede tener dos canchas a la misma hora? (lo decide el club)
     minutosAntesParaEntrar: null, // sin límite: se abre la cancha cuando el club quiere
   },
 });

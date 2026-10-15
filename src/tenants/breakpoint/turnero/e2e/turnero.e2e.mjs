@@ -202,6 +202,14 @@ console.log("\n▶ backoffice conectado");
   await tu.p.click("#btn-cerrar-pago");
   await bo.p.waitForFunction(() => document.body.innerText.includes("Web Sincronizada"), null, { timeout: 6000 }).catch(() => {});
   check(await bo.p.evaluate(() => document.body.innerText.includes("Web Sincronizada")), "la reserva web aparece sola en la agenda del backoffice");
+  // D21: la ficha nueva de la web está en Clientes sin recargar.
+  await bo.p.click('#tabs button[data-v="clientes"]');
+  await bo.p.waitForTimeout(300);
+  check(await bo.p.evaluate(() => document.querySelector("#app").innerText.includes("Web Sincronizada")), "D21: el jugador nuevo de la web aparece en Clientes sin recargar");
+  await bo.p.click('#tabs button[data-v="agenda"]');
+  // D31: la píldora del turnero no tapa «Estilo» (ahora vive abajo a la izquierda, con las novedades).
+  const pisa = await bo.p.evaluate(() => { const a = document.querySelector("#bp-conexion")?.getBoundingClientRect(); const b = [...document.querySelectorAll("button")].find((x) => /Estilo/.test(x.textContent))?.getBoundingClientRect(); return a && b ? !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom) : false; });
+  check(!pisa, "D31: la píldora del turnero no se monta sobre «Estilo»");
   await bo.p.screenshot({ path: `${SALIDA}/backoffice-con-reserva-web.png` });
   // Mostrador → turnero: el club carga un turno por teléfono y desaparece del turnero.
   await bo.p.click('button[data-a="nuevo"]:has-text("+ Turno")');
@@ -216,6 +224,10 @@ console.log("\n▶ backoffice conectado");
   await tu.p.waitForSelector(selTu, { timeout: 4000 }).catch(() => {});
   const estabaLibre = await tu.p.locator(selTu).count() === 1;
   await bo.p.click('button[data-a="confirmarTurno"]');
+  await bo.p.waitForTimeout(200);
+  check(await bo.p.evaluate(() => document.querySelector("#dlg")?.contains(document.activeElement)), "D24: «Turno reservado ✔» deja el foco en el diálogo (no en el body)");
+  check(/BP-[A-Z0-9]{4}/.test(await bo.p.textContent("#dlg")) || !/falta la seña/.test(await bo.p.textContent("#dlg")), "D28: si el turno del mostrador pide seña, el mensaje lleva el código BP");
+  await bo.p.keyboard.press("Escape");
   await tu.p.waitForSelector(selTu, { state: "detached", timeout: 5000 }).catch(() => {});
   check(estabaLibre && await tu.p.locator(selTu).count() === 0, `el turno cargado en el mostrador (${cancha} ${hora60}) desaparece del turnero en vivo`);
   check(!bo.p.errores.length, `backoffice conectado sin errores de consola${bo.p.errores.length ? ` → ${bo.p.errores.join(" | ")}` : ""}`);
@@ -331,6 +343,56 @@ console.log("\n▶ demo pública sin servidor (adaptador local)");
   await p.screenshot({ path: `${SALIDA}/local-firme.png` });
   resumen.local = { jsComprimido: bytes.js };
   await ctx.close();
+}
+
+// ───────────── 7b: hallazgos del QA en Chrome (D23–D30) ─────────────
+console.log("\n▶ QA en Chrome: foco, textos, accesos");
+{
+  const a = await pagina(390, 844), b = await pagina(1440, 900);
+  await Promise.all([a.p.goto(URL_T), b.p.goto(URL_T)]);
+  await Promise.all([listo(a.p), listo(b.p)]);
+  // D30: flechas entre días y salto a «Mis reservas».
+  await a.p.locator("#dias .dia").first().focus();
+  await a.p.keyboard.press("ArrowRight");
+  check(await a.p.evaluate(() => [...document.querySelectorAll("#dias .dia")].indexOf(document.activeElement) === 1), "D30: → mueve el foco al día siguiente");
+  check(await a.p.locator('a.saltar[href="#mis-reservas"]').count() === 1, "D30: hay «Saltar a Mis reservas»");
+  // D23: otro jugador reserva y el que navega con teclado NO pierde el foco.
+  const objetivo = a.p.locator(".slot").first();
+  const clave0 = `${await objetivo.getAttribute("data-inicio")}|${await objetivo.getAttribute("data-cancha")}`;
+  await objetivo.focus();
+  check(await a.p.locator("#grilla[aria-live]").count() === 0 && await a.p.locator("#anuncio[aria-live]").count() === 1, "D23: la grilla ya no es región viva; los cambios se anuncian aparte");
+  await b.p.click("#btn-ingresar"); await b.p.click("#btn-google"); await b.p.waitForSelector("#usuario:not([hidden])");
+  await b.p.locator(".slot").last().click(); await b.p.click("#btn-confirmar");
+  await a.p.waitForTimeout(1500);
+  const foco = await a.p.evaluate(() => { const e = document.activeElement; return e?.classList.contains("slot") ? `${e.dataset.inicio}|${e.dataset.cancha}` : e?.tagName; });
+  check(foco === clave0, `D23: tras una reserva ajena el foco sigue en el mismo turno (${foco})`);
+  check((await a.p.textContent("#anuncio")).startsWith("Se ocup"), "D23: «Se ocupó …» se anuncia por la región aparte");
+  // D25: el texto de cancelación coincide con la regla (dentro de las 12 h no se promete «sin costo»).
+  await a.p.locator(".slot").first().click();
+  const txt = await a.p.textContent("#res-resumen");
+  const dentro = await a.p.evaluate(() => { const b = document.querySelector(".slot"); const f = document.querySelector('#dias .dia[aria-pressed="true"]').dataset.fecha; const [y, m, d] = f.split("-").map(Number); return Date.now() > Date.UTC(y, m - 1, d) + (Number(b.dataset.inicio) + 180) * 60000 - 12 * 3600000; });
+  check(dentro ? /Arranca en menos de 12 h/.test(txt) : /Cancelás sin costo hasta 12 h antes/.test(txt), `D25: política de cancelación correcta (${dentro ? "dentro" : "fuera"} de las 12 h)`);
+  // D24 + D26: tras la seña el foco no cae al body, y «Mis reservas» está a un toque desde arriba.
+  // Cuenta nueva (la de Google demo es compartida y ya juntó señas pendientes: el tope anti-acaparamiento la frena).
+  await a.p.click("#btn-confirmar"); await a.p.click("#btn-ir-registro");
+  await a.p.fill("#reg-nombre", "Foco Teclado"); await a.p.fill("#reg-tel", "11 7000 8000"); await a.p.fill("#reg-clave", "canchaazul9");
+  await a.p.locator("#form-registro [type=submit]").click();
+  await a.p.waitForSelector("#dlg-pago[open]", { timeout: 8000 });
+  await a.p.click("#btn-simular");
+  await a.p.waitForSelector("#dlg-pago.is-firme", { timeout: 5000 }).catch(() => {});
+  await a.p.waitForTimeout(300);
+  check(await a.p.evaluate(() => document.activeElement?.id) === "btn-cerrar-pago", "D24: pasado a firme, el foco va a «Listo» (no al body)");
+  await a.p.keyboard.press("Enter");
+  await a.p.waitForTimeout(200);
+  check(await a.p.evaluate(() => document.activeElement?.classList.contains("reserva")), "D24: al cerrar, el foco queda en la reserva en «Mis reservas»");
+  check(/Mis turnos \(1\)/.test(await a.p.textContent("#btn-mis")), "D26: «Mis turnos (1)» en el encabezado");
+  await a.ctx.close(); await b.ctx.close();
+  // D29: sin back alcanzable no dice «En vivo».
+  const c = await pagina(390, 844);
+  await c.p.goto(`${FRONT}/turnero/?api=${encodeURIComponent("http://127.0.0.1:1")}`);
+  await c.p.waitForSelector('body[data-estado="sin-conexion"]', { timeout: 15000 }).catch(() => {});
+  check(/Sin conexión/.test(await c.p.textContent("#en-vivo")), "D29: sin back, el encabezado dice «Sin conexión»");
+  await c.ctx.close();
 }
 
 // ───────────── 8: con la CSP de verdad (sin bypass): el turnero y el backoffice andan y no hay violaciones ─────────────

@@ -814,6 +814,8 @@ function abrir({ titulo, sub = "", cuerpo, pie = "", ancho = false, alAbrir, ref
   if (!d.open) d.showModal();
   alAbrir?.(d);
   devolverFoco(foco, d);
+  // Si la ventana cambió de contenido (p. ej. «Nuevo turno» → «Turno reservado ✔»), el foco no puede quedar en el body.
+  if (!d.contains(document.activeElement)) (d.querySelector(".dlg-f .btn.primary") ?? d.querySelector('[data-a="cerrar"]'))?.focus();
 }
 function cerrarDialogo() { const d = $("#dlg"); if (d.open) d.close(); dialogoActual = null; }
 
@@ -1052,7 +1054,7 @@ function nuevoTurno({ canchaId, inicio } = {}) {
             ui.busca.cliTurno = "";
             const r = res2.reserva;
             render();
-            const msj = M.mensajeWhatsApp("confirmacion", { nombre: r.titular.split(" ")[0], cancha: M.cancha(E, r.canchaId).nombre, fecha: fechaCorta(r.fecha), hora: M.hhmm(r.inicio), sena: r.sena.monto ? M.pesos(r.sena.monto) : "" });
+            const msj = M.mensajeWhatsApp("confirmacion", { nombre: r.titular.split(" ")[0], cancha: M.cancha(E, r.canchaId).nombre, fecha: fechaCorta(r.fecha), hora: M.hhmm(r.inicio), sena: r.sena.monto ? M.pesos(r.sena.monto) : "", alias: E.config.cobro?.alias, ref: r.ref });
             abrir({ titulo: "Turno reservado ✔", sub: `${esc(r.titular)} · ${esc(M.cancha(E, r.canchaId).nombre)} ${M.hhmm(r.inicio)}`, cuerpo: `<p class="small muted" style="margin:0">Mensaje de confirmación listo para mandar:</p><div class="wa">${esc(msj)}</div>`, pie: `<a class="btn" target="_blank" rel="noopener" href="${esc(wa(msj))}">Mandar por WhatsApp</a><button type="button" class="btn" data-a="ver" data-v="${r.id}">Abrir el turno</button><button type="button" class="btn primary" data-a="cerrar">Listo</button>` });
           },
         };
@@ -1831,9 +1833,12 @@ iniciar();
 // Sólo en desarrollo local o contra el mismo origen: un link armado no puede mandar la clave del club a otro servidor.
 const API_PERMITIDA = API_TURNERO && /^https?:\/\/[\w.:[\]-]+\/?$/.test(API_TURNERO)
   && (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || new URL(API_TURNERO).origin === location.origin);
-if (API_PERMITIDA) {
+// En la demo publicada (breakpoint-erp, sin servidor) la página trae <meta name="bp-demo-bus" content="1">: el
+// backoffice se conecta con el turnero abierto en otra pestaña del mismo navegador (turnero/bus.mjs).
+const DEMO_BUS = !API_PERMITIDA && document.querySelector('meta[name="bp-demo-bus"]')?.content === "1" && typeof BroadcastChannel !== "undefined";
+if (API_PERMITIDA || DEMO_BUS) {
   import("./conectado.mjs")
-    .then((m) => m.conectar(puente, API_TURNERO))
+    .then((m) => m.conectar(puente, DEMO_BUS ? "bus" : API_TURNERO))
     .then(() => { puente.conectado = Boolean(puente.despues); })
     .catch(() => toast("No se pudo conectar con el turnero. Sigue en modo demo.", { error: true }));
 }

@@ -30,8 +30,10 @@ navegador (`local.mjs`). Así se puede mostrar en la URL gratuita del cliente si
 | Dominio del turnero | `turnero/nucleo.test.ts` | Disponibilidad sin datos personales; respeta ocupados, fijos y el margen de hoy; doble reserva → 1 sola con alternativas; anti-acaparamiento; cliente de confianza sin seña; cancelar sólo lo propio; seña vencida en manual y en auto (con oferta a la lista de espera); WhatsApp de punta a punta; reintento de Meta y comprobante repetido; bandeja "a revisar" sin datos sensibles; pago parcial; imagen con OCR simulado; «Sí» a la lista de espera; sync del mostrador (acepta, rechaza lo que pisa, conserva de quién es la reserva); mantenimiento y bloqueos; registro e ingreso; Google demo; **y los arreglos del Gate**: versión por reserva, ids raros, celular sin verificar, mail sin verificar, modo real sin auto-confirmar, reintento tras un error | **27/27** |
 | Contrato HTTP (integración) | `turnero/api.test.ts` | El back real por HTTP: config, CORS con credenciales y CSRF por `Origin`, 415/400/404, cookie de sesión, error genérico y bloqueo al 5.º intento, Google demo, sesión obligatoria, **20 jugadores al mismo turno a la vez → 1**, `Idempotency-Key`, firma del webhook y verificación, **SSE público + staff + jugador con un comprobante que entra por el webhook firmado**, cuenta ajena/imagen, sync del backoffice con 409, `TURNERO_MODO=real` sin secretos no arranca, cookie mal formada no da 500 | **15/15** |
 | E2E (Playwright, Chromium) | `turnero/e2e/turnero.e2e.mjs` (`npm run test:turnero-e2e`) | Recorrido completo en **390 y 1440 px**, axe-core (WCAG 2.1 AA) en la pantalla y en los 3 diálogos, tiempo real entre dos navegadores, **backoffice conectado en ambos sentidos por la UI real**, rendimiento con 4G lenta + CPU x4, movimiento reducido, teclado, demo pública sin servidor, lista de espera, **CSP estricta sin bypass** y `?api=` hostil desde un host público | **68/68 verificaciones** (2 corridas seguidas en verde; con axe-core 4.12.1 y con 4.14.0) |
+| Demo local (servidor en el navegador) | `turnero/demo-local.test.ts` | Mismo contrato que el back en el navegador: sesiones por pestaña, rutas del club, reserva web → club en vivo, seña, turno del mostrador → se ocupa; el bus cae a un servidor propio sin Web Locks | **2/2** |
+| E2E de la demo publicada | `turnero/e2e/publicado.e2e.mjs` (corre dentro de `npm run test:turnero-e2e`) | `dist/breakpoint-erp` servido como estático con las cabeceras de su `vercel.json`: portada, turnero sin back, **sync en vivo entre pestañas** (turnero ↔ gestión del club en los dos sentidos, seña → novedades), toma de posta al cerrar la pestaña servidor, CSP real, ningún pedido a otro origen, barra final | **24/24 verificaciones** |
 
-Total de unidad e integración del turnero y el motor: **105 tests en verde**, más **68 verificaciones E2E**.
+Total de unidad e integración del turnero y el motor: **113 tests en verde**, más **106 verificaciones E2E** (82 del turnero + 24 de la demo publicada), con axe-core 4.12.1 y con 4.14.0.
 `tsc` del proyecto completo: verde. `next build`: verde. `npm test` del repo: las 24 fallas que quedan son ajenas al turnero (inmobiliaria, contrato ARCA, POS, sitio de la estética) y no tocan archivos de esta rama.
 
 ## Mediciones (se miden, no se prometen)
@@ -76,6 +78,28 @@ con `display=swap` y subsets de pocos KB, la fuente no bloquea el render.
 | D20 | E2E después de D19 | El `.sr` dentro de la tira de días (con scroll horizontal) se escapaba y ensanchaba la página a 931 px en el celu (la trampa que documenta la skill RAE) | `#dias{position:relative}` |
 | D18 | `tsc` del proyecto | Error de tipos preexistente en el test del empaquetador (`morph = null` inferido como `null`) | JSDoc en `empaquetar()`. `tsc` del proyecto en verde |
 
+## Defectos del QA en Chrome real (D21–D34) y cómo quedaron
+
+Informe completo, con pasos y capturas: [`TURNERO-QA-CHROME.md`](TURNERO-QA-CHROME.md) (sesión local, en el Chrome del dueño).
+
+| # | Antes | Después | Prueba |
+|---|---|---|---|
+| D21 (alta) | Los jugadores nuevos de la web y sus créditos no llegaban en vivo al backoffice | Evento `clientes` del back con las fichas que cambiaron (altas, créditos, deudas). El sync también acepta y reparte las fichas del mostrador. Al reconectar se bajan de nuevo | `nucleo.test` D21 ×2 · E2E «aparece en Clientes sin recargar» |
+| D22 (alta, real) | En modo real se podía arrancar sin el número de WhatsApp del club y «Mandar comprobante» abría sin destinatario | `TURNERO_WHATSAPP_CLUB` obligatorio en modo real; si faltara, el botón no se muestra (en demo se usa `wa.me/?text=`, sin número inventado: DX-4) | `api.test` D22 |
+| D23 | El repintado en vivo sacaba el foco del teclado; la grilla era región viva con más de 100 botones | La grilla no es región viva: «Se ocupó 23:00 Cancha 4» se anuncia en `#anuncio`. Al repintar, el foco vuelve al mismo turno o al vecino | E2E D23 ×3 |
+| D24 | El foco caía al `body` (seña simulada, cerrar la seña, «Nuevo turno» en el backoffice) | Firme → foco en «Listo». Al cerrar, foco en la reserva de «Mis reservas». En el backoffice, foco en el botón principal del diálogo nuevo | E2E D24 ×3 |
+| D25 | «Cancelás sin costo hasta 12 h antes» en turnos ya dentro de las 12 h; textos contradictorios al cancelar | Antes de reservar dice «Arranca en menos de 12 h: si lo cancelás, la seña queda retenida (vuelve como crédito sólo si alguien toma el turno)». Un solo texto para la cancelación tardía, que también se anuncia | E2E D25 |
+| D26 | «Mis reservas» quedaba 10 pantallas abajo en el celular | «Mis turnos (n)» en el encabezado y enlace «Saltar a Mis reservas» (el foco queda en la sección) | E2E D26 · captura a 360 px sin desborde |
+| D27 | Avisos de 2,5 s, sin historial, que se metían dentro del diálogo abierto | Panel fijo del turnero (abajo a la izquierda) con **historial de novedades**, contador y anuncio para lector de pantalla; no usa los avisos del backoffice ni entra a los diálogos | E2E publicado «contador de novedades» |
+| D28 | El turno del mostrador no tenía código BP y el mensaje de seña iba sin alias ni código | El motor genera el código BP para toda seña. El back lo asegura en el sync (y lo cambia si choca) y el puesto lo adopta. El mensaje de WhatsApp lleva alias y código | `nucleo.test` D28 |
+| D29 | Sin conexión seguía diciendo «En vivo» | Arranca en «Conectando…»; sin back dice «Sin conexión» y no deja los esqueletos de los días | E2E D29 |
+| D30 | Día enfocado oculto en la tira; 142 paradas de Tab sin atajo | El día con foco se ve entero; ← → Inicio Fin entre días; enlace para saltar a «Mis reservas» | E2E D30 ×2 |
+| D31 | La píldora «Turnero en vivo» tapaba «Estilo» | Vive abajo a la izquierda, en el panel del turnero | E2E D31 |
+| D32 | En `127.0.0.1:5173` la CSP bloqueaba el back | `connect-src` acepta el back por `localhost` y por `127.0.0.1` | — |
+| D33 | «Cancela el cliente (online)» en «Mis reservas»; el crédito sólo en un aviso de 4 s | «La cancelaste vos». El crédito a favor se muestra en «Mis reservas» (total) y **se usa solo en la próxima seña** | `nucleo.test` D33 |
+| D34 | Un jugador podía tomar dos canchas a la misma hora | **No se cambió el comportamiento: lo decide el club.** Quedó como regla `unaCanchaPorHorario`, apagada por defecto | `nucleo.test` D34 |
+| Obs. | El límite general de 300 pedidos/min por IP podía frenar el Wi-Fi del club | 1.200 por minuto por IP | — |
+
 ## Hallazgos del Gate de Excelencia (Auditoría GSG, Opus) y cómo quedaron
 
 Veredicto: **APRUEBA CON OBSERVACIONES**. Se corrigieron todos los hallazgos que el Gate marcó como bloqueantes para la
@@ -97,6 +121,11 @@ venta y los menores, salvo los anotados en «Pendientes».
 | G12 | E2E inestable: un repintado en vivo ocultaba el formulario de la lista de espera | El bloque no se oculta mientras el jugador carga el celular; el test espera a que terminen los repintados | 2 corridas seguidas en verde |
 
 ## Pendientes conocidos (no se corrigieron, con el porqué)
+
+- **D34 (decisión del club):** si un jugador puede tener dos canchas a la misma hora. La regla existe y está apagada.
+- **Demo publicada:** la sync entre pestañas funciona en un mismo navegador. Si se cierra la pestaña que hacía de
+  servidor, otra toma la posta con una demo nueva y las sesiones de jugador se pierden (es una demo). En navegadores sin
+  Web Locks o BroadcastChannel (muy viejos: Safari anterior a 15.4), cada pestaña anda sola, sin sync.
 
 - **Fijar axe-core en devDependencies (4.14.x).** Hoy llega como dependencia transitiva (4.12.1 en este entorno). No se
   fijó porque regenerar `package-lock.json` acá falla: el proxy bloquea el tarball de `xlsx` del CDN de SheetJS (403).

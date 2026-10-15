@@ -366,3 +366,70 @@ test("Gate (menor): si algo falla al procesar un mensaje, el reintento de Meta e
   await assert.rejects(() => tn.procesarMensaje(m));
   assert.equal((await tn.procesarMensaje(m)).decision, "ignorado");
 });
+
+// ───── QA en Chrome (D21–D34) ─────
+
+test("D21: el backoffice recibe en vivo las fichas nuevas de la web y los créditos (evento «clientes»)", async () => {
+  const { tn, eventos } = armar();
+  const u = await usuario(tn, "Nueva Web");
+  const alta = eventos.find((e) => e.canal === "staff" && e.tipo === "clientes" && e.datos.clientes.some((c: any) => c.nombre === "Nueva Web"));
+  assert.ok(alta, "llega la ficha nueva");
+  const s = libre(tn);
+  const r = tn.reservar(u.id, { fecha: MANIANA, inicio: s.inicio, canchaId: s.canchaId, duracion: 90 }).reserva;
+  await tn.procesarMensaje(mensaje("x", comprobante({ monto: r.sena.monto, ref: r.ref })));
+  eventos.length = 0;
+  tn.cancelarReserva(u.id, r.id); // a tiempo (mañana): la seña vuelve como crédito
+  const cred = eventos.find((e) => e.tipo === "clientes")?.datos.clientes.find((c: any) => c.nombre === "Nueva Web");
+  assert.equal(cred?.monedero, r.sena.monto);
+});
+
+test("D21: las fichas que cambian en el mostrador entran por el sync y se reparten a los otros puestos", () => {
+  const { tn, eventos } = armar();
+  const nueva = { id: "bx-cl1", nombre: "Por Teléfono", tel: "", strikes: 0, monedero: 0, deuda: 0, activo: true, movCC: [], cc: { habilitada: false, limite: 0 } };
+  const out = tn.sincronizar({ puesto: "p1", clientes: [nueva, { id: "<x>", nombre: "mal" }] });
+  assert.equal(out.ok, true);
+  assert.ok(M.cliente(tn.estado, "bx-cl1"));
+  assert.ok(!M.cliente(tn.estado, "<x>"), "id raro rechazado");
+  assert.equal(eventos.find((e) => e.tipo === "sync")?.datos.clientes[0].id, "bx-cl1");
+});
+
+test("D28: el turno del mostrador con seña recibe código BP en el sync, y el mensaje de WhatsApp lleva alias y código", () => {
+  const { tn } = armar();
+  const s = libre(tn);
+  const base = { fecha: MANIANA, duracion: 90, tipo: "turno", titular: "Por teléfono", origen: "teléfono", jugadores: [], pagos: [], sena: { monto: 21000, pagada: false }, precio: 42000, estado: "reservada" };
+  const out = tn.sincronizar({ reservas: [{ ...base, id: "bx-r9", canchaId: s.canchaId, inicio: s.inicio }] });
+  assert.match(out.refs["bx-r9"], /^BP-[A-HJ-NP-Z2-9]{4}$/);
+  const msj = M.mensajeWhatsApp("confirmacion", { nombre: "Ana", cancha: "Cancha 1", fecha: "jue 16/10", hora: "21:00", sena: "$ 21.000", alias: "bp.demo.ficticio", ref: "BP-7K3Q" });
+  assert.match(msj, /alias bp\.demo\.ficticio/);
+  assert.match(msj, /código BP-7K3Q/);
+});
+
+test("D33: el crédito a favor se usa solo en la próxima seña; el motivo de la cancelación se dice en idioma del jugador", async () => {
+  const { tn } = armar();
+  const u = await usuario(tn, "Con Credito");
+  const [s1, s2] = [libre(tn), tn.disponibilidad({ fecha: MANIANA, duracion: 90 }).slots[0]];
+  const r1 = tn.reservar(u.id, { fecha: MANIANA, inicio: s1.inicio, canchaId: s1.canchaId, duracion: 90 }).reserva;
+  await tn.procesarMensaje(mensaje("x", comprobante({ monto: r1.sena.monto, ref: r1.ref })));
+  const c = tn.cancelarReserva(u.id, r1.id);
+  assert.equal(c.credito, r1.sena.monto);
+  assert.equal(tn.misReservas(u.id)[0].motivoCancelacion, "La cancelaste vos");
+  assert.equal(tn.perfil(tn.usuario(u.id)).credito, r1.sena.monto);
+  const r2 = tn.reservar(u.id, { fecha: MANIANA, inicio: s2.inicio, canchaId: s2.canchaId, duracion: 90 });
+  assert.equal(r2.creditoUsado, Math.min(r1.sena.monto, r2.reserva.sena.monto));
+  assert.equal(r2.reserva.estado, r1.sena.monto >= r2.reserva.sena.monto ? "firme" : "pendiente");
+});
+
+test("D34: «una cancha por horario» es una regla del club, apagada por defecto", async () => {
+  const { tn } = armar();
+  const u = await usuario(tn, "Dos Canchas");
+  const libres = tn.disponibilidad({ fecha: MANIANA, duracion: 90 }).slots;
+  const a = libres.find((x: any) => libres.some((y: any) => y.inicio === x.inicio && y.canchaId !== x.canchaId));
+  const b = libres.find((y: any) => y.inicio === a.inicio && y.canchaId !== a.canchaId);
+  assert.equal(tn.reservar(u.id, { fecha: MANIANA, inicio: a.inicio, canchaId: a.canchaId, duracion: 90 }).ok, true);
+  tn.estado.config.politica.unaCanchaPorHorario = true;
+  const r = tn.reservar(u.id, { fecha: MANIANA, inicio: b.inicio, canchaId: b.canchaId, duracion: 90 });
+  assert.equal(r.ok, false);
+  assert.match(r.motivo, /Ya tenés una cancha a esa hora/);
+  tn.estado.config.politica.unaCanchaPorHorario = false;
+  assert.equal(tn.reservar(u.id, { fecha: MANIANA, inicio: b.inicio, canchaId: b.canchaId, duracion: 90 }).ok, true, "apagada: se permite (grupos)");
+});

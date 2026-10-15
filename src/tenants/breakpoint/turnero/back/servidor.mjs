@@ -37,7 +37,7 @@ export function crearApp({
 } = {}) {
   const real = entorno.TURNERO_MODO === "real";
   if (real) {
-    const faltan = ["GOOGLE_CLIENT_ID", "WHATSAPP_APP_SECRET", "WHATSAPP_VERIFY_TOKEN", "WHATSAPP_TOKEN", "WHATSAPP_PHONE_ID", "TURNERO_STAFF_CLAVE", "TURNERO_ORIGENES"].filter((k) => !entorno[k]);
+    const faltan = ["GOOGLE_CLIENT_ID", "WHATSAPP_APP_SECRET", "WHATSAPP_VERIFY_TOKEN", "WHATSAPP_TOKEN", "WHATSAPP_PHONE_ID", "TURNERO_STAFF_CLAVE", "TURNERO_ORIGENES", "TURNERO_WHATSAPP_CLUB"].filter((k) => !entorno[k]);
     if (faltan.length) throw new Error(`TURNERO_MODO=real sin: ${faltan.join(", ")}. Las credenciales las carga el dueño.`);
   }
   const demo = !real; // en demo todo WhatsApp y Google son simulados
@@ -57,7 +57,8 @@ export function crearApp({
   const sesionesStaff = crearSesiones({ duracionMs: 12 * 3600000, ahora: ahoraMs });
   const limIpAuth = crearLimitador({ maximo: 30, ventanaMs: 15 * 60000, ahora: ahoraMs });
   const limUsuario = crearLimitador({ maximo: 5, ventanaMs: 15 * 60000, ahora: ahoraMs });
-  const limApi = crearLimitador({ maximo: 300, ventanaMs: 60000, ahora: ahoraMs });
+  // General por IP con techo alto: en el Wi-Fi del club decenas de jugadores salen por la misma IP (como SEC-4).
+  const limApi = crearLimitador({ maximo: 1200, ventanaMs: 60000, ahora: ahoraMs });
   const limStaff = crearLimitador({ maximo: 5, ventanaMs: 15 * 60000, ahora: ahoraMs });
 
   const ipDe = (req) => req.socket.remoteAddress ?? "?";
@@ -252,7 +253,7 @@ export function crearApp({
         return res.end();
       }
       const ip = ipDe(req);
-      if (limApi.golpe(ip) > 300) return json(res, 429, { ok: false, motivo: "Demasiadas consultas seguidas. Esperá un minuto." }, { "Retry-After": "60" });
+      if (limApi.golpe(ip) > 1200) return json(res, 429, { ok: false, motivo: "Demasiadas consultas seguidas. Esperá un minuto." }, { "Retry-After": "60" });
       const r = rutas.find((x) => x.metodo === req.method && x.patron.test(url.pathname));
       if (!r) return json(res, 404, { ok: false, motivo: "No existe." });
       // CSRF: todo lo que escribe (menos el webhook, que trae firma) tiene que venir de un origen permitido.

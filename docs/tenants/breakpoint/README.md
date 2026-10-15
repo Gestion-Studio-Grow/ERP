@@ -39,6 +39,8 @@ celular y contraseña; seña por transferencia con comprobante por **WhatsApp** 
 | Back (Node, sin dependencias) | `src/tenants/breakpoint/turnero/back/{servidor, auth, whatsapp}.mjs` |
 | Modo conectado del backoffice (`?api=`) | `public/previews/breakpoint/club/conectado.mjs` |
 | Levantar todo | `npm run turnero` · E2E: `npm run test:turnero-e2e` |
+| Demo pública estática (breakpoint-erp) | `npm run turnero:publicar` → `dist/breakpoint-erp/` (portada, `/turnero/`, `/club/`, `vercel.json`); sync entre pestañas sin servidor (`turnero/bus.mjs`) |
+| QA en Chrome real (sesión local) | [`TURNERO-QA-CHROME.md`](TURNERO-QA-CHROME.md) · defectos D21–D34 resueltos en [`TURNERO-QA.md`](TURNERO-QA.md) |
 
 ## Para que quede en vivo (dos pasos del dueño)
 

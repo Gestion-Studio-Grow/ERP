@@ -29,6 +29,8 @@ export async function hashPbkdf2(clave, iteraciones = 100000) {
   return `pbkdf2$${iteraciones}$${b64(sal)}$${b64(bits)}`;
 }
 async function derivar(clave, sal, iteraciones) {
+  // Web Crypto sólo existe en contexto seguro (https o localhost): la demo publicada va por https.
+  if (!globalThis.crypto?.subtle) throw new Error("Web Crypto no disponible (hace falta https).");
   const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(String(clave ?? "").normalize("NFKC")), "PBKDF2", false, ["deriveBits"]);
   return new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: sal, iterations: iteraciones }, k, 256));
 }

@@ -17,9 +17,10 @@ const TIPOS = { ".html": "text/html; charset=utf-8", ".mjs": "text/javascript; c
 
 export function crearFront({ api = "http://localhost:8787" } = {}) {
   const cache = new Map();
+  // D32: el back se acepta por localhost y por 127.0.0.1 (es el mismo, y el front puede abrirse por cualquiera de los dos).
   // CSP: sólo nuestro origen, el back y Google (fuentes y Sign-In). Sin scripts inline; estilos inline sí (el diseño).
   const csp = [
-    "default-src 'self'", `connect-src 'self' ${api}`, "img-src 'self' data:",
+    "default-src 'self'", `connect-src 'self' ${[...new Set([api, api.replace("//localhost", "//127.0.0.1"), api.replace("//127.0.0.1", "//localhost")])].join(" ")}`, "img-src 'self' data:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com", "font-src https://fonts.gstatic.com",
     "script-src 'self' https://accounts.google.com", "frame-src https://accounts.google.com", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'",
   ].join("; ");

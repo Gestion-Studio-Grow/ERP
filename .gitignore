@@ -19,6 +19,8 @@
 
 # production
 /build
+# demos estáticas armadas por scripts (p. ej. npm run turnero:publicar → dist/breakpoint-erp)
+/dist/
 
 # misc
 .DS_Store

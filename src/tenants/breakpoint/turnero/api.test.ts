@@ -249,3 +249,8 @@ test("Gate (menor): una cookie mal formada no tira un 500", async () => {
   assert.equal(r.status, 200);
   assert.equal((await r.json()).usuario, null);
 });
+
+test("D22: en modo real el número de WhatsApp del club es obligatorio (si no, el comprobante no tiene destinatario)", () => {
+  const entorno = { TURNERO_MODO: "real", GOOGLE_CLIENT_ID: "x", WHATSAPP_APP_SECRET: "x", WHATSAPP_VERIFY_TOKEN: "x", WHATSAPP_TOKEN: "x", WHATSAPP_PHONE_ID: "x", TURNERO_STAFF_CLAVE: "x", TURNERO_ORIGENES: "https://club.example" };
+  assert.throws(() => S.crearApp({ entorno, tickMs: 0, log: () => {} }), /TURNERO_WHATSAPP_CLUB/);
+});

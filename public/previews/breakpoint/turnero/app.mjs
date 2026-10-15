@@ -26,13 +26,19 @@ const pesos = (n) => `$${Math.round(n).toLocaleString("es-AR")}`;
 const hhmm = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const fechaLarga = (f) => { const [a, m, d] = f.split("-").map(Number); return `${DIAS[new Date(Date.UTC(a, m - 1, d)).getUTCDay()]} ${d} ${MESES[m - 1]}`; };
+/** Inicio del turno en epoch (hora argentina, UTC−3, sin horario de verano). */
+const inicioEpoch = (fecha, min) => { const [a, m, d] = fecha.split("-").map(Number); return Date.UTC(a, m - 1, d) + (min + 180) * 60000; };
+const TEXTO_TARDE = "la seña queda retenida y vuelve como crédito sólo si alguien toma el turno";
 const quieto = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const S = { config: null, fecha: null, duracion: 90, techadas: false, usuario: null, reservas: [], slots: [], cache: new Map(), pendiente: null, elegido: null, pagoId: null, timer: null };
 
 // ───────────── API ─────────────
 async function api(ruta, { metodo = "GET", cuerpo, idem } = {}) {
-  if (LOCAL) return LOCAL.api(ruta, { metodo, cuerpo });
+  if (LOCAL) {
+    try { return await LOCAL.api(ruta, { metodo, cuerpo }); }
+    catch { return { status: 0, ok: false, motivo: "La demo no pudo procesar eso en este navegador. Probá recargar la página." }; }
+  }
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), 10000);
   try {
@@ -86,7 +92,20 @@ function htmlSlot(s) {
   return `<button type="button" class="slot" data-inicio="${s.inicio}" data-cancha="${esc(s.canchaId)}" data-pico="${s.pico ? 1 : 0}"><span class="slot-hora">${hhmm(s.inicio)}</span><span class="sr"> a ${hhmm(s.fin)}, </span><span class="slot-cancha">${esc(s.cancha)}</span><span class="slot-tags">${s.techada ? '<span class="sr">, </span><span class="tag tag-techada">Techada</span>' : ""}${s.pico ? '<span class="sr">, </span><span class="tag tag-pico">Pico</span>' : ""}</span><span class="sr">, </span><span class="slot-precio">${pesos(s.precio)}</span></button>`;
 }
 
-function pintarGrilla(slots, { animar = false } = {}) {
+/** El turno con foco de teclado (si hay): al repintar se le devuelve el foco a él o al vecino más cercano (D23). */
+function slotEnfocado() {
+  const b = document.activeElement?.closest?.("#grilla .slot");
+  return b ? { inicio: Number(b.dataset.inicio), cancha: b.dataset.cancha } : null;
+}
+function devolverFocoSlot(foco) {
+  if (!foco) return;
+  const todos = [...$("#grilla").querySelectorAll(".slot")];
+  const mismo = todos.find((b) => Number(b.dataset.inicio) === foco.inicio && b.dataset.cancha === foco.cancha);
+  const vecino = mismo ?? todos.sort((a, b) => Math.abs(a.dataset.inicio - foco.inicio) - Math.abs(b.dataset.inicio - foco.inicio))[0];
+  (vecino ?? $("#t-dias") ?? $("#grilla")).focus?.({ preventScroll: Boolean(mismo) });
+}
+
+function pintarGrilla(slots, { animar = false, foco = slotEnfocado() } = {}) {
   const g = $("#grilla");
   const antes = new Set(S.slots.map((s) => `${s.inicio}|${s.canchaId}`));
   const ahora = new Set(slots.map((s) => `${s.inicio}|${s.canchaId}`));
@@ -95,7 +114,8 @@ function pintarGrilla(slots, { animar = false } = {}) {
     const salen = [...g.querySelectorAll(".slot")].filter((b) => !ahora.has(`${b.dataset.inicio}|${b.dataset.cancha}`));
     if (salen.length) {
       salen.forEach((b) => { b.classList.add("is-saliendo"); b.disabled = true; });
-      setTimeout(() => pintarGrilla(slots), 320);
+      anunciar(salen.length <= 2 ? `Se ocupó ${salen.map((b) => `${hhmm(Number(b.dataset.inicio))} ${S.slots.find((x) => String(x.inicio) === b.dataset.inicio && x.canchaId === b.dataset.cancha)?.cancha ?? ""}`).join(" y ")}.` : `Se ocuparon ${salen.length} turnos.`);
+      setTimeout(() => pintarGrilla(slots, { foco }), 320);
       S.slots = S.slots.filter((s) => ahora.has(`${s.inicio}|${s.canchaId}`));
       return;
     }
@@ -105,6 +125,7 @@ function pintarGrilla(slots, { animar = false } = {}) {
   if (!slots.length) {
     g.innerHTML = `<p class="vacio">No quedan canchas libres ${S.techadas ? "techadas " : ""}para ese día y duración. Probá otro día u otra duración, o anotate y te avisamos.</p>`;
     $("#espera").hidden = false;
+    if (foco) $("#btn-espera").focus();
     return;
   }
   $("#espera").hidden = !$("#form-cel"); // si está cargando el celular, un repintado en vivo no se lo saca
@@ -113,7 +134,9 @@ function pintarGrilla(slots, { animar = false } = {}) {
     return del.length ? `<section class="franja" data-franja="${id}"><h2>${nombre}</h2><div class="slots">${del.map(htmlSlot).join("")}</div></section>` : "";
   }).join("");
   if (animar) for (const b of g.querySelectorAll(".slot")) if (!antes.has(`${b.dataset.inicio}|${b.dataset.cancha}`)) b.classList.add("is-nuevo");
+  devolverFocoSlot(foco);
 }
+const anunciar = (t) => { $("#anuncio").textContent = t; };
 
 async function cargarSlots({ animar = false, forzar = false } = {}) {
   const k = clave();
@@ -144,7 +167,10 @@ function precargar() {
 // ───────────── reservar ─────────────
 function abrirReserva(slot) {
   S.elegido = slot;
-  $("#res-resumen").innerHTML = `<strong>${esc(slot.cancha)}</strong>${slot.techada ? " · techada" : ""}<br>${fechaLarga(S.fecha)} · ${hhmm(slot.inicio)} a ${hhmm(slot.fin)}<br><small>Cancelás sin costo hasta ${S.config.politica.horasCancelacionLibre} h antes.</small>`;
+  // D25: la política se dice ANTES de reservar, y bien: si ya estamos dentro del plazo, no se promete lo que no hay.
+  const h = S.config.politica.horasCancelacionLibre;
+  const tarde = Date.now() > inicioEpoch(S.fecha, slot.inicio) - h * 3600000;
+  $("#res-resumen").innerHTML = `<strong>${esc(slot.cancha)}</strong>${slot.techada ? " · techada" : ""}<br>${fechaLarga(S.fecha)} · ${hhmm(slot.inicio)} a ${hhmm(slot.fin)}<br><small>${tarde ? `Arranca en menos de ${h} h: si lo cancelás, la seña queda retenida (vuelve como crédito sólo si alguien toma el turno).` : `Cancelás sin costo hasta ${h} h antes.`}</small>`;
   $("#res-precio").textContent = pesos(slot.precio);
   const pct = S.config.politica.senaPct;
   const monto = pesos(Math.round((slot.precio * pct) / 10000) * 100);
@@ -174,6 +200,7 @@ async function confirmarReserva(ev) {
   }
   cerrar("#dlg-reserva");
   $("#res-jugadores").value = "";
+  if (r.creditoUsado && S.usuario) { S.usuario.credito = Math.max(0, (S.usuario.credito ?? 0) - r.creditoUsado); aviso(`Usamos ${pesos(r.creditoUsado)} de tu crédito para la seña.`); }
   upsertReserva(r.reserva);
   if (r.reserva.estado === "pendiente") abrirPago(r.reserva);
   else aviso("¡Turno firme! Te esperamos 🎾");
@@ -195,12 +222,18 @@ function pintarPago(res) {
   $("#dlg-pago").classList.toggle("is-firme", firme);
   // Ya pagado (o liberado), los datos para transferir sobran: queda el resumen y "Listo".
   for (const el of [$("#dlg-pago .datos"), $("#dlg-pago .instr"), $("#btn-whatsapp")]) if (el) el.hidden = firme || res.estado === "cancelada";
+  // D24: si el botón con foco se escondió (pasó a firme), el foco va a «Listo», no al body.
+  const d = $("#dlg-pago");
+  if (d.open && (!d.contains(document.activeElement) || document.activeElement.closest("[hidden]") || document.activeElement.hidden)) $("#btn-cerrar-pago").focus();
   $("#pago-monto").textContent = pesos(res.sena.falta || res.sena.monto);
   $("#pago-alias").textContent = S.config.cuentas.alias;
   $("#pago-ref").textContent = res.ref ?? "—";
   const numero = S.config.whatsapp.numero ? String(S.config.whatsapp.numero).replace(/\D/g, "") : "";
   const texto = `¡Hola! Te mando el comprobante de la seña del turno ${res.ref ?? ""} (${res.cancha}, ${fechaLarga(res.fecha)} ${hhmm(res.inicio)}).`;
   $("#btn-whatsapp").href = `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`;
+  // D22: sin número del club, WhatsApp abriría sin destinatario. En demo se acepta (no hay número real que poner);
+  // fuera de la demo el back ni siquiera arranca sin TURNERO_WHATSAPP_CLUB, y por las dudas el botón no se muestra.
+  if (!numero && !S.config.demo) $("#btn-whatsapp").hidden = true;
   $("#btn-simular").hidden = !S.config.demo || firme || res.estado === "cancelada";
   clearInterval(S.timer);
   // El texto se arma una vez; por segundo sólo cambia el mm:ss (no se re-anuncia todo el párrafo).
@@ -240,12 +273,17 @@ function upsertReserva(r) {
 const ETIQUETA = { pendiente: "Falta la seña", firme: "Firme", cancelada: "Cancelada", jugada: "Jugada", falta: "Falta", "en-cancha": "En cancha", suspendida: "Suspendida" };
 function pintarReservas() {
   const ul = $("#lista-reservas");
+  const proximas = S.reservas.filter((r) => r.estado === "pendiente" || r.estado === "firme").length;
+  if ($("#btn-mis")) $("#btn-mis").textContent = proximas ? `Mis turnos (${proximas})` : "Mis turnos";
+  const cr = S.usuario?.credito ?? 0;
+  $("#credito").hidden = !cr;
+  if (cr) $("#credito").textContent = `Tenés ${pesos(cr)} de crédito a favor: se usa solo en tu próxima seña.`;
   if (!S.usuario) { ul.innerHTML = `<li class="reserva-vacia">Ingresá para ver tus reservas.</li>`; return; }
   const vivas = S.reservas.filter((r) => r.estado !== "cancelada" || r.motivoCancelacion);
   if (!vivas.length) { ul.innerHTML = `<li class="reserva-vacia">Todavía no tenés reservas.</li>`; return; }
   ul.innerHTML = vivas.map((r) => {
     const activa = r.estado === "pendiente" || r.estado === "firme";
-    return `<li class="reserva" data-id="${esc(r.id)}" data-estado="${esc(r.estado)}">
+    return `<li class="reserva" tabindex="-1" data-id="${esc(r.id)}" data-estado="${esc(r.estado)}">
       <span class="reserva-cuando">${fechaLarga(r.fecha)} · ${hhmm(r.inicio)}–${hhmm(r.fin)}</span>
       <span class="reserva-cancha">${esc(r.cancha)}${r.techada ? " · techada" : ""} · ${pesos(r.precio)}</span>
       <span class="badge">${ETIQUETA[r.estado] ?? r.estado}</span>
@@ -269,6 +307,7 @@ async function cancelarReserva(boton, id) {
     const tarde = r && Date.now() > r.cancelacionLibreHasta;
     boton.dataset.seguro = "1";
     boton.textContent = tarde ? "Es tarde: la seña queda retenida. ¿Seguro?" : "¿Seguro? Tocá de nuevo";
+    aviso(tarde ? `Ojo: ya es tarde para cancelar sin costo; ${TEXTO_TARDE}. Tocá de nuevo para confirmar.` : "Tocá de nuevo para confirmar la cancelación.");
     setTimeout(() => { if (boton.isConnected) { boton.dataset.seguro = ""; boton.textContent = "Cancelar"; } }, 4000);
     return;
   }
@@ -276,7 +315,8 @@ async function cancelarReserva(boton, id) {
   const r = await api(`/api/turnero/reservas/${id}`, { metodo: "DELETE" });
   if (!r.ok) { boton.disabled = false; aviso(r.motivo); return; }
   upsertReserva(r.reserva);
-  aviso(r.devuelto ? `Cancelado. Te quedan ${pesos(r.devuelto)} de crédito en el club.` : r.enSuspenso ? "Cancelado. Si alguien toma el turno, la seña vuelve como crédito." : "Turno cancelado.");
+  if (S.usuario) S.usuario.credito = r.credito ?? S.usuario.credito;
+  aviso(r.devuelto ? `Cancelado. Tenés ${pesos(r.credito ?? r.devuelto)} de crédito a favor: se usa solo en tu próxima seña.` : r.enSuspenso ? `Cancelado: ${TEXTO_TARDE}.` : "Turno cancelado.");
   S.cache.delete(clave());
   cargarSlots({ animar: true, forzar: true });
 }
@@ -326,8 +366,9 @@ function pintarUsuario() {
   const c = $("#usuario");
   c.hidden = !u;
   if (u) {
-    if (!$("#btn-salir")) c.innerHTML = `<span class="usuario-nombre"></span><button id="btn-salir" type="button" class="btn-head">Salir</button>`;
-    c.querySelector(".usuario-nombre").textContent = u.nombre.split(" ")[0];
+    // D26: «Mis reservas» a un toque desde arriba (en el celu, la lista queda debajo de la grilla).
+    if (!$("#btn-salir")) c.innerHTML = `<a id="btn-mis" class="btn-head" href="#mis-reservas">Mis turnos</a><button id="btn-salir" type="button" class="btn-head">Salir</button>`;
+    $("#btn-salir").title = `Salir (${u.nombre})`;
   }
   pintarReservas();
 }
@@ -336,7 +377,7 @@ function pintarUsuario() {
 let fuente = null;
 function conectarVivo() {
   fuente?.close();
-  const ev = LOCAL ? LOCAL.fuente() : new EventSource(`${API}/api/turnero/eventos`, { withCredentials: true });
+  const ev = LOCAL ? LOCAL.fuente("/api/turnero/eventos") : new EventSource(`${API}/api/turnero/eventos`, { withCredentials: true });
   fuente = ev;
   const estado = (on) => { const el = $("#en-vivo"); el.classList.toggle("on", on); el.classList.toggle("off", !on); el.textContent = on ? "En vivo" : "Reconectando…"; };
   // Si se cortó (túnel, 4G que va y viene), al volver se re-pide todo: lo que pasó en el medio no se pierde.
@@ -392,7 +433,31 @@ function cablear() {
   $("#btn-copiar-alias").addEventListener("click", () => copiar($("#pago-alias").textContent, "Alias copiado"));
   $("#btn-copiar-ref").addEventListener("click", () => copiar($("#pago-ref").textContent, "Código copiado"));
   $("#btn-simular").addEventListener("click", simularComprobante);
-  $("#btn-cerrar-pago").addEventListener("click", () => { clearInterval(S.timer); cerrar("#dlg-pago"); });
+  $("#btn-cerrar-pago").addEventListener("click", () => cerrar("#dlg-pago"));
+  // D24: al cerrar la seña (con «Listo» o Esc) el foco va a la reserva en «Mis reservas», no al body.
+  $("#dlg-pago").addEventListener("close", () => {
+    clearInterval(S.timer);
+    const li = S.pagoId && $(`#lista-reservas .reserva[data-id="${CSS.escape(S.pagoId)}"]`);
+    (li || $("#t-mis")).focus();
+  });
+  // D26/D30: «Mis reservas» desde arriba (botón del encabezado y enlace para saltar) deja el foco en la sección.
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest('a[href="#mis-reservas"]')) return;
+    e.preventDefault();
+    $("#mis-reservas").scrollIntoView({ behavior: quieto() ? "auto" : "smooth", block: "start" });
+    $("#t-mis").focus({ preventScroll: true });
+  });
+  // D30: en la tira de días, el día con foco se ve entero, y las flechas (← →, Inicio, Fin) se mueven entre días.
+  $("#dias").addEventListener("focusin", (e) => e.target.closest(".dia")?.scrollIntoView({ block: "nearest", inline: "nearest" }));
+  $("#dias").addEventListener("keydown", (e) => {
+    const dias = [...$("#dias").querySelectorAll(".dia")];
+    const i = dias.indexOf(document.activeElement);
+    if (i < 0) return;
+    const j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: dias.length - 1 }[e.key];
+    if (j == null || !dias[j]) return;
+    e.preventDefault();
+    dias[j].focus();
+  });
   $("#lista-reservas").addEventListener("click", (e) => {
     const li = e.target.closest(".reserva");
     if (!li) return;
@@ -453,14 +518,17 @@ async function iniciar() {
   cablear();
   if (!API) {
     document.body.dataset.estado = "sin-conexion";
+    $("#en-vivo").textContent = "Sin conexión";
     $("#grilla").innerHTML = `<p class="vacio" role="alert">El turnero no está configurado todavía. Escribinos por WhatsApp y te reservamos.</p>`;
     $("#grilla").setAttribute("aria-busy", "false");
     return;
   }
-  if (API === "local") LOCAL = (await import("./local.mjs")).crearLocal();
+  if (API === "local") LOCAL = await (await import("./local.mjs")).crearLocal();
   const [cfg, yo] = await Promise.all([api("/api/turnero/config"), api("/api/auth/yo")]);
   if (!cfg.club) {
     document.body.dataset.estado = "sin-conexion";
+    $("#en-vivo").textContent = "Sin conexión";
+    $("#dias").innerHTML = "";
     $("#grilla").innerHTML = `<p class="vacio" role="alert">No pudimos conectar con el club. Probá de nuevo en un rato o escribinos por WhatsApp.</p>`;
     $("#grilla").setAttribute("aria-busy", "false");
     return;

@@ -253,3 +253,10 @@ dialog[open]{transform:none}
 @media (prefers-reduced-motion:reduce){
 *,*::before,*::after{animation-duration:1ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:1ms!important;scroll-behavior:auto!important}
 ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}}
+
+/* QA en Chrome (D26/D29/D30/D33): salto a Mis reservas, encabezado angosto, crédito a favor */
+.saltar{position:absolute;left:8px;top:-60px;z-index:100;padding:10px 14px;border-radius:var(--r1);background:#fff;color:var(--marca);font-weight:800}
+.saltar:focus{top:8px}
+#btn-mis{display:inline-flex;align-items:center;text-decoration:none}
+.credito{margin:0 0 10px;padding:8px 10px;border-radius:var(--r1);background:#E8F1FB;color:#0B3B6E;font-weight:600}
+@media (max-width:440px){.vivo{font-size:0;gap:0;padding:0 12px}.vivo.on::after{left:12px}.btn-head{padding:0 10px;font-size:14px}}

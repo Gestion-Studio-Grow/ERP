@@ -66,18 +66,27 @@ export function crearTurnero({
   function emitir(canal, tipo, datos) {
     for (const o of oyentes) if (o.canal === canal) { try { o.enviar(tipo, datos); } catch { oyentes.delete(o); } }
   }
+  // D21: fichas de clientes (altas web, créditos, deudas) en vivo para el backoffice. Se manda sólo lo que cambió.
+  const fotoClientes = new Map(E.clientes.map((c) => [c.id, JSON.stringify(c)]));
+  function avisarClientes() {
+    const cambiados = [];
+    for (const c of E.clientes) { const j = JSON.stringify(c); if (fotoClientes.get(c.id) !== j) { fotoClientes.set(c.id, j); cambiados.push(c); } }
+    if (cambiados.length) emitir("staff", "clientes", { clientes: cambiados });
+  }
+
   function cambioReserva(r, motivo) {
     version++;
     r.rev = (r.rev ?? 0) + 1; // versión de la reserva: un puesto con una copia vieja no la puede pisar
     emitir("publico", "disponibilidad", { fecha: r.fecha, canchaId: r.canchaId, version });
     emitir("staff", "reserva", { reserva: r, motivo, version });
     if (r.webUsuarioId) emitir(`usuario:${r.webUsuarioId}`, "mi-reserva", { reserva: publica(r), motivo });
+    avisarClientes();
   }
   const suscribir = (canal, enviar) => { const o = { canal, enviar }; oyentes.add(o); return () => oyentes.delete(o); };
 
   // ───────────── usuarios del turnero ─────────────
   const buscarUsuario = (pred) => { for (const u of usuarios.values()) if (pred(u)) return u; return null; };
-  const perfil = (u) => u && { id: u.id, nombre: u.nombre, email: u.email, tel: u.tel ? `••• ${u.tel.slice(-4)}` : null, tieneCelular: Boolean(u.tel), google: Boolean(u.googleSub), pideSena: u.clienteId ? M.requiereSenaWeb(E, u.clienteId) : true };
+  const perfil = (u) => u && { id: u.id, nombre: u.nombre, email: u.email, tel: u.tel ? `••• ${u.tel.slice(-4)}` : null, tieneCelular: Boolean(u.tel), google: Boolean(u.googleSub), pideSena: u.clienteId ? M.requiereSenaWeb(E, u.clienteId) : true, credito: (u.clienteId && M.cliente(E, u.clienteId)?.monedero) || 0 };
 
   /**
    * Ficha de cliente del club para el usuario. Sólo se engancha a una ficha EXISTENTE si el celular está
@@ -91,6 +100,7 @@ export function crearTurnero({
     const telLibre = u.tel && !E.clientes.some((c) => c.activo !== false && mismoTel(c.tel, u.tel));
     const r = M.altaCliente(E, { nombre: u.nombre, tel: telLibre ? u.tel : "" }, ahora());
     if (r.ok) u.clienteId = r.cliente.id;
+    avisarClientes();
   }
 
   async function registrar({ nombre, tel, email, clave }) {
@@ -140,6 +150,7 @@ export function crearTurnero({
     u.tel = cel;
     const cl = u.clienteId ? M.cliente(E, u.clienteId) : null;
     if (cl && !cl.tel && !E.clientes.some((c) => c !== cl && c.activo !== false && mismoTel(c.tel, cel))) cl.tel = cel;
+    avisarClientes();
     return { ok: true, usuario: u };
   }
 
@@ -196,7 +207,8 @@ export function crearTurnero({
       senaVencida: Boolean(r.senaVencida && !r.sena.pagada), liberarSinSena: E.config.politica.liberarSinSena ?? "manual",
       ref: r.ref ?? null, jugadores: r.jugadores.map((j) => j.nombre),
       cancelacionLibreHasta: aEpoch({ fecha: r.fecha, min: r.inicio - horasLibre * 60 }),
-      motivoCancelacion: r.motivoCancelacion ?? null,
+      // El motivo del motor está escrito para el club; al jugador se le dice en su idioma.
+      motivoCancelacion: r.motivoCancelacion === "Cancela el cliente (online)" ? "La cancelaste vos" : r.motivoCancelacion ?? null,
       conciliacion: r.conciliacion ? { nivel: r.conciliacion.nivel } : null,
     };
   }
@@ -224,6 +236,10 @@ export function crearTurnero({
     const mias = E.reservas.filter((r) => r.webUsuarioId === u.id && r.estado === "reservada");
     if (mias.filter((r) => r.sena.monto > 0 && !r.sena.pagada).length >= limites.pendientes) return { ok: false, codigo: 429, motivo: "Tenés turnos esperando la seña. Mandá esos comprobantes antes de reservar otro." };
     if (mias.length >= limites.activas) return { ok: false, codigo: 429, motivo: `Podés tener hasta ${limites.activas} turnos por delante. Si necesitás más, escribinos.` };
+    // D34 (decisión del club, apagada por defecto): ¿un mismo jugador puede tener dos canchas a la misma hora?
+    if (E.config.politica.unaCanchaPorHorario && mias.some((r) => r.fecha === fecha && solapa(ini, ini + dur, r.inicio, r.inicio + r.duracion))) {
+      return { ok: false, codigo: 409, motivo: "Ya tenés una cancha a esa hora. Si son dos grupos, escribinos y lo armamos.", alternativas: [] };
+    }
     M.materializarFijos(E, fecha);
     const nombres = (Array.isArray(jugadores) ? jugadores : []).map((j) => String(j ?? "").trim().slice(0, 40)).filter(Boolean).slice(0, 3);
     const res = M.crearReserva(E, {
@@ -236,8 +252,16 @@ export function crearTurnero({
     const r = res.reserva;
     r.webUsuarioId = u.id;
     if (r.sena.monto > 0) r.ref = nuevaRef();
+    // Si tiene crédito a favor en el club (de una cancelación a tiempo), se usa solo para la seña.
+    const cl = M.cliente(E, u.clienteId);
+    let creditoUsado = 0;
+    if (r.sena.monto > 0 && cl?.monedero > 0) {
+      const monto = Math.min(cl.monedero, r.sena.monto);
+      if (M.registrarPago(E, r.id, { medio: "monedero", monto, concepto: `Seña ${r.titular} con crédito` }, t).ok) creditoUsado = monto;
+      if (r.sena.pagada) delete r.venceSena;
+    }
     cambioReserva(r, "nueva");
-    return { ok: true, reserva: publica(r) };
+    return { ok: true, reserva: publica(r), creditoUsado };
   }
 
   const misReservas = (usuarioId) => E.reservas
@@ -252,7 +276,8 @@ export function crearTurnero({
     if (!res.ok) return { ok: false, codigo: 409, motivo: res.motivo };
     cambioReserva(r, "cancelada");
     avisarEspera(res.ofertas);
-    return { ok: true, reserva: publica(r), aTiempo: res.aTiempo, devuelto: res.devuelto, enSuspenso: res.enSuspenso };
+    const credito = M.cliente(E, r.clienteId)?.monedero ?? 0;
+    return { ok: true, reserva: publica(r), aTiempo: res.aTiempo, devuelto: res.devuelto, enSuspenso: res.enSuspenso, credito };
   }
 
   function anotarEnEspera(usuarioId, { fecha, desde, hasta, duracion = 90, techadas = false }) {
@@ -444,7 +469,7 @@ export function crearTurnero({
    * Lo que cambió en el backoffice. Reservas: upsert por id, rechazando cualquier cosa que pise otro turno activo
    * (puede haberse vendido online en el medio). Bloqueos, canchas, fijos y clima: los manda el backoffice entero.
    */
-  function sincronizar({ reservas = [], bloqueos, canchas, fijos, clima, politica, puesto = null } = {}) {
+  function sincronizar({ reservas = [], bloqueos, canchas, fijos, clima, politica, clientes, puesto = null } = {}) {
     const aplicadas = [], rechazadas = [];
     const fechas = new Set();
     if (Array.isArray(canchas) && canchas.every((c) => c && typeof c.id === "string")) E.canchas = canchas;
@@ -452,6 +477,15 @@ export function crearTurnero({
     if (Array.isArray(fijos)) E.fijos = fijos;
     if (clima && typeof clima === "object") E.clima = clima;
     if (politica && typeof politica === "object") for (const [k, v] of Object.entries(politica)) if (k in E.config.politica) E.config.politica[k] = v;
+    // Fichas que cambiaron en el mostrador (alta por teléfono, cobro de una deuda, crédito): upsert por id.
+    const clientesAplicados = [];
+    for (const c of Array.isArray(clientes) ? clientes.slice(0, 200) : []) {
+      if (!c || typeof c.id !== "string" || !/^[\w-]{1,40}$/.test(c.id) || typeof c.nombre !== "string") continue;
+      const previo = M.cliente(E, c.id);
+      if (previo) Object.assign(previo, c); else E.clientes.push(c);
+      fotoClientes.set(c.id, JSON.stringify(M.cliente(E, c.id)));
+      clientesAplicados.push(M.cliente(E, c.id));
+    }
     for (const inc of Array.isArray(reservas) ? reservas.slice(0, 500) : []) {
       if (!inc || typeof inc.id !== "string" || !/^[\w-]{1,40}$/.test(inc.id) || !/^\d{4}-\d{2}-\d{2}$/.test(String(inc.fecha)) || !Number.isFinite(inc.inicio) || !Number.isFinite(inc.duracion) || !M.cancha(E, inc.canchaId)) { rechazadas.push({ id: inc?.id ?? null, motivo: "Datos incompletos." }); continue; }
       const previa = M.reserva(E, inc.id);
@@ -465,6 +499,8 @@ export function crearTurnero({
       }
       const r = previa ? Object.assign(previa, inc, { webUsuarioId: previa.webUsuarioId ?? inc.webUsuarioId, ref: previa.ref ?? inc.ref }) : { ...inc };
       r.rev = (previa?.rev ?? 0) + 1;
+      // D28: el turno del mostrador con seña también lleva código (o se cambia si choca con el de otro turno).
+      if (r.sena?.monto > 0 && (!r.ref || E.reservas.some((x) => x !== r && x.ref === r.ref))) r.ref = nuevaRef();
       if (r.sena?.pagada) delete r.venceSena;
       if (!previa) E.reservas.push(r);
       fechas.add(r.fecha);
@@ -472,17 +508,22 @@ export function crearTurnero({
       version++;
       if (r.webUsuarioId) emitir(`usuario:${r.webUsuarioId}`, "mi-reserva", { reserva: publica(r), motivo: "club" });
     }
-    if (aplicadas.length || fechas.size) {
+    if (aplicadas.length || fechas.size || clientesAplicados.length) {
       for (const fecha of fechas) emitir("publico", "disponibilidad", { fecha, version });
       // Los otros puestos del club (otra compu de recepción) reciben lo mismo; el que lo mandó lo ignora por `puesto`.
       emitir("staff", "sync", {
         puesto, version, reservas: aplicadas.map((id) => M.reserva(E, id)),
         ...(Array.isArray(bloqueos) && { bloqueos: E.bloqueos }), ...(Array.isArray(canchas) && { canchas: E.canchas }),
         ...(Array.isArray(fijos) && { fijos: E.fijos }), ...(clima && { clima: E.clima }), ...(politica && { politica: E.config.politica }),
+        ...(clientesAplicados.length && { clientes: clientesAplicados }),
       });
     }
     // Las versiones nuevas vuelven al puesto que mandó el cambio: así su próxima edición no choca con su propio eco.
-    return { ok: true, aplicadas, rechazadas, version, revs: Object.fromEntries(aplicadas.map((id) => [id, M.reserva(E, id).rev])) };
+    return {
+      ok: true, aplicadas, rechazadas, version,
+      revs: Object.fromEntries(aplicadas.map((id) => [id, M.reserva(E, id).rev])),
+      refs: Object.fromEntries(aplicadas.map((id) => [id, M.reserva(E, id).ref ?? null])),
+    };
   }
 
   return {
