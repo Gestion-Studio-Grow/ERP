@@ -2077,6 +2077,68 @@ function itemDemo(e, productoId, cant, cuando) {
 
 return { MEDIOS, ESTADOS, TIPOS, ROLES, PERMISOS, hhmm, aMinutos, diaSemana, NOMBRE_DIA, sumarDias, minutosHasta, pesos, crearEstado, cancha, cliente, reserva, producto, cuenta, proveedor, usuario, puede, verificarPin, usuarioPorPin, solicitarAcceso, otorgarAcceso, rechazarAcceso, revocarAcceso, regenerarPin, horarioDe, ajustarHorario, precioTurno, franjaDe, ocupantes, validarHueco, huecosLibres, buscarClientes, altaCliente, editarCliente, bajaCliente, puedeACuenta, estadoDeCuenta, solicitarCC, resolverCC, configurarCC, cobrarDeuda, requiereSena, crearReserva, cobrado, totalReserva, saldo, dividir, registrarPago, sumarJugador, totalCuenta, cobradoCuenta, saldoCuenta, abrirCuenta, cargarEnCuenta, pagarCuenta, consumoJugador, agregarConsumo, cerrarCuenta, ventaMostrador, cuentasAbiertas, checkIn, finalizar, marcarNoShow, cancelar, marcarDevuelto, cobrarFaltaSinFicha, mover, extender, interrumpir, configurarMantenimiento, planLluvia, bloquear, quitarBloqueo, crearFijo, materializarFijos, liberarFijo, anotarEspera, ofertasEspera, asignarDesdeEspera, diaDeCaja, egresoCaja, resumenCaja, cerrarCaja, buscarProductos, productoPorCodigo, altaProducto, editarProducto, altaProveedor, editarProveedor, registrarRemito, ccProveedor, deudaConProveedor, pagarProveedor, metricasPlatos, CANALES, ESTADOS_CONTENIDO, agregarContenido, editarContenido, borrarContenido, contenidoDelMes, mensajeWhatsApp, linkWhatsApp, alertas, kpis, mapaDeCalor, LIMITES_POLITICA, ajustarPolitica, CONFIG_DEMO, CANCHAS_DEMO, USUARIOS_DEMO, PROVEEDORES_DEMO, PRODUCTOS_DEMO, generarDemo };
 })();
+// MORPH — actualiza el DOM cambiando sólo lo distinto, en vez de reemplazar todo con innerHTML.
+// Por qué: con innerHTML cada clic borra y vuelve a crear la pantalla → se pierde el foco, el scroll y
+// lo que se estaba escribiendo, y se ve un parpadeo. Con morph la pantalla "se queda quieta" y sólo
+// cambian los números, chips y bloques que cambiaron (y las transiciones CSS pueden animarse).
+//
+// Claves de emparejamiento: `id` o `data-k` (si están); si no, el orden. Los <canvas> no se tocan por dentro
+// (las cámaras siguen dibujando). Un input con foco no pierde lo que el usuario está escribiendo.
+
+const claveDe = (n) => (n.nodeType === 1 ? n.id || n.getAttribute("data-k") || "" : "");
+const mismo = (a, b) => a.nodeType === b.nodeType && a.nodeName === b.nodeName && claveDe(a) === claveDe(b);
+
+function atributos(a, b) {
+  for (const { name } of [...a.attributes]) if (!b.hasAttribute(name)) a.removeAttribute(name);
+  for (const { name, value } of [...b.attributes]) if (a.getAttribute(name) !== value) a.setAttribute(name, value);
+}
+
+function nodo(a, b) {
+  if (a.nodeType === 3 || a.nodeType === 8) {
+    if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue;
+    return;
+  }
+  atributos(a, b);
+  const tag = a.tagName;
+  if (tag === "CANVAS") return;
+  if (tag === "INPUT") {
+    const enFoco = a === document.activeElement;
+    if (a.type === "checkbox" || a.type === "radio") { if (a.checked !== b.hasAttribute("checked")) a.checked = b.hasAttribute("checked"); }
+    else if (!enFoco && a.value !== (b.getAttribute("value") ?? "")) a.value = b.getAttribute("value") ?? "";
+    return;
+  }
+  if (tag === "TEXTAREA") {
+    if (a !== document.activeElement && a.value !== b.textContent) a.value = b.textContent;
+    return;
+  }
+  hijos(a, b);
+  if (tag === "SELECT") {
+    const elegido = b.querySelector("option[selected]") ?? b.querySelector("option");
+    if (elegido && a.value !== elegido.value) a.value = elegido.value;
+  }
+}
+
+function hijos(padre, nuevo) {
+  let actual = padre.firstChild;
+  for (const n of [...nuevo.childNodes]) {
+    if (actual && mismo(actual, n)) { nodo(actual, n); actual = actual.nextSibling; continue; }
+    // ¿Está más adelante (mismo id/clave)? Se mueve en lugar de recrearse.
+    let match = null;
+    const k = claveDe(n);
+    if (k) for (let x = actual; x; x = x.nextSibling) if (mismo(x, n)) { match = x; break; }
+    if (match) { padre.insertBefore(match, actual); nodo(match, n); continue; }
+    padre.insertBefore(n, actual);
+  }
+  while (actual) { const sig = actual.nextSibling; padre.removeChild(actual); actual = sig; }
+}
+
+/** Lleva `elemento` a tener exactamente el HTML `html`, tocando lo mínimo. */
+function morph(elemento, html) {
+  const molde = document.createElement("template");
+  molde.innerHTML = html;
+  hijos(elemento, molde.content);
+}
+
 // GESTIÓN DEL CLUB — Break Point Pádel (demo del flujo). Toda la regla de negocio vive en motor.mjs;
 // este archivo sólo pinta y conecta botones. Sin persistencia: el estado vive en memoria.
 
@@ -2191,11 +2253,11 @@ function render() {
   if (VISTA >= HOY) M.materializarFijos(E, VISTA);
   ALERTAS = M.alertas(E, AHORA).filter((a) => !a.paraDuenio || esDuenio());
   const pendDuenio = ALERTAS.filter((a) => a.paraDuenio).length;
-  $("#tabs").innerHTML = TABS.filter((t) => puedo(t.permiso)).map((t) => `<button type="button" data-a="tab" data-v="${t.id}" ${t.id === TAB ? 'aria-current="page"' : ""}>${t.nombre}${t.id === "tablero" && pendDuenio ? `<span class="badge" aria-label="${pendDuenio} pendientes">${pendDuenio}</span>` : ""}</button>`).join("");
+  morph($("#tabs"), TABS.filter((t) => puedo(t.permiso)).map((t) => `<button type="button" data-a="tab" data-v="${t.id}" ${t.id === TAB ? 'aria-current="page"' : ""}>${t.nombre}${t.id === "tablero" && pendDuenio ? `<span class="badge" aria-label="${pendDuenio} pendientes">${pendDuenio}</span>` : ""}</button>`).join(""));
   const previo = $("#grid-wrap");
   const scroll = previo ? { top: previo.scrollTop, left: previo.scrollLeft, vista: previo.dataset.vista } : null;
   const vistas = { agenda: vistaAgenda, buffet: vistaBuffet, caja: vistaCaja, clientes: vistaClientes, tablero: vistaTablero, proveedores: vistaProveedores, stock: vistaStock, contenido: vistaContenido, ajustes: vistaAjustes };
-  $("#app").innerHTML = vistas[TAB]();
+  morph($("#app"), vistas[TAB]());
   const gw = $("#grid-wrap");
   if (gw) {
     if (scroll && scroll.vista === VISTA) { gw.scrollTop = scroll.top; gw.scrollLeft = scroll.left; }
@@ -2658,12 +2720,18 @@ let dialogoActual = null;
 function abrir({ titulo, sub = "", cuerpo, pie = "", ancho = false, alAbrir, refrescar }) {
   const d = $("#dlg");
   const foco = d.open ? claveFoco() : null;
+  // Si es la MISMA ventana refrescándose, se actualiza con morph (no parpadea, no pierde lo escrito ni
+  // duplica escuchas). Si es otra ventana, se arma de cero.
+  const mismaVentana = d.open && refrescar && dialogoActual?.refrescar === refrescar;
+  const aviso = mismaVentana ? $("#dlg-aviso", d)?.outerHTML : null;
   d.className = ancho ? "wide" : "";
-  d.innerHTML = `
+  const html = `
     <div class="dlg-h"><div><h2 id="dlg-titulo">${titulo}</h2>${sub ? `<p class="small muted" style="margin:4px 0 0">${sub}</p>` : ""}</div>
       <button type="button" class="btn sm ghost" data-a="cerrar" aria-label="Cerrar">✕</button></div>
-    <div class="dlg-b"><p id="dlg-aviso" class="small" role="status" aria-live="polite" style="margin:0"></p>${cuerpo}</div>
+    <div class="dlg-b">${aviso ?? `<p id="dlg-aviso" class="small" role="status" aria-live="polite" style="margin:0"></p>`}${cuerpo}</div>
     ${pie ? `<div class="dlg-f">${pie}</div>` : ""}`;
+  if (mismaVentana) { morph(d, html); devolverFoco(foco, d); return; }
+  d.innerHTML = html;
   dialogoActual = { refrescar };
   if (!d.open) d.showModal();
   alAbrir?.(d);

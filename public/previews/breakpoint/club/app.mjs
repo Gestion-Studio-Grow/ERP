@@ -1,6 +1,7 @@
 // GESTIÓN DEL CLUB — Break Point Pádel (demo del flujo). Toda la regla de negocio vive en motor.mjs;
 // este archivo sólo pinta y conecta botones. Sin persistencia: el estado vive en memoria.
 import * as M from "./motor.mjs";
+import { morph } from "./morph.mjs";
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -113,11 +114,11 @@ function render() {
   if (VISTA >= HOY) M.materializarFijos(E, VISTA);
   ALERTAS = M.alertas(E, AHORA).filter((a) => !a.paraDuenio || esDuenio());
   const pendDuenio = ALERTAS.filter((a) => a.paraDuenio).length;
-  $("#tabs").innerHTML = TABS.filter((t) => puedo(t.permiso)).map((t) => `<button type="button" data-a="tab" data-v="${t.id}" ${t.id === TAB ? 'aria-current="page"' : ""}>${t.nombre}${t.id === "tablero" && pendDuenio ? `<span class="badge" aria-label="${pendDuenio} pendientes">${pendDuenio}</span>` : ""}</button>`).join("");
+  morph($("#tabs"), TABS.filter((t) => puedo(t.permiso)).map((t) => `<button type="button" data-a="tab" data-v="${t.id}" ${t.id === TAB ? 'aria-current="page"' : ""}>${t.nombre}${t.id === "tablero" && pendDuenio ? `<span class="badge" aria-label="${pendDuenio} pendientes">${pendDuenio}</span>` : ""}</button>`).join(""));
   const previo = $("#grid-wrap");
   const scroll = previo ? { top: previo.scrollTop, left: previo.scrollLeft, vista: previo.dataset.vista } : null;
   const vistas = { agenda: vistaAgenda, buffet: vistaBuffet, caja: vistaCaja, clientes: vistaClientes, tablero: vistaTablero, proveedores: vistaProveedores, stock: vistaStock, contenido: vistaContenido, ajustes: vistaAjustes };
-  $("#app").innerHTML = vistas[TAB]();
+  morph($("#app"), vistas[TAB]());
   const gw = $("#grid-wrap");
   if (gw) {
     if (scroll && scroll.vista === VISTA) { gw.scrollTop = scroll.top; gw.scrollLeft = scroll.left; }
@@ -580,12 +581,18 @@ let dialogoActual = null;
 function abrir({ titulo, sub = "", cuerpo, pie = "", ancho = false, alAbrir, refrescar }) {
   const d = $("#dlg");
   const foco = d.open ? claveFoco() : null;
+  // Si es la MISMA ventana refrescándose, se actualiza con morph (no parpadea, no pierde lo escrito ni
+  // duplica escuchas). Si es otra ventana, se arma de cero.
+  const mismaVentana = d.open && refrescar && dialogoActual?.refrescar === refrescar;
+  const aviso = mismaVentana ? $("#dlg-aviso", d)?.outerHTML : null;
   d.className = ancho ? "wide" : "";
-  d.innerHTML = `
+  const html = `
     <div class="dlg-h"><div><h2 id="dlg-titulo">${titulo}</h2>${sub ? `<p class="small muted" style="margin:4px 0 0">${sub}</p>` : ""}</div>
       <button type="button" class="btn sm ghost" data-a="cerrar" aria-label="Cerrar">✕</button></div>
-    <div class="dlg-b"><p id="dlg-aviso" class="small" role="status" aria-live="polite" style="margin:0"></p>${cuerpo}</div>
+    <div class="dlg-b">${aviso ?? `<p id="dlg-aviso" class="small" role="status" aria-live="polite" style="margin:0"></p>`}${cuerpo}</div>
     ${pie ? `<div class="dlg-f">${pie}</div>` : ""}`;
+  if (mismaVentana) { morph(d, html); devolverFoco(foco, d); return; }
+  d.innerHTML = html;
   dialogoActual = { refrescar };
   if (!d.open) d.showModal();
   alAbrir?.(d);
