@@ -1,7 +1,8 @@
 # Break Point Pádel — marca relevada de Instagram
 
-> **Material de trabajo INTERNO.** La autorización de marca del club (ADR-034) sigue pendiente: nada de esto se le muestra
-> al club ni se publica hasta que la firme. Es para la demo de preventa.
+> **Marca AUTORIZADA.** El 15/10/2026 el dueño de GSG confirmó, en la sesión local «Integraciones de productos backoffice
+> ERP»: «ya está autorizada la marca». Este material ya se puede usar en la demo frente al club. Falta registrar la firma
+> en el ADR-034: dónde consta y quién la dio [A VALIDAR].
 
 Relevado el 15/10/2026 desde el perfil público https://www.instagram.com/breakpointpadel_/, con el Chrome del dueño y
 **sin sesión de Instagram**. Sin sesión, Instagram muestra sólo las 12 publicaciones más recientes de la grilla, en
