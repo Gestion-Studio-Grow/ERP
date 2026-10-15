@@ -33,9 +33,6 @@ OUT.append("""/* ═══ ESTILOS (data-estilo) — plan de diseño en docs/ten
 :root[data-estilo] .user-chip .avatar{border-radius:var(--r-avatar,50%)}
 :root[data-estilo] .card h2.pantalla{font-family:var(--display)}
 :root[data-estilo] .kpi .v,:root[data-estilo] .clock b{font-family:var(--display)}
-:root[data-estilo] .brand .w1{font-family:var(--display)}
-:root[data-estilo] .emblem b{font-family:var(--display)}
-:root[data-estilo] .emblem{width:42px;height:42px}
 :root[data-estilo] .now::before{color:#1d1003;background:var(--orange)}
 :root[data-estilo] .btn.danger:hover{border-color:var(--bad)}
 :root[data-estilo] .demo-ribbon{background:#0b0d10;color:#f2f4f6}
@@ -48,14 +45,14 @@ OUT.append("""/* ═══ ESTILOS (data-estilo) — plan de diseño en docs/ten
 # ───────── 1. CHAPA ─────────
 tok("chapa", """
   --display:"Archivo",ui-sans-serif,system-ui,sans-serif; --sans:"Archivo",ui-sans-serif,system-ui,sans-serif; --fs:14px;
-  --royal:#0B5FB0; --royal-deep:#084A8A; --royal-soft:#E4EEF8; --royal-line:#0B5FB0;
-  --orange:#F07A0C; --orange-deep:#9A4A00; --orange-soft:#FFE9D2; --orange-ui:#BF5A00;
+  --royal:#035BA8; --royal-deep:#084A8A; --royal-soft:#E4EEF8; --royal-line:#035BA8;
+  --orange:#DC6E22; --orange-deep:#9A4A00; --orange-soft:#FFE9D2; --orange-ui:#BF5A00;
   --ok:#1E7A3C; --ok-soft:#DDF3E3; --warn:#8A5200; --warn-soft:#FFF0CC; --bad:#B3261E; --bad-soft:#FBE2E0; --on-bad:#fff;
   --ink:#101418; --ink-2:#2B3138; --muted:#5B6570; --line:#7D8893; --line-2:#D5DAE0;
   --paper:#F8F9FA; --cream:#EEF0F2; --panel:#FFFFFF; --overlay:rgba(16,20,24,.55);
   --grid-past:#E9ECEF; --hatch:rgba(16,20,24,.07);
-  --header-bg:#0B5FB0; --header-ink:#FFFFFF; --header-muted:#C9DDF3; --header-field:rgba(255,255,255,.12); --header-field-line:rgba(255,255,255,.35);
-  --accent-line:#F07A0C; --texture:none; --r-xs:2px; --r-sm:2px; --r-md:3px; --r-lg:0; --r-sheet:6px; --r-avatar:2px;
+  --header-bg:#035BA8; --header-ink:#FFFFFF; --header-muted:#C9DDF3; --header-field:rgba(255,255,255,.12); --header-field-line:rgba(255,255,255,.35);
+  --accent-line:#DC6E22; --texture:none; --r-xs:2px; --r-sm:2px; --r-md:3px; --r-lg:0; --r-sheet:6px; --r-avatar:2px;
   --shadow-pop:0 14px 32px -12px rgba(16,20,24,.35); --ease:cubic-bezier(.2,0,0,1)
 """, """
   --royal:#5FA8F0; --royal-deep:#9CC8F6; --royal-soft:#15304D; --royal-line:#5FA8F0;
@@ -64,7 +61,7 @@ tok("chapa", """
   --ink:#EEF2F6; --ink-2:#CBD3DC; --muted:#9AA7B5; --line:#5A6B7E; --line-2:#26323F;
   --paper:#0E1620; --cream:#0A1119; --panel:#121C28; --overlay:rgba(0,0,0,.65);
   --grid-past:#121A24; --hatch:rgba(255,255,255,.06);
-  --header-bg:#0B5FB0; --header-ink:#FFFFFF; --header-muted:#C9DDF3; --accent-line:#FF9A3D
+  --header-bg:#035BA8; --header-ink:#FFFFFF; --header-muted:#C9DDF3; --accent-line:#FF9A3D
 """)
 css("chapa", """
 @ .card h2.pantalla{font-stretch:75%;font-weight:800;font-size:25px;letter-spacing:.03em;text-transform:uppercase}
@@ -74,9 +71,8 @@ css("chapa", """
 @ .kpi .l,@ th,@ .gh .tag,@ .al .lvl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
 @ .kpi .v{font-stretch:75%;font-weight:800;font-size:34px;line-height:1}
 @ .clock b{font-stretch:75%;font-weight:700;font-size:25px;letter-spacing:.02em}
-@ .brand .w1{font-stretch:75%;font-size:20px;letter-spacing:.04em;color:#fff}
-@ .emblem{box-shadow:0 0 0 2px #fff}
 @ header.top::after{content:"";display:block;height:4px;background:linear-gradient(var(--accent-line) 0 2px,transparent 2px 3px,var(--accent-line) 3px)}
+@ .logo-tile{box-shadow:0 0 0 1.5px rgba(255,255,255,.55)}
 @ header.top :focus-visible{outline-color:#fff;box-shadow:none}
 @ header.top .user-chip .avatar{background:var(--orange);color:#1d1003}
 @ header.top kbd{background:transparent;color:#fff;border-color:rgba(255,255,255,.5)}
@@ -110,14 +106,14 @@ css("chapa", """
 # ───────── 2. MARCADOR ─────────
 tok("marcador", """
   --display:"Saira",ui-sans-serif,system-ui,sans-serif; --sans:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif; --fs:14px;
-  --royal:#0B5FB0; --royal-deep:#08478A; --royal-soft:#DDEAF8; --royal-line:#7FB0E6;
-  --orange:#F07A0C; --orange-deep:#A24C00; --orange-soft:#FFE6CC; --orange-ui:#BF5A00;
+  --royal:#035BA8; --royal-deep:#08478A; --royal-soft:#DDEAF8; --royal-line:#7FB0E6;
+  --orange:#DC6E22; --orange-deep:#A24C00; --orange-soft:#FFE6CC; --orange-ui:#BF5A00;
   --ok:#11733A; --ok-soft:#DCF3E4; --warn:#8D5A00; --warn-soft:#FFF1CF; --bad:#C1121F; --bad-soft:#FCE3E4; --on-bad:#fff;
   --ink:#0F1216; --ink-2:#343A42; --muted:#5F6873; --line:#848D98; --line-2:#DDE2E7;
   --paper:#F4F5F7; --cream:#E8EBEF; --panel:#FFFFFF; --overlay:rgba(15,18,22,.6);
   --grid-past:#E6E9ED; --hatch:rgba(15,18,22,.08);
   --header-bg:#0F1216; --header-ink:#FFFFFF; --header-muted:#98A2AE; --header-field:rgba(255,255,255,.08); --header-field-line:rgba(255,255,255,.22);
-  --accent-line:#F07A0C; --scan:repeating-linear-gradient(0deg,rgba(15,18,22,.03) 0 1px,transparent 1px 4px); --texture:none;
+  --accent-line:#DC6E22; --scan:repeating-linear-gradient(0deg,rgba(15,18,22,.03) 0 1px,transparent 1px 4px); --texture:none;
   --r-xs:2px; --r-sm:2px; --r-md:2px; --r-lg:0; --r-sheet:0px; --r-avatar:2px;
   --shadow-pop:0 18px 40px -14px rgba(0,0,0,.5); --ease:cubic-bezier(.3,0,.1,1)
 """, """
@@ -137,7 +133,6 @@ css("marcador", """
 @ .card{border-radius:0;box-shadow:none;border-top:3px solid var(--line-2)}
 @ .kpi .l,@ th,@ .gh .tag,@ .al .lvl,@ #cmdk li .g{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.1em}
 @ .kpi .v{font-stretch:75%;font-weight:700;font-size:38px;line-height:1}
-@ .brand .w1{font-stretch:75%;font-weight:800;font-size:21px;letter-spacing:.04em;color:#fff}
 @ header.top{background-image:var(--scan)}
 @ .clock{background:#000;color:#fff;padding:2px 4px 2px 10px;border-left:3px solid var(--orange);border-radius:0}
 @ .clock b{color:#fff;font-stretch:75%;font-weight:700;font-size:27px;letter-spacing:.04em}
@@ -193,13 +188,13 @@ oscuro("marcador", """
 # ───────── 3. CÉSPED ─────────
 tok("cesped", """
   --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif; --sans:"Work Sans",ui-sans-serif,system-ui,sans-serif; --fs:14px;
-  --royal:#0B5FB0; --royal-deep:#0A4C8E; --royal-soft:#E3EEFA; --royal-line:#9DC0E8;
-  --orange:#F07A0C; --orange-deep:#9C4B00; --orange-soft:#FFEAD6; --orange-ui:#BF5A00;
+  --royal:#035BA8; --royal-deep:#0A4C8E; --royal-soft:#E3EEFA; --royal-line:#9DC0E8;
+  --orange:#DC6E22; --orange-deep:#9C4B00; --orange-soft:#FFEAD6; --orange-ui:#BF5A00;
   --ok:#166B3E; --ok-soft:#DFF4E6; --warn:#875400; --warn-soft:#FFF0D0; --bad:#B0251C; --bad-soft:#FBE4E2; --on-bad:#fff;
   --ink:#0F1B2D; --ink-2:#2E3D52; --muted:#5A6B82; --line:#8395AB; --line-2:#E1E8F0;
   --paper:#F3F6FA; --cream:#E9EEF4; --panel:#FFFFFF; --overlay:rgba(15,27,45,.5);
   --grid-past:#EBEFF4; --hatch:rgba(15,27,45,.06);
-  --court:#1766C2; --header-bg:#FFFFFF; --header-ink:#0F1B2D; --header-muted:#5A6B82; --header-field:#F3F6FA; --header-field-line:#E1E8F0; --accent-line:#0B5FB0;
+  --court:#1766C2; --header-bg:#FFFFFF; --header-ink:#0F1B2D; --header-muted:#5A6B82; --header-field:#F3F6FA; --header-field-line:#E1E8F0; --accent-line:#035BA8;
   --texture:linear-gradient(90deg,rgba(255,255,255,.85) 1px,transparent 1px) 0 0/48px 100%,linear-gradient(0deg,rgba(255,255,255,.85) 1px,transparent 1px) 0 0/100% 48px;
   --r-xs:3px; --r-sm:6px; --r-md:6px; --r-lg:12px; --r-sheet:16px;
   --shadow-pop:0 20px 50px -20px rgba(15,27,45,.35)
@@ -222,7 +217,6 @@ css("cesped", """
 @ .kpi .l,@ .gh .tag{font-size:12px;font-weight:600;color:var(--muted)}
 @ .kpi .v{font-stretch:80%;font-weight:700;font-size:36px;line-height:1}
 @ .clock b{font-stretch:80%;font-weight:700;font-size:25px}
-@ .brand .w1{font-stretch:80%;font-weight:800;font-size:20px}
 @ header.top{border-bottom:2px solid var(--line-2)}
 @ .tabs{background:var(--header-bg);}
 @ .tabs button{font-weight:500;color:var(--ink-2)}
@@ -276,13 +270,13 @@ oscuro("cesped", """
 # ───────── 4. BODEGÓN ─────────
 tok("bodegon", """
   --display:"Alegreya",Georgia,serif; --sans:"Alegreya Sans",ui-sans-serif,system-ui,sans-serif; --fs:15px;
-  --royal:#0B5FB0; --royal-deep:#083F78; --royal-soft:#E7EDF4; --royal-line:#A5BFDB;
-  --orange:#F07A0C; --orange-deep:#8F4400; --orange-soft:#FBE7D0; --orange-ui:#BF5A00;
+  --royal:#035BA8; --royal-deep:#083F78; --royal-soft:#E7EDF4; --royal-line:#A5BFDB;
+  --orange:#DC6E22; --orange-deep:#8F4400; --orange-soft:#FBE7D0; --orange-ui:#BF5A00;
   --ok:#2E6B3A; --ok-soft:#E3EFDC; --warn:#8A5600; --warn-soft:#F7E8C6; --bad:#A6261B; --bad-soft:#F6DFDA; --on-bad:#fff;
   --ink:#2A1F14; --ink-2:#4A3D2F; --muted:#75654F; --line:#967F5E; --line-2:#E9DFCC;
   --paper:#FBF6EC; --cream:#F1E9DA; --panel:#FFFCF5; --overlay:rgba(42,31,20,.5);
   --grid-past:#EFE7D8; --hatch:rgba(42,31,20,.07);
-  --header-bg:#FBF6EC; --header-ink:#2A1F14; --header-muted:#75654F; --header-field:#FFFCF5; --header-field-line:#E9DFCC; --accent-line:#F07A0C;
+  --header-bg:#FBF6EC; --header-ink:#2A1F14; --header-muted:#75654F; --header-field:#FFFCF5; --header-field-line:#E9DFCC; --accent-line:#DC6E22;
   --texture:repeating-linear-gradient(0deg,rgba(42,31,20,.03) 0 1px,transparent 1px 3px);
   --r-xs:3px; --r-sm:4px; --r-md:6px; --r-lg:8px; --r-sheet:12px;
   --shadow-pop:0 16px 40px -16px rgba(42,31,20,.45); --ease:cubic-bezier(.25,.1,.25,1)
@@ -304,8 +298,6 @@ css("bodegon", """
 @ .kpi .l,@ th,@ .gh .tag,@ .al .lvl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
 @ .kpi .v{font-weight:800;font-size:36px;line-height:1}
 @ .clock b{font-family:var(--sans);font-weight:800;font-size:25px}
-@ .brand .w1{font-weight:800;font-size:21px;text-transform:none;letter-spacing:0}
-@ .brand .w2{font-weight:700;letter-spacing:.22em}
 @ header.top{border-bottom:1px solid var(--line);box-shadow:0 2px 0 var(--header-bg),0 3px 0 var(--line)}
 @ .tabs{margin-top:3px}
 @ .tabs button{font-weight:700;font-size:14.5px}
@@ -354,13 +346,13 @@ oscuro("bodegon", """
 # ───────── 5. GALPÓN ─────────
 tok("galpon", """
   --display:"Oswald",ui-sans-serif,system-ui,sans-serif; --sans:"Atkinson Hyperlegible Next",ui-sans-serif,system-ui,sans-serif; --mono:"Atkinson Hyperlegible Mono",ui-monospace,monospace; --fs:14.5px;
-  --royal:#0B5FB0; --royal-deep:#084A8A; --royal-soft:#DFE9F4; --royal-line:#7FA6D0;
-  --orange:#F07A0C; --orange-deep:#9A4A00; --orange-soft:#FFE4CC; --orange-ui:#BF5A00;
+  --royal:#035BA8; --royal-deep:#084A8A; --royal-soft:#DFE9F4; --royal-line:#7FA6D0;
+  --orange:#DC6E22; --orange-deep:#9A4A00; --orange-soft:#FFE4CC; --orange-ui:#BF5A00;
   --ok:#176A36; --ok-soft:#DCEFE2; --warn:#825000; --warn-soft:#FBEBC9; --bad:#B21E1E; --bad-soft:#F8DEDE; --on-bad:#fff;
   --ink:#121416; --ink-2:#2F3337; --muted:#5C636A; --line:#80878E; --line-2:#D3D7DB;
   --paper:#F2F3F4; --cream:#E6E8EA; --panel:#FBFBFB; --overlay:rgba(18,20,22,.6);
   --grid-past:#E4E7EA; --hatch:rgba(18,20,22,.08);
-  --header-bg:#2A2E32; --header-ink:#FFFFFF; --header-muted:#B8BEC4; --header-field:rgba(255,255,255,.1); --header-field-line:rgba(255,255,255,.3); --accent-line:#F07A0C;
+  --header-bg:#2A2E32; --header-ink:#FFFFFF; --header-muted:#B8BEC4; --header-field:rgba(255,255,255,.1); --header-field-line:rgba(255,255,255,.3); --accent-line:#DC6E22;
   --texture:repeating-linear-gradient(90deg,rgba(18,20,22,.035) 0 2px,transparent 2px 16px);
   --r-xs:2px; --r-sm:2px; --r-md:2px; --r-lg:2px; --r-sheet:0px; --r-avatar:2px;
   --shadow-pop:0 16px 36px -12px rgba(0,0,0,.45); --ease:cubic-bezier(.2,0,0,1)
@@ -386,9 +378,6 @@ css("galpon", """
 @ .clock b{font-size:23px}
 @ .tcol span,@ .blk .meta,@ td.r,@ .kv dd{font-family:var(--mono)}
 @ .tcol span,@ .blk .meta{font-size:11.5px}
-@ .brand .w1{font-weight:600;font-size:20px;letter-spacing:.06em;color:#fff}
-@ .brand .w2{font-family:var(--display);font-weight:400;letter-spacing:.25em}
-@ .emblem{box-shadow:0 0 0 2px var(--orange)}
 @ header.top::after{content:"";display:block;height:4px;background:repeating-linear-gradient(45deg,var(--orange) 0 10px,#1D1003 10px 20px)}
 @ header.top :focus-visible{outline-color:var(--orange);box-shadow:none}
 @ header.top .user-chip .avatar{background:var(--orange);color:#1d1003}

@@ -39,6 +39,6 @@ puede estar publicado antes del alta sin exponer nada.
 Verificación: `https://breakpoint.gsgapp.com.ar/` muestra la gestión del club; `/api/health` sigue ok; la ficha
 de CH no cambió. **La clave del dueño que muestra el alta la copia el dueño; nadie más la lee.**
 
-**Antes de mostrárselo al club:** autorización registrada de uso de marca (ADR-034) y logo vectorial oficial.
+**Marca:** autorizada por el club (registrada el 15/10 en `docs/metodologia/registro-casos/breakpoint.md`). Colores y logo relevados de su Instagram (`MARCA-INSTAGRAM.md`); falta el **logo vectorial oficial** y las fotos originales (canchas, Delicias, shop), que se le piden al club.
 
 — Elaborado por GSG
