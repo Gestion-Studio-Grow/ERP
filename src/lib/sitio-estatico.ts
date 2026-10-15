@@ -1,7 +1,7 @@
 // SITIOS ESTÁTICOS POR NEGOCIO — el ERP sirve, en el subdominio de un negocio, un sitio ya hecho (un
 // HTML de un solo archivo y sus adjuntos) en lugar de la vidriera de React. Hoy: Circuito WPE, cuya demo
 // aprobada es un HTML con el motor de torneo adentro (docs/tenants/circuito-wpe/README.md), y Break Point,
-// la demo de gestión del club de pádel (docs/tenants/breakpoint/README.md).
+// el turnero y la gestión del club de pádel (docs/tenants/breakpoint/README.md).
 //
 // Dos llaves, las dos por configuración (ninguna es un `if (tenant === X)` en una pantalla):
 //   1. `next.config.ts` reescribe `/`, `/manual.pdf`… hacia `/sitio-estatico/…` sólo cuando el host
@@ -54,13 +54,17 @@ export const SITIOS_ESTATICOS: readonly SitioEstatico[] = [
     },
   },
   {
-    // Break Point Pádel (prospecto, demo a costo cero): la gestión del club en un solo archivo, sin datos
-    // reales ni persistencia. Se genera con src/tenants/breakpoint/empaquetar.mjs (docs/tenants/breakpoint/).
+    // Break Point Pádel (prospecto, demo a costo cero), en breakpointpadel.gsgapp.com.ar: portada, turnero web y
+    // gestión del club, cada una en un solo archivo, sin datos reales ni persistencia. Con /turnero y /club en
+    // pestañas del mismo navegador se sincronizan en vivo, sin servidor. Se genera con
+    // src/tenants/breakpoint/empaquetar.mjs (docs/tenants/breakpoint/README.md).
     slug: "breakpoint",
-    subdominio: "breakpoint",
+    subdominio: "breakpointpadel",
     carpeta: "src/tenants/breakpoint/sitio",
     archivos: {
       "": { archivo: "index.html", ...PAGINA },
+      turnero: { archivo: "turnero.html", ...PAGINA },
+      club: { archivo: "club.html", ...PAGINA },
     },
   },
 ];

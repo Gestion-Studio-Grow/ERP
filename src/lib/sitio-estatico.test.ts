@@ -236,3 +236,49 @@ test("en wpe, la tienda y la reserva genéricas llevan a la portada del sitio; e
     assert.deepEqual(redirige(host), [], `${host} conserva su tienda y su reserva`);
   }
 });
+
+// ───── Break Point Pádel: breakpointpadel.gsgapp.com.ar (portada, /turnero, /club) ─────
+
+test("Break Point: subdominio breakpointpadel con portada, turnero y club; /club y /turnero sólo en su host", () => {
+  const bp = SITIOS_ESTATICOS.find((s) => s.slug === "breakpoint");
+  assert.ok(bp);
+  assert.equal(bp.subdominio, "breakpointpadel");
+  assert.deepEqual(Object.keys(bp.archivos).sort(), ["", "club", "turnero"]);
+  const reglas = reescriturasDeSitiosEstaticos().filter((r) => r.has[0].value === patronDeHost("breakpointpadel"));
+  assert.deepEqual(reglas.map((r) => [r.source, r.destination]).sort(), [["/", "/sitio-estatico"], ["/club", "/sitio-estatico/club"], ["/turnero", "/sitio-estatico/turnero"]]);
+  const host = new RegExp(`^${patronDeHost("breakpointpadel")}$`);
+  assert.ok(host.test("breakpointpadel.gsgapp.com.ar"));
+  assert.ok(!host.test("breakpoint.gsgapp.com.ar"));
+  assert.ok(!host.test("wpe.gsgapp.com.ar"));
+  // Ningún otro sitio reescribe /club ni /turnero.
+  assert.ok(reescriturasDeSitiosEstaticos().filter((r) => ["/club", "/turnero"].includes(r.source)).every((r) => r.has[0].value === patronDeHost("breakpointpadel")));
+});
+
+test("Break Point: cada archivo registrado existe, es una página completa y no apunta a localhost", () => {
+  const bp = SITIOS_ESTATICOS.find((s) => s.slug === "breakpoint")!;
+  for (const [ruta, { archivo, tipo }] of Object.entries(bp.archivos)) {
+    const html = readFileSync(path.join(RAIZ, bp.carpeta, archivo), "utf8");
+    assert.match(tipo, /^text\/html/, ruta);
+    assert.match(html, /^<!doctype html>/i, ruta);
+    assert.match(html, /<meta name="generator" content="Gestión Studio Grow">/, `${ruta}: sello GSG`);
+    assert.doesNotMatch(html, /https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/, `${ruta}: no apunta a localhost`);
+  }
+  const turnero = readFileSync(path.join(RAIZ, bp.carpeta, "turnero.html"), "utf8");
+  assert.match(turnero, /<meta name="turnero-modo" content="demo">/);
+  assert.doesNotMatch(turnero.replace(/<!--[\s\S]*?-->/g, ""), /<meta name="turnero-api"/);
+  assert.match(readFileSync(path.join(RAIZ, bp.carpeta, "club.html"), "utf8"), /<meta name="bp-demo-bus" content="1">/);
+});
+
+test("Break Point: el manejador sirve portada, turnero y club sólo al negocio breakpoint", async () => {
+  for (const [segmentos, archivo] of [[[], "index.html"], [["turnero"], "turnero.html"], [["club"], "club.html"]] as const) {
+    const { pedidos, leer } = lectorEspia();
+    const r = await responderSitioEstatico("breakpoint", [...segmentos], leer);
+    assert.equal(r.status, 200);
+    assert.match(r.headers.get("content-type") ?? "", /^text\/html/);
+    assert.deepEqual(pedidos, [`src/tenants/breakpoint/sitio/${archivo}`]);
+  }
+  const { pedidos, leer } = lectorEspia();
+  assert.equal((await responderSitioEstatico("circuito-wpe", ["club"], leer)).status, 404);
+  assert.equal((await responderSitioEstatico("breakpoint", ["club.html"], leer)).status, 404);
+  assert.deepEqual(pedidos, []);
+});

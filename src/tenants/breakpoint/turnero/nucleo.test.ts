@@ -433,3 +433,35 @@ test("D34: «una cancha por horario» es una regla del club, apagada por defecto
   tn.estado.config.politica.unaCanchaPorHorario = false;
   assert.equal(tn.reservar(u.id, { fecha: MANIANA, inicio: b.inicio, canchaId: b.canchaId, duracion: 90 }).ok, true, "apagada: se permite (grupos)");
 });
+
+test("Gate O1: una ficha vieja del mostrador no pisa el crédito que la web acaba de mover (versión por ficha)", async () => {
+  const { tn } = armar();
+  const u = await usuario(tn, "Credito Web");
+  const cid = tn.usuario(u.id).clienteId;
+  const copiaVieja = structuredClone(M.cliente(tn.estado, cid)); // el puesto la bajó acá
+  M.cliente(tn.estado, cid).monedero = 50000; // la web le acreditó crédito (y la seña usa una parte)
+  tn.cancelarReserva(u.id, "no-existe"); // (cualquier cambio dispara el aviso de fichas)
+  tn.sincronizar({ reservas: [] }); // idem
+  const s = libre(tn);
+  const r = tn.reservar(u.id, { fecha: MANIANA, inicio: s.inicio, canchaId: s.canchaId, duracion: 90 }); // dispara avisarClientes
+  assert.ok(r.ok);
+  const out = tn.sincronizar({ clientes: [{ ...copiaVieja, nombre: "Editada en mostrador" }] });
+  assert.equal(out.clientesRechazados.length, 1);
+  assert.equal(M.cliente(tn.estado, cid).nombre, "Credito Web");
+  // Con la versión al día sí entra.
+  const alDia = { ...structuredClone(M.cliente(tn.estado, cid)), nombre: "Editada bien" };
+  const ok = tn.sincronizar({ clientes: [alDia] });
+  assert.equal(ok.revsClientes[cid], alDia.rev + 1);
+  assert.equal(M.cliente(tn.estado, cid).nombre, "Editada bien");
+});
+
+test("Gate O2: el sync no copia __proto__ ni campos raros, y los montos tienen que ser números", () => {
+  const { tn } = armar();
+  const malicioso = JSON.parse('{"id":"bx-cl9","nombre":"X","monedero":"mucho","__proto__":{"admin":true},"extra":"no"}');
+  tn.sincronizar({ clientes: [malicioso] });
+  const c = M.cliente(tn.estado, "bx-cl9");
+  assert.equal(c.monedero, 0);
+  assert.equal((c as any).admin, undefined);
+  assert.equal((c as any).extra, undefined);
+  assert.equal(({} as any).admin, undefined, "no contaminó Object.prototype");
+});

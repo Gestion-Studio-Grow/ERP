@@ -377,15 +377,18 @@ test("WhatsApp: el link lleva el número limpio y el texto codificado", () => {
   assert.match(decodeURIComponent(url), /se cobra entera/);
 });
 
-test("el sitio de breakpoint.gsgapp.com.ar está empaquetado con la última versión de la demo", async () => {
-  const { empaquetar, leerFuente, SALIDA } = await import("./empaquetar.mjs");
+test("el sitio de breakpointpadel.gsgapp.com.ar está empaquetado con la última versión (portada, turnero y club)", async () => {
+  const { armarSitio, CARPETA_SITIO } = await import("./empaquetar.mjs");
   const { readFileSync } = await import("node:fs");
   const path = await import("node:path");
   const raiz = path.resolve(import.meta.dirname, "../../..");
-  const servido = readFileSync(path.join(raiz, SALIDA), "utf8");
-  assert.equal(servido, empaquetar(leerFuente(raiz)), "falta correr: node src/tenants/breakpoint/empaquetar.mjs");
-  assert.match(servido, /^<!doctype html>/i);
-  assert.doesNotMatch(servido, /src="\.\/app\.mjs"/);
+  for (const [nombre, esperado] of Object.entries(armarSitio(raiz))) {
+    const servido = readFileSync(path.join(raiz, CARPETA_SITIO, nombre), "utf8");
+    assert.equal(servido, esperado, `falta correr: node src/tenants/breakpoint/empaquetar.mjs (${nombre})`);
+    assert.match(servido, /^<!doctype html>/i);
+    assert.doesNotMatch(servido, /src="\.\/app\.mjs"|href="\.\/turnero\.css"|import\("\.\/conectado\.mjs"\)/, `${nombre}: todo inline`);
+    assert.doesNotMatch(servido, /https?:\/\/(localhost|127\.0\.0\.1)/, `${nombre}: no apunta a localhost`);
+  }
 });
 
 // ───── extensiones para el turnero web (docs/tenants/breakpoint/TURNERO-PLAN.md) ─────

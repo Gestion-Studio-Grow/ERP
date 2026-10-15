@@ -259,4 +259,6 @@ dialog[open]{transform:none}
 .saltar:focus{top:8px}
 #btn-mis{display:inline-flex;align-items:center;text-decoration:none}
 .credito{margin:0 0 10px;padding:8px 10px;border-radius:var(--r1);background:#E8F1FB;color:#0B3B6E;font-weight:600}
-@media (max-width:440px){.vivo{font-size:0;gap:0;padding:0 12px}.vivo.on::after{left:12px}.btn-head{padding:0 10px;font-size:14px}}
+@media (max-width:440px){.vivo{font-size:0;gap:0;padding:0 12px}.vivo.on::after{left:12px}.btn-head{padding:0 10px;font-size:14px}
+  /* sin texto visible, el estado no puede ser sólo color (WCAG 1.4.1): desconectado = aro hueco */
+  .vivo.off::before{background:transparent;border:2px solid #FFB4A9;width:10px;height:10px}}

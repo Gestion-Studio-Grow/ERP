@@ -31,9 +31,9 @@ navegador (`local.mjs`). Así se puede mostrar en la URL gratuita del cliente si
 | Contrato HTTP (integración) | `turnero/api.test.ts` | El back real por HTTP: config, CORS con credenciales y CSRF por `Origin`, 415/400/404, cookie de sesión, error genérico y bloqueo al 5.º intento, Google demo, sesión obligatoria, **20 jugadores al mismo turno a la vez → 1**, `Idempotency-Key`, firma del webhook y verificación, **SSE público + staff + jugador con un comprobante que entra por el webhook firmado**, cuenta ajena/imagen, sync del backoffice con 409, `TURNERO_MODO=real` sin secretos no arranca, cookie mal formada no da 500 | **15/15** |
 | E2E (Playwright, Chromium) | `turnero/e2e/turnero.e2e.mjs` (`npm run test:turnero-e2e`) | Recorrido completo en **390 y 1440 px**, axe-core (WCAG 2.1 AA) en la pantalla y en los 3 diálogos, tiempo real entre dos navegadores, **backoffice conectado en ambos sentidos por la UI real**, rendimiento con 4G lenta + CPU x4, movimiento reducido, teclado, demo pública sin servidor, lista de espera, **CSP estricta sin bypass** y `?api=` hostil desde un host público | **68/68 verificaciones** (2 corridas seguidas en verde; con axe-core 4.12.1 y con 4.14.0) |
 | Demo local (servidor en el navegador) | `turnero/demo-local.test.ts` | Mismo contrato que el back en el navegador: sesiones por pestaña, rutas del club, reserva web → club en vivo, seña, turno del mostrador → se ocupa; el bus cae a un servidor propio sin Web Locks | **2/2** |
-| E2E de la demo publicada | `turnero/e2e/publicado.e2e.mjs` (corre dentro de `npm run test:turnero-e2e`) | `dist/breakpoint-erp` servido como estático con las cabeceras de su `vercel.json`: portada, turnero sin back, **sync en vivo entre pestañas** (turnero ↔ gestión del club en los dos sentidos, seña → novedades), toma de posta al cerrar la pestaña servidor, CSP real, ningún pedido a otro origen, barra final | **24/24 verificaciones** |
+| E2E del sitio servido (breakpointpadel) | `turnero/e2e/sitio.e2e.mjs` (corre dentro de `npm run test:turnero-e2e`) | Las páginas registradas en `sitio-estatico.ts` servidas por **el mismo manejador del ERP** (`responderSitioEstatico`, negocio `breakpoint`): el club solo es la demo de siempre, portada → turnero, reserva → seña, **sync en vivo entre pestañas** (turnero ↔ club en los dos sentidos, seña → novedades), toma de posta al cerrar la pestaña servidor, ningún pedido a otro origen | **26/26 verificaciones** |
 
-Total de unidad e integración del turnero y el motor: **113 tests en verde**, más **106 verificaciones E2E** (82 del turnero + 24 de la demo publicada), con axe-core 4.12.1 y con 4.14.0.
+Total de unidad e integración del turnero y el motor: **137 tests en verde** (incluye `sitio-estatico.test.ts`), más **108 verificaciones E2E** (82 del turnero + 26 del sitio servido), con axe-core 4.12.1 y con 4.14.0.
 `tsc` del proyecto completo: verde. `next build`: verde. `npm test` del repo: las 24 fallas que quedan son ajenas al turnero (inmobiliaria, contrato ARCA, POS, sitio de la estética) y no tocan archivos de esta rama.
 
 ## Mediciones (se miden, no se prometen)
@@ -120,10 +120,25 @@ venta y los menores, salvo los anotados en «Pendientes».
 | G11 | SSE sin tope por IP | Máximo 30 conexiones por IP | — |
 | G12 | E2E inestable: un repintado en vivo ocultaba el formulario de la lista de espera | El bloque no se oculta mientras el jugador carga el celular; el test espera a que terminen los repintados | 2 corridas seguidas en verde |
 
+## Hallazgos del Gate sobre lo nuevo (QA en Chrome + publicación) y cómo quedaron
+
+Veredicto: **APRUEBA CON OBSERVACIONES**. O6 y O7 hablaban del `vercel.json` del proyecto aparte, que se descartó: el
+sitio va dentro del ERP en `breakpointpadel.gsgapp.com.ar`.
+
+| # | Hallazgo | Arreglo | Prueba |
+|---|---|---|---|
+| O1 (media) | Las fichas se sincronizaban sin versión: una copia vieja del mostrador podía pisar un crédito o una deuda que la web acababa de mover | `rev` por ficha (lo sube el back en cada cambio). El sync rechaza las copias viejas y devuelve la actual; el puesto la adopta y avisa | `nucleo.test` Gate O1 |
+| O2 | El sync copiaba la ficha cruda (con `__proto__` o campos raros) | Sólo los campos conocidos, montos numéricos; en reservas, sin `__proto__`/`constructor` | `nucleo.test` Gate O2 |
+| O3 | Hora de las novedades con color fijo: poco contraste en modo oscuro | Colores del tema del club (`--muted`, `--line`) | — |
+| O4 | A 440 px o menos, el estado «En vivo / Sin conexión» quedaba sólo como color | Desconectado = aro hueco (forma distinta) | — |
+| O5 | «Mis turnos» en el botón y «Mis reservas» en la sección | Unificado en «Mis turnos» | E2E D26 |
+| O8 | Si la pestaña servidor queda suspendida (Safari en el celular), retiene el lock | Si deja de latir 10 s, una pestaña del turnero le roba el lock (`steal`) y la suspendida pasa a cliente | — |
+
 ## Pendientes conocidos (no se corrigieron, con el porqué)
 
 - **D34 (decisión del club):** si un jugador puede tener dos canchas a la misma hora. La regla existe y está apagada.
-- **Demo publicada:** la sync entre pestañas funciona en un mismo navegador. Si se cierra la pestaña que hacía de
+- **Sitio publicado:** la sync entre pestañas funciona en un mismo navegador (es la demo; entre dispositivos hace
+  falta el back real, post-venta). Si se cierra la pestaña que hacía de
   servidor, otra toma la posta con una demo nueva y las sesiones de jugador se pierden (es una demo). En navegadores sin
   Web Locks o BroadcastChannel (muy viejos: Safari anterior a 15.4), cada pestaña anda sola, sin sync.
 

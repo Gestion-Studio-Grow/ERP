@@ -1,21 +1,29 @@
-// Empaqueta la demo del club de Break Point en UN solo archivo para servirla como sitio propio del negocio
-// en breakpoint.gsgapp.com.ar (mismo mecanismo que Circuito WPE: src/lib/sitio-estatico.ts).
+// Empaqueta el sitio de Break Point Pádel que sirve el ERP en breakpointpadel.gsgapp.com.ar (mismo mecanismo que
+// Circuito WPE: src/lib/sitio-estatico.ts). Tres páginas de UN solo archivo cada una:
+//   sitio/index.html    portada con la marca: «Reservá tu cancha» (/turnero) y «Gestión del club» (/club)
+//   sitio/club.html     la gestión del club (backoffice demo) + el modo conectado y el bus entre pestañas, inline
+//   sitio/turnero.html  el turnero en modo demo (corre en el navegador: local.mjs), con su CSS y su JS inline
+// Con /turnero y /club abiertos en pestañas del mismo navegador, se sincronizan en vivo (turnero/bus.mjs).
 //
-// Fuente (la que se edita): public/previews/breakpoint/club/{index.html, app.mjs, motor.mjs, morph.mjs}.
-// Salida (la que sirve el ERP):  src/tenants/breakpoint/sitio/index.html — no se edita a mano.
+// Fuente (la que se edita): public/previews/breakpoint/{club,turnero}/. Salida: src/tenants/breakpoint/sitio/ —
+// no se edita a mano.
 //
 //   node src/tenants/breakpoint/empaquetar.mjs
 //
 // Un test (motor-club.test.ts) compara la salida con la fuente: si alguien toca la demo y no re-empaqueta,
 // falla. Así el subdominio nunca sirve una versión vieja sin que nadie se entere.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { buildSync } from "esbuild";
+import { portada } from "./portada.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ = path.resolve(AQUI, "../../..");
 export const FUENTE = "public/previews/breakpoint/club";
-export const SALIDA = "src/tenants/breakpoint/sitio/index.html";
+export const CARPETA_SITIO = "src/tenants/breakpoint/sitio";
+/** Compatibilidad: la gestión del club empaquetada (antes era la raíz del sitio). */
+export const SALIDA = `${CARPETA_SITIO}/club.html`;
 
 /**
  * Arma el HTML de un solo archivo: el motor queda como `const M = {…}` y la app lo usa igual. PURA.
@@ -44,6 +52,40 @@ export function empaquetar({ html, app, motor, morph = null }) {
   return conScript.replace(/^(<!doctype html>\n)/i, `$1${aviso}`);
 }
 
+/** Empaqueta un módulo y todo lo que importa (también los import() dinámicos) en un solo JS. Determinístico. */
+function bundle(entrada, opciones = {}) {
+  const r = buildSync({ entryPoints: [entrada], bundle: true, write: false, minify: true, target: "es2022", legalComments: "none", charset: "utf8", logLevel: "silent", ...opciones });
+  return r.outputFiles[0].text.replaceAll("</script", "<\\/script");
+}
+
+/**
+ * El sitio completo: { "index.html", "club.html", "turnero.html" } → contenido. El club lleva la marca del bus
+ * (bp-demo-bus) y el modo conectado inline: su `import("./conectado.mjs")` pasa a ser el módulo ya cargado.
+ */
+export function armarSitio(raiz = RAIZ) {
+  const base = path.join(raiz, "public/previews/breakpoint");
+  // Gestión del club: el empaquetado de siempre + conectado.mjs (con el bus y el núcleo) como global inline.
+  const club = empaquetar(leerFuente(raiz));
+  const llamada = 'import("./conectado.mjs")';
+  if (!club.includes(llamada)) throw new Error("app.mjs ya no carga conectado.mjs como espera el empaquetador");
+  const conectado = bundle(path.join(base, "club/conectado.mjs"), { format: "iife", globalName: "__BP_CONECTADO" });
+  const clubHtml = club
+    .replace(llamada, "Promise.resolve(__BP_CONECTADO)")
+    .replace(/<meta charset="utf-8">/i, (m) => `${m}\n<meta name="bp-demo-bus" content="1">`)
+    .replace('<script type="module">', () => `<script>\n${conectado}\n</script>\n<script type="module">`);
+  // Turnero: CSS y JS inline (en modo demo: <meta name="turnero-modo" content="demo">).
+  const t = path.join(base, "turnero");
+  let turnero = readFileSync(path.join(t, "index.html"), "utf8");
+  const css = '<link rel="stylesheet" href="./turnero.css">', js = '<script type="module" src="./app.mjs"></script>';
+  if (!turnero.includes(css) || !turnero.includes(js)) throw new Error("turnero/index.html ya no carga turnero.css y app.mjs como espera el empaquetador");
+  if (!/<meta name="turnero-modo" content="demo">/.test(turnero)) throw new Error("el turnero publicado tiene que estar en modo demo");
+  turnero = turnero
+    .replace(css, () => `<style>\n${readFileSync(path.join(t, "turnero.css"), "utf8")}</style>`)
+    .replace(js, () => `<script type="module">\n${bundle(path.join(t, "app.mjs"), { format: "esm" })}</script>`)
+    .replace(/^(<!doctype html>\n)/i, "$1<!-- GENERADO por src/tenants/breakpoint/empaquetar.mjs desde public/previews/breakpoint/turnero/ — no editar a mano -->\n");
+  return { "index.html": portada(), "club.html": clubHtml, "turnero.html": turnero };
+}
+
 export function leerFuente(raiz = RAIZ) {
   const leer = (f) => readFileSync(path.join(raiz, FUENTE, f), "utf8");
   let morph = null;
@@ -52,8 +94,8 @@ export function leerFuente(raiz = RAIZ) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const salida = path.join(RAIZ, SALIDA);
-  mkdirSync(path.dirname(salida), { recursive: true });
-  writeFileSync(salida, empaquetar(leerFuente()));
-  console.log(`Listo: ${SALIDA}`);
+  const carpeta = path.join(RAIZ, CARPETA_SITIO);
+  mkdirSync(carpeta, { recursive: true });
+  for (const [nombre, contenido] of Object.entries(armarSitio())) writeFileSync(path.join(carpeta, nombre), contenido);
+  console.log(`Listo: ${CARPETA_SITIO}/{index,club,turnero}.html`);
 }

@@ -26,11 +26,13 @@ function transporteHttp(api) {
   };
 }
 
-/** Transporte "bus": la demo pública, contra la pestaña que hace de servidor. Responde como fetch. */
+/** Transporte "bus": la demo pública, contra la pestaña del turnero que hace de servidor. Responde como fetch. */
 async function transporteBus() {
   const { unirseAlBus } = await import("../turnero/bus.mjs");
-  const bus = unirseAlBus();
+  const bus = unirseAlBus({ soloCliente: true }); // el club nunca hace de servidor: sin turnero, demo de siempre
+  if (!bus) return null;
   return {
+    hayServidor: () => bus.hayServidor(),
     pedir: async (ruta, { method = "GET", body } = {}) => {
       const r = await bus.api(ruta, { metodo: method, cuerpo: body ? JSON.parse(body) : undefined });
       return { ok: r.status >= 200 && r.status < 300, status: r.status, json: async () => r };
@@ -39,10 +41,23 @@ async function transporteBus() {
   };
 }
 
-export async function conectar(puente, api) {
+/**
+ * Demo publicada: la gestión del club queda como la demo de siempre hasta que aparece un turnero abierto en otra
+ * pestaña del mismo navegador; recién ahí se conecta (y desde entonces, en vivo).
+ */
+export async function conectarCuandoHayaTurnero(puente) {
+  const tr = await transporteBus();
+  if (!tr) return false; // navegador sin BroadcastChannel/Web Locks: demo suelta
+  await tr.hayServidor();
+  await conectar(puente, "bus", tr);
+  return true;
+}
+
+export async function conectar(puente, api, transporte) {
   M = puente.M;
   const bus = api === "bus";
-  const tr = bus ? await transporteBus() : transporteHttp(api);
+  const tr = transporte ?? (bus ? await transporteBus() : transporteHttp(api));
+  if (!tr) return;
   const f = tr.pedir;
   const puesto = `p${azar()}`;
   M.prefijoIds(`b${azar()}-`); // ids propios de este puesto: nunca chocan con los del back ni con otro puesto
@@ -108,6 +123,13 @@ export async function conectar(puente, api) {
         if (ref !== undefined && ref !== (r.ref ?? null)) { r.ref = ref; repintar = true; }
         base0.set(rid, json(r));
       }
+      for (const [cid, rev] of Object.entries(out.revsClientes ?? {})) {
+        const c = E.clientes.find((x) => x.id === cid);
+        if (c) { c.rev = rev; baseCli.set(cid, json(c)); }
+      }
+      // Ficha vieja (la web movió el crédito o la deuda en el medio): manda la del back.
+      for (const x of out.clientesRechazados ?? []) { upsertCliente(x.actual); repintar = true; }
+      if (out.clientesRechazados?.length) puente.toast("Una ficha cambió desde la web mientras la editabas: se actualizó. Revisala.", { error: true });
       for (const x of out.rechazadas ?? []) {
         const i = E.reservas.findIndex((r) => r.id === x.id);
         if (x.actual) { E.reservas[i] = x.actual; base0.set(x.id, json(x.actual)); }
@@ -207,8 +229,8 @@ function crearPanel(f, puente) {
   el.style.cssText = "position:fixed;left:12px;bottom:12px;z-index:60;width:min(360px,calc(100vw - 24px));display:grid;gap:8px;font:13px/1.4 system-ui,sans-serif";
   el.innerHTML = `
     <div id="bp-revisiones" style="display:grid;gap:8px"></div>
-    <section id="bp-novedades-lista" hidden style="background:var(--paper,#fff);color:var(--ink,#111);border:1px solid #767676;border-radius:10px;max-height:min(50vh,360px);overflow:auto;box-shadow:0 6px 24px rgba(0,0,0,.18)">
-      <h2 style="font-size:13px;margin:0;padding:8px 12px;border-bottom:1px solid #ccc">Novedades del turnero</h2>
+    <section id="bp-novedades-lista" hidden style="background:var(--paper,#fff);color:var(--ink,#111);border:1px solid var(--line,#767676);border-radius:10px;max-height:min(50vh,360px);overflow:auto;box-shadow:0 6px 24px rgba(0,0,0,.18)">
+      <h2 style="font-size:13px;margin:0;padding:8px 12px;border-bottom:1px solid var(--line,#ccc)">Novedades del turnero</h2>
       <ol style="list-style:none;margin:0;padding:0"></ol>
     </section>
     <button type="button" id="bp-conexion" aria-expanded="false" aria-controls="bp-novedades-lista" style="justify-self:start;border:0;border-radius:999px;padding:6px 12px;color:#fff;font:600 12px/1.2 system-ui,sans-serif;cursor:pointer;min-height:32px"></button>
@@ -238,9 +260,9 @@ function crearPanel(f, puente) {
     conectado(v) { on = v; pintarBoton(); },
     novedad(texto) {
       const li = document.createElement("li");
-      li.style.cssText = "padding:8px 12px;border-bottom:1px solid #eee";
+      li.style.cssText = "padding:8px 12px;border-bottom:1px solid var(--line,#ddd)";
       const h = new Date();
-      li.innerHTML = `<time style="color:#555;font-variant-numeric:tabular-nums">${String(h.getHours()).padStart(2, "0")}:${String(h.getMinutes()).padStart(2, "0")}</time> ${esc(texto)}`;
+      li.innerHTML = `<time style="color:var(--muted,#555);font-variant-numeric:tabular-nums">${String(h.getHours()).padStart(2, "0")}:${String(h.getMinutes()).padStart(2, "0")}</time> ${esc(texto)}`;
       ol.prepend(li);
       while (ol.children.length > 30) ol.lastChild.remove();
       if (lista.hidden) sinLeer++;

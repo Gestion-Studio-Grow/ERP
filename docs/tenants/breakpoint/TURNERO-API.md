@@ -98,10 +98,13 @@ red): el comprobante simulado entra directo al mismo procesador de mensajes.
 
 — Elaborado por GSG
 
-## Demo publicada (breakpoint-erp, estática)
+## Sitio publicado (breakpointpadel.gsgapp.com.ar, sin servidor)
 
-`npm run turnero:publicar` arma `dist/breakpoint-erp/` (portada + `/turnero/` + `/club/` + `vercel.json` + `robots.txt`).
-No hay back: con el turnero y la gestión del club abiertos en pestañas del mismo navegador, una de ellas hace de
-servidor (`turnero/bus.mjs`, elegida con Web Locks) y las demás le hablan por `BroadcastChannel` con **las mismas
-rutas de esta tabla**. El club entra al bus por `<meta name="bp-demo-bus" content="1">` y no pide clave (es el mismo
-navegador). Si se cierra la pestaña servidor, otra toma la posta y las pantallas se re-sincronizan.
+El ERP sirve tres páginas de un solo archivo (`src/lib/sitio-estatico.ts`): `/` (portada), `/turnero` y `/club`. No
+hay back: con el turnero y la gestión del club abiertos en pestañas del mismo navegador, una pestaña del turnero hace de
+servidor (`turnero/bus.mjs`, elegida con Web Locks) y las demás le hablan por `BroadcastChannel` con **las mismas rutas
+de esta tabla**. El servidor late cada 4 s; si deja de latir (cerrado o suspendido), otra pestaña del turnero toma la
+posta y las pantallas se re-sincronizan.
+
+El club entra al bus por `<meta name="bp-demo-bus" content="1">` como **sólo cliente**: nunca hace de servidor ni pide
+clave (es el mismo navegador). Si no hay ningún turnero abierto, es la demo de siempre.

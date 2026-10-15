@@ -1833,12 +1833,12 @@ iniciar();
 // Sólo en desarrollo local o contra el mismo origen: un link armado no puede mandar la clave del club a otro servidor.
 const API_PERMITIDA = API_TURNERO && /^https?:\/\/[\w.:[\]-]+\/?$/.test(API_TURNERO)
   && (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || new URL(API_TURNERO).origin === location.origin);
-// En la demo publicada (breakpoint-erp, sin servidor) la página trae <meta name="bp-demo-bus" content="1">: el
-// backoffice se conecta con el turnero abierto en otra pestaña del mismo navegador (turnero/bus.mjs).
+// En el sitio publicado (breakpointpadel.gsgapp.com.ar, sin servidor) /club trae <meta name="bp-demo-bus" content="1">: el
+// backoffice se conecta con el turnero (/turnero) cuando hay uno abierto en otra pestaña del mismo navegador.
 const DEMO_BUS = !API_PERMITIDA && document.querySelector('meta[name="bp-demo-bus"]')?.content === "1" && typeof BroadcastChannel !== "undefined";
 if (API_PERMITIDA || DEMO_BUS) {
   import("./conectado.mjs")
-    .then((m) => m.conectar(puente, DEMO_BUS ? "bus" : API_TURNERO))
+    .then((m) => (DEMO_BUS ? m.conectarCuandoHayaTurnero(puente) : m.conectar(puente, API_TURNERO)))
     .then(() => { puente.conectado = Boolean(puente.despues); })
     .catch(() => toast("No se pudo conectar con el turnero. Sigue en modo demo.", { error: true }));
 }

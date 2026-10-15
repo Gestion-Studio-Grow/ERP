@@ -29,6 +29,25 @@ export function aEpoch({ fecha, min }) {
 }
 
 const solapa = (a1, a2, b1, b2) => a1 < b2 && b1 < a2;
+
+/** Lo que llega por el sync es JSON del staff: nunca se copian `__proto__`/`constructor` (contaminar prototipos). */
+function sinClavesPeligrosas(o) {
+  const out = {};
+  for (const [k, v] of Object.entries(o)) if (k !== "__proto__" && k !== "constructor" && k !== "prototype") out[k] = v;
+  return out;
+}
+const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+/** Ficha de cliente del sync, sólo con los campos conocidos y con números de verdad (null si no sirve). */
+function fichaLimpia(c) {
+  if (!c || typeof c.id !== "string" || !/^[\w-]{1,40}$/.test(c.id) || typeof c.nombre !== "string") return null;
+  return {
+    id: c.id, nombre: c.nombre.slice(0, 80), tel: String(c.tel ?? "").slice(0, 30), nivel: String(c.nivel ?? "").slice(0, 20),
+    strikes: num(c.strikes), monedero: num(c.monedero), deuda: num(c.deuda), activo: c.activo !== false,
+    movCC: Array.isArray(c.movCC) ? c.movCC.slice(-200).map(sinClavesPeligrosas) : [],
+    cc: { habilitada: Boolean(c.cc?.habilitada), limite: num(c.cc?.limite) },
+    rev: num(c.rev),
+  };
+}
 const DURACIONES = [60, 90, 120];
 const LETRAS_REF = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sin 0/O ni 1/I: se dictan por teléfono sin confusión
 
@@ -70,7 +89,12 @@ export function crearTurnero({
   const fotoClientes = new Map(E.clientes.map((c) => [c.id, JSON.stringify(c)]));
   function avisarClientes() {
     const cambiados = [];
-    for (const c of E.clientes) { const j = JSON.stringify(c); if (fotoClientes.get(c.id) !== j) { fotoClientes.set(c.id, j); cambiados.push(c); } }
+    for (const c of E.clientes) {
+      if (fotoClientes.get(c.id) === JSON.stringify(c)) continue;
+      c.rev = (c.rev ?? 0) + 1; // versión de la ficha: un puesto con una copia vieja no pisa un crédito o una deuda
+      fotoClientes.set(c.id, JSON.stringify(c));
+      cambiados.push(c);
+    }
     if (cambiados.length) emitir("staff", "clientes", { clientes: cambiados });
   }
 
@@ -478,10 +502,14 @@ export function crearTurnero({
     if (clima && typeof clima === "object") E.clima = clima;
     if (politica && typeof politica === "object") for (const [k, v] of Object.entries(politica)) if (k in E.config.politica) E.config.politica[k] = v;
     // Fichas que cambiaron en el mostrador (alta por teléfono, cobro de una deuda, crédito): upsert por id.
-    const clientesAplicados = [];
-    for (const c of Array.isArray(clientes) ? clientes.slice(0, 200) : []) {
-      if (!c || typeof c.id !== "string" || !/^[\w-]{1,40}$/.test(c.id) || typeof c.nombre !== "string") continue;
+    const clientesAplicados = [], clientesRechazados = [];
+    for (const crudo of Array.isArray(clientes) ? clientes.slice(0, 200) : []) {
+      const c = fichaLimpia(crudo);
+      if (!c) continue;
       const previo = M.cliente(E, c.id);
+      // Concurrencia optimista también en las fichas: hay plata (crédito, deuda) y la web la puede haber movido.
+      if (previo && (previo.rev ?? 0) !== (c.rev ?? 0)) { clientesRechazados.push({ id: c.id, actual: previo }); continue; }
+      c.rev = (previo?.rev ?? 0) + 1;
       if (previo) Object.assign(previo, c); else E.clientes.push(c);
       fotoClientes.set(c.id, JSON.stringify(M.cliente(E, c.id)));
       clientesAplicados.push(M.cliente(E, c.id));
@@ -497,7 +525,7 @@ export function crearTurnero({
         const choque = M.ocupantes(E, inc.fecha, inc.canchaId, inc.id).reservas.find((r) => solapa(inc.inicio, inc.inicio + inc.duracion, r.inicio, r.inicio + r.duracion));
         if (choque) { rechazadas.push({ id: inc.id, motivo: `Se pisa con un turno de ${choque.origen === "web" ? "la web" : "otro puesto"} (${M.hhmm(choque.inicio)}).`, actual: previa ?? null }); continue; }
       }
-      const r = previa ? Object.assign(previa, inc, { webUsuarioId: previa.webUsuarioId ?? inc.webUsuarioId, ref: previa.ref ?? inc.ref }) : { ...inc };
+      const r = previa ? Object.assign(previa, sinClavesPeligrosas(inc), { webUsuarioId: previa.webUsuarioId ?? inc.webUsuarioId, ref: previa.ref ?? inc.ref }) : { ...inc };
       r.rev = (previa?.rev ?? 0) + 1;
       // D28: el turno del mostrador con seña también lleva código (o se cambia si choca con el de otro turno).
       if (r.sena?.monto > 0 && (!r.ref || E.reservas.some((x) => x !== r && x.ref === r.ref))) r.ref = nuevaRef();
@@ -523,6 +551,8 @@ export function crearTurnero({
       ok: true, aplicadas, rechazadas, version,
       revs: Object.fromEntries(aplicadas.map((id) => [id, M.reserva(E, id).rev])),
       refs: Object.fromEntries(aplicadas.map((id) => [id, M.reserva(E, id).ref ?? null])),
+      revsClientes: Object.fromEntries(clientesAplicados.map((c) => [c.id, c.rev])),
+      clientesRechazados,
     };
   }
 
