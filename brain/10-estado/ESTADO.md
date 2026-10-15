@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-10-15 14:41 UTC
+generado_el: 2026-10-15 14:52 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-10-15 14:41 UTC sobre `185bebd`.**
+> ⏱️ **Foto tomada el 2026-10-15 14:52 UTC sobre `5ecbd94`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -19,7 +19,7 @@ tags: [brain/estado, fase-0]
 | Campo | Valor |
 |---|---|
 | Rama actual | `ccr-breakpoint-turnero` |
-| HEAD | `185bebd` (2026-10-15) |
+| HEAD | `5ecbd94` (2026-10-15) |
 | Árbol | limpio _(sin contar `brain/`)_ |
 | Tip de `main` | _no disponible (este clon no trae `main` local)_ |
 
@@ -27,6 +27,8 @@ tags: [brain/estado, fase-0]
 
 **Últimos commits**
 
+- 5ecbd94 · 2026-10-15 · fix(breakpoint): turnero — hallazgos del Gate de Excelencia (versión por reserva, modo real, ?api= seguro)
+- 814abd5 · 2026-10-15 · chore(brain): sincroniza el mapa derivado del repo (npm run brain)
 - 185bebd · 2026-10-15 · feat(breakpoint): turnero — demo pública sin servidor, logo oficial y defectos de la batería corregidos
 - be44cac · 2026-10-15 · Merge remote-tracking branch 'origin/ccr-63ed11dc-brcdpp' into ccr-breakpoint-turnero
 - 27d0cf3 · 2026-10-15 · feat(breakpoint): turnero web de canchas — front y back separados, en vivo con el backoffice
@@ -37,8 +39,6 @@ tags: [brain/estado, fase-0]
 - ff94a69 · 2026-10-15 · feat(breakpoint): backoffice minimalista y fluido (paleta ⌘K, atajos, deshacer, transiciones)
 - dccc93a · 2026-10-15 · perf(breakpoint): la pantalla se actualiza con morph en vez de re-pintar todo
 - 62586fd · 2026-10-15 · feat(breakpoint): segunda vuelta con el pedido del club — cancha y buffet separados, cuenta corriente, PIN, proveedores, caja 12 a 12
-- fdcab91 · 2026-10-14 · feat(breakpoint): Break Point como negocio de la plataforma con su sitio en breakpoint.gsgapp.com.ar
-- 143fc91 · 2026-10-14 · fix(breakpoint): hallazgos del Gate de Excelencia sobre el motor y el backoffice del club
 
 ## Migraciones (Prisma)
 
@@ -57,7 +57,7 @@ tags: [brain/estado, fase-0]
 | Fuente | Volumen |
 |---|---:|
 | Documentos en `docs/` | 333 |
-| Palabras en `docs/` | 543.308 |
+| Palabras en `docs/` | 544.123 |
 | ADRs | 87 |
 | Nodos en el grafo | 93 _(los 87 ADR + 6 enmiendas)_ |
 
