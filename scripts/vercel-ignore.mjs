@@ -38,8 +38,7 @@ const esInocuo = (f) =>
 try {
   const rama = process.env.VERCEL_GIT_COMMIT_REF || "";
   // Sólo cuenta la PRIMERA línea del mensaje: el cuerpo puede nombrar las marcas al explicarlas.
-  const mensaje = (process.env.VERCEL_GIT_COMMIT_MESSAGE || "").split(/?
-/)[0];
+  const mensaje = (process.env.VERCEL_GIT_COMMIT_MESSAGE || "").split(String.fromCharCode(10))[0].trim();
   if (!rama) construir("no se sabe de qué rama viene el push");
 
   if (rama !== "main") {
