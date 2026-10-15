@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-08-02 01:53 UTC
+generado_el: 2026-10-15 14:41 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-08-02 01:53 UTC sobre `e078f64`.**
+> ⏱️ **Foto tomada el 2026-10-15 14:41 UTC sobre `185bebd`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -18,32 +18,32 @@ tags: [brain/estado, fase-0]
 
 | Campo | Valor |
 |---|---|
-| Rama actual | `claude/token-saving-brain-clients-5rur0j` |
-| HEAD | `e078f64` (2026-08-01) |
-| Árbol | **2 archivo(s) sin commitear** _(sin contar `brain/`)_ |
-| Tip de `main` | d5185e1 · 2026-07-13 · Merge fix/fiscal-master-key-runtime — lectura runtime robusta de FISCAL_MASTER_KEY + diagnóstico sin exponer valor |
+| Rama actual | `ccr-breakpoint-turnero` |
+| HEAD | `185bebd` (2026-10-15) |
+| Árbol | limpio _(sin contar `brain/`)_ |
+| Tip de `main` | _no disponible (este clon no trae `main` local)_ |
 
-**Ramas locales (2, más reciente primero):** `claude/token-saving-brain-clients-5rur0j` · `main`
+**Ramas locales (2, más reciente primero):** `ccr-breakpoint-turnero` · `ccr-63ed11dc-brcdpp`
 
 **Últimos commits**
 
-- e078f64 · 2026-08-01 · docs(rfc-005): el parche exacto de activación, para aprobar o rechazar
-- 5080895 · 2026-08-01 · feat(brain): configurar el grafo para que se lea como un cerebro, no como una madeja
-- 434f4ac · 2026-07-31 · feat(brain): tres zonas nuevas — metodología, calibración y mapa código↔decisión
-- 27586ed · 2026-07-31 · fix(brain): pasada de excelencia — 10 defectos encontrados por auditoría de 3 frentes
-- 84f4126 · 2026-07-31 · feat(brain): el grafo de verdad — un nodo por decisión, dependencias como enlaces reales
-- f2e8670 · 2026-07-31 · feat(brain): abrir el cerebro desde el móvil + arreglar la semántica de brain:check
-- 7341ae2 · 2026-07-31 · feat(brain): segundo cerebro — vault de notas atómicas derivado del repo (Fase 0 a ~15% del costo)
-- d5185e1 · 2026-07-13 · Merge fix/fiscal-master-key-runtime — lectura runtime robusta de FISCAL_MASTER_KEY + diagnóstico sin exponer valor
-- ee25ed2 · 2026-07-13 · fix(fiscal): endurecer lectura runtime de FISCAL_MASTER_KEY + diagnóstico sin exponer valor
-- 1d48135 · 2026-07-13 · test(shine): actualizar contrato de orden de secciones tras edición de densidad
-- 15a8ddd · 2026-07-13 · Merge diseno/shine-resumido — densidad del front de Shine: colección comprable primero (producto+precio a ~1.7 pantallas mobile) + fix overflow hero mobile
-- fc0dede · 2026-07-13 · Merge ci/senal-verde — vallas del gate en jobs separados (visual/visual-aa BLOQUEANTES; lint no-bloqueante) + fix contraste badge 'Por kg' (ADR-040)
+- 185bebd · 2026-10-15 · feat(breakpoint): turnero — demo pública sin servidor, logo oficial y defectos de la batería corregidos
+- be44cac · 2026-10-15 · Merge remote-tracking branch 'origin/ccr-63ed11dc-brcdpp' into ccr-breakpoint-turnero
+- 27d0cf3 · 2026-10-15 · feat(breakpoint): turnero web de canchas — front y back separados, en vivo con el backoffice
+- 4c4a12e · 2026-10-15 · feat(breakpoint): marca real del club en el backoffice (logo SVG, colores medidos, publicaciones)
+- c740bcf · 2026-10-15 · breakpoint: marca autorizada según el dueño (15/10); falta registrarla en ADR-034
+- beefba4 · 2026-10-15 · breakpoint: marca relevada de Instagram (logo, colores medidos, 6 imágenes, fuentes)
+- 15714ae · 2026-10-15 · feat(breakpoint): 5 estilos visuales premium para el backoffice (Chapa por defecto)
+- ff94a69 · 2026-10-15 · feat(breakpoint): backoffice minimalista y fluido (paleta ⌘K, atajos, deshacer, transiciones)
+- dccc93a · 2026-10-15 · perf(breakpoint): la pantalla se actualiza con morph en vez de re-pintar todo
+- 62586fd · 2026-10-15 · feat(breakpoint): segunda vuelta con el pedido del club — cancha y buffet separados, cuenta corriente, PIN, proveedores, caja 12 a 12
+- fdcab91 · 2026-10-14 · feat(breakpoint): Break Point como negocio de la plataforma con su sitio en breakpoint.gsgapp.com.ar
+- 143fc91 · 2026-10-14 · fix(breakpoint): hallazgos del Gate de Excelencia sobre el motor y el backoffice del club
 
 ## Migraciones (Prisma)
 
-- **Total en el repo:** 40
-- **Últimas 5:** `20260710120000_invoice_origin_idempotency_unique` · `20260711120000_add_bancos_importacion` · `20260711140000_add_cartera_cliente` · `20260711140000_add_tenant_fiscal_credential` · `20260712120000_sprint_entregable_concurrency_guards`
+- **Total en el repo:** 52
+- **Últimas 5:** `20261008120000_modulo_taller` · `20261009120000_taller_caja` · `20261013120000_modulo_inmobiliaria` · `20261013180000_inmobiliaria_ajustes` · `20261013210000_inmobiliaria_recibos`
 
 > ⚠️ **Colisión de timestamp** — dos migraciones comparten prefijo, así que el orden de
 > aplicación depende del desempate alfabético. Revisar antes de cualquier Gate 2:
@@ -56,10 +56,10 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 297 |
-| Palabras en `docs/` | 426.576 |
-| ADRs | 81 |
-| Nodos en el grafo | 87 _(los 81 ADR + 6 enmiendas)_ |
+| Documentos en `docs/` | 333 |
+| Palabras en `docs/` | 543.308 |
+| ADRs | 87 |
+| Nodos en el grafo | 93 _(los 87 ADR + 6 enmiendas)_ |
 
 ## Superficies con front propio
 
