@@ -2,7 +2,7 @@
 
 Prospecto en preventa (club de pádel, Ezeiza). Su "sitio" es la **demo de gestión del club**
 (agenda, buffet, caja de 12 a 12, clientes con cuenta corriente, proveedores, stock, contenido y tablero del
-dueño con cámaras; usuarios con PIN), en un solo archivo. **Es demo a costo cero:** datos de
+dueño con cámaras; usuarios con PIN), en un solo archivo, con **5 estilos visuales** a elegir (Chapa por defecto). **Es demo a costo cero:** datos de
 ejemplo, sin persistencia ni credenciales (ciclo DEMO → VENTA → INVERSIÓN). Análisis y reglas:
 [`REINGENIERIA.md`](REINGENIERIA.md).
 
@@ -15,6 +15,7 @@ Mismo mecanismo que Circuito WPE ([`../circuito-wpe/README.md`](../circuito-wpe/
 | Empaquetador | `node src/tenants/breakpoint/empaquetar.mjs` |
 | Registro del sitio (slug `breakpoint`, subdominio `breakpoint`) | `src/lib/sitio-estatico.ts` |
 | Nombre y monograma del ingreso y del panel | `src/lib/branding.ts` → `TENANTS.breakpoint` |
+| Los 5 estilos visuales (plan + ajustes) · generador del CSS | [`ESTILOS.md`](ESTILOS.md) · `src/tenants/breakpoint/generar-estilos.py` |
 | Tests (motor, empaquetado al día, registro del sitio) | `src/tenants/breakpoint/motor-club.test.ts` · `src/lib/sitio-estatico.test.ts` |
 
 En `breakpoint.<dominio>`, `/` se reescribe a `/sitio-estatico` y el manejador sirve el archivo **sólo si el

@@ -51,6 +51,23 @@ function pestanias() {
   return { orden, principales: orden.slice(0, 5), mas: orden.slice(5) };
 }
 
+// Los 5 estilos visuales (plan en docs/tenants/breakpoint/ESTILOS.md) + el original para comparar.
+const ESTILOS = [
+  { id: "chapa", nombre: "Chapa", desc: "Cartel esmaltado de club: azul pleno, letra angosta, filete naranja.", muestra: ["#0B5FB0", "#F07A0C", "#F8F9FA"] },
+  { id: "marcador", nombre: "Marcador", desc: "Gráfica de transmisión: reloj de TV y franjas. Ideal de noche.", muestra: ["#0F1216", "#F07A0C", "#4DA3F5"] },
+  { id: "cesped", nombre: "Césped", desc: "La cancha: turnos pintados en azul y líneas blancas.", muestra: ["#1766C2", "#FFFFFF", "#F07A0C"] },
+  { id: "bodegon", nombre: "Bodegón", desc: "La comanda de Delicias: papel, letra con serifa y sello DEBE.", muestra: ["#FBF6EC", "#2A1F14", "#A6261B"] },
+  { id: "galpon", nombre: "Galpón", desc: "Chapa y naranja de seguridad, letra hiperlegible para la noche.", muestra: ["#2A2E32", "#F07A0C", "#F2F3F4"] },
+  { id: "original", nombre: "Original", desc: "El diseño anterior, para comparar.", muestra: ["#FFFDF8", "#0B5FB0", "#F07A0C"] },
+];
+const estiloActual = () => document.documentElement.dataset.estilo || "original";
+function elegirEstilo(id) {
+  if (SOPORTA_POPOVER && $("#estilo-menu").matches(":popover-open")) $("#estilo-menu").hidePopover();
+  if (id === estiloActual()) return;
+  conVT(() => { window.bpAplicarEstilo?.(id); render(); });
+  toast(`Estilo «${ESTILOS.find((x) => x.id === id)?.nombre ?? id}».`);
+}
+
 const yo = () => M.usuario(E, USUARIO);
 const puedo = (accion) => M.puede(E, USUARIO, accion);
 const auth = (pin) => ({ usuarioId: USUARIO, pin });
@@ -157,6 +174,7 @@ function render() {
   const enMas = mas.find((t) => t.id === TAB);
   morph($("#tabs"), principales.map((t) => `<button type="button" data-a="tab" data-v="${t.id}" ${t.id === TAB ? 'aria-current="page"' : ""}>${t.nombre}${t.id === "tablero" && pendDuenio ? `<span class="badge" aria-label="${pendDuenio} pendientes">${pendDuenio}</span>` : ""}</button>`).join("")
     + (mas.length ? `<button type="button" class="mas" id="btn-mas" popovertarget="mas-menu" aria-haspopup="menu" ${enMas ? 'aria-current="page"' : ""}>${enMas ? enMas.nombre : "Más"} <span aria-hidden="true">▾</span></button>` : ""));
+  morph($("#estilo-menu"), `<div class="mh">Estilo visual · se recuerda en este navegador</div>` + ESTILOS.map((x) => `<button type="button" role="menuitem" data-a="estilo" data-v="${x.id}" aria-current="${x.id === estiloActual()}"><span class="sw" aria-hidden="true">${x.muestra.map((c) => `<i style="background:${c}"></i>`).join("")}</span><b>${x.nombre}</b><small>${x.desc}</small></button>`).join(""));
   morph($("#mas-menu"), mas.map((t) => `<button type="button" role="menuitem" data-a="tab" data-v="${t.id}" ${t.id === TAB ? 'aria-current="page"' : ""}>${t.nombre}</button>`).join(""));
   const previo = $("#grid-wrap");
   const scroll = previo ? { top: previo.scrollTop, left: previo.scrollLeft, vista: previo.dataset.vista } : null;
@@ -679,6 +697,9 @@ function itemsPaleta(q) {
     { k: "a-hoy", g: "Ir a", t: "Agenda de hoy", atajo: "T", ok: puedo("agenda"), run: () => { irTab("agenda"); irDia(HOY); } },
     ...tabs.map((x, i) => ({ k: `t-${x.id}`, g: "Ir a", t: x.nombre, atajo: i < 9 ? String(i + 1) : "", ok: true, run: () => irTab(x.id) })),
     { k: "a-usuario", g: "Hacer", t: "Cambiar de usuario", ok: true, run: () => cambiarUsuario() },
+    { k: "a-reloj+", g: "Demo", t: "Adelantar el reloj 30 minutos", ok: true, run: () => acciones.reloj({ dataset: { v: "30" } }) },
+    { k: "a-reloj-", g: "Demo", t: "Atrasar el reloj 30 minutos", ok: true, run: () => acciones.reloj({ dataset: { v: "-30" } }) },
+    ...ESTILOS.map((x) => ({ k: `e-${x.id}`, g: "Estilo", t: `Estilo ${x.nombre}`, s: x.id === estiloActual() ? "en uso" : "", ok: true, run: () => elegirEstilo(x.id) })),
     { k: "a-atajos", g: "Ayuda", t: "Atajos de teclado", atajo: "?", ok: true, run: () => ayudaAtajos() },
   ].filter((a) => a.ok && coincide(a.t, a.g));
   const turnos = nq ? E.reservas.filter((r) => (r.fecha === VISTA || r.fecha === HOY) && ["reservada", "en_cancha", "finalizada"].includes(r.estado) && coincide(r.titular, ...r.jugadores.map((j) => j.nombre)))
@@ -1345,6 +1366,7 @@ const acciones = {
   dia: (b) => irDia(b.dataset.v),
   ver: (b) => abrirTurno(b),
   paleta: () => abrirPaleta(),
+  estilo: (b) => elegirEstilo(b.dataset.v),
   cmd: (b) => ejecutarPaleta(Number(b.dataset.v)),
   atajos: () => ayudaAtajos(),
   deshacer: () => {
@@ -1723,8 +1745,19 @@ if (SOPORTA_POPOVER) {
     m.style.top = `${r.bottom + 4}px`;
   });
 }
+if (SOPORTA_POPOVER) {
+  $("#estilo-menu").addEventListener("beforetoggle", (ev) => {
+    if (ev.newState !== "open") return;
+    const r = $("#btn-estilo").getBoundingClientRect();
+    const m = $("#estilo-menu");
+    m.style.left = `${Math.max(8, Math.min(r.right - 320, innerWidth - 328))}px`;
+    m.style.top = `${r.bottom + 6}px`;
+  });
+}
+// Las pestañas quedan pegadas justo debajo del encabezado, mida lo que mida en cada estilo.
+if (typeof ResizeObserver === "function") new ResizeObserver(([e]) => document.documentElement.style.setProperty("--alto-header", `${Math.round(e.target.getBoundingClientRect().height)}px`)).observe($("header.top"));
 // Flechas dentro de un menú flotante.
-for (const id of ["qm", "mas-menu"]) {
+for (const id of ["qm", "mas-menu", "estilo-menu"]) {
   $(`#${id}`).addEventListener("keydown", (ev) => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(ev.key)) return;
     ev.preventDefault();

@@ -69,3 +69,12 @@
   club). Mapa pedido → implementación en `docs/tenants/breakpoint/REINGENIERIA.md` §10.
 - **Heurística:** en la ingeniería reversa, la "cuenta" no es una sola: preguntar al cliente **cuántas cajas
   y cuántas cuentas distintas maneja** (cancha, buffet, shop, proveedores) antes de modelar el cobro.
+
+### Tercera vuelta — 5 estilos premium (15/10)
+- El dueño pidió 5 estilos "fuera del sesgo de los modelos". Plan en Fable (pedido explícito), ejecución en Opus:
+  Chapa, Marcador, Césped, Bodegón y Galpón — `docs/tenants/breakpoint/ESTILOS.md`.
+- **Heurística:** para salir del look genérico, cada estilo se ancla en un **material o pieza real del lugar**
+  (cartel esmaltado, gráfica de TV del torneo, la cancha, la comanda del bodegón, el galpón) y no en un "mood".
+  Y se calcula el contraste de cada hex: el naranja de marca no alcanza como trazo fino sobre claro (2.5:1) → `--orange-ui`.
+- **Muro:** el Instagram no abre desde el entorno cloud (política de red). Se trabajó con la extracción de julio;
+  validar con el club antes de mostrar.
