@@ -71,13 +71,21 @@ export function unirseAlBus({ reloj, soloCliente = false } = {}) {
 
   // Si el servidor deja de latir (se cerró la última pestaña del turnero, o el navegador la suspendió), se lo da por
   // caído; una pestaña del turnero le "roba" el lock y toma la posta (Safari en el celu suspende pestañas de fondo).
-  let latiendo = null;
+  let latiendo = null, verificando = false;
   const vigia = setInterval(() => {
-    if (servidor || !lider || Date.now() - ultimoLatido < CAIDO_MS) return;
+    if (servidor || !lider || verificando || Date.now() - ultimoLatido < CAIDO_MS) return;
+    // Un latido tarde puede ser una pestaña FRENADA (Chrome espacia los timers de fondo), no muerta: antes de darla
+    // por caída se le pregunta (los mensajes no se frenan como los timers). Sólo si nadie contesta, se toma la posta.
+    verificando = true;
     lider = null;
-    reiniciarEspera();
-    for (const [, s] of fuentes) s.f.cortar();
-    if (!soloCliente) postularse(true);
+    bc.postMessage({ t: "hola", de: tab });
+    setTimeout(() => {
+      verificando = false;
+      if (lider || servidor) return; // contestó (tomarLider ya la volvió a registrar)
+      reiniciarEspera();
+      for (const [, s] of fuentes) s.f.cortar();
+      if (!soloCliente) postularse(true);
+    }, 1500);
   }, LATIDO_MS);
 
   /** Hacer de servidor mientras se tenga el lock. Si otra pestaña lo roba (porque ésta quedó suspendida), se baja. */
@@ -92,8 +100,11 @@ export function unirseAlBus({ reloj, soloCliente = false } = {}) {
       for (const [, s] of fuentes) { s.baja?.(); s.baja = servidor.suscribir(tab, s.ruta, (tipo, datos) => s.f.entregar(tipo, datos)); if (habia) s.f.cortar(); s.f.abrir(); }
       avisarLider();
       bc.postMessage({ t: "lider", tab });
-    })).catch(() => {
-      // Le robaron el lock (esta pestaña estaba suspendida): deja de ser servidor y pasa a cliente del nuevo.
+    })).catch((e) => {
+      // Sólo si le ROBARON el lock (esta pestaña estaba suspendida). Otro error (p. ej. iframe con sandbox) no se
+      // reintenta: sería un bucle.
+      if (e?.name !== "AbortError") return;
+      // Deja de ser servidor y pasa a cliente del nuevo.
       clearInterval(latiendo);
       servidor?.cerrar();
       servidor = null;
@@ -107,6 +118,11 @@ export function unirseAlBus({ reloj, soloCliente = false } = {}) {
   if (!soloCliente) postularse();
   bc.postMessage({ t: "hola", de: tab });
   addEventListener("pagehide", () => { for (const sid of fuentes.keys()) bc.postMessage({ t: "unsub", sid }); });
+  // Volver desde la caché de navegación (atrás/adelante): las suscripciones se rehacen y la pantalla se re-sincroniza.
+  addEventListener("pageshow", (e) => {
+    if (!e.persisted || servidor) return;
+    for (const [sid, s] of fuentes) { bc.postMessage({ t: "sub", sid, de: tab, ruta: s.ruta }); s.f.cortar(); s.f.abrir(); }
+  });
 
   async function api(ruta, { metodo = "GET", cuerpo } = {}) {
     await Promise.race([liderListo, new Promise((ok) => setTimeout(ok, 2500))]);

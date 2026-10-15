@@ -106,8 +106,18 @@ export async function conectar(puente, api, transporte) {
     const extra = {};
     for (const k of Object.keys(ahora)) if (ahora[k] !== agenda[k]) extra[k] = k === "politica" ? E.config.politica : E[k];
     if (!cambiadas.length && !clientes.length && !Object.keys(extra).length) return;
+    // Lo que se manda queda anotado: si el operador edita mientras el pedido está en vuelo, esa edición no se da por
+    // enviada (Gate M2: se perdía plata en la ficha).
+    const enviadas = new Map(cambiadas.map((r) => [r.id, json(r)]));
+    const enviadosCli = new Map(clientes.map((c) => [c.id, json(c)]));
     for (const r of cambiadas) base0.set(r.id, json(r));
     for (const c of clientes) baseCli.set(c.id, json(c));
+    /** Adopta la versión nueva; la base es lo ENVIADO (con la versión nueva), así un cambio en vuelo sigue pendiente. */
+    const adoptar = (obj, rev, enviado, base) => {
+      const cambioEnVuelo = enviado !== undefined && json(obj) !== enviado;
+      obj.rev = rev;
+      base.set(obj.id, cambioEnVuelo ? JSON.stringify({ ...JSON.parse(enviado), rev }) : json(obj));
+    };
     agenda = ahora;
     enviando = true;
     try {
@@ -118,14 +128,17 @@ export async function conectar(puente, api, transporte) {
       for (const [rid, rev] of Object.entries(out.revs ?? {})) {
         const r = E.reservas.find((x) => x.id === rid);
         if (!r) continue;
-        r.rev = rev;
         const ref = out.refs?.[rid];
-        if (ref !== undefined && ref !== (r.ref ?? null)) { r.ref = ref; repintar = true; }
-        base0.set(rid, json(r));
+        if (ref !== undefined && ref !== (r.ref ?? null)) {
+          r.ref = ref;
+          repintar = true;
+          if (enviadas.has(rid)) enviadas.set(rid, JSON.stringify({ ...JSON.parse(enviadas.get(rid)), ref }));
+        }
+        adoptar(r, rev, enviadas.get(rid), base0);
       }
       for (const [cid, rev] of Object.entries(out.revsClientes ?? {})) {
         const c = E.clientes.find((x) => x.id === cid);
-        if (c) { c.rev = rev; baseCli.set(cid, json(c)); }
+        if (c) adoptar(c, rev, enviadosCli.get(cid), baseCli);
       }
       // Ficha vieja (la web movió el crédito o la deuda en el medio): manda la del back.
       for (const x of out.clientesRechazados ?? []) { upsertCliente(x.actual); repintar = true; }
@@ -137,6 +150,8 @@ export async function conectar(puente, api, transporte) {
       }
       if (out.rechazadas?.length) { puente.render(); puente.toast(`No se guardó: ${out.rechazadas[0].motivo}`, { error: true }); }
       else if (repintar) puente.render();
+      // Si quedó algo editado en vuelo, se manda en la próxima vuelta (con la versión nueva).
+      if (E.reservas.some((r) => base0.get(r.id) !== json(r)) || E.clientes.some((c) => baseCli.get(c.id) !== json(c))) puente.despues?.();
     } catch {
       panel.conectado(false);
     } finally { enviando = false; }

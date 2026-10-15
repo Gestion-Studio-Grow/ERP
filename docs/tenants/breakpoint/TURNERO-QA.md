@@ -134,6 +134,30 @@ sitio va dentro del ERP en `breakpointpadel.gsgapp.com.ar`.
 | O5 | «Mis turnos» en el botón y «Mis reservas» en la sección | Unificado en «Mis turnos» | E2E D26 |
 | O8 | Si la pestaña servidor queda suspendida (Safari en el celular), retiene el lock | Si deja de latir 10 s, una pestaña del turnero le roba el lock (`steal`) y la suspendida pasa a cliente | — |
 
+## Gate del sitio en el ERP (breakpointpadel) y cómo quedó
+
+Veredicto: **APROBADO con observaciones**. Los rewrites de `/club` y `/turnero` aplican sólo a `breakpointpadel.*`: no
+tocan otros negocios, `/admin` ni `erp-ch`. El sitio falla cerrado (ADR-015). Quedaron en verde `next build`, `tsc`,
+137 tests de unidad e integración y 108 verificaciones E2E.
+
+| # | Hallazgo | Arreglo |
+|---|---|---|
+| M1 | Si Chrome frenaba los timers de la pestaña servidor en segundo plano, otra la daba por caída, le robaba el lock y arrancaba una demo nueva | Antes de robar, se le pregunta al servidor (`hola`; los mensajes no se frenan). Sólo se toma la posta si nadie contesta en 1,5 s |
+| M2 | Una edición hecha mientras el sync estaba en vuelo quedaba marcada como enviada y se perdía | La base pasa a ser lo ENVIADO, con la versión nueva. Lo editado en el medio sigue pendiente y sale en la próxima vuelta (fichas y reservas) |
+| L2 | Cualquier rechazo del lock se reintentaba (posible bucle) | Sólo se reintenta si le robaron el lock (`AbortError`) |
+| L3 | Al volver desde la caché del navegador (atrás/adelante), el club quedaba sin suscripciones | En `pageshow` las suscripciones se rehacen |
+| L5 | En la portada, el logo repetía el nombre del `h1` para el lector de pantalla, y la cinta podía taparlo | Logo `aria-hidden`; espacio arriba para la cinta |
+| L1 (pendiente) | esbuild entra como dependencia transitiva de tsx: si cambia de versión, el test de empaquetado podría fallar por el minificado | No se fijó: regenerar `package-lock.json` acá falla porque el proxy bloquea el tarball de `xlsx` (403). Hay que fijarlo (`esbuild` exacto en devDependencies) en un entorno con acceso |
+| L4 (deuda) | `fichaLimpia` se queda con los últimos 200 movimientos de cuenta corriente y descarta los campos que no conoce | Alcanza para la demo; con datos reales, el esquema de la ficha va en la base del ERP |
+
+**`npm test` del repo:** 23 fallas que ya estaban antes de estos cambios y no tocan breakpoint ni el turnero:
+- inmobiliaria (redondeos a mano);
+- contrato y reintentos de ARCA (ENG-020/021, en este entorno sin red);
+- POS de la bandeja;
+- «Vender en el navegador»;
+- sitio de la estética (toques de 44 px y «Reservar» de 37 px);
+- ensayo de Neon (checksums).
+
 ## Pendientes conocidos (no se corrigieron, con el porqué)
 
 - **D34 (decisión del club):** si un jugador puede tener dos canchas a la misma hora. La regla existe y está apagada.
