@@ -12,7 +12,7 @@
 - Celular: el chip de usuario se compacta y los ±30′ del reloj de la demo pasan a la búsqueda, para que el encabezado entre en dos filas.
 - Las pestañas pegajosas se ubican según la altura real del encabezado (`--alto-header`, medida con ResizeObserver), porque cada estilo mide distinto.
 - Base (todos los estilos, incluso el original): `--orange-ui` #BF5A00 para trazos finos naranjas y tinta oscura (`--on-bad`) sobre rojo en modo oscuro.
-- **Pendiente con la marca:** el Instagram del club no se pudo abrir desde el entorno (red bloqueada); los colores y el logo salen de la extracción de julio (`docs/metodologia/registro-casos/breakpoint.md`). Hay que validar con el club y pedir el logo vectorial + autorización de marca (ADR-034) antes de mostrarlo.
+- **Marca (actualizado 15/10):** relevada del Instagram del club desde el Chrome del dueño (`MARCA-INSTAGRAM.md`) y **autorizada por el club**. Se aplicaron los colores medidos (azul #035BA8, pelota #DC6E22; los hex de la tabla de abajo son los del plan original) y el logo real en SVG. Falta el vectorial oficial.
 
 ---
 

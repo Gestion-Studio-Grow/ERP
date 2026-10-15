@@ -53,12 +53,12 @@ function pestanias() {
 
 // Los 5 estilos visuales (plan en docs/tenants/breakpoint/ESTILOS.md) + el original para comparar.
 const ESTILOS = [
-  { id: "chapa", nombre: "Chapa", desc: "Cartel esmaltado de club: azul pleno, letra angosta, filete naranja.", muestra: ["#0B5FB0", "#F07A0C", "#F8F9FA"] },
-  { id: "marcador", nombre: "Marcador", desc: "Gráfica de transmisión: reloj de TV y franjas. Ideal de noche.", muestra: ["#0F1216", "#F07A0C", "#4DA3F5"] },
-  { id: "cesped", nombre: "Césped", desc: "La cancha: turnos pintados en azul y líneas blancas.", muestra: ["#1766C2", "#FFFFFF", "#F07A0C"] },
+  { id: "chapa", nombre: "Chapa", desc: "Cartel esmaltado de club: azul pleno, letra angosta, filete naranja.", muestra: ["#035BA8", "#DC6E22", "#F8F9FA"] },
+  { id: "marcador", nombre: "Marcador", desc: "Gráfica de transmisión: reloj de TV y franjas. Ideal de noche.", muestra: ["#0F1216", "#DC6E22", "#4DA3F5"] },
+  { id: "cesped", nombre: "Césped", desc: "La cancha: turnos pintados en azul y líneas blancas.", muestra: ["#1766C2", "#FFFFFF", "#DC6E22"] },
   { id: "bodegon", nombre: "Bodegón", desc: "La comanda de Delicias: papel, letra con serifa y sello DEBE.", muestra: ["#FBF6EC", "#2A1F14", "#A6261B"] },
-  { id: "galpon", nombre: "Galpón", desc: "Chapa y naranja de seguridad, letra hiperlegible para la noche.", muestra: ["#2A2E32", "#F07A0C", "#F2F3F4"] },
-  { id: "original", nombre: "Original", desc: "El diseño anterior, para comparar.", muestra: ["#FFFDF8", "#0B5FB0", "#F07A0C"] },
+  { id: "galpon", nombre: "Galpón", desc: "Chapa y naranja de seguridad, letra hiperlegible para la noche.", muestra: ["#2A2E32", "#DC6E22", "#F2F3F4"] },
+  { id: "original", nombre: "Original", desc: "El diseño anterior, para comparar.", muestra: ["#FFFDF8", "#035BA8", "#DC6E22"] },
 ];
 const estiloActual = () => document.documentElement.dataset.estilo || "original";
 function elegirEstilo(id) {
@@ -441,6 +441,11 @@ function vistaTablero() {
           return `<div class="t"><b>${esc(c.nombre)}</b><div>${r ? `<div class="small"><b>${esc(r.titular)}</b> · termina ${M.hhmm(r.inicio + r.duracion)}</div><div class="bar" role="img" aria-label="Jugado ${Math.round(p * 100)}%"><i style="width:${p * 100}%"></i></div>` : `<div class="small muted">${c.estado === "mantenimiento" ? "En mantenimiento" : "Libre"}${prox ? ` · próximo ${M.hhmm(prox.inicio)} ${esc(prox.titular)}` : ""}</div>`}</div>${r ? (M.saldo(r) > 0 ? `<span class="chip warn">Debe ${M.pesos(M.saldo(r))}</span>` : `<span class="chip ok">Paga</span>`) : E.luces[c.id] ? `<span class="chip bad">Luz prendida</span>` : `<span class="chip">—</span>`}</div>`;
         }).join("")}</div>
       </section>
+      ${FOTOS.length ? `<section class="card span-12 cv" aria-labelledby="t-redes">
+        <div class="card-head"><h2 id="t-redes">El club en redes</h2><a class="btn sm ghost" href="https://www.instagram.com/breakpointpadel_/" target="_blank" rel="noopener">Ver Instagram</a></div>
+        <div class="redes">${FOTOS.map((f) => `<figure><img src="${f.src}" width="${f.w}" height="${f.h}" alt="${esc(f.texto)}" loading="lazy" decoding="async"><figcaption>${esc(f.texto)}<small>${esc(f.fuente)}</small></figcaption></figure>`).join("")}</div>
+        <p class="small muted" style="margin:10px 0 0">Tomadas de Instagram en baja resolución. Con las fotos originales del club (canchas, Delicias, shop) se arma la galería definitiva.</p>
+      </section>` : ""}
       <section class="card span-7" aria-labelledby="t-calor">
         <div class="card-head"><h2 id="t-calor">Ocupación de la semana</h2><span class="muted small">Dónde sobran horas para vender</span></div>
         ${mapaCalor(calor)}
@@ -576,6 +581,8 @@ const campoPin = (id = "pin", etiqueta = "Tu PIN") => `<label class="f" style="m
 
 // ───────────────────────────── Cámaras (simuladas) ─────────────────────────────
 
+// Publicaciones del club embebidas en index.html (JSON), para el tablero del dueño.
+const FOTOS = (() => { try { return JSON.parse(document.getElementById("fotos-club")?.textContent || "[]"); } catch { return []; } })();
 const ES_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const camaras = (() => {
   const LISTA = () => [

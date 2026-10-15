@@ -78,3 +78,14 @@
   Y se calcula el contraste de cada hex: el naranja de marca no alcanza como trazo fino sobre claro (2.5:1) → `--orange-ui`.
 - **Muro:** el Instagram no abre desde el entorno cloud (política de red). Se trabajó con la extracción de julio;
   validar con el club antes de mostrar.
+
+### Autorización de marca y marca real (15/10)
+- **Autorización registrada (ADR-034):** el dueño de GSG confirmó el 15/10/2026 a las 14:06 UTC, en la sesión local
+  «Integraciones de productos backoffice ERP», que **el club autorizó el uso de su marca** («ya esta autorizada la marca»).
+  Verificado en el registro de esa sesión (mensaje humano, no de otro agente). Desde ahora la demo se puede mostrar al club.
+- **Marca relevada del Instagram** (`docs/tenants/breakpoint/MARCA-INSTAGRAM.md`): azul **#035BA8** y naranja de la pelota
+  **#DC6E22** (medidos en píxeles; reemplazan a #0B5FB0 / #F07A0C de julio). El logo real **no** era el círculo con letra
+  condensada que se recreó en julio: es «BREAK / POINT / PADEL» en sans geométrica, barra vertical a la izquierda y la «O»
+  como aro naranja, blanco sobre cuadrado azul. Rehecho en SVG en el backoffice; el vectorial oficial lo pasa el club.
+- **Heurística:** recrear un logo "de memoria" o desde una descripción falla en lo esencial (forma y tipografía). Antes de
+  recrear, **mirar el píxel** (aunque sea la foto de perfil de 150 px) y comparar lado a lado.
