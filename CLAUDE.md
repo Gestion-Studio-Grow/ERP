@@ -268,6 +268,16 @@ propio y la persistencia con datos reales son inversión POST-venta, nunca antes
 
 - **Autónomo hasta GitHub:** código → build → `tsc`/verificación → **gate de excelencia** → commit → **push a `main` (GitHub)** sin re-preguntar. GitHub es el destino por defecto de todo el trabajo.
 - **Gate 1 — deploy a producción/Netlify:** el auto-publish de Netlify está apagado (`stop_builds`), así que el push a `main` **no publica ni gasta créditos**. Publicar en producción requiere OK explícito de Maxi (*"deployá"*). Ver `docs/METODO-ROLES.md` §4.
+  - ⚠️ **Dato verificado el 2026-10-07 — el texto de arriba es de la época de Netlify y ya no describe lo que pasa.** El proyecto de Vercel `erp-ch` está conectado a este repo y **construye en cada push**: una rama genera una vista previa (dos pushes a `gsg-kit` crearon `dpl_AE5EuiDW…` y `dpl_GjUZitY6…`) y los despliegues de producción salen de `main`. **Hasta que el dueño redefina este gate, un push a `main` se trata como un deploy a producción.**
 - **Gate 2 — `prisma migrate deploy`:** cambiar la estructura de la DB de producción (Neon) se **pausa y se reporta**; no se corre solo. Es lo único irreversible.
 - **Neon en PLAN GRATUITO — cuidá el consumo:** minimizá conexiones y queries contra la DB de prod, evitá operaciones pesadas / escaneos completos / benchmarks contra prod, cuidá el compute time y el límite de horas del plan free. Para análisis o pruebas, leé schema/migraciones del **repo** (`prisma/schema.prisma`, `prisma/migrations/`) en vez de golpear la base real salvo que sea imprescindible.
 - **Destructivo bloqueado** por config (force push, `reset --hard`, `migrate reset`, DROP, `rm -rf`).
+
+<!-- factory-kit:start -->
+## Kit GSG (piezas visuales) — complementa lo de arriba; ante conflicto gana este archivo
+- Flujo: `/gsg-brief` → `/gsg-build` → `/gsg-review` → `/gsg-ship`. Correcciones → `/gsg-regla`. Plan corto en castellano simple y **avanzar**; se frena sólo por producción, migraciones de DB, gasto o cliente.
+- Identidad visual en `DESIGN.md`; reglas por ruta en `.claude/rules/` (marca, movimiento, código frontend, 3D); guardia PostToolUse en `.claude/hooks/design-lint.js`, que sólo juzga las líneas que tocás. Sin formateador automático: el formato lo da `npm run lint`. Sin dependencias nuevas sin preguntar.
+- El kit se mantiene desde este repo. **Nunca se vuelve a correr el instalador**: pisa todo lo adaptado. Los permisos de `.claude/settings.json` son los de siempre; el kit sólo sumó prohibiciones.
+- Verificación = la de siempre: `npm run gates` · `npx tsc --noEmit` · `npm test` · `npm run build`. QA = recorrido clic por clic con el agente `qa` (o `gsg-qa`), no "que cargue"; capturas con `visual-verifier`.
+- Agentes del kit (`brand-guardian`, `visual-verifier`, `code-simplifier`) complementan a `qa`, `constructor`, `challenger`; no los reemplazan. Cierre: 3 líneas (qué, cómo se verificó, qué falta).
+<!-- factory-kit:end -->
