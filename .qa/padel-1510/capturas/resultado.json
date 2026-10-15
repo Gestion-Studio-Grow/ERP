@@ -1,0 +1,152 @@
+{
+  "fecha": "2026-10-15T16:29:49.584Z",
+  "base": "http://matiasconsoli.localhost:3219",
+  "viewport": "390x844 (móvil)",
+  "navegador": "Chromium (Playwright) con sesión del profe guardada y reutilizada",
+  "resultado": "20/20 OK",
+  "casos": [
+    {
+      "id": "U01",
+      "titulo": "La raíz del negocio abre el turnero; carga sin errores y sin desbordar a 390 px",
+      "ok": true,
+      "nota": "12 días con lugar",
+      "ms": 4900
+    },
+    {
+      "id": "U02",
+      "titulo": "El profe inicia sesión en Chrome y la sesión queda guardada",
+      "ok": true,
+      "nota": "sesión reutilizada en un contexto nuevo",
+      "ms": 5073
+    },
+    {
+      "id": "U03",
+      "titulo": "Hoy: la próxima clase arriba con sus botones, y el aviso de pendientes con su número",
+      "ok": true,
+      "nota": "badge 2",
+      "ms": 278
+    },
+    {
+      "id": "U04",
+      "titulo": "Configuración: el profe carga su celular para que los alumnos le avisen",
+      "ok": true,
+      "nota": "http://matiasconsoli.localhost:3219/clases",
+      "ms": 2266
+    },
+    {
+      "id": "U05",
+      "titulo": "Alumna nueva pide clase en 3 pasos y recibe el botón de WhatsApp al profe y su link",
+      "ok": true,
+      "nota": "pidió 2026-10-16T11:00:00.000Z",
+      "ms": 2489
+    },
+    {
+      "id": "U06",
+      "titulo": "Esa franja ya no se le ofrece a otro visitante",
+      "ok": true,
+      "nota": "",
+      "ms": 1705
+    },
+    {
+      "id": "U07",
+      "titulo": "Tope antispam: el mismo celular no puede dejar más de 2 pedidos sin confirmar",
+      "ok": true,
+      "nota": "Ya tenés 2 clases esperando que el profe confirme. Cuando te conteste, pedí la próxima.",
+      "ms": 2734
+    },
+    {
+      "id": "U08",
+      "titulo": "Anticipación mínima: hoy no se ofrece nada que empiece en menos de 2 horas",
+      "ok": true,
+      "nota": "4 franjas hoy, todas a +2 h",
+      "ms": 1181
+    },
+    {
+      "id": "U09",
+      "titulo": "Pendientes: el profe confirma el pedido con un toque y le sale el WhatsApp al alumno",
+      "ok": true,
+      "nota": "",
+      "ms": 2736
+    },
+    {
+      "id": "U10",
+      "titulo": "Pendientes: el profe rechaza el otro pedido y le avisa con el link del turnero",
+      "ok": true,
+      "nota": "",
+      "ms": 2340
+    },
+    {
+      "id": "U11",
+      "titulo": "Link del alumno: ve la clase confirmada, el alias y manda el comprobante",
+      "ok": true,
+      "nota": "",
+      "ms": 4542
+    },
+    {
+      "id": "U12",
+      "titulo": "El profe ve la foto del comprobante y lo valida; al alumno le sale el gracias",
+      "ok": true,
+      "nota": "",
+      "ms": 3931
+    },
+    {
+      "id": "U13",
+      "titulo": "Hoy, entre clase y clase: valida el comprobante de la próxima, la marca dada y agenda la próxima",
+      "ok": true,
+      "nota": "Lucas Martínez: dada + próxima agendada en 3.2 s (incluye recargas)",
+      "ms": 7240
+    },
+    {
+      "id": "U14",
+      "titulo": "Cobro en efectivo con un toque (alumno de la mañana que debía)",
+      "ok": true,
+      "nota": "2 clases hoy · cobrado $ 75.000",
+      "ms": 3135
+    },
+    {
+      "id": "U15",
+      "titulo": "Agendar a mano (le piden en la cancha): alumno nuevo, día y hora, queda confirmada",
+      "ok": true,
+      "nota": "Pedro Díaz el 2026-10-22 08:00",
+      "ms": 2304
+    },
+    {
+      "id": "U16",
+      "titulo": "El alumno repite desde su link; si la hora está tomada le ofrece alternativas y reserva una",
+      "ok": true,
+      "nota": "3 alternativas · ¡Listo! Quedó confirmada: jueves 22/10 a las 09:00.",
+      "ms": 6141
+    },
+    {
+      "id": "U17",
+      "titulo": "La alumna cancela desde su link; el horario vuelve al turnero y el profe se entera",
+      "ok": true,
+      "nota": "",
+      "ms": 6374
+    },
+    {
+      "id": "U18",
+      "titulo": "Bloquear un día (lluvia) y cerrar los sábados: el turnero deja de ofrecerlos",
+      "ok": true,
+      "nota": "bloqueado 2026-10-28; sin sábados",
+      "ms": 4432
+    },
+    {
+      "id": "U19",
+      "titulo": "Semana y Alumnos: se ven las clases y quién debe; todo entra en 390 px",
+      "ok": true,
+      "nota": "3 clases esta semana · 5 alumnos",
+      "ms": 3696
+    },
+    {
+      "id": "U20",
+      "titulo": "Seguridad: link inválido da 404, sin sesión el panel pide login, webhook cerrado",
+      "ok": true,
+      "nota": "",
+      "ms": 2827
+    }
+  ],
+  "observaciones": [
+    "[login] Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using templa"
+  ]
+}

@@ -29,6 +29,7 @@ import { multilocalModule } from "./descriptors/multilocal";
 import { cajaRapidaModule, ofertasModule } from "./descriptors/supermercado";
 import { tallerModule } from "./descriptors/taller";
 import { inmobiliariaModule } from "./descriptors/inmobiliaria";
+import { padelClasesModule } from "./descriptors/padel-clases";
 import { arcaModule } from "@/plugins/arca/module";
 import { bancosModule } from "@/plugins/bancos/module";
 
@@ -48,6 +49,8 @@ export const DESCRIPTORES_CATALOGO = [
   tallerModule,
   // Inmobiliaria (src/modules/descriptors/inmobiliaria.ts). Al final, como los anteriores.
   inmobiliariaModule,
+  // Clases de pádel (src/modules/descriptors/padel-clases.ts). Al final, como los anteriores.
+  padelClasesModule,
 ];
 
 /**

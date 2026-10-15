@@ -56,7 +56,7 @@ export const ESPACIOS: readonly EspacioMeta[] = [
     nombre: "Mostrador",
     nombreEnServicios: "Recepción",
     enInicio: true,
-    apps: ["taller", "inmobiliaria", "vender", "caja-rapida", "pedidos", "ventas-del-dia", "agenda", "confirmar-manana", "lista-de-espera", "tienda-online", "devoluciones-y-cambios"],
+    apps: ["padel-clases", "taller", "inmobiliaria", "vender", "caja-rapida", "pedidos", "ventas-del-dia", "agenda", "confirmar-manana", "lista-de-espera", "tienda-online", "devoluciones-y-cambios"],
   },
   { id: "caja", nombre: "Caja", enInicio: true, apps: ["caja-del-dia", "cierre-del-dia", "libro-de-caja"] },
   {
@@ -194,6 +194,14 @@ export interface EspacioNav {
   apps: readonly string[];
 }
 
+/**
+ * Las apps del circuito propio de un rubro (taller, inmobiliaria, profe de pádel). Son
+ * EXCLUYENTES: cada una exige el módulo de su rubro (`moduloDuro`), que sólo asigna el blueprint
+ * de ese rubro, así que un negocio ve a lo sumo una. El tope de apps por espacio las cuenta como
+ * un solo lugar (espacios-nav.test.ts).
+ */
+export const APPS_DE_UN_RUBRO: readonly string[] = ["taller", "inmobiliaria", "padel-clases"];
+
 export const ESPACIOS_NAV: readonly EspacioNav[] = [
   {
     id: "mostrador",
@@ -201,7 +209,7 @@ export const ESPACIOS_NAV: readonly EspacioNav[] = [
     nombreEnServicios: "Recepción",
     objetivo: "Atender y cobrar",
     apps: [
-      "taller", "inmobiliaria", "vender", "caja-rapida", "agenda", "pedidos", "ventas-del-dia", "confirmar-manana", "lista-de-espera", "vales-de-regalo",
+      "padel-clases", "taller", "inmobiliaria", "vender", "caja-rapida", "agenda", "pedidos", "ventas-del-dia", "confirmar-manana", "lista-de-espera", "vales-de-regalo",
       "paquetes-y-abonos", "devoluciones-y-cambios", "presupuestos", "envios-y-reparto", "tienda-online", "huecos-de-la-semana",
     ],
   },
