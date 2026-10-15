@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-10-15 14:52 UTC
+generado_el: 2026-10-15 17:38 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-10-15 14:52 UTC sobre `5ecbd94`.**
+> ⏱️ **Foto tomada el 2026-10-15 17:38 UTC sobre `0632a56`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -19,26 +19,26 @@ tags: [brain/estado, fase-0]
 | Campo | Valor |
 |---|---|
 | Rama actual | `ccr-breakpoint-turnero` |
-| HEAD | `5ecbd94` (2026-10-15) |
+| HEAD | `0632a56` (2026-10-15) |
 | Árbol | limpio _(sin contar `brain/`)_ |
-| Tip de `main` | _no disponible (este clon no trae `main` local)_ |
+| Tip de `main` | 29d3e94 · 2026-10-15 · kit: arreglo de sintaxis del control de builds [sin-deploy] |
 
 **Ramas locales (2, más reciente primero):** `ccr-breakpoint-turnero` · `ccr-63ed11dc-brcdpp`
 
 **Últimos commits**
 
+- 0632a56 · 2026-10-15 · feat(breakpoint): el turnero y la gestión del club dentro del ERP en breakpointpadel.gsgapp.com.ar
+- 9abb1c2 · 2026-10-15 · Merge remote-tracking branch 'origin/main' into ccr-breakpoint-turnero
+- 98b8176 · 2026-10-15 · feat(breakpoint): turnero — defectos del QA en Chrome (D21–D33) + demo pública estática con sync entre pestañas
+- 834d2f6 · 2026-10-15 · docs(breakpoint): QA del turnero en Chrome real — defectos D21–D34
+- eda888b · 2026-10-15 · fix(breakpoint): turnero — WCAG 2.5.3 «Label in Name» en días y turnos (D19) + .sr que ensanchaba el celu (D20)
+- 36659b9 · 2026-10-15 · chore(brain): sincroniza el mapa derivado del repo
 - 5ecbd94 · 2026-10-15 · fix(breakpoint): turnero — hallazgos del Gate de Excelencia (versión por reserva, modo real, ?api= seguro)
 - 814abd5 · 2026-10-15 · chore(brain): sincroniza el mapa derivado del repo (npm run brain)
 - 185bebd · 2026-10-15 · feat(breakpoint): turnero — demo pública sin servidor, logo oficial y defectos de la batería corregidos
 - be44cac · 2026-10-15 · Merge remote-tracking branch 'origin/ccr-63ed11dc-brcdpp' into ccr-breakpoint-turnero
 - 27d0cf3 · 2026-10-15 · feat(breakpoint): turnero web de canchas — front y back separados, en vivo con el backoffice
 - 4c4a12e · 2026-10-15 · feat(breakpoint): marca real del club en el backoffice (logo SVG, colores medidos, publicaciones)
-- c740bcf · 2026-10-15 · breakpoint: marca autorizada según el dueño (15/10); falta registrarla en ADR-034
-- beefba4 · 2026-10-15 · breakpoint: marca relevada de Instagram (logo, colores medidos, 6 imágenes, fuentes)
-- 15714ae · 2026-10-15 · feat(breakpoint): 5 estilos visuales premium para el backoffice (Chapa por defecto)
-- ff94a69 · 2026-10-15 · feat(breakpoint): backoffice minimalista y fluido (paleta ⌘K, atajos, deshacer, transiciones)
-- dccc93a · 2026-10-15 · perf(breakpoint): la pantalla se actualiza con morph en vez de re-pintar todo
-- 62586fd · 2026-10-15 · feat(breakpoint): segunda vuelta con el pedido del club — cancha y buffet separados, cuenta corriente, PIN, proveedores, caja 12 a 12
 
 ## Migraciones (Prisma)
 
@@ -56,8 +56,8 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 333 |
-| Palabras en `docs/` | 544.123 |
+| Documentos en `docs/` | 334 |
+| Palabras en `docs/` | 549.404 |
 | ADRs | 87 |
 | Nodos en el grafo | 93 _(los 87 ADR + 6 enmiendas)_ |
 

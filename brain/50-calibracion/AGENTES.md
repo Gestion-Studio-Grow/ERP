@@ -7,11 +7,11 @@ tags: [brain/calibracion, brain/roster]
 
 # 👥 Agentes materializados — derivado de `.claude/agents/`
 
-> 25 agentes con charter real. Esta tabla **se deriva de los archivos**, no se
+> 28 agentes con charter real. Esta tabla **se deriva de los archivos**, no se
 > mantiene a mano: el roster narrado (`docs/organizacion/roster-completo-gsg.md`) quedó viejo
 > respecto del repo, que es la enfermedad que el vault existe para curar.
 
-> 🚨 **25 de 25 agentes NO declaran `model:` en su frontmatter.**
+> 🚨 **25 de 28 agentes NO declaran `model:` en su frontmatter.**
 > La capa que ves abajo es **prosa del encabezado**, no una instrucción que el harness honre:
 > al despachar, el subagente **hereda el modelo del padre**. Es la causa exacta de la lección
 > **MP-4** (Opus por herencia) y **MP-9** (modelo mal etiquetado), y deja sin red la regla de
@@ -24,8 +24,10 @@ tags: [brain/calibracion, brain/roster]
 | [auditoria-gsg-gate](../../.claude/agents/auditoria-gsg-gate.md) | Opus SIEMPRE | ❌ | Auditoría GSG (el Gate de Excelencia) — corre SIEMPRE en Opus antes de cada merge a main. Audita SAP Fiori 7 ángulos + […] |
 | [backoffice-ingenieria](../../.claude/agents/backoffice-ingenieria.md) | Sonnet→Opus (override según Plan de Ventana) | ❌ | Ingeniero de Backoffice del ERP — construye e integra al backoffice del ERP la funcionalidad que definió […] |
 | [backoffice-producto](../../.claude/agents/backoffice-producto.md) | Sonnet→Opus (juicio de producto) | ❌ | Analista/PO de Funcionalidad de Backoffice del ERP — define y diseña una funcionalidad nueva del backoffice desde la […] |
+| [brand-guardian](../../.claude/agents/brand-guardian.md) | _sin declarar_ | ✅ | Guardián de la identidad visual de GSG. Úsalo para revisar cualquier cambio de UI contra DESIGN.md y las reglas de […] |
 | [challenger](../../.claude/agents/challenger.md) | Sonnet | ❌ | Challenger / red-team de GSG — desafía con rigor toda propuesta estratégica (la ANTÍTESIS): riesgos, supuestos débiles, […] |
 | [cobro-fiscal](../../.claude/agents/cobro-fiscal.md) | Sonnet → Opus (plata) | ❌ | Cobro & Fiscal de GSG — Mercado Pago, ARCA/AFIP (facturación electrónica), checkout, seña y conciliación. Úsalo para el […] |
+| [code-simplifier](../../.claude/agents/code-simplifier.md) | _sin declarar_ | ✅ | Simplifica código recién escrito sin cambiar su comportamiento. Elimina duplicación, abstracciones innecesarias, […] |
 | [constructor](../../.claude/agents/constructor.md) | Sonnet | ❌ | Constructor de GSG — construye los MVP validados en carpetas aisladas (productos/<slug>/). Úsalo para levantar el […] |
 | [data-dba](../../.claude/agents/data-dba.md) | Opus (irreversible) | ❌ | Data / DBA de GSG — dueño del ciclo de datos y las migraciones de Neon; único que propone tocar la DB de producción. […] |
 | [diseno-marca](../../.claude/agents/diseno-marca.md) | Sonnet | ❌ | Diseño & Marca de GSG — identidad visual, design tokens, branding por tenant y vidriera pública. Úsalo para el […] |
@@ -44,6 +46,7 @@ tags: [brain/calibracion, brain/roster]
 | [sello-marca-gsg](../../.claude/agents/sello-marca-gsg.md) | Opus | ❌ | Guardián del Sello GSG — dentro del equipo de Auditoría GSG, aporta la FILOSOFÍA y VISIÓN de marca a TODOS los […] |
 | [soporte-customer-success](../../.claude/agents/soporte-customer-success.md) | Sonnet (zona humana) | ❌ | Soporte / Customer Success de GSG — soporte y éxito del cliente post-venta (incidencias, adopción, retención) en voz […] |
 | [sre-oncall](../../.claude/agents/sre-oncall.md) | Opus decide / Sonnet ejecuta | ❌ | SRE on-call / SLOs de GSG — formaliza SLOs, guardia y runbook de incidentes; sostiene el "no nos caemos" con código, no […] |
+| [visual-verifier](../../.claude/agents/visual-verifier.md) | _sin declarar_ | ✅ | Verificador visual con Playwright. Úsalo al terminar cualquier pieza de UI para sacar capturas en móvil, tablet y […] |
 
 ---
 

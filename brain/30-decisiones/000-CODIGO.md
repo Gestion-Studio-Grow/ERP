@@ -22,10 +22,10 @@ tags: [brain/indice, brain/codigo]
 
 | Métrica | Valor |
 |---|---:|
-| Archivos de `src/` que citan un ADR | 365 de 1778 |
+| Archivos de `src/` que citan un ADR | 365 de 1781 |
 | Archivos de `prisma/` que citan un ADR | 38 de 90 |
-| Archivos de `scripts/` que citan un ADR | 11 de 47 |
-| Archivos escaneados en total | 1915 |
+| Archivos de `scripts/` que citan un ADR | 11 de 48 |
+| Archivos escaneados en total | 1919 |
 | Archivos que citan algún ADR | 414 |
 | ADR con vínculo (cita desde código **o** ruta citada por el ADR) | 85 de 87 |
 
