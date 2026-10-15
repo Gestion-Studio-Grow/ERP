@@ -1,7 +1,8 @@
 // SITIOS ESTÁTICOS POR NEGOCIO — el ERP sirve, en el subdominio de un negocio, un sitio ya hecho (un
 // HTML de un solo archivo y sus adjuntos) en lugar de la vidriera de React. Hoy: Circuito WPE, cuya demo
-// aprobada es un HTML con el motor de torneo adentro (docs/tenants/circuito-wpe/README.md), y Break Point,
-// el turnero y la gestión del club de pádel (docs/tenants/breakpoint/README.md).
+// aprobada es un HTML con el motor de torneo adentro (docs/tenants/circuito-wpe/README.md), Break Point,
+// el turnero y la gestión del club de pádel (docs/tenants/breakpoint/README.md), y TESVO, la gestión
+// interna de la importadora (docs/tenants/tesvo/GESTION.md) — sólo en /gestion: su vidriera es de React.
 //
 // Dos llaves, las dos por configuración (ninguna es un `if (tenant === X)` en una pantalla):
 //   1. `next.config.ts` reescribe `/`, `/manual.pdf`… hacia `/sitio-estatico/…` sólo cuando el host
@@ -35,6 +36,11 @@ export type SitioEstatico = {
   carpeta: string;
   /** Ruta pública sin la barra inicial (`""` es la raíz) → archivo. */
   archivos: Readonly<Record<string, ArchivoDelSitio>>;
+  /**
+   * `false` cuando el negocio conserva su tienda de React y el sitio sólo suma páginas (TESVO): entonces su
+   * /tienda y su /reserva no se redirigen a la portada. Por defecto el sitio reemplaza la app pública.
+   */
+  reemplazaTienda?: boolean;
 };
 
 const PAGINA: Omit<ArchivoDelSitio, "archivo"> = { tipo: "text/html; charset=utf-8", cache: "private, max-age=300" };
@@ -66,6 +72,19 @@ export const SITIOS_ESTATICOS: readonly SitioEstatico[] = [
       turnero: { archivo: "turnero.html", ...PAGINA },
       club: { archivo: "club.html", ...PAGINA },
     },
+  },
+  {
+    // TESVO Importaciones y Exportaciones (prospecto, demo a costo cero), en tesvo.gsgapp.com.ar/gestion: la gestión
+    // interna (cotizar, depósito, embarques, aduana, cobros, tablero del dueño) en un solo archivo, sin datos reales
+    // ni persistencia. La raíz y la /tienda quedan para su vidriera de React (rama frente/tesvo). Se genera con
+    // src/tenants/tesvo/empaquetar.mjs (docs/tenants/tesvo/GESTION.md).
+    slug: "tesvo",
+    subdominio: "tesvo",
+    carpeta: "src/tenants/tesvo/sitio",
+    archivos: {
+      gestion: { archivo: "gestion.html", ...PAGINA },
+    },
+    reemplazaTienda: false,
   },
 ];
 
@@ -109,7 +128,7 @@ const RUTAS_REEMPLAZADAS = ["/tienda", "/tienda/:resto*", "/reserva", "/reserva/
 export function redireccionesDeSitiosEstaticos(
   sitios: readonly SitioEstatico[] = SITIOS_ESTATICOS,
 ): ReglaDeRedireccion[] {
-  return sitios.flatMap((sitio) =>
+  return sitios.filter((sitio) => sitio.reemplazaTienda !== false).flatMap((sitio) =>
     RUTAS_REEMPLAZADAS.map((source) => ({
       source,
       destination: "/",

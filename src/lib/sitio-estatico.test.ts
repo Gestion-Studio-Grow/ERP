@@ -139,7 +139,7 @@ test("cada archivo registrado existe y su carpeta entra en el trazado de la func
       assert.ok(existsSync(path.join(RAIZ, sitio.carpeta, archivo)), `${sitio.carpeta}/${archivo}`);
     }
   }
-  assert.deepEqual(carpetasParaTrazar(), ["./src/tenants/circuito-wpe/sitio/**/*", "./src/tenants/breakpoint/sitio/**/*"]);
+  assert.deepEqual(carpetasParaTrazar(), ["./src/tenants/circuito-wpe/sitio/**/*", "./src/tenants/breakpoint/sitio/**/*", "./src/tenants/tesvo/sitio/**/*"]);
 });
 
 test("el cuerpo del sitio es el que vio el cliente: el pulido sólo tocó el <head>", () => {
@@ -281,4 +281,39 @@ test("Break Point: el manejador sirve portada, turnero y club sólo al negocio b
   assert.equal((await responderSitioEstatico("circuito-wpe", ["club"], leer)).status, 404);
   assert.equal((await responderSitioEstatico("breakpoint", ["club.html"], leer)).status, 404);
   assert.deepEqual(pedidos, []);
+});
+
+// ───── TESVO: tesvo.gsgapp.com.ar/gestion (sólo la gestión; la vidriera sigue siendo de React) ─────
+
+test("TESVO: sólo /gestion se reescribe y sólo en su host; la raíz y la tienda quedan para su vidriera", () => {
+  const tv = sitioDelNegocio("tesvo");
+  assert.ok(tv);
+  assert.equal(tv.subdominio, "tesvo");
+  assert.deepEqual(Object.keys(tv.archivos), ["gestion"]);
+  const reglas = reescriturasDeSitiosEstaticos().filter((r) => r.has[0].value === patronDeHost("tesvo"));
+  assert.deepEqual(reglas.map((r) => [r.source, r.destination]), [["/gestion", "/sitio-estatico/gestion"]]);
+  const redirige = redireccionesDeSitiosEstaticos().filter((r) => r.has.some((h) => new RegExp(`^${h.value}$`).test("tesvo.gsgapp.com.ar")));
+  assert.deepEqual(redirige, [], "la /tienda de TESVO no se redirige");
+  for (const host of ["tesvox.gsgapp.com.ar", "chestetica.gsgapp.com.ar", "breakpointpadel.gsgapp.com.ar"]) {
+    assert.ok(!reescriturasDeSitiosEstaticos().some((r) => r.source === "/gestion" && new RegExp(`^${r.has[0].value}$`).test(host)), host);
+  }
+});
+
+test("TESVO: el manejador sirve la gestión sólo al negocio tesvo y nunca la raíz", async () => {
+  const { pedidos, leer } = lectorEspia();
+  assert.equal((await responderSitioEstatico("tesvo", ["gestion"], leer)).status, 200);
+  assert.deepEqual(pedidos, ["src/tenants/tesvo/sitio/gestion.html"]);
+  const otro = lectorEspia();
+  assert.equal((await responderSitioEstatico("tesvo", undefined, otro.leer)).status, 404);
+  assert.equal((await responderSitioEstatico("breakpoint", ["gestion"], otro.leer)).status, 404);
+  assert.deepEqual(otro.pedidos, []);
+});
+
+test("TESVO: la gestión empaquetada es una página completa, con sello GSG y sin localhost", () => {
+  const html = readFileSync(path.join(RAIZ, "src/tenants/tesvo/sitio/gestion.html"), "utf8");
+  assert.match(html, /^<!doctype html>\n/i);
+  assert.match(html, /<meta name="generator" content="Gestión Studio Grow">/);
+  assert.match(html, /<meta name="robots" content="noindex">/);
+  assert.doesNotMatch(html, /localhost|127\.0\.0\.1/);
+  assert.doesNotMatch(html, /src="\.\/app\.mjs"/, "el JS va adentro");
 });

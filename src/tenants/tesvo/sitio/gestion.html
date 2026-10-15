@@ -1,0 +1,2510 @@
+<!doctype html>
+<!-- GENERADO por src/tenants/tesvo/empaquetar.mjs desde public/previews/tesvo/gestion/ — no editar a mano -->
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TESVO · Gestión</title>
+<meta name="description" content="Demo de la gestión interna de TESVO: cotizaciones, depósito, embarques, aduana, cobros y tablero del dueño. Datos de ejemplo, no se guarda nada.">
+<meta name="generator" content="Gestión Studio Grow">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#000000">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap">
+<style>
+  /* Marca TESVO (leída de tesvo.com.ar el 07/10/2026, docs/tenants/tesvo): hueso, negro, verde, amarillo resaltador.
+     Sobre verde y amarillo el texto va NEGRO (el blanco no llega a AA). El rojo de error lo agrega GSG. */
+  :root{
+    --hueso:#EDEBE7; --negro:#000; --verde:#71B17F; --amarillo:#FFDE59; --blanco:#FFF;
+    --sobre-negro:#B9B6B0; --sobre-negro-2:#45423D;
+    --tinta:#000; --tinta-2:#3A3834; --tinta-3:#45423D; --suave:#CFCCC6; --linea:#CFCBC4; --borde-campo:#8F8A82;
+    --error:#B3361F; --error-suave:#F6E3DE; --verde-suave:#E2EEE2; --amarillo-suave:#FFF4C2;
+    --fondo:var(--hueso); --panel:var(--blanco); --panel-2:#F6F5F2; --sombra:0 1px 0 var(--linea);
+    --fuente:"Poppins",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
+    --r-panel:24px; --r-campo:14px; --r-pildora:999px;
+    --curva:cubic-bezier(.2,.8,.2,1);
+    --tap:44px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-tema="claro"]){
+      --fondo:#15140F; --panel:#1F1E1B; --panel-2:#272622; --tinta:#EDEBE7; --tinta-2:#CFCCC6; --tinta-3:#B9B6B0;
+      --suave:#45423D; --linea:#3A3834; --borde-campo:#8F8A82; --error:#FF8A73; --error-suave:#3A1D17;
+      --verde-suave:#1F3324; --amarillo-suave:#3A3315; color-scheme: dark;
+    }
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--fondo);color:var(--tinta);font:400 14px/1.5 var(--fuente);min-height:100dvh}
+  button,input,select,textarea{font:inherit;color:inherit}
+  a{color:inherit}
+  :focus-visible{outline:3px solid var(--amarillo);outline-offset:2px;box-shadow:0 0 0 5px var(--negro)}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .saltar{position:absolute;left:var(--s2);top:-60px;background:var(--amarillo);color:var(--negro);padding:var(--s2) var(--s4);border-radius:var(--r-pildora);z-index:20}
+  .saltar:focus{top:var(--s2)}
+
+  /* Cabecera: el logo es tipográfico (TESVO + IMPO · EXPO), como en su sitio */
+  header.barra{position:sticky;top:0;z-index:10;background:var(--negro);color:var(--hueso)}
+  .barra-in{max-width:1280px;margin:0 auto;display:flex;align-items:center;gap:var(--s4);padding:var(--s3) var(--s4);flex-wrap:wrap}
+  .logo{display:flex;flex-direction:column;line-height:1;text-decoration:none;color:var(--hueso)}
+  .logo b{font-weight:800;font-size:24px;letter-spacing:-.04em}
+  .logo small{font-weight:600;font-size:11px;letter-spacing:.16em;margin-top:3px}
+  .logo-sub{font-size:13px;color:var(--sobre-negro);border-left:1px solid var(--sobre-negro-2);padding-left:var(--s3)}
+  .barra .esp{flex:1}
+  .quien{display:flex;align-items:center;gap:var(--s2)}
+  .quien label{font-size:12px;color:var(--sobre-negro)}
+  .quien select{background:var(--negro);color:var(--hueso);border:1px solid var(--sobre-negro-2);border-radius:var(--r-pildora);padding:var(--s2) var(--s3);min-height:var(--tap)}
+  .demo-chip{font-size:12px;font-weight:600;background:var(--amarillo);color:var(--negro);border-radius:var(--r-pildora);padding:var(--s1) var(--s3)}
+
+  nav.pestanas{background:var(--negro);border-top:1px solid var(--sobre-negro-2)}
+  .pestanas-in{position:relative;max-width:1280px;margin:0 auto;display:flex;gap:var(--s1);padding:0 var(--s4);overflow-x:auto;scrollbar-width:none}
+  .pestanas-in::-webkit-scrollbar{display:none}
+  .pestanas button{flex:none;background:none;border:0;color:var(--sobre-negro);padding:var(--s3) var(--s3);min-height:var(--tap);font-weight:600;font-size:14px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+  .pestanas button[aria-current="page"]{color:var(--hueso);border-bottom-color:var(--verde)}
+  .pestanas button:hover{color:var(--hueso)}
+  .pestanas .cuenta{display:inline-block;min-width:20px;margin-left:var(--s1);padding:0 6px;border-radius:var(--r-pildora);background:var(--amarillo);color:var(--negro);font-size:11px;line-height:18px;text-align:center}
+
+  main{max-width:1280px;margin:0 auto;padding:var(--s5) var(--s4) var(--s7)}
+  h1{font-size:27px;font-weight:800;letter-spacing:-.03em;margin:0 0 var(--s1)}
+  h2{font-size:18px;font-weight:800;letter-spacing:-.02em;margin:0 0 var(--s3)}
+  h3{font-size:16px;font-weight:600;margin:0 0 var(--s2)}
+  .bajada{color:var(--tinta-2);margin:0 0 var(--s5);max-width:72ch}
+  .fila{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:center}
+  .grilla{display:grid;gap:var(--s4);grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))}
+  .dos{display:grid;gap:var(--s5);grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
+  @media (max-width:900px){.dos{grid-template-columns:minmax(0,1fr)}}
+
+  .panel{background:var(--panel);border-radius:var(--r-panel);padding:var(--s5);box-shadow:var(--sombra)}
+  .panel + .panel{margin-top:var(--s4)}
+  .kpis{display:grid;gap:var(--s3);grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));margin-bottom:var(--s5)}
+  .kpi{background:var(--panel);border-radius:var(--r-campo);padding:var(--s4)}
+  .kpi .l{font-size:12px;color:var(--tinta-2)}
+  .kpi .v{font-size:27px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  .kpi .s{font-size:12px;color:var(--tinta-2)}
+  .kpi.destacado{background:var(--negro);color:var(--hueso)}
+  .kpi.destacado .l,.kpi.destacado .s{color:var(--sobre-negro)}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-tema="claro"]) .kpi.destacado{background:var(--verde);color:var(--negro)}
+    :root:not([data-tema="claro"]) .kpi.destacado .l,:root:not([data-tema="claro"]) .kpi.destacado .s{color:var(--negro)}
+  }
+
+  /* Bandeja: lo que hay que resolver ahora */
+  .bandeja{list-style:none;margin:0;padding:0;display:grid;gap:var(--s3)}
+  .item{background:var(--panel);border-radius:var(--r-campo);padding:var(--s4);display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--s2) var(--s3);border-left:6px solid var(--linea)}
+  .item.urgente{border-left-color:var(--error)}
+  .item.plata{border-left-color:var(--amarillo)}
+  .item.ok{border-left-color:var(--verde)}
+  .item .ico{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;background:var(--panel-2)}
+  .item.urgente .ico{background:var(--error-suave);color:var(--error)}
+  .item.plata .ico{background:var(--amarillo-suave)}
+  .item.ok .ico{background:var(--verde-suave)}
+  .item .t{font-weight:600}
+  .item .d{color:var(--tinta-2);font-size:13px}
+  .item .acciones{grid-column:2;display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s1)}
+  .rol-chip{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-3);margin-left:var(--s2)}
+
+  /* Botones píldora */
+  .b{display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);min-height:var(--tap);padding:0 var(--s4);border-radius:var(--r-pildora);border:1.5px solid var(--tinta);background:var(--panel);color:var(--tinta);font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;transition:background-color .15s var(--curva),transform .15s var(--curva)}
+  .b:hover{background:var(--panel-2)}
+  .b:active{transform:scale(.98)}
+  .b.primario{background:var(--negro);color:var(--hueso);border-color:var(--negro)}
+  .b.primario:hover{background:var(--tinta-2)}
+  .b.verde{background:var(--verde);color:var(--negro);border-color:var(--verde)}
+  .b.wa{background:var(--verde);color:var(--negro);border-color:var(--verde)}
+  .b.peligro{color:var(--error);border-color:var(--error)}
+  .b.chico{min-height:36px;padding:0 var(--s3);font-size:13px}
+  .b[disabled]{opacity:.45;cursor:not-allowed}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-tema="claro"]) .b.primario{background:var(--hueso);color:var(--negro);border-color:var(--hueso)}
+  }
+
+  /* Campos */
+  .f{display:flex;flex-direction:column;gap:var(--s1);font-size:12px;font-weight:600;color:var(--tinta-2)}
+  .f input,.f select,.f textarea{min-height:var(--tap);border:1.5px solid var(--borde-campo);border-radius:var(--r-campo);padding:var(--s2) var(--s3);background:var(--panel);font-size:14px;font-weight:400;color:var(--tinta)}
+  .f input:focus-visible,.f select:focus-visible{border-color:var(--tinta)}
+  .f.chk{flex-direction:row;align-items:center;gap:var(--s2);font-size:14px;font-weight:400;color:var(--tinta);min-height:var(--tap)}
+  .f.chk input{width:20px;height:20px;min-height:0}
+  .campos{display:grid;gap:var(--s3);grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+  .ayuda{font-size:12px;color:var(--tinta-2);margin:var(--s1) 0 0}
+
+  /* Tablas con scroll propio: el contenedor es relative para que un .sr no ensanche la página */
+  .tabla{position:relative;overflow-x:auto;border-radius:var(--r-campo);background:var(--panel)}
+  table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+  th{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-2);text-align:left;padding:var(--s3);border-bottom:1px solid var(--linea);white-space:nowrap}
+  td{padding:var(--s3);border-bottom:1px solid var(--linea);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  tbody tr.clic{cursor:pointer}
+  tbody tr.clic:hover{background:var(--panel-2)}
+  .codigo{font-family:var(--mono);font-size:12px;white-space:nowrap}
+  .estado{display:inline-block;font-size:12px;font-weight:600;border-radius:var(--r-pildora);padding:2px var(--s2);background:var(--panel-2);white-space:nowrap}
+  .estado.e-listo,.estado.e-entregado{background:var(--verde-suave)}
+  .estado.e-en_aduana,.estado.e-en_transito,.estado.e-embarcado{background:var(--amarillo-suave)}
+  .estado.e-cancelado{background:var(--error-suave);color:var(--error)}
+  .marca{font-size:11px;font-weight:600;color:var(--error)}
+
+  .chips{display:flex;flex-wrap:wrap;gap:var(--s2);margin-bottom:var(--s4)}
+  .chips button{min-height:36px;padding:0 var(--s3);border-radius:var(--r-pildora);border:1.5px solid var(--linea);background:var(--panel);cursor:pointer;font-weight:600;font-size:13px}
+  .chips button[aria-pressed="true"]{background:var(--negro);color:var(--hueso);border-color:var(--negro)}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-tema="claro"]) .chips button[aria-pressed="true"]{background:var(--hueso);color:var(--negro);border-color:var(--hueso)}
+  }
+
+  /* Línea de tiempo del envío */
+  .linea{list-style:none;margin:var(--s3) 0;padding:0;display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:var(--s1)}
+  .linea li{font-size:11px;color:var(--tinta-2);border-top:4px solid var(--linea);padding-top:var(--s2)}
+  .linea li.hecho{border-top-color:var(--verde);color:var(--tinta)}
+  .linea li.actual{border-top-color:var(--negro);color:var(--tinta);font-weight:600}
+  @media (max-width:700px){.linea{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+  .desglose{width:100%;min-width:0;font-size:13px}
+  .desglose td{padding:var(--s1) 0;border:0}
+  .desglose tr.total td{border-top:1px solid var(--linea);padding-top:var(--s2);font-weight:800;font-size:16px}
+  .avisos{list-style:none;padding:0;margin:var(--s3) 0;display:grid;gap:var(--s2)}
+  .avisos li{padding:var(--s2) var(--s3);border-radius:var(--r-campo);background:var(--amarillo-suave);font-size:13px}
+  .avisos li.grave{background:var(--error-suave);color:var(--error);font-weight:600}
+  .avisos li.bien{background:var(--verde-suave)}
+
+  .barras{display:grid;gap:var(--s2)}
+  .barra-h{display:grid;grid-template-columns:140px minmax(0,1fr) 40px;gap:var(--s2);align-items:center;font-size:13px}
+  .barra-h .riel{height:12px;border-radius:var(--r-pildora);background:var(--panel-2);overflow:hidden}
+  .barra-h .riel span{display:block;height:100%;background:var(--verde);border-radius:var(--r-pildora)}
+
+  dialog{border:0;border-radius:var(--r-panel);padding:0;max-width:min(720px,calc(100vw - 2*var(--s4)));width:100%;background:var(--panel);color:var(--tinta)}
+  dialog::backdrop{background:rgba(0,0,0,.55)}
+  .dlg-cab{display:flex;align-items:flex-start;gap:var(--s3);padding:var(--s5) var(--s5) var(--s3)}
+  .dlg-cab h2{margin:0;flex:1}
+  .dlg-cab p{margin:var(--s1) 0 0;color:var(--tinta-2);font-size:13px}
+  .dlg-cuerpo{padding:0 var(--s5) var(--s5);max-height:70dvh;overflow:auto}
+  .dlg-pie{display:flex;flex-wrap:wrap;gap:var(--s2);justify-content:flex-end;padding:var(--s4) var(--s5);border-top:1px solid var(--linea)}
+  .cerrar{background:none;border:0;font-size:22px;line-height:1;width:var(--tap);height:var(--tap);border-radius:50%;cursor:pointer}
+  .cerrar:hover{background:var(--panel-2)}
+
+  .toast{position:fixed;left:50%;bottom:var(--s5);transform:translateX(-50%);background:var(--negro);color:var(--hueso);padding:var(--s3) var(--s5);border-radius:var(--r-pildora);font-weight:600;max-width:calc(100vw - 2*var(--s4));z-index:30;opacity:0;pointer-events:none;transition:opacity .2s var(--curva)}
+  .toast.ver{opacity:1}
+  .toast.error{background:var(--error);color:var(--blanco)}
+
+  footer.pie{max-width:1280px;margin:0 auto;padding:var(--s5) var(--s4) var(--s6);font-size:12px;color:var(--tinta-2);display:flex;flex-wrap:wrap;gap:var(--s3);justify-content:space-between}
+  .vacio{color:var(--tinta-2);padding:var(--s4);text-align:center}
+  /* Con el dedo, todo lo que se toca mide 44 px o más */
+  @media (pointer:coarse){.b.chico,.chips button,.tabla input{min-height:var(--tap)}}
+  @media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+<a class="saltar" href="#principal">Saltar al contenido</a>
+<header class="barra">
+  <div class="barra-in">
+    <a class="logo" href="#hoy" aria-label="TESVO, ir a Hoy"><b>TESVO</b><small>IMPO · EXPO</small></a>
+    <span class="logo-sub">Gestión</span>
+    <span class="esp"></span>
+    <span class="demo-chip" title="Datos inventados: no se guarda nada y nada sale a la calle">Demo</span>
+    <div class="quien">
+      <label for="usuario">Usa</label>
+      <select id="usuario"></select>
+    </div>
+  </div>
+  <nav class="pestanas" aria-label="Secciones">
+    <div class="pestanas-in" id="pestanas"></div>
+  </nav>
+</header>
+<main id="principal" tabindex="-1"></main>
+<footer class="pie">
+  <span>Demo de la gestión de TESVO · datos de ejemplo, sin persistencia ni credenciales. Tarifas y régimen de demostración, a confirmar con TESVO y su despachante.</span>
+  <span>Hecho por Gestión Studio Grow</span>
+</footer>
+<dialog id="dlg" aria-labelledby="dlg-titulo"></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module">
+const M = (() => {
+// MOTOR DE LA GESTIÓN — TESVO Importaciones y Exportaciones (demo del flujo, ADR-028 · demo pública a costo cero).
+//
+// Reingeniería de cómo gestionan por dentro los referentes del rubro: Aerobox y Aerolíneas Argentinas Courier
+// (casilla en Miami, Argentina), los casilleros globales (MyUS, Shipito) y el freight forwarding digital
+// (Flexport, Freightos), adaptada a TESVO: puerta a puerta desde China, Miami y Paraguay, para personas y pymes,
+// con el régimen courier argentino como DATOS editables. Detalle, fuentes y porqué:
+// docs/tenants/tesvo/REINGENIERIA-AEROBOX.md.
+//
+// Reglas de este archivo:
+//   · Puro: no toca el DOM, la red ni el disco. Lo usan la gestión (index.html) y los tests de Node.
+//   · Sin persistencia: el estado vive en memoria (DEMO → VENTA → INVERSIÓN: antes de la venta no se guarda nada).
+//   · La plata en DÓLARES va en CENTAVOS enteros (US$ 12,50 = 1250); la plata en PESOS va en pesos enteros.
+//     Nunca se suma un float de plata.
+//   · Los pesos se miden en GRAMOS enteros y las medidas en centímetros.
+//   · Las fechas son "AAAA-MM-DD" (día civil, sin zona horaria).
+//   · Toda operación devuelve { ok: true, ... } o { ok: false, motivo } en criollo, nunca tira excepción por una
+//     regla de negocio: quien atiende tiene que leer qué pasó, no un error técnico.
+//   · Todo número del régimen y de las tarifas es DE DEMOSTRACIÓN y provisional a confirmar con TESVO y su
+//     despachante. Nada de acá es una tarifa real de TESVO.
+
+// ───────────────────────── catálogos ─────────────────────────
+
+const MEDIOS = Object.freeze({
+  transferencia: "Transferencia",
+  mercadopago: "Mercado Pago",
+  efectivo: "Efectivo",
+  tarjeta: "Tarjeta",
+  usd_efectivo: "Dólares billete",
+});
+
+/** Medios que se cobran en dólares (el resto, en pesos al tipo de cambio del día). */
+const MEDIOS_EN_DOLARES = new Set(["usd_efectivo"]);
+
+const ORIGENES = Object.freeze({ miami: "Miami", china: "China", paraguay: "Paraguay" });
+const VIAS = Object.freeze({ aereo: "Aéreo", maritimo: "Marítimo", terrestre: "Terrestre" });
+
+const REGIMENES = Object.freeze({
+  courier: "Courier (pequeños envíos)",
+  general: "Importación con despachante",
+});
+
+/**
+ * El ciclo de vida de un envío, en orden. Cada estado dice quién lo mueve. Los desvíos (observado, retenido,
+ * diferencia, cancelado) no están en la línea: se marcan aparte para que el envío no pierda su lugar.
+ */
+const ESTADOS = Object.freeze({
+  cotizado: "Cotizado",
+  confirmado: "Confirmado",
+  esperando: "Esperando la compra",
+  en_deposito: "En depósito",
+  embarcado: "Embarcado",
+  en_transito: "En viaje",
+  en_aduana: "En aduana",
+  listo: "Listo para entregar",
+  en_reparto: "En reparto",
+  entregado: "Entregado",
+  cancelado: "Cancelado",
+});
+
+/** La línea de tiempo que ve el cliente (sin cotizado ni cancelado). */
+const LINEA = Object.freeze(["confirmado", "esperando", "en_deposito", "embarcado", "en_transito", "en_aduana", "listo", "en_reparto", "entregado"]);
+
+const ACTIVOS = new Set(["confirmado", "esperando", "en_deposito", "embarcado", "en_transito", "en_aduana", "listo", "en_reparto"]);
+
+const ESTADOS_EMBARQUE = Object.freeze({
+  armando: "Armando",
+  en_transito: "En viaje",
+  arribado: "Arribó",
+  cerrado: "Cerrado",
+});
+
+const ROLES = Object.freeze({ atencion: "Atención", deposito: "Depósito", duenio: "Dueño/a" });
+
+/**
+ * Qué puede hacer cada rol. Atención cotiza, confirma, cobra y entrega; Depósito recibe, pesa y arma embarques;
+ * el dueño ve todo y es el único que toca tarifas, régimen, bonificaciones y devoluciones de seña.
+ */
+const PERMISOS = Object.freeze({
+  atencion: Object.freeze(["cotizar", "confirmar", "cobrar", "entregar", "clientes", "aduana", "avisar", "cancelar"]),
+  deposito: Object.freeze(["recibir", "asignar", "embarcar", "despachar", "aduana", "avisar"]),
+  duenio: Object.freeze([
+    "cotizar", "confirmar", "cobrar", "entregar", "clientes", "aduana", "avisar", "cancelar",
+    "recibir", "asignar", "embarcar", "despachar",
+    "tarifas", "bonificar", "devolver", "metricas", "usuarios",
+  ]),
+});
+
+// ───────────────────────── utilidades ─────────────────────────
+
+function sumarDias(fecha, dias) {
+  const [a, m, d] = fecha.split("-").map(Number);
+  return new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10);
+}
+
+function diasEntre(desde, hasta) {
+  const [a1, m1, d1] = desde.split("-").map(Number);
+  const [a2, m2, d2] = hasta.split("-").map(Number);
+  return Math.round((Date.UTC(a2, m2 - 1, d2) - Date.UTC(a1, m1 - 1, d1)) / 86400000);
+}
+
+/** US$ 1.234,50 — `c` en centavos. */
+function usd(c) {
+  const v = Math.round(c);
+  const abs = Math.abs(v);
+  const entero = Math.floor(abs / 100).toLocaleString("es-AR");
+  const dec = String(abs % 100).padStart(2, "0");
+  return `${v < 0 ? "-" : ""}US$ ${entero},${dec}`;
+}
+
+/** $ 1.234 — `n` en pesos enteros. */
+function pesos(n) {
+  const v = Math.round(n);
+  return (v < 0 ? "-$ " : "$ ") + Math.abs(v).toLocaleString("es-AR");
+}
+
+/** 12,4 kg — `g` en gramos. */
+function kg(g) {
+  return `${(Math.round(g / 100) / 10).toLocaleString("es-AR")} kg`;
+}
+
+/** Centavos de dólar → pesos enteros al tipo de cambio `tc` (pesos por dólar). */
+const aPesos = (centavos, tc) => Math.round((centavos * tc) / 100);
+/** Pesos → centavos de dólar al tipo de cambio `tc`. */
+const aCentavos = (p, tc) => Math.round((p * 100) / tc);
+
+const porcentaje = (base, tasa) => Math.round(base * tasa);
+
+let secuencia = 0;
+const nuevoId = (prefijo) => `${prefijo}${(++secuencia).toString(36)}`;
+
+function registrar(estado, texto, fecha) {
+  estado.log.unshift({ fecha: fecha ?? null, texto });
+  if (estado.log.length > 300) estado.log.length = 300;
+}
+
+/** 17/10 — para los textos que lee la gente. */
+const dm = (f) => (f ? `${Number(f.slice(8, 10))}/${Number(f.slice(5, 7))}` : "");
+
+const normalizar = (x) => String(x ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
+// ───────────────────────── configuración de demo ─────────────────────────
+
+/**
+ * El régimen courier como DATOS (ADR-104 en la rama de TESVO: «el régimen se versiona como dato»).
+ * Valores públicos a la fecha de la investigación, PROVISIONALES: los valida el despachante de TESVO.
+ */
+const REGIMEN_DEMO = Object.freeze({
+  topeEnvioCentavos: 300000,      // US$ 3.000 FOB por envío (RG 5608, mod. RG 5883/2026)
+  franquiciaCentavos: 40000,      // primeros US$ 400 FOB sin derechos ni tasa de estadística (Dto. 1065/2024 y 604/2026)
+  enviosPorAnio: 5,               // envíos CON franquicia por persona y año calendario; después se paga sobre todo
+  derechosExcedente: 0.2,         // DEMO: el real sale de la posición arancelaria (NCM) de cada producto
+  tasaEstadistica: 0.03,          // 3 % con tope (Dto. 1140/2024)
+  topeTasaEstadisticaCentavos: 18000,
+  iva: 0.21,                      // se paga SIEMPRE, también dentro de la franquicia
+  pesoMaxGramos: 50000,           // 50 kg por paquete (RG 5631/2025)
+  unidadesMaxPorProducto: 3,      // más de 3 de la misma especie = presunción de fin comercial
+  vigenteDesde: "2026-07-30",
+  fuente: "Dto. 1065/2024 y 604/2026 · RG 5608, 5631 y 5883 de ARCA — valores de DEMO, los valida el despachante",
+});
+
+/**
+ * Tarifas por ruta (origen × vía). `porKgCentavos` sobre el peso que se cobra (el mayor entre real y volumétrico);
+ * `divisorVolumetrico`: cm³ por kg (aéreo 5000, marítimo por CBM). Valores de DEMOSTRACIÓN.
+ */
+const TARIFAS_DEMO = Object.freeze([
+  { id: "miami-aereo", origen: "miami", via: "aereo", porKgCentavos: 2500, minimoGramos: 1000, divisorVolumetrico: 5000, dias: [7, 12], regimenes: ["courier", "general"] },
+  { id: "china-aereo", origen: "china", via: "aereo", porKgCentavos: 3800, minimoGramos: 1000, divisorVolumetrico: 5000, dias: [12, 20], regimenes: ["courier", "general"] },
+  { id: "china-maritimo", origen: "china", via: "maritimo", porCbmCentavos: 45000, minimoCbmMilesimas: 1000, dias: [45, 60], regimenes: ["general"] },
+  { id: "paraguay-terrestre", origen: "paraguay", via: "terrestre", porKgCentavos: 800, minimoGramos: 1000, divisorVolumetrico: 4000, dias: [3, 6], regimenes: ["courier", "general"] },
+]);
+
+const CONFIG_DEMO = Object.freeze({
+  tipoCambio: 1450,                 // pesos por dólar, lo carga el dueño cada día
+  honorarioTasa: 0.08,              // 8 % del valor de la mercadería
+  honorarioMinimoCentavos: 3000,    // US$ 30
+  despachanteCentavos: 25000,       // US$ 250 por operación con despachante (régimen general)
+  seguroTasa: 0.015,                // 1,5 % del valor, opcional
+  manejoPorPaqueteCentavos: 1000,   // US$ 10 por paquete recibido (manejo documental)
+  almacenajeDiasGratis: 30,
+  almacenajePorDiaCentavos: 100,    // US$ 1 por paquete por día pasados los gratis
+  senaTasa: 0.3,                    // 30 % de seña para congelar el tipo de cambio
+  validezCotizacionDias: 3,
+  toleranciaPesoTasa: 0.05,         // hasta 5 % de diferencia no se recotiza
+  avisoAlmacenajeDias: 5,           // avisar N días antes de que empiece a cobrarse
+});
+
+// ───────────────────────── estado ─────────────────────────
+
+function crearEstado({ config = CONFIG_DEMO, regimen = REGIMEN_DEMO, tarifas = TARIFAS_DEMO, clientes = [], usuarios = USUARIOS_DEMO, anio = 2026 } = {}) {
+  return {
+    config: { ...config },
+    regimen: { ...regimen },
+    tarifas: tarifas.map((t) => ({ ...t })),
+    clientes: clientes.map((c) => ({ envios: [], ...c })),
+    usuarios: usuarios.map((u) => ({ ...u })),
+    cotizaciones: [],
+    envios: [],
+    paquetes: [],
+    embarques: [],
+    caja: [],
+    log: [],
+    numerador: { anio, n: 0 },
+  };
+}
+
+const USUARIOS_DEMO = Object.freeze([
+  { id: "u-sole", nombre: "Sole", rol: "atencion", pin: "1234" },
+  { id: "u-nico", nombre: "Nico", rol: "deposito", pin: "2345" },
+  { id: "u-duenio", nombre: "Dueño", rol: "duenio", pin: "9999" },
+]);
+
+const usuario = (estado, id) => estado.usuarios.find((u) => u.id === id) ?? null;
+const cliente = (estado, id) => estado.clientes.find((c) => c.id === id) ?? null;
+const envio = (estado, id) => estado.envios.find((e) => e.id === id || e.codigo === id) ?? null;
+const paquete = (estado, id) => estado.paquetes.find((p) => p.id === id) ?? null;
+const embarque = (estado, id) => estado.embarques.find((b) => b.id === id) ?? null;
+const tarifa = (estado, id) => estado.tarifas.find((t) => t.id === id) ?? null;
+
+function puede(estado, usuarioId, accion) {
+  const u = usuario(estado, usuarioId);
+  return !!u && u.activo !== false && (PERMISOS[u.rol] ?? []).includes(accion);
+}
+
+function verificarPin(estado, usuarioId, pin) {
+  const u = usuario(estado, usuarioId);
+  if (!u || u.activo === false) return { ok: false, motivo: "Ese usuario no tiene acceso." };
+  if (String(pin ?? "").trim() !== u.pin) return { ok: false, motivo: "PIN incorrecto." };
+  return { ok: true, usuario: u };
+}
+
+/** Permiso del rol y, si la operación es sensible, el PIN de quien la hace. */
+function autorizar(estado, { usuarioId, pin } = {}, accion, conPin = false) {
+  const u = usuario(estado, usuarioId);
+  if (!u) return { ok: false, motivo: "Elegí quién está usando el sistema." };
+  if (!puede(estado, usuarioId, accion)) return { ok: false, motivo: `${ROLES[u.rol]} no puede hacer esto: lo autoriza el dueño.` };
+  if (conPin) {
+    const v = verificarPin(estado, usuarioId, pin);
+    if (!v.ok) return v;
+  }
+  return { ok: true, usuario: u };
+}
+
+// ───────────────────────── cliente: casilla y cupo ─────────────────────────
+
+/** Número de casilla que el cliente pone como "dirección" en la tienda: TV-1024. */
+function casilla(n) {
+  return `TV-${String(n).padStart(4, "0")}`;
+}
+
+function altaCliente(estado, { nombre, tipo = "persona", doc = "", tel = "", email = "" }, auth, hoy) {
+  const a = autorizar(estado, auth, "clientes");
+  if (!a.ok) return a;
+  const n = normalizar(nombre);
+  if (!n) return { ok: false, motivo: "Falta el nombre." };
+  if (doc && estado.clientes.some((c) => c.doc && c.doc.replace(/\D/g, "") === doc.replace(/\D/g, ""))) {
+    return { ok: false, motivo: "Ya hay un cliente con ese CUIT/CUIL." };
+  }
+  const numero = 1000 + estado.clientes.length + 1;
+  const c = { id: nuevoId("c-"), nombre: nombre.trim(), tipo, doc, tel, email, casilla: casilla(numero), alta: hoy, envios: [] };
+  estado.clientes.push(c);
+  registrar(estado, `Alta de ${c.nombre} (casilla ${c.casilla}).`, hoy);
+  return { ok: true, cliente: c };
+}
+
+/**
+ * Envíos courier del cliente en el año calendario (los que salieron por courier y no se cancelaron).
+ * El cupo es por persona: una pyme importa por régimen general y no tiene cupo.
+ */
+function cupoCourier(estado, clienteId, anio = estado.numerador.anio) {
+  const c = cliente(estado, clienteId);
+  if (!c) return { usados: 0, total: estado.regimen.enviosPorAnio, quedan: estado.regimen.enviosPorAnio, aplica: false };
+  const usados = estado.envios.filter((e) =>
+    e.clienteId === clienteId && e.regimen === "courier" && e.estado !== "cancelado" && e.estado !== "cotizado" &&
+    String(e.confirmadoEl ?? "").startsWith(String(anio)),
+  ).length;
+  const total = estado.regimen.enviosPorAnio;
+  return { usados, total, quedan: Math.max(0, total - usados), aplica: c.tipo === "persona" };
+}
+
+// ───────────────────────── cotización ─────────────────────────
+
+/** Peso volumétrico en gramos de una caja de l × a × h cm. */
+function pesoVolumetrico({ l = 0, a = 0, h = 0 } = {}, divisor = 5000) {
+  if (!(l > 0 && a > 0 && h > 0) || !(divisor > 0)) return 0;
+  return Math.round(((l * a * h) / divisor) * 1000);
+}
+
+/** Lo que se cobra: el mayor entre el peso real y el volumétrico, con el mínimo de la ruta. */
+function pesoACobrar(t, { gramos = 0, medidas = null } = {}) {
+  const vol = pesoVolumetrico(medidas ?? {}, t.divisorVolumetrico);
+  return Math.max(gramos, vol, t.minimoGramos ?? 0);
+}
+
+/** Metros cúbicos en milésimas (1 CBM = 1000). */
+function cbmMilesimas({ l = 0, a = 0, h = 0 } = {}) {
+  return Math.round((l * a * h) / 1000);
+}
+
+const valorItems = (items) => items.reduce((s, it) => s + Math.round(it.valorCentavos) * Math.max(1, it.unidades ?? 1), 0);
+
+/**
+ * Impuestos ESTIMADOS del régimen courier (los liquida la aduana):
+ *   · con franquicia, los primeros US$ 400 FOB no pagan derechos ni tasa de estadística; el excedente, sí;
+ *   · sin franquicia (empresa, o persona que ya usó sus 5 envíos del año), derechos y tasa sobre todo;
+ *   · el IVA se paga siempre, sobre el valor en aduana (CIF) más derechos y tasa.
+ * `fobCentavos` = valor de la mercadería; `cifCentavos` = mercadería + flete + seguro.
+ */
+function impuestosCourier(regimen, fobCentavos, cifCentavos = fobCentavos, { conFranquicia = true } = {}) {
+  const libre = conFranquicia ? regimen.franquiciaCentavos : 0;
+  const excedente = Math.max(0, fobCentavos - libre);
+  const derechos = porcentaje(excedente, regimen.derechosExcedente);
+  const tasa = Math.min(porcentaje(excedente, regimen.tasaEstadistica), regimen.topeTasaEstadisticaCentavos);
+  const iva = porcentaje(cifCentavos + derechos + tasa, regimen.iva);
+  return { conFranquicia, excedente, derechos, tasa, iva, total: derechos + tasa + iva };
+}
+
+/**
+ * Cotiza un envío. No guarda nada: devuelve el desglose y los avisos.
+ * @param {object} estado
+ * @param {{ tarifaId: string, regimen?: "courier"|"general", items: {descripcion:string, valorCentavos:number, unidades?:number, categoria?:string}[],
+ *           gramos?: number, medidas?: {l:number,a:number,h:number}, seguro?: boolean, clienteId?: string, paquetes?: number }} pedido
+ */
+function cotizar(estado, pedido) {
+  const t = tarifa(estado, pedido.tarifaId);
+  if (!t) return { ok: false, motivo: "Elegí desde dónde y por qué vía." };
+  const items = (pedido.items ?? []).filter((it) => it && it.valorCentavos > 0);
+  if (!items.length) return { ok: false, motivo: "Cargá al menos un producto con su valor." };
+  const regimen = pedido.regimen ?? (t.regimenes.includes("courier") ? "courier" : "general");
+  if (!t.regimenes.includes(regimen)) {
+    return { ok: false, motivo: `${ORIGENES[t.origen]} por ${VIAS[t.via].toLowerCase()} va sólo con despachante (régimen general).` };
+  }
+  const cfg = estado.config;
+  const R = estado.regimen;
+  const valor = valorItems(items);
+
+  // Flete
+  let flete, cobrado = null, cbm = null;
+  if (t.porCbmCentavos) {
+    cbm = Math.max(cbmMilesimas(pedido.medidas ?? {}), t.minimoCbmMilesimas ?? 0);
+    flete = Math.round((t.porCbmCentavos * cbm) / 1000);
+  } else {
+    cobrado = pesoACobrar(t, { gramos: pedido.gramos ?? 0, medidas: pedido.medidas });
+    flete = Math.round((t.porKgCentavos * cobrado) / 1000);
+  }
+  const seguro = pedido.seguro ? porcentaje(valor, cfg.seguroTasa) : 0;
+  const honorario = Math.max(cfg.honorarioMinimoCentavos, porcentaje(valor, cfg.honorarioTasa));
+  const manejo = cfg.manejoPorPaqueteCentavos * Math.max(1, pedido.paquetes ?? 1);
+  const despachante = regimen === "general" ? cfg.despachanteCentavos : 0;
+  const c = pedido.clienteId ? cliente(estado, pedido.clienteId) : null;
+  const cupo = c ? cupoCourier(estado, c.id) : null;
+  const conFranquicia = !(c?.tipo === "pyme") && !(cupo?.aplica && cupo.quedan === 0);
+  const impuestos = regimen === "courier" ? impuestosCourier(R, valor, valor + flete + seguro, { conFranquicia }) : null;
+  const servicio = flete + seguro + honorario + manejo + despachante;
+  const total = servicio + (impuestos?.total ?? 0);
+
+  // Avisos: lo que el cliente tiene que saber ANTES de comprar.
+  const avisos = [];
+  if (regimen === "courier") {
+    if (valor > R.topeEnvioCentavos) {
+      avisos.push({ tipo: "tope", grave: true, texto: `Pasa el tope de ${usd(R.topeEnvioCentavos)} por envío del courier. Partilo en varios envíos o va con despachante.` });
+    }
+    if ((pedido.gramos ?? 0) > R.pesoMaxGramos) {
+      avisos.push({ tipo: "peso", grave: false, texto: `Pasa los ${kg(R.pesoMaxGramos)}: va en más de un bulto (el tope del courier es por paquete).` });
+    }
+    const repetidos = items.filter((it) => (it.unidades ?? 1) > R.unidadesMaxPorProducto);
+    if (repetidos.length) {
+      avisos.push({ tipo: "unidades", grave: true, texto: `Más de ${R.unidadesMaxPorProducto} unidades iguales de «${repetidos[0].descripcion}»: la aduana lo toma como comercial. Va con despachante.` });
+    }
+    if (c?.tipo === "pyme") {
+      avisos.push({ tipo: "pyme", grave: false, texto: "Una empresa por courier paga todo sin franquicia y, si es responsable inscripta, no computa ese IVA: con despachante suele convenir." });
+    } else if (cupo?.aplica && cupo.quedan === 0) {
+      avisos.push({ tipo: "cupo", grave: false, texto: `${c.nombre} ya usó sus ${cupo.total} envíos con franquicia del año: este paga sobre el total.` });
+    } else if (cupo?.aplica && cupo.quedan === 1) {
+      avisos.push({ tipo: "cupo", grave: false, texto: `Es el último envío con franquicia del año de ${c.nombre}.` });
+    }
+    if (impuestos?.conFranquicia && impuestos.excedente === 0) {
+      avisos.push({ tipo: "franquicia", grave: false, texto: `Entra en la franquicia de ${usd(R.franquiciaCentavos)}: sin derechos, sólo IVA.` });
+    }
+  }
+  const restringidos = items.filter((it) => CATEGORIAS_RESTRINGIDAS[it.categoria]);
+  for (const it of restringidos) {
+    const r = CATEGORIAS_RESTRINGIDAS[it.categoria];
+    avisos.push({ tipo: "restringido", grave: r.prohibido, texto: `«${it.descripcion}»: ${r.texto}` });
+  }
+
+  return {
+    ok: true,
+    cotizacion: {
+      tarifaId: t.id, origen: t.origen, via: t.via, regimen, dias: t.dias,
+      valor, flete, seguro, honorario, manejo, despachante, impuestos, servicio, total,
+      pesoCobradoGramos: cobrado, cbmMilesimas: cbm,
+      tipoCambio: cfg.tipoCambio, totalPesos: aPesos(total, cfg.tipoCambio),
+      items: items.map((it) => ({ ...it })),
+      gramos: pedido.gramos ?? 0, medidas: pedido.medidas ? { ...pedido.medidas } : null, conSeguro: !!pedido.seguro,
+    },
+    avisos,
+    bloqueado: avisos.some((a) => a.grave),
+  };
+}
+
+/**
+ * Categorías que el courier no admite o que necesitan intervención de un organismo. Lista corta de DEMO;
+ * la completa la valida el despachante.
+ */
+const CATEGORIAS_RESTRINGIDAS = Object.freeze({
+  baterias: { prohibido: false, texto: "las baterías de litio sueltas no vuelan; dentro del equipo, sí, declaradas." },
+  alimentos: { prohibido: false, texto: "alimentos necesitan intervención de INAL/SENASA." },
+  medicamentos: { prohibido: true, texto: "medicamentos no entran por courier sin receta y autorización de ANMAT." },
+  cosmeticos: { prohibido: false, texto: "cosméticos con límite de unidades e intervención de ANMAT." },
+  armas: { prohibido: true, texto: "armas y réplicas no se importan por courier." },
+  telefonia: { prohibido: false, texto: "equipos con radio (celulares, routers) pueden pedir homologación de ENACOM." },
+});
+
+const CATEGORIAS = Object.freeze({
+  general: "General",
+  electronica: "Electrónica",
+  ropa: "Ropa y calzado",
+  repuestos: "Repuestos",
+  baterias: "Baterías",
+  alimentos: "Alimentos",
+  medicamentos: "Medicamentos",
+  cosmeticos: "Cosméticos",
+  telefonia: "Celulares y radio",
+  armas: "Armas o réplicas",
+});
+
+/**
+ * INNOVACIÓN — «Partir para ahorrar»: reparte los productos en envíos courier para que cada uno quede lo más
+ * cerca posible de la franquicia y sin pasar el tope, respetando el cupo que le queda al cliente.
+ * Devuelve los grupos y cuánto se ahorra en impuestos contra mandar todo junto. Heurística (primero el más caro,
+ * al grupo que menos impuesto agregue); el despachante valida que la partición sea legítima (compras distintas).
+ */
+function partirParaAhorrar(estado, items, { cupo = Infinity, fleteCentavosPorEnvio = 0 } = {}) {
+  const R = estado.regimen;
+  const unidades = [];
+  for (const it of items) for (let i = 0; i < Math.max(1, it.unidades ?? 1); i++) unidades.push({ descripcion: it.descripcion, valorCentavos: it.valorCentavos });
+  if (!unidades.length) return { ok: false, motivo: "No hay productos para repartir." };
+  if (unidades.some((u) => u.valorCentavos > R.topeEnvioCentavos)) {
+    return { ok: false, motivo: `Hay un producto que solo pasa el tope de ${usd(R.topeEnvioCentavos)}: va con despachante.` };
+  }
+  unidades.sort((a, b) => b.valorCentavos - a.valorCentavos);
+  const maxGrupos = Math.max(1, Math.min(cupo, unidades.length));
+  const grupos = [];
+  const impuestoDe = (v) => impuestosCourier(R, v, v + fleteCentavosPorEnvio).total;
+  for (const u of unidades) {
+    let mejor = -1, mejorCosto = Infinity;
+    grupos.forEach((g, i) => {
+      const nuevo = g.valor + u.valorCentavos;
+      if (nuevo > R.topeEnvioCentavos) return;
+      const costo = impuestoDe(nuevo) - impuestoDe(g.valor);
+      if (costo < mejorCosto) { mejor = i; mejorCosto = costo; }
+    });
+    const costoNuevo = impuestoDe(u.valorCentavos);
+    if (grupos.length < maxGrupos && (mejor === -1 || costoNuevo < mejorCosto)) {
+      grupos.push({ valor: u.valorCentavos, items: [u] });
+    } else if (mejor >= 0) {
+      grupos[mejor].valor += u.valorCentavos;
+      grupos[mejor].items.push(u);
+    } else {
+      return { ok: false, motivo: `No alcanza el cupo: harían falta más de ${maxGrupos} envíos sin pasar el tope.` };
+    }
+  }
+  const total = unidades.reduce((s, u) => s + u.valorCentavos, 0);
+  const juntos = total <= R.topeEnvioCentavos ? impuestoDe(total) : null;
+  const partido = grupos.reduce((s, g) => s + impuestoDe(g.valor), 0);
+  return {
+    ok: true,
+    grupos: grupos.map((g) => ({ valor: g.valor, impuestos: impuestoDe(g.valor), items: g.items })),
+    impuestosJuntos: juntos,
+    impuestosPartido: partido,
+    ahorro: juntos == null ? null : juntos - partido,
+    fletesExtra: (grupos.length - 1) * fleteCentavosPorEnvio,
+  };
+}
+
+/** Guarda la cotización para el cliente (lead), con vencimiento. */
+function guardarCotizacion(estado, pedido, { clienteId = null, contacto = "" } = {}, auth, hoy) {
+  const a = autorizar(estado, auth, "cotizar");
+  if (!a.ok) return a;
+  const r = cotizar(estado, { ...pedido, clienteId });
+  if (!r.ok) return r;
+  const q = {
+    id: nuevoId("q-"), clienteId, contacto, fecha: hoy, vence: sumarDias(hoy, estado.config.validezCotizacionDias),
+    ...r.cotizacion, avisos: r.avisos, estado: "abierta",
+  };
+  estado.cotizaciones.unshift(q);
+  registrar(estado, `Cotización ${usd(q.total)} para ${clienteId ? cliente(estado, clienteId)?.nombre : contacto || "consulta"}.`, hoy);
+  return { ok: true, cotizacion: q };
+}
+
+const cotizacionVencida = (q, hoy) => q.estado === "abierta" && hoy > q.vence;
+
+// ───────────────────────── confirmar y cobrar ─────────────────────────
+
+function codigoEnvio(estado) {
+  estado.numerador.n += 1;
+  const n = String(estado.numerador.n).padStart(4, "0");
+  // dígito de control para que un código tipeado mal no encuentre otro envío
+  const base = `${estado.numerador.anio}${n}`;
+  const control = [...base].reduce((s, d, i) => s + Number(d) * (i % 2 ? 3 : 1), 0) % 10;
+  return `TV-${estado.numerador.anio}-${n}-${control}`;
+}
+
+function validarCodigo(codigo) {
+  const m = /^TV-(\d{4})-(\d{4})-(\d)$/.exec(String(codigo ?? "").trim().toUpperCase());
+  if (!m) return false;
+  const base = `${m[1]}${m[2]}`;
+  return [...base].reduce((s, d, i) => s + Number(d) * (i % 2 ? 3 : 1), 0) % 10 === Number(m[3]);
+}
+
+/**
+ * El cliente acepta: nace el envío con la cotización congelada. Si hay seña ≥ la del config, el tipo de cambio
+ * queda congelado para el saldo; sin seña, el saldo se cobra al cambio del día en que se paga.
+ */
+function confirmarEnvio(estado, { cotizacionId, clienteId }, auth, hoy) {
+  const a = autorizar(estado, auth, "confirmar");
+  if (!a.ok) return a;
+  const q = estado.cotizaciones.find((x) => x.id === cotizacionId);
+  if (!q) return { ok: false, motivo: "No encuentro la cotización." };
+  if (q.estado !== "abierta") return { ok: false, motivo: "Esa cotización ya se usó o se cerró." };
+  if (cotizacionVencida(q, hoy)) return { ok: false, motivo: `La cotización venció el ${dm(q.vence)}: recotizá con el cambio de hoy.` };
+  const c = cliente(estado, clienteId ?? q.clienteId);
+  if (!c) return { ok: false, motivo: "Para confirmar hace falta la ficha del cliente (con CUIT/CUIL)." };
+  const r = cotizar(estado, { tarifaId: q.tarifaId, regimen: q.regimen, items: q.items, gramos: q.gramos, medidas: q.medidas, seguro: q.conSeguro, clienteId: c.id });
+  if (!r.ok) return r;
+  const graves = r.avisos.filter((x) => x.grave);
+  if (graves.length) return { ok: false, motivo: graves[0].texto };
+  const e = {
+    id: nuevoId("e-"), codigo: codigoEnvio(estado), clienteId: c.id, estado: "confirmado", confirmadoEl: hoy,
+    regimen: q.regimen, tarifaId: q.tarifaId, origen: q.origen, via: q.via,
+    cotizacion: { ...q, avisos: undefined }, ajustes: [], pagos: [], paquetes: [], eventos: [], embarqueId: null,
+    tcCongelado: null, desvio: null, entregaIntentos: 0, retenerHasta: null,
+  };
+  e.eventos.push({ fecha: hoy, estado: "confirmado", texto: "Confirmado por el cliente." });
+  estado.envios.unshift(e);
+  c.envios.push(e.id);
+  q.estado = "confirmada";
+  q.envioId = e.id;
+  registrar(estado, `${c.nombre} confirmó el envío ${e.codigo}.`, hoy);
+  return { ok: true, envio: e };
+}
+
+/** Lo que vale el envío hoy: la cotización más los ajustes (diferencia de peso, almacenaje, bonificaciones). */
+function totalEnvio(e) {
+  return e.cotizacion.total + e.ajustes.reduce((s, x) => s + x.centavos, 0);
+}
+
+function pagadoEnvio(e) {
+  return e.pagos.reduce((s, p) => s + p.centavos, 0);
+}
+
+function saldoEnvio(e) {
+  return totalEnvio(e) - pagadoEnvio(e);
+}
+
+/** Tipo de cambio que se usa para cobrar el saldo de este envío hoy. */
+function tcParaCobrar(estado, e) {
+  return e.tcCongelado ?? estado.config.tipoCambio;
+}
+
+/**
+ * Cobra un pago. `monto` en la moneda del medio: pesos enteros para transferencia/MP/efectivo/tarjeta,
+ * centavos de dólar para dólares billete. Lo que entra queda en la caja en su moneda.
+ */
+function cobrar(estado, envioId, { medio, monto, concepto = "" }, auth, hoy) {
+  const a = autorizar(estado, auth, "cobrar");
+  if (!a.ok) return a;
+  const e = envio(estado, envioId);
+  if (!e) return { ok: false, motivo: "No encuentro el envío." };
+  if (e.estado === "cancelado") return { ok: false, motivo: "El envío está cancelado." };
+  if (!MEDIOS[medio]) return { ok: false, motivo: "Elegí el medio de pago." };
+  const valor = Math.round(Number(monto));
+  if (!(valor > 0)) return { ok: false, motivo: "Poné el monto." };
+  const enDolares = MEDIOS_EN_DOLARES.has(medio);
+  const tc = tcParaCobrar(estado, e);
+  const centavos = enDolares ? valor : aCentavos(valor, tc);
+  const saldo = saldoEnvio(e);
+  // Tolerancia de redondeo: medio dólar por el cambio a pesos.
+  if (centavos > saldo + 50) {
+    return { ok: false, motivo: `Es más que el saldo (${usd(saldo)} = ${pesos(aPesos(saldo, tc))}).` };
+  }
+  const pago = { id: nuevoId("p-"), fecha: hoy, medio, moneda: enDolares ? "USD" : "ARS", monto: valor, centavos: Math.min(centavos, saldo), tc, concepto, por: a.usuario.id };
+  e.pagos.push(pago);
+  estado.caja.unshift({ ...pago, envioId: e.id, tipo: "ingreso" });
+  // La seña congela el cambio para el saldo.
+  if (!e.tcCongelado && pagadoEnvio(e) >= porcentaje(totalEnvio(e), estado.config.senaTasa)) {
+    e.tcCongelado = tc;
+  }
+  if (e.estado === "confirmado") moverEstado(e, "esperando", hoy, "Seña recibida: ya podés comprar y mandar a la casilla.");
+  registrar(estado, `Cobro ${enDolares ? usd(valor) : pesos(valor)} (${MEDIOS[medio]}) en ${e.codigo}.`, hoy);
+  return { ok: true, pago, saldo: saldoEnvio(e) };
+}
+
+function moverEstado(e, nuevo, fecha, texto) {
+  e.estado = nuevo;
+  e.eventos.push({ fecha, estado: nuevo, texto });
+}
+
+// ───────────────────────── depósito: recibir, pesar, asignar ─────────────────────────
+
+/** El cliente avisa qué compró y con qué tracking del vendedor (pre-alerta). */
+function prealertar(estado, envioId, { tracking, tienda = "", descripcion = "" }, hoy) {
+  const e = envio(estado, envioId);
+  if (!e) return { ok: false, motivo: "No encuentro el envío." };
+  const t = String(tracking ?? "").trim().toUpperCase();
+  if (t.length < 6) return { ok: false, motivo: "El tracking del vendedor tiene que tener al menos 6 caracteres." };
+  e.prealertas = e.prealertas ?? [];
+  if (estado.envios.some((x) => (x.prealertas ?? []).some((p) => p.tracking === t))) return { ok: false, motivo: "Ese tracking ya está avisado en otro envío." };
+  e.prealertas.push({ tracking: t, tienda, descripcion, fecha: hoy });
+  // Si el paquete ya había llegado sin dueño, se asigna solo.
+  const huerfano = estado.paquetes.find((p) => p.tracking === t && !p.envioId);
+  if (huerfano) asignarInterno(estado, huerfano, e, hoy);
+  return { ok: true, asignado: !!huerfano };
+}
+
+/**
+ * Depósito recibe un bulto: tracking, peso, medidas, estado. Se busca el dueño por la pre-alerta y, si no,
+ * por la casilla escrita en la etiqueta. Si no aparece, queda «sin dueño» en la bandeja (no se embarca).
+ */
+function recibirPaquete(estado, { tracking, gramos, medidas = null, casillaEtiqueta = "", danado = false, contenido = "", categoria = "general", deposito = "miami" }, auth, hoy) {
+  const a = autorizar(estado, auth, "recibir");
+  if (!a.ok) return a;
+  const t = String(tracking ?? "").trim().toUpperCase();
+  if (!t) return { ok: false, motivo: "Escaneá o tipeá el tracking de la etiqueta." };
+  if (estado.paquetes.some((p) => p.tracking === t)) return { ok: false, motivo: "Ese tracking ya se recibió: revisá si es un duplicado." };
+  const g = Math.round(Number(gramos));
+  if (!(g > 0)) return { ok: false, motivo: "Pesá el paquete antes de recibirlo." };
+  const p = {
+    id: nuevoId("k-"), tracking: t, gramos: g, medidas: medidas ? { ...medidas } : null, danado: !!danado, contenido, categoria,
+    deposito, recibido: hoy, envioId: null, foto: true, retenido: CATEGORIAS_RESTRINGIDAS[categoria]?.prohibido ? "prohibido" : null,
+    casillaEtiqueta: String(casillaEtiqueta).trim().toUpperCase(),
+  };
+  const porPrealerta = estado.envios.find((e) => (e.prealertas ?? []).some((x) => x.tracking === t));
+  const porCasilla = !porPrealerta && p.casillaEtiqueta
+    ? estado.envios.filter((e) => cliente(estado, e.clienteId)?.casilla === p.casillaEtiqueta && (e.estado === "esperando" || e.estado === "en_deposito"))
+    : [];
+  const destino = porPrealerta ?? (porCasilla.length === 1 ? porCasilla[0] : null);
+  if (destino?.regimen === "courier" && g > estado.regimen.pesoMaxGramos) {
+    return { ok: false, motivo: `Un paquete de courier no puede pasar los ${kg(estado.regimen.pesoMaxGramos)}: hay que dividirlo o pasar ${destino.codigo} a despachante.` };
+  }
+  estado.paquetes.unshift(p);
+  if (destino) asignarInterno(estado, p, destino, hoy);
+  registrar(estado, `Recibido ${t} (${kg(g)})${destino ? ` → ${destino.codigo}` : " SIN DUEÑO"}${p.danado ? " · llegó dañado" : ""}.`, hoy);
+  return { ok: true, paquete: p, envio: destino ?? null };
+}
+
+function asignarInterno(estado, p, e, hoy) {
+  p.envioId = e.id;
+  if (!e.paquetes.includes(p.id)) e.paquetes.push(p.id);
+  if (e.estado === "esperando" || e.estado === "confirmado") moverEstado(e, "en_deposito", hoy, `Llegó al depósito de ${ORIGENES[p.deposito] ?? p.deposito}.`);
+}
+
+/** Asigna a mano un paquete sin dueño (depósito lo identificó por la factura o por WhatsApp). */
+function asignarPaquete(estado, paqueteId, envioId, auth, hoy) {
+  const a = autorizar(estado, auth, "asignar");
+  if (!a.ok) return a;
+  const p = paquete(estado, paqueteId);
+  const e = envio(estado, envioId);
+  if (!p || !e) return { ok: false, motivo: "No encuentro el paquete o el envío." };
+  if (p.envioId) return { ok: false, motivo: "Ese paquete ya tiene dueño." };
+  if (!["confirmado", "esperando", "en_deposito"].includes(e.estado)) return { ok: false, motivo: `El envío ${e.codigo} ya salió del depósito.` };
+  asignarInterno(estado, p, e, hoy);
+  registrar(estado, `Paquete ${p.tracking} asignado a ${e.codigo}.`, hoy);
+  return { ok: true };
+}
+
+/** Peso real de todos los paquetes del envío y el peso que se cobra con las medidas de cada uno. */
+function pesoRealEnvio(estado, e) {
+  const t = tarifa(estado, e.tarifaId);
+  const ps = e.paquetes.map((id) => paquete(estado, id)).filter(Boolean);
+  const real = ps.reduce((s, p) => s + p.gramos, 0);
+  const cobrado = t?.porKgCentavos ? ps.reduce((s, p) => s + Math.max(p.gramos, pesoVolumetrico(p.medidas ?? {}, t.divisorVolumetrico)), 0) : null;
+  return { real, cobrado: cobrado == null ? null : Math.max(cobrado, t.minimoGramos ?? 0), paquetes: ps.length };
+}
+
+/**
+ * Compara lo que llegó con lo cotizado. Si la diferencia pasa la tolerancia, propone el ajuste (a favor o en
+ * contra del cliente) para que Atención lo avise ANTES de embarcar — el cliente no se entera en destino.
+ */
+function diferenciaDePeso(estado, envioId, hoy = null) {
+  const e = envio(estado, envioId);
+  if (!e) return { ok: false, motivo: "No encuentro el envío." };
+  const t = tarifa(estado, e.tarifaId);
+  if (!t?.porKgCentavos) return { ok: true, hay: false };
+  // Mientras falten compras avisadas o el cliente pidió esperar más, no se compara: el envío no está completo.
+  const faltan = (e.prealertas ?? []).some((x) => !estado.paquetes.some((p) => p.tracking === x.tracking && p.envioId === e.id));
+  if (faltan || (hoy && e.retenerHasta && hoy < e.retenerHasta)) return { ok: true, hay: false, incompleto: true };
+  const { cobrado } = pesoRealEnvio(estado, e);
+  if (!cobrado) return { ok: true, hay: false };
+  const cotizado = e.cotizacion.pesoCobradoGramos ?? 0;
+  const tolerancia = Math.round(cotizado * estado.config.toleranciaPesoTasa);
+  const delta = cobrado - cotizado;
+  if (Math.abs(delta) <= tolerancia) return { ok: true, hay: false, cotizado, cobrado };
+  const centavos = Math.round((t.porKgCentavos * delta) / 1000);
+  return { ok: true, hay: true, cotizado, cobrado, delta, centavos };
+}
+
+/** Aplica el ajuste por peso (lo confirma Atención después de avisarle al cliente). */
+function aplicarDiferenciaDePeso(estado, envioId, auth, hoy) {
+  const a = autorizar(estado, auth, "cotizar");
+  if (!a.ok) return a;
+  const d = diferenciaDePeso(estado, envioId, hoy);
+  if (!d.ok) return d;
+  if (!d.hay) return { ok: false, motivo: "No hay diferencia de peso para ajustar." };
+  const e = envio(estado, envioId);
+  if (e.ajustes.some((x) => x.tipo === "peso")) return { ok: false, motivo: "El ajuste por peso ya está aplicado." };
+  e.ajustes.push({ tipo: "peso", centavos: d.centavos, texto: `Peso real ${kg(d.cobrado)} (cotizado ${kg(d.cotizado)})`, fecha: hoy });
+  registrar(estado, `Ajuste por peso ${usd(d.centavos)} en ${e.codigo}.`, hoy);
+  return { ok: true, centavos: d.centavos };
+}
+
+/** Almacenaje que corre: días pasados los gratis, por paquete. */
+function almacenaje(estado, p, hoy) {
+  if (!p || p.salio) return { dias: 0, centavos: 0, faltan: null };
+  const dias = diasEntre(p.recibido, hoy);
+  const gratis = estado.config.almacenajeDiasGratis;
+  const cobrables = Math.max(0, dias - gratis);
+  return { dias, cobrables, centavos: cobrables * estado.config.almacenajePorDiaCentavos, faltan: gratis - dias };
+}
+
+/** El cliente pide esperar más compras antes de consolidar (retener hasta una fecha). */
+function retenerParaConsolidar(estado, envioId, hasta, hoy) {
+  const e = envio(estado, envioId);
+  if (!e) return { ok: false, motivo: "No encuentro el envío." };
+  if (e.estado !== "en_deposito" && e.estado !== "esperando") return { ok: false, motivo: "Sólo se retiene un envío que todavía está en el depósito." };
+  const tope = sumarDias(hoy, estado.config.almacenajeDiasGratis);
+  e.retenerHasta = hasta;
+  e.eventos.push({ fecha: hoy, estado: e.estado, texto: `Espera más compras hasta el ${dm(hasta)}.` });
+  return { ok: true, avisoAlmacenaje: hasta > tope ? `Pasados los ${estado.config.almacenajeDiasGratis} días gratis corre almacenaje.` : null };
+}
+
+// ───────────────────────── embarques ─────────────────────────
+
+/**
+ * ¿Este envío puede subir a un embarque? Todo lo que lo frena, en criollo. Es la regla que más plata cuida:
+ * no se embarca un paquete sin dueño, con diferencia de peso sin avisar, prohibido, dañado sin respuesta del
+ * cliente, ni un envío sin seña.
+ */
+function listoParaEmbarcar(estado, e, hoy) {
+  const frenos = [];
+  if (e.estado !== "en_deposito") frenos.push(`está «${ESTADOS[e.estado]}»`);
+  const ps = e.paquetes.map((id) => paquete(estado, id)).filter(Boolean);
+  if (!ps.length) frenos.push("no tiene paquetes recibidos");
+  const faltan = (e.prealertas ?? []).filter((x) => !estado.paquetes.some((p) => p.tracking === x.tracking && p.envioId === e.id));
+  if (faltan.length) frenos.push(`faltan ${faltan.length} paquete(s) avisado(s)`);
+  if (ps.some((p) => p.retenido === "prohibido")) frenos.push("tiene un producto prohibido");
+  if (ps.some((p) => p.danado && !p.danoResuelto)) frenos.push("tiene un paquete dañado sin respuesta del cliente");
+  const d = diferenciaDePeso(estado, e.id, hoy);
+  if (d.hay && !e.ajustes.some((x) => x.tipo === "peso")) frenos.push("tiene diferencia de peso sin avisar");
+  if (pagadoEnvio(e) < porcentaje(totalEnvio(e), estado.config.senaTasa)) frenos.push("no tiene la seña");
+  if (e.retenerHasta && hoy && hoy < e.retenerHasta) frenos.push(`el cliente pidió esperar hasta el ${dm(e.retenerHasta)}`);
+  return { ok: frenos.length === 0, frenos };
+}
+
+function crearEmbarque(estado, { tarifaId, referencia, salida, llegada }, auth, hoy) {
+  const a = autorizar(estado, auth, "embarcar");
+  if (!a.ok) return a;
+  const t = tarifa(estado, tarifaId);
+  if (!t) return { ok: false, motivo: "Elegí la ruta del embarque." };
+  if (!String(referencia ?? "").trim()) return { ok: false, motivo: t.via === "maritimo" ? "Poné el contenedor o el BL." : t.via === "aereo" ? "Poné la guía aérea (AWB)." : "Poné la patente o la carta de porte." };
+  const b = { id: nuevoId("b-"), tarifaId, via: t.via, origen: t.origen, referencia: referencia.trim(), salida, llegada, llegadaOriginal: llegada, estado: "armando", envios: [], costoRealCentavos: 0, demoras: [] };
+  estado.embarques.unshift(b);
+  registrar(estado, `Embarque ${b.referencia} (${ORIGENES[t.origen]} ${VIAS[t.via].toLowerCase()}) abierto.`, hoy);
+  return { ok: true, embarque: b };
+}
+
+function subirAEmbarque(estado, embarqueId, envioId, auth, hoy) {
+  const a = autorizar(estado, auth, "embarcar");
+  if (!a.ok) return a;
+  const b = embarque(estado, embarqueId);
+  const e = envio(estado, envioId);
+  if (!b || !e) return { ok: false, motivo: "No encuentro el embarque o el envío." };
+  if (b.estado !== "armando") return { ok: false, motivo: "Ese embarque ya salió." };
+  if (b.tarifaId !== e.tarifaId) return { ok: false, motivo: `${e.codigo} va por otra ruta.` };
+  const l = listoParaEmbarcar(estado, e, hoy);
+  if (!l.ok) return { ok: false, motivo: `${e.codigo} no puede subir: ${l.frenos.join(", ")}.` };
+  b.envios.push(e.id);
+  e.embarqueId = b.id;
+  moverEstado(e, "embarcado", hoy, `Sube al embarque ${b.referencia}.`);
+  return { ok: true };
+}
+
+/** Sale el embarque: todos sus envíos pasan a «En viaje» y se avisa a cada cliente. */
+function despacharEmbarque(estado, embarqueId, { costoRealCentavos = 0 } = {}, auth, hoy) {
+  const a = autorizar(estado, auth, "despachar");
+  if (!a.ok) return a;
+  const b = embarque(estado, embarqueId);
+  if (!b) return { ok: false, motivo: "No encuentro el embarque." };
+  if (b.estado !== "armando") return { ok: false, motivo: "Ese embarque ya salió." };
+  if (!b.envios.length) return { ok: false, motivo: "El embarque está vacío." };
+  b.estado = "en_transito";
+  b.salida = hoy;
+  b.costoRealCentavos = Math.round(costoRealCentavos) || 0;
+  const avisos = [];
+  for (const id of b.envios) {
+    const e = envio(estado, id);
+    moverEstado(e, "en_transito", hoy, `Salió en ${b.referencia}. Llegada estimada: ${dm(b.llegada)}.`);
+    for (const pid of e.paquetes) { const p = paquete(estado, pid); if (p) p.salio = hoy; }
+    avisos.push(mensaje("salio", estado, e));
+  }
+  registrar(estado, `Salió el embarque ${b.referencia} con ${b.envios.length} envío(s).`, hoy);
+  return { ok: true, avisos };
+}
+
+/**
+ * INNOVACIÓN — demora con aviso masivo: se carga UNA vez la nueva fecha del vuelo/contenedor y sale un mensaje
+ * listo por cada cliente del embarque. El referente lo deja «a criterio»: acá no se olvida a nadie.
+ */
+function demorarEmbarque(estado, embarqueId, { nuevaLlegada, motivo }, auth, hoy) {
+  const a = autorizar(estado, auth, "despachar");
+  if (!a.ok) return a;
+  const b = embarque(estado, embarqueId);
+  if (!b) return { ok: false, motivo: "No encuentro el embarque." };
+  if (b.estado !== "en_transito" && b.estado !== "armando") return { ok: false, motivo: "El embarque ya llegó." };
+  if (!nuevaLlegada || nuevaLlegada <= b.llegada) return { ok: false, motivo: "La nueva fecha tiene que ser posterior a la anterior." };
+  const m = String(motivo ?? "").trim();
+  if (!m) return { ok: false, motivo: "Contá el motivo (el cliente lo va a leer)." };
+  b.demoras.push({ fecha: hoy, desde: b.llegada, hasta: nuevaLlegada, motivo: m });
+  b.llegada = nuevaLlegada;
+  const avisos = b.envios.map((id) => {
+    const e = envio(estado, id);
+    e.eventos.push({ fecha: hoy, estado: e.estado, texto: `Demora: ${m}. Nueva llegada estimada: ${dm(nuevaLlegada)}.` });
+    return mensaje("demora", estado, e, { motivo: m, fecha: nuevaLlegada });
+  });
+  registrar(estado, `Demora en ${b.referencia}: ${m} → ${dm(nuevaLlegada)}.`, hoy);
+  return { ok: true, avisos };
+}
+
+/** Llega el embarque: todos sus envíos entran a aduana. */
+function arriboEmbarque(estado, embarqueId, auth, hoy) {
+  const a = autorizar(estado, auth, "despachar");
+  if (!a.ok) return a;
+  const b = embarque(estado, embarqueId);
+  if (!b) return { ok: false, motivo: "No encuentro el embarque." };
+  if (b.estado !== "en_transito") return { ok: false, motivo: "El embarque no está en viaje." };
+  b.estado = "arribado";
+  b.arribo = hoy;
+  for (const id of b.envios) moverEstado(envio(estado, id), "en_aduana", hoy, "Llegó a Argentina: en aduana.");
+  registrar(estado, `Arribó ${b.referencia}.`, hoy);
+  return { ok: true };
+}
+
+// ───────────────────────── aduana ─────────────────────────
+
+/** La aduana libera el envío: queda listo para entregar (y se avisa el saldo). */
+function liberarAduana(estado, envioId, { impuestosRealesCentavos = null } = {}, auth, hoy) {
+  const a = autorizar(estado, auth, "aduana");
+  if (!a.ok) return a;
+  const e = envio(estado, envioId);
+  if (!e) return { ok: false, motivo: "No encuentro el envío." };
+  if (e.estado !== "en_aduana") return { ok: false, motivo: "El envío no está en aduana." };
+  if (e.desvio?.tipo === "observado" && !e.desvio.resuelto) return { ok: false, motivo: "Tiene una observación abierta: resolvela primero." };
+  // Si la aduana liquidó distinto de lo estimado, la diferencia se ajusta (a favor o en contra).
+  if (impuestosRealesCentavos != null && e.cotizacion.impuestos) {
+    const delta = Math.round(impuestosRealesCentavos) - e.cotizacion.impuestos.total;
+    if (delta !== 0) e.ajustes.push({ tipo: "impuestos", centavos: delta, texto: "Liquidación de la aduana distinta de la estimada", fecha: hoy });
+  }
+  moverEstado(e, "listo", hoy, "Liberado por la aduana.");
+  e.listoDesde = hoy;
+  return { ok: true, saldo: saldoEnvio(e), aviso: mensaje("listo", estado, e) };
+}
+
+/** La aduana observa (canal rojo, pide factura, valor dudoso): el envío queda frenado con un pedido concreto. */
+function observarAduana(estado, envioId, { motivo, pide = "factura", plazoDias = 5 }, auth, hoy) {
+  const a = autorizar(estado, auth, "aduana");
+  if (!a.ok) return a;
+  const e = envio(estado, envioId);
+  if (!e) return { ok: false, motivo: "No encuentro el envío." };
+  if (e.estado !== "en_aduana") return { ok: false, motivo: "El envío no está en aduana." };
+  const m = String(motivo ?? "").trim();
+  if (!m) return { ok: false, motivo: "Contá qué observó la aduana." };
+  e.desvio = { tipo: "observado", motivo: m, pide, desde: hoy, vence: sumarDias(hoy, plazoDias), resuelto: false };
+  e.eventos.push({ fecha: hoy, estado: e.estado, texto: `Observado por la aduana: ${m}.` });
+  return { ok: true, aviso: mensaje("observado", estado, e) };
+}
+
+function resolverObservacion(estado, envioId, { nota = "" } = {}, auth, hoy) {
+  const a = autorizar(estado, auth, "aduana");
+  if (!a.ok) return a;
+  const e = envio(estado, envioId);
+  if (!e?.desvio || e.desvio.tipo !== "observado" || e.desvio.resuelto) return { ok: false, motivo: "No hay observación abierta." };
+  e.desvio.resuelto = hoy;
+  e.eventos.push({ fecha: hoy, estado: e.estado, texto: `Observación resuelta${nota ? `: ${nota}` : ""}.` });
+  return { ok: true };
+}
+
+// ───────────────────────── entrega ─────────────────────────
+
+/** Sale a reparto o se entrega en la oficina. No se entrega con saldo. */
+function entregar(estado, envioId, { modo = "domicilio" } = {}, auth, hoy) {
+  const a = autorizar(estado, auth, "entregar");
+  if (!a.ok) return a;
+  const e = envio(estado, envioId);
+  if (!e) return { ok: false, motivo: "No encuentro el envío." };
+  if (e.estado !== "listo" && e.estado !== "en_reparto") return { ok: false, motivo: `Todavía está «${ESTADOS[e.estado]}».` };
+  const saldo = saldoEnvio(e);
+  if (saldo > 50) return { ok: false, motivo: `Tiene saldo de ${usd(saldo)} (${pesos(aPesos(saldo, tcParaCobrar(estado, e)))}): cobralo antes de entregar.` };
+  if (modo === "domicilio" && e.estado === "listo") {
+    moverEstado(e, "en_reparto", hoy, "Salió a reparto.");
+    return { ok: true, enReparto: true, aviso: mensaje("reparto", estado, e) };
+  }
+  moverEstado(e, "entregado", hoy, modo === "oficina" ? "Retirado en la oficina." : "Entregado en el domicilio.");
+  e.entregadoEl = hoy;
+  registrar(estado, `Entregado ${e.codigo}.`, hoy);
+  return { ok: true, entregado: true };
+}
+
+/** No había nadie: se reintenta una vez; a la segunda, queda para retirar en la oficina. */
+function entregaFallida(estado, envioId, { motivo = "No había nadie" } = {}, auth, hoy) {
+  const a = autorizar(estado, auth, "entregar");
+  if (!a.ok) return a;
+  const e = envio(estado, envioId);
+  if (!e || e.estado !== "en_reparto") return { ok: false, motivo: "El envío no está en reparto." };
+  e.entregaIntentos += 1;
+  const aOficina = e.entregaIntentos >= 2;
+  moverEstado(e, "listo", hoy, `${motivo}. ${aOficina ? "Queda para retirar en la oficina." : "Se reintenta."}`);
+  if (aOficina) e.retiroEnOficina = true;
+  return { ok: true, aOficina, aviso: mensaje(aOficina ? "retiro" : "reintento", estado, e) };
+}
+
+// ───────────────────────── cancelar y devolver seña ─────────────────────────
+
+/**
+ * Cancelación: antes de que el cliente compre (sin paquetes) se devuelve todo; con paquetes en depósito se
+ * retienen el manejo y el almacenaje; embarcado ya no se cancela (se gestiona como devolución del producto).
+ */
+function cancelarEnvio(estado, envioId, { motivo = "" } = {}, auth, hoy) {
+  const a = autorizar(estado, auth, "cancelar");
+  if (!a.ok) return a;
+  const e = envio(estado, envioId);
+  if (!e) return { ok: false, motivo: "No encuentro el envío." };
+  if (!["confirmado", "esperando", "en_deposito"].includes(e.estado)) return { ok: false, motivo: "Ya salió del depósito: no se cancela, se gestiona como devolución." };
+  const ps = e.paquetes.map((id) => paquete(estado, id)).filter(Boolean);
+  const retiene = ps.length
+    ? Math.min(pagadoEnvio(e), ps.reduce((s, p) => s + estado.config.manejoPorPaqueteCentavos + almacenaje(estado, p, hoy).centavos, 0))
+    : 0;
+  const devolver = Math.max(0, pagadoEnvio(e) - retiene);
+  moverEstado(e, "cancelado", hoy, `Cancelado${motivo ? `: ${motivo}` : ""}.`);
+  e.devolucionPendiente = devolver;
+  registrar(estado, `Cancelado ${e.codigo}: se devuelve ${usd(devolver)}, se retiene ${usd(retiene)}.`, hoy);
+  return { ok: true, devolver, retiene };
+}
+
+/** Devolver la seña mueve plata: lo hace el dueño con su PIN. */
+function devolverSena(estado, envioId, { medio = "transferencia" } = {}, auth, hoy) {
+  const a = autorizar(estado, auth, "devolver", true);
+  if (!a.ok) return a;
+  const e = envio(estado, envioId);
+  if (!e || e.estado !== "cancelado" || !(e.devolucionPendiente > 0)) return { ok: false, motivo: "No hay devolución pendiente." };
+  const tc = tcParaCobrar(estado, e);
+  const enDolares = MEDIOS_EN_DOLARES.has(medio);
+  const centavos = e.devolucionPendiente;
+  estado.caja.unshift({ id: nuevoId("p-"), fecha: hoy, medio, moneda: enDolares ? "USD" : "ARS", monto: enDolares ? centavos : aPesos(centavos, tc), centavos, tc, concepto: `Devolución ${e.codigo}`, envioId: e.id, tipo: "egreso", por: a.usuario.id });
+  e.devolucionPendiente = 0;
+  return { ok: true, centavos };
+}
+
+/** Bonificación (ej. por un paquete dañado o una demora larga): la autoriza el dueño con su PIN. */
+function bonificar(estado, envioId, { centavos, motivo }, auth, hoy) {
+  const a = autorizar(estado, auth, "bonificar", true);
+  if (!a.ok) return a;
+  const e = envio(estado, envioId);
+  if (!e) return { ok: false, motivo: "No encuentro el envío." };
+  const c = Math.round(Number(centavos));
+  if (!(c > 0)) return { ok: false, motivo: "Poné cuánto se bonifica." };
+  if (!String(motivo ?? "").trim()) return { ok: false, motivo: "Contá por qué (queda registrado)." };
+  if (totalEnvio(e) - c < pagadoEnvio(e)) return { ok: false, motivo: "La bonificación deja el envío por debajo de lo que ya pagó: devolvé la diferencia aparte." };
+  e.ajustes.push({ tipo: "bonificacion", centavos: -c, texto: motivo.trim(), fecha: hoy, por: a.usuario.id });
+  registrar(estado, `Bonificación ${usd(c)} en ${e.codigo} (${motivo.trim()}).`, hoy);
+  return { ok: true };
+}
+
+/** Paquete que llegó dañado: el cliente decide (seguir igual o reclamar al vendedor antes de embarcar). */
+function resolverDano(estado, paqueteId, decision, auth, hoy) {
+  // Lo carga quien habló con el cliente (Atención) o el depósito: los dos tienen el permiso de avisar.
+  const a = autorizar(estado, auth, "avisar");
+  if (!a.ok) return a;
+  const p = paquete(estado, paqueteId);
+  if (!p?.danado || p.danoResuelto) return { ok: false, motivo: "Ese paquete no tiene un daño pendiente." };
+  if (!["seguir", "devolver"].includes(decision)) return { ok: false, motivo: "Elegí: sigue igual o se devuelve al vendedor." };
+  p.danoResuelto = decision;
+  if (decision === "devolver") {
+    const e = envio(estado, p.envioId);
+    if (e) {
+      e.paquetes = e.paquetes.filter((id) => id !== p.id);
+      if (e.prealertas) e.prealertas = e.prealertas.filter((x) => x.tracking !== p.tracking);
+      if (!e.paquetes.length && e.estado === "en_deposito") moverEstado(e, "esperando", hoy, "El paquete dañado vuelve al vendedor; esperamos el reemplazo.");
+    }
+    p.envioId = null;
+    p.devuelto = hoy;
+  }
+  return { ok: true };
+}
+
+/**
+ * Producto prohibido retenido en el depósito: se devuelve al vendedor (con la etiqueta que consiga el cliente)
+ * o se descarta con su conformidad. En los dos casos sale del envío y el resto puede seguir.
+ */
+function resolverProhibido(estado, paqueteId, decision, auth, hoy) {
+  const a = autorizar(estado, auth, "asignar");
+  if (!a.ok) return a;
+  const p = paquete(estado, paqueteId);
+  if (p?.retenido !== "prohibido" || p.resueltoProhibido) return { ok: false, motivo: "Ese paquete no está retenido." };
+  if (!["devolver", "descartar"].includes(decision)) return { ok: false, motivo: "Elegí: vuelve al vendedor o se descarta." };
+  p.resueltoProhibido = decision;
+  const e = envio(estado, p.envioId);
+  if (e) {
+    e.paquetes = e.paquetes.filter((id) => id !== p.id);
+    if (e.prealertas) e.prealertas = e.prealertas.filter((x) => x.tracking !== p.tracking);
+    e.eventos.push({ fecha: hoy, estado: e.estado, texto: `El producto prohibido (${p.tracking}) ${decision === "devolver" ? "vuelve al vendedor" : "se descarta"}.` });
+    if (!e.paquetes.length && e.estado === "en_deposito") moverEstado(e, "esperando", hoy, "Esperamos el resto de la compra.");
+  }
+  p.envioId = null;
+  p.devuelto = hoy;
+  registrar(estado, `Prohibido ${p.tracking}: ${decision === "devolver" ? "vuelve al vendedor" : "se descarta"}.`, hoy);
+  return { ok: true };
+}
+
+// ───────────────────────── tarifas y régimen (el dueño) ─────────────────────────
+
+const LIMITES = Object.freeze({
+  tipoCambio: [100, 100000],
+  honorarioTasa: [0, 0.5],
+  porKgCentavos: [100, 50000],
+  porCbmCentavos: [1000, 500000],
+  franquiciaCentavos: [0, 300000],
+  topeEnvioCentavos: [10000, 1000000],
+  derechosExcedente: [0, 1],
+  enviosPorAnio: [0, 50],
+});
+
+function cambiarTipoCambio(estado, tc, auth, hoy) {
+  const a = autorizar(estado, auth, "tarifas");
+  if (!a.ok) return a;
+  const v = Math.round(Number(tc));
+  const [min, max] = LIMITES.tipoCambio;
+  if (!(v >= min && v <= max)) return { ok: false, motivo: `El tipo de cambio tiene que estar entre ${min} y ${max}.` };
+  const antes = estado.config.tipoCambio;
+  estado.config.tipoCambio = v;
+  registrar(estado, `Tipo de cambio ${pesos(antes)} → ${pesos(v)}.`, hoy);
+  return { ok: true };
+}
+
+function cambiarTarifa(estado, tarifaId, campo, valor, auth, hoy) {
+  const a = autorizar(estado, auth, "tarifas");
+  if (!a.ok) return a;
+  const t = tarifa(estado, tarifaId);
+  if (!t || !(campo in t) || !LIMITES[campo]) return { ok: false, motivo: "Ese valor no se edita." };
+  const v = Math.round(Number(valor));
+  const [min, max] = LIMITES[campo];
+  if (!(v >= min && v <= max)) return { ok: false, motivo: `Tiene que estar entre ${usd(min)} y ${usd(max)}.` };
+  t[campo] = v;
+  registrar(estado, `Tarifa ${tarifaId}: ${campo} = ${usd(v)}.`, hoy);
+  return { ok: true };
+}
+
+function cambiarRegimen(estado, campo, valor, auth, hoy) {
+  const a = autorizar(estado, auth, "tarifas", true);
+  if (!a.ok) return a;
+  if (!LIMITES[campo] || !(campo in estado.regimen)) return { ok: false, motivo: "Ese valor no se edita." };
+  const v = Number(valor);
+  const [min, max] = LIMITES[campo];
+  if (!(v >= min && v <= max)) return { ok: false, motivo: "Valor fuera de rango." };
+  estado.regimen[campo] = campo === "derechosExcedente" ? v : Math.round(v);
+  estado.regimen.vigenteDesde = hoy;
+  registrar(estado, `Régimen: ${campo} = ${v} (desde ${hoy}).`, hoy);
+  return { ok: true };
+}
+
+// ───────────────────────── WhatsApp ─────────────────────────
+
+/** Link a WhatsApp. En la demo va sin número (wa.me/?text=): los teléfonos de ejemplo podrían ser de alguien. */
+function linkWhatsApp(tel, texto) {
+  const numero = String(tel ?? "").replace(/\D/g, "");
+  return `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`;
+}
+
+/** Mensajes listos para mandar, en criollo y con el código para seguirlo. */
+function mensaje(tipo, estado, e, extra = {}) {
+  const c = cliente(estado, e.clienteId);
+  const nombre = c?.nombre?.split(" ")[0] ?? "";
+  const saldo = saldoEnvio(e);
+  const tc = tcParaCobrar(estado, e);
+  const saldoTxt = saldo > 50 ? ` Te queda un saldo de ${usd(saldo)} (${pesos(aPesos(saldo, tc))}).` : "";
+  const textos = {
+    salio: `¡Hola ${nombre}! Tu envío ${e.codigo} ya salió de ${ORIGENES[e.origen]}. Lo seguís con ese código en nuestra web.`,
+    demora: `Hola ${nombre}, te aviso que tu envío ${e.codigo} viene demorado: ${extra.motivo}. La nueva fecha estimada de llegada es el ${dm(extra.fecha)}. Cualquier cosa, escribime.`,
+    listo: `¡${nombre}, tu envío ${e.codigo} ya pasó la aduana y está listo!${saldoTxt} ¿Te lo mandamos o lo pasás a buscar?`,
+    observado: `Hola ${nombre}, la aduana pidió ${e.desvio?.pide ?? "documentación"} para tu envío ${e.codigo} (${e.desvio?.motivo ?? ""}). ¿Me la mandás por acá antes del ${dm(e.desvio?.vence)}?`,
+    reparto: `¡${nombre}, tu envío ${e.codigo} salió a reparto! Hoy te llega.`,
+    reintento: `Hola ${nombre}, fuimos a entregar tu envío ${e.codigo} y no había nadie. ¿Coordinamos otro horario?`,
+    retiro: `Hola ${nombre}, no pudimos entregar tu envío ${e.codigo}. Lo podés retirar por la oficina.`,
+    peso: `Hola ${nombre}, llegó tu compra al depósito. Pesa ${extra.real ?? ""} y habíamos cotizado ${extra.cotizado ?? ""}: la diferencia es de ${extra.monto ?? ""}. ¿Seguimos?`,
+    dano: `Hola ${nombre}, uno de tus paquetes (${extra.tracking ?? ""}) llegó al depósito con la caja dañada. Te mandamos la foto. ¿Lo embarcamos igual o lo reclamamos al vendedor?`,
+    prohibido: `Hola ${nombre}, en tu compra (${extra.tracking ?? ""}) vino un producto que no puede viajar por courier: ${extra.contenido ?? ""}. ¿Lo devolvemos al vendedor o lo descartamos? El resto sigue su camino.`,
+    saldo: `Hola ${nombre}, tu envío ${e.codigo} está listo en la oficina.${saldoTxt} Podés pagar por transferencia o Mercado Pago.`,
+    almacenaje: `Hola ${nombre}, tu compra está en el depósito hace ${extra.dias ?? ""} días. En ${extra.faltan ?? ""} días empieza a correr el almacenaje. ¿La embarcamos?`,
+  };
+  return { tipo, envioId: e.id, cliente: c?.nombre ?? "", texto: textos[tipo] ?? "", link: linkWhatsApp("", textos[tipo] ?? "") };
+}
+
+// ───────────────────────── la bandeja: qué resolver AHORA ─────────────────────────
+
+const URGENCIA = { prohibido: 0, observado: 1, sin_duenio: 2, dano: 3, peso: 4, saldo: 5, almacenaje: 6, demora: 7, cotizacion: 8, devolucion: 9, embarcable: 10 };
+
+/**
+ * Lo que hay que resolver ahora, ordenado por urgencia y plata en juego. Cada ítem trae la acción en un toque.
+ * Es la innovación central: el sistema avisa en vez de que la persona descubra.
+ */
+function bandeja(estado, hoy) {
+  const out = [];
+  for (const p of estado.paquetes) {
+    if (p.retenido === "prohibido" && !p.resueltoProhibido) {
+      out.push({ tipo: "prohibido", paqueteId: p.id, envioId: p.envioId, titulo: `Producto prohibido en ${p.tracking}`, detalle: p.contenido || CATEGORIAS[p.categoria], rol: "deposito" });
+    }
+    if (!p.envioId && !p.devuelto) {
+      out.push({ tipo: "sin_duenio", paqueteId: p.id, titulo: `Paquete sin dueño: ${p.tracking}`, detalle: `${kg(p.gramos)}${p.casillaEtiqueta ? ` · etiqueta ${p.casillaEtiqueta}` : " · sin casilla en la etiqueta"} · recibido el ${dm(p.recibido)}`, rol: "deposito" });
+    }
+    if (p.danado && !p.danoResuelto && p.envioId) {
+      out.push({ tipo: "dano", paqueteId: p.id, envioId: p.envioId, titulo: `Llegó dañado: ${p.tracking}`, detalle: "Preguntale al cliente si sigue o se reclama al vendedor.", rol: "atencion" });
+    }
+  }
+  for (const e of estado.envios) {
+    const c = cliente(estado, e.clienteId);
+    if (e.desvio?.tipo === "observado" && !e.desvio.resuelto) {
+      const vencida = hoy > e.desvio.vence;
+      out.push({ tipo: "observado", envioId: e.id, titulo: `Aduana observó ${e.codigo}`, detalle: `${c?.nombre}: pide ${e.desvio.pide} · ${vencida ? "¡plazo vencido!" : `vence el ${dm(e.desvio.vence)}`}`, rol: "atencion", urgente: vencida });
+    }
+    if (e.estado === "en_deposito") {
+      const d = diferenciaDePeso(estado, e.id, hoy);
+      if (d.hay && !e.ajustes.some((x) => x.tipo === "peso")) {
+        out.push({ tipo: "peso", envioId: e.id, titulo: `Diferencia de peso en ${e.codigo}`, detalle: `${c?.nombre}: cotizado ${kg(d.cotizado)}, real ${kg(d.cobrado)} → ${d.centavos > 0 ? "+" : ""}${usd(d.centavos)}`, rol: "atencion", centavos: Math.abs(d.centavos) });
+      }
+      const ps = e.paquetes.map((id) => paquete(estado, id)).filter(Boolean);
+      const peor = ps.map((p) => almacenaje(estado, p, hoy)).sort((x, y) => y.dias - x.dias)[0];
+      if (peor && (peor.cobrables > 0 || peor.faltan <= estado.config.avisoAlmacenajeDias)) {
+        out.push({ tipo: "almacenaje", envioId: e.id, titulo: peor.cobrables > 0 ? `Corre almacenaje en ${e.codigo}` : `Almacenaje por empezar en ${e.codigo}`, detalle: `${c?.nombre}: ${peor.dias} días en depósito${peor.cobrables > 0 ? ` · ${usd(peor.centavos)} por paquete` : ` · faltan ${peor.faltan} días`}`, rol: "atencion" });
+      }
+      const l = listoParaEmbarcar(estado, e, hoy);
+      if (l.ok) out.push({ tipo: "embarcable", envioId: e.id, titulo: `${e.codigo} listo para embarcar`, detalle: `${c?.nombre} · ${ORIGENES[e.origen]} ${VIAS[e.via].toLowerCase()}`, rol: "deposito" });
+    }
+    if (e.estado === "listo" && saldoEnvio(e) > 50) {
+      const dias = diasEntre(e.listoDesde ?? hoy, hoy);
+      out.push({ tipo: "saldo", envioId: e.id, titulo: `Saldo por cobrar: ${e.codigo}`, detalle: `${c?.nombre}: ${usd(saldoEnvio(e))} · listo hace ${dias} día(s)`, rol: "atencion", centavos: saldoEnvio(e) });
+    }
+    if (e.estado === "cancelado" && e.devolucionPendiente > 0) {
+      out.push({ tipo: "devolucion", envioId: e.id, titulo: `Devolver seña de ${e.codigo}`, detalle: `${c?.nombre}: ${usd(e.devolucionPendiente)}`, rol: "duenio", centavos: e.devolucionPendiente });
+    }
+  }
+  for (const b of estado.embarques) {
+    if (b.estado === "en_transito" && b.llegada < hoy) {
+      out.push({ tipo: "demora", embarqueId: b.id, titulo: `${b.referencia} pasó su fecha de llegada`, detalle: `Estimada para el ${dm(b.llegada)}: cargá la nueva fecha y avisá a ${b.envios.length} cliente(s).`, rol: "deposito", urgente: true });
+    }
+  }
+  for (const q of estado.cotizaciones) {
+    if (q.estado === "abierta" && (q.vence === hoy || q.vence === sumarDias(hoy, 1))) {
+      out.push({ tipo: "cotizacion", cotizacionId: q.id, titulo: `Cotización por vencer (${usd(q.total)})`, detalle: `${q.clienteId ? cliente(estado, q.clienteId)?.nombre : q.contacto} · vence el ${dm(q.vence)}`, rol: "atencion" });
+    }
+  }
+  return out.sort((x, y) => (y.urgente ? 1 : 0) - (x.urgente ? 1 : 0) || URGENCIA[x.tipo] - URGENCIA[y.tipo] || (y.centavos ?? 0) - (x.centavos ?? 0));
+}
+
+// ───────────────────────── tablero del dueño ─────────────────────────
+
+function tablero(estado, hoy) {
+  const mes = hoy.slice(0, 7);
+  const activos = estado.envios.filter((e) => ACTIVOS.has(e.estado));
+  const porEstado = Object.fromEntries(LINEA.map((k) => [k, estado.envios.filter((e) => e.estado === k).length]));
+  const delMes = estado.envios.filter((e) => String(e.confirmadoEl).startsWith(mes) && e.estado !== "cancelado");
+  const facturado = delMes.reduce((s, e) => s + totalEnvio(e) - (e.cotizacion.impuestos?.total ?? 0), 0);
+  const cobradoMes = estado.caja.filter((m) => m.tipo === "ingreso" && String(m.fecha).startsWith(mes)).reduce((s, m) => s + m.centavos, 0);
+  const porCobrar = activos.reduce((s, e) => s + Math.max(0, saldoEnvio(e)), 0);
+  // Margen por embarque cerrado o en viaje: lo que se cobró de flete contra lo que costó de verdad.
+  const margenes = estado.embarques.filter((b) => b.costoRealCentavos > 0).map((b) => {
+    const fletes = b.envios.map((id) => envio(estado, id)).reduce((s, e) => s + e.cotizacion.flete + e.ajustes.filter((x) => x.tipo === "peso").reduce((t, x) => t + x.centavos, 0), 0);
+    return { referencia: b.referencia, cobrado: fletes, costo: b.costoRealCentavos, margen: fletes - b.costoRealCentavos };
+  });
+  const entregados = estado.envios.filter((e) => e.estado === "entregado" && e.entregadoEl);
+  const puertaAPuerta = entregados.length ? Math.round(entregados.reduce((s, e) => s + diasEntre(e.confirmadoEl, e.entregadoEl), 0) / entregados.length) : null;
+  const pasaronAduana = estado.envios.filter((e) => e.eventos.some((x) => x.estado === "en_aduana"));
+  const observados = pasaronAduana.filter((e) => e.desvio?.tipo === "observado").length;
+  const porRuta = estado.tarifas.map((t) => ({ id: t.id, origen: t.origen, via: t.via, envios: estado.envios.filter((e) => e.tarifaId === t.id && e.estado !== "cancelado").length }));
+  return {
+    activos: activos.length, porEstado, facturado, cobradoMes, porCobrar, margenes, puertaAPuerta,
+    observadosPct: pasaronAduana.length ? Math.round((observados * 100) / pasaronAduana.length) : 0,
+    sinDuenio: estado.paquetes.filter((p) => !p.envioId && !p.devuelto).length,
+    cotizacionesAbiertas: estado.cotizaciones.filter((q) => q.estado === "abierta" && !cotizacionVencida(q, hoy)).length,
+    conversion: estado.cotizaciones.length ? Math.round((estado.cotizaciones.filter((q) => q.estado === "confirmada").length * 100) / estado.cotizaciones.length) : 0,
+    porRuta,
+  };
+}
+
+/** Caja del día en las dos monedas, por medio. */
+function cajaDelDia(estado, hoy) {
+  const movs = estado.caja.filter((m) => m.fecha === hoy);
+  const porMedio = {};
+  for (const m of movs) {
+    const k = m.medio;
+    porMedio[k] = porMedio[k] ?? { moneda: m.moneda, ingresos: 0, egresos: 0 };
+    porMedio[k][m.tipo === "ingreso" ? "ingresos" : "egresos"] += m.monto;
+  }
+  return { movimientos: movs, porMedio };
+}
+
+/** Seguimiento público por código (lo que ve el cliente): sin montos ni datos de otros. */
+function seguimiento(estado, codigo) {
+  if (!validarCodigo(codigo)) return { ok: false, motivo: "Ese código no es válido. Fijate que sea TV-AAAA-NNNN-N." };
+  const e = estado.envios.find((x) => x.codigo === String(codigo).trim().toUpperCase());
+  if (!e) return { ok: false, motivo: "No encontramos un envío con ese código." };
+  const b = e.embarqueId ? embarque(estado, e.embarqueId) : null;
+  return {
+    ok: true,
+    codigo: e.codigo, estado: e.estado, origen: e.origen, via: e.via,
+    llegadaEstimada: b?.llegada ?? null,
+    linea: LINEA.map((k) => ({ estado: k, nombre: ESTADOS[k], fecha: e.eventos.find((x) => x.estado === k)?.fecha ?? null })),
+    novedades: e.eventos.slice(-4).reverse().map((x) => ({ fecha: x.fecha, texto: x.texto })),
+  };
+}
+
+// ───────────────────────── demo con todas las eventualidades a la vista ─────────────────────────
+
+/**
+ * Arma un día de trabajo de TESVO donde se ve cada eventualidad al abrir: paquete sin dueño, diferencia de peso,
+ * dañado, prohibido, observado por aduana, saldo por cobrar, almacenaje corriendo, embarque demorado, cotización
+ * por vencer y una seña a devolver. Determinístico: la demo se ve igual cada vez. Nombres y datos inventados.
+ */
+function generarDemo(hoy) {
+  secuencia = 0;
+  const E = crearEstado({ clientes: CLIENTES_DEMO, anio: Number(hoy.slice(0, 4)) });
+  const S = { usuarioId: "u-sole" }, N = { usuarioId: "u-nico" };
+  const hace = (d) => sumarDias(hoy, -d);
+  const conf = (clienteId, pedido, fecha) => {
+    const q = guardarCotizacion(E, pedido, { clienteId }, S, fecha).cotizacion;
+    return confirmarEnvio(E, { cotizacionId: q.id, clienteId }, S, fecha).envio;
+  };
+  const senia = (e, fecha, medio = "transferencia") => cobrar(E, e.id, { medio, monto: aPesos(Math.ceil(totalEnvio(e) * 0.3) + 100, E.config.tipoCambio) }, S, fecha);
+  const pagarTodo = (e, fecha) => cobrar(E, e.id, { medio: "mercadopago", monto: aPesos(saldoEnvio(e), tcParaCobrar(E, e)) }, S, fecha);
+
+  // 1. Entregado hace poco (alimenta el tablero).
+  const e1 = conf("c-mati", { tarifaId: "miami-aereo", items: [{ descripcion: "Auriculares inalámbricos", valorCentavos: 24900, categoria: "electronica" }], gramos: 900, seguro: true }, hace(24));
+  senia(e1, hace(24));
+  prealertar(E, e1.id, { tracking: "1Z999AA10123456784", tienda: "Amazon" }, hace(23));
+  recibirPaquete(E, { tracking: "1Z999AA10123456784", gramos: 850, medidas: { l: 20, a: 15, h: 10 }, deposito: "miami" }, N, hace(19));
+
+  // 2. Pyme por despachante, China marítimo, en viaje con DEMORA (contenedor rolado).
+  const e2 = conf("c-ferre", { tarifaId: "china-maritimo", regimen: "general", items: [{ descripcion: "Taladros percutores (caja x 20)", valorCentavos: 180000, unidades: 3, categoria: "general" }], medidas: { l: 120, a: 100, h: 110 } }, hace(40));
+  senia(e2, hace(40));
+  prealertar(E, e2.id, { tracking: "CNSZX2026A0117", tienda: "Proveedor Ningbo" }, hace(39));
+  recibirPaquete(E, { tracking: "CNSZX2026A0117", gramos: 310000, medidas: { l: 120, a: 100, h: 110 }, deposito: "china" }, N, hace(35));
+
+  // 3. Observado por la aduana (pide factura).
+  const e3 = conf("c-lau", { tarifaId: "miami-aereo", items: [{ descripcion: "Notebook 14\"", valorCentavos: 89900, categoria: "electronica" }], gramos: 2100, medidas: { l: 45, a: 32, h: 9 }, seguro: true }, hace(16));
+  senia(e3, hace(16));
+  prealertar(E, e3.id, { tracking: "9400111899223197428490", tienda: "Best Buy" }, hace(15));
+  recibirPaquete(E, { tracking: "9400111899223197428490", gramos: 2200, medidas: { l: 45, a: 32, h: 9 }, deposito: "miami" }, N, hace(12));
+
+  // 4. Listo con saldo por cobrar.
+  const e4 = conf("c-juli", { tarifaId: "paraguay-terrestre", items: [{ descripcion: "Zapatillas running", valorCentavos: 12000, unidades: 2, categoria: "ropa" }], gramos: 2400, medidas: { l: 35, a: 25, h: 15 } }, hace(9));
+  senia(e4, hace(9));
+  prealertar(E, e4.id, { tracking: "PYCDE-778812", tienda: "Ciudad del Este" }, hace(8));
+  recibirPaquete(E, { tracking: "PYCDE-778812", gramos: 2350, medidas: { l: 35, a: 25, h: 15 }, deposito: "paraguay" }, N, hace(7));
+
+  // Embarques: uno aéreo que ya llegó (1, 3), uno terrestre que llegó (4), uno marítimo demorado (2).
+  const bA = crearEmbarque(E, { tarifaId: "miami-aereo", referencia: "AWB 045-88213590", salida: hace(11), llegada: hace(5) }, N, hace(11)).embarque;
+  subirAEmbarque(E, bA.id, e1.id, N, hace(11));
+  subirAEmbarque(E, bA.id, e3.id, N, hace(11));
+  despacharEmbarque(E, bA.id, { costoRealCentavos: 5200 }, N, hace(11));
+  arriboEmbarque(E, bA.id, N, hace(5));
+  liberarAduana(E, e1.id, {}, S, hace(4));
+  pagarTodo(e1, hace(3));
+  entregar(E, e1.id, { modo: "domicilio" }, S, hace(3));
+  entregar(E, e1.id, { modo: "domicilio" }, S, hace(2));
+  observarAduana(E, e3.id, { motivo: "Valor declarado bajo para el modelo", pide: "la factura de compra", plazoDias: 5 }, S, hace(3));
+
+  const bT = crearEmbarque(E, { tarifaId: "paraguay-terrestre", referencia: "Carta de porte PY-20931", salida: hace(6), llegada: hace(2) }, N, hace(6)).embarque;
+  subirAEmbarque(E, bT.id, e4.id, N, hace(6));
+  despacharEmbarque(E, bT.id, { costoRealCentavos: 1300 }, N, hace(6));
+  arriboEmbarque(E, bT.id, N, hace(2));
+  liberarAduana(E, e4.id, {}, S, hace(1));
+
+  const bM = crearEmbarque(E, { tarifaId: "china-maritimo", referencia: "MSKU 7781203", salida: hace(33), llegada: hace(1) }, N, hace(33)).embarque;
+  subirAEmbarque(E, bM.id, e2.id, N, hace(33));
+  despacharEmbarque(E, bM.id, { costoRealCentavos: 38000 }, N, hace(33));
+
+  // 5. En depósito con DIFERENCIA DE PESO (cotizó 3 kg, llegó una caja grande).
+  const e5 = conf("c-mati", { tarifaId: "miami-aereo", items: [{ descripcion: "Freidora de aire", valorCentavos: 13000, categoria: "general" }], gramos: 3000, seguro: false }, hace(6));
+  senia(e5, hace(6));
+  prealertar(E, e5.id, { tracking: "TBA301884729115", tienda: "Amazon" }, hace(5));
+  recibirPaquete(E, { tracking: "TBA301884729115", gramos: 4600, medidas: { l: 42, a: 40, h: 38 }, deposito: "miami" }, N, hace(2));
+
+  // 6. En depósito con paquete DAÑADO.
+  const e6 = conf("c-lau", { tarifaId: "miami-aereo", items: [{ descripcion: "Monitor 27\"", valorCentavos: 21900, categoria: "electronica" }], gramos: 7000, medidas: { l: 70, a: 48, h: 15 }, seguro: true }, hace(8));
+  senia(e6, hace(8));
+  prealertar(E, e6.id, { tracking: "1Z999AA10198765432", tienda: "Walmart" }, hace(7));
+  recibirPaquete(E, { tracking: "1Z999AA10198765432", gramos: 7100, medidas: { l: 70, a: 48, h: 15 }, danado: true, deposito: "miami" }, N, hace(1));
+
+  // 7. En depósito hace 27 días esperando más compras: ALMACENAJE por empezar.
+  const e7 = conf("c-vale", { tarifaId: "miami-aereo", items: [{ descripcion: "Ropa de bebé", valorCentavos: 18000, unidades: 1, categoria: "ropa" }, { descripcion: "Cochecito", valorCentavos: 32000, categoria: "general" }], gramos: 9000, medidas: { l: 80, a: 45, h: 35 } }, hace(30));
+  senia(e7, hace(30));
+  prealertar(E, e7.id, { tracking: "TBA299001122334", tienda: "Amazon" }, hace(29));
+  recibirPaquete(E, { tracking: "TBA299001122334", gramos: 2100, medidas: { l: 40, a: 30, h: 20 }, deposito: "miami" }, N, hace(27));
+  retenerParaConsolidar(E, e7.id, sumarDias(hoy, 4), hace(27));
+
+  // 8. Listo para embarcar (sin frenos).
+  const e8 = conf("c-juli", { tarifaId: "miami-aereo", items: [{ descripcion: "Perfume 100 ml", valorCentavos: 9500, categoria: "cosmeticos" }], gramos: 620, medidas: { l: 15, a: 12, h: 10 } }, hace(5));
+  senia(e8, hace(5));
+  prealertar(E, e8.id, { tracking: "9261290100130437281952", tienda: "Sephora" }, hace(4));
+  recibirPaquete(E, { tracking: "9261290100130437281952", gramos: 620, medidas: { l: 15, a: 12, h: 10 }, deposito: "miami" }, N, hace(1));
+
+  // 9. Paquete SIN DUEÑO (etiqueta sin casilla).
+  recibirPaquete(E, { tracking: "TBA302777100556", gramos: 1300, medidas: { l: 30, a: 20, h: 12 }, deposito: "miami" }, N, hace(1));
+  // 10. Paquete con producto PROHIBIDO (llegó en un envío pre-alertado).
+  const e10 = conf("c-diego", { tarifaId: "miami-aereo", items: [{ descripcion: "Vitaminas", valorCentavos: 6000, categoria: "general" }], gramos: 400 }, hace(3));
+  senia(e10, hace(3));
+  prealertar(E, e10.id, { tracking: "9400100000000000000777", tienda: "iHerb" }, hace(3));
+  recibirPaquete(E, { tracking: "9400100000000000000777", gramos: 400, medidas: { l: 15, a: 10, h: 8 }, contenido: "Suplemento con medicamento de venta bajo receta", categoria: "medicamentos", deposito: "miami" }, N, hoy);
+
+  // 11. Confirmado y cancelado: seña por devolver.
+  const e11 = conf("c-vale", { tarifaId: "china-aereo", items: [{ descripcion: "Repuestos de moto", valorCentavos: 26000, categoria: "repuestos" }], gramos: 5000 }, hace(4));
+  senia(e11, hace(4));
+  cancelarEnvio(E, e11.id, { motivo: "El vendedor se quedó sin stock" }, S, hace(1));
+
+  // 12. Cotizaciones abiertas: una por vencer, otra fresca (leads).
+  guardarCotizacion(E, { tarifaId: "china-aereo", items: [{ descripcion: "Luces LED para local", valorCentavos: 64000, unidades: 2, categoria: "general" }], gramos: 8000 }, { contacto: "Consulta por WhatsApp — Ezequiel" }, S, hace(2));
+  guardarCotizacion(E, { tarifaId: "miami-aereo", items: [{ descripcion: "Consola de videojuegos", valorCentavos: 49900, categoria: "electronica" }], gramos: 4500 }, { clienteId: "c-mati" }, S, hoy);
+
+  E.log.unshift({ fecha: hoy, texto: "Demo armada: datos inventados, nada se guarda." });
+  return E;
+}
+
+const CLIENTES_DEMO = Object.freeze([
+  { id: "c-mati", nombre: "Matías Rivero", tipo: "persona", doc: "20-30111222-3", tel: "", casilla: "TV-1001", alta: "2026-03-02" },
+  { id: "c-lau", nombre: "Laura Benítez", tipo: "persona", doc: "27-28999111-4", tel: "", casilla: "TV-1002", alta: "2026-05-14" },
+  { id: "c-juli", nombre: "Julián Ortega", tipo: "persona", doc: "20-35777444-1", tel: "", casilla: "TV-1003", alta: "2026-06-20" },
+  { id: "c-vale", nombre: "Valeria Sosa", tipo: "persona", doc: "27-31222333-9", tel: "", casilla: "TV-1004", alta: "2026-07-01" },
+  { id: "c-ferre", nombre: "Ferretería El Tornillo SRL", tipo: "pyme", doc: "30-71555666-2", tel: "", casilla: "TV-1005", alta: "2026-02-10" },
+  { id: "c-diego", nombre: "Diego Paz", tipo: "persona", doc: "20-33444555-6", tel: "", casilla: "TV-1006", alta: "2026-09-01" },
+]);
+
+return { MEDIOS, ORIGENES, VIAS, REGIMENES, ESTADOS, LINEA, ESTADOS_EMBARQUE, ROLES, PERMISOS, sumarDias, diasEntre, usd, pesos, kg, aPesos, aCentavos, dm, REGIMEN_DEMO, TARIFAS_DEMO, CONFIG_DEMO, crearEstado, USUARIOS_DEMO, usuario, cliente, envio, paquete, embarque, tarifa, puede, verificarPin, casilla, altaCliente, cupoCourier, pesoVolumetrico, pesoACobrar, cbmMilesimas, impuestosCourier, cotizar, CATEGORIAS_RESTRINGIDAS, CATEGORIAS, partirParaAhorrar, guardarCotizacion, cotizacionVencida, validarCodigo, confirmarEnvio, totalEnvio, pagadoEnvio, saldoEnvio, tcParaCobrar, cobrar, prealertar, recibirPaquete, asignarPaquete, pesoRealEnvio, diferenciaDePeso, aplicarDiferenciaDePeso, almacenaje, retenerParaConsolidar, listoParaEmbarcar, crearEmbarque, subirAEmbarque, despacharEmbarque, demorarEmbarque, arriboEmbarque, liberarAduana, observarAduana, resolverObservacion, entregar, entregaFallida, cancelarEnvio, devolverSena, bonificar, resolverDano, resolverProhibido, LIMITES, cambiarTipoCambio, cambiarTarifa, cambiarRegimen, linkWhatsApp, mensaje, bandeja, tablero, cajaDelDia, seguimiento, generarDemo, CLIENTES_DEMO };
+})();
+// GESTIÓN — TESVO Importaciones y Exportaciones (demo del flujo). Toda la regla de negocio vive en motor.mjs;
+// este archivo sólo pinta y conecta botones. Sin persistencia: el estado vive en memoria y se rearma al recargar.
+
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const pad = (n) => String(n).padStart(2, "0");
+const hoyLocal = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const ddmm = (f) => (f ? `${Number(f.slice(8))}/${Number(f.slice(5, 7))}` : "—");
+const parseUsd = (v) => { const n = Number(String(v ?? "").replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) ? Math.round(n * 100) : NaN; };
+const parseNum = (v) => { const n = Number(String(v ?? "").replace(",", ".")); return Number.isFinite(n) ? n : NaN; };
+const usdInput = (c) => (c / 100).toFixed(2).replace(".", ",");
+const ruta = (t) => `${M.ORIGENES[t.origen]} · ${M.VIAS[t.via].toLowerCase()}`;
+const rutaDe = (x) => ruta(M.tarifa(E, x.tarifaId) ?? x);
+const conPesos = (c, tc = E.config.tipoCambio) => `${M.usd(c)} <span class="ayuda" style="display:inline">≈ ${M.pesos(M.aPesos(c, tc))}</span>`;
+
+let E, HOY, USUARIO = "u-sole", TAB = "hoy";
+const ui = {
+  bandeja: null, // "mio" | "todo" (null = según el rol)
+  filtro: "activos",
+  busca: "",
+  cot: null,
+  partir: null,
+  recepcion: null,
+};
+
+const TABS = [
+  { id: "hoy", nombre: "Hoy", roles: ["atencion", "deposito", "duenio"] },
+  { id: "envios", nombre: "Envíos", roles: ["atencion", "deposito", "duenio"] },
+  { id: "cotizar", nombre: "Cotizar", roles: ["atencion", "duenio"] },
+  { id: "deposito", nombre: "Depósito", roles: ["deposito", "duenio"] },
+  { id: "embarques", nombre: "Embarques y aduana", roles: ["atencion", "deposito", "duenio"] },
+  { id: "clientes", nombre: "Clientes", roles: ["atencion", "duenio"] },
+  { id: "caja", nombre: "Caja", roles: ["atencion", "duenio"] },
+  { id: "tablero", nombre: "Tablero", roles: ["duenio"] },
+  { id: "ajustes", nombre: "Tarifas y régimen", roles: ["duenio"] },
+];
+
+const yo = () => M.usuario(E, USUARIO);
+const puedo = (accion) => M.puede(E, USUARIO, accion);
+const auth = (pin) => ({ usuarioId: USUARIO, pin });
+const tabsDelRol = () => TABS.filter((t) => t.roles.includes(yo()?.rol));
+
+function cotVacia() {
+  return { clienteId: "", contacto: "", tarifaId: "miami-aereo", regimen: "courier", items: [{ descripcion: "", valor: "", unidades: "1", categoria: "general" }], kg: "", l: "", a: "", h: "", seguro: false };
+}
+
+function iniciar() {
+  HOY = hoyLocal();
+  E = M.generarDemo(HOY);
+  ui.cot = cotVacia();
+  const sel = $("#usuario");
+  sel.innerHTML = E.usuarios.map((u) => `<option value="${u.id}">${esc(u.nombre)} · ${esc(M.ROLES[u.rol])}</option>`).join("");
+  sel.value = USUARIO;
+  sel.addEventListener("change", () => { USUARIO = sel.value; ui.bandeja = null; if (!tabsDelRol().some((t) => t.id === TAB)) TAB = "hoy"; render(); toast(`Ahora usa ${yo().nombre} (${M.ROLES[yo().rol]}).`); });
+  const pedido = location.hash.slice(1);
+  if (TABS.some((t) => t.id === pedido)) TAB = pedido;
+  addEventListener("hashchange", () => { const h = location.hash.slice(1); if (TABS.some((t) => t.id === h) && h !== TAB) irTab(h, false); });
+  document.addEventListener("click", alClic);
+  document.addEventListener("input", alEscribir);
+  document.addEventListener("change", alCambiar);
+  document.addEventListener("submit", (ev) => { ev.preventDefault(); const a = ev.target.dataset.a; if (a && acciones[a]) acciones[a](ev.target.dataset, ev.target); });
+  render();
+}
+
+// ───────────────────────── pintar ─────────────────────────
+
+function render() {
+  const tabs = tabsDelRol();
+  const cuenta = M.bandeja(E, HOY).filter((x) => esMio(x)).length;
+  $("#pestanas").innerHTML = tabs.map((t) => `<button type="button" data-a="tab" data-v="${t.id}" ${t.id === TAB ? 'aria-current="page"' : ""}>${esc(t.nombre)}${t.id === "hoy" && cuenta ? `<span class="cuenta" aria-label="${cuenta} pendientes">${cuenta}</span>` : ""}</button>`).join("");
+  const vistas = { hoy: vistaHoy, envios: vistaEnvios, cotizar: vistaCotizar, deposito: vistaDeposito, embarques: vistaEmbarques, clientes: vistaClientes, caja: vistaCaja, tablero: vistaTablero, ajustes: vistaAjustes };
+  $("#principal").innerHTML = (vistas[TAB] ?? vistaHoy)();
+  if (TAB === "cotizar") pintarCotizacion();
+}
+
+function irTab(id, conHash = true) {
+  TAB = id;
+  if (conHash) history.replaceState(null, "", `#${id}`);
+  render();
+  $("#principal").focus({ preventScroll: true });
+  scrollTo({ top: 0 });
+}
+
+const esMio = (x) => {
+  const rol = yo()?.rol;
+  if (rol === "duenio") return true;
+  return x.rol === rol;
+};
+
+// ── Hoy: la bandeja ──
+
+const ICONOS = { prohibido: "!", observado: "AD", sin_duenio: "?", dano: "×", peso: "kg", saldo: "$", almacenaje: "d", demora: "⏱", cotizacion: "Q", devolucion: "↩", embarcable: "✓" };
+const CLASE = { prohibido: "urgente", observado: "urgente", demora: "urgente", sin_duenio: "urgente", saldo: "plata", peso: "plata", devolucion: "plata", embarcable: "ok" };
+
+function vistaHoy() {
+  const rol = yo().rol;
+  const modo = ui.bandeja ?? (rol === "duenio" ? "todo" : "mio");
+  const todos = M.bandeja(E, HOY);
+  const lista = modo === "mio" ? todos.filter(esMio) : todos;
+  const t = M.tablero(E, HOY);
+  const saludo = rol === "deposito" ? "Lo que hay en el depósito y los embarques" : rol === "atencion" ? "Lo que tenés que resolver con los clientes" : "Todo lo que está pidiendo una decisión";
+  return `
+  <h1>Hoy</h1>
+  <p class="bajada">${esc(saludo)}. Lo más urgente arriba; cada cosa con su acción a un toque.</p>
+  <div class="kpis">
+    <div class="kpi destacado"><div class="l">Para resolver</div><div class="v">${lista.length}</div><div class="s">${todos.filter((x) => x.urgente || CLASE[x.tipo] === "urgente").length} urgentes</div></div>
+    <div class="kpi"><div class="l">Envíos en curso</div><div class="v">${t.activos}</div><div class="s">${t.porEstado.en_deposito} en depósito · ${t.porEstado.en_transito} en viaje</div></div>
+    <div class="kpi"><div class="l">En aduana</div><div class="v">${t.porEstado.en_aduana}</div><div class="s">${t.observadosPct}% observados en el año</div></div>
+    <div class="kpi"><div class="l">Por cobrar</div><div class="v">${M.usd(t.porCobrar)}</div><div class="s">≈ ${M.pesos(M.aPesos(t.porCobrar, E.config.tipoCambio))} · dólar ${M.pesos(E.config.tipoCambio)}</div></div>
+  </div>
+  ${rol !== "duenio" ? `<div class="chips" role="group" aria-label="Qué mostrar">
+    <button type="button" data-a="bandeja" data-v="mio" aria-pressed="${modo === "mio"}">Lo mío (${todos.filter(esMio).length})</button>
+    <button type="button" data-a="bandeja" data-v="todo" aria-pressed="${modo === "todo"}">Todo (${todos.length})</button>
+  </div>` : ""}
+  ${lista.length ? `<ul class="bandeja">${lista.map(itemBandeja).join("")}</ul>` : `<div class="panel vacio">No hay nada pendiente para vos. 🙌</div>`}`;
+}
+
+function itemBandeja(x) {
+  const clase = x.urgente ? "urgente" : CLASE[x.tipo] ?? "";
+  const e = x.envioId ? M.envio(E, x.envioId) : null;
+  const p = x.paqueteId ? M.paquete(E, x.paqueteId) : null;
+  const b = [];
+  const wa = (tipo, extra) => e ? botonWa(M.mensaje(tipo, E, e, extra)) : "";
+  switch (x.tipo) {
+    case "prohibido":
+      if (e) b.push(wa("prohibido", { tracking: p.tracking, contenido: p.contenido || M.CATEGORIAS[p.categoria] }));
+      if (puedo("asignar")) b.push(`<button class="b chico" data-a="prohibido" data-id="${p.id}" data-v="devolver">Vuelve al vendedor</button><button class="b chico" data-a="prohibido" data-id="${p.id}" data-v="descartar">Se descarta</button>`);
+      break;
+    case "observado":
+      b.push(wa("observado"));
+      if (puedo("aduana")) b.push(`<button class="b chico" data-a="resolverObs" data-id="${e.id}">Ya mandó lo que pidieron</button>`);
+      break;
+    case "sin_duenio":
+      if (puedo("asignar")) b.push(`<button class="b chico primario" data-a="asignarDlg" data-id="${p.id}">Asignar a un envío</button>`);
+      break;
+    case "dano":
+      b.push(wa("dano", { tracking: p.tracking }));
+      if (puedo("avisar")) b.push(`<button class="b chico" data-a="dano" data-id="${p.id}" data-v="seguir">Sigue igual</button><button class="b chico" data-a="dano" data-id="${p.id}" data-v="devolver">Se reclama al vendedor</button>`);
+      break;
+    case "peso": {
+      const d = M.diferenciaDePeso(E, e.id, HOY);
+      b.push(wa("peso", { real: M.kg(d.cobrado), cotizado: M.kg(d.cotizado), monto: M.usd(d.centavos) }));
+      if (puedo("cotizar")) b.push(`<button class="b chico primario" data-a="ajustePeso" data-id="${e.id}">Aplicar ${d.centavos > 0 ? "+" : ""}${M.usd(d.centavos)}</button>`);
+      break;
+    }
+    case "saldo":
+      b.push(wa("saldo"));
+      if (puedo("cobrar")) b.push(`<button class="b chico primario" data-a="cobrarDlg" data-id="${e.id}">Cobrar</button>`);
+      break;
+    case "almacenaje": {
+      const ps = e.paquetes.map((id) => M.paquete(E, id)).filter(Boolean);
+      const peor = ps.map((q) => M.almacenaje(E, q, HOY)).sort((a, c) => c.dias - a.dias)[0];
+      b.push(wa("almacenaje", { dias: peor?.dias, faltan: Math.max(0, peor?.faltan ?? 0) }));
+      break;
+    }
+    case "demora":
+      if (puedo("despachar")) b.push(`<button class="b chico primario" data-a="demoraDlg" data-id="${x.embarqueId}">Cargar la nueva fecha y avisar</button>`);
+      break;
+    case "cotizacion": {
+      const q = E.cotizaciones.find((c) => c.id === x.cotizacionId);
+      b.push(botonWa({ link: M.linkWhatsApp("", `Hola, ¿pudiste ver la cotización de TESVO por ${M.usd(q.total)}? Vale hasta el ${ddmm(q.vence)}; después la recalculamos con el dólar del día.`) }, "Recordar por WhatsApp"));
+      if (puedo("confirmar")) b.push(`<button class="b chico" data-a="confirmarDlg" data-id="${q.id}">Confirmar</button>`);
+      break;
+    }
+    case "devolucion":
+      if (puedo("devolver")) b.push(`<button class="b chico primario" data-a="devolverDlg" data-id="${e.id}">Devolver (PIN del dueño)</button>`);
+      else b.push(`<span class="ayuda">La devuelve el dueño con su PIN.</span>`);
+      break;
+    case "embarcable":
+      if (puedo("embarcar")) b.push(`<button class="b chico verde" data-a="tab" data-v="embarques">Ir a embarques</button>`);
+      break;
+  }
+  if (e) b.push(`<button class="b chico" data-a="ficha" data-id="${e.id}">Ver envío</button>`);
+  return `<li class="item ${clase}">
+    <span class="ico" aria-hidden="true">${ICONOS[x.tipo] ?? "·"}</span>
+    <div><div class="t">${esc(x.titulo)}<span class="rol-chip">${esc(M.ROLES[x.rol] ?? "")}</span></div><div class="d">${esc(x.detalle)}</div></div>
+    <div class="acciones">${b.join("")}</div>
+  </li>`;
+}
+
+const botonWa = (m, texto = "WhatsApp") => `<a class="b chico wa" href="${esc(m.link)}" target="_blank" rel="noopener" aria-label="${esc(texto)}: abre WhatsApp con el mensaje listo">${esc(texto)}</a>`;
+
+// ── Envíos ──
+
+const FILTROS = [
+  ["activos", "En curso", (e) => !["entregado", "cancelado", "cotizado"].includes(e.estado)],
+  ["en_deposito", "En depósito", (e) => e.estado === "en_deposito" || e.estado === "esperando" || e.estado === "confirmado"],
+  ["viaje", "En viaje", (e) => e.estado === "embarcado" || e.estado === "en_transito"],
+  ["en_aduana", "En aduana", (e) => e.estado === "en_aduana"],
+  ["listo", "Para entregar", (e) => e.estado === "listo" || e.estado === "en_reparto"],
+  ["entregado", "Entregados", (e) => e.estado === "entregado"],
+  ["cancelado", "Cancelados", (e) => e.estado === "cancelado"],
+  ["todos", "Todos", () => true],
+];
+
+function vistaEnvios() {
+  const f = FILTROS.find((x) => x[0] === ui.filtro) ?? FILTROS[0];
+  const q = ui.busca.trim().toLowerCase();
+  const lista = E.envios.filter(f[2]).filter((e) => {
+    if (!q) return true;
+    const c = M.cliente(E, e.clienteId);
+    const tracks = [...(e.prealertas ?? []).map((p) => p.tracking), ...e.paquetes.map((id) => M.paquete(E, id)?.tracking)].join(" ");
+    return `${e.codigo} ${c?.nombre} ${c?.casilla} ${tracks}`.toLowerCase().includes(q);
+  });
+  return `
+  <h1>Envíos</h1>
+  <p class="bajada">Cada envío es una operación puerta a puerta: nace cuando el cliente confirma una cotización y termina en su casa.</p>
+  <div class="fila" style="margin-bottom:var(--s3)">
+    <label class="f" style="flex:1;min-width:220px">Buscar<input type="search" data-in="busca" value="${esc(ui.busca)}" placeholder="Código, cliente, casilla o tracking"></label>
+  </div>
+  <div class="chips" role="group" aria-label="Filtrar por estado">${FILTROS.map(([id, nombre, fn]) => `<button type="button" data-a="filtro" data-v="${id}" aria-pressed="${ui.filtro === id}">${nombre} (${E.envios.filter(fn).length})</button>`).join("")}</div>
+  ${tablaEnvios(lista)}`;
+}
+
+function tablaEnvios(lista) {
+  if (!lista.length) return `<div class="panel vacio">No hay envíos con ese filtro.</div>`;
+  return `<div class="tabla"><table>
+    <caption class="sr">Envíos</caption>
+    <thead><tr><th>Código</th><th>Cliente</th><th>Ruta</th><th>Estado</th><th class="n">Total</th><th class="n">Saldo</th></tr></thead>
+    <tbody>${lista.map((e) => {
+      const c = M.cliente(E, e.clienteId);
+      const saldo = e.estado === "cancelado" ? 0 : M.saldoEnvio(e);
+      const marcas = [e.desvio?.tipo === "observado" && !e.desvio.resuelto ? "observado" : "", e.retenerHasta && HOY < e.retenerHasta ? "espera compras" : ""].filter(Boolean);
+      return `<tr class="clic" data-a="ficha" data-id="${e.id}">
+        <td><button type="button" class="codigo" data-a="ficha" data-id="${e.id}" style="background:none;border:0;padding:0;cursor:pointer;text-decoration:underline">${e.codigo}</button></td>
+        <td>${esc(c?.nombre)}<div class="ayuda">${esc(c?.casilla)} · ${esc(M.REGIMENES[e.regimen])}</div></td>
+        <td>${esc(rutaDe(e))}</td>
+        <td><span class="estado e-${e.estado}">${esc(M.ESTADOS[e.estado])}</span>${marcas.map((m) => `<div class="marca">${esc(m)}</div>`).join("")}</td>
+        <td class="n">${M.usd(M.totalEnvio(e))}</td>
+        <td class="n">${saldo > 50 ? M.usd(saldo) : "—"}</td>
+      </tr>`;
+    }).join("")}</tbody></table></div>`;
+}
+
+function fichaEnvio(id) {
+  const e = M.envio(E, id);
+  if (!e) return;
+  const c = M.cliente(E, e.clienteId);
+  const q = e.cotizacion;
+  const tc = M.tcParaCobrar(E, e);
+  const idx = M.LINEA.indexOf(e.estado);
+  const linea = `<ol class="linea" aria-label="Recorrido">${M.LINEA.map((k, i) => {
+    const ev = e.eventos.find((x) => x.estado === k);
+    const cls = e.estado === "cancelado" ? (ev ? "hecho" : "") : i < idx ? "hecho" : i === idx ? "actual" : "";
+    return `<li class="${cls}">${esc(M.ESTADOS[k])}<br>${ev ? ddmm(ev.fecha) : ""}</li>`;
+  }).join("")}</ol>`;
+  const filas = [
+    ["Mercadería (valor declarado)", q.valor],
+    [`Flete ${q.pesoCobradoGramos ? `(${M.kg(q.pesoCobradoGramos)} cobrados)` : q.cbmMilesimas ? `(${(q.cbmMilesimas / 1000).toLocaleString("es-AR")} m³)` : ""}`, q.flete],
+    q.seguro ? ["Seguro", q.seguro] : null,
+    ["Honorario TESVO", q.honorario],
+    ["Manejo por paquete", q.manejo],
+    q.despachante ? ["Despachante", q.despachante] : null,
+    q.impuestos ? [`Impuestos estimados ${q.impuestos.conFranquicia ? "(con franquicia)" : "(sin franquicia)"}`, q.impuestos.total] : null,
+    ...e.ajustes.map((a) => [`${a.texto}`, a.centavos]),
+  ].filter(Boolean);
+  const totalServicio = M.totalEnvio(e);
+  const desglose = `<table class="desglose"><tbody>
+    <tr><td>${esc(filas[0][0])}</td><td class="n ayuda">${M.usd(filas[0][1])} <span class="sr">(lo paga el cliente al vendedor)</span></td></tr>
+    ${filas.slice(1).map(([l, v]) => `<tr><td>${esc(l)}</td><td class="n">${M.usd(v)}</td></tr>`).join("")}
+    <tr class="total"><td>Total TESVO</td><td class="n">${M.usd(totalServicio)}</td></tr>
+    <tr><td>Pagado</td><td class="n">${M.usd(M.pagadoEnvio(e))}</td></tr>
+    <tr><td><b>Saldo</b> ${e.tcCongelado ? `<span class="ayuda" style="display:inline">dólar congelado ${M.pesos(e.tcCongelado)}</span>` : `<span class="ayuda" style="display:inline">al dólar del día</span>`}</td><td class="n"><b>${e.estado === "cancelado" ? "—" : conPesos(Math.max(0, M.saldoEnvio(e)), tc)}</b></td></tr>
+  </tbody></table>`;
+  const paquetes = e.paquetes.map((pid) => M.paquete(E, pid)).filter(Boolean);
+  const pendientes = (e.prealertas ?? []).filter((x) => !paquetes.some((p) => p.tracking === x.tracking));
+  const bloqPaq = `<h3>Paquetes</h3>${paquetes.length || pendientes.length ? `<ul class="avisos">${paquetes.map((p) => {
+    const a = M.almacenaje(E, p, HOY);
+    return `<li class="${p.danado && !p.danoResuelto ? "grave" : "bien"}"><span class="codigo">${esc(p.tracking)}</span> · ${M.kg(p.gramos)}${p.medidas ? ` · ${p.medidas.l}×${p.medidas.a}×${p.medidas.h} cm` : ""} · recibido ${ddmm(p.recibido)}${p.salio ? ` · salió ${ddmm(p.salio)}` : ` · ${a.dias} días en depósito`}${p.danado ? (p.danoResuelto ? " · daño resuelto" : " · llegó dañado") : ""}</li>`;
+  }).join("")}${pendientes.map((x) => `<li><span class="codigo">${esc(x.tracking)}</span> · ${esc(x.tienda || "")} · avisado, todavía no llegó</li>`).join("")}</ul>` : `<p class="ayuda">Todavía no avisó ninguna compra.</p>`}`;
+  const novedades = `<h3>Novedades</h3><ul class="avisos">${e.eventos.slice().reverse().slice(0, 6).map((x) => `<li class="bien">${ddmm(x.fecha)} · ${esc(x.texto)}</li>`).join("")}</ul>`;
+
+  const acc = [];
+  const mens = { esperando: "saldo", en_transito: "salio", listo: "listo", en_reparto: "reparto" }[e.estado];
+  if (mens) acc.push(botonWa(M.mensaje(mens, E, e), "Avisar por WhatsApp"));
+  if (puedo("cobrar") && e.estado !== "cancelado" && M.saldoEnvio(e) > 50) acc.push(`<button class="b" data-a="cobrarDlg" data-id="${e.id}">Cobrar</button>`);
+  if (["confirmado", "esperando", "en_deposito"].includes(e.estado)) acc.push(`<button class="b" data-a="prealertaDlg" data-id="${e.id}">Avisar una compra</button>`);
+  if (["esperando", "en_deposito"].includes(e.estado)) acc.push(`<button class="b" data-a="retenerDlg" data-id="${e.id}">Esperar más compras</button>`);
+  if (e.estado === "en_aduana" && puedo("aduana")) {
+    if (e.desvio?.tipo === "observado" && !e.desvio.resuelto) acc.push(`<button class="b" data-a="resolverObs" data-id="${e.id}">Resolver observación</button>`);
+    else acc.push(`<button class="b primario" data-a="liberarDlg" data-id="${e.id}">Liberar</button><button class="b" data-a="observarDlg" data-id="${e.id}">Observado</button>`);
+  }
+  if ((e.estado === "listo" || e.estado === "en_reparto") && puedo("entregar")) {
+    if (e.estado === "listo" && !e.retiroEnOficina) acc.push(`<button class="b primario" data-a="entregar" data-id="${e.id}" data-v="domicilio">Sale a reparto</button>`);
+    if (e.estado === "en_reparto") acc.push(`<button class="b primario" data-a="entregar" data-id="${e.id}" data-v="domicilio">Entregado</button><button class="b" data-a="fallida" data-id="${e.id}">No había nadie</button>`);
+    acc.push(`<button class="b" data-a="entregar" data-id="${e.id}" data-v="oficina">Retira en la oficina</button>`);
+  }
+  if (puedo("bonificar") && e.estado !== "cancelado") acc.push(`<button class="b" data-a="bonificarDlg" data-id="${e.id}">Bonificar</button>`);
+  if (puedo("cancelar") && ["confirmado", "esperando", "en_deposito"].includes(e.estado)) acc.push(`<button class="b peligro" data-a="cancelarDlg" data-id="${e.id}">Cancelar envío</button>`);
+
+  const seg = M.seguimiento(E, e.codigo);
+  abrir({
+    titulo: `${e.codigo}`,
+    sub: `${c?.nombre} · ${c?.casilla} · ${rutaDe(e)} · ${M.REGIMENES[e.regimen]}`,
+    cuerpo: `
+      <span class="estado e-${e.estado}">${esc(M.ESTADOS[e.estado])}</span>
+      ${e.desvio?.tipo === "observado" && !e.desvio.resuelto ? `<ul class="avisos"><li class="grave">Aduana: ${esc(e.desvio.motivo)} · pide ${esc(e.desvio.pide)} antes del ${ddmm(e.desvio.vence)}</li></ul>` : ""}
+      ${e.devolucionPendiente > 0 ? `<ul class="avisos"><li>Seña a devolver: ${M.usd(e.devolucionPendiente)}</li></ul>` : ""}
+      ${linea}
+      <div class="dos" style="margin-top:var(--s4)">
+        <div><h3>Cuenta</h3>${desglose}</div>
+        <div>${bloqPaq}${novedades}</div>
+      </div>
+      <h3 style="margin-top:var(--s4)">Lo que ve el cliente en la web</h3>
+      <p class="ayuda">Con el código ${esc(e.codigo)} ve el recorrido${seg.llegadaEstimada ? ` y la llegada estimada (${ddmm(seg.llegadaEstimada)})` : ""}, nunca montos ni datos de otros clientes.</p>`,
+    pie: acc.join("") || `<span class="ayuda">Nada para hacer con tu rol en este estado.</span>`,
+    ancho: true,
+  });
+}
+
+// ── Cotizar ──
+
+function vistaCotizar() {
+  const c = ui.cot;
+  const opcTarifas = E.tarifas.map((t) => `<option value="${t.id}" ${t.id === c.tarifaId ? "selected" : ""}>${esc(ruta(t))} (${t.dias[0]}–${t.dias[1]} días)</option>`).join("");
+  const t = M.tarifa(E, c.tarifaId);
+  const opcReg = t.regimenes.map((r) => `<option value="${r}" ${r === c.regimen ? "selected" : ""}>${esc(M.REGIMENES[r])}</option>`).join("");
+  const abiertas = E.cotizaciones.filter((q) => q.estado === "abierta");
+  return `
+  <h1>Cotizar</h1>
+  <p class="bajada">Lo que el cliente pregunta por WhatsApp, respondido con el número completo: flete, honorario, impuestos estimados y avisos del régimen antes de que compre.</p>
+  <div class="dos">
+    <form class="panel" data-a="guardarCot" aria-label="Datos de la cotización">
+      <div class="campos">
+        <label class="f">Cliente<select data-cot="clienteId"><option value="">Consulta (sin ficha)</option>${E.clientes.map((x) => `<option value="${x.id}" ${x.id === c.clienteId ? "selected" : ""}>${esc(x.nombre)} · ${esc(x.casilla)}</option>`).join("")}</select></label>
+        ${c.clienteId ? "" : `<label class="f">Quién consulta<input data-cot="contacto" value="${esc(c.contacto)}" placeholder="Nombre o «WhatsApp de…»"></label>`}
+        <label class="f">Desde dónde y cómo<select data-cot="tarifaId">${opcTarifas}</select></label>
+        <label class="f">Régimen<select data-cot="regimen">${opcReg}</select></label>
+      </div>
+      <h3 style="margin-top:var(--s4)">Qué trae</h3>
+      ${c.items.map((it, i) => `<div class="campos" style="margin-bottom:var(--s2)">
+        <label class="f">Producto<input data-cot="item.${i}.descripcion" value="${esc(it.descripcion)}" placeholder="Ej.: notebook"></label>
+        <label class="f">Valor (US$)<input data-cot="item.${i}.valor" value="${esc(it.valor)}" inputmode="decimal" placeholder="0,00"></label>
+        <label class="f">Unidades<input data-cot="item.${i}.unidades" value="${esc(it.unidades)}" inputmode="numeric"></label>
+        <label class="f">Tipo<select data-cot="item.${i}.categoria">${Object.entries(M.CATEGORIAS).map(([k, v]) => `<option value="${k}" ${k === it.categoria ? "selected" : ""}>${esc(v)}</option>`).join("")}</select></label>
+        ${c.items.length > 1 ? `<button type="button" class="b chico" data-a="quitarItem" data-v="${i}" aria-label="Quitar ${esc(it.descripcion || `producto ${i + 1}`)}">Quitar</button>` : ""}
+      </div>`).join("")}
+      <button type="button" class="b chico" data-a="sumarItem">+ Otro producto</button>
+      <h3 style="margin-top:var(--s4)">Cuánto pesa y mide la caja</h3>
+      <div class="campos">
+        ${t.porCbmCentavos ? "" : `<label class="f">Peso (kg)<input data-cot="kg" value="${esc(c.kg)}" inputmode="decimal" placeholder="0,0"></label>`}
+        <label class="f">Largo (cm)<input data-cot="l" value="${esc(c.l)}" inputmode="numeric"></label>
+        <label class="f">Ancho (cm)<input data-cot="a" value="${esc(c.a)}" inputmode="numeric"></label>
+        <label class="f">Alto (cm)<input data-cot="h" value="${esc(c.h)}" inputmode="numeric"></label>
+      </div>
+      <label class="f chk"><input type="checkbox" data-cot="seguro" ${c.seguro ? "checked" : ""}> Con seguro (${Math.round(E.config.seguroTasa * 1000) / 10}% del valor)</label>
+      <div class="fila" style="margin-top:var(--s4)">
+        <button class="b primario" type="submit">Guardar cotización</button>
+        <button class="b" type="button" data-a="partir">Partir para ahorrar</button>
+        <button class="b" type="button" data-a="limpiarCot">Empezar de nuevo</button>
+      </div>
+    </form>
+    <section class="panel" aria-live="polite" aria-label="Resultado"><div id="cot-resultado"></div></section>
+  </div>
+  <h2 style="margin-top:var(--s6)">Cotizaciones abiertas</h2>
+  ${abiertas.length ? `<div class="tabla"><table><thead><tr><th>Para</th><th>Ruta</th><th class="n">Total</th><th>Vence</th><th></th></tr></thead><tbody>
+    ${abiertas.map((q) => `<tr><td>${esc(q.clienteId ? M.cliente(E, q.clienteId)?.nombre : q.contacto)}</td><td>${esc(rutaDe(q))}</td><td class="n">${M.usd(q.total)}</td><td>${M.cotizacionVencida(q, HOY) ? `<span class="marca">venció ${ddmm(q.vence)}</span>` : ddmm(q.vence)}</td>
+      <td><div class="fila">${botonWa({ link: M.linkWhatsApp("", textoCotizacion(q)) }, "Mandar")}${puedo("confirmar") ? `<button class="b chico primario" data-a="confirmarDlg" data-id="${q.id}">Confirmar</button>` : ""}</div></td></tr>`).join("")}
+  </tbody></table></div>` : `<div class="panel vacio">No hay cotizaciones abiertas.</div>`}`;
+}
+
+function pedidoDesdeForm() {
+  const c = ui.cot;
+  const medidas = [c.l, c.a, c.h].every((v) => parseNum(v) > 0) ? { l: parseNum(c.l), a: parseNum(c.a), h: parseNum(c.h) } : null;
+  return {
+    tarifaId: c.tarifaId,
+    regimen: c.regimen,
+    clienteId: c.clienteId || undefined,
+    items: c.items.map((it) => ({ descripcion: it.descripcion.trim() || "Producto", valorCentavos: parseUsd(it.valor), unidades: Math.max(1, Math.round(parseNum(it.unidades)) || 1), categoria: it.categoria })).filter((it) => it.valorCentavos > 0),
+    gramos: parseNum(c.kg) > 0 ? Math.round(parseNum(c.kg) * 1000) : 0,
+    medidas,
+    seguro: c.seguro,
+  };
+}
+
+function textoCotizacion(q) {
+  const lineas = [
+    `Cotización TESVO — ${ruta(M.tarifa(E, q.tarifaId) ?? q)} (${q.dias[0]} a ${q.dias[1]} días)`,
+    `Flete: ${M.usd(q.flete)}`,
+    q.seguro ? `Seguro: ${M.usd(q.seguro)}` : "",
+    `Honorario y manejo: ${M.usd(q.honorario + q.manejo)}`,
+    q.despachante ? `Despachante: ${M.usd(q.despachante)}` : "",
+    q.impuestos ? `Impuestos estimados: ${M.usd(q.impuestos.total)} (los liquida la aduana)` : "",
+    `Total: ${M.usd(q.total)} ≈ ${M.pesos(q.totalPesos)} al dólar de hoy`,
+    `Con la seña del ${Math.round(E.config.senaTasa * 100)}% te congelamos el dólar. Vale hasta el ${ddmm(q.vence ?? M.sumarDias(HOY, E.config.validezCotizacionDias))}.`,
+  ];
+  return lineas.filter(Boolean).join("\n");
+}
+
+function pintarCotizacion() {
+  const caja = $("#cot-resultado");
+  if (!caja) return;
+  const p = pedidoDesdeForm();
+  if (!p.items.length) { caja.innerHTML = `<h2>Resultado</h2><p class="ayuda">Cargá al menos un producto con su valor en dólares.</p>`; return; }
+  const r = M.cotizar(E, p);
+  if (!r.ok) { caja.innerHTML = `<h2>Resultado</h2><ul class="avisos"><li class="grave">${esc(r.motivo)}</li></ul>`; return; }
+  const q = r.cotizacion;
+  const filas = [
+    ["Flete" + (q.pesoCobradoGramos ? ` (${M.kg(q.pesoCobradoGramos)} cobrados${p.gramos && q.pesoCobradoGramos > p.gramos ? ", por volumen" : ""})` : q.cbmMilesimas ? ` (${(q.cbmMilesimas / 1000).toLocaleString("es-AR")} m³)` : ""), q.flete],
+    q.seguro ? ["Seguro", q.seguro] : null,
+    ["Honorario TESVO", q.honorario],
+    ["Manejo por paquete", q.manejo],
+    q.despachante ? ["Despachante", q.despachante] : null,
+    q.impuestos ? [`Derechos y tasa de estadística`, q.impuestos.derechos + q.impuestos.tasa] : null,
+    q.impuestos ? ["IVA", q.impuestos.iva] : null,
+  ].filter(Boolean);
+  let partir = "";
+  if (ui.partir) {
+    const cupo = p.clienteId ? M.cupoCourier(E, p.clienteId) : null;
+    const pr = M.partirParaAhorrar(E, p.items, { cupo: cupo?.aplica ? cupo.quedan : 5, fleteCentavosPorEnvio: Math.round(q.flete / Math.max(1, p.items.length)) });
+    partir = pr.ok ? `<h3 style="margin-top:var(--s4)">Partido en ${pr.grupos.length} envío(s)</h3>
+      <ul class="avisos">${pr.grupos.map((g, i) => `<li class="bien">Envío ${i + 1}: ${g.items.map((x) => esc(x.descripcion)).join(", ")} · ${M.usd(g.valor)} · impuestos ${M.usd(g.impuestos)}</li>`).join("")}
+      <li class="${pr.ahorro > 0 ? "bien" : ""}">${pr.ahorro == null ? "Junto no entra en el courier." : pr.ahorro > 0 ? `Ahorra ${M.usd(pr.ahorro)} en impuestos (suma ${M.usd(pr.fletesExtra)} de fletes y manejo extra).` : "Partirlo no ahorra: conviene mandar todo junto."}</li>
+      <li>Usa ${pr.grupos.length} de los envíos con franquicia del año. El despachante valida que sean compras distintas.</li></ul>`
+      : `<ul class="avisos"><li class="grave">${esc(pr.motivo)}</li></ul>`;
+  }
+  caja.innerHTML = `<h2>Resultado</h2>
+    <table class="desglose"><tbody>
+      <tr><td class="ayuda">Mercadería (la paga el cliente al vendedor)</td><td class="n ayuda">${M.usd(q.valor)}</td></tr>
+      ${filas.map(([l, v]) => `<tr><td>${esc(l)}</td><td class="n">${M.usd(v)}</td></tr>`).join("")}
+      <tr class="total"><td>Total TESVO</td><td class="n">${M.usd(q.total)}</td></tr>
+      <tr><td class="ayuda">Al dólar de hoy (${M.pesos(q.tipoCambio)})</td><td class="n">${M.pesos(q.totalPesos)}</td></tr>
+      <tr><td class="ayuda">Seña para congelar el dólar (${Math.round(E.config.senaTasa * 100)}%)</td><td class="n">${M.usd(Math.round(q.total * E.config.senaTasa))}</td></tr>
+    </tbody></table>
+    <ul class="avisos">${r.avisos.map((a) => `<li class="${a.grave ? "grave" : a.tipo === "franquicia" ? "bien" : ""}">${esc(a.texto)}</li>`).join("") || `<li class="bien">Sin observaciones del régimen.</li>`}</ul>
+    <p class="ayuda">Llega en ${q.dias[0]} a ${q.dias[1]} días desde que sale. Impuestos estimados: los liquida la aduana.</p>
+    ${partir}
+    <div class="fila" style="margin-top:var(--s3)">${botonWa({ link: M.linkWhatsApp("", textoCotizacion(q)) }, "Mandar por WhatsApp")}</div>`;
+}
+
+// ── Depósito ──
+
+function vistaDeposito() {
+  const r = ui.recepcion;
+  const enDep = E.paquetes.filter((p) => !p.salio && !p.devuelto);
+  return `
+  <h1>Depósito</h1>
+  <p class="bajada">Recibir es pesar, medir y sacar la foto. El sistema busca al dueño por el tracking avisado o por la casilla de la etiqueta; si no lo encuentra, queda en la bandeja y no se embarca.</p>
+  <div class="dos">
+    <form class="panel" data-a="recibir" aria-label="Recibir paquete">
+      <h2>Recibir un paquete</h2>
+      <div class="campos">
+        <label class="f">Tracking de la etiqueta<input name="tracking" required autocomplete="off" placeholder="Escaneá o tipeá"></label>
+        <label class="f">Peso (kg)<input name="kg" required inputmode="decimal" placeholder="0,0"></label>
+        <label class="f">Largo (cm)<input name="l" inputmode="numeric"></label>
+        <label class="f">Ancho (cm)<input name="a" inputmode="numeric"></label>
+        <label class="f">Alto (cm)<input name="h" inputmode="numeric"></label>
+        <label class="f">Casilla escrita<input name="casilla" placeholder="TV-1001" autocomplete="off"></label>
+        <label class="f">Depósito<select name="deposito">${Object.entries(M.ORIGENES).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select></label>
+        <label class="f">Contenido<select name="categoria">${Object.entries(M.CATEGORIAS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select></label>
+      </div>
+      <label class="f" style="margin-top:var(--s3)">Qué se ve adentro (opcional)<input name="contenido" placeholder="Ej.: zapatillas, caja original"></label>
+      <label class="f chk"><input type="checkbox" name="danado"> La caja llegó dañada</label>
+      <p class="ayuda">Simulación de demo: la foto se toma sola al recibir. En el depósito se conecta a la balanza y a la cámara del puesto.</p>
+      <button class="b primario" type="submit" style="margin-top:var(--s3)">Recibir</button>
+      ${r ? `<ul class="avisos" style="margin-top:var(--s4)"><li class="${r.ok ? (r.envio ? "bien" : "") : "grave"}">${esc(r.texto)}</li></ul>` : ""}
+    </form>
+    <section class="panel" aria-label="Pendientes del depósito">
+      <h2>Para resolver acá</h2>
+      <ul class="bandeja">${M.bandeja(E, HOY).filter((x) => x.rol === "deposito" && x.tipo !== "demora").map(itemBandeja).join("") || `<li class="vacio">Nada pendiente.</li>`}</ul>
+    </section>
+  </div>
+  <h2 style="margin-top:var(--s6)">En el depósito (${enDep.length})</h2>
+  <div class="tabla"><table><thead><tr><th>Tracking</th><th>Envío</th><th>Depósito</th><th class="n">Peso</th><th class="n">Días</th><th>Estado</th></tr></thead><tbody>
+    ${enDep.map((p) => {
+      const e = p.envioId ? M.envio(E, p.envioId) : null;
+      const a = M.almacenaje(E, p, HOY);
+      const est = p.retenido === "prohibido" && !p.resueltoProhibido ? "prohibido" : !p.envioId ? "sin dueño" : p.danado && !p.danoResuelto ? "dañado" : a.cobrables > 0 ? `almacenaje ${M.usd(a.centavos)}` : "ok";
+      return `<tr><td class="codigo">${esc(p.tracking)}</td><td>${e ? `<button type="button" class="codigo" data-a="ficha" data-id="${e.id}" style="background:none;border:0;padding:0;cursor:pointer;text-decoration:underline">${e.codigo}</button><div class="ayuda">${esc(M.cliente(E, e.clienteId)?.nombre)}</div>` : "—"}</td><td>${esc(M.ORIGENES[p.deposito])}</td><td class="n">${M.kg(p.gramos)}</td><td class="n">${a.dias}</td><td>${est === "ok" ? `<span class="estado e-listo">ok</span>` : `<span class="marca">${esc(est)}</span>`}</td></tr>`;
+    }).join("")}
+  </tbody></table></div>`;
+}
+
+// ── Embarques y aduana ──
+
+function vistaEmbarques() {
+  const orden = { armando: 0, en_transito: 1, arribado: 2, cerrado: 3 };
+  const lista = E.embarques.slice().sort((a, b) => orden[a.estado] - orden[b.estado]);
+  const enAduana = E.envios.filter((e) => e.estado === "en_aduana");
+  return `
+  <h1>Embarques y aduana</h1>
+  <p class="bajada">Un embarque es un vuelo, un contenedor o un camión. Sólo sube lo que está completo, pesado, avisado y con seña; si se demora, una carga avisa a todos.</p>
+  ${enAduana.length ? `<section class="panel"><h2>En aduana (${enAduana.length})</h2>${tablaAduana(enAduana)}</section>` : ""}
+  ${puedo("embarcar") ? `<form class="panel" data-a="nuevoEmbarque" aria-label="Nuevo embarque">
+    <h2>Abrir un embarque</h2>
+    <div class="campos">
+      <label class="f">Ruta<select name="tarifaId">${E.tarifas.map((t) => `<option value="${t.id}">${esc(ruta(t))}</option>`).join("")}</select></label>
+      <label class="f">Guía, contenedor o carta de porte<input name="referencia" required placeholder="AWB 045-…"></label>
+      <label class="f">Llegada estimada<input name="llegada" type="date" required value="${M.sumarDias(HOY, 7)}" min="${HOY}"></label>
+    </div>
+    <button class="b primario" type="submit" style="margin-top:var(--s3)">Abrir embarque</button>
+  </form>` : ""}
+  ${lista.map(tarjetaEmbarque).join("")}`;
+}
+
+function tablaAduana(lista) {
+  return `<div class="tabla"><table><thead><tr><th>Envío</th><th>Cliente</th><th>Situación</th><th></th></tr></thead><tbody>
+  ${lista.map((e) => {
+    const obs = e.desvio?.tipo === "observado" && !e.desvio.resuelto;
+    return `<tr><td><button type="button" class="codigo" data-a="ficha" data-id="${e.id}" style="background:none;border:0;padding:0;cursor:pointer;text-decoration:underline">${e.codigo}</button></td><td>${esc(M.cliente(E, e.clienteId)?.nombre)}</td>
+      <td>${obs ? `<span class="marca">Observado: ${esc(e.desvio.motivo)} · vence ${ddmm(e.desvio.vence)}</span>` : "Esperando liberación"}</td>
+      <td><div class="fila">${puedo("aduana") ? (obs ? botonWa(M.mensaje("observado", E, e), "Pedir documentación") + `<button class="b chico" data-a="resolverObs" data-id="${e.id}">Resuelto</button>` : `<button class="b chico primario" data-a="liberarDlg" data-id="${e.id}">Liberar</button><button class="b chico" data-a="observarDlg" data-id="${e.id}">Observado</button>`) : ""}</div></td></tr>`;
+  }).join("")}</tbody></table></div>`;
+}
+
+function tarjetaEmbarque(b) {
+  const t = M.tarifa(E, b.tarifaId);
+  const envios = b.envios.map((id) => M.envio(E, id));
+  let cuerpo = "";
+  if (b.estado === "armando") {
+    const candidatos = E.envios.filter((e) => e.tarifaId === b.tarifaId && e.estado === "en_deposito");
+    cuerpo = `<h3>Para subir</h3>${candidatos.length ? `<ul class="avisos">${candidatos.map((e) => {
+      const l = M.listoParaEmbarcar(E, e, HOY);
+      return `<li class="${l.ok ? "bien" : ""}"><span class="codigo">${e.codigo}</span> · ${esc(M.cliente(E, e.clienteId)?.nombre)} · ${l.ok ? "listo" : `no sube: ${esc(l.frenos.join(", "))}`} ${l.ok && puedo("embarcar") ? `<button class="b chico verde" data-a="subir" data-id="${b.id}" data-v="${e.id}">Subir</button>` : ""}</li>`;
+    }).join("")}</ul>` : `<p class="ayuda">No hay envíos de esta ruta en el depósito.</p>`}`;
+  }
+  const acc = [];
+  if (b.estado === "armando" && puedo("despachar")) acc.push(`<button class="b primario" data-a="despacharDlg" data-id="${b.id}" ${b.envios.length ? "" : "disabled"}>Salió</button>`);
+  if (b.estado === "en_transito" && puedo("despachar")) acc.push(`<button class="b" data-a="demoraDlg" data-id="${b.id}">Se demora</button><button class="b primario" data-a="arribo" data-id="${b.id}">Llegó a Argentina</button>`);
+  const atrasado = b.estado === "en_transito" && b.llegada < HOY;
+  return `<section class="panel">
+    <div class="fila" style="justify-content:space-between">
+      <div><h2 style="margin:0">${esc(b.referencia)}</h2><p class="ayuda">${esc(ruta(t))} · ${esc(M.ESTADOS_EMBARQUE[b.estado])} · ${b.salida ? `salida ${ddmm(b.salida)}` : "sin salir"} · llegada ${b.arribo ? `real ${ddmm(b.arribo)}` : `estimada ${ddmm(b.llegada)}`}${b.demoras.length ? ` (era ${ddmm(b.llegadaOriginal)})` : ""}</p>
+      ${atrasado ? `<p class="marca">Pasó la fecha estimada: cargá la nueva y avisá.</p>` : ""}</div>
+      <div class="fila">${acc.join("")}</div>
+    </div>
+    ${envios.length ? `<ul class="avisos">${envios.map((e) => `<li class="bien"><span class="codigo">${e.codigo}</span> · ${esc(M.cliente(E, e.clienteId)?.nombre)} · ${esc(M.ESTADOS[e.estado])}</li>`).join("")}</ul>` : ""}
+    ${b.demoras.map((d) => `<p class="ayuda">Demora cargada el ${ddmm(d.fecha)}: ${esc(d.motivo)} (${ddmm(d.desde)} → ${ddmm(d.hasta)})</p>`).join("")}
+    ${cuerpo}
+  </section>`;
+}
+
+// ── Clientes ──
+
+function vistaClientes() {
+  return `
+  <h1>Clientes</h1>
+  <p class="bajada">Cada cliente tiene su casilla (la «dirección» que pone en la tienda) y su cupo de envíos con franquicia del año.</p>
+  ${puedo("clientes") ? `<div class="fila" style="margin-bottom:var(--s4)"><button class="b primario" data-a="altaClienteDlg">+ Nuevo cliente</button></div>` : ""}
+  <div class="tabla"><table><thead><tr><th>Cliente</th><th>Casilla</th><th>Tipo</th><th>Franquicia del año</th><th class="n">En curso</th><th class="n">Debe</th></tr></thead><tbody>
+  ${E.clientes.map((c) => {
+    const cupo = M.cupoCourier(E, c.id);
+    const envios = E.envios.filter((e) => e.clienteId === c.id);
+    const curso = envios.filter((e) => !["entregado", "cancelado"].includes(e.estado));
+    const debe = curso.filter((e) => ["listo", "en_reparto"].includes(e.estado)).reduce((s, e) => s + Math.max(0, M.saldoEnvio(e)), 0);
+    return `<tr class="clic" data-a="fichaCliente" data-id="${c.id}"><td><button type="button" data-a="fichaCliente" data-id="${c.id}" style="background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;font-weight:600">${esc(c.nombre)}</button><div class="ayuda">${esc(c.doc)}</div></td><td class="codigo">${esc(c.casilla)}</td><td>${c.tipo === "pyme" ? "Empresa" : "Persona"}</td>
+      <td>${cupo.aplica ? `${cupo.usados} de ${cupo.total}${cupo.quedan === 0 ? ` <span class="marca">sin franquicia</span>` : cupo.quedan === 1 ? ` <span class="marca">queda 1</span>` : ""}` : "No aplica"}</td>
+      <td class="n">${curso.length}</td><td class="n">${debe > 50 ? M.usd(debe) : "—"}</td></tr>`;
+  }).join("")}</tbody></table></div>`;
+}
+
+function fichaCliente(id) {
+  const c = M.cliente(E, id);
+  const envios = E.envios.filter((e) => e.clienteId === id);
+  const cupo = M.cupoCourier(E, id);
+  abrir({
+    titulo: c.nombre,
+    sub: `${c.casilla} · ${c.tipo === "pyme" ? "Empresa" : "Persona"} · ${c.doc}`,
+    cuerpo: `<p>${cupo.aplica ? `Usó ${cupo.usados} de sus ${cupo.total} envíos con franquicia de ${HOY.slice(0, 4)}.` : "Como empresa, por courier no tiene franquicia: con despachante suele convenir."}</p>
+      <h3>Dirección para comprar en Miami</h3>
+      <p class="ayuda">En la tienda pone su nombre seguido de <b class="codigo">${esc(c.casilla)}</b> y la dirección del depósito de TESVO (a confirmar con TESVO).</p>
+      ${tablaEnvios(envios)}`,
+    pie: `${botonWa({ link: M.linkWhatsApp("", `Hola ${c.nombre.split(" ")[0]}, tu casilla en TESVO es ${c.casilla}. Cuando compres, avisanos el tracking por acá así lo recibimos con tu nombre.`) }, "Mandar su casilla")}`,
+    ancho: true,
+  });
+}
+
+// ── Caja ──
+
+function vistaCaja() {
+  const dia = M.cajaDelDia(E, HOY);
+  const ult = E.caja.slice(0, 30);
+  return `
+  <h1>Caja</h1>
+  <p class="bajada">Lo que entra y sale, en la moneda en que se movió. Los pesos se convierten al dólar congelado del envío (si dejó seña) o al del día.</p>
+  <div class="kpis">${Object.keys(M.MEDIOS).map((k) => {
+    const m = dia.porMedio[k];
+    const neto = m ? m.ingresos - m.egresos : 0;
+    const usdMedio = k === "usd_efectivo";
+    return `<div class="kpi"><div class="l">${esc(M.MEDIOS[k])} · hoy</div><div class="v">${usdMedio ? M.usd(neto) : M.pesos(neto)}</div><div class="s">${m ? `${usdMedio ? M.usd(m.ingresos) : M.pesos(m.ingresos)} entró${m.egresos ? ` · ${usdMedio ? M.usd(m.egresos) : M.pesos(m.egresos)} salió` : ""}` : "sin movimientos"}</div></div>`;
+  }).join("")}</div>
+  <h2>Últimos movimientos</h2>
+  <div class="tabla"><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Medio</th><th class="n">Monto</th><th class="n">En dólares</th></tr></thead><tbody>
+  ${ult.map((m) => {
+    const e = M.envio(E, m.envioId);
+    return `<tr><td>${ddmm(m.fecha)}</td><td>${m.tipo === "egreso" ? "↩ " : ""}${esc(m.concepto || (e ? `Cobro ${e.codigo}` : ""))}<div class="ayuda">${esc(M.cliente(E, e?.clienteId)?.nombre ?? "")}</div></td><td>${esc(M.MEDIOS[m.medio])}</td><td class="n">${m.tipo === "egreso" ? "-" : ""}${m.moneda === "USD" ? M.usd(m.monto) : M.pesos(m.monto)}</td><td class="n">${M.usd(m.centavos)}<div class="ayuda">dólar ${M.pesos(m.tc)}</div></td></tr>`;
+  }).join("")}</tbody></table></div>`;
+}
+
+// ── Tablero del dueño ──
+
+function vistaTablero() {
+  const t = M.tablero(E, HOY);
+  const max = Math.max(1, ...Object.values(t.porEstado));
+  const maxRuta = Math.max(1, ...t.porRuta.map((r) => r.envios));
+  return `
+  <h1>Tablero</h1>
+  <p class="bajada">El negocio en una pantalla: qué está en curso, qué falta cobrar, cuánto deja cada embarque y por dónde entra el trabajo.</p>
+  <div class="kpis">
+    <div class="kpi destacado"><div class="l">Por cobrar</div><div class="v">${M.usd(t.porCobrar)}</div><div class="s">≈ ${M.pesos(M.aPesos(t.porCobrar, E.config.tipoCambio))}</div></div>
+    <div class="kpi"><div class="l">Cobrado este mes</div><div class="v">${M.usd(t.cobradoMes)}</div><div class="s">servicio facturado ${M.usd(t.facturado)}</div></div>
+    <div class="kpi"><div class="l">Puerta a puerta</div><div class="v">${t.puertaAPuerta ?? "—"} días</div><div class="s">promedio de lo entregado</div></div>
+    <div class="kpi"><div class="l">Cotizaciones que se confirman</div><div class="v">${t.conversion}%</div><div class="s">${t.cotizacionesAbiertas} abiertas</div></div>
+    <div class="kpi"><div class="l">Observados en aduana</div><div class="v">${t.observadosPct}%</div><div class="s">de lo que pasó por aduana</div></div>
+    <div class="kpi"><div class="l">Paquetes sin dueño</div><div class="v">${t.sinDuenio}</div><div class="s">no se embarcan hasta asignarlos</div></div>
+  </div>
+  <div class="dos">
+    <section class="panel"><h2>Dónde están los envíos</h2><div class="barras">${M.LINEA.map((k) => `<div class="barra-h"><span>${esc(M.ESTADOS[k])}</span><span class="riel" role="img" aria-label="${t.porEstado[k]} envíos"><span style="width:${(t.porEstado[k] * 100) / max}%"></span></span><b class="n">${t.porEstado[k]}</b></div>`).join("")}</div></section>
+    <section class="panel"><h2>Por ruta</h2><div class="barras">${t.porRuta.map((r) => `<div class="barra-h"><span>${esc(M.ORIGENES[r.origen])} ${esc(M.VIAS[r.via].toLowerCase())}</span><span class="riel" role="img" aria-label="${r.envios} envíos"><span style="width:${(r.envios * 100) / maxRuta}%"></span></span><b class="n">${r.envios}</b></div>`).join("")}</div></section>
+  </div>
+  <section class="panel" style="margin-top:var(--s4)"><h2>Margen de flete por embarque</h2>
+    <p class="ayuda">Lo que se le cobró de flete a los clientes contra lo que costó de verdad la guía, el contenedor o el camión.</p>
+    <div class="tabla"><table><thead><tr><th>Embarque</th><th class="n">Cobrado</th><th class="n">Costó</th><th class="n">Margen</th></tr></thead><tbody>
+    ${t.margenes.map((m) => `<tr><td>${esc(m.referencia)}</td><td class="n">${M.usd(m.cobrado)}</td><td class="n">${M.usd(m.costo)}</td><td class="n"><b>${M.usd(m.margen)}</b> (${m.cobrado ? Math.round((m.margen * 100) / m.cobrado) : 0}%)</td></tr>`).join("")}
+    </tbody></table></div>
+  </section>
+  <section class="panel"><h2>Últimos movimientos del sistema</h2><ul class="avisos">${E.log.slice(0, 8).map((l) => `<li class="bien">${ddmm(l.fecha)} · ${esc(l.texto)}</li>`).join("")}</ul></section>`;
+}
+
+// ── Tarifas y régimen ──
+
+function vistaAjustes() {
+  const R = E.regimen;
+  return `
+  <h1>Tarifas y régimen</h1>
+  <p class="bajada">Los números cambian sin pedirle nada a nadie: el dólar del día, el precio por kilo de cada ruta y, con PIN, las reglas del régimen courier cuando ARCA las modifique.</p>
+  <div class="grilla">
+    <form class="panel" data-a="guardarTc">
+      <h2>Dólar del día</h2>
+      <label class="f">Pesos por dólar<input name="tc" inputmode="numeric" value="${E.config.tipoCambio}"></label>
+      <p class="ayuda">Las cotizaciones nuevas y los saldos sin seña se calculan con este valor.</p>
+      <button class="b primario" type="submit" style="margin-top:var(--s3)">Guardar</button>
+    </form>
+    <form class="panel" data-a="guardarRegimen">
+      <h2>Régimen courier</h2>
+      <div class="campos">
+        <label class="f">Franquicia (US$)<input name="franquiciaCentavos" inputmode="decimal" value="${usdInput(R.franquiciaCentavos)}"></label>
+        <label class="f">Tope por envío (US$)<input name="topeEnvioCentavos" inputmode="decimal" value="${usdInput(R.topeEnvioCentavos)}"></label>
+        <label class="f">Derechos sobre el excedente (%)<input name="derechosExcedente" inputmode="decimal" value="${Math.round(R.derechosExcedente * 100)}"></label>
+        <label class="f">Envíos con franquicia por año<input name="enviosPorAnio" inputmode="numeric" value="${R.enviosPorAnio}"></label>
+        <label class="f">Tu PIN<input name="pin" type="password" inputmode="numeric" autocomplete="off" required></label>
+      </div>
+      <p class="ayuda">Vigente desde ${esc(R.vigenteDesde)}. ${esc(R.fuente)}. PIN de la demo: 9999.</p>
+      <button class="b primario" type="submit" style="margin-top:var(--s3)">Guardar régimen</button>
+    </form>
+  </div>
+  <section class="panel" style="margin-top:var(--s4)"><h2>Tarifas por ruta</h2>
+    <div class="tabla"><table><thead><tr><th>Ruta</th><th>Régimen</th><th>Plazo</th><th class="n">Precio</th><th></th></tr></thead><tbody>
+    ${E.tarifas.map((t) => {
+      const campo = t.porCbmCentavos ? "porCbmCentavos" : "porKgCentavos";
+      return `<tr><td>${esc(ruta(t))}</td><td>${t.regimenes.map((r) => esc(M.REGIMENES[r])).join(" · ")}</td><td>${t.dias[0]}–${t.dias[1]} días</td>
+        <td class="n"><label class="sr" for="tar-${t.id}">US$ por ${t.porCbmCentavos ? "m³" : "kg"} de ${esc(ruta(t))}</label><input id="tar-${t.id}" data-tarifa="${t.id}" data-campo="${campo}" value="${usdInput(t[campo])}" inputmode="decimal" style="width:110px;min-height:36px;border:1.5px solid var(--borde-campo);border-radius:var(--r-campo);padding:0 var(--s2);text-align:right;background:var(--panel)"> / ${t.porCbmCentavos ? "m³" : "kg"}</td>
+        <td><button class="b chico" data-a="guardarTarifa" data-id="${t.id}">Guardar</button></td></tr>`;
+    }).join("")}
+    </tbody></table></div>
+    <p class="ayuda">Valores de demostración: no son tarifas de TESVO.</p>
+  </section>`;
+}
+
+// ───────────────────────── diálogos ─────────────────────────
+
+function abrir({ titulo, sub = "", cuerpo, pie = "", ancho = false }) {
+  const d = $("#dlg");
+  d.style.maxWidth = ancho ? "min(960px, calc(100vw - 32px))" : "";
+  d.innerHTML = `<div class="dlg-cab"><div style="flex:1"><h2 id="dlg-titulo">${esc(titulo)}</h2>${sub ? `<p>${esc(sub)}</p>` : ""}</div><button type="button" class="cerrar" data-a="cerrar" aria-label="Cerrar">×</button></div>
+    <div class="dlg-cuerpo">${cuerpo}</div>${pie ? `<div class="dlg-pie">${pie}</div>` : ""}`;
+  if (!d.open) d.showModal();
+  const foco = d.querySelector("input:not([type=hidden]),select,textarea") ?? d.querySelector(".dlg-pie .b") ?? d.querySelector(".cerrar");
+  foco?.focus();
+}
+const cerrar = () => { const d = $("#dlg"); if (d.open) d.close(); };
+
+function formDlg({ titulo, sub, campos, enviar, accion, datos = {} }) {
+  abrir({
+    titulo, sub,
+    cuerpo: `<form id="dlg-form" data-a="${accion}" ${Object.entries(datos).map(([k, v]) => `data-${k}="${esc(v)}"`).join(" ")}><div class="campos">${campos}</div></form>`,
+    pie: `<button class="b" type="button" data-a="cerrar">Volver</button><button class="b primario" type="submit" form="dlg-form">${esc(enviar)}</button>`,
+  });
+}
+
+const campoPin = () => `<label class="f">PIN del dueño<input name="pin" type="password" inputmode="numeric" autocomplete="off" required></label><p class="ayuda" style="grid-column:1/-1">PIN de la demo: 9999.</p>`;
+
+function cobrarDlg(id) {
+  const e = M.envio(E, id);
+  const tc = M.tcParaCobrar(E, e);
+  const saldo = Math.max(0, M.saldoEnvio(e));
+  formDlg({
+    titulo: `Cobrar ${e.codigo}`,
+    sub: `${M.cliente(E, e.clienteId)?.nombre} · saldo ${M.usd(saldo)} ≈ ${M.pesos(M.aPesos(saldo, tc))} (${e.tcCongelado ? "dólar congelado por la seña" : "dólar del día"} ${M.pesos(tc)})`,
+    accion: "cobrar", datos: { id },
+    campos: `<label class="f">Medio<select name="medio">${Object.entries(M.MEDIOS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select></label>
+      <label class="f">Monto en pesos (o en dólares si es billete)<input name="monto" inputmode="decimal" required value="${M.aPesos(saldo, tc)}"></label>
+      <p class="ayuda" style="grid-column:1/-1">Para dólares billete el monto va en dólares: ${usdInput(saldo)}.</p>`,
+    enviar: "Cobrar",
+  });
+}
+
+// ───────────────────────── acciones ─────────────────────────
+
+function resultado(r, okTexto, { cerrarDlg = true, refrescarFicha = null } = {}) {
+  if (!r?.ok) { toast(r?.motivo ?? "No se pudo.", true); return false; }
+  toast(typeof okTexto === "function" ? okTexto(r) : okTexto);
+  if (cerrarDlg) cerrar();
+  render();
+  if (refrescarFicha) fichaEnvio(refrescarFicha);
+  return true;
+}
+
+function mostrarAvisos(titulo, avisos) {
+  abrir({
+    titulo, sub: "Un mensaje listo por cliente: tocá cada uno para mandarlo.",
+    cuerpo: `<ul class="avisos">${avisos.map((m) => `<li class="bien"><b>${esc(m.cliente)}</b><br>${esc(m.texto)}<div class="fila" style="margin-top:var(--s2)">${botonWa(m, "Mandar")}</div></li>`).join("")}</ul>`,
+    pie: `<button class="b primario" data-a="cerrar">Listo</button>`,
+  });
+}
+
+const acciones = {
+  tab: (d) => irTab(d.v),
+  cerrar: () => cerrar(),
+  bandeja: (d) => { ui.bandeja = d.v; render(); },
+  filtro: (d) => { ui.filtro = d.v; render(); },
+  ficha: (d) => fichaEnvio(d.id),
+  fichaCliente: (d) => fichaCliente(d.id),
+
+  prohibido: (d) => resultado(M.resolverProhibido(E, d.id, d.v, auth(), HOY), d.v === "devolver" ? "Vuelve al vendedor: el resto del envío sigue." : "Se descarta: el resto del envío sigue."),
+  dano: (d) => resultado(M.resolverDano(E, d.id, d.v, auth(), HOY), d.v === "seguir" ? "Sigue igual: ya puede embarcar." : "Se reclama al vendedor: el envío espera el reemplazo."),
+  resolverObs: (d) => resultado(M.resolverObservacion(E, d.id, { nota: "Documentación enviada" }, auth(), HOY), "Observación resuelta: ya se puede liberar."),
+  ajustePeso: (d) => resultado(M.aplicarDiferenciaDePeso(E, d.id, auth(), HOY), (r) => `Ajuste de ${M.usd(r.centavos)} aplicado.`),
+  asignarDlg: (d) => {
+    const p = M.paquete(E, d.id);
+    const opciones = E.envios.filter((e) => ["confirmado", "esperando", "en_deposito"].includes(e.estado));
+    formDlg({
+      titulo: `Asignar ${p.tracking}`, sub: `${M.kg(p.gramos)} · recibido ${ddmm(p.recibido)} · ${p.casillaEtiqueta ? `etiqueta ${p.casillaEtiqueta}` : "sin casilla en la etiqueta"}`,
+      accion: "asignar", datos: { id: p.id },
+      campos: `<label class="f" style="grid-column:1/-1">Envío<select name="envio">${opciones.map((e) => `<option value="${e.id}">${e.codigo} · ${esc(M.cliente(E, e.clienteId)?.nombre)} · ${esc(M.ESTADOS[e.estado])}</option>`).join("")}</select></label>
+        <p class="ayuda" style="grid-column:1/-1">Confirmá con la factura del cliente o por WhatsApp antes de asignar.</p>`,
+      enviar: "Asignar",
+    });
+  },
+  asignar: (d, f) => resultado(M.asignarPaquete(E, d.id, f.envio.value, auth(), HOY), "Paquete asignado."),
+  cobrarDlg: (d) => cobrarDlg(d.id),
+  cobrar: (d, f) => {
+    const enDolares = f.medio.value === "usd_efectivo";
+    const monto = enDolares ? parseUsd(f.monto.value) : Math.round(parseNum(String(f.monto.value).replace(/\./g, "")));
+    resultado(M.cobrar(E, d.id, { medio: f.medio.value, monto }, auth(), HOY), (r) => r.saldo > 50 ? `Cobrado. Queda ${M.usd(r.saldo)}.` : "Cobrado. Saldo en cero.", { refrescarFicha: d.id });
+  },
+  demoraDlg: (d) => {
+    const b = M.embarque(E, d.id);
+    formDlg({
+      titulo: `Demora en ${b.referencia}`, sub: `Llegada estimada ${ddmm(b.llegada)} · ${b.envios.length} cliente(s) a avisar`,
+      accion: "demora", datos: { id: b.id },
+      campos: `<label class="f">Nueva llegada estimada<input name="fecha" type="date" required value="${M.sumarDias(b.llegada > HOY ? b.llegada : HOY, 4)}"></label>
+        <label class="f" style="grid-column:1/-1">Motivo (lo lee el cliente)<input name="motivo" required placeholder="Ej.: el contenedor quedó para el próximo buque"></label>`,
+      enviar: "Cargar y armar los avisos",
+    });
+  },
+  demora: (d, f) => {
+    const r = M.demorarEmbarque(E, d.id, { nuevaLlegada: f.fecha.value, motivo: f.motivo.value }, auth(), HOY);
+    if (resultado(r, "Demora cargada.", { cerrarDlg: false })) mostrarAvisos("Avisos de la demora", r.avisos);
+  },
+  confirmarDlg: (d) => {
+    const q = E.cotizaciones.find((x) => x.id === d.id);
+    formDlg({
+      titulo: "Confirmar la cotización", sub: `${M.usd(q.total)} · ${rutaDe(q)} · vence ${ddmm(q.vence)}`,
+      accion: "confirmar", datos: { id: q.id },
+      campos: `<label class="f" style="grid-column:1/-1">Cliente<select name="cliente">${E.clientes.map((c) => `<option value="${c.id}" ${c.id === q.clienteId ? "selected" : ""}>${esc(c.nombre)} · ${esc(c.casilla)}</option>`).join("")}</select></label>
+        <p class="ayuda" style="grid-column:1/-1">Si es alguien nuevo, dalo de alta en Clientes primero (hace falta el CUIT/CUIL para la aduana).</p>`,
+      enviar: "Confirmar",
+    });
+  },
+  confirmar: (d, f) => {
+    const r = M.confirmarEnvio(E, { cotizacionId: d.id, clienteId: f.cliente.value }, auth(), HOY);
+    if (resultado(r, (x) => `Envío ${x.envio.codigo} creado. Pedile la seña.`)) fichaEnvio(r.envio.id);
+  },
+  devolverDlg: (d) => {
+    const e = M.envio(E, d.id);
+    formDlg({ titulo: `Devolver la seña de ${e.codigo}`, sub: `${M.usd(e.devolucionPendiente)} a ${M.cliente(E, e.clienteId)?.nombre}`, accion: "devolver", datos: { id: e.id },
+      campos: `<label class="f">Medio<select name="medio"><option value="transferencia">Transferencia</option><option value="mercadopago">Mercado Pago</option><option value="usd_efectivo">Dólares billete</option></select></label>${campoPin()}`, enviar: "Devolver" });
+  },
+  devolver: (d, f) => resultado(M.devolverSena(E, d.id, { medio: f.medio.value }, auth(f.pin.value), HOY), "Seña devuelta: quedó en la caja como egreso."),
+  bonificarDlg: (d) => {
+    const e = M.envio(E, d.id);
+    formDlg({ titulo: `Bonificar ${e.codigo}`, sub: "Queda registrado quién y por qué.", accion: "bonificar", datos: { id: e.id },
+      campos: `<label class="f">Monto (US$)<input name="monto" inputmode="decimal" required></label><label class="f" style="grid-column:1/-1">Motivo<input name="motivo" required placeholder="Ej.: demora larga del vuelo"></label>${campoPin()}`, enviar: "Bonificar" });
+  },
+  bonificar: (d, f) => resultado(M.bonificar(E, d.id, { centavos: parseUsd(f.monto.value), motivo: f.motivo.value }, auth(f.pin.value), HOY), "Bonificación aplicada.", { refrescarFicha: d.id }),
+  cancelarDlg: (d) => {
+    const e = M.envio(E, d.id);
+    formDlg({ titulo: `Cancelar ${e.codigo}`, sub: "Sin paquetes se devuelve todo; con paquetes en el depósito se retienen el manejo y el almacenaje.", accion: "cancelar", datos: { id: e.id },
+      campos: `<label class="f" style="grid-column:1/-1">Motivo<input name="motivo" placeholder="Ej.: el vendedor no tenía stock"></label>`, enviar: "Cancelar envío" });
+  },
+  cancelar: (d, f) => resultado(M.cancelarEnvio(E, d.id, { motivo: f.motivo.value }, auth(), HOY), (r) => `Cancelado. A devolver ${M.usd(r.devolver)}${r.retiene ? `, se retiene ${M.usd(r.retiene)}` : ""}.`),
+  prealertaDlg: (d) => formDlg({ titulo: "Avisar una compra", sub: "El tracking que da la tienda. Cuando llegue al depósito se asigna solo.", accion: "prealerta", datos: { id: d.id },
+    campos: `<label class="f">Tracking<input name="tracking" required autocomplete="off"></label><label class="f">Tienda<input name="tienda" placeholder="Amazon, Shein…"></label>`, enviar: "Avisar" }),
+  prealerta: (d, f) => resultado(M.prealertar(E, d.id, { tracking: f.tracking.value, tienda: f.tienda.value }, HOY), (r) => r.asignado ? "Avisada: ya estaba en el depósito y se asignó." : "Compra avisada.", { refrescarFicha: d.id }),
+  retenerDlg: (d) => formDlg({ titulo: "Esperar más compras", sub: `Se consolida todo junto. Pasados ${E.config.almacenajeDiasGratis} días en el depósito corre almacenaje.`, accion: "retener", datos: { id: d.id },
+    campos: `<label class="f">Hasta<input name="hasta" type="date" required min="${HOY}" value="${M.sumarDias(HOY, 7)}"></label>`, enviar: "Guardar" }),
+  retener: (d, f) => resultado(M.retenerParaConsolidar(E, d.id, f.hasta.value, HOY), (r) => r.avisoAlmacenaje ?? "Listo: espera hasta esa fecha.", { refrescarFicha: d.id }),
+  liberarDlg: (d) => {
+    const e = M.envio(E, d.id);
+    formDlg({ titulo: `Liberar ${e.codigo}`, sub: e.cotizacion.impuestos ? `Impuestos estimados ${M.usd(e.cotizacion.impuestos.total)}. Si la aduana liquidó otro monto, cargalo y se ajusta el saldo.` : "Régimen general: los tributos los paga el despachante con la cuenta del cliente.", accion: "liberar", datos: { id: e.id },
+      campos: e.cotizacion.impuestos ? `<label class="f">Impuestos liquidados (US$, opcional)<input name="imp" inputmode="decimal" placeholder="${usdInput(e.cotizacion.impuestos.total)}"></label>` : "", enviar: "Liberar" });
+  },
+  liberar: (d, f) => {
+    const imp = f.imp?.value ? parseUsd(f.imp.value) : null;
+    const r = M.liberarAduana(E, d.id, { impuestosRealesCentavos: Number.isNaN(imp) ? null : imp }, auth(), HOY);
+    if (resultado(r, "Liberado: listo para entregar.", { cerrarDlg: false })) mostrarAvisos("Avisar que está listo", [r.aviso]);
+  },
+  observarDlg: (d) => formDlg({ titulo: "La aduana observó el envío", sub: "Queda frenado con un pedido concreto y un plazo.", accion: "observar", datos: { id: d.id },
+    campos: `<label class="f" style="grid-column:1/-1">Qué observó<input name="motivo" required placeholder="Ej.: valor declarado bajo"></label><label class="f">Qué pide<input name="pide" value="la factura de compra"></label><label class="f">Plazo (días)<input name="plazo" inputmode="numeric" value="5"></label>`, enviar: "Guardar" }),
+  observar: (d, f) => {
+    const r = M.observarAduana(E, d.id, { motivo: f.motivo.value, pide: f.pide.value, plazoDias: Math.max(1, Math.round(parseNum(f.plazo.value)) || 5) }, auth(), HOY);
+    if (resultado(r, "Observación cargada.", { cerrarDlg: false })) mostrarAvisos("Pedir la documentación", [r.aviso]);
+  },
+  entregar: (d) => {
+    const r = M.entregar(E, d.id, { modo: d.v }, auth(), HOY);
+    if (resultado(r, r?.enReparto ? "Salió a reparto." : "Entregado. ¡Listo!", { cerrarDlg: false })) { if (r.aviso) mostrarAvisos("Avisar al cliente", [r.aviso]); else fichaEnvio(d.id); }
+  },
+  fallida: (d) => {
+    const r = M.entregaFallida(E, d.id, {}, auth(), HOY);
+    if (resultado(r, r?.aOficina ? "Queda para retirar en la oficina." : "Se reintenta.", { cerrarDlg: false })) mostrarAvisos("Avisar al cliente", [r.aviso]);
+  },
+  subir: (d) => resultado(M.subirAEmbarque(E, d.id, d.v, auth(), HOY), "Subió al embarque.", { cerrarDlg: false }),
+  despacharDlg: (d) => {
+    const b = M.embarque(E, d.id);
+    formDlg({ titulo: `Sale ${b.referencia}`, sub: `${b.envios.length} envío(s). El costo real alimenta el margen del tablero.`, accion: "despachar", datos: { id: b.id },
+      campos: `<label class="f">Costo real del flete (US$)<input name="costo" inputmode="decimal" placeholder="0,00"></label>`, enviar: "Salió" });
+  },
+  despachar: (d, f) => {
+    const costo = parseUsd(f.costo.value);
+    const r = M.despacharEmbarque(E, d.id, { costoRealCentavos: Number.isNaN(costo) ? 0 : costo }, auth(), HOY);
+    if (resultado(r, "Embarque en viaje.", { cerrarDlg: false })) mostrarAvisos("Avisar que salió", r.avisos);
+  },
+  arribo: (d) => resultado(M.arriboEmbarque(E, d.id, auth(), HOY), "Llegó: los envíos pasan a aduana.", { cerrarDlg: false }),
+  nuevoEmbarque: (_d, f) => resultado(M.crearEmbarque(E, { tarifaId: f.tarifaId.value, referencia: f.referencia.value, salida: null, llegada: f.llegada.value }, auth(), HOY), "Embarque abierto: subí los envíos listos.", { cerrarDlg: false }),
+  recibir: (_d, f) => {
+    const gramos = Math.round(parseNum(f.kg.value) * 1000);
+    const medidas = [f.l.value, f.a.value, f.h.value].every((v) => parseNum(v) > 0) ? { l: parseNum(f.l.value), a: parseNum(f.a.value), h: parseNum(f.h.value) } : null;
+    const r = M.recibirPaquete(E, { tracking: f.tracking.value, gramos, medidas, casillaEtiqueta: f.casilla.value, danado: f.danado.checked, contenido: f.contenido.value, categoria: f.categoria.value, deposito: f.deposito.value }, auth(), HOY);
+    ui.recepcion = r.ok
+      ? { ok: true, envio: r.envio, texto: r.envio ? `Recibido y asignado a ${r.envio.codigo} (${M.cliente(E, r.envio.clienteId)?.nombre}).${r.paquete.retenido ? " Producto prohibido: queda retenido." : ""}${r.paquete.danado ? " Avisá al cliente del daño." : ""}` : "Recibido SIN DUEÑO: quedó en la bandeja para asignar." }
+      : { ok: false, texto: r.motivo };
+    toast(ui.recepcion.texto, !r.ok);
+    render();
+    $("#principal form[data-a=recibir] input[name=tracking]")?.focus();
+  },
+  altaClienteDlg: () => formDlg({ titulo: "Nuevo cliente", sub: "Le asignamos su casilla al darlo de alta.", accion: "altaCliente",
+    campos: `<label class="f">Nombre o razón social<input name="nombre" required></label><label class="f">Tipo<select name="tipo"><option value="persona">Persona</option><option value="pyme">Empresa</option></select></label><label class="f">CUIT/CUIL<input name="doc" inputmode="numeric" required></label><label class="f">Email<input name="email" type="email"></label>`, enviar: "Dar de alta" }),
+  altaCliente: (_d, f) => resultado(M.altaCliente(E, { nombre: f.nombre.value, tipo: f.tipo.value, doc: f.doc.value, email: f.email.value }, auth(), HOY), (r) => `Alta lista: casilla ${r.cliente.casilla}.`),
+
+  // Cotizador
+  sumarItem: () => { ui.cot.items.push({ descripcion: "", valor: "", unidades: "1", categoria: "general" }); render(); $(`[data-cot="item.${ui.cot.items.length - 1}.descripcion"]`)?.focus(); },
+  quitarItem: (d) => { ui.cot.items.splice(Number(d.v), 1); render(); },
+  limpiarCot: () => { ui.cot = cotVacia(); ui.partir = null; render(); },
+  partir: () => { ui.partir = !ui.partir; pintarCotizacion(); },
+  guardarCot: () => {
+    const p = pedidoDesdeForm();
+    const r = M.guardarCotizacion(E, p, { clienteId: p.clienteId ?? null, contacto: ui.cot.contacto || "Consulta" }, auth(), HOY);
+    if (resultado(r, (x) => `Cotización guardada: ${M.usd(x.cotizacion.total)}, vale hasta el ${ddmm(x.cotizacion.vence)}.`, { cerrarDlg: false })) { ui.cot = cotVacia(); ui.partir = null; render(); }
+  },
+
+  // Dueño
+  guardarTc: (_d, f) => resultado(M.cambiarTipoCambio(E, f.tc.value, auth(), HOY), "Dólar del día actualizado.", { cerrarDlg: false }),
+  guardarRegimen: (_d, f) => {
+    const pin = f.pin.value;
+    const cambios = [
+      ["franquiciaCentavos", parseUsd(f.franquiciaCentavos.value)],
+      ["topeEnvioCentavos", parseUsd(f.topeEnvioCentavos.value)],
+      ["derechosExcedente", parseNum(f.derechosExcedente.value) / 100],
+      ["enviosPorAnio", Math.round(parseNum(f.enviosPorAnio.value))],
+    ].filter(([k, v]) => E.regimen[k] !== v);
+    if (!cambios.length) return toast("No cambiaste nada.");
+    for (const [k, v] of cambios) {
+      const r = M.cambiarRegimen(E, k, v, auth(pin), HOY);
+      if (!r.ok) return toast(r.motivo, true);
+    }
+    resultado({ ok: true }, "Régimen actualizado: las cotizaciones nuevas ya lo usan.", { cerrarDlg: false });
+  },
+  guardarTarifa: (d) => {
+    const inp = $(`[data-tarifa="${d.id}"]`);
+    resultado(M.cambiarTarifa(E, d.id, inp.dataset.campo, parseUsd(inp.value), auth(), HOY), "Tarifa guardada.", { cerrarDlg: false });
+  },
+};
+
+function alClic(ev) {
+  const el = ev.target.closest("[data-a]");
+  if (!el || el.tagName === "FORM") return;
+  if (el.tagName === "TR" && ev.target.closest("button,a,input,select")) return;
+  const a = el.dataset.a;
+  if (!acciones[a]) return;
+  if (el.tagName === "A") return;
+  ev.preventDefault();
+  acciones[a](el.dataset, el.closest("form"));
+}
+
+function alEscribir(ev) {
+  const el = ev.target;
+  if (el.dataset.in === "busca") {
+    ui.busca = el.value;
+    const pos = el.selectionStart;
+    render();
+    const nuevo = $('[data-in="busca"]');
+    nuevo?.focus();
+    nuevo?.setSelectionRange(pos, pos);
+    return;
+  }
+  if (el.dataset.cot) { leerCot(el); pintarCotizacion(); }
+}
+
+function alCambiar(ev) {
+  const el = ev.target;
+  if (!el.dataset.cot) return;
+  leerCot(el);
+  // Cambiar ruta, régimen o cliente cambia el formulario: se repinta entero.
+  if (["tarifaId", "clienteId", "regimen"].includes(el.dataset.cot)) {
+    if (el.dataset.cot === "tarifaId") { const t = M.tarifa(E, ui.cot.tarifaId); if (!t.regimenes.includes(ui.cot.regimen)) ui.cot.regimen = t.regimenes[0]; }
+    render();
+    $(`[data-cot="${el.dataset.cot}"]`)?.focus();
+  } else pintarCotizacion();
+}
+
+function leerCot(el) {
+  const k = el.dataset.cot;
+  const v = el.type === "checkbox" ? el.checked : el.value;
+  if (k.startsWith("item.")) { const [, i, campo] = k.split("."); ui.cot.items[Number(i)][campo] = v; } else ui.cot[k] = v;
+}
+
+let timerToast = null;
+function toast(texto, error = false) {
+  const t = $("#toast");
+  t.textContent = texto;
+  t.classList.toggle("error", !!error);
+  t.classList.add("ver");
+  clearTimeout(timerToast);
+  timerToast = setTimeout(() => t.classList.remove("ver"), error ? 5200 : 3200);
+}
+
+addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && $("#dlg").open) { ev.preventDefault(); cerrar(); }
+});
+$("#dlg").addEventListener("click", (ev) => { if (ev.target === ev.currentTarget) cerrar(); });
+
+iniciar();
+
+</script>
+</body>
+</html>

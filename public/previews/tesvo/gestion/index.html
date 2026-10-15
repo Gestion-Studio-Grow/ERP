@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TESVO · Gestión</title>
+<meta name="description" content="Demo de la gestión interna de TESVO: cotizaciones, depósito, embarques, aduana, cobros y tablero del dueño. Datos de ejemplo, no se guarda nada.">
+<meta name="generator" content="Gestión Studio Grow">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#000000">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap">
+<style>
+  /* Marca TESVO (leída de tesvo.com.ar el 07/10/2026, docs/tenants/tesvo): hueso, negro, verde, amarillo resaltador.
+     Sobre verde y amarillo el texto va NEGRO (el blanco no llega a AA). El rojo de error lo agrega GSG. */
+  :root{
+    --hueso:#EDEBE7; --negro:#000; --verde:#71B17F; --amarillo:#FFDE59; --blanco:#FFF;
+    --sobre-negro:#B9B6B0; --sobre-negro-2:#45423D;
+    --tinta:#000; --tinta-2:#3A3834; --tinta-3:#45423D; --suave:#CFCCC6; --linea:#CFCBC4; --borde-campo:#8F8A82;
+    --error:#B3361F; --error-suave:#F6E3DE; --verde-suave:#E2EEE2; --amarillo-suave:#FFF4C2;
+    --fondo:var(--hueso); --panel:var(--blanco); --panel-2:#F6F5F2; --sombra:0 1px 0 var(--linea);
+    --fuente:"Poppins",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
+    --r-panel:24px; --r-campo:14px; --r-pildora:999px;
+    --curva:cubic-bezier(.2,.8,.2,1);
+    --tap:44px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-tema="claro"]){
+      --fondo:#15140F; --panel:#1F1E1B; --panel-2:#272622; --tinta:#EDEBE7; --tinta-2:#CFCCC6; --tinta-3:#B9B6B0;
+      --suave:#45423D; --linea:#3A3834; --borde-campo:#8F8A82; --error:#FF8A73; --error-suave:#3A1D17;
+      --verde-suave:#1F3324; --amarillo-suave:#3A3315; color-scheme: dark;
+    }
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--fondo);color:var(--tinta);font:400 14px/1.5 var(--fuente);min-height:100dvh}
+  button,input,select,textarea{font:inherit;color:inherit}
+  a{color:inherit}
+  :focus-visible{outline:3px solid var(--amarillo);outline-offset:2px;box-shadow:0 0 0 5px var(--negro)}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .saltar{position:absolute;left:var(--s2);top:-60px;background:var(--amarillo);color:var(--negro);padding:var(--s2) var(--s4);border-radius:var(--r-pildora);z-index:20}
+  .saltar:focus{top:var(--s2)}
+
+  /* Cabecera: el logo es tipográfico (TESVO + IMPO · EXPO), como en su sitio */
+  header.barra{position:sticky;top:0;z-index:10;background:var(--negro);color:var(--hueso)}
+  .barra-in{max-width:1280px;margin:0 auto;display:flex;align-items:center;gap:var(--s4);padding:var(--s3) var(--s4);flex-wrap:wrap}
+  .logo{display:flex;flex-direction:column;line-height:1;text-decoration:none;color:var(--hueso)}
+  .logo b{font-weight:800;font-size:24px;letter-spacing:-.04em}
+  .logo small{font-weight:600;font-size:11px;letter-spacing:.16em;margin-top:3px}
+  .logo-sub{font-size:13px;color:var(--sobre-negro);border-left:1px solid var(--sobre-negro-2);padding-left:var(--s3)}
+  .barra .esp{flex:1}
+  .quien{display:flex;align-items:center;gap:var(--s2)}
+  .quien label{font-size:12px;color:var(--sobre-negro)}
+  .quien select{background:var(--negro);color:var(--hueso);border:1px solid var(--sobre-negro-2);border-radius:var(--r-pildora);padding:var(--s2) var(--s3);min-height:var(--tap)}
+  .demo-chip{font-size:12px;font-weight:600;background:var(--amarillo);color:var(--negro);border-radius:var(--r-pildora);padding:var(--s1) var(--s3)}
+
+  nav.pestanas{background:var(--negro);border-top:1px solid var(--sobre-negro-2)}
+  .pestanas-in{position:relative;max-width:1280px;margin:0 auto;display:flex;gap:var(--s1);padding:0 var(--s4);overflow-x:auto;scrollbar-width:none}
+  .pestanas-in::-webkit-scrollbar{display:none}
+  .pestanas button{flex:none;background:none;border:0;color:var(--sobre-negro);padding:var(--s3) var(--s3);min-height:var(--tap);font-weight:600;font-size:14px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+  .pestanas button[aria-current="page"]{color:var(--hueso);border-bottom-color:var(--verde)}
+  .pestanas button:hover{color:var(--hueso)}
+  .pestanas .cuenta{display:inline-block;min-width:20px;margin-left:var(--s1);padding:0 6px;border-radius:var(--r-pildora);background:var(--amarillo);color:var(--negro);font-size:11px;line-height:18px;text-align:center}
+
+  main{max-width:1280px;margin:0 auto;padding:var(--s5) var(--s4) var(--s7)}
+  h1{font-size:27px;font-weight:800;letter-spacing:-.03em;margin:0 0 var(--s1)}
+  h2{font-size:18px;font-weight:800;letter-spacing:-.02em;margin:0 0 var(--s3)}
+  h3{font-size:16px;font-weight:600;margin:0 0 var(--s2)}
+  .bajada{color:var(--tinta-2);margin:0 0 var(--s5);max-width:72ch}
+  .fila{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:center}
+  .grilla{display:grid;gap:var(--s4);grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))}
+  .dos{display:grid;gap:var(--s5);grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
+  @media (max-width:900px){.dos{grid-template-columns:minmax(0,1fr)}}
+
+  .panel{background:var(--panel);border-radius:var(--r-panel);padding:var(--s5);box-shadow:var(--sombra)}
+  .panel + .panel{margin-top:var(--s4)}
+  .kpis{display:grid;gap:var(--s3);grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));margin-bottom:var(--s5)}
+  .kpi{background:var(--panel);border-radius:var(--r-campo);padding:var(--s4)}
+  .kpi .l{font-size:12px;color:var(--tinta-2)}
+  .kpi .v{font-size:27px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  .kpi .s{font-size:12px;color:var(--tinta-2)}
+  .kpi.destacado{background:var(--negro);color:var(--hueso)}
+  .kpi.destacado .l,.kpi.destacado .s{color:var(--sobre-negro)}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-tema="claro"]) .kpi.destacado{background:var(--verde);color:var(--negro)}
+    :root:not([data-tema="claro"]) .kpi.destacado .l,:root:not([data-tema="claro"]) .kpi.destacado .s{color:var(--negro)}
+  }
+
+  /* Bandeja: lo que hay que resolver ahora */
+  .bandeja{list-style:none;margin:0;padding:0;display:grid;gap:var(--s3)}
+  .item{background:var(--panel);border-radius:var(--r-campo);padding:var(--s4);display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--s2) var(--s3);border-left:6px solid var(--linea)}
+  .item.urgente{border-left-color:var(--error)}
+  .item.plata{border-left-color:var(--amarillo)}
+  .item.ok{border-left-color:var(--verde)}
+  .item .ico{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;background:var(--panel-2)}
+  .item.urgente .ico{background:var(--error-suave);color:var(--error)}
+  .item.plata .ico{background:var(--amarillo-suave)}
+  .item.ok .ico{background:var(--verde-suave)}
+  .item .t{font-weight:600}
+  .item .d{color:var(--tinta-2);font-size:13px}
+  .item .acciones{grid-column:2;display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s1)}
+  .rol-chip{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-3);margin-left:var(--s2)}
+
+  /* Botones píldora */
+  .b{display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);min-height:var(--tap);padding:0 var(--s4);border-radius:var(--r-pildora);border:1.5px solid var(--tinta);background:var(--panel);color:var(--tinta);font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;transition:background-color .15s var(--curva),transform .15s var(--curva)}
+  .b:hover{background:var(--panel-2)}
+  .b:active{transform:scale(.98)}
+  .b.primario{background:var(--negro);color:var(--hueso);border-color:var(--negro)}
+  .b.primario:hover{background:var(--tinta-2)}
+  .b.verde{background:var(--verde);color:var(--negro);border-color:var(--verde)}
+  .b.wa{background:var(--verde);color:var(--negro);border-color:var(--verde)}
+  .b.peligro{color:var(--error);border-color:var(--error)}
+  .b.chico{min-height:36px;padding:0 var(--s3);font-size:13px}
+  .b[disabled]{opacity:.45;cursor:not-allowed}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-tema="claro"]) .b.primario{background:var(--hueso);color:var(--negro);border-color:var(--hueso)}
+  }
+
+  /* Campos */
+  .f{display:flex;flex-direction:column;gap:var(--s1);font-size:12px;font-weight:600;color:var(--tinta-2)}
+  .f input,.f select,.f textarea{min-height:var(--tap);border:1.5px solid var(--borde-campo);border-radius:var(--r-campo);padding:var(--s2) var(--s3);background:var(--panel);font-size:14px;font-weight:400;color:var(--tinta)}
+  .f input:focus-visible,.f select:focus-visible{border-color:var(--tinta)}
+  .f.chk{flex-direction:row;align-items:center;gap:var(--s2);font-size:14px;font-weight:400;color:var(--tinta);min-height:var(--tap)}
+  .f.chk input{width:20px;height:20px;min-height:0}
+  .campos{display:grid;gap:var(--s3);grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+  .ayuda{font-size:12px;color:var(--tinta-2);margin:var(--s1) 0 0}
+
+  /* Tablas con scroll propio: el contenedor es relative para que un .sr no ensanche la página */
+  .tabla{position:relative;overflow-x:auto;border-radius:var(--r-campo);background:var(--panel)}
+  table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+  th{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-2);text-align:left;padding:var(--s3);border-bottom:1px solid var(--linea);white-space:nowrap}
+  td{padding:var(--s3);border-bottom:1px solid var(--linea);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  tbody tr.clic{cursor:pointer}
+  tbody tr.clic:hover{background:var(--panel-2)}
+  .codigo{font-family:var(--mono);font-size:12px;white-space:nowrap}
+  .estado{display:inline-block;font-size:12px;font-weight:600;border-radius:var(--r-pildora);padding:2px var(--s2);background:var(--panel-2);white-space:nowrap}
+  .estado.e-listo,.estado.e-entregado{background:var(--verde-suave)}
+  .estado.e-en_aduana,.estado.e-en_transito,.estado.e-embarcado{background:var(--amarillo-suave)}
+  .estado.e-cancelado{background:var(--error-suave);color:var(--error)}
+  .marca{font-size:11px;font-weight:600;color:var(--error)}
+
+  .chips{display:flex;flex-wrap:wrap;gap:var(--s2);margin-bottom:var(--s4)}
+  .chips button{min-height:36px;padding:0 var(--s3);border-radius:var(--r-pildora);border:1.5px solid var(--linea);background:var(--panel);cursor:pointer;font-weight:600;font-size:13px}
+  .chips button[aria-pressed="true"]{background:var(--negro);color:var(--hueso);border-color:var(--negro)}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-tema="claro"]) .chips button[aria-pressed="true"]{background:var(--hueso);color:var(--negro);border-color:var(--hueso)}
+  }
+
+  /* Línea de tiempo del envío */
+  .linea{list-style:none;margin:var(--s3) 0;padding:0;display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:var(--s1)}
+  .linea li{font-size:11px;color:var(--tinta-2);border-top:4px solid var(--linea);padding-top:var(--s2)}
+  .linea li.hecho{border-top-color:var(--verde);color:var(--tinta)}
+  .linea li.actual{border-top-color:var(--negro);color:var(--tinta);font-weight:600}
+  @media (max-width:700px){.linea{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+  .desglose{width:100%;min-width:0;font-size:13px}
+  .desglose td{padding:var(--s1) 0;border:0}
+  .desglose tr.total td{border-top:1px solid var(--linea);padding-top:var(--s2);font-weight:800;font-size:16px}
+  .avisos{list-style:none;padding:0;margin:var(--s3) 0;display:grid;gap:var(--s2)}
+  .avisos li{padding:var(--s2) var(--s3);border-radius:var(--r-campo);background:var(--amarillo-suave);font-size:13px}
+  .avisos li.grave{background:var(--error-suave);color:var(--error);font-weight:600}
+  .avisos li.bien{background:var(--verde-suave)}
+
+  .barras{display:grid;gap:var(--s2)}
+  .barra-h{display:grid;grid-template-columns:140px minmax(0,1fr) 40px;gap:var(--s2);align-items:center;font-size:13px}
+  .barra-h .riel{height:12px;border-radius:var(--r-pildora);background:var(--panel-2);overflow:hidden}
+  .barra-h .riel span{display:block;height:100%;background:var(--verde);border-radius:var(--r-pildora)}
+
+  dialog{border:0;border-radius:var(--r-panel);padding:0;max-width:min(720px,calc(100vw - 2*var(--s4)));width:100%;background:var(--panel);color:var(--tinta)}
+  dialog::backdrop{background:rgba(0,0,0,.55)}
+  .dlg-cab{display:flex;align-items:flex-start;gap:var(--s3);padding:var(--s5) var(--s5) var(--s3)}
+  .dlg-cab h2{margin:0;flex:1}
+  .dlg-cab p{margin:var(--s1) 0 0;color:var(--tinta-2);font-size:13px}
+  .dlg-cuerpo{padding:0 var(--s5) var(--s5);max-height:70dvh;overflow:auto}
+  .dlg-pie{display:flex;flex-wrap:wrap;gap:var(--s2);justify-content:flex-end;padding:var(--s4) var(--s5);border-top:1px solid var(--linea)}
+  .cerrar{background:none;border:0;font-size:22px;line-height:1;width:var(--tap);height:var(--tap);border-radius:50%;cursor:pointer}
+  .cerrar:hover{background:var(--panel-2)}
+
+  .toast{position:fixed;left:50%;bottom:var(--s5);transform:translateX(-50%);background:var(--negro);color:var(--hueso);padding:var(--s3) var(--s5);border-radius:var(--r-pildora);font-weight:600;max-width:calc(100vw - 2*var(--s4));z-index:30;opacity:0;pointer-events:none;transition:opacity .2s var(--curva)}
+  .toast.ver{opacity:1}
+  .toast.error{background:var(--error);color:var(--blanco)}
+
+  footer.pie{max-width:1280px;margin:0 auto;padding:var(--s5) var(--s4) var(--s6);font-size:12px;color:var(--tinta-2);display:flex;flex-wrap:wrap;gap:var(--s3);justify-content:space-between}
+  .vacio{color:var(--tinta-2);padding:var(--s4);text-align:center}
+  /* Con el dedo, todo lo que se toca mide 44 px o más */
+  @media (pointer:coarse){.b.chico,.chips button,.tabla input{min-height:var(--tap)}}
+  @media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+<a class="saltar" href="#principal">Saltar al contenido</a>
+<header class="barra">
+  <div class="barra-in">
+    <a class="logo" href="#hoy" aria-label="TESVO, ir a Hoy"><b>TESVO</b><small>IMPO · EXPO</small></a>
+    <span class="logo-sub">Gestión</span>
+    <span class="esp"></span>
+    <span class="demo-chip" title="Datos inventados: no se guarda nada y nada sale a la calle">Demo</span>
+    <div class="quien">
+      <label for="usuario">Usa</label>
+      <select id="usuario"></select>
+    </div>
+  </div>
+  <nav class="pestanas" aria-label="Secciones">
+    <div class="pestanas-in" id="pestanas"></div>
+  </nav>
+</header>
+<main id="principal" tabindex="-1"></main>
+<footer class="pie">
+  <span>Demo de la gestión de TESVO · datos de ejemplo, sin persistencia ni credenciales. Tarifas y régimen de demostración, a confirmar con TESVO y su despachante.</span>
+  <span>Hecho por Gestión Studio Grow</span>
+</footer>
+<dialog id="dlg" aria-labelledby="dlg-titulo"></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="./app.mjs"></script>
+</body>
+</html>
