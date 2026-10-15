@@ -1813,7 +1813,7 @@ function cargoManual(estado, cuentaId, { concepto, monto }, auth, ahora) {
   const texto = String(concepto ?? "").trim().slice(0, 60);
   if (!texto) return { ok: false, motivo: "Escribí el concepto del cargo." };
   const m = Math.round(Number(monto));
-  if (!m) return { ok: false, motivo: "Poné el monto (negativo si es un descuento)." };
+  if (!m) return { ok: false, motivo: "Poné el monto." };
   const a = autorizar(estado, auth, m < 0 ? "configurar" : "cobrar", m < 0);
   if (!a.ok) return m < 0 && a.motivo?.includes("permiso") ? { ok: false, motivo: "Un descuento lo autoriza el dueño con su PIN." } : a;
   if (totalCuenta(cta) + m < Math.max(0, cobradoCuenta(cta))) return { ok: false, motivo: "El descuento deja la cuenta por debajo de lo que ya se pagó." };
