@@ -87,7 +87,7 @@ export const ESPACIOS: readonly EspacioMeta[] = [
     apps: [
       "facturacion", "facturacion-automatica", "cierre-del-mes", "libro-iva", "cuentas-a-cobrar", "cuentas-a-pagar",
       "reportes", "margen", "resultado-del-mes", "flujo-de-fondos", "retenciones-y-percepciones", "comisiones",
-      "conciliacion", "monotributo", "datos-fiscales",
+      "conciliacion", "monotributo", "datos-fiscales", "rendicion-de-gastos",
     ],
   },
   {
@@ -209,7 +209,9 @@ export const ESPACIOS_NAV: readonly EspacioNav[] = [
     id: "caja",
     nombre: "Caja",
     objetivo: "Que la plata cierre: el día, el mes, el banco",
-    apps: ["caja-del-dia", "cierre-del-dia", "libro-de-caja", "cierre-del-mes", "conciliacion", "costo-de-cobrar"],
+    // Rendición de gastos (en preparación) va acá y no en «Números»: anticipos, caja chica y
+    // reintegros son plata que tiene que cerrar, no un tablero de cuánto se gana.
+    apps: ["caja-del-dia", "cierre-del-dia", "libro-de-caja", "cierre-del-mes", "conciliacion", "costo-de-cobrar", "rendicion-de-gastos"],
   },
   {
     id: "locales",

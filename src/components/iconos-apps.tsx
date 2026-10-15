@@ -50,6 +50,8 @@ const TRAZOS: Record<NombreIcono, ReactNode> = {
   vender: (<><rect x="3" y="11" width="18" height="9" rx="2" /><rect x="7" y="4" width="10" height="5" rx="1" /><path d="M7 15h2M11 15h2M15 15h2" /></>),
   // Ventas del día: el ticket con su borde cortado. Nuevo: antes usaba el de `facturacion`.
   ventas: (<><path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5-2 1.5z" /><path d="M9 8h6M9 12h6M9 16h3" /></>),
+  // Rendición de gastos: el ticket del gasto con la flecha de la plata que vuelve. Nuevo.
+  rendiciones: (<><path d="M3 3h10v18l-1.7-1.3-1.6 1.3-1.7-1.3-1.6 1.3-1.7-1.3L3 21z" /><path d="M6 8h4M6 12h4M6 16h2" /><path d="M16 9h2a3.5 3.5 0 010 7h-3" /><path d="M17 14l-2 2 2 2" /></>),
 };
 
 function esNombreIcono(nombre: string): nombre is NombreIcono {

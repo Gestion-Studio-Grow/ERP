@@ -530,12 +530,14 @@ function asegurarModulo(
 
 /**
  * Cuántas apps registradas cuelgan de cada módulo. Un módulo con 0 no abre ninguna pantalla
- * todavía (Mis locales en la ola 1): la ficha lo dice para que nadie le prometa una.
+ * todavía (Mis locales en la ola 1): la ficha lo dice para que nadie le prometa una. Una app
+ * `en-preparacion` no cuenta: no se abre en ningún negocio (Rendición de gastos, módulo
+ * `rendiciones`), y contarla haría que la ficha prometa una pantalla que no existe.
  */
 export function appsPorModulo(apps: readonly AppDescriptor[] = REGISTRO_APPS): Map<string, number> {
   const cuenta = new Map<string, number>();
   for (const app of apps) {
-    if (app.modulo === null || app.enLanzador === false) continue;
+    if (app.modulo === null || app.enLanzador === false || app.estado !== "lista") continue;
     cuenta.set(app.modulo, (cuenta.get(app.modulo) ?? 0) + 1);
   }
   return cuenta;

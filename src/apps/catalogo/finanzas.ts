@@ -308,4 +308,27 @@ export const APPS_FINANZAS = [
     kpi: { id: "comisiones", mide: "Lo que falta liquidar y a cuántos profesionales.", capability: "reports:read" },
     palabras: ["liquidar", "liquidacion", "profesionales", "porcentaje", "pagar comision"],
   },
+  // ── RENDICIÓN DE GASTOS (Rendí) — EN PREPARACIÓN ───────────────────────────
+  //
+  // Es APP y no rubro: rendir gastos le sirve a cualquier negocio con personal que gasta por la
+  // empresa, así que no lleva `rubro`. El motor vive HOY en un repo aparte (C:\gsg-rendi, enmienda
+  // del 15/10/2026 a SU ADR-099) y su integración al ERP sigue un plan que aprueba el dueño.
+  // Mientras tanto queda `en-preparacion`: no aparece en el Inicio, la barra ni el buscador de
+  // ningún negocio y /admin/rendiciones manda a «App no disponible» (rendicion-de-gastos.test.ts).
+  // Cuelga del módulo `rendiciones` (apagado, sin asignar) porque se vende aparte: una app sin
+  // módulo sería del núcleo y no se apagaría nunca. Pide billing:manage como Cuentas a pagar
+  // (devolver la plata es pagar); la parte del empleado que carga sus gastos va a necesitar una
+  // capability propia, que decide el plan. Sin número todavía: no hay loader ni tablas.
+  {
+    id: "rendicion-de-gastos",
+    nombre: "Rendición de gastos",
+    descripcion: "Los gastos que el equipo pagó por el negocio, con su factura, aprobados y devueltos.",
+    icono: "rendiciones",
+    ruta: "/admin/rendiciones",
+    espacio: "finanzas",
+    capability: "billing:manage",
+    modulo: "rendiciones",
+    estado: "en-preparacion",
+    palabras: ["rendi", "rendiciones", "rendir gastos", "viaticos", "caja chica", "anticipos", "reintegro", "kilometraje", "tarjeta corporativa"],
+  },
 ] as const satisfies readonly AppDescriptor[];

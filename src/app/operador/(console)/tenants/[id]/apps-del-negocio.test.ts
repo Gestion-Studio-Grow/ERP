@@ -192,6 +192,9 @@ test("multilocal abre las apps de Mis locales, con el Inicio por apps y sin él"
   // Son `moduloDuro`: aun fuera del piloto (sin gate), se abren apenas se confirma.
   assert.deepEqual(ids(v.alConfirmar.gana), misLocales);
   assert.equal(appsPorModulo().get("multilocal"), 6);
+  // Una app en preparación no cuenta: la ficha dice «Todavía no abre ninguna app» para Rendición
+  // de gastos (módulo `rendiciones`), aunque la app esté declarada.
+  assert.equal(appsPorModulo().get("rendiciones") ?? 0, 0);
   // En un negocio de servicios, Stock por local no aplica (es de mostrador).
   const estetica = vistaPreviaDeCambio({ ...ESTETICA, vinculosActivos: 0 }, { accion: "activar", modulo: "multilocal" }, SIN_PILOTO, cat);
   assert.ok(estetica.ok);

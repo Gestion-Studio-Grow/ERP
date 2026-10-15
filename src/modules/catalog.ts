@@ -20,6 +20,9 @@
 //     src/modules/descriptors/multilocal.ts. Va al final: la consola deriva su lista de
 //     módulos de este orden (operator-config.ts) y así los de siempre no cambian de lugar.
 //   - Caja con lector y Ofertas (mostrador de supermercado): src/modules/descriptors/supermercado.ts.
+//   - Rendición de gastos (nativo, apagado, sin asignar): src/modules/descriptors/rendiciones.ts.
+//     El producto «Rendí» vive hoy en su propio repo (C:\gsg-rendi; ver la enmienda del 15/10/2026
+//     a SU docs/adr/ADR-099). Su integración al ERP la decide un plan que aprueba el dueño.
 
 import { ModuleRegistry } from "./registry";
 import { MODULOS_NATIVOS } from "./descriptors/nativos";
@@ -29,6 +32,7 @@ import { multilocalModule } from "./descriptors/multilocal";
 import { cajaRapidaModule, ofertasModule } from "./descriptors/supermercado";
 import { tallerModule } from "./descriptors/taller";
 import { inmobiliariaModule } from "./descriptors/inmobiliaria";
+import { rendicionesModule } from "./descriptors/rendiciones";
 import { arcaModule } from "@/plugins/arca/module";
 import { bancosModule } from "@/plugins/bancos/module";
 
@@ -48,6 +52,9 @@ export const DESCRIPTORES_CATALOGO = [
   tallerModule,
   // Inmobiliaria (src/modules/descriptors/inmobiliaria.ts). Al final, como los anteriores.
   inmobiliariaModule,
+  // Rendición de gastos (src/modules/descriptors/rendiciones.ts). Al final, como los anteriores.
+  // Apagado: ningún preset lo trae y su app está en preparación.
+  rendicionesModule,
 ];
 
 /**

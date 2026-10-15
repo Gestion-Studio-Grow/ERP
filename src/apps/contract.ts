@@ -61,7 +61,8 @@ export type NombreIcono =
   | "despiece"
   | "candado"
   | "vender"
-  | "ventas";
+  | "ventas"
+  | "rendiciones";
 
 /**
  * Rubro donde la app tiene sentido. Ausente = en todos. Junta en un campo los tres
