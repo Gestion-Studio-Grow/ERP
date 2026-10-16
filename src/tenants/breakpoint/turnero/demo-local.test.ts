@@ -82,7 +82,7 @@ test("toma de posta (D36): otra pestaña sigue desde la foto con reservas, sesio
 test("toma de posta en una pestaña NUEVA (Gate B1): los ids nuevos no chocan con los de la demo recibida", async () => {
   // Otra pestaña = otro módulo con el contador de ids en cero: se simula con un proceso de Node aparte.
   const { execFileSync } = await import("node:child_process");
-  const { writeFileSync, mkdtempSync } = await import("node:fs");
+  const { writeFileSync, mkdtempSync, rmSync } = await import("node:fs");
   const { join } = await import("node:path");
   const { tmpdir } = await import("node:os");
   const a = L.crearServidorDemo();
@@ -111,7 +111,8 @@ test("toma de posta en una pestaña NUEVA (Gate B1): los ids nuevos no chocan co
     b.cerrar();
     console.log(JSON.stringify({ hechas, baja: baja.status, movs: est.caja.movimientos.map((m) => m.id), reservas: est.reservas.map((r) => r.id) }));
   `;
-  const salida = execFileSync(process.execPath, ["--input-type=module", "-e", guion], { encoding: "utf8" });
+  let salida = "";
+  try { salida = execFileSync(process.execPath, ["--input-type=module", "-e", guion], { encoding: "utf8" }); } finally { rmSync(dir, { recursive: true, force: true }); }
   const res = JSON.parse(salida.trim().split("\n").at(-1) ?? "{}");
   for (const h of res.hechas) {
     assert.ok(!idsDemo.has(h.id), `la reserva nueva ${h.id} no repite un id de la demo`);
@@ -120,4 +121,45 @@ test("toma de posta en una pestaña NUEVA (Gate B1): los ids nuevos no chocan co
   assert.equal(res.baja, 200, "la cancelación encuentra su turno");
   assert.equal(new Set(res.reservas).size, res.reservas.length, "ningún id de reserva repetido");
   assert.equal(new Set(res.movs.filter(Boolean)).size, res.movs.filter(Boolean).length, "ningún movimiento de caja repetido");
+});
+
+test("bus: si le roban el lock mientras espera la foto, no quedan dos servidores (Gate S1)", async () => {
+  // Web Locks simulado según la especificación: al robar, la promesa del dueño anterior se rechaza con AbortError,
+  // pero su callback sigue corriendo (acá, esperando la foto).
+  const g: any = globalThis;
+  const antes = { add: g.addEventListener, locks: Object.getOwnPropertyDescriptor(g.navigator, "locks") };
+  g.addEventListener ??= () => {};
+  let dueno: any = null, forzarRobo = false;
+  const cola: any[] = [];
+  const otorgar = (r: any) => {
+    dueno = r;
+    Promise.resolve().then(() => r.cb()).then((v: any) => { if (dueno === r) { dueno = null; r.ok(v); const sig = cola.shift(); if (sig) otorgar(sig); } }, r.mal);
+  };
+  const locks = {
+    request(_n: string, opts: any, cb: any) {
+      return new Promise((ok, mal) => {
+        const r = { cb, ok, mal };
+        if (opts.steal || forzarRobo) {
+          if (dueno) { const d = dueno; dueno = null; d.mal(Object.assign(new Error("robado"), { name: "AbortError" })); }
+          otorgar(r);
+        } else if (!dueno) otorgar(r); else cola.push(r);
+      });
+    },
+  };
+  Object.defineProperty(g.navigator, "locks", { value: locks, configurable: true });
+  const { unirseAlBus } = await import("../../../../public/previews/breakpoint/turnero/bus.mjs");
+  const espera = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
+  const A: any = unirseAlBus();
+  await espera(100); // A tiene el lock y está esperando la foto (400 ms)
+  forzarRobo = true;
+  const B: any = unirseAlBus(); // B roba: como el vigía o el robo de 3 s después del «adiós»
+  forzarRobo = false;
+  await espera(1500);
+  try {
+    assert.equal([A, B].filter((x) => x.esServidor()).length, 1, "un solo servidor");
+  } finally {
+    A.cerrar(); B.cerrar();
+    if (antes.locks) Object.defineProperty(g.navigator, "locks", antes.locks); else delete g.navigator.locks;
+    g.addEventListener = antes.add;
+  }
 });

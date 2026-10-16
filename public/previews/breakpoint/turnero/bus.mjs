@@ -98,7 +98,7 @@ export function unirseAlBus({ reloj, soloCliente = false } = {}) {
 
   // Si el servidor deja de latir (se cerró la última pestaña del turnero, o el navegador la suspendió), se lo da por
   // caído; una pestaña del turnero le "roba" el lock y toma la posta (Safari en el celu suspende pestañas de fondo).
-  let latiendo = null, verificando = false;
+  let latiendo = null, verificando = false, generacion = 0;
   const vigia = setInterval(() => {
     if (servidor || !lider || verificando || Date.now() - ultimoLatido < CAIDO_MS) return;
     // Un latido tarde puede ser una pestaña FRENADA (Chrome espacia los timers de fondo), no muerta: antes de darla
@@ -117,9 +117,11 @@ export function unirseAlBus({ reloj, soloCliente = false } = {}) {
 
   /** Hacer de servidor mientras se tenga el lock. Si otra pestaña lo roba (porque ésta quedó suspendida), se baja. */
   function postularse(robar = false) {
+    const mia = ++generacion;
     navigator.locks.request(LOCK, robar ? { steal: true } : {}, async () => {
       // Se sigue desde la foto más nueva que haya (D36); sin foto, demo nueva.
       const pedida = await pedirFoto();
+      if (mia !== generacion) return; // le robaron el lock mientras esperaba la foto: no hay dos servidores
       const foto = versionDe(pedida) > versionDe(ultimaFoto) ? pedida : ultimaFoto ?? pedida;
       servidor = crearServidorDemo({ reloj, foto });
       ultimaFoto = null;
@@ -136,6 +138,7 @@ export function unirseAlBus({ reloj, soloCliente = false } = {}) {
       // Sólo si le ROBARON el lock (esta pestaña estaba suspendida). Otro error (p. ej. iframe con sandbox) no se
       // reintenta: sería un bucle.
       if (e?.name !== "AbortError") return;
+      generacion++; // el callback de esta postulación, si sigue esperando la foto, ya no arma servidor
       // Deja de ser servidor y pasa a cliente del nuevo.
       clearInterval(latiendo);
       servidor?.cerrar();
