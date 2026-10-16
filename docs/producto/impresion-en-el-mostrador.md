@@ -2,7 +2,7 @@
 
 **Para quién es:** para quien instala la caja (el comercial, el técnico del cliente o el dueño con un poco
 de paciencia). Los pasos son exactos; seguilos en orden.
-**Fase:** T-4 del plan `docs/producto/PLAN-TERMINALES-MOSTRADOR.md`. **Fecha:** 2026-10-16.
+**Fecha:** 2026-10-16 (actualizada el mismo día: ancho 58/80 e impresión al cobrar ya están en el sistema).
 **Va de la mano con:** la guía de hardware `docs/producto/guia-hardware-mostrador.md` (qué impresora comprar).
 
 ---
@@ -12,9 +12,11 @@ de paciencia). Los pasos son exactos; seguilos en orden.
 - Al cobrar, el ticket aparece en pantalla con dos botones: **"Mandar por WhatsApp"** e **"Imprimir
   (58 mm)"**. Pasa en **Vender**, en **Caja con lector** y al reimprimir desde **Ventas del día**.
 - "Imprimir" arma un documento **sólo con el ticket** (no la pantalla entera) y llama al imprimir del
-  navegador. Ancho fijo de **58 mm** (`src/app/admin/(dashboard)/vender/reglas-venta.ts:377`).
+  navegador. Sale en **58 mm**, salvo que el negocio tenga el módulo **Equipos del mostrador** y el
+  equipo esté configurado en **80 mm** (§4).
 - Sin la receta de abajo, cada ticket abre **la ventanita de impresión** de Chrome y hay que darle
-  "Imprimir". Con la receta, en una PC con Windows o Linux, **sale directo, sin ventanita**.
+  "Imprimir". Con la receta, en una PC con Windows o Linux, **sale directo, sin ventanita**. Y si el
+  equipo tiene prendido **"Imprimir solo al cobrar"** (§4), ni siquiera hay que tocar el botón.
 - El ticket **siempre** dice "No válido como factura".
 - **Estado de prueba:** esta receta usa funciones estándar de Chrome; **todavía no se validó en una
   impresora térmica real de un cliente** (el propio código lo marca). La primera instalación hacela con
@@ -143,29 +145,35 @@ cable ni por Bluetooth. Lo honesto es:
 | Opción | Cómo | Cuándo |
 |---|---|---|
 | **Mandar por WhatsApp** (recomendado) | Botón **"Mandar por WhatsApp"** del ticket. Va al número del cliente si lo cargaste; si no, WhatsApp te deja elegir el contacto. | Siempre. Es lo más rápido y el cliente lo guarda. |
-| **Guardar PDF** | Tocá **"Imprimir (58 mm)"**: se abre el imprimir del sistema. En Android elegí **"Guardar como PDF"**; en iPad usá el botón **Compartir** de esa pantalla y guardalo en Archivos o mandalo. | Si el cliente pide el comprobante por mail o lo querés archivar. Probalo en tu equipo en la prueba de 10 minutos: cada marca muestra la pantalla un poco distinto. |
+| **Guardar PDF** | Tocá **"Guardar PDF o imprimir"** (si el negocio tiene el módulo **Equipos del mostrador** y el equipo está como tablet o celular) o **"Imprimir (58 mm)"** (si no): se abre el imprimir del sistema. En Android elegí **"Guardar como PDF"**; en iPad usá el botón **Compartir** de esa pantalla y guardalo en Archivos o mandalo. | Si el cliente pide el comprobante por mail o lo querés archivar. Probalo en tu equipo en la prueba de 10 minutos: cada marca muestra la pantalla un poco distinto. |
 
-**Próximamente** (fase T-4 del plan): un botón **"Guardar PDF"** explícito, para que no haya que pasar por
-"Imprimir".
+En una tablet o un celular configurados como tales, el botón ya no dice "Imprimir": dice **"Guardar PDF o
+imprimir"**, que es lo que de verdad pasa ahí. Es el mismo botón de siempre con el nombre honesto.
 
 Existen apps de terceros que hacen de puente entre el navegador y una térmica Bluetooth. **No las
 probamos ni las soportamos.** Si el cliente necesita papel, la respuesta es una PC con térmica (§1).
 
 ---
 
-## 4. Elegir el ancho del ticket (58 u 80 mm) — próximamente, con el módulo Terminal
+## 4. Elegir el ancho del ticket (58 u 80 mm) e imprimir solo al cobrar — con el módulo Equipos del mostrador
 
-**Disponible con el módulo Terminal** (fases T-1 y T-4 del plan; todavía no está en el sistema):
+**Disponible si el negocio tiene el módulo "Equipos del mostrador"** (lo activa GSG; no viene por defecto):
 
-- En **Ajustes → Este equipo** se elige qué es el equipo (caja kiosco, tablet de recepción, celular de
-  mostrador) y el **ancho del ticket: 58 u 80 mm**. Es **por equipo**: la caja con térmica de 80 y el
-  celular del mostrador pueden tener cada uno el suyo.
-- Ahí mismo se va a poder elegir que el ticket **se imprima solo al cobrar** (junto con la receta de §1,
-  sale sin tocar nada).
+- En **Ajustes → Este equipo** se elige qué es el equipo (**PC de caja**, **tablet de recepción**,
+  **celular de mostrador**) y el **ancho del ticket: 58 u 80 mm**. Es **por equipo y por persona**: la caja
+  con térmica de 80 y el celular del mostrador tienen cada uno el suyo, y si otra persona entra en la
+  misma PC, ve su propia configuración.
+- Con **80 mm** el ticket usa todo el rollo: letra un poco más grande y márgenes más cómodos. El botón dice
+  **"Imprimir (80 mm)"** en la PC de caja.
+- **"Imprimir solo al cobrar"**: apenas se cobra (en **Vender** o en **Caja con lector**), el ticket se
+  manda a la impresora sin tocar nada, **una vez por venta**. Con la receta de §1 (Chrome con
+  `--kiosk-printing`) sale directo; sin la receta, se abre la ventanita y hay que darle Enter. En una
+  tablet o un celular **no lo prendas**: se abriría la pantalla de imprimir del sistema en cada venta.
+  Reimprimir desde **Ventas del día** sigue siendo con el botón.
 
-**Hasta que llegue:** el ticket sale en **58 mm**. En una impresora de **80 mm** se imprime bien, más
-angosto, con margen a la derecha. **No cambies el tamaño de papel del driver a 58 para "arreglarlo"**:
-dejá el del rollo que tenés puesto.
+**Sin el módulo:** el ticket sale en **58 mm**, como siempre. En una impresora de **80 mm** se imprime
+bien, más angosto, con margen a la derecha. **No cambies el tamaño de papel del driver a 58 para
+"arreglarlo"**: dejá el del rollo que tenés puesto.
 
 ---
 
@@ -175,7 +183,7 @@ dejá el del rollo que tenés puesto.
   por **Bluetooth**: no. WhatsApp o PDF (§3).
 - **Impresión directa en Chromebook común**: no (§2).
 - **Que el ticket sea factura**: no. Dice "No válido como factura". El QR de ARCA en el ticket térmico
-  está **diferido** hasta que un negocio facture electrónico en real (fase T-8 del plan); hoy ese QR sólo
+  está **diferido** hasta que un negocio facture electrónico en real; hoy ese QR sólo
   va en el comprobante en PDF A4.
 - **Imprimir sin internet**: el ticket sale de una venta grabada; sin conexión no se cobra (ver la guía de
   hardware, §8).
@@ -190,6 +198,8 @@ dejá el del rollo que tenés puesto.
 - ☐ Tamaño de papel = rollo puesto (58 u 80); márgenes 0; corte al final; cajón (si hay).
 - ☐ Acceso directo "Caja" con `--user-data-dir`, `--kiosk-printing` y `--app=https://<dominio-del-negocio>/admin/vender` (o `/admin/caja-rapida`).
 - ☐ Primera impresión a mano: destino térmica, márgenes Ninguno, escala 100 %, sin encabezados.
+- ☐ Con el módulo **Equipos del mostrador**: en **Ajustes → Este equipo**, "PC de caja", el ancho del rollo
+  puesto (58 u 80) y, si querés, **"Imprimir solo al cobrar"**.
 - ☐ Prueba de corte: sale sin ventanita, corta, sin tira en blanco, abre el cajón.
 - ☐ **Venta de prueba anulada** desde "Ventas del día".
 

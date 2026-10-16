@@ -9,6 +9,7 @@ import { fmtMoneyARS } from "@/components/ui/format";
 import { etiquetaDeMedio } from "@/lib/caja/medio-cobro";
 import AnularPedidoForm from "../pedidos/AnularPedidoForm";
 import TicketVenta from "../vender/TicketVenta";
+import type { TerminalDelEquipo } from "@/lib/terminal/usar-perfil";
 import type { VentaTicket } from "../vender/reglas-venta";
 import FacturarVenta from "./FacturarVenta";
 import type { FacturaDeVenta } from "./factura";
@@ -21,6 +22,7 @@ export default function FilaVenta({
   anular,
   notas,
   factura = null,
+  terminal = null,
 }: {
   venta: VentaTicket;
   /** "10:15", en la zona del negocio. */
@@ -33,6 +35,8 @@ export default function FilaVenta({
   notas: string[];
   /** El estado de la factura, sólo para quien puede facturar (null = no se muestra nada). */
   factura?: FacturaDeVenta | null;
+  /** El equipo, si el negocio tiene el módulo `terminal`: el ticket sale en su ancho. */
+  terminal?: TerminalDelEquipo | null;
 }) {
   const [conTicket, setConTicket] = useState(false);
   const aMano = venta.lineas.some((l) => l.aMano);
@@ -93,7 +97,7 @@ export default function FilaVenta({
           />
         )}
       </div>
-      {conTicket && <TicketVenta className="mt-3" venta={venta} negocio={negocio} />}
+      {conTicket && <TicketVenta className="mt-3" venta={venta} negocio={negocio} terminal={terminal} />}
     </li>
   );
 }

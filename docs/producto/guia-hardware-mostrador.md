@@ -76,6 +76,9 @@ Mini PC ──wifi o cable─► Internet (principal) · Router 4G (respaldo)
    números y **un salto de línea** al final (eso es el "Enter"). Si aparecen símbolos raros antes del
    número, o no salta de línea, el lector trae un prefijo o le falta el sufijo: en el manual del lector
    hay un código de barras para "sin prefijo" y otro para "sufijo Enter" (CR). Se escanean una vez y listo.
+   Si no tenés el manual y el negocio tiene el módulo **Equipos del mostrador**, se resuelve desde el
+   sistema: en **Ajustes → Este equipo → Lector de código de barras** cargás lo que manda antes del
+   código (por ejemplo `*`) y qué manda al final (Enter, Tab o nada).
 2. **Caja (3 min):** entrá a **Caja con lector**, escaneá un producto cargado en el catálogo: tiene que
    aparecer en la venta sin tocar nada. Probá también `3*` + el código para sumar tres unidades.
 3. **Ticket y cajón (3 min):** cobrá una venta de prueba en efectivo. Tiene que salir el ticket
@@ -166,9 +169,14 @@ la mano, el peso tipeado con el teclado grande y el ticket por WhatsApp.
 - **Lector Bluetooth:** se empareja como un teclado (Ajustes → Bluetooth). Mientras está conectado,
   Android a veces esconde el teclado de la pantalla; se vuelve a mostrar desde la notificación del
   teclado o desde Ajustes → Idioma y teclado → "Mostrar teclado virtual".
-- **Dónde funciona hoy el lector:** en la pantalla **Caja con lector** (si tu negocio la tiene
-  activada). En la pantalla **Vender**, escanear sin tocar nada llega **próximamente** (fase T-2); hoy
-  ahí se busca el producto por nombre.
+- **Dónde funciona el lector:** en la pantalla **Caja con lector** (si tu negocio la tiene activada),
+  siempre. En la pantalla **Vender**, si el negocio tiene el módulo **Equipos del mostrador**: escaneás
+  sin tocar nada (con el cursor fuera de los campos) y el producto entra solo al ticket; si el código no
+  está cargado, la pantalla lo dice y suena el aviso de error. Sin el módulo, en Vender se busca el
+  producto por nombre.
+- **Avisos (con el módulo Equipos del mostrador):** en **Ajustes → Este equipo** elegís si el equipo
+  **suena** (un pip cuando el producto entra, otro distinto cuando algo falla) y/o **vibra** (en el
+  celular). Sirve para no tener que mirar la pantalla en cada lectura.
 
 ### Cómo probarlo en 10 minutos
 
@@ -176,7 +184,8 @@ la mano, el peso tipeado con el teclado grande y el ticket por WhatsApp.
    peso con el teclado grande (3 min).
 2. Cobrala y mandá el ticket **a tu propio WhatsApp** (3 min).
 3. Apagá el wifi y repetí: con datos tiene que salir igual (2 min).
-4. Si compraste lector: abrí Caja con lector y escaneá un producto (2 min).
+4. Si compraste lector: abrí Caja con lector (o Vender, con el módulo Equipos del mostrador) y escaneá
+   un producto (2 min).
 5. **Anulá la venta de prueba** desde "Ventas del día".
 
 ---
@@ -274,9 +283,11 @@ termina el "¿y qué compro?".
 
 ---
 
-**Ajustes por equipo — próximamente, con el módulo Terminal (fases T-1 y T-4 del plan):** en **Ajustes →
-Este equipo** vas a poder decir qué es cada equipo (caja kiosco, tablet de recepción, celular de
-mostrador), elegir el ancho del ticket (58 u 80 mm) y si el ticket se imprime solo al cobrar. Hasta que
-llegue, el ticket sale en 58 mm (en una impresora de 80 mm se lee bien, con un margen a la derecha).
+**Ajustes por equipo — con el módulo Equipos del mostrador (lo activa GSG):** en **Ajustes → Este equipo**
+decís qué es cada equipo (PC de caja, tablet de recepción, celular de mostrador), el ancho del ticket
+(58 u 80 mm), si el ticket se imprime solo al cobrar, si suena y/o vibra, y qué manda tu lector antes y
+después del código. Vale para ese equipo y esa persona. Sin el módulo, el ticket sale en 58 mm (en una
+impresora de 80 mm se lee bien, con un margen a la derecha) y no hay sonido ni lector en Vender. Los
+detalles de impresión están en la receta `docs/producto/impresion-en-el-mostrador.md`.
 
 — Elaborado por GSG (Gestión Studio Grow)

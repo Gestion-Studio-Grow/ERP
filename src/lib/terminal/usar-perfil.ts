@@ -82,3 +82,20 @@ export function usePerfilDeTerminal({ tenantSlug, userId }: { tenantSlug: string
   );
   return { perfil, listo: crudo !== undefined, guardar };
 }
+
+/**
+ * Quién usa este equipo en qué negocio, como lo manda el servidor (terminal.server.ts). `null`
+ * = el negocio NO tiene el módulo `terminal`: la pantalla trabaja como siempre.
+ */
+export type TerminalDelEquipo = { tenantSlug: string; userId: string };
+
+/**
+ * El perfil del equipo SÓLO si el negocio tiene el módulo `terminal` y ya se leyó el almacén;
+ * si no, `null`, y quien lo usa hace lo de siempre (ticket de 58 mm, sin imprimir solo, sin
+ * sonido, sin vibrar, sin lector en Vender). Así CH y todo negocio sin el módulo quedan
+ * idénticos: el perfil de fábrica (que vibra) nunca se aplica por defecto.
+ */
+export function usePerfilSiHayTerminal(terminal: TerminalDelEquipo | null | undefined): PerfilDeTerminal | null {
+  const { perfil, listo } = usePerfilDeTerminal({ tenantSlug: terminal?.tenantSlug ?? "", userId: terminal?.userId ?? "" });
+  return terminal && listo ? perfil : null;
+}

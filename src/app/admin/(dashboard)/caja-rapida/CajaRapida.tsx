@@ -12,10 +12,22 @@
 //
 // SIN CONFIRMAR: si la respuesta del cobro no llega, el ticket queda BLOQUEADO (no se puede tocar)
 // y se reintenta con la MISMA clave: si se había grabado, vuelve esa venta y no se cobra dos veces.
+//
+// CON EL MÓDULO `terminal` (lo decide el servidor: llega `terminal`), la caja sigue el perfil de
+// ESTE equipo (src/lib/terminal/perfil-core.ts): lo que el lector manda antes del código (un `*`,
+// un STX) se saca antes de leer, y ese primer carácter también trae el foco de vuelta al campo
+// (antes sólo un dígito: con un prefijo, el código podía llegar cortado); si el lector termina
+// con Tab o con nada, la lectura la cierra la ráfaga (lector-core.ts) y no un Enter; suena y/o
+// vibra cuando el producto entra y cuando algo falla; y el ticket sale en el ancho del equipo
+// (y solo, si el perfil lo pide). Sin el módulo, todo igual que antes.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, cn, fmtMoneyARS } from "@/components/ui";
 import TicketVenta from "../vender/TicketVenta";
+import { usePerfilSiHayTerminal, type TerminalDelEquipo } from "@/lib/terminal/usar-perfil";
+import { enCampoEditable, quitarPrefijoSufijo } from "@/lib/terminal/lector-core";
+import { useLectorDeRafaga } from "@/lib/terminal/usar-lector";
+import { avisar } from "@/lib/terminal/senal";
 import type { VentaTicket } from "../vender/reglas-venta";
 import { cobrarVentaDeCaja, anularRenglonDeCaja } from "@/lib/supermercado/caja-actions";
 import { buscarPorNombre, indexarPorCodigo, interpretarEntrada, resolverCodigo, type ProductoDeCaja } from "@/lib/supermercado/lectura";
@@ -46,6 +58,7 @@ export default function CajaRapida({
   negocio,
   cajero,
   anulaSolo,
+  terminal = null,
 }: {
   productos: ProductoDeCaja[];
   promos: Promocion[];
@@ -56,7 +69,12 @@ export default function CajaRapida({
   cajero: string;
   /** Quien cobra es dueño o encargado: anula un renglón sin pedir otra clave. */
   anulaSolo: boolean;
+  /** El equipo y la persona, si el negocio tiene el módulo `terminal` (lo decide el servidor). */
+  terminal?: TerminalDelEquipo | null;
 }) {
+  // El perfil de este equipo, o `null` sin el módulo: entonces todo es como siempre.
+  const perfil = usePerfilSiHayTerminal(terminal);
+  const prefijo = perfil?.lector.prefijo ?? "";
   const indice = useMemo(() => indexarPorCodigo(productos), [productos]);
   const campo = useRef<HTMLInputElement | null>(null);
   const contador = useRef(0);
@@ -76,18 +94,31 @@ export default function CajaRapida({
 
   const bloqueado = cobrando || sinConfirmar !== null;
   const volverAlCampo = () => requestAnimationFrame(() => campo.current?.focus());
+  /** Un aviso de error en pantalla y, con el perfil, su sonido o vibración. */
+  const avisarError = (texto: string) => {
+    setMensaje({ tono: "error", texto });
+    avisar("error", perfil);
+  };
 
   // Un dígito tecleado fuera de un campo (el lector con el foco perdido) va al campo del lector.
+  // Con el perfil, también el primer carácter de lo que el lector manda antes del código.
   useEffect(() => {
     function alTeclear(e: KeyboardEvent) {
-      const t = e.target as HTMLElement | null;
-      const enCampo = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
-      if (enCampo || e.ctrlKey || e.metaKey || e.altKey || document.querySelector("dialog[open]")) return;
-      if (/^[0-9]$/.test(e.key) && campo.current) campo.current.focus();
+      if (enCampoEditable(e.target as HTMLElement | null) || e.ctrlKey || e.metaKey || e.altKey || document.querySelector("dialog[open]")) return;
+      const esInicioDelLector = /^[0-9]$/.test(e.key) || (prefijo !== "" && e.key === prefijo[0]);
+      if (esInicioDelLector && campo.current) campo.current.focus();
     }
     window.addEventListener("keydown", alTeclear);
     return () => window.removeEventListener("keydown", alTeclear);
-  }, []);
+  }, [prefijo]);
+
+  // Lector que termina con Tab o sin nada (perfil del equipo): la ráfaga cierra la lectura. Con
+  // Enter no hace falta: el Enter manda el formulario, como siempre.
+  useLectorDeRafaga({
+    lector: perfil && perfil.lector.sufijo !== "enter" ? perfil.lector : null,
+    acepta: (e) => e.target === campo.current,
+    alLeer: () => leer(campo.current?.value ?? ""),
+  });
   useEffect(() => {
     campo.current?.focus();
   }, []);
@@ -125,14 +156,16 @@ export default function CajaRapida({
     setMensaje(null);
     setSugerencias([]);
     if (cobrada) setCobrada(null);
+    avisar("ok", perfil);
   }
 
-  function leer() {
+  function leer(crudo: string = entrada) {
     if (bloqueado) return;
-    const e = interpretarEntrada(entrada);
+    // Con el perfil, sin lo que el lector manda antes y después del código.
+    const e = interpretarEntrada(perfil ? quitarPrefijoSufijo(crudo, perfil.lector) : crudo);
     setEntrada("");
     if (e.tipo === "vacia") return;
-    if (e.tipo === "invalida") return setMensaje({ tono: "error", texto: e.mensaje });
+    if (e.tipo === "invalida") return avisarError(e.mensaje);
     if (e.tipo === "multiplicador") {
       setMultiplicador(e.cantidad);
       setMensaje({ tono: "info", texto: `El próximo producto entra por ${e.cantidad}.` });
@@ -143,7 +176,7 @@ export default function CajaRapida({
       const encontrados = buscarPorNombre(productos, e.texto);
       if (encontrados.length === 0) {
         setSugerencias([]);
-        return setMensaje({ tono: "error", texto: `No encontramos «${e.texto}». Probá con otra palabra o pasá el código.` });
+        return avisarError(`No encontramos «${e.texto}». Probá con otra palabra o pasá el código.`);
       }
       if (e.multiplicador) setMultiplicador(e.multiplicador);
       setSugerencias(encontrados);
@@ -151,7 +184,7 @@ export default function CajaRapida({
       return;
     }
     const r = resolverCodigo(e.codigo, indice, formato, mult);
-    if (!r.ok) return setMensaje({ tono: "error", texto: r.mensaje });
+    if (!r.ok) return avisarError(r.mensaje);
     if (r.cantidad === null) return setPesando({ producto: r.producto, texto: "" });
     agregar(r.producto, r.cantidad, r.importe, r.porBalanza);
   }
@@ -169,7 +202,7 @@ export default function CajaRapida({
   function confirmarPeso() {
     if (!pesando) return;
     const l = leerCantidad(pesando.texto);
-    if (l.estado !== "ok" || !(l.valor > 0)) return setMensaje({ tono: "error", texto: "Escribí el peso en kilos, por ejemplo 0,350." });
+    if (l.estado !== "ok" || !(l.valor > 0)) return avisarError("Escribí el peso en kilos, por ejemplo 0,350.");
     agregar(pesando.producto, l.valor, null, false);
     setPesando(null);
     volverAlCampo();
@@ -207,8 +240,10 @@ export default function CajaRapida({
     }).catch(() => ({ ok: false as const, tipo: "sin-confirmar" as const, error: "Se cortó la conexión: no sabemos si la venta se grabó." }));
     setCobrando(false);
     if (!res.ok) {
-      if (res.tipo === "sin-confirmar") setSinConfirmar(res.error);
-      else setMensaje({ tono: "error", texto: res.error });
+      if (res.tipo === "sin-confirmar") {
+        setSinConfirmar(res.error);
+        avisar("error", perfil);
+      } else avisarError(res.error);
       return;
     }
     setSinConfirmar(null);
@@ -365,7 +400,7 @@ export default function CajaRapida({
               Venta #{cobrada.venta.code} cobrada: {fmtMoneyARS(cobrada.venta.total)}
               {cobrada.vuelto > 0 ? ` · Vuelto ${fmtMoneyARS(cobrada.vuelto)}` : ""}
             </p>
-            <TicketVenta venta={cobrada.venta} negocio={negocio} pagoCon={cobrada.pagoCon} />
+            <TicketVenta venta={cobrada.venta} negocio={negocio} pagoCon={cobrada.pagoCon} terminal={terminal} imprimirAlCobrar />
           </div>
         )}
       </section>
