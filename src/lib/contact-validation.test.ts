@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isValidEmail, isValidArgentinePhone, validateBookingContact } from "./contact-validation";
+import { isValidEmail, isValidArgentinePhone, validateBookingContact, errorDelTelefonoDelPedido, TELEFONO_DEL_PEDIDO_INVALIDO } from "./contact-validation";
 
 test("isValidEmail: acepta bien formados, rechaza basura", () => {
   assert.equal(isValidEmail("caro@gmail.com"), true);
@@ -36,4 +36,18 @@ test("validateBookingContact: teléfono obligatorio y con formato; email opciona
 
   const mailMalo = validateBookingContact("11 2345 6789", "esto-no-es-un-email");
   assert.equal(mailMalo.ok, false);
+});
+
+test("pedido de la tienda: un WhatsApp que no es teléfono se rechaza con un texto que dice qué corregir", () => {
+  for (const malo of ["hola", "123", "", "   ", "11-2345", "llamame al 11 2345 6789", "<script>", "12345678901234"]) {
+    assert.equal(errorDelTelefonoDelPedido(malo), TELEFONO_DEL_PEDIDO_INVALIDO, `«${malo}» no es un teléfono`);
+  }
+  for (const bueno of ["11 2345 6789", "+54 9 11 2345-6789", "(0223) 15-345-678", "2234567890"]) {
+    assert.equal(errorDelTelefonoDelPedido(bueno), null, `«${bueno}» es un teléfono`);
+  }
+});
+
+test("pedido de la tienda: el mensaje del teléfono no nombra campos ni reglas internas", () => {
+  assert.match(TELEFONO_DEL_PEDIDO_INVALIDO, /11 2345 6789/, "trae un ejemplo");
+  assert.doesNotMatch(TELEFONO_DEL_PEDIDO_INVALIDO, /customerPhone|dígitos|regex|campo|10|13/i);
 });

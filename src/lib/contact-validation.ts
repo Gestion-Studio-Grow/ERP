@@ -29,6 +29,23 @@ export function isValidArgentinePhone(raw: string | null | undefined): boolean {
   return digits.length >= 10 && digits.length <= 13;
 }
 
+/**
+ * Lo que contesta la tienda cuando el WhatsApp del pedido no es un teléfono. Dice qué corregir y
+ * con un ejemplo; no nombra campos ni reglas internas (cuántos dígitos, cómo se llama el dato).
+ */
+export const TELEFONO_DEL_PEDIDO_INVALIDO =
+  "Revisá tu WhatsApp: escribí el número con la característica, por ejemplo 11 2345 6789.";
+
+/**
+ * El teléfono que deja quien compra en la vidriera (UAT MAGRA 16/10). Es el único canal para
+ * confirmarle el pedido y avisarle el peso real: si entra «hola» o «123», el local recibe un
+ * pedido al que no puede contestar. La misma regla que el turno (`isValidArgentinePhone`).
+ * Devuelve el texto para la persona, o null si está bien. Vacío también es error.
+ */
+export function errorDelTelefonoDelPedido(raw: string | null | undefined): string | null {
+  return isValidArgentinePhone(raw) ? null : TELEFONO_DEL_PEDIDO_INVALIDO;
+}
+
 export type ContactValidation = { ok: true } | { ok: false; error: string };
 
 /**

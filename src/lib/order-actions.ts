@@ -7,6 +7,7 @@
 // fail-closed ADR-015) y cada read filtra por él, igual que el resto del Core.
 
 import { prisma } from "@/lib/prisma";
+import { errorDelTelefonoDelPedido } from "@/lib/contact-validation";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auditAdmin, auditPublic, requestIp } from "@/lib/audit-core";
@@ -545,6 +546,10 @@ export async function placeOnlineOrder(
   if (!customerName || !customerPhone) {
     return { ok: false, error: "Necesitamos tu nombre y un teléfono de contacto para tomar el pedido.", campo: "datos" };
   }
+  // El teléfono se valida en el borde (contact-validation.ts): con uno que no es teléfono el local
+  // no puede confirmar el pedido ni avisar el peso real. Se mira lo tipeado, antes del recorte.
+  const errorDelTelefono = errorDelTelefonoDelPedido(String(formData.get("customerPhone") || ""));
+  if (errorDelTelefono) return { ok: false, error: errorDelTelefono, campo: "datos" };
   const address = String(formData.get("address") || "").trim().slice(0, 300) || null;
   if (fulfillment === "DELIVERY" && !address) {
     return { ok: false, error: "Para el envío a domicilio necesitamos la dirección.", campo: "datos" };
