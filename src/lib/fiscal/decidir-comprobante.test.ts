@@ -863,6 +863,12 @@ test("empresa cargada como consumidor final → revisión", () => {
   assert.equal(d.comprobante!.letra, "B", "la propuesta queda, para que el contador la mire");
 });
 
+test("CUIT con prefijo de clase a confirmar (55) como consumidor final: no se lo trata de empresa", () => {
+  const d = decidirComprobante(RI, { condicionIva: "CONSUMIDOR_FINAL", docTipo: 80, docNro: "55111111110" }, productos());
+  assert.equal(codigos(d).includes("RECEPTOR_CUIT_INVALIDO"), false, "el CUIT vale");
+  assert.equal(codigos(d).includes("EMPRESA_COMO_CONSUMIDOR_FINAL"), false, "la clase provisional no dispara la regla de empresa");
+});
+
 test("comprador del exterior → revisión sin propuesta; el mensaje dice 'si es exportación', no lo afirma", () => {
   const d = decidirComprobante(RI, { condicionIva: "CLIENTE_EXTERIOR" }, productos());
   assert.equal(d.estado, "revision");

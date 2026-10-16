@@ -1,9 +1,12 @@
 "use client";
 
-// Alta de un cliente en la cartera del contador. Form con validación en vivo
-// del CUIT (dígito verificador, mismo criterio que bancos) y muestra de la
-// contraseña de bootstrap UNA sola vez (patrón provision-tenant, ADR-019): no
-// se persiste en claro y no se vuelve a mostrar.
+// «Agregar un cliente» del panel del contador. NO crea el negocio ni muestra
+// ninguna contraseña: deja un PEDIDO de alta para Soporte GSG
+// (`altaClienteCarteraAction`, cartera-actions.ts: una fila de auditoría del
+// estudio, idempotente por CUIT), que lo configura desde la consola
+// (/operador/solicitudes). El formulario valida en vivo el CUIT (dígito
+// verificador, el validador único `@/lib/cuit`) y el punto de venta, marca lo
+// que falta al intentar mandar y anuncia los mensajes en UNA sola región viva.
 
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
