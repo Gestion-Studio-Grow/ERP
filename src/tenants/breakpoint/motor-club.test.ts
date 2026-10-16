@@ -669,3 +669,27 @@ test("cobros, ajustes y pases desde el puesto validan el usuario en el motor", (
   assert.equal(M.transferirCargo(e, c.id, 0, d.id, 1, ahora(20), intruso).ok, false);
   assert.ok(M.ajustarCargo(e, c.id, 0, -1, ahora(20), RECEP).ok);
 });
+
+test("reparto por cuota (Gate B1): seña chica, pago «a cuenta» y titular que no juega", () => {
+  const cuarto = (r: any) => r.precio / 4;
+  // Seña del 20%: la titular debe el resto de su cuota; los demás, la suya entera.
+  const e = club();
+  const r = turno(e, "c1", 20, { clienteId: "a", jugadores: [{ nombre: "Ana", clienteId: "a" }, "Beto", "Caro", "Dani"] });
+  M.registrarPago(e, r.id, { medio: "transferencia", monto: r.precio * 0.2 }, ahora(10));
+  assert.deepEqual(M.partesCancha(r).map((p: any) => p.aPagar), [cuarto(r) - r.precio * 0.2, cuarto(r), cuarto(r), cuarto(r)]);
+  // Un «a cuenta» de $1.000 en el mostrador: a Ana le baja $1.000, nadie queda exento.
+  const e2 = club();
+  const r2 = turno(e2, "c1", 20, { clienteId: "a", jugadores: [{ nombre: "Ana", clienteId: "a" }, "Beto", "Caro", "Dani"] });
+  M.registrarPago(e2, r2.id, { medio: "efectivo", monto: 1000 }, ahora(10));
+  const p2 = M.partesCancha(r2);
+  assert.deepEqual(p2.map((p: any) => p.aPagar), [cuarto(r2) - 1000, cuarto(r2), cuarto(r2), cuarto(r2)]);
+  assert.ok(p2.every((p: any) => !p.pago));
+  // El titular no juega (partido abierto): la seña no se le acredita a nadie y baja a todos por igual.
+  const e3 = club();
+  const r3 = turno(e3, "c1", 20, { clienteId: "a", titular: "Ana", jugadores: ["Santi", "Gonza", "Facu", "Leo"] });
+  M.registrarPago(e3, r3.id, { medio: "transferencia", monto: r3.precio / 2 }, ahora(10));
+  assert.ok(r3.jugadores.every((j: any) => !j.pagado), "nadie queda con la seña de otro");
+  const p3 = M.partesCancha(r3);
+  assert.deepEqual(p3.map((p: any) => p.aPagar), [1, 2, 3, 4].map(() => r3.precio / 8));
+  for (const r0 of [r, r2, r3]) assert.equal(M.partesCancha(r0).reduce((s: number, p: any) => s + p.aPagar, 0), M.saldo(r0), "las partes suman exacto el saldo");
+});

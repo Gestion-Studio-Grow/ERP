@@ -347,7 +347,7 @@ function vistaCaja() {
   const cierres = E.caja.cierres.filter((c) => c.dia === dia || c.dia === hoy); // si la de hoy ya cerró, se ve su cierre
   return `<div class="stack">
     <section class="card" aria-labelledby="t-caja">
-      <div class="card-head"><h2 id="t-caja" class="pantalla">Caja del ${esc(fechaCorta(dia))} · de 12:00 a 12:00</h2>
+      <div class="card-head"><h2 id="t-caja" class="pantalla">Caja del ${esc(fechaCorta(dia))} · ${dia === hoy ? "de 12:00 a 12:00" : "abierta al cerrar la anterior"}</h2>
         <div class="row">
           ${puedo("egreso") ? `<button type="button" class="btn" data-a="egreso">Egreso en efectivo</button>` : ""}
           ${puedo("remito") ? `<button type="button" class="btn" data-a="remito">Registrar remito</button>` : ""}

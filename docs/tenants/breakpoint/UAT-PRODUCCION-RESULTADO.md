@@ -136,14 +136,20 @@ Capturas en `uat-prod/b01…b07`.
 | # | Pedido | Estado |
 |---|---|---|
 | 1 | Cierre de caja sin candado | **Arreglado.** Una caja se cierra una sola vez; lo que se cobra después del cierre entra en la caja siguiente y la cerrada no cambia (`cajaAbierta`, `cajaCerrada`). |
-| 2 | La seña no se le acreditaba a quien la pagó | **Arreglado.** Un pago sin jugador elegido (la seña) es del titular: no vuelve a pagar su parte y las partes suman exacto lo que falta. |
+| 2 | La seña no se le acreditaba a quien la pagó | **Arreglado.** Reparto por cuota: cada uno debe su cuota menos lo que ya pagó, y lo pagado de más (o cobrado sin elegir jugador) baja lo de los demás en proporción. La seña es del titular si juega (por ficha o por nombre); si no juega (partido abierto), no se le acredita a nadie. Probado con seña del 20 %, un «a cuenta» de $1.000 y titular que no juega. |
 | 3 | PIN a la vista y sin tope de intentos | **Arreglado en lo que es de la demo.** Los PIN de ejemplo se ven sólo si se piden («¿Probando la demo?»); el cambio de usuario tiene el mismo tope que el bloqueo (5 → 30 s). **Queda:** recargar saltea el bloqueo porque la demo no tiene login; es de la operación real (post-venta). |
-| 4 | Controles de plata sólo en pantalla | **Arreglado.** La falta sin cargo exige un dueño en el motor; cobrar, sumar/restar y pasar cargos validan al usuario en el motor cuando vienen del puesto. El turnero (seña por WhatsApp) sigue entrando sin usuario del club. |
+| 4 | Controles de plata sólo en pantalla | **Arreglado en parte.** La falta sin cargo exige un dueño en el motor (obligatorio). Cobrar la cancha, cobrar una parte, sumar/restar y pasar cargos validan al usuario cuando el puesto lo manda (opcional: el turnero entra sin usuario del club). **Queda:** `pagarCuenta`, `cargarEnCuenta` y la venta de mostrador todavía no lo validan. |
 | 5 | Abrir el turnero en la PC del mostrador pisaba lo del club | **Arreglado.** Si el turnero arranca sin ninguna demo previa, sigue desde lo que ya cargó el club (el club ofrece su estado como semilla). E2E nuevo. |
 | 6 | Aviso de demo en `/club` | **Ya estaba:** franja superior «Demo de la gestión del club · datos de ejemplo · no se guarda nada». |
 | 7 | `sitio.e2e.mjs` dependía de la hora real | **Ya estaba resuelto** (D36): busca un hueco libre en los dos lados y, de noche, pasa a mañana. Pasó corrido a las 22 y a la 1 (hora argentina). |
 
-Verificado: 154/154 tests (club, turnero, sitio estático), E2E 112/112 (JS comprimido 59,9 KB < 60 KB),
-`test:club-uat` 43/43, eslint sin errores.
+**El Gate la rechazó una vez** (bien rechazada): B1, el reparto daba mal con una seña menor a la cuota, un «a cuenta» o
+un titular que no juega; B2, la semilla del club podía pisar la demo real del turnero en una toma de posta. Los dos
+arreglados, con tests que fallan sin el arreglo.
+
+**Deuda anotada:**
+- (Resuelto) El tope de 60 KB de JS del turnero se medía sobre los archivos sin minificar. Ahora el servidor local minifica como el sitio publicado (42,5 KB) y el motor recuperó sus comentarios de reglas de negocio.
+- El tope de intentos del cambio de usuario y el del bloqueo son contadores separados.
+- Con dos pestañas del club abiertas, cuál ofrece la semilla depende del orden de llegada.
 
 — Elaborado por GSG

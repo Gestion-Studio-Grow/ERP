@@ -104,8 +104,9 @@ let secuencia = 0;
 let origenIds = "";
 const nuevoId = (prefijo) => `${origenIds}${prefijo}${(++secuencia).toString(36)}`;
 
+/** Por dónde va el contador de ids (va en la foto de la demo entre pestañas). */
 export const secuenciaIds = () => secuencia;
-/** Sigue el contador desde `n` (nunca lo baja): la pestaña que toma la posta no repite ids. */
+/** Sigue el contador desde `n` (nunca lo baja): la pestaña que toma la posta no repite ids de la demo que recibió. */
 export function retomarSecuencia(n) {
   secuencia = Math.max(secuencia, Math.round(Number(n)) || 0);
 }
@@ -670,33 +671,49 @@ export function registrarPago(estado, reservaId, { medio, monto, jugador = null,
   r.pagos.push({ medio, monto: importe, jugador, ...sello(ahora) });
   if (esSena && cobrado(r) >= r.sena.monto) r.sena.pagada = true;
   if (medio !== "monedero") movimientoCaja(estado, { tipo: "ingreso", medio, monto: importe, concepto: concepto ?? `${esSena ? "Seña" : "Cancha"} ${r.titular}`, reservaId }, ahora);
-  // Un pago sin jugador (la seña) es del titular: no vuelve a pagar su parte.
+  // Un pago sin jugador elegido (la seña) es del titular, si juega: así no vuelve a pagar su parte.
   const quienPago = jugador != null ? jugador : indiceTitular(r);
-  if (r.jugadores[quienPago]) r.jugadores[quienPago].pagado = (r.jugadores[quienPago].pagado ?? 0) + importe;
+  if (quienPago >= 0 && r.jugadores[quienPago]) r.jugadores[quienPago].pagado = (r.jugadores[quienPago].pagado ?? 0) + importe;
   registrar(estado, `Cobro de cancha ${pesos(importe)} (${MEDIOS[medio]}) — ${r.titular}.`, ahora);
   return { ok: true, saldo: saldo(r) };
 }
 
 /** El lugar del titular entre los jugadores (el de su ficha; si no, el primero). */
+/** El titular entre los jugadores (por su ficha o por su nombre); -1 si no juega (ej. un partido abierto). */
 function indiceTitular(r) {
   const i = r.clienteId ? r.jugadores.findIndex((j) => j.clienteId === r.clienteId) : -1;
-  return i >= 0 ? i : 0;
+  return i >= 0 ? i : r.jugadores.findIndex((j) => j.nombre === r.titular);
 }
 
-/** Partes de la cancha por jugador; la de quien está «a cargo de» otro la paga ese otro. */
+/** Reparte `monto` en proporción a `pesos`, en pesos enteros que suman exacto (resto mayor). */
+function repartir(monto, pesos) {
+  const suma = pesos.reduce((s, x) => s + x, 0);
+  if (!(monto > 0) || !(suma > 0)) return pesos.map(() => 0);
+  const crudo = pesos.map((x) => (monto * x) / suma), base = crudo.map(Math.floor);
+  let falta = monto - base.reduce((s, x) => s + x, 0);
+  for (const i of crudo.map((x, i) => i).sort((a, b) => (crudo[b] - base[b]) - (crudo[a] - base[a]))) { if (falta <= 0) break; base[i]++; falta--; }
+  return base;
+}
+
+/**
+ * Partes de la cancha por jugador. Cada uno debe su cuota menos lo que ya pagó; lo que alguien pagó de más (o se
+ * cobró sin elegir jugador) baja lo que deben los demás, en proporción. Si alguien está «a cargo de» otro jugador,
+ * su parte la paga ese otro (la suya más la del que invita).
+ */
 export function partesCancha(r) {
-  const pago = (j) => Boolean(j.pagado) || j.pagadoPor != null;
-  const libres = r.jugadores.map((j, i) => (pago(j) ? -1 : i)).filter((i) => i >= 0);
-  const quienes = libres.length ? libres : r.jugadores.map((_, i) => i);
-  const cuotas = dividir(Math.max(0, saldo(r)), quienes.length);
-  const propia = r.jugadores.map((_, i) => (quienes.includes(i) ? cuotas[quienes.indexOf(i)] : 0));
+  const cuota = dividir(totalReserva(r), Math.max(1, r.jugadores.length));
+  const debe = r.jugadores.map((j, i) => (j.pagadoPor != null ? 0 : Math.max(0, cuota[i] - (j.pagado ?? 0))));
+  const pago = (j, i) => j.pagadoPor != null || debe[i] === 0;
+  const resta = Math.max(0, saldo(r));
+  const libres = r.jugadores.map((j) => (j.pagadoPor != null ? 0 : 1));
+  const propia = repartir(resta, debe.some((x) => x > 0) ? debe : libres);
   const pagador = (i) => {
     const k = r.jugadores[i]?.aCargoDe;
-    return k != null && k !== i && r.jugadores[k] && !pago(r.jugadores[k]) && !pago(r.jugadores[i]) ? k : i;
+    return k != null && k !== i && r.jugadores[k] && !pago(r.jugadores[k], k) && !pago(r.jugadores[i], i) ? k : i;
   };
   const aPagar = r.jugadores.map(() => 0);
   propia.forEach((m, i) => { aPagar[pagador(i)] += m; });
-  return r.jugadores.map((j, i) => ({ propia: propia[i], aPagar: aPagar[i], aCargoDe: pagador(i) !== i ? pagador(i) : null, pago: pago(j) }));
+  return r.jugadores.map((j, i) => ({ propia: propia[i], aPagar: aPagar[i], aCargoDe: pagador(i) !== i ? pagador(i) : null, pago: pago(j, i) && propia[i] === 0 }));
 }
 
 /** La parte de la cancha de un jugador pasa a cargo de otro (null: vuelve a pagar la suya). */
@@ -705,7 +722,8 @@ export function asignarCargoCancha(estado, reservaId, deIdx, aIdx, ahora) {
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
   const de = r.jugadores[deIdx];
   if (!de) return { ok: false, motivo: "Elegí el jugador." };
-  if (de.pagado || de.pagadoPor != null) return { ok: false, motivo: `${de.nombre} ya pagó su parte.` };
+  const partes = partesCancha(r);
+  if (partes[deIdx].pago) return { ok: false, motivo: `${de.nombre} ya pagó su parte.` };
   if (aIdx == null || aIdx === "" || Number(aIdx) === Number(deIdx)) {
     delete de.aCargoDe;
     registrar(estado, `${de.nombre} paga su propia parte de la cancha.`, ahora);
@@ -714,9 +732,9 @@ export function asignarCargoCancha(estado, reservaId, deIdx, aIdx, ahora) {
   const k = Number(aIdx);
   const a = r.jugadores[k];
   if (!a) return { ok: false, motivo: "Elegí quién paga." };
-  if (a.pagado || a.pagadoPor != null) return { ok: false, motivo: `${a.nombre} ya pagó: cobrale aparte o elegí a otro.` };
-  if (partesCancha(r)[k].aCargoDe != null) return { ok: false, motivo: `${a.nombre} ya está a cargo de ${r.jugadores[a.aCargoDe]?.nombre ?? "otro"}.` };
-  if (partesCancha(r).some((x, i) => i !== Number(deIdx) && x.aCargoDe === Number(deIdx))) return { ok: false, motivo: `${de.nombre} ya paga la parte de otro: no puede pasar a cargo de nadie.` };
+  if (partes[k].pago) return { ok: false, motivo: `${a.nombre} ya pagó: cobrale aparte o elegí a otro.` };
+  if (partes[k].aCargoDe != null) return { ok: false, motivo: `${a.nombre} ya está a cargo de ${r.jugadores[a.aCargoDe]?.nombre ?? "otro"}.` };
+  if (partes.some((x, i) => i !== Number(deIdx) && x.aCargoDe === Number(deIdx))) return { ok: false, motivo: `${de.nombre} ya paga la parte de otro: no puede pasar a cargo de nadie.` };
   de.aCargoDe = k;
   registrar(estado, `La parte de cancha de ${de.nombre} queda a cargo de ${a.nombre}.`, ahora);
   return { ok: true };
@@ -834,7 +852,10 @@ export function consumoJugador(estado, reservaId, jugadorIdx, productoId, cant, 
   return { ok: true, cuenta: abierta.cuenta };
 }
 
-/** Suma o resta unidades de un cargo; lo que se resta vuelve al stock. Nunca por debajo de lo pagado. */
+/**
+ * Suma o resta unidades de un cargo ya cargado (uno de más, uno de menos, se equivocaron de producto). Lo que
+ * vuelve, vuelve al stock. Nunca deja la cuenta por debajo de lo que ya se pagó.
+ */
 export function ajustarCargo(estado, cuentaId, itemIdx, delta, ahora, auth = null) {
   if (auth) { const a = autorizar(estado, auth, "buffet", false); if (!a.ok) return a; }
   const cta = cuenta(estado, cuentaId);
@@ -859,7 +880,10 @@ export function ajustarCargo(estado, cuentaId, itemIdx, delta, ahora, auth = nul
   return { ok: true, cuenta: cta };
 }
 
-/** Pasa un cargo (o parte) a otra cuenta: la mesa compleja se reparte cargo por cargo. */
+/**
+ * Pasa un cargo (o parte de sus unidades) a la cuenta de otra persona: la mesa compleja se reparte como
+ * quieran, cargo por cargo. Lo que ya está pagado en la cuenta de origen no puede quedar sin respaldo.
+ */
 export function transferirCargo(estado, deCuentaId, itemIdx, aCuentaId, cant, ahora, auth = null) {
   if (auth) { const a = autorizar(estado, auth, "buffet", false); if (!a.ok) return a; }
   const de = cuenta(estado, deCuentaId);
@@ -880,7 +904,10 @@ export function transferirCargo(estado, deCuentaId, itemIdx, aCuentaId, cant, ah
   return { ok: true };
 }
 
-/** Cargo manual para la excepción. Negativo = descuento: sólo el dueño con su PIN. */
+/**
+ * Cargo manual para la excepción (mesa compleja, un precio especial, algo que no está en la lista). Un monto
+ * negativo es un descuento: sólo el dueño, con su PIN, y nunca deja la cuenta por debajo de lo pagado.
+ */
 export function cargoManual(estado, cuentaId, { concepto, monto }, auth, ahora) {
   const cta = cuenta(estado, cuentaId);
   if (!cta || cta.estado !== "abierta") return { ok: false, motivo: "Esa cuenta no está abierta." };
@@ -1291,9 +1318,12 @@ export function egresoCaja(estado, { monto, concepto, usuarioId, pin }, ahora) {
   return { ok: true };
 }
 
-/** ¿Ya se cerró la caja de ese día? */
+/** ¿Ya se cerró la caja de ese día? (Una caja se cierra una sola vez.) */
 export const cajaCerrada = (estado, dia) => estado.caja.cierres.some((c) => c.dia === dia);
-/** La caja donde entra lo que se cobra ahora: la del día o, si ya se cerró, la siguiente. */
+/**
+ * La caja donde entra lo que se cobra ahora: la del día (de 12 a 12) o, si ya se cerró, la siguiente. Así una venta
+ * después del cierre no cambia una caja ya contada.
+ */
 export function cajaAbierta(estado, ahora) {
   let dia = diaDeCaja(estado, ahora.fecha, ahora.min);
   while (cajaCerrada(estado, dia)) dia = sumarDias(dia, 1);
@@ -1317,7 +1347,7 @@ export function cerrarCaja(estado, { contado, usuarioId, pin }, ahora) {
   const a = autorizar(estado, { usuarioId, pin }, "cerrarCaja", true);
   if (!a.ok) return a;
   const dia = cajaAbierta(estado, ahora);
-  if (dia !== diaDeCaja(estado, ahora.fecha, ahora.min)) return { ok: false, motivo: "La caja de hoy ya está cerrada. Lo que se cobre desde ahora entra en la caja de mañana." };
+  if (dia !== diaDeCaja(estado, ahora.fecha, ahora.min)) return { ok: false, motivo: "Esta caja ya está cerrada. Lo que se cobre desde ahora entra en la caja siguiente." };
   const r = resumenCaja(estado, dia);
   const n = Math.round(Number(contado));
   if (contado === "" || contado == null || !(n >= 0)) return { ok: false, motivo: "Contá el efectivo del cajón y cargalo." };
@@ -1343,7 +1373,8 @@ export function productoPorCodigo(estado, codigo) {
   return p ? { ok: true, producto: p } : { ok: false, motivo: `El código ${c} no está cargado en ningún producto.` };
 }
 
-// Sin distinguir mayúsculas: «bp-001» es «BP-001».
+// Los códigos se comparan sin distinguir mayúsculas (el interno se tipea a mano: «bp-001» es «BP-001»). Un código
+// (interno o de fabricación) no puede repetirse en otro producto, ni cruzado entre los dos campos.
 const mismoCodigo = (a, b) => String(a ?? "").trim() !== "" && String(a ?? "").trim().toUpperCase() === String(b ?? "").trim().toUpperCase();
 function codigoUsado(estado, codigo, salvoId = null) {
   return estado.productos.some((x) => x.id !== salvoId && (mismoCodigo(codigo, x.codigo) || mismoCodigo(codigo, x.codigoExterno)));
@@ -1506,14 +1537,17 @@ export function metricasPlatos(estado, { desde, hasta }) {
   return { filas: filas.map((x) => ({ ...x, participacion: total ? x.facturado / total : 0 })), total, dias: dias.size };
 }
 
-/** Precio desde el costo y el % sobre costo, redondeado a $50. */
+/** Precio sugerido desde el costo y el % sobre costo, redondeado a $50 como se cobra en el mostrador. */
 export function precioDesdeMarkup(costo, markupPct) {
   const c = Number(costo), m = Number(markupPct);
   if (!(c > 0) || !Number.isFinite(m) || m <= -100) return null;
   return Math.max(50, Math.round((c * (1 + m / 100)) / 50) * 50);
 }
 
-/** Pricing y revenue por producto: margen, markup y lo vendido en el período. */
+/**
+ * Pricing y revenue por producto: margen y markup de lista, y lo vendido en el período (unidades, facturado,
+ * costo y ganancia bruta). Todo lo cargado a cuentas (incluida la venta de mostrador) cuenta como venta.
+ */
 export function rentabilidad(estado, { desde, hasta } = {}) {
   const ventas = new Map();
   for (const cta of estado.cuentas) {
@@ -1710,7 +1744,7 @@ export function kpis(estado, fecha, ahora) {
   const cobradoTotal = delDia.reduce((s, r) => s + cobrado(r), 0);
   const yaEmpezo = (r) => !ahora || fecha < ahora.fecha || (fecha === ahora.fecha && r.inicio <= ahora.min);
   const porCobrar = delDia.filter((r) => r.estado === "en_cancha" || (r.estado === "reservada" && yaEmpezo(r))).reduce((s, r) => s + Math.max(0, saldo(r)), 0);
-  const dia = ahora ? diaDeCaja(estado, ahora.fecha, ahora.min) : fecha;
+  const dia = ahora ? cajaAbierta(estado, ahora) : fecha; // la misma caja que muestra Caja
   const caja = resumenCaja(estado, dia);
   const stockValorizado = estado.productos.reduce((s, p) => s + (p.stock == null ? 0 : p.costo * (p.stock + (p.prestados ?? 0))), 0);
   let buffet = 0;

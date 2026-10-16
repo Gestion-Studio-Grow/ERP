@@ -57,15 +57,17 @@ export function unirseAlBus({ reloj, soloCliente = false, fotoLocal = null } = {
     // ── lo que atiende la pestaña servidor ──
     // Vale la foto del servidor vigente o una más nueva (un servidor viejo descongelado no pisa la buena).
     if (m.t === "foto" && !servidor) {
-      if (m.para && m.para !== tab) return;
-      if (m.tab === lider || !ultimaFoto || versionDe(m.foto) > versionDe(ultimaFoto)) ultimaFoto = m.foto;
+      // La semilla del club no se guarda: sólo vale si no hay ninguna foto real (B2).
+      if ((m.para && m.para !== tab) || m.foto?.semilla) return;
+      if ((m.tab != null && m.tab === lider) || !ultimaFoto || versionDe(m.foto) > versionDe(ultimaFoto)) ultimaFoto = m.foto;
       return;
     }
     // Se entrega aunque ésta se haya vuelto servidor en el medio (si no, el reintento chocaría con su propio pedido).
     if (m.t === "respuesta") { if (m.para === tab && pendientes.has(m.id)) { pendientes.get(m.id)(m.res); pendientes.delete(m.id); } return; }
     if (m.t === "pidoFoto") {
-      // El club, si no vio ninguna foto, ofrece la suya: un turnero que arranca no le pisa lo que ya cargó.
-      const f = servidor ? servidor.exportar() : ultimaFoto ?? fotoLocal?.();
+      // El club sin foto ofrece la suya: el turnero que arranca no le pisa lo cargado.
+      let f = null;
+      try { f = servidor ? servidor.exportar() : ultimaFoto ?? fotoLocal?.(); } catch { /* sin foto */ }
       if (f) bc.postMessage({ t: "foto", foto: f, para: m.de, tab: servidor ? tab : null });
       return;
     }
@@ -152,7 +154,7 @@ export function unirseAlBus({ reloj, soloCliente = false, fotoLocal = null } = {
     });
   }
   function pedirFoto() {
-    // Se juntan las respuestas un momento y se queda la más nueva; la del club (semilla) sólo si no hay otra.
+    // Gana la foto más nueva; la semilla del club, sólo si no hay otra.
     return new Promise((ok) => {
       const fotos = [];
       function oir({ data: m }) { if (m?.t === "foto" && m.para === tab) fotos.push(m.foto); }
