@@ -135,3 +135,55 @@ test("lo que contesta el botón dice dónde queda el pedido (la bandeja de Sopor
   assert.match(respuestaDelPedido("corregir_cuit", false), /\(corregir el CUIT del emisor\)/);
   assert.doesNotMatch(respuestaDelPedido("corregir_cuit", true), /cuit/);
 });
+
+// ── UAT 16/10, punto 10: los pedidos que la pantalla mandaba a «Pedíselo a GSG» sin botón ──
+
+test("certificado, condición frente al IVA y cuadro de monotributo se pueden pedir (sin CUIT) y quedan abiertos", async () => {
+  const { TIPOS_PEDIDO, TEXTO_PEDIDO } = await import("./pedido-soporte");
+  for (const tipo of ["cargar_certificado", "condicion_iva", "cuadro_monotributo"] as const) {
+    assert.ok((TIPOS_PEDIDO as readonly string[]).includes(tipo), tipo);
+    assert.ok(TEXTO_PEDIDO[tipo].pedido.length > 0, `${tipo} tiene su texto para la consola`);
+    assert.deepEqual(validarPedido({ tipo, cuit: "20-11111111-2", nota: " vence el 30 " }), {
+      ok: true,
+      pedido: { tipo, cuit: null, nota: "vence el 30" },
+    }, `${tipo}: el CUIT que venga no se guarda`);
+  }
+  // Los tipos de antes siguen (sólo se agregan): un pedido viejo abierto no desaparece.
+  for (const viejo of ["corregir_cuit", "direccion_propia", "asignar_plan"]) assert.ok((TIPOS_PEDIDO as readonly string[]).includes(viejo));
+  const el = new Date("2026-10-16T12:00:00Z");
+  const abiertos = pedidosAbiertos([
+    { id: "p1", action: ACCION_PEDIDO_SOPORTE, entityId: "cli-1", changes: { tipo: "cargar_certificado" }, createdAt: el },
+    { id: "p2", action: ACCION_PEDIDO_SOPORTE, entityId: "cli-1", changes: { tipo: "condicion_iva" }, createdAt: el },
+    { id: "p3", action: ACCION_PEDIDO_SOPORTE, entityId: "cli-1", changes: { tipo: "cuadro_monotributo" }, createdAt: el },
+  ]);
+  assert.deepEqual(abiertos.map((a) => a.tipo), ["cargar_certificado", "condicion_iva", "cuadro_monotributo"]);
+});
+
+test("la ficha ofrece el certificado si falta o vence, la condición si no está cargada y el cuadro si falta para un monotributista", async () => {
+  const { pedidosDeLaFicha } = await import("./pedido-soporte");
+  const base = { clienteTenantId: "c1", tieneDireccion: true, sinPlan: false, cuitIncompleto: false, abiertos: [] };
+  // Sin los datos nuevos, lo mismo que antes.
+  assert.deepEqual(pedidosDeLaFicha(base).map((p) => p.tipo), ["corregir_cuit"]);
+  const todo = pedidosDeLaFicha({ ...base, certificado: "falta", sinCondicionIva: true, faltaCuadroMonotributo: true });
+  assert.deepEqual(
+    todo.map((p) => [p.tipo, p.urgente]),
+    [["cargar_certificado", true], ["condicion_iva", true], ["corregir_cuit", false], ["cuadro_monotributo", false]],
+  );
+  assert.match(todo[0].motivo, /no puede emitir/);
+  const porVencer = pedidosDeLaFicha({ ...base, certificado: "por_vencer" }).find((p) => p.tipo === "cargar_certificado")!;
+  assert.equal(porVencer.urgente, false, "por vencer avisa, no frena");
+  assert.match(porVencer.motivo, /por vencer/);
+  assert.match(pedidosDeLaFicha({ ...base, certificado: "vencido" })[0].motivo, /venció/);
+  // Un pedido ya abierto se marca con su fecha.
+  const abiertos = [{ id: "p1", clienteTenantId: "c1", tipo: "condicion_iva" as const, cuit: null, pedidoEl: "2026-10-16T12:00:00.000Z" }];
+  assert.equal(pedidosDeLaFicha({ ...base, sinCondicionIva: true, abiertos }).find((p) => p.tipo === "condicion_iva")!.pedidoEl, "2026-10-16T12:00:00.000Z");
+});
+
+test("el certificado sale de las señales del monitor: falta gana a vencido y vencido a por vencer", async () => {
+  const { certificadoSegunSenales } = await import("./pedido-soporte");
+  assert.equal(certificadoSegunSenales(undefined), null);
+  assert.equal(certificadoSegunSenales([{ id: "perfil_fiscal_incompleto" }]), null);
+  assert.equal(certificadoSegunSenales([{ id: "cert_por_vencer" }]), "por_vencer");
+  assert.equal(certificadoSegunSenales([{ id: "cert_por_vencer" }, { id: "cert_vencido" }]), "vencido");
+  assert.equal(certificadoSegunSenales([{ id: "cert_vencido" }, { id: "sin_credencial" }]), "falta");
+});

@@ -63,6 +63,21 @@ function filasDePedidos(tx: Tx, estudioId: string) {
 }
 
 /**
+ * Cuántos pedidos abiertos hay, sumando todos los estudios: el AVISO de la consola (UAT 16/10,
+ * punto 10). Se muestra en la entrada de «Pedidos» (/operador/solicitudes) para que un pedido de
+ * una contadora no quede esperando sin que nadie lo vea. No hay mail: el repo no tiene una casilla
+ * de Soporte configurada para recibirlo (docs/agent/BACKLOG.md, UAT-CONTADOR-10). Mismo criterio de
+ * lectura que la bandeja: parado en cada estudio, la misma ventana.
+ */
+export async function contarPedidosDeCartera(db: PrismaClient): Promise<number> {
+  const estudios = await db.tenant.findMany({ where: { modules: { has: MODULO_CARTERA } }, select: { id: true } });
+  const porEstudio = await Promise.all(
+    estudios.map((e) => enElNegocio(e.id, async (tx) => pedidosAbiertos(await filasDePedidos(tx, e.id)).length, db)),
+  );
+  return porEstudio.reduce((s, n) => s + n, 0);
+}
+
+/**
  * Los pedidos abiertos de todos los estudios, del más viejo al más nuevo (paginado: `limite`).
  * Estudio = negocio con la cartera (el único que puede pedir, pedido-soporte-actions.ts).
  */

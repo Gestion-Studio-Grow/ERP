@@ -361,3 +361,22 @@ test("el semáforo del día usa el cuadro vigente hoy: desde febrero, el nuevo",
   assert.equal(f.semaforo, "cerca");
   assert.equal(f.topePropio, CUADRO_FEBRERO_2027.topes.C);
 });
+
+test("falta un cuadro de monotributo si ninguno cargado cubre el día o si la recategorización en curso no tiene el suyo", async () => {
+  const { faltaCuadroDeMonotributo, proximaRecategorizacion, TABLA_VIGENTE } = await import("@/lib/monotributo-core");
+  // Mitad de semestre, con el cuadro de agosto de 2026 cargado: no falta nada.
+  assert.equal(faltaCuadroDeMonotributo("2026-10-16", [TABLA_VIGENTE]), false);
+  // Vencido el cuadro y sin otro cargado: falta.
+  assert.equal(faltaCuadroDeMonotributo("2027-03-01", [TABLA_VIGENTE]), true);
+  // Ninguno cargado: falta.
+  assert.equal(faltaCuadroDeMonotributo("2026-10-16", []), true);
+  // En plena recategorización de febrero de 2027 sin el cuadro que empieza el 01/02/2027: falta.
+  const enero = "2027-01-20";
+  if (proximaRecategorizacion(enero).enCurso) {
+    assert.equal(faltaCuadroDeMonotributo(enero, [TABLA_VIGENTE]), true);
+    const feb2027 = { ...TABLA_VIGENTE, vigenciaDesde: "2027-02-01", vigenciaHasta: "2027-07-31" };
+    assert.equal(faltaCuadroDeMonotributo(enero, [TABLA_VIGENTE, feb2027]), false, "con el cuadro nuevo cargado, no falta");
+  } else {
+    assert.fail("el 20/01 tiene que estar en curso la recategorización de febrero");
+  }
+});

@@ -25,14 +25,15 @@ import {
 } from "@/components/ui";
 import { Tabla, type ColumnaTabla } from "@/components/ui/Tabla";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
-import { fmtDateTimeAr } from "@/lib/datetime";
+import { dateStrInBusinessTz, fmtDateTimeAr } from "@/lib/datetime";
 import { UMBRAL_ALERTA_CAP, textoLimiteDelPlan, type EstadoCartera, type FilaCartera } from "@/lib/cartera-core";
 import { emitirAutomaticasClienteAction, setEstadoCarteraAction } from "@/lib/cartera-actions";
 import { fechaCorta, type CierreMesCliente } from "@/lib/cierre-mes/cierre-mes";
 import { nombreDelMes } from "@/lib/libros/fecha-fiscal";
 import { noPuedeEmitir, type FilaMonitor } from "@/lib/monitor-core";
 import { AVISO_PLAZO_ARCA, EXTRACTO_SIN_DIRECCION, pendientesDelCliente, type GrupoId } from "./mes-core";
-import { pedidosDeLaFicha, type PedidoAbierto, type RespuestaDeSoporte } from "./pedido-soporte";
+import { certificadoSegunSenales, pedidosDeLaFicha, type PedidoAbierto, type RespuestaDeSoporte } from "./pedido-soporte";
+import { faltaCuadroDeMonotributo } from "@/lib/monotributo-core";
 import PedirASoporte from "./PedirASoporte";
 import { direccionDelPanel, type PanelesDeLaCartera } from "@/lib/contador/direccion-del-panel";
 
@@ -71,6 +72,9 @@ function LoQueFalta({
     tieneDireccion,
     sinPlan: !fila.limitePlan || fila.limitePlan.origen === "sin-plan",
     cuitIncompleto,
+    certificado: certificadoSegunSenales(monitor?.senales),
+    sinCondicionIva: fila.sinCondicionIva === true,
+    faltaCuadroMonotributo: fila.monotributista === true && faltaCuadroDeMonotributo(dateStrInBusinessTz(new Date())),
     abiertos: pedidos,
     respuestas,
   });

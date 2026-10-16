@@ -516,3 +516,14 @@ export function ordenarMonotributo(filas: readonly FilaMonotributo[]): FilaMonot
 export function tablaVigenteEn(hoy: string, tabla: TablaMonotributo = cuadroParaHoy(hoy)): boolean {
   return hoy >= tabla.vigenciaDesde && hoy <= tabla.vigenciaHasta;
 }
+
+/**
+ * ¿Falta cargar un cuadro de categorías para medir hoy? `true` si ningún cuadro cargado cubre el
+ * día, o si la recategorización está en curso y el cuadro con el que ARCA recategoriza no está
+ * cargado. Es lo que la ficha usa para ofrecer «Pedir a Soporte GSG el cuadro». PURA.
+ */
+export function faltaCuadroDeMonotributo(hoy: string, cuadros: readonly TablaMonotributo[] = CUADROS_MONOTRIBUTO): boolean {
+  if (!cuadroVigenteEn(hoy, cuadros)) return true;
+  const rec = proximaRecategorizacion(hoy);
+  return rec.enCurso && cuadroDeLaRecategorizacion(rec, cuadros) == null;
+}

@@ -27,7 +27,21 @@ export function desdeDeLaVentana(ahora: Date = new Date()): Date {
   return new Date(ahora.getTime() - VENTANA_PEDIDOS_DIAS * 24 * 60 * 60 * 1000);
 }
 
-export const TIPOS_PEDIDO = ["corregir_cuit", "direccion_propia", "asignar_plan"] as const;
+/**
+ * Lo que se le puede pedir a Soporte GSG. Es un texto dentro de `AuditLog.changes` (JSON), no un
+ * enum de la base: sumar un tipo no pide migración. Sólo se AGREGAN tipos: uno viejo nunca se borra,
+ * porque `pedidosAbiertos` ignora una fila cuyo tipo no reconoce (un pedido abierto desaparecería).
+ * Los tres últimos (UAT 16/10, punto 10) son lo que la pantalla ya mandaba a «Pedíselo a GSG» sin
+ * botón para hacerlo: el certificado de ARCA, la condición frente al IVA y el cuadro de monotributo.
+ */
+export const TIPOS_PEDIDO = [
+  "corregir_cuit",
+  "direccion_propia",
+  "asignar_plan",
+  "cargar_certificado",
+  "condicion_iva",
+  "cuadro_monotributo",
+] as const;
 export type TipoPedido = (typeof TIPOS_PEDIDO)[number];
 
 /** Cómo se dice cada pedido en la ficha (el botón) y en la consola de Soporte. */
@@ -35,6 +49,9 @@ export const TEXTO_PEDIDO: Readonly<Record<TipoPedido, { boton: string; pedido: 
   corregir_cuit: { boton: "Pedir a Soporte GSG la corrección del CUIT", pedido: "Corregir el CUIT del emisor" },
   direccion_propia: { boton: "Pedir a Soporte GSG la dirección propia", pedido: "Activar la dirección propia del cliente" },
   asignar_plan: { boton: "Pedir a Soporte GSG que le asigne el plan", pedido: "Asignarle un plan" },
+  cargar_certificado: { boton: "Pedir a Soporte GSG que cargue el certificado", pedido: "Cargar o renovar el certificado de ARCA del cliente" },
+  condicion_iva: { boton: "Pedir a Soporte GSG que cargue la condición frente al IVA", pedido: "Cargar la condición frente al IVA del cliente" },
+  cuadro_monotributo: { boton: "Pedir a Soporte GSG que cargue el cuadro de monotributo", pedido: "Cargar el cuadro de categorías de monotributo vigente" },
 };
 
 /** Largo máximo de la nota: una aclaración, no una carta. */
@@ -252,6 +269,12 @@ export const RESPUESTA_VISIBLE_DIAS = 60;
  *   si falta o es el de relleno (`cuitIncompleto`).
  * - La dirección propia: sólo si no la tiene (sin ella no hay panel donde subir el extracto).
  * - Asignarle un plan: sólo si no tiene ninguno (queda con el límite básico).
+ * - El certificado de ARCA: si el monitor avisa que falta, venció o está por vencer; urgente si
+ *   falta o venció (no puede emitir).
+ * - La condición frente al IVA: si no la tiene cargada (sin ella no se sabe qué factura le toca ni
+ *   si entra en el monitor de monotributo). Urgente.
+ * - El cuadro de monotributo: si el cliente es monotributista y el cuadro que hace falta hoy no está
+ *   cargado (el monitor no le da letra hasta que lo esté).
  * Los urgentes van primero; un pedido ya abierto trae su fecha para marcarlo en vez de repetirlo.
  */
 export function pedidosDeLaFicha(c: {
@@ -259,6 +282,12 @@ export function pedidosDeLaFicha(c: {
   tieneDireccion: boolean;
   sinPlan: boolean;
   cuitIncompleto: boolean;
+  /** Lo que dice el monitor del certificado de ARCA (sin dato = no se ofrece). */
+  certificado?: "falta" | "vencido" | "por_vencer" | null;
+  /** `true` si el cliente no tiene cargada su condición frente al IVA. */
+  sinCondicionIva?: boolean;
+  /** `true` si el cliente es monotributista y el cuadro de categorías que hace falta no está cargado. */
+  faltaCuadroMonotributo?: boolean;
   abiertos: readonly PedidoAbierto[];
   /** Las respuestas de Soporte GSG del estudio (respuestasDeSoporte). */
   respuestas?: readonly RespuestaDeSoporte[];
@@ -302,5 +331,50 @@ export function pedidosDeLaFicha(c: {
       respuesta: respuesta("asignar_plan"),
     });
   }
+  if (c.certificado) {
+    salida.push({
+      tipo: "cargar_certificado",
+      motivo:
+        c.certificado === "falta"
+          ? "No tiene certificado de ARCA cargado: sin él no puede emitir."
+          : c.certificado === "vencido"
+            ? "Su certificado de ARCA venció: renovalo en ARCA y pedí que carguen el nuevo."
+            : "Su certificado de ARCA está por vencer: renovalo en ARCA y pedí que carguen el nuevo.",
+      urgente: c.certificado !== "por_vencer",
+      pedidoEl: abierto("cargar_certificado"),
+      respuesta: respuesta("cargar_certificado"),
+    });
+  }
+  if (c.sinCondicionIva) {
+    salida.push({
+      tipo: "condicion_iva",
+      motivo: "No tiene cargada su condición frente al IVA: no se sabe qué factura le corresponde ni si entra en el monitor de monotributo.",
+      urgente: true,
+      pedidoEl: abierto("condicion_iva"),
+      respuesta: respuesta("condicion_iva"),
+    });
+  }
+  if (c.faltaCuadroMonotributo) {
+    salida.push({
+      tipo: "cuadro_monotributo",
+      motivo: "Es monotributista y el cuadro de categorías que hace falta todavía no está cargado: el monitor no le da letra hasta que lo esté.",
+      urgente: false,
+      pedidoEl: abierto("cuadro_monotributo"),
+      respuesta: respuesta("cuadro_monotributo"),
+    });
+  }
+  // Estable: entre los urgentes (y entre los que no) queda el orden de arriba.
   return salida.sort((a, b) => Number(b.urgente) - Number(a.urgente));
+}
+
+/**
+ * Qué dice el monitor del certificado de ARCA de un cliente, a partir de sus señales
+ * (monitor-core.ts: `sin_credencial`, `cert_vencido`, `cert_por_vencer`). PURA.
+ */
+export function certificadoSegunSenales(senales: readonly { id: string }[] | undefined): "falta" | "vencido" | "por_vencer" | null {
+  const ids = new Set((senales ?? []).map((s) => s.id));
+  if (ids.has("sin_credencial")) return "falta";
+  if (ids.has("cert_vencido")) return "vencido";
+  if (ids.has("cert_por_vencer")) return "por_vencer";
+  return null;
 }
