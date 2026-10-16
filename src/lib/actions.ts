@@ -1854,15 +1854,27 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
  */
 async function facturarSiQuedoSaldado(appointmentId: string, tenantId: string, saldo: number): Promise<string | null> {
   if (saldo > 0 || !isInvoicingEnabled()) return null;
-  const turno = await prisma.appointment.findFirst({ where: { id: appointmentId, tenantId }, select: { status: true } });
+  const turno = await prisma.appointment.findFirst({
+    where: { id: appointmentId, tenantId },
+    select: { status: true, payment: { select: { amount: true } } },
+  });
   if (!turno) return null;
+  // Sin plata cobrada no hay nada que facturar: sin esto, dar de baja el saldo de un turno sin
+  // ningún cobro caía en el precio del turno (facturarAppointment) y facturaba plata que no entró.
+  if (!((turno.payment?.amount ?? 0) > 0)) return null;
+  // Sólo se factura si al completar se eligió facturar Y quedó escrito. Ante la duda (un turno
+  // completado antes de este cambio, o una auditoría que no se pudo escribir) NO se factura: una
+  // factura de más no se borra, se anula con nota de crédito.
   const alCompletar = await prisma.auditLog.findFirst({
     where: { tenantId, entity: "Appointment", entityId: appointmentId, action: "complete" },
     orderBy: { createdAt: "desc" },
     select: { changes: true },
   });
-  const noFacturarAlCompletar = (alCompletar?.changes as { facturar?: unknown } | null)?.facturar === false;
-  if (!facturarAlSaldar({ status: turno.status, saldo, noFacturarAlCompletar })) return null;
+  const eleccion = (alCompletar?.changes as { facturar?: unknown } | null)?.facturar;
+  if (eleccion !== true && eleccion !== false) {
+    logger.warn("arca", "turno saldado sin la elección de facturar del completar: no se factura solo", { appointmentId, tenantId });
+  }
+  if (!facturarAlSaldar({ status: turno.status, saldo, noFacturarAlCompletar: eleccion !== true })) return null;
   return avisoDeFacturaDelTurno(await facturarConResultado(appointmentId, tenantId));
 }
 

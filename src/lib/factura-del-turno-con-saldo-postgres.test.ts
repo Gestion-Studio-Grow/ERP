@@ -123,3 +123,30 @@ test("D4 · 'No facturar' al terminar vale también para cuando se cobra el sald
   await a.cobrar(id, 15_000);
   assert.deepEqual(await facturas(p.base, id), []);
 });
+
+test("D4 · sin ningún cobro, dar de baja el saldo no factura (no entró plata)", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const a = acciones(p.base);
+  const id = await p.turno();
+  await a.terminarDejandoSaldo(id);
+  assert.deepEqual(await a.darDeBaja(id), { ok: true });
+  assert.deepEqual(await facturas(p.base, id), []);
+});
+
+test("D4 · turno saldado sin la elección de facturar registrada (completado antes del cambio): no se factura solo", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const a = acciones(p.base);
+  const id = await p.turno();
+  await a.cobrar(id, 5_000);
+  await a.terminarDejandoSaldo(id);
+  // Como un turno completado con el código anterior: su auditoría no tiene la marca `facturar`.
+  const duenio = await prismaComoDuenio(p.base);
+  const log = await duenio.auditLog.findFirstOrThrow({ where: { entity: "Appointment", entityId: id, action: "complete" } });
+  const { facturar: _sacada, ...sinMarca } = log.changes as Record<string, unknown>;
+  void _sacada;
+  await duenio.auditLog.update({ where: { id: log.id }, data: { changes: sinMarca as object } });
+  await a.cobrar(id, 15_000);
+  assert.deepEqual(await facturas(p.base, id), []);
+});

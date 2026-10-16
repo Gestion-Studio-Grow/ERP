@@ -16,7 +16,8 @@
 //   - cuando el turno terminado queda SALDADO (se cobró lo que faltaba) → una factura por el
 //     total cobrado;
 //   - cuando el saldo se da de baja (condonación) → una factura por lo que sí se cobró.
-// Si al completar se eligió "No facturar", esa elección vale también para después.
+// Si al completar se eligió "No facturar", esa elección vale también para después. Ante la duda
+// (la elección no quedó registrada) no se factura solo; y sin plata cobrada, nunca.
 //
 // Para la contadora: por la Ley de IVA (art. 5 inc. b) el hecho imponible de una prestación de
 // servicios nace al terminarla o al percibir el precio, lo que ocurra antes; esta regla demora
