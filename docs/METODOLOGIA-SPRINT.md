@@ -403,6 +403,8 @@ Recetas paso-a-paso y fundamentos con el **por qué** de cada cosa, para no re-d
     la base (`DATABASE_URL`) y las contraseñas de admin/operador, con RLS enforced, y **esos valores los
     pega SIEMPRE el dueño, nunca el agente** (hay datos de clientes que proteger). Detalle en el playbook.
 
+- **Hardware de mostrador e impresión** — `docs/producto/guia-hardware-mostrador.md` (qué comprar por perfil, cómo probarlo, qué no prometemos) · receta de ticket directo `docs/producto/impresion-en-el-mostrador.md` (fases T-7/T-4 de `docs/producto/PLAN-TERMINALES-MOSTRADOR.md`).
+
 ## Mantener esto honesto
 Documento vivo. Si cambia el modelo de sprint (equipos, worktrees, protocolo), este doc y
 `.claude/commands/sprint.md` se actualizan en el mismo commit; si divergen, es un hallazgo para
