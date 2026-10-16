@@ -104,6 +104,13 @@ let secuencia = 0;
 let origenIds = "";
 const nuevoId = (prefijo) => `${origenIds}${prefijo}${(++secuencia).toString(36)}`;
 
+/** Por dónde va el contador de ids (va en la foto de la demo entre pestañas). */
+export const secuenciaIds = () => secuencia;
+/** Sigue el contador desde `n` (nunca lo baja): la pestaña que toma la posta no repite ids de la demo que recibió. */
+export function retomarSecuencia(n) {
+  secuencia = Math.max(secuencia, Math.round(Number(n)) || 0);
+}
+
 /**
  * Marca los ids que crea ESTE proceso (ej. "b-" en el backoffice conectado): dos procesos que comparten agenda
  * (el back del turnero y el backoffice) nunca generan el mismo id aunque sus contadores coincidan.

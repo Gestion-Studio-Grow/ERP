@@ -34,8 +34,11 @@ export function crearServidorDemo({ reloj = () => Date.now(), foto = null } = {}
   const conSesion = (tab, fn) => { const u = usuarioDe(tab); return u ? fn(u) : r(401, { ok: false, motivo: "Ingresá para seguir." }); };
   const entrar = (tab, res, status = 200) => { if (!res.ok) return r(400, res); sesiones.set(tab, res.usuario.id); return r(status, { ok: true, usuario: tn.perfil(res.usuario) }); };
 
-  async function atender({ tab, metodo = "GET", ruta, cuerpo = {} }) {
-    if (metodo !== "GET") cambios = true;
+  // La marca se prende al TERMINAR (un registro tarda: un latido en el medio no la puede consumir antes).
+  async function atender(pedido) {
+    try { return await atenderPedido(pedido); } finally { if ((pedido.metodo ?? "GET") !== "GET") cambios = true; }
+  }
+  async function atenderPedido({ tab, metodo = "GET", ruta, cuerpo = {} }) {
     const url = new URL(ruta, "http://demo");
     const p = url.searchParams, camino = url.pathname;
     let m;

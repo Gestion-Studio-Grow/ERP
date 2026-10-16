@@ -3,9 +3,7 @@
 // Con el turnero en una pestaña y la gestión del club en otra (mismo navegador, mismo sitio), UNA pestaña del turnero
 // hace de "servidor" (corre el núcleo con crearServidorDemo) y las demás le hablan por BroadcastChannel con el mismo
 // contrato de la API. La que hace de servidor se elige con Web Locks; si se cierra, otra pestaña del turnero toma la
-// posta. El servidor reparte una foto de la demo después de cada cambio (y al cerrarse): la que toma la posta arranca
-// desde la última foto, así no se pierden las reservas web ni las del mostrador (D36). Las demás pantallas se
-// re-sincronizan solas, como cuando vuelve la conexión.
+// posta desde la última foto de la demo que reparte el servidor (D36); las demás pantallas se re-sincronizan solas.
 //
 // La gestión del club entra como `soloCliente`: nunca hace de servidor. Así, abierta sola (sin turnero), es la
 // demo de siempre; cuando aparece un turnero, se conecta. El servidor late cada 4 s: si deja de latir, los
@@ -33,6 +31,7 @@ export function unirseAlBus({ reloj, soloCliente = false } = {}) {
   const pendientes = new Map(); // id de pedido → resolver
   const fuentes = new Map(); // sid → { ruta, f, baja }
   let ultimaFoto = null; // la última foto de la demo que repartió el servidor (para tomar la posta sin perderla)
+  const versionDe = (f) => Number(f?.turnero?.version) || 0;
 
   // ───── sin bus: servidor propio (o, si es sólo cliente, nada que hacer) ─────
   if (!hayBus()) {
@@ -56,15 +55,26 @@ export function unirseAlBus({ reloj, soloCliente = false } = {}) {
   bc.onmessage = async ({ data: m }) => {
     if (!m || typeof m !== "object") return;
     // ── lo que atiende la pestaña servidor ──
-    if (m.t === "foto" && !servidor) { ultimaFoto = m.foto; return; }
+    // Vale la foto del servidor vigente o una más nueva (un servidor viejo descongelado no pisa la buena).
+    if (m.t === "foto" && !servidor) {
+      if (m.para && m.para !== tab) return;
+      if (m.tab === lider || !ultimaFoto || versionDe(m.foto) > versionDe(ultimaFoto)) ultimaFoto = m.foto;
+      return;
+    }
+    // Se entrega aunque ésta se haya vuelto servidor en el medio (si no, el reintento chocaría con su propio pedido).
+    if (m.t === "respuesta") { if (m.para === tab && pendientes.has(m.id)) { pendientes.get(m.id)(m.res); pendientes.delete(m.id); } return; }
     if (m.t === "pidoFoto") {
       const f = servidor ? servidor.exportar() : ultimaFoto;
-      if (f) bc.postMessage({ t: "foto", foto: f, para: m.de });
+      if (f) bc.postMessage({ t: "foto", foto: f, para: m.de, tab: servidor ? tab : null });
       return;
     }
     if (servidor) {
       if (m.t === "hola") bc.postMessage({ t: "lider", tab });
-      else if (m.t === "pedido") bc.postMessage({ t: "respuesta", id: m.id, para: m.de, res: await servidor.atender({ tab: m.de, metodo: m.metodo, ruta: m.ruta, cuerpo: m.cuerpo }) });
+      else if (m.t === "pedido") {
+        const res = await servidor.atender({ tab: m.de, metodo: m.metodo, ruta: m.ruta, cuerpo: m.cuerpo });
+        bc.postMessage({ t: "respuesta", id: m.id, para: m.de, res });
+        if (m.metodo !== "GET") repartirFoto();
+      }
       else if (m.t === "sub") {
         subsRemotas.get(m.sid)?.();
         subsRemotas.set(m.sid, servidor.suscribir(m.de, m.ruta, (tipo, datos) => bc.postMessage({ t: "ev", sid: m.sid, tipo, datos })));
@@ -73,15 +83,16 @@ export function unirseAlBus({ reloj, soloCliente = false } = {}) {
     }
     // ── lo que recibe una pestaña cliente ──
     if (m.t === "adios" && m.tab === lider) {
-      // El servidor se cerró (pagehide): ya mandó su última foto. Lo que se pida ahora espera al servidor nuevo.
+      // El servidor se cerró y ya mandó su última foto: lo que se pida ahora espera al nuevo.
       lider = null;
       reiniciarEspera();
       for (const [, s] of fuentes) s.f.cortar();
+      // Si quedó en la caché del navegador con el lock, se le roba a los 3 s.
+      if (!soloCliente) setTimeout(() => { if (!lider && !servidor) postularse(true); }, 3000);
       return;
     }
     if ((m.t === "lider" || m.t === "latido") && m.tab !== lider) tomarLider(m.tab);
     else if (m.t === "latido") ultimoLatido = Date.now();
-    else if (m.t === "respuesta" && m.para === tab) { pendientes.get(m.id)?.(m.res); pendientes.delete(m.id); }
     else if (m.t === "ev") fuentes.get(m.sid)?.f.entregar(m.tipo, m.datos);
   };
 
@@ -107,8 +118,9 @@ export function unirseAlBus({ reloj, soloCliente = false } = {}) {
   /** Hacer de servidor mientras se tenga el lock. Si otra pestaña lo roba (porque ésta quedó suspendida), se baja. */
   function postularse(robar = false) {
     navigator.locks.request(LOCK, robar ? { steal: true } : {}, async () => {
-      // Si alguna pestaña tiene la foto de la demo que corría, se sigue desde ahí (D36); si no, demo nueva.
-      const foto = ultimaFoto ?? await pedirFoto();
+      // Se sigue desde la foto más nueva que haya (D36); sin foto, demo nueva.
+      const pedida = await pedirFoto();
+      const foto = versionDe(pedida) > versionDe(ultimaFoto) ? pedida : ultimaFoto ?? pedida;
       servidor = crearServidorDemo({ reloj, foto });
       ultimaFoto = null;
       const habia = lider;
@@ -135,7 +147,6 @@ export function unirseAlBus({ reloj, soloCliente = false } = {}) {
       postularse();
     });
   }
-  /** Pide la foto a las otras pestañas (la que esté) y espera un momento; sin respuesta, demo nueva. */
   function pedirFoto() {
     return new Promise((ok) => {
       const fin = setTimeout(() => { bc.removeEventListener("message", oir); ok(null); }, 400);
@@ -144,10 +155,9 @@ export function unirseAlBus({ reloj, soloCliente = false } = {}) {
       bc.postMessage({ t: "pidoFoto", de: tab });
     });
   }
-  /** El servidor reparte su foto si cambió algo (o siempre, al cerrarse). */
   function repartirFoto(siempre = false) {
     if (!servidor || (!servidor.huboCambios() && !siempre)) return;
-    try { bc.postMessage({ t: "foto", foto: servidor.exportar() }); } catch { /* sin clonado estructurado: se pierde sólo esta foto */ }
+    try { bc.postMessage({ t: "foto", foto: servidor.exportar(), tab }); } catch { /* sin clonado estructurado: se pierde sólo esta foto */ }
   }
 
   if (!soloCliente) postularse();
@@ -177,9 +187,7 @@ export function unirseAlBus({ reloj, soloCliente = false } = {}) {
       setTimeout(() => { if (pendientes.delete(pid)) ok(null); }, 4000);
     });
     if (res) return res;
-    // Nadie contestó. Si mientras tanto cambió el servidor (el anterior se cerró, o ésta tomó la posta), el pedido nunca
-    // se procesó: se manda una vez más al nuevo en vez de dejar al jugador sin respuesta (D37).
-    // Sólo si hay un servidor NUEVO: si el mismo sigue (lento), reenviar podría duplicar una reserva.
+    // Sin respuesta: si cambió el servidor, el pedido no se procesó y va una vez al NUEVO (D37). Al mismo no: duplicaría.
     if (!reintento) {
       if (!servidor && !lider) await Promise.race([liderListo, new Promise((ok) => setTimeout(ok, 3000))]);
       if (servidor || (lider && lider !== destino)) return api(ruta, { metodo, cuerpo, reintento: true });

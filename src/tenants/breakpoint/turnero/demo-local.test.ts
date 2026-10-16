@@ -78,3 +78,46 @@ test("toma de posta (D36): otra pestaña sigue desde la foto con reservas, sesio
   assert.notEqual(nuevo.usuario.id, (await b.atender({ tab: "t1", ruta: "/api/auth/yo" })).usuario.id);
   b.cerrar();
 });
+
+test("toma de posta en una pestaña NUEVA (Gate B1): los ids nuevos no chocan con los de la demo recibida", async () => {
+  // Otra pestaña = otro módulo con el contador de ids en cero: se simula con un proceso de Node aparte.
+  const { execFileSync } = await import("node:child_process");
+  const { writeFileSync, mkdtempSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { tmpdir } = await import("node:os");
+  const a = L.crearServidorDemo();
+  await a.atender({ tab: "t1", ruta: "/api/turnero/config" });
+  const foto = a.exportar();
+  a.cerrar();
+  const idsDemo = new Set([...foto.turnero.estado.reservas.map((r: any) => r.id), ...foto.turnero.estado.cuentas.map((c: any) => c.id), ...foto.turnero.estado.caja.movimientos.map((m: any) => m.id)].filter(Boolean));
+  const dir = mkdtempSync(join(tmpdir(), "bp-posta-"));
+  writeFileSync(join(dir, "foto.json"), JSON.stringify(foto));
+  const local = new URL("../../../../public/previews/breakpoint/turnero/local.mjs", import.meta.url).href;
+  const guion = `
+    import { readFileSync } from "node:fs";
+    const { crearServidorDemo } = await import(${JSON.stringify(local)});
+    const b = crearServidorDemo({ foto: JSON.parse(readFileSync(${JSON.stringify(join(dir, "foto.json"))}, "utf8")) });
+    const cfg = await b.atender({ tab: "t9", ruta: "/api/turnero/config" });
+    await b.atender({ tab: "t9", metodo: "POST", ruta: "/api/auth/registro", cuerpo: { nombre: "Pestaña Nueva", tel: "1150004444", clave: "canchaazul9" } });
+    const hechas = [];
+    for (const dia of cfg.dias.slice(2, 5)) {
+      const s = (await b.atender({ tab: "t9", ruta: "/api/turnero/disponibilidad?fecha=" + dia.fecha + "&duracion=90" })).slots.at(-1);
+      const r = await b.atender({ tab: "t9", metodo: "POST", ruta: "/api/turnero/reservas", cuerpo: { fecha: dia.fecha, inicio: s.inicio, canchaId: s.canchaId, duracion: 90 } });
+      const sim = await b.atender({ tab: "t9", metodo: "POST", ruta: "/api/turnero/reservas/" + r.reserva.id + "/simular-comprobante", cuerpo: { variante: "ok" } });
+      hechas.push({ id: r.reserva.id, decision: sim.resultados?.[0]?.decision });
+    }
+    const baja = await b.atender({ tab: "t9", metodo: "DELETE", ruta: "/api/turnero/reservas/" + hechas[0].id });
+    const est = (await b.atender({ tab: "club", ruta: "/api/staff/estado" })).estado;
+    b.cerrar();
+    console.log(JSON.stringify({ hechas, baja: baja.status, movs: est.caja.movimientos.map((m) => m.id), reservas: est.reservas.map((r) => r.id) }));
+  `;
+  const salida = execFileSync(process.execPath, ["--input-type=module", "-e", guion], { encoding: "utf8" });
+  const res = JSON.parse(salida.trim().split("\n").at(-1) ?? "{}");
+  for (const h of res.hechas) {
+    assert.ok(!idsDemo.has(h.id), `la reserva nueva ${h.id} no repite un id de la demo`);
+    assert.equal(h.decision, "confirmar", `la seña de ${h.id} se concilia`);
+  }
+  assert.equal(res.baja, 200, "la cancelación encuentra su turno");
+  assert.equal(new Set(res.reservas).size, res.reservas.length, "ningún id de reserva repetido");
+  assert.equal(new Set(res.movs.filter(Boolean)).size, res.movs.filter(Boolean).length, "ningún movimiento de caja repetido");
+});

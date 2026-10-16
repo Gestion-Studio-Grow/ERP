@@ -267,8 +267,9 @@ function crearPanel(f, puente) {
   document.addEventListener("keydown", (ev) => {
     if (ev.key !== "Escape" || lista.hidden || document.querySelector("dialog[open]")) return;
     ev.preventDefault();
+    const foco = document.activeElement;
     mostrar(false);
-    boton.focus();
+    if (!foco || foco === document.body || el.contains(foco)) boton.focus(); // si el foco estaba en otra cosa, queda ahí
   });
   document.addEventListener("pointerdown", (ev) => { if (!lista.hidden && !el.contains(ev.target)) mostrar(false); }, true);
   el.querySelector("#bp-revisiones").addEventListener("click", async (ev) => {

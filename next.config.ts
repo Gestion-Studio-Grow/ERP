@@ -16,6 +16,17 @@ const nextConfig: NextConfig = {
   async redirects() {
     return redireccionesDeSitiosEstaticos();
   },
+  // Las previews estáticas de Break Point (turnero y gestión del club, con botones) no se dejan embeber en otro
+  // sitio: lo mismo que el sitio en breakpointpadel.* (D38/M6 del UAT). Sólo esa carpeta: el resto no cambia.
+  async headers() {
+    return [{
+      source: "/previews/breakpoint/:ruta*",
+      headers: [
+        { key: "X-Frame-Options", value: "SAMEORIGIN" },
+        { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+      ],
+    }];
+  },
   outputFileTracingIncludes: {
     "/sitio-estatico/**": carpetasParaTrazar(),
     "/sitio-buscatufoto/**": [`./${CARPETA_BUSCATUFOTO}/**/*`],

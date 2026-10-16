@@ -91,6 +91,11 @@ export function crearTurnero({
     for (const [tel, o] of foto.ofertasEspera ?? []) ofertasEspera.set(tel, o);
     version = Number(foto.version) || 0;
     secUsuario = Number(foto.secUsuario) || 0;
+    // El contador de ids del motor es de cada pestaña: se retoma desde la foto y, además, los ids que cree esta
+    // pestaña llevan su propia marca, así no chocan ni con los de la demo ni con los que la anterior creó después de
+    // su última foto (Gate B1 de D36).
+    M.retomarSecuencia(foto.secuenciaIds);
+    M.prefijoIds(`p${Math.random().toString(36).slice(2, 6)}-`);
   }
 
   // ───────────── eventos en vivo (SSE) ─────────────
@@ -583,7 +588,7 @@ export function crearTurnero({
     /** Todo el estado de la demo, para que otra pestaña siga desde acá (`crearTurnero({ foto })`). */
     exportar: () => structuredClone({
       estado: E, usuarios: [...usuarios.values()], revisiones, operaciones: [...usados.operaciones], huellas: [...usados.huellas],
-      mensajesVistos: [...mensajesVistos], ofertasEspera: [...ofertasEspera], version, secUsuario,
+      mensajesVistos: [...mensajesVistos], ofertasEspera: [...ofertasEspera], version, secUsuario, secuenciaIds: M.secuenciaIds(),
     }),
     suscribir,
     config: () => ({

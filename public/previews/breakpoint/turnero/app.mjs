@@ -422,9 +422,15 @@ function cablear() {
   $("#btn-ingresar").addEventListener("click", () => abrirLogin());
   $("#usuario").addEventListener("click", async (e) => {
     if (!e.target.closest("#btn-salir")) return; await api("/api/auth/salir", { metodo: "POST", cuerpo: {} }); S.usuario = null; S.reservas = []; pintarUsuario(); conectarVivo(); aviso("Saliste de tu cuenta."); });
-  $("#btn-google").addEventListener("click", () => {
-    if (S.config.google.clientId && window.google) window.google.accounts.id.prompt();
-    else entrar("/api/auth/google", { cuentaDemo: 0 });
+  $("#btn-google").addEventListener("click", async (ev) => {
+    if (S.config.google.clientId && window.google) return window.google.accounts.id.prompt();
+    // D37: mientras la demo cambia de pestaña servidor el ingreso puede tardar unos segundos: que se vea que está andando.
+    const b = ev.currentTarget, texto = b.innerHTML;
+    if (b.disabled) return;
+    b.disabled = true;
+    b.setAttribute("aria-busy", "true");
+    b.textContent = "Entrando…";
+    try { await entrar("/api/auth/google", { cuentaDemo: 0 }); } finally { b.disabled = false; b.removeAttribute("aria-busy"); b.innerHTML = texto; }
   });
   $("#form-login").addEventListener("submit", (e) => { e.preventDefault(); entrar("/api/auth/ingresar", { usuario: $("#login-usuario").value, clave: $("#login-clave").value }); });
   $("#form-registro").addEventListener("submit", (e) => { e.preventDefault(); entrar("/api/auth/registro", { nombre: $("#reg-nombre").value, tel: $("#reg-tel").value, email: $("#reg-email").value || undefined, clave: $("#reg-clave").value }); });
