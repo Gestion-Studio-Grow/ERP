@@ -1,0 +1,14 @@
+UAT MAGRA 16/10 — verificación (rama uat-magra-1610, sin push)
+tsc: 0 errores.
+Tests del frente: aislamiento producto A/B con y sin RLS (2), teléfono puro+acción (3), pos-peso (+4), vender en Chromium (+4),
+  bolsa MAGRA en Chromium 390/1440 (3, fallan contra el código anterior), aviso de bandeja puro (+4) y en Chromium (3).
+npm run gates: tsc OK · lint amarillo (no bloqueante, deuda previa; 0 hallazgos en archivos tocados salvo un warning previo
+  en catalog-actions.ts:543) · tests rojo · rls-coverage OK · build OK · visual 4/6 (los 2 rojos: /admin/login con
+  HTTP 500 P1001, el gate no tiene base) · visual-aa OK (0 contraste, 0 toque, 0 overflow).
+  Para correr los visuales hizo falta PLAYWRIGHT_BROWSERS_PATH con un alias del headless 1194 (el gate pide el 1228).
+Suite completa (suite.sh): 4890 pass / 45 fail / 1 cancelado de 4936. Las 46 fallas son EXACTAMENTE las mismas que la
+  suite de otra sesión hoy (uat-contador @ 83c13a5f): ARCA (arca-dispatch, contratos WSFE), redondeos en inmobiliaria,
+  ensayo de Neon, sincronizar MP, Reservar del sitio de CH y POS con red caída. Ninguna toca archivos de este frente.
+Build (build.sh): rc=0.
+Recorrido en laboratorio (erp_lab_uatmagra, :3224): 26/27 (resultado.txt). La que falla es un aviso de desarrollo
+  de pg reenviado por Next a la consola en la bandeja de CH; no viene de lo tocado.
