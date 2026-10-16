@@ -244,7 +244,7 @@ function crearPanel(f, puente) {
   el.style.cssText = "position:fixed;left:12px;bottom:12px;z-index:60;width:min(360px,calc(100vw - 24px));display:grid;gap:8px;font:13px/1.4 system-ui,sans-serif";
   el.innerHTML = `
     <div id="bp-revisiones" style="display:grid;gap:8px"></div>
-    <section id="bp-novedades-lista" hidden style="background:var(--paper,#fff);color:var(--ink,#111);border:1px solid var(--line,#767676);border-radius:10px;max-height:min(50vh,360px);overflow:auto;box-shadow:0 6px 24px rgba(0,0,0,.18)">
+    <section id="bp-novedades-lista" hidden style="background:var(--paper,#fff);color:var(--ink,#111);border:1px solid var(--line,#767676);border-radius:10px;max-height:min(40vh,320px);overflow:auto;box-shadow:0 6px 24px rgba(0,0,0,.18)">
       <h2 style="font-size:13px;margin:0;padding:8px 12px;border-bottom:1px solid var(--line,#ccc)">Novedades del turnero</h2>
       <ol style="list-style:none;margin:0;padding:0"></ol>
     </section>
@@ -257,12 +257,20 @@ function crearPanel(f, puente) {
     boton.textContent = `● ${on ? "Turnero en vivo" : "Turnero: reconectando…"}${sinLeer ? ` · ${sinLeer} novedad${sinLeer > 1 ? "es" : ""}` : " · Novedades"}`;
     boton.style.background = on ? "#035BA8" : "#8A4100";
   };
-  boton.addEventListener("click", () => {
-    const abrir = lista.hidden;
+  const mostrar = (abrir) => {
     lista.hidden = !abrir;
     boton.setAttribute("aria-expanded", String(abrir));
     if (abrir) { sinLeer = 0; pintarBoton(); }
+  };
+  boton.addEventListener("click", () => mostrar(lista.hidden));
+  // D35: se cierra como cualquier panel flotante, con Esc o tocando afuera (abierto tapaba «+ Turno» y la agenda).
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape" || lista.hidden || document.querySelector("dialog[open]")) return;
+    ev.preventDefault();
+    mostrar(false);
+    boton.focus();
   });
+  document.addEventListener("pointerdown", (ev) => { if (!lista.hidden && !el.contains(ev.target)) mostrar(false); }, true);
   el.querySelector("#bp-revisiones").addEventListener("click", async (ev) => {
     const b = ev.target.closest("button[data-rv]");
     if (!b) return;

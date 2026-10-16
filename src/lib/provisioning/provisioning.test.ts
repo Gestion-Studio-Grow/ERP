@@ -111,6 +111,14 @@ test("dry-run: acento desconocido → warning (no bloquea)", async () => {
   assert.ok(plan.warnings.some((w) => w.code === "unknown-accent"));
 });
 
+test("dry-run: todo color que ofrece la consola es conocido (D39: «azul» se ofrecía y después se rechazaba)", async () => {
+  const { ACCENT_PRESET_IDS } = await import("../operator-config");
+  for (const accentPreset of ACCENT_PRESET_IDS) {
+    const plan = await planProvision(baseInput({ brandSheet: { subdomain: "x", accentPreset } }), makePlanDeps());
+    assert.ok(!plan.warnings.some((w) => w.code === "unknown-accent"), accentPreset);
+  }
+});
+
 test("dry-run: sin subdominio → warning no-subdomain", async () => {
   const plan = await planProvision(baseInput({ brandSheet: {} }), makePlanDeps());
   assert.ok(plan.warnings.some((w) => w.code === "no-subdomain"));

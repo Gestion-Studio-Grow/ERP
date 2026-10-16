@@ -8,9 +8,13 @@
 import type { ProvisionTenantInput, ProvisionPlan, PlannedObject, PlanCollision, PlanWarning } from "./types";
 import type { PlanDeps } from "./ports";
 import { isValidSlug, isValidHost, isValidEmail } from "./slug";
+import { ACCENT_PRESET_IDS } from "../operator-config";
 
-/** Acentos de branding conocidos (para advertir si el brand sheet pide uno raro). Fuente: `ACCENT_PRESET_IDS` en src/lib/operator-config.ts. */
-const KNOWN_ACCENTS = new Set(["petroleo", "oxblood", "rosa", "celeste", "verde", "ambar"]);
+/**
+ * Acentos de branding conocidos (para advertir si el brand sheet pide uno raro). Sale de la MISMA lista que ofrece la
+ * consola: una copia a mano se quedó sin «azul» y la revisión rechazaba un color que el propio selector ofrecía (D39).
+ */
+const KNOWN_ACCENTS: ReadonlySet<string> = new Set(ACCENT_PRESET_IDS);
 
 /**
  * Arma el PLAN del alta sin tocar la base. Idempotente y puro (las consultas de colisión

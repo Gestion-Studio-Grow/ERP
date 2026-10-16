@@ -68,10 +68,12 @@ export function crearTurnero({
   // DEMO: un comprobante que coincide deja el turno firme solo. REAL: una captura o un texto se pueden inventar, así
   // que todo va a la bandeja como "pre-conciliado" hasta verlo ACREDITADO en la cuenta del club (Mercado Pago/banco).
   autoConfirmar = true,
+  // Demo entre pestañas: la pestaña que toma la posta arranca desde la última foto de la anterior (ver exportar()).
+  foto = null,
 } = {}) {
   const ahora = () => aMotor(reloj());
   // La demo del club arma "hoy" alrededor de las 19:10 (así cada eventualidad queda a la vista en el backoffice).
-  const E = estado ?? M.generarDemo(ahora().fecha);
+  const E = foto?.estado ?? estado ?? M.generarDemo(ahora().fecha);
   const usuarios = new Map(); // id → usuario
   const revisiones = []; // bandeja "a revisar" de comprobantes
   const usados = { operaciones: new Set(), huellas: new Set() };
@@ -80,6 +82,16 @@ export function crearTurnero({
   const oyentes = new Set(); // { canal, enviar(tipo, datos) }
   let version = 0;
   let secUsuario = 0;
+  if (foto) {
+    for (const u of foto.usuarios ?? []) usuarios.set(u.id, u);
+    revisiones.push(...(foto.revisiones ?? []));
+    for (const x of foto.operaciones ?? []) usados.operaciones.add(x);
+    for (const x of foto.huellas ?? []) usados.huellas.add(x);
+    for (const x of foto.mensajesVistos ?? []) mensajesVistos.add(x);
+    for (const [tel, o] of foto.ofertasEspera ?? []) ofertasEspera.set(tel, o);
+    version = Number(foto.version) || 0;
+    secUsuario = Number(foto.secUsuario) || 0;
+  }
 
   // ───────────── eventos en vivo (SSE) ─────────────
   function emitir(canal, tipo, datos) {
@@ -568,6 +580,11 @@ export function crearTurnero({
     tick,
     // staff
     sincronizar, snapshot: () => structuredClone(E),
+    /** Todo el estado de la demo, para que otra pestaña siga desde acá (`crearTurnero({ foto })`). */
+    exportar: () => structuredClone({
+      estado: E, usuarios: [...usuarios.values()], revisiones, operaciones: [...usados.operaciones], huellas: [...usados.huellas],
+      mensajesVistos: [...mensajesVistos], ofertasEspera: [...ofertasEspera], version, secUsuario,
+    }),
     suscribir,
     config: () => ({
       club: E.config.nombre,

@@ -35,6 +35,12 @@ export type SitioEstatico = {
   carpeta: string;
   /** Ruta pública sin la barra inicial (`""` es la raíz) → archivo. */
   archivos: Readonly<Record<string, ArchivoDelSitio>>;
+  /**
+   * `true`: sólo se puede mostrar en un iframe del mismo sitio (X-Frame-Options + frame-ancestors), contra el
+   * clickjacking de pantallas con botones (turnero, gestión del club). Opcional para no cambiar los sitios que ya
+   * están publicados.
+   */
+  sinEmbeberAfuera?: boolean;
 };
 
 const PAGINA: Omit<ArchivoDelSitio, "archivo"> = { tipo: "text/html; charset=utf-8", cache: "private, max-age=300" };
@@ -61,6 +67,7 @@ export const SITIOS_ESTATICOS: readonly SitioEstatico[] = [
     slug: "breakpoint",
     subdominio: "breakpointpadel",
     carpeta: "src/tenants/breakpoint/sitio",
+    sinEmbeberAfuera: true, // D38 del UAT: el turnero y el club tienen botones que no se pueden dejar embeber
     archivos: {
       "": { archivo: "index.html", ...PAGINA },
       turnero: { archivo: "turnero.html", ...PAGINA },
@@ -169,6 +176,7 @@ export async function responderSitioEstatico(
       "cache-control": archivo.cache,
       "x-content-type-options": "nosniff",
       "referrer-policy": "strict-origin-when-cross-origin",
+      ...(sitio.sinEmbeberAfuera && { "x-frame-options": "SAMEORIGIN", "content-security-policy": "frame-ancestors 'self'" }),
     },
   });
 }

@@ -47,3 +47,34 @@ test("bus: sin Web Locks (como Node o un navegador viejo) cae a un servidor prop
   f.close();
   bus.cerrar();
 });
+
+test("toma de posta (D36): otra pestaña sigue desde la foto con reservas, sesiones, turnos del club y comprobantes usados", async () => {
+  const a = L.crearServidorDemo();
+  const cfg = await a.atender({ tab: "t1", ruta: "/api/turnero/config" });
+  const fecha = cfg.dias[1].fecha;
+  await a.atender({ tab: "t1", metodo: "POST", ruta: "/api/auth/registro", cuerpo: { nombre: "Posta Uno", tel: "1150002222", clave: "canchaazul9" } });
+  const libres = (await a.atender({ tab: "t1", ruta: `/api/turnero/disponibilidad?fecha=${fecha}&duracion=90` })).slots;
+  const s = libres.at(-1), otro = libres[0];
+  const r = await a.atender({ tab: "t1", metodo: "POST", ruta: "/api/turnero/reservas", cuerpo: { fecha, inicio: s.inicio, canchaId: s.canchaId, duracion: 90 } });
+  await a.atender({ tab: "t1", metodo: "POST", ruta: `/api/turnero/reservas/${r.reserva.id}/simular-comprobante`, cuerpo: { variante: "ok" } });
+  await a.atender({ tab: "club", metodo: "POST", ruta: "/api/staff/sync", cuerpo: { reservas: [{ id: "bq-posta", fecha, inicio: otro.inicio, duracion: 90, canchaId: otro.canchaId, tipo: "turno", titular: "Mostrador", origen: "teléfono", jugadores: [], pagos: [], sena: { monto: 0, pagada: false }, precio: 0, estado: "reservada" }] } });
+  assert.equal(a.huboCambios(), true);
+  assert.equal(a.huboCambios(), false, "se consume: la próxima foto sale sólo si cambia algo");
+  // La pestaña servidor se cierra: la foto viaja por el bus (clonado estructurado) y otra pestaña sigue desde ahí.
+  const foto = structuredClone(a.exportar());
+  a.cerrar();
+  const b = L.crearServidorDemo({ foto });
+  const est = (await b.atender({ tab: "club", ruta: "/api/staff/estado" })).estado;
+  assert.equal(est.reservas.find((x: any) => x.id === r.reserva.id)?.sena.pagada, true, "la reserva web y su seña siguen");
+  assert.ok(est.reservas.some((x: any) => x.id === "bq-posta"), "y el turno del mostrador");
+  assert.equal((await b.atender({ tab: "t1", ruta: "/api/auth/yo" })).usuario?.nombre, "Posta Uno", "la sesión de la pestaña sigue abierta");
+  const mias = (await b.atender({ tab: "t1", ruta: "/api/turnero/reservas" })).reservas;
+  assert.ok(mias.some((x: any) => x.id === r.reserva.id));
+  const despues = (await b.atender({ tab: "t1", ruta: `/api/turnero/disponibilidad?fecha=${fecha}&duracion=90` })).slots;
+  assert.ok(!despues.some((x: any) => x.inicio === s.inicio && x.canchaId === s.canchaId), "el horario sigue ocupado");
+  // El mismo usuario puede volver a entrar con su clave, y un usuario nuevo no pisa el id de uno anterior.
+  assert.equal((await b.atender({ tab: "t3", metodo: "POST", ruta: "/api/auth/ingresar", cuerpo: { usuario: "1150002222", clave: "canchaazul9" } })).ok, true);
+  const nuevo = await b.atender({ tab: "t4", metodo: "POST", ruta: "/api/auth/registro", cuerpo: { nombre: "Posta Dos", tel: "1150003333", clave: "canchaazul9" } });
+  assert.notEqual(nuevo.usuario.id, (await b.atender({ tab: "t1", ruta: "/api/auth/yo" })).usuario.id);
+  b.cerrar();
+});

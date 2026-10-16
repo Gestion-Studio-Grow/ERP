@@ -130,20 +130,53 @@ check(await turnero.locator("#dlg-pago.is-firme").count() === 1, "comprobante si
 await club.waitForFunction(() => /quedó firme/.test(document.querySelector("#bp-novedades-lista")?.textContent ?? ""), null, { timeout: 6000 }).catch(() => {});
 check(/quedó firme/.test(await club.textContent("#bp-novedades-lista").catch(() => "")), "la seña confirmada llega a las novedades del club");
 check(/novedad/.test(await club.textContent("#bp-conexion")), "el club ve el contador de novedades (no se pierden en 2,5 s)");
+// D35: el panel de novedades se cierra con Esc y tocando afuera (abierto tapaba «+ Turno»).
+await club.bringToFront();
+await club.click("#bp-conexion");
+const abiertoPanel = await club.isVisible("#bp-novedades-lista");
+await club.keyboard.press("Escape");
+const cerradoEsc = await club.isHidden("#bp-novedades-lista");
+await club.click("#bp-conexion");
+await club.click("#reloj"); // un texto sin acción, fuera del panel
+check(abiertoPanel && cerradoEsc && await club.isHidden("#bp-novedades-lista"), "el panel de novedades se abre y se cierra con Esc y tocando afuera (D35)");
 await turnero.click("#btn-cerrar-pago");
 // Turno del mostrador → se ocupa en el turnero.
 await club.bringToFront();
-await club.click('button[data-a="nuevo"]:has-text("+ Turno")');
-await club.waitForSelector("#f-hora");
-await club.selectOption("#f-dur", "90");
+// Un hueco libre en los DOS lados: el test corre a cualquier hora real (el turnero no muestra horarios pasados), así
+// que se prueba cancha por cancha y, si hoy ya no queda ninguno (de noche), se pasan los dos a mañana.
+const abrirNuevo = async () => {
+  await club.click('button[data-a="nuevo"]:has-text("+ Turno")');
+  await club.waitForSelector("#f-hora");
+  await club.selectOption("#f-dur", "90");
+  await club.waitForTimeout(150);
+};
+async function buscarHueco() {
+  for (const c of await club.$$eval("#f-cancha option", (o) => o.map((x) => x.value))) {
+    await club.selectOption("#f-cancha", c);
+    await club.waitForTimeout(120);
+    for (const h of await club.$$eval("#f-hora option", (o) => o.map((x) => x.value).filter(Boolean))) {
+      if (await turnero.locator(`.slot[data-inicio="${h}"][data-cancha="${c}"]`).count() === 1) return { c, h };
+    }
+  }
+  return null;
+}
+let fechaHueco = null; // null = hoy
+await abrirNuevo();
+let hueco = await buscarHueco();
+if (!hueco) {
+  await club.click('#dlg [data-a="cerrar"]');
+  fechaHueco = await turnero.locator("#dias .dia").nth(1).getAttribute("data-fecha");
+  await turnero.click(`#dias .dia[data-fecha="${fechaHueco}"]`);
+  await turnero.waitForTimeout(400);
+  await club.click(`[data-a="dia"][data-v="${fechaHueco}"]`);
+  await abrirNuevo();
+  hueco = await buscarHueco();
+}
+const cancha = hueco?.c, hora = hueco?.h;
+await club.selectOption("#f-cancha", cancha);
+await club.waitForTimeout(120);
+await club.selectOption("#f-hora", hora);
 await club.waitForTimeout(150);
-const cancha = await club.inputValue("#f-cancha");
-// Un horario libre que el turnero muestre AHORA: el primero que ofrece el club puede haber pasado ya según la hora
-// real en que corre el test (el turnero no muestra horarios pasados), así que se busca uno que esté en los dos lados.
-const horas = await club.$$eval("#f-hora option", (o) => o.map((x) => x.value).filter(Boolean));
-let hora = horas[0];
-for (const h of horas) if (await turnero.locator(`.slot[data-inicio="${h}"][data-cancha="${cancha}"]`).count() === 1) { hora = h; break; }
-if (hora !== await club.inputValue("#f-hora")) { await club.selectOption("#f-hora", hora); await club.waitForTimeout(150); }
 await club.fill("#f-titular", "Por teléfono publicado");
 const sel = `.slot[data-inicio="${hora}"][data-cancha="${cancha}"]`;
 const estabaLibre = await turnero.locator(sel).count() === 1;
@@ -154,6 +187,8 @@ check(estabaLibre && await turnero.locator(sel).count() === 0, `el turno cargado
 await turnero.screenshot({ path: `${SALIDA}/publicado-turnero-390.png` });
 await axe(`${BASE}/turnero`, "turnero publicado", (p) => p.waitForSelector("body[data-estado=listo]"));
 
+const turnero2Hoy = (p) => p.locator("#dias .dia").first().getAttribute("data-fecha");
+
 // ───── 4. se cierra la pestaña que hacía de servidor ─────
 console.log("\n▶ se cierra la pestaña servidor");
 {
@@ -162,9 +197,24 @@ console.log("\n▶ se cierra la pestaña servidor");
   const otro = vigilar(await ctx.newPage(), "turnero-2");
   await otro.goto(`${BASE}/turnero`);
   await otro.waitForSelector("body[data-estado=listo]", { timeout: 10000 }).catch(() => {});
+  // De noche hoy puede no tener horarios libres: entonces se mira mañana.
+  if (!(await otro.locator(".slot").count())) { await otro.locator("#dias .dia").nth(1).click(); await otro.waitForTimeout(400); }
   check(await otro.locator(".slot").count() > 0, "un turnero nuevo anda (otra pestaña tomó la posta)");
   await club.waitForFunction(() => /en vivo/.test(document.querySelector("#bp-conexion")?.textContent ?? ""), null, { timeout: 8000 }).catch(() => {});
   check(/en vivo/.test(await club.textContent("#bp-conexion")), "el club sigue «en vivo» con el servidor nuevo");
+  // D36: la demo sigue desde la foto de la pestaña que se cerró (no arranca de cero).
+  await club.waitForTimeout(600);
+  const mostrador = await club.evaluate(() => document.body.innerText.includes("Por teléfono publicado"));
+  if (fechaHueco) {
+    if (await club.evaluate(() => document.getElementById("dlg").open)) await club.click('#dlg [data-a="cerrar"]');
+    await club.click(`[data-a="dia"][data-v="${await turnero2Hoy(otro)}"]`);
+    await club.waitForTimeout(300);
+  }
+  const web = await club.evaluate(() => document.body.innerText.includes("Publicada Uno"));
+  check(web && mostrador, "el club conserva la reserva web y la del mostrador después de la toma de posta (D36)");
+  if (fechaHueco) { await otro.click(`#dias .dia[data-fecha="${fechaHueco}"]`); await otro.waitForTimeout(400); }
+  const libresOtro = await otro.locator(".slot").count();
+  check(libresOtro > 0 && await otro.locator(sel).count() === 0, `el turno del mostrador (${cancha} ${hora}) sigue ocupado en el turnero nuevo (D36)`);
   await otro.locator(".slot").first().click();
   await otro.click("#btn-confirmar");
   await otro.click("#btn-google");

@@ -97,6 +97,19 @@ test("el negocio dueño recibe su página con tipo, caché privada y cabeceras d
   assert.equal(pdf.headers.get("content-type"), "application/pdf");
 });
 
+test("Break Point no se deja embeber en otro sitio (D38); WPE queda como estaba (freeze)", async () => {
+  const { leer } = lectorEspia();
+  for (const ruta of [undefined, ["turnero"], ["club"]]) {
+    const r = await responderSitioEstatico("breakpoint", ruta, leer);
+    assert.equal(r.status, 200);
+    assert.equal(r.headers.get("x-frame-options"), "SAMEORIGIN");
+    assert.equal(r.headers.get("content-security-policy"), "frame-ancestors 'self'");
+  }
+  const wpe = await responderSitioEstatico("circuito-wpe", undefined, leer);
+  assert.equal(wpe.headers.get("x-frame-options"), null);
+  assert.equal(wpe.headers.get("content-security-policy"), null);
+});
+
 test("aislamiento: otro negocio, o un host sin negocio, no ve el sitio ni se lee nada del disco", async () => {
   for (const slug of [null, "beauty-spa", "magra", "adosmanos", "quebienoles", ""]) {
     const { pedidos, leer } = lectorEspia();

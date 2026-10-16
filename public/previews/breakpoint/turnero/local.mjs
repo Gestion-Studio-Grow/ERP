@@ -12,8 +12,8 @@ import { crearTurnero } from "./dominio/nucleo.mjs";
  * El "back" de la demo. `atender({ tab, metodo, ruta, cuerpo })` devuelve `{ status, ...cuerpo }`.
  * `suscribir(tab, ruta, enviar)` es el SSE: devuelve la función para darse de baja. Las sesiones van por pestaña.
  */
-export function crearServidorDemo({ reloj = () => Date.now() } = {}) {
-  const buzon = [];
+export function crearServidorDemo({ reloj = () => Date.now(), foto = null } = {}) {
+  const buzon = [...(foto?.buzon ?? [])];
   const medios = new Map();
   const canal = { tipo: "demo", async enviar(tel, texto) { buzon.unshift({ a: `••• ${String(tel).slice(-4)}`, texto, cuando: reloj() }); if (buzon.length > 30) buzon.length = 30; return { ok: true }; } };
   const lector = {
@@ -22,11 +22,12 @@ export function crearServidorDemo({ reloj = () => Date.now() } = {}) {
       return { texto: m.texto ?? "", confianzaOcr: 1 };
     },
   };
-  const tn = crearTurnero({ reloj, canal, lector });
-  const reloj30 = setInterval(() => tn.tick(), 30000);
+  const tn = crearTurnero({ reloj, canal, lector, foto: foto?.turnero ?? null });
+  let cambios = false; // hubo algo que la próxima foto tiene que llevar
+  const reloj30 = setInterval(() => { tn.tick(); cambios = true; }, 30000);
   reloj30.unref?.(); // en Node (tests) no mantiene vivo el proceso; en el navegador no existe y no hace falta
-  const sesiones = new Map(); // pestaña → id de usuario
-  let secMsg = 0;
+  const sesiones = new Map(foto?.sesiones ?? []); // pestaña → id de usuario (las de la foto siguen logueadas)
+  let secMsg = Number(foto?.secMsg) || 0;
 
   const r = (status, cuerpo) => ({ status, ...cuerpo });
   const usuarioDe = (tab) => (sesiones.has(tab) ? tn.usuario(sesiones.get(tab)) : null);
@@ -34,6 +35,7 @@ export function crearServidorDemo({ reloj = () => Date.now() } = {}) {
   const entrar = (tab, res, status = 200) => { if (!res.ok) return r(400, res); sesiones.set(tab, res.usuario.id); return r(status, { ok: true, usuario: tn.perfil(res.usuario) }); };
 
   async function atender({ tab, metodo = "GET", ruta, cuerpo = {} }) {
+    if (metodo !== "GET") cambios = true;
     const url = new URL(ruta, "http://demo");
     const p = url.searchParams, camino = url.pathname;
     let m;
@@ -79,7 +81,13 @@ export function crearServidorDemo({ reloj = () => Date.now() } = {}) {
     return () => bajas.forEach((b) => b());
   }
 
-  return { atender, suscribir, turnero: tn, buzon: () => buzon.slice(), cerrar: () => clearInterval(reloj30) };
+  return {
+    atender, suscribir, turnero: tn, buzon: () => buzon.slice(), cerrar: () => clearInterval(reloj30),
+    /** Foto de toda la demo (turnero, sesiones y buzón) para que otra pestaña siga desde acá si ésta se cierra. */
+    exportar: () => ({ turnero: tn.exportar(), sesiones: [...sesiones], buzon: buzon.slice(), secMsg }),
+    /** ¿Cambió algo desde la última vez que se preguntó? */
+    huboCambios: () => { const c = cambios; cambios = false; return c; },
+  };
 }
 
 /** Un "EventSource" que entrega lo que le pasen. `abrir()`/`cortar()` simulan conexión y corte. */
