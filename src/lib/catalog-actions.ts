@@ -440,23 +440,39 @@ async function registrarPrecioDeUnProducto(
   if (cambio) await registrarCambiosDePrecio(tx, { tenantId, actor, origen, cambios: [cambio] });
 }
 
+// Activar/desactivar y borrar llevan `tenantId` en el `where`, además del id (mismo criterio que
+// `updateProduct` y 75c1204): RLS ya acota la escritura al negocio de la sesión, pero un id de
+// OTRO negocio no puede depender sólo de esa capa. Con `updateMany` un id ajeno no toca nada
+// (count 0) y se contesta lo mismo que si no existiera: no se confirma que el producto exista.
+const PRODUCTO_NO_ENCONTRADO = "No se encontró el producto.";
+
 export async function toggleProductActive(formData: FormData) {
   await requireCapability("catalog:manage");
-  const id = String(formData.get("id"));
+  const tenantId = await getCurrentTenantId();
+  const id = String(formData.get("id") || "");
   const active = String(formData.get("active")) === "true";
-  await prisma.product.update({ where: { id }, data: { active: !active } });
+  if (!id) throw new Error(PRODUCTO_NO_ENCONTRADO);
+  const res = await prisma.product.updateMany({ where: { id, tenantId, deletedAt: null }, data: { active: !active } });
+  if (res.count === 0) throw new Error(PRODUCTO_NO_ENCONTRADO);
   revalidatePath(CATALOG_PATH);
 }
 
 export async function deleteProduct(formData: FormData) {
   await requireCapability("catalog:manage");
-  const id = String(formData.get("id"));
+  const tenantId = await getCurrentTenantId();
+  const id = String(formData.get("id") || "");
+  if (!id) throw new Error(PRODUCTO_NO_ENCONTRADO);
   // Soft-delete + desvincular de los servicios que lo consumían (para que no
-  // se siga descontando stock de un producto eliminado).
-  await tenantTransaction(async (tx) => {
-    await tx.serviceProduct.deleteMany({ where: { productId: id } });
-    await tx.product.update({ where: { id }, data: { deletedAt: new Date() } });
-  });
+  // se siga descontando stock de un producto eliminado). Primero el producto: si no es de este
+  // negocio (o ya estaba borrado), la transacción se corta antes de tocar ningún vínculo.
+  await tenantTransaction(
+    async (tx) => {
+      const res = await tx.product.updateMany({ where: { id, tenantId, deletedAt: null }, data: { deletedAt: new Date() } });
+      if (res.count === 0) throw new Error(PRODUCTO_NO_ENCONTRADO);
+      await tx.serviceProduct.deleteMany({ where: { productId: id, tenantId } });
+    },
+    { tenantId },
+  );
   await auditAdmin({ action: "delete", entity: "Product", entityId: id });
   revalidatePath(CATALOG_PATH);
 }
