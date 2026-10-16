@@ -23,9 +23,11 @@ import { generateSlotsForDays } from "@/lib/booking-slots";
 import { validateBookingContact } from "@/lib/contact-validation";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
+import { avisoDeFacturaDelTurno, type ResultadoFacturaDelTurno } from "@/lib/turnos/aviso-factura";
 import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
 import { logger } from "@/lib/logger";
-import { RechazoDeDominio, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
+import { RechazoDeDominio, motivoMostrable, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
+import { mensajeParaLaClienta } from "@/lib/reserva-publica-mensaje";
 import { cobroTurnoDetail, settleAppointmentPaymentGuarded, type SettleOutcome } from "@/lib/caja/cobro-turno";
 import {
   aplicarCobroTurnoInTx,
@@ -241,6 +243,8 @@ export async function getAvailableSlotsRange(
       units: sr.units,
       quantity: sr.resource.quantity,
     })),
+    // Un horario de hoy que ya empezó no se ofrece (UAT 16/10): ni en la web ni en la agenda.
+    notBefore: new Date(),
   });
 
   return { ...result, ...computed };
@@ -250,7 +254,8 @@ type BookingStatus = "PENDING" | "CONFIRMED";
 
 // Resultado de una acción de mostrador que el formulario muestra en línea (los errores de
 // dominio NO se lanzan: en producción Next enmascara el mensaje de un throw en Server Action).
-export type ResultadoAccion = { ok: true } | { ok: false; error: string };
+// `aviso`: salió, pero hay algo que recepción tiene que saber (la factura del turno rechazada).
+export type ResultadoAccion = { ok: true; aviso?: string } | { ok: false; error: string };
 
 // Seña que se cobra EN EL MISMO ACTO de reservar (src/lib/turnos): "la seña se cobra al
 // momento de reservar el turno". Va dentro de la tx de la reserva: turno + cobro + asiento
@@ -268,6 +273,7 @@ async function bookAppointment({
   isResident,
   couponCode,
   cobroInicial,
+  soloFuturo = false,
 }: {
   professionalId: string;
   serviceId: string;
@@ -283,23 +289,48 @@ async function bookAppointment({
   // transacción, nunca se confía en el descuento que mandó el cliente.
   couponCode?: string;
   cobroInicial?: CobroInicial | null;
+  /** Reserva de la clienta: un horario que ya empezó se rechaza. */
+  soloFuturo?: boolean;
 }) {
-  const [service, professional] = await Promise.all([
-    prisma.service.findUniqueOrThrow({ where: { id: serviceId } }),
-    prisma.professional.findUniqueOrThrow({ where: { id: professionalId }, include: { box: true } }),
+  // Los rechazos van como `RechazoDeDominio`: la reserva pública los muestra tal cual (en
+  // producción un Error suelto llega como un genérico en inglés) y el mostrador también.
+  // `findFirst` con el negocio y no la variante que tira: un id que no existe (otro negocio,
+  // dado de baja) es un rechazo con motivo, no un P2025.
+  const tenantId = await getCurrentTenantId();
+  const [service, professional, prestaElServicio] = await Promise.all([
+    prisma.service.findFirst({ where: { id: serviceId, tenantId: tenantId } }),
+    prisma.professional.findFirst({ where: { id: professionalId, tenantId: tenantId }, include: { box: true } }),
+    // ADR-055: el servicio se ASIGNA a cada profesional. La pantalla ya filtra (BookingModal),
+    // pero el servidor no confía en eso: un pedido armado a mano no reserva un servicio con
+    // quien no lo hace (UAT 16/10, B6).
+    prisma.professional.count({
+      where: { id: professionalId, tenantId: tenantId, services: { some: { id: serviceId } } },
+    }),
   ]);
 
-  if (!professional.active || professional.deletedAt) {
-    throw new Error("Este profesional ya no está disponible para reservas.");
+  if (!professional || !professional.active || professional.deletedAt) {
+    throw new RechazoDeDominio("Este profesional ya no está disponible para reservas. Elegí otro profesional.");
   }
+  if (!service) throw new RechazoDeDominio("Este servicio ya no está disponible. Elegí otro servicio.");
   if (!service.active || service.deletedAt) {
-    throw new Error("Este servicio ya no está disponible.");
+    throw new RechazoDeDominio("Este servicio ya no está disponible. Elegí otro servicio.");
+  }
+  if (prestaElServicio === 0) {
+    throw new RechazoDeDominio(`${professional.name} no hace ${service.name}. Elegí otro profesional para ese servicio.`);
   }
   if (!professional.boxId || !professional.box?.active || professional.box?.deletedAt) {
-    throw new Error("Este profesional no tiene un box activo asignado. Contactanos para coordinar tu turno.");
+    throw new RechazoDeDominio("Este profesional no tiene un box activo asignado. Contactanos para coordinar tu turno.");
   }
 
   const startsAt = new Date(startsAtIso);
+  if (Number.isNaN(startsAt.getTime())) {
+    throw new RechazoDeDominio("Ese horario no se pudo leer. Elegí de nuevo el día y la hora.");
+  }
+  // La clienta no reserva un horario que ya empezó (UAT 16/10, B5). El mostrador sí puede
+  // cargar uno en curso (la clienta llegó sin turno y ya está en el box).
+  if (soloFuturo && startsAt.getTime() < Date.now()) {
+    throw new RechazoDeDominio("Ese horario ya pasó. Elegí otro horario.");
+  }
   const endsAt = new Date(startsAt.getTime() + service.durationMin * 60000);
   const boxId = professional.boxId;
 
@@ -308,10 +339,8 @@ async function bookAppointment({
   const dateStr = dateStrInBusinessTz(startsAt);
   const window = await getWorkingWindow(professionalId, dateStr);
   if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {
-    throw new Error("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
+    throw new RechazoDeDominio("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
   }
-
-  const tenantId = await getCurrentTenantId();
 
   const run = (withSchema: boolean) => bookingTransaction(async (tx) => {
     // Re-chequea la disponibilidad DENTRO de la transacción para cerrar la
@@ -438,7 +467,14 @@ async function fichaDeReservaPublica(datos: {
   return { id: creada.id, empate: null };
 }
 
-export async function createAppointment(formData: FormData) {
+// Lo que ve la clienta cuando la reserva falló por algo que no es un rechazo con motivo (la base
+// caída, un bug): en castellano y con qué hacer. El detalle va al log (reserva-publica-mensaje.ts).
+const NO_SE_PUDO_RESERVAR =
+  "No pudimos confirmar tu turno. Probá de nuevo en unos minutos; si sigue, escribinos por WhatsApp y te lo reservamos.";
+
+// DEVUELVE el rechazo en vez de tirarlo (UAT 16/10, B7): tirado, en producción Next lo tapa con
+// un texto en inglés y la clienta no sabe qué pasó. Si sale bien, redirige a la confirmación.
+export async function createAppointment(formData: FormData): Promise<ResultadoAccion> {
   const professionalId = String(formData.get("professionalId"));
   const serviceId = String(formData.get("serviceId"));
   const startsAtIso = String(formData.get("startsAt"));
@@ -451,39 +487,47 @@ export async function createAppointment(formData: FormData) {
   // CH-A1 · AUTORIDAD SERVER: el teléfono (canal del recordatorio) y el email —si viene— tienen
   // que ser válidos, o el turno entra pero el aviso nunca llega. No se confía en el cliente.
   const contact = validateBookingContact(clientPhone, clientEmail);
-  if (!contact.ok) throw new Error(contact.error);
+  if (!contact.ok) return { ok: false, error: contact.error };
 
-  const ficha = await fichaDeReservaPublica({
-    name: clientName,
-    phone: clientPhone,
-    email: clientEmail || undefined,
-    isResident,
-  });
-  const clientId = ficha.id;
+  let appointmentId: string;
+  try {
+    const ficha = await fichaDeReservaPublica({
+      name: clientName,
+      phone: clientPhone,
+      email: clientEmail || undefined,
+      isResident,
+    });
+    const clientId = ficha.id;
 
-  // Reserva pública: la seña la cobra la recepción cuando llega el comprobante
-  // ("Registrar cobro" en /admin/turnos) — no hay canal de cobro online todavía.
-  const { appointment } = await bookAppointment({
-    professionalId,
-    serviceId,
-    startsAtIso,
-    clientId,
-    clientName,
-    status: "PENDING",
-    isResident,
-    couponCode,
-  });
+    // Reserva pública: la seña la cobra la recepción cuando llega el comprobante
+    // ("Registrar cobro" en /admin/turnos) — no hay canal de cobro online todavía.
+    const { appointment } = await bookAppointment({
+      professionalId,
+      serviceId,
+      startsAtIso,
+      clientId,
+      clientName,
+      status: "PENDING",
+      isResident,
+      couponCode,
+      soloFuturo: true,
+    });
 
-  if (ficha.empate) await auditPublic({ ...entradaAuditoriaEmpate(ficha.empate), clientPhone });
-  await auditPublic({
-    action: "create",
-    entity: "Appointment",
-    entityId: appointment.id,
-    clientPhone,
-    changes: { professionalId, serviceId, startsAt: appointment.startsAt },
-  });
+    if (ficha.empate) await auditPublic({ ...entradaAuditoriaEmpate(ficha.empate), clientPhone });
+    await auditPublic({
+      action: "create",
+      entity: "Appointment",
+      entityId: appointment.id,
+      clientPhone,
+      changes: { professionalId, serviceId, startsAt: appointment.startsAt },
+    });
+    appointmentId = appointment.id;
+  } catch (e) {
+    unstable_rethrow(e);
+    return { ok: false, error: mensajeParaLaClienta(e, NO_SE_PUDO_RESERVAR, "reserva.publica") };
+  }
 
-  redirect(`/reserva/confirmacion/${appointment.id}`);
+  redirect(`/reserva/confirmacion/${appointmentId}`);
 }
 
 // Datos que consume el modal de reserva público (rediseño CH Estética):
@@ -628,50 +672,57 @@ export async function createBookingFromModal(input: {
   clientEmail?: string;
   isResident?: boolean;
   couponCode?: string;
-}): Promise<{ id: string; startsAt: string }> {
+}): Promise<{ ok: true; id: string; startsAt: string } | { ok: false; error: string }> {
   const clientName = input.clientName.trim();
   const clientPhone = input.clientPhone.trim();
   const isResident = !!input.isResident;
   if (!clientName || !clientPhone) {
-    throw new Error("Nombre y teléfono son obligatorios.");
+    return { ok: false, error: "Nombre y teléfono son obligatorios." };
   }
   // CH-A1 · AUTORIDAD SERVER (modal de reserva): teléfono con formato + email válido si viene.
   const contact = validateBookingContact(clientPhone, input.clientEmail);
-  if (!contact.ok) throw new Error(contact.error);
+  if (!contact.ok) return { ok: false, error: contact.error };
 
-  const ficha = await fichaDeReservaPublica({
-    name: clientName,
-    phone: clientPhone,
-    email: input.clientEmail?.trim() || undefined,
-    isResident,
-  });
-  const clientId = ficha.id;
+  // DEVUELVE el rechazo en vez de tirarlo (UAT 16/10, B7), igual que createAppointment.
+  try {
+    const ficha = await fichaDeReservaPublica({
+      name: clientName,
+      phone: clientPhone,
+      email: input.clientEmail?.trim() || undefined,
+      isResident,
+    });
+    const clientId = ficha.id;
 
-  const { appointment } = await bookAppointment({
-    professionalId: input.professionalId,
-    serviceId: input.serviceId,
-    startsAtIso: input.startsAtIso,
-    clientId,
-    clientName,
-    status: "PENDING",
-    isResident,
-    couponCode: input.couponCode,
-  });
-
-  if (ficha.empate) await auditPublic({ ...entradaAuditoriaEmpate(ficha.empate), clientPhone });
-  await auditPublic({
-    action: "create",
-    entity: "Appointment",
-    entityId: appointment.id,
-    clientPhone,
-    changes: {
+    const { appointment } = await bookAppointment({
       professionalId: input.professionalId,
       serviceId: input.serviceId,
-      startsAt: appointment.startsAt,
-    },
-  });
+      startsAtIso: input.startsAtIso,
+      clientId,
+      clientName,
+      status: "PENDING",
+      isResident,
+      couponCode: input.couponCode,
+      soloFuturo: true,
+    });
 
-  return { id: appointment.id, startsAt: appointment.startsAt.toISOString() };
+    if (ficha.empate) await auditPublic({ ...entradaAuditoriaEmpate(ficha.empate), clientPhone });
+    await auditPublic({
+      action: "create",
+      entity: "Appointment",
+      entityId: appointment.id,
+      clientPhone,
+      changes: {
+        professionalId: input.professionalId,
+        serviceId: input.serviceId,
+        startsAt: appointment.startsAt,
+      },
+    });
+
+    return { ok: true, id: appointment.id, startsAt: appointment.startsAt.toISOString() };
+  } catch (e) {
+    unstable_rethrow(e);
+    return { ok: false, error: mensajeParaLaClienta(e, NO_SE_PUDO_RESERVAR, "reserva.modal") };
+  }
 }
 
 /**
@@ -780,6 +831,8 @@ export async function createManualAppointment(formData: FormData): Promise<Resul
     // La seña excede el precio, el horario se ocupó entre que se eligió y se envió, el cupón
     // no existe: son respuestas de DOMINIO y van al formulario con su texto.
     if (e instanceof CobroTurnoRechazado) return { ok: false, error: `No se pudo cobrar la seña: ${e.message}` };
+    const motivo = motivoMostrable(e);
+    if (motivo !== null) return { ok: false, error: motivo };
     if (e instanceof Error && esErrorDeDominioAlReservar(e)) return { ok: false, error: e.message };
     // Cualquier otra cosa es un bug: que llegue al log del servidor, no a un cartelito.
     throw e;
@@ -876,6 +929,18 @@ async function reprogramarTurno(formData: FormData): Promise<void> {
   }
   if (!professional.boxId || !professional.box?.active || professional.box?.deletedAt) {
     throw new RechazoDeDominio("Ese profesional no tiene un box activo asignado.");
+  }
+  // ADR-055: pasar el turno a otro profesional sólo si ese profesional hace el servicio
+  // (UAT 16/10, B6). Al mismo profesional no se le pregunta: el turno ya era suyo.
+  if (targetProfessionalId !== appointment.professionalId) {
+    const prestaElServicio = await prisma.professional.count({
+      where: { id: targetProfessionalId, tenantId, services: { some: { id: appointment.serviceId } } },
+    });
+    if (prestaElServicio === 0) {
+      throw new RechazoDeDominio(
+        `${professional.name} no hace ${appointment.service.name}. Elegí un profesional que haga ese servicio.`,
+      );
+    }
   }
 
   // La duración la fija el servicio (no cambia al reprogramar): el fin se deriva
@@ -1753,12 +1818,11 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
   // detrás del flag maestro (§2.b): si el flag está OFF o el operador eligió no
   // facturar, no pasa nada; si falla, el turno igual quedó COMPLETED. Nunca
   // rompe el cierre de la recepción.
+  // Si ARCA la rechaza o el envío falla, recepción se entera en la pantalla (UAT 16/10, B8):
+  // antes quedaba sólo en el log.
+  let aviso: string | null = null;
   if (facturar && isInvoicingEnabled()) {
-    try {
-      await facturarAppointment(appointmentId, tenantId);
-    } catch (err) {
-      logger.error("arca", "facturación best-effort falló", err, { appointmentId, tenantId });
-    }
+    aviso = avisoDeFacturaDelTurno(await facturarConResultado(appointmentId, tenantId));
   }
 
   revalidatePath("/admin");
@@ -1768,7 +1832,27 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
   revalidatePath("/admin/reportes");
   revalidatePath("/admin/caja");
   revalidatePath("/admin/caja/libro");
-  return { ok: true };
+  return aviso ? { ok: true, aviso } : { ok: true };
+}
+
+/** Factura el turno y dice cómo quedó, sin tirar: la facturación nunca rompe el cierre. */
+async function facturarConResultado(appointmentId: string, tenantId: string): Promise<ResultadoFacturaDelTurno> {
+  try {
+    const invoiceId = await facturarAppointment(appointmentId, tenantId);
+    if (!invoiceId) return { tipo: "sin-factura" };
+    const factura = await prisma.invoice.findFirst({
+      where: { id: invoiceId, tenantId },
+      select: { status: true, rechazoMotivo: true },
+    });
+    if (!factura) return { tipo: "fallo" };
+    if (factura.status === "REJECTED") {
+      logger.warn("arca", "ARCA rechazó la factura del turno", { appointmentId, tenantId, invoiceId });
+    }
+    return { tipo: "emitida", status: factura.status, rechazoMotivo: factura.rechazoMotivo };
+  } catch (err) {
+    logger.error("arca", "facturación best-effort falló", err, { appointmentId, tenantId });
+    return { tipo: "fallo" };
+  }
 }
 
 /**

@@ -56,6 +56,8 @@ export default function TerminarTurno({
               ? `Terminado y cobrado: ${clienta}.`
               : `Terminado: ${clienta}.`,
         );
+        // La factura del turno no salió (ARCA la rechazó): se dice, el turno igual quedó terminado.
+        if (r.aviso) showError(r.aviso);
         onListo?.();
       } catch {
         showError("No se pudo terminar el turno. Probá de nuevo; si sigue, avisá.");

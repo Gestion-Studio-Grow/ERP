@@ -74,10 +74,14 @@ export default function RescheduleButton({
         action={async (fd) => {
           setError("");
           try {
-            await rescheduleMyAppointment(fd);
+            const r = await rescheduleMyAppointment(fd);
+            if (!r.ok) {
+              setError(r.error);
+              return;
+            }
             setOpen(false);
-          } catch (err) {
-            setError(err instanceof Error ? err.message : "No se pudo reprogramar.");
+          } catch {
+            setError("No pudimos conectarnos: revisá la conexión y probá de nuevo.");
           }
         }}
         className="space-y-3"
@@ -128,7 +132,7 @@ export default function RescheduleButton({
           </div>
         )}
 
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
 
         {selectedSlot && (
           <SubmitButton

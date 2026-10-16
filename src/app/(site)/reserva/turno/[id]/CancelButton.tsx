@@ -23,14 +23,15 @@ export default function CancelButton({ appointmentId }: { appointmentId: string 
   return (
     <div className="mb-6 rounded-md border border-danger/30 bg-danger-soft p-4">
       <p className="text-sm text-danger mb-3">¿Confirmás que querés cancelar este turno?</p>
-      {error && <p className="text-sm text-danger mb-2">{error}</p>}
+      {error && <p role="alert" className="text-sm text-danger mb-2">{error}</p>}
       <div className="flex gap-3">
         <form
           action={async (fd) => {
             try {
-              await cancelMyAppointment(fd);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : "No se pudo cancelar.");
+              const r = await cancelMyAppointment(fd);
+              if (!r.ok) setError(r.error);
+            } catch {
+              setError("No pudimos conectarnos: revisá la conexión y probá de nuevo.");
             }
           }}
         >
