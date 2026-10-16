@@ -78,3 +78,24 @@
 - La pestaña de la consola con la clave del dueño quedó abierta para que la copie el dueño.
 
 — Elaborado por GSG
+
+## Arreglos (16/10) — pendientes de re-verificación en Chrome
+
+Pasaron el Gate (aprobado tras dos rechazos: B1 ids repetidos después de la toma de posta, S1 dos servidores si se
+roba el lock mientras se espera la foto). Commits bf608355 · 14d2a52c · 850e4c47.
+
+| Defecto | Arreglo | Cómo se verificó |
+|---|---|---|
+| D35 | El panel «Novedades del turnero» se cierra con Esc y tocando afuera; ocupa menos alto; Esc no le roba el foco a otra cosa | E2E del sitio |
+| D36 | El servidor reparte una foto de toda la demo (turnero, sesiones, buzón y contador de ids) después de cada cambio y al cerrarse; la pestaña que toma la posta sigue desde la más nueva | Test de pestaña nueva en otro proceso (3 reservas con seña + cancelación) y E2E (el club conserva la reserva web y la del mostrador) |
+| D37 | Un pedido que se cruza con el cambio de servidor se reintenta una vez contra el NUEVO; «Continuar con Google» muestra «Entrando…» | Revisión del Gate (no tiene reproducción automática: queda a validar en Chrome) |
+| D38 | `/`, `/turnero`, `/club` y `/previews/breakpoint/*` sólo se dejan embeber en el mismo sitio. WPE no cambia (freeze) | Tests de cabeceras |
+| D39 | La revisión del alta toma los colores de la misma lista que ofrece la consola | Test de provisioning |
+
+**Deuda anotada (no bloquea):**
+- Dos fotos con la misma versión de reservas: si la de otra pestaña trae un usuario recién registrado, puede descartarse. Pasa en pocos casos.
+- Una pestaña vieja congelada que recibe el lock deja a un turnero nuevo en «La demo se está iniciando» hasta que se descongele. Ya pasaba antes.
+- Recargar la página saltea el bloqueo con PIN (la demo no tiene login real).
+- El cambio de color de la ficha (celeste → azul) queda a decisión del dueño.
+
+— Elaborado por GSG
