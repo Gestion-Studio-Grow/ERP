@@ -59,6 +59,11 @@ type Props = {
    * la propuesta "Todos los medios de pago" del copy editorial, que promete crédito y débito.
    */
   mediosDePago?: readonly string[] | null;
+  /**
+   * La aclaración del rubro para lo que se vende por kilo (rubros.ts `wording.weightNote`, la misma
+   * que muestra la vidriera nueva): el total de la bolsa es estimado hasta que se pesa cada pieza.
+   */
+  notaDePeso?: string | null;
 };
 
 const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -73,7 +78,7 @@ const unitLabel = (p: Product) => (p.saleUnit === "WEIGHT" ? "/ kg" : "/ u");
 // cambia un corte y reenvía está pidiendo OTRA cosa, y con la clave vieja recibiría el pedido
 // viejo sin enterarse. La genera `nuevaClaveDePedido` (reglas-tienda.ts), la misma en todas las vidrieras.
 
-export default function MagraFront({ products, branding, tenantKey, content = MAGRA, envio = null, mediosDePago = null }: Props) {
+export default function MagraFront({ products, branding, tenantKey, content = MAGRA, envio = null, mediosDePago = null, notaDePeso = null }: Props) {
   // UN SOLO número, el del LOCAL (BusinessSettings.whatsapp): el mismo que abren los botones
   // y el mismo que se muestra escrito en el pie. Antes había dos fuentes —el CTA usaba el
   // branding del tenant con caída a un número del archivo de copy, y el pie pintaba un tercer
@@ -83,7 +88,7 @@ export default function MagraFront({ products, branding, tenantKey, content = MA
   const local = resolveMagraLocal(branding);
   return (
     <WhatsAppCtaProvider tenantKey={tenantKey} configuredNumber={local.whatsapp}>
-      <MagraFrontContent products={products} content={content} local={local} envio={envio} mediosDePago={mediosDePago} />
+      <MagraFrontContent products={products} content={content} local={local} envio={envio} mediosDePago={mediosDePago} notaDePeso={notaDePeso} />
     </WhatsAppCtaProvider>
   );
 }
@@ -94,12 +99,14 @@ function MagraFrontContent({
   local,
   envio,
   mediosDePago,
+  notaDePeso,
 }: {
   products: Product[];
   content: MagraContent;
   local: MagraLocal;
   envio: ShippingConfig | null;
   mediosDePago: readonly string[] | null;
+  notaDePeso: string | null;
 }) {
   const { requestWhatsApp } = useWhatsAppCta();
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -132,6 +139,8 @@ function MagraFrontContent({
     .filter((l): l is { p: Product; q: number; t: number } => l !== null);
   const subtotal = lines.reduce((s, l) => s + l.t, 0);
   const hasItems = lines.length > 0;
+  // Con algo por kilo en la bolsa, el total no es cerrado: cada pieza se pesa al envasar.
+  const hayPeso = lines.some((l) => l.p.saleUnit === "WEIGHT");
   const count = lines.reduce((s, l) => s + (l.p.saleUnit === "WEIGHT" ? 1 : l.q), 0);
 
   // El envío, con la MISMA regla y tarifa que usa el servidor para sumarlo al pedido. Sin tarifa
@@ -158,7 +167,7 @@ function MagraFrontContent({
   const grid = products.slice(2);
 
   return (
-    <div className="magra">
+    <div className={hasItems ? "magra con-minibar" : "magra"}>
       <style>{CSS}</style>
 
       {/* ── TOP BAR ── */}
@@ -339,7 +348,7 @@ function MagraFrontContent({
                               </span>
                               <div className="mf-stepper mf-stepper-sm" role="group" aria-label={`Cantidad de ${p.name}`}>
                                 <button type="button" onClick={() => bump(p, -1)} disabled={q === 0} aria-label={`Quitar ${p.name}`}>−</button>
-                                <span className="mf-q mf-display" aria-live="polite">{q > 0 ? q : "0"}</span>
+                                <span className="mf-q mf-display" aria-live="polite">{q > 0 ? `${formatearCantidad(q)} ${p.saleUnit === "WEIGHT" ? "kg" : "u"}` : "0"}</span>
                                 <button type="button" onClick={() => bump(p, 1)} disabled={p.disponibilidad === "sin-stock"} aria-label={`Agregar ${p.name}`}>+</button>
                               </div>
                             </div>
@@ -534,9 +543,10 @@ function MagraFrontContent({
                 )}
               </div>
               <div className="mf-totrow mf-big">
-                <span className="mf-k">Total</span>
+                <span className="mf-k">{hayPeso ? "Total estimado" : "Total"}</span>
                 <span className="mf-v mf-display mf-num" aria-live="polite">{money2.format(total)}</span>
               </div>
+              {hayPeso && notaDePeso && <p className="mf-nota-peso">{notaDePeso}</p>}
 
               {hasItems && (
                 <div className="mf-checkout">
@@ -658,7 +668,10 @@ function MagraFrontContent({
       {hasItems && (
         <a href="#pedido" className="mf-minibar">
           <span className="mf-minibar-cnt">{count} {count === 1 ? "corte" : "cortes"}</span>
-          <span className="mf-minibar-total mf-display mf-num">{money2.format(total)}</span>
+          <span className="mf-minibar-total mf-display mf-num">
+            {hayPeso && <small className="mf-minibar-est">aprox. </small>}
+            {money2.format(total)}
+          </span>
           <span className="mf-minibar-go">Finalizar pedido →</span>
         </a>
       )}
@@ -907,6 +920,7 @@ const CSS = `
 .magra .mf-totrow .mf-v{font-size:20px;color:var(--crema)}
 .magra .mf-totrow.mf-big .mf-v{font-size:34px;color:var(--oro)}
 .magra .mf-free{color:var(--oro)}
+.magra .mf-nota-peso{margin:2px 0 4px;font-size:12px;line-height:1.45;color:var(--acero)}
 .magra .mf-checkout{display:grid;gap:10px;margin:16px 0 4px}
 .magra .mf-field{display:grid;gap:5px;font-size:12px;color:var(--acero)}
 .magra .mf-field span{letter-spacing:.02em}
@@ -931,10 +945,15 @@ const CSS = `
   .magra .mf-rail-items{max-height:none}
 }
 
-/* MINI-BAR (móvil) */
+/* MINI-BAR (móvil). Alto FIJO (--minibar + la zona segura del iPhone) para que el riel le pueda
+   dejar exactamente ese lugar abajo: antes la barra tapaba ~45 de los 51 px de «Pedir por
+   WhatsApp», el último botón de la página (UAT MAGRA 16/10). */
 .magra .mf-minibar{display:none}
+.magra{--minibar:60px}
 @media(max-width:1080px){
-  .magra .mf-minibar{position:fixed;left:0;right:0;bottom:0;z-index:70;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;background:var(--oro);color:var(--carbon);box-shadow:0 -8px 24px rgba(0,0,0,.4)}
+  .magra .mf-minibar{position:fixed;left:0;right:0;bottom:0;z-index:70;display:flex;align-items:center;justify-content:space-between;gap:12px;height:calc(var(--minibar) + env(safe-area-inset-bottom));padding:0 18px env(safe-area-inset-bottom);background:var(--oro);color:var(--carbon);box-shadow:0 -8px 24px rgba(0,0,0,.4)}
+  .magra.con-minibar .mf-rail-foot{padding-bottom:calc(22px + var(--minibar) + env(safe-area-inset-bottom))}
+  .magra .mf-minibar-est{font-family:var(--f-body);font-size:11px;font-weight:700;letter-spacing:.04em}
   .magra .mf-minibar-cnt{font-size:13px;font-weight:700}
   .magra .mf-minibar-total{font-size:24px}
   .magra .mf-minibar-go{margin-left:auto;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
