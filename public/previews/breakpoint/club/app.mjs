@@ -1682,6 +1682,7 @@ const acciones = {
     // Un descuento lo firma el dueño con SU PIN, aunque quien esté usando el sistema sea recepción.
     const pin = val("#cm-pin");
     const monto = Math.abs(Number(val("#cm-mon"))) * (val("#cm-tipo") === "descuento" ? -1 : 1);
+    if (monto < 0 && !pin.trim()) return toast("Un descuento lo autoriza el dueño con su PIN: escribilo en «PIN dueño».", { error: true });
     const firma = monto < 0 && pin ? M.usuarioPorPin(E, pin) : null;
     const quien = firma?.ok && firma.usuario.rol === "duenio" ? { usuarioId: firma.usuario.id, pin } : auth(pin);
     const res = M.cargoManual(E, b.dataset.v, { concepto: val("#cm-con"), monto }, quien, AHORA);
@@ -1965,6 +1966,8 @@ document.addEventListener("keydown", (ev) => {
   if ((ev.metaKey || ev.ctrlKey) && !ev.shiftKey && ev.key.toLowerCase() === "z" && UNDO && !escribiendo && !hayVentana) {
     ev.preventDefault(); acciones.deshacer(); return;
   }
+  // Bloquear es de seguridad: L anda aunque haya una ventana abierta (no mientras se escribe en un campo).
+  if (!escribiendo && !ev.metaKey && !ev.ctrlKey && !ev.altKey && (ev.key === "l" || ev.key === "L") && !$("#cmdk").open) { ev.preventDefault(); bloquear("manual"); return; }
   if (escribiendo || hayVentana || ev.metaKey || ev.ctrlKey || ev.altKey) return;
   const tabs = pestanias().orden;
   const k = ev.key;
@@ -1973,7 +1976,6 @@ document.addEventListener("keydown", (ev) => {
   else if (k === "?") ayudaAtajos();
   else if ((k === "n" || k === "N") && puedo("agenda")) nuevoTurno({});
   else if ((k === "c" || k === "C") && puedo("buffet")) abrirConsumo();
-  else if (k === "l" || k === "L") bloquear("manual");
   else if ((k === "t" || k === "T") && puedo("agenda")) { if (TAB !== "agenda") irTab("agenda"); irDia(HOY); }
   else if ((k === "ArrowLeft" || k === "ArrowRight") && TAB === "agenda" && !t.closest?.("#grid-wrap, .days")) {
     const d = M.sumarDias(VISTA, k === "ArrowLeft" ? -1 : 1);
@@ -2072,7 +2074,13 @@ $("#bloqueo").addEventListener("close", () => { if (bloqueo.activo) requestAnima
 $("#bloqueo").addEventListener("keydown", (ev) => {
   if (ev.key === "Enter" && ev.target.id === "bl-pin") { ev.preventDefault(); desbloquear(); }
 });
-$("#bloqueo").addEventListener("input", (ev) => { if (ev.target.id === "bl-pin" && ev.target.value.length === 2) desbloquear(); });
+// El PIN son 2 números: lo que no es número no entra (y no gasta un intento).
+$("#bloqueo").addEventListener("input", (ev) => {
+  if (ev.target.id !== "bl-pin") return;
+  const t = ev.target, limpio = t.value.replace(/\D/g, "");
+  if (limpio !== t.value) t.value = limpio;
+  if (limpio.length === 2) desbloquear();
+});
 const marcarUso = () => { if (!bloqueo.activo) bloqueo.ultimo = Date.now(); };
 for (const tipo of ["pointerdown", "keydown", "wheel", "touchstart"]) document.addEventListener(tipo, marcarUso, { capture: true, passive: true });
 const revisarInactividad = () => {

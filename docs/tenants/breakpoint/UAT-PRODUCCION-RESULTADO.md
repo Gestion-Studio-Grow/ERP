@@ -99,3 +99,34 @@ roba el lock mientras se espera la foto). Commits bf608355 · 14d2a52c · 850e4c
 - El cambio de color de la ficha (celeste → azul) queda a decisión del dueño.
 
 — Elaborado por GSG
+
+## Re-verificación del 16/10
+
+**Parte A, en producción (Chrome real, sesión de la PC):** D35 a D39 OK, sin defectos nuevos. D36 se probó con 3 reservas (2
+con seña firme y 1 cancelada con crédito) y dos cambios de pestaña servidor. D37 dio 4 de 4. D38 tiene las cabeceras en `/`,
+`/turnero`, `/club` y `/previews/breakpoint/…`, y WPE no las tiene (freeze intacto).
+
+**Parte B (partes 1, 2, 3 y 4.2: las que piden PIN o contraseña):** la sesión de la PC no escribe PIN ni contraseñas en un
+dominio público, ni siquiera los de la demo. Se corrió en Chromium contra el MISMO sitio empaquetado, servido por el mismo
+manejador del ERP que usa producción, en un host público simulado. Script repetible: `npm run test:club-uat`
+(`src/tenants/breakpoint/turnero/e2e/uat-b.e2e.mjs`). **Resultado: 41/41 OK, cero errores de consola.**
+
+| Parte | Qué se comprobó | Estado |
+|---|---|---|
+| 1 · matriz | Rober y Majo ven las 9 pestañas; Lu y Caro sólo Agenda, Buffet, Caja y Clientes | OK |
+| 1 · cuenta corriente | Los dueños la habilitan; recepción no ve el límite | OK |
+| 1 · falta | «Sin cargo (excepción)» sólo para dueños | OK |
+| 1 · descuento | Sin PIN se niega a los 4; con PIN de dueño se aplica, también si está logueada recepción | OK |
+| 1.1 a 1.4 | PIN equivocado; pedir acceso, aprobarlo, entrar con permisos de recepción y revocarlo; PIN nuevo de Caro (el viejo deja de andar); el dueño no se saca el acceso a sí mismo | OK |
+| 2 · bloqueo | Candado; Esc y atajos no abren nada detrás; 5 PIN mal → 30 s; su PIN desbloquea; «Entrar con otro usuario» cierra lo del anterior; más de 30 s afuera bloquea y menos no; inactividad de 1 min bloquea | OK |
+| 3 · 8 pedidos | A cargo de, confirmación de créditos, «cargo», − / +, pasar un cargo, cargo manual, un descuento no se pasa, dos códigos, precios y rentabilidad | OK |
+| 4.2 | Registro con celular: la contraseña corta se rechaza; con una válida reserva y pide la seña | OK |
+
+Capturas en `uat-prod/b01…b07`.
+
+**Mejoras que salieron del recorrido (arregladas en el mismo commit):**
+- **D40 · baja:** un dueño que pide un descuento sin escribir el PIN veía «PIN incorrecto.». Ahora dice que el descuento lo autoriza el dueño con su PIN y dónde escribirlo.
+- **D41 · baja:** el campo de PIN del bloqueo aceptaba letras, y dos letras contaban como un intento fallido. Ahora sólo entran números.
+- **D42 · baja:** con una ventana abierta, la tecla L no bloqueaba (los atajos se apagan con una ventana abierta). Bloquear es de seguridad: ahora L anda siempre, salvo mientras se escribe en un campo.
+
+— Elaborado por GSG
