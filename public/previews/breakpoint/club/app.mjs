@@ -211,7 +211,7 @@ function vistaAgenda() {
   const fuera = E.reservas.filter((r) => r.fecha === VISTA && ["cancelada", "no_show", "suspendida"].includes(r.estado));
   const urg = ALERTAS.filter((a) => a.nivel === "alta").length;
   const h = M.horarioDe(E, VISTA);
-  const caja = M.resumenCaja(E, M.diaDeCaja(E, AHORA.fecha, AHORA.min));
+  const caja = M.resumenCaja(E, M.cajaAbierta(E, AHORA));
   return `
   <div class="layout">
     <section aria-labelledby="t-grilla">
@@ -341,9 +341,10 @@ function vistaBuffet() {
 // ───────────────────────────── Caja ─────────────────────────────
 
 function vistaCaja() {
-  const dia = M.diaDeCaja(E, AHORA.fecha, AHORA.min);
+  const dia = M.cajaAbierta(E, AHORA);
   const r = M.resumenCaja(E, dia);
-  const cierres = E.caja.cierres.filter((c) => c.dia === dia);
+  const hoy = M.diaDeCaja(E, AHORA.fecha, AHORA.min);
+  const cierres = E.caja.cierres.filter((c) => c.dia === dia || c.dia === hoy); // si la de hoy ya cerró, se ve su cierre
   return `<div class="stack">
     <section class="card" aria-labelledby="t-caja">
       <div class="card-head"><h2 id="t-caja" class="pantalla">Caja del ${esc(fechaCorta(dia))} · de 12:00 a 12:00</h2>
@@ -857,6 +858,12 @@ function buscadorProductos(clave, { soloVendibles = true } = {}) {
 
 // ───── usuario y PIN ─────
 
+// Los PIN de ejemplo no quedan a la vista de cualquiera que pase por el mostrador: se muestran sólo si se piden.
+// (Es una ayuda de la DEMO; con usuarios reales no existe.)
+const pinesDemo = (usuarios) => `<details class="demo-pins"><summary>¿Probando la demo? Ver los PIN de ejemplo</summary><p style="margin:6px 0 0">${usuarios.map((u) => `${esc(u.nombre.split(" ")[0])} ${esc(u.pin)}`).join(" · ")}</p></details>`;
+// Cambio de usuario: como el bloqueo, 5 PIN mal → 30 s de espera (2 dígitos se adivinan rápido si no hay tope).
+const intentosPin = { fallos: 0, hasta: 0 };
+
 function cambiarUsuario() {
   let elegido = USUARIO;
   abrir({
@@ -864,7 +871,7 @@ function cambiarUsuario() {
     sub: "Elegí tu usuario y poné tu PIN de 2 dígitos.",
     cuerpo: `<div class="usuarios" role="group" aria-label="Usuarios">${E.usuarios.filter((u) => u.activo !== false).map((u) => `<button type="button" data-a="elegirUsuario" data-v="${u.id}" aria-pressed="${u.id === elegido}"><span><b>${esc(u.nombre)}</b></span><span class="small muted">${M.ROLES[u.rol]}</span></button>`).join("")}</div>
       ${campoPin("pin-usuario", "PIN")}
-      <p class="demo-pins">PIN de la demo: ${E.usuarios.filter((u) => u.activo !== false).map((u) => `${esc(u.nombre.split(" ")[0])} ${esc(u.pin)}`).join(" · ")}</p>
+      ${pinesDemo(E.usuarios.filter((u) => u.activo !== false))}
       <details><summary class="small">¿Sos nuevo/a? Pedí acceso</summary><div class="row" style="margin-top:8px"><label class="sr" for="nuevo-acceso">Tu nombre</label><input id="nuevo-acceso" placeholder="Tu nombre" style="max-width:220px"><button type="button" class="btn sm" data-a="pedirAcceso">Pedir acceso</button></div><p class="small muted">Le llega al dueño; cuando lo aprueba te da un PIN.</p></details>`,
     pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="entrar">Entrar</button>`,
     alAbrir(d) {
@@ -1168,7 +1175,9 @@ function egresoDialogo() {
 }
 
 function cierreCajaDialogo() {
-  const dia = M.diaDeCaja(E, AHORA.fecha, AHORA.min);
+  const hoy = M.diaDeCaja(E, AHORA.fecha, AHORA.min);
+  if (M.cajaCerrada(E, hoy)) return abrir({ titulo: "La caja de hoy ya está cerrada", cuerpo: `<p style="margin:0">Se cerró una sola vez, como corresponde. Lo que se cobre desde ahora entra en la caja del ${esc(fechaCorta(M.cajaAbierta(E, AHORA)))}.</p>`, pie: `<button type="button" class="btn primary" data-a="cerrar">Entendido</button>` });
+  const dia = M.cajaAbierta(E, AHORA);
   const r = M.resumenCaja(E, dia);
   abrir({
     titulo: `Cerrar la caja del ${esc(fechaCorta(dia))}`,
@@ -1516,8 +1525,14 @@ const acciones = {
   usuario: () => cambiarUsuario(),
   elegirUsuario: (b) => acciones._setElegido?.(b.dataset.v),
   entrar: () => {
+    const espera = Math.ceil((intentosPin.hasta - Date.now()) / 1000);
+    if (espera > 0) return toast(`Demasiados intentos: esperá ${espera} s.`, { error: true });
     const res = M.verificarPin(E, acciones._elegido?.(), val("#pin-usuario"));
-    if (!res.ok) return toast(res.motivo, { error: true });
+    if (!res.ok) {
+      if (++intentosPin.fallos >= 5) { intentosPin.fallos = 0; intentosPin.hasta = Date.now() + 30_000; return toast("Demasiados intentos: esperá 30 s.", { error: true }); }
+      return toast(`${res.motivo} (${intentosPin.fallos} de 5)`, { error: true });
+    }
+    intentosPin.fallos = 0;
     USUARIO = res.usuario.id;
     if (res.usuario.rol === "duenio" && matchMedia("(max-width: 640px)").matches) TAB = "tablero";
     cerrarSiSale(res, `Hola, ${res.usuario.nombre.split(" ")[0]}.`);
@@ -1588,7 +1603,7 @@ const acciones = {
       const cubreSena = r.sena.monto > 0 && !r.sena.pagada && r.estado === "reservada" && M.cobrado(r) + monto >= r.sena.monto;
       return pedirConfirmacionCredito({ dueno: `r-${r.id}`, tipo: "cancha", id: r.id, monto, clienteId: r.clienteId, que: cubreSena ? "Seña de la cancha" : "Cancha", cubreSena });
     }
-    hecho(M.registrarPago(E, r.id, { medio: ui.medio, monto }, AHORA), `Cobrado ${M.pesos(monto)} de cancha.`);
+    hecho(M.registrarPago(E, r.id, { medio: ui.medio, monto, auth: auth() }, AHORA), `Cobrado ${M.pesos(monto)} de cancha.`);
   },
   pagarParte: (b) => {
     const r = M.reserva(E, b.dataset.v);
@@ -1599,14 +1614,14 @@ const acciones = {
   },
   cobrarParte: (b) => {
     const j = Number(b.dataset.j);
-    hecho(M.cobrarParte(E, b.dataset.v, j, { medio: ui.medio }, AHORA), (r) => `Cobrado ${M.pesos(r.monto)}${r.cubiertos.length ? ` (incluye la parte de ${r.cubiertos.join(", ")})` : ""}.`);
+    hecho(M.cobrarParte(E, b.dataset.v, j, { medio: ui.medio, auth: auth() }, AHORA), (r) => `Cobrado ${M.pesos(r.monto)}${r.cubiertos.length ? ` (incluye la parte de ${r.cubiertos.join(", ")})` : ""}.`);
   },
   confirmarCredito: () => {
     const op = ui.pendienteCredito;
     if (!op) return;
     ui.pendienteCredito = null;
-    if (op.tipo === "cancha") return hecho(M.registrarPago(E, op.id, { medio: "monedero", monto: op.monto }, AHORA), `Se usaron ${M.pesos(op.monto)} de créditos${op.cubreSena ? ": seña pagada" : ""}.`);
-    if (op.tipo === "parte") return hecho(M.cobrarParte(E, op.id, op.j, { medio: "monedero" }, AHORA), (r) => `Se usaron ${M.pesos(r.monto)} de créditos.`);
+    if (op.tipo === "cancha") return hecho(M.registrarPago(E, op.id, { medio: "monedero", monto: op.monto, auth: auth() }, AHORA), `Se usaron ${M.pesos(op.monto)} de créditos${op.cubreSena ? ": seña pagada" : ""}.`);
+    if (op.tipo === "parte") return hecho(M.cobrarParte(E, op.id, op.j, { medio: "monedero", auth: auth() }, AHORA), (r) => `Se usaron ${M.pesos(r.monto)} de créditos.`);
     if (op.tipo === "cuenta") return hecho(M.pagarCuenta(E, op.id, { medio: "monedero", monto: op.monto }, AHORA), `Se usaron ${M.pesos(op.monto)} de créditos.`);
   },
   anularCredito: () => { ui.pendienteCredito = null; ui.medio = "efectivo"; dialogoActual?.refrescar?.(); toast("No se usaron créditos. Elegí otro medio."); },
@@ -1624,7 +1639,7 @@ const acciones = {
   aCuenta: (b) => cerrarSiSale(M.finalizar(E, b.dataset.v, { aCuenta: true }, AHORA), "Cancha cerrada; el saldo pasó a la cuenta corriente."),
   falta: (b) => faltaDialogo(b.dataset.v),
   marcarFalta: (b) => {
-    const res = M.marcarNoShow(E, b.dataset.v, { cobrarA: b.dataset.m }, AHORA);
+    const res = M.marcarNoShow(E, b.dataset.v, { cobrarA: b.dataset.m, auth: auth() }, AHORA);
     if (!res.ok) return toast(res.motivo, { error: true });
     const texto = res.cargos.length ? `Falta cobrada: ${res.cargos.map((c) => `${c.nombre} ${M.pesos(c.monto)}`).join(", ")}.` : "Falta registrada sin cargo.";
     if (!res.ofertas.length) return cerrarSiSale(res, texto);
@@ -1672,10 +1687,10 @@ const acciones = {
     if (ui.medio === "monedero") return pedirConfirmacionCredito({ dueno: `c-${cta.id}`, tipo: "cuenta", id: cta.id, monto: Math.round(Number(val("#monto-cta"))), clienteId: cta.clienteId, que: `Cargos del buffet de ${cta.titular}` });
     hecho(M.pagarCuenta(E, cta.id, { medio: ui.medio, monto: val("#monto-cta") }, AHORA), "Cobrado.");
   },
-  ajustar: (b) => hecho(M.ajustarCargo(E, b.dataset.v, Number(b.dataset.j), Number(b.dataset.m), AHORA), Number(b.dataset.m) > 0 ? "Uno más." : "Uno menos."),
+  ajustar: (b) => hecho(M.ajustarCargo(E, b.dataset.v, Number(b.dataset.j), Number(b.dataset.m), AHORA, auth()), Number(b.dataset.m) > 0 ? "Uno más." : "Uno menos."),
   pasarCargo: (b) => {
     const dest = val("#tc-dest");
-    const res = M.transferirCargo(E, b.dataset.v, Number(val("#tc-item")), dest, val("#tc-cant") || null, AHORA);
+    const res = M.transferirCargo(E, b.dataset.v, Number(val("#tc-item")), dest, val("#tc-cant") || null, AHORA, auth());
     hecho(res, `Cargo pasado a la cuenta de ${M.cuenta(E, dest)?.titular ?? "la otra persona"}.`);
   },
   cargoManual: (b) => {
@@ -2041,7 +2056,7 @@ function pintarBloqueo() {
         <p id="bl-aviso" class="${espera || bloqueo.fallos ? "err" : "small muted"}" role="status" style="margin:0;min-height:1.4em">${espera ? `Demasiados intentos: esperá 30 segundos. <span aria-hidden="true">(${espera} s)</span>` : bloqueo.fallos ? `PIN incorrecto (${bloqueo.fallos} de 5).` : ""}</p>
         <button type="button" class="btn primary" data-a="desbloquear" ${espera ? "disabled" : ""}>Desbloquear</button>
         ${bloqueo.otro ? `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Elegir otro usuario</button>` : `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Entrar con otro usuario</button>`}`}
-    <p class="demo-pins">PIN de la demo: ${activos.map((x) => `${esc(x.nombre.split(" ")[0])} ${esc(x.pin)}`).join(" · ")}</p>
+    ${pinesDemo(activos)}
   </div>`);
   if (espera) { clearTimeout(bloqueo.timer); bloqueo.timer = setTimeout(() => { if (bloqueo.activo) { if (Date.now() >= bloqueo.esperaHasta) bloqueo.fallos = 0; pintarBloqueo(); $("#bl-pin")?.focus(); } }, 1000); }
   if (bloqueo.otro && bloqueo.elegido) $("#bl-pin", d)?.focus();

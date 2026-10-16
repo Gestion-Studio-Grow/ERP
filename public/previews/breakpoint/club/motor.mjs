@@ -104,9 +104,8 @@ let secuencia = 0;
 let origenIds = "";
 const nuevoId = (prefijo) => `${origenIds}${prefijo}${(++secuencia).toString(36)}`;
 
-/** Por dónde va el contador de ids (va en la foto de la demo entre pestañas). */
 export const secuenciaIds = () => secuencia;
-/** Sigue el contador desde `n` (nunca lo baja): la pestaña que toma la posta no repite ids de la demo que recibió. */
+/** Sigue el contador desde `n` (nunca lo baja): la pestaña que toma la posta no repite ids. */
 export function retomarSecuencia(n) {
   secuencia = Math.max(secuencia, Math.round(Number(n)) || 0);
 }
@@ -641,7 +640,7 @@ export function dividir(total, n) {
 }
 
 function movimientoCaja(estado, { tipo, medio, monto, concepto, reservaId = null, usuario: quien = null }, ahora) {
-  const mov = { id: nuevoId("m"), tipo, medio, monto, concepto, reservaId, usuario: quien, ...sello(ahora) };
+  const mov = { id: nuevoId("m"), tipo, medio, monto, concepto, reservaId, usuario: quien, ...sello(ahora), ...(ahora && { caja: cajaAbierta(estado, ahora) }) };
   estado.caja.movimientos.push(mov);
   return mov;
 }
@@ -654,9 +653,10 @@ function cobrarConCreditos(estado, clienteId, importe) {
 }
 
 /** Cobro de la CANCHA (seña, turno, la parte de cada jugador). Los consumos van en su propia cuenta. */
-export function registrarPago(estado, reservaId, { medio, monto, jugador = null, concepto }, ahora) {
+export function registrarPago(estado, reservaId, { medio, monto, jugador = null, concepto, auth = null }, ahora) {
   const r = reserva(estado, reservaId);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  if (auth) { const a = autorizar(estado, auth, "cobrar", false); if (!a.ok) return a; }
   if (!MEDIOS[medio]) return { ok: false, motivo: "Elegí cómo paga." };
   const importe = Math.round(Number(monto));
   if (!(importe > 0)) return { ok: false, motivo: "El monto tiene que ser mayor a cero." };
@@ -670,15 +670,20 @@ export function registrarPago(estado, reservaId, { medio, monto, jugador = null,
   r.pagos.push({ medio, monto: importe, jugador, ...sello(ahora) });
   if (esSena && cobrado(r) >= r.sena.monto) r.sena.pagada = true;
   if (medio !== "monedero") movimientoCaja(estado, { tipo: "ingreso", medio, monto: importe, concepto: concepto ?? `${esSena ? "Seña" : "Cancha"} ${r.titular}`, reservaId }, ahora);
-  if (jugador != null && r.jugadores[jugador]) r.jugadores[jugador].pagado = (r.jugadores[jugador].pagado ?? 0) + importe;
+  // Un pago sin jugador (la seña) es del titular: no vuelve a pagar su parte.
+  const quienPago = jugador != null ? jugador : indiceTitular(r);
+  if (r.jugadores[quienPago]) r.jugadores[quienPago].pagado = (r.jugadores[quienPago].pagado ?? 0) + importe;
   registrar(estado, `Cobro de cancha ${pesos(importe)} (${MEDIOS[medio]}) — ${r.titular}.`, ahora);
   return { ok: true, saldo: saldo(r) };
 }
 
-/**
- * Partes de la cancha por jugador. Lo que queda por cobrar se reparte entre los que no pagaron; si alguien está
- * «a cargo de» otro jugador, su parte la paga ese otro (la suya más la del que invita).
- */
+/** El lugar del titular entre los jugadores (el de su ficha; si no, el primero). */
+function indiceTitular(r) {
+  const i = r.clienteId ? r.jugadores.findIndex((j) => j.clienteId === r.clienteId) : -1;
+  return i >= 0 ? i : 0;
+}
+
+/** Partes de la cancha por jugador; la de quien está «a cargo de» otro la paga ese otro. */
 export function partesCancha(r) {
   const pago = (j) => Boolean(j.pagado) || j.pagadoPor != null;
   const libres = r.jugadores.map((j, i) => (pago(j) ? -1 : i)).filter((i) => i >= 0);
@@ -718,7 +723,7 @@ export function asignarCargoCancha(estado, reservaId, deIdx, aIdx, ahora) {
 }
 
 /** Cobra la parte de un jugador (con las de los que tiene a cargo) y marca pagados a todos. */
-export function cobrarParte(estado, reservaId, idx, { medio }, ahora) {
+export function cobrarParte(estado, reservaId, idx, { medio, auth = null }, ahora) {
   const r = reserva(estado, reservaId);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
   const partes = partesCancha(r);
@@ -727,7 +732,7 @@ export function cobrarParte(estado, reservaId, idx, { medio }, ahora) {
   const cubiertos = partes.map((x, i) => (x.aCargoDe === idx ? i : -1)).filter((i) => i >= 0);
   const quien = r.jugadores[idx].nombre;
   const concepto = cubiertos.length ? `Cancha ${r.titular} — ${quien} paga también por ${cubiertos.map((i) => r.jugadores[i].nombre).join(", ")}` : undefined;
-  const res = registrarPago(estado, reservaId, { medio, monto: p.aPagar, jugador: idx, ...(concepto && { concepto }) }, ahora);
+  const res = registrarPago(estado, reservaId, { medio, monto: p.aPagar, jugador: idx, auth, ...(concepto && { concepto }) }, ahora);
   if (!res.ok) return res;
   for (const i of cubiertos) r.jugadores[i].pagadoPor = idx;
   return { ...res, monto: p.aPagar, cubiertos: cubiertos.map((i) => r.jugadores[i].nombre) };
@@ -829,11 +834,9 @@ export function consumoJugador(estado, reservaId, jugadorIdx, productoId, cant, 
   return { ok: true, cuenta: abierta.cuenta };
 }
 
-/**
- * Suma o resta unidades de un cargo ya cargado (uno de más, uno de menos, se equivocaron de producto). Lo que
- * vuelve, vuelve al stock. Nunca deja la cuenta por debajo de lo que ya se pagó.
- */
-export function ajustarCargo(estado, cuentaId, itemIdx, delta, ahora) {
+/** Suma o resta unidades de un cargo; lo que se resta vuelve al stock. Nunca por debajo de lo pagado. */
+export function ajustarCargo(estado, cuentaId, itemIdx, delta, ahora, auth = null) {
+  if (auth) { const a = autorizar(estado, auth, "buffet", false); if (!a.ok) return a; }
   const cta = cuenta(estado, cuentaId);
   if (!cta || cta.estado !== "abierta") return { ok: false, motivo: "Esa cuenta no está abierta." };
   const item = cta.items[itemIdx];
@@ -856,11 +859,9 @@ export function ajustarCargo(estado, cuentaId, itemIdx, delta, ahora) {
   return { ok: true, cuenta: cta };
 }
 
-/**
- * Pasa un cargo (o parte de sus unidades) a la cuenta de otra persona: la mesa compleja se reparte como
- * quieran, cargo por cargo. Lo que ya está pagado en la cuenta de origen no puede quedar sin respaldo.
- */
-export function transferirCargo(estado, deCuentaId, itemIdx, aCuentaId, cant, ahora) {
+/** Pasa un cargo (o parte) a otra cuenta: la mesa compleja se reparte cargo por cargo. */
+export function transferirCargo(estado, deCuentaId, itemIdx, aCuentaId, cant, ahora, auth = null) {
+  if (auth) { const a = autorizar(estado, auth, "buffet", false); if (!a.ok) return a; }
   const de = cuenta(estado, deCuentaId);
   const a = cuenta(estado, aCuentaId);
   if (!de || de.estado !== "abierta" || !a || a.estado !== "abierta") return { ok: false, motivo: "Las dos cuentas tienen que estar abiertas." };
@@ -879,10 +880,7 @@ export function transferirCargo(estado, deCuentaId, itemIdx, aCuentaId, cant, ah
   return { ok: true };
 }
 
-/**
- * Cargo manual para la excepción (mesa compleja, un precio especial, algo que no está en la lista). Un monto
- * negativo es un descuento: sólo el dueño, con su PIN, y nunca deja la cuenta por debajo de lo pagado.
- */
+/** Cargo manual para la excepción. Negativo = descuento: sólo el dueño con su PIN. */
 export function cargoManual(estado, cuentaId, { concepto, monto }, auth, ahora) {
   const cta = cuenta(estado, cuentaId);
   if (!cta || cta.estado !== "abierta") return { ok: false, motivo: "Esa cuenta no está abierta." };
@@ -1016,9 +1014,11 @@ export function finalizar(estado, id, { aCuenta = false } = {}, ahora) {
  * con ficha; la parte de los que no tienen ficha queda a cargo del titular). Lo pagado (la seña) se
  * descuenta. El cargo va a la cuenta corriente aunque no esté habilitada: es una deuda, no un fiado.
  */
-export function marcarNoShow(estado, id, { cobrarA = "titular" } = {}, ahora) {
+export function marcarNoShow(estado, id, { cobrarA = "titular", auth = null } = {}, ahora) {
   const r = reserva(estado, id);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  // Perdonar una falta lo decide un dueño (validado acá, no sólo en pantalla).
+  if (cobrarA === "nadie") { const a = autorizar(estado, auth ?? {}, "configurar", false); if (!a.ok) return { ok: false, motivo: "Una falta sin cargo la decide un dueño." }; }
   if (r.estado !== "reservada") return { ok: false, motivo: "Sólo un turno reservado puede quedar como falta." };
   if (ahora && minutosHasta(ahora, r.fecha, r.inicio) > -estado.config.politica.toleranciaMin)
     return { ok: false, motivo: `Todavía está dentro de la tolerancia: la falta se marca a los ${estado.config.politica.toleranciaMin} min del inicio.` };
@@ -1291,8 +1291,16 @@ export function egresoCaja(estado, { monto, concepto, usuarioId, pin }, ahora) {
   return { ok: true };
 }
 
+/** ¿Ya se cerró la caja de ese día? */
+export const cajaCerrada = (estado, dia) => estado.caja.cierres.some((c) => c.dia === dia);
+/** La caja donde entra lo que se cobra ahora: la del día o, si ya se cerró, la siguiente. */
+export function cajaAbierta(estado, ahora) {
+  let dia = diaDeCaja(estado, ahora.fecha, ahora.min);
+  while (cajaCerrada(estado, dia)) dia = sumarDias(dia, 1);
+  return dia;
+}
 export function resumenCaja(estado, dia) {
-  const movs = estado.caja.movimientos.filter((m) => !dia || (m.fecha && diaDeCaja(estado, m.fecha, m.min ?? 0) === dia));
+  const movs = estado.caja.movimientos.filter((m) => !dia || (m.caja ?? (m.fecha && diaDeCaja(estado, m.fecha, m.min ?? 0))) === dia);
   const porMedio = Object.fromEntries(MEDIOS_DE_CAJA.map((k) => [k, 0]));
   let ingresos = 0, egresos = 0;
   for (const m of movs) {
@@ -1308,7 +1316,8 @@ export function resumenCaja(estado, dia) {
 export function cerrarCaja(estado, { contado, usuarioId, pin }, ahora) {
   const a = autorizar(estado, { usuarioId, pin }, "cerrarCaja", true);
   if (!a.ok) return a;
-  const dia = diaDeCaja(estado, ahora.fecha, ahora.min);
+  const dia = cajaAbierta(estado, ahora);
+  if (dia !== diaDeCaja(estado, ahora.fecha, ahora.min)) return { ok: false, motivo: "La caja de hoy ya está cerrada. Lo que se cobre desde ahora entra en la caja de mañana." };
   const r = resumenCaja(estado, dia);
   const n = Math.round(Number(contado));
   if (contado === "" || contado == null || !(n >= 0)) return { ok: false, motivo: "Contá el efectivo del cajón y cargalo." };
@@ -1330,13 +1339,11 @@ export function buscarProductos(estado, texto, { soloVendibles = false } = {}) {
 export function productoPorCodigo(estado, codigo) {
   const c = String(codigo ?? "").trim();
   if (!c) return { ok: false, motivo: "No llegó ningún código." };
-  // El lector lee el código de barras del fabricante (externo); a mano se tipea el interno. Sirven los dos.
   const p = estado.productos.find((x) => x.activo !== false && (mismoCodigo(c, x.codigo) || mismoCodigo(c, x.codigoExterno)));
   return p ? { ok: true, producto: p } : { ok: false, motivo: `El código ${c} no está cargado en ningún producto.` };
 }
 
-/** Un código (interno o de fabricación) no puede repetirse en otro producto, ni cruzado entre los dos campos. */
-// Los códigos se comparan sin distinguir mayúsculas (el interno se tipea a mano: «bp-001» es «BP-001»).
+// Sin distinguir mayúsculas: «bp-001» es «BP-001».
 const mismoCodigo = (a, b) => String(a ?? "").trim() !== "" && String(a ?? "").trim().toUpperCase() === String(b ?? "").trim().toUpperCase();
 function codigoUsado(estado, codigo, salvoId = null) {
   return estado.productos.some((x) => x.id !== salvoId && (mismoCodigo(codigo, x.codigo) || mismoCodigo(codigo, x.codigoExterno)));
@@ -1362,7 +1369,6 @@ export function editarProducto(estado, productoId, cambios, auth, ahora) {
   if (!p) return { ok: false, motivo: "No encuentro el producto." };
   if (cambios.precio != null && !(Number(cambios.precio) > 0)) return { ok: false, motivo: "El precio tiene que ser mayor a cero." };
   if (cambios.costo != null && !(Number(cambios.costo) >= 0)) return { ok: false, motivo: "El costo no puede ser negativo." };
-  // Primero se valida todo y recién después se graba: un rechazo no deja cambios a medias.
   const codigos = {};
   for (const k of ["codigo", "codigoExterno"]) {
     if (cambios[k] == null) continue;
@@ -1500,17 +1506,14 @@ export function metricasPlatos(estado, { desde, hasta }) {
   return { filas: filas.map((x) => ({ ...x, participacion: total ? x.facturado / total : 0 })), total, dias: dias.size };
 }
 
-/** Precio sugerido desde el costo y el markup (% sobre costo), redondeado a $50 como se cobra en el mostrador. */
+/** Precio desde el costo y el % sobre costo, redondeado a $50. */
 export function precioDesdeMarkup(costo, markupPct) {
   const c = Number(costo), m = Number(markupPct);
   if (!(c > 0) || !Number.isFinite(m) || m <= -100) return null;
   return Math.max(50, Math.round((c * (1 + m / 100)) / 50) * 50);
 }
 
-/**
- * Pricing y revenue por producto: margen y markup de lista, y lo vendido en el período (unidades, facturado,
- * costo y ganancia bruta). Todo lo cargado a cuentas (incluida la venta de mostrador) cuenta como venta.
- */
+/** Pricing y revenue por producto: margen, markup y lo vendido en el período. */
 export function rentabilidad(estado, { desde, hasta } = {}) {
   const ventas = new Map();
   for (const cta of estado.cuentas) {

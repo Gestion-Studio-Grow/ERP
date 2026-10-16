@@ -73,6 +73,19 @@ console.log("\n▶ gestión del club sola (sin turnero)");
   await p.waitForTimeout(2500);
   check(await p.locator("#bp-turnero").count() === 0, "sin turnero abierto, el club es la demo de siempre (no se conecta a nada)");
   check(/Martín Ríos|Julieta Acosta/.test(await p.textContent("#app")), "con su agenda de ejemplo de siempre");
+  // UAT del orquestador #5: el club ya tiene cosas cargadas y RECIÉN después se abre el turnero en la misma PC. El
+  // turnero tiene que arrancar desde lo del club, no pisárselo con una demo nueva.
+  await p.click('button[data-a="nuevo"]:has-text("+ Turno")');
+  await p.waitForSelector("#f-hora");
+  await p.fill("#f-titular", "Cargado antes del turnero");
+  await p.click('button[data-a="confirmarTurno"]');
+  await p.waitForTimeout(300);
+  if (await p.evaluate(() => document.getElementById("dlg").open)) await p.click('#dlg [data-a="cerrar"]');
+  const t = vigilar(await solo.newPage(), "turnero-despues");
+  await t.goto(`${BASE}/turnero`);
+  await p.waitForFunction(() => /en vivo/.test(document.querySelector("#bp-conexion")?.textContent ?? ""), null, { timeout: 10000 }).catch(() => {});
+  await p.waitForTimeout(500);
+  check(/en vivo/.test(await p.textContent("#bp-conexion").catch(() => "")) && (await p.textContent("#app")).includes("Cargado antes del turnero"), "abrir el turnero después no le borra al club lo que ya había cargado (UAT #5)");
   await solo.close();
 }
 

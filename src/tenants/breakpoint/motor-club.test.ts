@@ -483,8 +483,9 @@ test("cancha a cargo de otro con créditos: descuenta los créditos del que paga
   assert.match(M.cobrarParte(e, r.id, 1, { medio: "monedero" }, ahora(9)).motivo, /créditos|alcanza/i);
   assert.equal(M.cliente(e, "b").monedero, 10000);
   assert.equal(M.cliente(e, "a").monedero ?? 0, 0);
-  // Con un turno más barato (sólo la parte de Ana más la suya, ya cobrado el resto) los créditos son de Beto.
-  M.registrarPago(e, r.id, { medio: "efectivo", monto: r.precio - 8000 }, ahora(9));
+  // Con un turno más barato (8.000 entre los dos) alcanzan los créditos, y salen de los de Beto. (Un pago en el
+  // mostrador sin elegir jugador ya no sirve para armar esto: queda acreditado a la titular, Ana.)
+  r.precio = 8000;
   const res = M.cobrarParte(e, r.id, 1, { medio: "monedero" }, ahora(9));
   assert.ok(res.ok);
   assert.equal(res.monto, 8000);
@@ -614,4 +615,57 @@ test("bloqueo por inactividad: lo configura el dueño, entre 0 y 60 minutos", ()
   assert.equal(e.config.bloqueoMin, 10);
   assert.match(M.ajustarBloqueo(e, 10, RECEP).motivo, /permiso/);
   assert.match(M.ajustarBloqueo(e, 90, DUENO).motivo, /Entre/);
+});
+
+// ── UAT del orquestador (16/10): caja con un solo cierre, seña acreditada al titular, falta sin cargo del dueño ──
+
+test("caja: se cierra una sola vez por día; lo que entra después va a la caja siguiente y no cambia la cerrada", () => {
+  const e = club();
+  const r = turno(e, "c1", 20, { clienteId: "a" });
+  M.registrarPago(e, r.id, { medio: "efectivo", monto: 10000 }, ahora(20));
+  const cierre = M.cerrarCaja(e, { contado: 10000 + e.caja.fondo, ...RECEP }, ahora(23));
+  assert.ok(cierre.ok);
+  assert.match(M.cerrarCaja(e, { contado: 0, ...RECEP }, ahora(23, 30)).motivo, /ya está cerrada/);
+  const dia = cierre.cierre.dia;
+  const antes = M.resumenCaja(e, dia).ingresos;
+  M.registrarPago(e, r.id, { medio: "efectivo", monto: 5000 }, ahora(23, 40)); // después del cierre, el mismo día de caja
+  assert.equal(M.resumenCaja(e, dia).ingresos, antes, "la caja cerrada no cambia");
+  const siguiente = M.cajaAbierta(e, ahora(23, 40));
+  assert.notEqual(siguiente, dia);
+  assert.equal(M.resumenCaja(e, siguiente).ingresos, 5000, "la venta entra en la caja siguiente");
+});
+
+test("seña: lo que paga el titular (sin elegir jugador) se le acredita; no vuelve a pagar su parte", () => {
+  const e = club();
+  const r = turno(e, "c1", 20, { clienteId: "a", jugadores: [{ nombre: "Ana", clienteId: "a" }, "Beto", "Caro", "Dani"] });
+  M.registrarPago(e, r.id, { medio: "transferencia", monto: r.precio / 2 }, ahora(10)); // la seña la pagó Ana
+  const partes = M.partesCancha(r);
+  assert.equal(partes[0].aPagar, 0, "Ana ya pagó (la seña)");
+  assert.deepEqual(partes.slice(1).map((p: any) => p.aPagar), [r.precio / 6, r.precio / 6, r.precio / 6].map(Math.round));
+  assert.equal(partes.reduce((s: number, p: any) => s + p.aPagar, 0), M.saldo(r), "las partes suman lo que falta cobrar");
+});
+
+test("falta sin cargo: el motor exige un dueño (no alcanza con ocultar el botón)", () => {
+  const e = club();
+  const r = turno(e, "c1", 20, { clienteId: "a" });
+  const tarde = ahora(20, 30);
+  assert.match(M.marcarNoShow(e, r.id, { cobrarA: "nadie" }, tarde).motivo, /dueño/);
+  assert.match(M.marcarNoShow(e, r.id, { cobrarA: "nadie", auth: RECEP }, tarde).motivo, /dueño/);
+  assert.equal(r.estado, "reservada", "no quedó marcada");
+  assert.ok(M.marcarNoShow(e, r.id, { cobrarA: "nadie", auth: DUENO }, tarde).ok);
+  assert.equal(r.estado, "no_show");
+});
+
+test("cobros, ajustes y pases desde el puesto validan el usuario en el motor", () => {
+  const e = club();
+  const r = turno(e, "c1", 20, { clienteId: "a" });
+  const intruso = { usuarioId: "nadie", pin: "00" };
+  assert.match(M.registrarPago(e, r.id, { medio: "efectivo", monto: 1000, auth: intruso }, ahora(20)).motivo, /quién/);
+  assert.ok(M.registrarPago(e, r.id, { medio: "efectivo", monto: 1000, auth: RECEP }, ahora(20)).ok);
+  const { cuenta: c } = M.abrirCuenta(e, { clienteId: "a" }, ahora(20));
+  const { cuenta: d } = M.abrirCuenta(e, { clienteId: "b" }, ahora(20));
+  M.cargarEnCuenta(e, c.id, "p2", 2, ahora(20));
+  assert.equal(M.ajustarCargo(e, c.id, 0, -1, ahora(20), intruso).ok, false);
+  assert.equal(M.transferirCargo(e, c.id, 0, d.id, 1, ahora(20), intruso).ok, false);
+  assert.ok(M.ajustarCargo(e, c.id, 0, -1, ahora(20), RECEP).ok);
 });

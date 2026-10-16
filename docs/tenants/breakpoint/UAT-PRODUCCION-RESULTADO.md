@@ -130,3 +130,20 @@ Capturas en `uat-prod/b01…b07`.
 - **D42 · baja:** con una ventana abierta, la tecla L no bloqueaba (los atajos se apagan con una ventana abierta). Bloquear es de seguridad: ahora L anda aunque haya una ventana abierta, salvo mientras se escribe en un campo o con la búsqueda (Ctrl K) abierta. Ojo: con el foco en un botón de una ventana, una L cierra esa ventana y lo cargado sin guardar se pierde (es a propósito: quien bloquea se va del puesto). Figura en la ayuda de atajos (?).
 
 — Elaborado por GSG
+
+## Pedidos del UAT del orquestador (16/10) — rama `ccr-breakpoint-uat-orquestador`, sin publicar
+
+| # | Pedido | Estado |
+|---|---|---|
+| 1 | Cierre de caja sin candado | **Arreglado.** Una caja se cierra una sola vez; lo que se cobra después del cierre entra en la caja siguiente y la cerrada no cambia (`cajaAbierta`, `cajaCerrada`). |
+| 2 | La seña no se le acreditaba a quien la pagó | **Arreglado.** Un pago sin jugador elegido (la seña) es del titular: no vuelve a pagar su parte y las partes suman exacto lo que falta. |
+| 3 | PIN a la vista y sin tope de intentos | **Arreglado en lo que es de la demo.** Los PIN de ejemplo se ven sólo si se piden («¿Probando la demo?»); el cambio de usuario tiene el mismo tope que el bloqueo (5 → 30 s). **Queda:** recargar saltea el bloqueo porque la demo no tiene login; es de la operación real (post-venta). |
+| 4 | Controles de plata sólo en pantalla | **Arreglado.** La falta sin cargo exige un dueño en el motor; cobrar, sumar/restar y pasar cargos validan al usuario en el motor cuando vienen del puesto. El turnero (seña por WhatsApp) sigue entrando sin usuario del club. |
+| 5 | Abrir el turnero en la PC del mostrador pisaba lo del club | **Arreglado.** Si el turnero arranca sin ninguna demo previa, sigue desde lo que ya cargó el club (el club ofrece su estado como semilla). E2E nuevo. |
+| 6 | Aviso de demo en `/club` | **Ya estaba:** franja superior «Demo de la gestión del club · datos de ejemplo · no se guarda nada». |
+| 7 | `sitio.e2e.mjs` dependía de la hora real | **Ya estaba resuelto** (D36): busca un hueco libre en los dos lados y, de noche, pasa a mañana. Pasó corrido a las 22 y a la 1 (hora argentina). |
+
+Verificado: 154/154 tests (club, turnero, sitio estático), E2E 112/112 (JS comprimido 59,9 KB < 60 KB),
+`test:club-uat` 43/43, eslint sin errores.
+
+— Elaborado por GSG

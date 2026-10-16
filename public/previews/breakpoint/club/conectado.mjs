@@ -27,9 +27,11 @@ function transporteHttp(api) {
 }
 
 /** Transporte "bus": la demo pública, contra la pestaña del turnero que hace de servidor. Responde como fetch. */
-async function transporteBus() {
+async function transporteBus(puente) {
   const { unirseAlBus } = await import("../turnero/bus.mjs");
-  const bus = unirseAlBus({ soloCliente: true }); // el club nunca hace de servidor: sin turnero, demo de siempre
+  // El club nunca hace de servidor (sin turnero, demo de siempre). Si el turnero arranca sin ninguna demo previa, sigue
+  // desde lo que ya cargó el club en vez de pisárselo (UAT del orquestador #5).
+  const bus = unirseAlBus({ soloCliente: true, fotoLocal: () => ({ semilla: true, turnero: { estado: structuredClone(puente.E) } }) });
   if (!bus) return null;
   return {
     hayServidor: () => bus.hayServidor(),
@@ -46,7 +48,7 @@ async function transporteBus() {
  * pestaña del mismo navegador; recién ahí se conecta (y desde entonces, en vivo).
  */
 export async function conectarCuandoHayaTurnero(puente) {
-  const tr = await transporteBus();
+  const tr = await transporteBus(puente);
   if (!tr) return false; // navegador sin BroadcastChannel/Web Locks: demo suelta
   await tr.hayServidor();
   await conectar(puente, "bus", tr);
@@ -56,7 +58,7 @@ export async function conectarCuandoHayaTurnero(puente) {
 export async function conectar(puente, api, transporte) {
   M = puente.M;
   const bus = api === "bus";
-  const tr = transporte ?? (bus ? await transporteBus() : transporteHttp(api));
+  const tr = transporte ?? (bus ? await transporteBus(puente) : transporteHttp(api));
   if (!tr) return;
   const f = tr.pedir;
   const puesto = `p${azar()}`;

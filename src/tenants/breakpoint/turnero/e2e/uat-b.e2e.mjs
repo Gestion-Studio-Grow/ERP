@@ -99,7 +99,8 @@ const filaRober = p.locator("#app tr", { hasText: "Rober" });
 ok("1.4", (await filaRober.locator('[data-a="revocar"]').count()) === 0 && (await p.locator('[data-a="revocar"]').count()) >= 1, "el dueño no tiene «Sacar acceso» en su propia fila (sí en las demás)");
 // 1.2 pedir acceso → otorgar → entrar → revocar
 await p.click('[data-a="usuario"]'); await W();
-await p.click("details summary"); await p.fill("#nuevo-acceso", "Prueba UAT"); await p.click('[data-a="pedirAcceso"]'); await W(300);
+ok("1.pines", !(await p.isVisible("#dlg .demo-pins p")), "los PIN de ejemplo no están a la vista: se ven sólo si se piden");
+await p.click("details:has(#nuevo-acceso) summary"); await p.fill("#nuevo-acceso", "Prueba UAT"); await p.click('[data-a="pedirAcceso"]'); await W(300);
 await entrarComo("u-rober", "11"); await irTab("ajustes");
 await p.locator('#app .al', { hasText: "Prueba UAT" }).locator('[data-a="otorgar"]').click(); await W();
 await p.selectOption("#og-rol", "recepcion"); await p.fill("#og-pin", "11"); await p.click('#dlg [data-a="confirmarOtorgar"]'); await W(300);
