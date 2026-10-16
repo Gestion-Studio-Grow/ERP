@@ -353,3 +353,41 @@ export function cuandoDelPedido(dia: string, hora: string, hoy: string, ayer: st
   if (dia === ayer) return "ayer";
   return diaCorto;
 }
+
+// ── AVISO DE PEDIDO NUEVO (UAT MAGRA 16/10) ─────────────────────────────────────────────────
+// El pedido de la tienda entraba y la bandeja abierta no se enteraba: `placeOnlineOrder` sólo
+// revalida, y eso le sirve a la PRÓXIMA carga, no a la pantalla que el local tiene abierta. La
+// bandeja se refresca sola cada tanto (sólo a la vista y sin interrumpir a quien está cargando
+// algo) y avisa los pedidos de la tienda que no estaban en la vuelta anterior.
+
+/** Cada cuánto se refresca la bandeja abierta. Un pedido online se ve en menos de un minuto. */
+export const REFRESCO_DE_LA_BANDEJA_MS = 45_000;
+
+export type PedidoWeb = { id: string; code: number };
+
+/**
+ * Los pedidos de la tienda que no estaban en la vuelta anterior. PURA. `vistos` null es la
+ * primera carga de la pantalla: lo que ya estaba no es «nuevo» (no suena al entrar).
+ */
+export function pedidosWebNuevos(vistos: ReadonlySet<string> | null, actuales: readonly PedidoWeb[]): PedidoWeb[] {
+  if (vistos === null) return [];
+  return actuales.filter((p) => !vistos.has(p.id)).sort((a, b) => a.code - b.code);
+}
+
+/** Lo que dice el aviso: «Entró un pedido nuevo de la tienda: #128». */
+export function textoDePedidosWebNuevos(nuevos: readonly PedidoWeb[]): string | null {
+  if (nuevos.length === 0) return null;
+  const numeros = nuevos.map((p) => `#${p.code}`);
+  if (numeros.length === 1) return `Entró un pedido nuevo de la tienda: ${numeros[0]}`;
+  const lista = `${numeros.slice(0, -1).join(", ")} y ${numeros[numeros.length - 1]}`;
+  return `Entraron ${numeros.length} pedidos nuevos de la tienda: ${lista}`;
+}
+
+/**
+ * ¿Se refresca ahora? PURA. No con la pestaña escondida (nadie la mira: no se le pega a la base
+ * por nada), ni con alguien escribiendo en un campo o con un diálogo abierto (pesar, anular): el
+ * refresco no le cambia la pantalla bajo los dedos. Se reintenta en la vuelta siguiente.
+ */
+export function puedeRefrescarLaBandeja(estado: { visible: boolean; escribiendo: boolean; dialogoAbierto: boolean }): boolean {
+  return estado.visible && !estado.escribiendo && !estado.dialogoAbierto;
+}

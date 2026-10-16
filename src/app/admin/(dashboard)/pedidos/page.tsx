@@ -41,6 +41,7 @@ import { enInicioPorApps } from "../inicio/piloto";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { roleHasCapability } from "@/lib/capabilities";
 import TableroPedidos from "./TableroPedidos";
+import AvisoDePedidosNuevos from "./AvisoDePedidosNuevos";
 import { armarTablero, leerAvisados } from "./tablero.server";
 import { LineaDeEstado, Plata } from "@/components/ui";
 import { lineaDelTablero } from "./pedidos-core";
@@ -96,6 +97,11 @@ export default async function PedidosPage() {
   // entrega en un punto de encuentro (rubros.ts `entrega`). Lo mismo que ve el tablero nuevo.
   const entrega = entregaDelRubro(identidad.rubro);
   const vocab = vocabularioDelNegocio(identidad.rubro);
+  // El aviso de pedido nuevo (refresco solo + «bip»), sólo en el negocio que vende por kilo
+  // (UAT MAGRA 16/10). La bandeja de CH, y la de todo comercio que no pesa, queda como estaba.
+  const avisoDePedidos = comercio && vocab.porPeso
+    ? <AvisoDePedidosNuevos pedidosWeb={abiertos.filter((o) => o.channel === "ONLINE").map((o) => ({ id: o.id, code: o.code }))} />
+    : null;
 
   // Los servicios del mostrador crean un TURNO, así que se ofrecen sólo a quien puede
   // gestionar agenda (OWNER y RECEPCIÓN), y sólo en un negocio de servicios: en un comercio la
@@ -238,6 +244,7 @@ export default async function PedidosPage() {
           )}
         </header>
 
+        {avisoDePedidos}
         <TableroPedidos
           abiertos={tablero.abiertos}
           cerrados={tablero.cerrados}
@@ -315,6 +322,7 @@ export default async function PedidosPage() {
         </>
       )}
 
+      {avisoDePedidos && <div className="mt-10">{avisoDePedidos}</div>}
       <h2 className="text-lg font-medium mt-10 mb-3">
         Bandeja de pedidos{abiertos.length > 0 && ` (${abiertos.length} abierto${abiertos.length !== 1 ? "s" : ""})`}
       </h2>

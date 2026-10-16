@@ -178,3 +178,37 @@ test("el aviso de un paso dice cómo quedó el pedido", () => {
   assert.equal(quedoElPedido("Preparar", 478), "El pedido #478 quedó en preparación.");
   assert.equal(quedoElPedido("Marcar listo", 477), "El pedido #477 quedó listo.");
 });
+
+// ── Aviso de pedido nuevo (UAT MAGRA 16/10) ─────────────────────────────────
+
+import { pedidosWebNuevos, textoDePedidosWebNuevos, puedeRefrescarLaBandeja, REFRESCO_DE_LA_BANDEJA_MS } from "./pedidos-core";
+
+test("al abrir la bandeja lo que ya estaba no es «nuevo»: no avisa ni suena al entrar", () => {
+  assert.deepEqual(pedidosWebNuevos(null, [{ id: "a", code: 10 }]), []);
+});
+
+test("en la vuelta siguiente avisa sólo los pedidos de la tienda que no estaban, por número", () => {
+  const vistos = new Set(["a"]);
+  assert.deepEqual(pedidosWebNuevos(vistos, [{ id: "c", code: 12 }, { id: "a", code: 10 }, { id: "b", code: 11 }]), [
+    { id: "b", code: 11 },
+    { id: "c", code: 12 },
+  ]);
+  assert.deepEqual(pedidosWebNuevos(new Set(["a", "b"]), [{ id: "a", code: 10 }]), [], "uno que se cerró no es nuevo");
+});
+
+test("el aviso dice el número del pedido nuevo, o cuántos y cuáles", () => {
+  assert.equal(textoDePedidosWebNuevos([]), null);
+  assert.equal(textoDePedidosWebNuevos([{ id: "b", code: 128 }]), "Entró un pedido nuevo de la tienda: #128");
+  assert.equal(
+    textoDePedidosWebNuevos([{ id: "b", code: 128 }, { id: "c", code: 129 }, { id: "d", code: 130 }]),
+    "Entraron 3 pedidos nuevos de la tienda: #128, #129 y #130",
+  );
+});
+
+test("la bandeja se refresca entre 30 y 60 s, sólo a la vista y sin interrumpir a quien escribe o tiene un diálogo", () => {
+  assert.ok(REFRESCO_DE_LA_BANDEJA_MS >= 30_000 && REFRESCO_DE_LA_BANDEJA_MS <= 60_000);
+  assert.equal(puedeRefrescarLaBandeja({ visible: true, escribiendo: false, dialogoAbierto: false }), true);
+  assert.equal(puedeRefrescarLaBandeja({ visible: false, escribiendo: false, dialogoAbierto: false }), false, "pestaña escondida: no se le pega a la base");
+  assert.equal(puedeRefrescarLaBandeja({ visible: true, escribiendo: true, dialogoAbierto: false }), false);
+  assert.equal(puedeRefrescarLaBandeja({ visible: true, escribiendo: false, dialogoAbierto: true }), false);
+});

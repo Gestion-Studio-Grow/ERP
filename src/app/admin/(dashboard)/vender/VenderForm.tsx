@@ -116,6 +116,13 @@ type Line = { key: number; productId: string; qtyText: string };
 
 /** La preferencia del teclado grande en este navegador (sólo comodidad: si falta, cerrado). */
 const PREF_TECLADO = "vender:teclado-grande";
+function prefiereTeclado(): boolean {
+  try {
+    return window.localStorage.getItem(PREF_TECLADO) === "1";
+  } catch {
+    return false;
+  }
+}
 
 /**
  * La pregunta del peso implausible, con sus dos respuestas (UAT MAGRA 16/10). Mientras está
@@ -331,17 +338,8 @@ function FormularioVender({
   // Quien lo abre una vez lo encuentra abierto en el próximo corte por kilo (preferencia de este
   // navegador; si el almacenamiento no anda, arranca cerrado y nada más).
   const [tecladoDe, setTecladoDe] = useState<number | null>(null);
-  const [prefiereTeclado, setPrefiereTeclado] = useState(false);
-  useEffect(() => {
-    try {
-      setPrefiereTeclado(window.localStorage.getItem(PREF_TECLADO) === "1");
-    } catch {
-      // sin almacenamiento: el teclado arranca cerrado
-    }
-  }, []);
   function usarTeclado(key: number | null) {
     setTecladoDe(key);
-    setPrefiereTeclado(key !== null);
     try {
       window.localStorage.setItem(PREF_TECLADO, key !== null ? "1" : "0");
     } catch {
@@ -471,7 +469,7 @@ function FormularioVender({
     const key = vacia ? vacia.key : addLine(productId);
     if (vacia) setLine(key, { productId, qtyText });
     else if (qtyText) setLine(key, { qtyText });
-    if (nuevo && prefiereTeclado && byId.get(productId)?.saleUnit === "WEIGHT") setTecladoDe(key);
+    if (nuevo && prefiereTeclado() && byId.get(productId)?.saleUnit === "WEIGHT") setTecladoDe(key);
     pedirFoco(`qty-${key}`);
   }
 
