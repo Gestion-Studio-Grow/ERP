@@ -1811,7 +1811,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.getByRole("option", { name: /Vacío/ }).first().click();
     await page.locator("#qty-1").fill("2");
     await page.getByPlaceholder("Nombre y apellido").fill("María Pérez");
-    await page.getByPlaceholder("Ej.: cortar en milanesas, sin grasa").fill("en bifes");
+    await page.locator("input[name=notes]").fill("en bifes");
     await page.evaluate(() => {
       (window as unknown as Ventana).__respuestaPerdida = true;
     });
@@ -1819,7 +1819,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
     await page.getByText("No se pudo registrar el pedido. Revisá la conexión").first().waitFor();
     assert.equal(await page.getByPlaceholder("Nombre y apellido").inputValue(), "María Pérez");
-    assert.equal(await page.getByPlaceholder("Ej.: cortar en milanesas, sin grasa").inputValue(), "en bifes");
+    assert.equal(await page.locator("input[name=notes]").inputValue(), "en bifes");
     assert.equal(await page.inputValue("#qty-1"), "2");
     assert.match(await page.inputValue("#prod-1"), /Vacío/);
     assert.deepEqual(errores, []);

@@ -34,6 +34,7 @@ const PATRON = new RegExp(
 );
 
 const PANTALLA = "pantalla del rediseño: va después de su corte (D1-PLAN §6.0)";
+const INMOBILIARIA = "módulo inmobiliaria (PDC en producción): pasa a @/lib/dinero/redondeo en su propio corte, con sus tests de plata";
 const SIN_COMMIT = "archivo con cambios sin commit de otra sesión: espera su corte";
 
 /**
@@ -82,6 +83,9 @@ const PENDIENTES: Record<string, string> = {
   "src/app/operador/(console)/diseno/page.tsx": "pantalla sin commit; su toFixed(2) es una razón de contraste, no plata",
   "src/components/ui/display-core.ts": "rediseño sin commit: Plata y Ticket muestran con EPSILON; pasar a textoAlCentavo (pedido en necesita_fuera de ENG-109)",
   "src/lib/fiscal/decidir-comprobante.ts": "núcleo aprobado sin commit (fiscal): la coherencia con el envío la asegura validarComprobante; parche propuesto en .qa/ENG-109/decidir-comprobante.diff",
+  "src/app/admin/(dashboard)/inmobiliaria/alquileres/[id]/page.tsx": INMOBILIARIA,
+  "src/app/admin/(dashboard)/inmobiliaria/liquidaciones/page.tsx": INMOBILIARIA,
+  "src/lib/inmobiliaria/core.ts": INMOBILIARIA,
   "src/plugins/bancos/domain/reglas.ts": "plugin: la clave de conciliación usa toFixed(2); extender DEC-011 a bancos sin cambiar el formato de la clave",
 };
 

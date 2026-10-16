@@ -66,7 +66,9 @@ describe("El sitio de la estética en el celular: todo lo que se toca mide 44 px
     const html = renderToStaticMarkup(h(BookingProvider, null, h(Header, { brandName: "Estética DEMO" })));
     // La función del gate mide igual en la PC: ahí el botón sigue en 37 px de alto, como hoy en CH.
     const chicos = await chicosEn(html, { width: 1280, height: 900 });
-    assert.deepEqual(chicos, ["Reservar 94×37"]);
+    // El ancho depende de las fuentes instaladas en la máquina (94 px en una, 91 en otra): se mide el alto.
+    assert.equal(chicos.length, 1, chicos.join("\n"));
+    assert.match(chicos[0], /^Reservar \d+×37$/);
   });
 
   test("/reserva: los desplegables del formulario miden 44 px en el celular", async (t) => {
