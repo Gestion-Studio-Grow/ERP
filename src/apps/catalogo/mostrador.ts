@@ -101,4 +101,22 @@ export const APPS_MOSTRADOR = [
     },
     palabras: ["lector", "codigo de barras", "escaner", "balanza", "super", "supermercado", "caja rapida", "ticket", "cobrar"],
   },
+  {
+    // El perfil de ESTE equipo (PC kiosco, tablet de recepción, celular): ancho del ticket, lector,
+    // sonido y vibración. Es del equipo y de la persona, no del negocio (src/lib/terminal/perfil-core.ts).
+    // Módulo propio (`terminal`, depende de `pos`): nadie lo recibe por defecto y CH no lo ve ni por
+    // URL (moduloDuro), como Vender. Va en Configuración: se ajusta una vez por equipo.
+    id: "terminal",
+    nombre: "Este equipo",
+    descripcion: "Cómo trabaja esta computadora, tablet o celular: el ticket, el lector y los avisos.",
+    icono: "ajustes",
+    ruta: "/admin/ajustes/terminal",
+    espacio: "administracion",
+    // Lo ajusta quien cobra en ese equipo: la misma capability que Vender.
+    capability: "orders:manage",
+    modulo: "terminal",
+    moduloDuro: true,
+    estado: "lista",
+    palabras: ["terminal", "equipo", "impresora", "ticket", "lector", "kiosco", "tablet", "celular", "sonido", "vibracion"],
+  },
 ] as const satisfies readonly AppDescriptor[];

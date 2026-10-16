@@ -469,3 +469,17 @@ test("M7 y M5: lo que falta con un producto fuera del catálogo no se ofrece; lo
   );
   assert.match(avisoDeGrabadaAhoraPorOtroTotal({ code: 7, esPedido: true, mandado: 1, grabado: 2 }), /^El pedido #7 se registró recién ahora/);
 });
+
+test("equipo compartido: la clave es del negocio, no de la persona, para que quien entra después SE ENTERE de la duda (sin ver lo cargado)", () => {
+  // Plan de terminales T-1 (2026-10-16): se evaluó sumar el usuario a la clave y se descartó. Con
+  // la clave por persona, la segunda cajera no vería el aviso y podría cobrar dos veces la misma
+  // venta. Lo que sí es de cada persona es el CONTENIDO: a otra sólo le llega «de otra persona».
+  assert.equal(claveDelAlmacen("magra"), "gsg:vender:cobro-sin-confirmar:magra");
+  const a = almacenFalso();
+  guardarCobroSinConfirmar(a, "magra", { ...enDuda, cargado: { ...enDuda.cargado, telefono: "11 4000 0000", nombre: "María Pérez" } });
+  const otra = leerCobroSinConfirmar(a, "magra", { ...CAJERA, usuario: "u-otra" });
+  assert.deepEqual(otra, { tipo: "de-otra-persona", desde: enDuda.desde });
+  assert.doesNotMatch(JSON.stringify(otra), /María|4000|p_vacio/, "a la otra persona no le llega nada de lo cargado");
+  // La que la dejó la recupera entera.
+  assert.equal(leerCobroSinConfirmar(a, "magra", CAJERA)?.tipo, "propia");
+});

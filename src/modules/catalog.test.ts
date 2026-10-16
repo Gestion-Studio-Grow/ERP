@@ -8,6 +8,9 @@ import { resolverActivacion } from "./activation";
 import { moduleRegistryEnabled } from "./flags";
 import { arcaModule, arcaManifest } from "@/plugins/arca/module";
 import { toLegacyPluginManifest } from "./contract";
+import { BLUEPRINT_IDS } from "@/blueprints";
+import { RETAIL_RUBROS } from "@/blueprints/retail/rubros";
+import { defaultModulesForBlueprint } from "@/blueprints/presets-meta";
 
 test("el catálogo real se construye y valida estricto (fail-closed no dispara)", () => {
   assert.doesNotThrow(() => construirCatalogo());
@@ -70,4 +73,28 @@ test("flag MODULE_REGISTRY_ENABLED: default OFF, se prende con valores esperados
   assert.equal(moduleRegistryEnabled({ MODULE_REGISTRY_ENABLED: "1" }), true);
   assert.equal(moduleRegistryEnabled({ MODULE_REGISTRY_ENABLED: "true" }), true);
   assert.equal(moduleRegistryEnabled({ MODULE_REGISTRY_ENABLED: "on" }), true);
+});
+
+test("terminal (equipos del mostrador) depende de pos: sin pos no se activa, con pos sí", () => {
+  const r = construirCatalogo();
+  const terminal = r.get("terminal");
+  assert.equal(terminal.kind, "capability");
+  assert.equal(terminal.capability, "orders:manage");
+  assert.deepEqual(terminal.dependencias, [{ id: "pos", rango: "^1.0" }]);
+  assert.deepEqual(terminal.migraciones ?? [], [], "el perfil vive en el equipo: sin migraciones");
+
+  const sinPos = resolverActivacion({ tenantId: "t", blueprintId: "carniceria", modules: ["catalog", "terminal"] }, r);
+  assert.ok(sinPos.dependenciasFaltantes.some((x) => x.id === "terminal"));
+  assert.ok(!sinPos.activos.some((d) => d.id === "terminal"));
+
+  const conPos = resolverActivacion({ tenantId: "t", blueprintId: "carniceria", modules: ["pos", "catalog", "terminal"] }, r);
+  assert.ok(conPos.activos.some((d) => d.id === "terminal"));
+});
+
+test("terminal no entra a nadie por defecto: ni núcleo de un producto ni módulo de fábrica de un rubro", () => {
+  // Compatible con todos los rubros ≠ asignado a todos (ADR-055, DX-6): lo asigna el dueño.
+  assert.equal(construirCatalogo().get("terminal").nucleoPara, undefined);
+  for (const rubro of [null, ...BLUEPRINT_IDS, ...Object.keys(RETAIL_RUBROS)]) {
+    assert.ok(!defaultModulesForBlueprint(rubro).includes("terminal"), `${rubro} trae terminal de fábrica`);
+  }
 });
