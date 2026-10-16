@@ -44,9 +44,14 @@ function initialsOf(name: string): string {
 // Título neutro (antes heredaba "CH Estética…" del layout raíz → se filtraba la
 // marca de CH a la pestaña del panel de CUALQUIER tenant, p. ej. Magra). Y el
 // backoffice no debe indexarse.
+// `manifest`: el panel se puede instalar ("Agregar a la pantalla de inicio") con el nombre y el
+// color de ESTE negocio, resuelto por host. Vive en /api porque el navegador lo baja sin cookies
+// y bajo /admin el portón de sesión lo mandaría al login (src/app/api/pwa/admin.webmanifest/route.ts).
+// Taller conserva el suyo en su página (la metadata más específica gana). Sin service worker.
 export const metadata: Metadata = {
   title: "Panel de gestión",
   robots: { index: false, follow: false },
+  manifest: "/api/pwa/admin.webmanifest",
 };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
