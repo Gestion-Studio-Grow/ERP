@@ -281,6 +281,20 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
   desde el día 1; el servidor es sólo transporte (HTTP, firma, cookies). Se prueba el modo local en el E2E.
 - **Refs:** `docs/metodologia/demo-publica-costo-cero.md`; `docs/tenants/breakpoint/TURNERO-PLAN.md §13`; TURNERO-QA D12.
 
+**[DX-9] Un lector que "tipea" mientras el cobro anterior todavía no volvió**
+- **Síntoma:** el Gate de las terminales de mostrador (16/10/2026) encontró que en `/vender`, con la ráfaga del lector
+  activa, un código leído mientras el cobro anterior esperaba respuesta sonaba "ok", se sumaba al ticket y `limpiar()`
+  lo borraba al volver el cobro: el producto se entregaba sin cobrar.
+- **Causa raíz:** el guardarraíl miraba sólo los estados de cobro "en duda" (sin respuesta / ya grabada), no el envío
+  **en vuelo**. La caja con lector no lo tenía porque bloquea con `cobrando`.
+- **Fix:** `motivoParaNoSumar` (puro, testeado, `src/lib/terminal/lector-core.ts`) y una marca de punta a punta con
+  `try/finally` en el submit: durante el cobro, lo que pasa el lector se rechaza con «Esperá que termine el cobro».
+- **Lección:** una entrada de datos que no espera al usuario (lector, balanza, ráfaga) tiene que conocer **todos** los
+  estados de la pantalla, incluido el envío en vuelo; si no, el próximo cliente entra al ticket del anterior.
+- **Guardarraíl:** toda entrada automática al ticket pasa por una función pura que recibe el estado del cobro
+  (`en vuelo | en duda | libre`) y se testea el caso "leer durante el cobro" antes de integrarla.
+- **Refs:** `docs/producto/PLAN-TERMINALES-MOSTRADOR.md` (T-2); commit `222ad87c`.
+
 ## MP — Metodología / Proceso
 
 **[MP-1] Archivos corrompidos al editar**
