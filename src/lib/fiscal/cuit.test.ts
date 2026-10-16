@@ -103,3 +103,14 @@ test("formatearCuit", () => {
   assert.equal(formatearCuit("123"), null);
   assert.equal(formatearCuit(null), null);
 });
+
+test("CUIT con prefijo 50, 51 o 55: vale, pero su clase queda a confirmar (no se la da por empresa ni por persona)", () => {
+  for (const cuit of ["50000000016", "51-12345678-9", "55111111110"]) {
+    const r = validarCuit(cuit);
+    assert.equal(r.ok, true, cuit);
+    assert.equal(r.ok && r.persona, "a_confirmar", cuit);
+  }
+  // Con el verificador cambiado, el error es el del verificador (el prefijo existe).
+  const r = validarCuit("50000000017");
+  assert.equal(r.ok === false && r.error, "DIGITO_VERIFICADOR");
+});

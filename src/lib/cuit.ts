@@ -16,11 +16,43 @@
 /** Pesos del módulo 11 para los primeros 10 dígitos del CUIT/CUIL. */
 const PESOS = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
 
+/** Qué clase de sujeto indica el prefijo de un CUIT/CUIL. */
+export type ClaseDePrefijo = "humana" | "juridica" | "a_confirmar";
+
 /**
- * Prefijos de tipo emitidos por ARCA/ANSES: 20/23/24/25/26/27 (personas),
- * 30/33/34 (personas jurídicas). Cualquier otro prefijo no es un CUIT real.
+ * Prefijos de tipo emitidos por ARCA/ANSES, con la clase de sujeto que indican:
+ *   · 20/23/24/25/26/27 → persona humana;
+ *   · 30/33/34 → persona jurídica;
+ *   · 50/51/55 (UAT 16/10, punto 9) → se aceptan para el dígito verificador (mismo módulo 11),
+ *     pero su CLASE es PROVISIONAL A CONFIRMAR: no se pudo sostener con una fuente pública de ARCA
+ *     (el sitio de ARCA no fue accesible desde el entorno el 16/10/2026; las fuentes halladas son
+ *     de terceros). Hasta confirmarla, nadie decide nada por la clase de estos prefijos
+ *     (docs/agent/BACKLOG.md, UAT-CONTADOR-9).
+ * Cualquier otro prefijo no es un CUIT real.
  */
-const PREFIJOS_VALIDOS = new Set(["20", "23", "24", "25", "26", "27", "30", "33", "34"]);
+const CLASE_POR_PREFIJO: Readonly<Record<string, ClaseDePrefijo>> = {
+  "20": "humana",
+  "23": "humana",
+  "24": "humana",
+  "25": "humana",
+  "26": "humana",
+  "27": "humana",
+  "30": "juridica",
+  "33": "juridica",
+  "34": "juridica",
+  "50": "a_confirmar",
+  "51": "a_confirmar",
+  "55": "a_confirmar",
+};
+const PREFIJOS_VALIDOS = new Set(Object.keys(CLASE_POR_PREFIJO));
+
+/**
+ * La clase de sujeto que indica el prefijo (`null` si el prefijo no es de un CUIT). No valida el
+ * dígito verificador: se usa sobre un número que ya pasó `cuitValido`.
+ */
+export function claseDelPrefijo(v: string | number): ClaseDePrefijo | null {
+  return CLASE_POR_PREFIJO[normalizarCuit(v).slice(0, 2)] ?? null;
+}
 
 /** Deja solo los dígitos (tolera "20-11111111-2", espacios, puntos). */
 export function normalizarCuit(v: string | number): string {

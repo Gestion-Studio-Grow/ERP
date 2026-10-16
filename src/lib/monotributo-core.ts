@@ -34,12 +34,24 @@ export interface TablaMonotributo {
 }
 
 /**
- * Categorías vigentes de agosto de 2026 a enero de 2027 (actualización semestral por IPC, +16,85 %
- * sobre la tabla de agosto de 2025). Relevada el 26/09/2026 de iProfesional, Perfil, fiscal.com.ar
- * y canal26 (julio de 2026), que reproducen el cuadro de ARCA. Control hecho el 26/09/2026: las 11
- * letras guardan el mismo factor (1,335477) sobre el cuadro oficial de agosto de 2025, o sea que no
- * hay un tope mal tipeado. PROVISIONAL A CONFIRMAR contra el cuadro oficial (el sitio de ARCA no
- * fue accesible desde el entorno): https://www.afip.gob.ar/monotributo/categorias.asp
+ * Categorías vigentes de agosto de 2026 a enero de 2027, relevadas el 26/09/2026 de iProfesional,
+ * Perfil, fiscal.com.ar y canal26 (julio de 2026), que reproducen el cuadro de ARCA.
+ *
+ * QUÉ HACE EL CÓDIGO: nada se calcula. Los 11 topes de abajo son importes literales copiados de esas
+ * publicaciones; ningún porcentaje ni factor se aplica en ninguna parte del sistema.
+ *
+ * Los dos números que se citaban acá miden cosas distintas (UAT 16/10, punto 8):
+ *   · 1,335477 es un CONTROL hecho el 26/09/2026: cada tope de abajo dividido por el de la misma
+ *     letra del cuadro de agosto de 2025 da ese mismo factor en las 11 letras (A: 12.009.410,45 /
+ *     1,335477 ≈ 8.992.600). Sirve para saber que no hay un tope mal tipeado. Abarca DOS
+ *     actualizaciones semestrales (febrero y agosto de 2026), no una sola.
+ *   · «+16,85 %» es lo que la prensa informó como actualización por IPC de agosto de 2026. Sobre
+ *     agosto de 2025 contradice el control (1,1685 ≠ 1,335477); sólo cierra si es sobre el cuadro de
+ *     febrero de 2026, que no está cargado acá (implicaría +14,29 % en febrero de 2026).
+ *     A CONFIRMAR CON LA FUENTE OFICIAL DE ARCA (docs/agent/BACKLOG.md, UAT-CONTADOR-8).
+ *
+ * PROVISIONAL A CONFIRMAR contra el cuadro oficial (el sitio de ARCA no fue accesible desde el
+ * entorno ni el 26/09 ni el 16/10/2026): https://www.afip.gob.ar/monotributo/categorias.asp
  */
 export const TABLA_VIGENTE: TablaMonotributo = {
   vigenciaDesde: "2026-08-01",
@@ -503,4 +515,15 @@ export function ordenarMonotributo(filas: readonly FilaMonotributo[]): FilaMonot
 /** ¿La tabla cubre el día de hoy? Si no, la pantalla avisa que puede estar desactualizada. */
 export function tablaVigenteEn(hoy: string, tabla: TablaMonotributo = cuadroParaHoy(hoy)): boolean {
   return hoy >= tabla.vigenciaDesde && hoy <= tabla.vigenciaHasta;
+}
+
+/**
+ * ¿Falta cargar un cuadro de categorías para medir hoy? `true` si ningún cuadro cargado cubre el
+ * día, o si la recategorización está en curso y el cuadro con el que ARCA recategoriza no está
+ * cargado. Es lo que la ficha usa para ofrecer «Pedir a Soporte GSG el cuadro». PURA.
+ */
+export function faltaCuadroDeMonotributo(hoy: string, cuadros: readonly TablaMonotributo[] = CUADROS_MONOTRIBUTO): boolean {
+  if (!cuadroVigenteEn(hoy, cuadros)) return true;
+  const rec = proximaRecategorizacion(hoy);
+  return rec.enCurso && cuadroDeLaRecategorizacion(rec, cuadros) == null;
 }

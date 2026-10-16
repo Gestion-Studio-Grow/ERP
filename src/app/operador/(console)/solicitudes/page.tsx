@@ -5,6 +5,7 @@ import { requireSesionOperador } from "@/lib/operator-session";
 import { Bloque, Franja, Renglon } from "@/components/ui/Renglon";
 import { NOMBRE_CONDICION_IVA, NOMBRE_TAMANIO } from "@/lib/cartera-alta-reglas";
 import { listarSolicitudesPendientes } from "./configurador.server";
+import { contarPedidosDeCartera } from "../pedidos-cartera/pedidos-cartera.server";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,11 @@ export default async function SolicitudesPage({ searchParams }: { searchParams: 
   await requireSesionOperador();
   const { desde: crudo } = await searchParams;
   const desde = typeof crudo === "string" && crudo.length > 0 && crudo.length <= 64 ? crudo : null;
-  const { pedidos, total, siguiente } = await listarSolicitudesPendientes(operatorPrisma, { desde });
+  const [{ pedidos, total, siguiente }, pedidosSobreClientes] = await Promise.all([
+    listarSolicitudesPendientes(operatorPrisma, { desde }),
+    // El aviso de los pedidos de las contadoras: si falla la cuenta, la bandeja de altas igual carga.
+    contarPedidosDeCartera(operatorPrisma).catch(() => null),
+  ]);
   const fmt = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", hourCycle: "h23", timeZone: "America/Argentina/Buenos_Aires" });
 
   return (
@@ -34,9 +39,18 @@ export default async function SolicitudesPage({ searchParams }: { searchParams: 
             Altas de clientes nuevos
           </Link>
           <Link href="/operador/pedidos-cartera" className="inline-flex h-11 items-center rounded-md px-3 text-sm font-medium text-strong underline-offset-4 hover:underline aria-[current=page]:bg-surface-2">
-            Pedidos sobre un cliente
+            Pedidos sobre un cliente{pedidosSobreClientes ? ` (${pedidosSobreClientes} sin resolver)` : ""}
           </Link>
         </nav>
+        {pedidosSobreClientes ? (
+          <Franja tono="atencion">
+            Hay {pedidosSobreClientes === 1 ? "1 pedido de una contadora" : `${pedidosSobreClientes} pedidos de contadoras`} sobre
+            un cliente esperando.{" "}
+            <Link href="/operador/pedidos-cartera" className={LINK_PAGINA}>
+              Ver los pedidos
+            </Link>
+          </Franja>
+        ) : null}
       </header>
       {total === 0 ? (
         <Franja>No hay pedidos pendientes.</Franja>

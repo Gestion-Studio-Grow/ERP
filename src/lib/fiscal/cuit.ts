@@ -14,7 +14,7 @@
  * PURO, sin dependencias de framework.
  */
 
-import { cuitValido, normalizarCuit } from "@/lib/cuit";
+import { claseDelPrefijo, cuitValido, normalizarCuit, type ClaseDePrefijo } from "@/lib/cuit";
 
 export { cuitValido, normalizarCuit };
 
@@ -33,8 +33,12 @@ export type ResultadoCuit =
       cuit: string;
       /** `XX-XXXXXXXX-X`, como figura en la constancia. */
       formateado: string;
-      /** 20/23/24/27… = persona humana; 30/33/34 = persona jurídica (empresa). */
-      persona: "humana" | "juridica";
+      /**
+       * 20/23/24/27… = persona humana; 30/33/34 = persona jurídica (empresa); 50/51/55 =
+       * «a_confirmar» (clase provisional, ver `@/lib/cuit`): quien decide algo por la clase la
+       * trata como desconocida.
+       */
+      persona: ClaseDePrefijo;
     }
   | { ok: false; error: ErrorCuit; motivo: string };
 
@@ -88,7 +92,7 @@ export function validarCuit(
       ok: true,
       cuit,
       formateado: formatearCuit(cuit)!,
-      persona: cuit.startsWith("3") ? "juridica" : "humana",
+      persona: claseDelPrefijo(cuit) ?? "a_confirmar",
     };
   }
 

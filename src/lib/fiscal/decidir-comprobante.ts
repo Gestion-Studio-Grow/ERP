@@ -678,7 +678,8 @@ export function decidirComprobante(
       if (v.ok) {
         docTipo = tipo;
         docNro = Number(v.cuit);
-        personaReceptor = v.persona;
+        // Una clase provisional (prefijos 50/51/55) cuenta como desconocida: no dispara reglas.
+        personaReceptor = v.persona === "a_confirmar" ? null : v.persona;
         if (cuitEmisor && v.cuit === cuitEmisor) {
           agregar({
             codigo: "FACTURA_A_SI_MISMO",
