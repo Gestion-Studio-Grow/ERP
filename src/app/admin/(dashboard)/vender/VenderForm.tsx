@@ -63,8 +63,8 @@ import { textoDelFaltante, type Faltante } from "@/lib/reintento-de-venta";
 import { round2 } from "@/lib/round";
 import TicketVenta from "./TicketVenta";
 import { usePerfilSiHayTerminal, type TerminalDelEquipo } from "@/lib/terminal/usar-perfil";
-import { enCampoEditable } from "@/lib/terminal/lector-core";
-import { useLectorDeRafaga } from "@/lib/terminal/usar-lector";
+import { enCampoDeTexto, enCampoEditable, esCampoDeCantidad, motivoParaNoSumar } from "@/lib/terminal/lector-core";
+import { useLectorDeRafaga, type OrigenDeLaLectura } from "@/lib/terminal/usar-lector";
 import { avisar } from "@/lib/terminal/senal";
 import { indexarPorCodigo, resolverCodigo } from "@/lib/supermercado/lectura";
 import FacturarVenta from "../ventas/FacturarVenta";
@@ -294,6 +294,8 @@ function FormularioVender({
   const [manuales, setManuales] = useState<LineaManual[]>(inicial.manuales);
   const [nextKey, setNextKey] = useState(inicial.nextKey);
   const ticketKey = useRef(arranque?.clave ?? "");
+  // El cobro está en vuelo (se mandó y no volvió): el lector no suma nada hasta que termine.
+  const cobrandoAhora = useRef(false);
 
   // Opcionales, cerrados hasta que alguien los abre (ninguno suma un paso al camino feliz).
   const [conCliente, setConCliente] = useState(k?.conCliente ?? false);
@@ -452,12 +454,23 @@ function FormularioVender({
 
   // Un código leído: se suma la línea como desde el buscador. Por unidad entra 1 (o suma 1 a la
   // línea que ya tiene ese producto) y el foco NO se mueve, así el próximo código también se lee;
-  // por peso, el cursor va al peso (lo da la balanza, como con el buscador). Con un cobro en duda
-  // no se toca el ticket: primero se resuelve el cobro.
-  function agregarLeido(codigo: string) {
+  // por peso, el cursor va al peso (lo da la balanza, como con el buscador). Si el lector escribió
+  // adentro del peso o la cantidad de una línea (el foco había quedado ahí), ese campo vuelve a lo
+  // que tenía: eran los números del código, no un peso. Con el cobro en vuelo o en duda no se toca
+  // el ticket (`motivoParaNoSumar`): lo sumado se borraría al limpiar y se entregaría sin cobrar.
+  function agregarLeido(codigo: string, origen: OrigenDeLaLectura) {
     if (!indiceDeCodigos) return;
-    if (sinRespuesta || yaGrabada) {
-      errorDelLector("Hay un cobro sin confirmar: resolvelo antes de sumar productos con el lector.");
+    let base = lines;
+    const campo = origen.objetivo;
+    if (campo instanceof HTMLInputElement && esCampoDeCantidad(campo) && /^qty-\d+$/.test(campo.id)) {
+      const key = Number(campo.id.slice(4));
+      const qtyText = origen.antes ?? "";
+      setLine(key, { qtyText });
+      base = lines.map((l) => (l.key === key ? { ...l, qtyText } : l));
+    }
+    const motivo = motivoParaNoSumar({ cobrando: cobrandoAhora.current, cobroEnDuda: sinRespuesta !== null || yaGrabada !== null });
+    if (motivo) {
+      errorDelLector(motivo);
       return;
     }
     const r = resolverCodigo(codigo, indiceDeCodigos, null, null);
@@ -470,12 +483,12 @@ function FormularioVender({
       elegirRapido(p.id);
       setAvisoLector({ tono: "ok", texto: `Entró ${p.name}: cargá el peso.` });
     } else {
-      const misma = lines.find((l) => l.productId === p.id);
+      const misma = base.find((l) => l.productId === p.id);
       const actual = misma ? leerCantidad(misma.qtyText) : null;
       if (misma && (actual?.estado === "vacio" || (actual?.estado === "ok" && Number.isInteger(actual.valor)))) {
         setLine(misma.key, { qtyText: String((actual?.estado === "ok" ? actual.valor : 0) + 1) });
       } else {
-        const vacia = lines.find((l) => !l.productId);
+        const vacia = base.find((l) => !l.productId);
         if (vacia) setLine(vacia.key, { productId: p.id, qtyText: "1" });
         else setLine(addLine(p.id), { qtyText: "1" });
       }
@@ -486,8 +499,12 @@ function FormularioVender({
 
   useLectorDeRafaga({
     lector: perfil?.lector ?? null,
-    // Fuera de un campo y sin un diálogo abierto: dentro de un campo, el teclado es de la persona.
-    acepta: (e) => !enCampoEditable(e.target as HTMLElement | null) && !document.querySelector("dialog[open]"),
+    // Fuera de un campo de texto (una casilla o un medio de pago tocado no cuentan) o en el peso o
+    // la cantidad de una línea, y sin un diálogo abierto. En el buscador, el teclado es de la persona.
+    acepta: (e) => {
+      const t = e.target as HTMLElement | null;
+      return (!enCampoDeTexto(t) || esCampoDeCantidad(t)) && !document.querySelector("dialog[open]");
+    },
     alLeer: agregarLeido,
   });
 
@@ -745,7 +762,18 @@ function FormularioVender({
     }
   }
 
+  // El cobro en vuelo se marca de punta a punta (también si falla o tira): mientras tanto, lo que
+  // pase el lector se rechaza en vez de sumarse a un ticket que `limpiar()` va a borrar.
   async function submit(fd: FormData) {
+    cobrandoAhora.current = true;
+    try {
+      await enviarCobro(fd);
+    } finally {
+      cobrandoAhora.current = false;
+    }
+  }
+
+  async function enviarCobro(fd: FormData) {
     // Sin señal no se manda: el envío quedaría colgado y el cajero no sabría qué pasó.
     if (antesDeCobrar(navigator.onLine)) {
       setFalla({ tipo: "sin-senal" });
@@ -2005,6 +2033,9 @@ function FormularioVender({
                     }}
                     disabled={!p}
                     aria-invalid={falta || l.invalida ? true : undefined}
+                    // Con el lector (módulo `terminal`): marca el campo para que una ráfaga que cae
+                    // acá se lea como código y el campo vuelva a su valor. Sin el módulo, como siempre.
+                    data-tipo={conLector ? (esPeso ? "peso" : "cantidad") : undefined}
                     className="pr-8 text-right tabular-nums"
                   />
                   <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-faint">

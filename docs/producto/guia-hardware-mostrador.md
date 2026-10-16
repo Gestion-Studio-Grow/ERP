@@ -2,7 +2,7 @@
 
 **Para quién es:** para el comercial que la lleva a la reunión y para el dueño del local que tiene que
 salir a comprar. No hace falta saber de computación: elegí tu perfil, imprimí la lista y tildá.
-**Fase:** T-7 del plan `docs/producto/PLAN-TERMINALES-MOSTRADOR.md` (§5). **Fecha:** 2026-10-16.
+**Fecha:** 2026-10-16.
 
 > **Antes de leer los precios:** son **de referencia, en dólares, provisionales a confirmar** el día que
 > compres (cambian todas las semanas). Las marcas que aparecen son **ejemplos**, no obligación: sirve

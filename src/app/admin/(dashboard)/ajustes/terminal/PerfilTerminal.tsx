@@ -199,9 +199,13 @@ export default function PerfilTerminal({
         </div>
       </Bloque>
 
-      <Bloque titulo="Pantalla para arrancar">
+      <Bloque titulo="Atajo a tu pantalla">
         <div className="space-y-3 pt-3">
-          <Field label="Con qué pantalla trabajás en este equipo" htmlFor={`${id}-inicio`}>
+          <Field
+            label="Con qué pantalla trabajás en este equipo"
+            htmlFor={`${id}-inicio`}
+            hint="Es un atajo: el botón de abajo te lleva directo. El panel igual abre en el Inicio, como siempre."
+          >
             <Select
               id={`${id}-inicio`}
               value={inicio}

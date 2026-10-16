@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { detectorDeRafaga, enCampoEditable, quitarPrefijoSufijo, type DetectorDeRafaga, type LecturaDeRafaga } from "./lector-core";
+import { detectorDeRafaga, enCampoDeTexto, enCampoEditable, esCampoDeCantidad, motivoParaNoSumar, quitarPrefijoSufijo, type DetectorDeRafaga, type LecturaDeRafaga } from "./lector-core";
 
 const EAN = "7790895000997";
 
@@ -134,4 +134,58 @@ test("enCampoEditable: inputs, textarea, select y editable sí; botones y el cue
   assert.equal(enCampoEditable({ tagName: "BODY" }), false);
   assert.equal(enCampoEditable(null), false);
   assert.equal(enCampoEditable(undefined), false);
+});
+
+test("ráfaga adentro del peso: devuelve lo que tenía el campo ANTES de empezar", () => {
+  const d = detectorDeRafaga({ lector: { prefijo: "", sufijo: "enter" } });
+  // Una persona tipeó "1,2" despacio (cada tecla ve el valor de antes de escribirse)…
+  let campo = "";
+  let t = 1000;
+  for (const c of "1,2") {
+    d.tecla(c, (t += 200), false, campo);
+    campo += c;
+  }
+  // …y después pasa el lector con el foco ahí: el campo se va llenando con el código.
+  t += 500;
+  let r: LecturaDeRafaga = null;
+  for (const c of EAN) {
+    r = d.tecla(c, (t += 8), false, campo) ?? r;
+    campo += c;
+  }
+  r = d.tecla("Enter", t + 8, false, campo);
+  assert.deepEqual(r, { tipo: "codigo", valor: EAN, antes: "1,2" });
+});
+
+test("sin valor del campo (fuera de un campo) la lectura no trae `antes`", () => {
+  const d = detectorDeRafaga({ lector: { prefijo: "", sufijo: "ninguno" } });
+  const { t } = teclear(d, EAN, null, 10);
+  assert.deepEqual(d.vencer(t + 100), { tipo: "codigo", valor: EAN });
+});
+
+test("enCampoDeTexto: casillas, opciones y botones no son campo para el lector; los de texto sí", () => {
+  for (const type of ["checkbox", "radio", "button", "submit", "RESET"]) assert.equal(enCampoDeTexto({ tagName: "INPUT", type }), false, type);
+  for (const type of ["text", "search", "tel", "email", "number", undefined]) assert.equal(enCampoDeTexto({ tagName: "INPUT", type }), true, String(type));
+  assert.equal(enCampoDeTexto({ tagName: "TEXTAREA" }), true);
+  assert.equal(enCampoDeTexto({ tagName: "SELECT" }), true);
+  assert.equal(enCampoDeTexto({ tagName: "DIV", isContentEditable: true }), true);
+  assert.equal(enCampoDeTexto({ tagName: "BUTTON" }), false);
+  assert.equal(enCampoDeTexto(null), false);
+  // Los atajos siguen con la regla de siempre: cualquier INPUT es campo.
+  assert.equal(enCampoEditable({ tagName: "INPUT", type: "radio" }), true);
+});
+
+test("esCampoDeCantidad: sólo los inputs marcados como peso o cantidad", () => {
+  assert.equal(esCampoDeCantidad({ tagName: "INPUT", dataset: { tipo: "peso" } }), true);
+  assert.equal(esCampoDeCantidad({ tagName: "INPUT", dataset: { tipo: "cantidad" } }), true);
+  assert.equal(esCampoDeCantidad({ tagName: "INPUT", dataset: { tipo: "plata" } }), false);
+  assert.equal(esCampoDeCantidad({ tagName: "INPUT", dataset: {} }), false);
+  assert.equal(esCampoDeCantidad({ tagName: "SPAN", dataset: { tipo: "peso" } }), false);
+  assert.equal(esCampoDeCantidad(null), false);
+});
+
+test("motivoParaNoSumar: con el cobro en vuelo o en duda el lector no suma", () => {
+  assert.match(motivoParaNoSumar({ cobrando: true, cobroEnDuda: false }) ?? "", /Esperá que termine el cobro/);
+  assert.match(motivoParaNoSumar({ cobrando: false, cobroEnDuda: true }) ?? "", /cobro sin confirmar/);
+  assert.match(motivoParaNoSumar({ cobrando: true, cobroEnDuda: true }) ?? "", /Esperá que termine el cobro/);
+  assert.equal(motivoParaNoSumar({ cobrando: false, cobroEnDuda: false }), null);
 });

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { requireApp } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { appPermitida } from "@/apps/visibles";
@@ -8,6 +9,12 @@ import type { PantallaDeInicio } from "@/lib/terminal/perfil-core";
 import PerfilTerminal, { type OpcionDePantalla } from "./PerfilTerminal";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Este equipo",
+  // Sello GSG (estándar de marca): el tenant conserva SU marca visible; GSG firma como generador.
+  generator: "Gestión Studio Grow",
+};
 
 // Las pantallas con las que puede arrancar un equipo, cada una con la app que la abre.
 const PANTALLAS: { ruta: PantallaDeInicio; app: AppId }[] = [

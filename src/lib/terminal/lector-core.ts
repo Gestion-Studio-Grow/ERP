@@ -57,15 +57,22 @@ function esFinDeLectura(tecla: string, sufijo: SufijoDelLector): boolean {
   return (sufijo === "enter" && tecla === "Enter") || (sufijo === "tab" && tecla === "Tab");
 }
 
-export type LecturaDeRafaga = { tipo: "codigo"; valor: string } | null;
+/**
+ * Lo que leyó el lector. `antes`: lo que tenía el campo donde cayó la ráfaga ANTES de que
+ * empezara (si quien llama lo pasó): un lector que escribió adentro del peso o la cantidad deja
+ * el campo como estaba.
+ */
+export type LecturaDeRafaga = { tipo: "codigo"; valor: string; antes?: string } | null;
 
 export interface DetectorDeRafaga {
   /**
    * Una tecla, con su momento en ms. Devuelve el código si con ESTA tecla terminó una ráfaga
    * (quien llama tiene que frenar el Enter/Tab: es del lector, no de la pantalla). `repetida` =
-   * la tecla se mantiene apretada (no es un lector): corta la ráfaga.
+   * la tecla se mantiene apretada (no es un lector): corta la ráfaga. `valorDelCampo`: lo que
+   * tiene el campo donde cae la tecla, ANTES de escribirla (keydown); se guarda el del principio
+   * de la ráfaga y vuelve en `antes`.
    */
-  tecla(tecla: string, t: number, repetida?: boolean): LecturaDeRafaga;
+  tecla(tecla: string, t: number, repetida?: boolean, valorDelCampo?: string): LecturaDeRafaga;
   /** Con sufijo "ninguno": si pasó el umbral desde la última tecla y había una ráfaga, la cierra. */
   vencer(t: number): LecturaDeRafaga;
   /** Olvida lo acumulado (la tecla cayó en un campo, se abrió un diálogo…). */
@@ -89,21 +96,25 @@ export function detectorDeRafaga({
 }): DetectorDeRafaga {
   let buffer = "";
   let ultimo = Number.NEGATIVE_INFINITY;
+  let antes: string | undefined;
 
   const reiniciar = () => {
     buffer = "";
     ultimo = Number.NEGATIVE_INFINITY;
+    antes = undefined;
   };
   const cerrar = (): LecturaDeRafaga => {
     const crudo = buffer;
+    const previo = antes;
     reiniciar();
     if (crudo.length < minLargo) return null;
     const valor = quitarPrefijoSufijo(crudo, lector);
-    return valor ? { tipo: "codigo", valor } : null;
+    if (!valor) return null;
+    return previo === undefined ? { tipo: "codigo", valor } : { tipo: "codigo", valor, antes: previo };
   };
 
   return {
-    tecla(tecla, t, repetida = false) {
+    tecla(tecla, t, repetida = false, valorDelCampo) {
       if (MODIFICADORES.has(tecla)) return null;
       if (repetida) {
         reiniciar();
@@ -120,7 +131,11 @@ export function detectorDeRafaga({
         reiniciar();
         return null;
       }
-      buffer = rapida ? buffer + tecla : tecla;
+      if (rapida) buffer += tecla;
+      else {
+        buffer = tecla;
+        antes = valorDelCampo;
+      }
       ultimo = t;
       if (buffer.length > MAX_LARGO_RAFAGA) reiniciar();
       return null;
@@ -134,7 +149,10 @@ export function detectorDeRafaga({
 }
 
 /** Lo mínimo de un elemento para saber si es un campo (los tests pasan objetos a mano). */
-export type ObjetivoDeTecla = { tagName?: string; isContentEditable?: boolean } | null | undefined;
+export type ObjetivoDeTecla =
+  | { tagName?: string; isContentEditable?: boolean; type?: string; dataset?: { tipo?: string } }
+  | null
+  | undefined;
 
 /**
  * ¿La tecla cayó en un campo de la pantalla (input, textarea, select o algo editable)? Ahí el
@@ -144,4 +162,42 @@ export type ObjetivoDeTecla = { tagName?: string; isContentEditable?: boolean } 
 export function enCampoEditable(target: ObjetivoDeTecla): boolean {
   if (!target) return false;
   return !!target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName ?? "");
+}
+
+// Inputs donde no se escribe: un toque (casilla, opción, botón). Para el LECTOR no son campos: si
+// el foco quedó en el medio de pago que se acaba de tocar, la lectura igual vale, y su Enter no
+// tiene que mandar el formulario.
+const INPUTS_SIN_TEXTO = new Set(["checkbox", "radio", "button", "submit", "reset", "image", "file", "range", "color"]);
+
+/**
+ * ¿La tecla cayó donde la persona ESCRIBE? Para el lector (no para los atajos, que siguen con
+ * `enCampoEditable`): textarea, select, algo editable y los inputs de texto. Una casilla, una
+ * opción o un botón no cuentan: ahí el lector se lee igual.
+ */
+export function enCampoDeTexto(target: ObjetivoDeTecla): boolean {
+  if (!enCampoEditable(target)) return false;
+  if (target?.tagName !== "INPUT") return true;
+  return !INPUTS_SIN_TEXTO.has((target.type ?? "text").toLowerCase());
+}
+
+/**
+ * ¿Es el campo del peso o de la cantidad de una línea (`data-tipo="peso"|"cantidad"`)? Después de
+ * sumar un producto por peso el foco queda ahí, y un lector que escribe ahí no está cargando un
+ * peso: es el próximo código. Esos campos se escuchan y, si fue una ráfaga, vuelven a su valor.
+ */
+export function esCampoDeCantidad(target: ObjetivoDeTecla): boolean {
+  if (!target || target.tagName !== "INPUT") return false;
+  const tipo = target.dataset?.tipo;
+  return tipo === "peso" || tipo === "cantidad";
+}
+
+/**
+ * Por qué el lector NO puede sumar una línea ahora, o `null` si puede. Mientras el cobro está
+ * en vuelo, lo que se sume se borraría al limpiar el ticket cobrado (y se entregaría sin cobrar);
+ * con un cobro en duda, el ticket no se toca hasta resolverlo.
+ */
+export function motivoParaNoSumar({ cobrando, cobroEnDuda }: { cobrando: boolean; cobroEnDuda: boolean }): string | null {
+  if (cobrando) return "Esperá que termine el cobro para pasar el próximo producto.";
+  if (cobroEnDuda) return "Hay un cobro sin confirmar: resolvelo antes de sumar productos con el lector.";
+  return null;
 }
