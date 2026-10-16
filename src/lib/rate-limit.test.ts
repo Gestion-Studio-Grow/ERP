@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   createRateLimiter,
+  createLoginGuard,
   loginKey,
   publicApiKey,
   clientIpFromRequest,
@@ -100,4 +101,50 @@ test("checkPublicApiRate aísla por IP", () => {
   for (let i = 0; i < PUBLIC_API_RULE.max; i++) checkPublicApiRate(ip);
   assert.notEqual(checkPublicApiRate(ip), null); // bloqueada
   assert.equal(checkPublicApiRate("203.0.113.3"), null); // otra IP libre
+});
+
+// ── Login del panel: IP + email con techos (UAT 16/10, C9) ─────────────────────────────
+
+
+const WIFI = "190.0.2.10"; // la IP pública del local: todas las empleadas salen por acá
+
+test("C9 · una empleada que se equivoca 5 veces no deja afuera a sus compañeras del mismo wifi", () => {
+  const g = createLoginGuard(() => 0);
+  for (let i = 0; i < 5; i++) g.fail(WIFI, "flor@ch.com");
+  assert.equal(g.blocked(WIFI, "flor@ch.com"), true, "Flor espera");
+  assert.equal(g.blocked(WIFI, "Recepcion@CH.com "), false, "la recepcionista entra");
+  assert.equal(g.blocked(WIFI, "duena@ch.com"), false, "la dueña entra");
+});
+
+test("C9 · el email se normaliza: mayúsculas y espacios no son una clave nueva", () => {
+  const g = createLoginGuard(() => 0);
+  for (const e of ["flor@ch.com", "FLOR@ch.com", " flor@ch.com", "Flor@Ch.Com", "flor@ch.com "]) g.fail(WIFI, e);
+  assert.equal(g.blocked(WIFI, "flor@ch.com"), true);
+});
+
+test("C9 · fuerza bruta distribuida sobre un email: cambiar de IP no da intentos infinitos", () => {
+  const g = createLoginGuard(() => 0);
+  for (let i = 0; i < 20; i++) g.fail(`203.0.113.${i}`, "duena@ch.com");
+  assert.equal(g.blocked("198.51.100.77", "duena@ch.com"), true, "una IP nueva igual está frenada para esa cuenta");
+  assert.equal(g.blocked("198.51.100.77", "otra@ch.com"), false, "otra cuenta no se traba");
+});
+
+test("C9 · desde una IP no se barre una lista de emails de a 4 intentos", () => {
+  const g = createLoginGuard(() => 0);
+  for (let i = 0; i < 30; i++) g.fail("203.0.113.5", `victima${Math.floor(i / 4)}@ch.com`);
+  assert.equal(g.blocked("203.0.113.5", "nueva@ch.com"), true);
+  assert.equal(g.blocked(WIFI, "nueva@ch.com"), false, "otra red no se ve afectada");
+});
+
+test("C9 · el login bueno limpia el par, no los techos; la ventana de 15 min libera todo", () => {
+  let t = 0;
+  const g = createLoginGuard(() => t);
+  for (let i = 0; i < 4; i++) g.fail(WIFI, "flor@ch.com");
+  g.succeed(WIFI, "flor@ch.com");
+  for (let i = 0; i < 4; i++) g.fail(WIFI, "flor@ch.com");
+  assert.equal(g.blocked(WIFI, "flor@ch.com"), false, "con el par limpio, 4 fallos nuevos no frenan");
+  for (let i = 0; i < 12; i++) g.fail(`203.0.113.${i}`, "flor@ch.com");
+  assert.equal(g.blocked(WIFI, "flor@ch.com"), true, "el techo por email (20) no se limpió con el login bueno");
+  t = 15 * 60 * 1000;
+  assert.equal(g.blocked(WIFI, "flor@ch.com"), false);
 });
