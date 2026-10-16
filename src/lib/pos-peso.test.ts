@@ -307,3 +307,33 @@ test("hayLineaPorPeso: UN criterio para el botón (textosDelAjuste) y el resulta
   // El botón dice "Pesar" exactamente cuando hay línea por peso.
   for (const c of casos) assert.equal(textosDelAjuste(c).boton === "Pesar y ajustar", hayLineaPorPeso(c));
 });
+
+// ── 7. Peso implausible: se confirma antes de cobrar (UAT MAGRA 16/10) ───────
+
+import { confirmacionDePeso, pesoPorConfirmar, motivoDePesoSinConfirmar } from "./pos-peso";
+
+test("«1500» en el peso pregunta si son 1.500 kg y ofrece corregir a 1,5 kg", () => {
+  const c = confirmacionDePeso({ valor: 1500, saleUnit: "WEIGHT" });
+  assert.ok(c);
+  assert.equal(c.confirmar, "Sí, son 1.500 kg");
+  assert.equal(c.corregir, "No, es 1,5 kg");
+  assert.equal(c.corregido, 1.5);
+  assert.match(c.pregunta, /1\.500 kg/);
+});
+
+test("un peso implausible frena el cobro hasta que se confirma ESE peso", () => {
+  assert.equal(pesoPorConfirmar({ valor: 1500, saleUnit: "WEIGHT", confirmado: null }), true);
+  assert.equal(pesoPorConfirmar({ valor: 1500, saleUnit: "WEIGHT", confirmado: 1500 }), false, "confirmado: el mayorista existe");
+  assert.equal(pesoPorConfirmar({ valor: 1300, saleUnit: "WEIGHT", confirmado: 1500 }), true, "otro peso sospechoso: se vuelve a preguntar");
+});
+
+test("un peso normal, o algo que se vende por unidad, no pide confirmación", () => {
+  assert.equal(confirmacionDePeso({ valor: 1.5, saleUnit: "WEIGHT" }), null);
+  assert.equal(pesoPorConfirmar({ valor: 1.5, saleUnit: "WEIGHT", confirmado: null }), false);
+  assert.equal(pesoPorConfirmar({ valor: 1500, saleUnit: "UNIT", confirmado: null }), false);
+  assert.equal(pesoPorConfirmar({ valor: 0, saleUnit: "WEIGHT", confirmado: null }), false);
+});
+
+test("el botón de cobrar dice de qué producto falta confirmar el peso", () => {
+  assert.equal(motivoDePesoSinConfirmar({ name: "Vacío" }), "Confirmá el peso de Vacío");
+});

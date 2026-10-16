@@ -37,6 +37,7 @@ import { Atajos } from "@/components/ui/Renglon";
 import { Kbd } from "@/components/ui/Kbd";
 import { Plata } from "@/components/ui/Plata";
 import { Icono, iconoDelMedio } from "@/components/ui/Icono";
+import { TecladoNumerico } from "@/components/ui/Teclado";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import { faltanteDeLinea, type PosStockInfo } from "@/lib/stock/pos-stock-rules";
 import { MEDIOS_DE_COBRO, leerMedioDeCobro, type MedioDeCobro } from "@/lib/caja/medio-cobro";
@@ -44,7 +45,9 @@ import type { VentaYaGrabada } from "@/lib/reintento-de-venta";
 import {
   leerCantidad,
   cantidadParaFormulario,
-  avisoDeCantidad,
+  confirmacionDePeso,
+  pesoPorConfirmar,
+  motivoDePesoSinConfirmar,
   formatearCantidad,
   importeOCero,
   importeParaFormulario,
@@ -110,6 +113,55 @@ type SellableProduct = {
 
 /** Una línea del ticket: el producto y lo TIPEADO (texto, no número: ver PosForm). */
 type Line = { key: number; productId: string; qtyText: string };
+
+/** La preferencia del teclado grande en este navegador (sólo comodidad: si falta, cerrado). */
+const PREF_TECLADO = "vender:teclado-grande";
+
+/**
+ * La pregunta del peso implausible, con sus dos respuestas (UAT MAGRA 16/10). Mientras está
+ * `pendiente`, el cobro está frenado; respondida, queda la constancia de lo confirmado.
+ */
+function ConfirmarPeso({
+  confirmacion,
+  pendiente,
+  alConfirmar,
+  alCorregir,
+  className,
+  "data-parte": parte,
+}: {
+  confirmacion: { pregunta: string; confirmar: string; corregir: string };
+  pendiente: boolean;
+  alConfirmar: () => void;
+  alCorregir: () => void;
+  className?: string;
+  "data-parte"?: string;
+}) {
+  if (!pendiente) {
+    return (
+      <p data-parte={parte} data-vender="peso-confirmado" className={cn("text-xs text-muted", className)}>
+        {confirmacion.confirmar}: confirmado.
+      </p>
+    );
+  }
+  return (
+    <div
+      role="alert"
+      data-parte={parte}
+      data-vender="confirmar-peso"
+      className={cn("grid gap-2 rounded-md border border-warning bg-warning-soft p-2 text-sm text-strong", className)}
+    >
+      <p className="font-semibold">{confirmacion.pregunta}</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className={buttonClasses("solid", "md")} onClick={alCorregir}>
+          {confirmacion.corregir}
+        </button>
+        <button type="button" className={buttonClasses("outline", "md")} onClick={alConfirmar}>
+          {confirmacion.confirmar}
+        </button>
+      </div>
+    </div>
+  );
+}
 /** Una línea con precio a mano: nombre, importe tipeado y motivo. */
 type LineaManual = { key: number; nombre: string; importeText: string; motivo: string };
 
@@ -272,6 +324,30 @@ function FormularioVender({
   const [lines, setLines] = useState<Line[]>(inicial.lines);
   const [manuales, setManuales] = useState<LineaManual[]>(inicial.manuales);
   const [nextKey, setNextKey] = useState(inicial.nextKey);
+  // El peso implausible que la persona confirmó, por línea («Sí, son 1.500 kg»): si cambia el
+  // peso, la pregunta vuelve (pesoPorConfirmar, pos-peso.ts).
+  const [pesosConfirmados, setPesosConfirmados] = useState<Record<number, number>>({});
+  // El teclado grande (guantes, etiqueta de la balanza en la mano): en qué línea está abierto.
+  // Quien lo abre una vez lo encuentra abierto en el próximo corte por kilo (preferencia de este
+  // navegador; si el almacenamiento no anda, arranca cerrado y nada más).
+  const [tecladoDe, setTecladoDe] = useState<number | null>(null);
+  const [prefiereTeclado, setPrefiereTeclado] = useState(false);
+  useEffect(() => {
+    try {
+      setPrefiereTeclado(window.localStorage.getItem(PREF_TECLADO) === "1");
+    } catch {
+      // sin almacenamiento: el teclado arranca cerrado
+    }
+  }, []);
+  function usarTeclado(key: number | null) {
+    setTecladoDe(key);
+    setPrefiereTeclado(key !== null);
+    try {
+      window.localStorage.setItem(PREF_TECLADO, key !== null ? "1" : "0");
+    } catch {
+      // sin almacenamiento: vale para esta pantalla
+    }
+  }
   const ticketKey = useRef(arranque?.clave ?? "");
 
   // Opcionales, cerrados hasta que alguien los abre (ninguno suma un paso al camino feliz).
@@ -392,14 +468,11 @@ function FormularioVender({
   function elegirRapido(productId: string) {
     const qtyText = nuevo && byId.get(productId)?.saleUnit === "UNIT" ? "1" : "";
     const vacia = lines.find((l) => !l.productId);
-    if (vacia) {
-      setLine(vacia.key, { productId, qtyText });
-      pedirFoco(`qty-${vacia.key}`);
-    } else {
-      const key = addLine(productId);
-      if (qtyText) setLine(key, { qtyText });
-      pedirFoco(`qty-${key}`);
-    }
+    const key = vacia ? vacia.key : addLine(productId);
+    if (vacia) setLine(key, { productId, qtyText });
+    else if (qtyText) setLine(key, { qtyText });
+    if (nuevo && prefiereTeclado && byId.get(productId)?.saleUnit === "WEIGHT") setTecladoDe(key);
+    pedirFoco(`qty-${key}`);
   }
 
   const leidas = useMemo(
@@ -466,6 +539,16 @@ function FormularioVender({
   // «Diseño nuevo»; en la de siempre esa línea no viajaba —no es `enviable`— y el ticket salía
   // sin ella, cobrado de menos). La regla es una sola: `lineaSinCantidad` (reglas-venta.ts).
   const lineaSinCantidad = primeraLineaSinCantidad(leidas);
+  // Un peso implausible («1500» por 1,500) frena el cobro hasta que se confirma o se corrige.
+  const confirmacionDe = (l: { productId: string; qty: number; invalida: boolean }) => {
+    const p = byId.get(l.productId);
+    return p && !l.invalida ? confirmacionDePeso({ valor: l.qty, saleUnit: p.saleUnit }) : null;
+  };
+  const sinConfirmar = (l: { key: number; productId: string; qty: number; invalida: boolean }) => {
+    const p = byId.get(l.productId);
+    return !!p && !l.invalida && pesoPorConfirmar({ valor: l.qty, saleUnit: p.saleUnit, confirmado: pesosConfirmados[l.key] });
+  };
+  const lineaConPesoSinConfirmar = leidas.find(sinConfirmar);
   // Una línea a mano abierta y a medio llenar frena el cobro: si se dejara pasar, se cobraría
   // de menos sin que nadie se entere. Vacía del todo, se ignora.
   const hayManualInvalida = manualesLeidas.some((m) => m.error !== null);
@@ -540,6 +623,8 @@ function FormularioVender({
         : "Revisá la venta cortada"
       : lineaSinCantidad
       ? motivoDeLineaSinCantidad(byId.get(lineaSinCantidad.productId))
+      : lineaConPesoSinConfirmar
+      ? motivoDePesoSinConfirmar(byId.get(lineaConPesoSinConfirmar.productId))
       : !descuento.ok
       ? "Revisá el descuento"
       : cuponSinAplicar
@@ -1398,6 +1483,7 @@ function FormularioVender({
     (hayFaltante && !reintentoDeLaMisma) ||
     hayCantidadInvalida ||
     lineaSinCantidad !== undefined ||
+    lineaConPesoSinConfirmar !== undefined ||
     hayManualInvalida ||
     faltaMedio ||
     !descuento.ok ||
@@ -1606,7 +1692,7 @@ function FormularioVender({
                 const falta = faltante?.bloquea && !reintentoDeLaMisma ? faltante : null;
                 const faltaEnDuda = faltante?.bloquea && reintentoDeLaMisma ? faltante : null;
                 const avisoStock = faltante && !faltante.bloquea ? faltante.aviso : null;
-                const avisoCant = !l.invalida ? avisoDeCantidad({ valor: l.qty, saleUnit: p.saleUnit }) : null;
+                const confirmar = confirmacionDe(l);
                 return (
                   <li key={l.key} data-vender="linea" data-sin-cantidad={l.qty > 0 ? undefined : ""}>
                     <div data-parte="que">
@@ -1674,10 +1760,36 @@ function FormularioVender({
                         {avisoStock}
                       </p>
                     )}
-                    {avisoCant && (
-                      <p data-parte="nota" className="text-xs text-warning">
-                        {avisoCant}
-                      </p>
+                    {confirmar && (
+                      <ConfirmarPeso
+                        data-parte="nota"
+                        confirmacion={confirmar}
+                        pendiente={sinConfirmar(l)}
+                        alConfirmar={() => setPesosConfirmados((c) => ({ ...c, [l.key]: l.qty }))}
+                        alCorregir={() => setLine(l.key, { qtyText: formatearCantidad(confirmar.corregido) })}
+                      />
+                    )}
+                    {esPeso && (
+                      <div data-parte="nota" data-vender="teclado-de-peso" className="grid gap-2">
+                        <button
+                          type="button"
+                          className="chip-btn h-11 justify-self-start text-sm"
+                          aria-expanded={tecladoDe === l.key}
+                          onClick={() => usarTeclado(tecladoDe === l.key ? null : l.key)}
+                        >
+                          {tecladoDe === l.key ? "Cerrar el teclado grande" : "Teclado grande"}
+                        </button>
+                        {tecladoDe === l.key && (
+                          <TecladoNumerico
+                            key={l.key}
+                            modo="peso"
+                            etiqueta={`Peso de ${p.name}`}
+                            ayuda="Los números de la etiqueta de la balanza: la coma la ponemos nosotros."
+                            inicial={l.qty > 0 ? String(Math.round(l.qty * 1000)) : ""}
+                            onCambio={(valor) => setLine(l.key, { qtyText: valor > 0 ? formatearCantidad(valor) : "" })}
+                          />
+                        )}
+                      </div>
                     )}
                     {l.qty > 0 && (
                       <>
@@ -1869,7 +1981,7 @@ function FormularioVender({
             const falta = faltante?.bloquea && !reintentoDeLaMisma ? faltante : null;
             const faltaEnDuda = faltante?.bloquea && reintentoDeLaMisma ? faltante : null;
             const avisoStock = faltante && !faltante.bloquea ? faltante.aviso : null;
-            const aviso = p && !l.invalida ? avisoDeCantidad({ valor: l.qty, saleUnit: p.saleUnit }) : null;
+            const confirmar = confirmacionDe(l);
             return (
               <div key={l.key} className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_128px_auto]">
                 <BuscadorCombo
@@ -1943,7 +2055,15 @@ function FormularioVender({
                     {avisoStock}
                   </p>
                 )}
-                {aviso && <p className="col-span-2 sm:col-span-3 text-xs text-warning">{aviso}</p>}
+                {confirmar && (
+                  <ConfirmarPeso
+                    className="col-span-2 sm:col-span-3"
+                    confirmacion={confirmar}
+                    pendiente={sinConfirmar(l)}
+                    alConfirmar={() => setPesosConfirmados((c) => ({ ...c, [l.key]: l.qty }))}
+                    alCorregir={() => setLine(l.key, { qtyText: formatearCantidad(confirmar.corregido) })}
+                  />
+                )}
                 {p && l.qty > 0 && (
                   <>
                     <input type="hidden" name="productId" value={l.productId} />

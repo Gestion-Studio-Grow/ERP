@@ -2001,6 +2001,75 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.close();
   });
 
+  // UAT MAGRA 16/10: «1500» en el peso se leía como 1500 kg con un aviso que no frenaba nada.
+  const MUCHO_VACIO = {
+    products: [{ id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", price: null, pricePerKg: 12500, unit: "kg" }],
+    stockById: { p_vacio: { stock: 5000, trackStock: true } },
+    rapidos: ["p_vacio"],
+  };
+
+  test("ticket: «1500» de peso frena el cobro y pregunta; «No, es 1,5 kg» lo corrige y se cobra 1,5 kg", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender-nuevo", 10, MUCHO_VACIO);
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1500");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    const pregunta = page.getByRole("alert").filter({ hasText: "¿Son 1.500 kg de verdad?" });
+    await pregunta.waitFor();
+    const frenado = page.getByRole("button", { name: "Confirmá el peso de Vacío" });
+    assert.equal(await frenado.isDisabled(), true, "no se cobra 1.500 kg sin responder");
+    await page.keyboard.press("F2");
+    await page.getByRole("button", { name: "No, es 1,5 kg" }).click();
+    assert.equal(await page.inputValue("#qty-1"), "1,5");
+    assert.equal(await pregunta.count(), 0);
+    await page.getByRole("button", { name: /^Cobrar \$18\.750,00/ }).click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.equal(envios.length, 1, "el F2 con la pregunta abierta no mandó nada");
+    assert.deepEqual(envios[0].quantity, ["1.5"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("ticket: «Sí, son 1.500 kg» lo deja cobrar; si después cambia a otro peso implausible, vuelve a preguntar", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender-nuevo", 10, MUCHO_VACIO);
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1500");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.getByRole("button", { name: "Sí, son 1.500 kg" }).click();
+    const cobrar = page.getByRole("button", { name: /^Cobrar \$18\.750\.000,00/ });
+    await cobrar.waitFor();
+    assert.equal(await cobrar.isEnabled(), true);
+    await page.fill("#qty-1", "1300");
+    await page.getByRole("button", { name: "Confirmá el peso de Vacío" }).waitFor();
+    await page.getByRole("button", { name: "Sí, son 1.300 kg" }).click();
+    await page.getByRole("button", { name: /^Cobrar \$16\.250\.000,00/ }).click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.deepEqual(envios[0].quantity, ["1300"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("ticket: el teclado grande carga el peso con los números de la etiqueta («1280» → 1,28 kg)", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender-nuevo", 10, MUCHO_VACIO);
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.getByRole("button", { name: "Teclado grande" }).click();
+    const teclado = page.getByRole("group", { name: "Peso de Vacío" });
+    for (const d of ["1", "2", "8", "0"]) await teclado.getByRole("button", { name: d, exact: true }).click();
+    assert.equal(await page.inputValue("#qty-1"), "1,28");
+    await teclado.locator('[data-parte="visor"] .sr-only').filter({ hasText: "1,280 kg" }).waitFor({ state: "attached" });
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.getByRole("button", { name: /^Cobrar \$16\.000,00/ }).click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.deepEqual(envios[0].quantity, ["1.28"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
   test("ticket en el celular (412 px) con la piel: el botón de cobrar a la vista, arriba de la cápsula, sin scroll de costado", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     if (!css) return t.skip("no se pudo compilar el CSS de la app");
