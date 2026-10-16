@@ -14,6 +14,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { SimuladorArca, type FallaSimulada, type MetodoArca } from "@/plugins/arca/afip/simulador";
+import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
+
+// ARCA acepta comprobantes con fecha de hasta 5 días alrededor del envío: el día fiscal de HOY,
+// no una fecha fija que envejece (con el 24/09 fijo, desde el 30/09 todo se rechazaba).
+const HOY = fechaFiscalDelDia();
 
 const laBase = baseEfimeraDelArchivo();
 // Un ARCA simulado por negocio para TODO el archivo: la base también dura todo el archivo, y
@@ -59,14 +64,14 @@ async function preparar(t: import("node:test").TestContext) {
     invoiceCore.createInvoice({
       tenantId,
       concepto: 1,
-      fecha: "20260924",
+      fecha: HOY,
       emisor: { cuit: 20111111112, condicionIva: "RESPONSABLE_INSCRIPTO", puntoVenta: 1 },
       receptor: { docTipo: 99, docNro: 0, condicionIva: "CONSUMIDOR_FINAL" },
       neto: importes[total].neto,
       iva: [{ alicuotaId: 5, base: importes[total].neto, importe: importes[total].iva }],
       total,
       ivaPorProducto: true, // ENG-024: IVA de cada producto; sin esto un inscripto no emite.
-      vencimientoPago: "20260924",
+      vencimientoPago: HOY,
       ...(orderId ? { origin: { type: "ORDER" as const, id: orderId } } : {}),
       ...(reabrirSiRechazada ? { reabrirSiRechazada } : {}),
     });
@@ -76,14 +81,14 @@ async function preparar(t: import("node:test").TestContext) {
     invoiceCore.createInvoice({
       tenantId,
       concepto: 1,
-      fecha: "20260924",
+      fecha: HOY,
       emisor: { cuit: 20111111112, condicionIva: "RESPONSABLE_INSCRIPTO", puntoVenta: 1 },
       receptor: { docTipo: 99, docNro: 0, condicionIva: "CONSUMIDOR_FINAL" },
       neto: importes[total].neto,
       iva: [{ alicuotaId: 5, base: importes[total].neto, importe: importes[total].iva }],
       total,
       ivaPorProducto: true, // ENG-024: IVA de cada producto; sin esto un inscripto no emite.
-      vencimientoPago: "20260924",
+      vencimientoPago: HOY,
       origin: { type: "MP_PAYMENT" as const, id: mpPaymentId },
       ...(reabrirSiRechazada ? { reabrirSiRechazada } : {}),
     });

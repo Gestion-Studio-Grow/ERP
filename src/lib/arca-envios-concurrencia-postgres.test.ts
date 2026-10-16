@@ -19,6 +19,11 @@ import { createInterface } from "node:readline";
 import path from "node:path";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { SimuladorArca } from "@/plugins/arca/afip/simulador";
+import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
+
+// ARCA acepta comprobantes con fecha de hasta 5 días alrededor del envío: el día fiscal de HOY,
+// no una fecha fija que envejece (con el 24/09 fijo, desde el 30/09 todo se rechazaba).
+const HOY = fechaFiscalDelDia();
 
 const laBase = baseEfimeraDelArchivo();
 const simuladores = new Map<string, SimuladorArca>();
@@ -59,14 +64,14 @@ async function preparar(t: import("node:test").TestContext) {
     invoiceCore.createInvoice({
       tenantId,
       concepto: 1,
-      fecha: "20260924",
+      fecha: HOY,
       emisor: { cuit: 20111111112, condicionIva: "RESPONSABLE_INSCRIPTO", puntoVenta: 1 },
       receptor: { docTipo: 99, docNro: 0, condicionIva: "CONSUMIDOR_FINAL" },
       neto: 1000,
       iva: [{ alicuotaId: 5, base: 1000, importe: 210 }],
       total: 1210,
       ivaPorProducto: true, // ENG-024: IVA de cada producto; sin esto un inscripto no emite.
-      vencimientoPago: "20260924",
+      vencimientoPago: HOY,
       origin: { type: "MP_PAYMENT" as const, id: `${prefijo}_${++venta}` },
     });
   return { base, duenio, invoiceCore, deps, processArcaOutbox, procesarEnviosDelNegocio, facturar };
