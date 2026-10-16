@@ -73,8 +73,8 @@ export function Inclinar({ children, maximo = 7, className }: { children: ReactN
     let by = 50;
     const pintar = () => {
       pedido = 0;
-      el.style.setProperty("--rx", `${rx.toFixed(2)}deg`);
-      el.style.setProperty("--ry", `${ry.toFixed(2)}deg`);
+      el.style.setProperty("--rx", `${rx.toFixed(2)}deg`); // no-es-plata: grados de la inclinación 3D
+      el.style.setProperty("--ry", `${ry.toFixed(2)}deg`); // no-es-plata: grados de la inclinación 3D
       el.style.setProperty("--brillo-x", `${bx.toFixed(1)}%`);
       el.style.setProperty("--brillo-y", `${by.toFixed(1)}%`);
     };
