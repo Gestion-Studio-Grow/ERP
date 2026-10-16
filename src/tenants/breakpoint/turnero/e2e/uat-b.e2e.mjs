@@ -21,7 +21,9 @@ const srv = createServer(async (req, res) => {
 });
 await new Promise((o) => srv.listen(0, "127.0.0.1", o));
 const BASE = `http://breakpointpadel.test:${srv.address().port}`;
-const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium", args: [`--host-resolver-rules=MAP breakpointpadel.test 127.0.0.1`, `--unsafely-treat-insecure-origin-as-secure=${BASE}`] });
+const ARGS = [`--host-resolver-rules=MAP breakpointpadel.test 127.0.0.1`, `--unsafely-treat-insecure-origin-as-secure=${BASE}`];
+// Como sitio.e2e.mjs: el Chromium del entorno si está; si no, el que instaló Playwright.
+const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium", args: ARGS }).catch(() => chromium.launch({ args: ARGS }));
 const ctx = await b.newContext({ viewport: { width: 1366, height: 900 } });
 await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
 const errores = [];
@@ -127,6 +129,7 @@ await entrarComo("u-lu", "33");
 await p.click('[data-a="bloquearYa"]'); await W(300);
 ok("2.1", await bloqueada(), "el candado bloquea la pantalla"); await foto("bloqueo");
 await p.keyboard.press("Escape"); await p.keyboard.press("Control+k"); await p.keyboard.press("n"); await p.keyboard.press("c"); await W(300);
+ok("2.2b", (await p.inputValue("#bl-pin")) === "" && !/incorrecto/.test(await p.textContent("#bl-aviso")), "D41: las letras no entran al PIN ni gastan un intento");
 ok("2.2", (await bloqueada()) && !(await p.evaluate(() => document.getElementById("dlg").open || document.getElementById("cmdk").open)), "Esc, Ctrl K, N y C no abren ni cierran nada detrás");
 for (let i = 0; i < 5; i++) { await p.fill("#bl-pin", "98"); await W(250); }
 ok("2.3", (await p.isDisabled("#bl-pin")) && /Demasiados intentos/.test(await p.textContent("#bl-aviso")), "5 PIN mal → espera de 30 s con el campo deshabilitado");

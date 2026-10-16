@@ -127,6 +127,6 @@ Capturas en `uat-prod/b01…b07`.
 **Mejoras que salieron del recorrido (arregladas en el mismo commit):**
 - **D40 · baja:** un dueño que pide un descuento sin escribir el PIN veía «PIN incorrecto.». Ahora dice que el descuento lo autoriza el dueño con su PIN y dónde escribirlo.
 - **D41 · baja:** el campo de PIN del bloqueo aceptaba letras, y dos letras contaban como un intento fallido. Ahora sólo entran números.
-- **D42 · baja:** con una ventana abierta, la tecla L no bloqueaba (los atajos se apagan con una ventana abierta). Bloquear es de seguridad: ahora L anda siempre, salvo mientras se escribe en un campo.
+- **D42 · baja:** con una ventana abierta, la tecla L no bloqueaba (los atajos se apagan con una ventana abierta). Bloquear es de seguridad: ahora L anda aunque haya una ventana abierta, salvo mientras se escribe en un campo o con la búsqueda (Ctrl K) abierta. Ojo: con el foco en un botón de una ventana, una L cierra esa ventana y lo cargado sin guardar se pierde (es a propósito: quien bloquea se va del puesto). Figura en la ayuda de atajos (?).
 
 — Elaborado por GSG
