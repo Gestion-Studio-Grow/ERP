@@ -109,7 +109,7 @@ con seña firme y 1 cancelada con crédito) y dos cambios de pestaña servidor. 
 **Parte B (partes 1, 2, 3 y 4.2: las que piden PIN o contraseña):** la sesión de la PC no escribe PIN ni contraseñas en un
 dominio público, ni siquiera los de la demo. Se corrió en Chromium contra el MISMO sitio empaquetado, servido por el mismo
 manejador del ERP que usa producción, en un host público simulado. Script repetible: `npm run test:club-uat`
-(`src/tenants/breakpoint/turnero/e2e/uat-b.e2e.mjs`). **Resultado: 41/41 OK, cero errores de consola.**
+(`src/tenants/breakpoint/turnero/e2e/uat-b.e2e.mjs`). **Resultado: 42/42 OK (incluye un caso propio para D41), cero errores de consola.**
 
 | Parte | Qué se comprobó | Estado |
 |---|---|---|
