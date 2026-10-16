@@ -56,6 +56,16 @@ export default function BookingForm({
   const [selectedSlot, setSelectedSlot] = useState("");
   const [isResident, setIsResident] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState("");
+
+  // La acción devuelve el rechazo con su motivo (horario ocupado, ya pasado, profesional que no
+  // hace ese servicio) en vez de tirarlo: tirado, en producción llegaba un genérico en inglés.
+  // Si sale bien, la propia acción redirige a la confirmación.
+  async function reservar(formData: FormData) {
+    setError("");
+    const r = await createAppointment(formData);
+    if (!r.ok) setError(r.error);
+  }
 
   // El precio "vecino/a" es exclusivo de CH Estética (ADR-013): sólo mostramos el
   // toggle si ALGÚN servicio tiene precio preferencial. Un club de pádel no lo usa
@@ -131,7 +141,7 @@ export default function BookingForm({
         </div>
       )}
 
-      <form action={createAppointment} className="space-y-8">
+      <form action={reservar} className="space-y-8">
         <div>
           <StepLabel n={1} id="reserva-step-profesional">{copy.providerLabel}</StepLabel>
           <select
@@ -296,6 +306,11 @@ export default function BookingForm({
               className={inputClass}
               style={{ ...inputStyle, textTransform: "uppercase" }}
             />
+            {error && (
+              <p role="alert" className="text-sm text-danger">
+                {error}
+              </p>
+            )}
             <SubmitButton
               pendingText="Confirmando…"
               className="btn-editorial-solid w-full justify-center text-xs uppercase tracking-[0.1em] mt-2"

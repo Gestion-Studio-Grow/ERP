@@ -135,9 +135,12 @@ function TeclaDelTurno({ t, paso }: { t: TurnoDelDia; paso: Paso }) {
   const directo = (accion: (fd: FormData) => Promise<unknown>, fd: FormData, ok: string) =>
     empezar(async () => {
       try {
-        const r = (await accion(fd)) as { ok?: boolean; error?: string } | undefined;
+        const r = (await accion(fd)) as { ok?: boolean; error?: string; aviso?: string } | undefined;
         if (r && r.ok === false) showError(r.error ?? "No se pudo.");
-        else showSuccess(ok);
+        else {
+          showSuccess(ok);
+          if (r?.aviso) showError(r.aviso);
+        }
       } catch {
         showError("No se pudo. Probá de nuevo; si sigue, avisá.");
       }

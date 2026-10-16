@@ -3,6 +3,9 @@
 import { prisma } from "@/lib/prisma";
 import { bookingTransaction } from "@/lib/rls";
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
+import { RechazoDeDominio } from "@/lib/rechazo-de-dominio";
+import { mensajeParaLaClienta } from "@/lib/reserva-publica-mensaje";
 import { auditPublic } from "@/lib/audit-core";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
@@ -29,25 +32,47 @@ export async function getMyAppointment(id: string) {
   return leerMiTurno(prisma, await getCurrentTenantId(), String(id ?? ""));
 }
 
-export async function createReview(formData: FormData) {
+// Las tres acciones de la página "Tu turno" DEVUELVEN el rechazo en vez de tirarlo (UAT 16/10,
+// B7): tirado, en producción Next lo tapa con un texto en inglés. El cuerpo tira
+// `RechazoDeDominio` con el motivo; la acción lo pasa por `mensajeParaLaClienta`, que muestra
+// el motivo, traduce la carrera perdida y deja el resto en un genérico con qué hacer.
+const NO_SE_PUDO = "No pudimos hacerlo ahora. Probá de nuevo en unos minutos; si sigue, escribinos por WhatsApp.";
+const TURNO_NO_ENCONTRADO = "No encontramos ese turno. Revisá el link que te llegó por WhatsApp.";
+
+async function alPublico(scope: string, cuerpo: () => Promise<void>): Promise<ResultadoAccion> {
+  try {
+    await cuerpo();
+    return { ok: true };
+  } catch (e) {
+    unstable_rethrow(e);
+    return { ok: false, error: mensajeParaLaClienta(e, NO_SE_PUDO, scope) };
+  }
+}
+
+export async function createReview(formData: FormData): Promise<ResultadoAccion> {
+  return alPublico("turno.resena", () => dejarResena(formData));
+}
+
+async function dejarResena(formData: FormData): Promise<void> {
   const appointmentId = String(formData.get("appointmentId"));
   const rating = Number(formData.get("rating"));
   const comment = String(formData.get("comment") || "").trim();
 
-  if (rating < 1 || rating > 5) {
-    throw new Error("La calificación debe ser de 1 a 5 estrellas.");
+  if (!(rating >= 1 && rating <= 5)) {
+    throw new RechazoDeDominio("Elegí de 1 a 5 estrellas.");
   }
 
-  const appointment = await prisma.appointment.findUniqueOrThrow({
-    where: { id: appointmentId },
+  const appointment = await prisma.appointment.findFirst({
+    where: { id: appointmentId, tenantId: await getCurrentTenantId() },
     include: { client: true, review: true },
   });
+  if (!appointment) throw new RechazoDeDominio(TURNO_NO_ENCONTRADO);
 
   if (appointment.status !== "COMPLETED") {
-    throw new Error("Solo se puede dejar una reseña de un turno ya realizado.");
+    throw new RechazoDeDominio("La reseña se deja cuando el turno ya se hizo.");
   }
   if (appointment.review) {
-    throw new Error("Ya dejaste una reseña para este turno.");
+    throw new RechazoDeDominio("Ya dejaste una reseña para este turno. ¡Gracias!");
   }
 
   const review = await prisma.review.create({
@@ -72,19 +97,24 @@ export async function createReview(formData: FormData) {
   revalidatePath(`/reserva/turno/${appointmentId}`);
 }
 
-export async function cancelMyAppointment(formData: FormData) {
+export async function cancelMyAppointment(formData: FormData): Promise<ResultadoAccion> {
+  return alPublico("turno.cancelar", () => cancelarMiTurno(formData));
+}
+
+async function cancelarMiTurno(formData: FormData): Promise<void> {
   const id = String(formData.get("id"));
 
-  const appointment = await prisma.appointment.findUniqueOrThrow({ where: { id } });
+  const appointment = await prisma.appointment.findFirst({ where: { id, tenantId: await getCurrentTenantId() } });
+  if (!appointment) throw new RechazoDeDominio(TURNO_NO_ENCONTRADO);
 
   if (appointment.status === "CANCELLED") {
-    throw new Error("Este turno ya estaba cancelado.");
+    throw new RechazoDeDominio("Este turno ya estaba cancelado.");
   }
   if (appointment.status === "COMPLETED") {
-    throw new Error("Este turno ya se realizó, no se puede cancelar.");
+    throw new RechazoDeDominio("Este turno ya se realizó, no se puede cancelar.");
   }
   if (appointment.startsAt.getTime() < Date.now()) {
-    throw new Error("No se puede cancelar un turno que ya pasó.");
+    throw new RechazoDeDominio("No se puede cancelar un turno que ya pasó. Si necesitás algo, escribinos por WhatsApp.");
   }
 
   await prisma.appointment.update({ where: { id }, data: { status: "CANCELLED" } });
@@ -99,38 +129,43 @@ export async function cancelMyAppointment(formData: FormData) {
 // pago: solo cambia el horario. La validación de choques es la misma del alta
 // (assertSlotAvailable), excluyendo el propio turno. No usa requireCapability: es
 // acción pública, autorizada por poseer el id del turno (igual que cancelar).
-export async function rescheduleMyAppointment(formData: FormData) {
+export async function rescheduleMyAppointment(formData: FormData): Promise<ResultadoAccion> {
+  return alPublico("turno.reprogramar", () => reprogramarMiTurno(formData));
+}
+
+async function reprogramarMiTurno(formData: FormData): Promise<void> {
   const id = String(formData.get("id"));
   const startsAtIso = String(formData.get("startsAt"));
   if (!id || !startsAtIso) {
-    throw new Error("Elegí un nuevo horario para reprogramar.");
+    throw new RechazoDeDominio("Elegí un nuevo horario para reprogramar.");
   }
 
-  const appointment = await prisma.appointment.findUniqueOrThrow({
-    where: { id },
+  const appointment = await prisma.appointment.findFirst({
+    where: { id, tenantId: await getCurrentTenantId() },
     include: { service: true, professional: { include: { box: true } } },
   });
+  if (!appointment) throw new RechazoDeDominio(TURNO_NO_ENCONTRADO);
 
   // Mismos estados que se pueden cancelar: solo turnos vivos y futuros.
   if (appointment.status !== "PENDING" && appointment.status !== "CONFIRMED") {
-    throw new Error("Este turno no se puede reprogramar.");
+    throw new RechazoDeDominio("Este turno no se puede reprogramar.");
   }
   if (appointment.startsAt.getTime() < Date.now()) {
-    throw new Error("No se puede reprogramar un turno que ya pasó.");
+    throw new RechazoDeDominio("No se puede reprogramar un turno que ya pasó.");
   }
 
   const startsAt = new Date(startsAtIso);
-  if (startsAt.getTime() < Date.now()) {
-    throw new Error("Elegí un horario futuro.");
+  if (Number.isNaN(startsAt.getTime()) || startsAt.getTime() < Date.now()) {
+    throw new RechazoDeDominio("Elegí un horario futuro.");
   }
   const endsAt = new Date(startsAt.getTime() + appointment.service.durationMin * 60000);
 
   const { professional } = appointment;
   if (!professional.active || professional.deletedAt) {
-    throw new Error("Ese profesional ya no está disponible.");
+    throw new RechazoDeDominio("Ese profesional ya no está disponible. Escribinos por WhatsApp y lo coordinamos.");
   }
   if (!professional.boxId || !professional.box?.active || professional.box?.deletedAt) {
-    throw new Error("Ese profesional no tiene un box activo asignado.");
+    throw new RechazoDeDominio("Ese profesional no tiene un box activo asignado. Escribinos por WhatsApp y lo coordinamos.");
   }
   const boxId = professional.boxId;
 
@@ -138,7 +173,7 @@ export async function rescheduleMyAppointment(formData: FormData) {
   const dateStr = dateStrInBusinessTz(startsAt);
   const window = await getWorkingWindow(professional.id, dateStr);
   if (!window || startsAt < window.dayStart || endsAt > window.dayEnd) {
-    throw new Error("Ese horario no está disponible. Elegí otro.");
+    throw new RechazoDeDominio("Ese horario no está disponible. Elegí otro.");
   }
 
   await bookingTransaction(async (tx) => {

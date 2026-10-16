@@ -41,7 +41,8 @@ export function hasOverlap(startsAt: Date, endsAt: Date, busy: Interval[]): bool
 // avanzando de a `stepMin` minutos. Una franja entra si:
 //   - termina (inicio + durationMin) en o antes de `dayEnd` (no se pasa del cierre),
 //   - no se solapa con ningún intervalo de `busy` (turnos con su buffer, bloqueos),
-//   - `capacityOk` (si se pasa) la acepta — para recursos compartidos con cupo.
+//   - `capacityOk` (si se pasa) la acepta — para recursos compartidos con cupo,
+//   - no empezó antes de `notBefore` (si se pasa): un horario de hoy que ya pasó no se ofrece.
 // No muta sus argumentos. Devuelve ISO strings, listas para el cliente.
 export function generateSlots(params: {
   dayStart: Date;
@@ -50,8 +51,9 @@ export function generateSlots(params: {
   stepMin: number;
   busy: Interval[];
   capacityOk?: (slotStart: Date, slotEnd: Date) => boolean;
+  notBefore?: Date;
 }): string[] {
-  const { dayStart, dayEnd, durationMin, stepMin, busy, capacityOk } = params;
+  const { dayStart, dayEnd, durationMin, stepMin, busy, capacityOk, notBefore } = params;
   const slots: string[] = [];
   if (durationMin <= 0 || stepMin <= 0) return slots;
 
@@ -64,6 +66,7 @@ export function generateSlots(params: {
   ) {
     const slotStart = new Date(t);
     const slotEnd = new Date(t + durationMs);
+    if (notBefore && slotStart < notBefore) continue;
     if (hasOverlap(slotStart, slotEnd, busy)) continue;
     if (capacityOk && !capacityOk(slotStart, slotEnd)) continue;
     slots.push(slotStart.toISOString());
@@ -97,7 +100,10 @@ export interface DayWindow {
 // versión por-día —turnos por `startsAt` dentro de la ventana; bloqueos por solape
 // estricto— y corre `generateSlots` por día. PURA: no toca DB ni reloj, por eso es
 // testeable. `busyAppointments` incluye el buffer aplicado por el llamador; los
-// bloqueos van sin buffer (ya son rangos explícitos). Devuelve fecha → franjas ISO.
+// bloqueos van sin buffer (ya son rangos explícitos). `notBefore` es el "ahora" que pasa el
+// llamador (el reloj queda afuera): las franjas que ya empezaron no se ofrecen. Se compara el
+// instante UTC, así que vale para la hora de Argentina sin convertir nada: `dayStart` ya es la
+// hora de pared del negocio pasada a UTC. Devuelve fecha → franjas ISO.
 export function generateSlotsForDays(params: {
   windows: DayWindow[];
   durationMin: number;
@@ -108,6 +114,7 @@ export function generateSlotsForDays(params: {
   professionalBlocks: Interval[];
   resourceUsage: OccupiedAppointment[];
   requiredResources: RequiredResource[];
+  notBefore?: Date;
 }): Record<string, string[]> {
   const {
     windows,
@@ -119,6 +126,7 @@ export function generateSlotsForDays(params: {
     professionalBlocks,
     resourceUsage,
     requiredResources,
+    notBefore,
   } = params;
 
   const out: Record<string, string[]> = {};
@@ -154,6 +162,7 @@ export function generateSlotsForDays(params: {
       stepMin,
       busy,
       capacityOk: requiredResources.length > 0 ? capacityOk : undefined,
+      notBefore,
     });
   }
   return out;

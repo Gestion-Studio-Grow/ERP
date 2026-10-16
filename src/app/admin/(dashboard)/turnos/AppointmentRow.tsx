@@ -161,6 +161,7 @@ function CompletarForm({ appointmentId, saldo, yaOcurrio }: { appointmentId: str
         setError("");
         const r: ResultadoAccion = await completeAppointment(fd);
         if (!r.ok) setError(r.error);
+        else if (r.aviso) setError(r.aviso); // la factura no salió: el turno igual quedó terminado
       }}
       className="flex flex-col gap-1.5"
     >
