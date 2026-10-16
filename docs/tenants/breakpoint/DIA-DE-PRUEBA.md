@@ -65,6 +65,8 @@ verdad, sin servidor y sin costo**: todo se guarda en la compu del mostrador.
 
 1. **Cerrar la caja** (con PIN). Se cierra una sola vez. La caja va de 12 a 12: lo cobrado antes de las 12 es de
    la caja del día anterior. Si quedó sin cerrar, la pantalla de Caja lo avisa en rojo y deja cerrarla.
+   Si abren antes de las 12: **a las 12 cerrá la caja de la mañana y retirá ese efectivo dejando el fondo**, así
+   la caja de la noche cuadra.
 2. **Configuración → Descargar respaldo**. Guardá el archivo en un lugar privado: **tiene los PIN y los datos de
    los clientes**, no lo mandes a un grupo. Si la compu se rompe o se borran los datos del navegador, el respaldo
    se restaura desde Configuración.

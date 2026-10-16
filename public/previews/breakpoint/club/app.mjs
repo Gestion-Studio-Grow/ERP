@@ -1593,7 +1593,7 @@ function cierreCajaDialogo(diaAtrasado = null) {
       titulo: `Cerrar la caja del ${esc(fechaCorta(diaAtrasado))}`,
       sub: "Caja anterior que quedó sin cerrar (lo cobrado antes de las 12 es de la caja del día anterior).",
       cuerpo: `<dl class="kv num">${MEDIOS_CAJA.map((k) => `<dt>${M.MEDIOS[k]}</dt><dd>${M.pesos(ra.porMedio[k])}</dd>`).join("")}<dt class="tot">Efectivo que tiene que haber</dt><dd class="tot">${M.pesos(ra.efectivoEsperado)}</dd></dl>
-        <div class="grid2"><label class="f">Efectivo contado de esa caja<input id="k-cont" type="number" min="0" value="${ra.efectivoEsperado}"></label>${campoPin("k-pin", `PIN de ${esc(yo().nombre.split(" ")[0])}`)}</div>`,
+        <div class="grid2"><label class="f">Efectivo contado de esa caja (contalo)<input id="k-cont" type="number" min="0" value="" placeholder="Contá el efectivo"></label>${campoPin("k-pin", `PIN de ${esc(yo().nombre.split(" ")[0])}`)}</div>`,
       pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="aplicarCierre" data-v="${diaAtrasado}">Cerrar esa caja</button>`,
     });
   }
@@ -2044,7 +2044,11 @@ const acciones = {
     if (ui.medio === "monedero") return pedirConfirmacionCredito({ dueno: `r-${b.dataset.v}`, tipo: "jugador", id: b.dataset.v, j, monto: x?.aPagar ?? 0, clienteId: x?.clienteId, que: `Todo lo de ${x?.nombre ?? "el jugador"}` });
     hecho(M.cobrarJugador(E, b.dataset.v, j, { medio: ui.medio, auth: auth() }, AHORA), (r) => `Cobrado ${M.pesos(r.total)} a ${x.nombre}${r.cancha && r.cargos ? ` (cancha ${M.pesos(r.cancha)} + cargos ${M.pesos(r.cargos)})` : ""}${r.cubiertos.length ? `, con lo de ${r.cubiertos.join(", ")}` : ""}.`);
   },
-  cobrarTodo: (b) => hecho(M.cobrarTodoElTurno(E, b.dataset.v, { medio: ui.medio, auth: auth() }, AHORA), (r) => `Cobrado todo el turno: ${M.pesos(r.total)}.`),
+  cobrarTodo: (b) => {
+    const res = M.cobrarTodoElTurno(E, b.dataset.v, { medio: ui.medio, auth: auth() }, AHORA);
+    if (!res.ok && res.cobrado) render(); // se cobró una parte: que la pantalla muestre lo que quedó
+    hecho(res, (r) => `Cobrado todo el turno: ${M.pesos(r.total)}.`);
+  },
   cerrarYSeguir: (b) => cerrarSiSale(M.cerrarCanchaYSeguir(E, b.dataset.v, { medio: ultimoMedio(), auth: auth() }, AHORA), (r) => `Cancha cerrada y libre${r.cobradoCancha ? ` (cobrados ${M.pesos(r.cobradoCancha)})` : ""}.${r.cuentasAbiertas.length ? " La mesa sigue en Buffet → Mesas." : ""}`),
   cerrarCargos: (b) => hecho(M.cerrarCargosDelTurno(E, b.dataset.v, { medio: ultimoMedio(), auth: auth() }, AHORA), (r) => `Cargos cerrados${r.cobrado ? `: cobrados ${M.pesos(r.cobrado)}` : ""}.`),
   cerrarCargosCC: (b) => hecho(M.cerrarCargosDelTurno(E, b.dataset.v, { aCuenta: true, auth: auth() }, AHORA), (r) => `${M.pesos(r.aCuentaCorriente)} a cuenta corriente. Mesa cerrada.`),
