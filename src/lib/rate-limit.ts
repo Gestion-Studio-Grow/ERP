@@ -9,8 +9,9 @@
 //    Para el volumen actual (1–2 tenants) alcanza — un atacante golpea mayormente
 //    una misma instancia. El upgrade natural (cuando escale) es un store externo
 //    (Upstash/Redis) detrás de la MISMA interfaz `RateLimiter`.
-//  - Clave por IP (no por email): frenar fuerza bruta sin habilitar un DoS de
-//    "bloqueá la cuenta ajena spammeando su email". Tradeoff aceptado.
+//  - Login del operador: clave por IP. Login del panel: IP + email con dos techos
+//    (`createLoginGuard`, más abajo): la clave sólo por IP dejaba afuera a todo un local
+//    que comparte el wifi.
 //
 // Diseño testeable: `now()` es inyectable (tests con reloj falso) y el store es
 // interno al limitador (cada instancia es independiente).
@@ -73,6 +74,59 @@ export const loginRateLimiter: RateLimiter = createRateLimiter(LOGIN_RULE);
 export function loginKey(plano: "admin" | "operator", ip: string): string {
   return `${plano}-login:${ip}`;
 }
+
+// ── Login del panel: IP + email, con dos techos (UAT 16/10, C9) ──────────────────────────
+//
+// Con la clave sólo por IP, en un local con un wifi compartido una empleada que se equivoca
+// cinco veces dejaba afuera a TODO el local durante 15 minutos (todas salen por la misma IP).
+// Ahora el corte de 5 fallos es por IP + email: frena a quien se equivoca, no a la compañera.
+// Para que eso no abra la puerta a la fuerza bruta, quedan dos techos más:
+//  - por EMAIL desde cualquier IP (20 / 15 min): una botnet que prueba la clave de una cuenta
+//    desde muchas IPs se frena igual. Costo aceptado: alguien que conoce el email puede trabar
+//    esa cuenta un rato tipeando mal (el mismo tradeoff de antes, ahora acotado a una cuenta y
+//    con un umbral 4 veces más alto, en vez de trabar a todo el local);
+//  - por IP con cualquier email (30 / 15 min): desde una misma red no se puede barrer una
+//    lista de emails de a 4 intentos cada uno.
+// El login bueno limpia sólo el par IP + email: los techos no se resetean, así quien adivina
+// una clave no le regala presupuesto nuevo a un ataque en curso.
+export const LOGIN_EMAIL_RULE: RateLimitRule = { max: 20, windowMs: 15 * 60 * 1000 };
+export const LOGIN_IP_RULE: RateLimitRule = { max: 30, windowMs: 15 * 60 * 1000 };
+
+export interface LoginGuard {
+  /** ¿Está frenado este intento (por el par, por el email o por la IP)? */
+  blocked(ip: string, email: string): boolean;
+  /** Un intento fallido suma a los tres contadores. */
+  fail(ip: string, email: string): void;
+  /** Login bueno: limpia el par IP + email. */
+  succeed(ip: string, email: string): void;
+}
+
+export function createLoginGuard(now: () => number = Date.now): LoginGuard {
+  const par = createRateLimiter(LOGIN_RULE, now);
+  const porEmail = createRateLimiter(LOGIN_EMAIL_RULE, now);
+  const porIp = createRateLimiter(LOGIN_IP_RULE, now);
+  const claves = (ip: string, email: string) => {
+    const e = email.trim().toLowerCase();
+    return { par: `admin-login:${ip}:${e}`, email: `admin-login-email:${e}`, ip: `admin-login-ip:${ip}` };
+  };
+  return {
+    blocked(ip, email) {
+      const k = claves(ip, email);
+      return par.blocked(k.par) || porEmail.blocked(k.email) || porIp.blocked(k.ip);
+    },
+    fail(ip, email) {
+      const k = claves(ip, email);
+      par.fail(k.par);
+      porEmail.fail(k.email);
+      porIp.fail(k.ip);
+    },
+    succeed(ip, email) {
+      par.reset(claves(ip, email).par);
+    },
+  };
+}
+
+export const adminLoginGuard: LoginGuard = createLoginGuard();
 
 // Regla de la API PÚBLICA de ingesta (`/api/public/v1/*`): anti-flood. A
 // diferencia del login (cuenta fallos), acá cada request cuenta como un "hit"
