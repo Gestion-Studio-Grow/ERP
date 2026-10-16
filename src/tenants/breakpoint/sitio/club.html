@@ -1610,7 +1610,6 @@ function registrarPago(estado, reservaId, { medio, monto, jugador = null, concep
   return { ok: true, saldo: saldo(r) };
 }
 
-/** El lugar del titular entre los jugadores (el de su ficha; si no, el primero). */
 /** El titular entre los jugadores (por su ficha o por su nombre); -1 si no juega (ej. un partido abierto). */
 function indiceTitular(r) {
   const i = r.clienteId ? r.jugadores.findIndex((j) => j.clienteId === r.clienteId) : -1;
@@ -1631,14 +1630,20 @@ function repartir(monto, pesos) {
  * Partes de la cancha por jugador. Cada uno debe su cuota menos lo que ya pagó; lo que alguien pagó de más (o se
  * cobró sin elegir jugador) baja lo que deben los demás, en proporción. Si alguien está «a cargo de» otro jugador,
  * su parte la paga ese otro (la suya más la del que invita).
+ * Quien pagó su parte (`saldado`, o la pagó otro: `pagadoPor`) sale del reparto: si no, con una seña mayor que la
+ * cuota, el que ya pagó volvía a deber en la vuelta siguiente y el turno nunca cerraba (B3 del Gate).
+ * Si queda saldo y todos están saldados (subió el precio después), se reparte otra vez entre los que juegan.
  */
 function partesCancha(r) {
   const cuota = dividir(totalReserva(r), Math.max(1, r.jugadores.length));
-  const debe = r.jugadores.map((j, i) => (j.pagadoPor != null ? 0 : Math.max(0, cuota[i] - (j.pagado ?? 0))));
-  const pago = (j, i) => j.pagadoPor != null || debe[i] === 0;
+  const cerrado = (j) => j.pagadoPor != null || j.saldado === true;
+  const debe = r.jugadores.map((j, i) => (cerrado(j) ? 0 : Math.max(0, cuota[i] - (j.pagado ?? 0))));
+  const pago = (j, i) => cerrado(j) || debe[i] === 0;
   const resta = Math.max(0, saldo(r));
-  const libres = r.jugadores.map((j) => (j.pagadoPor != null ? 0 : 1));
-  const propia = repartir(resta, debe.some((x) => x > 0) ? debe : libres);
+  const abiertos = r.jugadores.map((j) => (cerrado(j) ? 0 : 1));
+  const propios = r.jugadores.map((j) => (j.pagadoPor != null ? 0 : 1));
+  const pesos = debe.some((x) => x > 0) ? debe : abiertos.some((x) => x > 0) ? abiertos : propios.some((x) => x > 0) ? propios : r.jugadores.map(() => 1);
+  const propia = repartir(resta, pesos);
   const pagador = (i) => {
     const k = r.jugadores[i]?.aCargoDe;
     return k != null && k !== i && r.jugadores[k] && !pago(r.jugadores[k], k) && !pago(r.jugadores[i], i) ? k : i;
@@ -1684,6 +1689,7 @@ function cobrarParte(estado, reservaId, idx, { medio, auth = null }, ahora) {
   const concepto = cubiertos.length ? `Cancha ${r.titular} — ${quien} paga también por ${cubiertos.map((i) => r.jugadores[i].nombre).join(", ")}` : undefined;
   const res = registrarPago(estado, reservaId, { medio, monto: p.aPagar, jugador: idx, auth, ...(concepto && { concepto }) }, ahora);
   if (!res.ok) return res;
+  r.jugadores[idx].saldado = true;
   for (const i of cubiertos) r.jugadores[i].pagadoPor = idx;
   return { ...res, monto: p.aPagar, cubiertos: cubiertos.map((i) => r.jugadores[i].nombre) };
 }

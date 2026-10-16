@@ -693,3 +693,46 @@ test("reparto por cuota (Gate B1): seña chica, pago «a cuenta» y titular que 
   assert.deepEqual(p3.map((p: any) => p.aPagar), [1, 2, 3, 4].map(() => r3.precio / 8));
   for (const r0 of [r, r2, r3]) assert.equal(M.partesCancha(r0).reduce((s: number, p: any) => s + p.aPagar, 0), M.saldo(r0), "las partes suman exacto el saldo");
 });
+
+test("cobrar las partes en orden cierra el turno (Gate B3): seña del 50% y nadie vuelve a deber", () => {
+  const e = club();
+  e.config.politica.senaPct = 50;
+  const r = turno(e, "c1", 20, { clienteId: "a", jugadores: [{ nombre: "Ana", clienteId: "a" }, "Beto", "Caro", "Dani"] });
+  M.registrarPago(e, r.id, { medio: "transferencia", monto: r.precio / 2 }, ahora(10));
+  const sexto = r.precio / 6;
+  assert.deepEqual(M.partesCancha(r).map((p: any) => p.aPagar), [0, sexto, sexto, sexto]);
+  for (const i of [1, 2, 3]) {
+    assert.ok(M.cobrarParte(e, r.id, i, { medio: "efectivo" }, ahora(21)).ok);
+    const p = M.partesCancha(r);
+    for (let k = 0; k <= i; k++) assert.equal(p[k].aPagar, 0, `${r.jugadores[k].nombre} ya pagó y no vuelve a deber`);
+    assert.equal(p.reduce((s: number, x: any) => s + x.aPagar, 0), M.saldo(r));
+  }
+  assert.equal(M.saldo(r), 0);
+  assert.ok(M.partesCancha(r).every((p: any) => p.pago));
+});
+
+test("reparto de la cancha, propiedad: con cualquier seña, pago a cuenta y «a cargo de», cobrar parte por parte cierra", () => {
+  let semilla = 12345;
+  const azar = () => ((semilla = (semilla * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+  for (let t = 0; t < 1500; t++) {
+    const e = club();
+    e.config.politica.senaPct = Math.floor(azar() * 101);
+    const n = 1 + Math.floor(azar() * 4);
+    const afuera = azar() < 0.2;
+    const r = turno(e, "c1", 20, { clienteId: "a", ...(afuera && { titular: "Ana" }), jugadores: [afuera ? "Santi" : { nombre: "Ana", clienteId: "a" }, "Beto", "Caro", "Dani"].slice(0, n) });
+    for (let k = 0; k < n; k++) if (azar() < 0.4) M.asignarCargoCancha(e, r.id, Math.floor(azar() * n), Math.floor(azar() * n), ahora(9));
+    if (r.sena.monto > 0 && azar() < 0.8) M.registrarPago(e, r.id, { medio: "efectivo", monto: r.sena.monto }, ahora(10));
+    if (azar() < 0.4 && M.saldo(r) > 1) M.registrarPago(e, r.id, { medio: "efectivo", monto: Math.max(1, Math.floor(azar() * M.saldo(r))) }, ahora(20));
+    const pagaron = new Set<number>();
+    for (let paso = 0; paso < n && M.saldo(r) > 0; paso++) {
+      const p = M.partesCancha(r);
+      assert.equal(p.reduce((s: number, x: any) => s + x.aPagar, 0), M.saldo(r), `caso ${t}: las partes suman el saldo`);
+      for (const k of pagaron) assert.equal(p[k].aPagar, 0, `caso ${t}: quien pagó no vuelve a deber`);
+      const i = p.findIndex((x: any) => x.aPagar > 0);
+      assert.ok(i >= 0, `caso ${t}: con saldo, alguien tiene que pagar`);
+      assert.ok(M.cobrarParte(e, r.id, i, { medio: "efectivo" }, ahora(21)).ok);
+      pagaron.add(i);
+    }
+    assert.equal(M.saldo(r), 0, `caso ${t}: a lo sumo un cobro por jugador cierra el turno`);
+  }
+});
