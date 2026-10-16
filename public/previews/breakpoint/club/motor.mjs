@@ -9,7 +9,8 @@
 //
 // Reglas de este archivo:
 //   · Puro: no toca el DOM, la red ni el disco. Lo usan el backoffice (index.html) y los tests de Node.
-//   · Sin persistencia: el estado vive en memoria (DEMO → VENTA → INVERSIÓN: antes de la venta no se guarda nada).
+//   · Sin persistencia propia: el estado vive en memoria. La jornada real lo guarda en el navegador de la compu del
+//     club (app.mjs, con serializarEstado/hidratarEstado); nunca en un servidor (DEMO → VENTA → INVERSIÓN).
 //   · El tiempo es { fecha: "AAAA-MM-DD", min: minutos desde las 00:00 }. Lo que pasa después de medianoche
 //     se modela con min > 1440 sobre el día que abrió (el club cierra a la 01:00 → 1500).
 //   · Toda operación devuelve { ok: true, ... } o { ok: false, motivo } en criollo, nunca tira excepción
@@ -187,11 +188,14 @@ export function hidratarEstado(foto) {
     if (!esObjeto(e) || !esObjeto(e.config) || !esObjeto(e.caja)) return { ok: false, motivo: "le faltan datos del club" };
     for (const k of ["canchas", "usuarios", "productos", "reservas", "cuentas", "clientes"]) if (!esLista(e[k])) return { ok: false, motivo: `le falta «${k}»` };
     if (!esLista(e.caja.movimientos)) return { ok: false, motivo: "le falta la caja" };
+    const idMalo = ["canchas", "usuarios", "productos", "reservas", "cuentas", "clientes"].flatMap((k) => e[k]).some((x) => !esObjeto(x) || !/^[\w-]{1,60}$/.test(String(x.id ?? "")));
+    if (idMalo) return { ok: false, motivo: "tiene datos que no son de Break Point" };
     const estado = structuredClone(e);
     for (const k of ["proveedores", "solicitudesAcceso", "novedades", "pedidos", "difusiones", "fijos", "bloqueos", "espera", "remitos", "pagosProveedor", "contenido", "log"]) if (!esLista(estado[k])) estado[k] = [];
     estado.caja.cierres = esLista(estado.caja.cierres) ? estado.caja.cierres : [];
     estado.luces = esObjeto(estado.luces) ? estado.luces : Object.fromEntries(estado.canchas.map((c) => [c.id, false]));
     estado.clima = esObjeto(estado.clima) ? estado.clima : { lluvia: null };
+    for (const k of ["pedidos", "novedades", "difusiones", "solicitudesAcceso", "contenido"]) estado[k] = estado[k].filter((x) => esObjeto(x) && /^[\w-]{1,60}$/.test(String(x.id ?? "")));
     estado.clientes = estado.clientes.map(normalizarCliente);
     retomarSecuencia(foto.secuencia);
     return { ok: true, estado };
@@ -228,7 +232,7 @@ export function puede(estado, usuarioId, accion) {
 export function verificarPin(estado, usuarioId, pin) {
   const u = usuario(estado, usuarioId);
   if (!u || u.activo === false) return { ok: false, motivo: "Ese usuario no tiene acceso." };
-  if (!u.pin) return { ok: false, motivo: "Ese usuario todavía no tiene PIN: lo arma en la consola de configuración." };
+  if (!u.pin) return { ok: false, motivo: "Ese usuario todavía no tiene PIN: que un dueño le dé un «PIN nuevo» en Configuración → Usuarios." };
   if (String(pin ?? "").trim() !== u.pin) return { ok: false, motivo: "PIN incorrecto." };
   return { ok: true, usuario: u };
 }
@@ -244,6 +248,7 @@ function autorizar(estado, { usuarioId, pin } = {}, accion, conPin) {
 
 /** Busca a quién pertenece un PIN (cambio rápido de usuario en el mostrador). */
 export function usuarioPorPin(estado, pin) {
+  if (!String(pin ?? "").trim()) return null;
   const u = estado.usuarios.find((x) => x.activo !== false && x.pin === String(pin ?? "").trim());
   return u ? { ok: true, usuario: u } : { ok: false, motivo: "PIN incorrecto." };
 }
@@ -853,6 +858,7 @@ function cobrarConCreditos(estado, clienteId, importe) {
 export function registrarPago(estado, reservaId, { medio, monto, jugador = null, concepto, auth = null }, ahora) {
   const r = reserva(estado, reservaId);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  if (!["reservada", "en_cancha"].includes(r.estado)) return { ok: false, motivo: "La cancha de ese turno ya está cerrada: no se le cobra más." };
   if (auth) { const a = autorizar(estado, auth, "cobrar", false); if (!a.ok) return a; }
   if (!MEDIOS[medio]) return { ok: false, motivo: "Elegí cómo paga." };
   const importe = Math.round(Number(monto));
@@ -1201,6 +1207,8 @@ function pagadorDe(estado, cta) {
   return a && a.estado === "abierta" ? a : null;
 }
 const dependientes = (estado, cta) => estado.cuentas.filter((x) => x.estado === "abierta" && x.aCargoDe === cta.id && x.id !== cta.id);
+/** Lo que debe una cuenta que paga lo suyo: su saldo y el de las cuentas a su cargo. */
+const deudaDe = (estado, cta) => Math.max(0, saldoCuenta(cta)) + dependientes(estado, cta).reduce((s, x) => s + Math.max(0, saldoCuenta(x)), 0);
 const esCuentaDeMostrador = (cta) => cta.titular === "Mostrador" || String(cta.reservaId ?? "").startsWith("mostrador-") || String(cta.reservaId ?? "").startsWith("tienda-");
 
 /** Los cargos de una cuenta pasan a cargo de otra (null: vuelve a pagar los suyos). No se mueven: siguen a su nombre. */
@@ -1259,10 +1267,14 @@ export function cuentaDelTurno(estado, reservaId) {
       aPagar: canchaAPagar + cargosAPagar,
     };
   });
+  // Lo que se cobra acá es exactamente lo que se muestra: cada cuenta de la mesa que no paga otro, con lo que tiene
+  // a su cargo (aunque venga de otra mesa). Lo de la mesa que paga alguien de afuera se muestra aparte.
   const mesa = cuentasDeLaMesa(estado, r);
-  const cargos = mesa.reduce((s, c) => s + Math.max(0, saldoCuenta(c)), 0);
+  const pagadoras = mesa.filter((c) => !pagadorDe(estado, c));
+  const deOtraMesa = mesa.filter((c) => pagadorDe(estado, c) && !mesa.includes(pagadorDe(estado, c))).map((c) => ({ titular: c.titular, saldo: Math.max(0, saldoCuenta(c)), paga: pagadorDe(estado, c).titular }));
+  const cargos = pagadoras.reduce((s, c) => s + deudaDe(estado, c), 0);
   return {
-    ok: true, reserva: r, abierto, jugadores, mesa,
+    ok: true, reserva: r, abierto, jugadores, mesa, deOtraMesa,
     totales: { cancha: saldoCancha, cargos, pendiente: saldoCancha + cargos, totalCargos: mesa.reduce((s, c) => s + totalCuenta(c), 0) },
     mesaAbierta: !abierto && mesa.length > 0,
   };
@@ -1350,9 +1362,8 @@ export function cobrarTodoElTurno(estado, reservaId, { medio, auth = null }, aho
     cancha += res.monto;
   }
   let cargos = 0;
-  const mesa = cuentasDeLaMesa(estado, r);
-  for (const c of mesa.filter((x) => !pagadorDe(estado, x)).concat(mesa.filter((x) => pagadorDe(estado, x)))) {
-    if (c.estado !== "abierta" || pagadorDe(estado, c) || !(saldoCuenta(c) + dependientes(estado, c).reduce((s, x) => s + Math.max(0, saldoCuenta(x)), 0) > 0)) continue;
+  for (const c of cuentasDeLaMesa(estado, r).filter((x) => !pagadorDe(estado, x))) {
+    if (c.estado !== "abierta" || !(deudaDe(estado, c) > 0)) continue;
     const res = cobrarCuentaYSusCargos(estado, c.id, { medio }, ahora);
     if (!res.ok) return res;
     cargos += res.monto;
@@ -1394,10 +1405,9 @@ export function cerrarCargosDelTurno(estado, reservaId, { medio, auth = null, aC
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
   const mesa = cuentasDeLaMesa(estado, r);
   if (!mesa.length) return { ok: false, motivo: "La mesa no tiene cargos abiertos." };
+  // Las cuentas que paga alguien de otra mesa quedan abiertas: se cobran con la cuenta del que paga.
   const pagadoras = mesa.filter((x) => !pagadorDe(estado, x));
-  // Las cuentas que paga alguien de afuera de la mesa se cobran con el que paga.
-  const huerfanas = mesa.filter((x) => pagadorDe(estado, x) && !mesa.includes(pagadorDe(estado, x)));
-  if (huerfanas.length) return { ok: false, motivo: `Los cargos de ${huerfanas.map((x) => x.titular).join(", ")} los paga alguien de otra mesa: cobralos desde su cuenta.` };
+  const deEstaMesa = mesa.filter((x) => !pagadorDe(estado, x) || mesa.includes(pagadorDe(estado, x)));
   if (aCuenta) {
     for (const c of pagadoras) {
       const total = Math.max(0, saldoCuenta(c)) + dependientes(estado, c).reduce((s, x) => s + Math.max(0, saldoCuenta(x)), 0);
@@ -1418,8 +1428,8 @@ export function cerrarCargosDelTurno(estado, reservaId, { medio, auth = null, aC
     const total = Math.max(0, saldoCuenta(c)) + dependientes(estado, c).reduce((s, x) => s + Math.max(0, saldoCuenta(x)), 0);
     if (total > 0) { const res = cobrarCuentaYSusCargos(estado, c.id, { medio }, ahora); if (!res.ok) return res; cobrado += res.monto; }
   }
-  for (const c of mesa) if (c.estado === "abierta") { devolverAlquileresDeCuenta(estado, c); const res = cerrarCuenta(estado, c.id, {}, ahora); if (!res.ok) return res; }
-  return { ok: true, cobrado, aCuentaCorriente: 0, cerradas: mesa.length };
+  for (const c of deEstaMesa) if (c.estado === "abierta") { devolverAlquileresDeCuenta(estado, c); const res = cerrarCuenta(estado, c.id, {}, ahora); if (!res.ok) return res; }
+  return { ok: true, cobrado, aCuentaCorriente: 0, cerradas: deEstaMesa.length };
 }
 
 /** Las mesas que siguen cargando con la cancha ya cerrada (para el Buffet), de la más vieja a la más nueva. */
@@ -1815,11 +1825,24 @@ export function resumenCaja(estado, dia) {
 }
 
 /** Cierre de la caja diaria (de 12 a 12): pide PIN; lo contado contra lo esperado, con diferencia explícita. */
-export function cerrarCaja(estado, { contado, usuarioId, pin }, ahora) {
+/**
+ * Cajas de días anteriores que tuvieron movimientos y nadie cerró (ej. lo cobrado a la mañana, antes del corte de
+ * las 12, es de la caja del día anterior): se avisan y se pueden cerrar después.
+ */
+export function cajasSinCerrar(estado, ahora) {
+  const hoy = diaDeCaja(estado, ahora.fecha, ahora.min);
+  const dias = new Set(estado.caja.movimientos.map((m) => m.caja ?? (m.fecha && diaDeCaja(estado, m.fecha, m.min ?? 0))).filter(Boolean));
+  return [...dias].filter((d) => d < hoy && !cajaCerrada(estado, d)).sort();
+}
+
+export function cerrarCaja(estado, { contado, usuarioId, pin, dia: diaPedido = null }, ahora) {
   const a = autorizar(estado, { usuarioId, pin }, "cerrarCaja", true);
   if (!a.ok) return a;
-  const dia = cajaAbierta(estado, ahora);
-  if (dia !== diaDeCaja(estado, ahora.fecha, ahora.min)) return { ok: false, motivo: "Esta caja ya está cerrada. Lo que se cobre desde ahora entra en la caja siguiente." };
+  let dia = cajaAbierta(estado, ahora);
+  if (diaPedido) {
+    if (!cajasSinCerrar(estado, ahora).includes(diaPedido)) return { ok: false, motivo: "Esa caja ya está cerrada o no tiene movimientos." };
+    dia = diaPedido;
+  } else if (dia !== diaDeCaja(estado, ahora.fecha, ahora.min)) return { ok: false, motivo: "Esta caja ya está cerrada. Lo que se cobre desde ahora entra en la caja siguiente." };
   const r = resumenCaja(estado, dia);
   const n = Math.round(Number(contado));
   if (contado === "" || contado == null || !(n >= 0)) return { ok: false, motivo: "Contá el efectivo del cajón y cargalo." };

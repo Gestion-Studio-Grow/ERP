@@ -989,3 +989,72 @@ test("tienda en el día real: el club pega el mensaje de WhatsApp del cliente y 
   assert.match(M.pedidoDesdeWhatsApp(e, mensaje, ahora(15, 6)).motivo, /ya está cargado/);
   assert.match(M.pedidoDesdeWhatsApp(e, "hola, ¿tienen paletas?", ahora(15, 6)).motivo, /No encontré productos/);
 });
+
+test("Gate B2: un jugador en dos turnos seguidos — «cobrar todo» cobra exactamente lo que muestra", () => {
+  const e = club();
+  // Turno 1: Ana paga los cargos de Beto; se cierra la cancha y la mesa sigue.
+  const r1 = mesa4(e, 18);
+  M.checkIn(e, r1.id, ahora(18));
+  M.consumoJugador(e, r1.id, 0, "p2", 1, {}, ahora(18, 30));
+  M.consumoJugador(e, r1.id, 1, "p9", 3, {}, ahora(18, 30));
+  M.asignarCargoCargos(e, M.cuentaDeJugador(e, r1, 1).id, M.cuentaDeJugador(e, r1, 0).id, ahora(18, 40));
+  M.cerrarCanchaYSeguir(e, r1.id, { medio: "efectivo" }, ahora(19, 30));
+  // Turno 2: Ana vuelve a jugar con otros; su cuenta (con lo de Beto a cargo) viene con ella.
+  const r2 = turno(e, "c2", 19, { clienteId: "a", jugadores: [{ nombre: "Ana", clienteId: "a" }, "Zoe"] }, 30);
+  M.checkIn(e, r2.id, ahora(19, 30));
+  M.consumoJugador(e, r2.id, 1, "p2", 1, {}, ahora(20));
+  const t = M.cuentaDelTurno(e, r2.id);
+  const filas = t.jugadores.reduce((s: number, j: any) => s + j.aPagar, 0);
+  assert.equal(filas, t.totales.pendiente, "las filas suman lo que dice «falta cobrar»");
+  const antes = cajaIngresos(e);
+  const res = M.cobrarTodoElTurno(e, r2.id, { medio: "efectivo" }, ahora(21));
+  assert.ok(res.ok);
+  assert.equal(res.total, t.totales.pendiente);
+  assert.equal(cajaIngresos(e) - antes, t.totales.pendiente, "la caja sube lo que decía el botón");
+  // La mesa del turno 1: los cargos de Beto los pagó Ana en el turno 2 → nada pendiente.
+  assert.equal(M.cuentaDelTurno(e, r1.id).totales.pendiente, 0);
+});
+
+test("Gate B2 (al revés): la cuenta que paga alguien de otra mesa no se cobra acá ni se cuenta en el total", () => {
+  const e = club();
+  const r1 = mesa4(e, 18);
+  M.checkIn(e, r1.id, ahora(18));
+  M.consumoJugador(e, r1.id, 2, "k-mila", 1, {}, ahora(18, 30));
+  const r2 = turno(e, "c2", 18, { clienteId: "d", jugadores: [{ nombre: "Dani", clienteId: "d" }] });
+  M.checkIn(e, r2.id, ahora(18));
+  M.consumoJugador(e, r2.id, 0, "p2", 1, {}, ahora(18, 30));
+  M.asignarCargoCargos(e, M.cuentaDeJugador(e, r1, 2).id, M.cuentaDeJugador(e, r2, 0).id, ahora(18, 40));
+  const t = M.cuentaDelTurno(e, r1.id);
+  assert.equal(t.totales.cargos, 0);
+  assert.equal(t.deOtraMesa.length, 1);
+  assert.equal(M.cuentaDelTurno(e, r2.id).totales.cargos, 2000 + 14500, "la paga Dani en su mesa");
+});
+
+test("Gate B3: lo cobrado antes de las 12 es de la caja anterior; se avisa y se puede cerrar después", () => {
+  const e = club();
+  const S = "2026-10-17";
+  M.ventaMostrador(e, [{ productoId: "p2", cant: 5 }], "efectivo", { fecha: S, min: 10 * 60 });
+  M.ventaMostrador(e, [{ productoId: "p2", cant: 1 }], "efectivo", { fecha: S, min: 20 * 60 });
+  const noche = { fecha: S, min: 23 * 60 };
+  assert.deepEqual(M.cajasSinCerrar(e, noche), ["2026-10-16"]);
+  assert.equal(M.cerrarCaja(e, { contado: 2000, ...DUENO }, noche).ok, true, "la de hoy (desde las 12)");
+  assert.equal(e.caja.cierres[0].esperado, 2000);
+  const vieja = M.cerrarCaja(e, { contado: 10000, ...DUENO, dia: "2026-10-16" }, noche);
+  assert.ok(vieja.ok);
+  assert.equal(vieja.cierre.esperado, 10000);
+  assert.deepEqual(M.cajasSinCerrar(e, noche), []);
+  assert.equal(M.cerrarCaja(e, { contado: 0, ...DUENO, dia: "2026-10-16" }, noche).ok, false, "no se cierra dos veces");
+});
+
+test("Gate menores: sin cobrar a una cancha cerrada; sin PIN vacío; respaldo con ids raros se rechaza", () => {
+  const e = club();
+  const r = turno(e, "c1", 20, { clienteId: "d" });
+  M.checkIn(e, r.id, ahora(20));
+  assert.ok(M.finalizar(e, r.id, { aCuenta: true }, ahora(21, 30)).ok);
+  assert.match(M.registrarPago(e, r.id, { medio: "efectivo", monto: 1000 }, ahora(21, 31)).motivo, /ya está cerrada/);
+  const real = M.crearClubReal(HOY);
+  assert.equal(M.usuarioPorPin(real, ""), null);
+  const foto = JSON.parse(JSON.stringify(M.serializarEstado(e)));
+  foto.estado.reservas[0].id = '"><img src=x onerror=alert(1)>';
+  assert.equal(M.hidratarEstado(foto).ok, false);
+});

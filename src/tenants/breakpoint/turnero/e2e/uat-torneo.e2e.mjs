@@ -345,6 +345,22 @@ const sw = await p.evaluate(() => Math.max(document.documentElement.scrollWidth,
 ok("8.390", sw <= 390, `Celular 390 px: la cuenta del turno sin scroll horizontal (${sw})`);
 await foto("movil-cuenta-turno");
 
+// ═══ 9. Gate B1: desde la demo (PIN de ejemplo) no se puede borrar la jornada real guardada ═══
+await p.setViewportSize({ width: 1366, height: 900 }); await cerrar();
+const cajaFinal = ingresos(await estado());
+if (await bloqueada()) await desbloquear("84");
+await irTab("ajustes");
+await p.click('#app [data-a="jornada"][data-v="demo"]'); await W(); await p.fill("#cf-pin", "84"); await p.click('#dlg [data-a="confirmarJornada"]');
+await p.waitForLoadState("load"); await W(1200);
+await entrarComo("u-rober", "11"); await irTab("ajustes");
+const enBlanco = await p.locator('#app [data-a="jornada"][data-v="blanco"]').count();
+ok("9.demo-no-borra", enBlanco === 0 && await p.isVisible('#app [data-a="jornada"][data-v="retomar"]'), "En la demo, con una jornada real guardada, no aparece «Empezar en blanco»: sólo «Seguir la jornada real guardada»");
+await p.click('#app [data-a="jornada"][data-v="retomar"]'); await W(); await p.fill("#cf-pin", "11"); await p.click('#dlg [data-a="confirmarJornada"]');
+await p.waitForLoadState("load"); await W(1200);
+ok("9.vuelve", await bloqueada() && !(await p.$("#bloqueo .demo-pins")) && ingresos(await estado()) === cajaFinal, "Volver a la jornada: queda bloqueada (con el PIN de la demo no se entra) y la caja está intacta");
+await desbloquear("11");
+ok("9.pin-demo", await bloqueada(), "El PIN 11 de la demo no abre la jornada real");
+
 ok("errores", errores.length === 0, `Cero errores de consola${errores.length ? `: ${errores.slice(0, 3).join(" | ")}` : ""}`);
 await writeFile(`${OUT}/resultado.json`, JSON.stringify({ fecha: new Date().toISOString(), filas }, null, 2));
 const malas = filas.filter((f) => f.estado !== "OK");

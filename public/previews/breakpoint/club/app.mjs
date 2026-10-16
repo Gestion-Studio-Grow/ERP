@@ -1,5 +1,6 @@
 // GESTIÓN DEL CLUB — Break Point Pádel (demo del flujo). Toda la regla de negocio vive en motor.mjs;
-// este archivo sólo pinta y conecta botones. Sin persistencia: el estado vive en memoria.
+// este archivo sólo pinta y conecta botones. En la demo el estado vive en memoria; en la jornada real (?modo=real) se
+// guarda en el navegador de esa compu (guardarJornada) y nunca sale de ahí.
 import * as M from "./motor.mjs";
 import { morph } from "./morph.mjs";
 
@@ -182,7 +183,8 @@ function iniciar() {
     USUARIO = foto?.usuario && M.usuario(E, foto.usuario)?.activo !== false ? foto.usuario : E.usuarios.find((u) => u.activo !== false)?.id;
     AHORA = relojReal();
     HOY = AHORA.fecha;
-    if (foto && !h.ok) requestAnimationFrame(() => toast(`Lo guardado en esta compu no se pudo leer (${h.motivo}): arrancó en blanco. Si tenés un respaldo, restauralo desde Ajustes.`, { error: true }));
+    if (foto && !h.ok) lsGuardar(`${CLAVE_JORNADA}-ilegible-${Date.now()}`, lsLeer(CLAVE_JORNADA));
+    if (foto && !h.ok) requestAnimationFrame(() => toast(`Lo guardado en esta compu no se pudo leer (${h.motivo}): arrancó en blanco (lo guardado quedó apartado en esta compu, no se borró). Si tenés un respaldo, restauralo desde Configuración.`, { error: true }));
   } else {
     E = M.generarDemo(HOY);
     AHORA = { fecha: HOY, min: 19 * 60 + 10 };
@@ -506,7 +508,9 @@ function vistaCaja() {
   const r = M.resumenCaja(E, dia);
   const hoy = M.diaDeCaja(E, AHORA.fecha, AHORA.min);
   const cierres = E.caja.cierres.filter((c) => c.dia === dia || c.dia === hoy); // si la de hoy ya cerró, se ve su cierre
+  const atrasadas = M.cajasSinCerrar(E, AHORA);
   return `<div class="stack">
+    ${atrasadas.map((d) => { const ra = M.resumenCaja(E, d); return `<div class="al alta" role="alert"><span class="lvl">Caja sin cerrar</span><p>La caja del <b>${esc(fechaCorta(d))}</b> (de 12:00 a 12:00) tiene ${ra.movimientos} movimiento(s) y nadie la cerró: efectivo esperado ${M.pesos(ra.efectivoEsperado)}. Pasa cuando se cobra antes de las 12.</p><div class="row"><button type="button" class="btn sm primary" data-a="cerrarCaja" data-v="${d}">Cerrar la caja del ${esc(ddmm(d))}</button></div></div>`; }).join("")}
     <section class="card" aria-labelledby="t-caja">
       <div class="card-head"><h2 id="t-caja" class="pantalla">Caja del ${esc(fechaCorta(dia))} · ${dia === hoy ? "de 12:00 a 12:00" : "abierta al cerrar la anterior"}</h2>
         <div class="row">
@@ -818,7 +822,8 @@ function tarjetaJornada() {
           <button type="button" class="btn" data-a="jornada" data-v="demo">Volver a la demo</button>
           <button type="button" class="btn danger" data-a="jornada" data-v="blanco">Empezar otra jornada en blanco</button></div>`
       : `<p class="small" style="margin:0 0 10px">Para el día de prueba en el local: el club arranca <b>vacío</b> (sin turnos, clientes ni caja; con las canchas, productos y usuarios de Break Point), con la hora real, y se guarda solo en esta compu. La demo de ejemplo no se toca.</p>
-        <div class="row"><button type="button" class="btn primary" data-a="jornada" data-v="blanco">Empezar la jornada real en blanco</button>${guardada ? `<button type="button" class="btn" data-a="jornada" data-v="retomar">Seguir la jornada real guardada</button>` : ""}</div>`}
+        <div class="row">${guardada ? `<button type="button" class="btn primary" data-a="jornada" data-v="retomar">Seguir la jornada real guardada</button>` : `<button type="button" class="btn primary" data-a="jornada" data-v="blanco">Empezar la jornada real en blanco</button>`}</div>
+        ${guardada ? `<p class="small muted" style="margin:8px 0 0">En esta compu hay una jornada real guardada: desde la demo no se puede borrar. Para empezar otra, entrá a la jornada con el PIN de un dueño y usá «Empezar otra jornada en blanco».</p>` : ""}`}
     </section>
     <section class="card" aria-labelledby="t-contactos">
       <div class="card-head"><h2 id="t-contactos">Avisos por WhatsApp</h2><span class="muted small">Se guardan sólo en esta compu</span></div>
@@ -1207,6 +1212,7 @@ function resumenTurno(r, t, cl) {
     <dl class="kv num totales-turno" aria-label="Totales del turno"><dt>Cancha</dt><dd>${M.pesos(T.cancha)}</dd><dt>Cargos</dt><dd>${M.pesos(T.cargos)}</dd><dt class="tot">Falta cobrar</dt><dd class="tot">${M.pesos(T.pendiente)}</dd></dl>
     ${hayAlgo ? pickMedios(true, cl) : ""}
     <ul class="filas-jug">${filas}</ul>
+    ${t.deOtraMesa.length ? `<p class="small muted" style="margin:0">No se cobra acá: ${t.deOtraMesa.map((x) => `los cargos de ${esc(x.titular)} (${M.pesos(x.saldo)}) los paga ${esc(x.paga)} en su mesa`).join(" · ")}.</p>` : ""}
     <div class="row">
       ${hayAlgo ? `<button type="button" class="btn primary" data-a="cobrarTodo" data-v="${r.id}">Cobrar todo ${M.pesos(T.pendiente)}</button>` : ""}
       ${abierto && r.estado === "en_cancha" ? `<button type="button" class="btn" data-a="cerrarYSeguir" data-v="${r.id}">${T.cancha > 0 ? `Cobrar la cancha ${M.pesos(T.cancha)} y cerrarla` : "Cerrar la cancha"} · la mesa sigue</button>` : ""}
@@ -1348,6 +1354,8 @@ function verCuenta(id) {
 // a un dueño. El dueño aprueba en el sistema o desde su celular (link por WhatsApp → código de 6 letras).
 function seccionFiado(cta, c, s) {
   if (!c) return `<p class="small muted" style="margin:0">Para fiar hace falta la ficha del cliente (Clientes → nuevo).</p>`;
+  const deOtros = E.cuentas.filter((x) => x.estado === "abierta" && x.aCargoDe === cta.id).reduce((t, x) => t + Math.max(0, M.saldoCuenta(x)), 0);
+  s += deOtros;
   if (M.puedeACuenta(c, s).ok) return "";
   const n = E.novedades.find((x) => x.estado === "pendiente" && x.clienteId === c.id);
   if (n) return panelAprobacion(n);
@@ -1405,8 +1413,11 @@ function dialogoAprobar(d) {
     if (!(monto > 0)) return toast("Poné el monto.", { error: true });
     if (!/^\d{2}$/.test(pin)) return toast("El PIN son 2 números.", { error: true });
     if (local) {
+      const espera = Math.ceil((intentosPin.hasta - Date.now()) / 1000);
+      if (espera > 0) return toast(`Demasiados intentos: esperá ${espera} s.`, { error: true });
       const v = M.verificarPin(E, elegido, pin);
-      if (!v.ok) return toast(v.motivo, { error: true });
+      if (!v.ok) { intentosPin.fallos += 1; if (intentosPin.fallos >= 5) { intentosPin.fallos = 0; intentosPin.hasta = Date.now() + 30_000; } return toast(v.motivo, { error: true }); }
+      intentosPin.fallos = 0;
       return cerrarSiSale(M.resolverCredito(E, d.id, { aprobar: true, monto }, { usuarioId: elegido, pin }, AHORA), `Aprobado: ${d.n} ${M.pesos(monto)}.`);
     }
     codigo = { codigo: M.codigoAprobacion({ pin, novedadId: d.id, clienteId: d.c, monto, fecha: d.f }), monto };
@@ -1550,8 +1561,18 @@ function egresoDialogo() {
   });
 }
 
-function cierreCajaDialogo() {
+function cierreCajaDialogo(diaAtrasado = null) {
   const hoy = M.diaDeCaja(E, AHORA.fecha, AHORA.min);
+  if (diaAtrasado) {
+    const ra = M.resumenCaja(E, diaAtrasado);
+    return abrir({
+      titulo: `Cerrar la caja del ${esc(fechaCorta(diaAtrasado))}`,
+      sub: "Caja anterior que quedó sin cerrar (lo cobrado antes de las 12 es de la caja del día anterior).",
+      cuerpo: `<dl class="kv num">${MEDIOS_CAJA.map((k) => `<dt>${M.MEDIOS[k]}</dt><dd>${M.pesos(ra.porMedio[k])}</dd>`).join("")}<dt class="tot">Efectivo que tiene que haber</dt><dd class="tot">${M.pesos(ra.efectivoEsperado)}</dd></dl>
+        <div class="grid2"><label class="f">Efectivo contado de esa caja<input id="k-cont" type="number" min="0" value="${ra.efectivoEsperado}"></label>${campoPin("k-pin", `PIN de ${esc(yo().nombre.split(" ")[0])}`)}</div>`,
+      pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="aplicarCierre" data-v="${diaAtrasado}">Cerrar esa caja</button>`,
+    });
+  }
   if (M.cajaCerrada(E, hoy)) return abrir({ titulo: "La caja de hoy ya está cerrada", cuerpo: `<p style="margin:0">Se cerró una sola vez, como corresponde. Lo que se cobre desde ahora entra en la caja del ${esc(fechaCorta(M.cajaAbierta(E, AHORA)))}.</p>`, pie: `<button type="button" class="btn primary" data-a="cerrar">Entendido</button>` });
   const dia = M.cajaAbierta(E, AHORA);
   const r = M.resumenCaja(E, dia);
@@ -2006,7 +2027,8 @@ const acciones = {
   verMesa: (b) => verReserva(b.dataset.v),
   pedirFiado: (b) => {
     const cta = M.cuenta(E, b.dataset.v);
-    const res = M.solicitarCredito(E, { clienteId: cta.clienteId, tipo: "fiado", monto: M.saldoCuenta(cta), cuentaId: cta.id }, auth(), AHORA);
+    const deOtros = E.cuentas.filter((x) => x.estado === "abierta" && x.aCargoDe === cta.id).reduce((t, x) => t + Math.max(0, M.saldoCuenta(x)), 0);
+    const res = M.solicitarCredito(E, { clienteId: cta.clienteId, tipo: "fiado", monto: M.saldoCuenta(cta) + deOtros, cuentaId: cta.id }, auth(), AHORA);
     hecho(res, "Pedido enviado: avisale a un dueño por WhatsApp con el botón.");
   },
   aprobarCodigo: (b) => {
@@ -2098,14 +2120,16 @@ const acciones = {
     const que = b.dataset.v;
     if (que === "demo") return pinPara("confirmarJornada", "demo", "Volver a la demo (la jornada queda guardada)");
     if (que === "retomar") return pinPara("confirmarJornada", "retomar", "Seguir la jornada real guardada");
-    pinPara("confirmarJornada", "blanco", MODO_REAL ? "Empezar otra jornada en blanco (se borra la de ahora: descargá el respaldo antes)" : "Empezar la jornada real en blanco");
+    pinPara("confirmarJornada", "blanco", MODO_REAL ? "Empezar otra jornada en blanco (la de ahora queda como «anterior» en esta compu: igual descargá el respaldo antes)" : "Empezar la jornada real en blanco");
   },
   confirmarJornada: (b) => {
     const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
     if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
     const que = b.dataset.v;
+    // Desde la demo (PIN de ejemplo, que conoce cualquiera) nunca se pisa una jornada real guardada.
+    if (que === "blanco" && !MODO_REAL && leerJornada()) return toast("Hay una jornada real guardada en esta compu: desde la demo no se borra.", { error: true });
     guardado.fuera = true; // desde acá no se guarda más esta pestaña: se recarga
-    if (que === "blanco") { lsGuardar(CLAVE_JORNADA, null); lsGuardar(CLAVE_MODO, "real"); }
+    if (que === "blanco") { if (MODO_REAL) lsGuardar(`${CLAVE_JORNADA}-anterior`, fotoJornada()); lsGuardar(CLAVE_JORNADA, null); lsGuardar(CLAVE_MODO, "real"); }
     if (que === "retomar") lsGuardar(CLAVE_MODO, "real");
     if (que === "demo") { if (MODO_REAL) lsGuardar(CLAVE_JORNADA, fotoJornada()); lsGuardar(CLAVE_MODO, "demo"); }
     location.replace(location.pathname);
@@ -2220,8 +2244,8 @@ const acciones = {
   // caja
   egreso: () => egresoDialogo(),
   aplicarEgreso: () => cerrarSiSale(M.egresoCaja(E, { monto: val("#g-m"), concepto: val("#g-c"), usuarioId: USUARIO, pin: val("#g-pin") }, AHORA), "Egreso registrado."),
-  cerrarCaja: () => cierreCajaDialogo(),
-  aplicarCierre: () => cerrarSiSale(M.cerrarCaja(E, { contado: val("#k-cont"), usuarioId: USUARIO, pin: val("#k-pin") }, AHORA), (r) => (r.cierre.diferencia === 0 ? "Caja cerrada: cuadra justo." : `Caja cerrada con diferencia de ${M.pesos(r.cierre.diferencia)}.`)),
+  cerrarCaja: (b) => cierreCajaDialogo(b.dataset.v || null),
+  aplicarCierre: (b) => cerrarSiSale(M.cerrarCaja(E, { contado: val("#k-cont"), usuarioId: USUARIO, pin: val("#k-pin"), dia: b.dataset.v || null }, AHORA), (r) => (r.cierre.diferencia === 0 ? "Caja cerrada: cuadra justo." : `Caja cerrada con diferencia de ${M.pesos(r.cierre.diferencia)}.`)),
   remito: () => remitoDialogo(),
   remitoAgregar: () => { const pid = ui.producto.remito; if (!pid) return toast("Buscá y elegí un producto.", { error: true }); sumarAlRemito(pid, 1); ui.producto.remito = null; ui.busca.remito = ""; dialogoActual?.refrescar?.(); },
   remitoQuitar: (b) => { ui.remito.items.splice(Number(b.dataset.v), 1); dialogoActual?.refrescar?.(); },
