@@ -55,7 +55,12 @@ test("tienda: sin nombre, vacío, producto que no es de la tienda o celular mal 
 });
 
 test("modo pedido: club en blanco (sin turnos de ejemplo), horarios y precios de referencia, tienda local", async () => {
-  const t = L.crearLocalPedido();
+  // Sin catálogo en el link no hay tienda (nada de productos ni precios de ejemplo).
+  const sinCat = L.crearLocalPedido();
+  assert.equal((await sinCat.api("/api/tienda/catalogo")).productos.length, 0);
+  sinCat.cerrar();
+  // Con el link del club: sus tarifas y sólo sus productos, a sus precios.
+  const t = L.crearLocalPedido({ tarifas: [{ nombre: "Valle", desde: 480, hasta: 1560, precioHora: 30000 }], catalogo: { p1: 13000, p4: 5000 } });
   const cfg = await t.api("/api/turnero/config");
   assert.ok(cfg.club && cfg.dias.length > 0);
   const fecha = cfg.dias[1].fecha;
@@ -65,7 +70,9 @@ test("modo pedido: club en blanco (sin turnos de ejemplo), horarios y precios de
   // Sin reservas de ejemplo: cada cancha tiene su primer horario del día libre.
   const canchas = new Set(d.slots.map((s: any) => s.canchaId));
   assert.equal(canchas.size, cfg.canchas.length, "todas las canchas con horarios (no hay turnos de la demo)");
+  assert.ok(d.slots.every((s: any) => s.precio === 45000), "precio del club: 90′ a $30.000 la hora");
   const { productos } = await t.api("/api/tienda/catalogo");
+  assert.deepEqual(productos.map((x: any) => [x.id, x.precio]).sort(), [["p1", 13000], ["p4", 5000]]);
   const r = await t.api("/api/tienda/pedidos", { metodo: "POST", cuerpo: { items: [{ productoId: productos[0].id, cant: 1 }], nombre: "Sol" } });
   assert.equal(r.ok, true);
   assert.match(r.pedido.codigo, /^T-/);

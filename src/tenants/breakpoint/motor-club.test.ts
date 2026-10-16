@@ -1058,3 +1058,47 @@ test("Gate menores: sin cobrar a una cancha cerrada; sin PIN vacío; respaldo co
   foto.estado.reservas[0].id = '"><img src=x onerror=alert(1)>';
   assert.equal(M.hidratarEstado(foto).ok, false);
 });
+
+test("Fable B1: pagaron todos su parte, se extiende 30′ y «cobrar todo» cobra el resto entero", () => {
+  const e = club();
+  const r = mesa4(e);
+  M.checkIn(e, r.id, ahora(20));
+  assert.ok(M.cobrarTodoElTurno(e, r.id, { medio: "efectivo" }, ahora(20, 5)).ok);
+  assert.ok(M.extender(e, r.id, 30, ahora(21)).ok);
+  const falta = M.saldo(r);
+  assert.ok(falta > 0);
+  const antes = cajaIngresos(e);
+  const res = M.cobrarTodoElTurno(e, r.id, { medio: "efectivo" }, ahora(21, 5));
+  assert.ok(res.ok);
+  assert.equal(res.total, falta);
+  assert.equal(cajaIngresos(e) - antes, falta);
+  assert.equal(M.saldo(r), 0);
+});
+
+test("Fable B4: desde el mostrador se carga un turno que ya empezó (mientras no terminó); desde la web no", () => {
+  const e = club();
+  assert.ok(M.crearReserva(e, { canchaId: "c1", fecha: HOY, inicio: 15 * 60, clienteId: "a" }, ahora(16)).ok, "15:00 a las 16:00 desde el mostrador");
+  assert.match(M.crearReserva(e, { canchaId: "c2", fecha: HOY, inicio: 14 * 60, clienteId: "a" }, ahora(16)).motivo, /ya pasó/, "14:00–15:30 ya terminó");
+  assert.match(M.crearReserva(e, { canchaId: "c3", fecha: HOY, inicio: 15 * 60, clienteId: "a", origen: "web" }, ahora(16)).motivo, /ya pasó/);
+});
+
+test("Fable I2/I3/M4: fondo de caja, conteo de stock, baja de producto y fiado que se usa en partes", () => {
+  const e = M.crearClubReal(HOY);
+  assert.ok(e.productos.filter((p: any) => !p.plato && !p.alquiler).every((p: any) => p.stock === null && p.codigoExterno === ""), "arranca sin stock ni códigos de ejemplo");
+  assert.equal(M.alertas(e, ahora(10)).filter((a: any) => a.tipo === "stock").length, 0, "sin alertas de stock falsas");
+  M.definirPinInicial(e, "u-rober", "57", ahora(9));
+  const R = { usuarioId: "u-rober", pin: "57" };
+  assert.ok(M.ajustarFondo(e, 20000, R, ahora(9)).ok);
+  assert.equal(M.resumenCaja(e, M.diaDeCaja(e, HOY, 15 * 60)).efectivoEsperado, 20000);
+  assert.ok(M.ajustarStock(e, "p2", 42, R, ahora(9)).ok);
+  assert.equal(M.producto(e, "p2").stock, 42);
+  assert.ok(M.bajaProducto(e, "p8", R, ahora(9)).ok);
+  assert.ok(!M.catalogoTienda(e).some((p: any) => p.id === "p8"));
+  const c = M.altaCliente(e, { nombre: "Juan", tel: "1155550001" }, ahora(9)).cliente;
+  c.fiados.push({ monto: 25000, aprobo: "Roberto Ronco", usado: false });
+  const { cuenta: a } = M.abrirCuenta(e, { clienteId: c.id }, ahora(10));
+  M.cargarEnCuenta(e, a.id, "k-pica", 1, ahora(10));
+  assert.ok(M.cerrarCuenta(e, a.id, { aCuenta: true }, ahora(11)).ok);
+  assert.equal(c.fiados[0].monto, 4000, "del fiado de $25.000 quedan $4.000 para otra cuenta");
+  assert.equal(c.fiados[0].usado, false);
+});

@@ -25,6 +25,17 @@ let LOCAL = null; // adaptador local (local.mjs): sólo se descarga si hace falt
 const MODO_PEDIDO = MODO_DEMO && qs.get("modo") === "pedido";
 /** Número del club para WhatsApp (?wa=): sólo dígitos, de 8 a 15. Si no sirve, WhatsApp abre sin destinatario. */
 const WA = (() => { const n = String(qs.get("wa") ?? "").replace(/[\s+().-]/g, ""); return /^\d{8,15}$/.test(n) ? n : ""; })();
+// El club arma el link con SUS tarifas (?tar=desde-hasta-precio,…) y SU tienda (?cat=id:precio,…): el celular del
+// cliente no ve la compu del club. Sin ?cat= en modo pedido no hay tienda (nada de productos ni precios de ejemplo).
+const TARIFAS = (() => {
+  const t = String(qs.get("tar") ?? "").split(",").map((x) => x.split("-").map(Number)).filter((x) => x.length === 3 && x.every((n) => Number.isFinite(n) && n >= 0));
+  return t.length ? t.map(([desde, hasta, precioHora], i) => ({ nombre: i ? "Pico" : "Valle", desde, hasta, precioHora })) : null;
+})();
+const CATALOGO = (() => {
+  const c = String(qs.get("cat") ?? "").split(",").map((x) => x.split(":")).filter(([id, p]) => /^[\w-]{1,30}$/.test(id ?? "") && Number(p) > 0);
+  return c.length ? Object.fromEntries(c.map(([id, p]) => [id, Math.round(Number(p))])) : null;
+})();
+const HAY_TIENDA = !MODO_PEDIDO || !!CATALOGO;
 const linkWa = (texto) => `https://wa.me/${WA}?text=${encodeURIComponent(texto)}`;
 const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -589,7 +600,7 @@ function prepararModoPedido() {
   vivo.textContent = "Pedido por WhatsApp";
   $("#cinta").textContent = "Horarios y precios de referencia: el club te confirma por WhatsApp";
   $("#subtitulo").textContent = "Horarios y precios de referencia · la disponibilidad te la confirma el club.";
-  for (const el of [$("#btn-ingresar"), $("#usuario"), $("#mis-reservas"), $(".saltar"), $("#btn-google"), $("#btn-simular")]) if (el) el.hidden = true;
+  for (const el of [$("#btn-ingresar"), $("#usuario"), $("#mis-reservas"), $(".saltar"), $("#btn-google"), $("#btn-simular"), ...(HAY_TIENDA ? [] : [$("#btn-tienda")])]) if (el) el.hidden = true;
   $("#como-pasos").innerHTML = "<li><b>Elegí</b> el día, el horario y la duración.</li><li><b>Pedilo por WhatsApp</b> con tu nombre: el mensaje sale armado.</li><li><b>El club te confirma</b> y te pasa el alias para la seña.</li>";
   $("#espera p").textContent = "No vemos canchas libres con estos filtros. Preguntale al club por WhatsApp: a veces se libera algo.";
   $("#btn-espera").textContent = "Preguntar por WhatsApp";
@@ -598,6 +609,7 @@ function prepararModoPedido() {
 // ───────────── tienda (módulo aparte, carga diferida) ─────────────
 let arranque = null;
 async function abrirTienda() {
+  if (!HAY_TIENDA) return;
   await arranque;
   if (!S.config) return aviso("La tienda no está disponible en este momento.");
   const t = await import("./tienda.mjs");
@@ -623,7 +635,7 @@ async function iniciar() {
     $("#grilla").setAttribute("aria-busy", "false");
     return;
   }
-  if (MODO_PEDIDO) { prepararModoPedido(); LOCAL = (await import("./local.mjs")).crearLocalPedido(); }
+  if (MODO_PEDIDO) { prepararModoPedido(); LOCAL = (await import("./local.mjs")).crearLocalPedido({ tarifas: TARIFAS, catalogo: CATALOGO }); }
   else if (API === "local") LOCAL = await (await import("./local.mjs")).crearLocal();
   const [cfg, yo] = await Promise.all([api("/api/turnero/config"), api("/api/auth/yo")]);
   if (!cfg.club) {

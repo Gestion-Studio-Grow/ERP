@@ -14,8 +14,14 @@ verdad, sin servidor y sin costo**: todo se guarda en la compu del mostrador.
      del club y el alias para la seña.
    - **Recepción** (opcional, también se hace después): nombre de cada persona → el sistema le da un PIN, que se ve
      **una sola vez**. Anotalo y dáselo.
+   - **Precios y caja:** el precio por hora (valle y pico) y el **fondo de caja** (el cambio que hay en el cajón).
    - **Abrir el club.** Queda bloqueado: entra el dueño con su PIN.
-3. Desde ahí, **Configuración** (sólo dueños) tiene todo: jornada y respaldo, avisos, usuarios y accesos (alta, PIN
+3. **Antes del primer turno**, un dueño:
+   - revisa los precios del buffet y de la tienda en Stock → «Precios y rentabilidad»;
+   - carga el **conteo de stock** de lo que se vende con stock (Stock → Editar → «Stock actual»). Mientras no se
+     cuenta, el producto se vende sin tope y no avisa reposición;
+   - da de baja lo que el club no vende.
+4. Desde ahí, **Configuración** (sólo dueños) tiene todo: jornada y respaldo, avisos, usuarios y accesos (alta, PIN
    nuevo, sacar acceso, cambiar mi PIN), reglas, precios y horarios.
 
 ## Durante el día
@@ -57,9 +63,11 @@ verdad, sin servidor y sin costo**: todo se guarda en la compu del mostrador.
 
 ## Al cerrar el día
 
-1. **Cerrar la caja** (con PIN). Se cierra una sola vez.
-2. **Configuración → Descargar respaldo**. Guardá el archivo (o mandátelo por WhatsApp). Si la compu se rompe o
-   se borran los datos del navegador, el respaldo se restaura desde Configuración.
+1. **Cerrar la caja** (con PIN). Se cierra una sola vez. La caja va de 12 a 12: lo cobrado antes de las 12 es de
+   la caja del día anterior. Si quedó sin cerrar, la pantalla de Caja lo avisa en rojo y deja cerrarla.
+2. **Configuración → Descargar respaldo**. Guardá el archivo en un lugar privado: **tiene los PIN y los datos de
+   los clientes**, no lo mandes a un grupo. Si la compu se rompe o se borran los datos del navegador, el respaldo
+   se restaura desde Configuración.
 
 ## Lo que hay que saber (límites de la prueba, sin servidor)
 
@@ -72,11 +80,17 @@ verdad, sin servidor y sin costo**: todo se guarda en la compu del mostrador.
 - **El turnero de los clientes no reserva solo**: pide por WhatsApp y el club confirma. La reserva automática
   desde cualquier celular, la sincronía entre compus y la aprobación de crédito sin código son el siguiente paso,
   con servidor, después de la venta.
-- **Los PIN son de 2 dígitos.** El código de aprobación vale lo que vale el PIN del dueño: no se presta.
+- **Los PIN son de 2 dígitos.** El código de aprobación vale lo que vale el PIN del dueño: no se presta. Cinco PIN
+  mal en la pantalla bloqueada hacen esperar (30 s, después 2 min, después 10 min), aunque se recargue.
+- **Desde la demo no se borra la jornada real.** Si alguien vuelve a la demo, sólo puede «Seguir la jornada real
+  guardada», y para entrar pide el PIN real. Empezar otra jornada se hace desde adentro, con PIN de dueño. La
+  anterior queda apartada en la compu y se descarga un respaldo solo.
+- **El link para clientes lleva los precios y la tienda de esa compu.** Si cambian precios o productos, volvé a
+  copiar el link.
 
 ## Cómo se verificó
 
-`npm run test:club-torneo`: el UAT de un **sábado de torneo** en Chromium, de punta a punta, con 54 de 54 en
+`npm run test:club-torneo`: el UAT de un **sábado de torneo** en Chromium, de punta a punta, con 61 de 61 en
 verde. Cubre:
 - la consola de configuración y los dueños;
 - recepción con 4 canchas completas, 4 jugadores y mucho buffet;

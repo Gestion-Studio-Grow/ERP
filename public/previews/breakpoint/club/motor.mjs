@@ -166,7 +166,13 @@ export const VERSION_ESTADO = 1;
  */
 export function crearClubReal(hoy) {
   secuencia = 0;
-  const e = crearEstado({ config: { ...structuredClone(CONFIG_DEMO), modo: "real", configurado: false, cobro: { alias: "" } }, canchas: CANCHAS_DEMO, productos: PRODUCTOS_DEMO, usuarios: USUARIOS_REALES, proveedores: [] });
+  const config = structuredClone(CONFIG_DEMO);
+  // En el mostrador se abre la cancha a quien llega sin ficha sin pedirle seña (queda «debe» si no pagó).
+  config.politica.senaSinCliente = false;
+  // Productos de Break Point con sus precios de referencia, sin stock inventado ni códigos de barra de ejemplo:
+  // el stock se controla desde el primer conteo (Stock → ajustar).
+  const productos = PRODUCTOS_DEMO.map((p) => ({ ...p, stock: p.alquiler ? p.stock : null, codigoExterno: "" }));
+  const e = crearEstado({ config: { ...config, modo: "real", configurado: false, cobro: { alias: "" } }, canchas: CANCHAS_DEMO, productos, usuarios: USUARIOS_REALES, proveedores: [] });
   registrar(e, "Arrancó la jornada real.", { fecha: hoy, min: null });
   return e;
 }
@@ -536,9 +542,11 @@ export function puedeACuenta(c, importe) {
   return { ok: false, motivo: `Supera el límite de ${c.nombre} (${pesos(c.cc.limite)}; ya debe ${pesos(c.deuda)}).` };
 }
 
-/** Si lo que pasó a la cuenta corriente entró por un fiado aprobado, ese fiado queda usado. */
-function usarFiado(p) {
-  if (p?.fiado) p.fiado.usado = true;
+/** Si lo que pasó a la cuenta corriente entró por un fiado aprobado, se descuenta de ese fiado (queda lo que sobra). */
+function usarFiado(p, importe) {
+  if (!p?.fiado) return;
+  p.fiado.monto = Math.max(0, p.fiado.monto - Math.round(Number(importe) || p.fiado.monto));
+  if (p.fiado.monto === 0) p.fiado.usado = true;
 }
 
 /** Estado de cuenta del cliente, del más viejo al más nuevo, con saldo corrido. */
@@ -588,7 +596,8 @@ function aplicarCredito(estado, n, c, monto, quien, ahora, porCodigo = false) {
 
 /** El dueño resuelve el pedido en el sistema (con su usuario). */
 export function resolverCredito(estado, novedadId, { aprobar, monto, limite }, auth, ahora) {
-  const a = autorizar(estado, auth, "autorizarCC", false);
+  // Si viene un PIN, se verifica (la confirmación «con tu PIN» no puede aceptar cualquiera).
+  const a = autorizar(estado, auth, "autorizarCC", auth?.pin != null);
   if (!a.ok) return a;
   const n = estado.novedades.find((x) => x.id === novedadId && x.estado === "pendiente");
   if (!n) return { ok: false, motivo: "Ese pedido ya se resolvió." };
@@ -770,7 +779,12 @@ export function crearReserva(estado, datos, ahora) {
   const cl = clienteId ? cliente(estado, clienteId) : null;
   const nombre = String(titular ?? cl?.nombre ?? "").trim();
   if (!nombre) return { ok: false, motivo: "¿A nombre de quién va el turno?" };
-  if (ahora && minutosHasta(ahora, fecha, inicio) < -estado.config.paso) return { ok: false, motivo: "Ese horario ya pasó." };
+  // Desde el mostrador se puede cargar un turno que ya está en juego (se olvidaron de cargarlo) mientras no terminó;
+  // desde la web, sólo lo que todavía no empezó.
+  if (ahora) {
+    const falta = minutosHasta(ahora, fecha, inicio);
+    if (origen === "web" ? falta < -estado.config.paso : falta + duracion <= 0) return { ok: false, motivo: "Ese horario ya pasó." };
+  }
   const v = validarHueco(estado, { canchaId, fecha, inicio, duracion });
   if (!v.ok) return v;
 
@@ -1046,6 +1060,9 @@ export function consumoJugador(estado, reservaId, jugadorIdx, productoId, cant, 
   const j = r.jugadores[jugadorIdx];
   if (!j) return { ok: false, motivo: "Elegí el jugador." };
   if (modo === "cobrar" && !MEDIOS[medio]) return { ok: false, motivo: "Elegí cómo paga." };
+  const p = producto(estado, productoId);
+  if (!p || p.activo === false) return { ok: false, motivo: "No encuentro el producto." };
+  if (p.stock != null && p.stock < Math.round(Number(cant))) return { ok: false, motivo: `No queda stock de ${p.nombre} (quedan ${p.stock}).` };
   const abierta = abrirCuenta(estado, { clienteId: j.clienteId ?? null, titular: j.nombre, reservaId, jugadorIdx }, ahora);
   if (!abierta.ok) return abierta;
   const carga = cargarEnCuenta(estado, abierta.cuenta.id, productoId, cant, ahora);
@@ -1180,7 +1197,7 @@ export function cerrarCuenta(estado, cuentaId, { aCuenta = false } = {}, ahora) 
     x.estado = "cerrada";
     x.cerrada = sello(ahora);
   }
-  usarFiado(p);
+  usarFiado(p, total);
   devolverAlquileresDeCuenta(estado, cta);
   cta.estado = "cerrada";
   cta.cerrada = sello(ahora);
@@ -1361,6 +1378,8 @@ export function cobrarTodoElTurno(estado, reservaId, { medio, auth = null }, aho
     if (!res.ok) return res;
     cancha += res.monto;
   }
+  // Si queda saldo de cancha (ej. se extendió después de que todos pagaron su parte), se cobra entero acá.
+  if (turnoAbierto(r) && saldo(r) > 0) { const m = saldo(r); const res = registrarPago(estado, reservaId, { medio, monto: m }, ahora); if (!res.ok) return res; cancha += m; }
   let cargos = 0;
   for (const c of cuentasDeLaMesa(estado, r).filter((x) => !pagadorDe(estado, x))) {
     if (c.estado !== "abierta" || !(deudaDe(estado, c) > 0)) continue;
@@ -1368,6 +1387,8 @@ export function cobrarTodoElTurno(estado, reservaId, { medio, auth = null }, aho
     if (!res.ok) return res;
     cargos += res.monto;
   }
+  const queda = cuentaDelTurno(estado, reservaId).totales.pendiente;
+  if (queda > 0) return { ok: false, motivo: `Se cobraron ${pesos(cancha + cargos)} pero quedan ${pesos(queda)}: revisá la cuenta del turno.`, cobrado: cancha + cargos };
   return { ok: true, cancha, cargos, total: cancha + cargos };
 }
 
@@ -1506,7 +1527,7 @@ export function finalizar(estado, id, { aCuenta = false } = {}, ahora) {
     const p = puedeACuenta(c, debe);
     if (!p.ok) return p;
     movimientoCC(estado, c, debe, `Cancha ${r.fecha.slice(8)}/${r.fecha.slice(5, 7)} ${hhmm(r.inicio)}${p.fiado ? ` (fiado aprobado por ${p.fiado.aprobo})` : ""}`, ahora);
-    usarFiado(p);
+    usarFiado(p, debe);
     r.aCuentaCorriente = debe;
   }
   devolverAlquileresDelTurno(estado, r);
@@ -1907,6 +1928,47 @@ export function editarProducto(estado, productoId, cambios, auth, ahora) {
   if (cambios.nombre != null && String(cambios.nombre).trim()) p.nombre = String(cambios.nombre).trim();
   Object.assign(p, codigos);
   registrar(estado, `Se editó el producto ${p.nombre}.`, ahora);
+  return { ok: true };
+}
+
+/**
+ * Ajuste de inventario (conteo): el dueño carga cuántas hay. `null` = sin controlar stock (se vende sin tope y no
+ * avisa reposición), que es como arranca la jornada real hasta el primer conteo.
+ */
+export function ajustarStock(estado, productoId, cantidad, auth, ahora) {
+  const a = autorizar(estado, auth, "stock", false);
+  if (!a.ok) return a;
+  const p = producto(estado, productoId);
+  if (!p) return { ok: false, motivo: "No encuentro el producto." };
+  if (p.plato) return { ok: false, motivo: "Los platos no llevan stock." };
+  const sinControl = cantidad === null || cantidad === "";
+  const n = Math.round(Number(cantidad));
+  if (!sinControl && !(n >= 0)) return { ok: false, motivo: "Poné cuántas hay (0 o más)." };
+  const antes = p.stock;
+  p.stock = sinControl ? null : n;
+  registrar(estado, `${a.usuario.nombre} ajustó el stock de ${p.nombre}: ${antes ?? "sin controlar"} → ${p.stock ?? "sin controlar"}.`, ahora);
+  return { ok: true };
+}
+
+/** Dar de baja (o volver a activar) un producto: no se borra, deja de venderse. */
+export function bajaProducto(estado, productoId, auth, ahora, activo = false) {
+  const a = autorizar(estado, auth, "stock", false);
+  if (!a.ok) return a;
+  const p = producto(estado, productoId);
+  if (!p) return { ok: false, motivo: "No encuentro el producto." };
+  p.activo = activo;
+  registrar(estado, `${a.usuario.nombre} ${activo ? "volvió a activar" : "dio de baja"} ${p.nombre}.`, ahora);
+  return { ok: true };
+}
+
+/** El cambio que queda en el cajón al abrir (fondo de caja). Lo carga un dueño. */
+export function ajustarFondo(estado, monto, auth, ahora) {
+  const a = autorizar(estado, auth, "configurar", false);
+  if (!a.ok) return a;
+  const n = Math.round(Number(monto));
+  if (monto === "" || monto == null || !(n >= 0)) return { ok: false, motivo: "Poné cuánto cambio hay en el cajón (0 o más)." };
+  estado.caja.fondo = n;
+  registrar(estado, `${a.usuario.nombre} dejó el fondo de caja en ${pesos(n)}.`, ahora);
   return { ok: true };
 }
 
@@ -2369,7 +2431,9 @@ export function linkWhatsApp(tel, texto) {
 export function alertas(estado, ahora) {
   const out = [];
   const { politica } = estado.config;
-  const hoy = estado.reservas.filter((r) => r.fecha === ahora.fecha);
+  // Pasada la 01:00, lo que sigue en cancha desde el día anterior también se avisa (y no es «luz sin juego»).
+  const ayer = sumarDias(ahora.fecha, -1);
+  const hoy = estado.reservas.filter((r) => r.fecha === ahora.fecha || (r.fecha === ayer && r.estado === "en_cancha"));
   for (const r of hoy) {
     const falta = minutosHasta(ahora, r.fecha, r.inicio);
     const fin = falta + r.duracion;

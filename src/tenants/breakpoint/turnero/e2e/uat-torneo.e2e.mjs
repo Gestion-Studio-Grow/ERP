@@ -108,6 +108,10 @@ for (const nombre of ["Lu", "Caro"]) {
   pinesRecepcion[nombre] = (await aviso()).match(/PIN (\d{2})/)?.[1];
 }
 ok("0.recepcion", /^\d{2}$/.test(pinesRecepcion.Lu ?? "") && /^\d{2}$/.test(pinesRecepcion.Caro ?? ""), `Alta de Lu y Caro en recepción: el PIN se muestra una vez (${Object.keys(pinesRecepcion).length} usuarios)`);
+await p.fill('#app [data-a="fondo"]', "20000"); await p.press('#app [data-a="fondo"]', "Tab"); await W(300);
+ok("0.fondo", (await estado()).caja.fondo === 20000, "Fondo de caja $20.000 cargado en la consola");
+const e0b = await estado();
+ok("0.stock-sin-ejemplo", e0b.productos.filter((x) => !x.plato && !x.alquiler).every((x) => x.stock === null && !x.codigoExterno) && !(await p.textContent("body")).includes("quedan 0"), "Productos de Break Point sin stock ni códigos de ejemplo (el stock se controla desde el primer conteo)");
 await foto("consola");
 await p.click('[data-a="terminarConsola"]'); await W(400);
 ok("0.abre", await bloqueada() && /Roberto Ronco/.test(await p.textContent("#bloqueo")) && !(await p.$("#bloqueo .demo-pins")), "«Abrir el club» → pantalla bloqueada de Roberto Ronco, sin PIN de ejemplo a la vista");
@@ -116,6 +120,17 @@ const dueno = await pestanas();
 ok("0.dueno", !(await bloqueada()) && dueno.includes("ajustes") && dueno.includes("contenido") && dueno.includes("tablero"), `Roberto entra con su PIN y ve todo: ${dueno.join(", ")}`);
 ok("0.reloj", (await p.textContent("#reloj")) === "14:50" && !(await p.isVisible('[data-a="reloj"]')), "Reloj real (14:50) y sin los botones ±30′ de la demo");
 const ids = Object.fromEntries((await estado()).usuarios.map((u) => [u.nombre, u.id]));
+// Roberto cuenta el stock antes de abrir: agua 42, cerveza 48, tubos 18, overgrips 30.
+await irTab("stock");
+for (const [pid, n] of [["p2", 42], ["p9", 48], ["p1", 18], ["p4", 30]]) {
+  await p.click(`#app [data-a="editarProducto"][data-v="${pid}"]`); await W(250);
+  await p.fill("#pr-stk-aj", String(n)); await p.click('#dlg [data-a="guardarProducto"]'); await W(250);
+}
+const eStock = await estado();
+ok("0.conteo", [["p2", 42], ["p9", 48], ["p1", 18], ["p4", 30]].every(([pid, n]) => eStock.productos.find((x) => x.id === pid).stock === n), "Conteo de stock cargado desde Stock → Editar");
+await irTab("ajustes");
+const linkClientes = await p.inputValue("#link-clientes");
+ok("0.link", /modo=pedido/.test(linkClientes) && /wa=5491100000009/.test(linkClientes) && /tar=/.test(linkClientes) && /cat=[^&]*p1%3A12000/.test(linkClientes), "El link para clientes lleva el WhatsApp del club, sus tarifas y su tienda");
 
 // ═══ 1. Recepción: sábado de torneo, 4 canchas completas ═══
 await entrarComo(ids.Lu, pinesRecepcion.Lu);
@@ -249,7 +264,7 @@ const cli = await b.newContext({ viewport: { width: 390, height: 844 } });
 await cli.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
 const pt = await cli.newPage();
 pt.on("pageerror", (e) => errores.push(`tienda: ${e.message}`));
-await pt.goto(`${BASE}/turnero?modo=pedido&wa=5491100000009#tienda`);
+await pt.goto(`${linkClientes}#tienda`);
 await pt.waitForSelector("#dlg-tienda[open] [data-mas]", { timeout: 10000 });
 await pt.click('#dlg-tienda [data-mas="p1"]'); await pt.click('#dlg-tienda [data-mas="p4"]'); await pt.click('#dlg-tienda [data-mas="p4"]');
 await pt.fill("#tienda-nombre", "Pedro Gómez"); await pt.fill("#tienda-tel", "11 5555 0006");

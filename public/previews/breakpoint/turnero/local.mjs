@@ -117,8 +117,16 @@ export function fuenteFalsa(alCerrar = () => {}) {
  * productos del club, sin turnos de ejemplo) sólo para mostrar horarios y precios de referencia y armar el mensaje
  * de WhatsApp. Nada se reserva acá: el club confirma por WhatsApp.
  */
-export function crearLocalPedido({ reloj = () => Date.now() } = {}) {
-  const servidor = crearServidorDemo({ reloj, estado: crearClubReal(aMotor(reloj()).fecha) });
+export function crearLocalPedido({ reloj = () => Date.now(), tarifas = null, catalogo = null } = {}) {
+  const estado = crearClubReal(aMotor(reloj()).fecha);
+  // Lo que manda el club en el link: sus precios por hora y su tienda (sólo esos productos, a esos precios).
+  if (tarifas?.length) estado.config.tarifas = tarifas;
+  for (const p of estado.productos) {
+    const precio = catalogo?.[p.id];
+    p.tienda = Boolean(p.tienda && precio);
+    if (precio) p.precio = precio;
+  }
+  const servidor = crearServidorDemo({ reloj, estado });
   const tab = "pedido";
   return {
     tab, esServidor: () => true, hayServidor: () => Promise.resolve(), cerrar: () => servidor.cerrar(),

@@ -21,7 +21,7 @@ let ALERTAS = [];
 const ui = { medio: "efectivo", carrito: {}, busca: {}, producto: {}, mes: null, remito: null, pendienteCredito: null, stockModo: "inventario" };
 // «Deshacer»: foto del estado antes de la acción que se está ejecutando (sólo las operativas, nunca las que piden PIN).
 let PREVIO = null, UNDO = null, timerToast = null;
-const DESHACIBLES = new Set(["pagar", "pagarParte", "consumo", "sumarJugador", "checkin", "finalizar", "aCuenta", "marcarFalta", "cancelar", "liberarFijo", "mover", "extender", "interrumpir", "cargarCuenta", "rapido", "pagarCuenta", "cerrarCuenta", "cobrarMostrador", "confirmarTurno", "asignarEspera", "anotarEspera", "luz", "qm", "devuelto", "cobrarFalta", "abrirCuentaCliente", "abrirCuentaLibre", "confirmarCredito", "ajustar", "pasarCargo", "cargoManual", "cobrarParte", "cobrarJugador", "cobrarTodo", "cerrarYSeguir", "cerrarCargos", "cerrarCargosCC", "entregarPedido", "cancelarPedido"]);
+const DESHACIBLES = new Set(["pagar", "pagarParte", "consumo", "sumarJugador", "sumarJugadorFicha", "checkin", "finalizar", "aCuenta", "marcarFalta", "cancelar", "liberarFijo", "mover", "extender", "interrumpir", "cargarCuenta", "rapido", "pagarCuenta", "cerrarCuenta", "cobrarMostrador", "confirmarTurno", "asignarEspera", "anotarEspera", "luz", "qm", "devuelto", "cobrarFalta", "abrirCuentaCliente", "abrirCuentaLibre", "confirmarCredito", "ajustar", "pasarCargo", "cargoManual", "cobrarParte", "cobrarJugador", "cobrarTodo", "cerrarYSeguir", "cerrarCargos", "cerrarCargosCC", "entregarPedido", "cancelarPedido"]);
 const SOPORTA_POPOVER = typeof HTMLElement !== "undefined" && "showPopover" in HTMLElement.prototype;
 const sinMovimiento = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 // Transición nativa del navegador (View Transitions) para cambiar de pestaña o de día: 150 ms, nunca obligatoria.
@@ -306,7 +306,7 @@ function render() {
     else gw.scrollTop = Math.max(0, ((AHORA.min - M.horarioDe(E, VISTA).abre) / E.config.paso) * ROW - 150);
   }
   camaras.parar();
-  if (TAB === "tablero") camaras.arrancar();
+  if (TAB === "tablero" && !MODO_REAL) camaras.arrancar();
   if ($("#dlg").open && dialogoActual) dialogoActual.refrescar?.();
   devolverFoco(foco);
   pintarAvisoDuenio();
@@ -401,7 +401,8 @@ function grilla() {
   const top = (m) => ((m - abre) / paso) * ROW;
   const delDia = E.reservas.filter((r) => r.fecha === VISTA && ["reservada", "en_cancha", "finalizada"].includes(r.estado));
   const conAlerta = VISTA === HOY ? new Set(ALERTAS.filter((a) => a.nivel === "alta" && a.reservaId).map((a) => a.reservaId)) : new Set();
-  const pasado = (m) => M.minutosHasta(AHORA, VISTA, m) < -paso;
+  // Un hueco ya empezado se puede cargar mientras un turno ahí no terminaría (recepción se olvidó de cargarlo).
+  const pasado = (m) => M.minutosHasta(AHORA, VISTA, m) + E.config.duracionTurno <= 0;
   const n = E.canchas.length;
   const cabecera = `<div class="gh" style="grid-column:1;grid-row:1"><span class="tag">Hora</span></div>` + E.canchas.map((c, i) => `
     <div class="gh" style="grid-column:${i + 2};grid-row:1">
@@ -524,6 +525,7 @@ function vistaCaja() {
           <dt>Fondo inicial</dt><dd>${M.pesos(E.caja.fondo)}</dd>
           <dt class="tot">Efectivo que tiene que haber</dt><dd class="tot">${M.pesos(r.efectivoEsperado)}</dd>
         </dl>
+        ${esDuenio() ? `<label class="f" style="max-width:220px">Fondo de caja (cambio en el cajón)<input type="number" min="0" step="100" value="${E.caja.fondo}" data-a="fondo"></label>` : ""}
         <div>
           <h3>Cierres de esta caja</h3>
           ${cierres.length ? `<table class="num small"><thead><tr><th>Quién</th><th class="r">Esperado</th><th class="r">Contado</th><th class="r">Diferencia</th></tr></thead><tbody>${cierres.map((c) => `<tr><td>${esc(c.responsable)} · ${M.hhmm(c.min)}</td><td class="r">${M.pesos(c.esperado)}</td><td class="r">${M.pesos(c.contado)}</td><td class="r">${c.diferencia === 0 ? `<span class="chip ok">Cuadra</span>` : `<span class="chip ${c.diferencia < 0 ? "bad" : "warn"}">${M.pesos(c.diferencia)}</span>`}</td></tr>`).join("")}</tbody></table>` : `<p class="small muted">Todavía no se cerró. El cierre pide el PIN de quien cierra.</p>`}
@@ -596,11 +598,11 @@ function vistaTablero() {
       </div>
     </section>
     <div class="owner">
-      <section class="card span-8" aria-labelledby="t-cams">
+      ${MODO_REAL ? "" : `<section class="card span-8" aria-labelledby="t-cams">
         <div class="card-head"><h2 id="t-cams">Cámaras</h2><span class="muted small">Cada cámara muestra el turno que está en esa cancha y lo que debe</span></div>
         <div class="cams">${camaras.tiles()}</div>
         <p class="honesto">Simulación de demo. En el club se conecta la grabadora (NVR) que ya tienen: cada cámara se asocia a su cancha y se ve en vivo desde acá, sin abrir otra app.</p>
-      </section>
+      </section>`}
       <section class="card span-4" aria-labelledby="t-torre">
         <div class="card-head"><h2 id="t-torre">Canchas ahora</h2><span class="muted small num">${M.hhmm(AHORA.min)}</span></div>
         <div class="torre">${enCancha.map(({ c, r, prox }) => {
@@ -794,8 +796,16 @@ function vistaConsola() {
       <div class="row"><label class="f" style="max-width:240px">Nombre<input id="nu-nombre" placeholder="Ej.: Lu (tarde)"></label><button type="button" class="btn sm" data-a="altaUsuarioConsola" style="align-self:flex-end">Dar de alta en recepción</button></div>
     </section>
     <section class="card" aria-labelledby="t-c4">
-      <div class="card-head"><h2 id="t-c4">4 · Listo</h2></div>
-      <p class="small muted" style="margin:0 0 8px">Precios, horarios y reglas vienen con los de Break Point: los cambiás en Configuración cuando quieras.</p>
+      <div class="card-head"><h2 id="t-c4">4 · Precios y caja</h2><span class="muted small">Revisalos antes del primer turno</span></div>
+      <div class="reglas">
+        ${E.config.tarifas.map((t, i) => `<label class="f">Precio por hora ${esc(t.nombre.toLowerCase())} (${M.hhmm(t.desde)}–${M.hhmm(t.hasta)})<input type="number" min="0" step="500" value="${t.precioHora}" data-a="tarifa" data-v="${i}"></label>`).join("")}
+        <label class="f">Fondo de caja (cambio en el cajón)<input type="number" min="0" step="100" value="${E.caja.fondo}" data-a="fondo"></label>
+      </div>
+      <p class="small muted" style="margin:8px 0 0">Los precios del buffet y la tienda se revisan en Stock → «Precios y rentabilidad». El stock arranca sin controlar: cuando cuentes, cargalo en cada producto (Stock → Editar).</p>
+    </section>
+    <section class="card" aria-labelledby="t-c5">
+      <div class="card-head"><h2 id="t-c5">5 · Listo</h2></div>
+      <p class="small muted" style="margin:0 0 8px">Horarios y reglas se cambian en Configuración cuando quieras.</p>
       <button type="button" class="btn primary" data-a="terminarConsola" ${listos ? "" : "disabled"}>Abrir el club</button>
       ${listos ? "" : `<p class="small muted" style="margin:6px 0 0">Falta que al menos un dueño arme su PIN.</p>`}
     </section>
@@ -809,10 +819,21 @@ function usuariosRecepcion() {
 
 // ───────────────────────────── Ajustes (dueño) ─────────────────────────────
 
+// El link del turnero para los clientes lleva el WhatsApp del club, las tarifas y la tienda (precios) que tiene ESTA
+// compu: el celular del cliente no se conecta con la del club, así que lo que ve sale del link.
+function linkParaClientes(k = contactos()) {
+  const q = new URLSearchParams({ modo: "pedido" });
+  if (k.club) q.set("wa", String(k.club).replace(/\D/g, ""));
+  q.set("tar", E.config.tarifas.map((t) => `${t.desde}-${t.hasta}-${t.precioHora}`).join(","));
+  const cat = E.productos.filter((p) => p.tienda && p.activo !== false && !p.alquiler && !p.plato && p.stock !== 0).map((p) => `${p.id}:${p.precio}`);
+  if (cat.length) q.set("cat", cat.join(","));
+  return `${location.origin}${location.pathname.replace(/\/club\/?$/, "")}/turnero?${q.toString()}`;
+}
+
 function tarjetaJornada() {
   const guardada = MODO_REAL ? null : leerJornada();
   const k = contactos();
-  const linkClientes = `${location.origin}${location.pathname.replace(/\/club\/?$/, "")}/turnero?modo=pedido${k.club ? `&wa=${encodeURIComponent(String(k.club).replace(/\D/g, ""))}` : ""}`;
+  const linkClientes = linkParaClientes(k);
   return `<section class="card" aria-labelledby="t-jornada">
       <div class="card-head"><h2 id="t-jornada" class="pantalla">Jornada real</h2><span class="chip ${MODO_REAL ? "ok" : ""}">${MODO_REAL ? "Jornada real" : "Demo"}</span></div>
       ${MODO_REAL ? `<p class="small" style="margin:0 0 8px">Se guarda sola en <b>esta compu</b> (${guardado.ok ? (guardado.cuando ? `último guardado ${pad(guardado.cuando.getHours())}:${pad(guardado.cuando.getMinutes())} · ${Math.ceil(guardado.bytes / 1024)} KB` : "guardando…") : "⚠ no se pudo guardar"}). No pasa a otras compus ni celulares. Al recargar vuelve bloqueada y pide el PIN.</p>
@@ -853,7 +874,7 @@ function vistaAjustes() {
         <label class="f">Abrir la cancha hasta (min antes) · vacío = sin límite<input type="number" min="0" max="240" value="${P.minutosAntesParaEntrar ?? ""}" placeholder="Sin límite" data-a="regla" data-v="minutosAntesParaEntrar"></label>
         ${E.config.tarifas.map((t, i) => `<label class="f">Precio por hora ${esc(t.nombre.toLowerCase())} (${M.hhmm(t.desde)}–${M.hhmm(t.hasta)})<input type="number" min="0" step="500" value="${t.precioHora}" data-a="tarifa" data-v="${i}"></label>`).join("")}
       </div>
-      <p class="small muted" style="margin:10px 0 0">Las faltas se cobran enteras (al titular o repartidas en el grupo). Precios de ejemplo, a confirmar con el club.</p>
+      <p class="small muted" style="margin:10px 0 0">Las faltas se cobran enteras (al titular o repartidas en el grupo). ${MODO_REAL ? "Los precios valen para los turnos nuevos." : "Precios de ejemplo, a confirmar con el club."}</p>
     </section>
     <section class="card" aria-labelledby="t-horarios">
       <div class="card-head"><h2 id="t-horarios">Horario por día</h2></div>
@@ -1006,8 +1027,8 @@ function itemsPaleta(q) {
     { k: "a-hoy", g: "Ir a", t: "Agenda de hoy", atajo: "T", ok: puedo("agenda"), run: () => { irTab("agenda"); irDia(HOY); } },
     ...tabs.map((x, i) => ({ k: `t-${x.id}`, g: "Ir a", t: x.nombre, atajo: i < 9 ? String(i + 1) : "", ok: true, run: () => irTab(x.id) })),
     { k: "a-usuario", g: "Hacer", t: "Cambiar de usuario", ok: true, run: () => cambiarUsuario() },
-    { k: "a-reloj+", g: "Demo", t: "Adelantar el reloj 30 minutos", ok: true, run: () => acciones.reloj({ dataset: { v: "30" } }) },
-    { k: "a-reloj-", g: "Demo", t: "Atrasar el reloj 30 minutos", ok: true, run: () => acciones.reloj({ dataset: { v: "-30" } }) },
+    ...(MODO_REAL ? [] : [{ k: "a-reloj+", g: "Demo", t: "Adelantar el reloj 30 minutos", ok: true, run: () => acciones.reloj({ dataset: { v: "30" } }) },
+    { k: "a-reloj-", g: "Demo", t: "Atrasar el reloj 30 minutos", ok: true, run: () => acciones.reloj({ dataset: { v: "-30" } }) }]),
     ...ESTILOS.map((x) => ({ k: `e-${x.id}`, g: "Estilo", t: `Estilo ${x.nombre}`, s: x.id === estiloActual() ? "en uso" : "", ok: true, run: () => elegirEstilo(x.id) })),
     { k: "a-atajos", g: "Ayuda", t: "Atajos de teclado", atajo: "?", ok: true, run: () => ayudaAtajos() },
   ].filter((a) => a.ok && coincide(a.t, a.g));
@@ -1285,7 +1306,8 @@ function verReserva(id) {
                 <button type="button" class="btn" data-a="consumo" data-v="${r.id}" data-m="cuenta">Sumar a su cuenta</button>
                 <button type="button" class="btn accent" data-a="consumo" data-v="${r.id}" data-m="cobrar">Cobrar ahora</button></div>
               <p class="small muted" style="margin:0">«Cobrar ahora» usa el medio elegido arriba (${M.MEDIOS[ui.medio === "monedero" ? "efectivo" : ui.medio]}).</p>` : ""}
-            ${abierto && r.jugadores.length < 4 ? `<div class="row"><label class="sr" for="nuevo-jug">Jugador</label><input id="nuevo-jug" placeholder="Sumar jugador (nombre)" style="flex:1"><button type="button" class="btn sm" data-a="sumarJugador" data-v="${r.id}">Sumar</button></div>` : ""}
+            ${abierto && r.jugadores.length < 4 ? `<div class="row"><label class="sr" for="nuevo-jug">Jugador</label><input id="nuevo-jug" data-busca="jug" value="${esc(ui.busca.jug ?? "")}" placeholder="Sumar jugador (nombre, o buscá su ficha)" autocomplete="off" style="flex:1"><button type="button" class="btn sm" data-a="sumarJugador" data-v="${r.id}">Sumar</button></div>
+              ${(ui.busca.jug ?? "").trim().length >= 2 ? `<div class="sug">${M.buscarClientes(E, ui.busca.jug).filter((c) => !r.jugadores.some((j) => j.clienteId === c.id)).slice(0, 5).map((c) => `<button type="button" data-a="sumarJugadorFicha" data-v="${r.id}" data-c="${c.id}">${esc(c.nombre)} <span class="small muted">· ficha${c.cc.habilitada ? " · cuenta corriente" : ""}${c.monedero ? ` · créditos ${M.pesos(c.monedero)}` : ""}</span></button>`).join("")}</div>` : ""}` : ""}
           </div>
         </div>
         ${abierto ? `<details><summary><b>Mover o extender</b></summary><div class="row" style="margin-top:8px"><label class="sr" for="mover-c">Cancha destino</label><select id="mover-c" style="max-width:200px">${E.canchas.filter((x) => x.id !== r.canchaId).map((x) => `<option value="${x.id}">${esc(x.nombre)}${x.cubierta ? "" : " (descubierta)"}</option>`).join("")}</select><button type="button" class="btn sm" data-a="mover" data-v="${r.id}">Pasar a esa cancha</button><button type="button" class="btn sm" data-a="extender" data-v="${r.id}">Extender 30′</button></div></details>` : ""}
@@ -1490,9 +1512,11 @@ function nuevoTurno({ canchaId, inicio } = {}) {
   const f = { canchaId: canchaId ?? E.canchas[0].id, inicio: inicio ?? null, duracion: E.config.duracionTurno, clienteId: null, tipo: "turno", origen: "mostrador" };
   ui.busca.cliTurno = "";
   const pintar = () => {
-    const desde = VISTA === HOY ? Math.floor(AHORA.min / E.config.paso) * E.config.paso : undefined;
+    // Hoy se ofrecen también los turnos que ya empezaron y todavía no terminaron (se olvidaron de cargarlos).
+    const desde = VISTA === HOY ? Math.floor((AHORA.min - f.duracion + 1) / E.config.paso) * E.config.paso + E.config.paso : undefined;
     const libres = M.huecosLibres(E, VISTA, f.canchaId, f.duracion, desde);
-    if (f.inicio == null || !libres.includes(f.inicio)) f.inicio = libres[0] ?? null;
+    // Por defecto, el próximo horario; los ya empezados quedan en la lista para cargar el que se olvidaron.
+    if (f.inicio == null || !libres.includes(f.inicio)) f.inicio = (VISTA === HOY ? libres.find((m) => m >= Math.floor(AHORA.min / E.config.paso) * E.config.paso) : null) ?? libres[0] ?? null;
     const cl = f.clienteId ? M.cliente(E, f.clienteId) : null;
     const precio = f.inicio != null ? M.precioTurno(E, { fecha: VISTA, inicio: f.inicio, duracion: f.duracion, canchaId: f.canchaId }) : 0;
     const pideSena = M.requiereSena(E, f.clienteId, f.tipo);
@@ -1725,12 +1749,12 @@ function productoDialogo(id) {
         <label class="f">Precio de venta<input id="pr-pre" type="number" min="1" value="${p?.precio ?? ""}"></label>
         <label class="f">Costo<input id="pr-cos" type="number" min="0" value="${p?.costo ?? ""}"></label>
         ${p && p.stock === null ? "" : `<label class="f">Mínimo de stock<input id="pr-min" type="number" min="0" value="${p?.minimo ?? 0}"></label>`}
-        ${p ? "" : `<label class="f">Stock inicial<input id="pr-stk" type="number" min="0" value="0"></label>`}
+        ${p ? (p.plato ? "" : `<label class="f">Stock actual (conteo) · vacío = sin controlar<input id="pr-stk-aj" type="number" min="0" value="${p.stock ?? ""}" placeholder="Sin controlar"></label>`) : `<label class="f">Stock inicial<input id="pr-stk" type="number" min="0" value="0"></label>`}
         <label class="f">Código interno<input id="pr-cod" value="${esc(p?.codigo ?? "")}" placeholder="Ej.: BP-020"></label>
         <label class="f">Código de fábrica / externo<input id="pr-ext" value="${esc(p?.codigoExterno ?? "")}" placeholder="Pasá el lector (código de barras)" inputmode="numeric"></label>
       </div>
       ${p ? "" : `<label class="row small"><input type="checkbox" id="pr-plato"> Es un plato de cocina (no lleva stock; se mide por venta)</label>`}`,
-    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="guardarProducto" data-v="${p?.id ?? ""}">${p ? "Guardar" : "Dar de alta"}</button>`,
+    pie: `${p ? `<button type="button" class="btn ${p.activo === false ? "" : "danger"}" data-a="bajaProducto" data-v="${p.id}" data-m="${p.activo === false ? "1" : ""}">${p.activo === false ? "Volver a activar" : "Dar de baja"}</button>` : ""}<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="guardarProducto" data-v="${p?.id ?? ""}">${p ? "Guardar" : "Dar de alta"}</button>`,
     alAbrir(d) { $("#pr-nom", d).focus(); },
   });
 }
@@ -2036,7 +2060,11 @@ const acciones = {
     hecho(res, (r) => `Aprobado por ${r.aprobo}: ${M.pesos(r.monto)}. Ya podés pasarlo a su cuenta corriente.`);
   },
   aprobarAca: (b) => pinPara("confirmarAprobarAca", b.dataset.v, "Aprobar el crédito"),
-  confirmarAprobarAca: (b) => cerrarSiSale(M.resolverCredito(E, b.dataset.v, { aprobar: true }, auth(val("#cf-pin")), AHORA), "Crédito aprobado."),
+  confirmarAprobarAca: (b) => {
+    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    if (!v.ok) return toast(v.motivo, { error: true });
+    cerrarSiSale(M.resolverCredito(E, b.dataset.v, { aprobar: true }, auth(val("#cf-pin")), AHORA), "Crédito aprobado.");
+  },
   entregarPedido: (b) => {
     const pd = (E.pedidos ?? []).find((x) => x.id === b.dataset.v);
     ui.medio = "efectivo";
@@ -2129,10 +2157,10 @@ const acciones = {
     // Desde la demo (PIN de ejemplo, que conoce cualquiera) nunca se pisa una jornada real guardada.
     if (que === "blanco" && !MODO_REAL && leerJornada()) return toast("Hay una jornada real guardada en esta compu: desde la demo no se borra.", { error: true });
     guardado.fuera = true; // desde acá no se guarda más esta pestaña: se recarga
-    if (que === "blanco") { if (MODO_REAL) lsGuardar(`${CLAVE_JORNADA}-anterior`, fotoJornada()); lsGuardar(CLAVE_JORNADA, null); lsGuardar(CLAVE_MODO, "real"); }
+    if (que === "blanco") { if (MODO_REAL) { descargarRespaldo(); lsGuardar(`${CLAVE_JORNADA}-anterior`, fotoJornada()); } lsGuardar(CLAVE_JORNADA, null); lsGuardar(CLAVE_MODO, "real"); }
     if (que === "retomar") lsGuardar(CLAVE_MODO, "real");
     if (que === "demo") { if (MODO_REAL) lsGuardar(CLAVE_JORNADA, fotoJornada()); lsGuardar(CLAVE_MODO, "demo"); }
-    location.replace(location.pathname);
+    setTimeout(() => location.replace(location.pathname), que === "blanco" && MODO_REAL ? 800 : 0);
   },
   confirmarRestaurar: () => {
     const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
@@ -2164,7 +2192,8 @@ const acciones = {
     if (res.ok) { ui.producto.turno = null; ui.busca.turno = ""; }
     hecho(res, b.dataset.m === "cobrar" ? "Cargado y cobrado." : "Sumado a su cuenta.");
   },
-  sumarJugador: (b) => hecho(M.sumarJugador(E, b.dataset.v, val("#nuevo-jug")), "Jugador sumado."),
+  sumarJugador: (b) => { const res = M.sumarJugador(E, b.dataset.v, val("#nuevo-jug")); if (res.ok) ui.busca.jug = ""; hecho(res, "Jugador sumado."); },
+  sumarJugadorFicha: (b) => { const res = M.sumarJugador(E, b.dataset.v, null, b.dataset.c); if (res.ok) ui.busca.jug = ""; hecho(res, "Jugador sumado con su ficha."); },
   checkin: (b) => hecho(M.checkIn(E, b.dataset.v, AHORA), "Cancha abierta y luz prendida."),
   finalizar: (b) => cerrarSiSale(M.finalizar(E, b.dataset.v, {}, AHORA), (r) => `Cancha cerrada.${r.cuentasAbiertas.length ? ` Quedan ${r.cuentasAbiertas.length} cuenta(s) de buffet abiertas.` : ""}`),
   aCuenta: (b) => cerrarSiSale(M.finalizar(E, b.dataset.v, { aCuenta: true }, AHORA), "Cancha cerrada; el saldo pasó a la cuenta corriente."),
@@ -2280,8 +2309,14 @@ const acciones = {
   altaProducto: () => productoDialogo(null),
   stockModo: (b) => { ui.stockModo = b.dataset.v; render(); },
   editarProducto: (b) => productoDialogo(b.dataset.v),
+  bajaProducto: (b) => cerrarSiSale(M.bajaProducto(E, b.dataset.v, auth(), AHORA, b.dataset.m === "1"), b.dataset.m === "1" ? "Producto activo otra vez." : "Producto dado de baja: ya no se vende."),
   guardarProducto: (b) => {
     const id = b.dataset.v;
+    if (id && $("#pr-stk-aj")) {
+      const p = M.producto(E, id);
+      const nuevo = val("#pr-stk-aj").trim();
+      if (nuevo !== String(p.stock ?? "")) { const aj = M.ajustarStock(E, id, nuevo === "" ? null : nuevo, auth(), AHORA); if (!aj.ok) return toast(aj.motivo, { error: true }); }
+    }
     const res = id
       ? M.editarProducto(E, id, { nombre: val("#pr-nom"), precio: val("#pr-pre"), costo: val("#pr-cos"), minimo: $("#pr-min") ? val("#pr-min") : null, codigo: val("#pr-cod"), codigoExterno: val("#pr-ext") }, auth(), AHORA)
       : M.altaProducto(E, { nombre: val("#pr-nom"), categoria: val("#pr-cat"), precio: val("#pr-pre"), costo: val("#pr-cos"), minimo: val("#pr-min"), stock: val("#pr-stk"), codigo: val("#pr-cod"), codigoExterno: val("#pr-ext"), plato: $("#pr-plato")?.checked }, auth(), AHORA);
@@ -2386,6 +2421,13 @@ document.addEventListener("change", (ev) => {
     lsGuardar(CLAVE_CONTACTOS, JSON.stringify(k));
     render();
     return toast(limpio ? "Número guardado en esta compu." : "Número borrado.");
+  }
+  if (t.dataset.a === "fondo") {
+    const dueno = enConsola() ? E.usuarios.find((u) => u.rol === "duenio" && u.pin) : null;
+    const res = M.ajustarFondo(E, t.value, dueno ? { usuarioId: dueno.id, pin: dueno.pin } : auth(), AHORA);
+    if (!res.ok) { render(); return toast(enConsola() && !dueno ? "Primero un dueño arma su PIN." : res.motivo, { error: true }); }
+    render();
+    return toast(`Fondo de caja: ${M.pesos(E.caja.fondo)}.`);
   }
   if (t.dataset.a === "alias") {
     if (!esDuenio()) return toast("El alias lo carga un dueño.", { error: true });
@@ -2589,6 +2631,7 @@ $("#dlg").addEventListener("close", () => { dialogoActual = null; });
 // persona, entra con su usuario y su PIN. 5 PIN mal → 30 segundos de espera. No hay forma de cerrarlo sin PIN.
 const OCULTA_MAX_MS = 30_000;
 const bloqueo = { activo: false, motivo: "", ultimo: Date.now(), ocultaDesde: null, fallos: 0, esperaHasta: 0, otro: false, elegido: null, timer: null };
+const guardarIntentos = () => { if (MODO_REAL) lsGuardar("bp-intentos", JSON.stringify({ fallos: bloqueo.fallos, esperaHasta: bloqueo.esperaHasta, tandas: bloqueo.tandas ?? 0 })); };
 function bloquear(motivo) {
   if (bloqueo.activo || guardado.fuera || enConsola()) return;
   bloqueo.activo = true;
@@ -2626,7 +2669,7 @@ function pintarBloqueo() {
       : `<div class="bl-quien"><span class="avatar" aria-hidden="true">${esc(quien.nombre.slice(0, 1).toUpperCase())}</span><span><b>${esc(quien.nombre)}</b><br><span class="small muted">${M.ROLES[quien.rol]}</span></span></div>
         <label class="f bl-pin-l" for="bl-pin">${bloqueo.otro ? `PIN de ${esc(quien.nombre.split(" ")[0])}` : "Tu PIN para seguir"}</label>
         <input id="bl-pin" class="pin-in num" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••" ${espera ? "disabled" : ""} aria-describedby="bl-aviso">
-        <p id="bl-aviso" class="${espera || bloqueo.fallos ? "err" : "small muted"}" role="status" style="margin:0;min-height:1.4em">${espera ? `Demasiados intentos: esperá 30 segundos. <span aria-hidden="true">(${espera} s)</span>` : bloqueo.fallos ? `PIN incorrecto (${bloqueo.fallos} de 5).` : ""}</p>
+        <p id="bl-aviso" class="${espera || bloqueo.fallos ? "err" : "small muted"}" role="status" style="margin:0;min-height:1.4em">${espera ? `Demasiados intentos: esperá ${espera > 60 ? `${Math.ceil(espera / 60)} minutos` : "un momento"}. <span aria-hidden="true">(${espera} s)</span>` : bloqueo.fallos ? `PIN incorrecto (${bloqueo.fallos} de 5).` : ""}</p>
         <button type="button" class="btn primary" data-a="desbloquear" ${espera ? "disabled" : ""}>Desbloquear</button>
         ${bloqueo.otro ? `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Elegir otro usuario</button>` : `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Entrar con otro usuario</button>`}`}
     ${pinesDemo(activos)}
@@ -2640,7 +2683,9 @@ function desbloquear() {
   const res = M.verificarPin(E, quien, $("#bl-pin")?.value);
   if (!res.ok) {
     bloqueo.fallos += 1;
-    if (bloqueo.fallos >= 5) bloqueo.esperaHasta = Date.now() + 30_000;
+    // 5 PIN mal → espera; cada tanda espera más (30 s, 2 min, 10 min). En la jornada real sobrevive a recargar.
+    if (bloqueo.fallos >= 5) { bloqueo.tandas = (bloqueo.tandas ?? 0) + 1; bloqueo.esperaHasta = Date.now() + [30, 120, 600][Math.min(bloqueo.tandas, 3) - 1] * 1000; }
+    guardarIntentos();
     pintarBloqueo();
     const pin = $("#bl-pin");
     if (pin && !pin.disabled) { pin.value = ""; pin.focus(); }
@@ -2650,6 +2695,8 @@ function desbloquear() {
   USUARIO = res.usuario.id;
   bloqueo.activo = false;
   bloqueo.fallos = 0;
+  bloqueo.tandas = 0;
+  guardarIntentos();
   bloqueo.ultimo = Date.now();
   document.documentElement.classList.remove("bloqueada");
   $("#bloqueo").close();
@@ -2706,6 +2753,8 @@ if (MODO_REAL) {
   document.documentElement.dataset.modo = "real";
   const cinta = $(".demo-ribbon");
   if (cinta) cinta.innerHTML = `<span><b>Jornada real</b> · se guarda en esta compu · <span id="guardado" role="status">guardando…</span></span><button type="button" data-a="respaldo">Descargar respaldo</button>`;
+  const pie = $("footer.gsg");
+  if (pie) pie.innerHTML = "Sistema hecho por <b>Gestión Studio Grow</b> · Break Point Pádel";
   const reloj = $(".clock .sr");
   if (reloj) reloj.textContent = "Hora: ";
   const habilitar = () => { guardado.habilitado = true; guardarJornada(true); };
@@ -2720,6 +2769,7 @@ if (MODO_REAL) {
   document.addEventListener("visibilitychange", () => { if (document.hidden) guardarJornada(true); else latirReloj(); });
   addEventListener("pagehide", () => guardarJornada(true));
   addEventListener("pageshow", latirReloj);
+  try { const t = JSON.parse(lsLeer("bp-intentos") || "{}"); bloqueo.fallos = Number(t.fallos) || 0; bloqueo.esperaHasta = Number(t.esperaHasta) || 0; bloqueo.tandas = Number(t.tandas) || 0; } catch { /* sin intentos guardados */ }
   if (!enConsola()) bloquear("recarga");
 }
 function otraPestania() {
