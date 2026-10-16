@@ -24,6 +24,7 @@ import { validateBookingContact } from "@/lib/contact-validation";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { facturarAppointment } from "@/lib/invoice-from-appointment";
 import { avisoDeFacturaDelTurno, type ResultadoFacturaDelTurno } from "@/lib/turnos/aviso-factura";
+import { facturarAlCompletar, facturarAlSaldar } from "@/lib/turnos/momento-factura";
 import { computeDeepKpis, type KpiAppointment } from "@/lib/report-kpis";
 import { logger } from "@/lib/logger";
 import { RechazoDeDominio, motivoMostrable, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
@@ -1207,13 +1208,16 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
     },
   });
 
+  // D4: si este cobro saldó un turno ya terminado, sale ahora la factura que esperaba.
+  const aviso = await facturarSiQuedoSaldado(appointmentId, tenantId, settled.value.estado.saldo);
+
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
   revalidatePath("/admin/turnos/lista");
   revalidatePath("/admin/reportes");
   revalidatePath("/admin/caja");
   revalidatePath("/admin/caja/libro");
-  return { ok: true };
+  return aviso ? { ok: true, aviso } : { ok: true };
 }
 
 // ── Corrección de cobros: anular y condonar (src/lib/turnos/anulacion.ts) ──
@@ -1424,11 +1428,14 @@ export async function condonarSaldoTurno(formData: FormData): Promise<ResultadoA
     changes: { motivo: motivoV.motivo, monto: settled.value.monto, condonacionId: settled.value.condonacionId },
   });
 
+  // D4: con el saldo dado de baja, el turno terminado se factura por lo que sí se cobró.
+  const aviso = await facturarSiQuedoSaldado(appointmentId, tenantId, 0);
+
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
   revalidatePath("/admin/turnos/lista");
   revalidatePath("/admin/reportes");
-  return { ok: true };
+  return aviso ? { ok: true, aviso } : { ok: true };
 }
 
 // Reservado → Confirmado (la clienta confirmó que viene). Sin plata: la seña se cobró al
@@ -1811,6 +1818,8 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
       saldoCobrado: cobro?.applied ? { amount: cobro.monto, method } : null,
       saldoACobrar: settled.value.saldoACobrar,
       libroCaja: cobro ? rastroLibroCaja({ outcome: settled.outcome, value: cobro }) : null,
+      // Lo lee `facturarSiQuedoSaldado`: "No facturar" vale también para cuando se cobre el saldo.
+      facturar,
     },
   });
 
@@ -1820,8 +1829,10 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
   // rompe el cierre de la recepción.
   // Si ARCA la rechaza o el envío falla, recepción se entera en la pantalla (UAT 16/10, B8):
   // antes quedaba sólo en el log.
+  // D4 (requiere OK del dueño o de la contadora, turnos/momento-factura.ts): con saldo a cobrar
+  // la factura espera a que el turno quede saldado (`facturarSiQuedoSaldado`).
   let aviso: string | null = null;
-  if (facturar && isInvoicingEnabled()) {
+  if (facturar && isInvoicingEnabled() && facturarAlCompletar(settled.value.saldoACobrar)) {
     aviso = avisoDeFacturaDelTurno(await facturarConResultado(appointmentId, tenantId));
   }
 
@@ -1833,6 +1844,26 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
   revalidatePath("/admin/caja");
   revalidatePath("/admin/caja/libro");
   return aviso ? { ok: true, aviso } : { ok: true };
+}
+
+/**
+ * D4: el turno terminado con saldo se factura cuando queda saldado (cobro del saldo o baja del
+ * saldo). Devuelve el aviso para recepción si la factura no salió. Sin saldo pendiente no lee
+ * nada; si ya tenía factura (turnos completados antes de este cambio), `facturarAppointment` la
+ * reusa y no emite otra.
+ */
+async function facturarSiQuedoSaldado(appointmentId: string, tenantId: string, saldo: number): Promise<string | null> {
+  if (saldo > 0 || !isInvoicingEnabled()) return null;
+  const turno = await prisma.appointment.findFirst({ where: { id: appointmentId, tenantId }, select: { status: true } });
+  if (!turno) return null;
+  const alCompletar = await prisma.auditLog.findFirst({
+    where: { tenantId, entity: "Appointment", entityId: appointmentId, action: "complete" },
+    orderBy: { createdAt: "desc" },
+    select: { changes: true },
+  });
+  const noFacturarAlCompletar = (alCompletar?.changes as { facturar?: unknown } | null)?.facturar === false;
+  if (!facturarAlSaldar({ status: turno.status, saldo, noFacturarAlCompletar })) return null;
+  return avisoDeFacturaDelTurno(await facturarConResultado(appointmentId, tenantId));
 }
 
 /** Factura el turno y dice cómo quedó, sin tirar: la facturación nunca rompe el cierre. */

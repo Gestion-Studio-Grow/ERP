@@ -63,6 +63,8 @@ export default function CobrarTurno({
         }
         setClave(claveNueva());
         showSuccess(`Cobrado: ${clienta}, ${METODO_LABEL[metodo].toLowerCase()}.`);
+        // El cobro saldó el turno y la factura que esperaba no salió (ARCA la rechazó).
+        if (r.aviso) showError(r.aviso);
         onListo?.();
       } catch {
         showError("No se pudo registrar el cobro. Probá de nuevo; si sigue, avisá.");

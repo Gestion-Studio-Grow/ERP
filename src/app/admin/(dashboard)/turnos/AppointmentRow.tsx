@@ -119,7 +119,10 @@ function CobroForm({ appointmentId, monto, titulo }: { appointmentId: string; mo
         setError("");
         const r: ResultadoAccion = await registrarCobroTurno(fd);
         if (!r.ok) setError(r.error);
-        else setClave(nuevaClave());
+        else {
+          setClave(nuevaClave());
+          if (r.aviso) setError(r.aviso); // la factura del turno saldado no salió
+        }
       }}
       className="flex flex-col gap-1.5"
     >
