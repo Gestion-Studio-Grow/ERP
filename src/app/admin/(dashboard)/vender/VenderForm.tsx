@@ -1736,6 +1736,15 @@ function FormularioVender({
                       <Icono nombre="cerrar" />
                       <span data-parte="palabra">Quitar</span>
                     </button>
+                    {confirmar && (
+                      <ConfirmarPeso
+                        data-parte="nota"
+                        confirmacion={confirmar}
+                        pendiente={sinConfirmar(l)}
+                        alConfirmar={() => setPesosConfirmados((c) => ({ ...c, [l.key]: l.qty }))}
+                        alCorregir={() => setLine(l.key, { qtyText: formatearCantidad(confirmar.corregido) })}
+                      />
+                    )}
                     {l.invalida && (
                       <p role="alert" data-parte="nota" className="text-xs text-danger">
                         Eso no es una cantidad. Escribí el {esPeso ? "peso" : "número"}, con coma si
@@ -1757,15 +1766,6 @@ function FormularioVender({
                       <p role="status" data-parte="nota" className="text-xs text-warning">
                         {avisoStock}
                       </p>
-                    )}
-                    {confirmar && (
-                      <ConfirmarPeso
-                        data-parte="nota"
-                        confirmacion={confirmar}
-                        pendiente={sinConfirmar(l)}
-                        alConfirmar={() => setPesosConfirmados((c) => ({ ...c, [l.key]: l.qty }))}
-                        alCorregir={() => setLine(l.key, { qtyText: formatearCantidad(confirmar.corregido) })}
-                      />
                     )}
                     {esPeso && (
                       <div data-parte="nota" data-vender="teclado-de-peso" className="grid gap-2">
@@ -2031,6 +2031,15 @@ function FormularioVender({
                     ×
                   </button>
                 </div>
+                {confirmar && (
+                  <ConfirmarPeso
+                    className="col-span-2 sm:col-span-3"
+                    confirmacion={confirmar}
+                    pendiente={sinConfirmar(l)}
+                    alConfirmar={() => setPesosConfirmados((c) => ({ ...c, [l.key]: l.qty }))}
+                    alCorregir={() => setLine(l.key, { qtyText: formatearCantidad(confirmar.corregido) })}
+                  />
+                )}
                 {l.invalida && (
                   <p role="alert" className="col-span-2 sm:col-span-3 text-xs text-danger">
                     Eso no es una cantidad. Escribí el {esPeso ? "peso" : "número"}, con coma si
@@ -2075,15 +2084,6 @@ function FormularioVender({
                       />
                     )}
                   </div>
-                )}
-                {confirmar && (
-                  <ConfirmarPeso
-                    className="col-span-2 sm:col-span-3"
-                    confirmacion={confirmar}
-                    pendiente={sinConfirmar(l)}
-                    alConfirmar={() => setPesosConfirmados((c) => ({ ...c, [l.key]: l.qty }))}
-                    alCorregir={() => setLine(l.key, { qtyText: formatearCantidad(confirmar.corregido) })}
-                  />
                 )}
                 {p && l.qty > 0 && (
                   <>
