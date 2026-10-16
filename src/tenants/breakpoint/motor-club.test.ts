@@ -736,3 +736,256 @@ test("reparto de la cancha, propiedad: con cualquier seña, pago a cuenta y «a 
     assert.equal(M.saldo(r), 0, `caso ${t}: a lo sumo un cobro por jugador cierra el turno`);
   }
 });
+
+// ── Día de prueba real: la cuenta del turno en un solo lugar, crédito con código, tienda y jornada guardada ──
+
+const mesa4 = (e: any, hh = 20, canchaId = "c1") => turno(e, canchaId, hh, { clienteId: "a", jugadores: [{ nombre: "Ana", clienteId: "a" }, { nombre: "Beto", clienteId: "b" }, "Caro", "Dani"] });
+const cajaIngresos = (e: any) => e.caja.movimientos.filter((m: any) => m.tipo === "ingreso").reduce((s: number, m: any) => s + m.monto, 0);
+
+test("cuenta del turno: cancha + cargos de cada jugador en un solo lugar, con totales", () => {
+  const e = club();
+  const r = mesa4(e);
+  M.consumoJugador(e, r.id, 0, "p2", 2, {}, ahora(20, 10)); // Ana 2 aguas 4.000
+  M.consumoJugador(e, r.id, 1, "p9", 1, {}, ahora(20, 10)); // Beto 1 cerveza 3.800
+  M.consumoJugador(e, r.id, 2, "k-mila", 1, {}, ahora(20, 10)); // Caro milanesa 14.500
+  const t = M.cuentaDelTurno(e, r.id);
+  assert.equal(t.totales.cancha, 42000);
+  assert.equal(t.totales.cargos, 22300);
+  assert.equal(t.totales.pendiente, 64300);
+  assert.deepEqual(t.jugadores.map((j: any) => j.aPagar), [14500, 14300, 25000, 10500]);
+});
+
+test("«a cargo de» también para los cargos: paga todo junto, sin cadenas, y la cuenta que paga otro no se cierra sola", () => {
+  const e = club();
+  const r = mesa4(e);
+  M.consumoJugador(e, r.id, 0, "p2", 2, {}, ahora(20, 10));
+  M.consumoJugador(e, r.id, 1, "p9", 1, {}, ahora(20, 10));
+  M.consumoJugador(e, r.id, 2, "k-mila", 1, {}, ahora(20, 10));
+  const [ca, cb, cc] = [0, 1, 2].map((i) => M.cuentaDeJugador(e, r, i));
+  assert.ok(M.asignarCargoCargos(e, cb.id, ca.id, ahora(20, 20)).ok);
+  assert.match(M.asignarCargoCargos(e, cc.id, cb.id, ahora(20, 20)).motivo, /ya los paga Ana/);
+  assert.match(M.asignarCargoCargos(e, ca.id, cc.id, ahora(20, 20)).motivo, /ya paga los cargos de otro/);
+  assert.match(M.cerrarCuenta(e, cb.id, {}, ahora(20, 20)).motivo, /los paga Ana/);
+  const t = M.cuentaDelTurno(e, r.id);
+  assert.equal(t.jugadores[0].aPagar, 10500 + 4000 + 3800);
+  assert.equal(t.jugadores[1].aPagar, 10500, "Beto paga sólo su cancha: sus cargos los paga Ana");
+  const antes = cajaIngresos(e);
+  const res = M.cobrarJugador(e, r.id, 0, { medio: "efectivo" }, ahora(21, 30));
+  assert.ok(res.ok);
+  assert.equal(res.total, 18300);
+  assert.equal(cajaIngresos(e) - antes, 18300);
+  assert.equal(ca.estado, "cerrada");
+  assert.equal(cb.estado, "cerrada");
+  assert.ok(M.partesCancha(r)[0].pago);
+  assert.equal(M.cobrarJugador(e, r.id, 0, { medio: "efectivo" }, ahora(21, 31)).ok, false, "nada se cobra dos veces");
+});
+
+test("cerrar la cancha y seguir: se cobra la cancha, se libera para el turno siguiente y la mesa sigue cargando", () => {
+  const e = club();
+  const r = mesa4(e, 19);
+  M.checkIn(e, r.id, ahora(19));
+  M.consumoJugador(e, r.id, 2, "k-mila", 1, {}, ahora(19, 30));
+  const res = M.cerrarCanchaYSeguir(e, r.id, { medio: "efectivo" }, ahora(20, 30));
+  assert.ok(res.ok);
+  assert.equal(res.cobradoCancha, 42000);
+  assert.equal(r.estado, "finalizada");
+  assert.equal(e.luces.c1, false);
+  const sig = turno(e, "c1", 20, { clienteId: "d" }, 30);
+  assert.ok(M.checkIn(e, sig.id, ahora(20, 30)).ok, "el turno siguiente abre la cancha aunque la mesa siga");
+  assert.ok(M.consumoJugador(e, r.id, 2, "p9", 2, {}, ahora(21)).ok, "la mesa sigue cargando con la cancha cerrada");
+  const t = M.cuentaDelTurno(e, r.id);
+  assert.equal(t.totales.cancha, 0);
+  assert.equal(t.totales.cargos, 14500 + 7600);
+  assert.ok(t.mesaAbierta);
+  assert.equal(M.mesasAbiertas(e).length, 1);
+  const cierre = M.cerrarCargosDelTurno(e, r.id, { medio: "mercadopago" }, ahora(22));
+  assert.ok(cierre.ok);
+  assert.equal(cierre.cobrado, 22100);
+  assert.equal(M.mesasAbiertas(e).length, 0);
+  assert.equal(M.cuentaDelTurno(e, r.id).totales.pendiente, 0);
+});
+
+test("cobrar todo el turno de una: cancha y cargos con un medio; con créditos, jugador por jugador", () => {
+  const e = club();
+  const r = mesa4(e);
+  M.consumoJugador(e, r.id, 0, "p2", 2, {}, ahora(20, 10));
+  M.consumoJugador(e, r.id, 3, "k-pica", 1, {}, ahora(20, 10));
+  assert.match(M.cobrarTodoElTurno(e, r.id, { medio: "monedero" }, ahora(21)).motivo, /jugador por jugador/);
+  const antes = cajaIngresos(e);
+  const res = M.cobrarTodoElTurno(e, r.id, { medio: "debito" }, ahora(21));
+  assert.ok(res.ok);
+  assert.equal(res.total, 42000 + 4000 + 21000);
+  assert.equal(cajaIngresos(e) - antes, 67000);
+  assert.equal(M.cuentaDelTurno(e, r.id).totales.pendiente, 0);
+  assert.equal(M.cobrarTodoElTurno(e, r.id, { medio: "debito" }, ahora(21)).ok, false);
+});
+
+test("crédito: fiado puntual con código del dueño por WhatsApp (sin servidor) y con tope de intentos", () => {
+  const e = club();
+  const r = mesa4(e);
+  M.consumoJugador(e, r.id, 0, "k-pica", 1, {}, ahora(20, 10));
+  const cta = M.cuentaDeJugador(e, r, 0);
+  assert.match(M.cerrarCuenta(e, cta.id, { aCuenta: true }, ahora(21)).motivo, /no tiene cuenta corriente/);
+  const { novedad: n } = M.solicitarCredito(e, { clienteId: "a", tipo: "fiado", monto: 21000, cuentaId: cta.id }, RECEP, ahora(21));
+  assert.equal(M.solicitarCredito(e, { clienteId: "a", tipo: "fiado", monto: 1 }, RECEP, ahora(21)).ok, false, "un pedido pendiente por cliente");
+  const d = M.datosAprobacion(e, n.id);
+  // El celular del dueño calcula el código sólo con el link y su PIN.
+  const deMajo = M.codigoAprobacion({ pin: "22", novedadId: d.id, clienteId: d.c, monto: d.m, fecha: d.f });
+  assert.match(deMajo, /^[A-Z2-9]{3}-[A-Z2-9]{3}$/);
+  assert.notEqual(deMajo, M.codigoAprobacion({ pin: "11", novedadId: d.id, clienteId: d.c, monto: d.m, fecha: d.f }));
+  assert.notEqual(deMajo, M.codigoAprobacion({ pin: "22", novedadId: d.id, clienteId: d.c, monto: d.m + 1, fecha: d.f }));
+  assert.match(M.aprobarPorCodigo(e, n.id, { codigo: "AAA-AAA", monto: 21000 }, RECEP, ahora(21, 5)).motivo, /1 de 5/);
+  assert.equal(M.aprobarPorCodigo(e, n.id, { codigo: deMajo, monto: 30000 }, RECEP, ahora(21, 5)).ok, false, "con otro monto el código no sirve");
+  const ok = M.aprobarPorCodigo(e, n.id, { codigo: deMajo.toLowerCase(), monto: 21000 }, RECEP, ahora(21, 6));
+  assert.ok(ok.ok);
+  assert.equal(ok.aprobo, "Majo");
+  assert.ok(M.cerrarCuenta(e, cta.id, { aCuenta: true }, ahora(21, 10)).ok);
+  assert.equal(M.cliente(e, "a").deuda, 21000);
+  // El fiado se usa una sola vez.
+  M.consumoJugador(e, r.id, 0, "p2", 1, {}, ahora(21, 20));
+  assert.equal(M.cerrarCuenta(e, M.cuentaDeJugador(e, r, 0).id, { aCuenta: true }, ahora(21, 30)).ok, false);
+});
+
+test("crédito: cinco códigos mal traban el pedido 30 minutos; el dueño en el sistema lo resuelve igual", () => {
+  const e = club();
+  const { novedad: n } = M.solicitarCredito(e, { clienteId: "c", tipo: "cc", monto: 30000 }, RECEP, ahora(10));
+  for (let i = 0; i < 4; i++) M.aprobarPorCodigo(e, n.id, { codigo: "ZZZ-ZZZ" }, RECEP, ahora(10));
+  assert.match(M.aprobarPorCodigo(e, n.id, { codigo: "ZZZ-ZZZ" }, RECEP, ahora(10)).motivo, /30 minutos/);
+  const bueno = M.codigoAprobacion({ pin: "11", novedadId: n.id, clienteId: "c", monto: 30000, fecha: n.fecha });
+  assert.match(M.aprobarPorCodigo(e, n.id, { codigo: bueno }, RECEP, ahora(10, 10)).motivo, /Demasiados/);
+  assert.ok(M.aprobarPorCodigo(e, n.id, { codigo: bueno }, RECEP, ahora(10, 31)).ok);
+  assert.deepEqual(M.cliente(e, "c").cc, { habilitada: true, limite: 30000 });
+  const { novedad: n2 } = M.solicitarCredito(e, { clienteId: "b", tipo: "fiado", monto: 5000 }, RECEP, ahora(11));
+  assert.equal(M.resolverCredito(e, n2.id, { aprobar: true }, RECEP, ahora(11)).ok, false, "recepción no aprueba");
+  assert.ok(M.resolverCredito(e, n2.id, { aprobar: true, monto: 4000 }, DUENO, ahora(11)).ok);
+  assert.equal(M.cliente(e, "b").fiados[0].monto, 4000);
+});
+
+test("tienda: catálogo sin alquiler ni cocina, el pedido no toca stock hasta entregarlo, y se entrega una sola vez", () => {
+  const e = club();
+  const ids = M.catalogoTienda(e).map((p: any) => p.id);
+  assert.ok(ids.includes("p1") && ids.includes("p4"));
+  assert.ok(!ids.includes("p6") && !ids.includes("k-mila") && !ids.includes("p8"), "sin alquiler, cocina ni lo que no tiene stock");
+  assert.match(M.crearPedidoTienda(e, { items: [{ productoId: "p7", cant: 9 }], nombre: "Pedro" }, ahora(10)).motivo, /quedan 3/);
+  assert.match(M.crearPedidoTienda(e, { items: [{ productoId: "p6", cant: 1 }], nombre: "Pedro" }, ahora(10)).motivo, /no está en la tienda/);
+  const { pedido, mensaje } = M.crearPedidoTienda(e, { items: [{ productoId: "p1", cant: 1 }, { productoId: "p4", cant: 2 }], nombre: "Pedro", tel: "11 5555" }, ahora(10));
+  assert.equal(pedido.total, 21000);
+  assert.match(mensaje, new RegExp(pedido.codigo));
+  assert.equal(M.producto(e, "p1").stock, 18);
+  const antes = cajaIngresos(e);
+  assert.ok(M.entregarPedido(e, pedido.id, { medio: "efectivo" }, ahora(18)).ok);
+  assert.equal(cajaIngresos(e) - antes, 21000);
+  assert.equal(M.producto(e, "p1").stock, 17);
+  assert.equal(M.producto(e, "p4").stock, 28);
+  assert.equal(M.entregarPedido(e, pedido.id, { medio: "efectivo" }, ahora(18)).ok, false);
+  assert.equal(M.cuentasAbiertas(e).length, 0);
+  const otro = M.crearPedidoTienda(e, { items: [{ productoId: "p2", cant: 2 }], nombre: "Ana" }, ahora(10)).pedido;
+  assert.ok(M.cargarPedidoACuenta(e, otro.id, "a", ahora(19)).ok);
+  assert.equal(M.saldoCuenta(M.cuentasAbiertas(e)[0]), 4000);
+});
+
+test("jornada real: arranca en blanco, se guarda y se vuelve a abrir igual, sin repetir ids", () => {
+  const e = M.crearClubReal(HOY);
+  assert.equal(e.config.modo, "real");
+  assert.equal(e.config.cobro.alias, "");
+  assert.equal(e.reservas.length + e.clientes.length + e.cuentas.length + e.caja.movimientos.length, 0);
+  const r = turno(e, "c1", 20, { titular: "Juan", telefono: "1", jugadores: ["Juan", "Pedro"] });
+  M.consumoJugador(e, r.id, 0, "p2", 1, {}, ahora(20));
+  const foto = JSON.parse(JSON.stringify(M.serializarEstado(e)));
+  const h = M.hidratarEstado(foto);
+  assert.ok(h.ok);
+  assert.deepEqual(h.estado.reservas, e.reservas);
+  const nuevo = turno(h.estado, "c2", 20, { titular: "Otro", telefono: "2" });
+  assert.ok(![...e.reservas, ...e.cuentas].some((x: any) => x.id === nuevo.id), "ids nuevos después de volver a abrir");
+  for (const basura of [null, { v: 99 }, { v: 1, estado: {} }, { v: 1, estado: { config: {}, caja: {} } }]) assert.equal(M.hidratarEstado(basura).ok, false);
+});
+
+test("propiedad: un día de torneo al azar cierra en cero, la caja suma lo cobrado y el stock cuadra", () => {
+  let semilla = 777;
+  const azar = () => ((semilla = (semilla * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+  const productos = ["p2", "p9", "p10", "p3", "k-mila", "k-hamb", "k-empa", "k-pica"];
+  for (let t = 0; t < 300; t++) {
+    const e = club();
+    e.config.politica.senaPct = Math.floor(azar() * 101);
+    const stock0 = Object.fromEntries(e.productos.map((p: any) => [p.id, p.stock]));
+    const r = mesa4(e, 20, "c" + (1 + Math.floor(azar() * 4)));
+    if (azar() < 0.6) M.registrarPago(e, r.id, { medio: "transferencia", monto: r.sena.monto || Math.floor(r.precio / 4) }, ahora(10));
+    M.checkIn(e, r.id, ahora(20));
+    const cargados: Record<string, number> = {};
+    for (let k = 0; k < 2 + Math.floor(azar() * 12); k++) {
+      const p = productos[Math.floor(azar() * productos.length)];
+      const n = 1 + Math.floor(azar() * 3);
+      if (M.consumoJugador(e, r.id, Math.floor(azar() * 4), p, n, {}, ahora(20, 30)).ok) cargados[p] = (cargados[p] ?? 0) + n;
+    }
+    if (azar() < 0.5) M.asignarCargoCancha(e, r.id, 3, Math.floor(azar() * 3), ahora(20, 40));
+    const c = [0, 1, 2, 3].map((i) => M.cuentaDeJugador(e, r, i));
+    if (azar() < 0.5 && c[2] && c[1]) M.asignarCargoCargos(e, c[2].id, c[1].id, ahora(20, 40));
+    const camino = Math.floor(azar() * 3);
+    if (camino === 0) M.cobrarTodoElTurno(e, r.id, { medio: "efectivo" }, ahora(21, 30));
+    else if (camino === 1) { M.cerrarCanchaYSeguir(e, r.id, { medio: "efectivo" }, ahora(21, 30)); M.cerrarCargosDelTurno(e, r.id, { medio: "debito" }, ahora(23)); }
+    else for (let vuelta = 0; vuelta < 6; vuelta++) { const i = M.cuentaDelTurno(e, r.id).jugadores.findIndex((j: any) => j.aPagar > 0); if (i < 0) break; assert.ok(M.cobrarJugador(e, r.id, i, { medio: "mercadopago" }, ahora(21, 30)).ok, `caso ${t}`); }
+    const fin = M.cuentaDelTurno(e, r.id);
+    assert.equal(fin.totales.pendiente, 0, `caso ${t} (camino ${camino}): queda pendiente`);
+    const cobradoCancha = M.cobrado(r);
+    const cobradoCargos = e.cuentas.reduce((s: number, x: any) => s + M.cobradoCuenta(x), 0);
+    assert.equal(cajaIngresos(e), cobradoCancha + cobradoCargos, `caso ${t}: la caja no suma lo cobrado`);
+    assert.equal(cobradoCancha, r.precio, `caso ${t}: la cancha se cobró de más o de menos`);
+    for (const [p, n] of Object.entries(cargados)) if (stock0[p] != null) assert.equal(M.producto(e, p).stock, stock0[p] - n, `caso ${t}: stock de ${p}`);
+  }
+});
+
+test("tenant real: dueños Roberto Ronco y Majo Gimenez sin PIN, cada uno arma el suyo y dan de alta a recepción", () => {
+  const e = M.crearClubReal(HOY);
+  assert.deepEqual(e.usuarios.map((u: any) => [u.nombre, u.rol, u.pin]), [["Roberto Ronco", "duenio", ""], ["Majo Gimenez", "duenio", ""]]);
+  assert.equal(e.proveedores.length, 0);
+  assert.equal(M.verificarPin(e, "u-rober", "").ok, false, "sin PIN no se entra con el campo vacío");
+  assert.match(M.terminarConfiguracion(e, ahora(9)).motivo, /al menos un dueño/);
+  assert.match(M.definirPinInicial(e, "u-rober", "1", ahora(9)).motivo, /2 números/);
+  assert.ok(M.definirPinInicial(e, "u-rober", "57", ahora(9)).ok);
+  assert.match(M.definirPinInicial(e, "u-majo", "57", ahora(9)).motivo, /otra persona/);
+  assert.ok(M.definirPinInicial(e, "u-majo", "84", ahora(9)).ok);
+  assert.equal(M.definirPinInicial(e, "u-rober", "12", ahora(9)).ok, false, "el PIN inicial se arma una sola vez");
+  assert.ok(M.terminarConfiguracion(e, ahora(9)).ok);
+  assert.equal(e.config.configurado, true);
+  assert.equal(M.altaUsuario(e, { nombre: "Lu", rol: "recepcion" }, { usuarioId: "u-rober", pin: "00" }, ahora(9)).ok, false);
+  const lu = M.altaUsuario(e, { nombre: "Lu", rol: "recepcion" }, { usuarioId: "u-rober", pin: "57" }, ahora(9));
+  assert.ok(lu.ok);
+  assert.match(lu.pin, /^\d{2}$/);
+  assert.ok(M.verificarPin(e, lu.usuario.id, lu.pin).ok);
+  assert.equal(M.altaUsuario(e, { nombre: "Caro" }, { usuarioId: lu.usuario.id, pin: lu.pin }, ahora(9)).ok, false, "recepción no da accesos");
+  assert.ok(M.cambiarMiPin(e, { usuarioId: lu.usuario.id, pin: lu.pin }, "33", ahora(9)).ok || lu.pin === "33");
+  assert.ok(M.revocarAcceso(e, lu.usuario.id, { usuarioId: "u-majo", pin: "84" }, ahora(9)).ok);
+  assert.equal(M.verificarPin(e, lu.usuario.id, "33").ok, false);
+});
+
+test("novedades por difusión: audiencia, baja y envío uno por uno sin repetir", () => {
+  const e = club();
+  const r = turno(e, "c1", 10, { clienteId: "a" });
+  M.checkIn(e, r.id, ahora(10));
+  M.registrarPago(e, r.id, { medio: "efectivo", monto: r.precio }, ahora(11));
+  M.finalizar(e, r.id, {}, ahora(11, 30));
+  assert.equal(M.destinatarios(e, "todos", ahora(12)).length, 4);
+  assert.deepEqual(M.destinatarios(e, "activos", ahora(12)).map((x: any) => x.clienteId), ["a"]);
+  assert.deepEqual(M.destinatarios(e, "cuentaCorriente", ahora(12)).map((x: any) => x.clienteId), ["d"]);
+  M.bajaNovedades(e, "b", ahora(12));
+  assert.equal(M.destinatarios(e, "todos", ahora(12)).length, 3, "a quien pidió la baja no le llega");
+  assert.equal(M.crearDifusion(e, { titulo: "Torneo" }, RECEP, ahora(12)).ok, false, "la arma un dueño");
+  const { difusion: d } = M.crearDifusion(e, { tipo: "torneo", titulo: "Torneo del sábado", texto: "Inscripción $20.000 por pareja.", audiencia: "todos" }, DUENO, ahora(12));
+  assert.equal(d.destinatarios.length, 3);
+  assert.match(M.mensajeDifusion(d, "Ana Pérez"), /¡Hola Ana![\s\S]*Torneo del sábado[\s\S]*BAJA/);
+  assert.equal(M.marcarEnviado(e, d.id, "a").faltan, 2);
+  assert.equal(M.marcarEnviado(e, d.id, "a").faltan, 2, "no se cuenta dos veces");
+  assert.match(M.contactosCSV([{ nombre: 'Ana "la zurda"', tel: "5491100000001" }]), /"Ana ""la zurda""","\+5491100000001"/);
+});
+
+test("tienda en el día real: el club pega el mensaje de WhatsApp del cliente y queda el pedido (una sola vez)", () => {
+  const e = M.crearClubReal(HOY);
+  const { mensaje, pedido } = M.crearPedidoTienda(M.crearClubReal(HOY), { items: [{ productoId: "p1", cant: 1 }, { productoId: "p4", cant: 2 }], nombre: "Pedro Gómez", tel: "11 5555-1234" }, ahora(15));
+  const res = M.pedidoDesdeWhatsApp(e, mensaje, ahora(15, 5));
+  assert.ok(res.ok);
+  assert.equal(res.pedido.codigo, pedido.codigo);
+  assert.equal(res.pedido.nombre, "Pedro Gómez");
+  assert.equal(res.pedido.total, 21000);
+  assert.match(M.pedidoDesdeWhatsApp(e, mensaje, ahora(15, 6)).motivo, /ya está cargado/);
+  assert.match(M.pedidoDesdeWhatsApp(e, "hola, ¿tienen paletas?", ahora(15, 6)).motivo, /No encontré productos/);
+});

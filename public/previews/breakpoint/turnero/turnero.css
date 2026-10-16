@@ -262,3 +262,33 @@ dialog[open]{transform:none}
 @media (max-width:440px){.vivo{font-size:0;gap:0;padding:0 12px}.vivo.on::after{left:12px}.btn-head{padding:0 10px;font-size:14px}
   /* sin texto visible, el estado no puede ser sólo color (WCAG 1.4.1): desconectado = aro hueco */
   .vivo.off::before{background:transparent;border:2px solid #FFB4A9;width:10px;height:10px}}
+
+/* Tienda (/turnero#tienda, tienda.mjs) y modo «pedido por WhatsApp» (?modo=pedido) */
+.btn-tienda{display:inline-flex;align-items:center;gap:6px;padding:0 12px;text-decoration:none}
+.btn-tienda svg{width:20px;height:20px;flex:none}
+.vivo.pedido::before{background:#fff}
+@media (max-width:440px){.vivo.pedido{font-size:13px;gap:8px;padding:0 10px}.btn-tienda{padding:0 10px}
+  /* con sesión, el encabezado se llena: la tienda queda en ícono (el nombre sigue para el lector) */
+  .top-in:has(#usuario:not([hidden])) .btn-tienda{padding:0 10px}
+  .top-in:has(#usuario:not([hidden])) .t-txt{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}}
+@media (min-width:600px){.dlg-tienda{width:min(520px,calc(100vw - 32px))}}
+.nota-tienda{margin:0;padding:10px 12px;background:var(--nar-s);color:var(--nar-t);border-left:4px solid var(--nar-ui);border-radius:var(--r1);font-size:14px;font-weight:700}
+.cat h3,.carrito h3{margin:0 0 8px;font:italic 400 20px/1.1 var(--display);text-transform:uppercase;letter-spacing:.01em}
+.cat+.cat{margin-top:6px}
+.prods,.carrito ul{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.prod{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 12px;padding:10px 12px;background:var(--panel);border:1px solid var(--linea2);border-left:4px solid var(--azul);border-radius:var(--r2)}
+.prod-nombre{font-weight:700;overflow-wrap:anywhere}
+.prod-precio{grid-column:1;font-weight:800}
+.tag-pocas{grid-column:1;justify-self:start;background:var(--nar-s);color:var(--nar-t)}
+.cant{grid-column:2;grid-row:1/span 3;display:inline-flex;align-items:center;border:1px solid var(--linea);border-radius:var(--r2)}
+.cant-b{width:44px;height:44px;padding:0;border:0;background:none;color:var(--azul);font-size:22px;font-weight:800;line-height:1}
+.cant-b:disabled{color:var(--gris);cursor:default}
+.cant-n{min-width:24px;text-align:center;font-weight:800}
+.carrito{padding:12px 14px;background:var(--azul-s);color:var(--azul-t);border-left:4px solid var(--marca);border-radius:var(--r1)}
+.carrito ul{gap:4px}
+.carrito li{display:flex;justify-content:space-between;gap:12px}
+.carrito-total{display:flex;justify-content:space-between;margin:8px 0 0;padding-top:8px;border-top:1px solid currentColor;font-weight:700}
+.tienda-listo{display:grid;gap:12px}
+.tienda-listo p{margin:0}
+.badge-ok{justify-self:start;height:auto;min-height:26px;font-size:14px;background:var(--ok-s);color:var(--ok)}
+.campo select{width:100%;min-height:48px;padding:0 12px;border:1px solid var(--linea);border-radius:var(--r2);background:var(--panel);color:var(--tinta);font:inherit;font-size:16px}

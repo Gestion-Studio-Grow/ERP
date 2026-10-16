@@ -224,6 +224,16 @@ export async function conectar(puente, api, transporte) {
     agenda = fotoAgenda();
     puente.render();
   });
+  // Pedido de la tienda web (mismo navegador): queda en Buffet → «Pedidos de la tienda» para entregar y cobrar.
+  ev.addEventListener("pedido", (e) => {
+    const { pedido } = JSON.parse(e.data);
+    if (!pedido?.id) return;
+    puente.E.pedidos ??= [];
+    const i = puente.E.pedidos.findIndex((x) => x.id === pedido.id);
+    if (i >= 0) puente.E.pedidos[i] = pedido; else puente.E.pedidos.push(pedido);
+    panel.novedad(`🛒 Pedido de la tienda ${pedido.codigo}: ${pedido.nombre} · ${M.pesos(pedido.total)}`);
+    puente.render();
+  });
   ev.addEventListener("revision", (e) => panel.revision(JSON.parse(e.data).revision));
   ev.addEventListener("comprobante-rechazado", (e) => { const d = JSON.parse(e.data); panel.novedad(`⛔ Comprobante rechazado (op. ${d.operacion}): ${d.motivo}`); });
 

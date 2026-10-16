@@ -22,13 +22,14 @@
 <body data-estado="cargando">
 <a class="saltar" href="#mis-reservas">Saltar a Mis turnos</a>
 
-<p class="cinta" role="note">Demo: los datos son de ejemplo y no se guardan</p>
+<p id="cinta" class="cinta" role="note">Demo: los datos son de ejemplo y no se guardan</p>
 
 <header class="top">
   <div class="top-in">
     <!-- Logo oficial del club (SVG de ccr-63ed11dc-brcdpp, el mismo del backoffice), sobre su cuadrado azul. -->
     <svg id="logo" viewBox="0 0 120 120" role="img" aria-label="Break Point Pádel"><rect width="120" height="120" fill="#035BA8"/><g transform="translate(8 20)" color="#fff"><rect x="0.5" y="3.5" width="3.6" height="73" fill="currentColor"/><g fill="currentColor" font-family="Montserrat,'Century Gothic','Avenir Next',sans-serif" font-weight="500" font-size="24.5"><text x="9.5" y="25" textLength="92" lengthAdjust="spacingAndGlyphs">BREAK</text><text x="9.5" y="51" textLength="15.5" lengthAdjust="spacingAndGlyphs">P</text><text x="45" y="51" textLength="56.5" lengthAdjust="spacingAndGlyphs">INT</text><text x="9.5" y="77" textLength="92" lengthAdjust="spacingAndGlyphs">PADEL</text></g><g fill="none" stroke="#DC6E22" stroke-width="3.3" stroke-linecap="round"><circle cx="35" cy="42.4" r="8.1"/><path d="M34.2 35.6a7.6 7.6 0 0 0 0 13.6"/></g></g></svg>
     <span id="en-vivo" class="vivo off" role="status">Conectando…</span>
+    <a id="btn-tienda" class="btn-head btn-tienda" href="#tienda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg><span class="t-txt">Tienda</span></a>
     <button id="btn-ingresar" class="btn-head" type="button">Ingresar</button>
     <div id="usuario" class="usuario" hidden></div>
   </div>
@@ -83,7 +84,7 @@
     </section>
     <section class="card como" aria-labelledby="t-como">
       <h2 id="t-como">Cómo es</h2>
-      <ol>
+      <ol id="como-pasos">
         <li><b>Elegí</b> el día, el horario y la cancha.</li>
         <li><b>Reservá</b> con tu cuenta o con Google.</li>
         <li><b>Si el turno pide seña,</b> transferí con el código y queda firme.</li>
@@ -194,6 +195,34 @@
       <button id="btn-simular" type="button" class="btn btn-demo btn-block">Simular comprobante (demo)</button>
       <button id="btn-cerrar-pago" type="button" class="btn btn-pri btn-block">Listo</button>
     </div>
+  </div>
+</dialog>
+
+<!-- Pedido por WhatsApp (modo pedido: /turnero?modo=pedido&wa=549…): no reserva, arma el mensaje para el club -->
+<dialog id="dlg-pedido" aria-labelledby="t-ped">
+  <div class="dlg-cab">
+    <h2 id="t-ped">Pedí este turno</h2>
+    <form method="dialog"><button class="dlg-x" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></form>
+  </div>
+  <div class="dlg-cuerpo">
+    <div id="ped-resumen" class="resumen"></div>
+    <div class="campo">
+      <label for="ped-cancha">Cancha</label>
+      <select id="ped-cancha" name="cancha"></select>
+    </div>
+    <dl class="cuenta">
+      <dt>Precio de referencia</dt><dd id="ped-precio" class="num"></dd>
+    </dl>
+    <form id="form-pedido" class="dlg-form" novalidate>
+      <div class="campo">
+        <label for="ped-nombre">Tu nombre</label>
+        <input id="ped-nombre" name="nombre" type="text" autocomplete="name" maxlength="60" required aria-describedby="ped-error">
+      </div>
+      <p id="ped-error" class="error" role="alert"></p>
+      <a id="ped-wa" class="btn btn-wa btn-block" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 18.8z"/></svg>Pedir este turno por WhatsApp</a>
+      <p class="hint">El club te confirma por WhatsApp y te pasa el alias para la seña.</p>
+      <p id="ped-sin-wa" class="hint" hidden>Se abre WhatsApp: elegí el chat del club y mandá el mensaje.</p>
+    </form>
   </div>
 </dialog>
 

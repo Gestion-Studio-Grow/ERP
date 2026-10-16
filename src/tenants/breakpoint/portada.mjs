@@ -1,5 +1,5 @@
-// PORTADA del sitio de Break Point Pádel (breakpointpadel.gsgapp.com.ar): la marca del club y los dos accesos,
-// «Reservá tu cancha» (/turnero) y «Gestión del club» (/club). Demo a costo cero, datos de ejemplo.
+// PORTADA del sitio de Break Point Pádel (breakpointpadel.gsgapp.com.ar): la marca del club y los accesos,
+// «Reservá tu cancha» (/turnero), «Gestión del club» (/club) y la «Tienda» (/turnero#tienda). Demo a costo cero.
 // La usa src/tenants/breakpoint/empaquetar.mjs para armar src/tenants/breakpoint/sitio/index.html.
 
 const LOGO = `<svg viewBox="0 0 120 120" aria-hidden="true" focusable="false" width="96" height="96"><rect width="120" height="120" fill="#035BA8"/><g transform="translate(8 20)" color="#fff"><rect x="0.5" y="3.5" width="3.6" height="73" fill="currentColor"/><g fill="currentColor" font-family="Montserrat,'Century Gothic','Avenir Next',sans-serif" font-weight="500" font-size="24.5"><text x="9.5" y="25" textLength="92" lengthAdjust="spacingAndGlyphs">BREAK</text><text x="9.5" y="51" textLength="15.5" lengthAdjust="spacingAndGlyphs">P</text><text x="45" y="51" textLength="56.5" lengthAdjust="spacingAndGlyphs">INT</text><text x="9.5" y="77" textLength="92" lengthAdjust="spacingAndGlyphs">PADEL</text></g><g fill="none" stroke="#DC6E22" stroke-width="3.3" stroke-linecap="round"><circle cx="35" cy="42.4" r="8.1"/><path d="M34.2 35.6a7.6 7.6 0 0 0 0 13.6"/></g></g></svg>`;
@@ -33,6 +33,8 @@ export function portada() {
   a.pri{background:var(--azul);color:#fff}
   a.sec{background:var(--panel);color:var(--tinta)}
   a.btn:focus-visible{outline:3px solid var(--pelota);outline-offset:3px}
+  a.tienda{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 4px;color:var(--tinta);font-weight:800;text-underline-offset:3px}
+  a.tienda:focus-visible{outline:3px solid var(--pelota);outline-offset:3px}
   .nota{font-size:14px;padding:12px 14px;border-radius:10px;background:var(--panel);border-left:4px solid var(--pelota);text-align:left}
   .cinta{position:fixed;top:0;left:0;right:0;padding:6px 12px;background:#0F1A26;color:#fff;font-size:13px;text-align:center}
 </style>
@@ -47,6 +49,7 @@ export function portada() {
     <a class="btn pri" href="/turnero">Reservá tu cancha<small>el turnero para los jugadores</small></a>
     <a class="btn sec" href="/club">Gestión del club<small>agenda, buffet, caja y más</small></a>
   </nav>
+  <a class="tienda" href="/turnero#tienda">Tienda del club: pelotas, grips y más, para retirar en el club</a>
   <p class="nota"><b>Para ver la integración:</b> abrí las dos en pestañas del mismo navegador. Lo que reserves en el turnero aparece solo en la agenda del club, y lo que cargues en el club se ocupa en el turnero. Es una demo: Google, WhatsApp y los pagos están simulados.</p>
 </main>
 </body>

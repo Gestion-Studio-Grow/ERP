@@ -19,6 +19,13 @@ const API = (() => {
   return MODO_DEMO ? "local" : "";
 })().replace(/\/$/, "");
 let LOCAL = null; // adaptador local (local.mjs): sólo se descarga si hace falta
+// Modo «pedido por WhatsApp» (/turnero?modo=pedido&wa=549…): para el día de prueba en el club. El celular del jugador
+// no llega a la PC del club (la sync es entre pestañas del MISMO navegador), así que no se promete nada que no pase:
+// horarios y precios de referencia, y el turno se pide por WhatsApp; el club lo confirma. Sólo en la demo (MODO_DEMO).
+const MODO_PEDIDO = MODO_DEMO && qs.get("modo") === "pedido";
+/** Número del club para WhatsApp (?wa=): sólo dígitos, de 8 a 15. Si no sirve, WhatsApp abre sin destinatario. */
+const WA = (() => { const n = String(qs.get("wa") ?? "").replace(/[\s+().-]/g, ""); return /^\d{8,15}$/.test(n) ? n : ""; })();
+const linkWa = (texto) => `https://wa.me/${WA}?text=${encodeURIComponent(texto)}`;
 const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -28,6 +35,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const fechaLarga = (f) => { const [a, m, d] = f.split("-").map(Number); return `${DIAS[new Date(Date.UTC(a, m - 1, d)).getUTCDay()]} ${d} ${MESES[m - 1]}`; };
 /** Inicio del turno en epoch (hora argentina, UTC−3, sin horario de verano). */
 const inicioEpoch = (fecha, min) => { const [a, m, d] = fecha.split("-").map(Number); return Date.UTC(a, m - 1, d) + (min + 180) * 60000; };
+const durTexto = (m) => ({ 60: "1 h", 90: "1 h 30", 120: "2 h" })[m] ?? `${m} min`;
 const TEXTO_TARDE = "la seña queda retenida y vuelve como crédito sólo si alguien toma el turno";
 const quieto = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -89,7 +97,7 @@ const FRANJAS = [["manana", "Mañana", 0, 720], ["tarde", "Tarde", 720, 1080], [
 
 function htmlSlot(s) {
   // Mismo criterio (WCAG 2.5.3): el nombre es el texto visible; el fin del turno y las pausas van ocultos para la vista.
-  return `<button type="button" class="slot" data-inicio="${s.inicio}" data-cancha="${esc(s.canchaId)}" data-pico="${s.pico ? 1 : 0}"><span class="slot-hora">${hhmm(s.inicio)}</span><span class="sr"> a ${hhmm(s.fin)}, </span><span class="slot-cancha">${esc(s.cancha)}</span><span class="slot-tags">${s.techada ? '<span class="sr">, </span><span class="tag tag-techada">Techada</span>' : ""}${s.pico ? '<span class="sr">, </span><span class="tag tag-pico">Pico</span>' : ""}</span><span class="sr">, </span><span class="slot-precio">${pesos(s.precio)}</span></button>`;
+  return `<button type="button" class="slot" data-inicio="${s.inicio}" data-cancha="${esc(s.canchaId)}" data-pico="${s.pico ? 1 : 0}"><span class="slot-hora">${hhmm(s.inicio)}</span><span class="sr"> a ${hhmm(s.fin)}, </span><span class="slot-cancha">${esc(s.cancha)}</span><span class="slot-tags">${s.techada ? '<span class="sr">, </span><span class="tag tag-techada">Techada</span>' : ""}${s.pico ? '<span class="sr">, </span><span class="tag tag-pico">Pico</span>' : ""}</span><span class="sr">, </span><span class="slot-precio">${s.desde ? "desde " : ""}${pesos(s.precio)}</span></button>`;
 }
 
 /** El turno con foco de teclado (si hay): al repintar se le devuelve el foco a él o al vecino más cercano (D23). */
@@ -106,6 +114,7 @@ function devolverFocoSlot(foco) {
 }
 
 function pintarGrilla(slots, { animar = false, foco = slotEnfocado() } = {}) {
+  if (MODO_PEDIDO) slots = porHorario(slots);
   const g = $("#grilla");
   const antes = new Set(S.slots.map((s) => `${s.inicio}|${s.canchaId}`));
   const ahora = new Set(slots.map((s) => `${s.inicio}|${s.canchaId}`));
@@ -370,6 +379,7 @@ function pintarUsuario() {
     if (!$("#btn-salir")) c.innerHTML = `<a id="btn-mis" class="btn-head" href="#mis-reservas">Mis turnos</a><button id="btn-salir" type="button" class="btn-head">Salir</button>`;
     $("#btn-salir").title = `Salir (${u.nombre})`;
   }
+  if (MODO_PEDIDO) $("#btn-ingresar").hidden = true; // sin cuentas: el turno se pide por WhatsApp
   pintarReservas();
 }
 
@@ -409,7 +419,7 @@ function cablear() {
     const b = e.target.closest(".slot");
     if (!b || b.disabled) return;
     const s = S.slots.find((x) => String(x.inicio) === b.dataset.inicio && x.canchaId === b.dataset.cancha);
-    if (s) abrirReserva(s);
+    if (s) (MODO_PEDIDO ? abrirPedido : abrirReserva)(s);
   });
   $("#res-error").addEventListener("click", (e) => {
     const b = e.target.closest(".alt");
@@ -472,7 +482,14 @@ function cablear() {
     else if (e.target.closest(".btn-invitar")) invitar(id);
     else if (e.target.closest(".btn-cancelar-res")) cancelarReserva(e.target.closest(".btn-cancelar-res"), id);
   });
-  $("#btn-espera").addEventListener("click", anotarEspera);
+  $("#btn-espera").addEventListener("click", () => (MODO_PEDIDO ? preguntarPorWhatsApp() : anotarEspera()));
+  $("#ped-cancha").addEventListener("change", () => armarPedido());
+  $("#ped-nombre").addEventListener("input", armarPedido);
+  $("#ped-wa").addEventListener("click", (e) => { if (!armarPedido({ validar: true })) e.preventDefault(); });
+  $("#form-pedido").addEventListener("submit", (e) => { e.preventDefault(); if (armarPedido({ validar: true })) $("#ped-wa").click(); });
+  // Tienda: se descarga recién cuando se abre (/turnero#tienda o el botón del encabezado).
+  addEventListener("hashchange", () => { if (location.hash === "#tienda") abrirTienda(); });
+  $("#btn-tienda").addEventListener("click", (e) => { e.preventDefault(); if (location.hash !== "#tienda") history.replaceState(null, "", "#tienda"); abrirTienda(); });
   // Volver a la pestaña después de transferir desde la app del banco: refresco inmediato.
   document.addEventListener("visibilitychange", () => { if (!document.hidden && S.config) { cargarSlots({ animar: true, forzar: true }); cargarReservas(); } });
 }
@@ -510,6 +527,83 @@ function pedirCelular() {
   $("#esp-tel").focus();
 }
 
+// ───────────── modo pedido por WhatsApp ─────────────
+/**
+ * En modo pedido la disponibilidad es de referencia: un turno por horario (no uno por cancha, que en el celular
+ * son cientos de botones). La cancha se elige en el diálogo; «cualquiera» es lo más común.
+ */
+function porHorario(slots) {
+  if (slots.some((s) => s.opciones)) return slots; // ya agrupados (repintado después de una animación)
+  const grupos = new Map();
+  for (const s of slots) (grupos.get(s.inicio) ?? grupos.set(s.inicio, []).get(s.inicio)).push(s);
+  return [...grupos.values()].map((ops) => {
+    const min = Math.min(...ops.map((x) => x.precio));
+    return { ...ops[0], cancha: ops.length === 1 ? ops[0].cancha : `${ops.length} canchas`, techada: ops.some((x) => x.techada), pico: ops.some((x) => x.pico), precio: min, desde: ops.some((x) => x.precio !== min), opciones: ops };
+  });
+}
+
+function abrirPedido(slot) {
+  S.elegido = slot;
+  const ops = slot.opciones ?? [slot];
+  $("#ped-cancha").innerHTML = (ops.length > 1 ? `<option value="">Cualquier cancha</option>` : "") + ops.map((o) => `<option value="${esc(o.canchaId)}">${esc(o.cancha)}${o.techada ? " · techada" : ""} · ${pesos(o.precio)}</option>`).join("");
+  $("#ped-error").textContent = "";
+  $("#ped-nombre").removeAttribute("aria-invalid");
+  $("#ped-sin-wa").hidden = Boolean(WA);
+  armarPedido();
+  abrir("#dlg-pedido");
+}
+
+/** Resumen, precio de referencia y link de WhatsApp del turno elegido. Con `validar`, exige el nombre. */
+function armarPedido({ validar = false } = {}) {
+  const s = S.elegido;
+  if (!s) return false;
+  const ops = s.opciones ?? [s];
+  const elegida = ops.find((o) => o.canchaId === $("#ped-cancha").value) ?? (ops.length === 1 ? ops[0] : null);
+  // «Cualquier cancha»: el precio puede cambiar de una cancha a otra (techada, pico): se muestra el rango.
+  const precios = (elegida ? [elegida] : ops).map((x) => x.precio);
+  const min = Math.min(...precios), max = Math.max(...precios);
+  const precio = min === max ? pesos(min) : `${pesos(min)} a ${pesos(max)}`;
+  const cancha = elegida ? `la ${elegida.cancha}${elegida.techada ? " (techada)" : ""}` : "cualquier cancha";
+  $("#ped-resumen").innerHTML = `<strong>${elegida ? esc(elegida.cancha) : "Cualquier cancha"}</strong>${elegida?.techada ? " · techada" : ""}<br>${fechaLarga(S.fecha)} · ${hhmm(s.inicio)} a ${hhmm(s.fin)} (${durTexto(S.duracion)})`;
+  $("#ped-precio").textContent = precio;
+  const nombre = $("#ped-nombre").value.trim();
+  $("#ped-wa").href = linkWa(`Hola Break Point, quiero el turno del ${fechaLarga(S.fecha)} a las ${hhmm(s.inicio)} (${durTexto(S.duracion)}) en ${cancha}. Precio de referencia: ${precio}.${nombre ? ` Soy ${nombre}.` : ""}`);
+  if (!validar) return true;
+  const falta = !nombre;
+  $("#ped-error").textContent = falta ? "Poné tu nombre así el club sabe quién pide." : "";
+  if (falta) { $("#ped-nombre").setAttribute("aria-invalid", "true"); $("#ped-nombre").focus(); } else $("#ped-nombre").removeAttribute("aria-invalid");
+  return !falta;
+}
+
+/** Sin horarios libres con esos filtros: en vez de una lista de espera que acá no existe, se le pregunta al club. */
+function preguntarPorWhatsApp() {
+  window.open(linkWa(`Hola Break Point, ¿tienen algún turno el ${fechaLarga(S.fecha)} (${durTexto(S.duracion)})${S.techadas ? " en cancha techada" : ""}?`), "_blank", "noopener");
+}
+
+/** Lo que cambia en la página en modo pedido: sin ingreso, sin «Mis turnos», sin «en vivo» ni promesas que no pasan. */
+function prepararModoPedido() {
+  document.body.dataset.modo = "pedido";
+  const vivo = $("#en-vivo");
+  vivo.classList.remove("on", "off");
+  vivo.classList.add("pedido");
+  vivo.textContent = "Pedido por WhatsApp";
+  $("#cinta").textContent = "Horarios y precios de referencia: el club te confirma por WhatsApp";
+  $("#subtitulo").textContent = "Horarios y precios de referencia · la disponibilidad te la confirma el club.";
+  for (const el of [$("#btn-ingresar"), $("#usuario"), $("#mis-reservas"), $(".saltar"), $("#btn-google"), $("#btn-simular")]) if (el) el.hidden = true;
+  $("#como-pasos").innerHTML = "<li><b>Elegí</b> el día, el horario y la duración.</li><li><b>Pedilo por WhatsApp</b> con tu nombre: el mensaje sale armado.</li><li><b>El club te confirma</b> y te pasa el alias para la seña.</li>";
+  $("#espera p").textContent = "No vemos canchas libres con estos filtros. Preguntale al club por WhatsApp: a veces se libera algo.";
+  $("#btn-espera").textContent = "Preguntar por WhatsApp";
+}
+
+// ───────────── tienda (módulo aparte, carga diferida) ─────────────
+let arranque = null;
+async function abrirTienda() {
+  await arranque;
+  if (!S.config) return aviso("La tienda no está disponible en este momento.");
+  const t = await import("./tienda.mjs");
+  t.abrirTienda({ api, wa: WA, alCerrar: () => { if (location.hash === "#tienda") history.replaceState(null, "", location.pathname + location.search); } });
+}
+
 // ───────────── arranque ─────────────
 /** Fuentes de la marca sin bloquear el render (y sin manejadores inline: la CSP no permite scripts inline). */
 function cargarFuentes() {
@@ -529,7 +623,8 @@ async function iniciar() {
     $("#grilla").setAttribute("aria-busy", "false");
     return;
   }
-  if (API === "local") LOCAL = await (await import("./local.mjs")).crearLocal();
+  if (MODO_PEDIDO) { prepararModoPedido(); LOCAL = (await import("./local.mjs")).crearLocalPedido(); }
+  else if (API === "local") LOCAL = await (await import("./local.mjs")).crearLocal();
   const [cfg, yo] = await Promise.all([api("/api/turnero/config"), api("/api/auth/yo")]);
   if (!cfg.club) {
     document.body.dataset.estado = "sin-conexion";
@@ -547,9 +642,9 @@ async function iniciar() {
   pintarUsuario();
   await cargarSlots();
   document.body.dataset.estado = "listo";
-  conectarVivo();
-  cargarReservas();
+  if (!MODO_PEDIDO) { conectarVivo(); cargarReservas(); }
   precargar();
 }
 
-iniciar();
+arranque = iniciar();
+if (location.hash === "#tienda") abrirTienda();

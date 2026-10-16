@@ -69,9 +69,28 @@ Supuestos, a confirmar con el club:
 - el redondeo del precio calculado por % sobre costo a $50.
 
 **Deuda de la demo, para el producto real:**
-- Recargar la página saltea el bloqueo, porque la demo arranca sin login. En el producto real el bloqueo vive en la sesión del servidor y con PINs de más de 2 dígitos.
+- En la **demo**, recargar la página saltea el bloqueo, porque arranca sin login. En la **jornada real** (`?modo=real`) ya no: vuelve bloqueada. En el producto real el bloqueo vive en la sesión del servidor y con PINs de más de 2 dígitos.
 - «−» sobre un cargo ya cobrado no pide autorización. En el producto real tiene que dejar registrado quién anuló, o pedir el PIN del dueño.
 - Con `?api=`, la ventana de clave del modo conectado puede abrirse encima del bloqueo. No permite saltearlo.
+
+## Día de prueba real en el local (17/10)
+
+Guía para los dueños y recepción: [`DIA-DE-PRUEBA.md`](DIA-DE-PRUEBA.md). En resumen:
+- `/club?modo=real` deja **esa compu** en jornada real. Arranca en blanco con la **consola de configuración**: los
+  dueños, Roberto Ronco y Majo Gimenez, arman su PIN y dan de alta a recepción.
+- Todo se guarda solo en el navegador. Al recargar vuelve bloqueado, usa la hora real y tiene respaldo descargable.
+- Sigue sin servidor y sin costo.
+
+| Pieza | Dónde |
+|---|---|
+| Jornada real: guardado, reloj real, una pestaña, respaldo | `app.mjs` → `guardarJornada`, `relojReal`, `tarjetaJornada` · `motor.mjs` → `crearClubReal`, `serializarEstado`, `hidratarEstado` |
+| Consola de configuración y accesos | `app.mjs` → `vistaConsola` · `motor.mjs` → `definirPinInicial`, `altaUsuario`, `cambiarMiPin`, `terminarConfiguracion` |
+| La cuenta del turno en un solo lugar, la mesa que sigue con la cancha cerrada | `motor.mjs` → `cuentaDelTurno`, `cobrarJugador`, `cobrarTodoElTurno`, `cerrarCanchaYSeguir`, `cerrarCargosDelTurno`, `asignarCargoCargos`, `mesasAbiertas` |
+| Crédito con aviso al dueño (WhatsApp + código de 6 letras) | `motor.mjs` → `solicitarCredito`, `resolverCredito`, `codigoAprobacion`, `aprobarPorCodigo` · `app.mjs` → `panelAprobacion`, `dialogoAprobar` |
+| Tienda (turnero `#tienda`) y pedido pegado de WhatsApp | `turnero/tienda.mjs` · `motor.mjs` → `catalogoTienda`, `crearPedidoTienda`, `pedidoDesdeWhatsApp`, `entregarPedido` |
+| Turnero en modo «pedido por WhatsApp» | `turnero/app.mjs` (`?modo=pedido&wa=…`) |
+| Novedades por difusión y Studio de redes | `motor.mjs` → `crearDifusion`, `destinatarios`, `mensajeDifusion` · `club/studio.mjs` |
+| UAT del sábado de torneo (dueño y recepción) | `npm run test:club-torneo` → `turnero/e2e/uat-torneo.e2e.mjs` |
 
 ## Para que quede en vivo (dos pasos del dueño)
 
