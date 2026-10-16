@@ -469,7 +469,7 @@ function FormularioVender({
     const key = vacia ? vacia.key : addLine(productId);
     if (vacia) setLine(key, { productId, qtyText });
     else if (qtyText) setLine(key, { qtyText });
-    if (nuevo && prefiereTeclado() && byId.get(productId)?.saleUnit === "WEIGHT") setTecladoDe(key);
+    if (prefiereTeclado() && byId.get(productId)?.saleUnit === "WEIGHT") setTecladoDe(key);
     pedirFoco(`qty-${key}`);
   }
 
@@ -2052,6 +2052,29 @@ function FormularioVender({
                   <p role="status" className="col-span-2 sm:col-span-3 text-xs text-warning">
                     {avisoStock}
                   </p>
+                )}
+                {esPeso && p && (
+                  <div data-vender="teclado-de-peso" className="col-span-2 sm:col-span-3 grid gap-2">
+                    <button
+                      type="button"
+                      className="chip-btn h-11 justify-self-start text-sm"
+                      aria-expanded={tecladoDe === l.key}
+                      onClick={() => usarTeclado(tecladoDe === l.key ? null : l.key)}
+                    >
+                      {tecladoDe === l.key ? "Cerrar el teclado grande" : "Teclado grande"}
+                    </button>
+                    {tecladoDe === l.key && (
+                      <TecladoNumerico
+                        key={l.key}
+                        modo="peso"
+                        etiqueta={`Peso de ${p.name}`}
+                        ayuda="Los números de la etiqueta de la balanza: la coma la ponemos nosotros."
+                        inicial={l.qty > 0 ? String(Math.round(l.qty * 1000)) : ""}
+                        onCambio={(valor) => setLine(l.key, { qtyText: valor > 0 ? formatearCantidad(valor) : "" })}
+                        className="max-w-sm"
+                      />
+                    )}
+                  </div>
                 )}
                 {confirmar && (
                   <ConfirmarPeso

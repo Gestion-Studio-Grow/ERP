@@ -2070,6 +2070,24 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.close();
   });
 
+  test("vista de siempre: el teclado grande también carga el peso y «1500» también pregunta", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, MUCHO_VACIO);
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.getByRole("button", { name: "Teclado grande" }).click();
+    const teclado = page.getByRole("group", { name: "Peso de Vacío" });
+    for (const d of ["1", "5", "0", "0", "0"]) await teclado.getByRole("button", { name: d, exact: true }).click();
+    assert.equal(await page.inputValue("#qty-1"), "15", "5 dígitos: 15,000 kg");
+    await page.fill("#qty-1", "1500");
+    await page.getByRole("alert").filter({ hasText: "¿Son 1.500 kg de verdad?" }).waitFor();
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    assert.equal(await page.getByRole("button", { name: "Confirmá el peso de Vacío" }).isDisabled(), true);
+    await page.getByRole("button", { name: "No, es 1,5 kg" }).click();
+    await page.getByRole("button", { name: /^Cobrar \$18\.750,00/ }).waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
   test("ticket en el celular (412 px) con la piel: el botón de cobrar a la vista, arriba de la cápsula, sin scroll de costado", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     if (!css) return t.skip("no se pudo compilar el CSS de la app");

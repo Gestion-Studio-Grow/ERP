@@ -259,8 +259,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           : "min-h-screen bg-surface text-body"
       }
     >
-      {/* Corrige el data-theme ANTES del primer paint (sistema/localStorage). */}
-      <AdminThemeScript nuevo={nuevo} />
+      {/* Corrige el data-theme ANTES del primer paint (sistema/localStorage). Con «Trabaja por
+          apps» también sale por ScriptDelTema: la bandeja de un negocio que pesa se refresca sola
+          (AvisoDePedidosNuevos, router.refresh) y el <script> de siempre, redibujado en el
+          navegador, dispara el aviso de React por consola. El HTML del servidor es el mismo
+          (AdminThemeScript.test.ts); CH no trabaja por apps y queda con el de siempre. */}
+      <AdminThemeScript nuevo={nuevo || modoApps} />
       {/* Banda de "modo demo" — solo aparece en el deploy de demo; null en real. */}
       <DemoBanner />
       {/* Diseño nuevo: sus hojas y `useDiseno()` para el shell y las pantallas. Apagado devuelve su
