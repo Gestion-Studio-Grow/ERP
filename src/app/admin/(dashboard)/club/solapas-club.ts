@@ -35,4 +35,7 @@ export interface SolapaDelClub {
   soloDuenos?: boolean;
 }
 
-export const SOLAPAS_DEL_CLUB: readonly SolapaDelClub[] = [];
+export const SOLAPAS_DEL_CLUB: readonly SolapaDelClub[] = [
+  { id: "clientes", etiqueta: "Clientes", cargar: () => import("./ClientesDelClub") },
+  { id: "tablero", etiqueta: "Tablero", cargar: () => import("./TableroDelDuenio"), soloDuenos: true },
+];

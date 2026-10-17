@@ -2,8 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SOLAPAS_DEL_CLUB } from "./solapas-club";
 
-// Las solapas de fábrica de ClubDemo.tsx: una solapa nueva no puede pisar su id.
-const DE_FABRICA = ["agenda", "fijos", "canchas", "buffet", "caja"];
+// Las solapas de fábrica de ClubDemo.tsx: una solapa nueva no puede pisar su id. «tienda» está reservada: la suma
+// de fábrica la sesión de terminales.
+const DE_FABRICA = ["agenda", "fijos", "canchas", "buffet", "caja", "tienda"];
 
 test("las solapas que suma el club tienen id único, apto para el DOM y sin pisar las de fábrica", () => {
   const ids = SOLAPAS_DEL_CLUB.map((s) => s.id);
@@ -14,4 +15,10 @@ test("las solapas que suma el club tienen id único, apto para el DOM y sin pisa
     assert.ok(s.etiqueta.trim().length > 0, `«${s.id}» sin etiqueta`);
     assert.equal(typeof s.cargar, "function");
   }
+});
+
+test("Clientes para todos; el Tablero sólo para los dueños", () => {
+  const por = Object.fromEntries(SOLAPAS_DEL_CLUB.map((s) => [s.id, s]));
+  assert.equal(por.clientes?.soloDuenos ?? false, false);
+  assert.equal(por.tablero?.soloDuenos, true);
 });
