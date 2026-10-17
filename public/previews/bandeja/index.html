@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bandeja Pádel</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Encontrá profe de pádel cerca tuyo, con reseñas sólo de alumnos que tomaron la clase. Demo con datos de ejemplo.">
+<meta name="generator" content="Gestión Studio Grow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: la cancha vista desde arriba — lista de profes a la izquierda, plano de la zona a la derecha;
+   en el celular, una columna y el plano a pedido. El amarillo pelota sólo marca puntaje y lo "verificado". */
+:root {
+  --bg: #f2f5f7;
+  --surface: #ffffff;
+  --sunken: #e6ecf0;
+  --ink: #0f2233;
+  --text: #2b3d4d;
+  --muted: #5b6d7c;
+  --line: #d5dee5;
+  --accent: #1d5aa6;        /* azul cancha */
+  --accent-ink: #ffffff;
+  --accent-soft: #e2ecf8;
+  --ball: #e4ee4a;          /* pelota: puntaje y verificado */
+  --ball-ink: #1d2a06;
+  --ok: #2f6b3f;
+  --ok-soft: #e3f0e6;
+  --danger: #a3372a;
+  --danger-soft: #f8e4e0;
+  --shadow: 0 1px 2px rgb(15 34 51 / .06), 0 8px 24px rgb(15 34 51 / .08);
+  --map-land: #e9eff3;
+  --map-road: #cdd8e0;
+  --font-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r: 10px;
+  --r-lg: 16px;
+  --tap: 44px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1520; --surface: #12202d; --sunken: #0e1a25; --ink: #eef3f7; --text: #c7d3dd; --muted: #8fa1b1;
+    --line: #22364a; --accent: #6ea8f0; --accent-ink: #08192b; --accent-soft: #16304d; --ball: #dfe95a; --ball-ink: #1d2a06;
+    --ok: #7fbf8f; --ok-soft: #15301f; --danger: #f0907f; --danger-soft: #3a1914;
+    --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 8px 24px rgb(0 0 0 / .35); --map-land: #0f1d29; --map-road: #22364a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b1520; --surface: #12202d; --sunken: #0e1a25; --ink: #eef3f7; --text: #c7d3dd; --muted: #8fa1b1;
+  --line: #22364a; --accent: #6ea8f0; --accent-ink: #08192b; --accent-soft: #16304d; --ball: #dfe95a; --ball-ink: #1d2a06;
+  --ok: #7fbf8f; --ok-soft: #15301f; --danger: #f0907f; --danger-soft: #3a1914;
+  --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 8px 24px rgb(0 0 0 / .35); --map-land: #0f1d29; --map-road: #22364a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 400 15px/1.5 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--surface); }
+h1, h2, h3 { color: var(--ink); line-height: 1.15; margin: 0; text-wrap: balance; }
+h1, h2, .display { font-family: var(--font-display); font-weight: 700; letter-spacing: .005em; }
+p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+[hidden] { display: none !important; }
+.num { font-variant-numeric: tabular-nums; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.wrap {
+  max-width: 1180px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* ── Cabecera ─────────────────────────────────────────────── */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--surface); border-bottom: 1px solid var(--line); }
+.top .wrap { display: flex; align-items: center; gap: 16px; min-height: 60px; flex-wrap: wrap; padding-block: 8px; }
+.marca { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); margin-right: auto; }
+.marca svg { flex: none; }
+.marca b { font: 700 26px/1 var(--font-display); letter-spacing: .01em; }
+.marca span { font-size: 12px; color: var(--muted); display: block; line-height: 1.2; }
+.tabs { display: flex; gap: 4px; background: var(--sunken); padding: 4px; border-radius: 999px; }
+.tabs button {
+  border: 0; background: transparent; padding: 0 16px; min-height: 36px; border-radius: 999px; cursor: pointer;
+  font-weight: 600; color: var(--muted);
+}
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+
+.aviso-demo { background: var(--accent-soft); color: var(--ink); font-size: 13px; }
+.aviso-demo .wrap { padding-block: 8px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+
+/* ── Buscador ─────────────────────────────────────────────── */
+.hero { padding-block: 28px 8px; display: grid; gap: 6px; }
+.hero h1 { font-size: clamp(34px, 6vw, 54px); text-transform: uppercase; }
+.hero p { color: var(--muted); max-width: 60ch; }
+
+.filtros {
+  display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px; margin-block: 16px 10px;
+}
+.campo { display: grid; gap: 4px; min-width: 0; align-content: start; }
+.campo > span, .campo legend { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 0; }
+select, input[type="text"], input[type="tel"], textarea {
+  width: 100%; min-height: var(--tap); padding: 0 12px; border-radius: var(--r);
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+}
+textarea { padding: 10px 12px; min-height: 90px; resize: vertical; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.checks { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; grid-column: 1 / -1; }
+.mas { grid-column: 1 / -1; }
+.mas summary {
+  cursor: pointer; font-weight: 600; color: var(--accent); min-height: 36px; display: flex; align-items: center; gap: 6px;
+  list-style: none; width: fit-content;
+}
+.mas summary::-webkit-details-marker { display: none; }
+.mas summary::before { content: "+"; font: 700 20px/1 var(--font-display); }
+.mas[open] summary::before { content: "−"; }
+.mas-grilla { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); padding-top: 10px; }
+@media (min-width: 920px) {
+  .filtros { grid-template-columns: repeat(2, minmax(0, 1fr)) 3fr; }
+  .mas { grid-column: auto; }
+  .mas summary { display: none; }
+  .mas-grilla { padding-top: 0; }
+}
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--bg); cursor: pointer; font-size: 14px; color: var(--text); user-select: none;
+}
+.chip input { accent-color: var(--accent); margin: 0; }
+.chip:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+
+.barra-res { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-block: 6px 12px; }
+.barra-res strong { color: var(--ink); }
+.barra-res .sp { margin-left: auto; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: var(--tap); padding: 0 18px;
+  border-radius: var(--r); border: 1px solid transparent; font-weight: 600; cursor: pointer; text-decoration: none;
+  transition: background-color .15s ease-out, transform .1s ease-out;
+}
+.btn:active { transform: translateY(1px); }
+.btn-pri { background: var(--accent); color: var(--accent-ink); }
+.btn-pri:hover { background: color-mix(in srgb, var(--accent) 88%, var(--ink)); }
+.btn-sec { background: var(--surface); color: var(--ink); border-color: var(--line); }
+.btn-sec:hover { border-color: var(--accent); }
+.btn-chico { min-height: 36px; padding: 0 12px; font-size: 14px; }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+
+.grilla { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); padding-bottom: 40px; }
+@media (min-width: 920px) { .grilla { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); } }
+.lista { display: grid; gap: 12px; align-content: start; min-width: 0; }
+
+.profe {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: start;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px;
+  text-align: left; cursor: pointer; width: 100%; color: inherit;
+  transition: border-color .15s ease-out;
+}
+.profe:hover, .profe.activo { border-color: var(--accent); }
+.avatar {
+  width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent); font: 700 22px/1 var(--font-display);
+}
+.avatar.grande { width: 72px; height: 72px; font-size: 30px; }
+.profe h3 { font-size: 17px; font-family: var(--font-body); font-weight: 700; }
+.profe .meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 2px; }
+.profe .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--sunken); color: var(--text); }
+.tag.online { background: var(--ok-soft); color: var(--ok); font-weight: 600; }
+.tag.sin { background: var(--sunken); color: var(--muted); }
+.tag.fundador { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.puntaje { display: grid; justify-items: end; gap: 2px; text-align: right; }
+.nota {
+  font: 700 26px/1 var(--font-display); background: var(--ball); color: var(--ball-ink);
+  padding: 6px 8px 4px; border-radius: 8px; min-width: 52px; text-align: center; font-variant-numeric: tabular-nums;
+}
+.nota.vacia { background: var(--sunken); color: var(--muted); font-size: 15px; padding: 9px 8px 7px; }
+.puntaje small { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.precio { font-weight: 700; color: var(--ink); font-size: 14px; white-space: nowrap; }
+
+.vacio { background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r-lg); padding: 24px; text-align: center; color: var(--muted); }
+
+/* ── Plano ────────────────────────────────────────────────── */
+.plano { position: sticky; top: 80px; align-self: start; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 12px; min-width: 0; }
+.plano svg { display: block; width: 100%; height: auto; border-radius: var(--r); background: var(--map-land); }
+.plano figcaption { font-size: 12px; color: var(--muted); padding-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; }
+.plano .ley { display: inline-flex; align-items: center; gap: 6px; }
+.plano .ley i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.pin { cursor: pointer; }
+.pin circle { transition: r .15s ease-out; }
+.pin:hover circle.punto, .pin.activo circle.punto { r: 9; }
+@media (max-width: 919px) { .plano { position: static; } .plano.plegado svg { display: none; } }
+@media (min-width: 920px) { #verPlano { display: none; } }
+
+/* ── Ficha (hoja lateral) ─────────────────────────────────── */
+.velo { position: fixed; inset: 0; background: rgb(8 20 32 / .5); z-index: 40; }
+.hoja {
+  position: fixed; z-index: 41; top: 0; right: 0; bottom: 0; width: min(560px, 100%);
+  background: var(--surface); box-shadow: var(--shadow); overflow-y: auto; overscroll-behavior: contain;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px)) calc(28px + env(safe-area-inset-bottom, 0px)) 20px;
+  display: grid; gap: 18px; align-content: start;
+  animation: entra .32s cubic-bezier(.2, .8, .2, 1);
+}
+@keyframes entra { from { transform: translateX(24px); opacity: .6; } }
+@media (prefers-reduced-motion: reduce) { .hoja { animation: none; } .btn, .profe { transition: none; } }
+.hoja-cab { display: flex; gap: 14px; align-items: center; }
+.hoja-cab h2 { font-size: 30px; }
+.cerrar { margin-left: auto; align-self: start; width: var(--tap); height: var(--tap); border-radius: 50%; border: 1px solid var(--line); background: var(--bg); cursor: pointer; font-size: 20px; line-height: 1; }
+.seccion { display: grid; gap: 10px; }
+.seccion h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-family: var(--font-body); }
+.sedes { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.sedes li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; background: var(--bg); border-radius: var(--r); }
+.precios { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.precios div { background: var(--bg); border-radius: var(--r); padding: 10px 12px; }
+.precios b { display: block; font: 700 24px/1.1 var(--font-display); color: var(--ink); }
+.precios span { font-size: 13px; color: var(--muted); }
+
+.resumen-nota { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: center; }
+.resumen-nota .nota { font-size: 40px; padding: 10px 12px 6px; }
+.barras { display: grid; gap: 6px; }
+.barra { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) 2.2rem; gap: 8px; align-items: center; font-size: 13px; }
+.barra .pista { height: 8px; background: var(--sunken); border-radius: 999px; overflow: hidden; }
+.barra .pista i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.verif { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ok); }
+.verif svg { flex: none; }
+.resenas { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.resena { border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: grid; gap: 6px; }
+.resena .cab { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.resena .cab b { color: var(--ink); }
+.resena .cab .n { margin-left: auto; font: 700 18px/1 var(--font-display); color: var(--ink); }
+.resena.nueva { border-color: var(--ok); background: var(--ok-soft); }
+
+/* Turnero dentro de la ficha (lo mismo que ve el alumno en el link de la bio del profe) */
+.turnero { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px; display: grid; gap: 12px; background: var(--bg); }
+.paso { font-size: 12px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; }
+.dias, .horas { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.horas { flex-wrap: wrap; overflow: visible; }
+.dia, .hora {
+  flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); cursor: pointer; color: var(--ink);
+}
+.dia { display: grid; justify-items: center; padding: 6px 12px; min-width: 64px; }
+.dia small { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.dia b { font: 700 22px/1.1 var(--font-display); }
+.hora { min-height: 40px; padding: 0 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dia[aria-pressed="true"], .hora[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.dia[aria-pressed="true"] small { color: inherit; }
+.form { display: grid; gap: 10px; }
+.fila2 { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.error { background: var(--danger-soft); color: var(--danger); border-radius: var(--r); padding: 10px 12px; font-weight: 600; font-size: 14px; }
+.listo { background: var(--ok-soft); color: var(--ok); border-radius: var(--r); padding: 12px; display: grid; gap: 6px; }
+.listo b { color: var(--ink); }
+.nota-demo { font-size: 12px; color: var(--muted); }
+
+/* Puntuar */
+.criterio { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
+.criterio legend { font-weight: 600; color: var(--ink); font-size: 14px; padding: 0; }
+.estrellas { display: flex; gap: 6px; }
+.estrellas label { position: relative; }
+.estrellas input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.estrellas span {
+  display: grid; place-items: center; width: 44px; height: 40px; border-radius: var(--r); border: 1px solid var(--line);
+  background: var(--surface); font: 700 18px/1 var(--font-display); color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.estrellas input:checked + span { background: var(--ball); color: var(--ball-ink); border-color: var(--ball); }
+.estrellas input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.cinta {
+  display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px 16px; margin-bottom: 14px;
+}
+.cinta p { flex: 1 1 260px; min-width: 0; }
+.cinta b { color: var(--ink); }
+
+/* ── Soy profe ────────────────────────────────────────────── */
+.vende { padding-block: 28px 48px; display: grid; gap: 28px; }
+.vende .hero h1 { max-width: 18ch; }
+.tres { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.pieza { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 18px; display: grid; gap: 8px; align-content: start; }
+.pieza h3 { font-size: 22px; font-family: var(--font-display); text-transform: uppercase; }
+.pieza .de { font-size: 12px; color: var(--muted); }
+.tabla-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14px; }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+td.plata { font: 700 22px/1.1 var(--font-display); color: var(--ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
+tr.destacado td { background: var(--accent-soft); }
+.fundador { background: var(--ink); color: var(--bg); border-radius: var(--r-lg); padding: 20px; display: grid; gap: 8px; }
+.fundador h2 { color: var(--bg); font-size: 30px; text-transform: uppercase; }
+.fundador .ball { background: var(--ball); color: var(--ball-ink); padding: 0 6px; border-radius: 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.pasos { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; counter-reset: p; }
+.pasos li { counter-increment: p; display: grid; grid-template-columns: 2.2rem minmax(0, 1fr); gap: 10px; align-items: start; }
+.pasos li::before { content: counter(p); font: 700 22px/1.2 var(--font-display); color: var(--accent); }
+.sumate { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 18px; display: grid; gap: 12px; max-width: 640px; }
+
+footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+footer .wrap { padding-block: 18px 28px; display: flex; flex-wrap: wrap; gap: 8px 20px; }
+
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 60;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px)); max-width: calc(100% - 32px);
+  background: var(--ink); color: var(--bg); padding: 12px 16px; border-radius: var(--r); box-shadow: var(--shadow); font-weight: 600;
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="marca" href="#buscar" aria-label="Bandeja, inicio">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
+        <rect x="2" y="5" width="30" height="24" rx="3" fill="none" stroke="currentColor" stroke-width="2"/>
+        <path d="M17 5v24M2 17h30" stroke="currentColor" stroke-width="1.5" opacity=".45"/>
+        <circle cx="24.5" cy="11" r="4" fill="var(--ball)" stroke="currentColor" stroke-width="1.2"/>
+      </svg>
+      <div><b>BANDEJA</b><span>Profes de pádel con reseñas de verdad</span></div>
+    </a>
+    <nav class="tabs" role="tablist" aria-label="Secciones">
+      <button role="tab" id="tab-buscar" aria-controls="vista-buscar" aria-selected="true">Busco profe</button>
+      <button role="tab" id="tab-profe" aria-controls="vista-profe" aria-selected="false">Soy profe</button>
+    </nav>
+  </div>
+</header>
+<div class="aviso-demo" role="note">
+  <div class="wrap"><strong>Demo con datos de ejemplo.</strong> <span>Profes, clubes y reseñas son inventados. Las localidades y las distancias son reales. No se guarda nada.</span></div>
+</div>
+
+<main>
+  <section id="vista-buscar" role="tabpanel" aria-labelledby="tab-buscar">
+    <div class="wrap">
+      <div class="hero">
+        <h1>Encontrá tu profe de pádel cerca</h1>
+        <p>Sólo puntúan los alumnos que tomaron la clase. Cada reseña sale de una clase dada y registrada en la agenda del profe.</p>
+      </div>
+
+      <form class="filtros" id="filtros" aria-label="Filtrar profes">
+        <label class="campo"><span>Estoy en</span>
+          <select id="f-punto"></select></label>
+        <label class="campo"><span>Hasta</span>
+          <select id="f-radio">
+            <option value="3">3 km</option><option value="5">5 km</option><option value="10" selected>10 km</option>
+            <option value="20">20 km</option><option value="0">Sin límite</option>
+          </select></label>
+        <details class="mas" id="mas-filtros">
+          <summary>Más filtros <span id="mas-cuenta" class="num"></span></summary>
+          <div class="mas-grilla">
+          <label class="campo"><span>Mi nivel</span>
+            <select id="f-nivel"><option value="">Cualquiera</option></select></label>
+          <label class="campo"><span>Clase</span>
+            <select id="f-modalidad"><option value="">Individual o grupal</option><option value="individual">Individual</option><option value="grupal">Grupal</option></select></label>
+          <label class="campo"><span>Precio por persona: <b id="f-precio-txt" class="num"></b></span>
+            <input type="range" id="f-precio" min="8000" max="40000" step="1000" value="40000"></label>
+          <label class="campo"><span>Buscar por nombre o club</span>
+            <input type="text" id="f-texto" placeholder="Ej.: Canning, Lucía" autocomplete="off"></label>
+          <div class="checks">
+            <label class="chip"><input type="checkbox" id="f-menores"> Da clases a chicos</label>
+            <label class="chip"><input type="checkbox" id="f-online"> Reserva online</label>
+          </div>
+          </div>
+        </details>
+      </form>
+
+      <div class="cinta">
+        <p><b>¿Tomaste una clase?</b> Tu profe te manda un link para puntuarla. Probá cómo se ve del lado del alumno.</p>
+        <button class="btn btn-sec btn-chico" type="button" id="probar-resena">Puntuar una clase de ejemplo</button>
+      </div>
+
+      <div class="barra-res">
+        <p id="conteo" aria-live="polite"></p>
+        <label class="sp campo" style="grid-auto-flow: column; align-items: center; gap: 8px;"><span>Ordenar</span>
+          <select id="f-orden" style="min-height: 36px;">
+            <option value="recomendados">Recomendados</option><option value="cerca">Más cerca</option>
+            <option value="puntaje">Mejor puntaje</option><option value="precio">Más barato</option>
+          </select></label>
+        <button class="btn btn-sec btn-chico" type="button" id="verPlano" aria-expanded="false" aria-controls="plano">Ver en el plano</button>
+      </div>
+
+      <div class="grilla">
+        <div class="lista" id="lista"></div>
+        <figure class="plano plegado" id="plano">
+          <svg id="mapa" role="img" aria-label="Plano de zona sur con los profes"></svg>
+          <figcaption>
+            <span class="ley"><i style="background: var(--ink)"></i> Vos</span>
+            <span class="ley"><i style="background: var(--accent)"></i> Club con profe</span>
+            <span>El círculo es la distancia elegida. Tocá un punto para ver los profes de ese club.</span>
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="vista-profe" role="tabpanel" aria-labelledby="tab-profe" hidden>
+    <div class="wrap vende">
+      <div class="hero">
+        <h1>Tu agenda de clases en el celular, y alumnos nuevos que te encuentran</h1>
+        <p>La app que usás entre clase y clase para agendar y cobrar. Cada clase que das suma reseñas verificadas a tu ficha, y tu ficha aparece cuando alguien busca profe en tu zona.</p>
+      </div>
+
+      <div class="tres">
+        <article class="pieza">
+          <h3>Tu turnero</h3>
+          <p>Un link para la bio de Instagram. El alumno elige día y hora entre lo que tenés libre, deja nombre y celular, y te avisa por WhatsApp.</p>
+          <p class="de">Ya hecho: módulo de clases de pádel del sistema de GSG.</p>
+        </article>
+        <article class="pieza">
+          <h3>Tu día en una pantalla</h3>
+          <p>La próxima clase arriba, con un toque para cada cosa: dada, no vino, cobré en efectivo, ver comprobante, agendar la próxima a la misma hora.</p>
+          <p class="de">Ya hecho: pantalla «Hoy» del panel del profe.</p>
+        </article>
+        <article class="pieza">
+          <h3>Tu ficha con reseñas</h3>
+          <p>Después de cada clase dada, el alumno puede puntuarte desde su link. Sólo puntúa quien tomó la clase, así una mala reseña de alguien que no te conoce no existe.</p>
+          <p class="de">Nuevo: lo que muestra esta demo.</p>
+        </article>
+      </div>
+
+      <div class="seccion">
+        <h2 style="font-size: 30px; text-transform: uppercase;">Planes</h2>
+        <p class="nota-demo">Precios provisionales, a confirmar por Gestión Studio Grow. Mensuales, en pesos.</p>
+        <div class="tabla-wrap">
+          <table>
+            <thead><tr><th scope="col">Plan</th><th scope="col">Precio</th><th scope="col">Qué incluye</th><th scope="col">Para quién</th></tr></thead>
+            <tbody id="planes"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="fundador">
+        <h2>Profe fundador · <span class="ball">20 lugares en zona sur</span></h2>
+        <p>Primer mes gratis. Después, el plan Profe Pro al precio del plan Profe, congelado por 12 meses, y la marca de fundador en tu ficha. A cambio: cargás a tus alumnos y les pedís la reseña después de la clase.</p>
+      </div>
+
+      <div class="seccion">
+        <h2 style="font-size: 30px; text-transform: uppercase;">Cómo arrancás</h2>
+        <ol class="pasos">
+          <li><p><b>Te damos de alta.</b> Cargás dónde das clases (el club, no tu casa), tus horarios, precios y tu alias.</p></li>
+          <li><p><b>Pegás el link en la bio.</b> Tus alumnos de siempre reservan desde ahí y te mandan el comprobante solos.</p></li>
+          <li><p><b>Das tus clases.</b> Marcás «dada» con un toque y al alumno le llega el link para puntuarte.</p></li>
+          <li><p><b>Aparecés en el buscador.</b> Con tres reseñas o más, tu ficha empieza a mostrarse a jugadores de tu zona.</p></li>
+        </ol>
+      </div>
+
+      <form class="sumate" id="sumate" novalidate>
+        <h2 style="font-size: 26px; text-transform: uppercase;">Quiero sumarme</h2>
+        <div class="fila2">
+          <label class="campo"><span>Nombre y apellido</span><input type="text" id="s-nombre" autocomplete="name" required></label>
+          <label class="campo"><span>Celular</span><input type="tel" id="s-cel" autocomplete="tel" placeholder="11 2345 6789" required></label>
+        </div>
+        <label class="campo"><span>Dónde das clases</span><input type="text" id="s-club" placeholder="Club y localidad"></label>
+        <div id="s-msg" role="alert"></div>
+        <button class="btn btn-pri" type="submit">Quiero ser profe fundador</button>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Bandeja · nombre provisional</span>
+    <span>Demo a costo cero: nada se guarda ni se envía.</span>
+    <span>Hecho con el sistema de Gestión Studio Grow</span>
+  </div>
+</footer>
+
+<div class="velo" id="velo" hidden></div>
+<aside class="hoja" id="hoja" role="dialog" aria-modal="true" aria-labelledby="hoja-titulo" hidden></aside>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script type="module" src="./app.mjs"></script>
+</body>
+</html>
