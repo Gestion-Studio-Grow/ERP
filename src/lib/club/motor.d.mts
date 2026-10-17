@@ -464,6 +464,32 @@ export declare function archivarDiasCerrados(
   hastaDia: Fecha,
   opciones?: { ahora?: Ahora | null; por?: string | null },
 ): Resultado<{ vacio: boolean; estado: EstadoClub; anexo: AnexoJornada; conteos: ConteosArchivo }>;
+/** El archivo ÚNICO que se descarga para archivar (respaldo completo de antes + anexo, con sus huellas). */
+export interface PaqueteArchivo {
+  v: 1;
+  tipo: "respaldo-y-archivo";
+  club: string;
+  hasta: Fecha;
+  conteos: ConteosArchivo;
+  /** Huella del anexo (`huellaAnexo`: sin `generado` ni `por`). */
+  huella: string;
+  huellaRespaldo: string;
+  respaldo: FotoEstado;
+  anexo: AnexoJornada;
+}
+/** Huella del anexo (16 hex, sin `generado` ni `por`): "" si no es un objeto. */
+export declare function huellaAnexo(anexo: unknown): string;
+/** Arma el archivo único para archivar a partir del respaldo (sobre v1) de antes y el resultado de `archivarDiasCerrados`. */
+export declare function paqueteParaArchivar(respaldo: FotoEstado, res: { anexo: AnexoJornada; conteos: ConteosArchivo }): PaqueteArchivo;
+/**
+ * Paso 2: ¿el archivo elegido es el de ESTE archivado? `res` es `archivarDiasCerrados` recalculado sobre el estado de
+ * ahora; `huellaDescargada`, la del paso 1 (distingue «cambió algo» de «es otro archivo»).
+ */
+export declare function verificarPaqueteArchivo(
+  paquete: unknown,
+  res: Resultado<{ vacio: boolean; estado: EstadoClub; anexo: AnexoJornada; conteos: ConteosArchivo }> | null,
+  huellaDescargada?: string | null,
+): { ok: true; huella: string } | { ok: false; motivo: string; causa: "otro" | "danado" | "cambio" };
 /** La plata por día del estado o de un anexo: canchas y cargos sin créditos, créditos, ingresos y egresos de caja. */
 export declare function plataPorDia(
   datos: EstadoClub | AnexoJornada,

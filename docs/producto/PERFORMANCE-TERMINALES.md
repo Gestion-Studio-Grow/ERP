@@ -377,10 +377,23 @@ El estado de la jornada real crece unos 3 millones de caracteres por mes de club
 millones. El motor ya sabe archivar lo cerrado (`archivarDiasCerrados`, de la sesión del club). El almacén lo envuelve
 en dos pasos, sin pantalla (la UI va en Configuración):
 
-1. `prepararArchivo()` valida, corre el motor sin tocar el estado y devuelve el respaldo y el anexo para descargar.
-2. `confirmar()`: con la base (`guardarAnexo`), guarda el anexo aparte **antes** de achicar, y si falla no achica
-   nada; con el guardado local exige `{ descargado: true }`. Recién ahí reemplaza el estado, lo guarda y apaga
-   «Deshacer».
+1. `prepararArchivo()` valida (rol OWNER + PIN de un dueño del club) y corre el motor sin tocar el estado. Devuelve
+   **un solo archivo**, `textoDelArchivo`: el respaldo completo de ahora más el anexo, con sus huellas
+   (`paqueteParaArchivar`). Es uno solo porque el navegador frena la segunda descarga del mismo clic. También devuelve
+   la `huella` de este paso.
+2. `confirmar()`:
+   - **Con el guardado de este equipo**, exige `{ archivoElegido }`: el texto del archivo que el dueño vuelve a elegir.
+     Lo verifica con `verificarPaqueteArchivo` contra el archivado recalculado sobre el estado de ahora. El navegador
+     no avisa si una descarga llegó: elegirlo de vuelta es la prueba de que está entero.
+   - **Con la base** (`guardarAnexo`, BP-3), no pide archivo: guarda el anexo en el servidor **antes** de achicar, y
+     si falla no achica nada.
+   - Recién ahí reemplaza el estado, lo guarda y apaga «Deshacer». Se confirma una sola vez: el doble clic sale en
+     silencio.
+   - Si falla, dice la `causa`:
+     - `otro`: de otro club o de otro corte;
+     - `danado`: alterado, cortado o JSON roto;
+     - `cambio`: cambió algo de esos días; hay que descargar de nuevo.
+     Lo de hoy no molesta: no está en el anexo.
 
 ### Cómo se midió
 
@@ -396,6 +409,11 @@ en dos pasos, sin pantalla (la UI va en Configuración):
 | Por defecto (quedan 21 días, hasta el 26/9) | 3.042.580 → **2.085.006** (−31 %) | 973.562 | 42,3 → **32,9 ms** | 350 turnos, 1.942 movimientos |
 | Al máximo (quedan 7 días, hasta el 10/10) | 3.042.580 → **701.758** (−77 %) | 2.365.462 | 42,0 → **11,1 ms** | 853 turnos, 4.740 movimientos |
 
+- **El archivo que se descarga** (respaldo + anexo) pesa 4,0 millones de caracteres con el corte por defecto y 5,4
+  millones al máximo.
+- **Confirmar** (parsear el archivo elegido, recalcular, verificar, achicar y guardar) cuesta 345 y 397 ms con la CPU
+  normal. Es una acción explícita del dueño, una vez por mes.
+
 ### «Lleno»
 
 - `estadoDelGuardado().lleno` usa el umbral del vanilla: `AVISO_LLENO` = 2.500.000 caracteres. También cuenta como
@@ -407,6 +425,7 @@ en dos pasos, sin pantalla (la UI va en Configuración):
 ### El anexo no se guarda en este equipo
 
 **Decisión del orquestador:** el guardado local no implementa `guardarAnexo`, porque ocuparía el lugar que el archivado
-libera. Con él, `confirmar` exige `{ descargado: true }`, como el vanilla. Con la base de BP-3, el anexo va al servidor.
+libera. Con él, el anexo va en el archivo descargado, y `confirmar` exige elegirlo de vuelta. Antes alcanzaba con
+`{ descargado: true }`, que no probaba nada; ya no existe. Con la base de BP-3, el anexo va al servidor.
 
 — Elaborado por GSG

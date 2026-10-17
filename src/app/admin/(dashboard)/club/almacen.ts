@@ -60,6 +60,9 @@ import {
   diaParaArchivar,
   generarDemo,
   hidratarEstado,
+  huellaAnexo,
+  paqueteParaArchivar,
+  verificarPaqueteArchivo,
   materializarFijos,
   secuenciaIds,
   sumarDias,
@@ -257,26 +260,36 @@ export interface PedidoDeArchivo {
   auth?: Auth;
 }
 
-/** Lo que devuelve archivar (o prepararlo, si no había nada). `bytes*` = largo del texto del estado. */
+/**
+ * Lo que devuelve archivar (o prepararlo, si no había nada). `bytes*` = largo del texto del estado. Si falla, `causa`:
+ *   · "otro": el archivo elegido es de otro club u otro archivado · "danado": incompleto, alterado o JSON roto ·
+ *   · "cambio": cambió algo de esos días desde que se descargó (hay que preparar y descargar de nuevo) ·
+ *   · "permiso" / "estado": no lo puede hacer quien lo pide / ahora no se puede operar · "guardado": la base no
+ *     guardó el anexo · "repetido": ya se confirmó o se está confirmando (doble clic): la pantalla lo IGNORA.
+ */
 export type ResultadoDelArchivo =
-  | { ok: false; motivo: string }
+  | { ok: false; motivo: string; causa: "otro" | "danado" | "cambio" | "permiso" | "estado" | "guardado" | "repetido" }
   | { ok: true; vacio: boolean; hasta: Fecha; conteos: ConteosArchivo; anexo: AnexoJornada; bytesAntes: number; bytesDespues: number };
 
 /**
- * El archivo listo para confirmar (paso 1 de 2). La pantalla descarga `respaldo` (el estado completo de AHORA) y
- * `textoAnexo` (`breakpoint-archivo-AAAA-MM-DD.json`), como el vanilla, y recién después llama a `confirmar`:
- *   · si el guardado tiene `guardarAnexo`, primero guarda el anexo aparte; si falla, NO se achica nada;
- *   · si no lo tiene, exige `{ descargado: true }` (la pantalla confirma que el anexo se bajó);
- *   · si el estado cambió desde que se preparó, no achica (hay que preparar de nuevo: el anexo bajado ya no coincide).
- * `bytesDespues` es la estimación (el real vuelve en `confirmar`).
+ * El archivo listo para confirmar (paso 1 de 2). La pantalla descarga UN solo archivo, `textoDelArchivo`
+ * (`breakpoint-respaldo-y-archivo-AAAA-MM-DD.json`: el respaldo completo de AHORA + el anexo de los días que salen, con
+ * sus huellas, `paqueteParaArchivar` del motor), y para confirmar el dueño lo vuelve a ELEGIR:
+ *   · sin `guardarAnexo` (el guardado de este equipo): `confirmar({ archivoElegido })` con el texto del archivo elegido.
+ *     El almacén recalcula el archivado sobre el estado de ahora y lo compara con el archivo
+ *     (`verificarPaqueteArchivo`): recién si coincide, achica. Así se prueba que la descarga llegó entera.
+ *   · con `guardarAnexo` (la base, BP-3): no hace falta el archivo; se guarda el anexo en el servidor antes de achicar.
+ *     `textoDelArchivo` igual se ofrece para que el dueño se quede con su copia.
+ * `bytesDespues` es la estimación (el real vuelve en `confirmar`). Se confirma UNA vez.
  */
 export type ArchivoPreparado = Extract<ResultadoDelArchivo, { ok: true }> & {
   vacio: false;
-  textoAnexo: string;
-  respaldo: string;
-  /** ¿El guardado guarda el anexo aparte? Si no, `confirmar` pide `descargado: true`. */
+  textoDelArchivo: string;
+  /** Huella del anexo de este paso (la que lleva el archivo). */
+  huella: string;
+  /** ¿El guardado guarda el anexo aparte? Si no, `confirmar` pide `archivoElegido`. */
   guardaAnexo: boolean;
-  confirmar(opciones?: { descargado?: boolean }): Promise<ResultadoDelArchivo>;
+  confirmar(opciones?: { archivoElegido?: string }): Promise<ResultadoDelArchivo>;
 };
 
 /** Los Web Locks del navegador (lo que se usa de `navigator.locks`; se reemplaza en los tests). */
@@ -339,9 +352,9 @@ export interface Almacen {
   prepararArchivo(pedido?: PedidoDeArchivo): ResultadoDelArchivo | ArchivoPreparado;
   /**
    * Los dos pasos de una vez (`prepararArchivo` + `confirmar`). Sólo achica si el anexo quedó a salvo: guardado
-   * aparte (`guardarAnexo`) o, sin eso, con `descargado: true`. Apaga «Deshacer».
+   * aparte (`guardarAnexo`) o, sin eso, con el `archivoElegido` verificado. Apaga «Deshacer».
    */
-  archivarDiasCerrados(pedido?: PedidoDeArchivo & { descargado?: boolean }): Promise<ResultadoDelArchivo>;
+  archivarDiasCerrados(pedido?: PedidoDeArchivo & { archivoElegido?: string }): Promise<ResultadoDelArchivo>;
   /**
    * Una copia del estado para simular sin tocarlo (las previas de cancelar, la falta, la lluvia): sale del texto
    * del estado de esta versión (`JSON.parse`), que suele estar ya armado. Cada llamada da una copia nueva.
@@ -1095,53 +1108,94 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     return { ok: true, usuario: v.usuario };
   };
   const kb = (n: number) => `${Math.ceil(n / 1024).toLocaleString("es-AR")} KB`;
+  /** El archivado preparado que espera su confirmación (uno solo: preparar otro lo reemplaza). */
+  let archivoPendiente: { huella: string; enCurso: boolean } | null = null;
   const prepararArchivo = (pedido: PedidoDeArchivo = {}): ResultadoDelArchivo | ArchivoPreparado => {
-    if (!puedeOperar() || recargando) return { ok: false, motivo: MENSAJE_SOLO_LECTURA[meta.jornada as keyof typeof MENSAJE_SOLO_LECTURA] ?? "Ahora no se puede archivar." };
+    if (!puedeOperar() || recargando) return { ok: false, causa: "estado", motivo: MENSAJE_SOLO_LECTURA[meta.jornada as keyof typeof MENSAJE_SOLO_LECTURA] ?? "Ahora no se puede archivar." };
     const quien = quienArchiva(pedido.auth);
-    if (!quien.ok) return quien;
+    if (!quien.ok) return { ok: false, causa: "permiso", motivo: quien.motivo };
     const hasta = pedido.hasta ?? diaParaArchivar(estado, ahora);
+    const por = pedido.por ?? quien.usuario.nombre;
+    const correr = () => archivarEnElMotor(estado, hasta, { ahora, por });
     let res: ReturnType<typeof archivarEnElMotor>;
     try {
-      res = archivarEnElMotor(estado, hasta, { ahora, por: pedido.por ?? quien.usuario.nombre });
+      res = correr();
     } catch {
-      return { ok: false, motivo: "No se pudo armar el archivo. Probá de nuevo." };
+      return { ok: false, causa: "estado", motivo: "No se pudo armar el archivo. Probá de nuevo." };
     }
-    if (!res.ok) return { ok: false, motivo: res.motivo };
+    if (!res.ok) return { ok: false, causa: "estado", motivo: res.motivo };
     const bytesAntes = textoActual().length;
-    const base = { ok: true as const, hasta, conteos: res.conteos, anexo: res.anexo, bytesAntes };
-    if (res.vacio) return { ...base, vacio: true, bytesDespues: bytesAntes };
-    const preparadoEn = cambios;
-    const nuevo = res.estado;
-    const textoAnexo = JSON.stringify(res.anexo);
-    let usado = false;
-    const confirmar = async ({ descargado = false }: { descargado?: boolean } = {}): Promise<ResultadoDelArchivo> => {
-      const vigente = () => cambios === preparadoEn && puedeOperar() && !recargando;
-      if (usado) return { ok: false, motivo: "Este archivo ya se usó: prepará otro." };
-      if (!vigente()) return { ok: false, motivo: "Cambió algo mientras tanto: no se achicó nada. Prepará el archivo de nuevo (y descargalo otra vez)." };
+    if (res.vacio) return { ok: true, hasta, conteos: res.conteos, anexo: res.anexo, bytesAntes, vacio: true, bytesDespues: bytesAntes };
+    // El respaldo completo de ahora (el sobre v1 de siempre) y el anexo, en UN archivo con sus huellas.
+    const respaldo: FotoEstado = { v: VERSION_ESTADO, estado, secuencia: secuenciaIds() };
+    const paquete = paqueteParaArchivar(respaldo, res);
+    const textoDelArchivo = JSON.stringify(paquete);
+    const pendienteDeEste = { huella: paquete.huella, enCurso: false };
+    archivoPendiente = pendienteDeEste;
+    const sigue = () => archivoPendiente === pendienteDeEste;
+    const repetido: ResultadoDelArchivo = { ok: false, causa: "repetido", motivo: "" };
+
+    const confirmar = async ({ archivoElegido }: { archivoElegido?: string } = {}): Promise<ResultadoDelArchivo> => {
+      // Doble clic, o ya confirmado, o se preparó otro: en silencio.
+      if (!sigue() || pendienteDeEste.enCurso) return repetido;
+      if (!puedeOperar() || recargando) return { ok: false, causa: "estado", motivo: MENSAJE_SOLO_LECTURA[meta.jornada as keyof typeof MENSAJE_SOLO_LECTURA] ?? "Ahora no se puede archivar." };
+      // Lo que se va a archivar AHORA (puede haber cambiado desde el paso 1).
+      let ahoraRes: ReturnType<typeof archivarEnElMotor>;
+      try {
+        ahoraRes = correr();
+      } catch {
+        return { ok: false, causa: "estado", motivo: "No se pudo armar el archivo. Probá de nuevo." };
+      }
       const guardarAnexo = guardado?.guardarAnexo;
-      if (!guardarAnexo && !descargado) return { ok: false, motivo: "Primero descargá el respaldo y el archivo de esos días: recién después se achica lo guardado." };
-      usado = true;
       if (guardarAnexo) {
-        // Primero el anexo, aparte. Si no quedó, lo guardado no se achica.
+        // La base: no hace falta el archivo, pero lo que se guarda tiene que ser lo mismo que se preparó.
+        if (!ahoraRes.ok || ahoraRes.vacio || huellaAnexo(ahoraRes.anexo) !== pendienteDeEste.huella) {
+          archivoPendiente = null;
+          return { ok: false, causa: "cambio", motivo: "Cambió algo de esos días desde que se preparó: prepará el archivado de nuevo." };
+        }
+        const marca = cambios;
+        pendienteDeEste.enCurso = true;
         let ok = false;
         try {
-          ok = await guardarAnexo.call(guardado, textoAnexo, hasta);
+          ok = await guardarAnexo.call(guardado, JSON.stringify(ahoraRes.anexo), hasta);
         } catch {
           ok = false;
         }
-        if (!ok) {
-          usado = false;
-          return { ok: false, motivo: "No se pudo guardar el archivo de esos días: no se achicó nada. Probá de nuevo." };
+        pendienteDeEste.enCurso = false;
+        if (!sigue()) return repetido;
+        if (!ok) return { ok: false, causa: "guardado", motivo: "No se pudo guardar el archivo de esos días: no se achicó nada. Probá de nuevo." };
+        if (cambios !== marca) {
+          // Algo cambió mientras se guardaba: se vuelve a calcular y, si ya no es lo mismo, no se achica.
+          ahoraRes = correr();
+          if (!ahoraRes.ok || ahoraRes.vacio || huellaAnexo(ahoraRes.anexo) !== pendienteDeEste.huella) {
+            archivoPendiente = null;
+            return { ok: false, causa: "cambio", motivo: "Cambió algo de esos días mientras se guardaba: prepará el archivado de nuevo." };
+          }
         }
-        if (!vigente()) return { ok: false, motivo: "Cambió algo mientras se guardaba el archivo: no se achicó nada. Prepará el archivo de nuevo." };
+      } else {
+        // Este equipo: el archivo que el dueño eligió tiene que ser el que se descargó, entero, para ESTE archivado.
+        let elegido: unknown;
+        try {
+          elegido = JSON.parse(archivoElegido ?? "");
+        } catch {
+          return { ok: false, causa: "danado", motivo: "El archivo está incompleto o dañado: descargalo de nuevo." };
+        }
+        const v = verificarPaqueteArchivo(elegido, ahoraRes, pendienteDeEste.huella);
+        if (!sigue()) return repetido;
+        if (!v.ok) {
+          if (v.causa === "cambio") archivoPendiente = null;
+          return { ok: false, causa: v.causa, motivo: v.motivo };
+        }
       }
+      if (!ahoraRes.ok || ahoraRes.vacio) return { ok: false, causa: "cambio", motivo: "Ya no hay nada para archivar hasta ese día: prepará de nuevo." };
       // Recién ahora: el estado achicado reemplaza al vivo, sin «Deshacer», y se guarda en el acto.
-      estado = nuevo;
+      archivoPendiente = null;
+      estado = ahoraRes.estado;
       fotoPrevia = null;
       fotoDesde = null;
       cambios++;
       const bytesDespues = textoActual().length;
-      const c = res.conteos;
+      const c = ahoraRes.conteos;
       aviso = {
         id: ++idAviso,
         ok: true,
@@ -1150,9 +1204,21 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       };
       avisar();
       guardarYa();
-      return { ...base, vacio: false, bytesDespues };
+      return { ok: true, vacio: false, hasta, conteos: c, anexo: ahoraRes.anexo, bytesAntes, bytesDespues };
     };
-    return { ...base, vacio: false, bytesDespues: textoDelEstado(nuevo).length, textoAnexo, respaldo: textoParaGuardar(), guardaAnexo: !!guardado?.guardarAnexo, confirmar };
+    return {
+      ok: true,
+      vacio: false,
+      hasta,
+      conteos: res.conteos,
+      anexo: res.anexo,
+      bytesAntes,
+      bytesDespues: textoDelEstado(res.estado).length,
+      textoDelArchivo,
+      huella: paquete.huella,
+      guardaAnexo: !!guardado?.guardarAnexo,
+      confirmar,
+    };
   };
 
   const negarSoloLectura = (): Desenlace => {
@@ -1252,10 +1318,10 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     pendienteDeGuardar: () => guardado !== null && cambiosGuardados !== cambios,
     soloLectura: () => !puedeOperar(),
     prepararArchivo,
-    async archivarDiasCerrados({ descargado, ...pedido } = {}) {
+    async archivarDiasCerrados({ archivoElegido, ...pedido } = {}) {
       const p = prepararArchivo(pedido);
       if (!("confirmar" in p)) return p;
-      return p.confirmar({ descargado });
+      return p.confirmar({ archivoElegido });
     },
     usarAca() {
       if (meta.jornada !== "otra-pestania") return;

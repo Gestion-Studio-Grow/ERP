@@ -35,8 +35,8 @@ export interface GuardadoDelClub {
   guardar(texto: string, versionEsperada: number): Promise<ResultadoDelGuardado>;
   /**
    * OPCIONAL. Guarda aparte el anexo de los días archivados (`archivarDiasCerrados` del motor), ANTES de que el almacén
-   * achique el estado: true si quedó guardado. Sin este método, el almacén exige que la pantalla confirme que el anexo
-   * se descargó (`confirmar({ descargado: true })`). El texto es `JSON.stringify(anexo)`; `hasta` es el último día
+   * achique el estado: true si quedó guardado. Sin este método, el anexo va en el archivo único que se descarga y
+   * el almacén exige que el dueño lo vuelva a elegir (`confirmar({ archivoElegido })`, verificado con su huella). El texto es `JSON.stringify(anexo)`; `hasta` es el último día
    * archivado. El de este equipo NO lo implementa a propósito: guardar el anexo en el mismo equipo ocuparía el lugar que
    * el archivado tiene que liberar; con él, el anexo se descarga (como el vanilla). Lo implementa la base (BP-3).
    */

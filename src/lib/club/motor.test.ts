@@ -73,7 +73,7 @@ const FUNCIONES = [
   "editarCliente", "bajaCliente", "bajaNovedades", "solicitarAcceso", "otorgarAcceso", "rechazarAcceso",
   "solicitarCC", "configurarCC", "estadoDeCuenta", "kpis", "mapaDeCalor", "metricasPlatos", "mensajeWhatsApp", "linkWhatsApp",
   // Archivo de días cerrados (la jornada no llena el almacenamiento).
-  "diaParaArchivar", "archivarDiasCerrados", "plataPorDia",
+  "diaParaArchivar", "archivarDiasCerrados", "plataPorDia", "huellaAnexo", "paqueteParaArchivar", "verificarPaqueteArchivo",
 ] as const satisfies readonly Funciones[];
 // Ola 1 de paridad: un bloque por frente para que tres agentes sumen tipos en paralelo sin pisarse.
 // Cada frente agrega SÓLO en su lista (y en su bloque de motor.d.mts).
