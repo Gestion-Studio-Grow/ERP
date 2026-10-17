@@ -1,9 +1,14 @@
+import { sumarDias } from "./motor.mjs";
+
 // Datos de EJEMPLO de la demo de Bandeja. Profes, clubes y reseñas son inventados: ninguno es una persona
 // ni un complejo real. Las localidades y sus coordenadas sí son las de zona sur del AMBA.
-// Ningún profe real aparece hasta que firme su autorización (ADR-034); Matías Consoli tampoco.
+// Ningún profe real aparece hasta que firme su autorización (ADR-034).
 
-export const HOY = "2026-10-17"; // sábado
-export const AHORA = { fecha: HOY, min: 10 * 60 }; // 10:00
+// La demo vive en el día de quien la abre: las reseñas y la clase de ejemplo se fechan desde hoy.
+const ahora = new Date();
+const dosCifras = (n) => String(n).padStart(2, "0");
+export const HOY = `${ahora.getFullYear()}-${dosCifras(ahora.getMonth() + 1)}-${dosCifras(ahora.getDate())}`;
+export const AHORA = { fecha: HOY, min: ahora.getHours() * 60 + ahora.getMinutes() };
 
 /** Desde dónde puede buscar el jugador (centro aproximado de cada localidad). */
 export const PUNTOS = [
@@ -21,8 +26,9 @@ export const PUNTOS = [
 
 const P = Object.fromEntries(PUNTOS.map((p) => [p.id, p]));
 // Un club de ejemplo cerca del centro de la localidad (corrimiento chico para que no caigan encima).
+// El nombre lleva «(ejemplo)» para que nadie lo confunda con un complejo real de la zona.
 const club = (nombre, loc, dLat = 0, dLng = 0) => ({
-  club: nombre,
+  club: `${nombre} (ejemplo)`,
   localidad: P[loc].nombre,
   lat: +(P[loc].lat + dLat).toFixed(4),
   lng: +(P[loc].lng + dLng).toFixed(4),
@@ -93,8 +99,9 @@ function resenasDe(id, cantidad, media, rnd) {
     const fecha = d.toISOString().slice(0, 10);
     out.push({
       id: `${id}-r${i}`,
-      // Alguno repite: el motor cuenta sólo su última reseña (una voz por alumno).
-      alumnoId: `${id}-a${i % Math.max(1, cantidad - 2)}`,
+      // En los profes con muchas reseñas, los dos últimos alumnos repiten: el motor cuenta sólo su última
+      // reseña (una voz por alumno).
+      alumnoId: cantidad > 8 && i >= cantidad - 2 ? `${id}-a${i - (cantidad - 2)}` : `${id}-a${i}`,
       alumno: NOMBRES[(i * 7 + id.length) % NOMBRES.length],
       fecha,
       fechaClase: fecha,
@@ -142,7 +149,7 @@ const BASE = [
     id: "diego-salvatierra", nombre: "Diego Salvatierra", desde: 2010, juega: "Juega en 2da",
     bio: "Técnica fina de remates y salida de pared. Trabajo con video del celular para que veas lo que corregimos.",
     niveles: ["intermedio", "avanzado", "competencia"], menores: false, precios: { individual: 30000, grupal: 0 },
-    sedes: [club("Complejo El Galpón", "lomas", 0.003, -0.004), club("Club Atlético Ejemplo", "banfield", -0.003, 0.002)],
+    sedes: [club("Complejo El Galpón", "lomas", 0.003, -0.004), club("Club Atlético Banfield Sur", "banfield", -0.003, 0.002)],
     franjas: SEMANA_MANANA_TARDE, reservaOnline: true, plan: "pro", resenas: [27, 4.5],
   },
   {
@@ -163,7 +170,7 @@ const BASE = [
     id: "romina-castro", nombre: "Romina Castro", desde: 2018, juega: "Juega en 4ta",
     bio: "Escuelita de menores y clases para mamás y papás que acompañan. Horarios a la salida del colegio.",
     niveles: ["inicio"], menores: true, precios: { individual: 20000, grupal: 9000 },
-    sedes: [club("Club Social Temperley Ejemplo", "temperley", 0.002, -0.002)],
+    sedes: [club("Club Social Las Lomas", "temperley", 0.002, -0.002)],
     franjas: TARDES, reservaOnline: true, plan: "pro", resenas: [11, 4.9],
   },
   {
@@ -177,7 +184,7 @@ const BASE = [
     id: "florencia-paz", nombre: "Florencia Paz", desde: 2020, juega: "Juega en 5ta",
     bio: "Clases para gente que nunca agarró una paleta. Te presto paleta las primeras dos clases.",
     niveles: ["inicio"], menores: true, precios: { individual: 19000, grupal: 8500 },
-    sedes: [club("Complejo Burzaco Pádel Ejemplo", "burzaco", -0.002, 0.002)],
+    sedes: [club("Complejo Los Robles", "burzaco", -0.002, 0.002)],
     franjas: [...TARDES, ...FINDE], reservaOnline: true, plan: "gratis", resenas: [3, 4.8],
   },
   {
@@ -236,7 +243,7 @@ export const CLASE_DEMO = {
   alumnoToken: "demo-token",
   alumnoId: "alumno-demo",
   alumnoNombre: "Vos (alumno de ejemplo)",
-  fecha: "2026-10-16",
+  fecha: sumarDias(HOY, -1),
   hora: "18:00",
   resenada: false,
 };

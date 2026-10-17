@@ -1,5 +1,5 @@
 // Pantalla de la demo de Bandeja: buscador, ficha del profe, turnero de vista previa, puntuar una clase y
-// la página para profes. Toda la lógica de negocio vive en motor.mjs; acá sólo DOM. Nada sale del navegador.
+// la página para profes. Toda la lógica de negocio vive en motor.mjs; acá sólo DOM. No se envía nada a ningún lado.
 import * as M from "./motor.mjs";
 import { PROFES, PUNTOS, AHORA, HOY, tomadasDe, CLASE_DEMO } from "./datos.mjs";
 
@@ -10,9 +10,9 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 const PLANES = [
   { nombre: "Perfil", precio: 0, incluye: "Ficha en el buscador con tus clubes, niveles y precio desde. Reseñas verificadas. Turnero con hasta 8 reservas por mes.", para: "Probar sin compromiso" },
   { nombre: "Profe", precio: 14900, incluye: "Turnero sin tope para la bio de Instagram, pantalla «Hoy», link del alumno con comprobante, recordatorios por WhatsApp de un toque.", para: "El profe que da clases todas las semanas", destacado: true },
-  { nombre: "Profe Pro", precio: 29900, incluye: "Todo lo de Profe, más recordatorios automáticos el día anterior y abonos de 4 u 8 clases.", para: "Agenda llena, poco tiempo" },
-  { nombre: "Club", precio: 59900, incluye: "Hasta 5 profes con agenda unificada, y el club ve qué clases se dan en sus canchas.", para: "Clubes con plantel de profes" },
-  { nombre: "Club Escuelita", precio: 109900, incluye: "Hasta 12 profes, grupos fijos de la escuelita con cuota mensual y adulto responsable por cada menor.", para: "Clubes con escuelita" },
+  { nombre: "Profe Pro", precio: 29900, incluye: "Todo lo de Profe, más recordatorios automáticos el día anterior y abonos de 4 u 8 clases (a construir).", para: "Agenda llena, poco tiempo" },
+  { nombre: "Club", precio: 59900, incluye: "Hasta 5 profes con agenda unificada, y el club ve qué clases se dan en sus canchas (a construir).", para: "Clubes con plantel de profes" },
+  { nombre: "Club Escuelita", precio: 109900, incluye: "Hasta 12 profes, grupos fijos de la escuelita con cuota mensual y adulto responsable por cada menor (a construir).", para: "Clubes con escuelita" },
 ];
 
 const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
@@ -90,22 +90,33 @@ function pintar() {
   pintarMapa(filas);
 }
 
+const cuantasResenas = (n) => (n ? `${n} ${n === 1 ? "reseña" : "reseñas"}` : "sin reseñas aún");
+
+/** El precio que se muestra según la clase que busca el jugador. */
+function etiquetaPrecio(profe) {
+  const modalidad = estado.filtros.modalidad;
+  const precio = M.precioPara(profe, modalidad);
+  if (modalidad === "individual") return `${M.plata(precio)} individual`;
+  if (modalidad === "grupal") return `${M.plata(precio)} por persona`;
+  return `desde ${M.plata(precio)}`;
+}
+
 function tarjeta({ profe, sede, km, resumen }) {
-  const nota = resumen.cantidad
-    ? `<span class="nota">${resumen.promedio.toFixed(1).replace(".", ",")}</span><small>${resumen.cantidad} ${resumen.cantidad === 1 ? "reseña" : "reseñas"}</small>`
-    : `<span class="nota vacia">Nuevo</span><small>sin reseñas aún</small>`;
+  const nota = resumen.muestraPuntaje
+    ? `<span class="nota">${resumen.promedio.toFixed(1).replace(".", ",")}</span><small>${cuantasResenas(resumen.cantidad)}</small>`
+    : `<span class="nota vacia">Nuevo</span><small>${cuantasResenas(resumen.cantidad)}</small>`;
   const reserva = profe.reservaOnline ? `<span class="tag online">Reserva online</span>` : `<span class="tag sin">Sólo por WhatsApp</span>`;
   const chicos = profe.menores ? `<span class="tag">Chicos</span>` : "";
   const niveles = profe.niveles.map((n) => M.NIVELES.find((x) => x.id === n).nombre.split(" (")[0]).join(" · ");
   return `
-  <button class="profe${estado.activo === profe.id ? " activo" : ""}" type="button" data-profe="${profe.id}" aria-label="Ver la ficha de ${esc(profe.nombre)}">
+  <button class="profe${estado.activo === profe.id ? " activo" : ""}" type="button" data-profe="${profe.id}">
     <span class="avatar" aria-hidden="true">${esc(profe.iniciales)}</span>
     <span style="min-width:0">
-      <h3>${esc(profe.nombre)}</h3>
+      <span class="nombre">${esc(profe.nombre)}</span>
       <span class="meta"><span class="num">a ${M.km(km)}</span><span>${esc(sede.club)} · ${esc(sede.localidad)}</span></span>
       <span class="tags">${reserva}${chicos}<span class="tag">${esc(niveles)}</span></span>
     </span>
-    <span class="puntaje">${nota}<span class="precio num">desde ${M.plata(M.precioDesde(profe))}</span></span>
+    <span class="puntaje">${nota}<span class="precio num">${etiquetaPrecio(profe)}</span></span>
   </button>`;
 }
 
@@ -171,9 +182,12 @@ function cerrarHoja() {
   $("#hoja").hidden = true;
   $("#velo").hidden = true;
   document.body.style.overflow = "";
+  const profeId = ultimoFoco?.dataset?.profe;
   estado.activo = null;
   pintar();
-  ultimoFoco?.focus?.();
+  // pintar() rehace la lista: el foco vuelve a la tarjeta nueva del mismo profe, o a lo que lo abrió.
+  const volver = profeId ? $(`#lista [data-profe="${profeId}"]`) : ultimoFoco;
+  (volver?.isConnected ? volver : $("#conteo"))?.focus?.();
 }
 
 function fichaProfe(id, { turnero = null, mensaje = "" } = {}) {
@@ -190,11 +204,11 @@ function fichaProfe(id, { turnero = null, mensaje = "" } = {}) {
     const v = res.porCriterio[c.id];
     return `<div class="barra"><span>${esc(c.nombre)}</span><span class="pista"><i style="width:${v ? (v / 5) * 100 : 0}%"></i></span><span class="num">${v ? v.toFixed(1).replace(".", ",") : "–"}</span></div>`;
   }).join("");
-  const resumenHtml = res.cantidad
+  const resumenHtml = res.muestraPuntaje
     ? `<div class="resumen-nota"><span class="nota">${res.promedio.toFixed(1).replace(".", ",")}</span>
         <div class="barras" aria-label="Puntaje por criterio">${barras}</div></div>
        <p class="verif">${tildeVerif} ${res.cantidad} ${res.cantidad === 1 ? "alumno puntuó" : "alumnos puntuaron"} después de una clase dada</p>`
-    : `<p class="nota-demo">Todavía no tiene reseñas. Aparecen cuando sus alumnos puntúan una clase dada.</p>`;
+    : `<p class="nota-demo">${res.cantidad ? `Tiene ${cuantasResenas(res.cantidad)}. ` : "Todavía no tiene reseñas. "}El puntaje se muestra desde ${M.REGLAS.minimoParaPuntaje} reseñas de alumnos con clase dada.</p>`;
 
   const lista = cuentan.slice(0, 6).map((r) => `
     <li class="resena${estado.ultimaResena === r.id ? " nueva" : ""}">
@@ -272,11 +286,12 @@ function pedirTurno() {
   const profe = PROFES.find((p) => p.id === turno.profeId);
   estado.tomadas.get(profe.id).add(`${turno.fecha} ${turno.hora}`);
   const cuando = `${DIAS[M.diaSemana(turno.fecha)]} ${Number(turno.fecha.slice(8))} a las ${turno.hora}`;
-  $("#reservar").innerHTML = `<div class="listo" role="status">
+  $("#reservar").innerHTML = `<div class="listo" role="status" tabindex="-1">
     <b>Listo, pediste la clase del ${esc(cuando)}.</b>
     <span>A ${esc(profe.nombre.split(" ")[0])} le aparece en «Pendientes» con tu nombre. Cuando la confirma, te llega por WhatsApp el precio, el alias y tu link de alumno: desde ahí mandás el comprobante, repetís la clase o la cancelás.</span>
     <span class="nota-demo">Demo: no se envió nada. El horario queda ocupado mientras no recargues la página.</span></div>`;
   turno.hora = null;
+  $("#reservar .listo").focus();
 }
 
 // ── Puntuar una clase (lo que ve el alumno desde su link, después de una clase dada) ─────────────────────
@@ -325,6 +340,7 @@ function enviarResena() {
   if (!r.ok) {
     $("#hoja").innerHTML = hojaResena(r.error, { ...puntos, texto });
     $("#hoja [role=alert]")?.scrollIntoView({ block: "nearest" });
+    $("#form-resena button[type=submit]")?.focus();
     return;
   }
   const profe = PROFES.find((p) => p.id === estado.claseDemo.profeId);
@@ -379,7 +395,7 @@ document.addEventListener("click", (e) => {
   if (!el) return;
   if (el.dataset.accion === "cerrar") return cerrarHoja();
   if (el.dataset.accion === "ampliar") { $("#f-radio").value = "0"; return leerFiltros(); }
-  if (el.dataset.accion === "denunciar") return toast("Recibimos la denuncia. La revisamos en 48 horas y le avisamos al profe y al alumno.");
+  if (el.dataset.accion === "denunciar") return toast("En la real, la denuncia la revisamos en 48 horas y avisamos al profe y al alumno. En la demo no se envió nada.");
   if (el.dataset.accion === "turnero") {
     turno.profeId = el.dataset.profe; turno.fecha = null; turno.hora = null;
     refrescarTurnero();
@@ -387,7 +403,11 @@ document.addEventListener("click", (e) => {
   }
   if (el.dataset.fecha) { turno.fecha = el.dataset.fecha; turno.hora = null; refrescarTurnero(); return $(`[data-fecha="${turno.fecha}"]`)?.focus(); }
   if (el.dataset.hora) { turno.hora = el.dataset.hora; refrescarTurnero(); return $(`[data-hora="${turno.hora}"]`)?.focus(); }
-  if (el.dataset.club) { $("#f-texto").value = el.dataset.club; return leerFiltros(); }
+  if (el.dataset.club) {
+    $("#f-texto").value = el.dataset.club;
+    leerFiltros();
+    return $(`#mapa [data-club="${CSS.escape(el.dataset.club)}"]`)?.focus();
+  }
   if (el.dataset.profe) {
     abrirHoja(fichaProfe(el.dataset.profe));
     pintar();

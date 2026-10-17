@@ -3,7 +3,9 @@
 Nombre de trabajo, provisional. Encargo del dueño (17/10/2026): una app para **puntuar y encontrar profes de
 pádel según su ubicación**, donde los profes trabajan con **la app que hicimos para Matías Consoli** (módulo
 `padel-clases`, [README](https://github.com/Gestion-Studio-Grow/ERP/blob/claude/beautiful-keller-5tykrg/docs/tenants/matiasconsoli/README.md)
-en la rama `claude/beautiful-keller-5tykrg`, **no mergeada**, migración **sin aplicar**).
+en la rama `claude/beautiful-keller-5tykrg`). Al 17/10: su marca está autorizada para su negocio en el ERP y la
+migración está declarada en el lote; el README de esa rama dice «integrada a `main`», pero el merge `41c91a16`
+todavía no está en `origin/main`.
 
 Estrategia de venta y precios (propuesta, no adoptada): [`ESTRATEGIA.md`](ESTRATEGIA.md).
 
@@ -14,10 +16,10 @@ Estrategia de venta y precios (propuesta, no adoptada): [`ESTRATEGIA.md`](ESTRAT
 | Pantalla (buscador, ficha, turnero de vista previa, puntuar, «Soy profe») | `public/previews/bandeja/index.html` · `app.mjs` |
 | Reglas puras: distancia, puntaje, filtros, reseña verificada, horarios libres | `public/previews/bandeja/motor.mjs` |
 | Datos de ejemplo (profes, clubes y reseñas **inventados**; localidades reales) | `public/previews/bandeja/datos.mjs` |
-| Pruebas (12) | `src/lib/bandeja/motor.test.ts` |
+| Pruebas (14) | `src/lib/bandeja/motor.test.ts` |
 
 Sin servidor, sin base, sin login, sin credenciales: nada se guarda ni se envía (ciclo DEMO → VENTA → INVERSIÓN).
-Ningún profe real aparece, Matías tampoco: no hay autorización de marca registrada (ADR-034).
+Ningún profe real aparece. Matías tampoco: su autorización (ADR-034) cubre su negocio en el ERP, no Bandeja.
 
 **Recorrido que muestra la demo:**
 1. **El jugador busca:** elige su localidad y la distancia; filtra por nivel, individual o grupal, precio,
@@ -36,11 +38,13 @@ Ningún profe real aparece, Matías tampoco: no hay autorización de marca regis
 - **Puntaje para ordenar:** promedio bayesiano — `(4,0 × 5 + suma) / (5 + n)`. Con pocas reseñas, el puntaje
   se acerca a 4,0: un profe nuevo con un solo 5 no le gana a uno con veinte 4,8.
 - **Una voz por alumno:** cuenta la última reseña de cada alumno. Uno fiel con 40 clases no pesa 40 veces.
+- **«Nuevo» hasta 3 reseñas:** con menos de 3, la ficha aparece pero sin promedio.
+- **Precio según la clase:** con «Individual» se filtra y ordena por la clase individual; con «Grupal», por la grupal por persona; sin elegir, por la más barata.
 - **Recomendados:** puntaje − 0,04 por km. A igual puntaje gana el más cerca; uno mucho mejor puede estar más lejos.
 - **Reseña verificada:** la clase existe en la agenda del profe, está DADA, es del alumno que tiene el link, no
   tiene reseña y no pasaron más de 30 días. Si no, un error en castellano que dice qué hacer.
 
-Los valores (4,0 · 5 · 30 días · 0,04) están en `REGLAS` y son **provisionales a calibrar** con datos reales.
+Los valores (4,0 · 5 · 3 · 30 días · 0,04) están en `REGLAS` y son **provisionales a calibrar** con datos reales.
 
 ## Cómo sería la versión real (cuando se venda; nada de esto está construido)
 
@@ -64,20 +68,28 @@ Va **adentro del ERP**, sobre `padel-clases`, no como app aparte (un solo sistem
 ## Qué NO está hecho (dicho de frente)
 
 1. **Es una demo estática.** No está dentro del ERP ni tiene base, login ni moderación de verdad.
-2. **`padel-clases` no está en `main`** y su migración no está aplicada: la versión real depende de eso.
+2. **`padel-clases` todavía no está en `origin/main`** (verificado el 17/10): la versión real depende de eso y de su migración.
 3. **El plano es esquemático** (las posiciones salen de coordenadas reales; las rutas son aproximadas). No hay
    un servicio de mapas, para no gastar ni depender de terceros en la demo.
 4. **Sin geolocalización del navegador:** el jugador elige su localidad de una lista de 10 de zona sur.
 5. **Lint y build del proyecto no se corrieron en esta sesión** (el árbol no tiene `node_modules`). El cambio
    no toca código que compile Next: es una carpeta en `public/` y un test. Sí se corrieron las 12 pruebas
    (`node --test` con tipos quitados) y `tsc --strict` aislado sobre el test, en cero.
-6. **Marca de Bandeja:** tipografía Barlow Condensed (títulos) + Hanken Grotesk (texto, la de la casa),
+6. **`proximosLibres` repite la regla de `src/lib/padel/core.ts`** (rama de `padel-clases`) para que la demo
+   corra sin servidor. En la versión real se usa ese módulo, no esta copia.
+7. **La fecha de la demo es la del navegador:** las reseñas de ejemplo se fechan hacia atrás desde hoy.
+8. **Marca de Bandeja:** tipografía Barlow Condensed (títulos) + Hanken Grotesk (texto, la de la casa),
    azul cancha y amarillo pelota. Es identidad de producto propia, como la de cada negocio; a validar por el dueño.
 
 ## Verificación (17/10/2026)
 
-- `motor.test.ts`: 12/12.
-- Recorrido en Chromium (Playwright), clic por clic: **29/29** — buscar, filtrar, vacío con salida, ficha,
+- `motor.test.ts`: 14/14. `tsc --strict` aislado sobre el test: 0 errores.
+- **Gate de Excelencia:** la primera pasada (sobre `ac744a5c`) salió **RECHAZADA** con 4 bloqueantes: el nombre
+  de Matías en comentarios de archivos públicos, el texto de «3 reseñas» que el motor no cumplía, el filtro de
+  precio con «Individual» que comparaba contra la grupal y el foco que se perdía al cerrar la ficha. Los cuatro
+  se corrigieron en el commit siguiente, junto con los menores baratos (contraste, textos honestos, planes
+  «a construir», clubes rotulados «(ejemplo)», datos de Florencia, teléfono de 10 cifras, token vacío).
+- Recorrido en Chromium (Playwright), clic por clic: **32/32**, incluye que el foco vuelva a la tarjeta y el filtro de precio individual — buscar, filtrar, vacío con salida, ficha,
   reservar con errores y con éxito, Esc cierra, profe sin reserva online, puntuar con errores (sin puntos,
   con teléfono) y con éxito, segunda vez bloqueada, pin del plano, «Soy profe», formulario; a 390 px en claro
   y oscuro sin scroll horizontal; consola sin errores.

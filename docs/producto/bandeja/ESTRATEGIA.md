@@ -7,6 +7,17 @@
 > Proceso ADR-045: **Advisory** propuso → **Growth** y **Pricing** bajaron canal y precios →
 > **Challenger** desafió → esta síntesis. **Adoptar precios, canales o gasto es decisión del dueño.**
 
+## Estado de Matías al 17/10/2026 (verificado contra el repo)
+
+- **Marca autorizada** por el dueño el 17/10, con el OK de Matías, **para su negocio dentro del ERP** (turnero,
+  panel y link del alumno): commit `3143ff9b` en `claude/beautiful-keller-5tykrg`. **Ese alcance no cubre
+  usarlo como caso para vender Bandeja** a otros profes: hay que pedirle ese uso aparte. Hasta entonces, la demo
+  y los mensajes no lo nombran.
+- **Integración a `main`:** el README de esa rama dice «integrada a `main`» (merge `41c91a16`), pero ese commit
+  **no está en `origin/main`** (tip `aa8a3415`) a la hora de escribir esto. La versión real de Bandeja depende
+  de que entre.
+- **Migración** `20261015120000_modulo_padel_clases`: declarada en `prisma/lote-deploy.txt` con OK del dueño (Gate 2), en esa misma rama.
+
 ## La tesis en tres líneas
 
 1. **Se vende la herramienta, no el directorio.** El profe paga por el turnero, el «Hoy» de un toque y el
@@ -111,8 +122,9 @@ por el dueño).
 
 ## Canales (v1, sin pauta)
 
-- **Matías:** primer usuario y caso. **Su nombre no se usa en ningún mensaje ni pantalla hasta que firme la
-  autorización (ADR-034).** El guion de Growth que lo nombra queda en espera de esa firma.
+- **Matías:** primer usuario y caso. Su marca está autorizada **sólo para su negocio en el ERP**: para nombrarlo
+  al vender Bandeja a otros profes hace falta que extienda ese OK. Hasta entonces, ningún mensaje ni pantalla
+  de Bandeja lo nombra.
 - **Break Point:** sus profes y su escuelita; QR en el club («Clases en este club, reservá acá»). Imprimir es
   gasto mínimo, pero lo decide el dueño.
 - **A Dos Manos:** tarjeta en cada pedido («Profes con reseñas verificadas cerca tuyo»); los profes
@@ -121,7 +133,7 @@ por el dueño).
   sólo de reseñas verificadas. Necesita dominio propio para posicionar: es inversión post-venta.
 - **Link de la bio de cada profe:** muestra sólo a ese profe (no a la competencia); el buscador es otra puerta.
 
-Guion de primer contacto (Growth, voz criolla; **sin nombrar a Matías hasta su firma**):
+Guion de primer contacto (Growth, voz criolla; **sin nombrar a Matías hasta que extienda su OK**):
 > «Hola [nombre], ¿todo bien? Te escribo de Gestión Studio Grow. Armamos una app para profes de pádel: el
 > alumno reserva desde el link de tu bio, vos ves el día en una pantalla y con un toque confirmás o
 > reprogramás, y el comprobante lo sube el alumno solo. Estamos sumando 20 profes fundadores en zona sur.
@@ -148,6 +160,6 @@ Guion de primer contacto (Growth, voz criolla; **sin nombrar a Matías hasta su 
 3. ¿Bandeja va en **Agencia Grow** (negocio propio) o en **Agencia Digital** (satélite del ERP)? La
    herramienta es un módulo del ERP; el buscador se parece a un negocio propio.
 4. El nombre.
-5. Cuándo pedirle a Matías la autorización de marca y la compra.
+5. Pedirle a Matías que extienda su OK de marca a «caso de Bandeja» (hoy cubre sólo su negocio en el ERP).
 
 — Elaborado por GSG

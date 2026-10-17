@@ -1,7 +1,6 @@
 // Motor de Bandeja — el directorio para encontrar y puntuar profes de pádel por cercanía.
-// Cada profe del directorio trabaja con el módulo padel-clases (la app del profe Matías Consoli,
-// docs/tenants/matiasconsoli/README.md en la rama claude/beautiful-keller-5tykrg): de ahí salen las
-// clases DADAS, y sólo un alumno con una clase dada puede puntuar (reseña verificada).
+// Cada profe del directorio trabaja con el módulo padel-clases del ERP: de ahí salen las clases DADAS,
+// y sólo un alumno con una clase dada puede puntuar (reseña verificada).
 //
 // ES module puro, sin DOM ni red: lo carga el navegador tal cual y lo cubre src/lib/bandeja/motor.test.ts.
 // Producto y estrategia: docs/producto/bandeja/README.md.
@@ -28,6 +27,7 @@ export const REGLAS = Object.freeze({
   diasParaResenar: 30, // el link para puntuar vence 30 días después de la clase
   largoMaxTexto: 400,
   castigoPorKm: 0.04, // en "Recomendados", cada km resta 0,04 puntos
+  minimoParaPuntaje: 3, // con menos reseñas, la ficha sale como «Nuevo» y no muestra promedio
 });
 
 const RADIO_TIERRA_KM = 6371;
@@ -79,6 +79,7 @@ export function resumen(resenas, reglas = REGLAS) {
   return {
     cantidad: n,
     promedio: n ? redondear(suma / n, 1) : null,
+    muestraPuntaje: n >= reglas.minimoParaPuntaje,
     // Promedio bayesiano: con pocas reseñas no se puede ser el primero de la lista con un solo 5.
     puntaje: (reglas.previo * reglas.peso + suma) / (reglas.peso + n),
     porCriterio,
@@ -103,7 +104,7 @@ export function buscar(profes, punto, filtros = {}, orden = "recomendados", regl
     if (filtros.modalidad === "grupal" && !profe.precios.grupal) continue;
     if (filtros.modalidad === "individual" && !profe.precios.individual) continue;
     if (filtros.menores && !profe.menores) continue;
-    if (filtros.precioMax && precioDesde(profe) > filtros.precioMax) continue;
+    if (filtros.precioMax && precioPara(profe, filtros.modalidad) > filtros.precioMax) continue;
     if (filtros.soloReservaOnline && !profe.reservaOnline) continue;
     if (texto && !normalizar([profe.nombre, ...profe.sedes.map((s) => `${s.club} ${s.localidad}`)].join(" ")).includes(texto)) continue;
     const res = resumen(profe.resenas, reglas);
@@ -113,7 +114,7 @@ export function buscar(profes, punto, filtros = {}, orden = "recomendados", regl
     recomendados: (a, b) => b.valor - a.valor || a.km - b.km,
     cerca: (a, b) => a.km - b.km || b.resumen.puntaje - a.resumen.puntaje,
     puntaje: (a, b) => b.resumen.puntaje - a.resumen.puntaje || a.km - b.km,
-    precio: (a, b) => precioDesde(a.profe) - precioDesde(b.profe) || a.km - b.km,
+    precio: (a, b) => precioPara(a.profe, filtros.modalidad) - precioPara(b.profe, filtros.modalidad) || a.km - b.km,
   }[orden];
   if (!por) throw new Error(`Orden desconocido: ${orden}`);
   return filas.sort(por);
@@ -125,13 +126,20 @@ export function precioDesde(profe) {
   return Math.min(...[individual, grupal].filter((x) => x > 0));
 }
 
+/** El precio que le importa al jugador según la clase que busca: individual, grupal o el más bajo. */
+export function precioPara(profe, modalidad) {
+  if (modalidad === "individual" || modalidad === "grupal") return profe.precios[modalidad] || Infinity;
+  return precioDesde(profe);
+}
+
 export function normalizar(s) {
   return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 }
 
 // ── Reseña verificada ────────────────────────────────────────────────────────────────────────────────
 
-const TELEFONO = /(\+?\d[\s\-.]?){8,}/;
+// Un celular argentino tiene 10 números (11 6187 0066); con 8 se cortaban textos como «2025 2026».
+const TELEFONO = /(\+?\d[\s\-.]?){10,}/;
 const LINK = /(https?:\/\/|www\.|\.com\b|\.ar\b|@\w{3,})/i;
 
 /**
@@ -142,7 +150,7 @@ const LINK = /(https?:\/\/|www\.|\.com\b|\.ar\b|@\w{3,})/i;
  */
 export function validarResena({ clase, token, puntos, texto = "", ahora }, reglas = REGLAS) {
   if (!clase) return { ok: false, error: "No encontramos esa clase. Puntuá desde el link que te mandó tu profe." };
-  if (clase.alumnoToken !== token) return { ok: false, error: "Este link no es de esta clase." };
+  if (!token || clase.alumnoToken !== token) return { ok: false, error: "Este link no es de esta clase." };
   if (clase.estado !== "DADA") return { ok: false, error: "Se puntúa cuando la clase ya se dio." };
   if (clase.resenada) return { ok: false, error: "Esta clase ya tiene tu reseña." };
   const dias = (Date.parse(ahora) - Date.parse(clase.fecha)) / 86_400_000;

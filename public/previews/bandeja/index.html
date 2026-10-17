@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bandeja Pádel</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Encontrá profe de pádel cerca tuyo, con reseñas sólo de alumnos que tomaron la clase. Demo con datos de ejemplo.">
 <meta name="generator" content="Gestión Studio Grow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,7 +18,7 @@
   --sunken: #e6ecf0;
   --ink: #0f2233;
   --text: #2b3d4d;
-  --muted: #5b6d7c;
+  --muted: #4f6070;
   --line: #d5dee5;
   --accent: #1d5aa6;        /* azul cancha */
   --accent-ink: #ffffff;
@@ -168,7 +167,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   background: var(--accent-soft); color: var(--accent); font: 700 22px/1 var(--font-display);
 }
 .avatar.grande { width: 72px; height: 72px; font-size: 30px; }
-.profe h3 { font-size: 17px; font-family: var(--font-body); font-weight: 700; }
+.profe .nombre { display: block; font-size: 17px; font-weight: 700; color: var(--ink); line-height: 1.2; }
 .profe .meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 2px; }
 .profe .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--sunken); color: var(--text); }
@@ -207,7 +206,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   display: grid; gap: 18px; align-content: start;
   animation: entra .32s cubic-bezier(.2, .8, .2, 1);
 }
-@keyframes entra { from { transform: translateX(24px); opacity: .6; } }
+@keyframes entra { from { transform: translateX(24px); } }
 @media (prefers-reduced-motion: reduce) { .hoja { animation: none; } .btn, .profe { transition: none; } }
 .hoja-cab { display: flex; gap: 14px; align-items: center; }
 .hoja-cab h2 { font-size: 30px; }
@@ -326,7 +325,7 @@ footer .wrap { padding-block: 18px 28px; display: flex; flex-wrap: wrap; gap: 8p
   </div>
 </header>
 <div class="aviso-demo" role="note">
-  <div class="wrap"><strong>Demo con datos de ejemplo.</strong> <span>Profes, clubes y reseñas son inventados. Las localidades y las distancias son reales. No se guarda nada.</span></div>
+  <div class="wrap"><strong>Demo con datos de ejemplo.</strong> <span>Profes, clubes y reseñas son inventados. Las localidades son reales; las distancias, aproximadas y en línea recta. No se envía nada.</span></div>
 </div>
 
 <main>
@@ -370,7 +369,7 @@ footer .wrap { padding-block: 18px 28px; display: flex; flex-wrap: wrap; gap: 8p
       </div>
 
       <div class="barra-res">
-        <p id="conteo" aria-live="polite"></p>
+        <p id="conteo" aria-live="polite" tabindex="-1"></p>
         <label class="sp campo" style="grid-auto-flow: column; align-items: center; gap: 8px;"><span>Ordenar</span>
           <select id="f-orden" style="min-height: 36px;">
             <option value="recomendados">Recomendados</option><option value="cerca">Más cerca</option>
@@ -382,7 +381,7 @@ footer .wrap { padding-block: 18px 28px; display: flex; flex-wrap: wrap; gap: 8p
       <div class="grilla">
         <div class="lista" id="lista"></div>
         <figure class="plano plegado" id="plano">
-          <svg id="mapa" role="img" aria-label="Plano de zona sur con los profes"></svg>
+          <svg id="mapa" role="group" aria-label="Plano de zona sur con los clubes de los profes"></svg>
           <figcaption>
             <span class="ley"><i style="background: var(--ink)"></i> Vos</span>
             <span class="ley"><i style="background: var(--accent)"></i> Club con profe</span>
@@ -431,7 +430,7 @@ footer .wrap { padding-block: 18px 28px; display: flex; flex-wrap: wrap; gap: 8p
 
       <div class="fundador">
         <h2>Profe fundador · <span class="ball">20 lugares en zona sur</span></h2>
-        <p>Primer mes gratis. Después, el plan Profe Pro al precio del plan Profe, congelado por 12 meses, y la marca de fundador en tu ficha. A cambio: cargás a tus alumnos y les pedís la reseña después de la clase.</p>
+        <p>Oferta provisional, a confirmar. Primer mes gratis. Después, el plan Profe Pro al precio del plan Profe, congelado por 12 meses, y la marca de fundador en tu ficha. A cambio: cargás a tus alumnos y les pedís la reseña después de la clase.</p>
       </div>
 
       <div class="seccion">
@@ -440,7 +439,7 @@ footer .wrap { padding-block: 18px 28px; display: flex; flex-wrap: wrap; gap: 8p
           <li><p><b>Te damos de alta.</b> Cargás dónde das clases (el club, no tu casa), tus horarios, precios y tu alias.</p></li>
           <li><p><b>Pegás el link en la bio.</b> Tus alumnos de siempre reservan desde ahí y te mandan el comprobante solos.</p></li>
           <li><p><b>Das tus clases.</b> Marcás «dada» con un toque y al alumno le llega el link para puntuarte.</p></li>
-          <li><p><b>Aparecés en el buscador.</b> Con tres reseñas o más, tu ficha empieza a mostrarse a jugadores de tu zona.</p></li>
+          <li><p><b>Aparecés en el buscador.</b> Desde el primer día como «Nuevo». Con tres reseñas o más se muestra tu puntaje y competís por los primeros lugares.</p></li>
         </ol>
       </div>
 
@@ -461,7 +460,7 @@ footer .wrap { padding-block: 18px 28px; display: flex; flex-wrap: wrap; gap: 8p
 <footer>
   <div class="wrap">
     <span>Bandeja · nombre provisional</span>
-    <span>Demo a costo cero: nada se guarda ni se envía.</span>
+    <span>Demo a costo cero: no se envía nada; tu búsqueda queda sólo en este navegador.</span>
     <span>Hecho con el sistema de Gestión Studio Grow</span>
   </div>
 </footer>

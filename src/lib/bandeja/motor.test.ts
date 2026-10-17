@@ -86,6 +86,26 @@ test("buscar: radio, nivel, menores, precio y reserva online filtran", () => {
   assert.deepEqual(ids({ texto: "adrogue" }), ["lejos"]);
 });
 
+test("precio según la clase: con «Individual» filtra y ordena por la individual, no por la grupal", () => {
+  const lista = [
+    profe("barato-grupal", EZEIZA, [], { precios: { individual: 32000, grupal: 15000 } }),
+    profe("individual-justo", EZEIZA, [], { precios: { individual: 20000, grupal: 0 } }),
+    profe("solo-grupal", EZEIZA, [], { precios: { individual: 0, grupal: 9000 } }),
+  ];
+  const ids = (f: any, orden = "recomendados") => M.buscar(lista, EZEIZA, f, orden).map((x: any) => x.profe.id);
+  assert.deepEqual(ids({ modalidad: "individual", precioMax: 20000 }), ["individual-justo"]);
+  assert.deepEqual(ids({ modalidad: "grupal", precioMax: 15000 }).sort(), ["barato-grupal", "solo-grupal"]);
+  assert.deepEqual(ids({ precioMax: 15000 }).sort(), ["barato-grupal", "solo-grupal"]);
+  assert.deepEqual(ids({ modalidad: "individual" }, "precio"), ["individual-justo", "barato-grupal"]);
+  assert.equal(M.precioPara(lista[0], "individual"), 32000);
+  assert.equal(M.precioPara(lista[0], ""), 15000);
+});
+
+test("con menos de 3 reseñas la ficha sale como «Nuevo» (no muestra promedio)", () => {
+  assert.equal(M.resumen([resena("a", "2026-10-01"), resena("b", "2026-10-01")]).muestraPuntaje, false);
+  assert.equal(M.resumen([resena("a", "2026-10-01"), resena("b", "2026-10-01"), resena("c", "2026-10-01")]).muestraPuntaje, true);
+});
+
 test("orden recomendados: a igual puntaje gana el más cerca; un profe mucho mejor puede estar más lejos", () => {
   const buenas = Array.from({ length: 30 }, (_, i) => resena(`a${i}`, "2026-10-01"));
   const lista = [profe("cerca", EZEIZA), profe("lejos-bueno", ADROGUE, buenas), profe("lejos", ADROGUE)];
@@ -118,6 +138,8 @@ test("reseña: sólo con clase dada, del mismo alumno, una vez y dentro del plaz
 
   assert.match(M.validarResena({ ...base, clase: null }).error, /No encontramos/);
   assert.match(M.validarResena({ ...base, token: "otro" }).error, /no es de esta clase/);
+  // Sin token de los dos lados no pasa (undefined === undefined).
+  assert.match(M.validarResena({ ...base, token: undefined, clase: { ...CLASE, alumnoToken: undefined } }).error, /no es de esta clase/);
   assert.match(M.validarResena({ ...base, clase: { ...CLASE, estado: "CONFIRMADA" } }).error, /ya se dio/);
   assert.match(M.validarResena({ ...base, clase: { ...CLASE, estado: "AUSENTE" } }).error, /ya se dio/);
   assert.match(M.validarResena({ ...base, clase: { ...CLASE, resenada: true } }).error, /ya tiene/);
@@ -139,6 +161,7 @@ test("reseña: sin teléfonos, links ni arrobas, y con tope de largo", () => {
     assert.equal(M.validarResena({ ...base, texto }).ok, false, texto);
   }
   assert.equal(M.validarResena({ ...base, texto: "Clase de 60 minutos, 3 ejercicios de bandeja" }).ok, true);
+  assert.equal(M.validarResena({ ...base, texto: "Lo tomo desde 2025 2026 sin falta" }).ok, true);
   assert.match(M.validarResena({ ...base, texto: "a".repeat(401) }).error, /hasta 400/);
   assert.equal(M.validarResena({ ...base, texto: "  muy   buena  " }).resena.texto, "muy buena");
 });
