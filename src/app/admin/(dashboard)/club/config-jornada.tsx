@@ -6,7 +6,9 @@
 //
 // Lo primero de Configuración (como la tarjeta «Jornada real» del vanilla). Las reglas están en configuracion-core.ts:
 //   · Restaurar: se elige el archivo, se ve DE CUÁNDO ES y qué trae, y que reemplaza lo de ahora; con el PIN de un
-//     dueño se restaura (sin «Deshacer», como el vanilla). El anexo suelto se explica (no es un respaldo).
+//     dueño se restaura por `almacen.restaurar` (copia lo de antes en este equipo; sin lugar para esa copia, no
+//     restaura; sin «Deshacer», como el vanilla). El anexo suelto se explica (no es un respaldo).
+//   · Lo que ocupa (KB) se lee de `useEstadoDelGuardado`: el almacén lo avisa al archivar y al restaurar.
 //   · Archivar: el contrato del almacén (`prepararArchivo` → UNA descarga → elegir ese archivo → `confirmar`). Un doble
 //     clic se ignora; si algo de esos días cambió en el medio, vuelve al paso 1. Nada se achica sin el archivo elegido.
 
@@ -19,14 +21,14 @@ import { CampoPin } from "./formulario-del-club";
 import {
   armarArchivo,
   authParaArchivar,
+  avisoDeRestaurado,
   ddmm,
   despuesDeConfirmar,
   kb,
   leerRespaldo,
+  motivoDeRestaurar,
   nombreDelArchivoParaArchivar,
   nombreDelRespaldo,
-  operadorDespuesDeRestaurar,
-  restaurarJornada,
   textoDelRespaldo,
   vistaDelGuardado,
   type RespaldoParaRestaurar,
@@ -60,13 +62,17 @@ function Restaurar({ almacen, quien }: { almacen: Almacen; quien: string | null 
   };
   const restaurar = () => {
     if (!previa) return;
-    const r = almacen.ejecutar((e, _a, auth) => restaurarJornada(e, previa, pin, auth, almacen.rol()));
+    setError("");
+    // El dueño que opera, con el PIN que tipeó ahora: el almacén lo vuelve a controlar (rol OWNER + PIN de un dueño).
+    const a = authParaArchivar(almacen.auth(), pin);
     setPin("");
-    if (!r.ok) return;
-    // Quien operaba sigue si su PIN vale en la jornada restaurada; si no, vuelve a pedirlo (en la demo, un dueño de ejemplo).
-    const op = operadorDespuesDeRestaurar(almacen.estado(), almacen.operador(), almacen.modo());
-    if (op !== undefined) almacen.cambiarOperador(op?.usuario ?? null, op?.auth);
-    almacen.guardarYa();
+    if (!a.ok) return setError(a.mensaje);
+    // El almacén copia lo de ahora al lado, reemplaza, apaga «Deshacer», guarda en el acto y revisa a quien opera: si
+    // ya no existe o cambió su PIN en lo restaurado, queda sin operador y el bloqueo pide el PIN solo.
+    const r = almacen.restaurar(previa.foto, { auth: a.auth });
+    if (!r.ok) return setError(motivoDeRestaurar(r));
+    const aviso = avisoDeRestaurado(previa.antesDeArchivar);
+    if (aviso) almacen.informar({ ok: true, mensaje: aviso });
     cancelar();
   };
 

@@ -673,7 +673,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     await alerta(page, /archivo de los días archivados/);
     await page.getByLabel("Elegí el respaldo").setInputFiles(rutaPaquete);
     const restaurar = page.getByRole("form", { name: "Restaurar este respaldo" });
-    await restaurar.getByText(/^Respaldo del (\p{L}+ )?\d+\/\d+\/\d{4} a las \d\d:\d\d/u).waitFor(); // con su `guardado`: la fecha real
+    await restaurar.getByText(/^Respaldo del \p{L}+ \d+\/\d+\/\d{4} a las \d\d:\d\d$/u).waitFor(); // con su `guardado`: la fecha real (con el día), no «cuando se preparó»
     await restaurar.getByText(/Reemplaza la jornada de ahora \(\d+ turnos\)/).waitFor();
     await capturar(page, "config-restaurar-1024");
     await restaurar.getByLabel("PIN de Dueño").fill("12");
@@ -681,7 +681,8 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     await alerta(page, "PIN incorrecto.");
     await restaurar.getByLabel("PIN de Dueño").fill("11");
     await restaurar.getByRole("button", { name: "Restaurar este respaldo" }).click();
-    await aviso(page, "Jornada restaurada desde el respaldo (es la de antes de archivar: si avisa que se llena, archivá de nuevo).");
+    await aviso(page, "Listo: se restauró la jornada de antes de archivar (lo de antes quedó copiado en este equipo). Si avisa que se llena, archivá de nuevo.");
+    assert.equal(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.includes(":antes-de-restaurar:")).length), 1, "la copia de lo de antes quedó en el equipo");
     assert.equal(await page.locator("summary").filter({ hasText: /^Días archivados/ }).count(), 0, "volvió la jornada de antes de archivar");
     assert.deepEqual(errores, []);
     await page.close();
