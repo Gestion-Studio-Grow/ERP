@@ -30,6 +30,8 @@ import { revisarConfirmacion, type MedioCobro } from "./cuenta-core";
 import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
 import { useSeleccion } from "./usar-almacen";
 import VentaDeMostrador from "./VentaDeMostrador";
+import { avisosAlDuenio } from "./aprobar-core";
+import { BotonWhatsApp } from "./WhatsAppDelClub";
 
 const seleccionarBuffet = (e: EstadoClub, a: Ahora) => armarBuffet(e, a);
 
@@ -39,12 +41,25 @@ function PedidoDelDuenio({ almacen, pedido }: { almacen: Almacen; pedido: NonNul
   const [verDemo, setVerDemo] = useState(false);
   const id = useId();
   const demo = verDemo && almacen.modo() === "demo" ? codigoDeLaDemo(almacen.estado(), pedido.id) : null;
+  // Un aviso por dueño, a SU celular (Configuración → Avisos) con el link al aprobador del ERP; en la demo, sin número.
+  const avisos = avisosAlDuenio(almacen.estado(), pedido.id, typeof window !== "undefined" ? window.location.origin : "", almacen.modo());
   return (
     <div className="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning-soft p-3">
       <p className="text-sm text-strong">
-        Esperando el OK del dueño para {pedido.tipo === "fiado" ? `fiar ${pesos(pedido.monto)}` : `habilitarle la cuenta corriente hasta ${pesos(pedido.monto)}`}. Mandale
-        por WhatsApp: «{mensajeParaElDuenio(almacen.estado(), pedido.id)}»
+        Esperando el OK del dueño para {pedido.tipo === "fiado" ? `fiar ${pesos(pedido.monto)}` : `habilitarle la cuenta corriente hasta ${pesos(pedido.monto)}`}. Avisale
+        por WhatsApp: le llega el pedido con el link para aprobarlo, y el código que te pase lo tipeás acá.
       </p>
+      {avisos.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {avisos.map((a) => (
+            <BotonWhatsApp key={a.duenioId} enlace={a.enlace}>
+              Avisar a {a.nombre}
+            </BotonWhatsApp>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-body">«{mensajeParaElDuenio(almacen.estado(), pedido.id)}»</p>
+      )}
       <form
         className="flex flex-col gap-2 sm:flex-row sm:items-end"
         onSubmit={(e) => {
