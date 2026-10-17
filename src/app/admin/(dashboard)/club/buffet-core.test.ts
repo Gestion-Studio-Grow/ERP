@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import { operadorDeLaDemo } from "./almacen";
-import { armarBuffet, armarCuentaBuffet, compartirBuffet, confirmarCreditosCuenta, ejecutarBuffet, productosParaCargar } from "./buffet-core";
+import { armarBuffet, armarCuentaBuffet, compartirBuffet, confirmarCreditosCuenta, ejecutarBuffet, productosParaCargar, trabadoHasta } from "./buffet-core";
 import { aprobarConCodigo, codigoDeLaDemo, pedidosPendientes, pedirFiado, INTENTOS_POR_PEDIDO } from "./credito-core";
 import { ejecutar } from "./cuenta-core";
 
@@ -37,14 +37,14 @@ test("la mesa sigue: con la cancha cerrada se cargan cargos, aparece en «Mesas 
   const { e, auth } = demo();
   const r = e.reservas.find((x) => x.fecha === HOY && x.estado === "en_cancha" && x.jugadores.length === 4 && M.saldo(x) > 0)!;
   assert.equal(ejecutar(e, r.id, { tipo: "cerrarYSeguir", medio: "efectivo" }, AHORA, auth).ok, true);
-  const b = armarBuffet(e);
+  const b = armarBuffet(e, AHORA);
   const mesa = b.mesas.find((m) => m.reservaId === r.id);
   assert.ok(mesa, "la mesa figura en «Mesas que siguen cargando»");
   const cta = b.cuentas.find((c) => mesa.cuentas.includes(c.id))!;
   const prod = productosParaCargar(e, "").productos[0];
   const d = ejecutarBuffet(e, { tipo: "cargar", cuentaId: cta.id, productoId: prod.id, cant: 2 }, AHORA, auth);
   assert.equal(d.ok, true, d.mensaje);
-  const conCargo = armarCuentaBuffet(e, M.cuenta(e, cta.id)!);
+  const conCargo = armarCuentaBuffet(e, M.cuenta(e, cta.id)!, AHORA);
   assert.equal(conCargo.saldo, cta.saldo + 2 * prod.precio);
 
   const antes = caja(e);
@@ -66,13 +66,13 @@ test("la mesa sigue: con la cancha cerrada se cargan cargos, aparece en «Mesas 
 
 test("compartirBuffet: cargar en una cuenta sólo cambia SU tarjeta", () => {
   const { e, auth } = demo();
-  const v1 = armarBuffet(e);
+  const v1 = armarBuffet(e, AHORA);
   assert.ok(v1.cuentas.length >= 2, "la demo trae varias cuentas abiertas");
-  assert.equal(compartirBuffet(v1, armarBuffet(e)), v1);
+  assert.equal(compartirBuffet(v1, armarBuffet(e, AHORA)), v1);
   const blanco = v1.cuentas[0];
   const prod = productosParaCargar(e, "").productos[0];
   ejecutarBuffet(e, { tipo: "cargar", cuentaId: blanco.id, productoId: prod.id, cant: 1 }, AHORA, auth);
-  const v2 = compartirBuffet(v1, armarBuffet(e));
+  const v2 = compartirBuffet(v1, armarBuffet(e, AHORA));
   const nuevas = v2.cuentas.filter((c) => !v1.cuentas.includes(c)).map((c) => c.id);
   assert.deepEqual(nuevas, [blanco.id]);
 });
@@ -81,7 +81,7 @@ test("créditos del cliente: la confirmación dice de quién, cuánto y con cuá
   const { e, auth } = demo();
   const cta = M.cuentasAbiertas(e).find((c) => c.clienteId && M.saldoCuenta(c) > 0)!;
   const ficha = M.cliente(e, cta.clienteId!)!;
-  const aCobrar = armarCuentaBuffet(e, cta).aCobrar;
+  const aCobrar = armarCuentaBuffet(e, cta, AHORA).aCobrar;
   ficha.monedero = aCobrar - 1;
   const corto = confirmarCreditosCuenta(e, cta.id);
   assert.equal(corto.ok, false);
@@ -107,14 +107,14 @@ test("fiar con el OK del dueño: sin cuenta corriente no pasa; se pide, el códi
   });
   assert.ok(cta, "la demo trae una cuenta de alguien sin cuenta corriente");
   const ficha = M.cliente(e, cta.clienteId!)!;
-  const v = armarCuentaBuffet(e, cta);
+  const v = armarCuentaBuffet(e, cta, AHORA);
   assert.equal(v.aCuenta.ok, false);
   assert.equal(!v.aCuenta.ok && v.aCuenta.puedePedirFiado, true);
   assert.equal(ejecutarBuffet(e, { tipo: "aCuenta", cuentaId: cta.id }, AHORA, auth).ok, false);
 
   const pedido = pedirFiado(e, cta.id, auth, AHORA);
   assert.equal(pedido.ok, true, pedido.mensaje);
-  const p = pedidosPendientes(e).find((x) => x.cliente === ficha.nombre)!;
+  const p = pedidosPendientes(e, AHORA).find((x) => x.cliente === ficha.nombre)!;
   assert.ok(p);
   assert.equal(p.monto, v.aCobrar);
   assert.equal(p.quedan, INTENTOS_POR_PEDIDO);
@@ -122,12 +122,12 @@ test("fiar con el OK del dueño: sin cuenta corriente no pasa; se pide, el códi
 
   const mal = aprobarConCodigo(e, p.id, "ZZZ-ZZZ", auth, AHORA);
   assert.equal(mal.ok, false);
-  assert.equal(pedidosPendientes(e).find((x) => x.id === p.id)!.quedan, INTENTOS_POR_PEDIDO - 1);
+  assert.equal(pedidosPendientes(e, AHORA).find((x) => x.id === p.id)!.quedan, INTENTOS_POR_PEDIDO - 1);
   const bueno = codigoDeLaDemo(e, p.id)!;
   assert.match(bueno.codigo, /^[A-Z2-9]{3}-[A-Z2-9]{3}$/);
   const ok = aprobarConCodigo(e, p.id, bueno.codigo.toLowerCase().replace("-", ""), auth, AHORA);
   assert.equal(ok.ok, true, ok.mensaje);
-  assert.ok(!pedidosPendientes(e).some((x) => x.id === p.id));
+  assert.ok(!pedidosPendientes(e, AHORA).some((x) => x.id === p.id));
 
   const deudaAntes = ficha.deuda;
   const cajaAntes = caja(e);
@@ -144,11 +144,36 @@ test("cinco códigos mal traban el pedido: el código bueno tampoco pasa hasta q
     return f && !f.cc.habilitada && M.saldoCuenta(c) > 0 && !c.aCargoDe && !e.novedades.some((n) => n.estado === "pendiente" && n.clienteId === f.id);
   })!;
   assert.equal(pedirFiado(e, cta.id, auth, AHORA).ok, true);
-  const p = pedidosPendientes(e).find((x) => x.cliente === M.cliente(e, cta.clienteId!)!.nombre)!;
+  const p = pedidosPendientes(e, AHORA).find((x) => x.cliente === M.cliente(e, cta.clienteId!)!.nombre)!;
   for (let i = 0; i < INTENTOS_POR_PEDIDO; i++) aprobarConCodigo(e, p.id, "AAA-AAA", auth, AHORA);
-  const trabado = pedidosPendientes(e).find((x) => x.id === p.id)!;
+  const trabado = pedidosPendientes(e, AHORA).find((x) => x.id === p.id)!;
   assert.match(trabado.trabado ?? "", /Trabado hasta las 19:40/);
   const bueno = codigoDeLaDemo(e, p.id)!.codigo;
   assert.equal(aprobarConCodigo(e, p.id, bueno, auth, AHORA).ok, false);
   assert.equal(aprobarConCodigo(e, p.id, bueno, auth, { fecha: HOY, min: AHORA.min + 31 }).ok, true);
+});
+
+test("la traba del fiado se compara con el reloj: a los 30 minutos se vuelve a poder probar", () => {
+  const traba = { fecha: HOY, min: AHORA.min + 30 };
+  assert.equal(trabadoHasta(undefined, AHORA), null);
+  assert.equal(trabadoHasta(traba, AHORA), "Trabado hasta las 19:40");
+  assert.equal(trabadoHasta(traba, { fecha: HOY, min: AHORA.min + 29 }), "Trabado hasta las 19:40");
+  assert.equal(trabadoHasta(traba, { fecha: HOY, min: AHORA.min + 30 }), null, "vence justo a la hora");
+  assert.equal(trabadoHasta(traba, { fecha: M.sumarDias(HOY, 1), min: 0 }), null, "al otro día, nada");
+  // La madrugada pasa de 1440: trabado a las 00:20 del día que abrió (min 1460) sigue trabado a las 23:59.
+  assert.equal(trabadoHasta({ fecha: HOY, min: 1460 }, { fecha: HOY, min: 1439 }), "Trabado hasta las 00:20");
+
+  // De punta a punta con el motor: 5 mal, trabado; 31 minutos después la vista ya no lo marca trabado.
+  const { e, auth } = demo();
+  const cta = M.cuentasAbiertas(e).find((c) => {
+    const f = c.clienteId ? M.cliente(e, c.clienteId) : null;
+    return f && !f.cc.habilitada && M.saldoCuenta(c) > 0 && !c.aCargoDe && !e.novedades.some((n) => n.estado === "pendiente" && n.clienteId === f.id);
+  })!;
+  pedirFiado(e, cta.id, auth, AHORA);
+  const p = pedidosPendientes(e, AHORA).find((x) => x.cliente === M.cliente(e, cta.clienteId!)!.nombre)!;
+  for (let i = 0; i < INTENTOS_POR_PEDIDO; i++) aprobarConCodigo(e, p.id, "AAA-AAA", auth, AHORA);
+  assert.ok(armarCuentaBuffet(e, cta, AHORA).pedidoPendiente!.trabado);
+  const despues = { fecha: HOY, min: AHORA.min + 31 };
+  assert.equal(armarCuentaBuffet(e, cta, despues).pedidoPendiente!.trabado, null);
+  assert.equal(pedidosPendientes(e, despues).find((x) => x.id === p.id)!.trabado, null);
 });

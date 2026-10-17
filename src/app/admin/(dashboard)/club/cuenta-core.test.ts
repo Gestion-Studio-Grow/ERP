@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, Reserva } from "@/lib/club/motor.mjs";
-import { armarCuenta, confirmarCreditos, ejecutar, textoCierre, type VistaCuenta } from "./cuenta-core";
+import { armarCuenta, confirmarCreditos, ejecutar, revisarConfirmacion, textoCierre, type VistaCuenta } from "./cuenta-core";
 
 const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
@@ -283,4 +283,26 @@ test("cargar un producto a un jugador: a su cuenta, o cobrado en el acto (y la c
   ok(ejecutar(e, r.id, { tipo: "cargo", idx: 3, productoId: p.id, cant: 1, modo: "cobrar", medio: "efectivo" }, AHORA));
   assert.equal(caja(e) - cajaAntes, p.precio, "cobrado en el acto entra a la caja");
   assert.equal(cuenta(e, r.id).totales.cargos, v.totales.cargos, "y no queda debiendo");
+});
+
+test("la confirmación de créditos se revisa al tocar «Sí»: si el monto cambió (extender, deshacer) se vuelve a pedir", () => {
+  const e = demo();
+  const r = turnoEnJuego(e);
+  // Uno que todavía debe su parte de la cancha: extender le sube lo que paga.
+  const idx = cuenta(e, r.id).jugadores.findIndex((j) => M.partesCancha(r)[j.idx].aPagar > 0 && r.jugadores[j.idx].clienteId);
+  M.cliente(e, r.jugadores[idx].clienteId!)!.monedero = 200000;
+  const mostrada = confirmarCreditos(e, r.id, { tipo: "cobrarJugador", idx });
+  assert.ok(mostrada.ok);
+  assert.deepEqual(revisarConfirmacion(mostrada, confirmarCreditos(e, r.id, { tipo: "cobrarJugador", idx })), { tipo: "seguir" });
+  // Mientras estaba abierta, se extendió el turno: la parte del jugador sube.
+  const libre = M.validarHueco(e, { canchaId: r.canchaId, fecha: HOY, inicio: r.inicio + r.duracion, duracion: 30 }).ok;
+  assert.ok(libre, "en la demo, después de este turno hay lugar para extender");
+  assert.ok(M.extender(e, r.id, 30, AHORA).ok);
+  const rev = revisarConfirmacion(mostrada, confirmarCreditos(e, r.id, { tipo: "cobrarJugador", idx }));
+  assert.equal(rev.tipo, "otra", "no se cobra el monto viejo");
+  if (rev.tipo === "otra") assert.notDeepEqual([rev.datos.usa, rev.datos.quedan], [mostrada.usa, mostrada.quedan]);
+  // Si ya no alcanzan, no se cobra y se dice por qué.
+  M.cliente(e, r.jugadores[idx].clienteId!)!.monedero = 1;
+  const no = revisarConfirmacion(mostrada, confirmarCreditos(e, r.id, { tipo: "cobrarJugador", idx }));
+  assert.equal(no.tipo, "no");
 });

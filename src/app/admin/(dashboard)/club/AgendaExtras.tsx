@@ -11,6 +11,7 @@
 
 import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
 import { NOMBRE_DIA, diaSemana, pesos, sumarDias } from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
@@ -67,18 +68,18 @@ export function FueraDeLaGrilla({ almacen, dia }: { almacen: Almacen; dia: strin
           <label htmlFor={idMedio} className="text-xs font-medium text-muted">
             Medio para devolver o cobrar
           </label>
-          <select
+          <Select
             id={idMedio}
             value={medio}
             onChange={(e) => setMedio(e.target.value as MedioCaja)}
-            className="h-11 max-w-xs rounded-md border border-line-strong bg-surface-raised px-2 text-sm text-strong focus-visible:outline-2 focus-visible:outline-focus"
+            className="max-w-xs"
           >
             {MEDIOS_CAJA.map((m) => (
               <option key={m} value={m}>
                 {ETIQUETA_MEDIO[m]}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       )}
       <ul className="flex flex-col text-sm">

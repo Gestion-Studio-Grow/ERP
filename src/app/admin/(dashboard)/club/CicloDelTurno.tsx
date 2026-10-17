@@ -178,13 +178,25 @@ function Interrumpir({ almacen, reservaId, hacer }: { almacen: Almacen; reservaI
   );
 }
 
-export default function CicloDelTurno({ almacen, reservaId, onListo }: { almacen: Almacen; reservaId: string; onListo: () => void }) {
+export default function CicloDelTurno({
+  almacen,
+  reservaId,
+  onAntes,
+  onListo,
+}: {
+  almacen: Almacen;
+  reservaId: string;
+  /** Antes de mover, extender o cancelar: la confirmación de créditos que estaba abierta ya no vale. */
+  onAntes: () => void;
+  onListo: () => void;
+}) {
   const [abierta, setAbierta] = useState<Cual | null>(null);
   const titulo = useId();
   const r = reservaDe(almacen.estado(), reservaId);
   if (!r) return null;
   const op = opcionesCiclo(r);
   const hacer = (a: AccionCiclo) => {
+    onAntes();
     const d = almacen.ejecutar((e, ahora, auth) => ejecutarCiclo(e, reservaId, a, ahora, auth), { deshacible: true });
     if (d.ok) {
       setAbierta(null);
@@ -201,7 +213,10 @@ export default function CicloDelTurno({ almacen, reservaId, onListo }: { almacen
       </h3>
       <div className="flex flex-wrap gap-2">
         {cuales.map((c) => (
-          <Button key={c} variant={abierta === c ? "subtle" : "outline"} size="md" aria-expanded={abierta === c} onClick={() => setAbierta(abierta === c ? null : c)}>
+          <Button key={c} variant={abierta === c ? "subtle" : "outline"} size="md" aria-expanded={abierta === c} onClick={() => {
+            onAntes();
+            setAbierta(abierta === c ? null : c);
+          }}>
             {ETIQUETAS[c]}
           </Button>
         ))}

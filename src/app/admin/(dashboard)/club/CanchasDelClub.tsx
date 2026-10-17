@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
-import { armarCanchas, ejecutarCanchas, horasDelDia, previaLluvia, type AccionCanchas } from "./canchas-core";
+import { SE_DESHACE, armarCanchas, ejecutarCanchas, horasDelDia, previaLluvia, type AccionCanchas } from "./canchas-core";
 import { porFirma, useSeleccion } from "./usar-almacen";
 
 function PlanLluvia({ almacen, dia, hacer }: { almacen: Almacen; dia: string; hacer: (a: AccionCanchas) => boolean }) {
@@ -201,7 +201,9 @@ function Bloquear({ almacen, dia, canchas, hacer }: { almacen: Almacen; dia: str
 export default function CanchasDelClub({ almacen, dia }: { almacen: Almacen; dia: string }) {
   const seleccionar = useCallback((e: EstadoClub) => armarCanchas(e, dia), [dia]);
   const v = useSeleccion(almacen, seleccionar, porFirma);
-  const hacer = useCallback((a: AccionCanchas) => almacen.ejecutar((e, ahora) => ejecutarCanchas(e, a, ahora), { deshacible: true }).ok, [almacen]);
+  // Como en el club vanilla, lluvia, mantenimiento y bloqueos NO se deshacen: tienen su acción inversa a la vista
+  // (habilitar la cancha, quitar el bloqueo) y la lluvia muestra su previa antes de aplicarse.
+  const hacer = useCallback((a: AccionCanchas) => almacen.ejecutar((e, ahora) => ejecutarCanchas(e, a, ahora), { deshacible: SE_DESHACE[a.tipo] }).ok, [almacen]);
   const fecha = `${Number(dia.slice(8))}/${Number(dia.slice(5, 7))}`;
   return (
     <div className="flex flex-col gap-4">

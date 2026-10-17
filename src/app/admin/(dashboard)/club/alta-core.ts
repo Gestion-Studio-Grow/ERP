@@ -39,7 +39,7 @@ export function horariosLibres(estado: EstadoClub, fecha: Fecha, canchaId: strin
 }
 
 export type Previa =
-  | { ok: true; precio: number; franja: "pico" | "valle"; sena: number; texto: string }
+  | { ok: true; precio: number; franja: "pico" | "valle"; pideSena: boolean; texto: string }
   | { ok: false; motivo: string };
 
 /** Lo que va a costar y si pide seña, antes de reservar (o por qué no se puede). */
@@ -48,9 +48,11 @@ export function previaDelTurno(estado: EstadoClub, d: Pick<DatosAlta, "canchaId"
   if (!v.ok) return { ok: false, motivo: v.motivo };
   const precio = precioTurno(estado, d);
   const franja = franjaDe(estado, d.fecha, d.inicio);
-  const sena = requiereSena(estado, d.clienteId, d.tipo) ? Math.round((precio * estado.config.politica.senaPct) / 100 / 100) * 100 : 0;
-  const texto = `${pesos(precio)} · ${franja === "pico" ? "horario pico" : "horario valle"}${sena ? ` · pide seña de ${pesos(sena)}` : " · sin seña"}`;
-  return { ok: true, precio, franja, sena, texto };
+  // Si pide seña lo dice el motor (`requiereSena`); el monto exacto lo calcula `crearReserva` al reservar (y se ve en
+  // el aviso y en la cuenta). Acá no se recalcula para no duplicar la regla (motor.mjs: `senaMonto`).
+  const pideSena = requiereSena(estado, d.clienteId, d.tipo);
+  const texto = `${pesos(precio)} · ${franja === "pico" ? "horario pico" : "horario valle"}${pideSena ? ` · pide seña (${estado.config.politica.senaPct} %)` : " · sin seña"}`;
+  return { ok: true, precio, franja, pideSena, texto };
 }
 
 /** Fichas que coinciden con lo que se tipea (hasta 5), para atar el turno a un cliente. */

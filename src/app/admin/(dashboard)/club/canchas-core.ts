@@ -13,6 +13,7 @@
 
 import {
   NOMBRE_DIA,
+  cancelar,
   anotarEspera,
   asignarDesdeEspera,
   bloquear,
@@ -94,6 +95,24 @@ export type AccionCanchas =
   | { tipo: "bloquear"; canchaId: string; fecha: Fecha; desde: number; hasta: number; motivo: string }
   | { tipo: "quitarBloqueo"; bloqueoId: string }
   | { tipo: "lluvia"; fecha: Fecha; desde: number; hasta: number };
+
+/**
+ * Qué se deshace (alineado con `DESHACIBLES` del club vanilla, app.mjs:24): ni la lluvia, ni el mantenimiento, ni los
+ * bloqueos, ni crear/bajar/dar de baja fijos, ni sacar de la espera. Cada uno tiene su inversa a la vista (habilitar,
+ * quitar el bloqueo, dar de baja, volver a anotar); la lluvia, su previa. Anotar en la espera y darle el turno sí.
+ */
+export const SE_DESHACE = {
+  mantenimiento: false,
+  bloquear: false,
+  quitarBloqueo: false,
+  lluvia: false,
+  nuevoFijo: false,
+  bajarFijos: false,
+  bajaFijo: false,
+  anotar: true,
+  asignar: true,
+  quitar: false,
+} as const satisfies Record<AccionCanchas["tipo"] | AccionEspera["tipo"] | "nuevoFijo" | "bajarFijos" | "bajaFijo", boolean>;
 
 export function ejecutarCanchas(estado: EstadoClub, a: AccionCanchas, ahora: Ahora): Desenlace {
   switch (a.tipo) {
@@ -180,6 +199,25 @@ export function nuevoFijo(
   return { ok: true, mensaje: `Turno fijo de ${titular} los ${NOMBRE_DIA[datos.dia].toLowerCase()} a las ${hhmm(datos.inicio)}. ${bajada.mensaje}` };
 }
 
+/**
+ * Dar de baja un fijo (la inversa explícita de crearlo, que no se deshace): sus turnos que todavía no se jugaron se
+ * cancelan como «cancela el club» (lo pagado vuelve siempre, con la regla de `cancelar` del motor) y el fijo sale de
+ * la lista.
+ * DEUDA (BP-3/BP-4): el motor no tiene una función para dar de baja un fijo; se filtra `estado.fijos` acá. Cuando el
+ * dominio se porte a TS, va al motor con su test.
+ */
+export function bajaFijo(estado: EstadoClub, fijoId: string, ahora: Ahora): Desenlace {
+  const f = estado.fijos.find((x) => x.id === fijoId);
+  if (!f) return { ok: false, mensaje: "Ese turno fijo ya no está." };
+  let canceladas = 0;
+  for (const r of estado.reservas) {
+    if (r.fijoId !== fijoId || r.estado !== "reservada" || r.fecha < ahora.fecha) continue;
+    if (cancelar(estado, r.id, { porClub: true, motivo: "Baja del turno fijo" }, ahora).ok) canceladas++;
+  }
+  estado.fijos = estado.fijos.filter((x) => x.id !== fijoId);
+  return { ok: true, mensaje: `Turno fijo de ${f.titular} dado de baja${canceladas ? ` (${canceladas} turno${canceladas > 1 ? "s" : ""} de la semana liberado${canceladas > 1 ? "s" : ""})` : ""}.` };
+}
+
 // ───────────── lista de espera ─────────────
 
 export interface VistaEspera {
@@ -230,6 +268,9 @@ export function ejecutarEspera(estado: EstadoClub, a: AccionEspera, ahora: Ahora
       return { ok: true, reservaId: res.reserva.id, mensaje: `Turno para ${res.reserva.titular} en ${canchaDe(estado, a.canchaId)?.nombre ?? ""} a las ${hhmm(a.inicio)}. Salió de la lista de espera.` };
     }
     case "quitar": {
+      // DEUDA (BP-3/BP-4): el motor no tiene una función para sacar a alguien de la lista de espera (sólo
+      // `asignarDesdeEspera` lo saca al darle turno); se filtra `estado.espera` acá. Cuando el dominio se porte a TS,
+      // va al motor con su test. No se deshace (como en vanilla): la inversa es volver a anotarlo.
       const antes = estado.espera.length;
       estado.espera = estado.espera.filter((e) => e.id !== a.esperaId);
       return estado.espera.length < antes ? { ok: true, mensaje: "Quitado de la lista de espera." } : { ok: false, mensaje: "Ya no estaba en la lista de espera." };

@@ -11,10 +11,10 @@
 // En la DEMO no hay celular del dueño: `codigoDeLaDemo` calcula el código que le llegaría a un dueño de ejemplo, y
 // la pantalla lo muestra rotulado como demo para poder recorrer el flujo entero. En el modo real eso no existe.
 
-import { aprobarPorCodigo, cliente as clienteDe, codigoAprobacion, cuenta as cuentaDe, datosAprobacion, hhmm, pesos, solicitarCredito } from "@/lib/club/motor.mjs";
+import { aprobarPorCodigo, cliente as clienteDe, codigoAprobacion, cuenta as cuentaDe, datosAprobacion, pesos, solicitarCredito } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
-import { INTENTOS_POR_PEDIDO, armarCuentaBuffet } from "./buffet-core";
+import { INTENTOS_POR_PEDIDO, aCobrarDe, trabadoHasta } from "./buffet-core";
 
 export { INTENTOS_POR_PEDIDO };
 
@@ -30,7 +30,7 @@ export interface VistaPedido {
 }
 
 /** Los pedidos de crédito que esperan al dueño. */
-export function pedidosPendientes(estado: EstadoClub): VistaPedido[] {
+export function pedidosPendientes(estado: EstadoClub, ahora: Ahora): VistaPedido[] {
   return estado.novedades
     .filter((n) => n.estado === "pendiente")
     .map((n) => ({
@@ -39,7 +39,7 @@ export function pedidosPendientes(estado: EstadoClub): VistaPedido[] {
       monto: n.monto,
       pidio: n.pidio,
       quedan: INTENTOS_POR_PEDIDO - (n.intentos ?? 0),
-      trabado: n.bloqueadoHasta?.min != null ? `Trabado hasta las ${hhmm(n.bloqueadoHasta.min)}` : null,
+      trabado: trabadoHasta(n.bloqueadoHasta, ahora),
     }));
 }
 
@@ -47,7 +47,7 @@ export function pedidosPendientes(estado: EstadoClub): VistaPedido[] {
 export function pedirFiado(estado: EstadoClub, cuentaId: string, auth: Auth, ahora: Ahora): Desenlace {
   const c = cuentaDe(estado, cuentaId);
   if (!c || c.estado !== "abierta") return { ok: false, mensaje: "Esa cuenta no está abierta." };
-  const monto = armarCuentaBuffet(estado, c).aCobrar;
+  const monto = aCobrarDe(estado, c);
   const res = solicitarCredito(estado, { clienteId: c.clienteId ?? "", tipo: "fiado", monto, cuentaId }, auth, ahora);
   if (!res.ok) return { ok: false, mensaje: res.motivo };
   return { ok: true, mensaje: `Pedido enviado: fiarle ${pesos(monto)} a ${c.titular}. Avisale al dueño por WhatsApp y tipeá el código que te mande.` };

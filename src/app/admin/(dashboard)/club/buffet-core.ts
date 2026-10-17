@@ -109,10 +109,30 @@ function pagadorAbierto(estado: EstadoClub, c: Cuenta): Cuenta | null {
   return a && a.estado === "abierta" ? a : null;
 }
 
-export function armarCuentaBuffet(estado: EstadoClub, c: Cuenta): VistaCuentaBuffet {
+/** Minuto absoluto de un sello (la madrugada pasa de 1440), para comparar momentos de días distintos. */
+function minutoAbsoluto(t: { fecha: string | null; min: number | null }): number {
+  return t.fecha ? Math.round(Date.parse(`${t.fecha}T00:00:00Z`) / 60000) + (t.min ?? 0) : 0;
+}
+
+/**
+ * ¿El pedido sigue trabado AHORA? Con 5 códigos mal el motor lo traba 30 min (`aprobarPorCodigo`) y después deja
+ * probar de nuevo: la traba se compara con el reloj, no se decide sólo porque alguna vez existió. Pura.
+ */
+export function trabadoHasta(bloqueadoHasta: { fecha: string | null; min: number | null } | undefined, ahora: Ahora): string | null {
+  if (!bloqueadoHasta || bloqueadoHasta.min == null) return null;
+  return minutoAbsoluto(ahora) < minutoAbsoluto(bloqueadoHasta) ? `Trabado hasta las ${hhmm(bloqueadoHasta.min)}` : null;
+}
+
+/** Lo que se le cobra a una cuenta si paga: lo suyo más lo de las cuentas a su cargo. */
+export function aCobrarDe(estado: EstadoClub, c: Cuenta): number {
+  const deps = estado.cuentas.filter((x) => x.estado === "abierta" && x.aCargoDe === c.id && x.id !== c.id);
+  return Math.max(0, saldoCuenta(c)) + deps.reduce((s, x) => s + Math.max(0, saldoCuenta(x)), 0);
+}
+
+export function armarCuentaBuffet(estado: EstadoClub, c: Cuenta, ahora: Ahora): VistaCuentaBuffet {
   const deps = estado.cuentas.filter((x) => x.estado === "abierta" && x.aCargoDe === c.id && x.id !== c.id);
   const saldo = Math.max(0, saldoCuenta(c));
-  const aCobrar = saldo + deps.reduce((s, x) => s + Math.max(0, saldoCuenta(x)), 0);
+  const aCobrar = aCobrarDe(estado, c);
   const r = c.reservaId ? estado.reservas.find((x) => x.id === c.reservaId) : undefined;
   const ficha = c.clienteId ? clienteDe(estado, c.clienteId) : undefined;
   const pagador = pagadorAbierto(estado, c);
@@ -137,21 +157,21 @@ export function armarCuentaBuffet(estado: EstadoClub, c: Cuenta): VistaCuentaBuf
           tipo: pendiente.tipo,
           monto: pendiente.monto,
           quedan: INTENTOS_POR_PEDIDO - (pendiente.intentos ?? 0),
-          trabado: pendiente.bloqueadoHasta?.min != null ? `Trabado hasta las ${hhmm(pendiente.bloqueadoHasta.min)}` : null,
+          trabado: trabadoHasta(pendiente.bloqueadoHasta, ahora),
         }
       : null,
   };
   return { ...vista, firma: JSON.stringify(vista) };
 }
 
-export function armarBuffet(estado: EstadoClub): VistaBuffet {
+export function armarBuffet(estado: EstadoClub, ahora: Ahora): VistaBuffet {
   const mesas = mesasAbiertas(estado).map((m) => ({
     reservaId: m.reserva.id,
     titulo: `${m.reserva.titular} · ${canchaDe(estado, m.reserva.canchaId)?.nombre ?? ""} ${hhmm(m.reserva.inicio)}`,
     saldo: m.saldo,
     cuentas: m.cuentas.map((c) => c.id),
   }));
-  const cuentas = cuentasAbiertas(estado).map((c) => armarCuentaBuffet(estado, c));
+  const cuentas = cuentasAbiertas(estado).map((c) => armarCuentaBuffet(estado, c, ahora));
   const totalAbierto = cuentas.reduce((s, c) => s + c.saldo, 0);
   const vista: Omit<VistaBuffet, "firma"> = { mesas, cuentas, totalAbierto };
   return { ...vista, firma: [JSON.stringify(mesas), totalAbierto, cuentas.map((c) => c.firma).join("|")].join("#") };
@@ -198,7 +218,7 @@ export function ejecutarBuffet(estado: EstadoClub, accion: AccionBuffet, ahora: 
     }
     case "aCuenta": {
       const c = cuentaDe(estado, accion.cuentaId);
-      const total = c ? armarCuentaBuffet(estado, c).aCobrar : 0;
+      const total = c ? aCobrarDe(estado, c) : 0;
       const res = cerrarCuenta(estado, accion.cuentaId, { aCuenta: true }, ahora);
       return res.ok ? { ok: true, mensaje: `${pesos(total)} a la cuenta corriente de ${c?.titular ?? "el cliente"}. Cuenta cerrada.` } : { ok: false, mensaje: res.motivo };
     }
@@ -218,7 +238,7 @@ export function confirmarCreditosCuenta(
   if (!c || c.estado !== "abierta") return { ok: false, motivo: "Esa cuenta no está abierta." };
   const ficha = c.clienteId ? clienteDe(estado, c.clienteId) : undefined;
   if (!ficha) return { ok: false, motivo: "Esa cuenta no tiene ficha de cliente: no tiene créditos para usar." };
-  const usa = armarCuentaBuffet(estado, c).aCobrar;
+  const usa = aCobrarDe(estado, c);
   if (!(usa > 0)) return { ok: false, motivo: "No hay cargos para cobrar." };
   if (ficha.monedero < usa) return { ok: false, motivo: `${ficha.nombre} tiene ${pesos(ficha.monedero)} en créditos: no alcanza para ${pesos(usa)}.` };
   return { ok: true, de: ficha.nombre, que: `Los cargos de ${c.titular}`, usa, creditos: ficha.monedero, quedan: ficha.monedero - usa, cubreSena: false };

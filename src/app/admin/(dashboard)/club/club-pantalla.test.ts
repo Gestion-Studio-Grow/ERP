@@ -319,7 +319,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await alta.getByLabel("Cancha").selectOption({ label: "Cancha 4 (descubierta)" });
     await alta.getByLabel("Cuánto juegan").selectOption({ label: "1 hora" });
     await alta.getByLabel("A nombre de").fill("Turno de prueba");
-    await alta.getByRole("status").filter({ hasText: /\$ [\d.]+ · horario (pico|valle) · pide seña de \$/ }).waitFor();
+    await alta.getByRole("status").filter({ hasText: /\$ [\d.]+ · horario (pico|valle) · pide seña \(\d+ %\)/ }).waitFor();
     assert.equal(await page.getByRole("button", { name: /^Turno de prueba, / }).count(), 0);
     await alta.getByRole("button", { name: "Reservar el turno" }).click();
     await page.getByRole("status").filter({ hasText: /^Turno de Turno de prueba en Cancha 4, .* Pide seña de/ }).waitFor();

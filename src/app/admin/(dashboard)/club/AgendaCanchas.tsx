@@ -62,14 +62,19 @@ const BloqueTurno = memo(function BloqueTurno({ celda, activo, onAbrir }: { celd
           activo && "ring-2 ring-accent",
         )}
       >
-        <span className="flex w-full items-baseline gap-1.5">
+        {/* El estado siempre con forma + palabra (nunca sólo el color del fondo), también en el turno de una hora.
+            En uno de media hora (una franja) la marca va al lado del nombre. */}
+        <span className="flex w-full min-w-0 items-baseline gap-1.5">
           <span className="truncate font-semibold text-strong">{celda.titular}</span>
+          {celda.alto < 2 && <Marca tipo={celda.marca.tipo} className="shrink-0">{celda.marca.texto}</Marca>}
         </span>
-        <span className="w-full truncate text-xs tabular-nums text-muted">
-          {celda.horario} · {celda.jugadores}
-          {celda.tipo && celda.tipo !== "Turno" ? ` · ${celda.tipo}` : ""}
-        </span>
-        {celda.alto > 2 && <Marca tipo={celda.marca.tipo}>{celda.marca.texto}</Marca>}
+        {celda.alto >= 2 && (
+          <span className="w-full truncate text-xs tabular-nums text-muted">
+            {celda.horario} · {celda.jugadores}
+            {celda.tipo && celda.tipo !== "Turno" ? ` · ${celda.tipo}` : ""}
+          </span>
+        )}
+        {celda.alto >= 2 && <Marca tipo={celda.marca.tipo}>{celda.marca.texto}</Marca>}
         {celda.senal && <span className="w-full truncate text-xs font-semibold tabular-nums text-danger">{celda.senal}</span>}
         {celda.deudor && celda.alto > 2 && <span className="w-full truncate text-xs text-danger">⚠ cuenta con deuda</span>}
       </button>

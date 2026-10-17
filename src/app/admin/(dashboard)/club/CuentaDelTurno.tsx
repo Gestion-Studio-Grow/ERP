@@ -22,7 +22,7 @@
 
 import { memo, useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Field";
+import { Input, Select } from "@/components/ui/Field";
 import { Marca } from "@/components/ui/Marca";
 import { cn } from "@/components/ui/cn";
 import { pesos } from "@/lib/club/motor.mjs";
@@ -35,6 +35,7 @@ import {
   compartirCuenta,
   confirmarCreditos,
   ejecutar,
+  revisarConfirmacion,
   textoCierre,
   type AccionCuenta,
   type FilaJugador,
@@ -64,18 +65,17 @@ function SelectorACargo({
       <label htmlFor={id} className="text-xs font-medium text-muted">
         {etiqueta}
       </label>
-      <select
+      <Select
         id={id}
         value={elegido}
         onChange={(e) => onCambiar(e.target.value)}
-        className="h-11 min-w-0 rounded-md border border-line-strong bg-surface-raised px-2 text-sm text-strong focus-visible:outline-2 focus-visible:outline-focus"
       >
         {opciones.map((o) => (
           <option key={o.valor} value={o.valor}>
             {o.etiqueta}
           </option>
         ))}
-      </select>
+      </Select>
     </div>
   );
 }
@@ -203,18 +203,17 @@ function SumarCargo({ almacen, vista, medio, onAccion }: { almacen: Almacen; vis
           <label htmlFor={idJug} className="text-xs font-medium text-muted">
             Para quién
           </label>
-          <select
+          <Select
             id={idJug}
             value={jugador}
             onChange={(e) => setJugador(Number(e.target.value))}
-            className="h-11 rounded-md border border-line-strong bg-surface-raised px-2 text-sm text-strong focus-visible:outline-2 focus-visible:outline-focus"
           >
             {vista.jugadores.map((j) => (
               <option key={j.idx} value={j.idx}>
                 {j.nombre}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor={idCant} className="text-xs font-medium text-muted">
@@ -380,7 +379,18 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
             setConfirmando(null);
           }} conCreditos={creditos} angosto />}
       {confirmando && (
-        <ConfirmarCreditos datos={confirmando.datos} onSi={() => onAccion(confirmando.accion)} onNo={() => {
+        <ConfirmarCreditos datos={confirmando.datos} onSi={() => {
+            const a = confirmando.accion as AccionCuenta & { tipo: "cobrarJugador" | "cobrarSena" };
+            const ahora = confirmarCreditos(almacen.estado(), reservaId, a.tipo === "cobrarSena" ? { tipo: "cobrarSena" } : { tipo: "cobrarJugador", idx: a.idx });
+            const r = revisarConfirmacion(confirmando.datos, ahora);
+            if (r.tipo === "seguir") return onAccion(a);
+            if (r.tipo === "no") {
+              setConfirmando(null);
+              return almacen.informar({ ok: false, mensaje: r.motivo });
+            }
+            setConfirmando({ datos: r.datos, accion: a });
+            almacen.informar({ ok: false, mensaje: `El monto cambió: ahora son ${pesos(r.datos.usa)}. Confirmá de nuevo.` });
+          }} onNo={() => {
             setConfirmando(null);
             setMedio("efectivo");
           }} />
@@ -439,6 +449,7 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
       <CicloDelTurno
         almacen={almacen}
         reservaId={vista.reservaId}
+        onAntes={() => setConfirmando(null)}
         onListo={() => {
           // Si el turno salió de la grilla (cancelado, no vino), la cuenta ya no tiene nada que mostrar.
           if (!armarCuenta(almacen.estado(), reservaId)) onVolver();

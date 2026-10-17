@@ -18,16 +18,16 @@ import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
 import { pesos } from "@/lib/club/motor.mjs";
-import type { EstadoClub } from "@/lib/club/motor.mjs";
+import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { clientesQueCoinciden } from "./alta-core";
 import { armarBuffet, compartirBuffet, confirmarCreditosCuenta, ejecutarBuffet, productosParaCargar, type AccionBuffet, type VistaCuentaBuffet } from "./buffet-core";
 import { aprobarConCodigo, codigoDeLaDemo, mensajeParaElDuenio, pedirFiado } from "./credito-core";
-import type { MedioCobro } from "./cuenta-core";
+import { revisarConfirmacion, type MedioCobro } from "./cuenta-core";
 import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
 import { useSeleccion } from "./usar-almacen";
 
-const seleccionarBuffet = (e: EstadoClub) => armarBuffet(e);
+const seleccionarBuffet = (e: EstadoClub, a: Ahora) => armarBuffet(e, a);
 
 /** El pedido de fiado de una cuenta: tipear el código del dueño (y, en la demo, verlo). */
 function PedidoDelDuenio({ almacen, pedido }: { almacen: Almacen; pedido: NonNullable<VistaCuentaBuffet["pedidoPendiente"]> }) {
@@ -140,7 +140,13 @@ const TarjetaCuenta = memo(function TarjetaCuenta({
               <ConfirmarCreditos
                 datos={confirmando}
                 onSi={() => {
+                  const r = revisarConfirmacion(confirmando, confirmarCreditosCuenta(almacen.estado(), cuenta.id));
+                  if (r.tipo === "otra") {
+                    setConfirmando(r.datos);
+                    return almacen.informar({ ok: false, mensaje: `El monto cambió: ahora son ${pesos(r.datos.usa)}. Confirmá de nuevo.` });
+                  }
                   setConfirmando(null);
+                  if (r.tipo === "no") return almacen.informar({ ok: false, mensaje: r.motivo });
                   onAccion({ tipo: "cobrar", cuentaId: cuenta.id, medio: "monedero" });
                 }}
                 onNo={() => setConfirmando(null)}

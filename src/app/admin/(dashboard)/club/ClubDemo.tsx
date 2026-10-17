@@ -92,10 +92,12 @@ export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; u
   const onReservar = useCallback((canchaId: string, inicio: number | null) => setPanel({ tipo: "alta", canchaId, inicio }), []);
   const abiertoId = panel?.tipo === "cuenta" ? panel.id : null;
   const onVolver = useCallback(() => {
+    // Cerrar la cuenta deja lo hecho: ya no se deshace (como el aviso del club vanilla).
+    almacen.olvidarDeshacer();
     setPanel(null);
     // El foco vuelve al turno desde el que se abrió la cuenta.
     if (abiertoId) requestAnimationFrame(() => document.getElementById(`turno-${abiertoId}`)?.focus());
-  }, [abiertoId]);
+  }, [abiertoId, almacen]);
   // Abrir la cuenta de un turno desde otra solapa (una mesa, la lista de espera): en el día de ese turno.
   const verTurno = useCallback(
     (id: string) => {
@@ -106,10 +108,22 @@ export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; u
     },
     [almacen],
   );
-  const elegirDia = useCallback((d: string) => {
-    setDia(d);
-    setPanel(null);
-  }, []);
+  const elegirDia = useCallback(
+    (d: string) => {
+      almacen.olvidarDeshacer();
+      setDia(d);
+      setPanel(null);
+    },
+    [almacen],
+  );
+  const cambiarSolapa = useCallback(
+    (s: Solapa) => {
+      // Cambiar de solapa también deja lo hecho.
+      almacen.olvidarDeshacer();
+      setSolapa(s);
+    },
+    [almacen],
+  );
 
   // Solapas con flechas (patrón de tablist): ←/→ cambian y llevan el foco.
   const alTeclearSolapa = (e: React.KeyboardEvent) => {
@@ -118,7 +132,7 @@ export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; u
     if (!paso) return;
     e.preventDefault();
     const sig = SOLAPAS[(i + paso + SOLAPAS.length) % SOLAPAS.length].id;
-    setSolapa(sig);
+    cambiarSolapa(sig);
     botones.current[sig]?.focus();
   };
 
@@ -155,9 +169,10 @@ export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; u
             role="tab"
             id={`club-solapa-${s.id}`}
             aria-selected={solapa === s.id}
-            aria-controls={`club-panel-${s.id}`}
+            // Sólo el panel de la solapa elegida está montado: las otras no apuntan a un id que no existe.
+            aria-controls={solapa === s.id ? `club-panel-${s.id}` : undefined}
             tabIndex={solapa === s.id ? 0 : -1}
-            onClick={() => setSolapa(s.id)}
+            onClick={() => cambiarSolapa(s.id)}
             className={cn(
               "-mb-px inline-flex min-h-11 items-center border-b-2 px-4 text-sm focus-visible:outline-2 focus-visible:outline-focus",
               solapa === s.id ? "border-accent font-semibold text-strong" : "border-transparent text-muted hover:text-strong",

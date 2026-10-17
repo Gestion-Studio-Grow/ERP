@@ -31,15 +31,15 @@ test("la previa dice el precio (pico el fin de semana, valle/pico en la semana) 
   assert.ok(sinFicha.ok);
   assert.equal(sinFicha.precio, M.precioTurno(e, { canchaId: c.id, fecha: M.sumarDias(HOY, 1), inicio: h.min, duracion: 90 }));
   assert.equal(sinFicha.franja, "pico", "domingo: todo pico");
-  assert.equal(sinFicha.sena > 0, M.requiereSena(e, null, "turno"));
+  assert.equal(sinFicha.pideSena, M.requiereSena(e, null, "turno"));
   const clase = previaDelTurno(e, { canchaId: c.id, fecha: M.sumarDias(HOY, 1), inicio: h.min, duracion: 90, tipo: "clase", clienteId: null });
-  assert.ok(clase.ok && clase.sena === 0, "las clases no piden seña");
+  assert.ok(clase.ok && !clase.pideSena, "las clases no piden seña");
 
   const r = reservar(e, { canchaId: c.id, fecha: M.sumarDias(HOY, 1), inicio: h.min, duracion: 90, tipo: "turno", titular: "Ana Prueba", clienteId: null, otros: "Beto, Caro ,  , Dani, Eze" }, AHORA);
   assert.equal(r.ok, true, r.mensaje);
   const nueva = M.reserva(e, r.reservaId!)!;
   assert.equal(nueva.precio, sinFicha.precio);
-  assert.equal(nueva.sena.monto, sinFicha.sena);
+  assert.equal(nueva.sena.monto > 0, sinFicha.pideSena, "pide seña si y sólo si la previa lo dijo");
   assert.deepEqual(nueva.jugadores.map((j) => j.nombre), ["Ana Prueba", "Beto", "Caro", "Dani"], "hasta 4 jugadores, sin vacíos");
   assert.match(r.mensaje, /Turno de Ana Prueba en Cancha 1/);
 

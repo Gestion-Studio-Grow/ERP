@@ -397,3 +397,18 @@ export function compartirCuenta(previa: VistaCuenta | null | undefined, nueva: V
   });
   return { ...nueva, jugadores };
 }
+
+/**
+ * Al tocar «Sí, usar $X de créditos» se vuelve a calcular: si entre que se mostró la confirmación y el toque cambió
+ * el monto (un «Deshacer», una extensión, otro cobro) o ya no alcanzan, NO se cobra lo viejo: se vuelve a pedir la
+ * confirmación con el monto nuevo, o se dice por qué no. Pura.
+ */
+export type Revision<D> = { tipo: "seguir" } | { tipo: "otra"; datos: D } | { tipo: "no"; motivo: string };
+
+export function revisarConfirmacion<D extends { usa: number; creditos: number; quedan: number }>(mostrada: D, ahora: ({ ok: true } & D) | { ok: false; motivo: string }): Revision<D> {
+  if (!ahora.ok) return { tipo: "no", motivo: ahora.motivo };
+  if (ahora.usa === mostrada.usa && ahora.creditos === mostrada.creditos && ahora.quedan === mostrada.quedan) return { tipo: "seguir" };
+  const { ok: _ok, ...datos } = ahora;
+  void _ok;
+  return { tipo: "otra", datos: datos as unknown as D };
+}

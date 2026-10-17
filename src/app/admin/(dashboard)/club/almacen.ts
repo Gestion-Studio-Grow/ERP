@@ -100,6 +100,18 @@ export function operadorDeLaDemo(estado: EstadoClub, rol: RolDelPanel): { usuari
   return u ? { usuario: u, auth: { usuarioId: u.id, pin: u.pin } } : null;
 }
 
+/** Cuánto dura «Deshacer» (como el aviso del club vanilla: 6 s). */
+export const DESHACER_MS = 6000;
+
+/**
+ * ¿Todavía se puede deshacer? Sólo dentro de los 6 s del aviso: después, lo hecho queda (un cobro de hace 20 minutos
+ * no puede desaparecer de la caja con un toque). Además se olvida al cerrar la cuenta o cambiar de solapa
+ * (`olvidarDeshacer`). Pura: el reloj se inyecta.
+ */
+export function deshacerVigente(desdeMs: number | null, ahoraMs: number): boolean {
+  return desdeMs !== null && ahoraMs >= desdeMs && ahoraMs - desdeMs < DESHACER_MS;
+}
+
 /** Lo que pasó con la última acción: el aviso, y si se puede deshacer. */
 export interface AvisoDelClub {
   /** Sube con cada aviso (para que el lector de pantalla lo vuelva a anunciar aunque el texto se repita). */
@@ -141,8 +153,12 @@ export interface Almacen {
   ejecutar(accion: (estado: EstadoClub, ahora: Ahora, auth: Auth) => Desenlace, opciones?: { deshacible?: boolean }): Desenlace;
   /** Deja un aviso sin tocar el estado (un control previo de la pantalla que dijo que no). No anula «Deshacer». */
   informar(d: Desenlace): void;
-  /** Vuelve el estado a como estaba antes de la última acción deshacible. */
+  /** Vuelve el estado a como estaba antes de la última acción deshacible (si no venció: `deshacerVigente`). */
   deshacer(): void;
+  /** ¿Hay algo para deshacer todavía? */
+  puedeDeshacer(): boolean;
+  /** Se cerró la cuenta o se cambió de solapa: lo hecho queda. */
+  olvidarDeshacer(): void;
   aviso(): AvisoDelClub | null;
 }
 
@@ -153,11 +169,20 @@ export interface OpcionesAlmacen {
   /** Cuánto se espera para agrupar el guardado. 0 = guardar en el acto. */
   demoraGuardadoMs?: number;
   reloj?: () => number;
+  /** Para vencer «Deshacer» a los 6 s (se reemplaza en los tests). */
+  programar?: (fn: () => void, ms: number) => unknown;
   /** El rol del ERP de quien mira: decide con qué usuario del club opera la demo. */
   rol?: RolDelPanel;
 }
 
-export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, reloj = Date.now, rol = "RECEPTION" }: OpcionesAlmacen): Almacen {
+/** setTimeout que no retiene el proceso (en Node, para los tests); en el navegador es el de siempre. */
+function programarSinRetener(fn: () => void, ms: number): unknown {
+  const t = setTimeout(fn, ms) as unknown as { unref?: () => void };
+  t.unref?.();
+  return t;
+}
+
+export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, reloj = Date.now, programar = programarSinRetener, rol = "RECEPTION" }: OpcionesAlmacen): Almacen {
   const previo = leerDemo(guardado, clave, hoy);
   let estado = previo ?? demoDelDia(hoy);
   let retomo = previo !== null;
@@ -180,9 +205,20 @@ export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, rel
   };
   let aviso: AvisoDelClub | null = null;
   let fotoPrevia: FotoEstado | null = null;
+  let fotoDesde: number | null = null;
   let mensajePrevio = "";
   let idAviso = 0;
   const quien = () => operadorDeLaDemo(estado, rol);
+  /** Suelta la foto de «Deshacer» y apaga el botón del aviso. */
+  const soltarFoto = () => {
+    const habia = fotoPrevia !== null;
+    fotoPrevia = null;
+    fotoDesde = null;
+    if (habia && aviso?.deshacer) {
+      aviso = { ...aviso, deshacer: false };
+      avisar();
+    }
+  };
 
   return {
     estado: () => estado,
@@ -221,20 +257,32 @@ export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, rel
       // Sólo se deshace la ÚLTIMA acción. Si ésta no se puede deshacer, o falló (el motor puede haber cobrado una
       // parte antes de decir que no), lo de antes ya no se deshace: volver a una foto vieja pisaría lo que pasó.
       fotoPrevia = d.ok && foto ? foto : null;
-      if (fotoPrevia) mensajePrevio = d.mensaje;
+      fotoDesde = fotoPrevia ? reloj() : null;
+      if (fotoPrevia) {
+        mensajePrevio = d.mensaje;
+        const esta = fotoPrevia;
+        // A los 6 s se apaga solo (si nadie hizo otra cosa antes).
+        programar(() => {
+          if (fotoPrevia === esta) soltarFoto();
+        }, DESHACER_MS);
+      }
       aviso = { id: ++idAviso, ok: d.ok, mensaje: d.mensaje, deshacer: d.ok && fotoPrevia !== null };
       avisar();
       programarGuardado();
       return d;
     },
     informar(d) {
-      aviso = { id: ++idAviso, ok: d.ok, mensaje: d.mensaje, deshacer: fotoPrevia !== null };
+      aviso = { id: ++idAviso, ok: d.ok, mensaje: d.mensaje, deshacer: fotoPrevia !== null && deshacerVigente(fotoDesde, reloj()) };
       avisar();
     },
+    puedeDeshacer: () => fotoPrevia !== null && deshacerVigente(fotoDesde, reloj()),
+    olvidarDeshacer: () => soltarFoto(),
     deshacer() {
       if (!fotoPrevia) return;
+      if (!deshacerVigente(fotoDesde, reloj())) return soltarFoto();
       const h = hidratarEstado(fotoPrevia);
       fotoPrevia = null;
+      fotoDesde = null;
       if (!h.ok) {
         aviso = { id: ++idAviso, ok: false, mensaje: "No se pudo deshacer.", deshacer: false };
       } else {
@@ -255,6 +303,7 @@ export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, rel
       estado = demoDelDia(hoy);
       retomo = false;
       fotoPrevia = null;
+      fotoDesde = null;
       aviso = { id: ++idAviso, ok: true, mensaje: "Listo: volviste a la demo de hoy, como recién abierta.", deshacer: false };
       avisar();
     },

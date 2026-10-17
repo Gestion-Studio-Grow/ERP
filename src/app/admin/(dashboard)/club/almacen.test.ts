@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
-import { claveDeLaDemo, crearAlmacen, leerDemo, MINUTO_DEMO, operadorDeLaDemo, type Guardado } from "./almacen";
+import { DESHACER_MS, claveDeLaDemo, crearAlmacen, deshacerVigente, leerDemo, MINUTO_DEMO, operadorDeLaDemo, type Guardado } from "./almacen";
 import { armarAgenda, compartirAgenda } from "./agenda-core";
 import { armarCuenta, ejecutar } from "./cuenta-core";
 
@@ -192,4 +192,43 @@ test("el operador de la demo sale del rol del ERP: OWNER opera como un dueño, e
   assert.equal(operadorDeLaDemo(e, "RECEPTION")!.usuario.rol, "recepcion");
   const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), guardado: null, rol: "OWNER" });
   assert.equal(a.auth().usuarioId, operadorDeLaDemo(a.estado(), "OWNER")!.usuario.id);
+});
+
+test("«Deshacer» vence a los 6 s (reloj inyectado): un cobro de hace 20 minutos no desaparece de la caja", () => {
+  assert.equal(deshacerVigente(null, 0), false);
+  assert.equal(deshacerVigente(1000, 1000), true);
+  assert.equal(deshacerVigente(1000, 1000 + DESHACER_MS - 1), true);
+  assert.equal(deshacerVigente(1000, 1000 + DESHACER_MS), false);
+  assert.equal(deshacerVigente(1000, 999), false, "un reloj que vuelve atrás no habilita nada");
+
+  let t = 0;
+  const pendientes: (() => void)[] = [];
+  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), guardado: null, demoraGuardadoMs: 0, reloj: () => t, programar: (fn) => pendientes.push(fn) });
+  const r = enJuego(a.estado());
+  a.ejecutar((e, ahora, auth) => ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 1, medio: "efectivo" }, ahora, auth), { deshacible: true });
+  const caja = M.resumenCaja(a.estado()).ingresos;
+  assert.equal(a.puedeDeshacer(), true);
+  t = 20 * 60 * 1000; // 20 minutos después
+  assert.equal(a.puedeDeshacer(), false);
+  a.deshacer();
+  assert.equal(M.resumenCaja(a.estado()).ingresos, caja, "el cobro sigue en la caja");
+  assert.equal(a.aviso()!.deshacer, false, "y el botón se apagó");
+
+  // El temporizador de 6 s apaga el botón aunque nadie toque nada.
+  t = 0;
+  a.ejecutar((e, ahora, auth) => ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 2, medio: "efectivo" }, ahora, auth), { deshacible: true });
+  assert.equal(a.aviso()!.deshacer, true);
+  const v = a.version();
+  pendientes.at(-1)!();
+  assert.equal(a.aviso()!.deshacer, false);
+  assert.ok(a.version() > v, "avisa para que la barra se repinte");
+  // Un temporizador viejo no apaga el deshacer de una acción nueva.
+  a.ejecutar((e, ahora, auth) => ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 3, medio: "efectivo" }, ahora, auth), { deshacible: true });
+  pendientes[0]();
+  assert.equal(a.puedeDeshacer(), true);
+
+  // Cerrar la cuenta o cambiar de solapa: lo hecho queda.
+  a.olvidarDeshacer();
+  assert.equal(a.puedeDeshacer(), false);
+  assert.equal(a.aviso()!.deshacer, false);
 });

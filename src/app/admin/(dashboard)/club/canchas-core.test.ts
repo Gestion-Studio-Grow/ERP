@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import { DIAS_A_LA_VISTA, armarCanchas, armarEspera, armarFijos, bajarFijos, ejecutarCanchas, ejecutarEspera, horasDelDia, nuevoFijo } from "./canchas-core";
+import { DIAS_A_LA_VISTA, SE_DESHACE, bajaFijo, armarCanchas, armarEspera, armarFijos, bajarFijos, ejecutarCanchas, ejecutarEspera, horasDelDia, nuevoFijo } from "./canchas-core";
 import { armarAgenda } from "./agenda-core";
 
 const HOY = "2026-10-17";
@@ -85,4 +85,22 @@ test("lista de espera: los huecos que le sirven (ventana, duración, techada) y 
   assert.ok(!armarEspera(e, AHORA).espera.some((x) => x.id === ana.id));
   assert.equal(ejecutarEspera(e, { tipo: "quitar", esperaId: ana.id }, AHORA).ok, false);
   assert.equal(ejecutarEspera(e, { tipo: "anotar", titular: "", clienteId: null, fecha: manana, desde: 1, hasta: 2, duracion: 60, soloCubierta: false }, AHORA).ok, false);
+});
+
+test("qué se deshace, como en el club vanilla: ni lluvia, ni mantenimiento, ni bloqueos, ni fijos, ni sacar de la espera", () => {
+  for (const k of ["lluvia", "mantenimiento", "bloquear", "quitarBloqueo", "nuevoFijo", "bajarFijos", "bajaFijo", "quitar"] as const) assert.equal(SE_DESHACE[k], false, k);
+  for (const k of ["anotar", "asignar"] as const) assert.equal(SE_DESHACE[k], true, k);
+});
+
+test("dar de baja un fijo (la inversa de crearlo): libera sus turnos sin jugar con la regla de «cancela el club» y sale de la lista", () => {
+  const e = demo();
+  const f = e.fijos[0];
+  for (let d = 0; d < 7; d++) M.materializarFijos(e, M.sumarDias(HOY, d));
+  const futuros = e.reservas.filter((r) => r.fijoId === f.id && r.estado === "reservada" && r.fecha >= HOY);
+  assert.ok(futuros.length > 0);
+  const d = bajaFijo(e, f.id, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.ok(!e.fijos.some((x) => x.id === f.id));
+  assert.ok(futuros.every((r) => r.estado === "cancelada"));
+  assert.equal(bajaFijo(e, f.id, AHORA).ok, false);
 });
