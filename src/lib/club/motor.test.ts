@@ -72,10 +72,12 @@ const FUNCIONES = [
   // Clientes y Tablero del dueño (solapas de la sesión del club).
   "editarCliente", "bajaCliente", "bajaNovedades", "solicitarAcceso", "otorgarAcceso", "rechazarAcceso",
   "solicitarCC", "configurarCC", "estadoDeCuenta", "kpis", "mapaDeCalor", "metricasPlatos", "mensajeWhatsApp", "linkWhatsApp",
+  // Archivo de días cerrados (la jornada no llena el almacenamiento).
+  "diaParaArchivar", "archivarDiasCerrados", "plataPorDia",
 ] as const satisfies readonly Funciones[];
 const CONSTANTES = [
   "VERSION_ESTADO", "MEDIOS", "ESTADOS", "TIPOS", "ROLES", "PERMISOS", "NOMBRE_DIA",
-  "CONFIG_DEMO", "CANCHAS_DEMO", "USUARIOS_DEMO", "USUARIOS_REALES", "PRODUCTOS_DEMO", "PROVEEDORES_DEMO",
+  "CONFIG_DEMO", "CANCHAS_DEMO", "USUARIOS_DEMO", "USUARIOS_REALES", "PRODUCTOS_DEMO", "PROVEEDORES_DEMO", "DIAS_SIN_ARCHIVAR",
 ] as const satisfies readonly Exclude<keyof Motor, Funciones>[];
 
 // Comprobación de tipos en los dos sentidos: ninguna función ni constante tipada queda afuera de las listas.
@@ -89,7 +91,8 @@ type Requeridas<T> = { [K in keyof T]-?: object extends Pick<T, K> ? never : K }
 function claves<T>() {
   return <const L extends readonly (keyof T)[]>(lista: L & ([Exclude<keyof T, L[number]>] extends [never] ? unknown : never)) => lista;
 }
-const CLAVES_ESTADO = claves<EstadoClub>()([
+// `archivo` es opcional: aparece recién cuando se archivan días cerrados (archivarDiasCerrados).
+const CLAVES_ESTADO = claves<Omit<EstadoClub, "archivo">>()([
   "config", "canchas", "clientes", "productos", "usuarios", "reservas", "cuentas", "caja", "novedades", "bloqueos", "luces", "clima",
   "proveedores", "solicitudesAcceso", "difusiones", "pedidos", "fijos", "espera", "remitos", "pagosProveedor", "contenido", "log",
 ]);
