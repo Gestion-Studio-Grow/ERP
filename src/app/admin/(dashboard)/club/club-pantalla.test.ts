@@ -232,14 +232,22 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     const { page, errores } = await montar();
     const etiqueta = () => page.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? "");
     await turnoDeMartin(page).focus();
+    // Turnos y huecos libres son celdas de la misma grilla: abajo de Martín (hasta las 19:00) está el hueco de las 19:00.
     await page.keyboard.press("ArrowDown");
-    assert.match(await etiqueta(), /, Cancha 1, de 20:30/, "el turno siguiente de la Cancha 1");
+    assert.equal(await etiqueta(), "Cancha 1, 19:00, libre: reservar");
     await page.keyboard.press("ArrowUp");
     assert.match(await etiqueta(), /^Martín Ríos, Cancha 1/);
     await page.keyboard.press("ArrowRight");
-    assert.match(await etiqueta(), /, Cancha 2, de 18:30/, "el de la Cancha 2 que se superpone");
+    assert.equal(await etiqueta(), "Cancha 2, 18:00, libre: reservar", "lo de la Cancha 2 a la misma altura");
+    await page.keyboard.press("ArrowDown");
+    assert.match(await etiqueta(), /^Julieta Acosta, Cancha 2, de 18:30/);
     await page.keyboard.press("Enter");
     await page.getByRole("region", { name: "Julieta Acosta" }).waitFor();
+    // Enter en un hueco libre da un turno ahí.
+    await page.getByRole("button", { name: "Cancha 3, 23:30, libre: reservar" }).focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("region", { name: "Dar un turno" }).waitFor();
+    assert.equal(await page.getByRole("region", { name: "Dar un turno" }).getByLabel("Cancha").inputValue(), "c3");
     assert.deepEqual(errores, []);
     await page.close();
   });
@@ -255,16 +263,14 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
       const chicos = await page.evaluate(() =>
         [...document.querySelectorAll("button, select, label:has(input[type=radio])")]
           .map((el) => ({ el, r: el.getBoundingClientRect() }))
-          // Las franjas libres de la grilla son un atajo de 28 px (WCAG 2.5.8 pide 24): el camino de 44 px es «+ Turno».
-          .filter(({ el }) => !(el.getAttribute("aria-label") ?? "").endsWith("libre: reservar"))
           .filter(({ r }) => r.width > 0 && (r.height < 44 || r.width < 44))
           .map(({ el, r }) => `${(el.getAttribute("aria-label") ?? el.textContent ?? "").slice(0, 40)} (${Math.round(r.width)}×${Math.round(r.height)})`),
       );
       assert.deepEqual(chicos, [], `a ${viewport.width} px hay objetivos de menos de 44 px`);
-      for (const solapa of ["Buffet", "Caja"]) {
+      for (const solapa of ["Fijos y espera", "Mantenimiento y lluvia", "Buffet", "Caja"]) {
         await page.getByRole("tab", { name: solapa }).click();
         const chicosSolapa = await page.evaluate(() =>
-          [...document.querySelectorAll("[role=tabpanel] button, [role=tabpanel] select, [role=tabpanel] input:not([type=radio]), [role=tabpanel] label:has(input[type=radio])")]
+          [...document.querySelectorAll("[role=tabpanel] button, [role=tabpanel] select, [role=tabpanel] input:not([type=radio]):not([type=checkbox]), [role=tabpanel] label:has(input[type=radio]), [role=tabpanel] label:has(input[type=checkbox])")]
             .map((el) => ({ el, r: el.getBoundingClientRect() }))
             .filter(({ r }) => r.width > 0 && (r.height < 44 || r.width < 44))
             .map(({ el, r }) => `${(el.getAttribute("aria-label") ?? el.textContent ?? "").slice(0, 40)} (${Math.round(r.width)}×${Math.round(r.height)})`),
@@ -406,6 +412,56 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
       await page.getByRole("status").filter({ hasText: /^Caja del .* cerrada/ }).waitFor();
     }
     await page.getByRole("heading", { name: "Cierres" }).waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+  test("ciclo del turno: mover (repinta sólo lo que cambió), cancelar con su previa, plan lluvia, turno fijo y lista de espera", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar();
+    // Mover a Gonzalo Vera (Cancha 4, 22:30) a otra hora de la misma cancha.
+    await page.getByRole("button", { name: /^Gonzalo Vera, Cancha 4, de 22:30/ }).click();
+    const cuenta = page.getByRole("region", { name: "Gonzalo Vera" });
+    await cuenta.getByRole("button", { name: "Mover" }).click();
+    await cuenta.getByLabel("A la cancha").selectOption({ label: "Cancha 2" });
+    const antes = await renders(page);
+    await cuenta.getByRole("button", { name: "Pasar el turno ahí" }).click();
+    await page.getByRole("status").filter({ hasText: /^Gonzalo Vera pasó a Cancha 2/ }).waitFor();
+    const porMover = resta(await renders(page), antes);
+    t.diagnostic(`renders por mover un turno: ${JSON.stringify(porMover)}`);
+    assert.equal(porMover.BloqueTurno ?? 0, 1, "se repinta sólo el turno movido");
+    assert.ok((porMover.Franja ?? 0) <= 12, `huecos repintados: ${porMover.Franja}`);
+
+    // Cancelar a Agustina Romero (con ficha, faltan menos de 12 h): la previa dice qué pasa con lo pagado.
+    await page.getByRole("button", { name: /^Agustina Romero, Cancha 4/ }).click();
+    const agus = page.getByRole("region", { name: "Agustina Romero" });
+    await agus.getByRole("button", { name: "Cancelar el turno" }).first().click();
+    await agus.getByRole("status").filter({ hasText: /No pagó nada|en suspenso|crédito/ }).waitFor();
+    await agus.getByLabel("Cancela el club (lo pagado vuelve siempre)").check();
+    await agus.getByRole("button", { name: "Cancelar el turno" }).last().click();
+    await page.getByRole("status").filter({ hasText: /^Turno de Agustina Romero cancelado\./ }).waitFor();
+    await page.getByText(/Cancelados, suspendidos y faltas de este día \(1\)/).waitFor();
+
+    // Plan lluvia: la previa y aplicarlo.
+    await page.getByRole("tab", { name: "Mantenimiento y lluvia" }).click();
+    await page.getByLabel("Llueve desde").selectOption({ label: "19:30" });
+    await page.getByRole("button", { name: "Ver qué pasa con cada turno" }).click();
+    await page.getByRole("list", { name: "Qué pasa con cada turno" }).getByText(/Grupo de Bruno/).waitFor();
+    await page.getByRole("button", { name: "Aplicar el plan lluvia" }).click();
+    await page.getByRole("status").filter({ hasText: /^Plan lluvia: \d+ movidos a techada/ }).waitFor();
+
+    // Turno fijo nuevo y lista de espera.
+    await page.getByRole("tab", { name: "Fijos y espera" }).click();
+    const fijo = page.getByRole("region", { name: "Nuevo turno fijo" });
+    await fijo.getByLabel("A nombre de").fill("Fijo de prueba");
+    await fijo.getByLabel("Día").selectOption({ label: "Martes" });
+    await fijo.getByLabel("Hora").selectOption({ label: "09:00" });
+    await fijo.getByRole("button", { name: "Crear el turno fijo" }).click();
+    await page.getByRole("status").filter({ hasText: /^Turno fijo de Fijo de prueba los martes a las 09:00\./ }).waitFor();
+    await page.getByText(/Fijo de prueba · martes 09:00/).waitFor();
+    const daniela = page.getByRole("group", { name: /^Huecos que le sirven a Daniela Navarro/ });
+    await daniela.getByRole("button").first().click();
+    await page.getByRole("status").filter({ hasText: /^Turno para Daniela Navarro .* Salió de la lista de espera\./ }).waitFor();
+    await page.getByRole("region", { name: "Daniela Navarro" }).waitFor();
     assert.deepEqual(errores, []);
     await page.close();
   });

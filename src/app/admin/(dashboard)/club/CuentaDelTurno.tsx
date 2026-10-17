@@ -43,6 +43,7 @@ import {
   type VistaCuenta,
 } from "./cuenta-core";
 import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
+import CicloDelTurno from "./CicloDelTurno";
 import { useSeleccion } from "./usar-almacen";
 
 function SelectorACargo({
@@ -434,7 +435,15 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
           «La mesa sigue»: se cobra la cancha y queda libre para el turno siguiente. Los cargos siguen abiertos y se cobran cuando se van.
         </p>
       )}
-      <SumarCargo almacen={almacen} vista={vista} medio={medio} onAccion={onAccion} />
+      {vista.abierto && <SumarCargo almacen={almacen} vista={vista} medio={medio} onAccion={onAccion} />}
+      <CicloDelTurno
+        almacen={almacen}
+        reservaId={vista.reservaId}
+        onListo={() => {
+          // Si el turno salió de la grilla (cancelado, no vino), la cuenta ya no tiene nada que mostrar.
+          if (!armarCuenta(almacen.estado(), reservaId)) onVolver();
+        }}
+      />
     </section>
   );
 }

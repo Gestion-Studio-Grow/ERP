@@ -19,12 +19,15 @@ import { DURACIONES, TIPOS_ALTA, clientesQueCoinciden, horariosLibres, previaDel
 
 export default function AltaDeTurno({
   almacen,
+  fecha,
   canchaInicial,
   inicioInicial,
   onListo,
   onVolver,
 }: {
   almacen: Almacen;
+  /** El día de la agenda donde se da el turno. */
+  fecha: string;
   canchaInicial: string;
   inicioInicial: number | null;
   onListo: (reservaId: string) => void;
@@ -33,7 +36,6 @@ export default function AltaDeTurno({
   // Se vuelve a pintar si el almacén cambia (otro toque, «Deshacer»): los horarios libres son los de ahora.
   useSyncExternalStore(almacen.suscribir, almacen.version, almacen.version);
   const estado = almacen.estado();
-  const fecha = almacen.ahora().fecha;
   const [canchaId, setCanchaId] = useState(canchaInicial);
   const [duracion, setDuracion] = useState<number>(estado.config.duracionTurno);
   const libres = horariosLibres(estado, fecha, canchaId, duracion, almacen.ahora());
@@ -118,7 +120,7 @@ export default function AltaDeTurno({
               Hora
             </label>
             <Select id={ids.hora} value={horaValida ?? ""} onChange={(e) => setInicio(Number(e.target.value))} disabled={libres.length === 0}>
-              {libres.length === 0 && <option value="">No queda lugar hoy</option>}
+              {libres.length === 0 && <option value="">No queda lugar ese día</option>}
               {libres.map((h) => (
                 <option key={h.min} value={h.min}>
                   {h.texto}

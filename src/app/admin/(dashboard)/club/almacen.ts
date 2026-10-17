@@ -24,9 +24,16 @@
 //
 // Corre sólo en el navegador: el motor guarda su contador de ids a nivel de módulo.
 
-import { generarDemo, hidratarEstado, serializarEstado } from "@/lib/club/motor.mjs";
+import { generarDemo, hidratarEstado, materializarFijos, serializarEstado, sumarDias } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub, Fecha, FotoEstado, Usuario } from "@/lib/club/motor.mjs";
 import type { Role } from "@/lib/capabilities";
+
+/** La demo del día con los turnos fijos ya bajados a la semana que muestra la agenda (como el club vanilla). */
+function demoDelDia(hoy: Fecha): EstadoClub {
+  const e = generarDemo(hoy, MINUTO_DEMO);
+  for (let d = 1; d < 7; d++) materializarFijos(e, sumarDias(hoy, d));
+  return e;
+}
 
 /** El reloj de la demo: la jornada del club a las 19:10, con turnos en juego y mesas abiertas. */
 export const MINUTO_DEMO = 19 * 60 + 10;
@@ -125,6 +132,8 @@ export interface Almacen {
   /** Con qué usuario del club opera la demo (ver `operadorDeLaDemo`). */
   auth(): Auth;
   operador(): string;
+  /** El rol del ERP de quien mira (algunas decisiones son de un dueño: perdonar una falta). */
+  rol(): RolDelPanel;
   /**
    * Corre una acción de la pantalla, deja el aviso y, si salió bien y es `deshacible`, guarda la foto de antes para
    * «Deshacer» (sólo la ÚLTIMA acción, como el club vanilla con PREVIO/UNDO).
@@ -150,7 +159,7 @@ export interface OpcionesAlmacen {
 
 export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, reloj = Date.now, rol = "RECEPTION" }: OpcionesAlmacen): Almacen {
   const previo = leerDemo(guardado, clave, hoy);
-  let estado = previo ?? generarDemo(hoy, MINUTO_DEMO);
+  let estado = previo ?? demoDelDia(hoy);
   let retomo = previo !== null;
   const ahora: Ahora = { fecha: hoy, min: MINUTO_DEMO };
   let version = 0;
@@ -198,6 +207,7 @@ export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, rel
     },
     auth: () => quien()?.auth ?? {},
     operador: () => quien()?.usuario.nombre ?? "",
+    rol: () => rol,
     aviso: () => aviso,
     ejecutar(accion, { deshacible = false } = {}) {
       const foto = deshacible ? serializarEstado(estado) : null;
@@ -242,7 +252,7 @@ export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, rel
       } catch {
         // sin almacenamiento: alcanza con rearmarla en memoria
       }
-      estado = generarDemo(hoy, MINUTO_DEMO);
+      estado = demoDelDia(hoy);
       retomo = false;
       fotoPrevia = null;
       aviso = { id: ++idAviso, ok: true, mensaje: "Listo: volviste a la demo de hoy, como recién abierta.", deshacer: false };

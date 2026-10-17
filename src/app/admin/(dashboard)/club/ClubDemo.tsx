@@ -5,10 +5,13 @@
 // ============================================================================
 //
 // Arma el almacén UNA vez por visita (el motor del club, con la demo del día o lo que esta persona
-// dejó en este equipo) y reparte la recepción en tres solapas:
+// dejó en este equipo) y reparte la recepción en cinco solapas:
 //   · Agenda: la grilla de canchas y, al lado, lo que se abre: la cuenta de un turno o «Dar un turno».
 //     En la tablet apaisada y en la PC van lado a lado (la agenda a la vista mientras se cobra); en el
 //     celular, una debajo de la otra, y lo abierto se lleva el foco.
+//     Arriba, el día (hoy y la semana); abajo, lo cancelado, suspendido o la falta, con lo que haya que devolver.
+//   · Fijos y espera: los turnos fijos semanales y la lista de espera con los huecos que le sirven.
+//   · Mantenimiento y lluvia: plan lluvia con su previa, canchas en mantenimiento y bloqueos de horario.
 //   · Buffet: mesas que siguen cargando, cuentas abiertas, cargar productos, fiar con el OK del dueño.
 //   · Caja: la caja de 12 a 12, egresos y cierre.
 // Las solapas son estado del navegador (no enlaces): la demo no le pide nada al servidor.
@@ -23,12 +26,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/components/ui/cn";
-import { hhmm } from "@/lib/club/motor.mjs";
+import { hhmm, reserva as reservaDe } from "@/lib/club/motor.mjs";
 import { claveDeLaDemo, crearAlmacen, type Guardado, type RolDelPanel } from "./almacen";
 import AgendaCanchas from "./AgendaCanchas";
 import AltaDeTurno from "./AltaDeTurno";
+import { DiasDeLaAgenda, FueraDeLaGrilla } from "./AgendaExtras";
 import BuffetDelClub from "./BuffetDelClub";
 import CajaDelClub from "./CajaDelClub";
+import CanchasDelClub from "./CanchasDelClub";
+import FijosYEspera from "./FijosYEspera";
 import CuentaDelTurno from "./CuentaDelTurno";
 import { AvisosDelClub } from "./piezas";
 
@@ -48,9 +54,11 @@ function guardadoDelEquipo(): Guardado | null {
   }
 }
 
-type Solapa = "agenda" | "buffet" | "caja";
+type Solapa = "agenda" | "fijos" | "canchas" | "buffet" | "caja";
 const SOLAPAS: readonly { id: Solapa; etiqueta: string }[] = [
   { id: "agenda", etiqueta: "Agenda" },
+  { id: "fijos", etiqueta: "Fijos y espera" },
+  { id: "canchas", etiqueta: "Mantenimiento y lluvia" },
   { id: "buffet", etiqueta: "Buffet" },
   { id: "caja", etiqueta: "Caja" },
 ];
@@ -61,6 +69,8 @@ export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; u
   const [almacen] = useState(() => crearAlmacen({ hoy: hoyLocal(), clave: claveDeLaDemo(negocio, usuario), guardado: guardadoDelEquipo(), rol }));
   const [solapa, setSolapa] = useState<Solapa>("agenda");
   const [panel, setPanel] = useState<Panel>(null);
+  const hoy = almacen.ahora().fecha;
+  const [dia, setDia] = useState(hoy);
   const botones = useRef<Partial<Record<Solapa, HTMLButtonElement | null>>>({});
 
   // Lo pendiente de guardar se escribe al salir de la página o al pasar a otra app.
@@ -86,9 +96,19 @@ export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; u
     // El foco vuelve al turno desde el que se abrió la cuenta.
     if (abiertoId) requestAnimationFrame(() => document.getElementById(`turno-${abiertoId}`)?.focus());
   }, [abiertoId]);
-  const verTurno = useCallback((id: string) => {
-    setSolapa("agenda");
-    setPanel({ tipo: "cuenta", id });
+  // Abrir la cuenta de un turno desde otra solapa (una mesa, la lista de espera): en el día de ese turno.
+  const verTurno = useCallback(
+    (id: string) => {
+      const r = reservaDe(almacen.estado(), id);
+      if (r) setDia(r.fecha);
+      setSolapa("agenda");
+      setPanel({ tipo: "cuenta", id });
+    },
+    [almacen],
+  );
+  const elegirDia = useCallback((d: string) => {
+    setDia(d);
+    setPanel(null);
   }, []);
 
   // Solapas con flechas (patrón de tablist): ←/→ cambian y llevan el foco.
@@ -151,14 +171,19 @@ export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; u
       <div role="tabpanel" id={`club-panel-${solapa}`} aria-labelledby={`club-solapa-${solapa}`}>
         {solapa === "agenda" && (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
-            <AgendaCanchas almacen={almacen} abierto={abiertoId} onAbrir={onAbrir} onReservar={onReservar} />
+            <div className="flex min-w-0 flex-col gap-3">
+              <DiasDeLaAgenda hoy={hoy} dia={dia} onDia={elegirDia} />
+              <AgendaCanchas almacen={almacen} dia={dia} abierto={abiertoId} onAbrir={onAbrir} onReservar={onReservar} />
+              <FueraDeLaGrilla almacen={almacen} dia={dia} />
+            </div>
             <div className="lg:sticky lg:top-4 lg:self-start">
               {panel?.tipo === "cuenta" ? (
                 <CuentaDelTurno key={panel.id} almacen={almacen} reservaId={panel.id} onVolver={onVolver} />
               ) : panel?.tipo === "alta" ? (
                 <AltaDeTurno
-                  key={`${panel.canchaId}@${panel.inicio}`}
+                  key={`${dia}:${panel.canchaId}@${panel.inicio}`}
                   almacen={almacen}
+                  fecha={dia}
                   canchaInicial={panel.canchaId}
                   inicioInicial={panel.inicio}
                   onListo={onAbrir}
@@ -172,6 +197,8 @@ export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; u
             </div>
           </div>
         )}
+        {solapa === "fijos" && <FijosYEspera almacen={almacen} onVerTurno={verTurno} />}
+        {solapa === "canchas" && <CanchasDelClub almacen={almacen} dia={dia} />}
         {solapa === "buffet" && <BuffetDelClub almacen={almacen} onVerTurno={verTurno} />}
         {solapa === "caja" && <CajaDelClub almacen={almacen} />}
       </div>

@@ -26,13 +26,12 @@ import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { useSeleccion } from "./usar-almacen";
 
-/** Alto de una franja de la grilla. Un turno de 60′ (2 franjas de 30′) mide 56 px: piso táctil. */
-const FILA_REM = 1.75;
+/** Alto de una franja de la grilla: 44 px, el piso táctil de la tablet de recepción (también el de un hueco libre). */
+const FILA_REM = 2.75;
 const FILA = `${FILA_REM}rem`;
 
 const FLECHAS: Record<string, Direccion> = { ArrowUp: "arriba", ArrowDown: "abajo", ArrowLeft: "izquierda", ArrowRight: "derecha" };
 
-const seleccionarAgenda = (e: EstadoClub, a: Ahora) => armarAgenda(e, a.fecha, a);
 const compartir = (previa: VistaAgenda | undefined, nueva: VistaAgenda) => compartirAgenda(previa ?? null, nueva);
 
 /** Cómo se ve cada estado: fondo y borde por token (la marca dice el estado en palabras). */
@@ -51,7 +50,7 @@ const BloqueTurno = memo(function BloqueTurno({ celda, activo, onAbrir }: { celd
       <button
         type="button"
         id={`turno-${celda.id}`}
-        data-turno={celda.id}
+        data-celda={celda.id}
         onClick={() => onAbrir(celda.id)}
         aria-label={`${celda.etiqueta}. Abrir la cuenta del turno`}
         aria-current={activo ? "true" : undefined}
@@ -79,24 +78,40 @@ const BloqueTurno = memo(function BloqueTurno({ celda, activo, onAbrir }: { celd
 });
 
 /**
- * Una franja libre: tocarla abre el alta desde esa hora. Es un atajo para el dedo o el mouse (mide una franja,
- * 28 px: pasa el mínimo de 24 px de WCAG 2.5.8, no el piso de 44 de la casa). Fuera del orden del Tab (serían cien paradas): con el
- * teclado se da un turno con «+ Turno», que tiene los mismos horarios en una lista.
+ * Una franja libre: tocarla abre el alta desde esa hora. Mide una franja (44 px, como todo lo que se toca en la
+ * tablet). Entra a la navegación con flechas de la grilla; con Tab se llega a los turnos (y, en un día vacío, al
+ * primer hueco), así no son cien paradas de Tab.
  */
-const Franja = memo(function Franja({ franja, onReservar }: { franja: FranjaLibre; onReservar: (canchaId: string, min: number) => void }) {
+const Franja = memo(function Franja({
+  franja,
+  enTab,
+  onReservar,
+}: {
+  franja: FranjaLibre;
+  enTab: boolean;
+  onReservar: (canchaId: string, min: number) => void;
+}) {
   return (
-    <button
-      type="button"
-      tabIndex={-1}
-      onClick={() => onReservar(franja.canchaId, franja.min)}
-      aria-label={franja.etiqueta}
-      className="z-0 m-px flex items-center justify-center rounded text-xs text-faint hover:bg-accent-soft hover:text-strong"
-      style={{ gridColumn: franja.columna + 2, gridRow: `${franja.fila + 2} / span 1` }}
-    >
-      + {franja.hora}
-    </button>
+    <li className="flex min-w-0" style={{ gridColumn: franja.columna + 2, gridRow: `${franja.fila + 2} / span 1` }}>
+      <button
+        type="button"
+        id={idDeCelda(franja.id)}
+        data-celda={franja.id}
+        tabIndex={enTab ? 0 : -1}
+        onClick={() => onReservar(franja.canchaId, franja.min)}
+        aria-label={franja.etiqueta}
+        className="z-0 m-px flex min-h-11 w-full items-center justify-center rounded text-xs text-faint hover:bg-accent-soft hover:text-strong focus-visible:outline-2 focus-visible:outline-focus"
+      >
+        + {franja.hora}
+      </button>
+    </li>
   );
 });
+
+/** El id del DOM de una celda (turno o hueco libre), para mover el foco con las flechas. */
+function idDeCelda(id: string): string {
+  return id.includes("@") ? `libre-${id.replace("@", "-")}` : `turno-${id}`;
+}
 
 /** El fondo fijo de la grilla (encabezados, horas y franjas). Sólo cambia si cambian las canchas o el horario. */
 const FondoDeLaGrilla = memo(function FondoDeLaGrilla({ canchas, horas, filas }: Pick<VistaAgenda, "canchas" | "horas" | "filas">) {
@@ -143,17 +158,21 @@ const FondoDeLaGrilla = memo(function FondoDeLaGrilla({ canchas, horas, filas }:
 
 export default function AgendaCanchas({
   almacen,
+  dia,
   abierto,
   onAbrir,
   onReservar,
 }: {
   almacen: Almacen;
+  /** El día que se muestra ("AAAA-MM-DD"). */
+  dia: string;
   abierto: string | null;
   onAbrir: (id: string) => void;
   /** Dar un turno: en una cancha y desde una hora (null = la primera libre). */
   onReservar: (canchaId: string, min: number | null) => void;
 }) {
-  const vista = useSeleccion(almacen, seleccionarAgenda, compartir);
+  const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarAgenda(e, dia, a), [dia]);
+  const vista = useSeleccion(almacen, seleccionar, compartir);
   const marco = useRef<HTMLDivElement>(null);
   const yaUbicada = useRef(false);
 
@@ -169,20 +188,28 @@ export default function AgendaCanchas({
   }, [filaAhora]);
 
   const turnos = vista.turnos;
+  const libres = vista.libres;
   const alTeclear = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       const dir = FLECHAS[e.key];
-      const id = (e.target as HTMLElement).dataset?.turno;
+      const id = (e.target as HTMLElement).dataset?.celda;
       if (!dir || !id) return;
-      const destino = vecino(turnos, id, dir);
+      // Turnos y huecos libres son celdas de la misma grilla: las flechas pasan por los dos.
+      const destino = vecino([...turnos, ...libres.map((l) => ({ ...l, alto: 1 }))], id, dir);
       if (!destino) return;
       e.preventDefault();
-      document.getElementById(`turno-${destino}`)?.focus();
+      document.getElementById(idDeCelda(destino))?.focus();
     },
-    [turnos],
+    [turnos, libres],
   );
 
-  const porCancha = vista.canchas.map((c, i) => ({ cancha: c, turnos: turnos.filter((t) => t.columna === i) }));
+  const porCancha = vista.canchas.map((c, i) => ({
+    cancha: c,
+    turnos: turnos.filter((t) => t.columna === i),
+    libres: libres.filter((l) => l.columna === i),
+  }));
+  // Con Tab se entra a la grilla por los turnos; en un día sin turnos, por el primer hueco libre.
+  const primerLibreEnTab = turnos.length === 0 ? (libres[0]?.id ?? null) : null;
 
   return (
     <section aria-labelledby="club-agenda-titulo" className="min-w-0">
@@ -192,13 +219,13 @@ export default function AgendaCanchas({
         </h2>
         <div className="flex items-center gap-3">
           <p className="text-sm text-muted">{vista.resumen}</p>
-          <Button variant="solid" size="md" onClick={() => onReservar(vista.canchas[0]?.id ?? "", null)}>
+          <Button variant="solid" size="md" onClick={() => onReservar(vista.canchas.find((c) => !c.detalle.includes("mantenimiento"))?.id ?? vista.canchas[0]?.id ?? "", null)}>
             + Turno
           </Button>
         </div>
       </div>
       <p id="club-agenda-ayuda" className="sr-only">
-        Cada cancha es una lista de turnos. Con las flechas pasás al turno de arriba, de abajo o de la cancha de al lado. Enter abre la cuenta del turno.
+        Cada cancha es una lista de turnos y huecos libres. Con las flechas pasás al de arriba, al de abajo o a la cancha de al lado. Enter abre la cuenta del turno o da un turno en el hueco.
       </p>
       <div
         ref={marco}
@@ -223,9 +250,6 @@ export default function AgendaCanchas({
               <div className="absolute inset-x-0 border-t-2 border-danger" style={{ top: `calc(${filaAhora} * ${FILA})` }} />
             </div>
           )}
-          {vista.libres.map((f) => (
-            <Franja key={f.id} franja={f} onReservar={onReservar} />
-          ))}
           {vista.bloqueos.map((b) => (
             <div
               key={b.id}
@@ -236,10 +260,18 @@ export default function AgendaCanchas({
               <span className="truncate">{b.motivo}</span>
             </div>
           ))}
-          {porCancha.map(({ cancha, turnos: deLaCancha }) => (
-            <ul key={cancha.id} role="list" aria-label={`${cancha.nombre}, ${cancha.detalle}: ${deLaCancha.length === 1 ? "1 turno" : `${deLaCancha.length} turnos`}`} className="contents">
+          {porCancha.map(({ cancha, turnos: deLaCancha, libres: libresDeLaCancha }) => (
+            <ul
+              key={cancha.id}
+              role="list"
+              aria-label={`${cancha.nombre}, ${cancha.detalle}: ${deLaCancha.length === 1 ? "1 turno" : `${deLaCancha.length} turnos`}, ${libresDeLaCancha.length} huecos libres`}
+              className="contents"
+            >
               {deLaCancha.map((t) => (
                 <BloqueTurno key={t.id} celda={t} activo={t.id === abierto} onAbrir={onAbrir} />
+              ))}
+              {libresDeLaCancha.map((f) => (
+                <Franja key={f.id} franja={f} enTab={f.id === primerLibreEnTab} onReservar={onReservar} />
               ))}
             </ul>
           ))}

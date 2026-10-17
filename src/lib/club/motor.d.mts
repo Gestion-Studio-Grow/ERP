@@ -306,6 +306,34 @@ export interface Bloqueo {
   motivo: string;
 }
 
+/** Turno fijo semanal: se baja a la grilla día por día (`materializarFijos`). */
+export interface Fijo {
+  id: string;
+  clienteId: string | null;
+  canchaId: string;
+  /** Día de la semana (0 = domingo). */
+  dia: number;
+  inicio: number;
+  duracion: number;
+  titular: string;
+  /** Fechas liberadas («esta semana no venimos»). */
+  excepciones: Fecha[];
+}
+
+/** Anotado en la lista de espera: quiere cancha ese día, entre `desde` y `hasta`. */
+export interface Espera {
+  id: string;
+  clienteId: string | null;
+  titular: string;
+  tel: string;
+  fecha: Fecha;
+  desde: number;
+  hasta: number;
+  duracion: number;
+  soloCubierta: boolean;
+  creado: Ahora | null;
+}
+
 export interface EstadoClub {
   config: ConfigClub;
   canchas: Cancha[];
@@ -324,8 +352,8 @@ export interface EstadoClub {
   solicitudesAcceso: unknown[];
   difusiones: unknown[];
   pedidos: unknown[];
-  fijos: unknown[];
-  espera: unknown[];
+  fijos: Fijo[];
+  espera: Espera[];
   remitos: unknown[];
   pagosProveedor: unknown[];
   contenido: unknown[];
@@ -475,7 +503,41 @@ export declare function bloquear(
 ): Resultado<{ bloqueo: Bloqueo }> | (Falla & { choques?: Reserva[] });
 export declare function quitarBloqueo(estado: EstadoClub, bloqueoId: string, ahora?: Ahora): Resultado;
 /** Baja a la grilla los turnos fijos del día (idempotente); devuelve los que chocan. */
-export declare function materializarFijos(estado: EstadoClub, fecha: Fecha): unknown[];
+export declare function materializarFijos(estado: EstadoClub, fecha: Fecha): { fijo: Fijo; motivo: string }[];
+/** Corte de luz, lesión, lluvia en juego: crédito sólo por el tiempo no jugado (lo pagado de más, a créditos o a devolver). */
+export declare function interrumpir(estado: EstadoClub, id: string, motivo: string, ahora: Ahora): Resultado<{ credito: number; noJugados: number }>;
+/** Lo que hay que devolver en mano a alguien sin ficha: sale de la caja. */
+export declare function marcarDevuelto(estado: EstadoClub, reservaId: string, medio: Medio, ahora?: Ahora): Resultado<{ monto: number }>;
+/** La falta de alguien sin ficha, cuando vuelve y paga: entra a la caja. */
+export declare function cobrarFaltaSinFicha(estado: EstadoClub, reservaId: string, medio: Medio, ahora?: Ahora): Resultado<{ monto: number }>;
+export declare function configurarMantenimiento(estado: EstadoClub, canchaId: string, opciones: { activo: boolean; motivo?: string }, ahora?: Ahora): Resultado;
+export interface ResultadoLluvia {
+  reservaId: string;
+  titular: string;
+  accion: "movido" | "cortado" | "suspendido";
+  cancha?: string;
+  credito?: number;
+  noJugados?: number;
+  devolverEnMano?: number;
+}
+/** Mueve a techada lo que se pueda; si no, corta (jugando) o suspende (antes de empezar) devolviendo lo pagado. */
+export declare function planLluvia(estado: EstadoClub, fecha: Fecha, desde: number, hasta: number, ahora: Ahora): { ok: true; resultado: ResultadoLluvia[] };
+/** No valida el hueco: lo valida quien lo llama (y `materializarFijos`, que no pisa). */
+export declare function crearFijo(estado: EstadoClub, datos: { clienteId: string | null; canchaId: string; dia: number; inicio: number; duracion?: number; titular?: string }): Fijo;
+/** «Esta semana no venimos»: libera esa fecha sin dar de baja el fijo (y cancela el turno si ya estaba en la grilla). */
+export declare function liberarFijo(estado: EstadoClub, fijoId: string, fecha: Fecha, ahora?: Ahora): Resultado;
+export declare function anotarEspera(
+  estado: EstadoClub,
+  datos: { clienteId: string | null; titular: string; tel?: string; fecha: Fecha; desde: number; hasta: number; duracion?: number; soloCubierta?: boolean },
+  ahora?: Ahora,
+): Espera;
+export declare function ofertasEspera(estado: EstadoClub, fecha: Fecha, canchaId: string, inicio: number, duracion: number): (Espera & { canchaId: string; inicio: number; mensaje: string })[];
+export declare function asignarDesdeEspera(
+  estado: EstadoClub,
+  esperaId: string,
+  hueco: { canchaId: string; inicio: number },
+  ahora?: Ahora,
+): Resultado<{ reserva: Reserva; liberadas: { cliente: string; monto: number }[] }>;
 
 // ───────────── la cancha: cobros y partes por jugador ─────────────
 
