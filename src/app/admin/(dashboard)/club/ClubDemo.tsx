@@ -180,8 +180,18 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       ? crearAlmacen({ reloj, clave: claveDeLaJornada(negocio), candado: candadoDeLaJornada(negocio), almacenamiento: guardadoDelEquipo(), guardado, rol })
       : crearAlmacen({ hoy: fechaLocal(new Date()), clave: claveDeLaDemo(negocio, usuario), almacenamiento: guardadoDelEquipo(), guardado, rol }),
   );
-  const [solapa, setSolapa] = useState<Solapa>("agenda");
   const [SOLAPAS] = useState(() => [...SOLAPAS_DE_FABRICA, ...extras.filter((e) => !e.soloDuenos || rol === "OWNER")]);
+  // Mientras el club no está configurado (jornada real recién abierta), la recepción abre en Configuración: ahí sigue
+  // el dueño después de armar su PIN en la consola de arranque. Si lo guardado llega después y no está configurado,
+  // también se pasa ahí (una vez, al cambiar; después se mueve libre).
+  const sinConfig = useSeleccion(almacen, sinConfigurar, igualQue);
+  const abreEnConfiguracion = almacen.modo() === "real" && sinConfig && SOLAPAS.some((s) => s.id === "configuracion");
+  const [solapa, setSolapa] = useState<Solapa>(() => (abreEnConfiguracion ? "configuracion" : "agenda"));
+  const [sinConfigVisto, setSinConfigVisto] = useState(sinConfig);
+  if (sinConfigVisto !== sinConfig) {
+    setSinConfigVisto(sinConfig);
+    if (abreEnConfiguracion) setSolapa("configuracion");
+  }
   const [panel, setPanel] = useState<Panel>(null);
   // El día de hoy sigue al reloj (en la jornada real cambia a la medianoche del club); el string no cambia en cada
   // minuto, así que esto no repinta la recepción por el latido.
