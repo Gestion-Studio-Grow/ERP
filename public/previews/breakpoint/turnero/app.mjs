@@ -22,20 +22,27 @@ let LOCAL = null; // adaptador local (local.mjs): sólo se descarga si hace falt
 // Modo «pedido por WhatsApp» (/turnero?modo=pedido&wa=549…): para el día de prueba en el club. El celular del jugador
 // no llega a la PC del club (la sync es entre pestañas del MISMO navegador), así que no se promete nada que no pase:
 // horarios y precios de referencia, y el turno se pide por WhatsApp; el club lo confirma. Sólo en la demo (MODO_DEMO).
-const MODO_PEDIDO = MODO_DEMO && qs.get("modo") === "pedido";
+// En el sitio del club (breakpointpadel.*) el ambiente es REAL: el turnero de los clientes es el de pedido por
+// WhatsApp, con lo que el club dejó fijo en el sitio (<meta name="bp-publico">). La demo con reservas de ejemplo
+// queda para prospectos con ?demo=1.
+const AMBIENTE_REAL = $('meta[name="bp-ambiente"]')?.content === "real" && qs.get("demo") !== "1";
+const PUBLICO = (() => { try { return JSON.parse($('meta[name="bp-publico"]')?.content || "{}") ?? {}; } catch { return {}; } })();
+const MODO_PEDIDO = MODO_DEMO && (qs.get("modo") === "pedido" || AMBIENTE_REAL);
 /** Número del club para WhatsApp (?wa=): sólo dígitos, de 8 a 15. Si no sirve, WhatsApp abre sin destinatario. */
-const WA = (() => { const n = String(qs.get("wa") ?? "").replace(/[\s+().-]/g, ""); return /^\d{8,15}$/.test(n) ? n : ""; })();
+const WA = (() => { const n = String(qs.get("wa") ?? PUBLICO.whatsapp ?? "").replace(/[\s+().-]/g, ""); return /^\d{8,15}$/.test(n) ? n : ""; })();
 // El club arma el link con SUS tarifas (?tar=desde-hasta-precio,…) y SU tienda (?cat=id:precio,…): el celular del
 // cliente no ve la compu del club. Sin ?cat= en modo pedido no hay tienda (nada de productos ni precios de ejemplo).
 const TARIFAS = (() => {
-  const t = String(qs.get("tar") ?? "").split(",").map((x) => x.split("-").map(Number)).filter((x) => x.length === 3 && x.every((n) => Number.isFinite(n) && n >= 0));
+  const t = String(qs.get("tar") ?? PUBLICO.tarifas ?? "").split(",").map((x) => x.split("-").map(Number)).filter((x) => x.length === 3 && x.every((n) => Number.isFinite(n) && n >= 0));
   return t.length ? t.map(([desde, hasta, precioHora], i) => ({ nombre: i ? "Pico" : "Valle", desde, hasta, precioHora })) : null;
 })();
 const CATALOGO = (() => {
-  const c = String(qs.get("cat") ?? "").split(",").map((x) => x.split(":")).filter(([id, p]) => /^[\w-]{1,30}$/.test(id ?? "") && Number(p) > 0);
+  const c = String(qs.get("cat") ?? PUBLICO.catalogo ?? "").split(",").map((x) => x.split(":")).filter(([id, p]) => /^[\w-]{1,30}$/.test(id ?? "") && Number(p) > 0);
   return c.length ? Object.fromEntries(c.map(([id, p]) => [id, Math.round(Number(p))])) : null;
 })();
 const HAY_TIENDA = !MODO_PEDIDO || !!CATALOGO;
+// Sin las tarifas del club no se muestran precios (nada de precios de ejemplo a un cliente real).
+const SIN_PRECIOS = MODO_PEDIDO && !TARIFAS;
 const linkWa = (texto) => `https://wa.me/${WA}?text=${encodeURIComponent(texto)}`;
 const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -108,7 +115,7 @@ const FRANJAS = [["manana", "Mañana", 0, 720], ["tarde", "Tarde", 720, 1080], [
 
 function htmlSlot(s) {
   // Mismo criterio (WCAG 2.5.3): el nombre es el texto visible; el fin del turno y las pausas van ocultos para la vista.
-  return `<button type="button" class="slot" data-inicio="${s.inicio}" data-cancha="${esc(s.canchaId)}" data-pico="${s.pico ? 1 : 0}"><span class="slot-hora">${hhmm(s.inicio)}</span><span class="sr"> a ${hhmm(s.fin)}, </span><span class="slot-cancha">${esc(s.cancha)}</span><span class="slot-tags">${s.techada ? '<span class="sr">, </span><span class="tag tag-techada">Techada</span>' : ""}${s.pico ? '<span class="sr">, </span><span class="tag tag-pico">Pico</span>' : ""}</span><span class="sr">, </span><span class="slot-precio">${s.desde ? "desde " : ""}${pesos(s.precio)}</span></button>`;
+  return `<button type="button" class="slot" data-inicio="${s.inicio}" data-cancha="${esc(s.canchaId)}" data-pico="${s.pico ? 1 : 0}"><span class="slot-hora">${hhmm(s.inicio)}</span><span class="sr"> a ${hhmm(s.fin)}, </span><span class="slot-cancha">${esc(s.cancha)}</span><span class="slot-tags">${s.techada ? '<span class="sr">, </span><span class="tag tag-techada">Techada</span>' : ""}${s.pico ? '<span class="sr">, </span><span class="tag tag-pico">Pico</span>' : ""}</span><span class="sr">, </span>${SIN_PRECIOS ? "" : `<span class="slot-precio">${s.desde ? "desde " : ""}${pesos(s.precio)}</span>`}</button>`;
 }
 
 /** El turno con foco de teclado (si hay): al repintar se le devuelve el foco a él o al vecino más cercano (D23). */
@@ -573,12 +580,12 @@ function armarPedido({ validar = false } = {}) {
   // «Cualquier cancha»: el precio puede cambiar de una cancha a otra (techada, pico): se muestra el rango.
   const precios = (elegida ? [elegida] : ops).map((x) => x.precio);
   const min = Math.min(...precios), max = Math.max(...precios);
-  const precio = min === max ? pesos(min) : `${pesos(min)} a ${pesos(max)}`;
+  const precio = SIN_PRECIOS ? "te lo confirma el club" : min === max ? pesos(min) : `${pesos(min)} a ${pesos(max)}`;
   const cancha = elegida ? `la ${elegida.cancha}${elegida.techada ? " (techada)" : ""}` : "cualquier cancha";
   $("#ped-resumen").innerHTML = `<strong>${elegida ? esc(elegida.cancha) : "Cualquier cancha"}</strong>${elegida?.techada ? " · techada" : ""}<br>${fechaLarga(S.fecha)} · ${hhmm(s.inicio)} a ${hhmm(s.fin)} (${durTexto(S.duracion)})`;
   $("#ped-precio").textContent = precio;
   const nombre = $("#ped-nombre").value.trim();
-  $("#ped-wa").href = linkWa(`Hola Break Point, quiero el turno del ${fechaLarga(S.fecha)} a las ${hhmm(s.inicio)} (${durTexto(S.duracion)}) en ${cancha}. Precio de referencia: ${precio}.${nombre ? ` Soy ${nombre}.` : ""}`);
+  $("#ped-wa").href = linkWa(`Hola Break Point, quiero el turno del ${fechaLarga(S.fecha)} a las ${hhmm(s.inicio)} (${durTexto(S.duracion)}) en ${cancha}.${SIN_PRECIOS ? "" : ` Precio de referencia: ${precio}.`}${nombre ? ` Soy ${nombre}.` : ""}`);
   if (!validar) return true;
   const falta = !nombre;
   $("#ped-error").textContent = falta ? "Poné tu nombre así el club sabe quién pide." : "";
@@ -598,8 +605,9 @@ function prepararModoPedido() {
   vivo.classList.remove("on", "off");
   vivo.classList.add("pedido");
   vivo.textContent = "Pedido por WhatsApp";
-  $("#cinta").textContent = "Horarios y precios de referencia: el club te confirma por WhatsApp";
-  $("#subtitulo").textContent = "Horarios y precios de referencia · la disponibilidad te la confirma el club.";
+  const que = SIN_PRECIOS ? "Horarios de referencia" : "Horarios y precios de referencia";
+  $("#cinta").textContent = `${que}: el club te confirma por WhatsApp`;
+  $("#subtitulo").textContent = `${que} · la disponibilidad te la confirma el club.`;
   for (const el of [$("#btn-ingresar"), $("#usuario"), $("#mis-reservas"), $(".saltar"), $("#btn-google"), $("#btn-simular"), ...(HAY_TIENDA ? [] : [$("#btn-tienda")])]) if (el) el.hidden = true;
   $("#como-pasos").innerHTML = "<li><b>Elegí</b> el día, el horario y la duración.</li><li><b>Pedilo por WhatsApp</b> con tu nombre: el mensaje sale armado.</li><li><b>El club te confirma</b> y te pasa el alias para la seña.</li>";
   $("#espera p").textContent = "No vemos canchas libres con estos filtros. Preguntale al club por WhatsApp: a veces se libera algo.";

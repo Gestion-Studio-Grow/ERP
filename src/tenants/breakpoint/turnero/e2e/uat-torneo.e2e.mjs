@@ -369,12 +369,48 @@ await p.click('#app [data-a="jornada"][data-v="demo"]'); await W(); await p.fill
 await p.waitForLoadState("load"); await W(1200);
 await entrarComo("u-rober", "11"); await irTab("ajustes");
 const enBlanco = await p.locator('#app [data-a="jornada"][data-v="blanco"]').count();
+ok("9.demo-contactos", (await p.inputValue('#app [data-a="contacto"][data-v="u-rober"]')) === "" && JSON.parse(await p.evaluate(() => localStorage.getItem("bp-contactos")) || "{}")["u-rober"] === "5491100000001", "La demo no ve ni pisa los celulares reales de los dueños");
 ok("9.demo-no-borra", enBlanco === 0 && await p.isVisible('#app [data-a="jornada"][data-v="retomar"]'), "En la demo, con una jornada real guardada, no aparece «Empezar en blanco»: sólo «Seguir la jornada real guardada»");
 await p.click('#app [data-a="jornada"][data-v="retomar"]'); await W(); await p.fill("#cf-pin", "11"); await p.click('#dlg [data-a="confirmarJornada"]');
 await p.waitForLoadState("load"); await W(1200);
 ok("9.vuelve", await bloqueada() && !(await p.$("#bloqueo .demo-pins")) && ingresos(await estado()) === cajaFinal, "Volver a la jornada: queda bloqueada (con el PIN de la demo no se entra) y la caja está intacta");
 await desbloquear("11");
 ok("9.pin-demo", await bloqueada(), "El PIN 11 de la demo no abre la jornada real");
+
+// ═══ 10. Después del día de prueba: limpieza para el go-live (dueña, con PIN y respaldo antes) ═══
+await desbloquear("84");
+await irTab("ajustes");
+ok("10.pendientes", /Canchas en juego[\s\S]*Cajas sin cerrar|Cajas sin cerrar|Canchas en juego/.test(await p.textContent("#app")), "Antes de limpiar avisa lo pendiente: la cancha de las 16:30 en juego");
+await p.click('#app [data-a="goLive"]'); await W(); await p.fill("#cf-pin", "84"); await p.click('#dlg [data-a="confirmarGoLive"]'); await W(400);
+ok("10.no-limpia", (await estado()).reservas.length > 0 && /Antes de limpiar hay que resolver/.test(await aviso()), "Con cosas pendientes la limpieza no corre: dice qué resolver");
+await cerrar();
+// Se resuelve: se cobra y se cierra la cancha de las 16:30 y se cierra la caja que quedó abierta.
+await abrirTurno(sig.id);
+await medio("efectivo");
+await p.click(`#dlg [data-a="cobrarTodo"][data-v="${sig.id}"]`); await W(300);
+await p.click(`#dlg [data-a="cerrarYSeguir"][data-v="${sig.id}"]`); await W(300);
+await irTab("caja");
+for (let i = 0; i < 3; i++) {
+  const sinCerrar = (await estado()).caja.movimientos.length && M.cajasConMovimientosSinCerrar(await estado());
+  if (!sinCerrar?.length) break;
+  await p.click('#app [data-a="cerrarCaja"]'); await W();
+  const esperado = M.resumenCaja(await estado(), sinCerrar[0]).efectivoEsperado;
+  await p.fill("#k-cont", String(esperado)); await p.fill("#k-pin", "84"); await p.click('#dlg [data-a="aplicarCierre"]'); await W(300);
+}
+ok("10.resuelto", M.pendientesGoLive(await estado(), { fecha: "2026-10-17", min: 1470 }).length === 0, "Cancha cobrada y cerrada, cajas cerradas: nada pendiente");
+await irTab("ajustes");
+const antesGL = await estado();
+await p.click('#app [data-a="goLive"]'); await W(); await p.fill("#cf-pin", "84");
+const [respGL] = await Promise.all([p.waitForEvent("download"), p.click('#dlg [data-a="confirmarGoLive"]')]);
+await W(500);
+const gl = await estado();
+const juanGL = gl.clientes.find((c) => c.nombre === "Juan Pérez");
+ok("10.respaldo", /breakpoint-jornada-.*\.json$/.test(respGL.suggestedFilename()), `Antes de limpiar se descargó el respaldo (${respGL.suggestedFilename()})`);
+ok("10.limpio", gl.reservas.length + gl.cuentas.length + gl.caja.movimientos.length + gl.caja.cierres.length + gl.pedidos.length === 0, `Se borró lo de la prueba: ${antesGL.reservas.length} turnos, ${antesGL.cuentas.length} cuentas, ${antesGL.caja.movimientos.length} movimientos de caja`);
+ok("10.maestro", gl.clientes.length === antesGL.clientes.length && gl.usuarios.length === antesGL.usuarios.length && gl.caja.fondo === 20000 && gl.productos.find((x) => x.id === "p2").stock === antesGL.productos.find((x) => x.id === "p2").stock, "Se conservó lo maestro: clientes, usuarios y PIN, fondo de caja, productos y stock");
+ok("10.saldos", juanGL?.deuda === 4000, "Se conservaron los saldos: Juan sigue debiendo los $4.000 que le fiaron");
+await p.reload(); await W(1000);
+ok("10.vuelve", await bloqueada() && (await estado()).reservas.length === 0, "Después de la limpieza el club vuelve bloqueado y en limpio, listo para el go-live");
 
 ok("errores", errores.length === 0, `Cero errores de consola${errores.length ? `: ${errores.slice(0, 3).join(" | ")}` : ""}`);
 await writeFile(`${OUT}/resultado.json`, JSON.stringify({ fecha: new Date().toISOString(), filas }, null, 2));

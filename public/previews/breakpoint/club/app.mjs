@@ -81,10 +81,19 @@ const esDuenio = () => yo()?.rol === "duenio";
 const CLAVE_JORNADA = "bp-jornada-v1", CLAVE_MODO = "bp-modo", CLAVE_CONTACTOS = "bp-contactos";
 const lsLeer = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsGuardar = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch { return false; } };
-const MODO_REAL = lsLeer(CLAVE_MODO) === "real" || new URLSearchParams(location.search).get("modo") === "real";
-if (MODO_REAL) lsGuardar(CLAVE_MODO, "real"); // entrar con ?modo=real deja la compu en jornada real (se vuelve desde Ajustes)
+// En el sitio del club (<meta name="bp-ambiente" content="real">) /club ES la gestión real; la demo para prospectos
+// queda con ?demo=1 (sólo esa visita, no cambia nada guardado). Fuera del sitio (vista previa), demo salvo ?modo=real.
+const Q = new URLSearchParams(location.search);
+const AMBIENTE_REAL = document.querySelector('meta[name="bp-ambiente"]')?.content === "real";
+// El celular del dueño que abre un link de aprobación (#aprobar&…) sin jornada guardada sólo calcula el código:
+// no se convierte en una compu del club (no arma consola ni guarda nada).
+const SOLO_APROBAR = location.hash.startsWith("#aprobar&") && !lsLeer(CLAVE_JORNADA) && lsLeer(CLAVE_MODO) !== "real";
+const MODO_REAL = !SOLO_APROBAR && Q.get("demo") !== "1" && (Q.get("modo") === "real" || lsLeer(CLAVE_MODO) === "real" || (AMBIENTE_REAL && lsLeer(CLAVE_MODO) !== "demo"));
+if (MODO_REAL) lsGuardar(CLAVE_MODO, "real"); // la compu queda en jornada real (se vuelve a la demo desde Configuración)
 const guardado = { habilitado: false, cuando: null, ok: true, bytes: 0, timer: null, fuera: false, avisado: false };
-const contactos = () => { try { return JSON.parse(lsLeer(CLAVE_CONTACTOS) || "{}") ?? {}; } catch { return {}; } };
+// Los celulares de la jornada real no los ve ni los pisa la demo (que entra con un PIN de ejemplo): clave aparte.
+const claveContactos = () => (MODO_REAL ? CLAVE_CONTACTOS : `${CLAVE_CONTACTOS}-demo`);
+const contactos = () => { try { return JSON.parse(lsLeer(claveContactos()) || "{}") ?? {}; } catch { return {}; } };
 const waA = (quien, texto) => M.linkWhatsApp(contactos()[quien] ?? "", texto);
 
 function leerJornada() {
@@ -841,7 +850,13 @@ function tarjetaJornada() {
         <div class="row"><button type="button" class="btn primary" data-a="respaldo">Descargar respaldo</button>
           <label class="btn" for="restaurar">Restaurar desde un archivo</label><input id="restaurar" type="file" accept=".json,application/json" class="sr" data-a="restaurar">
           <button type="button" class="btn" data-a="jornada" data-v="demo">Volver a la demo</button>
-          <button type="button" class="btn danger" data-a="jornada" data-v="blanco">Empezar otra jornada en blanco</button></div>`
+          <button type="button" class="btn danger" data-a="jornada" data-v="blanco">Empezar otra jornada en blanco</button></div>
+        <div class="seccion" style="margin-top:12px" aria-labelledby="t-golive"><h3 id="t-golive">Limpieza para el go-live${E.config.goLive ? ` <span class="chip ok">hecha el ${esc(ddmm(E.config.goLive.fecha ?? HOY))}</span>` : ""}</h3>
+          <p class="small" style="margin:0">Después del día de prueba: borra turnos, cuentas de cargos, caja, pedidos, créditos pendientes y novedades enviadas. <b>Se conserva</b> lo maestro: canchas, horarios, precios, productos, usuarios y PIN, clientes y proveedores. Antes se descarga un respaldo.</p>
+          <label class="row small" style="margin:6px 0"><input type="checkbox" id="gl-saldos" checked> Conservar los saldos (cuenta corriente, créditos y faltas de los clientes; deuda con proveedores)</label>
+          <label class="row small" style="margin:0 0 6px"><input type="checkbox" id="gl-stock" checked> Conservar el stock contado</label>
+          ${(() => { const pend = M.pendientesGoLive(E, AHORA); return pend.length ? `<div class="al media" role="status"><span class="lvl">Antes de limpiar</span><ul class="small" style="margin:4px 0 0;padding-left:18px">${pend.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : `<p class="small muted" style="margin:0 0 6px">Los turnos que todavía no se jugaron quedan, con su seña.</p>`; })()}
+          <button type="button" class="btn danger" data-a="goLive">Hacer la limpieza para el go-live</button></div>`
       : `<p class="small" style="margin:0 0 10px">Para el día de prueba en el local: el club arranca <b>vacío</b> (sin turnos, clientes ni caja; con las canchas, productos y usuarios de Break Point), con la hora real, y se guarda solo en esta compu. La demo de ejemplo no se toca.</p>
         <div class="row">${guardada ? `<button type="button" class="btn primary" data-a="jornada" data-v="retomar">Seguir la jornada real guardada</button>` : `<button type="button" class="btn primary" data-a="jornada" data-v="blanco">Empezar la jornada real en blanco</button>`}</div>
         ${guardada ? `<p class="small muted" style="margin:8px 0 0">En esta compu hay una jornada real guardada: desde la demo no se puede borrar. Para empezar otra, entrá a la jornada con el PIN de un dueño y usá «Empezar otra jornada en blanco».</p>` : ""}`}
@@ -1591,12 +1606,14 @@ function cierreCajaDialogo(diaAtrasado = null) {
     const ra = M.resumenCaja(E, diaAtrasado);
     return abrir({
       titulo: `Cerrar la caja del ${esc(fechaCorta(diaAtrasado))}`,
-      sub: "Caja anterior que quedó sin cerrar (lo cobrado antes de las 12 es de la caja del día anterior).",
+      sub: "Caja con movimientos que nadie cerró (lo cobrado antes de las 12 es de la caja del día anterior; lo cobrado después de cerrar, de la siguiente).",
       cuerpo: `<dl class="kv num">${MEDIOS_CAJA.map((k) => `<dt>${M.MEDIOS[k]}</dt><dd>${M.pesos(ra.porMedio[k])}</dd>`).join("")}<dt class="tot">Efectivo que tiene que haber</dt><dd class="tot">${M.pesos(ra.efectivoEsperado)}</dd></dl>
         <div class="grid2"><label class="f">Efectivo contado de esa caja (contalo)<input id="k-cont" type="number" min="0" value="" placeholder="Contá el efectivo"></label>${campoPin("k-pin", `PIN de ${esc(yo().nombre.split(" ")[0])}`)}</div>`,
       pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="aplicarCierre" data-v="${diaAtrasado}">Cerrar esa caja</button>`,
     });
   }
+  // Hoy ya se cerró pero lo cobrado después quedó en la caja siguiente: se puede cerrar igual (ej. antes del go-live).
+  if (M.cajaCerrada(E, hoy) && M.cajasConMovimientosSinCerrar(E).includes(M.cajaAbierta(E, AHORA))) return cierreCajaDialogo(M.cajaAbierta(E, AHORA));
   if (M.cajaCerrada(E, hoy)) return abrir({ titulo: "La caja de hoy ya está cerrada", cuerpo: `<p style="margin:0">Se cerró una sola vez, como corresponde. Lo que se cobre desde ahora entra en la caja del ${esc(fechaCorta(M.cajaAbierta(E, AHORA)))}.</p>`, pie: `<button type="button" class="btn primary" data-a="cerrar">Entendido</button>` });
   const dia = M.cajaAbierta(E, AHORA);
   const r = M.resumenCaja(E, dia);
@@ -2166,6 +2183,25 @@ const acciones = {
     if (que === "demo") { if (MODO_REAL) lsGuardar(CLAVE_JORNADA, fotoJornada()); lsGuardar(CLAVE_MODO, "demo"); }
     setTimeout(() => location.replace(location.pathname), que === "blanco" && MODO_REAL ? 800 : 0);
   },
+  goLive: () => {
+    ui.goLive = { conservarSaldos: $("#gl-saldos")?.checked !== false, conservarStock: $("#gl-stock")?.checked !== false };
+    pinPara("confirmarGoLive", "", `Limpieza para el go-live (${ui.goLive.conservarSaldos ? "se conservan los saldos" : "los saldos quedan en CERO"}): se borran turnos, cuentas, caja y pedidos`);
+  },
+  confirmarGoLive: () => {
+    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    if (!v.ok || !esDuenio()) return toast(v.ok ? "La limpieza la hace un dueño." : v.motivo, { error: true });
+    descargarRespaldo();
+    lsGuardar(`${CLAVE_JORNADA}-antes-golive`, fotoJornada());
+    const res = M.limpiarParaGoLive(E, ui.goLive ?? {}, auth(val("#cf-pin")), AHORA);
+    ui.goLive = null;
+    if (!res.ok) return toast(res.motivo, { error: true });
+    UNDO = null;
+    TAB = "agenda";
+    cerrarDialogo();
+    render();
+    guardarJornada(true);
+    toast(`Listo para el go-live: se borraron ${res.borrado.turnos} turnos, ${res.borrado.cuentas} cuentas y ${res.borrado.movimientos} movimientos de caja. Quedó un respaldo descargado.`);
+  },
   confirmarRestaurar: () => {
     const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
     if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
@@ -2422,7 +2458,7 @@ document.addEventListener("change", (ev) => {
     const limpio = t.value.replace(/[^\d]/g, "");
     if (limpio && (limpio.length < 8 || limpio.length > 15)) return toast("Ese número no parece un celular (con código de país, ej. 549 11 …).", { error: true });
     k[t.dataset.v] = limpio;
-    lsGuardar(CLAVE_CONTACTOS, JSON.stringify(k));
+    lsGuardar(claveContactos(), JSON.stringify(k));
     render();
     return toast(limpio ? "Número guardado en esta compu." : "Número borrado.");
   }
