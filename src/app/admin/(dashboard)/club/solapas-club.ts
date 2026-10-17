@@ -68,6 +68,11 @@ export interface PropsDePieza {
    * Un id que no está (no existe, o es `soloDuenos` y quien mira no es OWNER) no hace nada.
    */
   irASolapa: (id: string) => void;
+  /**
+   * El negocio (el mismo de las claves `gsg-club:<negocio>:…`): el bloqueo guarda sus intentos de PIN por negocio.
+   * Opcional para no romper a quien todavía no lo pasa; sin él, el bloqueo usa una clave del equipo (más estricta).
+   */
+  negocio?: string;
 }
 
 export interface PiezaGlobalDelClub {
@@ -77,6 +82,9 @@ export interface PiezaGlobalDelClub {
 }
 
 export const PIEZAS_GLOBALES_DEL_CLUB: readonly PiezaGlobalDelClub[] = [
+  // PRIMERO el bloqueo: en la jornada real nadie opera sin su PIN (la pantalla tapa todo), y quién opera con
+  // «Cambiar de usuario». El botón «Bloquear» para la cinta es `BotonBloquearAhora` (bloquear-ahora.tsx).
+  { id: "bloqueo", cargar: () => import("./BloqueoDelClub") },
   // El aviso 🔔 del dueño: pedidos de crédito esperando su OK, con el botón que lleva al Tablero.
   { id: "aviso-del-duenio", cargar: () => import("./aviso-del-duenio").then((m) => ({ default: m.AvisoDelDuenio })) },
 ];
