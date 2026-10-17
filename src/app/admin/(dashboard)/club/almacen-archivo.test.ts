@@ -166,6 +166,7 @@ test("si cambió algo de esos días entre preparar y confirmar → «cambio» (d
   const { a } = await abrirMes();
   // Algo de HOY (fuera de lo que se archiva) no cambia el archivo: confirma igual y lo de hoy queda.
   const p1 = preparado(a.prepararArchivo({ auth: DUENIO }));
+  a.cambiarOperador(a.estado().usuarios.find((u) => u.id === DUENIO.usuarioId)!, DUENIO); // en la jornada real se opera con PIN
   a.aplicar((e) => void e.log.unshift({ fecha: HOY_TORNEO, min: 1150, texto: "algo de hoy" }));
   const r1 = await p1.confirmar({ archivoElegido: p1.textoDelArchivo });
   assert.equal(r1.ok, true);
@@ -174,6 +175,7 @@ test("si cambió algo de esos días entre preparar y confirmar → «cambio» (d
   const { a: b } = await abrirMes();
   const p = preparado(b.prepararArchivo({ auth: DUENIO }));
   const id = p.anexo.reservas[0].id;
+  b.cambiarOperador(b.estado().usuarios.find((u) => u.id === DUENIO.usuarioId)!, DUENIO);
   b.aplicar((e) => void (e.reservas.find((x) => x.id === id)!.titular = "Cambiado después"));
   const antes = b.estado();
   const r = await p.confirmar({ archivoElegido: p.textoDelArchivo });

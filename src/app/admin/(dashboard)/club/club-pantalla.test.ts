@@ -564,6 +564,17 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
       if (sembrar) await p.evaluate(([k, v]) => localStorage.setItem(k, v), [claveDeLaJornada("demo-club"), guardado]);
       await p.addScriptTag({ content: bundleReal });
       await p.evaluate(() => (window as unknown as { __montarReal: (n: string, u: string) => void }).__montarReal("demo-club", "u_recepcion"));
+      // Sin nadie que haya entrado con su PIN no se ve nada del club: sólo «Bloqueado» (y la cinta de estado).
+      await p.getByText("Entrá con tu PIN para ver y operar el club.").waitFor();
+      assert.equal(await p.getByRole("heading", { name: "Agenda de canchas" }).count(), 0, "sin PIN no se ve la agenda");
+      assert.equal(await p.getByRole("tablist", { name: "Recepción del club" }).count(), 0, "ni las solapas");
+      if (!sembrar) return p; // la segunda pestaña queda en «Usar acá» (sólo lectura): no entra nadie todavía
+      // Entra Lu (recepción) con su PIN: recién ahí aparece la recepción.
+      await p.evaluate(() => {
+        const a = (window as unknown as { __almacen: import("./almacen").Almacen }).__almacen;
+        const u = a.estado().usuarios.find((x) => x.id === "u-lu")!;
+        a.cambiarOperador(u, { usuarioId: u.id, pin: u.pin });
+      });
       await p.getByRole("heading", { name: "Agenda de canchas" }).waitFor();
       return p;
     };
@@ -598,7 +609,9 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     t.diagnostic(`renders por cambiar de operador: ${JSON.stringify(porOperador)}`);
     // Pasa a operar un dueño: la bandeja «Para resolver ahora» suma lo que es SÓLO de un dueño (como el vanilla,
     // `!a.paraDuenio || esDuenio()`) y pinta sólo esas alertas nuevas; la agenda y los turnos no se enteran.
-    const { BandejaDelClub, Badge, ItemDeLaBandeja = 0, Button = 0, Marca = 0, Forma = 0, ...resto } = porOperador;
+    // La compuerta «sólo con operador» (ClubDemo) se entera, una vez, y no repinta a sus hijos.
+    const { BandejaDelClub, Badge, ItemDeLaBandeja = 0, Button = 0, Marca = 0, Forma = 0, SoloConOperador = 0, ...resto } = porOperador;
+    assert.ok(SoloConOperador <= 1, "la compuerta se repinta a lo sumo una vez");
     assert.deepEqual(resto, {}, "con la Agenda a la vista, cambiar de operador no repinta la agenda ni los turnos");
     const deDuenio = await p1.evaluate(() => {
       const e = (window as unknown as { __almacen: import("./almacen").Almacen }).__almacen.estado();

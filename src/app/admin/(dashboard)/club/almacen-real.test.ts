@@ -188,8 +188,10 @@ function real(op: {
   guardado?: GuardadoDelClub;
   canal?: ((nombre: string) => CanalDeLaJornada) | null;
   demora?: number;
+  /** Por defecto opera alguien (en la jornada real sin operador no se escribe nada); `false` para probar eso. */
+  operador?: boolean;
 }) {
-  return crearAlmacen({
+  const s = crearAlmacen({
     reloj: "real",
     clave: claveDeLaJornada(NEGOCIO),
     candado: candadoDeLaJornada(NEGOCIO),
@@ -202,6 +204,8 @@ function real(op: {
     enReposo: null,
     canal: op.canal ?? null,
   });
+  if (op.operador !== false) s.cambiarOperador(s.estado().usuarios[0]);
+  return s;
 }
 
 /** Una jornada real ya guardada en este equipo: la demo del día (tiene turnos fijos los sábados). */
@@ -572,7 +576,7 @@ test("operador: el de ejemplo según el rol en la demo, nadie en la jornada real
   d.cambiarOperador(duenio.usuario, duenio.auth);
   assert.equal(d.puedeDeshacer(), false);
 
-  const sinNadie = real({});
+  const sinNadie = real({ operador: false });
   assert.equal(sinNadie.operador(), null);
   assert.deepEqual(sinNadie.auth(), {});
   const OWNER = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo(NEGOCIO, "u1"), almacenamiento: null, rol: "OWNER" });
@@ -828,7 +832,7 @@ test("sin base: si otra pestaña toma la jornada (o la pantalla se va), el reint
 });
 
 test("jornada real sin nadie operando: ninguna acción corre (no depende de que el bloqueo ya esté cargado)", async () => {
-  const s = real({ m: memoria(), cerrojos: null });
+  const s = real({ m: memoria(), cerrojos: null, operador: false });
   s.arrancar();
   await vaciar();
   assert.equal(s.operador(), null);
@@ -837,6 +841,8 @@ test("jornada real sin nadie operando: ninguna acción corre (no depende de que 
   assert.equal(d.ok, false);
   assert.match(d.mensaje, /PIN/);
   assert.equal(corrio, false, "la acción ni se llamó");
+  assert.throws(() => s.aplicar(marcar("tampoco")), /PIN/, "aplicar tiene la misma regla");
+  assert.ok(!s.estado().log.some((l) => l.texto === "tampoco"));
   s.cambiarOperador(s.estado().usuarios[0]);
   assert.equal(s.ejecutar(() => ({ ok: true, mensaje: "ahora sí" })).ok, true);
 });

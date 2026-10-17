@@ -1278,6 +1278,13 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
         negarSoloLectura();
         throw new Error(MENSAJE_SOLO_LECTURA[meta.jornada as keyof typeof MENSAJE_SOLO_LECTURA] ?? "Sólo lectura.");
       }
+      // La misma regla que `ejecutar`: en la jornada real no se escribe sin alguien que haya entrado con su PIN.
+      if (real && !operadorActual()) {
+        const mensaje = "Entrá con tu PIN para operar.";
+        aviso = { id: ++idAviso, ok: false, mensaje, deshacer: false };
+        avisar();
+        throw new Error(mensaje);
+      }
       // Aunque el motor diga que no, puede haber cambiado algo antes (cobrar todo cobra de a una
       // parte y avisa si quedó un resto): se avisa siempre y las vistas deciden si cambiaron.
       try {

@@ -36,10 +36,10 @@ import { Suspense, createElement, lazy, useCallback, useEffect, useRef, useState
 import { cn } from "@/components/ui/cn";
 import { reserva as reservaDe } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import { candadoDeLaJornada, claveDeLaDemo, claveDeLaJornada, crearAlmacen, type AlmacenamientoLocal, type GuardadoDelClub, type RolDelPanel } from "./almacen";
+import { candadoDeLaJornada, claveDeLaDemo, claveDeLaJornada, crearAlmacen, type Almacen, type AlmacenamientoLocal, type GuardadoDelClub, type RolDelPanel } from "./almacen";
 import CintaDelClub from "./CintaDelClub";
 import { fechaLocal } from "./reloj-del-club";
-import { useSeleccion } from "./usar-almacen";
+import { useOperador, useSeleccion } from "./usar-almacen";
 import AgendaCanchas from "./AgendaCanchas";
 import AltaDeTurno from "./AltaDeTurno";
 import { DiasDeLaAgenda, FueraDeLaGrilla } from "./AgendaExtras";
@@ -113,6 +113,26 @@ const SOLAPAS_DE_FABRICA: readonly { id: Solapa; etiqueta: string }[] = [
   { id: "tienda", etiqueta: "Tienda" },
   { id: "caja", etiqueta: "Caja" },
 ];
+
+/**
+ * En la jornada real, sin nadie que haya entrado con su PIN no se muestra NADA del club (ni la agenda, ni las
+ * cuentas, ni la caja): un aviso neutro. La cinta sí queda (hora y estado del guardado, sin datos del club: hace falta
+ * para «Usar acá» y para avisar «sin base»), y el bloqueo de la sesión del club (pieza global) encima. Así el
+ * resguardo no depende de que el chunk del bloqueo ya haya bajado. En la demo siempre hay operador de ejemplo.
+ * Se suscribe sólo al operador: si cambia quién opera, los hijos son los mismos elementos y React no los repinta.
+ */
+function SoloConOperador({ almacen, children }: { almacen: Almacen; children: React.ReactNode }) {
+  const operador = useOperador(almacen);
+  if (almacen.modo() === "real" && !operador) {
+    return (
+      <section role="status" aria-label="Recepción bloqueada" className="flex min-h-48 flex-col items-center justify-center gap-2 rounded-lg border border-line bg-surface-raised p-6 text-center">
+        <p className="text-lg font-semibold text-strong">Bloqueado</p>
+        <p className="text-sm text-body">Entrá con tu PIN para ver y operar el club.</p>
+      </section>
+    );
+  }
+  return children;
+}
 
 type Panel = { tipo: "cuenta"; id: string } | { tipo: "alta"; canchaId: string; inicio: number | null } | null;
 
@@ -267,6 +287,8 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
         onIrAArchivar={SOLAPAS.some((s) => s.id === "configuracion") ? () => irASolapa("configuracion") : undefined}
       />
 
+      <SoloConOperador almacen={almacen}>
+
       <div role="tablist" aria-label="Recepción del club" onKeyDown={alTeclearSolapa} className="flex overflow-x-auto border-b border-line">
         {SOLAPAS.map((s) => (
           <button
@@ -341,6 +363,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       </div>
 
       <AvisosDelClub almacen={almacen} />
+      </SoloConOperador>
     </div>
   );
 }
