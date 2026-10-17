@@ -402,10 +402,13 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
         "app.mjs `pestanas` por permiso del usuario (uat-torneo.e2e.mjs:138: Lu ve agenda, buffet, caja, clientes)",
         "ClubDemo.tsx:184 (`SOLAPAS` según el `rol` del panel) · solapas-club.ts:41-52 (`soloDuenos`)",
       );
-    // Lo sensible lo frena el motor aunque la solapa se vea: Lu no puede dar de alta a nadie.
-    await irA(p, "Configuración");
+    // Lo sensible lo frena el motor aunque la solapa se vea: Lu no puede dar de alta a nadie. Con las solapas por el
+    // operador del PIN (terminales), Lu ya no ve Configuración: eso mismo es el resguardo.
+    const verConfiguracion = (await p.getByRole("tab", { name: "Configuración" }).count()) > 0;
+    if (!verConfiguracion) ok("1.motor-frena", true, "Lu (recepción) ni ve Configuración: las solapas de dueño las decide quien entró con su PIN");
+    else await irA(p, "Configuración");
     const alta = p.getByRole("form", { name: "Dar de alta a alguien" });
-    if (await alta.count()) {
+    if (verConfiguracion && (await alta.count())) {
       await alta.getByLabel("Nombre").fill("Intruso");
       await alta.getByLabel(/^PIN de/).fill(g.pinLu);
       await alta.getByRole("button", { name: "Dar de alta" }).click();

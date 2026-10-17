@@ -24,6 +24,7 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import * as M from "@/lib/club/motor.mjs";
 import { claveDeLaJornada, textoDeLaDemo, textoDelEstado } from "./almacen";
 import { claveDeIntentosDelBloqueo } from "./bloqueo-core";
+import { SOLAPAS_DEL_CLUB } from "./solapas-club";
 
 const RAIZ = fileURLToPath(new URL("../../../../../", import.meta.url));
 const ORIGEN = "http://localhost:3999/admin/club";
@@ -541,5 +542,59 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await capturar(page, "arranque-390-3-bloqueado");
     assert.deepEqual(errores, []);
     await contexto.close();
+  });
+
+  test("las solapas siguen a QUIEN OPERA (el PIN), no al login del puesto; al cambiar de operador se cierra la cuenta abierta", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const deDuenos = SOLAPAS_DEL_CLUB.filter((s) => s.soloDuenos).map((s) => s.etiqueta);
+    assert.ok(deDuenos.includes("Configuración"));
+    for (const rolDelPuesto of ["OWNER", "RECEPTION"]) {
+      const contexto = await browser!.newContext({ viewport: { width: 1024, height: 768 }, locale: "es-AR" });
+      await contexto.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html() }));
+      const errores: string[] = [];
+      const page = await abrir(contexto, errores, "real", rolDelPuesto, true);
+      const entrar = async (quien: RegExp, pin: string) => {
+        const otro = bloqueo(page).getByRole("button", { name: "Entrar con otro usuario" });
+        if (await otro.count()) await otro.click();
+        await bloqueo(page).getByRole("group", { name: "¿Quién entra?" }).getByRole("button", { name: quien }).click();
+        await pinDe(page).fill(pin);
+        await bloqueo(page).waitFor({ state: "detached" });
+        await page.getByRole("tablist", { name: "Recepción del club" }).waitFor();
+      };
+      const solapas = async () => (await page.getByRole("tab").allInnerTexts()).map((x) => x.trim());
+      const bloquearAMano = async () => {
+        await page.locator("body").click({ position: { x: 5, y: 5 } });
+        await page.keyboard.press("l");
+        await bloqueo(page).getByText("Se bloqueó a mano.").waitFor();
+      };
+
+      // Lu (recepción) entra: no ve nada de dueño, aunque el puesto sea OWNER.
+      await entrar(/^Lu \(recepción tarde\)/, "33");
+      const deLu = await solapas();
+      t.diagnostic(`puesto ${rolDelPuesto} · Lu ve: ${deLu.join(", ")}`);
+      for (const d of deDuenos) assert.ok(!deLu.includes(d), `puesto ${rolDelPuesto}: Lu no ve «${d}»`);
+      // Abre la cuenta de un turno…
+      await page.getByRole("button", { name: /^Martín Ríos, Cancha 1,/ }).click();
+      await page.getByRole("region", { name: "Martín Ríos" }).waitFor();
+
+      // …y entra Majo (dueña): la cuenta de Lu se cerró y ve todo lo de dueño, aunque el puesto sea RECEPTION.
+      await bloquearAMano();
+      await entrar(/^Majo/, "22");
+      assert.equal(await page.getByRole("region", { name: "Martín Ríos" }).count(), 0, "la cuenta que tenía abierta Lu se cerró");
+      const deMajo = await solapas();
+      t.diagnostic(`puesto ${rolDelPuesto} · Majo ve: ${deMajo.join(", ")}`);
+      for (const d of deDuenos) assert.ok(deMajo.includes(d), `puesto ${rolDelPuesto}: Majo ve «${d}»`);
+      await page.getByRole("tab", { name: "Configuración" }).click();
+      await page.getByRole("tab", { name: "Configuración", selected: true }).waitFor();
+
+      // Vuelve Lu: la solapa de dueño que estaba elegida ya no está → pasa a la agenda.
+      await bloquearAMano();
+      await entrar(/^Lu \(recepción tarde\)/, "33");
+      await page.getByRole("tab", { name: "Agenda", selected: true }).waitFor();
+      assert.equal(await page.getByRole("tab", { name: "Configuración" }).count(), 0);
+      assert.equal(await page.getByRole("heading", { name: "Configuración", exact: true }).count(), 0, "ni su panel");
+      assert.deepEqual(errores, []);
+      await contexto.close();
+    }
   });
 });

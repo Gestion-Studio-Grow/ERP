@@ -32,7 +32,7 @@
 // `next/dynamic` y `ssr: false` (el motor guarda su contador de ids a nivel de módulo; en el
 // servidor sería compartido entre pedidos).
 
-import { Suspense, createElement, lazy, useCallback, useEffect, useRef, useState, type ComponentType } from "react";
+import { Suspense, createElement, lazy, useCallback, useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
 import { cn } from "@/components/ui/cn";
 import { reserva as reservaDe } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
@@ -121,6 +121,85 @@ const SOLAPAS_DE_FABRICA: readonly { id: Solapa; etiqueta: string }[] = [
  * resguardo no depende de que el chunk del bloqueo ya haya bajado. En la demo siempre hay operador de ejemplo.
  * Se suscribe sólo al operador: si cambia quién opera, los hijos son los mismos elementos y React no los repinta.
  */
+// ── qué solapas se ven ──
+// En la jornada real las de dueño (`soloDuenos`) las decide QUIEN OPERA (el del PIN: rol `duenio`, el que tiene los
+// permisos de dueño en el motor, como las pestañas del vanilla con `puede`), no el login del puesto. En la demo, el
+// rol del ERP, como siempre. Son dos listas fijas: el snapshot es estable y sólo cambia si cambia «es dueño».
+type SolapaVisible = { id: Solapa; etiqueta: string };
+const CON_DUENOS: readonly SolapaVisible[] = [...SOLAPAS_DE_FABRICA, ...extras];
+const SIN_DUENOS: readonly SolapaVisible[] = extras.some((e) => e.soloDuenos) ? [...SOLAPAS_DE_FABRICA, ...extras.filter((e) => !e.soloDuenos)] : CON_DUENOS;
+function esDuenoQuienMira(almacen: Almacen): boolean {
+  return almacen.modo() === "demo" ? almacen.rol() === "OWNER" : almacen.operador()?.usuario.rol === "duenio";
+}
+const solapasVisibles = (almacen: Almacen) => (esDuenoQuienMira(almacen) ? CON_DUENOS : SIN_DUENOS);
+/** Las solapas que ve quien opera ahora. Repinta sólo a quien la usa, y sólo cuando cambia «es dueño». */
+function useSolapasVisibles(almacen: Almacen): readonly SolapaVisible[] {
+  const leer = useCallback(() => solapasVisibles(almacen), [almacen]);
+  return useSyncExternalStore(almacen.suscribirOperador, leer, leer);
+}
+
+/** La tira de solapas: chica y suscripta al operador, así cambiar de operador no repinta la recepción. */
+function TiraDeSolapas({
+  almacen,
+  solapa,
+  onCambiar,
+  botones,
+}: {
+  almacen: Almacen;
+  solapa: Solapa;
+  onCambiar: (s: Solapa) => void;
+  botones: React.RefObject<Partial<Record<Solapa, HTMLButtonElement | null>>>;
+}) {
+  const visibles = useSolapasVisibles(almacen);
+  const esta = visibles.some((s) => s.id === solapa);
+  // La solapa elegida dejó de estar (entró alguien que no es dueño): se pasa a la agenda.
+  useEffect(() => {
+    if (!esta) onCambiar("agenda");
+  }, [esta, onCambiar]);
+  // Solapas con flechas (patrón de tablist): ←/→ cambian y llevan el foco.
+  const alTeclear = (e: React.KeyboardEvent) => {
+    const i = visibles.findIndex((s) => s.id === solapa);
+    const paso = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!paso) return;
+    e.preventDefault();
+    const sig = visibles[(i + paso + visibles.length) % visibles.length].id;
+    onCambiar(sig);
+    botones.current[sig]?.focus();
+  };
+  return (
+    <div role="tablist" aria-label="Recepción del club" onKeyDown={alTeclear} className="flex overflow-x-auto border-b border-line">
+      {visibles.map((s) => (
+        <button
+          key={s.id}
+          ref={(b) => {
+            botones.current[s.id] = b;
+          }}
+          type="button"
+          role="tab"
+          id={`club-solapa-${s.id}`}
+          aria-selected={solapa === s.id}
+          // Sólo el panel de la solapa elegida está montado: las otras no apuntan a un id que no existe.
+          aria-controls={solapa === s.id ? `club-panel-${s.id}` : undefined}
+          tabIndex={solapa === s.id ? 0 : -1}
+          onClick={() => onCambiar(s.id)}
+          className={cn(
+            "-mb-px inline-flex min-h-11 items-center border-b-2 px-4 text-sm focus-visible:outline-2 focus-visible:outline-focus",
+            solapa === s.id ? "border-accent font-semibold text-strong" : "border-transparent text-muted hover:text-strong",
+          )}
+        >
+          {s.etiqueta}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Monta el panel de una solapa sólo si quien opera la puede ver. */
+function SiSeVe({ almacen, id, children }: { almacen: Almacen; id: Solapa; children: React.ReactNode }) {
+  const visibles = useSolapasVisibles(almacen);
+  return visibles.some((s) => s.id === id) ? children : null;
+}
+
 const sinConfigurar = (e: EstadoClub) => e.config.configurado === false;
 const igualQue = (_: boolean | undefined, nuevo: boolean) => nuevo;
 const sinTurno = () => undefined;
@@ -180,12 +259,12 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       ? crearAlmacen({ reloj, clave: claveDeLaJornada(negocio), candado: candadoDeLaJornada(negocio), almacenamiento: guardadoDelEquipo(), guardado, rol })
       : crearAlmacen({ hoy: fechaLocal(new Date()), clave: claveDeLaDemo(negocio, usuario), almacenamiento: guardadoDelEquipo(), guardado, rol }),
   );
-  const [SOLAPAS] = useState(() => [...SOLAPAS_DE_FABRICA, ...extras.filter((e) => !e.soloDuenos || rol === "OWNER")]);
   // Mientras el club no está configurado (jornada real recién abierta), la recepción abre en Configuración: ahí sigue
   // el dueño después de armar su PIN en la consola de arranque. Si lo guardado llega después y no está configurado,
   // también se pasa ahí (una vez, al cambiar; después se mueve libre).
   const sinConfig = useSeleccion(almacen, sinConfigurar, igualQue);
-  const abreEnConfiguracion = almacen.modo() === "real" && sinConfig && SOLAPAS.some((s) => s.id === "configuracion");
+  // (Si quien entra no es dueño, la tira la pasa a la agenda.)
+  const abreEnConfiguracion = almacen.modo() === "real" && sinConfig && CON_DUENOS.some((s) => s.id === "configuracion");
   const [solapa, setSolapa] = useState<Solapa>(() => (abreEnConfiguracion ? "configuracion" : "agenda"));
   const [sinConfigVisto, setSinConfigVisto] = useState(sinConfig);
   if (sinConfigVisto !== sinConfig) {
@@ -279,34 +358,33 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     [almacen],
   );
 
-  // Para las piezas globales (solapas-club.ts): ir a una solapa es lo mismo que tocarla; un id que no está, nada.
+  // Para las piezas globales (solapas-club.ts): ir a una solapa es lo mismo que tocarla; una que quien opera no ve, nada.
+  // Se mira la lista de AHORA (la del operador actual), en el momento del clic: ClubDemo no se suscribe al operador.
   const irASolapa = useCallback(
     (id: string) => {
-      if (SOLAPAS.some((s) => s.id === id)) cambiarSolapa(id);
+      if (solapasVisibles(almacen).some((s) => s.id === id)) cambiarSolapa(id);
     },
-    [SOLAPAS, cambiarSolapa],
+    [almacen, cambiarSolapa],
   );
 
   // Para la bandeja: lo mismo, pero dice si la solapa estaba (si no, la bandeja le explica a quien opera qué hacer).
   const irASolapaSiEsta = useCallback(
     (id: string) => {
-      if (!SOLAPAS.some((s) => s.id === id)) return false;
+      if (!solapasVisibles(almacen).some((s) => s.id === id)) return false;
       cambiarSolapa(id);
       return true;
     },
-    [SOLAPAS, cambiarSolapa],
+    [almacen, cambiarSolapa],
   );
 
-  // Solapas con flechas (patrón de tablist): ←/→ cambian y llevan el foco.
-  const alTeclearSolapa = (e: React.KeyboardEvent) => {
-    const i = SOLAPAS.findIndex((s) => s.id === solapa);
-    const paso = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-    if (!paso) return;
-    e.preventDefault();
-    const sig = SOLAPAS[(i + paso + SOLAPAS.length) % SOLAPAS.length].id;
-    cambiarSolapa(sig);
-    botones.current[sig]?.focus();
-  };
+  // El atajo de la cinta cuando lo guardado se llena: archivar es de un dueño.
+  const irAArchivar = useCallback(() => {
+    if (!irASolapaSiEsta("configuracion")) almacen.informar({ ok: false, mensaje: "Archivar los días cerrados lo hace un dueño: avisale para que entre con su PIN." });
+  }, [almacen, irASolapaSiEsta]);
+
+  // Al cambiar quien opera, la cuenta (o el alta) que tenía abierta la persona anterior se cierra (como el vanilla).
+  // Sin suscribir a ClubDemo al operador: si no había nada abierto, `setPanel(null)` no repinta.
+  useEffect(() => almacen.suscribirOperador(() => setPanel(null)), [almacen]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -319,35 +397,12 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       <CintaDelClub
         almacen={almacen}
         onVolverALaDemo={volverALaDemo}
-        onIrAArchivar={SOLAPAS.some((s) => s.id === "configuracion") ? () => irASolapa("configuracion") : undefined}
+        onIrAArchivar={CON_DUENOS.some((s) => s.id === "configuracion") ? irAArchivar : undefined}
       />
 
       <SoloConOperador almacen={almacen}>
 
-      <div role="tablist" aria-label="Recepción del club" onKeyDown={alTeclearSolapa} className="flex overflow-x-auto border-b border-line">
-        {SOLAPAS.map((s) => (
-          <button
-            key={s.id}
-            ref={(b) => {
-              botones.current[s.id] = b;
-            }}
-            type="button"
-            role="tab"
-            id={`club-solapa-${s.id}`}
-            aria-selected={solapa === s.id}
-            // Sólo el panel de la solapa elegida está montado: las otras no apuntan a un id que no existe.
-            aria-controls={solapa === s.id ? `club-panel-${s.id}` : undefined}
-            tabIndex={solapa === s.id ? 0 : -1}
-            onClick={() => cambiarSolapa(s.id)}
-            className={cn(
-              "-mb-px inline-flex min-h-11 items-center border-b-2 px-4 text-sm focus-visible:outline-2 focus-visible:outline-focus",
-              solapa === s.id ? "border-accent font-semibold text-strong" : "border-transparent text-muted hover:text-strong",
-            )}
-          >
-            {s.etiqueta}
-          </button>
-        ))}
-      </div>
+      <TiraDeSolapas almacen={almacen} solapa={solapa} onCambiar={cambiarSolapa} botones={botones} />
 
       <div role="tabpanel" id={`club-panel-${solapa}`} aria-labelledby={`club-solapa-${solapa}`}>
         {solapa === "agenda" && (
@@ -389,8 +444,10 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
             {solapa === "caja" && <CajaDelClub almacen={almacen} />}
             {solapa === "tienda" && <TiendaDelClub almacen={almacen} />}
             {extras.map((e) =>
-              solapa === e.id && SOLAPAS.some((s) => s.id === e.id) ? (
-                <e.diferida.Solapa key={e.id} almacen={almacen} dia={dia} rol={rol} onVerTurno={verTurno} irASolapa={irASolapa} />
+              solapa === e.id ? (
+                <SiSeVe key={e.id} almacen={almacen} id={e.id}>
+                  <e.diferida.Solapa almacen={almacen} dia={dia} rol={rol} onVerTurno={verTurno} irASolapa={irASolapa} />
+                </SiSeVe>
               ) : null,
             )}
           </Suspense>

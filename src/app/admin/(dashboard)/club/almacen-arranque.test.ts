@@ -203,3 +203,54 @@ test("bytes: no avisa en cada guardado; avisa al cruzar la cuadrícula de 64 KB 
   assert.equal(a.restaurar(MES, { auth: DUENIO }).ok, true);
   assert.ok(avisos > n, "restaurar avisa");
 });
+
+test("empezar en blanco: sólo la jornada real y un dueño con PIN; copia la de ahora, queda sin configurar y sin operador", async () => {
+  const demo = crearAlmacen({ hoy: HOY_TORNEO, clave: claveDeLaDemo(NEGOCIO, "u1"), almacenamiento: null, rol: "OWNER" });
+  assert.deepEqual(demo.empezarEnBlanco({ auth: DUENIO }), { ok: false, causa: "estado", motivo: "Empezar en blanco es de la jornada real." });
+
+  const m = memoria();
+  m.datos.set(CLAVE, MES);
+  const a = await real(m);
+  assert.equal(a.empezarEnBlanco().ok, false, "sin operador ni auth: nadie");
+  assert.deepEqual(a.empezarEnBlanco({ auth: { usuarioId: "u-recep-1", pin: "33" } }), { ok: false, causa: "permiso", motivo: "Empezar en blanco lo hace un dueño." });
+  // Opera un dueño y hay algo para deshacer.
+  const d1 = a.estado().usuarios.find((u) => u.id === DUENIO.usuarioId)!;
+  a.cambiarOperador(d1, DUENIO);
+  a.ejecutar((e) => (e.log.unshift({ fecha: null, min: null, texto: "lo de antes" }), { ok: true, mensaje: "x" }), { deshacible: true });
+  const reservasAntes = a.estado().reservas.length;
+  assert.ok(reservasAntes > 0);
+  let avisosOperador = 0;
+  a.suscribirOperador(() => avisosOperador++);
+
+  const r = a.empezarEnBlanco();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  if (!r.ok) return;
+  assert.match(r.copia, /^gsg-club:demo-club:jornada:v1:antes-de-blanco:\d+$/);
+  assert.ok(m.datos.get(r.copia)!.includes('"texto":"lo de antes"'), "la copia es la jornada de antes");
+  assert.equal(a.estado().config.configurado, false, "sin configurar: sale la consola de arranque");
+  assert.equal(a.estado().reservas.length, 0, "en blanco");
+  assert.ok(a.estado().usuarios.filter((u) => u.rol === "duenio").every((u) => !u.pin), "los dueños sin PIN");
+  assert.equal(a.operador(), null);
+  assert.equal(r.operador, null);
+  assert.equal(avisosOperador, 1);
+  assert.equal(a.puedeDeshacer(), false);
+  assert.equal(a.pendienteDeGuardar(), false, "se guardó en el acto");
+  assert.match(m.datos.get(CLAVE)!, /"configurado":false/);
+  // Ya sin configurar: la consola usa `arranque`.
+  const duenio = a.estado().usuarios.find((u) => u.rol === "duenio")!;
+  assert.equal(a.arranque((e, ahora) => { const x = M.definirPinInicial(e, duenio.id, "47", ahora); return { ok: x.ok, mensaje: x.ok ? "ok" : x.motivo }; }).ok, true);
+});
+
+test("empezar en blanco: si no entra la copia de la de ahora, no hace nada", async () => {
+  const m = memoria();
+  m.datos.set(CLAVE, MES);
+  const lleno: AlmacenamientoLocal = { ...m, setItem: (k, v) => { if (k.includes(":antes-de-blanco:")) throw new Error("QuotaExceededError"); m.setItem(k, v); } };
+  const a = crearAlmacen({ reloj: "real", clave: CLAVE, almacenamiento: lleno, cerrojos: null, canal: null, temporizador, relojMs: () => new Date(2026, 9, 17, 19, 0).getTime(), demoraGuardadoMs: 0, enReposo: null, rol: "OWNER" });
+  a.arrancar();
+  await vaciar();
+  const antes = a.estado();
+  const r = a.empezarEnBlanco({ auth: DUENIO });
+  assert.equal(!r.ok && r.causa, "sin-lugar");
+  assert.equal(a.estado(), antes);
+  assert.equal(m.datos.get(CLAVE), MES);
+});

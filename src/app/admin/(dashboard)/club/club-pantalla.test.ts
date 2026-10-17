@@ -611,8 +611,10 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     // `!a.paraDuenio || esDuenio()`) y pinta sólo esas alertas nuevas; la agenda y los turnos no se enteran.
     // La compuerta «sólo con operador» (ClubDemo) se entera, una vez, y no repinta a sus hijos.
     // «Bloquear» de la cinta (escucha al operador) y su tecla, también una vez.
-    const { BandejaDelClub, Badge, ItemDeLaBandeja = 0, Button = 0, Marca = 0, Forma = 0, SoloConOperador = 0, BloquearDesdeLaCinta = 0, Kbd = 0, ...resto } = porOperador;
+    const { BandejaDelClub, Badge, ItemDeLaBandeja = 0, Button = 0, Marca = 0, Forma = 0, SoloConOperador = 0, BloquearDesdeLaCinta = 0, Kbd = 0, TiraDeSolapas = 0, ...resto } = porOperador;
     assert.ok(SoloConOperador <= 1, "la compuerta se repinta a lo sumo una vez");
+    // De Lu (recepción) a un dueño cambian las solapas que se ven (siguen a quien opera): se repinta SÓLO la tira, una vez.
+    assert.ok(TiraDeSolapas <= 1, "la tira de solapas se repinta a lo sumo una vez");
     assert.ok(BloquearDesdeLaCinta <= 1 && Kbd <= 1, "«Bloquear» se repinta a lo sumo una vez");
     assert.deepEqual(resto, {}, "con la Agenda a la vista, cambiar de operador no repinta la agenda ni los turnos");
     const deDuenio = await p1.evaluate(() => {

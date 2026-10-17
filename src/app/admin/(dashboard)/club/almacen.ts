@@ -370,6 +370,12 @@ export interface Almacen {
    */
   restaurar(respaldo: string | unknown, opciones?: { auth?: Auth }): ResultadoDeRestaurar;
   /**
+   * «Empezar otra jornada en blanco» (sólo la jornada real, un dueño con PIN). Guarda ANTES una copia de la de ahora en
+   * `<clave>:antes-de-blanco:<ms>` (sin lugar, no hace nada); deja el club de `crearClubReal` SIN configurar, apaga
+   * «Deshacer», queda sin operador (sale la consola de arranque) y guarda en el acto. Devuelve lo mismo que `restaurar`.
+   */
+  empezarEnBlanco(opciones?: { auth?: Auth }): ResultadoDeRestaurar;
+  /**
    * Paso 1 del archivado de días cerrados: valida (rol OWNER del ERP + PIN de un dueño del club, porque el motor no lo
    * valida), corre el motor (puro: no toca el estado) y devuelve lo que hay que descargar y `confirmar`. Si no había
    * nada, `vacio: true` y no hay nada que confirmar.
@@ -1305,6 +1311,39 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     return { ok: true, copia: `${clave}:${copia}`, bytesAntes, bytesDespues, operador: operadorActual() };
   };
 
+  // ── empezar otra jornada en blanco ──
+  const empezarEnBlanco = ({ auth }: { auth?: Auth } = {}): ResultadoDeRestaurar => {
+    if (!real) return { ok: false, causa: "estado", motivo: "Empezar en blanco es de la jornada real." };
+    if (!puedeOperar() || recargando) return { ok: false, causa: "estado", motivo: MENSAJE_SOLO_LECTURA[meta.jornada as keyof typeof MENSAJE_SOLO_LECTURA] ?? "Ahora no se puede." };
+    const quien = quienArchiva(auth);
+    if (!quien.ok) return { ok: false, causa: "permiso", motivo: quien.motivo.replace("Archivar", "Empezar en blanco") };
+    // Antes, una copia de la jornada de ahora al lado (como el «-anterior» del vanilla). Sin lugar, no se toca nada.
+    const bytesAntes = textoActual().length;
+    const copia = `antes-de-blanco:${relojMs()}`;
+    let copiado = false;
+    try {
+      copiado = espejo?.guardarCopia(copia, textoParaGuardar()) ?? false;
+    } catch {
+      copiado = false;
+    }
+    if (!copiado)
+      return { ok: false, causa: "sin-lugar", motivo: "No hay lugar en este equipo para guardar una copia de la jornada de ahora: no se empezó nada. Descargá un respaldo y archivá los días cerrados." };
+    // La jornada nueva: el club en blanco, sin configurar (sale la consola de arranque) y sin nadie operando.
+    reemplazar(crearClubReal(fechaLocal(new Date(relojMs()))));
+    retomo = false;
+    archivoPendiente = null;
+    operadorElegido = null;
+    for (const o of oyentesOperador) o();
+    cambios++;
+    const bytesDespues = textoActual().length;
+    aviso = { id: ++idAviso, ok: true, mensaje: "Listo: empezó una jornada nueva en blanco (la anterior quedó copiada en este equipo). Cada dueño arma su PIN.", deshacer: false };
+    avisar();
+    guardarYa();
+    adelantarTexto();
+    avisarTamano(bytesDespues);
+    return { ok: true, copia: `${clave}:${copia}`, bytesAntes, bytesDespues, operador: null };
+  };
+
   // ── la consola de arranque (jornada real sin configurar) ──
   const arranque = (accion: (estado: EstadoClub, ahora: Ahora) => Desenlace): Desenlace => {
     const negar = (mensaje: string): Desenlace => {
@@ -1435,6 +1474,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     soloLectura: () => !puedeOperar(),
     prepararArchivo,
     restaurar,
+    empezarEnBlanco,
     arranque,
     async archivarDiasCerrados({ archivoElegido, ...pedido } = {}) {
       const p = prepararArchivo(pedido);
