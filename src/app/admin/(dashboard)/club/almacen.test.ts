@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
-import { DESHACER_MS, claveDeLaDemo, crearAlmacen, deshacerVigente, leerDemo, MINUTO_DEMO, operadorDeLaDemo, type Guardado } from "./almacen";
+import { DESHACER_MS, claveDeLaDemo, crearAlmacen, deshacerVigente, leerDemo, MINUTO_DEMO, operadorDeLaDemo, textoDeLaDemo, textoDelEstado, type Guardado } from "./almacen";
 import { armarAgenda, compartirAgenda } from "./agenda-core";
 import { armarCuenta, ejecutar } from "./cuenta-core";
 
@@ -231,4 +231,59 @@ test("«Deshacer» vence a los 6 s (reloj inyectado): un cobro de hace 20 minuto
   a.olvidarDeshacer();
   assert.equal(a.puedeDeshacer(), false);
   assert.equal(a.aviso()!.deshacer, false);
+});
+
+// PERFORMANCE-TERMINALES.md, ronda 3: el texto del estado (foto de «Deshacer», guardado y copia de las previas) se
+// arma con `JSON.stringify` directo, sin copiar el estado antes. Tiene que dar EXACTAMENTE lo mismo que el camino
+// de antes (`serializarEstado` + `JSON.stringify`), en la demo recién armada y después de operar.
+test("el texto del estado es carácter por carácter el de serializarEstado, y el de la demo guardada el de antes", () => {
+  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), guardado: null, demoraGuardadoMs: 0 });
+  const comparar = () => {
+    assert.equal(textoDelEstado(a.estado()), JSON.stringify(M.serializarEstado(a.estado())));
+    assert.equal(textoDeLaDemo(textoDelEstado(a.estado()), HOY, 1760000000000), JSON.stringify({ ...M.serializarEstado(a.estado()), hoy: HOY, guardado: 1760000000000 }));
+  };
+  comparar();
+  const r = enJuego(a.estado());
+  a.ejecutar((e, ahora, auth) => ejecutar(e, r.id, { tipo: "cobrarTodo", medio: "efectivo" }, ahora, auth), { deshacible: true });
+  comparar();
+  for (let d = 1; d < 4; d++) a.aplicar((e) => M.materializarFijos(e, M.sumarDias(HOY, d)));
+  comparar();
+});
+
+test("copia(): igual al estado, y tocarla no toca el estado; el guardado escribe el mismo texto", () => {
+  const g = memoria();
+  const clave = claveDeLaDemo("demo-club", "u_1");
+  const a = crearAlmacen({ hoy: HOY, clave, guardado: g, demoraGuardadoMs: 0, reloj: () => 1760000000000 });
+  const c = a.copia();
+  assert.deepEqual(c, JSON.parse(JSON.stringify(a.estado())));
+  const r = enJuego(c);
+  const antes = armarCuenta(a.estado(), r.id)!.totales.pendiente;
+  ejecutar(c, r.id, { tipo: "cobrarTodo", medio: "efectivo" }, a.ahora());
+  assert.equal(armarCuenta(a.estado(), r.id)!.totales.pendiente, antes, "la copia es otra");
+  a.aplicar(() => null);
+  assert.equal(g.datos.get(clave), JSON.stringify({ ...M.serializarEstado(a.estado()), hoy: HOY, guardado: 1760000000000 }));
+});
+
+test("en reposo se adelanta el texto: la foto de «Deshacer» de la acción siguiente no se arma en el toque", () => {
+  const cola: (() => void)[] = [];
+  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), guardado: null, demoraGuardadoMs: 0, enReposo: (fn) => void cola.push(fn) });
+  const r = enJuego(a.estado());
+  a.aplicar(() => null);
+  // Lo que queda en la cola arma el texto; después, la acción deshacible usa ese texto y «Deshacer» vuelve bien.
+  const original = JSON.stringify;
+  for (const fn of cola.splice(0)) fn();
+  let textos = 0;
+  JSON.stringify = ((...args: Parameters<typeof JSON.stringify>) => {
+    textos++;
+    return original(...args);
+  }) as typeof JSON.stringify;
+  try {
+    a.ejecutar((e, ahora, auth) => ejecutar(e, r.id, { tipo: "cobrarTodo", medio: "efectivo" }, ahora, auth), { deshacible: true });
+  } finally {
+    JSON.stringify = original;
+  }
+  assert.equal(textos, 0, "la foto ya estaba armada");
+  assert.equal(armarCuenta(a.estado(), r.id)!.totales.pendiente, 0);
+  a.deshacer();
+  assert.ok(armarCuenta(a.estado(), r.id)!.totales.pendiente > 0, "«Deshacer» vuelve a como estaba");
 });

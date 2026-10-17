@@ -72,9 +72,12 @@ export function previaExtender(estado: EstadoClub, reservaId: string, minutos: n
   return { ok: true, extra: precioTurno(estado, hueco), hasta: hhmm(r.inicio + r.duracion + minutos) };
 }
 
-/** Lo que va a pasar si se cancela: lo dice el motor sobre una copia. */
-export function previaCancelar(estado: EstadoClub, reservaId: string, porClub: boolean, ahora: Ahora): { ok: true; texto: string; pagado: number } | { ok: false; motivo: string } {
-  const copia = structuredClone(estado);
+/**
+ * Lo que va a pasar si se cancela: lo dice el motor sobre una copia. `copia` la puede dar quien llama (la pantalla
+ * usa `almacen.simular`, que la saca del texto del estado ya armado: PERFORMANCE-TERMINALES.md, ronda 3); si no,
+ * se copia el estado acá.
+ */
+export function previaCancelar(estado: EstadoClub, reservaId: string, porClub: boolean, ahora: Ahora, copia: EstadoClub = structuredClone(estado)): { ok: true; texto: string; pagado: number } | { ok: false; motivo: string } {
   const r = reservaDe(copia, reservaId);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
   const pagado = cobrado(r);
@@ -92,8 +95,7 @@ export function previaCancelar(estado: EstadoClub, reservaId: string, porClub: b
 }
 
 /** Lo que se le cobra si no vino: el turno entero menos lo pagado, a quién va, o por qué todavía no. */
-export function previaFalta(estado: EstadoClub, reservaId: string, cobrarA: "titular" | "grupo", ahora: Ahora): { ok: true; texto: string } | { ok: false; motivo: string } {
-  const copia = structuredClone(estado);
+export function previaFalta(estado: EstadoClub, reservaId: string, cobrarA: "titular" | "grupo", ahora: Ahora, copia: EstadoClub = structuredClone(estado)): { ok: true; texto: string } | { ok: false; motivo: string } {
   const res = marcarNoShow(copia, reservaId, { cobrarA }, ahora);
   if (!res.ok) return { ok: false, motivo: res.motivo };
   const texto = res.cargos.length
@@ -103,8 +105,7 @@ export function previaFalta(estado: EstadoClub, reservaId: string, cobrarA: "tit
 }
 
 /** Cuánto se reconoce si se interrumpe ahora. */
-export function previaInterrumpir(estado: EstadoClub, reservaId: string, ahora: Ahora): { ok: true; texto: string } | { ok: false; motivo: string } {
-  const copia = structuredClone(estado);
+export function previaInterrumpir(estado: EstadoClub, reservaId: string, ahora: Ahora, copia: EstadoClub = structuredClone(estado)): { ok: true; texto: string } | { ok: false; motivo: string } {
   const r = reservaDe(copia, reservaId);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
   const pagado = cobrado(r);

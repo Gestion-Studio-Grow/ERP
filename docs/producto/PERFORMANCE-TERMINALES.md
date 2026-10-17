@@ -202,4 +202,114 @@ Scripts nuevos en `scratchpad/perf/scripts/`: `buscador-navegador.mjs`, `contar-
 - El build también salió verde en una copia limpia: HEAD + sólo estos cambios, sin el trabajo en
   curso de `club/**`.
 
+---
+
+## 9. Ronda 3 — /admin/club (2026-10-17)
+
+### Cómo se midió
+
+- **Harness:** `scratchpad/perf/scripts/club-harness.mjs`.
+  - Monta `ClubDemo` REAL en Chromium, con el CSS de la app, en build de producción con profiling de React.
+  - Por acción mide: Event Timing (del toque al cuadro pintado, con un piso de 16 ms), `<Profiler>`, renders por
+    componente (gancho de DevTools), el tiempo del motor (dentro de `ejecutar`) y el de las fotos, por separado.
+  - Deja 2,5 s entre acción y acción, como un cajero. Las tareas de fondo se cuentan en el total de la sesión.
+  - Se corrió con la CPU normal y con CPU ×4 (PC de recepción barata o tablet).
+- **Estados medidos:**
+  - la demo del día (244.149 caracteres);
+  - un estado grande: la demo con **6 canchas, turnos de 1 h de punta a punta los 55 días anteriores** (cobrados,
+    con mesas y cargos) **y la semana que viene llena**. Son 5.945 turnos, 4.013 movimientos de caja y
+    **3.983.058 caracteres**. Esta versión de Chromium aceptó guardar un estado de ese tamaño; el tope exacto de
+    localStorage no quedó bien medido.
+- **Lighthouse de la página de verdad:** `next start` contra el **Postgres local descartable** (`/tmp/pgrun`, nunca
+  Neon), con el módulo `club` asignado al negocio de prueba y una sesión firmada con un secreto de prueba. Postgres
+  quedó apagado y las bases de prueba, borradas.
+
+### Tabla (estado grande, CPU ×4, salvo que se diga otra cosa)
+
+| Métrica | Antes | Después |
+|---|---|---|
+| Foto de «Deshacer» en el toque (cobrar, a cargo de, mover…) | **267–392 ms** | **0 ms** (se arma antes, en reposo) |
+| Cobrar a un jugador: del toque al cuadro | 488 ms | **120 ms** |
+| Cobrar todo: del toque al cuadro | 552 ms | **120 ms** |
+| Mover un turno: del toque al cuadro | 424 ms | **192 ms** |
+| Cargar del buffet a un jugador: del toque al cuadro | 368 ms | **136 ms** |
+| Tipear el motivo de cancelar (6 letras): React | **2.127 ms** (la previa copiaba el estado en cada letra) | **3 ms** |
+| Abrir la previa de cancelar / del plan lluvia | 408 / 440 ms | 144 / 184 ms |
+| Guardar en el equipo, por acción | 543 ms juntos (copia + texto + `setItem`), a los 400 ms | 76 ms de texto en reposo + `setItem` (150–220 ms) agrupado 1,5 s, en reposo |
+| Tiempo bloqueado en toda la sesión (TBT, 18 acciones) | **10,7 s** | **4,7 s** |
+| La misma sesión con CPU normal | 923 ms | **126 ms** |
+| «Deshacer» (vuelve con `hidratarEstado`) | 520 ms | 448 ms |
+| Abrir la pantalla con el estado grande | 716 ms hasta la agenda | 677 ms (leer + `hidratarEstado` del motor: no se toca) |
+| Demo del día (CPU ×4), cualquier acción | 72–216 ms | igual, dentro del ruido |
+| Contraste: textos debajo de 4,5:1 (a 768 y 390 px) | **37** (`text-muted` sobre `surface-sunken` = 4,33:1) | **0** (mínimo 4,51:1) |
+| Objetivos táctiles de menos de 44 px · scroll de costado (768 y 390 px) | 0 · 0 | 0 · 0 |
+| Lighthouse móvil `/admin/club` (perf / a11y / LCP / CLS / TBT) | 88–95 / 100 / 2,8–3,5 s / 0 / 100–170 ms | 89–95 / 100 / 2,7–3,5 s / 0 / 120–200 ms |
+| Lighthouse escritorio | 98–99 / 100 / 1,0–1,1 s / 0 / 0 ms | 98–99 / 100 / 1,0–1,1 s / 0 / 0 ms |
+
+### Bundle
+
+- **El motor está SÓLO en `/admin/club`.** La firma de `motor.mjs` («el archivo está vacío o no es de Break Point»)
+  aparece en **un solo chunk** (`1ttgcju5-ihwf.js`). Lo pide sólo el chunk de entrada de `/admin/club`, figura sólo
+  en `club/page/react-loadable-manifest.json` y no está en ningún chunk del servidor (`ssr: false`).
+  `src/lib/club/dominio/*.mjs` no llega al navegador.
+- **Peso de `/admin/club`, en gzip:**
+  - **175,2 kB** de primera carga: React, Next, el layout del panel y la entrada de la página (638 B). Es lo mismo
+    para todo el panel.
+  - Después, lo que se pide al montar:
+    - **el motor: 20,7 kB** (ahora en su chunk);
+    - **la UI de la Agenda: 15,1 kB**;
+    - **la lógica de pantalla compartida** (cuenta, buffet, canchas): **8,8 kB**;
+    - **piezas de UI: 5,3 kB**.
+  - Antes eran 51,6 kB (177 kB sin comprimir); ahora son **49,9 kB (153 kB sin comprimir, −16 % para leer)**.
+- **Partido por solapa:** Buffet, Caja, Fijos y Mantenimiento quedaron en chunks aparte, de 2,2 a 4,0 kB cada uno y
+  **11,8 kB** entre los cuatro.
+  - Se piden apenas el navegador queda libre después de abrir. Si ya llegaron, se pintan directo, sin esqueleto
+    (`diferida` en `ClubDemo.tsx`).
+  - La primera interacción (tocar un turno) no los espera.
+  - **Ojo con lo que gana:** la mayor parte de la lógica la comparte la Agenda (la cuenta usa buffet-core, el día
+    usa canchas-core), así que el ahorro en la primera carga es chico: 1,7 kB gzip y 24 kB sin comprimir.
+    Partirlo suma unos 10 kB gzip de envoltorio en total. Lighthouse no lo distingue del ruido.
+  - Es reversible: si el dueño prefiere un solo chunk, se vuelve a importar directo.
+
+### Qué se cambió (sin tocar el motor ni sus `.mjs`)
+
+1. **Un texto del estado por versión** (`almacen.ts`: `textoDelEstado`, `textoDeLaDemo`, `copia`, `simular`):
+   - se arma con `JSON.stringify` directo, sin copiar antes: 76 ms con ×4, contra 292 de `serializarEstado`. Da el
+     **mismo texto carácter por carácter**, y `almacen.test.ts` lo compara;
+   - se arma en reposo después de cada cambio, y también al abrir;
+   - sirve para la foto de «Deshacer», para el guardado y para las copias de las previas.
+2. **Guardado:**
+   - se agrupa 1,5 s y se escribe cuando el navegador está libre;
+   - al cerrar la pestaña o pasar a otra app se escribe en el acto (`pagehide` y `visibilitychange` → `guardarYa`,
+     sin cambios);
+   - sin almacenamiento disponible, ni se arma el texto.
+3. **Previas** (cancelar, falta, cortar, lluvia):
+   - corren sobre `JSON.parse` del texto ya armado: 83 ms con ×4, contra 318 de `structuredClone`;
+   - se guardan por estado y por opción (`almacen.simular`): una letra del motivo ya no recalcula nada;
+   - test: las previas sobre la copia del texto dicen lo mismo que sobre `structuredClone` en todos los turnos de la
+     semana, con todas las opciones, y no tocan el estado.
+4. **Contraste:** sobre el fondo hundido, los rótulos y horarios pasan a `text-body` (agenda, totales del turno,
+   caja). El recuadro de los formularios del ciclo del turno pasa a `surface-raised` con su borde.
+
+### Lo que queda (no se tocó, con su porqué)
+
+- **«Deshacer» y abrir con un estado grande** (~300 ms con ×4) los gasta `hidratarEstado` del motor, que copia
+  adentro. Se podría saltar con el estado ya leído, pero se perdería la validación del motor.
+  - «Deshacer» es raro y explícito, y vence a los 6 s;
+  - abrir pasa una vez por visita.
+- **Cambiar de día o de solapa con el estado grande** (150–300 ms con ×4): es el render de React de la grilla
+  (83 turnos al montar la semana llena) o del panel. El paso siguiente sería virtualizar la grilla o usar
+  `content-visibility` en las solapas largas.
+- **El `setItem` de 4 millones de caracteres** (150–220 ms con ×4) es del navegador. Ya no cae en el toque, pero
+  sigue siendo una tarea larga en reposo.
+
+### Verificación
+
+- `npx tsc --noEmit`: 0.
+- `npx eslint` de `club/`: 0.
+- Tests de club y del motor: 85 de 85, incluidos los de pantalla en Chromium.
+- `npm test` completo: 5.062 tests, 4.887 pasan, 28 fallan, 147 salteados. Los nombres que fallan son exactamente
+  los de `fail-w3.txt`.
+- `npm run build`: verde.
+
 — Elaborado por GSG

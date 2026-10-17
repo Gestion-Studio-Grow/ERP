@@ -26,7 +26,7 @@ function PlanLluvia({ almacen, dia, hacer }: { almacen: Almacen; dia: string; ha
   const [hasta, setHasta] = useState(horas.at(-1)!.min);
   const [verPrevia, setVerPrevia] = useState(false);
   const ids = { desde: useId(), hasta: useId(), t: useId() };
-  const previa = verPrevia ? previaLluvia(almacen.estado(), dia, desde, hasta, ahora) : null;
+  const previa = verPrevia ? almacen.simular(`lluvia:${dia}:${desde}:${hasta}`, (copia) => previaLluvia(almacen.estado(), dia, desde, hasta, ahora, copia)) : null;
   return (
     <section aria-labelledby={ids.t} className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">
       <h2 id={ids.t} className="font-semibold text-strong">

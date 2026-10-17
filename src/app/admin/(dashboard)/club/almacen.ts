@@ -19,12 +19,25 @@
 // negocios o dos personas en la misma compu no se pisan (MT: todo almacenamiento local se
 // namespacea). El guardado se agrupa (no se escribe en cada toque) y se fuerza al salir.
 //
+// PERFORMANCE (docs/producto/PERFORMANCE-TERMINALES.md, ronda 3). Con un estado grande (un mes de jornada,
+// ~4 millones de caracteres, cerca del tope de localStorage) copiar el estado entero cuesta ~300 ms en una PC
+// lenta (CPU ×4) y se hacía DOS veces por acción: la foto de «Deshacer» (`serializarEstado` = `structuredClone`),
+// en el toque mismo, y otra al guardar. Ahora hay UN texto del estado por versión (`textoDelEstado`):
+//   · se arma con `JSON.stringify` directo (~4 veces más barato que copiar y después pasar a texto, y da el MISMO
+//     texto: el estado del motor es JSON — se guarda y se retoma así — y `serializarEstado` es
+//     `{ v, estado: copia, secuencia }`; almacen.test.ts lo compara carácter por carácter);
+//   · se arma cuando el navegador está libre después de cada acción (`requestIdleCallback`), así la foto de
+//     «Deshacer» de la acción siguiente ya está hecha y no se paga en el toque;
+//   · lo usan la foto de «Deshacer», el guardado y la copia para las previas (`copia()`, ciclo-core/canchas-core).
+// «Deshacer» vuelve con `hidratarEstado` (el mismo camino que retomar lo guardado). El guardado se escribe un
+// rato después de la última acción, cuando el navegador está libre, y en el acto al salir (`guardarYa`).
+//
 // La demo es DEL DÍA: si lo guardado es de otro día, arranca una demo nueva (los turnos de ayer no
 // le sirven a nadie). «Volver a la demo» la rearma desde cero.
 //
 // Corre sólo en el navegador: el motor guarda su contador de ids a nivel de módulo.
 
-import { generarDemo, hidratarEstado, materializarFijos, serializarEstado, sumarDias } from "@/lib/club/motor.mjs";
+import { VERSION_ESTADO, generarDemo, hidratarEstado, materializarFijos, secuenciaIds, sumarDias } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub, Fecha, FotoEstado, Usuario } from "@/lib/club/motor.mjs";
 import type { Role } from "@/lib/capabilities";
 
@@ -73,12 +86,35 @@ export function leerDemo(guardado: Guardado | null, clave: string, hoy: Fecha): 
   }
 }
 
+/**
+ * El estado como texto: el sobre v1 del motor (`{ v, estado, secuencia }`, lo mismo que `JSON.stringify` de
+ * `serializarEstado`) sin copiarlo antes. Puede tirar si el estado no es JSON (no pasa: se guarda así).
+ */
+export function textoDelEstado(estado: EstadoClub): string {
+  return JSON.stringify({ v: VERSION_ESTADO, estado, secuencia: secuenciaIds() });
+}
+
+/** Lo que se guarda, a partir del texto del estado: el mismo sobre con el día de la demo y cuándo se guardó. */
+export function textoDeLaDemo(textoEstado: string, hoy: Fecha, ahoraMs: number): string {
+  // `{ ...foto, hoy, guardado }` pasado a texto es la foto con dos claves más al final: se agregan sin volver a
+  // recorrer el estado.
+  return `${textoEstado.slice(0, -1)},"hoy":${JSON.stringify(hoy)},"guardado":${JSON.stringify(ahoraMs)}}`;
+}
+
 /** Guarda la foto. Devuelve false si el navegador no deja (incógnito, sin lugar): la demo sigue en memoria. */
 export function guardarDemo(guardado: Guardado | null, clave: string, estado: EstadoClub, hoy: Fecha, ahoraMs: number): boolean {
   if (!guardado) return false;
   try {
-    const foto: FotoDeLaDemo = { ...serializarEstado(estado), hoy, guardado: ahoraMs };
-    guardado.setItem(clave, JSON.stringify(foto));
+    return guardarTexto(guardado, clave, textoDelEstado(estado), hoy, ahoraMs);
+  } catch {
+    return false;
+  }
+}
+
+function guardarTexto(guardado: Guardado | null, clave: string, textoEstado: string, hoy: Fecha, ahoraMs: number): boolean {
+  if (!guardado) return false;
+  try {
+    guardado.setItem(clave, textoDeLaDemo(textoEstado, hoy, ahoraMs));
     return true;
   } catch {
     return false;
@@ -139,6 +175,16 @@ export interface Almacen {
   volverALaDemo(): void;
   /** Escribe ya lo pendiente (al salir de la página). */
   guardarYa(): void;
+  /**
+   * Una copia del estado para simular sin tocarlo (las previas de cancelar, la falta, la lluvia): sale del texto
+   * del estado de esta versión (`JSON.parse`), que suele estar ya armado. Cada llamada da una copia nueva.
+   */
+  copia(): EstadoClub;
+  /**
+   * Una simulación sobre una copia (`copia()`), guardada por `clave` hasta el próximo cambio del estado: las previas
+   * se calculan una vez por estado y por opción, no en cada render (copiar un estado grande cuesta).
+   */
+  simular<T>(clave: string, fn: (copia: EstadoClub) => T): T;
   /** ¿Lo que se ve viene de lo guardado en este equipo (y no de una demo recién armada)? */
   retomada(): boolean;
   /** Con qué usuario del club opera la demo (ver `operadorDeLaDemo`). */
@@ -166,8 +212,10 @@ export interface OpcionesAlmacen {
   hoy: Fecha;
   clave: string;
   guardado: Guardado | null;
-  /** Cuánto se espera para agrupar el guardado. 0 = guardar en el acto. */
+  /** Cuánto se espera para agrupar el guardado (después, se escribe cuando el navegador está libre). 0 = guardar en el acto. */
   demoraGuardadoMs?: number;
+  /** Para correr algo cuando el navegador está libre (`requestIdleCallback`); sin él, no se adelanta nada. */
+  enReposo?: ((fn: () => void) => void) | null;
   reloj?: () => number;
   /** Para vencer «Deshacer» a los 6 s (se reemplaza en los tests). */
   programar?: (fn: () => void, ms: number) => unknown;
@@ -182,7 +230,13 @@ function programarSinRetener(fn: () => void, ms: number): unknown {
   return t;
 }
 
-export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, reloj = Date.now, programar = programarSinRetener, rol = "RECEPTION" }: OpcionesAlmacen): Almacen {
+/** `requestIdleCallback` del navegador (con un tope de espera), o null (Node, Safari viejo). */
+function reposoDelNavegador(): ((fn: () => void) => void) | null {
+  const w = typeof window !== "undefined" ? (window as Window & { requestIdleCallback?: (fn: () => void, o?: { timeout: number }) => number }) : null;
+  return w?.requestIdleCallback ? (fn) => void w.requestIdleCallback!(fn, { timeout: 1000 }) : null;
+}
+
+export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 1500, reloj = Date.now, programar = programarSinRetener, rol = "RECEPTION", enReposo = reposoDelNavegador() }: OpcionesAlmacen): Almacen {
   const previo = leerDemo(guardado, clave, hoy);
   let estado = previo ?? demoDelDia(hoy);
   let retomo = previo !== null;
@@ -190,21 +244,66 @@ export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, rel
   let version = 0;
   const oyentes = new Set<() => void>();
   let pendiente: ReturnType<typeof setTimeout> | null = null;
+  // El texto del estado, armado a lo sumo una vez por cambio (`cambios` sube sólo si el estado pudo cambiar).
+  let cambios = 0;
+  let texto: { cambios: number; valor: string } | null = null;
+  let simulaciones: { cambios: number; valores: Map<string, unknown> } = { cambios: -1, valores: new Map() };
+  const textoActual = (): string => {
+    if (texto?.cambios !== cambios) texto = { cambios, valor: textoDelEstado(estado) };
+    return texto.valor;
+  };
+  // Después de cada cambio, el texto nuevo se arma cuando el navegador está libre (si no, a demanda).
+  const adelantarTexto = () => {
+    const pedido = cambios;
+    enReposo?.(() => {
+      if (pedido !== cambios) return;
+      try {
+        textoActual();
+      } catch {
+        // si no se pudo, se arma a demanda (y ahí se avisa)
+      }
+    });
+  };
+
+  // El texto del estado recién abierto también se adelanta: la primera acción deshacible no lo arma en el toque.
+  adelantarTexto();
 
   const escribir = () => {
     pendiente = null;
-    guardarDemo(guardado, clave, estado, hoy, reloj());
+    // Sin almacenamiento (incógnito) no hay nada que escribir: ni se arma el texto.
+    if (!guardado) return;
+    try {
+      guardarTexto(guardado, clave, textoActual(), hoy, reloj());
+    } catch {
+      // sin texto no hay guardado: la demo sigue en memoria
+    }
   };
   const programarGuardado = () => {
     if (demoraGuardadoMs <= 0) return escribir();
-    if (pendiente === null) pendiente = setTimeout(escribir, demoraGuardadoMs);
+    if (pendiente !== null) return;
+    // Se agrupa: un rato después de la primera acción, y cuando el navegador está libre (la escritura de un
+    // estado grande es una tarea larga: que no le gane a un toque). Al salir se escribe en el acto (`guardarYa`).
+    const marca: ReturnType<typeof setTimeout> = setTimeout(() => {
+      if (pendiente !== marca) return;
+      if (enReposo) enReposo(() => pendiente === marca && escribir());
+      else escribir();
+    }, demoraGuardadoMs);
+    pendiente = marca;
+  };
+  /** El estado pudo cambiar: el texto armado ya no vale; se avisa, se guarda y se adelanta el texto nuevo. */
+  const cambio = () => {
+    cambios++;
+    avisar();
+    programarGuardado();
+    adelantarTexto();
   };
   const avisar = () => {
     version++;
     for (const o of oyentes) o();
   };
   let aviso: AvisoDelClub | null = null;
-  let fotoPrevia: FotoEstado | null = null;
+  /** La foto de antes de la última acción deshacible: el texto del estado (ver `textoActual`). */
+  let fotoPrevia: string | null = null;
   let fotoDesde: number | null = null;
   let mensajePrevio = "";
   let idAviso = 0;
@@ -237,8 +336,7 @@ export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, rel
       try {
         return accion(estado, ahora);
       } finally {
-        avisar();
-        programarGuardado();
+        cambio();
       }
     },
     auth: () => quien()?.auth ?? {},
@@ -246,7 +344,15 @@ export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, rel
     rol: () => rol,
     aviso: () => aviso,
     ejecutar(accion, { deshacible = false } = {}) {
-      const foto = deshacible ? serializarEstado(estado) : null;
+      // La foto de antes: casi siempre ya está armada (se adelanta en reposo después de cada cambio).
+      let foto: string | null = null;
+      if (deshacible) {
+        try {
+          foto = textoActual();
+        } catch {
+          foto = null;
+        }
+      }
       let d: Desenlace;
       try {
         d = accion(estado, ahora, quien()?.auth ?? {});
@@ -267,8 +373,7 @@ export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, rel
         }, DESHACER_MS);
       }
       aviso = { id: ++idAviso, ok: d.ok, mensaje: d.mensaje, deshacer: d.ok && fotoPrevia !== null };
-      avisar();
-      programarGuardado();
+      cambio();
       return d;
     },
     informar(d) {
@@ -280,7 +385,12 @@ export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, rel
     deshacer() {
       if (!fotoPrevia) return;
       if (!deshacerVigente(fotoDesde, reloj())) return soltarFoto();
-      const h = hidratarEstado(fotoPrevia);
+      let h: ReturnType<typeof hidratarEstado>;
+      try {
+        h = hidratarEstado(JSON.parse(fotoPrevia));
+      } catch {
+        h = { ok: false, motivo: "no se pudo leer" };
+      }
       fotoPrevia = null;
       fotoDesde = null;
       if (!h.ok) {
@@ -289,8 +399,7 @@ export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, rel
         estado = h.estado;
         aviso = { id: ++idAviso, ok: true, mensaje: `Listo, se deshizo: ${mensajePrevio}`, deshacer: false };
       }
-      avisar();
-      programarGuardado();
+      cambio();
     },
     volverALaDemo() {
       if (pendiente !== null) clearTimeout(pendiente);
@@ -305,12 +414,26 @@ export function crearAlmacen({ hoy, clave, guardado, demoraGuardadoMs = 400, rel
       fotoPrevia = null;
       fotoDesde = null;
       aviso = { id: ++idAviso, ok: true, mensaje: "Listo: volviste a la demo de hoy, como recién abierta.", deshacer: false };
+      cambios++;
       avisar();
+      adelantarTexto();
     },
     guardarYa() {
       if (pendiente === null) return;
       clearTimeout(pendiente);
       escribir();
+    },
+    copia() {
+      return (JSON.parse(textoActual()) as FotoEstado).estado;
+    },
+    simular(claveSim, fn) {
+      if (simulaciones.cambios !== cambios) simulaciones = { cambios, valores: new Map() };
+      if (simulaciones.valores.has(claveSim)) return simulaciones.valores.get(claveSim) as ReturnType<typeof fn>;
+      const valor = fn((JSON.parse(textoActual()) as FotoEstado).estado);
+      // Pocas por estado (las opciones de un formulario): con más, se tira la más vieja.
+      if (simulaciones.valores.size >= 16) simulaciones.valores.delete(simulaciones.valores.keys().next().value!);
+      simulaciones.valores.set(claveSim, valor);
+      return valor;
     },
   };
 }

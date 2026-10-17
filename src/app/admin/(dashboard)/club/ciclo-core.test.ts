@@ -172,3 +172,37 @@ test("esta semana no vienen: el fijo libera esa fecha y sigue", () => {
   assert.ok(f.excepciones.includes(HOY));
   assert.deepEqual(M.materializarFijos(e, HOY), [], "no lo vuelve a bajar");
 });
+
+// PERFORMANCE-TERMINALES.md, ronda 3: la pantalla simula las previas sobre una copia sacada del TEXTO del estado
+// (`almacen.simular`: `JSON.parse`), no con `structuredClone`. Tienen que decir lo mismo para TODOS los turnos de la
+// semana y todas las opciones, y no tocar el estado.
+test("las previas sobre la copia del texto del estado dicen lo mismo que sobre structuredClone, turno por turno", () => {
+  const e = M.generarDemo(HOY, 19 * 60 + 10);
+  for (let d = 1; d < 7; d++) M.materializarFijos(e, M.sumarDias(HOY, d));
+  const ahora: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
+  const antes = JSON.stringify(e);
+  const delTexto = () => (JSON.parse(JSON.stringify({ v: M.VERSION_ESTADO, estado: e, secuencia: M.secuenciaIds() })) as M.FotoEstado).estado;
+  let comparadas = 0;
+  for (const r of e.reservas) {
+    for (const porClub of [false, true]) {
+      assert.deepEqual(previaCancelar(e, r.id, porClub, ahora, delTexto()), previaCancelar(e, r.id, porClub, ahora), `cancelar ${r.id}`);
+      comparadas++;
+    }
+    for (const cobrarA of ["titular", "grupo"] as const) {
+      assert.deepEqual(previaFalta(e, r.id, cobrarA, ahora, delTexto()), previaFalta(e, r.id, cobrarA, ahora), `falta ${r.id}`);
+      comparadas++;
+    }
+    assert.deepEqual(previaInterrumpir(e, r.id, ahora, delTexto()), previaInterrumpir(e, r.id, ahora), `interrumpir ${r.id}`);
+    comparadas++;
+  }
+  for (let d = 0; d < 3; d++) {
+    const fecha = M.sumarDias(HOY, d);
+    const { abre, cierra } = M.horarioDe(e, fecha);
+    for (const desde of [abre, 19 * 60, 20 * 60 + 30]) {
+      assert.deepEqual(previaLluvia(e, fecha, desde, cierra, ahora, delTexto()), previaLluvia(e, fecha, desde, cierra, ahora), `lluvia ${fecha} ${desde}`);
+      comparadas++;
+    }
+  }
+  assert.equal(JSON.stringify(e), antes, "ninguna previa tocó el estado");
+  assert.ok(comparadas > 100, `comparadas ${comparadas}`);
+});

@@ -23,7 +23,7 @@
 // `next/dynamic` y `ssr: false` (el motor guarda su contador de ids a nivel de módulo; en el
 // servidor sería compartido entre pedidos).
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, createElement, lazy, useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/components/ui/cn";
 import { hhmm, reserva as reservaDe } from "@/lib/club/motor.mjs";
@@ -31,12 +31,48 @@ import { claveDeLaDemo, crearAlmacen, type Guardado, type RolDelPanel } from "./
 import AgendaCanchas from "./AgendaCanchas";
 import AltaDeTurno from "./AltaDeTurno";
 import { DiasDeLaAgenda, FueraDeLaGrilla } from "./AgendaExtras";
-import BuffetDelClub from "./BuffetDelClub";
-import CajaDelClub from "./CajaDelClub";
-import CanchasDelClub from "./CanchasDelClub";
-import FijosYEspera from "./FijosYEspera";
 import CuentaDelTurno from "./CuentaDelTurno";
+import { Esqueleto } from "@/components/ui/Esqueleto";
 import { AvisosDelClub } from "./piezas";
+
+// PERFORMANCE (docs/producto/PERFORMANCE-TERMINALES.md, ronda 3): la Agenda (con la cuenta del turno y «Dar un
+// turno») baja con la pantalla; las otras cuatro solapas, en chunks aparte que se piden en cuanto el navegador
+// queda libre después de abrir (`precargarSolapas`), así el primer cambio de solapa no espera la red y la primera
+// interacción (tocar un turno) no carga con su JS.
+// Si ya llegó (lo normal: se precarga), se pinta directo; si no, `lazy` + Suspense muestra el esqueleto mientras baja.
+// Sin esto, `lazy` muestra el esqueleto un cuadro aunque el módulo ya esté (tiene que resolver su promesa).
+function diferida<P extends object>(cargar: () => Promise<{ default: ComponentType<P> }>) {
+  let lista: ComponentType<P> | null = null;
+  const precargar = () =>
+    cargar().then((m) => {
+      lista = m.default;
+      return m;
+    });
+  const Perezosa = lazy(precargar);
+  function Solapa(props: P) {
+    return createElement(lista ?? Perezosa, props);
+  }
+  return { Solapa, precargar };
+}
+const fijos = diferida(() => import("./FijosYEspera"));
+const canchas = diferida(() => import("./CanchasDelClub"));
+const buffet = diferida(() => import("./BuffetDelClub"));
+const caja = diferida(() => import("./CajaDelClub"));
+const FijosYEspera = fijos.Solapa;
+const CanchasDelClub = canchas.Solapa;
+const BuffetDelClub = buffet.Solapa;
+const CajaDelClub = caja.Solapa;
+function precargarSolapas() {
+  for (const d of [buffet, caja, fijos, canchas]) void d.precargar().catch(() => undefined);
+}
+function SolapaCargando() {
+  return (
+    <div role="status" aria-label="Cargando la solapa" className="flex flex-col gap-3">
+      <Esqueleto className="h-24 w-full rounded-lg" />
+      <Esqueleto className="h-48 w-full rounded-lg" />
+    </div>
+  );
+}
 
 /** El día de hoy en este equipo, "AAAA-MM-DD" (la demo es del día). */
 function hoyLocal(): string {
@@ -72,6 +108,17 @@ export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; u
   const hoy = almacen.ahora().fecha;
   const [dia, setDia] = useState(hoy);
   const botones = useRef<Partial<Record<Solapa, HTMLButtonElement | null>>>({});
+
+  // Las otras solapas se piden apenas el navegador queda libre (ya abierta la agenda).
+  useEffect(() => {
+    const w = window as Window & { requestIdleCallback?: (fn: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(precargarSolapas, { timeout: 2000 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(precargarSolapas, 500);
+    return () => clearTimeout(t);
+  }, []);
 
   // Lo pendiente de guardar se escribe al salir de la página o al pasar a otra app.
   useEffect(() => {
@@ -212,10 +259,14 @@ export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; u
             </div>
           </div>
         )}
-        {solapa === "fijos" && <FijosYEspera almacen={almacen} onVerTurno={verTurno} />}
-        {solapa === "canchas" && <CanchasDelClub almacen={almacen} dia={dia} />}
-        {solapa === "buffet" && <BuffetDelClub almacen={almacen} onVerTurno={verTurno} />}
-        {solapa === "caja" && <CajaDelClub almacen={almacen} />}
+        {solapa !== "agenda" && (
+          <Suspense fallback={<SolapaCargando />}>
+            {solapa === "fijos" && <FijosYEspera almacen={almacen} onVerTurno={verTurno} />}
+            {solapa === "canchas" && <CanchasDelClub almacen={almacen} dia={dia} />}
+            {solapa === "buffet" && <BuffetDelClub almacen={almacen} onVerTurno={verTurno} />}
+            {solapa === "caja" && <CajaDelClub almacen={almacen} />}
+          </Suspense>
+        )}
       </div>
 
       <AvisosDelClub almacen={almacen} />

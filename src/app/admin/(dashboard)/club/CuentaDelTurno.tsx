@@ -155,17 +155,18 @@ const FilaDeJugador = memo(function FilaDeJugador({
 function Totales({ vista }: { vista: VistaCuenta }) {
   const T = vista.totales;
   return (
+    // Sobre el fondo hundido los rótulos van en text-body: text-muted ahí no llega a 4,5:1 (PERFORMANCE-TERMINALES.md, ronda 3).
     <dl aria-label="Totales del turno" className="grid grid-cols-3 gap-2 rounded-md bg-surface-sunken p-3 tabular-nums">
       <div>
-        <dt className="text-xs text-muted">Cancha</dt>
+        <dt className="text-xs text-body">Cancha</dt>
         <dd className="font-semibold text-strong">{pesos(T.cancha)}</dd>
       </div>
       <div>
-        <dt className="text-xs text-muted">Cargos</dt>
+        <dt className="text-xs text-body">Cargos</dt>
         <dd className="font-semibold text-strong">{pesos(T.cargos)}</dd>
       </div>
       <div>
-        <dt className="text-xs text-muted">Falta cobrar</dt>
+        <dt className="text-xs text-body">Falta cobrar</dt>
         <dd className={cn("text-lg font-bold", T.pendiente > 0 ? "text-strong" : "text-success")}>{pesos(T.pendiente)}</dd>
       </div>
     </dl>

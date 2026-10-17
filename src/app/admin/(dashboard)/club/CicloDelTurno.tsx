@@ -109,7 +109,7 @@ function Falta({ almacen, reservaId, hacer }: { almacen: Almacen; reservaId: str
     { v: "grupo", t: "Repartido en el grupo" },
     ...(duenio ? [{ v: "nadie" as const, t: "Sin cargo (decide el dueño)" }] : []),
   ];
-  const previa = cobrarA === "nadie" ? ({ ok: true, texto: "Queda la falta anotada, sin cobrarle nada." } as const) : previaFalta(almacen.estado(), reservaId, cobrarA, almacen.ahora());
+  const previa = cobrarA === "nadie" ? ({ ok: true, texto: "Queda la falta anotada, sin cobrarle nada." } as const) : almacen.simular(`falta:${reservaId}:${cobrarA}`, (copia) => previaFalta(almacen.estado(), reservaId, cobrarA, almacen.ahora(), copia));
   return (
     <div className="flex flex-col gap-2">
       <fieldset className="flex flex-wrap gap-2">
@@ -133,7 +133,8 @@ function Cancelar({ almacen, reservaId, hacer }: { almacen: Almacen; reservaId: 
   const [porClub, setPorClub] = useState(false);
   const [motivo, setMotivo] = useState("");
   const ids = { club: useId(), motivo: useId() };
-  const previa = previaCancelar(almacen.estado(), reservaId, porClub, almacen.ahora());
+  // La previa se calcula una vez por estado y por opción (no en cada letra del motivo): ver `almacen.simular`.
+  const previa = almacen.simular(`cancelar:${reservaId}:${porClub}`, (copia) => previaCancelar(almacen.estado(), reservaId, porClub, almacen.ahora(), copia));
   return (
     <div className="flex flex-col gap-2">
       <label htmlFor={ids.club} className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-strong">
@@ -157,7 +158,7 @@ function Cancelar({ almacen, reservaId, hacer }: { almacen: Almacen; reservaId: 
 function Interrumpir({ almacen, reservaId, hacer }: { almacen: Almacen; reservaId: string; hacer: (a: AccionCiclo) => void }) {
   const [motivo, setMotivo] = useState<(typeof MOTIVOS_CORTE)[number]>("Corte de luz");
   const id = useId();
-  const previa = previaInterrumpir(almacen.estado(), reservaId, almacen.ahora());
+  const previa = almacen.simular(`interrumpir:${reservaId}`, (copia) => previaInterrumpir(almacen.estado(), reservaId, almacen.ahora(), copia));
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-col gap-1">
@@ -227,7 +228,9 @@ export default function CicloDelTurno({
         )}
       </div>
       {Formulario && abierta && (
-        <div className="rounded-md border border-line bg-surface-sunken p-3">
+        // Fondo levantado y no hundido: los rótulos `text-muted` de los formularios sobre `surface-sunken` daban
+        // 4,33:1, debajo de AA (PERFORMANCE-TERMINALES.md, ronda 3). El borde sigue marcando el recuadro.
+        <div className="rounded-md border border-line-strong bg-surface-raised p-3">
           <Formulario key={`${abierta}-${reservaId}`} almacen={almacen} reservaId={reservaId} hacer={hacer} />
         </div>
       )}

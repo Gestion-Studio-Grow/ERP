@@ -96,7 +96,8 @@ export default function CajaDelClub({ almacen }: { almacen: Almacen }) {
         </h2>
         <dl className="grid grid-cols-2 gap-3 tabular-nums sm:grid-cols-4">
           <div className="col-span-2 rounded-md bg-surface-sunken p-3 sm:col-span-1">
-            <dt className="text-xs text-muted">Efectivo en el cajón</dt>
+            {/* text-body: sobre el fondo hundido, text-muted no llega a 4,5:1. */}
+            <dt className="text-xs text-body">Efectivo en el cajón</dt>
             <dd className="text-xl font-bold text-strong">{pesos(v.efectivoEsperado)}</dd>
           </div>
           <div className="p-3">

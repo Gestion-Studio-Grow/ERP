@@ -76,8 +76,7 @@ export function horasDelDia(estado: EstadoClub, fecha: Fecha): { min: number; te
 }
 
 /** La previa del plan lluvia: corre el motor sobre una copia y dice qué pasa con cada turno. */
-export function previaLluvia(estado: EstadoClub, fecha: Fecha, desde: number, hasta: number, ahora: Ahora): { lineas: string[]; resultado: ResultadoLluvia[] } {
-  const copia = structuredClone(estado);
+export function previaLluvia(estado: EstadoClub, fecha: Fecha, desde: number, hasta: number, ahora: Ahora, copia: EstadoClub = structuredClone(estado)): { lineas: string[]; resultado: ResultadoLluvia[] } {
   const { resultado } = planLluvia(copia, fecha, desde, hasta, ahora);
   return { resultado, lineas: resultado.map(lineaLluvia) };
 }

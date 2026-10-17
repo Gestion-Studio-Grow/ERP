@@ -34,11 +34,15 @@ const FLECHAS: Record<string, Direccion> = { ArrowUp: "arriba", ArrowDown: "abaj
 
 const compartir = (previa: VistaAgenda | undefined, nueva: VistaAgenda) => compartirAgenda(previa ?? null, nueva);
 
-/** Cómo se ve cada estado: fondo y borde por token (la marca dice el estado en palabras). */
+/**
+ * Cómo se ve cada estado: fondo y borde por token (la marca dice el estado en palabras). Sobre el fondo hundido
+ * (`surface-sunken`) el texto va en `text-body`: `text-muted` ahí da 4,33:1, debajo del 4,5:1 de AA
+ * (medido en docs/producto/PERFORMANCE-TERMINALES.md, ronda 3).
+ */
 const TONO: Record<CeldaTurno["estado"], string> = {
   reservada: "bg-surface-raised border-line-strong",
   en_cancha: "bg-success-soft border-success/50",
-  finalizada: "bg-surface-sunken border-line text-muted",
+  finalizada: "bg-surface-sunken border-line text-body",
   cancelada: "bg-surface-sunken border-line",
   no_show: "bg-surface-sunken border-line",
   suspendida: "bg-surface-sunken border-line",
@@ -69,7 +73,7 @@ const BloqueTurno = memo(function BloqueTurno({ celda, activo, onAbrir }: { celd
           {celda.alto < 2 && <Marca tipo={celda.marca.tipo} className="shrink-0">{celda.marca.texto}</Marca>}
         </span>
         {celda.alto >= 2 && (
-          <span className="w-full truncate text-xs tabular-nums text-muted">
+          <span className={cn("w-full truncate text-xs tabular-nums", celda.estado === "reservada" || celda.estado === "en_cancha" ? "text-muted" : "text-body")}>
             {celda.horario} · {celda.jugadores}
             {celda.tipo && celda.tipo !== "Turno" ? ` · ${celda.tipo}` : ""}
           </span>
@@ -258,7 +262,7 @@ export default function AgendaCanchas({
           {vista.bloqueos.map((b) => (
             <div
               key={b.id}
-              className="z-[1] m-0.5 flex flex-col overflow-hidden rounded-md border border-dashed border-line-strong bg-surface-sunken px-2 py-1 text-xs text-muted"
+              className="z-[1] m-0.5 flex flex-col overflow-hidden rounded-md border border-dashed border-line-strong bg-surface-sunken px-2 py-1 text-xs text-body"
               style={{ gridColumn: b.columna + 2, gridRow: `${b.fila + 2} / span ${b.alto}` }}
             >
               <span className="font-semibold text-strong">Bloqueada</span>
