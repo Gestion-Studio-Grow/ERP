@@ -26,7 +26,6 @@ import {
   crearPedidoTienda,
   entregarPedido,
   hhmm,
-  linkWhatsApp,
   mensajeWhatsApp,
   pedidoDesdeWhatsApp,
   pesos,
@@ -35,6 +34,7 @@ import type { Ahora, Auth, EstadoClub, EstadoPedidoTienda, PedidoTienda } from "
 import type { TipoMarca } from "@/components/ui/Marca";
 import type { Desenlace } from "./almacen";
 import type { MedioCaja } from "./cuenta-core";
+import { enlaceWhatsApp, type EnlaceWhatsApp, type ModoDelClub } from "./whatsapp-core";
 
 /** Cuántos pedidos ya resueltos se muestran abajo (los últimos). */
 export const RESUELTOS_A_LA_VISTA = 10;
@@ -55,7 +55,8 @@ export interface VistaPedido {
   /** Cómo terminó (para los resueltos): «Cobrado en efectivo», «En la cuenta de Sofi Romero», «Cancelado». */
   detalle: string;
   /** El link de WhatsApp «ya está listo para retirar» (al celular del pedido; sin celular, se elige el chat). */
-  avisoListo: string;
+  /** «Avisar que está listo»: al celular del cliente, normalizado a formato argentino; en la demo, sin número (whatsapp-core.ts). */
+  avisoListo: EnlaceWhatsApp;
 }
 
 export interface VistaTienda {
@@ -74,7 +75,7 @@ const MARCA: Record<EstadoPedidoTienda, { tipo: TipoMarca; texto: string }> = {
 
 const pedidosDe = (estado: EstadoClub) => (estado.pedidos ?? []) as PedidoTienda[];
 
-function vistaDe(estado: EstadoClub, pd: PedidoTienda): VistaPedido {
+function vistaDe(estado: EstadoClub, pd: PedidoTienda, modo: ModoDelClub): VistaPedido {
   const lista = pd.items.map((i) => `${i.cant} × ${i.nombre}`).join(", ");
   const msj = mensajeWhatsApp("pedidoListo", { nombre: pd.nombre.split(" ")[0], codigo: pd.codigo, lista, total: pesos(pd.total) });
   let detalle = "";
@@ -95,19 +96,19 @@ function vistaDe(estado: EstadoClub, pd: PedidoTienda): VistaPedido {
     estado: pd.estado,
     marca: MARCA[pd.estado] ?? MARCA.pendiente,
     detalle,
-    avisoListo: linkWhatsApp(pd.tel, msj),
+    avisoListo: enlaceWhatsApp(pd.tel, msj, modo),
   };
 }
 
 /** Los pedidos para retirar (en el orden en que llegaron, como el vanilla) y los últimos resueltos. */
-export function armarTienda(estado: EstadoClub): VistaTienda {
+export function armarTienda(estado: EstadoClub, modo: ModoDelClub): VistaTienda {
   const todos = pedidosDe(estado);
-  const pendientes = todos.filter((p) => p.estado === "pendiente").map((p) => vistaDe(estado, p));
+  const pendientes = todos.filter((p) => p.estado === "pendiente").map((p) => vistaDe(estado, p, modo));
   const resueltos = todos
     .filter((p) => p.estado !== "pendiente")
     .slice(-RESUELTOS_A_LA_VISTA)
     .reverse()
-    .map((p) => vistaDe(estado, p));
+    .map((p) => vistaDe(estado, p, modo));
   return { pendientes, resueltos, firma: JSON.stringify([pendientes, resueltos]) };
 }
 

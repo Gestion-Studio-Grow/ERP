@@ -16,9 +16,9 @@
 
 import { memo, useCallback, useId, useRef, useState, useSyncExternalStore } from "react";
 import { Badge } from "@/components/ui/Badge";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { Marca } from "@/components/ui/Marca";
-import { linkWhatsApp, pesos, reserva as reservaDe } from "@/lib/club/motor.mjs";
+import { pesos, reserva as reservaDe } from "@/lib/club/motor.mjs";
 import type { Almacen, Operador } from "./almacen";
 import { armarBandeja, compartirBandeja, queHace, type ItemBandeja, type QueHace, type VistaBandeja } from "./bandeja-core";
 import { ponerLuz } from "./agenda-core";
@@ -26,6 +26,7 @@ import { ejecutarCiclo } from "./ciclo-core";
 import { SE_DESHACE, ejecutarEspera } from "./canchas-core";
 import type { MedioCaja } from "./cuenta-core";
 import { ComoPaga } from "./piezas";
+import { BotonWhatsApp } from "./WhatsAppDelClub";
 
 /**
  * La bandeja del almacén: el estado y quién opera en UNA selección (el filtro «sólo para el dueño» depende de los dos),
@@ -100,9 +101,7 @@ function OfrecerHueco({ almacen, que, onListo }: { almacen: Almacen; que: Extrac
     <div className="flex flex-col gap-2 border-t border-line pt-2">
       <blockquote className="rounded-md bg-surface-sunken px-3 py-2 text-sm text-body">{que.mensaje}</blockquote>
       <div className="flex flex-wrap gap-2">
-        <ButtonLink variant="outline" size="md" href={linkWhatsApp("", que.mensaje)} target="_blank" rel="noopener noreferrer">
-          Mandar por WhatsApp
-        </ButtonLink>
+        <BotonWhatsApp enlace={que.whatsapp}>Mandar por WhatsApp</BotonWhatsApp>
         <Button
           variant="solid"
           size="md"
@@ -132,12 +131,12 @@ const ItemDeLaBandeja = memo(function ItemDeLaBandeja({
 } & PropsDeBandeja) {
   const idPanel = useId();
   // Lo que hace el botón se decide en el toque, con el estado de ese momento.
-  const que = abierta ? queHace(almacen.estado(), item.alerta) : null;
+  const que = abierta ? queHace(almacen.estado(), item.alerta, almacen.modo()) : null;
   const desplegable = item.alerta.tipo === "devolucion" || item.alerta.tipo === "falta_sin_ficha" || item.alerta.tipo === "espera";
   const cerrar = () => onAbrir(null);
   const tocar = () => {
     if (desplegable) return onAbrir(abierta ? null : item.clave);
-    const q = queHace(almacen.estado(), item.alerta);
+    const q = queHace(almacen.estado(), item.alerta, almacen.modo());
     if (!q) return almacen.informar({ ok: false, mensaje: "Esto ya no está para resolver." });
     if (q.tipo === "verTurno") return onVerTurno(q.reservaId);
     // Apagar desde la bandeja no se deshace (la acción `alerta` del vanilla no está en DESHACIBLES).

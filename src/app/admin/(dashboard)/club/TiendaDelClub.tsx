@@ -14,7 +14,7 @@
 // Lo que se despliega en una tarjeta es uno a la vez. Nada se anima.
 
 import { memo, useCallback, useId, useRef, useState } from "react";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Field";
 import { Marca } from "@/components/ui/Marca";
 import { pesos } from "@/lib/club/motor.mjs";
@@ -24,10 +24,13 @@ import type { MedioCaja } from "./cuenta-core";
 import { ComoPaga } from "./piezas";
 import { SE_DESHACE_TIENDA, armarTienda, ejecutarTienda, fichasParaElPedido, mensajeDeEjemplo, type AccionTienda, type VistaPedido } from "./tienda-core";
 import { porFirma, useSeleccion } from "./usar-almacen";
+import { BotonWhatsApp } from "./WhatsAppDelClub";
 
 type Abierto = { id: string; modo: "entregar" | "cuenta" } | null;
 
-const seleccionarTienda = (e: EstadoClub) => armarTienda(e);
+// El modo no cambia en la vida del almacén (demo o jornada real): un selector por modo, estable entre renders.
+const seleccionarTiendaDemo = (e: EstadoClub) => armarTienda(e, "demo");
+const seleccionarTiendaReal = (e: EstadoClub) => armarTienda(e, "real");
 
 function CargarDeWhatsApp({ almacen, hacer }: { almacen: Almacen; hacer: (a: AccionTienda) => boolean }) {
   const [texto, setTexto] = useState("");
@@ -173,9 +176,9 @@ const TarjetaDePedido = memo(function TarjetaDePedido({
           <Button variant="outline" size="md" onClick={() => onAbrir({ id: pedido.id, modo: "cuenta" })}>
             A la cuenta de…
           </Button>
-          <ButtonLink variant="outline" size="md" href={pedido.avisoListo} target="_blank" rel="noopener noreferrer">
+          <BotonWhatsApp enlace={pedido.avisoListo} nombreAccesible={`Avisar que está listo por WhatsApp a ${pedido.nombre}`}>
             Avisar que está listo
-          </ButtonLink>
+          </BotonWhatsApp>
           <Button variant="danger" size="md" onClick={() => hacer({ tipo: "cancelar", pedidoId: pedido.id })}>
             Cancelar
           </Button>
@@ -186,7 +189,7 @@ const TarjetaDePedido = memo(function TarjetaDePedido({
 });
 
 export default function TiendaDelClub({ almacen }: { almacen: Almacen }) {
-  const { pendientes, resueltos } = useSeleccion(almacen, seleccionarTienda, porFirma);
+  const { pendientes, resueltos } = useSeleccion(almacen, almacen.modo() === "real" ? seleccionarTiendaReal : seleccionarTiendaDemo, porFirma);
   const [abierto, setAbierto] = useState<Abierto>(null);
   const titulo = useRef<HTMLHeadingElement>(null);
   const hacer = useCallback(
@@ -223,7 +226,7 @@ export default function TiendaDelClub({ almacen }: { almacen: Almacen }) {
         )}
         {resueltos.length > 0 && (
           <details className="rounded-lg border border-line bg-surface-raised p-3">
-            <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-strong">Últimos resueltos ({resueltos.length})</summary>
+            <summary className="flex min-h-11 cursor-pointer items-center rounded-md text-sm font-medium text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">Últimos resueltos ({resueltos.length})</summary>
             <ul className="flex flex-col text-sm">
               {resueltos.map((p) => (
                 <li key={p.id} className="flex flex-wrap items-baseline justify-between gap-2 border-t border-line py-2 first:border-t-0">

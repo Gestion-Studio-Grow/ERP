@@ -58,7 +58,7 @@ test("cada botón lleva a donde lo llevaba el vanilla", () => {
   const e = demoCompleta();
   const v = armarBandeja(e, AHORA, true);
   for (const i of v.items) {
-    const q = queHace(e, i.alerta);
+    const q = queHace(e, i.alerta, "demo");
     assert.ok(q, `${i.alerta.tipo} tiene qué hacer`);
     const a = i.alerta;
     if (a.tipo === "devolucion") assert.deepEqual(q, { tipo: "devolver", reservaId: a.reservaId });
@@ -77,7 +77,7 @@ test("cada botón lleva a donde lo llevaba el vanilla", () => {
       }
     }
   }
-  assert.ok(v.items.some((i) => queHace(e, i.alerta)?.tipo === "verTurno"), "la demo trae alertas de turnos");
+  assert.ok(v.items.some((i) => queHace(e, i.alerta, "demo")?.tipo === "verTurno"), "la demo trae alertas de turnos");
   assert.ok(v.items.some((i) => i.alerta.tipo === "luz"), "y la luz prendida de más");
 });
 
@@ -87,7 +87,7 @@ test("«Apagar» la luz sin juego saca la alerta; la bandeja reusa la vista si n
   assert.equal(compartirBandeja(v1, armarBandeja(e, AHORA, false)), v1, "sin cambios: la misma vista (no se repinta)");
   const luz = v1.items.find((i) => i.alerta.tipo === "luz")!;
   assert.ok(luz);
-  const q = queHace(e, luz.alerta);
+  const q = queHace(e, luz.alerta, "demo");
   assert.equal(q?.tipo, "apagarLuz");
   if (q?.tipo === "apagarLuz") assert.equal(ponerLuz(e, q.canchaId, false).ok, true);
   const v2 = compartirBandeja(v1, armarBandeja(e, AHORA, false));
@@ -102,4 +102,32 @@ test("compartirBandeja: si aparece una alerta, las que siguen iguales son el MIS
   const v2 = compartirBandeja(v1, armarBandeja(e, AHORA, false));
   const nuevas = v2.items.filter((i) => !v1.items.includes(i));
   assert.deepEqual(nuevas.map((i) => i.alerta.tipo), ["pedido"]);
+});
+
+test("la oferta a la espera: en la demo, sin número; con datos reales, al celular de quien espera, en formato argentino", () => {
+  const e = demo();
+  const oferta = (modo: "demo" | "real") =>
+    armarBandeja(e, AHORA, false)
+      .items.map((i) => queHace(e, i.alerta, modo))
+      .find((q) => q?.tipo === "ofrecerEspera");
+  const enDemo = oferta("demo");
+  assert.ok(enDemo && enDemo.tipo === "ofrecerEspera", "la demo trae un hueco para la lista de espera");
+  assert.equal(enDemo.whatsapp.href, `https://wa.me/?text=${encodeURIComponent(enDemo.mensaje)}`);
+  assert.equal(enDemo.whatsapp.directo, false);
+  assert.ok(enDemo.whatsapp.nota);
+  // Con datos reales: el celular anotado en la espera (o el de su ficha), con el 549 adelante.
+  const espera = e.espera.find((x) => x.id === enDemo.esperaId)!;
+  espera.tel = "011 15-4000-7919";
+  const real = oferta("real");
+  assert.ok(real && real.tipo === "ofrecerEspera");
+  assert.equal(real.whatsapp.href, `https://wa.me/5491140007919?text=${encodeURIComponent(real.mensaje)}`);
+  assert.equal(real.whatsapp.directo, true);
+  assert.equal(real.mensaje, enDemo.mensaje, "el mismo texto en los dos modos");
+  // Sin celular ni ficha: abre para elegir el chat y lo dice (nunca un número roto).
+  espera.tel = "";
+  espera.clienteId = null;
+  const sinCel = oferta("real");
+  assert.ok(sinCel && sinCel.tipo === "ofrecerEspera");
+  assert.match(sinCel.whatsapp.href, /^https:\/\/wa\.me\/\?text=/);
+  assert.match(sinCel.whatsapp.nota ?? "", /No tiene celular cargado/);
 });

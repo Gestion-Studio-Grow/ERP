@@ -23,18 +23,29 @@ test("pegar el mensaje de WhatsApp carga el pedido pendiente, con el MISMO códi
   const e = demo();
   const mensaje = mensajeDeEjemplo(structuredClone(e), AHORA);
   assert.ok(mensaje, "la demo tiene productos en la tienda");
-  assert.equal(armarTienda(e).pendientes.length, 0, "la demo arranca sin pedidos");
+  assert.equal(armarTienda(e, "demo").pendientes.length, 0, "la demo arranca sin pedidos");
   const codigo = mensaje.match(/Pedido (T-[A-Z0-9]{4})/)![1];
 
   const d = ejecutarTienda(e, { tipo: "pegar", texto: mensaje }, AHORA);
   assert.equal(d.ok, true, d.mensaje);
-  const v = armarTienda(e);
+  const v = armarTienda(e, "demo");
   assert.equal(v.pendientes.length, 1);
   assert.equal(v.pendientes[0].codigo, codigo);
   assert.equal(v.pendientes[0].nombre, "Sofi Romero");
   assert.equal(v.pendientes[0].tel, "11 5555 1234");
-  assert.match(v.pendientes[0].avisoListo, /^https:\/\/wa\.me\/1155551234\?text=/);
-  assert.match(decodeURIComponent(v.pendientes[0].avisoListo), new RegExp(`Tu pedido ${codigo} ya está listo`));
+  // «Avisar que está listo»: en la demo, sin número (se elige el chat; los teléfonos de ejemplo podrían ser de alguien
+  // real); con datos reales, al celular normalizado a formato argentino (549 + área + número), nunca «wa.me/1155551234»
+  // (que WhatsApp lee como +1).
+  const aviso = v.pendientes[0].avisoListo;
+  assert.match(aviso.href, /^https:\/\/wa\.me\/\?text=/);
+  assert.equal(aviso.directo, false);
+  assert.ok(aviso.nota);
+  assert.match(decodeURIComponent(aviso.href), new RegExp(`Tu pedido ${codigo} ya está listo`));
+  const real = armarTienda(e, "real").pendientes[0].avisoListo;
+  assert.match(real.href, /^https:\/\/wa\.me\/5491155551234\?text=/);
+  assert.equal(real.directo, true);
+  assert.equal(real.nota, null);
+  assert.equal(real.texto, aviso.texto, "el mismo texto en los dos modos");
   assert.match(d.mensaje, new RegExp(`Pedido ${codigo} de Sofi Romero cargado`));
 
   const otra = ejecutarTienda(e, { tipo: "pegar", texto: mensaje }, AHORA);
@@ -57,7 +68,7 @@ test("encargar no toca stock ni caja; entregar descuenta el stock y entra a la c
   assert.equal(stock(e, "p2"), (antes.p2 ?? 0) - 1);
   assert.equal(caja(e).ingresos, antes.ingresos + pd.total);
   assert.equal(caja(e).porMedio.efectivo, antes.efectivo + pd.total);
-  const v = armarTienda(e);
+  const v = armarTienda(e, "demo");
   assert.equal(v.pendientes.length, 0);
   assert.equal(v.resueltos[0].estado, "entregado");
   assert.match(v.resueltos[0].detalle, /Cobrado .* en efectivo/);
@@ -85,7 +96,7 @@ test("a la cuenta de alguien: suma a lo que debe el cliente (su cuenta de cargos
   assert.equal(M.cerrarCuenta(e, cta.id, { aCuenta: true }, AHORA).ok, true);
   assert.equal(M.cliente(e, cl.id)!.deuda, pd.total);
   assert.equal(caja(e).ingresos, ingresos);
-  assert.match(armarTienda(e).resueltos[0].detalle, new RegExp(`cuenta de cargos de ${cl.nombre}`));
+  assert.match(armarTienda(e, "demo").resueltos[0].detalle, new RegExp(`cuenta de cargos de ${cl.nombre}`));
   assert.equal(ejecutarTienda(e, { tipo: "aCuenta", pedidoId: conPedido(e).id, clienteId: "no-existe" }, AHORA).ok, false);
 });
 
@@ -100,7 +111,7 @@ test("cancelar no deja stock ni plata colgados", () => {
   assert.equal(e.cuentas.length, foto.cuentas, "no abrió ninguna cuenta");
   assert.deepEqual(e.clientes.map((c) => c.deuda), foto.deuda);
   assert.equal(M.pedidosPendientes(e).length, 0, "y ya no está para retirar");
-  assert.equal(armarTienda(e).resueltos[0].marca.texto, "Cancelado");
+  assert.equal(armarTienda(e, "demo").resueltos[0].marca.texto, "Cancelado");
   assert.equal(ejecutarTienda(e, { tipo: "entregar", pedidoId: pd.id, medio: "efectivo" }, AHORA).ok, false);
 });
 
@@ -108,10 +119,10 @@ test("lo que se deshace sigue la lista del vanilla; la firma no cambia si nada c
   assert.deepEqual(SE_DESHACE_TIENDA, { pegar: false, entregar: true, aCuenta: false, cancelar: true });
   const e = demo();
   conPedido(e);
-  assert.equal(armarTienda(e).firma, armarTienda(e).firma);
-  const f1 = armarTienda(e).firma;
+  assert.equal(armarTienda(e, "demo").firma, armarTienda(e, "demo").firma);
+  const f1 = armarTienda(e, "demo").firma;
   conPedido(e);
-  assert.notEqual(armarTienda(e).firma, f1);
+  assert.notEqual(armarTienda(e, "demo").firma, f1);
 });
 
 test("las fichas para «a la cuenta de…»: las primeras 8 sin buscar; con texto, las que coinciden", () => {
