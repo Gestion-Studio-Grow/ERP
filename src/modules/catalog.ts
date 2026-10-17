@@ -21,6 +21,7 @@
 //     módulos de este orden (operator-config.ts) y así los de siempre no cambian de lugar.
 //   - Caja con lector y Ofertas (mostrador de supermercado): src/modules/descriptors/supermercado.ts.
 //   - Equipos del mostrador (perfil de terminal, lector, ticket): src/modules/descriptors/terminal.ts.
+//   - Club de pádel (agenda de canchas y cuenta del turno): src/modules/descriptors/club.ts.
 
 import { ModuleRegistry } from "./registry";
 import { MODULOS_NATIVOS } from "./descriptors/nativos";
@@ -31,6 +32,7 @@ import { cajaRapidaModule, ofertasModule } from "./descriptors/supermercado";
 import { tallerModule } from "./descriptors/taller";
 import { inmobiliariaModule } from "./descriptors/inmobiliaria";
 import { terminalModule } from "./descriptors/terminal";
+import { clubModule } from "./descriptors/club";
 import { arcaModule } from "@/plugins/arca/module";
 import { bancosModule } from "@/plugins/bancos/module";
 
@@ -52,6 +54,8 @@ export const DESCRIPTORES_CATALOGO = [
   inmobiliariaModule,
   // Equipos del mostrador (src/modules/descriptors/terminal.ts). Al final, como los anteriores.
   terminalModule,
+  // Club de pádel (src/modules/descriptors/club.ts). Al final, como los anteriores.
+  clubModule,
 ];
 
 /**

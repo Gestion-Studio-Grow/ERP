@@ -98,3 +98,28 @@ test("terminal no entra a nadie por defecto: ni núcleo de un producto ni módul
     assert.ok(!defaultModulesForBlueprint(rubro).includes("terminal"), `${rubro} trae terminal de fábrica`);
   }
 });
+
+test("club (pádel): capability de agenda, depende de clientes y mostrador, sin migraciones y nadie lo recibe por defecto", () => {
+  const r = construirCatalogo();
+  const club = r.get("club");
+  assert.equal(club.kind, "capability");
+  assert.equal(club.capability, "agenda:manage");
+  assert.deepEqual(
+    (club.dependencias ?? []).map((d) => d.id),
+    ["clients", "pos"],
+  );
+  assert.deepEqual(club.migraciones ?? [], [], "modo demo: nada a la base hasta BP-4 (Gate 2)");
+  assert.equal(club.nucleoPara, undefined);
+  for (const rubro of [null, ...BLUEPRINT_IDS, ...Object.keys(RETAIL_RUBROS)]) {
+    assert.ok(!defaultModulesForBlueprint(rubro).includes("club"), `${rubro} trae club de fábrica`);
+  }
+
+  // Sin `pos` (o sin `clients`) no se activa; con los dos, sí.
+  const sinPos = resolverActivacion({ tenantId: "t", blueprintId: "generico", modules: ["clients", "club"] }, r);
+  assert.ok(sinPos.dependenciasFaltantes.some((x) => x.id === "club"));
+  assert.ok(!sinPos.activos.some((d) => d.id === "club"));
+  const sinClientes = resolverActivacion({ tenantId: "t", blueprintId: "generico", modules: ["pos", "club"] }, r);
+  assert.ok(!sinClientes.activos.some((d) => d.id === "club"));
+  const conTodo = resolverActivacion({ tenantId: "t", blueprintId: "generico", modules: ["clients", "pos", "club"] }, r);
+  assert.ok(conTodo.activos.some((d) => d.id === "club"));
+});
