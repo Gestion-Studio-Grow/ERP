@@ -27,6 +27,7 @@
     "turnero": "node src/tenants/breakpoint/turnero/levantar.mjs",
     "test:turnero-e2e": "node src/tenants/breakpoint/turnero/e2e/turnero.e2e.mjs && node --import tsx src/tenants/breakpoint/turnero/e2e/sitio.e2e.mjs",
     "test:club-uat": "node --import tsx src/tenants/breakpoint/turnero/e2e/uat-b.e2e.mjs",
+    "test:club-torneo": "node --import tsx src/tenants/breakpoint/turnero/e2e/uat-torneo.e2e.mjs",
     "brain:check": "node scripts/brain-sync.mjs --check",
     "gates": "node scripts/verify-gates.mjs",
     "gate:visual": "node scripts/visual-gate.mjs",

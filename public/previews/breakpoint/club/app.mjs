@@ -1,5 +1,6 @@
 // GESTIÓN DEL CLUB — Break Point Pádel (demo del flujo). Toda la regla de negocio vive en motor.mjs;
-// este archivo sólo pinta y conecta botones. Sin persistencia: el estado vive en memoria.
+// este archivo sólo pinta y conecta botones. En la demo el estado vive en memoria; en la jornada real (?modo=real) se
+// guarda en el navegador de esa compu (guardarJornada) y nunca sale de ahí.
 import * as M from "./motor.mjs";
 import { morph } from "./morph.mjs";
 
@@ -20,7 +21,7 @@ let ALERTAS = [];
 const ui = { medio: "efectivo", carrito: {}, busca: {}, producto: {}, mes: null, remito: null, pendienteCredito: null, stockModo: "inventario" };
 // «Deshacer»: foto del estado antes de la acción que se está ejecutando (sólo las operativas, nunca las que piden PIN).
 let PREVIO = null, UNDO = null, timerToast = null;
-const DESHACIBLES = new Set(["pagar", "pagarParte", "consumo", "sumarJugador", "checkin", "finalizar", "aCuenta", "marcarFalta", "cancelar", "liberarFijo", "mover", "extender", "interrumpir", "cargarCuenta", "rapido", "pagarCuenta", "cerrarCuenta", "cobrarMostrador", "confirmarTurno", "asignarEspera", "anotarEspera", "luz", "qm", "devuelto", "cobrarFalta", "abrirCuentaCliente", "abrirCuentaLibre", "confirmarCredito", "ajustar", "pasarCargo", "cargoManual", "cobrarParte"]);
+const DESHACIBLES = new Set(["pagar", "pagarParte", "consumo", "sumarJugador", "sumarJugadorFicha", "checkin", "finalizar", "aCuenta", "marcarFalta", "cancelar", "liberarFijo", "mover", "extender", "interrumpir", "cargarCuenta", "rapido", "pagarCuenta", "cerrarCuenta", "cobrarMostrador", "confirmarTurno", "asignarEspera", "anotarEspera", "luz", "qm", "devuelto", "cobrarFalta", "abrirCuentaCliente", "abrirCuentaLibre", "confirmarCredito", "ajustar", "pasarCargo", "cargoManual", "cobrarParte", "cobrarJugador", "cobrarTodo", "cerrarYSeguir", "cerrarCargos", "cerrarCargosCC", "entregarPedido", "cancelarPedido"]);
 const SOPORTA_POPOVER = typeof HTMLElement !== "undefined" && "showPopover" in HTMLElement.prototype;
 const sinMovimiento = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 // Transición nativa del navegador (View Transitions) para cambiar de pestaña o de día: 150 ms, nunca obligatoria.
@@ -39,8 +40,8 @@ const TABS = [
   { id: "tablero", nombre: "Tablero", permiso: "metricas" },
   { id: "proveedores", nombre: "Proveedores", permiso: "verProveedores" },
   { id: "stock", nombre: "Stock", permiso: "stock" },
-  { id: "contenido", nombre: "Contenido", permiso: "contenido" },
-  { id: "ajustes", nombre: "Ajustes", permiso: "configurar" },
+  { id: "contenido", nombre: "Novedades y redes", permiso: "contenido" },
+  { id: "ajustes", nombre: "Configuración", permiso: "configurar" },
 ];
 
 // Pestañas según el rol: hasta 5 a la vista y el resto en «Más». El dueño arranca por su Tablero.
@@ -74,12 +75,122 @@ const puedo = (accion) => M.puede(E, USUARIO, accion);
 const auth = (pin) => ({ usuarioId: USUARIO, pin });
 const esDuenio = () => yo()?.rol === "duenio";
 
+// ───── jornada real: se guarda en ESTE dispositivo (sin servidor) ─────
+// Por defecto /club es la demo. La jornada real se activa a propósito (Ajustes, con PIN de dueño, o /club?modo=real):
+// arranca en blanco, se guarda sola en el navegador, vuelve bloqueada al recargar y usa el reloj real.
+const CLAVE_JORNADA = "bp-jornada-v1", CLAVE_MODO = "bp-modo", CLAVE_CONTACTOS = "bp-contactos";
+const lsLeer = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsGuardar = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch { return false; } };
+const MODO_REAL = lsLeer(CLAVE_MODO) === "real" || new URLSearchParams(location.search).get("modo") === "real";
+if (MODO_REAL) lsGuardar(CLAVE_MODO, "real"); // entrar con ?modo=real deja la compu en jornada real (se vuelve desde Ajustes)
+const guardado = { habilitado: false, cuando: null, ok: true, bytes: 0, timer: null, fuera: false, avisado: false };
+const contactos = () => { try { return JSON.parse(lsLeer(CLAVE_CONTACTOS) || "{}") ?? {}; } catch { return {}; } };
+const waA = (quien, texto) => M.linkWhatsApp(contactos()[quien] ?? "", texto);
+
+function leerJornada() {
+  try { return JSON.parse(lsLeer(CLAVE_JORNADA) || "null"); } catch { return null; }
+}
+function fotoJornada() {
+  return JSON.stringify({ ...M.serializarEstado(E), usuario: USUARIO, guardado: Date.now() });
+}
+function guardarJornada(inmediato = false) {
+  if (!MODO_REAL || !E || !guardado.habilitado || guardado.fuera) return;
+  clearTimeout(guardado.timer);
+  const hacer = () => {
+    let txt = fotoJornada();
+    let ok = lsGuardar(CLAVE_JORNADA, txt);
+    if (!ok) {
+      // Falta lugar: se recorta la historia vieja (el registro) y se vuelve a probar.
+      E.log.length = Math.min(E.log.length, 60);
+      txt = fotoJornada();
+      ok = lsGuardar(CLAVE_JORNADA, txt);
+    }
+    guardado.ok = ok;
+    if (ok) { guardado.cuando = new Date(); guardado.bytes = txt.length; guardado.avisado = false; }
+    else if (!guardado.avisado) { guardado.avisado = true; toast("No se pudo guardar en esta compu. Descargá un respaldo ya (Ajustes → Jornada real).", { error: true }); }
+    pintarGuardado();
+  };
+  if (inmediato) hacer(); else guardado.timer = setTimeout(hacer, 300);
+}
+function pintarGuardado() {
+  const el = $("#guardado");
+  if (!el) return;
+  el.textContent = !guardado.ok ? "⚠ no se pudo guardar" : guardado.cuando ? `guardado ${pad(guardado.cuando.getHours())}:${pad(guardado.cuando.getMinutes())}` : "guardando…";
+  el.classList.toggle("err", !guardado.ok);
+}
+function descargarRespaldo() {
+  guardarJornada(true);
+  const d = new Date();
+  const nombre = `breakpoint-jornada-${hoyLocal()}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+  const url = URL.createObjectURL(new Blob([fotoJornada()], { type: "application/json" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: nombre });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast(`Respaldo descargado: ${nombre}. Guardalo (o mandátelo por WhatsApp).`);
+}
+
+// Studio de redes (imágenes y textos para Instagram/WhatsApp): se carga recién cuando se abre.
+function abrirElStudio(pieza) {
+  import("./studio.mjs")
+    .then((m) => m.abrirStudio({
+      pieza,
+      alGuardar: (pub) => {
+        const res = M.agregarContenido(E, { fecha: pub.fecha ?? HOY, hora: pub.hora ?? "19:00", canal: pub.canal === "historia" ? "historia" : "post", titulo: pub.titulo, texto: pub.texto ?? "", estado: "programado" }, auth());
+        if (!res.ok) return toast(res.motivo, { error: true }), false;
+        render();
+        toast("Guardado en el calendario de Novedades y redes.");
+        return true;
+      },
+      alCerrar: () => render(),
+    }))
+    .catch(() => toast("No se pudo abrir el Studio.", { error: true }));
+}
+
+/**
+ * Reloj real del club. De madrugada (antes del cierre de ayer, ej. 00:30 con cierre a la 01:00) sigue siendo el
+ * día que abrió: la agenda muestra esos turnos como «01:00» del día anterior, igual que el motor.
+ */
+function relojReal() {
+  const d = new Date();
+  const f = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const m = d.getHours() * 60 + d.getMinutes();
+  const ayer = M.sumarDias(f, -1);
+  if (E && m + 1440 < M.horarioDe(E, ayer).cierra) return { fecha: ayer, min: m + 1440 };
+  return { fecha: f, min: m };
+}
+function latirReloj() {
+  if (!MODO_REAL || !E || guardado.fuera) return;
+  const t = relojReal();
+  if (t.fecha === AHORA.fecha && t.min === AHORA.min) return;
+  const viejo = HOY;
+  AHORA = t;
+  if (t.fecha !== viejo) {
+    HOY = t.fecha;
+    if (VISTA === viejo) VISTA = HOY;
+    for (let d = 1; d <= 6; d++) M.materializarFijos(E, M.sumarDias(HOY, d));
+    render();
+    return toast(`Cambió el día: la agenda pasó al ${ddmm(HOY)}.`);
+  }
+  render();
+}
+
 function iniciar() {
   HOY = hoyLocal();
-  E = M.generarDemo(HOY);
-  AHORA = { fecha: HOY, min: 19 * 60 + 10 };
+  if (MODO_REAL) {
+    const foto = leerJornada();
+    const h = foto ? M.hidratarEstado(foto) : null;
+    E = h?.ok ? h.estado : M.crearClubReal(HOY);
+    USUARIO = foto?.usuario && M.usuario(E, foto.usuario)?.activo !== false ? foto.usuario : E.usuarios.find((u) => u.activo !== false)?.id;
+    AHORA = relojReal();
+    HOY = AHORA.fecha;
+    if (foto && !h.ok) lsGuardar(`${CLAVE_JORNADA}-ilegible-${Date.now()}`, lsLeer(CLAVE_JORNADA));
+    if (foto && !h.ok) requestAnimationFrame(() => toast(`Lo guardado en esta compu no se pudo leer (${h.motivo}): arrancó en blanco (lo guardado quedó apartado en esta compu, no se borró). Si tenés un respaldo, restauralo desde Configuración.`, { error: true }));
+  } else {
+    E = M.generarDemo(HOY);
+    AHORA = { fecha: HOY, min: 19 * 60 + 10 };
+    USUARIO = "u-lu";
+  }
   VISTA = HOY;
-  USUARIO = "u-lu";
   TAB = "agenda";
   ui.mes = HOY.slice(0, 7);
   ui.busca = {};
@@ -179,6 +290,14 @@ function render() {
   morph($("#mas-menu"), mas.map((t) => `<button type="button" role="menuitem" data-a="tab" data-v="${t.id}" ${t.id === TAB ? 'aria-current="page"' : ""}>${t.nombre}</button>`).join(""));
   const previo = $("#grid-wrap");
   const scroll = previo ? { top: previo.scrollTop, left: previo.scrollLeft, vista: previo.dataset.vista } : null;
+  if (enConsola()) {
+    morph($("#tabs"), "");
+    morph($("#mas-menu"), "");
+    morph($("#app"), vistaConsola());
+    devolverFoco(foco);
+    guardarJornada();
+    return;
+  }
   const vistas = { agenda: vistaAgenda, buffet: vistaBuffet, caja: vistaCaja, clientes: vistaClientes, tablero: vistaTablero, proveedores: vistaProveedores, stock: vistaStock, contenido: vistaContenido, ajustes: vistaAjustes };
   morph($("#app"), vistas[TAB]());
   const gw = $("#grid-wrap");
@@ -187,10 +306,21 @@ function render() {
     else gw.scrollTop = Math.max(0, ((AHORA.min - M.horarioDe(E, VISTA).abre) / E.config.paso) * ROW - 150);
   }
   camaras.parar();
-  if (TAB === "tablero") camaras.arrancar();
+  if (TAB === "tablero" && !MODO_REAL) camaras.arrancar();
   if ($("#dlg").open && dialogoActual) dialogoActual.refrescar?.();
   devolverFoco(foco);
+  pintarAvisoDuenio();
+  guardarJornada();
   puente.despues?.();
+}
+
+// Aviso fijo para los dueños: pedidos de crédito esperando su OK (en este dispositivo).
+function pintarAvisoDuenio() {
+  const el = $("#aviso-duenio");
+  if (!el) return;
+  const n = esDuenio() ? E.novedades.filter((x) => x.estado === "pendiente").length : 0;
+  el.hidden = !n;
+  el.innerHTML = n ? `<span>🔔 ${n === 1 ? "Un pedido de crédito espera" : `${n} pedidos de crédito esperan`} tu OK.</span> <button type="button" class="btn sm" data-a="tab" data-v="tablero">Ver y resolver</button>` : "";
 }
 
 const marcaRoja = (c) => (c?.deuda > 0 ? `<span class="marca-roja" title="Saldo deudor">⚠ debe ${M.pesos(c.deuda)}</span>` : "");
@@ -200,7 +330,8 @@ const marcaRoja = (c) => (c?.deuda > 0 ? `<span class="marca-roja" title="Saldo 
 function senalReserva(r) {
   const s = M.saldo(r);
   if (r.estado === "reservada" && r.sena.monto > 0 && !r.sena.pagada) return `falta seña ${M.pesos(r.sena.monto)}`;
-  if (r.estado !== "reservada" && s > 0) return `debe ${M.pesos(s)}`;
+  if (r.estado !== "reservada" && s > 0 && r.estado !== "finalizada") return `debe ${M.pesos(s)}`;
+  if (r.estado === "finalizada") { const t = M.cuentaDelTurno(E, r.id); if (t.ok && t.totales.cargos > 0) return `mesa ${M.pesos(t.totales.cargos)}`; }
   return "";
 }
 
@@ -211,7 +342,7 @@ function vistaAgenda() {
   const fuera = E.reservas.filter((r) => r.fecha === VISTA && ["cancelada", "no_show", "suspendida"].includes(r.estado));
   const urg = ALERTAS.filter((a) => a.nivel === "alta").length;
   const h = M.horarioDe(E, VISTA);
-  const caja = M.resumenCaja(E, M.diaDeCaja(E, AHORA.fecha, AHORA.min));
+  const caja = M.resumenCaja(E, M.cajaAbierta(E, AHORA));
   return `
   <div class="layout">
     <section aria-labelledby="t-grilla">
@@ -270,7 +401,8 @@ function grilla() {
   const top = (m) => ((m - abre) / paso) * ROW;
   const delDia = E.reservas.filter((r) => r.fecha === VISTA && ["reservada", "en_cancha", "finalizada"].includes(r.estado));
   const conAlerta = VISTA === HOY ? new Set(ALERTAS.filter((a) => a.nivel === "alta" && a.reservaId).map((a) => a.reservaId)) : new Set();
-  const pasado = (m) => M.minutosHasta(AHORA, VISTA, m) < -paso;
+  // Un hueco ya empezado se puede cargar mientras un turno ahí no terminaría (recepción se olvidó de cargarlo).
+  const pasado = (m) => M.minutosHasta(AHORA, VISTA, m) + E.config.duracionTurno <= 0;
   const n = E.canchas.length;
   const cabecera = `<div class="gh" style="grid-column:1;grid-row:1"><span class="tag">Hora</span></div>` + E.canchas.map((c, i) => `
     <div class="gh" style="grid-column:${i + 2};grid-row:1">
@@ -323,14 +455,46 @@ function tarjetaCuenta(cta) {
   </div>`;
 }
 
+function tarjetaMesa(m) {
+  const r = m.reserva;
+  return `<div class="cta mesa-abierta" data-k="mesa-${r.id}">
+    <div class="cta-h"><b>${esc(r.titular)}</b><b class="num">${M.pesos(m.saldo)}</b></div>
+    <div class="small muted">${esc(M.cancha(E, r.canchaId)?.nombre ?? "")} · turno ${M.hhmm(r.inicio)} · cancha cerrada${r.cierre?.min != null ? ` a las ${M.hhmm(r.cierre.min)}` : ""}</div>
+    <ul>${m.cuentas.map((c) => `<li class="num">${esc(c.titular)} · ${M.pesos(M.saldoCuenta(c))}</li>`).join("")}</ul>
+    <div class="row"><button type="button" class="btn sm primary" data-a="verMesa" data-v="${r.id}">Ver la mesa</button></div>
+  </div>`;
+}
+function tarjetaPedido(pd) {
+  const lista = pd.items.map((i) => `${i.cant} × ${i.nombre}`).join(", ");
+  const msj = M.mensajeWhatsApp("pedidoListo", { nombre: pd.nombre.split(" ")[0], codigo: pd.codigo, lista, total: M.pesos(pd.total) });
+  return `<div class="cta pedido" data-k="pd-${pd.id}">
+    <div class="cta-h"><b>${esc(pd.codigo)} · ${esc(pd.nombre)}</b><b class="num">${M.pesos(pd.total)}</b></div>
+    <div class="small muted">${pd.tel ? esc(pd.tel) + " · " : ""}encargado ${pd.min != null ? `a las ${M.hhmm(pd.min)}` : ""}</div>
+    <ul>${pd.items.map((i) => `<li class="num">${i.cant} × ${esc(i.nombre)} · ${M.pesos(i.cant * i.precioUnit)}</li>`).join("")}</ul>
+    <div class="row"><button type="button" class="btn sm primary" data-a="entregarPedido" data-v="${pd.id}">Entregar y cobrar</button><button type="button" class="btn sm" data-a="pedidoACuenta" data-v="${pd.id}">A la cuenta de…</button><a class="btn sm" target="_blank" rel="noopener" href="${esc(M.linkWhatsApp(pd.tel, msj))}">Avisar que está listo</a><button type="button" class="btn sm danger" data-a="cancelarPedido" data-v="${pd.id}">Cancelar</button></div>
+  </div>`;
+}
+
 function vistaBuffet() {
-  const abiertas = M.cuentasAbiertas(E).filter((c) => c.titular !== "Mostrador");
+  const mesas = M.mesasAbiertas(E);
+  const enMesa = new Set(mesas.flatMap((m) => m.cuentas.map((c) => c.id)));
+  const abiertas = M.cuentasAbiertas(E).filter((c) => c.titular !== "Mostrador" && !enMesa.has(c.id));
+  const pedidos = M.pedidosPendientes(E);
   const q = ui.busca.buffet ?? "";
   const lista = q ? abiertas.filter((c) => c.titular.toLowerCase().includes(q.toLowerCase())) : abiertas;
   return `<div class="stack">
+    ${pedidos.length ? `<section class="card" aria-labelledby="t-pedidos">
+      <div class="card-head"><h2 id="t-pedidos">Pedidos de la tienda para retirar (${pedidos.length})</h2></div>
+      <div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">${pedidos.map(tarjetaPedido).join("")}</div>
+    </section>` : ""}
+    ${mesas.length ? `<section class="card" aria-labelledby="t-mesas">
+      <div class="card-head"><h2 id="t-mesas">Mesas que siguen cargando · cancha cerrada (${mesas.length})</h2></div>
+      <p class="small muted" style="margin:0 0 10px">La cancha ya se cobró y quedó libre para el turno siguiente. Lo que piden ahora se suma a la mesa y se cobra cuando se van.</p>
+      <div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${mesas.map(tarjetaMesa).join("")}</div>
+    </section>` : ""}
     <section class="card" aria-labelledby="t-buffet">
       <div class="card-head"><h2 id="t-buffet" class="pantalla">Buffet · cuentas abiertas (${abiertas.length})</h2>
-        <div class="row"><button type="button" class="btn primary" data-a="abrirConsumo">Abrir cuenta</button><button type="button" class="btn accent" data-a="mostrador">Venta rápida</button></div></div>
+        <div class="row"><button type="button" class="btn primary" data-a="abrirConsumo">Abrir cuenta</button><button type="button" class="btn accent" data-a="mostrador">Venta rápida</button><button type="button" class="btn" data-a="pegarPedido">Pedido de la tienda por WhatsApp</button></div></div>
       <p class="small muted" style="margin:0 0 10px">Los cargos del buffet son una cuenta aparte de la cancha: quedan abiertos a nombre del cliente y se cobran cuando se va, o pasan a su cuenta corriente.</p>
       <div class="search" style="max-width:360px;margin-bottom:10px"><label class="sr" for="busca-buffet">Buscar cuenta</label><input id="busca-buffet" data-busca="buffet" placeholder="Buscar por nombre" value="${esc(q)}"></div>
       <div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${lista.map(tarjetaCuenta).join("") || `<p class="empty">No hay cuentas abiertas.</p>`}</div>
@@ -341,12 +505,15 @@ function vistaBuffet() {
 // ───────────────────────────── Caja ─────────────────────────────
 
 function vistaCaja() {
-  const dia = M.diaDeCaja(E, AHORA.fecha, AHORA.min);
+  const dia = M.cajaAbierta(E, AHORA);
   const r = M.resumenCaja(E, dia);
-  const cierres = E.caja.cierres.filter((c) => c.dia === dia);
+  const hoy = M.diaDeCaja(E, AHORA.fecha, AHORA.min);
+  const cierres = E.caja.cierres.filter((c) => c.dia === dia || c.dia === hoy); // si la de hoy ya cerró, se ve su cierre
+  const atrasadas = M.cajasSinCerrar(E, AHORA);
   return `<div class="stack">
+    ${atrasadas.map((d) => { const ra = M.resumenCaja(E, d); return `<div class="al alta" role="alert"><span class="lvl">Caja sin cerrar</span><p>La caja del <b>${esc(fechaCorta(d))}</b> (de 12:00 a 12:00) tiene ${ra.movimientos} movimiento(s) y nadie la cerró: efectivo esperado ${M.pesos(ra.efectivoEsperado)}. Pasa cuando se cobra antes de las 12.</p><div class="row"><button type="button" class="btn sm primary" data-a="cerrarCaja" data-v="${d}">Cerrar la caja del ${esc(ddmm(d))}</button></div></div>`; }).join("")}
     <section class="card" aria-labelledby="t-caja">
-      <div class="card-head"><h2 id="t-caja" class="pantalla">Caja del ${esc(fechaCorta(dia))} · de 12:00 a 12:00</h2>
+      <div class="card-head"><h2 id="t-caja" class="pantalla">Caja del ${esc(fechaCorta(dia))} · ${dia === hoy ? "de 12:00 a 12:00" : "abierta al cerrar la anterior"}</h2>
         <div class="row">
           ${puedo("egreso") ? `<button type="button" class="btn" data-a="egreso">Egreso en efectivo</button>` : ""}
           ${puedo("remito") ? `<button type="button" class="btn" data-a="remito">Registrar remito</button>` : ""}
@@ -358,6 +525,7 @@ function vistaCaja() {
           <dt>Fondo inicial</dt><dd>${M.pesos(E.caja.fondo)}</dd>
           <dt class="tot">Efectivo que tiene que haber</dt><dd class="tot">${M.pesos(r.efectivoEsperado)}</dd>
         </dl>
+        ${esDuenio() ? `<label class="f" style="max-width:220px">Fondo de caja (cambio en el cajón)<input type="number" min="0" step="100" value="${E.caja.fondo}" data-a="fondo"></label>` : ""}
         <div>
           <h3>Cierres de esta caja</h3>
           ${cierres.length ? `<table class="num small"><thead><tr><th>Quién</th><th class="r">Esperado</th><th class="r">Contado</th><th class="r">Diferencia</th></tr></thead><tbody>${cierres.map((c) => `<tr><td>${esc(c.responsable)} · ${M.hhmm(c.min)}</td><td class="r">${M.pesos(c.esperado)}</td><td class="r">${M.pesos(c.contado)}</td><td class="r">${c.diferencia === 0 ? `<span class="chip ok">Cuadra</span>` : `<span class="chip ${c.diferencia < 0 ? "bad" : "warn"}">${M.pesos(c.diferencia)}</span>`}</td></tr>`).join("")}</tbody></table>` : `<p class="small muted">Todavía no se cerró. El cierre pide el PIN de quien cierra.</p>`}
@@ -413,7 +581,7 @@ function vistaTablero() {
     ${novedadesCC.length || accesos.length ? `<section class="card" aria-labelledby="t-nov">
       <div class="card-head"><h2 id="t-nov">Novedades para autorizar</h2></div>
       <div class="inbox">
-        ${novedadesCC.map((n) => { const c = M.cliente(E, n.clienteId); return `<div class="al media"><span class="lvl">Cuenta corriente</span><p><b>${esc(n.pidio)}</b> pide cuenta corriente para <b>${esc(c.nombre)}</b> hasta ${M.pesos(n.limite)}.${n.nota ? ` «${esc(n.nota)}»` : ""} ${marcaRoja(c)}</p><div class="row"><label class="sr" for="lim-${n.id}">Límite</label><input id="lim-${n.id}" type="number" min="1000" step="1000" value="${n.limite}" style="max-width:140px"><button type="button" class="btn sm primary" data-a="aprobarCC" data-v="${n.id}">Autorizar</button><button type="button" class="btn sm danger" data-a="rechazarCC" data-v="${n.id}">Rechazar</button></div></div>`; }).join("")}
+        ${novedadesCC.map((n) => { const c = M.cliente(E, n.clienteId); const fiado = n.tipo === "fiado"; return `<div class="al media"><span class="lvl">${fiado ? "Fiado de hoy" : "Cuenta corriente"}</span><p><b>${esc(n.pidio)}</b> pide ${fiado ? `fiarle <b>${M.pesos(n.monto)}</b> a <b>${esc(c.nombre)}</b> (una vez, a su cuenta corriente)` : `cuenta corriente para <b>${esc(c.nombre)}</b> hasta ${M.pesos(n.limite)}`}.${n.nota ? ` «${esc(n.nota)}»` : ""} ${marcaRoja(c)}</p><div class="row"><label class="sr" for="lim-${n.id}">${fiado ? "Monto" : "Límite"}</label><input id="lim-${n.id}" type="number" min="1000" step="500" value="${n.monto ?? n.limite}" style="max-width:140px"><button type="button" class="btn sm primary" data-a="aprobarCC" data-v="${n.id}">Autorizar</button><button type="button" class="btn sm danger" data-a="rechazarCC" data-v="${n.id}">Rechazar</button></div></div>`; }).join("")}
         ${accesos.map((s) => `<div class="al media"><span class="lvl">Acceso al sistema</span><p><b>${esc(s.nombre)}</b> pidió acceso.</p><div class="row"><button type="button" class="btn sm primary" data-a="otorgar" data-v="${s.id}">Dar acceso</button><button type="button" class="btn sm danger" data-a="rechazarAcceso" data-v="${s.id}">Rechazar</button></div></div>`).join("")}
       </div>
     </section>` : ""}
@@ -430,11 +598,11 @@ function vistaTablero() {
       </div>
     </section>
     <div class="owner">
-      <section class="card span-8" aria-labelledby="t-cams">
+      ${MODO_REAL ? "" : `<section class="card span-8" aria-labelledby="t-cams">
         <div class="card-head"><h2 id="t-cams">Cámaras</h2><span class="muted small">Cada cámara muestra el turno que está en esa cancha y lo que debe</span></div>
         <div class="cams">${camaras.tiles()}</div>
         <p class="honesto">Simulación de demo. En el club se conecta la grabadora (NVR) que ya tienen: cada cámara se asocia a su cancha y se ve en vivo desde acá, sin abrir otra app.</p>
-      </section>
+      </section>`}
       <section class="card span-4" aria-labelledby="t-torre">
         <div class="card-head"><h2 id="t-torre">Canchas ahora</h2><span class="muted small num">${M.hhmm(AHORA.min)}</span></div>
         <div class="torre">${enCancha.map(({ c, r, prox }) => {
@@ -553,20 +721,148 @@ function vistaContenido() {
     </div>`;
   }
   const porEstado = Object.keys(M.ESTADOS_CONTENIDO).map((k) => `${M.ESTADOS_CONTENIDO[k]}: ${pubs.filter((p) => p.estado === k).length}`).join(" · ");
-  return `<section class="card" aria-labelledby="t-cont">
+  return `<div class="stack">${seccionDifusion()}<section class="card" aria-labelledby="t-cont">
     <div class="card-head"><h2 id="t-cont" class="pantalla">Contenido · ${esc(nombreMes)}</h2>
       <div class="row"><button type="button" class="btn sm" data-a="mes" data-v="-1" aria-label="Mes anterior">‹</button><button type="button" class="btn sm" data-a="mes" data-v="0">Hoy</button><button type="button" class="btn sm" data-a="mes" data-v="1" aria-label="Mes siguiente">›</button><button type="button" class="btn primary" data-a="nuevoContenido" data-v="${HOY}">+ Publicación</button></div></div>
     <p class="small muted" style="margin:0 0 8px">Calendario de redes y WhatsApp del club. ${porEstado}</p>
     <div class="tbl-wrap"><div class="cal" style="min-width:560px">${["lun", "mar", "mié", "jue", "vie", "sáb", "dom"].map((d) => `<div class="dow">${d}</div>`).join("")}${celdas}</div></div>
     <div class="legend"><span><i style="background:var(--cream)"></i>Idea</span><span><i style="background:var(--royal-soft)"></i>Programado</span><span><i style="background:var(--ok-soft)"></i>Publicado</span></div>
+    <div class="row" style="margin-top:10px"><button type="button" class="btn" data-a="studio">Abrir el Studio de redes (imágenes y textos)</button></div>
+  </section></div>`;
+}
+
+// Novedades del club por difusión: se arma acá y se manda desde el WhatsApp del club. Sin API de WhatsApp no hay
+// envío masivo automático: o se pega en una lista de difusión de WhatsApp Business, o se manda uno por uno.
+function seccionDifusion() {
+  const d = ui.difusion ?? { tipo: "novedad", titulo: "", texto: "", audiencia: "todos" };
+  const cuantos = M.destinatarios(E, d.audiencia, AHORA).length;
+  const ultima = (E.difusiones ?? [])[0];
+  const enviando = ui.difusionId ? (E.difusiones ?? []).find((x) => x.id === ui.difusionId) : null;
+  return `<section class="card" aria-labelledby="t-dif">
+    <div class="card-head"><h2 id="t-dif" class="pantalla">Novedades del club · difusión por WhatsApp</h2></div>
+    <div class="grid2">
+      <label class="f">Tipo<select id="df-tipo" data-dif="tipo">${Object.entries(M.TIPOS_NOVEDAD).map(([k, v]) => `<option value="${k}" ${d.tipo === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+      <label class="f">A quiénes<select id="df-aud" data-dif="audiencia">${Object.entries(M.AUDIENCIAS).map(([k, v]) => `<option value="${k}" ${d.audiencia === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+      <label class="f" style="grid-column:1/-1">Título<input id="df-titulo" data-dif="titulo" maxlength="80" value="${esc(d.titulo)}" placeholder="Ej.: Torneo de categorías el sábado 25"></label>
+      <label class="f" style="grid-column:1/-1">Texto<textarea id="df-texto" data-dif="texto" rows="4" maxlength="900" placeholder="Qué, cuándo, cuánto sale y cómo anotarse.">${esc(d.texto)}</textarea></label>
+    </div>
+    <p class="small muted" style="margin:6px 0">Le llega a <b>${cuantos}</b> cliente(s) con celular que no pidieron la baja. Así se ve:</p>
+    <div class="wa">${esc(M.mensajeDifusion(d, "Juan")).replace(/\n/g, "<br>")}</div>
+    <div class="row" style="margin-top:8px"><button type="button" class="btn primary" data-a="armarDifusion" ${cuantos ? "" : "disabled"}>Preparar el envío</button><button type="button" class="btn" data-a="studioNovedad">Hacer la imagen en el Studio</button></div>
+    ${enviando ? listaEnvio(enviando) : ultima ? `<p class="small muted" style="margin:8px 0 0">Última: «${esc(ultima.titulo)}» · ${ultima.enviados.length} de ${ultima.destinatarios.length} enviados. <button type="button" class="btn sm ghost" data-a="verDifusion" data-v="${ultima.id}">Seguir mandando</button></p>` : ""}
   </section>`;
+}
+function listaEnvio(d) {
+  const lista = d.destinatarios.map((id) => M.cliente(E, id)).filter(Boolean);
+  return `<div class="seccion envio" aria-labelledby="t-envio" style="margin-top:10px"><h3 id="t-envio">Mandar «${esc(d.titulo)}» · ${d.enviados.length} de ${lista.length}</h3>
+    <ol class="small" style="margin:0 0 8px;padding-left:18px"><li><b>Lista de difusión</b> (WhatsApp Business → Nueva difusión): descargá los contactos, agendalos y pegá el mensaje. Les llega sólo a quienes tienen agendado el número del club.</li><li><b>Uno por uno</b>: tocá cada nombre; abre WhatsApp con el mensaje listo y queda tildado.</li></ol>
+    <div class="row"><button type="button" class="btn sm" data-a="copiarDifusion" data-v="${d.id}">Copiar el mensaje</button><button type="button" class="btn sm" data-a="csvDifusion" data-v="${d.id}">Descargar contactos (CSV)</button><button type="button" class="btn sm ghost" data-a="cerrarEnvio">Listo</button></div>
+    <ul class="envio-lista">${lista.map((c) => { const hecho = d.enviados.includes(c.id); return `<li><a class="btn sm ${hecho ? "" : "primary"}" target="_blank" rel="noopener" data-envio="${d.id}" data-c="${c.id}" href="${esc(M.linkWhatsApp(c.tel, M.mensajeDifusion(d, c.nombre)))}">${hecho ? "✔ " : ""}${esc(c.nombre)}</a></li>`; }).join("")}</ul>
+  </div>`;
+}
+
+// ───────────────────────────── Consola de configuración (primer arranque de la jornada real) ─────────────────────────────
+
+const enConsola = () => MODO_REAL && E?.config?.configurado === false;
+
+// Los dueños arman su PIN, se cargan los avisos y se da de alta a recepción. Recién ahí se abre el club.
+function vistaConsola() {
+  const duenios = E.usuarios.filter((u) => u.rol === "duenio" && u.activo !== false);
+  const k = contactos();
+  const listos = duenios.filter((u) => u.pin).length;
+  return `<div class="stack consola">
+    <section class="card" aria-labelledby="t-consola">
+      <div class="card-head"><h2 id="t-consola" class="pantalla">Consola de configuración · Break Point</h2><span class="chip">Paso único antes de abrir</span></div>
+      <p style="margin:0">El club arranca vacío: sin turnos, clientes ni caja. Se guarda en <b>esta compu</b>. Completá esto una vez y queda listo para usar.</p>
+    </section>
+    <section class="card" aria-labelledby="t-c1">
+      <div class="card-head"><h2 id="t-c1">1 · Los dueños arman su PIN</h2><span class="muted small">${listos} de ${duenios.length} listos</span></div>
+      <p class="small muted" style="margin:0 0 8px">2 números que sólo sepa cada uno. Con ese PIN se entra, se desbloquea la pantalla y se autorizan créditos, descuentos y accesos.</p>
+      <div class="reglas">${duenios.map((u) => u.pin
+        ? `<p style="margin:0"><b>${esc(u.nombre)}</b> · ✔ PIN armado</p>`
+        : `<div><p style="margin:0 0 4px"><b>${esc(u.nombre)}</b></p><div class="row"><label class="f" style="max-width:130px">PIN<input id="pi-${u.id}" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label><label class="f" style="max-width:130px">Repetilo<input id="pi2-${u.id}" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label><button type="button" class="btn sm primary" data-a="pinInicial" data-v="${u.id}" style="align-self:flex-end">Guardar PIN</button></div></div>`).join("")}</div>
+    </section>
+    <section class="card" aria-labelledby="t-c2">
+      <div class="card-head"><h2 id="t-c2">2 · Avisos por WhatsApp</h2><span class="muted small">Opcional · se guarda en esta compu</span></div>
+      <div class="reglas">
+        ${duenios.map((u) => `<label class="f">Celular de ${esc(u.nombre)} (le llegan los pedidos de crédito)<input type="tel" inputmode="tel" placeholder="549 11 …" value="${esc(k[u.id] ?? "")}" data-a="contacto" data-v="${u.id}"></label>`).join("")}
+        <label class="f">WhatsApp del club (recepción)<input type="tel" inputmode="tel" placeholder="549 11 …" value="${esc(k.club ?? "")}" data-a="contacto" data-v="club"></label>
+        <label class="f">Alias para la seña<input value="${esc(E.config.cobro?.alias ?? "")}" placeholder="alias.del.club" data-a="alias"></label>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="t-c3">
+      <div class="card-head"><h2 id="t-c3">3 · Recepción</h2><span class="muted small">Opcional · también se hace después</span></div>
+      ${usuariosRecepcion()}
+      <div class="row"><label class="f" style="max-width:240px">Nombre<input id="nu-nombre" placeholder="Ej.: Lu (tarde)"></label><button type="button" class="btn sm" data-a="altaUsuarioConsola" style="align-self:flex-end">Dar de alta en recepción</button></div>
+    </section>
+    <section class="card" aria-labelledby="t-c4">
+      <div class="card-head"><h2 id="t-c4">4 · Precios y caja</h2><span class="muted small">Revisalos antes del primer turno</span></div>
+      <div class="reglas">
+        ${E.config.tarifas.map((t, i) => `<label class="f">Precio por hora ${esc(t.nombre.toLowerCase())} (${M.hhmm(t.desde)}–${M.hhmm(t.hasta)})<input type="number" min="0" step="500" value="${t.precioHora}" data-a="tarifa" data-v="${i}"></label>`).join("")}
+        <label class="f">Fondo de caja (cambio en el cajón)<input type="number" min="0" step="100" value="${E.caja.fondo}" data-a="fondo"></label>
+      </div>
+      <p class="small muted" style="margin:8px 0 0">Los precios del buffet y la tienda se revisan en Stock → «Precios y rentabilidad». El stock arranca sin controlar: cuando cuentes, cargalo en cada producto (Stock → Editar).</p>
+    </section>
+    <section class="card" aria-labelledby="t-c5">
+      <div class="card-head"><h2 id="t-c5">5 · Listo</h2></div>
+      <p class="small muted" style="margin:0 0 8px">Horarios y reglas se cambian en Configuración cuando quieras.</p>
+      <button type="button" class="btn primary" data-a="terminarConsola" ${listos ? "" : "disabled"}>Abrir el club</button>
+      ${listos ? "" : `<p class="small muted" style="margin:6px 0 0">Falta que al menos un dueño arme su PIN.</p>`}
+    </section>
+  </div>`;
+}
+
+function usuariosRecepcion() {
+  const rec = E.usuarios.filter((u) => u.rol === "recepcion" && u.activo !== false);
+  return rec.length ? `<ul class="small" style="margin:0 0 8px">${rec.map((u) => `<li><b>${esc(u.nombre)}</b>${ui.pinesNuevos?.[u.id] ? ` · PIN <b class="num">${esc(ui.pinesNuevos[u.id])}</b> (anotalo y dáselo: no se vuelve a mostrar)` : ""}</li>`).join("")}</ul>` : `<p class="small muted" style="margin:0 0 8px">Todavía no hay nadie en recepción.</p>`;
 }
 
 // ───────────────────────────── Ajustes (dueño) ─────────────────────────────
 
+// El link del turnero para los clientes lleva el WhatsApp del club, las tarifas y la tienda (precios) que tiene ESTA
+// compu: el celular del cliente no se conecta con la del club, así que lo que ve sale del link.
+function linkParaClientes(k = contactos()) {
+  const q = new URLSearchParams({ modo: "pedido" });
+  if (k.club) q.set("wa", String(k.club).replace(/\D/g, ""));
+  q.set("tar", E.config.tarifas.map((t) => `${t.desde}-${t.hasta}-${t.precioHora}`).join(","));
+  const cat = E.productos.filter((p) => p.tienda && p.activo !== false && !p.alquiler && !p.plato && p.stock !== 0).map((p) => `${p.id}:${p.precio}`);
+  if (cat.length) q.set("cat", cat.join(","));
+  return `${location.origin}${location.pathname.replace(/\/club\/?$/, "")}/turnero?${q.toString()}`;
+}
+
+function tarjetaJornada() {
+  const guardada = MODO_REAL ? null : leerJornada();
+  const k = contactos();
+  const linkClientes = linkParaClientes(k);
+  return `<section class="card" aria-labelledby="t-jornada">
+      <div class="card-head"><h2 id="t-jornada" class="pantalla">Jornada real</h2><span class="chip ${MODO_REAL ? "ok" : ""}">${MODO_REAL ? "Jornada real" : "Demo"}</span></div>
+      ${MODO_REAL ? `<p class="small" style="margin:0 0 8px">Se guarda sola en <b>esta compu</b> (${guardado.ok ? (guardado.cuando ? `último guardado ${pad(guardado.cuando.getHours())}:${pad(guardado.cuando.getMinutes())} · ${Math.ceil(guardado.bytes / 1024)} KB` : "guardando…") : "⚠ no se pudo guardar"}). No pasa a otras compus ni celulares. Al recargar vuelve bloqueada y pide el PIN.</p>
+        <ol class="small" style="margin:0 0 10px;padding-left:18px"><li>Antes de abrir: <b>PIN nuevo</b> para cada usuario (abajo). Los de ejemplo los conoce cualquiera.</li><li>Abrí sólo esta pestaña del club en esta compu.</li><li>Al cerrar el día: cerrá la caja y <b>descargá el respaldo</b>.</li></ol>
+        <div class="row"><button type="button" class="btn primary" data-a="respaldo">Descargar respaldo</button>
+          <label class="btn" for="restaurar">Restaurar desde un archivo</label><input id="restaurar" type="file" accept=".json,application/json" class="sr" data-a="restaurar">
+          <button type="button" class="btn" data-a="jornada" data-v="demo">Volver a la demo</button>
+          <button type="button" class="btn danger" data-a="jornada" data-v="blanco">Empezar otra jornada en blanco</button></div>`
+      : `<p class="small" style="margin:0 0 10px">Para el día de prueba en el local: el club arranca <b>vacío</b> (sin turnos, clientes ni caja; con las canchas, productos y usuarios de Break Point), con la hora real, y se guarda solo en esta compu. La demo de ejemplo no se toca.</p>
+        <div class="row">${guardada ? `<button type="button" class="btn primary" data-a="jornada" data-v="retomar">Seguir la jornada real guardada</button>` : `<button type="button" class="btn primary" data-a="jornada" data-v="blanco">Empezar la jornada real en blanco</button>`}</div>
+        ${guardada ? `<p class="small muted" style="margin:8px 0 0">En esta compu hay una jornada real guardada: desde la demo no se puede borrar. Para empezar otra, entrá a la jornada con el PIN de un dueño y usá «Empezar otra jornada en blanco».</p>` : ""}`}
+    </section>
+    <section class="card" aria-labelledby="t-contactos">
+      <div class="card-head"><h2 id="t-contactos">Avisos por WhatsApp</h2><span class="muted small">Se guardan sólo en esta compu</span></div>
+      <div class="reglas">
+        ${E.usuarios.filter((u) => u.rol === "duenio" && u.activo !== false).map((u) => `<label class="f">Celular de ${esc(u.nombre)} (pedidos de crédito)<input type="tel" inputmode="tel" placeholder="549 11 …" value="${esc(k[u.id] ?? "")}" data-a="contacto" data-v="${u.id}"></label>`).join("")}
+        <label class="f">WhatsApp del club (recepción)<input type="tel" inputmode="tel" placeholder="549 11 …" value="${esc(k.club ?? "")}" data-a="contacto" data-v="club"></label>
+        <label class="f">Alias para la seña (va en la confirmación del turno)<input value="${esc(E.config.cobro?.alias ?? "")}" placeholder="alias.del.club" data-a="alias"></label>
+      </div>
+      <p class="small muted" style="margin:10px 0 6px">Sin número, el link de WhatsApp abre para elegir el chat. Números provisionales: a confirmar con el club.</p>
+      <div class="row"><label class="sr" for="link-clientes">Link del turnero para mandar a los clientes</label><input id="link-clientes" readonly value="${esc(linkClientes)}" style="flex:1;min-width:220px"><button type="button" class="btn sm" data-a="copiarLink">Copiar link para clientes</button></div>
+      <p class="small muted" style="margin:6px 0 0">Con ese link el cliente ve horarios, precios y la tienda, y te pide el turno o el encargo por WhatsApp. Lo cargás acá.</p>
+    </section>`;
+}
+
 function vistaAjustes() {
   const P = E.config.politica;
   return `<div class="stack">
+    ${tarjetaJornada()}
     <section class="card" aria-labelledby="t-reglas">
       <div class="card-head"><h2 id="t-reglas" class="pantalla">Reglas del club</h2><span class="muted small">Cambian en vivo lo que ve recepción</span></div>
       <div class="reglas">
@@ -578,7 +874,7 @@ function vistaAjustes() {
         <label class="f">Abrir la cancha hasta (min antes) · vacío = sin límite<input type="number" min="0" max="240" value="${P.minutosAntesParaEntrar ?? ""}" placeholder="Sin límite" data-a="regla" data-v="minutosAntesParaEntrar"></label>
         ${E.config.tarifas.map((t, i) => `<label class="f">Precio por hora ${esc(t.nombre.toLowerCase())} (${M.hhmm(t.desde)}–${M.hhmm(t.hasta)})<input type="number" min="0" step="500" value="${t.precioHora}" data-a="tarifa" data-v="${i}"></label>`).join("")}
       </div>
-      <p class="small muted" style="margin:10px 0 0">Las faltas se cobran enteras (al titular o repartidas en el grupo). Precios de ejemplo, a confirmar con el club.</p>
+      <p class="small muted" style="margin:10px 0 0">Las faltas se cobran enteras (al titular o repartidas en el grupo). ${MODO_REAL ? "Los precios valen para los turnos nuevos." : "Precios de ejemplo, a confirmar con el club."}</p>
     </section>
     <section class="card" aria-labelledby="t-horarios">
       <div class="card-head"><h2 id="t-horarios">Horario por día</h2></div>
@@ -592,7 +888,9 @@ function vistaAjustes() {
         ${E.usuarios.filter((u) => u.activo !== false).map((u) => `<tr><td>${esc(u.nombre)}</td><td>${M.ROLES[u.rol]}</td><td class="small muted">${u.rol === "duenio" ? "Todo: pagos a proveedores, cuentas corrientes, ajustes" : "Agenda, cobros, buffet, remitos, egreso en efectivo, cierre de caja"}</td><td><div class="row"><button type="button" class="btn sm" data-a="regenerarPin" data-v="${u.id}">PIN nuevo</button>${u.id !== USUARIO ? `<button type="button" class="btn sm danger" data-a="revocar" data-v="${u.id}">Sacar acceso</button>` : ""}</div></td></tr>`).join("")}
       </tbody></table></div>
       ${E.solicitudesAcceso.filter((s) => s.estado === "pendiente").map((s) => `<div class="al media" style="margin-top:8px"><span class="lvl">Pidió acceso</span><p><b>${esc(s.nombre)}</b></p><div class="row"><button type="button" class="btn sm primary" data-a="otorgar" data-v="${s.id}">Dar acceso</button><button type="button" class="btn sm danger" data-a="rechazarAcceso" data-v="${s.id}">Rechazar</button></div></div>`).join("")}
-      <p class="small muted" style="margin:10px 0 0">El acceso es con PIN de 2 dígitos que genera el sistema. Lo que mueve plata sensible (egresos, cierre de caja, pagos a proveedores, accesos) vuelve a pedir el PIN.</p>
+      <div class="row" style="margin-top:10px"><label class="f" style="max-width:220px">Nombre<input id="nu-nombre" placeholder="Ej.: Caro (mañana)"></label><label class="f" style="max-width:170px">Rol<select id="nu-rol"><option value="recepcion">Recepción</option><option value="duenio">Dueño/a</option></select></label><button type="button" class="btn sm primary" data-a="altaUsuario" style="align-self:flex-end">Dar de alta</button></div>
+      <div class="row" style="margin-top:6px"><label class="f" style="max-width:150px">Tu PIN actual<input id="mp-viejo" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label><label class="f" style="max-width:150px">PIN nuevo<input id="mp-nuevo" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label><button type="button" class="btn sm" data-a="cambiarMiPin" style="align-self:flex-end">Cambiar mi PIN</button></div>
+      <p class="small muted" style="margin:10px 0 0">El acceso es con PIN de 2 dígitos. El de alta lo genera el sistema y se ve una sola vez; cada uno puede cambiar el suyo. Lo que mueve plata sensible (egresos, cierre de caja, pagos a proveedores, accesos) vuelve a pedir el PIN.</p>
     </section>
   </div>`;
 }
@@ -729,8 +1027,8 @@ function itemsPaleta(q) {
     { k: "a-hoy", g: "Ir a", t: "Agenda de hoy", atajo: "T", ok: puedo("agenda"), run: () => { irTab("agenda"); irDia(HOY); } },
     ...tabs.map((x, i) => ({ k: `t-${x.id}`, g: "Ir a", t: x.nombre, atajo: i < 9 ? String(i + 1) : "", ok: true, run: () => irTab(x.id) })),
     { k: "a-usuario", g: "Hacer", t: "Cambiar de usuario", ok: true, run: () => cambiarUsuario() },
-    { k: "a-reloj+", g: "Demo", t: "Adelantar el reloj 30 minutos", ok: true, run: () => acciones.reloj({ dataset: { v: "30" } }) },
-    { k: "a-reloj-", g: "Demo", t: "Atrasar el reloj 30 minutos", ok: true, run: () => acciones.reloj({ dataset: { v: "-30" } }) },
+    ...(MODO_REAL ? [] : [{ k: "a-reloj+", g: "Demo", t: "Adelantar el reloj 30 minutos", ok: true, run: () => acciones.reloj({ dataset: { v: "30" } }) },
+    { k: "a-reloj-", g: "Demo", t: "Atrasar el reloj 30 minutos", ok: true, run: () => acciones.reloj({ dataset: { v: "-30" } }) }]),
     ...ESTILOS.map((x) => ({ k: `e-${x.id}`, g: "Estilo", t: `Estilo ${x.nombre}`, s: x.id === estiloActual() ? "en uso" : "", ok: true, run: () => elegirEstilo(x.id) })),
     { k: "a-atajos", g: "Ayuda", t: "Atajos de teclado", atajo: "?", ok: true, run: () => ayudaAtajos() },
   ].filter((a) => a.ok && coincide(a.t, a.g));
@@ -857,6 +1155,12 @@ function buscadorProductos(clave, { soloVendibles = true } = {}) {
 
 // ───── usuario y PIN ─────
 
+// Los PIN de ejemplo no quedan a la vista de cualquiera que pase por el mostrador: se muestran sólo si se piden.
+// (Es una ayuda de la DEMO; con usuarios reales no existe.)
+const pinesDemo = (usuarios) => MODO_REAL ? "" : `<details class="demo-pins"><summary>¿Probando la demo? Ver los PIN de ejemplo</summary><p style="margin:6px 0 0">${usuarios.map((u) => `${esc(u.nombre.split(" ")[0])} ${esc(u.pin)}`).join(" · ")}</p></details>`;
+// Cambio de usuario: como el bloqueo, 5 PIN mal → 30 s de espera (2 dígitos se adivinan rápido si no hay tope).
+const intentosPin = { fallos: 0, hasta: 0 };
+
 function cambiarUsuario() {
   let elegido = USUARIO;
   abrir({
@@ -864,7 +1168,7 @@ function cambiarUsuario() {
     sub: "Elegí tu usuario y poné tu PIN de 2 dígitos.",
     cuerpo: `<div class="usuarios" role="group" aria-label="Usuarios">${E.usuarios.filter((u) => u.activo !== false).map((u) => `<button type="button" data-a="elegirUsuario" data-v="${u.id}" aria-pressed="${u.id === elegido}"><span><b>${esc(u.nombre)}</b></span><span class="small muted">${M.ROLES[u.rol]}</span></button>`).join("")}</div>
       ${campoPin("pin-usuario", "PIN")}
-      <p class="demo-pins">PIN de la demo: ${E.usuarios.filter((u) => u.activo !== false).map((u) => `${esc(u.nombre.split(" ")[0])} ${esc(u.pin)}`).join(" · ")}</p>
+      ${pinesDemo(E.usuarios.filter((u) => u.activo !== false))}
       <details><summary class="small">¿Sos nuevo/a? Pedí acceso</summary><div class="row" style="margin-top:8px"><label class="sr" for="nuevo-acceso">Tu nombre</label><input id="nuevo-acceso" placeholder="Tu nombre" style="max-width:220px"><button type="button" class="btn sm" data-a="pedirAcceso">Pedir acceso</button></div><p class="small muted">Le llega al dueño; cuando lo aprueba te da un PIN.</p></details>`,
     pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="entrar">Entrar</button>`,
     alAbrir(d) {
@@ -911,6 +1215,35 @@ function listaCargos(cta, { compacta = false } = {}) {
 
 // ───── turno: la cuenta de la cancha y la de cada jugador ─────
 
+// La cuenta del turno en UN solo lugar: lo que debe cada jugador (cancha + cargos) y los totales, con los cierres:
+// cobrar todo, cobrar a un jugador, cerrar la cancha y que la mesa siga cargando, y cerrar los cargos después.
+function resumenTurno(r, t, cl) {
+  if (!t.ok || ["cancelada", "suspendida", "no_show"].includes(r.estado)) return "";
+  const { totales: T } = t;
+  const abierto = t.abierto;
+  const hayAlgo = T.pendiente > 0;
+  const filas = t.jugadores.map((j) => {
+    const quien = j.cargos.aCargoDeNombre ?? (j.cancha.aCargoDe != null ? r.jugadores[j.cancha.aCargoDe]?.nombre : null);
+    const detalle = [abierto ? (j.cancha.pago ? "cancha ✔" : j.cancha.aCargoDe != null ? `cancha → ${esc(r.jugadores[j.cancha.aCargoDe]?.nombre ?? "")}` : `cancha ${M.pesos(j.cancha.aPagar)}`) : "", j.cargos.saldo ? `cargos ${M.pesos(j.cargos.saldo)}${j.cargos.aCargoDe ? ` → ${esc(j.cargos.aCargoDeNombre)}` : ""}` : "", j.cargos.deOtros ? `+ cargos de ${esc(j.cargos.aSuCargo.join(", "))} ${M.pesos(j.cargos.deOtros)}` : ""].filter(Boolean).join(" · ");
+    return `<li class="fila-jug"><span><b>${esc(j.nombre)}</b><br><span class="small muted">${detalle || "nada pendiente"}</span></span>
+      ${j.aPagar > 0 ? `<button type="button" class="btn sm" data-a="cobrarJugador" data-v="${r.id}" data-j="${j.idx}">Cobrar ${M.pesos(j.aPagar)}</button>` : `<span class="small muted">${quien ? `lo paga ${esc(quien)}` : "✔ al día"}</span>`}</li>`;
+  }).join("");
+  return `<section class="seccion cuenta-turno" aria-labelledby="ct-t">
+    <h3 id="ct-t">Cuenta del turno ${abierto ? "" : `<span class="chip">Cancha cerrada · la mesa sigue</span>`}</h3>
+    <dl class="kv num totales-turno" aria-label="Totales del turno"><dt>Cancha</dt><dd>${M.pesos(T.cancha)}</dd><dt>Cargos</dt><dd>${M.pesos(T.cargos)}</dd><dt class="tot">Falta cobrar</dt><dd class="tot">${M.pesos(T.pendiente)}</dd></dl>
+    ${hayAlgo ? pickMedios(true, cl) : ""}
+    <ul class="filas-jug">${filas}</ul>
+    ${t.deOtraMesa.length ? `<p class="small muted" style="margin:0">No se cobra acá: ${t.deOtraMesa.map((x) => `los cargos de ${esc(x.titular)} (${M.pesos(x.saldo)}) los paga ${esc(x.paga)} en su mesa`).join(" · ")}.</p>` : ""}
+    <div class="row">
+      ${hayAlgo ? `<button type="button" class="btn primary" data-a="cobrarTodo" data-v="${r.id}">Cobrar todo ${M.pesos(T.pendiente)}</button>` : ""}
+      ${abierto && r.estado === "en_cancha" ? `<button type="button" class="btn" data-a="cerrarYSeguir" data-v="${r.id}">${T.cancha > 0 ? `Cobrar la cancha ${M.pesos(T.cancha)} y cerrarla` : "Cerrar la cancha"} · la mesa sigue</button>` : ""}
+      ${!abierto && t.mesa.length ? `<button type="button" class="btn" data-a="cerrarCargos" data-v="${r.id}">${T.cargos > 0 ? `Cobrar y cerrar los cargos ${M.pesos(T.cargos)}` : "Cerrar los cargos"}</button>` : ""}
+      ${!abierto && T.cargos > 0 ? `<button type="button" class="btn" data-a="cerrarCargosCC" data-v="${r.id}">Cargos a cuenta corriente</button>` : ""}
+    </div>
+    ${abierto && r.estado === "en_cancha" ? `<p class="small muted" style="margin:0">«La mesa sigue»: se cobra la cancha y queda libre para el turno siguiente; los cargos siguen abiertos (Buffet → Mesas) y se cobran cuando se van.</p>` : ""}
+  </section>`;
+}
+
 function verReserva(id) {
   ui.medio = "efectivo";
   ui.pendienteCredito = null;
@@ -925,6 +1258,7 @@ function verReserva(id) {
     const partes = M.partesCancha(r);
     const cuentasJug = r.jugadores.map((j, i) => E.cuentas.find((x) => x.estado === "abierta" && ((j.clienteId && x.clienteId === j.clienteId) || (!j.clienteId && x.reservaId === r.id && x.jugadorIdx === i))));
     const puedeCC = !!cl?.cc.habilitada;
+    const t = M.cuentaDelTurno(E, r.id);
     abrir({
       titulo: `${esc(r.titular)} ${marcaRoja(cl)}`,
       sub: `${esc(c.nombre)} · ${esc(fechaCorta(r.fecha))} ${M.hhmm(r.inicio)}–${M.hhmm(r.inicio + r.duracion)} · ${M.TIPOS[r.tipo]} · ${M.ESTADOS[r.estado]}`,
@@ -932,13 +1266,14 @@ function verReserva(id) {
       refrescar: pintar,
       cuerpo: `
         ${r.notas ? `<p class="small" style="margin:0">📝 ${esc(r.notas)}</p>` : ""}
+        ${resumenTurno(r, t, cl)}
         <div class="dos-cols">
           <div class="seccion">
             <h3>Cuenta de la cancha <span class="num">${M.pesos(s)}</span></h3>
             <dl class="kv num"><dt>Turno (${r.duracion}′)</dt><dd>${M.pesos(r.precio)}</dd><dt>Cobrado</dt><dd>${M.pesos(-M.cobrado(r))}</dd><dt class="tot">Le queda</dt><dd class="tot">${M.pesos(s)}</dd></dl>
             ${r.sena.monto > 0 ? `<p class="small" style="margin:0">Seña ${M.pesos(r.sena.monto)}: ${r.sena.pagada ? "✔ pagada" : "<b>pendiente</b>"}</p>` : ""}
             ${cl ? `<p class="small" style="margin:0">${puedeCC ? `Cuenta corriente hasta ${M.pesos(cl.cc.limite)} · debe ${M.pesos(cl.deuda)}` : "Sin cuenta corriente habilitada"}${cl.monedero ? ` · créditos ${M.pesos(cl.monedero)}` : ""}</p>` : ""}
-            ${abierto && s > 0 ? `${pickMedios(true, cl)}
+            ${abierto && s > 0 ? `
               <div class="row"><label class="sr" for="monto">Monto</label><input id="monto" type="number" min="1" value="${r.sena.monto > 0 && !r.sena.pagada ? r.sena.monto : s}" style="max-width:150px"><button type="button" class="btn primary" data-a="pagar" data-v="${r.id}">Cobrar cancha</button></div>
               ${r.jugadores.length > 1 ? `<div class="players partes" role="group" aria-label="Parte de la cancha de cada jugador">${r.jugadores.map((j, i) => {
                 const p = partes[i];
@@ -954,21 +1289,25 @@ function verReserva(id) {
               ${abierto ? `<button type="button" class="btn ${s > 0 ? "" : "primary"}" data-a="finalizar" data-v="${r.id}" ${s > 0 ? "disabled" : ""}>Cerrar cancha${s > 0 ? " (falta cobrar)" : ""}</button>` : ""}
               ${abierto && s > 0 ? `<button type="button" class="btn" data-a="aCuenta" data-v="${r.id}" ${puedeCC ? "" : "disabled"} title="${puedeCC ? "" : "Sin cuenta corriente habilitada"}">Cerrar y sumar ${M.pesos(s)} a su cuenta</button>` : ""}
             </div>
-            <p class="small muted" style="margin:0">Cerrar la cancha no cierra los cargos: el buffet de cada jugador sigue abierto.</p>
+            <p class="small muted" style="margin:0">Cerrar la cancha no cierra los cargos: cada jugador sigue cargando y se cobra cuando se va.</p>
           </div>
           <div class="seccion">
             <h3>Cargos de los jugadores</h3>
             <div class="players">${r.jugadores.map((j, i) => {
               const cta = cuentasJug[i];
               const jc = j.clienteId ? M.cliente(E, j.clienteId) : null;
-              return `<div class="player jug-cargos"><input type="radio" name="jug" id="jug-${i}" data-a="jugador" data-v="${i}" ${i === jugadorSel ? "checked" : ""}><label for="jug-${i}">${esc(j.nombre)} ${marcaRoja(jc)}<br><span class="small muted">${cta ? `Cuenta abierta: ${M.pesos(M.saldoCuenta(cta))}` : "Sin cargos"}</span></label>${cta ? `<button type="button" class="btn sm" data-a="verCuenta" data-v="${cta.id}">Ver / cobrar</button>` : "<span></span>"}${cta?.items.length ? listaCargos(cta, { compacta: true }) : ""}</div>`;
+              const otrasCtas = cuentasJug.filter((x, k) => x && k !== i && !x.aCargoDe);
+              const pagaOtro = cta?.aCargoDe ? M.cuenta(E, cta.aCargoDe) : null;
+              return `<div class="player jug-cargos"><input type="radio" name="jug" id="jug-${i}" data-a="jugador" data-v="${i}" ${i === jugadorSel ? "checked" : ""}><label for="jug-${i}">${esc(j.nombre)} ${marcaRoja(jc)}<br><span class="small muted">${cta ? `Cuenta abierta: ${M.pesos(M.saldoCuenta(cta))}${pagaOtro?.estado === "abierta" ? ` → ${esc(pagaOtro.titular)}` : ""}` : "Sin cargos"}</span></label>${cta ? `<button type="button" class="btn sm" data-a="verCuenta" data-v="${cta.id}">Ver / cobrar</button>` : "<span></span>"}${cta?.items.length ? listaCargos(cta, { compacta: true }) : ""}
+                ${cta && otrasCtas.length ? `<label class="sr" for="acc-${i}">Quién paga los cargos de ${esc(j.nombre)}</label><select id="acc-${i}" class="sm" data-a="aCargoCargos" data-v="${cta.id}"><option value="">Paga sus cargos</option>${otrasCtas.map((x) => `<option value="${x.id}" ${cta.aCargoDe === x.id ? "selected" : ""}>Sus cargos los paga ${esc(x.titular)}</option>`).join("")}</select>` : ""}</div>`;
             }).join("")}</div>
             ${r.estado !== "cancelada" && r.estado !== "suspendida" && r.estado !== "no_show" ? `${buscadorProductos("turno")}
               <div class="row"><label class="sr" for="cant-turno">Cantidad</label><input id="cant-turno" type="number" min="1" value="1" style="max-width:80px">
                 <button type="button" class="btn" data-a="consumo" data-v="${r.id}" data-m="cuenta">Sumar a su cuenta</button>
                 <button type="button" class="btn accent" data-a="consumo" data-v="${r.id}" data-m="cobrar">Cobrar ahora</button></div>
               <p class="small muted" style="margin:0">«Cobrar ahora» usa el medio elegido arriba (${M.MEDIOS[ui.medio === "monedero" ? "efectivo" : ui.medio]}).</p>` : ""}
-            ${abierto && r.jugadores.length < 4 ? `<div class="row"><label class="sr" for="nuevo-jug">Jugador</label><input id="nuevo-jug" placeholder="Sumar jugador (nombre)" style="flex:1"><button type="button" class="btn sm" data-a="sumarJugador" data-v="${r.id}">Sumar</button></div>` : ""}
+            ${abierto && r.jugadores.length < 4 ? `<div class="row"><label class="sr" for="nuevo-jug">Jugador</label><input id="nuevo-jug" data-busca="jug" value="${esc(ui.busca.jug ?? "")}" placeholder="Sumar jugador (nombre, o buscá su ficha)" autocomplete="off" style="flex:1"><button type="button" class="btn sm" data-a="sumarJugador" data-v="${r.id}">Sumar</button></div>
+              ${(ui.busca.jug ?? "").trim().length >= 2 ? `<div class="sug">${M.buscarClientes(E, ui.busca.jug).filter((c) => !r.jugadores.some((j) => j.clienteId === c.id)).slice(0, 5).map((c) => `<button type="button" data-a="sumarJugadorFicha" data-v="${r.id}" data-c="${c.id}">${esc(c.nombre)} <span class="small muted">· ficha${c.cc.habilitada ? " · cuenta corriente" : ""}${c.monedero ? ` · créditos ${M.pesos(c.monedero)}` : ""}</span></button>`).join("")}</div>` : ""}` : ""}
           </div>
         </div>
         ${abierto ? `<details><summary><b>Mover o extender</b></summary><div class="row" style="margin-top:8px"><label class="sr" for="mover-c">Cancha destino</label><select id="mover-c" style="max-width:200px">${E.canchas.filter((x) => x.id !== r.canchaId).map((x) => `<option value="${x.id}">${esc(x.nombre)}${x.cubierta ? "" : " (descubierta)"}</option>`).join("")}</select><button type="button" class="btn sm" data-a="mover" data-v="${r.id}">Pasar a esa cancha</button><button type="button" class="btn sm" data-a="extender" data-v="${r.id}">Extender 30′</button></div></details>` : ""}
@@ -1025,9 +1364,86 @@ function verCuenta(id) {
           </div>` : ""}
         </div>
         ${abierta ? mesaCompleja(cta) : ""}
-        ${abierta && s > 0 ? `<div class="seccion"><h3>Cobrar</h3>${pickMedios(true, c)}<div class="row"><label class="sr" for="monto-cta">Monto</label><input id="monto-cta" type="number" min="1" value="${s}" style="max-width:150px"><button type="button" class="btn primary" data-a="pagarCuenta" data-v="${cta.id}">Cobrar</button></div>${panelCredito(`c-${cta.id}`)}</div>` : ""}`,
-      pie: abierta ? `<button type="button" class="btn" data-a="cerrar">Dejar abierta</button>${s > 0 ? `<button type="button" class="btn" data-a="cerrarCuenta" data-v="${cta.id}" data-m="cuenta" ${c?.cc.habilitada ? "" : "disabled"} title="${c?.cc.habilitada ? "" : "Sin cuenta corriente habilitada"}">Sumar ${M.pesos(s)} a su cuenta corriente</button>` : ""}<button type="button" class="btn primary" data-a="cerrarCuenta" data-v="${cta.id}" ${s > 0 ? "disabled" : ""}>Cerrar cuenta${s > 0 ? " (falta cobrar)" : ""}</button>` : `<button type="button" class="btn" data-a="cerrar">Listo</button>`,
+        ${abierta && s > 0 ? `<div class="seccion"><h3>Cobrar</h3>${pickMedios(true, c)}<div class="row"><label class="sr" for="monto-cta">Monto</label><input id="monto-cta" type="number" min="1" value="${s}" style="max-width:150px"><button type="button" class="btn primary" data-a="pagarCuenta" data-v="${cta.id}">Cobrar</button></div>${panelCredito(`c-${cta.id}`)}</div>` : ""}
+        ${abierta && s > 0 ? seccionFiado(cta, c, s) : ""}`,
+      pie: abierta ? `<button type="button" class="btn" data-a="cerrar">Dejar abierta</button>${s > 0 ? `<button type="button" class="btn" data-a="cerrarCuenta" data-v="${cta.id}" data-m="cuenta" ${c && M.puedeACuenta(c, s).ok ? "" : "disabled"} title="${c && M.puedeACuenta(c, s).ok ? "" : "Sin cuenta corriente ni fiado aprobado"}">Sumar ${M.pesos(s)} a su cuenta corriente</button>` : ""}<button type="button" class="btn primary" data-a="cerrarCuenta" data-v="${cta.id}" ${s > 0 ? "disabled" : ""}>Cerrar cuenta${s > 0 ? " (falta cobrar)" : ""}</button>` : `<button type="button" class="btn" data-a="cerrar">Listo</button>`,
     });
+  };
+  pintar();
+}
+
+// Fiar la cuenta de hoy: si el cliente no tiene cuenta corriente (o no le da el límite), recepción le pide el OK
+// a un dueño. El dueño aprueba en el sistema o desde su celular (link por WhatsApp → código de 6 letras).
+function seccionFiado(cta, c, s) {
+  if (!c) return `<p class="small muted" style="margin:0">Para fiar hace falta la ficha del cliente (Clientes → nuevo).</p>`;
+  const deOtros = E.cuentas.filter((x) => x.estado === "abierta" && x.aCargoDe === cta.id).reduce((t, x) => t + Math.max(0, M.saldoCuenta(x)), 0);
+  s += deOtros;
+  if (M.puedeACuenta(c, s).ok) return "";
+  const n = E.novedades.find((x) => x.estado === "pendiente" && x.clienteId === c.id);
+  if (n) return panelAprobacion(n);
+  return `<div class="seccion"><h3>Fiar esta cuenta</h3><p class="small" style="margin:0">${esc(c.nombre)} ${c.cc.habilitada ? "no tiene margen en su cuenta corriente" : "no tiene cuenta corriente"}. Pedile el OK a Rober o a Majo para pasar ${M.pesos(s)} a su cuenta.</p>
+    <div class="row"><button type="button" class="btn" data-a="pedirFiado" data-v="${cta.id}">Pedir OK para fiar ${M.pesos(s)}</button></div></div>`;
+}
+function linkAprobacion(n) {
+  const d = M.datosAprobacion(E, n.id);
+  return `${location.origin}${location.pathname}#aprobar&${new URLSearchParams(d).toString()}`;
+}
+function panelAprobacion(n) {
+  const c = M.cliente(E, n.clienteId);
+  const monto = n.monto ?? n.limite;
+  const que = n.tipo === "fiado" ? `fiarle ${M.pesos(monto)} a ${c.nombre}` : `cuenta corriente para ${c.nombre} hasta ${M.pesos(monto)}`;
+  const duenios = E.usuarios.filter((u) => u.rol === "duenio" && u.activo !== false);
+  const link = linkAprobacion(n);
+  return `<div class="seccion aprobacion" aria-labelledby="ap-${n.id}"><h3 id="ap-${n.id}">Esperando al dueño</h3>
+    <p class="small" style="margin:0">${esc(n.pidio)} pidió ${esc(que)}.</p>
+    ${esDuenio() ? `<div class="row"><button type="button" class="btn primary" data-a="aprobarAca" data-v="${n.id}">Aprobar ${M.pesos(monto)} (sos dueño)</button><button type="button" class="btn danger" data-a="rechazarCC" data-v="${n.id}">Rechazar</button></div>` : ""}
+    <div class="row">${duenios.map((u) => `<a class="btn sm" target="_blank" rel="noopener" data-wa-aprob="${u.id}" href="${esc(waA(u.id, M.mensajeWhatsApp("aprobacion", { duenio: u.nombre, pidio: n.pidio, cliente: c.nombre, monto: M.pesos(monto), tipo: n.tipo, link })))}">Avisar a ${esc(u.nombre)} por WhatsApp</a>`).join("")}</div>
+    <p class="small muted" style="margin:0">El dueño abre el link, pone su PIN y te manda un código. ${contactos()[duenios[0]?.id] ? "" : "Sin celular cargado (Ajustes), WhatsApp abre para elegir el chat."}</p>
+    <div class="row"><label class="f" style="max-width:170px">Código del dueño<input id="codigo-aprob" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="7" placeholder="ABC-DEF"></label>
+      <label class="f" style="max-width:150px">Monto aprobado<input id="codigo-monto" type="number" min="1" value="${monto}"></label>
+      <button type="button" class="btn primary" data-a="aprobarCodigo" data-v="${n.id}" style="align-self:flex-end">Aprobar con el código</button></div>
+  </div>`;
+}
+
+// El dueño abre el link de WhatsApp en su celular: pone su PIN y le sale el código para mandarle a recepción.
+// Si el pedido está en ESTE dispositivo (la misma compu), se aprueba directo con su PIN.
+function dialogoAprobar(d) {
+  // Sólo es «este dispositivo» en la jornada real y si el pedido coincide entero (en la demo los ids se repiten).
+  const local = MODO_REAL ? E.novedades.find((x) => x.id === d.id && x.clienteId === d.c && x.estado === "pendiente") : null;
+  const duenios = E.usuarios.filter((u) => u.rol === "duenio" && u.activo !== false);
+  let elegido = duenios[0]?.id ?? null, codigo = null;
+  const que = d.t === "fiado" ? `fiarle ${M.pesos(Number(d.m))} a ${d.n}` : `cuenta corriente para ${d.n} hasta ${M.pesos(Number(d.m))}`;
+  const pintar = () => abrir({
+    titulo: "Pedido de crédito",
+    sub: `${esc(d.p)} pide ${esc(que)}${d.f ? ` · ${esc(ddmm(d.f))}` : ""}`,
+    refrescar: pintar,
+    cuerpo: codigo
+      ? `<p style="margin:0">Mandale este código a ${esc(d.p)}:</p><p class="codigo-aprob num" aria-live="polite">${esc(codigo.codigo)}</p>
+         <p class="small muted" style="margin:0">Vale para ${esc(d.n)} por ${M.pesos(codigo.monto)}. Si el PIN que pusiste no es el tuyo, el código no va a servir.</p>`
+      : `<div class="usuarios" role="group" aria-label="¿Quién aprueba?">${duenios.map((u) => `<button type="button" data-a="aprobQuien" data-v="${u.id}" aria-pressed="${u.id === elegido}"><b>${esc(u.nombre)}</b></button>`).join("")}</div>
+         <div class="row"><label class="f" style="max-width:160px">Tu PIN<input id="ap-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label>
+         <label class="f" style="max-width:160px">Monto que aprobás<input id="ap-monto" type="number" min="1" value="${esc(d.m)}"></label></div>`,
+    pie: codigo
+      ? `<a class="btn primary" target="_blank" rel="noopener" href="${esc(waA("club", M.mensajeWhatsApp("aprobado", { cliente: d.n, monto: M.pesos(codigo.monto), codigo: codigo.codigo })))}">Mandar el código por WhatsApp</a><button type="button" class="btn" data-a="cerrar">Listo</button>`
+      : `<button type="button" class="btn danger" data-a="cerrar">Ahora no</button><button type="button" class="btn primary" data-a="aprobarLink">${local ? "Aprobar" : "Aprobar y ver el código"}</button>`,
+    alAbrir(dl) { $("#ap-pin", dl)?.focus(); },
+  });
+  acciones.aprobQuien = (b) => { elegido = b.dataset.v; pintar(); };
+  acciones.aprobarLink = () => {
+    const pin = val("#ap-pin");
+    const monto = Math.round(Number(val("#ap-monto")));
+    if (!(monto > 0)) return toast("Poné el monto.", { error: true });
+    if (!/^\d{2}$/.test(pin)) return toast("El PIN son 2 números.", { error: true });
+    if (local) {
+      const espera = Math.ceil((intentosPin.hasta - Date.now()) / 1000);
+      if (espera > 0) return toast(`Demasiados intentos: esperá ${espera} s.`, { error: true });
+      const v = M.verificarPin(E, elegido, pin);
+      if (!v.ok) { intentosPin.fallos += 1; if (intentosPin.fallos >= 5) { intentosPin.fallos = 0; intentosPin.hasta = Date.now() + 30_000; } return toast(v.motivo, { error: true }); }
+      intentosPin.fallos = 0;
+      return cerrarSiSale(M.resolverCredito(E, d.id, { aprobar: true, monto }, { usuarioId: elegido, pin }, AHORA), `Aprobado: ${d.n} ${M.pesos(monto)}.`);
+    }
+    codigo = { codigo: M.codigoAprobacion({ pin, novedadId: d.id, clienteId: d.c, monto, fecha: d.f }), monto };
+    pintar();
   };
   pintar();
 }
@@ -1096,9 +1512,11 @@ function nuevoTurno({ canchaId, inicio } = {}) {
   const f = { canchaId: canchaId ?? E.canchas[0].id, inicio: inicio ?? null, duracion: E.config.duracionTurno, clienteId: null, tipo: "turno", origen: "mostrador" };
   ui.busca.cliTurno = "";
   const pintar = () => {
-    const desde = VISTA === HOY ? Math.floor(AHORA.min / E.config.paso) * E.config.paso : undefined;
+    // Hoy se ofrecen también los turnos que ya empezaron y todavía no terminaron (se olvidaron de cargarlos).
+    const desde = VISTA === HOY ? Math.floor((AHORA.min - f.duracion + 1) / E.config.paso) * E.config.paso + E.config.paso : undefined;
     const libres = M.huecosLibres(E, VISTA, f.canchaId, f.duracion, desde);
-    if (f.inicio == null || !libres.includes(f.inicio)) f.inicio = libres[0] ?? null;
+    // Por defecto, el próximo horario; los ya empezados quedan en la lista para cargar el que se olvidaron.
+    if (f.inicio == null || !libres.includes(f.inicio)) f.inicio = (VISTA === HOY ? libres.find((m) => m >= Math.floor(AHORA.min / E.config.paso) * E.config.paso) : null) ?? libres[0] ?? null;
     const cl = f.clienteId ? M.cliente(E, f.clienteId) : null;
     const precio = f.inicio != null ? M.precioTurno(E, { fecha: VISTA, inicio: f.inicio, duracion: f.duracion, canchaId: f.canchaId }) : 0;
     const pideSena = M.requiereSena(E, f.clienteId, f.tipo);
@@ -1167,8 +1585,20 @@ function egresoDialogo() {
   });
 }
 
-function cierreCajaDialogo() {
-  const dia = M.diaDeCaja(E, AHORA.fecha, AHORA.min);
+function cierreCajaDialogo(diaAtrasado = null) {
+  const hoy = M.diaDeCaja(E, AHORA.fecha, AHORA.min);
+  if (diaAtrasado) {
+    const ra = M.resumenCaja(E, diaAtrasado);
+    return abrir({
+      titulo: `Cerrar la caja del ${esc(fechaCorta(diaAtrasado))}`,
+      sub: "Caja anterior que quedó sin cerrar (lo cobrado antes de las 12 es de la caja del día anterior).",
+      cuerpo: `<dl class="kv num">${MEDIOS_CAJA.map((k) => `<dt>${M.MEDIOS[k]}</dt><dd>${M.pesos(ra.porMedio[k])}</dd>`).join("")}<dt class="tot">Efectivo que tiene que haber</dt><dd class="tot">${M.pesos(ra.efectivoEsperado)}</dd></dl>
+        <div class="grid2"><label class="f">Efectivo contado de esa caja (contalo)<input id="k-cont" type="number" min="0" value="" placeholder="Contá el efectivo"></label>${campoPin("k-pin", `PIN de ${esc(yo().nombre.split(" ")[0])}`)}</div>`,
+      pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="aplicarCierre" data-v="${diaAtrasado}">Cerrar esa caja</button>`,
+    });
+  }
+  if (M.cajaCerrada(E, hoy)) return abrir({ titulo: "La caja de hoy ya está cerrada", cuerpo: `<p style="margin:0">Se cerró una sola vez, como corresponde. Lo que se cobre desde ahora entra en la caja del ${esc(fechaCorta(M.cajaAbierta(E, AHORA)))}.</p>`, pie: `<button type="button" class="btn primary" data-a="cerrar">Entendido</button>` });
+  const dia = M.cajaAbierta(E, AHORA);
   const r = M.resumenCaja(E, dia);
   abrir({
     titulo: `Cerrar la caja del ${esc(fechaCorta(dia))}`,
@@ -1253,7 +1683,7 @@ function fichaCliente(id) {
         </div>
         <div class="seccion"><h3>Cuenta corriente ${c.cc.habilitada ? `<span class="chip info">Hasta ${M.pesos(c.cc.limite)}</span>` : `<span class="chip">No habilitada</span>`}</h3>
           ${puedo("autorizarCC") ? `<div class="row"><label class="sr" for="cc-lim">Límite</label><input id="cc-lim" type="number" min="1000" step="1000" value="${c.cc.limite || 50000}" style="max-width:140px"><button type="button" class="btn sm primary" data-a="ccGuardar" data-v="${c.id}">${c.cc.habilitada ? "Cambiar límite" : "Habilitar"}</button>${c.cc.habilitada ? `<button type="button" class="btn sm danger" data-a="ccCortar" data-v="${c.id}">Cortar</button>` : ""}</div>`
-            : pedido ? `<p class="small" style="margin:0">Pedido al dueño por ${M.pesos(pedido.limite)}: esperando autorización.</p>`
+            : pedido ? panelAprobacion(pedido)
             : c.cc.habilitada ? "" : `<div class="row"><label class="sr" for="cc-pedir">Límite pedido</label><input id="cc-pedir" type="number" min="1000" step="1000" value="50000" style="max-width:140px"><label class="sr" for="cc-nota">Motivo</label><input id="cc-nota" placeholder="Motivo (opcional)" style="max-width:200px"><button type="button" class="btn sm" data-a="ccPedir" data-v="${c.id}">Pedir autorización al dueño</button></div>`}
           <h3 style="margin-top:6px">Estado de cuenta <span class="num ${c.deuda > 0 ? "rojo" : ""}">${M.pesos(c.deuda)}</span></h3>
           ${ec.movimientos.length ? `<div class="tbl-wrap"><table class="num small"><thead><tr><th>Fecha</th><th>Concepto</th><th class="r">Importe</th><th class="r">Saldo</th></tr></thead><tbody>${ec.movimientos.map((m) => `<tr><td>${m.fecha ? ddmm(m.fecha) : ""} ${m.min != null ? M.hhmm(m.min) : ""}</td><td>${esc(m.concepto)}</td><td class="r ${m.importe > 0 ? "rojo" : ""}">${M.pesos(m.importe)}</td><td class="r">${M.pesos(m.saldo)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="small muted" style="margin:0">Sin movimientos.</p>`}
@@ -1319,12 +1749,12 @@ function productoDialogo(id) {
         <label class="f">Precio de venta<input id="pr-pre" type="number" min="1" value="${p?.precio ?? ""}"></label>
         <label class="f">Costo<input id="pr-cos" type="number" min="0" value="${p?.costo ?? ""}"></label>
         ${p && p.stock === null ? "" : `<label class="f">Mínimo de stock<input id="pr-min" type="number" min="0" value="${p?.minimo ?? 0}"></label>`}
-        ${p ? "" : `<label class="f">Stock inicial<input id="pr-stk" type="number" min="0" value="0"></label>`}
+        ${p ? (p.plato ? "" : `<label class="f">Stock actual (conteo) · vacío = sin controlar<input id="pr-stk-aj" type="number" min="0" value="${p.stock ?? ""}" placeholder="Sin controlar"></label>`) : `<label class="f">Stock inicial<input id="pr-stk" type="number" min="0" value="0"></label>`}
         <label class="f">Código interno<input id="pr-cod" value="${esc(p?.codigo ?? "")}" placeholder="Ej.: BP-020"></label>
         <label class="f">Código de fábrica / externo<input id="pr-ext" value="${esc(p?.codigoExterno ?? "")}" placeholder="Pasá el lector (código de barras)" inputmode="numeric"></label>
       </div>
       ${p ? "" : `<label class="row small"><input type="checkbox" id="pr-plato"> Es un plato de cocina (no lleva stock; se mide por venta)</label>`}`,
-    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="guardarProducto" data-v="${p?.id ?? ""}">${p ? "Guardar" : "Dar de alta"}</button>`,
+    pie: `${p ? `<button type="button" class="btn ${p.activo === false ? "" : "danger"}" data-a="bajaProducto" data-v="${p.id}" data-m="${p.activo === false ? "1" : ""}">${p.activo === false ? "Volver a activar" : "Dar de baja"}</button>` : ""}<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="guardarProducto" data-v="${p?.id ?? ""}">${p ? "Guardar" : "Dar de alta"}</button>`,
     alAbrir(d) { $("#pr-nom", d).focus(); },
   });
 }
@@ -1489,14 +1919,14 @@ const acciones = {
     verReserva(id);
     if (op === "mover") { const det = $("#dlg details"); if (det) { det.open = true; $("#mover-c")?.focus(); } }
   },
-  reloj: (b) => { const { abre, cierra } = M.horarioDe(E, HOY); AHORA.min = Math.min(cierra, Math.max(abre, AHORA.min + Number(b.dataset.v))); render(); },
+  reloj: (b) => { if (MODO_REAL) return; const { abre, cierra } = M.horarioDe(E, HOY); AHORA.min = Math.min(cierra, Math.max(abre, AHORA.min + Number(b.dataset.v))); render(); },
   tema: () => {
     const raiz = document.documentElement;
     const oscuroAhora = raiz.dataset.theme ? raiz.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
     raiz.dataset.theme = oscuroAhora ? "light" : "dark";
     try { localStorage.setItem("bp-tema", raiz.dataset.theme); } catch { /* sin almacenamiento: vale para esta visita */ }
   },
-  reiniciar: () => { if (puente.conectado) return toast("Conectado al turnero: la agenda es la del club y no se reinicia.", { error: true }); cerrarDialogo(); iniciar(); toast("Demo reiniciada."); },
+  reiniciar: () => { if (MODO_REAL) return toast("En la jornada real no se reinicia. Desde Ajustes podés empezar otra en blanco.", { error: true }); if (puente.conectado) return toast("Conectado al turnero: la agenda es la del club y no se reinicia.", { error: true }); cerrarDialogo(); iniciar(); toast("Demo reiniciada."); },
   cerrar: () => cerrarDialogo(),
   luz: (b) => { E.luces[b.dataset.v] = !E.luces[b.dataset.v]; render(); },
   medio: (b) => {
@@ -1516,8 +1946,14 @@ const acciones = {
   usuario: () => cambiarUsuario(),
   elegirUsuario: (b) => acciones._setElegido?.(b.dataset.v),
   entrar: () => {
+    const espera = Math.ceil((intentosPin.hasta - Date.now()) / 1000);
+    if (espera > 0) return toast(`Demasiados intentos: esperá ${espera} s.`, { error: true });
     const res = M.verificarPin(E, acciones._elegido?.(), val("#pin-usuario"));
-    if (!res.ok) return toast(res.motivo, { error: true });
+    if (!res.ok) {
+      if (++intentosPin.fallos >= 5) { intentosPin.fallos = 0; intentosPin.hasta = Date.now() + 30_000; return toast("Demasiados intentos: esperá 30 s.", { error: true }); }
+      return toast(`${res.motivo} (${intentosPin.fallos} de 5)`, { error: true });
+    }
+    intentosPin.fallos = 0;
     USUARIO = res.usuario.id;
     if (res.usuario.rol === "duenio" && matchMedia("(max-width: 640px)").matches) TAB = "tablero";
     cerrarSiSale(res, `Hola, ${res.usuario.nombre.split(" ")[0]}.`);
@@ -1588,7 +2024,7 @@ const acciones = {
       const cubreSena = r.sena.monto > 0 && !r.sena.pagada && r.estado === "reservada" && M.cobrado(r) + monto >= r.sena.monto;
       return pedirConfirmacionCredito({ dueno: `r-${r.id}`, tipo: "cancha", id: r.id, monto, clienteId: r.clienteId, que: cubreSena ? "Seña de la cancha" : "Cancha", cubreSena });
     }
-    hecho(M.registrarPago(E, r.id, { medio: ui.medio, monto }, AHORA), `Cobrado ${M.pesos(monto)} de cancha.`);
+    hecho(M.registrarPago(E, r.id, { medio: ui.medio, monto, auth: auth() }, AHORA), `Cobrado ${M.pesos(monto)} de cancha.`);
   },
   pagarParte: (b) => {
     const r = M.reserva(E, b.dataset.v);
@@ -1599,15 +2035,157 @@ const acciones = {
   },
   cobrarParte: (b) => {
     const j = Number(b.dataset.j);
-    hecho(M.cobrarParte(E, b.dataset.v, j, { medio: ui.medio }, AHORA), (r) => `Cobrado ${M.pesos(r.monto)}${r.cubiertos.length ? ` (incluye la parte de ${r.cubiertos.join(", ")})` : ""}.`);
+    hecho(M.cobrarParte(E, b.dataset.v, j, { medio: ui.medio, auth: auth() }, AHORA), (r) => `Cobrado ${M.pesos(r.monto)}${r.cubiertos.length ? ` (incluye la parte de ${r.cubiertos.join(", ")})` : ""}.`);
+  },
+  cobrarJugador: (b) => {
+    const j = Number(b.dataset.j);
+    const t = M.cuentaDelTurno(E, b.dataset.v);
+    const x = t.jugadores?.[j];
+    if (ui.medio === "monedero") return pedirConfirmacionCredito({ dueno: `r-${b.dataset.v}`, tipo: "jugador", id: b.dataset.v, j, monto: x?.aPagar ?? 0, clienteId: x?.clienteId, que: `Todo lo de ${x?.nombre ?? "el jugador"}` });
+    hecho(M.cobrarJugador(E, b.dataset.v, j, { medio: ui.medio, auth: auth() }, AHORA), (r) => `Cobrado ${M.pesos(r.total)} a ${x.nombre}${r.cancha && r.cargos ? ` (cancha ${M.pesos(r.cancha)} + cargos ${M.pesos(r.cargos)})` : ""}${r.cubiertos.length ? `, con lo de ${r.cubiertos.join(", ")}` : ""}.`);
+  },
+  cobrarTodo: (b) => {
+    const res = M.cobrarTodoElTurno(E, b.dataset.v, { medio: ui.medio, auth: auth() }, AHORA);
+    if (!res.ok && res.cobrado) render(); // se cobró una parte: que la pantalla muestre lo que quedó
+    hecho(res, (r) => `Cobrado todo el turno: ${M.pesos(r.total)}.`);
+  },
+  cerrarYSeguir: (b) => cerrarSiSale(M.cerrarCanchaYSeguir(E, b.dataset.v, { medio: ultimoMedio(), auth: auth() }, AHORA), (r) => `Cancha cerrada y libre${r.cobradoCancha ? ` (cobrados ${M.pesos(r.cobradoCancha)})` : ""}.${r.cuentasAbiertas.length ? " La mesa sigue en Buffet → Mesas." : ""}`),
+  cerrarCargos: (b) => hecho(M.cerrarCargosDelTurno(E, b.dataset.v, { medio: ultimoMedio(), auth: auth() }, AHORA), (r) => `Cargos cerrados${r.cobrado ? `: cobrados ${M.pesos(r.cobrado)}` : ""}.`),
+  cerrarCargosCC: (b) => hecho(M.cerrarCargosDelTurno(E, b.dataset.v, { aCuenta: true, auth: auth() }, AHORA), (r) => `${M.pesos(r.aCuentaCorriente)} a cuenta corriente. Mesa cerrada.`),
+  verMesa: (b) => verReserva(b.dataset.v),
+  pedirFiado: (b) => {
+    const cta = M.cuenta(E, b.dataset.v);
+    const deOtros = E.cuentas.filter((x) => x.estado === "abierta" && x.aCargoDe === cta.id).reduce((t, x) => t + Math.max(0, M.saldoCuenta(x)), 0);
+    const res = M.solicitarCredito(E, { clienteId: cta.clienteId, tipo: "fiado", monto: M.saldoCuenta(cta) + deOtros, cuentaId: cta.id }, auth(), AHORA);
+    hecho(res, "Pedido enviado: avisale a un dueño por WhatsApp con el botón.");
+  },
+  aprobarCodigo: (b) => {
+    const res = M.aprobarPorCodigo(E, b.dataset.v, { codigo: val("#codigo-aprob"), monto: val("#codigo-monto") }, auth(), AHORA);
+    hecho(res, (r) => `Aprobado por ${r.aprobo}: ${M.pesos(r.monto)}. Ya podés pasarlo a su cuenta corriente.`);
+  },
+  aprobarAca: (b) => pinPara("confirmarAprobarAca", b.dataset.v, "Aprobar el crédito"),
+  confirmarAprobarAca: (b) => {
+    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    if (!v.ok) return toast(v.motivo, { error: true });
+    cerrarSiSale(M.resolverCredito(E, b.dataset.v, { aprobar: true }, auth(val("#cf-pin")), AHORA), "Crédito aprobado.");
+  },
+  entregarPedido: (b) => {
+    const pd = (E.pedidos ?? []).find((x) => x.id === b.dataset.v);
+    ui.medio = "efectivo";
+    abrir({ titulo: `Entregar ${esc(pd.codigo)}`, sub: `${esc(pd.nombre)} · ${M.pesos(pd.total)} (al precio de hoy)`, cuerpo: pickMedios(), pie: `<button type="button" class="btn" data-a="cerrar">Volver</button><button type="button" class="btn primary" data-a="confirmarEntrega" data-v="${pd.id}">Cobrar y entregar</button>` });
+  },
+  confirmarEntrega: (b) => cerrarSiSale(M.entregarPedido(E, b.dataset.v, { medio: ultimoMedio(), auth: auth() }, AHORA), (r) => `Pedido entregado y cobrado: ${M.pesos(r.total)}.`),
+  pedidoACuenta: (b) => {
+    const pd = (E.pedidos ?? []).find((x) => x.id === b.dataset.v);
+    const q = String(ui.busca.pedidoCli ?? "");
+    const pintar = () => { const lista = M.buscarClientes(E, ui.busca.pedidoCli ?? "").slice(0, 8); abrir({ titulo: `${esc(pd.codigo)} a la cuenta de…`, sub: `${esc(pd.nombre)} · ${M.pesos(pd.total)}`, refrescar: pintar, cuerpo: `<div class="search"><label class="sr" for="busca-pedcli">Buscar cliente</label><input id="busca-pedcli" data-busca="pedidoCli" placeholder="Nombre o celular" value="${esc(ui.busca.pedidoCli ?? q)}"></div><div class="usuarios">${lista.map((c) => `<button type="button" data-a="confirmarPedidoCuenta" data-v="${pd.id}" data-c="${c.id}"><b>${esc(c.nombre)}</b><span class="small muted">${esc(c.tel ?? "")}</span></button>`).join("") || `<p class="small muted">Sin resultados.</p>`}</div>` }); };
+    pintar();
+  },
+  confirmarPedidoCuenta: (b) => cerrarSiSale(M.cargarPedidoACuenta(E, b.dataset.v, b.dataset.c, AHORA), "El pedido quedó en su cuenta de cargos."),
+  pegarPedido: () => abrir({
+    titulo: "Pedido de la tienda por WhatsApp",
+    sub: "Pegá el mensaje tal como llegó (empieza con «Hola Break Point, quiero encargar…»).",
+    cuerpo: `<label class="f">Mensaje<textarea id="pd-texto" rows="5"></textarea></label>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="cargarPedidoPegado">Cargar el pedido</button>`,
+    alAbrir(d) { $("#pd-texto", d).focus(); },
+  }),
+  cargarPedidoPegado: () => cerrarSiSale(M.pedidoDesdeWhatsApp(E, val("#pd-texto"), AHORA), (r) => `Pedido ${r.pedido.codigo} de ${r.pedido.nombre} cargado: ${M.pesos(r.pedido.total)}.`),
+  cancelarPedido: (b) => hecho(M.cancelarPedido(E, b.dataset.v, AHORA), "Pedido cancelado."),
+  respaldo: () => descargarRespaldo(),
+  pinInicial: (b) => {
+    const u = b.dataset.v;
+    const a = val(`#pi-${u}`), c = val(`#pi2-${u}`);
+    if (a !== c) return toast("Los dos PIN no coinciden.", { error: true });
+    hecho(M.definirPinInicial(E, u, a, AHORA), "PIN guardado. No se lo digas a nadie.");
+  },
+  altaUsuarioConsola: () => {
+    const dueno = E.usuarios.find((u) => u.rol === "duenio" && u.pin);
+    if (!dueno) return toast("Primero un dueño arma su PIN.", { error: true });
+    const res = M.altaUsuario(E, { nombre: val("#nu-nombre"), rol: "recepcion" }, { usuarioId: dueno.id, pin: dueno.pin }, AHORA);
+    if (res.ok) ui.pinesNuevos = { ...(ui.pinesNuevos ?? {}), [res.usuario.id]: res.pin };
+    hecho(res, (r) => `${r.usuario.nombre} tiene PIN ${r.pin}. Anotalo y dáselo.`);
+  },
+  terminarConsola: () => {
+    const res = M.terminarConfiguracion(E, AHORA);
+    if (!res.ok) return toast(res.motivo, { error: true });
+    ui.pinesNuevos = null;
+    USUARIO = E.usuarios.find((u) => u.rol === "duenio" && u.pin).id;
+    TAB = "agenda";
+    render();
+    guardarJornada(true);
+    bloquear("recarga");
+    toast("Club listo. Entrá con tu PIN.");
+  },
+  altaUsuario: () => pinPara("confirmarAltaUsuario", "", "Dar de alta un usuario"),
+  confirmarAltaUsuario: () => {
+    const res = M.altaUsuario(E, { nombre: val("#nu-nombre"), rol: val("#nu-rol") || "recepcion" }, auth(val("#cf-pin")), AHORA);
+    if (!res.ok) return toast(res.motivo, { error: true });
+    abrir({ titulo: `${esc(res.usuario.nombre)} ya tiene acceso`, sub: M.ROLES[res.usuario.rol], cuerpo: `<p style="margin:0">Su PIN es</p><p class="codigo-aprob num">${esc(res.pin)}</p><p class="small muted" style="margin:0">Se muestra una sola vez: anotalo y dáselo. Lo puede cambiar desde Configuración.</p>`, pie: `<button type="button" class="btn primary" data-a="cerrar">Listo</button>` });
+    render();
+  },
+  cambiarMiPin: () => {
+    const res = M.cambiarMiPin(E, { usuarioId: USUARIO, pin: val("#mp-viejo") }, val("#mp-nuevo"), AHORA);
+    hecho(res, "Tu PIN cambió.");
+  },
+  armarDifusion: () => {
+    const d = ui.difusion ?? {};
+    const res = M.crearDifusion(E, { tipo: d.tipo, titulo: d.titulo, texto: d.texto, audiencia: d.audiencia }, auth(), AHORA);
+    if (res.ok) ui.difusionId = res.difusion.id;
+    hecho(res, (r) => `Listo para mandar a ${r.destinatarios.length} cliente(s).`);
+  },
+  verDifusion: (b) => { ui.difusionId = b.dataset.v; render(); },
+  cerrarEnvio: () => { ui.difusionId = null; render(); },
+  copiarDifusion: (b) => { const d = E.difusiones.find((x) => x.id === b.dataset.v); navigator.clipboard?.writeText(M.mensajeDifusion(d)).then(() => toast("Mensaje copiado: pegalo en la lista de difusión."), () => toast("No se pudo copiar: seleccionalo a mano.", { error: true })); },
+  csvDifusion: (b) => {
+    const d = E.difusiones.find((x) => x.id === b.dataset.v);
+    const lista = d.destinatarios.map((id) => M.cliente(E, id)).filter(Boolean).map((c) => ({ nombre: c.nombre, tel: String(c.tel).replace(/\D/g, "") }));
+    const url = URL.createObjectURL(new Blob(["\ufeff" + M.contactosCSV(lista)], { type: "text/csv" }));
+    const a = Object.assign(document.createElement("a"), { href: url, download: `breakpoint-difusion-${hoyLocal()}.csv` });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast(`${lista.length} contactos descargados.`);
+  },
+  studio: () => abrirElStudio(null),
+  studioNovedad: () => { const d = ui.difusion ?? {}; abrirElStudio({ plantilla: d.tipo === "promo" ? "promo" : d.tipo === "torneo" ? "torneo" : d.tipo === "turnos" ? "turnos" : "novedad", titulo: d.titulo, texto: d.texto }); },
+  copiarLink: () => { const v = val("#link-clientes"); navigator.clipboard?.writeText(v).then(() => toast("Link copiado."), () => toast("No se pudo copiar: seleccionalo y copialo a mano.", { error: true })); },
+  jornada: (b) => {
+    const que = b.dataset.v;
+    if (que === "demo") return pinPara("confirmarJornada", "demo", "Volver a la demo (la jornada queda guardada)");
+    if (que === "retomar") return pinPara("confirmarJornada", "retomar", "Seguir la jornada real guardada");
+    pinPara("confirmarJornada", "blanco", MODO_REAL ? "Empezar otra jornada en blanco (la de ahora queda como «anterior» en esta compu: igual descargá el respaldo antes)" : "Empezar la jornada real en blanco");
+  },
+  confirmarJornada: (b) => {
+    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
+    const que = b.dataset.v;
+    // Desde la demo (PIN de ejemplo, que conoce cualquiera) nunca se pisa una jornada real guardada.
+    if (que === "blanco" && !MODO_REAL && leerJornada()) return toast("Hay una jornada real guardada en esta compu: desde la demo no se borra.", { error: true });
+    guardado.fuera = true; // desde acá no se guarda más esta pestaña: se recarga
+    if (que === "blanco") { if (MODO_REAL) { descargarRespaldo(); lsGuardar(`${CLAVE_JORNADA}-anterior`, fotoJornada()); } lsGuardar(CLAVE_JORNADA, null); lsGuardar(CLAVE_MODO, "real"); }
+    if (que === "retomar") lsGuardar(CLAVE_MODO, "real");
+    if (que === "demo") { if (MODO_REAL) lsGuardar(CLAVE_JORNADA, fotoJornada()); lsGuardar(CLAVE_MODO, "demo"); }
+    setTimeout(() => location.replace(location.pathname), que === "blanco" && MODO_REAL ? 800 : 0);
+  },
+  confirmarRestaurar: () => {
+    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
+    const h = M.hidratarEstado(ui.restaurar);
+    ui.restaurar = null;
+    if (!h.ok) return toast(`Ese archivo no sirve: ${h.motivo}.`, { error: true });
+    E = h.estado;
+    cerrarDialogo();
+    render();
+    guardarJornada(true);
+    toast("Jornada restaurada desde el respaldo.");
   },
   confirmarCredito: () => {
     const op = ui.pendienteCredito;
     if (!op) return;
     ui.pendienteCredito = null;
-    if (op.tipo === "cancha") return hecho(M.registrarPago(E, op.id, { medio: "monedero", monto: op.monto }, AHORA), `Se usaron ${M.pesos(op.monto)} de créditos${op.cubreSena ? ": seña pagada" : ""}.`);
-    if (op.tipo === "parte") return hecho(M.cobrarParte(E, op.id, op.j, { medio: "monedero" }, AHORA), (r) => `Se usaron ${M.pesos(r.monto)} de créditos.`);
+    if (op.tipo === "cancha") return hecho(M.registrarPago(E, op.id, { medio: "monedero", monto: op.monto, auth: auth() }, AHORA), `Se usaron ${M.pesos(op.monto)} de créditos${op.cubreSena ? ": seña pagada" : ""}.`);
+    if (op.tipo === "parte") return hecho(M.cobrarParte(E, op.id, op.j, { medio: "monedero", auth: auth() }, AHORA), (r) => `Se usaron ${M.pesos(r.monto)} de créditos.`);
     if (op.tipo === "cuenta") return hecho(M.pagarCuenta(E, op.id, { medio: "monedero", monto: op.monto }, AHORA), `Se usaron ${M.pesos(op.monto)} de créditos.`);
+    if (op.tipo === "jugador") return hecho(M.cobrarJugador(E, op.id, op.j, { medio: "monedero", auth: auth() }, AHORA), (r) => `Se usaron ${M.pesos(r.total)} de créditos.`);
   },
   anularCredito: () => { ui.pendienteCredito = null; ui.medio = "efectivo"; dialogoActual?.refrescar?.(); toast("No se usaron créditos. Elegí otro medio."); },
   jugador: (b) => acciones._jugador?.(b.dataset.v),
@@ -1618,13 +2196,14 @@ const acciones = {
     if (res.ok) { ui.producto.turno = null; ui.busca.turno = ""; }
     hecho(res, b.dataset.m === "cobrar" ? "Cargado y cobrado." : "Sumado a su cuenta.");
   },
-  sumarJugador: (b) => hecho(M.sumarJugador(E, b.dataset.v, val("#nuevo-jug")), "Jugador sumado."),
+  sumarJugador: (b) => { const res = M.sumarJugador(E, b.dataset.v, val("#nuevo-jug")); if (res.ok) ui.busca.jug = ""; hecho(res, "Jugador sumado."); },
+  sumarJugadorFicha: (b) => { const res = M.sumarJugador(E, b.dataset.v, null, b.dataset.c); if (res.ok) ui.busca.jug = ""; hecho(res, "Jugador sumado con su ficha."); },
   checkin: (b) => hecho(M.checkIn(E, b.dataset.v, AHORA), "Cancha abierta y luz prendida."),
   finalizar: (b) => cerrarSiSale(M.finalizar(E, b.dataset.v, {}, AHORA), (r) => `Cancha cerrada.${r.cuentasAbiertas.length ? ` Quedan ${r.cuentasAbiertas.length} cuenta(s) de buffet abiertas.` : ""}`),
   aCuenta: (b) => cerrarSiSale(M.finalizar(E, b.dataset.v, { aCuenta: true }, AHORA), "Cancha cerrada; el saldo pasó a la cuenta corriente."),
   falta: (b) => faltaDialogo(b.dataset.v),
   marcarFalta: (b) => {
-    const res = M.marcarNoShow(E, b.dataset.v, { cobrarA: b.dataset.m }, AHORA);
+    const res = M.marcarNoShow(E, b.dataset.v, { cobrarA: b.dataset.m, auth: auth() }, AHORA);
     if (!res.ok) return toast(res.motivo, { error: true });
     const texto = res.cargos.length ? `Falta cobrada: ${res.cargos.map((c) => `${c.nombre} ${M.pesos(c.monto)}`).join(", ")}.` : "Falta registrada sin cargo.";
     if (!res.ofertas.length) return cerrarSiSale(res, texto);
@@ -1672,10 +2251,10 @@ const acciones = {
     if (ui.medio === "monedero") return pedirConfirmacionCredito({ dueno: `c-${cta.id}`, tipo: "cuenta", id: cta.id, monto: Math.round(Number(val("#monto-cta"))), clienteId: cta.clienteId, que: `Cargos del buffet de ${cta.titular}` });
     hecho(M.pagarCuenta(E, cta.id, { medio: ui.medio, monto: val("#monto-cta") }, AHORA), "Cobrado.");
   },
-  ajustar: (b) => hecho(M.ajustarCargo(E, b.dataset.v, Number(b.dataset.j), Number(b.dataset.m), AHORA), Number(b.dataset.m) > 0 ? "Uno más." : "Uno menos."),
+  ajustar: (b) => hecho(M.ajustarCargo(E, b.dataset.v, Number(b.dataset.j), Number(b.dataset.m), AHORA, auth()), Number(b.dataset.m) > 0 ? "Uno más." : "Uno menos."),
   pasarCargo: (b) => {
     const dest = val("#tc-dest");
-    const res = M.transferirCargo(E, b.dataset.v, Number(val("#tc-item")), dest, val("#tc-cant") || null, AHORA);
+    const res = M.transferirCargo(E, b.dataset.v, Number(val("#tc-item")), dest, val("#tc-cant") || null, AHORA, auth());
     hecho(res, `Cargo pasado a la cuenta de ${M.cuenta(E, dest)?.titular ?? "la otra persona"}.`);
   },
   cargoManual: (b) => {
@@ -1698,8 +2277,8 @@ const acciones = {
   // caja
   egreso: () => egresoDialogo(),
   aplicarEgreso: () => cerrarSiSale(M.egresoCaja(E, { monto: val("#g-m"), concepto: val("#g-c"), usuarioId: USUARIO, pin: val("#g-pin") }, AHORA), "Egreso registrado."),
-  cerrarCaja: () => cierreCajaDialogo(),
-  aplicarCierre: () => cerrarSiSale(M.cerrarCaja(E, { contado: val("#k-cont"), usuarioId: USUARIO, pin: val("#k-pin") }, AHORA), (r) => (r.cierre.diferencia === 0 ? "Caja cerrada: cuadra justo." : `Caja cerrada con diferencia de ${M.pesos(r.cierre.diferencia)}.`)),
+  cerrarCaja: (b) => cierreCajaDialogo(b.dataset.v || null),
+  aplicarCierre: (b) => cerrarSiSale(M.cerrarCaja(E, { contado: val("#k-cont"), usuarioId: USUARIO, pin: val("#k-pin"), dia: b.dataset.v || null }, AHORA), (r) => (r.cierre.diferencia === 0 ? "Caja cerrada: cuadra justo." : `Caja cerrada con diferencia de ${M.pesos(r.cierre.diferencia)}.`)),
   remito: () => remitoDialogo(),
   remitoAgregar: () => { const pid = ui.producto.remito; if (!pid) return toast("Buscá y elegí un producto.", { error: true }); sumarAlRemito(pid, 1); ui.producto.remito = null; ui.busca.remito = ""; dialogoActual?.refrescar?.(); },
   remitoQuitar: (b) => { ui.remito.items.splice(Number(b.dataset.v), 1); dialogoActual?.refrescar?.(); },
@@ -1734,8 +2313,14 @@ const acciones = {
   altaProducto: () => productoDialogo(null),
   stockModo: (b) => { ui.stockModo = b.dataset.v; render(); },
   editarProducto: (b) => productoDialogo(b.dataset.v),
+  bajaProducto: (b) => cerrarSiSale(M.bajaProducto(E, b.dataset.v, auth(), AHORA, b.dataset.m === "1"), b.dataset.m === "1" ? "Producto activo otra vez." : "Producto dado de baja: ya no se vende."),
   guardarProducto: (b) => {
     const id = b.dataset.v;
+    if (id && $("#pr-stk-aj")) {
+      const p = M.producto(E, id);
+      const nuevo = val("#pr-stk-aj").trim();
+      if (nuevo !== String(p.stock ?? "")) { const aj = M.ajustarStock(E, id, nuevo === "" ? null : nuevo, auth(), AHORA); if (!aj.ok) return toast(aj.motivo, { error: true }); }
+    }
     const res = id
       ? M.editarProducto(E, id, { nombre: val("#pr-nom"), precio: val("#pr-pre"), costo: val("#pr-cos"), minimo: $("#pr-min") ? val("#pr-min") : null, codigo: val("#pr-cod"), codigoExterno: val("#pr-ext") }, auth(), AHORA)
       : M.altaProducto(E, { nombre: val("#pr-nom"), categoria: val("#pr-cat"), precio: val("#pr-pre"), costo: val("#pr-cos"), minimo: val("#pr-min"), stock: val("#pr-stk"), codigo: val("#pr-cod"), codigoExterno: val("#pr-ext"), plato: $("#pr-plato")?.checked }, auth(), AHORA);
@@ -1799,6 +2384,12 @@ const acciones = {
 // Buscadores con lupa: re-pintan al escribir sin perder el foco ni el cursor.
 document.addEventListener("input", (ev) => {
   const t = ev.target;
+  if (t.dataset?.dif && (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement)) {
+    ui.difusion = { tipo: "novedad", titulo: "", texto: "", audiencia: "todos", ...(ui.difusion ?? {}), [t.dataset.dif]: t.value };
+    clearTimeout(ui.difusionTimer);
+    ui.difusionTimer = setTimeout(() => render(), 250);
+    return;
+  }
   if (!(t instanceof HTMLInputElement) || !t.dataset.busca) return;
   ui.busca[t.dataset.busca] = t.value;
   const pos = t.selectionStart;
@@ -1816,7 +2407,48 @@ document.addEventListener("change", (ev) => {
     try { hecho(M.asignarCargoCancha(E, t.dataset.v, Number(t.dataset.j), t.value === "" ? null : Number(t.value), AHORA), t.value === "" ? "Paga su propia parte." : "Listo: esa parte la paga otro jugador."); } finally { PREVIO = null; }
     return;
   }
+  if (t instanceof HTMLSelectElement && t.dataset.dif) {
+    ui.difusion = { tipo: "novedad", titulo: "", texto: "", audiencia: "todos", ...(ui.difusion ?? {}), [t.dataset.dif]: t.value };
+    return render();
+  }
+  if (t instanceof HTMLSelectElement && t.dataset.a === "aCargoCargos") {
+    PREVIO = { json: JSON.stringify(E), v: null };
+    try { hecho(M.asignarCargoCargos(E, t.dataset.v, t.value || null, AHORA), t.value === "" ? "Paga sus propios cargos." : "Listo: esos cargos los paga otro jugador."); } finally { PREVIO = null; }
+    return;
+  }
   if (!(t instanceof HTMLInputElement)) return;
+  if (t.dataset.a === "contacto") {
+    const k = contactos();
+    const limpio = t.value.replace(/[^\d]/g, "");
+    if (limpio && (limpio.length < 8 || limpio.length > 15)) return toast("Ese número no parece un celular (con código de país, ej. 549 11 …).", { error: true });
+    k[t.dataset.v] = limpio;
+    lsGuardar(CLAVE_CONTACTOS, JSON.stringify(k));
+    render();
+    return toast(limpio ? "Número guardado en esta compu." : "Número borrado.");
+  }
+  if (t.dataset.a === "fondo") {
+    const dueno = enConsola() ? E.usuarios.find((u) => u.rol === "duenio" && u.pin) : null;
+    const res = M.ajustarFondo(E, t.value, dueno ? { usuarioId: dueno.id, pin: dueno.pin } : auth(), AHORA);
+    if (!res.ok) { render(); return toast(enConsola() && !dueno ? "Primero un dueño arma su PIN." : res.motivo, { error: true }); }
+    render();
+    return toast(`Fondo de caja: ${M.pesos(E.caja.fondo)}.`);
+  }
+  if (t.dataset.a === "alias") {
+    if (!esDuenio()) return toast("El alias lo carga un dueño.", { error: true });
+    E.config.cobro = { ...(E.config.cobro ?? {}), alias: t.value.trim().slice(0, 40) };
+    render();
+    return toast("Alias guardado: va en la confirmación de los turnos.");
+  }
+  if (t.dataset.a === "restaurar") {
+    const archivo = t.files?.[0];
+    t.value = "";
+    if (!archivo) return;
+    const fr = new FileReader();
+    fr.onload = () => { try { ui.restaurar = JSON.parse(String(fr.result)); } catch { return toast("Ese archivo no es un respaldo de Break Point.", { error: true }); } pinPara("confirmarRestaurar", "", "Restaurar la jornada desde el respaldo (reemplaza la de ahora)"); };
+    fr.onerror = () => toast("No se pudo leer el archivo.", { error: true });
+    fr.readAsText(archivo);
+    return;
+  }
   if (t.dataset.a === "px") {
     const p = M.producto(E, t.dataset.v);
     if (t.value.trim() === "") { render(); return toast("Ese campo no puede quedar vacío: no se cambió nada.", { error: true }); }
@@ -1849,6 +2481,8 @@ document.addEventListener("change", (ev) => {
 });
 
 document.addEventListener("click", (ev) => {
+  const envio = ev.target.closest?.("a[data-envio]");
+  if (envio) { M.marcarEnviado(E, envio.dataset.envio, envio.dataset.c); setTimeout(render, 0); return; }
   const b = ev.target.closest("[data-a]");
   if (!b || b.tagName === "INPUT" || b.disabled) return;
   if (largo.ignorarClick) { largo.ignorarClick = false; ev.preventDefault(); return; }
@@ -2001,8 +2635,9 @@ $("#dlg").addEventListener("close", () => { dialogoActual = null; });
 // persona, entra con su usuario y su PIN. 5 PIN mal → 30 segundos de espera. No hay forma de cerrarlo sin PIN.
 const OCULTA_MAX_MS = 30_000;
 const bloqueo = { activo: false, motivo: "", ultimo: Date.now(), ocultaDesde: null, fallos: 0, esperaHasta: 0, otro: false, elegido: null, timer: null };
+const guardarIntentos = () => { if (MODO_REAL) lsGuardar("bp-intentos", JSON.stringify({ fallos: bloqueo.fallos, esperaHasta: bloqueo.esperaHasta, tandas: bloqueo.tandas ?? 0 })); };
 function bloquear(motivo) {
-  if (bloqueo.activo) return;
+  if (bloqueo.activo || guardado.fuera || enConsola()) return;
   bloqueo.activo = true;
   bloqueo.motivo = motivo;
   bloqueo.otro = false;
@@ -2026,7 +2661,7 @@ function pintarBloqueo() {
   const u = yo();
   const espera = Math.max(0, Math.ceil((bloqueo.esperaHasta - Date.now()) / 1000));
   const quien = bloqueo.otro ? (bloqueo.elegido ? M.usuario(E, bloqueo.elegido) : null) : u;
-  const motivo = { inactividad: `Pasaron ${minutosBloqueo()} minutos sin uso.`, pantalla: "La pantalla se apagó o se cambió de app.", manual: "Se bloqueó a mano." }[bloqueo.motivo] ?? "";
+  const motivo = { inactividad: `Pasaron ${minutosBloqueo()} minutos sin uso.`, pantalla: "La pantalla se apagó o se cambió de app.", manual: "Se bloqueó a mano.", recarga: "Se volvió a abrir el sistema: poné tu PIN." }[bloqueo.motivo] ?? "";
   const activos = E.usuarios.filter((x) => x.activo !== false);
   morph(d, `<div class="bl-in">
     <p class="bl-marca">Break Point · Gestión del club</p>
@@ -2038,10 +2673,10 @@ function pintarBloqueo() {
       : `<div class="bl-quien"><span class="avatar" aria-hidden="true">${esc(quien.nombre.slice(0, 1).toUpperCase())}</span><span><b>${esc(quien.nombre)}</b><br><span class="small muted">${M.ROLES[quien.rol]}</span></span></div>
         <label class="f bl-pin-l" for="bl-pin">${bloqueo.otro ? `PIN de ${esc(quien.nombre.split(" ")[0])}` : "Tu PIN para seguir"}</label>
         <input id="bl-pin" class="pin-in num" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••" ${espera ? "disabled" : ""} aria-describedby="bl-aviso">
-        <p id="bl-aviso" class="${espera || bloqueo.fallos ? "err" : "small muted"}" role="status" style="margin:0;min-height:1.4em">${espera ? `Demasiados intentos: esperá 30 segundos. <span aria-hidden="true">(${espera} s)</span>` : bloqueo.fallos ? `PIN incorrecto (${bloqueo.fallos} de 5).` : ""}</p>
+        <p id="bl-aviso" class="${espera || bloqueo.fallos ? "err" : "small muted"}" role="status" style="margin:0;min-height:1.4em">${espera ? `Demasiados intentos: esperá ${espera > 60 ? `${Math.ceil(espera / 60)} minutos` : "un momento"}. <span aria-hidden="true">(${espera} s)</span>` : bloqueo.fallos ? `PIN incorrecto (${bloqueo.fallos} de 5).` : ""}</p>
         <button type="button" class="btn primary" data-a="desbloquear" ${espera ? "disabled" : ""}>Desbloquear</button>
         ${bloqueo.otro ? `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Elegir otro usuario</button>` : `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Entrar con otro usuario</button>`}`}
-    <p class="demo-pins">PIN de la demo: ${activos.map((x) => `${esc(x.nombre.split(" ")[0])} ${esc(x.pin)}`).join(" · ")}</p>
+    ${pinesDemo(activos)}
   </div>`);
   if (espera) { clearTimeout(bloqueo.timer); bloqueo.timer = setTimeout(() => { if (bloqueo.activo) { if (Date.now() >= bloqueo.esperaHasta) bloqueo.fallos = 0; pintarBloqueo(); $("#bl-pin")?.focus(); } }, 1000); }
   if (bloqueo.otro && bloqueo.elegido) $("#bl-pin", d)?.focus();
@@ -2052,7 +2687,9 @@ function desbloquear() {
   const res = M.verificarPin(E, quien, $("#bl-pin")?.value);
   if (!res.ok) {
     bloqueo.fallos += 1;
-    if (bloqueo.fallos >= 5) bloqueo.esperaHasta = Date.now() + 30_000;
+    // 5 PIN mal → espera; cada tanda espera más (30 s, 2 min, 10 min). En la jornada real sobrevive a recargar.
+    if (bloqueo.fallos >= 5) { bloqueo.tandas = (bloqueo.tandas ?? 0) + 1; bloqueo.esperaHasta = Date.now() + [30, 120, 600][Math.min(bloqueo.tandas, 3) - 1] * 1000; }
+    guardarIntentos();
     pintarBloqueo();
     const pin = $("#bl-pin");
     if (pin && !pin.disabled) { pin.value = ""; pin.focus(); }
@@ -2062,11 +2699,17 @@ function desbloquear() {
   USUARIO = res.usuario.id;
   bloqueo.activo = false;
   bloqueo.fallos = 0;
+  bloqueo.tandas = 0;
+  guardarIntentos();
   bloqueo.ultimo = Date.now();
   document.documentElement.classList.remove("bloqueada");
   $("#bloqueo").close();
   render();
-  toast(cambio ? `Hola, ${res.usuario.nombre.split(" ")[0]}.` : "Desbloqueado.");
+  const pendientes = esDuenio() ? E.novedades.filter((x) => x.estado === "pendiente").length : 0;
+  toast(`${cambio ? `Hola, ${res.usuario.nombre.split(" ")[0]}.` : "Desbloqueado."}${pendientes ? ` Tenés ${pendientes === 1 ? "un pedido de crédito" : `${pendientes} pedidos de crédito`} para resolver.` : ""}`);
+  const despues = bloqueo.despues;
+  bloqueo.despues = null;
+  despues?.();
 }
 // Sin PIN no se cierra: Esc no hace nada y, si el navegador lo cierra igual, se vuelve a abrir.
 $("#bloqueo").addEventListener("cancel", (ev) => ev.preventDefault());
@@ -2109,12 +2752,55 @@ const puente = {
   render: () => render(), toast: (t, o) => toast(t, o), despues: null, conectado: false,
 };
 iniciar();
+// Jornada real: hora real, guardado automático (una sola pestaña) y vuelve bloqueada al recargar.
+if (MODO_REAL) {
+  document.documentElement.dataset.modo = "real";
+  const cinta = $(".demo-ribbon");
+  if (cinta) cinta.innerHTML = `<span><b>Jornada real</b> · se guarda en esta compu · <span id="guardado" role="status">guardando…</span></span><button type="button" data-a="respaldo">Descargar respaldo</button>`;
+  const pie = $("footer.gsg");
+  if (pie) pie.innerHTML = "Sistema hecho por <b>Gestión Studio Grow</b> · Break Point Pádel";
+  const reloj = $(".clock .sr");
+  if (reloj) reloj.textContent = "Hora: ";
+  const habilitar = () => { guardado.habilitado = true; guardarJornada(true); };
+  if (navigator.locks?.request) {
+    navigator.locks.request("bp-jornada", { ifAvailable: true }, (lock) => {
+      if (!lock) { otraPestania(); return null; }
+      habilitar();
+      return new Promise(() => {}); // el candado queda tomado mientras esta pestaña esté abierta
+    }).catch(habilitar);
+  } else habilitar();
+  setInterval(latirReloj, 15_000);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) guardarJornada(true); else latirReloj(); });
+  addEventListener("pagehide", () => guardarJornada(true));
+  addEventListener("pageshow", latirReloj);
+  try { const t = JSON.parse(lsLeer("bp-intentos") || "{}"); bloqueo.fallos = Number(t.fallos) || 0; bloqueo.esperaHasta = Number(t.esperaHasta) || 0; bloqueo.tandas = Number(t.tandas) || 0; } catch { /* sin intentos guardados */ }
+  if (!enConsola()) bloquear("recarga");
+}
+function otraPestania() {
+  guardado.fuera = true;
+  const d = document.createElement("dialog");
+  d.className = "bloqueo";
+  d.setAttribute("aria-labelledby", "op-t");
+  d.innerHTML = `<div class="bl-in"><h2 id="op-t">La jornada real ya está abierta en otra pestaña</h2><p>Para no pisar lo cargado, se usa una sola pestaña del club por compu. Cerrá esta y seguí en la otra.</p></div>`;
+  d.addEventListener("cancel", (ev) => ev.preventDefault());
+  document.body.append(d);
+  bloqueo.activo = false;
+  if ($("#bloqueo").open) $("#bloqueo").close();
+  d.showModal();
+}
+// El dueño abre en su celular el link del pedido de crédito (#aprobar&…): se le muestra para aprobar con su PIN.
+const HASH_APROB = location.hash.startsWith("#aprobar&") ? Object.fromEntries(new URLSearchParams(location.hash.slice("#aprobar&".length))) : null;
+if (HASH_APROB?.id) {
+  history.replaceState(null, "", location.pathname + location.search);
+  if (bloqueo.activo) bloqueo.despues = () => dialogoAprobar(HASH_APROB); else dialogoAprobar(HASH_APROB);
+}
 // Sólo en desarrollo local o contra el mismo origen: un link armado no puede mandar la clave del club a otro servidor.
 const API_PERMITIDA = API_TURNERO && /^https?:\/\/[\w.:[\]-]+\/?$/.test(API_TURNERO)
   && (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || new URL(API_TURNERO).origin === location.origin);
 // En el sitio publicado (breakpointpadel.gsgapp.com.ar, sin servidor) /club trae <meta name="bp-demo-bus" content="1">: el
 // backoffice se conecta con el turnero (/turnero) cuando hay uno abierto en otra pestaña del mismo navegador.
-const DEMO_BUS = !API_PERMITIDA && document.querySelector('meta[name="bp-demo-bus"]')?.content === "1" && typeof BroadcastChannel !== "undefined";
+// En la jornada real NO: el estado del turnero (una demo) no puede reemplazar la jornada del club.
+const DEMO_BUS = !MODO_REAL && !API_PERMITIDA && document.querySelector('meta[name="bp-demo-bus"]')?.content === "1" && typeof BroadcastChannel !== "undefined";
 if (API_PERMITIDA || DEMO_BUS) {
   import("./conectado.mjs")
     .then((m) => (DEMO_BUS ? m.conectarCuandoHayaTurnero(puente) : m.conectar(puente, API_TURNERO)))

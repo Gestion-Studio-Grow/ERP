@@ -4,11 +4,13 @@
 //                                                               http://localhost:5173/club/?api=http://localhost:8787
 //
 // En producción el front es estático (CDN/Vercel/Netlify) y el back un servicio aparte: este servidor existe para
-// la demo local y para los tests E2E. Comprime (brotli/gzip), cachea con ETag y manda cabeceras de seguridad.
+// la demo local y para los tests E2E. Minifica el JS (como el sitio publicado, que va empaquetado y minificado), comprime
+// (brotli/gzip), cachea con ETag y manda cabeceras de seguridad. Así la fuente puede llevar sus comentarios sin pesar.
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { brotliCompressSync, gzipSync, constants } from "node:zlib";
+import { transformSync } from "esbuild";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -39,7 +41,9 @@ export function crearFront({ api = "http://localhost:8787" } = {}) {
       const clave = `${archivo}:${st.mtimeMs}`;
       let e = cache.get(clave);
       if (!e) {
-        const crudo = await readFile(archivo);
+        const fuente = await readFile(archivo);
+        // Cada módulo se minifica por separado: los imports y exports quedan con sus nombres.
+        const crudo = /\.(mjs|js)$/.test(archivo) ? Buffer.from(transformSync(fuente.toString("utf8"), { loader: "js", format: "esm", minify: true, target: "es2022" }).code) : fuente;
         const comprimible = /\.(html|mjs|js|css|svg|json)$/.test(archivo);
         e = { crudo, br: comprimible ? brotliCompressSync(crudo, { params: { [constants.BROTLI_PARAM_QUALITY]: 11 } }) : null, gz: comprimible ? gzipSync(crudo, { level: 9 }) : null, etag: `"${createHash("sha1").update(crudo).digest("base64url").slice(0, 16)}"` };
         cache.set(clave, e);

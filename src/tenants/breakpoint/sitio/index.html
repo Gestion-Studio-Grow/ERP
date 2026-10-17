@@ -25,6 +25,8 @@
   a.pri{background:var(--azul);color:#fff}
   a.sec{background:var(--panel);color:var(--tinta)}
   a.btn:focus-visible{outline:3px solid var(--pelota);outline-offset:3px}
+  a.tienda{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 4px;color:var(--tinta);font-weight:800;text-underline-offset:3px}
+  a.tienda:focus-visible{outline:3px solid var(--pelota);outline-offset:3px}
   .nota{font-size:14px;padding:12px 14px;border-radius:10px;background:var(--panel);border-left:4px solid var(--pelota);text-align:left}
   .cinta{position:fixed;top:0;left:0;right:0;padding:6px 12px;background:#0F1A26;color:#fff;font-size:13px;text-align:center}
 </style>
@@ -39,6 +41,7 @@
     <a class="btn pri" href="/turnero">Reservá tu cancha<small>el turnero para los jugadores</small></a>
     <a class="btn sec" href="/club">Gestión del club<small>agenda, buffet, caja y más</small></a>
   </nav>
+  <a class="tienda" href="/turnero#tienda">Tienda del club: pelotas, grips y más, para retirar en el club</a>
   <p class="nota"><b>Para ver la integración:</b> abrí las dos en pestañas del mismo navegador. Lo que reserves en el turnero aparece solo en la agenda del club, y lo que cargues en el club se ocupa en el turnero. Es una demo: Google, WhatsApp y los pagos están simulados.</p>
 </main>
 </body>

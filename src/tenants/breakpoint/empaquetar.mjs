@@ -1,7 +1,7 @@
 // Empaqueta el sitio de Break Point Pádel que sirve el ERP en breakpointpadel.gsgapp.com.ar (mismo mecanismo que
 // Circuito WPE: src/lib/sitio-estatico.ts). Tres páginas de UN solo archivo cada una:
 //   sitio/index.html    portada con la marca: «Reservá tu cancha» (/turnero) y «Gestión del club» (/club)
-//   sitio/club.html     la gestión del club (backoffice demo) + el modo conectado y el bus entre pestañas, inline
+//   sitio/club.html     la gestión del club (backoffice demo) + el modo conectado, el bus entre pestañas y el Studio, inline
 //   sitio/turnero.html  el turnero en modo demo (corre en el navegador: local.mjs), con su CSS y su JS inline
 // Con /turnero y /club abiertos en pestañas del mismo navegador, se sincronizan en vivo (turnero/bus.mjs).
 //
@@ -69,10 +69,19 @@ export function armarSitio(raiz = RAIZ) {
   const llamada = 'import("./conectado.mjs")';
   if (!club.includes(llamada)) throw new Error("app.mjs ya no carga conectado.mjs como espera el empaquetador");
   const conectado = bundle(path.join(base, "club/conectado.mjs"), { format: "iife", globalName: "__BP_CONECTADO" });
-  const clubHtml = club
+  let clubHtml = club
     .replace(llamada, "Promise.resolve(__BP_CONECTADO)")
     .replace(/<meta charset="utf-8">/i, (m) => `${m}\n<meta name="bp-demo-bus" content="1">`)
     .replace('<script type="module">', () => `<script>\n${conectado}\n</script>\n<script type="module">`);
+  // Studio de contenido (studio.mjs): si app.mjs lo carga con import("./studio.mjs"), va inline como global, igual
+  // que el modo conectado. Si todavía no lo carga, no se inyecta (no es un error).
+  const llamadaStudio = 'import("./studio.mjs")';
+  if (clubHtml.includes(llamadaStudio)) {
+    const studio = bundle(path.join(base, "club/studio.mjs"), { format: "iife", globalName: "__BP_STUDIO" });
+    clubHtml = clubHtml
+      .split(llamadaStudio).join("Promise.resolve(__BP_STUDIO)")
+      .replace('<script type="module">', () => `<script>\n${studio}\n</script>\n<script type="module">`);
+  }
   // Turnero: CSS y JS inline (en modo demo: <meta name="turnero-modo" content="demo">).
   const t = path.join(base, "turnero");
   let turnero = readFileSync(path.join(t, "index.html"), "utf8");
