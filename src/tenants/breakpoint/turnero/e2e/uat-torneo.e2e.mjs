@@ -412,6 +412,55 @@ ok("10.saldos", juanGL?.deuda === 4000, "Se conservaron los saldos: Juan sigue d
 await p.reload(); await W(1000);
 ok("10.vuelve", await bloqueada() && (await estado()).reservas.length === 0, "Después de la limpieza el club vuelve bloqueado y en limpio, listo para el go-live");
 
+// ═══ 11. Un mes después: la compu se llena → archivar días cerrados (dueña, con PIN, dos archivos antes) ═══
+await desbloquear("84");
+await irTab("ajustes");
+const copiaGL = await p.evaluate(() => (localStorage.getItem("bp-jornada-v1-antes-golive") ?? "").length);
+ok("11.copia-visible", copiaGL > 0 && /Copia de antes de la limpieza del go-live/.test(await p.textContent("#app")), `La copia de antes del go-live se ve con lo que ocupa (${Math.ceil(copiaGL / 1024)} KB)`);
+await p.click('#app [data-a="borrarCopia"][data-v="antes-golive"]'); await W(); await p.fill("#cf-pin", "84");
+const [descCopia] = await Promise.all([p.waitForEvent("download"), p.click('#dlg [data-a="confirmarBorrarCopia"]')]);
+await W(300);
+ok("11.copia-borrada", /breakpoint-copia-antes-golive-.*\.json$/.test(descCopia.suggestedFilename()) && (await p.evaluate(() => localStorage.getItem("bp-jornada-v1-antes-golive"))) === null, `Con el PIN de la dueña, la copia se descarga (${descCopia.suggestedFilename()}) y recién después se borra`);
+// Un mes de club lleno (del 10/9 al 9/10, todas las cajas cerradas) con los usuarios y la configuración de esta compu.
+const { armarMesCargado } = await import("../../../../lib/club/fixtures/armar-respaldo.ts");
+const actual = await estado();
+const mes = armarMesCargado("2026-10-10", 30);
+const majo = actual.usuarios.find((u) => u.rol === "duenio" && u.pin === "84");
+Object.assign(mes.estado, { usuarios: actual.usuarios, config: actual.config });
+// Al recargar, la pestaña guarda lo suyo (pagehide y después visibilitychange): el mes se vuelve a poner al final, como
+// si lo hubiera cargado el club.
+await p.evaluate((txt) => {
+  const poner = () => localStorage.setItem("bp-jornada-v1", txt);
+  poner(); addEventListener("pagehide", poner); document.addEventListener("visibilitychange", poner);
+}, JSON.stringify({ ...mes, usuario: majo.id }));
+await p.reload(); await W(1200);
+await desbloquear("84"); await W(500);
+const llena = (await p.evaluate(() => localStorage.getItem("bp-jornada-v1"))).length;
+ok("11.aviso", llena > 2_500_000 && await p.isVisible("#aviso-lleno"), `Con un mes lleno (${Math.round(llena / 1024)} KB) la cinta avisa «Se está llenando»`);
+await p.click("#aviso-lleno"); await W(600);
+ok("11.lleva", await p.isVisible("#btn-archivar") && /Se está llenando/.test(await p.textContent("#app")), "El aviso lleva a Configuración → «Archivar días cerrados»");
+await foto("archivar-dias");
+const antesArch = await estado();
+const bajadas = [];
+p.on("download", (d) => bajadas.push(d));
+await p.click("#btn-archivar"); await W(); await p.fill("#cf-pin", "84");
+await p.click('#dlg [data-a="confirmarArchivar"]'); await W(1500);
+const nombres = bajadas.map((d) => d.suggestedFilename());
+const anexo = JSON.parse(await readFile(await bajadas.find((d) => /breakpoint-archivo-/.test(d.suggestedFilename())).path(), "utf8"));
+const previo = JSON.parse(await readFile(await bajadas.find((d) => /breakpoint-jornada-/.test(d.suggestedFilename())).path(), "utf8"));
+const despuesArch = await estado();
+const tamDespues = (await p.evaluate(() => localStorage.getItem("bp-jornada-v1"))).length;
+ok("11.descargas", nombres.length === 2 && nombres.some((x) => /^breakpoint-archivo-\d{4}-\d{2}-\d{2}\.json$/.test(x)) && previo.estado.reservas.length === antesArch.reservas.length, `Antes de achicar se descargaron el respaldo completo y el archivo: ${nombres.join(" + ")}`);
+ok("11.achica", anexo.tipo === "anexo-jornada" && anexo.hasta >= "2026-09-26" && despuesArch.archivo?.hasta === anexo.hasta && tamDespues < llena * 0.75 && !(await p.isVisible("#aviso-lleno")), `Archivó hasta el ${anexo.hasta} (${anexo.reservas.length} turnos): ${Math.round(llena / 1024)} KB → ${Math.round(tamDespues / 1024)} KB y el aviso se fue`);
+const plata = (...partes) => { const t = {}; for (const x of partes) for (const [d, f] of Object.entries(M.plataPorDia(x))) t[d] = (t[d] ?? 0) + f.canchas + f.cuentas + f.ingresos - f.egresos; return JSON.stringify(Object.entries(t).sort()); };
+ok("11.plata", plata(antesArch) === plata(despuesArch, anexo), "Al centavo, día por día: lo que había = lo que quedó + lo del archivo");
+// De antes del corte sólo quedan los turnos con algún cobro en una caja sin cerrar (la del 9/9, la mañana del primer día).
+const cajaSinCerrar = (r) => r.pagos.some((x) => !M.cajaCerrada(despuesArch, M.diaDeCaja(despuesArch, x.fecha, x.min)));
+const recientes = (e) => e.reservas.filter((r) => r.fecha > anexo.hasta).map((r) => r.id).join();
+ok("11.vivo", despuesArch.reservas.every((r) => r.fecha > anexo.hasta || cajaSinCerrar(r)) && recientes(despuesArch) === recientes(antesArch) && despuesArch.clientes.every((c, i) => c.deuda === antesArch.clientes[i].deuda && c.monedero === antesArch.clientes[i].monedero), "Lo de las últimas 3 semanas, lo de cajas sin cerrar y los saldos de los clientes quedan como estaban");
+await p.reload(); await W(1000); await desbloquear("84");
+ok("11.vuelve", (await estado()).archivo?.hasta === anexo.hasta && !(await bloqueada()), "Al recargar, la jornada achicada se abre igual");
+
 ok("errores", errores.length === 0, `Cero errores de consola${errores.length ? `: ${errores.slice(0, 3).join(" | ")}` : ""}`);
 await writeFile(`${OUT}/resultado.json`, JSON.stringify({ fecha: new Date().toISOString(), filas }, null, 2));
 const malas = filas.filter((f) => f.estado !== "OK");

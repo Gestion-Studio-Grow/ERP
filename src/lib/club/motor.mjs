@@ -203,6 +203,12 @@ export function hidratarEstado(foto) {
     estado.clima = esObjeto(estado.clima) ? estado.clima : { lluvia: null };
     for (const k of ["pedidos", "novedades", "difusiones", "solicitudesAcceso", "contenido"]) estado[k] = estado[k].filter((x) => esObjeto(x) && /^[\w-]{1,60}$/.test(String(x.id ?? "")));
     estado.clientes = estado.clientes.map(normalizarCliente);
+    // `archivo` (resumen de los días archivados) es opcional: un estado viejo no lo tiene y sigue igual.
+    if ("archivo" in estado) {
+      const a = estado.archivo;
+      if (!esObjeto(a)) delete estado.archivo;
+      else estado.archivo = { ...a, hasta: typeof a.hasta === "string" ? a.hasta : null, dias: esLista(a.dias) ? a.dias.filter(esObjeto) : [], clientes: esObjeto(a.clientes) ? a.clientes : {}, anexos: esLista(a.anexos) ? a.anexos : [] };
+    }
     retomarSecuencia(foto.secuencia);
     return { ok: true, estado };
   } catch {
@@ -441,6 +447,7 @@ export function limpiarParaGoLive(estado, { conservarSaldos = true, conservarSto
   for (const p of estado.productos) { p.prestados = 0; if (!conservarStock && !p.alquiler && !p.plato) p.stock = null; }
   if (!conservarSaldos) for (const c of estado.clientes) { c.deuda = 0; c.movCC = []; c.monedero = 0; c.fiados = []; c.strikes = 0; }
   estado.log = [];
+  delete estado.archivo; // el resumen de lo archivado era de la prueba: el día 1 arranca sin historia
   estado.config.goLive = { fecha: ahora?.fecha ?? null, por: a.usuario.nombre, conservarSaldos };
   registrar(estado, `${a.usuario.nombre} hizo la limpieza para el go-live: quedaron ${cuenta.quedan} turnos por jugar (con su seña); se borraron ${cuenta.turnos} turnos, ${cuenta.cuentas} cuentas, ${cuenta.movimientos} movimientos de caja y ${cuenta.pedidos} pedidos${conservarSaldos ? "; los saldos de los clientes se conservaron" : "; los saldos de los clientes quedaron en cero"}.`, ahora);
   return { ok: true, borrado: cuenta };
@@ -793,7 +800,8 @@ export function requiereSenaWeb(estado, clienteId) {
   if (modo === "siempre") return true;
   const cl = clienteId ? cliente(estado, clienteId) : null;
   if (!cl || cl.strikes > 0) return true;
-  const jugados = estado.reservas.filter((r) => r.clienteId === cl.id && r.estado === "finalizada").length;
+  // Los turnos ya archivados también cuentan (archivarDiasCerrados deja cuántos jugó cada uno).
+  const jugados = estado.reservas.filter((r) => r.clienteId === cl.id && r.estado === "finalizada").length + (estado.archivo?.clientes?.[cl.id]?.jugados ?? 0);
   return jugados < (politica.turnosConfianza ?? 3);
 }
 
@@ -1940,6 +1948,209 @@ export function cerrarCaja(estado, { contado, usuarioId, pin, dia: diaPedido = n
   return { ok: true, cierre };
 }
 
+// ───────────────────────── archivo de días cerrados (la jornada real no se llena) ─────────────────────────
+//
+// Un mes de club lleno pesa ~2,9 MB y el navegador guarda ~5 MB: lo ya cerrado se pasa a un ANEXO (un archivo que el
+// dueño se queda) y en el estado queda un resumen chico por día. Lo vivo nunca se archiva.
+
+/** Lo que queda siempre a mano sin archivar: los últimos 21 días (el Tablero mira 7; las audiencias, 30 por el resumen). */
+export const DIAS_SIN_ARCHIVAR = 21;
+/** Nunca se archiva la última semana: el Tablero, el mapa de calor y la venta de 7 días la leen entera. */
+const DIAS_MINIMOS_SIN_ARCHIVAR = 7;
+
+/** Hasta qué día de caja se propone archivar: lo que tenga más de `dias` días (por defecto 21). */
+export function diaParaArchivar(estado, ahora, dias = DIAS_SIN_ARCHIVAR) {
+  const n = Math.max(DIAS_MINIMOS_SIN_ARCHIVAR, Math.round(Number(dias)) || DIAS_SIN_ARCHIVAR);
+  return sumarDias(diaDeCaja(estado, ahora.fecha, ahora.min), -n);
+}
+
+const fila0 = (dia) => ({ dia, turnos: 0, faltas: 0, cancelados: 0, vendidoCanchas: 0, cobradoCanchas: 0, cobradoCuentas: 0, monedero: 0, ingresosCaja: 0, egresosCaja: 0, movimientos: 0, cuentas: 0, pedidos: 0 });
+
+/**
+ * Suma al resumen por día lo de estas listas (las del estado o las de un anexo). Los turnos van por su fecha; lo
+ * cobrado, por el día de caja del cobro (`diaDeCaja`); los movimientos, por su caja.
+ */
+function sumarAlResumen(dias, { reservas = [], cuentas = [], movimientos = [], pedidos = [] }, corte) {
+  const conCorte = { config: { corteCaja: corte } };
+  const dia = (t) => (t?.fecha ? diaDeCaja(conCorte, t.fecha, t.min ?? 0) : "sin-fecha");
+  const fila = (d) => { if (!dias.has(d)) dias.set(d, fila0(d)); return dias.get(d); };
+  for (const r of reservas) {
+    const f = fila(r.fecha ?? "sin-fecha");
+    if (r.estado === "finalizada") { f.turnos++; f.vendidoCanchas += r.precio ?? 0; }
+    if (r.estado === "no_show") f.faltas++;
+    if (r.estado === "cancelada" || r.estado === "suspendida") f.cancelados++;
+    for (const p of r.pagos ?? []) { const x = fila(dia(p)); if (p.medio === "monedero") x.monedero += p.monto; else x.cobradoCanchas += p.monto; }
+  }
+  for (const c of cuentas) {
+    fila(dia(c.cerrada)).cuentas++;
+    for (const p of c.pagos ?? []) { const x = fila(dia(p)); if (p.medio === "monedero") x.monedero += p.monto; else x.cobradoCuentas += p.monto; }
+  }
+  for (const m of movimientos) {
+    const x = fila(m.caja ?? dia(m));
+    x.movimientos++;
+    if (m.tipo === "ingreso") x.ingresosCaja += m.monto; else x.egresosCaja += m.monto;
+  }
+  for (const pd of pedidos) fila(dia(pd.cobrado ?? pd)).pedidos++;
+  return dias;
+}
+
+/**
+ * La plata por día: lo cobrado de canchas y de cargos (sin créditos: es lo que entra a la caja), lo pagado con
+ * créditos y lo que entró y salió de la caja. Recibe el estado o un anexo (`anexo-jornada`): sirve para el resumen
+ * y para comprobar al centavo que archivar no pierde ni duplica plata (estado = podado + anexo, día por día).
+ */
+export function plataPorDia(datos) {
+  const corte = datos?.config?.corteCaja ?? datos?.corteCaja ?? 0;
+  const movimientos = datos?.caja?.movimientos ?? datos?.movimientos ?? [];
+  const dias = sumarAlResumen(new Map(), { reservas: datos?.reservas ?? [], cuentas: datos?.cuentas ?? [], movimientos }, corte);
+  return Object.fromEntries([...dias.values()].sort((a, b) => a.dia.localeCompare(b.dia)).map((f) => [f.dia, { canchas: f.cobradoCanchas, cuentas: f.cobradoCuentas, monedero: f.monedero, ingresos: f.ingresosCaja, egresos: f.egresosCaja }]));
+}
+
+/**
+ * Archiva los días cerrados hasta `hastaDia` (inclusive). PURA: no toca `estado`; devuelve una copia podada y el
+ * anexo con todo lo que salió. Sólo sale lo TERMINADO de días cuya caja está CERRADA:
+ *   · turnos finalizados, cancelados o con falta (y suspendidos sin plata), sin devolución ni falta por cobrar, sin
+ *     seña en suspenso, con todos sus cobros en cajas cerradas y sin cuentas de cargos que se queden;
+ *   · cuentas de cargos cerradas, con todos sus pagos en cajas cerradas;
+ *   · los movimientos de las cajas cerradas (los `cierres` se quedan: son chicos y la conciliación los usa);
+ *   · pedidos de la tienda entregados, cancelados o a cuenta (con su cuenta archivada); pedidos de crédito ya
+ *     resueltos; difusiones viejas (la última se queda); el registro, la lista de espera y los bloqueos de esos días;
+ *   · de cada cliente, los movimientos viejos de la cuenta corriente (queda una línea «saldo anterior» con el mismo
+ *     saldo) y los fiados ya usados.
+ * NO toca lo maestro (clientes y sus saldos, productos, usuarios, canchas, proveedores con sus remitos y pagos,
+ * fijos, config, contenido) ni nada vivo. Un cobro hecho después de cerrar su caja entró en la caja siguiente
+ * (`cajaAbierta`): esa también tiene que estar cerrada.
+ * En el estado queda `archivo` = { hasta, dias: [resumen por día], clientes: { id: { jugados, ultima } }, anexos }:
+ * con eso la seña web («turnos de confianza») y las audiencias de las novedades siguen viendo lo archivado.
+ * Idempotente: archivar otra vez lo mismo no cambia nada (`vacio: true`). Con `ahora`, nunca archiva la última semana.
+ */
+export function archivarDiasCerrados(estado, hastaDia, { ahora = null, por = null } = {}) {
+  const hasta = String(hastaDia ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(hasta)) return { ok: false, motivo: "Elegí hasta qué día archivar." };
+  if (ahora && hasta > sumarDias(diaDeCaja(estado, ahora.fecha, ahora.min), -DIAS_MINIMOS_SIN_ARCHIVAR))
+    return { ok: false, motivo: "La última semana no se archiva: el Tablero y las ventas de 7 días la usan." };
+  const e = structuredClone(estado);
+  const corte = e.config.corteCaja ?? 0;
+  const dCaja = (t) => (t?.fecha ? diaDeCaja(e, t.fecha, t.min ?? 0) : null);
+  const cierres = new Map(e.caja.cierres.map((c) => [c.dia, c]));
+  const cerradaHasta = (d) => !!d && d <= hasta && cierres.has(d);
+  // La caja donde entró un cobro: la de su día o, si esa ya estaba cerrada cuando se cobró, la siguiente. En el
+  // mismo minuto del cierre no se sabe cuál: se piden las dos cerradas.
+  const cajasDe = (t) => {
+    const d = dCaja(t);
+    if (!d) return [null];
+    const c = cierres.get(d);
+    if (!c) return [d];
+    const tp = minutoAbsoluto(t), tc = minutoAbsoluto(c);
+    return tp < tc ? [d] : tp > tc ? [sumarDias(d, 1)] : [d, sumarDias(d, 1)];
+  };
+  const pagoListo = (p) => (p.medio === "monedero" ? !!dCaja(p) && dCaja(p) <= hasta : cajasDe(p).every(cerradaHasta));
+  const movListo = (m) => cerradaHasta(m.caja ?? dCaja(m));
+  const hasta0 = (t) => !!t?.fecha && t.fecha <= hasta;
+
+  // Cuentas de cargos: cerradas, con la plata en cajas cerradas y sin un pedido de crédito esperando por ellas.
+  const pedidaPorCredito = new Set(e.novedades.filter((n) => n.estado === "pendiente" && n.cuentaId).map((n) => n.cuentaId));
+  const cuentaLista = (c) => c.estado === "cerrada" && !!dCaja(c.cerrada) && dCaja(c.cerrada) <= hasta && (c.pagos ?? []).every(pagoListo) && !pedidaPorCredito.has(c.id);
+  const ctaSale = new Set(e.cuentas.filter(cuentaLista).map((c) => c.id));
+  // Una cuenta que se queda ata a su turno (la mesa del turno la busca por `reservaId`).
+  const atadas = new Set(e.cuentas.filter((c) => !ctaSale.has(c.id) && c.reservaId).map((c) => c.reservaId));
+  const movsPorTurno = new Map();
+  for (const m of e.caja.movimientos) if (m.reservaId) movsPorTurno.set(m.reservaId, [...(movsPorTurno.get(m.reservaId) ?? []), m]);
+  const terminado = (r) => ["finalizada", "cancelada", "no_show"].includes(r.estado) || (r.estado === "suspendida" && cobrado(r) === 0);
+  const turnoListo = (r) => terminado(r) && !!r.fecha && r.fecha <= hasta && !(r.devolucionPendiente > 0) && !(r.deudaSinFicha > 0) && !r.senaEnSuspenso &&
+    (r.pagos ?? []).every(pagoListo) && (movsPorTurno.get(r.id) ?? []).every(movListo) && !atadas.has(r.id) && (!r.cierre?.fecha || dCaja(r.cierre) <= hasta);
+  const pedidoListo = (pd) => (pd.estado === "cancelado" && hasta0(pd)) || (pd.estado === "entregado" && !!pd.cobrado && cajasDe(pd.cobrado).every(cerradaHasta)) || (pd.estado === "a_cuenta" && ctaSale.has(pd.cuentaId));
+  const ultimaDifusion = e.difusiones[0]?.id;
+
+  const partir = (lista, sale) => { const fuera = [], queda = []; for (const x of lista ?? []) (sale(x) ? fuera : queda).push(x); return [fuera, queda]; };
+  const [reservas, reservasQuedan] = partir(e.reservas, turnoListo);
+  const [cuentas, cuentasQuedan] = partir(e.cuentas, (c) => ctaSale.has(c.id));
+  const [movimientos, movsQuedan] = partir(e.caja.movimientos, movListo);
+  const [pedidos, pedidosQuedan] = partir(e.pedidos, pedidoListo);
+  const [novedades, novedadesQuedan] = partir(e.novedades, (n) => n.estado !== "pendiente" && hasta0(n));
+  const [difusiones, difusionesQuedan] = partir(e.difusiones, (d) => d.id !== ultimaDifusion && hasta0(d));
+  const [solicitudesAcceso, solicitudesQuedan] = partir(e.solicitudesAcceso, (s) => s.estado !== "pendiente" && hasta0(s));
+  const [espera, esperaQueda] = partir(e.espera, (x) => !!x.fecha && x.fecha <= hasta);
+  const [bloqueos, bloqueosQuedan] = partir(e.bloqueos, (b) => !!b.fecha && b.fecha <= hasta);
+  const [log, logQueda] = partir(e.log, hasta0);
+
+  // Cuenta corriente: los movimientos viejos (los primeros, hasta `hasta`) se resumen en un «saldo anterior» con la
+  // misma suma y el mismo saldo; los fiados ya usados salen. La deuda del cliente no se toca.
+  const movCC = [], fiados = [];
+  for (const c of e.clientes) {
+    const movs = c.movCC ?? [];
+    let k = 0;
+    while (k < movs.length && hasta0(movs[k])) k++;
+    const reales = movs.slice(0, k).filter((m) => !m.saldoAnterior);
+    if (reales.length) {
+      const importe = movs.slice(0, k).reduce((s, m) => s + m.importe, 0);
+      const saldoAl = movs[k - 1].saldo;
+      const linea = { fecha: hasta, min: null, concepto: `Saldo anterior (hasta el ${hasta.slice(8)}/${hasta.slice(5, 7)}, en el archivo)`, importe, saldo: saldoAl, saldoAnterior: true };
+      c.movCC = [...(importe !== 0 || saldoAl !== 0 ? [linea] : []), ...movs.slice(k)];
+      movCC.push({ clienteId: c.id, nombre: c.nombre, movimientos: reales });
+    }
+    const [usados, vivos] = partir(c.fiados, (f) => f.usado && hasta0(f));
+    if (usados.length) { c.fiados = vivos; fiados.push({ clienteId: c.id, nombre: c.nombre, fiados: usados }); }
+  }
+
+  const listas = { reservas, cuentas, movimientos, pedidos, novedades, difusiones, solicitudesAcceso, espera, bloqueos, log };
+  const conteos = Object.fromEntries(Object.entries(listas).map(([k, v]) => [k, v.length]));
+  conteos.movCC = movCC.reduce((s, x) => s + x.movimientos.length, 0);
+  conteos.fiados = fiados.reduce((s, x) => s + x.fiados.length, 0);
+  const vacio = Object.values(conteos).every((n) => n === 0);
+
+  const resumen = [...sumarAlResumen(new Map(), { reservas, cuentas, movimientos, pedidos }, corte).values()].filter((f) => f.dia !== "sin-fecha").sort((a, b) => a.dia.localeCompare(b.dia));
+  const desde = [resumen[0]?.dia, ...[...Object.values(listas).flat(), ...movCC.flatMap((x) => x.movimientos)].map((x) => x.fecha).filter(Boolean)].filter(Boolean).sort()[0] ?? null;
+  const idsClientes = new Set([...reservas.flatMap((r) => [r.clienteId, ...(r.jugadores ?? []).map((j) => j.clienteId)]), ...cuentas.map((c) => c.clienteId), ...novedades.map((n) => n.clienteId), ...movCC.map((x) => x.clienteId), ...fiados.map((x) => x.clienteId)].filter(Boolean));
+  const anexo = {
+    v: 1, tipo: "anexo-jornada", club: e.config.nombre ?? "", desde, hasta, generado: ahora ? sello(ahora) : null, por: por ?? null, corteCaja: corte,
+    resumen,
+    cierres: e.caja.cierres.filter((c) => resumen.some((f) => f.dia === c.dia)).map((c) => ({ ...c })),
+    clientes: e.clientes.filter((c) => idsClientes.has(c.id)).map((c) => ({ id: c.id, nombre: c.nombre })),
+    canchas: e.canchas.map((c) => ({ id: c.id, nombre: c.nombre })),
+    ...listas, movCC, fiados,
+  };
+  if (vacio) return { ok: true, vacio: true, estado: e, anexo, conteos };
+
+  e.reservas = reservasQuedan;
+  e.cuentas = cuentasQuedan;
+  e.caja.movimientos = movsQuedan;
+  e.pedidos = pedidosQuedan;
+  e.novedades = novedadesQuedan;
+  e.difusiones = difusionesQuedan;
+  e.solicitudesAcceso = solicitudesQuedan;
+  e.espera = esperaQueda;
+  e.bloqueos = bloqueosQuedan;
+  e.log = logQueda;
+
+  // El resumen que queda en el estado: por día (se suma si un día ya tenía algo archivado) y por cliente.
+  const previo = esObjeto(e.archivo) ? e.archivo : {};
+  const dias = new Map((esLista(previo.dias) ? previo.dias : []).map((f) => [f.dia, { ...fila0(f.dia), ...f }]));
+  for (const f of resumen) {
+    const x = dias.get(f.dia) ?? fila0(f.dia);
+    for (const k of Object.keys(f)) if (k !== "dia") x[k] = (x[k] ?? 0) + f[k];
+    dias.set(f.dia, x);
+  }
+  const clientes = { ...(esObjeto(previo.clientes) ? previo.clientes : {}) };
+  for (const r of reservas) {
+    if (r.estado !== "finalizada") continue;
+    if (r.clienteId) clientes[r.clienteId] = { jugados: (clientes[r.clienteId]?.jugados ?? 0) + 1, ultima: clientes[r.clienteId]?.ultima ?? "" };
+    for (const id of new Set([r.clienteId, ...(r.jugadores ?? []).map((j) => j.clienteId)].filter(Boolean))) {
+      const c = clientes[id] ?? { jugados: 0, ultima: "" };
+      if (r.fecha > (c.ultima ?? "")) c.ultima = r.fecha;
+      clientes[id] = c;
+    }
+  }
+  e.archivo = {
+    hasta: previo.hasta && previo.hasta > hasta ? previo.hasta : hasta,
+    dias: [...dias.values()].sort((a, b) => a.dia.localeCompare(b.dia)),
+    clientes,
+    anexos: [...(esLista(previo.anexos) ? previo.anexos : []), { desde, hasta, ...sello(ahora), por: por ?? null, conteos }],
+  };
+  if (ahora) registrar(e, `${por ?? "Un dueño"} archivó lo cerrado hasta el ${hasta.slice(8)}/${hasta.slice(5, 7)}: ${conteos.reservas} turnos, ${conteos.cuentas} cuentas de cargos y ${conteos.movimientos} movimientos de caja (quedaron en el archivo descargado).`, ahora);
+  return { ok: true, vacio: false, estado: e, anexo, conteos };
+}
+
 // ───────────────────────── productos, stock y lector ─────────────────────────
 
 export function buscarProductos(estado, texto, { soloVendibles = false } = {}) {
@@ -2222,6 +2433,8 @@ function ultimaVez(estado) {
     const ids = new Set([r.clienteId, ...r.jugadores.map((j) => j.clienteId)].filter(Boolean));
     for (const id of ids) if (!out.has(id) || out.get(id) < r.fecha) out.set(id, r.fecha);
   }
+  // Lo archivado (archivarDiasCerrados) guarda el último día que jugó cada uno.
+  for (const [id, x] of Object.entries(estado.archivo?.clientes ?? {})) if (x?.ultima && (!out.has(id) || out.get(id) < x.ultima)) out.set(id, x.ultima);
   return out;
 }
 
