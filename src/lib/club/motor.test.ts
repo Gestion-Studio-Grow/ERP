@@ -58,14 +58,14 @@ const FUNCIONES = [
   "hhmm", "aMinutos", "diaSemana", "sumarDias", "minutosHasta", "pesos", "dividir",
   "cancha", "cliente", "reserva", "producto", "cuenta", "usuario", "buscarClientes", "buscarProductos", "productoPorCodigo", "altaCliente",
   "puede", "verificarPin", "usuarioPorPin",
-  "horarioDe", "precioTurno", "franjaDe", "ocupantes", "validarHueco", "huecosLibres", "crearReserva", "checkIn", "finalizar",
+  "horarioDe", "precioTurno", "franjaDe", "requiereSena", "ocupantes", "validarHueco", "huecosLibres", "crearReserva", "checkIn", "finalizar",
   "marcarNoShow", "cancelar", "mover", "extender", "bloquear", "quitarBloqueo", "materializarFijos",
   "cobrado", "totalReserva", "saldo", "registrarPago", "partesCancha", "asignarCargoCancha", "cobrarParte",
   "totalCuenta", "cobradoCuenta", "saldoCuenta", "abrirCuenta", "cargarEnCuenta", "pagarCuenta", "consumoJugador", "ajustarCargo",
   "transferirCargo", "cargoManual", "cerrarCuenta", "cuentasAbiertas", "ventaMostrador",
   "cuentaDeJugador", "asignarCargoCargos", "cuentaDelTurno", "cobrarCuentaYSusCargos", "cobrarJugador", "cobrarTodoElTurno",
   "cerrarCanchaYSeguir", "cerrarCargosDelTurno", "mesasAbiertas",
-  "diaDeCaja", "cajaCerrada", "cajaAbierta", "resumenCaja", "cajasSinCerrar", "cerrarCaja", "egresoCaja",
+  "diaDeCaja", "cajaCerrada", "cajaAbierta", "resumenCaja", "cajasSinCerrar", "cajasConMovimientosSinCerrar", "cerrarCaja", "egresoCaja",
   "puedeACuenta", "solicitarCredito", "resolverCredito", "codigoAprobacion", "aprobarPorCodigo", "datosAprobacion", "cobrarDeuda",
 ] as const satisfies readonly Funciones[];
 const CONSTANTES = [

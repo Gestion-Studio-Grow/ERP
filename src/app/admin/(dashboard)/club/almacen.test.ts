@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
-import { claveDeLaDemo, crearAlmacen, leerDemo, MINUTO_DEMO, type Guardado } from "./almacen";
+import { claveDeLaDemo, crearAlmacen, leerDemo, MINUTO_DEMO, operadorDeLaDemo, type Guardado } from "./almacen";
 import { armarAgenda, compartirAgenda } from "./agenda-core";
 import { armarCuenta, ejecutar } from "./cuenta-core";
 
@@ -160,4 +160,36 @@ test("medición: una acción con el almacén (motor + grilla + cuenta) cuesta me
   assert.equal(celdasNuevas, 0, "«a cargo de» no repinta ningún turno de la grilla");
   assert.ok(porAccion < copia, `el almacén (${porAccion.toFixed(2)} ms) tiene que costar menos que copiar el estado (${copia.toFixed(2)} ms)`);
   assert.ok(porAccion < 16, `una acción entra en un cuadro (16 ms): ${porAccion.toFixed(2)} ms`);
+});
+
+test("deshacer: vuelve a como estaba antes de la ÚLTIMA acción; un error o una acción no deshacible lo anula", () => {
+  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), guardado: null, demoraGuardadoMs: 0 });
+  const r = enJuego(a.estado());
+  const pendiente = armarCuenta(a.estado(), r.id)!.totales.pendiente;
+  const cajaAntes = M.resumenCaja(a.estado()).ingresos;
+  const d = a.ejecutar((e, ahora, auth) => ejecutar(e, r.id, { tipo: "cobrarTodo", medio: "efectivo" }, ahora, auth), { deshacible: true });
+  assert.equal(d.ok, true, d.mensaje);
+  assert.deepEqual({ ok: a.aviso()!.ok, deshacer: a.aviso()!.deshacer }, { ok: true, deshacer: true });
+  a.deshacer();
+  assert.equal(armarCuenta(a.estado(), enJuego(a.estado()).id)!.totales.pendiente, pendiente, "la cuenta vuelve a deber");
+  assert.equal(M.resumenCaja(a.estado()).ingresos, cajaAntes, "y la caja vuelve a lo de antes");
+  assert.match(a.aviso()!.mensaje, /^Listo, se deshizo: Cobrado todo el turno/);
+  assert.equal(a.aviso()!.deshacer, false, "sólo una vez");
+
+  // Un error en el medio anula el deshacer de lo anterior (el motor pudo haber cobrado una parte).
+  a.ejecutar((e, ahora, auth) => ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 1, medio: "efectivo" }, ahora, auth), { deshacible: true });
+  const fallo = a.ejecutar((e, ahora, auth) => ejecutar(e, "no-existe", { tipo: "cobrarTodo", medio: "efectivo" }, ahora, auth), { deshacible: true });
+  assert.equal(fallo.ok, false);
+  assert.equal(a.aviso()!.deshacer, false);
+  const v = a.version();
+  a.deshacer();
+  assert.equal(a.version(), v, "no había nada para deshacer");
+});
+
+test("el operador de la demo sale del rol del ERP: OWNER opera como un dueño, el resto como recepción", () => {
+  const e = M.generarDemo(HOY, MINUTO_DEMO);
+  assert.equal(operadorDeLaDemo(e, "OWNER")!.usuario.rol, "duenio");
+  assert.equal(operadorDeLaDemo(e, "RECEPTION")!.usuario.rol, "recepcion");
+  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), guardado: null, rol: "OWNER" });
+  assert.equal(a.auth().usuarioId, operadorDeLaDemo(a.estado(), "OWNER")!.usuario.id);
 });

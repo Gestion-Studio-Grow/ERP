@@ -20,7 +20,8 @@
 import { memo, useCallback, useEffect, useRef } from "react";
 import { Marca } from "@/components/ui/Marca";
 import { cn } from "@/components/ui/cn";
-import { armarAgenda, compartirAgenda, vecino, type CeldaTurno, type Direccion, type VistaAgenda } from "./agenda-core";
+import { armarAgenda, compartirAgenda, vecino, type CeldaTurno, type Direccion, type FranjaLibre, type VistaAgenda } from "./agenda-core";
+import { Button } from "@/components/ui/Button";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { useSeleccion } from "./usar-almacen";
@@ -77,6 +78,26 @@ const BloqueTurno = memo(function BloqueTurno({ celda, activo, onAbrir }: { celd
   );
 });
 
+/**
+ * Una franja libre: tocarla abre el alta desde esa hora. Es un atajo para el dedo o el mouse (mide una franja,
+ * 28 px: pasa el mínimo de 24 px de WCAG 2.5.8, no el piso de 44 de la casa). Fuera del orden del Tab (serían cien paradas): con el
+ * teclado se da un turno con «+ Turno», que tiene los mismos horarios en una lista.
+ */
+const Franja = memo(function Franja({ franja, onReservar }: { franja: FranjaLibre; onReservar: (canchaId: string, min: number) => void }) {
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      onClick={() => onReservar(franja.canchaId, franja.min)}
+      aria-label={franja.etiqueta}
+      className="z-0 m-px flex items-center justify-center rounded text-xs text-faint hover:bg-accent-soft hover:text-strong"
+      style={{ gridColumn: franja.columna + 2, gridRow: `${franja.fila + 2} / span 1` }}
+    >
+      + {franja.hora}
+    </button>
+  );
+});
+
 /** El fondo fijo de la grilla (encabezados, horas y franjas). Sólo cambia si cambian las canchas o el horario. */
 const FondoDeLaGrilla = memo(function FondoDeLaGrilla({ canchas, horas, filas }: Pick<VistaAgenda, "canchas" | "horas" | "filas">) {
   return (
@@ -120,7 +141,18 @@ const FondoDeLaGrilla = memo(function FondoDeLaGrilla({ canchas, horas, filas }:
   );
 });
 
-export default function AgendaCanchas({ almacen, abierto, onAbrir }: { almacen: Almacen; abierto: string | null; onAbrir: (id: string) => void }) {
+export default function AgendaCanchas({
+  almacen,
+  abierto,
+  onAbrir,
+  onReservar,
+}: {
+  almacen: Almacen;
+  abierto: string | null;
+  onAbrir: (id: string) => void;
+  /** Dar un turno: en una cancha y desde una hora (null = la primera libre). */
+  onReservar: (canchaId: string, min: number | null) => void;
+}) {
   const vista = useSeleccion(almacen, seleccionarAgenda, compartir);
   const marco = useRef<HTMLDivElement>(null);
   const yaUbicada = useRef(false);
@@ -158,7 +190,12 @@ export default function AgendaCanchas({ almacen, abierto, onAbrir }: { almacen: 
         <h2 id="club-agenda-titulo" className="text-lg font-semibold text-strong">
           Agenda de canchas
         </h2>
-        <p className="text-sm text-muted">{vista.resumen}</p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-muted">{vista.resumen}</p>
+          <Button variant="solid" size="md" onClick={() => onReservar(vista.canchas[0]?.id ?? "", null)}>
+            + Turno
+          </Button>
+        </div>
       </div>
       <p id="club-agenda-ayuda" className="sr-only">
         Cada cancha es una lista de turnos. Con las flechas pasás al turno de arriba, de abajo o de la cancha de al lado. Enter abre la cuenta del turno.
@@ -186,6 +223,19 @@ export default function AgendaCanchas({ almacen, abierto, onAbrir }: { almacen: 
               <div className="absolute inset-x-0 border-t-2 border-danger" style={{ top: `calc(${filaAhora} * ${FILA})` }} />
             </div>
           )}
+          {vista.libres.map((f) => (
+            <Franja key={f.id} franja={f} onReservar={onReservar} />
+          ))}
+          {vista.bloqueos.map((b) => (
+            <div
+              key={b.id}
+              className="z-[1] m-0.5 flex flex-col overflow-hidden rounded-md border border-dashed border-line-strong bg-surface-sunken px-2 py-1 text-xs text-muted"
+              style={{ gridColumn: b.columna + 2, gridRow: `${b.fila + 2} / span ${b.alto}` }}
+            >
+              <span className="font-semibold text-strong">Bloqueada</span>
+              <span className="truncate">{b.motivo}</span>
+            </div>
+          ))}
           {porCancha.map(({ cancha, turnos: deLaCancha }) => (
             <ul key={cancha.id} role="list" aria-label={`${cancha.nombre}, ${cancha.detalle}: ${deLaCancha.length === 1 ? "1 turno" : `${deLaCancha.length} turnos`}`} className="contents">
               {deLaCancha.map((t) => (

@@ -20,7 +20,7 @@
 // La plata la lee del motor (`saldo`, `cuentaDelTurno`): no decide nada. El motor tiene un contador
 // de ids de módulo, así que esto corre sólo en el navegador (y en los tests), nunca en el servidor.
 
-import { ESTADOS, TIPOS, cancha as canchaDe, cliente as clienteDe, cuentaDelTurno, hhmm, horarioDe, pesos, saldo } from "@/lib/club/motor.mjs";
+import { ESTADOS, TIPOS, cancha as canchaDe, cliente as clienteDe, cuentaDelTurno, hhmm, horarioDe, minutosHasta, ocupantes, pesos, saldo } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, EstadoReserva, Fecha, Reserva } from "@/lib/club/motor.mjs";
 import type { TipoMarca } from "@/components/ui/Marca";
 
@@ -68,6 +68,18 @@ export interface CeldaTurno {
   firma: string;
 }
 
+/** Una franja libre de una cancha: tocarla abre el alta de un turno desde esa hora. */
+export interface FranjaLibre {
+  /** `${canchaId}@${min}` — estable para el `key` y el memo. */
+  id: string;
+  canchaId: string;
+  columna: number;
+  fila: number;
+  min: number;
+  hora: string;
+  etiqueta: string;
+}
+
 export interface VistaAgenda {
   fecha: Fecha;
   canchas: ColumnaCancha[];
@@ -77,6 +89,10 @@ export interface VistaAgenda {
   filas: number;
   horas: FilaHora[];
   turnos: CeldaTurno[];
+  /** Las franjas libres (sin turno ni bloqueo, que todavía no pasaron) donde se puede reservar. */
+  libres: FranjaLibre[];
+  /** Los bloqueos del día (mantenimiento, torneo): ocupan la cancha sin ser turnos. */
+  bloqueos: { id: string; columna: number; fila: number; alto: number; motivo: string }[];
   /** Fila (con decimales) donde va la raya de «ahora», o null si cae afuera del horario. */
   ahora: number | null;
   /** «12 turnos · 3 en cancha · 2 deben» — la línea de estado. */
@@ -166,6 +182,27 @@ export function armarAgenda(estado: EstadoClub, fecha: Fecha, ahora: Ahora): Vis
   // Orden de lectura: cancha por cancha, de arriba hacia abajo (el mismo del Tab).
   turnos.sort((a, b) => a.columna - b.columna || a.fila - b.fila);
 
+  // Franjas libres: no en mantenimiento, sin turno ni bloqueo encima, y que un turno de la duración de siempre
+  // todavía no habría terminado (recepción puede cargar uno que se olvidó, como en el club vanilla).
+  const libres: FranjaLibre[] = [];
+  const bloqueos: VistaAgenda["bloqueos"] = [];
+  estado.canchas.forEach((c, columna) => {
+    const { reservas, bloqueos: bs } = ocupantes(estado, fecha, c.id);
+    for (const b of bs) {
+      if (b.canchaId !== c.id && b.canchaId !== "*") continue;
+      const fila = Math.max(0, Math.floor((b.desde - abre) / paso));
+      bloqueos.push({ id: `${b.id}@${c.id}`, columna, fila, alto: Math.max(1, Math.min(filas - fila, Math.round((b.hasta - b.desde) / paso))), motivo: b.motivo });
+    }
+    if (c.estado === "mantenimiento") return;
+    for (let m = abre; m < cierra; m += paso) {
+      if (minutosHasta(ahora, fecha, m) + estado.config.duracionTurno <= 0) continue;
+      const tapa = (d: number, h: number) => m < h && m + paso > d;
+      if (reservas.some((r) => tapa(r.inicio, r.inicio + r.duracion)) || bs.some((b) => tapa(b.desde, b.hasta))) continue;
+      const hora = hhmm(m);
+      libres.push({ id: `${c.id}@${m}`, canchaId: c.id, columna, fila: (m - abre) / paso, min: m, hora, etiqueta: `${c.nombre}, ${hora}, libre: reservar` });
+    }
+  });
+
   const minAhora = ahora.fecha === fecha ? ahora.min : null;
   const filaAhora = minAhora !== null && minAhora >= abre && minAhora <= cierra ? (minAhora - abre) / paso : null;
 
@@ -177,10 +214,10 @@ export function armarAgenda(estado: EstadoClub, fecha: Fecha, ahora: Ahora): Vis
     .filter(Boolean)
     .join(" · ");
 
-  const vista: Omit<VistaAgenda, "firma"> = { fecha, canchas, paso, desde: abre, filas, horas, turnos, ahora: filaAhora, resumen };
+  const vista: Omit<VistaAgenda, "firma"> = { fecha, canchas, paso, desde: abre, filas, horas, turnos, libres, bloqueos, ahora: filaAhora, resumen };
   return {
     ...vista,
-    firma: [fecha, abre, cierra, paso, filaAhora, resumen, canchas.map((c) => `${c.id}:${c.nombre}:${c.detalle}`).join(","), turnos.map((t) => t.firma).join("|")].join("#"),
+    firma: [fecha, abre, cierra, paso, filaAhora, resumen, canchas.map((c) => `${c.id}:${c.nombre}:${c.detalle}`).join(","), turnos.map((t) => t.firma).join("|"), libres.map((l) => l.id).join(","), bloqueos.map((b) => `${b.id}:${b.fila}:${b.alto}`).join(",")].join("#"),
   };
 }
 
@@ -203,7 +240,13 @@ export function compartirAgenda(previa: VistaAgenda | null, nueva: VistaAgenda):
   });
   const canchas = previa.canchas.length === nueva.canchas.length && previa.canchas.every((c, i) => c.id === nueva.canchas[i].id && c.nombre === nueva.canchas[i].nombre && c.detalle === nueva.canchas[i].detalle) ? previa.canchas : nueva.canchas;
   const horas = previa.desde === nueva.desde && previa.filas === nueva.filas && previa.paso === nueva.paso ? previa.horas : nueva.horas;
-  return { ...nueva, turnos, canchas, horas };
+  const libresViejas = new Map(previa.libres.map((l) => [l.id, l]));
+  const libres = nueva.libres.map((l) => {
+    const v = libresViejas.get(l.id);
+    return v && v.fila === l.fila && v.etiqueta === l.etiqueta ? v : l;
+  });
+  const mismosLibres = libres.length === previa.libres.length && libres.every((l, i) => l === previa.libres[i]);
+  return { ...nueva, turnos, canchas, horas, libres: mismosLibres ? previa.libres : libres };
 }
 
 export type Direccion = "arriba" | "abajo" | "izquierda" | "derecha";

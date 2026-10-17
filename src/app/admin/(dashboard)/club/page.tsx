@@ -25,9 +25,9 @@ export default async function ClubPage() {
   const slug = await getCurrentTenantSlug();
   return (
     <PageContainer>
-      <PageHeader title="Canchas del club" description="Las canchas de hoy y la cuenta de cada turno: cobrar todo, cobrar a un jugador y «a cargo de»." />
+      <PageHeader title="Canchas del club" description="Las canchas de hoy, la cuenta de cada turno, el buffet y la caja de 12 a 12." />
       {/* Sin slug (no debería pasar con sesión) el negocio se distingue por su id: la clave nunca queda "de todos". */}
-      <ClubCargador negocio={slug ?? user.tenantId} usuario={user.id} />
+      <ClubCargador negocio={slug ?? user.tenantId} usuario={user.id} rol={user.role} />
     </PageContainer>
   );
 }

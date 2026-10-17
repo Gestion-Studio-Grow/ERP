@@ -28,7 +28,7 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import ClubDemo from "@/app/admin/(dashboard)/club/ClubDemo";
 window.__montar = (negocio, usuario) =>
-  createRoot(document.getElementById("root")).render(createElement(ClubDemo, { negocio, usuario }));
+  createRoot(document.getElementById("root")).render(createElement(ClubDemo, { negocio, usuario, rol: "RECEPTION" }));
 `;
 
 // Un gancho con la forma del de las DevTools de React: en cada commit recorre el árbol y anota qué componentes
@@ -176,7 +176,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     // «A cargo de»: la parte de Tomás la paga Sofía. La agenda no se repinta (la grilla no cambió).
     let antes = await renders(page);
     await cuenta.getByLabel("Parte de la cancha de Tomás Medina").selectOption({ label: "A cargo de Sofía Gómez" });
-    await cuenta.getByRole("status").filter({ hasText: "esa parte de la cancha la paga otro jugador" }).waitFor();
+    await page.getByRole("status").filter({ hasText: "esa parte de la cancha la paga otro jugador" }).waitFor();
     const porACargo = resta(await renders(page), antes);
     t.diagnostic(`renders por «a cargo de»: ${JSON.stringify(porACargo)}`);
     assert.equal(porACargo.AgendaCanchas, undefined, "la agenda no se repinta por un «a cargo de»");
@@ -190,7 +190,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     antes = await renders(page);
     const t0 = await page.evaluate(() => performance.now());
     await cuenta.getByRole("button", { name: "Cobrar $ 14.000 a Sofía Gómez" }).click();
-    await cuenta.getByRole("status").filter({ hasText: "Cobrado $ 14.000 a Sofía Gómez, con lo de Tomás Medina." }).waitFor();
+    await page.getByRole("status").filter({ hasText: "Cobrado $ 14.000 a Sofía Gómez, con lo de Tomás Medina." }).waitFor();
     const msCobro = (await page.evaluate(() => performance.now())) - t0;
     const porCobro = resta(await renders(page), antes);
     t.diagnostic(`renders por cobrar a un jugador: ${JSON.stringify(porCobro)} · ${msCobro.toFixed(1)} ms del clic al aviso`);
@@ -199,7 +199,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
 
     // Cobrar todo: la cuenta queda en cero, sin botones de cobro, y el turno de la grilla deja de deber.
     await cuenta.getByRole("button", { name: "Cobrar todo $ 18.000" }).click();
-    await cuenta.getByRole("status").filter({ hasText: "Cobrado todo el turno: $ 18.000" }).waitFor();
+    await page.getByRole("status").filter({ hasText: "Cobrado todo el turno: $ 18.000" }).waitFor();
     await totales.getByText("$ 0").last().waitFor();
     assert.equal(await cuenta.getByRole("button", { name: /^Cobrar/ }).count(), 0, "no queda nada por cobrar");
     assert.equal(await page.getByRole("button", { name: /^Martín Ríos, Cancha 1,.*En cancha, debe/ }).count(), 0);
@@ -214,10 +214,10 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await turnoDeMartin(page).click();
     const cuenta = page.getByRole("region", { name: "Martín Ríos" });
     await cuenta.getByRole("button", { name: "Cobrar la cancha $ 21.000 y cerrarla · la mesa sigue" }).click();
-    await cuenta.getByRole("status").filter({ hasText: "Cancha cerrada y libre (cobrados $ 21.000). La mesa sigue abierta" }).waitFor();
+    await page.getByRole("status").filter({ hasText: "Cancha cerrada y libre (cobrados $ 21.000). La mesa sigue abierta" }).waitFor();
     await cuenta.getByText("Cancha cerrada · la mesa sigue").waitFor();
     await cuenta.getByRole("button", { name: "Cobrar y cerrar los cargos $ 11.000" }).click();
-    await cuenta.getByRole("status").filter({ hasText: "Cargos cerrados: cobrados $ 11.000." }).waitFor();
+    await page.getByRole("status").filter({ hasText: "Cargos cerrados: cobrados $ 11.000." }).waitFor();
     await page.getByRole("button", { name: /^Martín Ríos, Cancha 1,.*Cancha cerrada\./ }).waitFor();
 
     await page.keyboard.press("Escape");
@@ -255,10 +255,24 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
       const chicos = await page.evaluate(() =>
         [...document.querySelectorAll("button, select, label:has(input[type=radio])")]
           .map((el) => ({ el, r: el.getBoundingClientRect() }))
+          // Las franjas libres de la grilla son un atajo de 28 px (WCAG 2.5.8 pide 24): el camino de 44 px es «+ Turno».
+          .filter(({ el }) => !(el.getAttribute("aria-label") ?? "").endsWith("libre: reservar"))
           .filter(({ r }) => r.width > 0 && (r.height < 44 || r.width < 44))
           .map(({ el, r }) => `${(el.getAttribute("aria-label") ?? el.textContent ?? "").slice(0, 40)} (${Math.round(r.width)}×${Math.round(r.height)})`),
       );
       assert.deepEqual(chicos, [], `a ${viewport.width} px hay objetivos de menos de 44 px`);
+      for (const solapa of ["Buffet", "Caja"]) {
+        await page.getByRole("tab", { name: solapa }).click();
+        const chicosSolapa = await page.evaluate(() =>
+          [...document.querySelectorAll("[role=tabpanel] button, [role=tabpanel] select, [role=tabpanel] input:not([type=radio]), [role=tabpanel] label:has(input[type=radio])")]
+            .map((el) => ({ el, r: el.getBoundingClientRect() }))
+            .filter(({ r }) => r.width > 0 && (r.height < 44 || r.width < 44))
+            .map(({ el, r }) => `${(el.getAttribute("aria-label") ?? el.textContent ?? "").slice(0, 40)} (${Math.round(r.width)}×${Math.round(r.height)})`),
+        );
+        assert.deepEqual(chicosSolapa, [], `${solapa} a ${viewport.width} px`);
+        const corre = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        assert.ok(corre <= 0, `${solapa} a ${viewport.width} px se corre ${corre} px`);
+      }
       const desborde = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       assert.ok(desborde <= 0, `a ${viewport.width} px la página se corre de costado ${desborde} px`);
       assert.deepEqual(errores, []);
@@ -272,7 +286,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await turnoDeMartin(page).click();
     const cuenta = page.getByRole("region", { name: "Martín Ríos" });
     await cuenta.getByRole("button", { name: "Cobrar todo $ 32.000" }).click();
-    await cuenta.getByRole("status").filter({ hasText: "Cobrado todo el turno" }).waitFor();
+    await page.getByRole("status").filter({ hasText: "Cobrado todo el turno" }).waitFor();
     await page.waitForFunction(() => localStorage.getItem("gsg-club:demo-club:u_recepcion:v1") !== null);
     const claves = await page.evaluate(() => Object.keys(localStorage));
     assert.deepEqual(claves, ["gsg-club:demo-club:u_recepcion:v1"], "una sola clave, del negocio y la persona");
@@ -287,6 +301,111 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await page.getByRole("button", { name: "Volver a la demo" }).click();
     await page.getByRole("status").filter({ hasText: "volviste a la demo de hoy" }).waitFor();
     await turnoDeMartin(page).waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+  test("dar un turno: «+ Turno», la previa con precio y seña, reservar abre su cuenta, cobrar la seña y «Deshacer»", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar();
+    await page.getByRole("button", { name: "+ Turno" }).click();
+    const alta = page.getByRole("region", { name: "Dar un turno" });
+    await alta.waitFor();
+    await alta.getByLabel("Cancha").selectOption({ label: "Cancha 4 (descubierta)" });
+    await alta.getByLabel("Cuánto juegan").selectOption({ label: "1 hora" });
+    await alta.getByLabel("A nombre de").fill("Turno de prueba");
+    await alta.getByRole("status").filter({ hasText: /\$ [\d.]+ · horario (pico|valle) · pide seña de \$/ }).waitFor();
+    assert.equal(await page.getByRole("button", { name: /^Turno de prueba, / }).count(), 0);
+    await alta.getByRole("button", { name: "Reservar el turno" }).click();
+    await page.getByRole("status").filter({ hasText: /^Turno de Turno de prueba en Cancha 4, .* Pide seña de/ }).waitFor();
+    const cuenta = page.getByRole("region", { name: "Turno de prueba" });
+    await cuenta.waitFor();
+    await page.getByRole("button", { name: /^Turno de prueba, Cancha 4/ }).waitFor();
+
+    await cuenta.getByRole("button", { name: /^Cobrar la seña \$/ }).click();
+    await page.getByRole("status").filter({ hasText: /^Seña cobrada: \$ [\d.]+\. Ya se puede abrir la cancha\./ }).waitFor();
+    await cuenta.getByText("✔ pagada").waitFor();
+
+    // Deshacer la seña: vuelve a pendiente. (Sólo la última acción.)
+    await page.getByRole("button", { name: "Deshacer" }).click();
+    await page.getByRole("status").filter({ hasText: /^Listo, se deshizo: Seña cobrada/ }).waitFor();
+    await cuenta.getByText("pendiente").waitFor();
+    assert.equal(await page.getByRole("button", { name: "Deshacer" }).count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("cargar del buffet a un jugador NO repinta la agenda; con «Créditos del cliente» aparece la confirmación y no quedan negativos", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar();
+    await turnoDeMartin(page).click();
+    const cuenta = page.getByRole("region", { name: "Martín Ríos" });
+    await cuenta.getByLabel("Para quién").selectOption({ label: "Tomás Medina" });
+    const antes = await renders(page);
+    await cuenta.getByLabel(/^Código o producto/).fill("bp-002");
+    await cuenta.getByLabel(/^Código o producto/).press("Enter");
+    await page.getByRole("status").filter({ hasText: "1 × Agua 500 ml a la cuenta de Tomás Medina." }).waitFor();
+    const porCargo = resta(await renders(page), antes);
+    t.diagnostic(`renders por cargar un producto: ${JSON.stringify(porCargo)}`);
+    assert.equal(porCargo.AgendaCanchas, undefined, "la agenda no se repinta por un cargo");
+    assert.equal(porCargo.BloqueTurno, undefined);
+    await cuenta.getByLabel("Totales del turno").getByText("$ 13.000").waitFor();
+
+    // Martín tiene $ 15.000 de créditos: cobrarle sus cargos ($ 11.000) con créditos pide el paso previo.
+    await cuenta.getByText("Créditos del cliente ($ 15.000)").click();
+    await cuenta.getByRole("button", { name: "Cobrar $ 11.000 a Martín Ríos" }).click();
+    const conf = cuenta.getByRole("group", { name: "¿Usamos los créditos de Martín Ríos?" });
+    await conf.getByText("$ 4.000").waitFor();
+    await conf.getByRole("button", { name: "Sí, usar $ 11.000 de créditos" }).click();
+    await page.getByRole("status").filter({ hasText: "Cobrado $ 11.000 a Martín Ríos con sus créditos." }).waitFor();
+    // Le quedan $ 4.000: no alcanzan para la parte de nadie de $ 7.000 → la confirmación no aparece y avisa.
+    assert.equal(await cuenta.getByText("Créditos del cliente ($ 4.000)").count(), 1);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("buffet: fiar con el OK del dueño (código de 6 letras) y pasar a cuenta corriente; caja: egreso y cierre con diferencia", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar();
+    await page.getByRole("tab", { name: "Buffet" }).click();
+    // Julieta ya tiene un pedido de cuenta corriente esperando (viene en la demo); Federico no tiene ninguno.
+    await page.getByRole("article", { name: "Julieta Acosta" }).getByText("habilitarle la cuenta corriente hasta $ 60.000", { exact: false }).first().waitFor();
+    const tarjeta = page.getByRole("article", { name: "Federico Luna" });
+    await tarjeta.getByRole("button", { name: "Pedir OK para fiar $ 22.100" }).click();
+    await page.getByRole("status").filter({ hasText: "Pedido enviado: fiarle $ 22.100 a Federico Luna." }).waitFor();
+    await tarjeta.getByLabel(/^Código del dueño/).fill("AAA-AAA");
+    await tarjeta.getByRole("button", { name: "Aprobar" }).click();
+    await page.getByRole("alert").filter({ hasText: "(1 de 5)" }).waitFor();
+    await tarjeta.getByText("Quedan 4 intentos.").waitFor();
+    await tarjeta.getByRole("button", { name: /^Ver el código que le llega al dueño/ }).click();
+    const codigo = (await tarjeta.locator("strong.tabular-nums").textContent())!;
+    assert.match(codigo, /^[A-Z2-9]{3}-[A-Z2-9]{3}$/);
+    await tarjeta.getByLabel(/^Código del dueño/).fill(codigo);
+    await tarjeta.getByRole("button", { name: "Aprobar" }).click();
+    await page.getByRole("status").filter({ hasText: /^Aprobado por .*: ya podés pasar \$ 22\.100/ }).waitFor();
+    await tarjeta.getByRole("button", { name: "A su cuenta corriente" }).click();
+    await page.getByRole("status").filter({ hasText: "$ 22.100 a la cuenta corriente de Federico Luna. Cuenta cerrada." }).waitFor();
+    assert.equal(await page.getByRole("article", { name: "Federico Luna" }).count(), 0);
+
+    await page.getByRole("tab", { name: "Caja" }).click();
+    const efectivo = async () => (await page.getByText("Efectivo en el cajón").locator("xpath=following-sibling::dd").textContent())!;
+    const antes = await efectivo();
+    await page.getByLabel("Monto").fill("2500");
+    await page.getByLabel(/^Concepto/).fill("Hielo");
+    await page.getByRole("button", { name: "Anotar el egreso" }).click();
+    await page.getByRole("status").filter({ hasText: "Egreso de $ 2.500 (Hielo) anotado" }).waitFor();
+    const numero = (x: string) => Number(x.replace(/\D/g, ""));
+    assert.equal(numero(await efectivo()), numero(antes) - 2500);
+    await page.getByLabel("Efectivo contado", { exact: true }).fill(String(numero(await efectivo()) + 500));
+    await page.getByRole("button", { name: "Cerrar la caja" }).click();
+    await page.getByRole("status").filter({ hasText: /^Caja del .* cerrada: sobran \$ 500\./ }).waitFor();
+    // Las de días anteriores que quedaron sin cerrar se avisan en rojo y se cierran eligiendo el día.
+    const aviso = page.getByRole("alert").filter({ hasText: /cajas? sin cerrar/ });
+    if (await aviso.count()) {
+      await page.getByLabel(/^Efectivo contado de la caja del/).fill("0");
+      await page.getByRole("button", { name: "Cerrar esa caja" }).click();
+      await page.getByRole("status").filter({ hasText: /^Caja del .* cerrada/ }).waitFor();
+    }
+    await page.getByRole("heading", { name: "Cierres" }).waitFor();
     assert.deepEqual(errores, []);
     await page.close();
   });

@@ -12,6 +12,7 @@
 
 import dynamic from "next/dynamic";
 import { Esqueleto } from "@/components/ui/Esqueleto";
+import type { Role } from "@/lib/capabilities";
 
 function Cargando() {
   return (
@@ -27,6 +28,6 @@ function Cargando() {
 
 const ClubDemo = dynamic(() => import("./ClubDemo"), { ssr: false, loading: Cargando });
 
-export default function ClubCargador({ negocio, usuario }: { negocio: string; usuario: string }) {
-  return <ClubDemo negocio={negocio} usuario={usuario} />;
+export default function ClubCargador({ negocio, usuario, rol }: { negocio: string; usuario: string; rol: Role }) {
+  return <ClubDemo negocio={negocio} usuario={usuario} rol={rol} />;
 }

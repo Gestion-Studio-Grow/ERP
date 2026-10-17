@@ -7,26 +7,43 @@
 // Lo que se abre al tocar un turno (pedido del club, validado con el dueño). De arriba abajo, en el
 // orden en que se usa con gente en el mostrador:
 //   1. quién y qué cancha, y los totales: la cancha, los cargos y lo que falta cobrar;
-//   2. cómo paga (efectivo, Mercado Pago, transferencia, débito): vale para todos los cobros;
+//   2. cómo paga (efectivo, Mercado Pago, transferencia, débito y, si tiene, los créditos del cliente,
+//      con el paso previo de confirmación): vale para todos los cobros;
 //   3. una fila por jugador con lo suyo y su botón «Cobrar $X», y sus «a cargo de» (la cancha y los
 //      cargos: el que invita paga lo del otro);
-//   4. los cierres: «Cobrar todo», «Cobrar la cancha y cerrarla · la mesa sigue» y, con la cancha
-//      cerrada, «Cobrar y cerrar los cargos».
-// Lo que pasó se anuncia en el mismo lugar: «Cobrado $X a Ana» (role="status") o el motivo del motor
-// si no se pudo (role="alert"). Nada se anima: se toca cien veces por día.
+//   4. los cierres: «Cobrar la seña», «Cobrar todo», «Cobrar la cancha y cerrarla · la mesa sigue» y, con
+//      la cancha cerrada, «Cobrar y cerrar los cargos» o pasarlos a cuenta corriente;
+//   5. sumar un cargo del buffet a un jugador (por código del lector o por nombre): a su cuenta o cobrado.
+// Lo que pasó se anuncia en la barra de avisos del club (con «Deshacer»). Nada se anima: se toca cien
+// veces por día.
 //
-// La vista sale de `armarCuenta` y cada toque va a `ejecutar` (cuenta-core.ts): la pantalla no suma
-// ni decide nada de plata.
+// La vista sale de `armarCuenta` y cada toque va a `ejecutar` (cuenta-core.ts) por el almacén: la
+// pantalla no suma ni decide nada de plata.
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Field";
 import { Marca } from "@/components/ui/Marca";
 import { cn } from "@/components/ui/cn";
 import { pesos } from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
-import { ETIQUETA_MEDIO, MEDIOS_CAJA, armarCuenta, ejecutar, textoCierre, type AccionCuenta, type Desenlace, type FilaJugador, type MedioCaja, type VistaCuenta } from "./cuenta-core";
-import { porFirma, useSeleccion } from "./usar-almacen";
+import { productosParaCargar } from "./buffet-core";
+import {
+  DESHACIBLE,
+  armarCuenta,
+  compartirCuenta,
+  confirmarCreditos,
+  ejecutar,
+  textoCierre,
+  type AccionCuenta,
+  type FilaJugador,
+  type MedioCaja,
+  type MedioCobro,
+  type VistaCuenta,
+} from "./cuenta-core";
+import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
+import { useSeleccion } from "./usar-almacen";
 
 function SelectorACargo({
   id,
@@ -62,15 +79,15 @@ function SelectorACargo({
   );
 }
 
-function FilaDeJugador({
+const FilaDeJugador = memo(function FilaDeJugador({
   fila,
   reservaId,
-  medio,
+  onCobrar,
   onAccion,
 }: {
   fila: FilaJugador;
   reservaId: string;
-  medio: MedioCaja;
+  onCobrar: (idx: number) => void;
   onAccion: (a: AccionCuenta) => void;
 }) {
   const base = `${reservaId}-${fila.idx}`;
@@ -82,10 +99,13 @@ function FilaDeJugador({
             {fila.nombre}
             {fila.deudor && <span className="ml-2 text-xs font-semibold text-danger">⚠ cuenta con deuda</span>}
           </p>
-          <p className="text-sm tabular-nums text-muted">{fila.detalle}</p>
+          <p className="text-sm tabular-nums text-muted">
+            {fila.detalle}
+            {fila.creditos > 0 ? ` · créditos ${pesos(fila.creditos)}` : ""}
+          </p>
         </div>
         {fila.aPagar > 0 ? (
-          <Button variant="outline" size="md" onClick={() => onAccion({ tipo: "cobrarJugador", idx: fila.idx, medio })}>
+          <Button variant="outline" size="md" onClick={() => onCobrar(fila.idx)}>
             Cobrar {pesos(fila.aPagar)}
             <span className="sr-only"> a {fila.nombre}</span>
           </Button>
@@ -129,7 +149,7 @@ function FilaDeJugador({
       )}
     </li>
   );
-}
+});
 
 function Totales({ vista }: { vista: VistaCuenta }) {
   const T = vista.totales;
@@ -151,36 +171,126 @@ function Totales({ vista }: { vista: VistaCuenta }) {
   );
 }
 
-function ComoPaga({ medio, onElegir }: { medio: MedioCaja; onElegir: (m: MedioCaja) => void }) {
-  const nombre = useId();
+/**
+ * Sumar un cargo del buffet a un jugador. El campo acepta lo que pasa el lector (código + Enter: con el foco en el
+ * campo, cualquier lector de teclado anda) o un nombre; Enter con un código exacto carga directo.
+ */
+function SumarCargo({ almacen, vista, medio, onAccion }: { almacen: Almacen; vista: VistaCuenta; medio: MedioCobro; onAccion: (a: AccionCuenta) => void }) {
+  const [jugador, setJugador] = useState(0);
+  const [texto, setTexto] = useState("");
+  const [cant, setCant] = useState("1");
+  const [modo, setModo] = useState<"cuenta" | "cobrar">("cuenta");
+  const idBusca = useId();
+  const idCant = useId();
+  const idJug = useId();
+  const nombreModo = useId();
+  const { porCodigo, productos } = productosParaCargar(almacen.estado(), texto);
+  const n = Math.max(1, Math.round(Number(cant)) || 1);
+  const medioCaja: MedioCaja = medio === "monedero" ? "efectivo" : medio;
+  const cargar = (productoId: string) => {
+    onAccion({ tipo: "cargo", idx: jugador, productoId, cant: n, modo, medio: medioCaja });
+    setTexto("");
+    setCant("1");
+  };
   return (
-    <fieldset className="min-w-0">
-      <legend className="mb-1 text-sm font-medium text-strong">Cómo paga</legend>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
-        {MEDIOS_CAJA.map((m) => (
+    <section aria-labelledby={`${idBusca}-t`} className="flex flex-col gap-2 border-t border-line pt-3">
+      <h3 id={`${idBusca}-t`} className="text-sm font-semibold text-strong">
+        Sumar un cargo del buffet
+      </h3>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_6rem]">
+        <div className="flex flex-col gap-1">
+          <label htmlFor={idJug} className="text-xs font-medium text-muted">
+            Para quién
+          </label>
+          <select
+            id={idJug}
+            value={jugador}
+            onChange={(e) => setJugador(Number(e.target.value))}
+            className="h-11 rounded-md border border-line-strong bg-surface-raised px-2 text-sm text-strong focus-visible:outline-2 focus-visible:outline-focus"
+          >
+            {vista.jugadores.map((j) => (
+              <option key={j.idx} value={j.idx}>
+                {j.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor={idCant} className="text-xs font-medium text-muted">
+            Cantidad
+          </label>
+          <Input id={idCant} inputMode="numeric" value={cant} onChange={(e) => setCant(e.target.value)} />
+        </div>
+      </div>
+      <fieldset className="flex flex-wrap gap-2">
+        <legend className="sr-only">Cómo se carga</legend>
+        {(
+          [
+            ["cuenta", "Sumar a su cuenta"],
+            ["cobrar", `Cobrar ahora (${medio === "monedero" ? "efectivo" : "el medio de arriba"})`],
+          ] as const
+        ).map(([v, t]) => (
           <label
-            key={m}
+            key={v}
             className={cn(
-              "flex min-h-11 cursor-pointer items-center justify-center rounded-md border px-2 text-center text-sm",
-              "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-focus",
-              medio === m ? "border-accent bg-accent-soft font-semibold text-strong" : "border-line-strong bg-surface-raised text-body",
+              "flex min-h-11 cursor-pointer items-center rounded-md border px-3 text-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-focus",
+              modo === v ? "border-accent bg-accent-soft font-semibold text-strong" : "border-line-strong bg-surface-raised",
             )}
           >
-            <input type="radio" name={nombre} value={m} checked={medio === m} onChange={() => onElegir(m)} className="sr-only" />
-            {ETIQUETA_MEDIO[m]}
+            <input type="radio" name={nombreModo} value={v} checked={modo === v} onChange={() => setModo(v)} className="sr-only" />
+            {t}
           </label>
         ))}
+      </fieldset>
+      <div className="flex flex-col gap-1">
+        <label htmlFor={idBusca} className="text-xs font-medium text-muted">
+          Código o producto (pasá el lector o escribí)
+        </label>
+        <Input
+          id={idBusca}
+          value={texto}
+          autoComplete="off"
+          onChange={(e) => setTexto(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && productos.length === 1 && (porCodigo || texto.trim())) {
+              e.preventDefault();
+              cargar(productos[0].id);
+            }
+          }}
+          aria-describedby={`${idBusca}-r`}
+        />
       </div>
-    </fieldset>
+      <p id={`${idBusca}-r`} className="sr-only" aria-live="polite">
+        {texto.trim() ? (productos.length ? `${productos.length} productos` : "No hay productos con eso") : ""}
+      </p>
+      {texto.trim() !== "" && (
+        <ul aria-label="Productos para cargar" className="grid grid-cols-1 gap-1">
+          {productos.length === 0 && <li className="text-sm text-muted">No hay productos con eso.</li>}
+          {productos.map((p) => (
+            <li key={p.id}>
+              <Button variant="ghost" size="md" className="w-full justify-between!" onClick={() => cargar(p.id)}>
+                <span className="truncate">
+                  {n} × {p.nombre}
+                </span>
+                <span className="tabular-nums text-muted">
+                  {pesos(n * p.precio)} · {p.stock}
+                </span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
 export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almacen: Almacen; reservaId: string; onVolver: () => void }) {
   const seleccionar = useCallback((e: EstadoClub) => armarCuenta(e, reservaId), [reservaId]);
-  const vista = useSeleccion(almacen, seleccionar, porFirma);
-  const [medio, setMedio] = useState<MedioCaja>("efectivo");
-  const [desenlace, setDesenlace] = useState<Desenlace | null>(null);
+  const vista = useSeleccion(almacen, seleccionar, compartirCuenta);
+  const [medio, setMedio] = useState<MedioCobro>("efectivo");
+  const [confirmando, setConfirmando] = useState<{ datos: DatosConfirmacion; accion: AccionCuenta } | null>(null);
   const titulo = useRef<HTMLHeadingElement>(null);
+  const seccion = useRef<HTMLElement>(null);
   const idTitulo = useId();
 
   // Al abrir otro turno, el foco va a su cuenta (en el celular, además, la trae a la vista).
@@ -188,17 +298,34 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
     titulo.current?.focus();
   }, [reservaId]);
 
-  const seccion = useRef<HTMLElement>(null);
   const onAccion = useCallback(
     (a: AccionCuenta) => {
-      setDesenlace(almacen.aplicar((estado, ahora) => ejecutar(estado, reservaId, a, ahora)));
+      setConfirmando(null);
+      almacen.ejecutar((estado, ahora, auth) => ejecutar(estado, reservaId, a, ahora, auth), { deshacible: DESHACIBLE[a.tipo] });
       // Si la tecla tocada desapareció (ya no hay nada que cobrar), el foco no se pierde en la página:
-      // vuelve al título de la cuenta, al lado del aviso.
+      // vuelve al título de la cuenta.
       requestAnimationFrame(() => {
         if (seccion.current && !seccion.current.contains(document.activeElement)) titulo.current?.focus();
       });
     },
     [almacen, reservaId],
+  );
+
+  // Con «Créditos del cliente» se cobra jugador por jugador (o la seña), y SIEMPRE con el paso previo.
+  const pedirCreditos = useCallback(
+    (accion: AccionCuenta & { tipo: "cobrarJugador" | "cobrarSena" }) => {
+      const c = confirmarCreditos(almacen.estado(), reservaId, accion.tipo === "cobrarSena" ? { tipo: "cobrarSena" } : { tipo: "cobrarJugador", idx: accion.idx });
+      if (!c.ok) {
+        almacen.informar({ ok: false, mensaje: c.motivo });
+        return;
+      }
+      setConfirmando({ datos: c, accion });
+    },
+    [almacen, reservaId],
+  );
+  const onCobrar = useCallback(
+    (idx: number) => (medio === "monedero" ? pedirCreditos({ tipo: "cobrarJugador", idx, medio }) : onAccion({ tipo: "cobrarJugador", idx, medio })),
+    [medio, onAccion, pedirCreditos],
   );
 
   if (!vista) {
@@ -213,7 +340,10 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
   }
 
   const { cierres } = vista;
-  const hayQueCobrar = vista.totales.pendiente > 0;
+  const hayQueCobrar = vista.totales.pendiente > 0 || cierres.cobrarSena !== null;
+  const creditos = Math.max(vista.creditosTitular, ...vista.jugadores.map((j) => j.creditos));
+  const conCreditos = medio === "monedero";
+  const medioCaja = medio as MedioCaja;
   return (
     <section
       ref={seccion}
@@ -244,18 +374,36 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
         </p>
       )}
 
-      {hayQueCobrar && <ComoPaga medio={medio} onElegir={setMedio} />}
+      {hayQueCobrar && <ComoPaga medio={medio} onElegir={(m) => {
+            setMedio(m);
+            setConfirmando(null);
+          }} conCreditos={creditos} angosto />}
+      {confirmando && (
+        <ConfirmarCreditos datos={confirmando.datos} onSi={() => onAccion(confirmando.accion)} onNo={() => {
+            setConfirmando(null);
+            setMedio("efectivo");
+          }} />
+      )}
 
       <ul aria-label="Jugadores del turno">
         {vista.jugadores.map((f) => (
-          <FilaDeJugador key={f.idx} fila={f} reservaId={vista.reservaId} medio={medio} onAccion={onAccion} />
+          <FilaDeJugador key={f.idx} fila={f} reservaId={vista.reservaId} onCobrar={onCobrar} onAccion={onAccion} />
         ))}
       </ul>
       {vista.deOtraMesa && <p className="text-sm text-muted">{vista.deOtraMesa}</p>}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        {cierres.cobrarTodo !== null && (
-          <Button variant="solid" size="md" onClick={() => onAccion({ tipo: "cobrarTodo", medio })}>
+        {cierres.cobrarSena !== null && (
+          <Button
+            variant="solid"
+            size="md"
+            onClick={() => (conCreditos ? pedirCreditos({ tipo: "cobrarSena", medio }) : onAccion({ tipo: "cobrarSena", medio }))}
+          >
+            Cobrar la seña {pesos(cierres.cobrarSena)}
+          </Button>
+        )}
+        {cierres.cobrarTodo !== null && !conCreditos && (
+          <Button variant={cierres.cobrarSena !== null ? "outline" : "solid"} size="md" onClick={() => onAccion({ tipo: "cobrarTodo", medio: medioCaja })}>
             {textoCierre("cobrarTodo", cierres.cobrarTodo)}
           </Button>
         )}
@@ -264,33 +412,29 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
             Abrir la cancha
           </Button>
         )}
-        {cierres.cerrarYSeguir !== null && (
-          <Button variant="outline" size="md" className="h-auto! min-h-11 whitespace-normal! py-2" onClick={() => onAccion({ tipo: "cerrarYSeguir", medio })}>
+        {cierres.cerrarYSeguir !== null && !conCreditos && (
+          <Button variant="outline" size="md" className="h-auto! min-h-11 whitespace-normal! py-2" onClick={() => onAccion({ tipo: "cerrarYSeguir", medio: medioCaja })}>
             {textoCierre("cerrarYSeguir", cierres.cerrarYSeguir)}
           </Button>
         )}
-        {cierres.cerrarCargos !== null && (
-          <Button variant="outline" size="md" onClick={() => onAccion({ tipo: "cerrarCargos", medio })}>
+        {cierres.cerrarCargos !== null && !conCreditos && (
+          <Button variant="outline" size="md" onClick={() => onAccion({ tipo: "cerrarCargos", medio: medioCaja })}>
             {textoCierre("cerrarCargos", cierres.cerrarCargos)}
           </Button>
         )}
+        {cierres.cargosACuenta && (
+          <Button variant="outline" size="md" onClick={() => onAccion({ tipo: "cargosACuenta" })}>
+            Cargos a cuenta corriente
+          </Button>
+        )}
       </div>
-      {cierres.cerrarYSeguir !== null && (
+      {conCreditos && <p className="text-sm text-muted">Con créditos se cobra jugador por jugador (o la seña): elegí a quién.</p>}
+      {cierres.cerrarYSeguir !== null && !conCreditos && (
         <p className="text-sm text-muted">
           «La mesa sigue»: se cobra la cancha y queda libre para el turno siguiente. Los cargos siguen abiertos y se cobran cuando se van.
         </p>
       )}
-
-      {/* Las dos regiones están siempre (vacías no ocupan lugar): un aviso que aparece junto con su
-          región no se anuncia en todos los lectores. */}
-      <div className="text-sm font-medium">
-        <p role="status" className="text-success">
-          {desenlace?.ok ? desenlace.mensaje : ""}
-        </p>
-        <p role="alert" className="text-danger">
-          {desenlace && !desenlace.ok ? desenlace.mensaje : ""}
-        </p>
-      </div>
+      <SumarCargo almacen={almacen} vista={vista} medio={medio} onAccion={onAccion} />
     </section>
   );
 }

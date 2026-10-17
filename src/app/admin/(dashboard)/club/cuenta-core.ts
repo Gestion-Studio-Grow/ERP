@@ -29,6 +29,10 @@ import {
   cancha as canchaDe,
   checkIn,
   cerrarCanchaYSeguir,
+  cobrado,
+  consumoJugador,
+  producto as productoDe,
+  registrarPago,
   cerrarCargosDelTurno,
   cliente as clienteDe,
   cobrarJugador,
@@ -40,17 +44,24 @@ import {
   reserva as reservaDe,
   saldo,
 } from "@/lib/club/motor.mjs";
-import type { Ahora, EstadoClub, EstadoReserva, Medio, Resultado } from "@/lib/club/motor.mjs";
+import type { Ahora, Auth, EstadoClub, EstadoReserva, Medio, Resultado } from "@/lib/club/motor.mjs";
+import type { Desenlace } from "./almacen";
+
+export type { Desenlace };
 
 /** Los medios que entran a la caja (los créditos del cliente llegan con la rebanada del crédito). */
 export const MEDIOS_CAJA = ["efectivo", "mercadopago", "transferencia", "debito"] as const satisfies readonly Medio[];
 export type MedioCaja = (typeof MEDIOS_CAJA)[number];
 
-export const ETIQUETA_MEDIO: Readonly<Record<MedioCaja, string>> = {
+/** Los de caja más los créditos del cliente (no entran a la caja: se descuentan de su saldo a favor). */
+export type MedioCobro = MedioCaja | "monedero";
+
+export const ETIQUETA_MEDIO: Readonly<Record<MedioCobro, string>> = {
   efectivo: MEDIOS.efectivo,
   mercadopago: MEDIOS.mercadopago,
   transferencia: MEDIOS.transferencia,
   debito: MEDIOS.debito,
+  monedero: "Créditos del cliente",
 };
 
 export interface Opcion {
@@ -81,6 +92,8 @@ export interface FilaJugador {
   situacion: string | null;
   /** El titular de la ficha tiene saldo deudor en su cuenta corriente. */
   deudor: boolean;
+  /** Créditos (saldo a favor) de su ficha; 0 sin ficha. */
+  creditos: number;
   /** «A cargo de» para su parte de la cancha (null: no se puede cambiar ahora). */
   cancha: ACargoDe | null;
   /** «A cargo de» para sus cargos (null: no tiene cuenta abierta o no hay otra a quién pasarlos). */
@@ -101,18 +114,24 @@ export interface VistaCuenta {
   mesaAbierta: boolean;
   totales: { cancha: number; cargos: number; pendiente: number };
   sena: { monto: number; pagada: boolean } | null;
+  /** Créditos del titular (para la seña con créditos); 0 sin ficha. */
+  creditosTitular: number;
   jugadores: FilaJugador[];
   /** «No se cobra acá: los cargos de X ($…) los paga Y en su mesa.» */
   deOtraMesa: string | null;
   cierres: {
     /** «Cobrar todo $X», o null si no debe nada. */
     cobrarTodo: number | null;
+    /** «Cobrar la seña $X»: reservado, con seña sin pagar. */
+    cobrarSena: number | null;
     /** «Abrir la cancha»: el turno está reservado y llega la gente. */
     abrirCancha: boolean;
     /** «Cobrar la cancha $X y cerrarla · la mesa sigue» (monto 0 = «Cerrar la cancha · la mesa sigue»). */
     cerrarYSeguir: number | null;
     /** «Cobrar y cerrar los cargos $X» con la cancha ya cerrada (monto 0 = «Cerrar los cargos»). */
     cerrarCargos: number | null;
+    /** «Cargos a cuenta corriente»: con la cancha cerrada y cargos por cobrar. */
+    cargosACuenta: boolean;
   };
   firma: string;
 }
@@ -174,6 +193,7 @@ export function armarCuenta(estado: EstadoClub, reservaId: string): VistaCuenta 
       aPagar: j.aPagar,
       situacion: j.aPagar > 0 ? null : quienPaga ? `lo paga ${quienPaga}` : "al día",
       deudor: (ficha?.deuda ?? 0) > 0,
+      creditos: ficha?.monedero ?? 0,
       cancha,
       cargos,
       items,
@@ -196,64 +216,100 @@ export function armarCuenta(estado: EstadoClub, reservaId: string): VistaCuenta 
     mesaAbierta: t.mesaAbierta,
     totales: { cancha: T.cancha, cargos: T.cargos, pendiente: T.pendiente },
     sena: r.sena.monto > 0 ? { monto: r.sena.monto, pagada: r.sena.pagada } : null,
+    creditosTitular: (r.clienteId ? clienteDe(estado, r.clienteId)?.monedero : 0) ?? 0,
     jugadores,
     deOtraMesa,
     cierres: {
       cobrarTodo: T.pendiente > 0 ? T.pendiente : null,
+      cobrarSena: senaPendiente(r),
       abrirCancha: r.estado === "reservada",
       cerrarYSeguir,
       cerrarCargos,
+      cargosACuenta: cerrarCargos !== null && T.cargos > 0,
     },
   };
   return { ...vista, firma: JSON.stringify(vista) };
 }
 
+/** Lo que falta de la seña de un turno reservado (null si no pide o ya está pagada). */
+function senaPendiente(r: { estado: EstadoReserva; sena: { monto: number; pagada: boolean }; pagos: { monto: number }[] }): number | null {
+  if (r.estado !== "reservada" || !(r.sena.monto > 0) || r.sena.pagada) return null;
+  const falta = r.sena.monto - r.pagos.reduce((s, p) => s + p.monto, 0);
+  return falta > 0 ? falta : null;
+}
+
 /** Lo que se puede tocar en la cuenta del turno. */
 export type AccionCuenta =
   | { tipo: "cobrarTodo"; medio: MedioCaja }
-  | { tipo: "cobrarJugador"; idx: number; medio: MedioCaja }
+  | { tipo: "cobrarJugador"; idx: number; medio: MedioCobro }
+  | { tipo: "cobrarSena"; medio: MedioCobro }
   | { tipo: "cerrarYSeguir"; medio: MedioCaja }
   | { tipo: "cerrarCargos"; medio: MedioCaja }
+  | { tipo: "cargosACuenta" }
   | { tipo: "abrirCancha" }
   | { tipo: "aCargoCancha"; idx: number; de: string }
-  | { tipo: "aCargoCargos"; cuentaId: string; de: string };
+  | { tipo: "aCargoCargos"; cuentaId: string; de: string }
+  | { tipo: "cargo"; idx: number; productoId: string; cant: number; modo: "cuenta" | "cobrar"; medio: MedioCaja };
 
-/** El resultado de una acción, listo para la pantalla: el aviso y si salió bien. */
-export interface Desenlace {
-  ok: boolean;
-  mensaje: string;
-}
+/** Las acciones que se pueden deshacer (las operativas: como `DESHACIBLES` del club vanilla). Todas las de la cuenta. */
+export const DESHACIBLE: Readonly<Record<AccionCuenta["tipo"], boolean>> = {
+  cobrarTodo: true,
+  cobrarJugador: true,
+  cobrarSena: true,
+  cerrarYSeguir: true,
+  cerrarCargos: true,
+  cargosACuenta: true,
+  abrirCancha: true,
+  aCargoCancha: true,
+  aCargoCargos: true,
+  cargo: true,
+};
 
 /**
  * Ejecuta la acción sobre el estado (lo MUTA, como todo el motor) y devuelve el aviso. Nunca tira:
  * si el motor dice que no, el aviso es su motivo, en criollo.
  */
-export function ejecutar(estado: EstadoClub, reservaId: string, accion: AccionCuenta, ahora: Ahora): Desenlace {
+export function ejecutar(estado: EstadoClub, reservaId: string, accion: AccionCuenta, ahora: Ahora, auth?: Auth): Desenlace {
   const falla = (r: { motivo: string }): Desenlace => ({ ok: false, mensaje: r.motivo });
+  const conAuth = auth?.usuarioId ? { auth } : {};
   switch (accion.tipo) {
     case "cobrarTodo": {
-      const res = cobrarTodoElTurno(estado, reservaId, { medio: accion.medio }, ahora);
+      const res = cobrarTodoElTurno(estado, reservaId, { medio: accion.medio, ...conAuth }, ahora);
       return res.ok ? { ok: true, mensaje: `Cobrado todo el turno: ${pesos(res.total)} (${ETIQUETA_MEDIO[accion.medio]}).` } : falla(res);
     }
     case "cobrarJugador": {
       const t = cuentaDelTurno(estado, reservaId);
       const quien = t.ok ? t.jugadores[accion.idx]?.nombre : undefined;
-      const res = cobrarJugador(estado, reservaId, accion.idx, { medio: accion.medio }, ahora);
+      const res = cobrarJugador(estado, reservaId, accion.idx, { medio: accion.medio, ...conAuth }, ahora);
       if (!res.ok) return falla(res);
       const desglose = res.cancha && res.cargos ? ` (cancha ${pesos(res.cancha)} + cargos ${pesos(res.cargos)})` : "";
       const con = res.cubiertos.length ? `, con lo de ${res.cubiertos.join(", ")}` : "";
-      return { ok: true, mensaje: `Cobrado ${pesos(res.total)} a ${quien ?? "el jugador"}${desglose}${con}.` };
+      const medio = accion.medio === "monedero" ? " con sus créditos" : "";
+      return { ok: true, mensaje: `Cobrado ${pesos(res.total)} a ${quien ?? "el jugador"}${medio}${desglose}${con}.` };
+    }
+    case "cobrarSena": {
+      const r = reservaDe(estado, reservaId);
+      const falta = r ? senaPendiente(r) : null;
+      if (!r || falta === null) return { ok: false, mensaje: "Ese turno no tiene seña para cobrar." };
+      const res = registrarPago(estado, reservaId, { medio: accion.medio, monto: falta, ...conAuth }, ahora);
+      return res.ok ? { ok: true, mensaje: `Seña cobrada: ${pesos(falta)}${accion.medio === "monedero" ? " con créditos" : ""}. Ya se puede abrir la cancha.` } : falla(res);
     }
     case "cerrarYSeguir": {
-      const res = cerrarCanchaYSeguir(estado, reservaId, { medio: accion.medio }, ahora);
+      const res = cerrarCanchaYSeguir(estado, reservaId, { medio: accion.medio, ...conAuth }, ahora);
       if (!res.ok) return falla(res);
       const cobro = res.cobradoCancha ? ` (cobrados ${pesos(res.cobradoCancha)})` : "";
       const mesa = res.cuentasAbiertas.length ? " La mesa sigue abierta y se cobra cuando se van." : "";
       return { ok: true, mensaje: `Cancha cerrada y libre${cobro}.${mesa}` };
     }
     case "cerrarCargos": {
-      const res = cerrarCargosDelTurno(estado, reservaId, { medio: accion.medio }, ahora);
+      const res = cerrarCargosDelTurno(estado, reservaId, { medio: accion.medio, ...conAuth }, ahora);
       return res.ok ? { ok: true, mensaje: `Cargos cerrados${res.cobrado ? `: cobrados ${pesos(res.cobrado)}` : ""}.` } : falla(res);
+    }
+    case "cargosACuenta": {
+      const res = cerrarCargosDelTurno(estado, reservaId, { aCuenta: true, ...conAuth }, ahora);
+      return res.ok
+        ? { ok: true, mensaje: `${pesos(res.aCuentaCorriente)} a cuenta corriente. Mesa cerrada.` }
+        : { ok: false, mensaje: `${res.motivo} Si no tiene cuenta corriente, pedí el OK para fiar en Buffet.` };
     }
     case "abrirCancha":
       return resultado(checkIn(estado, reservaId, ahora), "Cancha abierta y luz prendida.");
@@ -267,7 +323,54 @@ export function ejecutar(estado: EstadoClub, reservaId: string, accion: AccionCu
         asignarCargoCargos(estado, accion.cuentaId, accion.de === "" ? null : accion.de, ahora),
         accion.de === "" ? "Paga sus propios cargos." : "Listo: esos cargos los paga otro jugador.",
       );
+    case "cargo": {
+      const t = cuentaDelTurno(estado, reservaId);
+      const quien = t.ok ? t.jugadores[accion.idx]?.nombre : "el jugador";
+      const p = productoDe(estado, accion.productoId);
+      const res = consumoJugador(estado, reservaId, accion.idx, accion.productoId, accion.cant, { modo: accion.modo, medio: accion.medio }, ahora);
+      if (!res.ok) return falla(res);
+      const que = `${accion.cant} × ${p?.nombre ?? "producto"}`;
+      return {
+        ok: true,
+        mensaje: accion.modo === "cobrar" ? `${que} para ${quien}: cobrado ${pesos(accion.cant * (p?.precio ?? 0))} (${ETIQUETA_MEDIO[accion.medio]}).` : `${que} a la cuenta de ${quien}.`,
+      };
+    }
   }
+}
+
+/**
+ * El paso previo de «Créditos del cliente» (validado por el dueño): ANTES de descontar se ve de quién son, cuánto
+ * se usa, qué cubre (si queda pagada la seña) y con cuánto queda. Si no le alcanzan, lo dice y no se ofrece. Los
+ * créditos nunca quedan negativos: la confirmación sólo existe si `quedan >= 0`.
+ */
+export type ConfirmacionCreditos =
+  | { ok: true; de: string; que: string; usa: number; creditos: number; quedan: number; cubreSena: boolean }
+  | { ok: false; motivo: string };
+
+export function confirmarCreditos(estado: EstadoClub, reservaId: string, accion: { tipo: "cobrarJugador"; idx: number } | { tipo: "cobrarSena" }): ConfirmacionCreditos {
+  const r = reservaDe(estado, reservaId);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  let clienteId: string | null | undefined;
+  let usa: number;
+  let que: string;
+  if (accion.tipo === "cobrarSena") {
+    clienteId = r.clienteId;
+    usa = senaPendiente(r) ?? 0;
+    que = "Seña de la cancha";
+  } else {
+    const t = cuentaDelTurno(estado, reservaId);
+    const j = t.ok ? t.jugadores[accion.idx] : undefined;
+    if (!j) return { ok: false, motivo: "Elegí el jugador." };
+    clienteId = j.clienteId;
+    usa = j.aPagar;
+    que = `Todo lo de ${j.nombre}`;
+  }
+  const c = clienteId ? clienteDe(estado, clienteId) : undefined;
+  if (!c) return { ok: false, motivo: "Ese jugador no tiene ficha de cliente: no tiene créditos para usar." };
+  if (!(usa > 0)) return { ok: false, motivo: "No hay nada para cobrar." };
+  if (c.monedero < usa) return { ok: false, motivo: `${c.nombre} tiene ${pesos(c.monedero)} en créditos: no alcanza para ${pesos(usa)}.` };
+  const cubreSena = r.estado === "reservada" && r.sena.monto > 0 && !r.sena.pagada && cobrado(r) + Math.min(usa, saldo(r)) >= r.sena.monto;
+  return { ok: true, de: c.nombre, que, usa, creditos: c.monedero, quedan: c.monedero - usa, cubreSena };
 }
 
 function resultado(res: Resultado, mensaje: string): Desenlace {
@@ -279,4 +382,18 @@ export function textoCierre(cual: "cobrarTodo" | "cerrarYSeguir" | "cerrarCargos
   if (cual === "cobrarTodo") return `Cobrar todo ${pesos(monto)}`;
   if (cual === "cerrarYSeguir") return monto > 0 ? `Cobrar la cancha ${pesos(monto)} y cerrarla · la mesa sigue` : "Cerrar la cancha · la mesa sigue";
   return monto > 0 ? `Cobrar y cerrar los cargos ${pesos(monto)}` : "Cerrar los cargos";
+}
+
+/**
+ * Reusa lo que no cambió de la cuenta anterior: la vista entera si la firma es la misma y, si no, cada fila de
+ * jugador que quedó igual (el `memo` de esa fila no se vuelve a pintar).
+ */
+export function compartirCuenta(previa: VistaCuenta | null | undefined, nueva: VistaCuenta | null): VistaCuenta | null {
+  if (!previa || !nueva || previa.reservaId !== nueva.reservaId) return nueva;
+  if (previa.firma === nueva.firma) return previa;
+  const jugadores = nueva.jugadores.map((j, i) => {
+    const v = previa.jugadores[i];
+    return v && JSON.stringify(v) === JSON.stringify(j) ? v : j;
+  });
+  return { ...nueva, jugadores };
 }

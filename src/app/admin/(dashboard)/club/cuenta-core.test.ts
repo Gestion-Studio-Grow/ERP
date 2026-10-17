@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, Reserva } from "@/lib/club/motor.mjs";
-import { armarCuenta, ejecutar, textoCierre, type VistaCuenta } from "./cuenta-core";
+import { armarCuenta, confirmarCreditos, ejecutar, textoCierre, type VistaCuenta } from "./cuenta-core";
 
 const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
@@ -216,3 +216,71 @@ test("la firma cambia sólo si cambia lo que se ve", () => {
 function ok(d: { ok: boolean; mensaje: string }) {
   assert.equal(d.ok, true, d.mensaje);
 }
+
+test("cobrar la seña sola: cobra lo que falta de la seña, marca la seña pagada y entra a la caja", () => {
+  const e = demo();
+  const r = e.reservas.find((x) => x.fecha === HOY && x.estado === "reservada" && x.sena.monto > 0 && !x.sena.pagada)!;
+  const v = cuenta(e, r.id);
+  assert.equal(v.cierres.cobrarSena, r.sena.monto);
+  const cajaAntes = caja(e);
+  ok(ejecutar(e, r.id, { tipo: "cobrarSena", medio: "transferencia" }, AHORA));
+  assert.equal(r.sena.pagada, true);
+  assert.equal(caja(e) - cajaAntes, r.sena.monto);
+  assert.equal(cuenta(e, r.id).cierres.cobrarSena, null, "ya no se ofrece");
+  assert.equal(cuenta(e, r.id).totales.cancha, r.precio - r.sena.monto);
+  assert.equal(ejecutar(e, r.id, { tipo: "cobrarSena", medio: "efectivo" }, AHORA).ok, false, "no se cobra dos veces");
+  ok(ejecutar(e, r.id, { tipo: "abrirCancha" }, AHORA));
+});
+
+test("créditos del cliente para cobrarle a un jugador: confirmación con lo que usa y con cuánto queda; nunca negativos", () => {
+  const e = demo();
+  const r = turnoEnJuego(e);
+  const idx = cuenta(e, r.id).jugadores.findIndex((j) => j.aPagar > 0 && r.jugadores[j.idx].clienteId);
+  const ficha = M.cliente(e, r.jugadores[idx].clienteId!)!;
+  const aPagar = cuenta(e, r.id).jugadores[idx].aPagar;
+  ficha.monedero = aPagar - 10;
+  const corto = confirmarCreditos(e, r.id, { tipo: "cobrarJugador", idx });
+  assert.equal(corto.ok, false);
+  assert.equal(ejecutar(e, r.id, { tipo: "cobrarJugador", idx, medio: "monedero" }, AHORA).ok, false);
+  assert.equal(ficha.monedero, aPagar - 10, "no se descontó nada");
+
+  ficha.monedero = aPagar + 2000;
+  const conf = confirmarCreditos(e, r.id, { tipo: "cobrarJugador", idx });
+  assert.ok(conf.ok);
+  assert.equal(conf.de, ficha.nombre);
+  assert.equal(conf.usa, aPagar);
+  assert.equal(conf.quedan, 2000);
+  const cajaAntes = caja(e);
+  ok(ejecutar(e, r.id, { tipo: "cobrarJugador", idx, medio: "monedero" }, AHORA));
+  assert.equal(ficha.monedero, 2000, "queda lo que dijo la confirmación");
+  assert.equal(caja(e), cajaAntes, "los créditos no entran a la caja");
+  assert.equal(cuenta(e, r.id).jugadores[idx].aPagar, 0);
+  // Con créditos no se cobra todo junto (el motor lo pide jugador por jugador).
+  assert.equal(confirmarCreditos(e, "no-existe", { tipo: "cobrarSena" }).ok, false);
+});
+
+test("la seña con créditos avisa que queda pagada", () => {
+  const e = demo();
+  const r = e.reservas.find((x) => x.fecha === HOY && x.estado === "reservada" && x.sena.monto > 0 && !x.sena.pagada && x.clienteId);
+  if (!r) return;
+  M.cliente(e, r.clienteId!)!.monedero = r.sena.monto;
+  const conf = confirmarCreditos(e, r.id, { tipo: "cobrarSena" });
+  assert.ok(conf.ok);
+  assert.equal(conf.cubreSena, true);
+  assert.equal(conf.quedan, 0);
+});
+
+test("cargar un producto a un jugador: a su cuenta, o cobrado en el acto (y la cuenta del turno lo suma)", () => {
+  const e = demo();
+  const r = turnoEnJuego(e);
+  const p = e.productos.find((x) => x.activo !== false && !x.alquiler && (x.stock === null || x.stock > 1) && x.precio > 0)!;
+  const antes = cuenta(e, r.id);
+  ok(ejecutar(e, r.id, { tipo: "cargo", idx: 2, productoId: p.id, cant: 2, modo: "cuenta", medio: "efectivo" }, AHORA));
+  const v = cuenta(e, r.id);
+  assert.equal(v.totales.cargos, antes.totales.cargos + 2 * p.precio);
+  assert.equal(sumaAPagar(v), v.totales.pendiente);
+  const cajaAntes = caja(e);
+  ok(ejecutar(e, r.id, { tipo: "cargo", idx: 3, productoId: p.id, cant: 1, modo: "cobrar", medio: "efectivo" }, AHORA));
+  assert.equal(caja(e) - cajaAntes, p.precio, "cobrado en el acto entra a la caja");
+  assert.equal(cuenta(e, r.id).totales.cargos, v.totales.cargos, "y no queda debiendo");
+});

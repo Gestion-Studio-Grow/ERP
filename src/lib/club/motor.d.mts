@@ -443,6 +443,8 @@ export interface DatosReserva {
 export declare function horarioDe(estado: EstadoClub, fecha: Fecha): { abre: number; cierra: number };
 export declare function precioTurno(estado: EstadoClub, hueco: Hueco): number;
 export declare function franjaDe(estado: EstadoClub, fecha: Fecha, min: number): "pico" | "valle";
+/** ¿Este turno pide seña? Reincidentes, clientes con deuda y turnos sin ficha (clases y fijos no). */
+export declare function requiereSena(estado: EstadoClub, clienteId: string | null | undefined, tipo: TipoReserva): boolean;
 export declare function ocupantes(estado: EstadoClub, fecha: Fecha, canchaId: string, ignorarId?: string): { reservas: Reserva[]; bloqueos: Bloqueo[] };
 export declare function validarHueco(estado: EstadoClub, hueco: Hueco, ignorarId?: string): Resultado;
 /** Inicios libres (minutos) alineados a la grilla. */
@@ -625,6 +627,8 @@ export declare function cajaAbierta(estado: EstadoClub, ahora: Ahora): Fecha;
 /** Sin `dia`: todos los movimientos. */
 export declare function resumenCaja(estado: EstadoClub, dia?: Fecha | null): ResumenCaja;
 export declare function cajasSinCerrar(estado: EstadoClub, ahora: Ahora): Fecha[];
+/** Toda caja con movimientos que nadie cerró (también la de hoy y la siguiente, si hoy ya se cerró), ordenadas. */
+export declare function cajasConMovimientosSinCerrar(estado: EstadoClub): Fecha[];
 export declare function cerrarCaja(
   estado: EstadoClub,
   datos: { contado: number | string | null; usuarioId?: string; pin?: string; dia?: Fecha | null },
