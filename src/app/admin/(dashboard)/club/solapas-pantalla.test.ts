@@ -390,4 +390,222 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
       await page.close();
     }
   });
+
+  // ── Stock y Proveedores (ola 3) ──
+
+  /** Lo mismo que mide la prueba de 768/390 de arriba, para las solapas de stock y proveedores. */
+  const revisarSolapa = async (page: Page, que: string) => {
+    const m = await page.evaluate(MEDIR);
+    assert.deepEqual(m.chicos, [], `${que}: objetivos de menos de 44 px`);
+    assert.deepEqual(m.bajos, [], `${que}: textos bajo AA`);
+    assert.ok(m.corre <= 0, `${que}: la página se corre de costado ${m.corre} px`);
+  };
+
+  test("el dueño, Stock: lo que falta con su WhatsApp, editar con el conteo y «Deshacer», el alta y el precio por % sobre costo", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("OWNER");
+    await page.getByRole("tab", { name: "Stock" }).click();
+    await page.getByRole("heading", { name: /^Stock y productos \(\d+\)$/ }).waitFor();
+    const reponer = page.getByRole("region", { name: /^⚠ Para reponer \(\d+\)$/ });
+    await reponer.getByText(/^Remera técnica del club: hay 0, el mínimo es 5 → pedir 10$/).waitFor();
+    assert.match((await reponer.getByRole("link", { name: "Pedir lo que falta por WhatsApp" }).getAttribute("href"))!, /^https:\/\/wa\.me\/\?text=/);
+    await capturar(page, "stock-1024");
+
+    // Editar con el conteo: el foco va a la ficha; guardar; «Deshacer»; Escape vuelve al producto.
+    await page.getByRole("button", { name: /^Muñequera/ }).click();
+    const ficha = page.getByRole("region", { name: "Muñequera" });
+    await ficha.waitFor();
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent), "Muñequera", "el foco va a la ficha");
+    await ficha.getByLabel("Stock actual (conteo)").fill("20");
+    await ficha.getByLabel("Mínimo de stock").fill("8");
+    await ficha.getByRole("button", { name: "Guardar", exact: true }).click();
+    await aviso(page, /^Muñequera guardado\. Stock: \d+ → 20\.$/);
+    await page.getByRole("button", { name: /^Muñequera.*Stock 20 · mín\. 8/ }).waitFor();
+    await capturar(page, "stock-ficha-1024");
+    await page.getByRole("button", { name: "Deshacer" }).click();
+    await aviso(page, /^Listo, se deshizo: Muñequera guardado/);
+    await ficha.getByText("⚠ Reponer").waitFor();
+    await ficha.getByLabel("Stock actual (conteo)").fill("x");
+    await ficha.getByRole("button", { name: "Guardar", exact: true }).click();
+    await alerta(page, /^En «Stock actual» poné cuántas hay/);
+    await ficha.getByRole("button", { name: "Cerrar" }).focus();
+    await page.keyboard.press("Escape");
+    await ficha.waitFor({ state: "detached" });
+    const fila = (await page.getByRole("button", { name: /^Muñequera/ }).getAttribute("id"))!;
+    await page.waitForFunction((id) => document.activeElement?.id === id, fila, { timeout: 2000 });
+
+    // El alta de un plato abre su ficha (sin stock); la baja y volver a activar.
+    await page.getByRole("button", { name: "+ Producto o plato" }).click();
+    const alta = page.getByRole("region", { name: "Nuevo producto o plato" });
+    await alta.getByLabel("Nombre").fill("Tostado de jamón y queso");
+    await alta.getByLabel("Precio de venta").fill("7.500");
+    await alta.getByLabel("Costo").fill("3000");
+    await alta.getByText("Es un plato de cocina", { exact: false }).click();
+    assert.equal(await alta.getByLabel("Stock inicial").count(), 0, "un plato no lleva stock");
+    await alta.getByRole("button", { name: "Dar de alta" }).click();
+    await aviso(page, "Listo: Tostado de jamón y queso ya está en la carta, a $ 7.500.");
+    const plato = page.getByRole("region", { name: "Tostado de jamón y queso" });
+    await plato.waitFor();
+    assert.equal(await plato.getByLabel("Stock actual (conteo)").count(), 0);
+    await plato.getByRole("button", { name: "Dar de baja Tostado de jamón y queso" }).click();
+    await aviso(page, "Tostado de jamón y queso dado de baja: ya no se vende.");
+    await page.getByText("Dados de baja (1)").click();
+    await page.getByRole("button", { name: "Volver a activar", exact: true }).click();
+    await aviso(page, "Tostado de jamón y queso está activo otra vez.");
+
+    // Precios y rentabilidad: el % sobre costo recalcula el precio (redondeado a $ 50) con Enter, sin perder el foco.
+    await page.getByText("Precios y rentabilidad", { exact: true }).click();
+    await page.getByRole("table", { name: /Precios y rentabilidad por producto/ }).waitFor();
+    const markup = page.getByLabel("Porcentaje sobre el costo de Agua 500 ml", { exact: true });
+    await markup.fill("100");
+    await markup.press("Enter");
+    await aviso(page, "Agua 500 ml: precio $ 1.400 · margen 50 %.");
+    const precio = page.getByLabel("Precio de Agua 500 ml", { exact: true });
+    assert.equal(await precio.inputValue(), "1400");
+    assert.equal(await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.labels?.[0]?.textContent), "Porcentaje sobre el costo de Agua 500 ml", "el foco se queda en la celda");
+    await precio.fill("");
+    await precio.press("Enter");
+    await alerta(page, "Ese campo no puede quedar vacío: no se cambió nada.");
+    assert.equal(await precio.inputValue(), "1400", "vuelve a lo guardado");
+    await capturar(page, "stock-precios-1024");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("el dueño, Proveedores: el total igual al Tablero, pagar en efectivo con PIN (sin «Deshacer») y un remito con el lector", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("OWNER");
+    await page.getByRole("tab", { name: "Tablero" }).click();
+    const total = (await page.locator("[data-ui=kpi]").filter({ hasText: "Le debemos a proveedores" }).locator("[data-parte=valor]").textContent())!;
+    assert.match(total, /^\$ [\d.]+$/);
+    await page.getByRole("tab", { name: "Proveedores" }).click();
+    await page.getByText(`Le debemos en total ${total}`).waitFor();
+    await capturar(page, "proveedores-1024");
+
+    await page.getByRole("button", { name: /^Pádel Sur Insumos/ }).click();
+    const ficha = page.getByRole("region", { name: "Pádel Sur Insumos" });
+    await ficha.waitFor();
+    assert.ok((await ficha.getByRole("table", { name: /Cuenta con Pádel Sur Insumos/ }).getByRole("row").count()) >= 2);
+    await ficha.getByText("Efectivo (sale del cajón)").click();
+    await ficha.getByLabel("Monto").fill("10.000");
+    await ficha.getByLabel("PIN de Rober").fill("99");
+    await ficha.getByRole("button", { name: "Registrar pago" }).click();
+    await alerta(page, "PIN incorrecto.");
+    assert.equal(await ficha.getByLabel("PIN de Rober").inputValue(), "", "el PIN se borra después de cada intento");
+    await ficha.getByLabel("PIN de Rober").fill("11");
+    await ficha.getByRole("button", { name: "Registrar pago" }).click();
+    await aviso(page, /^Pago de \$ 10\.000 a Pádel Sur Insumos en efectivo: sale del cajón/);
+    assert.equal(await page.getByRole("button", { name: "Deshacer" }).count(), 0, "un pago con PIN no se deshace");
+    await ficha.getByRole("cell", { name: "− $ 10.000" }).waitFor();
+    await ficha.locator("summary").filter({ hasText: "Remito 0003-00000871" }).click();
+    await ficha.getByText("24 × Tubo de pelotas (3) a $ 7.800 = $ 187.200").waitFor();
+    await capturar(page, "proveedores-ficha-1024");
+    await ficha.getByRole("button", { name: "Cerrar", exact: true }).click();
+
+    // El remito: el lector suma de a 1 (y el foco se queda ahí), el buscador también; registra y suma la deuda.
+    await page.getByRole("button", { name: "Registrar remito" }).click();
+    const remito = page.getByRole("region", { name: "Registrar remito" });
+    await remito.getByLabel("Proveedor").selectOption({ label: "Distribuidora Ezeiza Bebidas" });
+    await remito.getByLabel("Número de remito").fill("0001-00009999");
+    const lector = remito.getByLabel(/^Lector/);
+    await lector.fill("7790000000028");
+    await lector.press("Enter");
+    await aviso(page, "+1 Agua 500 ml");
+    await lector.fill("7790000000028");
+    await lector.press("Enter");
+    assert.equal(await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.value), "", "el foco queda en el lector, vacío");
+    await remito.getByLabel("O buscalo por nombre o código").fill("gaseosa");
+    await remito.getByRole("button", { name: /^\+ Gaseosa 500 ml/ }).click();
+    assert.equal(await remito.getByRole("group", { name: "Agua 500 ml" }).getByLabel("Cantidad").inputValue(), "2");
+    await remito.getByRole("group", { name: "Gaseosa 500 ml" }).getByLabel("Cantidad").fill("12");
+    await remito.getByText("Total del remito $ 14.600").waitFor();
+    await capturar(page, "remito-1024");
+    await remito.getByRole("button", { name: "Registrar remito" }).click();
+    await aviso(page, "Remito 0001-00009999 de Distribuidora Ezeiza Bebidas cargado: $ 14.600. Ya suma al stock.");
+    await remito.waitFor({ state: "detached" });
+    await page.getByText(`Le debemos en total ${comoPesos(Number(total.replace(/\D/g, "")) - 10000 + 14600)}`).waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("recepción: en Proveedores sólo el remito (sin lo que se debe), y no ve Stock", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("RECEPTION");
+    assert.equal(await page.getByRole("tab", { name: "Stock" }).count(), 0, "recepción no ve Stock");
+    await page.getByRole("tab", { name: "Proveedores" }).click();
+    const remito = page.getByRole("region", { name: "Registrar remito" });
+    await remito.waitFor();
+    assert.equal(await page.getByText(/Le debemos/).count(), 0, "recepción no ve lo que se debe");
+    await remito.getByLabel("Número de remito").fill("0003-00000999");
+    await remito.getByLabel("O buscalo por nombre o código").fill("milanesa");
+    await remito.getByText("No hay productos con eso (los platos no entran por remito).").waitFor();
+    await remito.getByLabel("O buscalo por nombre o código").fill("overgrip");
+    await remito.getByRole("button", { name: /^\+ Overgrip/ }).click();
+    await remito.getByRole("button", { name: "Registrar remito" }).click();
+    await aviso(page, /^Remito 0003-00000999 de Distribuidora Ezeiza Bebidas cargado: \$ 2\.100\./);
+    await remito.getByText("Todavía no hay productos: pasá el lector o buscalos.").waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("Stock y Proveedores a 1024, 768 y 390 px: sin scroll de costado, objetivos de 44 px y contraste AA", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS de la app");
+    for (const viewport of [{ width: 1024, height: 768 }, { width: 768, height: 1024 }, { width: 390, height: 844 }]) {
+      const w = viewport.width;
+      let { page, errores } = await montar("OWNER", viewport);
+      await page.getByRole("tab", { name: "Stock" }).click();
+      await page.getByRole("heading", { name: /^Stock y productos/ }).waitFor();
+      await revisarSolapa(page, `Stock a ${w} px`);
+      if (w !== 1024) await capturar(page, `stock-${w}`);
+      await page.getByRole("button", { name: /^Muñequera/ }).click();
+      await page.getByRole("region", { name: "Muñequera" }).waitFor();
+      await revisarSolapa(page, `Ficha de producto a ${w} px`);
+      if (w !== 1024) await capturar(page, `stock-ficha-${w}`);
+      await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+      await page.getByRole("button", { name: "+ Producto o plato" }).click();
+      await page.getByRole("region", { name: "Nuevo producto o plato" }).waitFor();
+      await revisarSolapa(page, `Alta de producto a ${w} px`);
+      await page.getByText("Precios y rentabilidad", { exact: true }).click();
+      await page.getByRole("table", { name: /Precios y rentabilidad por producto/ }).waitFor();
+      await revisarSolapa(page, `Precios a ${w} px`);
+      if (w !== 1024) await capturar(page, `stock-precios-${w}`);
+
+      await page.getByRole("tab", { name: "Proveedores" }).click();
+      await page.getByRole("heading", { name: /^Proveedores \(\d+\)$/ }).waitFor();
+      await revisarSolapa(page, `Proveedores a ${w} px`);
+      if (w !== 1024) await capturar(page, `proveedores-${w}`);
+      await page.getByRole("button", { name: /^Pádel Sur Insumos/ }).click();
+      const ficha = page.getByRole("region", { name: "Pádel Sur Insumos" });
+      await ficha.locator("summary").filter({ hasText: "Remito 0003-00000871" }).click();
+      await ficha.getByText("¿Probando la demo? Ver los PIN de ejemplo").click();
+      await revisarSolapa(page, `Ficha de proveedor a ${w} px`);
+      if (w !== 1024) await capturar(page, `proveedores-ficha-${w}`);
+      await ficha.getByRole("button", { name: "Cerrar", exact: true }).click();
+      await page.getByRole("button", { name: "Registrar remito" }).click();
+      const remito = page.getByRole("region", { name: "Registrar remito" });
+      await remito.getByLabel("O buscalo por nombre o código").fill("agua");
+      await remito.getByRole("button", { name: /^\+ Agua 500 ml/ }).click();
+      await remito.getByLabel("O buscalo por nombre o código").fill("tubo");
+      await remito.getByRole("button", { name: /^\+ Tubo de pelotas/ }).click();
+      await revisarSolapa(page, `Remito a ${w} px`);
+      if (w !== 1024) await capturar(page, `remito-${w}`);
+      assert.deepEqual(errores, []);
+      await page.close();
+
+      // Recepción: Proveedores con sólo el remito.
+      ({ page, errores } = await montar("RECEPTION", viewport));
+      await page.getByRole("tab", { name: "Proveedores" }).click();
+      await page.getByRole("region", { name: "Registrar remito" }).waitFor();
+      await revisarSolapa(page, `Proveedores (recepción) a ${w} px`);
+      await capturar(page, `proveedores-recepcion-${w}`);
+      assert.deepEqual(errores, []);
+      await page.close();
+    }
+  });
 });
+
+/** «$ 1.234», como `pesos` del motor (que no se importa acá: la página lo trae en su bundle). */
+function comoPesos(n: number): string {
+  return `$ ${Math.round(n).toLocaleString("es-AR")}`;
+}

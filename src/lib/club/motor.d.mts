@@ -931,3 +931,123 @@ export declare function cancelarPedido(estado: EstadoClub, pedidoId: string, aho
 
 /** El cambio que queda en el cajón al abrir (fondo de caja). Lo carga quien puede `configurar` (un dueño), sin PIN. */
 export declare function ajustarFondo(estado: EstadoClub, monto: number | string | null, auth: Auth, ahora?: Ahora): Resultado;
+
+// ── ola 3 · stock y proveedores ──
+// (Las listas `proveedores`, `remitos` y `pagosProveedor` de EstadoClub siguen como `unknown[]`: las pantallas las leen
+// con estos tipos. Tiparlas en EstadoClub es un cambio de una línea cada una cuando se consolide.)
+
+export interface Proveedor {
+  id: string;
+  nombre: string;
+  cuit: string;
+  tel: string;
+  rubro: string;
+  activo?: boolean;
+}
+export interface LineaRemito {
+  productoId: string;
+  nombre: string;
+  cant: number;
+  /** El costo unitario de ESTE remito (el producto queda con este costo). */
+  costo: number;
+}
+export interface Remito extends Sello {
+  id: string;
+  proveedorId: string;
+  numero: string;
+  items: LineaRemito[];
+  total: number;
+  /** Quién lo cargó (nombre). */
+  cargo: string;
+}
+export interface PagoProveedor extends Sello {
+  id: string;
+  proveedorId: string;
+  medio: Medio;
+  monto: number;
+  /** Quién pagó (nombre). */
+  pago: string;
+}
+/** Un renglón de la cuenta con el proveedor: un remito (debe) o un pago (haber), con el saldo corrido. */
+export interface MovimientoProveedor {
+  fecha: Fecha | null;
+  min: number | null;
+  concepto: string;
+  debe: number;
+  haber: number;
+  saldo: number;
+}
+export declare function proveedor(estado: EstadoClub, id: string): Proveedor | undefined;
+
+/** Alta de producto (permiso `stock`, un dueño). Un plato no lleva stock (queda `null`). */
+export declare function altaProducto(
+  estado: EstadoClub,
+  datos: {
+    nombre: string;
+    categoria?: string;
+    precio: number | string;
+    costo?: number | string;
+    stock?: number | string;
+    minimo?: number | string;
+    codigo?: string;
+    codigoExterno?: string;
+    plato?: boolean;
+  },
+  auth: Auth,
+  ahora?: Ahora,
+): Resultado<{ producto: Producto }>;
+/** Lo que no viene (null/undefined) no se toca. NO cambia `categoria` ni `tienda` (no los recibe). */
+export declare function editarProducto(
+  estado: EstadoClub,
+  productoId: string,
+  cambios: { nombre?: string | null; precio?: number | string | null; costo?: number | string | null; minimo?: number | string | null; codigo?: string | null; codigoExterno?: string | null },
+  auth: Auth,
+  ahora?: Ahora,
+): Resultado;
+/** Conteo de inventario (permiso `stock`): `null` o "" = sin controlar (se vende sin tope y no avisa reposición). */
+export declare function ajustarStock(estado: EstadoClub, productoId: string, cantidad: number | string | null, auth: Auth, ahora?: Ahora): Resultado;
+/** Da de baja (o vuelve a activar con `activo: true`) un producto: no se borra, deja de venderse. */
+export declare function bajaProducto(estado: EstadoClub, productoId: string, auth: Auth, ahora?: Ahora, activo?: boolean): Resultado;
+
+/** Alta y edición de proveedores: permiso `verProveedores` (un dueño). No repite nombre. */
+export declare function altaProveedor(estado: EstadoClub, datos: { nombre: string; cuit?: string; tel?: string; rubro?: string }, auth: Auth, ahora?: Ahora): Resultado<{ proveedor: Proveedor }>;
+export declare function editarProveedor(estado: EstadoClub, proveedorId: string, cambios: { nombre?: string; cuit?: string; tel?: string; rubro?: string }, auth: Auth, ahora?: Ahora): Resultado;
+/**
+ * Entra mercadería (permiso `remito`: también recepción): suma stock, deja el costo del remito en cada producto y
+ * genera la deuda con el proveedor. No acepta productos sin stock (`stock: null`: platos o sin controlar).
+ */
+export declare function registrarRemito(
+  estado: EstadoClub,
+  datos: { proveedorId: string; numero: string; items: { productoId: string; cant: number | string; costo?: number | string }[] },
+  auth: Auth,
+  ahora?: Ahora,
+): Resultado<{ remito: Remito }>;
+/** La cuenta con el proveedor (permiso `verProveedores`), del más viejo al más nuevo. */
+export declare function ccProveedor(estado: EstadoClub, proveedorId: string, auth: Auth): Resultado<{ proveedor: Proveedor; movimientos: MovimientoProveedor[]; saldo: number }>;
+/** Remitos menos pagos (sin permiso: lo usa el tablero). */
+export declare function deudaConProveedor(estado: EstadoClub, proveedorId: string): number;
+/** Pago al proveedor: permiso `pagarProveedor` + PIN; efectivo o transferencia; nunca más de lo que se debe. Sale de la caja como egreso. */
+export declare function pagarProveedor(estado: EstadoClub, datos: { proveedorId: string; medio: Medio; monto: number | string }, auth: Auth, ahora?: Ahora): Resultado<{ saldo: number }>;
+
+/** Precio desde el costo y el % sobre costo, redondeado a $ 50 (mínimo $ 50). null si no hay costo. */
+export declare function precioDesdeMarkup(costo: number, markupPct: number): number | null;
+export interface FilaRentabilidad {
+  productoId: string;
+  nombre: string;
+  categoria: string;
+  codigo: string;
+  codigoExterno: string;
+  precio: number;
+  costo: number;
+  margen: number;
+  /** 0..1 sobre el precio. */
+  margenPct: number;
+  /** Sobre el costo (0.5 = 50 %); null sin costo. */
+  markupPct: number | null;
+  unidades: number;
+  facturado: number;
+  costoVendido: number;
+  ganancia: number;
+}
+/** Lo vendido por producto activo en el rango (días de caja) y su margen de lista. */
+export declare function rentabilidad(estado: EstadoClub, rango?: { desde?: Fecha; hasta?: Fecha }): { filas: FilaRentabilidad[]; facturado: number; ganancia: number; margenPct: number };
