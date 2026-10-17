@@ -251,6 +251,35 @@ export const OFICIOS_RUBROS: OficiosRubro[] = [
     suggestedAccent: "petroleo",
     suggestedTheme: "light",
   },
+  {
+    // Profe de pádel (o de tenis, o entrenador) que da clases solo. Su circuito propio
+    // (turnero público, confirmar, cobrar, link del alumno) es el módulo `padel-clases`; acá va
+    // sólo la config del rubro. OJO: `padel` a secas ya es el rubro de la TIENDA de pádel
+    // (retail, A Dos Manos): este id y sus palabras hablan de CLASES, no de palas.
+    id: "profe-padel",
+    label: "Profe de pádel",
+    keywords: ["profesor de padel", "profe de padel", "clases de padel", "entrenador de padel", "escuelita de padel", "clases de tenis"],
+    categories: ["Clases"],
+    services: [
+      { name: "Clase individual (1 h)", cat: "Clases", durationMin: 60, price: 25000 },
+      { name: "Clase grupal (por persona, 1 h)", cat: "Clases", durationMin: 60, price: 12000 },
+    ],
+    exampleProfessional: "Profe de ejemplo (editable)",
+    wording: {
+      catalogHeading: "Clases",
+      providerNoun: "profe",
+      heroTagline: "Clases de pádel a tu medida. Elegí día y hora y el profe te confirma.",
+      bookCta: "Pedir clase",
+      priceNote: "Precio por clase de una hora. Se paga en efectivo o por transferencia.",
+    },
+    brandingDefaults: {
+      shortLabel: "Clases de pádel",
+      hoursLabel: "Lun a sáb · con turno",
+      contactNote: "Clases individuales y grupales, todos los niveles.",
+    },
+    suggestedAccent: "verde",
+    suggestedTheme: "dark",
+  },
 ];
 
 export const OFICIOS_RUBRO_IDS = OFICIOS_RUBROS.map((r) => r.id);

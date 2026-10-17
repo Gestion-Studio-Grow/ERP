@@ -216,4 +216,22 @@ export const APPS_COMERCIAL = [
     estado: "lista",
     palabras: ["propiedades", "casas", "departamentos", "alquileres", "inquilinos", "propietarios", "consultas", "contratos", "liquidaciones", "tasacion", "visitas"],
   },
+  {
+    // El circuito del profe de pádel: la próxima clase, los pedidos del turnero por confirmar,
+    // los comprobantes por revisar, la semana y la configuración. Una sola app con sus
+    // pantallas adentro (/admin/clases/...). La plata la piden aparte las acciones con
+    // agenda:manage.
+    id: "padel-clases",
+    nombre: "Clases",
+    descripcion: "La próxima clase, los pedidos por confirmar y los comprobantes por revisar, en un toque.",
+    icono: "agenda",
+    ruta: "/admin/clases",
+    espacio: "mostrador",
+    capability: "agenda:read",
+    modulo: "padel-clases",
+    // Módulo propio del rubro: sin él no se abre ni por URL.
+    moduloDuro: true,
+    estado: "lista",
+    palabras: ["clases", "alumnos", "turnero", "turnos", "padel", "comprobante", "cancha", "profe"],
+  },
 ] as const satisfies readonly AppDescriptor[];

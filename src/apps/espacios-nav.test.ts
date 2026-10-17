@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { REGISTRO_APPS } from "./registro";
-import { ESPACIOS, ESPACIOS_NAV, MODULOS_AR, espacioNavDeApp, nombreDeEspacioNav, type EspacioNavId } from "./espacios";
+import { APPS_DE_UN_RUBRO, ESPACIOS, ESPACIOS_NAV, MODULOS_AR, espacioNavDeApp, nombreDeEspacioNav, type EspacioNavId } from "./espacios";
 
 const enNav = REGISTRO_APPS.filter((a) => espacioNavDeApp(a) !== null);
 
@@ -52,9 +52,12 @@ test("«Facturas e impuestos» tiene exactamente las apps de los módulos argent
 test("ningún espacio pasa de 8 apps por rubro con el registro de hoy", () => {
   for (const rubro of ["mostrador", "servicios"] as const) {
     for (const e of ESPACIOS_NAV) {
-      const n = enNav.filter(
+      const delEspacio = enNav.filter(
         (a) => espacioNavDeApp(a) === e.id && (!a.rubro || a.rubro === rubro || (rubro === "mostrador" && a.rubro === "carniceria")),
-      ).length;
+      );
+      // Las apps del circuito de un rubro son excluyentes (un negocio ve a lo sumo una): un lugar.
+      const deRubro = delEspacio.filter((a) => APPS_DE_UN_RUBRO.includes(a.id)).length;
+      const n = delEspacio.length - deRubro + Math.min(1, deRubro);
       assert.ok(n <= 8, `${e.nombre} en ${rubro}: ${n} apps`);
     }
   }
