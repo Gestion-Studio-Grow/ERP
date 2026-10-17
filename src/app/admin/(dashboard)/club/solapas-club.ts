@@ -38,6 +38,11 @@ export interface SolapaDelClub {
 export const SOLAPAS_DEL_CLUB: readonly SolapaDelClub[] = [
   { id: "clientes", etiqueta: "Clientes", cargar: () => import("./ClientesDelClub") },
   { id: "tablero", etiqueta: "Tablero", cargar: () => import("./TableroDelDuenio"), soloDuenos: true },
+  // Para todos: recepción carga ahí los remitos (es lo único de proveedores que hace); lo que se debe y los pagos, sólo
+  // el dueño (lo controla el motor por quien opera con su PIN).
+  { id: "proveedores", etiqueta: "Proveedores", cargar: () => import("./ProveedoresDelClub") },
+  // «stock» es el id al que lleva la bandeja «Para resolver ahora» (bandeja-core.ts): no se cambia.
+  { id: "stock", etiqueta: "Stock", cargar: () => import("./StockDelClub"), soloDuenos: true },
 ];
 
 // ============================================================================

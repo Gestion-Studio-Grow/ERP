@@ -44,7 +44,7 @@ test("alta: con nombre, sin repetir teléfono; devuelve el cliente nuevo para ab
   const d = ejecutarClientes(e, { tipo: "alta", nombre: "Paula Nieto", tel: "11 5555-1234", nivel: "6ta" }, AHORA, recep);
   assert.equal(d.ok, true, d.mensaje);
   assert.ok(d.clienteId);
-  const f = armarFicha(e, d.clienteId!, AHORA)!;
+  const f = armarFicha(e, d.clienteId!, AHORA, "real")!;
   assert.equal(f.nombre, "Paula Nieto");
   assert.equal(f.nivel, "6ta");
   assert.equal(f.deuda, 0);
@@ -69,19 +69,19 @@ test("editar: guarda y no deja usar el teléfono de otro cliente", () => {
 test("baja: con deuda o con cargos abiertos en el buffet, no; sin nada pendiente, sí (y sale de la lista)", () => {
   const { e, recep } = demo();
   const agus = porNombre(e, "Agustina Romero");
-  const fa = armarFicha(e, agus.id, AHORA)!;
+  const fa = armarFicha(e, agus.id, AHORA, "real")!;
   assert.equal(fa.baja.puede, false);
   assert.equal(ejecutarClientes(e, { tipo: "baja", clienteId: agus.id }, AHORA, recep).ok, false, "el motor también dice que no");
 
   const conCargos = M.cuentasAbiertas(e).find((c) => c.clienteId && M.cliente(e, c.clienteId)!.deuda === 0)!;
-  const f = armarFicha(e, conCargos.clienteId!, AHORA)!;
+  const f = armarFicha(e, conCargos.clienteId!, AHORA, "real")!;
   assert.deepEqual(f.baja, { puede: false, motivo: "Tiene cargos abiertos en el buffet: primero se cierran." });
   assert.equal(ejecutarClientes(e, { tipo: "baja", clienteId: conCargos.clienteId! }, AHORA, recep).ok, false);
 
   const libre = e.clientes.find((c) => c.deuda === 0 && !e.cuentas.some((x) => x.clienteId === c.id && x.estado === "abierta"))!;
   const d = ejecutarClientes(e, { tipo: "baja", clienteId: libre.id }, AHORA, recep);
   assert.equal(d.ok, true, d.mensaje);
-  assert.equal(armarFicha(e, libre.id, AHORA), null);
+  assert.equal(armarFicha(e, libre.id, AHORA, "real"), null);
   assert.ok(!armarClientes(e, "").filas.some((x) => x.id === libre.id));
 });
 
@@ -96,7 +96,7 @@ test("cuenta corriente: recepción no la configura, la PIDE; ve «esperando al d
   const d = ejecutarClientes(e, { tipo: "pedirCC", clienteId: sin.id, limite: "40.000", nota: "Viene siempre" }, AHORA, recep);
   assert.equal(d.ok, true, d.mensaje);
   assert.equal(ejecutarClientes(e, { tipo: "pedirCC", clienteId: sin.id, limite: "40000", nota: "" }, AHORA, recep).ok, false, "uno por cliente");
-  const f = armarFicha(e, sin.id, AHORA)!;
+  const f = armarFicha(e, sin.id, AHORA, "real")!;
   assert.ok(f.pedido);
   assert.equal(f.pedido.que, "cuenta corriente hasta $ 40.000");
   assert.equal(f.pedido.quedan, 5);
@@ -104,13 +104,13 @@ test("cuenta corriente: recepción no la configura, la PIDE; ve «esperando al d
 
   const mal = ejecutarClientes(e, { tipo: "aprobarCodigo", novedadId: f.pedido.id, codigo: "AAA-AAA", monto: "40000" }, AHORA, recep);
   assert.equal(mal.ok, false);
-  assert.equal(armarFicha(e, sin.id, AHORA)!.pedido!.quedan, 4);
+  assert.equal(armarFicha(e, sin.id, AHORA, "real")!.pedido!.quedan, 4);
   const codigo = codigoDeLaDemo(e, f.pedido.id)!.codigo;
   const ok = ejecutarClientes(e, { tipo: "aprobarCodigo", novedadId: f.pedido.id, codigo, monto: "40000" }, AHORA, recep);
   assert.equal(ok.ok, true, ok.mensaje);
   assert.match(ok.mensaje, /cuenta corriente habilitada hasta \$ 40\.000/);
   assert.deepEqual(M.cliente(e, sin.id)!.cc, { habilitada: true, limite: 40000 });
-  assert.equal(armarFicha(e, sin.id, AHORA)!.pedido, null);
+  assert.equal(armarFicha(e, sin.id, AHORA, "real")!.pedido, null);
 });
 
 test("cuenta corriente: el dueño la habilita, le cambia el límite y la corta", () => {
@@ -131,7 +131,7 @@ test("cuenta corriente: el dueño la habilita, le cambia el límite y la corta",
 test("estado de cuenta con saldo corrido; cobrar la deuda (una parte, con su medio) entra a la caja; de más, no", () => {
   const { e, recep } = demo();
   const agus = porNombre(e, "Agustina Romero");
-  const f = armarFicha(e, agus.id, AHORA)!;
+  const f = armarFicha(e, agus.id, AHORA, "real")!;
   assert.ok(f.movimientos.length >= 1);
   let corrido = f.movimientos[0].saldo - f.movimientos[0].importe;
   for (const m of f.movimientos) {
@@ -139,8 +139,11 @@ test("estado de cuenta con saldo corrido; cobrar la deuda (una parte, con su med
     assert.equal(m.saldo, corrido, "cada renglón suma al anterior");
   }
   assert.equal(f.movimientos.at(-1)!.saldo, f.deuda);
-  assert.ok(f.recordarDeuda!.startsWith(`https://wa.me/${agus.tel.replace(/\D/g, "")}?text=`), "con su teléfono");
-  assert.match(decodeURIComponent(f.recordarDeuda!.split("text=")[1]), /Agustina!.*\$ 21\.000/);
+  assert.ok(f.recordarDeuda!.href.startsWith(`https://wa.me/${agus.tel.replace(/\D/g, "")}?text=`), "con su teléfono");
+  assert.match(decodeURIComponent(f.recordarDeuda!.href.split("text=")[1]), /Agustina!.*\$ 21\.000/);
+  const enDemo = armarFicha(e, agus.id, AHORA, "demo")!.recordarDeuda!;
+  assert.match(enDemo.href, /^https:\/\/wa\.me\/\?text=/, "en la demo, sin número: los teléfonos de ejemplo podrían ser de alguien real");
+  assert.ok(enDemo.nota, "y dice por qué");
 
   const caja0 = M.resumenCaja(e).ingresos;
   assert.equal(ejecutarClientes(e, { tipo: "cobrarDeuda", clienteId: agus.id, medio: "efectivo", monto: "999999" }, AHORA, recep).ok, false);
@@ -149,12 +152,12 @@ test("estado de cuenta con saldo corrido; cobrar la deuda (una parte, con su med
   assert.equal(d.ok, true, d.mensaje);
   assert.equal(d.mensaje, "Cobrado $ 1.000 de la cuenta de Agustina Romero (Mercado Pago (QR)). Saldo: $ 20.000.");
   assert.equal(M.resumenCaja(e).ingresos, caja0 + 1000);
-  const g = armarFicha(e, agus.id, AHORA)!;
+  const g = armarFicha(e, agus.id, AHORA, "real")!;
   assert.equal(g.movimientos.at(-1)!.importe, -1000);
   assert.equal(g.movimientos.at(-1)!.saldo, 20000);
   // Vacío = todo lo que debe.
   assert.equal(ejecutarClientes(e, { tipo: "cobrarDeuda", clienteId: agus.id, medio: "efectivo", monto: "" }, AHORA, recep).ok, true);
-  const h = armarFicha(e, agus.id, AHORA)!;
+  const h = armarFicha(e, agus.id, AHORA, "real")!;
   assert.equal(h.deuda, 0);
   assert.equal(h.recordarDeuda, null);
   assert.deepEqual(h.baja, { puede: true });
@@ -165,12 +168,12 @@ test("sin teléfono, el recordatorio por WhatsApp va sin número; las novedades 
   const d = ejecutarClientes(e, { tipo: "alta", nombre: "Sin Celu", tel: "", nivel: "" }, AHORA, recep);
   const c = M.cliente(e, d.clienteId!)!;
   c.deuda = 5000;
-  assert.match(armarFicha(e, c.id, AHORA)!.recordarDeuda!, /^https:\/\/wa\.me\/\?text=/);
-  assert.equal(armarFicha(e, c.id, AHORA)!.recibeNovedades, true);
+  assert.match(armarFicha(e, c.id, AHORA, "real")!.recordarDeuda!.href, /^https:\/\/wa\.me\/\?text=/);
+  assert.equal(armarFicha(e, c.id, AHORA, "real")!.recibeNovedades, true);
   assert.equal(ejecutarClientes(e, { tipo: "novedades", clienteId: c.id, recibe: false }, AHORA, recep).ok, true);
-  assert.equal(armarFicha(e, c.id, AHORA)!.recibeNovedades, false);
+  assert.equal(armarFicha(e, c.id, AHORA, "real")!.recibeNovedades, false);
   assert.equal(ejecutarClientes(e, { tipo: "novedades", clienteId: c.id, recibe: true }, AHORA, recep).ok, true);
-  assert.equal(armarFicha(e, c.id, AHORA)!.recibeNovedades, true);
+  assert.equal(armarFicha(e, c.id, AHORA, "real")!.recibeNovedades, true);
 });
 
 test("la firma cambia sólo si cambia lo que se ve", () => {

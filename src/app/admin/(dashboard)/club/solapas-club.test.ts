@@ -23,6 +23,14 @@ test("Clientes para todos; el Tablero sólo para los dueños", () => {
   assert.equal(por.tablero?.soloDuenos, true);
 });
 
+test("Proveedores para todos (recepción carga remitos); Stock sólo para los dueños, con el id al que lleva la bandeja", () => {
+  const por = Object.fromEntries(SOLAPAS_DEL_CLUB.map((s) => [s.id, s]));
+  assert.equal(por.proveedores?.etiqueta, "Proveedores");
+  assert.equal(por.proveedores?.soloDuenos ?? false, false);
+  assert.equal(por.stock?.etiqueta, "Stock");
+  assert.equal(por.stock?.soloDuenos, true);
+});
+
 test("las piezas globales tienen id único y apto para el DOM, y cada una baja en su chunk (`cargar`)", () => {
   const ids = PIEZAS_GLOBALES_DEL_CLUB.map((p) => p.id);
   assert.equal(new Set(ids).size, ids.length, "ids repetidos");
