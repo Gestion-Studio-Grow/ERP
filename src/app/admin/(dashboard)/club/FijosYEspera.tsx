@@ -7,8 +7,9 @@
 //   · Turnos fijos: los que juegan siempre el mismo día y hora. Se crean una vez (validando la próxima vez que toca)
 //     y se bajan a la grilla de la semana a la vista; «Bajar los fijos» lo repite sin duplicar y avisa los choques.
 //     «Esta semana no vienen» se toca desde el turno, en la agenda.
-//   · Lista de espera: quién quiere cancha, cuándo, y los huecos libres que le sirven ahora; «Darle el turno» lo
-//     reserva y lo saca de la lista.
+//   · Lista de espera: quién quiere cancha, cuándo, y los huecos libres que le sirven ahora. Cada hueco se le ofrece
+//     por WhatsApp con el texto del club vanilla («Se liberó un turno… ¿Lo querés?»): el link abre WhatsApp y la
+//     persona aprieta enviar. Si dice que sí, «Darle …» lo reserva y lo saca de la lista.
 
 import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -18,8 +19,10 @@ import { NOMBRE_DIA, diaSemana, sumarDias } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { clientesQueCoinciden, DURACIONES } from "./alta-core";
-import { DIAS_A_LA_VISTA, SE_DESHACE, armarEspera, armarFijos, bajaFijo, bajarFijos, ejecutarEspera, horasDelDia, nuevoFijo, type AccionEspera } from "./canchas-core";
+import { DIAS_A_LA_VISTA, SE_DESHACE, armarEspera, armarFijos, bajaFijo, bajarFijos, ejecutarEspera, horasDelDia, nuevoFijo, type AccionEspera, type VistaEspera } from "./canchas-core";
 import { porFirma, useSeleccion } from "./usar-almacen";
+import { BotonWhatsApp } from "./WhatsAppDelClub";
+import { enlaceWhatsApp, type ModoDelClub } from "./whatsapp-core";
 
 const duracionTexto = (d: number) => (d === 60 ? "1 hora" : d === 90 ? "1 hora y media" : "2 horas");
 
@@ -160,7 +163,8 @@ function Anotar({ almacen, hacer }: { almacen: Almacen; hacer: (a: AccionEspera)
   const [hasta, setHasta] = useState(horas.at(-2)?.min ?? horas[0].min);
   const [duracion, setDuracion] = useState<number>(almacen.estado().config.duracionTurno);
   const [soloCubierta, setSoloCubierta] = useState(false);
-  const ids = { t: useId(), nombre: useId(), fecha: useId(), desde: useId(), hasta: useId(), dur: useId(), cub: useId() };
+  const [tel, setTel] = useState("");
+  const ids = { t: useId(), nombre: useId(), fecha: useId(), desde: useId(), hasta: useId(), dur: useId(), cub: useId(), tel: useId() };
   return (
     <section aria-labelledby={ids.t} className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">
       <h2 id={ids.t} className="font-semibold text-strong">
@@ -170,9 +174,10 @@ function Anotar({ almacen, hacer }: { almacen: Almacen; hacer: (a: AccionEspera)
         className="flex flex-col gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          if (hacer({ tipo: "anotar", titular, clienteId, fecha, desde, hasta, duracion, soloCubierta })) {
+          if (hacer({ tipo: "anotar", titular, clienteId, fecha, desde, hasta, duracion, soloCubierta, tel: clienteId ? "" : tel })) {
             setTitular("");
             setClienteId(null);
+            setTel("");
           }
         }}
       >
@@ -190,6 +195,14 @@ function Anotar({ almacen, hacer }: { almacen: Almacen; hacer: (a: AccionEspera)
             setTitular(nombre);
           }}
         />
+        {!clienteId && (
+          <div className="flex flex-col gap-1">
+            <label htmlFor={ids.tel} className="text-sm font-medium text-strong">
+              Celular (opcional, para ofrecerle el hueco por WhatsApp)
+            </label>
+            <Input id={ids.tel} type="tel" inputMode="tel" value={tel} autoComplete="off" placeholder="11 2345-6789" onChange={(e) => setTel(e.target.value)} />
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div className="flex flex-col gap-1">
             <label htmlFor={ids.fecha} className="text-sm font-medium text-strong">
@@ -249,6 +262,37 @@ function Anotar({ almacen, hacer }: { almacen: Almacen; hacer: (a: AccionEspera)
         </Button>
       </form>
     </section>
+  );
+}
+
+/** Los huecos que le sirven: ofrecérselo por WhatsApp y, si dice que sí, darle el turno. */
+function HuecosDeLaEspera({ x, modo, onDar }: { x: VistaEspera; modo: ModoDelClub; onDar: (h: VistaEspera["huecos"][number]) => void }) {
+  const nota = useId();
+  const enlaces = x.huecos.map((h) => enlaceWhatsApp(x.celular, h.oferta, modo));
+  const conNota = enlaces.find((e) => e.nota)?.nota ?? null;
+  return (
+    <div className="flex flex-col gap-2" role="group" aria-label={`Huecos que le sirven a ${x.titular}`}>
+      <ul className="flex flex-col">
+        {x.huecos.map((h, i) => (
+          <li key={`${h.canchaId}@${h.inicio}`} className="flex flex-col gap-2 border-t border-line py-2 first:border-t-0 sm:flex-row sm:items-center sm:justify-between">
+            <span className="font-medium text-strong tabular-nums">{h.texto}</span>
+            <span className="flex flex-col gap-2 sm:flex-row">
+              <BotonWhatsApp enlace={enlaces[i]} notaEn={enlaces[i].nota ? nota : undefined} nombreAccesible={`Ofrecer por WhatsApp ${h.texto} a ${x.titular}`}>
+                Ofrecer por WhatsApp
+              </BotonWhatsApp>
+              <Button variant="outline" size="md" onClick={() => onDar(h)}>
+                Darle {h.texto}
+              </Button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {conNota && (
+        <p id={nota} className="text-xs text-muted">
+          {conNota}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -315,29 +359,22 @@ export default function FijosYEspera({ almacen, onVerTurno }: { almacen: Almacen
                     </Button>
                   </div>
                   {x.huecos.length ? (
-                    <div className="flex flex-wrap gap-2" role="group" aria-label={`Huecos que le sirven a ${x.texto.split(" · ")[0]}`}>
-                      {x.huecos.map((h) => (
-                        <Button
-                          key={`${h.canchaId}@${h.inicio}`}
-                          variant="outline"
-                          size="md"
-                          onClick={() => {
-                            let nuevo: string | undefined;
-                            almacen.ejecutar(
-                              (e, ahora) => {
-                                const d = ejecutarEspera(e, { tipo: "asignar", esperaId: x.id, canchaId: h.canchaId, inicio: h.inicio }, ahora);
-                                nuevo = d.reservaId;
-                                return d;
-                              },
-                              { deshacible: true },
-                            );
-                            if (nuevo) onVerTurno(nuevo);
-                          }}
-                        >
-                          Darle {h.texto}
-                        </Button>
-                      ))}
-                    </div>
+                    <HuecosDeLaEspera
+                      x={x}
+                      modo={almacen.modo()}
+                      onDar={(h) => {
+                        const salida: { nuevo?: string } = {};
+                        almacen.ejecutar(
+                          (e, ahora) => {
+                            const d = ejecutarEspera(e, { tipo: "asignar", esperaId: x.id, canchaId: h.canchaId, inicio: h.inicio }, ahora);
+                            salida.nuevo = d.reservaId;
+                            return d;
+                          },
+                          { deshacible: true },
+                        );
+                        if (salida.nuevo) onVerTurno(salida.nuevo);
+                      }}
+                    />
                   ) : (
                     <p className={cn("text-muted")}>Por ahora no hay un hueco que le sirva.</p>
                   )}

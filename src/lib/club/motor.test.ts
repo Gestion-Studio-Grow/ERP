@@ -72,9 +72,11 @@ const FUNCIONES = [
 ] as const satisfies readonly Funciones[];
 // Ola 1 de paridad: un bloque por frente para que tres agentes sumen tipos en paralelo sin pisarse.
 // Cada frente agrega SÓLO en su lista (y en su bloque de motor.d.mts).
-const FUNCIONES_OLA1_CUENTA_Y_BUFFET = [] as const satisfies readonly Funciones[];
-const FUNCIONES_OLA1_AGENDA_Y_TIENDA = [] as const satisfies readonly Funciones[];
-const FUNCIONES_OLA1_CAJA_Y_WHATSAPP = [] as const satisfies readonly Funciones[];
+const FUNCIONES_OLA1_CUENTA_Y_BUFFET = ["sumarJugador"] as const satisfies readonly Funciones[];
+const FUNCIONES_OLA1_AGENDA_Y_TIENDA = [
+  "alertas", "catalogoTienda", "crearPedidoTienda", "pedidoDesdeWhatsApp", "pedidosPendientes", "entregarPedido", "cargarPedidoACuenta", "cancelarPedido", "linkWhatsApp",
+] as const satisfies readonly Funciones[];
+const FUNCIONES_OLA1_CAJA_Y_WHATSAPP = ["ajustarFondo", "mensajeWhatsApp"] as const satisfies readonly Funciones[];
 type FuncionesListadas =
   | (typeof FUNCIONES)[number]
   | (typeof FUNCIONES_OLA1_CUENTA_Y_BUFFET)[number]

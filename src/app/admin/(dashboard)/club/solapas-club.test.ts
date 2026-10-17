@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { PIEZAS_GLOBALES_DEL_CLUB, SOLAPAS_DEL_CLUB } from "./solapas-club";
 
 // Las solapas de fábrica de ClubDemo.tsx: una solapa nueva no puede pisar su id.
-const DE_FABRICA = ["agenda", "fijos", "canchas", "buffet", "caja"];
+const DE_FABRICA = ["agenda", "fijos", "canchas", "buffet", "tienda", "caja"];
 
 test("las solapas que suma el club tienen id único, apto para el DOM y sin pisar las de fábrica", () => {
   const ids = SOLAPAS_DEL_CLUB.map((s) => s.id);

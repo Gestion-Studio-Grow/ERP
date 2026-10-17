@@ -6,16 +6,78 @@
 //
 // Un formulario corto, en el orden en que lo dicta quien llama por teléfono: la cancha, la hora, cuánto juegan y a
 // nombre de quién (si tiene ficha, se elige y el turno queda atado a su cuenta). Sólo se ofrecen horarios que el
-// motor acepta y, antes de reservar, se ve el precio (valle o pico) y si pide seña. Reservar abre la cuenta del
-// turno nuevo, para cobrar la seña ahí mismo si hace falta.
+// motor acepta y, antes de reservar, se ve el precio (valle o pico) y si pide seña.
+//
+// Al reservar, como el club vanilla («Turno reservado ✔»): el mensaje de confirmación listo para mandar por WhatsApp
+// (con la seña, el alias y el código si pide seña), «Abrir el turno» (para cobrar la seña ahí mismo) y «Listo».
+// Nada se manda solo: el link abre WhatsApp y la persona aprieta enviar (whatsapp-core.ts).
 //
 // Las reglas son de alta-core.ts (y del motor): la pantalla propone, `crearReserva` decide.
 
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { cancha as canchaDe, hhmm, reserva as reservaDe } from "@/lib/club/motor.mjs";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import type { Almacen } from "./almacen";
 import { DURACIONES, TIPOS_ALTA, clientesQueCoinciden, horariosLibres, previaDelTurno, reservar, type DatosAlta } from "./alta-core";
+import { BotonWhatsApp, TextoWhatsApp } from "./WhatsAppDelClub";
+import { celularDelTurno, enlaceWhatsApp, textoConfirmacion } from "./whatsapp-core";
+
+/** Lo que queda a la vista después de reservar (una foto: si se deshace el turno, el texto ya no se manda). */
+interface Reservado {
+  reservaId: string;
+  sub: string;
+  texto: string;
+  celular: string;
+}
+
+function TurnoReservado({ almacen, hecho, onAbrir, onVolver }: { almacen: Almacen; hecho: Reservado; onAbrir: () => void; onVolver: () => void }) {
+  const titulo = useRef<HTMLHeadingElement>(null);
+  const id = useId();
+  useEffect(() => {
+    titulo.current?.focus();
+  }, []);
+  const sigue = !!reservaDe(almacen.estado(), hecho.reservaId);
+  return (
+    <section
+      aria-labelledby={id}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onVolver();
+      }}
+      className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4"
+    >
+      <h2 id={id} ref={titulo} tabIndex={-1} className="text-lg font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
+        Turno reservado
+      </h2>
+      <p className="text-sm text-muted">{hecho.sub}</p>
+      {sigue ? (
+        <>
+          <TextoWhatsApp texto={hecho.texto} etiqueta="Mensaje de confirmación listo para mandar" />
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start">
+            <BotonWhatsApp enlace={enlaceWhatsApp(hecho.celular, hecho.texto, almacen.modo())} variante="solid">
+              Mandar por WhatsApp
+            </BotonWhatsApp>
+            <Button variant="outline" size="md" onClick={onAbrir}>
+              Abrir el turno
+            </Button>
+            <Button variant="ghost" size="md" onClick={onVolver}>
+              Listo
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p role="status" className="text-sm text-strong">
+            Se deshizo el turno: no mandes la confirmación.
+          </p>
+          <Button variant="outline" size="md" onClick={onVolver}>
+            Volver a la agenda
+          </Button>
+        </>
+      )}
+    </section>
+  );
+}
 
 export default function AltaDeTurno({
   almacen,
@@ -44,6 +106,7 @@ export default function AltaDeTurno({
   const [titular, setTitular] = useState("");
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [otros, setOtros] = useState("");
+  const [hecho, setHecho] = useState<Reservado | null>(null);
   const titulo = useRef<HTMLHeadingElement>(null);
   const ids = { titulo: useId(), cancha: useId(), hora: useId(), dur: useId(), tipo: useId(), titular: useId(), otros: useId(), previa: useId() };
 
@@ -59,17 +122,21 @@ export default function AltaDeTurno({
   const enviar = (e: React.FormEvent) => {
     e.preventDefault();
     if (horaValida === null) return;
-    let nuevo: string | undefined;
+    const salida: { listo: Reservado | null } = { listo: null };
     const d = almacen.ejecutar(
       (est, ahora) => {
         const r = reservar(est, { canchaId, fecha, inicio: horaValida, duracion, tipo, titular, clienteId, otros }, ahora);
-        nuevo = r.reservaId;
+        const nueva = r.reservaId ? reservaDe(est, r.reservaId) : undefined;
+        // El texto se arma en el momento, con el estado recién reservado (la seña y su código ya están).
+        if (nueva) salida.listo = { reservaId: nueva.id, sub: `${nueva.titular} · ${canchaDe(est, nueva.canchaId)?.nombre ?? ""} ${hhmm(nueva.inicio)}`, texto: textoConfirmacion(est, nueva), celular: celularDelTurno(est, nueva) };
         return r;
       },
       { deshacible: true },
     );
-    if (d.ok && nuevo) onListo(nuevo);
+    if (d.ok && salida.listo) setHecho(salida.listo);
   };
+
+  if (hecho) return <TurnoReservado almacen={almacen} hecho={hecho} onAbrir={() => onListo(hecho.reservaId)} onVolver={onVolver} />;
 
   return (
     <section

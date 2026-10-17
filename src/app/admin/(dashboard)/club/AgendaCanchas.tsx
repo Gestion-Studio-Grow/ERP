@@ -16,11 +16,15 @@
 // Performance: la grilla se toca cientos de veces por día. Nada se anima. El fondo de franjas es un
 // gradiente por columna (no una celda por franja), cada tramo es un `memo` que recibe la MISMA celda
 // si no cambió (`compartirAgenda`), y la agenda entera no se repinta si la grilla quedó igual.
+//
+// La luz de cada cancha (arriba, en su encabezado) es un botón con su PROPIA suscripción al almacén
+// (`LuzDeCancha`): prender o apagar repinta sólo ese botón. La grilla no lee las luces, así que su firma no
+// cambia y ni la agenda ni los turnos se vuelven a pintar.
 
 import { memo, useCallback, useEffect, useRef } from "react";
 import { Marca } from "@/components/ui/Marca";
 import { cn } from "@/components/ui/cn";
-import { armarAgenda, compartirAgenda, vecino, type CeldaTurno, type Direccion, type FranjaLibre, type VistaAgenda } from "./agenda-core";
+import { armarAgenda, compartirAgenda, ponerLuz, vecino, type CeldaTurno, type Direccion, type FranjaLibre, type VistaAgenda } from "./agenda-core";
 import { Button } from "@/components/ui/Button";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
@@ -63,7 +67,9 @@ const BloqueTurno = memo(function BloqueTurno({ celda, activo, onAbrir }: { celd
           "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus",
           TONO[celda.estado],
           celda.tipo === "Turno fijo" && "border-l-4 border-l-warning",
-          activo && "ring-2 ring-accent",
+          // «Necesita atención» (una alerta urgente de la bandeja): el aro rojo del vanilla. El estado lo dicen la
+          // marca y el texto para el lector; el aro sólo refuerza.
+          activo ? "ring-2 ring-accent" : celda.atencion && "ring-2 ring-danger",
         )}
       >
         {/* El estado siempre con forma + palabra (nunca sólo el color del fondo), también en el turno de una hora.
@@ -122,20 +128,50 @@ function idDeCelda(id: string): string {
   return id.includes("@") ? `libre-${id.replace("@", "-")}` : `turno-${id}`;
 }
 
+const mismaLuz = (_: boolean | undefined, nueva: boolean) => nueva;
+
+/**
+ * La luz de una cancha: prendida (círculo lleno) o apagada (círculo vacío), con `aria-pressed`. Lee SÓLO
+ * `luces[canchaId]`: cambiar una luz repinta este botón y nada más. Prender o apagar a mano se deshace (como el
+ * vanilla, `luz` en DESHACIBLES).
+ */
+const LuzDeCancha = memo(function LuzDeCancha({ almacen, canchaId, nombre }: { almacen: Almacen; canchaId: string; nombre: string }) {
+  const leer = useCallback((e: EstadoClub) => !!e.luces[canchaId], [canchaId]);
+  const prendida = useSeleccion(almacen, leer, mismaLuz);
+  return (
+    <button
+      type="button"
+      aria-pressed={prendida}
+      aria-label={`Luz de ${nombre}`}
+      title={prendida ? "Luz prendida: tocá para apagarla" : "Luz apagada: tocá para prenderla"}
+      onClick={() => almacen.ejecutar((e) => ponerLuz(e, canchaId, !prendida), { deshacible: true })}
+      className={cn(
+        "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border px-1.5 focus-visible:outline-2 focus-visible:outline-focus",
+        prendida ? "border-warning bg-warning-soft text-strong" : "border-line-strong bg-surface-raised text-body",
+      )}
+    >
+      <Marca tipo={prendida ? "hecho" : "pendiente"}>Luz</Marca>
+    </button>
+  );
+});
+
 /** El fondo fijo de la grilla (encabezados, horas y franjas). Sólo cambia si cambian las canchas o el horario. */
-const FondoDeLaGrilla = memo(function FondoDeLaGrilla({ canchas, horas, filas }: Pick<VistaAgenda, "canchas" | "horas" | "filas">) {
+const FondoDeLaGrilla = memo(function FondoDeLaGrilla({ almacen, canchas, horas, filas }: { almacen: Almacen } & Pick<VistaAgenda, "canchas" | "horas" | "filas">) {
   return (
     <>
       <div className="sticky left-0 top-0 z-30 border-b border-line bg-surface" style={{ gridColumn: 1, gridRow: 1 }} />
       {canchas.map((c, i) => (
         <div
           key={c.id}
-          aria-hidden
-          className="sticky top-0 z-20 flex flex-col justify-center border-b border-l border-line bg-surface px-2"
+          className="sticky top-0 z-20 flex items-center gap-1 border-b border-l border-line bg-surface pl-2 pr-0.5"
           style={{ gridColumn: i + 2, gridRow: 1 }}
         >
-          <span className="truncate font-semibold text-strong">{c.nombre}</span>
-          <span className="truncate text-xs text-muted">{c.detalle}</span>
+          {/* El nombre ya lo dice la lista de la cancha (aria-label): acá sólo se ve. */}
+          <span aria-hidden className="flex min-w-0 flex-1 flex-col justify-center">
+            <span className="truncate font-semibold text-strong">{c.nombre}</span>
+            <span className="truncate text-xs text-muted">{c.detalle}</span>
+          </span>
+          <LuzDeCancha almacen={almacen} canchaId={c.id} nombre={c.nombre} />
         </div>
       ))}
       {horas.map((h) => (
@@ -245,11 +281,11 @@ export default function AgendaCanchas({
         <div
           className="relative grid text-sm"
           style={{
-            gridTemplateColumns: `3.5rem repeat(${vista.canchas.length}, minmax(7.5rem, 1fr))`,
+            gridTemplateColumns: `3.5rem repeat(${vista.canchas.length}, minmax(8.75rem, 1fr))`,
             gridTemplateRows: `3rem repeat(${vista.filas}, ${FILA})`,
           }}
         >
-          <FondoDeLaGrilla canchas={vista.canchas} horas={vista.horas} filas={vista.filas} />
+          <FondoDeLaGrilla almacen={almacen} canchas={vista.canchas} horas={vista.horas} filas={vista.filas} />
           {filaAhora !== null && (
             <div
               aria-hidden

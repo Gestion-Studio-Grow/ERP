@@ -9,10 +9,12 @@
 //   · Agenda: la grilla de canchas y, al lado, lo que se abre: la cuenta de un turno o «Dar un turno».
 //     En la tablet apaisada y en la PC van lado a lado (la agenda a la vista mientras se cobra); en el
 //     celular, una debajo de la otra, y lo abierto se lleva el foco.
-//     Arriba, el día (hoy y la semana); abajo, lo cancelado, suspendido o la falta, con lo que haya que devolver.
+//     Arriba, el día (ayer, hoy y los cinco que siguen); abajo, lo cancelado, suspendido o la falta, con lo que haya
+//     que devolver. Al lado, si no hay nada abierto, la bandeja «Para resolver ahora» (BandejaDelClub).
 //   · Fijos y espera: los turnos fijos semanales y la lista de espera con los huecos que le sirven.
 //   · Mantenimiento y lluvia: plan lluvia con su previa, canchas en mantenimiento y bloqueos de horario.
 //   · Buffet: mesas que siguen cargando, cuentas abiertas, cargar productos, fiar con el OK del dueño.
+//   · Tienda: los pedidos de la tienda para retirar (pegar el de WhatsApp, entregar, a la cuenta de alguien, cancelar).
 //   · Caja: la caja de 12 a 12, egresos y cierre.
 // Las solapas son estado del navegador (no enlaces): la demo no le pide nada al servidor.
 // Todo aviso va a una sola barra, abajo, con «Deshacer» para la última acción.
@@ -41,13 +43,14 @@ import { useSeleccion } from "./usar-almacen";
 import AgendaCanchas from "./AgendaCanchas";
 import AltaDeTurno from "./AltaDeTurno";
 import { DiasDeLaAgenda, FueraDeLaGrilla } from "./AgendaExtras";
+import BandejaDelClub from "./BandejaDelClub";
 import CuentaDelTurno from "./CuentaDelTurno";
 import { Esqueleto } from "@/components/ui/Esqueleto";
 import { AvisosDelClub } from "./piezas";
 import { PIEZAS_GLOBALES_DEL_CLUB, SOLAPAS_DEL_CLUB, type PropsDePieza, type PropsDeSolapa } from "./solapas-club";
 
 // PERFORMANCE (docs/producto/PERFORMANCE-TERMINALES.md, ronda 3): la Agenda (con la cuenta del turno y «Dar un
-// turno») baja con la pantalla; las otras cuatro solapas, en chunks aparte que se piden en cuanto el navegador
+// turno») baja con la pantalla; las otras cinco solapas (Tienda incluida), en chunks aparte que se piden en cuanto el navegador
 // queda libre después de abrir (`precargarSolapas`), así el primer cambio de solapa no espera la red y la primera
 // interacción (tocar un turno) no carga con su JS.
 // Si ya llegó (lo normal: se precarga), se pinta directo; si no, `lazy` + Suspense muestra el esqueleto mientras baja.
@@ -69,17 +72,19 @@ const fijos = diferida(() => import("./FijosYEspera"));
 const canchas = diferida(() => import("./CanchasDelClub"));
 const buffet = diferida(() => import("./BuffetDelClub"));
 const caja = diferida(() => import("./CajaDelClub"));
+const tienda = diferida(() => import("./TiendaDelClub"));
 const FijosYEspera = fijos.Solapa;
 const CanchasDelClub = canchas.Solapa;
 const BuffetDelClub = buffet.Solapa;
 const CajaDelClub = caja.Solapa;
+const TiendaDelClub = tienda.Solapa;
 // Las solapas que suma la sesión del club (solapas-club.ts): mismo mecanismo, una por chunk.
 const extras = SOLAPAS_DEL_CLUB.map((s) => ({ ...s, diferida: diferida<PropsDeSolapa>(s.cargar) }));
 // Las piezas globales: cada una en su chunk, pedidas ya (al evaluar este archivo), sin esperar el reposo.
 const piezas = PIEZAS_GLOBALES_DEL_CLUB.map((p) => ({ id: p.id, diferida: diferida<PropsDePieza>(p.cargar) }));
 for (const p of piezas) void p.diferida.precargar().catch(() => undefined);
 function precargarSolapas() {
-  for (const d of [buffet, caja, fijos, canchas, ...extras.map((e) => e.diferida)]) void d.precargar().catch(() => undefined);
+  for (const d of [buffet, caja, tienda, fijos, canchas, ...extras.map((e) => e.diferida)]) void d.precargar().catch(() => undefined);
 }
 function SolapaCargando() {
   return (
@@ -105,6 +110,7 @@ const SOLAPAS_DE_FABRICA: readonly { id: Solapa; etiqueta: string }[] = [
   { id: "fijos", etiqueta: "Fijos y espera" },
   { id: "canchas", etiqueta: "Mantenimiento y lluvia" },
   { id: "buffet", etiqueta: "Buffet" },
+  { id: "tienda", etiqueta: "Tienda" },
   { id: "caja", etiqueta: "Caja" },
 ];
 
@@ -226,6 +232,16 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     [SOLAPAS, cambiarSolapa],
   );
 
+  // Para la bandeja: lo mismo, pero dice si la solapa estaba (si no, la bandeja le explica a quien opera qué hacer).
+  const irASolapaSiEsta = useCallback(
+    (id: string) => {
+      if (!SOLAPAS.some((s) => s.id === id)) return false;
+      cambiarSolapa(id);
+      return true;
+    },
+    [SOLAPAS, cambiarSolapa],
+  );
+
   // Solapas con flechas (patrón de tablist): ←/→ cambian y llevan el foco.
   const alTeclearSolapa = (e: React.KeyboardEvent) => {
     const i = SOLAPAS.findIndex((s) => s.id === solapa);
@@ -294,9 +310,12 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
                   onVolver={() => setPanel(null)}
                 />
               ) : (
-                <section aria-label="Cuenta del turno" className="rounded-lg border border-dashed border-line-strong p-4 text-sm text-muted">
-                  Tocá un turno de la agenda para ver su cuenta: la cancha y los cargos de cada jugador, y cobrar. Tocá un hueco libre o «+ Turno» para dar un turno.
-                </section>
+                <div className="flex flex-col gap-3">
+                  <BandejaDelClub almacen={almacen} onVerTurno={verTurno} irASolapa={irASolapaSiEsta} />
+                  <p className="rounded-lg border border-dashed border-line-strong p-4 text-sm text-muted">
+                    Tocá un turno de la agenda para ver su cuenta: la cancha y los cargos de cada jugador, y cobrar. Tocá un hueco libre o «+ Turno» para dar un turno.
+                  </p>
+                </div>
               )}
             </div>
           </div>
@@ -307,6 +326,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
             {solapa === "canchas" && <CanchasDelClub almacen={almacen} dia={dia} />}
             {solapa === "buffet" && <BuffetDelClub almacen={almacen} onVerTurno={verTurno} />}
             {solapa === "caja" && <CajaDelClub almacen={almacen} />}
+            {solapa === "tienda" && <TiendaDelClub almacen={almacen} />}
             {extras.map((e) =>
               solapa === e.id && SOLAPAS.some((s) => s.id === e.id) ? (
                 <e.diferida.Solapa key={e.id} almacen={almacen} dia={dia} rol={rol} onVerTurno={verTurno} />

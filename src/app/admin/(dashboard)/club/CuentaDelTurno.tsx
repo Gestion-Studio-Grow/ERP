@@ -14,6 +14,8 @@
 //   4. los cierres: «Cobrar la seña», «Cobrar todo», «Cobrar la cancha y cerrarla · la mesa sigue» y, con
 //      la cancha cerrada, «Cobrar y cerrar los cargos» o pasarlos a cuenta corriente;
 //   5. sumar un cargo del buffet a un jugador (por código del lector o por nombre): a su cuenta o cobrado.
+// Ola 1 de paridad (cuenta-piezas.tsx): la nota del turno arriba; «Sólo la cancha $X» por jugador; la «Cuenta de la
+// cancha» (cobrar un monto, o cerrarla a cuenta corriente) y «Sumar un jugador» (por nombre o con su ficha).
 // Lo que pasó se anuncia en la barra de avisos del club (con «Deshacer»). Nada se anima: se toca cien
 // veces por día.
 //
@@ -27,7 +29,7 @@ import { Marca } from "@/components/ui/Marca";
 import { cn } from "@/components/ui/cn";
 import { pesos } from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
-import type { Almacen } from "./almacen";
+import type { Almacen, Desenlace } from "./almacen";
 import { productosParaCargar } from "./buffet-core";
 import {
   DESHACIBLE,
@@ -38,11 +40,13 @@ import {
   revisarConfirmacion,
   textoCierre,
   type AccionCuenta,
+  type CobroConCreditos,
   type FilaJugador,
   type MedioCaja,
   type MedioCobro,
   type VistaCuenta,
 } from "./cuenta-core";
+import { CobroDeLaCancha, SumarJugador } from "./cuenta-piezas";
 import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
 import CicloDelTurno from "./CicloDelTurno";
 import { useSeleccion } from "./usar-almacen";
@@ -84,11 +88,13 @@ const FilaDeJugador = memo(function FilaDeJugador({
   fila,
   reservaId,
   onCobrar,
+  onCobrarParte,
   onAccion,
 }: {
   fila: FilaJugador;
   reservaId: string;
   onCobrar: (idx: number) => void;
+  onCobrarParte: (idx: number) => void;
   onAccion: (a: AccionCuenta) => void;
 }) {
   const base = `${reservaId}-${fila.idx}`;
@@ -106,10 +112,18 @@ const FilaDeJugador = memo(function FilaDeJugador({
           </p>
         </div>
         {fila.aPagar > 0 ? (
-          <Button variant="outline" size="md" onClick={() => onCobrar(fila.idx)}>
-            Cobrar {pesos(fila.aPagar)}
-            <span className="sr-only"> a {fila.nombre}</span>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {fila.soloCancha !== null && (
+              <Button variant="ghost" size="md" onClick={() => onCobrarParte(fila.idx)}>
+                Sólo la cancha {pesos(fila.soloCancha)}
+                <span className="sr-only"> de {fila.nombre}</span>
+              </Button>
+            )}
+            <Button variant="outline" size="md" onClick={() => onCobrar(fila.idx)}>
+              Cobrar {pesos(fila.aPagar)}
+              <span className="sr-only"> a {fila.nombre}</span>
+            </Button>
+          </div>
         ) : (
           <span className="pt-2 text-sm text-muted">{fila.situacion === "al día" ? "✔ al día" : fila.situacion}</span>
         )}
@@ -289,7 +303,7 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
   const seleccionar = useCallback((e: EstadoClub) => armarCuenta(e, reservaId), [reservaId]);
   const vista = useSeleccion(almacen, seleccionar, compartirCuenta);
   const [medio, setMedio] = useState<MedioCobro>("efectivo");
-  const [confirmando, setConfirmando] = useState<{ datos: DatosConfirmacion; accion: AccionCuenta } | null>(null);
+  const [confirmando, setConfirmando] = useState<{ datos: DatosConfirmacion; accion: AccionCuenta & CobroConCreditos } | null>(null);
   const titulo = useRef<HTMLHeadingElement>(null);
   const seccion = useRef<HTMLElement>(null);
   const idTitulo = useId();
@@ -300,22 +314,24 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
   }, [reservaId]);
 
   const onAccion = useCallback(
-    (a: AccionCuenta) => {
+    (a: AccionCuenta): Desenlace => {
       setConfirmando(null);
-      almacen.ejecutar((estado, ahora, auth) => ejecutar(estado, reservaId, a, ahora, auth), { deshacible: DESHACIBLE[a.tipo] });
+      const d = almacen.ejecutar((estado, ahora, auth) => ejecutar(estado, reservaId, a, ahora, auth), { deshacible: DESHACIBLE[a.tipo] });
       // Si la tecla tocada desapareció (ya no hay nada que cobrar), el foco no se pierde en la página:
       // vuelve al título de la cuenta.
       requestAnimationFrame(() => {
         if (seccion.current && !seccion.current.contains(document.activeElement)) titulo.current?.focus();
       });
+      return d;
     },
     [almacen, reservaId],
   );
 
-  // Con «Créditos del cliente» se cobra jugador por jugador (o la seña), y SIEMPRE con el paso previo.
+  // Con «Créditos del cliente» se cobra jugador por jugador, su parte de la cancha, un monto de la cancha o la seña,
+  // y SIEMPRE con el paso previo.
   const pedirCreditos = useCallback(
-    (accion: AccionCuenta & { tipo: "cobrarJugador" | "cobrarSena" }) => {
-      const c = confirmarCreditos(almacen.estado(), reservaId, accion.tipo === "cobrarSena" ? { tipo: "cobrarSena" } : { tipo: "cobrarJugador", idx: accion.idx });
+    (accion: AccionCuenta & CobroConCreditos) => {
+      const c = confirmarCreditos(almacen.estado(), reservaId, accion);
       if (!c.ok) {
         almacen.informar({ ok: false, mensaje: c.motivo });
         return;
@@ -326,6 +342,18 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
   );
   const onCobrar = useCallback(
     (idx: number) => (medio === "monedero" ? pedirCreditos({ tipo: "cobrarJugador", idx, medio }) : onAccion({ tipo: "cobrarJugador", idx, medio })),
+    [medio, onAccion, pedirCreditos],
+  );
+  const onCobrarParte = useCallback(
+    (idx: number) => (medio === "monedero" ? pedirCreditos({ tipo: "cobrarParte", idx, medio }) : onAccion({ tipo: "cobrarParte", idx, medio })),
+    [medio, onAccion, pedirCreditos],
+  );
+  const onCobrarCancha = useCallback(
+    (monto: number): Desenlace | null => {
+      if (medio !== "monedero") return onAccion({ tipo: "cobrarCancha", monto, medio });
+      pedirCreditos({ tipo: "cobrarCancha", monto, medio });
+      return null;
+    },
     [medio, onAccion, pedirCreditos],
   );
 
@@ -361,6 +389,11 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
             {vista.titular}
           </h2>
           <p className="text-sm text-muted">{vista.descripcion}</p>
+          {vista.notas && (
+            <p className="mt-1 text-sm text-body">
+              <span className="font-semibold text-strong">Nota del turno:</span> {vista.notas}
+            </p>
+          )}
         </div>
         <Button variant="ghost" size="md" onClick={onVolver}>
           Volver a la agenda
@@ -381,8 +414,8 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
           }} conCreditos={creditos} angosto />}
       {confirmando && (
         <ConfirmarCreditos datos={confirmando.datos} onSi={() => {
-            const a = confirmando.accion as AccionCuenta & { tipo: "cobrarJugador" | "cobrarSena" };
-            const ahora = confirmarCreditos(almacen.estado(), reservaId, a.tipo === "cobrarSena" ? { tipo: "cobrarSena" } : { tipo: "cobrarJugador", idx: a.idx });
+            const a = confirmando.accion;
+            const ahora = confirmarCreditos(almacen.estado(), reservaId, a);
             const r = revisarConfirmacion(confirmando.datos, ahora);
             if (r.tipo === "seguir") return onAccion(a);
             if (r.tipo === "no") {
@@ -399,7 +432,7 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
 
       <ul aria-label="Jugadores del turno">
         {vista.jugadores.map((f) => (
-          <FilaDeJugador key={f.idx} fila={f} reservaId={vista.reservaId} onCobrar={onCobrar} onAccion={onAccion} />
+          <FilaDeJugador key={f.idx} fila={f} reservaId={vista.reservaId} onCobrar={onCobrar} onCobrarParte={onCobrarParte} onAccion={onAccion} />
         ))}
       </ul>
       {vista.deOtraMesa && <p className="text-sm text-muted">{vista.deOtraMesa}</p>}
@@ -446,6 +479,16 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
           «La mesa sigue»: se cobra la cancha y queda libre para el turno siguiente. Los cargos siguen abiertos y se cobran cuando se van.
         </p>
       )}
+      {vista.cancha && (
+        <CobroDeLaCancha
+          key={`${vista.cancha.saldo}-${vista.cancha.sugerido}`}
+          cancha={vista.cancha}
+          titular={vista.titular}
+          onCobrar={onCobrarCancha}
+          onACuenta={() => onAccion({ tipo: "canchaACuenta" })}
+        />
+      )}
+      {vista.sumarJugador && <SumarJugador almacen={almacen} reservaId={vista.reservaId} onAccion={onAccion} />}
       {vista.abierto && <SumarCargo almacen={almacen} vista={vista} medio={medio} onAccion={onAccion} />}
       <CicloDelTurno
         almacen={almacen}

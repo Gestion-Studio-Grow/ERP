@@ -14,13 +14,18 @@
 //     estado (forma + palabra) y el texto completo para el lector de pantalla;
 //   · la raya de «ahora»;
 //   · a qué turno se va con las flechas (la grilla se recorre con el teclado);
+//   · qué turnos «necesitan atención» (los de una alerta urgente de la bandeja, sólo en la grilla de hoy, como el
+//     vanilla con `conAlerta`);
+//   · los días que se eligen arriba (ayer, hoy y los cinco que siguen: `diasDeLaAgenda`, como el vanilla);
+//   · prender y apagar la luz de una cancha (`ponerLuz`; el motor la prende al abrir la cancha y la apaga al
+//     cerrarla, al moverla o con el plan lluvia);
 //   · y qué se puede reusar del armado anterior, para que React sólo vuelva a pintar el tramo que
 //     cambió (`compartirAgenda`).
 //
 // La plata la lee del motor (`saldo`, `cuentaDelTurno`): no decide nada. El motor tiene un contador
 // de ids de módulo, así que esto corre sólo en el navegador (y en los tests), nunca en el servidor.
 
-import { ESTADOS, TIPOS, cancha as canchaDe, cliente as clienteDe, cuentaDelTurno, hhmm, horarioDe, minutosHasta, ocupantes, pesos, saldo } from "@/lib/club/motor.mjs";
+import { ESTADOS, NOMBRE_DIA, TIPOS, alertas, cancha as canchaDe, cliente as clienteDe, cuentaDelTurno, diaSemana, hhmm, horarioDe, minutosHasta, ocupantes, pesos, saldo, sumarDias } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, EstadoReserva, Fecha, Reserva } from "@/lib/club/motor.mjs";
 import type { TipoMarca } from "@/components/ui/Marca";
 
@@ -62,6 +67,8 @@ export interface CeldaTurno {
   senal: string | null;
   /** El titular tiene saldo deudor en su cuenta corriente. */
   deudor: boolean;
+  /** Tiene una alerta urgente en la bandeja (sólo en la grilla de hoy). */
+  atencion: boolean;
   /** Todo lo de arriba en una frase, para el lector de pantalla. */
   etiqueta: string;
   /** Lo que la hace distinta de su versión anterior (para reusar la celda si no cambió). */
@@ -147,6 +154,8 @@ export function armarAgenda(estado: EstadoClub, fecha: Fecha, ahora: Ahora): Vis
   const horas: FilaHora[] = [];
   for (let m = abre; m < cierra; m += 60) horas.push({ fila: Math.round((m - abre) / paso), texto: hhmm(m) });
 
+  // Los turnos con una alerta urgente (seña que no llega, la falta, la cancha que terminó y debe): sólo hoy.
+  const urgentes = fecha === ahora.fecha ? new Set(alertas(estado, ahora).flatMap((a) => (a.nivel === "alta" && a.reservaId ? [a.reservaId] : []))) : null;
   const turnos: CeldaTurno[] = [];
   let enCancha = 0;
   let conSenal = 0;
@@ -160,6 +169,7 @@ export function armarAgenda(estado: EstadoClub, fecha: Fecha, ahora: Ahora): Vis
     const marca = marcaDelTurno(r, senal);
     const titular = r.clienteId ? clienteDe(estado, r.clienteId) : undefined;
     const deudor = (titular?.deuda ?? 0) > 0;
+    const atencion = urgentes?.has(r.id) ?? false;
     const horario = `${hhmm(r.inicio)}–${hhmm(r.inicio + r.duracion)}`;
     const jugadores = `${r.jugadores.length}/4`;
     const tipo = r.tipo === "turno" ? null : TIPOS[r.tipo];
@@ -171,12 +181,13 @@ export function armarAgenda(estado: EstadoClub, fecha: Fecha, ahora: Ahora): Vis
       marca.texto,
       senal,
       deudor ? `tiene saldo deudor de ${pesos(titular?.deuda ?? 0)}` : null,
+      atencion ? "necesita atención" : null,
     ]
       .filter(Boolean)
       .join(", ");
     if (r.estado === "en_cancha") enCancha++;
     if (senal) conSenal++;
-    const celda = { id: r.id, columna, fila, alto, titular: r.titular, horario, jugadores, tipo, estado: r.estado, marca, senal, deudor, etiqueta };
+    const celda = { id: r.id, columna, fila, alto, titular: r.titular, horario, jugadores, tipo, estado: r.estado, marca, senal, deudor, atencion, etiqueta };
     turnos.push({ ...celda, firma: firmaDe(celda) });
   }
   // Orden de lectura: cancha por cancha, de arriba hacia abajo (el mismo del Tab).
@@ -222,7 +233,7 @@ export function armarAgenda(estado: EstadoClub, fecha: Fecha, ahora: Ahora): Vis
 }
 
 function firmaDe(c: Omit<CeldaTurno, "firma">): string {
-  return [c.id, c.columna, c.fila, c.alto, c.titular, c.horario, c.jugadores, c.tipo, c.estado, c.marca.tipo, c.marca.texto, c.senal, c.deudor].join("¦");
+  return [c.id, c.columna, c.fila, c.alto, c.titular, c.horario, c.jugadores, c.tipo, c.estado, c.marca.tipo, c.marca.texto, c.senal, c.deudor, c.atencion].join("¦");
 }
 
 /**
@@ -277,4 +288,49 @@ export function vecino(turnos: readonly Pick<CeldaTurno, "id" | "columna" | "fil
     if (!mejor || distancia < mejor.distancia || (distancia === mejor.distancia && t.fila < mejor.fila)) mejor = { id: t.id, distancia, fila: t.fila };
   }
   return mejor?.id ?? null;
+}
+
+/** Un botón de los días de arriba: la fecha y cómo se lee («Ayer», «Hoy», «Lun»…). */
+export interface DiaDeLaAgenda {
+  fecha: Fecha;
+  /** «Ayer» · «Hoy» · «Mañana» · «Lun»… */
+  nombre: string;
+  /** «17/10». */
+  ddmm: string;
+  /** Para el lector de pantalla: «hoy, viernes 17/10». */
+  etiqueta: string;
+}
+
+/** Cuántos días antes de hoy se pueden mirar en la agenda (el vanilla: ayer). */
+export const DIAS_ANTES = 1;
+/** Cuántos días después de hoy (el vanilla: hasta hoy + 5). */
+export const DIAS_DESPUES = 5;
+
+/**
+ * Los días que se eligen arriba de la agenda: ayer, hoy y los cinco que siguen (los de `vistaAgenda` del vanilla,
+ * `[-1, 0, 1, 2, 3, 4, 5]`). Ayer sirve para cobrar lo que quedó de anoche o revisar una falta; la grilla es la misma.
+ */
+export function diasDeLaAgenda(hoy: Fecha): DiaDeLaAgenda[] {
+  const dias: DiaDeLaAgenda[] = [];
+  for (let i = -DIAS_ANTES; i <= DIAS_DESPUES; i++) {
+    const fecha = sumarDias(hoy, i);
+    const semana = NOMBRE_DIA[diaSemana(fecha)];
+    const ddmm = `${Number(fecha.slice(8))}/${Number(fecha.slice(5, 7))}`;
+    const cerca = i === -1 ? "Ayer" : i === 0 ? "Hoy" : i === 1 ? "Mañana" : null;
+    dias.push({ fecha, nombre: cerca ?? semana.slice(0, 3), ddmm, etiqueta: `${cerca ? `${cerca}, ` : ""}${semana.toLowerCase()} ${ddmm}` });
+  }
+  return dias;
+}
+
+/**
+ * Prende o apaga la luz de una cancha (el botón de cada cancha, arriba de la grilla, y «Apagar» de la bandeja). El
+ * motor no tiene una función para esto: el vanilla cambia `E.luces` en el lugar (app.mjs, acción `luz`), y acá se
+ * hace lo mismo. El motor la prende solo al abrir la cancha y la apaga solo al cerrarla.
+ */
+export function ponerLuz(estado: EstadoClub, canchaId: string, prendida: boolean): { ok: boolean; mensaje: string } {
+  const c = canchaDe(estado, canchaId);
+  if (!c) return { ok: false, mensaje: "No encuentro la cancha." };
+  if (!!estado.luces[canchaId] === prendida) return { ok: false, mensaje: `La luz de ${c.nombre} ya estaba ${prendida ? "prendida" : "apagada"}.` };
+  estado.luces[canchaId] = prendida;
+  return { ok: true, mensaje: `Luz de ${c.nombre} ${prendida ? "prendida" : "apagada"}.` };
 }

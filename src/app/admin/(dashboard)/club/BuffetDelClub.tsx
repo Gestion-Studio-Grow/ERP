@@ -11,6 +11,8 @@
 //      elegido o con sus créditos, con el paso previo), pasar a su cuenta corriente o, si no tiene, pedir el OK del
 //      dueño para fiar y tipear el código de 6 letras que manda (5 intentos).
 //   4. Abrir una cuenta sin turno (alguien que viene al bar).
+// Ola 1 de paridad: la «Venta rápida de mostrador» (VentaDeMostrador.tsx) y, en cada cuenta, la «Mesa compleja»
+// (buffet-mesa-compleja.tsx): pasar un cargo a otra cuenta y cargo manual, con descuento firmado por el dueño.
 // Cada tarjeta es un `memo`: cargar en una cuenta repinta sólo esa tarjeta (compartirBuffet).
 
 import { memo, useCallback, useId, useState } from "react";
@@ -21,11 +23,13 @@ import { pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { clientesQueCoinciden } from "./alta-core";
-import { armarBuffet, compartirBuffet, confirmarCreditosCuenta, ejecutarBuffet, productosParaCargar, type AccionBuffet, type VistaCuentaBuffet } from "./buffet-core";
+import { DESHACIBLE_BUFFET, armarBuffet, compartirBuffet, confirmarCreditosCuenta, ejecutarBuffet, productosParaCargar, type AccionBuffet, type VistaCuentaBuffet } from "./buffet-core";
+import MesaCompleja from "./buffet-mesa-compleja";
 import { aprobarConCodigo, codigoDeLaDemo, mensajeParaElDuenio, pedirFiado } from "./credito-core";
 import { revisarConfirmacion, type MedioCobro } from "./cuenta-core";
 import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
 import { useSeleccion } from "./usar-almacen";
+import VentaDeMostrador from "./VentaDeMostrador";
 
 const seleccionarBuffet = (e: EstadoClub, a: Ahora) => armarBuffet(e, a);
 
@@ -113,7 +117,10 @@ const TarjetaCuenta = memo(function TarjetaCuenta({
           <ul aria-label={`Cargos de ${cuenta.titular}`} className="flex flex-col gap-1 text-sm tabular-nums">
             {cuenta.items.map((i) => (
               <li key={i.idx} className="flex items-center justify-between gap-2">
-                <span className="min-w-0 flex-1 truncate">{i.nombre}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  {i.nombre}
+                  {i.nota && <span className="text-xs text-muted"> · {i.nota}</span>}
+                </span>
                 {i.ajustable ? (
                   <span className="flex items-center gap-1">
                     <Button variant="outline" size="md" className="w-11 px-0!" aria-label={`Uno menos de ${i.nombre}`} onClick={() => onAccion({ tipo: "ajustar", cuentaId: cuenta.id, itemIdx: i.idx, delta: -1 })}>
@@ -181,6 +188,7 @@ const TarjetaCuenta = memo(function TarjetaCuenta({
             {cuenta.pedidoPendiente && <PedidoDelDuenio almacen={almacen} pedido={cuenta.pedidoPendiente} />}
           </div>
         )}
+        <MesaCompleja almacen={almacen} cuenta={cuenta} />
       </article>
     </li>
   );
@@ -329,7 +337,7 @@ export default function BuffetDelClub({ almacen, onVerTurno }: { almacen: Almace
   const [medio, setMedio] = useState<MedioCobro>("efectivo");
   const onAccion = useCallback(
     (a: AccionBuffet) => {
-      almacen.ejecutar((e, ahora, auth) => ejecutarBuffet(e, a, ahora, auth), { deshacible: true });
+      almacen.ejecutar((e, ahora, auth) => ejecutarBuffet(e, a, ahora, auth), { deshacible: DESHACIBLE_BUFFET[a.tipo] });
     },
     [almacen],
   );
@@ -359,6 +367,8 @@ export default function BuffetDelClub({ almacen, onVerTurno }: { almacen: Almace
           </ul>
         )}
       </section>
+
+      <VentaDeMostrador almacen={almacen} />
 
       <Cargar almacen={almacen} cuentas={vista.cuentas} onAccion={onAccion} />
 

@@ -7,6 +7,8 @@
 // Al pie de la cuenta del turno, lo que se toca menos: cada acción se despliega de a una (`aria-expanded`) y, antes
 // de confirmar, dice lo que va a pasar con la plata (la previa la calcula el motor sobre una copia: ciclo-core.ts).
 // Cancelar y la falta son de «una sola vez»; igual se pueden deshacer desde la barra de avisos.
+// Mientras el turno está reservado o en juego, el recordatorio por WhatsApp (como el botón «WhatsApp» del turno en el
+// club vanilla): abre WhatsApp con el texto listo y la persona aprieta enviar.
 
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -14,6 +16,8 @@ import { Input, Select } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
 import { pesos, reserva as reservaDe } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
+import { BotonWhatsApp } from "./WhatsAppDelClub";
+import { celularDelTurno, enlaceWhatsApp, recordatorioDisponible, textoRecordatorio } from "./whatsapp-core";
 import { destinosParaMover, ejecutarCiclo, opcionesCiclo, previaCancelar, previaExtender, previaFalta, previaInterrumpir, type AccionCiclo } from "./ciclo-core";
 
 type Cual = "mover" | "extender" | "falta" | "cancelar" | "interrumpir";
@@ -193,7 +197,8 @@ export default function CicloDelTurno({
 }) {
   const [abierta, setAbierta] = useState<Cual | null>(null);
   const titulo = useId();
-  const r = reservaDe(almacen.estado(), reservaId);
+  const estado = almacen.estado();
+  const r = reservaDe(estado, reservaId);
   if (!r) return null;
   const op = opcionesCiclo(r);
   const hacer = (a: AccionCiclo) => {
@@ -225,6 +230,11 @@ export default function CicloDelTurno({
           <Button variant="outline" size="md" onClick={() => hacer({ tipo: "liberarFijo" })}>
             Esta semana no vienen
           </Button>
+        )}
+        {recordatorioDisponible(r) && (
+          <BotonWhatsApp enlace={enlaceWhatsApp(celularDelTurno(estado, r), textoRecordatorio(estado, r), almacen.modo())} nombreAccesible={`Recordatorio por WhatsApp a ${r.titular}`}>
+            Recordatorio por WhatsApp
+          </BotonWhatsApp>
         )}
       </div>
       {Formulario && abierta && (

@@ -4,8 +4,9 @@
 // ALREDEDOR DE LA AGENDA — elegir el día y lo que quedó fuera de la grilla.
 // ============================================================================
 //
-//   · `DiasDeLaAgenda`: hoy y los próximos seis días (los turnos fijos ya están bajados a esa semana). Botones de
-//     44 px con `aria-pressed`, como el club vanilla.
+//   · `DiasDeLaAgenda`: ayer, hoy y los cinco que siguen (`diasDeLaAgenda`, agenda-core.ts: los mismos que el club
+//     vanilla). Botones de 44 px con `aria-pressed`. Cambiar de día no arma otra pantalla: es la MISMA grilla con
+//     otro `dia` (el encabezado y las horas se reusan si el horario es igual).
 //   · `FueraDeLaGrilla`: lo cancelado, suspendido o la falta de ese día, con la plata que queda pendiente: devolver
 //     en mano a alguien sin ficha (sale de la caja) o cobrar la falta de alguien sin ficha (entra a la caja).
 
@@ -13,33 +14,31 @@ import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
-import { NOMBRE_DIA, diaSemana, pesos, sumarDias } from "@/lib/club/motor.mjs";
+import { pesos } from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { ejecutarCiclo, fueraDeGrilla, type FueraDeGrilla as Fila } from "./ciclo-core";
 import { ETIQUETA_MEDIO, MEDIOS_CAJA, type MedioCaja } from "./cuenta-core";
-import { DIAS_A_LA_VISTA } from "./canchas-core";
+import { diasDeLaAgenda } from "./agenda-core";
 import { useSeleccion } from "./usar-almacen";
 
 export function DiasDeLaAgenda({ hoy, dia, onDia }: { hoy: string; dia: string; onDia: (d: string) => void }) {
-  const dias = Array(DIAS_A_LA_VISTA).fill(0).map((_, i) => sumarDias(hoy, i));
+  const dias = diasDeLaAgenda(hoy);
   return (
     <div role="group" aria-label="Elegir el día de la agenda" className="flex gap-2 overflow-x-auto pb-1">
-      {dias.map((d, i) => (
+      {dias.map((d) => (
         <button
-          key={d}
+          key={d.fecha}
           type="button"
-          aria-pressed={d === dia}
-          onClick={() => onDia(d)}
+          aria-pressed={d.fecha === dia}
+          onClick={() => onDia(d.fecha)}
           className={cn(
             "flex min-h-11 min-w-16 shrink-0 flex-col items-center justify-center rounded-md border px-3 text-sm focus-visible:outline-2 focus-visible:outline-focus",
-            d === dia ? "border-accent bg-accent-soft font-semibold text-strong" : "border-line-strong bg-surface-raised text-body",
+            d.fecha === dia ? "border-accent bg-accent-soft font-semibold text-strong" : "border-line-strong bg-surface-raised text-body",
           )}
         >
-          <span className="text-xs">{i === 0 ? "Hoy" : i === 1 ? "Mañana" : NOMBRE_DIA[diaSemana(d)].slice(0, 3)}</span>
-          <span className="tabular-nums">
-            {Number(d.slice(8))}/{Number(d.slice(5, 7))}
-          </span>
+          <span className="text-xs">{d.nombre}</span>
+          <span className="tabular-nums">{d.ddmm}</span>
         </button>
       ))}
     </div>

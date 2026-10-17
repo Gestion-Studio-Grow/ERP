@@ -5,7 +5,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, Reserva } from "@/lib/club/motor.mjs";
-import { armarCuenta, confirmarCreditos, ejecutar, revisarConfirmacion, textoCierre, type VistaCuenta } from "./cuenta-core";
+import { readFileSync } from "node:fs";
+import { armarCuenta, confirmarCreditos, DESHACIBLE, EN_EL_VANILLA, ejecutar, fichasParaSumar, revisarConfirmacion, textoCierre, type VistaCuenta } from "./cuenta-core";
 
 const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
@@ -305,4 +306,193 @@ test("la confirmación de créditos se revisa al tocar «Sí»: si el monto camb
   M.cliente(e, r.jugadores[idx].clienteId!)!.monedero = 1;
   const no = revisarConfirmacion(mostrada, confirmarCreditos(e, r.id, { tipo: "cobrarJugador", idx }));
   assert.equal(no.tipo, "no");
+});
+
+// ───────────── ola 1 de paridad: jugadores, nota, cobro parcial, sólo la cancha, cancha a cuenta corriente ─────────────
+
+const reservado = (e: EstadoClub, titular: string) => {
+  const r = e.reservas.find((x) => x.fecha === HOY && x.estado === "reservada" && x.titular === titular);
+  assert.ok(r, `la demo trae el turno reservado de ${titular}`);
+  return r;
+};
+const cobradoTodo = (e: EstadoClub) => e.reservas.reduce((s, r) => s + M.cobrado(r), 0) + e.cuentas.reduce((s, c) => s + M.cobradoCuenta(c), 0);
+const monederos = (e: EstadoClub) => e.clientes.reduce((s, c) => s + c.monedero, 0);
+
+test("«Deshacer» sigue la regla del club vanilla: cada acción se deshace sí y sólo si está en su DESHACIBLES", () => {
+  const app = readFileSync(new URL("../../../../../public/previews/breakpoint/club/app.mjs", import.meta.url), "utf8");
+  const lista = /const DESHACIBLES = new Set\((\[[^\]]*\])\)/.exec(app);
+  assert.ok(lista, "el vanilla define DESHACIBLES");
+  const vanilla = new Set(JSON.parse(lista[1]) as string[]);
+  for (const [tipo, deshace] of Object.entries(DESHACIBLE)) {
+    const nombre = EN_EL_VANILLA[tipo as keyof typeof EN_EL_VANILLA];
+    assert.equal(deshace, vanilla.has(nombre), `${tipo} (en el vanilla «${nombre}»)`);
+  }
+});
+
+test("sumar un jugador: por nombre o con su ficha (el nombre sale de la ficha), hasta 4, sin repetir ficha y sólo con la cancha abierta", () => {
+  const e = demo();
+  const r = reservado(e, "Lucas Fernández");
+  assert.equal(cuenta(e, r.id).sumarJugador, true);
+  const d = ejecutar(e, r.id, { tipo: "sumarJugador", nombre: "  Pedro  ", clienteId: null }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.equal(d.mensaje, "Pedro sumado al turno.");
+  // Las fichas que coinciden: desde 2 letras, hasta 5, y no las que ya juegan.
+  assert.deepEqual(fichasParaSumar(e, r.id, "a"), []);
+  const otra = e.clientes.find((c) => c.activo !== false && c.id !== r.clienteId)!;
+  const propuestas = fichasParaSumar(e, r.id, otra.nombre.slice(0, 4));
+  assert.ok(propuestas.some((f) => f.id === otra.id) && propuestas.length <= 5);
+  assert.ok(!fichasParaSumar(e, r.id, "Lucas").some((f) => f.id === r.clienteId), "el titular ya juega: no se ofrece");
+  const conFicha = ejecutar(e, r.id, { tipo: "sumarJugador", nombre: "lo que sea", clienteId: otra.id }, AHORA);
+  assert.equal(conFicha.ok, true, conFicha.mensaje);
+  assert.equal(r.jugadores.at(-1)?.nombre, otra.nombre);
+  assert.equal(r.jugadores.at(-1)?.clienteId, otra.id);
+  assert.equal(ejecutar(e, r.id, { tipo: "sumarJugador", nombre: "", clienteId: otra.id }, AHORA).mensaje, "Esa ficha ya juega en este turno.");
+  assert.equal(ejecutar(e, r.id, { tipo: "sumarJugador", nombre: "   ", clienteId: null }, AHORA).ok, false, "sin nombre no se suma");
+  assert.equal(ejecutar(e, r.id, { tipo: "sumarJugador", nombre: "Juan", clienteId: null }, AHORA).ok, true);
+  assert.equal(r.jugadores.length, 4);
+  assert.equal(cuenta(e, r.id).sumarJugador, false, "con 4 ya no se ofrece");
+  assert.equal(ejecutar(e, r.id, { tipo: "sumarJugador", nombre: "Quinto", clienteId: null }, AHORA).mensaje, "Ya están los cuatro.");
+  // Lo que se cobra no cambia por sumar jugadores: se reparte distinto, nada más.
+  assert.equal(cuenta(e, r.id).jugadores.reduce((s, j) => s + j.aPagar, 0), cuenta(e, r.id).totales.pendiente);
+  const cerrada = e.reservas.find((x) => x.fecha === HOY && x.estado === "finalizada")!;
+  assert.match(ejecutar(e, cerrada.id, { tipo: "sumarJugador", nombre: "Tarde", clienteId: null }, AHORA).mensaje, /ya está cerrada/);
+});
+
+test("la nota del turno se ve en la cuenta", () => {
+  const e = demo();
+  const r = reservado(e, "Lucas Fernández");
+  assert.equal(cuenta(e, r.id).notas, null);
+  r.notas = "  Traen paleta propia  ";
+  assert.equal(cuenta(e, r.id).notas, "Traen paleta propia");
+});
+
+test("cobrar una parte de la cancha: entra a la caja lo cobrado, sugiere lo que falta de la seña y no deja cobrar de más", () => {
+  const e = demo();
+  const r = reservado(e, "Grupo de Bruno (nuevo)");
+  const v = cuenta(e, r.id);
+  assert.deepEqual([v.cancha?.saldo, v.cancha?.sugerido], [42000, 21000], "con seña pendiente se sugiere la seña");
+  const caja0 = caja(e);
+  const d = ejecutar(e, r.id, { tipo: "cobrarCancha", monto: 21000, medio: "transferencia" }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.match(d.mensaje, /Seña pagada/);
+  assert.equal(r.sena.pagada, true);
+  assert.equal(caja(e) - caja0, 21000);
+  assert.equal(cuenta(e, r.id).cancha?.sugerido, 21000, "sin seña pendiente se sugiere todo lo que falta");
+  const deMas = ejecutar(e, r.id, { tipo: "cobrarCancha", monto: 21001, medio: "efectivo" }, AHORA);
+  assert.equal(deMas.ok, false);
+  assert.match(deMas.mensaje, /cobrando de más/);
+  assert.equal(ejecutar(e, r.id, { tipo: "cobrarCancha", monto: 0, medio: "efectivo" }, AHORA).ok, false);
+  assert.equal(caja(e) - caja0, 21000, "lo rechazado no toca la caja");
+  // Sin ficha no hay a dónde pasar la cancha a cuenta corriente.
+  assert.equal(cuenta(e, r.id).cancha?.aCuenta.ok, false);
+});
+
+test("propiedad: cobros parciales al azar → la cancha se cobra exacta, la caja es lo cobrado y la cuenta cierra en cero", () => {
+  let semilla = 7;
+  const azar = () => (semilla = (semilla * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
+  const medios = ["efectivo", "mercadopago", "transferencia", "debito"] as const;
+  for (let t = 0; t < 60; t++) {
+    const e = demo();
+    const r = e.reservas.find((x) => x.fecha === HOY && x.estado === "reservada" && M.saldo(x) > 0 && !(x.sena.monto > 0 && !x.sena.pagada))!;
+    const precio = M.totalReserva(r);
+    const caja0 = caja(e);
+    const cobrado0 = M.cobrado(r);
+    for (let k = 0; k < 8 && M.saldo(r) > 0; k++) {
+      const monto = Math.floor(azar() * (M.saldo(r) * 1.3)) - 100;
+      const d = ejecutar(e, r.id, { tipo: "cobrarCancha", monto, medio: medios[Math.floor(azar() * 4)] }, AHORA);
+      assert.equal(d.ok, monto > 0 && monto <= M.saldo(r) + (d.ok ? monto : 0), `caso ${t}: ${d.mensaje}`);
+      assert.ok(M.saldo(r) >= 0, `caso ${t}: la cancha nunca queda en negativo`);
+    }
+    const resto = M.saldo(r);
+    if (resto > 0) assert.equal(ejecutar(e, r.id, { tipo: "cobrarCancha", monto: resto, medio: "efectivo" }, AHORA).ok, true);
+    assert.equal(M.saldo(r), 0);
+    assert.equal(M.cobrado(r), precio, `caso ${t}: la cancha se cobró exacta`);
+    assert.equal(caja(e) - caja0, precio - cobrado0, `caso ${t}: la caja sube lo cobrado`);
+    assert.equal(cuenta(e, r.id).totales.pendiente, 0, `caso ${t}: la cuenta cierra en cero`);
+    assert.equal(cuenta(e, r.id).cancha, null, "ya no se ofrece cobrar la cancha");
+  }
+});
+
+test("«Sólo la cancha»: cobra la parte de la cancha de un jugador (con la de los que invita) y sus cargos siguen", () => {
+  const e = demo();
+  const r = turnoEnJuego(e);
+  // Uno que debe su parte de la cancha y no tiene cargos: «Sólo la cancha» no aparece (sería el mismo botón).
+  const sinCargos = cuenta(e, r.id).jugadores.find((j) => j.aPagar > 0 && j.aPagar === M.partesCancha(r)[j.idx].aPagar)!;
+  assert.ok(sinCargos, "la demo trae un jugador que debe sólo la cancha");
+  assert.equal(sinCargos.soloCancha, null);
+  const prod = e.productos.find((p) => p.precio > 0 && p.activo !== false && !p.alquiler && (p.stock == null || p.stock > 2))!;
+  assert.equal(ejecutar(e, r.id, { tipo: "cargo", idx: sinCargos.idx, productoId: prod.id, cant: 2, modo: "cuenta", medio: "efectivo" }, AHORA).ok, true);
+  const v = cuenta(e, r.id);
+  const fila = v.jugadores[sinCargos.idx];
+  assert.equal(fila.soloCancha, M.partesCancha(r)[fila.idx].aPagar, "con cargos, se ofrece cobrar sólo su cancha");
+  assert.ok(fila.aPagar > fila.soloCancha!);
+  const caja0 = caja(e);
+  const cargos0 = v.totales.cargos;
+  const d = ejecutar(e, r.id, { tipo: "cobrarParte", idx: fila.idx, medio: "debito" }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.equal(caja(e) - caja0, fila.soloCancha, "entra exactamente su parte de la cancha");
+  const despues = cuenta(e, r.id);
+  assert.equal(despues.totales.cargos, cargos0, "sus cargos no se tocaron");
+  assert.equal(despues.totales.pendiente, v.totales.pendiente - fila.soloCancha!);
+  assert.equal(despues.jugadores[fila.idx].soloCancha, null);
+  assert.equal(ejecutar(e, r.id, { tipo: "cobrarParte", idx: fila.idx, medio: "debito" }, AHORA).ok, false, "no se cobra dos veces");
+  // Cobrar todo lo que queda: cierra en cero y la caja es lo cobrado.
+  assert.equal(ejecutar(e, r.id, { tipo: "cobrarTodo", medio: "efectivo" }, AHORA).ok, true);
+  assert.equal(cuenta(e, r.id).totales.pendiente, 0);
+  assert.equal(caja(e) - caja0, v.totales.pendiente);
+});
+
+test("cerrar la cancha a cuenta corriente: la deuda sube lo que faltaba, la caja no, la mesa sigue; sin cuenta corriente, no", () => {
+  const e = demo();
+  const r = reservado(e, "Lucas Fernández");
+  const ficha = M.cliente(e, r.clienteId!)!;
+  const v = cuenta(e, r.id);
+  assert.deepEqual(v.cancha?.aCuenta, { ok: true });
+  const [deuda0, caja0, saldo0] = [ficha.deuda, caja(e), M.saldo(r)];
+  const d = ejecutar(e, r.id, { tipo: "canchaACuenta" }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.match(d.mensaje, new RegExp(`${M.pesos(saldo0).replace(/\./g, "\\.").replace("$", "\\$")} a la cuenta corriente de Lucas Fernández`));
+  assert.equal(ficha.deuda - deuda0, saldo0);
+  assert.equal(caja(e), caja0, "lo que va a cuenta corriente no entra a la caja");
+  assert.equal(r.estado, "finalizada");
+  assert.equal(cuenta(e, r.id).totales.cancha, 0, "la cancha queda en cero");
+  assert.equal(ejecutar(e, r.id, { tipo: "canchaACuenta" }, AHORA).ok, false, "no se pasa dos veces");
+
+  const sinCC = reservado(e, "Valentina Paz");
+  const vs = cuenta(e, sinCC.id);
+  assert.equal(vs.cancha?.aCuenta.ok, false);
+  const no = ejecutar(e, sinCC.id, { tipo: "canchaACuenta" }, AHORA);
+  assert.equal(no.ok, false);
+  assert.match(no.mensaje, /no tiene cuenta corriente/);
+  assert.equal(sinCC.estado, "reservada", "lo rechazado no cierra nada");
+});
+
+test("créditos para cobrar un monto de la cancha o la parte de un jugador: el paso previo y nunca negativos ni a la caja", () => {
+  const e = demo();
+  const r = reservado(e, "Lucas Fernández");
+  const ficha = M.cliente(e, r.clienteId!)!;
+  ficha.monedero = 10000;
+  assert.equal(confirmarCreditos(e, r.id, { tipo: "cobrarCancha", monto: 12000 }).ok, false, "no alcanzan");
+  assert.match((confirmarCreditos(e, r.id, { tipo: "cobrarCancha", monto: 99999 }) as { motivo: string }).motivo, /cobrando de más/);
+  const conf = confirmarCreditos(e, r.id, { tipo: "cobrarCancha", monto: 8000 });
+  assert.ok(conf.ok);
+  assert.deepEqual([conf.usa, conf.quedan, conf.que], [8000, 2000, "Cancha"]);
+  const [caja0, cobrado0, monederos0] = [caja(e), cobradoTodo(e), monederos(e)];
+  assert.equal(ejecutar(e, r.id, { tipo: "cobrarCancha", monto: 8000, medio: "monedero" }, AHORA).ok, true);
+  assert.equal(caja(e), caja0, "con créditos no entra plata a la caja");
+  assert.equal(cobradoTodo(e) - cobrado0, monederos0 - monederos(e), "lo cobrado es lo que bajaron los créditos");
+  assert.equal(ficha.monedero, conf.quedan);
+
+  const t = turnoEnJuego(e);
+  const idx = cuenta(e, t.id).jugadores.find((j) => M.partesCancha(t)[j.idx].aPagar > 0 && t.jugadores[j.idx].clienteId)?.idx;
+  assert.ok(idx !== undefined, "hay un jugador con ficha que debe su parte de la cancha");
+  {
+    const parte = M.partesCancha(t)[idx].aPagar;
+    M.cliente(e, t.jugadores[idx].clienteId!)!.monedero = parte;
+    const c = confirmarCreditos(e, t.id, { tipo: "cobrarParte", idx });
+    assert.ok(c.ok);
+    assert.deepEqual([c.usa, c.quedan], [parte, 0]);
+    assert.equal(ejecutar(e, t.id, { tipo: "cobrarParte", idx, medio: "monedero" }, AHORA).ok, true);
+    assert.equal(M.cliente(e, t.jugadores[idx].clienteId!)!.monedero, 0, "quedan en cero, nunca negativos");
+  }
 });

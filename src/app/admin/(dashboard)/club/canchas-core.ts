@@ -34,6 +34,7 @@ import {
 } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, Fecha, ResultadoLluvia } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
+import { celularDeLaEspera, textoOfertaEspera } from "./whatsapp-core";
 
 /** Cuántos días para adelante se bajan los fijos a la grilla (los que ve la agenda). */
 export const DIAS_A_LA_VISTA = 7;
@@ -113,7 +114,10 @@ export const SE_DESHACE = {
   quitar: false,
 } as const satisfies Record<AccionCanchas["tipo"] | AccionEspera["tipo"] | "nuevoFijo" | "bajarFijos" | "bajaFijo", boolean>;
 
-export function ejecutarCanchas(estado: EstadoClub, a: AccionCanchas, ahora: Ahora): Desenlace {
+/** Lo que devuelve una acción de las canchas; la lluvia, además, lo que pasó con cada turno (para avisarles). */
+export type DesenlaceCanchas = Desenlace & { lluvia?: ResultadoLluvia[] };
+
+export function ejecutarCanchas(estado: EstadoClub, a: AccionCanchas, ahora: Ahora): DesenlaceCanchas {
   switch (a.tipo) {
     case "mantenimiento": {
       const res = configurarMantenimiento(estado, a.canchaId, { activo: a.activo, motivo: a.motivo }, ahora);
@@ -133,9 +137,9 @@ export function ejecutarCanchas(estado: EstadoClub, a: AccionCanchas, ahora: Aho
     case "lluvia": {
       if (!(a.hasta > a.desde)) return { ok: false, mensaje: "El «hasta» tiene que ser después del «desde»." };
       const { resultado } = planLluvia(estado, a.fecha, a.desde, a.hasta, ahora);
-      if (!resultado.length) return { ok: true, mensaje: "Plan lluvia: no hay turnos en la descubierta en ese horario." };
+      if (!resultado.length) return { ok: true, mensaje: "Plan lluvia: no hay turnos en la descubierta en ese horario.", lluvia: [] };
       const n = (k: ResultadoLluvia["accion"]) => resultado.filter((x) => x.accion === k).length;
-      return { ok: true, mensaje: `Plan lluvia: ${n("movido")} movidos a techada, ${n("cortado")} cortados y ${n("suspendido")} suspendidos. Avisales por WhatsApp.` };
+      return { ok: true, mensaje: `Plan lluvia: ${n("movido")} movidos a techada, ${n("cortado")} cortados y ${n("suspendido")} suspendidos. Avisales por WhatsApp.`, lluvia: resultado };
     }
   }
 }
@@ -221,16 +225,20 @@ export function bajaFijo(estado: EstadoClub, fijoId: string, ahora: Ahora): Dese
 
 export interface VistaEspera {
   id: string;
+  /** El nombre de quien espera. */
+  titular: string;
   texto: string;
-  /** Los huecos libres que le sirven ahora (cancha y hora), para darle el turno de un toque. */
-  huecos: { canchaId: string; inicio: number; texto: string }[];
+  /** Su celular (el anotado o el de su ficha), "" si no hay: para ofrecerle el hueco por WhatsApp. */
+  celular: string;
+  /** Los huecos libres que le sirven ahora (cancha y hora), con la oferta por WhatsApp lista, para darle el turno de un toque. */
+  huecos: { canchaId: string; inicio: number; texto: string; oferta: string }[];
 }
 
 export function armarEspera(estado: EstadoClub, ahora: Ahora): { espera: VistaEspera[]; firma: string } {
   const espera = estado.espera
     .filter((e) => e.fecha >= ahora.fecha)
     .map((e) => {
-      const huecos: VistaEspera["huecos"] = [];
+      const huecos: Omit<VistaEspera["huecos"][number], "oferta">[] = [];
       for (const c of estado.canchas) {
         if (e.soloCubierta && !c.cubierta) continue;
         for (const m of huecosLibres(estado, e.fecha, c.id, e.duracion)) {
@@ -241,15 +249,18 @@ export function armarEspera(estado: EstadoClub, ahora: Ahora): { espera: VistaEs
       huecos.sort((a, b) => a.inicio - b.inicio);
       return {
         id: e.id,
+        titular: e.titular,
+        celular: celularDeLaEspera(estado, e),
         texto: `${e.titular} · ${e.fecha === ahora.fecha ? "hoy" : ddmm(e.fecha)} entre ${hhmm(e.desde)} y ${hhmm(e.hasta)} · ${e.duracion} min${e.soloCubierta ? " · sólo techada" : ""}`,
-        huecos: huecos.slice(0, 6),
+        // La oferta se arma sólo para los que se muestran.
+        huecos: huecos.slice(0, 6).map((h) => ({ ...h, oferta: textoOfertaEspera(estado, e, h.canchaId, h.inicio, ahora.fecha) })),
       };
     });
   return { espera, firma: JSON.stringify(espera) };
 }
 
 export type AccionEspera =
-  | { tipo: "anotar"; titular: string; clienteId: string | null; fecha: Fecha; desde: number; hasta: number; duracion: number; soloCubierta: boolean }
+  | { tipo: "anotar"; titular: string; clienteId: string | null; fecha: Fecha; desde: number; hasta: number; duracion: number; soloCubierta: boolean; tel?: string }
   | { tipo: "asignar"; esperaId: string; canchaId: string; inicio: number }
   | { tipo: "quitar"; esperaId: string };
 
@@ -258,7 +269,7 @@ export function ejecutarEspera(estado: EstadoClub, a: AccionEspera, ahora: Ahora
     case "anotar": {
       if (!a.titular.trim()) return { ok: false, mensaje: "¿Quién espera?" };
       if (!(a.hasta >= a.desde)) return { ok: false, mensaje: "El «hasta» no puede ser antes del «desde»." };
-      anotarEspera(estado, { titular: a.titular.trim(), clienteId: a.clienteId, fecha: a.fecha, desde: a.desde, hasta: a.hasta, duracion: a.duracion, soloCubierta: a.soloCubierta }, ahora);
+      anotarEspera(estado, { titular: a.titular.trim(), clienteId: a.clienteId, tel: a.tel?.trim() ?? "", fecha: a.fecha, desde: a.desde, hasta: a.hasta, duracion: a.duracion, soloCubierta: a.soloCubierta }, ahora);
       return { ok: true, mensaje: `${a.titular.trim()} anotado en la lista de espera.` };
     }
     case "asignar": {

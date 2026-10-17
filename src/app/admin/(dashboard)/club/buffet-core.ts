@@ -71,6 +71,10 @@ export interface CargoDeCuenta {
   importe: number;
   /** Se puede restar (vuelve al stock); los manuales y los descuentos no se tocan desde acá. */
   ajustable: boolean;
+  /** Se puede pasar a otra cuenta («Mesa compleja»): todo menos un descuento, que queda donde lo autorizó el dueño. */
+  transferible: boolean;
+  /** «manual · de Ana»: cargado a mano, o pasado desde la cuenta de otro. */
+  nota: string | null;
 }
 
 export interface VistaCuentaBuffet {
@@ -93,6 +97,8 @@ export interface VistaCuentaBuffet {
   aCuenta: { ok: true } | { ok: false; motivo: string; puedePedirFiado: boolean };
   /** El pedido de crédito que espera al dueño para este cliente: intentos que quedan y si está trabado. */
   pedidoPendiente: { id: string; tipo: "cc" | "fiado"; monto: number; quedan: number; trabado: string | null } | null;
+  /** Las otras cuentas abiertas a las que se le puede pasar un cargo (no la venta de mostrador). */
+  destinos: { id: string; titular: string }[];
   firma: string;
 }
 
@@ -143,7 +149,15 @@ export function armarCuentaBuffet(estado: EstadoClub, c: Cuenta, ahora: Ahora): 
     id: c.id,
     titular: c.titular,
     origen: r ? `Mesa de ${canchaDe(estado, r.canchaId)?.nombre ?? "cancha"} · ${hhmm(r.inicio)}` : "Sin turno",
-    items: c.items.map((i, idx) => ({ idx, nombre: i.nombre, cant: i.cant, importe: i.cant * i.precioUnit, ajustable: !i.manual && i.precioUnit >= 0 })),
+    items: c.items.map((i, idx) => ({
+      idx,
+      nombre: i.nombre,
+      cant: i.cant,
+      importe: i.cant * i.precioUnit,
+      ajustable: !i.manual && i.precioUnit >= 0,
+      transferible: i.precioUnit >= 0,
+      nota: [i.manual ? (i.precioUnit < 0 ? `descuento${i.por ? ` de ${i.por}` : ""}` : "manual") : null, i.transferidoDe ? `de ${i.transferidoDe}` : null].filter(Boolean).join(" · ") || null,
+    })),
     saldo,
     aCobrar,
     pagaOtro: pagador ? pagador.titular : null,
@@ -160,6 +174,8 @@ export function armarCuentaBuffet(estado: EstadoClub, c: Cuenta, ahora: Ahora): 
           trabado: trabadoHasta(pendiente.bloqueadoHasta, ahora),
         }
       : null,
+    // Como la «Mesa compleja» del vanilla: cualquier otra cuenta abierta menos la de la venta de mostrador.
+    destinos: estado.cuentas.filter((x) => x.estado === "abierta" && x.id !== c.id && x.titular !== "Mostrador").map((x) => ({ id: x.id, titular: x.titular })),
   };
   return { ...vista, firma: JSON.stringify(vista) };
 }
@@ -192,6 +208,28 @@ export type AccionBuffet =
   | { tipo: "cobrar"; cuentaId: string; medio: MedioCobro }
   | { tipo: "aCuenta"; cuentaId: string }
   | { tipo: "cerrarEnCero"; cuentaId: string };
+
+/**
+ * Qué se deshace en el buffet: lo mismo que en el `DESHACIBLES` del club vanilla (app.mjs:24): abrir la cuenta
+ * (`abrirCuentaCliente` / `abrirCuentaLibre`), cargar (`cargarCuenta`), − / + (`ajustar`), cobrar (`pagarCuenta`) y
+ * cerrar (`cerrarCuenta`). Pedir el OK para fiar y tipear el código del dueño no (tampoco en el vanilla).
+ */
+export const EN_EL_VANILLA_BUFFET: Readonly<Record<AccionBuffet["tipo"], string>> = {
+  abrir: "abrirCuentaLibre",
+  cargar: "cargarCuenta",
+  ajustar: "ajustar",
+  cobrar: "pagarCuenta",
+  aCuenta: "cerrarCuenta",
+  cerrarEnCero: "cerrarCuenta",
+};
+export const DESHACIBLE_BUFFET: Readonly<Record<AccionBuffet["tipo"], boolean>> = {
+  abrir: true,
+  cargar: true,
+  ajustar: true,
+  cobrar: true,
+  aCuenta: true,
+  cerrarEnCero: true,
+};
 
 export function ejecutarBuffet(estado: EstadoClub, accion: AccionBuffet, ahora: Ahora, auth?: Auth): Desenlace {
   const conAuth = auth?.usuarioId ? auth : null;

@@ -356,7 +356,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     assert.deepEqual(errores, []);
     await page.close();
   });
-  test("dar un turno: «+ Turno», la previa con precio y seña, reservar abre su cuenta, cobrar la seña y «Deshacer»", async (t) => {
+  test("dar un turno: «+ Turno», la previa con precio y seña, reservar muestra la confirmación por WhatsApp, «Abrir el turno», cobrar la seña y «Deshacer»", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
     await page.getByRole("button", { name: "+ Turno" }).click();
@@ -369,6 +369,17 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     assert.equal(await page.getByRole("button", { name: /^Turno de prueba, / }).count(), 0);
     await alta.getByRole("button", { name: "Reservar el turno" }).click();
     await page.getByRole("status").filter({ hasText: /^Turno de Turno de prueba en Cancha 4, .* Pide seña de/ }).waitFor();
+    // «Turno reservado ✔» del vanilla: el mensaje de confirmación con la seña y el código, y el link que abre WhatsApp
+    // (en la demo, sin número: se elige el chat). Nada se manda solo.
+    const reservado = page.getByRole("region", { name: "Turno reservado" });
+    await reservado.waitFor();
+    const mensaje = (await reservado.locator("blockquote").textContent())!;
+    assert.match(mensaje, /^¡Hola Turno! Te confirmamos el turno en Break Point Pádel: Cancha 4, .* Para dejarlo firme falta la seña de \$ [\d.]+: transferí al alias .* y poné el código BP-\w+ en el concepto/);
+    const wa = reservado.getByRole("link", { name: "Mandar por WhatsApp" });
+    assert.equal(await wa.getAttribute("href"), `https://wa.me/?text=${encodeURIComponent(mensaje)}`);
+    assert.equal(await wa.getAttribute("target"), "_blank");
+    await reservado.getByText(/En la demo WhatsApp abre sin número/).waitFor();
+    await reservado.getByRole("button", { name: "Abrir el turno" }).click();
     const cuenta = page.getByRole("region", { name: "Turno de prueba" });
     await cuenta.waitFor();
     await page.getByRole("button", { name: /^Turno de prueba, Cancha 4/ }).waitFor();
@@ -441,20 +452,42 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await page.getByRole("tab", { name: "Caja" }).click();
     const efectivo = async () => (await page.getByText("Efectivo en el cajón").locator("xpath=following-sibling::dd").textContent())!;
     const antes = await efectivo();
-    await page.getByLabel("Monto").fill("2500");
-    await page.getByLabel(/^Concepto/).fill("Hielo");
-    await page.getByRole("button", { name: "Anotar el egreso" }).click();
+    // El egreso pide el PIN de quien opera (Lu, recepción, en la demo): sin PIN o con uno equivocado no pasa.
+    const egreso = page.getByRole("region", { name: "Anotar un egreso en efectivo" });
+    const pinEgreso = egreso.getByLabel("PIN de Lu");
+    assert.equal(await pinEgreso.getAttribute("type"), "password");
+    assert.equal(await pinEgreso.getAttribute("inputmode"), "numeric");
+    assert.equal(await pinEgreso.getAttribute("autocomplete"), "off");
+    await egreso.getByLabel("Monto").fill("2500");
+    await egreso.getByLabel(/^Concepto/).fill("Hielo");
+    await egreso.getByRole("button", { name: "Anotar el egreso" }).click();
+    await page.getByRole("alert").filter({ hasText: /^Poné tu PIN/ }).waitFor();
+    await pinEgreso.fill("99");
+    await egreso.getByRole("button", { name: "Anotar el egreso" }).click();
+    await page.getByRole("alert").filter({ hasText: "PIN incorrecto." }).waitFor();
+    assert.equal(await pinEgreso.inputValue(), "", "el PIN se borra después de cada intento");
+    assert.equal(await efectivo(), antes, "sin el PIN no salió nada del cajón");
+    await pinEgreso.fill("33");
+    await egreso.getByRole("button", { name: "Anotar el egreso" }).click();
     await page.getByRole("status").filter({ hasText: "Egreso de $ 2.500 (Hielo) anotado" }).waitFor();
     const numero = (x: string) => Number(x.replace(/\D/g, ""));
     assert.equal(numero(await efectivo()), numero(antes) - 2500);
-    await page.getByLabel("Efectivo contado", { exact: true }).fill(String(numero(await efectivo()) + 500));
-    await page.getByRole("button", { name: "Cerrar la caja" }).click();
+    // El cierre también pide el PIN: sin él no cierra.
+    const cierre = page.getByRole("region", { name: "Cerrar la caja" });
+    await cierre.getByLabel("Efectivo contado", { exact: true }).fill(String(numero(await efectivo()) + 500));
+    await cierre.getByRole("button", { name: "Cerrar la caja" }).click();
+    await page.getByRole("alert").filter({ hasText: /^Poné tu PIN/ }).waitFor();
+    assert.equal(await page.getByRole("heading", { name: "Cierres" }).count(), 0, "sin PIN no quedó ningún cierre");
+    await cierre.getByLabel("PIN de Lu").fill("33");
+    await cierre.getByRole("button", { name: "Cerrar la caja" }).click();
     await page.getByRole("status").filter({ hasText: /^Caja del .* cerrada: sobran \$ 500\./ }).waitFor();
     // Las de días anteriores que quedaron sin cerrar se avisan en rojo y se cierran eligiendo el día.
     const aviso = page.getByRole("alert").filter({ hasText: /cajas? sin cerrar/ });
     if (await aviso.count()) {
-      await page.getByLabel(/^Efectivo contado de la caja del/).fill("0");
-      await page.getByRole("button", { name: "Cerrar esa caja" }).click();
+      const atrasada = page.getByRole("region", { name: /cajas? sin cerrar/ });
+      await atrasada.getByLabel(/^Efectivo contado de la caja del/).fill("0");
+      await atrasada.getByLabel("PIN de Lu").fill("33");
+      await atrasada.getByRole("button", { name: "Cerrar esa caja" }).click();
       await page.getByRole("status").filter({ hasText: /^Caja del .* cerrada/ }).waitFor();
     }
     await page.getByRole("heading", { name: "Cierres" }).waitFor();
@@ -563,7 +596,17 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     });
     const porOperador = resta(await renders(p1), antes);
     t.diagnostic(`renders por cambiar de operador: ${JSON.stringify(porOperador)}`);
-    assert.deepEqual(porOperador, {}, "con la Agenda a la vista, cambiar de operador no repinta nada");
+    // Pasa a operar un dueño: la bandeja «Para resolver ahora» suma lo que es SÓLO de un dueño (como el vanilla,
+    // `!a.paraDuenio || esDuenio()`) y pinta sólo esas alertas nuevas; la agenda y los turnos no se enteran.
+    const { BandejaDelClub, Badge, ItemDeLaBandeja = 0, Button = 0, Marca = 0, Forma = 0, ...resto } = porOperador;
+    assert.deepEqual(resto, {}, "con la Agenda a la vista, cambiar de operador no repinta la agenda ni los turnos");
+    const deDuenio = await p1.evaluate(() => {
+      const e = (window as unknown as { __almacen: import("./almacen").Almacen }).__almacen.estado();
+      return e.novedades.filter((n) => n.estado === "pendiente").length + (e.solicitudesAcceso as { estado: string }[]).filter((x) => x.estado === "pendiente").length;
+    });
+    assert.equal(ItemDeLaBandeja, deDuenio, "en la bandeja se pintan sólo las alertas del dueño que aparecieron");
+    assert.ok(Button <= deDuenio && Marca <= deDuenio && Forma <= deDuenio, "y sólo sus botones y marcas");
+    assert.ok((BandejaDelClub ?? 0) <= 1 && (Badge ?? 0) <= 1);
     await p1.evaluate(() => (window as unknown as { __irASolapa: (id: string) => void }).__irASolapa("caja"));
     await p1.getByText(/^Operás como /).waitFor();
     assert.equal(await p1.getByRole("tab", { name: "Caja" }).getAttribute("aria-selected"), "true", "irASolapa lleva a la solapa");

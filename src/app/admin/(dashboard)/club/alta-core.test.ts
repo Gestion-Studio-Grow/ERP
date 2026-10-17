@@ -6,6 +6,7 @@ import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { clientesQueCoinciden, horariosLibres, previaDelTurno, reservar } from "./alta-core";
 import { armarAgenda } from "./agenda-core";
+import { textoConfirmacion } from "./whatsapp-core";
 
 const HOY = "2026-10-17"; // sábado: todo pico
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
@@ -87,4 +88,16 @@ test("las fichas que coinciden avisan si debe, tiene créditos o faltas", () => 
   assert.ok(fila);
   assert.match(fila.detalle, /debe/);
   assert.deepEqual(clientesQueCoinciden(e, "a"), [], "con una letra no se busca");
+});
+
+test("al reservar, la confirmación por WhatsApp lleva la seña y el código que puso el motor", () => {
+  const e = demo();
+  const libre = horariosLibres(e, HOY, "c4", 90, AHORA)[0];
+  const d = reservar(e, { canchaId: "c4", fecha: HOY, inicio: libre.min, duracion: 90, tipo: "turno", titular: "Grupo de Bruno", clienteId: null, otros: "" }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  const r = M.reserva(e, d.reservaId!)!;
+  assert.ok(r.sena.monto > 0 && r.ref, "sin ficha pide seña con código");
+  const texto = textoConfirmacion(e, r);
+  assert.ok(texto.startsWith(`¡Hola Grupo! Te confirmamos el turno en Break Point Pádel: Cancha 4, sáb 17/10 a las ${M.hhmm(libre.min)}.`), texto);
+  assert.ok(texto.includes(`falta la seña de ${M.pesos(r.sena.monto)}`) && texto.includes(`el código ${r.ref} en el concepto`), texto);
 });

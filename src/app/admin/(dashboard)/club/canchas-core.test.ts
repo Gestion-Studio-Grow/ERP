@@ -5,6 +5,7 @@ import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { DIAS_A_LA_VISTA, SE_DESHACE, bajaFijo, armarCanchas, armarEspera, armarFijos, bajarFijos, ejecutarCanchas, ejecutarEspera, horasDelDia, nuevoFijo } from "./canchas-core";
 import { armarAgenda } from "./agenda-core";
+import { avisosLluvia } from "./whatsapp-core";
 
 const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
@@ -103,4 +104,40 @@ test("dar de baja un fijo (la inversa de crearlo): libera sus turnos sin jugar c
   assert.ok(!e.fijos.some((x) => x.id === f.id));
   assert.ok(futuros.every((r) => r.estado === "cancelada"));
   assert.equal(bajaFijo(e, f.id, AHORA).ok, false);
+});
+
+test("plan lluvia: devuelve lo que pasó con cada turno y los avisos por WhatsApp salen de eso", () => {
+  const e = demo();
+  const d = ejecutarCanchas(e, { tipo: "lluvia", fecha: HOY, desde: 19 * 60 + 30, hasta: 23 * 60 }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.ok(d.lluvia && d.lluvia.length > 0, "la demo tiene turnos en la descubierta a la noche");
+  const avisos = avisosLluvia(e, d.lluvia);
+  assert.equal(avisos.length, d.lluvia.length);
+  for (const a of avisos) {
+    const x = d.lluvia.find((r) => r.reservaId === a.reservaId)!;
+    if (x.accion === "cortado") assert.equal(a.texto, null, "estaban jugando: no hay aviso");
+    else assert.match(a.texto!, new RegExp(`^¡Hola ${x.titular.split(" ")[0]}! Por la lluvia `));
+  }
+  // Sin turnos en ese horario: lista vacía, nada que avisar.
+  const vacio = ejecutarCanchas(demo(), { tipo: "lluvia", fecha: HOY, desde: 8 * 60, hasta: 8 * 60 + 30 }, AHORA);
+  assert.deepEqual(vacio.lluvia, []);
+});
+
+test("lista de espera: cada hueco trae la oferta por WhatsApp (texto del vanilla) y el celular de quien espera", () => {
+  const e = demo();
+  const { espera } = armarEspera(e, AHORA);
+  const dani = espera.find((x) => x.titular === "Daniela Navarro")!;
+  assert.ok(dani.huecos.length > 0);
+  const h = dani.huecos[0];
+  assert.equal(h.oferta, `¡Hola Daniela! Se liberó un turno: ${h.texto.replace(/ (\d\d:\d\d)$/, " a las $1")} (hoy). ¿Lo querés? Respondé SÍ y te lo reservamos.`);
+  assert.equal(dani.celular, M.cliente(e, "k20")!.tel, "el de su ficha");
+  // Anotado sin ficha con su celular: se usa ése; sin celular, queda vacío (WhatsApp abre para elegir el chat).
+  const manana = M.sumarDias(HOY, 1);
+  assert.equal(ejecutarEspera(e, { tipo: "anotar", titular: "Pocho", clienteId: null, fecha: manana, desde: 9 * 60, hasta: 12 * 60, duracion: 90, soloCubierta: false, tel: " 11 4000-7919 " }, AHORA).ok, true);
+  assert.equal(ejecutarEspera(e, { tipo: "anotar", titular: "Sin cel", clienteId: null, fecha: manana, desde: 9 * 60, hasta: 12 * 60, duracion: 90, soloCubierta: false }, AHORA).ok, true);
+  const despues = armarEspera(e, AHORA).espera;
+  const pocho = despues.find((x) => x.titular === "Pocho")!;
+  assert.equal(pocho.celular, "11 4000-7919");
+  assert.match(pocho.huecos[0].oferta, /\(\w+ \d+\/\d+\)\. ¿Lo querés\?/, "otro día: con la fecha corta");
+  assert.equal(despues.find((x) => x.titular === "Sin cel")!.celular, "");
 });

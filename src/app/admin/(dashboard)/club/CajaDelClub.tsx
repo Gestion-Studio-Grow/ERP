@@ -1,17 +1,18 @@
 "use client";
 
 // ============================================================================
-// LA CAJA DE 12 A 12 — cuánto hay, los egresos y el cierre con lo contado.
+// LA CAJA DE 12 A 12 — cuánto hay, el fondo, los movimientos, los egresos y el cierre con lo contado.
 // ============================================================================
 //
 // Arriba, en rojo, si quedó una caja con movimientos sin cerrar (la de la mañana, la de ayer): se cierra desde
 // ahí con lo contado. Después, la caja de hoy: el efectivo que tiene que haber en el cajón (el fondo más lo
-// cobrado en efectivo menos los egresos), lo cobrado por medio y los últimos movimientos. Abajo, anotar un
-// egreso (con concepto) y cerrar la caja. Una caja se cierra una sola vez; lo cobrado después entra en la
-// siguiente. Los créditos de los clientes no entran a la caja.
+// cobrado en efectivo menos los egresos y lo devuelto en mano), lo cobrado por medio, el fondo (lo ajusta un dueño)
+// y TODOS los movimientos de esta caja, de a 40. Abajo, anotar un egreso (con concepto) y cerrar la caja. Una caja
+// se cierra una sola vez; lo cobrado después entra en la siguiente. Los créditos de los clientes no entran a la caja.
 //
-// En el piloto, egreso y cierre piden el PIN; en el ERP manda quien opera (`almacen.operador()`: en la demo, el de
-// ejemplo de su rol, `operadorDeLaDemo`; en la jornada real, el que entra con el bloqueo de la sesión del club).
+// Egreso y cierre piden el PIN de quien opera, como el club vanilla: la sesión del ERP es el puesto, el PIN es la
+// persona. Lo valida el motor (permiso + PIN); la pantalla sólo lo pide, no lo muestra y lo borra después de cada
+// intento. En la demo, los PIN de ejemplo están a la vista, rotulados.
 
 import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -20,28 +21,55 @@ import { cn } from "@/components/ui/cn";
 import { pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
-import { armarCaja, ejecutarCaja, type AccionCaja } from "./caja-core";
+import { MOVIMIENTOS_POR_PAGINA, armarCaja, ejecutarCaja, pinesDeEjemplo, puedeAjustarFondo, type AccionCaja, type CierreDeHoy, type VistaCaja } from "./caja-core";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 
-const seleccionarCaja = (e: EstadoClub, a: Ahora) => armarCaja(e, a);
+const ddmm = (d: string) => `${Number(d.slice(8))}/${Number(d.slice(5, 7))}`;
 
-function CerrarCaja({ etiqueta, boton, onCerrar }: { etiqueta: string; boton: string; onCerrar: (contado: string) => boolean }) {
+/** El PIN: numérico, sin mostrarse, sin autocompletar. */
+function CampoPin({ id, quien, value, onChange }: { id: string; quien: string | null; value: string; onChange: (pin: string) => void }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className="text-sm font-medium text-strong">
+        {quien ? `PIN de ${quien}` : "Tu PIN"}
+      </label>
+      <Input id={id} type="password" inputMode="numeric" autoComplete="off" maxLength={2} value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))} className="sm:w-28" />
+    </div>
+  );
+}
+
+/** El nombre de pila de quien opera (para «PIN de Lu»), por su propio canal. */
+function useQuienOpera(almacen: Almacen): string | null {
+  const operador = useOperador(almacen);
+  return operador ? operador.usuario.nombre.split(" ")[0] : null;
+}
+
+function CerrarCaja({ almacen, etiqueta, boton, esperado, onCerrar }: { almacen: Almacen; etiqueta: string; boton: string; esperado: number; onCerrar: (contado: string, pin: string) => boolean }) {
   const [contado, setContado] = useState("");
-  const id = useId();
+  const [pin, setPin] = useState("");
+  const quien = useQuienOpera(almacen);
+  const ids = { contado: useId(), pin: useId(), ayuda: useId() };
   return (
     <form
-      className="flex flex-col gap-2 sm:flex-row sm:items-end"
+      className="flex flex-col gap-2"
       onSubmit={(e) => {
         e.preventDefault();
-        if (onCerrar(contado)) setContado("");
+        if (onCerrar(contado, pin)) setContado("");
+        setPin("");
       }}
     >
-      <div className="flex flex-1 flex-col gap-1">
-        <label htmlFor={id} className="text-sm font-medium text-strong">
-          {etiqueta}
-        </label>
-        <Input id={id} inputMode="numeric" importe value={contado} autoComplete="off" onChange={(e) => setContado(e.target.value)} />
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+        <div className="flex flex-col gap-1">
+          <label htmlFor={ids.contado} className="text-sm font-medium text-strong">
+            {etiqueta}
+          </label>
+          <Input id={ids.contado} inputMode="numeric" importe value={contado} autoComplete="off" aria-describedby={ids.ayuda} onChange={(e) => setContado(e.target.value)} />
+        </div>
+        <CampoPin id={ids.pin} quien={quien} value={pin} onChange={setPin} />
       </div>
+      <p id={ids.ayuda} className="text-sm text-muted">
+        Tendría que haber {pesos(esperado)} en efectivo (con el fondo).
+      </p>
       <Button type="submit" variant="solid" size="md">
         {boton}
       </Button>
@@ -50,11 +78,10 @@ function CerrarCaja({ etiqueta, boton, onCerrar }: { etiqueta: string; boton: st
 }
 
 /** Las cajas que quedaron con movimientos sin cerrar: el aviso en rojo y UN formulario para cerrar la que se elija. */
-function CajasAtrasadas({ atrasadas, hacer }: { atrasadas: { dia: string; texto: string; efectivoEsperado: number }[]; hacer: (a: AccionCaja) => boolean }) {
+function CajasAtrasadas({ almacen, atrasadas, hacer }: { almacen: Almacen; atrasadas: VistaCaja["atrasadas"]; hacer: (a: AccionCaja) => boolean }) {
   const [dia, setDia] = useState(atrasadas[0].dia);
   const id = useId();
   const elegida = atrasadas.find((a) => a.dia === dia) ?? atrasadas[0];
-  const ddmm = (d: string) => `${Number(d.slice(8))}/${Number(d.slice(5, 7))}`;
   return (
     <section aria-labelledby={`${id}-t`} className="flex flex-col gap-3 rounded-lg border border-danger/40 bg-danger-soft p-3">
       <h2 id={`${id}-t`} role="alert" className="font-semibold text-danger">
@@ -72,34 +99,204 @@ function CajasAtrasadas({ atrasadas, hacer }: { atrasadas: { dia: string; texto:
           ))}
         </Select>
       </div>
-      <CerrarCaja etiqueta={`Efectivo contado de la caja del ${ddmm(elegida.dia)}`} boton="Cerrar esa caja" onCerrar={(contado) => hacer({ tipo: "cerrar", contado, dia: elegida.dia })} />
+      <CerrarCaja
+        key={elegida.dia}
+        almacen={almacen}
+        etiqueta={`Efectivo contado de la caja del ${ddmm(elegida.dia)}`}
+        boton="Cerrar esa caja"
+        esperado={elegida.efectivoEsperado}
+        onCerrar={(contado, pin) => hacer({ tipo: "cerrar", contado, dia: elegida.dia, pin })}
+      />
     </section>
   );
 }
 
-/** Quién opera: por su propio canal (cambiar de operador repinta sólo esta línea, no la caja). */
+/** Quién opera y, en la demo, los PIN de ejemplo (rotulados: en el club cada uno tiene el suyo). */
 function OperaComo({ almacen }: { almacen: Almacen }) {
   const operador = useOperador(almacen);
+  const demo = almacen.modo() === "demo";
   return (
-    <p className="text-sm text-muted">
-      {operador
-        ? `Operás como ${operador.usuario.nombre}. En el ERP la sesión reemplaza al PIN del piloto: el egreso y el cierre quedan a tu nombre.`
-        : "Todavía no entró nadie a operar: el egreso y el cierre de caja piden quién los hace."}
-    </p>
+    <div className="flex flex-col gap-1 text-sm text-muted">
+      <p>
+        {operador
+          ? `Operás como ${operador.usuario.nombre}. El egreso y el cierre piden tu PIN y quedan a tu nombre.`
+          : "Todavía no entró nadie a operar: el egreso y el cierre de caja piden quién los hace y su PIN."}
+      </p>
+      {demo && (
+        <details>
+          <summary className="inline-flex min-h-11 cursor-pointer items-center font-medium text-strong focus-visible:outline-2 focus-visible:outline-focus">¿Probando la demo? Ver los PIN de ejemplo</summary>
+          <p className="tabular-nums text-body">
+            {pinesDeEjemplo(almacen.estado())}. Son de ejemplo, sólo de la demo: en el club cada uno tiene el suyo.
+          </p>
+        </details>
+      )}
+    </div>
+  );
+}
+
+/** El fondo de caja (el cambio del cajón): lo ajusta quien puede configurar, un dueño. */
+function FondoDeCaja({ almacen, fondo, hacer }: { almacen: Almacen; fondo: number; hacer: (a: AccionCaja) => boolean }) {
+  const operador = useOperador(almacen);
+  const [monto, setMonto] = useState(String(fondo));
+  const id = useId();
+  if (!puedeAjustarFondo(almacen.estado(), operador?.usuario.id)) return null;
+  return (
+    <form
+      className="flex flex-col gap-2 sm:flex-row sm:items-end"
+      onSubmit={(e) => {
+        e.preventDefault();
+        hacer({ tipo: "fondo", monto });
+      }}
+    >
+      <div className="flex flex-col gap-1">
+        <label htmlFor={id} className="text-sm font-medium text-strong">
+          Fondo de caja (cambio en el cajón)
+        </label>
+        <Input id={id} inputMode="numeric" importe value={monto} autoComplete="off" onChange={(e) => setMonto(e.target.value)} className="sm:w-40" />
+      </div>
+      <Button type="submit" variant="outline" size="md">
+        Guardar el fondo
+      </Button>
+    </form>
+  );
+}
+
+function Movimientos({ v, onMas }: { v: VistaCaja; onMas: () => void }) {
+  const faltan = v.totalMovimientos - v.movimientos.length;
+  return (
+    <section aria-labelledby="club-caja-movs" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
+      <h2 id="club-caja-movs" className="font-semibold text-strong">
+        Movimientos ({v.totalMovimientos})
+      </h2>
+      {v.totalMovimientos === 0 ? (
+        <p className="text-sm text-muted">Todavía no entró ni salió nada en esta caja.</p>
+      ) : (
+        <table className="w-full text-sm tabular-nums">
+          <thead>
+            <tr className="border-b border-line text-left text-xs text-muted">
+              <th scope="col" className="py-1.5 pr-2 font-medium">
+                Hora
+              </th>
+              <th scope="col" className="py-1.5 pr-2 font-medium">
+                Concepto
+              </th>
+              <th scope="col" className="py-1.5 pr-2 text-right font-medium">
+                Ingreso
+              </th>
+              <th scope="col" className="py-1.5 text-right font-medium">
+                Egreso
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {v.movimientos.map((m) => (
+              <tr key={m.id} className="border-b border-line align-top last:border-b-0">
+                <td className="py-1.5 pr-2 whitespace-nowrap text-muted">{m.hora}</td>
+                <td className="min-w-0 py-1.5 pr-2 break-words">
+                  <span className="text-strong">{m.concepto}</span>
+                  <span className="block text-xs text-muted">
+                    {m.medio}
+                    {m.quien ? ` · ${m.quien}` : ""}
+                  </span>
+                </td>
+                <td className="py-1.5 pr-2 text-right whitespace-nowrap text-strong">{m.tipo === "ingreso" ? pesos(m.monto) : ""}</td>
+                <td className="py-1.5 text-right whitespace-nowrap text-danger">{m.tipo === "egreso" ? pesos(m.monto) : ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {faltan > 0 && (
+        <Button variant="ghost" size="md" onClick={onMas}>
+          Ver {Math.min(faltan, MOVIMIENTOS_POR_PAGINA)} movimientos más (quedan {faltan})
+        </Button>
+      )}
+    </section>
+  );
+}
+
+function Egreso({ almacen, hacer }: { almacen: Almacen; hacer: (a: AccionCaja) => boolean }) {
+  const [monto, setMonto] = useState("");
+  const [concepto, setConcepto] = useState("");
+  const [pin, setPin] = useState("");
+  const quien = useQuienOpera(almacen);
+  const ids = { monto: useId(), concepto: useId(), pin: useId() };
+  return (
+    <section aria-labelledby="club-egreso" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
+      <h2 id="club-egreso" className="font-semibold text-strong">
+        Anotar un egreso en efectivo
+      </h2>
+      <form
+        className="flex flex-col gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (hacer({ tipo: "egreso", monto, concepto, pin })) {
+            setMonto("");
+            setConcepto("");
+          }
+          setPin("");
+        }}
+      >
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[8rem_1fr]">
+          <div className="flex flex-col gap-1">
+            <label htmlFor={ids.monto} className="text-sm font-medium text-strong">
+              Monto
+            </label>
+            <Input id={ids.monto} inputMode="numeric" importe value={monto} autoComplete="off" onChange={(e) => setMonto(e.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor={ids.concepto} className="text-sm font-medium text-strong">
+              Concepto (para qué salió la plata)
+            </label>
+            <Input id={ids.concepto} value={concepto} autoComplete="off" placeholder="Ej.: hielo, artículos de limpieza" onChange={(e) => setConcepto(e.target.value)} />
+          </div>
+        </div>
+        <CampoPin id={ids.pin} quien={quien} value={pin} onChange={setPin} />
+        <Button type="submit" variant="outline" size="md">
+          Anotar el egreso
+        </Button>
+      </form>
+    </section>
+  );
+}
+
+function CierreDeLaCaja({ almacen, cierre, esperado, hacer }: { almacen: Almacen; cierre: CierreDeHoy; esperado: number; hacer: (a: AccionCaja) => boolean }) {
+  return (
+    <section aria-labelledby="club-cierre" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
+      <h2 id="club-cierre" className="font-semibold text-strong">
+        Cerrar la caja
+      </h2>
+      {cierre.tipo === "cerrada" ? (
+        <p className="text-sm text-strong">{cierre.texto}</p>
+      ) : (
+        <>
+          <p className="text-sm text-muted">
+            {cierre.tipo === "siguiente" ? cierre.texto : "Contá el efectivo del cajón (con el fondo); lo digital ya está registrado. Se cierra una sola vez; lo que se cobre después va a la caja siguiente."}
+          </p>
+          <CerrarCaja
+            almacen={almacen}
+            etiqueta="Efectivo contado"
+            boton="Cerrar la caja"
+            esperado={esperado}
+            onCerrar={(contado, pin) => hacer({ tipo: "cerrar", contado, dia: cierre.tipo === "siguiente" ? cierre.dia : null, pin })}
+          />
+        </>
+      )}
+    </section>
   );
 }
 
 export default function CajaDelClub({ almacen }: { almacen: Almacen }) {
-  const v = useSeleccion(almacen, seleccionarCaja, porFirma);
-  const [monto, setMonto] = useState("");
-  const [concepto, setConcepto] = useState("");
-  const ids = { monto: useId(), concepto: useId() };
+  const [cuantos, setCuantos] = useState(MOVIMIENTOS_POR_PAGINA);
+  const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarCaja(e, a, cuantos), [cuantos]);
+  const v = useSeleccion(almacen, seleccionar, porFirma);
+  // Egreso, cierre y fondo NO se deshacen (como en vanilla: lo que pide PIN no tiene «Deshacer»).
   const hacer = useCallback((a: AccionCaja) => almacen.ejecutar((e, ahora, auth) => ejecutarCaja(e, a, ahora, auth)).ok, [almacen]);
 
   return (
     <div className="flex flex-col gap-4">
       <OperaComo almacen={almacen} />
-      {v.atrasadas.length > 0 && <CajasAtrasadas atrasadas={v.atrasadas} hacer={hacer} />}
+      {v.atrasadas.length > 0 && <CajasAtrasadas almacen={almacen} atrasadas={v.atrasadas} hacer={hacer} />}
 
       <section aria-labelledby="club-caja-hoy" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">
         <h2 id="club-caja-hoy" className="text-lg font-semibold text-strong">
@@ -132,68 +329,15 @@ export default function CajaDelClub({ almacen }: { almacen: Almacen }) {
             </div>
           ))}
         </dl>
-        <h3 className="text-sm font-semibold text-strong">Últimos movimientos</h3>
-        {v.movimientos.length === 0 ? (
-          <p className="text-sm text-muted">Todavía no entró ni salió nada en esta caja.</p>
-        ) : (
-          <ul className="flex flex-col text-sm tabular-nums">
-            {v.movimientos.map((m) => (
-              <li key={m.id} className="flex justify-between gap-2 border-b border-line py-1.5 last:border-b-0">
-                <span className="min-w-0 truncate">
-                  <span className="text-muted">{m.hora}</span> {m.concepto} <span className="text-muted">· {m.medio}</span>
-                </span>
-                <span className={cn("shrink-0", m.tipo === "egreso" ? "text-danger" : "text-strong")}>
-                  {m.tipo === "egreso" ? "−" : ""}
-                  {pesos(m.monto)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <FondoDeCaja key={v.fondo} almacen={almacen} fondo={v.fondo} hacer={hacer} />
       </section>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section aria-labelledby="club-egreso" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
-          <h2 id="club-egreso" className="font-semibold text-strong">
-            Anotar un egreso en efectivo
-          </h2>
-          <form
-            className="flex flex-col gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (hacer({ tipo: "egreso", monto, concepto })) {
-                setMonto("");
-                setConcepto("");
-              }
-            }}
-          >
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[8rem_1fr]">
-              <div className="flex flex-col gap-1">
-                <label htmlFor={ids.monto} className="text-sm font-medium text-strong">
-                  Monto
-                </label>
-                <Input id={ids.monto} inputMode="numeric" importe value={monto} autoComplete="off" onChange={(e) => setMonto(e.target.value)} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor={ids.concepto} className="text-sm font-medium text-strong">
-                  Concepto (para qué salió la plata)
-                </label>
-                <Input id={ids.concepto} value={concepto} autoComplete="off" onChange={(e) => setConcepto(e.target.value)} />
-              </div>
-            </div>
-            <Button type="submit" variant="outline" size="md">
-              Anotar el egreso
-            </Button>
-          </form>
-        </section>
-        <section aria-labelledby="club-cierre" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
-          <h2 id="club-cierre" className="font-semibold text-strong">
-            Cerrar la caja
-          </h2>
-          <p className="text-sm text-muted">Contá el efectivo del cajón (con el fondo). Se cierra una sola vez; lo que se cobre después va a la caja siguiente.</p>
-          <CerrarCaja etiqueta="Efectivo contado" boton="Cerrar la caja" onCerrar={(contado) => hacer({ tipo: "cerrar", contado, dia: null })} />
-        </section>
+        <Egreso almacen={almacen} hacer={hacer} />
+        <CierreDeLaCaja almacen={almacen} cierre={v.cierreDeHoy} esperado={v.efectivoEsperado} hacer={hacer} />
       </div>
+
+      <Movimientos v={v} onMas={() => setCuantos((n) => n + MOVIMIENTOS_POR_PAGINA)} />
 
       {v.cierres.length > 0 && (
         <section aria-labelledby="club-cierres" className="flex flex-col gap-1">
@@ -203,7 +347,7 @@ export default function CajaDelClub({ almacen }: { almacen: Almacen }) {
           <ul className="text-sm tabular-nums">
             {v.cierres.map((c) => (
               <li key={c.dia} className="flex justify-between gap-2 border-b border-line py-1.5">
-                <span className="min-w-0 truncate text-muted">{c.texto}</span>
+                <span className={cn("min-w-0 truncate text-muted")}>{c.texto}</span>
                 <span className={cn("shrink-0 font-semibold", c.diferencia === 0 ? "text-success" : "text-danger")}>
                   {c.diferencia === 0 ? "cuadra" : `${c.diferencia > 0 ? "sobran" : "faltan"} ${pesos(Math.abs(c.diferencia))}`}
                 </span>

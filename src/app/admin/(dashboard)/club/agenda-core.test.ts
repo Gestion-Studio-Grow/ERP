@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import { armarAgenda, compartirAgenda, marcaDelTurno, senalDelTurno, vecino } from "./agenda-core";
+import { DIAS_ANTES, DIAS_DESPUES, armarAgenda, compartirAgenda, diasDeLaAgenda, marcaDelTurno, ponerLuz, senalDelTurno, vecino } from "./agenda-core";
 import { ejecutar } from "./cuenta-core";
 
 const HOY = "2026-10-17";
@@ -113,4 +113,70 @@ test("las flechas: ↑/↓ en la misma cancha, ←/→ al turno de la cancha de 
   assert.equal(vecino(turnos, "d1", "derecha"), null);
   assert.equal(vecino(turnos, "a1", "izquierda"), null);
   assert.equal(vecino(turnos, "x", "abajo"), null);
+});
+
+test("los días de arriba: ayer, hoy y los cinco que siguen (los del vanilla)", () => {
+  const dias = diasDeLaAgenda(HOY);
+  assert.equal(DIAS_ANTES, 1);
+  assert.equal(DIAS_DESPUES, 5);
+  assert.deepEqual(dias.map((d) => d.fecha), [-1, 0, 1, 2, 3, 4, 5].map((i) => M.sumarDias(HOY, i)));
+  assert.deepEqual(dias.slice(0, 3).map((d) => d.nombre), ["Ayer", "Hoy", "Mañana"]);
+  assert.equal(dias[3].nombre, M.NOMBRE_DIA[M.diaSemana(dias[3].fecha)].slice(0, 3));
+  assert.equal(dias[1].ddmm, "17/10");
+  assert.match(dias[0].etiqueta, /^Ayer, \S+ 16\/10$/);
+});
+
+test("ayer es la MISMA grilla: el encabezado y las horas se reusan, sin raya de ahora ni huecos para reservar", () => {
+  const e = demo();
+  const ayer = M.sumarDias(HOY, -1);
+  const v1 = armarAgenda(e, HOY, AHORA);
+  const v2 = compartirAgenda(v1, armarAgenda(e, ayer, AHORA));
+  assert.equal(v2.fecha, ayer);
+  assert.equal(v2.canchas, v1.canchas, "mismas canchas: el encabezado no se repinta");
+  if (M.horarioDe(e, ayer).abre === M.horarioDe(e, HOY).abre && M.horarioDe(e, ayer).cierra === M.horarioDe(e, HOY).cierra) assert.equal(v2.horas, v1.horas);
+  assert.equal(v2.ahora, null);
+  assert.equal(v2.libres.length, 0, "lo de ayer ya pasó: no hay huecos para dar turno");
+  assert.ok(v2.turnos.every((t) => !t.atencion), "lo urgente se marca sólo en la grilla de hoy");
+});
+
+test("necesita atención: los turnos de una alerta urgente del motor, sólo hoy", () => {
+  const e = demo();
+  const v = armarAgenda(e, HOY, AHORA);
+  const urgentes = new Set(M.alertas(e, AHORA).filter((a) => a.nivel === "alta" && a.reservaId).map((a) => a.reservaId));
+  assert.ok(urgentes.size > 0, "la demo trae alertas urgentes de turnos");
+  for (const t of v.turnos) {
+    assert.equal(t.atencion, urgentes.has(t.id), t.titular);
+    if (t.atencion) assert.match(t.etiqueta, /necesita atención/);
+  }
+});
+
+test("la luz: se prende y se apaga a mano; el motor la prende al abrir la cancha y la apaga al cerrarla", () => {
+  const e = demo();
+  const c = e.canchas.find((x) => x.estado === "ok" && !e.luces[x.id])!;
+  assert.ok(c, "hay una cancha con la luz apagada");
+  assert.deepEqual(ponerLuz(e, c.id, true), { ok: true, mensaje: `Luz de ${c.nombre} prendida.` });
+  assert.equal(e.luces[c.id], true);
+  assert.equal(ponerLuz(e, c.id, true).ok, false, "ya estaba prendida");
+  assert.deepEqual(ponerLuz(e, c.id, false), { ok: true, mensaje: `Luz de ${c.nombre} apagada.` });
+  assert.equal(ponerLuz(e, "no-existe", true).ok, false);
+
+  // Prender o apagar no cambia la grilla: la MISMA vista (ni la agenda ni los turnos se repintan).
+  const v1 = armarAgenda(e, HOY, AHORA);
+  ponerLuz(e, c.id, true);
+  assert.equal(compartirAgenda(v1, armarAgenda(e, HOY, AHORA)), v1);
+  ponerLuz(e, c.id, false);
+
+  // Abrir la cancha la prende; cerrarla la apaga (motor: checkIn / finalizar).
+  const r = e.reservas.find((x) => x.fecha === HOY && x.estado === "reservada" && x.canchaId === c.id && M.minutosHasta(AHORA, x.fecha, x.inicio) > 0) ??
+    e.reservas.find((x) => x.fecha === HOY && x.estado === "reservada" && M.minutosHasta(AHORA, x.fecha, x.inicio) > 0)!;
+  assert.ok(r, "hay un turno por empezar");
+  for (const x of e.canchas) e.luces[x.id] = false;
+  r.sena.pagada = true;
+  const abrir = M.checkIn(e, r.id, AHORA);
+  assert.equal(abrir.ok, true, abrir.ok ? "" : abrir.motivo);
+  assert.equal(e.luces[r.canchaId], true, "al abrir la cancha se prende la luz");
+  M.registrarPago(e, r.id, { medio: "efectivo", monto: M.saldo(r) }, AHORA);
+  const cerrar = M.finalizar(e, r.id, {}, AHORA);
+  assert.equal(cerrar.ok, true, cerrar.ok ? "" : cerrar.motivo);
+  assert.equal(e.luces[r.canchaId], false, "al cerrar la cancha se apaga la luz");
 });

@@ -748,6 +748,118 @@ export declare function cobrarDeuda(estado: EstadoClub, clienteId: string, pago?
 
 // ── ola 1 · cuenta y buffet ──
 
+/**
+ * Suma un jugador al turno (hasta 4): por nombre o, con `clienteId`, con su ficha (el nombre sale de la ficha). No
+ * mira si la cancha sigue abierta ni si la ficha ya juega: eso lo decide quien llama (cuenta-core.ts).
+ */
+export declare function sumarJugador(estado: EstadoClub, reservaId: string, nombre: string | null, clienteId?: string | null): Resultado;
+
 // ── ola 1 · agenda y tienda ──
 
+// · La bandeja «Para resolver ahora» (motor.mjs `alertas`).
+export type NivelAlerta = "alta" | "media" | "info";
+export type TipoAlerta =
+  | "sena"
+  | "no_show"
+  | "llega"
+  | "cerrar"
+  | "termina"
+  | "devolucion"
+  | "falta_sin_ficha"
+  | "luz"
+  | "mantenimiento"
+  | "lluvia"
+  | "espera"
+  | "stock"
+  | "autorizacion"
+  | "pedido"
+  | "acceso";
+/** Lo que hay que resolver: el texto, el botón (`accion`) y a qué se refiere (según el tipo, uno o dos de los ids). */
+export interface Alerta {
+  nivel: NivelAlerta;
+  tipo: TipoAlerta;
+  texto: string;
+  accion: string;
+  reservaId?: string;
+  canchaId?: string;
+  esperaId?: string;
+  /** Con `espera`: el primer hueco libre que le sirve. */
+  inicio?: number;
+  productoId?: string;
+  novedadId?: string;
+  pedidoId?: string;
+  solicitudId?: string;
+  /** Sólo lo resuelve un dueño (autorizaciones, accesos). */
+  paraDuenio?: true;
+}
+/** Lo que hay que resolver AHORA, de lo más urgente a lo menos (alta → media → info; dentro del nivel, en el orden en que se arma). */
+export declare function alertas(estado: EstadoClub, ahora: Ahora): Alerta[];
+
+// · Pedidos de la tienda (se encargan por la web o WhatsApp, se retiran y se pagan en el club).
+export type EstadoPedidoTienda = "pendiente" | "entregado" | "a_cuenta" | "cancelado";
+export interface LineaPedidoTienda {
+  productoId: string;
+  nombre: string;
+  cant: number;
+  precioUnit: number;
+}
+export interface PedidoTienda extends Sello {
+  id: string;
+  /** «T-ABCD»: el que viaja en el mensaje de WhatsApp. */
+  codigo: string;
+  items: LineaPedidoTienda[];
+  total: number;
+  nombre: string;
+  tel: string;
+  /** "web" | "whatsapp". */
+  origen: string;
+  estado: EstadoPedidoTienda;
+  /** Al entregarlo: cómo y cuánto se cobró (al precio de ese día). */
+  cobrado?: Sello & { medio: Medio; monto: number };
+  /** Al pasarlo a la cuenta de un cliente: la cuenta de cargos donde quedó. */
+  cuentaId?: string;
+}
+/** Lo que se ve en la tienda: productos marcados para la tienda, activos y con stock. Sin costos ni códigos. */
+export declare function catalogoTienda(estado: EstadoClub): { id: string; nombre: string; categoria: string; precio: number; pocas: boolean }[];
+/** El encargo: no descuenta stock ni mueve caja (eso pasa al entregar). Devuelve el mensaje de WhatsApp del cliente. */
+export declare function crearPedidoTienda(
+  estado: EstadoClub,
+  datos: { items: { productoId: string; cant: number }[]; nombre: string; tel?: string; origen?: string },
+  ahora?: Ahora,
+): Resultado<{ pedido: PedidoTienda; mensaje: string }>;
+/** El club pega el mensaje que mandó el cliente: se leen productos, nombre y código, y queda pendiente. */
+export declare function pedidoDesdeWhatsApp(estado: EstadoClub, texto: string, ahora?: Ahora): Resultado<{ pedido: PedidoTienda; mensaje: string }>;
+export declare function pedidosPendientes(estado: EstadoClub): PedidoTienda[];
+/** Se entrega y se cobra en el mostrador (sin créditos): descuenta stock y entra a la caja, al precio de hoy. */
+export declare function entregarPedido(estado: EstadoClub, pedidoId: string, opciones: { medio: Medio; auth?: Auth | null }, ahora?: Ahora): Resultado<{ total: number }>;
+/** Se lo lleva y queda en la cuenta de cargos del cliente (descuenta stock; no entra a la caja). */
+export declare function cargarPedidoACuenta(estado: EstadoClub, pedidoId: string, clienteId: string, ahora?: Ahora): Resultado<{ cuenta: Cuenta }>;
+export declare function cancelarPedido(estado: EstadoClub, pedidoId: string, ahora?: Ahora): Resultado;
+
+// DUPLICADO de ccr-63ed11dc-brcdpp: se borra al mergear
+/** `https://wa.me/<número>?text=…`; sin número, WhatsApp abre para elegir el chat. */
+export declare function linkWhatsApp(tel: string, texto: string): string;
+
 // ── ola 1 · caja y whatsapp ──
+
+/** El cambio que queda en el cajón al abrir (fondo de caja). Lo carga quien puede `configurar` (un dueño), sin PIN. */
+export declare function ajustarFondo(estado: EstadoClub, monto: number | string | null, auth: Auth, ahora?: Ahora): Resultado;
+
+// DUPLICADO de ccr-63ed11dc-brcdpp: se borra al mergear
+export type TipoMensajeWhatsApp =
+  | "confirmacion"
+  | "recordatorio"
+  | "espera"
+  | "lluvia_movido"
+  | "lluvia_suspendido"
+  | "lluvia_devolucion"
+  | "falta"
+  | "deuda"
+  | "aprobacion"
+  | "aprobado"
+  | "pedidoTienda"
+  | "pedidoListo"
+  | "reposicion";
+// DUPLICADO de ccr-63ed11dc-brcdpp: se borra al mergear
+/** El texto listo para mandar (cada tipo usa sus datos: `deuda` pide `nombre` y `monto`). */
+export declare function mensajeWhatsApp(tipo: TipoMensajeWhatsApp, datos: Record<string, string | number | boolean | null | undefined>): string;
