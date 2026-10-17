@@ -34,6 +34,7 @@ import { DiasDeLaAgenda, FueraDeLaGrilla } from "./AgendaExtras";
 import CuentaDelTurno from "./CuentaDelTurno";
 import { Esqueleto } from "@/components/ui/Esqueleto";
 import { AvisosDelClub } from "./piezas";
+import { SOLAPAS_DEL_CLUB, type PropsDeSolapa } from "./solapas-club";
 
 // PERFORMANCE (docs/producto/PERFORMANCE-TERMINALES.md, ronda 3): la Agenda (con la cuenta del turno y «Dar un
 // turno») baja con la pantalla; las otras cuatro solapas, en chunks aparte que se piden en cuanto el navegador
@@ -62,8 +63,10 @@ const FijosYEspera = fijos.Solapa;
 const CanchasDelClub = canchas.Solapa;
 const BuffetDelClub = buffet.Solapa;
 const CajaDelClub = caja.Solapa;
+// Las solapas que suma la sesión del club (solapas-club.ts): mismo mecanismo, una por chunk.
+const extras = SOLAPAS_DEL_CLUB.map((s) => ({ ...s, diferida: diferida<PropsDeSolapa>(s.cargar) }));
 function precargarSolapas() {
-  for (const d of [buffet, caja, fijos, canchas]) void d.precargar().catch(() => undefined);
+  for (const d of [buffet, caja, fijos, canchas, ...extras.map((e) => e.diferida)]) void d.precargar().catch(() => undefined);
 }
 function SolapaCargando() {
   return (
@@ -90,8 +93,8 @@ function guardadoDelEquipo(): Guardado | null {
   }
 }
 
-type Solapa = "agenda" | "fijos" | "canchas" | "buffet" | "caja";
-const SOLAPAS: readonly { id: Solapa; etiqueta: string }[] = [
+type Solapa = string;
+const SOLAPAS_DE_FABRICA: readonly { id: Solapa; etiqueta: string }[] = [
   { id: "agenda", etiqueta: "Agenda" },
   { id: "fijos", etiqueta: "Fijos y espera" },
   { id: "canchas", etiqueta: "Mantenimiento y lluvia" },
@@ -104,6 +107,7 @@ type Panel = { tipo: "cuenta"; id: string } | { tipo: "alta"; canchaId: string; 
 export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; usuario: string; rol: RolDelPanel }) {
   const [almacen] = useState(() => crearAlmacen({ hoy: hoyLocal(), clave: claveDeLaDemo(negocio, usuario), guardado: guardadoDelEquipo(), rol }));
   const [solapa, setSolapa] = useState<Solapa>("agenda");
+  const [SOLAPAS] = useState(() => [...SOLAPAS_DE_FABRICA, ...extras.filter((e) => !e.soloDuenos || rol === "OWNER")]);
   const [panel, setPanel] = useState<Panel>(null);
   const hoy = almacen.ahora().fecha;
   const [dia, setDia] = useState(hoy);
@@ -265,6 +269,11 @@ export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; u
             {solapa === "canchas" && <CanchasDelClub almacen={almacen} dia={dia} />}
             {solapa === "buffet" && <BuffetDelClub almacen={almacen} onVerTurno={verTurno} />}
             {solapa === "caja" && <CajaDelClub almacen={almacen} />}
+            {extras.map((e) =>
+              solapa === e.id && SOLAPAS.some((s) => s.id === e.id) ? (
+                <e.diferida.Solapa key={e.id} almacen={almacen} dia={dia} rol={rol} onVerTurno={verTurno} />
+              ) : null,
+            )}
           </Suspense>
         )}
       </div>
