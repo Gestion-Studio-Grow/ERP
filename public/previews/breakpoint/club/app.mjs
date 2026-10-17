@@ -90,7 +90,10 @@ const AMBIENTE_REAL = document.querySelector('meta[name="bp-ambiente"]')?.conten
 const SOLO_APROBAR = location.hash.startsWith("#aprobar&") && !lsLeer(CLAVE_JORNADA) && lsLeer(CLAVE_MODO) !== "real";
 const MODO_REAL = !SOLO_APROBAR && Q.get("demo") !== "1" && (Q.get("modo") === "real" || lsLeer(CLAVE_MODO) === "real" || (AMBIENTE_REAL && lsLeer(CLAVE_MODO) !== "demo"));
 if (MODO_REAL) lsGuardar(CLAVE_MODO, "real"); // la compu queda en jornada real (se vuelve a la demo desde Configuración)
-const guardado = { habilitado: false, cuando: null, ok: true, bytes: 0, timer: null, fuera: false, avisado: false };
+const guardado = { habilitado: false, cuando: null, ok: true, bytes: 0, timer: null, fuera: false, avisado: false, lleno: false, avisoLleno: false };
+// El navegador guarda ~5 millones de caracteres por sitio. Pasados ~2,5 millones (3–4 semanas de club lleno) se avisa
+// para archivar los días cerrados; nunca se archiva solo: el dueño se tiene que quedar con el archivo.
+const AVISO_LLENO = 2_500_000;
 // Los celulares de la jornada real no los ve ni los pisa la demo (que entra con un PIN de ejemplo): clave aparte.
 const claveContactos = () => (MODO_REAL ? CLAVE_CONTACTOS : `${CLAVE_CONTACTOS}-demo`);
 const contactos = () => { try { return JSON.parse(lsLeer(claveContactos()) || "{}") ?? {}; } catch { return {}; } };
@@ -116,7 +119,9 @@ function guardarJornada(inmediato = false) {
     }
     guardado.ok = ok;
     if (ok) { guardado.cuando = new Date(); guardado.bytes = txt.length; guardado.avisado = false; }
-    else if (!guardado.avisado) { guardado.avisado = true; toast("No se pudo guardar en esta compu. Descargá un respaldo ya (Ajustes → Jornada real).", { error: true }); }
+    else if (!guardado.avisado) { guardado.avisado = true; toast("No se pudo guardar en esta compu: falta lugar. Descargá un respaldo ya y archivá los días cerrados (Configuración → Jornada real).", { error: true }); }
+    guardado.lleno = !ok || txt.length > AVISO_LLENO;
+    if (ok && guardado.lleno && !guardado.avisoLleno) { guardado.avisoLleno = true; toast("Lo guardado en esta compu se está llenando: un dueño tiene que archivar los días cerrados (Configuración → Jornada real)."); }
     pintarGuardado();
   };
   if (inmediato) hacer(); else guardado.timer = setTimeout(hacer, 300);
@@ -126,17 +131,40 @@ function pintarGuardado() {
   if (!el) return;
   el.textContent = !guardado.ok ? "⚠ no se pudo guardar" : guardado.cuando ? `guardado ${pad(guardado.cuando.getHours())}:${pad(guardado.cuando.getMinutes())}` : "guardando…";
   el.classList.toggle("err", !guardado.ok);
+  const aviso = $("#aviso-lleno");
+  if (aviso) aviso.hidden = !guardado.lleno;
+}
+function descargarArchivo(texto, nombre) {
+  const url = URL.createObjectURL(new Blob([texto], { type: "application/json" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: nombre });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 function descargarRespaldo() {
   guardarJornada(true);
   const d = new Date();
   const nombre = `breakpoint-jornada-${hoyLocal()}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
-  const url = URL.createObjectURL(new Blob([fotoJornada()], { type: "application/json" }));
-  const a = Object.assign(document.createElement("a"), { href: url, download: nombre });
-  document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  descargarArchivo(fotoJornada(), nombre);
   toast(`Respaldo descargado: ${nombre}. Guardalo (o mandátelo por WhatsApp).`);
 }
+/**
+ * Las copias que dejan la limpieza del go-live («-antes-golive»), «Empezar otra jornada en blanco» («-anterior») y una
+ * jornada que no se pudo leer («-ilegible-…»): ocupan lugar en la misma compu. Se borran sólo si un dueño lo confirma.
+ */
+function copiasEnLaCompu() {
+  const out = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const clave = localStorage.key(i);
+      if (!clave?.startsWith(`${CLAVE_JORNADA}-`)) continue;
+      const sufijo = clave.slice(CLAVE_JORNADA.length + 1);
+      const nombre = sufijo === "antes-golive" ? "Copia de antes de la limpieza del go-live" : sufijo === "anterior" ? "Jornada anterior (la de antes de «Empezar otra jornada en blanco»)" : sufijo.startsWith("ilegible-") ? "Jornada que no se pudo leer" : `Copia «${sufijo}»`;
+      out.push({ clave, sufijo, nombre, largo: (localStorage.getItem(clave) ?? "").length });
+    }
+  } catch { /* sin acceso al almacenamiento: no hay copias para mostrar */ }
+  return out.sort((a, b) => a.clave.localeCompare(b.clave));
+}
+const kb = (largo) => `${Math.max(1, Math.ceil(largo / 1024)).toLocaleString("es-AR")} KB`;
 
 // Studio de redes (imágenes y textos para Instagram/WhatsApp): se carga recién cuando se abre.
 function abrirElStudio(pieza) {
@@ -856,7 +884,8 @@ function tarjetaJornada() {
           <label class="row small" style="margin:6px 0"><input type="checkbox" id="gl-saldos" checked> Conservar los saldos (cuenta corriente, créditos y faltas de los clientes; deuda con proveedores)</label>
           <label class="row small" style="margin:0 0 6px"><input type="checkbox" id="gl-stock" checked> Conservar el stock contado</label>
           ${(() => { const pend = M.pendientesGoLive(E, AHORA); return pend.length ? `<div class="al media" role="status"><span class="lvl">Antes de limpiar</span><ul class="small" style="margin:4px 0 0;padding-left:18px">${pend.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : `<p class="small muted" style="margin:0 0 6px">Los turnos que todavía no se jugaron quedan, con su seña.</p>`; })()}
-          <button type="button" class="btn danger" data-a="goLive">Hacer la limpieza para el go-live</button></div>`
+          <button type="button" class="btn danger" data-a="goLive">Hacer la limpieza para el go-live</button></div>
+        ${seccionArchivo()}`
       : `<p class="small" style="margin:0 0 10px">Para el día de prueba en el local: el club arranca <b>vacío</b> (sin turnos, clientes ni caja; con las canchas, productos y usuarios de Break Point), con la hora real, y se guarda solo en esta compu. La demo de ejemplo no se toca.</p>
         <div class="row">${guardada ? `<button type="button" class="btn primary" data-a="jornada" data-v="retomar">Seguir la jornada real guardada</button>` : `<button type="button" class="btn primary" data-a="jornada" data-v="blanco">Empezar la jornada real en blanco</button>`}</div>
         ${guardada ? `<p class="small muted" style="margin:8px 0 0">En esta compu hay una jornada real guardada: desde la demo no se puede borrar. Para empezar otra, entrá a la jornada con el PIN de un dueño y usá «Empezar otra jornada en blanco».</p>` : ""}`}
@@ -872,6 +901,23 @@ function tarjetaJornada() {
       <div class="row"><label class="sr" for="link-clientes">Link del turnero para mandar a los clientes</label><input id="link-clientes" readonly value="${esc(linkClientes)}" style="flex:1;min-width:220px"><button type="button" class="btn sm" data-a="copiarLink">Copiar link para clientes</button></div>
       <p class="small muted" style="margin:6px 0 0">Con ese link el cliente ve horarios, precios y la tienda, y te pide el turno o el encargo por WhatsApp. Lo cargás acá.</p>
     </section>`;
+}
+
+// Archivar días cerrados: lo de hace más de 3 semanas con la caja cerrada pasa a un archivo que se descarga y en la
+// compu queda el resumen. Las copias viejas de la jornada se ven acá con lo que ocupan y se borran con PIN de dueño.
+function seccionArchivo() {
+  const hasta = M.diaParaArchivar(E, AHORA);
+  const copias = copiasEnLaCompu();
+  const enCopias = copias.reduce((s, c) => s + c.largo, 0);
+  const ultimo = E.archivo?.anexos?.at(-1);
+  return `<div class="seccion" style="margin-top:12px" aria-labelledby="t-archivo"><h3 id="t-archivo">Archivar días cerrados</h3>
+    ${guardado.lleno ? `<div class="al alta" role="alert"><span class="lvl">Se está llenando</span><p>${guardado.ok ? "Lo guardado en esta compu está cerca del tope del navegador." : "Ya no entra lo guardado en esta compu."} Archivá los días cerrados ahora y, si no las necesitás, borrá las copias viejas de abajo.</p></div>` : ""}
+    <p class="small" style="margin:0">En esta compu la jornada ocupa <b class="num">${kb(guardado.bytes)}</b>${copias.length ? ` y las copias viejas, <b class="num">${kb(enCopias)}</b>` : ""}, de unos 5.000 KB que guarda el navegador. Para que no se llene, lo de los días con la <b>caja cerrada</b> hasta el <b class="num">${esc(ddmm(hasta))}</b> (más de 3 semanas) pasa a un <b>archivo que te descargás</b>: turnos jugados, cuentas cerradas, movimientos de caja y pedidos entregados. En el sistema queda el resumen de esos días.</p>
+    <p class="small muted" style="margin:6px 0">No se toca: los turnos por jugar, las mesas abiertas, las cajas sin cerrar, la cuenta corriente y los créditos de cada cliente, ni nada con plata pendiente. Antes se descarga también un respaldo completo: guardá los dos archivos.</p>
+    ${ultimo ? `<p class="small muted" style="margin:0 0 6px">Último archivo: hasta el ${esc(ddmm(ultimo.hasta))}${ultimo.fecha ? `, hecho el ${esc(ddmm(ultimo.fecha))}` : ""}${ultimo.por ? ` por ${esc(ultimo.por)}` : ""} (${Number(ultimo.conteos?.reservas ?? 0)} turnos).</p>` : ""}
+    <button type="button" class="btn primary" data-a="archivar" id="btn-archivar">Archivar días cerrados</button>
+    ${copias.length ? `<h4 style="margin:12px 0 4px">Copias viejas en esta compu</h4><ul class="small" style="margin:0;padding-left:18px">${copias.map((c) => `<li style="margin:4px 0">${esc(c.nombre)} · <span class="num">${kb(c.largo)}</span> <button type="button" class="btn sm" data-a="borrarCopia" data-v="${esc(c.sufijo)}">Descargar y borrar</button></li>`).join("")}</ul>` : ""}
+  </div>`;
 }
 
 function vistaAjustes() {
@@ -2202,6 +2248,52 @@ const acciones = {
     guardarJornada(true);
     toast(`Listo para el go-live: se borraron ${res.borrado.turnos} turnos, ${res.borrado.cuentas} cuentas y ${res.borrado.movimientos} movimientos de caja. Quedó un respaldo descargado.`);
   },
+  irArchivar: () => {
+    if (!esDuenio()) return toast("Lo guardado en esta compu se está llenando: avisale a un dueño que archive los días cerrados (Configuración → Jornada real).", { error: true });
+    irTab("ajustes");
+    setTimeout(() => { $("#t-archivo")?.scrollIntoView({ block: "center" }); $("#btn-archivar")?.focus({ preventScroll: true }); }, 250);
+  },
+  archivar: () => pinPara("confirmarArchivar", "", `Archivar lo cerrado hasta el ${ddmm(M.diaParaArchivar(E, AHORA))}: se descargan el respaldo completo y el archivo de esos días, y recién después se achica lo guardado en esta compu`),
+  confirmarArchivar: () => {
+    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    if (!v.ok || !esDuenio()) return toast(v.ok ? "Archivar lo hace un dueño." : v.motivo, { error: true });
+    const hasta = M.diaParaArchivar(E, AHORA);
+    const res = M.archivarDiasCerrados(E, hasta, { ahora: AHORA, por: yo()?.nombre ?? null });
+    if (!res.ok) return toast(res.motivo, { error: true });
+    if (res.vacio) { cerrarDialogo(); return toast(`No hay nada para archivar hasta el ${ddmm(hasta)}: ya está archivado o esas cajas no se cerraron.`); }
+    // Primero los dos archivos (el respaldo completo de ahora y el anexo de los días archivados); recién después se
+    // guarda el estado achicado.
+    descargarRespaldo();
+    const nombre = `breakpoint-archivo-${hoyLocal()}.json`;
+    descargarArchivo(JSON.stringify(res.anexo), nombre);
+    const antes = guardado.bytes;
+    E = res.estado;
+    UNDO = null;
+    cerrarDialogo();
+    guardado.avisoLleno = false;
+    guardarJornada(true);
+    render();
+    const c = res.conteos;
+    toast(`Archivado hasta el ${ddmm(hasta)}: ${c.reservas} turnos, ${c.cuentas} cuentas y ${c.movimientos} movimientos de caja (${kb(antes)} → ${kb(guardado.bytes)}). Se descargaron el respaldo y ${nombre}: guardá los dos.`);
+  },
+  borrarCopia: (b) => {
+    const c = copiasEnLaCompu().find((x) => x.sufijo === b.dataset.v);
+    if (!c) return toast("Esa copia ya no está.", { error: true });
+    pinPara("confirmarBorrarCopia", esc(c.sufijo), `Borrar de esta compu la ${esc(c.nombre.charAt(0).toLowerCase() + c.nombre.slice(1))} (${kb(c.largo)}): antes se descarga`);
+  },
+  confirmarBorrarCopia: (b) => {
+    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
+    const c = copiasEnLaCompu().find((x) => x.sufijo === b.dataset.v);
+    if (!c || c.clave === CLAVE_JORNADA) return toast("Esa copia ya no está.", { error: true });
+    const texto = lsLeer(c.clave);
+    if (texto) descargarArchivo(texto, `breakpoint-copia-${c.sufijo}-${hoyLocal()}.json`);
+    lsGuardar(c.clave, null);
+    cerrarDialogo();
+    guardarJornada(true);
+    render();
+    toast(`Se borró de esta compu (${kb(c.largo)}). Antes se descargó: guardala si la querés.`);
+  },
   confirmarRestaurar: () => {
     const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
     if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
@@ -2792,7 +2884,7 @@ iniciar();
 if (MODO_REAL) {
   document.documentElement.dataset.modo = "real";
   const cinta = $(".demo-ribbon");
-  if (cinta) cinta.innerHTML = `<span><b>Jornada real</b> · se guarda en esta compu · <span id="guardado" role="status">guardando…</span></span><button type="button" data-a="respaldo">Descargar respaldo</button>`;
+  if (cinta) cinta.innerHTML = `<span><b>Jornada real</b> · se guarda en esta compu · <span id="guardado" role="status">guardando…</span></span><button type="button" data-a="respaldo">Descargar respaldo</button><button type="button" data-a="irArchivar" id="aviso-lleno" hidden>⚠ Se está llenando: archivar días cerrados</button>`;
   const pie = $("footer.gsg");
   if (pie) pie.innerHTML = "Sistema hecho por <b>Gestión Studio Grow</b> · Break Point Pádel";
   const reloj = $(".clock .sr");

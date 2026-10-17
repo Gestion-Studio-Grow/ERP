@@ -116,6 +116,8 @@ export interface MovimientoCC extends Sello {
   concepto: string;
   importe: number;
   saldo: number;
+  /** La línea que resume lo archivado (archivarDiasCerrados): misma suma y mismo saldo que los movimientos que reemplaza. */
+  saldoAnterior?: true;
 }
 
 export interface Fiado extends Sello {
@@ -367,7 +369,105 @@ export interface EstadoClub {
   pagosProveedor: unknown[];
   contenido: unknown[];
   log: { fecha: Fecha | null; min: number | null; texto: string }[];
+  /** Resumen de lo archivado (archivarDiasCerrados). Opcional: un estado que nunca archivó no lo tiene. */
+  archivo?: ArchivoJornada;
 }
+
+// ───────────── archivo de días cerrados ─────────────
+
+/** Resumen de un día archivado. Turnos por su fecha; lo cobrado por el día de caja del cobro; movimientos por su caja. */
+export interface DiaArchivado {
+  dia: Fecha;
+  /** Turnos jugados (finalizados). */
+  turnos: number;
+  faltas: number;
+  /** Cancelados y suspendidos. */
+  cancelados: number;
+  /** Σ precio de los turnos jugados. */
+  vendidoCanchas: number;
+  /** Σ pagos de canchas sin créditos (lo que entró a la caja). */
+  cobradoCanchas: number;
+  /** Σ pagos de cuentas de cargos sin créditos. */
+  cobradoCuentas: number;
+  /** Σ pagos con créditos del cliente (no entra a la caja). */
+  monedero: number;
+  ingresosCaja: number;
+  egresosCaja: number;
+  movimientos: number;
+  cuentas: number;
+  pedidos: number;
+}
+
+export interface ConteosArchivo {
+  reservas: number;
+  cuentas: number;
+  movimientos: number;
+  pedidos: number;
+  novedades: number;
+  difusiones: number;
+  solicitudesAcceso: number;
+  espera: number;
+  bloqueos: number;
+  log: number;
+  movCC: number;
+  fiados: number;
+}
+
+export interface ArchivoJornada {
+  /** Hasta qué día (inclusive) se archivó lo cerrado. */
+  hasta: Fecha | null;
+  dias: DiaArchivado[];
+  /** Por cliente: turnos jugados como titular y último día que jugó (para la seña web y las audiencias). */
+  clientes: Record<string, { jugados: number; ultima: Fecha | "" }>;
+  /** Cada vez que se archivó (el anexo que se descargó). */
+  anexos: ({ desde: Fecha | null; hasta: Fecha; por: string | null; conteos: ConteosArchivo } & Sello)[];
+}
+
+/** El archivo que se descarga al archivar (`breakpoint-archivo-AAAA-MM-DD.json`). Ver FORMATO-RESPALDO.md. */
+export interface AnexoJornada {
+  v: 1;
+  tipo: "anexo-jornada";
+  club: string;
+  desde: Fecha | null;
+  hasta: Fecha;
+  generado: Sello | null;
+  por: string | null;
+  corteCaja: number;
+  resumen: DiaArchivado[];
+  cierres: CierreCaja[];
+  clientes: { id: string; nombre: string }[];
+  canchas: { id: string; nombre: string }[];
+  reservas: Reserva[];
+  cuentas: Cuenta[];
+  movimientos: MovimientoCaja[];
+  pedidos: unknown[];
+  novedades: Novedad[];
+  difusiones: unknown[];
+  solicitudesAcceso: SolicitudAcceso[];
+  espera: Espera[];
+  bloqueos: Bloqueo[];
+  log: EstadoClub["log"];
+  movCC: { clienteId: string; nombre: string; movimientos: MovimientoCC[] }[];
+  fiados: { clienteId: string; nombre: string; fiados: Fiado[] }[];
+}
+
+/** Días que quedan siempre a mano sin archivar (21). */
+export declare const DIAS_SIN_ARCHIVAR: number;
+/** Hasta qué día de caja se propone archivar: lo que tenga más de `dias` días (nunca menos de 7). */
+export declare function diaParaArchivar(estado: EstadoClub, ahora: Ahora, dias?: number): Fecha;
+/**
+ * Archiva lo terminado de los días ≤ `hastaDia` con la caja cerrada. PURA: devuelve una copia podada y el anexo.
+ * Con `ahora`, rechaza archivar la última semana. `vacio: true` si no había nada para archivar (el estado no cambia).
+ */
+export declare function archivarDiasCerrados(
+  estado: EstadoClub,
+  hastaDia: Fecha,
+  opciones?: { ahora?: Ahora | null; por?: string | null },
+): Resultado<{ vacio: boolean; estado: EstadoClub; anexo: AnexoJornada; conteos: ConteosArchivo }>;
+/** La plata por día del estado o de un anexo: canchas y cargos sin créditos, créditos, ingresos y egresos de caja. */
+export declare function plataPorDia(
+  datos: EstadoClub | AnexoJornada,
+): Record<Fecha, { canchas: number; cuentas: number; monedero: number; ingresos: number; egresos: number }>;
 
 // ───────────── estado y respaldo (jornada real) ─────────────
 
