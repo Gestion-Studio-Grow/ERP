@@ -135,4 +135,30 @@ verde. Cubre:
    - Los pedidos de crédito que estaban esperando al dueño se borran: si hace falta, se piden de nuevo.
 3. Desde ahí es el día 1: mismo `/club`, mismos usuarios y PIN, caja en cero.
 
+## Cuando la compu se llena: archivar días cerrados
+
+El navegador guarda unos 5.000 KB por sitio. Con las 4 canchas llenas, la jornada crece unos 3.000 KB por mes: en 3 a
+5 semanas no entra más. Por eso, **una vez por semana** (o cuando avise), un dueño archiva lo viejo.
+
+- **Cuándo:** cuando arriba aparece «⚠ Se está llenando: archivar días cerrados», o cuando en Configuración → Jornada
+  real la jornada pasa los 2.500 KB. Si directamente dice «no se pudo guardar», es urgente: descargá un respaldo y
+  archivá en ese momento.
+- **Cómo:** Configuración → Jornada real → **«Archivar días cerrados»** → PIN de dueño. El sistema:
+  1. descarga un **respaldo completo** (`breakpoint-jornada-….json`), como siempre;
+  2. descarga el **archivo de esos días** (`breakpoint-archivo-AAAA-MM-DD.json`);
+  3. recién después achica lo guardado en la compu.
+
+  **Guardá los dos archivos** en un lugar privado (tienen los datos de los clientes). El archivo de días es la
+  historia: sin él, esos días no se pueden volver a ver con detalle.
+- **Qué se archiva:** lo de hace **más de 3 semanas** que ya está cerrado: turnos jugados, cancelados o con la falta
+  cobrada, cuentas de cargos cerradas, los movimientos de las cajas que se cerraron, pedidos de la tienda entregados.
+  En el sistema queda un resumen de cada día (turnos y plata).
+- **Qué NO se toca:** las últimas 3 semanas, los turnos por jugar, las mesas abiertas, **las cajas que nadie cerró**,
+  lo que tenga plata pendiente (señas en suspenso, plata para devolver, faltas sin cobrar) y lo de cada cliente: su
+  cuenta corriente (queda una línea «Saldo anterior» con el mismo saldo), sus créditos y sus faltas.
+- **Si algo no se archiva** es porque su caja no se cerró: cerrala en Caja (aparece en rojo) y volvé a archivar.
+- **Copias viejas:** en la misma tarjeta aparecen las copias que dejaron la limpieza del go-live y «Empezar otra
+  jornada en blanco», con lo que ocupa cada una. Si no las necesitás, «Descargar y borrar» (con PIN de dueño): primero
+  se descarga y después se borra de la compu. Nunca se borran solas.
+
 — Elaborado por GSG
