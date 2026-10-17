@@ -121,8 +121,33 @@ const SOLAPAS_DE_FABRICA: readonly { id: Solapa; etiqueta: string }[] = [
  * resguardo no depende de que el chunk del bloqueo ya haya bajado. En la demo siempre hay operador de ejemplo.
  * Se suscribe sólo al operador: si cambia quién opera, los hijos son los mismos elementos y React no los repinta.
  */
+const sinConfigurar = (e: EstadoClub) => e.config.configurado === false;
+const igualQue = (_: boolean | undefined, nuevo: boolean) => nuevo;
+const sinTurno = () => undefined;
+const consola = extras.find((e) => e.id === "configuracion") ?? null;
+
 function SoloConOperador({ almacen, children }: { almacen: Almacen; children: React.ReactNode }) {
   const operador = useOperador(almacen);
+  const primerArranque = useSeleccion(almacen, sinConfigurar, igualQue);
+  if (almacen.modo() === "real" && !operador && primerArranque) {
+    // La jornada real recién abierta: los dueños todavía no tienen PIN, así que nadie puede entrar. Se ve SÓLO la
+    // consola de arranque (la solapa «configuracion»: arma los PIN con `almacen.arranque`), nada más del club.
+    if (!consola || (consola.soloDuenos && almacen.rol() !== "OWNER")) {
+      return (
+        <section role="status" aria-label="Configuración inicial pendiente" className="flex min-h-48 flex-col items-center justify-center gap-2 rounded-lg border border-line bg-surface-raised p-6 text-center">
+          <p className="text-lg font-semibold text-strong">Falta la configuración inicial</p>
+          <p className="text-sm text-body">La arma un dueño del club: entrá con un usuario dueño del panel.</p>
+        </section>
+      );
+    }
+    return (
+      <div role="region" aria-label="Configuración inicial del club">
+        <Suspense fallback={<SolapaCargando />}>
+          <consola.diferida.Solapa almacen={almacen} dia={almacen.ahora().fecha} rol={almacen.rol()} onVerTurno={sinTurno} irASolapa={sinTurno} />
+        </Suspense>
+      </div>
+    );
+  }
   if (almacen.modo() === "real" && !operador) {
     return (
       <section role="status" aria-label="Recepción bloqueada" className="flex min-h-48 flex-col items-center justify-center gap-2 rounded-lg border border-line bg-surface-raised p-6 text-center">

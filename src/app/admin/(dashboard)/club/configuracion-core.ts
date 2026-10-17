@@ -153,7 +153,8 @@ export function leerRespaldo(texto: string): { ok: true; respaldo: RespaldoParaR
   if (!r.ok) return { ok: false, mensaje: r.motivo };
   const h = hidratarEstado(r.foto);
   if (!h.ok) return { ok: false, mensaje: `Ese archivo no sirve: ${h.motivo}.` };
-  // El respaldo de adentro del archivo para archivar no lleva `guardado`: vale cuándo se preparó el archivado.
+  // El respaldo de adentro del archivo para archivar trae su `guardado` (desde terminales b2675dc3+); si es de antes y
+  // no lo trae, vale cuándo se preparó el archivado.
   let cuando = cuandoSeGuardo((r.foto as { guardado?: unknown }).guardado);
   const generado = r.antesDeArchivar ? (datos as { anexo?: { generado?: { fecha?: unknown; min?: unknown } | null } }).anexo?.generado : null;
   if (!cuando && generado && typeof generado.fecha === "string" && /^\d{4}-\d{2}-\d{2}$/.test(generado.fecha)) {

@@ -62,6 +62,11 @@ export interface GuardadoLocal extends GuardadoDelClub {
   alDia(): void;
   /** Aparta un texto que no se pudo leer (no se borra: se guarda al lado). false si no hubo lugar. */
   apartar(texto: string, cuando: number): boolean;
+  /**
+   * Guarda una copia aparte, al lado de lo guardado: `<clave>:<nombre>` (p. ej. `antes-de-restaurar:<ms>`). false si no
+   * hubo lugar (y no queda nada a medias).
+   */
+  guardarCopia(nombre: string, texto: string): boolean;
   borrar(): void;
 }
 
@@ -152,6 +157,14 @@ export function crearGuardadoLocal(almacenamiento: AlmacenamientoLocal, clave: s
     apartar(texto, cuando) {
       try {
         almacenamiento.setItem(`${clave}:ilegible:${cuando}`, texto);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    guardarCopia(nombre, texto) {
+      try {
+        almacenamiento.setItem(`${clave}:${nombre}`, texto);
         return true;
       } catch {
         return false;

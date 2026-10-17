@@ -102,6 +102,9 @@ export const REGISTRO_SI_FALTA_LUGAR = 60;
  */
 export const AVISO_LLENO = 2_500_000;
 
+/** `suscribirGuardado` avisa por `bytes` sólo al cruzar esta cuadrícula (64 KB), o al archivar o restaurar. */
+export const CUADRICULA_DE_BYTES = 64 * 1024;
+
 /** La clave del guardado de la demo en este equipo. Sin negocio o sin persona no hay clave «de todos». */
 export function claveDeLaDemo(negocio: string, usuario: string): string {
   if (!negocio.trim() || !usuario.trim()) throw new Error("La demo del club necesita el negocio y la persona para guardar.");
@@ -245,8 +248,9 @@ export interface EstadoDelGuardado {
   /** ¿El guardado es el de este equipo? (si no, este equipo es el espejo). */
   enEsteEquipo: boolean;
   /**
-   * Largo (caracteres) de lo último que se guardó (o se abrió). No cuesta nada: es el texto que ya se armó. Se
-   * actualiza SIN avisar (cada guardado lo cambia): `suscribirGuardado` avisa cuando cambia `lleno`.
+   * Largo (caracteres) de lo último que se guardó (o se abrió). No cuesta nada: es el texto que ya se armó.
+   * `suscribirGuardado` avisa por él sólo si cruza la cuadrícula de 64 KB (`CUADRICULA_DE_BYTES`), si cambia `lleno`,
+   * o al archivar o restaurar: no en cada guardado.
    */
   bytes: number;
   /** ¿Se está llenando? (`bytes` > `AVISO_LLENO`, o el guardado de este equipo falló): un dueño tiene que archivar. */
@@ -291,6 +295,11 @@ export type ArchivoPreparado = Extract<ResultadoDelArchivo, { ok: true }> & {
   guardaAnexo: boolean;
   confirmar(opciones?: { archivoElegido?: string }): Promise<ResultadoDelArchivo>;
 };
+
+/** Lo que devuelve `restaurar`. `copia` es la clave donde quedó lo de antes. */
+export type ResultadoDeRestaurar =
+  | { ok: false; motivo: string; causa: "permiso" | "estado" | "danado" | "sin-lugar" }
+  | { ok: true; copia: string; bytesAntes: number; bytesDespues: number; operador: Operador | null };
 
 /** Los Web Locks del navegador (lo que se usa de `navigator.locks`; se reemplaza en los tests). */
 export interface CerrojosDelNavegador {
@@ -344,6 +353,22 @@ export interface Almacen {
   soloLectura(): boolean;
   /** Otra pestaña tiene la jornada: la toma esta (la otra queda sólo para mirar) y abre lo último guardado. */
   usarAca(): void;
+  /**
+   * La consola del PRIMER arranque: corre `accion` SÓLO en la jornada real, con el club sin configurar
+   * (`config.configurado === false`) y sin nadie operando (con operador, se usa `ejecutar`). La acción no recibe
+   * `auth` (nadie tiene PIN todavía): sirve para lo que el motor deja hacer sin él (`definirPinInicial`,
+   * `terminarConfiguracion`). Deja el aviso y guarda como `ejecutar`, sin «Deshacer». Configurado: no corre, «El
+   * club ya está configurado: entrá con tu PIN». `ejecutar`/`aplicar` siguen cortados sin operador, siempre.
+   */
+  arranque(accion: (estado: EstadoClub, ahora: Ahora) => Desenlace): Desenlace;
+  /**
+   * Restaura un respaldo (el texto descargado o la foto ya leída; para el archivo «respaldo-y-archivo», la pantalla
+   * pasa lo que da `respaldoDesdeArchivo` del motor). Sólo un dueño con PIN (como archivar). Valida con
+   * `hidratarEstado`; guarda ANTES una copia de lo de ahora en `<clave>:antes-de-restaurar:<ms>` (sin lugar, no
+   * restaura); reemplaza el estado, apaga «Deshacer», revisa al operador (si ya no existe o cambió su PIN, queda sin
+   * operador) y guarda en el acto.
+   */
+  restaurar(respaldo: string | unknown, opciones?: { auth?: Auth }): ResultadoDeRestaurar;
   /**
    * Paso 1 del archivado de días cerrados: valida (rol OWNER del ERP + PIN de un dueño del club, porque el motor no lo
    * valida), corre el motor (puro: no toca el estado) y devuelve lo que hay que descargar y `confirmar`. Si no había
@@ -626,13 +651,15 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     version++;
     for (const o of oyentes) o();
   };
-  const ponerMeta = (cambio: Partial<EstadoDelGuardado>) => {
+  const ponerMeta = (cambio: Partial<EstadoDelGuardado>, forzar = false) => {
     const nuevo = { ...meta, ...cambio };
-    if (nuevo.jornada === meta.jornada && nuevo.guardado === meta.guardado && nuevo.lleno === meta.lleno) {
-      // Sólo cambió el tamaño: se anota sin avisar (cada guardado lo cambia, y la cinta no lo muestra). Quien lo
-      // muestra (Configuración) lo lee al pintarse; el aviso llega cuando cambia `lleno`.
-      meta.bytes = nuevo.bytes;
-      return;
+    if (!forzar && nuevo.jornada === meta.jornada && nuevo.guardado === meta.guardado && nuevo.lleno === meta.lleno) {
+      // Sólo cambió el tamaño: cada guardado lo cambia un poco y la cinta no lo muestra, así que se anota sin avisar
+      // mientras no cruce la cuadrícula de 64 KB (Configuración lo lee al pintarse). Archivar y restaurar avisan siempre.
+      if (Math.floor(nuevo.bytes / CUADRICULA_DE_BYTES) === Math.floor(meta.bytes / CUADRICULA_DE_BYTES)) {
+        meta.bytes = nuevo.bytes;
+        return;
+      }
     }
     meta = nuevo;
     for (const o of oyentesGuardado) o();
@@ -1127,7 +1154,8 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     const bytesAntes = textoActual().length;
     if (res.vacio) return { ok: true, hasta, conteos: res.conteos, anexo: res.anexo, bytesAntes, vacio: true, bytesDespues: bytesAntes };
     // El respaldo completo de ahora (el sobre v1 de siempre) y el anexo, en UN archivo con sus huellas.
-    const respaldo: FotoEstado = { v: VERSION_ESTADO, estado, secuencia: secuenciaIds() };
+    // Con `guardado` (ms), como el respaldo que se descarga (FORMATO-RESPALDO.md).
+    const respaldo: FotoEstado & { guardado: number } = { v: VERSION_ESTADO, estado, secuencia: secuenciaIds(), guardado: relojMs() };
     const paquete = paqueteParaArchivar(respaldo, res);
     const textoDelArchivo = JSON.stringify(paquete);
     const pendienteDeEste = { huella: paquete.huella, enCurso: false };
@@ -1204,6 +1232,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       };
       avisar();
       guardarYa();
+      avisarTamano(bytesDespues);
       return { ok: true, vacio: false, hasta, conteos: c, anexo: ahoraRes.anexo, bytesAntes, bytesDespues };
     };
     return {
@@ -1219,6 +1248,86 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       guardaAnexo: !!guardado?.guardarAnexo,
       confirmar,
     };
+  };
+
+  /**
+   * Después de archivar o restaurar: avisa por el tamaño aunque no cruce la cuadrícula. Con el guardado de este equipo,
+   * `bytes` ya es lo que se guardó (en el acto); con otro (asíncrono), la estimación hasta que llegue.
+   */
+  const avisarTamano = (estimado: number) => {
+    ponerMeta(primarioLocal && meta.guardado === "guardado" ? {} : { bytes: estimado, lleno: estimado > AVISO_LLENO }, true);
+  };
+
+  // ── restaurar un respaldo ──
+  const restaurar = (respaldo: unknown, { auth }: { auth?: Auth } = {}): ResultadoDeRestaurar => {
+    if (!puedeOperar() || recargando) return { ok: false, causa: "estado", motivo: MENSAJE_SOLO_LECTURA[meta.jornada as keyof typeof MENSAJE_SOLO_LECTURA] ?? "Ahora no se puede restaurar." };
+    const quien = quienArchiva(auth);
+    if (!quien.ok) return { ok: false, causa: "permiso", motivo: quien.motivo.replace("Archivar", "Restaurar") };
+    let foto: unknown = respaldo;
+    if (typeof respaldo === "string") {
+      try {
+        foto = JSON.parse(respaldo);
+      } catch {
+        return { ok: false, causa: "danado", motivo: "El archivo está incompleto o dañado: no se restauró nada." };
+      }
+    }
+    const h = hidratarEstado(foto);
+    if (!h.ok) return { ok: false, causa: "danado", motivo: `No se puede restaurar: ${h.motivo}.` };
+    // Antes de reemplazar, una copia de lo de ahora al lado (como el «-antes-golive» del vanilla). Sin lugar, no se toca.
+    const bytesAntes = textoActual().length;
+    const copia = `antes-de-restaurar:${relojMs()}`;
+    let copiado = false;
+    try {
+      copiado = espejo?.guardarCopia(copia, textoParaGuardar()) ?? false;
+    } catch {
+      copiado = false;
+    }
+    if (!copiado)
+      return { ok: false, causa: "sin-lugar", motivo: "No hay lugar en este equipo para guardar una copia de lo de ahora: no se restauró nada. Descargá un respaldo y archivá los días cerrados." };
+    reemplazar(h.estado);
+    retomo = true;
+    archivoPendiente = null;
+    // Quien opera tiene que seguir existiendo con el mismo PIN en lo restaurado; si no, queda sin operador.
+    if (operadorElegido) {
+      const previo = operadorElegido;
+      const u = estado.usuarios.find((x) => x.id === previo.usuario.id && x.activo !== false);
+      const sigue = !!u && (previo.auth.pin === undefined ? true : !!u.pin && u.pin === previo.auth.pin);
+      operadorElegido = sigue ? { usuario: u!, auth: previo.auth } : null;
+    }
+    for (const o of oyentesOperador) o();
+    cambios++;
+    const bytesDespues = textoActual().length;
+    aviso = { id: ++idAviso, ok: true, mensaje: `Listo: se restauró el respaldo (lo de antes quedó copiado en este equipo).`, deshacer: false };
+    avisar();
+    guardarYa();
+    adelantarTexto();
+    avisarTamano(bytesDespues);
+    return { ok: true, copia: `${clave}:${copia}`, bytesAntes, bytesDespues, operador: operadorActual() };
+  };
+
+  // ── la consola de arranque (jornada real sin configurar) ──
+  const arranque = (accion: (estado: EstadoClub, ahora: Ahora) => Desenlace): Desenlace => {
+    const negar = (mensaje: string): Desenlace => {
+      aviso = { id: ++idAviso, ok: false, mensaje, deshacer: false };
+      avisar();
+      return { ok: false, mensaje };
+    };
+    if (!real) return negar("La consola de arranque es sólo de la jornada real.");
+    if (estado.config.configurado !== false) return negar("El club ya está configurado: entrá con tu PIN.");
+    if (operadorActual()) return negar("Ya entraste con tu PIN: hacelo desde la pantalla de siempre.");
+    if (!puedeOperar()) return negarSoloLectura();
+    let d: Desenlace;
+    try {
+      d = accion(estado, ahora);
+    } catch {
+      d = { ok: false, mensaje: "No se pudo hacer. Probá de nuevo." };
+    }
+    // Sin «Deshacer»: lo de antes ya no se deshace (como `ejecutar` con una acción no deshacible).
+    fotoPrevia = null;
+    fotoDesde = null;
+    aviso = { id: ++idAviso, ok: d.ok, mensaje: d.mensaje, deshacer: false };
+    cambio();
+    return d;
   };
 
   const negarSoloLectura = (): Desenlace => {
@@ -1325,6 +1434,8 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     pendienteDeGuardar: () => guardado !== null && cambiosGuardados !== cambios,
     soloLectura: () => !puedeOperar(),
     prepararArchivo,
+    restaurar,
+    arranque,
     async archivarDiasCerrados({ archivoElegido, ...pedido } = {}) {
       const p = prepararArchivo(pedido);
       if (!("confirmar" in p)) return p;

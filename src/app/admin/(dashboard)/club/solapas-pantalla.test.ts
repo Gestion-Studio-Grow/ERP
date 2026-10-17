@@ -673,7 +673,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     await alerta(page, /archivo de los días archivados/);
     await page.getByLabel("Elegí el respaldo").setInputFiles(rutaPaquete);
     const restaurar = page.getByRole("form", { name: "Restaurar este respaldo" });
-    await restaurar.getByText(/^Respaldo del \d+\/\d+\/\d{4} a las \d\d:\d\d \(cuando se preparó el archivado\)/).waitFor();
+    await restaurar.getByText(/^Respaldo del (\p{L}+ )?\d+\/\d+\/\d{4} a las \d\d:\d\d/u).waitFor(); // con su `guardado`: la fecha real
     await restaurar.getByText(/Reemplaza la jornada de ahora \(\d+ turnos\)/).waitFor();
     await capturar(page, "config-restaurar-1024");
     await restaurar.getByLabel("PIN de Dueño").fill("12");

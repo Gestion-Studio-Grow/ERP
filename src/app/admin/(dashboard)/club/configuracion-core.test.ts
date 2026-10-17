@@ -325,7 +325,9 @@ test("restaurar con el almacén: el archivo para archivar devuelve la jornada de
   const leido = leerRespaldo(p.textoDelArchivo);
   assert.ok(leido.ok);
   assert.equal(leido.respaldo.antesDeArchivar, true);
-  assert.match(leido.respaldo.cuando ?? "", /cuando se preparó el archivado/);
+  // El respaldo de adentro del archivo trae su `guardado` (terminales): la fecha es la real, sin el «cuando se preparó».
+  assert.match(leido.respaldo.cuando ?? "", /\d+\/\d+\/\d{4} a las \d\d:\d\d$/);
+  assert.doesNotMatch(leido.respaldo.cuando ?? "", /cuando se preparó el archivado/);
   const mismo = a.estado();
   const r = a.ejecutar((e, _a, auth) => restaurarJornada(e, leido.respaldo, "11", auth, a.rol()));
   assert.equal(r.ok, true, r.mensaje);

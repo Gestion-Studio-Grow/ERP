@@ -300,4 +300,31 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     assert.deepEqual(errores, []);
     await contexto.close();
   });
+
+  test("jornada real recién abierta (sin configurar, sin PIN): se ve SÓLO la consola de configuración, nada más del club", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const contexto = await browser!.newContext({ viewport: { width: 1024, height: 768 }, locale: "es-AR" });
+    await contexto.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html() }));
+    const errores: string[] = [];
+    const p = await contexto.newPage();
+    p.on("pageerror", (e) => errores.push(e.message));
+    await p.goto(ORIGEN);
+    await p.addScriptTag({ content: bundle });
+    // Sin nada guardado: la jornada real arranca en blanco (`configurado: false`, los dueños sin PIN).
+    await p.evaluate(() => (window as unknown as Ventana).__montar("demo-club", "u_x", "OWNER", "real"));
+    const consola = p.getByRole("region", { name: "Configuración inicial del club" });
+    await consola.getByRole("heading", { name: "Configuración" }).waitFor();
+    assert.equal(await p.getByRole("tablist").count(), 0, "sin solapas: sólo la consola");
+    assert.equal(await p.getByRole("heading", { name: "Agenda de canchas" }).count(), 0);
+    assert.equal(await p.getByText(/Entrá con tu PIN para ver y operar el club/).count(), 0, "no dice «Bloqueado»: nadie tiene PIN todavía");
+    // Quien no es dueño del panel no ve la consola (la solapa es soloDuenos).
+    const q = await contexto.newPage();
+    await q.goto(ORIGEN);
+    await q.addScriptTag({ content: bundle });
+    await q.evaluate(() => (window as unknown as Ventana).__montar("demo-club", "u_y", "RECEPTION", "real"));
+    await q.getByText("Falta la configuración inicial").waitFor();
+    assert.equal(await q.getByRole("tablist").count(), 0);
+    assert.deepEqual(errores, []);
+    await contexto.close();
+  });
 });
