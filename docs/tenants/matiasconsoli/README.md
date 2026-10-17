@@ -1,8 +1,8 @@
 # Profe Matías Consoli — módulo `padel-clases`
 
-Rama `claude/beautiful-keller-5tykrg`, nacida de `origin/main` (`29d3e94`) el 15/10/2026. **No
-mergeada a `main`** (un push a `main` hoy publica en Vercel: gate 1). Migración **sin aplicar**
-en Neon (gate 2).
+Rama `claude/beautiful-keller-5tykrg`, nacida de `origin/main` (`29d3e94`) el 15/10/2026. **Integrada a `main`** el 17/10/2026 con OK del dueño (gate 1). Migración declarada en
+`prisma/lote-deploy.txt` con OK del dueño (gate 2): se aplica en el build de producción cuando está cargada
+`MIGRATE_DATABASE_URL`, o a mano en Neon.
 
 ## Qué es
 
@@ -78,13 +78,16 @@ ni el comprobante en revisión, y es la tabla viva de CH Estética en producció
   y prendido verifica la firma HMAC con el App Secret (sin secreto 503, firma mala 401), deduplica
   por wamid. Ningún secreto se escribe en el log.
 
-## Marca — autorización PENDIENTE (ADR-034)
+## Marca — autorización REGISTRADA (ADR-034)
 
-**No hay autorización registrada** de Matías para usar su imagen. Por eso la demo sale con su
-nombre en letras y la paleta neutra de cancha (`marca.ts`), **sin** foto, logo ni textos de
-`@matiasconsoli`. Además, Instagram no fue accesible desde el entorno de trabajo, así que **no se
-leyó nada de su perfil**. Cuando Matías autorice: registrar acá fecha y alcance, sumar su fila en
-`src/lib/padel/marca.ts` y sus archivos en `public/tenants/matiasconsoli/marca/`.
+**Autorizada por el dueño de GSG el 17/10/2026**, con el OK de Matías para usar su marca en su negocio dentro
+del ERP (turnero público, panel y link del alumno). Registrado por la sesión orquestadora
+(session_014g4UwTGx6X6t4Zf5JvTby2).
+
+Lo que falta para que la demo luzca su marca: sus archivos (logo, foto, paleta) todavía no están en el repo,
+porque Instagram no fue accesible desde el entorno de trabajo. Cuando lleguen: sumar su fila en
+`src/lib/padel/marca.ts` y los archivos en `public/tenants/matiasconsoli/marca/`. Hasta entonces sale con su
+nombre en letras y la paleta neutra de cancha.
 
 ## Provisional a confirmar con Matías
 
