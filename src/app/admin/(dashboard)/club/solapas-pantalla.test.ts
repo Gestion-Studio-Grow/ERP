@@ -27,11 +27,14 @@ const ENTRADA = `
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import ClubDemo from "@/app/admin/(dashboard)/club/ClubDemo";
+import AprobadorDelDuenio from "@/app/admin/(dashboard)/club/aprobar/AprobadorDelDuenio";
 window.__montar = (negocio, usuario, rol) =>
   createRoot(document.getElementById("root")).render(createElement(ClubDemo, { negocio, usuario, rol }));
+window.__aprobar = (negocio, usuario) =>
+  createRoot(document.getElementById("root")).render(createElement(AprobadorDelDuenio, { negocio, usuario, modo: "demo" }));
 `;
 
-type Ventana = { __montar: (negocio: string, usuario: string, rol: string) => void };
+type Ventana = { __montar: (negocio: string, usuario: string, rol: string) => void; __aprobar: (negocio: string, usuario: string) => void };
 
 function rutaDeChromium(porDefecto: () => string): string | null {
   try {
@@ -63,8 +66,8 @@ async function cssDeLaApp(): Promise<string> {
 }
 
 /** Lo que mide la página (corre en el navegador): objetivos de menos de 44 px y textos bajo AA dentro de la solapa. */
-const MEDIR = () => {
-  const panel = document.querySelector("[role=tabpanel]")!;
+const MEDIR = (donde?: string) => {
+  const panel = document.querySelector(donde ?? "[role=tabpanel]")!;
   const visible = (el: Element) => {
     const r = el.getBoundingClientRect();
     const s = getComputedStyle(el);
@@ -259,7 +262,11 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     await ficha.getByRole("button", { name: "Pedir la autorización al dueño" }).click();
     await aviso(page, /^Pedido enviado: cuenta corriente para Paula Nieto hasta \$ 40\.000/);
     await ficha.getByRole("heading", { name: "Esperando al dueño" }).waitFor();
-    assert.match((await ficha.getByRole("link", { name: "Avisar al dueño por WhatsApp" }).getAttribute("href"))!, /^https:\/\/wa\.me\/\?text=/);
+    // Un aviso por dueño, con el link al aprobador del ERP; en la demo, sin número.
+    const avisar = ficha.getByRole("link", { name: "Avisar a Rober por WhatsApp" });
+    assert.match((await avisar.getAttribute("href"))!, /^https:\/\/wa\.me\/\?text=/);
+    assert.match(decodeURIComponent((await avisar.getAttribute("href"))!), /http:\/\/localhost:3999\/admin\/club\/aprobar#aprobar&id=/);
+    await ficha.getByRole("link", { name: "Avisar a Majo por WhatsApp" }).waitFor();
     await ficha.getByLabel(/^Código del dueño/).fill("AAA-AAA");
     await ficha.getByRole("button", { name: "Aprobar con el código" }).click();
     await alerta(page, "(1 de 5)");
@@ -335,7 +342,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     if (sinNavegador) return t.skip(sinNavegador);
     if (!css) return t.skip("no se pudo compilar el CSS de la app");
     const revisar = async (page: Page, que: string) => {
-      const m = await page.evaluate(MEDIR);
+      const m = await page.evaluate(MEDIR, undefined);
       assert.deepEqual(m.chicos, [], `${que}: objetivos de menos de 44 px`);
       assert.deepEqual(m.bajos, [], `${que}: textos bajo AA`);
       const anchos = m.corre > 0
@@ -404,8 +411,8 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
   // ── Stock y Proveedores (ola 3) ──
 
   /** Lo mismo que mide la prueba de 768/390 de arriba, para las solapas de stock y proveedores. */
-  const revisarSolapa = async (page: Page, que: string) => {
-    const m = await page.evaluate(MEDIR);
+  const revisarSolapa = async (page: Page, que: string, donde?: string) => {
+    const m = await page.evaluate(MEDIR, donde);
     assert.deepEqual(m.chicos, [], `${que}: objetivos de menos de 44 px`);
     assert.deepEqual(m.bajos, [], `${que}: textos bajo AA`);
     assert.ok(m.corre <= 0, `${que}: la página se corre de costado ${m.corre} px`);
@@ -757,6 +764,205 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
       await page.getByRole("button", { name: "Hacer la limpieza para el go-live" }).click();
       await revisarSolapa(page, `Configuración con lo abierto a ${w} px`);
       await capturar(page, `config-abierto-${w}`);
+      assert.deepEqual(errores, []);
+      await page.close();
+    }
+  });
+
+  // ───────────── Novedades y redes (dueños) y el aprobador del dueño ─────────────
+
+  test("el dueño, Novedades: armar, preparar, uno por uno (queda tildado), copiar, CSV, la BAJA con «Deshacer» y el calendario", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("OWNER");
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://localhost:3999" });
+    await page.context().route("https://wa.me/**", (r) => r.fulfill({ contentType: "text/html", body: "<title>WhatsApp</title>" }));
+    await page.getByRole("tab", { name: "Novedades y redes" }).click();
+    await page.getByRole("heading", { name: "Novedades del club · difusión por WhatsApp" }).waitFor();
+    await page.getByLabel("Tipo").selectOption("torneo");
+    await page.getByLabel("Título", { exact: true }).fill("Torneo de categorías el sábado 25");
+    await page.getByLabel("Texto", { exact: true }).fill("Anotate en recepción.");
+    await page.getByText(/^Le llega a \d+ clientes con celular/).waitFor();
+    await page.getByText("¡Hola Juan! *Torneo de categorías el sábado 25*", { exact: false }).waitFor();
+    await page.getByText("respondé BAJA", { exact: false }).first().waitFor();
+    await page.getByText("Studio de redes", { exact: false }).first().waitFor();
+    await page.getByRole("button", { name: "Preparar el envío" }).click();
+    await aviso(page, /^Listo para mandar a \d+ cliente\(s\)\.$/);
+    const envio = page.getByRole("region", { name: /^Mandar «Torneo de categorías el sábado 25» · \d+ de \d+$/ });
+    await envio.waitFor();
+    assert.match(await page.evaluate(() => document.activeElement?.textContent ?? ""), /^Mandar «Torneo/, "el foco va al envío");
+    await capturar(page, "novedades-envio-1024");
+
+    // Uno por uno: el link abre WhatsApp (otra pestaña) y queda tildado.
+    const uno = envio.getByRole("list", { name: "Uno por uno" }).getByRole("link").first();
+    const nombre = (await uno.textContent())!;
+    assert.match((await uno.getAttribute("href"))!, /^https:\/\/wa\.me\/\?text=/, "en la demo, sin número");
+    const [popup] = await Promise.all([page.waitForEvent("popup"), uno.click()]);
+    await popup.close();
+    await aviso(page, new RegExp(`^Anotado: le mandaste a ${nombre.split(" ")[0]}\\. Faltan \\d+\\.$`));
+    await envio.getByRole("link", { name: `${nombre}: ya le mandaste` }).waitFor();
+    await page.getByRole("region", { name: /^Mandar «Torneo.*» · 1 de \d+$/ }).waitFor();
+
+    // La lista de difusión: copiar y descargar.
+    await envio.getByRole("button", { name: "Copiar el mensaje" }).click();
+    await aviso(page, "Mensaje copiado: pegalo en la lista de difusión.");
+    assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^¡Hola! \*Torneo de categorías el sábado 25\*/);
+    const [descarga] = await Promise.all([page.waitForEvent("download"), envio.getByRole("button", { name: "Descargar contactos (CSV)" }).click()]);
+    assert.match(descarga.suggestedFilename(), /^novedades-del-club-\d{4}-\d{2}-\d{2}\.csv$/);
+    const csv = readFileSync((await descarga.path())!, "utf8");
+    assert.match(csv, /^﻿Nombre,Celular\r\n"[^"]+","\+\d{8,}"/);
+    await envio.getByRole("button", { name: "Listo" }).click();
+    await envio.waitFor({ state: "detached" });
+    const historial = page.getByRole("region", { name: "Lo que se mandó" });
+    await historial.getByText("«Torneo de categorías el sábado 25»").waitFor();
+    await historial.getByText(/^1 de \d+ enviados$/).waitFor();
+    await historial.getByRole("button", { name: "Seguir mandando «Torneo de categorías el sábado 25»" }).click();
+    await page.getByRole("region", { name: /^Mandar «Torneo/ }).waitFor();
+
+    // «Respondé BAJA»: se le da la baja, figura en la lista del envío y se deshace.
+    const bajas = page.getByRole("region", { name: "¿Alguien respondió BAJA?" });
+    await bajas.getByLabel("Buscar al cliente (nombre o teléfono)").fill(nombre.split(" ")[0]);
+    await bajas.getByRole("button", { name: `Darle de baja a ${nombre}` }).click();
+    await aviso(page, `${nombre} no recibe más novedades: ya no le llega.`);
+    await bajas.getByRole("heading", { name: "No reciben novedades (1)" }).waitFor();
+    await page.getByRole("list", { name: "Uno por uno" }).getByText(`${nombre} · pidió la baja`).waitFor();
+    await page.getByRole("button", { name: "Deshacer" }).click();
+    await bajas.getByRole("heading", { name: "No reciben novedades (0)" }).waitFor();
+
+    // El calendario: agendar, abrir y borrar.
+    const cal = page.getByRole("region", { name: /^Contenido · \S+ de \d{4}$/ });
+    await cal.getByRole("list", { name: /^Días de / }).waitFor();
+    await cal.getByRole("button", { name: "+ Publicación" }).click();
+    const editor = cal.getByRole("region", { name: "Nueva publicación" });
+    await editor.waitFor();
+    assert.equal(await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.placeholder), "Ej.: Torneo relámpago del sábado", "el foco va al título");
+    await editor.getByLabel("De qué se trata").fill("Reel del torneo");
+    await editor.getByLabel("Canal").selectOption("reel");
+    await editor.getByLabel("Estado").selectOption("programado");
+    await editor.getByRole("button", { name: "Guardar" }).click();
+    await aviso(page, /^Publicación agendada para el \d+\/\d+\.$/);
+    await editor.waitFor({ state: "detached" });
+    const pub = cal.getByRole("button", { name: /^19:00 · Reel del torneo · Instagram · reel · Programado$/ });
+    await pub.click();
+    const edicion = cal.getByRole("region", { name: "Publicación" });
+    await edicion.getByRole("button", { name: "Borrar" }).click();
+    await aviso(page, "Publicación borrada: «Reel del torneo».");
+    assert.equal(await pub.count(), 0);
+    // Escape cierra el editor y el foco vuelve a quien lo abrió.
+    await cal.getByRole("button", { name: "+ Publicación" }).click();
+    await cal.getByRole("region", { name: "Nueva publicación" }).waitFor();
+    await page.keyboard.press("Escape");
+    await cal.getByRole("region", { name: "Nueva publicación" }).waitFor({ state: "detached" });
+    await page.waitForFunction(() => document.activeElement?.textContent === "+ Publicación", null, { timeout: 2000 });
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("recepción no ve Novedades y redes", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("RECEPTION");
+    assert.equal(await page.getByRole("tab", { name: "Novedades y redes" }).count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  /** El aprobador del dueño, montado como lo abre el link (el fragmento #aprobar&… en la barra). */
+  async function montarAprobador(enlace: string, viewport = { width: 390, height: 844 }): Promise<{ page: Page; errores: string[] }> {
+    const p = await browser!.newPage({ viewport, locale: "es-AR" });
+    const errores: string[] = [];
+    p.on("pageerror", (e) => errores.push(e.message));
+    p.on("console", (m) => {
+      if (m.type() === "error") errores.push(m.text());
+    });
+    const html = `<!doctype html><html lang="es"><head><style>${css}</style></head><body class="bg-surface text-body"><main id="root" class="p-4"></main></body></html>`;
+    await p.route(`${ORIGEN}/aprobar`, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html }));
+    await p.addInitScript({ content: "window.__name = (f) => f;" });
+    await p.goto(enlace);
+    await p.addScriptTag({ content: bundle });
+    await p.evaluate(() => (window as unknown as Ventana).__aprobar("demo-club", "u_owner"));
+    return { page: p, errores };
+  }
+
+  test("el aprobador: recepción avisa a Rober, Rober abre el link en el celular, PIN mal (1 de 5), PIN bien → código → recepción aprueba", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("RECEPTION");
+    await page.getByRole("tab", { name: "Clientes" }).click();
+    await page.getByRole("button", { name: "+ Alta de cliente" }).click();
+    const alta = page.getByRole("region", { name: "Alta de cliente" });
+    await alta.getByLabel("Nombre y apellido").fill("Paula Nieto");
+    await alta.getByLabel(/^Teléfono/).fill("11 5555-1234");
+    await alta.getByRole("button", { name: "Dar de alta" }).click();
+    const ficha = page.getByRole("region", { name: "Paula Nieto" });
+    await ficha.getByLabel("Límite que pedís").fill("40000");
+    await ficha.getByRole("button", { name: "Pedir la autorización al dueño" }).click();
+    const texto = new URL((await ficha.getByRole("link", { name: "Avisar a Rober por WhatsApp" }).getAttribute("href"))!).searchParams.get("text")!;
+    assert.match(texto, /^Hola Rober, soy .+ del club\. Paula Nieto pide cuenta corriente hasta \$ 40\.000\. Si lo aprobás, abrí este link, poné tu PIN y mandame el código: /);
+    const enlace = texto.slice(texto.indexOf("http://"));
+    assert.deepEqual([...new URLSearchParams(enlace.split("#aprobar&")[1]).keys()], ["id", "c", "n", "m", "t", "p", "f"], "el link lleva sólo lo del vanilla");
+
+    // El celular de Rober.
+    const cel = await montarAprobador(enlace);
+    const p = cel.page;
+    await p.getByText("pide cuenta corriente para Paula Nieto hasta $ 40.000", { exact: false }).waitFor();
+    assert.equal(await p.evaluate(() => location.hash), "", "el pedido sale de la barra apenas se lee");
+    assert.equal(await p.evaluate(() => (document.activeElement as HTMLInputElement | null)?.type), "password", "el foco va al PIN");
+    await p.getByText("En la demo, los PIN de ejemplo son:", { exact: false }).waitFor();
+    await p.getByRole("radio", { name: "Rober" }).check();
+    await p.getByLabel("Tu PIN").fill("99");
+    await p.getByRole("button", { name: "Aprobar y ver el código" }).click();
+    await p.getByRole("alert").filter({ hasText: "PIN incorrecto (1 de 5)." }).waitFor();
+    assert.equal(await p.getByLabel("Tu PIN").inputValue(), "", "el PIN malo se borra");
+    if (css) await revisarSolapa(p, "Aprobador con el PIN mal a 390 px", "#root");
+    await capturar(p, "aprobar-pin-mal-390");
+    await p.getByLabel("Tu PIN").fill("11");
+    await p.getByRole("button", { name: "Aprobar y ver el código" }).click();
+    await p.getByRole("region", { name: /^Mandale este código a / }).waitFor();
+    const codigo = (await p.locator("p.text-4xl").textContent())!;
+    assert.match(codigo, /^[A-Z0-9]{3}-[A-Z0-9]{3}$/);
+    await p.getByText("Lo aprobás como Rober.", { exact: false }).waitFor();
+    const mandar = p.getByRole("link", { name: "Mandar el código por WhatsApp" });
+    assert.equal(new URL((await mandar.getAttribute("href"))!).searchParams.get("text"), `Aprobado: Paula Nieto $ 40.000. Código ${codigo}`);
+    if (css) await revisarSolapa(p, "Aprobador con el código a 390 px", "#root");
+    await capturar(p, "aprobar-codigo-390");
+    await p.setViewportSize({ width: 1024, height: 768 });
+    await capturar(p, "aprobar-codigo-1024");
+    assert.deepEqual(cel.errores, []);
+    await p.close();
+
+    // Recepción tipea el código que le mandó Rober.
+    await ficha.getByLabel(/^Código del dueño/).fill(codigo);
+    await ficha.getByRole("button", { name: "Aprobar con el código" }).click();
+    await aviso(page, /^Aprobado por Rober: cuenta corriente habilitada hasta \$ 40\.000\./);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("el aprobador sin pedido (link roto o perdido al entrar con la clave): lo dice y lleva al club", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montarAprobador(`${ORIGEN}/aprobar#aprobar&id=x&m=-1`);
+    await page.getByRole("alert").filter({ hasText: "No hay un pedido para aprobar en este link." }).waitFor();
+    await page.getByRole("link", { name: "Ir al club" }).waitFor();
+    assert.equal(await page.getByLabel("Tu PIN").count(), 0);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("Novedades a 1024, 768 y 390 px: sin scroll de costado, objetivos de 44 px y contraste AA", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS de la app");
+    for (const w of [1024, 768, 390]) {
+      const { page, errores } = await montar("OWNER", { width: w, height: w === 390 ? 844 : 1024 });
+      await page.getByRole("tab", { name: "Novedades y redes" }).click();
+      await page.getByRole("heading", { name: "Novedades del club · difusión por WhatsApp" }).waitFor();
+      await page.getByLabel("Título", { exact: true }).fill("Turnos libres el martes");
+      await revisarSolapa(page, `Novedades a ${w} px`);
+      await capturar(page, `novedades-${w}`);
+      await page.getByRole("button", { name: "Preparar el envío" }).click();
+      await page.getByRole("region", { name: /^Mandar «Turnos libres el martes»/ }).waitFor();
+      await page.getByRole("region", { name: "¿Alguien respondió BAJA?" }).getByLabel("Buscar al cliente (nombre o teléfono)").fill("a");
+      await page.getByRole("button", { name: "+ Publicación" }).click();
+      await page.getByRole("region", { name: "Nueva publicación" }).waitFor();
+      await revisarSolapa(page, `Novedades con el envío y el editor a ${w} px`);
+      await capturar(page, `novedades-envio-${w}`);
       assert.deepEqual(errores, []);
       await page.close();
     }

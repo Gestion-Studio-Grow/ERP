@@ -8,7 +8,8 @@
 //   · el alta (nombre, teléfono, nivel) sin repetir teléfono (lo controla el motor);
 //   · la ficha: editar, dar de baja (sólo sin deuda ni cargos abiertos en el buffet), las novedades por WhatsApp;
 //   · la CUENTA CORRIENTE: el dueño la habilita, le cambia el límite o la corta; recepción pide la autorización y
-//     ve «Esperando al dueño» con el código de 6 letras que le manda (como el fiado del buffet, credito-core.ts);
+//     ve «Esperando al dueño» con el código de 6 letras que le manda (como el fiado del buffet, credito-core.ts): el
+//     aviso va al celular de cada dueño con el link al aprobador del ERP (/admin/club/aprobar, aprobar-core.ts);
 //     el estado de cuenta con el saldo corrido, cobrar la deuda con su medio y recordarla por WhatsApp.
 // Las reglas son del motor; acá se arma lo que se ve y se traduce cada toque (clientes-core.test.ts).
 
@@ -24,13 +25,13 @@ import {
   editarCliente,
   estadoDeCuenta,
   hhmm,
-  linkWhatsApp,
   mensajeWhatsApp,
   pesos,
   solicitarCC,
 } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, Cliente, EstadoClub, Fecha } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
+import { avisosAlDuenio, type AvisoAlDuenio } from "./aprobar-core";
 import { trabadoHasta } from "./buffet-core";
 import { leerMonto } from "./caja-core";
 import { INTENTOS_POR_PEDIDO, mensajeParaElDuenio } from "./credito-core";
@@ -91,9 +92,13 @@ export interface VistaPedidoCC {
   pidio: string;
   /** «cuenta corriente hasta $ 60.000» · «fiarle $ 22.100». */
   que: string;
-  /** El texto para mandarle al dueño por WhatsApp y su link (sin número: el celular del dueño se carga en Configuración). */
+  /** El texto corto del pedido (lo que se le dice al dueño). */
   mensaje: string;
-  linkWhatsApp: string;
+  /**
+   * «Avisar a <dueño> por WhatsApp», uno por dueño: al celular que cargó en Configuración → Avisos
+   * (`celularDelDuenio`), con el link al aprobador del ERP (aprobar-core.ts). En la demo, sin número.
+   */
+  avisos: AvisoAlDuenio[];
   quedan: number;
   trabado: string | null;
 }
@@ -127,7 +132,8 @@ export interface VistaFicha {
   firma: string;
 }
 
-export function armarFicha(estado: EstadoClub, clienteId: string, ahora: Ahora, modo: ModoDelClub): VistaFicha | null {
+/** `origen`: de dónde sale el link al aprobador («https://…», `location.origin`); sin él, el link queda relativo. */
+export function armarFicha(estado: EstadoClub, clienteId: string, ahora: Ahora, modo: ModoDelClub, origen = ""): VistaFicha | null {
   const c = clienteDe(estado, clienteId);
   if (!c || c.activo === false) return null;
   const ec = estadoDeCuenta(estado, clienteId);
@@ -141,7 +147,7 @@ export function armarFicha(estado: EstadoClub, clienteId: string, ahora: Ahora, 
         pidio: n.pidio,
         que: n.tipo === "fiado" ? `fiarle ${pesos(n.monto)}` : `cuenta corriente hasta ${pesos(n.monto ?? n.limite)}`,
         mensaje: mensajeParaElDuenio(estado, n.id) ?? "",
-        linkWhatsApp: linkWhatsApp("", mensajeParaElDuenio(estado, n.id) ?? ""),
+        avisos: avisosAlDuenio(estado, n.id, origen, modo),
         quedan: INTENTOS_POR_PEDIDO - (n.intentos ?? 0),
         trabado: trabadoHasta(n.bloqueadoHasta, ahora),
       }
