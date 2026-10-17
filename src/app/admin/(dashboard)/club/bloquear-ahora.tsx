@@ -28,7 +28,7 @@ export function BotonBloquearAhora({ almacen }: { almacen: Almacen }) {
   const { bloquear, puedeBloquear } = useBloqueo(almacen);
   if (!puedeBloquear) return null;
   return (
-    <Button variant="outline" size="sm" atajo="L" onClick={bloquear} aria-keyshortcuts="L">
+    <Button variant="outline" size="md" atajo="L" onClick={bloquear} aria-keyshortcuts="L">
       Bloquear
     </Button>
   );
