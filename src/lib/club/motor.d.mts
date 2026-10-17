@@ -834,3 +834,11 @@ export type TipoMensajeWhatsApp =
 export declare function mensajeWhatsApp(tipo: TipoMensajeWhatsApp, datos: Record<string, string | number | boolean | null | undefined>): string;
 /** `https://wa.me/<número>?text=…`; sin número, WhatsApp abre para elegir el chat. */
 export declare function linkWhatsApp(tel: string, texto: string): string;
+
+// ═══════════════ Ola 1 de paridad — un bloque por frente (agentes en paralelo: cada uno escribe SÓLO en el suyo) ═══════════════
+
+// ── ola 1 · cuenta y buffet ──
+
+// ── ola 1 · agenda y tienda ──
+
+// ── ola 1 · caja y whatsapp ──
