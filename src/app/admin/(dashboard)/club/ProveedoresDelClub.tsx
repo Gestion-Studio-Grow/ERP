@@ -371,7 +371,7 @@ export default function ProveedoresDelClub({ almacen }: PropsDeSolapa) {
             ))}
           </ul>
         )}
-        <p className="text-sm text-body">Recepción sólo carga remitos. Pagarles y ver su cuenta es de los dueños, con PIN.</p>
+        <p className="text-sm text-body">Recepción carga los remitos desde la Caja. Pagarles y ver su cuenta es de los dueños, con PIN.</p>
       </section>
 
       {/* En el celular lo abierto va ARRIBA de la lista; en la PC, al lado. */}

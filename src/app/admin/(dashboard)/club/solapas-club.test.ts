@@ -26,7 +26,7 @@ test("Clientes para todos; el Tablero sólo para los dueños", () => {
 test("Proveedores para todos (recepción carga remitos); Stock sólo para los dueños, con el id al que lleva la bandeja", () => {
   const por = Object.fromEntries(SOLAPAS_DEL_CLUB.map((s) => [s.id, s]));
   assert.equal(por.proveedores?.etiqueta, "Proveedores");
-  assert.equal(por.proveedores?.soloDuenos ?? false, false);
+  assert.equal(por.proveedores?.soloDuenos, true, "recepción carga el remito desde la Caja");
   assert.equal(por.stock?.etiqueta, "Stock");
   assert.equal(por.stock?.soloDuenos, true);
 });

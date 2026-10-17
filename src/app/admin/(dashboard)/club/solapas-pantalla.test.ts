@@ -528,11 +528,13 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     await page.close();
   });
 
-  test("recepción: en Proveedores sólo el remito (sin lo que se debe), y no ve Stock", async (t) => {
+  test("recepción: no ve Stock ni Proveedores; carga el remito desde la Caja", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar("RECEPTION");
     assert.equal(await page.getByRole("tab", { name: "Stock" }).count(), 0, "recepción no ve Stock");
-    await page.getByRole("tab", { name: "Proveedores" }).click();
+    assert.equal(await page.getByRole("tab", { name: "Proveedores" }).count(), 0, "recepción no ve Proveedores");
+    await page.getByRole("tab", { name: "Caja" }).click();
+    await page.getByText("Registrar un remito", { exact: true }).click();
     const remito = page.getByRole("region", { name: "Registrar remito" });
     await remito.waitFor();
     assert.equal(await page.getByText(/Le debemos/).count(), 0, "recepción no ve lo que se debe");
@@ -543,7 +545,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     await remito.getByRole("button", { name: /^\+ Overgrip/ }).click();
     await remito.getByRole("button", { name: "Registrar remito" }).click();
     await aviso(page, /^Remito 0003-00000999 de Distribuidora Ezeiza Bebidas cargado: \$ 2\.100\./);
-    await remito.getByText("Todavía no hay productos: pasá el lector o buscalos.").waitFor();
+    await remito.waitFor({ state: "detached" });
     assert.deepEqual(errores, []);
     await page.close();
   });
@@ -593,12 +595,13 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
       assert.deepEqual(errores, []);
       await page.close();
 
-      // Recepción: Proveedores con sólo el remito.
+      // Recepción: el remito desde la Caja.
       ({ page, errores } = await montar("RECEPTION", viewport));
-      await page.getByRole("tab", { name: "Proveedores" }).click();
+      await page.getByRole("tab", { name: "Caja" }).click();
+      await page.getByText("Registrar un remito", { exact: true }).click();
       await page.getByRole("region", { name: "Registrar remito" }).waitFor();
-      await revisarSolapa(page, `Proveedores (recepción) a ${w} px`);
-      await capturar(page, `proveedores-recepcion-${w}`);
+      await revisarSolapa(page, `Remito desde la Caja (recepción) a ${w} px`);
+      await capturar(page, `remito-caja-recepcion-${w}`);
       assert.deepEqual(errores, []);
       await page.close();
     }
