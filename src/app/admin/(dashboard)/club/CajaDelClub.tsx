@@ -23,6 +23,9 @@ import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { MOVIMIENTOS_POR_PAGINA, armarCaja, ejecutarCaja, pinesDeEjemplo, puedeAjustarFondo, type AccionCaja, type CierreDeHoy, type VistaCaja } from "./caja-core";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
+import { operadorActual } from "./operador-del-club";
+import { permisosProveedores } from "./proveedores-core";
+import { RegistrarRemito } from "./remito-del-club";
 
 const ddmm = (d: string) => `${Number(d.slice(8))}/${Number(d.slice(5, 7))}`;
 
@@ -286,6 +289,30 @@ function CierreDeLaCaja({ almacen, cierre, esperado, hacer }: { almacen: Almacen
   );
 }
 
+/**
+ * Registrar un remito desde la caja, como el vanilla: recepción recibe la mercadería en el mostrador. Deudas y pagos a
+ * proveedores siguen en la solapa Proveedores (sólo dueños). El permiso lo da el motor (`remito`).
+ */
+function RemitoDesdeLaCaja({ almacen }: { almacen: Almacen }) {
+  useOperador(almacen); // repinta si cambia quién opera (PIN)
+  const [abierto, setAbierto] = useState(false);
+  const puede = permisosProveedores(almacen.estado(), operadorActual(almacen).usuario?.id).remito;
+  return (
+    <details className="rounded-lg border border-line" open={abierto} onToggle={(e) => setAbierto((e.currentTarget as HTMLDetailsElement).open)}>
+      <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-semibold text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
+        Registrar un remito
+      </summary>
+      <div className="border-t border-line p-4">
+        {!abierto ? null : puede ? (
+          <RegistrarRemito almacen={almacen} enfocar={false} onListo={() => setAbierto(false)} onCerrar={() => setAbierto(false)} />
+        ) : (
+          <p className="text-sm text-body">Para cargar un remito tiene que operar alguien con permiso: entrá con tu PIN.</p>
+        )}
+      </div>
+    </details>
+  );
+}
+
 export default function CajaDelClub({ almacen }: { almacen: Almacen }) {
   const [cuantos, setCuantos] = useState(MOVIMIENTOS_POR_PAGINA);
   const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarCaja(e, a, cuantos), [cuantos]);
@@ -336,6 +363,8 @@ export default function CajaDelClub({ almacen }: { almacen: Almacen }) {
         <Egreso almacen={almacen} hacer={hacer} />
         <CierreDeLaCaja almacen={almacen} cierre={v.cierreDeHoy} esperado={v.efectivoEsperado} hacer={hacer} />
       </div>
+
+      <RemitoDesdeLaCaja almacen={almacen} />
 
       <Movimientos v={v} onMas={() => setCuantos((n) => n + MOVIMIENTOS_POR_PAGINA)} />
 

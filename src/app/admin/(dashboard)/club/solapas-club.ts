@@ -25,6 +25,8 @@ export interface PropsDeSolapa {
   dia: Fecha;
   rol: RolDelPanel;
   onVerTurno: (reservaId: string) => void;
+  /** Lleva a otra solapa (p. ej. «proveedores», «stock»); si esa solapa no está para este rol, no hace nada. */
+  irASolapa: (id: string) => void;
 }
 
 export interface SolapaDelClub {

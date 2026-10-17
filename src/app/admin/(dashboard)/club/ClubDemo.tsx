@@ -329,7 +329,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
             {solapa === "tienda" && <TiendaDelClub almacen={almacen} />}
             {extras.map((e) =>
               solapa === e.id && SOLAPAS.some((s) => s.id === e.id) ? (
-                <e.diferida.Solapa key={e.id} almacen={almacen} dia={dia} rol={rol} onVerTurno={verTurno} />
+                <e.diferida.Solapa key={e.id} almacen={almacen} dia={dia} rol={rol} onVerTurno={verTurno} irASolapa={irASolapa} />
               ) : null,
             )}
           </Suspense>
