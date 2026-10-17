@@ -10,7 +10,7 @@ import { AvisoDelDuenio, textoAvisoDelDuenio } from "./aviso-del-duenio";
 
 const HOY = "2026-10-17";
 const almacen = (rol: RolDelPanel) => crearAlmacen({ hoy: HOY, clave: "gsg-club:prueba:yo:v1", guardado: null, rol, enReposo: null });
-const pintar = (a: ReturnType<typeof almacen>) => renderToStaticMarkup(h(AvisoDelDuenio, { almacen: a, onVerTablero: () => undefined }));
+const pintar = (a: ReturnType<typeof almacen>) => renderToStaticMarkup(h(AvisoDelDuenio, { almacen: a, rol: a.rol(), irASolapa: () => undefined }));
 
 test("el texto: uno, varios, ninguno", () => {
   assert.equal(textoAvisoDelDuenio(0), null);
