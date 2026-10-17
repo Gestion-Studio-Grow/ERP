@@ -128,6 +128,11 @@ verde. Cubre:
    - **Saldos** (cuenta corriente, créditos y faltas de los clientes; deuda con proveedores): se conservan por
      defecto, porque es plata real. Si la prueba fue sólo de mentira, se destilda y quedan en cero.
    - **Stock contado:** se conserva por defecto; destildado, vuelve a «sin controlar» para contar de nuevo.
+   - **Turnos por jugar** (los de hoy que todavía no empezaron y los de los próximos días) **quedan, con su seña**.
+   - **No corre si hay algo pendiente:** canchas en juego, cuentas de cargos abiertas con saldo o con algo
+     alquilado, turnos que ya pasaron sin abrir ni marcar la falta, plata para devolver, faltas sin cobrar o cajas
+     sin cerrar. La pantalla lo lista: resolvelo y volvé a intentar.
+   - Los pedidos de crédito que estaban esperando al dueño se borran: si hace falta, se piden de nuevo.
 3. Desde ahí es el día 1: mismo `/club`, mismos usuarios y PIN, caja en cero.
 
 — Elaborado por GSG

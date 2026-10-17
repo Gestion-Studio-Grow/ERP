@@ -1117,6 +1117,12 @@ test("limpieza para el go-live: se borra lo transaccional, se conserva lo maestr
   M.cobrarTodoElTurno(e, r.id, { medio: "efectivo" }, ahora(21));
   juan.deuda = 5000; juan.monedero = 3000;
   assert.equal(M.limpiarParaGoLive(e, {}, { usuarioId: "u-rober", pin: "00" }, ahora(23)).ok, false, "con PIN de dueño");
+  // Con la cancha en juego y la caja sin cerrar no se limpia: dice qué falta.
+  const bloqueada = M.limpiarParaGoLive(e, {}, R, ahora(23));
+  assert.equal(bloqueada.ok, false);
+  assert.match(bloqueada.motivo, /Canchas en juego[\s\S]*Cajas sin cerrar/);
+  M.cerrarCanchaYSeguir(e, r.id, {}, ahora(21, 30));
+  assert.ok(M.cerrarCaja(e, { contado: 20000 + 42000 + 4000, ...R }, ahora(23)).ok);
   const res = M.limpiarParaGoLive(e, {}, R, ahora(23));
   assert.ok(res.ok);
   assert.equal(res.borrado.turnos, 1);
@@ -1134,4 +1140,31 @@ test("limpieza para el go-live: se borra lo transaccional, se conserva lo maestr
   assert.ok(sinSaldos.ok);
   assert.equal(juan.deuda + juan.monedero, 0);
   assert.equal(M.producto(e, "p2").stock, null);
+});
+
+test("go-live (Gate B2): la plata pendiente no se borra — bloquea con motivo, y los turnos por jugar quedan con su seña", () => {
+  const e = club();
+  // Turno del sábado 17 con seña cobrada (hoy es miércoles 14): tiene que quedar.
+  const futuro = M.crearReserva(e, { canchaId: "c1", fecha: "2026-10-17", inicio: 20 * 60, clienteId: "c" }, ahora(10)).reserva;
+  M.registrarPago(e, futuro.id, { medio: "transferencia", monto: 21000 }, ahora(10));
+  // Mesa abierta con saldo y una pala alquilada.
+  const r = turno(e, "c2", 18, { clienteId: "a" });
+  M.checkIn(e, r.id, ahora(18));
+  M.consumoJugador(e, r.id, 0, "p6", 1, {}, ahora(18, 10));
+  M.consumoJugador(e, r.id, 0, "k-pica", 1, {}, ahora(18, 10));
+  M.cerrarCanchaYSeguir(e, r.id, { medio: "efectivo" }, ahora(19, 30));
+  const p1 = M.pendientesGoLive(e, ahora(22));
+  assert.ok(p1.some((x: string) => /Cuentas de cargos abiertas/.test(x)), "la mesa abierta");
+  assert.ok(p1.some((x: string) => /Cajas sin cerrar/.test(x)), "la caja");
+  assert.equal(M.limpiarParaGoLive(e, {}, DUENO, ahora(22)).ok, false);
+  M.cerrarCargosDelTurno(e, r.id, { medio: "efectivo" }, ahora(22));
+  const stockPala = M.producto(e, "p6").stock;
+  assert.equal(stockPala, 8, "la pala volvió al stock al cerrar la cuenta");
+  for (const d of M.cajasConMovimientosSinCerrar(e)) assert.ok(M.cerrarCaja(e, { contado: M.resumenCaja(e, d).efectivoEsperado, ...DUENO, dia: d }, ahora(22)).ok);
+  assert.deepEqual(M.pendientesGoLive(e, ahora(22)), []);
+  const res = M.limpiarParaGoLive(e, {}, DUENO, ahora(22));
+  assert.ok(res.ok, res.motivo);
+  assert.deepEqual(e.reservas.map((x: any) => x.id), [futuro.id], "queda sólo el turno por jugar");
+  assert.equal(M.cobrado(e.reservas[0]), 21000, "con su seña");
+  assert.equal(M.producto(e, "p6").stock, 8);
 });

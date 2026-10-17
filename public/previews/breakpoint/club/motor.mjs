@@ -384,18 +384,47 @@ export function cambiarMiPin(estado, { usuarioId, pin }, nuevo, ahora) {
 }
 
 /**
- * Limpieza para el go-live: después de la prueba, se borra lo TRANSACCIONAL (turnos, cuentas de cargos, caja,
- * pedidos, créditos pendientes, difusiones, registro) y se conserva lo MAESTRO (canchas, horarios, precios, productos,
+ * Limpieza para el go-live: después de la prueba, se borra lo TRANSACCIONAL ya resuelto (turnos jugados, cuentas de
+ * cargos cerradas, caja cerrada,
+ * pedidos, créditos pendientes, difusiones, registro) y se conserva lo MAESTRO y los turnos por jugar con su seña.
+ * Si hay plata o decisiones pendientes (pendientesGoLive), no limpia: dice qué resolver. Lo MAESTRO (canchas, horarios, precios, productos,
  * usuarios y accesos, clientes, proveedores, turnos fijos, contenido). Los SALDOS (cuenta corriente, créditos, fiados
  * y faltas de los clientes; remitos y pagos que forman la deuda con proveedores) se conservan si `conservarSaldos`
  * (por defecto: es plata real).
  * Sólo un dueño con su PIN. La app descarga un respaldo antes.
  */
+/**
+ * Lo que tiene plata o una decisión pendiente y NO se puede borrar en la limpieza: hay que resolverlo antes (cobrar,
+ * pasar a cuenta corriente, devolver, marcar la falta, cerrar la caja). Lista en criollo, vacía si está todo en orden.
+ */
+export function pendientesGoLive(estado, ahora) {
+  const out = [];
+  const abiertas = estado.cuentas.filter((c) => c.estado === "abierta" && (saldoCuenta(c) > 0 || c.items.some((i) => i.alquiler && !i.devuelto)));
+  if (abiertas.length) out.push(`Cuentas de cargos abiertas: ${abiertas.map((c) => `${c.titular} (${pesos(Math.max(0, saldoCuenta(c)))})`).join(", ")}. Cobralas o pasalas a cuenta corriente.`);
+  const enJuego = estado.reservas.filter((r) => r.estado === "en_cancha");
+  if (enJuego.length) out.push(`Canchas en juego: ${enJuego.map((r) => `${r.titular} ${hhmm(r.inicio)}`).join(", ")}. Cerralas primero.`);
+  const sinResolver = estado.reservas.filter((r) => r.estado === "reservada" && ahora && minutosHasta(ahora, r.fecha, r.inicio) + r.duracion <= 0);
+  if (sinResolver.length) out.push(`Turnos que ya pasaron sin abrir ni marcar la falta: ${sinResolver.map((r) => `${r.titular} ${r.fecha.slice(8)}/${r.fecha.slice(5, 7)} ${hhmm(r.inicio)}`).join(", ")}.`);
+  const devolver = estado.reservas.filter((r) => r.devolucionPendiente > 0);
+  if (devolver.length) out.push(`Plata para devolver: ${devolver.map((r) => `${r.titular} ${pesos(r.devolucionPendiente)}`).join(", ")}.`);
+  const faltas = estado.reservas.filter((r) => r.deudaSinFicha > 0);
+  if (faltas.length) out.push(`Faltas sin cobrar (sin ficha): ${faltas.map((r) => `${r.titular} ${pesos(r.deudaSinFicha)}`).join(", ")}.`);
+  const cajas = cajasConMovimientosSinCerrar(estado);
+  if (cajas.length) out.push(`Cajas sin cerrar: ${cajas.map((d) => `${d.slice(8)}/${d.slice(5, 7)}`).join(", ")}. Cerralas antes de limpiar.`);
+  return out;
+}
+
+/** Lo que pasa al go-live: turnos que todavía no se jugaron (con su seña) y señas en suspenso de huecos por venir. */
+const quedaParaElGoLive = (r, ahora) => (ahora ? r.fecha >= ahora.fecha : true) && (r.estado === "reservada" || (r.estado === "cancelada" && r.senaEnSuspenso));
+
 export function limpiarParaGoLive(estado, { conservarSaldos = true, conservarStock = true } = {}, auth, ahora) {
   const a = autorizar(estado, auth, "configurar", true);
   if (!a.ok) return a;
-  const cuenta = { turnos: estado.reservas.length, cuentas: estado.cuentas.length, movimientos: estado.caja.movimientos.length, pedidos: (estado.pedidos ?? []).length };
-  estado.reservas = [];
+  const pendientes = pendientesGoLive(estado, ahora);
+  if (pendientes.length) return { ok: false, motivo: `Antes de limpiar hay que resolver: ${pendientes.join(" ")}`, pendientes };
+  const quedan = estado.reservas.filter((r) => quedaParaElGoLive(r, ahora));
+  const cuenta = { turnos: estado.reservas.length - quedan.length, cuentas: estado.cuentas.length, movimientos: estado.caja.movimientos.length, pedidos: (estado.pedidos ?? []).length, quedan: quedan.length };
+  estado.reservas = quedan;
   estado.cuentas = [];
   estado.caja = { fondo: estado.caja.fondo, movimientos: [], cierres: [] };
   estado.novedades = [];
@@ -406,13 +435,14 @@ export function limpiarParaGoLive(estado, { conservarSaldos = true, conservarSto
   estado.espera = [];
   estado.solicitudesAcceso = (estado.solicitudesAcceso ?? []).filter((x) => x.estado === "pendiente");
   estado.bloqueos = (estado.bloqueos ?? []).filter((b) => !ahora?.fecha || (b.fecha ?? "") >= ahora.fecha);
-  for (const f of estado.fijos ?? []) f.excepciones = [];
+  // «Esta semana no vienen» ya cargado para fechas por venir se respeta; lo viejo se limpia.
+  for (const f of estado.fijos ?? []) f.excepciones = (f.excepciones ?? []).filter((d) => !ahora?.fecha || d >= ahora.fecha);
   for (const c of Object.keys(estado.luces)) estado.luces[c] = false;
   for (const p of estado.productos) { p.prestados = 0; if (!conservarStock && !p.alquiler && !p.plato) p.stock = null; }
   if (!conservarSaldos) for (const c of estado.clientes) { c.deuda = 0; c.movCC = []; c.monedero = 0; c.fiados = []; c.strikes = 0; }
   estado.log = [];
   estado.config.goLive = { fecha: ahora?.fecha ?? null, por: a.usuario.nombre, conservarSaldos };
-  registrar(estado, `${a.usuario.nombre} hizo la limpieza para el go-live: se borraron ${cuenta.turnos} turnos, ${cuenta.cuentas} cuentas, ${cuenta.movimientos} movimientos de caja y ${cuenta.pedidos} pedidos${conservarSaldos ? "; los saldos de los clientes se conservaron" : "; los saldos de los clientes quedaron en cero"}.`, ahora);
+  registrar(estado, `${a.usuario.nombre} hizo la limpieza para el go-live: quedaron ${cuenta.quedan} turnos por jugar (con su seña); se borraron ${cuenta.turnos} turnos, ${cuenta.cuentas} cuentas, ${cuenta.movimientos} movimientos de caja y ${cuenta.pedidos} pedidos${conservarSaldos ? "; los saldos de los clientes se conservaron" : "; los saldos de los clientes quedaron en cero"}.`, ahora);
   return { ok: true, borrado: cuenta };
 }
 
@@ -1885,8 +1915,12 @@ export function resumenCaja(estado, dia) {
  */
 export function cajasSinCerrar(estado, ahora) {
   const hoy = diaDeCaja(estado, ahora.fecha, ahora.min);
+  return cajasConMovimientosSinCerrar(estado).filter((d) => d < hoy);
+}
+/** Toda caja con movimientos que nadie cerró (también la de hoy y la siguiente, si hoy ya se cerró). */
+export function cajasConMovimientosSinCerrar(estado) {
   const dias = new Set(estado.caja.movimientos.map((m) => m.caja ?? (m.fecha && diaDeCaja(estado, m.fecha, m.min ?? 0))).filter(Boolean));
-  return [...dias].filter((d) => d < hoy && !cajaCerrada(estado, d)).sort();
+  return [...dias].filter((d) => !cajaCerrada(estado, d)).sort();
 }
 
 export function cerrarCaja(estado, { contado, usuarioId, pin, dia: diaPedido = null }, ahora) {
@@ -1894,7 +1928,7 @@ export function cerrarCaja(estado, { contado, usuarioId, pin, dia: diaPedido = n
   if (!a.ok) return a;
   let dia = cajaAbierta(estado, ahora);
   if (diaPedido) {
-    if (!cajasSinCerrar(estado, ahora).includes(diaPedido)) return { ok: false, motivo: "Esa caja ya está cerrada o no tiene movimientos." };
+    if (!cajasConMovimientosSinCerrar(estado).includes(diaPedido)) return { ok: false, motivo: "Esa caja ya está cerrada o no tiene movimientos." };
     dia = diaPedido;
   } else if (dia !== diaDeCaja(estado, ahora.fecha, ahora.min)) return { ok: false, motivo: "Esta caja ya está cerrada. Lo que se cobre desde ahora entra en la caja siguiente." };
   const r = resumenCaja(estado, dia);
