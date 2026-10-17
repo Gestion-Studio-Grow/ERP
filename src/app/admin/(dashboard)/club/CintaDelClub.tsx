@@ -27,7 +27,16 @@ function textoDelGuardado(g: EstadoDelGuardado): string {
   return g.enEsteEquipo ? "Guardado en este equipo" : "Guardado";
 }
 
-export default function CintaDelClub({ almacen, onVolverALaDemo }: { almacen: Almacen; onVolverALaDemo: () => void }) {
+export default function CintaDelClub({
+  almacen,
+  onVolverALaDemo,
+  onIrAArchivar,
+}: {
+  almacen: Almacen;
+  onVolverALaDemo: () => void;
+  /** Lleva a Configuración (archivar los días cerrados). Sólo llega si quien mira es dueño y la solapa existe. */
+  onIrAArchivar?: () => void;
+}) {
   const g = useEstadoDelGuardado(almacen);
   // El minuto es un número: si no cambió, React no repinta la cinta.
   const min = useSeleccion(almacen, elMinuto, elNuevo<number>);
@@ -78,7 +87,16 @@ export default function CintaDelClub({ almacen, onVolverALaDemo }: { almacen: Al
       )}
       {g.jornada === "sin-bloqueo" && <p className="text-body">Este navegador no puede avisar si el club está abierto en otra pestaña: usá una sola.</p>}
       {/* Lo dice siempre que esté lleno (como el aviso del vanilla): archivar es de un dueño, en Configuración. */}
-      {g.lleno && <p className="font-semibold text-strong">Lo guardado se está llenando: un dueño tiene que archivar los días cerrados.</p>}
+      {g.lleno && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="font-semibold text-strong">Lo guardado se está llenando: un dueño tiene que archivar los días cerrados.</p>
+          {onIrAArchivar && (
+            <Button variant="outline" size="md" onClick={onIrAArchivar}>
+              Archivar los días cerrados
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

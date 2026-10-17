@@ -261,7 +261,11 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
         </Suspense>
       ))}
 
-      <CintaDelClub almacen={almacen} onVolverALaDemo={volverALaDemo} />
+      <CintaDelClub
+        almacen={almacen}
+        onVolverALaDemo={volverALaDemo}
+        onIrAArchivar={SOLAPAS.some((s) => s.id === "configuracion") ? () => irASolapa("configuracion") : undefined}
+      />
 
       <div role="tablist" aria-label="Recepción del club" onKeyDown={alTeclearSolapa} className="flex overflow-x-auto border-b border-line">
         {SOLAPAS.map((s) => (
