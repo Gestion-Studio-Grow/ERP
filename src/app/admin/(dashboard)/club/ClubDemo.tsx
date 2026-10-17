@@ -19,22 +19,32 @@
 //
 // Nada va a la base: la cinta de arriba lo dice siempre. «Volver a la demo» tira lo tocado.
 //
+// MODO REAL (Ola 0): con `reloj="real"` el mismo shell corre la jornada real — hora de este equipo con latido, una
+// sola pestaña por equipo (Web Lock) y el guardado enchufable (`guardado`, default este equipo). Hoy NADIE lo pide:
+// /admin/club abre siempre la demo; lo decide el día de corte (ver page.tsx).
+//
+// Las piezas globales que suma la sesión del club (PIEZAS_GLOBALES_DEL_CLUB, solapas-club.ts: el bloqueo con PIN…)
+// se montan una vez, arriba de todo, cada una en su chunk y pedidas apenas baja este archivo.
+//
 // Este archivo (y con él el motor) baja SÓLO en /admin/club: lo pide ClubCargador con
 // `next/dynamic` y `ssr: false` (el motor guarda su contador de ids a nivel de módulo; en el
 // servidor sería compartido entre pedidos).
 
 import { Suspense, createElement, lazy, useCallback, useEffect, useRef, useState, type ComponentType } from "react";
-import { Button } from "@/components/ui/Button";
 import { cn } from "@/components/ui/cn";
-import { hhmm, reserva as reservaDe } from "@/lib/club/motor.mjs";
-import { claveDeLaDemo, crearAlmacen, type Guardado, type RolDelPanel } from "./almacen";
+import { reserva as reservaDe } from "@/lib/club/motor.mjs";
+import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
+import { candadoDeLaJornada, claveDeLaDemo, claveDeLaJornada, crearAlmacen, type AlmacenamientoLocal, type GuardadoDelClub, type RolDelPanel } from "./almacen";
+import CintaDelClub from "./CintaDelClub";
+import { fechaLocal } from "./reloj-del-club";
+import { useSeleccion } from "./usar-almacen";
 import AgendaCanchas from "./AgendaCanchas";
 import AltaDeTurno from "./AltaDeTurno";
 import { DiasDeLaAgenda, FueraDeLaGrilla } from "./AgendaExtras";
 import CuentaDelTurno from "./CuentaDelTurno";
 import { Esqueleto } from "@/components/ui/Esqueleto";
 import { AvisosDelClub } from "./piezas";
-import { SOLAPAS_DEL_CLUB, type PropsDeSolapa } from "./solapas-club";
+import { PIEZAS_GLOBALES_DEL_CLUB, SOLAPAS_DEL_CLUB, type PropsDePieza, type PropsDeSolapa } from "./solapas-club";
 
 // PERFORMANCE (docs/producto/PERFORMANCE-TERMINALES.md, ronda 3): la Agenda (con la cuenta del turno y «Dar un
 // turno») baja con la pantalla; las otras cuatro solapas, en chunks aparte que se piden en cuanto el navegador
@@ -65,6 +75,9 @@ const BuffetDelClub = buffet.Solapa;
 const CajaDelClub = caja.Solapa;
 // Las solapas que suma la sesión del club (solapas-club.ts): mismo mecanismo, una por chunk.
 const extras = SOLAPAS_DEL_CLUB.map((s) => ({ ...s, diferida: diferida<PropsDeSolapa>(s.cargar) }));
+// Las piezas globales: cada una en su chunk, pedidas ya (al evaluar este archivo), sin esperar el reposo.
+const piezas = PIEZAS_GLOBALES_DEL_CLUB.map((p) => ({ id: p.id, diferida: diferida<PropsDePieza>(p.cargar) }));
+for (const p of piezas) void p.diferida.precargar().catch(() => undefined);
 function precargarSolapas() {
   for (const d of [buffet, caja, fijos, canchas, ...extras.map((e) => e.diferida)]) void d.precargar().catch(() => undefined);
 }
@@ -77,15 +90,8 @@ function SolapaCargando() {
   );
 }
 
-/** El día de hoy en este equipo, "AAAA-MM-DD" (la demo es del día). */
-function hoyLocal(): string {
-  const d = new Date();
-  const dos = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`;
-}
-
 /** localStorage si el navegador lo deja (en incógnito o sin lugar puede tirar): si no, la demo vive en memoria. */
-function guardadoDelEquipo(): Guardado | null {
+function guardadoDelEquipo(): AlmacenamientoLocal | null {
   try {
     return window.localStorage;
   } catch {
@@ -104,14 +110,42 @@ const SOLAPAS_DE_FABRICA: readonly { id: Solapa; etiqueta: string }[] = [
 
 type Panel = { tipo: "cuenta"; id: string } | { tipo: "alta"; canchaId: string; inicio: number | null } | null;
 
-export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; usuario: string; rol: RolDelPanel }) {
-  const [almacen] = useState(() => crearAlmacen({ hoy: hoyLocal(), clave: claveDeLaDemo(negocio, usuario), guardado: guardadoDelEquipo(), rol }));
+const elDia = (_: EstadoClub, a: Ahora) => a.fecha;
+const elNuevo = (_: string | undefined, nuevo: string) => nuevo;
+
+export interface PropsDeClubDemo {
+  negocio: string;
+  usuario: string;
+  rol: RolDelPanel;
+  /** "demo" (default) o "real". Hoy nadie pasa "real": lo decide el día de corte (page.tsx). */
+  reloj?: "demo" | "real";
+  /** Dónde se guarda (default: este equipo). Lo enchufa BP-3. */
+  guardado?: GuardadoDelClub;
+}
+
+export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guardado }: PropsDeClubDemo) {
+  const [almacen] = useState(() =>
+    reloj === "real"
+      ? crearAlmacen({ reloj, clave: claveDeLaJornada(negocio), candado: candadoDeLaJornada(negocio), almacenamiento: guardadoDelEquipo(), guardado, rol })
+      : crearAlmacen({ hoy: fechaLocal(new Date()), clave: claveDeLaDemo(negocio, usuario), almacenamiento: guardadoDelEquipo(), guardado, rol }),
+  );
   const [solapa, setSolapa] = useState<Solapa>("agenda");
   const [SOLAPAS] = useState(() => [...SOLAPAS_DE_FABRICA, ...extras.filter((e) => !e.soloDuenos || rol === "OWNER")]);
   const [panel, setPanel] = useState<Panel>(null);
-  const hoy = almacen.ahora().fecha;
+  // El día de hoy sigue al reloj (en la jornada real cambia a la medianoche del club); el string no cambia en cada
+  // minuto, así que esto no repinta la recepción por el latido.
+  const hoy = useSeleccion(almacen, elDia, elNuevo);
   const [dia, setDia] = useState(hoy);
+  const [hoyVisto, setHoyVisto] = useState(hoy);
+  if (hoyVisto !== hoy) {
+    // Cambió el día: si se miraba hoy, se pasa al nuevo hoy (como el vanilla con VISTA).
+    setHoyVisto(hoy);
+    if (dia === hoyVisto) setDia(hoy);
+  }
   const botones = useRef<Partial<Record<Solapa, HTMLButtonElement | null>>>({});
+
+  // Lo que corre solo: el latido del reloj real, el candado de la jornada y abrir lo guardado.
+  useEffect(() => almacen.arrancar(), [almacen]);
 
   // Las otras solapas se piden apenas el navegador queda libre (ya abierta la agenda).
   useEffect(() => {
@@ -124,21 +158,29 @@ export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; u
     return () => clearTimeout(t);
   }, []);
 
-  // Lo pendiente de guardar se escribe al salir de la página o al pasar a otra app.
+  // Lo pendiente de guardar se escribe al salir de la página o al pasar a otra app; al volver, el reloj late ya.
   useEffect(() => {
     const guardar = () => almacen.guardarYa();
-    const alOcultar = () => {
+    const latir = () => almacen.latir();
+    const alCambiarVista = () => {
       if (document.visibilityState === "hidden") guardar();
+      else latir();
     };
     window.addEventListener("pagehide", guardar);
-    document.addEventListener("visibilitychange", alOcultar);
+    window.addEventListener("pageshow", latir);
+    document.addEventListener("visibilitychange", alCambiarVista);
     return () => {
       window.removeEventListener("pagehide", guardar);
-      document.removeEventListener("visibilitychange", alOcultar);
+      window.removeEventListener("pageshow", latir);
+      document.removeEventListener("visibilitychange", alCambiarVista);
       guardar();
     };
   }, [almacen]);
 
+  const volverALaDemo = useCallback(() => {
+    almacen.volverALaDemo();
+    setPanel(null);
+  }, [almacen]);
   const onAbrir = useCallback((id: string) => setPanel({ tipo: "cuenta", id }), []);
   const onReservar = useCallback((canchaId: string, inicio: number | null) => setPanel({ tipo: "alta", canchaId, inicio }), []);
   const abiertoId = panel?.tipo === "cuenta" ? panel.id : null;
@@ -176,6 +218,14 @@ export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; u
     [almacen],
   );
 
+  // Para las piezas globales (solapas-club.ts): ir a una solapa es lo mismo que tocarla; un id que no está, nada.
+  const irASolapa = useCallback(
+    (id: string) => {
+      if (SOLAPAS.some((s) => s.id === id)) cambiarSolapa(id);
+    },
+    [SOLAPAS, cambiarSolapa],
+  );
+
   // Solapas con flechas (patrón de tablist): ←/→ cambian y llevan el foco.
   const alTeclearSolapa = (e: React.KeyboardEvent) => {
     const i = SOLAPAS.findIndex((s) => s.id === solapa);
@@ -189,25 +239,13 @@ export default function ClubDemo({ negocio, usuario, rol }: { negocio: string; u
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 text-sm">
-          <p className="font-semibold text-strong">Datos de ejemplo — no se guarda nada en el sistema</p>
-          <p className="text-body">
-            Es la demo del club: lo que toques queda sólo en este equipo, para vos. Reloj de la demo: {hhmm(almacen.ahora().min)}.
-            {almacen.retomada() ? " Seguís donde la dejaste." : ""}
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="md"
-          onClick={() => {
-            almacen.volverALaDemo();
-            setPanel(null);
-          }}
-        >
-          Volver a la demo
-        </Button>
-      </div>
+      {piezas.map((p) => (
+        <Suspense key={p.id} fallback={null}>
+          <p.diferida.Solapa almacen={almacen} rol={rol} irASolapa={irASolapa} />
+        </Suspense>
+      ))}
+
+      <CintaDelClub almacen={almacen} onVolverALaDemo={volverALaDemo} />
 
       <div role="tablist" aria-label="Recepción del club" onKeyDown={alTeclearSolapa} className="flex overflow-x-auto border-b border-line">
         {SOLAPAS.map((s) => (

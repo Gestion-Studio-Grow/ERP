@@ -4,13 +4,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
-import { DESHACER_MS, claveDeLaDemo, crearAlmacen, deshacerVigente, leerDemo, MINUTO_DEMO, operadorDeLaDemo, textoDeLaDemo, textoDelEstado, type Guardado } from "./almacen";
+import { DESHACER_MS, claveDeLaDemo, crearAlmacen, deshacerVigente, leerDemo, MINUTO_DEMO, operadorDeLaDemo, textoDeLaDemo, textoDelEstado, type AlmacenamientoLocal } from "./almacen";
 import { armarAgenda, compartirAgenda } from "./agenda-core";
 import { armarCuenta, ejecutar } from "./cuenta-core";
 
 const HOY = "2026-10-17";
 
-function memoria(): Guardado & { datos: Map<string, string> } {
+function memoria(): AlmacenamientoLocal & { datos: Map<string, string> } {
   const datos = new Map<string, string>();
   return {
     datos,
@@ -33,7 +33,7 @@ test("la clave separa negocio y persona, lleva versión, y nunca queda «de todo
 test("guarda en el equipo y la misma persona retoma donde dejó; otra persona u otro negocio arrancan la demo limpia", () => {
   const g = memoria();
   const clave = claveDeLaDemo("demo-club", "u_1");
-  const a = crearAlmacen({ hoy: HOY, clave, guardado: g, demoraGuardadoMs: 0 });
+  const a = crearAlmacen({ hoy: HOY, clave, almacenamiento: g, demoraGuardadoMs: 0 });
   assert.equal(a.retomada(), false);
   assert.equal(a.ahora().min, MINUTO_DEMO);
   const r = enJuego(a.estado());
@@ -45,22 +45,22 @@ test("guarda en el equipo y la misma persona retoma donde dejó; otra persona u 
   assert.equal(foto.v, M.VERSION_ESTADO, "el mismo sobre v1 del respaldo del piloto");
   assert.equal(foto.hoy, HOY);
 
-  const b = crearAlmacen({ hoy: HOY, clave, guardado: g, demoraGuardadoMs: 0 });
+  const b = crearAlmacen({ hoy: HOY, clave, almacenamiento: g, demoraGuardadoMs: 0 });
   assert.equal(b.retomada(), true);
   assert.equal(armarCuenta(b.estado(), r.id)!.totales.pendiente, 0, "el cobro sigue hecho");
   assert.ok(pendiente > 0);
 
-  const otraPersona = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_2"), guardado: g, demoraGuardadoMs: 0 });
+  const otraPersona = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_2"), almacenamiento: g, demoraGuardadoMs: 0 });
   assert.equal(otraPersona.retomada(), false);
   assert.equal(armarCuenta(otraPersona.estado(), r.id)!.totales.pendiente, pendiente);
-  const otroNegocio = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("otro", "u_1"), guardado: g, demoraGuardadoMs: 0 });
+  const otroNegocio = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("otro", "u_1"), almacenamiento: g, demoraGuardadoMs: 0 });
   assert.equal(otroNegocio.retomada(), false);
 });
 
 test("la demo es del día: lo guardado ayer, roto o de otra versión no se usa", () => {
   const g = memoria();
   const clave = claveDeLaDemo("demo-club", "u_1");
-  const a = crearAlmacen({ hoy: "2026-10-16", clave, guardado: g, demoraGuardadoMs: 0 });
+  const a = crearAlmacen({ hoy: "2026-10-16", clave, almacenamiento: g, demoraGuardadoMs: 0 });
   a.aplicar(() => null);
   assert.equal(leerDemo(g, clave, "2026-10-16") !== null, true);
   assert.equal(leerDemo(g, clave, HOY), null, "de ayer: hoy arranca otra");
@@ -68,12 +68,12 @@ test("la demo es del día: lo guardado ayer, roto o de otra versión no se usa",
   assert.equal(leerDemo(g, clave, HOY), null);
   g.datos.set(clave, JSON.stringify({ v: 99, hoy: HOY, estado: {} }));
   assert.equal(leerDemo(g, clave, HOY), null);
-  assert.equal(crearAlmacen({ hoy: HOY, clave, guardado: g }).retomada(), false);
+  assert.equal(crearAlmacen({ hoy: HOY, clave, almacenamiento: g }).retomada(), false);
   // Sin almacenamiento (incógnito): la demo anda igual, en memoria.
-  const sin = crearAlmacen({ hoy: HOY, clave, guardado: null, demoraGuardadoMs: 0 });
+  const sin = crearAlmacen({ hoy: HOY, clave, almacenamiento: null, demoraGuardadoMs: 0 });
   assert.equal(sin.aplicar(() => 1), 1);
-  const roto: Guardado = { getItem: () => { throw new Error("SecurityError"); }, setItem: () => { throw new Error("QuotaExceeded"); }, removeItem: () => { throw new Error("x"); } };
-  const conRoto = crearAlmacen({ hoy: HOY, clave, guardado: roto, demoraGuardadoMs: 0 });
+  const roto: AlmacenamientoLocal = { getItem: () => { throw new Error("SecurityError"); }, setItem: () => { throw new Error("QuotaExceeded"); }, removeItem: () => { throw new Error("x"); } };
+  const conRoto = crearAlmacen({ hoy: HOY, clave, almacenamiento: roto, demoraGuardadoMs: 0 });
   assert.doesNotThrow(() => conRoto.aplicar(() => null));
   assert.doesNotThrow(() => conRoto.volverALaDemo());
 });
@@ -81,7 +81,7 @@ test("la demo es del día: lo guardado ayer, roto o de otra versión no se usa",
 test("«Volver a la demo» borra lo de este equipo y rearma la demo de hoy", () => {
   const g = memoria();
   const clave = claveDeLaDemo("demo-club", "u_1");
-  const a = crearAlmacen({ hoy: HOY, clave, guardado: g, demoraGuardadoMs: 0 });
+  const a = crearAlmacen({ hoy: HOY, clave, almacenamiento: g, demoraGuardadoMs: 0 });
   const r = enJuego(a.estado());
   a.aplicar((e, ahora) => ejecutar(e, r.id, { tipo: "cobrarTodo", medio: "efectivo" }, ahora));
   let avisos = 0;
@@ -97,8 +97,8 @@ test("«Volver a la demo» borra lo de este equipo y rearma la demo de hoy", () 
 test("el guardado se agrupa: varias acciones seguidas escriben una vez, y `guardarYa` escribe lo pendiente", async () => {
   const g = memoria();
   let escrituras = 0;
-  const contado: Guardado = { ...g, setItem: (k, v) => { escrituras++; g.setItem(k, v); } };
-  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), guardado: contado, demoraGuardadoMs: 20 });
+  const contado: AlmacenamientoLocal = { ...g, setItem: (k, v) => { escrituras++; g.setItem(k, v); } };
+  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), almacenamiento: contado, demoraGuardadoMs: 20 });
   for (let i = 0; i < 5; i++) a.aplicar(() => null);
   assert.equal(escrituras, 0);
   await new Promise((r) => setTimeout(r, 40));
@@ -111,7 +111,7 @@ test("el guardado se agrupa: varias acciones seguidas escriben una vez, y `guard
 });
 
 test("suscribirse y desuscribirse; cada acción sube la versión aunque el motor diga que no", () => {
-  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), guardado: null, demoraGuardadoMs: 0 });
+  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), almacenamiento: null, demoraGuardadoMs: 0 });
   let n = 0;
   const fuera = a.suscribir(() => n++);
   const d = a.aplicar((e, ahora) => ejecutar(e, "no-existe", { tipo: "cobrarTodo", medio: "efectivo" }, ahora));
@@ -131,7 +131,7 @@ test("suscribirse y desuscribirse; cada acción sube la versión aunque el motor
  */
 test("medición: una acción con el almacén (motor + grilla + cuenta) cuesta menos que sólo copiar el estado", (t) => {
   const N = 40;
-  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), guardado: null, demoraGuardadoMs: 0 });
+  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), almacenamiento: null, demoraGuardadoMs: 0 });
   const r = enJuego(a.estado());
   let vista = armarAgenda(a.estado(), HOY, a.ahora());
   // Calentar (JIT) antes de medir.
@@ -163,7 +163,7 @@ test("medición: una acción con el almacén (motor + grilla + cuenta) cuesta me
 });
 
 test("deshacer: vuelve a como estaba antes de la ÚLTIMA acción; un error o una acción no deshacible lo anula", () => {
-  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), guardado: null, demoraGuardadoMs: 0 });
+  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), almacenamiento: null, demoraGuardadoMs: 0 });
   const r = enJuego(a.estado());
   const pendiente = armarCuenta(a.estado(), r.id)!.totales.pendiente;
   const cajaAntes = M.resumenCaja(a.estado()).ingresos;
@@ -190,7 +190,7 @@ test("el operador de la demo sale del rol del ERP: OWNER opera como un dueño, e
   const e = M.generarDemo(HOY, MINUTO_DEMO);
   assert.equal(operadorDeLaDemo(e, "OWNER")!.usuario.rol, "duenio");
   assert.equal(operadorDeLaDemo(e, "RECEPTION")!.usuario.rol, "recepcion");
-  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), guardado: null, rol: "OWNER" });
+  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), almacenamiento: null, rol: "OWNER" });
   assert.equal(a.auth().usuarioId, operadorDeLaDemo(a.estado(), "OWNER")!.usuario.id);
 });
 
@@ -203,7 +203,7 @@ test("«Deshacer» vence a los 6 s (reloj inyectado): un cobro de hace 20 minuto
 
   let t = 0;
   const pendientes: (() => void)[] = [];
-  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), guardado: null, demoraGuardadoMs: 0, reloj: () => t, programar: (fn) => pendientes.push(fn) });
+  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), almacenamiento: null, demoraGuardadoMs: 0, relojMs: () => t, programar: (fn) => pendientes.push(fn) });
   const r = enJuego(a.estado());
   a.ejecutar((e, ahora, auth) => ejecutar(e, r.id, { tipo: "cobrarJugador", idx: 1, medio: "efectivo" }, ahora, auth), { deshacible: true });
   const caja = M.resumenCaja(a.estado()).ingresos;
@@ -237,7 +237,7 @@ test("«Deshacer» vence a los 6 s (reloj inyectado): un cobro de hace 20 minuto
 // arma con `JSON.stringify` directo, sin copiar el estado antes. Tiene que dar EXACTAMENTE lo mismo que el camino
 // de antes (`serializarEstado` + `JSON.stringify`), en la demo recién armada y después de operar.
 test("el texto del estado es carácter por carácter el de serializarEstado, y el de la demo guardada el de antes", () => {
-  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), guardado: null, demoraGuardadoMs: 0 });
+  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), almacenamiento: null, demoraGuardadoMs: 0 });
   const comparar = () => {
     assert.equal(textoDelEstado(a.estado()), JSON.stringify(M.serializarEstado(a.estado())));
     assert.equal(textoDeLaDemo(textoDelEstado(a.estado()), HOY, 1760000000000), JSON.stringify({ ...M.serializarEstado(a.estado()), hoy: HOY, guardado: 1760000000000 }));
@@ -253,7 +253,7 @@ test("el texto del estado es carácter por carácter el de serializarEstado, y e
 test("copia(): igual al estado, y tocarla no toca el estado; el guardado escribe el mismo texto", () => {
   const g = memoria();
   const clave = claveDeLaDemo("demo-club", "u_1");
-  const a = crearAlmacen({ hoy: HOY, clave, guardado: g, demoraGuardadoMs: 0, reloj: () => 1760000000000 });
+  const a = crearAlmacen({ hoy: HOY, clave, almacenamiento: g, demoraGuardadoMs: 0, relojMs: () => 1760000000000 });
   const c = a.copia();
   assert.deepEqual(c, JSON.parse(JSON.stringify(a.estado())));
   const r = enJuego(c);
@@ -261,12 +261,12 @@ test("copia(): igual al estado, y tocarla no toca el estado; el guardado escribe
   ejecutar(c, r.id, { tipo: "cobrarTodo", medio: "efectivo" }, a.ahora());
   assert.equal(armarCuenta(a.estado(), r.id)!.totales.pendiente, antes, "la copia es otra");
   a.aplicar(() => null);
-  assert.equal(g.datos.get(clave), JSON.stringify({ ...M.serializarEstado(a.estado()), hoy: HOY, guardado: 1760000000000 }));
+  assert.equal(g.datos.get(clave), JSON.stringify({ ...M.serializarEstado(a.estado()), hoy: HOY, guardado: 1760000000000, version: 1 }), "el texto del estado, con la versión pegada al final");
 });
 
 test("en reposo se adelanta el texto: la foto de «Deshacer» de la acción siguiente no se arma en el toque", () => {
   const cola: (() => void)[] = [];
-  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), guardado: null, demoraGuardadoMs: 0, enReposo: (fn) => void cola.push(fn) });
+  const a = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo("demo-club", "u_1"), almacenamiento: null, demoraGuardadoMs: 0, enReposo: (fn) => void cola.push(fn) });
   const r = enJuego(a.estado());
   a.aplicar(() => null);
   // Lo que queda en la cola arma el texto; después, la acción deshacible usa ese texto y «Deshacer» vuelve bien.

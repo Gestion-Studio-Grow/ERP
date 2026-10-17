@@ -19,6 +19,8 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, Page } from "playwright";
+import * as M from "@/lib/club/motor.mjs";
+import { claveDeLaJornada, textoDeLaDemo, textoDelEstado } from "./almacen";
 
 const RAIZ = fileURLToPath(new URL("../../../../../", import.meta.url));
 const ORIGEN = "http://localhost:3999/admin/club";
@@ -29,6 +31,27 @@ import { createRoot } from "react-dom/client";
 import ClubDemo from "@/app/admin/(dashboard)/club/ClubDemo";
 window.__montar = (negocio, usuario) =>
   createRoot(document.getElementById("root")).render(createElement(ClubDemo, { negocio, usuario, rol: "RECEPTION" }));
+`;
+
+// La jornada real (Ola 0): el mismo ClubDemo con `reloj: "real"`. Las piezas globales se reemplazan (plugin de esbuild)
+// por una SONDA que deja el almacén a mano del test y cuenta cuántas veces se montó.
+const ENTRADA_REAL = `
+import { createElement } from "react";
+import { createRoot } from "react-dom/client";
+import ClubDemo from "@/app/admin/(dashboard)/club/ClubDemo";
+window.__montarReal = (negocio, usuario) =>
+  createRoot(document.getElementById("root")).render(createElement(ClubDemo, { negocio, usuario, rol: "RECEPTION", reloj: "real" }));
+`;
+const SOLAPAS_CON_SONDA = `
+import { useEffect } from "react";
+function Sonda({ almacen, irASolapa }) {
+  window.__almacen = almacen;
+  window.__irASolapa = irASolapa;
+  useEffect(() => { window.__montajes = (window.__montajes || 0) + 1; }, []);
+  return null;
+}
+export const SOLAPAS_DEL_CLUB = [];
+export const PIEZAS_GLOBALES_DEL_CLUB = [{ id: "sonda", cargar: () => Promise.resolve({ default: Sonda }) }];
 `;
 
 // Un gancho con la forma del de las DevTools de React: en cada commit recorre el árbol y anota qué componentes
@@ -101,6 +124,7 @@ async function cssDeLaApp(): Promise<string> {
 describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
   let browser: Browser | null = null;
   let bundle = "";
+  let bundleReal = "";
   let css = "";
   let sinNavegador = "";
 
@@ -130,6 +154,26 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
       logLevel: "silent",
     });
     bundle = r.outputFiles[0].text;
+    const rr = await esbuild.build({
+      stdin: { contents: ENTRADA_REAL, loader: "tsx", resolveDir: RAIZ },
+      bundle: true,
+      write: false,
+      format: "iife",
+      jsx: "automatic",
+      tsconfig: join(RAIZ, "tsconfig.json"),
+      define: { "process.env.NODE_ENV": '"production"' },
+      logLevel: "silent",
+      plugins: [
+        {
+          name: "sonda",
+          setup(b) {
+            b.onResolve({ filter: /^\.\/solapas-club$/ }, () => ({ path: "solapas-con-sonda", namespace: "sonda" }));
+            b.onLoad({ filter: /.*/, namespace: "sonda" }, () => ({ contents: SOLAPAS_CON_SONDA, loader: "js", resolveDir: RAIZ }));
+          },
+        },
+      ],
+    });
+    bundleReal = rr.outputFiles[0].text;
     css = await cssDeLaApp();
     browser = await playwright.chromium.launch({ executablePath: chrome });
   });
@@ -222,6 +266,8 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
 
     await page.keyboard.press("Escape");
     await page.getByText("Tocá un turno de la agenda para ver su cuenta").waitFor();
+    // El foco vuelve en el cuadro siguiente (requestAnimationFrame): con la máquina cargada, se espera ese cuadro.
+    await page.waitForFunction(() => /^Martín Ríos, Cancha 1/.test(document.activeElement?.getAttribute("aria-label") ?? ""), undefined, { timeout: 5000 }).catch(() => undefined);
     assert.match((await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))) ?? "", /^Martín Ríos, Cancha 1/, "el foco vuelve al turno");
     assert.deepEqual(errores, []);
     await page.close();
@@ -464,5 +510,73 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await page.getByRole("region", { name: "Daniela Navarro" }).waitFor();
     assert.deepEqual(errores, []);
     await page.close();
+  });
+
+  test("jornada real: una pestaña por equipo con «Usar acá», el latido no repinta la agenda y cambiar de operador tampoco", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const contexto = await browser!.newContext({ viewport: { width: 1024, height: 768 }, locale: "es-AR" });
+    await contexto.clock.install({ time: new Date(2026, 9, 17, 20, 0, 5) });
+    const errores: string[] = [];
+    const html = `<!doctype html><html lang="es"><head><style>${css}</style><script>${CONTADOR}</script></head><body class="bg-surface text-body"><main id="root" class="p-4"></main></body></html>`;
+    await contexto.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html }));
+    // Lo que ya hay guardado en este equipo: una jornada con turnos (la demo del día, como si se hubiera cargado).
+    const guardado = textoDeLaDemo(textoDelEstado(M.generarDemo("2026-10-17")), "2026-10-17", 1);
+    const abrir = async (sembrar: boolean) => {
+      const p = await contexto.newPage();
+      p.on("pageerror", (e) => errores.push(e.message));
+      p.on("console", (m) => {
+        if (m.type() === "error") errores.push(m.text());
+      });
+      await p.goto(ORIGEN);
+      if (sembrar) await p.evaluate(([k, v]) => localStorage.setItem(k, v), [claveDeLaJornada("demo-club"), guardado]);
+      await p.addScriptTag({ content: bundleReal });
+      await p.evaluate(() => (window as unknown as { __montarReal: (n: string, u: string) => void }).__montarReal("demo-club", "u_recepcion"));
+      await p.getByRole("heading", { name: "Agenda de canchas" }).waitFor();
+      return p;
+    };
+    const p1 = await abrir(true);
+    await p1.getByText("Guardado en este equipo").waitFor();
+    await p1.getByText(/Jornada real · Hora: 20:00/).waitFor();
+    assert.equal(await p1.getByText("Datos de ejemplo — no se guarda nada en el sistema").count(), 0);
+    assert.equal(await p1.evaluate(() => (window as unknown as { __montajes: number }).__montajes), 1, "la pieza global se monta una vez");
+
+    // Latido sin cambio de minuto: nadie se repinta. Con cambio de minuto: la cinta y la raya de «ahora», no los turnos.
+    let antes = await renders(p1);
+    await p1.clock.runFor(15_000);
+    const porLatido = resta(await renders(p1), antes);
+    t.diagnostic(`renders por un latido sin cambio de minuto: ${JSON.stringify(porLatido)}`);
+    assert.deepEqual(porLatido, {});
+    antes = await renders(p1);
+    await p1.clock.runFor(45_000);
+    await p1.getByText(/Jornada real · Hora: 20:01/).waitFor();
+    const porMinuto = resta(await renders(p1), antes);
+    t.diagnostic(`renders por el cambio de minuto: ${JSON.stringify(porMinuto)}`);
+    assert.equal(porMinuto.BloqueTurno, undefined, "ningún turno se repinta por el minuto");
+    assert.equal(porMinuto.ClubDemo, undefined, "la recepción tampoco (el día no cambió)");
+
+    // Cambiar de operador (lo que hará el PIN): la agenda no se entera; la caja dice quién opera.
+    antes = await renders(p1);
+    await p1.evaluate(() => {
+      const a = (window as unknown as { __almacen: import("./almacen").Almacen }).__almacen;
+      const u = a.estado().usuarios.find((x) => x.rol === "duenio" && x.pin)!;
+      a.cambiarOperador(u, { usuarioId: u.id, pin: u.pin });
+    });
+    const porOperador = resta(await renders(p1), antes);
+    t.diagnostic(`renders por cambiar de operador: ${JSON.stringify(porOperador)}`);
+    assert.deepEqual(porOperador, {}, "con la Agenda a la vista, cambiar de operador no repinta nada");
+    await p1.evaluate(() => (window as unknown as { __irASolapa: (id: string) => void }).__irASolapa("caja"));
+    await p1.getByText(/^Operás como /).waitFor();
+    assert.equal(await p1.getByRole("tab", { name: "Caja" }).getAttribute("aria-selected"), "true", "irASolapa lleva a la solapa");
+
+    // Otra pestaña del mismo equipo: sólo para mirar, con «Usar acá».
+    const p2 = await abrir(false);
+    await p2.getByText("La jornada está abierta en otra pestaña de este equipo").waitFor();
+    await p2.getByRole("button", { name: "Usar acá" }).click();
+    await p2.getByText("Guardado en este equipo").waitFor();
+    await p1.getByText("La jornada está abierta en otra pestaña de este equipo").waitFor();
+    const claves = await p2.evaluate(() => Object.keys(localStorage));
+    assert.deepEqual(claves, ["gsg-club:demo-club:jornada:v1"], "la jornada del negocio, sin claves de la demo");
+    assert.deepEqual(errores, []);
+    await contexto.close();
   });
 });

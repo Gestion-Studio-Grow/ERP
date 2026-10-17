@@ -10,7 +10,8 @@
 // egreso (con concepto) y cerrar la caja. Una caja se cierra una sola vez; lo cobrado después entra en la
 // siguiente. Los créditos de los clientes no entran a la caja.
 //
-// En el piloto, egreso y cierre piden el PIN; en el ERP manda la sesión (ver `operadorDeLaDemo`).
+// En el piloto, egreso y cierre piden el PIN; en el ERP manda quien opera (`almacen.operador()`: en la demo, el de
+// ejemplo de su rol, `operadorDeLaDemo`; en la jornada real, el que entra con el bloqueo de la sesión del club).
 
 import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -20,7 +21,7 @@ import { pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { armarCaja, ejecutarCaja, type AccionCaja } from "./caja-core";
-import { porFirma, useSeleccion } from "./usar-almacen";
+import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 
 const seleccionarCaja = (e: EstadoClub, a: Ahora) => armarCaja(e, a);
 
@@ -76,6 +77,18 @@ function CajasAtrasadas({ atrasadas, hacer }: { atrasadas: { dia: string; texto:
   );
 }
 
+/** Quién opera: por su propio canal (cambiar de operador repinta sólo esta línea, no la caja). */
+function OperaComo({ almacen }: { almacen: Almacen }) {
+  const operador = useOperador(almacen);
+  return (
+    <p className="text-sm text-muted">
+      {operador
+        ? `Operás como ${operador.usuario.nombre}. En el ERP la sesión reemplaza al PIN del piloto: el egreso y el cierre quedan a tu nombre.`
+        : "Todavía no entró nadie a operar: el egreso y el cierre de caja piden quién los hace."}
+    </p>
+  );
+}
+
 export default function CajaDelClub({ almacen }: { almacen: Almacen }) {
   const v = useSeleccion(almacen, seleccionarCaja, porFirma);
   const [monto, setMonto] = useState("");
@@ -85,9 +98,7 @@ export default function CajaDelClub({ almacen }: { almacen: Almacen }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted">
-        Operás como {almacen.operador()}. En el ERP la sesión reemplaza al PIN del piloto: el egreso y el cierre quedan a tu nombre.
-      </p>
+      <OperaComo almacen={almacen} />
       {v.atrasadas.length > 0 && <CajasAtrasadas atrasadas={v.atrasadas} hacer={hacer} />}
 
       <section aria-labelledby="club-caja-hoy" className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4">

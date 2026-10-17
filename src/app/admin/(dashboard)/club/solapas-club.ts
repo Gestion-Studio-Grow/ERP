@@ -36,3 +36,35 @@ export interface SolapaDelClub {
 }
 
 export const SOLAPAS_DEL_CLUB: readonly SolapaDelClub[] = [];
+
+// ============================================================================
+// PIEZAS GLOBALES — lo que va UNA vez en la recepción, por encima de las solapas.
+// ============================================================================
+//
+// Para lo que no es una solapa sino parte del shell: el bloqueo con PIN y el cambio de operador, un aviso fijo, un
+// atajo de teclado global… ClubDemo las monta una sola vez, arriba de la cinta y de las solapas, cada una en su
+// propio chunk (`cargar` es un `import()` dinámico), y las pide apenas baja la recepción (no espera a que el
+// navegador quede libre: un bloqueo tiene que estar antes que el primer toque). Cada una va en su propio Suspense,
+// sin esqueleto: mientras baja no ocupa lugar.
+//
+// Reciben el almacén, el rol e `irASolapa` (para llevar a una solapa, como tocarla). Lo que hacen pasa por el almacén: `cambiarOperador` / `operador` /
+// `suscribirOperador` para el PIN (no despiertan a las pantallas), `estadoDelGuardado` / `suscribirGuardado` para
+// la jornada, y `ejecutar` / `aplicar` para tocar el estado.
+
+export interface PropsDePieza {
+  almacen: Almacen;
+  rol: RolDelPanel;
+  /**
+   * Lleva a una solapa (p. ej. «tablero» desde el aviso del dueño). Es lo mismo que tocarla: «Deshacer» se olvida.
+   * Un id que no está (no existe, o es `soloDuenos` y quien mira no es OWNER) no hace nada.
+   */
+  irASolapa: (id: string) => void;
+}
+
+export interface PiezaGlobalDelClub {
+  /** Único, en minúsculas y sin espacios: «bloqueo», «atajos»… */
+  id: string;
+  cargar: () => Promise<{ default: ComponentType<PropsDePieza> }>;
+}
+
+export const PIEZAS_GLOBALES_DEL_CLUB: readonly PiezaGlobalDelClub[] = [];

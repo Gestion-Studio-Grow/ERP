@@ -34,7 +34,7 @@ function PedidoDelDuenio({ almacen, pedido }: { almacen: Almacen; pedido: NonNul
   const [codigo, setCodigo] = useState("");
   const [verDemo, setVerDemo] = useState(false);
   const id = useId();
-  const demo = verDemo ? codigoDeLaDemo(almacen.estado(), pedido.id) : null;
+  const demo = verDemo && almacen.modo() === "demo" ? codigoDeLaDemo(almacen.estado(), pedido.id) : null;
   return (
     <div className="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning-soft p-3">
       <p className="text-sm text-strong">
@@ -60,9 +60,12 @@ function PedidoDelDuenio({ almacen, pedido }: { almacen: Almacen; pedido: NonNul
         </Button>
       </form>
       <p className="text-xs text-muted">{pedido.trabado ?? `Quedan ${pedido.quedan} intentos.`}</p>
-      <Button variant="ghost" size="md" onClick={() => setVerDemo((v) => !v)} aria-expanded={verDemo}>
-        {verDemo ? "Ocultar" : "Ver"} el código que le llega al dueño (sólo en la demo)
-      </Button>
+      {/* El código del dueño se muestra SÓLO en la demo: en la jornada real le llega a él y a nadie más. */}
+      {almacen.modo() === "demo" && (
+        <Button variant="ghost" size="md" onClick={() => setVerDemo((v) => !v)} aria-expanded={verDemo}>
+          {verDemo ? "Ocultar" : "Ver"} el código que le llega al dueño (sólo en la demo)
+        </Button>
+      )}
       {demo && (
         <p className="text-sm text-strong">
           En el celular de {demo.duenio} sale: <strong className="tabular-nums">{demo.codigo}</strong>
