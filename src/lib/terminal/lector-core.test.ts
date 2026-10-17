@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { detectorDeRafaga, enCampoDeTexto, enCampoEditable, esCampoDeCantidad, motivoParaNoSumar, quitarPrefijoSufijo, type DetectorDeRafaga, type LecturaDeRafaga } from "./lector-core";
+import { detectorDeRafaga, enCampoDeTexto, momentoDeLaTecla, enCampoEditable, esCampoDeCantidad, motivoParaNoSumar, quitarPrefijoSufijo, type DetectorDeRafaga, type LecturaDeRafaga } from "./lector-core";
 
 const EAN = "7790895000997";
 
@@ -188,4 +188,35 @@ test("motivoParaNoSumar: con el cobro en vuelo o en duda el lector no suma", () 
   assert.match(motivoParaNoSumar({ cobrando: false, cobroEnDuda: true }) ?? "", /cobro sin confirmar/);
   assert.match(motivoParaNoSumar({ cobrando: true, cobroEnDuda: true }) ?? "", /Esperá que termine el cobro/);
   assert.equal(motivoParaNoSumar({ cobrando: false, cobroEnDuda: false }), null);
+});
+
+test("momentoDeLaTecla: vale el timeStamp del evento; si no es del mismo reloj, la hora de atención", () => {
+  assert.equal(momentoDeLaTecla(1200.5, 1500), 1200.5, "la tecla llegó antes de que se la atienda");
+  assert.equal(momentoDeLaTecla(0, 1500), 1500, "sin timeStamp");
+  assert.equal(momentoDeLaTecla(1_760_000_000_000, 1500), 1500, "un navegador viejo: ms desde 1970");
+  assert.equal(momentoDeLaTecla(Number.NaN, 1500), 1500);
+});
+
+test("ráfaga con el hilo ocupado: con los momentos de llegada, 13 dígitos a 10 ms se leen aunque se atiendan tarde", () => {
+  const d = detectorDeRafaga({ lector: { prefijo: "", sufijo: "enter" } });
+  // Llegaron cada 10 ms; la pantalla las atendió 80 ms tarde a partir de la 7ª (un print, un render).
+  let r: LecturaDeRafaga = null;
+  [..."7790895000997"].forEach((c, i) => {
+    const llego = 1000 + i * 10;
+    const atendida = i >= 6 ? llego + 80 : llego;
+    r = d.tecla(c, momentoDeLaTecla(llego, atendida));
+  });
+  r = d.tecla("Enter", momentoDeLaTecla(1130, 1210));
+  assert.deepEqual(r, { tipo: "codigo", valor: "7790895000997" });
+});
+
+test("una persona con el hilo ocupado: teclas a 120 ms atendidas juntas NO son una ráfaga", () => {
+  const d = detectorDeRafaga({ lector: { prefijo: "", sufijo: "enter" } });
+  // Llegaron cada 120 ms mientras la pantalla estaba ocupada; se atendieron todas a 1 ms una de otra.
+  let r: LecturaDeRafaga = null;
+  [..."123456789012"].forEach((c, i) => {
+    r = d.tecla(c, momentoDeLaTecla(1000 + i * 120, 3000 + i));
+  });
+  r = d.tecla("Enter", momentoDeLaTecla(1000 + 12 * 120, 3012));
+  assert.equal(r, null);
 });

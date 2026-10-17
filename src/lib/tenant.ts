@@ -153,14 +153,23 @@ export class DireccionSinNegocioError extends Error {
  * que comparten el mismo lookup y el mismo fail-closed.
  */
 export async function resolveTenantId(host: string | null | undefined): Promise<string> {
+  return (await resolveTenant(host)).id;
+}
+
+/**
+ * Lo mismo que `resolveTenantId`, con el slug de la MISMA fila: quien necesita el slug (la marca,
+ * el manifiesto del panel) no hace una segunda consulta por id (PERFORMANCE-TERMINALES.md, ronda 2).
+ * Mismo orden, mismo lookup, mismo fail-closed.
+ */
+export async function resolveTenant(host: string | null | undefined): Promise<{ id: string; slug: string }> {
   const mapped = hostMapSubdomain(host);
   const sub = mapped ?? extractSubdomain(host);
   if (sub) {
     const t = await basePrisma.tenant.findUnique({
       where: { subdomain: sub },
-      select: { id: true },
+      select: { id: true, slug: true },
     });
-    if (t) return t.id;
+    if (t) return t;
     throw new DireccionSinNegocioError(
       `getCurrentTenantId: no hay tenant para el subdominio "${sub}"` +
         (mapped ? " (vía TENANT_HOST_MAP)" : "") +
@@ -173,9 +182,9 @@ export async function resolveTenantId(host: string | null | undefined): Promise<
   const tenants = await basePrisma.tenant.findMany({
     take: 2,
     orderBy: { createdAt: "asc" },
-    select: { id: true },
+    select: { id: true, slug: true },
   });
-  if (tenants.length === 1) return tenants[0].id;
+  if (tenants.length === 1) return tenants[0];
   if (tenants.length === 0) {
     throw new Error(
       "getCurrentTenantId: no hay ningún tenant en la base. Se esperaba exactamente uno (ADR-015).",
@@ -266,11 +275,14 @@ export async function resolveForcedTenantId(
   );
 }
 
-/** Tenant del request actual. Fail-closed. Dedupe por request. */
-export const getCurrentTenantId = cache(async (): Promise<string> => {
+/**
+ * El negocio del request: su id y, cuando la resolución ya lo trajo, su slug (la misma fila).
+ * `slug: null` en el sandbox (no hay base: quien lo necesite consulta como siempre).
+ */
+const negocioDelPedido = cache(async (): Promise<{ id: string; slug: string | null }> => {
   // Paso -1: modo SANDBOX de preventa (docs/preventa/plan-acceso-sandbox-sin-password.md).
   // Pseudo-tenant fijo SIN pegarle a basePrisma — el sandbox no tiene DB real.
-  if (isDemoSandbox()) return DEMO_TENANT_ID;
+  if (isDemoSandbox()) return { id: DEMO_TENANT_ID, slug: null };
 
   // Paso 0: pin por env (Opción A). Domina sobre el host; si está seteado, el sitio
   // queda fijado a ese tenant. Usa el cliente BASE (sin RLS), como el resto de acá.
@@ -280,12 +292,23 @@ export const getCurrentTenantId = cache(async (): Promise<string> => {
   const forced = forcedTenantSlug();
   if (forced) {
     await assertForcedSlugAllowedInProduction(forced, () => basePrisma.tenant.count());
-    return resolveForcedTenantId(forced, (slug) =>
+    const id = await resolveForcedTenantId(forced, (slug) =>
       basePrisma.tenant.findUnique({ where: { slug }, select: { id: true } }),
     );
+    // Se lo encontró POR ese slug: es el de la fila.
+    return { id, slug: forced };
   }
-  return resolveTenantId(await hostFromRequest());
+  return resolveTenant(await hostFromRequest());
 });
+
+/** Tenant del request actual. Fail-closed. Dedupe por request. */
+export const getCurrentTenantId = cache(async (): Promise<string> => (await negocioDelPedido()).id);
+
+/**
+ * El slug del negocio del request si la resolución ya lo trajo (por host o por el pin), o `null`
+ * (sandbox). Tira lo mismo que `getCurrentTenantId` (fail-closed): quien lo usa decide el fallback.
+ */
+export const slugResueltoDelPedido = cache(async (): Promise<string | null> => (await negocioDelPedido()).slug);
 
 /**
  * ¿La dirección de este pedido lleva a un negocio? `false` SÓLO si el host no resuelve

@@ -17,7 +17,7 @@
 // cambia su estado) no cortan una ráfaga a la mitad.
 
 import { useEffect, useEffectEvent, useMemo } from "react";
-import { detectorDeRafaga, UMBRAL_RAFAGA_MS, type LectorDelEquipo } from "./lector-core";
+import { detectorDeRafaga, momentoDeLaTecla, UMBRAL_RAFAGA_MS, type LectorDelEquipo } from "./lector-core";
 
 /** Dónde cayó la lectura y qué tenía el campo antes de que el lector escribiera ahí. */
 export type OrigenDeLaLectura = { objetivo: EventTarget | null; antes?: string };
@@ -53,7 +53,8 @@ export function useLectorDeRafaga({
       objetivo = e.target;
       // En keydown el campo todavía no tiene la tecla: es el valor de ANTES.
       const valor = e.target instanceof HTMLInputElement ? e.target.value : undefined;
-      const lectura = detector.tecla(e.key, performance.now(), e.repeat, valor);
+      // El momento en que llegó la tecla, no en que se atiende (ver `momentoDeLaTecla`).
+      const lectura = detector.tecla(e.key, momentoDeLaTecla(e.timeStamp, performance.now()), e.repeat, valor);
       if (lectura) {
         e.preventDefault();
         e.stopPropagation();

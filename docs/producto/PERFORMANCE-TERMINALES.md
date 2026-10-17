@@ -83,7 +83,7 @@ Núcleo puro (Node, mediana): una ráfaga completa de 14 teclas por la máquina 
 - **El sonido:** sin salida de audio en este entorno; el `AudioContext` se crea recién con un gesto y sólo con «Sonido» prendido.
 - **INP real:** se aproximó con la latencia Enter → cuadro y las tareas largas; el INP de campo necesita usuarios reales.
 
-## 5. Recomendaciones fuera de mi alcance (para quien sea dueño de esos archivos)
+## 5. Recomendaciones fuera de mi alcance (para quien sea dueño de esos archivos) — resueltas en la ronda 2 (§8)
 
 1. **`fmtMoneyARS` (`src/components/ui/format.ts:27`)** arma un `Intl.NumberFormat` por llamada (30 µs). Cachear un formateador por cantidad de decimales arregla lo mismo que H4 en todo el sistema, con el mismo texto.
 2. **El buscador (`src/components/ui/buscador-filtro.ts:17`)** normaliza etiqueta y detalle de TODAS las opciones en cada tecla: 8,5–14,7 ms por tecla con 20.000 productos (Node), ~35–60 ms en una PC de caja lenta. Normalizar una vez por lista (memo) lo baja a una pasada de `includes`.
@@ -103,5 +103,103 @@ Núcleo puro (Node, mediana): una ráfaga completa de 14 teclas por la máquina 
 - `vender-pantalla.test.ts`: 57 tests, 56 pasan; el que falla («POS de la bandeja: un pedido con la red caída…») ya fallaba en la línea de base (`fail-w3.txt`).
 - `npm test` completo: 5.008 tests, 4.832 pasan, 29 fallan, 147 salteados. Contra `fail-w3.txt`: **ningún fallo nuevo de lo tocado**. Aparecen 2 nombres nuevos, «Canchas del club en el navegador» y «Cobrar la cancha y cerrarla · la mesa sigue…» («el foco vuelve al turno»), de `club/club-pantalla.test.ts`: no importa ninguno de los archivos tocados acá y sale del trabajo sin commitear que otro agente tiene abierto en `club/` (`almacen.ts`, `cuenta-core.ts`, `buffet-core.ts`).
 - `npm run build`: verde (incluye el chequeo de tipos de Next).
+
+---
+
+## 8. Ronda 2 — los cuatro puntos que habían quedado afuera (2026-10-17)
+
+Mismas reglas: medir antes y después, sin Neon, sin dependencias nuevas. Para contar consultas se
+levantó un **Postgres local descartable** (`/tmp/pgrun`, el de los tests de integración, con
+`log_statement=all`) con dos negocios de prueba (`src/test/base-efimera.ts`); se apagó al terminar.
+Scripts nuevos en `scratchpad/perf/scripts/`: `buscador-navegador.mjs`, `contar-manifest.sh`,
+`sentencias-de-una-pagina.sh`, `crear-base.mts` y el escenario `bajo-carga` de `harness.mjs`.
+
+### Tabla
+
+| Métrica | Antes | Después |
+|---|---|---|
+| `fmtMoneyARS`, costo por llamada (Node) | 29–31 µs | **1,0 µs** |
+| `fmtMoneyARS`, 20.000 precios | 582 ms | 20 ms |
+| Vender: render al abrir con 20.000 productos (ahora con `fmtMoneyARS` y sin el formateador local) | 35–46 ms (ronda 1) | 38 ms |
+| Buscador, por tecla, 20.000 productos, CPU normal (mediana / p95 / máx.) | 17,9 / 27,9 / 31,0 ms | **0,3 / 1,8 / 2,1 ms** |
+| Buscador, por tecla, 20.000 productos, CPU ×4 (mediana / p95 / máx.) | 94,9 / 156,9 / 185,7 ms | **2,3 / 6,7 / 11,4 ms** |
+| Buscador, por tecla, 5.000 productos, CPU ×4 (mediana / p95) | 22,1 / 36,2 ms | 0,1 / 1,7 ms |
+| Lector a 10 ms con el hilo ocupado 80 ms en el medio de la ráfaga (CPU ×4) | **0 de 10** leídas | **10 de 10** |
+| Persona a 120 ms/tecla con el hilo ocupado 2,5 s (CPU ×4): ¿se lee como lector? | **10 de 10** falsos positivos | **0 de 10** |
+| Manifiesto `/api/pwa/admin.webmanifest`, sentencias SQL por pedido (negocio conocido) | **6** (2 lecturas por subdominio + BEGIN/set_config/SELECT/COMMIT) | **1** |
+| Manifiesto con un host sin negocio | 1 → marca neutra | 1 → marca neutra (MT-1 intacto) |
+| `/admin/login`, sentencias SQL por pedido | 11 | **7** |
+
+### Qué se cambió y por qué es seguro
+
+1. **`fmtMoneyARS` y `fmtNumberAR`** (`src/components/ui/format.ts`): un `Intl.NumberFormat` por
+   cantidad de decimales, guardado a nivel de módulo. Por spec (ECMA-402) `toLocaleString` ES
+   `new Intl.NumberFormat(…).format(n)`. Test permanente en `format.test.ts`: los 28.752 importes
+   de −5.000 a 200.000, con 0, 1, 2 y 3 decimales, más los bordes (0, −0, 0,005, medios de
+   redondeo, 1e15, 1e21, `MAX_VALUE`, `NaN`, `±Infinity`, `null`, strings vacías, con espacios, con
+   coma, hexadecimal), comparados contra la implementación anterior copiada tal cual: **0
+   diferencias**. Un `decimals` inválido tira el mismo `RangeError`. El formateador local de H4 en
+   `VenderForm.tsx` se sacó: la lista vuelve a usar `fmtMoneyARS`.
+2. **Buscador** (`src/components/ui/buscador-filtro.ts`): lo normalizado de cada opción se arma una
+   vez por lista (WeakMap atado a esa lista; si la lista cambia en el lugar se nota comparando
+   referencias y se rearma). Si el texto nuevo empieza con el anterior, sólo se revisan las que ya
+   coincidían. Lo que falta recorrer se busca con un `indexOf` nativo sobre el texto de todas las
+   opciones juntas. Y se corta apenas hay `max` que **empiezan** con lo tipeado (ésas van primero y
+   en orden). Test permanente en `buscador-filtro.test.ts`: contra el filtro anterior copiado tal
+   cual, 6.230 búsquedas tecleadas y borradas letra por letra (listas de 0 a 2.000 opciones, con
+   tildes, mayúsculas, espacios dobles, sin detalle; `max` 8, 1, 0, 3, 50, 2,5 y −1), más dos listas
+   alternadas y una lista cambiada en el lugar: **mismo resultado y mismo orden**. Costo conocido:
+   si quien llama arma una lista NUEVA en cada render y además hay texto, cada tecla rearma el
+   índice (20 ms con 20.000, como antes). No pasa en la práctica: el texto vive en el
+   `BuscadorCombo`, así que mientras se tipea el que llama no se vuelve a renderizar y la lista es
+   la misma. Igual, `TrasladoForm.tsx:74` e `inventario/movimientos/Filtros.tsx:29` arman la lista
+   sin `useMemo`: conviene memoizarlas cuando alguien las toque.
+3. **Lector** (`src/lib/terminal/lector-core.ts` → `momentoDeLaTecla`, `usar-lector.ts`): la ráfaga
+   se mide con el `e.timeStamp` de la tecla (cuándo llegó), no con la hora en que la pantalla la
+   atiende. Con el hilo ocupado las teclas esperan en cola y se atienden juntas: con la hora de
+   atención, una persona parecía un lector (10 de 10) y una ráfaga cortada por un bloqueo de 80 ms
+   (un `print()`, un render) dejaba de serlo (0 de 10). Si un navegador manda un `timeStamp` que no
+   es del mismo reloj (0, o ms desde 1970), se usa la hora de atención como antes. Tests nuevos en
+   `lector-core.test.ts`. Ojo con un detalle del harness: con CPU ×4, Playwright espera a que la
+   pantalla atienda cada tecla antes de mandar la siguiente, así que las teclas "llegan" cada 22–30
+   ms en vez de 10 ms. Eso queda cerca del umbral de 35 ms, y el escenario `vender-5000-cpu4` falló
+   1 vez de 3 corridas por ese ritmo artificial. Un lector de verdad manda a ritmo fijo, sin esperar
+   a la pantalla (el escenario `bajo-carga` lo simula así: 10 de 10). Con sufijo «ninguno», el cierre
+   por tiempo sigue usando la hora de atención: si el hilo se traba justo ahí, puede cerrar antes.
+   Queda anotado; ningún perfil de fábrica usa «ninguno».
+4. **Manifiesto** (`src/lib/tenant.ts` → `resolveTenant`, `slugResueltoDelPedido`; `src/lib/tenant-site.ts`):
+   la lectura que resuelve el negocio por el host trae también el `slug` (misma fila), y
+   `getCurrentTenantSlug` lo usa en vez de hacer una segunda consulta por id con su transacción de
+   RLS. Con el pin (`FORCE_TENANT_SLUG`) el slug es el del pin (se encontró por él). En el sandbox no
+   hay slug y se consulta como antes. Mismo orden, mismo fail-closed y mismo fail-open: un host sin
+   negocio da `null` y la marca neutra. El ahorro no es sólo del manifiesto: **toda página que pinta
+   la marca** (el layout del panel, `/admin/login`) se ahorra las 4 sentencias del slug. En el
+   manifiesto, además, se cae la lectura repetida por subdominio: en un Route Handler `react.cache`
+   no deduplica, y el cliente con RLS volvía a resolver el negocio. Test nuevo en
+   `direccion-sin-negocio-postgres.test.ts`: `resolveTenant` de cada negocio trae su propio id y
+   su slug, y uno desconocido sigue siendo `DireccionSinNegocioError`.
+
+### Verificación de la ronda 2
+
+- `npx tsc --noEmit`: 0.
+- `npx eslint` de los archivos tocados: 0.
+- Tests de lo tocado, todos verdes:
+  - `format.test.ts`: 16;
+  - `buscador-filtro.test.ts` + `buscador-teclado.test.ts`: 17;
+  - `lector-core.test.ts`: 24;
+  - `tenant.test.ts`: 25;
+  - `direccion-sin-negocio-postgres.test.ts`: 1, contra el Postgres local.
+- `npm test` completo, sobre el árbol compartido:
+  - 5.053 tests: 4.878 pasan, 28 fallan, 147 salteados;
+  - los nombres que fallan son **exactamente los de `fail-w3.txt`** (30 renglones: el runner cuenta 28
+    fallos porque algunos nombres son sub-tests dentro del mismo archivo): ninguno nuevo y ninguno menos.
+  - `direccion-sin-negocio-postgres.test.ts` (resolución del negocio por host contra Postgres 16 local
+    descartable, sin Neon): 1/1 en verde con el cambio de `tenant.ts`.
+  - Deuda anotada (Gate, baja, no es regresión): `TrasladoForm.tsx:74` e `inventario/movimientos/Filtros.tsx:29`
+    arman la lista del buscador en cada render; si el padre re-renderiza mientras se tipea, el índice se rearma
+    (O(n), igual que antes). Arreglo: `useMemo`.
+- `npm run build`: verde, sobre el árbol compartido.
+- El build también salió verde en una copia limpia: HEAD + sólo estos cambios, sin el trabajo en
+  curso de `club/**`.
 
 — Elaborado por GSG

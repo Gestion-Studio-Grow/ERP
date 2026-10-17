@@ -49,6 +49,19 @@ export function quitarPrefijoSufijo(raw: string | null | undefined, lector: Lect
   return s.replace(CONTROL_AL_PRINCIPIO, "").replace(CONTROL_AL_FINAL, "");
 }
 
+/**
+ * El momento de una tecla, para medir la ráfaga: el `timeStamp` del evento (cuándo la mandó el
+ * teclado o el lector) y no la hora en que la pantalla la atiende. Con el hilo ocupado (un render,
+ * el `print()` del ticket), las teclas esperan en cola y se atienden juntas: con la hora de
+ * atención, el tipeo de una persona parecía una ráfaga y una ráfaga cortada por un bloqueo dejaba
+ * de serlo (medido en docs/producto/PERFORMANCE-TERMINALES.md, ronda 2). El `timeStamp` usa el
+ * mismo reloj que `performance.now()`; si un navegador viejo manda otra cosa (0, o la hora en ms
+ * desde 1970), se usa `ahora`.
+ */
+export function momentoDeLaTecla(timeStamp: number, ahora: number): number {
+  return Number.isFinite(timeStamp) && timeStamp > 0 && timeStamp <= ahora + 1 ? timeStamp : ahora;
+}
+
 /** Las teclas que no escriben nada pero viajan dentro de una ráfaga (el `*` es Shift + 8). */
 const MODIFICADORES = new Set(["Shift", "Control", "Alt", "AltGraph", "Meta", "CapsLock"]);
 

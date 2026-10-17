@@ -220,18 +220,6 @@ type PropsDeVender = {
 
 const sinSuscripcion = () => () => {};
 
-// PERFORMANCE — el precio de CADA producto del buscador. `fmtMoneyARS` llama a `toLocaleString` con
-// opciones, que arma un `Intl.NumberFormat` nuevo en cada llamada (~30 µs): con 5.000 productos eran
-// 150 ms y con 20.000, 580 ms de hilo bloqueado al abrir Vender, justo el catálogo con códigos de
-// barras que el lector trae a esta pantalla. Un formateador armado una vez da el MISMO texto
-// (comparado en docs/producto/PERFORMANCE-TERMINALES.md) en ~0,7 µs. Sólo para la lista; el resto de
-// la pantalla sigue con `fmtMoneyARS` (son pocos números por render).
-const PESOS_DEL_BUSCADOR = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-function precioDelBuscador(n: number): string {
-  if (!Number.isFinite(n)) return fmtMoneyARS(n);
-  return `${n < 0 ? "-" : ""}$${PESOS_DEL_BUSCADOR.format(Math.abs(n))}`;
-}
-
 // El servidor no tiene el almacén de la pestaña, y la primera pintura del navegador tiene que
 // ser igual a la del servidor: ésa se arma sin mirar el almacén. Apenas se sabe que se está en el
 // navegador, el formulario se arma de nuevo, ya con el cobro sin confirmar si quedó uno (el mismo
@@ -387,7 +375,7 @@ function FormularioVender({
       products.map((prod) => {
         const info = stockById[prod.id];
         const esPeso = prod.saleUnit === "WEIGHT";
-        const precio = esPeso ? `${precioDelBuscador(prod.pricePerKg ?? 0)}/kg` : `${precioDelBuscador(prod.price ?? 0)}/u`;
+        const precio = esPeso ? `${fmtMoneyARS(prod.pricePerKg ?? 0)}/kg` : `${fmtMoneyARS(prod.price ?? 0)}/u`;
         const quedan = info?.trackStock ? ` · quedan ${formatearCantidad(info.stock)} ${esPeso ? "kg" : "u"}` : "";
         return { id: prod.id, etiqueta: prod.name, detalle: `${precio}${quedan}` };
       }),
