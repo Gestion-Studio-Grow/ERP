@@ -6,6 +6,8 @@ import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, Reserva } from "@/lib/club/motor.mjs";
 import { readFileSync } from "node:fs";
+import { operadorDeLaDemo } from "./almacen";
+import { aprobarConCodigo, codigoDeLaDemo, pedidosPendientes, pedirFiado } from "./credito-core";
 import { armarCuenta, confirmarCreditos, DESHACIBLE, EN_EL_VANILLA, ejecutar, fichasParaSumar, revisarConfirmacion, textoCierre, type VistaCuenta } from "./cuenta-core";
 
 const HOY = "2026-10-17";
@@ -495,4 +497,83 @@ test("créditos para cobrar un monto de la cancha o la parte de un jugador: el p
     assert.equal(ejecutar(e, t.id, { tipo: "cobrarParte", idx, medio: "monedero" }, AHORA).ok, true);
     assert.equal(M.cliente(e, t.jugadores[idx].clienteId!)!.monedero, 0, "quedan en cero, nunca negativos");
   }
+});
+
+// ───────────── UAT del torneo: la mesa sigue cargando y se fía desde la cuenta del turno ─────────────
+
+test("«La mesa sigue»: con la cancha cerrada se suman cargos en la cuenta del turno; entran a la cuenta y al cobro (caja = cobrado)", () => {
+  const e = demo();
+  const r = turnoEnJuego(e);
+  assert.equal(cuenta(e, r.id).sumarCargo, true);
+  assert.equal(ejecutar(e, r.id, { tipo: "cerrarYSeguir", medio: "efectivo" }, AHORA).ok, true);
+  const v = cuenta(e, r.id);
+  assert.equal(v.abierto, false);
+  assert.equal(v.mesaAbierta, true);
+  assert.equal(v.sumarCargo, true, "con la mesa siguiendo se ofrece sumar cargos");
+  const prod = e.productos.find((p) => p.precio > 0 && p.activo !== false && !p.alquiler && (p.stock == null || p.stock > 4))!;
+  const cargos0 = v.totales.cargos;
+  const d = ejecutar(e, r.id, { tipo: "cargo", idx: 2, productoId: prod.id, cant: 4, modo: "cuenta", medio: "efectivo" }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  const despues = cuenta(e, r.id);
+  assert.equal(despues.totales.cargos, cargos0 + 4 * prod.precio, "el cargo entra a la cuenta del turno");
+  assert.equal(despues.cierres.cerrarCargos, despues.totales.cargos, "y al cobro de los cargos");
+  const caja0 = caja(e);
+  assert.equal(ejecutar(e, r.id, { tipo: "cerrarCargos", medio: "mercadopago" }, AHORA).ok, true);
+  assert.equal(caja(e) - caja0, cargos0 + 4 * prod.precio, "caja = cobrado");
+  assert.equal(cuenta(e, r.id).totales.pendiente, 0, "la cuenta cierra en cero");
+  assert.equal(cuenta(e, r.id).sumarCargo, false, "con la mesa cerrada ya no se suman cargos");
+  // Un turno ya cerrado y sin mesa no ofrece cargar.
+  const viejo = e.reservas.find((x) => x.fecha === HOY && x.estado === "finalizada" && !M.mesasAbiertas(e).some((m) => m.reserva.id === x.id))!;
+  assert.equal(cuenta(e, viejo.id).sumarCargo, false);
+});
+
+test("fiar desde la cuenta del turno: pedido → código del dueño (5 intentos) → aprobado → a su cuenta corriente: suma a la deuda, no a la caja", () => {
+  const e = demo();
+  const auth = operadorDeLaDemo(e, "RECEPTION")!.auth;
+  const r = reservado(e, "Valentina Paz");
+  const ficha = M.cliente(e, r.clienteId!)!;
+  assert.equal(ficha.cc.habilitada, false, "Valentina no tiene cuenta corriente");
+  const prod = e.productos.find((p) => p.precio > 0 && p.activo !== false && !p.alquiler && (p.stock == null || p.stock > 2))!;
+  assert.equal(ejecutar(e, r.id, { tipo: "cargo", idx: 0, productoId: prod.id, cant: 2, modo: "cuenta", medio: "efectivo" }, AHORA).ok, true);
+  const c0 = cuenta(e, r.id).jugadores[0].credito!;
+  assert.deepEqual([c0.monto, c0.aCuenta, c0.pedirFiado, c0.pedidoId], [2 * prod.precio, false, true, null]);
+  assert.match(c0.motivo ?? "", /no tiene cuenta corriente/);
+  // Sin el OK, pasar a cuenta corriente no anda.
+  assert.equal(ejecutar(e, r.id, { tipo: "cargosACuentaDe", cuentaId: c0.cuentaId }, AHORA).ok, false);
+  // El pedido.
+  assert.equal(pedirFiado(e, c0.cuentaId, auth, AHORA).ok, true);
+  const c1 = cuenta(e, r.id).jugadores[0].credito!;
+  assert.ok(c1.pedidoId);
+  assert.equal(c1.pedirFiado, false, "con un pedido esperando no se pide otro");
+  // Un código inventado: uno menos de los 5 intentos.
+  assert.equal(aprobarConCodigo(e, c1.pedidoId!, "AAA-AAA", auth, AHORA).ok, false);
+  assert.equal(pedidosPendientes(e, AHORA).find((p) => p.id === c1.pedidoId)?.quedan, 4);
+  // El del dueño aprueba.
+  const codigo = codigoDeLaDemo(e, c1.pedidoId!)!.codigo;
+  assert.equal(aprobarConCodigo(e, c1.pedidoId!, codigo.toLowerCase(), auth, AHORA).ok, true);
+  const c2 = cuenta(e, r.id).jugadores[0].credito!;
+  assert.equal(c2.aCuenta, true, "con el fiado aprobado, sus cargos pasan a su cuenta corriente");
+  const [deuda0, caja0] = [ficha.deuda, caja(e)];
+  const d = ejecutar(e, r.id, { tipo: "cargosACuentaDe", cuentaId: c2.cuentaId }, AHORA);
+  assert.equal(d.ok, true, d.mensaje);
+  assert.equal(ficha.deuda - deuda0, c2.monto, "lo fiado suma a la deuda");
+  assert.equal(caja(e), caja0, "y no a la caja");
+  assert.equal(cuenta(e, r.id).jugadores[0].credito, null, "sus cargos quedaron cerrados");
+  assert.equal(ejecutar(e, r.id, { tipo: "cargosACuentaDe", cuentaId: c2.cuentaId }, AHORA).ok, false, "no se pasa dos veces");
+});
+
+test("a crédito va lo que paga cada uno: los cargos a cargo de otro no se fían por separado y el que paga lleva los dos", () => {
+  const e = demo();
+  const r = turnoEnJuego(e);
+  const prod = e.productos.find((p) => p.precio > 0 && p.activo !== false && !p.alquiler && (p.stock == null || p.stock > 4))!;
+  for (const idx of [0, 1, 2, 3]) ejecutar(e, r.id, { tipo: "cargo", idx, productoId: prod.id, cant: 1, modo: "cuenta", medio: "efectivo" }, AHORA);
+  const v = cuenta(e, r.id);
+  const conCargos = v.jugadores.filter((j) => j.credito);
+  assert.ok(conCargos.length >= 2, "dos jugadores que pagan sus propios cargos");
+  const [paga, invitado] = conCargos;
+  const total = paga.credito!.monto + invitado.credito!.monto;
+  assert.equal(ejecutar(e, r.id, { tipo: "aCargoCargos", cuentaId: invitado.credito!.cuentaId, de: paga.credito!.cuentaId }, AHORA).ok, true);
+  const despues = cuenta(e, r.id);
+  assert.equal(despues.jugadores[invitado.idx].credito, null);
+  assert.equal(despues.jugadores[paga.idx].credito?.monto, total);
 });

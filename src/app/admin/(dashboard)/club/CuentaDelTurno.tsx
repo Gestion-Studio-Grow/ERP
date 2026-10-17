@@ -16,6 +16,8 @@
 //   5. sumar un cargo del buffet a un jugador (por código del lector o por nombre): a su cuenta o cobrado.
 // Ola 1 de paridad (cuenta-piezas.tsx): la nota del turno arriba; «Sólo la cancha $X» por jugador; la «Cuenta de la
 // cancha» (cobrar un monto, o cerrarla a cuenta corriente) y «Sumar un jugador» (por nombre o con su ficha).
+// Paridad del UAT del torneo: cada jugador que debe sus cargos los pasa a su cuenta corriente o pide el OK del dueño
+// para fiar ahí mismo (`PedidoDelDuenio`, el mismo panel que el Buffet), y con la cancha cerrada la mesa sigue cargando.
 // Lo que pasó se anuncia en la barra de avisos del club (con «Deshacer»). Nada se anima: se toca cien
 // veces por día.
 //
@@ -46,7 +48,9 @@ import {
   type MedioCobro,
   type VistaCuenta,
 } from "./cuenta-core";
+import { pedirFiado } from "./credito-core";
 import { CobroDeLaCancha, SumarJugador } from "./cuenta-piezas";
+import PedidoDelDuenio from "./pedido-del-duenio";
 import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
 import CicloDelTurno from "./CicloDelTurno";
 import { useSeleccion } from "./usar-almacen";
@@ -84,13 +88,49 @@ function SelectorACargo({
   );
 }
 
+/** Los cargos de un jugador a crédito: a su cuenta corriente si le da; si no, el OK del dueño para fiar. */
+function CreditoDelJugador({ almacen, fila, onAccion }: { almacen: Almacen; fila: FilaJugador; onAccion: (a: AccionCuenta) => void }) {
+  const c = fila.credito;
+  if (!c) return null;
+  if (c.aCuenta) {
+    return (
+      <Button variant="outline" size="md" className="self-start" onClick={() => onAccion({ tipo: "cargosACuentaDe", cuentaId: c.cuentaId })}>
+        Sus cargos a su cuenta corriente {pesos(c.monto)}
+        <span className="sr-only"> ({fila.nombre})</span>
+      </Button>
+    );
+  }
+  if (c.pedidoId) return <PedidoDelDuenio almacen={almacen} novedadId={c.pedidoId} />;
+  if (c.pedirFiado) {
+    return (
+      <div className="flex flex-col gap-1">
+        <Button
+          variant="outline"
+          size="md"
+          className="self-start"
+          // Pedir el OK no se deshace (tampoco en el vanilla): se resuelve con el código o lo rechaza el dueño.
+          onClick={() => almacen.ejecutar((e, ahora, auth) => pedirFiado(e, c.cuentaId, auth, ahora))}
+        >
+          Pedir OK para fiar {pesos(c.monto)}
+          <span className="sr-only"> a {fila.nombre}</span>
+        </Button>
+        <p className="text-xs text-muted">{c.motivo}</p>
+      </div>
+    );
+  }
+  // Sin ficha no hay a quién fiarle: se cobra (o se le da de alta en Clientes). No se repite el aviso en cada fila.
+  return null;
+}
+
 const FilaDeJugador = memo(function FilaDeJugador({
+  almacen,
   fila,
   reservaId,
   onCobrar,
   onCobrarParte,
   onAccion,
 }: {
+  almacen: Almacen;
   fila: FilaJugador;
   reservaId: string;
   onCobrar: (idx: number) => void;
@@ -162,6 +202,7 @@ const FilaDeJugador = memo(function FilaDeJugador({
           ))}
         </ul>
       )}
+      <CreditoDelJugador almacen={almacen} fila={fila} onAccion={onAccion} />
     </li>
   );
 });
@@ -432,7 +473,7 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
 
       <ul aria-label="Jugadores del turno">
         {vista.jugadores.map((f) => (
-          <FilaDeJugador key={f.idx} fila={f} reservaId={vista.reservaId} onCobrar={onCobrar} onCobrarParte={onCobrarParte} onAccion={onAccion} />
+          <FilaDeJugador key={f.idx} almacen={almacen} fila={f} reservaId={vista.reservaId} onCobrar={onCobrar} onCobrarParte={onCobrarParte} onAccion={onAccion} />
         ))}
       </ul>
       {vista.deOtraMesa && <p className="text-sm text-muted">{vista.deOtraMesa}</p>}
@@ -489,7 +530,7 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
         />
       )}
       {vista.sumarJugador && <SumarJugador almacen={almacen} reservaId={vista.reservaId} onAccion={onAccion} />}
-      {vista.abierto && <SumarCargo almacen={almacen} vista={vista} medio={medio} onAccion={onAccion} />}
+      {vista.sumarCargo && <SumarCargo almacen={almacen} vista={vista} medio={medio} onAccion={onAccion} />}
       <CicloDelTurno
         almacen={almacen}
         reservaId={vista.reservaId}

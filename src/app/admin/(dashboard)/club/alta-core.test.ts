@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import { clientesQueCoinciden, horariosLibres, previaDelTurno, reservar } from "./alta-core";
+import { clientesQueCoinciden, fichaPorTelefono, horariosLibres, previaDelTurno, reservar } from "./alta-core";
 import { armarAgenda } from "./agenda-core";
 import { textoConfirmacion } from "./whatsapp-core";
 
@@ -100,4 +100,63 @@ test("al reservar, la confirmación por WhatsApp lleva la seña y el código que
   const texto = textoConfirmacion(e, r);
   assert.ok(texto.startsWith(`¡Hola Grupo! Te confirmamos el turno en Break Point Pádel: Cancha 4, sáb 17/10 a las ${M.hhmm(libre.min)}.`), texto);
   assert.ok(texto.includes(`falta la seña de ${M.pesos(r.sena.monto)}`) && texto.includes(`el código ${r.ref} en el concepto`), texto);
+});
+
+// ───────────── titular nuevo con teléfono: queda dado de alta (vanilla app.mjs:1662 y :1680-1681) ─────────────
+
+const manana = M.sumarDias(HOY, 1);
+const hueco = (e: EstadoClub, canchaId = "c2") => horariosLibres(e, manana, canchaId, 60, AHORA)[0].min;
+
+test("titular nuevo con teléfono: al reservar queda la ficha (con el teléfono como se tipeó) y el turno atado a ella", () => {
+  const e = demo();
+  const antes = e.clientes.length;
+  const r = reservar(e, { canchaId: "c2", fecha: manana, inicio: hueco(e), duracion: 60, tipo: "turno", titular: "Juan Pérez", clienteId: null, otros: "Gonza", tel: " 11 5555-0004 " }, AHORA);
+  assert.equal(r.ok, true, r.mensaje);
+  assert.match(r.mensaje, /Juan Pérez quedó dado de alta como cliente\./);
+  assert.equal(e.clientes.length, antes + 1);
+  const ficha = e.clientes.at(-1)!;
+  assert.deepEqual([ficha.nombre, ficha.tel], ["Juan Pérez", "11 5555-0004"]);
+  const turno = M.reserva(e, r.reservaId!)!;
+  assert.equal(turno.clienteId, ficha.id);
+  assert.equal(turno.jugadores[0].clienteId, ficha.id, "el titular juega con su ficha");
+  assert.equal(turno.jugadores[1].nombre, "Gonza");
+  // Sin teléfono, como antes: sin ficha.
+  const sin = reservar(e, { canchaId: "c3", fecha: manana, inicio: hueco(e, "c3"), duracion: 60, tipo: "turno", titular: "Otro", clienteId: null, otros: "", tel: "  " }, AHORA);
+  assert.equal(sin.ok, true);
+  assert.equal(M.reserva(e, sin.reservaId!)!.clienteId, null);
+  assert.equal(e.clientes.length, antes + 1);
+});
+
+test("el mismo teléfono escrito de otra forma usa la ficha que ya está (no se duplica); con ficha elegida, el teléfono no cuenta", () => {
+  const e = demo();
+  const conTel = e.clientes.find((c) => c.activo !== false && c.tel.replace(/\D/g, "").length >= 10)!;
+  const digitos = conTel.tel.replace(/\D/g, "");
+  const otraForma = `+54 9 ${digitos.slice(-10, -8)} ${digitos.slice(-8, -4)}-${digitos.slice(-4)}`;
+  const antes = e.clientes.length;
+  const f = fichaPorTelefono(e, "Cualquiera", otraForma);
+  assert.deepEqual(f, { ok: true, clienteId: conTel.id, nueva: false });
+  const r = reservar(e, { canchaId: "c2", fecha: manana, inicio: hueco(e), duracion: 60, tipo: "turno", titular: "Cualquiera", clienteId: null, otros: "", tel: otraForma }, AHORA);
+  assert.equal(r.ok, true, r.mensaje);
+  assert.match(r.mensaje, /Ya había una ficha con ese teléfono/);
+  assert.equal(e.clientes.length, antes, "no se duplicó la ficha");
+  assert.equal(M.reserva(e, r.reservaId!)!.clienteId, conTel.id);
+  const elegida = e.clientes.find((c) => c.id !== conTel.id && c.activo !== false)!;
+  const r2 = reservar(e, { canchaId: "c3", fecha: manana, inicio: hueco(e, "c3"), duracion: 60, tipo: "turno", titular: elegida.nombre, clienteId: elegida.id, otros: "", tel: "1199998888" }, AHORA);
+  assert.equal(r2.ok, true);
+  assert.equal(M.reserva(e, r2.reservaId!)!.clienteId, elegida.id);
+  assert.equal(e.clientes.length, antes, "con la ficha elegida no se da de alta otra");
+});
+
+test("si el turno no se reserva, la ficha nueva no queda; un teléfono corto no se acepta", () => {
+  const e = demo();
+  const antes = e.clientes.length;
+  const ocupado = e.reservas.find((r) => r.fecha === HOY && r.estado === "reservada")!;
+  const choca = reservar(e, { canchaId: ocupado.canchaId, fecha: HOY, inicio: ocupado.inicio, duracion: 60, tipo: "turno", titular: "Fantasma", clienteId: null, otros: "", tel: "1155557777" }, AHORA);
+  assert.equal(choca.ok, false);
+  assert.equal(e.clientes.length, antes, "la ficha del turno que no se reservó no quedó");
+  assert.ok(!e.clientes.some((c) => c.nombre === "Fantasma"));
+  const corto = reservar(e, { canchaId: "c2", fecha: manana, inicio: hueco(e), duracion: 60, tipo: "turno", titular: "Corto", clienteId: null, otros: "", tel: "1234" }, AHORA);
+  assert.equal(corto.ok, false);
+  assert.match(corto.mensaje, /teléfono/);
+  assert.equal(e.clientes.length, antes);
 });

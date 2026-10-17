@@ -25,74 +25,14 @@ import type { Almacen } from "./almacen";
 import { clientesQueCoinciden } from "./alta-core";
 import { DESHACIBLE_BUFFET, armarBuffet, compartirBuffet, confirmarCreditosCuenta, ejecutarBuffet, productosParaCargar, type AccionBuffet, type VistaCuentaBuffet } from "./buffet-core";
 import MesaCompleja from "./buffet-mesa-compleja";
-import { aprobarConCodigo, codigoDeLaDemo, mensajeParaElDuenio, pedirFiado } from "./credito-core";
+import { pedirFiado } from "./credito-core";
+import PedidoDelDuenio from "./pedido-del-duenio";
 import { revisarConfirmacion, type MedioCobro } from "./cuenta-core";
 import { ComoPaga, ConfirmarCreditos, type DatosConfirmacion } from "./piezas";
 import { useSeleccion } from "./usar-almacen";
 import VentaDeMostrador from "./VentaDeMostrador";
-import { avisosAlDuenio } from "./aprobar-core";
-import { BotonWhatsApp } from "./WhatsAppDelClub";
 
 const seleccionarBuffet = (e: EstadoClub, a: Ahora) => armarBuffet(e, a);
-
-/** El pedido de fiado de una cuenta: tipear el código del dueño (y, en la demo, verlo). */
-function PedidoDelDuenio({ almacen, pedido }: { almacen: Almacen; pedido: NonNullable<VistaCuentaBuffet["pedidoPendiente"]> }) {
-  const [codigo, setCodigo] = useState("");
-  const [verDemo, setVerDemo] = useState(false);
-  const id = useId();
-  const demo = verDemo && almacen.modo() === "demo" ? codigoDeLaDemo(almacen.estado(), pedido.id) : null;
-  // Un aviso por dueño, a SU celular (Configuración → Avisos) con el link al aprobador del ERP; en la demo, sin número.
-  const avisos = avisosAlDuenio(almacen.estado(), pedido.id, typeof window !== "undefined" ? window.location.origin : "", almacen.modo());
-  return (
-    <div className="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning-soft p-3">
-      <p className="text-sm text-strong">
-        Esperando el OK del dueño para {pedido.tipo === "fiado" ? `fiar ${pesos(pedido.monto)}` : `habilitarle la cuenta corriente hasta ${pesos(pedido.monto)}`}. Avisale
-        por WhatsApp: le llega el pedido con el link para aprobarlo, y el código que te pase lo tipeás acá.
-      </p>
-      {avisos.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {avisos.map((a) => (
-            <BotonWhatsApp key={a.duenioId} enlace={a.enlace}>
-              Avisar a {a.nombre}
-            </BotonWhatsApp>
-          ))}
-        </div>
-      ) : (
-        <p className="text-sm text-body">«{mensajeParaElDuenio(almacen.estado(), pedido.id)}»</p>
-      )}
-      <form
-        className="flex flex-col gap-2 sm:flex-row sm:items-end"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const d = almacen.ejecutar((est, ahora, auth) => aprobarConCodigo(est, pedido.id, codigo, auth, ahora));
-          if (d.ok) setCodigo("");
-        }}
-      >
-        <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor={id} className="text-xs font-medium text-muted">
-            Código del dueño (6 letras, ej. ABC-DEF)
-          </label>
-          <Input id={id} value={codigo} autoComplete="off" autoCapitalize="characters" maxLength={7} onChange={(e) => setCodigo(e.target.value)} />
-        </div>
-        <Button type="submit" variant="solid" size="md" disabled={pedido.trabado !== null}>
-          Aprobar
-        </Button>
-      </form>
-      <p className="text-xs text-muted">{pedido.trabado ?? `Quedan ${pedido.quedan} intentos.`}</p>
-      {/* El código del dueño se muestra SÓLO en la demo: en la jornada real le llega a él y a nadie más. */}
-      {almacen.modo() === "demo" && (
-        <Button variant="ghost" size="md" onClick={() => setVerDemo((v) => !v)} aria-expanded={verDemo}>
-          {verDemo ? "Ocultar" : "Ver"} el código que le llega al dueño (sólo en la demo)
-        </Button>
-      )}
-      {demo && (
-        <p className="text-sm text-strong">
-          En el celular de {demo.duenio} sale: <strong className="tabular-nums">{demo.codigo}</strong>
-        </p>
-      )}
-    </div>
-  );
-}
 
 const TarjetaCuenta = memo(function TarjetaCuenta({
   cuenta,
@@ -203,7 +143,7 @@ const TarjetaCuenta = memo(function TarjetaCuenta({
               )}
             </div>
             {cuenta.aCobrar > 0 && !cuenta.aCuenta.ok && !cuenta.pedidoPendiente && <p className="text-xs text-muted">{cuenta.aCuenta.motivo}</p>}
-            {cuenta.pedidoPendiente && <PedidoDelDuenio almacen={almacen} pedido={cuenta.pedidoPendiente} />}
+            {cuenta.pedidoPendiente && <PedidoDelDuenio almacen={almacen} novedadId={cuenta.pedidoPendiente.id} />}
           </div>
         )}
         <MesaCompleja almacen={almacen} cuenta={cuenta} negocio={negocio} />

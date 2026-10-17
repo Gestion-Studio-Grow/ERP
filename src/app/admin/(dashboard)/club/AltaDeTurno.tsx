@@ -106,9 +106,10 @@ export default function AltaDeTurno({
   const [titular, setTitular] = useState("");
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [otros, setOtros] = useState("");
+  const [tel, setTel] = useState("");
   const [hecho, setHecho] = useState<Reservado | null>(null);
   const titulo = useRef<HTMLHeadingElement>(null);
-  const ids = { titulo: useId(), cancha: useId(), hora: useId(), dur: useId(), tipo: useId(), titular: useId(), otros: useId(), previa: useId() };
+  const ids = { titulo: useId(), cancha: useId(), hora: useId(), dur: useId(), tipo: useId(), titular: useId(), otros: useId(), previa: useId(), tel: useId() };
 
   useEffect(() => {
     titulo.current?.focus();
@@ -125,7 +126,7 @@ export default function AltaDeTurno({
     const salida: { listo: Reservado | null } = { listo: null };
     const d = almacen.ejecutar(
       (est, ahora) => {
-        const r = reservar(est, { canchaId, fecha, inicio: horaValida, duracion, tipo, titular, clienteId, otros }, ahora);
+        const r = reservar(est, { canchaId, fecha, inicio: horaValida, duracion, tipo, titular, clienteId, otros, tel: clienteId ? "" : tel }, ahora);
         const nueva = r.reservaId ? reservaDe(est, r.reservaId) : undefined;
         // El texto se arma en el momento, con el estado recién reservado (la seña y su código ya están).
         if (nueva) salida.listo = { reservaId: nueva.id, sub: `${nueva.titular} · ${canchaDe(est, nueva.canchaId)?.nombre ?? ""} ${hhmm(nueva.inicio)}`, texto: textoConfirmacion(est, nueva), celular: celularDelTurno(est, nueva) };
@@ -243,6 +244,17 @@ export default function AltaDeTurno({
               </li>
             ))}
           </ul>
+        )}
+        {!clienteId && (
+          <div className="flex flex-col gap-1">
+            <label htmlFor={ids.tel} className="text-sm font-medium text-strong">
+              Teléfono (para darlo de alta, opcional)
+            </label>
+            <Input id={ids.tel} type="tel" inputMode="tel" autoComplete="off" value={tel} onChange={(e) => setTel(e.target.value)} aria-describedby={`${ids.tel}-a`} />
+            <p id={`${ids.tel}-a`} className="text-xs text-muted">
+              Si no tiene ficha: con el teléfono queda dado de alta como cliente al reservar (para fiarle, avisarle y saber si vuelve).
+            </p>
+          </div>
         )}
         <div className="flex flex-col gap-1">
           <label htmlFor={ids.otros} className="text-sm font-medium text-strong">
