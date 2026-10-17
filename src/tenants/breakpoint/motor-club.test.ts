@@ -1102,3 +1102,36 @@ test("Fable I2/I3/M4: fondo de caja, conteo de stock, baja de producto y fiado q
   assert.equal(c.fiados[0].monto, 4000, "del fiado de $25.000 quedan $4.000 para otra cuenta");
   assert.equal(c.fiados[0].usado, false);
 });
+
+test("limpieza para el go-live: se borra lo transaccional, se conserva lo maestro y (por defecto) los saldos", () => {
+  const e = M.crearClubReal(HOY);
+  M.definirPinInicial(e, "u-rober", "57", ahora(9));
+  const R = { usuarioId: "u-rober", pin: "57" };
+  M.terminarConfiguracion(e, ahora(9));
+  M.ajustarFondo(e, 20000, R, ahora(9));
+  M.ajustarStock(e, "p2", 40, R, ahora(9));
+  const juan = M.altaCliente(e, { nombre: "Juan", tel: "1155550001" }, ahora(9)).cliente;
+  const r = turno(e, "c1", 20, { clienteId: juan.id, jugadores: [{ nombre: "Juan", clienteId: juan.id }, "Pedro"] });
+  M.checkIn(e, r.id, ahora(20));
+  M.consumoJugador(e, r.id, 0, "p2", 2, {}, ahora(20, 10));
+  M.cobrarTodoElTurno(e, r.id, { medio: "efectivo" }, ahora(21));
+  juan.deuda = 5000; juan.monedero = 3000;
+  assert.equal(M.limpiarParaGoLive(e, {}, { usuarioId: "u-rober", pin: "00" }, ahora(23)).ok, false, "con PIN de dueño");
+  const res = M.limpiarParaGoLive(e, {}, R, ahora(23));
+  assert.ok(res.ok);
+  assert.equal(res.borrado.turnos, 1);
+  assert.equal(e.reservas.length + e.cuentas.length + e.caja.movimientos.length + e.caja.cierres.length, 0);
+  assert.equal(e.caja.fondo, 20000, "el fondo queda");
+  assert.equal(M.producto(e, "p2").stock, 38, "el stock contado queda");
+  assert.equal(e.usuarios.find((u: any) => u.id === "u-rober").pin, "57", "usuarios y PIN quedan");
+  assert.equal(e.clientes.length, 1, "los clientes quedan");
+  assert.equal(juan.deuda, 5000);
+  assert.equal(juan.monedero, 3000);
+  assert.equal(e.config.goLive.por, "Roberto Ronco");
+  const foto = JSON.parse(JSON.stringify(M.serializarEstado(e)));
+  assert.ok(M.hidratarEstado(foto).ok, "lo limpio se vuelve a abrir");
+  const sinSaldos = M.limpiarParaGoLive(e, { conservarSaldos: false, conservarStock: false }, R, ahora(23, 5));
+  assert.ok(sinSaldos.ok);
+  assert.equal(juan.deuda + juan.monedero, 0);
+  assert.equal(M.producto(e, "p2").stock, null);
+});

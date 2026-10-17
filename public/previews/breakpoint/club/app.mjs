@@ -81,8 +81,12 @@ const esDuenio = () => yo()?.rol === "duenio";
 const CLAVE_JORNADA = "bp-jornada-v1", CLAVE_MODO = "bp-modo", CLAVE_CONTACTOS = "bp-contactos";
 const lsLeer = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsGuardar = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch { return false; } };
-const MODO_REAL = lsLeer(CLAVE_MODO) === "real" || new URLSearchParams(location.search).get("modo") === "real";
-if (MODO_REAL) lsGuardar(CLAVE_MODO, "real"); // entrar con ?modo=real deja la compu en jornada real (se vuelve desde Ajustes)
+// En el sitio del club (<meta name="bp-ambiente" content="real">) /club ES la gestión real; la demo para prospectos
+// queda con ?demo=1 (sólo esa visita, no cambia nada guardado). Fuera del sitio (vista previa), demo salvo ?modo=real.
+const Q = new URLSearchParams(location.search);
+const AMBIENTE_REAL = document.querySelector('meta[name="bp-ambiente"]')?.content === "real";
+const MODO_REAL = Q.get("demo") !== "1" && (Q.get("modo") === "real" || lsLeer(CLAVE_MODO) === "real" || (AMBIENTE_REAL && lsLeer(CLAVE_MODO) !== "demo"));
+if (MODO_REAL) lsGuardar(CLAVE_MODO, "real"); // la compu queda en jornada real (se vuelve a la demo desde Configuración)
 const guardado = { habilitado: false, cuando: null, ok: true, bytes: 0, timer: null, fuera: false, avisado: false };
 const contactos = () => { try { return JSON.parse(lsLeer(CLAVE_CONTACTOS) || "{}") ?? {}; } catch { return {}; } };
 const waA = (quien, texto) => M.linkWhatsApp(contactos()[quien] ?? "", texto);
@@ -841,7 +845,12 @@ function tarjetaJornada() {
         <div class="row"><button type="button" class="btn primary" data-a="respaldo">Descargar respaldo</button>
           <label class="btn" for="restaurar">Restaurar desde un archivo</label><input id="restaurar" type="file" accept=".json,application/json" class="sr" data-a="restaurar">
           <button type="button" class="btn" data-a="jornada" data-v="demo">Volver a la demo</button>
-          <button type="button" class="btn danger" data-a="jornada" data-v="blanco">Empezar otra jornada en blanco</button></div>`
+          <button type="button" class="btn danger" data-a="jornada" data-v="blanco">Empezar otra jornada en blanco</button></div>
+        <div class="seccion" style="margin-top:12px" aria-labelledby="t-golive"><h3 id="t-golive">Limpieza para el go-live${E.config.goLive ? ` <span class="chip ok">hecha el ${esc(ddmm(E.config.goLive.fecha ?? HOY))}</span>` : ""}</h3>
+          <p class="small" style="margin:0">Después del día de prueba: borra turnos, cuentas de cargos, caja, pedidos, créditos pendientes y novedades enviadas. <b>Se conserva</b> lo maestro: canchas, horarios, precios, productos, usuarios y PIN, clientes y proveedores. Antes se descarga un respaldo.</p>
+          <label class="row small" style="margin:6px 0"><input type="checkbox" id="gl-saldos" checked> Conservar los saldos (cuenta corriente, créditos y faltas de los clientes; deuda con proveedores)</label>
+          <label class="row small" style="margin:0 0 6px"><input type="checkbox" id="gl-stock" checked> Conservar el stock contado</label>
+          <button type="button" class="btn danger" data-a="goLive">Hacer la limpieza para el go-live</button></div>`
       : `<p class="small" style="margin:0 0 10px">Para el día de prueba en el local: el club arranca <b>vacío</b> (sin turnos, clientes ni caja; con las canchas, productos y usuarios de Break Point), con la hora real, y se guarda solo en esta compu. La demo de ejemplo no se toca.</p>
         <div class="row">${guardada ? `<button type="button" class="btn primary" data-a="jornada" data-v="retomar">Seguir la jornada real guardada</button>` : `<button type="button" class="btn primary" data-a="jornada" data-v="blanco">Empezar la jornada real en blanco</button>`}</div>
         ${guardada ? `<p class="small muted" style="margin:8px 0 0">En esta compu hay una jornada real guardada: desde la demo no se puede borrar. Para empezar otra, entrá a la jornada con el PIN de un dueño y usá «Empezar otra jornada en blanco».</p>` : ""}`}
@@ -2165,6 +2174,25 @@ const acciones = {
     if (que === "retomar") lsGuardar(CLAVE_MODO, "real");
     if (que === "demo") { if (MODO_REAL) lsGuardar(CLAVE_JORNADA, fotoJornada()); lsGuardar(CLAVE_MODO, "demo"); }
     setTimeout(() => location.replace(location.pathname), que === "blanco" && MODO_REAL ? 800 : 0);
+  },
+  goLive: () => {
+    ui.goLive = { conservarSaldos: $("#gl-saldos")?.checked !== false, conservarStock: $("#gl-stock")?.checked !== false };
+    pinPara("confirmarGoLive", "", `Limpieza para el go-live (${ui.goLive.conservarSaldos ? "se conservan los saldos" : "los saldos quedan en CERO"}): se borran turnos, cuentas, caja y pedidos`);
+  },
+  confirmarGoLive: () => {
+    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    if (!v.ok || !esDuenio()) return toast(v.ok ? "La limpieza la hace un dueño." : v.motivo, { error: true });
+    descargarRespaldo();
+    lsGuardar(`${CLAVE_JORNADA}-antes-golive`, fotoJornada());
+    const res = M.limpiarParaGoLive(E, ui.goLive ?? {}, auth(val("#cf-pin")), AHORA);
+    ui.goLive = null;
+    if (!res.ok) return toast(res.motivo, { error: true });
+    UNDO = null;
+    TAB = "agenda";
+    cerrarDialogo();
+    render();
+    guardarJornada(true);
+    toast(`Listo para el go-live: se borraron ${res.borrado.turnos} turnos, ${res.borrado.cuentas} cuentas y ${res.borrado.movimientos} movimientos de caja. Quedó un respaldo descargado.`);
   },
   confirmarRestaurar: () => {
     const v = M.verificarPin(E, USUARIO, val("#cf-pin"));

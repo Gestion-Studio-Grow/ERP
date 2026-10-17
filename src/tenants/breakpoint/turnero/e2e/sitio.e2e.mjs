@@ -72,7 +72,7 @@ console.log("\n▶ gestión del club sola (sin turnero)");
   const solo = await navegador.newContext({ viewport: { width: 1280, height: 860 } });
   await solo.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   const p = vigilar(await solo.newPage(), "club-solo");
-  await p.goto(`${BASE}/club`);
+  await p.goto(`${BASE}/club?demo=1`);
   await p.waitForTimeout(2500);
   check(await p.locator("#bp-turnero").count() === 0, "sin turnero abierto, el club es la demo de siempre (no se conecta a nada)");
   check(/Martín Ríos|Julieta Acosta/.test(await p.textContent("#app")), "con su agenda de ejemplo de siempre");
@@ -85,7 +85,7 @@ console.log("\n▶ gestión del club sola (sin turnero)");
   await p.waitForTimeout(300);
   if (await p.evaluate(() => document.getElementById("dlg").open)) await p.click('#dlg [data-a="cerrar"]');
   const t = vigilar(await solo.newPage(), "turnero-despues");
-  await t.goto(`${BASE}/turnero`);
+  await t.goto(`${BASE}/turnero?demo=1`);
   await p.waitForFunction(() => /en vivo/.test(document.querySelector("#bp-conexion")?.textContent ?? ""), null, { timeout: 10000 }).catch(() => {});
   await p.waitForTimeout(500);
   check(/en vivo/.test(await p.textContent("#bp-conexion").catch(() => "")) && (await p.textContent("#app")).includes("Cargado antes del turnero"), "abrir el turnero después no le borra al club lo que ya había cargado (UAT #5)");
@@ -98,7 +98,8 @@ console.log("\n▶ portada");
   const p = vigilar(await ctx.newPage(), "portada");
   const r = await p.goto(`${BASE}/`);
   check(r.status() === 200 && r.headers()["x-content-type-options"] === "nosniff", "la portada la sirve el manejador del ERP (nosniff)");
-  check(await p.locator('a[href="/turnero"]').count() === 1 && await p.locator('a[href="/club"]').count() === 1, "los dos accesos: /turnero y /club");
+  check(await p.locator('a[href="/turnero"]').count() === 1 && await p.locator('a[href="/club"]').count() === 0, "front público: «Reservá tu cancha» (/turnero) y sin acceso a la gestión del club (el back)");
+  check(!/demo/i.test(await p.textContent("body")), "la portada del club no dice «demo» (ambiente real)");
   check(await p.getAttribute('meta[name="generator"]', "content") === "Gestión Studio Grow", "sello GSG en meta generator");
   await p.setViewportSize({ width: 390, height: 844 });
   check(await p.evaluate(() => document.documentElement.scrollWidth) <= 390, "portada sin scroll horizontal a 390 px");
@@ -108,6 +109,8 @@ console.log("\n▶ portada");
   await p.click('a[href="/turnero"]');
   await p.waitForSelector("body[data-estado=listo]", { timeout: 10000 }).catch(() => {});
   check(await p.locator(".slot").count() > 0, "desde la portada, «Reservá tu cancha» abre el turnero");
+  check(await p.getAttribute("body", "data-modo") === "pedido" && /Pedido por WhatsApp/.test(await p.textContent("#en-vivo")), "el turnero del sitio es el real: pedido por WhatsApp (la demo, con ?demo=1)");
+  check(!(await p.locator(".slot-precio").count()), "sin tarifas publicadas por el club no se muestran precios");
   await p.close();
 }
 
@@ -115,12 +118,12 @@ console.log("\n▶ portada");
 console.log("\n▶ turnero + gestión del club en dos pestañas (sin servidor)");
 const turnero = vigilar(await ctx.newPage(), "turnero");
 await turnero.setViewportSize({ width: 390, height: 844 });
-await turnero.goto(`${BASE}/turnero`);
+await turnero.goto(`${BASE}/turnero?demo=1`);
 await turnero.waitForSelector("body[data-estado=listo]", { timeout: 10000 });
 check(await turnero.locator(".slot").count() > 0, "el turnero muestra turnos libres sin back");
 check(/En vivo/.test(await turnero.textContent("#en-vivo")), "«En vivo» (el bus de la demo)");
 const club = vigilar(await ctx.newPage(), "club");
-await club.goto(`${BASE}/club`);
+await club.goto(`${BASE}/club?demo=1`);
 await club.waitForFunction(() => /en vivo/.test(document.querySelector("#bp-conexion")?.textContent ?? ""), null, { timeout: 10000 }).catch(() => {});
 check(/en vivo/.test(await club.textContent("#bp-conexion").catch(() => "")), "la gestión del club se conecta sola con el turnero de la otra pestaña");
 await club.screenshot({ path: `${SALIDA}/publicado-club.png` });
@@ -211,7 +214,7 @@ console.log("\n▶ se cierra la pestaña servidor");
   // La primera que abrió (el turnero) es la que hace de servidor: se cierra y el club tiene que seguir andando.
   await turnero.close();
   const otro = vigilar(await ctx.newPage(), "turnero-2");
-  await otro.goto(`${BASE}/turnero`);
+  await otro.goto(`${BASE}/turnero?demo=1`);
   await otro.waitForSelector("body[data-estado=listo]", { timeout: 10000 }).catch(() => {});
   // De noche hoy puede no tener horarios libres: entonces se mira mañana.
   if (!(await otro.locator(".slot").count())) { await otro.locator("#dias .dia").nth(1).click(); await otro.waitForTimeout(400); }
@@ -289,7 +292,7 @@ console.log("\n▶ tienda (demo) con el club en otra pestaña");
 {
   const t = vigilar(await ctx.newPage(), "tienda");
   await t.setViewportSize({ width: 390, height: 844 });
-  await t.goto(`${BASE}/turnero#tienda`);
+  await t.goto(`${BASE}/turnero?demo=1#tienda`);
   await t.waitForSelector("#dlg-tienda[open] [data-mas]", { timeout: 10000 }).catch(() => {});
   check(await t.locator("#dlg-tienda[open]").count() === 1, "/turnero#tienda abre la tienda (módulo diferido, dentro del mismo archivo)");
   check(/referencia/.test(await t.textContent(".nota-tienda").catch(() => "")), "la tienda avisa: precios y stock de referencia, se retira y paga en el club");
@@ -314,11 +317,11 @@ console.log("\n▶ tienda (demo) con el club en otra pestaña");
     await club.waitForFunction((c) => document.body.innerText.includes(c), codigo, { timeout: 6000 }).catch(() => {});
     check(await club.evaluate((c) => document.body.innerText.includes(c), codigo), `el club (otra pestaña) recibe el pedido ${codigo}`);
   } else console.log("  … TODO: el club todavía no escucha el evento «pedido» (conectado.mjs): ese check queda pendiente");
-  await axe(`${BASE}/turnero#tienda`, "tienda", (x) => x.waitForSelector("#dlg-tienda[open] [data-mas]"));
+  await axe(`${BASE}/turnero?demo=1#tienda`, "tienda", (x) => x.waitForSelector("#dlg-tienda[open] [data-mas]"));
   // Portada → tienda.
   const pt = vigilar(await ctx.newPage(), "portada-tienda");
   await pt.goto(`${BASE}/`);
-  check(await pt.locator('a[href="/turnero#tienda"]').count() === 1, "la portada tiene el acceso a la tienda");
+  check(await pt.locator('a[href="/turnero#tienda"]').count() === 0, "sin tienda publicada por el club, la portada no ofrece tienda");
   await pt.close();
   await t.close();
   // Peso: el turnero publicado lleva todo su JS inline (app + local + núcleo + motor + tienda).

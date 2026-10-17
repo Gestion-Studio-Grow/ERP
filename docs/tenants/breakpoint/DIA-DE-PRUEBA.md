@@ -1,12 +1,26 @@
 # Break Point Pádel — día de prueba real en el local
 
 Guía para Roberto Ronco y Majo Gimenez (dueños) y para recepción. Es una prueba **en el local, con clientes de
-verdad, sin servidor y sin costo**: todo se guarda en la compu del mostrador.
+verdad, sin servidor y sin costo**: todo se guarda en la compu del mostrador. Después del día de prueba se hace la
+**limpieza para el go-live** y se sigue usando igual (ver al final).
+
+## Front y back: qué ve cada uno
+
+| Quién | Dirección | Qué es |
+|---|---|---|
+| **Clientes** (front) | **https://breakpointpadel.gsgapp.com.ar/** | Portada del club → «Reservá tu cancha» (`/turnero`): eligen día y horario y lo **piden por WhatsApp**; el club confirma. Sin «demo», sin acceso a la gestión. |
+| **El club** (back) | **https://breakpointpadel.gsgapp.com.ar/club** | La gestión: agenda, buffet, caja, clientes, configuración. No se linkea desde el front y no aparece en buscadores. |
+| Prospectos (demo) | `/club?demo=1` · `/turnero?demo=1` | La demo con datos de ejemplo. No toca nada del club. |
+
+Lo que el front muestra fijo (WhatsApp del club, precios por hora y tienda) sale de
+`src/tenants/breakpoint/publico.json`: se copia del «Link para clientes» de Configuración y lo publica GSG. Mientras
+esté vacío, el turnero muestra los horarios **sin precios**, sin tienda, y WhatsApp abre para elegir el chat. El link
+para clientes de Configuración ya lleva todo y se puede mandar igual.
 
 ## Cómo se arranca (una sola vez, en la compu del mostrador)
 
-1. Abrí **https://breakpointpadel.gsgapp.com.ar/club?modo=real** en Chrome. Esa compu queda en «jornada real».
-   La demo de ejemplo de `/club` no se toca: cualquier otra compu sigue viendo la demo.
+1. Abrí **https://breakpointpadel.gsgapp.com.ar/club** en Chrome (no incógnito). Esa compu queda en «jornada
+   real». (Si esa compu ya había entrado con `?modo=real`, sigue con lo que tiene: no se pierde nada.)
 2. Aparece la **consola de configuración**:
    - **Los dueños arman su PIN.** Roberto y Majo eligen cada uno 2 números que sólo sepa él o ella y los repiten.
      No pueden ser iguales.
@@ -101,5 +115,19 @@ verde. Cubre:
 - la tienda desde el celular de un cliente y el pedido pegado en el club;
 - recarga, segunda pestaña, novedades por difusión, alta de usuario, respaldo y cierre de caja;
 - la caja igual a lo cobrado, la medianoche y la pantalla a 390 px.
+
+## Go-live: después del día de prueba
+
+1. Cerrá la caja del día y **descargá el respaldo** (Configuración).
+2. Configuración → «Limpieza para el go-live» → PIN de dueño. Antes de borrar, el sistema descarga otro respaldo y
+   deja una copia en la compu.
+   - **Se borra** lo de la prueba: turnos, cuentas de cargos, caja (movimientos y cierres), pedidos de la tienda,
+     pedidos de crédito, novedades enviadas y el registro.
+   - **Se conserva** lo maestro: canchas, horarios, precios, productos, usuarios y PIN, clientes, proveedores,
+     turnos fijos, calendario de redes y el fondo de caja.
+   - **Saldos** (cuenta corriente, créditos y faltas de los clientes; deuda con proveedores): se conservan por
+     defecto, porque es plata real. Si la prueba fue sólo de mentira, se destilda y quedan en cero.
+   - **Stock contado:** se conserva por defecto; destildado, vuelve a «sin controlar» para contar de nuevo.
+3. Desde ahí es el día 1: mismo `/club`, mismos usuarios y PIN, caja en cero.
 
 — Elaborado por GSG

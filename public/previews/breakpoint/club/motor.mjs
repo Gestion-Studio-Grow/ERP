@@ -383,6 +383,39 @@ export function cambiarMiPin(estado, { usuarioId, pin }, nuevo, ahora) {
   return { ok: true };
 }
 
+/**
+ * Limpieza para el go-live: después de la prueba, se borra lo TRANSACCIONAL (turnos, cuentas de cargos, caja,
+ * pedidos, créditos pendientes, difusiones, registro) y se conserva lo MAESTRO (canchas, horarios, precios, productos,
+ * usuarios y accesos, clientes, proveedores, turnos fijos, contenido). Los SALDOS (cuenta corriente, créditos, fiados
+ * y faltas de los clientes; remitos y pagos que forman la deuda con proveedores) se conservan si `conservarSaldos`
+ * (por defecto: es plata real).
+ * Sólo un dueño con su PIN. La app descarga un respaldo antes.
+ */
+export function limpiarParaGoLive(estado, { conservarSaldos = true, conservarStock = true } = {}, auth, ahora) {
+  const a = autorizar(estado, auth, "configurar", true);
+  if (!a.ok) return a;
+  const cuenta = { turnos: estado.reservas.length, cuentas: estado.cuentas.length, movimientos: estado.caja.movimientos.length, pedidos: (estado.pedidos ?? []).length };
+  estado.reservas = [];
+  estado.cuentas = [];
+  estado.caja = { fondo: estado.caja.fondo, movimientos: [], cierres: [] };
+  estado.novedades = [];
+  estado.pedidos = [];
+  estado.difusiones = [];
+  // Lo que se le debe a un proveedor sale de sus remitos y pagos: con los saldos se conservan.
+  if (!conservarSaldos) { estado.remitos = []; estado.pagosProveedor = []; }
+  estado.espera = [];
+  estado.solicitudesAcceso = (estado.solicitudesAcceso ?? []).filter((x) => x.estado === "pendiente");
+  estado.bloqueos = (estado.bloqueos ?? []).filter((b) => !ahora?.fecha || (b.fecha ?? "") >= ahora.fecha);
+  for (const f of estado.fijos ?? []) f.excepciones = [];
+  for (const c of Object.keys(estado.luces)) estado.luces[c] = false;
+  for (const p of estado.productos) { p.prestados = 0; if (!conservarStock && !p.alquiler && !p.plato) p.stock = null; }
+  if (!conservarSaldos) for (const c of estado.clientes) { c.deuda = 0; c.movCC = []; c.monedero = 0; c.fiados = []; c.strikes = 0; }
+  estado.log = [];
+  estado.config.goLive = { fecha: ahora?.fecha ?? null, por: a.usuario.nombre, conservarSaldos };
+  registrar(estado, `${a.usuario.nombre} hizo la limpieza para el go-live: se borraron ${cuenta.turnos} turnos, ${cuenta.cuentas} cuentas, ${cuenta.movimientos} movimientos de caja y ${cuenta.pedidos} pedidos${conservarSaldos ? "; los saldos de los clientes se conservaron" : "; los saldos de los clientes quedaron en cero"}.`, ahora);
+  return { ok: true, borrado: cuenta };
+}
+
 /** Cierra la consola del primer arranque: hace falta al menos un dueño con PIN. */
 export function terminarConfiguracion(estado, ahora) {
   if (!estado.usuarios.some((u) => u.rol === "duenio" && u.activo !== false && u.pin)) return { ok: false, motivo: "Falta que al menos un dueño arme su PIN." };

@@ -47,7 +47,7 @@ async function irTab(id) {
   await W(300);
 }
 
-await p.goto(`${BASE}/club`); await W(600);
+await p.goto(`${BASE}/club?demo=1`); await W(600);
 
 // ── Parte 1: matriz de acceso ──
 const DUENO = ["agenda", "ajustes", "buffet", "caja", "clientes", "contenido", "proveedores", "stock", "tablero"];
@@ -201,7 +201,7 @@ await foto("precios");
 // ── 4.2: registro con celular en el turnero ──
 const t = await ctx.newPage();
 t.on("pageerror", (e) => errores.push(`turnero: ${e.message}`));
-await t.goto(`${BASE}/turnero`); await t.waitForSelector("body[data-estado=listo]", { timeout: 10000 }).catch(() => {});
+await t.goto(`${BASE}/turnero?demo=1`); await t.waitForSelector("body[data-estado=listo]", { timeout: 10000 }).catch(() => {});
 if (!(await t.locator(".slot").count())) { await t.locator("#dias .dia").nth(1).click(); await t.waitForTimeout(400); }
 await t.locator(".slot").first().click(); await t.click("#btn-confirmar"); await t.click("#btn-ir-registro");
 await t.fill("#reg-nombre", "Celular UAT"); await t.fill("#reg-tel", "11 5000 9999"); await t.fill("#reg-clave", "corta");
