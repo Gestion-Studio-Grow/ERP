@@ -284,8 +284,8 @@ interface Guion {
   [k: string]: unknown;
 }
 
-/** Los bloques del guion, en orden (el 7b es el archivado en otra compu). UAT_HASTA corta por posición. */
-const NOMBRES_DE_BLOQUE = ["0", "1", "2", "3", "4", "5", "6", "7", "7b", "8", "9", "10", "11"];
+/** Los bloques del guion, en orden (el 7b es el archivado y el 7c la jornada en blanco, en otra compu). UAT_HASTA corta por posición. */
+const NOMBRES_DE_BLOQUE = ["0", "1", "2", "3", "4", "5", "6", "7", "7b", "7c", "8", "9", "10", "11"];
 const BLOQUES: ((g: Guion) => Promise<void>)[] = [
   // ═══ 0. Arranque de la jornada real nueva: la consola de primera vez ═══
   async (g) => {
@@ -403,34 +403,54 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
         "ClubDemo.tsx:184 (`SOLAPAS` según el `rol` del panel) · solapas-club.ts:41-52 (`soloDuenos`)",
       );
     // Lo sensible lo frena el motor aunque la solapa se vea: Lu no puede dar de alta a nadie. Con las solapas por el
-    // operador del PIN (terminales), Lu ya no ve Configuración: eso mismo es el resguardo.
+    // operador del PIN (terminales), Lu ya no ve Configuración; esconderla no es seguridad, así que igual se prueba el
+    // motor: con el estado real y el PIN real de Lu, `altaUsuario` dice que no (sobre una copia: no toca la jornada).
     const verConfiguracion = (await p.getByRole("tab", { name: "Configuración" }).count()) > 0;
-    if (!verConfiguracion) ok("1.motor-frena", true, "Lu (recepción) ni ve Configuración: las solapas de dueño las decide quien entró con su PIN");
-    else await irA(p, "Configuración");
-    const alta = p.getByRole("form", { name: "Dar de alta a alguien" });
-    if (verConfiguracion && (await alta.count())) {
-      await alta.getByLabel("Nombre").fill("Intruso");
-      await alta.getByLabel(/^PIN de/).fill(g.pinLu);
-      await alta.getByRole("button", { name: "Dar de alta" }).click();
-      await p.waitForTimeout(200);
-      ok("1.motor-frena", !(await estado(p)).usuarios.some((u) => u.nombre === "Intruso"), `Aunque vea Configuración, el motor no deja a Lu dar de alta a nadie («${(await ultimoAviso(p)).slice(0, 80)}»)`);
+    if (!verConfiguracion) {
+      const e = await estado(p);
+      const lu = e.usuarios.find((u) => u.nombre === "Lu");
+      const intento = M.altaUsuario(structuredClone(e), { nombre: "Intruso", rol: "recepcion" }, { usuarioId: lu?.id ?? "", pin: g.pinLu });
+      ok("1.motor-frena", !!lu && !intento.ok, `Lu (recepción) ni ve Configuración, y si llegara, el motor no la deja dar de alta a nadie («${intento.ok ? "¡la dejó!" : intento.motivo}»)`);
+    } else {
+      await irA(p, "Configuración");
+      const alta = p.getByRole("form", { name: "Dar de alta a alguien" });
+      if (await alta.count()) {
+        await alta.getByLabel("Nombre").fill("Intruso");
+        await alta.getByLabel(/^PIN de/).fill(g.pinLu);
+        await alta.getByRole("button", { name: "Dar de alta" }).click();
+        await p.waitForTimeout(200);
+        ok("1.motor-frena", !(await estado(p)).usuarios.some((u) => u.nombre === "Intruso"), `Aunque vea Configuración, el motor no deja a Lu dar de alta a nadie («${(await ultimoAviso(p)).slice(0, 80)}»)`);
+      } else ok("1.motor-frena", true, "Lu ve Configuración pero sin el alta de usuarios");
     }
 
-    // Las fichas de los titulares (en el vanilla salen solas del alta del turno con el teléfono).
-    for (const [nombre, tel] of TITULARES) await altaCliente(p, nombre, tel);
-    const eCli = await estado(p);
-    ok("1.fichas", TITULARES.every(([n]) => eCli.clientes.some((c) => c.nombre === n && c.tel)), "Las fichas de los 5 titulares, con su celular (desde Clientes → «+ Alta de cliente»)");
-    brecha(
-      "alta-turno-con-telefono",
-      "«Dar un turno» no tiene el teléfono «para darlo de alta»: un titular nuevo queda sin ficha (y sin ficha no se le puede fiar ni mandar novedades); hay que ir antes a Clientes",
-      "app.mjs:1662 (`#f-tel`) y :1680-1681 (`altaCliente` al reservar)",
-      "AltaDeTurno.tsx:194-209 (sólo «A nombre de» y las fichas que coinciden)",
-    );
+    // Pablo (el del turno de las 16:30) ya es cliente: su ficha sale de Clientes → «+ Alta de cliente».
+    const [pablo, telPablo] = TITULARES[4];
+    await altaCliente(p, pablo, telPablo);
 
-    // 4 canchas a las 15:00, 4 jugadores cada una, y se abren.
+    // 4 canchas a las 15:00, 4 jugadores cada una, y se abren. Los 4 titulares son nuevos: como en el vanilla
+    // (app.mjs:1662 `#f-tel` y :1680-1681), el teléfono en «Dar un turno» los da de alta y ata la ficha al turno.
     const R: Record<string, string> = {};
-    for (const gr of GRUPOS) R[gr.cancha] = (await darTurno(p, { cancha: gr.cancha, hora: 900, titular: gr.titular, otros: gr.jug, ficha: true })) ?? "";
+    for (const gr of GRUPOS) R[gr.cancha] = (await darTurno(p, { cancha: gr.cancha, hora: 900, titular: gr.titular, otros: gr.jug, ficha: false, tel: telDe(gr.titular) })) ?? "";
     g.R = R;
+    const eCli = await estado(p);
+    const fichaDelTurno = (id: string) => eCli.clientes.find((c) => c.id === M.reserva(eCli, id)?.clienteId);
+    ok(
+      "1.alta-con-telefono",
+      GRUPOS.every((gr) => {
+        const f = fichaDelTurno(R[gr.cancha]);
+        return !!f && f.nombre === gr.titular && digitos(f.tel) === telDe(gr.titular) && eCli.clientes.filter((c) => c.nombre === gr.titular).length === 1;
+      }),
+      `«Dar un turno» con el teléfono de un titular nuevo: queda su ficha con ese celular, atada al turno (${GRUPOS.map((gr) => `${gr.titular}: ${fichaDelTurno(R[gr.cancha])?.tel ?? "sin ficha"}`).join(", ")})`,
+    );
+    ok("1.fichas", TITULARES.every(([n, tel]) => eCli.clientes.filter((c) => c.nombre === n && digitos(c.tel) === tel).length === 1), "Las fichas de los 5 titulares, una sola cada uno, con su celular (4 del alta del turno y Pablo desde Clientes)");
+    // Y se ven en Clientes, con su teléfono, sin pasar antes por «+ Alta de cliente».
+    await irA(p, "Clientes");
+    const lista = p.getByRole("list", { name: "Clientes del club" });
+    const enClientes = await Promise.all(GRUPOS.map(async (gr) => (await lista.getByRole("listitem").filter({ hasText: gr.titular }).count()) === 1));
+    await p.getByLabel("Buscar por nombre o teléfono").fill(telDe(GRUPOS[2].titular).slice(-4));
+    const porTel = (await lista.getByRole("listitem").allInnerTexts()).map((t) => t.replace(/\s+/g, " "));
+    await p.getByLabel("Buscar por nombre o teléfono").fill("");
+    ok("1.en-clientes", enClientes.every(Boolean) && porTel.length === 1 && porTel[0].includes(GRUPOS[2].titular), `Clientes muestra las 4 fichas nuevas; buscando por el teléfono aparece ${GRUPOS[2].titular} («${porTel.join(" | ").slice(0, 80)}»)`);
     for (const gr of GRUPOS) {
       const c = await abrirCuenta(p, R[gr.cancha]);
       await c.getByRole("button", { name: "Abrir la cancha" }).click();
@@ -513,9 +533,14 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     const r1 = M.reserva(e2, R.c1)!;
     ok("2.cerrada", r1.estado === "finalizada" && e2.luces.c1 === false && M.cobrado(r1) === 42000 && cobradoAntes === 21000, `«Cobrar la cancha y cerrarla · la mesa sigue»: cobró lo que faltaba de la cancha ($ 21.000, total $ ${M.cobrado(r1)}), luz apagada, cancha libre`);
     ok("2.mesa", M.mesasAbiertas(e2).length === 1 && cuentaT(e2, R.c1)?.totales.cargos === 47100 - 21000, `La mesa de la cancha 1 sigue abierta con sus cargos (${cuentaT(e2, R.c1)?.totales.cargos})`);
-    // Se abre el turno siguiente en esa cancha (16:30, Pablo Suárez) aunque la mesa siga comiendo.
-    const sig = await darTurno(p, { cancha: "c1", hora: 990, titular: "Pablo Suárez", otros: ["Lucía Torres", "Ezequiel Rojas", "Dani Navarro"], ficha: true });
+    // Se abre el turno siguiente en esa cancha (16:30, Pablo Suárez) aunque la mesa siga comiendo. Lu pone su nombre y
+    // su teléfono sin tocar la ficha: como ya hay una con ese número, el turno queda atado a ella (no se duplica).
+    const clientesAntes = e2.clientes.length;
+    const sig = await darTurno(p, { cancha: "c1", hora: 990, titular: "Pablo Suárez", otros: ["Lucía Torres", "Ezequiel Rojas", "Dani Navarro"], ficha: false, tel: telDe("Pablo Suárez") });
     g.sig = sig;
+    e2 = await estado(p);
+    const fichaPablo = e2.clientes.find((c) => c.nombre === "Pablo Suárez");
+    ok("2.ficha-por-telefono", !!fichaPablo && M.reserva(e2, sig ?? "")?.clienteId === fichaPablo.id && e2.clientes.length === clientesAntes, `Con el teléfono de alguien que ya tiene ficha, el turno se ata a esa ficha y no se da otra de alta (${e2.clientes.length} clientes)`);
     const cs = await abrirCuenta(p, sig ?? "");
     await cs.getByRole("button", { name: "Abrir la cancha" }).click();
     await p.waitForTimeout(150);
@@ -624,6 +649,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
         "app.mjs `verCuenta` → `pedirFiado` desde el turno (uat-torneo.e2e.mjs:230-232)",
         "CuentaDelTurno.tsx (sin pedirFiado) · BuffetDelClub.tsx:206-210",
       );
+    else ok("3.fiar-en-la-cuenta", true, "La cuenta del turno ofrece «Pedir OK para fiar» (el pedido de este guion sale desde Buffet, que es la misma pieza)");
     // El pedido, desde Buffet: «Pedir OK para fiar $ 4.000» → «Avisar a Majo Gimenez» por WhatsApp con el link.
     await volverALaAgenda(p);
     await irA(p, "Buffet");
@@ -1033,14 +1059,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await p.waitForTimeout(150);
     const agus = (await estado(p)).usuarios.find((u) => u.nombre === "Agus (finde)");
     ok("7.sacar-acceso", !agus || agus.activo === false, "Sacar acceso a Agus: ya no puede entrar");
-    const jornada = p.getByRole("region", { name: "Jornada" });
-    if ((await jornada.getByRole("button", { name: /Empezar otra jornada en blanco/ }).count()) === 0)
-      brecha(
-        "jornada-en-blanco",
-        "No está «Empezar otra jornada en blanco» (con PIN de dueño, apartando la de ahora como «anterior» y bajando un respaldo): para empezar de cero hay que restaurar o hacer la limpieza del go-live",
-        "app.mjs:888 y :2279 (`jornada` → `blanco`)",
-        "config-jornada.tsx (la sección «Jornada»: respaldo, restaurar y archivar)",
-      );
+    // «Empezar otra jornada en blanco» se recorre en otra compu con esta misma jornada (7c): acá borraría el sábado.
     const [resp] = await Promise.all([p.waitForEvent("download"), p.getByRole("button", { name: "Descargar respaldo", exact: true }).click()]);
     const respaldo = JSON.parse(readFileSync((await resp.path()) ?? "", "utf8")) as { v: number; estado: EstadoClub };
     e7 = await estado(p);
@@ -1137,6 +1156,86 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     const despues3 = (await r3.evaluate((k) => localStorage.getItem(k), CLAVE)) ?? "";
     ok("7b.cancelada", aviso3 && despues3.length >= antes3 * 0.95 && !(JSON.parse(despues3) as { estado: EstadoClub }).estado.archivo, `Si el navegador no baja el archivo, no hay nada que elegir y lo guardado NO se achica (${Math.round(antes3 / 1024)} KB → ${Math.round(despues3.length / 1024)} KB)`);
     await ctx3.close();
+  },
+
+  // ═══ 7c. «Empezar otra jornada en blanco» (otra compu con la jornada del sábado): respaldo bajado y ELEGIDO + PIN ═══
+  async (g) => {
+    const texto = readFileSync(g.respaldo as string, "utf8");
+    const antes = (JSON.parse(texto) as { estado: EstadoClub }).estado;
+    const ctx4 = await navegador.newContext({ viewport: { width: 1024, height: 900 }, locale: "es-AR", timezoneId: "America/Argentina/Buenos_Aires", acceptDownloads: true });
+    await ctx4.clock.install({ time: new Date("2026-10-17T19:30:00-03:00") });
+    await ctx4.route(ORIGEN, (rt) => rt.fulfill({ contentType: "text/html; charset=utf-8", body: html() }));
+    await ctx4.addInitScript(([k, t]) => {
+      try {
+        if (!localStorage.getItem(k)) localStorage.setItem(k, t);
+      } catch {
+        // sin lugar: el test lo dice
+      }
+    }, [CLAVE, texto] as const);
+    const q = await abrirClub(ctx4, "OWNER", "en-blanco");
+    await desbloquear(q, /^Majo/, "84");
+    await irA(q, "Configuración");
+    const jornada = q.getByRole("region", { name: "Jornada" });
+    if ((await jornada.getByRole("heading", { name: "Empezar otra jornada en blanco" }).count()) === 0) {
+      brecha(
+        "jornada-en-blanco",
+        "No está «Empezar otra jornada en blanco» (con PIN de dueño, apartando la de ahora y bajando un respaldo): para empezar de cero hay que restaurar o hacer la limpieza del go-live",
+        "app.mjs:888 y :2279 (`jornada` → `blanco`)",
+        "config-jornada.tsx (la sección «Jornada»)",
+      );
+      await ctx4.close();
+      return;
+    }
+    const guardadoEnLaCompu = () => q.evaluate((k) => Object.keys(localStorage).filter((x) => x.startsWith(`${k}:antes-de-blanco:`)), CLAVE);
+    const sigueIgual = async () => {
+      const e = await estado(q);
+      return e.reservas.length === antes.reservas.length && e.config.configurado !== false && (await guardadoEnLaCompu()).length === 0 && /Opera: Majo/.test(await q.locator("main").innerText());
+    };
+    await jornada.getByRole("button", { name: "Quiero empezar en blanco" }).click();
+    const zona = jornada.getByRole("group", { name: "Empezar otra jornada en blanco" });
+    const empezar = zona.getByRole("button", { name: "Ya lo guardé: empezar en blanco" });
+    const cerrado = await empezar.isDisabled();
+    ok("7c.que-pasa", cerrado && (await zona.innerText()).includes("Se empieza de cero: hay que volver a armar los PIN. Lo de ahora queda en el respaldo que bajaste y en una copia en esta compu."), "Majo (dueña) abre «Empezar otra jornada en blanco» en Jornada: dice qué pasa y no deja empezar sin el respaldo");
+    await zona.getByLabel(/^PIN de/).fill("84");
+    const [d] = await Promise.all([q.waitForEvent("download"), zona.getByRole("button", { name: "Descargar el respaldo de antes de empezar" }).click()]);
+    const ruta = (await d.path()) ?? "";
+    const bajado = JSON.parse(readFileSync(ruta, "utf8")) as { v: number; estado: EstadoClub };
+    ok("7c.paso1", /^breakpoint-jornada-antes-de-blanco-\d{4}-\d{2}-\d{2}-\d{4}\.json$/.test(d.suggestedFilename()) && bajado.estado.reservas.length === antes.reservas.length && (await sigueIgual()), `Paso 1: UNA descarga (${d.suggestedFilename()}) con toda la jornada (${bajado.estado.reservas.length} turnos); todavía no se tocó nada`);
+    const tarjetaZona = zona.locator("xpath=..");
+    await tarjetaZona.scrollIntoViewIfNeeded();
+    await tarjetaZona.screenshot({ path: join(OUT, `${String(++nFoto).padStart(2, "0")}-en-blanco-1024.png`) }).catch(() => undefined);
+    await q.setViewportSize({ width: 390, height: 844 });
+    await q.waitForTimeout(150);
+    const corre = await sinScrollDeCostado(q);
+    await tarjetaZona.screenshot({ path: join(OUT, `${String(++nFoto).padStart(2, "0")}-en-blanco-390.png`) }).catch(() => undefined);
+    await q.setViewportSize({ width: 1024, height: 900 });
+    ok("7c.390", corre <= 0, `La zona de empezar en blanco en 390 px, sin scroll de costado (${corre})`);
+    // Sin elegir el archivo, o eligiendo otro (un respaldo de otra jornada), no se toca nada.
+    await empezar.click();
+    const sinArchivo = await avisoDelClub(q, /Elegí el respaldo que descargaste \(paso 2\): sin eso no se empieza nada/);
+    const otro = join(OUT, "respaldo-de-otra-jornada.json");
+    writeFileSync(otro, JSON.stringify({ v: 1, estado: M.crearClubReal("2026-10-10"), secuencia: 1, usuario: null, guardado: 1 }));
+    await zona.getByLabel("Respaldo descargado").setInputFiles(otro);
+    await empezar.click();
+    const conOtro = await avisoDelClub(q, /no es el respaldo que descargaste recién/);
+    ok("7c.otro", sinArchivo && conOtro && (await sigueIgual()), "Sin elegir el archivo, o con otro respaldo, no hace nada: la jornada sigue igual, sin copias y con Majo operando");
+    // Con el archivo descargado: se verifica que es la jornada de ahora y recién ahí empieza en blanco.
+    await zona.getByLabel("Respaldo descargado").setInputFiles(ruta);
+    await empezar.click();
+    const consola = q.getByRole("region", { name: "Configuración inicial del club" });
+    await consola.waitFor({ timeout: 5000 }).catch(() => undefined);
+    const aviso = await avisoDelClub(q, /empezó una jornada nueva en blanco/);
+    const ahora = await estado(q);
+    const copias = await guardadoEnLaCompu();
+    const copia = copias.length === 1 ? (JSON.parse((await q.evaluate((k) => localStorage.getItem(k), copias[0])) ?? "{}") as { estado?: EstadoClub }).estado : undefined;
+    ok(
+      "7c.consola",
+      (await consola.count()) === 1 && (await q.getByRole("tablist").count()) === 0 && aviso && ahora.config.configurado === false && ahora.reservas.length + ahora.clientes.length + ahora.cuentas.length === 0,
+      "Con el respaldo elegido: jornada nueva en blanco, sin nadie operando → aparece la consola de primera vez (hay que volver a armar los PIN)",
+    );
+    ok("7c.copias", copia?.reservas.length === antes.reservas.length && M.hidratarEstado(bajado).ok, `Lo de antes queda en el respaldo bajado (se puede restaurar) y en UNA copia en esta compu (${copias.join(", ").replace(CLAVE, "…")})`);
+    await foto(q, "en-blanco-consola");
+    await ctx4.close();
   },
 
   // ═══ 8. Cierre: la caja con PIN, la caja = lo cobrado al peso, y la medianoche (caja de 12 a 12) ═══
@@ -1431,8 +1530,14 @@ async function altaCliente(p: Page, nombre: string, tel: string) {
   if (await ficha.count()) await ficha.getByRole("button", { name: "Cerrar la ficha" }).click();
 }
 
-/** «+ Turno» en la agenda: cancha, hora (minutos), a nombre de (con su ficha) y los otros jugadores. Devuelve el id. */
-async function darTurno(p: Page, d: { cancha: string; hora: number; titular: string; otros: string[]; ficha: boolean }): Promise<string | undefined> {
+const telDe = (titular: string) => TITULARES.find(([n]) => n === titular)?.[1] ?? "";
+const digitos = (tel: string | null | undefined) => (tel ?? "").replace(/\D/g, "");
+
+/**
+ * «+ Turno» en la agenda: cancha, hora (minutos), a nombre de (tocando su ficha, o con el teléfono «para darlo de alta»)
+ * y los otros jugadores. Devuelve el id.
+ */
+async function darTurno(p: Page, d: { cancha: string; hora: number; titular: string; otros: string[]; ficha: boolean; tel?: string }): Promise<string | undefined> {
   await irA(p, "Agenda");
   await p.getByRole("button", { name: "+ Turno", exact: true }).click();
   const alta = p.getByRole("region", { name: "Dar un turno" });
@@ -1441,6 +1546,7 @@ async function darTurno(p: Page, d: { cancha: string; hora: number; titular: str
   await alta.getByLabel("Hora", { exact: true }).selectOption(String(d.hora));
   await alta.getByLabel("A nombre de").fill(d.titular);
   if (d.ficha) await alta.getByRole("list", { name: "Fichas que coinciden" }).getByRole("button", { name: new RegExp(`^${d.titular}`) }).click();
+  else if (d.tel) await alta.getByLabel(/^Teléfono \(para darlo de alta/).fill(d.tel);
   await alta.getByLabel(/^Los otros jugadores/).fill(d.otros.join(", "));
   await alta.getByRole("button", { name: "Reservar el turno" }).click();
   await p.getByRole("heading", { name: "Turno reservado" }).waitFor();

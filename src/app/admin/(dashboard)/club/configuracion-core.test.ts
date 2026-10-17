@@ -15,6 +15,8 @@ import {
   armarGoLive,
   armarUsuarios,
   authParaArchivar,
+  autorizarEnBlanco,
+  avisoDeEnBlanco,
   avisoDeRestaurado,
   celularDelDuenio,
   contactosDe,
@@ -25,10 +27,14 @@ import {
   leerRespaldo,
   limpiarConRespaldo,
   linkParaClientes,
+  motivoDeEnBlanco,
   motivoDeRestaurar,
   nombreDelArchivoParaArchivar,
   nombreDelRespaldo,
+  nombreDelRespaldoAntesDeBlanco,
   notaDelCelular,
+  QUE_PASA_EN_BLANCO,
+  respaldoAntesDeBlanco,
   respaldoAntesDeLimpiar,
   textoDelRespaldo,
   valoresDeReglas,
@@ -526,4 +532,98 @@ test("primera vez sin entrar: con un dueño con PIN se puede abrir el club por `
   assert.equal(a.estado().config.configurado, true);
   const d = crearAlmacen({ hoy: HOY, clave: "gsg-club:demo-club:u1:v1", almacenamiento: null });
   assert.equal(d.arranque((e, ahora) => abrirElClub(e, ahora)).ok, false);
+});
+
+// ───────────── empezar otra jornada en blanco (almacén real, operador dueño) ─────────────
+
+test("empezar en blanco: sin el respaldo de AHORA descargado y elegido de vuelta no se toca nada (otro archivo, cambió algo, PIN o puesto)", async () => {
+  const { a, m } = await abrir();
+  const ms = new Date(2026, 9, 17, 19, 0).getTime();
+  const turnos = a.estado().reservas.length;
+  const pedir = (extra: Partial<Parameters<typeof autorizarEnBlanco>[1]>, rol = "OWNER") =>
+    autorizarEnBlanco(a.estado(), { pin: "11", descargado: null, textoElegido: null, ...extra }, a.auth(), rol);
+  const mensaje = (r: ReturnType<typeof autorizarEnBlanco>) => (r.ok ? "" : r.mensaje);
+  assert.equal(mensaje(pedir({}, "RECEPTION")), "Empezar en blanco lo hace un dueño.");
+  assert.equal(mensaje(pedir({ pin: "99" })), "PIN incorrecto.");
+  assert.equal(mensaje(pedir({ pin: "1" })), "Poné tu PIN (2 números).");
+  assert.equal(mensaje(pedir({})), "Primero descargá el respaldo (paso 1).");
+  const bajado = respaldoAntesDeBlanco(a.estado(), "u-duenio-1", ms);
+  assert.equal(bajado.nombre, "breakpoint-jornada-antes-de-blanco-2026-10-17-1900.json");
+  assert.equal(nombreDelRespaldoAntesDeBlanco(ms), bajado.nombre);
+  assert.equal(mensaje(pedir({ descargado: bajado })), "Elegí el respaldo que descargaste (paso 2): sin eso no se empieza nada.");
+  const roto = pedir({ descargado: bajado, textoElegido: "{roto" });
+  assert.ok(!roto.ok && roto.causa === "danado");
+  const anexo = pedir({ descargado: bajado, textoElegido: JSON.stringify({ v: 1, tipo: "anexo-jornada" }) });
+  assert.ok(!anexo.ok && anexo.causa === "otro");
+  assert.match(anexo.mensaje, /elegí el «breakpoint-jornada-antes-de-blanco-….json»/);
+  // Un respaldo de verdad, pero de otra jornada (otro club, otro día): no es lo de ahora.
+  const otro = pedir({ descargado: bajado, textoElegido: textoDelRespaldo(M.crearClubReal(HOY), null, ms) });
+  assert.ok(!otro.ok && otro.causa === "otro", JSON.stringify(otro));
+  assert.match(otro.mensaje, /no es el respaldo que descargaste recién/);
+  // Cambió algo después de descargar: hay que bajar de nuevo (la pantalla vuelve al paso 1).
+  a.ejecutar((e) => (e.log.unshift({ fecha: HOY_TORNEO, min: 1, texto: "algo nuevo" }), { ok: true, mensaje: "" }));
+  const cambio = pedir({ descargado: bajado, textoElegido: bajado.texto });
+  assert.ok(!cambio.ok && cambio.causa === "cambio");
+  assert.match(cambio.mensaje, /Cambió algo desde que descargaste/);
+  // Nada de eso tocó la jornada ni dejó copias.
+  assert.equal(a.estado().reservas.length, turnos, "no se tocó nada");
+  assert.notEqual(a.estado().config.configurado, false, "sigue configurado");
+  assert.ok(a.operador(), "sigue el mismo operador");
+  assert.equal([...m.datos.keys()].filter((k) => k.includes(":antes-de-blanco:")).length, 0, "ninguna copia suelta");
+});
+
+test("empezar en blanco: con el respaldo de ahora elegido → club sin configurar, sin operador, copia en el equipo y el archivo restaura lo de antes", async () => {
+  const { a, m } = await abrir();
+  const ms = new Date(2026, 9, 17, 19, 0).getTime();
+  const turnos = a.estado().reservas.length;
+  assert.ok(turnos > 0);
+  const bajado = respaldoAntesDeBlanco(a.estado(), "u-duenio-1", ms);
+  const v = autorizarEnBlanco(a.estado(), { pin: "11", descargado: bajado, textoElegido: bajado.texto }, a.auth(), "OWNER");
+  assert.ok(v.ok, JSON.stringify(v));
+  assert.deepEqual(v.auth, DUENIO);
+  const r = a.empezarEnBlanco({ auth: v.auth });
+  assert.ok(r.ok, JSON.stringify(r));
+  // La jornada nueva: sin configurar (sale la consola de primera vez), vacía y sin nadie operando.
+  assert.equal(a.estado().config.configurado, false);
+  assert.equal(a.estado().reservas.length + a.estado().clientes.length + a.estado().caja.movimientos.length, 0);
+  assert.equal(a.operador(), null);
+  // Guardada en el acto, y la de antes copiada al lado en este equipo.
+  assert.equal((JSON.parse(m.datos.get(CLAVE) ?? "{}") as { estado: EstadoClub }).estado.config.configurado, false);
+  const copia = m.datos.get(r.copia);
+  assert.ok(copia, `la copia está en ${r.copia}`);
+  assert.equal((JSON.parse(copia) as { estado: EstadoClub }).estado.reservas.length, turnos);
+  // El respaldo que el dueño eligió es la jornada de antes: «Restaurar desde un archivo» la devuelve.
+  const leido = leerRespaldo(bajado.texto);
+  assert.ok(leido.ok && leido.respaldo.turnos === turnos);
+  assert.match(avisoDeEnBlanco(bajado.nombre), /^Listo: empezó una jornada nueva en blanco\. Lo de antes quedó en breakpoint-jornada-antes-de-blanco-2026-10-17-1900\.json/);
+});
+
+test("empezar en blanco sin lugar para la copia en este equipo: no hace nada y lo dice en criollo", async () => {
+  const datos = new Map<string, string>([[CLAVE, MES]]);
+  const m: AlmacenamientoLocal = {
+    getItem: (k) => datos.get(k) ?? null,
+    setItem: (k, v) => {
+      if (k.includes(":antes-de-blanco:")) throw new Error("QuotaExceededError");
+      datos.set(k, String(v));
+    },
+    removeItem: (k) => void datos.delete(k),
+  };
+  const a = crearAlmacen({ reloj: "real", clave: CLAVE, almacenamiento: m, cerrojos: null, canal: null, temporizador, relojMs: () => new Date(2026, 9, 17, 19, 0).getTime(), demoraGuardadoMs: 0, enReposo: null, rol: "OWNER" });
+  a.arrancar();
+  await vaciar();
+  a.cambiarOperador(M.usuario(a.estado(), DUENIO.usuarioId!)!, DUENIO);
+  const turnos = a.estado().reservas.length;
+  const bajado = respaldoAntesDeBlanco(a.estado(), "u-duenio-1", 1);
+  const v = autorizarEnBlanco(a.estado(), { pin: "11", descargado: bajado, textoElegido: bajado.texto }, a.auth(), "OWNER");
+  assert.ok(v.ok);
+  const r = a.empezarEnBlanco({ auth: v.auth });
+  assert.ok(!r.ok && r.causa === "sin-lugar", JSON.stringify(r));
+  assert.equal(motivoDeEnBlanco(r), "No hay lugar para guardar una copia en esta compu: archivá días cerrados antes. No se tocó nada.");
+  assert.equal(a.estado().reservas.length, turnos, "no se tocó nada");
+  assert.notEqual(a.estado().config.configurado, false, "sigue configurado");
+  assert.ok(a.operador());
+  assert.equal(datos.get(CLAVE), MES, "lo guardado sigue igual");
+  // Lo demás que dice el almacén (permiso, estado) se muestra tal cual.
+  assert.equal(motivoDeEnBlanco({ ok: false, causa: "permiso", motivo: "Empezar en blanco lo hace un dueño." }), "Empezar en blanco lo hace un dueño.");
+  assert.equal(QUE_PASA_EN_BLANCO, "Se empieza de cero: hay que volver a armar los PIN. Lo de ahora queda en el respaldo que bajaste y en una copia en esta compu.");
 });

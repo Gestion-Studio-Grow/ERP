@@ -11,6 +11,10 @@
 //   · Lo que ocupa (KB) se lee de `useEstadoDelGuardado`: el almacén lo avisa al archivar y al restaurar.
 //   · Archivar: el contrato del almacén (`prepararArchivo` → UNA descarga → elegir ese archivo → `confirmar`). Un doble
 //     clic se ignora; si algo de esos días cambió en el medio, vuelve al paso 1. Nada se achica sin el archivo elegido.
+//   · Empezar otra jornada en blanco (sólo la jornada real y sólo si quien opera es un dueño): la zona de peligro de
+//     abajo, como la limpieza del go-live — UNA descarga del respaldo de ahora, elegir ese archivo y el PIN; se
+//     verifica que es la jornada de ahora (`autorizarEnBlanco`) y recién ahí `almacen.empezarEnBlanco` (copia en este
+//     equipo, club sin configurar, sin operador: aparece la consola de primera vez). Con otro archivo, nada.
 
 import { useCallback, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -21,17 +25,24 @@ import { CampoPin } from "./formulario-del-club";
 import {
   armarArchivo,
   authParaArchivar,
+  QUE_PASA_EN_BLANCO,
+  autorizarEnBlanco,
+  avisoDeEnBlanco,
   avisoDeRestaurado,
   ddmm,
   despuesDeConfirmar,
   kb,
   leerRespaldo,
+  motivoDeEnBlanco,
   motivoDeRestaurar,
   nombreDelArchivoParaArchivar,
   nombreDelRespaldo,
+  pinDeDuenio,
+  respaldoAntesDeBlanco,
   textoDelRespaldo,
   vistaDelGuardado,
   type RespaldoParaRestaurar,
+  type RespaldoParaVerificar,
 } from "./configuracion-core";
 import { ErrorDeSeccion, Seccion, campoArchivo, descargarTexto, despuesDePintar, sinDesborde, subtarjeta, textoElegido } from "./config-piezas";
 import { porFirma, useEstadoDelGuardado, useOperador, useSeleccion } from "./usar-almacen";
@@ -310,12 +321,130 @@ function Archivar({ almacen, quien, bytes }: { almacen: Almacen; quien: string |
   );
 }
 
+const configurado = (e: EstadoClub) => e.config.configurado !== false;
+const elNuevo = (_: boolean | undefined, nuevo: boolean) => nuevo;
+
+function EmpezarEnBlanco({ almacen, quien }: { almacen: Almacen; quien: string | null }) {
+  const [abierto, setAbierto] = useState(false);
+  const [pin, setPin] = useState("");
+  const [bajado, setBajado] = useState<Pick<RespaldoParaVerificar, "huella" | "nombre"> | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState("");
+  const campo = useRef<HTMLInputElement>(null);
+  const idCampo = useId();
+  const idTitulo = useId();
+
+  const olvidar = () => {
+    setBajado(null);
+    if (campo.current) campo.current.value = "";
+  };
+  const cerrar = () => {
+    olvidar();
+    setAbierto(false);
+    setPin("");
+    setError("");
+  };
+
+  const descargar = () => {
+    setError("");
+    if (almacen.rol() !== "OWNER") return setError("Empezar en blanco lo hace un dueño.");
+    const d = pinDeDuenio(almacen.estado(), almacen.auth(), pin, "Empezar en blanco");
+    if (!d.ok) return setError(d.mensaje);
+    const r = respaldoAntesDeBlanco(almacen.estado(), d.usuario.id, Date.now());
+    descargarTexto(r.texto, r.nombre);
+    setBajado({ huella: r.huella, nombre: r.nombre });
+  };
+
+  const empezar = async () => {
+    if (ocupado) return;
+    setError("");
+    const texto = await textoElegido(campo.current);
+    if (texto == null) return setError("Elegí el respaldo que descargaste (paso 2): sin eso no se empieza nada.");
+    setOcupado(true);
+    await despuesDePintar();
+    let v: ReturnType<typeof autorizarEnBlanco>;
+    let r: ReturnType<Almacen["empezarEnBlanco"]> | null = null;
+    try {
+      // Verificar y empezar en el mismo momento (sin nada en el medio): la jornada no puede cambiar entre una y otra.
+      v = autorizarEnBlanco(almacen.estado(), { pin, descargado: bajado, textoElegido: texto }, almacen.auth(), almacen.rol());
+      if (v.ok) r = almacen.empezarEnBlanco({ auth: v.auth });
+    } finally {
+      setOcupado(false);
+    }
+    if (!v.ok) {
+      if (v.causa === "cambio") olvidar();
+      return setError(v.mensaje);
+    }
+    if (!r?.ok) return setError(r ? motivoDeEnBlanco(r) : "No se pudo empezar en blanco.");
+    // Sin operador y sin configurar: Configuración pasa a la consola de primera vez (esta pantalla se va).
+    almacen.informar({ ok: true, mensaje: avisoDeEnBlanco(bajado?.nombre ?? "el respaldo que bajaste") });
+  };
+
+  return (
+    <div className="flex min-w-0 flex-col gap-3 rounded-md border border-danger/40 bg-surface p-3">
+      <h3 id={idTitulo} className="font-semibold text-strong">
+        Empezar otra jornada en blanco
+      </h3>
+      <p className="text-sm text-body">
+        Para arrancar de cero en esta compu: sin turnos, clientes, caja ni usuarios de recepción. Para pasar del día de prueba al día 1 no hace falta: usá «Limpieza para
+        el go-live» (abajo), que conserva lo maestro.
+      </p>
+      {!abierto ? (
+        <Button variant="outline" size="md" className="self-start max-sm:h-auto max-sm:min-h-11 max-sm:w-full max-sm:py-2 max-sm:whitespace-normal" onClick={() => setAbierto(true)}>
+          Quiero empezar en blanco
+        </Button>
+      ) : (
+        <div role="group" aria-labelledby={idTitulo} className="flex flex-col gap-3">
+          <p className="rounded-md border border-danger/40 bg-danger-soft p-3 text-sm font-semibold text-strong">⚠ {QUE_PASA_EN_BLANCO} Esto no se deshace.</p>
+          <CampoPin quien={quien} value={pin} onChange={setPin} />
+          <ol className="flex list-decimal flex-col gap-3 pl-5 text-sm text-body">
+            <li className="flex flex-col gap-2">
+              <span>
+                <strong className="text-strong">Descargá el respaldo de ahora.</strong> Con ese archivo se vuelve a esta jornada («Restaurar desde un archivo»).
+              </span>
+              <Button variant={bajado ? "outline" : "solid"} size="md" className="self-start max-sm:h-auto max-sm:min-h-11 max-sm:w-full max-sm:py-2 max-sm:whitespace-normal" disabled={ocupado} onClick={descargar}>
+                {bajado ? "Descargar de nuevo" : "Descargar el respaldo de antes de empezar"}
+              </Button>
+              {bajado && (
+                <span className={sinDesborde}>
+                  Se pidió la descarga de <strong className="text-strong">{bajado.nombre}</strong>. Fijate que esté en Descargas.
+                </span>
+              )}
+            </li>
+            <li className="flex flex-col gap-2">
+              <span>
+                <strong className="text-strong">Elegí ese archivo</strong> para comprobar que se guardó y que es la jornada de ahora. Recién ahí se empieza en blanco.
+              </span>
+              <label htmlFor={idCampo} className="text-sm font-medium text-strong">
+                Respaldo descargado
+              </label>
+              <input ref={campo} id={idCampo} type="file" accept=".json,application/json" className={campoArchivo} disabled={!bajado} />
+            </li>
+          </ol>
+          <ErrorDeSeccion texto={error} />
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button variant="danger" size="md" className="max-sm:h-auto max-sm:min-h-11 max-sm:py-2 max-sm:whitespace-normal" disabled={!bajado || ocupado} onClick={() => void empezar()}>
+              {ocupado ? "Verificando…" : "Ya lo guardé: empezar en blanco"}
+            </Button>
+            <Button variant="outline" size="md" disabled={ocupado} onClick={cerrar}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function JornadaDelClub({ almacen }: { almacen: Almacen }) {
   const g = useEstadoDelGuardado(almacen);
   const operador = useOperador(almacen);
   const quien = operador ? operador.usuario.nombre.split(" ")[0] : null;
   const v = vistaDelGuardado(g, almacen.modo());
   const [bajado, setBajado] = useState("");
+  // Empezar en blanco: sólo en la jornada real, ya configurada, y si quien opera es un dueño (el almacén lo vuelve a
+  // controlar con el puesto y el PIN: esconderlo no es seguridad).
+  const enBlanco = useSeleccion(almacen, configurado, elNuevo) && almacen.modo() === "real" && operador?.usuario.rol === "duenio";
 
   const descargarRespaldo = () => {
     const ms = Date.now();
@@ -353,6 +482,7 @@ export function JornadaDelClub({ almacen }: { almacen: Almacen }) {
       </div>
       <Restaurar almacen={almacen} quien={quien} />
       <Archivar almacen={almacen} quien={quien} bytes={g.bytes} />
+      {enBlanco && <EmpezarEnBlanco almacen={almacen} quien={quien} />}
     </Seccion>
   );
 }

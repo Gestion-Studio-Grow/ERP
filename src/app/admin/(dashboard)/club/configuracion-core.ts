@@ -16,7 +16,11 @@
 //   · LINK PARA CLIENTES: el turnero en modo pedido con el WhatsApp, las tarifas y la tienda de este club;
 //   · LIMPIEZA PARA EL GO-LIVE: lo pendiente que la frena y, antes de limpiar, el respaldo descargado y ELEGIDO de
 //     vuelta (se compara con el estado de ahora: no se repite el B1 del vanilla, que limpiaba sin saber si la
-//     descarga había llegado).
+//     descarga había llegado);
+//   · EMPEZAR OTRA JORNADA EN BLANCO (sólo la jornada real, un dueño): el mismo resguardo que la limpieza — el
+//     respaldo de ahora descargado y ELEGIDO de vuelta — y recién ahí `almacen.empezarEnBlanco` (que además deja una
+//     copia en este equipo). Regla del Gate (B1): nada se borra ni se reemplaza sin una copia FUERA del navegador que
+//     el dueño eligió y el sistema verificó.
 //
 // Lo sensible (accesos, restaurar, limpiar, archivar) vuelve a pedir el PIN de quien opera, como el vanilla, y no
 // se deshace. Lo que el motor no valida (la política, las tarifas, el alias, los contactos) lo controla esta capa con
@@ -113,6 +117,7 @@ export function sufijoDeArchivo(ms: number): string {
 export const nombreDelRespaldo = (ms: number) => `breakpoint-jornada-${sufijoDeArchivo(ms)}.json`;
 export const nombreDelArchivoParaArchivar = (ms: number) => `breakpoint-respaldo-y-archivo-${sufijoDeArchivo(ms)}.json`;
 export const nombreDelRespaldoAntesDeLimpiar = (ms: number) => `breakpoint-jornada-antes-golive-${sufijoDeArchivo(ms)}.json`;
+export const nombreDelRespaldoAntesDeBlanco = (ms: number) => `breakpoint-jornada-antes-de-blanco-${sufijoDeArchivo(ms)}.json`;
 
 const DIAS_LARGOS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"] as const;
 
@@ -452,26 +457,51 @@ export function armarGoLive(estado: EstadoClub, ahora: Ahora): VistaGoLive {
   return { pendientes, hecha, firma: JSON.stringify([pendientes, hecha]) };
 }
 
-export interface RespaldoAntesDeLimpiar {
+/**
+ * El respaldo de ahora para descargar ANTES de algo que no se deshace (la limpieza del go-live, empezar en blanco):
+ * UNA descarga, y después el dueño elige ese archivo (`verificarRespaldoElegido`).
+ */
+export interface RespaldoParaVerificar {
   texto: string;
   /** Huella del estado de ese momento: el archivo elegido tiene que ser éste. */
   huella: string;
   nombre: string;
 }
+export type RespaldoAntesDeLimpiar = RespaldoParaVerificar;
+
+function respaldoParaVerificar(estado: EstadoClub, usuarioId: string | null, ms: number, nombre: string): RespaldoParaVerificar {
+  return { texto: textoDelRespaldo(estado, usuarioId, ms), huella: huellaRespaldo(estado), nombre };
+}
 
 /** Paso 1 de la limpieza: el respaldo completo de ahora para descargar (UNA descarga). */
-export function respaldoAntesDeLimpiar(estado: EstadoClub, usuarioId: string | null, ms: number): RespaldoAntesDeLimpiar {
-  return { texto: textoDelRespaldo(estado, usuarioId, ms), huella: huellaRespaldo(estado), nombre: nombreDelRespaldoAntesDeLimpiar(ms) };
+export const respaldoAntesDeLimpiar = (estado: EstadoClub, usuarioId: string | null, ms: number) =>
+  respaldoParaVerificar(estado, usuarioId, ms, nombreDelRespaldoAntesDeLimpiar(ms));
+/** Paso 1 de empezar en blanco: lo mismo, con su nombre. */
+export const respaldoAntesDeBlanco = (estado: EstadoClub, usuarioId: string | null, ms: number) =>
+  respaldoParaVerificar(estado, usuarioId, ms, nombreDelRespaldoAntesDeBlanco(ms));
+
+/** Para qué se pide el respaldo, en los mensajes: quién lo hace, qué no se hace sin él y cómo se llama el archivo. */
+export interface ParaQue {
+  /** «La limpieza» / «Empezar en blanco». */
+  que: string;
+  /** «La limpieza la hace un dueño.» / «Empezar en blanco lo hace un dueño.» */
+  soloDuenio: string;
+  /** «no se limpia nada» / «no se empieza nada». */
+  sinEso: string;
+  /** El nombre del archivo que se bajó, con «…» en la fecha. */
+  archivo: string;
 }
+export const PARA_LIMPIAR: ParaQue = { que: "La limpieza", soloDuenio: "La limpieza la hace un dueño.", sinEso: "no se limpia nada", archivo: "breakpoint-jornada-antes-golive-….json" };
+export const PARA_BLANCO: ParaQue = { que: "Empezar en blanco", soloDuenio: "Empezar en blanco lo hace un dueño.", sinEso: "no se empieza nada", archivo: "breakpoint-jornada-antes-de-blanco-….json" };
 
 export type VerificacionDelRespaldo = { ok: true } | { ok: false; causa: "otro" | "danado" | "cambio"; motivo: string };
 
 /**
  * Paso 2: ¿el archivo elegido es el respaldo de la jornada TAL COMO ESTÁ AHORA? Si es el que se descargó pero algo
- * cambió en el medio (se cobró, se cargó un turno), hay que descargar de nuevo: si no, la limpieza borraría algo que
- * no quedó en el respaldo.
+ * cambió en el medio (se cobró, se cargó un turno), hay que descargar de nuevo: si no, la limpieza (o la jornada en
+ * blanco) se llevaría algo que no quedó en el respaldo.
  */
-export function verificarRespaldoElegido(estado: EstadoClub, textoElegido: string, huellaDescargada: string): VerificacionDelRespaldo {
+export function verificarRespaldoElegido(estado: EstadoClub, textoElegido: string, huellaDescargada: string, para: ParaQue = PARA_LIMPIAR): VerificacionDelRespaldo {
   let elegido: { v?: unknown; estado?: unknown } | null;
   try {
     elegido = JSON.parse(textoElegido) as { v?: unknown; estado?: unknown } | null;
@@ -479,7 +509,7 @@ export function verificarRespaldoElegido(estado: EstadoClub, textoElegido: strin
     return { ok: false, causa: "danado", motivo: "Ese archivo está incompleto o dañado (no se puede leer): descargá el respaldo de nuevo y elegí el nuevo." };
   }
   if (!elegido || typeof elegido !== "object" || elegido.v !== VERSION_ESTADO || !elegido.estado || typeof elegido.estado !== "object")
-    return { ok: false, causa: "otro", motivo: "Ese no es el respaldo que se descargó para la limpieza: elegí el «breakpoint-jornada-antes-golive-….json»." };
+    return { ok: false, causa: "otro", motivo: `Ese no es el respaldo que se descargó recién: elegí el «${para.archivo}».` };
   const huella = huellaRespaldo(elegido.estado);
   if (huella === huellaRespaldo(estado)) {
     // Tiene que servir para «Restaurar» si hace falta volver atrás.
@@ -491,37 +521,86 @@ export function verificarRespaldoElegido(estado: EstadoClub, textoElegido: strin
   return { ok: false, causa: "otro", motivo: "Ese archivo no es el respaldo que descargaste recién: elegí el último que bajaste." };
 }
 
-export interface PedidoDeLimpieza {
-  conservarSaldos: boolean;
-  conservarStock: boolean;
+/** Lo que trae la pantalla para algo que no se deshace: el PIN de quien opera y el respaldo de los dos pasos. */
+export interface RespaldoDeDosPasos {
   pin: string;
   /** El respaldo descargado en el paso 1 (null: todavía no se descargó). */
-  descargado: Pick<RespaldoAntesDeLimpiar, "huella" | "nombre"> | null;
+  descargado: Pick<RespaldoParaVerificar, "huella" | "nombre"> | null;
   /** El texto del archivo elegido en el paso 2 (null: no se eligió). */
   textoElegido: string | null;
+}
+
+type DosPasosListos = { ok: true; auth: Auth; descargado: Pick<RespaldoParaVerificar, "huella" | "nombre">; textoElegido: string };
+
+/**
+ * Lo común a la limpieza y a empezar en blanco, ANTES de tocar nada: el puesto del dueño, quien opera es un dueño con
+ * ESTE PIN y los dos pasos hechos (descargado y elegido). Que el archivo sea la jornada de ahora lo dice
+ * `verificarRespaldoElegido`.
+ */
+function duenioConLosDosPasos(estado: EstadoClub, pedido: RespaldoDeDosPasos, auth: Auth, rolPanel: string, para: ParaQue): DosPasosListos | { ok: false; mensaje: string } {
+  if (rolPanel !== "OWNER") return { ok: false, mensaje: para.soloDuenio };
+  const d = pinDeDuenio(estado, auth, pedido.pin, para.que);
+  if (!d.ok) return { ok: false, mensaje: d.mensaje };
+  if (!pedido.descargado) return { ok: false, mensaje: "Primero descargá el respaldo (paso 1)." };
+  if (pedido.textoElegido == null) return { ok: false, mensaje: `Elegí el respaldo que descargaste (paso 2): sin eso ${para.sinEso}.` };
+  return { ok: true, auth: d.auth, descargado: pedido.descargado, textoElegido: pedido.textoElegido };
+}
+
+export interface PedidoDeLimpieza extends RespaldoDeDosPasos {
+  conservarSaldos: boolean;
+  conservarStock: boolean;
 }
 
 export type DesenlaceLimpieza = Desenlace & { causa?: "otro" | "danado" | "cambio" };
 
 /** Paso 2 de la limpieza: verifica el respaldo elegido contra el estado de ahora y recién ahí limpia. */
 export function limpiarConRespaldo(estado: EstadoClub, pedido: PedidoDeLimpieza, ahora: Ahora, auth: Auth, rolPanel: string): DesenlaceLimpieza {
-  if (rolPanel !== "OWNER") return no("La limpieza la hace un dueño.");
-  const d = pinDeDuenio(estado, auth, pedido.pin, "La limpieza");
+  const d = duenioConLosDosPasos(estado, pedido, auth, rolPanel, PARA_LIMPIAR);
   if (!d.ok) return no(d.mensaje);
-  if (!pedido.descargado) return no("Primero descargá el respaldo (paso 1).");
-  if (pedido.textoElegido == null) return no("Elegí el respaldo que descargaste (paso 2): sin eso no se limpia nada.");
   const pendientes = pendientesGoLive(estado, ahora);
   if (pendientes.length) return no(`Antes de limpiar hay que resolver: ${pendientes.join(" ")}`);
-  const v = verificarRespaldoElegido(estado, pedido.textoElegido, pedido.descargado.huella);
+  const v = verificarRespaldoElegido(estado, d.textoElegido, d.descargado.huella, PARA_LIMPIAR);
   if (!v.ok) return { ok: false, mensaje: v.motivo, causa: v.causa };
   const r = limpiarParaGoLive(estado, { conservarSaldos: pedido.conservarSaldos, conservarStock: pedido.conservarStock }, d.auth, ahora);
   if (!r.ok) return no(r.motivo);
   const b = r.borrado;
   return {
     ok: true,
-    mensaje: `Respaldo verificado: limpieza hecha. Se borraron ${b.turnos} turnos, ${b.cuentas} cuentas y ${b.movimientos} movimientos de caja; quedaron ${b.quedan} turnos por jugar (con su seña)${pedido.conservarSaldos ? "" : " y los saldos en cero"}. Guardá ${pedido.descargado.nombre} en un lugar privado.`,
+    mensaje: `Respaldo verificado: limpieza hecha. Se borraron ${b.turnos} turnos, ${b.cuentas} cuentas y ${b.movimientos} movimientos de caja; quedaron ${b.quedan} turnos por jugar (con su seña)${pedido.conservarSaldos ? "" : " y los saldos en cero"}. Guardá ${d.descargado.nombre} en un lugar privado.`,
   };
 }
+
+// ───────────── empezar otra jornada en blanco ─────────────
+
+/** Lo que dice la pantalla antes de empezar en blanco (qué pasa, en criollo). */
+export const QUE_PASA_EN_BLANCO = "Se empieza de cero: hay que volver a armar los PIN. Lo de ahora queda en el respaldo que bajaste y en una copia en esta compu.";
+
+export type AutorizacionEnBlanco = { ok: true; auth: Auth } | { ok: false; mensaje: string; causa?: "otro" | "danado" | "cambio" };
+
+/**
+ * Paso 2 de «Empezar otra jornada en blanco»: un dueño (puesto y PIN) con el respaldo de AHORA descargado y elegido de
+ * vuelta. Devuelve el auth para `almacen.empezarEnBlanco`, que la pantalla llama en el mismo momento (sin nada en el
+ * medio que pueda cambiar la jornada) y que vuelve a controlar el puesto y el PIN. Con `causa: "cambio"`, la
+ * pantalla vuelve al paso 1.
+ */
+export function autorizarEnBlanco(estado: EstadoClub, pedido: RespaldoDeDosPasos, auth: Auth, rolPanel: string): AutorizacionEnBlanco {
+  // Que sea la jornada real lo controla el almacén (por el reloj con el que se armó): la demo dice que no.
+  const d = duenioConLosDosPasos(estado, pedido, auth, rolPanel, PARA_BLANCO);
+  if (!d.ok) return { ok: false, mensaje: d.mensaje };
+  const v = verificarRespaldoElegido(estado, d.textoElegido, d.descargado.huella, PARA_BLANCO);
+  if (!v.ok) return { ok: false, mensaje: v.motivo, causa: v.causa };
+  return { ok: true, auth: d.auth };
+}
+
+/** Lo que se le dice al dueño si `almacen.empezarEnBlanco` no empezó (por qué, en criollo). */
+export function motivoDeEnBlanco(r: Extract<ResultadoDeRestaurar, { ok: false }>): string {
+  if (r.causa === "sin-lugar") return "No hay lugar para guardar una copia en esta compu: archivá días cerrados antes. No se tocó nada.";
+  return r.motivo;
+}
+
+/** El aviso después de empezar en blanco: dónde quedó lo de antes y qué sigue. */
+export const avisoDeEnBlanco = (nombre: string) =>
+  `Listo: empezó una jornada nueva en blanco. Lo de antes quedó en ${nombre} (guardalo en un lugar privado) y en una copia en esta compu. Cada dueño vuelve a armar su PIN.`;
 
 // ───────────── las acciones de la solapa ─────────────
 

@@ -86,22 +86,40 @@ CSS real de la app, almacén real en **jornada real**, reloj controlado), con el
 manejador del ERP para la tienda. Es un e2e y no un `*.test.ts` porque, mientras haya brechas, falla a propósito (y `npm
 test` corre `src/**/*.test.ts`). Lo que React no puede hacer queda como check `brecha.*` con la línea del vanilla y de React.
 
-**Resultado: 123 de 131 en verde; las 8 que faltan son brechas** (7 de fondo: las solapas por persona fallan por los dos lados, `brecha.permisos-por-persona` y `brecha.duenio-en-el-puesto-de-recepcion`).** 0 errores de consola, 0 scroll de costado a 390 px.**
+**Resultado (corrida del 17/10 con la rama `ccr-63ed11dc-blanco`): 136 de 137 en verde; la única que falta es la brecha
+`aprobador-real`, que depende del dueño.** 0 otras fallas, 0 errores de consola, 0 scroll de costado a 390 px. (Primera
+corrida: 123 de 131 con 8 brechas; después de las solapas por persona y el alta con teléfono, 126 de 129 con 3.)
 
-### Brechas, por prioridad
+### La brecha que queda
 
 | Prioridad | Brecha | Vanilla | React |
 |---|---|---|---|
-| 🔴 bloquea el día de corte | **Las solapas siguen al login del ERP, no a la persona del PIN.** Con el puesto en OWNER, Lu (recepción) ve Tablero, Proveedores, Stock, Novedades y Configuración (el motor frena lo sensible: «Lu no tiene permiso para esto»). Con el puesto en RECEPTION, Majo entra con su PIN y no ve nada de dueño (ni respaldo, ni go-live). Hay que decidir el modelo puesto/persona (G7) o filtrar las solapas por `puede()` del operador | `app.mjs` pestañas por permiso; uat-torneo.e2e.mjs:138 y :302-333 | ClubDemo.tsx:184 · solapas-club.ts:41-52 · config-golive.tsx:50 |
 | 🔴 bloquea el día de corte | **Aprobador del celular publicado sólo en demo**: con el PIN real de Majo dice «PIN incorrecto». Además exige login OWNER del ERP en el celular (el vanilla no). Con G4 (durante el corte sigue el link del vanilla) deja de bloquear, pero el link de «Avisar a Majo» de React apunta a `/admin/club/aprobar` | uat-torneo.e2e.mjs:242-248 | aprobar/page.tsx:28 y :31-44 |
-| 🟠 importante | El alta del turno no tiene el **teléfono «para darlo de alta»**: un titular nuevo queda sin ficha (sin fiado ni novedades); hay que ir antes a Clientes | app.mjs:1662, :1680-1681 | AltaDeTurno.tsx:194-209 |
-| 🟠 importante | **«Pedir OK para fiar»** no está en la cuenta del turno: sólo en Buffet → la tarjeta de la cuenta | uat-torneo.e2e.mjs:230-232 | CuentaDelTurno.tsx · BuffetDelClub.tsx:206-210 |
-| 🟠 importante | Con la cancha cerrada y **la mesa que sigue**, la cuenta del turno no deja sumar cargos: hay que ir a Buffet → «Cargar productos» | app.mjs:1426-1429 | CuentaDelTurno.tsx:492 · cuenta-core.ts:162 |
-| 🟢 menor | Al **cambiar de persona** queda abierta la cuenta del turno que tenía la anterior (el vanilla cierra la ventana) | uat-b.e2e.mjs:141-143 | ClubDemo.tsx:185 |
-| 🟢 menor | Falta **«Empezar otra jornada en blanco»** (con PIN de dueño, apartando la de ahora) | app.mjs:888, :2279 | config-jornada.tsx |
 
-Propuestas triviales (no se tocaron: este frente sólo agrega tests y docs): limpiar `panel` cuando cambia el operador
-(`useOperador` en ClubDemo.tsx); mostrar `SumarCargo` también con la cancha `finalizada` mientras la mesa siga abierta.
+Es decisión del dueño (G4: durante el corte la aprobación sigue por el link del vanilla; para la jornada real del ERP hay
+que sumar el negocio a `NEGOCIOS_CON_APROBADOR_REAL` y resolver el login OWNER en el celular). No se tocó.
+
+**A tener en cuenta con G7 (no es brecha del guion):** Majo en un puesto de recepción ve Configuración, pero archivar,
+restaurar, empezar en blanco y la limpieza del go-live piden además el puesto del dueño (rol OWNER del ERP, en el
+almacén y en `configuracion-core.ts`): desde ese puesto le dicen «… lo hace un dueño». El UAT corre en el puesto del
+dueño, como quedaría el día de corte.
+
+### Cerradas desde la primera corrida
+
+| Brecha | Cómo quedó | Dónde | Check del UAT |
+|---|---|---|---|
+| Las solapas seguían al login del ERP (🔴) | Las decide quien entró con su PIN: Lu no ve Configuración ni lo de dueño; Majo en un puesto de recepción sí | ClubDemo.tsx · solapas-club.ts (488cfdf8) | `1.recepcion`, `1.motor-frena` |
+| Teléfono en «Dar un turno» (🟠) | Titular nuevo → nombre + teléfono → ficha atada al turno; si el número ya tiene ficha, se usa ésa (no se duplica) | AltaDeTurno.tsx · alta-core.ts (c2b452c1) | `1.alta-con-telefono`, `1.fichas`, `1.en-clientes`, `2.ficha-por-telefono` |
+| «Pedir OK para fiar» en la cuenta del turno (🟠) | Por jugador, con el código del dueño, como en Buffet | CuentaDelTurno.tsx · pedido-del-duenio.tsx (c2b452c1) | `3.fiar-en-la-cuenta` (que el botón esté; el pedido del guion sale de Buffet, la misma pieza) |
+| Con la cancha cerrada y la mesa que sigue, no se sumaban cargos (🟠) | Se suman y entran al cobro; lo valida el motor | CuentaDelTurno.tsx · cuenta-core.ts (c2b452c1) | `2.marca`, `2.sigue` |
+| Al cambiar de persona quedaba abierta la cuenta anterior (🟢) | Se cierra | ClubDemo.tsx (488cfdf8) | `6.cierra-lo-de-lu` |
+| «Empezar otra jornada en blanco» (🟢) | Configuración → Jornada, sólo jornada real y sólo un dueño: zona de peligro con UNA descarga del respaldo de ahora + elegir ese archivo + PIN; se verifica que es la jornada de ahora y recién ahí `almacen.empezarEnBlanco` (copia en la compu; sin lugar, nada). Aparece la consola de primera vez | config-jornada.tsx · configuracion-core.ts (`autorizarEnBlanco`, compartido con la limpieza del go-live) | `7c.*` (otra compu con la jornada del sábado) |
+
+**Revisión de `1.motor-frena`** (el cambio de terminales: con Lu ya no se ve Configuración). Es correcto: con las solapas
+por persona, que Lu no vea Configuración es lo esperado. Pero así como estaba anotaba «el motor frena» sin probar el
+motor, y si Lu veía Configuración sin el alta de usuarios el check desaparecía en silencio. Ahora, sin la solapa, igual
+prueba el motor con el estado real y el PIN real de Lu (`altaUsuario` sobre una copia → «Lu no tiene permiso para
+esto.»): esconder la solapa no es seguridad.
 
 ### Lo que funciona igual o mejor que el vanilla
 
@@ -124,6 +142,10 @@ Propuestas triviales (no se tocaron: este frente sólo agrega tests y docs): lim
   al centavo día por día). **Go-live mejor que el vanilla**: además de listar lo pendiente, exige elegir el respaldo
   recién bajado (otro archivo no limpia) y no deja copias sueltas en la compu; conserva maestro, saldos y el turno de
   mañana con su adelanto.
+- **Empezar otra jornada en blanco, mejor que el vanilla**: el vanilla bajaba un respaldo solo y seguía sin saber si la
+  descarga había llegado (el B1 del Gate). Acá: UNA descarga, elegir ese archivo y el PIN; si es otro archivo, o si
+  cambió algo en el medio, no se toca nada. Lo de antes queda en el archivo elegido y en una copia en la compu; si no
+  hay lugar para esa copia, tampoco se toca nada («archivá días cerrados antes»).
 
 **Llaves del corte (no son brechas, son decisiones del dueño):** `NEGOCIOS_CON_JORNADA_REAL` vacío en
 `club/page.tsx` (G1) y la base del ERP para la jornada (G2). El UAT monta la jornada real como quedaría ese día.
