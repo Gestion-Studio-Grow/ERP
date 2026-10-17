@@ -324,7 +324,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
           <Suspense fallback={<SolapaCargando />}>
             {solapa === "fijos" && <FijosYEspera almacen={almacen} onVerTurno={verTurno} />}
             {solapa === "canchas" && <CanchasDelClub almacen={almacen} dia={dia} />}
-            {solapa === "buffet" && <BuffetDelClub almacen={almacen} onVerTurno={verTurno} />}
+            {solapa === "buffet" && <BuffetDelClub almacen={almacen} onVerTurno={verTurno} negocio={negocio} />}
             {solapa === "caja" && <CajaDelClub almacen={almacen} />}
             {solapa === "tienda" && <TiendaDelClub almacen={almacen} />}
             {extras.map((e) =>

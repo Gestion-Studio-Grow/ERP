@@ -84,11 +84,14 @@ const TarjetaCuenta = memo(function TarjetaCuenta({
   almacen,
   medio,
   onAccion,
+  negocio,
 }: {
   cuenta: VistaCuentaBuffet;
   almacen: Almacen;
   medio: MedioCobro;
   onAccion: (a: AccionBuffet) => void;
+  /** Para guardar en el equipo los intentos de PIN del descuento (sobreviven a recargar). */
+  negocio?: string;
 }) {
   const [confirmando, setConfirmando] = useState<DatosConfirmacion | null>(null);
   const titulo = useId();
@@ -188,7 +191,7 @@ const TarjetaCuenta = memo(function TarjetaCuenta({
             {cuenta.pedidoPendiente && <PedidoDelDuenio almacen={almacen} pedido={cuenta.pedidoPendiente} />}
           </div>
         )}
-        <MesaCompleja almacen={almacen} cuenta={cuenta} />
+        <MesaCompleja almacen={almacen} cuenta={cuenta} negocio={negocio} />
       </article>
     </li>
   );
@@ -332,7 +335,7 @@ function AbrirCuenta({ almacen, onAccion }: { almacen: Almacen; onAccion: (a: Ac
   );
 }
 
-export default function BuffetDelClub({ almacen, onVerTurno }: { almacen: Almacen; onVerTurno: (reservaId: string) => void }) {
+export default function BuffetDelClub({ almacen, onVerTurno, negocio }: { almacen: Almacen; onVerTurno: (reservaId: string) => void; negocio?: string }) {
   const vista = useSeleccion(almacen, seleccionarBuffet, compartirBuffet);
   const [medio, setMedio] = useState<MedioCobro>("efectivo");
   const onAccion = useCallback(
@@ -384,7 +387,7 @@ export default function BuffetDelClub({ almacen, onVerTurno }: { almacen: Almace
         <ComoPaga medio={medio} onElegir={setMedio} conCreditos={creditos} leyenda="Cómo pagan (para «Cobrar»)" />
         <ul className={cn("grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3")}>
           {vista.cuentas.map((c) => (
-            <TarjetaCuenta key={c.id} cuenta={c} almacen={almacen} medio={medio} onAccion={onAccion} />
+            <TarjetaCuenta key={c.id} cuenta={c} almacen={almacen} medio={medio} onAccion={onAccion} negocio={negocio} />
           ))}
         </ul>
       </section>

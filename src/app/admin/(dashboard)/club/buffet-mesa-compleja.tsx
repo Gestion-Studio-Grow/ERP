@@ -19,21 +19,37 @@ import type { Almacen } from "./almacen";
 import type { VistaCuentaBuffet } from "./buffet-core";
 import {
   DESHACIBLE_MESA,
-  SIN_INTENTOS,
-  anotarIntentoDePin,
+  claveDeIntentosDePin,
+  descuentoConTope,
   ejecutarMesa,
-  esperaDelPin,
+  guardaDeIntentos,
   pinesDeEjemplo,
   type AccionMesa,
   type DesenlaceMesa,
-  type IntentosDePin,
+  type GuardaDeIntentos,
 } from "./buffet-mesa-core";
+import { leerMonto } from "./montos-core";
 
-// Los intentos de PIN son del almacén (del mostrador), no de la tarjeta: cerrar y abrir la cuenta no los borra.
-const intentosPorAlmacen = new WeakMap<Almacen, IntentosDePin>();
+// Los intentos de PIN son del mostrador, no de la tarjeta: cerrar y abrir la cuenta no los borra, y con el negocio
+// quedan guardados en el equipo (recargar tampoco). Sin negocio o sin almacenamiento, en memoria.
+const guardas = new WeakMap<Almacen, GuardaDeIntentos>();
+function guardaDe(almacen: Almacen, negocio: string | undefined): GuardaDeIntentos {
+  let g = guardas.get(almacen);
+  if (!g) {
+    let almacenamiento: Storage | null = null;
+    try {
+      almacenamiento = typeof window !== "undefined" ? window.localStorage : null;
+    } catch {
+      almacenamiento = null;
+    }
+    g = guardaDeIntentos(almacenamiento, negocio?.trim() ? claveDeIntentosDePin(negocio) : null);
+    guardas.set(almacen, g);
+  }
+  return g;
+}
 
 function correr(almacen: Almacen, accion: AccionMesa): DesenlaceMesa {
-  let d: DesenlaceMesa = { ok: false, mensaje: "", pinAjeno: false };
+  let d: DesenlaceMesa = { ok: false, mensaje: "", pin: null };
   almacen.ejecutar(
     (e, ahora, auth) => {
       d = ejecutarMesa(e, accion, ahora, auth);
@@ -101,7 +117,7 @@ function PasarCargo({ almacen, cuenta }: { almacen: Almacen; cuenta: VistaCuenta
   );
 }
 
-function CargoManual({ almacen, cuenta }: { almacen: Almacen; cuenta: VistaCuentaBuffet }) {
+function CargoManual({ almacen, cuenta, negocio }: { almacen: Almacen; cuenta: VistaCuentaBuffet; negocio?: string }) {
   const [concepto, setConcepto] = useState("");
   const [tipo, setTipo] = useState<"cargo" | "descuento">("cargo");
   const [monto, setMonto] = useState("");
@@ -115,15 +131,15 @@ function CargoManual({ almacen, cuenta }: { almacen: Almacen; cuenta: VistaCuent
       className="flex flex-col gap-2"
       onSubmit={(e) => {
         e.preventDefault();
-        const ahora = Date.now();
-        const previo = intentosPorAlmacen.get(almacen) ?? SIN_INTENTOS;
-        const espera = descuento ? esperaDelPin(previo, ahora) : 0;
-        if (espera > 0) {
-          almacen.informar({ ok: false, mensaje: `Demasiados PIN equivocados: esperá ${espera} s y probá de nuevo.` });
-          return;
+        const accion: AccionMesa = { tipo: "cargoManual", cuentaId: cuenta.id, concepto, monto: leerMonto(monto), descuento, pin };
+        let d: DesenlaceMesa;
+        if (descuento) {
+          const r = descuentoConTope(guardaDe(almacen, negocio), Date.now(), () => correr(almacen, accion));
+          if (r.trabado) almacen.informar(r.desenlace);
+          d = r.desenlace;
+        } else {
+          d = correr(almacen, accion);
         }
-        const d = correr(almacen, { tipo: "cargoManual", cuentaId: cuenta.id, concepto, monto: Number(monto), descuento, pin });
-        if (descuento && pin.trim()) intentosPorAlmacen.set(almacen, anotarIntentoDePin(previo, !d.pinAjeno, ahora));
         // El PIN no queda escrito después de probarlo, salga bien o mal.
         setPin("");
         if (d.ok) {
@@ -164,7 +180,8 @@ function CargoManual({ almacen, cuenta }: { almacen: Almacen; cuenta: VistaCuent
   );
 }
 
-export default function MesaCompleja({ almacen, cuenta }: { almacen: Almacen; cuenta: VistaCuentaBuffet }) {
+/** `negocio`: para guardar los intentos de PIN en el equipo por negocio (sin él, quedan en memoria). */
+export default function MesaCompleja({ almacen, cuenta, negocio }: { almacen: Almacen; cuenta: VistaCuentaBuffet; negocio?: string }) {
   return (
     <details className="rounded-md border border-line">
       <summary className="flex min-h-11 cursor-pointer items-center px-3 text-sm font-semibold text-strong focus-visible:outline-2 focus-visible:outline-focus">
@@ -172,7 +189,7 @@ export default function MesaCompleja({ almacen, cuenta }: { almacen: Almacen; cu
       </summary>
       <div className="flex flex-col gap-4 border-t border-line p-3">
         <PasarCargo almacen={almacen} cuenta={cuenta} />
-        <CargoManual almacen={almacen} cuenta={cuenta} />
+        <CargoManual almacen={almacen} cuenta={cuenta} negocio={negocio} />
       </div>
     </details>
   );

@@ -20,6 +20,7 @@ import { MEDIOS, ajustarFondo, cajaAbierta, cajaCerrada, cajasConMovimientosSinC
 import type { Ahora, Auth, EstadoClub, Fecha } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
 import { MEDIOS_CAJA } from "./cuenta-core";
+import { leerMonto } from "./montos-core";
 
 const ddmm = (f: Fecha) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
 
@@ -142,11 +143,8 @@ export type AccionCaja =
   | { tipo: "cerrar"; contado: string; dia: Fecha | null; pin: string }
   | { tipo: "fondo"; monto: string };
 
-/** El monto que tipea la persona: «12.500», «12500», «$ 12.500» → 12500. Vacío o inválido → NaN. */
-export function leerMonto(texto: string): number {
-  const limpio = texto.replace(/[$\s.]/g, "").replace(",", ".");
-  return limpio === "" ? Number.NaN : Math.round(Number(limpio));
-}
+/** El monto que tipea la persona: la regla común del club (montos-core.ts). Se re-exporta para quien lo importa de acá. */
+export { leerMonto };
 
 /**
  * Egreso y cierre van con el PIN TIPEADO (no el que el puesto tenga guardado): quien opera es `auth.usuarioId`, y el

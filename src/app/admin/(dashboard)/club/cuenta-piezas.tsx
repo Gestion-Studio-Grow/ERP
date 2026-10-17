@@ -17,6 +17,7 @@ import { Field, Input } from "@/components/ui/Field";
 import { pesos } from "@/lib/club/motor.mjs";
 import type { Almacen, Desenlace } from "./almacen";
 import { fichasParaSumar, type AccionCuenta, type VistaCuenta } from "./cuenta-core";
+import { leerMonto } from "./montos-core";
 
 export const SumarJugador = memo(function SumarJugador({
   almacen,
@@ -87,7 +88,8 @@ export function CobroDeLaCancha({
   const [escrito, setEscrito] = useState<string | null>(null);
   const id = useId();
   const texto = escrito ?? String(cancha.sugerido);
-  const monto = Math.round(Number(texto.replace(/\./g, "").replace(",", ".")));
+  // La misma lectura que la caja (montos-core.ts): «$ 12.500», «12.500» y «12500» son lo mismo.
+  const monto = leerMonto(texto);
   const valido = monto > 0 && monto <= cancha.saldo;
   return (
     <section aria-labelledby={`${id}-t`} className="flex flex-col gap-2 rounded-md border border-line p-3">
