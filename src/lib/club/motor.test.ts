@@ -69,6 +69,9 @@ const FUNCIONES = [
   "cerrarCanchaYSeguir", "cerrarCargosDelTurno", "mesasAbiertas",
   "diaDeCaja", "cajaCerrada", "cajaAbierta", "resumenCaja", "cajasSinCerrar", "cajasConMovimientosSinCerrar", "cerrarCaja", "egresoCaja",
   "puedeACuenta", "solicitarCredito", "resolverCredito", "codigoAprobacion", "aprobarPorCodigo", "datosAprobacion", "cobrarDeuda",
+  // Clientes y Tablero del dueño (solapas de la sesión del club).
+  "editarCliente", "bajaCliente", "bajaNovedades", "solicitarAcceso", "otorgarAcceso", "rechazarAcceso",
+  "solicitarCC", "configurarCC", "estadoDeCuenta", "kpis", "mapaDeCalor", "metricasPlatos", "mensajeWhatsApp", "linkWhatsApp",
 ] as const satisfies readonly Funciones[];
 const CONSTANTES = [
   "VERSION_ESTADO", "MEDIOS", "ESTADOS", "TIPOS", "ROLES", "PERMISOS", "NOMBRE_DIA",

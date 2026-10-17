@@ -296,6 +296,15 @@ export interface Novedad extends Sello {
   porCodigo?: boolean;
 }
 
+/** Alguien nuevo pidió entrar al sistema desde el mostrador; lo otorga (o rechaza) un dueño. */
+export interface SolicitudAcceso extends Sello {
+  id: string;
+  nombre: string;
+  estado: "pendiente" | "otorgada" | "rechazada";
+  /** El usuario que se creó al otorgarlo. */
+  usuarioId?: string;
+}
+
 export interface Bloqueo {
   id: string;
   /** "*" = todo el club. */
@@ -347,9 +356,9 @@ export interface EstadoClub {
   bloqueos: Bloqueo[];
   luces: Record<string, boolean>;
   clima: { lluvia: unknown; pronostico?: unknown };
+  solicitudesAcceso: SolicitudAcceso[];
   // Lo que todavía no consume ninguna pantalla React: se tipa cuando se porte.
   proveedores: unknown[];
-  solicitudesAcceso: unknown[];
   difusiones: unknown[];
   pedidos: unknown[];
   fijos: Fijo[];
@@ -433,6 +442,12 @@ export declare function buscarProductos(estado: EstadoClub, texto: string, opcio
 /** Lo que manda el lector (código interno o de fábrica, sin distinguir mayúsculas). */
 export declare function productoPorCodigo(estado: EstadoClub, codigo: string): Resultado<{ producto: Producto }>;
 export declare function altaCliente(estado: EstadoClub, datos: { nombre: string; tel?: string; nivel?: string }, ahora?: Ahora): Resultado<{ cliente: Cliente }>;
+/** Lo que no viene (undefined) no se toca; el nombre no puede quedar vacío. */
+export declare function editarCliente(estado: EstadoClub, clienteId: string, datos: { nombre?: string; tel?: string; nivel?: string }, ahora?: Ahora): Resultado<{ cliente: Cliente }>;
+/** Sólo sin deuda ni cargos abiertos en el buffet. La ficha queda (inactiva), con su historia. */
+export declare function bajaCliente(estado: EstadoClub, clienteId: string, ahora?: Ahora): Resultado;
+/** El cliente pidió no recibir más novedades (`volver: true` lo vuelve a anotar). */
+export declare function bajaNovedades(estado: EstadoClub, clienteId: string, ahora?: Ahora, volver?: boolean): Resultado;
 
 // ───────────── usuarios y PIN (del piloto; en el ERP manda el login) ─────────────
 
@@ -440,6 +455,11 @@ export declare function puede(estado: EstadoClub, usuarioId: string, accion: str
 export declare function verificarPin(estado: EstadoClub, usuarioId: string, pin: string): Resultado<{ usuario: Usuario }>;
 /** null si el PIN viene vacío. */
 export declare function usuarioPorPin(estado: EstadoClub, pin: string): Resultado<{ usuario: Usuario }> | null;
+/** Alguien nuevo pide acceso desde el mostrador: queda pendiente hasta que un dueño lo otorgue. */
+export declare function solicitarAcceso(estado: EstadoClub, nombre: string, ahora?: Ahora): Resultado<{ solicitud: SolicitudAcceso }>;
+/** Un dueño (con su PIN) otorga el acceso: el motor genera un PIN de 2 dígitos que se muestra UNA vez. */
+export declare function otorgarAcceso(estado: EstadoClub, solicitudId: string, datos: { rol: Rol }, auth: Auth, ahora?: Ahora): Resultado<{ usuario: Usuario; pin: string }>;
+export declare function rechazarAcceso(estado: EstadoClub, solicitudId: string, auth: Auth, ahora?: Ahora): Resultado;
 
 // ───────────── agenda de canchas ─────────────
 
@@ -743,3 +763,74 @@ export declare function aprobarPorCodigo(
 export declare function datosAprobacion(estado: EstadoClub, novedadId: string): DatosAprobacion | null;
 /** El cliente paga su cuenta corriente (todo o una parte; sin monedero). */
 export declare function cobrarDeuda(estado: EstadoClub, clienteId: string, pago?: { medio?: Medio; monto?: number }, ahora?: Ahora): Resultado<{ monto: number; saldo: number }>;
+/** Atajo de recepción: pedir al dueño que habilite la cuenta corriente hasta `limite`. */
+export declare function solicitarCC(estado: EstadoClub, clienteId: string, pedido: { limite: number; nota?: string }, auth: Auth, ahora?: Ahora): Resultado<{ novedad: Novedad }>;
+/** El dueño habilita, cambia el límite o corta la cuenta corriente sin pedido de por medio. */
+export declare function configurarCC(estado: EstadoClub, clienteId: string, datos: { habilitada: boolean; limite?: number }, auth: Auth, ahora?: Ahora): Resultado;
+/** Los movimientos de la cuenta corriente, del más viejo al más nuevo, con el saldo corrido. */
+export declare function estadoDeCuenta(
+  estado: EstadoClub,
+  clienteId: string,
+): Resultado<{ movimientos: MovimientoCC[]; saldo: number; cc: { habilitada: boolean; limite: number }; creditos: number }>;
+
+// ───────────── tablero del dueño ─────────────
+
+export interface Kpis {
+  /** 0..1 */
+  ocupacion: number;
+  ocupacionValle: number;
+  ocupacionPico: number;
+  turnos: number;
+  vendido: number;
+  cobrado: number;
+  porCobrar: number;
+  ticketPromedio: number;
+  buffet: number;
+  cuentasAbiertas: number;
+  cuentasAbiertasSaldo: number;
+  faltas: number;
+  cancelados: number;
+  /** La caja abierta ahora (la misma que muestra Caja). */
+  caja: ResumenCaja;
+  stockValorizado: number;
+  deudaClientes: number;
+  creditos: number;
+  deudaProveedores: number;
+}
+
+export declare function kpis(estado: EstadoClub, fecha: Fecha, ahora?: Ahora): Kpis;
+/** Ocupación día × hora (0..1). `horas` en minutos, cada 60, del que abre más temprano al que cierra más tarde. */
+export declare function mapaDeCalor(estado: EstadoClub, fechas: Fecha[]): { horas: number[]; filas: { fecha: Fecha; valores: number[] }[] };
+export interface FilaPlato {
+  productoId: string;
+  plato: string;
+  unidades: number;
+  facturado: number;
+  costo: number;
+  margen: number;
+  porDia: number;
+  /** 0..1 del total facturado en cocina. */
+  participacion: number;
+}
+export declare function metricasPlatos(estado: EstadoClub, rango: { desde?: Fecha; hasta?: Fecha }): { filas: FilaPlato[]; total: number; dias: number };
+
+// ───────────── WhatsApp ─────────────
+
+export type TipoMensajeWhatsApp =
+  | "confirmacion"
+  | "recordatorio"
+  | "espera"
+  | "lluvia_movido"
+  | "lluvia_suspendido"
+  | "lluvia_devolucion"
+  | "falta"
+  | "deuda"
+  | "aprobacion"
+  | "aprobado"
+  | "pedidoTienda"
+  | "pedidoListo"
+  | "reposicion";
+/** El texto listo para mandar (cada tipo usa sus datos: `deuda` pide `nombre` y `monto`). */
+export declare function mensajeWhatsApp(tipo: TipoMensajeWhatsApp, datos: Record<string, string | number | boolean | null | undefined>): string;
+/** `https://wa.me/<número>?text=…`; sin número, WhatsApp abre para elegir el chat. */
+export declare function linkWhatsApp(tel: string, texto: string): string;
