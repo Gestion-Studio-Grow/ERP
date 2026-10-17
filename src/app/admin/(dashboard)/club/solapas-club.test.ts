@@ -43,3 +43,10 @@ test("las piezas globales tienen id único y apto para el DOM, y cada una baja e
 test("el aviso del dueño está montado como pieza global", () => {
   assert.ok(PIEZAS_GLOBALES_DEL_CLUB.some((p) => p.id === "aviso-del-duenio"));
 });
+
+test("el bloqueo con PIN es la PRIMERA pieza global (antes que el aviso del dueño) y no es una solapa", () => {
+  const ids = PIEZAS_GLOBALES_DEL_CLUB.map((p) => p.id);
+  assert.equal(ids[0], "bloqueo");
+  assert.ok(ids.indexOf("bloqueo") < ids.indexOf("aviso-del-duenio"));
+  assert.ok(!SOLAPAS_DEL_CLUB.some((s) => s.id === "bloqueo"));
+});
