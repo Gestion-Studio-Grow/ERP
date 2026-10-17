@@ -7,13 +7,16 @@
 //      seña confirmada → novedades del club, turno del mostrador → se ocupa en el turnero;
 //   4. si se cierra la pestaña del turnero que hacía de servidor, otra toma la posta y el club sigue;
 //   5. el club abierto SOLO (sin turnero) es la demo de siempre;
-//   6. ningún pedido a otro origen salvo las fuentes.
+//   6. ningún pedido a otro origen salvo las fuentes;
+//   7. modo «pedido por WhatsApp» (/turnero?modo=pedido&wa=…) para el día de prueba en el club;
+//   8. tienda (/turnero#tienda) con el club abierto en otra pestaña, y el peso del JS del turnero + tienda.
 //
 //   node src/tenants/breakpoint/empaquetar.mjs && node --import tsx src/tenants/breakpoint/turnero/e2e/sitio.e2e.mjs
 import { chromium } from "playwright";
 import { createServer } from "node:http";
 import { readFileSync, mkdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { gzipSync } from "node:zlib";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -73,6 +76,19 @@ console.log("\n▶ gestión del club sola (sin turnero)");
   await p.waitForTimeout(2500);
   check(await p.locator("#bp-turnero").count() === 0, "sin turnero abierto, el club es la demo de siempre (no se conecta a nada)");
   check(/Martín Ríos|Julieta Acosta/.test(await p.textContent("#app")), "con su agenda de ejemplo de siempre");
+  // UAT del orquestador #5: el club ya tiene cosas cargadas y RECIÉN después se abre el turnero en la misma PC. El
+  // turnero tiene que arrancar desde lo del club, no pisárselo con una demo nueva.
+  await p.click('button[data-a="nuevo"]:has-text("+ Turno")');
+  await p.waitForSelector("#f-hora");
+  await p.fill("#f-titular", "Cargado antes del turnero");
+  await p.click('button[data-a="confirmarTurno"]');
+  await p.waitForTimeout(300);
+  if (await p.evaluate(() => document.getElementById("dlg").open)) await p.click('#dlg [data-a="cerrar"]');
+  const t = vigilar(await solo.newPage(), "turnero-despues");
+  await t.goto(`${BASE}/turnero`);
+  await p.waitForFunction(() => /en vivo/.test(document.querySelector("#bp-conexion")?.textContent ?? ""), null, { timeout: 10000 }).catch(() => {});
+  await p.waitForTimeout(500);
+  check(/en vivo/.test(await p.textContent("#bp-conexion").catch(() => "")) && (await p.textContent("#app")).includes("Cargado antes del turnero"), "abrir el turnero después no le borra al club lo que ya había cargado (UAT #5)");
   await solo.close();
 }
 
@@ -220,6 +236,96 @@ console.log("\n▶ se cierra la pestaña servidor");
   await otro.click("#btn-google");
   await club.waitForFunction(() => document.body.innerText.includes("Jugador Demo"), null, { timeout: 8000 }).catch(() => {});
   check(await club.evaluate(() => document.body.innerText.includes("Jugador Demo")), "y una reserva nueva vuelve a llegar al club");
+}
+
+// ───── 7. modo «pedido por WhatsApp»: el celular del jugador no llega a la PC del club ─────
+console.log("\n▶ modo pedido por WhatsApp (?modo=pedido)");
+{
+  const pc = await navegador.newContext({ viewport: { width: 390, height: 844 } });
+  await pc.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  pc.on("request", (r) => { const u = r.url(); if (!u.startsWith(BASE) && !/fonts\.(googleapis|gstatic)\.com/.test(u) && !u.startsWith("data:")) ajenos.push(u); });
+  const hhmm = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  async function elegirTurno(p) {
+    await p.waitForSelector("body[data-estado=listo]", { timeout: 10000 });
+    if (!(await p.locator(".slot").count())) { await p.locator("#dias .dia").nth(1).click(); await p.waitForTimeout(400); }
+    const slot = p.locator(".slot").first();
+    const inicio = Number(await slot.getAttribute("data-inicio"));
+    await slot.click();
+    await p.waitForSelector("#dlg-pedido[open]", { timeout: 3000 }).catch(() => {});
+    return inicio;
+  }
+  const p = vigilar(await pc.newPage(), "pedido");
+  await p.goto(`${BASE}/turnero?modo=pedido&wa=5491100000000`);
+  await p.waitForSelector("body[data-estado=listo]", { timeout: 10000 }).catch(() => {});
+  check(!(await p.isVisible("#btn-google")) && !(await p.isVisible("#btn-simular")) && !(await p.isVisible("#btn-ingresar")) && !(await p.isVisible("#mis-reservas")), "modo pedido: sin Google, sin «Simular comprobante», sin ingreso ni «Mis turnos»");
+  const vivo = await p.textContent("#en-vivo");
+  check(!/en vivo/i.test(vivo) && /Pedido por WhatsApp/.test(vivo), `modo pedido: el encabezado dice «Pedido por WhatsApp», no «En vivo» (${vivo})`);
+  check(/referencia/.test(await p.textContent("#subtitulo")) && /confirma/.test(await p.textContent("#cinta")), "modo pedido: horarios y precios rotulados «de referencia»");
+  const inicio = await elegirTurno(p);
+  check(await p.locator("#dlg-pedido[open]").count() === 1, "tocar un horario abre el pedido (no la reserva)");
+  await p.click("#ped-wa");
+  check(/nombre/.test(await p.textContent("#ped-error")) && await p.getAttribute("#ped-nombre", "aria-invalid") === "true", "sin nombre no sale el WhatsApp: error al lado del campo");
+  await p.fill("#ped-nombre", "Juan");
+  const href = await p.getAttribute("#ped-wa", "href");
+  const texto = decodeURIComponent(href.split("?text=")[1] ?? "");
+  check(href.startsWith("https://wa.me/5491100000000?text=") && texto.includes(hhmm(inicio)) && texto.includes("Soy Juan"), `el link va al WhatsApp del club con la hora y el nombre (${texto.slice(0, 70)}…)`);
+  check(await p.isHidden("#ped-sin-wa"), "con número del club, no pide elegir el chat");
+  check(await p.evaluate(() => document.documentElement.scrollWidth) <= 390, "modo pedido sin scroll horizontal a 390 px");
+  await p.screenshot({ path: `${SALIDA}/pedido-390.png` });
+  for (const [q, nombre] of [["", "sin wa"], ["&wa=12ab", "wa inválido"]]) {
+    const p2 = vigilar(await pc.newPage(), `pedido-${nombre}`);
+    await p2.goto(`${BASE}/turnero?modo=pedido${q}`);
+    await elegirTurno(p2);
+    await p2.fill("#ped-nombre", "Ana");
+    check((await p2.getAttribute("#ped-wa", "href")).startsWith("https://wa.me/?text=") && await p2.isVisible("#ped-sin-wa"), `${nombre}: wa.me/?text= y la leyenda «elegí el chat del club»`);
+    await p2.close();
+  }
+  await axe(`${BASE}/turnero?modo=pedido&wa=5491100000000`, "turnero modo pedido", (x) => x.waitForSelector("body[data-estado=listo]"));
+  await pc.close();
+}
+
+// ───── 8. tienda: encargo con el club abierto en otra pestaña ─────
+console.log("\n▶ tienda (demo) con el club en otra pestaña");
+{
+  const t = vigilar(await ctx.newPage(), "tienda");
+  await t.setViewportSize({ width: 390, height: 844 });
+  await t.goto(`${BASE}/turnero#tienda`);
+  await t.waitForSelector("#dlg-tienda[open] [data-mas]", { timeout: 10000 }).catch(() => {});
+  check(await t.locator("#dlg-tienda[open]").count() === 1, "/turnero#tienda abre la tienda (módulo diferido, dentro del mismo archivo)");
+  check(/referencia/.test(await t.textContent(".nota-tienda").catch(() => "")), "la tienda avisa: precios y stock de referencia, se retira y paga en el club");
+  await t.locator('[data-mas][aria-label*="Tubo"]').click();
+  await t.locator('[data-mas][aria-label*="Overgrip"]').click();
+  await t.locator('[data-mas][aria-label*="Overgrip"]').click();
+  check(await t.textContent("#carrito-total") === "$21.000", `1 tubo + 2 overgrips = ${await t.textContent("#carrito-total")}`);
+  check(await t.evaluate(() => document.documentElement.scrollWidth) <= 390, "tienda sin scroll horizontal a 390 px");
+  await t.click("#btn-tienda-pedir");
+  check(/nombre/.test(await t.textContent("#tienda-error")), "sin nombre: error con role=alert");
+  await t.fill("#tienda-nombre", "Tienda Uno");
+  await t.fill("#tienda-tel", "11 5555 4321");
+  await t.click("#btn-tienda-pedir");
+  await t.waitForSelector("#tienda-listo:not([hidden])", { timeout: 6000 }).catch(() => {});
+  const codigo = (await t.textContent("#tienda-codigo").catch(() => "")) ?? "";
+  const href = (await t.getAttribute("#tienda-wa", "href").catch(() => "")) ?? "";
+  check(/^T-[A-Z2-9]{4}$/.test(codigo) && href.startsWith("https://wa.me/?text=") && decodeURIComponent(href).includes(codigo), `pedido ${codigo}: el link de WhatsApp lleva el código`);
+  await t.screenshot({ path: `${SALIDA}/tienda-390.png` });
+  // El club lo recibe por el bus (evento "pedido" del canal staff). Se activa solo cuando conectado.mjs lo escucha.
+  const clubOye = /addEventListener\(\s*["']pedido["']/.test(readFileSync(path.join(RAIZ, "public/previews/breakpoint/club/conectado.mjs"), "utf8"));
+  if (clubOye) {
+    await club.waitForFunction((c) => document.body.innerText.includes(c), codigo, { timeout: 6000 }).catch(() => {});
+    check(await club.evaluate((c) => document.body.innerText.includes(c), codigo), `el club (otra pestaña) recibe el pedido ${codigo}`);
+  } else console.log("  … TODO: el club todavía no escucha el evento «pedido» (conectado.mjs): ese check queda pendiente");
+  await axe(`${BASE}/turnero#tienda`, "tienda", (x) => x.waitForSelector("#dlg-tienda[open] [data-mas]"));
+  // Portada → tienda.
+  const pt = vigilar(await ctx.newPage(), "portada-tienda");
+  await pt.goto(`${BASE}/`);
+  check(await pt.locator('a[href="/turnero#tienda"]').count() === 1, "la portada tiene el acceso a la tienda");
+  await pt.close();
+  await t.close();
+  // Peso: el turnero publicado lleva todo su JS inline (app + local + núcleo + motor + tienda).
+  const html = readFileSync(path.join(RAIZ, "src/tenants/breakpoint/sitio/turnero.html"), "utf8");
+  const js = [...html.matchAll(/<script type="module">([\s\S]*?)<\/script>/g)].map((m) => m[1]).join("");
+  const kb = gzipSync(js, { level: 9 }).length / 1024;
+  check(js.includes("bp-tienda-carrito") && kb < 60, `JS del turnero + tienda ${kb.toFixed(1)} KB gzip < 60 KB`);
 }
 
 console.log("\n▶ seguridad");

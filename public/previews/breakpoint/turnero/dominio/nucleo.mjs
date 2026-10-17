@@ -505,6 +505,22 @@ export function crearTurnero({
     return vencidas.length;
   }
 
+  // ───────────── tienda (encargos por la web: se retiran y se pagan en el club) ─────────────
+  // Las reglas son del motor (catalogoTienda / crearPedidoTienda: no descuenta stock ni mueve caja). Acá sólo se
+  // limpia lo que llega de la web y se le avisa al club en vivo (evento "pedido" del canal staff).
+  function pedirTienda({ items, nombre, tel } = {}) {
+    const celular = String(tel ?? "").trim();
+    const digitos = celular.replace(/\D/g, "").length;
+    if (celular && (digitos < 8 || digitos > 15)) return { ok: false, motivo: "Revisá el celular: con código de área, ej. 11 5555 1234." };
+    const lista = (Array.isArray(items) ? items : []).slice(0, 40).map((i) => ({ productoId: String(i?.productoId ?? ""), cant: Number(i?.cant) }));
+    const x = M.crearPedidoTienda(E, { items: lista, nombre: String(nombre ?? ""), tel: celular, origen: "web" }, ahora());
+    if (!x.ok) return x;
+    version++;
+    emitir("staff", "pedido", { pedido: x.pedido, version });
+    const { codigo, items: renglones, total, estado } = x.pedido;
+    return { ok: true, pedido: { codigo, items: renglones, total, nombre: x.pedido.nombre, estado }, mensaje: x.mensaje };
+  }
+
   // ───────────── backoffice conectado (staff) ─────────────
   /**
    * Lo que cambió en el backoffice. Reservas: upsert por id, rechazando cualquier cosa que pise otro turno activo
@@ -581,6 +597,8 @@ export function crearTurnero({
     dias, disponibilidad, reservar, misReservas, cancelarReserva, anotarEnEspera, publica,
     // whatsapp
     procesarMensaje, resolverRevision, revisiones: () => revisiones.map(revisionPublica), comprobanteDemo,
+    // tienda
+    catalogoTienda: () => M.catalogoTienda(E), pedirTienda,
     // reloj
     tick,
     // staff

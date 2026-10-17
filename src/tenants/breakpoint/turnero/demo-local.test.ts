@@ -163,3 +163,47 @@ test("bus: si le roban el lock mientras espera la foto, no quedan dos servidores
     g.addEventListener = antes.add;
   }
 });
+
+test("bus: la semilla del club nunca pisa una demo real en la toma de posta (Gate B2)", { timeout: 40000 }, async () => {
+  // S es el servidor con una reserva real; B, un turnero cliente con esa foto; C, el club abierto después de la última
+  // foto (ofrece su estado como semilla). S muere sin «adiós»: B tiene que seguir con la reserva real.
+  const g: any = globalThis;
+  const antes = { add: g.addEventListener, locks: Object.getOwnPropertyDescriptor(g.navigator, "locks") };
+  g.addEventListener ??= () => {};
+  const colas = new Map<string, any>();
+  Object.defineProperty(g.navigator, "locks", { configurable: true, value: { request(nombre: string, opts: any, cb: any) {
+    const q = colas.get(nombre) ?? { holder: null, espera: [] as any[] }; colas.set(nombre, q);
+    return new Promise((ok, mal) => {
+      const correr = () => { q.holder = {}; Promise.resolve(cb()).then(ok, mal).finally(() => { q.holder = null; const sig = q.espera.shift(); if (sig) sig(); }); };
+      if (opts?.steal || !q.holder) correr(); else q.espera.push(correr);
+    });
+  } } });
+  const unirseAlBus: any = (await import("../../../../public/previews/breakpoint/turnero/bus.mjs")).unirseAlBus;
+  const Mo: any = await import("../../../../public/previews/breakpoint/club/motor.mjs");
+  const espera = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
+  const S: any = unirseAlBus({});
+  await espera(1000);
+  const B: any = unirseAlBus({});
+  await espera(800);
+  const est = (await S.api("/api/staff/estado")).estado;
+  const fecha = Mo.sumarDias(est.reservas[0].fecha, 40);
+  const nueva = (id: string, inicio: number) => ({ id, fecha, inicio, duracion: 90, canchaId: est.canchas[0].id, estado: "reservada", titular: id, jugadores: [], pagos: [], sena: { monto: 0, pagada: false } });
+  await S.api("/api/staff/sync", { metodo: "POST", cuerpo: { reservas: [nueva("REAL1", 600)] } });
+  await espera(300);
+  const semilla = Mo.generarDemo(fecha); semilla.reservas.push(nueva("SEMILLA1", 900));
+  const C: any = unirseAlBus({ soloCliente: true, fotoLocal: () => ({ semilla: true, turnero: { estado: structuredClone(semilla) } }) });
+  await espera(500);
+  S.cerrar(); // muere sin «adiós» ni última foto
+  try {
+    for (let i = 0; i < 40 && !B.esServidor(); i++) await espera(500);
+    await espera(600);
+    const ids = new Set((await B.api("/api/staff/estado")).estado.reservas.map((r: any) => r.id));
+    assert.ok(B.esServidor(), "B tomó la posta");
+    assert.ok(ids.has("REAL1"), "conserva la reserva real");
+    assert.ok(!ids.has("SEMILLA1"), "no arrancó desde la semilla del club");
+  } finally {
+    B.cerrar(); C.cerrar();
+    if (antes.locks) Object.defineProperty(g.navigator, "locks", antes.locks); else delete g.navigator.locks;
+    g.addEventListener = antes.add;
+  }
+});

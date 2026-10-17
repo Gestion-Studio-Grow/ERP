@@ -21,7 +21,7 @@ const id = () => Math.random().toString(36).slice(2, 10);
 /** ¿Este navegador puede usar el bus? */
 export const hayBus = () => typeof BroadcastChannel !== "undefined" && typeof navigator !== "undefined" && Boolean(navigator.locks?.request);
 
-export function unirseAlBus({ reloj, soloCliente = false } = {}) {
+export function unirseAlBus({ reloj, soloCliente = false, fotoLocal = null } = {}) {
   const tab = `t${id()}`;
   let servidor = null; // si ESTA pestaña es la que hace de servidor
   let lider = null, ultimoLatido = 0; // pestaña servidor y cuándo latió
@@ -57,14 +57,17 @@ export function unirseAlBus({ reloj, soloCliente = false } = {}) {
     // ── lo que atiende la pestaña servidor ──
     // Vale la foto del servidor vigente o una más nueva (un servidor viejo descongelado no pisa la buena).
     if (m.t === "foto" && !servidor) {
-      if (m.para && m.para !== tab) return;
-      if (m.tab === lider || !ultimaFoto || versionDe(m.foto) > versionDe(ultimaFoto)) ultimaFoto = m.foto;
+      // La semilla del club no se guarda: sólo vale si no hay ninguna foto real (B2).
+      if ((m.para && m.para !== tab) || m.foto?.semilla) return;
+      if ((m.tab != null && m.tab === lider) || !ultimaFoto || versionDe(m.foto) > versionDe(ultimaFoto)) ultimaFoto = m.foto;
       return;
     }
     // Se entrega aunque ésta se haya vuelto servidor en el medio (si no, el reintento chocaría con su propio pedido).
     if (m.t === "respuesta") { if (m.para === tab && pendientes.has(m.id)) { pendientes.get(m.id)(m.res); pendientes.delete(m.id); } return; }
     if (m.t === "pidoFoto") {
-      const f = servidor ? servidor.exportar() : ultimaFoto;
+      // El club sin foto ofrece la suya: el turnero que arranca no le pisa lo cargado.
+      let f = null;
+      try { f = servidor ? servidor.exportar() : ultimaFoto ?? fotoLocal?.(); } catch { /* sin foto */ }
       if (f) bc.postMessage({ t: "foto", foto: f, para: m.de, tab: servidor ? tab : null });
       return;
     }
@@ -151,13 +154,20 @@ export function unirseAlBus({ reloj, soloCliente = false } = {}) {
     });
   }
   function pedirFoto() {
+    // Gana la foto más nueva; la semilla del club, sólo si no hay otra.
     return new Promise((ok) => {
-      const fin = setTimeout(() => { bc.removeEventListener("message", oir); ok(null); }, 400);
-      function oir({ data: m }) { if (m?.t === "foto" && m.para === tab) { clearTimeout(fin); bc.removeEventListener("message", oir); ok(m.foto); } }
+      const fotos = [];
+      function oir({ data: m }) { if (m?.t === "foto" && m.para === tab) fotos.push(m.foto); }
       bc.addEventListener("message", oir);
       bc.postMessage({ t: "pidoFoto", de: tab });
+      setTimeout(() => {
+        bc.removeEventListener("message", oir);
+        fotos.sort((x, y) => versionDe(y) - versionDe(x) || Number(Boolean(x.semilla)) - Number(Boolean(y.semilla)));
+        ok(fotos[0] ?? null);
+      }, 400);
     });
   }
+
   function repartirFoto(siempre = false) {
     if (!servidor || (!servidor.huboCambios() && !siempre)) return;
     try { bc.postMessage({ t: "foto", foto: servidor.exportar(), tab }); } catch { /* sin clonado estructurado: se pierde sólo esta foto */ }

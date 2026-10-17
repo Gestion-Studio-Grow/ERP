@@ -9,7 +9,8 @@
 //
 // Reglas de este archivo:
 //   · Puro: no toca el DOM, la red ni el disco. Lo usan el backoffice (index.html) y los tests de Node.
-//   · Sin persistencia: el estado vive en memoria (DEMO → VENTA → INVERSIÓN: antes de la venta no se guarda nada).
+//   · Sin persistencia propia: el estado vive en memoria. La jornada real lo guarda en el navegador de la compu del
+//     club (app.mjs, con serializarEstado/hidratarEstado); nunca en un servidor (DEMO → VENTA → INVERSIÓN).
 //   · El tiempo es { fecha: "AAAA-MM-DD", min: minutos desde las 00:00 }. Lo que pasa después de medianoche
 //     se modela con min > 1440 sobre el día que abrió (el club cierra a la 01:00 → 1500).
 //   · Toda operación devuelve { ok: true, ... } o { ok: false, motivo } en criollo, nunca tira excepción
@@ -138,6 +139,8 @@ export function crearEstado({ config, canchas, clientes = [], productos = [], us
     proveedores: structuredClone(proveedores),
     solicitudesAcceso: [],
     novedades: [], // pedidos de autorización para el dueño (cuenta corriente)
+    difusiones: [], // novedades del club armadas para mandar por WhatsApp
+    pedidos: [], // pedidos de la tienda (se encargan por la web, se retiran y pagan en el club)
     reservas: [],
     cuentas: [], // cuentas de consumo (buffet): separadas de la cancha
     fijos: [],
@@ -153,11 +156,66 @@ export function crearEstado({ config, canchas, clientes = [], productos = [], us
   };
 }
 
+// ───────────────────────── jornada real (se guarda en el dispositivo) ─────────────────────────
+
+export const VERSION_ESTADO = 1;
+
+/**
+ * El club en blanco para una jornada real: canchas, productos, usuarios y proveedores de Break Point, sin
+ * turnos, clientes ni caja. El alias de cobro arranca vacío: lo carga el dueño en Ajustes (nunca el ficticio).
+ */
+export function crearClubReal(hoy) {
+  secuencia = 0;
+  const config = structuredClone(CONFIG_DEMO);
+  // En el mostrador se abre la cancha a quien llega sin ficha sin pedirle seña (queda «debe» si no pagó).
+  config.politica.senaSinCliente = false;
+  // Productos de Break Point con sus precios de referencia, sin stock inventado ni códigos de barra de ejemplo:
+  // el stock se controla desde el primer conteo (Stock → ajustar).
+  const productos = PRODUCTOS_DEMO.map((p) => ({ ...p, stock: p.alquiler ? p.stock : null, codigoExterno: "" }));
+  const e = crearEstado({ config: { ...config, modo: "real", configurado: false, cobro: { alias: "" } }, canchas: CANCHAS_DEMO, productos, usuarios: USUARIOS_REALES, proveedores: [] });
+  registrar(e, "Arrancó la jornada real.", { fecha: hoy, min: null });
+  return e;
+}
+
+/** La foto que se guarda: el estado y por dónde va el contador de ids (así no se repiten al volver). */
+export function serializarEstado(estado) {
+  return { v: VERSION_ESTADO, estado: structuredClone(estado), secuencia: secuencia };
+}
+
+const esLista = (x) => Array.isArray(x);
+const esObjeto = (x) => x != null && typeof x === "object" && !Array.isArray(x);
+
+/** Vuelve a armar el estado desde una foto guardada. Nunca tira: si la foto no sirve, dice por qué. */
+export function hidratarEstado(foto) {
+  try {
+    if (!esObjeto(foto)) return { ok: false, motivo: "el archivo está vacío o no es de Break Point" };
+    if (foto.v !== VERSION_ESTADO) return { ok: false, motivo: "es de otra versión del sistema" };
+    const e = foto.estado;
+    if (!esObjeto(e) || !esObjeto(e.config) || !esObjeto(e.caja)) return { ok: false, motivo: "le faltan datos del club" };
+    for (const k of ["canchas", "usuarios", "productos", "reservas", "cuentas", "clientes"]) if (!esLista(e[k])) return { ok: false, motivo: `le falta «${k}»` };
+    if (!esLista(e.caja.movimientos)) return { ok: false, motivo: "le falta la caja" };
+    const idMalo = ["canchas", "usuarios", "productos", "reservas", "cuentas", "clientes"].flatMap((k) => e[k]).some((x) => !esObjeto(x) || !/^[\w-]{1,60}$/.test(String(x.id ?? "")));
+    if (idMalo) return { ok: false, motivo: "tiene datos que no son de Break Point" };
+    const estado = structuredClone(e);
+    for (const k of ["proveedores", "solicitudesAcceso", "novedades", "pedidos", "difusiones", "fijos", "bloqueos", "espera", "remitos", "pagosProveedor", "contenido", "log"]) if (!esLista(estado[k])) estado[k] = [];
+    estado.caja.cierres = esLista(estado.caja.cierres) ? estado.caja.cierres : [];
+    estado.luces = esObjeto(estado.luces) ? estado.luces : Object.fromEntries(estado.canchas.map((c) => [c.id, false]));
+    estado.clima = esObjeto(estado.clima) ? estado.clima : { lluvia: null };
+    for (const k of ["pedidos", "novedades", "difusiones", "solicitudesAcceso", "contenido"]) estado[k] = estado[k].filter((x) => esObjeto(x) && /^[\w-]{1,60}$/.test(String(x.id ?? "")));
+    estado.clientes = estado.clientes.map(normalizarCliente);
+    retomarSecuencia(foto.secuencia);
+    return { ok: true, estado };
+  } catch {
+    return { ok: false, motivo: "no se pudo leer" };
+  }
+}
+
 function normalizarCliente(c) {
   return {
     nivel: "", tel: "", strikes: 0, monedero: 0, deuda: 0, activo: true, movCC: [],
     ...c,
     cc: { habilitada: false, limite: 0, ...(c.cc ?? {}) },
+    fiados: [...(c.fiados ?? [])], // fiados puntuales aprobados por un dueño (se usan una vez)
   };
 }
 
@@ -180,6 +238,7 @@ export function puede(estado, usuarioId, accion) {
 export function verificarPin(estado, usuarioId, pin) {
   const u = usuario(estado, usuarioId);
   if (!u || u.activo === false) return { ok: false, motivo: "Ese usuario no tiene acceso." };
+  if (!u.pin) return { ok: false, motivo: "Ese usuario todavía no tiene PIN: que un dueño le dé un «PIN nuevo» en Configuración → Usuarios." };
   if (String(pin ?? "").trim() !== u.pin) return { ok: false, motivo: "PIN incorrecto." };
   return { ok: true, usuario: u };
 }
@@ -195,6 +254,7 @@ function autorizar(estado, { usuarioId, pin } = {}, accion, conPin) {
 
 /** Busca a quién pertenece un PIN (cambio rápido de usuario en el mostrador). */
 export function usuarioPorPin(estado, pin) {
+  if (!String(pin ?? "").trim()) return null;
   const u = estado.usuarios.find((x) => x.activo !== false && x.pin === String(pin ?? "").trim());
   return u ? { ok: true, usuario: u } : { ok: false, motivo: "PIN incorrecto." };
 }
@@ -276,6 +336,59 @@ export function regenerarPin(estado, usuarioObjetivoId, auth, ahora) {
   u.pin = pin;
   registrar(estado, `${a.usuario.nombre} generó un PIN nuevo para ${u.nombre}.`, ahora);
   return { ok: true, pin };
+}
+
+const pinValido = (pin) => /^\d{2}$/.test(String(pin ?? "").trim());
+const pinEnUso = (estado, pin, salvo) => estado.usuarios.some((u) => u.activo !== false && u.id !== salvo && u.pin === String(pin).trim());
+
+/** Un dueño da de alta a alguien directamente (sin pedido previo). El PIN lo genera el sistema y se ve una vez. */
+export function altaUsuario(estado, { nombre, rol = "recepcion" }, auth, ahora) {
+  const a = autorizar(estado, auth, "usuarios", true);
+  if (!a.ok) return a;
+  const limpio = String(nombre ?? "").trim().slice(0, 40);
+  if (!limpio) return { ok: false, motivo: "Escribí el nombre." };
+  if (!ROLES[rol]) return { ok: false, motivo: "Elegí el rol." };
+  if (estado.usuarios.some((u) => u.activo !== false && u.nombre.toLowerCase() === limpio.toLowerCase())) return { ok: false, motivo: `Ya hay un usuario ${limpio}.` };
+  const pin = pinLibre(estado);
+  if (!pin) return { ok: false, motivo: "No quedan PIN libres: sacá accesos que no se usen." };
+  const u = { id: nuevoId("u"), nombre: limpio, rol, pin, activo: true };
+  estado.usuarios.push(u);
+  registrar(estado, `${a.usuario.nombre} dio de alta a ${u.nombre} (${ROLES[rol]}).`, ahora);
+  return { ok: true, usuario: u, pin };
+}
+
+/**
+ * Primer arranque (consola de configuración): cada dueño arma SU PIN. Sólo para un usuario que todavía no tiene
+ * PIN; después se cambia con `cambiarMiPin` (sabiendo el actual) o un dueño le genera uno nuevo.
+ */
+export function definirPinInicial(estado, usuarioId, pin, ahora) {
+  const u = usuario(estado, usuarioId);
+  if (!u || u.activo === false) return { ok: false, motivo: "Ese usuario no tiene acceso." };
+  if (u.pin) return { ok: false, motivo: `${u.nombre} ya tiene PIN.` };
+  if (!pinValido(pin)) return { ok: false, motivo: "El PIN son 2 números." };
+  if (pinEnUso(estado, pin, u.id)) return { ok: false, motivo: "Ese PIN ya lo usa otra persona: elegí otro." };
+  u.pin = String(pin).trim();
+  registrar(estado, `${u.nombre} armó su PIN.`, ahora);
+  return { ok: true };
+}
+
+/** Cada uno cambia su PIN sabiendo el actual. */
+export function cambiarMiPin(estado, { usuarioId, pin }, nuevo, ahora) {
+  const v = verificarPin(estado, usuarioId, pin);
+  if (!v.ok) return v;
+  if (!pinValido(nuevo)) return { ok: false, motivo: "El PIN nuevo son 2 números." };
+  if (pinEnUso(estado, nuevo, usuarioId)) return { ok: false, motivo: "Ese PIN ya lo usa otra persona: elegí otro." };
+  v.usuario.pin = String(nuevo).trim();
+  registrar(estado, `${v.usuario.nombre} cambió su PIN.`, ahora);
+  return { ok: true };
+}
+
+/** Cierra la consola del primer arranque: hace falta al menos un dueño con PIN. */
+export function terminarConfiguracion(estado, ahora) {
+  if (!estado.usuarios.some((u) => u.rol === "duenio" && u.activo !== false && u.pin)) return { ok: false, motivo: "Falta que al menos un dueño arme su PIN." };
+  estado.config.configurado = true;
+  registrar(estado, "Se terminó la configuración inicial del club.", ahora);
+  return { ok: true };
 }
 
 // ───────────────────────── horarios por día ─────────────────────────
@@ -416,12 +529,24 @@ function movimientoCC(estado, c, importe, concepto, ahora) {
   c.movCC.push({ ...sello(ahora), concepto, importe, saldo: c.deuda });
 }
 
-/** ¿Se le puede sumar este importe a la cuenta corriente? */
+/**
+ * ¿Se le puede sumar este importe a la cuenta corriente? Sí si la tiene habilitada y le da el límite, o si un dueño
+ * le aprobó un fiado puntual que lo cubre (`fiado`: se usa una sola vez, ver `usarFiado`).
+ */
 export function puedeACuenta(c, importe) {
   if (!c) return { ok: false, motivo: "Para sumar a la cuenta hace falta la ficha del cliente." };
+  const fiado = (c.fiados ?? []).find((x) => !x.usado && x.monto >= importe);
+  if (c.cc.habilitada && c.deuda + importe <= c.cc.limite) return { ok: true };
+  if (fiado) return { ok: true, fiado };
   if (!c.cc.habilitada) return { ok: false, motivo: `${c.nombre} no tiene cuenta corriente habilitada: pedí la autorización al dueño.` };
-  if (c.deuda + importe > c.cc.limite) return { ok: false, motivo: `Supera el límite de ${c.nombre} (${pesos(c.cc.limite)}; ya debe ${pesos(c.deuda)}).` };
-  return { ok: true };
+  return { ok: false, motivo: `Supera el límite de ${c.nombre} (${pesos(c.cc.limite)}; ya debe ${pesos(c.deuda)}).` };
+}
+
+/** Si lo que pasó a la cuenta corriente entró por un fiado aprobado, se descuenta de ese fiado (queda lo que sobra). */
+function usarFiado(p, importe) {
+  if (!p?.fiado) return;
+  p.fiado.monto = Math.max(0, p.fiado.monto - Math.round(Number(importe) || p.fiado.monto));
+  if (p.fiado.monto === 0) p.fiado.usado = true;
 }
 
 /** Estado de cuenta del cliente, del más viejo al más nuevo, con saldo corrido. */
@@ -431,39 +556,124 @@ export function estadoDeCuenta(estado, clienteId) {
   return { ok: true, movimientos: c.movCC.slice(), saldo: c.deuda, cc: { ...c.cc }, creditos: c.monedero };
 }
 
-/** Recepción pide habilitar la cuenta corriente de un cliente; lo autoriza un dueño (novedad). */
-export function solicitarCC(estado, clienteId, { limite, nota = "" }, auth, ahora) {
+/**
+ * Recepción pide crédito para un cliente; lo autoriza un dueño (novedad). Dos tipos: «cc» habilita la cuenta
+ * corriente hasta un límite; «fiado» deja pasar UNA vez a la cuenta corriente un monto puntual (la cuenta de hoy).
+ */
+export function solicitarCredito(estado, { clienteId, tipo = "cc", monto, cuentaId = null, nota = "" }, auth, ahora) {
   const a = autorizar(estado, auth, "solicitarCC", false);
   if (!a.ok) return a;
   const c = cliente(estado, clienteId);
-  if (!c) return { ok: false, motivo: "No encuentro al cliente." };
-  const L = Math.round(Number(limite));
-  if (!(L > 0)) return { ok: false, motivo: "Poné hasta cuánto le fiamos." };
+  if (!c) return { ok: false, motivo: "Para pedir crédito hace falta la ficha del cliente (nombre y celular)." };
+  if (!["cc", "fiado"].includes(tipo)) return { ok: false, motivo: "Elegí qué se pide." };
+  const L = Math.round(Number(monto));
+  if (!(L > 0)) return { ok: false, motivo: tipo === "cc" ? "Poné hasta cuánto le fiamos." : "Poné cuánto se fía." };
   if (estado.novedades.some((n) => n.estado === "pendiente" && n.clienteId === clienteId)) return { ok: false, motivo: "Ya hay un pedido para este cliente esperando al dueño." };
-  const n = { id: nuevoId("n"), tipo: "cc", clienteId, limite: L, nota, pidio: a.usuario.nombre, estado: "pendiente", ...sello(ahora) };
+  const n = { id: nuevoId("n"), tipo, clienteId, cuentaId, limite: L, monto: L, nota: String(nota ?? "").slice(0, 120), pidio: a.usuario.nombre, estado: "pendiente", intentos: 0, ...sello(ahora) };
   estado.novedades.push(n);
-  registrar(estado, `${a.usuario.nombre} pidió cuenta corriente para ${c.nombre} hasta ${pesos(L)}.`, ahora);
+  registrar(estado, `${a.usuario.nombre} pidió ${tipo === "cc" ? `cuenta corriente para ${c.nombre} hasta` : `fiarle a ${c.nombre}`} ${pesos(L)}.`, ahora);
   return { ok: true, novedad: n };
 }
 
-export function resolverCC(estado, novedadId, { aprobar, limite }, auth, ahora) {
-  const a = autorizar(estado, auth, "autorizarCC", false);
+/** Atajo de siempre: pedir que se habilite la cuenta corriente. */
+export function solicitarCC(estado, clienteId, { limite, nota = "" }, auth, ahora) {
+  return solicitarCredito(estado, { clienteId, tipo: "cc", monto: limite, nota }, auth, ahora);
+}
+
+function aplicarCredito(estado, n, c, monto, quien, ahora, porCodigo = false) {
+  if (n.tipo === "fiado") {
+    c.fiados = c.fiados ?? [];
+    c.fiados.push({ monto, novedadId: n.id, aprobo: quien, usado: false, ...sello(ahora) });
+  } else {
+    c.cc = { ...c.cc, habilitada: true, limite: monto };
+  }
+  n.estado = "aprobada";
+  n.limiteAprobado = monto;
+  n.resolvio = quien;
+  n.porCodigo = porCodigo;
+  registrar(estado, `${quien} ${n.tipo === "fiado" ? `aprobó fiarle ${pesos(monto)} a ${c.nombre}` : `habilitó la cuenta corriente de ${c.nombre} hasta ${pesos(monto)}`}${porCodigo ? " (código por WhatsApp)" : ""}.`, ahora);
+}
+
+/** El dueño resuelve el pedido en el sistema (con su usuario). */
+export function resolverCredito(estado, novedadId, { aprobar, monto, limite }, auth, ahora) {
+  // Si viene un PIN, se verifica (la confirmación «con tu PIN» no puede aceptar cualquiera).
+  const a = autorizar(estado, auth, "autorizarCC", auth?.pin != null);
   if (!a.ok) return a;
   const n = estado.novedades.find((x) => x.id === novedadId && x.estado === "pendiente");
   if (!n) return { ok: false, motivo: "Ese pedido ya se resolvió." };
   const c = cliente(estado, n.clienteId);
+  if (!c) return { ok: false, motivo: "No encuentro al cliente." };
   if (aprobar) {
-    const L = Math.round(Number(limite ?? n.limite));
-    if (!(L > 0)) return { ok: false, motivo: "Poné el límite." };
-    c.cc = { habilitada: true, limite: L };
-    n.estado = "aprobada";
-    n.limiteAprobado = L;
+    const L = Math.round(Number(monto ?? limite ?? n.monto ?? n.limite));
+    if (!(L > 0)) return { ok: false, motivo: "Poné el monto." };
+    aplicarCredito(estado, n, c, L, a.usuario.nombre, ahora);
   } else {
     n.estado = "rechazada";
+    n.resolvio = a.usuario.nombre;
+    registrar(estado, `${a.usuario.nombre} rechazó el crédito de ${c.nombre}.`, ahora);
   }
-  n.resolvio = a.usuario.nombre;
-  registrar(estado, `${a.usuario.nombre} ${aprobar ? `habilitó la cuenta corriente de ${c.nombre}` : `rechazó la cuenta corriente de ${c.nombre}`}.`, ahora);
   return { ok: true };
+}
+
+export function resolverCC(estado, novedadId, { aprobar, limite }, auth, ahora) {
+  return resolverCredito(estado, novedadId, { aprobar, monto: limite }, auth, ahora);
+}
+
+/** FNV-1a de 32 bits: chico, sin dependencias y igual en cualquier navegador. */
+function fnv1a(texto) {
+  let h = 0x811c9dc5;
+  for (const ch of texto) { h ^= ch.codePointAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h >>> 0;
+}
+
+/**
+ * Código de aprobación por WhatsApp (sin servidor): lo calcula el celular del dueño con SU PIN y los datos del
+ * pedido, y la PC del club lo verifica con el PIN de cada dueño. Prueba que quien sabe el PIN de un dueño aprobó
+ * ESTE pedido por ESTE monto. Es tan fuerte como el PIN (2 dígitos): por eso hay tope de intentos por pedido.
+ */
+export function codigoAprobacion({ pin, novedadId, clienteId, monto, fecha }) {
+  const base = `${String(pin ?? "").trim()}|${novedadId}|${clienteId}|${Math.round(Number(monto))}|${fecha ?? ""}`;
+  let out = "";
+  for (const sal of ["bp-a", "bp-b"]) {
+    let h = fnv1a(`${sal}|${base}`);
+    for (let k = 0; k < 3; k++) { out += LETRAS_REF[h % LETRAS_REF.length]; h = Math.floor(h / LETRAS_REF.length); }
+  }
+  return `${out.slice(0, 3)}-${out.slice(3)}`;
+}
+
+const normalizarCodigo = (c) => String(c ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+const minutoAbsoluto = (t) => (t?.fecha ? Math.round(Date.parse(`${t.fecha}T00:00:00Z`) / 60000) + (t.min ?? 0) : 0);
+
+/** Recepción tipea el código que le mandó el dueño: si coincide con el de algún dueño activo, queda aprobado. */
+export function aprobarPorCodigo(estado, novedadId, { codigo, monto }, auth, ahora) {
+  const a = autorizar(estado, auth, "solicitarCC", false);
+  if (!a.ok) return a;
+  const n = estado.novedades.find((x) => x.id === novedadId && x.estado === "pendiente");
+  if (!n) return { ok: false, motivo: "Ese pedido ya se resolvió." };
+  if (n.bloqueadoHasta && minutoAbsoluto(ahora) < minutoAbsoluto(n.bloqueadoHasta)) return { ok: false, motivo: `Demasiados códigos mal: probá de nuevo a las ${hhmm(n.bloqueadoHasta.min)} o que el dueño lo apruebe en el sistema.` };
+  const c = cliente(estado, n.clienteId);
+  const m = Math.round(Number(monto ?? n.monto));
+  const tipeado = normalizarCodigo(codigo);
+  if (tipeado.length !== 6) return { ok: false, motivo: "El código tiene 6 letras y números (ej. ABC-DEF)." };
+  const duenio = estado.usuarios.find((u) => u.rol === "duenio" && u.activo !== false && u.pin && normalizarCodigo(codigoAprobacion({ pin: u.pin, novedadId: n.id, clienteId: n.clienteId, monto: m, fecha: n.fecha })) === tipeado);
+  if (!duenio) {
+    n.intentos = (n.intentos ?? 0) + 1;
+    if (n.intentos >= 5) {
+      n.intentos = 0;
+      n.bloqueadoHasta = { fecha: ahora?.fecha ?? null, min: (ahora?.min ?? 0) + 30 };
+      return { ok: false, motivo: "Cinco códigos mal: este pedido queda trabado 30 minutos. Que el dueño lo apruebe en el sistema." };
+    }
+    return { ok: false, motivo: `Ese código no sirve para este pedido y este monto (${n.intentos} de 5). Fijate el monto que aprobó el dueño.` };
+  }
+  aplicarCredito(estado, n, c, m, duenio.nombre, ahora, true);
+  return { ok: true, aprobo: duenio.nombre, monto: m };
+}
+
+/** Lo que el link de WhatsApp lleva para que el celular del dueño calcule el código sin tener el estado. */
+export function datosAprobacion(estado, novedadId) {
+  const n = estado.novedades.find((x) => x.id === novedadId);
+  if (!n) return null;
+  return { id: n.id, c: n.clienteId, n: cliente(estado, n.clienteId)?.nombre ?? "", m: n.monto ?? n.limite, t: n.tipo ?? "cc", p: n.pidio, f: n.fecha ?? "" };
 }
 
 /** El dueño ajusta o corta la cuenta corriente directamente. */
@@ -569,7 +779,12 @@ export function crearReserva(estado, datos, ahora) {
   const cl = clienteId ? cliente(estado, clienteId) : null;
   const nombre = String(titular ?? cl?.nombre ?? "").trim();
   if (!nombre) return { ok: false, motivo: "¿A nombre de quién va el turno?" };
-  if (ahora && minutosHasta(ahora, fecha, inicio) < -estado.config.paso) return { ok: false, motivo: "Ese horario ya pasó." };
+  // Desde el mostrador se puede cargar un turno que ya está en juego (se olvidaron de cargarlo) mientras no terminó;
+  // desde la web, sólo lo que todavía no empezó.
+  if (ahora) {
+    const falta = minutosHasta(ahora, fecha, inicio);
+    if (origen === "web" ? falta < -estado.config.paso : falta + duracion <= 0) return { ok: false, motivo: "Ese horario ya pasó." };
+  }
   const v = validarHueco(estado, { canchaId, fecha, inicio, duracion });
   if (!v.ok) return v;
 
@@ -641,7 +856,7 @@ export function dividir(total, n) {
 }
 
 function movimientoCaja(estado, { tipo, medio, monto, concepto, reservaId = null, usuario: quien = null }, ahora) {
-  const mov = { id: nuevoId("m"), tipo, medio, monto, concepto, reservaId, usuario: quien, ...sello(ahora) };
+  const mov = { id: nuevoId("m"), tipo, medio, monto, concepto, reservaId, usuario: quien, ...sello(ahora), ...(ahora && { caja: cajaAbierta(estado, ahora) }) };
   estado.caja.movimientos.push(mov);
   return mov;
 }
@@ -654,9 +869,11 @@ function cobrarConCreditos(estado, clienteId, importe) {
 }
 
 /** Cobro de la CANCHA (seña, turno, la parte de cada jugador). Los consumos van en su propia cuenta. */
-export function registrarPago(estado, reservaId, { medio, monto, jugador = null, concepto }, ahora) {
+export function registrarPago(estado, reservaId, { medio, monto, jugador = null, concepto, auth = null }, ahora) {
   const r = reserva(estado, reservaId);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  if (!["reservada", "en_cancha"].includes(r.estado)) return { ok: false, motivo: "La cancha de ese turno ya está cerrada: no se le cobra más." };
+  if (auth) { const a = autorizar(estado, auth, "cobrar", false); if (!a.ok) return a; }
   if (!MEDIOS[medio]) return { ok: false, motivo: "Elegí cómo paga." };
   const importe = Math.round(Number(monto));
   if (!(importe > 0)) return { ok: false, motivo: "El monto tiene que ser mayor a cero." };
@@ -670,28 +887,54 @@ export function registrarPago(estado, reservaId, { medio, monto, jugador = null,
   r.pagos.push({ medio, monto: importe, jugador, ...sello(ahora) });
   if (esSena && cobrado(r) >= r.sena.monto) r.sena.pagada = true;
   if (medio !== "monedero") movimientoCaja(estado, { tipo: "ingreso", medio, monto: importe, concepto: concepto ?? `${esSena ? "Seña" : "Cancha"} ${r.titular}`, reservaId }, ahora);
-  if (jugador != null && r.jugadores[jugador]) r.jugadores[jugador].pagado = (r.jugadores[jugador].pagado ?? 0) + importe;
+  // Un pago sin jugador elegido (la seña) es del titular, si juega: así no vuelve a pagar su parte.
+  const quienPago = jugador != null ? jugador : indiceTitular(r);
+  if (quienPago >= 0 && r.jugadores[quienPago]) r.jugadores[quienPago].pagado = (r.jugadores[quienPago].pagado ?? 0) + importe;
   registrar(estado, `Cobro de cancha ${pesos(importe)} (${MEDIOS[medio]}) — ${r.titular}.`, ahora);
   return { ok: true, saldo: saldo(r) };
 }
 
+/** El titular entre los jugadores (por su ficha o por su nombre); -1 si no juega (ej. un partido abierto). */
+function indiceTitular(r) {
+  const i = r.clienteId ? r.jugadores.findIndex((j) => j.clienteId === r.clienteId) : -1;
+  return i >= 0 ? i : r.jugadores.findIndex((j) => j.nombre === r.titular);
+}
+
+/** Reparte `monto` en proporción a `pesos`, en pesos enteros que suman exacto (resto mayor). */
+function repartir(monto, pesos) {
+  const suma = pesos.reduce((s, x) => s + x, 0);
+  if (!(monto > 0) || !(suma > 0)) return pesos.map(() => 0);
+  const crudo = pesos.map((x) => (monto * x) / suma), base = crudo.map(Math.floor);
+  let falta = monto - base.reduce((s, x) => s + x, 0);
+  for (const i of crudo.map((x, i) => i).sort((a, b) => (crudo[b] - base[b]) - (crudo[a] - base[a]))) { if (falta <= 0) break; base[i]++; falta--; }
+  return base;
+}
+
 /**
- * Partes de la cancha por jugador. Lo que queda por cobrar se reparte entre los que no pagaron; si alguien está
- * «a cargo de» otro jugador, su parte la paga ese otro (la suya más la del que invita).
+ * Partes de la cancha por jugador. Cada uno debe su cuota menos lo que ya pagó; lo que alguien pagó de más (o se
+ * cobró sin elegir jugador) baja lo que deben los demás, en proporción. Si alguien está «a cargo de» otro jugador,
+ * su parte la paga ese otro (la suya más la del que invita).
+ * Quien pagó su parte (`saldado`, o la pagó otro: `pagadoPor`) sale del reparto: si no, con una seña mayor que la
+ * cuota, el que ya pagó volvía a deber en la vuelta siguiente y el turno nunca cerraba (B3 del Gate).
+ * Si queda saldo y todos están saldados (subió el precio después), se reparte otra vez entre los que juegan.
  */
 export function partesCancha(r) {
-  const pago = (j) => Boolean(j.pagado) || j.pagadoPor != null;
-  const libres = r.jugadores.map((j, i) => (pago(j) ? -1 : i)).filter((i) => i >= 0);
-  const quienes = libres.length ? libres : r.jugadores.map((_, i) => i);
-  const cuotas = dividir(Math.max(0, saldo(r)), quienes.length);
-  const propia = r.jugadores.map((_, i) => (quienes.includes(i) ? cuotas[quienes.indexOf(i)] : 0));
+  const cuota = dividir(totalReserva(r), Math.max(1, r.jugadores.length));
+  const cerrado = (j) => j.pagadoPor != null || j.saldado === true;
+  const debe = r.jugadores.map((j, i) => (cerrado(j) ? 0 : Math.max(0, cuota[i] - (j.pagado ?? 0))));
+  const pago = (j, i) => cerrado(j) || debe[i] === 0;
+  const resta = Math.max(0, saldo(r));
+  const abiertos = r.jugadores.map((j) => (cerrado(j) ? 0 : 1));
+  const propios = r.jugadores.map((j) => (j.pagadoPor != null ? 0 : 1));
+  const pesos = debe.some((x) => x > 0) ? debe : abiertos.some((x) => x > 0) ? abiertos : propios.some((x) => x > 0) ? propios : r.jugadores.map(() => 1);
+  const propia = repartir(resta, pesos);
   const pagador = (i) => {
     const k = r.jugadores[i]?.aCargoDe;
-    return k != null && k !== i && r.jugadores[k] && !pago(r.jugadores[k]) && !pago(r.jugadores[i]) ? k : i;
+    return k != null && k !== i && r.jugadores[k] && !pago(r.jugadores[k], k) && !pago(r.jugadores[i], i) ? k : i;
   };
   const aPagar = r.jugadores.map(() => 0);
   propia.forEach((m, i) => { aPagar[pagador(i)] += m; });
-  return r.jugadores.map((j, i) => ({ propia: propia[i], aPagar: aPagar[i], aCargoDe: pagador(i) !== i ? pagador(i) : null, pago: pago(j) }));
+  return r.jugadores.map((j, i) => ({ propia: propia[i], aPagar: aPagar[i], aCargoDe: pagador(i) !== i ? pagador(i) : null, pago: pago(j, i) && propia[i] === 0 }));
 }
 
 /** La parte de la cancha de un jugador pasa a cargo de otro (null: vuelve a pagar la suya). */
@@ -700,7 +943,8 @@ export function asignarCargoCancha(estado, reservaId, deIdx, aIdx, ahora) {
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
   const de = r.jugadores[deIdx];
   if (!de) return { ok: false, motivo: "Elegí el jugador." };
-  if (de.pagado || de.pagadoPor != null) return { ok: false, motivo: `${de.nombre} ya pagó su parte.` };
+  const partes = partesCancha(r);
+  if (partes[deIdx].pago) return { ok: false, motivo: `${de.nombre} ya pagó su parte.` };
   if (aIdx == null || aIdx === "" || Number(aIdx) === Number(deIdx)) {
     delete de.aCargoDe;
     registrar(estado, `${de.nombre} paga su propia parte de la cancha.`, ahora);
@@ -709,16 +953,16 @@ export function asignarCargoCancha(estado, reservaId, deIdx, aIdx, ahora) {
   const k = Number(aIdx);
   const a = r.jugadores[k];
   if (!a) return { ok: false, motivo: "Elegí quién paga." };
-  if (a.pagado || a.pagadoPor != null) return { ok: false, motivo: `${a.nombre} ya pagó: cobrale aparte o elegí a otro.` };
-  if (partesCancha(r)[k].aCargoDe != null) return { ok: false, motivo: `${a.nombre} ya está a cargo de ${r.jugadores[a.aCargoDe]?.nombre ?? "otro"}.` };
-  if (partesCancha(r).some((x, i) => i !== Number(deIdx) && x.aCargoDe === Number(deIdx))) return { ok: false, motivo: `${de.nombre} ya paga la parte de otro: no puede pasar a cargo de nadie.` };
+  if (partes[k].pago) return { ok: false, motivo: `${a.nombre} ya pagó: cobrale aparte o elegí a otro.` };
+  if (partes[k].aCargoDe != null) return { ok: false, motivo: `${a.nombre} ya está a cargo de ${r.jugadores[a.aCargoDe]?.nombre ?? "otro"}.` };
+  if (partes.some((x, i) => i !== Number(deIdx) && x.aCargoDe === Number(deIdx))) return { ok: false, motivo: `${de.nombre} ya paga la parte de otro: no puede pasar a cargo de nadie.` };
   de.aCargoDe = k;
   registrar(estado, `La parte de cancha de ${de.nombre} queda a cargo de ${a.nombre}.`, ahora);
   return { ok: true };
 }
 
 /** Cobra la parte de un jugador (con las de los que tiene a cargo) y marca pagados a todos. */
-export function cobrarParte(estado, reservaId, idx, { medio }, ahora) {
+export function cobrarParte(estado, reservaId, idx, { medio, auth = null }, ahora) {
   const r = reserva(estado, reservaId);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
   const partes = partesCancha(r);
@@ -727,8 +971,9 @@ export function cobrarParte(estado, reservaId, idx, { medio }, ahora) {
   const cubiertos = partes.map((x, i) => (x.aCargoDe === idx ? i : -1)).filter((i) => i >= 0);
   const quien = r.jugadores[idx].nombre;
   const concepto = cubiertos.length ? `Cancha ${r.titular} — ${quien} paga también por ${cubiertos.map((i) => r.jugadores[i].nombre).join(", ")}` : undefined;
-  const res = registrarPago(estado, reservaId, { medio, monto: p.aPagar, jugador: idx, ...(concepto && { concepto }) }, ahora);
+  const res = registrarPago(estado, reservaId, { medio, monto: p.aPagar, jugador: idx, auth, ...(concepto && { concepto }) }, ahora);
   if (!res.ok) return res;
+  r.jugadores[idx].saldado = true;
   for (const i of cubiertos) r.jugadores[i].pagadoPor = idx;
   return { ...res, monto: p.aPagar, cubiertos: cubiertos.map((i) => r.jugadores[i].nombre) };
 }
@@ -815,6 +1060,9 @@ export function consumoJugador(estado, reservaId, jugadorIdx, productoId, cant, 
   const j = r.jugadores[jugadorIdx];
   if (!j) return { ok: false, motivo: "Elegí el jugador." };
   if (modo === "cobrar" && !MEDIOS[medio]) return { ok: false, motivo: "Elegí cómo paga." };
+  const p = producto(estado, productoId);
+  if (!p || p.activo === false) return { ok: false, motivo: "No encuentro el producto." };
+  if (p.stock != null && p.stock < Math.round(Number(cant))) return { ok: false, motivo: `No queda stock de ${p.nombre} (quedan ${p.stock}).` };
   const abierta = abrirCuenta(estado, { clienteId: j.clienteId ?? null, titular: j.nombre, reservaId, jugadorIdx }, ahora);
   if (!abierta.ok) return abierta;
   const carga = cargarEnCuenta(estado, abierta.cuenta.id, productoId, cant, ahora);
@@ -833,7 +1081,8 @@ export function consumoJugador(estado, reservaId, jugadorIdx, productoId, cant, 
  * Suma o resta unidades de un cargo ya cargado (uno de más, uno de menos, se equivocaron de producto). Lo que
  * vuelve, vuelve al stock. Nunca deja la cuenta por debajo de lo que ya se pagó.
  */
-export function ajustarCargo(estado, cuentaId, itemIdx, delta, ahora) {
+export function ajustarCargo(estado, cuentaId, itemIdx, delta, ahora, auth = null) {
+  if (auth) { const a = autorizar(estado, auth, "buffet", false); if (!a.ok) return a; }
   const cta = cuenta(estado, cuentaId);
   if (!cta || cta.estado !== "abierta") return { ok: false, motivo: "Esa cuenta no está abierta." };
   const item = cta.items[itemIdx];
@@ -860,7 +1109,8 @@ export function ajustarCargo(estado, cuentaId, itemIdx, delta, ahora) {
  * Pasa un cargo (o parte de sus unidades) a la cuenta de otra persona: la mesa compleja se reparte como
  * quieran, cargo por cargo. Lo que ya está pagado en la cuenta de origen no puede quedar sin respaldo.
  */
-export function transferirCargo(estado, deCuentaId, itemIdx, aCuentaId, cant, ahora) {
+export function transferirCargo(estado, deCuentaId, itemIdx, aCuentaId, cant, ahora, auth = null) {
+  if (auth) { const a = autorizar(estado, auth, "buffet", false); if (!a.ok) return a; }
   const de = cuenta(estado, deCuentaId);
   const a = cuenta(estado, aCuentaId);
   if (!de || de.estado !== "abierta" || !a || a.estado !== "abierta") return { ok: false, motivo: "Las dos cuentas tienen que estar abiertas." };
@@ -918,24 +1168,301 @@ function devolverAlquileresDelTurno(estado, r) {
   for (const cta of estado.cuentas.filter((x) => x.reservaId === r.id)) devolverAlquileresDeCuenta(estado, cta);
 }
 
-/** Cerrar la cuenta de consumo: cobrada, o el saldo a la cuenta corriente del cliente. */
+/**
+ * Cerrar la cuenta de cargos: cobrada, o el saldo a la cuenta corriente del cliente. Si paga los cargos de otros
+ * («a cargo de»), con `aCuenta` los de ellos van a SU cuenta corriente y esas cuentas se cierran con la suya; una
+ * cuenta que paga otro no se cierra sola con saldo (se cobra con la del que paga).
+ */
 export function cerrarCuenta(estado, cuentaId, { aCuenta = false } = {}, ahora) {
   const cta = cuenta(estado, cuentaId);
   if (!cta || cta.estado !== "abierta") return { ok: false, motivo: "Esa cuenta ya está cerrada." };
+  const pagador = pagadorDe(estado, cta);
+  if (pagador && saldoCuenta(cta) > 0) return { ok: false, motivo: `Los cargos de ${cta.titular} los paga ${pagador.titular}: cobralos con la cuenta de ${pagador.titular}.` };
+  const deps = dependientes(estado, cta);
+  const debeDeps = deps.reduce((s, x) => s + Math.max(0, saldoCuenta(x)), 0);
   const debe = saldoCuenta(cta);
-  if (debe > 0 && !aCuenta) return { ok: false, motivo: `La cuenta de ${cta.titular} debe ${pesos(debe)}: cobrala o sumala a su cuenta corriente.` };
-  if (debe > 0) {
-    const c = cta.clienteId ? cliente(estado, cta.clienteId) : null;
-    const p = puedeACuenta(c, debe);
+  if ((debe > 0 || debeDeps > 0) && !aCuenta) return { ok: false, motivo: `La cuenta de ${cta.titular} debe ${pesos(debe + debeDeps)}${debeDeps ? " (con lo que paga de otros)" : ""}: cobrala o sumala a su cuenta corriente.` };
+  const total = Math.max(0, debe) + debeDeps;
+  let p = null;
+  const c = cta.clienteId ? cliente(estado, cta.clienteId) : null;
+  if (total > 0) {
+    p = puedeACuenta(c, total);
     if (!p.ok) return p;
-    movimientoCC(estado, c, debe, "Cargos del buffet", ahora);
-    cta.aCuentaCorriente = debe;
   }
+  if (debe > 0) { movimientoCC(estado, c, debe, `Cargos del buffet${p.fiado ? ` (fiado aprobado por ${p.fiado.aprobo})` : ""}`, ahora); cta.aCuentaCorriente = debe; }
+  for (const x of deps) {
+    const d = saldoCuenta(x);
+    if (d > 0) { movimientoCC(estado, c, d, `Cargos de ${x.titular} (a su cargo)`, ahora); x.aCuentaCorriente = d; x.aCuentaCorrienteDe = c.id; }
+    devolverAlquileresDeCuenta(estado, x);
+    x.estado = "cerrada";
+    x.cerrada = sello(ahora);
+  }
+  usarFiado(p, total);
   devolverAlquileresDeCuenta(estado, cta);
   cta.estado = "cerrada";
   cta.cerrada = sello(ahora);
-  registrar(estado, `Se cerró la cuenta de cargos de ${cta.titular}${debe > 0 ? ` (${pesos(debe)} a cuenta corriente)` : ""}.`, ahora);
+  registrar(estado, `Se cerró la cuenta de cargos de ${cta.titular}${total > 0 ? ` (${pesos(total)} a cuenta corriente)` : ""}${deps.length ? ` con la de ${deps.map((x) => x.titular).join(", ")}` : ""}.`, ahora);
   return { ok: true };
+}
+
+// ───────────────────────── la cuenta del turno: cancha + cargos en un solo lugar ─────────────────────────
+
+/**
+ * La cuenta de cargos abierta de un jugador del turno (por su ficha; sin ficha, por el turno y su lugar). Con la
+ * cancha ya cerrada, sólo la que se abrió en ESE turno: un cliente que después juega otro no mezcla las mesas.
+ */
+export function cuentaDeJugador(estado, r, idx) {
+  const j = r?.jugadores[idx];
+  if (!j) return null;
+  const abierto = ["reservada", "en_cancha"].includes(r.estado);
+  return estado.cuentas.find((x) => x.estado === "abierta" && (abierto || x.reservaId === r.id) && ((j.clienteId && x.clienteId === j.clienteId) || (!j.clienteId && x.reservaId === r.id && x.jugadorIdx === idx))) ?? null;
+}
+
+/** Quién paga los cargos de esta cuenta («a cargo de»), si su cuenta sigue abierta. */
+function pagadorDe(estado, cta) {
+  const a = cta.aCargoDe ? cuenta(estado, cta.aCargoDe) : null;
+  return a && a.estado === "abierta" ? a : null;
+}
+const dependientes = (estado, cta) => estado.cuentas.filter((x) => x.estado === "abierta" && x.aCargoDe === cta.id && x.id !== cta.id);
+/** Lo que debe una cuenta que paga lo suyo: su saldo y el de las cuentas a su cargo. */
+const deudaDe = (estado, cta) => Math.max(0, saldoCuenta(cta)) + dependientes(estado, cta).reduce((s, x) => s + Math.max(0, saldoCuenta(x)), 0);
+const esCuentaDeMostrador = (cta) => cta.titular === "Mostrador" || String(cta.reservaId ?? "").startsWith("mostrador-") || String(cta.reservaId ?? "").startsWith("tienda-");
+
+/** Los cargos de una cuenta pasan a cargo de otra (null: vuelve a pagar los suyos). No se mueven: siguen a su nombre. */
+export function asignarCargoCargos(estado, cuentaId, aCuentaId, ahora) {
+  const de = cuenta(estado, cuentaId);
+  if (!de || de.estado !== "abierta") return { ok: false, motivo: "Esa cuenta no está abierta." };
+  if (aCuentaId == null || aCuentaId === "" || aCuentaId === cuentaId) {
+    delete de.aCargoDe;
+    registrar(estado, `${de.titular} paga sus propios cargos.`, ahora);
+    return { ok: true };
+  }
+  const a = cuenta(estado, aCuentaId);
+  if (!a || a.estado !== "abierta" || esCuentaDeMostrador(a)) return { ok: false, motivo: "Elegí la cuenta abierta de quien paga." };
+  if (pagadorDe(estado, a)) return { ok: false, motivo: `Los cargos de ${a.titular} ya los paga ${pagadorDe(estado, a).titular}: elegí a otro.` };
+  if (dependientes(estado, de).length) return { ok: false, motivo: `${de.titular} ya paga los cargos de otro: no puede pasar a cargo de nadie.` };
+  de.aCargoDe = a.id;
+  registrar(estado, `Los cargos de ${de.titular} quedan a cargo de ${a.titular}.`, ahora);
+  return { ok: true };
+}
+
+const turnoAbierto = (r) => ["reservada", "en_cancha"].includes(r.estado);
+
+/** Todas las cuentas abiertas de la mesa del turno: las de los jugadores y las que se abrieron para ese turno. */
+function cuentasDeLaMesa(estado, r) {
+  const ids = new Set();
+  const out = [];
+  r.jugadores.forEach((j, i) => { const c = cuentaDeJugador(estado, r, i); if (c && !ids.has(c.id)) { ids.add(c.id); out.push(c); } });
+  for (const c of estado.cuentas) if (c.estado === "abierta" && c.reservaId === r.id && !ids.has(c.id)) { ids.add(c.id); out.push(c); }
+  return out;
+}
+
+/**
+ * La cuenta del turno en un solo lugar: la cancha (con las partes y «a cargo de») y los cargos de cada jugador,
+ * con lo que paga cada uno si se le cobra todo junto, y los totales. Sirve también con la cancha ya cerrada (la mesa).
+ */
+export function cuentaDelTurno(estado, reservaId) {
+  const r = reserva(estado, reservaId);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  const abierto = turnoAbierto(r);
+  const partes = partesCancha(r);
+  const saldoCancha = abierto ? Math.max(0, saldo(r)) : 0;
+  const cuentas = r.jugadores.map((_, i) => cuentaDeJugador(estado, r, i));
+  const jugadores = r.jugadores.map((j, i) => {
+    const cta = cuentas[i];
+    const pagador = cta ? pagadorDe(estado, cta) : null;
+    const deps = cta ? dependientes(estado, cta) : [];
+    const propios = cta ? Math.max(0, saldoCuenta(cta)) : 0;
+    const deOtros = deps.reduce((s, x) => s + Math.max(0, saldoCuenta(x)), 0);
+    const canchaAPagar = abierto ? partes[i].aPagar : 0;
+    const cargosAPagar = pagador ? 0 : propios + deOtros;
+    return {
+      idx: i, nombre: j.nombre, clienteId: j.clienteId ?? null,
+      cancha: { ...partes[i], aPagar: canchaAPagar },
+      cuenta: cta,
+      cargos: { total: cta ? totalCuenta(cta) : 0, saldo: propios, aCargoDe: pagador?.id ?? null, aCargoDeNombre: pagador?.titular ?? null, deOtros, aSuCargo: deps.map((x) => x.titular) },
+      aPagar: canchaAPagar + cargosAPagar,
+    };
+  });
+  // Lo que se cobra acá es exactamente lo que se muestra: cada cuenta de la mesa que no paga otro, con lo que tiene
+  // a su cargo (aunque venga de otra mesa). Lo de la mesa que paga alguien de afuera se muestra aparte.
+  const mesa = cuentasDeLaMesa(estado, r);
+  const pagadoras = mesa.filter((c) => !pagadorDe(estado, c));
+  const deOtraMesa = mesa.filter((c) => pagadorDe(estado, c) && !mesa.includes(pagadorDe(estado, c))).map((c) => ({ titular: c.titular, saldo: Math.max(0, saldoCuenta(c)), paga: pagadorDe(estado, c).titular }));
+  const cargos = pagadoras.reduce((s, c) => s + deudaDe(estado, c), 0);
+  return {
+    ok: true, reserva: r, abierto, jugadores, mesa, deOtraMesa,
+    totales: { cancha: saldoCancha, cargos, pendiente: saldoCancha + cargos, totalCargos: mesa.reduce((s, c) => s + totalCuenta(c), 0) },
+    mesaAbierta: !abierto && mesa.length > 0,
+  };
+}
+
+function validarMedio(medio, { monedero = true } = {}) {
+  if (!MEDIOS[medio] || (!monedero && medio === "monedero")) return { ok: false, motivo: monedero ? "Elegí cómo paga." : "Con créditos se cobra jugador por jugador: elegí efectivo, Mercado Pago, transferencia o tarjeta." };
+  return { ok: true };
+}
+
+/** Cierra la cuenta si quedó en cero y no tiene nada alquilado en uso (si sigue cargando, se abre otra sola). */
+function cerrarSiQuedoEnCero(estado, cta, ahora) {
+  if (cta.estado === "abierta" && saldoCuenta(cta) === 0 && !cta.items.some((i) => i.alquiler && !i.devuelto)) cerrarCuenta(estado, cta.id, {}, ahora);
+}
+
+/** Cobra los cargos de una cuenta y los de las cuentas a su cargo, todo junto, con un medio. */
+export function cobrarCuentaYSusCargos(estado, cuentaId, { medio, auth = null }, ahora) {
+  if (auth) { const a = autorizar(estado, auth, "buffet", false); if (!a.ok) return a; }
+  const v = validarMedio(medio);
+  if (!v.ok) return v;
+  const cta = cuenta(estado, cuentaId);
+  if (!cta || cta.estado !== "abierta") return { ok: false, motivo: "Esa cuenta no está abierta." };
+  const lista = [cta, ...dependientes(estado, cta)].filter((x) => saldoCuenta(x) > 0);
+  const total = lista.reduce((s, x) => s + saldoCuenta(x), 0);
+  if (!(total > 0)) return { ok: false, motivo: "No hay cargos para cobrar." };
+  if (medio === "monedero") { const c = cobrarConCreditos(estado, cta.clienteId, total); if (!c.ok) return c; }
+  for (const x of lista) {
+    const monto = saldoCuenta(x);
+    const paga = x.id === cta.id ? "" : ` (paga ${cta.titular})`;
+    if (medio !== "monedero") movimientoCaja(estado, { tipo: "ingreso", medio, monto, concepto: `Buffet ${x.titular}${paga}` }, ahora);
+    x.pagos.push({ medio, monto, ...(x.id !== cta.id && { pagadoPor: cta.id }), ...sello(ahora) });
+  }
+  registrar(estado, `Cobro de cargos ${pesos(total)} (${MEDIOS[medio]}) — ${cta.titular}${lista.length > 1 ? `, con los de ${lista.filter((x) => x !== cta).map((x) => x.titular).join(", ")}` : ""}.`, ahora);
+  const cubiertas = lista.filter((x) => x !== cta).map((x) => x.titular);
+  for (const x of lista.slice().reverse()) cerrarSiQuedoEnCero(estado, x, ahora);
+  return { ok: true, monto: total, cubiertas };
+}
+
+/** Cobra a un jugador todo lo suyo: su parte de la cancha (con la de los que invita) y sus cargos (con los que paga). */
+export function cobrarJugador(estado, reservaId, idx, { medio, auth = null }, ahora) {
+  if (auth) { const a = autorizar(estado, auth, "cobrar", false); if (!a.ok) return a; }
+  const v = validarMedio(medio);
+  if (!v.ok) return v;
+  const t = cuentaDelTurno(estado, reservaId);
+  if (!t.ok) return t;
+  const j = t.jugadores[idx];
+  if (!j) return { ok: false, motivo: "Elegí el jugador." };
+  if (j.cargos.aCargoDe && j.cancha.aPagar === 0) return { ok: false, motivo: `Lo de ${j.nombre} lo paga ${j.cargos.aCargoDeNombre}: cobrale a ${j.cargos.aCargoDeNombre}.` };
+  const cancha = j.cancha.aPagar;
+  const cargos = j.cargos.aCargoDe ? 0 : j.cargos.saldo + j.cargos.deOtros;
+  if (!(cancha + cargos > 0)) return { ok: false, motivo: `${j.nombre} no tiene nada para pagar.` };
+  if (medio === "monedero") {
+    const c = j.clienteId ? cliente(estado, j.clienteId) : null;
+    if (!c || c.monedero < cancha + cargos) return { ok: false, motivo: "No le alcanzan los créditos." };
+  }
+  let cubiertos = [];
+  if (cancha > 0) {
+    const res = cobrarParte(estado, reservaId, idx, { medio }, ahora);
+    if (!res.ok) return res;
+    cubiertos = res.cubiertos;
+  }
+  if (cargos > 0) {
+    const res = cobrarCuentaYSusCargos(estado, j.cuenta.id, { medio }, ahora);
+    if (!res.ok) return { ...res, cancha };
+    cubiertos = [...new Set([...cubiertos, ...res.cubiertas])];
+  }
+  return { ok: true, cancha, cargos, total: cancha + cargos, cubiertos };
+}
+
+/** Cobra todo el turno de una (cancha y cargos de la mesa) con un solo medio. */
+export function cobrarTodoElTurno(estado, reservaId, { medio, auth = null }, ahora) {
+  if (auth) { const a = autorizar(estado, auth, "cobrar", false); if (!a.ok) return a; }
+  const v = validarMedio(medio, { monedero: false });
+  if (!v.ok) return v;
+  const t = cuentaDelTurno(estado, reservaId);
+  if (!t.ok) return t;
+  if (!(t.totales.pendiente > 0)) return { ok: false, motivo: "El turno no debe nada." };
+  const r = t.reserva;
+  let cancha = 0;
+  for (let vuelta = 0; vuelta < r.jugadores.length + 1 && turnoAbierto(r) && saldo(r) > 0; vuelta++) {
+    const i = partesCancha(r).findIndex((x) => x.aPagar > 0);
+    if (i < 0) break;
+    const res = cobrarParte(estado, reservaId, i, { medio }, ahora);
+    if (!res.ok) return res;
+    cancha += res.monto;
+  }
+  // Si queda saldo de cancha (ej. se extendió después de que todos pagaron su parte), se cobra entero acá.
+  if (turnoAbierto(r) && saldo(r) > 0) { const m = saldo(r); const res = registrarPago(estado, reservaId, { medio, monto: m }, ahora); if (!res.ok) return res; cancha += m; }
+  let cargos = 0;
+  for (const c of cuentasDeLaMesa(estado, r).filter((x) => !pagadorDe(estado, x))) {
+    if (c.estado !== "abierta" || !(deudaDe(estado, c) > 0)) continue;
+    const res = cobrarCuentaYSusCargos(estado, c.id, { medio }, ahora);
+    if (!res.ok) return res;
+    cargos += res.monto;
+  }
+  const queda = cuentaDelTurno(estado, reservaId).totales.pendiente;
+  if (queda > 0) return { ok: false, motivo: `Se cobraron ${pesos(cancha + cargos)} pero quedan ${pesos(queda)}: revisá la cuenta del turno.`, cobrado: cancha + cargos };
+  return { ok: true, cancha, cargos, total: cancha + cargos };
+}
+
+/**
+ * Se termina el turno pero la mesa sigue: cobra lo que falte de la CANCHA y la cierra (luz apagada, cancha libre
+ * para el turno siguiente). Los cargos quedan abiertos: siguen cargando y se cierran después.
+ */
+export function cerrarCanchaYSeguir(estado, reservaId, { medio, auth = null } = {}, ahora) {
+  if (auth) { const a = autorizar(estado, auth, "cobrar", false); if (!a.ok) return a; }
+  const r = reserva(estado, reservaId);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  if (!turnoAbierto(r)) return { ok: false, motivo: "Esa cancha ya está cerrada." };
+  let cobrado = 0;
+  if (saldo(r) > 0) {
+    const v = validarMedio(medio, { monedero: false });
+    if (!v.ok) return v;
+    for (let vuelta = 0; vuelta < r.jugadores.length + 1 && saldo(r) > 0; vuelta++) {
+      const i = partesCancha(r).findIndex((x) => x.aPagar > 0);
+      if (i < 0) break;
+      const res = cobrarParte(estado, reservaId, i, { medio }, ahora);
+      if (!res.ok) return res;
+      cobrado += res.monto;
+    }
+    if (saldo(r) > 0) { const m = saldo(r); const res = registrarPago(estado, reservaId, { medio, monto: m }, ahora); if (!res.ok) return res; cobrado += m; }
+  }
+  const fin = finalizar(estado, reservaId, {}, ahora);
+  if (!fin.ok) return fin;
+  return { ok: true, cobradoCancha: cobrado, cuentasAbiertas: cuentasDeLaMesa(estado, r) };
+}
+
+/** Cierra los cargos de la mesa del turno: cobrados con un medio, o a la cuenta corriente de cada uno. */
+export function cerrarCargosDelTurno(estado, reservaId, { medio, auth = null, aCuenta = false } = {}, ahora) {
+  if (auth) { const a = autorizar(estado, auth, "cobrar", false); if (!a.ok) return a; }
+  const r = reserva(estado, reservaId);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  const mesa = cuentasDeLaMesa(estado, r);
+  if (!mesa.length) return { ok: false, motivo: "La mesa no tiene cargos abiertos." };
+  // Las cuentas que paga alguien de otra mesa quedan abiertas: se cobran con la cuenta del que paga.
+  const pagadoras = mesa.filter((x) => !pagadorDe(estado, x));
+  const deEstaMesa = mesa.filter((x) => !pagadorDe(estado, x) || mesa.includes(pagadorDe(estado, x)));
+  if (aCuenta) {
+    for (const c of pagadoras) {
+      const total = Math.max(0, saldoCuenta(c)) + dependientes(estado, c).reduce((s, x) => s + Math.max(0, saldoCuenta(x)), 0);
+      if (total > 0) { const p = puedeACuenta(c.clienteId ? cliente(estado, c.clienteId) : null, total); if (!p.ok) return { ...p, motivo: `${c.titular}: ${p.motivo}` }; }
+    }
+    let aCC = 0;
+    for (const c of pagadoras) {
+      aCC += Math.max(0, saldoCuenta(c)) + dependientes(estado, c).reduce((s, x) => s + Math.max(0, saldoCuenta(x)), 0);
+      const res = cerrarCuenta(estado, c.id, { aCuenta: true }, ahora);
+      if (!res.ok) return res;
+    }
+    return { ok: true, cobrado: 0, aCuentaCorriente: aCC, cerradas: mesa.length };
+  }
+  const v = validarMedio(medio, { monedero: false });
+  if (!v.ok) return v;
+  let cobrado = 0;
+  for (const c of pagadoras) {
+    const total = Math.max(0, saldoCuenta(c)) + dependientes(estado, c).reduce((s, x) => s + Math.max(0, saldoCuenta(x)), 0);
+    if (total > 0) { const res = cobrarCuentaYSusCargos(estado, c.id, { medio }, ahora); if (!res.ok) return res; cobrado += res.monto; }
+  }
+  for (const c of deEstaMesa) if (c.estado === "abierta") { devolverAlquileresDeCuenta(estado, c); const res = cerrarCuenta(estado, c.id, {}, ahora); if (!res.ok) return res; }
+  return { ok: true, cobrado, aCuentaCorriente: 0, cerradas: deEstaMesa.length };
+}
+
+/** Las mesas que siguen cargando con la cancha ya cerrada (para el Buffet), de la más vieja a la más nueva. */
+export function mesasAbiertas(estado) {
+  const out = [];
+  for (const r of estado.reservas) {
+    if (turnoAbierto(r)) continue;
+    const mesa = cuentasDeLaMesa(estado, r);
+    if (!mesa.length) continue;
+    out.push({ reserva: r, cuentas: mesa, saldo: mesa.reduce((s, c) => s + Math.max(0, saldoCuenta(c)), 0) });
+  }
+  return out.sort((a, b) => (a.reserva.fecha + String(a.reserva.inicio).padStart(5, "0")).localeCompare(b.reserva.fecha + String(b.reserva.inicio).padStart(5, "0")));
 }
 
 /** Venta rápida de mostrador sin cuenta: se carga, se cobra y se cierra en el acto. */
@@ -999,7 +1526,8 @@ export function finalizar(estado, id, { aCuenta = false } = {}, ahora) {
     const c = r.clienteId ? cliente(estado, r.clienteId) : null;
     const p = puedeACuenta(c, debe);
     if (!p.ok) return p;
-    movimientoCC(estado, c, debe, `Cancha ${r.fecha.slice(8)}/${r.fecha.slice(5, 7)} ${hhmm(r.inicio)}`, ahora);
+    movimientoCC(estado, c, debe, `Cancha ${r.fecha.slice(8)}/${r.fecha.slice(5, 7)} ${hhmm(r.inicio)}${p.fiado ? ` (fiado aprobado por ${p.fiado.aprobo})` : ""}`, ahora);
+    usarFiado(p, debe);
     r.aCuentaCorriente = debe;
   }
   devolverAlquileresDelTurno(estado, r);
@@ -1016,9 +1544,11 @@ export function finalizar(estado, id, { aCuenta = false } = {}, ahora) {
  * con ficha; la parte de los que no tienen ficha queda a cargo del titular). Lo pagado (la seña) se
  * descuenta. El cargo va a la cuenta corriente aunque no esté habilitada: es una deuda, no un fiado.
  */
-export function marcarNoShow(estado, id, { cobrarA = "titular" } = {}, ahora) {
+export function marcarNoShow(estado, id, { cobrarA = "titular", auth = null } = {}, ahora) {
   const r = reserva(estado, id);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  // Perdonar una falta lo decide un dueño (validado acá, no sólo en pantalla).
+  if (cobrarA === "nadie") { const a = autorizar(estado, auth ?? {}, "configurar", false); if (!a.ok) return { ok: false, motivo: "Una falta sin cargo la decide un dueño." }; }
   if (r.estado !== "reservada") return { ok: false, motivo: "Sólo un turno reservado puede quedar como falta." };
   if (ahora && minutosHasta(ahora, r.fecha, r.inicio) > -estado.config.politica.toleranciaMin)
     return { ok: false, motivo: `Todavía está dentro de la tolerancia: la falta se marca a los ${estado.config.politica.toleranciaMin} min del inicio.` };
@@ -1291,8 +1821,19 @@ export function egresoCaja(estado, { monto, concepto, usuarioId, pin }, ahora) {
   return { ok: true };
 }
 
+/** ¿Ya se cerró la caja de ese día? (Una caja se cierra una sola vez.) */
+export const cajaCerrada = (estado, dia) => estado.caja.cierres.some((c) => c.dia === dia);
+/**
+ * La caja donde entra lo que se cobra ahora: la del día (de 12 a 12) o, si ya se cerró, la siguiente. Así una venta
+ * después del cierre no cambia una caja ya contada.
+ */
+export function cajaAbierta(estado, ahora) {
+  let dia = diaDeCaja(estado, ahora.fecha, ahora.min);
+  while (cajaCerrada(estado, dia)) dia = sumarDias(dia, 1);
+  return dia;
+}
 export function resumenCaja(estado, dia) {
-  const movs = estado.caja.movimientos.filter((m) => !dia || (m.fecha && diaDeCaja(estado, m.fecha, m.min ?? 0) === dia));
+  const movs = estado.caja.movimientos.filter((m) => !dia || (m.caja ?? (m.fecha && diaDeCaja(estado, m.fecha, m.min ?? 0))) === dia);
   const porMedio = Object.fromEntries(MEDIOS_DE_CAJA.map((k) => [k, 0]));
   let ingresos = 0, egresos = 0;
   for (const m of movs) {
@@ -1305,10 +1846,24 @@ export function resumenCaja(estado, dia) {
 }
 
 /** Cierre de la caja diaria (de 12 a 12): pide PIN; lo contado contra lo esperado, con diferencia explícita. */
-export function cerrarCaja(estado, { contado, usuarioId, pin }, ahora) {
+/**
+ * Cajas de días anteriores que tuvieron movimientos y nadie cerró (ej. lo cobrado a la mañana, antes del corte de
+ * las 12, es de la caja del día anterior): se avisan y se pueden cerrar después.
+ */
+export function cajasSinCerrar(estado, ahora) {
+  const hoy = diaDeCaja(estado, ahora.fecha, ahora.min);
+  const dias = new Set(estado.caja.movimientos.map((m) => m.caja ?? (m.fecha && diaDeCaja(estado, m.fecha, m.min ?? 0))).filter(Boolean));
+  return [...dias].filter((d) => d < hoy && !cajaCerrada(estado, d)).sort();
+}
+
+export function cerrarCaja(estado, { contado, usuarioId, pin, dia: diaPedido = null }, ahora) {
   const a = autorizar(estado, { usuarioId, pin }, "cerrarCaja", true);
   if (!a.ok) return a;
-  const dia = diaDeCaja(estado, ahora.fecha, ahora.min);
+  let dia = cajaAbierta(estado, ahora);
+  if (diaPedido) {
+    if (!cajasSinCerrar(estado, ahora).includes(diaPedido)) return { ok: false, motivo: "Esa caja ya está cerrada o no tiene movimientos." };
+    dia = diaPedido;
+  } else if (dia !== diaDeCaja(estado, ahora.fecha, ahora.min)) return { ok: false, motivo: "Esta caja ya está cerrada. Lo que se cobre desde ahora entra en la caja siguiente." };
   const r = resumenCaja(estado, dia);
   const n = Math.round(Number(contado));
   if (contado === "" || contado == null || !(n >= 0)) return { ok: false, motivo: "Contá el efectivo del cajón y cargalo." };
@@ -1330,13 +1885,12 @@ export function buscarProductos(estado, texto, { soloVendibles = false } = {}) {
 export function productoPorCodigo(estado, codigo) {
   const c = String(codigo ?? "").trim();
   if (!c) return { ok: false, motivo: "No llegó ningún código." };
-  // El lector lee el código de barras del fabricante (externo); a mano se tipea el interno. Sirven los dos.
   const p = estado.productos.find((x) => x.activo !== false && (mismoCodigo(c, x.codigo) || mismoCodigo(c, x.codigoExterno)));
   return p ? { ok: true, producto: p } : { ok: false, motivo: `El código ${c} no está cargado en ningún producto.` };
 }
 
-/** Un código (interno o de fabricación) no puede repetirse en otro producto, ni cruzado entre los dos campos. */
-// Los códigos se comparan sin distinguir mayúsculas (el interno se tipea a mano: «bp-001» es «BP-001»).
+// Los códigos se comparan sin distinguir mayúsculas (el interno se tipea a mano: «bp-001» es «BP-001»). Un código
+// (interno o de fabricación) no puede repetirse en otro producto, ni cruzado entre los dos campos.
 const mismoCodigo = (a, b) => String(a ?? "").trim() !== "" && String(a ?? "").trim().toUpperCase() === String(b ?? "").trim().toUpperCase();
 function codigoUsado(estado, codigo, salvoId = null) {
   return estado.productos.some((x) => x.id !== salvoId && (mismoCodigo(codigo, x.codigo) || mismoCodigo(codigo, x.codigoExterno)));
@@ -1362,7 +1916,6 @@ export function editarProducto(estado, productoId, cambios, auth, ahora) {
   if (!p) return { ok: false, motivo: "No encuentro el producto." };
   if (cambios.precio != null && !(Number(cambios.precio) > 0)) return { ok: false, motivo: "El precio tiene que ser mayor a cero." };
   if (cambios.costo != null && !(Number(cambios.costo) >= 0)) return { ok: false, motivo: "El costo no puede ser negativo." };
-  // Primero se valida todo y recién después se graba: un rechazo no deja cambios a medias.
   const codigos = {};
   for (const k of ["codigo", "codigoExterno"]) {
     if (cambios[k] == null) continue;
@@ -1375,6 +1928,47 @@ export function editarProducto(estado, productoId, cambios, auth, ahora) {
   if (cambios.nombre != null && String(cambios.nombre).trim()) p.nombre = String(cambios.nombre).trim();
   Object.assign(p, codigos);
   registrar(estado, `Se editó el producto ${p.nombre}.`, ahora);
+  return { ok: true };
+}
+
+/**
+ * Ajuste de inventario (conteo): el dueño carga cuántas hay. `null` = sin controlar stock (se vende sin tope y no
+ * avisa reposición), que es como arranca la jornada real hasta el primer conteo.
+ */
+export function ajustarStock(estado, productoId, cantidad, auth, ahora) {
+  const a = autorizar(estado, auth, "stock", false);
+  if (!a.ok) return a;
+  const p = producto(estado, productoId);
+  if (!p) return { ok: false, motivo: "No encuentro el producto." };
+  if (p.plato) return { ok: false, motivo: "Los platos no llevan stock." };
+  const sinControl = cantidad === null || cantidad === "";
+  const n = Math.round(Number(cantidad));
+  if (!sinControl && !(n >= 0)) return { ok: false, motivo: "Poné cuántas hay (0 o más)." };
+  const antes = p.stock;
+  p.stock = sinControl ? null : n;
+  registrar(estado, `${a.usuario.nombre} ajustó el stock de ${p.nombre}: ${antes ?? "sin controlar"} → ${p.stock ?? "sin controlar"}.`, ahora);
+  return { ok: true };
+}
+
+/** Dar de baja (o volver a activar) un producto: no se borra, deja de venderse. */
+export function bajaProducto(estado, productoId, auth, ahora, activo = false) {
+  const a = autorizar(estado, auth, "stock", false);
+  if (!a.ok) return a;
+  const p = producto(estado, productoId);
+  if (!p) return { ok: false, motivo: "No encuentro el producto." };
+  p.activo = activo;
+  registrar(estado, `${a.usuario.nombre} ${activo ? "volvió a activar" : "dio de baja"} ${p.nombre}.`, ahora);
+  return { ok: true };
+}
+
+/** El cambio que queda en el cajón al abrir (fondo de caja). Lo carga un dueño. */
+export function ajustarFondo(estado, monto, auth, ahora) {
+  const a = autorizar(estado, auth, "configurar", false);
+  if (!a.ok) return a;
+  const n = Math.round(Number(monto));
+  if (monto === "" || monto == null || !(n >= 0)) return { ok: false, motivo: "Poné cuánto cambio hay en el cajón (0 o más)." };
+  estado.caja.fondo = n;
+  registrar(estado, `${a.usuario.nombre} dejó el fondo de caja en ${pesos(n)}.`, ahora);
   return { ok: true };
 }
 
@@ -1500,7 +2094,7 @@ export function metricasPlatos(estado, { desde, hasta }) {
   return { filas: filas.map((x) => ({ ...x, participacion: total ? x.facturado / total : 0 })), total, dias: dias.size };
 }
 
-/** Precio sugerido desde el costo y el markup (% sobre costo), redondeado a $50 como se cobra en el mostrador. */
+/** Precio sugerido desde el costo y el % sobre costo, redondeado a $50 como se cobra en el mostrador. */
 export function precioDesdeMarkup(costo, markupPct) {
   const c = Number(costo), m = Number(markupPct);
   if (!(c > 0) || !Number.isFinite(m) || m <= -100) return null;
@@ -1542,6 +2136,208 @@ export function rentabilidad(estado, { desde, hasta } = {}) {
 }
 
 // ───────────────────────── plataforma de contenido ─────────────────────────
+
+// ───────────────────────── novedades del club por difusión (WhatsApp) ─────────────────────────
+
+export const TIPOS_NOVEDAD = Object.freeze({ novedad: "Novedad del club", promo: "Promo", torneo: "Torneo", turnos: "Turnos libres" });
+export const AUDIENCIAS = Object.freeze({
+  todos: "Todos los clientes con celular",
+  activos: "Los que jugaron en los últimos 30 días",
+  recuperar: "Los que no vienen hace más de 30 días",
+  cuentaCorriente: "Los que tienen cuenta corriente",
+});
+
+/** Último día que jugó cada cliente (como titular o como jugador con ficha). */
+function ultimaVez(estado) {
+  const out = new Map();
+  for (const r of estado.reservas) {
+    if (!["finalizada", "en_cancha"].includes(r.estado)) continue;
+    const ids = new Set([r.clienteId, ...r.jugadores.map((j) => j.clienteId)].filter(Boolean));
+    for (const id of ids) if (!out.has(id) || out.get(id) < r.fecha) out.set(id, r.fecha);
+  }
+  return out;
+}
+
+/** A quiénes les llega: clientes activos, con celular, que no pidieron la baja de las novedades. */
+export function destinatarios(estado, audiencia, ahora) {
+  const ultima = ultimaVez(estado);
+  const hace30 = sumarDias(ahora.fecha, -30);
+  return estado.clientes
+    .filter((c) => c.activo !== false && c.aceptaNovedades !== false && String(c.tel ?? "").replace(/\D/g, "").length >= 8)
+    .filter((c) => {
+      if (audiencia === "activos") return (ultima.get(c.id) ?? "") >= hace30;
+      if (audiencia === "recuperar") return ultima.has(c.id) && ultima.get(c.id) < hace30;
+      if (audiencia === "cuentaCorriente") return c.cc?.habilitada;
+      return true;
+    })
+    .map((c) => ({ clienteId: c.id, nombre: c.nombre, tel: String(c.tel).replace(/\D/g, "") }));
+}
+
+/** El mensaje como le llega a cada uno (con su nombre), con la baja al final como corresponde. */
+export function mensajeDifusion(d, nombre = "") {
+  const hola = nombre ? `¡Hola ${String(nombre).split(" ")[0]}! ` : "¡Hola! ";
+  const cuerpo = [`*${d.titulo}*`, d.texto].filter(Boolean).join("\n");
+  return `${hola}${cuerpo}\n\n— Break Point Pádel\n(Si no querés recibir más novedades, respondé BAJA.)`;
+}
+
+/** Arma una novedad para mandar por difusión. No manda nada: el envío es desde el WhatsApp del club. */
+export function crearDifusion(estado, { tipo = "novedad", titulo, texto = "", audiencia = "todos" }, auth, ahora) {
+  const a = autorizar(estado, auth, "contenido", false);
+  if (!a.ok) return a;
+  estado.difusiones ??= [];
+  const t = String(titulo ?? "").trim().slice(0, 80);
+  if (!t) return { ok: false, motivo: "Poné el título de la novedad." };
+  if (!TIPOS_NOVEDAD[tipo]) return { ok: false, motivo: "Elegí el tipo." };
+  if (!AUDIENCIAS[audiencia]) return { ok: false, motivo: "Elegí a quiénes les llega." };
+  const lista = destinatarios(estado, audiencia, ahora);
+  const d = { id: nuevoId("df"), tipo, titulo: t, texto: String(texto ?? "").trim().slice(0, 900), audiencia, destinatarios: lista.map((x) => x.clienteId), enviados: [], autor: a.usuario.nombre, ...sello(ahora) };
+  estado.difusiones.unshift(d);
+  registrar(estado, `${a.usuario.nombre} armó la novedad «${t}» para ${lista.length} cliente(s).`, ahora);
+  return { ok: true, difusion: d, destinatarios: lista };
+}
+
+/** Se mandó a uno (desde el link de WhatsApp): queda anotado para no mandarle dos veces. */
+export function marcarEnviado(estado, difusionId, clienteId) {
+  const d = (estado.difusiones ?? []).find((x) => x.id === difusionId);
+  if (!d) return { ok: false, motivo: "No encuentro la novedad." };
+  if (!d.enviados.includes(clienteId)) d.enviados.push(clienteId);
+  return { ok: true, faltan: d.destinatarios.filter((id) => !d.enviados.includes(id)).length };
+}
+
+/** El cliente respondió BAJA (o se lo saca a mano): no le llegan más novedades. */
+export function bajaNovedades(estado, clienteId, ahora, volver = false) {
+  const c = cliente(estado, clienteId);
+  if (!c) return { ok: false, motivo: "No encuentro al cliente." };
+  c.aceptaNovedades = volver;
+  registrar(estado, volver ? `${c.nombre} vuelve a recibir novedades.` : `${c.nombre} pidió no recibir más novedades.`, ahora);
+  return { ok: true };
+}
+
+/** Los contactos para armar la lista de difusión en WhatsApp Business (CSV: nombre, celular). */
+export function contactosCSV(lista) {
+  const campo = (x) => `"${String(x ?? "").replace(/"/g, '""')}"`;
+  return ["Nombre,Celular", ...lista.map((x) => `${campo(x.nombre)},${campo("+" + x.tel)}`)].join("\r\n");
+}
+
+// ───────────────────────── tienda (encargos por la web, se retiran y pagan en el club) ─────────────────────────
+
+/** Lo que se ve en la tienda: productos marcados para la tienda, activos y con stock. Sin costos ni códigos. */
+export function catalogoTienda(estado) {
+  return estado.productos
+    .filter((p) => p.tienda && p.activo !== false && !p.alquiler && !p.plato && (p.stock == null || p.stock > 0))
+    .map((p) => ({ id: p.id, nombre: p.nombre, categoria: p.categoria, precio: p.precio, pocas: p.stock != null && p.stock <= Math.max(2, p.minimo ?? 0) }));
+}
+
+function nuevoCodigoPedido(estado, azar = Math.random) {
+  let s;
+  do s = "T-" + Array.from({ length: 4 }, () => LETRAS_REF[Math.floor(azar() * LETRAS_REF.length)]).join("");
+  while ((estado.pedidos ?? []).some((x) => x.codigo === s));
+  return s;
+}
+
+const listaPedido = (items) => items.map((i) => `${i.cant} × ${i.nombre} ${pesos(i.cant * i.precioUnit)}`).join(" · ");
+
+/**
+ * El cliente encarga desde la web. No descuenta stock (se descuenta al entregar, que es cuando se cobra) y no
+ * mueve caja: el pedido queda pendiente para que el club lo prepare. Devuelve el mensaje para WhatsApp.
+ */
+export function crearPedidoTienda(estado, { items, nombre, tel = "", origen = "web" }, ahora) {
+  estado.pedidos ??= [];
+  const quien = String(nombre ?? "").trim().slice(0, 60);
+  if (!quien) return { ok: false, motivo: "Poné tu nombre para el pedido." };
+  const lineas = [];
+  for (const { productoId, cant } of items ?? []) {
+    const p = producto(estado, productoId);
+    const n = Math.round(Number(cant));
+    if (!p || !p.tienda || p.activo === false || p.alquiler || p.plato) return { ok: false, motivo: "Hay un producto que no está en la tienda." };
+    if (!(n > 0)) continue;
+    if (p.stock != null && p.stock < n) return { ok: false, motivo: `De ${p.nombre} quedan ${p.stock}.` };
+    lineas.push({ productoId: p.id, nombre: p.nombre, cant: n, precioUnit: p.precio });
+  }
+  if (!lineas.length) return { ok: false, motivo: "El pedido está vacío." };
+  const total = lineas.reduce((s, i) => s + i.cant * i.precioUnit, 0);
+  const pedido = { id: nuevoId("pd"), codigo: nuevoCodigoPedido(estado), items: lineas, total, nombre: quien, tel: String(tel ?? "").trim().slice(0, 30), origen, estado: "pendiente", ...sello(ahora) };
+  estado.pedidos.push(pedido);
+  registrar(estado, `Pedido de la tienda ${pedido.codigo} de ${quien}: ${pesos(total)}.`, ahora);
+  return { ok: true, pedido, mensaje: mensajeWhatsApp("pedidoTienda", { lista: listaPedido(lineas), total: pesos(total), nombre: quien, tel: pedido.tel, codigo: pedido.codigo }) };
+}
+
+/**
+ * El club pega el mensaje de WhatsApp que mandó el cliente desde la tienda (con el celular del cliente no hay
+ * conexión con la compu del club): se leen los productos, el nombre y el código, y queda como pedido pendiente.
+ */
+export function pedidoDesdeWhatsApp(estado, texto, ahora) {
+  const t = String(texto ?? "");
+  const items = [];
+  for (const m of t.matchAll(/(\d+)\s*[×x]\s*([^$·\n]+?)\s*\$/g)) {
+    const nombre = m[2].trim().toLowerCase();
+    const p = estado.productos.find((x) => x.nombre.toLowerCase() === nombre);
+    if (!p) return { ok: false, motivo: `No encuentro «${m[2].trim()}» en los productos de la tienda.` };
+    items.push({ productoId: p.id, cant: Number(m[1]) });
+  }
+  if (!items.length) return { ok: false, motivo: "No encontré productos en el mensaje: pegalo entero, como llegó." };
+  const quien = t.match(/Soy ([^(.\n]+?)\s*(?:\(([^)]*)\))?\.\s/);
+  const codigo = t.match(/Pedido (T-[A-Z0-9]{4})/)?.[1] ?? null;
+  if (codigo && (estado.pedidos ?? []).some((x) => x.codigo === codigo)) return { ok: false, motivo: `El pedido ${codigo} ya está cargado.` };
+  const res = crearPedidoTienda(estado, { items, nombre: quien?.[1]?.trim() || "Cliente de WhatsApp", tel: quien?.[2] ?? "", origen: "whatsapp" }, ahora);
+  if (res.ok && codigo) res.pedido.codigo = codigo;
+  return res;
+}
+
+export const pedidosPendientes = (estado) => (estado.pedidos ?? []).filter((x) => x.estado === "pendiente");
+const pedido = (estado, id) => (estado.pedidos ?? []).find((x) => x.id === id);
+
+function validarStockPedido(estado, pd) {
+  for (const i of pd.items) {
+    const p = producto(estado, i.productoId);
+    if (!p || p.activo === false) return { ok: false, motivo: `${i.nombre} ya no está a la venta.` };
+    if (p.stock != null && p.stock < i.cant) return { ok: false, motivo: `No alcanza el stock de ${p.nombre} (quedan ${p.stock}).` };
+  }
+  return { ok: true };
+}
+
+/** Se entrega y se cobra en el mostrador: descuenta stock y entra a la caja, al precio de hoy. */
+export function entregarPedido(estado, pedidoId, { medio, auth = null }, ahora) {
+  if (auth) { const a = autorizar(estado, auth, "buffet", false); if (!a.ok) return a; }
+  const pd = pedido(estado, pedidoId);
+  if (!pd || pd.estado !== "pendiente") return { ok: false, motivo: "Ese pedido ya se resolvió." };
+  if (!MEDIOS_DE_CAJA.includes(medio)) return { ok: false, motivo: "Elegí cómo paga (efectivo, Mercado Pago, transferencia o tarjeta)." };
+  const v = validarStockPedido(estado, pd);
+  if (!v.ok) return v;
+  const { cuenta: cta } = abrirCuenta(estado, { titular: `Tienda ${pd.codigo} · ${pd.nombre}`, reservaId: `tienda-${pd.id}` }, ahora);
+  for (const i of pd.items) cargarEnCuenta(estado, cta.id, i.productoId, i.cant, ahora);
+  const total = totalCuenta(cta);
+  pagarCuenta(estado, cta.id, { medio, monto: total }, ahora);
+  cerrarCuenta(estado, cta.id, {}, ahora);
+  pd.estado = "entregado";
+  pd.cobrado = { medio, monto: total, ...sello(ahora) };
+  registrar(estado, `Se entregó el pedido ${pd.codigo} de ${pd.nombre} (${pesos(total)}, ${MEDIOS[medio]}).`, ahora);
+  return { ok: true, total };
+}
+
+/** Se lo lleva y queda en la cuenta de cargos de un cliente (se cobra con lo demás). */
+export function cargarPedidoACuenta(estado, pedidoId, clienteId, ahora) {
+  const pd = pedido(estado, pedidoId);
+  if (!pd || pd.estado !== "pendiente") return { ok: false, motivo: "Ese pedido ya se resolvió." };
+  const c = cliente(estado, clienteId);
+  if (!c) return { ok: false, motivo: "Elegí el cliente." };
+  const v = validarStockPedido(estado, pd);
+  if (!v.ok) return v;
+  const { cuenta: cta } = abrirCuenta(estado, { clienteId: c.id }, ahora);
+  for (const i of pd.items) cargarEnCuenta(estado, cta.id, i.productoId, i.cant, ahora);
+  pd.estado = "a_cuenta";
+  pd.cuentaId = cta.id;
+  registrar(estado, `El pedido ${pd.codigo} quedó en la cuenta de ${c.nombre}.`, ahora);
+  return { ok: true, cuenta: cta };
+}
+
+export function cancelarPedido(estado, pedidoId, ahora) {
+  const pd = pedido(estado, pedidoId);
+  if (!pd || pd.estado !== "pendiente") return { ok: false, motivo: "Ese pedido ya se resolvió." };
+  pd.estado = "cancelado";
+  registrar(estado, `Se canceló el pedido ${pd.codigo} de ${pd.nombre}.`, ahora);
+  return { ok: true };
+}
 
 export const CANALES = Object.freeze({ post: "Instagram · post", reel: "Instagram · reel", historia: "Instagram · historia", whatsapp: "WhatsApp · difusión" });
 export const ESTADOS_CONTENIDO = Object.freeze({ idea: "Idea", programado: "Programado", publicado: "Publicado" });
@@ -1606,6 +2402,14 @@ export function mensajeWhatsApp(tipo, d) {
       return `¡Hola ${d.nombre}! Hoy no llegaron al turno de las ${d.hora}. Como avisamos, la falta se cobra entera: te quedó ${d.monto} en tu cuenta. Lo podés pasar por transferencia o Mercado Pago. ¡Gracias!`;
     case "deuda":
       return `¡Hola ${d.nombre}! Tu cuenta en el club tiene un saldo de ${d.monto}. Lo podés pasar por transferencia o Mercado Pago cuando puedas. ¡Gracias!`;
+    case "aprobacion":
+      return `Hola ${d.duenio}, soy ${d.pidio} del club. ${d.tipo === "fiado" ? `${d.cliente} pide fiar ${d.monto}` : `${d.cliente} pide cuenta corriente hasta ${d.monto}`}. Si lo aprobás, abrí este link, poné tu PIN y mandame el código: ${d.link}`;
+    case "aprobado":
+      return `Aprobado: ${d.cliente} ${d.monto}. Código ${d.codigo}`;
+    case "pedidoTienda":
+      return `Hola ${club}, quiero encargar para retirar en el club: ${d.lista}. Total ${d.total}. Soy ${d.nombre}${d.tel ? ` (${d.tel})` : ""}. Pedido ${d.codigo}.`;
+    case "pedidoListo":
+      return `¡Hola ${d.nombre}! Tu pedido ${d.codigo} ya está listo para retirar en ${club}: ${d.lista}. Total ${d.total}, se paga al retirar. ¡Te esperamos!`;
     case "reposicion":
       return `Hola, te escribo de ${club}. Necesitamos reponer: ${d.lista}. ¿Me pasás precio y cuándo lo podés traer?`;
     default:
@@ -1627,7 +2431,9 @@ export function linkWhatsApp(tel, texto) {
 export function alertas(estado, ahora) {
   const out = [];
   const { politica } = estado.config;
-  const hoy = estado.reservas.filter((r) => r.fecha === ahora.fecha);
+  // Pasada la 01:00, lo que sigue en cancha desde el día anterior también se avisa (y no es «luz sin juego»).
+  const ayer = sumarDias(ahora.fecha, -1);
+  const hoy = estado.reservas.filter((r) => r.fecha === ahora.fecha || (r.fecha === ayer && r.estado === "en_cancha"));
   for (const r of hoy) {
     const falta = minutosHasta(ahora, r.fecha, r.inicio);
     const fin = falta + r.duracion;
@@ -1680,8 +2486,10 @@ export function alertas(estado, ahora) {
   }
   for (const n of estado.novedades.filter((x) => x.estado === "pendiente")) {
     const c = cliente(estado, n.clienteId);
-    out.push({ nivel: "media", tipo: "autorizacion", novedadId: n.id, paraDuenio: true, texto: `${n.pidio} pide cuenta corriente para ${c?.nombre} hasta ${pesos(n.limite)}.`, accion: "Autorizar o rechazar" });
+    out.push({ nivel: "media", tipo: "autorizacion", novedadId: n.id, paraDuenio: true, texto: n.tipo === "fiado" ? `${n.pidio} pide fiarle ${pesos(n.monto)} a ${c?.nombre}.` : `${n.pidio} pide cuenta corriente para ${c?.nombre} hasta ${pesos(n.limite)}.`, accion: "Autorizar o rechazar" });
   }
+  for (const pd of (estado.pedidos ?? []).filter((x) => x.estado === "pendiente"))
+    out.push({ nivel: "media", tipo: "pedido", pedidoId: pd.id, texto: `Pedido de la tienda ${pd.codigo} de ${pd.nombre}: ${pesos(pd.total)} para retirar.`, accion: "Ver pedido" });
   for (const s of estado.solicitudesAcceso.filter((x) => x.estado === "pendiente"))
     out.push({ nivel: "media", tipo: "acceso", solicitudId: s.id, paraDuenio: true, texto: `${s.nombre} pidió acceso al sistema.`, accion: "Dar acceso" });
   const peso = { alta: 0, media: 1, info: 2 };
@@ -1707,7 +2515,7 @@ export function kpis(estado, fecha, ahora) {
   const cobradoTotal = delDia.reduce((s, r) => s + cobrado(r), 0);
   const yaEmpezo = (r) => !ahora || fecha < ahora.fecha || (fecha === ahora.fecha && r.inicio <= ahora.min);
   const porCobrar = delDia.filter((r) => r.estado === "en_cancha" || (r.estado === "reservada" && yaEmpezo(r))).reduce((s, r) => s + Math.max(0, saldo(r)), 0);
-  const dia = ahora ? diaDeCaja(estado, ahora.fecha, ahora.min) : fecha;
+  const dia = ahora ? cajaAbierta(estado, ahora) : fecha; // la misma caja que muestra Caja
   const caja = resumenCaja(estado, dia);
   const stockValorizado = estado.productos.reduce((s, p) => s + (p.stock == null ? 0 : p.costo * (p.stock + (p.prestados ?? 0))), 0);
   let buffet = 0;
@@ -1838,6 +2646,15 @@ export const CANCHAS_DEMO = Object.freeze([
   { id: "c4", nombre: "Cancha 4", cubierta: false, panoramica: true, estado: "ok", camara: "cam-c4" },
 ]);
 
+/**
+ * Los dueños de Break Point para la jornada real. Arrancan SIN PIN: cada uno arma el suyo en la consola de
+ * configuración. Recepción la dan de alta ellos (Configuración → Usuarios y accesos).
+ */
+export const USUARIOS_REALES = Object.freeze([
+  { id: "u-rober", nombre: "Roberto Ronco", rol: "duenio", pin: "", activo: true },
+  { id: "u-majo", nombre: "Majo Gimenez", rol: "duenio", pin: "", activo: true },
+]);
+
 /** Usuarios de demo. Los PIN son de ejemplo y se muestran en pantalla a propósito (es una demo). */
 export const USUARIOS_DEMO = Object.freeze([
   { id: "u-rober", nombre: "Rober", rol: "duenio", pin: "11", activo: true },
@@ -1862,16 +2679,16 @@ const NOMBRES = [
 
 // Códigos de ejemplo (formato EAN-13 con prefijo 779 de Argentina; ficticios).
 export const PRODUCTOS_DEMO = Object.freeze([
-  { id: "p1", nombre: "Tubo de pelotas (3)", categoria: "Pelotas", precio: 12000, costo: 7800, stock: 18, minimo: 10, codigo: "BP-001", codigoExterno: "7790000000011" },
-  { id: "p2", nombre: "Agua 500 ml", categoria: "Bebidas", precio: 2000, costo: 700, stock: 42, minimo: 24, codigo: "BP-002", codigoExterno: "7790000000028" },
-  { id: "p3", nombre: "Bebida isotónica", categoria: "Bebidas", precio: 3500, costo: 1500, stock: 9, minimo: 12, codigo: "BP-003", codigoExterno: "7790000000035" },
-  { id: "p9", nombre: "Cerveza lata 473 ml", categoria: "Bebidas", precio: 3800, costo: 1700, stock: 48, minimo: 24, codigo: "BP-004", codigoExterno: "7790000000097" },
-  { id: "p10", nombre: "Gaseosa 500 ml", categoria: "Bebidas", precio: 2800, costo: 1100, stock: 30, minimo: 18, codigo: "BP-005", codigoExterno: "7790000000103" },
-  { id: "p4", nombre: "Overgrip", categoria: "Accesorios", precio: 4500, costo: 2100, stock: 30, minimo: 10, codigo: "BP-006", codigoExterno: "7790000000042" },
-  { id: "p5", nombre: "Muñequera", categoria: "Accesorios", precio: 6000, costo: 2800, stock: 4, minimo: 6, codigo: "BP-007", codigoExterno: "7790000000059" },
+  { id: "p1", tienda: true, nombre: "Tubo de pelotas (3)", categoria: "Pelotas", precio: 12000, costo: 7800, stock: 18, minimo: 10, codigo: "BP-001", codigoExterno: "7790000000011" },
+  { id: "p2", tienda: true, nombre: "Agua 500 ml", categoria: "Bebidas", precio: 2000, costo: 700, stock: 42, minimo: 24, codigo: "BP-002", codigoExterno: "7790000000028" },
+  { id: "p3", tienda: true, nombre: "Bebida isotónica", categoria: "Bebidas", precio: 3500, costo: 1500, stock: 9, minimo: 12, codigo: "BP-003", codigoExterno: "7790000000035" },
+  { id: "p9", tienda: true, nombre: "Cerveza lata 473 ml", categoria: "Bebidas", precio: 3800, costo: 1700, stock: 48, minimo: 24, codigo: "BP-004", codigoExterno: "7790000000097" },
+  { id: "p10", tienda: true, nombre: "Gaseosa 500 ml", categoria: "Bebidas", precio: 2800, costo: 1100, stock: 30, minimo: 18, codigo: "BP-005", codigoExterno: "7790000000103" },
+  { id: "p4", tienda: true, nombre: "Overgrip", categoria: "Accesorios", precio: 4500, costo: 2100, stock: 30, minimo: 10, codigo: "BP-006", codigoExterno: "7790000000042" },
+  { id: "p5", tienda: true, nombre: "Muñequera", categoria: "Accesorios", precio: 6000, costo: 2800, stock: 4, minimo: 6, codigo: "BP-007", codigoExterno: "7790000000059" },
   { id: "p6", nombre: "Alquiler de pala", categoria: "Alquiler", precio: 5000, costo: 0, stock: 8, minimo: 0, alquiler: true, codigo: "BP-008", codigoExterno: "" },
-  { id: "p7", nombre: "Pala Break Point (shop)", categoria: "Shop", precio: 185000, costo: 118000, stock: 3, minimo: 2, codigo: "BP-009", codigoExterno: "7790000000073" },
-  { id: "p8", nombre: "Remera técnica del club", categoria: "Shop", precio: 28000, costo: 13500, stock: 0, minimo: 5, codigo: "BP-010", codigoExterno: "7790000000080" },
+  { id: "p7", tienda: true, nombre: "Pala Break Point (shop)", categoria: "Shop", precio: 185000, costo: 118000, stock: 3, minimo: 2, codigo: "BP-009", codigoExterno: "7790000000073" },
+  { id: "p8", tienda: true, nombre: "Remera técnica del club", categoria: "Shop", precio: 28000, costo: 13500, stock: 0, minimo: 5, codigo: "BP-010", codigoExterno: "7790000000080" },
   // Cocina (Delicias): los platos no llevan stock; se miden por venta.
   { id: "k-mila", nombre: "Milanesa napolitana con papas", categoria: "Cocina", precio: 14500, costo: 6200, stock: null, minimo: 0, plato: true, codigo: "BP-011", codigoExterno: "" },
   { id: "k-hamb", nombre: "Hamburguesa Break con papas", categoria: "Cocina", precio: 12000, costo: 4800, stock: null, minimo: 0, plato: true, codigo: "BP-012", codigoExterno: "" },

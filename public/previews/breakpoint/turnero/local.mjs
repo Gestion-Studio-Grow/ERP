@@ -6,13 +6,14 @@
 //
 // Con varias pestañas abiertas (el turnero en una, la gestión del club en otra), bus.mjs elige UNA que hace de
 // servidor y las demás le hablan por BroadcastChannel: así la demo muestra la integración en vivo sin servidor.
-import { crearTurnero } from "./dominio/nucleo.mjs";
+import { crearTurnero, aMotor } from "./dominio/nucleo.mjs";
+import { crearClubReal } from "../club/motor.mjs";
 
 /**
  * El "back" de la demo. `atender({ tab, metodo, ruta, cuerpo })` devuelve `{ status, ...cuerpo }`.
  * `suscribir(tab, ruta, enviar)` es el SSE: devuelve la función para darse de baja. Las sesiones van por pestaña.
  */
-export function crearServidorDemo({ reloj = () => Date.now(), foto = null } = {}) {
+export function crearServidorDemo({ reloj = () => Date.now(), foto = null, estado } = {}) {
   const buzon = [...(foto?.buzon ?? [])];
   const medios = new Map();
   const canal = { tipo: "demo", async enviar(tel, texto) { buzon.unshift({ a: `••• ${String(tel).slice(-4)}`, texto, cuando: reloj() }); if (buzon.length > 30) buzon.length = 30; return { ok: true }; } };
@@ -22,7 +23,7 @@ export function crearServidorDemo({ reloj = () => Date.now(), foto = null } = {}
       return { texto: m.texto ?? "", confianzaOcr: 1 };
     },
   };
-  const tn = crearTurnero({ reloj, canal, lector, foto: foto?.turnero ?? null });
+  const tn = crearTurnero({ reloj, canal, lector, estado, foto: foto?.turnero ?? null });
   let cambios = false; // hubo algo que la próxima foto tiene que llevar
   const reloj30 = setInterval(() => { tn.tick(); cambios = true; }, 30000);
   reloj30.unref?.(); // en Node (tests) no mantiene vivo el proceso; en el navegador no existe y no hace falta
@@ -67,6 +68,9 @@ export function crearServidorDemo({ reloj = () => Date.now(), foto = null } = {}
       // Sin red no hay firma que verificar: el mensaje entra directo al mismo procesador del webhook.
       return r(200, { ok: true, resultados: [await tn.procesarMensaje(msj)] });
     }
+    // ───── tienda: encargos que se retiran y se pagan en el club (sin cuenta: nombre y celular) ─────
+    if (metodo === "GET" && camino === "/api/tienda/catalogo") return r(200, { ok: true, productos: tn.catalogoTienda() });
+    if (metodo === "POST" && camino === "/api/tienda/pedidos") { const x = tn.pedirTienda(cuerpo); return r(x.ok ? 201 : 400, x); }
     // ───── club (backoffice conectado a la demo): en el mismo navegador, sin clave ─────
     if (metodo === "GET" && camino === "/api/staff/sesion") return r(200, { ok: true, staff: true });
     if (metodo === "GET" && camino === "/api/staff/estado") return r(200, { ok: true, estado: tn.snapshot(), version: tn.version(), ahora: tn.ahora() });
@@ -105,6 +109,30 @@ export function fuenteFalsa(alCerrar = () => {}) {
     cortar() { queueMicrotask(() => f.onerror?.()); },
   };
   return f;
+}
+
+/**
+ * Modo «pedido por WhatsApp» (/turnero?modo=pedido&wa=…): el celular del jugador no llega a la PC del club, así que
+ * no hay bus ni "en vivo". Corre el núcleo sobre el club EN BLANCO (crearClubReal: canchas, horarios, precios y
+ * productos del club, sin turnos de ejemplo) sólo para mostrar horarios y precios de referencia y armar el mensaje
+ * de WhatsApp. Nada se reserva acá: el club confirma por WhatsApp.
+ */
+export function crearLocalPedido({ reloj = () => Date.now(), tarifas = null, catalogo = null } = {}) {
+  const estado = crearClubReal(aMotor(reloj()).fecha);
+  // Lo que manda el club en el link: sus precios por hora y su tienda (sólo esos productos, a esos precios).
+  if (tarifas?.length) estado.config.tarifas = tarifas;
+  for (const p of estado.productos) {
+    const precio = catalogo?.[p.id];
+    p.tienda = Boolean(p.tienda && precio);
+    if (precio) p.precio = precio;
+  }
+  const servidor = crearServidorDemo({ reloj, estado });
+  const tab = "pedido";
+  return {
+    tab, esServidor: () => true, hayServidor: () => Promise.resolve(), cerrar: () => servidor.cerrar(),
+    api: async (ruta, { metodo = "GET", cuerpo } = {}) => servidor.atender({ tab, metodo, ruta, cuerpo }),
+    fuente: () => fuenteFalsa(),
+  };
 }
 
 /**
