@@ -610,15 +610,17 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     // Pasa a operar un dueño: la bandeja «Para resolver ahora» suma lo que es SÓLO de un dueño (como el vanilla,
     // `!a.paraDuenio || esDuenio()`) y pinta sólo esas alertas nuevas; la agenda y los turnos no se enteran.
     // La compuerta «sólo con operador» (ClubDemo) se entera, una vez, y no repinta a sus hijos.
-    const { BandejaDelClub, Badge, ItemDeLaBandeja = 0, Button = 0, Marca = 0, Forma = 0, SoloConOperador = 0, ...resto } = porOperador;
+    // «Bloquear» de la cinta (escucha al operador) y su tecla, también una vez.
+    const { BandejaDelClub, Badge, ItemDeLaBandeja = 0, Button = 0, Marca = 0, Forma = 0, SoloConOperador = 0, BloquearDesdeLaCinta = 0, Kbd = 0, ...resto } = porOperador;
     assert.ok(SoloConOperador <= 1, "la compuerta se repinta a lo sumo una vez");
+    assert.ok(BloquearDesdeLaCinta <= 1 && Kbd <= 1, "«Bloquear» se repinta a lo sumo una vez");
     assert.deepEqual(resto, {}, "con la Agenda a la vista, cambiar de operador no repinta la agenda ni los turnos");
     const deDuenio = await p1.evaluate(() => {
       const e = (window as unknown as { __almacen: import("./almacen").Almacen }).__almacen.estado();
       return e.novedades.filter((n) => n.estado === "pendiente").length + (e.solicitudesAcceso as { estado: string }[]).filter((x) => x.estado === "pendiente").length;
     });
     assert.equal(ItemDeLaBandeja, deDuenio, "en la bandeja se pintan sólo las alertas del dueño que aparecieron");
-    assert.ok(Button <= deDuenio && Marca <= deDuenio && Forma <= deDuenio, "y sólo sus botones y marcas");
+    assert.ok(Button <= deDuenio + BloquearDesdeLaCinta && Marca <= deDuenio && Forma <= deDuenio, "y sólo sus botones y marcas (más «Bloquear»)");
     assert.ok((BandejaDelClub ?? 0) <= 1 && (Badge ?? 0) <= 1);
     await p1.evaluate(() => (window as unknown as { __irASolapa: (id: string) => void }).__irASolapa("caja"));
     await p1.getByText(/^Operás como /).waitFor();

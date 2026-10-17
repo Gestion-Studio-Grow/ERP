@@ -11,8 +11,9 @@
 //     no dejaba trabajar en la segunda). Sin Web Locks (navegador viejo), avisa que se use una sola pestaña.
 // Se suscribe sola (al guardado por su canal y al minuto del reloj): ClubDemo no se repinta por esto.
 
-import { useCallback } from "react";
+import { memo, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
+import { useBloqueo } from "./bloquear-ahora";
 import { cn } from "@/components/ui/cn";
 import { hhmm } from "@/lib/club/motor.mjs";
 import type { Almacen, EstadoDelGuardado } from "./almacen";
@@ -26,6 +27,21 @@ function textoDelGuardado(g: EstadoDelGuardado): string {
   if (g.guardado === "reintentando") return "Sin guardar — reintentando";
   return g.enEsteEquipo ? "Guardado en este equipo" : "Guardado";
 }
+
+/**
+ * «Bloquear» (tecla L) a la derecha de la hora: el hook de la sesión del club (bloquear-ahora.tsx); el botón en `md`
+ * para que en la tablet de recepción mida 44 px (el `sm` baja a 36 px desde 640 px). En la demo o sin operador, nada.
+ * Componente aparte: se suscribe al operador sin repintar la cinta.
+ */
+const BloquearDesdeLaCinta = memo(function BloquearDesdeLaCinta({ almacen }: { almacen: Almacen }) {
+  const { bloquear, puedeBloquear } = useBloqueo(almacen);
+  if (!puedeBloquear) return null;
+  return (
+    <Button variant="outline" size="md" atajo="L" aria-keyshortcuts="L" onClick={bloquear}>
+      Bloquear
+    </Button>
+  );
+});
 
 export default function CintaDelClub({
   almacen,
@@ -78,10 +94,13 @@ export default function CintaDelClub({
   const mal = g.jornada === "ilegible" || g.jornada === "sin-base" || g.guardado !== "guardado" || g.lleno;
   return (
     <div className={cn("flex flex-col gap-1 rounded-lg border px-4 py-3 text-sm", mal ? "border-danger/40 bg-danger-soft" : "border-line bg-surface-raised")}>
-      <p className="text-strong">
-        <span className="font-semibold">Jornada real</span> · Hora: <span className="tabular-nums">{hhmm(min)}</span> ·{" "}
-        <span role="status">{g.jornada === "abriendo" ? "Abriendo lo guardado…" : g.jornada === "ilegible" ? "Sin guardar — lo guardado no se pudo leer" : g.jornada === "sin-base" ? "No hay conexión con la base — reintentando" : textoDelGuardado(g)}</span>
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-strong">
+          <span className="font-semibold">Jornada real</span> · Hora: <span className="tabular-nums">{hhmm(min)}</span> ·{" "}
+          <span role="status">{g.jornada === "abriendo" ? "Abriendo lo guardado…" : g.jornada === "ilegible" ? "Sin guardar — lo guardado no se pudo leer" : g.jornada === "sin-base" ? "No hay conexión con la base — reintentando" : textoDelGuardado(g)}</span>
+        </p>
+        <BloquearDesdeLaCinta almacen={almacen} />
+      </div>
       {g.jornada === "sin-base" && (
         <p className="text-body">Hasta que la base conteste no se puede operar: así no se arranca un club vacío encima de lo guardado. Revisá el wifi; no hace falta recargar.</p>
       )}

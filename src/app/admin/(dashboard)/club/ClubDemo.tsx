@@ -277,7 +277,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     <div className="flex flex-col gap-4">
       {piezas.map((p) => (
         <Suspense key={p.id} fallback={null}>
-          <p.diferida.Solapa almacen={almacen} rol={rol} irASolapa={irASolapa} />
+          <p.diferida.Solapa almacen={almacen} rol={rol} irASolapa={irASolapa} negocio={negocio} />
         </Suspense>
       ))}
 

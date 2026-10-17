@@ -207,7 +207,7 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await bloqueo(page).getByText("Falta 0:27").waitFor();
     assert.equal(await bloqueo(page).getByRole("status").filter({ hasText: /esperá 30 segundos/ }).count(), 1);
     assert.equal(await bloqueo(page).locator('[aria-hidden="true"]', { hasText: "Falta" }).count(), 1);
-    assert.ok(await page.evaluate((k) => localStorage.getItem(k), claveDeIntentosDelBloqueo(undefined)), "los intentos quedan en el equipo");
+    assert.ok(await page.evaluate((k) => localStorage.getItem(k), claveDeIntentosDelBloqueo("demo-club")), "los intentos quedan en el equipo, por negocio");
 
     // Recargar no borra la espera.
     await page.close();
@@ -224,7 +224,7 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await bloqueo(page).waitFor({ state: "detached" });
     await page.getByText("Hola, Lu.").waitFor();
     await page.locator('[data-ui="operador-del-club"]').getByText("Lu (recepción tarde)").waitFor();
-    assert.equal(await page.evaluate((k) => localStorage.getItem(k), claveDeIntentosDelBloqueo(undefined)), null, "un PIN bueno limpia los intentos");
+    assert.equal(await page.evaluate((k) => localStorage.getItem(k), claveDeIntentosDelBloqueo("demo-club")), null, "un PIN bueno limpia los intentos");
     await capturar(page, "1024-adentro");
 
     // 5 minutos sin uso (config.bloqueoMin de la demo): vuelve a bloquear, con quien estaba.
