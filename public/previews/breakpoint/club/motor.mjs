@@ -205,15 +205,41 @@ export function hidratarEstado(foto) {
     estado.clientes = estado.clientes.map(normalizarCliente);
     // `archivo` (resumen de los días archivados) es opcional: un estado viejo no lo tiene y sigue igual.
     if ("archivo" in estado) {
-      const a = estado.archivo;
-      if (!esObjeto(a)) delete estado.archivo;
-      else estado.archivo = { ...a, hasta: typeof a.hasta === "string" ? a.hasta : null, dias: esLista(a.dias) ? a.dias.filter(esObjeto) : [], clientes: esObjeto(a.clientes) ? a.clientes : {}, anexos: esLista(a.anexos) ? a.anexos : [] };
+      if (!esObjeto(estado.archivo)) delete estado.archivo;
+      else estado.archivo = normalizarArchivo(estado.archivo);
     }
     retomarSecuencia(foto.secuencia);
     return { ok: true, estado };
   } catch {
     return { ok: false, motivo: "no se pudo leer" };
   }
+}
+
+const esFecha = (x) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
+const fechaONull = (x) => (esFecha(x) ? x : null);
+const entero = (x) => (Number.isFinite(x) ? Math.round(x) : 0);
+
+/**
+ * El resumen de lo archivado, sano: cada renglón que no se entiende se descarta (sin rechazar la foto) y los números
+ * que no son números quedan en 0. Así un `archivo` tocado a mano no rompe la Configuración ni la seña web.
+ */
+function normalizarArchivo(a) {
+  const dias = (esLista(a.dias) ? a.dias : []).filter((f) => esObjeto(f) && esFecha(f.dia))
+    .map((f) => ({ ...fila0(f.dia), ...Object.fromEntries(Object.keys(fila0(f.dia)).filter((k) => k !== "dia").map((k) => [k, entero(f[k])])) }));
+  const clientes = Object.fromEntries(Object.entries(esObjeto(a.clientes) ? a.clientes : {})
+    .filter(([id, x]) => /^[\w-]{1,60}$/.test(id) && esObjeto(x))
+    .map(([id, x]) => [id, { jugados: Math.max(0, entero(x.jugados)), ultima: esFecha(x.ultima) ? x.ultima : "" }]));
+  const anexos = (esLista(a.anexos) ? a.anexos : []).filter((x) => esObjeto(x) && esFecha(x.hasta)).map((x) => ({
+    desde: fechaONull(x.desde), hasta: x.hasta, fecha: fechaONull(x.fecha), min: Number.isFinite(x.min) ? x.min : null,
+    por: typeof x.por === "string" ? x.por.slice(0, 60) : null,
+    conteos: Object.fromEntries(Object.entries(esObjeto(x.conteos) ? x.conteos : {}).filter(([, n]) => Number.isFinite(n)).map(([k, n]) => [k, Math.max(0, Math.round(n))])),
+  }));
+  const codigos = (lista, re) => [...new Set((esLista(lista) ? lista : []).filter((c) => typeof c === "string" && re.test(c)))];
+  const c = esObjeto(a.codigos) ? a.codigos : {};
+  return {
+    ...a, hasta: fechaONull(a.hasta), dias, clientes, anexos,
+    codigos: { pedidos: codigos(c.pedidos, /^T-[A-Z0-9]{4}$/), refs: codigos(c.refs, /^BP-[A-Z0-9]{4}$/) },
+  };
 }
 
 function normalizarCliente(c) {
@@ -837,7 +863,7 @@ const LETRAS_REF = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sin 0/O ni 1/I: se dic
 export function nuevaRefPago(estado, azar = Math.random) {
   let s;
   do s = "BP-" + Array.from({ length: 4 }, () => LETRAS_REF[Math.floor(azar() * LETRAS_REF.length)]).join("");
-  while (estado.reservas.some((r) => r.ref === s));
+  while (estado.reservas.some((r) => r.ref === s) || codigoArchivado(estado, "refs", s));
   return s;
 }
 
@@ -2006,6 +2032,85 @@ export function plataPorDia(datos) {
   return Object.fromEntries([...dias.values()].sort((a, b) => a.dia.localeCompare(b.dia)).map((f) => [f.dia, { canchas: f.cobradoCanchas, cuentas: f.cobradoCuentas, monedero: f.monedero, ingresos: f.ingresosCaja, egresos: f.egresosCaja }]));
 }
 
+/** ¿Ese código de pedido (T-XXXX) o de seña (BP-XXXX) ya salió en un archivo? */
+function codigoArchivado(estado, tipo, codigo) {
+  const lista = estado.archivo?.codigos?.[tipo];
+  return Array.isArray(lista) && lista.includes(codigo);
+}
+
+/**
+ * Huella del anexo (dos pasadas de FNV-1a, 16 caracteres hex): prueba que el archivo que el dueño eligió es el MISMO
+ * que se va a archivar. No entran `generado` ni `por` (cambian con el minuto y con quién lo hace).
+ */
+export function huellaAnexo(anexo) {
+  if (!esObjeto(anexo)) return "";
+  const resto = { ...anexo };
+  delete resto.generado;
+  delete resto.por;
+  const texto = JSON.stringify(resto);
+  return ["bp-anexo-a", "bp-anexo-b"].map((sal) => fnv1a(`${sal}|${texto}`).toString(16).padStart(8, "0")).join("");
+}
+
+/** Huella del respaldo completo que va en el archivo para archivar (un peso tocado o un turno de menos la cambian). */
+export function huellaRespaldo(respaldo) {
+  if (!esObjeto(respaldo)) return "";
+  const texto = JSON.stringify(respaldo);
+  return ["bp-resp-a", "bp-resp-b"].map((sal) => fnv1a(`${sal}|${texto}`).toString(16).padStart(8, "0")).join("");
+}
+
+/**
+ * El archivo único que se descarga para archivar (una sola descarga: el navegador suele bloquear la segunda del mismo
+ * clic): el respaldo completo de antes de archivar (`respaldo`, el sobre v1 de siempre) y el anexo de los días que
+ * salen (`anexo`), con su huella y sus conteos para verificarlo después.
+ */
+export function paqueteParaArchivar(respaldo, res) {
+  return {
+    v: 1, tipo: "respaldo-y-archivo", club: res.anexo.club ?? "", hasta: res.anexo.hasta, conteos: res.conteos,
+    huella: huellaAnexo(res.anexo), huellaRespaldo: huellaRespaldo(respaldo), respaldo, anexo: res.anexo,
+  };
+}
+
+/**
+ * Paso 2 de archivar: ¿el archivo que eligió el dueño es el que se descargó para ESTE archivado? Compara el día, los
+ * conteos y la huella del anexo con lo que se va a archivar ahora (`res`, recalculado). `huellaDescargada` es la del
+ * paso 1: sirve para decir si el archivo es el bueno pero algo cambió en el medio (hay que descargar de nuevo).
+ */
+export function verificarPaqueteArchivo(paquete, res, huellaDescargada = null) {
+  if (!esObjeto(paquete) || paquete.tipo !== "respaldo-y-archivo" || !esObjeto(paquete.anexo) || !esObjeto(paquete.respaldo))
+    return { ok: false, motivo: "Ese no es el archivo para archivar: elegí el «breakpoint-respaldo-y-archivo-….json» que se descargó.", causa: "otro" };
+  const huella = huellaAnexo(paquete.anexo);
+  if (huella !== paquete.huella || paquete.respaldo.v !== VERSION_ESTADO || !esObjeto(paquete.respaldo.estado))
+    return { ok: false, motivo: "Ese archivo está incompleto o dañado: descargalo de nuevo.", causa: "danado" };
+  // El respaldo de adentro también tiene que servir para «Restaurar»: intacto (su huella), se abre y, archivado hasta el
+  // mismo día, da exactamente el anexo del archivo (si alguien lo tocó o es de otra jornada, no coincide).
+  if (huellaRespaldo(paquete.respaldo) !== paquete.huellaRespaldo)
+    return { ok: false, motivo: "Ese archivo está incompleto o dañado (su respaldo no está entero): descargalo de nuevo.", causa: "danado" };
+  const h = hidratarEstado(paquete.respaldo);
+  const desdeRespaldo = h.ok ? archivarDiasCerrados(h.estado, paquete.anexo.hasta) : null;
+  if (!desdeRespaldo?.ok || desdeRespaldo.vacio || huellaAnexo(desdeRespaldo.anexo) !== huella)
+    return { ok: false, motivo: "Ese archivo está incompleto o dañado (su respaldo no coincide con los días archivados): descargalo de nuevo.", causa: "danado" };
+  const igual = res?.ok && !res.vacio && paquete.anexo.hasta === res.anexo.hasta && huella === huellaAnexo(res.anexo) &&
+    JSON.stringify(paquete.conteos) === JSON.stringify(res.conteos);
+  if (igual) return { ok: true, huella };
+  if (huellaDescargada && huella === huellaDescargada)
+    return { ok: false, motivo: "Cambió algo desde que descargaste (se cobró o se cerró algo de esos días): descargá el archivo de nuevo y elegí el nuevo.", causa: "cambio" };
+  return { ok: false, motivo: "Ese archivo es de otro archivado: elegí el último que descargaste.", causa: "otro" };
+}
+
+/**
+ * «Restaurar desde un archivo»: acepta el respaldo de siempre (sobre v1) o el archivo para archivar (restaura su
+ * `respaldo`, la jornada de antes de archivar). El anexo solo NO es un respaldo: se explica.
+ */
+export function respaldoDesdeArchivo(datos) {
+  if (esObjeto(datos) && datos.tipo === "anexo-jornada")
+    return { ok: false, motivo: "Ese es el archivo de los días archivados (la historia de esos días), no un respaldo de la jornada. Para restaurar elegí un «breakpoint-jornada-….json» o un «breakpoint-respaldo-y-archivo-….json»." };
+  if (esObjeto(datos) && datos.tipo === "respaldo-y-archivo") {
+    if (!esObjeto(datos.respaldo)) return { ok: false, motivo: "A ese archivo le falta el respaldo: elegí otro." };
+    return { ok: true, foto: datos.respaldo, antesDeArchivar: true };
+  }
+  return { ok: true, foto: datos, antesDeArchivar: false };
+}
+
 /**
  * Archiva los días cerrados hasta `hastaDia` (inclusive). PURA: no toca `estado`; devuelve una copia podada y el
  * anexo con todo lo que salió. Sólo sale lo TERMINADO de días cuya caja está CERRADA:
@@ -2036,13 +2141,22 @@ export function archivarDiasCerrados(estado, hastaDia, { ahora = null, por = nul
   const cerradaHasta = (d) => !!d && d <= hasta && cierres.has(d);
   // La caja donde entró un cobro: la de su día o, si esa ya estaba cerrada cuando se cobró, la siguiente. En el
   // mismo minuto del cierre no se sabe cuál: se piden las dos cerradas.
+  // Se sigue la cadena de cierres como `cajaAbierta`: si esa noche se cerró también la caja siguiente antes del cobro,
+  // el cobro entró en la otra (cierro D a las 22, vendo a las 23 → D+1, cierro D+1 a las 23:30, vendo a las 23:45 → D+2).
   const cajasDe = (t) => {
-    const d = dCaja(t);
+    let d = dCaja(t);
     if (!d) return [null];
-    const c = cierres.get(d);
-    if (!c) return [d];
-    const tp = minutoAbsoluto(t), tc = minutoAbsoluto(c);
-    return tp < tc ? [d] : tp > tc ? [sumarDias(d, 1)] : [d, sumarDias(d, 1)];
+    const tp = minutoAbsoluto(t);
+    const out = [];
+    for (let i = 0; i < 400; i++) {
+      const c = cierres.get(d);
+      if (!c) return [...out, d];
+      const tc = minutoAbsoluto(c);
+      if (tp < tc) return [...out, d];
+      if (tp === tc) out.push(d);
+      d = sumarDias(d, 1);
+    }
+    return [...out, d];
   };
   const pagoListo = (p) => (p.medio === "monedero" ? !!dCaja(p) && dCaja(p) <= hasta : cajasDe(p).every(cerradaHasta));
   const movListo = (m) => cerradaHasta(m.caja ?? dCaja(m));
@@ -2056,6 +2170,8 @@ export function archivarDiasCerrados(estado, hastaDia, { ahora = null, por = nul
   const atadas = new Set(e.cuentas.filter((c) => !ctaSale.has(c.id) && c.reservaId).map((c) => c.reservaId));
   const movsPorTurno = new Map();
   for (const m of e.caja.movimientos) if (m.reservaId) movsPorTurno.set(m.reservaId, [...(movsPorTurno.get(m.reservaId) ?? []), m]);
+  // Nota del Gate (M9, a propósito sin cambiar): un turno suspendido CON plata nunca se archiva. Es conservador (la
+  // devolución o el crédito se resuelven a mano) y ocupa poco.
   const terminado = (r) => ["finalizada", "cancelada", "no_show"].includes(r.estado) || (r.estado === "suspendida" && cobrado(r) === 0);
   const turnoListo = (r) => terminado(r) && !!r.fecha && r.fecha <= hasta && !(r.devolucionPendiente > 0) && !(r.deudaSinFicha > 0) && !r.senaEnSuspenso &&
     (r.pagos ?? []).every(pagoListo) && (movsPorTurno.get(r.id) ?? []).every(movListo) && !atadas.has(r.id) && (!r.cierre?.fecha || dCaja(r.cierre) <= hasta);
@@ -2141,11 +2257,16 @@ export function archivarDiasCerrados(estado, hastaDia, { ahora = null, por = nul
       clientes[id] = c;
     }
   }
+  // Los códigos de los pedidos (T-XXXX) y de las señas (BP-XXXX) que se fueron: un código nuevo no los repite y un
+  // WhatsApp de un pedido ya entregado no se vuelve a cargar.
+  const codigosPrevios = esObjeto(previo.codigos) ? previo.codigos : {};
+  const juntar = (viejos, nuevos) => [...new Set([...(esLista(viejos) ? viejos : []), ...nuevos.filter(Boolean)])];
   e.archivo = {
     hasta: previo.hasta && previo.hasta > hasta ? previo.hasta : hasta,
     dias: [...dias.values()].sort((a, b) => a.dia.localeCompare(b.dia)),
     clientes,
     anexos: [...(esLista(previo.anexos) ? previo.anexos : []), { desde, hasta, ...sello(ahora), por: por ?? null, conteos }],
+    codigos: { pedidos: juntar(codigosPrevios.pedidos, pedidos.map((x) => x.codigo)), refs: juntar(codigosPrevios.refs, reservas.map((r) => r.ref)) },
   };
   if (ahora) registrar(e, `${por ?? "Un dueño"} archivó lo cerrado hasta el ${hasta.slice(8)}/${hasta.slice(5, 7)}: ${conteos.reservas} turnos, ${conteos.cuentas} cuentas de cargos y ${conteos.movimientos} movimientos de caja (quedaron en el archivo descargado).`, ahora);
   return { ok: true, vacio: false, estado: e, anexo, conteos };
@@ -2508,10 +2629,10 @@ export function catalogoTienda(estado) {
     .map((p) => ({ id: p.id, nombre: p.nombre, categoria: p.categoria, precio: p.precio, pocas: p.stock != null && p.stock <= Math.max(2, p.minimo ?? 0) }));
 }
 
-function nuevoCodigoPedido(estado, azar = Math.random) {
+export function nuevoCodigoPedido(estado, azar = Math.random) {
   let s;
   do s = "T-" + Array.from({ length: 4 }, () => LETRAS_REF[Math.floor(azar() * LETRAS_REF.length)]).join("");
-  while ((estado.pedidos ?? []).some((x) => x.codigo === s));
+  while ((estado.pedidos ?? []).some((x) => x.codigo === s) || codigoArchivado(estado, "pedidos", s));
   return s;
 }
 
@@ -2559,6 +2680,7 @@ export function pedidoDesdeWhatsApp(estado, texto, ahora) {
   const quien = t.match(/Soy ([^(.\n]+?)\s*(?:\(([^)]*)\))?\.\s/);
   const codigo = t.match(/Pedido (T-[A-Z0-9]{4})/)?.[1] ?? null;
   if (codigo && (estado.pedidos ?? []).some((x) => x.codigo === codigo)) return { ok: false, motivo: `El pedido ${codigo} ya está cargado.` };
+  if (codigo && codigoArchivado(estado, "pedidos", codigo)) return { ok: false, motivo: `El pedido ${codigo} ya se había cargado: está en los días archivados.` };
   const res = crearPedidoTienda(estado, { items, nombre: quien?.[1]?.trim() || "Cliente de WhatsApp", tel: quien?.[2] ?? "", origen: "whatsapp" }, ahora);
   if (res.ok && codigo) res.pedido.codigo = codigo;
   return res;

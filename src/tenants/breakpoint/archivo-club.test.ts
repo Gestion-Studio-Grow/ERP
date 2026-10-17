@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as motor from "../../../public/previews/breakpoint/club/motor.mjs";
-import { armarMesCargado, HOY_TORNEO } from "../../lib/club/fixtures/armar-respaldo";
+import { armarMesCargado, HOY_TORNEO } from "./mes-cargado.fixture";
 
 // El motor es JS plano: los tipos que TypeScript infiere son demasiado estrechos para armar escenarios a mano.
 /* eslint-disable @typescript-eslint/no-explicit-any -- ver la nota de arriba: este archivo opera sobre el motor sin tipos */
@@ -406,7 +406,152 @@ test("hidratar: un estado viejo sin `archivo` hidrata igual; con archivo, ida y 
   assert.equal("archivo" in M.hidratarEstado(roto).estado, false);
   roto.estado.archivo = { hasta: 3, dias: "no" };
   const completo = M.hidratarEstado(roto);
-  assert.deepEqual(completo.estado.archivo, { hasta: null, dias: [], clientes: {}, anexos: [] });
+  assert.deepEqual(completo.estado.archivo, { hasta: null, dias: [], clientes: {}, anexos: [], codigos: { pedidos: [], refs: [] } });
+});
+
+test("hidratar (M3): renglones rotos de `archivo` se descartan sin rechazar la foto; nada que rompa Configuración", () => {
+  const s = escenario();
+  const res = M.archivarDiasCerrados(s.e, D3, { ahora: AHORA });
+  const foto = JSON.parse(JSON.stringify(M.serializarEstado(res.estado)));
+  const bueno = foto.estado.archivo.anexos[0];
+  const diaBueno = foto.estado.archivo.dias[0];
+  foto.estado.archivo.anexos = [null, 3, "x", { hasta: 20260901 }, { hasta: "ayer" }, { ...bueno, fecha: 7, desde: { a: 1 }, por: ["x"], conteos: { reservas: "9", cuentas: 2 } }];
+  foto.estado.archivo.dias = [null, { dia: 5 }, { dia: "1/9" }, { ...diaBueno, turnos: "40", cobradoCanchas: null }];
+  foto.estado.archivo.clientes = { "a": { jugados: "3", ultima: 9 }, "mal id!": { jugados: 1 }, "b": "x" };
+  foto.estado.archivo.codigos = { pedidos: ["T-AB12", 7, "<script>"], refs: "x" };
+  const h = M.hidratarEstado(foto);
+  assert.equal(h.ok, true, "la foto no se rechaza");
+  const a = h.estado.archivo;
+  assert.equal(a.anexos.length, 1, "sólo queda el anexo con fecha");
+  assert.deepEqual([a.anexos[0].fecha, a.anexos[0].desde, a.anexos[0].por], [null, null, null]);
+  assert.deepEqual(a.anexos[0].conteos, { cuentas: 2 }, "los conteos que no son números se van");
+  assert.equal(a.dias.length, 1, "sólo queda el día con fecha");
+  assert.equal(a.dias[0].turnos, 0, "un número que vino como texto queda en 0 (no se concatena)");
+  assert.equal(a.dias[0].cobradoCanchas, 0);
+  assert.deepEqual(a.clientes, { a: { jugados: 0, ultima: "" } });
+  assert.deepEqual(a.codigos, { pedidos: ["T-AB12"], refs: [] });
+  // La seña web sigue calculando con números (no «3» + 0 como texto).
+  assert.equal(typeof M.requiereSenaWeb(h.estado, "a"), "boolean");
+});
+
+// ── M1: dos cierres en la misma noche ──
+
+test("M1: cierro D 22:00, venta 23:00 (→ D+1), cierro D+1 23:30, venta 23:45 (→ D+2 abierta): esa cuenta NO se archiva", () => {
+  const e = club();
+  exigir(M.ventaMostrador(e, [{ productoId: "p9", cant: 1 }], "efectivo", en(D1, 20)), "venta 20:00");
+  cerrarCajaDe(e, D1, en(D1, 22));
+  exigir(M.ventaMostrador(e, [{ productoId: "p9", cant: 1 }], "efectivo", en(D1, 23)), "venta 23:00");
+  assert.equal(e.caja.movimientos.at(-1).caja, D2, "la venta de las 23:00 entra en la caja del día siguiente");
+  cerrarCajaDe(e, D2, en(D1, 23, 30));
+  exigir(M.ventaMostrador(e, [{ productoId: "p10", cant: 1 }], "efectivo", en(D1, 23, 45)), "venta 23:45");
+  const mov = e.caja.movimientos.at(-1);
+  const cta = e.cuentas.at(-1);
+  assert.equal(mov.caja, D3, "la venta de las 23:45 entra en la caja D+2, que nadie cerró");
+  const res = M.archivarDiasCerrados(e, D10, { ahora: AHORA });
+  assert.equal(res.anexo.cuentas.some((c: any) => c.id === cta.id), false, "la cuenta cobrada en la caja abierta no se archiva");
+  assert.ok(res.estado.cuentas.some((c: any) => c.id === cta.id), "…y queda en el estado");
+  assert.ok(res.estado.caja.movimientos.some((m: any) => m.id === mov.id), "su movimiento queda (caja sin cerrar)");
+  assert.equal(res.anexo.cuentas.length, 2, "las dos ventas de cajas cerradas sí se archivan");
+  assert.deepEqual(M.cajasConMovimientosSinCerrar(res.estado), M.cajasConMovimientosSinCerrar(e));
+  assert.deepEqual(sumaPorDia(M.plataPorDia(res.estado), plataAnexo(res.anexo)), sumaPorDia(M.plataPorDia(e)));
+  // Cerrada también la D+2, se archiva todo.
+  cerrarCajaDe(e, D3, en(D2, 13));
+  const todo = M.archivarDiasCerrados(e, D10, { ahora: AHORA });
+  assert.ok(todo.anexo.cuentas.some((c: any) => c.id === cta.id), "con la caja D+2 cerrada, la cuenta se archiva");
+});
+
+// ── M2: códigos de pedidos y de señas archivados ──
+
+test("M2: los códigos T-XXXX y BP-XXXX archivados no se repiten y el WhatsApp de un pedido archivado no se vuelve a cargar", () => {
+  const s = escenario();
+  const res = M.archivarDiasCerrados(s.e, D3, { ahora: AHORA });
+  const e = res.estado;
+  assert.ok(res.anexo.pedidos.some((x: any) => x.id === s.pd.id), "el pedido entregado se archivó");
+  assert.ok(e.archivo.codigos.pedidos.includes(s.pd.codigo), "su código quedó en el archivo");
+  const conRef = res.anexo.reservas.filter((r: any) => r.ref);
+  for (const r of conRef) assert.ok(e.archivo.codigos.refs.includes(r.ref), `la seña ${r.ref} quedó en el archivo`);
+  // Pegar otra vez el WhatsApp de ese pedido: antes de archivar decía «ya está cargado»; después también.
+  const msj = `Hola! Pedido ${s.pd.codigo} de la tienda: 1 × ${s.pd.items[0].nombre} $${s.pd.total}. Soy Ana (11 5555).`;
+  const dup = M.pedidoDesdeWhatsApp(e, msj, AHORA);
+  assert.equal(dup.ok, false);
+  assert.match(dup.motivo, /archivados/);
+  // Un azar que primero saca el código archivado y después otro: el generador no lo repite.
+  const LETRAS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const azarQue = (...codigos: string[]) => { const xs = codigos.join("").split("").map((ch) => (LETRAS.indexOf(ch) + 0.5) / LETRAS.length); let k = 0; return () => xs[k++ % xs.length]; };
+  assert.equal(M.nuevoCodigoPedido(e, azarQue(s.pd.codigo.slice(2), "AAAA")), "T-AAAA", "el pedido nuevo no repite uno archivado");
+  // Una seña con código (BP-XXXX), jugada y cobrada en una caja cerrada: se archiva y su código no se repite.
+  const e0 = club();
+  const conSena = turno(e0, D1, "c1", 18, { clienteId: "a", conSena: true });
+  assert.match(conSena.ref, /^BP-/);
+  exigir(M.registrarPago(e0, conSena.id, { medio: "transferencia", monto: conSena.sena.monto }, en(D1, 13)), "seña");
+  exigir(M.checkIn(e0, conSena.id, en(D1, 18)), "abrir");
+  exigir(M.cobrarTodoElTurno(e0, conSena.id, { medio: "efectivo" }, en(D1, 19, 30)), "cobrar");
+  if (conSena.estado === "en_cancha") exigir(M.finalizar(e0, conSena.id, {}, en(D1, 19, 31)), "cerrar");
+  cerrarCajaDe(e0, D1, en(D1, 23, 50));
+  const r0 = M.archivarDiasCerrados(e0, D3, { ahora: AHORA });
+  assert.ok(r0.anexo.reservas.some((r: any) => r.id === conSena.id), "el turno con seña se archivó");
+  assert.deepEqual(r0.estado.archivo.codigos.refs, [conSena.ref]);
+  assert.equal(M.nuevaRefPago(r0.estado, azarQue(conSena.ref.slice(3), "BBBB")), "BP-BBBB", "la seña nueva no repite una archivada");
+});
+
+// ── B1: el archivo único para archivar y su verificación ──
+
+test("B1: el archivo para archivar se verifica (mismo día, conteos y huella); si algo cambió, pide descargar de nuevo", () => {
+  const { e } = mesConVida();
+  const hasta = M.diaParaArchivar(e, AHORA_MES);
+  const res = M.archivarDiasCerrados(e, hasta, { ahora: AHORA_MES, por: "Majo" });
+  const respaldo = { ...M.serializarEstado(e), usuario: "u-rober", guardado: 1 };
+  const paquete = JSON.parse(JSON.stringify(M.paqueteParaArchivar(respaldo, res)));
+  assert.equal(paquete.tipo, "respaldo-y-archivo");
+  assert.equal(paquete.hasta, hasta);
+  assert.equal(paquete.huella.length, 16);
+  // Paso 2 un rato después, con otro dueño: la huella no depende del minuto ni de quién.
+  const otraVez = M.archivarDiasCerrados(e, hasta, { ahora: en(HOY_TORNEO, 19, 40), por: "Roberto" });
+  assert.deepEqual(M.verificarPaqueteArchivo(paquete, otraVez, paquete.huella), { ok: true, huella: paquete.huella });
+  // Otro archivo (el respaldo común, el anexo solo, cualquier cosa): no.
+  assert.equal(M.verificarPaqueteArchivo(respaldo, otraVez, paquete.huella).causa, "otro");
+  assert.equal(M.verificarPaqueteArchivo(res.anexo, otraVez, paquete.huella).causa, "otro");
+  assert.equal(M.verificarPaqueteArchivo(null, otraVez, paquete.huella).ok, false);
+  // Dañado: un turno de menos en el anexo.
+  const roto = structuredClone(paquete);
+  roto.anexo.reservas.pop();
+  assert.equal(M.verificarPaqueteArchivo(roto, otraVez, paquete.huella).causa, "danado");
+  // Gate re-auditoría M3: el respaldo de adentro también se controla (sirve para «Restaurar»).
+  const respaldoTocado = structuredClone(paquete);
+  respaldoTocado.respaldo.estado.reservas.find((r: any) => r.pagos?.length).pagos[0].monto += 1;
+  assert.equal(M.verificarPaqueteArchivo(respaldoTocado, otraVez, paquete.huella).causa, "danado", "un peso tocado en el respaldo");
+  const respaldoVacio = structuredClone(paquete);
+  respaldoVacio.respaldo.estado.reservas = [];
+  assert.equal(M.verificarPaqueteArchivo(respaldoVacio, otraVez, paquete.huella).causa, "danado", "sin los turnos");
+  const respaldoRoto = structuredClone(paquete);
+  delete respaldoRoto.respaldo.estado.caja;
+  assert.equal(M.verificarPaqueteArchivo(respaldoRoto, otraVez, paquete.huella).causa, "danado", "un respaldo que no abre");
+  // Cambió algo de esos días entre el paso 1 y el 2 (se reabrió... acá: una cuenta vieja se borra del estado).
+  const cambiado = structuredClone(e);
+  cambiado.cuentas = cambiado.cuentas.filter((c: any) => c.id !== res.anexo.cuentas[0].id);
+  const resCambio = M.archivarDiasCerrados(cambiado, hasta, { ahora: AHORA_MES });
+  const v = M.verificarPaqueteArchivo(paquete, resCambio, paquete.huella);
+  assert.equal(v.ok, false);
+  assert.equal(v.causa, "cambio");
+  assert.match(v.motivo, /descargá el archivo de nuevo/);
+  // Ya archivado (nada para archivar): tampoco achica.
+  assert.equal(M.verificarPaqueteArchivo(paquete, M.archivarDiasCerrados(res.estado, hasta, { ahora: AHORA_MES }), paquete.huella).ok, false);
+});
+
+test("M5: «Restaurar desde un archivo» acepta el archivo para archivar y explica el anexo solo", () => {
+  const { e } = mesConVida();
+  const res = M.archivarDiasCerrados(e, M.diaParaArchivar(e, AHORA_MES), { ahora: AHORA_MES });
+  const respaldo = JSON.parse(JSON.stringify({ ...M.serializarEstado(e), usuario: "u-rober", guardado: 1 }));
+  const paquete = JSON.parse(JSON.stringify(M.paqueteParaArchivar(respaldo, res)));
+  const r = M.respaldoDesdeArchivo(paquete);
+  assert.equal(r.ok, true);
+  assert.equal(r.antesDeArchivar, true);
+  assert.equal(M.hidratarEstado(r.foto).ok, true, "lo que se restaura es el respaldo completo de antes de archivar");
+  assert.equal(M.hidratarEstado(r.foto).estado.reservas.length, e.reservas.length);
+  const anexo = M.respaldoDesdeArchivo(JSON.parse(JSON.stringify(res.anexo)));
+  assert.equal(anexo.ok, false);
+  assert.match(anexo.motivo, /archivo de los días archivados/);
+  assert.deepEqual(M.respaldoDesdeArchivo(respaldo), { ok: true, foto: respaldo, antesDeArchivar: false });
 });
 
 test("la limpieza para el go-live borra el resumen del archivo (era de la prueba)", () => {
