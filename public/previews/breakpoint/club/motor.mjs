@@ -2051,6 +2051,13 @@ export function huellaAnexo(anexo) {
   return ["bp-anexo-a", "bp-anexo-b"].map((sal) => fnv1a(`${sal}|${texto}`).toString(16).padStart(8, "0")).join("");
 }
 
+/** Huella del respaldo completo que va en el archivo para archivar (un peso tocado o un turno de menos la cambian). */
+export function huellaRespaldo(respaldo) {
+  if (!esObjeto(respaldo)) return "";
+  const texto = JSON.stringify(respaldo);
+  return ["bp-resp-a", "bp-resp-b"].map((sal) => fnv1a(`${sal}|${texto}`).toString(16).padStart(8, "0")).join("");
+}
+
 /**
  * El archivo único que se descarga para archivar (una sola descarga: el navegador suele bloquear la segunda del mismo
  * clic): el respaldo completo de antes de archivar (`respaldo`, el sobre v1 de siempre) y el anexo de los días que
@@ -2059,7 +2066,7 @@ export function huellaAnexo(anexo) {
 export function paqueteParaArchivar(respaldo, res) {
   return {
     v: 1, tipo: "respaldo-y-archivo", club: res.anexo.club ?? "", hasta: res.anexo.hasta, conteos: res.conteos,
-    huella: huellaAnexo(res.anexo), respaldo, anexo: res.anexo,
+    huella: huellaAnexo(res.anexo), huellaRespaldo: huellaRespaldo(respaldo), respaldo, anexo: res.anexo,
   };
 }
 
@@ -2074,6 +2081,14 @@ export function verificarPaqueteArchivo(paquete, res, huellaDescargada = null) {
   const huella = huellaAnexo(paquete.anexo);
   if (huella !== paquete.huella || paquete.respaldo.v !== VERSION_ESTADO || !esObjeto(paquete.respaldo.estado))
     return { ok: false, motivo: "Ese archivo está incompleto o dañado: descargalo de nuevo.", causa: "danado" };
+  // El respaldo de adentro también tiene que servir para «Restaurar»: intacto (su huella), se abre y, archivado hasta el
+  // mismo día, da exactamente el anexo del archivo (si alguien lo tocó o es de otra jornada, no coincide).
+  if (huellaRespaldo(paquete.respaldo) !== paquete.huellaRespaldo)
+    return { ok: false, motivo: "Ese archivo está incompleto o dañado (su respaldo no está entero): descargalo de nuevo.", causa: "danado" };
+  const h = hidratarEstado(paquete.respaldo);
+  const desdeRespaldo = h.ok ? archivarDiasCerrados(h.estado, paquete.anexo.hasta) : null;
+  if (!desdeRespaldo?.ok || desdeRespaldo.vacio || huellaAnexo(desdeRespaldo.anexo) !== huella)
+    return { ok: false, motivo: "Ese archivo está incompleto o dañado (su respaldo no coincide con los días archivados): descargalo de nuevo.", causa: "danado" };
   const igual = res?.ok && !res.vacio && paquete.anexo.hasta === res.anexo.hasta && huella === huellaAnexo(res.anexo) &&
     JSON.stringify(paquete.conteos) === JSON.stringify(res.conteos);
   if (igual) return { ok: true, huella };
@@ -2665,7 +2680,7 @@ export function pedidoDesdeWhatsApp(estado, texto, ahora) {
   const quien = t.match(/Soy ([^(.\n]+?)\s*(?:\(([^)]*)\))?\.\s/);
   const codigo = t.match(/Pedido (T-[A-Z0-9]{4})/)?.[1] ?? null;
   if (codigo && (estado.pedidos ?? []).some((x) => x.codigo === codigo)) return { ok: false, motivo: `El pedido ${codigo} ya está cargado.` };
-  if (codigo && codigoArchivado(estado, "pedidos", codigo)) return { ok: false, motivo: `El pedido ${codigo} ya se cargó y se entregó: está en los días archivados.` };
+  if (codigo && codigoArchivado(estado, "pedidos", codigo)) return { ok: false, motivo: `El pedido ${codigo} ya se había cargado: está en los días archivados.` };
   const res = crearPedidoTienda(estado, { items, nombre: quien?.[1]?.trim() || "Cliente de WhatsApp", tel: quien?.[2] ?? "", origen: "whatsapp" }, ahora);
   if (res.ok && codigo) res.pedido.codigo = codigo;
   return res;

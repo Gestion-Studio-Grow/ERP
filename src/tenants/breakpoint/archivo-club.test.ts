@@ -516,6 +516,16 @@ test("B1: el archivo para archivar se verifica (mismo día, conteos y huella); s
   const roto = structuredClone(paquete);
   roto.anexo.reservas.pop();
   assert.equal(M.verificarPaqueteArchivo(roto, otraVez, paquete.huella).causa, "danado");
+  // Gate re-auditoría M3: el respaldo de adentro también se controla (sirve para «Restaurar»).
+  const respaldoTocado = structuredClone(paquete);
+  respaldoTocado.respaldo.estado.reservas.find((r: any) => r.pagos?.length).pagos[0].monto += 1;
+  assert.equal(M.verificarPaqueteArchivo(respaldoTocado, otraVez, paquete.huella).causa, "danado", "un peso tocado en el respaldo");
+  const respaldoVacio = structuredClone(paquete);
+  respaldoVacio.respaldo.estado.reservas = [];
+  assert.equal(M.verificarPaqueteArchivo(respaldoVacio, otraVez, paquete.huella).causa, "danado", "sin los turnos");
+  const respaldoRoto = structuredClone(paquete);
+  delete respaldoRoto.respaldo.estado.caja;
+  assert.equal(M.verificarPaqueteArchivo(respaldoRoto, otraVez, paquete.huella).causa, "danado", "un respaldo que no abre");
   // Cambió algo de esos días entre el paso 1 y el 2 (se reabrió... acá: una cuenta vieja se borra del estado).
   const cambiado = structuredClone(e);
   cambiado.cuentas = cambiado.cuentas.filter((c: any) => c.id !== res.anexo.cuentas[0].id);

@@ -111,7 +111,9 @@ Archivar es en **dos pasos**, y nada se achica sin el paso 2:
    segunda descarga del mismo clic) con el respaldo completo de ahora y el anexo de los días que salen.
 2. **«Ya lo guardé: achicar»** (habilitado sólo después del paso 1, PIN de dueño): el dueño **elige** el archivo que
    bajó. Se recalcula lo que se va a archivar con el estado de ese momento y se compara: mismo `anexo.hasta`, mismos
-   `conteos` y misma `huella`. Si coincide, se achica. Si el archivo está dañado o es otro, no pasa nada. Si es el del
+   `conteos` y misma `huella`. También se controla el respaldo de adentro (el que sirve para «Restaurar»): su
+   `huellaRespaldo` tiene que coincidir, tiene que abrir, y archivado hasta el mismo día tiene que dar ese mismo anexo.
+   Si coincide todo, se achica. Si el archivo está dañado o es otro, no pasa nada. Si es el del
    paso 1 pero algo de esos días cambió en el medio, pide descargar de nuevo.
 
 ```jsonc
@@ -120,13 +122,14 @@ Archivar es en **dos pasos**, y nada se achica sin el paso 2:
   "hasta": "2026-09-26",                 // = anexo.hasta
   "conteos": { "reservas": 595, … },     // los mismos que quedan en archivo.anexos[].conteos
   "huella": "1a2b3c4d5e6f7a8b",          // huellaAnexo(anexo): dos FNV-1a de 32 bits (16 hex) del anexo SIN `generado` ni `por`
+  "huellaRespaldo": "9f8e7d6c5b4a3f2e",  // huellaRespaldo(respaldo): lo mismo sobre el respaldo completo
   "respaldo": { "v": 1, "estado": { … }, "secuencia": 123, "usuario": "u-rober", "guardado": 1760640000000 }, // el sobre v1 de siempre
   "anexo": { "v": 1, "tipo": "anexo-jornada", … }                                                         // el anexo (abajo)
 }
 ```
 
 La huella no es criptográfica: prueba que el archivo elegido es el mismo que se va a archivar (y que no se cortó), no
-protege contra alguien que lo arme a mano. La fuente de verdad es `paqueteParaArchivar`, `huellaAnexo` y
+protege contra alguien que lo arme a mano. La fuente de verdad es `paqueteParaArchivar`, `huellaAnexo`, `huellaRespaldo` y
 `verificarPaqueteArchivo` en `motor.mjs`.
 
 **«Restaurar desde un archivo»** acepta el respaldo de siempre o este archivo (restaura su `respaldo`: la jornada de

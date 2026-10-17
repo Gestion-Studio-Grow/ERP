@@ -2344,9 +2344,13 @@ const acciones = {
     const pend = ui.archivoPendiente;
     if (!pend) return toast("Primero descargá el archivo (paso 1).", { error: true });
     const texto = await textoElegido("#ar-archivo");
+    // Doble clic: el primero ya achicó (o canceló) mientras se leía el archivo; el segundo no tiene nada que hacer.
+    if (ui.archivoPendiente !== pend) return;
     if (texto == null) return toast("Elegí el archivo que descargaste (paso 2): sin eso no se achica nada.", { error: true });
     let paquete = null;
-    try { paquete = JSON.parse(texto); } catch { /* se avisa abajo */ }
+    try { paquete = JSON.parse(texto); } catch {
+      return toast("Ese archivo está incompleto o dañado (no se puede leer): descargalo de nuevo y elegí el nuevo.", { error: true });
+    }
     // Se recalcula con lo de AHORA: si algo de esos días cambió desde el paso 1, el archivo ya no coincide.
     const res = M.archivarDiasCerrados(E, pend.hasta, { ahora: AHORA, por: yo()?.nombre ?? null });
     const ver = M.verificarPaqueteArchivo(paquete, res, pend.huella);
@@ -2398,6 +2402,7 @@ const acciones = {
     const sufijo = b.dataset.v;
     if (!ui.copiaBajada?.[sufijo]) return toast("Primero descargá la copia (paso 1).", { error: true });
     const elegido = await textoElegido("#cp-archivo");
+    if (!ui.copiaBajada?.[sufijo]) return; // doble clic: el primero ya la borró
     if (elegido == null) return toast("Elegí el archivo que descargaste (paso 2): sin eso no se borra nada.", { error: true });
     const c = copiasEnLaCompu().find((x) => x.sufijo === sufijo);
     const texto = c && c.clave !== CLAVE_JORNADA ? lsLeer(c.clave) : null;
