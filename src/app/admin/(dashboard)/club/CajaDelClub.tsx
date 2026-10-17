@@ -70,7 +70,8 @@ function CerrarCaja({ almacen, etiqueta, boton, esperado, onCerrar }: { almacen:
         </div>
         <CampoPin id={ids.pin} quien={quien} value={pin} onChange={setPin} />
       </div>
-      <p id={ids.ayuda} className="text-sm text-muted">
+      {/* text-body: este formulario va también sobre fondos de aviso, donde text-muted no llega a 4,5:1. */}
+      <p id={ids.ayuda} className="text-sm text-body">
         Tendría que haber {pesos(esperado)} en efectivo (con el fondo).
       </p>
       <Button type="submit" variant="solid" size="md">
