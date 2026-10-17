@@ -16,6 +16,7 @@ import {
   MINUTO_DEMO,
   REGISTRO_SI_FALTA_LUGAR,
   type AlmacenamientoLocal,
+  type CanalDeLaJornada,
   type CerrojosDelNavegador,
   type GuardadoDelClub,
   type ResultadoDelGuardado,
@@ -74,31 +75,72 @@ function temporizadorFalso(): Temporizador & { latidos: (() => void)[]; esperas:
 /** Web Locks de mentira, compartidos por las «pestañas» de un mismo equipo: `ifAvailable` y `steal` como el navegador. */
 function cerrojosFalsos(): CerrojosDelNavegador & { tomados: Map<string, unknown>; pedidos: number } {
   const tomados = new Map<string, { rechazar: (e: Error) => void }>();
+  const colas = new Map<string, (() => void)[]>();
+  const abortado = () => Object.assign(new Error("abortado"), { name: "AbortError" });
   const c = {
     tomados: tomados as Map<string, unknown>,
     pedidos: 0,
-    request(nombre: string, op: { ifAvailable?: boolean; steal?: boolean }, alTomar: (lock: unknown) => unknown) {
+    request(nombre: string, op: { ifAvailable?: boolean; steal?: boolean; signal?: AbortSignal }, alTomar: (lock: unknown) => unknown) {
       c.pedidos++;
       return new Promise<unknown>((resolver, rechazar) => {
+        const conceder = () => {
+          const entrada = { rechazar };
+          tomados.set(nombre, entrada);
+          Promise.resolve(alTomar({ name: nombre })).then(
+            (v) => {
+              if (tomados.get(nombre) === entrada) {
+                tomados.delete(nombre);
+                colas.get(nombre)?.shift()?.();
+              }
+              resolver(v);
+            },
+            rechazar,
+          );
+        };
         const actual = tomados.get(nombre);
         if (actual && op.ifAvailable) return void Promise.resolve(alTomar(null)).then(resolver, rechazar);
         if (actual && op.steal) {
           tomados.delete(nombre);
           actual.rechazar(Object.assign(new Error("robado"), { name: "AbortError" }));
+          return conceder();
         }
-        const entrada = { rechazar };
-        tomados.set(nombre, entrada);
-        Promise.resolve(alTomar({ name: nombre })).then(
-          (v) => {
-            if (tomados.get(nombre) === entrada) tomados.delete(nombre);
-            resolver(v);
-          },
-          rechazar,
-        );
+        if (actual) {
+          // Espera en la cola (como el navegador) hasta que la otra suelte, o hasta que se aborte.
+          const cola = colas.get(nombre) ?? [];
+          colas.set(nombre, cola);
+          cola.push(conceder);
+          op.signal?.addEventListener("abort", () => {
+            const k = cola.indexOf(conceder);
+            if (k >= 0) {
+              cola.splice(k, 1);
+              rechazar(abortado());
+            }
+          });
+          return;
+        }
+        conceder();
       });
     },
   };
   return c;
+}
+
+/** El canal entre pestañas de mentira (BroadcastChannel): entrega a las OTRAS, en una tarea aparte. */
+function canalFalso(): (nombre: string) => CanalDeLaJornada {
+  const oyentes = new Map<string, Set<(m: unknown) => void>>();
+  return (nombre) => {
+    const mios = new Set<(m: unknown) => void>();
+    const todos = oyentes.get(nombre) ?? new Set();
+    oyentes.set(nombre, todos);
+    return {
+      enviar: (m) => setImmediate(() => [...todos].filter((o) => !mios.has(o)).forEach((o) => o(m))),
+      escuchar(fn) {
+        mios.add(fn);
+        todos.add(fn);
+        return () => void (todos.delete(fn), mios.delete(fn));
+      },
+    };
+  };
 }
 
 /** Un guardado asíncrono de mentira (la base de BP-3): cada `guardar` queda esperando hasta `completar`. */
@@ -138,7 +180,15 @@ function guardadoFalso(): GuardadoFalso {
 const marcar = (texto: string) => (e: M.EstadoClub) => void e.log.unshift({ fecha: null, min: null, texto });
 const tieneMarca = (textoGuardado: string | undefined, marca: string) => !!textoGuardado && textoGuardado.includes(JSON.stringify(marca));
 
-function real(op: { m?: AlmacenamientoLocal | null; reloj?: ReturnType<typeof relojDe>; t?: Temporizador; cerrojos?: CerrojosDelNavegador | null; guardado?: GuardadoDelClub }) {
+function real(op: {
+  m?: AlmacenamientoLocal | null;
+  reloj?: ReturnType<typeof relojDe>;
+  t?: Temporizador;
+  cerrojos?: CerrojosDelNavegador | null;
+  guardado?: GuardadoDelClub;
+  canal?: ((nombre: string) => CanalDeLaJornada) | null;
+  demora?: number;
+}) {
   return crearAlmacen({
     reloj: "real",
     clave: claveDeLaJornada(NEGOCIO),
@@ -148,8 +198,9 @@ function real(op: { m?: AlmacenamientoLocal | null; reloj?: ReturnType<typeof re
     cerrojos: op.cerrojos ?? null,
     temporizador: op.t ?? temporizadorFalso(),
     relojMs: (op.reloj ?? relojDe(a(17, 20, 0, 5))).ms,
-    demoraGuardadoMs: 0,
+    demoraGuardadoMs: op.demora ?? 0,
     enReposo: null,
+    canal: op.canal ?? null,
   });
 }
 
@@ -234,12 +285,13 @@ test("cambio de día: la agenda pasa al nuevo, baja los fijos a 6 días (como el
 test("una pestaña por equipo: la segunda queda en sólo lectura; «Usar acá» la toma y trae lo último guardado", async () => {
   const m = memoria();
   const c = cerrojosFalsos();
-  const A = real({ m, cerrojos: c });
+  const canal = canalFalso();
+  const A = real({ m, cerrojos: c, canal });
   A.arrancar();
   await vaciar();
   assert.equal(A.estadoDelGuardado().jornada, "propia");
   assert.ok(c.tomados.has("gsg-club:demo-club:jornada"), "el candado lleva el negocio");
-  const B = real({ m, cerrojos: c });
+  const B = real({ m, cerrojos: c, canal });
   B.arrancar();
   await vaciar();
   assert.equal(B.estadoDelGuardado().jornada, "otra-pestania");
@@ -254,8 +306,9 @@ test("una pestaña por equipo: la segunda queda en sólo lectura; «Usar acá» 
   const escriturasDeA = m.escrituras;
   B.usarAca();
   await vaciar();
+  await vaciar();
   assert.equal(B.estadoDelGuardado().jornada, "propia");
-  assert.equal(A.estadoDelGuardado().jornada, "otra-pestania", "a la otra se la sacaron");
+  assert.equal(A.estadoDelGuardado().jornada, "otra-pestania", "la otra la cedió");
   assert.equal(B.estado().log[0].texto, "lo hizo A", "B abrió lo último que guardó A");
   assert.equal(A.ejecutar(() => ({ ok: true, mensaje: "x" })).ok, false);
   A.guardarYa();
@@ -665,4 +718,109 @@ test("sin base: la base no contesta al abrir y no hay copia en el equipo → só
   assert.equal(s.estadoDelGuardado().jornada, "sin-bloqueo");
   assert.equal(s.soloLectura(), false);
   assert.ok(s.estado().log.some((l) => l.texto === "lo de la base"), "abrió lo de la base, no uno vacío");
+});
+
+// M3 (Gate de las olas 0 y 1): «Usar acá» no puede dejar un cobro de la otra pestaña sólo en su pantalla.
+test("«Usar acá» con la otra viva: la que tenía la jornada escribe lo pendiente y recién ahí la suelta; la nueva lo lee", async () => {
+  const m = memoria();
+  const c = cerrojosFalsos();
+  const canal = canalFalso();
+  const tA = temporizadorFalso();
+  const A = real({ m, cerrojos: c, canal, t: tA, demora: 1500 });
+  A.arrancar();
+  await vaciar();
+  const B = real({ m, cerrojos: c, canal });
+  B.arrancar();
+  await vaciar();
+  assert.equal(B.estadoDelGuardado().jornada, "otra-pestania");
+  // El cobro en A, y «Usar acá» en B antes de los 1,5 s del agrupado: todavía no está escrito.
+  A.ejecutar((e) => (marcar("cobro de A")(e), { ok: true, mensaje: "Cobrado" }));
+  assert.equal(A.pendienteDeGuardar(), true);
+  assert.equal(tieneMarca(m.datos.get(claveDeLaJornada(NEGOCIO)), "cobro de A"), false);
+  B.usarAca();
+  for (let i = 0; i < 4; i++) await vaciar();
+  assert.equal(A.estadoDelGuardado().jornada, "otra-pestania");
+  assert.equal(A.pendienteDeGuardar(), false, "A escribió lo pendiente antes de soltar");
+  assert.equal(B.estadoDelGuardado().jornada, "propia");
+  assert.ok(tieneMarca(m.datos.get(claveDeLaJornada(NEGOCIO)), "cobro de A"), "el cobro está en lo guardado");
+  assert.equal(B.estado().log[0].texto, "cobro de A", "y en la pantalla de B");
+  // B sigue: guarda sobre la versión de A, sin conflicto y sin perder el cobro.
+  B.aplicar(marcar("después en B"));
+  const guardado = m.datos.get(claveDeLaJornada(NEGOCIO));
+  assert.ok(tieneMarca(guardado, "después en B") && tieneMarca(guardado, "cobro de A"));
+  assert.equal(B.aviso(), null, "sin «Otra pantalla guardó…»: no hubo conflicto");
+  // Lo que A haga ya no se escribe (sólo mira).
+  assert.equal(A.ejecutar(() => ({ ok: true, mensaje: "x" })).ok, false);
+  tA.correr();
+  assert.ok(tieneMarca(m.datos.get(claveDeLaJornada(NEGOCIO)), "después en B"), "A no pisó lo de B");
+});
+
+test("«Usar acá» con la otra que no contesta la posta: se roba, la otra escribe lo pendiente al perderla y la nueva lee después", async () => {
+  const m = memoria();
+  const c = cerrojosFalsos();
+  const tB = temporizadorFalso();
+  // A sin canal: no oye la posta (una pestaña trabada o de una versión vieja).
+  const A = real({ m, cerrojos: c, canal: null, demora: 1500 });
+  A.arrancar();
+  await vaciar();
+  const B = real({ m, cerrojos: c, canal: canalFalso(), t: tB });
+  B.arrancar();
+  await vaciar();
+  A.ejecutar((e) => (marcar("cobro de A")(e), { ok: true, mensaje: "Cobrado" }));
+  B.usarAca();
+  await vaciar();
+  assert.equal(B.estadoDelGuardado().jornada, "abriendo", "espera la posta");
+  // Pasan los 3 s sin respuesta: B roba el candado; A, al perderlo, escribe lo suyo (con chequeo de versión).
+  tB.correr();
+  for (let i = 0; i < 3; i++) await vaciar();
+  assert.equal(A.estadoDelGuardado().jornada, "otra-pestania");
+  assert.ok(tieneMarca(m.datos.get(claveDeLaJornada(NEGOCIO)), "cobro de A"));
+  assert.equal(B.estadoDelGuardado().jornada, "abriendo", "B todavía no lee: da el margen");
+  assert.equal(B.ejecutar(() => ({ ok: true, mensaje: "x" })).ok, false, "y no se opera hasta leer");
+  tB.correr();
+  for (let i = 0; i < 3; i++) await vaciar();
+  assert.equal(B.estadoDelGuardado().jornada, "propia");
+  assert.equal(B.estado().log[0].texto, "cobro de A");
+  B.aplicar(marcar("después en B"));
+  assert.doesNotMatch(B.aviso()?.mensaje ?? "", /Otra pantalla guardó/, "sin conflicto");
+  assert.ok(tieneMarca(m.datos.get(claveDeLaJornada(NEGOCIO)), "cobro de A"));
+});
+
+// B1 (Gate de las olas 0 y 1): el reintento de «sin-base» no puede seguir después de perder la jornada.
+test("sin base: si otra pestaña toma la jornada (o la pantalla se va), el reintento se corta y no pisa «otra-pestania»", async () => {
+  const caida = guardadoFalso();
+  caida.leer = async () => {
+    caida.lecturas++;
+    throw new Error("sin conexión");
+  };
+  const c = cerrojosFalsos();
+  const tA = temporizadorFalso();
+  const A = real({ m: memoria(), guardado: caida, cerrojos: c, t: tA, canal: null });
+  A.arrancar();
+  await vaciar();
+  assert.equal(A.estadoDelGuardado().jornada, "sin-base");
+  const B = real({ m: memoria(), guardado: guardadoFalso(), cerrojos: c, canal: null, t: temporizadorFalso() });
+  B.arrancar();
+  await vaciar();
+  B.usarAca(); // sin canal: roba
+  for (let i = 0; i < 3; i++) await vaciar();
+  assert.equal(A.estadoDelGuardado().jornada, "otra-pestania", "A perdió la jornada");
+  const lecturas = caida.lecturas;
+  tA.correr();
+  for (let i = 0; i < 3; i++) await vaciar();
+  assert.equal(A.estadoDelGuardado().jornada, "otra-pestania", "el reintento no la pisó (sigue «Usar acá»)");
+  assert.equal(caida.lecturas, lecturas, "y no volvió a leer");
+
+  // La pantalla se va estando en «sin-base»: tampoco se sigue leyendo.
+  const tS = temporizadorFalso();
+  const S = real({ m: memoria(), guardado: caida, cerrojos: cerrojosFalsos(), t: tS, canal: null });
+  const parar = S.arrancar();
+  await vaciar();
+  assert.equal(S.estadoDelGuardado().jornada, "sin-base");
+  parar();
+  const antes = caida.lecturas;
+  tS.correr();
+  tS.correr();
+  for (let i = 0; i < 3; i++) await vaciar();
+  assert.equal(caida.lecturas, antes);
 });
