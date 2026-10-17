@@ -1,0 +1,21 @@
+{
+  "commit": "78abc6174b03e453a6dad2bc28b45f94ec4633ba",
+  "archivos": {
+    "src/lib/club/motor.mjs": {
+      "fuente": "public/previews/breakpoint/club/motor.mjs",
+      "sha256": "0cfe7419fe834e2222791125e1e34a18b6a35e8a10a13b15ce351a0f0292c1be"
+    },
+    "src/lib/club/dominio/nucleo.mjs": {
+      "fuente": "public/previews/breakpoint/turnero/dominio/nucleo.mjs",
+      "sha256": "cb00ce706536c3ce8e4afea1585a38e15c6abcbd0993ccea2d6721fadee66133"
+    },
+    "src/lib/club/dominio/conciliacion.mjs": {
+      "fuente": "public/previews/breakpoint/turnero/dominio/conciliacion.mjs",
+      "sha256": "aff10c7d25e931fb35caf0bfff4fc0a83c06737c3b3937027b9292d377b9a70f"
+    },
+    "src/lib/club/dominio/identidad.mjs": {
+      "fuente": "public/previews/breakpoint/turnero/dominio/identidad.mjs",
+      "sha256": "1d25cacbc67b3ae21ed4db1f2bbf10cc288f297d848d85225cf3b7aeef834fdf"
+    }
+  }
+}
