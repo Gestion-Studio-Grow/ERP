@@ -743,3 +743,11 @@ export declare function aprobarPorCodigo(
 export declare function datosAprobacion(estado: EstadoClub, novedadId: string): DatosAprobacion | null;
 /** El cliente paga su cuenta corriente (todo o una parte; sin monedero). */
 export declare function cobrarDeuda(estado: EstadoClub, clienteId: string, pago?: { medio?: Medio; monto?: number }, ahora?: Ahora): Resultado<{ monto: number; saldo: number }>;
+
+// ═══════════════ Ola 1 de paridad — un bloque por frente (agentes en paralelo: cada uno escribe SÓLO en el suyo) ═══════════════
+
+// ── ola 1 · cuenta y buffet ──
+
+// ── ola 1 · agenda y tienda ──
+
+// ── ola 1 · caja y whatsapp ──
