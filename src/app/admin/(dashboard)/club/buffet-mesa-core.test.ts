@@ -17,6 +17,9 @@ import {
   SIN_INTENTOS,
   VENTA_DESHACIBLE,
   anotarIntentoDePin,
+  claveDeIntentosDePin,
+  descuentoConTope,
+  guardaDeIntentos,
   armarCarrito,
   ejecutarMesa,
   esperaDelPin,
@@ -121,11 +124,11 @@ test("descuento: sin PIN no pasa; con el PIN de recepción tampoco; con el de un
   assert.match(sinPin.mensaje, /PIN/);
   const deRecepcion = ejecutarMesa(e, { ...base, pin: PIN_RECEPCION().pin }, AHORA, auth);
   assert.equal(deRecepcion.ok, false);
-  assert.equal(deRecepcion.pinAjeno, true);
+  assert.equal(deRecepcion.pin, "malo");
   assert.equal(deRecepcion.mensaje, "Un descuento lo autoriza el dueño con su PIN.");
   const cualquiera = ejecutarMesa(e, { ...base, pin: "98" }, AHORA, auth);
   assert.equal(cualquiera.ok, false);
-  assert.equal(cualquiera.pinAjeno, true);
+  assert.equal(cualquiera.pin, "malo");
   assert.equal(M.totalCuenta(c), tot0, "nada cambió");
   const duenio = PIN_DUENIO();
   assert.deepEqual(quienFirma(e, duenio.pin, auth), { auth: { usuarioId: duenio.id, pin: duenio.pin }, esDuenio: true });
@@ -228,4 +231,69 @@ test("los PIN de ejemplo son los de los dueños de la demo (los que se muestran 
     M.USUARIOS_DEMO.filter((u) => u.rol === "duenio").map((u) => ({ nombre: u.nombre, pin: u.pin })),
   );
   assert.deepEqual(pinesDeEjemplo(M.crearClubReal(HOY)), [], "en la jornada real, al arrancar, ningún dueño tiene PIN para mostrar");
+});
+
+/** Un localStorage de mentira (lo que comparte una pestaña con la que se abre al recargar). */
+function almacenamiento(): Storage & { datos: Map<string, string> } {
+  const datos = new Map<string, string>();
+  return {
+    datos,
+    getItem: (k: string) => datos.get(k) ?? null,
+    setItem: (k: string, v: string) => void datos.set(k, v),
+    removeItem: (k: string) => void datos.delete(k),
+  } as unknown as Storage & { datos: Map<string, string> };
+}
+
+test("M2: un envío sin monto (o sin concepto) con cualquier PIN NO cuenta como intento ni vuelve el contador a cero", () => {
+  const { e, auth } = demo();
+  const c = abiertas(e)[0];
+  const guarda = guardaDeIntentos(almacenamiento(), claveDeIntentosDePin("demo-club"));
+  const ahora = 1_000_000;
+  const descuento = (pin: string, monto: number, concepto = "Ajuste") =>
+    descuentoConTope(guarda, ahora, () => ejecutarMesa(e, { tipo: "cargoManual", cuentaId: c.id, concepto, monto, descuento: true, pin }, AHORA, auth));
+  for (let k = 0; k < INTENTOS_DE_PIN - 1; k++) assert.equal(descuento(String(50 + k), 1000).desenlace.pin, "malo");
+  assert.equal(guarda.leer().fallos, INTENTOS_DE_PIN - 1);
+  // El truco: monto vacío (NaN) o concepto vacío, con cualquier PIN. Antes reseteaba el contador.
+  for (const r of [descuento("99", Number.NaN), descuento("98", 0), descuento("97", 1000, "  ")]) {
+    assert.equal(r.desenlace.ok, false);
+    assert.equal(r.desenlace.pin, null, "el PIN no se llegó a mirar");
+  }
+  assert.equal(guarda.leer().fallos, INTENTOS_DE_PIN - 1, "el contador sigue donde estaba");
+  // El quinto PIN malo traba: ni el PIN bueno pasa hasta que venza la espera.
+  descuento("96", 1000);
+  const trabado = descuento(PIN_DUENIO().pin, 1000);
+  assert.equal(trabado.trabado, true);
+  assert.match(trabado.desenlace.mensaje, /esperá 30 s/);
+  const tot = M.totalCuenta(c);
+  assert.equal(M.totalCuenta(c), tot, "trabado, no se aplicó nada");
+  const despues = descuentoConTope(guarda, ahora + ESPERA_DE_PIN_MS, () =>
+    ejecutarMesa(e, { tipo: "cargoManual", cuentaId: c.id, concepto: "Ajuste", monto: 1000, descuento: true, pin: PIN_DUENIO().pin }, AHORA, auth),
+  );
+  assert.equal(despues.desenlace.ok, true, despues.desenlace.mensaje);
+  assert.deepEqual(guarda.leer(), SIN_INTENTOS, "un PIN bueno vuelve a cero");
+});
+
+test("M2: los intentos quedan guardados en el equipo por negocio: recargar no los borra; sin almacenamiento, en memoria", () => {
+  const ls = almacenamiento();
+  const clave = claveDeIntentosDePin("breakpoint");
+  assert.equal(clave, "gsg-club:breakpoint:intentos-pin:v1");
+  assert.throws(() => claveDeIntentosDePin("  "), /negocio/);
+  const ahora = 5_000;
+  let i = SIN_INTENTOS;
+  for (let k = 0; k < INTENTOS_DE_PIN; k++) i = anotarIntentoDePin(i, false, ahora);
+  guardaDeIntentos(ls, clave).guardar(i);
+  // «Recargar»: una guarda nueva sobre el mismo almacenamiento sigue trabada.
+  const recargada = guardaDeIntentos(ls, clave);
+  assert.equal(esperaDelPin(recargada.leer(), ahora), ESPERA_DE_PIN_MS / 1000);
+  assert.equal(descuentoConTope(recargada, ahora + 1000, () => assert.fail("trabado: no corre")).trabado, true);
+  // Otro negocio en el mismo equipo no hereda la traba.
+  assert.deepEqual(guardaDeIntentos(ls, claveDeIntentosDePin("otro-club")).leer(), SIN_INTENTOS);
+  // Lo guardado roto se ignora; un almacenamiento que tira, o ninguno, no rompe: queda en memoria.
+  ls.datos.set(clave, "{no es json");
+  assert.deepEqual(guardaDeIntentos(ls, clave).leer(), SIN_INTENTOS);
+  const queTira = { getItem: () => { throw new Error("bloqueado"); }, setItem: () => { throw new Error("lleno"); }, removeItem: () => undefined } as unknown as Storage;
+  for (const g of [guardaDeIntentos(queTira, clave), guardaDeIntentos(null, clave), guardaDeIntentos(ls, null)]) {
+    g.guardar(i);
+    assert.equal(esperaDelPin(g.leer(), ahora), ESPERA_DE_PIN_MS / 1000, "en memoria sigue trabado");
+  }
 });

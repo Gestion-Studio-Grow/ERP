@@ -16,6 +16,7 @@
 import { alertas, cancha as canchaDe, hhmm, mensajeWhatsApp } from "@/lib/club/motor.mjs";
 import type { Ahora, Alerta, EstadoClub, NivelAlerta } from "@/lib/club/motor.mjs";
 import type { TipoMarca } from "@/components/ui/Marca";
+import { celularDeLaEspera, enlaceWhatsApp, type EnlaceWhatsApp, type ModoDelClub } from "./whatsapp-core";
 
 export interface ItemBandeja {
   /** Estable entre armados (tipo + a qué se refiere): `key` de React y para recordar cuál está abierta. */
@@ -96,7 +97,7 @@ export type QueHace =
   | { tipo: "cobrarFalta"; reservaId: string }
   | { tipo: "apagarLuz"; canchaId: string }
   /** El mensaje para el de la lista de espera y, si dice que sí, darle el turno. */
-  | { tipo: "ofrecerEspera"; esperaId: string; canchaId: string; inicio: number; mensaje: string }
+  | { tipo: "ofrecerEspera"; esperaId: string; canchaId: string; inicio: number; mensaje: string; whatsapp: EnlaceWhatsApp }
   /** Va a otra solapa; si no está, `siNoEsta` es lo que se le dice a quien opera. */
   | { tipo: "solapa"; solapa: string; siNoEsta: string };
 
@@ -111,7 +112,11 @@ export type QueHace =
  *   · lista de espera → el mensaje de WhatsApp y «Dijo que sí: reservar»;
  *   · pedido de la tienda → la solapa Tienda (el vanilla no lo resolvía: el botón no hacía nada).
  */
-export function queHace(estado: EstadoClub, a: Alerta): QueHace | null {
+/**
+ * `modo`: con datos reales, la oferta va al celular de quien espera (el anotado o el de su ficha), normalizado a formato
+ * argentino; en la demo, sin número (whatsapp-core.ts).
+ */
+export function queHace(estado: EstadoClub, a: Alerta, modo: ModoDelClub): QueHace | null {
   if (a.tipo === "devolucion" && a.reservaId) return { tipo: "devolver", reservaId: a.reservaId };
   if (a.tipo === "falta_sin_ficha" && a.reservaId) return { tipo: "cobrarFalta", reservaId: a.reservaId };
   if (a.reservaId) return { tipo: "verTurno", reservaId: a.reservaId };
@@ -134,7 +139,7 @@ export function queHace(estado: EstadoClub, a: Alerta): QueHace | null {
       const c = a.canchaId ? canchaDe(estado, a.canchaId) : undefined;
       if (!e || !c || a.inicio === undefined) return null;
       const mensaje = mensajeWhatsApp("espera", { nombre: e.titular.split(" ")[0], cancha: c.nombre, hora: hhmm(a.inicio), fecha: "hoy" });
-      return { tipo: "ofrecerEspera", esperaId: e.id, canchaId: c.id, inicio: a.inicio, mensaje };
+      return { tipo: "ofrecerEspera", esperaId: e.id, canchaId: c.id, inicio: a.inicio, mensaje, whatsapp: enlaceWhatsApp(celularDeLaEspera(estado, e), mensaje, modo) };
     }
     default:
       return null;

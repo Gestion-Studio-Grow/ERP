@@ -35,6 +35,7 @@ import { trabadoHasta } from "./buffet-core";
 import { leerMonto } from "./caja-core";
 import { INTENTOS_POR_PEDIDO, mensajeParaElDuenio } from "./credito-core";
 import { ETIQUETA_MEDIO, type MedioCaja } from "./cuenta-core";
+import { enlaceWhatsApp } from "./whatsapp-core";
 
 const ddmm = (f: Fecha) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
 
@@ -169,7 +170,7 @@ export function armarFicha(estado: EstadoClub, clienteId: string, ahora: Ahora):
           ? { puede: false, motivo: "Tiene cargos abiertos en el buffet: primero se cierran." }
           : { puede: true },
     recibeNovedades: c.aceptaNovedades !== false,
-    recordarDeuda: c.deuda > 0 ? linkWhatsApp(c.tel, mensajeWhatsApp("deuda", { nombre: c.nombre.split(" ")[0], monto: pesos(c.deuda) })) : null,
+    recordarDeuda: c.deuda > 0 ? enlaceWhatsApp(c.tel, mensajeWhatsApp("deuda", { nombre: c.nombre.split(" ")[0], monto: pesos(c.deuda) }), "real").href : null,
   };
   return { ...vista, firma: JSON.stringify(vista) };
 }

@@ -228,7 +228,17 @@ export interface EstadoDelGuardado {
 
 /** Los Web Locks del navegador (lo que se usa de `navigator.locks`; se reemplaza en los tests). */
 export interface CerrojosDelNavegador {
-  request(nombre: string, opciones: { ifAvailable?: boolean; steal?: boolean }, alTomar: (lock: unknown) => unknown): Promise<unknown>;
+  request(nombre: string, opciones: { ifAvailable?: boolean; steal?: boolean; signal?: AbortSignal }, alTomar: (lock: unknown) => unknown): Promise<unknown>;
+}
+
+/**
+ * El canal entre las pestañas de este equipo (BroadcastChannel, con el nombre del candado): «Usar acá» le pide la
+ * jornada a la que la tiene, que escribe lo pendiente y recién ahí suelta el candado (se reemplaza en los tests).
+ */
+export interface CanalDeLaJornada {
+  enviar(mensaje: unknown): void;
+  escuchar(alRecibir: (mensaje: unknown) => void): () => void;
+  cerrar?(): void;
 }
 
 /** Temporizadores (se reemplazan en los tests). Cada uno devuelve con qué cancelarlo. */
@@ -334,6 +344,12 @@ export interface OpcionesAlmacen {
   /** El latido y los reintentos del guardado (se reemplaza en los tests). */
   temporizador?: Temporizador;
   latidoMs?: number;
+  /** Abre el canal entre pestañas (default: BroadcastChannel, si hay). null = no hay: «Usar acá» roba el candado. */
+  canal?: ((nombre: string) => CanalDeLaJornada | null) | null;
+  /** Cuánto se espera a que la otra pestaña ceda la jornada antes de robarla (default 3 s). */
+  esperaPostaMs?: number;
+  /** Al robar la jornada, cuánto se espera antes de leer lo guardado: lo que la otra escribe al perderla (default 1 s). */
+  graciaRoboMs?: number;
 }
 
 /** setTimeout que no retiene el proceso (en Node, para los tests); en el navegador es el de siempre. */
@@ -376,6 +392,29 @@ function cerrojosDelNavegador(): CerrojosDelNavegador | null {
   return n?.locks && typeof n.locks.request === "function" ? n.locks : null;
 }
 
+/** BroadcastChannel con el nombre del candado, o null (navegador viejo). En Node no retiene el proceso. */
+function canalDelNavegador(nombre: string): CanalDeLaJornada | null {
+  if (typeof BroadcastChannel === "undefined") return null;
+  try {
+    const b = new BroadcastChannel(nombre);
+    (b as unknown as { unref?: () => void }).unref?.();
+    return {
+      enviar: (m) => b.postMessage(m),
+      escuchar(alRecibir) {
+        const h = (e: MessageEvent) => alRecibir(e.data);
+        b.addEventListener("message", h);
+        return () => b.removeEventListener("message", h);
+      },
+      cerrar: () => b.close(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Lo que manda «Usar acá» por el canal. */
+const PEDIDO_DE_POSTA = "gsg-club:ceder-la-jornada";
+
 const ddmm = (f: Fecha) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
 
 const MENSAJE_SOLO_LECTURA: Record<"abriendo" | "otra-pestania" | "ilegible" | "sin-base", string> = {
@@ -397,7 +436,10 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     temporizador = TEMPORIZADOR,
     latidoMs = LATIDO_MS,
     candado = null,
+    esperaPostaMs = 3000,
+    graciaRoboMs = 1000,
   } = opciones;
+  const crearCanal = opciones.canal === undefined ? canalDelNavegador : opciones.canal;
   const real = reloj === "real";
   const cerrojos = opciones.cerrojos === undefined ? cerrojosDelNavegador() : opciones.cerrojos;
   const almacenamiento = opciones.almacenamiento === undefined ? almacenamientoDelNavegador() : opciones.almacenamiento;
@@ -465,6 +507,8 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   // El `cambios` del último texto que el guardado confirmó (-1: lo de ahora todavía no se guardó nunca).
   let cambiosGuardados = sucioAlAbrir ? -1 : 0;
   let enVuelo: { esperada: number } | null = null;
+  // Termina cuando el guardado en camino llegó y se procesó (para esperar antes de ceder la jornada).
+  let promesaEnVuelo: Promise<void> | null = null;
   // Se está trayendo lo guardado por un conflicto: no se escribe (lo de acá se va a reemplazar).
   let recargando = false;
   let otraVez = false;
@@ -509,7 +553,11 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     meta = nuevo;
     for (const o of oyentesGuardado) o();
   };
-  const puedeOperar = () => meta.jornada === "demo" || meta.jornada === "propia" || meta.jornada === "sin-bloqueo";
+  /** ¿Esta pestaña tiene la jornada? (y por lo tanto escribe). */
+  const tieneLaJornada = () => meta.jornada === "demo" || meta.jornada === "propia" || meta.jornada === "sin-bloqueo";
+  // Se está pasando la jornada a otra pestaña: se escribe lo pendiente, pero ya no se opera.
+  let cediendo = false;
+  const puedeOperar = () => tieneLaJornada() && !cediendo;
 
   // ── guardado ──
   /** Falta lugar en este equipo: se recorta el registro viejo (como el vanilla). true si había algo que recortar. */
@@ -584,7 +632,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   const escribir = () => {
     pendiente = null;
     // Sin dónde guardar (incógnito), en sólo lectura o sin nada nuevo: ni se arma el texto.
-    if (!guardado || !puedeOperar() || recargando || cambiosGuardados === cambios) return;
+    if (!guardado || !tieneLaJornada() || recargando || cambiosGuardados === cambios) return;
     if (primarioLocal) return escribirLocal(espejo!);
     // Un guardado a la vez: lo que se tocó mientras tanto sale en el siguiente, con el texto de ese momento.
     if (enVuelo) {
@@ -606,7 +654,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     } catch {
       promesa = Promise.resolve({ ok: false, motivo: "error" });
     }
-    void promesa
+    promesaEnVuelo = promesa
       .catch((): ResultadoDelGuardado => ({ ok: false, motivo: "error" }))
       .then((r) => {
         enVuelo = null;
@@ -675,7 +723,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
    * misma versión → lo de acá; el espejo con algo sin confirmar que viene de esa versión → lo de acá (es más nuevo);
    * si no, lo de allá (y si acá había algo sin guardar, se avisa).
    */
-  const sincronizar = async (motivo: "abrir" | "usarAca" | "conflicto"): Promise<void> => {
+  const sincronizar = async (motivo: "abrir" | "usarAca" | "conflicto", vigente: () => boolean = () => true): Promise<void> => {
     if (!guardado) return;
     let r: { texto: string; version: number } | null;
     if (motivo === "conflicto") recargando = true;
@@ -683,6 +731,8 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       r = primarioLocal ? espejo!.leerYa() : await guardado.leer();
     } catch {
       recargando = false;
+      // Se perdió el candado (otra pestaña tomó la jornada) o la pantalla se fue: no se sigue (no pisar «otra-pestania»).
+      if (!vigente()) return;
       intentos++;
       if (real && !primarioLocal && !abierto?.ok && (motivo === "abrir" || motivo === "usarAca")) {
         // (Al abrir o al tomar la jornada la pantalla está en sólo lectura: no hay nada del usuario sin guardar; lo
@@ -698,8 +748,8 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
             listo();
           }, esperaDelReintento(intentos));
         });
-        if (!activo) return;
-        return sincronizar(motivo);
+        if (!activo || !vigente()) return;
+        return sincronizar(motivo, vigente);
       }
       // No se pudo leer: se sigue con lo de acá; el guardado lo reintenta (y si había algo más nuevo, dirá conflicto).
       ponerMeta({ guardado: "reintentando" });
@@ -782,13 +832,48 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       if (meta.jornada === "abriendo") ponerMeta({ jornada: "sin-bloqueo" });
     });
   };
-  const tomarJornada = (robar: boolean) => {
+  /**
+   * Escribe lo pendiente y espera a que llegue (con tope de vueltas): antes de pasar la jornada a otra pestaña. La
+   * escritura lleva chequeo de versión, así que nunca pisa lo que la otra haya guardado.
+   */
+  const vaciarGuardado = async () => {
+    for (let vuelta = 0; vuelta < 4; vuelta++) {
+      if (!guardado || recargando || cambiosGuardados === cambios) return;
+      guardarYa();
+      if (primarioLocal || !promesaEnVuelo) return;
+      await promesaEnVuelo;
+      // Si falló, lo pendiente quedó en el espejo de este equipo (`espejarSiHaceFalta`): no se insiste.
+      if (cancelarReintento !== null) return;
+    }
+  };
+  /** Esta pestaña deja la jornada: lo pendiente se escribe primero, después queda sólo para mirar. */
+  const dejarLaJornada = async (soltar: (() => void) | null) => {
+    cediendo = true;
+    try {
+      await vaciarGuardado();
+    } finally {
+      cediendo = false;
+      if (pendiente !== null) clearTimeout(pendiente);
+      pendiente = null;
+      cancelarReintento?.();
+      cancelarReintento = null;
+      ponerMeta({ jornada: "otra-pestania" });
+      soltar?.();
+    }
+  };
+  /**
+   * Pide el candado: "abrir" (si está libre; si no, «otra-pestania»), "pedir" (espera a que la otra pestaña lo suelte,
+   * después de escribir lo suyo) o "robar" (la otra no contestó: se roba y se espera `graciaRoboMs` antes de leer, el
+   * rato en que la otra escribe lo pendiente al perderla).
+   */
+  const tomarJornada = (modo: "abrir" | "pedir" | "robar", signal?: AbortSignal, alTomar?: () => void) => {
     if (!candado || !cerrojos) return abrirSinBloqueo();
     candadoPedido = true;
     let obtuvo = false;
     let pedido: Promise<unknown>;
+    const opcionesDelPedido = modo === "abrir" ? { ifAvailable: true } : modo === "robar" ? { steal: true } : { signal };
     try {
-      pedido = cerrojos.request(candado, robar ? { steal: true } : { ifAvailable: true }, (lock) => {
+      pedido = cerrojos.request(candado, opcionesDelPedido, (lock) => {
         if (!lock) {
           candadoPedido = false;
           ponerMeta({ jornada: "otra-pestania" });
@@ -800,16 +885,24 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
           return null;
         }
         obtuvo = true;
+        alTomar?.();
         // El candado queda tomado mientras esta pestaña lo tenga (hasta `soltarCandado` o que otra lo robe).
         return new Promise<void>((liberar) => {
-          soltarCandado = () => {
-            soltarCandado = null;
+          const mio = () => {
+            if (soltarCandado === mio) soltarCandado = null;
             candadoPedido = false;
             liberar();
           };
-          void sincronizar(robar ? "usarAca" : "abrir").finally(() => {
-            if (soltarCandado) ponerMeta({ jornada: "propia" });
-          });
+          soltarCandado = mio;
+          const vigente = () => activo && soltarCandado === mio;
+          const abrir = () => {
+            if (!vigente()) return;
+            void sincronizar(modo === "abrir" ? "abrir" : "usarAca", vigente).finally(() => {
+              if (vigente()) ponerMeta({ jornada: "propia" });
+            });
+          };
+          if (modo === "robar") temporizador.despues(abrir, graciaRoboMs);
+          else abrir();
         });
       });
     } catch (e) {
@@ -817,20 +910,58 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     }
     pedido.catch(() => {
       if (obtuvo) {
-        // Otra pestaña tocó «Usar acá»: ésta queda sólo para mirar y no escribe más.
+        // Otra pestaña robó la jornada (no contestó la posta a tiempo): lo pendiente se escribe igual (con chequeo de
+        // versión) y ésta queda sólo para mirar.
         if (soltarCandado) {
           soltarCandado = null;
           candadoPedido = false;
-          if (pendiente !== null) clearTimeout(pendiente);
-          pendiente = null;
-          ponerMeta({ jornada: "otra-pestania" });
+          void dejarLaJornada(null);
         }
         return;
       }
+      // Se dejó de esperar la posta para robarla: no es un error.
+      if (signal?.aborted) return;
       // El navegador no deja usar el candado (p. ej. fuera de https): se sigue sin bloqueo, como el vanilla.
       candadoPedido = false;
       abrirSinBloqueo();
     });
+  };
+  // ── la posta entre pestañas (BroadcastChannel) ──
+  let canalActual: CanalDeLaJornada | null = null;
+  let dejarDeEscuchar: (() => void) | null = null;
+  const abrirCanal = () => {
+    if (canalActual || !candado || !crearCanal) return;
+    canalActual = crearCanal(candado);
+    dejarDeEscuchar =
+      canalActual?.escuchar((m) => {
+        // Otra pestaña tocó «Usar acá»: si ésta tiene la jornada, escribe lo pendiente y recién ahí suelta el candado.
+        if ((m as { tipo?: unknown } | null)?.tipo !== PEDIDO_DE_POSTA || !soltarCandado || cediendo) return;
+        void dejarLaJornada(soltarCandado);
+      }) ?? null;
+  };
+  const cerrarCanal = () => {
+    dejarDeEscuchar?.();
+    dejarDeEscuchar = null;
+    canalActual?.cerrar?.();
+    canalActual = null;
+  };
+  /** «Usar acá»: pide la posta por el canal y espera el candado; si la otra no contesta a tiempo, lo roba. */
+  const pedirLaPosta = () => {
+    if (!candado || !cerrojos) return abrirSinBloqueo();
+    const canal = canalActual;
+    if (!canal || typeof AbortController === "undefined") return tomarJornada("robar");
+    const corte = new AbortController();
+    let llego = false;
+    const cancelarEspera = temporizador.despues(() => {
+      if (llego) return;
+      corte.abort();
+      tomarJornada("robar");
+    }, esperaPostaMs);
+    tomarJornada("pedir", corte.signal, () => {
+      llego = true;
+      cancelarEspera();
+    });
+    canal.enviar({ tipo: PEDIDO_DE_POSTA });
   };
 
   // ── el latido (reloj real) ──
@@ -870,7 +1001,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   const guardarYa = () => {
     if (pendiente !== null) clearTimeout(pendiente);
     pendiente = null;
-    if (!guardado || !puedeOperar() || recargando || cambiosGuardados === cambios) return;
+    if (!guardado || !tieneLaJornada() || recargando || cambiosGuardados === cambios) return;
     if (primarioLocal) return escribirLocal(espejo!);
     // Con otro guardado: se lanza (puede no llegar si la página se cierra) y la copia de este equipo se escribe ya.
     escribir();
@@ -908,7 +1039,9 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
         // El candado se suelta un instante después: si React vuelve a montar enseguida (StrictMode), se reusa.
         cancelarSoltar = temporizador.despues(() => {
           cancelarSoltar = null;
-          if (activo || !soltarCandado) return;
+          if (activo) return;
+          cerrarCanal();
+          if (!soltarCandado) return;
           soltarCandado();
           // Sin candado ya no es «propia»: si se vuelve a arrancar, se pide de nuevo.
           ponerMeta({ jornada: "abriendo" });
@@ -919,7 +1052,8 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       if (real) {
         pararLatido = temporizador.cada(latir, latidoMs);
         latir();
-        if (!candadoPedido && meta.jornada === "abriendo") tomarJornada(false);
+        abrirCanal();
+        if (!candadoPedido && meta.jornada === "abriendo") tomarJornada("abrir");
       } else if (guardado && !primarioLocal) {
         void sincronizar("abrir");
       }
@@ -973,7 +1107,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     usarAca() {
       if (meta.jornada !== "otra-pestania") return;
       ponerMeta({ jornada: "abriendo" });
-      tomarJornada(true);
+      pedirLaPosta();
     },
     ejecutar(accion, { deshacible = false } = {}) {
       if (!puedeOperar()) return negarSoloLectura();
