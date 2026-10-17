@@ -35,7 +35,10 @@ export interface SolapaDelClub {
   soloDuenos?: boolean;
 }
 
-export const SOLAPAS_DEL_CLUB: readonly SolapaDelClub[] = [];
+export const SOLAPAS_DEL_CLUB: readonly SolapaDelClub[] = [
+  { id: "clientes", etiqueta: "Clientes", cargar: () => import("./ClientesDelClub") },
+  { id: "tablero", etiqueta: "Tablero", cargar: () => import("./TableroDelDuenio"), soloDuenos: true },
+];
 
 // ============================================================================
 // PIEZAS GLOBALES — lo que va UNA vez en la recepción, por encima de las solapas.
@@ -67,4 +70,7 @@ export interface PiezaGlobalDelClub {
   cargar: () => Promise<{ default: ComponentType<PropsDePieza> }>;
 }
 
-export const PIEZAS_GLOBALES_DEL_CLUB: readonly PiezaGlobalDelClub[] = [];
+export const PIEZAS_GLOBALES_DEL_CLUB: readonly PiezaGlobalDelClub[] = [
+  // El aviso 🔔 del dueño: pedidos de crédito esperando su OK, con el botón que lleva al Tablero.
+  { id: "aviso-del-duenio", cargar: () => import("./aviso-del-duenio").then((m) => ({ default: m.AvisoDelDuenio })) },
+];

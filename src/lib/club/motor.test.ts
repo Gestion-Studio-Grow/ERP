@@ -69,14 +69,17 @@ const FUNCIONES = [
   "cerrarCanchaYSeguir", "cerrarCargosDelTurno", "mesasAbiertas",
   "diaDeCaja", "cajaCerrada", "cajaAbierta", "resumenCaja", "cajasSinCerrar", "cajasConMovimientosSinCerrar", "cerrarCaja", "egresoCaja",
   "puedeACuenta", "solicitarCredito", "resolverCredito", "codigoAprobacion", "aprobarPorCodigo", "datosAprobacion", "cobrarDeuda",
+  // Clientes y Tablero del dueño (solapas de la sesión del club).
+  "editarCliente", "bajaCliente", "bajaNovedades", "solicitarAcceso", "otorgarAcceso", "rechazarAcceso",
+  "solicitarCC", "configurarCC", "estadoDeCuenta", "kpis", "mapaDeCalor", "metricasPlatos", "mensajeWhatsApp", "linkWhatsApp",
 ] as const satisfies readonly Funciones[];
 // Ola 1 de paridad: un bloque por frente para que tres agentes sumen tipos en paralelo sin pisarse.
 // Cada frente agrega SÓLO en su lista (y en su bloque de motor.d.mts).
 const FUNCIONES_OLA1_CUENTA_Y_BUFFET = ["sumarJugador"] as const satisfies readonly Funciones[];
 const FUNCIONES_OLA1_AGENDA_Y_TIENDA = [
-  "alertas", "catalogoTienda", "crearPedidoTienda", "pedidoDesdeWhatsApp", "pedidosPendientes", "entregarPedido", "cargarPedidoACuenta", "cancelarPedido", "linkWhatsApp",
+  "alertas", "catalogoTienda", "crearPedidoTienda", "pedidoDesdeWhatsApp", "pedidosPendientes", "entregarPedido", "cargarPedidoACuenta", "cancelarPedido",
 ] as const satisfies readonly Funciones[];
-const FUNCIONES_OLA1_CAJA_Y_WHATSAPP = ["ajustarFondo", "mensajeWhatsApp"] as const satisfies readonly Funciones[];
+const FUNCIONES_OLA1_CAJA_Y_WHATSAPP = ["ajustarFondo"] as const satisfies readonly Funciones[];
 type FuncionesListadas =
   | (typeof FUNCIONES)[number]
   | (typeof FUNCIONES_OLA1_CUENTA_Y_BUFFET)[number]
