@@ -93,6 +93,7 @@ test("preparar no toca nada y da UN archivo; con ese archivo elegido se achica, 
   // Una acción deshacible antes (sobre un turno de la última semana, que el motor nunca archiva).
   const vivo = a.estado().reservas.find((r) => r.fecha >= M.sumarDias(HOY_TORNEO, -6))!;
   assert.ok(vivo, "el mes trae turnos de la última semana");
+  a.cambiarOperador(a.estado().usuarios.find((u) => u.id === DUENIO.usuarioId)!, DUENIO);
   a.ejecutar((e) => (e.log.unshift({ fecha: null, min: null, texto: `toque en ${vivo.id}` }), { ok: true, mensaje: "Listo" }), { deshacible: true });
   assert.equal(a.puedeDeshacer(), true);
   const estadoAntes = a.estado();

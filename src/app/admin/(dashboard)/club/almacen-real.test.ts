@@ -733,6 +733,7 @@ test("«Usar acá» con la otra viva: la que tenía la jornada escribe lo pendie
   B.arrancar();
   await vaciar();
   assert.equal(B.estadoDelGuardado().jornada, "otra-pestania");
+  A.cambiarOperador(A.estado().usuarios[0]); // en la jornada real se opera con alguien que entró con su PIN
   // El cobro en A, y «Usar acá» en B antes de los 1,5 s del agrupado: todavía no está escrito.
   A.ejecutar((e) => (marcar("cobro de A")(e), { ok: true, mensaje: "Cobrado" }));
   assert.equal(A.pendienteDeGuardar(), true);
@@ -766,6 +767,7 @@ test("«Usar acá» con la otra que no contesta la posta: se roba, la otra escri
   const B = real({ m, cerrojos: c, canal: canalFalso(), t: tB });
   B.arrancar();
   await vaciar();
+  A.cambiarOperador(A.estado().usuarios[0]);
   A.ejecutar((e) => (marcar("cobro de A")(e), { ok: true, mensaje: "Cobrado" }));
   B.usarAca();
   await vaciar();
@@ -823,4 +825,18 @@ test("sin base: si otra pestaña toma la jornada (o la pantalla se va), el reint
   tS.correr();
   for (let i = 0; i < 3; i++) await vaciar();
   assert.equal(caida.lecturas, antes);
+});
+
+test("jornada real sin nadie operando: ninguna acción corre (no depende de que el bloqueo ya esté cargado)", async () => {
+  const s = real({ m: memoria(), cerrojos: null });
+  s.arrancar();
+  await vaciar();
+  assert.equal(s.operador(), null);
+  let corrio = false;
+  const d = s.ejecutar(() => ((corrio = true), { ok: true, mensaje: "no debería" }));
+  assert.equal(d.ok, false);
+  assert.match(d.mensaje, /PIN/);
+  assert.equal(corrio, false, "la acción ni se llamó");
+  s.cambiarOperador(s.estado().usuarios[0]);
+  assert.equal(s.ejecutar(() => ({ ok: true, mensaje: "ahora sí" })).ok, true);
 });

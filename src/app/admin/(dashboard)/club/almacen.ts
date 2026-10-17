@@ -1330,6 +1330,15 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     },
     ejecutar(accion, { deshacible = false } = {}) {
       if (!puedeOperar()) return negarSoloLectura();
+      // En la jornada real nadie opera sin haber entrado con su PIN: no depende de que el bloqueo (pieza global de la
+      // sesión del club) ya esté cargado y encima. Varias operaciones del motor no piden `auth`; sin esto correrían
+      // con un `auth` vacío y sin saber quién las hizo.
+      if (real && !operadorActual()) {
+        const mensaje = "Entrá con tu PIN para operar.";
+        aviso = { id: ++idAviso, ok: false, mensaje, deshacer: false };
+        avisar();
+        return { ok: false, mensaje };
+      }
       // La foto de antes: casi siempre ya está armada (se adelanta en reposo después de cada cambio).
       let foto: string | null = null;
       if (deshacible) {
