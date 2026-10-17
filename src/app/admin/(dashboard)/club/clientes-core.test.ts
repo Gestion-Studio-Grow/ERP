@@ -100,7 +100,11 @@ test("cuenta corriente: recepción no la configura, la PIDE; ve «esperando al d
   assert.ok(f.pedido);
   assert.equal(f.pedido.que, "cuenta corriente hasta $ 40.000");
   assert.equal(f.pedido.quedan, 5);
-  assert.match(f.pedido.linkWhatsApp, /^https:\/\/wa\.me\/\?text=/, "sin el celular del dueño, el link va sin número");
+  assert.ok(f.pedido.avisos.length >= 1, "un aviso por dueño");
+  for (const a of f.pedido.avisos) {
+    assert.match(a.enlace.href, /^https:\/\/wa\.me\/\?text=/, "sin el celular del dueño, el link va sin número");
+    assert.match(a.enlace.texto, /\/admin\/club\/aprobar#aprobar&id=/, "con el link al aprobador del ERP");
+  }
 
   const mal = ejecutarClientes(e, { tipo: "aprobarCodigo", novedadId: f.pedido.id, codigo: "AAA-AAA", monto: "40000" }, AHORA, recep);
   assert.equal(mal.ok, false);

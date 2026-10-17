@@ -363,13 +363,13 @@ export interface EstadoClub {
   solicitudesAcceso: SolicitudAcceso[];
   // Lo que todavía no consume ninguna pantalla React: se tipa cuando se porte.
   proveedores: unknown[];
-  difusiones: unknown[];
+  difusiones: Difusion[];
   pedidos: unknown[];
   fijos: Fijo[];
   espera: Espera[];
   remitos: unknown[];
   pagosProveedor: unknown[];
-  contenido: unknown[];
+  contenido: Contenido[];
   log: { fecha: Fecha | null; min: number | null; texto: string }[];
   /** Resumen de lo archivado (archivarDiasCerrados). Opcional: un estado que nunca archivó no lo tiene. */
   archivo?: ArchivoJornada;
@@ -1215,3 +1215,79 @@ export declare function limpiarParaGoLive(
   auth: Auth,
   ahora?: Ahora,
 ): Resultado<{ borrado: { turnos: number; cuentas: number; movimientos: number; pedidos: number; quedan: number } }> | (Falla & { pendientes?: string[] });
+
+// ───────────── novedades por difusión (WhatsApp) y calendario de contenido ─────────────
+
+export type TipoNovedad = "novedad" | "promo" | "torneo" | "turnos";
+export type Audiencia = "todos" | "activos" | "recuperar" | "cuentaCorriente";
+export declare const TIPOS_NOVEDAD: Readonly<Record<TipoNovedad, string>>;
+export declare const AUDIENCIAS: Readonly<Record<Audiencia, string>>;
+
+/** Una novedad armada para mandar por difusión. `destinatarios`/`enviados`: ids de clientes. */
+export interface Difusion extends Sello {
+  id: string;
+  tipo: TipoNovedad;
+  titulo: string;
+  texto: string;
+  audiencia: Audiencia;
+  destinatarios: string[];
+  enviados: string[];
+  autor: string;
+}
+
+/** A quién le llega: cliente activo, con celular (8+ dígitos) y sin la baja de las novedades. `tel`: sólo dígitos. */
+export interface Destinatario {
+  clienteId: string;
+  nombre: string;
+  tel: string;
+}
+
+export declare function destinatarios(estado: EstadoClub, audiencia: Audiencia | string, ahora: Ahora): Destinatario[];
+/** El mensaje como le llega a cada uno (con su nombre de pila), con «respondé BAJA» al final. */
+export declare function mensajeDifusion(d: { titulo: string; texto?: string }, nombre?: string): string;
+/** Arma la novedad (permiso `contenido`). No manda nada: el envío es desde el WhatsApp del club. */
+export declare function crearDifusion(
+  estado: EstadoClub,
+  datos: { tipo?: TipoNovedad | string; titulo: string; texto?: string; audiencia?: Audiencia | string },
+  auth: Auth,
+  ahora: Ahora,
+): Resultado<{ difusion: Difusion; destinatarios: Destinatario[] }>;
+/** Se le mandó a uno (desde su link de WhatsApp): queda anotado. OJO: no pide auth. */
+export declare function marcarEnviado(estado: EstadoClub, difusionId: string, clienteId: string): Resultado<{ faltan: number }>;
+/** El cliente respondió BAJA (`volver: true` lo vuelve a sumar). OJO: no pide auth. */
+export declare function bajaNovedades(estado: EstadoClub, clienteId: string, ahora?: Ahora, volver?: boolean): Resultado;
+/** CSV «Nombre,Celular» (el celular con +) para armar la lista de difusión en WhatsApp Business. */
+export declare function contactosCSV(lista: readonly { nombre: string; tel: string }[]): string;
+
+export type CanalContenido = "post" | "reel" | "historia" | "whatsapp";
+export type EstadoContenido = "idea" | "programado" | "publicado";
+export declare const CANALES: Readonly<Record<CanalContenido, string>>;
+export declare const ESTADOS_CONTENIDO: Readonly<Record<EstadoContenido, string>>;
+
+/** Una publicación del calendario de redes. `hora`: "HH:MM". */
+export interface Contenido {
+  id: string;
+  fecha: Fecha;
+  hora: string;
+  canal: CanalContenido;
+  titulo: string;
+  texto: string;
+  estado: EstadoContenido;
+  autor: string;
+}
+
+export interface DatosContenido {
+  fecha: Fecha;
+  hora?: string;
+  canal?: CanalContenido | string;
+  titulo: string;
+  texto?: string;
+  estado?: EstadoContenido | string;
+}
+
+/** Permiso `contenido` (sin PIN). */
+export declare function agregarContenido(estado: EstadoClub, datos: DatosContenido, auth: Auth): Resultado<{ contenido: Contenido }>;
+export declare function editarContenido(estado: EstadoClub, contenidoId: string, cambios: Partial<DatosContenido>, auth: Auth): Resultado;
+export declare function borrarContenido(estado: EstadoClub, contenidoId: string, auth: Auth): Resultado;
+/** Las publicaciones de un mes (1–12), por fecha y hora. */
+export declare function contenidoDelMes(estado: EstadoClub, anio: number, mes: number): Contenido[];

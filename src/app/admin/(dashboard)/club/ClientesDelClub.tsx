@@ -14,7 +14,7 @@
 // en clientes-core.ts; quién opera, en operador-del-club.ts.
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Button, buttonClasses } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
 import { pesos } from "@/lib/club/motor.mjs";
@@ -170,16 +170,29 @@ function EsperandoAlDuenio({ almacen, f, hacer }: { almacen: Almacen; f: VistaFi
   const [codigo, setCodigo] = useState("");
   const [monto, setMonto] = useState(String(p.monto));
   const [verDemo, setVerDemo] = useState(false);
-  const demo = verDemo ? codigoDeLaDemo(almacen.estado(), p.id) : null;
+  // Sólo en la demo: en la jornada real, el código lo saca el dueño con SU PIN (si recepción lo viera, se aprobaría sola).
+  const enDemo = almacen.modo() === "demo";
+  const demo = verDemo && enDemo ? codigoDeLaDemo(almacen.estado(), p.id) : null;
+  const nota = useId();
+  const notas = [...new Set(p.avisos.map((a) => a.enlace.nota).filter(Boolean))];
   return (
     <div className="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning-soft p-3">
       <h4 className="font-semibold text-strong">Esperando al dueño</h4>
       <p className="text-sm text-strong">
-        {p.pidio} pidió {p.que}. Avisale al dueño: abre el pedido, lo aprueba y te manda un código de 6 letras.
+        {p.pidio} pidió {p.que}. Avisale al dueño: abre el link en su celular, pone su PIN y te manda un código de 6 letras.
       </p>
-      <a href={p.linkWhatsApp} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>
-        Avisar al dueño por WhatsApp
-      </a>
+      <div className="flex flex-wrap gap-2">
+        {p.avisos.map((a) => (
+          <BotonWhatsApp key={a.duenioId} enlace={a.enlace} notaEn={notas.length === 1 ? nota : undefined}>
+            Avisar a {a.nombre} por WhatsApp
+          </BotonWhatsApp>
+        ))}
+      </div>
+      {notas.length === 1 && (
+        <p id={nota} className="text-xs text-body">
+          {notas[0]}
+        </p>
+      )}
       <form
         className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_9rem]"
         onSubmit={(e) => {
@@ -195,9 +208,11 @@ function EsperandoAlDuenio({ almacen, f, hacer }: { almacen: Almacen; f: VistaFi
       </form>
       <p className="text-sm text-body">{p.trabado ?? `Quedan ${p.quedan} intentos.`}</p>
       {/* En el celular el texto no entra en una línea: el botón crece para abajo (sigue de 44 px como mínimo). */}
-      <Button variant="ghost" size="md" className="h-auto! min-h-11 py-2 whitespace-normal!" onClick={() => setVerDemo((v) => !v)} aria-expanded={verDemo}>
-        {verDemo ? "Ocultar" : "Ver"} el código que le llega al dueño (sólo en la demo)
-      </Button>
+      {enDemo && (
+        <Button variant="ghost" size="md" className="h-auto! min-h-11 py-2 whitespace-normal!" onClick={() => setVerDemo((v) => !v)} aria-expanded={verDemo}>
+          {verDemo ? "Ocultar" : "Ver"} el código que le llega al dueño (sólo en la demo)
+        </Button>
+      )}
       {demo && (
         <p className="text-sm text-strong">
           En el celular de {demo.duenio} sale: <strong className="tabular-nums">{demo.codigo}</strong>
@@ -339,7 +354,8 @@ function CuentaCorriente({ almacen, f, hacer }: { almacen: Almacen; f: VistaFich
 
 function FichaDelCliente({ almacen, clienteId, onCerrar, onSeFue }: { almacen: Almacen; clienteId: string; onCerrar: () => void; onSeFue: () => void }) {
   const modo = almacen.modo();
-  const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarFicha(e, clienteId, a, modo), [clienteId, modo]);
+  // El link al aprobador del dueño sale de ESTE sitio (el panel del negocio): /admin/club/aprobar#aprobar&…
+  const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarFicha(e, clienteId, a, modo, window.location.origin), [clienteId, modo]);
   const f = useSeleccion(almacen, seleccionar, porFirma);
   const hacer = useHacer(almacen);
   const titulo = useRef<HTMLHeadingElement>(null);

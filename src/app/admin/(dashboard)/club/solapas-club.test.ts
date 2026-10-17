@@ -37,6 +37,12 @@ test("Configuración sólo para los dueños, con el id al que lleva la cinta cua
   assert.equal(por.configuracion?.soloDuenos, true);
 });
 
+test("Novedades y redes sólo para los dueños (el permiso `contenido` del motor es del dueño)", () => {
+  const por = Object.fromEntries(SOLAPAS_DEL_CLUB.map((s) => [s.id, s]));
+  assert.equal(por.novedades?.etiqueta, "Novedades y redes");
+  assert.equal(por.novedades?.soloDuenos, true);
+});
+
 test("las piezas globales tienen id único y apto para el DOM, y cada una baja en su chunk (`cargar`)", () => {
   const ids = PIEZAS_GLOBALES_DEL_CLUB.map((p) => p.id);
   assert.equal(new Set(ids).size, ids.length, "ids repetidos");
