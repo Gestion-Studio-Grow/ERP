@@ -104,6 +104,12 @@ async function reposo() {
   for (let i = 0; i < 30 || ([...ocupados].some((f) => f()) && i < 5000); i++) await new Promise((r) => setImmediate(r));
 }
 
+/** Espera a que se cumpla `listo` (la subida comprime en otro hilo: con la máquina cargada, 30 vueltas no alcanzan). */
+async function hasta(listo: () => boolean, ms = 5000) {
+  const fin = Date.now() + ms;
+  while (!listo() && Date.now() < fin) await new Promise((r) => setTimeout(r, 5));
+}
+
 function armar(opciones: { base?: ReturnType<typeof baseFalsa>; espejo?: ReturnType<typeof espejoFalso> } = {}) {
   const base = opciones.base ?? baseFalsa();
   const espejo = opciones.espejo ?? espejoFalso();
@@ -180,11 +186,11 @@ test("al ocultar la pestaña o salir, sube en el acto", async () => {
   assert.equal(base.subidas.length, 0);
   oculta = true;
   oyentes.get("visibilitychange")!();
-  await reposo();
+  await hasta(() => base.subidas.length >= 1);
   assert.deepEqual(base.subidas, [{ version: 1, fondo: 7 }]);
   void g.guardar(textoDelClub(8), 1);
   oyentes.get("pagehide")!();
-  await reposo();
+  await hasta(() => base.subidas.length >= 2);
   assert.equal(base.subidas.length, 2);
   soltar();
   assert.equal(oyentes.size, 0);
