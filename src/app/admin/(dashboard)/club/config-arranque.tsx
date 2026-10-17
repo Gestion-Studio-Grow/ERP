@@ -34,16 +34,9 @@ function CampoDosNumeros({ label, value, onChange }: { label: string; value: str
   return <Campo label={label} type="password" inputMode="numeric" maxLength={2} value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))} className="sm:w-28" />;
 }
 
-/**
- * Al entrar, ClubDemo deja de mostrar sólo la consola y arma las solapas (en la Agenda): se lleva a Configuración,
- * donde sigue la primera vez. PEDIDO A TERMINALES: que ClubDemo abra en «configuracion» mientras el club no esté
- * configurado (hoy se toca la solapa por su id, `club-solapa-configuracion`, que es fijo).
- */
-function seguirEnConfiguracion() {
-  requestAnimationFrame(() => {
-    document.getElementById("club-solapa-configuracion")?.click();
-    requestAnimationFrame(() => document.getElementById(ID_TITULO)?.focus());
-  });
+/** Al entrar, ClubDemo sigue en Configuración mientras el club no esté configurado (fc862025): el foco va al título. */
+function enfocarTitulo() {
+  requestAnimationFrame(() => document.getElementById(ID_TITULO)?.focus());
 }
 
 function ArmarPin({ almacen, d }: { almacen: Almacen; d: DuenioDelArranque }) {
@@ -85,7 +78,7 @@ function Entrar({ almacen, d, intentos, onIntentos }: { almacen: Almacen; d: Due
           onIntentos(p.intentos);
           almacen.cambiarOperador(p.usuario, { usuarioId: p.usuario.id, pin: p.pin });
           almacen.informar({ ok: true, mensaje: `Hola, ${d.corto}. Cargá lo que quieras y, cuando esté, «Abrir el club».` });
-          seguirEnConfiguracion();
+          enfocarTitulo();
           return;
         }
         if (p.tipo === "malo") onIntentos(p.intentos);
