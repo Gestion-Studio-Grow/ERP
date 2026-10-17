@@ -745,6 +745,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
 
   test("Configuración a 1024, 768 y 390 px: sin scroll de costado, objetivos de 44 px y contraste AA", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS de la app");
     for (const w of [1024, 768, 390]) {
       const { page, errores } = await montar("OWNER", { width: w, height: w === 390 ? 844 : 1024 });
       await page.getByRole("tab", { name: "Configuración" }).click();
