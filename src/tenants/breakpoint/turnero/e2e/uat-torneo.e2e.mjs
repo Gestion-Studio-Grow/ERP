@@ -412,15 +412,28 @@ ok("10.saldos", juanGL?.deuda === 4000, "Se conservaron los saldos: Juan sigue d
 await p.reload(); await W(1000);
 ok("10.vuelve", await bloqueada() && (await estado()).reservas.length === 0, "Después de la limpieza el club vuelve bloqueado y en limpio, listo para el go-live");
 
-// ═══ 11. Un mes después: la compu se llena → archivar días cerrados (dueña, con PIN, dos archivos antes) ═══
+// ═══ 11. Un mes después: la compu se llena → archivar días cerrados (dueña, con PIN, en dos pasos: bajar UN archivo y
+// elegirlo; recién ahí se achica). Lo mismo para borrar una copia vieja. ═══
 await desbloquear("84");
 await irTab("ajustes");
 const copiaGL = await p.evaluate(() => (localStorage.getItem("bp-jornada-v1-antes-golive") ?? "").length);
 ok("11.copia-visible", copiaGL > 0 && /Copia de antes de la limpieza del go-live/.test(await p.textContent("#app")), `La copia de antes del go-live se ve con lo que ocupa (${Math.ceil(copiaGL / 1024)} KB)`);
+const etiqueta = await p.getAttribute('#app [data-a="borrarCopia"][data-v="antes-golive"]', "aria-label");
 await p.click('#app [data-a="borrarCopia"][data-v="antes-golive"]'); await W(); await p.fill("#cf-pin", "84");
-const [descCopia] = await Promise.all([p.waitForEvent("download"), p.click('#dlg [data-a="confirmarBorrarCopia"]')]);
+const borrarDeshabilitado = await p.isDisabled("#cp-borrar");
+const [descCopia] = await Promise.all([p.waitForEvent("download"), p.click('#dlg [data-a="bajarCopia"]')]);
 await W(300);
-ok("11.copia-borrada", /breakpoint-copia-antes-golive-.*\.json$/.test(descCopia.suggestedFilename()) && (await p.evaluate(() => localStorage.getItem("bp-jornada-v1-antes-golive"))) === null, `Con el PIN de la dueña, la copia se descarga (${descCopia.suggestedFilename()}) y recién después se borra`);
+const sigueLaCopia = (await p.evaluate(() => localStorage.getItem("bp-jornada-v1-antes-golive"))) !== null;
+// Elegir otro archivo (uno que no es la copia) no borra nada.
+const otroArchivo = path.join(OUT, "otro-archivo.json");
+await writeFile(otroArchivo, JSON.stringify({ v: 1, nada: true }));
+await p.setInputFiles("#cp-archivo", otroArchivo);
+await p.click('#dlg [data-a="confirmarBorrarCopia"]'); await W(400);
+const avisoOtro = await aviso();
+const sigueTrasOtro = (await p.evaluate(() => localStorage.getItem("bp-jornada-v1-antes-golive"))) !== null;
+await p.setInputFiles("#cp-archivo", await descCopia.path());
+await p.click('#dlg [data-a="confirmarBorrarCopia"]'); await W(400);
+ok("11.copia-borrada", /Descargar y borrar: Copia de antes/.test(etiqueta ?? "") && borrarDeshabilitado && sigueLaCopia && sigueTrasOtro && /no es igual a la copia/.test(avisoOtro) && /breakpoint-copia-antes-golive-.*\.json$/.test(descCopia.suggestedFilename()) && (await p.evaluate(() => localStorage.getItem("bp-jornada-v1-antes-golive"))) === null && /Archivo verificado/.test(await p.textContent("#toasts")), `Copia vieja: se descarga (${descCopia.suggestedFilename()}), con otro archivo no se borra; eligiendo el descargado se verifica y recién ahí se borra`);
 // Un mes de club lleno (del 10/9 al 9/10, todas las cajas cerradas) con los usuarios y la configuración de esta compu.
 const { armarMesCargado } = await import("../../mes-cargado.fixture.ts");
 const actual = await estado();
@@ -444,14 +457,32 @@ const antesArch = await estado();
 const bajadas = [];
 p.on("download", (d) => bajadas.push(d));
 await p.click("#btn-archivar"); await W(); await p.fill("#cf-pin", "84");
-await p.click('#dlg [data-a="confirmarArchivar"]'); await W(1500);
+const paso2Cerrado = await p.isDisabled("#ar-achicar");
+await p.click('#dlg [data-a="bajarParaArchivar"]'); await W(1500);
 const nombres = bajadas.map((d) => d.suggestedFilename());
-const anexo = JSON.parse(await readFile(await bajadas.find((d) => /breakpoint-archivo-/.test(d.suggestedFilename())).path(), "utf8"));
-const previo = JSON.parse(await readFile(await bajadas.find((d) => /breakpoint-jornada-/.test(d.suggestedFilename())).path(), "utf8"));
+const paqueteBajado = bajadas.find((d) => /breakpoint-respaldo-y-archivo-/.test(d.suggestedFilename()));
+const paquete = JSON.parse(await readFile(await paqueteBajado.path(), "utf8"));
+const anexo = paquete.anexo;
+const previo = paquete.respaldo;
+const tamPaso1 = (await p.evaluate(() => localStorage.getItem("bp-jornada-v1"))).length;
+const avisoPaso1 = await aviso();
+await foto("archivar-paso-1");
+ok("11.paso1", paso2Cerrado && nombres.length === 1 && /^breakpoint-respaldo-y-archivo-\d{4}-\d{2}-\d{2}-\d{4}\.json$/.test(nombres[0]) && paquete.tipo === "respaldo-y-archivo" && paquete.huella === M.huellaAnexo(anexo) && previo.estado.reservas.length === antesArch.reservas.length && tamPaso1 >= llena * 0.95 && /Se pidió la descarga/.test(avisoPaso1) && !(await p.isDisabled("#ar-achicar")), `Paso 1: UNA sola descarga (${nombres.join(" + ")}) con el respaldo completo y el anexo; todavía no se achicó nada`);
+// Paso 2 sin elegir archivo, o eligiendo otro (la copia vieja): no se achica.
+await p.click('#dlg [data-a="confirmarArchivar"]'); await W(400);
+const sinArchivo = await aviso();
+await p.setInputFiles("#ar-archivo", await descCopia.path());
+await p.click('#dlg [data-a="confirmarArchivar"]'); await W(800);
+const conOtro = await aviso();
+const tamTrasOtro = (await p.evaluate(() => localStorage.getItem("bp-jornada-v1"))).length;
+ok("11.otro", /Elegí el archivo que descargaste/.test(sinArchivo) && /no es el archivo para archivar/.test(conOtro) && tamTrasOtro >= llena * 0.95, "Sin elegir el archivo, o eligiendo otro, no se achica nada");
+await p.setInputFiles("#ar-archivo", await paqueteBajado.path());
+await p.click('#dlg [data-a="confirmarArchivar"]'); await W(1500);
 const despuesArch = await estado();
 const tamDespues = (await p.evaluate(() => localStorage.getItem("bp-jornada-v1"))).length;
-ok("11.descargas", nombres.length === 2 && nombres.some((x) => /^breakpoint-archivo-\d{4}-\d{2}-\d{2}\.json$/.test(x)) && previo.estado.reservas.length === antesArch.reservas.length, `Antes de achicar se descargaron el respaldo completo y el archivo: ${nombres.join(" + ")}`);
-ok("11.achica", anexo.tipo === "anexo-jornada" && anexo.hasta >= "2026-09-26" && despuesArch.archivo?.hasta === anexo.hasta && tamDespues < llena * 0.75 && !(await p.isVisible("#aviso-lleno")), `Archivó hasta el ${anexo.hasta} (${anexo.reservas.length} turnos): ${Math.round(llena / 1024)} KB → ${Math.round(tamDespues / 1024)} KB y el aviso se fue`);
+ok("11.achica", anexo.tipo === "anexo-jornada" && anexo.hasta >= "2026-09-26" && despuesArch.archivo?.hasta === anexo.hasta && tamDespues < llena * 0.75 && !(await p.isVisible("#aviso-lleno")) && /Archivo verificado: achicado/.test(await p.textContent("#toasts")), `Paso 2: eligiendo el archivo descargado se verifica y archiva hasta el ${anexo.hasta} (${anexo.reservas.length} turnos): ${Math.round(llena / 1024)} KB → ${Math.round(tamDespues / 1024)} KB y el aviso se fue`);
+const resumenDias = await p.textContent("#app details");
+ok("11.resumen", /Días archivados \(\d+\)/.test(resumenDias ?? "") && /turnos · cobrado/.test(resumenDias ?? "") && Array.isArray(despuesArch.archivo.codigos?.pedidos) && Array.isArray(despuesArch.archivo.codigos?.refs), "La tarjeta muestra los días archivados: fecha, turnos y cobrado de cada uno");
 const plata = (...partes) => { const t = {}; for (const x of partes) for (const [d, f] of Object.entries(M.plataPorDia(x))) t[d] = (t[d] ?? 0) + f.canchas + f.cuentas + f.ingresos - f.egresos; return JSON.stringify(Object.entries(t).sort()); };
 ok("11.plata", plata(antesArch) === plata(despuesArch, anexo), "Al centavo, día por día: lo que había = lo que quedó + lo del archivo");
 // De antes del corte sólo quedan los turnos con algún cobro en una caja sin cerrar (la del 9/9, la mañana del primer día).
@@ -460,6 +491,34 @@ const recientes = (e) => e.reservas.filter((r) => r.fecha > anexo.hasta).map((r)
 ok("11.vivo", despuesArch.reservas.every((r) => r.fecha > anexo.hasta || cajaSinCerrar(r)) && recientes(despuesArch) === recientes(antesArch) && despuesArch.clientes.every((c, i) => c.deuda === antesArch.clientes[i].deuda && c.monedero === antesArch.clientes[i].monedero), "Lo de las últimas 3 semanas, lo de cajas sin cerrar y los saldos de los clientes quedan como estaban");
 await p.reload(); await W(1000); await desbloquear("84");
 ok("11.vuelve", (await estado()).archivo?.hasta === anexo.hasta && !(await bloqueada()), "Al recargar, la jornada achicada se abre igual");
+
+// 11.cancelada: en una compu donde el navegador NO baja archivos (descarga cancelada o bloqueada), no hay archivo para
+// elegir y lo guardado NO se achica.
+{
+  const ctx2 = await b.newContext({ viewport: { width: 1366, height: 900 }, timezoneId: "America/Argentina/Buenos_Aires", acceptDownloads: false });
+  await ctx2.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  await ctx2.clock.install({ time: new Date("2026-10-17T19:00:00-03:00") });
+  const q = await ctx2.newPage();
+  q.on("pageerror", (e) => errores.push(e.message));
+  const bajadas2 = []; q.on("download", (d) => bajadas2.push(d));
+  const mes2 = armarMesCargado("2026-10-10", 30);
+  Object.assign(mes2.estado, { usuarios: actual.usuarios, config: actual.config });
+  const txt = JSON.stringify({ ...mes2, usuario: majo.id });
+  await q.goto(`${BASE}/club`); await q.waitForTimeout(800);
+  await q.evaluate((t) => { localStorage.setItem("bp-modo", "real"); const poner = () => localStorage.setItem("bp-jornada-v1", t); poner(); addEventListener("pagehide", poner); document.addEventListener("visibilitychange", poner); }, txt);
+  await q.reload(); await q.waitForTimeout(1200);
+  await q.fill("#bl-pin", "84"); await q.waitForTimeout(600);
+  const antes2 = (await q.evaluate(() => localStorage.getItem("bp-jornada-v1"))).length;
+  await q.click("#aviso-lleno"); await q.waitForTimeout(600);
+  await q.click("#btn-archivar"); await q.waitForTimeout(250); await q.fill("#cf-pin", "84");
+  await q.click('#dlg [data-a="bajarParaArchivar"]'); await q.waitForTimeout(1500);
+  const fallas = await Promise.all(bajadas2.map(async (d) => (await d.failure()) ?? "ok"));
+  await q.click('#dlg [data-a="confirmarArchivar"]'); await q.waitForTimeout(500);
+  const aviso2 = await q.textContent("#dlg-aviso");
+  const despues2 = await q.evaluate(() => localStorage.getItem("bp-jornada-v1"));
+  ok("11.cancelada", bajadas2.length === 1 && fallas.every((f) => f !== "ok") && /Elegí el archivo que descargaste/.test(aviso2 ?? "") && despues2.length >= antes2 * 0.95 && !JSON.parse(despues2).estado.archivo, `Si el navegador no baja el archivo (${bajadas2.length} descarga, ${fallas.every((f) => f !== "ok") ? "cancelada" : "¿bajó?"}), no hay nada que elegir y lo guardado NO se achica (${Math.round(antes2 / 1024)} KB → ${Math.round(despues2.length / 1024)} KB)`);
+  await ctx2.close();
+}
 
 ok("errores", errores.length === 0, `Cero errores de consola${errores.length ? `: ${errores.slice(0, 3).join(" | ")}` : ""}`);
 await writeFile(`${OUT}/resultado.json`, JSON.stringify({ fecha: new Date().toISOString(), filas }, null, 2));

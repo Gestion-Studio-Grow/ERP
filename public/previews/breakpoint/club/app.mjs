@@ -10,7 +10,7 @@ const pad = (n) => String(n).padStart(2, "0");
 const hoyLocal = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const fechaCorta = (f) => { const [, m, d] = f.split("-"); return `${DIAS[M.diaSemana(f)]} ${Number(d)}/${Number(m)}`; };
-const ddmm = (f) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
+const ddmm = (f) => (typeof f === "string" && /^\d{4}-\d{2}-\d{2}/.test(f) ? `${Number(f.slice(8, 10))}/${Number(f.slice(5, 7))}` : "—");
 // En la demo el WhatsApp abre sin número (elegís el contacto): los teléfonos de ejemplo podrían ser de alguien real.
 const wa = (texto) => M.linkWhatsApp("", texto);
 const ROW = 30;
@@ -79,8 +79,14 @@ const esDuenio = () => yo()?.rol === "duenio";
 // Por defecto /club es la demo. La jornada real se activa a propósito (Ajustes, con PIN de dueño, o /club?modo=real):
 // arranca en blanco, se guarda sola en el navegador, vuelve bloqueada al recargar y usa el reloj real.
 const CLAVE_JORNADA = "bp-jornada-v1", CLAVE_MODO = "bp-modo", CLAVE_CONTACTOS = "bp-contactos";
+// Lo que ocupa cada copia vieja de la jornada (clave → caracteres): leerlas enteras en cada pantalla es caro (pueden
+// pesar 3.000 KB). Se recalcula al abrir Configuración y cuando esta pestaña escribe o borra una copia.
+const tamCopias = new Map();
 const lsLeer = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
-const lsGuardar = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch { return false; } };
+const lsGuardar = (k, v) => {
+  if (k.startsWith(`${CLAVE_JORNADA}-`)) tamCopias.delete(k);
+  try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch { return false; }
+};
 // En el sitio del club (<meta name="bp-ambiente" content="real">) /club ES la gestión real; la demo para prospectos
 // queda con ?demo=1 (sólo esa visita, no cambia nada guardado). Fuera del sitio (vista previa), demo salvo ?modo=real.
 const Q = new URLSearchParams(location.search);
@@ -159,7 +165,8 @@ function copiasEnLaCompu() {
       if (!clave?.startsWith(`${CLAVE_JORNADA}-`)) continue;
       const sufijo = clave.slice(CLAVE_JORNADA.length + 1);
       const nombre = sufijo === "antes-golive" ? "Copia de antes de la limpieza del go-live" : sufijo === "anterior" ? "Jornada anterior (la de antes de «Empezar otra jornada en blanco»)" : sufijo.startsWith("ilegible-") ? "Jornada que no se pudo leer" : `Copia «${sufijo}»`;
-      out.push({ clave, sufijo, nombre, largo: (localStorage.getItem(clave) ?? "").length });
+      if (!tamCopias.has(clave)) tamCopias.set(clave, (localStorage.getItem(clave) ?? "").length);
+      out.push({ clave, sufijo, nombre, largo: tamCopias.get(clave) });
     }
   } catch { /* sin acceso al almacenamiento: no hay copias para mostrar */ }
   return out.sort((a, b) => a.clave.localeCompare(b.clave));
@@ -905,19 +912,72 @@ function tarjetaJornada() {
 
 // Archivar días cerrados: lo de hace más de 3 semanas con la caja cerrada pasa a un archivo que se descarga y en la
 // compu queda el resumen. Las copias viejas de la jornada se ven acá con lo que ocupan y se borran con PIN de dueño.
+// Nada se achica ni se borra sin que el dueño ELIJA el archivo descargado y el sistema compruebe que es el mismo.
 function seccionArchivo() {
   const hasta = M.diaParaArchivar(E, AHORA);
   const copias = copiasEnLaCompu();
   const enCopias = copias.reduce((s, c) => s + c.largo, 0);
   const ultimo = E.archivo?.anexos?.at(-1);
+  const dias = [...(E.archivo?.dias ?? [])].reverse();
+  // Región viva estable (siempre está): sólo se anuncia cuando cambia, no en cada pantalla.
+  const aviso = guardado.lleno ? `<div class="al alta"><span class="lvl">Se está llenando</span><p>${guardado.ok ? "Lo guardado en esta compu está cerca del tope del navegador." : "Ya no entra lo guardado en esta compu."} Archivá los días cerrados ahora y, si no las necesitás, borrá las copias viejas de abajo.</p></div>` : "";
   return `<div class="seccion" style="margin-top:12px" aria-labelledby="t-archivo"><h3 id="t-archivo">Archivar días cerrados</h3>
-    ${guardado.lleno ? `<div class="al alta" role="alert"><span class="lvl">Se está llenando</span><p>${guardado.ok ? "Lo guardado en esta compu está cerca del tope del navegador." : "Ya no entra lo guardado en esta compu."} Archivá los días cerrados ahora y, si no las necesitás, borrá las copias viejas de abajo.</p></div>` : ""}
+    <div id="archivo-aviso" role="status">${aviso}</div>
     <p class="small" style="margin:0">En esta compu la jornada ocupa <b class="num">${kb(guardado.bytes)}</b>${copias.length ? ` y las copias viejas, <b class="num">${kb(enCopias)}</b>` : ""}, de unos 5.000 KB que guarda el navegador. Para que no se llene, lo de los días con la <b>caja cerrada</b> hasta el <b class="num">${esc(ddmm(hasta))}</b> (más de 3 semanas) pasa a un <b>archivo que te descargás</b>: turnos jugados, cuentas cerradas, movimientos de caja y pedidos entregados. En el sistema queda el resumen de esos días.</p>
-    <p class="small muted" style="margin:6px 0">No se toca: los turnos por jugar, las mesas abiertas, las cajas sin cerrar, la cuenta corriente y los créditos de cada cliente, ni nada con plata pendiente. Antes se descarga también un respaldo completo: guardá los dos archivos.</p>
+    <p class="small muted" style="margin:6px 0">No se toca: los turnos por jugar, las mesas abiertas, las cajas sin cerrar, la cuenta corriente y los créditos de cada cliente, ni nada con plata pendiente. Son dos pasos: bajás un archivo (el respaldo completo y esos días) y después lo elegís para comprobar que se guardó; recién ahí se achica.</p>
     ${ultimo ? `<p class="small muted" style="margin:0 0 6px">Último archivo: hasta el ${esc(ddmm(ultimo.hasta))}${ultimo.fecha ? `, hecho el ${esc(ddmm(ultimo.fecha))}` : ""}${ultimo.por ? ` por ${esc(ultimo.por)}` : ""} (${Number(ultimo.conteos?.reservas ?? 0)} turnos).</p>` : ""}
+    ${dias.length ? `<details style="margin:0 0 8px"><summary class="small">Días archivados (${dias.length}): turnos y cobrado de cada uno</summary><ul class="small num" style="margin:4px 0 0;padding-left:18px;max-height:220px;overflow:auto">${dias.map((f) => `<li>${esc(ddmm(f.dia))} · ${Number(f.turnos)} ${Number(f.turnos) === 1 ? "turno" : "turnos"} · cobrado ${M.pesos(Number(f.cobradoCanchas) + Number(f.cobradoCuentas))}</li>`).join("")}</ul></details>` : ""}
     <button type="button" class="btn primary" data-a="archivar" id="btn-archivar">Archivar días cerrados</button>
-    ${copias.length ? `<h4 style="margin:12px 0 4px">Copias viejas en esta compu</h4><ul class="small" style="margin:0;padding-left:18px">${copias.map((c) => `<li style="margin:4px 0">${esc(c.nombre)} · <span class="num">${kb(c.largo)}</span> <button type="button" class="btn sm" data-a="borrarCopia" data-v="${esc(c.sufijo)}">Descargar y borrar</button></li>`).join("")}</ul>` : ""}
+    ${copias.length ? `<h4 style="margin:12px 0 4px">Copias viejas en esta compu</h4><ul class="small" style="margin:0;padding-left:18px">${copias.map((c) => `<li style="margin:4px 0">${esc(c.nombre)} · <span class="num">${kb(c.largo)}</span> <button type="button" class="btn sm" data-a="borrarCopia" data-v="${esc(c.sufijo)}" aria-label="Descargar y borrar: ${esc(c.nombre)}">Descargar y borrar</button></li>`).join("")}</ul>` : ""}
   </div>`;
+}
+
+// Paso 1 baja UN archivo (el navegador suele frenar la segunda descarga del mismo clic); paso 2 exige elegir ese
+// archivo y comprueba que es el que se va a archivar. Sin `refrescar`: la ventana no se rearma y no pierde el PIN
+// ni el archivo elegido; lo que cambia tras el paso 1 se toca a mano.
+function dialogoArchivar() {
+  const hasta = ui.archivoPendiente?.hasta ?? M.diaParaArchivar(E, AHORA);
+  const p = ui.archivoPendiente;
+  abrir({
+    titulo: "Archivar días cerrados",
+    sub: `Lo cerrado hasta el ${esc(ddmm(hasta))} pasa a un archivo que te quedás vos. Son dos pasos.`,
+    cuerpo: `${campoPin("cf-pin")}
+      <ol class="small" style="margin:10px 0 0;padding-left:18px">
+        <li style="margin-bottom:10px"><b>Descargá el archivo.</b> Es uno solo: el respaldo completo de ahora y los días que se archivan.
+          <div class="row" style="margin-top:6px"><button type="button" class="btn primary" data-a="bajarParaArchivar">Descargar el respaldo para archivar</button></div>
+          <p id="ar-bajado" class="small muted" style="margin:6px 0 0">${p ? `Se pidió la descarga de <b>${esc(p.nombre)}</b>.` : ""}</p></li>
+        <li><b>Elegí ese archivo</b> (fijate en Descargas) para comprobar que se guardó bien. Recién ahí se achica lo guardado en esta compu.
+          <label class="f" style="margin-top:6px">Archivo descargado<input id="ar-archivo" type="file" accept=".json,application/json"></label></li>
+      </ol>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn danger" id="ar-achicar" data-a="confirmarArchivar" ${p ? "" : "disabled"}>Ya lo guardé: achicar</button>`,
+    alAbrir(d) { $("#cf-pin", d).focus(); },
+  });
+}
+
+// Lo mismo para borrar una copia vieja: se descarga, se elige lo descargado y se compara con la copia, letra por letra.
+function dialogoCopia(c) {
+  const bajada = ui.copiaBajada?.[c.sufijo];
+  abrir({
+    titulo: `Borrar de esta compu: ${esc(c.nombre)}`,
+    sub: `Ocupa ${kb(c.largo)}. Primero la descargás y la elegís; recién ahí se borra.`,
+    cuerpo: `${campoPin("cf-pin")}
+      <ol class="small" style="margin:10px 0 0;padding-left:18px">
+        <li style="margin-bottom:10px"><b>Descargá la copia.</b>
+          <div class="row" style="margin-top:6px"><button type="button" class="btn primary" data-a="bajarCopia" data-v="${esc(c.sufijo)}">Descargar la copia</button></div>
+          <p id="cp-bajada" class="small muted" style="margin:6px 0 0">${bajada ? `Se pidió la descarga de <b>${esc(bajada)}</b>.` : ""}</p></li>
+        <li><b>Elegí ese archivo</b> para comprobar que es igual a la copia.
+          <label class="f" style="margin-top:6px">Archivo descargado<input id="cp-archivo" type="file" accept=".json,application/json"></label></li>
+      </ol>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn danger" id="cp-borrar" data-a="confirmarBorrarCopia" data-v="${esc(c.sufijo)}" ${bajada ? "" : "disabled"}>Ya la guardé: borrar</button>`,
+    alAbrir(d) { $("#cf-pin", d).focus(); },
+  });
+}
+
+/** Lee el archivo elegido en un campo de archivo de la ventana (o null si no se eligió ninguno). */
+async function textoElegido(sel) {
+  const archivo = $(sel)?.files?.[0];
+  if (!archivo) return null;
+  try { return await archivo.text(); } catch { return ""; }
 }
 
 function vistaAjustes() {
@@ -1043,6 +1103,7 @@ function irTab(id) {
   if (SOPORTA_POPOVER && $("#mas-menu").matches(":popover-open")) $("#mas-menu").hidePopover();
   if (id === TAB) return;
   TAB = id;
+  if (id === "ajustes") tamCopias.clear(); // al abrir Configuración se vuelve a medir lo que ocupa cada copia
   cerrarDialogo();
   conVT(() => { render(); $("#app").focus({ preventScroll: true }); });
 }
@@ -2253,58 +2314,116 @@ const acciones = {
     irTab("ajustes");
     setTimeout(() => { $("#t-archivo")?.scrollIntoView({ block: "center" }); $("#btn-archivar")?.focus({ preventScroll: true }); }, 250);
   },
-  archivar: () => pinPara("confirmarArchivar", "", `Archivar lo cerrado hasta el ${ddmm(M.diaParaArchivar(E, AHORA))}: se descargan el respaldo completo y el archivo de esos días, y recién después se achica lo guardado en esta compu`),
-  confirmarArchivar: () => {
+  archivar: () => {
+    if (!esDuenio()) return toast("Archivar lo hace un dueño.", { error: true });
+    dialogoArchivar();
+  },
+  bajarParaArchivar: () => {
     const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
     if (!v.ok || !esDuenio()) return toast(v.ok ? "Archivar lo hace un dueño." : v.motivo, { error: true });
     const hasta = M.diaParaArchivar(E, AHORA);
     const res = M.archivarDiasCerrados(E, hasta, { ahora: AHORA, por: yo()?.nombre ?? null });
     if (!res.ok) return toast(res.motivo, { error: true });
-    if (res.vacio) { cerrarDialogo(); return toast(`No hay nada para archivar hasta el ${ddmm(hasta)}: ya está archivado o esas cajas no se cerraron.`); }
-    // Primero los dos archivos (el respaldo completo de ahora y el anexo de los días archivados); recién después se
-    // guarda el estado achicado.
-    descargarRespaldo();
-    const nombre = `breakpoint-archivo-${hoyLocal()}.json`;
-    descargarArchivo(JSON.stringify(res.anexo), nombre);
+    if (res.vacio) { ui.archivoPendiente = null; cerrarDialogo(); return toast(`No hay nada para archivar hasta el ${ddmm(hasta)}: ya está archivado o esas cajas no se cerraron.`); }
+    guardarJornada(true);
+    const paquete = M.paqueteParaArchivar({ ...M.serializarEstado(E), usuario: USUARIO, guardado: Date.now() }, res);
+    const d = new Date();
+    const nombre = `breakpoint-respaldo-y-archivo-${hoyLocal()}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+    descargarArchivo(JSON.stringify(paquete), nombre);
+    // No se sabe si el navegador lo bajó: el paso 2 lo comprueba con el archivo que elija el dueño.
+    ui.archivoPendiente = { hasta, huella: paquete.huella, nombre };
+    const boton = $("#ar-achicar");
+    if (boton) boton.disabled = false;
+    const nota = $("#ar-bajado");
+    if (nota) nota.innerHTML = `Se pidió la descarga de <b>${esc(nombre)}</b>.`;
+    toast(`Se pidió la descarga de ${nombre}. Cuando esté en Descargas, elegilo en el paso 2 y tocá «Ya lo guardé: achicar».`);
+  },
+  confirmarArchivar: async () => {
+    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    if (!v.ok || !esDuenio()) return toast(v.ok ? "Archivar lo hace un dueño." : v.motivo, { error: true });
+    const pend = ui.archivoPendiente;
+    if (!pend) return toast("Primero descargá el archivo (paso 1).", { error: true });
+    const texto = await textoElegido("#ar-archivo");
+    if (texto == null) return toast("Elegí el archivo que descargaste (paso 2): sin eso no se achica nada.", { error: true });
+    let paquete = null;
+    try { paquete = JSON.parse(texto); } catch { /* se avisa abajo */ }
+    // Se recalcula con lo de AHORA: si algo de esos días cambió desde el paso 1, el archivo ya no coincide.
+    const res = M.archivarDiasCerrados(E, pend.hasta, { ahora: AHORA, por: yo()?.nombre ?? null });
+    const ver = M.verificarPaqueteArchivo(paquete, res, pend.huella);
+    if (!ver.ok) {
+      if (ver.causa === "cambio") {
+        ui.archivoPendiente = null;
+        const boton = $("#ar-achicar");
+        if (boton) boton.disabled = true;
+        const nota = $("#ar-bajado");
+        if (nota) nota.textContent = "";
+      }
+      return toast(ver.motivo, { error: true });
+    }
     const antes = guardado.bytes;
     E = res.estado;
     UNDO = null;
+    ui.archivoPendiente = null;
     cerrarDialogo();
     guardado.avisoLleno = false;
     guardarJornada(true);
     render();
     const c = res.conteos;
-    toast(`Archivado hasta el ${ddmm(hasta)}: ${c.reservas} turnos, ${c.cuentas} cuentas y ${c.movimientos} movimientos de caja (${kb(antes)} → ${kb(guardado.bytes)}). Se descargaron el respaldo y ${nombre}: guardá los dos.`);
+    toast(`Archivo verificado: achicado. Quedó archivado hasta el ${ddmm(pend.hasta)}: ${c.reservas} turnos, ${c.cuentas} cuentas y ${c.movimientos} movimientos de caja (${kb(antes)} → ${kb(guardado.bytes)}). Guardá ${pend.nombre} en un lugar privado.`);
   },
   borrarCopia: (b) => {
     const c = copiasEnLaCompu().find((x) => x.sufijo === b.dataset.v);
     if (!c) return toast("Esa copia ya no está.", { error: true });
-    pinPara("confirmarBorrarCopia", esc(c.sufijo), `Borrar de esta compu la ${esc(c.nombre.charAt(0).toLowerCase() + c.nombre.slice(1))} (${kb(c.largo)}): antes se descarga`);
+    if (!esDuenio()) return toast("Lo decide un dueño.", { error: true });
+    dialogoCopia(c);
   },
-  confirmarBorrarCopia: (b) => {
+  bajarCopia: (b) => {
     const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
     if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
     const c = copiasEnLaCompu().find((x) => x.sufijo === b.dataset.v);
-    if (!c || c.clave === CLAVE_JORNADA) return toast("Esa copia ya no está.", { error: true });
-    const texto = lsLeer(c.clave);
-    if (texto) descargarArchivo(texto, `breakpoint-copia-${c.sufijo}-${hoyLocal()}.json`);
+    const texto = c && c.clave !== CLAVE_JORNADA ? lsLeer(c.clave) : null;
+    if (texto == null) return toast("Esa copia ya no está.", { error: true });
+    const nombre = `breakpoint-copia-${c.sufijo}-${hoyLocal()}.json`;
+    descargarArchivo(texto, nombre);
+    ui.copiaBajada = { ...(ui.copiaBajada ?? {}), [c.sufijo]: nombre };
+    const boton = $("#cp-borrar");
+    if (boton) boton.disabled = false;
+    const nota = $("#cp-bajada");
+    if (nota) nota.innerHTML = `Se pidió la descarga de <b>${esc(nombre)}</b>.`;
+    toast(`Se pidió la descarga de ${nombre}. Cuando esté en Descargas, elegilo en el paso 2 y tocá «Ya la guardé: borrar».`);
+  },
+  confirmarBorrarCopia: async (b) => {
+    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
+    const sufijo = b.dataset.v;
+    if (!ui.copiaBajada?.[sufijo]) return toast("Primero descargá la copia (paso 1).", { error: true });
+    const elegido = await textoElegido("#cp-archivo");
+    if (elegido == null) return toast("Elegí el archivo que descargaste (paso 2): sin eso no se borra nada.", { error: true });
+    const c = copiasEnLaCompu().find((x) => x.sufijo === sufijo);
+    const texto = c && c.clave !== CLAVE_JORNADA ? lsLeer(c.clave) : null;
+    if (texto == null) return toast("Esa copia ya no está.", { error: true });
+    if (elegido !== texto) return toast("Ese archivo no es igual a la copia: elegí el que descargaste recién (o descargala de nuevo).", { error: true });
+    const nombre = ui.copiaBajada[sufijo];
     lsGuardar(c.clave, null);
+    delete ui.copiaBajada[sufijo];
     cerrarDialogo();
     guardarJornada(true);
     render();
-    toast(`Se borró de esta compu (${kb(c.largo)}). Antes se descargó: guardala si la querés.`);
+    toast(`Archivo verificado: la copia se borró de esta compu (${kb(c.largo)}). Guardá ${nombre} si la querés.`);
   },
   confirmarRestaurar: () => {
     const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
     if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
     const h = M.hidratarEstado(ui.restaurar);
+    const antesDeArchivar = ui.restaurarAntesDeArchivar;
     ui.restaurar = null;
+    ui.restaurarAntesDeArchivar = false;
     if (!h.ok) return toast(`Ese archivo no sirve: ${h.motivo}.`, { error: true });
     E = h.estado;
     cerrarDialogo();
     render();
     guardarJornada(true);
-    toast("Jornada restaurada desde el respaldo.");
+    toast(antesDeArchivar ? "Jornada restaurada desde el respaldo (es la de antes de archivar: si avisa que se llena, archivá de nuevo)." : "Jornada restaurada desde el respaldo.");
   },
   confirmarCredito: () => {
     const op = ui.pendienteCredito;
@@ -2572,7 +2691,15 @@ document.addEventListener("change", (ev) => {
     t.value = "";
     if (!archivo) return;
     const fr = new FileReader();
-    fr.onload = () => { try { ui.restaurar = JSON.parse(String(fr.result)); } catch { return toast("Ese archivo no es un respaldo de Break Point.", { error: true }); } pinPara("confirmarRestaurar", "", "Restaurar la jornada desde el respaldo (reemplaza la de ahora)"); };
+    fr.onload = () => {
+      let datos;
+      try { datos = JSON.parse(String(fr.result)); } catch { return toast("Ese archivo no es un respaldo de Break Point.", { error: true }); }
+      const r = M.respaldoDesdeArchivo(datos);
+      if (!r.ok) return toast(r.motivo, { error: true });
+      ui.restaurar = r.foto;
+      ui.restaurarAntesDeArchivar = r.antesDeArchivar;
+      pinPara("confirmarRestaurar", "", "Restaurar la jornada desde el respaldo (reemplaza la de ahora)");
+    };
     fr.onerror = () => toast("No se pudo leer el archivo.", { error: true });
     fr.readAsText(archivo);
     return;
