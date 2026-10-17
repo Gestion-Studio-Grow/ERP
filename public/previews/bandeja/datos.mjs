@@ -149,7 +149,7 @@ const BASE = [
     id: "diego-salvatierra", nombre: "Diego Salvatierra", desde: 2010, juega: "Juega en 2da",
     bio: "Técnica fina de remates y salida de pared. Trabajo con video del celular para que veas lo que corregimos.",
     niveles: ["intermedio", "avanzado", "competencia"], menores: false, precios: { individual: 30000, grupal: 0 },
-    sedes: [club("Complejo El Galpón", "lomas", 0.003, -0.004), club("Club Atlético Banfield Sur", "banfield", -0.003, 0.002)],
+    sedes: [club("Complejo El Galpón", "lomas", 0.003, -0.004), club("Club Los Aromos", "banfield", -0.003, 0.002)],
     franjas: SEMANA_MANANA_TARDE, reservaOnline: true, plan: "pro", resenas: [27, 4.5],
   },
   {

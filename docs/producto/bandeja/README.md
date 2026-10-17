@@ -18,7 +18,7 @@ Estrategia de venta y precios (propuesta, no adoptada): [`ESTRATEGIA.md`](ESTRAT
 | Datos de ejemplo (profes, clubes y reseñas **inventados**; localidades reales) | `public/previews/bandeja/datos.mjs` |
 | Pruebas (14) | `src/lib/bandeja/motor.test.ts` |
 
-Sin servidor, sin base, sin login, sin credenciales: nada se guarda ni se envía (ciclo DEMO → VENTA → INVERSIÓN).
+Sin servidor, sin base, sin login, sin credenciales: no se envía nada; sólo la búsqueda y la pestaña quedan en el navegador de quien la abre (ciclo DEMO → VENTA → INVERSIÓN).
 Ningún profe real aparece. Matías tampoco: su autorización (ADR-034) cubre su negocio en el ERP, no Bandeja.
 
 **Recorrido que muestra la demo:**
@@ -73,7 +73,7 @@ Va **adentro del ERP**, sobre `padel-clases`, no como app aparte (un solo sistem
    un servicio de mapas, para no gastar ni depender de terceros en la demo.
 4. **Sin geolocalización del navegador:** el jugador elige su localidad de una lista de 10 de zona sur.
 5. **Lint y build del proyecto no se corrieron en esta sesión** (el árbol no tiene `node_modules`). El cambio
-   no toca código que compile Next: es una carpeta en `public/` y un test. Sí se corrieron las 12 pruebas
+   no toca código que compile Next: es una carpeta en `public/` y un test. Sí se corrieron las 14 pruebas
    (`node --test` con tipos quitados) y `tsc --strict` aislado sobre el test, en cero.
 6. **`proximosLibres` repite la regla de `src/lib/padel/core.ts`** (rama de `padel-clases`) para que la demo
    corra sin servidor. En la versión real se usa ese módulo, no esta copia.
@@ -84,7 +84,7 @@ Va **adentro del ERP**, sobre `padel-clases`, no como app aparte (un solo sistem
 ## Verificación (17/10/2026)
 
 - `motor.test.ts`: 14/14. `tsc --strict` aislado sobre el test: 0 errores.
-- **Gate de Excelencia:** la primera pasada (sobre `ac744a5c`) salió **RECHAZADA** con 4 bloqueantes: el nombre
+- **Gate de Excelencia:** segunda pasada **APROBADA con observaciones** (sobre `98fd7492`); la primera pasada (sobre `ac744a5c`) salió **RECHAZADA** con 4 bloqueantes: el nombre
   de Matías en comentarios de archivos públicos, el texto de «3 reseñas» que el motor no cumplía, el filtro de
   precio con «Individual» que comparaba contra la grupal y el foco que se perdía al cerrar la ficha. Los cuatro
   se corrigieron en el commit siguiente, junto con los menores baratos (contraste, textos honestos, planes
