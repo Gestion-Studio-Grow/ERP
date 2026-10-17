@@ -27,6 +27,7 @@ import { operadorActual } from "./operador-del-club";
 import { ComoPaga } from "./piezas";
 import type { PropsDeSolapa } from "./solapas-club";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
+import { BotonWhatsApp } from "./WhatsAppDelClub";
 
 /** Lo que se puede deshacer en los 6 s del aviso. Lo del crédito no: es una decisión (o un intento de código). */
 const DESHACIBLES: ReadonlySet<AccionClientes["tipo"]> = new Set(["alta", "editar", "baja", "novedades", "cobrarDeuda"]);
@@ -327,9 +328,7 @@ function CuentaCorriente({ almacen, f, hacer }: { almacen: Almacen; f: VistaFich
               Cobrar
             </Button>
             {f.recordarDeuda && (
-              <a href={f.recordarDeuda} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>
-                Recordar por WhatsApp
-              </a>
+              <BotonWhatsApp enlace={f.recordarDeuda}>Recordar por WhatsApp</BotonWhatsApp>
             )}
           </div>
         </form>
@@ -339,7 +338,8 @@ function CuentaCorriente({ almacen, f, hacer }: { almacen: Almacen; f: VistaFich
 }
 
 function FichaDelCliente({ almacen, clienteId, onCerrar, onSeFue }: { almacen: Almacen; clienteId: string; onCerrar: () => void; onSeFue: () => void }) {
-  const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarFicha(e, clienteId, a), [clienteId]);
+  const modo = almacen.modo();
+  const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarFicha(e, clienteId, a, modo), [clienteId, modo]);
   const f = useSeleccion(almacen, seleccionar, porFirma);
   const hacer = useHacer(almacen);
   const titulo = useRef<HTMLHeadingElement>(null);

@@ -5,7 +5,7 @@
 // Hermano de club-pantalla.test.ts (mismo armado: ClubDemo REAL con esbuild, el CSS REAL de la app y el Chromium
 // de Playwright; sin Next ni base). Se prueba:
 //   · recepción: buscar, abrir la ficha (el foco va a la ficha; Escape vuelve al cliente), el estado de cuenta,
-//     cobrar una parte de la deuda con «Deshacer», el WhatsApp con el teléfono del cliente; el alta (sin repetir
+//     cobrar una parte de la deuda con «Deshacer», el WhatsApp sin número en la demo; el alta (sin repetir
 //     teléfono) y pedir la cuenta corriente → «Esperando al dueño» → aprobar con el código;
 //   · el dueño: la solapa Tablero (que recepción no ve), autorizar con el monto cambiado, dar acceso con el PIN a la
 //     vista una sola vez (no va al aviso), y configurar la cuenta corriente desde la ficha;
@@ -204,7 +204,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     const tabla = ficha.getByRole("table", { name: /Movimientos de la cuenta corriente/ });
     assert.ok((await tabla.getByRole("row").count()) >= 2);
     const wa = ficha.getByRole("link", { name: "Recordar por WhatsApp" });
-    assert.match((await wa.getAttribute("href"))!, /^https:\/\/wa\.me\/\d{8,}\?text=/, "con el teléfono del cliente");
+    assert.match((await wa.getAttribute("href"))!, /^https:\/\/wa\.me\/\?text=/, "en la demo, sin número (los teléfonos de ejemplo podrían ser de alguien real)");
     assert.equal(await ficha.getByRole("button", { name: /^Dar de baja/ }).count(), 0, "con deuda no se da de baja");
     await ficha.getByText(/primero tiene que saldar la cuenta/).waitFor();
     assert.equal(await ficha.getByRole("button", { name: "Habilitar" }).count(), 0, "recepción no configura la cuenta corriente");

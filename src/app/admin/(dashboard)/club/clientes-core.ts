@@ -35,7 +35,7 @@ import { trabadoHasta } from "./buffet-core";
 import { leerMonto } from "./caja-core";
 import { INTENTOS_POR_PEDIDO, mensajeParaElDuenio } from "./credito-core";
 import { ETIQUETA_MEDIO, type MedioCaja } from "./cuenta-core";
-import { enlaceWhatsApp } from "./whatsapp-core";
+import { enlaceWhatsApp, type EnlaceWhatsApp, type ModoDelClub } from "./whatsapp-core";
 
 const ddmm = (f: Fecha) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
 
@@ -122,11 +122,12 @@ export interface VistaFicha {
   baja: { puede: true } | { puede: false; motivo: string };
   recibeNovedades: boolean;
   /** «Recordar por WhatsApp» la deuda (null si no debe). Sin teléfono, el link va sin número. */
-  recordarDeuda: string | null;
+  /** En la demo, sin número (los teléfonos de ejemplo podrían ser de alguien real). */
+  recordarDeuda: EnlaceWhatsApp | null;
   firma: string;
 }
 
-export function armarFicha(estado: EstadoClub, clienteId: string, ahora: Ahora): VistaFicha | null {
+export function armarFicha(estado: EstadoClub, clienteId: string, ahora: Ahora, modo: ModoDelClub): VistaFicha | null {
   const c = clienteDe(estado, clienteId);
   if (!c || c.activo === false) return null;
   const ec = estadoDeCuenta(estado, clienteId);
@@ -170,7 +171,7 @@ export function armarFicha(estado: EstadoClub, clienteId: string, ahora: Ahora):
           ? { puede: false, motivo: "Tiene cargos abiertos en el buffet: primero se cierran." }
           : { puede: true },
     recibeNovedades: c.aceptaNovedades !== false,
-    recordarDeuda: c.deuda > 0 ? enlaceWhatsApp(c.tel, mensajeWhatsApp("deuda", { nombre: c.nombre.split(" ")[0], monto: pesos(c.deuda) }), "real").href : null,
+    recordarDeuda: c.deuda > 0 ? enlaceWhatsApp(c.tel, mensajeWhatsApp("deuda", { nombre: c.nombre.split(" ")[0], monto: pesos(c.deuda) }), modo) : null,
   };
   return { ...vista, firma: JSON.stringify(vista) };
 }
