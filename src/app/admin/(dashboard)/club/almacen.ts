@@ -210,9 +210,12 @@ export interface Desenlace {
  *   · "propia": esta pestaña tiene la jornada;
  *   · "sin-bloqueo": el navegador no tiene Web Locks: se opera igual, avisando que se use una sola pestaña;
  *   · "otra-pestania": otra pestaña de este equipo tiene la jornada: SÓLO LECTURA hasta «Usar acá»;
- *   · "ilegible": lo guardado no se pudo leer ni apartar: SÓLO LECTURA, para no pisarlo.
+ *   · "ilegible": lo guardado no se pudo leer ni apartar: SÓLO LECTURA, para no pisarlo;
+ *   · "sin-base": la jornada real se abre contra un guardado que no es el de este equipo (la base), no contesta y en
+ *     este equipo no hay copia: no se sabe si ya existe un club guardado, así que NO se arranca uno vacío (se
+ *     pisaría): SÓLO LECTURA mientras se reintenta leer.
  */
-export type JornadaDelClub = "demo" | "abriendo" | "propia" | "sin-bloqueo" | "otra-pestania" | "ilegible";
+export type JornadaDelClub = "demo" | "abriendo" | "propia" | "sin-bloqueo" | "otra-pestania" | "ilegible" | "sin-base";
 
 /** Cómo va el guardado y la jornada (un objeto nuevo sólo cuando algo cambia: sirve de snapshot). */
 export interface EstadoDelGuardado {
@@ -375,10 +378,11 @@ function cerrojosDelNavegador(): CerrojosDelNavegador | null {
 
 const ddmm = (f: Fecha) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
 
-const MENSAJE_SOLO_LECTURA: Record<"abriendo" | "otra-pestania" | "ilegible", string> = {
+const MENSAJE_SOLO_LECTURA: Record<"abriendo" | "otra-pestania" | "ilegible" | "sin-base", string> = {
   abriendo: "Un momento: se está abriendo la jornada.",
   "otra-pestania": "Esta pestaña es sólo para mirar: la jornada está abierta en otra. Tocá «Usar acá» para seguir en esta.",
   ilegible: "No se guarda nada: lo guardado en este equipo no se pudo leer. Avisá a soporte antes de seguir.",
+  "sin-base": "No hay conexión con la base: estamos reintentando. Hasta que conteste no se puede operar, para no arrancar un club vacío encima del guardado.",
 };
 
 export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
@@ -679,8 +683,25 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       r = primarioLocal ? espejo!.leerYa() : await guardado.leer();
     } catch {
       recargando = false;
-      // No se pudo leer: se sigue con lo de acá; el guardado lo reintenta (y si había algo más nuevo, dirá conflicto).
       intentos++;
+      if (real && !primarioLocal && !abierto?.ok && (motivo === "abrir" || motivo === "usarAca")) {
+        // (Al abrir o al tomar la jornada la pantalla está en sólo lectura: no hay nada del usuario sin guardar; lo
+        // «sucio» es sólo el club en blanco que se armó para mostrar algo, y ése es justo el que no se debe guardar.)
+        // La base no contesta y en este equipo no hay copia: no se sabe si existe un club guardado. No se arranca uno
+        // vacío (guardarlo lo pisaría): sólo lectura y se reintenta LEER. Lo que espera (`.finally` del que abrió)
+        // sigue esperando hasta que la base conteste o la pantalla se vaya.
+        ponerMeta({ jornada: "sin-base", guardado: "reintentando" });
+        await new Promise<void>((listo) => {
+          cancelarReintento?.();
+          cancelarReintento = temporizador.despues(() => {
+            cancelarReintento = null;
+            listo();
+          }, esperaDelReintento(intentos));
+        });
+        if (!activo) return;
+        return sincronizar(motivo);
+      }
+      // No se pudo leer: se sigue con lo de acá; el guardado lo reintenta (y si había algo más nuevo, dirá conflicto).
       ponerMeta({ guardado: "reintentando" });
       cancelarReintento?.();
       cancelarReintento = temporizador.despues(() => {
@@ -691,6 +712,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       return;
     }
     recargando = false;
+    if (meta.jornada === "sin-base") ponerMeta({ jornada: "abriendo", guardado: "guardado" });
     const sinGuardar = cambiosGuardados !== cambios;
     if (!r) {
       // Allá no hay nada: lo de acá se guarda (la jornada en blanco, o lo del espejo).

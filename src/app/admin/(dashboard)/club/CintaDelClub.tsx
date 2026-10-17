@@ -65,13 +65,16 @@ export default function CintaDelClub({ almacen, onVolverALaDemo }: { almacen: Al
     );
   }
 
-  const mal = g.jornada === "ilegible" || g.guardado !== "guardado";
+  const mal = g.jornada === "ilegible" || g.jornada === "sin-base" || g.guardado !== "guardado";
   return (
     <div className={cn("flex flex-col gap-1 rounded-lg border px-4 py-3 text-sm", mal ? "border-danger/40 bg-danger-soft" : "border-line bg-surface-raised")}>
       <p className="text-strong">
         <span className="font-semibold">Jornada real</span> · Hora: <span className="tabular-nums">{hhmm(min)}</span> ·{" "}
-        <span role="status">{g.jornada === "abriendo" ? "Abriendo lo guardado…" : g.jornada === "ilegible" ? "Sin guardar — lo guardado no se pudo leer" : textoDelGuardado(g)}</span>
+        <span role="status">{g.jornada === "abriendo" ? "Abriendo lo guardado…" : g.jornada === "ilegible" ? "Sin guardar — lo guardado no se pudo leer" : g.jornada === "sin-base" ? "No hay conexión con la base — reintentando" : textoDelGuardado(g)}</span>
       </p>
+      {g.jornada === "sin-base" && (
+        <p className="text-body">Hasta que la base conteste no se puede operar: así no se arranca un club vacío encima de lo guardado. Revisá el wifi; no hace falta recargar.</p>
+      )}
       {g.jornada === "sin-bloqueo" && <p className="text-body">Este navegador no puede avisar si el club está abierto en otra pestaña: usá una sola.</p>}
     </div>
   );

@@ -627,3 +627,42 @@ test("medición: latido, cambio de minuto, cambio de operador y guardado asíncr
   assert.ok(msMinuto < 16, `el cambio de minuto entra en un cuadro: ${msMinuto.toFixed(2)} ms`);
   assert.ok(conAsincrono.ms < conLocal.ms * 2 + 0.5, "el guardado asíncrono no le suma al toque");
 });
+
+test("sin base: la base no contesta al abrir y no hay copia en el equipo → sólo lectura reintentando; al volver, abre lo guardado", async () => {
+  const f = guardadoFalso();
+  const guardadoAlla = M.generarDemo(HOY, MINUTO_DEMO);
+  marcar("lo de la base")(guardadoAlla);
+  f.guardado = { texto: textoDelEstado(guardadoAlla), version: 7 };
+  let caida = true;
+  const leer = f.leer.bind(f);
+  f.leer = async () => {
+    if (caida) {
+      f.lecturas++;
+      throw new Error("sin conexión");
+    }
+    return leer();
+  };
+  const t = temporizadorFalso();
+  const s = real({ m: memoria(), guardado: f, t, cerrojos: null });
+  s.arrancar();
+  await vaciar();
+  assert.equal(s.estadoDelGuardado().jornada, "sin-base");
+  assert.equal(s.estadoDelGuardado().guardado, "reintentando");
+  assert.equal(s.soloLectura(), true, "no se arranca un club vacío encima del guardado");
+  assert.throws(() => s.aplicar(marcar("no")), /No hay conexión con la base/);
+  assert.equal(f.llamadas.length, 0, "no se guardó nada");
+  // Sigue caída: reintenta leer con espera creciente, sin guardar.
+  t.correr();
+  await vaciar();
+  assert.equal(s.estadoDelGuardado().jornada, "sin-base");
+  assert.equal(t.esperas.at(-1)!.ms, 2000);
+  assert.equal(f.llamadas.length, 0);
+  // Vuelve la base: abre lo guardado allá y se puede operar.
+  caida = false;
+  t.correr();
+  await vaciar();
+  await vaciar();
+  assert.equal(s.estadoDelGuardado().jornada, "sin-bloqueo");
+  assert.equal(s.soloLectura(), false);
+  assert.ok(s.estado().log.some((l) => l.texto === "lo de la base"), "abrió lo de la base, no uno vacío");
+});
