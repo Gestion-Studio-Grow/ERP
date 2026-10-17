@@ -5,7 +5,8 @@
 // ============================================================================
 //
 //   · Demo: «Datos de ejemplo — no se guarda nada en el sistema», el reloj de la demo y «Volver a la demo».
-//   · Jornada real: el estado del guardado («Guardado en este equipo» / «Sin guardar — reintentando») y la hora.
+//   · Jornada real: el estado del guardado («Guardado en este equipo» / «Sin guardar — reintentando») y la hora; si
+//     lo guardado pasa de `AVISO_LLENO` (o no entró), «Lo guardado se está llenando: un dueño tiene que archivar…».
 //     Si otra pestaña de este equipo tiene la jornada, lo dice y ofrece «Usar acá» (como el vanilla, que avisaba y
 //     no dejaba trabajar en la segunda). Sin Web Locks (navegador viejo), avisa que se use una sola pestaña.
 // Se suscribe sola (al guardado por su canal y al minuto del reloj): ClubDemo no se repinta por esto.
@@ -65,7 +66,7 @@ export default function CintaDelClub({ almacen, onVolverALaDemo }: { almacen: Al
     );
   }
 
-  const mal = g.jornada === "ilegible" || g.jornada === "sin-base" || g.guardado !== "guardado";
+  const mal = g.jornada === "ilegible" || g.jornada === "sin-base" || g.guardado !== "guardado" || g.lleno;
   return (
     <div className={cn("flex flex-col gap-1 rounded-lg border px-4 py-3 text-sm", mal ? "border-danger/40 bg-danger-soft" : "border-line bg-surface-raised")}>
       <p className="text-strong">
@@ -76,6 +77,8 @@ export default function CintaDelClub({ almacen, onVolverALaDemo }: { almacen: Al
         <p className="text-body">Hasta que la base conteste no se puede operar: así no se arranca un club vacío encima de lo guardado. Revisá el wifi; no hace falta recargar.</p>
       )}
       {g.jornada === "sin-bloqueo" && <p className="text-body">Este navegador no puede avisar si el club está abierto en otra pestaña: usá una sola.</p>}
+      {/* Lo dice siempre que esté lleno (como el aviso del vanilla): archivar es de un dueño, en Configuración. */}
+      {g.lleno && <p className="font-semibold text-strong">Lo guardado se está llenando: un dueño tiene que archivar los días cerrados.</p>}
     </div>
   );
 }

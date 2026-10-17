@@ -371,4 +371,42 @@ detrás de `NEGOCIOS_CON_JORNADA_REAL`, que hoy está vacía.
     `requestAnimationFrame`. Ahora espera ese cuadro y lo que afirma es lo mismo. En solitario pasa 4 de 4.
 - `npm run build`: verde.
 
+## 11. Archivado de días cerrados en el almacén (2026-10-17)
+
+El estado de la jornada real crece unos 3 millones de caracteres por mes de club lleno, y el navegador guarda unos 5
+millones. El motor ya sabe archivar lo cerrado (`archivarDiasCerrados`, de la sesión del club). El almacén lo envuelve
+en dos pasos, sin pantalla (la UI va en Configuración):
+
+1. `prepararArchivo()` valida, corre el motor sin tocar el estado y devuelve el respaldo y el anexo para descargar.
+2. `confirmar()`: con la base (`guardarAnexo`), guarda el anexo aparte **antes** de achicar, y si falla no achica
+   nada; con el guardado local exige `{ descargado: true }`. Recién ahí reemplaza el estado, lo guarda y apaga
+   «Deshacer».
+
+### Cómo se midió
+
+- `almacen-archivo.test.ts`, en la prueba «medición».
+- Se usa el fixture `armarMesCargado(HOY_TORNEO, 30)`: un mes de club lleno, abierto como jornada real.
+- «Abrir» es `JSON.parse` + `hidratarEstado`, lo que paga cada recarga. Es el promedio de 5 aperturas, con la CPU
+  normal; en una PC con CPU ×4, multiplicar por ~4.
+
+### Tabla
+
+| Corte | Guardado (caracteres) | Anexo | Abrir | Archivado |
+|---|---|---|---|---|
+| Por defecto (quedan 21 días, hasta el 26/9) | 3.042.580 → **2.085.006** (−31 %) | 973.562 | 42,3 → **32,9 ms** | 350 turnos, 1.942 movimientos |
+| Al máximo (quedan 7 días, hasta el 10/10) | 3.042.580 → **701.758** (−77 %) | 2.365.462 | 42,0 → **11,1 ms** | 853 turnos, 4.740 movimientos |
+
+### «Lleno»
+
+- `estadoDelGuardado().lleno` usa el umbral del vanilla: `AVISO_LLENO` = 2.500.000 caracteres. También cuenta como
+  lleno que el guardado de este equipo haya fallado.
+- El mes lleno lo pasa, y después de archivar con el corte por defecto queda abajo. La cinta lo avisa.
+- `bytes` se actualiza en cada guardado **sin avisar a nadie**. Sólo se avisa cuando cambia `lleno`, así el
+  guardado agrupado no repinta la cinta: la prueba de pantalla «el latido no repinta» sigue dando 0 renders.
+
+### El anexo no se guarda en este equipo
+
+**Decisión del orquestador:** el guardado local no implementa `guardarAnexo`, porque ocuparía el lugar que el archivado
+libera. Con él, `confirmar` exige `{ descargado: true }`, como el vanilla. Con la base de BP-3, el anexo va al servidor.
+
 — Elaborado por GSG

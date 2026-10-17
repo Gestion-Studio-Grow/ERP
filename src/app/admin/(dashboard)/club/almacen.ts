@@ -53,8 +53,19 @@
 //
 // Corre sólo en el navegador: el motor guarda su contador de ids a nivel de módulo.
 
-import { VERSION_ESTADO, crearClubReal, generarDemo, hidratarEstado, materializarFijos, secuenciaIds, sumarDias } from "@/lib/club/motor.mjs";
-import type { Ahora, Auth, EstadoClub, Fecha, FotoEstado, Usuario } from "@/lib/club/motor.mjs";
+import {
+  VERSION_ESTADO,
+  archivarDiasCerrados as archivarEnElMotor,
+  crearClubReal,
+  diaParaArchivar,
+  generarDemo,
+  hidratarEstado,
+  materializarFijos,
+  secuenciaIds,
+  sumarDias,
+  verificarPin,
+} from "@/lib/club/motor.mjs";
+import type { Ahora, AnexoJornada, Auth, ConteosArchivo, EstadoClub, Fecha, FotoEstado, Usuario } from "@/lib/club/motor.mjs";
 import type { Role } from "@/lib/capabilities";
 import { crearGuardadoLocal, esGuardadoLocal, separarVersion, type AlmacenamientoLocal, type GuardadoDelClub, type GuardadoLocal, type MarcaDelEspejo, type ResultadoDelGuardado } from "./guardado-del-club";
 import { fechaLocal, mismoAhora, relojReal } from "./reloj-del-club";
@@ -81,6 +92,12 @@ export const LATIDO_MS = 15_000;
 
 /** Cuántas entradas del registro quedan si falta lugar para guardar (como el vanilla). */
 export const REGISTRO_SI_FALTA_LUGAR = 60;
+
+/**
+ * Desde cuántos caracteres lo guardado «se está llenando» (el `AVISO_LLENO` del vanilla: 2.500.000, la mitad de los
+ * ~5 millones que guarda el navegador). También cuenta como lleno que el guardado de este equipo haya fallado.
+ */
+export const AVISO_LLENO = 2_500_000;
 
 /** La clave del guardado de la demo en este equipo. Sin negocio o sin persona no hay clave «de todos». */
 export function claveDeLaDemo(negocio: string, usuario: string): string {
@@ -224,7 +241,43 @@ export interface EstadoDelGuardado {
   guardado: "guardado" | "reintentando" | "sin-almacenamiento";
   /** ¿El guardado es el de este equipo? (si no, este equipo es el espejo). */
   enEsteEquipo: boolean;
+  /**
+   * Largo (caracteres) de lo último que se guardó (o se abrió). No cuesta nada: es el texto que ya se armó. Se
+   * actualiza SIN avisar (cada guardado lo cambia): `suscribirGuardado` avisa cuando cambia `lleno`.
+   */
+  bytes: number;
+  /** ¿Se está llenando? (`bytes` > `AVISO_LLENO`, o el guardado de este equipo falló): un dueño tiene que archivar. */
+  lleno: boolean;
 }
+
+/** Qué archivar: hasta qué día (default `diaParaArchivar`), a nombre de quién y con qué PIN (default: el operador). */
+export interface PedidoDeArchivo {
+  hasta?: Fecha;
+  por?: string | null;
+  auth?: Auth;
+}
+
+/** Lo que devuelve archivar (o prepararlo, si no había nada). `bytes*` = largo del texto del estado. */
+export type ResultadoDelArchivo =
+  | { ok: false; motivo: string }
+  | { ok: true; vacio: boolean; hasta: Fecha; conteos: ConteosArchivo; anexo: AnexoJornada; bytesAntes: number; bytesDespues: number };
+
+/**
+ * El archivo listo para confirmar (paso 1 de 2). La pantalla descarga `respaldo` (el estado completo de AHORA) y
+ * `textoAnexo` (`breakpoint-archivo-AAAA-MM-DD.json`), como el vanilla, y recién después llama a `confirmar`:
+ *   · si el guardado tiene `guardarAnexo`, primero guarda el anexo aparte; si falla, NO se achica nada;
+ *   · si no lo tiene, exige `{ descargado: true }` (la pantalla confirma que el anexo se bajó);
+ *   · si el estado cambió desde que se preparó, no achica (hay que preparar de nuevo: el anexo bajado ya no coincide).
+ * `bytesDespues` es la estimación (el real vuelve en `confirmar`).
+ */
+export type ArchivoPreparado = Extract<ResultadoDelArchivo, { ok: true }> & {
+  vacio: false;
+  textoAnexo: string;
+  respaldo: string;
+  /** ¿El guardado guarda el anexo aparte? Si no, `confirmar` pide `descargado: true`. */
+  guardaAnexo: boolean;
+  confirmar(opciones?: { descargado?: boolean }): Promise<ResultadoDelArchivo>;
+};
 
 /** Los Web Locks del navegador (lo que se usa de `navigator.locks`; se reemplaza en los tests). */
 export interface CerrojosDelNavegador {
@@ -278,6 +331,17 @@ export interface Almacen {
   soloLectura(): boolean;
   /** Otra pestaña tiene la jornada: la toma esta (la otra queda sólo para mirar) y abre lo último guardado. */
   usarAca(): void;
+  /**
+   * Paso 1 del archivado de días cerrados: valida (rol OWNER del ERP + PIN de un dueño del club, porque el motor no lo
+   * valida), corre el motor (puro: no toca el estado) y devuelve lo que hay que descargar y `confirmar`. Si no había
+   * nada, `vacio: true` y no hay nada que confirmar.
+   */
+  prepararArchivo(pedido?: PedidoDeArchivo): ResultadoDelArchivo | ArchivoPreparado;
+  /**
+   * Los dos pasos de una vez (`prepararArchivo` + `confirmar`). Sólo achica si el anexo quedó a salvo: guardado
+   * aparte (`guardarAnexo`) o, sin eso, con `descargado: true`. Apaga «Deshacer».
+   */
+  archivarDiasCerrados(pedido?: PedidoDeArchivo & { descargado?: boolean }): Promise<ResultadoDelArchivo>;
   /**
    * Una copia del estado para simular sin tocarlo (las previas de cancelar, la falta, la lluvia): sale del texto
    * del estado de esta versión (`JSON.parse`), que suele estar ya armado. Cada llamada da una copia nueva.
@@ -520,6 +584,8 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     jornada: real ? (ilegible ? "ilegible" : "abriendo") : "demo",
     guardado: guardado ? "guardado" : "sin-almacenamiento",
     enEsteEquipo: primarioLocal || guardado === null,
+    bytes: inicial?.texto.length ?? 0,
+    lleno: (inicial?.texto.length ?? 0) > AVISO_LLENO,
   };
 
   const textoActual = (): string => {
@@ -549,7 +615,12 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   };
   const ponerMeta = (cambio: Partial<EstadoDelGuardado>) => {
     const nuevo = { ...meta, ...cambio };
-    if (nuevo.jornada === meta.jornada && nuevo.guardado === meta.guardado) return;
+    if (nuevo.jornada === meta.jornada && nuevo.guardado === meta.guardado && nuevo.lleno === meta.lleno) {
+      // Sólo cambió el tamaño: se anota sin avisar (cada guardado lo cambia, y la cinta no lo muestra). Quien lo
+      // muestra (Configuración) lo lee al pintarse; el aviso llega cuando cambia `lleno`.
+      meta.bytes = nuevo.bytes;
+      return;
+    }
     meta = nuevo;
     for (const o of oyentesGuardado) o();
   };
@@ -567,7 +638,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     cambios++;
     return true;
   };
-  const alResultado = (r: ResultadoDelGuardado, c: number) => {
+  const alResultado = (r: ResultadoDelGuardado, c: number, largo?: number) => {
     if (r.ok) {
       versionGuardada = Math.max(versionGuardada, r.version);
       cambiosGuardados = Math.max(cambiosGuardados, c);
@@ -579,7 +650,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
         espejo?.alDia();
         marcaEspejo = null;
       }
-      ponerMeta({ guardado: "guardado" });
+      ponerMeta(largo === undefined ? { guardado: "guardado" } : { guardado: "guardado", bytes: largo, lleno: largo > AVISO_LLENO });
       return;
     }
     if (r.motivo === "conflicto") {
@@ -587,7 +658,8 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       return;
     }
     intentos++;
-    ponerMeta({ guardado: "reintentando" });
+    // Si el que falla es el de este equipo, es que no hay lugar: se está llenando (como el vanilla).
+    ponerMeta(primarioLocal ? { guardado: "reintentando", lleno: true } : { guardado: "reintentando" });
     espejarSiHaceFalta();
     cancelarReintento?.();
     cancelarReintento = temporizador.despues(() => {
@@ -618,16 +690,20 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   const escribirLocal = (local: GuardadoLocal) => {
     let c = cambios;
     let r: ResultadoDelGuardado;
+    let largo: number | undefined;
     try {
-      r = local.guardarYa(textoParaGuardar(), versionGuardada);
+      let t = textoParaGuardar();
+      r = local.guardarYa(t, versionGuardada);
       if (!r.ok && r.motivo === "error" && recortarRegistro()) {
         c = cambios;
-        r = local.guardarYa(textoParaGuardar(), versionGuardada);
+        t = textoParaGuardar();
+        r = local.guardarYa(t, versionGuardada);
       }
+      largo = t.length;
     } catch {
       r = { ok: false, motivo: "error" };
     }
-    alResultado(r, c);
+    alResultado(r, c, largo);
   };
   const escribir = () => {
     pendiente = null;
@@ -658,7 +734,7 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
       .catch((): ResultadoDelGuardado => ({ ok: false, motivo: "error" }))
       .then((r) => {
         enVuelo = null;
-        alResultado(r, c);
+        alResultado(r, c, t.length);
         const seguir = otraVez;
         otraVez = false;
         if (r.ok && cambiosGuardados !== cambios) {
@@ -1008,6 +1084,77 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     espejarSiHaceFalta();
   };
 
+  // ── archivar los días cerrados ──
+  /** El motor no valida quién archiva: lo hace el almacén, como el vanilla (PIN de un dueño del club) + rol OWNER. */
+  const quienArchiva = (auth: Auth | undefined): { ok: true; usuario: Usuario } | { ok: false; motivo: string } => {
+    if (rol !== "OWNER") return { ok: false, motivo: "Archivar lo hace un dueño." };
+    const a = auth ?? operadorActual()?.auth ?? {};
+    const v = verificarPin(estado, a.usuarioId ?? "", a.pin ?? "");
+    if (!v.ok) return { ok: false, motivo: v.motivo };
+    if (v.usuario.rol !== "duenio") return { ok: false, motivo: "Archivar lo hace un dueño." };
+    return { ok: true, usuario: v.usuario };
+  };
+  const kb = (n: number) => `${Math.ceil(n / 1024).toLocaleString("es-AR")} KB`;
+  const prepararArchivo = (pedido: PedidoDeArchivo = {}): ResultadoDelArchivo | ArchivoPreparado => {
+    if (!puedeOperar() || recargando) return { ok: false, motivo: MENSAJE_SOLO_LECTURA[meta.jornada as keyof typeof MENSAJE_SOLO_LECTURA] ?? "Ahora no se puede archivar." };
+    const quien = quienArchiva(pedido.auth);
+    if (!quien.ok) return quien;
+    const hasta = pedido.hasta ?? diaParaArchivar(estado, ahora);
+    let res: ReturnType<typeof archivarEnElMotor>;
+    try {
+      res = archivarEnElMotor(estado, hasta, { ahora, por: pedido.por ?? quien.usuario.nombre });
+    } catch {
+      return { ok: false, motivo: "No se pudo armar el archivo. Probá de nuevo." };
+    }
+    if (!res.ok) return { ok: false, motivo: res.motivo };
+    const bytesAntes = textoActual().length;
+    const base = { ok: true as const, hasta, conteos: res.conteos, anexo: res.anexo, bytesAntes };
+    if (res.vacio) return { ...base, vacio: true, bytesDespues: bytesAntes };
+    const preparadoEn = cambios;
+    const nuevo = res.estado;
+    const textoAnexo = JSON.stringify(res.anexo);
+    let usado = false;
+    const confirmar = async ({ descargado = false }: { descargado?: boolean } = {}): Promise<ResultadoDelArchivo> => {
+      const vigente = () => cambios === preparadoEn && puedeOperar() && !recargando;
+      if (usado) return { ok: false, motivo: "Este archivo ya se usó: prepará otro." };
+      if (!vigente()) return { ok: false, motivo: "Cambió algo mientras tanto: no se achicó nada. Prepará el archivo de nuevo (y descargalo otra vez)." };
+      const guardarAnexo = guardado?.guardarAnexo;
+      if (!guardarAnexo && !descargado) return { ok: false, motivo: "Primero descargá el respaldo y el archivo de esos días: recién después se achica lo guardado." };
+      usado = true;
+      if (guardarAnexo) {
+        // Primero el anexo, aparte. Si no quedó, lo guardado no se achica.
+        let ok = false;
+        try {
+          ok = await guardarAnexo.call(guardado, textoAnexo, hasta);
+        } catch {
+          ok = false;
+        }
+        if (!ok) {
+          usado = false;
+          return { ok: false, motivo: "No se pudo guardar el archivo de esos días: no se achicó nada. Probá de nuevo." };
+        }
+        if (!vigente()) return { ok: false, motivo: "Cambió algo mientras se guardaba el archivo: no se achicó nada. Prepará el archivo de nuevo." };
+      }
+      // Recién ahora: el estado achicado reemplaza al vivo, sin «Deshacer», y se guarda en el acto.
+      estado = nuevo;
+      fotoPrevia = null;
+      fotoDesde = null;
+      cambios++;
+      const bytesDespues = textoActual().length;
+      const c = res.conteos;
+      aviso = {
+        id: ++idAviso,
+        ok: true,
+        mensaje: `Archivado hasta el ${ddmm(hasta)}: ${c.reservas} turnos, ${c.cuentas} cuentas y ${c.movimientos} movimientos de caja (${kb(bytesAntes)} → ${kb(bytesDespues)}).`,
+        deshacer: false,
+      };
+      avisar();
+      guardarYa();
+      return { ...base, vacio: false, bytesDespues };
+    };
+    return { ...base, vacio: false, bytesDespues: textoDelEstado(nuevo).length, textoAnexo, respaldo: textoParaGuardar(), guardaAnexo: !!guardado?.guardarAnexo, confirmar };
+  };
+
   const negarSoloLectura = (): Desenlace => {
     const mensaje = MENSAJE_SOLO_LECTURA[meta.jornada as keyof typeof MENSAJE_SOLO_LECTURA] ?? MENSAJE_SOLO_LECTURA.abriendo;
     aviso = { id: ++idAviso, ok: false, mensaje, deshacer: false };
@@ -1104,6 +1251,12 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
     },
     pendienteDeGuardar: () => guardado !== null && cambiosGuardados !== cambios,
     soloLectura: () => !puedeOperar(),
+    prepararArchivo,
+    async archivarDiasCerrados({ descargado, ...pedido } = {}) {
+      const p = prepararArchivo(pedido);
+      if (!("confirmar" in p)) return p;
+      return p.confirmar({ descargado });
+    },
     usarAca() {
       if (meta.jornada !== "otra-pestania") return;
       ponerMeta({ jornada: "abriendo" });

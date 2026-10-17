@@ -216,7 +216,7 @@ test("la demo sigue igual: reloj quieto a las 19:10, sin latido ni candado, y op
   const d = crearAlmacen({ hoy: HOY, clave: claveDeLaDemo(NEGOCIO, "u1"), almacenamiento: null, temporizador: t, cerrojos: c });
   assert.equal(d.modo(), "demo");
   assert.deepEqual(d.ahora(), { fecha: HOY, min: MINUTO_DEMO });
-  assert.deepEqual(d.estadoDelGuardado(), { jornada: "demo", guardado: "sin-almacenamiento", enEsteEquipo: true });
+  assert.deepEqual(d.estadoDelGuardado(), { jornada: "demo", guardado: "sin-almacenamiento", enEsteEquipo: true, bytes: 0, lleno: false });
   const parar = d.arrancar();
   await vaciar();
   assert.equal(t.latidos.length, 0, "la demo no late");
