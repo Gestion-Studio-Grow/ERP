@@ -20,14 +20,22 @@ export const metadata: Metadata = {
 // exigido (moduloDuro: sin asignación no se abre ni por URL, CH incluida) y la misma regla del menú.
 // El servidor sólo resuelve quién mira y de qué negocio, para separar lo que cada uno deja en el
 // equipo; el motor nunca corre acá.
-export default async function ClubPage() {
+//
+// JORNADA REAL (Ola 0, almacén real): el shell ya la sabe correr (`reloj="real"`: hora de este equipo, una pestaña
+// por equipo, guardado enchufable), pero HOY NO SE ABRE A NADIE. Se prende recién el día de corte, sumando el negocio
+// a esta lista y entrando con `?modo=real`; mientras la lista esté vacía, la condición es siempre falsa y /admin/club
+// abre la demo, con o sin parámetro. No es una opción para el usuario: es la llave del corte.
+const NEGOCIOS_CON_JORNADA_REAL: readonly string[] = [];
+
+export default async function ClubPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireApp("club");
   const slug = await getCurrentTenantSlug();
+  const reloj = NEGOCIOS_CON_JORNADA_REAL.includes(slug ?? "") && (await searchParams).modo === "real" ? "real" : "demo";
   return (
     <PageContainer>
       <PageHeader title="Canchas del club" description="Las canchas de hoy, la cuenta de cada turno, el buffet y la caja de 12 a 12." />
       {/* Sin slug (no debería pasar con sesión) el negocio se distingue por su id: la clave nunca queda "de todos". */}
-      <ClubCargador negocio={slug ?? user.tenantId} usuario={user.id} rol={user.role} />
+      <ClubCargador negocio={slug ?? user.tenantId} usuario={user.id} rol={user.role} reloj={reloj} />
     </PageContainer>
   );
 }

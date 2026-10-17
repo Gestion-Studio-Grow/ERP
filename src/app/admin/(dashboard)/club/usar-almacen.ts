@@ -14,7 +14,7 @@
 
 import { useRef, useSyncExternalStore } from "react";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
-import type { Almacen } from "./almacen";
+import type { Almacen, EstadoDelGuardado, Operador } from "./almacen";
 
 type Cache<T> = { version: number; seleccionar: (e: EstadoClub, a: Ahora) => T; valor: T };
 
@@ -38,4 +38,17 @@ export function useSeleccion<T>(
 /** Reusa la vista anterior si su firma no cambió. */
 export function porFirma<T extends { firma: string } | null>(previa: T | undefined, nueva: T): T {
   return previa !== undefined && previa !== null && nueva !== null && previa.firma === nueva.firma ? previa : nueva;
+}
+
+/**
+ * Quién opera, por su propio canal (`suscribirOperador`): cambiar de operador repinta SÓLO a quien lo muestra, no a
+ * las pantallas del estado (la agenda no se entera).
+ */
+export function useOperador(almacen: Almacen): Operador | null {
+  return useSyncExternalStore(almacen.suscribirOperador, almacen.operador, almacen.operador);
+}
+
+/** Cómo va el guardado y la jornada, por su propio canal (`suscribirGuardado`): lo usa la cinta de arriba. */
+export function useEstadoDelGuardado(almacen: Almacen): EstadoDelGuardado {
+  return useSyncExternalStore(almacen.suscribirGuardado, almacen.estadoDelGuardado, almacen.estadoDelGuardado);
 }

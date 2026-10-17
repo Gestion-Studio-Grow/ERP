@@ -22,7 +22,7 @@ import type { Ahora, EstadoClub, Rol } from "@/lib/club/motor.mjs";
 import { operadorActual } from "./operador-del-club";
 import type { PropsDeSolapa } from "./solapas-club";
 import { armarTablero, ejecutarTablero, type AccesoPedido, type AccionTablero, type DesenlaceTablero, type PedidoParaAutorizar, type VistaTablero } from "./tablero-core";
-import { porFirma, useSeleccion } from "./usar-almacen";
+import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 
 const seleccionarTablero = (e: EstadoClub, a: Ahora) => armarTablero(e, a);
 const tarjeta = "flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4";
@@ -212,6 +212,7 @@ function Barra({ proporcion }: { proporcion: number }) {
 
 export default function TableroDelDuenio({ almacen }: PropsDeSolapa) {
   const v = useSeleccion(almacen, seleccionarTablero, porFirma);
+  useOperador(almacen); // repinta si cambia quién opera (PIN)
   const operador = operadorActual(almacen);
   const [pinNuevo, setPinNuevo] = useState<DesenlaceTablero["acceso"] | null>(null);
   const hacer = useCallback(

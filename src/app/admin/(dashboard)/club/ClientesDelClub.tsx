@@ -26,7 +26,7 @@ import type { MedioCaja } from "./cuenta-core";
 import { operadorActual } from "./operador-del-club";
 import { ComoPaga } from "./piezas";
 import type { PropsDeSolapa } from "./solapas-club";
-import { porFirma, useSeleccion } from "./usar-almacen";
+import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 
 /** Lo que se puede deshacer en los 6 s del aviso. Lo del crédito no: es una decisión (o un intento de código). */
 const DESHACIBLES: ReadonlySet<AccionClientes["tipo"]> = new Set(["alta", "editar", "baja", "novedades", "cobrarDeuda"]);
@@ -207,6 +207,7 @@ function EsperandoAlDuenio({ almacen, f, hacer }: { almacen: Almacen; f: VistaFi
 }
 
 function CuentaCorriente({ almacen, f, hacer }: { almacen: Almacen; f: VistaFicha; hacer: (a: AccionClientes) => DesenlaceClientes }) {
+  useOperador(almacen); // repinta si cambia quién opera (PIN)
   const operador = operadorActual(almacen);
   const [limite, setLimite] = useState(String(f.cc.limite || LIMITE_SUGERIDO));
   const [nota, setNota] = useState("");

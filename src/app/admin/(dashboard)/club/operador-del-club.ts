@@ -2,13 +2,10 @@
 // QUIÉN OPERA EL CLUB — el ÚNICO lugar donde Clientes, el Tablero y el aviso 🔔 leen la persona del mostrador.
 // ============================================================================
 //
-// Hoy el almacén opera con el usuario de ejemplo del rol del ERP (`operadorDeLaDemo`: un dueño para OWNER,
-// recepción para el resto) y lo expone como `almacen.auth()` (usuario del club y su PIN de ejemplo).
-//
-// DÓNDE SE ENCHUFA EL PIN REAL (ola 0 de PARIDAD-REACT.md, sesión de terminales): el almacén va a sumar
-// `almacen.operador()` / `almacen.cambiarOperador(usuario, auth)` con la persona que entró con su PIN. Cuando
-// lleguen, se cambia SÓLO `operadorActual` (una línea: leer el auth de ahí); las pantallas no se tocan. Los
-// permisos los sigue decidiendo el motor (`puede`): esconder un botón no es seguridad.
+// Lee `almacen.operador()`: en la demo, el usuario de ejemplo del rol del ERP (`operadorDeLaDemo`); en la jornada
+// real, la persona que entró con su PIN (`cambiarOperador`), o nadie hasta entonces. Para repintar cuando cambia, la
+// pantalla se suscribe con `useOperador(almacen)`. Los permisos los sigue decidiendo el motor (`puede`): esconder un
+// botón no es seguridad.
 
 import { puede, usuario as usuarioDe } from "@/lib/club/motor.mjs";
 import type { Auth, EstadoClub, Usuario } from "@/lib/club/motor.mjs";
@@ -29,7 +26,8 @@ export function operadorDesdeAuth(estado: EstadoClub, auth: Auth): OperadorDelCl
   return { usuario: activo, auth, esDuenio: !!activo && puede(estado, activo.id, "autorizarCC"), nombre: activo?.nombre ?? "" };
 }
 
-/** Quién está usando el sistema ahora. Punto único: acá se cambia a `almacen.operador()` con PIN cuando exista. */
-export function operadorActual(almacen: Pick<Almacen, "estado" | "auth">): OperadorDelClub {
-  return operadorDesdeAuth(almacen.estado(), almacen.auth());
+/** Quién está usando el sistema ahora; sin operador (jornada real antes del PIN) no es nadie. */
+export function operadorActual(almacen: Pick<Almacen, "estado" | "operador">): OperadorDelClub {
+  const op = almacen.operador();
+  return operadorDesdeAuth(almacen.estado(), op?.auth ?? {});
 }

@@ -28,6 +28,7 @@ function Cargando() {
 
 const ClubDemo = dynamic(() => import("./ClubDemo"), { ssr: false, loading: Cargando });
 
-export default function ClubCargador({ negocio, usuario, rol }: { negocio: string; usuario: string; rol: Role }) {
-  return <ClubDemo negocio={negocio} usuario={usuario} rol={rol} />;
+/** `reloj="real"` sólo lo pasa page.tsx detrás de una condición que hoy es siempre falsa (el día de corte). */
+export default function ClubCargador({ negocio, usuario, rol, reloj = "demo" }: { negocio: string; usuario: string; rol: Role; reloj?: "demo" | "real" }) {
+  return <ClubDemo negocio={negocio} usuario={usuario} rol={rol} reloj={reloj} />;
 }

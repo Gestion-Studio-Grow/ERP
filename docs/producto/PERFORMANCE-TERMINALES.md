@@ -312,4 +312,63 @@ Scripts nuevos en `scratchpad/perf/scripts/`: `buscador-navegador.mjs`, `contar-
   los de `fail-w3.txt`.
 - `npm run build`: verde.
 
+## 10. Ola 0 — almacén real (2026-10-17)
+
+El almacén de `/admin/club` ya sabe correr la **jornada real**: reloj real con latido, cambio de día, una pestaña
+por equipo (Web Lock), guardado asíncrono enchufable con versión y operador por su propio canal. `/admin/club` sigue
+abriendo **siempre la demo**: el modo real sólo entra por la prop `reloj="real"` de `ClubDemo`, y `page.tsx` lo pasa
+detrás de `NEGOCIOS_CON_JORNADA_REAL`, que hoy está vacía.
+
+### Cómo se midió
+
+- **Node** (`almacen-real.test.ts`, la última prueba, con `t.diagnostic`): sobre la demo del día cargada como
+  jornada real.
+- **Chromium** (`club-pantalla.test.ts`, «jornada real»): `ClubDemo` real, con `reloj="real"` y el reloj de
+  Playwright (`clock.install` / `runFor`). Se cuentan los renders por componente con el gancho de DevTools que ya
+  usaban las otras pruebas.
+- CPU normal. En una PC con CPU ×4, multiplicar por ~4.
+
+### Tabla
+
+| Qué | Resultado |
+|---|---|
+| Latido sin cambio de minuto (3 de cada 4 latidos, cada 15 s) | **1,8 µs**, 0 avisos · en Chromium, **0 renders** |
+| Latido que cambia el minuto (latido + rearmar la grilla y reusar) | **0,5 ms**, **0 celdas nuevas** en 60 minutos · en Chromium, se repintan `CintaDelClub` y `AgendaCanchas` (la raya de «ahora»), **ningún `BloqueTurno`** ni `ClubDemo` |
+| Cambiar de operador (lo que va a hacer el PIN) | **0,4 µs**, la versión no sube · en Chromium, **0 renders** con la agenda a la vista |
+| El toque con el guardado asíncrono enchufado | 0 llamadas al guardado y 0 avisos a la cinta en el toque. Cuesta lo mismo que con el guardado local (0,010 vs. 0,008 ms en una acción chica) |
+| Guardado agrupado con respuestas desordenadas (100 acciones) | un guardado a la vez, siempre con lo último. La versión esperada sólo sube y nunca se escribe una vieja encima |
+
+### Qué se cambió y por qué no cuesta
+
+1. **Canales aparte.** Quién opera (`suscribirOperador`) y cómo va el guardado (`suscribirGuardado`) no suben la
+   versión del estado. Por eso no despiertan a ninguna pantalla que selecciona del estado.
+2. **El latido compara antes de avisar.** `relojReal` con el estado ya cargado es una cuenta de minutos y un
+   `horarioDe`. Si el minuto y el día son los mismos, no hace nada más. `ahora()` es un objeto nuevo sólo cuando
+   cambia, y las previas (`simular`) se recalculan por estado **y** por reloj.
+3. **«Pendiente» no se ve.** En el toque no se avisa a la cinta: sólo cambia cuando el guardado falla o vuelve a andar.
+4. **El guardado local es sincrónico, sin promesa de por medio.** Se usa `guardarYa` del adaptador de este equipo. Así
+   al salir (`pagehide`) no queda nada «en camino». Con otro guardado (la base de BP-3), al salir se lanza el
+   asíncrono y la copia de este equipo se escribe en el acto, con su marca de pendiente.
+5. **La versión va pegada al final del texto** (`…,"version":N}`). Se escribe en el mismo `setItem` y se lee mirando
+   los últimos 32 caracteres, sin abrir el JSON.
+
+### Lo que queda
+
+- El chequeo de versión del guardado local hace un `getItem` del texto entero antes de escribir. Con 4 millones de
+  caracteres es una copia del navegador (algunos ms), al lado del `setItem` de 150–220 ms que ya estaba en reposo.
+  Se podría evitar escuchando el evento `storage`; no hizo falta.
+- Una pestaña en sólo lectura muestra lo que había al abrir. No se refresca con lo que guarda la otra (el vanilla
+  tampoco). «Usar acá» trae lo último.
+
+### Verificación
+
+- `npx tsc --noEmit`: 0.
+- `npx eslint` de `club/`: 0.
+- Tests de club, motor, módulos y apps: 405, 404 pasan y 1 salteado (la consola de operador pide un Postgres local; no es del club).
+- `npm test` completo: 5.090 tests, 4.915 pasan, 28 fallan y 147 salteados. Los que fallan son exactamente los
+  de `fail-w3.txt`, ninguno nuevo.
+  - En una corrida bajo carga falló «el foco vuelve al turno»: la prueba leía el foco antes del
+    `requestAnimationFrame`. Ahora espera ese cuadro y lo que afirma es lo mismo. En solitario pasa 4 de 4.
+- `npm run build`: verde.
+
 — Elaborado por GSG

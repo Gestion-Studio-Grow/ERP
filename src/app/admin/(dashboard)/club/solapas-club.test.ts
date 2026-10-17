@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SOLAPAS_DEL_CLUB } from "./solapas-club";
+import { PIEZAS_GLOBALES_DEL_CLUB, SOLAPAS_DEL_CLUB } from "./solapas-club";
 
 // Las solapas de fábrica de ClubDemo.tsx: una solapa nueva no puede pisar su id. «tienda» está reservada: la suma
 // de fábrica la sesión de terminales.
@@ -21,4 +21,17 @@ test("Clientes para todos; el Tablero sólo para los dueños", () => {
   const por = Object.fromEntries(SOLAPAS_DEL_CLUB.map((s) => [s.id, s]));
   assert.equal(por.clientes?.soloDuenos ?? false, false);
   assert.equal(por.tablero?.soloDuenos, true);
+});
+
+test("las piezas globales tienen id único y apto para el DOM, y cada una baja en su chunk (`cargar`)", () => {
+  const ids = PIEZAS_GLOBALES_DEL_CLUB.map((p) => p.id);
+  assert.equal(new Set(ids).size, ids.length, "ids repetidos");
+  for (const p of PIEZAS_GLOBALES_DEL_CLUB) {
+    assert.match(p.id, /^[a-z][a-z0-9-]*$/, `id «${p.id}»: minúsculas, dígitos y guiones`);
+    assert.equal(typeof p.cargar, "function");
+  }
+});
+
+test("el aviso del dueño está montado como pieza global", () => {
+  assert.ok(PIEZAS_GLOBALES_DEL_CLUB.some((p) => p.id === "aviso-del-duenio"));
 });

@@ -18,7 +18,7 @@ import type { EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen, RolDelPanel } from "./almacen";
 import { operadorActual } from "./operador-del-club";
 import { pedidosDeCreditoPendientes } from "./tablero-core";
-import { useSeleccion } from "./usar-almacen";
+import { useOperador, useSeleccion } from "./usar-almacen";
 
 /** «Un pedido de crédito espera tu OK.» · «3 pedidos de crédito esperan tu OK.» · null si no hay ninguno. */
 export function textoAvisoDelDuenio(n: number): string | null {
@@ -36,8 +36,12 @@ export interface PropsDelAviso {
 }
 
 export function AvisoDelDuenio({ almacen, irASolapa }: PropsDelAviso) {
-  // A quien no es dueño no le llega (como hoy): cuenta 0.
-  const contar = useCallback((e: EstadoClub) => (operadorActual(almacen).esDuenio ? pedidosDeCreditoPendientes(e) : 0), [almacen]);
+  // A quien no es dueño no le llega (como hoy): cuenta 0. Se vuelve a contar cuando cambia quién opera.
+  const operador = useOperador(almacen);
+  const contar = useCallback(
+    (e: EstadoClub) => (operador && operadorActual(almacen).esDuenio ? pedidosDeCreditoPendientes(e) : 0),
+    [almacen, operador],
+  );
   const n = useSeleccion(almacen, contar, mismo);
   const texto = textoAvisoDelDuenio(n);
   return (

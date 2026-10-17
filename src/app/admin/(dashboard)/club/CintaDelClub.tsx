@@ -1,0 +1,78 @@
+"use client";
+
+// ============================================================================
+// LA CINTA DE ARRIBA — qué es esto (la demo o la jornada real) y cómo va el guardado.
+// ============================================================================
+//
+//   · Demo: «Datos de ejemplo — no se guarda nada en el sistema», el reloj de la demo y «Volver a la demo».
+//   · Jornada real: el estado del guardado («Guardado en este equipo» / «Sin guardar — reintentando») y la hora.
+//     Si otra pestaña de este equipo tiene la jornada, lo dice y ofrece «Usar acá» (como el vanilla, que avisaba y
+//     no dejaba trabajar en la segunda). Sin Web Locks (navegador viejo), avisa que se use una sola pestaña.
+// Se suscribe sola (al guardado por su canal y al minuto del reloj): ClubDemo no se repinta por esto.
+
+import { useCallback } from "react";
+import { Button } from "@/components/ui/Button";
+import { cn } from "@/components/ui/cn";
+import { hhmm } from "@/lib/club/motor.mjs";
+import type { Almacen, EstadoDelGuardado } from "./almacen";
+import { useEstadoDelGuardado, useSeleccion } from "./usar-almacen";
+
+const elMinuto = (_: unknown, a: { min: number }) => a.min;
+const elNuevo = <T,>(_: T | undefined, nuevo: T) => nuevo;
+
+function textoDelGuardado(g: EstadoDelGuardado): string {
+  if (g.guardado === "sin-almacenamiento") return "Sin guardar — este navegador no deja guardar en el equipo";
+  if (g.guardado === "reintentando") return "Sin guardar — reintentando";
+  return g.enEsteEquipo ? "Guardado en este equipo" : "Guardado";
+}
+
+export default function CintaDelClub({ almacen, onVolverALaDemo }: { almacen: Almacen; onVolverALaDemo: () => void }) {
+  const g = useEstadoDelGuardado(almacen);
+  // El minuto es un número: si no cambió, React no repinta la cinta.
+  const min = useSeleccion(almacen, elMinuto, elNuevo<number>);
+  // «Seguís donde la dejaste» cambia con «Volver a la demo» o al recargar lo guardado.
+  const leerRetomada = useCallback(() => almacen.retomada(), [almacen]);
+  const retomada = useSeleccion(almacen, leerRetomada, elNuevo<boolean>);
+
+  if (almacen.modo() === "demo") {
+    return (
+      <div className="flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning-soft px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 text-sm">
+          <p className="font-semibold text-strong">Datos de ejemplo — no se guarda nada en el sistema</p>
+          <p className="text-body">
+            Es la demo del club: lo que toques queda sólo en este equipo, para vos. Reloj de la demo: {hhmm(min)}.
+            {retomada ? " Seguís donde la dejaste." : ""}
+          </p>
+        </div>
+        <Button variant="outline" size="md" onClick={onVolverALaDemo}>
+          Volver a la demo
+        </Button>
+      </div>
+    );
+  }
+
+  if (g.jornada === "otra-pestania") {
+    return (
+      <div role="alert" className="flex flex-col gap-3 rounded-lg border border-danger/40 bg-danger-soft px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 text-sm">
+          <p className="font-semibold text-strong">La jornada está abierta en otra pestaña de este equipo</p>
+          <p className="text-body">Para no pisar lo cargado, se trabaja en una sola pestaña. Acá podés mirar; para seguir en esta, tocá «Usar acá» (la otra queda sólo para mirar).</p>
+        </div>
+        <Button variant="solid" size="md" onClick={() => almacen.usarAca()}>
+          Usar acá
+        </Button>
+      </div>
+    );
+  }
+
+  const mal = g.jornada === "ilegible" || g.guardado !== "guardado";
+  return (
+    <div className={cn("flex flex-col gap-1 rounded-lg border px-4 py-3 text-sm", mal ? "border-danger/40 bg-danger-soft" : "border-line bg-surface-raised")}>
+      <p className="text-strong">
+        <span className="font-semibold">Jornada real</span> · Hora: <span className="tabular-nums">{hhmm(min)}</span> ·{" "}
+        <span role="status">{g.jornada === "abriendo" ? "Abriendo lo guardado…" : g.jornada === "ilegible" ? "Sin guardar — lo guardado no se pudo leer" : textoDelGuardado(g)}</span>
+      </p>
+      {g.jornada === "sin-bloqueo" && <p className="text-body">Este navegador no puede avisar si el club está abierto en otra pestaña: usá una sola.</p>}
+    </div>
+  );
+}
