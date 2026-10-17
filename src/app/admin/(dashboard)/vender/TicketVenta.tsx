@@ -26,24 +26,44 @@ import { buttonClasses, cn } from "@/components/ui";
 import { usePerfilSiHayTerminal, type TerminalDelEquipo } from "@/lib/terminal/usar-perfil";
 import { htmlDelTicket, renglonesDelTicket, textoDelTicket, type VentaTicket } from "./reglas-venta";
 
+// UN SOLO iframe de impresión por página, compartido por todos los tickets. Antes había uno por
+// ticket montado y nadie lo sacaba al desmontar: en la Caja con lector el ticket cobrado se desmonta
+// con el próximo producto, así que con «Imprimir solo al cobrar» quedaba un iframe huérfano por
+// venta (50 ventas = 50 iframes con su documento en memoria; docs/producto/PERFORMANCE-TERMINALES.md).
+let marcoDeImpresion: HTMLIFrameElement | null = null;
+
 /**
- * Imprime un documento en un iframe invisible, reusado (imprimir dos veces no deja basura en la
- * página). El porqué de un documento aparte, en src/lib/impresion/ticket-css-core.ts.
+ * Imprime un documento en el iframe invisible de la página (imprimir dos veces, o cien ventas
+ * seguidas, no deja basura). El porqué de un documento aparte, en src/lib/impresion/ticket-css-core.ts.
+ *
+ * El foco VUELVE a donde estaba: `contentWindow.focus()` (lo piden algunos navegadores para imprimir
+ * el iframe y no la página) deja el teclado adentro del iframe, y el lector, que "tipea", escribía
+ * ahí: la primera lectura después de cada ticket impreso se perdía y el cajero tenía que tocar la
+ * pantalla. `print()` vuelve cuando se cerró la ventanita (o enseguida, en el modo kiosco).
  */
-function imprimirEnMarco(marco: { current: HTMLIFrameElement | null }, html: string) {
-  let f = marco.current;
-  if (!f) {
+function imprimirEnMarco(html: string) {
+  let f = marcoDeImpresion;
+  if (!f || !f.isConnected) {
     f = document.createElement("iframe");
     f.setAttribute("aria-hidden", "true");
     f.tabIndex = -1;
     Object.assign(f.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "0" });
     document.body.appendChild(f);
-    marco.current = f;
+    marcoDeImpresion = f;
   }
   const iframe = f;
   iframe.onload = () => {
+    // Dónde está el foco JUSTO antes de imprimir (la Caja ya lo devolvió a su campo del lector).
+    const previo = document.activeElement;
     iframe.contentWindow?.focus();
     iframe.contentWindow?.print();
+    if (previo instanceof HTMLElement && previo !== document.body && previo !== iframe && previo.isConnected) {
+      previo.focus({ preventScroll: true });
+    } else {
+      // Nada enfocado (Vender, con el lector fuera de un campo): el foco vuelve a la página.
+      iframe.blur();
+      window.focus();
+    }
   };
   iframe.srcdoc = html;
 }
@@ -71,12 +91,11 @@ export default function TicketVenta({
   const renglones = renglonesDelTicket(venta, { negocio, pagoCon });
   const texto = textoDelTicket(venta, { negocio, pagoCon });
   const wa = waLinkClienta(venta.telefono, texto) ?? `https://wa.me/?text=${encodeURIComponent(texto)}`;
-  const marco = useRef<HTMLIFrameElement | null>(null);
   // La venta que ya salió sola por la impresora: el ticket se imprime solo UNA vez por venta.
   const impresa = useRef<string | null>(null);
 
   function imprimir() {
-    imprimirEnMarco(marco, htmlDelTicket(renglones, { ancho }));
+    imprimirEnMarco(htmlDelTicket(renglones, { ancho }));
   }
 
   // «Imprimir solo al cobrar»: sólo el ticket recién cobrado, sólo con el perfil que lo pide y
@@ -86,7 +105,7 @@ export default function TicketVenta({
   useEffect(() => {
     if (!imprimeSolo || impresa.current === venta.id) return;
     impresa.current = venta.id;
-    imprimirEnMarco(marco, htmlDelTicket(renglonesDelTicket(venta, { negocio, pagoCon }), { ancho }));
+    imprimirEnMarco(htmlDelTicket(renglonesDelTicket(venta, { negocio, pagoCon }), { ancho }));
   }, [imprimeSolo, venta, negocio, pagoCon, ancho]);
 
   // Lo que dice el botón: sin el módulo, lo de siempre. En la PC de caja, imprimir en su rollo;

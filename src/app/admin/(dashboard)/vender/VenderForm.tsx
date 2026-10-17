@@ -220,6 +220,18 @@ type PropsDeVender = {
 
 const sinSuscripcion = () => () => {};
 
+// PERFORMANCE — el precio de CADA producto del buscador. `fmtMoneyARS` llama a `toLocaleString` con
+// opciones, que arma un `Intl.NumberFormat` nuevo en cada llamada (~30 µs): con 5.000 productos eran
+// 150 ms y con 20.000, 580 ms de hilo bloqueado al abrir Vender, justo el catálogo con códigos de
+// barras que el lector trae a esta pantalla. Un formateador armado una vez da el MISMO texto
+// (comparado en docs/producto/PERFORMANCE-TERMINALES.md) en ~0,7 µs. Sólo para la lista; el resto de
+// la pantalla sigue con `fmtMoneyARS` (son pocos números por render).
+const PESOS_DEL_BUSCADOR = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function precioDelBuscador(n: number): string {
+  if (!Number.isFinite(n)) return fmtMoneyARS(n);
+  return `${n < 0 ? "-" : ""}$${PESOS_DEL_BUSCADOR.format(Math.abs(n))}`;
+}
+
 // El servidor no tiene el almacén de la pestaña, y la primera pintura del navegador tiene que
 // ser igual a la del servidor: ésa se arma sin mirar el almacén. Apenas se sabe que se está en el
 // navegador, el formulario se arma de nuevo, ya con el cobro sin confirmar si quedó uno (el mismo
@@ -375,7 +387,7 @@ function FormularioVender({
       products.map((prod) => {
         const info = stockById[prod.id];
         const esPeso = prod.saleUnit === "WEIGHT";
-        const precio = esPeso ? `${fmtMoneyARS(prod.pricePerKg ?? 0)}/kg` : `${fmtMoneyARS(prod.price ?? 0)}/u`;
+        const precio = esPeso ? `${precioDelBuscador(prod.pricePerKg ?? 0)}/kg` : `${precioDelBuscador(prod.price ?? 0)}/u`;
         const quedan = info?.trackStock ? ` · quedan ${formatearCantidad(info.stock)} ${esPeso ? "kg" : "u"}` : "";
         return { id: prod.id, etiqueta: prod.name, detalle: `${precio}${quedan}` };
       }),
@@ -447,6 +459,14 @@ function FormularioVender({
     [products, conLector],
   );
   const [avisoLector, setAvisoLector] = useState<{ tono: "ok" | "error"; texto: string } | null>(null);
+  // Con el lector, el foco NO se lleva a un buscador después de cobrar o de cargar un peso: en un
+  // campo de texto el teclado es de la persona, y la lectura siguiente se escribía como texto en el
+  // buscador (la línea no entraba; docs/producto/PERFORMANCE-TERMINALES.md). Se suelta el campo y el
+  // foco queda en la página, donde el lector lee. Para buscar por nombre, se toca el buscador.
+  function soltarFocoParaElLector() {
+    const el = document.activeElement;
+    if (el instanceof HTMLElement && enCampoDeTexto(el)) el.blur();
+  }
   function errorDelLector(texto: string) {
     setAvisoLector({ tono: "error", texto });
     avisar("error", perfil);
@@ -669,8 +689,10 @@ function FormularioVender({
             : null;
 
   function limpiar() {
-    // El foco vuelve al buscador: el próximo cliente se atiende sin tocar el mouse.
-    pedirFoco(`prod-${nextKey}`);
+    // El foco vuelve al buscador: el próximo cliente se atiende sin tocar el mouse. Con el lector,
+    // el próximo cliente se atiende con el lector: el foco queda en la página (ver `soltarFoco…`).
+    if (conLector) soltarFocoParaElLector();
+    else pedirFoco(`prod-${nextKey}`);
     setLines([{ key: nextKey, productId: "", qtyText: "" }]);
     setManuales([]);
     setNextKey((k) => k + 1);
@@ -1762,7 +1784,10 @@ function FormularioVender({
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
-                            if (l.qty > 0) document.getElementById("vender-buscar")?.focus();
+                            if (l.qty > 0) {
+                              if (conLector) soltarFocoParaElLector();
+                              else document.getElementById("vender-buscar")?.focus();
+                            }
                           }
                         }}
                         aria-invalid={falta || l.invalida ? true : undefined}
@@ -2028,7 +2053,10 @@ function FormularioVender({
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        if (l.qty > 0) pedirFoco(`prod-${addLine()}`);
+                        if (l.qty > 0) {
+                          if (conLector) soltarFocoParaElLector();
+                          else pedirFoco(`prod-${addLine()}`);
+                        }
                       }
                     }}
                     disabled={!p}
