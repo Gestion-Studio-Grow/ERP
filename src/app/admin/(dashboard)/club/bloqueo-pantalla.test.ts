@@ -128,7 +128,12 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
   async function montarEn(p: Page, reloj: "real" | "demo", rol: string) {
     await p.addScriptTag({ content: bundle });
     await p.evaluate(([r, ro]) => (window as unknown as Ventana).__montar("demo-club", "u_x", ro, r), [reloj, rol]);
-    await p.getByRole("heading", { name: "Agenda de canchas" }).waitFor();
+    // En la jornada real sin PIN, ClubDemo no pinta la recepción (sólo «Bloqueado»): se espera una cosa o la otra.
+    await p
+      .getByRole("heading", { name: "Agenda de canchas" })
+      .or(p.getByText(/Entrá con tu PIN para ver y operar el club/))
+      .first()
+      .waitFor();
   }
 
   const capturar = async (page: Page, nombre: string) => {
@@ -162,15 +167,9 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await bloqueo(page).getByRole("heading", { name: "Pantalla bloqueada" }).waitFor();
     await bloqueo(page).getByText("Se volvió a abrir el sistema: poné tu PIN.").waitFor();
     assert.equal(await bloqueo(page).evaluate((d) => (d as HTMLDialogElement).matches(":modal")), true, "es un diálogo modal (lo de atrás queda inerte)");
-    assert.equal(
-      await page.evaluate(() => {
-        const tab = document.querySelector('[role="tab"]')!.getBoundingClientRect();
-        const arriba = document.elementFromPoint(tab.x + tab.width / 2, tab.y + tab.height / 2);
-        return !!arriba?.closest('dialog[data-ui="bloqueo-del-club"]');
-      }),
-      true,
-      "lo de atrás no se puede tocar",
-    );
+    // Sin PIN, ClubDemo ni siquiera pinta la recepción (terminales 94ba76af): no hay solapas ni agenda detrás.
+    assert.equal(await page.locator('[role="tab"]').count(), 0, "sin PIN no se pintan las solapas");
+    assert.equal(await page.getByRole("heading", { name: "Agenda de canchas" }).count(), 0, "sin PIN no se ve la agenda");
     await page.keyboard.press("Escape");
     assert.equal(await bloqueo(page).evaluate((d) => (d as HTMLDialogElement).open), true, "Escape no la cierra");
     await page.keyboard.press("Tab");
@@ -181,7 +180,7 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await quien.waitFor();
     assert.equal(await quien.getByRole("button").count(), 4);
     await sinPines(page, 'dialog[data-ui="bloqueo-del-club"]');
-    assert.deepEqual(await chicos(page), [], "objetivos de 44 px");
+    if (css) assert.deepEqual(await chicos(page), [], "objetivos de 44 px (con el CSS de la app)");
     await capturar(page, "1024-bloqueada-quien-entra");
     await quien.getByRole("button", { name: /^Lu \(recepción tarde\)/ }).click();
     await bloqueo(page).getByLabel("PIN de Lu").waitFor();
@@ -252,6 +251,7 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
 
   test("jornada real en el celular (390 px): el bloqueo entra sin scroll de costado y con objetivos de 44 px", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
+    if (!css) return t.skip("no se pudo compilar el CSS de la app (los 44 px dependen de él)");
     const contexto = await browser!.newContext({ viewport: { width: 390, height: 844 }, locale: "es-AR" });
     await contexto.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html() }));
     const errores: string[] = [];
