@@ -26,8 +26,12 @@
 //   · los contactos viven en `config.contactos` ({ [usuarioId]: celular, club: celular }): el motor no los conoce
 //     (el vanilla los guardaba aparte en el navegador). Falta `ajustarContactos`, `ajustarTarifa` y `ajustarAlias`
 //     con auth, y que `ajustarPolitica` pida auth;
-//   · restaurar reemplaza el estado EN EL LUGAR (`reemplazarEnElLugar`) por `ejecutar`: falta `almacen.restaurar(foto)`
-//     que además deje una copia aparte, refresque al operador y guarde en el acto.
+//   · restaurar ya es del almacén (`almacen.restaurar`, terminales ee249978): copia lo de antes, reemplaza, revisa al
+//     operador y guarda en el acto. Acá sólo se lee el archivo (`leerRespaldo`) y se dice el motivo (`motivoDeRestaurar`).
+//
+// PRIMERA VEZ (la consola de arranque del vanilla, `vistaConsola`): con la jornada real sin configurar
+// (`config.configurado === false`) los dueños arman su PIN por `almacen.arranque` (sin auth), uno entra con el suyo y
+// carga lo opcional por `ejecutar` (avisos, recepción, precios y fondo), y «Abrir el club» (`abrirElClub`) la cierra.
 
 import {
   LIMITES_BLOQUEO,
@@ -54,11 +58,12 @@ import {
   respaldoDesdeArchivo,
   revocarAcceso,
   secuenciaIds,
+  terminarConfiguracion,
   usuario as usuarioDe,
   verificarPin,
 } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, ConfigClub, EstadoClub, Fecha, ReglaEditable, Rol, Usuario } from "@/lib/club/motor.mjs";
-import type { Desenlace, EstadoDelGuardado, Operador, ResultadoDelArchivo } from "./almacen";
+import type { Desenlace, EstadoDelGuardado, ResultadoDeRestaurar, ResultadoDelArchivo } from "./almacen";
 import { leerMonto } from "./montos-core";
 import { NOTA_CELULAR_RARO, enlaceWhatsApp } from "./whatsapp-core";
 
@@ -153,7 +158,7 @@ export function leerRespaldo(texto: string): { ok: true; respaldo: RespaldoParaR
   if (!r.ok) return { ok: false, mensaje: r.motivo };
   const h = hidratarEstado(r.foto);
   if (!h.ok) return { ok: false, mensaje: `Ese archivo no sirve: ${h.motivo}.` };
-  // El respaldo de adentro del archivo para archivar trae su `guardado` (desde terminales b2675dc3+); si es de antes y
+  // El respaldo de adentro del archivo para archivar trae su `guardado` (desde terminales ee249978); si es de antes y
   // no lo trae, vale cuándo se preparó el archivado.
   let cuando = cuandoSeGuardo((r.foto as { guardado?: unknown }).guardado);
   const generado = r.antesDeArchivar ? (datos as { anexo?: { generado?: { fecha?: unknown; min?: unknown } | null } }).anexo?.generado : null;
@@ -187,42 +192,20 @@ export function pinDeDuenio(estado: EstadoClub, auth: Auth, pin: string, quien: 
   return { ok: true, usuario: v.usuario, auth: { usuarioId: auth.usuarioId, pin: limpio } };
 }
 
-/** Pone `nuevo` en el lugar de `estado` (mismo objeto: el almacén sigue apuntando a él). */
-export function reemplazarEnElLugar(estado: EstadoClub, nuevo: EstadoClub): void {
-  const viejo = estado as unknown as Record<string, unknown>;
-  for (const k of Object.keys(viejo)) delete viejo[k];
-  Object.assign(viejo, nuevo);
-}
-
-/** Restaura la jornada desde el respaldo leído (rol OWNER del ERP + PIN de un dueño del club). Reemplaza lo de ahora. */
-export function restaurarJornada(estado: EstadoClub, respaldo: Pick<RespaldoParaRestaurar, "foto" | "antesDeArchivar">, pin: string, auth: Auth, rolPanel: string): Desenlace {
-  if (rolPanel !== "OWNER") return no("Restaurar lo hace un dueño.");
-  const d = pinDeDuenio(estado, auth, pin, "Restaurar");
-  if (!d.ok) return no(d.mensaje);
-  const h = hidratarEstado(respaldo.foto);
-  if (!h.ok) return no(`Ese archivo no sirve: ${h.motivo}.`);
-  reemplazarEnElLugar(estado, h.estado);
-  return {
-    ok: true,
-    mensaje: respaldo.antesDeArchivar
-      ? "Jornada restaurada desde el respaldo (es la de antes de archivar: si avisa que se llena, archivá de nuevo)."
-      : "Jornada restaurada desde el respaldo.",
-  };
+/** Lo que se le dice al dueño si `almacen.restaurar` no restauró (por qué, en criollo). */
+export function motivoDeRestaurar(r: Extract<ResultadoDeRestaurar, { ok: false }>): string {
+  if (r.causa === "sin-lugar") return "No hay lugar para guardar una copia de lo de ahora: archivá o descargá y borrá copias antes de restaurar. No se tocó nada.";
+  return r.motivo;
 }
 
 /**
- * Después de restaurar, ¿quién opera? El mismo si su PIN sigue valiendo en la jornada restaurada (con su usuario de
- * ahora); si no, en la jornada real nadie (vuelve a pedir el PIN) y en la demo el dueño de ejemplo que haya.
- * `undefined` = no hace falta cambiar nada.
+ * El aviso después de restaurar: el del almacén alcanza (null); si era la jornada de ANTES de archivar, se suma qué
+ * hacer si se vuelve a llenar.
  */
-export function operadorDespuesDeRestaurar(estado: EstadoClub, previo: Operador | null, modo: "demo" | "real"): Operador | null | undefined {
-  if (previo) {
-    const v = verificarPin(estado, previo.auth.usuarioId ?? "", previo.auth.pin ?? "");
-    if (v.ok) return { usuario: v.usuario, auth: previo.auth };
-  }
-  if (modo === "real") return previo ? null : undefined;
-  const u = estado.usuarios.find((x) => x.activo !== false && x.rol === "duenio" && x.pin);
-  return u ? { usuario: u, auth: { usuarioId: u.id, pin: u.pin } } : null;
+export function avisoDeRestaurado(antesDeArchivar: boolean): string | null {
+  return antesDeArchivar
+    ? "Listo: se restauró la jornada de antes de archivar (lo de antes quedó copiado en este equipo). Si avisa que se llena, archivá de nuevo."
+    : null;
 }
 
 // ───────────── archivar días cerrados ─────────────
@@ -318,6 +301,54 @@ export function armarUsuarios(estado: EstadoClub, operadorId: string | null): Vi
   // Sin PIN en la firma: lo que cambia la vista es si tiene o no.
   const firma = JSON.stringify([operadorId, pedidosDeAcceso, filas.map((f) => [f.id, f.nombre, f.rol, f.tienePin])]);
   return { filas, duenosSinPin, pedidosDeAcceso, firma };
+}
+
+// ───────────── primera vez: la consola de arranque ─────────────
+
+export interface DuenioDelArranque {
+  id: string;
+  nombre: string;
+  /** El primer nombre: «Entrar como Roberto». */
+  corto: string;
+  tienePin: boolean;
+}
+
+export interface VistaArranque {
+  /** Los dueños (Roberto y Majo en la jornada real) y si ya armaron su PIN. */
+  duenos: DuenioDelArranque[];
+  /** ¿Se puede abrir el club? Lo mismo que pide el motor: al menos un dueño con PIN. */
+  puedeAbrir: boolean;
+  /** Lo opcional, para la lista de quien entró: ¿cargó algún celular o el alias? */
+  avisos: boolean;
+  /** Quiénes de recepción tienen acceso. */
+  recepcion: string[];
+  /** «valle $ 18.000 y pico $ 24.000» (por hora). */
+  precios: string;
+  fondo: string;
+  firma: string;
+}
+
+/** Lo que muestra «Primera vez: armá el club» (como la consola del vanilla). Nunca lleva un PIN. */
+export function armarArranque(estado: EstadoClub): VistaArranque {
+  const activos = estado.usuarios.filter((u) => u.activo !== false);
+  const duenos = activos.filter((u) => u.rol === "duenio").map((u) => ({ id: u.id, nombre: u.nombre, corto: u.nombre.split(" ")[0], tienePin: !!u.pin }));
+  const avisos = Object.keys(contactosDe(estado)).length > 0 || !!estado.config.cobro?.alias;
+  const recepcion = activos.filter((u) => u.rol === "recepcion").map((u) => u.nombre);
+  const precios = estado.config.tarifas.map((t) => `${t.nombre.toLowerCase()} ${pesos(t.precioHora)}`).join(" y ");
+  const fondo = pesos(estado.caja.fondo ?? 0);
+  const puedeAbrir = duenos.some((d) => d.tienePin);
+  return { duenos, puedeAbrir, avisos, recepcion, precios, fondo, firma: JSON.stringify([duenos, avisos, recepcion, precios, fondo]) };
+}
+
+/**
+ * «Abrir el club»: termina la configuración inicial (el motor pide al menos un dueño con PIN). Sin auth corre por
+ * `almacen.arranque`; con quien entró, por `ejecutar`, y entonces tiene que ser un dueño.
+ */
+export function abrirElClub(estado: EstadoClub, ahora: Ahora, auth: Auth = {}): Desenlace {
+  if (estado.config.configurado !== false) return no("El club ya está abierto.");
+  if (auth.usuarioId && !configura(estado, auth)) return no("El club lo abre un dueño.");
+  const r = terminarConfiguracion(estado, ahora);
+  return r.ok ? { ok: true, mensaje: "Listo: el club quedó abierto. La pantalla se bloquea: entrá con tu PIN." } : no(r.motivo);
 }
 
 // ───────────── avisos por WhatsApp ─────────────

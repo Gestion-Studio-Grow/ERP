@@ -1,6 +1,7 @@
 // La solapa Configuración (configuracion-core.ts): validaciones antes del motor, PIN que se ve UNA vez, el respaldo y
-// su fecha, restaurar (que reemplaza lo de ahora), archivar en dos pasos con el almacén real y la limpieza para el
-// go-live con el respaldo elegido de vuelta (el B1 del vanilla: no se limpia sin saber que la descarga llegó).
+// su fecha, restaurar con `almacen.restaurar` (copia lo de antes; sin lugar, no restaura), archivar en dos pasos con el
+// almacén real, la limpieza para el go-live con el respaldo elegido de vuelta (el B1 del vanilla: no se limpia sin
+// saber que la descarga llegó) y la primera vez (la consola de arranque: PIN de los dueños, entrar, abrir el club).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
@@ -8,10 +9,13 @@ import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import { armarMesCargado, HOY_TORNEO } from "@/lib/club/fixtures/armar-respaldo";
 import { claveDeLaJornada, crearAlmacen, type AlmacenamientoLocal, type ArchivoPreparado, type ResultadoDelArchivo, type Temporizador } from "./almacen";
 import {
+  abrirElClub,
   armarArchivo,
+  armarArranque,
   armarGoLive,
   armarUsuarios,
   authParaArchivar,
+  avisoDeRestaurado,
   celularDelDuenio,
   contactosDe,
   cuandoSeGuardo,
@@ -21,12 +25,11 @@ import {
   leerRespaldo,
   limpiarConRespaldo,
   linkParaClientes,
+  motivoDeRestaurar,
   nombreDelArchivoParaArchivar,
   nombreDelRespaldo,
   notaDelCelular,
-  operadorDespuesDeRestaurar,
   respaldoAntesDeLimpiar,
-  restaurarJornada,
   textoDelRespaldo,
   valoresDeReglas,
   verificarRespaldoElegido,
@@ -220,30 +223,15 @@ test("leer para restaurar: el respaldo dice de cuándo es y qué trae; el anexo 
   assert.ok(!otro.ok && /otra versión/.test(otro.mensaje));
 });
 
-test("restaurar: un dueño con su PIN (rol OWNER); reemplaza lo de ahora en el MISMO objeto", () => {
-  const e = demo();
-  const r = leerRespaldo(textoDelRespaldo(M.crearClubReal(HOY), null, 1));
-  assert.ok(r.ok);
-  assert.equal(restaurarJornada(e, r.respaldo, "11", ROBER, "RECEPTION").mensaje, "Restaurar lo hace un dueño.");
-  assert.equal(restaurarJornada(e, r.respaldo, "33", LU, "OWNER").mensaje, "Restaurar lo hace un dueño.");
-  assert.equal(restaurarJornada(e, r.respaldo, "12", ROBER, "OWNER").mensaje, "PIN incorrecto.");
-  assert.equal(restaurarJornada(e, r.respaldo, "11", {}, "OWNER").mensaje, "Entrá con tu PIN para operar.");
-  assert.ok(e.reservas.length > 0, "nada cambió");
-  const ok = restaurarJornada(e, r.respaldo, "11", ROBER, "OWNER");
-  assert.equal(ok.ok, true);
-  assert.equal(e.reservas.length, 0, "quedó la jornada del respaldo (en blanco)");
-  assert.equal(e.config.modo, "real");
-});
-
-test("después de restaurar: el operador sigue si su PIN vale; si no, en la real nadie y en la demo un dueño de ejemplo", () => {
-  const e = M.crearClubReal(HOY);
-  M.definirPinInicial(e, "u-rober", "47", AHORA);
-  const rober = M.usuario(e, "u-rober")!;
-  assert.deepEqual(operadorDespuesDeRestaurar(e, { usuario: rober, auth: { usuarioId: "u-rober", pin: "47" } }, "real")?.auth, { usuarioId: "u-rober", pin: "47" });
-  assert.equal(operadorDespuesDeRestaurar(e, { usuario: rober, auth: { usuarioId: "u-rober", pin: "11" } }, "real"), null);
-  assert.equal(operadorDespuesDeRestaurar(e, null, "real"), undefined);
-  const d = demo();
-  assert.equal(operadorDespuesDeRestaurar(d, { usuario: rober, auth: { usuarioId: "u-x", pin: "11" } }, "demo")?.usuario.rol, "duenio");
+test("restaurar: el motivo según la causa del almacén (sin lugar, en criollo) y el aviso de la jornada de antes de archivar", () => {
+  assert.equal(motivoDeRestaurar({ ok: false, causa: "permiso", motivo: "PIN incorrecto." }), "PIN incorrecto.");
+  assert.equal(motivoDeRestaurar({ ok: false, causa: "danado", motivo: "No se puede restaurar: x." }), "No se puede restaurar: x.");
+  assert.equal(
+    motivoDeRestaurar({ ok: false, causa: "sin-lugar", motivo: "lo que diga el almacén" }),
+    "No hay lugar para guardar una copia de lo de ahora: archivá o descargá y borrá copias antes de restaurar. No se tocó nada.",
+  );
+  assert.equal(avisoDeRestaurado(false), null, "alcanza el aviso del almacén");
+  assert.match(avisoDeRestaurado(true)!, /jornada de antes de archivar .*Si avisa que se llena, archivá de nuevo\.$/);
 });
 
 // ───────────── con el almacén real (jornada real en este equipo) ─────────────
@@ -328,15 +316,64 @@ test("restaurar con el almacén: el archivo para archivar devuelve la jornada de
   // El respaldo de adentro del archivo trae su `guardado` (terminales): la fecha es la real, sin el «cuando se preparó».
   assert.match(leido.respaldo.cuando ?? "", /\d+\/\d+\/\d{4} a las \d\d:\d\d$/);
   assert.doesNotMatch(leido.respaldo.cuando ?? "", /cuando se preparó el archivado/);
-  const mismo = a.estado();
-  const r = a.ejecutar((e, _a, auth) => restaurarJornada(e, leido.respaldo, "11", auth, a.rol()));
-  assert.equal(r.ok, true, r.mensaje);
-  assert.equal(a.estado(), mismo, "el almacén sigue con el mismo objeto");
+  // Un archivo de antes de terminales ee249978 (el respaldo de adentro sin `guardado`): vale cuándo se preparó.
+  const viejo = JSON.parse(p.textoDelArchivo) as { respaldo: { guardado?: number } };
+  delete viejo.respaldo.guardado;
+  const leidoViejo = leerRespaldo(JSON.stringify(viejo));
+  assert.ok(leidoViejo.ok);
+  assert.match(leidoViejo.respaldo.cuando ?? "", /^\d+\/\d+\/\d{4} a las \d\d:\d\d \(cuando se preparó el archivado\)$/);
+
+  // Con el PIN que tipeó el dueño que opera (como la pantalla): un PIN mal no restaura.
+  const mal = authParaArchivar(a.auth(), "12");
+  assert.ok(mal.ok);
+  const r0 = a.restaurar(leido.respaldo.foto, { auth: mal.auth });
+  assert.ok(!r0.ok && r0.causa === "permiso" && motivoDeRestaurar(r0) === "PIN incorrecto.");
+  assert.ok(a.estado().reservas.length < antes, "nada cambió");
+  const bien = authParaArchivar(a.auth(), "11");
+  assert.ok(bien.ok);
+  const bytesAntes = a.estadoDelGuardado().bytes;
+  const r = a.restaurar(leido.respaldo.foto, { auth: bien.auth });
+  assert.ok(r.ok, JSON.stringify(r));
   assert.equal(a.estado().reservas.length, antes);
-  a.guardarYa();
-  assert.ok(m.datos.get(CLAVE)!.length > 0);
+  // La copia previa: lo de ANTES de restaurar (la jornada achicada), al lado de la jornada.
+  assert.match(r.copia, /^gsg-club:demo-club:jornada:v1:antes-de-restaurar:\d+$/);
+  const copia = M.hidratarEstado(JSON.parse(m.datos.get(r.copia)!));
+  assert.ok(copia.ok && copia.estado.reservas.length < antes, "la copia es la jornada de antes de restaurar");
+  // Quedó guardada en el acto y el que opera sigue (mismo PIN en lo restaurado).
   const vuelto = M.hidratarEstado(JSON.parse(m.datos.get(CLAVE)!));
   assert.ok(vuelto.ok && vuelto.estado.reservas.length === antes, "y quedó guardada");
+  assert.equal(r.operador?.usuario.id, DUENIO.usuarioId);
+  assert.equal(a.operador()?.usuario.id, DUENIO.usuarioId);
+  // Lo que ocupa (la Jornada lo lee de `estadoDelGuardado`): el almacén lo avisó al restaurar.
+  assert.ok(a.estadoDelGuardado().bytes > bytesAntes, `${bytesAntes} → ${a.estadoDelGuardado().bytes}`);
+});
+
+test("restaurar sin lugar para la copia de lo de ahora: no restaura y lo dice en criollo", async () => {
+  // Un equipo con el almacenamiento casi lleno: entra la jornada de siempre, no una copia más.
+  const datos = new Map<string, string>([[CLAVE, MES]]);
+  const tope = MES.length * 1.5;
+  const total = () => [...datos.values()].reduce((s, v) => s + v.length, 0);
+  const m: AlmacenamientoLocal = {
+    getItem: (k) => datos.get(k) ?? null,
+    setItem: (k, v) => {
+      if (total() - (datos.get(k)?.length ?? 0) + String(v).length > tope) throw new Error("QuotaExceededError");
+      datos.set(k, String(v));
+    },
+    removeItem: (k) => void datos.delete(k),
+  };
+  const a = crearAlmacen({ reloj: "real", clave: CLAVE, almacenamiento: m, cerrojos: null, canal: null, temporizador, relojMs: () => new Date(2026, 9, 17, 19, 0).getTime(), demoraGuardadoMs: 0, enReposo: null, rol: "OWNER" });
+  a.arrancar();
+  await vaciar();
+  a.cambiarOperador(M.usuario(a.estado(), DUENIO.usuarioId!)!, DUENIO);
+  const leido = leerRespaldo(textoDelRespaldo(M.crearClubReal(HOY), null, 1));
+  assert.ok(leido.ok);
+  const antes = a.estado().reservas.length;
+  const r = a.restaurar(leido.respaldo.foto, { auth: DUENIO });
+  assert.ok(!r.ok && r.causa === "sin-lugar", JSON.stringify(r));
+  assert.match(motivoDeRestaurar(r), /^No hay lugar para guardar una copia de lo de ahora: archivá o descargá y borrá copias antes de restaurar\./);
+  assert.equal(a.estado().reservas.length, antes, "no se tocó nada");
+  assert.equal(datos.get(CLAVE), MES, "lo guardado sigue igual");
+  assert.equal([...datos.keys()].filter((k) => k.includes("antes-de-restaurar")).length, 0);
 });
 
 test("limpieza para el go-live: respaldo descargado y elegido de vuelta; si cambió algo o es otro archivo, no limpia", async () => {
@@ -394,4 +431,99 @@ test("lo guardado, en criollo: demo, jornada real que anda y que se llena", () =
   assert.equal(v.mal, false);
   assert.equal(vistaDelGuardado({ ...base, lleno: true }, "real").mal, true);
   assert.match(vistaDelGuardado({ ...base, guardado: "reintentando" }, "real").detalle, /No se pudo guardar/);
+});
+
+// ───────────── primera vez: la consola de arranque ─────────────
+
+test("primera vez (vista): los dueños y si tienen PIN, lo opcional y cuándo se puede abrir; nunca un PIN", () => {
+  const e = M.crearClubReal(HOY);
+  const v = armarArranque(e);
+  assert.deepEqual(v.duenos, [
+    { id: "u-rober", nombre: "Roberto Ronco", corto: "Roberto", tienePin: false },
+    { id: "u-majo", nombre: "Majo Gimenez", corto: "Majo", tienePin: false },
+  ]);
+  assert.equal(v.puedeAbrir, false);
+  assert.equal(v.avisos, false);
+  assert.deepEqual(v.recepcion, []);
+  assert.match(v.precios, /^valle \$ [\d.]+ y pico \$ [\d.]+$/);
+  M.definirPinInicial(e, "u-rober", "47", AHORA);
+  const v2 = armarArranque(e);
+  assert.equal(v2.puedeAbrir, true);
+  assert.notEqual(v2.firma, v.firma);
+  assert.ok(!v2.firma.includes("47"), "la vista no lleva el PIN");
+});
+
+test("abrir el club: hace falta un dueño con PIN; con quien entró, tiene que ser un dueño; una sola vez", () => {
+  const e = M.crearClubReal(HOY);
+  assert.deepEqual(abrirElClub(e, AHORA), { ok: false, mensaje: "Falta que al menos un dueño arme su PIN." });
+  assert.equal(e.config.configurado, false);
+  M.definirPinInicial(e, "u-rober", "47", AHORA);
+  const recep = M.altaUsuario(e, { nombre: "Lu", rol: "recepcion" }, { usuarioId: "u-rober", pin: "47" }, AHORA);
+  assert.ok(recep.ok);
+  assert.deepEqual(abrirElClub(e, AHORA, { usuarioId: recep.usuario.id, pin: recep.pin }), { ok: false, mensaje: "El club lo abre un dueño." });
+  assert.equal(abrirElClub(e, AHORA, { usuarioId: "u-rober", pin: "47" }).ok, true);
+  assert.equal(e.config.configurado, true);
+  assert.deepEqual(abrirElClub(e, AHORA), { ok: false, mensaje: "El club ya está abierto." });
+  assert.equal(abrirElClub(demo(), AHORA).ok, false, "la demo ya está configurada");
+});
+
+/** Una jornada real NUEVA (nada guardado en este equipo): el almacén arranca con `crearClubReal`. */
+async function jornadaNueva() {
+  const datos = new Map<string, string>();
+  const m: AlmacenamientoLocal = { getItem: (k) => datos.get(k) ?? null, setItem: (k, v) => void datos.set(k, String(v)), removeItem: (k) => void datos.delete(k) };
+  const a = crearAlmacen({ reloj: "real", clave: CLAVE, almacenamiento: m, cerrojos: null, canal: null, temporizador, relojMs: () => new Date(2026, 9, 17, 19, 0).getTime(), demoraGuardadoMs: 0, enReposo: null, rol: "OWNER" });
+  a.arrancar();
+  await vaciar();
+  return { a, datos };
+}
+
+test("primera vez con el almacén real: PIN de los dueños sin auth → entra Roberto → recepción, precios y fondo → abrir → bloqueado", async () => {
+  const { a, datos } = await jornadaNueva();
+  assert.equal(a.estado().config.configurado, false);
+  assert.equal(a.operador(), null);
+  const pinInicial = (usuarioId: string, pin: string, repetido = pin) => a.arranque((e, ahora) => ejecutarConfiguracion(e, { tipo: "pinInicial", usuarioId, pin, repetido }, ahora, {}));
+  assert.match(pinInicial("u-rober", "47", "48").mensaje, /no coinciden/);
+  assert.equal(pinInicial("u-rober", "47").ok, true);
+  assert.match(pinInicial("u-majo", "47").mensaje, /ya lo usa otra persona/, "distintos entre sí");
+  assert.equal(pinInicial("u-majo", "58").ok, true);
+  assert.deepEqual(armarArranque(a.estado()).duenos.map((d) => d.tienePin), [true, true]);
+  // Sin nadie adentro, lo opcional no corre (pide entrar con el PIN).
+  assert.equal(a.ejecutar((e, ahora, auth) => ejecutarConfiguracion(e, { tipo: "alta", nombre: "Lu", rol: "recepcion", pin: "47" }, ahora, auth)).ok, false);
+
+  // Entra Roberto con su PIN.
+  const rober = M.verificarPin(a.estado(), "u-rober", "47");
+  assert.ok(rober.ok);
+  a.cambiarOperador(rober.usuario, { usuarioId: "u-rober", pin: "47" });
+  // Con alguien adentro, `arranque` ya no corre: lo opcional va por `ejecutar` (las secciones de siempre).
+  assert.equal(pinInicial("u-majo", "12").ok, false);
+  const alta = a.ejecutar((e, ahora, auth) => ejecutarConfiguracion(e, { tipo: "alta", nombre: "Lu", rol: "recepcion", pin: "47" }, ahora, auth)) as ReturnType<typeof ejecutarConfiguracion>;
+  assert.equal(alta.ok, true, alta.mensaje);
+  const reglas = { ...valoresDeReglas(a.estado()), tarifas: ["21000", "29000"], fondo: "15000" };
+  const r = a.ejecutar((e, ahora, auth) => ejecutarConfiguracion(e, { tipo: "reglas", ...reglas }, ahora, auth));
+  assert.equal(r.ok, true, r.mensaje);
+  const v = armarArranque(a.estado());
+  assert.deepEqual(v.recepcion, ["Lu"]);
+  assert.equal(v.fondo, "$ 15.000");
+  assert.match(v.precios, /\$ 21\.000 .*\$ 29\.000/);
+
+  // Abrir el club: queda configurado, nadie adentro (el bloqueo pide el PIN) y guardado.
+  const d = a.ejecutar((e, ahora, auth) => abrirElClub(e, ahora, auth));
+  assert.equal(d.ok, true, d.mensaje);
+  a.cambiarOperador(null);
+  assert.equal(a.estado().config.configurado, true);
+  assert.equal(a.operador(), null);
+  assert.deepEqual(a.arranque(() => ({ ok: true, mensaje: "" })), { ok: false, mensaje: "El club ya está configurado: entrá con tu PIN." });
+  a.guardarYa();
+  const enElEquipo = M.hidratarEstado(JSON.parse(datos.get(CLAVE)!));
+  assert.ok(enElEquipo.ok && enElEquipo.estado.config.configurado === true && enElEquipo.estado.caja.fondo === 15000);
+});
+
+test("primera vez sin entrar: con un dueño con PIN se puede abrir el club por `arranque`; en la demo no hay consola", async () => {
+  const { a } = await jornadaNueva();
+  assert.equal(a.arranque((e, ahora) => abrirElClub(e, ahora)).mensaje, "Falta que al menos un dueño arme su PIN.");
+  assert.equal(a.arranque((e, ahora) => ejecutarConfiguracion(e, { tipo: "pinInicial", usuarioId: "u-majo", pin: "58", repetido: "58" }, ahora, {})).ok, true);
+  assert.equal(a.arranque((e, ahora) => abrirElClub(e, ahora)).ok, true);
+  assert.equal(a.estado().config.configurado, true);
+  const d = crearAlmacen({ hoy: HOY, clave: "gsg-club:demo-club:u1:v1", almacenamiento: null });
+  assert.equal(d.arranque((e, ahora) => abrirElClub(e, ahora)).ok, false);
 });

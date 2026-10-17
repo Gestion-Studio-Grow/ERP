@@ -1186,6 +1186,8 @@ export declare function rentabilidad(estado: EstadoClub, rango?: { desde?: Fecha
 export declare function altaUsuario(estado: EstadoClub, datos: { nombre: string; rol?: Rol }, auth: Auth, ahora?: Ahora): Resultado<{ usuario: Usuario; pin: string }>;
 /** Primer arranque: un usuario SIN PIN arma el suyo (2 dígitos, que no use otro). No pide auth (como la consola del vanilla). */
 export declare function definirPinInicial(estado: EstadoClub, usuarioId: string, pin: string, ahora?: Ahora): Resultado;
+/** Cierra la consola del primer arranque (`config.configurado = true`): hace falta al menos un dueño con PIN. No pide auth. */
+export declare function terminarConfiguracion(estado: EstadoClub, ahora?: Ahora): Resultado;
 /** Cada uno cambia su PIN sabiendo el actual (`auth.pin`). */
 export declare function cambiarMiPin(estado: EstadoClub, auth: Auth, nuevo: string, ahora?: Ahora): Resultado;
 /** Un dueño le genera un PIN nuevo a alguien (permiso `usuarios` + PIN). Se muestra UNA vez. */

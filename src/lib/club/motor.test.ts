@@ -90,7 +90,7 @@ const FUNCIONES_OLA3_STOCK_Y_PROVEEDORES = [
 // Ola 4 · Configuración (solapa Configuración de la sesión del club).
 const FUNCIONES_OLA4_CONFIGURACION = [
   "altaUsuario", "definirPinInicial", "cambiarMiPin", "regenerarPin", "revocarAcceso", "ajustarHorario", "ajustarPolitica",
-  "ajustarBloqueo", "respaldoDesdeArchivo", "huellaRespaldo", "pendientesGoLive", "limpiarParaGoLive",
+  "ajustarBloqueo", "respaldoDesdeArchivo", "huellaRespaldo", "pendientesGoLive", "limpiarParaGoLive", "terminarConfiguracion",
 ] as const satisfies readonly Funciones[];
 // Ola 4 · Novedades y redes (solapa Novedades de la sesión del club).
 const FUNCIONES_OLA4_NOVEDADES = [

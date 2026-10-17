@@ -9,7 +9,10 @@
 //     espera de 30 s que sobrevive a recargar → PIN bueno → entra → 5 min sin uso → vuelve a bloquear → «Tu PIN
 //     para seguir» → L bloquea a mano → «Entrar con otro usuario»;
 //   · demo: no bloquea; «Cambiar de usuario» deja probar con otro usuario y su PIN;
-//   · nunca se ve un PIN; objetivos táctiles de 44 px en el bloqueo; 390 y 1024 px.
+//   · nunca se ve un PIN; objetivos táctiles de 44 px en el bloqueo; 390 y 1024 px;
+//   · primera vez (jornada real nueva, `configurado: false`): sólo la consola → Rober y Majo arman su PIN → entra Rober
+//     → recepción, precios y fondo → «Abrir el club» → bloqueado → entra con su PIN; y restaurar por el almacén (sin
+//     lugar para la copia no restaura; con lugar, deja la copia de lo de antes).
 // Con CAPTURAS_BLOQUEO=<carpeta> deja capturas. Sin Chromium o sin esbuild, se saltea con el motivo.
 
 import { after, before, describe, test } from "node:test";
@@ -324,6 +327,218 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await q.evaluate(() => (window as unknown as Ventana).__montar("demo-club", "u_y", "RECEPTION", "real"));
     await q.getByText("Falta la configuración inicial").waitFor();
     assert.equal(await q.getByRole("tablist").count(), 0);
+    assert.deepEqual(errores, []);
+    await contexto.close();
+  });
+
+  // ───────────── primera vez: la consola de arranque (configuración inicial) ─────────────
+
+  /** Objetivos de menos de 44 px dentro de un contenedor (botones, campos). */
+  const chicosEn = (page: Page, selector: string) =>
+    page.locator(selector).first().evaluate((raiz) =>
+      [...raiz.querySelectorAll("button, input:not([type=radio]):not([type=checkbox]), select, summary")]
+        .map((el) => ({ el, r: el.getBoundingClientRect() }))
+        .filter(({ r }) => r.width > 1 && (r.height < 44 || r.width < 44))
+        .map(({ el, r }) => `${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 30)} (${Math.round(r.width)}×${Math.round(r.height)})`),
+    );
+  const sinScrollDeCostado = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  const avisoDelClub = (page: Page, texto: string | RegExp) => page.getByRole("status").filter({ hasText: texto }).first().waitFor();
+  const alertaDelClub = (page: Page, texto: string | RegExp) => page.getByRole("alert").filter({ hasText: texto }).first().waitFor();
+
+  /** La jornada real NUEVA (nada guardado en este equipo): el almacén arranca con `crearClubReal`, sin configurar. */
+  async function jornadaNueva(contexto: BrowserContext, errores: string[]): Promise<Page> {
+    const p = await contexto.newPage();
+    p.on("pageerror", (e) => errores.push(e.message));
+    p.on("console", (m) => {
+      if (m.type() === "error") errores.push(m.text());
+    });
+    await p.goto(ORIGEN);
+    await p.addScriptTag({ content: bundle });
+    await p.evaluate(() => (window as unknown as Ventana).__montar("demo-club", "u_x", "OWNER", "real"));
+    await p.getByRole("heading", { name: "Primera vez: armá el club" }).waitFor();
+    return p;
+  }
+
+  test("primera vez: Rober y Majo arman su PIN → entra Rober → recepción, precios y fondo → «Abrir el club» → bloqueado → entra con PIN", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const contexto = await browser!.newContext({ viewport: { width: 1024, height: 768 }, locale: "es-AR", acceptDownloads: true });
+    await contexto.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html() }));
+    const errores: string[] = [];
+    const page = await jornadaNueva(contexto, errores);
+
+    // Sin configurar y sin nadie adentro: SÓLO la consola. Nada que opere (jornada, archivar, limpieza), ni solapas.
+    const consola = page.getByRole("region", { name: "Configuración inicial del club" });
+    assert.equal(await page.getByRole("tablist").count(), 0, "sin solapas");
+    assert.equal(await page.getByRole("heading", { name: "Agenda de canchas" }).count(), 0);
+    for (const titulo of ["Jornada", "Archivar días cerrados", "Limpieza para el go-live", "Usuarios y accesos"])
+      assert.equal(await consola.getByRole("heading", { name: titulo, exact: true }).count(), 0, `sin «${titulo}» antes de entrar`);
+    assert.equal(await bloqueo(page).count(), 0, "sin configurar no bloquea");
+    assert.equal(await consola.getByRole("button", { name: "Abrir el club" }).count(), 0, "sin un dueño con PIN no se abre");
+    if (css) assert.deepEqual(await chicosEn(page, '[aria-label="Configuración inicial del club"]'), [], "objetivos de 44 px");
+    assert.equal(await sinScrollDeCostado(page), 0);
+    await capturar(page, "arranque-1024-1-consola");
+
+    // 1. Cada dueño arma su PIN (repetido, distintos entre sí).
+    const rober = consola.getByRole("form", { name: "PIN de Roberto Ronco" });
+    await rober.getByLabel("PIN (2 números)").fill("47");
+    await rober.getByLabel("Repetilo").fill("48");
+    await rober.getByRole("button", { name: "Guardar el PIN de Roberto" }).click();
+    await alertaDelClub(page, "Los dos PIN no coinciden: escribilo igual las dos veces.");
+    await rober.getByLabel("PIN (2 números)").fill("47");
+    await rober.getByLabel("Repetilo").fill("47");
+    await rober.getByRole("button", { name: "Guardar el PIN de Roberto" }).click();
+    await avisoDelClub(page, "PIN de Roberto Ronco guardado. No se lo digas a nadie.");
+    await consola.getByText("✔ Roberto Ronco ya armó su PIN.").waitFor();
+    const majo = consola.getByRole("form", { name: "PIN de Majo Gimenez" });
+    await majo.getByLabel("PIN (2 números)").fill("47");
+    await majo.getByLabel("Repetilo").fill("47");
+    await majo.getByRole("button", { name: "Guardar el PIN de Majo" }).click();
+    await alertaDelClub(page, "Ese PIN ya lo usa otra persona: elegí otro.");
+    await majo.getByLabel("PIN (2 números)").fill("58");
+    await majo.getByLabel("Repetilo").fill("58");
+    await majo.getByRole("button", { name: "Guardar el PIN de Majo" }).click();
+    await consola.getByText("✔ Majo Gimenez ya armó su PIN.").waitFor();
+    assert.ok(!(await consola.innerText()).match(/\b(47|58)\b/), "nunca se ve un PIN");
+    await capturar(page, "arranque-1024-2-pines");
+
+    // 2. Entra Rober con su PIN (uno mal cuenta el intento).
+    const entrar = consola.getByRole("form", { name: "Entrar como Roberto" });
+    await entrar.getByLabel("PIN de Roberto").fill("12");
+    await entrar.getByRole("button", { name: "Entrar como Roberto" }).click();
+    await alertaDelClub(page, "PIN incorrecto (1 de 5).");
+    await entrar.getByLabel("PIN de Roberto").fill("47");
+    await entrar.getByRole("button", { name: "Entrar como Roberto" }).click();
+    // Ya adentro: las solapas y, en Configuración, lo que falta y «Abrir el club».
+    await page.getByRole("tab", { name: "Configuración", selected: true }).waitFor();
+    const primera = page.getByRole("region", { name: "Primera vez: armá el club" });
+    await primera.getByText("Entraste como Roberto.", { exact: false }).waitFor();
+    await page.waitForFunction(() => document.activeElement?.id === "club-config-arranque");
+    await avisoDelClub(page, "Hola, Roberto.");
+    for (const titulo of ["Limpieza para el go-live", "Link para clientes"])
+      assert.equal(await page.getByRole("heading", { name: titulo, exact: true }).count(), 0, `sin «${titulo}» hasta abrir el club`);
+
+    // 3. Lo opcional: recepción (el PIN se ve UNA vez), precios y fondo de caja.
+    const alta = page.getByRole("form", { name: "Dar de alta a alguien" });
+    await alta.getByLabel("Nombre").fill("Lu");
+    await alta.getByLabel("PIN de Roberto").fill("47");
+    await alta.getByRole("button", { name: "Dar de alta" }).click();
+    const pinDeLu = page.getByRole("group", { name: /^✔ Lu · Recepción/ });
+    await pinDeLu.waitFor();
+    const pinLu = (await pinDeLu.locator("p.text-4xl").innerText()).trim();
+    assert.match(pinLu, /^\d{2}$/);
+    await pinDeLu.getByRole("button", { name: "Listo, ya se lo di" }).click();
+    await primera.getByText("Recepción: Lu.").waitFor();
+    const reglas = page.getByRole("form", { name: "Reglas y precios" });
+    await reglas.getByLabel(/^Precio por hora valle/).fill("21000");
+    await reglas.getByLabel(/^Precio por hora pico/).fill("29000");
+    await reglas.getByLabel("Fondo de caja (el cambio que queda en el cajón)").fill("15000");
+    await reglas.getByRole("button", { name: "Guardar reglas y precios" }).click();
+    await avisoDelClub(page, /^Reglas y precios guardados/);
+    await primera.getByText(/Precio por hora: valle \$ 21\.000 y pico \$ 29\.000\. Fondo de caja: \$ 15\.000\./).waitFor();
+    await primera.scrollIntoViewIfNeeded();
+    await capturar(page, "arranque-1024-3-adentro");
+
+    // 4. «Abrir el club»: queda bloqueado y se entra con el PIN, como todos los días.
+    await primera.getByRole("button", { name: "Abrir el club" }).click();
+    await bloqueo(page).getByRole("heading", { name: "Pantalla bloqueada" }).waitFor();
+    assert.equal(await page.getByRole("tablist").count(), 0, "bloqueado: no se ve nada del club");
+    await capturar(page, "arranque-1024-4-bloqueado");
+    const quien = bloqueo(page).getByRole("group", { name: "¿Quién entra?" });
+    if (await quien.count()) await quien.getByRole("button", { name: /^Roberto/ }).click();
+    await pinDe(page).fill("47");
+    await bloqueo(page).waitFor({ state: "detached" });
+    await page.getByRole("tab", { name: "Configuración" }).click();
+    await page.getByRole("heading", { name: "Jornada", exact: true }).waitFor();
+    assert.equal(await page.getByRole("heading", { name: "Primera vez: armá el club" }).count(), 0, "ya configurado: sin la consola");
+    await page.getByRole("heading", { name: "Limpieza para el go-live", exact: true }).waitFor();
+    assert.deepEqual(errores, []);
+    await contexto.close();
+  });
+
+  test("restaurar con el almacén (jornada real): sin lugar para la copia no restaura; con lugar, copia lo de antes y sigue adentro", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const contexto = await browser!.newContext({ viewport: { width: 1024, height: 768 }, locale: "es-AR", acceptDownloads: true });
+    await contexto.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html() }));
+    const errores: string[] = [];
+    // Una jornada ya cargada en este equipo (la demo del día, con sus usuarios: Rober 11).
+    const page = await abrir(contexto, errores, "real", "OWNER", true);
+    const quien = bloqueo(page).getByRole("group", { name: "¿Quién entra?" });
+    await quien.getByRole("button", { name: /^Rober/ }).click();
+    await pinDe(page).fill(PINES[0]);
+    await bloqueo(page).waitFor({ state: "detached" });
+    await page.getByRole("tab", { name: "Configuración" }).click();
+    await page.getByRole("heading", { name: "Jornada", exact: true }).waitFor();
+    const [bajado] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Descargar respaldo", exact: true }).click()]);
+    const ruta = await bajado.path();
+
+    // El equipo casi lleno: entra lo de siempre, no una copia más de la jornada.
+    const relleno = await page.evaluate(() => {
+      const puestos: string[] = [];
+      for (const tam of [1 << 20, 1 << 16, 1 << 12, 1 << 8]) {
+        const trozo = "x".repeat(tam);
+        for (;;) {
+          const k = `relleno-${puestos.length}`;
+          try {
+            localStorage.setItem(k, trozo);
+            puestos.push(k);
+          } catch {
+            break;
+          }
+        }
+      }
+      // Lugar para que la jornada se siga guardando (unos 16 KB), no para una copia entera.
+      let libre = 0;
+      while (libre < 16_384 && puestos.length) {
+        const k = puestos.pop()!;
+        libre += localStorage.getItem(k)!.length;
+        localStorage.removeItem(k);
+      }
+      return puestos;
+    });
+    assert.ok(relleno.length > 0, "el equipo quedó casi lleno");
+    await page.getByLabel("Elegí el respaldo").setInputFiles(ruta);
+    const form = page.getByRole("form", { name: "Restaurar este respaldo" });
+    await form.getByLabel("PIN de Rober").fill(PINES[0]);
+    await form.getByRole("button", { name: "Restaurar este respaldo" }).click();
+    await alertaDelClub(page, "No hay lugar para guardar una copia de lo de ahora: archivá o descargá y borrá copias antes de restaurar. No se tocó nada.");
+    assert.equal(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.includes(":antes-de-restaurar:")).length), 0);
+    await capturar(page, "restaurar-1024-sin-lugar");
+
+    // Con lugar: restaura, deja la copia de lo de antes y Rober sigue adentro (mismo PIN en el respaldo).
+    await page.evaluate((ks) => ks.forEach((k) => localStorage.removeItem(k)), relleno);
+    await form.getByLabel("PIN de Rober").fill(PINES[0]);
+    await form.getByRole("button", { name: "Restaurar este respaldo" }).click();
+    await avisoDelClub(page, "Listo: se restauró el respaldo (lo de antes quedó copiado en este equipo).");
+    assert.equal(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("gsg-club:demo-club:jornada:v1:antes-de-restaurar:")).length), 1);
+    assert.equal(await bloqueo(page).count(), 0, "sigue adentro");
+    await page.getByText(/En este equipo la jornada ocupa [\d.]+ KB/).waitFor();
+    assert.deepEqual(errores, []);
+    await contexto.close();
+  });
+
+  test("primera vez en el celular (390 px): la consola sin scroll de costado y con objetivos de 44 px", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const contexto = await browser!.newContext({ viewport: { width: 390, height: 844 }, locale: "es-AR" });
+    await contexto.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html() }));
+    const errores: string[] = [];
+    const page = await jornadaNueva(contexto, errores);
+    const consola = page.getByRole("region", { name: "Configuración inicial del club" });
+    assert.equal(await sinScrollDeCostado(page), 0, "sin scroll de costado");
+    if (css) assert.deepEqual(await chicosEn(page, '[aria-label="Configuración inicial del club"]'), []);
+    await capturar(page, "arranque-390-1-consola");
+    const rober = consola.getByRole("form", { name: "PIN de Roberto Ronco" });
+    await rober.getByLabel("PIN (2 números)").fill("47");
+    await rober.getByLabel("Repetilo").fill("47");
+    await rober.getByRole("button", { name: "Guardar el PIN de Roberto" }).click();
+    await consola.getByRole("form", { name: "Entrar como Roberto" }).waitFor();
+    assert.equal(await sinScrollDeCostado(page), 0);
+    if (css) assert.deepEqual(await chicosEn(page, '[aria-label="Configuración inicial del club"]'), []);
+    await consola.getByRole("button", { name: "Abrir el club" }).scrollIntoViewIfNeeded();
+    await capturar(page, "arranque-390-2-entrar");
+    // Sin entrar, con un dueño con PIN, también se puede abrir: queda bloqueado.
+    await consola.getByRole("button", { name: "Abrir el club" }).click();
+    await bloqueo(page).getByRole("heading", { name: "Pantalla bloqueada" }).waitFor();
+    await capturar(page, "arranque-390-3-bloqueado");
     assert.deepEqual(errores, []);
     await contexto.close();
   });
