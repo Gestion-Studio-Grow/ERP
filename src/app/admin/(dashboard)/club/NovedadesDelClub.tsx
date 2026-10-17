@@ -340,16 +340,17 @@ const FONDO_ESTADO = { idea: "bg-surface-sunken", programado: "bg-info-soft", pu
 const DIAS_SEMANA = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
 type Editor = { id: string | null; fecha: Fecha; desde: string | null } | null;
 
-function Publicaciones({ dia, onAbrir }: { dia: DiaDelCalendario; onAbrir: (id: string, desde: string) => void }) {
+/** `vista`: la agenda del celular y el calendario se pintan los dos (uno oculto por CSS): cada uno con sus propios ids. */
+function Publicaciones({ dia, vista, onAbrir }: { dia: DiaDelCalendario; vista: "lista" | "mes"; onAbrir: (id: string, desde: string) => void }) {
   return (
     <>
       {dia.publicaciones.map((p) => (
         <button
           key={p.id}
           type="button"
-          id={`pub-${p.id}`}
+          id={`pub-${vista}-${p.id}`}
           aria-label={p.descripcion}
-          onClick={() => onAbrir(p.id, `pub-${p.id}`)}
+          onClick={() => onAbrir(p.id, `pub-${vista}-${p.id}`)}
           className={cn(
             "flex min-h-11 w-full min-w-11 items-center gap-1 rounded-md border border-line px-2 text-left text-xs text-strong",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
@@ -504,7 +505,7 @@ function CalendarioDeRedes({ almacen, hacer }: { almacen: Almacen; hacer: Hacer 
                   {d.numero}/{Number(mes.slice(5))}
                   {d.hoy ? " · hoy" : ""}
                 </span>
-                <Publicaciones dia={d} onAbrir={(pid, desde) => abrir(pid, d.fecha, desde)} />
+                <Publicaciones dia={d} vista="lista" onAbrir={(pid, desde) => abrir(pid, d.fecha, desde)} />
               </li>
             ))}
           </ul>
@@ -534,7 +535,7 @@ function CalendarioDeRedes({ almacen, hacer }: { almacen: Almacen; hacer: Hacer 
                   +
                 </button>
               </span>
-              <Publicaciones dia={d} onAbrir={(pid, desde) => abrir(pid, d.fecha, desde)} />
+              <Publicaciones dia={d} vista="mes" onAbrir={(pid, desde) => abrir(pid, d.fecha, desde)} />
             </li>
           ))}
         </ol>

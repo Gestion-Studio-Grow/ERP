@@ -841,7 +841,8 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     await editor.getByRole("button", { name: "Guardar" }).click();
     await aviso(page, /^Publicación agendada para el \d+\/\d+\.$/);
     await editor.waitFor({ state: "detached" });
-    const pub = cal.getByRole("button", { name: /^19:00 · Reel del torneo · Instagram · reel · Programado$/ });
+    // Sin el CSS de la app se ven la agenda del celular y el calendario a la vez: la primera alcanza.
+    const pub = cal.getByRole("button", { name: /^19:00 · Reel del torneo · Instagram · reel · Programado$/ }).first();
     await pub.click();
     const edicion = cal.getByRole("region", { name: "Publicación" });
     await edicion.getByRole("button", { name: "Borrar" }).click();
