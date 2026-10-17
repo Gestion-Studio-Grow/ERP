@@ -422,7 +422,7 @@ const [descCopia] = await Promise.all([p.waitForEvent("download"), p.click('#dlg
 await W(300);
 ok("11.copia-borrada", /breakpoint-copia-antes-golive-.*\.json$/.test(descCopia.suggestedFilename()) && (await p.evaluate(() => localStorage.getItem("bp-jornada-v1-antes-golive"))) === null, `Con el PIN de la dueña, la copia se descarga (${descCopia.suggestedFilename()}) y recién después se borra`);
 // Un mes de club lleno (del 10/9 al 9/10, todas las cajas cerradas) con los usuarios y la configuración de esta compu.
-const { armarMesCargado } = await import("../../../../lib/club/fixtures/armar-respaldo.ts");
+const { armarMesCargado } = await import("../../mes-cargado.fixture.ts");
 const actual = await estado();
 const mes = armarMesCargado("2026-10-10", 30);
 const majo = actual.usuarios.find((u) => u.rol === "duenio" && u.pin === "84");

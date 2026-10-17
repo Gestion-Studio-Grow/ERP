@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as motor from "../../../public/previews/breakpoint/club/motor.mjs";
-import { armarMesCargado, HOY_TORNEO } from "../../lib/club/fixtures/armar-respaldo";
+import { armarMesCargado, HOY_TORNEO } from "./mes-cargado.fixture";
 
 // El motor es JS plano: los tipos que TypeScript infiere son demasiado estrechos para armar escenarios a mano.
 /* eslint-disable @typescript-eslint/no-explicit-any -- ver la nota de arriba: este archivo opera sobre el motor sin tipos */
