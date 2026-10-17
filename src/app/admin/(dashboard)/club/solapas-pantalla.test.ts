@@ -161,8 +161,18 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     await browser?.close();
   });
 
-  async function montar(rol: "OWNER" | "RECEPTION", viewport = { width: 1024, height: 768 }): Promise<{ page: Page; errores: string[] }> {
-    const p = await browser!.newPage({ viewport, locale: "es-AR" });
+  /** `guardado`: lo que ya hay en este equipo para la demo del dueño (p. ej. tres semanas de club, para archivar). */
+  async function montar(rol: "OWNER" | "RECEPTION", viewport = { width: 1024, height: 768 }, guardado?: string): Promise<{ page: Page; errores: string[] }> {
+    const p = await browser!.newPage({ viewport, locale: "es-AR", acceptDownloads: true });
+    if (guardado) {
+      await p.addInitScript(([clave, texto]) => {
+        try {
+          if (!localStorage.getItem(clave)) localStorage.setItem(clave, texto);
+        } catch {
+          // sin localStorage la demo arranca de cero y el test lo dice
+        }
+      }, [`gsg-club:demo-club:u_${rol.toLowerCase()}:v1`, guardado] as const);
+    }
     const errores: string[] = [];
     p.on("pageerror", (e) => errores.push(e.message));
     p.on("console", (m) => {
@@ -602,6 +612,150 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
       await page.getByRole("region", { name: "Registrar remito" }).waitFor();
       await revisarSolapa(page, `Remito desde la Caja (recepción) a ${w} px`);
       await capturar(page, `remito-caja-recepcion-${w}`);
+      assert.deepEqual(errores, []);
+      await page.close();
+    }
+  });
+
+  // ───────────── Configuración (dueños) ─────────────
+
+  /** Tres semanas y media de club cerrado, guardadas en este equipo como la demo de HOY: hay días para archivar. */
+  async function clubConDiasParaArchivar(): Promise<string> {
+    const { armarMesCargado } = await import("@/lib/club/fixtures/armar-respaldo");
+    const { fechaLocal } = await import("./reloj-del-club");
+    const hoy = fechaLocal(new Date());
+    return JSON.stringify({ ...armarMesCargado(hoy, 24), hoy, guardado: Date.now() });
+  }
+
+  test("el dueño, Configuración: respaldo, archivar en DOS pasos (descarga + elegir el archivo) y restaurar con su fecha", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("OWNER", undefined, await clubConDiasParaArchivar());
+    assert.equal(await page.getByRole("tab", { name: "Configuración" }).count(), 1);
+    await page.getByRole("tab", { name: "Configuración" }).click();
+    await page.getByRole("heading", { name: "Jornada", exact: true }).waitFor();
+    await capturar(page, "config-1024");
+
+    // Descargar respaldo: el sobre v1 de siempre.
+    const [respaldo] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Descargar respaldo", exact: true }).click()]);
+    assert.match(respaldo.suggestedFilename(), /^breakpoint-jornada-\d{4}-\d{2}-\d{2}-\d{4}\.json$/);
+    await page.getByText(`Se pidió la descarga de ${respaldo.suggestedFilename()}`).waitFor();
+
+    // Archivar: sin el paso 1 no hay paso 2; con el archivo bajado se elige y recién ahí se achica.
+    await page.getByRole("button", { name: "Archivar días cerrados" }).click();
+    const archivar = page.getByRole("group", { name: "Archivar días cerrados" });
+    assert.equal(await archivar.getByRole("button", { name: "Ya lo guardé: achicar" }).isDisabled(), true, "sin descargar no se confirma");
+    await archivar.getByRole("button", { name: "Descargar el respaldo para archivar" }).click();
+    await alerta(page, "Poné tu PIN (2 números).");
+    await archivar.getByLabel("PIN de Dueño").fill("11");
+    const [paquete] = await Promise.all([page.waitForEvent("download"), archivar.getByRole("button", { name: "Descargar el respaldo para archivar" }).click()]);
+    assert.match(paquete.suggestedFilename(), /^breakpoint-respaldo-y-archivo-\d{4}-\d{2}-\d{2}-\d{4}\.json$/);
+    await archivar.getByText(`Se pidió la descarga de ${paquete.suggestedFilename()}`).waitFor();
+    // Paso 2 sin elegir el archivo: no se achica nada.
+    await archivar.getByRole("button", { name: "Ya lo guardé: achicar" }).click();
+    await alerta(page, "Elegí el archivo que descargaste (paso 2): sin eso no se achica nada.");
+    await capturar(page, "config-archivar-1024");
+    const rutaPaquete = await paquete.path();
+    await archivar.getByLabel("Archivo descargado").setInputFiles(rutaPaquete);
+    await archivar.getByRole("button", { name: "Ya lo guardé: achicar" }).click();
+    await page.getByText(/^Archivo verificado: achicado\. Quedó archivado hasta el \d+\/\d+: \d+ turnos/).waitFor();
+    await aviso(page, /^Archivado hasta el \d+\/\d+: \d+ turnos/);
+    const dias = page.locator("summary").filter({ hasText: /^Días archivados \(\d+\)/ });
+    await dias.click();
+    await page.getByText(/^\d+\/\d+ · \d+ turnos? · cobrado \$/).first().waitFor();
+    await capturar(page, "config-archivado-1024");
+
+    // Restaurar: el anexo suelto no es un respaldo (se explica); el archivo para archivar devuelve la jornada de antes.
+    const { readFileSync: leer, writeFileSync: escribir, mkdtempSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const anexo = join(mkdtempSync(join(tmpdir(), "club-anexo-")), "breakpoint-archivo.json");
+    escribir(anexo, JSON.stringify(JSON.parse(leer(rutaPaquete, "utf8")).anexo));
+    await page.getByLabel("Elegí el respaldo").setInputFiles(anexo);
+    await alerta(page, /archivo de los días archivados/);
+    await page.getByLabel("Elegí el respaldo").setInputFiles(rutaPaquete);
+    const restaurar = page.getByRole("form", { name: "Restaurar este respaldo" });
+    await restaurar.getByText(/^Respaldo del \d+\/\d+\/\d{4} a las \d\d:\d\d \(cuando se preparó el archivado\)/).waitFor();
+    await restaurar.getByText(/Reemplaza la jornada de ahora \(\d+ turnos\)/).waitFor();
+    await capturar(page, "config-restaurar-1024");
+    await restaurar.getByLabel("PIN de Dueño").fill("12");
+    await restaurar.getByRole("button", { name: "Restaurar este respaldo" }).click();
+    await alerta(page, "PIN incorrecto.");
+    await restaurar.getByLabel("PIN de Dueño").fill("11");
+    await restaurar.getByRole("button", { name: "Restaurar este respaldo" }).click();
+    await aviso(page, "Jornada restaurada desde el respaldo (es la de antes de archivar: si avisa que se llena, archivá de nuevo).");
+    assert.equal(await page.locator("summary").filter({ hasText: /^Días archivados/ }).count(), 0, "volvió la jornada de antes de archivar");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("el dueño, Configuración: alta con el PIN una sola vez, reglas validadas, avisos y la limpieza que pide el respaldo", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("OWNER");
+    await page.getByRole("tab", { name: "Configuración" }).click();
+    await page.getByRole("heading", { name: "Usuarios y accesos" }).waitFor();
+    // Alta de recepción: el PIN se ve UNA vez, a la vista, y no va al aviso.
+    const alta = page.getByRole("form", { name: "Dar de alta a alguien" });
+    await alta.getByLabel("Nombre").fill("Nico noche");
+    await alta.getByLabel("PIN de Rober").fill("11");
+    await alta.getByRole("button", { name: "Dar de alta" }).click();
+    const pin = page.getByRole("group", { name: /^✔ Nico noche · Recepción/ });
+    await pin.waitFor();
+    const elPin = (await pin.locator("p.text-4xl").textContent())!.trim();
+    assert.match(elPin, /^\d{2}$/);
+    await aviso(page, /^Nico noche ya tiene acceso/);
+    assert.ok(!(await page.getByRole("status").filter({ hasText: "Nico noche" }).first().textContent())!.includes(elPin), "el aviso no dice el PIN");
+    await capturar(page, "config-pin-1024");
+    await pin.getByRole("button", { name: "Listo, ya se lo di" }).click();
+    assert.equal(await page.getByText(elPin, { exact: true }).count(), 0, "el PIN no se vuelve a mostrar");
+
+    // Reglas: lo que no entra se dice y no se cambia nada.
+    const reglas = page.getByRole("form", { name: "Reglas y precios" });
+    await reglas.getByLabel("Seña (% del turno)").fill("150");
+    await reglas.getByRole("button", { name: "Guardar reglas y precios" }).click();
+    await alerta(page, /Seña \(% del turno\)».*entre 0 y 100/);
+    await reglas.getByLabel("Seña (% del turno)").fill("30");
+    await reglas.getByRole("button", { name: "Guardar reglas y precios" }).click();
+    await aviso(page, "Reglas y precios guardados. Los precios valen para los turnos nuevos.");
+
+    // Avisos: el WhatsApp del club va al link para clientes.
+    const avisos = page.getByRole("form", { name: "Avisos por WhatsApp" });
+    await avisos.getByLabel("WhatsApp del club (recepción)").fill("11 2345-6789");
+    await avisos.getByRole("button", { name: "Guardar avisos" }).click();
+    await aviso(page, "Avisos guardados: celulares y alias para la seña.");
+    const link = await page.getByLabel("Link del turnero para mandar a los clientes").inputValue();
+    assert.match(link, /\/turnero\?modo=pedido&wa=1123456789&tar=/);
+    // En la demo el WhatsApp abre sin número (como en el resto del club).
+    const prueba = (await page.getByRole("link", { name: /Probar el WhatsApp del club/ }).getAttribute("href"))!;
+    assert.ok(!prueba.includes("1123456789"), `en la demo, sin número: ${prueba}`);
+
+    // Limpieza: la demo tiene canchas en juego y cuentas abiertas → lo lista; el paso 2 no anda sin el paso 1.
+    await page.getByText("Antes de limpiar hay que resolver:").waitFor();
+    await page.getByRole("button", { name: "Hacer la limpieza para el go-live" }).click();
+    const limpieza = page.getByRole("group", { name: "Limpieza para el go-live" });
+    assert.equal(await limpieza.getByRole("button", { name: "Ya lo guardé: limpiar" }).isDisabled(), true);
+    await limpieza.getByLabel("PIN de Rober").fill("11");
+    const [bajado] = await Promise.all([page.waitForEvent("download"), limpieza.getByRole("button", { name: "Descargar el respaldo de antes de limpiar" }).click()]);
+    assert.match(bajado.suggestedFilename(), /^breakpoint-jornada-antes-golive-/);
+    await limpieza.getByLabel("Respaldo descargado").setInputFiles(await bajado.path());
+    await limpieza.getByRole("button", { name: "Ya lo guardé: limpiar" }).click();
+    await alerta(page, /^Antes de limpiar hay que resolver:/);
+    await capturar(page, "config-golive-1024");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("Configuración a 1024, 768 y 390 px: sin scroll de costado, objetivos de 44 px y contraste AA", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    for (const w of [1024, 768, 390]) {
+      const { page, errores } = await montar("OWNER", { width: w, height: w === 390 ? 844 : 1024 });
+      await page.getByRole("tab", { name: "Configuración" }).click();
+      await page.getByRole("heading", { name: "Jornada", exact: true }).waitFor();
+      await revisarSolapa(page, `Configuración a ${w} px`);
+      await capturar(page, `config-${w}`);
+      await page.getByRole("button", { name: "Archivar días cerrados" }).click();
+      await page.getByRole("button", { name: /^PIN nuevo para Lu/ }).click();
+      await page.getByRole("button", { name: "Hacer la limpieza para el go-live" }).click();
+      await revisarSolapa(page, `Configuración con lo abierto a ${w} px`);
+      await capturar(page, `config-abierto-${w}`);
       assert.deepEqual(errores, []);
       await page.close();
     }

@@ -90,6 +90,8 @@ export interface ConfigClub {
   /** Sólo en la jornada real. */
   modo?: "real";
   configurado?: boolean;
+  /** Lo deja `limpiarParaGoLive`: cuándo, quién y si se conservaron los saldos. */
+  goLive?: { fecha: Fecha | null; por: string; conservarSaldos: boolean };
 }
 
 export interface Cancha {
@@ -1177,3 +1179,39 @@ export interface FilaRentabilidad {
 }
 /** Lo vendido por producto activo en el rango (días de caja) y su margen de lista. */
 export declare function rentabilidad(estado: EstadoClub, rango?: { desde?: Fecha; hasta?: Fecha }): { filas: FilaRentabilidad[]; facturado: number; ganancia: number; margenPct: number };
+
+// ───────────── configuración: usuarios y PIN, reglas, horarios, respaldo y go-live (solapa Configuración) ─────────────
+
+/** Un dueño da de alta a alguien (permiso `usuarios` + PIN). El PIN lo genera el motor y se muestra UNA vez. */
+export declare function altaUsuario(estado: EstadoClub, datos: { nombre: string; rol?: Rol }, auth: Auth, ahora?: Ahora): Resultado<{ usuario: Usuario; pin: string }>;
+/** Primer arranque: un usuario SIN PIN arma el suyo (2 dígitos, que no use otro). No pide auth (como la consola del vanilla). */
+export declare function definirPinInicial(estado: EstadoClub, usuarioId: string, pin: string, ahora?: Ahora): Resultado;
+/** Cada uno cambia su PIN sabiendo el actual (`auth.pin`). */
+export declare function cambiarMiPin(estado: EstadoClub, auth: Auth, nuevo: string, ahora?: Ahora): Resultado;
+/** Un dueño le genera un PIN nuevo a alguien (permiso `usuarios` + PIN). Se muestra UNA vez. */
+export declare function regenerarPin(estado: EstadoClub, usuarioObjetivoId: string, auth: Auth, ahora?: Ahora): Resultado<{ pin: string }>;
+/** Un dueño le saca el acceso a alguien (permiso `usuarios` + PIN). Ni a sí mismo ni al último dueño. */
+export declare function revocarAcceso(estado: EstadoClub, usuarioObjetivoId: string, auth: Auth, ahora?: Ahora): Resultado;
+/** El horario de un día de la semana (0 = domingo; permiso `configurar`). `afuera`: turnos reservados que quedan fuera. */
+export declare function ajustarHorario(estado: EstadoClub, dia: number, horario: { abre: number | string; cierra: number | string }, auth: Auth, ahora?: Ahora): Resultado<{ afuera: Reserva[] }>;
+export type ReglaEditable = "horasCancelacionLibre" | "senaPct" | "strikesParaSena" | "toleranciaMin" | "minutosAntesParaEntrar";
+/** Mínimo y máximo de cada regla editable. */
+export declare const LIMITES_POLITICA: Readonly<Record<ReglaEditable, readonly [number, number]>>;
+/** Cambia una regla de la política. OJO: el motor NO pide auth (lo controla la pantalla). `minutosAntesParaEntrar` vacío = sin límite. */
+export declare function ajustarPolitica(estado: EstadoClub, clave: string, valor: number | string | null): Resultado<{ valor: number | null }>;
+/** Minutos sin uso hasta bloquear la pantalla (0 = sólo al apagarse). */
+export declare const LIMITES_BLOQUEO: readonly [number, number];
+export declare function ajustarBloqueo(estado: EstadoClub, minutos: number | string, auth: Auth): Resultado<{ valor: number }>;
+/** «Restaurar desde un archivo»: el sobre v1 o el paquete `respaldo-y-archivo` (su respaldo); el anexo solo, no. */
+export declare function respaldoDesdeArchivo(datos: unknown): Resultado<{ foto: unknown; antesDeArchivar: boolean }>;
+/** Huella (no criptográfica) de un objeto: dos FNV-1a sobre su JSON. */
+export declare function huellaRespaldo(respaldo: unknown): string;
+/** Lo que tiene plata o una decisión pendiente y frena la limpieza para el go-live (en criollo; vacío = en orden). */
+export declare function pendientesGoLive(estado: EstadoClub, ahora?: Ahora | null): string[];
+/** Limpieza para el go-live (permiso `configurar` + PIN). Borra lo transaccional resuelto; conserva lo maestro. */
+export declare function limpiarParaGoLive(
+  estado: EstadoClub,
+  opciones: { conservarSaldos?: boolean; conservarStock?: boolean },
+  auth: Auth,
+  ahora?: Ahora,
+): Resultado<{ borrado: { turnos: number; cuentas: number; movimientos: number; pedidos: number; quedan: number } }> | (Falla & { pendientes?: string[] });
