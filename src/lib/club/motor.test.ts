@@ -82,11 +82,17 @@ const FUNCIONES_OLA1_AGENDA_Y_TIENDA = [
   "alertas", "catalogoTienda", "crearPedidoTienda", "pedidoDesdeWhatsApp", "pedidosPendientes", "entregarPedido", "cargarPedidoACuenta", "cancelarPedido",
 ] as const satisfies readonly Funciones[];
 const FUNCIONES_OLA1_CAJA_Y_WHATSAPP = ["ajustarFondo"] as const satisfies readonly Funciones[];
+// Ola 3 · stock y proveedores (solapas Stock y Proveedores de la sesión del club).
+const FUNCIONES_OLA3_STOCK_Y_PROVEEDORES = [
+  "proveedor", "altaProducto", "editarProducto", "ajustarStock", "bajaProducto", "altaProveedor", "editarProveedor",
+  "registrarRemito", "ccProveedor", "deudaConProveedor", "pagarProveedor", "precioDesdeMarkup", "rentabilidad",
+] as const satisfies readonly Funciones[];
 type FuncionesListadas =
   | (typeof FUNCIONES)[number]
   | (typeof FUNCIONES_OLA1_CUENTA_Y_BUFFET)[number]
   | (typeof FUNCIONES_OLA1_AGENDA_Y_TIENDA)[number]
-  | (typeof FUNCIONES_OLA1_CAJA_Y_WHATSAPP)[number];
+  | (typeof FUNCIONES_OLA1_CAJA_Y_WHATSAPP)[number]
+  | (typeof FUNCIONES_OLA3_STOCK_Y_PROVEEDORES)[number];
 const CONSTANTES = [
   "VERSION_ESTADO", "MEDIOS", "ESTADOS", "TIPOS", "ROLES", "PERMISOS", "NOMBRE_DIA",
   "CONFIG_DEMO", "CANCHAS_DEMO", "USUARIOS_DEMO", "USUARIOS_REALES", "PRODUCTOS_DEMO", "PROVEEDORES_DEMO", "DIAS_SIN_ARCHIVAR",
@@ -117,7 +123,7 @@ const REQ_CLIENTE: readonly Requeridas<Cliente>[] = ["id", "nombre", "tel", "niv
 
 test("contrato de motor.d.mts: cada export tipado existe en la copia con su clase (función o constante)", () => {
   const motor = M as unknown as Record<string, unknown>;
-  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
+  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP, ...FUNCIONES_OLA3_STOCK_Y_PROVEEDORES]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
   for (const n of CONSTANTES) {
     assert.ok(n in motor, `${n} no está exportada`);
     assert.notEqual(typeof motor[n], "function", `${n} es una función: va en FUNCIONES`);
