@@ -1143,7 +1143,10 @@ export async function buscarClienteParaVenta(telefono: string): Promise<{ nombre
 // el sistema no manda nada solo. Lo que sí hace es dejar CONSTANCIA de que se avisó, en la
 // auditoría del pedido, para que "¿le avisaron?" tenga respuesta. Se llama al tocar el botón,
 // sin esperar: si la constancia falla, el aviso igual sale.
-export async function registrarAvisoWhatsApp(orderId: string, tipo: "pedido-listo" | "ticket"): Promise<void> {
+export async function registrarAvisoWhatsApp(
+  orderId: string,
+  tipo: "pedido-listo" | "ticket" | "recordatorio-retiro",
+): Promise<void> {
   await requireCapability("orders:read");
   const tenantId = await getCurrentTenantId();
   const id = String(orderId ?? "").trim();
@@ -1154,7 +1157,9 @@ export async function registrarAvisoWhatsApp(orderId: string, tipo: "pedido-list
     action: "whatsapp",
     entity: "Order",
     entityId: id,
-    changes: { tipo: tipo === "ticket" ? "ticket" : "pedido-listo", code: o.code },
+    // El recordatorio de retiro queda con su tipo: no cuenta como «avisado» (`leerAvisados` lee
+    // sólo «pedido-listo»).
+    changes: { tipo: tipo === "ticket" || tipo === "recordatorio-retiro" ? tipo : "pedido-listo", code: o.code },
   });
 }
 

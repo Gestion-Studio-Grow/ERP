@@ -36,7 +36,7 @@ import { vocabularioDelNegocio } from "@/lib/vocabulario-negocio";
 import { prisma } from "@/lib/prisma";
 import { formatearCantidad } from "@/lib/pos-peso";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
-import { verboDelPaso, etiquetaDeHorario, avisoPedidoListo, ESTADOS_EN_CURSO } from "@/lib/order-anulacion";
+import { verboDelPaso, etiquetaDeHorario, avisoPedidoListo, recordatorioDeRetiro, ESTADOS_EN_CURSO } from "@/lib/order-anulacion";
 import { enInicioPorApps } from "../inicio/piloto";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { roleHasCapability } from "@/lib/capabilities";
@@ -44,7 +44,7 @@ import TableroPedidos from "./TableroPedidos";
 import AvisoDePedidosNuevos from "./AvisoDePedidosNuevos";
 import { armarTablero, leerAvisados } from "./tablero.server";
 import { LineaDeEstado, Plata } from "@/components/ui";
-import { lineaDelTablero, otrosPedidosDeLaClienta, textoDeLaTiendaEsperando, textoDeOtrosPedidos } from "./pedidos-core";
+import { lineaDelTablero, listoDesdeAyer, otrosPedidosDeLaClienta, textoDeLaTiendaEsperando, textoDeOtrosPedidos } from "./pedidos-core";
 
 export const dynamic = "force-dynamic";
 
@@ -409,6 +409,20 @@ export default async function PedidosPage() {
                   }),
                 )
               : null;
+          // Listo desde un día anterior y para retirar: el recordatorio armado (caso 4).
+          const recordatorio =
+            local && o.fulfillment !== "DELIVERY" && listoDesdeAyer({ status: o.status, creado: o.createdAt.toISOString() }, hoy)
+              ? waLinkClienta(
+                  o.customerPhone,
+                  recordatorioDeRetiro({
+                    cliente: o.customerName,
+                    code: o.code,
+                    negocio: local.negocio,
+                    direccionLocal: local.direccion,
+                    horarioLocal: local.horario,
+                  }),
+                )
+              : null;
           return (
             <div key={o.id} className="rounded-lg border border-line p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -499,6 +513,7 @@ export default async function PedidosPage() {
                     />
                   )}
                   {avisoWa && <AvisarPorWhatsApp orderId={o.id} href={avisoWa} />}
+                  {recordatorio && <AvisarPorWhatsApp orderId={o.id} href={recordatorio} tipo="recordatorio-retiro" />}
                   {/* Listo: entregar pide el cobro o «Queda a cobrar» (EntregarPedidoForm). */}
                   {o.status === "READY" && <EntregarPedidoForm id={o.id} code={o.code} paid={o.paid} />}
                   {/* Cobrar sin entregar sigue estando, también en Listo: el que pagó por

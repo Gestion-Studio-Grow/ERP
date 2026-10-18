@@ -21,6 +21,7 @@ import {
   horarioDelFormulario,
   etiquetaDeHorario,
   avisoPedidoListo,
+  recordatorioDeRetiro,
   ajustarPedidoInTx,
   EDICION_ACTOR_PREFIX,
   type AnulacionVentaTx,
@@ -541,4 +542,20 @@ test("aviso de pedido listo: armado, 1 a 1 al número del cliente, sin inventar 
   assert.equal(decodeURIComponent(link!.split("text=")[1]), texto);
   // Un teléfono que no es un número de acá no abre WhatsApp a cualquiera: sin botón.
   assert.equal(waLinkClienta("123", texto), null);
+});
+
+// ── Clienta que no retira (caso 4 de Magra): el recordatorio armado ──────────
+
+test("clienta que no retira: el recordatorio dice el número y pregunta si pasa hoy", () => {
+  const conLocal = recordatorioDeRetiro({
+    cliente: "Ana Ruiz",
+    code: 128,
+    negocio: "MAGRA",
+    direccionLocal: "Av. Siempreviva 742",
+    horarioLocal: "lun a sáb 9 a 20",
+  });
+  assert.equal(conLocal, "Hola Ana, tu pedido #128 de MAGRA te sigue esperando. ¿Pasás hoy? Te esperamos en Av. Siempreviva 742 (lun a sáb 9 a 20).");
+  // Sin dirección cargada no se inventa; sin nombre (mostrador) saluda sin nombre.
+  const sinLocal = recordatorioDeRetiro({ cliente: "Mostrador", code: 7, negocio: "MAGRA", direccionLocal: null, horarioLocal: "9 a 20" });
+  assert.equal(sinLocal, "Hola, tu pedido #7 de MAGRA te sigue esperando. ¿Pasás hoy?");
 });

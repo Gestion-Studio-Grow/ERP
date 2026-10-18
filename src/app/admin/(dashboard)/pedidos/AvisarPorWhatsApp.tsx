@@ -9,18 +9,28 @@
 
 import { registrarAvisoWhatsApp } from "@/lib/order-actions";
 
-export default function AvisarPorWhatsApp({ orderId, href }: { orderId: string; href: string }) {
+// `tipo` «recordatorio-retiro»: el mismo botón para la clienta que no vino a retirar («tu pedido te
+// sigue esperando»), con su propia constancia (no cuenta como «avisado»).
+export default function AvisarPorWhatsApp({
+  orderId,
+  href,
+  tipo = "pedido-listo",
+}: {
+  orderId: string;
+  href: string;
+  tipo?: "pedido-listo" | "recordatorio-retiro";
+}) {
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
       onClick={() => {
-        void registrarAvisoWhatsApp(orderId, "pedido-listo").catch(() => undefined);
+        void registrarAvisoWhatsApp(orderId, tipo).catch(() => undefined);
       }}
       className="chip-btn text-xs h-11 sm:h-auto w-full sm:w-auto justify-center"
     >
-      Avisar por WhatsApp
+      {tipo === "recordatorio-retiro" ? "Recordarle que lo pase a buscar" : "Avisar por WhatsApp"}
     </a>
   );
 }

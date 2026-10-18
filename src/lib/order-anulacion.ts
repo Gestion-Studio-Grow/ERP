@@ -1337,6 +1337,25 @@ export function avisoPedidoListo(p: {
   return `${saludo}, ${listo} ${plata}${local} ¡Gracias!`;
 }
 
+/**
+ * El recordatorio para la clienta que no vino a retirar (caso 4 de Magra): «Hola Ana, tu pedido
+ * #128 de MAGRA te sigue esperando. ¿Pasás hoy?». PURA. Mismo patrón que `avisoPedidoListo`: 1 a
+ * 1, armado, desde el WhatsApp del que atiende; sin dirección ni horario cargados, no se inventan.
+ * Sólo tiene sentido en un retiro: un envío listo desde ayer es del local, no de la clienta.
+ */
+export function recordatorioDeRetiro(p: {
+  cliente: string;
+  code: number;
+  negocio: string;
+  direccionLocal: string | null;
+  horarioLocal: string | null;
+}): string {
+  const nombre = p.cliente.trim().split(/\s+/)[0];
+  const saludo = nombre && nombre !== "Mostrador" ? `Hola ${nombre}` : "Hola";
+  const local = p.direccionLocal ? ` Te esperamos en ${p.direccionLocal}${p.horarioLocal ? ` (${p.horarioLocal})` : ""}.` : "";
+  return `${saludo}, tu pedido #${p.code} de ${p.negocio} te sigue esperando. ¿Pasás hoy?${local}`;
+}
+
 // ============================================================================
 // VENTAS DEL DÍA — las ventas cobradas y las anulaciones, con quién anuló.
 // ============================================================================

@@ -19,13 +19,13 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { BUSINESS_TIMEZONE } from "@/lib/business-config";
 import { dateStrInBusinessTz, fmtTime } from "@/lib/datetime";
-import { avisoPedidoListo, etiquetaDeHorario, verboDelPaso, ESTADOS_EN_CURSO } from "@/lib/order-anulacion";
+import { avisoPedidoListo, etiquetaDeHorario, recordatorioDeRetiro, verboDelPaso, ESTADOS_EN_CURSO } from "@/lib/order-anulacion";
 import { esLineaDeEnvio, type CuponDelPedido } from "@/lib/venta-reglas";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { etiquetaDeMedio } from "@/lib/caja/medio-cobro";
 import type { AlcanceDeAnulacion } from "@/lib/capabilities";
 import { textoDelLinkDePago, type LinkEnviado } from "./link-de-pago";
-import { cuandoDelPedido, type PedidoCerrado, type PedidoDelTablero } from "./pedidos-core";
+import { cuandoDelPedido, listoDesdeAyer, type PedidoCerrado, type PedidoDelTablero } from "./pedidos-core";
 
 /** Lo que el cajón del pedido necesita además de la fila (las acciones de «Más»). */
 export type ExtraDelPedido = {
@@ -40,6 +40,11 @@ export type ExtraDelPedido = {
   link: { enviado: LinkEnviado | null; whatsappEnviado: string | null } | null;
   /** El chat del cliente, sin mensaje armado («Escribirle»). */
   whatsapp: string | null;
+  /**
+   * «Tu pedido te sigue esperando, ¿pasás hoy?» (`recordatorioDeRetiro`): sólo comercio, retiro
+   * Listo desde un día anterior y con teléfono. null = no se ofrece.
+   */
+  recordatorio: string | null;
 };
 
 type Linea = {
@@ -197,6 +202,19 @@ export function armarTablero(e: {
             }
           : null,
       whatsapp: waLinkClienta(o.customerPhone),
+      recordatorio:
+        e.comercio && e.local && o.fulfillment !== "DELIVERY" && listoDesdeAyer({ status: o.status, creado: o.createdAt.toISOString() }, e.hoy)
+          ? waLinkClienta(
+              o.customerPhone,
+              recordatorioDeRetiro({
+                cliente: o.customerName,
+                code: o.code,
+                negocio: e.local.negocio,
+                direccionLocal: e.local.direccion,
+                horarioLocal: e.local.horario,
+              }),
+            )
+          : null,
     };
     return {
       id: o.id,
