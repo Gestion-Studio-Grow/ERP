@@ -23,6 +23,7 @@ import type { Role } from "@/lib/capabilities";
 import { prisma } from "@/lib/prisma";
 import { leerConfigCaja } from "@/lib/supermercado/config-repo";
 import { logger } from "@/lib/logger";
+import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
 import type { BalanzaDeVender } from "./CampoEtiqueta";
 
 /**
@@ -53,7 +54,7 @@ async function balanzaDeVender(
  * esa plata se anota en el libro del día sin turno, fuera del arqueo de un cajero
  * (caja/cash-sale.ts). El cartel no prohíbe lo que el sistema deja hacer.
  */
-async function EstadoDelMostrador({ role }: { role: Role }) {
+async function EstadoDelMostrador({ role, mostrador }: { role: Role; mostrador: boolean }) {
   const [caja, vender] = await Promise.all([cargarKpi("caja-del-dia", role), cargarKpi("vender", role)]);
   const datos: React.ReactNode[] = [];
   if (caja?.estado === "ok") {
@@ -71,6 +72,8 @@ async function EstadoDelMostrador({ role }: { role: Role }) {
     );
   }
   if (vender?.estado === "ok") datos.push(`${vender.valor} ${vender.detalle ?? ""}`.trim());
+  // La regla del día cerrado, sólo en un mostrador (reglas-a-la-vista.ts).
+  datos.push(reglaALaVista("vender", mostrador));
   return <LineaDeEstado datos={datos} className="mb-4" />;
 }
 
@@ -166,7 +169,7 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
       <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
         <h1 className="sr-only">Vender</h1>
         <Suspense fallback={<p data-ui="linea-estado" aria-hidden>&nbsp;</p>}>
-          <EstadoDelMostrador role={user.role} />
+          <EstadoDelMostrador role={user.role} mostrador={identidad.isRetail} />
         </Suspense>
         <MostradorTabs
           viewer={{ role: user.role, professionalId: user.professionalId }}

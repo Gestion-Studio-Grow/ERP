@@ -13,6 +13,8 @@
 // escrituras interactivas (ver el encabezado de LibroForms.tsx).
 
 import Link from "next/link";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
 import { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import {
   CASH_METHODS,
@@ -77,7 +79,11 @@ export default async function CierreCajaPage({
   // «Diseño nuevo»: la lectura de interruptores del layout (cacheada), a la par de los datos.
   const [data, nuevo] = await Promise.all([getCierreDiarioData(dia, { conTurnosSinCerrar: true }), disenoNuevo()]);
   // DISEÑO NUEVO («Renglón»): contar primero y cerrar deslizando. Mismos datos, mismas acciones.
-  if (nuevo) return <CierreRenglon d={data} />;
+  if (nuevo) {
+    // La regla del día cerrado, sólo en un mostrador (reglas-a-la-vista.ts): CH no cambia.
+    const regla = reglaALaVista("cierre", (await getCurrentTenantRubro()).isRetail);
+    return <CierreRenglon d={data} regla={regla} />;
+  }
   const { preview, day, today, lastClosedDay, since, movements, yaCerrado, enElFuturo, registro, turnosSinCerrar } = data;
 
   const esperadoTotal = preview.total.expected;

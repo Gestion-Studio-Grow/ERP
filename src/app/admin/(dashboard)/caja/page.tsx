@@ -3,6 +3,7 @@ import { requireApp } from "@/lib/require-app";
 import { getCajaData } from "@/lib/caja-actions";
 import { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
 import { isDemoSandbox } from "@/lib/demo-flag";
 import { fmtShortDate } from "@/lib/datetime";
 import type { CashMethod } from "@/lib/caja/cash-register";
@@ -84,7 +85,8 @@ export default async function CajaPage() {
   ]);
 
   // DISEÑO NUEVO («Renglón»): los mismos datos, ordenados para quien pasa el día acá.
-  if (nuevo) return <CajaRenglon dia={dia} caja={caja} />;
+  // La regla del arqueo, sólo donde hay cajón (el mostrador; CH no la ve): reglas-a-la-vista.ts.
+  if (nuevo) return <CajaRenglon dia={dia} caja={caja} regla={reglaALaVista("caja", caja !== null)} />;
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">

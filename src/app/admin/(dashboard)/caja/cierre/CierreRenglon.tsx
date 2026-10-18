@@ -39,7 +39,7 @@ const AYUDA: Record<CashMethod, string> = {
 
 const ORIGEN: Record<string, string> = { pos: "venta del mostrador", turno: "turno cobrado", manual: "cargado a mano" };
 
-function Encabezado({ d }: { d: Datos }) {
+function Encabezado({ d, regla }: { d: Datos; regla: string | null }) {
   const { day, today, since, preview, yaCerrado } = d;
   const sinCerrar = !yaCerrado && since && since < day ? diasEntre(since, day) : 0;
   return (
@@ -51,6 +51,7 @@ function Encabezado({ d }: { d: Datos }) {
             <strong key="d">{diaLargo(day)}</strong>,
             yaCerrado ? "cerrado" : since ? (sinCerrar > 0 ? `abarca desde el ${diaMes(since)}: ${sinCerrar === 1 ? "1 día" : `${sinCerrar} días`} sin cerrar` : null) : "todavía no hubo ningún cierre",
             yaCerrado ? null : `${preview.movementCount} ${preview.movementCount === 1 ? "movimiento" : "movimientos"}`,
+            regla,
           ]}
         />
       </div>
@@ -258,7 +259,7 @@ function TurnosSinCerrar({ d }: { d: Datos }) {
   );
 }
 
-export default async function CierreRenglon({ d }: { d: Datos }) {
+export default async function CierreRenglon({ d, regla = null }: { d: Datos; regla?: string | null }) {
   const { day, yaCerrado, enElFuturo, registro, lastClosedDay, preview } = d;
   const medios: MedioAContar[] = CASH_METHODS.map((m) => {
     const x = preview.porMedio[m];
@@ -274,7 +275,7 @@ export default async function CierreRenglon({ d }: { d: Datos }) {
   const mediosCerrados = yaCerrado && registro ? await leerMediosDelComprobante(day) : null;
   return (
     <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
-      <Encabezado d={d} />
+      <Encabezado d={d} regla={regla} />
       {yaCerrado && registro && <Comprobante d={d} medios={mediosCerrados} />}
       {yaCerrado && !registro && (
         <Franja tono="info">

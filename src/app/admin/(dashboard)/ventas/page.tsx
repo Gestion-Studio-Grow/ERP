@@ -32,6 +32,8 @@ import { estadoDeFactura, SIN_FACTURA, type FacturaDeVenta } from "./factura";
 import { puedeAbrirApp } from "../vender/puede-abrir";
 import { ventaDeOrden } from "../vender/reglas-venta";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
 import { LineaDeEstado, Marca, Plata, Renglon, atributosBoton, chipLinkAtributos, hrefConParametros } from "@/components/ui";
 import { PasoDePeriodo } from "@/components/ui/PasoDePeriodo";
 import { diaAnterior, diaLargo, diaMes } from "../caja/_renglon/fechas";
@@ -218,6 +220,8 @@ export default async function VentasPage({
   // venta entera en un cajón. Apagado, lo de abajo tal cual.
   if (nuevo) {
     const RUTA = "/admin/ventas";
+    // La regla que más sorprende de esta pantalla, sólo en un mostrador (reglas-a-la-vista.ts).
+    const regla = reglaALaVista("ventas", (await getCurrentTenantRubro()).isRetail);
     const filas: FilaDeVenta[] = lista.map((o) => {
       const venta = ventaConPromos(o);
       return {
@@ -251,6 +255,7 @@ export default async function VentasPage({
                     {anulacionesLeidas.length === 1 ? "1 anulación" : `${anulacionesLeidas.length} anulaciones`} {porQuien(anulacionesLeidas.map((a) => a.quien))}
                   </Marca>
                 ) : null,
+                regla,
               ]}
             />
           </div>
