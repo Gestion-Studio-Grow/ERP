@@ -168,6 +168,10 @@ type TxClient = Parameters<Parameters<typeof basePrisma.$transaction>[0]>[0];
  * completa ante un conflicto de serialización (ver `isWriteConflict`); por default
  * reintenta solo si se pidió Serializable. Ambos habilitan `bookingTransaction`
  * (fix del TOCTOU de overbooking, ADR-004/023 F2).
+ *
+ * `opts.timeoutMs` amplía el tope de la transacción interactiva (Prisma: 5 s por default). Sólo
+ * para scripts de operador que hacen muchas sentencias en UNA transacción (scripts/reset-golive.ts);
+ * las acciones de la app no lo pasan y siguen con el default.
  */
 export async function tenantTransaction<T>(
   fn: (tx: TxClient) => Promise<T>,
@@ -175,11 +179,16 @@ export async function tenantTransaction<T>(
     tenantId?: string;
     isolationLevel?: Prisma.TransactionIsolationLevel;
     maxRetries?: number;
+    timeoutMs?: number;
   },
 ): Promise<T> {
-  const txOptions = opts?.isolationLevel
-    ? { isolationLevel: opts.isolationLevel }
-    : undefined;
+  const txOptions =
+    opts?.isolationLevel || opts?.timeoutMs
+      ? {
+          ...(opts.isolationLevel ? { isolationLevel: opts.isolationLevel } : {}),
+          ...(opts.timeoutMs ? { timeout: opts.timeoutMs, maxWait: Math.min(opts.timeoutMs, 30_000) } : {}),
+        }
+      : undefined;
   // Reintentar solo tiene sentido en un nivel que aborta por conflicto (Serializable).
   const maxRetries =
     opts?.maxRetries ??
