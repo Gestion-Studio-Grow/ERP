@@ -23,6 +23,8 @@ import { getLocation } from "@/lib/settings";
 import { nextBusinessDays } from "@/lib/datetime";
 import type { BookingData } from "@/app/(site)/_ch/types";
 import { cambiosDeFicha, validarFichaFiscal } from "@/lib/fiscal/ficha-fiscal";
+import { politicaVigente } from "@/lib/turnos/practica.server";
+import { puedeCambiarOnline } from "@/lib/turnos/practica";
 
 // Es un endpoint PÚBLICO ("use server" + lo llama la página del turno, sin sesión): quien
 // tenga el link del turno lo puede invocar. Por eso NO trae la ficha de la clienta —notas,
@@ -97,6 +99,15 @@ async function dejarResena(formData: FormData): Promise<void> {
   revalidatePath(`/reserva/turno/${appointmentId}`);
 }
 
+// E2 (agenda práctica): la clienta cancela o reprograma online sólo con la anticipación que cargó
+// el negocio (practica.ts, `CANCELACION_ONLINE_HORAS`). Sin regla o apagada, nada cambia.
+async function exigirAnticipacion(startsAt: Date): Promise<void> {
+  const politica = await politicaVigente();
+  if (!politica) return;
+  const v = puedeCambiarOnline({ startsAt, ahora: new Date(), politica });
+  if (!v.ok) throw new RechazoDeDominio(v.error);
+}
+
 export async function cancelMyAppointment(formData: FormData): Promise<ResultadoAccion> {
   return alPublico("turno.cancelar", () => cancelarMiTurno(formData));
 }
@@ -116,8 +127,14 @@ async function cancelarMiTurno(formData: FormData): Promise<void> {
   if (appointment.startsAt.getTime() < Date.now()) {
     throw new RechazoDeDominio("No se puede cancelar un turno que ya pasó. Si necesitás algo, escribinos por WhatsApp.");
   }
+  await exigirAnticipacion(appointment.startsAt);
 
-  await prisma.appointment.update({ where: { id }, data: { status: "CANCELLED" } });
+  // La condición va en el `where`: si la recepción lo completó o lo canceló en el medio, no se pisa.
+  const { count } = await prisma.appointment.updateMany({
+    where: { id, tenantId: appointment.tenantId, status: { in: ["PENDING", "CONFIRMED"] } },
+    data: { status: "CANCELLED" },
+  });
+  if (count === 0) throw new RechazoDeDominio("Este turno cambió recién. Recargá la página.");
   await auditPublic({ action: "cancel", entity: "Appointment", entityId: id });
   revalidatePath(`/reserva/turno/${id}`);
   revalidatePath("/admin/turnos");
@@ -153,6 +170,7 @@ async function reprogramarMiTurno(formData: FormData): Promise<void> {
   if (appointment.startsAt.getTime() < Date.now()) {
     throw new RechazoDeDominio("No se puede reprogramar un turno que ya pasó.");
   }
+  await exigirAnticipacion(appointment.startsAt);
 
   const startsAt = new Date(startsAtIso);
   if (Number.isNaN(startsAt.getTime()) || startsAt.getTime() < Date.now()) {

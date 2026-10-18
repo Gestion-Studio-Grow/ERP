@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   registrarCobroTurno,
   anularCobroTurno,
@@ -13,7 +14,8 @@ import {
 } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
 import RescheduleForm from "./RescheduleForm";
-import { fmtDateTime } from "@/lib/datetime";
+import CerrarSinPrestar from "./CerrarSinPrestar";
+import { fmtDateTime, fmtTime } from "@/lib/datetime";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
 import { buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
@@ -201,6 +203,31 @@ function CompletarForm({ appointmentId, saldo, yaOcurrio }: { appointmentId: str
   );
 }
 
+// «No se presentó»: el servidor dice por qué no (turno que todavía no llegó, que ya cambió).
+function NoVinoForm({ appointmentId }: { appointmentId: string }) {
+  const [error, setError] = useState("");
+  return (
+    <form
+      action={async (fd) => {
+        setError("");
+        const r: ResultadoAccion = await markNoShow(fd);
+        if (!r.ok) setError(r.error);
+      }}
+      className="flex flex-col gap-1"
+    >
+      <input type="hidden" name="appointmentId" value={appointmentId} />
+      <SubmitButton pendingText="Guardando…" className={linkButtonClasses}>
+        No se presentó
+      </SubmitButton>
+      {error && (
+        <p className="text-sm text-danger" role="alert">
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
 // Confirmación en DOS PASOS con motivo obligatorio, para las dos correcciones que mueven
 // plata hacia atrás. Dos pasos y no uno porque el botón vive al lado de "Registrar cobro" y
 // un clic de más no puede deshacer un cobro; el motivo es obligatorio porque es lo único
@@ -351,9 +378,16 @@ export default function AppointmentRow({
   canCollect = true,
   viewer,
   ancla = false,
+  practica = false,
 }: {
   appointment: Appointment;
   statusLabel: Record<string, string>;
+  /**
+   * Agenda práctica (interruptor «agenda-practica»): cancelar y «no vino» confirman con la
+   * consecuencia y preguntan por la seña; un completado ofrece «Reservar el próximo». Apagado
+   * (CH hoy), la fila de siempre.
+   */
+  practica?: boolean;
   /**
    * ¿Esta fila lleva el ancla `#turno-<id>` a la que enlaza el cierre de caja? Sólo UNA fila
    * por turno puede llevarla: la lista dibuja un Completado con saldo en "Saldos a cobrar" y
@@ -419,6 +453,28 @@ export default function AppointmentRow({
   // era texto y confirmar un turno era copiar el número a mano. Si lo cargado no es un número
   // de 10 dígitos, queda como texto: no se abre un chat a un número que no es el de ella.
   const wa = waLinkClienta(appointment.client.phone);
+
+  // Cancelar y «no vino»: con la agenda práctica, con su consecuencia y la pregunta por la seña.
+  const cerrarSinPrestar = (accion: "cancelar" | "no-vino") =>
+    practica ? (
+      <CerrarSinPrestar
+        appointmentId={appointment.id}
+        accion={accion}
+        clienta={appointment.client.name}
+        hora={fmtTime(appointment.startsAt)}
+        cobrado={desglose.cobrado}
+        botonClassName={linkButtonClasses}
+      />
+    ) : accion === "cancelar" ? (
+      <form action={cancelAppointment}>
+        <input type="hidden" name="appointmentId" value={appointment.id} />
+        <SubmitButton pendingText="Cancelando…" className={linkButtonClasses}>
+          Cancelar turno
+        </SubmitButton>
+      </form>
+    ) : (
+      <NoVinoForm appointmentId={appointment.id} />
+    );
 
   return (
     // `id` = el ancla a la que lleva el cierre de caja ("#turno-<id>", ver `ancla`); `target:`
@@ -497,6 +553,14 @@ export default function AppointmentRow({
           </div>
         )}
 
+        {/* Un Reservado cuya hora ya pasó también puede ser un faltazo: sin esto «Pasados sin
+            cerrar» pedía marcarlo y no ofrecía cómo (UAT de CH, 18/10). */}
+        {isPending && yaOcurrio && (
+          <div className="flex flex-col gap-2 min-w-[260px]">
+            {cerrarSinPrestar("no-vino")}
+          </div>
+        )}
+
         {isPending && canManage && (
           <div className="flex flex-col gap-2 min-w-[260px]">
             <form action={confirmarTurno}>
@@ -505,12 +569,7 @@ export default function AppointmentRow({
                 Confirmar turno
               </SubmitButton>
             </form>
-            <form action={cancelAppointment}>
-              <input type="hidden" name="appointmentId" value={appointment.id} />
-              <SubmitButton pendingText="Cancelando…" className={linkButtonClasses}>
-                Cancelar turno
-              </SubmitButton>
-            </form>
+            {cerrarSinPrestar("cancelar")}
             <RescheduleForm
               appointmentId={appointment.id}
               serviceId={appointment.serviceId}
@@ -536,19 +595,10 @@ export default function AppointmentRow({
               )
             )}
             {canManage && (
-              <form action={cancelAppointment}>
-                <input type="hidden" name="appointmentId" value={appointment.id} />
-                <SubmitButton pendingText="Cancelando…" className={linkButtonClasses}>
-                  Cancelar turno
-                </SubmitButton>
-              </form>
+              cerrarSinPrestar("cancelar")
             )}
-            <form action={markNoShow}>
-              <input type="hidden" name="appointmentId" value={appointment.id} />
-              <SubmitButton pendingText="Guardando…" className={linkButtonClasses}>
-                No se presentó
-              </SubmitButton>
-            </form>
+            {/* Antes de la hora el servidor lo niega: no se ofrece un botón que no puede andar. */}
+            {yaOcurrio && cerrarSinPrestar("no-vino")}
             {canManage && (
               <RescheduleForm
                 appointmentId={appointment.id}
@@ -594,6 +644,16 @@ export default function AppointmentRow({
               />
             )}
           </div>
+        )}
+
+        {/* E5: al terminar, el próximo turno de la misma clienta a la fecha de su ciclo. */}
+        {practica && canManage && appointment.status === "COMPLETED" && (
+          <Link
+            href={`/admin/turnos/proximo/${appointment.id}`}
+            className={buttonClasses("outline", "sm", "self-start whitespace-nowrap")}
+          >
+            Reservar el próximo
+          </Link>
         )}
       </div>
 

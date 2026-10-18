@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-10-16 17:30 UTC
+generado_el: 2026-10-18 20:31 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-10-16 17:30 UTC sobre `7db83f5`.**
+> ⏱️ **Foto tomada el 2026-10-18 20:31 UTC sobre `9478b460`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -18,27 +18,27 @@ tags: [brain/estado, fase-0]
 
 | Campo | Valor |
 |---|---|
-| Rama actual | `ccr-f8859297-5ru6oe` |
-| HEAD | `7db83f5` (2026-10-16) |
-| Árbol | limpio _(sin contar `brain/`)_ |
-| Tip de `main` | 7db83f5 · 2026-10-16 · docs(breakpoint): el UAT parte B da 42/42 con el caso de D41 [sin-deploy] |
+| Rama actual | `claude/sleepy-tesla-392rov` |
+| HEAD | `9478b460` (2026-10-18) |
+| Árbol | **42 archivo(s) sin commitear** _(sin contar `brain/`)_ |
+| Tip de `main` | 68b43fd4 · 2026-10-13 · chore(inmobiliaria): los cobros de muestra del seed llevan número de recibo |
 
-**Ramas locales (2, más reciente primero):** `ccr-f8859297-5ru6oe` · `main`
+**Ramas locales (4, más reciente primero):** `claude/sleepy-tesla-392rov` · `integra/matias` · `claude/reset-golive` · `main`
 
 **Últimos commits**
 
-- 7db83f5 · 2026-10-16 · docs(breakpoint): el UAT parte B da 42/42 con el caso de D41 [sin-deploy]
-- 0baa078 · 2026-10-16 · fix(breakpoint): Gate de 60ec502f — el UAT parte B corre fuera de este entorno
-- 60ec502 · 2026-10-16 · fix(breakpoint): UAT parte B (accesos, bloqueo, pedidos) 41/41 + D40–D42
-- 6d906b6 · 2026-10-16 · docs(breakpoint): estado de los arreglos D35–D39 en el resultado del UAT
-- 850e4c4 · 2026-10-16 · fix(breakpoint): Gate S1 — un robo del lock mientras se espera la foto no deja dos servidores
-- 14d2a52 · 2026-10-16 · fix(breakpoint): Gate de D35–D39 — ids sin choques tras la toma de posta y robustez del bus
-- bf60835 · 2026-10-16 · fix(breakpoint): defectos del UAT en producción D35–D39
-- 786abed · 2026-10-16 · Merge remote-tracking branch 'origin/ccr-breakpoint-turnero' into ccr-63ed11dc-brcdpp
-- c00b920 · 2026-10-15 · docs(breakpoint): resultado del UAT en producción del 15/10 — D35–D39
-- 35c302f · 2026-10-15 · docs(breakpoint): guion de UAT en producción con matriz de acceso por usuario [sin-deploy]
-- 21cf0de · 2026-10-15 · fix(breakpoint): el cargo manual pide «Poné el monto» (ya hay selector Cargo/Descuento)
-- 91ca3fd · 2026-10-15 · fix(breakpoint): hallazgos del Gate — un descuento no se pasa de cuenta y el destino no queda bajo lo pagado
+- 9478b460 · 2026-10-18 · merge: main al día antes de publicar CH y Magra
+- 16d96eb3 · 2026-10-18 · merge: script de reseteo del go-live (sólo transaccional, modo prueba por defecto)
+- 0f5e52e1 · 2026-10-18 · feat(ops): reseteo de go-live por negocio — borra lo transaccional de prueba, conserva maestros (D7.5 opción A)
+- 8a81197a · 2026-10-18 · feat(ambiente-real): fuera los textos de prueba y los datos inventados de lo que ve el cliente
+- 96bfe4a5 · 2026-10-18 · docs(ch): la factura del saldo del turno, lista para que decida la contadora (opción A preparada, B con migración)
+- 80e3d345 · 2026-10-18 · docs(breakpoint): se trabaja sobre el ambiente real; re-auditoría del Gate aprobada con menores
+- 6bcca738 · 2026-10-18 · merge: main al día en la versión candidata del UAT 16/10 antes de publicar
+- 6dd5293b · 2026-10-18 · docs(breakpoint): el Gate de la rama del club y sus correcciones en el runbook del pase [preview]
+- ea162da3 · 2026-10-18 · Merge remote-tracking branch 'origin/ccr-f8859297-5ru6oe' into ccr-63ed11dc-brcdpp
+- b28a465b · 2026-10-18 · fix(club): la Auditoría del panel ya no muestra las fotos del club (PIN en claro, MB por fila) + tope 10 MB + control de otro club en el servidor [sin-deploy]
+- fe6f49a7 · 2026-10-18 · fix(terminal): el panel instalable SÓLO para negocios con mostrador (terminal o club) — M6 del Gate [sin-deploy]
+- a7598018 · 2026-10-18 · Merge remote-tracking branch 'origin/ccr-63ed11dc-ensayo' into ccr-63ed11dc-brcdpp
 
 ## Migraciones (Prisma)
 
@@ -56,8 +56,8 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 336 |
-| Palabras en `docs/` | 554.521 |
+| Documentos en `docs/` | 350 |
+| Palabras en `docs/` | 596.359 |
 | ADRs | 87 |
 | Nodos en el grafo | 93 _(los 87 ADR + 6 enmiendas)_ |
 

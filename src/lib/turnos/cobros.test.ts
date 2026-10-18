@@ -278,3 +278,24 @@ test("sólo los tres medios del negocio son válidos", () => {
   assert.equal(esMetodoDePago("TARJETA"), false);
   assert.equal(esMetodoDePago(null), false);
 });
+
+// «No se presentó» (UAT de CH, 18/10): reservado o confirmado, y sólo cuando ya llegó la hora.
+test("no vino: un Reservado o Confirmado cuya hora ya pasó se puede marcar", async () => {
+  const { puedeMarcarseNoVino } = await import("./cobros");
+  const ahora = new Date("2026-10-18T15:00:00Z");
+  const antes = new Date("2026-10-18T13:00:00Z");
+  assert.deepEqual(puedeMarcarseNoVino({ status: "CONFIRMED", startsAt: antes, ahora }), { ok: true });
+  assert.deepEqual(puedeMarcarseNoVino({ status: "PENDING", startsAt: antes, ahora }), { ok: true });
+});
+
+test("no vino: un turno de más tarde no se marca como faltazo, y uno cerrado tampoco", async () => {
+  const { puedeMarcarseNoVino, mensajeNoVino } = await import("./cobros");
+  const ahora = new Date("2026-10-18T15:00:00Z");
+  const despues = new Date("2026-10-18T17:00:00Z");
+  const antes = new Date("2026-10-18T13:00:00Z");
+  assert.deepEqual(puedeMarcarseNoVino({ status: "CONFIRMED", startsAt: despues, ahora }), { ok: false, motivo: "no-ocurrio" });
+  for (const status of ["CANCELLED", "COMPLETED", "NO_SHOW"]) {
+    assert.deepEqual(puedeMarcarseNoVino({ status, startsAt: antes, ahora }), { ok: false, motivo: "no-vigente" });
+  }
+  assert.match(mensajeNoVino("no-ocurrio"), /a partir de su horario/);
+});

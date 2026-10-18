@@ -33,6 +33,8 @@ const ESCRITORES_PERMITIDOS: Record<string, string> = {
   "scripts/qa/visual-audit-gate.mjs": "el gate visual, SÓLO contra su PGlite en memoria (prende el piloto para medirlo)",
   "scripts/qa/facturacion-escala-e2e.mjs":
     "el QA de Facturación a escala, SÓLO contra su base efímera local (crearBaseEfimera se niega a un servidor que no sea local): prende el diseño nuevo para recorrerlo",
+  "src/tenants/ch/e2e/uat-ch.e2e.mjs":
+    "el UAT de CH (npm run test:ch-uat), SÓLO contra su base efímera local (crearBaseEfimera): prende la agenda práctica para recorrerla",
 };
 
 /** Quién puede importar la escritura real. */

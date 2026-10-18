@@ -15,7 +15,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 
 ## Índice
 - **PD** — PD-1 build lento ≠ colgado · PD-2 gates humanos · PD-3 cron Hobby · PD-4 GitHub App en la org
-- **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
+- **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU · DB-5 un camino de plata sin la frontera del cierre (cobro de turno en el día congelado)
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance · MT-6 hosts en código (variable sensible)
 - **DX** — DX-8 demo pública en host serverless: back con estado no corre → dominio isomórfico + adaptador local · DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
 - **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir)
@@ -90,6 +90,23 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Lección:** "chequear y después insertar" **no** es atómico; la BD debe imponer la exclusión.
 - **Guardarraíl:** invariantes de unicidad/exclusión **en la BD** (constraint/serializable), no en la app.
 - **Refs:** ADR-004, ADR-023.
+
+**[DB-5] Un camino de plata sin la frontera del cierre: el cobro de turno caía en el día congelado**
+- **Síntoma:** en el UAT de CH (18/10), después de cerrar la caja del día, un cobro de turno (seña, parcial o
+  saldo al completar) entraba igual al libro **fechado en el día ya cerrado**: el arqueo congelado dejaba de ser
+  reproducible. Las ventas del mostrador y las cuentas corrientes sí lo frenaban; los turnos no.
+- **Causa raíz:** la regla «el día cerrado no se toca» vivía en cada escritor del libro por separado
+  (`fronteraDeVenta`, `decidirAsiento`, `planAnulacion`) y el cobro de turno nunca la incorporó. Nadie lo vio
+  porque ningún test recorría «cerrar → cobrar».
+- **Fix:** `aplicarCobroTurnoInTx` exige `cerradoHasta` (obligatorio en el tipo: un llamador nuevo no la puede
+  olvidar) y rechaza antes de escribir, diciendo qué día registrarlo; los tres llamadores la leen, y un test de
+  forma falla si alguno no la pasa. Lo encontró el recorrido E2E (`npm run test:ch-uat`, paso 10.1).
+- **Lección:** una invariante de plata repartida en N escritores se rompe en el escritor N+1. Un E2E que recorre
+  el día completo (cobrar → cerrar → cobrar de nuevo) encuentra lo que los tests por función no.
+- **Guardarraíl:** todo camino que escribe en el libro de caja recibe la frontera del cierre como **parámetro
+  obligatorio** y su test incluye «con el día ya cerrado». Un negocio vivo sale a producción con su recorrido E2E
+  del día completo (modelo: `test:club-uat`, `test:ch-uat`).
+- **Refs:** `src/lib/turnos/cobro-turno-repo.ts`, `docs/tenants/ch/EVENTUALIDADES.md` fila 12, ADR-047.
 
 ## MT — Multi-tenant
 

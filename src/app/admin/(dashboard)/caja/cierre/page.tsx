@@ -34,6 +34,7 @@ import {
 import { CerrarDiaForm } from "./CierreForm";
 import { requireApp } from "@/lib/require-app";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { agendaPractica } from "@/lib/turnos/practica.server";
 import CierreRenglon from "./CierreRenglon";
 
 export const dynamic = "force-dynamic";
@@ -73,7 +74,11 @@ export default async function CierreCajaPage({
   await requireApp("cierre-del-dia");
   const { dia } = await searchParams;
   // «Diseño nuevo»: la lectura de interruptores del layout (cacheada), a la par de los datos.
-  const [data, nuevo] = await Promise.all([getCierreDiarioData(dia, { conTurnosSinCerrar: true }), disenoNuevo()]);
+  const [data, nuevo, practica] = await Promise.all([
+    getCierreDiarioData(dia, { conTurnosSinCerrar: true }),
+    disenoNuevo(),
+    agendaPractica(),
+  ]);
   // DISEÑO NUEVO («Renglón»): contar primero y cerrar deslizando. Mismos datos, mismas acciones.
   if (nuevo) return <CierreRenglon d={data} />;
   const { preview, day, today, lastClosedDay, since, movements, yaCerrado, enElFuturo, registro, turnosSinCerrar } = data;
@@ -89,7 +94,11 @@ export default async function CierreCajaPage({
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
       <PageHeader
         title="Cierre de caja"
-        description="Contá la plata al final del día y dejá la diferencia asentada. Después de cerrar, el día queda congelado y el siguiente arranca con lo que contaste."
+        description={
+          "Contá la plata al final del día y dejá la diferencia asentada. Después de cerrar, el día queda congelado y el siguiente arranca con lo que contaste." +
+          // Agenda práctica (T12): la regla de la caja, escrita donde se cierra.
+          (practica ? " Un cobro de turno que llegue después de cerrar se registra al día siguiente." : "")
+        }
       />
 
       {/* Navegación por día: links, no formularios. */}
