@@ -22,6 +22,7 @@ import {
   guardaDeIntentos,
   armarCarrito,
   ejecutarMesa,
+  PIN_VIEJO,
   esperaDelPin,
   pinesDeEjemplo,
   productosParaMostrador,
@@ -296,4 +297,23 @@ test("M2: los intentos quedan guardados en el equipo por negocio: recargar no lo
     g.guardar(i);
     assert.equal(esperaDelPin(g.leer(), ahora), ESPERA_DE_PIN_MS / 1000, "en memoria sigue trabado");
   }
+});
+
+test("descuento con el PIN VIEJO de un dueño (el de 2 del piloto): no firma, cuenta como intento malo y no toca la cuenta", () => {
+  const { e, auth } = demo();
+  const c = abiertas(e)[0];
+  const tot0 = M.totalCuenta(c);
+  const duenio = e.usuarios.find((u) => u.rol === "duenio" && u.activo !== false)!;
+  const nuevo = duenio.pin;
+  duenio.pin = "57"; // todavía no eligió el de 4
+  assert.equal(M.pinDesactualizado(e, duenio.id), true);
+  const base = { tipo: "cargoManual" as const, cuentaId: c.id, concepto: "Cumple de Rober", monto: 1000, descuento: true };
+  const viejo = ejecutarMesa(e, { ...base, pin: "57" }, AHORA, auth);
+  assert.deepEqual(viejo, { ok: false, mensaje: PIN_VIEJO, pin: "malo" });
+  assert.equal(M.totalCuenta(c), tot0, "nada cambió");
+  // Ya con el de 4, firma.
+  duenio.pin = nuevo;
+  const ok = ejecutarMesa(e, { ...base, pin: nuevo }, AHORA, auth);
+  assert.equal(ok.ok, true, ok.mensaje);
+  assert.equal(ok.pin, "bueno");
 });

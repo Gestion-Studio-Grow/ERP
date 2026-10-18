@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import { operadorDeLaDemo } from "./almacen";
-import { MOVIMIENTOS_POR_PAGINA, armarCaja, ejecutarCaja, leerMonto, pinesDeEjemplo, puedeAjustarFondo } from "./caja-core";
+import { MOVIMIENTOS_POR_PAGINA, PIN_VIEJO_CAJA, armarCaja, ejecutarCaja, leerMonto, pinesDeEjemplo, puedeAjustarFondo } from "./caja-core";
 import { ejecutar } from "./cuenta-core";
 import { ejecutarBuffet } from "./buffet-core";
 
@@ -248,4 +248,19 @@ test("rendimiento: abrir la caja con un mes de movimientos (y un mes de cajas si
   assert.ok(cerrado.movimientos.length <= MOVIMIENTOS_POR_PAGINA);
   t.diagnostic(`${n} movimientos: armar la caja ${sinCerrar.toFixed(1)} ms con 30 cajas sin cerrar, ${conCierres.toFixed(1)} ms con el mes cerrado (CPU normal)`);
   assert.ok(sinCerrar < 250 && conCierres < 100, "abrir la caja no se traba");
+});
+
+test("un dueño con el PIN VIEJO (el de 2 del piloto) no hace egresos ni cierra la caja con él; recepción con el suyo de 2, sí", () => {
+  const e = M.generarDemo(HOY, AHORA.min);
+  const duenio = e.usuarios.find((u) => u.rol === "duenio" && u.activo !== false)!;
+  duenio.pin = "57";
+  const auth: Auth = { usuarioId: duenio.id, pin: "57" };
+  const antes = armarCaja(e, AHORA);
+  assert.deepEqual(ejecutarCaja(e, { tipo: "egreso", monto: "1000", concepto: "Hielo", pin: "57" }, AHORA, auth), { ok: false, mensaje: PIN_VIEJO_CAJA });
+  assert.deepEqual(ejecutarCaja(e, { tipo: "cerrar", contado: "0", dia: null, pin: "57" }, AHORA, auth), { ok: false, mensaje: PIN_VIEJO_CAJA });
+  assert.equal(armarCaja(e, AHORA).egresos, antes.egresos, "nada salió del cajón");
+  const recepcion = operadorDeLaDemo(e, "RECEPTION")!.auth;
+  assert.equal(recepcion.pin!.length, 2, "recepción sigue con 2 dígitos");
+  const d = ejecutarCaja(e, { tipo: "egreso", monto: "1000", concepto: "Hielo", pin: recepcion.pin! }, AHORA, recepcion);
+  assert.equal(d.ok, true, d.mensaje);
 });

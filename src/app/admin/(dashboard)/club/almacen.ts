@@ -182,7 +182,7 @@ export interface Operador {
 }
 
 /**
- * Quién opera el motor en la demo. En el ERP la identidad la da el LOGIN, no el PIN de 2 dígitos del piloto (que
+ * Quién opera el motor en la demo. En el ERP la identidad la da el LOGIN, no el PIN del piloto (que
  * no se porta: FORMATO-RESPALDO.md). Pero el motor pide un usuario del club (y su PIN para lo sensible: egreso,
  * cierre de caja), así que la demo opera con el usuario de ejemplo de ese rol: un dueño para OWNER y recepción
  * para el resto. Es SÓLO de la demo: en la jornada real nadie opera hasta que el bloqueo/PIN de la sesión del club

@@ -12,11 +12,12 @@
 //   · el FONDO (el cambio del cajón) lo ajusta quien puede configurar —un dueño— (`ajustarFondo`);
 //   · los MOVIMIENTOS del día de caja, todos, con hora, concepto, quién, medio, ingreso o egreso;
 //   · el EGRESO y el CIERRE piden el PIN de quien opera, y lo valida el motor (`egresoCaja`, `cerrarCaja`: permiso +
-//     PIN). La sesión del ERP es el puesto; el PIN es la persona (PARIDAD-REACT.md, «Login y PIN conviven»).
+//     PIN). La sesión del ERP es el puesto; el PIN es la persona (PARIDAD-REACT.md, «Login y PIN conviven»). El PIN
+//     VIEJO de un dueño (`pinDesactualizado`: el de 2 del piloto, antes de elegir el de 4) no sirve para la caja.
 //
 // Las reglas son del motor; acá se arma lo que se ve y se traduce cada toque (caja-core.test.ts).
 
-import { MEDIOS, ajustarFondo, cajaAbierta, cajaCerrada, cajasConMovimientosSinCerrar, cerrarCaja, diaDeCaja, egresoCaja, hhmm, pesos, puede, resumenCaja } from "@/lib/club/motor.mjs";
+import { MEDIOS, ajustarFondo, cajaAbierta, cajaCerrada, cajasConMovimientosSinCerrar, cerrarCaja, diaDeCaja, egresoCaja, hhmm, pesos, pinDesactualizado, puede, resumenCaja } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub, Fecha } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
 import { MEDIOS_CAJA } from "./cuenta-core";
@@ -150,6 +151,9 @@ export { leerMonto };
  * Egreso y cierre van con el PIN TIPEADO (no el que el puesto tenga guardado): quien opera es `auth.usuarioId`, y el
  * motor valida su permiso y su PIN. Sin PIN no se llama al motor.
  */
+/** Un dueño que todavía tiene el PIN viejo de 2 no opera la caja con él. */
+export const PIN_VIEJO_CAJA = "Ese es tu PIN viejo. Para la caja, elegí tu PIN nuevo de 4 dígitos: tocá «Cambiar de usuario» y entrá con el viejo una última vez.";
+
 export function ejecutarCaja(estado: EstadoClub, accion: AccionCaja, ahora: Ahora, auth: Auth): Desenlace {
   if (accion.tipo === "fondo") {
     const n = accion.monto.trim() === "" ? null : leerMonto(accion.monto);
@@ -157,6 +161,7 @@ export function ejecutarCaja(estado: EstadoClub, accion: AccionCaja, ahora: Ahor
     return res.ok ? { ok: true, mensaje: `Fondo de caja: ${pesos(estado.caja.fondo)}.` } : { ok: false, mensaje: res.motivo };
   }
   const pin = accion.pin.trim();
+  if (pin && pinDesactualizado(estado, auth.usuarioId ?? "")) return { ok: false, mensaje: PIN_VIEJO_CAJA };
   if (accion.tipo === "egreso") {
     if (!pin) return { ok: false, mensaje: "Poné tu PIN: el egreso queda a tu nombre." };
     const monto = leerMonto(accion.monto);

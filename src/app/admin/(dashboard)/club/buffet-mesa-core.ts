@@ -10,20 +10,25 @@
 //     deja la cuenta por debajo de lo que ya se pagó (ni en negativo).
 //   · «Venta rápida» (`mostrador` + `cobrarMostrador`): un carrito que se cobra y se cierra en el acto
 //     (`ventaMostrador`), sin cuenta a nombre de nadie y sin créditos.
-//   · El PIN de 2 dígitos se adivina en 100 intentos: con 5 PIN mal seguidos se espera 30 s (el mismo tope que el
+//   · Un PIN corto se adivina probando (el de recepción, de 2, en 100 intentos): con 5 PIN mal seguidos se espera 30 s (el mismo tope que el
 //     vanilla usa para aprobar con PIN, `intentosPin`). Cuenta SÓLO un PIN que se llegó a evaluar (un envío sin monto
 //     no es un intento ni vuelve el contador a cero: hallazgo M2 del Gate) y queda guardado en el equipo por negocio
 //     (`gsg-club:<negocio>:intentos-pin:v1`, como el `bp-intentos` del vanilla): recargar no lo borra.
+//   · El PIN VIEJO de un dueño (el de 2 del piloto, antes de elegir el de 4: `pinDesactualizado`) no firma: se rechaza
+//     y cuenta como intento malo (hallazgo del Gate del vanilla, 18/10).
 // La plata la decide el motor; acá se traduce cada toque y se arma el aviso. Este archivo lo importa SÓLO el buffet
 // (su chunk aparte): la agenda no lo carga.
 
-import { cargoManual, cuenta as cuentaDe, pesos, producto as productoDe, transferirCargo, usuarioPorPin, ventaMostrador } from "@/lib/club/motor.mjs";
+import { cargoManual, cuenta as cuentaDe, pesos, pinDesactualizado, producto as productoDe, transferirCargo, usuarioPorPin, ventaMostrador } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import type { AlmacenamientoLocal, Desenlace } from "./almacen";
 import { productosParaCargar, type ProductoParaCargar } from "./buffet-core";
 import { ETIQUETA_MEDIO, MEDIOS_CAJA, type MedioCaja } from "./cuenta-core";
 
 // ───────────── mesa compleja ─────────────
+
+/** Lo que se le dice a un dueño que firma un descuento con el PIN viejo. */
+export const PIN_VIEJO = "Ese es tu PIN viejo. Para firmar, elegí tu PIN nuevo de 4 dígitos: tocá «Cambiar de usuario» y entrá con el viejo una última vez.";
 
 export type AccionMesa =
   | { tipo: "pasarCargo"; cuentaId: string; itemIdx: number; aCuentaId: string; cant: number | null }
@@ -67,6 +72,7 @@ export function ejecutarMesa(estado: EstadoClub, accion: AccionMesa, ahora: Ahor
     // Sin concepto el motor dice que no antes de mirar el PIN: tampoco se cuenta como intento.
     if (!accion.concepto.trim()) return { ok: false, mensaje: "Escribí el concepto del cargo.", pin: null };
     const q = quienFirma(estado, accion.pin, auth);
+    if (q.esDuenio && pinDesactualizado(estado, q.auth.usuarioId ?? "")) return { ok: false, mensaje: PIN_VIEJO, pin: "malo" };
     firma = q.auth;
     pin = q.esDuenio ? "bueno" : "malo";
   }
