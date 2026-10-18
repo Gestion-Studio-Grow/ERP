@@ -121,7 +121,7 @@ export default function ComprobantesArca({
     try {
       // Prueba de conexión: no se guarda ningún comprobante, por eso la lista no cambia.
       const r = await emitirFacturaDePruebaAction();
-      if (r.ok) showSuccess(`ARCA respondió: CAE de prueba ${r.cae}. Es sólo una prueba de conexión: no queda en la lista.`);
+      if (r.ok) showSuccess(`ARCA respondió: CAE ${r.cae}, sin validez fiscal. Fue sólo una verificación de la conexión: no queda en la lista.`);
       else showError(r.error);
     } finally {
       setProbando(false);
@@ -168,7 +168,7 @@ export default function ComprobantesArca({
         {/* Con la factura de prueba de verdad (debajo), la prueba de conexión sobra. */}
         {!estado.facturaDePrueba && estado.modo !== "real" && (
           <Button variant="outline" onClick={probar} disabled={probando} estado={probando ? "cargando" : undefined}>
-            Probar la conexión con ARCA
+            Verificar la conexión con ARCA (no emite un comprobante válido)
           </Button>
         )}
       </div>

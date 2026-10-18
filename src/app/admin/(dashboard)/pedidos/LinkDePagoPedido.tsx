@@ -146,7 +146,7 @@ export default function LinkDePagoPedido({
         <>
           <p className="text-xs text-muted">
             Link de Mercado Pago{monto != null ? ` por ${fmtMoneyARS(monto)}` : ""}
-            {prueba ? " · de prueba, no cobra" : " · cuando veas el pago en Mercado Pago, marcalo con «Cobrar»"}
+            {prueba ? " · todavía no cobra: falta conectar Mercado Pago" : " · cuando veas el pago en Mercado Pago, marcalo con «Cobrar»"}
           </p>
           <div className="flex flex-wrap gap-2 sm:justify-end">
             <button type="button" onClick={() => void copiar()} className="chip-btn h-11 text-xs sm:h-auto">

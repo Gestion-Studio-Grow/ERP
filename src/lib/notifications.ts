@@ -54,11 +54,18 @@ async function sendEmailReminder(payload: ReminderPayload) {
     return { sent: false, channel: "email", reason: "RESEND_API_KEY no configurada (modo simulado)" };
   }
 
+  // Sin remitente propio del negocio no se manda: nunca un remitente inventado.
+  const from = process.env.RESEND_FROM_EMAIL?.trim();
+  if (!from) {
+    console.log(`[recordatorio-email:SIN_REMITENTE] negocio ${payload.tenantId}`);
+    return { sent: false, channel: "email", reason: "RESEND_FROM_EMAIL no configurada" };
+  }
+
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      from: process.env.RESEND_FROM_EMAIL ?? "turnos@tu-marca.com",
+      from,
       to: payload.clientEmail,
       subject,
       text: body,

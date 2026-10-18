@@ -8,12 +8,12 @@
 // "tu-plan", se muda con la ruta; esta lógica no cambia.
 //
 // Reglas: lo que no se midió no se inventa (se muestra sólo lo que incluye el plan); un límite que
-// no frena (comprobantes) nunca dice que se bloquea una venta; el precio va marcado "provisional a
-// confirmar" (src/planes/precios.ts).
+// no frena (comprobantes) nunca dice que se bloquea una venta; mientras el precio del plan siga
+// provisional (src/planes/precios.ts) no se muestra: nunca un precio sin confirmar ante el cliente.
 
 import { LIMITE_IDS, planPorId, type LimiteId } from "@/planes/catalogo";
 import { decidirAlta, evaluarUso, LIMITES, type LimitesDelNegocio, type NivelDeUso } from "@/planes/limites";
-import { PRECIOS_PROVISIONALES } from "@/planes/precios";
+import { ESTADO_DE_LOS_PRECIOS, PRECIOS_PROVISIONALES } from "@/planes/precios";
 
 /** La ruta de la pantalla (y la base del destino de quien choca con el tope). */
 export const RUTA_TU_PLAN = "/admin/usuarios/plan";
@@ -36,8 +36,8 @@ export type VistaDeTuPlan =
   | {
       tipo: "plan";
       nombrePlan: string;
-      /** «$ 34.900 por mes (provisional a confirmar)». */
-      precio: string;
+      /** «$ 34.900 por mes», o `null` mientras el precio no esté confirmado (no se muestra). */
+      precio: string | null;
       filas: FilaDeTuPlan[];
       /** El porqué de lo que no se pudo hacer (?no-se-pudo=usuarios), o `null`. */
       aviso: { texto: string; tono: "peligro" | "info" } | null;
@@ -109,7 +109,7 @@ export function vistaDeTuPlan(p: { limites: LimitesDelNegocio; uso: UsoMedido; n
   return {
     tipo: "plan",
     nombrePlan: planPorId(limites.plan).nombre,
-    precio: `$ ${precio.mensual.toLocaleString("es-AR")} por mes (${precio.estado})`,
+    precio: (precio.estado as string) === ESTADO_DE_LOS_PRECIOS ? null : `$ ${precio.mensual.toLocaleString("es-AR")} por mes`,
     filas: filasDeTuPlan(limites, uso),
     aviso: avisoDe(p.noSePudo, limites, uso),
   };

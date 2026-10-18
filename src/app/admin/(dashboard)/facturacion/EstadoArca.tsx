@@ -13,8 +13,8 @@ import { Franja, fmtCuit } from "@/components/ui";
 import type { EstadoFiscal } from "@/lib/facturacion-actions";
 
 const MODO: Record<EstadoFiscal["modo"], string> = {
-  stub: "ARCA en modo prueba, sin red",
-  homologacion: "ARCA en homologación (pruebas oficiales)",
+  stub: "ARCA todavía sin conectar",
+  homologacion: "ARCA en homologación (sin validez fiscal)",
   real: "ARCA en producción",
 };
 
@@ -33,9 +33,9 @@ export function FranjaDeArca({ estado, className }: { estado: EstadoFiscal; clas
   return (
     <Franja tono="atencion" className={className}>
       {estado.modo === "homologacion"
-        ? "Pruebas oficiales de ARCA: el CAE que se obtiene vale sólo para pruebas. Ningún comprobante de acá es una factura de verdad."
-        : "Modo prueba: el CAE es simulado, sin conexión con ARCA. Ningún comprobante de acá es una factura de verdad."}{" "}
-      Para facturar de verdad hace falta el certificado de producción: lo activa Gestión Studio Grow.
+        ? "ARCA está conectada en homologación, su ambiente de verificación: el CAE que devuelve no tiene validez fiscal. Ningún comprobante de acá es una factura válida."
+        : "Todavía no hay conexión con ARCA: el CAE no lo otorga ARCA. Ningún comprobante de acá es una factura válida."}{" "}
+      Para facturar con validez fiscal hace falta el certificado de producción: lo activa Gestión Studio Grow.
     </Franja>
   );
 }

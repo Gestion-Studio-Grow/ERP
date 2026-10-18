@@ -73,7 +73,7 @@ export default function CobrarConLink({ modo }: { modo: ModoCobros }) {
       const r = await generarCobroDePruebaAction();
       if (r.ok) {
         setLink({ ok: true, preferenceId: r.preferenceId, initPoint: r.initPoint, sandboxInitPoint: r.sandboxInitPoint, modo: r.modo });
-        showSuccess("Cobro de prueba generado.");
+        showSuccess("Link de verificación generado: no cobra.");
       } else showError(r.error);
     } finally {
       setProbando(false);
@@ -140,7 +140,7 @@ export default function CobrarConLink({ modo }: { modo: ModoCobros }) {
           </Button>
           {modo !== "real" && (
             <Button variant="ghost" onClick={probar} disabled={probando} estado={probando ? "cargando" : undefined}>
-              Probar con un cobro de prueba
+              Verificar el circuito de cobro (no cobra)
             </Button>
           )}
         </div>
@@ -149,7 +149,7 @@ export default function CobrarConLink({ modo }: { modo: ModoCobros }) {
       <section aria-live="polite" aria-label="El link">
         <div className="flex items-baseline justify-between gap-3 border-b border-line-strong pb-2">
           <h2 className="text-[15px] font-semibold text-strong">El link</h2>
-          {link && link.modo !== "real" && <span className="text-[13px] text-muted">de prueba: no cobra de verdad</span>}
+          {link && link.modo !== "real" && <span className="text-[13px] text-muted">todavía no cobra: falta conectar Mercado Pago</span>}
         </div>
         {!link ? (
           <p className="py-3 text-sm text-muted">Cuando lo generes aparece acá, para copiarlo o mandarlo por WhatsApp. Cuando el cliente paga, el cobro entra solo.</p>

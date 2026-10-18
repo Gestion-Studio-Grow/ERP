@@ -443,18 +443,22 @@ function MagraFrontContent({
               </button>
             </div>
             {/* Datos del LOCAL: salen de /admin/localizacion (BusinessSettings), no del copy.
-                El campo que el local no cargó se muestra como "a confirmar" — nunca el dato
-                de otro local, que con 5 locales es mandar al cliente a otra ciudad. */}
+                El campo que el local no cargó NO se muestra — nunca el dato de otro local,
+                que con 5 locales es mandar al cliente a otra ciudad. */}
             <div className="mf-foot-cols">
-              <div>
-                <h4>Dónde estamos</h4>
-                {local.addressLine ? <p>{local.addressLine}</p> : <p className="mf-todo">Dirección a confirmar</p>}
-                {local.city && <p>{local.city}</p>}
-              </div>
-              <div>
-                <h4>Horarios</h4>
-                {local.hours ? <p>{local.hours}</p> : <p className="mf-todo">Horarios a confirmar</p>}
-              </div>
+              {(local.addressLine || local.city) && (
+                <div>
+                  <h4>Dónde estamos</h4>
+                  {local.addressLine && <p>{local.addressLine}</p>}
+                  {local.city && <p>{local.city}</p>}
+                </div>
+              )}
+              {local.hours && (
+                <div>
+                  <h4>Horarios</h4>
+                  <p>{local.hours}</p>
+                </div>
+              )}
               {/* Las zonas de reparto son de Canning y no hay columna donde guardar las de
                   cada local: se muestran SÓLO en el local que las tiene. En el resto, el
                   bloque no aparece — mejor que prometer un reparto de 30 km de distancia. */}
@@ -464,22 +468,22 @@ function MagraFrontContent({
                   <p>{c.deliveryZones.join(" · ")}</p>
                 </div>
               )}
-              <div>
-                <h4>Contacto</h4>
-                {local.whatsapp ? (
-                  // Texto y href salen de los MISMOS dígitos (whatsappLabel deriva de
-                  // local.whatsapp): no se pueden volver a separar.
-                  <a href={`https://wa.me/${local.whatsapp}`} target="_blank" rel="noopener noreferrer">
-                    WhatsApp {local.whatsappLabel}
-                  </a>
-                ) : (
-                  <p className="mf-todo">WhatsApp a confirmar</p>
-                )}
-                {local.instagramUrl && (
-                  <a href={local.instagramUrl} target="_blank" rel="noopener noreferrer">Instagram {local.instagram}</a>
-                )}
-                {local.email && <a href={`mailto:${local.email}`}>{local.email}</a>}
-              </div>
+              {(local.whatsapp || local.instagramUrl || local.email) && (
+                <div>
+                  <h4>Contacto</h4>
+                  {local.whatsapp && (
+                    // Texto y href salen de los MISMOS dígitos (whatsappLabel deriva de
+                    // local.whatsapp): no se pueden volver a separar.
+                    <a href={`https://wa.me/${local.whatsapp}`} target="_blank" rel="noopener noreferrer">
+                      WhatsApp {local.whatsappLabel}
+                    </a>
+                  )}
+                  {local.instagramUrl && (
+                    <a href={local.instagramUrl} target="_blank" rel="noopener noreferrer">Instagram {local.instagram}</a>
+                  )}
+                  {local.email && <a href={`mailto:${local.email}`}>{local.email}</a>}
+                </div>
+              )}
             </div>
             <div className="mf-foot-legal">
               <span>{c.copyright}</span>

@@ -272,7 +272,7 @@ export function faltantesDelComprobante(d: DatosComprobanteImpreso): Faltante[] 
   if (!esFecha(d.caeVencimiento)) falta("caeVencimiento", "Falta la fecha de vencimiento del CAE. Avisá a soporte antes de entregar este comprobante.");
   if (!esFecha(d.fecha)) falta("fecha", "La fecha del comprobante no es válida. Avisá a soporte antes de entregar este comprobante.");
   if (![d.neto, d.iva, d.total, d.otrosImpuestosNacionales].every(Number.isFinite)) falta("importes", "Los importes del comprobante no se pueden leer. Avisá a soporte.");
-  if (d.ambiente === null) falta("ambiente", "Este comprobante se autorizó antes de que el negocio cambiara entre el modo de prueba y el real de ARCA, y el sistema no guarda en cuál de los dos se autorizó. Buscalo en «Mis Comprobantes» de ARCA: si está, descargalo de ahí; si no está, fue de prueba y no tiene validez fiscal.");
+  if (d.ambiente === null) falta("ambiente", "Este comprobante se autorizó antes de que el negocio pasara a facturar en producción con ARCA, y el sistema no guarda si se autorizó en producción o no. Buscalo en «Mis Comprobantes» de ARCA: si está, descargalo de ahí; si no está, no tiene validez fiscal.");
 
   const e = d.emisor;
   if (vacio(e.razonSocial)) falta("emisor.razonSocial", `Falta la razón social del negocio (el nombre que figura en ARCA). ${DONDE_EMISOR}`);
@@ -648,7 +648,7 @@ export async function generarComprobantePdf(d: DatosComprobanteImpreso): Promise
   p.drawLine({ start: { x: M, y: 178 }, end: { x: ANCHO - M, y: 178 }, thickness: 0.7, color: NEGRO });
   p.drawImage(qr, { x: M, y: 56, width: 116, height: 116 });
   const valida = d.ambiente === "real";
-  lz.texto(p, valida ? "Comprobante autorizado por ARCA" : "Autorizado en el modo de prueba de ARCA", M + 124, 150, { tam: 10, negrita: true });
+  lz.texto(p, valida ? "Comprobante autorizado por ARCA" : "Sin autorización de ARCA en producción", M + 124, 150, { tam: 10, negrita: true });
   lz.texto(p, valida ? "Se puede verificar escaneando el código QR." : "No es una factura: no tiene validez fiscal.", M + 124, 136, { tam: 8, color: valida ? GRIS : ROJO });
   lz.texto(p, `CAE N°: ${cae}`, ANCHO - M - 8, 150, { tam: 10, negrita: true, alinear: "der" });
   lz.texto(p, `Fecha de vto. de CAE: ${fechaImpresa(d.caeVencimiento as string)}`, ANCHO - M - 8, 136, { tam: 9, alinear: "der" });
@@ -661,7 +661,7 @@ export async function generarComprobantePdf(d: DatosComprobanteImpreso): Promise
     }
     lz.texto(h, `Hoja ${i + 1} de ${hojas.length}`, ANCHO / 2, 24, { tam: 8, color: GRIS, alinear: "centro" });
     if (!valida) {
-      lz.texto(h, "MODO DE PRUEBA DE ARCA: ESTE COMPROBANTE NO TIENE VALIDEZ FISCAL", ANCHO / 2, 826, { tam: 9, negrita: true, color: ROJO, alinear: "centro" });
+      lz.texto(h, "SIN AUTORIZACIÓN DE ARCA EN PRODUCCIÓN: ESTE COMPROBANTE NO TIENE VALIDEZ FISCAL", ANCHO / 2, 826, { tam: 9, negrita: true, color: ROJO, alinear: "centro" });
     }
   });
 

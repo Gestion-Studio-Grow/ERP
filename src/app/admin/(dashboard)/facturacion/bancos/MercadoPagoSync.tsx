@@ -34,7 +34,7 @@ export default function MercadoPagoSync({ estado }: { estado: EstadoMercadoPago 
           </Badge>
         ) : (
           <Badge tone="warning" dot>
-            Modo prueba (sin credenciales)
+            Sin conectar (faltan las credenciales)
           </Badge>
         )}
         {!estado.facturacionActiva && (

@@ -38,7 +38,7 @@ export function estadoDelDetalle(d: {
   if (d.estado === "AUTHORIZED") {
     return {
       descripcion: "Lo que dice el comprobante autorizado por ARCA. El PDF es el que le das al cliente.",
-      prueba: d.ambiente === "prueba" ? "ARCA autorizó este comprobante en su modo de prueba: no tiene validez fiscal. El PDF lo dice arriba de todo." : null,
+      prueba: d.ambiente === "prueba" ? "Este comprobante no se autorizó con ARCA en producción: no tiene validez fiscal. El PDF lo dice arriba de todo." : null,
       rechazo: null,
     };
   }
