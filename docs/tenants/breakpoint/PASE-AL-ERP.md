@@ -275,7 +275,7 @@ están a la vista en la demo pública, así que cualquiera entraba como dueño. 
 
 Primera auditoría: rechazada por un bloqueante (la Auditoría del ERP mostraba las fotos del club con los PIN). Corregido:
 la Auditoría deja afuera las fotos del club, el tope de una foto bajó a 10 MB, la elección real/demo tiene su prueba y
-el panel sólo ofrece «instalar como app» a los negocios con club o terminal (CH no cambia). Antes del merge a `main` se
-verifica la compilación con una vista previa de Vercel y se vuelve a auditar.
+el panel sólo ofrece «instalar como app» a los negocios con club o terminal (CH no cambia). Re-auditoría: aprobada con
+menores. Se trabaja sobre el ambiente real (decisión del dueño, 18/10/2026).
 
 — Elaborado por GSG
