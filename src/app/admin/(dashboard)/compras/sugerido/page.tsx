@@ -33,7 +33,8 @@ function lineaParaMostrar(l: LineaSugerida): LineaDelPedido {
 export default async function SugeridoPage() {
   const user = await requireApp("sugerido-de-compra");
   const [tenantId, negocio, rubro, nuevo] = await Promise.all([getCurrentTenantId(), getNegocioApps(user.role), getCurrentTenantRubro(), disenoNuevo()]);
-  const datos = await getSugeridoData(tenantId, new Date());
+  // La semana tipo ajusta sólo en un mostrador (CH queda como estaba).
+  const datos = await getSugeridoData(tenantId, new Date(), { semanaTipo: rubro.isRetail });
   const ve = {
     compras: appPermitida(appPorId("recibir-mercaderia"), negocio),
     proveedores: appPermitida(appPorId("proveedores"), negocio),
@@ -124,6 +125,11 @@ export default async function SugeridoPage() {
                 {DIAS_DE_SEGURIDAD} días de venta, lo que sea mayor), menos lo que hay. Se agrupa por el proveedor al que se lo compraste la
                 última vez. Revisá las cantidades en el chat antes de mandar.
               </p>
+              {datos.factor !== 1 && (
+                <p className="pb-2">
+                  {`Esta vez la venta de esos días va × ${String(datos.factor).replace(".", ",")}: según la semana tipo, los días que vienen venden ${datos.factor > 1 ? "más" : "menos"} que un día común.`}
+                </p>
+              )}
             </details>
           </div>
         )}
