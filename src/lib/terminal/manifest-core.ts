@@ -35,6 +35,18 @@ export type ManifestAdmin = {
 /** La app instalada vive y se queda en el backoffice: nunca se abre "app" sobre la vidriera. */
 export const SCOPE_ADMIN = "/admin";
 
+/**
+ * Los módulos que hacen del panel una app instalable (el mostrador: terminal, y el club que la usa). Sin alguno de
+ * ellos el panel NO ofrece «Instalar» ni responde el manifiesto: un negocio sin mostrador (CH) no cambia ni un píxel
+ * (M6 del Gate de la rama del club).
+ */
+export const MODULOS_INSTALABLES: readonly string[] = ["terminal", "club"];
+
+/** ¿El panel de este negocio se ofrece para instalar? Pura. */
+export function panelInstalable(modulos: readonly string[]): boolean {
+  return modulos.some((m) => MODULOS_INSTALABLES.includes(m));
+}
+
 /** Fondo de la pantalla de arranque: el hueso de la base (`--background`, globals.css:12). */
 export const FONDO_NEUTRO = "#f6f3ec";
 

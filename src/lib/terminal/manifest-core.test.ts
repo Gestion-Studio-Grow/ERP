@@ -10,6 +10,7 @@ import {
   iconosPara,
   manifestDe,
   nombreCorto,
+  panelInstalable,
 } from "./manifest-core";
 
 const armar = (slug: string | null, conIcono?: ReadonlySet<string>) => {
@@ -82,4 +83,11 @@ test("nombreCorto: ≤ 12 caracteres, por palabras enteras", () => {
 
 test("nombre vacío en la marca → 'Mi negocio' (no un ícono sin nombre)", () => {
   assert.equal(manifestDe({ name: "  " }, "#000000", []).name, "Mi negocio");
+});
+
+test("M6: el panel se ofrece para instalar SÓLO con mostrador (terminal o club); CH sin esos módulos no cambia", () => {
+  assert.equal(panelInstalable([]), false, "sin módulos (o sin base: fail-open), no");
+  assert.equal(panelInstalable(["agenda", "caja", "facturacion"]), false, "CH: sin mostrador, no");
+  assert.equal(panelInstalable(["pos", "terminal"]), true);
+  assert.equal(panelInstalable(["club"]), true, "el club de Break Point");
 });

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { brandForSlug, resolveAccent } from "@/lib/branding";
-import { iconosPara, manifestDe } from "@/lib/terminal/manifest-core";
+import { getProductoContexto } from "@/lib/producto";
+import { iconosPara, manifestDe, panelInstalable } from "@/lib/terminal/manifest-core";
 
 // MANIFIESTO DEL BACKOFFICE (/admin) POR NEGOCIO — "Instalá el panel en la tablet de recepción".
 // Plan: docs/producto/PLAN-TERMINALES-MOSTRADOR.md §1.4 y fase T-5. Lo enlaza el layout de
@@ -27,9 +28,15 @@ import { iconosPara, manifestDe } from "@/lib/terminal/manifest-core";
 // compra nada: no hay venta sin conexión (plan §2.5). Chrome ofrece "Instalar" con manifiesto +
 // HTTPS. Si algún día hiciera falta uno: sólo /_next/static/**, todo lo demás network-only, nunca
 // navegaciones.
+//
+// SÓLO NEGOCIOS CON MOSTRADOR (módulo terminal o club, `panelInstalable`): para el resto, 404. El layout
+// tampoco pone el <link>, así que a un negocio sin mostrador ni siquiera se le pide (M6 del Gate).
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  // getProductoContexto es fail-open (sin base → sin módulos → 404): nunca un manifiesto de otro negocio.
+  const { modules } = await getProductoContexto();
+  if (!panelInstalable(modules)) return new NextResponse(null, { status: 404, headers: { "Cache-Control": "private, max-age=300", Vary: "Host" } });
   // getCurrentTenantSlug ya es fail-open (null ante cualquier error) → marca neutra.
   const slug = await getCurrentTenantSlug().catch(() => null);
   const marca = brandForSlug(slug);
