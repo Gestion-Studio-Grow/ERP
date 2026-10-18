@@ -14,6 +14,7 @@ import { auditAdmin } from "@/lib/audit-core";
 import { hashPassword } from "@/lib/auth-password";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { MIN_PASSWORD_LENGTH, validarAltaDeUsuario } from "@/app/admin/(dashboard)/usuarios/alta-usuario";
+import { decidirVinculoProfesional } from "@/app/admin/(dashboard)/usuarios/vinculo-profesional";
 import {
   crearUsuarioSiEntra,
   DESTINO_SIN_LUGAR_USUARIOS,
@@ -89,6 +90,41 @@ export async function createUser(formData: FormData) {
 
   revalidatePath(USERS_PATH);
   backWith("ok_created");
+}
+
+/** Las fichas de profesional del negocio, con quién las tiene, para vincular un usuario Profesional. */
+export async function getFichasDeProfesional() {
+  await requireCapability("users:manage");
+  const tenantId = await getCurrentTenantId();
+  const fichas = await prisma.professional.findMany({
+    where: { tenantId, deletedAt: null },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, user: { select: { id: true } } },
+  });
+  return fichas.map((f) => ({ id: f.id, nombre: f.name, usuarioId: f.user?.id ?? null }));
+}
+
+// Vincula (o desvincula, con la ficha vacía) un usuario Profesional con su ficha: sin esto entra a
+// una agenda vacía. La regla vive en vinculo-profesional.ts (probada).
+export async function vincularProfesional(formData: FormData) {
+  await requireCapability("users:manage");
+  const tenantId = await getCurrentTenantId();
+  const userId = String(formData.get("userId") || "");
+  const fichaId = String(formData.get("professionalId") || "");
+  const usuario = await prisma.user.findFirst({ where: { id: userId, tenantId }, select: { id: true, role: true } });
+  if (!usuario) backWith("error_not_found");
+  const fichas = await getFichasDeProfesional();
+  const d = decidirVinculoProfesional({ usuario, fichaId, fichas });
+  if (!d.ok) backWith(d.status);
+  try {
+    await prisma.user.update({ where: { id: usuario.id }, data: { professionalId: d.professionalId } });
+  } catch {
+    // @unique de professionalId: otra pestaña la vinculó entre la lectura y la escritura.
+    backWith("error_vinculo_ocupado");
+  }
+  await auditAdmin({ action: "update", entity: "User", entityId: usuario.id, changes: { professionalId: d.professionalId } });
+  revalidatePath(USERS_PATH);
+  backWith(d.professionalId ? "ok_vinculado" : "ok_desvinculado");
 }
 
 export async function setUserActive(formData: FormData) {

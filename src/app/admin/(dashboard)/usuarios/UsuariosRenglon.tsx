@@ -14,19 +14,30 @@ import { fmtDateTime } from "@/lib/datetime";
 import type { Role } from "@/lib/capabilities";
 import { etiquetaDeRol, rolSinPantallas, type OpcionDeRol } from "./roles";
 import { resumenDelRol, tablaDePermisos } from "./permisos-core";
+import VincularFicha from "./VincularFicha";
 
-type Usuario = { id: string; name: string; email: string; role: Role; active: boolean; lastLoginAt: Date | null };
+type Usuario = {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  active: boolean;
+  lastLoginAt: Date | null;
+  professionalId: string | null;
+};
 
 export default function UsuariosRenglon({
   users,
   roles,
   esMostrador,
   banner,
+  fichas,
 }: {
   users: Usuario[];
   roles: OpcionDeRol[];
   esMostrador: boolean;
   banner?: { text: string; ok: boolean };
+  fichas: readonly { id: string; nombre: string; usuarioId: string | null }[];
 }) {
   const activos = users.filter((u) => u.active);
   const bajas = users.length - activos.length;
@@ -76,6 +87,11 @@ export default function UsuariosRenglon({
                         <span className="mt-1 block text-warning">
                           Este negocio no tiene agenda: como Profesional no tiene ninguna pantalla. Dalo de baja y crealo de nuevo como Mostrador.
                         </span>
+                      )}
+                      {u.active && u.role === "PROFESSIONAL" && !esMostrador && (
+                        <div className="mt-2">
+                          <VincularFicha usuario={u} fichas={fichas} />
+                        </div>
                       )}
                       {u.active && (
                         <details className="mt-1">

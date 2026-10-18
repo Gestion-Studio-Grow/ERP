@@ -23,6 +23,7 @@ import {
   ACCION_DE,
   CANAL_INTERRUPTOR,
   DISENO_NUEVO,
+  AGENDA_PRACTICA,
   ENTIDAD_INTERRUPTOR,
   esFilaDeInterruptorValida,
   esInterruptorId,
@@ -103,6 +104,11 @@ export function trabajaPorApps(estado: EstadoInterruptores): boolean {
 /** ¿El negocio tiene el diseño nuevo (la piel «Renglón»)? Lo lee src/lib/diseno/diseno.server.ts. */
 export function disenoNuevoPrendido(estado: EstadoInterruptores): boolean {
   return estado[DISENO_NUEVO].encendido;
+}
+
+/** ¿El negocio tiene la agenda práctica? Lo lee src/lib/turnos/practica.server.ts. */
+export function agendaPracticaPrendida(estado: EstadoInterruptores): boolean {
+  return estado[AGENDA_PRACTICA].encendido;
 }
 
 // ── La fila que se escribe ───────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { getAgendaDay, getMananaConfirmar } from "@/lib/actions";
 import Link from "next/link";
 import CalendarGrid from "./CalendarGrid";
+import { agendaPractica } from "@/lib/turnos/practica.server";
 import MananaConfirmar from "./MananaConfirmar";
 import { todayInBusinessTz, fmtCalendarDateLabel } from "@/lib/datetime";
 import { requireApp } from "@/lib/require-app";
@@ -98,11 +99,12 @@ export default async function TurnosCalendarPage({
   // de la recepción al final del día, y mañana es mañana de verdad (no "el día siguiente al
   // que se está mirando"). Al profesional no se le muestra: confirmar no es su tarea.
   const verManana = canManage && date === today;
-  const [{ professionals, appointments, blocksToday }, manana, piloto, negocio] = await Promise.all([
+  const [{ professionals, appointments, blocksToday }, manana, piloto, negocio, practica] = await Promise.all([
     getAgendaDay(date),
     verManana ? getMananaConfirmar() : Promise.resolve(null),
     enInicioPorApps(),
     getNegocioApps(user.role),
+    agendaPractica(),
   ]);
 
   const label = fmtCalendarDateLabel(date);
@@ -181,6 +183,7 @@ export default async function TurnosCalendarPage({
         viewer={{ role: user.role, professionalId: user.professionalId }}
         sinProfesionales={sinProfesionales}
         diaVacio={diaVacio}
+        practica={practica}
       />
     </main>
   );

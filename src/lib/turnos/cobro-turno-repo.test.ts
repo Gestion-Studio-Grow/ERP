@@ -18,6 +18,8 @@ import { aplicarCobroTurnoInTx, CobroTurnoRechazado, type AplicarCobroArgs, type
 import { cobrosDetalladosPorTurno, desglosarCobros } from "./anulacion";
 import { estadoCobroTurno } from "./cobros";
 import { readdirSync, readFileSync } from "node:fs";
+import { dateStrInBusinessTz } from "@/lib/datetime";
+import { formatDayLabel, nextDayKey } from "@/lib/caja/cierre-diario";
 
 type ColRow = {
   id: string;
@@ -105,6 +107,7 @@ const args = (over: Partial<AplicarCobroArgs> = {}): AplicarCobroArgs => ({
   detail: "Turno · Limpieza facial — Sofía",
   idempotencyKey: "senia:appt_1",
   withSchema: true,
+  cerradoHasta: null,
   ...over,
 });
 
@@ -411,4 +414,35 @@ test("los dos escritores de Payment.amount derivan con desglosarCobros", () => {
       `src/lib/${rel} escribe Payment.amount sin pasar por desglosarCobros.`,
     );
   }
+});
+
+test("caja de hoy ya cerrada: el cobro del turno se rechaza ANTES de escribir, con el día en que sí se puede (UAT CH 18/10)", async () => {
+  const { tx, collections, payments, movements } = makeTx();
+  const hoy = dateStrInBusinessTz(new Date());
+  await assert.rejects(
+    () => aplicarCobroTurnoInTx(tx, "t1", args({ cerradoHasta: hoy })),
+    (e: unknown) =>
+      e instanceof CobroTurnoRechazado &&
+      e.motivo === "dia-cerrado" &&
+      e.message.includes(`La caja del ${formatDayLabel(hoy)} ya está cerrada`) &&
+      e.message.includes(`Registralo el ${formatDayLabel(nextDayKey(hoy))}`) &&
+      e.message.includes("Dejar saldo a cobrar"),
+  );
+  assert.equal(collections.length + payments.length + movements.length, 0, "nada queda a medias");
+});
+
+test("caja cerrada AYER: hoy se cobra normal (la frontera no congela el día abierto)", async () => {
+  const { tx, movements } = makeTx();
+  const ayer = dateStrInBusinessTz(new Date(Date.now() - 86_400_000));
+  const r = await aplicarCobroTurnoInTx(tx, "t1", args({ cerradoHasta: ayer }));
+  assert.equal(r.applied, true);
+  assert.equal(movements.length, 1);
+});
+
+test("los tres caminos que cobran un turno leen la frontera de la caja (seña al reservar, cobro, saldo al completar)", () => {
+  const src = readFileSync(new URL("../actions.ts", import.meta.url), "utf8");
+  const llamadas = src.split("aplicarCobroTurnoInTx(tx, tenantId, {").slice(1).map((c) => c.slice(0, c.indexOf("});")));
+  assert.equal(llamadas.length, 3);
+  for (const l of llamadas) assert.match(l, /cerradoHasta,/);
+  assert.equal((src.match(/await lastClosedDay\(tenantId\)/g) ?? []).length >= 3, true);
 });
