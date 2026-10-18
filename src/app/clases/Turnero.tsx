@@ -15,8 +15,10 @@ const hora = (iso: string) => new Date(iso).toLocaleTimeString("es-AR", { hour: 
 const pesos = (n: number) => `$ ${n.toLocaleString("es-AR")}`;
 const RECUERDO = "gsg-padel-alumno";
 
-export default function Turnero({ dias, hayGrupal, precioIndividual, precioGrupal, marca }: {
+export default function Turnero({ dias, sinHorarios = false, hayGrupal, precioIndividual, precioGrupal, marca }: {
   dias: DiaConLugar[];
+  /** El profe todavía no cargó ninguna franja en la que da clases. */
+  sinHorarios?: boolean;
   hayGrupal: boolean;
   precioIndividual: number;
   precioGrupal: number;
@@ -87,6 +89,15 @@ export default function Turnero({ dias, hayGrupal, precioIndividual, precioGrupa
         <p style={{ margin: "12px 0 0", fontSize: 14, color: marca.suave }}>
           Guardá ese link: desde ahí repetís la clase la semana que viene, mandás el comprobante o cancelás.
         </p>
+      </section>
+    );
+  }
+
+  if (dias.length === 0 && sinHorarios) {
+    return (
+      <section style={caja}>
+        <h2 style={titulo}>El profe todavía no publicó sus horarios</h2>
+        <p style={{ margin: 0, color: marca.suave }}>Volvé a mirar en unos días o escribile al profe.</p>
       </section>
     );
   }

@@ -242,6 +242,20 @@ export const PLANTILLAS_DEFAULT: Record<ClavePlantilla, string> = {
   linkAlumno: "Hola {nombre}! Este es tu link para ver tus clases, repetir la de la semana que viene y mandar el comprobante: {link}",
 };
 
+/**
+ * «Clase confirmada» de fábrica según lo que el profe cargó: sin precio no dice «Sale $ 0» y sin
+ * alias no promete uno. Sólo reemplaza el texto de fábrica: si el profe editó el suyo, va el suyo.
+ */
+export function plantillaConfirmada(plantilla: string, datos: { hayPrecio: boolean; hayAlias: boolean }): string {
+  if (plantilla !== PLANTILLAS_DEFAULT.confirmada) return plantilla;
+  const { hayPrecio, hayAlias } = datos;
+  if (hayPrecio && hayAlias) return plantilla;
+  const inicio = "Hola {nombre}! Te confirmo la clase del {dia} a las {hora}.";
+  if (hayPrecio) return `${inicio} Sale {precio}. Cuando me pagues, mandame el comprobante desde tu link: {link}`;
+  if (hayAlias) return `${inicio} Podés pagarla al alias {alias} y mandarme el comprobante desde tu link: {link}`;
+  return `${inicio} Desde tu link ves tus clases y me mandás el comprobante: {link}`;
+}
+
 export const PLANTILLA_LABEL: Record<ClavePlantilla, string> = {
   pedidoAlProfe: "Lo que te manda el alumno al pedir",
   confirmada: "Clase confirmada",

@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   armarMensaje,
+  PLANTILLAS_DEFAULT,
+  plantillaConfirmada,
   comprobanteValido,
   diaCorto,
   franjasLibres,
@@ -157,4 +159,15 @@ test("validaciones de entrada", () => {
 
 test("chip de día corto", () => {
   assert.equal(diaCorto(MARTES), "mar 20");
+});
+
+test("clase confirmada: sin precio no dice «$ 0» y sin alias no promete uno; la editada no se toca", () => {
+  const def = PLANTILLAS_DEFAULT.confirmada;
+  assert.equal(plantillaConfirmada(def, { hayPrecio: true, hayAlias: true }), def);
+  assert.doesNotMatch(plantillaConfirmada(def, { hayPrecio: true, hayAlias: false }), /\{alias\}/);
+  assert.doesNotMatch(plantillaConfirmada(def, { hayPrecio: false, hayAlias: true }), /\{precio\}/);
+  const nada = plantillaConfirmada(def, { hayPrecio: false, hayAlias: false });
+  assert.doesNotMatch(nada, /\{precio\}|\{alias\}/);
+  assert.match(nada, /\{link\}/);
+  assert.equal(plantillaConfirmada("Mi texto {precio}", { hayPrecio: false, hayAlias: false }), "Mi texto {precio}");
 });

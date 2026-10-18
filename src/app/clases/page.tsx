@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { agendaPublica, configPadel, datosDelNegocio } from "@/lib/padel/datos.server";
+import { agendaPublica, configPadel, datosDelNegocio, franjas } from "@/lib/padel/datos.server";
 import { marcaProfe } from "@/lib/padel/marca";
 import { pesos } from "@/lib/padel/core";
 import Turnero from "./Turnero";
@@ -25,7 +25,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ClasesPage() {
   const tenantId = await getCurrentTenantId();
-  const [negocio, config, dias] = await Promise.all([datosDelNegocio(tenantId), configPadel(tenantId), agendaPublica(tenantId)]);
+  const [negocio, config, dias, grilla] = await Promise.all([datosDelNegocio(tenantId), configPadel(tenantId), agendaPublica(tenantId), franjas(tenantId)]);
+  // Sin ninguna franja en la que da clases, el profe todavía no publicó sus horarios: se dice eso,
+  // no "no quedan horarios" (que sugiere una agenda llena que no existe).
+  const sinHorarios = !grilla.some((f) => f.tipo === "DA");
   const m = marcaProfe(negocio.slug);
 
   return (
@@ -53,6 +56,7 @@ export default async function ClasesPage() {
       <main style={{ maxWidth: 560, margin: "0 auto", padding: "16px 16px 48px" }}>
         <Turnero
           dias={dias}
+          sinHorarios={sinHorarios}
           hayGrupal={config.precioGrupal > 0}
           precioIndividual={config.precioIndividual}
           precioGrupal={config.precioGrupal}

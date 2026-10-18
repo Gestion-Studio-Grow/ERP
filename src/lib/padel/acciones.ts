@@ -41,6 +41,7 @@ import {
   nombreValido,
   pesos,
   precioDe,
+  plantillaConfirmada,
   proximaSemana,
   puedeCancelarAlumno,
   puedePedir,
@@ -138,12 +139,18 @@ async function avisarAlAlumno(p: {
     nombre: p.alumno.nombre.split(" ")[0],
     dia: diaHumano(p.clase.empiezaEn),
     hora: horaHumana(p.clase.empiezaEn),
-    precio: pesos(Number(p.clase.precio)),
+    // Sin precio cargado nunca «$ 0»: el texto de fábrica lo omite y uno editado lee «a coordinar».
+    precio: Number(p.clase.precio) > 0 ? pesos(Number(p.clase.precio)) : "a coordinar",
     alias: p.config.aliasCbu || "(te lo paso por acá)",
     link: `${base}/alumno/${p.alumno.token}`,
     turnero: `${base}/clases`,
   };
-  const texto = armarMensaje(p.config.plantillas[p.clave], vars);
+  const precioCargado = Number(p.clase.precio) > 0;
+  const plantilla =
+    p.clave === "confirmada"
+      ? plantillaConfirmada(p.config.plantillas.confirmada, { hayPrecio: precioCargado, hayAlias: Boolean(p.config.aliasCbu) })
+      : p.config.plantillas[p.clave];
+  const texto = armarMensaje(plantilla, vars);
   const meta = META_DE[p.clave];
   const r = await notificadorActual().enviar({
     telefono: p.alumno.telefono,
