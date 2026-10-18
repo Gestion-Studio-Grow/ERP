@@ -242,13 +242,13 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     await manual.getByLabel("Concepto").fill("Cortesía de la casa");
     await manual.getByLabel("Tipo").selectOption("descuento");
     await manual.getByText("Sólo en la demo:").waitFor();
-    await manual.getByText(/Rober 11 · Majo 22/).waitFor();
+    await manual.getByText(/Rober 1111 · Majo 2222/).waitFor();
     await manual.getByLabel("Monto").fill("1000");
     await manual.getByLabel("PIN del dueño").fill("33");
     await manual.getByRole("button", { name: "Aplicar el descuento" }).click();
     await page.getByRole("alert").filter({ hasText: "Un descuento lo autoriza el dueño con su PIN." }).waitFor();
     assert.equal(await manual.getByLabel("PIN del dueño").inputValue(), "", "el PIN no queda escrito");
-    await manual.getByLabel("PIN del dueño").fill("11");
+    await manual.getByLabel("PIN del dueño").fill("1111");
     await manual.getByRole("button", { name: "Aplicar el descuento" }).click();
     await page.getByRole("status").filter({ hasText: "Descuento de $ 1.000 aplicado (lo autorizó Rober)." }).waitFor();
     await martin.getByText("descuento de Rober", { exact: false }).waitFor();

@@ -505,11 +505,11 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     assert.ok((await ficha.getByRole("table", { name: /Cuenta con Pádel Sur Insumos/ }).getByRole("row").count()) >= 2);
     await ficha.getByText("Efectivo (sale del cajón)").click();
     await ficha.getByLabel("Monto").fill("10.000");
-    await ficha.getByLabel("PIN de Rober").fill("99");
+    await ficha.getByLabel("PIN de Rober").fill("9999");
     await ficha.getByRole("button", { name: "Registrar pago" }).click();
     await alerta(page, "PIN incorrecto.");
     assert.equal(await ficha.getByLabel("PIN de Rober").inputValue(), "", "el PIN se borra después de cada intento");
-    await ficha.getByLabel("PIN de Rober").fill("11");
+    await ficha.getByLabel("PIN de Rober").fill("1111");
     await ficha.getByRole("button", { name: "Registrar pago" }).click();
     await aviso(page, /^Pago de \$ 10\.000 a Pádel Sur Insumos en efectivo: sale del cajón/);
     assert.equal(await page.getByRole("button", { name: "Deshacer" }).count(), 0, "un pago con PIN no se deshace");
@@ -652,7 +652,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     const archivar = page.getByRole("group", { name: "Archivar días cerrados" });
     assert.equal(await archivar.getByRole("button", { name: "Ya lo guardé: achicar" }).isDisabled(), true, "sin descargar no se confirma");
     await archivar.getByRole("button", { name: "Descargar el respaldo para archivar" }).click();
-    await alerta(page, "Poné tu PIN (2 números).");
+    await alerta(page, "Poné tu PIN (4 números).");
     await archivar.getByLabel("PIN de Dueño").fill("11");
     const [paquete] = await Promise.all([page.waitForEvent("download"), archivar.getByRole("button", { name: "Descargar el respaldo para archivar" }).click()]);
     assert.match(paquete.suggestedFilename(), /^breakpoint-respaldo-y-archivo-\d{4}-\d{2}-\d{2}-\d{4}\.json$/);
@@ -703,7 +703,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     // Alta de recepción: el PIN se ve UNA vez, a la vista, y no va al aviso.
     const alta = page.getByRole("form", { name: "Dar de alta a alguien" });
     await alta.getByLabel("Nombre").fill("Nico noche");
-    await alta.getByLabel("PIN de Rober").fill("11");
+    await alta.getByLabel("PIN de Rober").fill("1111");
     await alta.getByRole("button", { name: "Dar de alta" }).click();
     const pin = page.getByRole("group", { name: /^✔ Nico noche · Recepción/ });
     await pin.waitFor();
@@ -740,7 +740,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     await page.getByRole("button", { name: "Hacer la limpieza para el go-live" }).click();
     const limpieza = page.getByRole("group", { name: "Limpieza para el go-live" });
     assert.equal(await limpieza.getByRole("button", { name: "Ya lo guardé: limpiar" }).isDisabled(), true);
-    await limpieza.getByLabel("PIN de Rober").fill("11");
+    await limpieza.getByLabel("PIN de Rober").fill("1111");
     const [bajado] = await Promise.all([page.waitForEvent("download"), limpieza.getByRole("button", { name: "Descargar el respaldo de antes de limpiar" }).click()]);
     assert.match(bajado.suggestedFilename(), /^breakpoint-jornada-antes-golive-/);
     await limpieza.getByLabel("Respaldo descargado").setInputFiles(await bajado.path());
@@ -909,13 +909,13 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     assert.equal(await p.evaluate(() => (document.activeElement as HTMLInputElement | null)?.type), "password", "el foco va al PIN");
     await p.getByText("En la demo, los PIN de ejemplo son:", { exact: false }).waitFor();
     await p.getByRole("radio", { name: "Rober" }).check();
-    await p.getByLabel("Tu PIN").fill("99");
+    await p.getByLabel("Tu PIN").fill("9999");
     await p.getByRole("button", { name: "Aprobar y ver el código" }).click();
     await p.getByRole("alert").filter({ hasText: "PIN incorrecto (1 de 5)." }).waitFor();
     assert.equal(await p.getByLabel("Tu PIN").inputValue(), "", "el PIN malo se borra");
     if (css) await revisarSolapa(p, "Aprobador con el PIN mal a 390 px", "#root");
     await capturar(p, "aprobar-pin-mal-390");
-    await p.getByLabel("Tu PIN").fill("11");
+    await p.getByLabel("Tu PIN").fill("1111");
     await p.getByRole("button", { name: "Aprobar y ver el código" }).click();
     await p.getByRole("region", { name: /^Mandale este código a / }).waitFor();
     const codigo = (await p.locator("p.text-4xl").textContent())!;

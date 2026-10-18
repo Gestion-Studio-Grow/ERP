@@ -9,7 +9,7 @@ import type { Ahora, Cuenta, Cliente, EstadoClub, Reserva } from "./motor.mjs";
 
 const HOY = "2026-10-14"; // miércoles
 const ahora = (hh: number, mm = 0): Ahora => ({ fecha: HOY, min: hh * 60 + mm });
-const DUENO = { usuarioId: "u-rober", pin: "11" };
+const DUENO = { usuarioId: "u-rober", pin: "1111" };
 const RECEP = { usuarioId: "u-lu", pin: "33" };
 
 /** Afirma que la operación salió bien y devuelve el resultado ya angostado a `{ ok: true }`. */
@@ -97,6 +97,8 @@ const FUNCIONES_OLA4_NOVEDADES = [
   "destinatarios", "mensajeDifusion", "crearDifusion", "marcarEnviado", "contactosCSV", "agregarContenido", "editarContenido",
   "borrarContenido", "contenidoDelMes",
 ] as const satisfies readonly Funciones[];
+// PIN por rol (dueños 4, recepción 2): lo usan el bloqueo, Configuración y el aprobador.
+const FUNCIONES_PIN_POR_ROL = ["largoPin", "pinValidoPara", "pinAceptadoPara", "textoLargoPin", "pinDesactualizado"] as const satisfies readonly Funciones[];
 type FuncionesListadas =
   | (typeof FUNCIONES)[number]
   | (typeof FUNCIONES_OLA1_CUENTA_Y_BUFFET)[number]
@@ -104,11 +106,12 @@ type FuncionesListadas =
   | (typeof FUNCIONES_OLA1_CAJA_Y_WHATSAPP)[number]
   | (typeof FUNCIONES_OLA3_STOCK_Y_PROVEEDORES)[number]
   | (typeof FUNCIONES_OLA4_CONFIGURACION)[number]
-  | (typeof FUNCIONES_OLA4_NOVEDADES)[number];
+  | (typeof FUNCIONES_OLA4_NOVEDADES)[number]
+  | (typeof FUNCIONES_PIN_POR_ROL)[number];
 const CONSTANTES = [
   "VERSION_ESTADO", "MEDIOS", "ESTADOS", "TIPOS", "ROLES", "PERMISOS", "NOMBRE_DIA",
   "CONFIG_DEMO", "CANCHAS_DEMO", "USUARIOS_DEMO", "USUARIOS_REALES", "PRODUCTOS_DEMO", "PROVEEDORES_DEMO", "DIAS_SIN_ARCHIVAR", "LIMITES_POLITICA", "LIMITES_BLOQUEO",
-  "TIPOS_NOVEDAD", "AUDIENCIAS", "CANALES", "ESTADOS_CONTENIDO",
+  "TIPOS_NOVEDAD", "AUDIENCIAS", "CANALES", "ESTADOS_CONTENIDO", "LARGO_PIN", "LARGO_PIN_VIEJO",
 ] as const satisfies readonly Exclude<keyof Motor, Funciones>[];
 
 // Comprobación de tipos en los dos sentidos: ninguna función ni constante tipada queda afuera de las listas.
@@ -136,7 +139,7 @@ const REQ_CLIENTE: readonly Requeridas<Cliente>[] = ["id", "nombre", "tel", "niv
 
 test("contrato de motor.d.mts: cada export tipado existe en la copia con su clase (función o constante)", () => {
   const motor = M as unknown as Record<string, unknown>;
-  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP, ...FUNCIONES_OLA3_STOCK_Y_PROVEEDORES, ...FUNCIONES_OLA4_CONFIGURACION, ...FUNCIONES_OLA4_NOVEDADES]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
+  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP, ...FUNCIONES_OLA3_STOCK_Y_PROVEEDORES, ...FUNCIONES_OLA4_CONFIGURACION, ...FUNCIONES_OLA4_NOVEDADES, ...FUNCIONES_PIN_POR_ROL]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
   for (const n of CONSTANTES) {
     assert.ok(n in motor, `${n} no está exportada`);
     assert.notEqual(typeof motor[n], "function", `${n} es una función: va en FUNCIONES`);
@@ -285,7 +288,7 @@ test("crédito con código del dueño: el código ata pedido y monto, y el fiado
   assert.equal(M.cerrarCuenta(e, cta.id, { aCuenta: true }, ahora(21)).ok, false, "sin cuenta corriente no va a cuenta");
   const { novedad: n } = ok(M.solicitarCredito(e, { clienteId: "a", tipo: "fiado", monto: 21000, cuentaId: cta.id }, RECEP, ahora(21)));
   const d = M.datosAprobacion(e, n.id)!;
-  const codigo = M.codigoAprobacion({ pin: "22", novedadId: d.id, clienteId: d.c, monto: d.m, fecha: d.f });
+  const codigo = M.codigoAprobacion({ pin: "2222", novedadId: d.id, clienteId: d.c, monto: d.m, fecha: d.f });
   assert.match(codigo, /^[A-Z2-9]{3}-[A-Z2-9]{3}$/);
   assert.equal(M.aprobarPorCodigo(e, n.id, { codigo, monto: 30000 }, RECEP, ahora(21, 5)).ok, false, "con otro monto el código no sirve");
   assert.equal(ok(M.aprobarPorCodigo(e, n.id, { codigo, monto: 21000 }, RECEP, ahora(21, 6))).aprobo, "Majo");

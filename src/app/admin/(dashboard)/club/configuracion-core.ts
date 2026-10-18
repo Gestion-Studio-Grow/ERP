@@ -65,6 +65,9 @@ import {
   terminarConfiguracion,
   usuario as usuarioDe,
   verificarPin,
+  largoPin,
+  pinAceptadoPara,
+  pinValidoPara,
 } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, ConfigClub, EstadoClub, Fecha, ReglaEditable, Rol, Usuario } from "@/lib/club/motor.mjs";
 import type { Desenlace, EstadoDelGuardado, ResultadoDeRestaurar, ResultadoDelArchivo } from "./almacen";
@@ -76,7 +79,13 @@ export const ddmm = (f: Fecha) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))
 /** «2.345 KB», como el vanilla (redondeo para arriba). */
 export const kb = (caracteres: number) => `${Math.ceil(Math.max(0, caracteres) / 1024).toLocaleString("es-AR")} KB`;
 const no = (mensaje: string): Desenlace => ({ ok: false, mensaje });
-const PIN_VALIDO = /^\d{2}$/;
+/**
+ * El PIN es del largo del rol (dueño 4, recepción 2: `largoPin` del motor). El de quien opera se acepta como esté
+ * guardado (un dueño del piloto puede tener el viejo de 2: `pinAceptadoPara`); todo PIN nuevo va con el largo del rol.
+ * Esto es sólo la forma (para no gastar al motor ni decir «incorrecto» a un PIN a medias): el motor verifica.
+ */
+const rolDeQuienOpera = (estado: EstadoClub, auth: Auth): Rol => (auth.usuarioId ? usuarioDe(estado, auth.usuarioId)?.rol : null) ?? "duenio";
+const numerosDelPin = (rol: Rol) => `${largoPin(rol)} números`;
 
 /** El permiso de configurar del motor (dueños). */
 const configura = (estado: EstadoClub, auth: Auth) => !!auth.usuarioId && puede(estado, auth.usuarioId, "configurar");
@@ -190,7 +199,8 @@ export function leerRespaldo(texto: string): { ok: true; respaldo: RespaldoParaR
 export function pinDeDuenio(estado: EstadoClub, auth: Auth, pin: string, quien: string): { ok: true; usuario: Usuario; auth: Auth } | { ok: false; mensaje: string } {
   if (!auth.usuarioId) return { ok: false, mensaje: "Entrá con tu PIN para operar." };
   const limpio = pin.trim();
-  if (!PIN_VALIDO.test(limpio)) return { ok: false, mensaje: "Poné tu PIN (2 números)." };
+  const rol = rolDeQuienOpera(estado, auth);
+  if (!pinAceptadoPara(rol, limpio)) return { ok: false, mensaje: `Poné tu PIN (${numerosDelPin(rol)}).` };
   const v = verificarPin(estado, auth.usuarioId, limpio);
   if (!v.ok) return { ok: false, mensaje: v.motivo };
   if (v.usuario.rol !== "duenio") return { ok: false, mensaje: `${quien} lo hace un dueño.` };
@@ -237,9 +247,10 @@ export function armarArchivo(estado: EstadoClub, ahora: Ahora): VistaArchivo {
 }
 
 /** El auth para archivar: quien opera con el PIN que tipeó (el almacén lo vuelve a controlar). */
-export function authParaArchivar(auth: Auth, pin: string): { ok: true; auth: Auth } | { ok: false; mensaje: string } {
+export function authParaArchivar(estado: EstadoClub, auth: Auth, pin: string): { ok: true; auth: Auth } | { ok: false; mensaje: string } {
   if (!auth.usuarioId) return { ok: false, mensaje: "Entrá con tu PIN para operar." };
-  if (!PIN_VALIDO.test(pin.trim())) return { ok: false, mensaje: "Poné tu PIN (2 números)." };
+  const rol = rolDeQuienOpera(estado, auth);
+  if (!pinAceptadoPara(rol, pin.trim())) return { ok: false, mensaje: `Poné tu PIN (${numerosDelPin(rol)}).` };
   return { ok: true, auth: { usuarioId: auth.usuarioId, pin: pin.trim() } };
 }
 
@@ -623,8 +634,8 @@ export interface DesenlaceConfig extends Desenlace {
 export const esDeshacible = (a: AccionConfig) => a.tipo === "avisos" || a.tipo === "reglas" || a.tipo === "horarios";
 
 /** El auth con el PIN que tipeó quien opera (formato revisado antes de llamar al motor). */
-function conPin(auth: Auth, pin: string): { ok: true; auth: Auth } | { ok: false; mensaje: string } {
-  return authParaArchivar(auth, pin);
+function conPin(estado: EstadoClub, auth: Auth, pin: string): { ok: true; auth: Auth } | { ok: false; mensaje: string } {
+  return authParaArchivar(estado, auth, pin);
 }
 
 export function ejecutarConfiguracion(estado: EstadoClub, accion: AccionConfig, ahora: Ahora, auth: Auth): DesenlaceConfig {
@@ -633,7 +644,7 @@ export function ejecutarConfiguracion(estado: EstadoClub, accion: AccionConfig, 
       const u = usuarioDe(estado, accion.usuarioId);
       if (!u || u.activo === false) return no("Ese usuario ya no tiene acceso.");
       const pin = accion.pin.trim();
-      if (!PIN_VALIDO.test(pin)) return no(`El PIN de ${u.nombre} son 2 números.`);
+      if (!pinValidoPara(u.rol, pin)) return no(`El PIN de ${u.nombre} son ${numerosDelPin(u.rol)}.`);
       if (pin !== accion.repetido.trim()) return no("Los dos PIN no coinciden: escribilo igual las dos veces.");
       const r = definirPinInicial(estado, u.id, pin, ahora);
       return r.ok ? { ok: true, mensaje: `PIN de ${u.nombre} guardado. No se lo digas a nadie.` } : no(r.motivo);
@@ -642,7 +653,7 @@ export function ejecutarConfiguracion(estado: EstadoClub, accion: AccionConfig, 
       const nombre = accion.nombre.trim();
       if (!nombre) return no("Escribí el nombre de la persona.");
       if (!ROLES[accion.rol]) return no("Elegí qué puede hacer.");
-      const a = conPin(auth, accion.pin);
+      const a = conPin(estado, auth, accion.pin);
       if (!a.ok) return no(a.mensaje);
       const r = altaUsuario(estado, { nombre, rol: accion.rol }, a.auth, ahora);
       if (!r.ok) return no(r.motivo);
@@ -654,7 +665,7 @@ export function ejecutarConfiguracion(estado: EstadoClub, accion: AccionConfig, 
     }
     case "pinNuevo": {
       const u = usuarioDe(estado, accion.usuarioId);
-      const a = conPin(auth, accion.pin);
+      const a = conPin(estado, auth, accion.pin);
       if (!a.ok) return no(a.mensaje);
       const r = regenerarPin(estado, accion.usuarioId, a.auth, ahora);
       if (!r.ok) return no(r.motivo);
@@ -663,7 +674,7 @@ export function ejecutarConfiguracion(estado: EstadoClub, accion: AccionConfig, 
     }
     case "sacarAcceso": {
       const u = usuarioDe(estado, accion.usuarioId);
-      const a = conPin(auth, accion.pin);
+      const a = conPin(estado, auth, accion.pin);
       if (!a.ok) return no(a.mensaje);
       const r = revocarAcceso(estado, accion.usuarioId, a.auth, ahora);
       return r.ok ? { ok: true, mensaje: `Listo: ${u?.nombre ?? "esa persona"} ya no tiene acceso.` } : no(r.motivo);
@@ -672,8 +683,9 @@ export function ejecutarConfiguracion(estado: EstadoClub, accion: AccionConfig, 
       if (!auth.usuarioId) return no("Entrá con tu PIN para operar.");
       const actual = accion.actual.trim();
       const nuevo = accion.nuevo.trim();
-      if (!PIN_VALIDO.test(actual)) return no("Poné tu PIN actual (2 números).");
-      if (!PIN_VALIDO.test(nuevo)) return no("El PIN nuevo son 2 números.");
+      const rol = rolDeQuienOpera(estado, auth);
+      if (!pinAceptadoPara(rol, actual)) return no(`Poné tu PIN actual (${numerosDelPin(rol)}).`);
+      if (!pinValidoPara(rol, nuevo)) return no(`El PIN nuevo son ${numerosDelPin(rol)}.`);
       if (nuevo !== accion.repetido.trim()) return no("Los dos PIN nuevos no coinciden: escribilo igual las dos veces.");
       if (nuevo === actual) return no("El PIN nuevo es igual al de ahora: elegí otro.");
       const r = cambiarMiPin(estado, { usuarioId: auth.usuarioId, pin: actual }, nuevo, ahora);

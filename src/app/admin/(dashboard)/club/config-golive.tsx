@@ -107,7 +107,7 @@ export function LimpiezaGoLive({ almacen }: { almacen: Almacen }) {
       ) : (
         <div role="group" aria-labelledby="club-config-golive" className="flex flex-col gap-3 rounded-md border border-danger/40 p-3">
           <p className="text-sm font-semibold text-strong">{saldos ? "Se conservan los saldos." : "⚠ Los saldos de los clientes y la deuda con proveedores quedan en CERO."} Esto no se deshace.</p>
-          <CampoPin quien={quien} value={pin} onChange={setPin} />
+          <CampoPin quien={quien} rol={operador?.usuario.rol} value={pin} onChange={setPin} />
           <ol className="flex list-decimal flex-col gap-3 pl-5 text-sm text-body">
             <li className="flex flex-col gap-2">
               <span>

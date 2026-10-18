@@ -6,7 +6,7 @@
 // ============================================================================
 //
 // Sólo en la jornada real con el club sin configurar (`config.configurado === false`). En el orden que exige el almacén:
-//   1. Cada dueño arma su PIN (2 números, repetido, distintos entre sí): `almacen.arranque` (sin auth, como el motor).
+//   1. Cada dueño arma su PIN (4 números: `LARGO_PIN.duenio`; repetido, distintos entre sí): `almacen.arranque` (sin auth, como el motor).
 //   2. Con un dueño con PIN: «Entrar como <dueño>» con ese PIN (`probarPin` del bloqueo: 5 mal → espera) →
 //      `cambiarOperador`. Desde ahí la consola es la solapa Configuración de siempre (ClubDemo muestra las solapas).
 //   3. Ya adentro, lo opcional con las secciones de siempre (`ejecutar`): avisos, recepción, precios y fondo.
@@ -17,22 +17,21 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/components/ui/cn";
+import { LARGO_PIN } from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { SIN_INTENTOS_DEL_BLOQUEO, bloquearElClub, probarPin, type IntentosDelBloqueo } from "./bloqueo-core";
 import { abrirElClub, armarArranque, ejecutarConfiguracion, type DuenioDelArranque } from "./configuracion-core";
 import { subtarjeta, tarjeta } from "./config-piezas";
-import { Campo } from "./formulario-del-club";
+import { CampoPinNuevo } from "./formulario-del-club";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 
 const seleccionar = (e: EstadoClub) => armarArranque(e);
 const ID_TITULO = "club-config-arranque";
 const boton = "self-start max-sm:h-auto max-sm:min-h-11 max-sm:w-full max-sm:py-2 max-sm:whitespace-normal";
 
-/** 2 números que no se ven ni se autocompletan. */
-function CampoDosNumeros({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return <Campo label={label} type="password" inputMode="numeric" maxLength={2} value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))} className="sm:w-28" />;
-}
+/** El PIN de dueño (4 números). */
+const LARGO = LARGO_PIN.duenio;
 
 /** Al entrar, ClubDemo sigue en Configuración mientras el club no esté configurado (fc862025): el foco va al título. */
 function enfocarTitulo() {
@@ -55,8 +54,8 @@ function ArmarPin({ almacen, d }: { almacen: Almacen; d: DuenioDelArranque }) {
       }}
     >
       <p className="font-semibold text-strong sm:w-40 sm:self-center">{d.nombre}</p>
-      <CampoDosNumeros label="PIN (2 números)" value={pin} onChange={setPin} />
-      <CampoDosNumeros label="Repetilo" value={repetido} onChange={setRepetido} />
+      <CampoPinNuevo label={`PIN (${LARGO} números)`} largo={LARGO} value={pin} onChange={setPin} />
+      <CampoPinNuevo label="Repetilo" largo={LARGO} value={repetido} onChange={setRepetido} />
       <Button type="submit" variant="solid" size="md" className={boton}>
         Guardar el PIN de {d.corto}
       </Button>
@@ -85,7 +84,7 @@ function Entrar({ almacen, d, intentos, onIntentos }: { almacen: Almacen; d: Due
         almacen.informar({ ok: false, mensaje: p.mensaje });
       }}
     >
-      <CampoDosNumeros label={`PIN de ${d.corto}`} value={pin} onChange={setPin} />
+      <CampoPinNuevo label={`PIN de ${d.corto}`} largo={LARGO} value={pin} onChange={setPin} />
       <Button type="submit" variant="solid" size="md" className={boton}>
         Entrar como {d.corto}
       </Button>
@@ -130,7 +129,7 @@ function Consola({ almacen }: { almacen: Almacen }) {
       <ol className="flex flex-col gap-3">
         <li className={subtarjeta}>
           <h3 className="font-semibold text-strong">1. Cada dueño arma su PIN</h3>
-          <p className="text-sm text-body">2 números que sólo sepa cada uno, escritos dos veces. Los de los dos dueños no pueden ser iguales.</p>
+          <p className="text-sm text-body">{LARGO} números que sólo sepa cada uno, escritos dos veces. Los de los dos dueños no pueden ser iguales.</p>
           {conPin.map((d) => (
             <p key={d.id} className="text-sm font-semibold text-strong">
               ✔ {d.nombre} ya armó su PIN.

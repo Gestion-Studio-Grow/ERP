@@ -24,9 +24,9 @@
 // dueños del estado que este equipo tiene a mano. Sin estado a mano (jornada real sin la base encendida, BP-3), el
 // celular no puede verificar el PIN: calcula el código igual (como el vanilla) y lo verifica la compu del club.
 
-import { codigoAprobacion, datosAprobacion, mensajeWhatsApp, pesos } from "@/lib/club/motor.mjs";
+import { codigoAprobacion, datosAprobacion, mensajeWhatsApp, pesos, pinValidoPara } from "@/lib/club/motor.mjs";
 import type { DatosAprobacion, EstadoClub } from "@/lib/club/motor.mjs";
-import { probarPin, segundosDeEspera, textoDeEspera, intentosVigentes, pinCompleto, type IntentosDelBloqueo } from "./bloqueo-core";
+import { probarPin, segundosDeEspera, textoDeEspera, textoPinIncompleto, intentosVigentes, pinCompleto, type IntentosDelBloqueo } from "./bloqueo-core";
 import { celularDelDuenio, contactosDe } from "./configuracion-core";
 import { leerMonto } from "./montos-core";
 import { enlaceWhatsApp, type EnlaceWhatsApp, type ModoDelClub } from "./whatsapp-core";
@@ -151,13 +151,16 @@ export type PruebaDeAprobacion =
       /** Quién aprobó (con el PIN verificado) o null si este equipo no lo pudo verificar. */
       aprobo: string | null;
       intentos: IntentosDelBloqueo;
+      /** Aprobó con el PIN viejo de 2: se le avisa que en la compu del club le van a pedir uno de 4. */
+      pinViejo: boolean;
     };
 
 /**
  * El dueño pone su PIN y el monto: sale el código. Con `estado` (los dueños a mano) el PIN se VERIFICA con el tope del
  * bloqueo (`probarPin`): mal no da código, y 5 mal hacen esperar. Sin estado, no se puede verificar acá: el código
- * sale igual (como el vanilla) y lo verifica la compu del club con sus 5 intentos por pedido. Lo que no son 2
- * números o un monto válido no gasta un intento. Pura: el reloj se inyecta.
+ * sale igual (como el vanilla) y lo verifica la compu del club con sus 5 intentos por pedido. El PIN de dueño son 4
+ * números; se acepta también el viejo de 2 (`pinAceptadoPara`: el celular no sabe si ese dueño ya lo cambió). Lo que no
+ * tiene esa forma o un monto inválido no gasta un intento. Pura: el reloj se inyecta.
  */
 export function probarAprobacion(args: {
   estado: EstadoClub | null;
@@ -176,15 +179,16 @@ export function probarAprobacion(args: {
   if (!(monto > 0) || monto > MONTO_MAXIMO) return { tipo: "incompleto", mensaje: "Poné el monto que aprobás." };
   const pin = String(args.pin ?? "").trim();
   const codigo = (p: string) => codigoAprobacion({ pin: p, novedadId: pedido.id, clienteId: pedido.c, monto, fecha: pedido.f });
+  const pinViejo = !pinValidoPara("duenio", pin);
   if (!estado) {
-    if (!pinCompleto(pin)) return { tipo: "incompleto", mensaje: "Poné los 2 números de tu PIN." };
-    return { tipo: "codigo", codigo: codigo(pin), monto, aprobo: null, intentos: i };
+    if (!pinCompleto(pin, "duenio")) return { tipo: "incompleto", mensaje: textoPinIncompleto("duenio") };
+    return { tipo: "codigo", codigo: codigo(pin), monto, aprobo: null, intentos: i, pinViejo };
   }
   const duenios = duenosQueAprueban(estado);
   if (!duenioId || !duenios.some((u) => u.id === duenioId)) return { tipo: "incompleto", mensaje: "Elegí quién aprueba." };
   const r = probarPin(estado, duenioId, pin, i, ahoraMs);
   if (r.tipo !== "bueno") return r;
-  return { tipo: "codigo", codigo: codigo(r.pin), monto, aprobo: r.usuario.nombre, intentos: r.intentos };
+  return { tipo: "codigo", codigo: codigo(r.pin), monto, aprobo: r.usuario.nombre, intentos: r.intentos, pinViejo };
 }
 
 /** El texto con el código para recepción («Aprobado: Agustina Romero $ 22.100. Código ABC-DEF») y su link. */
@@ -193,7 +197,7 @@ export function enlaceDelCodigo(estado: EstadoClub | null, pedido: DatosAprobaci
   return enlaceWhatsApp(estado ? (contactosDe(estado).club ?? "") : "", texto, modo);
 }
 
-/** SÓLO DEMO: los PIN de ejemplo de los dueños («Rober 11 · Majo 22»), para recorrer el flujo. En el real, nunca. */
+/** SÓLO DEMO: los PIN de ejemplo de los dueños («Rober 1111 · Majo 2222»), para recorrer el flujo. En el real, nunca. */
 export function pinesDeEjemplo(estado: EstadoClub | null, modo: ModoDelClub): string | null {
   if (modo !== "demo" || !estado) return null;
   const lista = estado.usuarios.filter((u) => u.rol === "duenio" && u.activo !== false && u.pin).map((u) => `${u.nombre} ${u.pin}`);

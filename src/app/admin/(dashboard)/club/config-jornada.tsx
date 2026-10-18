@@ -75,7 +75,7 @@ function Restaurar({ almacen, quien }: { almacen: Almacen; quien: string | null 
     if (!previa) return;
     setError("");
     // El dueño que opera, con el PIN que tipeó ahora: el almacén lo vuelve a controlar (rol OWNER + PIN de un dueño).
-    const a = authParaArchivar(almacen.auth(), pin);
+    const a = authParaArchivar(almacen.estado(), almacen.auth(), pin);
     setPin("");
     if (!a.ok) return setError(a.mensaje);
     // El almacén copia lo de ahora al lado, reemplaza, apaga «Deshacer», guarda en el acto y revisa a quien opera: si
@@ -165,7 +165,7 @@ function Archivar({ almacen, quien, bytes }: { almacen: Almacen; quien: string |
   const descargar = async () => {
     if (ocupado) return;
     setError("");
-    const a = authParaArchivar(almacen.auth(), pin);
+    const a = authParaArchivar(almacen.estado(), almacen.auth(), pin);
     if (!a.ok) return setError(a.mensaje);
     setOcupado("preparando");
     await despuesDePintar();

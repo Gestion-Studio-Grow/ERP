@@ -14,7 +14,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
-import { generarDemo } from "@/lib/club/motor.mjs";
+import { LARGO_PIN, generarDemo } from "@/lib/club/motor.mjs";
 import type { DatosAprobacion, EstadoClub } from "@/lib/club/motor.mjs";
 import { descomprimir, leerSobre } from "@/lib/club/foto";
 import { MINUTO_DEMO, claveDeLaDemo, leerDemo } from "../almacen";
@@ -53,7 +53,7 @@ async function estadoDeLaBase(leerFoto: () => Promise<RespuestaLeerFoto>): Promi
   }
 }
 
-type Resultado = { codigo: string; monto: number; aprobo: string | null };
+type Resultado = { codigo: string; monto: number; aprobo: string | null; pinViejo: boolean };
 
 function ElCodigo({ pedido, r, estado, modo, onOtroMonto }: { pedido: DatosAprobacion; r: Resultado; estado: EstadoClub | null; modo: "demo" | "real"; onOtroMonto: () => void }) {
   const id = useId();
@@ -71,6 +71,9 @@ function ElCodigo({ pedido, r, estado, modo, onOtroMonto }: { pedido: DatosAprob
         Vale para {queSePide(pedido, r.monto)}.{" "}
         {r.aprobo ? `Lo aprobás como ${r.aprobo}.` : "Si el PIN que pusiste no es el tuyo, el código no va a servir: lo controla la compu del club."}
       </p>
+      {r.pinViejo && (
+        <p className="text-sm text-strong">Tu PIN de dueño ahora es de {LARGO_PIN.duenio} números: la próxima vez que entres en la compu del club te va a pedir que elijas uno nuevo.</p>
+      )}
       <BotonWhatsApp enlace={enlaceDelCodigo(estado, pedido, r.codigo, r.monto, modo)} variante="solid">
         Mandar el código por WhatsApp
       </BotonWhatsApp>
@@ -121,7 +124,7 @@ function FormularioDeAprobacion({
         if (r.tipo === "malo" || r.tipo === "codigo") guarda.guardar(r.intentos);
         if (r.tipo === "codigo") {
           setError(null);
-          onCodigo({ codigo: r.codigo, monto: r.monto, aprobo: r.aprobo });
+          onCodigo({ codigo: r.codigo, monto: r.monto, aprobo: r.aprobo, pinViejo: r.pinViejo });
           return;
         }
         setError(r.mensaje);
@@ -155,14 +158,15 @@ function FormularioDeAprobacion({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor={`${id}-pin`} className={etiqueta}>
-            Tu PIN
+            Tu PIN ({LARGO_PIN.duenio} números)
           </label>
           <Input
             id={`${id}-pin`}
             type="password"
             inputMode="numeric"
             autoComplete="off"
-            maxLength={2}
+            maxLength={LARGO_PIN.duenio}
+            placeholder={"•".repeat(LARGO_PIN.duenio)}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? `${id}-error` : undefined}
             value={pin}

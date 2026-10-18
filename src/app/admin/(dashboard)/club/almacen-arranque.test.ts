@@ -69,22 +69,22 @@ test("arranque: sin configurar y sin operador, corre con `auth: {}` (definir el 
   let recibio: unknown = "nada";
   const d = a.arranque((e, ahora) => {
     recibio = (e as unknown) === a.estado() && ahora === a.ahora();
-    const r = M.definirPinInicial(e, duenio.id, "47", ahora);
+    const r = M.definirPinInicial(e, duenio.id, "4747", ahora);
     return r.ok ? { ok: true, mensaje: "PIN guardado" } : { ok: false, mensaje: r.motivo };
   });
   assert.deepEqual(d, { ok: true, mensaje: "PIN guardado" });
   assert.equal(recibio, true);
-  assert.equal(a.estado().usuarios.find((u) => u.id === duenio.id)!.pin, "47");
+  assert.equal(a.estado().usuarios.find((u) => u.id === duenio.id)!.pin, "4747");
   assert.deepEqual(a.aviso(), { id: a.aviso()!.id, ok: true, mensaje: "PIN guardado", deshacer: false });
   assert.equal(a.puedeDeshacer(), false);
   assert.equal(a.pendienteDeGuardar(), false, "se guardó (demora 0)");
-  assert.match(m.datos.get(CLAVE)!, /"pin":"47"/);
+  assert.match(m.datos.get(CLAVE)!, /"pin":"4747"/);
   // Un error del motor: lo dice y no rompe.
-  assert.equal(a.arranque((e, ahora) => { const r = M.definirPinInicial(e, duenio.id, "48", ahora); return { ok: r.ok, mensaje: r.ok ? "" : r.motivo }; }).ok, false);
+  assert.equal(a.arranque((e, ahora) => { const r = M.definirPinInicial(e, duenio.id, "4848", ahora); return { ok: r.ok, mensaje: r.ok ? "" : r.motivo }; }).ok, false);
   assert.equal(a.arranque(() => { throw new Error("x"); }).mensaje, "No se pudo hacer. Probá de nuevo.");
 
   // Con operador, `arranque` no: se usa `ejecutar`.
-  a.cambiarOperador(a.estado().usuarios.find((u) => u.id === duenio.id)!, { usuarioId: duenio.id, pin: "47" });
+  a.cambiarOperador(a.estado().usuarios.find((u) => u.id === duenio.id)!, { usuarioId: duenio.id, pin: "4747" });
   assert.equal(a.arranque(() => ({ ok: true, mensaje: "x" })).ok, false);
   assert.equal(a.ejecutar(() => ({ ok: true, mensaje: "ahora sí" })).ok, true);
 
@@ -238,7 +238,7 @@ test("empezar en blanco: sólo la jornada real y un dueño con PIN; copia la de 
   assert.match(m.datos.get(CLAVE)!, /"configurado":false/);
   // Ya sin configurar: la consola usa `arranque`.
   const duenio = a.estado().usuarios.find((u) => u.rol === "duenio")!;
-  assert.equal(a.arranque((e, ahora) => { const x = M.definirPinInicial(e, duenio.id, "47", ahora); return { ok: x.ok, mensaje: x.ok ? "ok" : x.motivo }; }).ok, true);
+  assert.equal(a.arranque((e, ahora) => { const x = M.definirPinInicial(e, duenio.id, "4747", ahora); return { ok: x.ok, mensaje: x.ok ? "ok" : x.motivo }; }).ok, true);
 });
 
 test("empezar en blanco: si no entra la copia de la de ahora, no hace nada", async () => {

@@ -2,9 +2,18 @@
 // tiempo sin uso, el PIN vacío y el usuario dado de baja. El reloj se inyecta: nada espera de verdad.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { generarDemo } from "@/lib/club/motor.mjs";
+import { generarDemo, pinDesactualizado, verificarPin } from "@/lib/club/motor.mjs";
 import type { EstadoClub, Usuario } from "@/lib/club/motor.mjs";
+import { armarMesCargado, HOY_TORNEO } from "@/lib/club/fixtures/armar-respaldo";
+import { claveDeLaJornada, crearAlmacen, type Temporizador } from "./almacen";
 import {
+  anotarCambioDePin,
+  cambioDePinPendiente,
+  entrarConPinNuevo,
+  olvidarCambioDePin,
+  revisarPinNuevo,
+  textoPinIncompleto,
+  textoPinNuevoObligatorio,
   ESPERAS_DEL_BLOQUEO_MS,
   INTENTOS_DEL_BLOQUEO,
   SIN_INTENTOS_DEL_BLOQUEO,
@@ -101,8 +110,16 @@ test("probar: trabado no evalúa (ni el PIN bueno entra); pasada la espera, el b
 
 test("el PIN se prueba contra UNA persona: el PIN de otra no entra (y cuenta como malo)", () => {
   const e = demo();
-  const r = probarPin(e, "u-lu", u(e, "u-rober").pin, SIN_INTENTOS_DEL_BLOQUEO, T0);
-  assert.equal(r.tipo, "malo");
+  // Entre dueños (4 números) y entre recepción (2): el PIN bueno de otra persona es malo y cuenta.
+  const majoConElDeRober = probarPin(e, "u-majo", u(e, "u-rober").pin, SIN_INTENTOS_DEL_BLOQUEO, T0);
+  assert.equal(majoConElDeRober.tipo, "malo");
+  assert.equal(majoConElDeRober.tipo === "malo" && majoConElDeRober.intentos.fallos, 1);
+  assert.equal(probarPin(e, "u-lu", u(e, "u-caro").pin, SIN_INTENTOS_DEL_BLOQUEO, T0).tipo, "malo");
+  // El de un dueño (4) en recepción (2) tampoco entra: ni se llega a evaluar.
+  assert.notEqual(probarPin(e, "u-lu", u(e, "u-rober").pin, SIN_INTENTOS_DEL_BLOQUEO, T0).tipo, "bueno");
+  // Y un dueño con el viejo de 2 de otro (los 2 primeros números del suyo, el de recepción): malo, cuenta.
+  assert.equal(probarPin(e, "u-rober", u(e, "u-lu").pin, SIN_INTENTOS_DEL_BLOQUEO, T0).tipo, "malo");
+  assert.equal(probarPin(e, "u-rober", u(e, "u-rober").pin.slice(0, 2), SIN_INTENTOS_DEL_BLOQUEO, T0).tipo, "malo");
 });
 
 test("PIN vacío, de un número o con letras: nunca entra y no gasta un intento", () => {
@@ -231,4 +248,121 @@ test("bloquear: en la jornada real deja sin operador y recuerda quién estaba; e
   const enDemo = falso("demo");
   assert.equal(bloquearElClub(enDemo, "manual"), false);
   assert.equal(enDemo.operador()?.usuario.id, "u-lu", "la demo sigue operando");
+});
+
+// ───────────── PIN por rol: dueños 4, recepción 2; el dueño con el viejo de 2 elige uno nuevo ─────────────
+
+test("PIN por rol: el dueño pone 4 (o el viejo de 2), recepción 2; lo demás no se evalúa ni gasta un intento", () => {
+  const e = demo();
+  const rober = u(e, "u-rober");
+  assert.equal(rober.pin.length, 4, "los dueños de la demo tienen PIN de 4");
+  assert.equal(u(e, "u-lu").pin.length, 2, "recepción sigue con 2");
+  for (const pin of ["1", "111", "11111", "abcd"]) {
+    const r = probarPin(e, "u-rober", pin, SIN_INTENTOS_DEL_BLOQUEO, T0);
+    assert.equal(r.tipo, "incompleto", `«${pin}» para un dueño`);
+    if (r.tipo === "incompleto") assert.equal(r.mensaje, "Poné los 4 números de tu PIN.");
+  }
+  const lu = probarPin(e, "u-lu", "3333", SIN_INTENTOS_DEL_BLOQUEO, T0);
+  assert.equal(lu.tipo, "incompleto");
+  assert.equal(lu.tipo === "incompleto" && lu.mensaje, "Poné los 2 números de tu PIN.");
+  assert.equal(textoPinIncompleto("duenio"), "Poné los 4 números de tu PIN.");
+  const bueno = probarPin(e, "u-rober", rober.pin, SIN_INTENTOS_DEL_BLOQUEO, T0);
+  assert.equal(bueno.tipo === "bueno" && bueno.pinViejo, false, "con el de 4 entra sin más");
+  assert.equal(probarPin(e, "u-lu", "33", SIN_INTENTOS_DEL_BLOQUEO, T0).tipo, "bueno");
+});
+
+test("dueño con el PIN viejo de 2: entra (bueno) pero marcado pinViejo; recepción con 2 no", () => {
+  const e = demo();
+  u(e, "u-rober").pin = "11"; // el del piloto
+  const r = probarPin(e, "u-rober", "11", SIN_INTENTOS_DEL_BLOQUEO, T0);
+  assert.equal(r.tipo, "bueno");
+  assert.equal(r.tipo === "bueno" && r.pinViejo, true);
+  const lu = probarPin(e, "u-lu", "33", SIN_INTENTOS_DEL_BLOQUEO, T0);
+  assert.equal(lu.tipo === "bueno" && lu.pinViejo, false, "a recepción no se le pide nada");
+  assert.equal(textoPinNuevoObligatorio("duenio"), "Tu PIN de dueño ahora es de 4 números. Elegí uno nuevo: lo cargado queda todo igual.");
+});
+
+test("revisar el PIN nuevo (puro): del largo del rol, repetido, y con el viejo que siga valiendo", () => {
+  const e = demo();
+  u(e, "u-rober").pin = "11";
+  const c = { usuarioId: "u-rober", viejo: "11" };
+  assert.deepEqual(revisarPinNuevo(e, c, "12", "12"), { ok: false, mensaje: "El PIN nuevo de dueño son 4 números." });
+  assert.deepEqual(revisarPinNuevo(e, c, "4711", "4712"), { ok: false, mensaje: "Los dos PIN no coinciden: escribilo igual las dos veces." });
+  assert.equal(revisarPinNuevo(e, { usuarioId: "u-rober", viejo: "99" }, "4711", "4711").ok, false, "con un viejo que no es, nada");
+  assert.equal(revisarPinNuevo(e, c, "4711", "4711").ok, true);
+  assert.equal(u(e, "u-rober").pin, "11", "revisar no toca nada");
+});
+
+const temporizador: Temporizador = { despues: () => () => undefined, cada: () => () => undefined };
+const CLAVE_PIN = claveDeLaJornada("demo-club");
+
+/** La jornada de main (fixture: dueños con el PIN viejo de 2, recepción 33), abierta en el almacén real. */
+async function jornadaDeMain() {
+  const datos = new Map<string, string>([[CLAVE_PIN, JSON.stringify(armarMesCargado(HOY_TORNEO, 10))]]);
+  const a = crearAlmacen({
+    reloj: "real",
+    clave: CLAVE_PIN,
+    almacenamiento: { getItem: (k) => datos.get(k) ?? null, setItem: (k, v) => void datos.set(k, String(v)), removeItem: (k) => void datos.delete(k) },
+    cerrojos: null,
+    canal: null,
+    temporizador,
+    relojMs: () => new Date(2026, 9, 17, 19, 0).getTime(),
+    demoraGuardadoMs: 0,
+    enReposo: null,
+    rol: "OWNER",
+  });
+  a.arrancar();
+  await new Promise<void>((r) => setImmediate(r));
+  return { a, datos };
+}
+
+/** Lo cargado (sin usuarios ni registro): lo que el cambio de PIN no puede tocar. */
+const loCargado = (e: EstadoClub) => JSON.stringify({ ...e, usuarios: [], log: [] });
+
+test("jornada de main, dueño con PIN de 2: elige uno de 4 por el almacén y entra, sin perder nada", async () => {
+  const { a, datos } = await jornadaDeMain();
+  assert.equal(a.operador(), null, "recién abierta: bloqueada");
+  assert.equal(pinDesactualizado(a.estado(), "u-duenio-1"), true);
+  assert.equal(pinDesactualizado(a.estado(), "u-recep-1"), false, "recepción con 2 está al día");
+  const antes = loCargado(a.estado());
+  const turnos = a.estado().reservas.length;
+  const cambio = { usuarioId: "u-duenio-1", viejo: "11" };
+
+  // Mal (no coinciden, de 2, el de otra persona): no entra nadie, no cambia nada.
+  assert.equal(entrarConPinNuevo(a, cambio, "4711", "4712").ok, false);
+  assert.equal(entrarConPinNuevo(a, cambio, "47", "47").mensaje, "El PIN nuevo de dueño son 4 números.");
+  assert.equal(a.operador(), null);
+  // Que el motor diga que no (el PIN nuevo ya lo usa otro): vuelve a quedar sin operador, con el PIN de antes.
+  a.estado().usuarios.find((x) => x.id === "u-duenio-2")!.pin = "4711";
+  const usado = entrarConPinNuevo(a, cambio, "4711", "4711");
+  assert.equal(usado.ok, false);
+  assert.match(usado.mensaje, /ya lo usa otra persona/);
+  assert.equal(a.operador(), null, "nunca queda operando con el PIN viejo");
+  assert.equal(a.estado().usuarios.find((x) => x.id === "u-duenio-1")!.pin, "11");
+  a.estado().usuarios.find((x) => x.id === "u-duenio-2")!.pin = "22";
+
+  // Bien: entra con el nuevo, lo viejo deja de andar, lo cargado queda igual y se guarda.
+  const d = entrarConPinNuevo(a, cambio, "4711", "4711");
+  assert.equal(d.ok, true, d.mensaje);
+  assert.equal(a.operador()?.usuario.id, "u-duenio-1");
+  assert.equal(a.operador()?.auth.pin, "4711", "lo próximo con PIN pide el nuevo");
+  assert.equal(pinDesactualizado(a.estado(), "u-duenio-1"), false);
+  assert.equal(verificarPin(a.estado(), "u-duenio-1", "11").ok, false, "el viejo ya no entra");
+  assert.equal(a.estado().reservas.length, turnos);
+  assert.equal(loCargado(a.estado()), antes, "lo cargado queda todo igual");
+  assert.equal(a.puedeDeshacer(), false, "el cambio de PIN no se deshace");
+  assert.match(datos.get(CLAVE_PIN)!, /"pin":"4711"/, "quedó guardado");
+  // La dueña 2 sigue con el suyo de 2 (se le va a pedir cuando entre) y recepción con 33.
+  assert.equal(pinDesactualizado(a.estado(), "u-duenio-2"), true);
+  assert.equal(verificarPin(a.estado(), "u-recep-1", "33").ok, true);
+});
+
+test("cambio de PIN pendiente (desde «Cambiar de usuario»): se anota en memoria por almacén y se olvida", () => {
+  const almacen = {};
+  assert.equal(cambioDePinPendiente(almacen), null);
+  anotarCambioDePin(almacen, { usuarioId: "u-duenio-1", viejo: "11" });
+  assert.deepEqual(cambioDePinPendiente(almacen), { usuarioId: "u-duenio-1", viejo: "11" });
+  assert.equal(cambioDePinPendiente({}), null, "es de ESE almacén");
+  olvidarCambioDePin(almacen);
+  assert.equal(cambioDePinPendiente(almacen), null);
 });

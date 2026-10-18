@@ -4,19 +4,23 @@
 //
 // Paridad con el club vanilla (public/previews/breakpoint/club/app.mjs: `bloqueo`, `desbloquear`, `guardarIntentos`,
 // `revisarInactividad`), que es lo que el club usa hoy:
-//   · En la jornada real nadie opera hasta poner su PIN de 2 dígitos. Se bloquea tras `config.bloqueoMin` minutos sin
+//   · En la jornada real nadie opera hasta poner su PIN (4 dígitos los dueños, 2 recepción: `largoPin` del motor). Se bloquea tras `config.bloqueoMin` minutos sin
 //     uso (0 = sólo al apagar la pantalla), si la pantalla estuvo apagada o en otra app 30 s o más, a mano y al recargar.
 //   · El PIN se prueba CONTRA UNA PERSONA (`verificarPin`): la que estaba, o la que se elige de la lista. Así cada
-//     intento acierta 1 de 100, no «cualquiera de los N usuarios» como con `usuarioPorPin`.
+//     intento acierta 1 de 10.000 con un dueño (1 de 100 con recepción), no «cualquiera de los N usuarios» como con
+//     `usuarioPorPin`.
 //   · 5 PIN mal → espera; cada tanda espera más: 30 s, 2 min y después 10 min siempre. Un PIN bueno vuelve todo a cero.
 //     En la jornada real queda guardado en el equipo por negocio (`gsg-club:<negocio>:intentos-bloqueo:v1`, el
 //     `bp-intentos` del vanilla), así que recargar no lo borra. Borrar lo guardado tampoco destraba ESTA pestaña.
-//   · Lo que no son 2 números no se llega a evaluar: no gasta un intento (y nunca vale: el motor lo rechaza igual).
+//   · Lo que no tiene el largo del rol de esa persona no se llega a evaluar: no gasta un intento (y nunca vale: el motor
+//     lo rechaza igual). A un dueño se le acepta también el viejo de 2 (`pinAceptadoPara`): los PIN del piloto.
+//   · Dueño con el PIN viejo de 2 (`pinDesactualizado`): el PIN es bueno, pero antes de operar elige uno de 4 — es un
+//     paso de la pantalla bloqueada (`entrarConPinNuevo`), como `pedirPinNuevo` del vanilla. No toca nada de lo cargado.
 // El reloj se inyecta (`ahoraMs`) en todo: los tests no esperan.
 
-import { verificarPin } from "@/lib/club/motor.mjs";
-import type { EstadoClub, Usuario } from "@/lib/club/motor.mjs";
-import type { AlmacenamientoLocal } from "./almacen";
+import { cambiarMiPin, largoPin, pinAceptadoPara, pinDesactualizado, pinValidoPara, textoLargoPin, usuario as usuarioDe, verificarPin } from "@/lib/club/motor.mjs";
+import type { Ahora, EstadoClub, Rol, Usuario } from "@/lib/club/motor.mjs";
+import type { Almacen, AlmacenamientoLocal, Desenlace } from "./almacen";
 
 export const INTENTOS_DEL_BLOQUEO = 5;
 /** La espera de cada tanda de 5 PIN mal: 30 s, 2 min y, de la tercera en adelante, 10 min. */
@@ -75,11 +79,31 @@ export type PruebaDePin =
   | { tipo: "espera"; segundos: number; mensaje: string }
   | { tipo: "incompleto"; mensaje: string }
   | { tipo: "malo"; intentos: IntentosDelBloqueo; mensaje: string }
-  | { tipo: "bueno"; usuario: Usuario; pin: string; intentos: IntentosDelBloqueo };
+  | {
+      tipo: "bueno";
+      usuario: Usuario;
+      pin: string;
+      intentos: IntentosDelBloqueo;
+      /** Entró con un PIN del largo viejo (dueño del piloto con 2): antes de operar elige uno nuevo. */
+      pinViejo: boolean;
+    };
 
-/** Sólo 2 números: lo demás no se evalúa (ni gasta un intento). */
-export function pinCompleto(pin: string): boolean {
-  return /^\d{2}$/.test(pin);
+/**
+ * ¿Tiene la forma de un PIN de ese rol? El largo del rol (dueño 4, recepción 2) o, para un dueño, el viejo de 2. Lo
+ * demás no se evalúa (ni gasta un intento).
+ */
+export function pinCompleto(pin: string, rol: Rol | null | undefined): boolean {
+  return pinAceptadoPara(rol, pin);
+}
+
+/** «Poné los 4 números de tu PIN.» (dueño) · «Poné los 2 números de tu PIN.» (recepción). */
+export function textoPinIncompleto(rol: Rol | null | undefined): string {
+  return `Poné los ${largoPin(rol)} números de tu PIN.`;
+}
+
+/** El rol con el que se mide el PIN de esa persona. Si no existe, el de dueño: acepta 2 y 4, así cuenta como malo. */
+export function rolDelPin(estado: EstadoClub, usuarioId: string | null): Rol {
+  return (usuarioId ? usuarioDe(estado, usuarioId)?.rol : null) ?? "duenio";
 }
 
 /**
@@ -92,9 +116,10 @@ export function probarPin(estado: EstadoClub, usuarioId: string | null, pin: str
   if (espera > 0) return { tipo: "espera", segundos: espera, mensaje: textoDeEspera(espera) };
   if (!usuarioId) return { tipo: "incompleto", mensaje: "Elegí quién entra." };
   const limpio = String(pin ?? "").trim();
-  if (!pinCompleto(limpio)) return { tipo: "incompleto", mensaje: "Poné los 2 números de tu PIN." };
+  const rol = rolDelPin(estado, usuarioId);
+  if (!pinCompleto(limpio, rol)) return { tipo: "incompleto", mensaje: textoPinIncompleto(rol) };
   const r = verificarPin(estado, usuarioId, limpio);
-  if (r.ok) return { tipo: "bueno", usuario: r.usuario, pin: limpio, intentos: SIN_INTENTOS_DEL_BLOQUEO };
+  if (r.ok) return { tipo: "bueno", usuario: r.usuario, pin: limpio, intentos: SIN_INTENTOS_DEL_BLOQUEO, pinViejo: pinDesactualizado(estado, r.usuario.id) };
   const intentos = anotarFallo(i, ahoraMs);
   const s = segundosDeEspera(intentos, ahoraMs);
   // El motivo del motor dice si el usuario no tiene acceso o PIN; nunca muestra un PIN.
@@ -257,4 +282,80 @@ export function ultimoBloqueo(almacen: object): UltimoBloqueo {
 /** Al entrar se olvida el pedido: el próximo bloqueo anota el suyo. */
 export function olvidarBloqueo(almacen: object): void {
   bloqueos.delete(almacen);
+}
+
+// ───────────── el PIN viejo de un dueño: elegir uno nuevo antes de operar ─────────────
+
+/**
+ * Un cambio de PIN pendiente (dueño que entró con el viejo y todavía no eligió el nuevo). El PIN viejo queda SÓLO en
+ * memoria hasta guardar el nuevo: nunca se muestra, ni se guarda aparte, ni va al almacén.
+ */
+export interface CambioDePinPendiente {
+  usuarioId: string;
+  viejo: string;
+}
+
+const cambiosPendientes = new WeakMap<object, CambioDePinPendiente>();
+
+/** Desde «Cambiar de usuario»: el dueño con PIN viejo pasa a la pantalla bloqueada, directo al paso del PIN nuevo. */
+export function anotarCambioDePin(almacen: object, cambio: CambioDePinPendiente): void {
+  cambiosPendientes.set(almacen, cambio);
+}
+
+/** Lo lee la pantalla bloqueada al montarse (sin borrarlo: lo olvida aparte, en un efecto, para el modo estricto). */
+export function cambioDePinPendiente(almacen: object): CambioDePinPendiente | null {
+  return cambiosPendientes.get(almacen) ?? null;
+}
+
+/** Se usa una vez: la pantalla ya lo tiene en su estado (o se entró por otro lado). */
+export function olvidarCambioDePin(almacen: object): void {
+  cambiosPendientes.delete(almacen);
+}
+
+/** «Tu PIN de dueño ahora es de 4 números.» (el aviso del paso; recepción, si alguna vez le tocara, su largo). */
+export function textoPinNuevoObligatorio(rol: Rol | null | undefined): string {
+  return rol === "duenio" ? `Tu PIN de dueño ahora es de ${largoPin(rol)} números. Elegí uno nuevo: lo cargado queda todo igual.` : `Tu PIN ahora es de ${largoPin(rol)} números. Elegí uno nuevo: lo cargado queda todo igual.`;
+}
+
+/**
+ * Lo que se revisa ANTES de tocar nada (puro): los dos iguales, del largo del rol, distinto del viejo, y que el viejo
+ * siga siendo el PIN de esa persona y siga desactualizado. El motor vuelve a controlar todo (y que nadie más lo use).
+ */
+export function revisarPinNuevo(estado: EstadoClub, cambio: CambioDePinPendiente, nuevo: string, repetido: string): { ok: true; usuario: Usuario; nuevo: string } | { ok: false; mensaje: string } {
+  const v = verificarPin(estado, cambio.usuarioId, cambio.viejo);
+  if (!v.ok) return { ok: false, mensaje: "Ese PIN ya no sirve: volvé a entrar con tu PIN." };
+  const n = String(nuevo ?? "").trim();
+  if (!pinValidoPara(v.usuario.rol, n)) return { ok: false, mensaje: textoLargoPin(v.usuario.rol, true) };
+  if (n !== String(repetido ?? "").trim()) return { ok: false, mensaje: "Los dos PIN no coinciden: escribilo igual las dos veces." };
+  return { ok: true, usuario: v.usuario, nuevo: n };
+}
+
+/** Lo mínimo del almacén para el cambio (los tests usan uno de mentira). */
+export type AlmacenQueCambiaElPin = Pick<Almacen, "estado" | "operador" | "cambiarOperador" | "ejecutar">;
+
+/**
+ * El dueño con PIN viejo elige el nuevo y entra. El almacén no deja operar sin alguien adentro, así que la secuencia es
+ * (todo en el mismo tic, sin pintar en el medio):
+ *   1. se revisa todo sin tocar nada (`revisarPinNuevo`): si algo está mal, no se toca el operador;
+ *   2. entra con el PIN viejo YA verificado (`cambiarOperador`) y en la misma tirada `ejecutar` → `cambiarMiPin` del
+ *      motor (que vuelve a verificar el viejo y que el nuevo no lo use nadie), sin «Deshacer»;
+ *   3. si el motor dice que no, vuelve a quedar sin operador (la pantalla sigue bloqueada); si sale, queda adentro con
+ *      el PIN nuevo (lo próximo que pida PIN, pide el nuevo).
+ * Nunca queda operando con el PIN viejo: o termina con el nuevo, o sin nadie. Devuelve el desenlace.
+ */
+export function entrarConPinNuevo(almacen: AlmacenQueCambiaElPin, cambio: CambioDePinPendiente, nuevo: string, repetido: string): Desenlace {
+  const r = revisarPinNuevo(almacen.estado(), cambio, nuevo, repetido);
+  if (!r.ok) return r;
+  almacen.cambiarOperador(r.usuario, { usuarioId: r.usuario.id, pin: cambio.viejo });
+  const d = almacen.ejecutar((estado: EstadoClub, ahora: Ahora, auth) => {
+    const c = cambiarMiPin(estado, auth, r.nuevo, ahora);
+    return c.ok ? { ok: true, mensaje: "Tu PIN nuevo quedó guardado." } : { ok: false, mensaje: c.motivo };
+  });
+  const yo = usuarioDe(almacen.estado(), r.usuario.id);
+  if (!d.ok || !yo || yo.pin !== r.nuevo) {
+    almacen.cambiarOperador(null);
+    return d.ok ? { ok: false, mensaje: "No se pudo guardar el PIN nuevo. Probá de nuevo." } : d;
+  }
+  almacen.cambiarOperador(yo, { usuarioId: yo.id, pin: r.nuevo });
+  return d;
 }

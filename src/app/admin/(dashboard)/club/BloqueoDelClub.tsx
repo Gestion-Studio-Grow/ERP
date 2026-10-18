@@ -15,12 +15,16 @@
 //     más, a mano (tecla L o «Bloquear» de la cinta: bloquear-ahora.tsx) y al recargar.
 //   · 5 PIN mal → 30 s, después 2 min, después 10 min; guardado en el equipo (sobrevive a recargar). La espera se
 //     anuncia una vez; la cuenta regresiva se ve pero no se lee cada segundo.
+//   · El PIN es del largo del rol (dueño 4, recepción 2: `largoPin`); se prueba solo al llegar a ese largo. Un dueño
+//     con el PIN viejo de 2 lo confirma con «Desbloquear» y, antes de liberar la recepción, elige uno de 4
+//     (`PasoPinNuevo` → `entrarConPinNuevo`), como `pedirPinNuevo` del vanilla. Desde «Cambiar de usuario» pasa por
+//     la pantalla bloqueada, directo a ese paso.
 //   · Demo: no se bloquea (opera el usuario de ejemplo), pero «Cambiar de usuario» deja probar con otro usuario.
 //   · Nunca se muestra un PIN.
 // En la consola de arranque (jornada real sin configurar: `config.configurado === false`) no bloquea, como el vanilla.
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { ROLES } from "@/lib/club/motor.mjs";
+import { LARGO_PIN, LARGO_PIN_VIEJO, ROLES, largoPin, pinDesactualizado } from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import { Button } from "@/components/ui/Button";
 import { Hoja } from "@/components/ui/Hoja";
@@ -29,11 +33,15 @@ import type { Almacen, AlmacenamientoLocal, JornadaDelClub } from "./almacen";
 import {
   REVISAR_INACTIVIDAD_MS,
   SIN_INTENTOS_DEL_BLOQUEO,
+  anotarCambioDePin,
   bloquearElClub,
+  cambioDePinPendiente,
   claveDeIntentosDelBloqueo,
+  entrarConPinNuevo,
   guardaDelBloqueo,
   intentosVigentes,
   olvidarBloqueo,
+  olvidarCambioDePin,
   primerNombre,
   probarPin,
   quienesPuedenEntrar,
@@ -41,9 +49,11 @@ import {
   segundosDeEspera,
   textoDeEspera,
   textoDelMotivo,
+  textoPinNuevoObligatorio,
   ultimoBloqueo,
   vencioLaInactividad,
   vuelveDeLaPantallaApagada,
+  type CambioDePinPendiente,
   type GuardaDelBloqueo,
   type MotivoDelBloqueo,
   type QuienEntra,
@@ -57,6 +67,8 @@ interface DatosDelBloqueo {
   bloqueoMin: number;
   configurado: boolean;
   nombreDelClub: string;
+  /** ¿Algún dueño tiene todavía el PIN viejo de 2? (se le avisa a quien entra como dueño, sin decir quién). */
+  hayPinViejo: boolean;
 }
 
 const leerDatos = (e: EstadoClub): DatosDelBloqueo => {
@@ -64,8 +76,12 @@ const leerDatos = (e: EstadoClub): DatosDelBloqueo => {
   const bloqueoMin = Number(e.config.bloqueoMin) || 0;
   const configurado = e.config.configurado !== false;
   const nombreDelClub = e.config.nombre ?? "";
-  return { firma: JSON.stringify([quienes, bloqueoMin, configurado, nombreDelClub]), quienes, bloqueoMin, configurado, nombreDelClub };
+  const hayPinViejo = quienes.some((u) => pinDesactualizado(e, u.id));
+  return { firma: JSON.stringify([quienes, bloqueoMin, configurado, nombreDelClub, hayPinViejo]), quienes, bloqueoMin, configurado, nombreDelClub, hayPinViejo };
 };
+
+/** El campo deja entrar el PIN más largo cuando no se sabe de quién es. */
+const LARGO_PIN_MAX = Math.max(LARGO_PIN.duenio, LARGO_PIN.recepcion);
 
 function almacenamientoDelNavegador(): AlmacenamientoLocal | null {
   try {
@@ -158,12 +174,13 @@ function ListaDeUsuarios({ quienes, elegido, onElegir, etiqueta }: { quienes: Qu
   );
 }
 
-/** El campo del PIN: 2 números, sin autocompletar; al llegar al segundo, prueba solo. */
+/** El campo del PIN: `largo` números (el del rol), sin autocompletar. Quien lo usa decide si prueba solo al completarlo. */
 function CampoDePin({
   id,
   etiqueta,
   valor,
-  deshabilitado,
+  largo,
+  deshabilitado = false,
   describe,
   onCambiar,
   campo,
@@ -171,10 +188,11 @@ function CampoDePin({
   id: string;
   etiqueta: string;
   valor: string;
-  deshabilitado: boolean;
+  largo: number;
+  deshabilitado?: boolean;
   describe: string;
   onCambiar: (limpio: string) => void;
-  campo: React.RefObject<HTMLInputElement | null>;
+  campo?: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -188,15 +206,15 @@ function CampoDePin({
         inputMode="numeric"
         autoComplete="off"
         pattern="[0-9]*"
-        maxLength={2}
-        placeholder="••"
+        maxLength={largo}
+        placeholder={"•".repeat(largo)}
         value={valor}
         disabled={deshabilitado}
         aria-describedby={describe}
-        // El PIN son 2 números: lo que no es número no entra (y no gasta un intento).
-        onChange={(e) => onCambiar(e.target.value.replace(/\D/g, "").slice(0, 2))}
+        // El PIN son números: lo que no es número no entra (y no gasta un intento).
+        onChange={(e) => onCambiar(e.target.value.replace(/\D/g, "").slice(0, largo))}
         data-ui="input"
-        className="h-12 w-28 rounded-md border border-line-strong bg-surface-raised px-3 text-center text-xl tracking-[0.5em] text-strong focus:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:bg-surface-sunken disabled:opacity-60"
+        className={cn(largo > 2 ? "w-40" : "w-28", "h-12 rounded-md border border-line-strong bg-surface-raised px-3 text-center text-xl tracking-[0.5em] text-strong focus:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:bg-surface-sunken disabled:opacity-60")}
       />
     </div>
   );
@@ -241,29 +259,114 @@ function usePruebaDePin(almacen: Almacen, guarda: GuardaDelBloqueo) {
     return () => clearInterval(t);
   }, [hayEspera, guarda]);
 
+  /**
+   * Prueba el PIN. Bueno → entra («entro»). Bueno pero del largo viejo y `alPinViejo` se hace cargo (devuelve true) →
+   * NO entra: queda el paso del PIN nuevo («pinViejo»). Malo, incompleto o en espera → «no».
+   */
   const probar = useCallback(
-    (usuarioId: string | null, pin: string): boolean => {
+    (usuarioId: string | null, pin: string, alPinViejo?: (c: CambioDePinPendiente) => boolean): "entro" | "pinViejo" | "no" => {
       const ya = Date.now();
       const r = probarPin(almacen.estado(), usuarioId, pin, guarda.leer(), ya);
       setAhora(ya);
       if (r.tipo === "bueno") {
         guarda.guardar(SIN_INTENTOS_DEL_BLOQUEO);
+        if (r.pinViejo && alPinViejo?.({ usuarioId: r.usuario.id, viejo: r.pin })) {
+          setAnuncio("");
+          setError(false);
+          return "pinViejo";
+        }
         const previo = ultimoBloqueo(almacen).usuarioId ?? almacen.operador()?.usuario.id ?? null;
         olvidarBloqueo(almacen);
         almacen.cambiarOperador(r.usuario, { usuarioId: r.usuario.id, pin: r.pin });
         almacen.informar({ ok: true, mensaje: previo === r.usuario.id ? "Desbloqueado." : `Hola, ${primerNombre(r.usuario.nombre)}.` });
         setAnuncio("");
         setError(false);
-        return true;
+        return "entro";
       }
       if (r.tipo === "malo") guarda.guardar(r.intentos);
       setAnuncio(r.mensaje);
       setError(true);
-      return false;
+      return "no";
     },
     [almacen, guarda],
   );
   return { probar, segundos, anuncio, error };
+}
+
+// ───────────── el PIN viejo de un dueño: elegir uno nuevo antes de operar ─────────────
+
+/**
+ * El paso obligatorio del dueño que entró con el PIN viejo de 2 (como `pintarPinNuevo` del vanilla): elige uno de 4,
+ * repetido, y entra. «Ahora no» vuelve a la pantalla bloqueada: sin PIN nuevo no se opera. El PIN viejo vive sólo en
+ * el estado de la pantalla bloqueada (memoria) hasta guardar el nuevo.
+ */
+function PasoPinNuevo({
+  almacen,
+  cambio,
+  anterior,
+  onAhoraNo,
+}: {
+  almacen: Almacen;
+  cambio: CambioDePinPendiente;
+  anterior: string | null;
+  onAhoraNo: () => void;
+}) {
+  const ids = useId();
+  const primero = useRef<HTMLInputElement>(null);
+  const [nuevo, setNuevo] = useState("");
+  const [repetido, setRepetido] = useState("");
+  const [aviso, setAviso] = useState("");
+  const u = almacen.estado().usuarios.find((x) => x.id === cambio.usuarioId) ?? null;
+  const largo = largoPin(u?.rol);
+  useEffect(() => {
+    primero.current?.focus();
+  }, []);
+  if (!u) return null;
+  const guardar = () => {
+    const d = entrarConPinNuevo(almacen, cambio, nuevo, repetido);
+    if (d.ok) {
+      olvidarBloqueo(almacen);
+      almacen.informar({ ok: true, mensaje: `${d.mensaje} ${anterior === u.id ? "Desbloqueado." : `Hola, ${primerNombre(u.nombre)}.`}` });
+      return;
+    }
+    setAviso(d.mensaje);
+    setNuevo("");
+    setRepetido("");
+    primero.current?.focus();
+  };
+  return (
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        guardar();
+      }}
+    >
+      <div className="flex items-center gap-3">
+        <span aria-hidden className="flex size-11 items-center justify-center rounded-full bg-accent-soft text-lg font-semibold text-strong">
+          {u.nombre.slice(0, 1).toUpperCase()}
+        </span>
+        <span className="flex flex-col">
+          <span className="font-semibold text-strong">{u.nombre}</span>
+          <span className="text-sm text-muted">{ROLES[u.rol]}</span>
+        </span>
+      </div>
+      <p id={`${ids}-q`} className="text-sm text-strong">
+        {textoPinNuevoObligatorio(u.rol)}
+      </p>
+      <CampoDePin id={`${ids}-n`} etiqueta={`PIN nuevo (${largo} números)`} valor={nuevo} largo={largo} describe={`${ids}-q ${ids}-a`} campo={primero} onCambiar={setNuevo} />
+      <CampoDePin id={`${ids}-r`} etiqueta="Repetilo" valor={repetido} largo={largo} describe={`${ids}-a`} onCambiar={setRepetido} />
+      <p id={`${ids}-a`} role={aviso ? "alert" : "status"} className={cn("min-h-6 text-sm", aviso ? "font-semibold text-danger" : "text-muted")}>
+        {aviso}
+      </p>
+      <Button type="submit" variant="solid" size="md">
+        Guardar y entrar
+      </Button>
+      <Button variant="ghost" size="md" className="self-start" onClick={onAhoraNo}>
+        Ahora no (queda bloqueada)
+      </Button>
+    </form>
+  );
 }
 
 // ───────────── la pantalla bloqueada ─────────────
@@ -278,6 +381,9 @@ function PantallaBloqueada({ almacen, datos, guarda, jornada }: { almacen: Almac
   const [elegido, setElegido] = useState<string | null>(() => delAnterior ?? (datos.quienes.length === 1 ? datos.quienes[0].id : null));
   const [otro, setOtro] = useState(false);
   const [pin, setPin] = useState("");
+  // Dueño con el PIN viejo: el paso del PIN nuevo (desde acá o desde «Cambiar de usuario», que lo deja anotado).
+  const [cambio, setCambio] = useState<CambioDePinPendiente | null>(() => cambioDePinPendiente(almacen));
+  useEffect(() => olvidarCambioDePin(almacen), [almacen]);
   const { probar, segundos, anuncio, error } = usePruebaDePin(almacen, guarda);
   const quien = datos.quienes.find((u) => u.id === elegido) ?? null;
   const conLista = !quien;
@@ -322,32 +428,52 @@ function PantallaBloqueada({ almacen, datos, guarda, jornada }: { almacen: Almac
   }, [quien, segundos]);
 
   const intentar = (valor: string) => {
-    if (!probar(elegido, valor)) setPin("");
+    const r = probar(elegido, valor, (c) => {
+      setCambio(c);
+      return true;
+    });
+    if (r !== "entro") setPin("");
   };
 
   const titulo = `${ids}-t`;
   const aviso = `${ids}-a`;
+  const viejo = `${ids}-v`;
   const sinNadie = datos.quienes.length === 0;
+  const conPinViejo = datos.hayPinViejo && quien?.rol === "duenio";
   return (
     <dialog
       ref={dialogo}
       data-ui="bloqueo-del-club"
       aria-labelledby={titulo}
-      aria-describedby={`${ids}-m`}
+      aria-describedby={cambio ? undefined : `${ids}-m`}
       className="m-0 h-dvh max-h-none w-screen max-w-none bg-surface p-4 text-body backdrop:bg-surface"
     >
       <div className="mx-auto flex min-h-full w-full max-w-sm flex-col justify-center gap-4 py-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted">{datos.nombreDelClub ? `${datos.nombreDelClub} · ` : ""}Gestión del club</p>
         <div className="flex flex-col gap-1">
           <h2 id={titulo} className="text-2xl font-semibold text-strong">
-            Pantalla bloqueada
+            {cambio ? "Elegí tu PIN nuevo" : "Pantalla bloqueada"}
           </h2>
-          <p id={`${ids}-m`} className="text-sm text-muted">
-            {otro ? textoDelMotivo("cambio", datos.bloqueoMin) : textoDelMotivo(motivo, datos.bloqueoMin)}
-          </p>
+          {!cambio && (
+            <p id={`${ids}-m`} className="text-sm text-muted">
+              {otro ? textoDelMotivo("cambio", datos.bloqueoMin) : textoDelMotivo(motivo, datos.bloqueoMin)}
+            </p>
+          )}
         </div>
 
-        {sinNadie ? (
+        {cambio ? (
+          <PasoPinNuevo
+            almacen={almacen}
+            cambio={cambio}
+            anterior={anterior}
+            onAhoraNo={() => {
+              // Queda bloqueada con la misma persona elegida (vuelve a poner su PIN, o elige otro usuario).
+              setElegido(datos.quienes.some((u) => u.id === cambio.usuarioId) ? cambio.usuarioId : delAnterior);
+              setCambio(null);
+              setPin("");
+            }}
+          />
+        ) : sinNadie ? (
           <p role="status" className="text-sm text-strong">
             {jornada === "abriendo" ? "Abriendo la jornada…" : "Nadie tiene un PIN armado en este equipo. Avisá a soporte."}
           </p>
@@ -382,14 +508,21 @@ function PantallaBloqueada({ almacen, datos, guarda, jornada }: { almacen: Almac
               id={`${ids}-pin`}
               etiqueta={otro || quien.id !== anterior ? `PIN de ${primerNombre(quien.nombre)}` : "Tu PIN para seguir"}
               valor={pin}
+              largo={largoPin(quien.rol)}
               deshabilitado={segundos > 0}
-              describe={aviso}
+              describe={conPinViejo ? `${aviso} ${viejo}` : aviso}
               campo={campo}
               onCambiar={(limpio) => {
                 setPin(limpio);
-                if (limpio.length === 2) intentar(limpio);
+                // Se prueba solo al llegar al largo del rol de quien entra; el PIN viejo de 2 se confirma con «Desbloquear».
+                if (limpio.length === largoPin(quien.rol)) intentar(limpio);
               }}
             />
+            {conPinViejo && (
+              <p id={viejo} className="text-sm text-muted">
+                ¿Todavía tenés el PIN viejo de {LARGO_PIN_VIEJO}? Ponelo y tocá «Desbloquear».
+              </p>
+            )}
             <AvisoDelPin id={aviso} anuncio={anuncio} segundos={segundos} error={error} />
             <Button type="submit" variant="solid" size="md" disabled={segundos > 0}>
               Desbloquear
@@ -397,7 +530,7 @@ function PantallaBloqueada({ almacen, datos, guarda, jornada }: { almacen: Almac
           </form>
         )}
 
-        {!sinNadie && !conLista && datos.quienes.length > 1 && (
+        {!cambio && !sinNadie && !conLista && datos.quienes.length > 1 && (
           <Button
             variant="ghost"
             size="md"
@@ -412,7 +545,7 @@ function PantallaBloqueada({ almacen, datos, guarda, jornada }: { almacen: Almac
           </Button>
         )}
         {/* En la lista, volver a quien estaba (si había alguien: tras recargar no hay a quién volver). */}
-        {conLista && delAnterior && (
+        {!cambio && conLista && delAnterior && (
           <Button
             variant="ghost"
             size="md"
@@ -426,7 +559,7 @@ function PantallaBloqueada({ almacen, datos, guarda, jornada }: { almacen: Almac
             Volver
           </Button>
         )}
-        {conLista && !sinNadie && <AvisoDelPin id={aviso} anuncio={anuncio} segundos={segundos} error={error} />}
+        {!cambio && conLista && !sinNadie && <AvisoDelPin id={aviso} anuncio={anuncio} segundos={segundos} error={error} />}
       </div>
     </dialog>
   );
@@ -445,8 +578,16 @@ function CambioDeUsuario({ almacen, datos, guarda, onCerrar }: { almacen: Almace
     if (segundos === 0) requestAnimationFrame(() => campo.current?.focus());
   }, [elegido, segundos]);
 
+  // Un dueño con el PIN viejo no entra directo: la pantalla se bloquea y ahí elige el nuevo (en la demo no se bloquea:
+  // entra como antes, igual que el vanilla).
+  const alPinViejo = (c: CambioDePinPendiente) => {
+    anotarCambioDePin(almacen, c);
+    if (bloquearElClub(almacen, "cambio")) return true;
+    olvidarCambioDePin(almacen);
+    return false;
+  };
   const intentar = (valor: string) => {
-    if (probar(elegido, valor)) onCerrar();
+    if (probar(elegido, valor, alPinViejo) !== "no") onCerrar();
     else setPin("");
   };
   return (
@@ -454,7 +595,7 @@ function CambioDeUsuario({ almacen, datos, guarda, onCerrar }: { almacen: Almace
       abierta
       onCerrar={onCerrar}
       titulo="¿Quién usa el sistema?"
-      descripcion="Elegí tu usuario y poné tu PIN de 2 dígitos."
+      descripcion={`Elegí tu usuario y poné tu PIN (dueños ${LARGO_PIN.duenio} números, recepción ${LARGO_PIN.recepcion}).`}
       pie={
         <>
           <Button variant="outline" size="md" onClick={onCerrar}>
@@ -479,6 +620,7 @@ function CambioDeUsuario({ almacen, datos, guarda, onCerrar }: { almacen: Almace
           id={`${ids}-pin`}
           etiqueta={quien ? `PIN de ${primerNombre(quien.nombre)}` : "PIN"}
           valor={pin}
+          largo={quien ? largoPin(quien.rol) : LARGO_PIN_MAX}
           deshabilitado={segundos > 0}
           describe={`${ids}-a`}
           campo={campo}
