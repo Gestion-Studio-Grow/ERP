@@ -25,7 +25,13 @@ const entorno = await levantarEntorno();
 const { url: BASE, puerto, base } = entorno;
 const HOST_AJENO = `http://${base.a.subdominio}.localhost:${puerto}`;
 const duenioDb = await (await import("../../../test/base-efimera.ts")).prismaComoDuenio(base);
-const magra = await duenioDb.tenant.findUniqueOrThrow({ where: { slug: "magra" } });
+// Como en producción: el negocio se llama MAGRA y lo que el dueño todavía no cargó (dirección, horario,
+// WhatsApp) queda vacío. La semilla de QA trae rótulos «DEMO»; acá se sacan para mirar la tienda real.
+const magra = await duenioDb.tenant.update({ where: { slug: "magra" }, data: { name: "Magra" } });
+await duenioDb.businessSettings.updateMany({
+  where: { tenantId: magra.id },
+  data: { shortLabel: null, addressLine: null, hoursLabel: null, contactNote: null, whatsapp: null },
+});
 
 const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium" }).catch(() => chromium.launch());
 const errores = [];
@@ -81,7 +87,9 @@ try {
     await p.goto(`${BASE}/tienda`);
     const cuerpo = await p.locator("body").innerText();
     ok("0.1", /ESTO NO ES UNA CARNICERÍA/i.test(cuerpo) && !/Mi negocio/.test(cuerpo), "la tienda es la de MAGRA, no la vidriera genérica");
-    ok("0.1b", /WhatsApp a confirmar/.test(cuerpo), "sin WhatsApp cargado, la tienda lo dice («a confirmar»), no inventa un número");
+    const prohibidas = cuerpo.match(/\b(demo|de prueba|de ejemplo|fictici[oa]s?|a confirmar|provisional)\b/gi) ?? [];
+    ok("0.1b", prohibidas.length === 0 && !/wa\.me\/\d/.test(await p.content()),
+      `ambiente real: sin dirección, horario ni WhatsApp cargados, la tienda no muestra «a confirmar» ni inventa un número${prohibidas.length ? ` (dice: ${[...new Set(prohibidas)].join(", ")})` : ""}`);
     await foto(p, "tienda-1440");
     await p.goto(`${BASE}/admin`);
     ok("0.2", new URL(p.url()).pathname === "/admin/login", "/admin sin sesión rebota al ingreso");
@@ -384,6 +392,7 @@ try {
   ok("recorrido", false, `se cortó: ${String(err?.message ?? err).split("\n")[0]}`);
 }
 
+if (process.env.DEBUG && filas.some((f) => f.estado !== "OK")) console.log("── log del servidor ──\n" + entorno.logServidor.join("").slice(-4000));
 ok("consola", errores.length === 0, `cero errores de consola${errores.length ? `: ${errores.slice(0, 3).join(" | ")}` : ""}`);
 await b.close();
 await entorno.cerrar();
