@@ -45,6 +45,13 @@ Viven **fuera** de este repo `estetica-erp`, como carpetas/proyectos hermanos en
   mencionó como *posibles* negocios de Grow; hace falta que confirme cuáles son efectivamente cartera de
   Agencia Grow y cuáles no. **No los reasigné ni toqué** — solo quedan anotados como candidatos.
 
+**Confirmados por el dueño:**
+
+- **Bandeja** (nombre provisional) — buscador para encontrar y puntuar profes de pádel por cercanía, con
+  reseñas sólo de alumnos con clase dada. **Asignado a Grow el 18/10/2026.** Hoy es una demo a costo cero
+  (`public/previews/bandeja/`, rama `claude/adoring-einstein-9nm4hw`); estrategia y frontera con el ERP en
+  `docs/producto/bandeja/ESTRATEGIA.md`. La herramienta del profe que usa (`padel-clases`) es del ERP, no de Grow.
+
 ---
 
 ## 3. Qué YA se desarrolló y es de Agencia Grow (mapeo de artefactos)

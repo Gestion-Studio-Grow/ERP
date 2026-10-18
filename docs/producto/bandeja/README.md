@@ -9,6 +9,10 @@ todavía no está en `origin/main`.
 
 Estrategia de venta y precios (propuesta, no adoptada): [`ESTRATEGIA.md`](ESTRATEGIA.md).
 
+**Unidad: Agencia Grow** (negocio propio del grupo; decisión del dueño, 18/10/2026). El buscador es de Grow y
+vive fuera del Core; la herramienta del profe, la reseña verificada y la ficha pública son del ERP
+(módulo `padel-clases`). Ver ESTRATEGIA.md § Frontera con el ERP.
+
 ## Qué hay hoy: una demo a costo cero
 
 | Pieza | Archivo |
@@ -48,7 +52,10 @@ Los valores (4,0 · 5 · 3 · 30 días · 0,04) están en `REGLAS` y son **provi
 
 ## Cómo sería la versión real (cuando se venda; nada de esto está construido)
 
-Va **adentro del ERP**, sobre `padel-clases`, no como app aparte (un solo sistema, muchos negocios).
+Dos lados, por la regla de Agencia Grow (un negocio propio no entra como código a medida al Core):
+
+- **En el ERP**, como parte del módulo `padel-clases` (puntos 1 a 4): la reseña, la ficha pública y la salida de sólo lectura.
+- **Fuera del ERP**, como proyecto propio de Grow: el buscador Bandeja (lo que hoy es la demo), que consume esa salida.
 
 1. **Reseña** (tabla por negocio, con RLS como las otras 5 de `padel-clases`): `PadelResena` atada a una
    `PadelClase` en estado DADA (única por clase), con los cuatro puntajes, el texto, la respuesta del profe y
@@ -60,14 +67,16 @@ Va **adentro del ERP**, sobre `padel-clases`, no como app aparte (un solo sistem
    (tabla sin datos personales: ficha + resumen de puntaje + reseñas ya moderadas con «Juan P.») que se
    escribe por evento (outbox) cuando el profe publica o llega una reseña, y que el buscador lee con un rol
    de sólo lectura limitado a esa tabla. Nunca leer `PadelClase`, `PadelAlumno` ni `Client` de otro negocio.
-   **Esto lo diseña y lo audita la célula de Seguridad antes de construirse.**
+   Bandeja, que vive fuera del ERP, la consume por una salida HTTP pública y cacheable; nunca con una conexión
+   a la base. **Esto lo diseña y lo audita la célula de Seguridad antes de construirse.**
 4. **Migración:** aditiva, **sin aplicar** hasta que el dueño la autorice (Gate 2), y después de que se aplique la de `padel-clases`.
 5. **Legal antes de abrir el buscador:** inscripción de la base en la AAIP, términos y política de reseñas,
    procedimiento de denuncia y baja, qué pasa con las reseñas si un profe se va. Revisión de un abogado.
 
 ## Qué NO está hecho (dicho de frente)
 
-1. **Es una demo estática.** No está dentro del ERP ni tiene base, login ni moderación de verdad.
+1. **Es una demo estática.** No tiene base, login ni moderación de verdad. Vive en `public/previews/` del ERP
+   como demo interina; el buscador real va en su propio proyecto de Grow.
 2. **`padel-clases` todavía no está en `origin/main`** (verificado el 17/10): la versión real depende de eso y de su migración.
 3. **El plano es esquemático** (las posiciones salen de coordenadas reales; las rutas son aproximadas). No hay
    un servicio de mapas, para no gastar ni depender de terceros en la demo.

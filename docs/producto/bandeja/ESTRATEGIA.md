@@ -6,6 +6,8 @@
 >
 > Proceso ADR-045: **Advisory** propuso → **Growth** y **Pricing** bajaron canal y precios →
 > **Challenger** desafió → esta síntesis. **Adoptar precios, canales o gasto es decisión del dueño.**
+>
+> **Unidad: Agencia Grow** (decisión del dueño, 18/10/2026). Ver § Frontera con el ERP.
 
 ## Estado de Matías al 17/10/2026 (verificado contra el repo)
 
@@ -17,6 +19,24 @@
   **no está en `origin/main`** (tip `aa8a3415`) a la hora de escribir esto. La versión real de Bandeja depende
   de que entre.
 - **Migración** `20261015120000_modulo_padel_clases`: declarada en `prisma/lote-deploy.txt` con OK del dueño (Gate 2), en esa misma rama.
+
+## Frontera con el ERP (decidida al asignarla a Agencia Grow)
+
+Regla del charter (`docs/sectores/agencia-grow.md` §4): **un negocio propio del grupo nunca se mete como
+código a medida dentro del Core del ERP.** Con eso, Bandeja se parte en dos:
+
+| Pieza | Unidad | Dónde vive |
+|---|---|---|
+| **El buscador de cara al jugador** (marca Bandeja, fichas por barrio, SEO local, «destacado», sponsors, captación de profes) | **Agencia Grow** — negocio propio | Proyecto propio, fuera del Core (como `dos-manos-padel`). Hoy: la demo interina en `public/previews/bandeja/` |
+| **La herramienta del profe** (turnero, «Hoy», link del alumno) **+ reseña verificada + ficha pública opt-in** | **ERP** — módulo `padel-clases` | Dentro del Core, con RLS, como cualquier módulo |
+| **El puente** | ERP | Una salida pública de sólo lectura (fichas publicadas + reseñas moderadas, sin datos personales) que Bandeja consume. Nunca acceso directo a la base |
+
+**Consecuencia:** Bandeja es un **cliente** del ERP, no una parte. Si mañana el buscador se apaga, los profes
+siguen usando su herramienta; y si el ERP le suma reseñas a otros rubros, Bandeja no se entera.
+
+**Punto a confirmar por el dueño:** la suscripción del profe (planes de abajo) es ingreso **del ERP**, y Grow la
+vende como canal; lo propio de Grow son el «destacado» y los sponsors cuando haya tráfico. Si preferís que el
+plan del profe se cobre como Bandeja (una sola marca para el profe), se cambia el reparto, no el código.
 
 ## La tesis en tres líneas
 
@@ -157,8 +177,8 @@ Guion de primer contacto (Growth, voz criolla; **sin nombrar a Matías hasta que
 
 1. ¿Se corre el experimento de 2 semanas? (costo cero; necesita que alguien hable con 10 profes).
 2. Precio de lista de los planes.
-3. ¿Bandeja va en **Agencia Grow** (negocio propio) o en **Agencia Digital** (satélite del ERP)? La
-   herramienta es un módulo del ERP; el buscador se parece a un negocio propio.
+3. ~~¿Agencia Grow o Agencia Digital?~~ **Decidido el 18/10: Agencia Grow.** Queda abierto el reparto del
+   ingreso de la suscripción del profe (§ Frontera con el ERP).
 4. El nombre.
 5. Pedirle a Matías que extienda su OK de marca a «caso de Bandeja» (hoy cubre sólo su negocio en el ERP).
 
