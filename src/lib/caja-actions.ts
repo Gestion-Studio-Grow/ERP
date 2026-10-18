@@ -27,7 +27,7 @@ import { lastClosedDay } from "@/lib/caja/frontera-cierre";
 import { ajusteDeArqueoTurno, diferenciaDeApertura } from "@/lib/caja/cierre-marca";
 import { arqueoContraElLibro, finDelDiaDelNegocio, saldoEfectivoDelLibro } from "@/lib/caja/saldo-cajon";
 import { CAMPO_ESPERADO_CONFIRMADO, esperadoConfirmadoVigente } from "@/lib/caja/esperado-del-cajon";
-import { isFrozenDay, frozenDayMessage } from "@/lib/caja/cierre-diario";
+import { isFrozenDay, frozenDayMessage, notaFaltanteDelArqueo } from "@/lib/caja/cierre-diario";
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
@@ -259,6 +259,11 @@ export async function closeCashSession(
       const vigente = esperadoConfirmadoVigente(formData.get(CAMPO_ESPERADO_CONFIRMADO), saldoDelLibro);
       if (!vigente.ok) throw new Error(vigente.error);
       const arqueo = arqueoContraElLibro(saldoDelLibro, counted);
+      // Con diferencia, la nota es obligatoria (como en el cierre del día): un faltante sin
+      // porqué es justo lo que después nadie puede explicar. Se decide con el arqueo de ACÁ
+      // (el del libro), no con el de la pantalla.
+      const faltaNota = notaFaltanteDelArqueo(arqueo.diff, note);
+      if (faltaNota) throw new Error(faltaNota);
 
       await tx.cashSession.update({
         where: { id: session.id },

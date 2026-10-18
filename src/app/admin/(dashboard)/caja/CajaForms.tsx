@@ -27,6 +27,7 @@ import { openCashSession, closeCashSession, type CajaActionState } from "@/lib/c
 import { round2 } from "@/lib/round";
 import { leerImporte } from "@/lib/pos-peso";
 import { CAMPO_ESPERADO_CONFIRMADO, esperadoParaElFormulario } from "@/lib/caja/esperado-del-cajon";
+import { notaFaltanteDelArqueo } from "@/lib/caja/cierre-diario";
 import { Field, Input, buttonClasses, fmtMoneyARS } from "@/components/ui";
 
 // Mensaje de error del formulario. `role="alert"` → el lector de pantalla lo
@@ -225,6 +226,9 @@ export function CloseCajaForm({ expected }: { expected: number }) {
   }
 
   const preview = previewArqueo(counted, expected);
+  // Con diferencia, la nota pasa a obligatoria (la misma regla que el servidor y que el cierre
+  // del día): se pide ANTES de confirmar, no después de un rechazo.
+  const conDiferencia = preview != null && preview.diff !== 0;
   const previewTone =
     preview?.tone === "danger"
       ? "text-danger"
@@ -240,6 +244,12 @@ export function CloseCajaForm({ expected }: { expected: number }) {
     if (!preview) {
       setError("Escribí el efectivo que contaste en el cajón (aunque sea 0), con coma si tiene centavos.");
       document.getElementById("counted")?.focus();
+      return;
+    }
+    const faltaNota = notaFaltanteDelArqueo(preview.diff, note);
+    if (faltaNota) {
+      setError(faltaNota);
+      document.getElementById("close-note")?.focus();
       return;
     }
     setError(null);
@@ -296,16 +306,23 @@ export function CloseCajaForm({ expected }: { expected: number }) {
             }}
           />
         </Field>
-        <Field label="Nota (opcional)" htmlFor="close-note">
+        <Field
+          label={conDiferencia ? "Nota" : "Nota (opcional)"}
+          htmlFor="close-note"
+          required={conDiferencia}
+          hint={conDiferencia ? "Hay diferencia: anotá por qué (o «sin explicación por ahora»)." : undefined}
+        >
           <Input
             id="close-note"
             type="text"
             name="note"
+            required={conDiferencia}
             placeholder="Observaciones del cierre…"
             value={note}
             onChange={(e) => {
               setNote(e.target.value);
               setConfirmando(false);
+              setError(null);
             }}
           />
         </Field>

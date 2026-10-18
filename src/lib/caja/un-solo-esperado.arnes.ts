@@ -62,9 +62,10 @@ export async function preparar(laBase: BaseEfimera) {
     const visto = esperadoVisto ?? (await esperadoEnPantalla(n));
     return comoDuenia(n, () => openCashSession(null, form({ openingFloat: fondo, [CAMPO_ESPERADO_CONFIRMADO]: esperadoParaElFormulario(visto) })));
   };
-  const cerrarTurno = async (n: NegocioDePrueba, contado: string, esperadoVisto?: number) => {
+  // `nota`: con diferencia es obligatoria (`notaFaltanteDelArqueo`), como en la pantalla.
+  const cerrarTurno = async (n: NegocioDePrueba, contado: string, esperadoVisto?: number, nota = "") => {
     const visto = esperadoVisto ?? (await esperadoEnPantalla(n));
-    return comoDuenia(n, () => closeCashSession(null, form({ counted: contado, [CAMPO_ESPERADO_CONFIRMADO]: esperadoParaElFormulario(visto) })));
+    return comoDuenia(n, () => closeCashSession(null, form({ counted: contado, note: nota, [CAMPO_ESPERADO_CONFIRMADO]: esperadoParaElFormulario(visto) })));
   };
   const cerrarElDia = (n: NegocioDePrueba, dia: string, efectivo: string) =>
     comoDuenia(n, () => cerrarDia(form({ day: dia, declarado_EFECTIVO: efectivo })));

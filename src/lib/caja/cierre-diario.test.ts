@@ -22,6 +22,8 @@ import {
   compareDayKeys,
   nextDayKey,
   formatDayLabel,
+  notaFaltanteDelArqueo,
+  NOTA_OBLIGATORIA_CON_DIFERENCIA,
   type CierreMovement,
   type DeclaredAmounts,
 } from "./cierre-diario";
@@ -580,4 +582,24 @@ test("ajustesAsMovements produce filas válidas del libro (LibroMovement) con id
   assert.equal(rows[0].type, "INGRESO");
   assert.equal(rows[0].amount, 10);
   assert.ok(rows[0].detail.startsWith("Diferencia de caja 06/09/2026"));
+});
+
+// ── Cierre del TURNO de cajero con diferencia: la nota también es obligatoria ────────────────
+// Antes el turno aceptaba el faltante sin un porqué (caja-actions.ts) mientras el cierre del día
+// lo frenaba. Mismo control de plata, mismo texto.
+
+test("cerrar el turno con faltante y sin nota: se frena con el mismo texto que el cierre del día", () => {
+  assert.equal(notaFaltanteDelArqueo(-500, ""), NOTA_OBLIGATORIA_CON_DIFERENCIA);
+  assert.equal(notaFaltanteDelArqueo(-500, "   "), NOTA_OBLIGATORIA_CON_DIFERENCIA, "espacios no son una nota");
+  assert.equal(notaFaltanteDelArqueo(250, null), NOTA_OBLIGATORIA_CON_DIFERENCIA, "un sobrante también pide el porqué");
+  // El cierre del día dice exactamente lo mismo.
+  const dia = buildCierreDiario({ day: "2026-04-01", previous: [], movements: [], declared: declared(100) });
+  const v = validateCierre(dia, { note: "", today: "2026-04-02", lastClosedDay: null });
+  assert.ok(!v.ok && v.errors.includes(NOTA_OBLIGATORIA_CON_DIFERENCIA));
+});
+
+test("cerrar el turno: con nota, o cuadrando, se cierra (la nota sigue opcional si no hay diferencia)", () => {
+  assert.equal(notaFaltanteDelArqueo(-500, "faltó cambio"), null);
+  assert.equal(notaFaltanteDelArqueo(0, ""), null);
+  assert.equal(notaFaltanteDelArqueo(0, null), null);
 });
