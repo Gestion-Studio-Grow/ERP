@@ -33,7 +33,8 @@ src/tenants/magra/e2e/entorno.mjs` (Ctrl+C lo borra).
 | # | Paso | Esperado |
 |---|---|---|
 | 0.1 | Abrir `/tienda` | La tienda de MAGRA («¡Esto no es una carnicería!», sus colores y su logo). No es la vidriera genérica «Mi negocio». |
-| 0.1b | Bajar hasta Contacto | El WhatsApp es el del local. Si todavía no está cargado dice «WhatsApp a confirmar»: nunca un número inventado. |
+| 0.1b | Bajar hasta el pie | Dirección, horario y WhatsApp son los del local. Lo que todavía no está cargado no aparece: nunca «a confirmar» ni un número inventado. |
+| 0.1c | Sin WhatsApp del local cargado | No hay botones de WhatsApp: el pedido entra por «Enviar pedido». |
 | 0.2 | Abrir `/admin` sin sesión | Rebota al ingreso del panel con el nombre de MAGRA. |
 | 0.3 | Abrir la URL de CH Estética y la de otro negocio | Están igual que antes: MAGRA no se mezcla con nadie. |
 | 0.4 | Como Dueño: Clientes | Sólo clientes de MAGRA. |
@@ -136,7 +137,7 @@ Caso de acceso:
 
 ## Resultado
 
-**Recorrido automático (base local, 18/10/2026):** `npm run test:magra-uat` → **44/44 OK**, cero errores de consola,
+**Recorrido automático (base local, 18/10/2026):** `npm run test:magra-uat` → **46/46 OK**, cero errores de consola,
 capturas a 390 y 1440 px (8 pantallas por ancho, sin desplazamiento horizontal). Defectos que encontró y quedaron
 arreglados en la rama `claude/magra-nivel-bp`:
 
@@ -146,6 +147,9 @@ arreglados en la rama `claude/magra-nivel-bp`:
 - **D2 · El cierre no cuadraba a la vista.** La lista de movimientos del cierre pintaba la apertura del turno en la columna
   «Ingreso», pero no la sumaba (bien): la columna no daba lo que decía el cuadro. Ahora usa la misma tabla de signos que el
   libro y la rotula como conteo del cajón (`caja/cierre/page.tsx`, `CierreRenglon.tsx`, test en `revisar-cierre.test.ts`).
+- **D4 · Ambiente real.** La tienda mostraba «Dirección / Horarios / WhatsApp a confirmar» y botones de WhatsApp que
+  abrían «todavía no publicamos el WhatsApp»; Vender rotulaba la balanza «provisional a confirmar» y el Inicio pedía una
+  «venta de prueba». Ahora lo que falta no se muestra (`MagraFront.tsx`, `vender/page.tsx`, `inicio/bandeja-core.ts`).
 - **D3 · Semilla de la demo.** Los pedidos de ejemplo salían «precio a mano» (sin producto) y no había usuario de mostrador
   ni productos por unidad. Corregido en `prisma/seed-magra.ts` (sólo demo y QA local).
 

@@ -88,6 +88,7 @@ try {
     const cuerpo = await p.locator("body").innerText();
     ok("0.1", /ESTO NO ES UNA CARNICERÍA/i.test(cuerpo) && !/Mi negocio/.test(cuerpo), "la tienda es la de MAGRA, no la vidriera genérica");
     const prohibidas = cuerpo.match(/\b(demo|de prueba|de ejemplo|fictici[oa]s?|a confirmar|provisional)\b/gi) ?? [];
+    ok("0.1c", (await p.getByRole("button", { name: /WhatsApp/ }).count()) === 0, "sin WhatsApp del local, la tienda no ofrece botones de WhatsApp");
     ok("0.1b", prohibidas.length === 0 && !/wa\.me\/\d/.test(await p.content()),
       `ambiente real: sin dirección, horario ni WhatsApp cargados, la tienda no muestra «a confirmar» ni inventa un número${prohibidas.length ? ` (dice: ${[...new Set(prohibidas)].join(", ")})` : ""}`);
     await foto(p, "tienda-1440");
