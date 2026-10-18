@@ -10,7 +10,7 @@ const pad = (n) => String(n).padStart(2, "0");
 const hoyLocal = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const fechaCorta = (f) => { const [, m, d] = f.split("-"); return `${DIAS[M.diaSemana(f)]} ${Number(d)}/${Number(m)}`; };
-const ddmm = (f) => `${Number(f.slice(8))}/${Number(f.slice(5, 7))}`;
+const ddmm = (f) => (typeof f === "string" && /^\d{4}-\d{2}-\d{2}/.test(f) ? `${Number(f.slice(8, 10))}/${Number(f.slice(5, 7))}` : "—");
 // En la demo el WhatsApp abre sin número (elegís el contacto): los teléfonos de ejemplo podrían ser de alguien real.
 const wa = (texto) => M.linkWhatsApp("", texto);
 const ROW = 30;
@@ -79,12 +79,30 @@ const esDuenio = () => yo()?.rol === "duenio";
 // Por defecto /club es la demo. La jornada real se activa a propósito (Ajustes, con PIN de dueño, o /club?modo=real):
 // arranca en blanco, se guarda sola en el navegador, vuelve bloqueada al recargar y usa el reloj real.
 const CLAVE_JORNADA = "bp-jornada-v1", CLAVE_MODO = "bp-modo", CLAVE_CONTACTOS = "bp-contactos";
+// Lo que ocupa cada copia vieja de la jornada (clave → caracteres): leerlas enteras en cada pantalla es caro (pueden
+// pesar 3.000 KB). Se recalcula al abrir Configuración y cuando esta pestaña escribe o borra una copia.
+const tamCopias = new Map();
 const lsLeer = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
-const lsGuardar = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch { return false; } };
-const MODO_REAL = lsLeer(CLAVE_MODO) === "real" || new URLSearchParams(location.search).get("modo") === "real";
-if (MODO_REAL) lsGuardar(CLAVE_MODO, "real"); // entrar con ?modo=real deja la compu en jornada real (se vuelve desde Ajustes)
-const guardado = { habilitado: false, cuando: null, ok: true, bytes: 0, timer: null, fuera: false, avisado: false };
-const contactos = () => { try { return JSON.parse(lsLeer(CLAVE_CONTACTOS) || "{}") ?? {}; } catch { return {}; } };
+const lsGuardar = (k, v) => {
+  if (k.startsWith(`${CLAVE_JORNADA}-`)) tamCopias.delete(k);
+  try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch { return false; }
+};
+// En el sitio del club (<meta name="bp-ambiente" content="real">) /club ES la gestión real; la demo para prospectos
+// queda con ?demo=1 (sólo esa visita, no cambia nada guardado). Fuera del sitio (vista previa), demo salvo ?modo=real.
+const Q = new URLSearchParams(location.search);
+const AMBIENTE_REAL = document.querySelector('meta[name="bp-ambiente"]')?.content === "real";
+// El celular del dueño que abre un link de aprobación (#aprobar&…) sin jornada guardada sólo calcula el código:
+// no se convierte en una compu del club (no arma consola ni guarda nada).
+const SOLO_APROBAR = location.hash.startsWith("#aprobar&") && !lsLeer(CLAVE_JORNADA) && lsLeer(CLAVE_MODO) !== "real";
+const MODO_REAL = !SOLO_APROBAR && Q.get("demo") !== "1" && (Q.get("modo") === "real" || lsLeer(CLAVE_MODO) === "real" || (AMBIENTE_REAL && lsLeer(CLAVE_MODO) !== "demo"));
+if (MODO_REAL) lsGuardar(CLAVE_MODO, "real"); // la compu queda en jornada real (se vuelve a la demo desde Configuración)
+const guardado = { habilitado: false, cuando: null, ok: true, bytes: 0, timer: null, fuera: false, avisado: false, lleno: false, avisoLleno: false };
+// El navegador guarda ~5 millones de caracteres por sitio. Pasados ~2,5 millones (3–4 semanas de club lleno) se avisa
+// para archivar los días cerrados; nunca se archiva solo: el dueño se tiene que quedar con el archivo.
+const AVISO_LLENO = 2_500_000;
+// Los celulares de la jornada real no los ve ni los pisa la demo (que entra con un PIN de ejemplo): clave aparte.
+const claveContactos = () => (MODO_REAL ? CLAVE_CONTACTOS : `${CLAVE_CONTACTOS}-demo`);
+const contactos = () => { try { return JSON.parse(lsLeer(claveContactos()) || "{}") ?? {}; } catch { return {}; } };
 const waA = (quien, texto) => M.linkWhatsApp(contactos()[quien] ?? "", texto);
 
 function leerJornada() {
@@ -107,7 +125,9 @@ function guardarJornada(inmediato = false) {
     }
     guardado.ok = ok;
     if (ok) { guardado.cuando = new Date(); guardado.bytes = txt.length; guardado.avisado = false; }
-    else if (!guardado.avisado) { guardado.avisado = true; toast("No se pudo guardar en esta compu. Descargá un respaldo ya (Ajustes → Jornada real).", { error: true }); }
+    else if (!guardado.avisado) { guardado.avisado = true; toast("No se pudo guardar en esta compu: falta lugar. Descargá un respaldo ya y archivá los días cerrados (Configuración → Jornada real).", { error: true }); }
+    guardado.lleno = !ok || txt.length > AVISO_LLENO;
+    if (ok && guardado.lleno && !guardado.avisoLleno) { guardado.avisoLleno = true; toast("Lo guardado en esta compu se está llenando: un dueño tiene que archivar los días cerrados (Configuración → Jornada real)."); }
     pintarGuardado();
   };
   if (inmediato) hacer(); else guardado.timer = setTimeout(hacer, 300);
@@ -117,17 +137,41 @@ function pintarGuardado() {
   if (!el) return;
   el.textContent = !guardado.ok ? "⚠ no se pudo guardar" : guardado.cuando ? `guardado ${pad(guardado.cuando.getHours())}:${pad(guardado.cuando.getMinutes())}` : "guardando…";
   el.classList.toggle("err", !guardado.ok);
+  const aviso = $("#aviso-lleno");
+  if (aviso) aviso.hidden = !guardado.lleno;
+}
+function descargarArchivo(texto, nombre) {
+  const url = URL.createObjectURL(new Blob([texto], { type: "application/json" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: nombre });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 function descargarRespaldo() {
   guardarJornada(true);
   const d = new Date();
   const nombre = `breakpoint-jornada-${hoyLocal()}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
-  const url = URL.createObjectURL(new Blob([fotoJornada()], { type: "application/json" }));
-  const a = Object.assign(document.createElement("a"), { href: url, download: nombre });
-  document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  descargarArchivo(fotoJornada(), nombre);
   toast(`Respaldo descargado: ${nombre}. Guardalo (o mandátelo por WhatsApp).`);
 }
+/**
+ * Las copias que dejan la limpieza del go-live («-antes-golive»), «Empezar otra jornada en blanco» («-anterior») y una
+ * jornada que no se pudo leer («-ilegible-…»): ocupan lugar en la misma compu. Se borran sólo si un dueño lo confirma.
+ */
+function copiasEnLaCompu() {
+  const out = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const clave = localStorage.key(i);
+      if (!clave?.startsWith(`${CLAVE_JORNADA}-`)) continue;
+      const sufijo = clave.slice(CLAVE_JORNADA.length + 1);
+      const nombre = sufijo === "antes-golive" ? "Copia de antes de la limpieza del go-live" : sufijo === "anterior" ? "Jornada anterior (la de antes de «Empezar otra jornada en blanco»)" : sufijo.startsWith("ilegible-") ? "Jornada que no se pudo leer" : `Copia «${sufijo}»`;
+      if (!tamCopias.has(clave)) tamCopias.set(clave, (localStorage.getItem(clave) ?? "").length);
+      out.push({ clave, sufijo, nombre, largo: tamCopias.get(clave) });
+    }
+  } catch { /* sin acceso al almacenamiento: no hay copias para mostrar */ }
+  return out.sort((a, b) => a.clave.localeCompare(b.clave));
+}
+const kb = (largo) => `${Math.max(1, Math.ceil(largo / 1024)).toLocaleString("es-AR")} KB`;
 
 // Studio de redes (imágenes y textos para Instagram/WhatsApp): se carga recién cuando se abre.
 function abrirElStudio(pieza) {
@@ -764,6 +808,9 @@ function listaEnvio(d) {
 // ───────────────────────────── Consola de configuración (primer arranque de la jornada real) ─────────────────────────────
 
 const enConsola = () => MODO_REAL && E?.config?.configurado === false;
+// En la consola firma el dueño que ya armó su PIN; si sólo hay uno con el PIN viejo de 2 (una consola del piloto que
+// quedó sin abrir), el motor no lo deja firmar y avisa: se abre el club, se entra con el viejo y se elige el de 4.
+const duenoDeConsola = () => E.usuarios.find((u) => u.rol === "duenio" && u.pin && !M.pinDesactualizado(E, u.id)) ?? E.usuarios.find((u) => u.rol === "duenio" && u.pin);
 
 // Los dueños arman su PIN, se cargan los avisos y se da de alta a recepción. Recién ahí se abre el club.
 function vistaConsola() {
@@ -777,10 +824,10 @@ function vistaConsola() {
     </section>
     <section class="card" aria-labelledby="t-c1">
       <div class="card-head"><h2 id="t-c1">1 · Los dueños arman su PIN</h2><span class="muted small">${listos} de ${duenios.length} listos</span></div>
-      <p class="small muted" style="margin:0 0 8px">2 números que sólo sepa cada uno. Con ese PIN se entra, se desbloquea la pantalla y se autorizan créditos, descuentos y accesos.</p>
+      <p class="small muted" style="margin:0 0 8px">${M.LARGO_PIN.duenio} números que sólo sepa cada uno. Con ese PIN se entra, se desbloquea la pantalla y se autorizan créditos, descuentos y accesos.</p>
       <div class="reglas">${duenios.map((u) => u.pin
         ? `<p style="margin:0"><b>${esc(u.nombre)}</b> · ✔ PIN armado</p>`
-        : `<div><p style="margin:0 0 4px"><b>${esc(u.nombre)}</b></p><div class="row"><label class="f" style="max-width:130px">PIN<input id="pi-${u.id}" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label><label class="f" style="max-width:130px">Repetilo<input id="pi2-${u.id}" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label><button type="button" class="btn sm primary" data-a="pinInicial" data-v="${u.id}" style="align-self:flex-end">Guardar PIN</button></div></div>`).join("")}</div>
+        : `<div><p style="margin:0 0 4px"><b>${esc(u.nombre)}</b></p><div class="row"><label class="f" style="max-width:130px">PIN (${M.LARGO_PIN.duenio} números)<input id="pi-${u.id}" type="password" inputmode="numeric" autocomplete="off" maxlength="${M.LARGO_PIN.duenio}" placeholder="${puntos("duenio")}"></label><label class="f" style="max-width:130px">Repetilo<input id="pi2-${u.id}" type="password" inputmode="numeric" autocomplete="off" maxlength="${M.LARGO_PIN.duenio}" placeholder="${puntos("duenio")}"></label><button type="button" class="btn sm primary" data-a="pinInicial" data-v="${u.id}" style="align-self:flex-end">Guardar PIN</button></div></div>`).join("")}</div>
     </section>
     <section class="card" aria-labelledby="t-c2">
       <div class="card-head"><h2 id="t-c2">2 · Avisos por WhatsApp</h2><span class="muted small">Opcional · se guarda en esta compu</span></div>
@@ -841,7 +888,14 @@ function tarjetaJornada() {
         <div class="row"><button type="button" class="btn primary" data-a="respaldo">Descargar respaldo</button>
           <label class="btn" for="restaurar">Restaurar desde un archivo</label><input id="restaurar" type="file" accept=".json,application/json" class="sr" data-a="restaurar">
           <button type="button" class="btn" data-a="jornada" data-v="demo">Volver a la demo</button>
-          <button type="button" class="btn danger" data-a="jornada" data-v="blanco">Empezar otra jornada en blanco</button></div>`
+          <button type="button" class="btn danger" data-a="jornada" data-v="blanco">Empezar otra jornada en blanco</button></div>
+        <div class="seccion" style="margin-top:12px" aria-labelledby="t-golive"><h3 id="t-golive">Limpieza para el go-live${E.config.goLive ? ` <span class="chip ok">hecha el ${esc(ddmm(E.config.goLive.fecha ?? HOY))}</span>` : ""}</h3>
+          <p class="small" style="margin:0">Después del día de prueba: borra turnos, cuentas de cargos, caja, pedidos, créditos pendientes y novedades enviadas. <b>Se conserva</b> lo maestro: canchas, horarios, precios, productos, usuarios y PIN, clientes y proveedores. Antes se descarga un respaldo.</p>
+          <label class="row small" style="margin:6px 0"><input type="checkbox" id="gl-saldos" checked> Conservar los saldos (cuenta corriente, créditos y faltas de los clientes; deuda con proveedores)</label>
+          <label class="row small" style="margin:0 0 6px"><input type="checkbox" id="gl-stock" checked> Conservar el stock contado</label>
+          ${(() => { const pend = M.pendientesGoLive(E, AHORA); return pend.length ? `<div class="al media" role="status"><span class="lvl">Antes de limpiar</span><ul class="small" style="margin:4px 0 0;padding-left:18px">${pend.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : `<p class="small muted" style="margin:0 0 6px">Los turnos que todavía no se jugaron quedan, con su seña.</p>`; })()}
+          <button type="button" class="btn danger" data-a="goLive">Hacer la limpieza para el go-live</button></div>
+        ${seccionArchivo()}`
       : `<p class="small" style="margin:0 0 10px">Para el día de prueba en el local: el club arranca <b>vacío</b> (sin turnos, clientes ni caja; con las canchas, productos y usuarios de Break Point), con la hora real, y se guarda solo en esta compu. La demo de ejemplo no se toca.</p>
         <div class="row">${guardada ? `<button type="button" class="btn primary" data-a="jornada" data-v="retomar">Seguir la jornada real guardada</button>` : `<button type="button" class="btn primary" data-a="jornada" data-v="blanco">Empezar la jornada real en blanco</button>`}</div>
         ${guardada ? `<p class="small muted" style="margin:8px 0 0">En esta compu hay una jornada real guardada: desde la demo no se puede borrar. Para empezar otra, entrá a la jornada con el PIN de un dueño y usá «Empezar otra jornada en blanco».</p>` : ""}`}
@@ -857,6 +911,76 @@ function tarjetaJornada() {
       <div class="row"><label class="sr" for="link-clientes">Link del turnero para mandar a los clientes</label><input id="link-clientes" readonly value="${esc(linkClientes)}" style="flex:1;min-width:220px"><button type="button" class="btn sm" data-a="copiarLink">Copiar link para clientes</button></div>
       <p class="small muted" style="margin:6px 0 0">Con ese link el cliente ve horarios, precios y la tienda, y te pide el turno o el encargo por WhatsApp. Lo cargás acá.</p>
     </section>`;
+}
+
+// Archivar días cerrados: lo de hace más de 3 semanas con la caja cerrada pasa a un archivo que se descarga y en la
+// compu queda el resumen. Las copias viejas de la jornada se ven acá con lo que ocupan y se borran con PIN de dueño.
+// Nada se achica ni se borra sin que el dueño ELIJA el archivo descargado y el sistema compruebe que es el mismo.
+function seccionArchivo() {
+  const hasta = M.diaParaArchivar(E, AHORA);
+  const copias = copiasEnLaCompu();
+  const enCopias = copias.reduce((s, c) => s + c.largo, 0);
+  const ultimo = E.archivo?.anexos?.at(-1);
+  const dias = [...(E.archivo?.dias ?? [])].reverse();
+  // Región viva estable (siempre está): sólo se anuncia cuando cambia, no en cada pantalla.
+  const aviso = guardado.lleno ? `<div class="al alta"><span class="lvl">Se está llenando</span><p>${guardado.ok ? "Lo guardado en esta compu está cerca del tope del navegador." : "Ya no entra lo guardado en esta compu."} Archivá los días cerrados ahora y, si no las necesitás, borrá las copias viejas de abajo.</p></div>` : "";
+  return `<div class="seccion" style="margin-top:12px" aria-labelledby="t-archivo"><h3 id="t-archivo">Archivar días cerrados</h3>
+    <div id="archivo-aviso" role="status">${aviso}</div>
+    <p class="small" style="margin:0">En esta compu la jornada ocupa <b class="num">${kb(guardado.bytes)}</b>${copias.length ? ` y las copias viejas, <b class="num">${kb(enCopias)}</b>` : ""}, de unos 5.000 KB que guarda el navegador. Para que no se llene, lo de los días con la <b>caja cerrada</b> hasta el <b class="num">${esc(ddmm(hasta))}</b> (más de 3 semanas) pasa a un <b>archivo que te descargás</b>: turnos jugados, cuentas cerradas, movimientos de caja y pedidos entregados. En el sistema queda el resumen de esos días.</p>
+    <p class="small muted" style="margin:6px 0">No se toca: los turnos por jugar, las mesas abiertas, las cajas sin cerrar, la cuenta corriente y los créditos de cada cliente, ni nada con plata pendiente. Son dos pasos: bajás un archivo (el respaldo completo y esos días) y después lo elegís para comprobar que se guardó; recién ahí se achica.</p>
+    ${ultimo ? `<p class="small muted" style="margin:0 0 6px">Último archivo: hasta el ${esc(ddmm(ultimo.hasta))}${ultimo.fecha ? `, hecho el ${esc(ddmm(ultimo.fecha))}` : ""}${ultimo.por ? ` por ${esc(ultimo.por)}` : ""} (${Number(ultimo.conteos?.reservas ?? 0)} turnos).</p>` : ""}
+    ${dias.length ? `<details style="margin:0 0 8px"><summary class="small">Días archivados (${dias.length}): turnos y cobrado de cada uno</summary><ul class="small num" style="margin:4px 0 0;padding-left:18px;max-height:220px;overflow:auto">${dias.map((f) => `<li>${esc(ddmm(f.dia))} · ${Number(f.turnos)} ${Number(f.turnos) === 1 ? "turno" : "turnos"} · cobrado ${M.pesos(Number(f.cobradoCanchas) + Number(f.cobradoCuentas))}</li>`).join("")}</ul></details>` : ""}
+    <button type="button" class="btn primary" data-a="archivar" id="btn-archivar">Archivar días cerrados</button>
+    ${copias.length ? `<h4 style="margin:12px 0 4px">Copias viejas en esta compu</h4><ul class="small" style="margin:0;padding-left:18px">${copias.map((c) => `<li style="margin:4px 0">${esc(c.nombre)} · <span class="num">${kb(c.largo)}</span> <button type="button" class="btn sm" data-a="borrarCopia" data-v="${esc(c.sufijo)}" aria-label="Descargar y borrar: ${esc(c.nombre)}">Descargar y borrar</button></li>`).join("")}</ul>` : ""}
+  </div>`;
+}
+
+// Paso 1 baja UN archivo (el navegador suele frenar la segunda descarga del mismo clic); paso 2 exige elegir ese
+// archivo y comprueba que es el que se va a archivar. Sin `refrescar`: la ventana no se rearma y no pierde el PIN
+// ni el archivo elegido; lo que cambia tras el paso 1 se toca a mano.
+function dialogoArchivar() {
+  const hasta = ui.archivoPendiente?.hasta ?? M.diaParaArchivar(E, AHORA);
+  const p = ui.archivoPendiente;
+  abrir({
+    titulo: "Archivar días cerrados",
+    sub: `Lo cerrado hasta el ${esc(ddmm(hasta))} pasa a un archivo que te quedás vos. Son dos pasos.`,
+    cuerpo: `${campoPin("cf-pin")}
+      <ol class="small" style="margin:10px 0 0;padding-left:18px">
+        <li style="margin-bottom:10px"><b>Descargá el archivo.</b> Es uno solo: el respaldo completo de ahora y los días que se archivan.
+          <div class="row" style="margin-top:6px"><button type="button" class="btn primary" data-a="bajarParaArchivar">Descargar el respaldo para archivar</button></div>
+          <p id="ar-bajado" class="small muted" style="margin:6px 0 0">${p ? `Se pidió la descarga de <b>${esc(p.nombre)}</b>.` : ""}</p></li>
+        <li><b>Elegí ese archivo</b> (fijate en Descargas) para comprobar que se guardó bien. Recién ahí se achica lo guardado en esta compu.
+          <label class="f" style="margin-top:6px">Archivo descargado<input id="ar-archivo" type="file" accept=".json,application/json"></label></li>
+      </ol>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn danger" id="ar-achicar" data-a="confirmarArchivar" ${p ? "" : "disabled"}>Ya lo guardé: achicar</button>`,
+    alAbrir(d) { $("#cf-pin", d).focus(); },
+  });
+}
+
+// Lo mismo para borrar una copia vieja: se descarga, se elige lo descargado y se compara con la copia, letra por letra.
+function dialogoCopia(c) {
+  const bajada = ui.copiaBajada?.[c.sufijo];
+  abrir({
+    titulo: `Borrar de esta compu: ${esc(c.nombre)}`,
+    sub: `Ocupa ${kb(c.largo)}. Primero la descargás y la elegís; recién ahí se borra.`,
+    cuerpo: `${campoPin("cf-pin")}
+      <ol class="small" style="margin:10px 0 0;padding-left:18px">
+        <li style="margin-bottom:10px"><b>Descargá la copia.</b>
+          <div class="row" style="margin-top:6px"><button type="button" class="btn primary" data-a="bajarCopia" data-v="${esc(c.sufijo)}">Descargar la copia</button></div>
+          <p id="cp-bajada" class="small muted" style="margin:6px 0 0">${bajada ? `Se pidió la descarga de <b>${esc(bajada)}</b>.` : ""}</p></li>
+        <li><b>Elegí ese archivo</b> para comprobar que es igual a la copia.
+          <label class="f" style="margin-top:6px">Archivo descargado<input id="cp-archivo" type="file" accept=".json,application/json"></label></li>
+      </ol>`,
+    pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn danger" id="cp-borrar" data-a="confirmarBorrarCopia" data-v="${esc(c.sufijo)}" ${bajada ? "" : "disabled"}>Ya la guardé: borrar</button>`,
+    alAbrir(d) { $("#cf-pin", d).focus(); },
+  });
+}
+
+/** Lee el archivo elegido en un campo de archivo de la ventana (o null si no se eligió ninguno). */
+async function textoElegido(sel) {
+  const archivo = $(sel)?.files?.[0];
+  if (!archivo) return null;
+  try { return await archivo.text(); } catch { return ""; }
 }
 
 function vistaAjustes() {
@@ -889,8 +1013,8 @@ function vistaAjustes() {
       </tbody></table></div>
       ${E.solicitudesAcceso.filter((s) => s.estado === "pendiente").map((s) => `<div class="al media" style="margin-top:8px"><span class="lvl">Pidió acceso</span><p><b>${esc(s.nombre)}</b></p><div class="row"><button type="button" class="btn sm primary" data-a="otorgar" data-v="${s.id}">Dar acceso</button><button type="button" class="btn sm danger" data-a="rechazarAcceso" data-v="${s.id}">Rechazar</button></div></div>`).join("")}
       <div class="row" style="margin-top:10px"><label class="f" style="max-width:220px">Nombre<input id="nu-nombre" placeholder="Ej.: Caro (mañana)"></label><label class="f" style="max-width:170px">Rol<select id="nu-rol"><option value="recepcion">Recepción</option><option value="duenio">Dueño/a</option></select></label><button type="button" class="btn sm primary" data-a="altaUsuario" style="align-self:flex-end">Dar de alta</button></div>
-      <div class="row" style="margin-top:6px"><label class="f" style="max-width:150px">Tu PIN actual<input id="mp-viejo" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label><label class="f" style="max-width:150px">PIN nuevo<input id="mp-nuevo" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label><button type="button" class="btn sm" data-a="cambiarMiPin" style="align-self:flex-end">Cambiar mi PIN</button></div>
-      <p class="small muted" style="margin:10px 0 0">El acceso es con PIN de 2 dígitos. El de alta lo genera el sistema y se ve una sola vez; cada uno puede cambiar el suyo. Lo que mueve plata sensible (egresos, cierre de caja, pagos a proveedores, accesos) vuelve a pedir el PIN.</p>
+      <div class="row" style="margin-top:6px"><label class="f" style="max-width:150px">Tu PIN actual<input id="mp-viejo" type="password" inputmode="numeric" autocomplete="off" maxlength="${LARGO_PIN_MAX}" placeholder="${puntos(yo()?.rol)}"></label><label class="f" style="max-width:150px">PIN nuevo (${M.largoPin(yo()?.rol)} números)<input id="mp-nuevo" type="password" inputmode="numeric" autocomplete="off" maxlength="${M.largoPin(yo()?.rol)}" placeholder="${puntos(yo()?.rol)}"></label><button type="button" class="btn sm" data-a="cambiarMiPin" style="align-self:flex-end">Cambiar mi PIN</button></div>
+      <p class="small muted" style="margin:10px 0 0">El acceso es con PIN: ${M.LARGO_PIN.duenio} números los dueños, ${M.LARGO_PIN.recepcion} recepción. El de alta lo genera el sistema y se ve una sola vez; cada uno puede cambiar el suyo. Lo que mueve plata sensible (egresos, cierre de caja, pagos a proveedores, accesos) vuelve a pedir el PIN.</p>
     </section>
   </div>`;
 }
@@ -899,7 +1023,11 @@ const regla = (k, l, v) => `<label class="f">${l}<input type="number" min="${M.L
 const opcionesHora = (sel, desde, hasta) => { let o = ""; for (let m = desde; m <= hasta; m += E.config.paso) o += `<option value="${m}" ${m === sel ? "selected" : ""}>${M.hhmm(m)}${m >= 1440 ? " (+1)" : ""}</option>`; return o; };
 const horasOpc = (sel, fecha = VISTA) => { const { abre, cierra } = M.horarioDe(E, fecha); let o = ""; for (let m = abre; m <= cierra; m += E.config.paso) o += `<option value="${m}" ${m === sel ? "selected" : ""}>${M.hhmm(m)}</option>`; return o; };
 const pickMedios = (incluirCreditos = false, cl = null, soloProveedor = false) => `<div class="medio-pick" role="group" aria-label="Medio de pago">${(soloProveedor ? ["efectivo", "transferencia"] : [...MEDIOS_CAJA, ...(incluirCreditos && cl?.monedero > 0 ? ["monedero"] : [])]).map((k) => `<button type="button" data-a="medio" data-v="${k}" aria-pressed="${ui.medio === k}">${M.MEDIOS[k]}${k === "monedero" ? ` (${M.pesos(cl.monedero)})` : ""}</button>`).join("")}</div>`;
-const campoPin = (id = "pin", etiqueta = "Tu PIN") => `<label class="f" style="max-width:160px">${etiqueta}<input id="${id}" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label>`;
+// PIN por rol: dueños 4 números, recepción 2 (M.LARGO_PIN). El campo deja entrar el más largo; los puntitos dicen
+// cuántos espera de quien está usando el sistema.
+const LARGO_PIN_MAX = Math.max(...Object.values(M.LARGO_PIN));
+const puntos = (rol) => "•".repeat(M.largoPin(rol));
+const campoPin = (id = "pin", etiqueta = "Tu PIN", rol = yo()?.rol) => `<label class="f" style="max-width:160px">${etiqueta}<input id="${id}" type="password" inputmode="numeric" autocomplete="off" maxlength="${LARGO_PIN_MAX}" placeholder="${puntos(rol)}"></label>`;
 
 // ───────────────────────────── Cámaras (simuladas) ─────────────────────────────
 
@@ -982,6 +1110,7 @@ function irTab(id) {
   if (SOPORTA_POPOVER && $("#mas-menu").matches(":popover-open")) $("#mas-menu").hidePopover();
   if (id === TAB) return;
   TAB = id;
+  if (id === "ajustes") tamCopias.clear(); // al abrir Configuración se vuelve a medir lo que ocupa cada copia
   cerrarDialogo();
   conVT(() => { render(); $("#app").focus({ preventScroll: true }); });
 }
@@ -1141,7 +1270,9 @@ function abrir({ titulo, sub = "", cuerpo, pie = "", ancho = false, alAbrir, ref
   // Si la ventana cambió de contenido (p. ej. «Nuevo turno» → «Turno reservado ✔»), el foco no puede quedar en el body.
   if (!d.contains(document.activeElement)) (d.querySelector(".dlg-f .btn.primary") ?? d.querySelector('[data-a="cerrar"]'))?.focus();
 }
-function cerrarDialogo() { const d = $("#dlg"); if (d.open) d.close(); dialogoActual = null; }
+// Al cerrar una ventana, ningún PIN queda escrito en ella (la próxima que se abra arranca vacía).
+const vaciarPines = (d) => d.querySelectorAll('input[type="password"]').forEach((i) => { i.value = ""; });
+function cerrarDialogo() { const d = $("#dlg"); vaciarPines(d); if (d.open) d.close(); dialogoActual = null; }
 
 // Buscador de productos con lupa, reutilizable dentro de cualquier ventana.
 function buscadorProductos(clave, { soloVendibles = true } = {}) {
@@ -1158,23 +1289,47 @@ function buscadorProductos(clave, { soloVendibles = true } = {}) {
 // Los PIN de ejemplo no quedan a la vista de cualquiera que pase por el mostrador: se muestran sólo si se piden.
 // (Es una ayuda de la DEMO; con usuarios reales no existe.)
 const pinesDemo = (usuarios) => MODO_REAL ? "" : `<details class="demo-pins"><summary>¿Probando la demo? Ver los PIN de ejemplo</summary><p style="margin:6px 0 0">${usuarios.map((u) => `${esc(u.nombre.split(" ")[0])} ${esc(u.pin)}`).join(" · ")}</p></details>`;
-// Cambio de usuario: como el bloqueo, 5 PIN mal → 30 s de espera (2 dígitos se adivinan rápido si no hay tope).
-const intentosPin = { fallos: 0, hasta: 0 };
+// Tope de intentos de PIN: UNO solo para toda la compu (M.anotarIntentoPin). Lo comparten la pantalla bloqueada,
+// «¿Quién usa el sistema?», el descuento, la aprobación en la misma compu y las confirmaciones «con tu PIN»: 5 mal →
+// 30 s, después 2 min, después 10 min. En la jornada real se guarda en `bp-intentos` (sobrevive a recargar).
+let INTENTOS = M.intentosPin();
+const guardarIntentos = () => { if (MODO_REAL) lsGuardar("bp-intentos", JSON.stringify(INTENTOS)); };
+const esperaPinS = () => Math.ceil(M.esperaPin(INTENTOS, Date.now()) / 1000);
+const textoEspera = (seg) => `Demasiados intentos: esperá ${seg > 60 ? `${Math.ceil(seg / 60)} minutos` : `${seg} s`}.`;
+// El PIN viejo de 2 de un dueño es SU PIN (no es un fallo), pero tampoco borra los fallos: sólo firma el de 4.
+function anotarPin(res) {
+  INTENTOS = M.anotarIntentoPin(INTENTOS, { ok: !!(res?.ok || res?.pinViejo), duenio: !!res?.ok && res.usuario?.rol === "duenio" }, Date.now());
+  guardarIntentos();
+}
+const motivoFallo = (res) => (esperaPinS() > 0 ? textoEspera(esperaPinS()) : `${res.motivo} (${INTENTOS.fallos} de ${M.TOPE_INTENTOS_PIN})`);
+// Una firma con PIN (de quien usa el sistema o de un dueño elegido): respeta la espera, cuenta el intento y no acepta
+// el PIN viejo de 2 de un dueño (M.verificarFirma).
+function firmar(usuarioId, pin) {
+  if (esperaPinS() > 0) return { ok: false, motivo: textoEspera(esperaPinS()) };
+  const v = M.verificarFirma(E, usuarioId, pin);
+  anotarPin(v);
+  return v.ok || v.pinViejo ? v : { ...v, motivo: motivoFallo(v) };
+}
 
 function cambiarUsuario() {
   let elegido = USUARIO;
   abrir({
     titulo: "¿Quién usa el sistema?",
-    sub: "Elegí tu usuario y poné tu PIN de 2 dígitos.",
+    sub: `Elegí tu usuario y poné tu PIN (dueños ${M.LARGO_PIN.duenio} números, recepción ${M.LARGO_PIN.recepcion}).`,
     cuerpo: `<div class="usuarios" role="group" aria-label="Usuarios">${E.usuarios.filter((u) => u.activo !== false).map((u) => `<button type="button" data-a="elegirUsuario" data-v="${u.id}" aria-pressed="${u.id === elegido}"><span><b>${esc(u.nombre)}</b></span><span class="small muted">${M.ROLES[u.rol]}</span></button>`).join("")}</div>
-      ${campoPin("pin-usuario", "PIN")}
+      ${campoPin("pin-usuario", "PIN", M.usuario(E, elegido)?.rol)}
       ${pinesDemo(E.usuarios.filter((u) => u.activo !== false))}
       <details><summary class="small">¿Sos nuevo/a? Pedí acceso</summary><div class="row" style="margin-top:8px"><label class="sr" for="nuevo-acceso">Tu nombre</label><input id="nuevo-acceso" placeholder="Tu nombre" style="max-width:220px"><button type="button" class="btn sm" data-a="pedirAcceso">Pedir acceso</button></div><p class="small muted">Le llega al dueño; cuando lo aprueba te da un PIN.</p></details>`,
     pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="entrar">Entrar</button>`,
     alAbrir(d) {
       $("#pin-usuario", d).focus();
       acciones._elegido = () => elegido;
-      acciones._setElegido = (v) => { elegido = v; d.querySelectorAll('[data-a="elegirUsuario"]').forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v))); $("#pin-usuario", d).focus(); };
+      acciones._setElegido = (v) => {
+        elegido = v;
+        d.querySelectorAll('[data-a="elegirUsuario"]').forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v)));
+        $("#pin-usuario", d).placeholder = puntos(M.usuario(E, v)?.rol); // el largo es el de quien entra
+        $("#pin-usuario", d).focus();
+      };
     },
   });
 }
@@ -1419,9 +1574,10 @@ function dialogoAprobar(d) {
     refrescar: pintar,
     cuerpo: codigo
       ? `<p style="margin:0">Mandale este código a ${esc(d.p)}:</p><p class="codigo-aprob num" aria-live="polite">${esc(codigo.codigo)}</p>
-         <p class="small muted" style="margin:0">Vale para ${esc(d.n)} por ${M.pesos(codigo.monto)}. Si el PIN que pusiste no es el tuyo, el código no va a servir.</p>`
+         <p class="small muted" style="margin:0">Vale para ${esc(d.n)} por ${M.pesos(codigo.monto)}. Si el PIN que pusiste no es el tuyo, el código no va a servir.</p>
+         ${codigo.pinViejo ? `<p class="small" style="margin:6px 0 0">Tu PIN de dueño ahora es de ${M.LARGO_PIN.duenio} números: la próxima vez que entres en la compu del club te va a pedir que elijas uno nuevo.</p>` : ""}`
       : `<div class="usuarios" role="group" aria-label="¿Quién aprueba?">${duenios.map((u) => `<button type="button" data-a="aprobQuien" data-v="${u.id}" aria-pressed="${u.id === elegido}"><b>${esc(u.nombre)}</b></button>`).join("")}</div>
-         <div class="row"><label class="f" style="max-width:160px">Tu PIN<input id="ap-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label>
+         <div class="row"><label class="f" style="max-width:${local ? 160 : 260}px">${local ? `Tu PIN (${M.LARGO_PIN.duenio} números)` : `Tu PIN (${M.LARGO_PIN.duenio} números; si todavía tenés el de ${M.LARGO_PIN_VIEJO}, también sirve)`}<input id="ap-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="${M.LARGO_PIN.duenio}" placeholder="${puntos("duenio")}" style="max-width:160px"></label>
          <label class="f" style="max-width:160px">Monto que aprobás<input id="ap-monto" type="number" min="1" value="${esc(d.m)}"></label></div>`,
     pie: codigo
       ? `<a class="btn primary" target="_blank" rel="noopener" href="${esc(waA("club", M.mensajeWhatsApp("aprobado", { cliente: d.n, monto: M.pesos(codigo.monto), codigo: codigo.codigo })))}">Mandar el código por WhatsApp</a><button type="button" class="btn" data-a="cerrar">Listo</button>`
@@ -1433,16 +1589,16 @@ function dialogoAprobar(d) {
     const pin = val("#ap-pin");
     const monto = Math.round(Number(val("#ap-monto")));
     if (!(monto > 0)) return toast("Poné el monto.", { error: true });
-    if (!/^\d{2}$/.test(pin)) return toast("El PIN son 2 números.", { error: true });
+    // El celular no tiene la jornada: no sabe si este dueño ya pasó al PIN de 4. Acepta también el viejo de 2 (el
+    // código sale igual con cualquiera: lo verifica la compu del club contra el PIN guardado).
+    if (!M.pinAceptadoPara("duenio", pin)) return toast(M.textoLargoPin("duenio"), { error: true });
     if (local) {
-      const espera = Math.ceil((intentosPin.hasta - Date.now()) / 1000);
-      if (espera > 0) return toast(`Demasiados intentos: esperá ${espera} s.`, { error: true });
-      const v = M.verificarPin(E, elegido, pin);
-      if (!v.ok) { intentosPin.fallos += 1; if (intentosPin.fallos >= 5) { intentosPin.fallos = 0; intentosPin.hasta = Date.now() + 30_000; } return toast(v.motivo, { error: true }); }
-      intentosPin.fallos = 0;
+      // En la compu del club el PIN del dueño FIRMA: cuenta en el tope de intentos y el viejo de 2 no sirve.
+      const v = firmar(elegido, pin);
+      if (!v.ok) { const c = $("#ap-pin"); if (c) c.value = ""; return toast(v.motivo, { error: true }); }
       return cerrarSiSale(M.resolverCredito(E, d.id, { aprobar: true, monto }, { usuarioId: elegido, pin }, AHORA), `Aprobado: ${d.n} ${M.pesos(monto)}.`);
     }
-    codigo = { codigo: M.codigoAprobacion({ pin, novedadId: d.id, clienteId: d.c, monto, fecha: d.f }), monto };
+    codigo = { codigo: M.codigoAprobacion({ pin, novedadId: d.id, clienteId: d.c, monto, fecha: d.f }), monto, pinViejo: !M.pinValidoPara("duenio", pin) };
     pintar();
   };
   pintar();
@@ -1465,7 +1621,7 @@ function mesaCompleja(cta) {
         <div class="row"><label class="sr" for="cm-con">Concepto</label><input id="cm-con" placeholder="Concepto (ej.: torta de cumpleaños)" style="flex:2;min-width:180px" maxlength="60">
           <label class="sr" for="cm-tipo">Tipo</label><select id="cm-tipo" style="max-width:130px"><option value="cargo">Cargo</option><option value="descuento">Descuento</option></select>
           <label class="sr" for="cm-mon">Monto</label><input id="cm-mon" type="number" min="1" step="50" placeholder="$" style="max-width:130px">
-          <label class="sr" for="cm-pin">PIN del dueño (sólo descuentos)</label><input id="cm-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="PIN dueño" style="max-width:110px">
+          <label class="sr" for="cm-pin">PIN del dueño (sólo descuentos)</label><input id="cm-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="${LARGO_PIN_MAX}" placeholder="PIN dueño" style="max-width:110px">
           <button type="button" class="btn" data-a="cargoManual" data-v="${cta.id}">Cargar</button></div>
         <p class="small muted" style="margin:4px 0 0">El PIN del dueño sólo hace falta para un descuento.</p></div>
     </div></details>`;
@@ -1591,12 +1747,14 @@ function cierreCajaDialogo(diaAtrasado = null) {
     const ra = M.resumenCaja(E, diaAtrasado);
     return abrir({
       titulo: `Cerrar la caja del ${esc(fechaCorta(diaAtrasado))}`,
-      sub: "Caja anterior que quedó sin cerrar (lo cobrado antes de las 12 es de la caja del día anterior).",
+      sub: "Caja con movimientos que nadie cerró (lo cobrado antes de las 12 es de la caja del día anterior; lo cobrado después de cerrar, de la siguiente).",
       cuerpo: `<dl class="kv num">${MEDIOS_CAJA.map((k) => `<dt>${M.MEDIOS[k]}</dt><dd>${M.pesos(ra.porMedio[k])}</dd>`).join("")}<dt class="tot">Efectivo que tiene que haber</dt><dd class="tot">${M.pesos(ra.efectivoEsperado)}</dd></dl>
         <div class="grid2"><label class="f">Efectivo contado de esa caja (contalo)<input id="k-cont" type="number" min="0" value="" placeholder="Contá el efectivo"></label>${campoPin("k-pin", `PIN de ${esc(yo().nombre.split(" ")[0])}`)}</div>`,
       pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="aplicarCierre" data-v="${diaAtrasado}">Cerrar esa caja</button>`,
     });
   }
+  // Hoy ya se cerró pero lo cobrado después quedó en la caja siguiente: se puede cerrar igual (ej. antes del go-live).
+  if (M.cajaCerrada(E, hoy) && M.cajasConMovimientosSinCerrar(E).includes(M.cajaAbierta(E, AHORA))) return cierreCajaDialogo(M.cajaAbierta(E, AHORA));
   if (M.cajaCerrada(E, hoy)) return abrir({ titulo: "La caja de hoy ya está cerrada", cuerpo: `<p style="margin:0">Se cerró una sola vez, como corresponde. Lo que se cobre desde ahora entra en la caja del ${esc(fechaCorta(M.cajaAbierta(E, AHORA)))}.</p>`, pie: `<button type="button" class="btn primary" data-a="cerrar">Entendido</button>` });
   const dia = M.cajaAbierta(E, AHORA);
   const r = M.resumenCaja(E, dia);
@@ -1845,7 +2003,7 @@ function otorgarDialogo(solicitudId) {
   const s = E.solicitudesAcceso.find((x) => x.id === solicitudId);
   abrir({
     titulo: `Dar acceso a ${esc(s.nombre)}`,
-    sub: "El sistema genera un PIN de 2 dígitos que no repite ningún otro. Se muestra una sola vez para que se lo des.",
+    sub: `El sistema genera un PIN que no repite ningún otro (${M.LARGO_PIN.duenio} números si es dueño/a, ${M.LARGO_PIN.recepcion} si es recepción). Se muestra una sola vez para que se lo des.`,
     cuerpo: `<label class="f">Rol<select id="og-rol"><option value="recepcion">Recepción (agenda, cobros, buffet, remitos, egreso en efectivo)</option><option value="duenio">Dueño/a (todo)</option></select></label>${campoPin("og-pin")}`,
     pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="confirmarOtorgar" data-v="${s.id}">Dar acceso</button>`,
   });
@@ -1941,19 +2099,18 @@ const acciones = {
   bloqueoOtro: () => { bloqueo.otro = true; bloqueo.elegido = null; pintarBloqueo(); },
   bloqueoVolver: () => { bloqueo.otro = false; pintarBloqueo(); },
   bloqueoUsuario: (b) => { bloqueo.elegido = b.dataset.v; pintarBloqueo(); },
+  guardarPinNuevo: () => guardarPinNuevo(),
+  pinNuevoDespues: () => { bloqueo.cambio = null; bloqueo.otro = false; pintarBloqueo(); $("#bl-pin")?.focus(); },
 
   // usuario y accesos
   usuario: () => cambiarUsuario(),
   elegirUsuario: (b) => acciones._setElegido?.(b.dataset.v),
   entrar: () => {
-    const espera = Math.ceil((intentosPin.hasta - Date.now()) / 1000);
-    if (espera > 0) return toast(`Demasiados intentos: esperá ${espera} s.`, { error: true });
+    if (esperaPinS() > 0) return toast(textoEspera(esperaPinS()), { error: true });
     const res = M.verificarPin(E, acciones._elegido?.(), val("#pin-usuario"));
-    if (!res.ok) {
-      if (++intentosPin.fallos >= 5) { intentosPin.fallos = 0; intentosPin.hasta = Date.now() + 30_000; return toast("Demasiados intentos: esperá 30 s.", { error: true }); }
-      return toast(`${res.motivo} (${intentosPin.fallos} de 5)`, { error: true });
-    }
-    intentosPin.fallos = 0;
+    anotarPin(res);
+    if (!res.ok) { const c = $("#pin-usuario"); if (c) c.value = ""; return toast(motivoFallo(res), { error: true }); }
+    if (M.pinDesactualizado(E, res.usuario.id) && pedirPinNuevo(res.usuario.id, val("#pin-usuario"))) return;
     USUARIO = res.usuario.id;
     if (res.usuario.rol === "duenio" && matchMedia("(max-width: 640px)").matches) TAB = "tablero";
     cerrarSiSale(res, `Hola, ${res.usuario.nombre.split(" ")[0]}.`);
@@ -2065,7 +2222,7 @@ const acciones = {
   },
   aprobarAca: (b) => pinPara("confirmarAprobarAca", b.dataset.v, "Aprobar el crédito"),
   confirmarAprobarAca: (b) => {
-    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    const v = firmar(USUARIO, val("#cf-pin"));
     if (!v.ok) return toast(v.motivo, { error: true });
     cerrarSiSale(M.resolverCredito(E, b.dataset.v, { aprobar: true }, auth(val("#cf-pin")), AHORA), "Crédito aprobado.");
   },
@@ -2099,7 +2256,7 @@ const acciones = {
     hecho(M.definirPinInicial(E, u, a, AHORA), "PIN guardado. No se lo digas a nadie.");
   },
   altaUsuarioConsola: () => {
-    const dueno = E.usuarios.find((u) => u.rol === "duenio" && u.pin);
+    const dueno = duenoDeConsola();
     if (!dueno) return toast("Primero un dueño arma su PIN.", { error: true });
     const res = M.altaUsuario(E, { nombre: val("#nu-nombre"), rol: "recepcion" }, { usuarioId: dueno.id, pin: dueno.pin }, AHORA);
     if (res.ok) ui.pinesNuevos = { ...(ui.pinesNuevos ?? {}), [res.usuario.id]: res.pin };
@@ -2155,7 +2312,7 @@ const acciones = {
     pinPara("confirmarJornada", "blanco", MODO_REAL ? "Empezar otra jornada en blanco (la de ahora queda como «anterior» en esta compu: igual descargá el respaldo antes)" : "Empezar la jornada real en blanco");
   },
   confirmarJornada: (b) => {
-    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    const v = firmar(USUARIO, val("#cf-pin"));
     if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
     const que = b.dataset.v;
     // Desde la demo (PIN de ejemplo, que conoce cualquiera) nunca se pisa una jornada real guardada.
@@ -2166,17 +2323,145 @@ const acciones = {
     if (que === "demo") { if (MODO_REAL) lsGuardar(CLAVE_JORNADA, fotoJornada()); lsGuardar(CLAVE_MODO, "demo"); }
     setTimeout(() => location.replace(location.pathname), que === "blanco" && MODO_REAL ? 800 : 0);
   },
+  goLive: () => {
+    ui.goLive = { conservarSaldos: $("#gl-saldos")?.checked !== false, conservarStock: $("#gl-stock")?.checked !== false };
+    pinPara("confirmarGoLive", "", `Limpieza para el go-live (${ui.goLive.conservarSaldos ? "se conservan los saldos" : "los saldos quedan en CERO"}): se borran turnos, cuentas, caja y pedidos`);
+  },
+  confirmarGoLive: () => {
+    const v = firmar(USUARIO, val("#cf-pin"));
+    if (!v.ok || !esDuenio()) return toast(v.ok ? "La limpieza la hace un dueño." : v.motivo, { error: true });
+    descargarRespaldo();
+    lsGuardar(`${CLAVE_JORNADA}-antes-golive`, fotoJornada());
+    const res = M.limpiarParaGoLive(E, ui.goLive ?? {}, auth(val("#cf-pin")), AHORA);
+    ui.goLive = null;
+    if (!res.ok) return toast(res.motivo, { error: true });
+    UNDO = null;
+    TAB = "agenda";
+    cerrarDialogo();
+    render();
+    guardarJornada(true);
+    toast(`Listo para el go-live: se borraron ${res.borrado.turnos} turnos, ${res.borrado.cuentas} cuentas y ${res.borrado.movimientos} movimientos de caja. Quedó un respaldo descargado.`);
+  },
+  irArchivar: () => {
+    if (!esDuenio()) return toast("Lo guardado en esta compu se está llenando: avisale a un dueño que archive los días cerrados (Configuración → Jornada real).", { error: true });
+    irTab("ajustes");
+    setTimeout(() => { $("#t-archivo")?.scrollIntoView({ block: "center" }); $("#btn-archivar")?.focus({ preventScroll: true }); }, 250);
+  },
+  archivar: () => {
+    if (!esDuenio()) return toast("Archivar lo hace un dueño.", { error: true });
+    dialogoArchivar();
+  },
+  bajarParaArchivar: () => {
+    const v = firmar(USUARIO, val("#cf-pin"));
+    if (!v.ok || !esDuenio()) return toast(v.ok ? "Archivar lo hace un dueño." : v.motivo, { error: true });
+    const hasta = M.diaParaArchivar(E, AHORA);
+    const res = M.archivarDiasCerrados(E, hasta, { ahora: AHORA, por: yo()?.nombre ?? null });
+    if (!res.ok) return toast(res.motivo, { error: true });
+    if (res.vacio) { ui.archivoPendiente = null; cerrarDialogo(); return toast(`No hay nada para archivar hasta el ${ddmm(hasta)}: ya está archivado o esas cajas no se cerraron.`); }
+    guardarJornada(true);
+    const paquete = M.paqueteParaArchivar({ ...M.serializarEstado(E), usuario: USUARIO, guardado: Date.now() }, res);
+    const d = new Date();
+    const nombre = `breakpoint-respaldo-y-archivo-${hoyLocal()}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+    descargarArchivo(JSON.stringify(paquete), nombre);
+    // No se sabe si el navegador lo bajó: el paso 2 lo comprueba con el archivo que elija el dueño.
+    ui.archivoPendiente = { hasta, huella: paquete.huella, nombre };
+    const boton = $("#ar-achicar");
+    if (boton) boton.disabled = false;
+    const nota = $("#ar-bajado");
+    if (nota) nota.innerHTML = `Se pidió la descarga de <b>${esc(nombre)}</b>.`;
+    toast(`Se pidió la descarga de ${nombre}. Cuando esté en Descargas, elegilo en el paso 2 y tocá «Ya lo guardé: achicar».`);
+  },
+  confirmarArchivar: async () => {
+    const v = firmar(USUARIO, val("#cf-pin"));
+    if (!v.ok || !esDuenio()) return toast(v.ok ? "Archivar lo hace un dueño." : v.motivo, { error: true });
+    const pend = ui.archivoPendiente;
+    if (!pend) return toast("Primero descargá el archivo (paso 1).", { error: true });
+    const texto = await textoElegido("#ar-archivo");
+    // Doble clic: el primero ya achicó (o canceló) mientras se leía el archivo; el segundo no tiene nada que hacer.
+    if (ui.archivoPendiente !== pend) return;
+    if (texto == null) return toast("Elegí el archivo que descargaste (paso 2): sin eso no se achica nada.", { error: true });
+    let paquete = null;
+    try { paquete = JSON.parse(texto); } catch {
+      return toast("Ese archivo está incompleto o dañado (no se puede leer): descargalo de nuevo y elegí el nuevo.", { error: true });
+    }
+    // Se recalcula con lo de AHORA: si algo de esos días cambió desde el paso 1, el archivo ya no coincide.
+    const res = M.archivarDiasCerrados(E, pend.hasta, { ahora: AHORA, por: yo()?.nombre ?? null });
+    const ver = M.verificarPaqueteArchivo(paquete, res, pend.huella);
+    if (!ver.ok) {
+      if (ver.causa === "cambio") {
+        ui.archivoPendiente = null;
+        const boton = $("#ar-achicar");
+        if (boton) boton.disabled = true;
+        const nota = $("#ar-bajado");
+        if (nota) nota.textContent = "";
+      }
+      return toast(ver.motivo, { error: true });
+    }
+    const antes = guardado.bytes;
+    E = res.estado;
+    UNDO = null;
+    ui.archivoPendiente = null;
+    cerrarDialogo();
+    guardado.avisoLleno = false;
+    guardarJornada(true);
+    render();
+    const c = res.conteos;
+    toast(`Archivo verificado: achicado. Quedó archivado hasta el ${ddmm(pend.hasta)}: ${c.reservas} turnos, ${c.cuentas} cuentas y ${c.movimientos} movimientos de caja (${kb(antes)} → ${kb(guardado.bytes)}). Guardá ${pend.nombre} en un lugar privado.`);
+  },
+  borrarCopia: (b) => {
+    const c = copiasEnLaCompu().find((x) => x.sufijo === b.dataset.v);
+    if (!c) return toast("Esa copia ya no está.", { error: true });
+    if (!esDuenio()) return toast("Lo decide un dueño.", { error: true });
+    dialogoCopia(c);
+  },
+  bajarCopia: (b) => {
+    const v = firmar(USUARIO, val("#cf-pin"));
+    if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
+    const c = copiasEnLaCompu().find((x) => x.sufijo === b.dataset.v);
+    const texto = c && c.clave !== CLAVE_JORNADA ? lsLeer(c.clave) : null;
+    if (texto == null) return toast("Esa copia ya no está.", { error: true });
+    const nombre = `breakpoint-copia-${c.sufijo}-${hoyLocal()}.json`;
+    descargarArchivo(texto, nombre);
+    ui.copiaBajada = { ...(ui.copiaBajada ?? {}), [c.sufijo]: nombre };
+    const boton = $("#cp-borrar");
+    if (boton) boton.disabled = false;
+    const nota = $("#cp-bajada");
+    if (nota) nota.innerHTML = `Se pidió la descarga de <b>${esc(nombre)}</b>.`;
+    toast(`Se pidió la descarga de ${nombre}. Cuando esté en Descargas, elegilo en el paso 2 y tocá «Ya la guardé: borrar».`);
+  },
+  confirmarBorrarCopia: async (b) => {
+    const v = firmar(USUARIO, val("#cf-pin"));
+    if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
+    const sufijo = b.dataset.v;
+    if (!ui.copiaBajada?.[sufijo]) return toast("Primero descargá la copia (paso 1).", { error: true });
+    const elegido = await textoElegido("#cp-archivo");
+    if (!ui.copiaBajada?.[sufijo]) return; // doble clic: el primero ya la borró
+    if (elegido == null) return toast("Elegí el archivo que descargaste (paso 2): sin eso no se borra nada.", { error: true });
+    const c = copiasEnLaCompu().find((x) => x.sufijo === sufijo);
+    const texto = c && c.clave !== CLAVE_JORNADA ? lsLeer(c.clave) : null;
+    if (texto == null) return toast("Esa copia ya no está.", { error: true });
+    if (elegido !== texto) return toast("Ese archivo no es igual a la copia: elegí el que descargaste recién (o descargala de nuevo).", { error: true });
+    const nombre = ui.copiaBajada[sufijo];
+    lsGuardar(c.clave, null);
+    delete ui.copiaBajada[sufijo];
+    cerrarDialogo();
+    guardarJornada(true);
+    render();
+    toast(`Archivo verificado: la copia se borró de esta compu (${kb(c.largo)}). Guardá ${nombre} si la querés.`);
+  },
   confirmarRestaurar: () => {
-    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    const v = firmar(USUARIO, val("#cf-pin"));
     if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
     const h = M.hidratarEstado(ui.restaurar);
+    const antesDeArchivar = ui.restaurarAntesDeArchivar;
     ui.restaurar = null;
+    ui.restaurarAntesDeArchivar = false;
     if (!h.ok) return toast(`Ese archivo no sirve: ${h.motivo}.`, { error: true });
     E = h.estado;
     cerrarDialogo();
     render();
     guardarJornada(true);
-    toast("Jornada restaurada desde el respaldo.");
+    toast(antesDeArchivar ? "Jornada restaurada desde el respaldo (es la de antes de archivar: si avisa que se llena, archivá de nuevo)." : "Jornada restaurada desde el respaldo.");
   },
   confirmarCredito: () => {
     const op = ui.pendienteCredito;
@@ -2262,8 +2547,19 @@ const acciones = {
     const pin = val("#cm-pin");
     const monto = Math.abs(Number(val("#cm-mon"))) * (val("#cm-tipo") === "descuento" ? -1 : 1);
     if (monto < 0 && !pin.trim()) return toast("Un descuento lo autoriza el dueño con su PIN: escribilo en «PIN dueño».", { error: true });
-    const firma = monto < 0 && pin ? M.usuarioPorPin(E, pin) : null;
-    const quien = firma?.ok && firma.usuario.rol === "duenio" ? { usuarioId: firma.usuario.id, pin } : auth(pin);
+    let quien = auth(pin);
+    if (monto < 0) {
+      // El descuento lo firma un dueño con SU PIN: entra en el tope de intentos y el PIN viejo de 2 no firma.
+      if (esperaPinS() > 0) return toast(textoEspera(esperaPinS()), { error: true });
+      const firma = M.firmaPorPin(E, pin);
+      const esDueno = firma?.ok && firma.usuario.rol === "duenio";
+      anotarPin(esDueno ? firma : firma?.pinViejo ? firma : { ok: false });
+      if (!esDueno) {
+        const c = $("#cm-pin"); if (c) c.value = "";
+        return toast(firma?.pinViejo ? firma.motivo : motivoFallo({ motivo: "Ese no es el PIN de un dueño." }), { error: true });
+      }
+      quien = { usuarioId: firma.usuario.id, pin };
+    }
     const res = M.cargoManual(E, b.dataset.v, { concepto: val("#cm-con"), monto }, quien, AHORA);
     if (res.ok) for (const sel of ["#cm-con", "#cm-mon", "#cm-pin"]) { const el = $(sel); if (el) el.value = ""; }
     hecho(res, (r) => (r.item.precioUnit < 0 ? "Descuento aplicado." : "Cargo manual sumado."));
@@ -2422,12 +2718,12 @@ document.addEventListener("change", (ev) => {
     const limpio = t.value.replace(/[^\d]/g, "");
     if (limpio && (limpio.length < 8 || limpio.length > 15)) return toast("Ese número no parece un celular (con código de país, ej. 549 11 …).", { error: true });
     k[t.dataset.v] = limpio;
-    lsGuardar(CLAVE_CONTACTOS, JSON.stringify(k));
+    lsGuardar(claveContactos(), JSON.stringify(k));
     render();
     return toast(limpio ? "Número guardado en esta compu." : "Número borrado.");
   }
   if (t.dataset.a === "fondo") {
-    const dueno = enConsola() ? E.usuarios.find((u) => u.rol === "duenio" && u.pin) : null;
+    const dueno = enConsola() ? duenoDeConsola() : null;
     const res = M.ajustarFondo(E, t.value, dueno ? { usuarioId: dueno.id, pin: dueno.pin } : auth(), AHORA);
     if (!res.ok) { render(); return toast(enConsola() && !dueno ? "Primero un dueño arma su PIN." : res.motivo, { error: true }); }
     render();
@@ -2444,7 +2740,15 @@ document.addEventListener("change", (ev) => {
     t.value = "";
     if (!archivo) return;
     const fr = new FileReader();
-    fr.onload = () => { try { ui.restaurar = JSON.parse(String(fr.result)); } catch { return toast("Ese archivo no es un respaldo de Break Point.", { error: true }); } pinPara("confirmarRestaurar", "", "Restaurar la jornada desde el respaldo (reemplaza la de ahora)"); };
+    fr.onload = () => {
+      let datos;
+      try { datos = JSON.parse(String(fr.result)); } catch { return toast("Ese archivo no es un respaldo de Break Point.", { error: true }); }
+      const r = M.respaldoDesdeArchivo(datos);
+      if (!r.ok) return toast(r.motivo, { error: true });
+      ui.restaurar = r.foto;
+      ui.restaurarAntesDeArchivar = r.antesDeArchivar;
+      pinPara("confirmarRestaurar", "", "Restaurar la jornada desde el respaldo (reemplaza la de ahora)");
+    };
     fr.onerror = () => toast("No se pudo leer el archivo.", { error: true });
     fr.readAsText(archivo);
     return;
@@ -2627,21 +2931,22 @@ document.addEventListener("keydown", (ev) => {
   if (primario && !primario.disabled) { ev.preventDefault(); primario.click(); }
 });
 
-$("#dlg").addEventListener("close", () => { dialogoActual = null; });
+$("#dlg").addEventListener("close", () => { vaciarPines($("#dlg")); dialogoActual = null; });
 
 // ───── bloqueo de pantalla: cada vez que el puesto queda sin uso o la pantalla se apaga, se vuelve con el PIN propio ─────
 // Celular, tablet, compu o POS: se bloquea tras N minutos sin tocar nada (Ajustes) y siempre que la pantalla se apagó
 // o se cambió de app por más de 30 segundos. Se desbloquea con el PIN de quien estaba usando el sistema; si es otra
-// persona, entra con su usuario y su PIN. 5 PIN mal → 30 segundos de espera. No hay forma de cerrarlo sin PIN.
+// persona, entra con su usuario y su PIN. 5 PIN mal → espera (tope de toda la compu). No hay forma de cerrarlo sin PIN.
 const OCULTA_MAX_MS = 30_000;
-const bloqueo = { activo: false, motivo: "", ultimo: Date.now(), ocultaDesde: null, fallos: 0, esperaHasta: 0, otro: false, elegido: null, timer: null };
-const guardarIntentos = () => { if (MODO_REAL) lsGuardar("bp-intentos", JSON.stringify({ fallos: bloqueo.fallos, esperaHasta: bloqueo.esperaHasta, tandas: bloqueo.tandas ?? 0 })); };
+// El tope de intentos es el de toda la compu (INTENTOS, arriba); `recienFallo` sólo dice si mostrar «PIN incorrecto».
+const bloqueo = { activo: false, motivo: "", ultimo: Date.now(), ocultaDesde: null, recienFallo: false, otro: false, elegido: null, timer: null };
 function bloquear(motivo) {
   if (bloqueo.activo || guardado.fuera || enConsola()) return;
   bloqueo.activo = true;
   bloqueo.motivo = motivo;
   bloqueo.otro = false;
   bloqueo.elegido = null;
+  bloqueo.recienFallo = false;
   cerrarMenuTurno();
   // Lo que quedó abierto es del usuario que se fue: se cierra, y su «Deshacer» ya no vale.
   cerrarDialogo();
@@ -2659,10 +2964,13 @@ function bloquear(motivo) {
 function pintarBloqueo() {
   const d = $("#bloqueo");
   const u = yo();
-  const espera = Math.max(0, Math.ceil((bloqueo.esperaHasta - Date.now()) / 1000));
+  const espera = esperaPinS();
   const quien = bloqueo.otro ? (bloqueo.elegido ? M.usuario(E, bloqueo.elegido) : null) : u;
   const motivo = { inactividad: `Pasaron ${minutosBloqueo()} minutos sin uso.`, pantalla: "La pantalla se apagó o se cambió de app.", manual: "Se bloqueó a mano.", recarga: "Se volvió a abrir el sistema: poné tu PIN." }[bloqueo.motivo] ?? "";
   const activos = E.usuarios.filter((x) => x.activo !== false);
+  if (bloqueo.cambio) return pintarPinNuevo(d);
+  // Un dueño puede tener todavía el PIN viejo de 2: el campo espera 4 pero deja confirmar con «Desbloquear».
+  const viejos = quien?.rol === "duenio" && activos.some((x) => M.pinDesactualizado(E, x.id));
   morph(d, `<div class="bl-in">
     <p class="bl-marca">Break Point · Gestión del club</p>
     <h2 id="bl-titulo">Pantalla bloqueada</h2>
@@ -2672,57 +2980,114 @@ function pintarBloqueo() {
         <button type="button" class="btn ghost sm" data-a="bloqueoVolver">Volver</button>`
       : `<div class="bl-quien"><span class="avatar" aria-hidden="true">${esc(quien.nombre.slice(0, 1).toUpperCase())}</span><span><b>${esc(quien.nombre)}</b><br><span class="small muted">${M.ROLES[quien.rol]}</span></span></div>
         <label class="f bl-pin-l" for="bl-pin">${bloqueo.otro ? `PIN de ${esc(quien.nombre.split(" ")[0])}` : "Tu PIN para seguir"}</label>
-        <input id="bl-pin" class="pin-in num" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••" ${espera ? "disabled" : ""} aria-describedby="bl-aviso">
-        <p id="bl-aviso" class="${espera || bloqueo.fallos ? "err" : "small muted"}" role="status" style="margin:0;min-height:1.4em">${espera ? `Demasiados intentos: esperá ${espera > 60 ? `${Math.ceil(espera / 60)} minutos` : "un momento"}. <span aria-hidden="true">(${espera} s)</span>` : bloqueo.fallos ? `PIN incorrecto (${bloqueo.fallos} de 5).` : ""}</p>
+        <input id="bl-pin" class="pin-in num" type="password" inputmode="numeric" autocomplete="off" maxlength="${M.largoPin(quien.rol)}" placeholder="${puntos(quien.rol)}" ${espera ? "disabled" : ""} aria-describedby="bl-aviso${viejos ? " bl-viejo" : ""}">
+        ${viejos ? `<p id="bl-viejo" class="small muted" style="margin:0">Si todavía no cambiaste el PIN viejo de ${M.LARGO_PIN_VIEJO}, ponelo y tocá «Desbloquear».</p>` : ""}
+        <p id="bl-aviso" class="${espera || bloqueo.recienFallo ? "err" : "small muted"}" role="status" style="margin:0;min-height:1.4em">${espera ? `Demasiados intentos: esperá ${espera > 60 ? `${Math.ceil(espera / 60)} minutos` : "un momento"}. <span aria-hidden="true">(${espera} s)</span>` : bloqueo.recienFallo ? `PIN incorrecto (${INTENTOS.fallos} de ${M.TOPE_INTENTOS_PIN}).` : ""}</p>
         <button type="button" class="btn primary" data-a="desbloquear" ${espera ? "disabled" : ""}>Desbloquear</button>
         ${bloqueo.otro ? `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Elegir otro usuario</button>` : `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Entrar con otro usuario</button>`}`}
     ${pinesDemo(activos)}
   </div>`);
-  if (espera) { clearTimeout(bloqueo.timer); bloqueo.timer = setTimeout(() => { if (bloqueo.activo) { if (Date.now() >= bloqueo.esperaHasta) bloqueo.fallos = 0; pintarBloqueo(); $("#bl-pin")?.focus(); } }, 1000); }
+  if (espera) { clearTimeout(bloqueo.timer); bloqueo.timer = setTimeout(() => { if (bloqueo.activo) { if (!esperaPinS()) bloqueo.recienFallo = false; pintarBloqueo(); $("#bl-pin")?.focus(); } }, 1000); }
   if (bloqueo.otro && bloqueo.elegido) $("#bl-pin", d)?.focus();
 }
 function desbloquear() {
-  if (Date.now() < bloqueo.esperaHasta) return pintarBloqueo();
+  if (esperaPinS() > 0) return pintarBloqueo();
   const quien = bloqueo.otro ? bloqueo.elegido : USUARIO;
-  const res = M.verificarPin(E, quien, $("#bl-pin")?.value);
+  const tipeado = $("#bl-pin")?.value;
+  // Para ENTRAR vale el PIN guardado tal cual (el viejo de 2 de un dueño también: acto seguido se le pide el de 4).
+  const res = M.verificarPin(E, quien, tipeado);
+  // 5 PIN mal → espera; cada tanda espera más (30 s, 2 min, 10 min). En la jornada real sobrevive a recargar.
+  anotarPin(res);
   if (!res.ok) {
-    bloqueo.fallos += 1;
-    // 5 PIN mal → espera; cada tanda espera más (30 s, 2 min, 10 min). En la jornada real sobrevive a recargar.
-    if (bloqueo.fallos >= 5) { bloqueo.tandas = (bloqueo.tandas ?? 0) + 1; bloqueo.esperaHasta = Date.now() + [30, 120, 600][Math.min(bloqueo.tandas, 3) - 1] * 1000; }
-    guardarIntentos();
+    bloqueo.recienFallo = true;
     pintarBloqueo();
     const pin = $("#bl-pin");
     if (pin && !pin.disabled) { pin.value = ""; pin.focus(); }
     return;
   }
-  const cambio = res.usuario.id !== USUARIO;
-  USUARIO = res.usuario.id;
+  bloqueo.recienFallo = false;
+  if (M.pinDesactualizado(E, res.usuario.id)) { pedirPinNuevo(res.usuario.id, tipeado); return; }
+  entrarDesbloqueado(res.usuario);
+}
+function entrarDesbloqueado(usuario, saludo = "") {
+  const cambio = usuario.id !== USUARIO;
+  USUARIO = usuario.id;
   bloqueo.activo = false;
-  bloqueo.fallos = 0;
-  bloqueo.tandas = 0;
-  guardarIntentos();
+  bloqueo.recienFallo = false;
   bloqueo.ultimo = Date.now();
   document.documentElement.classList.remove("bloqueada");
   $("#bloqueo").close();
   render();
   const pendientes = esDuenio() ? E.novedades.filter((x) => x.estado === "pendiente").length : 0;
-  toast(`${cambio ? `Hola, ${res.usuario.nombre.split(" ")[0]}.` : "Desbloqueado."}${pendientes ? ` Tenés ${pendientes === 1 ? "un pedido de crédito" : `${pendientes} pedidos de crédito`} para resolver.` : ""}`);
+  toast(`${saludo}${cambio ? `Hola, ${usuario.nombre.split(" ")[0]}.` : "Desbloqueado."}${pendientes ? ` Tenés ${pendientes === 1 ? "un pedido de crédito" : `${pendientes} pedidos de crédito`} para resolver.` : ""}`);
   const despues = bloqueo.despues;
   bloqueo.despues = null;
   despues?.();
+}
+// Dueño del piloto con el PIN viejo de 2 (decisión del 18/10: los dueños pasan a 4). Entró bien, pero antes de
+// operar elige uno de 4: es un paso de la pantalla bloqueada, no se cierra sin PIN y no toca nada de lo cargado.
+// Se fuerza en el momento (no «después»): con 2 números el código de aprobación y los descuentos valen poco.
+// El PIN viejo queda sólo en memoria hasta guardar el nuevo (nunca se muestra ni se guarda aparte).
+function pedirPinNuevo(usuarioId, viejo) {
+  bloqueo.cambio = { usuarioId, viejo: String(viejo ?? "").trim() };
+  bloqueo.avisoCambio = "";
+  if (!bloqueo.activo) { cerrarDialogo(); bloquear("pinViejo"); }
+  if (!bloqueo.activo) { bloqueo.cambio = null; return false; } // consola u otra pestaña: sigue como antes
+  pintarBloqueo();
+  $("#bl-nuevo")?.focus();
+  return true;
+}
+function pintarPinNuevo(d) {
+  const u = M.usuario(E, bloqueo.cambio.usuarioId);
+  const n = M.largoPin(u?.rol);
+  morph(d, `<div class="bl-in">
+    <p class="bl-marca">Break Point · Gestión del club</p>
+    <h2 id="bl-titulo">Elegí tu PIN nuevo</h2>
+    <div class="bl-quien"><span class="avatar" aria-hidden="true">${esc(u.nombre.slice(0, 1).toUpperCase())}</span><span><b>${esc(u.nombre)}</b><br><span class="small muted">${M.ROLES[u.rol]}</span></span></div>
+    <p style="margin:0">Tu PIN de dueño ahora es de ${n} números. Elegí uno nuevo: lo cargado queda todo igual.</p>
+    <label class="f bl-pin-l" for="bl-nuevo">PIN nuevo (${n} números)</label>
+    <input id="bl-nuevo" class="pin-in num" type="password" inputmode="numeric" autocomplete="off" maxlength="${n}" placeholder="${puntos(u.rol)}" aria-describedby="bl-aviso">
+    <label class="f bl-pin-l" for="bl-nuevo2">Repetilo</label>
+    <input id="bl-nuevo2" class="pin-in num" type="password" inputmode="numeric" autocomplete="off" maxlength="${n}" placeholder="${puntos(u.rol)}" aria-describedby="bl-aviso">
+    <p id="bl-aviso" class="${bloqueo.avisoCambio ? "err" : "small muted"}" role="${bloqueo.avisoCambio ? "alert" : "status"}" style="margin:0;min-height:1.4em">${esc(bloqueo.avisoCambio ?? "")}</p>
+    <button type="button" class="btn primary" data-a="guardarPinNuevo">Guardar y entrar</button>
+    <button type="button" class="btn ghost sm" data-a="pinNuevoDespues">Ahora no (queda bloqueada)</button>
+  </div>`);
+}
+function guardarPinNuevo() {
+  if (!bloqueo.cambio) return;
+  const { usuarioId, viejo } = bloqueo.cambio;
+  const a = String($("#bl-nuevo")?.value ?? "").trim(), b = String($("#bl-nuevo2")?.value ?? "").trim();
+  const res = a !== b ? { ok: false, motivo: "Los dos PIN no coinciden." } : M.cambiarMiPin(E, { usuarioId, pin: viejo }, a, AHORA);
+  if (!res.ok) {
+    bloqueo.avisoCambio = res.motivo;
+    for (const id of ["#bl-nuevo", "#bl-nuevo2"]) { const el = $(id); if (el) el.value = ""; }
+    pintarBloqueo();
+    $("#bl-nuevo")?.focus();
+    return;
+  }
+  bloqueo.cambio = null;
+  bloqueo.avisoCambio = "";
+  guardarJornada(true);
+  entrarDesbloqueado(M.usuario(E, usuarioId), "Tu PIN nuevo quedó guardado. ");
 }
 // Sin PIN no se cierra: Esc no hace nada y, si el navegador lo cierra igual, se vuelve a abrir.
 $("#bloqueo").addEventListener("cancel", (ev) => ev.preventDefault());
 $("#bloqueo").addEventListener("close", () => { if (bloqueo.activo) requestAnimationFrame(() => { if (bloqueo.activo && !$("#bloqueo").open) $("#bloqueo").showModal(); }); });
 $("#bloqueo").addEventListener("keydown", (ev) => {
   if (ev.key === "Enter" && ev.target.id === "bl-pin") { ev.preventDefault(); desbloquear(); }
+  if (ev.key === "Enter" && ev.target.id === "bl-nuevo") { ev.preventDefault(); $("#bl-nuevo2")?.focus(); }
+  if (ev.key === "Enter" && ev.target.id === "bl-nuevo2") { ev.preventDefault(); guardarPinNuevo(); }
 });
-// El PIN son 2 números: lo que no es número no entra (y no gasta un intento).
+// El PIN son números: lo que no es número no entra (y no gasta un intento). Se prueba solo al llegar al largo del
+// rol de quien entra (dueño 4, recepción 2); un PIN viejo más corto se confirma con Enter o «Desbloquear».
 $("#bloqueo").addEventListener("input", (ev) => {
-  if (ev.target.id !== "bl-pin") return;
+  if (!["bl-pin", "bl-nuevo", "bl-nuevo2"].includes(ev.target.id)) return;
   const t = ev.target, limpio = t.value.replace(/\D/g, "");
   if (limpio !== t.value) t.value = limpio;
-  if (limpio.length === 2) desbloquear();
+  if (t.id !== "bl-pin") return;
+  const quien = M.usuario(E, bloqueo.otro ? bloqueo.elegido : USUARIO);
+  if (limpio.length === M.largoPin(quien?.rol)) desbloquear();
 });
 const marcarUso = () => { if (!bloqueo.activo) bloqueo.ultimo = Date.now(); };
 for (const tipo of ["pointerdown", "keydown", "wheel", "touchstart"]) document.addEventListener(tipo, marcarUso, { capture: true, passive: true });
@@ -2756,7 +3121,7 @@ iniciar();
 if (MODO_REAL) {
   document.documentElement.dataset.modo = "real";
   const cinta = $(".demo-ribbon");
-  if (cinta) cinta.innerHTML = `<span><b>Jornada real</b> · se guarda en esta compu · <span id="guardado" role="status">guardando…</span></span><button type="button" data-a="respaldo">Descargar respaldo</button>`;
+  if (cinta) cinta.innerHTML = `<span><b>Jornada real</b> · se guarda en esta compu · <span id="guardado" role="status">guardando…</span></span><button type="button" data-a="respaldo">Descargar respaldo</button><button type="button" data-a="irArchivar" id="aviso-lleno" hidden>⚠ Se está llenando: archivar días cerrados</button>`;
   const pie = $("footer.gsg");
   if (pie) pie.innerHTML = "Sistema hecho por <b>Gestión Studio Grow</b> · Break Point Pádel";
   const reloj = $(".clock .sr");
@@ -2773,7 +3138,7 @@ if (MODO_REAL) {
   document.addEventListener("visibilitychange", () => { if (document.hidden) guardarJornada(true); else latirReloj(); });
   addEventListener("pagehide", () => guardarJornada(true));
   addEventListener("pageshow", latirReloj);
-  try { const t = JSON.parse(lsLeer("bp-intentos") || "{}"); bloqueo.fallos = Number(t.fallos) || 0; bloqueo.esperaHasta = Number(t.esperaHasta) || 0; bloqueo.tandas = Number(t.tandas) || 0; } catch { /* sin intentos guardados */ }
+  try { INTENTOS = M.intentosPin(JSON.parse(lsLeer("bp-intentos") || "{}")); } catch { /* sin intentos guardados */ }
   if (!enConsola()) bloquear("recarga");
 }
 function otraPestania() {

@@ -228,7 +228,7 @@ El club recorrió la demo y pidió cambios concretos. Todos están en el motor (
 | Sumar a la cuenta de **cada jugador** un producto + **2 opciones** | Se elige el jugador y el producto, y: **«Sumar a su cuenta»** o **«Cobrar ahora»** | `consumoJugador` (`modo: cuenta | cobrar`) |
 | **Lupita** de búsqueda en el stock | Buscador por nombre, rubro o código en Stock, Buffet, Clientes, turno y remito | `buscarProductos`, `buscarClientes` |
 | **Créditos por cliente** y **novedad de autorización**; **cuenta corriente** con habilitación, **estado de cuenta**, **marca roja**; al cerrar cancha **sumar a cuenta o cobrar** | Créditos = saldo a favor. La cuenta corriente la **pide recepción** y la **autoriza el dueño** (novedad con límite). Ficha con estado de cuenta y saldo corrido. Marca roja ⚠ en grilla, turno, buffet y clientes. Al cerrar la cancha: cobrar o «cerrar y sumar a su cuenta» (si está habilitada y le da el límite) | `solicitarCC`, `resolverCC`, `configurarCC`, `estadoDeCuenta`, `puedeACuenta`, `cobrarDeuda` |
-| **Acceso con PIN de 2 dígitos**, otorgamiento **dinámico** | Cambio de usuario con PIN. Quien es nuevo **pide acceso**; el dueño lo otorga con rol y el sistema genera un PIN único (se muestra una vez). Revocar y PIN nuevo, con PIN del dueño | `solicitarAcceso`, `otorgarAcceso`, `revocarAcceso`, `regenerarPin`, `usuarioPorPin` |
+| **Acceso con PIN** (pedido original: 2 dígitos; desde el 18/10/2026, **por rol**: 4 los dueños, 2 recepción), otorgamiento **dinámico** | Cambio de usuario con PIN. Quien es nuevo **pide acceso**; el dueño lo otorga con rol y el sistema genera un PIN único del largo del rol (se muestra una vez). Revocar y PIN nuevo, con PIN del dueño. El dueño con el PIN viejo de 2 entra y elige uno de 4; hasta entonces no firma | `solicitarAcceso`, `otorgarAcceso`, `revocarAcceso`, `regenerarPin`, `usuarioPorPin`, `LARGO_PIN`, `verificarFirma` |
 | **Rango horario por día** en la agenda principal | «Cambiar horario» en la agenda (dueño) y tabla por día en Ajustes. Avisa qué turnos quedan afuera | `horarioDe`, `ajustarHorario` |
 | **De 12 a 12 cerramos caja diaria** | La caja del día va de 12:00 a 12:00; lo de la madrugada es del día que abrió | `diaDeCaja`, `resumenCaja` |
 | **PIN para cierre de caja** | El cierre pide el PIN de quien cierra | `cerrarCaja` |
@@ -246,13 +246,34 @@ El club recorrió la demo y pidió cambios concretos. Todos están en el motor (
 | **Faltas: se cobra el turno entero** al cliente o al grupo | «Falta (no vino)»: cobrar todo al titular o repartir en el grupo (cada jugador con ficha paga su parte; la de los sin ficha, el titular). Va a la cuenta corriente aunque no esté habilitada; sin ficha queda la deuda en el turno. «Sin cargo» sólo el dueño | `marcarNoShow({ cobrarA })`, `cobrarFaltaSinFicha` |
 
 **Notas de criterio (decididas con el supuesto más simple; a confirmar con el club):**
-- **PIN de 2 dígitos:** es lo que pidió el club y alcanza para el mostrador (identifica quién hizo qué). Para
-  producción con datos reales se recomienda subirlo a 4 dígitos y bloquear tras varios intentos fallidos
-  (anotado para la revisión de seguridad de Facu, ADR-068).
+- **PIN por rol** (decisión del dueño, 18/10/2026: «son 4 dígitos para los dueños y 2 para los empleados»; antes
+  eran 2 para todos, lo que pidió el club). El de 2 de recepción identifica quién hizo qué en el mostrador; el de 4
+  del dueño es el que **firma** (descuentos, créditos, caja, accesos). Lo que lo cuida:
+  - **Un solo tope de intentos por compu** (`anotarIntentoPin`, guardado en `bp-intentos`): pantalla bloqueada,
+    «¿Quién usa el sistema?», descuento, aprobación en la misma compu y las confirmaciones «con tu PIN» cuentan
+    juntos. 5 mal → 30 s, después 2 min, después 10 min, aunque se recargue. Un acierto de recepción **no** borra los
+    fallos (si no, se probarían 4 PIN del dueño, se pondría el propio y se empezaría de nuevo); los borra un acierto
+    de un dueño u 8 horas sin fallos. Quedan afuera del tope (deuda menor): las confirmaciones que van directo al
+    motor (egreso, cierre de caja, pagos a proveedores, altas, PIN nuevo y sacar acceso), que son del PIN de
+    quien ya está adentro.
+  - **El PIN viejo de 2 de un dueño sólo entra:** no firma nada hasta elegir el de 4 (`verificarFirma` en el motor;
+    avisa «Ese es tu PIN viejo: entrá a la compu con él y elegí uno de 4.»). Excepción decidida por el dueño: el
+    celular remoto (`#aprobar&…`) acepta el viejo de 2, porque no tiene la jornada y no sabe si ya lo cambió.
+  - **PIN fáciles afuera** (`pinFacil`, también en los que genera el sistema): los de ejemplo de la demo (1111, 2222,
+    33, 44), todos iguales (0000…9999, 00…99) y, en 4 números, las escaleras de a uno (0123…6789, 9876…3210). En 2
+    números **no** se filtran escaleras: hay 100 combinaciones, sin las 10 dobles quedan 90 (81 sin cero adelante
+    para las generadas) y sacar 12, 23, 21… dejaría pocas para varios turnos de recepción; a un PIN de 2 lo cuida
+    el tope de intentos, no el filtro.
+  - **Deuda para la versión con servidor (O1 del Gate, 18/10/2026):** el código de aprobación por WhatsApp es un
+    FNV-1a público de (PIN + pedido): quien ve un código y los datos del pedido puede probar los 10.000 PIN offline
+    y **sacar el PIN del dueño**. Sin servidor no hay secreto que no esté en la compu, así que se acepta para el
+    piloto (el código no se presta y vale lo que vale el PIN). Con servidor: el código se firma con **HMAC con un
+    secreto del servidor** (que no esté en la compu ni en el celular) o se reemplaza por aprobar con sesión.
 - **Cambiar el horario de un día** es del dueño; recepción lo ve pero no lo cambia.
 - **Falta repartida en el grupo:** se divide entre los cuatro jugadores del turno; la parte de los que no
   tienen ficha la absorbe el titular.
-- **Los PIN de la demo se muestran en pantalla** a propósito (Rober 11 · Majo 22 · Lu 33 · Caro 44).
+- **Los PIN de la demo se muestran en pantalla** a propósito, sólo si se piden («¿Probando la demo?»): Rober 1111 ·
+  Majo 2222 · Lu 33 · Caro 44. Por eso ninguno de esos sirve como PIN real.
 
 ## Fuentes
 

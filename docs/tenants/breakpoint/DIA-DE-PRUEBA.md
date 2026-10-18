@@ -1,19 +1,35 @@
 # Break Point Pádel — día de prueba real en el local
 
 Guía para Roberto Ronco y Majo Gimenez (dueños) y para recepción. Es una prueba **en el local, con clientes de
-verdad, sin servidor y sin costo**: todo se guarda en la compu del mostrador.
+verdad, sin servidor y sin costo**: todo se guarda en la compu del mostrador. Después del día de prueba se hace la
+**limpieza para el go-live** y se sigue usando igual (ver al final).
+
+## Front y back: qué ve cada uno
+
+| Quién | Dirección | Qué es |
+|---|---|---|
+| **Clientes** (front) | **https://breakpointpadel.gsgapp.com.ar/** | Portada del club → «Reservá tu cancha» (`/turnero`): eligen día y horario y lo **piden por WhatsApp**; el club confirma. Sin «demo», sin acceso a la gestión. |
+| **El club** (back) | **https://breakpointpadel.gsgapp.com.ar/club** | La gestión: agenda, buffet, caja, clientes, configuración. No se linkea desde el front y no aparece en buscadores. |
+| Prospectos (demo) | `/club?demo=1` · `/turnero?demo=1` | La demo con datos de ejemplo. No toca nada del club. |
+
+Lo que el front muestra fijo (WhatsApp del club, precios por hora y tienda) sale de
+`src/tenants/breakpoint/publico.json`: se copia del «Link para clientes» de Configuración y lo publica GSG. Mientras
+esté vacío, el turnero muestra los horarios **sin precios**, sin tienda, y WhatsApp abre para elegir el chat. El link
+para clientes de Configuración ya lleva todo y se puede mandar igual.
 
 ## Cómo se arranca (una sola vez, en la compu del mostrador)
 
-1. Abrí **https://breakpointpadel.gsgapp.com.ar/club?modo=real** en Chrome. Esa compu queda en «jornada real».
-   La demo de ejemplo de `/club` no se toca: cualquier otra compu sigue viendo la demo.
+1. Abrí **https://breakpointpadel.gsgapp.com.ar/club** en Chrome (no incógnito). Esa compu queda en «jornada
+   real». (Si esa compu ya había entrado con `?modo=real`, sigue con lo que tiene: no se pierde nada.)
 2. Aparece la **consola de configuración**:
-   - **Los dueños arman su PIN.** Roberto y Majo eligen cada uno 2 números que sólo sepa él o ella y los repiten.
-     No pueden ser iguales.
+   - **Los dueños arman su PIN.** Roberto y Majo eligen cada uno **4 números** que sólo sepa él o ella y los
+     repiten. No pueden ser iguales entre ellos, y no sirven los fáciles: los de la demo (1111, 2222), todos iguales
+     (0000, 7777…) ni escaleras (1234, 4321…).
    - **Avisos por WhatsApp** (opcional): el celular de cada dueño (ahí llegan los pedidos de crédito), el WhatsApp
      del club y el alias para la seña.
-   - **Recepción** (opcional, también se hace después): nombre de cada persona → el sistema le da un PIN, que se ve
-     **una sola vez**. Anotalo y dáselo.
+   - **Recepción** (opcional, también se hace después): nombre de cada persona → el sistema le da un PIN de **2
+     números** (nunca dos iguales, como 33), que se ve **una sola vez**. Anotalo y dáselo. Si después lo cambia,
+     tampoco puede elegir uno con los dos números iguales.
    - **Precios y caja:** el precio por hora (valle y pico) y el **fondo de caja** (el cambio que hay en el cajón).
    - **Abrir el club.** Queda bloqueado: entra el dueño con su PIN.
 3. **Antes del primer turno**, un dueño:
@@ -82,8 +98,20 @@ verdad, sin servidor y sin costo**: todo se guarda en la compu del mostrador.
 - **El turnero de los clientes no reserva solo**: pide por WhatsApp y el club confirma. La reserva automática
   desde cualquier celular, la sincronía entre compus y la aprobación de crédito sin código son el siguiente paso,
   con servidor, después de la venta.
-- **Los PIN son de 2 dígitos.** El código de aprobación vale lo que vale el PIN del dueño: no se presta. Cinco PIN
-  mal en la pantalla bloqueada hacen esperar (30 s, después 2 min, después 10 min), aunque se recargue.
+- **Los PIN son de 4 dígitos para los dueños y de 2 para recepción** (decisión del dueño, 18/10/2026). El código
+  de aprobación vale lo que vale el PIN del dueño: no se presta (y no lo mandes a un grupo).
+- **Cinco PIN mal hacen esperar** (30 s, después 2 min, después 10 min), aunque se recargue. Cuentan todos juntos:
+  la pantalla bloqueada, «¿Quién usa el sistema?», el PIN del dueño en un descuento y la aprobación en la compu.
+  Que entre alguien de recepción no borra la cuenta; la borra un dueño cuando entra o firma bien.
+- **Si un dueño todavía tiene el PIN viejo de 2** (los del piloto), entra igual: lo pone y toca «Desbloquear» (no
+  se prueba solo porque el campo espera 4). En ese momento la pantalla le pide **elegir uno nuevo de 4** y
+  repetirlo; recién ahí entra. No se pierde nada de lo cargado y el viejo deja de andar.
+  - Mientras no lo cambie, **el viejo de 2 sólo sirve para entrar**: no firma un descuento ni aprueba un fiado en la
+    compu. Avisa «Ese es tu PIN viejo: entrá a la compu con él y elegí uno de 4.».
+  - Desde el celular, para aprobar un fiado, el viejo de 2 sigue sirviendo hasta que lo cambie en la compu.
+  - **Si el club usa más de una compu**, cada una guarda su propia jornada: el cambio se pide en **cada** compu.
+    Conviene elegir **el mismo PIN de 4 en todas**, porque el código que sale del celular sólo sirve en la compu
+    donde ese PIN coincide con el guardado.
 - **Desde la demo no se borra la jornada real.** Si alguien vuelve a la demo, sólo puede «Seguir la jornada real
   guardada», y para entrar pide el PIN real. Empezar otra jornada se hace desde adentro, con PIN de dueño. La
   anterior queda apartada en la compu y se descarga un respaldo solo.
@@ -92,7 +120,7 @@ verdad, sin servidor y sin costo**: todo se guarda en la compu del mostrador.
 
 ## Cómo se verificó
 
-`npm run test:club-torneo`: el UAT de un **sábado de torneo** en Chromium, de punta a punta, con 61 de 61 en
+`npm run test:club-torneo`: el UAT de un **sábado de torneo** en Chromium, de punta a punta, con 101 de 101 en
 verde. Cubre:
 - la consola de configuración y los dueños;
 - recepción con 4 canchas completas, 4 jugadores y mucho buffet;
@@ -100,6 +128,64 @@ verde. Cubre:
 - cobro total, por jugador y fiado con código desde el celular de Majo;
 - la tienda desde el celular de un cliente y el pedido pegado en el club;
 - recarga, segunda pestaña, novedades por difusión, alta de usuario, respaldo y cierre de caja;
-- la caja igual a lo cobrado, la medianoche y la pantalla a 390 px.
+- la caja igual a lo cobrado, la medianoche y la pantalla a 390 px;
+- los PIN por rol: el viejo de 2 de un dueño entra, pide el de 4 y mientras tanto no firma un descuento ni una
+  aprobación; el tope de intentos compartido y los PIN que se borran al cerrar cada ventana.
+
+Las pruebas del turnero dependen de la hora del navegador: en un servidor en UTC, pasada la medianoche no quedan turnos
+libres ese día. Se corren con la hora de Argentina: `TZ=America/Argentina/Buenos_Aires npm run test:turnero-e2e`.
+
+El archivado y el PIN por rol pasaron el Gate de Excelencia (18/10/2026, aprobado con menores; los menores corregidos).
+
+## Go-live: después del día de prueba
+
+1. Cerrá la caja del día y **descargá el respaldo** (Configuración).
+2. Configuración → «Limpieza para el go-live» → PIN de dueño. Antes de borrar, el sistema descarga otro respaldo y
+   deja una copia en la compu.
+   - **Se borra** lo de la prueba: turnos, cuentas de cargos, caja (movimientos y cierres), pedidos de la tienda,
+     pedidos de crédito, novedades enviadas y el registro.
+   - **Se conserva** lo maestro: canchas, horarios, precios, productos, usuarios y PIN, clientes, proveedores,
+     turnos fijos, calendario de redes y el fondo de caja.
+   - **Saldos** (cuenta corriente, créditos y faltas de los clientes; deuda con proveedores): se conservan por
+     defecto, porque es plata real. Si la prueba fue sólo de mentira, se destilda y quedan en cero.
+   - **Stock contado:** se conserva por defecto; destildado, vuelve a «sin controlar» para contar de nuevo.
+   - **Turnos por jugar** (los de hoy que todavía no empezaron y los de los próximos días) **quedan, con su seña**.
+   - **No corre si hay algo pendiente:** canchas en juego, cuentas de cargos abiertas con saldo o con algo
+     alquilado, turnos que ya pasaron sin abrir ni marcar la falta, plata para devolver, faltas sin cobrar o cajas
+     sin cerrar. La pantalla lo lista: resolvelo y volvé a intentar.
+   - Los pedidos de crédito que estaban esperando al dueño se borran: si hace falta, se piden de nuevo.
+3. Desde ahí es el día 1: mismo `/club`, mismos usuarios y PIN, caja en cero.
+
+## Cuando la compu se llena: archivar días cerrados
+
+El navegador guarda unos 5.000 KB por sitio. Con las 4 canchas llenas, la jornada crece unos 3.000 KB por mes: en 3 a
+5 semanas no entra más. Por eso, **una vez por semana** (o cuando avise), un dueño archiva lo viejo.
+
+- **Cuándo:** cuando arriba aparece «⚠ Se está llenando: archivar días cerrados», o cuando en Configuración → Jornada
+  real la jornada pasa los 2.500 KB. Si directamente dice «no se pudo guardar», es urgente: descargá un respaldo y
+  archivá en ese momento.
+- **Cómo:** Configuración → Jornada real → **«Archivar días cerrados»**. Se abre una ventana con el PIN de dueño y
+  dos pasos:
+  1. **«Descargar el respaldo para archivar»**: baja **un solo archivo** (`breakpoint-respaldo-y-archivo-….json`) con
+     el respaldo completo de ahora y la historia de los días que se archivan. Todavía no se achica nada.
+  2. **«Ya lo guardé: achicar»**: elegís ese archivo desde Descargas. El sistema comprueba que es el mismo que se va a
+     archivar y **recién ahí** achica lo guardado en la compu («Archivo verificado: achicado»).
+
+  Si la descarga no se hizo (el navegador la frenó o se canceló), no hay archivo para elegir y **no se achica nada**.
+  Si entre un paso y el otro se cobró o se cerró algo de esos días, pide descargar de nuevo.
+  **Guardá ese archivo** en un lugar privado (tiene los datos de los clientes): es la historia de esos días y, si hace
+  falta, se restaura con «Restaurar desde un archivo» (vuelve la jornada de antes de archivar).
+- **Qué se archiva:** lo de hace **más de 3 semanas** que ya está cerrado: turnos jugados, cancelados o con la falta
+  cobrada, cuentas de cargos cerradas, los movimientos de las cajas que se cerraron, pedidos de la tienda entregados.
+  En el sistema queda un resumen de cada día: en la misma tarjeta, «Días archivados» muestra una línea por día con la
+  fecha, los turnos y lo cobrado.
+- **Qué NO se toca:** las últimas 3 semanas, los turnos por jugar, las mesas abiertas, **las cajas que nadie cerró**,
+  lo que tenga plata pendiente (señas en suspenso, plata para devolver, faltas sin cobrar) y lo de cada cliente: su
+  cuenta corriente (queda una línea «Saldo anterior» con el mismo saldo), sus créditos y sus faltas.
+- **Si algo no se archiva** es porque su caja no se cerró: cerrala en Caja (aparece en rojo) y volvé a archivar.
+- **Copias viejas:** en la misma tarjeta aparecen las copias que dejaron la limpieza del go-live, «Empezar otra
+  jornada en blanco» y una jornada que no se pudo leer, con lo que ocupa cada una. Si no las necesitás, «Descargar y
+  borrar» (con PIN de dueño): la descargás, elegís el archivo descargado, el sistema comprueba que es igual a la copia
+  y recién ahí la borra de la compu. Nunca se borran solas.
 
 — Elaborado por GSG
