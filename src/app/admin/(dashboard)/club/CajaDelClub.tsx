@@ -36,7 +36,7 @@ function CampoPin({ id, quien, value, onChange }: { id: string; quien: string | 
       <label htmlFor={id} className="text-sm font-medium text-strong">
         {quien ? `PIN de ${quien}` : "Tu PIN"}
       </label>
-      <Input id={id} type="password" inputMode="numeric" autoComplete="off" maxLength={2} value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))} className="sm:w-28" />
+      <Input id={id} type="password" inputMode="numeric" autoComplete="off" maxLength={4} value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))} className="sm:w-28" />
     </div>
   );
 }
