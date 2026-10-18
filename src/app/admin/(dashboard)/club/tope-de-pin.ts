@@ -48,12 +48,19 @@ export function conTopeDePin<D extends DesenlaceConPin>(guarda: GuardaDelBloqueo
   return { desenlace: { ...d, mensaje }, trabado: false };
 }
 
-// Una guarda por almacén: las pantallas del mismo club comparten lo de memoria, y con el negocio quedan en el equipo
-// con la clave del bloqueo (recargar no los borra). Sin almacenamiento (incógnito, sin lugar), en memoria.
-const guardas = new WeakMap<Almacen, GuardaDelBloqueo>();
+// Una guarda por almacén y por clave: las pantallas del mismo club comparten lo de memoria, y con el negocio quedan en
+// el equipo con la clave del bloqueo (recargar no los borra). No depende de quién llama primero: sin negocio va a la
+// clave del equipo (`*`, más estricta), con negocio a la del negocio. Sin almacenamiento (incógnito, sin lugar), en memoria.
+const guardas = new WeakMap<Almacen, Map<string, GuardaDelBloqueo>>();
 
 export function guardaDelPin(almacen: Almacen, negocio: string | undefined): GuardaDelBloqueo {
-  let g = guardas.get(almacen);
+  const clave = claveDeIntentosDelBloqueo(negocio);
+  let porClave = guardas.get(almacen);
+  if (!porClave) {
+    porClave = new Map();
+    guardas.set(almacen, porClave);
+  }
+  let g = porClave.get(clave);
   if (!g) {
     let almacenamiento: Storage | null = null;
     try {
@@ -61,8 +68,8 @@ export function guardaDelPin(almacen: Almacen, negocio: string | undefined): Gua
     } catch {
       almacenamiento = null;
     }
-    g = guardaDelBloqueo(almacenamiento, claveDeIntentosDelBloqueo(negocio));
-    guardas.set(almacen, g);
+    g = guardaDelBloqueo(almacenamiento, clave);
+    porClave.set(clave, g);
   }
   return g;
 }

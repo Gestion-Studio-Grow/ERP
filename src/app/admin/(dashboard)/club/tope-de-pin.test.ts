@@ -8,7 +8,8 @@ import { operadorDeLaDemo } from "./almacen";
 import { ESPERAS_DEL_BLOQUEO_MS, INTENTOS_DEL_BLOQUEO, SIN_INTENTOS_DEL_BLOQUEO, claveDeIntentosDelBloqueo, guardaDelBloqueo, probarPin } from "./bloqueo-core";
 import { ejecutarMesa } from "./buffet-mesa-core";
 import { ejecutarCaja } from "./caja-core";
-import { conTopeDePin, type DesenlaceConPin } from "./tope-de-pin";
+import { conTopeDePin, guardaDelPin, type DesenlaceConPin } from "./tope-de-pin";
+import type { Almacen } from "./almacen";
 
 const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
@@ -120,4 +121,14 @@ test("SEC-5: un acierto de recepción NO borra los fallos (4 PIN del dueño mal 
   );
   assert.equal(firma.desenlace.ok, true, firma.desenlace.mensaje);
   assert.deepEqual(g.leer(), SIN_INTENTOS_DEL_BLOQUEO);
+});
+
+test("guardaDelPin: una guarda por almacén y por negocio, sin importar quién llama primero", () => {
+  const almacen = {} as Almacen;
+  const sinNegocio = guardaDelPin(almacen, undefined);
+  const delClub = guardaDelPin(almacen, "breakpoint");
+  assert.notEqual(sinNegocio, delClub, "llamar primero sin negocio no deja pegada la clave del equipo");
+  assert.equal(guardaDelPin(almacen, "breakpoint"), delClub);
+  assert.equal(guardaDelPin(almacen, undefined), sinNegocio);
+  assert.notEqual(guardaDelPin({} as Almacen, "breakpoint"), delClub, "otro almacén, otra guarda");
 });
