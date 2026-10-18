@@ -33,12 +33,16 @@ import { defaultModulesForBlueprint } from "../src/blueprints/presets-meta";
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL, max: Number(process.env.SEED_DB_MAX ?? 0) || undefined });
 const prisma = new PrismaClient({ adapter });
 
-const SLUG = "magra-demo";
+// `MAGRA_SLUG` permite sembrar el slug real (`magra`) en una base LOCAL para el recorrido E2E
+// (`npm run test:magra-uat`); por defecto sigue siendo `magra-demo`.
+const SLUG = process.env.MAGRA_SLUG?.trim() || "magra-demo";
 const SUBDOMAIN = "magra"; // resolución por host (TENANT_HOST_MAP / subdominio)
 const ACTOR = "system:seed";
 // Login FIJO de QA (autorizado por el dueño, NO es secreto): admin@<slug> / ERP, rol OWNER.
-const OWNER_EMAIL = "admin@magra-demo";
+const OWNER_EMAIL = `admin@${SLUG}`;
 const OWNER_PASSWORD = "ERP";
+// Mostrador (rol RECEPTION): vende, cobra y atiende la bandeja; no ve costos, informes ni usuarios.
+const COUNTER_EMAIL = `mostrador@${SLUG}`;
 // Módulos por rubro desde la FUENTE CANÓNICA (FU1). Carnicería → pos/catalog/clients/reports/arca.
 // Con MODULE_REGISTRY_ENABLED=on, esto hace que la nav muestre SU rubro (no estética).
 const MODULES = defaultModulesForBlueprint("carniceria");
@@ -58,6 +62,11 @@ const CATALOG = [
   { name: "Milanesas de nalga", pricePerKg: 12900, cost: 8400, stock: 25, low: 5 },
   { name: "Carne picada especial", pricePerKg: 9500, cost: 6200, stock: 3, low: 10 }, // ← STOCK BAJO
   { name: "Pollo entero", pricePerKg: 4200, cost: 2700, stock: 22, low: 5 },
+];
+// Lo que se vende POR UNIDAD (envasados listos). Precio de DEMO, no el del local.
+const UNIT_CATALOG = [
+  { name: "Hamburguesas caseras x4", price: 6500, stock: 40, low: 10 },
+  { name: "Chorizo de cerdo x6", price: 7200, stock: 30, low: 8 },
 ];
 
 async function main() {
@@ -132,6 +141,13 @@ async function main() {
     ),
   );
   const bySku = new Map(products.map((p, i) => [CATALOG[i].name, p]));
+  for (const u of UNIT_CATALOG) {
+    products.push(
+      await prisma.product.create({
+        data: { tenantId, name: u.name, unit: "unidades", stock: u.stock, lowStockAt: u.low, saleUnit: "UNIT", price: u.price, pricePerKg: null, trackStock: true, active: true },
+      }),
+    );
+  }
 
   // 5) Proveedores (2).
   const frigorifico = await prisma.supplier.create({
@@ -179,6 +195,16 @@ async function main() {
       active: true,
     },
   });
+  await prisma.user.create({
+    data: {
+      tenantId,
+      name: "Mostrador — Magra DEMO",
+      email: COUNTER_EMAIL,
+      passwordHash: await hashPassword(OWNER_PASSWORD),
+      role: "RECEPTION",
+      active: true,
+    },
+  });
 
   // 8) Clientes (2).
   const cliente1 = await prisma.client.create({ data: { tenantId, name: "Rotisería La Esquina", phone: "11-5000-1111" } });
@@ -193,7 +219,7 @@ async function main() {
       tenantId, code: 1, status: "DELIVERED", channel: "COUNTER", fulfillment: "PICKUP",
       customerName: "Consumidor final", customerPhone: "-", subtotal: 34000, discount: 0, total: 34000,
       paymentMethod: "EFECTIVO", paid: true, createdAt: daysFromNow(-2),
-      items: { create: [{ tenantId, name: "Ojo de bife", saleUnit: "WEIGHT", quantity: 2, unitPrice: 16900, lineTotal: 33800 }] },
+      items: { create: [{ tenantId, productId: bySku.get("Ojo de bife")!.id, name: "Ojo de bife", saleUnit: "WEIGHT", quantity: 2, unitPrice: 16900, lineTotal: 33800 }] },
     },
   });
   const pedido2 = await prisma.order.create({
@@ -201,7 +227,7 @@ async function main() {
       tenantId, code: 2, status: "CONFIRMED", channel: "COUNTER", fulfillment: "DELIVERY",
       clientId: cliente1.id, customerName: cliente1.name, customerPhone: cliente1.phone,
       subtotal: 115000, discount: 0, total: 115000, paid: false, createdAt: daysFromNow(-1),
-      items: { create: [{ tenantId, name: "Asado de tira", saleUnit: "WEIGHT", quantity: 10, unitPrice: 11500, lineTotal: 115000 }] },
+      items: { create: [{ tenantId, productId: bySku.get("Asado de tira")!.id, name: "Asado de tira", saleUnit: "WEIGHT", quantity: 10, unitPrice: 11500, lineTotal: 115000 }] },
     },
   });
   // pedido2 se vende en cuenta corriente (fiado): NO se registra cobro a nivel pedido.
@@ -254,6 +280,7 @@ async function main() {
       `  ${products.length} productos (2 con stock bajo) · 2 proveedores · 2 compras · 2 ventas ` +
       `· 2 cuentas a pagar (1 con cheque diferido, 1 vencida) · 2 fiados (1 con cobro parcial).\n` +
       `  👤 Login backoffice → email: ${OWNER_EMAIL} · contraseña: ${OWNER_PASSWORD} (rol OWNER, DEMO).\n` +
+      `  👤 Mostrador → email: ${COUNTER_EMAIL} · misma contraseña (rol RECEPTION, DEMO).\n` +
       `  Entrá por el slug "${SLUG}" en el preview. Perfil actual: ${PROFILE === "enterprise" ? "Empresa" : "Comercio"}.`,
   );
 }
