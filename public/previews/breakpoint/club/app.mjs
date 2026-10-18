@@ -808,6 +808,9 @@ function listaEnvio(d) {
 // ───────────────────────────── Consola de configuración (primer arranque de la jornada real) ─────────────────────────────
 
 const enConsola = () => MODO_REAL && E?.config?.configurado === false;
+// En la consola firma el dueño que ya armó su PIN; si sólo hay uno con el PIN viejo de 2 (una consola del piloto que
+// quedó sin abrir), el motor no lo deja firmar y avisa: se abre el club, se entra con el viejo y se elige el de 4.
+const duenoDeConsola = () => E.usuarios.find((u) => u.rol === "duenio" && u.pin && !M.pinDesactualizado(E, u.id)) ?? E.usuarios.find((u) => u.rol === "duenio" && u.pin);
 
 // Los dueños arman su PIN, se cargan los avisos y se da de alta a recepción. Recién ahí se abre el club.
 function vistaConsola() {
@@ -1267,7 +1270,9 @@ function abrir({ titulo, sub = "", cuerpo, pie = "", ancho = false, alAbrir, ref
   // Si la ventana cambió de contenido (p. ej. «Nuevo turno» → «Turno reservado ✔»), el foco no puede quedar en el body.
   if (!d.contains(document.activeElement)) (d.querySelector(".dlg-f .btn.primary") ?? d.querySelector('[data-a="cerrar"]'))?.focus();
 }
-function cerrarDialogo() { const d = $("#dlg"); if (d.open) d.close(); dialogoActual = null; }
+// Al cerrar una ventana, ningún PIN queda escrito en ella (la próxima que se abra arranca vacía).
+const vaciarPines = (d) => d.querySelectorAll('input[type="password"]').forEach((i) => { i.value = ""; });
+function cerrarDialogo() { const d = $("#dlg"); vaciarPines(d); if (d.open) d.close(); dialogoActual = null; }
 
 // Buscador de productos con lupa, reutilizable dentro de cualquier ventana.
 function buscadorProductos(clave, { soloVendibles = true } = {}) {
@@ -1284,8 +1289,27 @@ function buscadorProductos(clave, { soloVendibles = true } = {}) {
 // Los PIN de ejemplo no quedan a la vista de cualquiera que pase por el mostrador: se muestran sólo si se piden.
 // (Es una ayuda de la DEMO; con usuarios reales no existe.)
 const pinesDemo = (usuarios) => MODO_REAL ? "" : `<details class="demo-pins"><summary>¿Probando la demo? Ver los PIN de ejemplo</summary><p style="margin:6px 0 0">${usuarios.map((u) => `${esc(u.nombre.split(" ")[0])} ${esc(u.pin)}`).join(" · ")}</p></details>`;
-// Cambio de usuario: como el bloqueo, 5 PIN mal → 30 s de espera (un PIN corto se adivina rápido si no hay tope).
-const intentosPin = { fallos: 0, hasta: 0 };
+// Tope de intentos de PIN: UNO solo para toda la compu (M.anotarIntentoPin). Lo comparten la pantalla bloqueada,
+// «¿Quién usa el sistema?», el descuento, la aprobación en la misma compu y las confirmaciones «con tu PIN»: 5 mal →
+// 30 s, después 2 min, después 10 min. En la jornada real se guarda en `bp-intentos` (sobrevive a recargar).
+let INTENTOS = M.intentosPin();
+const guardarIntentos = () => { if (MODO_REAL) lsGuardar("bp-intentos", JSON.stringify(INTENTOS)); };
+const esperaPinS = () => Math.ceil(M.esperaPin(INTENTOS, Date.now()) / 1000);
+const textoEspera = (seg) => `Demasiados intentos: esperá ${seg > 60 ? `${Math.ceil(seg / 60)} minutos` : `${seg} s`}.`;
+// El PIN viejo de 2 de un dueño es SU PIN (no es un fallo), pero tampoco borra los fallos: sólo firma el de 4.
+function anotarPin(res) {
+  INTENTOS = M.anotarIntentoPin(INTENTOS, { ok: !!(res?.ok || res?.pinViejo), duenio: !!res?.ok && res.usuario?.rol === "duenio" }, Date.now());
+  guardarIntentos();
+}
+const motivoFallo = (res) => (esperaPinS() > 0 ? textoEspera(esperaPinS()) : `${res.motivo} (${INTENTOS.fallos} de ${M.TOPE_INTENTOS_PIN})`);
+// Una firma con PIN (de quien usa el sistema o de un dueño elegido): respeta la espera, cuenta el intento y no acepta
+// el PIN viejo de 2 de un dueño (M.verificarFirma).
+function firmar(usuarioId, pin) {
+  if (esperaPinS() > 0) return { ok: false, motivo: textoEspera(esperaPinS()) };
+  const v = M.verificarFirma(E, usuarioId, pin);
+  anotarPin(v);
+  return v.ok || v.pinViejo ? v : { ...v, motivo: motivoFallo(v) };
+}
 
 function cambiarUsuario() {
   let elegido = USUARIO;
@@ -1293,14 +1317,19 @@ function cambiarUsuario() {
     titulo: "¿Quién usa el sistema?",
     sub: `Elegí tu usuario y poné tu PIN (dueños ${M.LARGO_PIN.duenio} números, recepción ${M.LARGO_PIN.recepcion}).`,
     cuerpo: `<div class="usuarios" role="group" aria-label="Usuarios">${E.usuarios.filter((u) => u.activo !== false).map((u) => `<button type="button" data-a="elegirUsuario" data-v="${u.id}" aria-pressed="${u.id === elegido}"><span><b>${esc(u.nombre)}</b></span><span class="small muted">${M.ROLES[u.rol]}</span></button>`).join("")}</div>
-      ${campoPin("pin-usuario", "PIN")}
+      ${campoPin("pin-usuario", "PIN", M.usuario(E, elegido)?.rol)}
       ${pinesDemo(E.usuarios.filter((u) => u.activo !== false))}
       <details><summary class="small">¿Sos nuevo/a? Pedí acceso</summary><div class="row" style="margin-top:8px"><label class="sr" for="nuevo-acceso">Tu nombre</label><input id="nuevo-acceso" placeholder="Tu nombre" style="max-width:220px"><button type="button" class="btn sm" data-a="pedirAcceso">Pedir acceso</button></div><p class="small muted">Le llega al dueño; cuando lo aprueba te da un PIN.</p></details>`,
     pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="entrar">Entrar</button>`,
     alAbrir(d) {
       $("#pin-usuario", d).focus();
       acciones._elegido = () => elegido;
-      acciones._setElegido = (v) => { elegido = v; d.querySelectorAll('[data-a="elegirUsuario"]').forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v))); $("#pin-usuario", d).focus(); };
+      acciones._setElegido = (v) => {
+        elegido = v;
+        d.querySelectorAll('[data-a="elegirUsuario"]').forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v)));
+        $("#pin-usuario", d).placeholder = puntos(M.usuario(E, v)?.rol); // el largo es el de quien entra
+        $("#pin-usuario", d).focus();
+      };
     },
   });
 }
@@ -1548,7 +1577,7 @@ function dialogoAprobar(d) {
          <p class="small muted" style="margin:0">Vale para ${esc(d.n)} por ${M.pesos(codigo.monto)}. Si el PIN que pusiste no es el tuyo, el código no va a servir.</p>
          ${codigo.pinViejo ? `<p class="small" style="margin:6px 0 0">Tu PIN de dueño ahora es de ${M.LARGO_PIN.duenio} números: la próxima vez que entres en la compu del club te va a pedir que elijas uno nuevo.</p>` : ""}`
       : `<div class="usuarios" role="group" aria-label="¿Quién aprueba?">${duenios.map((u) => `<button type="button" data-a="aprobQuien" data-v="${u.id}" aria-pressed="${u.id === elegido}"><b>${esc(u.nombre)}</b></button>`).join("")}</div>
-         <div class="row"><label class="f" style="max-width:160px">Tu PIN (${M.LARGO_PIN.duenio} números)<input id="ap-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="${M.LARGO_PIN.duenio}" placeholder="${puntos("duenio")}"></label>
+         <div class="row"><label class="f" style="max-width:${local ? 160 : 260}px">${local ? `Tu PIN (${M.LARGO_PIN.duenio} números)` : `Tu PIN (${M.LARGO_PIN.duenio} números; si todavía tenés el de ${M.LARGO_PIN_VIEJO}, también sirve)`}<input id="ap-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="${M.LARGO_PIN.duenio}" placeholder="${puntos("duenio")}" style="max-width:160px"></label>
          <label class="f" style="max-width:160px">Monto que aprobás<input id="ap-monto" type="number" min="1" value="${esc(d.m)}"></label></div>`,
     pie: codigo
       ? `<a class="btn primary" target="_blank" rel="noopener" href="${esc(waA("club", M.mensajeWhatsApp("aprobado", { cliente: d.n, monto: M.pesos(codigo.monto), codigo: codigo.codigo })))}">Mandar el código por WhatsApp</a><button type="button" class="btn" data-a="cerrar">Listo</button>`
@@ -1564,11 +1593,9 @@ function dialogoAprobar(d) {
     // código sale igual con cualquiera: lo verifica la compu del club contra el PIN guardado).
     if (!M.pinAceptadoPara("duenio", pin)) return toast(M.textoLargoPin("duenio"), { error: true });
     if (local) {
-      const espera = Math.ceil((intentosPin.hasta - Date.now()) / 1000);
-      if (espera > 0) return toast(`Demasiados intentos: esperá ${espera} s.`, { error: true });
-      const v = M.verificarPin(E, elegido, pin);
-      if (!v.ok) { intentosPin.fallos += 1; if (intentosPin.fallos >= 5) { intentosPin.fallos = 0; intentosPin.hasta = Date.now() + 30_000; } return toast(v.motivo, { error: true }); }
-      intentosPin.fallos = 0;
+      // En la compu del club el PIN del dueño FIRMA: cuenta en el tope de intentos y el viejo de 2 no sirve.
+      const v = firmar(elegido, pin);
+      if (!v.ok) { const c = $("#ap-pin"); if (c) c.value = ""; return toast(v.motivo, { error: true }); }
       return cerrarSiSale(M.resolverCredito(E, d.id, { aprobar: true, monto }, { usuarioId: elegido, pin }, AHORA), `Aprobado: ${d.n} ${M.pesos(monto)}.`);
     }
     codigo = { codigo: M.codigoAprobacion({ pin, novedadId: d.id, clienteId: d.c, monto, fecha: d.f }), monto, pinViejo: !M.pinValidoPara("duenio", pin) };
@@ -2079,14 +2106,10 @@ const acciones = {
   usuario: () => cambiarUsuario(),
   elegirUsuario: (b) => acciones._setElegido?.(b.dataset.v),
   entrar: () => {
-    const espera = Math.ceil((intentosPin.hasta - Date.now()) / 1000);
-    if (espera > 0) return toast(`Demasiados intentos: esperá ${espera} s.`, { error: true });
+    if (esperaPinS() > 0) return toast(textoEspera(esperaPinS()), { error: true });
     const res = M.verificarPin(E, acciones._elegido?.(), val("#pin-usuario"));
-    if (!res.ok) {
-      if (++intentosPin.fallos >= 5) { intentosPin.fallos = 0; intentosPin.hasta = Date.now() + 30_000; return toast("Demasiados intentos: esperá 30 s.", { error: true }); }
-      return toast(`${res.motivo} (${intentosPin.fallos} de 5)`, { error: true });
-    }
-    intentosPin.fallos = 0;
+    anotarPin(res);
+    if (!res.ok) { const c = $("#pin-usuario"); if (c) c.value = ""; return toast(motivoFallo(res), { error: true }); }
     if (M.pinDesactualizado(E, res.usuario.id) && pedirPinNuevo(res.usuario.id, val("#pin-usuario"))) return;
     USUARIO = res.usuario.id;
     if (res.usuario.rol === "duenio" && matchMedia("(max-width: 640px)").matches) TAB = "tablero";
@@ -2199,7 +2222,7 @@ const acciones = {
   },
   aprobarAca: (b) => pinPara("confirmarAprobarAca", b.dataset.v, "Aprobar el crédito"),
   confirmarAprobarAca: (b) => {
-    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    const v = firmar(USUARIO, val("#cf-pin"));
     if (!v.ok) return toast(v.motivo, { error: true });
     cerrarSiSale(M.resolverCredito(E, b.dataset.v, { aprobar: true }, auth(val("#cf-pin")), AHORA), "Crédito aprobado.");
   },
@@ -2233,7 +2256,7 @@ const acciones = {
     hecho(M.definirPinInicial(E, u, a, AHORA), "PIN guardado. No se lo digas a nadie.");
   },
   altaUsuarioConsola: () => {
-    const dueno = E.usuarios.find((u) => u.rol === "duenio" && u.pin);
+    const dueno = duenoDeConsola();
     if (!dueno) return toast("Primero un dueño arma su PIN.", { error: true });
     const res = M.altaUsuario(E, { nombre: val("#nu-nombre"), rol: "recepcion" }, { usuarioId: dueno.id, pin: dueno.pin }, AHORA);
     if (res.ok) ui.pinesNuevos = { ...(ui.pinesNuevos ?? {}), [res.usuario.id]: res.pin };
@@ -2289,7 +2312,7 @@ const acciones = {
     pinPara("confirmarJornada", "blanco", MODO_REAL ? "Empezar otra jornada en blanco (la de ahora queda como «anterior» en esta compu: igual descargá el respaldo antes)" : "Empezar la jornada real en blanco");
   },
   confirmarJornada: (b) => {
-    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    const v = firmar(USUARIO, val("#cf-pin"));
     if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
     const que = b.dataset.v;
     // Desde la demo (PIN de ejemplo, que conoce cualquiera) nunca se pisa una jornada real guardada.
@@ -2305,7 +2328,7 @@ const acciones = {
     pinPara("confirmarGoLive", "", `Limpieza para el go-live (${ui.goLive.conservarSaldos ? "se conservan los saldos" : "los saldos quedan en CERO"}): se borran turnos, cuentas, caja y pedidos`);
   },
   confirmarGoLive: () => {
-    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    const v = firmar(USUARIO, val("#cf-pin"));
     if (!v.ok || !esDuenio()) return toast(v.ok ? "La limpieza la hace un dueño." : v.motivo, { error: true });
     descargarRespaldo();
     lsGuardar(`${CLAVE_JORNADA}-antes-golive`, fotoJornada());
@@ -2329,7 +2352,7 @@ const acciones = {
     dialogoArchivar();
   },
   bajarParaArchivar: () => {
-    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    const v = firmar(USUARIO, val("#cf-pin"));
     if (!v.ok || !esDuenio()) return toast(v.ok ? "Archivar lo hace un dueño." : v.motivo, { error: true });
     const hasta = M.diaParaArchivar(E, AHORA);
     const res = M.archivarDiasCerrados(E, hasta, { ahora: AHORA, por: yo()?.nombre ?? null });
@@ -2349,7 +2372,7 @@ const acciones = {
     toast(`Se pidió la descarga de ${nombre}. Cuando esté en Descargas, elegilo en el paso 2 y tocá «Ya lo guardé: achicar».`);
   },
   confirmarArchivar: async () => {
-    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    const v = firmar(USUARIO, val("#cf-pin"));
     if (!v.ok || !esDuenio()) return toast(v.ok ? "Archivar lo hace un dueño." : v.motivo, { error: true });
     const pend = ui.archivoPendiente;
     if (!pend) return toast("Primero descargá el archivo (paso 1).", { error: true });
@@ -2392,7 +2415,7 @@ const acciones = {
     dialogoCopia(c);
   },
   bajarCopia: (b) => {
-    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    const v = firmar(USUARIO, val("#cf-pin"));
     if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
     const c = copiasEnLaCompu().find((x) => x.sufijo === b.dataset.v);
     const texto = c && c.clave !== CLAVE_JORNADA ? lsLeer(c.clave) : null;
@@ -2407,7 +2430,7 @@ const acciones = {
     toast(`Se pidió la descarga de ${nombre}. Cuando esté en Descargas, elegilo en el paso 2 y tocá «Ya la guardé: borrar».`);
   },
   confirmarBorrarCopia: async (b) => {
-    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    const v = firmar(USUARIO, val("#cf-pin"));
     if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
     const sufijo = b.dataset.v;
     if (!ui.copiaBajada?.[sufijo]) return toast("Primero descargá la copia (paso 1).", { error: true });
@@ -2427,7 +2450,7 @@ const acciones = {
     toast(`Archivo verificado: la copia se borró de esta compu (${kb(c.largo)}). Guardá ${nombre} si la querés.`);
   },
   confirmarRestaurar: () => {
-    const v = M.verificarPin(E, USUARIO, val("#cf-pin"));
+    const v = firmar(USUARIO, val("#cf-pin"));
     if (!v.ok || !esDuenio()) return toast(v.ok ? "Lo decide un dueño." : v.motivo, { error: true });
     const h = M.hidratarEstado(ui.restaurar);
     const antesDeArchivar = ui.restaurarAntesDeArchivar;
@@ -2524,8 +2547,19 @@ const acciones = {
     const pin = val("#cm-pin");
     const monto = Math.abs(Number(val("#cm-mon"))) * (val("#cm-tipo") === "descuento" ? -1 : 1);
     if (monto < 0 && !pin.trim()) return toast("Un descuento lo autoriza el dueño con su PIN: escribilo en «PIN dueño».", { error: true });
-    const firma = monto < 0 && pin ? M.usuarioPorPin(E, pin) : null;
-    const quien = firma?.ok && firma.usuario.rol === "duenio" ? { usuarioId: firma.usuario.id, pin } : auth(pin);
+    let quien = auth(pin);
+    if (monto < 0) {
+      // El descuento lo firma un dueño con SU PIN: entra en el tope de intentos y el PIN viejo de 2 no firma.
+      if (esperaPinS() > 0) return toast(textoEspera(esperaPinS()), { error: true });
+      const firma = M.firmaPorPin(E, pin);
+      const esDueno = firma?.ok && firma.usuario.rol === "duenio";
+      anotarPin(esDueno ? firma : firma?.pinViejo ? firma : { ok: false });
+      if (!esDueno) {
+        const c = $("#cm-pin"); if (c) c.value = "";
+        return toast(firma?.pinViejo ? firma.motivo : motivoFallo({ motivo: "Ese no es el PIN de un dueño." }), { error: true });
+      }
+      quien = { usuarioId: firma.usuario.id, pin };
+    }
     const res = M.cargoManual(E, b.dataset.v, { concepto: val("#cm-con"), monto }, quien, AHORA);
     if (res.ok) for (const sel of ["#cm-con", "#cm-mon", "#cm-pin"]) { const el = $(sel); if (el) el.value = ""; }
     hecho(res, (r) => (r.item.precioUnit < 0 ? "Descuento aplicado." : "Cargo manual sumado."));
@@ -2689,7 +2723,7 @@ document.addEventListener("change", (ev) => {
     return toast(limpio ? "Número guardado en esta compu." : "Número borrado.");
   }
   if (t.dataset.a === "fondo") {
-    const dueno = enConsola() ? E.usuarios.find((u) => u.rol === "duenio" && u.pin) : null;
+    const dueno = enConsola() ? duenoDeConsola() : null;
     const res = M.ajustarFondo(E, t.value, dueno ? { usuarioId: dueno.id, pin: dueno.pin } : auth(), AHORA);
     if (!res.ok) { render(); return toast(enConsola() && !dueno ? "Primero un dueño arma su PIN." : res.motivo, { error: true }); }
     render();
@@ -2897,21 +2931,22 @@ document.addEventListener("keydown", (ev) => {
   if (primario && !primario.disabled) { ev.preventDefault(); primario.click(); }
 });
 
-$("#dlg").addEventListener("close", () => { dialogoActual = null; });
+$("#dlg").addEventListener("close", () => { vaciarPines($("#dlg")); dialogoActual = null; });
 
 // ───── bloqueo de pantalla: cada vez que el puesto queda sin uso o la pantalla se apaga, se vuelve con el PIN propio ─────
 // Celular, tablet, compu o POS: se bloquea tras N minutos sin tocar nada (Ajustes) y siempre que la pantalla se apagó
 // o se cambió de app por más de 30 segundos. Se desbloquea con el PIN de quien estaba usando el sistema; si es otra
-// persona, entra con su usuario y su PIN. 5 PIN mal → 30 segundos de espera. No hay forma de cerrarlo sin PIN.
+// persona, entra con su usuario y su PIN. 5 PIN mal → espera (tope de toda la compu). No hay forma de cerrarlo sin PIN.
 const OCULTA_MAX_MS = 30_000;
-const bloqueo = { activo: false, motivo: "", ultimo: Date.now(), ocultaDesde: null, fallos: 0, esperaHasta: 0, otro: false, elegido: null, timer: null };
-const guardarIntentos = () => { if (MODO_REAL) lsGuardar("bp-intentos", JSON.stringify({ fallos: bloqueo.fallos, esperaHasta: bloqueo.esperaHasta, tandas: bloqueo.tandas ?? 0 })); };
+// El tope de intentos es el de toda la compu (INTENTOS, arriba); `recienFallo` sólo dice si mostrar «PIN incorrecto».
+const bloqueo = { activo: false, motivo: "", ultimo: Date.now(), ocultaDesde: null, recienFallo: false, otro: false, elegido: null, timer: null };
 function bloquear(motivo) {
   if (bloqueo.activo || guardado.fuera || enConsola()) return;
   bloqueo.activo = true;
   bloqueo.motivo = motivo;
   bloqueo.otro = false;
   bloqueo.elegido = null;
+  bloqueo.recienFallo = false;
   cerrarMenuTurno();
   // Lo que quedó abierto es del usuario que se fue: se cierra, y su «Deshacer» ya no vale.
   cerrarDialogo();
@@ -2929,7 +2964,7 @@ function bloquear(motivo) {
 function pintarBloqueo() {
   const d = $("#bloqueo");
   const u = yo();
-  const espera = Math.max(0, Math.ceil((bloqueo.esperaHasta - Date.now()) / 1000));
+  const espera = esperaPinS();
   const quien = bloqueo.otro ? (bloqueo.elegido ? M.usuario(E, bloqueo.elegido) : null) : u;
   const motivo = { inactividad: `Pasaron ${minutosBloqueo()} minutos sin uso.`, pantalla: "La pantalla se apagó o se cambió de app.", manual: "Se bloqueó a mano.", recarga: "Se volvió a abrir el sistema: poné tu PIN." }[bloqueo.motivo] ?? "";
   const activos = E.usuarios.filter((x) => x.activo !== false);
@@ -2946,33 +2981,31 @@ function pintarBloqueo() {
       : `<div class="bl-quien"><span class="avatar" aria-hidden="true">${esc(quien.nombre.slice(0, 1).toUpperCase())}</span><span><b>${esc(quien.nombre)}</b><br><span class="small muted">${M.ROLES[quien.rol]}</span></span></div>
         <label class="f bl-pin-l" for="bl-pin">${bloqueo.otro ? `PIN de ${esc(quien.nombre.split(" ")[0])}` : "Tu PIN para seguir"}</label>
         <input id="bl-pin" class="pin-in num" type="password" inputmode="numeric" autocomplete="off" maxlength="${M.largoPin(quien.rol)}" placeholder="${puntos(quien.rol)}" ${espera ? "disabled" : ""} aria-describedby="bl-aviso${viejos ? " bl-viejo" : ""}">
-        ${viejos ? `<p id="bl-viejo" class="small muted" style="margin:0">¿Todavía tenés el PIN viejo de ${M.LARGO_PIN_VIEJO}? Ponelo y tocá «Desbloquear».</p>` : ""}
-        <p id="bl-aviso" class="${espera || bloqueo.fallos ? "err" : "small muted"}" role="status" style="margin:0;min-height:1.4em">${espera ? `Demasiados intentos: esperá ${espera > 60 ? `${Math.ceil(espera / 60)} minutos` : "un momento"}. <span aria-hidden="true">(${espera} s)</span>` : bloqueo.fallos ? `PIN incorrecto (${bloqueo.fallos} de 5).` : ""}</p>
+        ${viejos ? `<p id="bl-viejo" class="small muted" style="margin:0">Si todavía no cambiaste el PIN viejo de ${M.LARGO_PIN_VIEJO}, ponelo y tocá «Desbloquear».</p>` : ""}
+        <p id="bl-aviso" class="${espera || bloqueo.recienFallo ? "err" : "small muted"}" role="status" style="margin:0;min-height:1.4em">${espera ? `Demasiados intentos: esperá ${espera > 60 ? `${Math.ceil(espera / 60)} minutos` : "un momento"}. <span aria-hidden="true">(${espera} s)</span>` : bloqueo.recienFallo ? `PIN incorrecto (${INTENTOS.fallos} de ${M.TOPE_INTENTOS_PIN}).` : ""}</p>
         <button type="button" class="btn primary" data-a="desbloquear" ${espera ? "disabled" : ""}>Desbloquear</button>
         ${bloqueo.otro ? `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Elegir otro usuario</button>` : `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Entrar con otro usuario</button>`}`}
     ${pinesDemo(activos)}
   </div>`);
-  if (espera) { clearTimeout(bloqueo.timer); bloqueo.timer = setTimeout(() => { if (bloqueo.activo) { if (Date.now() >= bloqueo.esperaHasta) bloqueo.fallos = 0; pintarBloqueo(); $("#bl-pin")?.focus(); } }, 1000); }
+  if (espera) { clearTimeout(bloqueo.timer); bloqueo.timer = setTimeout(() => { if (bloqueo.activo) { if (!esperaPinS()) bloqueo.recienFallo = false; pintarBloqueo(); $("#bl-pin")?.focus(); } }, 1000); }
   if (bloqueo.otro && bloqueo.elegido) $("#bl-pin", d)?.focus();
 }
 function desbloquear() {
-  if (Date.now() < bloqueo.esperaHasta) return pintarBloqueo();
+  if (esperaPinS() > 0) return pintarBloqueo();
   const quien = bloqueo.otro ? bloqueo.elegido : USUARIO;
   const tipeado = $("#bl-pin")?.value;
+  // Para ENTRAR vale el PIN guardado tal cual (el viejo de 2 de un dueño también: acto seguido se le pide el de 4).
   const res = M.verificarPin(E, quien, tipeado);
+  // 5 PIN mal → espera; cada tanda espera más (30 s, 2 min, 10 min). En la jornada real sobrevive a recargar.
+  anotarPin(res);
   if (!res.ok) {
-    bloqueo.fallos += 1;
-    // 5 PIN mal → espera; cada tanda espera más (30 s, 2 min, 10 min). En la jornada real sobrevive a recargar.
-    if (bloqueo.fallos >= 5) { bloqueo.tandas = (bloqueo.tandas ?? 0) + 1; bloqueo.esperaHasta = Date.now() + [30, 120, 600][Math.min(bloqueo.tandas, 3) - 1] * 1000; }
-    guardarIntentos();
+    bloqueo.recienFallo = true;
     pintarBloqueo();
     const pin = $("#bl-pin");
     if (pin && !pin.disabled) { pin.value = ""; pin.focus(); }
     return;
   }
-  bloqueo.fallos = 0;
-  bloqueo.tandas = 0;
-  guardarIntentos();
+  bloqueo.recienFallo = false;
   if (M.pinDesactualizado(E, res.usuario.id)) { pedirPinNuevo(res.usuario.id, tipeado); return; }
   entrarDesbloqueado(res.usuario);
 }
@@ -2980,9 +3013,7 @@ function entrarDesbloqueado(usuario, saludo = "") {
   const cambio = usuario.id !== USUARIO;
   USUARIO = usuario.id;
   bloqueo.activo = false;
-  bloqueo.fallos = 0;
-  bloqueo.tandas = 0;
-  guardarIntentos();
+  bloqueo.recienFallo = false;
   bloqueo.ultimo = Date.now();
   document.documentElement.classList.remove("bloqueada");
   $("#bloqueo").close();
@@ -3107,7 +3138,7 @@ if (MODO_REAL) {
   document.addEventListener("visibilitychange", () => { if (document.hidden) guardarJornada(true); else latirReloj(); });
   addEventListener("pagehide", () => guardarJornada(true));
   addEventListener("pageshow", latirReloj);
-  try { const t = JSON.parse(lsLeer("bp-intentos") || "{}"); bloqueo.fallos = Number(t.fallos) || 0; bloqueo.esperaHasta = Number(t.esperaHasta) || 0; bloqueo.tandas = Number(t.tandas) || 0; } catch { /* sin intentos guardados */ }
+  try { INTENTOS = M.intentosPin(JSON.parse(lsLeer("bp-intentos") || "{}")); } catch { /* sin intentos guardados */ }
   if (!enConsola()) bloquear("recarga");
 }
 function otraPestania() {

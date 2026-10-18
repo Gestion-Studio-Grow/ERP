@@ -23,11 +23,13 @@ para clientes de Configuración ya lleva todo y se puede mandar igual.
    real». (Si esa compu ya había entrado con `?modo=real`, sigue con lo que tiene: no se pierde nada.)
 2. Aparece la **consola de configuración**:
    - **Los dueños arman su PIN.** Roberto y Majo eligen cada uno **4 números** que sólo sepa él o ella y los
-     repiten. No pueden ser iguales.
+     repiten. No pueden ser iguales entre ellos, y no sirven los fáciles: los de la demo (1111, 2222), todos iguales
+     (0000, 7777…) ni escaleras (1234, 4321…).
    - **Avisos por WhatsApp** (opcional): el celular de cada dueño (ahí llegan los pedidos de crédito), el WhatsApp
      del club y el alias para la seña.
    - **Recepción** (opcional, también se hace después): nombre de cada persona → el sistema le da un PIN de **2
-     números**, que se ve **una sola vez**. Anotalo y dáselo.
+     números** (nunca dos iguales, como 33), que se ve **una sola vez**. Anotalo y dáselo. Si después lo cambia,
+     tampoco puede elegir uno con los dos números iguales.
    - **Precios y caja:** el precio por hora (valle y pico) y el **fondo de caja** (el cambio que hay en el cajón).
    - **Abrir el club.** Queda bloqueado: entra el dueño con su PIN.
 3. **Antes del primer turno**, un dueño:
@@ -97,12 +99,19 @@ para clientes de Configuración ya lleva todo y se puede mandar igual.
   desde cualquier celular, la sincronía entre compus y la aprobación de crédito sin código son el siguiente paso,
   con servidor, después de la venta.
 - **Los PIN son de 4 dígitos para los dueños y de 2 para recepción** (decisión del dueño, 18/10/2026). El código
-  de aprobación vale lo que vale el PIN del dueño: no se presta. Cinco PIN mal en la pantalla bloqueada hacen
-  esperar (30 s, después 2 min, después 10 min), aunque se recargue.
+  de aprobación vale lo que vale el PIN del dueño: no se presta (y no lo mandes a un grupo).
+- **Cinco PIN mal hacen esperar** (30 s, después 2 min, después 10 min), aunque se recargue. Cuentan todos juntos:
+  la pantalla bloqueada, «¿Quién usa el sistema?», el PIN del dueño en un descuento y la aprobación en la compu.
+  Que entre alguien de recepción no borra la cuenta; la borra un dueño cuando entra o firma bien.
 - **Si un dueño todavía tiene el PIN viejo de 2** (los del piloto), entra igual: lo pone y toca «Desbloquear» (no
   se prueba solo porque el campo espera 4). En ese momento la pantalla le pide **elegir uno nuevo de 4** y
-  repetirlo; recién ahí entra. No se pierde nada de lo cargado y el viejo deja de andar. Desde el celular, para
-  aprobar un fiado, el viejo de 2 sigue sirviendo hasta que lo cambie en la compu.
+  repetirlo; recién ahí entra. No se pierde nada de lo cargado y el viejo deja de andar.
+  - Mientras no lo cambie, **el viejo de 2 sólo sirve para entrar**: no firma un descuento ni aprueba un fiado en la
+    compu. Avisa «Ese es tu PIN viejo: entrá a la compu con él y elegí uno de 4.».
+  - Desde el celular, para aprobar un fiado, el viejo de 2 sigue sirviendo hasta que lo cambie en la compu.
+  - **Si el club usa más de una compu**, cada una guarda su propia jornada: el cambio se pide en **cada** compu.
+    Conviene elegir **el mismo PIN de 4 en todas**, porque el código que sale del celular sólo sirve en la compu
+    donde ese PIN coincide con el guardado.
 - **Desde la demo no se borra la jornada real.** Si alguien vuelve a la demo, sólo puede «Seguir la jornada real
   guardada», y para entrar pide el PIN real. Empezar otra jornada se hace desde adentro, con PIN de dueño. La
   anterior queda apartada en la compu y se descarga un respaldo solo.
@@ -111,7 +120,7 @@ para clientes de Configuración ya lleva todo y se puede mandar igual.
 
 ## Cómo se verificó
 
-`npm run test:club-torneo`: el UAT de un **sábado de torneo** en Chromium, de punta a punta, con 61 de 61 en
+`npm run test:club-torneo`: el UAT de un **sábado de torneo** en Chromium, de punta a punta, con 101 de 101 en
 verde. Cubre:
 - la consola de configuración y los dueños;
 - recepción con 4 canchas completas, 4 jugadores y mucho buffet;
@@ -119,7 +128,14 @@ verde. Cubre:
 - cobro total, por jugador y fiado con código desde el celular de Majo;
 - la tienda desde el celular de un cliente y el pedido pegado en el club;
 - recarga, segunda pestaña, novedades por difusión, alta de usuario, respaldo y cierre de caja;
-- la caja igual a lo cobrado, la medianoche y la pantalla a 390 px.
+- la caja igual a lo cobrado, la medianoche y la pantalla a 390 px;
+- los PIN por rol: el viejo de 2 de un dueño entra, pide el de 4 y mientras tanto no firma un descuento ni una
+  aprobación; el tope de intentos compartido y los PIN que se borran al cerrar cada ventana.
+
+Las pruebas del turnero dependen de la hora del navegador: en un servidor en UTC, pasada la medianoche no quedan turnos
+libres ese día. Se corren con la hora de Argentina: `TZ=America/Argentina/Buenos_Aires npm run test:turnero-e2e`.
+
+El archivado y el PIN por rol pasaron el Gate de Excelencia (18/10/2026, aprobado con menores; los menores corregidos).
 
 ## Go-live: después del día de prueba
 
