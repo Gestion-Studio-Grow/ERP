@@ -14,6 +14,8 @@ import {
   cuandoDelPedido,
   quedoElPedido,
   listoDesdeAyer,
+  otrosPedidosDeLaClienta,
+  textoDeOtrosPedidos,
   pedidosDeLaTiendaEsperando,
   textoDeLaTiendaEsperando,
   ESPERA_DE_LA_TIENDA_MIN,
@@ -262,4 +264,34 @@ test("clienta que no retira: listo desde un día anterior (en la zona del negoci
   ];
   assert.equal(lineaDelTablero(lista, false, { ahora: SABADO, hoy: "2026-09-26" }).listosDeAyer, 2);
   assert.equal(lineaDelTablero(lista, false).listosDeAyer, 0, "sin reloj no se cuenta");
+});
+
+// ── Doble pedido de la misma clienta (caso 8) ─────────────────────────────────
+
+test("doble pedido: la misma clienta escrita distinto se marca en los dos pedidos", () => {
+  const lista = [
+    pedido({ id: "p127", status: "PENDING", telefono: "11 5555-0101" }),
+    pedido({ id: "p131", status: "PREPARING", telefono: "+54 9 11 5555 0101", canal: "COUNTER" }),
+    pedido({ id: "p132", status: "PENDING", telefono: "11 4444-0202" }),
+  ];
+  const otros = otrosPedidosDeLaClienta(lista);
+  assert.deepEqual(otros.get("p127"), [131]);
+  assert.deepEqual(otros.get("p131"), [127]);
+  assert.equal(otros.has("p132"), false, "una clienta con un solo pedido no se marca");
+  assert.equal(textoDeOtrosPedidos([127]), "Tiene otro pedido abierto (#127)");
+  assert.equal(textoDeOtrosPedidos([127, 130]), "Tiene otros 2 pedidos abiertos (#127 y #130)");
+  assert.equal(textoDeOtrosPedidos([]), null);
+});
+
+test("doble pedido: entregados, anulados y teléfonos a medias no cuentan", () => {
+  const lista = [
+    pedido({ id: "p1", status: "PENDING", telefono: "11 5555-0101" }),
+    pedido({ id: "p2", status: "DELIVERED", telefono: "1155550101" }),
+    pedido({ id: "p3", status: "CANCELLED", telefono: "1155550101" }),
+    pedido({ id: "p4", status: "PENDING", telefono: "123" }),
+    pedido({ id: "p5", status: "PENDING", telefono: "123" }),
+    pedido({ id: "p6", status: "PENDING", telefono: null }),
+    pedido({ id: "p7", status: "READY", telefono: null }),
+  ];
+  assert.equal(otrosPedidosDeLaClienta(lista).size, 0);
 });

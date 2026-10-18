@@ -18,6 +18,7 @@
 
 import type { TipoMarca } from "@/components/ui/Marca";
 import { dateStrInBusinessTz } from "@/lib/datetime";
+import { normalizarTelefono } from "@/lib/clientes/telefono";
 
 /** Lo que el tablero sabe de un pedido abierto. Serializable (viaja del servidor al cliente). */
 export type PedidoDelTablero = {
@@ -424,6 +425,50 @@ export function lineaDelTablero(
     tienda: reloj ? pedidosDeLaTiendaEsperando(pedidos, reloj.ahora) : null,
     listosDeAyer,
   };
+}
+
+// ── Doble pedido de la misma clienta (caso 8) ────────────────────────────────
+
+/** Los estados en los que un segundo pedido es un problema: todavía se prepara o espera que lo retiren. */
+const EN_CURSO_DEL_TABLERO = new Set(["PENDING", "CONFIRMED", "PREPARING", "READY"]);
+
+/**
+ * Los OTROS pedidos abiertos de la misma clienta, por pedido. PURA. La clienta que pide por la web
+ * y además escribe por WhatsApp (y el local lo carga a mano), o que vuelve a pedir «para sumar
+ * algo»: son dos claves distintas y dos pedidos, y la bandeja no lo marcaba. Se agrupa por el
+ * teléfono NORMALIZADO (`normalizarTelefono`, la misma clave que la ficha de la clienta), así
+ * «11 5555-0101» y «+54 9 11 5555 0101» son la misma. Un teléfono con menos de 8 dígitos no se
+ * agrupa (es un dato a medias, no una persona). Entregados y anulados no cuentan.
+ */
+export function otrosPedidosDeLaClienta(
+  pedidos: readonly Pick<PedidoDelTablero, "id" | "code" | "telefono" | "status">[],
+): Map<string, number[]> {
+  const porTelefono = new Map<string, { id: string; code: number }[]>();
+  for (const p of pedidos) {
+    if (!EN_CURSO_DEL_TABLERO.has(p.status)) continue;
+    const clave = normalizarTelefono(p.telefono);
+    if (clave.length < 8) continue;
+    porTelefono.set(clave, [...(porTelefono.get(clave) ?? []), { id: p.id, code: p.code }]);
+  }
+  const out = new Map<string, number[]>();
+  for (const grupo of porTelefono.values()) {
+    if (grupo.length < 2) continue;
+    for (const p of grupo) {
+      out.set(
+        p.id,
+        grupo.filter((o) => o.id !== p.id).map((o) => o.code).sort((a, b) => a - b),
+      );
+    }
+  }
+  return out;
+}
+
+/** «Tiene otro pedido abierto (#127)»; con más: «Tiene otros 2 pedidos abiertos (#127 y #130)». */
+export function textoDeOtrosPedidos(codigos: readonly number[]): string | null {
+  if (codigos.length === 0) return null;
+  const n = codigos.map((c) => `#${c}`);
+  if (n.length === 1) return `Tiene otro pedido abierto (${n[0]})`;
+  return `Tiene otros ${n.length} pedidos abiertos (${n.slice(0, -1).join(", ")} y ${n[n.length - 1]})`;
 }
 
 /** "11:40" si es de hoy; "ayer"; si no, "lun 21/09". `hoy` y `ayer` son claves AAAA-MM-DD. */

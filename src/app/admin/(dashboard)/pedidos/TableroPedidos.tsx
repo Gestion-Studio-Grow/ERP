@@ -42,11 +42,13 @@ import {
   leerFiltrosDelTablero,
   loteDelTablero,
   ordenarPedidos,
+  otrosPedidosDeLaClienta,
   quedoElPedido,
   resumenDelLote,
   rielDelPedido,
   teclaDelPedido,
   textoDeLaTecla,
+  textoDeOtrosPedidos,
   type PedidoCerrado,
   type PedidoDelTablero,
 } from "./pedidos-core";
@@ -301,11 +303,14 @@ function AvisarUnoPorUno({ pedidos, onCerrar }: { pedidos: PedidoDelTablero[]; o
 
 // ── Estado del pedido, en la fila ────────────────────────────────────────────
 
-function EstadoDeFila({ p, comercio }: { p: PedidoDelTablero; comercio: boolean }) {
+function EstadoDeFila({ p, comercio, otros }: { p: PedidoDelTablero; comercio: boolean; otros: readonly number[] }) {
   const vocab = useVocabulario();
   const riel = rielDelPedido(p, comercio);
+  const doble = textoDeOtrosPedidos(otros);
   return (
     <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5">
+      {/* La misma clienta con otro pedido abierto (caso 8): antes de preparar los dos, juntalos o preguntale. */}
+      {doble && <Marca tipo="atencion">{doble}</Marca>}
       {/* En el celular no entra el riel: queda la palabra del paso, y la entrega y el cobro van en
           la misma línea (en la PC tienen su columna). */}
       <span className="max-sm:hidden">
@@ -376,6 +381,8 @@ export default function TableroPedidos({
   const orden = ordenDesdeUrl(params.get("orden"), ORDENABLES);
   const conteos = conteosDelTablero(abiertos, filtros.canal);
   const visibles = ordenarPedidos(filtrarPedidos(abiertos, { ...filtros, q }), orden);
+  // Sólo comercio: la bandeja de CH queda como estaba.
+  const otrosDeLaClienta = comercio ? otrosPedidosDeLaClienta(abiertos) : new Map<string, number[]>();
 
   const idAbierto = params.get("pedido");
   const pedidoAbierto = idAbierto ? (abiertos.find((p) => p.id === idAbierto) ?? null) : null;
@@ -430,7 +437,12 @@ export default function TableroPedidos({
         </button>
       ),
     },
-    { clave: "estado", titulo: "Estado", movil: "detalle", celda: (p) => <EstadoDeFila p={p} comercio={comercio} /> },
+    {
+      clave: "estado",
+      titulo: "Estado",
+      movil: "detalle",
+      celda: (p) => <EstadoDeFila p={p} comercio={comercio} otros={otrosDeLaClienta.get(p.id) ?? []} />,
+    },
     { clave: "entrega", titulo: tituloDeEntrega(vocab), ordenable: true, movil: "oculta", celda: (p) => <Entrega p={p} /> },
     { clave: "lineas", titulo: "Líneas", alinear: "derecha", movil: "oculta", celda: (p) => p.lineas.length },
     { clave: "total", titulo: "Total", alinear: "derecha", ordenable: true, movil: "plata", celda: (p) => <Plata valor={p.total} /> },

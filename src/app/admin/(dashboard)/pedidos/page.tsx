@@ -44,7 +44,7 @@ import TableroPedidos from "./TableroPedidos";
 import AvisoDePedidosNuevos from "./AvisoDePedidosNuevos";
 import { armarTablero, leerAvisados } from "./tablero.server";
 import { LineaDeEstado, Plata } from "@/components/ui";
-import { lineaDelTablero, textoDeLaTiendaEsperando } from "./pedidos-core";
+import { lineaDelTablero, otrosPedidosDeLaClienta, textoDeLaTiendaEsperando, textoDeOtrosPedidos } from "./pedidos-core";
 
 export const dynamic = "force-dynamic";
 
@@ -289,6 +289,10 @@ export default async function PedidosPage() {
         { ahora: new Date(), hoy },
       )
     : null;
+  // La misma clienta con otro pedido abierto (caso 8), también en la bandeja de siempre.
+  const otrosDeLaClienta = comercio
+    ? otrosPedidosDeLaClienta(abiertos.map((o) => ({ id: o.id, code: o.code, telefono: o.customerPhone, status: o.status })))
+    : new Map<string, number[]>();
 
   return (
     <main className={modeloNuevo ? "mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8" : "mx-auto max-w-4xl px-6 py-8"}>
@@ -443,6 +447,9 @@ export default async function PedidosPage() {
                     {o.customerName}
                     {o.customerPhone && <span className="text-faint"> · {o.customerPhone}</span>}
                   </p>
+                  {otrosDeLaClienta.has(o.id) && (
+                    <p className="text-xs font-medium text-warning mt-0.5">{textoDeOtrosPedidos(otrosDeLaClienta.get(o.id) ?? [])}</p>
+                  )}
                   <ul className="text-xs text-muted mt-1 space-y-0.5">
                     {o.items.map((it) => (
                       <li key={it.id}>
