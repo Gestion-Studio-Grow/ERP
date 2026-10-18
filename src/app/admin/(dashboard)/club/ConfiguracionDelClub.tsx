@@ -23,7 +23,8 @@
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import type { PropsDeSolapa } from "./solapas-club";
 import { PrimeraVez } from "./config-arranque";
-import { JornadaDelClub } from "./config-jornada";
+import { JornadaDelClub, SoloEnElPuestoDelDuenio, puestoDeDuenio } from "./config-jornada";
+import { Seccion } from "./config-piezas";
 import { LimpiezaGoLive } from "./config-golive";
 import { AvisosPorWhatsApp, HorariosDelClub, LinkParaClientes, ReglasDelClub } from "./config-reglas";
 import { UsuariosDelClub } from "./config-usuarios";
@@ -74,7 +75,14 @@ export default function ConfiguracionDelClub({ almacen, irASolapa }: PropsDeSola
       <ReglasDelClub almacen={almacen} />
       <HorariosDelClub almacen={almacen} />
       {!primeraVez && <LinkParaClientes almacen={almacen} />}
-      {!primeraVez && <LimpiezaGoLive almacen={almacen} />}
+      {!primeraVez &&
+        (puestoDeDuenio(almacen) ? (
+          <LimpiezaGoLive almacen={almacen} />
+        ) : (
+          <Seccion id="club-config-golive" titulo="Limpieza para el go-live">
+            <SoloEnElPuestoDelDuenio que="La limpieza para el go-live" />
+          </Seccion>
+        ))}
     </div>
   );
 }
