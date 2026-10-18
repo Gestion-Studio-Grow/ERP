@@ -286,9 +286,15 @@ try {
   {
     // 8.4 En Vender, la etiqueta de la balanza (formato de fábrica, provisional) carga el renglón con su peso.
     const { FORMATO_BALANZA_POR_DEFECTO, armarEtiquetaDeBalanza } = await import("../../../lib/supermercado/balanza.ts");
+    const { guardarConfigCajaEnTx } = await import("../../../lib/supermercado/config-repo.ts");
     const { p } = mostrador;
     await p.goto(`${BASE}/admin/vender`);
     const etiqueta = p.getByLabel("Etiqueta de la balanza o código");
+    await textoDe(p);
+    ok("8.4a", (await etiqueta.count()) === 0, "sin el formato de la balanza del negocio guardado, el campo de la etiqueta no se muestra");
+    // El formato lo guarda quien configura la balanza (acá, directo en la base local).
+    await guardarConfigCajaEnTx(duenioDb, magra.id, { config: { formato: FORMATO_BALANZA_POR_DEFECTO, encargados: [] }, actor: "uat:e2e", versionLeida: null });
+    await p.goto(`${BASE}/admin/vender`);
     await etiqueta.fill(armarEtiquetaDeBalanza(FORMATO_BALANZA_POR_DEFECTO, "123", 1.24));
     await etiqueta.press("Enter");
     const renglon = await p.locator('input[id^="qty-"]:not([disabled])').first().inputValue().catch(() => "");

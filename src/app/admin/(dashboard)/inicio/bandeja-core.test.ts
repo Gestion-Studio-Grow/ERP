@@ -227,7 +227,7 @@ test("mostrador que vende: WhatsApp, horario y dirección, 5 productos, venta y 
   assert.equal(pasos[2].titulo, "Cargar 5 productos con precio");
   assert.equal(pasos[2].detalle, "Llevás 2 con precio; 3 sin precio no aparecen en Vender");
   assert.equal(pasos[3].tecla?.href, "/admin/vender");
-  assert.equal(pasos[4].titulo, "Hacer una factura de prueba");
+  assert.equal(pasos[4].titulo, "Hacer la primera factura");
   assert.equal(pasos[5].tecla?.texto, "Abrir la caja");
 });
 

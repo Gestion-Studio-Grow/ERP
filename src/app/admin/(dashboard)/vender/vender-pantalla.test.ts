@@ -2143,10 +2143,12 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
           { id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", price: null, pricePerKg: 12500, unit: "kg", codigo: "00201" },
           { id: "p_entrana", name: "Entraña", saleUnit: "WEIGHT", price: null, pricePerKg: 17500, unit: "kg", codigo: null },
         ],
-        balanza: { formato: FORMATO_BALANZA_POR_DEFECTO, porDefecto: true, configurar: null },
+        // Configurado por el negocio: sin formato guardado, la página no monta el campo (vender/page.tsx).
+        balanza: { formato: FORMATO_BALANZA_POR_DEFECTO, porDefecto: false, configurar: null },
       });
       const campo = page.getByLabel("Etiqueta de la balanza o código");
-      await page.getByText(/provisional a confirmar con la balanza real/).waitFor();
+      await page.getByText(/Formato:/).waitFor();
+      assert.equal(await page.getByText(/provisional|a confirmar/).count(), 0, "en un negocio en marcha no se muestra nada a medio confirmar");
       // Un PLU que no está: se dice, no se carga nada y el campo sigue con lo leído para corregirlo.
       await campo.fill(armarEtiquetaDeBalanza(FORMATO_BALANZA_POR_DEFECTO, "00999", 1));
       await campo.press("Enter");

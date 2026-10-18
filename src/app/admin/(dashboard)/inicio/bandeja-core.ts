@@ -489,7 +489,7 @@ function pasoDelCierre(rutaCierre: string): PasoParaArrancar {
 
 /**
  * La lista del primer día de un negocio que vende, en el orden en que se hace: WhatsApp, horario
- * y dirección, 5 productos con precio, una venta de prueba, una factura de prueba y la caja (o, con
+ * y dirección, 5 productos con precio, la primera venta, la primera factura y la caja (o, con
  * la caja abierta, el primer cierre). Hasta TOPE_PASOS_PARA_ARRANCAR; si todo está hecho, se va.
  * Cada paso sale sólo si la persona ve la app donde se resuelve. PURA.
  */
@@ -552,7 +552,7 @@ function pasosDelMostrador(
         ? { id: "venta", titulo: "Primera venta cobrada", hecho: true }
         : {
             id: "venta",
-            titulo: "Hacer una venta de prueba",
+            titulo: "Hacer la primera venta",
             detalle: "Así ves el ticket y cómo queda en la caja",
             hecho: false,
             tecla: { texto: "Ir a Vender", href: rutaVender },
@@ -575,7 +575,7 @@ function pasosDelMostrador(
           ? { id: "facturacion", titulo: "Primera factura hecha", hecho: true }
           : {
               id: "facturacion",
-              titulo: "Hacer una factura de prueba",
+              titulo: "Hacer la primera factura",
               detalle: "Cobrá una venta en Vender y tocá «Facturar»",
               hecho: false,
               tecla: { texto: "Ver facturación", href: rutaFacturacion },

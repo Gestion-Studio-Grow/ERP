@@ -43,6 +43,10 @@ async function balanzaDeVender(
     return null;
   });
   if (!config) return null;
+  // Sin el formato de la balanza del negocio, el campo no se muestra: leer una etiqueta con un
+  // formato supuesto puede cargar un peso equivocado, y en un negocio en marcha no se muestra nada a
+  // medio confirmar. Se prende cuando se guarda el formato real (Caja con lector → Configuración).
+  if (config.porDefecto) return null;
   const puedeCaja = await puedeAbrirApp("caja-rapida");
   const configurar = puedeCaja && roleHasCapability(role, "catalog:manage") ? "/admin/caja-rapida/configuracion" : null;
   return { formato: config.formato, porDefecto: config.porDefecto, configurar };

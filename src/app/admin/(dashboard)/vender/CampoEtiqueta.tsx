@@ -75,7 +75,6 @@ export default function CampoEtiqueta({
       </p>
       <p id={`${ID_CAMPO_ETIQUETA}-regla`} className="text-xs text-muted">
         {REGLA_DEL_PRECIO_DE_BALANZA} Formato: {describirFormato(balanza.formato)}
-        {balanza.porDefecto && " (de fábrica, provisional a confirmar con la balanza real)"}
         {balanza.configurar && (
           <>
             {" "}
