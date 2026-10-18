@@ -514,6 +514,8 @@ function MagraFrontContent({
                   <div className="mf-ri-amt mf-display mf-num">{money.format(l.t)}</div>
                   <input type="hidden" name="productId" value={l.p.id} />
                   <input type="hidden" name="quantity" value={l.q} />
+                  {/* El precio que vio: si cambió mientras armaba, el servidor avisa en esta línea (reglas-tienda.ts). */}
+                  <input type="hidden" name="unitPrice" value={unitPrice(l.p)} />
                   {pedido.avisoDe(l.p.id) && (
                     <p role="alert" className="mf-aviso">
                       {pedido.avisoDe(l.p.id)}
