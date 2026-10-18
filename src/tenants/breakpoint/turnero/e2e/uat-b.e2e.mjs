@@ -52,7 +52,7 @@ await p.goto(`${BASE}/club?demo=1`); await W(600);
 // ── Parte 1: matriz de acceso ──
 const DUENO = ["agenda", "ajustes", "buffet", "caja", "clientes", "contenido", "proveedores", "stock", "tablero"];
 const RECEP = ["agenda", "buffet", "caja", "clientes"];
-const USUARIOS = [["u-rober", "11", "dueño", DUENO], ["u-majo", "22", "dueña", DUENO], ["u-lu", "33", "recepción", RECEP], ["u-caro", "44", "recepción", RECEP]];
+const USUARIOS = [["u-rober", "1111", "dueño", DUENO], ["u-majo", "2222", "dueña", DUENO], ["u-lu", "33", "recepción", RECEP], ["u-caro", "44", "recepción", RECEP]];
 for (const [id, pin, rol, esperadas] of USUARIOS) {
   await entrarComo(id, pin);
   const t = await pestanas();
@@ -81,7 +81,7 @@ for (const [id, pin, rol, esperadas] of USUARIOS) {
   await p.fill("#cm-con", "Descuento UAT"); await p.selectOption("#cm-tipo", "descuento"); await p.fill("#cm-mon", "500");
   await p.click('[data-a="cargoManual"]'); await W();
   const sinPin = await aviso();
-  await p.fill("#cm-con", "Descuento UAT"); await p.selectOption("#cm-tipo", "descuento"); await p.fill("#cm-mon", "500"); await p.fill("#cm-pin", rol === "recepción" ? "11" : pin);
+  await p.fill("#cm-con", "Descuento UAT"); await p.selectOption("#cm-tipo", "descuento"); await p.fill("#cm-mon", "500"); await p.fill("#cm-pin", rol === "recepción" ? "1111" : pin);
   await p.click('[data-a="cargoManual"]'); await W();
   const conPin = await aviso();
   ok("1.descuento", /dueño/.test(sinPin) && /Descuento aplicado/.test(conPin), `${id}: descuento sin PIN → «${sinPin.trim().slice(0, 50)}»; con PIN de dueño → «${conPin.trim().slice(0, 30)}»`);
@@ -94,30 +94,30 @@ await p.click('[data-a="usuario"]'); await W(); await p.click('[data-a="elegirUs
 ok("1.1", /PIN incorrecto/.test(await aviso()) && (await p.textContent("#u-nombre")) !== "Rober", "PIN equivocado: avisa y no entra");
 await cerrar();
 // 1.4 un dueño no se puede sacar el acceso a sí mismo
-await entrarComo("u-rober", "11"); await irTab("ajustes");
+await entrarComo("u-rober", "1111"); await irTab("ajustes");
 const filaRober = p.locator("#app tr", { hasText: "Rober" });
 ok("1.4", (await filaRober.locator('[data-a="revocar"]').count()) === 0 && (await p.locator('[data-a="revocar"]').count()) >= 1, "el dueño no tiene «Sacar acceso» en su propia fila (sí en las demás)");
 // 1.2 pedir acceso → otorgar → entrar → revocar
 await p.click('[data-a="usuario"]'); await W();
 ok("1.pines", !(await p.isVisible("#dlg .demo-pins p")), "los PIN de ejemplo no están a la vista: se ven sólo si se piden");
 await p.click("details:has(#nuevo-acceso) summary"); await p.fill("#nuevo-acceso", "Prueba UAT"); await p.click('[data-a="pedirAcceso"]'); await W(300);
-await entrarComo("u-rober", "11"); await irTab("ajustes");
+await entrarComo("u-rober", "1111"); await irTab("ajustes");
 await p.locator('#app .al', { hasText: "Prueba UAT" }).locator('[data-a="otorgar"]').click(); await W();
-await p.selectOption("#og-rol", "recepcion"); await p.fill("#og-pin", "11"); await p.click('#dlg [data-a="confirmarOtorgar"]'); await W(300);
+await p.selectOption("#og-rol", "recepcion"); await p.fill("#og-pin", "1111"); await p.click('#dlg [data-a="confirmarOtorgar"]'); await W(300);
 const pinNuevo = (await p.textContent("#dlg .pin-in"))?.trim();
 await foto("acceso-otorgado");
 await cerrar();
 const idNuevo = await p.locator("#app tr", { hasText: "Prueba UAT" }).locator('[data-a="revocar"]').getAttribute("data-v");
 await entrarComo(idNuevo, pinNuevo);
 ok("1.2a", (await p.textContent("#u-nombre")) === "Prueba UAT" && JSON.stringify(await pestanas()) === JSON.stringify(RECEP), `pidió acceso, el dueño se lo dio (PIN de 2 dígitos) y entra con permisos de recepción`);
-await entrarComo("u-rober", "11"); await irTab("ajustes");
-await p.click(`[data-a="revocar"][data-v="${idNuevo}"]`); await W(); await p.fill("#cf-pin", "11"); await p.click('#dlg [data-a="confirmarRevocar"]'); await W(300);
+await entrarComo("u-rober", "1111"); await irTab("ajustes");
+await p.click(`[data-a="revocar"][data-v="${idNuevo}"]`); await W(); await p.fill("#cf-pin", "1111"); await p.click('#dlg [data-a="confirmarRevocar"]'); await W(300);
 await p.click('[data-a="usuario"]'); await W();
 ok("1.2b", (await p.locator(`[data-a="elegirUsuario"][data-v="${idNuevo}"]`).count()) === 0, "después de revocarlo ya no aparece para entrar");
 await cerrar();
 // 1.3 PIN nuevo para Caro
 await irTab("ajustes");
-await p.click('[data-a="regenerarPin"][data-v="u-caro"]'); await W(); await p.fill("#cf-pin", "11"); await p.click('#dlg [data-a="confirmarRegenerar"]'); await W(300);
+await p.click('[data-a="regenerarPin"][data-v="u-caro"]'); await W(); await p.fill("#cf-pin", "1111"); await p.click('#dlg [data-a="confirmarRegenerar"]'); await W(300);
 const pinCaro = (await p.textContent("#dlg .pin-in"))?.trim(); await cerrar();
 await p.click('[data-a="usuario"]'); await W(); await p.click('[data-a="elegirUsuario"][data-v="u-caro"]'); await p.fill("#pin-usuario", "44"); await p.click('#dlg [data-a="entrar"]'); await W();
 const viejoFalla = /PIN incorrecto/.test(await aviso()); await cerrar();
@@ -139,13 +139,13 @@ await p.fill("#bl-pin", "33"); await W(400);
 ok("2.4", !(await bloqueada()) && /Lu/.test(await p.textContent("#u-nombre")), "pasada la espera, con su PIN desbloquea y sigue Lu");
 await irTab("buffet"); await p.locator('[data-a="verCuenta"]').first().click(); await W(300); // queda una ventana abierta
 await p.keyboard.press("l"); await W(300);
-await p.click('[data-a="bloqueoOtro"]'); await W(150); await p.click('[data-a="bloqueoUsuario"][data-v="u-rober"]'); await W(150); await p.fill("#bl-pin", "11"); await W(400);
+await p.click('[data-a="bloqueoOtro"]'); await W(150); await p.click('[data-a="bloqueoUsuario"][data-v="u-rober"]'); await W(150); await p.fill("#bl-pin", "1111"); await W(400);
 ok("2.5", !(await bloqueada()) && (await p.textContent("#u-nombre")) === "Rober" && !(await p.evaluate(() => document.getElementById("dlg").open)) && (await pestanas()).includes("stock"), "«Entrar con otro usuario»: entra Rober con sus pestañas y la ventana de Lu quedó cerrada");
 await p.evaluate(() => { Object.defineProperty(document, "hidden", { configurable: true, get: () => true }); document.dispatchEvent(new Event("visibilitychange")); });
 await p.evaluate(() => { const ahora = Date.now; Date.now = () => ahora() + 31000; Object.defineProperty(document, "hidden", { configurable: true, get: () => false }); document.dispatchEvent(new Event("visibilitychange")); });
 await W(300);
 ok("2.6", await bloqueada(), "fuera más de 30 s (pantalla apagada o cambio de app) → bloqueada");
-await p.fill("#bl-pin", "11"); await W(400);
+await p.fill("#bl-pin", "1111"); await W(400);
 await p.evaluate(() => { Object.defineProperty(document, "hidden", { configurable: true, get: () => true }); document.dispatchEvent(new Event("visibilitychange")); Object.defineProperty(document, "hidden", { configurable: true, get: () => false }); document.dispatchEvent(new Event("visibilitychange")); });
 await W(300);
 ok("2.7", !(await bloqueada()), "fuera menos de 30 s → no se bloquea");
@@ -154,7 +154,7 @@ await p.fill('[data-a="bloqueoMin"]', "1"); await p.press('[data-a="bloqueoMin"]
 await p.evaluate(() => { const ahora = Date.now; Date.now = () => ahora() + 62000; });
 await p.waitForFunction(() => document.getElementById("bloqueo").open, null, { timeout: 20000 }).catch(() => {});
 ok("2.8", await bloqueada(), "Ajustes en 1 minuto sin uso → se bloquea por inactividad");
-await p.fill("#bl-pin", "11"); await W(400);
+await p.fill("#bl-pin", "1111"); await W(400);
 
 // ── Parte 3: los 8 pedidos (mismo recorrido del QA, ahora sobre el sitio empaquetado) ──
 await entrarComo("u-lu", "33"); await irTab("agenda");
@@ -177,12 +177,12 @@ await p.fill("#tc-cant", "1"); await p.click('[data-a="pasarCargo"]'); await W()
 ok("3.5", /Cargo pasado/.test(await aviso()) && await p.$eval("details.mesa", (d) => d.open), "mesa compleja: pasa 1 unidad a otra cuenta y el desplegable sigue abierto");
 await p.fill("#cm-con", "Torta"); await p.selectOption("#cm-tipo", "cargo"); await p.fill("#cm-mon", "15000"); await p.click('[data-a="cargoManual"]'); await W();
 ok("3.6", /Cargo manual sumado/.test(await aviso()), "cargo manual «Torta» $15.000");
-await p.fill("#cm-con", "Desc"); await p.selectOption("#cm-tipo", "descuento"); await p.fill("#cm-mon", "1000"); await p.fill("#cm-pin", "11"); await p.click('[data-a="cargoManual"]'); await W();
+await p.fill("#cm-con", "Desc"); await p.selectOption("#cm-tipo", "descuento"); await p.fill("#cm-mon", "1000"); await p.fill("#cm-pin", "1111"); await p.click('[data-a="cargoManual"]'); await W();
 const iD = await p.$$eval("#tc-item option", (o) => o.findIndex((x) => x.textContent.includes("-$")));
 await p.selectOption("#tc-item", String(iD)); await p.click('[data-a="pasarCargo"]'); await W();
 ok("3.7", /no se pasa a otra/.test(await aviso()), "un descuento no se puede pasar a otra cuenta");
 await foto("mesa-compleja"); await cerrar();
-await entrarComo("u-rober", "11"); await irTab("stock");
+await entrarComo("u-rober", "1111"); await irTab("stock");
 const cab = await p.$$eval("#app thead th", (t) => t.map((x) => x.textContent));
 await p.fill("#busca-stock", "bp-002"); await W(300);
 const porInterno = await p.locator("#app tbody tr", { hasText: "Agua 500 ml" }).count();
