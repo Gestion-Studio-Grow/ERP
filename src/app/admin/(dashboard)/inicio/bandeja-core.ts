@@ -357,7 +357,7 @@ export function avisoDeCaja(caja: ResultadoKpi | null | undefined, ruta: string 
 }
 
 export interface PasoParaArrancar {
-  id: "precios" | "caja" | "facturacion" | "whatsapp" | "cierre";
+  id: "precios" | "caja" | "facturacion" | "whatsapp" | "cierre" | "datos" | "productos" | "venta";
   titulo: string;
   detalle?: string;
   hecho: boolean;
@@ -381,11 +381,33 @@ export interface PasoParaArrancar {
  * Sale sólo si la persona ve Pedidos (el negocio recibe pedidos) y Datos del negocio (donde se
  * carga); `null` = no se pudo leer → el paso no sale.
  */
+/**
+ * Lo que mira la lista del primer día de un negocio que VENDE (tiene la app Vender, módulo pos).
+ * Lo lee `primerDiaDelMostrador` (facturacion-lista.server.ts); `null` = no se pudo leer.
+ */
+export interface PrimerDiaDelMostrador {
+  /** BusinessSettings.hoursLabel y addressLine cargados (lo que muestra la vidriera). */
+  horario: boolean;
+  direccion: boolean;
+  /** Productos activos, no borrados, con precio (por unidad o por kilo). */
+  productosConPrecio: number;
+  /** ¿Hay alguna venta cobrada y no anulada? */
+  hayVenta: boolean;
+  /** ¿Hay alguna factura autorizada por ARCA? */
+  hayFactura: boolean;
+}
+
+/** Cuántos productos con precio pide la lista del primer día. */
+export const PRODUCTOS_PARA_ARRANCAR = 5;
+/** Tope de pasos de «Para arrancar»: más que eso ya no es una lista del primer día. */
+export const TOPE_PASOS_PARA_ARRANCAR = 6;
+
 export function pasosParaArrancar(
   porApp: ReadonlyMap<string, ResultadoKpi | null>,
   destinos: ReadonlyMap<string, string>,
   facturacion?: { cuit: boolean; puntoVenta: boolean } | null,
   whatsapp?: { cargado: boolean } | null,
+  mostrador?: PrimerDiaDelMostrador | null,
 ): PasoParaArrancar[] {
   const ok = (id: string) => {
     const r = porApp.get(id);
@@ -393,6 +415,8 @@ export function pasosParaArrancar(
   };
   const cierre = ok("cierre-del-dia");
   if (!cierre || cierre.valor !== "Sin cierres") return [];
+  // Un negocio que vende (con la app Vender y la lectura del primer día) tiene su propia lista.
+  if (mostrador && destinos.has("vender")) return pasosDelMostrador(ok, destinos, facturacion, whatsapp, mostrador);
   const pasos: PasoParaArrancar[] = [];
   const catalogo = ok("catalogo");
   const rutaCatalogo = destinos.get("catalogo");
@@ -449,14 +473,123 @@ export function pasosParaArrancar(
     );
   }
   const rutaCierre = destinos.get("cierre-del-dia");
-  if (rutaCierre) {
-    pasos.push({
-      id: "cierre",
-      titulo: "Cerrar el primer día",
-      detalle: "Al final de la jornada: contás el cajón y queda en el libro",
-      hecho: false,
-      tecla: { texto: "Cerrar el día", href: rutaCierre },
-    });
-  }
+  if (rutaCierre) pasos.push(pasoDelCierre(rutaCierre));
   return pasos;
+}
+
+function pasoDelCierre(rutaCierre: string): PasoParaArrancar {
+  return {
+    id: "cierre",
+    titulo: "Cerrar el primer día",
+    detalle: "Al final de la jornada: contás el cajón y queda en el libro",
+    hecho: false,
+    tecla: { texto: "Cerrar el día", href: rutaCierre },
+  };
+}
+
+/**
+ * La lista del primer día de un negocio que vende, en el orden en que se hace: WhatsApp, horario
+ * y dirección, 5 productos con precio, una venta de prueba, una factura de prueba y la caja (o, con
+ * la caja abierta, el primer cierre). Hasta TOPE_PASOS_PARA_ARRANCAR; si todo está hecho, se va.
+ * Cada paso sale sólo si la persona ve la app donde se resuelve. PURA.
+ */
+function pasosDelMostrador(
+  ok: (id: string) => Extract<ResultadoKpi, { estado: "ok" }> | null,
+  destinos: ReadonlyMap<string, string>,
+  facturacion: { cuit: boolean; puntoVenta: boolean } | null | undefined,
+  whatsapp: { cargado: boolean } | null | undefined,
+  m: PrimerDiaDelMostrador,
+): PasoParaArrancar[] {
+  const pasos: PasoParaArrancar[] = [];
+  const rutaDatos = destinos.get("datos-del-negocio");
+  if (whatsapp && rutaDatos) {
+    pasos.push(
+      whatsapp.cargado
+        ? { id: "whatsapp", titulo: "WhatsApp del negocio cargado", hecho: true }
+        : {
+            id: "whatsapp",
+            titulo: "Cargar el WhatsApp del negocio",
+            detalle: "Sin número, en la vidriera no aparece «Pedir por WhatsApp»",
+            hecho: false,
+            tecla: { texto: "Cargar el WhatsApp", href: rutaDatos },
+          },
+    );
+  }
+  if (rutaDatos) {
+    const falta = [!m.horario && "el horario", !m.direccion && "la dirección"].filter(Boolean);
+    pasos.push(
+      falta.length === 0
+        ? { id: "datos", titulo: "Horario y dirección cargados", hecho: true }
+        : {
+            id: "datos",
+            titulo: "Cargar el horario y la dirección",
+            detalle: `Falta ${falta.join(" y ")}: es lo que ve el cliente en la vidriera`,
+            hecho: false,
+            tecla: { texto: "Cargar los datos", href: rutaDatos },
+          },
+    );
+  }
+  const rutaCatalogo = destinos.get("catalogo");
+  if (rutaCatalogo) {
+    const n = m.productosConPrecio;
+    const sinPrecio = entero(ok("catalogo")?.valor) ?? 0;
+    pasos.push(
+      n >= PRODUCTOS_PARA_ARRANCAR
+        ? { id: "productos", titulo: `${n} productos con precio`, hecho: true }
+        : {
+            id: "productos",
+            titulo: `Cargar ${PRODUCTOS_PARA_ARRANCAR} productos con precio`,
+            detalle: `Llevás ${n} con precio${sinPrecio > 0 ? `; ${sinPrecio} sin precio no aparecen en Vender` : ""}`,
+            hecho: false,
+            tecla: { texto: "Ir al catálogo", href: rutaCatalogo },
+          },
+    );
+  }
+  const rutaVender = destinos.get("vender");
+  if (rutaVender) {
+    pasos.push(
+      m.hayVenta
+        ? { id: "venta", titulo: "Primera venta cobrada", hecho: true }
+        : {
+            id: "venta",
+            titulo: "Hacer una venta de prueba",
+            detalle: "Así ves el ticket y cómo queda en la caja",
+            hecho: false,
+            tecla: { texto: "Ir a Vender", href: rutaVender },
+          },
+    );
+  }
+  const rutaFacturacion = destinos.get("facturacion");
+  if (facturacion && rutaFacturacion) {
+    const falta = [!facturacion.cuit && "el CUIT", !facturacion.puntoVenta && "el punto de venta"].filter(Boolean);
+    pasos.push(
+      falta.length > 0
+        ? {
+            id: "facturacion",
+            titulo: "Facturación sin configurar",
+            detalle: `Falta ${falta.join(" y ")}: los carga Gestión Studio Grow`,
+            hecho: false,
+            tecla: { texto: "Ver facturación", href: rutaFacturacion },
+          }
+        : m.hayFactura
+          ? { id: "facturacion", titulo: "Primera factura hecha", hecho: true }
+          : {
+              id: "facturacion",
+              titulo: "Hacer una factura de prueba",
+              detalle: "Cobrá una venta en Vender y tocá «Facturar»",
+              hecho: false,
+              tecla: { texto: "Ver facturación", href: rutaFacturacion },
+            },
+    );
+  }
+  const caja = ok("caja-del-dia");
+  const rutaCaja = destinos.get("caja-del-dia");
+  const rutaCierre = destinos.get("cierre-del-dia");
+  if (caja && rutaCaja && caja.valor !== "Abierta") {
+    pasos.push({ id: "caja", titulo: "Abrir la caja con el fondo del cajón", hecho: false, tecla: { texto: "Abrir la caja", href: rutaCaja } });
+  } else if (rutaCierre) {
+    pasos.push(pasoDelCierre(rutaCierre));
+  }
+  const lista = pasos.slice(0, TOPE_PASOS_PARA_ARRANCAR);
+  return lista.every((p) => p.hecho) ? [] : lista;
 }

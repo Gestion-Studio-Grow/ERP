@@ -55,7 +55,7 @@ import {
   type Pendiente,
 } from "./bandeja-core";
 import { pedidosDeLaBandeja, type PedidoDeBandeja } from "./pedidos-bandeja.server";
-import { facturacionConfigurada, whatsappDeLaVidriera } from "./facturacion-lista.server";
+import { facturacionConfigurada, primerDiaDelMostrador, whatsappDeLaVidriera } from "./facturacion-lista.server";
 
 type Contexto = {
   role: Role;
@@ -351,12 +351,16 @@ async function ParaArrancar({ ctx }: { ctx: Contexto }) {
   const [cierre] = await numeros(["cierre-del-dia"], ctx);
   if (cierre?.resultado?.estado !== "ok" || cierre.resultado.valor !== "Sin cierres") return null;
   const destinos = new Map(ctx.apps.map((a) => [a.id, a.ruta as string]));
-  const [items, facturacion, whatsapp] = await Promise.all([
+  // Un mostrador que vende (app Vender; CH no) tiene su lista del primer día: el WhatsApp se le pide aunque
+  // no vea Pedidos (es el contacto de la vidriera), y se suman horario, productos, venta y factura.
+  const vende = ctx.esMostrador && destinos.has("vender");
+  const [items, facturacion, whatsapp, mostrador] = await Promise.all([
     numeros(["cierre-del-dia", "catalogo", "caja-del-dia"], ctx),
     destinos.has("facturacion") ? facturacionConfigurada() : Promise.resolve(null),
-    destinos.has("pedidos") && destinos.has("datos-del-negocio") ? whatsappDeLaVidriera() : Promise.resolve(null),
+    (vende || destinos.has("pedidos")) && destinos.has("datos-del-negocio") ? whatsappDeLaVidriera() : Promise.resolve(null),
+    vende ? primerDiaDelMostrador() : Promise.resolve(null),
   ]);
-  const pasos = pasosParaArrancar(new Map(items.map((i) => [i.app.id, i.resultado])), destinos, facturacion, whatsapp);
+  const pasos = pasosParaArrancar(new Map(items.map((i) => [i.app.id, i.resultado])), destinos, facturacion, whatsapp, mostrador);
   if (pasos.length === 0) return null;
   const hechos = pasos.filter((p) => p.hecho).length;
   return (

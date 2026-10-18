@@ -7,6 +7,7 @@ import {
   APPS_DE_LA_BANDEJA,
   avisoDeCaja,
   pasosParaArrancar,
+  type PrimerDiaDelMostrador,
   lineaDelDia,
   misAppsDeFabrica,
   montoANumero,
@@ -196,4 +197,84 @@ test("«Para arrancar» avisa que la vidriera no tiene WhatsApp, sólo a quien v
   const sinPedidos = new Map(conVidriera);
   sinPedidos.delete("pedidos");
   assert.ok(!pasosParaArrancar(porApp, sinPedidos, null, { cargado: false }).some((p) => p.id === "whatsapp"));
+});
+
+// ── T6: la lista del primer día de un mostrador que vende ────────────────────
+
+const DESTINOS_MOSTRADOR = new Map([
+  ["vender", "/admin/vender"],
+  ["catalogo", "/admin/catalogo"],
+  ["caja-del-dia", "/admin/caja"],
+  ["cierre-del-dia", "/admin/caja/cierre"],
+  ["facturacion", "/admin/facturacion"],
+  ["datos-del-negocio", "/admin/localizacion"],
+  ["pedidos", "/admin/pedidos"],
+]);
+const NADA_HECHO: PrimerDiaDelMostrador = { horario: false, direccion: false, productosConPrecio: 2, hayVenta: false, hayFactura: false };
+const arrancandoMostrador = (caja = "Cerrada") =>
+  new Map<string, ResultadoKpi | null>([
+    ["cierre-del-dia", ok("Sin cierres")],
+    ["catalogo", ok("3", { detalle: "sin precio · 0 sin costo" })],
+    ["caja-del-dia", ok(caja)],
+  ]);
+
+test("mostrador que vende: WhatsApp, horario y dirección, 5 productos, venta y factura de prueba, y la caja (tope 6)", () => {
+  const pasos = pasosParaArrancar(arrancandoMostrador(), DESTINOS_MOSTRADOR, { cuit: true, puntoVenta: true }, { cargado: false }, NADA_HECHO);
+  assert.deepEqual(pasos.map((p) => p.id), ["whatsapp", "datos", "productos", "venta", "facturacion", "caja"]);
+  assert.ok(pasos.length <= 6);
+  assert.ok(pasos.every((p) => !p.hecho));
+  assert.equal(pasos[1].detalle, "Falta el horario y la dirección: es lo que ve el cliente en la vidriera");
+  assert.equal(pasos[2].titulo, "Cargar 5 productos con precio");
+  assert.equal(pasos[2].detalle, "Llevás 2 con precio; 3 sin precio no aparecen en Vender");
+  assert.equal(pasos[3].tecla?.href, "/admin/vender");
+  assert.equal(pasos[4].titulo, "Hacer una factura de prueba");
+  assert.equal(pasos[5].tecla?.texto, "Abrir la caja");
+});
+
+test("mostrador: con la caja abierta el último paso es el primer cierre; lo hecho queda tildado", () => {
+  const hecho: PrimerDiaDelMostrador = { horario: true, direccion: true, productosConPrecio: 7, hayVenta: true, hayFactura: true };
+  const pasos = pasosParaArrancar(arrancandoMostrador("Abierta"), DESTINOS_MOSTRADOR, { cuit: true, puntoVenta: true }, { cargado: true }, hecho);
+  assert.deepEqual(pasos.map((p) => [p.id, p.hecho]), [
+    ["whatsapp", true],
+    ["datos", true],
+    ["productos", true],
+    ["venta", true],
+    ["facturacion", true],
+    ["cierre", false],
+  ]);
+  assert.equal(pasos[2].titulo, "7 productos con precio");
+  // Con el primer cierre, se va.
+  const cerro = arrancandoMostrador("Abierta").set("cierre-del-dia", ok("Al día"));
+  assert.deepEqual(pasosParaArrancar(cerro, DESTINOS_MOSTRADOR, { cuit: true, puntoVenta: true }, { cargado: true }, hecho), []);
+});
+
+test("mostrador: si todo lo que se ve está hecho (sin la app del cierre), la lista desaparece", () => {
+  const sinCaja = new Map(DESTINOS_MOSTRADOR);
+  sinCaja.delete("caja-del-dia");
+  sinCaja.delete("cierre-del-dia");
+  const hecho: PrimerDiaDelMostrador = { horario: true, direccion: true, productosConPrecio: 5, hayVenta: true, hayFactura: true };
+  assert.deepEqual(pasosParaArrancar(arrancandoMostrador(), sinCaja, { cuit: true, puntoVenta: true }, { cargado: true }, hecho), []);
+});
+
+test("mostrador: facturación sin CUIT dice qué falta (no pide la factura de prueba); sin poder leerla, no sale", () => {
+  const pasos = pasosParaArrancar(arrancandoMostrador(), DESTINOS_MOSTRADOR, { cuit: false, puntoVenta: true }, { cargado: true }, NADA_HECHO);
+  const f = pasos.find((p) => p.id === "facturacion");
+  assert.equal(f?.titulo, "Facturación sin configurar");
+  assert.equal(f?.detalle, "Falta el CUIT: los carga Gestión Studio Grow");
+  assert.ok(!pasosParaArrancar(arrancandoMostrador(), DESTINOS_MOSTRADOR, null, { cargado: true }, NADA_HECHO).some((p) => p.id === "facturacion"));
+});
+
+test("sin la app Vender (o sin la lectura del primer día) queda la lista de siempre", () => {
+  const sinVender = new Map(DESTINOS_MOSTRADOR);
+  sinVender.delete("vender");
+  const ids = pasosParaArrancar(arrancandoMostrador(), sinVender, null, { cargado: false }, NADA_HECHO).map((p) => p.id);
+  assert.deepEqual(ids, ["precios", "caja", "whatsapp", "cierre"]);
+  const sinLectura = pasosParaArrancar(arrancandoMostrador(), DESTINOS_MOSTRADOR, null, { cargado: false }, null).map((p) => p.id);
+  assert.deepEqual(sinLectura, ["precios", "caja", "whatsapp", "cierre"]);
+});
+
+test("mostrador: cada paso sale sólo si se ve la app donde se resuelve (un cajero sin catálogo ni datos)", () => {
+  const cajero = new Map([["vender", "/admin/vender"], ["caja-del-dia", "/admin/caja"]]);
+  const pasos = pasosParaArrancar(arrancandoMostrador(), cajero, null, null, NADA_HECHO);
+  assert.deepEqual(pasos.map((p) => p.id), ["venta", "caja"]);
 });
