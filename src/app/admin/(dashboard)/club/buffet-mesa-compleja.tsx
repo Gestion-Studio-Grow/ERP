@@ -165,7 +165,7 @@ function CargoManual({ almacen, cuenta, negocio }: { almacen: Almacen; cuenta: V
       </div>
       {descuento && (
         <Field label="PIN del dueño" htmlFor={ids.pin} hint="Un descuento lo autoriza un dueño con su PIN, aunque cargue recepción.">
-          <Input id={ids.pin} type="password" inputMode="numeric" autoComplete="off" maxLength={2} value={pin} onChange={(e) => setPin(e.target.value)} />
+          <Input id={ids.pin} type="password" inputMode="numeric" autoComplete="off" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value)} />
         </Field>
       )}
       {demo.length > 0 && (

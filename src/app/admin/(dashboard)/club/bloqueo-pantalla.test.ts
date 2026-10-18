@@ -550,6 +550,8 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     assert.ok(deDuenos.includes("Configuración"));
     for (const rolDelPuesto of ["OWNER", "RECEPTION"]) {
       const contexto = await browser!.newContext({ viewport: { width: 1024, height: 768 }, locale: "es-AR" });
+      // El sábado de la jornada sembrada: con el reloj de hoy, otro día no tiene los turnos de la demo.
+      await contexto.clock.install({ time: new Date(2026, 9, 17, 20, 0, 5) });
       await contexto.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html() }));
       const errores: string[] = [];
       const page = await abrir(contexto, errores, "real", rolDelPuesto, true);

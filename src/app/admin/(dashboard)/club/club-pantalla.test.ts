@@ -183,7 +183,12 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
   });
 
   async function montar(viewport = { width: 1024, height: 768 }, page?: Page): Promise<{ page: Page; errores: string[] }> {
-    const p = page ?? (await browser!.newPage({ viewport, locale: "es-AR" }));
+    let p = page;
+    if (!p) {
+      p = await browser!.newPage({ viewport, locale: "es-AR" });
+      // Un sábado fijo: la demo arma el día con la fecha del equipo y el domingo cierra a las 23 (sin el hueco de las 23:30).
+      await p.clock.install({ time: new Date(2026, 9, 17, 12, 0, 0) });
+    }
     const errores: string[] = [];
     p.on("pageerror", (e) => errores.push(e.message));
     p.on("console", (m) => {
