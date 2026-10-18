@@ -132,6 +132,11 @@ verde. Cubre:
 - los PIN por rol: el viejo de 2 de un dueño entra, pide el de 4 y mientras tanto no firma un descuento ni una
   aprobación; el tope de intentos compartido y los PIN que se borran al cerrar cada ventana.
 
+Las pruebas del turnero dependen de la hora del navegador: en un servidor en UTC, pasada la medianoche no quedan turnos
+libres ese día. Se corren con la hora de Argentina: `TZ=America/Argentina/Buenos_Aires npm run test:turnero-e2e`.
+
+El archivado y el PIN por rol pasaron el Gate de Excelencia (18/10/2026, aprobado con menores; los menores corregidos).
+
 ## Go-live: después del día de prueba
 
 1. Cerrá la caja del día y **descargá el respaldo** (Configuración).
