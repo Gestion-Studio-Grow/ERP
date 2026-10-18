@@ -17,7 +17,7 @@ creerle a un documento.
 
 ### La dirección
 
-**`https://breakpointpadel.gsgapp.com.ar/admin`** — y para el club: **`https://breakpointpadel.gsgapp.com.ar/admin/club?modo=real`**.
+**`https://breakpointpadel.gsgapp.com.ar/admin`** — y para el club: **`https://breakpointpadel.gsgapp.com.ar/admin/club`**.
 
 - El ERP sabe de qué negocio se trata **por la dirección**: `breakpointpadel.gsgapp.com.ar` → busca el negocio con
   subdominio `breakpointpadel` (`src/lib/tenant.ts:16-19` y `:164-180`). Si no lo encuentra, no muestra nada
@@ -25,9 +25,9 @@ creerle a un documento.
   (`docs/tenants/breakpoint/UAT-PRODUCCION-RESULTADO.md:23-27`).
 - **No sirve `gsg-erp.vercel.app/admin`** ni otra dirección sin el nombre del club: con varios negocios en la misma
   base, sin subdominio el ERP no sabe a quién mostrar y corta (`src/lib/tenant.ts:182-198`).
-- El `?modo=real` es la llave de la jornada real: sin él, `/admin/club` abre la demo (datos de ejemplo). Además,
-  `breakpoint` tiene que estar en `NEGOCIOS_CON_JORNADA_REAL` (`src/app/admin/(dashboard)/club/page.tsx:28` y `:33`).
-  Eso lo deja listo la sesión de terminales junto con el guardado en la base; no lo hace el dueño.
+- Para Break Point, `/admin/club` abre directamente la **jornada real** (está en `NEGOCIOS_CON_JORNADA_REAL`,
+  `src/app/admin/(dashboard)/club/page.tsx`). La demo con datos de ejemplo queda en `/admin/club?demo=1`, como en el
+  club de hoy. En el sandbox de preventa nunca se abre la jornada real.
 - La portada, el turnero (`/turnero`) y el club de hoy (`/club`) siguen en la misma dirección como hasta ahora
   (`src/lib/sitio-estatico.ts:62-77`): el pase no los toca.
 
@@ -117,7 +117,7 @@ Elegí un momento con el club tranquilo (a la mañana, antes del primer turno). 
 **En el ERP, en el puesto del dueño** (puede ser la misma compu del mostrador, entrando con el usuario Dueño/a):
 
 5. Entrá a `https://breakpointpadel.gsgapp.com.ar/admin/login` con el usuario **Dueño/a** y abrí
-   **`/admin/club?modo=real`**.
+   **`/admin/club`**.
 6. Como el club todavía no tiene nada, aparece **«Primera vez: armá el club»** (`config-arranque.tsx:8-15`):
    - **Paso 1:** un dueño arma un PIN de 4 números (puede ser provisorio: el respaldo trae los de siempre).
    - **Paso 2:** «Entrá como dueño» con ese PIN. **No hace falta el paso 3 ni «Abrir el club».**
@@ -133,7 +133,7 @@ Elegí un momento con el club tranquilo (a la mañana, antes del primer turno). 
 **En la compu del mostrador:**
 
 10. Salí del usuario Dueño/a (si usaste esa compu) y entrá con el usuario **Recepción**, en
-    `/admin/club?modo=real`. El club abre lo guardado en la base, bloqueado: **recepción entra con su PIN** de
+    `/admin/club`. El club abre lo guardado en la base, bloqueado: **recepción entra con su PIN** de
     siempre.
 11. Una sola compu trabaja la jornada a la vez: si se abre otra pestaña, avisa y deja «Usar acá».
 

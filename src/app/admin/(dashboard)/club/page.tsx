@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { isDemoSandbox } from "@/lib/demo-flag";
 import { requireApp } from "@/lib/require-app";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { PageContainer, PageHeader } from "@/components/ui";
@@ -21,16 +22,16 @@ export const metadata: Metadata = {
 // El servidor sólo resuelve quién mira y de qué negocio, para separar lo que cada uno deja en el
 // equipo; el motor nunca corre acá.
 //
-// JORNADA REAL (Ola 0, almacén real): el shell ya la sabe correr (`reloj="real"`: hora de este equipo, una pestaña
-// por equipo, guardado enchufable), pero HOY NO SE ABRE A NADIE. Se prende recién el día de corte, sumando el negocio
-// a esta lista y entrando con `?modo=real`; mientras la lista esté vacía, la condición es siempre falsa y /admin/club
-// abre la demo, con o sin parámetro. No es una opción para el usuario: es la llave del corte.
-const NEGOCIOS_CON_JORNADA_REAL: readonly string[] = [];
+// JORNADA REAL: para los negocios de esta lista /admin/club abre la jornada real (hora de este equipo, una pestaña por
+// equipo, guardada en la base); la demo queda en `?demo=1`, como en el club vanilla. Break Point entra el 18/10/2026
+// como prueba gratis en el plan actual (decisión del dueño, G12 en docs/tenants/breakpoint/PARIDAD-REACT.md).
+// En el sandbox de preventa nunca se abre la jornada real. Es la llave del corte, no una opción para el usuario.
+const NEGOCIOS_CON_JORNADA_REAL: readonly string[] = ["breakpoint"];
 
 export default async function ClubPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireApp("club");
   const slug = await getCurrentTenantSlug();
-  const reloj = NEGOCIOS_CON_JORNADA_REAL.includes(slug ?? "") && (await searchParams).modo === "real" ? "real" : "demo";
+  const reloj = NEGOCIOS_CON_JORNADA_REAL.includes(slug ?? "") && !isDemoSandbox() && (await searchParams).demo !== "1" ? "real" : "demo";
   return (
     <PageContainer>
       <PageHeader title="Canchas del club" description="Las canchas de hoy, la cuenta de cada turno, el buffet y la caja de 12 a 12." />
