@@ -132,8 +132,11 @@ export interface VistaFicha {
   firma: string;
 }
 
-/** `origen`: de dónde sale el link al aprobador («https://…», `location.origin`); sin él, el link queda relativo. */
-export function armarFicha(estado: EstadoClub, clienteId: string, ahora: Ahora, modo: ModoDelClub, origen = ""): VistaFicha | null {
+/**
+ * `origen`: de dónde sale el link al aprobador («https://…», `location.origin`); sin él, el link queda relativo.
+ * `negocio`: el slug; si aprueba en otro sitio (aprobador-externo.ts), el link va ahí (Break Point en el trial, G4).
+ */
+export function armarFicha(estado: EstadoClub, clienteId: string, ahora: Ahora, modo: ModoDelClub, origen = "", negocio: string | null = null): VistaFicha | null {
   const c = clienteDe(estado, clienteId);
   if (!c || c.activo === false) return null;
   const ec = estadoDeCuenta(estado, clienteId);
@@ -147,7 +150,7 @@ export function armarFicha(estado: EstadoClub, clienteId: string, ahora: Ahora, 
         pidio: n.pidio,
         que: n.tipo === "fiado" ? `fiarle ${pesos(n.monto)}` : `cuenta corriente hasta ${pesos(n.monto ?? n.limite)}`,
         mensaje: mensajeParaElDuenio(estado, n.id) ?? "",
-        avisos: avisosAlDuenio(estado, n.id, origen, modo),
+        avisos: avisosAlDuenio(estado, n.id, origen, modo, negocio),
         quedan: INTENTOS_POR_PEDIDO - (n.intentos ?? 0),
         trabado: trabadoHasta(n.bloqueadoHasta, ahora),
       }

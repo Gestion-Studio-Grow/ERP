@@ -17,6 +17,7 @@ import { pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { avisosAlDuenio } from "./aprobar-core";
+import { useNegocioDelClub } from "./negocio-del-club";
 import { aprobarConCodigo, codigoDeLaDemo, mensajeParaElDuenio, pedidosPendientes } from "./credito-core";
 import { useSeleccion } from "./usar-almacen";
 import { BotonWhatsApp } from "./WhatsAppDelClub";
@@ -41,13 +42,15 @@ const igual = (a: VistaDelPedido | null | undefined, b: VistaDelPedido | null) =
 export default function PedidoDelDuenio({ almacen, novedadId }: { almacen: Almacen; novedadId: string }) {
   const seleccionar = useCallback((e: EstadoClub, a: Ahora) => vistaDelPedido(e, a, novedadId), [novedadId]);
   const pedido = useSeleccion(almacen, seleccionar, igual);
+  const negocio = useNegocioDelClub();
   const [codigo, setCodigo] = useState("");
   const [verDemo, setVerDemo] = useState(false);
   const id = useId();
   if (!pedido) return null;
   const demo = verDemo && almacen.modo() === "demo" ? codigoDeLaDemo(almacen.estado(), pedido.id) : null;
   // Un aviso por dueño, a SU celular (Configuración → Avisos) con el link al aprobador del ERP; en la demo, sin número.
-  const avisos = avisosAlDuenio(almacen.estado(), pedido.id, typeof window !== "undefined" ? window.location.origin : "", almacen.modo());
+  // Con el negocio: si aprueba en otro sitio (aprobador-externo.ts: Break Point en el trial, G4), el link va ahí.
+  const avisos = avisosAlDuenio(almacen.estado(), pedido.id, typeof window !== "undefined" ? window.location.origin : "", almacen.modo(), negocio);
   return (
     <div className="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning-soft p-3">
       <p className="text-sm text-strong">

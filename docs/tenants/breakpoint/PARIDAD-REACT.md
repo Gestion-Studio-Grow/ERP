@@ -25,7 +25,7 @@ diarias chicas pero críticas.
 | Persistencia (BP-3) | Foto en la base del ERP (AuditLog, sin migración), espejo local, una pestaña, descargar/restaurar respaldo v1 | 🔴 requisito del corte | club | ✅ local: recarga, «Usar acá», respaldo, archivar en dos pasos (9.*, 7.respaldo, 7b.*). La base (G2) no se probó: es decisión del dueño |
 | Clientes | ABM, ficha, cuenta corriente (habilitar/pedir/cobrar/estado de cuenta), baja de novedades | 🔴 | club | ✅ alta, ficha, estado de cuenta, cobrar deuda (1.fichas, 7.*) |
 | Tablero del dueño | Novedades para autorizar (crédito, accesos) + aviso 🔔, KPIs, mapa de calor, platos | 🔴/🟠 | club | ✅ 🔔 sólo a dueños → Tablero, KPIs, caja por medio = la caja (3.campana*, 7.kpis, 7.caja-por-medio) |
-| Aprobación en el celular | Link `#aprobar` (durante el corte sigue el de vanilla) | 🔴 | club (ola 3) | ⚠ **brecha**: publicado sólo en demo (PIN real no da código) y exige login OWNER del ERP en el celular. En modo real da el código bueno y recepción lo valida (3.codigo, 3.aprobado) |
+| Aprobación en el celular | Link `#aprobar` (durante el corte sigue el de vanilla) | 🔴 | club (ola 3) | ⚠ **brecha**: publicado sólo en demo (PIN real no da código) y exige login OWNER del ERP en el celular. En modo real da el código bueno y recepción lo valida (3.codigo, 3.aprobado). **18/10, trial (G4):** el link de Break Point va al aprobador del vanilla y su código lo acepta React (3.whatsapp, 3.celular, 3.codigo) |
 | Proveedores | Alta, ficha con CC, pagar con PIN, remitos con lector | 🟠 | club | ✅ alta, remito (recepción, desde la Caja), pagar con PIN (5.*, 7.pagar-proveedor) |
 | Stock | Conteo, baja, códigos, precios y rentabilidad, reposición | 🟠 | club | ✅ conteo inicial y corrección, stock que baja con cargos, tienda y mostrador, sube con el remito |
 | Configuración | Reglas, tarifas, horarios, contactos (dentro del estado), usuarios y PIN, consola, jornada (respaldo, restaurar, limpieza) | 🔴/🟠 | club | ✅ consola de primera vez, avisos, precios, fondo, bloqueo, alta/PIN nuevo/sacar acceso, link, go-live con respaldo elegido (0.*, 7.*, 10.*). ⚠ **brecha**: falta «Empezar otra jornada en blanco» |
@@ -48,6 +48,9 @@ demo, como el vanilla (`camaras-de-la-demo.tsx`, `camaras-core.ts`). Prueba en e
 - **Multi-tenant:** `requireApp("club")`, `tenantId` de la sesión, RLS; test con base efímera (A no lee lo de B).
 
 ## Día de corte (vanilla → React)
+
+**El paso a paso para el dueño (con archivo:línea) está en `PASE-AL-ERP.md`** (decisión del 18/10: trial en el plan
+gratis). Resumen:
 
 Cerrar la caja en vanilla → descargar respaldo → asignar el módulo `club` a `breakpoint` (O4) → restaurar el
 respaldo en `/admin/club` → verificar caja al centavo, cuentas, clientes, deudas, usuarios y PIN → trabajar.
@@ -76,7 +79,7 @@ Total 18–24 días de trabajo; con dos sesiones en paralelo (terminales + club)
 | G1 | Fecha del día de corte y OK a asignar el módulo al club (publicación) | **Fecha: «se cargará cuando se cargue y esté todo probado».** OK explícito a **asignar el módulo `club` a Break Point** (pendiente de ejecutar: este entorno no tiene acceso a la base; ver abajo) |
 | G2 | Guardar los datos de Break Point en la base del ERP (Neon) | **OK: «enciende la base para break»** — se considera habilitada la inversión. Se ejecuta junto con G1 |
 | G3 | Largo del PIN | **4 dígitos para los dueños, 2 para los empleados.** Los PIN de 2 de los dueños del piloto siguen entrando y se les pide el nuevo de 4 |
-| G4 | Aprobación desde el celular del dueño | **Link del sistema de hoy (vanilla, sin login) hasta el go-live** |
+| G4 | Aprobación desde el celular del dueño | **Link del sistema de hoy (vanilla, sin login) hasta el go-live** — **también durante el trial en el ERP**: el «Avisar a Rober/Majo» del club React manda `https://breakpointpadel.gsgapp.com.ar/club#aprobar&…` con los mismos 7 datos y en el mismo orden que el vanilla; el código que da el celular lo acepta `aprobarPorCodigo` en React. Configuración por negocio, sin el tenant en el núcleo: `aprobador-externo.ts` (`APROBADOR_EXTERNO`), el negocio llega por `negocio-del-club.tsx` (lo pone ClubDemo) a `pedido-del-duenio.tsx` y a la ficha del cliente (`clientes-core.ts` → `armarFicha`) ✅ (18/10) |
 | G5 | Aspecto del panel | **Personalizado a nivel cliente: opcional y se cobra; si no, va el tema por defecto del ERP** |
 | G6 | Studio de redes y cámaras simuladas | **Se quedan en vanilla y se hacen también en React** — ✅ hecho (18/10): Studio en «Novedades y redes», cámaras en el Tablero sólo en la demo |
 | G7 | Usuarios del ERP para el club | **Se otorgan después de la prueba piloto** (las claves las pega el dueño) |
@@ -84,6 +87,7 @@ Total 18–24 días de trabajo; con dos sesiones en paralelo (terminales + club)
 | G9 | Modo sin internet en el mostrador | **Construirlo**: se opera sobre la copia local y se sincroniza al volver la conexión |
 | G10 | Back separado del front | **Decidido por el dueño («mejor performance»)**; pasa por Advisory + Challenger (ADR-045) para definir cómo, con qué y en qué orden |
 | G11 | Riesgo de los ~5 MB del navegador en el sistema de hoy | **Aceptado** («está ok»); el archivado de días cerrados ya está listo y aprobado por el Gate |
+| G12 | Pasar Break Point al ERP | **18/10: «Pasamos al ERP el sistema, con el plan actual (gratis), todavía no le vamos a cobrar; al venderlo se aumenta el plan; es un trial pero debe estar en el ERP.»** Trial en el club React con la jornada en la base (BP-3), sobre Neon Free y Vercel Hobby; al venderlo se sube el plan. Runbook del pase (usuarios, módulo, día del pase, cómo volver atrás, límites del plan gratis): **`PASE-AL-ERP.md`** |
 
 ## UAT de paridad — resultado (17/10)
 
@@ -97,6 +101,11 @@ test` corre `src/**/*.test.ts`). Lo que React no puede hacer queda como check `b
 `aprobador-real`, que depende del dueño.** 0 otras fallas, 0 errores de consola, 0 scroll de costado a 390 px. (Primera
 corrida: 123 de 131 con 8 brechas; después de las solapas por persona y el alta con teléfono, 126 de 129 con 3.)
 
+**18/10 (trial en el ERP, G4): 139 de 140.** El celular de Majo ahora abre el link del club de hoy (el `/club`
+empaquetado, servido por el mismo manejador del ERP) y da el código con su PIN real; recepción lo tipea en React y
+aprueba (`3.whatsapp`, `3.celular`, `3.codigo`, `3.aprobado`). El aprobador del ERP se sigue probando aparte con el
+mismo pedido (`3.celular-erp`, `3.codigo-erp`): la brecha `aprobador-real` queda, pero ya no bloquea el trial.
+
 ### La brecha que queda
 
 | Prioridad | Brecha | Vanilla | React |
@@ -104,7 +113,10 @@ corrida: 123 de 131 con 8 brechas; después de las solapas por persona y el alta
 | 🔴 bloquea el día de corte | **Aprobador del celular publicado sólo en demo**: con el PIN real de Majo dice «PIN incorrecto». Además exige login OWNER del ERP en el celular (el vanilla no). Con G4 (durante el corte sigue el link del vanilla) deja de bloquear, pero el link de «Avisar a Majo» de React apunta a `/admin/club/aprobar` | uat-torneo.e2e.mjs:242-248 | aprobar/page.tsx:28 y :31-44 |
 
 Es decisión del dueño (G4: durante el corte la aprobación sigue por el link del vanilla; para la jornada real del ERP hay
-que sumar el negocio a `NEGOCIOS_CON_APROBADOR_REAL` y resolver el login OWNER en el celular). No se tocó.
+que sumar el negocio a `NEGOCIOS_CON_APROBADOR_REAL` y resolver el login OWNER en el celular). **18/10:** con el trial,
+el link de Break Point ya va al vanilla (`aprobador-externo.ts`), así que la brecha **deja de bloquear el día de
+corte**; sigue abierta para cuando se deje el club de hoy (se borra la línea de `breakpoint` en ese archivo y se hace
+lo de arriba).
 
 **A tener en cuenta con G7 (no es brecha del guion):** Majo en un puesto de recepción ve Configuración, pero archivar,
 restaurar, empezar en blanco y la limpieza del go-live piden además el puesto del dueño (rol OWNER del ERP, en el

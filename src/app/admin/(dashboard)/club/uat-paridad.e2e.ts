@@ -31,10 +31,13 @@ import { claveDeLaJornada } from "./almacen";
 import { contactosDe } from "./configuracion-core";
 import { responderSitioEstatico } from "@/lib/sitio-estatico";
 import { armarMesCargado } from "@/lib/club/fixtures/armar-respaldo";
+import { aprobadorExternoDe } from "./aprobador-externo";
 
 const RAIZ = fileURLToPath(new URL("../../../../../", import.meta.url));
 const ORIGEN = "http://localhost:3999/admin/club";
 const NEGOCIO = "breakpoint";
+/** El aprobador del club de hoy (decisión G4: Break Point aprueba ahí durante el trial en el ERP). */
+const APROBADOR_VANILLA = aprobadorExternoDe(NEGOCIO) ?? "";
 const CLAVE = claveDeLaJornada(NEGOCIO);
 const OUT = process.argv[2] ?? join(RAIZ, "dist", "uat-paridad");
 const HASTA = Number(process.env.UAT_HASTA ?? 99);
@@ -659,7 +662,8 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     const hrefMajo = (await tarjeta.getByRole("link", { name: /Avisar a Majo Gimenez/ }).getAttribute("href")) ?? "";
     const textoWa = decodeURIComponent(hrefMajo.split("?text=")[1] ?? "");
     const linkAprob = textoWa.match(/https?:\/\/\S+#aprobar&\S+/)?.[0] ?? "";
-    ok("3.whatsapp", hrefMajo.startsWith("https://wa.me/5491100000002?text=") && /Juan Pérez/.test(textoWa) && /4\.000/.test(textoWa) && /\/admin\/club\/aprobar#aprobar&/.test(linkAprob), `El pedido sale por WhatsApp al celular de Majo con el link al aprobador del ERP («${textoWa.slice(0, 90)}…»)`);
+    // Break Point en el trial (G4): el link es el del aprobador del club de hoy (aprobador-externo.ts), sin login.
+    ok("3.whatsapp", hrefMajo.startsWith("https://wa.me/5491100000002?text=") && /Juan Pérez/.test(textoWa) && /4\.000/.test(textoWa) && linkAprob.startsWith(`${APROBADOR_VANILLA}#aprobar&`), `El pedido sale por WhatsApp al celular de Majo con el link al aprobador del club de hoy («${textoWa.slice(0, 90)}…»)`);
     await foto(p, "fiado-pedido");
     // El aviso 🔔: a Lu (recepción) no le llega; a un dueño sí, y lleva al Tablero.
     ok("3.campana-lu", (await p.locator('[data-ui="aviso-del-duenio"]').innerText()).trim() === "", "A recepción no le aparece el aviso 🔔 del dueño");
@@ -671,14 +675,39 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await foto(p, "campana-tablero");
     await cambiarDeUsuario(p, /^Lu/, g.pinLu);
 
-    // El celular de Majo (otro dispositivo, sin la jornada) abre el link del aprobador del ERP.
+    // El celular de Majo (otro dispositivo, sin la jornada) abre el link: el club de hoy, servido por el MISMO manejador
+    // del ERP que usa producción (el /club empaquetado del sitio), como en uat-torneo.e2e.mjs:240-251.
     const cel = await navegador.newContext({ viewport: { width: 390, height: 844 }, locale: "es-AR", timezoneId: "America/Argentina/Buenos_Aires" });
+    // Sin red: las fuentes de Google vuelven vacías (no se cortan: un corte deja un error de consola que no es del club).
+    await cel.route(/fonts\.(googleapis|gstatic)\.com/, (rt) => rt.fulfill({ status: 200, contentType: "text/css", body: "" }));
+    await cel.route(`${APROBADOR_VANILLA}*`, async (rt) => {
+      const r = await fetch(`${BASE_SITIO}${new URL(rt.request().url()).pathname}`);
+      await rt.fulfill({ status: r.status, contentType: r.headers.get("content-type") ?? "text/html; charset=utf-8", body: Buffer.from(await r.arrayBuffer()) });
+    });
     await cel.route(/\/admin\/club\/aprobar/, (rt) => rt.fulfill({ contentType: "text/html; charset=utf-8", body: html() }));
+    const pv = await cel.newPage();
+    pv.setDefaultTimeout(5000);
+    escucharErrores(pv, "aprobador-vanilla");
+    await pv.goto(linkAprob);
+    await pv.locator("#dlg").waitFor();
+    const dlg = (await pv.locator("#dlg").innerText()).replace(/\s+/g, " ");
+    ok("3.celular", /Pedido de crédito/i.test(dlg) && /fiarle \$\s?4\.000 a Juan Pérez/.test(dlg), `En el celular de Majo se abre el aprobador del club de hoy: «${dlg.slice(0, 80)}»`);
+    await pv.fill("#ap-pin", "8484");
+    await pv.click('#dlg [data-a="aprobarLink"]');
+    const codigo = ((await pv.locator(".codigo-aprob").textContent()) ?? "").trim();
+    const d = Object.fromEntries(new URLSearchParams(linkAprob.split("#aprobar&")[1]));
+    ok("3.codigo", codigo === M.codigoAprobacion({ pin: "8484", novedadId: d.id, clienteId: d.c, monto: 4000, fecha: d.f }), `Con el PIN de Majo, el club de hoy da el código ${codigo} (el mismo del motor)`);
+    await foto(pv, "celular-codigo");
+    const scrollCel = await pv.evaluate(() => document.documentElement.scrollWidth);
+    ok("3.celular-390", scrollCel <= 390, `Celular 390 px sin scroll horizontal (${scrollCel})`);
+    await pv.close();
+    // El aprobador del ERP (para cuando Break Point deje el club de hoy): el mismo pedido por /admin/club/aprobar.
+    const linkErp = `${ORIGEN}/aprobar#aprobar&${linkAprob.split("#aprobar&")[1]}`;
     const abrirAprobador = async (modo: "demo" | "real") => {
       const pc = await cel.newPage();
       pc.setDefaultTimeout(5000);
       escucharErrores(pc, `aprobador-${modo}`);
-      await pc.goto(linkAprob);
+      await pc.goto(linkErp);
       await pc.addScriptTag({ content: bundle });
       await pc.evaluate(([n, m]) => (window as unknown as Ventana).__aprobar(n, "u_majo", m), [NEGOCIO, modo]);
       await pc.getByRole("region", { name: "El pedido" }).waitFor();
@@ -687,7 +716,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     // Como está publicado hoy (aprobar/page.tsx: NEGOCIOS_CON_APROBADOR_REAL vacío → modo demo), con el PIN real de Majo.
     const pd = await abrirAprobador("demo");
     const pedidoTxt = (await pd.getByRole("region", { name: "El pedido" }).innerText()).replace(/\s+/g, " ");
-    ok("3.celular", /Juan Pérez/.test(pedidoTxt) && /4\.000/.test(pedidoTxt), `En el celular de Majo se abre el pedido: «${pedidoTxt.slice(0, 80)}»`);
+    ok("3.celular-erp", /Juan Pérez/.test(pedidoTxt) && /4\.000/.test(pedidoTxt), `El aprobador del ERP abre el mismo pedido: «${pedidoTxt.slice(0, 80)}»`);
     const majoDemo = pd.getByRole("radio", { name: /Majo/ });
     if (await majoDemo.count()) await majoDemo.first().check().catch(() => undefined);
     await pd.getByLabel("Tu PIN").fill("8484");
@@ -699,7 +728,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     else
       brecha(
         "aprobador-real",
-        `El aprobador del ERP está publicado sólo en DEMO (dueños y PIN de ejemplo): con el PIN real de Majo no da el código («${avisoDemo.slice(0, 60)}»). Para la jornada real hay que sumar el negocio a NEGOCIOS_CON_APROBADOR_REAL, y el dueño tiene que estar logueado al ERP como OWNER en su celular (decisión G4: durante el corte sigue el link del vanilla)`,
+        `El aprobador del ERP está publicado sólo en DEMO (dueños y PIN de ejemplo): con el PIN real de Majo no da el código («${avisoDemo.slice(0, 60)}»). No bloquea el trial (G4: el link va al club de hoy, 3.codigo); para dejar el club de hoy hay que sumar el negocio a NEGOCIOS_CON_APROBADOR_REAL, y el dueño tiene que estar logueado al ERP como OWNER en su celular`,
         "app.mjs `#aprobar` (uat-torneo.e2e.mjs:242-248: el celular sin la jornada da el código con el PIN)",
         "aprobar/page.tsx:28 (`NEGOCIOS_CON_APROBADOR_REAL = []`) y :31-44 (exige OWNER del ERP)",
       );
@@ -708,12 +737,10 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     const pc = await abrirAprobador("real");
     await pc.getByLabel("Tu PIN").fill("8484");
     await pc.getByRole("button", { name: "Aprobar y ver el código" }).click();
-    const codigo = (await pc.locator("p.text-4xl").innerText()).trim();
-    const d = Object.fromEntries(new URLSearchParams(linkAprob.split("#aprobar&")[1]));
-    ok("3.codigo", codigo === M.codigoAprobacion({ pin: "8484", novedadId: d.id, clienteId: d.c, monto: 4000, fecha: d.f }), `Con el PIN de Majo (aprobador en modo real) sale el código ${codigo}`);
-    await foto(pc, "celular-codigo");
-    const scrollCel = await pc.evaluate(() => document.documentElement.scrollWidth);
-    ok("3.celular-390", scrollCel <= 390, `Celular 390 px sin scroll horizontal (${scrollCel})`);
+    const codigoErp = (await pc.locator("p.text-4xl").innerText()).trim();
+    ok("3.codigo-erp", codigoErp === codigo, `El aprobador del ERP en modo real da el mismo código (${codigoErp})`);
+    const scrollErp = await pc.evaluate(() => document.documentElement.scrollWidth);
+    ok("3.celular-390-erp", scrollErp <= 390, `Aprobador del ERP a 390 px sin scroll horizontal (${scrollErp})`);
     await cel.close();
     // Recepción tipea el código: uno inventado no sirve; el de Majo sí.
     await irA(p, "Buffet");

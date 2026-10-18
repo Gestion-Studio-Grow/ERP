@@ -23,6 +23,7 @@ import type { Almacen } from "./almacen";
 import { LIMITE_SUGERIDO, armarClientes, armarFicha, ejecutarClientes, textoCC, type AccionClientes, type DesenlaceClientes, type FilaCliente, type VistaFicha } from "./clientes-core";
 import { codigoDeLaDemo } from "./credito-core";
 import type { MedioCaja } from "./cuenta-core";
+import { useNegocioDelClub } from "./negocio-del-club";
 import { operadorActual } from "./operador-del-club";
 import { ComoPaga } from "./piezas";
 import type { PropsDeSolapa } from "./solapas-club";
@@ -354,8 +355,10 @@ function CuentaCorriente({ almacen, f, hacer }: { almacen: Almacen; f: VistaFich
 
 function FichaDelCliente({ almacen, clienteId, onCerrar, onSeFue }: { almacen: Almacen; clienteId: string; onCerrar: () => void; onSeFue: () => void }) {
   const modo = almacen.modo();
-  // El link al aprobador del dueño sale de ESTE sitio (el panel del negocio): /admin/club/aprobar#aprobar&…
-  const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarFicha(e, clienteId, a, modo, window.location.origin), [clienteId, modo]);
+  const negocio = useNegocioDelClub();
+  // El link al aprobador del dueño sale de ESTE sitio (el panel del negocio): /admin/club/aprobar#aprobar&…, salvo que
+  // el negocio apruebe en otro sitio (aprobador-externo.ts: Break Point en el trial, con el link del club de hoy).
+  const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarFicha(e, clienteId, a, modo, window.location.origin, negocio), [clienteId, modo, negocio]);
   const f = useSeleccion(almacen, seleccionar, porFirma);
   const hacer = useHacer(almacen);
   const titulo = useRef<HTMLHeadingElement>(null);

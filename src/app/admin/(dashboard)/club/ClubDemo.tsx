@@ -47,6 +47,7 @@ import BandejaDelClub from "./BandejaDelClub";
 import CuentaDelTurno from "./CuentaDelTurno";
 import { Esqueleto } from "@/components/ui/Esqueleto";
 import { AvisosDelClub } from "./piezas";
+import { NegocioDelClub } from "./negocio-del-club";
 import { PIEZAS_GLOBALES_DEL_CLUB, SOLAPAS_DEL_CLUB, type PropsDePieza, type PropsDeSolapa } from "./solapas-club";
 
 // PERFORMANCE (docs/producto/PERFORMANCE-TERMINALES.md, ronda 3): la Agenda (con la cuenta del turno y «Dar un
@@ -387,6 +388,8 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
   useEffect(() => almacen.suscribirOperador(() => setPanel(null)), [almacen]);
 
   return (
+    // El negocio a mano para el aviso al dueño (pedido-del-duenio.tsx, la ficha del cliente): aprobador-externo.ts.
+    <NegocioDelClub value={negocio}>
     <div className="flex flex-col gap-4">
       {piezas.map((p) => (
         <Suspense key={p.id} fallback={null}>
@@ -457,5 +460,6 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       <AvisosDelClub almacen={almacen} />
       </SoloConOperador>
     </div>
+    </NegocioDelClub>
   );
 }

@@ -6,7 +6,9 @@
 // `dialogoAprobar`, `SOLO_APROBAR`), que es lo que el club usa hoy:
 //   1. Recepción pide el OK para fiar (o la cuenta corriente) y toca «Avisar a Rober por WhatsApp»: al celular del
 //      dueño (Configuración → Avisos, `celularDelDuenio`) le llega el texto del motor (`mensajeWhatsApp("aprobacion")`)
-//      con el LINK al aprobador del ERP: `<origen>/admin/club/aprobar#aprobar&id=…&c=…&n=…&m=…&t=…&p=…&f=…`.
+//      con el LINK al aprobador del ERP: `<origen>/admin/club/aprobar#aprobar&id=…&c=…&n=…&m=…&t=…&p=…&f=…` (o, si el
+//      negocio aprueba en otro sitio —aprobador-externo.ts: Break Point en el trial, decisión G4—, a esa página con el
+//      mismo fragmento: `https://breakpointpadel.gsgapp.com.ar/club#aprobar&…`).
 //   2. El dueño lo abre (con su sesión del ERP: la pantalla es de un OWNER), elige quién es, pone su PIN y el monto
 //      que aprueba: le sale el código (`codigoAprobacion` del motor) y lo manda con «Mandar el código por WhatsApp».
 //   3. Recepción lo tipea (Clientes / Buffet): `aprobarPorCodigo` lo verifica contra el PIN de cada dueño, con 5
@@ -26,6 +28,7 @@
 
 import { codigoAprobacion, datosAprobacion, mensajeWhatsApp, pesos, pinValidoPara } from "@/lib/club/motor.mjs";
 import type { DatosAprobacion, EstadoClub } from "@/lib/club/motor.mjs";
+import { aprobadorExternoDe } from "./aprobador-externo";
 import { probarPin, segundosDeEspera, textoDeEspera, textoPinIncompleto, intentosVigentes, pinCompleto, type IntentosDelBloqueo } from "./bloqueo-core";
 import { celularDelDuenio, contactosDe } from "./configuracion-core";
 import { leerMonto } from "./montos-core";
@@ -36,10 +39,15 @@ export const RUTA_DEL_APROBADOR = "/admin/club/aprobar";
 /** El fragmento arranca así (el mismo `#aprobar&…` del vanilla). */
 export const PREFIJO_DEL_PEDIDO = "#aprobar&";
 
-/** El link al aprobador para ESTE pedido. `origen`: «https://club.ejemplo.com» (sin la barra final). */
-export function linkDelAprobador(origen: string, d: DatosAprobacion): string {
+/**
+ * El link al aprobador para ESTE pedido. `origen`: «https://club.ejemplo.com» (sin la barra final). `negocio`: el slug;
+ * si el negocio aprueba en otro sitio (aprobador-externo.ts, p. ej. Break Point con el club de hoy durante el trial),
+ * el link va a esa página con el MISMO fragmento (las mismas 7 claves, en el mismo orden que arma el vanilla).
+ */
+export function linkDelAprobador(origen: string, d: DatosAprobacion, negocio?: string | null): string {
   const q = new URLSearchParams({ id: d.id, c: d.c, n: d.n, m: String(d.m), t: d.t, p: d.p, f: d.f ?? "" });
-  return `${origen.replace(/\/+$/, "")}${RUTA_DEL_APROBADOR}${PREFIJO_DEL_PEDIDO}${q.toString()}`;
+  const pagina = aprobadorExternoDe(negocio) ?? `${origen.replace(/\/+$/, "")}${RUTA_DEL_APROBADOR}`;
+  return `${pagina}${PREFIJO_DEL_PEDIDO}${q.toString()}`;
 }
 
 const ID = /^[\w-]{1,60}$/;
@@ -100,11 +108,14 @@ export interface AvisoAlDuenio {
   enlace: EnlaceWhatsApp;
 }
 
-/** Un botón «Avisar a <dueño> por WhatsApp» por cada dueño activo, con el link al aprobador del ERP. */
-export function avisosAlDuenio(estado: EstadoClub, novedadId: string, origen: string, modo: ModoDelClub): AvisoAlDuenio[] {
+/**
+ * Un botón «Avisar a <dueño> por WhatsApp» por cada dueño activo, con el link al aprobador del ERP (o al del sitio
+ * que el negocio tenga declarado en aprobador-externo.ts: quien llama pasa el `negocio`).
+ */
+export function avisosAlDuenio(estado: EstadoClub, novedadId: string, origen: string, modo: ModoDelClub, negocio?: string | null): AvisoAlDuenio[] {
   const d = datosAprobacion(estado, novedadId);
   if (!d) return [];
-  const link = linkDelAprobador(origen, d);
+  const link = linkDelAprobador(origen, d, negocio);
   return estado.usuarios
     .filter((u) => u.rol === "duenio" && u.activo !== false)
     .map((u) => ({

@@ -4,6 +4,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as M from "@/lib/club/motor.mjs";
+// El motor del club de hoy, el que corre en el celular del dueño cuando abre el link (sólo se lee, no se toca).
+import * as V from "../../../../../public/previews/breakpoint/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
 import { operadorDeLaDemo } from "./almacen";
 import {
@@ -19,8 +21,10 @@ import {
   situacionDelPedido,
   textoDelPedido,
 } from "./aprobar-core";
+import { APROBADOR_EXTERNO, aprobadorExternoDe } from "./aprobador-externo";
 import { SIN_INTENTOS_DEL_BLOQUEO } from "./bloqueo-core";
-import { ejecutarClientes } from "./clientes-core";
+import { armarFicha, ejecutarClientes } from "./clientes-core";
+import { aprobarConCodigo } from "./credito-core";
 import { ejecutarConfiguracion } from "./configuracion-core";
 
 const HOY = "2026-10-17";
@@ -199,4 +203,77 @@ test("PIN de dueño de 4 en el celular: también acepta el viejo de 2 (y lo avis
   assert.equal(viejo.pinViejo, true);
   assert.equal(viejo.aprobo, rober.nombre);
   assert.equal(ejecutarClientes(e, { tipo: "aprobarCodigo", novedadId: novedad.id, codigo: viejo.codigo, monto: "40000" }, AHORA, recep).ok, true);
+});
+
+// ───────────── Break Point en el trial: el link va al aprobador del club de hoy (decisión G4) ─────────────
+
+const VANILLA = "https://breakpointpadel.gsgapp.com.ar/club";
+
+/** Lo que hace app.mjs con el link en el celular: `HASH_APROB` (app.mjs ~:3157), con la URL tal como la abre. */
+function comoLoLeeElVanilla(link: string): Record<string, string> | null {
+  const location = new URL(link);
+  return location.hash.startsWith("#aprobar&") ? Object.fromEntries(new URLSearchParams(location.hash.slice("#aprobar&".length))) : null;
+}
+
+/** Lo que arma app.mjs para el mismo pedido (`linkAprobacion`, app.mjs ~:1542) parado en `pagina`. */
+function comoLoArmaElVanilla(pagina: string, e: EstadoClub, novedadId: string): string {
+  const location = new URL(pagina);
+  const d = V.datosAprobacion(e, novedadId) as unknown as Record<string, string>;
+  return `${location.origin}${location.pathname}#aprobar&${new URLSearchParams(d).toString()}`;
+}
+
+test("aprobador externo: sólo los negocios declarados (Break Point → el club de hoy); el resto, el del ERP", () => {
+  assert.equal(aprobadorExternoDe("breakpoint"), VANILLA);
+  assert.equal(APROBADOR_EXTERNO.breakpoint, VANILLA, "la página que lee #aprobar& (sin barra final ni fragmento)");
+  for (const otro of ["beauty-spa", "magra", "", null, undefined, "__proto__", "constructor", "toString"]) assert.equal(aprobadorExternoDe(otro), null, String(otro));
+  const { datos } = conPedido();
+  assert.ok(linkDelAprobador(ORIGEN, datos, "magra").startsWith(`${ORIGEN}${RUTA_DEL_APROBADOR}${PREFIJO_DEL_PEDIDO}`), "otro negocio: el del ERP");
+  assert.equal(linkDelAprobador(ORIGEN, datos, null), linkDelAprobador(ORIGEN, datos), "sin negocio: el del ERP, como siempre");
+});
+
+test("Break Point: el link es EXACTO el que arma el vanilla y el vanilla lo lee con los mismos 7 datos", () => {
+  const { e, novedad, datos } = conPedido();
+  const link = linkDelAprobador(ORIGEN, datos, "breakpoint");
+  assert.ok(link.startsWith(`${VANILLA}#aprobar&`), link);
+  assert.equal(link, comoLoArmaElVanilla(VANILLA, e, novedad.id), "mismo texto que `linkAprobacion` del vanilla");
+  const leido = comoLoLeeElVanilla(link)!;
+  assert.deepEqual(Object.keys(leido), ["id", "c", "n", "m", "t", "p", "f"]);
+  assert.deepEqual(leido, { id: datos.id, c: datos.c, n: datos.n, m: String(datos.m), t: datos.t, p: datos.p, f: datos.f ?? "" });
+  assert.equal(new URL(link).search, "", "nada en la query: todo en el fragmento");
+  // Los avisos de la compu del club (Buffet / cuenta del turno) y la ficha del cliente llevan ese link.
+  for (const a of avisosAlDuenio(e, novedad.id, ORIGEN, "real", "breakpoint")) assert.ok(a.enlace.texto.endsWith(link), a.enlace.texto);
+  const ficha = armarFicha(e, novedad.clienteId, AHORA, "real", ORIGEN, "breakpoint")!;
+  assert.ok(ficha.pedido!.avisos.length > 0 && ficha.pedido!.avisos.every((a) => a.enlace.texto.endsWith(link)), "la ficha del cliente, igual");
+  assert.ok(armarFicha(e, novedad.clienteId, AHORA, "real", ORIGEN)!.pedido!.avisos.every((a) => a.enlace.texto.includes(`${ORIGEN}${RUTA_DEL_APROBADOR}#aprobar&`)), "sin negocio, el del ERP");
+});
+
+test("Break Point: el código que da el celular con el vanilla (el PIN y esos datos) lo acepta el club React", () => {
+  // Cuenta corriente pedida desde Clientes.
+  const { e, recep, novedad, datos } = conPedido();
+  const majo = duenosQueAprueban(e).at(-1)!;
+  const pinMajo = e.usuarios.find((u) => u.id === majo.id)!.pin;
+  const d = comoLoLeeElVanilla(linkDelAprobador(ORIGEN, datos, "breakpoint"))!;
+  // `dialogoAprobar` del vanilla (app.mjs ~:1601), en el celular sin jornada: el código sale del PIN y del monto.
+  const codigo = V.codigoAprobacion({ pin: pinMajo, novedadId: d.id, clienteId: d.c, monto: Math.round(Number(d.m)), fecha: d.f });
+  assert.equal(codigo, M.codigoAprobacion({ pin: pinMajo, novedadId: datos.id, clienteId: datos.c, monto: datos.m, fecha: datos.f }), "misma función en los dos motores");
+  const r = ejecutarClientes(e, { tipo: "aprobarCodigo", novedadId: novedad.id, codigo, monto: d.m }, AHORA, recep);
+  assert.equal(r.ok, true, r.mensaje);
+  assert.match(r.mensaje, new RegExp(`^Aprobado por ${majo.nombre}`));
+
+  // Fiado pedido desde la cuenta (Buffet / cuenta del turno): el código, en minúsculas y sin guion, también.
+  const f = demo();
+  const sin = f.e.clientes.find((c) => !c.cc.habilitada && !f.e.novedades.some((n) => n.clienteId === c.id))!;
+  const pedido = M.solicitarCredito(f.e, { clienteId: sin.id, tipo: "fiado", monto: 4000 }, f.recep, AHORA);
+  assert.equal(pedido.ok, true);
+  const n = f.e.novedades.find((x) => x.clienteId === sin.id && x.estado === "pendiente")!;
+  const df = comoLoLeeElVanilla(linkDelAprobador(ORIGEN, M.datosAprobacion(f.e, n.id)!, "breakpoint"))!;
+  assert.equal(df.t, "fiado");
+  const rober = duenosQueAprueban(f.e)[0];
+  const pinRober = f.e.usuarios.find((u) => u.id === rober.id)!.pin;
+  const malo = V.codigoAprobacion({ pin: pinRober === "9999" ? "9998" : "9999", novedadId: df.id, clienteId: df.c, monto: Number(df.m), fecha: df.f });
+  assert.equal(aprobarConCodigo(f.e, n.id, malo, f.recep, AHORA).ok, false, "con un PIN que no es de un dueño, no sirve");
+  const bueno = V.codigoAprobacion({ pin: pinRober, novedadId: df.id, clienteId: df.c, monto: Number(df.m), fecha: df.f });
+  const ok = aprobarConCodigo(f.e, n.id, bueno.toLowerCase().replace("-", ""), f.recep, AHORA);
+  assert.equal(ok.ok, true, ok.mensaje);
+  assert.match(ok.mensaje, new RegExp(`^Aprobado por ${rober.nombre}: ya podés pasar \\$ 4\\.000`));
 });
