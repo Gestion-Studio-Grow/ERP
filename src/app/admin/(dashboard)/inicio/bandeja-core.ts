@@ -364,24 +364,6 @@ export interface PasoParaArrancar {
   tecla?: { texto: string; href: string };
 }
 
-/**
- * «Para arrancar»: los pasos del primer día de un negocio, armados con los números que el Inicio
- * ya lee. Aparece sólo mientras el negocio nunca cerró un día (el cierre del día dice «Sin
- * cierres»): es la señal honesta de «recién empieza» sin consultar nada nuevo. Se va solo con el
- * primer cierre, que es el último paso. Cada paso sale sólo si la persona ve la app que lo
- * resuelve. PURA.
- *
- * `facturacion` (opcional): si el negocio tiene CUIT y punto de venta cargados. Lo lee el Inicio
- * sólo en este caso y sólo si la persona ve Facturación; `null` = no se pudo leer → el paso no
- * sale (no se afirma nada que no se sabe). El CUIT y el punto de venta no los carga el negocio:
- * los carga Gestión Studio Grow, y el paso lo dice.
- *
- * `whatsapp` (opcional): si la vidriera tiene el WhatsApp del negocio cargado. Sin número, la
- * vidriera no ofrece «Pedir por WhatsApp» (sólo «Enviar pedido») y nada se lo decía al dueño.
- * Sale sólo si la persona ve Pedidos (el negocio recibe pedidos) y Datos del negocio (donde se
- * carga); `null` = no se pudo leer → el paso no sale.
- */
-
 /** Cuántos productos con precio pide la lista del primer día. */
 export const PRODUCTOS_PARA_ARRANCAR = 5;
 /**
@@ -403,6 +385,23 @@ export interface PrimerDiaDelMostrador {
 /** Tope de pasos de «Para arrancar»: más que eso ya no es una lista del primer día. */
 export const TOPE_PASOS_PARA_ARRANCAR = 6;
 
+/**
+ * «Para arrancar»: los pasos del primer día de un negocio, armados con los números que el Inicio
+ * ya lee. Aparece sólo mientras el negocio nunca cerró un día (el cierre del día dice «Sin
+ * cierres»): es la señal honesta de «recién empieza» sin consultar nada nuevo. Se va solo con el
+ * primer cierre, que es el último paso. Cada paso sale sólo si la persona ve la app que lo
+ * resuelve. PURA.
+ *
+ * `facturacion` (opcional): si el negocio tiene CUIT y punto de venta cargados. Lo lee el Inicio
+ * sólo en este caso y sólo si la persona ve Facturación; `null` = no se pudo leer → el paso no
+ * sale (no se afirma nada que no se sabe). El CUIT y el punto de venta no los carga el negocio:
+ * los carga Gestión Studio Grow, y el paso lo dice.
+ *
+ * `whatsapp` (opcional): si la vidriera tiene el WhatsApp del negocio cargado. Sin número, la
+ * vidriera no ofrece «Pedir por WhatsApp» (sólo «Enviar pedido») y nada se lo decía al dueño.
+ * Sale sólo si la persona ve Pedidos (el negocio recibe pedidos) y Datos del negocio (donde se
+ * carga); `null` = no se pudo leer → el paso no sale.
+ */
 export function pasosParaArrancar(
   porApp: ReadonlyMap<string, ResultadoKpi | null>,
   destinos: ReadonlyMap<string, string>,

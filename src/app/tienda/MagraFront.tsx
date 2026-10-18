@@ -261,8 +261,8 @@ function MagraFrontContent({
               <div className="mf-empty">
                 <p className="mf-empty-t">Estamos preparando la vidriera</p>
                 <p className="mf-empty-s">
-                  En un rato vas a poder comprar online. Mientras tanto, escribinos por WhatsApp y te tomamos el
-                  pedido.
+                  En un rato vas a poder comprar online.
+                  {local.whatsapp && " Mientras tanto, escribinos por WhatsApp y te tomamos el pedido."}
                 </p>
                 {local.whatsapp && (
                   <button
