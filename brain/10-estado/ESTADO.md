@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-10-15 17:44 UTC
+generado_el: 2026-10-18 20:29 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-10-15 17:44 UTC sobre `e81638c`.**
+> ⏱️ **Foto tomada el 2026-10-18 20:29 UTC sobre `eb4420a`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -18,27 +18,27 @@ tags: [brain/estado, fase-0]
 
 | Campo | Valor |
 |---|---|
-| Rama actual | `ccr-breakpoint-turnero` |
-| HEAD | `e81638c` (2026-10-15) |
+| Rama actual | `claude/ch-nivel-bp` |
+| HEAD | `eb4420a` (2026-10-18) |
 | Árbol | limpio _(sin contar `brain/`)_ |
-| Tip de `main` | 29d3e94 · 2026-10-15 · kit: arreglo de sintaxis del control de builds [sin-deploy] |
+| Tip de `main` | _no disponible (este clon no trae `main` local)_ |
 
-**Ramas locales (2, más reciente primero):** `ccr-breakpoint-turnero` · `ccr-63ed11dc-brcdpp`
+**Ramas locales (2, más reciente primero):** `claude/ch-nivel-bp` · `claude/sleepy-tesla-392rov`
 
 **Últimos commits**
 
-- e81638c · 2026-10-15 · fix(breakpoint): Gate del sitio breakpointpadel — toma de posta sin perder la demo (M1) y ediciones en vuelo (M2)
-- b95fbfe · 2026-10-15 · chore(brain): sincroniza el mapa derivado del repo
-- 0632a56 · 2026-10-15 · feat(breakpoint): el turnero y la gestión del club dentro del ERP en breakpointpadel.gsgapp.com.ar
-- 9abb1c2 · 2026-10-15 · Merge remote-tracking branch 'origin/main' into ccr-breakpoint-turnero
-- 98b8176 · 2026-10-15 · feat(breakpoint): turnero — defectos del QA en Chrome (D21–D33) + demo pública estática con sync entre pestañas
-- 834d2f6 · 2026-10-15 · docs(breakpoint): QA del turnero en Chrome real — defectos D21–D34
-- eda888b · 2026-10-15 · fix(breakpoint): turnero — WCAG 2.5.3 «Label in Name» en días y turnos (D19) + .sr que ensanchaba el celu (D20)
-- 36659b9 · 2026-10-15 · chore(brain): sincroniza el mapa derivado del repo
-- 5ecbd94 · 2026-10-15 · fix(breakpoint): turnero — hallazgos del Gate de Excelencia (versión por reserva, modo real, ?api= seguro)
-- 814abd5 · 2026-10-15 · chore(brain): sincroniza el mapa derivado del repo (npm run brain)
-- 185bebd · 2026-10-15 · feat(breakpoint): turnero — demo pública sin servidor, logo oficial y defectos de la batería corregidos
-- be44cac · 2026-10-15 · Merge remote-tracking branch 'origin/ccr-63ed11dc-brcdpp' into ccr-breakpoint-turnero
+- eb4420a · 2026-10-18 · merge: claude/sleepy-tesla-392rov (base del UAT 16/10 al día) en claude/ch-nivel-bp
+- 86906c9 · 2026-10-18 · fix(ch): observaciones del Gate (M1–M11) y E2 sin regla inventada
+- ac9a0d1 · 2026-10-18 · docs(ch): UAT en producción por rol, matriz de eventualidades y cierre del frente nivel Break Point [sin-deploy]
+- 944933a · 2026-10-18 · test(ch): recorrido E2E del UAT de CH contra Postgres local (npm run test:ch-uat)
+- bf4d03a · 2026-10-18 · fix(ch): turnos al nivel de Break Point — cobro con la caja cerrada, «no vino», ficha de la profesional, grilla y agenda práctica (apagada)
+- 96bfe4a · 2026-10-18 · docs(ch): la factura del saldo del turno, lista para que decida la contadora (opción A preparada, B con migración)
+- 6bcca73 · 2026-10-18 · merge: main al día en la versión candidata del UAT 16/10 antes de publicar
+- 33efe9a · 2026-10-18 · docs(breakpoint): cómo correr el turnero con la hora de Argentina y el Gate del 18/10 [preview]
+- 540cd1d · 2026-10-18 · fix(breakpoint): PIN por rol — el viejo de 2 no firma, un solo tope de intentos y PIN fáciles afuera (Gate M1–M7)
+- ce3891c · 2026-10-18 · feat(breakpoint): PIN de 4 dígitos para los dueños y 2 para recepción, sin dejar afuera a los PIN viejos [sin-deploy]
+- 55554a5 · 2026-10-17 · fix(breakpoint): re-Gate del archivado — doble clic, archivo ilegible y respaldo verificado [sin-deploy]
+- b3d2529 · 2026-10-17 · fix(breakpoint): archivar y borrar copias sólo con el archivo descargado y verificado — Gate B1 + M1–M7 [sin-deploy]
 
 ## Migraciones (Prisma)
 
@@ -56,8 +56,8 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 334 |
-| Palabras en `docs/` | 549.809 |
+| Documentos en `docs/` | 342 |
+| Palabras en `docs/` | 566.468 |
 | ADRs | 87 |
 | Nodos en el grafo | 93 _(los 87 ADR + 6 enmiendas)_ |
 
