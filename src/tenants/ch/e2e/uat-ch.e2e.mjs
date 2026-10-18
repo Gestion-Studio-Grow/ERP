@@ -340,12 +340,10 @@ try {
     const ctx = await contexto(390);
     const c = await nuevaPagina(ctx, "clienta-apurada");
     await c.goto(`${ORIGEN}/reserva`);
-    ok("12.T12", /hasta 24 h antes del turno/.test(await c.textContent("body")), "la reserva web muestra la regla de cancelación (24 h, provisional)");
+    ok("12.T12", /hasta 24 h antes del turno/.test(await c.textContent("body")), "la reserva web muestra la regla de cancelación que cargó el negocio (24 h)");
     await c.goto(`${ORIGEN}/reserva/turno/${apurado[0].id}`);
-    await c.locator('button:has-text("Cancelar turno")').click();
-    await c.locator('button:has-text("Sí, cancelar")').click().catch(() => {});
-    const rechaza = await esperarTexto(c.locator('[role="alert"]'), /menos de 24 h/);
-    ok("12.E2", rechaza && (await turnoEnBase("uat_apurado"))?.status === "PENDING", "a 3 h del turno la clienta no puede cancelar online: se le pide WhatsApp");
+    const sinBotones = (await c.locator('button:has-text("Cancelar turno"), button:has-text("Reprogramar")').count()) === 0;
+    ok("12.E2", sinBotones && /menos de|hasta 24 h antes/.test(await c.textContent("body")) && (await turnoEnBase("uat_apurado"))?.status === "PENDING", "a 3 h del turno, «Tu turno» muestra la regla y no ofrece cancelar ni reprogramar online");
     await foto(c, "practica-clienta-apurada-390");
     await ctx.close();
   }
@@ -416,6 +414,8 @@ async function levantar() {
     PORT: String(PORT),
   };
   for (const v of ["FORCE_TENANT_SLUG", "TENANT_HOST_MAP", "DEMO_MODE_ENABLED", "MP_MODO", "ARCA_INVOICING_ENABLED"]) delete env[v];
+  // E2: la regla de cancelación online la carga el negocio (practica.ts). Acá, la que CH promete en su reserva.
+  env.CANCELACION_ONLINE_HORAS = "beauty-spa=24";
   const salida = createWriteStream(path.join(OUT, "servidor.txt"));
   const proc = spawn(process.execPath, [path.join(RAIZ, "node_modules/next/dist/bin/next"), "start", "-p", String(PORT)], { cwd: RAIZ, env, stdio: ["ignore", "pipe", "pipe"] });
   proc.stdout.pipe(salida);

@@ -8,24 +8,32 @@ import {
   hrefDelProximo,
   motivoDeDevolucion,
   planSeniaAlCerrar,
+  leerPoliticas,
   politicaDelNegocio,
-  POLITICA_POR_DEFECTO,
   preguntaDeCierre,
   profesionalPropuesta,
   puedeCambiarOnline,
   reglaDeCancelacion,
 } from "./practica";
 
-test("E2 · la regla de CH es de 24 h y está marcada provisional a confirmar por el dueño", () => {
-  assert.deepEqual(politicaDelNegocio("beauty-spa"), { horasMinimas: 24, provisional: true });
-  assert.equal(politicaDelNegocio("otro").provisional, true);
-  assert.equal(politicaDelNegocio(null), POLITICA_POR_DEFECTO);
-  assert.equal(reglaDeCancelacion(politicaDelNegocio("beauty-spa")), "Podés cancelar o reprogramar online hasta 24 h antes del turno. Después, escribinos por WhatsApp.");
+test("E2 · la regla la carga el negocio; si no la cargó, no hay regla ni texto inventado", () => {
+  const env = { CANCELACION_ONLINE_HORAS: "beauty-spa=24; otro=12" };
+  assert.deepEqual(politicaDelNegocio("beauty-spa", env), { horasMinimas: 24 });
+  assert.deepEqual(politicaDelNegocio("otro", env), { horasMinimas: 12 });
+  assert.equal(politicaDelNegocio("sin-regla", env), null);
+  assert.equal(politicaDelNegocio("beauty-spa", {}), null);
+  assert.equal(politicaDelNegocio(null, env), null);
+  assert.equal(reglaDeCancelacion({ horasMinimas: 24 }), "Podés cancelar o reprogramar online hasta 24 h antes del turno. Después, escribinos por WhatsApp.");
+});
+
+test("E2 · un valor mal cargado (texto, cero, negativo, absurdo) no arma una regla", () => {
+  assert.equal(leerPoliticas("a=x;b=0;c=-3;d=99999;e=;=5").size, 0);
+  assert.equal(leerPoliticas(undefined).size, 0);
 });
 
 test("E2 · con 25 h de anticipación la clienta cancela sola; con 23 h, se le pide WhatsApp", () => {
   const ahora = new Date("2026-10-18T12:00:00Z");
-  const politica = politicaDelNegocio("beauty-spa");
+  const politica = { horasMinimas: 24 };
   assert.deepEqual(puedeCambiarOnline({ startsAt: new Date("2026-10-19T13:00:00Z"), ahora, politica }), { ok: true });
   assert.deepEqual(puedeCambiarOnline({ startsAt: new Date("2026-10-19T12:00:00Z"), ahora, politica }), { ok: true }, "justo 24 h: entra");
   const tarde = puedeCambiarOnline({ startsAt: new Date("2026-10-19T11:00:00Z"), ahora, politica });

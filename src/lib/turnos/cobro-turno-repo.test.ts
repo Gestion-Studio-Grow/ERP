@@ -108,6 +108,7 @@ const args = (over: Partial<AplicarCobroArgs> = {}): AplicarCobroArgs => ({
   idempotencyKey: "senia:appt_1",
   withSchema: true,
   cerradoHasta: null,
+  camino: "cobro",
   ...over,
 });
 
@@ -425,10 +426,16 @@ test("caja de hoy ya cerrada: el cobro del turno se rechaza ANTES de escribir, c
       e instanceof CobroTurnoRechazado &&
       e.motivo === "dia-cerrado" &&
       e.message.includes(`La caja del ${formatDayLabel(hoy)} ya está cerrada`) &&
-      e.message.includes(`Registralo el ${formatDayLabel(nextDayKey(hoy))}`) &&
-      e.message.includes("Dejar saldo a cobrar"),
+      e.message.includes(`Registralo el ${formatDayLabel(nextDayKey(hoy))}`),
   );
   assert.equal(collections.length + payments.length + movements.length, 0, "nada queda a medias");
+});
+
+test("caja cerrada: la salida del mensaje depende de desde dónde se cobra (reserva, cobro, completar)", async () => {
+  const { mensajeCobroEnDiaCerrado } = await import("./cobro-turno-repo");
+  assert.match(mensajeCobroEnDiaCerrado("2026-10-18", "2026-10-18", "reserva"), /Reservá el turno sin cobrar la seña y registrala el 19\/10\/2026\.$/);
+  assert.match(mensajeCobroEnDiaCerrado("2026-10-18", "2026-10-18", "completar"), /Tildá «Dejar saldo a cobrar» y registralo el 19\/10\/2026\.$/);
+  assert.match(mensajeCobroEnDiaCerrado("2026-10-18", "2026-10-18", "cobro"), /asentar hoy\. Registralo el 19\/10\/2026\.$/);
 });
 
 test("caja cerrada AYER: hoy se cobra normal (la frontera no congela el día abierto)", async () => {
@@ -443,6 +450,6 @@ test("los tres caminos que cobran un turno leen la frontera de la caja (seña al
   const src = readFileSync(new URL("../actions.ts", import.meta.url), "utf8");
   const llamadas = src.split("aplicarCobroTurnoInTx(tx, tenantId, {").slice(1).map((c) => c.slice(0, c.indexOf("});")));
   assert.equal(llamadas.length, 3);
-  for (const l of llamadas) assert.match(l, /cerradoHasta,/);
+  for (const l of llamadas) assert.match(l, /cerradoHasta,\s*camino: "(reserva|cobro|completar)"/);
   assert.equal((src.match(/await lastClosedDay\(tenantId\)/g) ?? []).length >= 3, true);
 });

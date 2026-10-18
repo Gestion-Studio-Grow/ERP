@@ -6,7 +6,7 @@ import RescheduleButton from "./RescheduleButton";
 import ReviewForm from "./ReviewForm";
 import { fmtDateTime } from "@/lib/datetime";
 import { isAppointmentModifiable } from "@/lib/booking-core";
-import { reglaVigenteParaLaClienta } from "@/lib/turnos/practica.server";
+import { cambioOnlineDelTurno } from "@/lib/turnos/practica.server";
 
 const statusLabel: Record<string, string> = {
   PENDING: "Pendiente de pago",
@@ -36,7 +36,8 @@ export default async function MyAppointmentPage({
   // Un turno vivo y futuro se puede tanto cancelar como reprogramar (política pura
   // y testeable en booking-core; no llamamos Date.now en el render del RSC).
   const canModify = isAppointmentModifiable(appointment.status, appointment.startsAt);
-  const regla = canModify ? await reglaVigenteParaLaClienta() : null;
+  // Agenda práctica (E2): dentro del plazo del negocio, la clienta ve la regla en vez de botones que no andan.
+  const { regla, puede } = canModify ? await cambioOnlineDelTurno(appointment.startsAt) : { regla: null, puede: false };
 
   return (
     <div className="mx-auto max-w-lg px-6 py-16">
@@ -65,7 +66,7 @@ export default async function MyAppointmentPage({
         </p>
       </div>
 
-      {canModify && (
+      {canModify && puede && (
         <div className="flex flex-wrap items-center">
           <RescheduleButton
             appointmentId={appointment.id}

@@ -5,7 +5,7 @@
 // primero se lee qué va a pasar. La decisión la aplica `cerrarTurnoSinPrestar` (actions.ts) en una
 // sola transacción. Sólo se usa con el interruptor «agenda-practica» prendido.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cerrarTurnoSinPrestar } from "@/lib/actions";
 import SubmitButton from "@/components/SubmitButton";
 import { buttonClasses, fmtMoneyARS } from "@/components/ui";
@@ -30,12 +30,20 @@ export default function CerrarSinPrestar({
 }) {
   const [abierto, setAbierto] = useState(false);
   const [error, setError] = useState("");
+  // El foco acompaña: al abrir va a la pregunta (el lector la lee); al volver, al botón que la abrió.
+  const pregunta = useRef<HTMLParagraphElement>(null);
+  const disparador = useRef<HTMLButtonElement>(null);
+  const volvio = useRef(false);
+  useEffect(() => {
+    if (abierto) pregunta.current?.focus();
+    else if (volvio.current) disparador.current?.focus();
+  }, [abierto]);
   const { showSuccess } = useToast();
   const etiqueta = accion === "cancelar" ? "Cancelar turno" : "No se presentó";
 
   if (!abierto) {
     return (
-      <button type="button" className={botonClassName} onClick={() => setAbierto(true)} aria-expanded={false}>
+      <button ref={disparador} type="button" className={botonClassName} onClick={() => setAbierto(true)}>
         {etiqueta}
       </button>
     );
@@ -55,7 +63,9 @@ export default function CerrarSinPrestar({
     >
       <input type="hidden" name="appointmentId" value={appointmentId} />
       <input type="hidden" name="accion" value={accion} />
-      <p className="text-sm text-body">{preguntaDeCierre({ accion, clienta, hora })}</p>
+      <p ref={pregunta} tabIndex={-1} className="text-sm text-body focus:outline-none">
+        {preguntaDeCierre({ accion, clienta, hora })}
+      </p>
       {cobrado > 0 && (
         <fieldset className="flex flex-col gap-1">
           <legend className="mb-1 text-xs font-medium text-muted">
@@ -75,8 +85,15 @@ export default function CerrarSinPrestar({
         <SubmitButton pendingText="Guardando…" className={buttonClasses("solid", "sm", "whitespace-nowrap")}>
           {accion === "cancelar" ? "Sí, cancelar" : "Sí, no vino"}
         </SubmitButton>
-        <button type="button" className={buttonClasses("ghost", "sm")} onClick={() => setAbierto(false)}>
-          No
+        <button
+          type="button"
+          className={buttonClasses("ghost", "sm")}
+          onClick={() => {
+            volvio.current = true;
+            setAbierto(false);
+          }}
+        >
+          No, volver
         </button>
       </div>
       {error && (

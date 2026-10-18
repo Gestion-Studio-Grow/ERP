@@ -50,6 +50,7 @@ import {
 } from "@/lib/turnos/cobros";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
 import { avisoDeEspera, motivoDeDevolucion, planSeniaAlCerrar } from "@/lib/turnos/practica";
+import { agendaPractica } from "@/lib/turnos/practica.server";
 import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import { agruparIngresos, bordesDelPeriodo } from "@/lib/report-ingresos";
 import {
@@ -413,6 +414,7 @@ async function bookAppointment({
         idempotencyKey: claveCobroTurno("senia", appointment.id),
         withSchema,
         cerradoHasta,
+        camino: "reserva",
       });
     }
     return { appointment, cobro };
@@ -1177,6 +1179,7 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
           idempotencyKey,
           withSchema,
           cerradoHasta,
+          camino: "cobro",
         });
       },
       { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -1722,7 +1725,10 @@ export async function cerrarTurnoSinPrestar(formData: FormData): Promise<Resulta
   const accion = formData.get("accion") === "no-vino" ? "no-vino" : "cancelar";
   const user = await requireCapability(accion === "cancelar" ? "agenda:manage" : "agenda:complete");
   if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
+  // Apagado el interruptor, esta acción no existe para el negocio (aunque alguien la llame a mano).
+  if (!(await agendaPractica())) return { ok: false, error: "Esta opción no está activa en tu negocio." };
   const appointmentId = String(formData.get("appointmentId") ?? "");
+  const destinoPedido = String(formData.get("senia") ?? "");
   const tenantId = await getCurrentTenantId();
   const actor = `user:${user.id}`;
 
@@ -1735,6 +1741,7 @@ export async function cerrarTurnoSinPrestar(formData: FormData): Promise<Resulta
       serviceId: true,
       priceAtBooking: true,
       service: { select: { name: true, price: true } },
+      professional: { select: { name: true, cobraEnMostrador: true } },
       payment: { select: { status: true, amount: true } },
     },
   });
@@ -1749,22 +1756,24 @@ export async function cerrarTurnoSinPrestar(formData: FormData): Promise<Resulta
     return { ok: false, error: "Ese turno ya no está reservado ni confirmado: no se puede cancelar." };
   }
 
-  const cobros = (await cobrosDetalladosPorTurno(prisma, tenantId, [appointmentId])).get(appointmentId) ?? [];
+  // Primera lectura de la plata, para contestar rápido (y sin abrir la transacción) si falta
+  // elegir qué pasa con la seña. La que vale es la de adentro de la transacción (abajo).
   const precio = turno.priceAtBooking ?? turno.service.price;
-  const { cobrado } = estadoCobroTurno({ precio, cobros, pagoLegado: turno.payment });
-  const plan = planSeniaAlCerrar({ cobrado, destino: String(formData.get("senia") ?? "") });
+  const cobradoDe = (cobros: Parameters<typeof estadoCobroTurno>[0]["cobros"]) =>
+    estadoCobroTurno({ precio, cobros, pagoLegado: turno.payment }).cobrado;
+  const cobrosAntes = (await cobrosDetalladosPorTurno(prisma, tenantId, [appointmentId])).get(appointmentId) ?? [];
+  const plan = planSeniaAlCerrar({ cobrado: cobradoDe(cobrosAntes), destino: destinoPedido });
   if (!plan.ok) return { ok: false, error: plan.error };
 
   // Devolver es plata que sale: el mismo permiso que anular un cobro.
   if (plan.destino === "devolver") {
     if (!roleHasCapability(user.role, "agenda:collect")) return { ok: false, error: "Devolver una seña lo hace quien cobra los turnos." };
-    const delTurno = await leerProfesionalDelTurno(appointmentId);
     const veredicto = puedeCobrarEsteTurno({
       rol: user.role,
       professionalIdDelUsuario: user.professionalId,
-      professionalIdDelTurno: delTurno.professionalId,
-      nombreProfesional: delTurno.nombre,
-      cobraEnMostrador: delTurno.cobraEnMostrador,
+      professionalIdDelTurno: turno.professionalId,
+      nombreProfesional: turno.professional.name,
+      cobraEnMostrador: turno.professional.cobraEnMostrador,
     });
     if (!veredicto.ok) return { ok: false, error: veredicto.motivo };
   }
@@ -1774,6 +1783,14 @@ export async function cerrarTurnoSinPrestar(formData: FormData): Promise<Resulta
   const run = (withSchema: boolean) =>
     tenantTransaction(
       async (tx) => {
+        // La plata se vuelve a leer ADENTRO: si entró un cobro entre la pantalla y acá, la decisión
+        // que tomó la recepción ya no es sobre la misma plata, y no se aplica a ciegas.
+        const cobros = (await cobrosDetalladosPorTurno(tx, tenantId, [appointmentId])).get(appointmentId) ?? [];
+        const cobrado = cobradoDe(cobros);
+        const ahora = planSeniaAlCerrar({ cobrado, destino: destinoPedido });
+        if (!ahora.ok || ahora.destino !== plan.destino || cobrado !== cobradoDe(cobrosAntes)) {
+          throw new RechazoDeDominio("Entró un cobro recién en este turno. Recargá la agenda y volvé a elegir.");
+        }
         const { count } = await tx.appointment.updateMany({
           where: { id: appointmentId, tenantId, status: { in: ["PENDING", "CONFIRMED"] } },
           data: { status: estadoNuevo },
@@ -1796,12 +1813,12 @@ export async function cerrarTurnoSinPrestar(formData: FormData): Promise<Resulta
             if (r.applied) devuelto += r.monto;
           }
         }
-        return { devuelto };
+        return { devuelto, cobrado };
       },
       { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
 
-  let settled: SettleOutcome<{ devuelto: number }>;
+  let settled: SettleOutcome<{ devuelto: number; cobrado: number }>;
   try {
     settled = await settleAppointmentPaymentGuarded({ runWithBridge: () => run(true), runWithoutBridge: () => run(false) });
   } catch (e) {
@@ -1809,7 +1826,9 @@ export async function cerrarTurnoSinPrestar(formData: FormData): Promise<Resulta
     if (e instanceof RechazoDeDominio) return { ok: false, error: e.message };
     throw e;
   }
-  const devuelto = settled.outcome === "race" ? 0 : settled.value.devuelto;
+  // Una carrera revierte la transacción ENTERA (cambio de estado incluido): no pasó nada.
+  if (settled.outcome === "race") return { ok: false, error: "Ese turno cambió recién. Recargá la agenda." };
+  const { devuelto, cobrado } = settled.value;
 
   await auditAdmin({
     action: accion === "cancelar" ? "cancel" : "no_show",
@@ -1917,6 +1936,7 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
             idempotencyKey: claveCobroTurno("saldo", appointmentId),
             withSchema,
             cerradoHasta,
+            camino: "completar",
           });
         }
 

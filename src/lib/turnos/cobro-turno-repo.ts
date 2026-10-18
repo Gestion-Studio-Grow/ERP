@@ -71,7 +71,11 @@ export type AplicarCobroArgs = {
   // propósito: un cobro de turno es plata que entra HOY, y si hoy ya se cerró caería en un día
   // congelado (UAT de CH, 18/10). Mismo criterio que el cobro de un pedido (`fronteraDeVenta`).
   cerradoHasta: DayKey | null;
+  /** Desde dónde se cobra: cambia la SALIDA que ofrece el mensaje del día cerrado, no la regla. */
+  camino: CaminoDeCobro;
 };
+
+export type CaminoDeCobro = "reserva" | "cobro" | "completar";
 
 export type AplicarCobroResult =
   | {
@@ -96,14 +100,15 @@ export class CobroTurnoRechazado extends Error {
 }
 
 /**
- * El cobro de un turno con la caja de hoy ya cerrada. La salida que existe hoy, a un clic: dejarlo
- * para cuando la caja vuelva a abrir (al completar, «Dejar saldo a cobrar»).
+ * El cobro de un turno con la caja de hoy ya cerrada: el día en que sí se puede y la salida que
+ * existe HOY desde la pantalla en la que se está (reservar sin seña, o dejar el saldo a cobrar).
  */
-export function mensajeCobroEnDiaCerrado(hoy: DayKey, cerradoHasta: DayKey): string {
-  return (
-    `La caja del ${formatDayLabel(hoy)} ya está cerrada: este cobro no se puede asentar hoy. ` +
-    `Registralo el ${formatDayLabel(nextDayKey(cerradoHasta))}; si estás completando el turno, tildá «Dejar saldo a cobrar».`
-  );
+export function mensajeCobroEnDiaCerrado(hoy: DayKey, cerradoHasta: DayKey, camino: CaminoDeCobro): string {
+  const abierto = formatDayLabel(nextDayKey(cerradoHasta));
+  const base = `La caja del ${formatDayLabel(hoy)} ya está cerrada: este cobro no se puede asentar hoy. `;
+  if (camino === "reserva") return `${base}Reservá el turno sin cobrar la seña y registrala el ${abierto}.`;
+  if (camino === "completar") return `${base}Tildá «Dejar saldo a cobrar» y registralo el ${abierto}.`;
+  return `${base}Registralo el ${abierto}.`;
 }
 
 export function mensajeRechazo(motivo: MotivoCobroRechazado, saldo: number): string {
@@ -201,7 +206,7 @@ export async function aplicarCobroTurnoInTx(
 
   const hoy = dateStrInBusinessTz(new Date());
   if (args.cerradoHasta && isFrozenDay(hoy, args.cerradoHasta)) {
-    throw new CobroTurnoRechazado("dia-cerrado", 0, mensajeCobroEnDiaCerrado(hoy, args.cerradoHasta));
+    throw new CobroTurnoRechazado("dia-cerrado", 0, mensajeCobroEnDiaCerrado(hoy, args.cerradoHasta, args.camino));
   }
 
   const [cobros, pagoLegado] = await Promise.all([

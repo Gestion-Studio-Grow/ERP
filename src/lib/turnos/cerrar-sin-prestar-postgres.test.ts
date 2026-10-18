@@ -27,6 +27,10 @@ async function preparar(t: import("node:test").TestContext): Promise<Sembrado | 
   Object.assign(process.env as Record<string, string | undefined>, { DB_CONNECTION_LIMIT: "2", DB_CONNECT_TIMEOUT_MS: "3000" });
   const duenio = await prismaComoDuenio(base);
   const tenantId = base.a.id;
+  // La acción sólo existe con la agenda práctica prendida (la fila la escribe la consola, canal "operador").
+  await duenio.auditLog.create({
+    data: { tenantId, actor: "operator:test", action: "interruptor.encender", entity: "Interruptor", entityId: "agenda-practica", channel: "operador", changes: {} },
+  });
   const box = await duenio.box.create({ data: { tenantId, name: "Box 1" } });
   const masaje = await duenio.service.create({ data: { tenantId, name: "Masaje", durationMin: 60, price: 15000, depositAmount: 5000 } });
   const laura = await duenio.professional.create({
@@ -131,4 +135,16 @@ test("T10 · un turno ya cancelado no se vuelve a cancelar (la condición va en 
   assert.deepEqual(await cerrar(s, id, ""), { ok: true }, "sin plata no se pregunta por la seña");
   const otra = await cerrar(s, id, "");
   assert.equal(otra?.ok, false);
+});
+
+test("M3 · con la agenda práctica apagada, la acción no existe para el negocio", async (t) => {
+  const s = await preparar(t);
+  if (!s) return;
+  const { cerrarTurnoSinPrestar } = await import("@/lib/actions");
+  const fd = new FormData();
+  fd.set("appointmentId", await s.turno("Eva"));
+  fd.set("accion", "cancelar");
+  // Negocio B: sin el interruptor.
+  const r = await ejecutarAccion({ negocio: s.base.b, usuario: s.base.b.recepcion }, () => cerrarTurnoSinPrestar(fd));
+  assert.deepEqual(r.tipo === "respuesta" && r.valor, { ok: false, error: "Esta opción no está activa en tu negocio." });
 });

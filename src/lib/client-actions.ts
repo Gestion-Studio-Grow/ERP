@@ -99,8 +99,8 @@ async function dejarResena(formData: FormData): Promise<void> {
   revalidatePath(`/reserva/turno/${appointmentId}`);
 }
 
-// E2 (agenda práctica): la clienta cancela o reprograma online sólo con la anticipación del
-// negocio (practica.ts, PROVISIONAL A CONFIRMAR POR EL DUEÑO). Apagada, nada cambia.
+// E2 (agenda práctica): la clienta cancela o reprograma online sólo con la anticipación que cargó
+// el negocio (practica.ts, `CANCELACION_ONLINE_HORAS`). Sin regla o apagada, nada cambia.
 async function exigirAnticipacion(startsAt: Date): Promise<void> {
   const politica = await politicaVigente();
   if (!politica) return;

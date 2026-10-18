@@ -9,9 +9,12 @@ una base Postgres **local** sembrada con datos de demo de CH (nunca Neon). Captu
 Cada fila de abajo lleva entre corchetes el id del paso en ese recorrido.
 
 **Reglas (CH es un negocio VIVO, con clientas reales):**
-- Se trabaja con **una clienta de prueba**: nombre «Clienta UAT», teléfono `11 0000 0000`. Nunca con una clienta real.
+- Es un ambiente real: **nada de lo que ve el negocio puede decir «prueba», «demo» ni «ejemplo»**. Los turnos los da
+  **la persona de GSG que corre el UAT, con su propio nombre y su celular**, como una clienta más. Nunca con los
+  datos de una clienta real de CH.
 - Los turnos de prueba se dan en un hueco **libre de mañana o pasado**, en el box que menos se use, y se cancelan al
-  terminar. La plata de prueba se **anula** desde la fila del turno («Anular», con el motivo «UAT»): así sale del libro.
+  terminar. La plata cobrada se **anula** desde la fila del turno («Anular», con el motivo «Corrección de carga»): así sale
+  del libro.
 - **El cierre del día NO se ensaya en producción:** cerrar congela el día y no se deshace. En producción sólo se mira la
   pantalla de cierre; el caso «caja que no cuadra» lo prueba el recorrido local (9.2 y 9.3).
 - No se toca ninguna configuración de Vercel ni de Neon, ni un interruptor. Las claves de las usuarias no se escriben
@@ -53,7 +56,7 @@ Entrar con las tres personas. ✔ = la abre; ✘ = el sistema la manda a su inic
 
 | # | Paso | Esperado |
 |---|---|---|
-| 2.1 | `/reserva` → profesional → servicio → mañana → primer horario → «Clienta UAT» y su teléfono → Confirmar turno | «¡Solicitud enviada!» sin desplazamiento horizontal. [2.1] |
+| 2.1 | `/reserva` → profesional → servicio → mañana → primer horario → su nombre y su celular → Confirmar turno | «¡Solicitud enviada!» sin desplazamiento horizontal. [2.1] |
 | 2.2 | Como recepción: Agenda → Lista | El turno aparece en «Reservados, a confirmar». [2.2] |
 | 2.3 | Elegir un horario de hoy que ya pasó (si lo hubiera) | No se ofrece; si se fuerza, «Ese horario ya pasó. Elegí otro horario.» (B5) |
 
@@ -61,7 +64,7 @@ Entrar con las tres personas. ✔ = la abre; ✘ = el sistema la manda a su inic
 
 | # | Paso | Esperado |
 |---|---|---|
-| 3.1 | Lista → «+ Nuevo turno» → profesional → un servicio con seña → mañana → horario → «Clienta UAT» → Cobrar ahora | Propone «Seña — $…». Elegir Efectivo → «Crear turno». La seña queda cobrada. [3.1] |
+| 3.1 | Lista → «+ Nuevo turno» → profesional → un servicio con seña → mañana → horario → su nombre y celular → Cobrar ahora | Propone «Seña — $…». Elegir Efectivo → «Crear turno». La seña queda cobrada. [3.1] |
 | 3.2 | Mirar la fila del turno | «cobrado $… · saldo $…». [3.2] |
 | 3.3 | Elegir un servicio con una profesional que no lo hace (forzándolo) | «X no hace Y. Elegí otro profesional para ese servicio.» (B6) |
 
@@ -92,7 +95,7 @@ Entrar con las tres personas. ✔ = la abre; ✘ = el sistema la manda a su inic
 | 7.1 | Turno de prueba confirmado y ya empezado, sin nada cobrado | El cobro sugerido es la seña. «Registrar cobro». [7.1] |
 | 7.2 | Otro cobro de $4.000 por Transferencia | «cobrado $9.000 · saldo $6.000» (con un servicio de $15.000 y seña de $5.000). [7.2] |
 | 7.3 | «Marcar como completado» con Efectivo | Cobra el saldo y el turno queda saldado. [7.3] |
-| 7.4 | Anular los tres cobros de prueba («Anular» → motivo «UAT» → «Sí, anular») | La plata sale del libro con su egreso. |
+| 7.4 | Anular los tres cobros del UAT («Anular» → motivo «Corrección de carga» → «Sí, anular») | La plata sale del libro con su egreso. |
 
 ## 8. La profesional
 
@@ -128,7 +131,7 @@ Hoy está **apagado en producción**. Se prueba completo en el recorrido local (
 | 11.3 | Devolver la seña de un cobro de un día ya cerrado | «No se pudo devolver la seña: … El turno no se cambió.» [12.E3a] |
 | 11.4 | Retener la seña | Cancela y lo deja en la auditoría; si hay anotadas en la lista de espera para ese servicio, lo avisa. [12.E3b, 12.E6] |
 | 11.5 | Un completado → «Reservar el próximo» | Abre el alta con la misma clienta y la fecha de su ciclo. [12.E5] |
-| 11.6 | `/reserva` y «Tu turno» | Muestran «Podés cancelar o reprogramar online hasta 24 h antes del turno…». A menos de 24 h, cancelar online se niega y pide WhatsApp. [12.T12, 12.E2] |
+| 11.6 | `/reserva` y «Tu turno» (sólo si el negocio cargó su regla en `CANCELACION_ONLINE_HORAS`) | Muestran «Podés cancelar o reprogramar online hasta N h antes del turno…». A menos de N h, cancelar online se niega y pide WhatsApp. Sin regla cargada no se muestra nada. [12.T12, 12.E2] |
 
 ## 12. Celular
 
@@ -137,8 +140,8 @@ Hoy está **apagado en producción**. Se prueba completo en el recorrido local (
 
 ## Limpieza (obligatoria)
 
-Cancelar los turnos de «Clienta UAT», anular sus cobros con motivo «UAT» y, si quedó una ficha «Clienta UAT», dejarla
-anotada en «Resultado» (no se borra una ficha con historia). Nada de esto toca días ya cerrados.
+Cancelar los turnos del UAT, anular sus cobros con el motivo «Corrección de carga» y anotar en «Resultado» la ficha
+que quedó a nombre de quien corrió el UAT (no se borra una ficha con historia). Nada de esto toca días ya cerrados.
 
 ## Resultado
 

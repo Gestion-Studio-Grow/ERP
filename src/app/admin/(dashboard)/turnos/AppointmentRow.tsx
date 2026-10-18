@@ -597,7 +597,8 @@ export default function AppointmentRow({
             {canManage && (
               cerrarSinPrestar("cancelar")
             )}
-            {cerrarSinPrestar("no-vino")}
+            {/* Antes de la hora el servidor lo niega: no se ofrece un botón que no puede andar. */}
+            {yaOcurrio && cerrarSinPrestar("no-vino")}
             {canManage && (
               <RescheduleForm
                 appointmentId={appointment.id}

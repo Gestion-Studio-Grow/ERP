@@ -8,6 +8,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
 import { auditAdmin } from "@/lib/audit-core";
@@ -118,9 +119,10 @@ export async function vincularProfesional(formData: FormData) {
   if (!d.ok) backWith(d.status);
   try {
     await prisma.user.update({ where: { id: usuario.id }, data: { professionalId: d.professionalId } });
-  } catch {
-    // @unique de professionalId: otra pestaña la vinculó entre la lectura y la escritura.
-    backWith("error_vinculo_ocupado");
+  } catch (e) {
+    // @unique de professionalId: otra pestaña la vinculó entre la lectura y la escritura. Otro error sube.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") backWith("error_vinculo_ocupado");
+    throw e;
   }
   await auditAdmin({ action: "update", entity: "User", entityId: usuario.id, changes: { professionalId: d.professionalId } });
   revalidatePath(USERS_PATH);

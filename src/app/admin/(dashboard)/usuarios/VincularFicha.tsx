@@ -28,7 +28,7 @@ export default function VincularFicha({
           </option>
         ))}
       </Select>
-      <SubmitButton pendingText="…" className={buttonClasses("outline", "md", "whitespace-nowrap")}>
+      <SubmitButton pendingText="Guardando…" className={buttonClasses("outline", "md", "whitespace-nowrap")}>
         Guardar ficha
       </SubmitButton>
     </form>
