@@ -271,4 +271,11 @@ están a la vista en la demo pública, así que cualquiera entraba como dueño. 
    dueño → verificar la caja → recepción entra con su PIN.
 5. Mirar el consumo de Neon la primera semana y decidir el paso a pago si se acerca al límite.
 
+## Gate de la rama (18/10/2026)
+
+Primera auditoría: rechazada por un bloqueante (la Auditoría del ERP mostraba las fotos del club con los PIN). Corregido:
+la Auditoría deja afuera las fotos del club, el tope de una foto bajó a 10 MB, la elección real/demo tiene su prueba y
+el panel sólo ofrece «instalar como app» a los negocios con club o terminal (CH no cambia). Antes del merge a `main` se
+verifica la compilación con una vista previa de Vercel y se vuelve a auditar.
+
 — Elaborado por GSG
