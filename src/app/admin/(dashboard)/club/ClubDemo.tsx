@@ -38,6 +38,7 @@ import { reserva as reservaDe } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { candadoDeLaJornada, claveDeLaDemo, claveDeLaJornada, crearAlmacen, type Almacen, type AlmacenamientoLocal, type GuardadoDelClub, type RolDelPanel } from "./almacen";
 import CintaDelClub from "./CintaDelClub";
+import { crearGuardadoEnLaBase, type PuertaDeLaBase } from "./guardado-en-la-base";
 import { fechaLocal } from "./reloj-del-club";
 import { useOperador, useSeleccion } from "./usar-almacen";
 import AgendaCanchas from "./AgendaCanchas";
@@ -249,14 +250,21 @@ export interface PropsDeClubDemo {
   rol: RolDelPanel;
   /** "demo" (default) o "real". Hoy nadie pasa "real": lo decide el día de corte (page.tsx). */
   reloj?: "demo" | "real";
-  /** Dónde se guarda (default: este equipo). Lo enchufa BP-3. */
+  /** Dónde se guarda (default: este equipo). Gana sobre `base` (los tests lo pasan a mano). */
   guardado?: GuardadoDelClub;
+  /**
+   * La base del ERP (las acciones del servidor, estado-actions.ts). En la jornada real, el club se guarda ahí y este
+   * equipo queda de espejo (el del almacén: el adaptador va SIN espejo propio, si no serían dos copias de ~3 MB en el
+   * mismo localStorage, que tiene ~5).
+   */
+  base?: PuertaDeLaBase;
 }
 
-export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guardado }: PropsDeClubDemo) {
+export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guardado, base }: PropsDeClubDemo) {
+  const [enLaBase] = useState(() => (reloj === "real" && !guardado && base ? crearGuardadoEnLaBase({ negocio, base, espejo: null }) : null));
   const [almacen] = useState(() =>
     reloj === "real"
-      ? crearAlmacen({ reloj, clave: claveDeLaJornada(negocio), candado: candadoDeLaJornada(negocio), almacenamiento: guardadoDelEquipo(), guardado, rol })
+      ? crearAlmacen({ reloj, clave: claveDeLaJornada(negocio), candado: candadoDeLaJornada(negocio), almacenamiento: guardadoDelEquipo(), guardado: guardado ?? enLaBase ?? undefined, rol })
       : crearAlmacen({ hoy: fechaLocal(new Date()), clave: claveDeLaDemo(negocio, usuario), almacenamiento: guardadoDelEquipo(), guardado, rol }),
   );
   // Mientras el club no está configurado (jornada real recién abierta), la recepción abre en Configuración: ahí sigue
@@ -316,6 +324,9 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       guardar();
     };
   }, [almacen]);
+  // Al ocultar la pestaña o salir, lo pendiente sube a la base en el acto. Va DESPUÉS del efecto de arriba (los
+  // oyentes corren en el orden en que se engancharon): primero el almacén entrega lo último, después sale la subida.
+  useEffect(() => enLaBase?.engancharSalida(), [enLaBase]);
 
   const volverALaDemo = useCallback(() => {
     almacen.volverALaDemo();
