@@ -42,6 +42,8 @@ function memoria(): AlmacenamientoLocal & { datos: Map<string, string> } {
 /** Un reloj para los dos (el almacén y el adaptador): temporizadores y latido a mano. */
 function relojManual() {
   let ahora = T0;
+  /** Lo que todavía está en camino (la subida comprime en otro hilo): `avanzar` lo espera después de cada evento. */
+  let ocupado = () => false;
   let n = 0;
   const una = new Map<number, { fn: () => void; a: number }>();
   const cada = new Map<number, { fn: () => void; ms: number; a: number }>();
@@ -85,11 +87,17 @@ function relojManual() {
           u.fn();
         }
         await reposo();
-        // El gzip corre en otro hilo: se le da tiempo de verdad.
-        await new Promise((r) => setTimeout(r, 5));
-        await reposo();
+        // El gzip corre en otro hilo: se espera de verdad a que la subida termine (con la máquina cargada tarda).
+        const tope = Date.now() + 10_000;
+        do {
+          await new Promise((r) => setTimeout(r, 5));
+          await reposo();
+        } while (ocupado() && Date.now() < tope);
       }
       ahora = fin;
+    },
+    esperarA(fn: () => boolean) {
+      ocupado = fn;
     },
   };
 }
@@ -112,6 +120,7 @@ async function abrir() {
     enReposo: null,
     rol: "OWNER",
   });
+  r.esperarA(() => enLaBase.estado().subiendo);
   a.arrancar();
   await r.avanzar(0);
   await new Promise((s) => setTimeout(s, 20));
@@ -182,12 +191,25 @@ test("con cambios sin pausa sube igual a los 2 minutos (tope)", async () => {
   assert.ok(base.llamadas.guardar > tras, "la racha de cobros igual se guarda");
 });
 
+/** Hasta que no quede nada subiendo ni pendiente (el gzip corre en otro hilo: con la máquina cargada tarda). */
+async function quieto(enLaBase: Awaited<ReturnType<typeof abrir>>["enLaBase"], r: Awaited<ReturnType<typeof abrir>>["r"]) {
+  const fin = Date.now() + 10_000;
+  while (Date.now() < fin) {
+    const e = enLaBase.estado();
+    if (!e.subiendo && !e.pendiente) return;
+    await new Promise((s) => setTimeout(s, 10));
+    await r.reposo();
+  }
+  assert.fail("la subida no terminó");
+}
+
 test("sin movimiento, la base duerme: 1 hora de latidos (15 s) no lee ni guarda nada", async () => {
-  const { a, base, r } = await abrir();
+  const { a, base, r, enLaBase } = await abrir();
   await r.avanzar(ESPERA_GUARDADO_MS + 1000);
   operarComoDuenio(a);
   tocar(a, 5);
   await r.avanzar(ESPERA_GUARDADO_MS + 1000);
+  await quieto(enLaBase, r);
   const antes = { ...base.llamadas };
   await r.avanzar(60 * 60 * 1000);
   assert.ok(LATIDO_MS <= 15_000);
