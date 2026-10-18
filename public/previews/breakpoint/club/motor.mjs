@@ -286,12 +286,26 @@ export function verificarPin(estado, usuarioId, pin) {
   return { ok: true, usuario: u };
 }
 
-/** Permiso + (si se pide) PIN. Lo usan todas las operaciones sensibles. */
+/** Lo que se le dice a un dueño que FIRMA con el PIN viejo de 2 sin haberlo cambiado todavía. */
+export const MOTIVO_PIN_VIEJO = `Ese es tu PIN viejo: entrá a la compu con él y elegí uno de ${LARGO_PIN.duenio}.`;
+
+/**
+ * ¿Este PIN FIRMA? Como `verificarPin`, pero un dueño con el PIN viejo de 2 (`pinDesactualizado`) no firma nada
+ * (descuentos, aprobaciones, caja, accesos): con ese PIN sólo entra, y al entrar se le pide el de 4. Entrar y cambiar
+ * el PIN siguen con `verificarPin` (si no, el dueño del piloto se quedaría afuera).
+ */
+export function verificarFirma(estado, usuarioId, pin) {
+  const v = verificarPin(estado, usuarioId, pin);
+  if (v.ok && pinDesactualizado(estado, usuarioId)) return { ok: false, motivo: MOTIVO_PIN_VIEJO, pinViejo: true };
+  return v;
+}
+
+/** Permiso + (si se pide) PIN. Lo usan todas las operaciones sensibles: el PIN tiene que FIRMAR (`verificarFirma`). */
 function autorizar(estado, { usuarioId, pin } = {}, accion, conPin) {
   const u = usuario(estado, usuarioId);
   if (!u || u.activo === false) return { ok: false, motivo: "Elegí quién está usando el sistema." };
   if (!puede(estado, usuarioId, accion)) return { ok: false, motivo: `${u.nombre} no tiene permiso para esto.` };
-  if (conPin) return verificarPin(estado, usuarioId, pin);
+  if (conPin) return verificarFirma(estado, usuarioId, pin);
   return { ok: true, usuario: u };
 }
 
@@ -302,12 +316,76 @@ export function usuarioPorPin(estado, pin) {
   return u ? { ok: true, usuario: u } : { ok: false, motivo: "PIN incorrecto." };
 }
 
-/** Un PIN al azar del largo del rol que no repite ningún otro activo (sin cero adelante: 10–99 o 1000–9999). */
+/** Como `usuarioPorPin`, para FIRMAR (p. ej. el descuento): el PIN viejo de 2 de un dueño no firma. */
+export function firmaPorPin(estado, pin) {
+  const r = usuarioPorPin(estado, pin);
+  if (r?.ok && pinDesactualizado(estado, r.usuario.id)) return { ok: false, motivo: MOTIVO_PIN_VIEJO, pinViejo: true, usuario: r.usuario };
+  return r;
+}
+
+/**
+ * Tope de intentos de PIN, uno solo para toda la compu (decisión del Gate, 18/10/2026): la pantalla bloqueada,
+ * «¿Quién usa el sistema?», el descuento y la aprobación en la misma compu cuentan juntos. 5 PIN mal → espera, y cada
+ * tanda espera más (30 s, 2 min, 10 min). La app lo guarda en `bp-intentos`, así sobrevive a recargar.
+ * Un acierto de RECEPCIÓN no borra los fallos (si no, alguien de recepción probaría 4 PIN del dueño, pondría el suyo y
+ * volvería a empezar): los borra un acierto de un dueño, o 8 horas sin fallos.
+ */
+export const TOPE_INTENTOS_PIN = 5;
+export const ESPERAS_PIN_S = Object.freeze([30, 120, 600]);
+const OLVIDO_FALLOS_MS = 8 * 60 * 60 * 1000;
+export function intentosPin(guardado) {
+  const t = guardado && typeof guardado === "object" ? guardado : {};
+  const n = (x) => (Number.isFinite(Number(x)) && Number(x) > 0 ? Number(x) : 0);
+  return { fallos: n(t.fallos), esperaHasta: n(t.esperaHasta), tandas: n(t.tandas), ultimoFallo: n(t.ultimoFallo) };
+}
+/** Cuántos ms falta esperar para poder probar otro PIN (0 = se puede). */
+export const esperaPin = (t, ahoraMs) => Math.max(0, intentosPin(t).esperaHasta - ahoraMs);
+/**
+ * Anota un intento (ya hecho: no se llama durante la espera). `duenio`: si el que acertó es dueño. Devuelve el estado
+ * nuevo (no toca el que recibe).
+ */
+export function anotarIntentoPin(t, { ok, duenio = false }, ahoraMs) {
+  let x = intentosPin(t);
+  if (ok) return duenio ? intentosPin() : x;
+  if (x.ultimoFallo && ahoraMs - x.ultimoFallo >= OLVIDO_FALLOS_MS) x = intentosPin();
+  if (x.fallos >= TOPE_INTENTOS_PIN && ahoraMs >= x.esperaHasta) x.fallos = 0; // ya esperó: arranca otra tanda
+  x.fallos += 1;
+  x.ultimoFallo = ahoraMs;
+  if (x.fallos >= TOPE_INTENTOS_PIN) {
+    x.tandas += 1;
+    x.esperaHasta = ahoraMs + ESPERAS_PIN_S[Math.min(x.tandas, ESPERAS_PIN_S.length) - 1] * 1000;
+  }
+  return x;
+}
+
+/**
+ * ¿Ese PIN nuevo se adivina fácil? Devuelve el motivo, o "" si sirve. Vale para el que elige cada uno (consola,
+ * «Cambiar mi PIN», el paso del PIN viejo) y para el que genera el sistema.
+ *  - Nunca un PIN de ejemplo de la demo (1111, 2222, 33, 44: están a la vista en `?demo=1`).
+ *  - Nunca todos los números iguales (0000, 1111…; en 2: 00, 11…).
+ *  - Con 4 números (dueños), nunca una escalera de a uno: 0123, 1234…6789 y 9876…3210.
+ * Con 2 números (recepción) NO se filtran escaleras: hay sólo 100 combinaciones y sacando las 10 dobles quedan 90
+ * (81 sin cero adelante para las generadas); sacar también 12, 23, 21… dejaría muy pocas para un club con varios
+ * turnos de recepción, y un PIN de 2 se adivina igual en pocos intentos (lo que lo cuida es el tope de intentos).
+ */
+export function pinFacil(rol, pin) {
+  const p = String(pin ?? "").trim();
+  if (USUARIOS_DEMO.some((u) => u.pin === p)) return "Ese es un PIN de ejemplo de la demo: elegí otro.";
+  if (/^(\d)\1+$/.test(p)) return "Con todos los números iguales se adivina fácil: elegí otro.";
+  if (largoPin(rol) >= 4 && p.length >= 4) {
+    const d = [...p].map(Number);
+    const paso = d[1] - d[0];
+    if (Math.abs(paso) === 1 && d.every((x, i) => i === 0 || x - d[i - 1] === paso)) return "Una escalera (como 1234 o 4321) se adivina fácil: elegí otro.";
+  }
+  return "";
+}
+
+/** Un PIN al azar del largo del rol que no repite ningún otro activo ni es fácil (sin cero adelante: 10–99 o 1000–9999). */
 function pinLibre(estado, rol) {
   const usados = new Set(estado.usuarios.filter((u) => u.activo !== false).map((u) => u.pin));
   const largo = largoPin(rol);
   const libres = [];
-  for (let n = 10 ** (largo - 1); n < 10 ** largo; n++) if (!usados.has(String(n))) libres.push(String(n));
+  for (let n = 10 ** (largo - 1); n < 10 ** largo; n++) if (!usados.has(String(n)) && !pinFacil(rol, String(n))) libres.push(String(n));
   if (!libres.length) return null;
   const azarSeguro = globalThis.crypto?.getRandomValues ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] : Math.floor(Math.random() * 2 ** 32);
   return libres[azarSeguro % libres.length];
@@ -427,6 +505,7 @@ export function definirPinInicial(estado, usuarioId, pin, ahora) {
   if (!u || u.activo === false) return { ok: false, motivo: "Ese usuario no tiene acceso." };
   if (u.pin) return { ok: false, motivo: `${u.nombre} ya tiene PIN.` };
   if (!pinValidoPara(u.rol, pin)) return { ok: false, motivo: textoLargoPin(u.rol) };
+  if (pinFacil(u.rol, pin)) return { ok: false, motivo: pinFacil(u.rol, pin) };
   if (pinEnUso(estado, pin, u.id)) return { ok: false, motivo: "Ese PIN ya lo usa otra persona: elegí otro." };
   u.pin = String(pin).trim();
   registrar(estado, `${u.nombre} armó su PIN.`, ahora);
@@ -441,6 +520,7 @@ export function cambiarMiPin(estado, { usuarioId, pin }, nuevo, ahora) {
   const v = verificarPin(estado, usuarioId, pin);
   if (!v.ok) return v;
   if (!pinValidoPara(v.usuario.rol, nuevo)) return { ok: false, motivo: textoLargoPin(v.usuario.rol, true) };
+  if (pinFacil(v.usuario.rol, nuevo)) return { ok: false, motivo: pinFacil(v.usuario.rol, nuevo) };
   if (pinEnUso(estado, nuevo, usuarioId)) return { ok: false, motivo: "Ese PIN ya lo usa otra persona: elegí otro." };
   v.usuario.pin = String(nuevo).trim();
   registrar(estado, `${v.usuario.nombre} cambió su PIN.`, ahora);

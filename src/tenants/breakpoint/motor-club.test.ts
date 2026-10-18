@@ -953,9 +953,9 @@ test("tenant real: dueños Roberto Ronco y Majo Gimenez sin PIN, cada uno arma e
   assert.match(lu.pin, /^\d{2}$/);
   assert.ok(M.verificarPin(e, lu.usuario.id, lu.pin).ok);
   assert.equal(M.altaUsuario(e, { nombre: "Caro" }, { usuarioId: lu.usuario.id, pin: lu.pin }, ahora(9)).ok, false, "recepción no da accesos");
-  assert.ok(M.cambiarMiPin(e, { usuarioId: lu.usuario.id, pin: lu.pin }, "33", ahora(9)).ok || lu.pin === "33");
+  assert.ok(M.cambiarMiPin(e, { usuarioId: lu.usuario.id, pin: lu.pin }, "37", ahora(9)).ok || lu.pin === "37");
   assert.ok(M.revocarAcceso(e, lu.usuario.id, { usuarioId: "u-majo", pin: "8484" }, ahora(9)).ok);
-  assert.equal(M.verificarPin(e, lu.usuario.id, "33").ok, false);
+  assert.equal(M.verificarPin(e, lu.usuario.id, "37").ok, false);
 });
 
 test("novedades por difusión: audiencia, baja y envío uno por uno sin repetir", () => {

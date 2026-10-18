@@ -244,6 +244,7 @@ const pc = await cel.newPage();
 await pc.goto(linkAprob); await pc.waitForTimeout(800);
 ok("3.celular", /Pedido de crédito/.test(await pc.textContent("#dlg")) && /fiarle \$\s?4\.000 a Juan Pérez/.test(await pc.textContent("#dlg")), "En el celular de Majo se abre «Lu pide fiarle $4.000 a Juan Pérez»");
 await pc.click('#dlg [data-a="aprobQuien"][data-v="u-majo"]'); await pc.waitForTimeout(200);
+ok("3.celular-largo", /Tu PIN \(4 números; si todavía tenés el de 2, también sirve\)/.test(await pc.textContent("#dlg")), "M5: en el celular el campo dice que son 4 números y que el viejo de 2 también sirve (porque lo acepta)");
 await pc.fill("#ap-pin", "8484"); await pc.click('#dlg [data-a="aprobarLink"]'); await pc.waitForTimeout(300);
 const codigo = (await pc.textContent(".codigo-aprob"))?.trim();
 const d = Object.fromEntries(new URLSearchParams(linkAprob.split("#aprobar&")[1]));
@@ -327,12 +328,63 @@ await p.fill("#bl-nuevo", "8484"); await p.fill("#bl-nuevo2", "8484"); await p.p
 const e5c = await estado();
 ok("5b.cambiado", !(await bloqueada()) && (await p.textContent("#u-nombre")) === "Majo Gimenez" && e5c.usuarios.find((u) => u.id === "u-majo").pin === "8484" && e5c.reservas.length === e5.reservas.length && ingresos(e5c) === cajaAntes, "Elige 8484 y entra: el PIN nuevo queda guardado y no se perdió nada");
 // Roberto todavía tiene el de 2 y entra por «Cambiar usuario»: también se le pide el de 4 antes de operar.
+await cerrar(); await p.click('[data-a="usuario"]'); await W();
+const puntosMajo = await p.getAttribute("#pin-usuario", "placeholder");
+await p.click(`[data-a="elegirUsuario"][data-v="${ids.Lu}"]`); await W(100);
+ok("5b.indicio", puntosMajo === "••••" && (await p.getAttribute("#pin-usuario", "placeholder")) === "••", "M5: en «¿Quién usa el sistema?» los puntitos son del largo de quien se elige (Majo ••••, Lu ••)");
+await cerrar();
 await entrarComo("u-rober", "57");
 ok("5b.cambiar-usuario", await bloqueada() && await p.isVisible("#bl-nuevo") && /Roberto Ronco/.test(await p.textContent("#bloqueo")), "Roberto con el PIN viejo por «¿Quién usa el sistema?» → pantalla de PIN nuevo");
 await p.click('#bloqueo [data-a="pinNuevoDespues"]'); await W(200);
 ok("5b.ahora-no", await bloqueada() && /Majo Gimenez/.test(await p.textContent("#bloqueo")) && (await estado()).usuarios.find((u) => u.id === "u-rober").pin === "57", "«Ahora no»: queda bloqueada, no entra Roberto y su PIN sigue igual hasta que lo cambie");
 await desbloquear("8484");
 ok("5b.majo", !(await bloqueada()) && (await p.textContent("#u-nombre")) === "Majo Gimenez", "Majo vuelve a entrar con su PIN nuevo de 4 (se prueba solo al cuarto número)");
+
+// ═══ 5c. Gate del PIN por rol: el viejo de 2 de Roberto (todavía sin cambiar) no FIRMA; un solo tope de intentos ═══
+const intentosGuardados = () => p.evaluate(() => JSON.parse(localStorage.getItem("bp-intentos") || "{}"));
+const pinesEnVentana = () => p.evaluate(() => [...document.querySelectorAll('#dlg input[type="password"]')].map((i) => i.value));
+await irTab("buffet");
+await p.click('#app [data-a="abrirConsumo"]'); await W(250);
+await p.fill("#cons-libre", "Mesa del Gate"); await p.click('#dlg [data-a="abrirCuentaLibre"]'); await W(300);
+await p.click("details.mesa summary"); await W(100);
+const itemsAntes = (await estado()).cuentas.reduce((t, c) => t + c.items.length, 0);
+await p.fill("#cm-con", "Descuento con PIN viejo"); await p.selectOption("#cm-tipo", "descuento"); await p.fill("#cm-mon", "500"); await p.fill("#cm-pin", "57");
+await p.click('[data-a="cargoManual"]'); await W();
+const avisoViejo = await aviso();
+ok("5c.descuento-viejo", /Ese es tu PIN viejo: entrá a la compu con él y elegí uno de 4\./.test(avisoViejo) && (await estado()).cuentas.reduce((t, c) => t + c.items.length, 0) === itemsAntes && (await p.inputValue("#cm-pin")) === "", `M1: un descuento con el PIN viejo de 2 de Roberto no se aplica: «${avisoViejo.trim().slice(0, 70)}»`);
+await p.fill("#cm-con", "Descuento con PIN inventado"); await p.selectOption("#cm-tipo", "descuento"); await p.fill("#cm-mon", "500"); await p.fill("#cm-pin", "9137");
+await p.click('[data-a="cargoManual"]'); await W();
+const avisoMal = await aviso();
+ok("5c.descuento-cuenta", /no es el PIN de un dueño[\s\S]*\(1 de 5\)/.test(avisoMal) && (await intentosGuardados()).fallos === 1, `M2: un PIN mal en el descuento cuenta en el tope de la compu y queda guardado: «${avisoMal.trim().slice(0, 60)}»`);
+await p.fill("#cm-pin", "8484"); await W(100);
+await cerrar();
+ok("5c.cerrar-vacia", (await pinesEnVentana()).every((v) => v === ""), "M6: al cerrar la ventana, el PIN que quedó escrito (sin confirmar) se borra");
+await p.locator('#app [data-a="verCuenta"]').last().click(); await W(300);
+await p.click("details.mesa summary"); await W(100);
+await p.fill("#cm-pin", "8484"); await p.keyboard.press("Escape"); await W(300);
+ok("5c.esc-vacia", !(await dlgAbierto()) && (await pinesEnVentana()).every((v) => v === ""), "M6: también al cerrarla con Esc");
+// Aprobación en la misma compu: un pedido de fiado esperando y el link del dueño abierto en la compu del club.
+await p.goto(`${BASE}/robots.txt`); await W(300);
+const pedidoLocal = await p.evaluate(() => {
+  const f = JSON.parse(localStorage.getItem("bp-jornada-v1"));
+  const c = f.estado.clientes.find((x) => x.nombre !== "Juan Pérez" && !f.estado.novedades.some((n) => n.estado === "pendiente" && n.clienteId === x.id));
+  f.estado.novedades.push({ id: "n-gate-m1", tipo: "fiado", clienteId: c.id, cuentaId: null, limite: 3000, monto: 3000, nota: "", pidio: "Lu", estado: "pendiente", intentos: 0, fecha: "2026-10-17", min: 15 * 60 });
+  localStorage.setItem("bp-jornada-v1", JSON.stringify(f));
+  return { id: "n-gate-m1", c: c.id, n: c.nombre, m: "3000", t: "fiado", p: "Lu", f: "2026-10-17" };
+});
+await p.goto(`${BASE}/club?modo=real#aprobar&${new URLSearchParams(pedidoLocal)}`); await W(1000);
+await desbloquear("8484"); await W(300);
+const etiquetaLocal = await p.textContent('#dlg label[class="f"]:has(#ap-pin)').catch(() => "");
+await p.click('#dlg [data-a="aprobQuien"][data-v="u-rober"]'); await W(150);
+await p.fill("#ap-pin", "57"); await p.click('#dlg [data-a="aprobarLink"]'); await W(300);
+const avisoAprobViejo = await aviso();
+const sigue = (await estado()).novedades.find((n) => n.id === "n-gate-m1");
+ok("5c.aprobar-viejo", /Ese es tu PIN viejo/.test(avisoAprobViejo) && sigue?.estado === "pendiente" && (await p.inputValue("#ap-pin")) === "" && /Tu PIN \(4 números\)/.test(etiquetaLocal ?? ""), "M1: en la misma compu, Roberto con su PIN viejo de 2 no aprueba el fiado (sigue esperando)");
+await p.click('#dlg [data-a="aprobQuien"][data-v="u-majo"]'); await W(150);
+await p.fill("#ap-pin", "8484"); await p.click('#dlg [data-a="aprobarLink"]'); await W(400);
+const aprobada = (await estado()).novedades.find((n) => n.id === "n-gate-m1");
+ok("5c.aprobar-majo", aprobada?.estado === "aprobada" && aprobada.resolvio === "Majo Gimenez" && (await intentosGuardados()).fallos === 0 && (await pinesEnVentana()).every((v) => v === ""), "Majo, con su PIN de 4, lo aprueba ahí mismo; el acierto de una dueña borra los intentos fallidos");
+await cerrar();
 
 // ═══ 6. Dueña: novedades por difusión, accesos, respaldo y cierre de caja ═══
 await entrarComo(ids["Majo Gimenez"], "8484");

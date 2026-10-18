@@ -132,8 +132,11 @@ ok("2.1", await bloqueada(), "el candado bloquea la pantalla"); await foto("bloq
 await p.keyboard.press("Escape"); await p.keyboard.press("Control+k"); await p.keyboard.press("n"); await p.keyboard.press("c"); await W(300);
 ok("2.2b", (await p.inputValue("#bl-pin")) === "" && !/incorrecto/.test(await p.textContent("#bl-aviso")), "D41: las letras no entran al PIN ni gastan un intento");
 ok("2.2", (await bloqueada()) && !(await p.evaluate(() => document.getElementById("dlg").open || document.getElementById("cmdk").open)), "Esc, Ctrl K, N y C no abren ni cierran nada detrás");
-for (let i = 0; i < 5; i++) { await p.fill("#bl-pin", "98"); await W(250); }
-ok("2.3", (await p.isDisabled("#bl-pin")) && /Demasiados intentos/.test(await p.textContent("#bl-aviso")), "5 PIN mal → espera de 30 s con el campo deshabilitado");
+// El tope es uno para toda la compu (Gate M2): el PIN viejo de Caro (44) de arriba ya contó y que entraran Caro y Lu
+// (recepción) no lo borra, así que la espera llega al 4.º PIN mal de acá.
+let malos = 0;
+for (; malos < 5 && !(await p.isDisabled("#bl-pin")); malos++) { await p.fill("#bl-pin", "98"); await W(250); }
+ok("2.3", malos === 4 && (await p.isDisabled("#bl-pin")) && /Demasiados intentos/.test(await p.textContent("#bl-aviso")), `5 PIN mal en la compu (1 de antes + ${malos} acá) → espera de 30 s con el campo deshabilitado`);
 await p.waitForFunction(() => !document.getElementById("bl-pin")?.disabled, null, { timeout: 40000 });
 await p.fill("#bl-pin", "33"); await W(400);
 ok("2.4", !(await bloqueada()) && /Lu/.test(await p.textContent("#u-nombre")), "pasada la espera, con su PIN desbloquea y sigue Lu");
