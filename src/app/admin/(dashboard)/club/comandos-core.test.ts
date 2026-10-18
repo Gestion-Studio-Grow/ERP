@@ -130,7 +130,7 @@ test("misma pestaña sin recargar: el contador ya pasó y los ids salen distinto
   assert.equal(r.idsDistintos, true);
 });
 
-test("qué va sin internet (D4): efectivo y créditos sí; MP, transferencia, débito, cierre y reordenar la agenda no", () => {
+test("qué va sin internet (D4, versión del Challenger): sólo lo que hace entrar plata en efectivo o créditos; egreso, devolución, MP, transferencia, débito, cierre y reordenar la agenda no", () => {
   const casos: [string, unknown, boolean][] = [
     ["cuenta", ["r1", { tipo: "cobrarTodo", medio: "efectivo" }], true],
     ["cuenta", ["r1", { tipo: "cobrarJugador", idx: 0, medio: "monedero" }], true],
@@ -147,7 +147,9 @@ test("qué va sin internet (D4): efectivo y créditos sí; MP, transferencia, d�
     ["buffet", [{ tipo: "cobrar", cuentaId: "k", medio: "mercadopago" }], false],
     ["buffet", [{ tipo: "cargar", cuentaId: "k", productoId: "p", cant: 1 }], true],
     ["mesa", [{ tipo: "cargoManual", cuentaId: "k", concepto: "x", monto: 1, descuento: true, pin: "1234" }], false],
-    ["caja", [{ tipo: "egreso", monto: "500", concepto: "hielo", pin: "33" }], true],
+    ["caja", [{ tipo: "egreso", monto: "500", concepto: "hielo", pin: "33" }], false],
+    ["ciclo", ["r1", { tipo: "devolver", medio: "efectivo" }], false],
+    ["ciclo", ["r1", { tipo: "cobrarFalta", medio: "efectivo" }], true],
     ["caja", [{ tipo: "cerrar", contado: "0", dia: null, pin: "1234" }], false],
     ["caja", [{ tipo: "fondo", monto: "500" }], false],
     ["alta", [{}], true],

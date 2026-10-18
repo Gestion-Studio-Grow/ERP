@@ -1,5 +1,10 @@
 # Modo sin internet en el mostrador del club — diseño F0
 
+> ⏸️ **EN ESPERA (18/10/2026, Challenger).** El Challenger recomienda el orden **A → corte de BP → B → (C) → D**,
+> y este log de comandos + rebase es **D**: va sólo cuando haya de verdad dos compus que escriban en el mismo
+> club. Hasta la síntesis del dueño **no se construye F0.c en adelante**. F0.a queda commiteado: es puro, no lo
+> usa ninguna pantalla y no cambia nada. Ver §12.
+>
 > Estado: **diseño + núcleo puro**. Las pantallas todavía no lo usan. Las decisiones D4 y D6 las cierra el
 > dueño en la síntesis del ADR de back separado (Advisory → Challenger). Si la síntesis cambia algo, se
 > ajusta este doc antes de construir la parte afectada.
@@ -90,14 +95,17 @@ haya en la cola. La foto apartada sigue existiendo como red de seguridad para lo
 
 ## 5. Qué se permite sin internet (D4 — propuesta, la confirma el dueño)
 
+**Versión vigente en el código: la del Challenger (más estricta), sólo lo que hace ENTRAR plata.** El PIN va
+en claro en el estado (motor ~:274/290/402/413) y `codigoAprobacion` sale del PIN del dueño (~:754): quien
+tenga el estado puede fabricar un OK. Por eso, sin internet, nada que saque plata o pida PIN.
+
 | Sí, sin internet | No, sin internet |
 |---|---|
-| Check-in, finalizar, falta | Cierre de caja |
-| Cobrar en efectivo: por jugador, todo, «sólo la cancha», «la mesa sigue» | Archivar, restaurar, empezar en blanco, go-live |
-| Buffet y venta de mostrador en efectivo | Cobros por Mercado Pago o transferencia a verificar |
-| Egreso chico con PIN | Precios, reglas, usuarios y PIN |
-| Alta de turno presencial (si choca, a la Bandeja) | Aprobador del dueño, WhatsApp con link de cobro |
-| Fiado con el código del dueño (`codigoAprobacion` es puro) | |
+| Check-in, finalizar, falta (y cobrarla en efectivo) | Cierre de caja, fondo, **egreso** |
+| Cobrar en efectivo o créditos: por jugador, todo, «sólo la cancha», «la mesa sigue» | Archivar, restaurar, empezar en blanco, go-live |
+| Buffet y venta de mostrador en efectivo | Cobros por Mercado Pago, transferencia o débito |
+| Alta de turno presencial (si choca, a la Bandeja) *(a confirmar: no hace entrar plata)* | **Fiado**, **descuento**, **devolución** |
+| | Precios, reglas, usuarios y PIN · aprobador · WhatsApp con link de cobro |
 
 La regla vive **en la lista blanca**: cada comando declara `sinInternet: true|false`. El almacén niega
 los que no, con el aviso «Esto necesita internet. Probá cuando vuelva.» La pantalla no decide.
@@ -170,5 +178,26 @@ navegador; la foto en la base sigue siendo el mismo texto con un campo más (los
 
 **Fiado con el código del dueño** (`credito-core`) todavía no está en la lista blanca: entra con F0.c, cuando el
 almacén lo despache por nombre.
+
+## 12. Lo que dijo el Challenger (18/10/2026) — insumo para la síntesis del dueño
+
+- **Orden:** A (ya, 3–5 días, US$ 0 extra: foto comprimida en jsonb —hoy se bajan ≈3 MB sin comprimir por
+  apertura—, **una sola compu que escribe por club** con reserva en la base transferible con PIN de dueño, las
+  demás miran consultando la versión cada 15 s, router 4G, PIN fuera del estado que baja al cliente) → corte de
+  BP → B (Postgres como autoridad, Ably free como «timbre», cron externo) → C (hub en Fly, si los datos lo piden)
+  → **D (este doc)**.
+- **Con A, el «sin internet» de un solo equipo ya no necesita rebase:** si sólo una compu escribe, al volver
+  la conexión su foto es la única novedad y sube como hoy (§4, camino rápido). D hace falta recién con dos
+  compus escribiendo.
+- **Estado global del motor** (`secuencia`/`origenIds`, motor ~:104; prefijo con `Math.random`, nucleo ~:98):
+  un proceso con varios tenants comparte el contador. Para D, los ids van en los args o en el estado; ese
+  refactor lo hace la sesión del club en el vanilla si el dueño aprueba D. F0.a lo resuelve **sólo** en el
+  navegador (un club por pestaña).
+- **Cierre de caja con equipos desconectados:** el servidor no ve las colas ajenas → registro de equipos con
+  latido, o cierre forzado por el dueño que manda lo tardío a «Para resolver».
+- **Reloj desfasado:** `ahora` del cliente decide el día de caja → medir el desfase en cada sync y ponerle tope.
+- **Costos para el dueño:** Neon free suspende la base de los 4 tenants (CH incluida) al agotar 100 CU-h; el
+  club 14 h/día ≈ 105 CU-h → Neon pago antes de la jornada real. Vercel Hobby es no comercial (Pro US$ 20).
+  Total ≈ US$ 35–45/mes.
 
 — Elaborado por GSG

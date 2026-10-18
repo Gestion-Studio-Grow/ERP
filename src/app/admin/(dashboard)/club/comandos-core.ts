@@ -46,8 +46,9 @@ export const REGISTRO = {
   }),
   ciclo: entrada<[reservaId: string, accion: AccionCiclo]>({
     correr: (e, [reservaId, a], ahora, auth) => ejecutarCiclo(e, reservaId, a, ahora, auth),
-    // D4 sólo nombra la falta; mover, extender, cancelar e interrumpir reordenan la agenda de todos: con internet.
-    sinInternet: ([, a]) => a.tipo === "falta" || ((a.tipo === "cobrarFalta" || a.tipo === "devolver") && sinRed(a.medio)),
+    // Sin internet sólo lo que hace ENTRAR plata (Challenger, 18/10): la falta y cobrarla. Devolver saca plata; mover,
+    // extender, cancelar e interrumpir reordenan la agenda de todos: con internet.
+    sinInternet: ([, a]) => a.tipo === "falta" || (a.tipo === "cobrarFalta" && sinRed(a.medio)),
   }),
   buffet: entrada<[accion: AccionBuffet]>({
     correr: (e, [a], ahora, auth) => ejecutarBuffet(e, a, ahora, auth),
@@ -60,8 +61,9 @@ export const REGISTRO = {
   }),
   caja: entrada<[accion: AccionCaja]>({
     correr: (e, [a], ahora, auth) => ejecutarCaja(e, a, ahora, auth),
-    // El egreso chico con PIN sí; el cierre y el fondo, con internet.
-    sinInternet: ([a]) => a.tipo === "egreso",
+    // Todo con internet: el egreso saca plata y el PIN viaja en claro en el estado (Challenger, 18/10); el cierre y el
+    // fondo, también.
+    sinInternet: () => false,
   }),
   alta: entrada<[datos: DatosAlta]>({
     correr: (e, [d], ahora) => reservar(e, d, ahora),
