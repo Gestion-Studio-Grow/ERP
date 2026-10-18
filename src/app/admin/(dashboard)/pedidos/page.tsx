@@ -44,7 +44,7 @@ import TableroPedidos from "./TableroPedidos";
 import AvisoDePedidosNuevos from "./AvisoDePedidosNuevos";
 import { armarTablero, leerAvisados } from "./tablero.server";
 import { LineaDeEstado, Plata } from "@/components/ui";
-import { lineaDelTablero } from "./pedidos-core";
+import { lineaDelTablero, textoDeLaTiendaEsperando } from "./pedidos-core";
 
 export const dynamic = "force-dynamic";
 
@@ -189,7 +189,9 @@ export default async function PedidosPage() {
       alcance,
     });
     const verPlata = roleHasCapability(user.role, "reports:read");
-    const linea = lineaDelTablero(tablero.abiertos, verPlata);
+    // El reloj sólo en comercio: los de la tienda esperando y los listos sin retirar (CH no tiene
+    // tienda ni retiros, y su línea queda como estaba).
+    const linea = lineaDelTablero(tablero.abiertos, verPlata, comercio ? { ahora: new Date(), hoy } : undefined);
     const puedeTomar = modeloNuevo && roleHasCapability(user.role, "orders:manage");
     return (
       <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
@@ -201,8 +203,18 @@ export default async function PedidosPage() {
             <LineaDeEstado
               datos={[
                 <strong key="a">{linea.abiertos === 1 ? "1 abierto" : `${linea.abiertos} abiertos`}</strong>,
+                linea.tienda ? (
+                  <span key="t" className={linea.tienda.alerta ? "font-medium text-danger" : undefined}>
+                    {textoDeLaTiendaEsperando(linea.tienda)}
+                  </span>
+                ) : null,
                 linea.paraHoy > 0 ? `${linea.paraHoy} para entregar hoy` : null,
                 linea.sinAvisar > 0 ? `${linea.sinAvisar} ${linea.sinAvisar === 1 ? "listo" : "listos"} sin avisar` : null,
+                linea.listosDeAyer > 0 ? (
+                  <span key="r" className="text-warning">
+                    {linea.listosDeAyer === 1 ? "1 listo desde ayer sin retirar" : `${linea.listosDeAyer} listos desde ayer sin retirar`}
+                  </span>
+                ) : null,
                 linea.porCobrar ? (
                   <span key="p">
                     <Plata valor={linea.porCobrar} sinCentavos /> por cobrar
@@ -258,6 +270,25 @@ export default async function PedidosPage() {
       </main>
     );
   }
+
+  // La bandeja de siempre también dice cuántos de la tienda esperan y cuántos listos no se
+  // retiraron (sólo comercio), con la misma cuenta que el tablero nuevo.
+  const lineaVieja = comercio
+    ? lineaDelTablero(
+        abiertos.map((o) => ({
+          status: o.status,
+          cobrado: o.paid,
+          horario: null,
+          total: o.total,
+          avisoWa: null,
+          avisado: null,
+          canal: o.channel === "ONLINE" ? ("ONLINE" as const) : ("COUNTER" as const),
+          creado: o.createdAt.toISOString(),
+        })),
+        false,
+        { ahora: new Date(), hoy },
+      )
+    : null;
 
   return (
     <main className={modeloNuevo ? "mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8" : "mx-auto max-w-4xl px-6 py-8"}>
@@ -326,6 +357,24 @@ export default async function PedidosPage() {
       <h2 className="text-lg font-medium mt-10 mb-3">
         Bandeja de pedidos{abiertos.length > 0 && ` (${abiertos.length} abierto${abiertos.length !== 1 ? "s" : ""})`}
       </h2>
+
+      {lineaVieja && (lineaVieja.tienda || lineaVieja.listosDeAyer > 0) && (
+        <LineaDeEstado
+          className="-mt-2 mb-3"
+          datos={[
+            lineaVieja.tienda ? (
+              <span key="t" className={lineaVieja.tienda.alerta ? "font-medium text-danger" : undefined}>
+                {textoDeLaTiendaEsperando(lineaVieja.tienda)}
+              </span>
+            ) : null,
+            lineaVieja.listosDeAyer > 0 ? (
+              <span key="r" className="text-warning">
+                {lineaVieja.listosDeAyer === 1 ? "1 listo desde ayer sin retirar" : `${lineaVieja.listosDeAyer} listos desde ayer sin retirar`}
+              </span>
+            ) : null,
+          ]}
+        />
+      )}
 
       <div className="space-y-3">
         {abiertos.map((o) => {

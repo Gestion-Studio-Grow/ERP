@@ -17,6 +17,7 @@
 // PURO: lo usan el tablero (cliente), la página (servidor) y pedidos-core.test.ts.
 
 import type { TipoMarca } from "@/components/ui/Marca";
+import { dateStrInBusinessTz } from "@/lib/datetime";
 
 /** Lo que el tablero sabe de un pedido abierto. Serializable (viaja del servidor al cliente). */
 export type PedidoDelTablero = {
@@ -329,22 +330,100 @@ const PARTICIPIO: Record<string, readonly [string, string]> = {
 // ── La línea de estado ────────────────────────────────────────────────────────
 
 /**
+ * Pasados estos minutos, el pedido de la tienda que nadie tocó se pinta en tono de alerta.
+ * PROVISIONAL A CONFIRMAR con Magra (EVENTUALIDADES.md, caso 1): es cuánto aguanta una clienta
+ * sin respuesta un sábado a la mañana, y eso lo sabe el local.
+ */
+export const ESPERA_DE_LA_TIENDA_MIN = 15;
+
+/** El reloj de la línea de estado, inyectado (el test fija la hora). `hoy`: AAAA-MM-DD del negocio. */
+export type RelojDelTablero = { ahora: Date; hoy: string };
+
+/**
+ * Los pedidos de la tienda que nadie miró todavía: ONLINE y en PENDING (todavía no se empezaron a
+ * preparar), cuántos son y hace cuántos minutos espera el más viejo. PURA. Antes la línea contaba
+ * abiertos, y un pedido web podía estar media hora sin que nadie lo viera (caso 1).
+ */
+export function pedidosDeLaTiendaEsperando(
+  pedidos: readonly Pick<PedidoDelTablero, "canal" | "status" | "creado">[],
+  ahora: Date,
+): { esperando: number; minutos: number; alerta: boolean } | null {
+  let esperando = 0;
+  let masViejo = Infinity;
+  for (const p of pedidos) {
+    if (p.canal !== "ONLINE" || p.status !== "PENDING") continue;
+    esperando += 1;
+    const t = Date.parse(p.creado);
+    if (Number.isFinite(t)) masViejo = Math.min(masViejo, t);
+  }
+  if (esperando === 0) return null;
+  const minutos = Number.isFinite(masViejo) ? Math.max(0, Math.floor((ahora.getTime() - masViejo) / 60_000)) : 0;
+  return { esperando, minutos, alerta: minutos >= ESPERA_DE_LA_TIENDA_MIN };
+}
+
+/** «3 de la tienda esperando · el más viejo hace 25 min»; uno solo: «1 de la tienda esperando · hace 25 min». */
+export function textoDeLaTiendaEsperando(t: { esperando: number; minutos: number }): string {
+  const hace = t.minutos < 1 ? "hace menos de 1 min" : `hace ${duracionCorta(t.minutos)}`;
+  return `${t.esperando} de la tienda esperando · ${t.esperando === 1 ? hace : `el más viejo ${hace}`}`;
+}
+
+/** 25 → "25 min"; 95 → "1 h 35 min"; 120 → "2 h". */
+function duracionCorta(minutos: number): string {
+  if (minutos < 60) return `${minutos} min`;
+  const h = Math.floor(minutos / 60);
+  const m = minutos % 60;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
+/**
+ * ¿Está listo desde un día anterior? PURA. Un pedido Listo que se tomó antes de hoy es una clienta
+ * que no vino a retirar (caso 4): la carne sigue reservada y nadie la reclama. Se mide por el día
+ * en que se TOMÓ (no hay registro de a qué hora quedó listo), en la zona del negocio.
+ */
+export function listoDesdeAyer(p: Pick<PedidoDelTablero, "status" | "creado">, hoy: string): boolean {
+  if (p.status !== "READY") return false;
+  const t = Date.parse(p.creado);
+  return Number.isFinite(t) && dateStrInBusinessTz(new Date(t)) < hoy;
+}
+
+/**
  * La frase del estado del tablero, dato por dato: «11 abiertos · 3 para entregar hoy · 2 listos sin
  * avisar · $644.437 por cobrar». La plata sólo para quien ve los números del negocio.
+ *
+ * Con el reloj (sólo comercio: CH no tiene tienda ni retiros), suma lo que se pierde de vista:
+ * cuántos de la tienda esperan sin que nadie los toque (`tienda`) y cuántos listos siguen sin
+ * retirar desde un día anterior (`listosDeAyer`). Sin reloj, los dos quedan vacíos.
  */
 export function lineaDelTablero(
-  pedidos: readonly Pick<PedidoDelTablero, "status" | "cobrado" | "horario" | "total" | "avisoWa" | "avisado">[],
+  pedidos: readonly Pick<PedidoDelTablero, "status" | "cobrado" | "horario" | "total" | "avisoWa" | "avisado" | "canal" | "creado">[],
   verPlata: boolean,
-): { abiertos: number; paraHoy: number; sinAvisar: number; porCobrar: number | null } {
+  reloj?: RelojDelTablero,
+): {
+  abiertos: number;
+  paraHoy: number;
+  sinAvisar: number;
+  porCobrar: number | null;
+  tienda: { esperando: number; minutos: number; alerta: boolean } | null;
+  listosDeAyer: number;
+} {
   let paraHoy = 0;
   let sinAvisar = 0;
   let porCobrar = 0;
+  let listosDeAyer = 0;
   for (const p of pedidos) {
     if (p.horario?.esHoy && p.status !== "DELIVERED") paraHoy += 1;
     if (p.status === "READY" && p.avisoWa && !p.avisado) sinAvisar += 1;
     if (!p.cobrado) porCobrar += p.total;
+    if (reloj && listoDesdeAyer(p, reloj.hoy)) listosDeAyer += 1;
   }
-  return { abiertos: pedidos.length, paraHoy, sinAvisar, porCobrar: verPlata ? Math.round(porCobrar * 100) / 100 : null };
+  return {
+    abiertos: pedidos.length,
+    paraHoy,
+    sinAvisar,
+    porCobrar: verPlata ? Math.round(porCobrar * 100) / 100 : null,
+    tienda: reloj ? pedidosDeLaTiendaEsperando(pedidos, reloj.ahora) : null,
+    listosDeAyer,
+  };
 }
 
 /** "11:40" si es de hoy; "ayer"; si no, "lun 21/09". `hoy` y `ayer` son claves AAAA-MM-DD. */
