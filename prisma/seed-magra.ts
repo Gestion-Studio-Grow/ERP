@@ -29,6 +29,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword } from "../src/lib/auth-password";
 import { defaultModulesForBlueprint } from "../src/blueprints/presets-meta";
+import { baseLocalParaSeed } from "../src/lib/seed/guarda-base";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL, max: Number(process.env.SEED_DB_MAX ?? 0) || undefined });
 const prisma = new PrismaClient({ adapter });
@@ -83,6 +84,14 @@ async function main() {
     throw new Error(
       "seed-magra: DATABASE_URL no tiene marcador de entorno dev/qa/preview. Apuntá a la Neon dev branch de QA (no a una base sin sello). Abortado por seguridad.",
     );
+  }
+
+  // `MAGRA_SLUG` siembra el slug REAL (`magra`), que en Neon es el negocio del cliente: borrarle los
+  // datos sería irreversible. Sólo se acepta contra un Postgres de esta máquina, mirando el host de
+  // la URL (no la URL entera: una contraseña con "qa" o "dev" adentro pasaba la baranda de arriba).
+  const local = baseLocalParaSeed(url);
+  if (process.env.MAGRA_SLUG?.trim() && !local.ok) {
+    throw new Error(`seed-magra: MAGRA_SLUG sólo contra una base LOCAL (el recorrido E2E). ${local.motivo} Abortado.`);
   }
 
   // 1) Tenant (upsert por slug) + perfil + módulos por rubro + subdomain.

@@ -381,6 +381,9 @@ export interface PasoParaArrancar {
  * Sale sólo si la persona ve Pedidos (el negocio recibe pedidos) y Datos del negocio (donde se
  * carga); `null` = no se pudo leer → el paso no sale.
  */
+
+/** Cuántos productos con precio pide la lista del primer día. */
+export const PRODUCTOS_PARA_ARRANCAR = 5;
 /**
  * Lo que mira la lista del primer día de un negocio que VENDE (tiene la app Vender, módulo pos).
  * Lo lee `primerDiaDelMostrador` (facturacion-lista.server.ts); `null` = no se pudo leer.
@@ -397,8 +400,6 @@ export interface PrimerDiaDelMostrador {
   hayFactura: boolean;
 }
 
-/** Cuántos productos con precio pide la lista del primer día. */
-export const PRODUCTOS_PARA_ARRANCAR = 5;
 /** Tope de pasos de «Para arrancar»: más que eso ya no es una lista del primer día. */
 export const TOPE_PASOS_PARA_ARRANCAR = 6;
 

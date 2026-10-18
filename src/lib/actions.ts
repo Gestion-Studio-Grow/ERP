@@ -2164,11 +2164,11 @@ export async function getRetailDashboardData() {
       select: { total: true },
     }),
     prisma.product.findMany({
-      where: { active: true, deletedAt: null, trackStock: true },
+      where: { tenantId, active: true, deletedAt: null, trackStock: true },
       select: { id: true, name: true, unit: true, stock: true, lowStockAt: true },
     }),
-    prisma.client.count(),
-    prisma.cashSession.findFirst({ where: { status: "OPEN" }, select: { id: true } }),
+    prisma.client.count({ where: { tenantId } }),
+    prisma.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } }),
   ]);
 
   const lowStock = products

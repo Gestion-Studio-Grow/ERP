@@ -36,6 +36,20 @@ decir por qué). Casi todos se arreglan sin tocar la base.
 
 ---
 
+## Estado después de esta rama (`claude/magra-nivel-bp`, 18/10/2026)
+
+La columna «Hoy» de la matriz es la foto de **antes** del frente. Quedó hecho en la rama, sin migración y con test:
+
+| Caso | Qué quedó hecho | Lo que falta |
+|---|---|---|
+| 1 · Pedido web que nadie vio | La bandeja dice «N de la tienda esperando · el más viejo hace X min», en alerta pasados 15 min (`pedidos-core.ts`, `pedidos/page.tsx`). | El contador en Vender y un aviso fuera del panel (mail: necesita `RESEND_API_KEY`, decisión del dueño). |
+| 2 · Peso real distinto | «Pesar y ajustar» avisa, sin frenar, cuando el peso se aparta más de ±15 % de lo pedido (`pos-peso.ts`, `AjustarPedidoForm.tsx`). | La cantidad original no se guarda aparte: si ya se pesó una vez, se compara contra esa pesada. |
+| 4 · Clienta que no retira | La bandeja cuenta «listos desde ayer sin retirar» y ofrece el recordatorio por WhatsApp 1 a 1 (`order-anulacion.ts`, `PedidoCajon.tsx`). | El estado «No retiró» (migración) y el motivo sugerido al anular. |
+| 6 · Caja que no cuadra | Cerrar el turno con diferencia pide la nota, como el cierre del día (`caja-actions.ts`); el cierre del día ya no pinta la apertura como ingreso (D2 del UAT). | El bloque «antes de cerrar, mirá» con las causas típicas. |
+| 7 · Precio viejo | La tienda avisa en la línea si el precio cambió mientras la clienta armaba la bolsa, sin perder la bolsa (`reglas-tienda.ts`, `MagraFront.tsx`). | El aviso de total mayor en el mostrador (Vender). |
+| 8 · Doble pedido | La fila marca «Tiene otro pedido abierto (#N)» por teléfono (`pedidos-core.ts`). | Juntar los dos pedidos en uno (decisión del dueño). |
+| 3, 5, 9, 10 | Sin cambios en esta rama. | Ver fichas. |
+
 ## 1. Matriz de eventualidades
 
 Leyenda — **Hoy:** ✔ resuelto · ◐ a medias · ✘ no lo cubre. **Mig.:** ¿el arreglo necesita migración (Gate 2)?

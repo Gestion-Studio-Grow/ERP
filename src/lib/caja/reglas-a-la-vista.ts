@@ -24,7 +24,7 @@ export const REGLAS_A_LA_VISTA: Readonly<Record<PantallaConRegla, string>> = {
   vender: "Con el día de caja cerrado, una venta cobrada no entra: se registra sin cobrar y se marca cobrada cuando la caja vuelve a abrir.",
   caja: "El arqueo del turno cuenta sólo el efectivo: lo cobrado por Mercado Pago o transferencia va al libro, no al cajón.",
   cierre: "Un día cerrado no se toca: sus ventas ya no se anulan y una devolución va como egreso con la fecha de hoy.",
-  ventas: "Una venta con factura autorizada no se anula acá: primero va la nota de crédito, que hoy emite tu contador.",
+  ventas: "Una venta con factura autorizada no se anula acá: primero va la nota de crédito, que el sistema todavía no emite.",
 };
 
 /** La frase de la pantalla, sólo en un negocio de mostrador; `null` en el resto (CH). */
