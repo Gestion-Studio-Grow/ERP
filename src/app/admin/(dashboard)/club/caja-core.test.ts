@@ -203,7 +203,7 @@ test("fondo de caja: sólo quien puede configurar (un dueño), 0 o más; sin PIN
 
 test("los PIN de ejemplo de la demo, rotulados por nombre", () => {
   const { e } = demo();
-  assert.equal(pinesDeEjemplo(e), "Rober 11 · Majo 22 · Lu 33 · Caro 44");
+  assert.equal(pinesDeEjemplo(e), "Rober 1111 · Majo 2222 · Lu 33 · Caro 44");
 });
 
 test("movimientos completos: hora, concepto, quién, medio; los de la mañana con su fecha; paginados de a 40", (t) => {

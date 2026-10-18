@@ -22,12 +22,12 @@ para clientes de Configuración ya lleva todo y se puede mandar igual.
 1. Abrí **https://breakpointpadel.gsgapp.com.ar/club** en Chrome (no incógnito). Esa compu queda en «jornada
    real». (Si esa compu ya había entrado con `?modo=real`, sigue con lo que tiene: no se pierde nada.)
 2. Aparece la **consola de configuración**:
-   - **Los dueños arman su PIN.** Roberto y Majo eligen cada uno 2 números que sólo sepa él o ella y los repiten.
-     No pueden ser iguales.
+   - **Los dueños arman su PIN.** Roberto y Majo eligen cada uno **4 números** que sólo sepa él o ella y los
+     repiten. No pueden ser iguales.
    - **Avisos por WhatsApp** (opcional): el celular de cada dueño (ahí llegan los pedidos de crédito), el WhatsApp
      del club y el alias para la seña.
-   - **Recepción** (opcional, también se hace después): nombre de cada persona → el sistema le da un PIN, que se ve
-     **una sola vez**. Anotalo y dáselo.
+   - **Recepción** (opcional, también se hace después): nombre de cada persona → el sistema le da un PIN de **2
+     números**, que se ve **una sola vez**. Anotalo y dáselo.
    - **Precios y caja:** el precio por hora (valle y pico) y el **fondo de caja** (el cambio que hay en el cajón).
    - **Abrir el club.** Queda bloqueado: entra el dueño con su PIN.
 3. **Antes del primer turno**, un dueño:
@@ -96,8 +96,13 @@ para clientes de Configuración ya lleva todo y se puede mandar igual.
 - **El turnero de los clientes no reserva solo**: pide por WhatsApp y el club confirma. La reserva automática
   desde cualquier celular, la sincronía entre compus y la aprobación de crédito sin código son el siguiente paso,
   con servidor, después de la venta.
-- **Los PIN son de 2 dígitos.** El código de aprobación vale lo que vale el PIN del dueño: no se presta. Cinco PIN
-  mal en la pantalla bloqueada hacen esperar (30 s, después 2 min, después 10 min), aunque se recargue.
+- **Los PIN son de 4 dígitos para los dueños y de 2 para recepción** (decisión del dueño, 18/10/2026). El código
+  de aprobación vale lo que vale el PIN del dueño: no se presta. Cinco PIN mal en la pantalla bloqueada hacen
+  esperar (30 s, después 2 min, después 10 min), aunque se recargue.
+- **Si un dueño todavía tiene el PIN viejo de 2** (los del piloto), entra igual: lo pone y toca «Desbloquear» (no
+  se prueba solo porque el campo espera 4). En ese momento la pantalla le pide **elegir uno nuevo de 4** y
+  repetirlo; recién ahí entra. No se pierde nada de lo cargado y el viejo deja de andar. Desde el celular, para
+  aprobar un fiado, el viejo de 2 sigue sirviendo hasta que lo cambie en la compu.
 - **Desde la demo no se borra la jornada real.** Si alguien vuelve a la demo, sólo puede «Seguir la jornada real
   guardada», y para entrar pide el PIN real. Empezar otra jornada se hace desde adentro, con PIN de dueño. La
   anterior queda apartada en la compu y se descarga un respaldo solo.

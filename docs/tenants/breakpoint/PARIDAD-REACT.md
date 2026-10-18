@@ -33,8 +33,11 @@ diarias chicas pero críticas.
 | Transversal | Paleta Ctrl+K y atajos | 🟢 | club | — no está en el guion del sábado (sólo la L de bloquear: ✅) |
 | UAT | Guion del sábado de torneo adaptado a `/admin/club` | requisito del corte | club | ✅ escrito: `npm run test:club-paridad` → **123/131**, 8 brechas, 0 otras fallas, 0 errores de consola |
 
-No se portan (decisión a confirmar con el dueño): las cámaras simuladas, los 5 estilos visuales (el panel usa el
-tema del ERP) y el Studio de redes (queda en vanilla por ahora).
+No se portan: los 5 estilos visuales (el panel usa el tema del ERP). **Studio de redes y cámaras simuladas**
+(decisión del dueño, 18/10: «se quedan en el sistema de hoy pero se hace también en React»): el Studio va en
+Novedades y redes (desde la novedad que se arma y desde el calendario; `studio-de-redes.tsx` en su propio chunk,
+lo puro en `studio-core.ts`, el dibujo en `studio-placa.ts`); las cámaras van en el Tablero del dueño SÓLO en la
+demo, como el vanilla (`camaras-de-la-demo.tsx`, `camaras-core.ts`). Prueba en el navegador: `studio-pantalla.test.ts`.
 
 ## Lo que cambia por estar dentro del ERP
 
@@ -68,15 +71,19 @@ Total 18–24 días de trabajo; con dos sesiones en paralelo (terminales + club)
 
 ## Decisiones del dueño
 
-| # | Decisión |
-|---|---|
-| G1 | Fecha del día de corte y OK a asignar el módulo al club (publicación) |
-| G2 | Guardar los datos de Break Point en la base del ERP (Neon) es inversión post-venta: ¿se considera venta concretada? Si no, el corte se hace con guardado local y la base se enciende después |
-| G3 | PIN de 2 dígitos (como hoy, recomendado para el corte) o 4 (después) |
-| G4 | La aprobación desde el celular del dueño sigue por el link de vanilla durante el corte |
-| G5 | El panel usa el tema del ERP, no los 5 estilos del vanilla |
-| G6 | Studio de redes y cámaras quedan en vanilla / no se portan |
-| G7 | Usuarios del ERP para el club (mail y clave; las claves las pega el dueño) |
+| # | Decisión | Respuesta del dueño (18/10/2026) |
+|---|---|---|
+| G1 | Fecha del día de corte y OK a asignar el módulo al club (publicación) | **Fecha: «se cargará cuando se cargue y esté todo probado».** OK explícito a **asignar el módulo `club` a Break Point** (pendiente de ejecutar: este entorno no tiene acceso a la base; ver abajo) |
+| G2 | Guardar los datos de Break Point en la base del ERP (Neon) | **OK: «enciende la base para break»** — se considera habilitada la inversión. Se ejecuta junto con G1 |
+| G3 | Largo del PIN | **4 dígitos para los dueños, 2 para los empleados.** Los PIN de 2 de los dueños del piloto siguen entrando y se les pide el nuevo de 4 |
+| G4 | Aprobación desde el celular del dueño | **Link del sistema de hoy (vanilla, sin login) hasta el go-live** |
+| G5 | Aspecto del panel | **Personalizado a nivel cliente: opcional y se cobra; si no, va el tema por defecto del ERP** |
+| G6 | Studio de redes y cámaras simuladas | **Se quedan en vanilla y se hacen también en React** — ✅ hecho (18/10): Studio en «Novedades y redes», cámaras en el Tablero sólo en la demo |
+| G7 | Usuarios del ERP para el club | **Se otorgan después de la prueba piloto** (las claves las pega el dueño) |
+| G8 | Lo delicado (archivar, restaurar, empezar en blanco, limpieza) | **Estricto: puesto de dueño (login OWNER del ERP) + PIN de dueño**, y la pantalla lo avisa de entrada, no al tocar |
+| G9 | Modo sin internet en el mostrador | **Construirlo**: se opera sobre la copia local y se sincroniza al volver la conexión |
+| G10 | Back separado del front | **Decidido por el dueño («mejor performance»)**; pasa por Advisory + Challenger (ADR-045) para definir cómo, con qué y en qué orden |
+| G11 | Riesgo de los ~5 MB del navegador en el sistema de hoy | **Aceptado** («está ok»); el archivado de días cerrados ya está listo y aprobado por el Gate |
 
 ## UAT de paridad — resultado (17/10)
 

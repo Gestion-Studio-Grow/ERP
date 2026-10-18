@@ -10,10 +10,10 @@
 
 import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { usuario as usuarioDe } from "@/lib/club/motor.mjs";
+import { LARGO_PIN, largoPin, usuario as usuarioDe } from "@/lib/club/motor.mjs";
 import type { EstadoClub, Rol } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
-import { Campo, CampoPin, Opciones } from "./formulario-del-club";
+import { Campo, CampoPin, CampoPinNuevo, Opciones } from "./formulario-del-club";
 import { armarUsuarios, type DesenlaceConfig, type FilaUsuario } from "./configuracion-core";
 import { PinDeUnaVez, Seccion, subtarjeta, useHacerConfig } from "./config-piezas";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
@@ -24,11 +24,6 @@ const ROLES_ALTA: readonly { valor: Rol; etiqueta: string }[] = [
 ];
 
 type Abierta = { tipo: "pinNuevo" | "sacar"; usuarioId: string } | null;
-
-/** Un PIN de 2 números que no se ve ni se autocompleta (para el PIN inicial y el nuevo). */
-function CampoPinNuevo({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return <Campo label={label} type="password" inputMode="numeric" maxLength={2} value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))} className="sm:w-28" />;
-}
 
 function PinInicial({ id, nombre, hacer }: { id: string; nombre: string; hacer: ReturnType<typeof useHacerConfig> }) {
   const [pin, setPin] = useState("");
@@ -45,8 +40,8 @@ function PinInicial({ id, nombre, hacer }: { id: string; nombre: string; hacer: 
       }}
     >
       <p className="font-semibold text-strong sm:w-40 sm:self-center">{nombre}</p>
-      <CampoPinNuevo label="PIN (2 números)" value={pin} onChange={setPin} />
-      <CampoPinNuevo label="Repetilo" value={repetido} onChange={setRepetido} />
+      <CampoPinNuevo label={`PIN (${LARGO_PIN.duenio} números)`} largo={LARGO_PIN.duenio} value={pin} onChange={setPin} />
+      <CampoPinNuevo label="Repetilo" largo={LARGO_PIN.duenio} value={repetido} onChange={setRepetido} />
       <Button type="submit" variant="solid" size="md">
         Guardar PIN
       </Button>
@@ -54,7 +49,7 @@ function PinInicial({ id, nombre, hacer }: { id: string; nombre: string; hacer: 
   );
 }
 
-function FilaDeUsuario({ f, abierta, onAbrir, onCerrar, quien, hacer, onPin }: { f: FilaUsuario; abierta: Abierta; onAbrir: (a: Abierta) => void; onCerrar: () => void; quien: string | null; hacer: ReturnType<typeof useHacerConfig>; onPin: (d: DesenlaceConfig) => void }) {
+function FilaDeUsuario({ f, abierta, onAbrir, onCerrar, quien, rol, hacer, onPin }: { f: FilaUsuario; abierta: Abierta; onAbrir: (a: Abierta) => void; onCerrar: () => void; quien: string | null; rol: Rol | null; hacer: ReturnType<typeof useHacerConfig>; onPin: (d: DesenlaceConfig) => void }) {
   const [pin, setPin] = useState("");
   const accion = abierta?.usuarioId === f.id ? abierta.tipo : null;
   return (
@@ -94,7 +89,7 @@ function FilaDeUsuario({ f, abierta, onAbrir, onCerrar, quien, hacer, onPin }: {
           }}
         >
           <p className="text-sm text-strong sm:max-w-56">{accion === "pinNuevo" ? `Se le arma un PIN nuevo a ${f.nombre}; el de ahora deja de andar.` : `${f.nombre} no va a poder entrar más.`}</p>
-          <CampoPin quien={quien} value={pin} onChange={setPin} />
+          <CampoPin quien={quien} rol={rol} value={pin} onChange={setPin} />
           <Button type="submit" variant={accion === "sacar" ? "danger" : "solid"} size="md">
             {accion === "pinNuevo" ? "Armar PIN nuevo" : "Sacar acceso"}
           </Button>
@@ -107,7 +102,7 @@ function FilaDeUsuario({ f, abierta, onAbrir, onCerrar, quien, hacer, onPin }: {
   );
 }
 
-function AltaDeUsuario({ quien, hacer, onPin }: { quien: string | null; hacer: ReturnType<typeof useHacerConfig>; onPin: (d: DesenlaceConfig) => void }) {
+function AltaDeUsuario({ quien, rol: rolDeQuien, hacer, onPin }: { quien: string | null; rol: Rol | null; hacer: ReturnType<typeof useHacerConfig>; onPin: (d: DesenlaceConfig) => void }) {
   const [nombre, setNombre] = useState("");
   const [rol, setRol] = useState<Rol>("recepcion");
   const [pin, setPin] = useState("");
@@ -130,8 +125,10 @@ function AltaDeUsuario({ quien, hacer, onPin }: { quien: string | null; hacer: R
       </h3>
       <Campo label="Nombre" placeholder="Ej.: Lu (tarde)" maxLength={40} value={nombre} onChange={(e) => setNombre(e.target.value)} />
       <Opciones leyenda="Qué puede hacer" opciones={ROLES_ALTA} valor={rol} onElegir={setRol} />
-      <CampoPin quien={quien} value={pin} onChange={setPin} />
-      <p className="text-sm text-body">El sistema le arma un PIN de 2 números que se ve una sola vez: anotalo y dáselo.</p>
+      <CampoPin quien={quien} rol={rolDeQuien} value={pin} onChange={setPin} />
+      <p className="text-sm text-body">
+        El sistema le arma un PIN de {largoPin(rol)} números ({rol === "duenio" ? "dueño/a" : "recepción"}) que se ve una sola vez: anotalo y dáselo.
+      </p>
       <Button type="submit" variant="solid" size="md" className="self-start max-sm:h-auto max-sm:min-h-11 max-sm:w-full max-sm:py-2 max-sm:whitespace-normal">
         Dar de alta
       </Button>
@@ -139,7 +136,8 @@ function AltaDeUsuario({ quien, hacer, onPin }: { quien: string | null; hacer: R
   );
 }
 
-function CambiarMiPin({ almacen, hacer }: { almacen: Almacen; hacer: ReturnType<typeof useHacerConfig> }) {
+function CambiarMiPin({ almacen, rol, hacer }: { almacen: Almacen; rol: Rol; hacer: ReturnType<typeof useHacerConfig> }) {
+  const largo = largoPin(rol);
   const [actual, setActual] = useState("");
   const [nuevo, setNuevo] = useState("");
   const [repetido, setRepetido] = useState("");
@@ -162,9 +160,10 @@ function CambiarMiPin({ almacen, hacer }: { almacen: Almacen; hacer: ReturnType<
         Cambiar mi PIN
       </h3>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <CampoPinNuevo label="Tu PIN actual" value={actual} onChange={setActual} />
-        <CampoPinNuevo label="PIN nuevo" value={nuevo} onChange={setNuevo} />
-        <CampoPinNuevo label="Repetí el nuevo" value={repetido} onChange={setRepetido} />
+        {/* El actual entra como esté guardado (un dueño con el viejo de 2 también: es más corto); el nuevo, del largo del rol. */}
+        <CampoPinNuevo label="Tu PIN actual" largo={largo} value={actual} onChange={setActual} />
+        <CampoPinNuevo label={`PIN nuevo (${largo} números)`} largo={largo} value={nuevo} onChange={setNuevo} />
+        <CampoPinNuevo label="Repetí el nuevo" largo={largo} value={repetido} onChange={setRepetido} />
       </div>
       <Button type="submit" variant="outline" size="md" className="self-start max-sm:h-auto max-sm:min-h-11 max-sm:w-full max-sm:py-2 max-sm:whitespace-normal">
         Cambiar mi PIN
@@ -177,6 +176,7 @@ export function UsuariosDelClub({ almacen, irASolapa }: { almacen: Almacen; irAS
   const operador = useOperador(almacen);
   const opId = operador?.usuario.id ?? null;
   const quien = operador ? operador.usuario.nombre.split(" ")[0] : null;
+  const rolDeQuien = operador?.usuario.rol ?? null;
   const seleccionar = useCallback((e: EstadoClub) => armarUsuarios(e, opId), [opId]);
   const v = useSeleccion(almacen, seleccionar, porFirma);
   const hacer = useHacerConfig(almacen);
@@ -194,7 +194,7 @@ export function UsuariosDelClub({ almacen, irASolapa }: { almacen: Almacen; irAS
   };
 
   return (
-    <Seccion id="club-config-usuarios" titulo="Usuarios y accesos" bajada="El acceso es con PIN de 2 números. Lo que da o saca acceso vuelve a pedir tu PIN.">
+    <Seccion id="club-config-usuarios" titulo="Usuarios y accesos" bajada={`El acceso es con PIN: ${LARGO_PIN.duenio} números los dueños, ${LARGO_PIN.recepcion} recepción. Lo que da o saca acceso vuelve a pedir tu PIN.`}>
       {pinNuevo && (
         <PinDeUnaVez
           acceso={pinNuevo}
@@ -207,7 +207,7 @@ export function UsuariosDelClub({ almacen, irASolapa }: { almacen: Almacen; irAS
       {v.duenosSinPin.length > 0 && (
         <div className="flex flex-col gap-3 rounded-md border border-warning/40 bg-warning-soft p-3">
           <h3 className="font-semibold text-strong">Los dueños arman su PIN</h3>
-          <p className="text-sm text-strong">2 números que sólo sepa cada uno (no pueden ser iguales). Con ese PIN se entra, se desbloquea la pantalla y se autorizan créditos y accesos.</p>
+          <p className="text-sm text-strong">{LARGO_PIN.duenio} números que sólo sepa cada uno (no pueden ser iguales). Con ese PIN se entra, se desbloquea la pantalla y se autorizan créditos y accesos.</p>
           {v.duenosSinPin.map((d) => (
             <PinInicial key={d.id} id={d.id} nombre={d.nombre} hacer={hacer} />
           ))}
@@ -226,11 +226,11 @@ export function UsuariosDelClub({ almacen, irASolapa }: { almacen: Almacen; irAS
       {!operador && <p className="text-sm font-semibold text-strong">Para dar de alta, armar PIN o sacar accesos, entrá con tu PIN.</p>}
       <ul id={listaId} tabIndex={-1} aria-label="Usuarios con acceso" className="flex flex-col focus-visible:outline-2 focus-visible:outline-focus">
         {v.filas.map((f) => (
-          <FilaDeUsuario key={f.id} f={f} abierta={abierta} onAbrir={setAbierta} onCerrar={() => setAbierta(null)} quien={quien} hacer={hacer} onPin={alPin} />
+          <FilaDeUsuario key={f.id} f={f} abierta={abierta} onAbrir={setAbierta} onCerrar={() => setAbierta(null)} quien={quien} rol={rolDeQuien} hacer={hacer} onPin={alPin} />
         ))}
       </ul>
-      <AltaDeUsuario quien={quien} hacer={hacer} onPin={alPin} />
-      {operador && <CambiarMiPin almacen={almacen} hacer={hacer} />}
+      <AltaDeUsuario quien={quien} rol={rolDeQuien} hacer={hacer} onPin={alPin} />
+      {operador && <CambiarMiPin almacen={almacen} rol={operador.usuario.rol} hacer={hacer} />}
     </Seccion>
   );
 }

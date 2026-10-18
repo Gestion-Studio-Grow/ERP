@@ -173,6 +173,30 @@ test("mandar el código: el texto del motor al WhatsApp del club (en la demo, si
   ejecutarConfiguracion(e, { tipo: "avisos", celulares: {}, club: "11 5555-0000", alias: "" }, AHORA, duenio);
   assert.match(enlaceDelCodigo(e, datos, "ABC-DEF", 40000, "real").href, /^https:\/\/wa\.me\/5491155550000\?text=/);
   assert.equal(enlaceDelCodigo(null, datos, "ABC-DEF", 40000, "real").directo, false, "sin estado, para elegir el chat");
-  assert.match(pinesDeEjemplo(e, "demo")!, /^\S.* \d{2}( · .* \d{2})*$/);
+  assert.match(pinesDeEjemplo(e, "demo")!, /^\S.* \d{4}( · .* \d{4})*$/, "los dueños de la demo, con su PIN de 4");
   assert.equal(pinesDeEjemplo(e, "real"), null, "en el real, nunca");
+});
+
+test("PIN de dueño de 4 en el celular: también acepta el viejo de 2 (y lo avisa); lo demás no gasta un intento", () => {
+  const { e, recep, novedad, datos } = conPedido();
+  const rober = duenosQueAprueban(e)[0];
+  const de = (pin: string, estado: typeof e | null = e) =>
+    probarAprobacion({ estado, pedido: datos, duenioId: estado ? rober.id : null, pin, monto: "40000", intentos: SIN_INTENTOS_DEL_BLOQUEO, ahoraMs: 0 });
+  for (const pin of ["1", "123", "12345"]) {
+    for (const estado of [e, null]) {
+      const r = de(pin, estado);
+      assert.equal(r.tipo, "incompleto", `«${pin}» ${estado ? "con" : "sin"} estado`);
+      if (r.tipo === "incompleto") assert.equal(r.mensaje, "Poné los 4 números de tu PIN.");
+    }
+  }
+  const nuevo = de(e.usuarios.find((u) => u.id === rober.id)!.pin);
+  assert.equal(nuevo.tipo === "codigo" && nuevo.pinViejo, false, "con el de 4, sin aviso");
+  // Rober todavía con el del piloto (2): el código sale, lo avisa y la compu del club lo acepta.
+  e.usuarios.find((u) => u.id === rober.id)!.pin = "11";
+  const viejo = de("11");
+  assert.equal(viejo.tipo, "codigo");
+  if (viejo.tipo !== "codigo") return;
+  assert.equal(viejo.pinViejo, true);
+  assert.equal(viejo.aprobo, rober.nombre);
+  assert.equal(ejecutarClientes(e, { tipo: "aprobarCodigo", novedadId: novedad.id, codigo: viejo.codigo, monto: "40000" }, AHORA, recep).ok, true);
 });

@@ -114,7 +114,7 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
 
   const html = () => `<!doctype html><html lang="es"><head><style>${css}</style></head><body class="bg-surface text-body"><main id="root" class="p-4"></main></body></html>`;
 
-  async function abrir(contexto: BrowserContext, errores: string[], reloj: "real" | "demo", rol = "RECEPTION", sembrar = false): Promise<Page> {
+  async function abrir(contexto: BrowserContext, errores: string[], reloj: "real" | "demo", rol = "RECEPTION", sembrar: boolean | ((e: M.EstadoClub) => void) = false): Promise<Page> {
     const p = await contexto.newPage();
     p.on("pageerror", (e) => errores.push(e.message));
     p.on("console", (m) => {
@@ -123,7 +123,9 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await p.goto(ORIGEN);
     if (sembrar) {
       // Una jornada ya cargada en este equipo (la demo del día, con sus usuarios y sus PIN).
-      const guardado = textoDeLaDemo(textoDelEstado(M.generarDemo("2026-10-17")), "2026-10-17", 1);
+      const e = M.generarDemo("2026-10-17");
+      if (typeof sembrar === "function") sembrar(e);
+      const guardado = textoDeLaDemo(textoDelEstado(e), "2026-10-17", 1);
       await p.evaluate(([k, v]) => localStorage.setItem(k, v), [claveDeLaJornada("demo-club"), guardado]);
     }
     await montarEn(p, reloj, rol);
@@ -381,33 +383,38 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
 
     // 1. Cada dueño arma su PIN (repetido, distintos entre sí).
     const rober = consola.getByRole("form", { name: "PIN de Roberto Ronco" });
-    await rober.getByLabel("PIN (2 números)").fill("47");
-    await rober.getByLabel("Repetilo").fill("48");
+    assert.equal(await rober.getByLabel("PIN (4 números)").getAttribute("maxlength"), "4", "el PIN de dueño son 4 números");
+    await rober.getByLabel("PIN (4 números)").fill("47");
+    await rober.getByLabel("Repetilo").fill("47");
+    await rober.getByRole("button", { name: "Guardar el PIN de Roberto" }).click();
+    await alertaDelClub(page, "El PIN de Roberto Ronco son 4 números.");
+    await rober.getByLabel("PIN (4 números)").fill("4747");
+    await rober.getByLabel("Repetilo").fill("4848");
     await rober.getByRole("button", { name: "Guardar el PIN de Roberto" }).click();
     await alertaDelClub(page, "Los dos PIN no coinciden: escribilo igual las dos veces.");
-    await rober.getByLabel("PIN (2 números)").fill("47");
-    await rober.getByLabel("Repetilo").fill("47");
+    await rober.getByLabel("PIN (4 números)").fill("4747");
+    await rober.getByLabel("Repetilo").fill("4747");
     await rober.getByRole("button", { name: "Guardar el PIN de Roberto" }).click();
     await avisoDelClub(page, "PIN de Roberto Ronco guardado. No se lo digas a nadie.");
     await consola.getByText("✔ Roberto Ronco ya armó su PIN.").waitFor();
     const majo = consola.getByRole("form", { name: "PIN de Majo Gimenez" });
-    await majo.getByLabel("PIN (2 números)").fill("47");
-    await majo.getByLabel("Repetilo").fill("47");
+    await majo.getByLabel("PIN (4 números)").fill("4747");
+    await majo.getByLabel("Repetilo").fill("4747");
     await majo.getByRole("button", { name: "Guardar el PIN de Majo" }).click();
     await alertaDelClub(page, "Ese PIN ya lo usa otra persona: elegí otro.");
-    await majo.getByLabel("PIN (2 números)").fill("58");
-    await majo.getByLabel("Repetilo").fill("58");
+    await majo.getByLabel("PIN (4 números)").fill("5858");
+    await majo.getByLabel("Repetilo").fill("5858");
     await majo.getByRole("button", { name: "Guardar el PIN de Majo" }).click();
     await consola.getByText("✔ Majo Gimenez ya armó su PIN.").waitFor();
-    assert.ok(!(await consola.innerText()).match(/\b(47|58)\b/), "nunca se ve un PIN");
+    assert.ok(!(await consola.innerText()).match(/\b(4747|5858)\b/), "nunca se ve un PIN");
     await capturar(page, "arranque-1024-2-pines");
 
     // 2. Entra Rober con su PIN (uno mal cuenta el intento).
     const entrar = consola.getByRole("form", { name: "Entrar como Roberto" });
-    await entrar.getByLabel("PIN de Roberto").fill("12");
+    await entrar.getByLabel("PIN de Roberto").fill("1212");
     await entrar.getByRole("button", { name: "Entrar como Roberto" }).click();
     await alertaDelClub(page, "PIN incorrecto (1 de 5).");
-    await entrar.getByLabel("PIN de Roberto").fill("47");
+    await entrar.getByLabel("PIN de Roberto").fill("4747");
     await entrar.getByRole("button", { name: "Entrar como Roberto" }).click();
     // Ya adentro: las solapas y, en Configuración, lo que falta y «Abrir el club».
     await page.getByRole("tab", { name: "Configuración", selected: true }).waitFor();
@@ -421,7 +428,7 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     // 3. Lo opcional: recepción (el PIN se ve UNA vez), precios y fondo de caja.
     const alta = page.getByRole("form", { name: "Dar de alta a alguien" });
     await alta.getByLabel("Nombre").fill("Lu");
-    await alta.getByLabel("PIN de Roberto").fill("47");
+    await alta.getByLabel("PIN de Roberto").fill("4747");
     await alta.getByRole("button", { name: "Dar de alta" }).click();
     const pinDeLu = page.getByRole("group", { name: /^✔ Lu · Recepción/ });
     await pinDeLu.waitFor();
@@ -446,7 +453,7 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await capturar(page, "arranque-1024-4-bloqueado");
     const quien = bloqueo(page).getByRole("group", { name: "¿Quién entra?" });
     if (await quien.count()) await quien.getByRole("button", { name: /^Roberto/ }).click();
-    await pinDe(page).fill("47");
+    await pinDe(page).fill("4747");
     await bloqueo(page).waitFor({ state: "detached" });
     await page.getByRole("tab", { name: "Configuración" }).click();
     await page.getByRole("heading", { name: "Jornada", exact: true }).waitFor();
@@ -528,8 +535,8 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     if (css) assert.deepEqual(await chicosEn(page, '[aria-label="Configuración inicial del club"]'), []);
     await capturar(page, "arranque-390-1-consola");
     const rober = consola.getByRole("form", { name: "PIN de Roberto Ronco" });
-    await rober.getByLabel("PIN (2 números)").fill("47");
-    await rober.getByLabel("Repetilo").fill("47");
+    await rober.getByLabel("PIN (4 números)").fill("4747");
+    await rober.getByLabel("Repetilo").fill("4747");
     await rober.getByRole("button", { name: "Guardar el PIN de Roberto" }).click();
     await consola.getByRole("form", { name: "Entrar como Roberto" }).waitFor();
     assert.equal(await sinScrollDeCostado(page), 0);
@@ -581,7 +588,7 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
 
       // …y entra Majo (dueña): la cuenta de Lu se cerró y ve todo lo de dueño, aunque el puesto sea RECEPTION.
       await bloquearAMano();
-      await entrar(/^Majo/, "22");
+      await entrar(/^Majo/, "2222");
       assert.equal(await page.getByRole("region", { name: "Martín Ríos" }).count(), 0, "la cuenta que tenía abierta Lu se cerró");
       const deMajo = await solapas();
       t.diagnostic(`puesto ${rolDelPuesto} · Majo ve: ${deMajo.join(", ")}`);
@@ -598,5 +605,105 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
       assert.deepEqual(errores, []);
       await contexto.close();
     }
+  });
+
+  test("dueño con el PIN viejo de 2: entra con «Desbloquear» y antes de operar elige uno de 4 (también desde «Cambiar de usuario»)", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const contexto = await browser!.newContext({ viewport: { width: 1024, height: 768 }, locale: "es-AR" });
+    await contexto.clock.install({ time: new Date(2026, 9, 17, 20, 0, 5) });
+    await contexto.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html() }));
+    const errores: string[] = [];
+    // La jornada de un dueño del piloto: Rober con el PIN viejo «11»; Majo ya con el de 4; recepción con 2.
+    const page = await abrir(contexto, errores, "real", "OWNER", (e) => {
+      e.usuarios.find((u) => u.id === "u-rober")!.pin = "11";
+    });
+    const jornada = () => page.evaluate((k) => localStorage.getItem(k) ?? "", claveDeLaJornada("demo-club"));
+    const quien = bloqueo(page).getByRole("group", { name: "¿Quién entra?" });
+    await quien.getByRole("button", { name: /^Rober/ }).click();
+    assert.equal(await pinDe(page).getAttribute("maxlength"), "4", "el campo del dueño espera 4");
+    await bloqueo(page).getByText("¿Todavía tenés el PIN viejo de 2? Ponelo y tocá «Desbloquear».").waitFor();
+    // Con 2 números no prueba solo (espera 4): se confirma con «Desbloquear».
+    await pinDe(page).fill("11");
+    assert.equal(await bloqueo(page).getByRole("heading", { name: "Pantalla bloqueada" }).count(), 1, "con 2 no prueba solo");
+    await bloqueo(page).getByRole("button", { name: "Desbloquear" }).click();
+    // El paso obligatorio: no entra hasta elegir uno de 4.
+    await bloqueo(page).getByRole("heading", { name: "Elegí tu PIN nuevo" }).waitFor();
+    await bloqueo(page).getByText("Tu PIN de dueño ahora es de 4 números. Elegí uno nuevo: lo cargado queda todo igual.").waitFor();
+    assert.equal(await page.getByRole("tablist").count(), 0, "todavía no se ve nada del club");
+    assert.equal(await page.locator('[data-ui="operador-del-club"]').count(), 0, "nadie opera");
+    if (css) assert.deepEqual(await chicos(page), [], "objetivos de 44 px en el paso del PIN nuevo");
+    await capturar(page, "1024-pin-viejo-elegir-nuevo");
+    // «Ahora no»: queda bloqueada, con Rober elegido.
+    await bloqueo(page).getByRole("button", { name: "Ahora no (queda bloqueada)" }).click();
+    await bloqueo(page).getByRole("heading", { name: "Pantalla bloqueada" }).waitFor();
+    await pinDe(page).fill("11");
+    await bloqueo(page).getByRole("button", { name: "Desbloquear" }).click();
+    const nuevo = bloqueo(page).getByLabel("PIN nuevo (4 números)");
+    await nuevo.waitFor();
+    // No coinciden / de 2 / el de otra persona: lo dice y sigue bloqueada.
+    await nuevo.fill("4747");
+    await bloqueo(page).getByLabel("Repetilo").fill("4748");
+    await bloqueo(page).getByRole("button", { name: "Guardar y entrar" }).click();
+    await bloqueo(page).getByRole("alert").filter({ hasText: "Los dos PIN no coinciden" }).waitFor();
+    await nuevo.fill("2222");
+    await bloqueo(page).getByLabel("Repetilo").fill("2222");
+    await bloqueo(page).getByRole("button", { name: "Guardar y entrar" }).click();
+    await bloqueo(page).getByRole("alert").filter({ hasText: "Ese PIN ya lo usa otra persona" }).waitFor();
+    assert.equal(await page.locator('[data-ui="operador-del-club"]').count(), 0, "nunca opera con el PIN viejo");
+    // Bien: entra con el nuevo; lo cargado queda igual y el viejo deja de andar.
+    await nuevo.fill("4747");
+    await bloqueo(page).getByLabel("Repetilo").fill("4747");
+    await bloqueo(page).getByRole("button", { name: "Guardar y entrar" }).click();
+    await bloqueo(page).waitFor({ state: "detached" });
+    await page.getByText("Tu PIN nuevo quedó guardado. Hola, Rober.").waitFor();
+    await page.locator('[data-ui="operador-del-club"]').getByText("Rober", { exact: true }).waitFor();
+    await page.getByRole("button", { name: /^Martín Ríos, Cancha 1,/ }).waitFor();
+    // Se guarda solo (con su demora): el PIN nuevo queda en la jornada y el viejo no.
+    await page.waitForFunction((k) => /pin\\*":\\*"4747/.test(localStorage.getItem(k) ?? ""), claveDeLaJornada("demo-club"));
+    const guardada = await jornada();
+    assert.equal(/pin\\*":\\*"11\\*"/.test(guardada), false, "el PIN viejo ya no está guardado");
+    assert.ok(guardada.includes("Martín Ríos"), "lo cargado sigue en la jornada guardada");
+    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("l");
+    await bloqueo(page).getByLabel("Tu PIN para seguir").waitFor();
+    assert.equal(await bloqueo(page).getByText(/PIN viejo de 2/).count(), 0, "ya nadie tiene el viejo: sin la ayuda");
+    await pinDe(page).fill("11");
+    await bloqueo(page).getByRole("button", { name: "Desbloquear" }).click();
+    await estadoDelBloqueo(page, "PIN incorrecto (1 de 5).");
+    await pinDe(page).fill("4747");
+    await bloqueo(page).waitFor({ state: "detached" });
+    await page.getByText("Desbloqueado.").waitFor();
+    assert.deepEqual(errores, []);
+    await contexto.close();
+
+    // Desde «Cambiar de usuario» (opera Lu): Rober con el viejo pasa por la pantalla bloqueada, directo al paso.
+    const otro = await browser!.newContext({ viewport: { width: 390, height: 844 }, locale: "es-AR" });
+    await otro.clock.install({ time: new Date(2026, 9, 17, 20, 0, 5) });
+    await otro.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html() }));
+    const errores2: string[] = [];
+    const p2 = await abrir(otro, errores2, "real", "RECEPTION", (e) => {
+      e.usuarios.find((u) => u.id === "u-rober")!.pin = "11";
+    });
+    await bloqueo(p2).getByRole("group", { name: "¿Quién entra?" }).getByRole("button", { name: /^Lu \(recepción tarde\)/ }).click();
+    await bloqueo(p2).getByText(/PIN viejo de 2/).count().then((n) => assert.equal(n, 0, "a recepción no se le muestra la ayuda del viejo"));
+    await pinDe(p2).fill("33");
+    await bloqueo(p2).waitFor({ state: "detached" });
+    await p2.locator('[data-ui="operador-del-club"]').getByRole("button", { name: "Cambiar de usuario" }).click();
+    const hoja = p2.getByRole("dialog", { name: "¿Quién usa el sistema?" });
+    await hoja.getByRole("button", { name: /^Rober/ }).click();
+    await hoja.getByLabel("PIN de Rober").fill("11");
+    await hoja.getByRole("button", { name: "Entrar" }).click();
+    await bloqueo(p2).getByRole("heading", { name: "Elegí tu PIN nuevo" }).waitFor();
+    assert.equal(await bloqueo(p2).evaluate((d) => d.scrollWidth - d.clientWidth), 0, "sin scroll de costado a 390 px");
+    if (css) assert.deepEqual(await chicos(p2), [], "objetivos de 44 px a 390 px");
+    await capturar(p2, "390-pin-viejo-desde-cambiar-de-usuario");
+    await bloqueo(p2).getByLabel("PIN nuevo (4 números)").fill("5858");
+    await bloqueo(p2).getByLabel("Repetilo").fill("5858");
+    await bloqueo(p2).getByRole("button", { name: "Guardar y entrar" }).click();
+    await bloqueo(p2).waitFor({ state: "detached" });
+    await p2.getByText("Tu PIN nuevo quedó guardado. Hola, Rober.").waitFor();
+    await p2.locator('[data-ui="operador-del-club"]').getByText("Rober", { exact: true }).waitFor();
+    assert.deepEqual(errores2, []);
+    await otro.close();
   });
 });

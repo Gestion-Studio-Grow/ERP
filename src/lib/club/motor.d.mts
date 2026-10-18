@@ -109,7 +109,7 @@ export interface Usuario {
   id: string;
   nombre: string;
   rol: Rol;
-  /** PIN de 2 dígitos del piloto ("" = todavía no lo armó). No es credencial del ERP. */
+  /** PIN del piloto: 4 dígitos los dueños, 2 recepción (`LARGO_PIN`); un dueño del piloto puede tener todavía el viejo de 2 ("" = todavía no lo armó). No es credencial del ERP. */
   pin: string;
   activo: boolean;
 }
@@ -581,11 +581,26 @@ export declare function bajaNovedades(estado: EstadoClub, clienteId: string, aho
 
 export declare function puede(estado: EstadoClub, usuarioId: string, accion: string): boolean;
 export declare function verificarPin(estado: EstadoClub, usuarioId: string, pin: string): Resultado<{ usuario: Usuario }>;
+// PIN por rol (decisión del dueño, 18/10/2026): 4 dígitos los dueños, 2 recepción. Lo nuevo se valida con el largo
+// del rol; lo guardado entra tal cual (un dueño del piloto con el viejo de 2 entra y se le pide el de 4).
+export declare const LARGO_PIN: Readonly<{ duenio: 4; recepcion: 2 }>;
+/** El largo que tenían todos los PIN antes (lo que puede tener guardado un dueño del piloto). */
+export declare const LARGO_PIN_VIEJO: 2;
+/** El largo del PIN de ese rol: 4 el dueño, 2 cualquier otro. */
+export declare function largoPin(rol: Rol | string | null | undefined): number;
+/** ¿El PIN tiene el largo de ese rol? (sólo números). Vale para todo PIN nuevo. */
+export declare function pinValidoPara(rol: Rol | string | null | undefined, pin: string | null | undefined): boolean;
+/** ¿Se puede intentar entrar con esto? El largo del rol o, para un dueño, el viejo de 2. */
+export declare function pinAceptadoPara(rol: Rol | string | null | undefined, pin: string | null | undefined): boolean;
+/** «El PIN de dueño son 4 números.» · «El PIN nuevo son 2 números.» */
+export declare function textoLargoPin(rol: Rol | string | null | undefined, nuevo?: boolean): string;
+/** ¿Ese usuario (activo) tiene guardado un PIN de otro largo que el de su rol? (dueño del piloto con el de 2). */
+export declare function pinDesactualizado(estado: EstadoClub, usuarioId: string): boolean;
 /** null si el PIN viene vacío. */
 export declare function usuarioPorPin(estado: EstadoClub, pin: string): Resultado<{ usuario: Usuario }> | null;
 /** Alguien nuevo pide acceso desde el mostrador: queda pendiente hasta que un dueño lo otorgue. */
 export declare function solicitarAcceso(estado: EstadoClub, nombre: string, ahora?: Ahora): Resultado<{ solicitud: SolicitudAcceso }>;
-/** Un dueño (con su PIN) otorga el acceso: el motor genera un PIN de 2 dígitos que se muestra UNA vez. */
+/** Un dueño (con su PIN) otorga el acceso: el motor genera un PIN del largo del rol (`largoPin`) que se muestra UNA vez. */
 export declare function otorgarAcceso(estado: EstadoClub, solicitudId: string, datos: { rol: Rol }, auth: Auth, ahora?: Ahora): Resultado<{ usuario: Usuario; pin: string }>;
 export declare function rechazarAcceso(estado: EstadoClub, solicitudId: string, auth: Auth, ahora?: Ahora): Resultado;
 
@@ -1184,11 +1199,11 @@ export declare function rentabilidad(estado: EstadoClub, rango?: { desde?: Fecha
 
 /** Un dueño da de alta a alguien (permiso `usuarios` + PIN). El PIN lo genera el motor y se muestra UNA vez. */
 export declare function altaUsuario(estado: EstadoClub, datos: { nombre: string; rol?: Rol }, auth: Auth, ahora?: Ahora): Resultado<{ usuario: Usuario; pin: string }>;
-/** Primer arranque: un usuario SIN PIN arma el suyo (2 dígitos, que no use otro). No pide auth (como la consola del vanilla). */
+/** Primer arranque: un usuario SIN PIN arma el suyo (del largo de su rol, que no use otro). No pide auth (como la consola del vanilla). */
 export declare function definirPinInicial(estado: EstadoClub, usuarioId: string, pin: string, ahora?: Ahora): Resultado;
 /** Cierra la consola del primer arranque (`config.configurado = true`): hace falta al menos un dueño con PIN. No pide auth. */
 export declare function terminarConfiguracion(estado: EstadoClub, ahora?: Ahora): Resultado;
-/** Cada uno cambia su PIN sabiendo el actual (`auth.pin`). */
+/** Cada uno cambia su PIN sabiendo el actual (`auth.pin`, como esté guardado); el nuevo, del largo de su rol. */
 export declare function cambiarMiPin(estado: EstadoClub, auth: Auth, nuevo: string, ahora?: Ahora): Resultado;
 /** Un dueño le genera un PIN nuevo a alguien (permiso `usuarios` + PIN). Se muestra UNA vez. */
 export declare function regenerarPin(estado: EstadoClub, usuarioObjetivoId: string, auth: Auth, ahora?: Ahora): Resultado<{ pin: string }>;

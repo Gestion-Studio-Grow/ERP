@@ -133,7 +133,7 @@ function PagarAlProveedor({ almacen, f, puedePagar, hacer }: { almacen: Almacen;
           <Opciones leyenda="Cómo le pagamos" opciones={OPCIONES_MEDIO} valor={medio} onElegir={setMedio} />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
             <Campo label="Monto" inputMode="numeric" importe value={monto} onChange={(e) => setMonto(e.target.value)} />
-            <CampoPin quien={quien} value={pin} onChange={setPin} />
+            <CampoPin quien={quien} rol={operador?.usuario.rol} value={pin} onChange={setPin} />
           </div>
           <p className="text-sm text-body">El efectivo sale del cajón (queda en la caja del día); la transferencia queda anotada como egreso. Lleva tu PIN y queda a tu nombre.</p>
           <Button type="submit" variant="solid" size="md">

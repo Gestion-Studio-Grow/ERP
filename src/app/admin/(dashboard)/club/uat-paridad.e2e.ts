@@ -297,26 +297,26 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     ok("0.duenios", JSON.stringify(e0?.usuarios.map((u) => u.nombre)) === JSON.stringify(["Roberto Ronco", "Majo Gimenez"]), `Usuarios: ${e0?.usuarios.map((u) => u.nombre).join(" y ")} (dueños, sin recepción todavía)`);
     ok("0.sinpin", (await consola.getByRole("button", { name: "Abrir el club" }).count()) === 0, "Sin un dueño con PIN no se puede abrir el club");
     const rober = consola.getByRole("form", { name: "PIN de Roberto Ronco" });
-    await rober.getByLabel("PIN (2 números)").fill("57");
-    await rober.getByLabel("Repetilo").fill("75");
+    await rober.getByLabel("PIN (4 números)").fill("5757");
+    await rober.getByLabel("Repetilo").fill("7575");
     await rober.getByRole("button", { name: "Guardar el PIN de Roberto" }).click();
     ok("0.pin-distinto", await avisoDelClub(p, /no coinciden/), "Si los dos PIN no coinciden, avisa y no guarda");
-    await rober.getByLabel("PIN (2 números)").fill("57");
-    await rober.getByLabel("Repetilo").fill("57");
+    await rober.getByLabel("PIN (4 números)").fill("5757");
+    await rober.getByLabel("Repetilo").fill("5757");
     await rober.getByRole("button", { name: "Guardar el PIN de Roberto" }).click();
     const majo = consola.getByRole("form", { name: "PIN de Majo Gimenez" });
-    await majo.getByLabel("PIN (2 números)").fill("57");
-    await majo.getByLabel("Repetilo").fill("57");
+    await majo.getByLabel("PIN (4 números)").fill("5757");
+    await majo.getByLabel("Repetilo").fill("5757");
     await majo.getByRole("button", { name: "Guardar el PIN de Majo" }).click();
     ok("0.pin-repetido", await avisoDelClub(p, /otra persona/), "Majo no puede usar el mismo PIN que Roberto");
-    await majo.getByLabel("PIN (2 números)").fill("84");
-    await majo.getByLabel("Repetilo").fill("84");
+    await majo.getByLabel("PIN (4 números)").fill("8484");
+    await majo.getByLabel("Repetilo").fill("8484");
     await majo.getByRole("button", { name: "Guardar el PIN de Majo" }).click();
     await consola.getByText("✔ Majo Gimenez ya armó su PIN.").waitFor();
-    ok("0.sin-pines-a-la-vista", !/\b(57|84)\b/.test(await consola.innerText()), "Nunca se ve un PIN en la consola");
+    ok("0.sin-pines-a-la-vista", !/\b(5757|8484)\b/.test(await consola.innerText()), "Nunca se ve un PIN en la consola");
     // Entra Roberto con su PIN.
     const entrar = consola.getByRole("form", { name: "Entrar como Roberto" });
-    await entrar.getByLabel("PIN de Roberto").fill("57");
+    await entrar.getByLabel("PIN de Roberto").fill("5757");
     await entrar.getByRole("button", { name: "Entrar como Roberto" }).click();
     await p.getByRole("tab", { name: "Configuración", selected: true }).waitFor();
     ok("0.entra-rober", await avisoDelClub(p, "Hola, Roberto."), "Roberto entra con su PIN y queda en Configuración");
@@ -332,7 +332,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     for (const nombre of ["Lu", "Caro"]) {
       const alta = p.getByRole("form", { name: "Dar de alta a alguien" });
       await alta.getByLabel("Nombre").fill(nombre);
-      await alta.getByLabel("PIN de Roberto").fill("57");
+      await alta.getByLabel("PIN de Roberto").fill("5757");
       await alta.getByRole("button", { name: "Dar de alta" }).click();
       const grupo = p.getByRole("group", { name: new RegExp(`^✔ ${nombre} · Recepción`) });
       await grupo.waitFor();
@@ -362,7 +362,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await bloqueo(p).getByRole("heading", { name: "Pantalla bloqueada" }).waitFor();
     ok("0.abre", (await bloqueada(p)) && (await p.getByRole("tablist").count()) === 0, "«Abrir el club» → pantalla bloqueada, sin nada del club a la vista");
     await foto(p, "abierto-bloqueado");
-    await desbloquear(p, /^Roberto/, "57");
+    await desbloquear(p, /^Roberto/, "5757");
     const dueno = await solapas(p);
     ok("0.dueno", !(await bloqueada(p)) && dueno.includes("Configuración") && dueno.includes("Novedades y redes") && dueno.includes("Tablero"), `Roberto entra con su PIN y ve todo: ${dueno.join(", ")}`);
     const cinta = await p.locator("main").innerText();
@@ -663,7 +663,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await foto(p, "fiado-pedido");
     // El aviso 🔔: a Lu (recepción) no le llega; a un dueño sí, y lleva al Tablero.
     ok("3.campana-lu", (await p.locator('[data-ui="aviso-del-duenio"]').innerText()).trim() === "", "A recepción no le aparece el aviso 🔔 del dueño");
-    await cambiarDeUsuario(p, /^Majo/, "84");
+    await cambiarDeUsuario(p, /^Majo/, "8484");
     const campana = p.locator('[data-ui="aviso-del-duenio"]');
     ok("3.campana", /Un pedido de crédito espera tu OK/.test(await campana.innerText()), `Majo entra y ve el aviso 🔔 «${(await campana.locator("p").first().innerText()).trim()}»`);
     await campana.getByRole("button", { name: "Ver y resolver en el Tablero" }).click();
@@ -690,7 +690,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     ok("3.celular", /Juan Pérez/.test(pedidoTxt) && /4\.000/.test(pedidoTxt), `En el celular de Majo se abre el pedido: «${pedidoTxt.slice(0, 80)}»`);
     const majoDemo = pd.getByRole("radio", { name: /Majo/ });
     if (await majoDemo.count()) await majoDemo.first().check().catch(() => undefined);
-    await pd.getByLabel("Tu PIN").fill("84");
+    await pd.getByLabel("Tu PIN").fill("8484");
     await pd.getByRole("button", { name: "Aprobar y ver el código" }).click();
     await pd.waitForTimeout(200);
     const codigoDemo = (await pd.locator("p.text-4xl").count()) ? (await pd.locator("p.text-4xl").innerText()).trim() : "";
@@ -706,11 +706,11 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await pd.close();
     // Como queda el día de corte (modo real, sin la jornada en este celular: el código sale con el PIN y lo verifica el club).
     const pc = await abrirAprobador("real");
-    await pc.getByLabel("Tu PIN").fill("84");
+    await pc.getByLabel("Tu PIN").fill("8484");
     await pc.getByRole("button", { name: "Aprobar y ver el código" }).click();
     const codigo = (await pc.locator("p.text-4xl").innerText()).trim();
     const d = Object.fromEntries(new URLSearchParams(linkAprob.split("#aprobar&")[1]));
-    ok("3.codigo", codigo === M.codigoAprobacion({ pin: "84", novedadId: d.id, clienteId: d.c, monto: 4000, fecha: d.f }), `Con el PIN de Majo (aprobador en modo real) sale el código ${codigo}`);
+    ok("3.codigo", codigo === M.codigoAprobacion({ pin: "8484", novedadId: d.id, clienteId: d.c, monto: 4000, fecha: d.f }), `Con el PIN de Majo (aprobador en modo real) sale el código ${codigo}`);
     await foto(pc, "celular-codigo");
     const scrollCel = await pc.evaluate(() => document.documentElement.scrollWidth);
     ok("3.celular-390", scrollCel <= 390, `Celular 390 px sin scroll horizontal (${scrollCel})`);
@@ -828,7 +828,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await manual.getByLabel("Concepto").fill("Descuento cumpleañero");
     await manual.getByLabel("Tipo").selectOption("descuento");
     await manual.getByLabel("Monto").fill("1000");
-    await manual.getByLabel("PIN del dueño").fill("84");
+    await manual.getByLabel("PIN del dueño").fill("8484");
     await manual.getByRole("button", { name: "Aplicar el descuento" }).click();
     await p.waitForTimeout(150);
     const saldoMesa = M.saldoCuenta((await cuentaMesa())!);
@@ -844,7 +844,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await p.getByRole("region", { name: "Registrar remito" }).waitFor().catch(() => undefined);
     const sinProv = await p.getByRole("region", { name: "Registrar remito" }).locator("option", { hasText: "Todavía no hay proveedores" }).count();
     ok("5.sin-proveedor", sinProv === 1, "Recepción abre «Registrar un remito» en la Caja: todavía no hay proveedores");
-    await cambiarDeUsuario(p, /^Majo/, "84");
+    await cambiarDeUsuario(p, /^Majo/, "8484");
     await irA(p, "Proveedores");
     await p.getByRole("button", { name: "+ Alta de proveedor" }).click();
     const altaP = p.getByRole("region", { name: "Alta de proveedor" });
@@ -879,7 +879,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
   // ═══ 6. Bloqueo: a mano, letras, Escape, 5 PIN mal, espera, cambio de operador, pantalla apagada e inactividad ═══
   async (g) => {
     const p = g.p;
-    const malo = ["98", "97", "96", "95"].find((x) => ![g.pinLu, g.pinCaro, "57", "84"].includes(x)) ?? "99";
+    const malo = ["98", "97", "96", "95"].find((x) => ![g.pinLu, g.pinCaro, "5757", "8484"].includes(x)) ?? "99";
     // Queda la cuenta de un turno abierta (la de Pablo) y Lu bloquea con el candado.
     await irA(p, "Agenda");
     await abrirCuenta(p, String(g.sig));
@@ -905,7 +905,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     // «Entrar con otro usuario»: Roberto. ¿Se cierra lo que Lu tenía abierto?
     await p.locator("body").click({ position: { x: 3, y: 3 } });
     await p.keyboard.press("l");
-    await desbloquear(p, /^Roberto/, "57");
+    await desbloquear(p, /^Roberto/, "5757");
     const cuentaSigue = await p.getByText("Cuenta del turno", { exact: true }).count();
     ok("6.otro", !(await bloqueada(p)) && /Opera: Roberto Ronco/.test(await p.locator("main").innerText()), "«Entrar con otro usuario»: entra Roberto con su PIN");
     if (cuentaSigue === 0) ok("6.cierra-lo-de-lu", true, "La cuenta que Lu tenía abierta quedó cerrada al entrar Roberto");
@@ -928,7 +928,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await ocultar(false);
     await p.waitForTimeout(200);
     ok("6.pantalla", await bloqueada(p), "Fuera más de 30 s (pantalla apagada o cambio de app) → bloqueada");
-    await desbloquear(p, null, "57");
+    await desbloquear(p, null, "5757");
     await ocultar(true);
     await g.ctx.clock.runFor(5_000);
     await ocultar(false);
@@ -943,17 +943,17 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await g.ctx.clock.runFor(75_000);
     await p.waitForTimeout(200);
     ok("6.inactividad", await bloqueada(p), "Con «Bloquear la pantalla tras 1 minuto», sin uso se bloquea solo");
-    await desbloquear(p, null, "57");
+    await desbloquear(p, null, "5757");
     await reglas.getByLabel("Bloquear la pantalla tras (minutos sin uso)").fill("5");
     await reglas.getByRole("button", { name: "Guardar reglas y precios" }).click();
     await p.waitForTimeout(150);
-    ok("6.pin-oculto", !/\b57\b/.test(await p.locator("main").innerText()), "Nunca se ve un PIN en pantalla");
+    ok("6.pin-oculto", !/\b5757\b/.test(await p.locator("main").innerText()), "Nunca se ve un PIN en pantalla");
   },
 
   // ═══ 7. La dueña: Tablero, Clientes, Proveedores, Stock, Novedades, usuarios y respaldo ═══
   async (g) => {
     const p = g.p;
-    await cambiarDeUsuario(p, /^Majo/, "84");
+    await cambiarDeUsuario(p, /^Majo/, "8484");
     // Tablero: indicadores y la caja del día por medio (= la caja).
     await irA(p, "Tablero");
     let e7 = await estado(p);
@@ -985,13 +985,13 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await p.getByRole("list", { name: "Proveedores del club" }).getByRole("button", { name: /^Distribuidora Sur/ }).click();
     const pagar = p.locator("section").filter({ has: p.getByRole("heading", { name: "Pagar", exact: true }) }).first();
     await pagar.getByLabel("Monto").fill("20000");
-    await pagar.getByLabel(/^PIN de|^Tu PIN/).fill("11");
+    await pagar.getByLabel(/^PIN de|^Tu PIN/).fill("1111");
     await pagar.getByRole("button", { name: "Registrar pago" }).click();
     await p.waitForTimeout(150);
     const provId = proveedores(e7).find((x) => x.nombre === "Distribuidora Sur")?.id ?? "";
     const sinPagar = M.deudaConProveedor(await estado(p), provId);
     await pagar.getByLabel("Monto").fill("20000");
-    await pagar.getByLabel(/^PIN de|^Tu PIN/).fill("84");
+    await pagar.getByLabel(/^PIN de|^Tu PIN/).fill("8484");
     await pagar.getByRole("button", { name: "Registrar pago" }).click();
     await p.waitForTimeout(200);
     e7 = await estado(p);
@@ -1029,7 +1029,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await irA(p, "Configuración");
     const alta = p.getByRole("form", { name: "Dar de alta a alguien" });
     await alta.getByLabel("Nombre").fill("Agus (finde)");
-    await alta.getByLabel("PIN de Majo").fill("84");
+    await alta.getByLabel("PIN de Majo").fill("8484");
     await alta.getByRole("button", { name: "Dar de alta" }).click();
     const grupo = p.getByRole("group", { name: /^✔ Agus \(finde\) · Recepción/ });
     await grupo.waitFor();
@@ -1043,7 +1043,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     const pinViejo = g.pinCaro;
     await usuarios.getByRole("button", { name: "PIN nuevo para Caro" }).click();
     const formPin = p.getByRole("form", { name: "PIN nuevo para Caro" });
-    await formPin.getByLabel(/^PIN de|^Tu PIN/).fill("84");
+    await formPin.getByLabel(/^PIN de|^Tu PIN/).fill("8484");
     await formPin.getByRole("button", { name: "Armar PIN nuevo" }).click();
     const nuevo = p.getByRole("group").filter({ has: p.locator("p.text-4xl") }).first();
     await nuevo.waitFor();
@@ -1054,7 +1054,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     // Sacar acceso a Agus.
     await usuarios.getByRole("button", { name: "Sacar acceso a Agus (finde)" }).click();
     const formSacar = p.getByRole("form", { name: "Sacarle el acceso a Agus (finde)" });
-    await formSacar.getByLabel(/^PIN de|^Tu PIN/).fill("84");
+    await formSacar.getByLabel(/^PIN de|^Tu PIN/).fill("8484");
     await formSacar.getByRole("button", { name: "Sacar acceso" }).click();
     await p.waitForTimeout(150);
     const agus = (await estado(p)).usuarios.find((u) => u.nombre === "Agus (finde)");
@@ -1084,7 +1084,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
       }
     }, [CLAVE, texto] as const);
     const q = await abrirClub(ctx2, "OWNER", "archivo");
-    await desbloquear(q, /^Majo/, "84");
+    await desbloquear(q, /^Majo/, "8484");
     const llena = (await q.evaluate((k) => localStorage.getItem(k), CLAVE))?.length ?? 0;
     const cinta = q.getByRole("button", { name: "Archivar los días cerrados" });
     const avisa = (await cinta.count()) > 0 && /Lo guardado se está llenando/.test(await q.locator("main").innerText());
@@ -1096,7 +1096,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await q.getByRole("button", { name: "Archivar días cerrados" }).click();
     const archivar = q.getByRole("group", { name: "Archivar días cerrados" });
     const paso2Cerrado = await archivar.getByRole("button", { name: "Ya lo guardé: achicar" }).isDisabled();
-    await archivar.getByLabel(/^PIN de/).fill("84");
+    await archivar.getByLabel(/^PIN de/).fill("8484");
     const [paquete] = await Promise.all([q.waitForEvent("download"), archivar.getByRole("button", { name: "Descargar el respaldo para archivar" }).click()]);
     const rutaPaquete = (await paquete.path()) ?? "";
     const tamPaso1 = (await q.evaluate((k) => localStorage.getItem(k), CLAVE))?.length ?? 0;
@@ -1128,7 +1128,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     await foto(q, "archivado");
     await q.close();
     const q2 = await abrirClub(ctx2, "OWNER", "archivo-recarga");
-    await desbloquear(q2, /^Majo/, "84");
+    await desbloquear(q2, /^Majo/, "8484");
     ok("7b.vuelve", (await estado(q2)).archivo?.hasta === despues.archivo?.hasta && !(await bloqueada(q2)), "Al recargar, la jornada achicada se abre igual");
     await ctx2.close();
     // Si el navegador NO baja archivos (descarga cancelada o bloqueada), no hay archivo para elegir y no se achica nada.
@@ -1143,12 +1143,12 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
       }
     }, [CLAVE, texto] as const);
     const r3 = await abrirClub(ctx3, "OWNER", "archivo-sin-descargas");
-    await desbloquear(r3, /^Majo/, "84");
+    await desbloquear(r3, /^Majo/, "8484");
     const antes3 = (await r3.evaluate((k) => localStorage.getItem(k), CLAVE))?.length ?? 0;
     await irA(r3, "Configuración");
     await r3.getByRole("button", { name: "Archivar días cerrados" }).click();
     const arch3 = r3.getByRole("group", { name: "Archivar días cerrados" });
-    await arch3.getByLabel(/^PIN de/).fill("84");
+    await arch3.getByLabel(/^PIN de/).fill("8484");
     await arch3.getByRole("button", { name: "Descargar el respaldo para archivar" }).click();
     await r3.waitForTimeout(800);
     await arch3.getByRole("button", { name: "Ya lo guardé: achicar" }).click().catch(() => undefined);
@@ -1173,7 +1173,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
       }
     }, [CLAVE, texto] as const);
     const q = await abrirClub(ctx4, "OWNER", "en-blanco");
-    await desbloquear(q, /^Majo/, "84");
+    await desbloquear(q, /^Majo/, "8484");
     await irA(q, "Configuración");
     const jornada = q.getByRole("region", { name: "Jornada" });
     if ((await jornada.getByRole("heading", { name: "Empezar otra jornada en blanco" }).count()) === 0) {
@@ -1196,7 +1196,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     const empezar = zona.getByRole("button", { name: "Ya lo guardé: empezar en blanco" });
     const cerrado = await empezar.isDisabled();
     ok("7c.que-pasa", cerrado && (await zona.innerText()).includes("Se empieza de cero: hay que volver a armar los PIN. Lo de ahora queda en el respaldo que bajaste y en una copia en esta compu."), "Majo (dueña) abre «Empezar otra jornada en blanco» en Jornada: dice qué pasa y no deja empezar sin el respaldo");
-    await zona.getByLabel(/^PIN de/).fill("84");
+    await zona.getByLabel(/^PIN de/).fill("8484");
     const [d] = await Promise.all([q.waitForEvent("download"), zona.getByRole("button", { name: "Descargar el respaldo de antes de empezar" }).click()]);
     const ruta = (await d.path()) ?? "";
     const bajado = JSON.parse(readFileSync(ruta, "utf8")) as { v: number; estado: EstadoClub };
@@ -1245,12 +1245,12 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     const cierre = p.getByRole("region", { name: "Cerrar la caja" });
     const esperado = Number(((await cierre.getByText(/^Tendría que haber/).innerText()).match(/\$\s?([\d.]+)/)?.[1] ?? "0").replace(/\./g, ""));
     await cierre.getByLabel("Efectivo contado").fill(String(esperado));
-    await cierre.getByLabel(/^PIN de|^Tu PIN/).fill("11");
+    await cierre.getByLabel(/^PIN de|^Tu PIN/).fill("1111");
     await cierre.getByRole("button", { name: "Cerrar la caja" }).click();
     await p.waitForTimeout(150);
     const conPinMalo = (await estado(p)).caja.cierres.length;
     await cierre.getByLabel("Efectivo contado").fill(String(esperado));
-    await cierre.getByLabel(/^PIN de|^Tu PIN/).fill("84");
+    await cierre.getByLabel(/^PIN de|^Tu PIN/).fill("8484");
     await cierre.getByRole("button", { name: "Cerrar la caja" }).click();
     await p.waitForTimeout(200);
     const e8 = await estado(p);
@@ -1270,7 +1270,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     const ahoraMs = await p.evaluate(() => Date.now());
     await g.ctx.clock.fastForward(new Date("2026-10-18T00:30:00-03:00").getTime() - ahoraMs);
     await p.waitForTimeout(500);
-    if (await bloqueada(p)) await desbloquear(p, null, "84");
+    if (await bloqueada(p)) await desbloquear(p, null, "8484");
     await irA(p, "Agenda");
     const reloj = /Hora: 00:30/.test(await p.locator("main").innerText());
     const hoy = (await p.getByRole("group", { name: "Elegir el día de la agenda" }).getByRole("button", { pressed: true }).innerText()).trim();
@@ -1323,7 +1323,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     const r = await abrirClub(ctxR, "RECEPTION", "puesto-recepcion");
     await desbloquear(r, /^Lu/, g.pinLu);
     const deLu = await solapas(r);
-    await cambiarDeUsuario(r, /^Majo/, "84");
+    await cambiarDeUsuario(r, /^Majo/, "8484");
     const deMajo = await solapas(r);
     const seVeIgual = JSON.stringify(deLu) === JSON.stringify(deMajo) && !deMajo.includes("Configuración");
     if (!seVeIgual) ok("9.puesto-recepcion", true, `En el puesto de recepción, Majo ve sus solapas (${deMajo.join(", ")})`);
@@ -1340,13 +1340,13 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
   // ═══ 10. Go-live: la limpieza con el respaldo descargado y elegido; lo maestro y los saldos quedan; los turnos futuros también ═══
   async (g) => {
     const p = g.p;
-    await cambiarDeUsuario(p, /^Majo/, "84");
+    await cambiarDeUsuario(p, /^Majo/, "8484");
     await irA(p, "Configuración");
     const golive = p.getByRole("region", { name: "Limpieza para el go-live" });
     const pendientes = await golive.innerText();
     ok("10.pendientes", /Antes de limpiar hay que resolver/.test(pendientes) && /juego|cancha/i.test(pendientes), `Antes de limpiar avisa lo pendiente («${pendientes.replace(/\s+/g, " ").match(/Antes de limpiar hay que resolver:.{0,90}/)?.[0] ?? ""}»)`);
     // Con cosas pendientes no corre (aunque se descargue y elija el respaldo).
-    const intento = await limpiezaGoLive(p, "84");
+    const intento = await limpiezaGoLive(p, "8484");
     ok("10.no-limpia", (await estado(p)).reservas.length > 0 && /resolver|pendiente|juego/i.test(intento), `Con cosas pendientes la limpieza no corre: dice qué resolver («${intento.slice(0, 90)}»)`);
     await golive.getByRole("button", { name: "Cancelar" }).click().catch(() => undefined);
     // Se resuelve: se cobra y se cierra la cancha de las 16:30.
@@ -1382,7 +1382,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
       const form = p.getByRole("region", { name: "Cerrar la caja" }).or(p.locator("section").filter({ has: p.getByRole("alert") })).first();
       const esp = Number(((await form.getByText(/^Tendría que haber/).first().innerText()).match(/\$\s?([\d.]+)/)?.[1] ?? "0").replace(/\./g, ""));
       await form.getByLabel(/^Efectivo contado/).first().fill(String(esp));
-      await form.getByLabel(/^PIN de|^Tu PIN/).first().fill("84");
+      await form.getByLabel(/^PIN de|^Tu PIN/).first().fill("8484");
       await form.getByRole("button", { name: /^Cerrar (la|esa) caja/ }).first().click();
       await p.waitForTimeout(200);
     }
@@ -1390,12 +1390,12 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     ok("10.resuelto", M.pendientesGoLive(resuelto, { fecha: "2026-10-17", min: 1470 }).length === 0 && adelanto === 21000, `Cancha cobrada y cerrada, cajas cerradas, el turno de mañana con un adelanto de ${pesos(adelanto)}: nada pendiente`);
     // La limpieza: primero eligiendo OTRO archivo (el respaldo de la tarde): no limpia.
     await irA(p, "Configuración");
-    const conOtro = await limpiezaGoLive(p, "84", g.respaldo as string);
+    const conOtro = await limpiezaGoLive(p, "8484", g.respaldo as string);
     ok("10.otro-archivo", (await estado(p)).cuentas.length > 0, `Eligiendo otro archivo (no el que acaba de bajar) no limpia («${conOtro.slice(0, 90)}»)`);
     await golive.getByRole("button", { name: "Cancelar" }).click().catch(() => undefined);
     const antesGL = await estado(p);
     const bajado: string[] = [];
-    const resultado = await limpiezaGoLive(p, "84", undefined, bajado);
+    const resultado = await limpiezaGoLive(p, "8484", undefined, bajado);
     const gl = await estado(p);
     ok("10.respaldo", /breakpoint-.*\.json$/.test(bajado[0] ?? ""), `Antes de limpiar se descargó el respaldo y se eligió ese archivo (${bajado[0]})`);
     ok("10.limpio", gl.cuentas.length + gl.caja.movimientos.length + gl.caja.cierres.length + gl.pedidos.length === 0 && gl.reservas.every((r) => r.id === bruno), `Se borró lo de la prueba: ${antesGL.reservas.length} turnos, ${antesGL.cuentas.length} cuentas, ${antesGL.caja.movimientos.length} movimientos de caja («${resultado.slice(0, 80)}»)`);
@@ -1449,7 +1449,7 @@ const BLOQUES: ((g: Guion) => Promise<void>)[] = [
     peor = Math.max(peor, await medir("cuenta del turno"));
     await foto(p, "390-cuenta-del-turno");
     await volverALaAgenda(p);
-    await cambiarDeUsuario(p, /^Majo/, "84");
+    await cambiarDeUsuario(p, /^Majo/, "8484");
     for (const s of ["Tablero", "Proveedores", "Stock", "Novedades y redes", "Configuración"]) {
       await irA(p, s);
       peor = Math.max(peor, await medir(s));

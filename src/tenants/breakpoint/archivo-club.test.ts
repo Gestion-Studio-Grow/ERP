@@ -14,7 +14,7 @@ import { armarMesCargado, HOY_TORNEO } from "./mes-cargado.fixture";
 const M: any = motor;
 
 const en = (fecha: string, hh: number, mm = 0) => ({ fecha, min: hh * 60 + mm });
-const DUENO = { usuarioId: "u-rober", pin: "11" };
+const DUENO = { usuarioId: "u-rober", pin: "1111" };
 const RECEP = { usuarioId: "u-lu", pin: "33" };
 const AHORA_MES = en(HOY_TORNEO, 19); // sábado 17/10/2026, 19:00
 const bytes = (x: unknown) => JSON.stringify(x).length;

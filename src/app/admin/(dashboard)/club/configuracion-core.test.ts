@@ -46,34 +46,39 @@ import {
 const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
 const demo = () => M.generarDemo(HOY, AHORA.min);
-// Usuarios de la demo del motor: Rober 11 y Majo 22 (dueños), Lu 33 (recepción).
-const ROBER: Auth = { usuarioId: "u-rober", pin: "11" };
+// Usuarios de la demo del motor: Rober 1111 y Majo 2222 (dueños, PIN de 4), Lu 33 (recepción, PIN de 2).
+const ROBER: Auth = { usuarioId: "u-rober", pin: "1111" };
 const LU: Auth = { usuarioId: "u-lu", pin: "33" };
 const hacer = (e: EstadoClub, a: AccionConfig, auth: Auth = ROBER) => ejecutarConfiguracion(e, a, AHORA, auth);
 
 // ───────────── usuarios y PIN ─────────────
 
-test("dueños sin PIN (jornada real recién abierta): arman el suyo, repetido y de 2 números, sin auth", () => {
+test("dueños sin PIN (jornada real recién abierta): arman el suyo, repetido y de 4 números, sin auth", () => {
   const e = M.crearClubReal(HOY);
   const v = armarUsuarios(e, null);
   assert.deepEqual(v.duenosSinPin.map((d) => d.nombre), ["Roberto Ronco", "Majo Gimenez"]);
-  assert.equal(hacer(e, { tipo: "pinInicial", usuarioId: "u-rober", pin: "4", repetido: "4" }, {}).mensaje, "El PIN de Roberto Ronco son 2 números.");
-  assert.match(hacer(e, { tipo: "pinInicial", usuarioId: "u-rober", pin: "47", repetido: "48" }, {}).mensaje, /no coinciden/);
-  assert.equal(hacer(e, { tipo: "pinInicial", usuarioId: "u-rober", pin: "47", repetido: "47" }, {}).ok, true);
-  assert.equal(M.usuario(e, "u-rober")!.pin, "47");
-  assert.match(hacer(e, { tipo: "pinInicial", usuarioId: "u-majo", pin: "47", repetido: "47" }, {}).mensaje, /ya lo usa otra persona/);
-  assert.match(hacer(e, { tipo: "pinInicial", usuarioId: "u-rober", pin: "12", repetido: "12" }, {}).mensaje, /ya tiene PIN/);
+  assert.equal(hacer(e, { tipo: "pinInicial", usuarioId: "u-rober", pin: "4", repetido: "4" }, {}).mensaje, "El PIN de Roberto Ronco son 4 números.");
+  assert.equal(hacer(e, { tipo: "pinInicial", usuarioId: "u-rober", pin: "47", repetido: "47" }, {}).mensaje, "El PIN de Roberto Ronco son 4 números.", "el de 2 ya no es de dueño");
+  assert.equal(M.usuario(e, "u-rober")!.pin, "", "no se guardó nada");
+  assert.match(hacer(e, { tipo: "pinInicial", usuarioId: "u-rober", pin: "4711", repetido: "4811" }, {}).mensaje, /no coinciden/);
+  assert.equal(hacer(e, { tipo: "pinInicial", usuarioId: "u-rober", pin: "4711", repetido: "4711" }, {}).ok, true);
+  assert.equal(M.usuario(e, "u-rober")!.pin, "4711");
+  assert.match(hacer(e, { tipo: "pinInicial", usuarioId: "u-majo", pin: "4711", repetido: "4711" }, {}).mensaje, /ya lo usa otra persona/);
+  assert.match(hacer(e, { tipo: "pinInicial", usuarioId: "u-rober", pin: "1234", repetido: "1234" }, {}).mensaje, /ya tiene PIN/);
   assert.deepEqual(armarUsuarios(e, null).duenosSinPin.map((d) => d.nombre), ["Majo Gimenez"]);
 });
 
 test("alta de recepción: el PIN generado va APARTE del aviso (se ve una vez) y pide el PIN de quien da el alta", () => {
   const e = demo();
-  assert.equal(hacer(e, { tipo: "alta", nombre: " ", rol: "recepcion", pin: "11" }).mensaje, "Escribí el nombre de la persona.");
-  assert.equal(hacer(e, { tipo: "alta", nombre: "Caro tarde", rol: "recepcion", pin: "" }).mensaje, "Poné tu PIN (2 números).");
-  assert.equal(hacer(e, { tipo: "alta", nombre: "Caro tarde", rol: "recepcion", pin: "99" }).mensaje, "PIN incorrecto.");
-  assert.equal(hacer(e, { tipo: "alta", nombre: "Caro tarde", rol: "recepcion", pin: "11" }, {}).mensaje, "Entrá con tu PIN para operar.");
+  assert.equal(hacer(e, { tipo: "alta", nombre: " ", rol: "recepcion", pin: "1111" }).mensaje, "Escribí el nombre de la persona.");
+  assert.equal(hacer(e, { tipo: "alta", nombre: "Caro tarde", rol: "recepcion", pin: "" }).mensaje, "Poné tu PIN (4 números).", "el PIN de quien opera, del largo de SU rol (dueño)");
+  assert.equal(hacer(e, { tipo: "alta", nombre: "Caro tarde", rol: "recepcion", pin: "111" }).mensaje, "Poné tu PIN (4 números).");
+  assert.equal(hacer(e, { tipo: "alta", nombre: "Caro tarde", rol: "recepcion", pin: "9999" }).mensaje, "PIN incorrecto.");
+  assert.equal(hacer(e, { tipo: "alta", nombre: "Caro tarde", rol: "recepcion", pin: "11" }).mensaje, "PIN incorrecto.", "el viejo de 2 se prueba (y no es el de Rober)");
+  assert.equal(hacer(e, { tipo: "alta", nombre: "Caro tarde", rol: "recepcion", pin: "1111" }, {}).mensaje, "Entrá con tu PIN para operar.");
+  assert.equal(hacer(e, { tipo: "alta", nombre: "Caro tarde", rol: "recepcion", pin: "3333" }, LU).mensaje, "Poné tu PIN (2 números).", "recepción, 2 números");
   assert.match(hacer(e, { tipo: "alta", nombre: "Caro tarde", rol: "recepcion", pin: "33" }, LU).mensaje, /no tiene permiso/);
-  const r = hacer(e, { tipo: "alta", nombre: "Caro tarde", rol: "recepcion", pin: "11" });
+  const r = hacer(e, { tipo: "alta", nombre: "Caro tarde", rol: "recepcion", pin: "1111" });
   assert.equal(r.ok, true);
   assert.match(r.pinNuevo!.pin, /^\d{2}$/);
   assert.equal(r.pinNuevo!.nombre, "Caro tarde");
@@ -84,19 +89,37 @@ test("alta de recepción: el PIN generado va APARTE del aviso (se ve una vez) y 
   assert.equal(esDeshacible({ tipo: "alta", nombre: "", rol: "recepcion", pin: "" }), false);
 });
 
+test("alta de un dueño: el sistema le genera un PIN de 4 (recepción sigue con 2), sin repetir y aparte del aviso", () => {
+  const e = demo();
+  const d = hacer(e, { tipo: "alta", nombre: "Socia nueva", rol: "duenio", pin: "1111" });
+  assert.equal(d.ok, true, d.mensaje);
+  assert.match(d.pinNuevo!.pin, /^[1-9]\d{3}$/, "dueño: 4 números, sin cero adelante");
+  assert.ok(!d.mensaje.includes(d.pinNuevo!.pin));
+  const r = hacer(e, { tipo: "alta", nombre: "Recepción noche", rol: "recepcion", pin: "1111" });
+  assert.match(r.pinNuevo!.pin, /^[1-9]\d$/, "recepción: 2 números");
+  const pines = e.usuarios.filter((u) => u.activo !== false).map((u) => u.pin);
+  assert.equal(new Set(pines).size, pines.length, "ningún PIN repetido");
+  // «PIN nuevo» a un dueño: también de 4.
+  const n = hacer(e, { tipo: "pinNuevo", usuarioId: "u-majo", pin: "1111" });
+  assert.match(n.pinNuevo!.pin, /^\d{4}$/);
+  assert.equal(M.usuario(e, "u-majo")!.pin, n.pinNuevo!.pin);
+});
+
 test("PIN nuevo y sacar acceso: con PIN; a uno mismo y al último dueño no se le saca", () => {
   const e = demo();
-  const r = hacer(e, { tipo: "pinNuevo", usuarioId: "u-lu", pin: "11" });
+  const r = hacer(e, { tipo: "pinNuevo", usuarioId: "u-lu", pin: "1111" });
   assert.equal(r.ok, true);
+  assert.match(r.pinNuevo!.pin, /^\d{2}$/, "recepción sigue con 2");
   assert.equal(M.usuario(e, "u-lu")!.pin, r.pinNuevo!.pin);
   assert.ok(!r.mensaje.includes(r.pinNuevo!.pin));
   const yo = armarUsuarios(e, "u-rober").filas.find((f) => f.id === "u-rober")!;
   assert.equal(yo.esVos, true);
   assert.equal(yo.puedeSacar, false);
-  assert.match(hacer(e, { tipo: "sacarAcceso", usuarioId: "u-rober", pin: "11" }).mensaje, /a vos mismo/);
-  assert.equal(hacer(e, { tipo: "sacarAcceso", usuarioId: "u-lu", pin: "11" }).ok, true);
+  assert.match(hacer(e, { tipo: "sacarAcceso", usuarioId: "u-rober", pin: "1111" }).mensaje, /a vos mismo/);
+  assert.equal(hacer(e, { tipo: "sacarAcceso", usuarioId: "u-lu", pin: "2222" }).mensaje, "PIN incorrecto.", "con el PIN de Majo, Rober no saca accesos");
+  assert.equal(hacer(e, { tipo: "sacarAcceso", usuarioId: "u-lu", pin: "1111" }).ok, true);
   assert.equal(armarUsuarios(e, "u-rober").filas.some((f) => f.id === "u-lu"), false);
-  assert.equal(hacer(e, { tipo: "sacarAcceso", usuarioId: "u-majo", pin: "11" }).ok, true);
+  assert.equal(hacer(e, { tipo: "sacarAcceso", usuarioId: "u-majo", pin: "1111" }).ok, true);
   // Queda un solo dueño: no se le puede sacar (ni otro dueño, si lo hubiera, lo vería disponible).
   assert.equal(armarUsuarios(e, "u-otro").filas.find((f) => f.id === "u-rober")!.puedeSacar, false);
 });
@@ -104,14 +127,31 @@ test("PIN nuevo y sacar acceso: con PIN; a uno mismo y al último dueño no se l
 test("cambiar mi PIN: sabiendo el actual, el nuevo repetido, distinto y libre", () => {
   const e = demo();
   const cambiar = (actual: string, nuevo: string, repetido = nuevo) => hacer(e, { tipo: "cambiarMiPin", actual, nuevo, repetido });
-  assert.equal(cambiar("1", "45").mensaje, "Poné tu PIN actual (2 números).");
-  assert.equal(cambiar("11", "45", "46").mensaje, "Los dos PIN nuevos no coinciden: escribilo igual las dos veces.");
-  assert.equal(cambiar("11", "11").mensaje, "El PIN nuevo es igual al de ahora: elegí otro.");
-  assert.equal(cambiar("12", "45").mensaje, "PIN incorrecto.");
-  assert.match(cambiar("11", "22").mensaje, /ya lo usa otra persona/);
-  assert.equal(cambiar("11", "45").ok, true);
-  assert.equal(M.usuario(e, "u-rober")!.pin, "45");
-  assert.equal(hacer(e, { tipo: "cambiarMiPin", actual: "45", nuevo: "46", repetido: "46" }, {}).mensaje, "Entrá con tu PIN para operar.");
+  assert.equal(cambiar("1", "4545").mensaje, "Poné tu PIN actual (4 números).");
+  assert.equal(cambiar("1111", "45").mensaje, "El PIN nuevo son 4 números.", "un dueño no pasa a 2");
+  assert.equal(cambiar("1111", "4545", "4646").mensaje, "Los dos PIN nuevos no coinciden: escribilo igual las dos veces.");
+  assert.equal(cambiar("1111", "1111").mensaje, "El PIN nuevo es igual al de ahora: elegí otro.");
+  assert.equal(cambiar("1211", "4545").mensaje, "PIN incorrecto.");
+  assert.match(cambiar("1111", "2222").mensaje, /ya lo usa otra persona/);
+  assert.equal(cambiar("1111", "4545").ok, true);
+  assert.equal(M.usuario(e, "u-rober")!.pin, "4545");
+  assert.equal(hacer(e, { tipo: "cambiarMiPin", actual: "4545", nuevo: "4646", repetido: "4646" }, {}).mensaje, "Entrá con tu PIN para operar.");
+  // Recepción: 2 números.
+  const lu = (actual: string, nuevo: string) => hacer(e, { tipo: "cambiarMiPin", actual, nuevo, repetido: nuevo }, LU);
+  assert.equal(lu("33", "3456").mensaje, "El PIN nuevo son 2 números.");
+  assert.equal(lu("33", "56").ok, true);
+  assert.equal(M.usuario(e, "u-lu")!.pin, "56");
+});
+
+test("dueño con el PIN viejo de 2: «cambiar mi PIN» lo acepta como actual y lo pasa a 4 sin tocar lo cargado", () => {
+  const e = demo();
+  M.usuario(e, "u-rober")!.pin = "11"; // el del piloto
+  const antes = JSON.stringify({ ...e, usuarios: [], log: [] });
+  const r = hacer(e, { tipo: "cambiarMiPin", actual: "11", nuevo: "4711", repetido: "4711" }, { usuarioId: "u-rober", pin: "11" });
+  assert.equal(r.ok, true, r.mensaje);
+  assert.equal(M.usuario(e, "u-rober")!.pin, "4711");
+  assert.equal(M.pinDesactualizado(e, "u-rober"), false);
+  assert.equal(JSON.stringify({ ...e, usuarios: [], log: [] }), antes, "lo cargado queda igual");
 });
 
 test("los pedidos de acceso se cuentan (se dan desde el Tablero)", () => {
@@ -274,9 +314,9 @@ test("archivar en dos pasos: una descarga, elegir ESE archivo y recién ahí se 
   const v = armarArchivo(a.estado(), a.ahora());
   assert.equal(v.hasta, M.diaParaArchivar(a.estado(), a.ahora()));
   assert.deepEqual(v.dias, []);
-  assert.equal(authParaArchivar({}, "11").ok, false);
-  assert.equal(authParaArchivar(a.auth(), "1").ok, false);
-  const auth = authParaArchivar(a.auth(), "11");
+  assert.equal(authParaArchivar(M.crearClubReal(HOY), {}, "11").ok, false);
+  assert.equal(authParaArchivar(a.estado(), a.auth(), "1").ok, false);
+  const auth = authParaArchivar(a.estado(), a.auth(), "11");
   assert.ok(auth.ok);
   const p = preparado(a.prepararArchivo({ auth: auth.auth }));
   assert.equal(p.guardaAnexo, false, "en este equipo hay que elegir el archivo");
@@ -330,12 +370,12 @@ test("restaurar con el almacén: el archivo para archivar devuelve la jornada de
   assert.match(leidoViejo.respaldo.cuando ?? "", /^\d+\/\d+\/\d{4} a las \d\d:\d\d \(cuando se preparó el archivado\)$/);
 
   // Con el PIN que tipeó el dueño que opera (como la pantalla): un PIN mal no restaura.
-  const mal = authParaArchivar(a.auth(), "12");
+  const mal = authParaArchivar(a.estado(), a.auth(), "12");
   assert.ok(mal.ok);
   const r0 = a.restaurar(leido.respaldo.foto, { auth: mal.auth });
   assert.ok(!r0.ok && r0.causa === "permiso" && motivoDeRestaurar(r0) === "PIN incorrecto.");
   assert.ok(a.estado().reservas.length < antes, "nada cambió");
-  const bien = authParaArchivar(a.auth(), "11");
+  const bien = authParaArchivar(a.estado(), a.auth(), "11");
   assert.ok(bien.ok);
   const bytesAntes = a.estadoDelGuardado().bytes;
   const r = a.restaurar(leido.respaldo.foto, { auth: bien.auth });
@@ -425,7 +465,7 @@ test("la limpieza no corre con algo pendiente (lo lista el motor, en criollo)", 
   const g = armarGoLive(e, AHORA);
   assert.ok(g.pendientes.length > 0, "la demo tiene canchas en juego y cuentas abiertas");
   const bajado = respaldoAntesDeLimpiar(e, "u-rober", 1);
-  const r = limpiarConRespaldo(e, { conservarSaldos: true, conservarStock: true, pin: "11", descargado: bajado, textoElegido: bajado.texto }, AHORA, ROBER, "OWNER");
+  const r = limpiarConRespaldo(e, { conservarSaldos: true, conservarStock: true, pin: "1111", descargado: bajado, textoElegido: bajado.texto }, AHORA, ROBER, "OWNER");
   assert.match(r.mensaje, /^Antes de limpiar hay que resolver:/);
 });
 
@@ -452,22 +492,22 @@ test("primera vez (vista): los dueños y si tienen PIN, lo opcional y cuándo se
   assert.equal(v.avisos, false);
   assert.deepEqual(v.recepcion, []);
   assert.match(v.precios, /^valle \$ [\d.]+ y pico \$ [\d.]+$/);
-  M.definirPinInicial(e, "u-rober", "47", AHORA);
+  M.definirPinInicial(e, "u-rober", "4747", AHORA);
   const v2 = armarArranque(e);
   assert.equal(v2.puedeAbrir, true);
   assert.notEqual(v2.firma, v.firma);
-  assert.ok(!v2.firma.includes("47"), "la vista no lleva el PIN");
+  assert.ok(!v2.firma.includes("4747"), "la vista no lleva el PIN");
 });
 
 test("abrir el club: hace falta un dueño con PIN; con quien entró, tiene que ser un dueño; una sola vez", () => {
   const e = M.crearClubReal(HOY);
   assert.deepEqual(abrirElClub(e, AHORA), { ok: false, mensaje: "Falta que al menos un dueño arme su PIN." });
   assert.equal(e.config.configurado, false);
-  M.definirPinInicial(e, "u-rober", "47", AHORA);
-  const recep = M.altaUsuario(e, { nombre: "Lu", rol: "recepcion" }, { usuarioId: "u-rober", pin: "47" }, AHORA);
+  M.definirPinInicial(e, "u-rober", "4747", AHORA);
+  const recep = M.altaUsuario(e, { nombre: "Lu", rol: "recepcion" }, { usuarioId: "u-rober", pin: "4747" }, AHORA);
   assert.ok(recep.ok);
   assert.deepEqual(abrirElClub(e, AHORA, { usuarioId: recep.usuario.id, pin: recep.pin }), { ok: false, mensaje: "El club lo abre un dueño." });
-  assert.equal(abrirElClub(e, AHORA, { usuarioId: "u-rober", pin: "47" }).ok, true);
+  assert.equal(abrirElClub(e, AHORA, { usuarioId: "u-rober", pin: "4747" }).ok, true);
   assert.equal(e.config.configurado, true);
   assert.deepEqual(abrirElClub(e, AHORA), { ok: false, mensaje: "El club ya está abierto." });
   assert.equal(abrirElClub(demo(), AHORA).ok, false, "la demo ya está configurada");
@@ -488,21 +528,21 @@ test("primera vez con el almacén real: PIN de los dueños sin auth → entra Ro
   assert.equal(a.estado().config.configurado, false);
   assert.equal(a.operador(), null);
   const pinInicial = (usuarioId: string, pin: string, repetido = pin) => a.arranque((e, ahora) => ejecutarConfiguracion(e, { tipo: "pinInicial", usuarioId, pin, repetido }, ahora, {}));
-  assert.match(pinInicial("u-rober", "47", "48").mensaje, /no coinciden/);
-  assert.equal(pinInicial("u-rober", "47").ok, true);
-  assert.match(pinInicial("u-majo", "47").mensaje, /ya lo usa otra persona/, "distintos entre sí");
-  assert.equal(pinInicial("u-majo", "58").ok, true);
+  assert.match(pinInicial("u-rober", "4747", "4848").mensaje, /no coinciden/);
+  assert.equal(pinInicial("u-rober", "4747").ok, true);
+  assert.match(pinInicial("u-majo", "4747").mensaje, /ya lo usa otra persona/, "distintos entre sí");
+  assert.equal(pinInicial("u-majo", "5858").ok, true);
   assert.deepEqual(armarArranque(a.estado()).duenos.map((d) => d.tienePin), [true, true]);
   // Sin nadie adentro, lo opcional no corre (pide entrar con el PIN).
-  assert.equal(a.ejecutar((e, ahora, auth) => ejecutarConfiguracion(e, { tipo: "alta", nombre: "Lu", rol: "recepcion", pin: "47" }, ahora, auth)).ok, false);
+  assert.equal(a.ejecutar((e, ahora, auth) => ejecutarConfiguracion(e, { tipo: "alta", nombre: "Lu", rol: "recepcion", pin: "4747" }, ahora, auth)).ok, false);
 
   // Entra Roberto con su PIN.
-  const rober = M.verificarPin(a.estado(), "u-rober", "47");
+  const rober = M.verificarPin(a.estado(), "u-rober", "4747");
   assert.ok(rober.ok);
-  a.cambiarOperador(rober.usuario, { usuarioId: "u-rober", pin: "47" });
+  a.cambiarOperador(rober.usuario, { usuarioId: "u-rober", pin: "4747" });
   // Con alguien adentro, `arranque` ya no corre: lo opcional va por `ejecutar` (las secciones de siempre).
   assert.equal(pinInicial("u-majo", "12").ok, false);
-  const alta = a.ejecutar((e, ahora, auth) => ejecutarConfiguracion(e, { tipo: "alta", nombre: "Lu", rol: "recepcion", pin: "47" }, ahora, auth)) as ReturnType<typeof ejecutarConfiguracion>;
+  const alta = a.ejecutar((e, ahora, auth) => ejecutarConfiguracion(e, { tipo: "alta", nombre: "Lu", rol: "recepcion", pin: "4747" }, ahora, auth)) as ReturnType<typeof ejecutarConfiguracion>;
   assert.equal(alta.ok, true, alta.mensaje);
   const reglas = { ...valoresDeReglas(a.estado()), tarifas: ["21000", "29000"], fondo: "15000" };
   const r = a.ejecutar((e, ahora, auth) => ejecutarConfiguracion(e, { tipo: "reglas", ...reglas }, ahora, auth));
@@ -527,7 +567,7 @@ test("primera vez con el almacén real: PIN de los dueños sin auth → entra Ro
 test("primera vez sin entrar: con un dueño con PIN se puede abrir el club por `arranque`; en la demo no hay consola", async () => {
   const { a } = await jornadaNueva();
   assert.equal(a.arranque((e, ahora) => abrirElClub(e, ahora)).mensaje, "Falta que al menos un dueño arme su PIN.");
-  assert.equal(a.arranque((e, ahora) => ejecutarConfiguracion(e, { tipo: "pinInicial", usuarioId: "u-majo", pin: "58", repetido: "58" }, ahora, {})).ok, true);
+  assert.equal(a.arranque((e, ahora) => ejecutarConfiguracion(e, { tipo: "pinInicial", usuarioId: "u-majo", pin: "5858", repetido: "5858" }, ahora, {})).ok, true);
   assert.equal(a.arranque((e, ahora) => abrirElClub(e, ahora)).ok, true);
   assert.equal(a.estado().config.configurado, true);
   const d = crearAlmacen({ hoy: HOY, clave: "gsg-club:demo-club:u1:v1", almacenamiento: null });
@@ -545,7 +585,7 @@ test("empezar en blanco: sin el respaldo de AHORA descargado y elegido de vuelta
   const mensaje = (r: ReturnType<typeof autorizarEnBlanco>) => (r.ok ? "" : r.mensaje);
   assert.equal(mensaje(pedir({}, "RECEPTION")), "Empezar en blanco lo hace un dueño.");
   assert.equal(mensaje(pedir({ pin: "99" })), "PIN incorrecto.");
-  assert.equal(mensaje(pedir({ pin: "1" })), "Poné tu PIN (2 números).");
+  assert.equal(mensaje(pedir({ pin: "1" })), "Poné tu PIN (4 números).", "dueño (aunque tenga el viejo de 2 guardado, se le pide el largo de dueño)");
   assert.equal(mensaje(pedir({})), "Primero descargá el respaldo (paso 1).");
   const bajado = respaldoAntesDeBlanco(a.estado(), "u-duenio-1", ms);
   assert.equal(bajado.nombre, "breakpoint-jornada-antes-de-blanco-2026-10-17-1900.json");

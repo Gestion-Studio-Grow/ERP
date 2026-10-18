@@ -3,9 +3,9 @@
 // ============================================================================
 //
 // Lo mismo que el Tablero del sistema de hoy (public/previews/breakpoint/club/app.mjs: `vistaTablero`,
-// `aprobarCC`, `rechazarCC`, `otorgar`, `rechazarAcceso`), sin las cámaras (no se portan, G6):
+// `aprobarCC`, `rechazarCC`, `otorgar`, `rechazarAcceso`); las cámaras de la demo van aparte (camaras-core.ts):
 //   · NOVEDADES PARA AUTORIZAR: los pedidos de crédito (cuenta corriente o fiado, con el monto que el dueño puede
-//     cambiar antes de autorizar) y los pedidos de acceso (el motor genera un PIN de 2 dígitos que se muestra UNA
+//     cambiar antes de autorizar) y los pedidos de acceso (el motor genera un PIN del largo del rol —dueño 4, recepción 2— que se muestra UNA
 //     sola vez: no va al aviso de abajo ni a «qué pasó hoy»);
 //   · los indicadores del día, las canchas ahora, la ocupación de la semana (mapa de calor), la caja por medio, los
 //     platos más vendidos y «qué pasó hoy».

@@ -45,6 +45,17 @@ export const TIPOS = Object.freeze({
 export const ROLES = Object.freeze({ duenio: "Dueño/a", recepcion: "Recepción" });
 
 /**
+ * Largo del PIN por rol (decisión del dueño, 18/10/2026: «son 4 dígitos para los dueños y 2 para los empleados»).
+ * Lo nuevo (alta, PIN inicial, cambio, «PIN nuevo») se valida con este largo. Lo ya guardado se acepta tal cual:
+ * los dueños del piloto tienen PIN de 2 y siguen entrando; al entrar la app les pide elegir uno de 4
+ * (`pinDesactualizado`). Cualquier rol que no sea dueño usa el de recepción.
+ */
+export const LARGO_PIN = Object.freeze({ duenio: 4, recepcion: 2 });
+/** El largo que tenían todos los PIN antes (lo que puede haber guardado un dueño del piloto). */
+export const LARGO_PIN_VIEJO = 2;
+export const largoPin = (rol) => (rol === "duenio" ? LARGO_PIN.duenio : LARGO_PIN.recepcion);
+
+/**
  * Qué puede hacer cada rol. Recepción opera el día (agenda, cobros, buffet, remitos y egresos en efectivo);
  * el pago a proveedores, sus cuentas corrientes, la configuración y las autorizaciones son del dueño.
  */
@@ -291,10 +302,12 @@ export function usuarioPorPin(estado, pin) {
   return u ? { ok: true, usuario: u } : { ok: false, motivo: "PIN incorrecto." };
 }
 
-function pinLibre(estado) {
+/** Un PIN al azar del largo del rol que no repite ningún otro activo (sin cero adelante: 10–99 o 1000–9999). */
+function pinLibre(estado, rol) {
   const usados = new Set(estado.usuarios.filter((u) => u.activo !== false).map((u) => u.pin));
+  const largo = largoPin(rol);
   const libres = [];
-  for (let n = 10; n <= 99; n++) if (!usados.has(String(n))) libres.push(String(n));
+  for (let n = 10 ** (largo - 1); n < 10 ** largo; n++) if (!usados.has(String(n))) libres.push(String(n));
   if (!libres.length) return null;
   const azarSeguro = globalThis.crypto?.getRandomValues ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] : Math.floor(Math.random() * 2 ** 32);
   return libres[azarSeguro % libres.length];
@@ -313,8 +326,8 @@ export function solicitarAcceso(estado, nombre, ahora) {
 }
 
 /**
- * El dueño otorga el acceso: elige el rol y el sistema genera un PIN de 2 dígitos que no repite ningún
- * otro activo. El PIN se muestra UNA vez para entregárselo a la persona (acceso dinámico: se revoca o se
+ * El dueño otorga el acceso: elige el rol y el sistema genera un PIN del largo del rol (dueño 4, recepción 2) que
+ * no repite ningún otro activo. El PIN se muestra UNA vez para entregárselo a la persona (acceso dinámico: se revoca o se
  * regenera cuando haga falta).
  */
 export function otorgarAcceso(estado, solicitudId, { rol }, auth, ahora) {
@@ -323,7 +336,7 @@ export function otorgarAcceso(estado, solicitudId, { rol }, auth, ahora) {
   const s = estado.solicitudesAcceso.find((x) => x.id === solicitudId && x.estado === "pendiente");
   if (!s) return { ok: false, motivo: "Ese pedido ya no está pendiente." };
   if (!ROLES[rol]) return { ok: false, motivo: "Elegí el rol." };
-  const pin = pinLibre(estado);
+  const pin = pinLibre(estado, rol);
   if (!pin) return { ok: false, motivo: "No quedan PIN libres: revocá accesos que no se usen." };
   const u = { id: nuevoId("u"), nombre: s.nombre, rol, pin, activo: true };
   estado.usuarios.push(u);
@@ -363,14 +376,30 @@ export function regenerarPin(estado, usuarioObjetivoId, auth, ahora) {
   if (!u || u.activo === false) return { ok: false, motivo: "Ese usuario no tiene acceso." };
   const viejo = u.pin;
   u.pin = "";
-  const pin = pinLibre(estado);
+  const pin = pinLibre(estado, u.rol);
   if (!pin) { u.pin = viejo; return { ok: false, motivo: "No quedan PIN libres." }; }
   u.pin = pin;
   registrar(estado, `${a.usuario.nombre} generó un PIN nuevo para ${u.nombre}.`, ahora);
   return { ok: true, pin };
 }
 
-const pinValido = (pin) => /^\d{2}$/.test(String(pin ?? "").trim());
+/** ¿El PIN tiene el largo de ese rol? (sólo números). Vale para todo PIN nuevo. */
+export const pinValidoPara = (rol, pin) => new RegExp(`^\\d{${largoPin(rol)}}$`).test(String(pin ?? "").trim());
+/**
+ * ¿Se puede intentar entrar con esto? El largo del rol o, para un dueño, el viejo de 2 (los PIN del piloto). Lo usa
+ * el celular del dueño, que no tiene la jornada y no sabe si ese dueño ya cambió el suyo.
+ */
+export const pinAceptadoPara = (rol, pin) => pinValidoPara(rol, pin) || (rol === "duenio" && new RegExp(`^\\d{${LARGO_PIN_VIEJO}}$`).test(String(pin ?? "").trim()));
+/** Qué se le dice a quien pone un PIN del largo equivocado. */
+export const textoLargoPin = (rol, nuevo = false) => (rol === "duenio" ? `El PIN ${nuevo ? "nuevo " : ""}de dueño son ${LARGO_PIN.duenio} números.` : `El PIN ${nuevo ? "nuevo " : ""}son ${LARGO_PIN.recepcion} números.`);
+/**
+ * ¿Ese usuario tiene guardado un PIN del largo viejo? (dueños del piloto con 2). Entra igual, nunca se lo deja
+ * afuera; la app le pide elegir uno de 4 antes de seguir. El PIN viejo no se muestra en ningún lado.
+ */
+export function pinDesactualizado(estado, usuarioId) {
+  const u = usuario(estado, usuarioId);
+  return !!u && u.activo !== false && !!u.pin && u.pin.length !== largoPin(u.rol);
+}
 const pinEnUso = (estado, pin, salvo) => estado.usuarios.some((u) => u.activo !== false && u.id !== salvo && u.pin === String(pin).trim());
 
 /** Un dueño da de alta a alguien directamente (sin pedido previo). El PIN lo genera el sistema y se ve una vez. */
@@ -381,7 +410,7 @@ export function altaUsuario(estado, { nombre, rol = "recepcion" }, auth, ahora) 
   if (!limpio) return { ok: false, motivo: "Escribí el nombre." };
   if (!ROLES[rol]) return { ok: false, motivo: "Elegí el rol." };
   if (estado.usuarios.some((u) => u.activo !== false && u.nombre.toLowerCase() === limpio.toLowerCase())) return { ok: false, motivo: `Ya hay un usuario ${limpio}.` };
-  const pin = pinLibre(estado);
+  const pin = pinLibre(estado, rol);
   if (!pin) return { ok: false, motivo: "No quedan PIN libres: sacá accesos que no se usen." };
   const u = { id: nuevoId("u"), nombre: limpio, rol, pin, activo: true };
   estado.usuarios.push(u);
@@ -397,18 +426,21 @@ export function definirPinInicial(estado, usuarioId, pin, ahora) {
   const u = usuario(estado, usuarioId);
   if (!u || u.activo === false) return { ok: false, motivo: "Ese usuario no tiene acceso." };
   if (u.pin) return { ok: false, motivo: `${u.nombre} ya tiene PIN.` };
-  if (!pinValido(pin)) return { ok: false, motivo: "El PIN son 2 números." };
+  if (!pinValidoPara(u.rol, pin)) return { ok: false, motivo: textoLargoPin(u.rol) };
   if (pinEnUso(estado, pin, u.id)) return { ok: false, motivo: "Ese PIN ya lo usa otra persona: elegí otro." };
   u.pin = String(pin).trim();
   registrar(estado, `${u.nombre} armó su PIN.`, ahora);
   return { ok: true };
 }
 
-/** Cada uno cambia su PIN sabiendo el actual. */
+/**
+ * Cada uno cambia su PIN sabiendo el actual. El nuevo va con el largo de su rol; el actual se acepta como esté
+ * guardado (así un dueño con el PIN viejo de 2 pasa al de 4 sin perder nada).
+ */
 export function cambiarMiPin(estado, { usuarioId, pin }, nuevo, ahora) {
   const v = verificarPin(estado, usuarioId, pin);
   if (!v.ok) return v;
-  if (!pinValido(nuevo)) return { ok: false, motivo: "El PIN nuevo son 2 números." };
+  if (!pinValidoPara(v.usuario.rol, nuevo)) return { ok: false, motivo: textoLargoPin(v.usuario.rol, true) };
   if (pinEnUso(estado, nuevo, usuarioId)) return { ok: false, motivo: "Ese PIN ya lo usa otra persona: elegí otro." };
   v.usuario.pin = String(nuevo).trim();
   registrar(estado, `${v.usuario.nombre} cambió su PIN.`, ahora);
@@ -725,7 +757,8 @@ function fnv1a(texto) {
 /**
  * Código de aprobación por WhatsApp (sin servidor): lo calcula el celular del dueño con SU PIN y los datos del
  * pedido, y la PC del club lo verifica con el PIN de cada dueño. Prueba que quien sabe el PIN de un dueño aprobó
- * ESTE pedido por ESTE monto. Es tan fuerte como el PIN (2 dígitos): por eso hay tope de intentos por pedido.
+ * ESTE pedido por ESTE monto. Es tan fuerte como el PIN del dueño (4 dígitos; 2 si todavía tiene el del piloto):
+ * por eso hay tope de intentos por pedido. Funciona igual con cualquier largo: el PIN entra como texto al hash.
  */
 export function codigoAprobacion({ pin, novedadId, clienteId, monto, fecha }) {
   const base = `${String(pin ?? "").trim()}|${novedadId}|${clienteId}|${Math.round(Number(monto))}|${fecha ?? ""}`;
@@ -3059,8 +3092,8 @@ export const USUARIOS_REALES = Object.freeze([
 
 /** Usuarios de demo. Los PIN son de ejemplo y se muestran en pantalla a propósito (es una demo). */
 export const USUARIOS_DEMO = Object.freeze([
-  { id: "u-rober", nombre: "Rober", rol: "duenio", pin: "11", activo: true },
-  { id: "u-majo", nombre: "Majo", rol: "duenio", pin: "22", activo: true },
+  { id: "u-rober", nombre: "Rober", rol: "duenio", pin: "1111", activo: true },
+  { id: "u-majo", nombre: "Majo", rol: "duenio", pin: "2222", activo: true },
   { id: "u-lu", nombre: "Lu (recepción tarde)", rol: "recepcion", pin: "33", activo: true },
   { id: "u-caro", nombre: "Caro (recepción mañana)", rol: "recepcion", pin: "44", activo: true },
 ]);
@@ -3125,7 +3158,7 @@ export function generarDemo(hoy, ahoraMin = H(19, 10)) {
   const elegir = () => clientes[Math.floor(rnd() * clientes.length)];
   const medios = ["efectivo", "mercadopago", "transferencia", "debito"];
   const platos = PRODUCTOS_DEMO.filter((p) => p.plato);
-  const dueno = { usuarioId: "u-rober", pin: "11" };
+  const dueno = { usuarioId: "u-rober", pin: "1111" };
   const recep = { usuarioId: "u-lu" };
 
   crearFijo(e, { clienteId: "k1", canchaId: "c1", dia: diaSemana(hoy), inicio: H(20, 30) });

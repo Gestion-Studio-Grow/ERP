@@ -95,12 +95,14 @@ ok("0.blanco", e0.reservas.length + e0.clientes.length + e0.cuentas.length + e0.
 ok("0.duenios", JSON.stringify(e0.usuarios.map((u) => u.nombre)) === JSON.stringify(["Roberto Ronco", "Majo Gimenez"]), `Usuarios: ${e0.usuarios.map((u) => u.nombre).join(" y ")} (dueños, sin recepción todavía)`);
 await p.click('[data-a="terminarConsola"]', { force: true }).catch(() => {}); await W();
 ok("0.sinpin", await p.isVisible("#t-consola"), "Sin un dueño con PIN no se puede abrir el club");
-await p.fill("#pi-u-rober", "57"); await p.fill("#pi2-u-rober", "75"); await p.click('[data-a="pinInicial"][data-v="u-rober"]'); await W();
-ok("0.pin-distinto", /no coinciden/.test(await aviso()), "Si los dos PIN no coinciden, avisa y no guarda");
 await p.fill("#pi-u-rober", "57"); await p.fill("#pi2-u-rober", "57"); await p.click('[data-a="pinInicial"][data-v="u-rober"]'); await W();
-await p.fill("#pi-u-majo", "57"); await p.fill("#pi2-u-majo", "57"); await p.click('[data-a="pinInicial"][data-v="u-majo"]'); await W();
+ok("0.pin-4", /PIN de dueño son 4 números/.test(await aviso()) && (await p.getAttribute("#pi-u-rober", "maxlength")) === "4", "El PIN de un dueño son 4 números: uno de 2 no se guarda");
+await p.fill("#pi-u-rober", "5757"); await p.fill("#pi2-u-rober", "7575"); await p.click('[data-a="pinInicial"][data-v="u-rober"]'); await W();
+ok("0.pin-distinto", /no coinciden/.test(await aviso()), "Si los dos PIN no coinciden, avisa y no guarda");
+await p.fill("#pi-u-rober", "5757"); await p.fill("#pi2-u-rober", "5757"); await p.click('[data-a="pinInicial"][data-v="u-rober"]'); await W();
+await p.fill("#pi-u-majo", "5757"); await p.fill("#pi2-u-majo", "5757"); await p.click('[data-a="pinInicial"][data-v="u-majo"]'); await W();
 ok("0.pin-repetido", /otra persona/.test(await aviso()), "Majo no puede usar el mismo PIN que Roberto");
-await p.fill("#pi-u-majo", "84"); await p.fill("#pi2-u-majo", "84"); await p.click('[data-a="pinInicial"][data-v="u-majo"]'); await W();
+await p.fill("#pi-u-majo", "8484"); await p.fill("#pi2-u-majo", "8484"); await p.click('[data-a="pinInicial"][data-v="u-majo"]'); await W();
 for (const [sel, v] of [['[data-a="contacto"][data-v="u-rober"]', "5491100000001"], ['[data-a="contacto"][data-v="u-majo"]', "5491100000002"], ['[data-a="contacto"][data-v="club"]', "5491100000009"], ['[data-a="alias"]', "bp.prueba.uat"]]) { await p.fill(`#app ${sel}`, v); await p.press(`#app ${sel}`, "Tab"); await W(200); }
 const pinesRecepcion = {};
 for (const nombre of ["Lu", "Caro"]) {
@@ -115,7 +117,7 @@ ok("0.stock-sin-ejemplo", e0b.productos.filter((x) => !x.plato && !x.alquiler).e
 await foto("consola");
 await p.click('[data-a="terminarConsola"]'); await W(400);
 ok("0.abre", await bloqueada() && /Roberto Ronco/.test(await p.textContent("#bloqueo")) && !(await p.$("#bloqueo .demo-pins")), "«Abrir el club» → pantalla bloqueada de Roberto Ronco, sin PIN de ejemplo a la vista");
-await desbloquear("57");
+await desbloquear("5757");
 const dueno = await pestanas();
 ok("0.dueno", !(await bloqueada()) && dueno.includes("ajustes") && dueno.includes("contenido") && dueno.includes("tablero"), `Roberto entra con su PIN y ve todo: ${dueno.join(", ")}`);
 ok("0.reloj", (await p.textContent("#reloj")) === "14:50" && !(await p.isVisible('[data-a="reloj"]')), "Reloj real (14:50) y sin los botones ±30′ de la demo");
@@ -242,10 +244,10 @@ const pc = await cel.newPage();
 await pc.goto(linkAprob); await pc.waitForTimeout(800);
 ok("3.celular", /Pedido de crédito/.test(await pc.textContent("#dlg")) && /fiarle \$\s?4\.000 a Juan Pérez/.test(await pc.textContent("#dlg")), "En el celular de Majo se abre «Lu pide fiarle $4.000 a Juan Pérez»");
 await pc.click('#dlg [data-a="aprobQuien"][data-v="u-majo"]'); await pc.waitForTimeout(200);
-await pc.fill("#ap-pin", "84"); await pc.click('#dlg [data-a="aprobarLink"]'); await pc.waitForTimeout(300);
+await pc.fill("#ap-pin", "8484"); await pc.click('#dlg [data-a="aprobarLink"]'); await pc.waitForTimeout(300);
 const codigo = (await pc.textContent(".codigo-aprob"))?.trim();
 const d = Object.fromEntries(new URLSearchParams(linkAprob.split("#aprobar&")[1]));
-ok("3.codigo", codigo === M.codigoAprobacion({ pin: "84", novedadId: d.id, clienteId: d.c, monto: 4000, fecha: d.f }), `Con el PIN de Majo sale el código ${codigo}`);
+ok("3.codigo", codigo === M.codigoAprobacion({ pin: "8484", novedadId: d.id, clienteId: d.c, monto: 4000, fecha: d.f }), `Con el PIN de Majo sale el código ${codigo}`);
 await foto("celular-codigo", pc);
 const scrollCel = await pc.evaluate(() => document.documentElement.scrollWidth);
 ok("3.celular-390", scrollCel <= 390, `Celular 390 px sin scroll horizontal (${scrollCel})`);
@@ -298,8 +300,42 @@ await otra.goto(`${BASE}/club`); await otra.waitForTimeout(800);
 ok("5.otra-pestana", /ya está abierta en otra pestaña/.test(await otra.textContent("body")), "Una segunda pestaña del club avisa que la jornada ya está abierta y no pisa nada");
 await otra.close();
 
+// ═══ 5b. Los dueños del piloto tienen guardado el PIN viejo de 2 (lo que dejó main en esta compu) ═══
+// Se sale del club (al salir guarda), se pone en lo guardado el PIN de 2 que tenían Roberto y Majo y se vuelve.
+await p.goto(`${BASE}/robots.txt`); await W(300);
+await p.evaluate(() => {
+  const f = JSON.parse(localStorage.getItem("bp-jornada-v1"));
+  for (const [id, pin] of [["u-rober", "57"], ["u-majo", "84"]]) f.estado.usuarios.find((u) => u.id === id).pin = pin;
+  localStorage.setItem("bp-jornada-v1", JSON.stringify(f));
+});
+await p.goto(`${BASE}/club?modo=real`); await W(1000);
+const e5b = await estado();
+ok("5b.hidrata", await bloqueada() && e5b.reservas.length === e5.reservas.length && ingresos(e5b) === cajaAntes, "La jornada con los PIN viejos de 2 de los dueños se abre igual: bloqueada y con todo lo cargado");
+await p.click('#bloqueo [data-a="bloqueoOtro"]'); await W(150); await p.click('#bloqueo [data-a="bloqueoUsuario"][data-v="u-majo"]'); await W(150);
+ok("5b.campo", (await p.getAttribute("#bl-pin", "maxlength")) === "4" && /PIN viejo de 2/.test(await p.textContent("#bloqueo")), "Para un dueño el campo espera 4 números y avisa cómo entrar con el viejo de 2");
+await p.fill("#bl-pin", "84"); await W(300);
+ok("5b.espera", await p.isVisible("#bl-pin"), "Con 2 números no se prueba solo: espera los 4 del dueño (o «Desbloquear»)");
+await p.click('#bloqueo [data-a="desbloquear"]'); await W(300);
+const textoCambio = await p.textContent("#bloqueo");
+ok("5b.pide", await bloqueada() && await p.isVisible("#bl-nuevo") && /Tu PIN de dueño ahora es de 4 números/.test(textoCambio) && !/\b84\b/.test(textoCambio) && (await estado()).usuarios.find((u) => u.id === "u-majo").pin === "84", "Majo entra con su PIN viejo de 2 → «Tu PIN de dueño ahora es de 4 números. Elegí uno nuevo» (sigue bloqueada, sin mostrar el viejo)");
+await foto("pin-viejo-pide-4");
+await p.fill("#bl-nuevo", "12"); await p.fill("#bl-nuevo2", "12"); await p.click('#bloqueo [data-a="guardarPinNuevo"]'); await W(300);
+ok("5b.largo", await bloqueada() && /4 números/.test(await p.textContent("#bl-aviso")), "Un PIN nuevo de 2 para una dueña no se acepta");
+await p.fill("#bl-nuevo", "8484"); await p.fill("#bl-nuevo2", "4848"); await p.click('#bloqueo [data-a="guardarPinNuevo"]'); await W(300);
+ok("5b.distintos", await bloqueada() && /no coinciden/.test(await p.textContent("#bl-aviso")), "Si los dos PIN nuevos no coinciden, avisa y no guarda");
+await p.fill("#bl-nuevo", "8484"); await p.fill("#bl-nuevo2", "8484"); await p.press("#bl-nuevo2", "Enter"); await W(400);
+const e5c = await estado();
+ok("5b.cambiado", !(await bloqueada()) && (await p.textContent("#u-nombre")) === "Majo Gimenez" && e5c.usuarios.find((u) => u.id === "u-majo").pin === "8484" && e5c.reservas.length === e5.reservas.length && ingresos(e5c) === cajaAntes, "Elige 8484 y entra: el PIN nuevo queda guardado y no se perdió nada");
+// Roberto todavía tiene el de 2 y entra por «Cambiar usuario»: también se le pide el de 4 antes de operar.
+await entrarComo("u-rober", "57");
+ok("5b.cambiar-usuario", await bloqueada() && await p.isVisible("#bl-nuevo") && /Roberto Ronco/.test(await p.textContent("#bloqueo")), "Roberto con el PIN viejo por «¿Quién usa el sistema?» → pantalla de PIN nuevo");
+await p.click('#bloqueo [data-a="pinNuevoDespues"]'); await W(200);
+ok("5b.ahora-no", await bloqueada() && /Majo Gimenez/.test(await p.textContent("#bloqueo")) && (await estado()).usuarios.find((u) => u.id === "u-rober").pin === "57", "«Ahora no»: queda bloqueada, no entra Roberto y su PIN sigue igual hasta que lo cambie");
+await desbloquear("8484");
+ok("5b.majo", !(await bloqueada()) && (await p.textContent("#u-nombre")) === "Majo Gimenez", "Majo vuelve a entrar con su PIN nuevo de 4 (se prueba solo al cuarto número)");
+
 // ═══ 6. Dueña: novedades por difusión, accesos, respaldo y cierre de caja ═══
-await entrarComo(ids["Majo Gimenez"], "84");
+await entrarComo(ids["Majo Gimenez"], "8484");
 await irTab("contenido");
 await p.selectOption("#df-tipo", "torneo"); await W(100);
 await p.fill("#df-titulo", "Torneo de categorías el sábado 24"); await p.fill("#df-texto", "Inscripción $20.000 por pareja. Anotate respondiendo este mensaje."); await W(500);
@@ -318,7 +354,7 @@ ok("6.csv", /\.csv$/.test(csv.suggestedFilename()), `Contactos para la lista de 
 await foto("difusion");
 await irTab("ajustes");
 await p.fill("#nu-nombre", "Agus (finde)"); await p.selectOption("#nu-rol", "recepcion"); await p.click('[data-a="altaUsuario"]'); await W();
-await p.fill("#cf-pin", "84"); await p.click('#dlg [data-a="confirmarAltaUsuario"]'); await W(300);
+await p.fill("#cf-pin", "8484"); await p.click('#dlg [data-a="confirmarAltaUsuario"]'); await W(300);
 const pinAgus = (await p.textContent("#dlg .codigo-aprob"))?.trim();
 ok("6.alta", /^\d{2}$/.test(pinAgus ?? "") && (await estado()).usuarios.some((u) => u.nombre === "Agus (finde)" && u.rol === "recepcion"), `Majo da de alta a Agus en recepción: PIN ${pinAgus} (se ve una vez)`);
 await cerrar();
@@ -328,7 +364,7 @@ ok("6.respaldo", respaldo.v === 1 && respaldo.estado.reservas.length === e5.rese
 // Cierre de caja: la caja de hoy (12 a 12).
 await irTab("caja");
 await p.click('[data-a="cerrarCaja"]'); await W();
-await p.fill("#k-pin", "84"); await p.click('#dlg [data-a="aplicarCierre"]'); await W(300);
+await p.fill("#k-pin", "8484"); await p.click('#dlg [data-a="aplicarCierre"]'); await W(300);
 const e7 = await estado();
 ok("6.caja", e7.caja.cierres.length === 1, "Majo cierra la caja del día con su PIN");
 await p.click('[data-a="cerrarCaja"]'); await W();
@@ -348,7 +384,7 @@ await ctx.clock.setFixedTime(new Date("2026-10-18T00:30:00-03:00")); await ctx.c
 let relojMedianoche = "", diaAgenda = "";
 for (let i = 0; i < 4 && diaAgenda === ""; i++) {
   await W(400);
-  if (await bloqueada()) await desbloquear("84");
+  if (await bloqueada()) await desbloquear("8484");
   await irTab("agenda");
   relojMedianoche = await p.textContent("#reloj");
   diaAgenda = await p.evaluate(() => document.querySelector('#app [data-a="dia"][aria-pressed="true"]')?.dataset.v ?? "");
@@ -363,25 +399,25 @@ await foto("movil-cuenta-turno");
 // ═══ 9. Gate B1: desde la demo (PIN de ejemplo) no se puede borrar la jornada real guardada ═══
 await p.setViewportSize({ width: 1366, height: 900 }); await cerrar();
 const cajaFinal = ingresos(await estado());
-if (await bloqueada()) await desbloquear("84");
+if (await bloqueada()) await desbloquear("8484");
 await irTab("ajustes");
-await p.click('#app [data-a="jornada"][data-v="demo"]'); await W(); await p.fill("#cf-pin", "84"); await p.click('#dlg [data-a="confirmarJornada"]');
+await p.click('#app [data-a="jornada"][data-v="demo"]'); await W(); await p.fill("#cf-pin", "8484"); await p.click('#dlg [data-a="confirmarJornada"]');
 await p.waitForLoadState("load"); await W(1200);
-await entrarComo("u-rober", "11"); await irTab("ajustes");
+await entrarComo("u-rober", "1111"); await irTab("ajustes");
 const enBlanco = await p.locator('#app [data-a="jornada"][data-v="blanco"]').count();
 ok("9.demo-contactos", (await p.inputValue('#app [data-a="contacto"][data-v="u-rober"]')) === "" && JSON.parse(await p.evaluate(() => localStorage.getItem("bp-contactos")) || "{}")["u-rober"] === "5491100000001", "La demo no ve ni pisa los celulares reales de los dueños");
 ok("9.demo-no-borra", enBlanco === 0 && await p.isVisible('#app [data-a="jornada"][data-v="retomar"]'), "En la demo, con una jornada real guardada, no aparece «Empezar en blanco»: sólo «Seguir la jornada real guardada»");
-await p.click('#app [data-a="jornada"][data-v="retomar"]'); await W(); await p.fill("#cf-pin", "11"); await p.click('#dlg [data-a="confirmarJornada"]');
+await p.click('#app [data-a="jornada"][data-v="retomar"]'); await W(); await p.fill("#cf-pin", "1111"); await p.click('#dlg [data-a="confirmarJornada"]');
 await p.waitForLoadState("load"); await W(1200);
 ok("9.vuelve", await bloqueada() && !(await p.$("#bloqueo .demo-pins")) && ingresos(await estado()) === cajaFinal, "Volver a la jornada: queda bloqueada (con el PIN de la demo no se entra) y la caja está intacta");
-await desbloquear("11");
-ok("9.pin-demo", await bloqueada(), "El PIN 11 de la demo no abre la jornada real");
+await desbloquear("1111");
+ok("9.pin-demo", await bloqueada(), "El PIN 1111 de la demo no abre la jornada real");
 
 // ═══ 10. Después del día de prueba: limpieza para el go-live (dueña, con PIN y respaldo antes) ═══
-await desbloquear("84");
+await desbloquear("8484");
 await irTab("ajustes");
 ok("10.pendientes", /Canchas en juego[\s\S]*Cajas sin cerrar|Cajas sin cerrar|Canchas en juego/.test(await p.textContent("#app")), "Antes de limpiar avisa lo pendiente: la cancha de las 16:30 en juego");
-await p.click('#app [data-a="goLive"]'); await W(); await p.fill("#cf-pin", "84"); await p.click('#dlg [data-a="confirmarGoLive"]'); await W(400);
+await p.click('#app [data-a="goLive"]'); await W(); await p.fill("#cf-pin", "8484"); await p.click('#dlg [data-a="confirmarGoLive"]'); await W(400);
 ok("10.no-limpia", (await estado()).reservas.length > 0 && /Antes de limpiar hay que resolver/.test(await aviso()), "Con cosas pendientes la limpieza no corre: dice qué resolver");
 await cerrar();
 // Se resuelve: se cobra y se cierra la cancha de las 16:30 y se cierra la caja que quedó abierta.
@@ -395,12 +431,12 @@ for (let i = 0; i < 3; i++) {
   if (!sinCerrar?.length) break;
   await p.click('#app [data-a="cerrarCaja"]'); await W();
   const esperado = M.resumenCaja(await estado(), sinCerrar[0]).efectivoEsperado;
-  await p.fill("#k-cont", String(esperado)); await p.fill("#k-pin", "84"); await p.click('#dlg [data-a="aplicarCierre"]'); await W(300);
+  await p.fill("#k-cont", String(esperado)); await p.fill("#k-pin", "8484"); await p.click('#dlg [data-a="aplicarCierre"]'); await W(300);
 }
 ok("10.resuelto", M.pendientesGoLive(await estado(), { fecha: "2026-10-17", min: 1470 }).length === 0, "Cancha cobrada y cerrada, cajas cerradas: nada pendiente");
 await irTab("ajustes");
 const antesGL = await estado();
-await p.click('#app [data-a="goLive"]'); await W(); await p.fill("#cf-pin", "84");
+await p.click('#app [data-a="goLive"]'); await W(); await p.fill("#cf-pin", "8484");
 const [respGL] = await Promise.all([p.waitForEvent("download"), p.click('#dlg [data-a="confirmarGoLive"]')]);
 await W(500);
 const gl = await estado();
@@ -414,12 +450,12 @@ ok("10.vuelve", await bloqueada() && (await estado()).reservas.length === 0, "De
 
 // ═══ 11. Un mes después: la compu se llena → archivar días cerrados (dueña, con PIN, en dos pasos: bajar UN archivo y
 // elegirlo; recién ahí se achica). Lo mismo para borrar una copia vieja. ═══
-await desbloquear("84");
+await desbloquear("8484");
 await irTab("ajustes");
 const copiaGL = await p.evaluate(() => (localStorage.getItem("bp-jornada-v1-antes-golive") ?? "").length);
 ok("11.copia-visible", copiaGL > 0 && /Copia de antes de la limpieza del go-live/.test(await p.textContent("#app")), `La copia de antes del go-live se ve con lo que ocupa (${Math.ceil(copiaGL / 1024)} KB)`);
 const etiqueta = await p.getAttribute('#app [data-a="borrarCopia"][data-v="antes-golive"]', "aria-label");
-await p.click('#app [data-a="borrarCopia"][data-v="antes-golive"]'); await W(); await p.fill("#cf-pin", "84");
+await p.click('#app [data-a="borrarCopia"][data-v="antes-golive"]'); await W(); await p.fill("#cf-pin", "8484");
 const borrarDeshabilitado = await p.isDisabled("#cp-borrar");
 const [descCopia] = await Promise.all([p.waitForEvent("download"), p.click('#dlg [data-a="bajarCopia"]')]);
 await W(300);
@@ -438,7 +474,7 @@ ok("11.copia-borrada", /Descargar y borrar: Copia de antes/.test(etiqueta ?? "")
 const { armarMesCargado } = await import("../../mes-cargado.fixture.ts");
 const actual = await estado();
 const mes = armarMesCargado("2026-10-10", 30);
-const majo = actual.usuarios.find((u) => u.rol === "duenio" && u.pin === "84");
+const majo = actual.usuarios.find((u) => u.rol === "duenio" && u.pin === "8484");
 Object.assign(mes.estado, { usuarios: actual.usuarios, config: actual.config });
 // Al recargar, la pestaña guarda lo suyo (pagehide y después visibilitychange): el mes se vuelve a poner al final, como
 // si lo hubiera cargado el club.
@@ -447,7 +483,7 @@ await p.evaluate((txt) => {
   poner(); addEventListener("pagehide", poner); document.addEventListener("visibilitychange", poner);
 }, JSON.stringify({ ...mes, usuario: majo.id }));
 await p.reload(); await W(1200);
-await desbloquear("84"); await W(500);
+await desbloquear("8484"); await W(500);
 const llena = (await p.evaluate(() => localStorage.getItem("bp-jornada-v1"))).length;
 ok("11.aviso", llena > 2_500_000 && await p.isVisible("#aviso-lleno"), `Con un mes lleno (${Math.round(llena / 1024)} KB) la cinta avisa «Se está llenando»`);
 await p.click("#aviso-lleno"); await W(600);
@@ -456,7 +492,7 @@ await foto("archivar-dias");
 const antesArch = await estado();
 const bajadas = [];
 p.on("download", (d) => bajadas.push(d));
-await p.click("#btn-archivar"); await W(); await p.fill("#cf-pin", "84");
+await p.click("#btn-archivar"); await W(); await p.fill("#cf-pin", "8484");
 const paso2Cerrado = await p.isDisabled("#ar-achicar");
 await p.click('#dlg [data-a="bajarParaArchivar"]'); await W(1500);
 const nombres = bajadas.map((d) => d.suggestedFilename());
@@ -489,7 +525,7 @@ ok("11.plata", plata(antesArch) === plata(despuesArch, anexo), "Al centavo, día
 const cajaSinCerrar = (r) => r.pagos.some((x) => !M.cajaCerrada(despuesArch, M.diaDeCaja(despuesArch, x.fecha, x.min)));
 const recientes = (e) => e.reservas.filter((r) => r.fecha > anexo.hasta).map((r) => r.id).join();
 ok("11.vivo", despuesArch.reservas.every((r) => r.fecha > anexo.hasta || cajaSinCerrar(r)) && recientes(despuesArch) === recientes(antesArch) && despuesArch.clientes.every((c, i) => c.deuda === antesArch.clientes[i].deuda && c.monedero === antesArch.clientes[i].monedero), "Lo de las últimas 3 semanas, lo de cajas sin cerrar y los saldos de los clientes quedan como estaban");
-await p.reload(); await W(1000); await desbloquear("84");
+await p.reload(); await W(1000); await desbloquear("8484");
 ok("11.vuelve", (await estado()).archivo?.hasta === anexo.hasta && !(await bloqueada()), "Al recargar, la jornada achicada se abre igual");
 
 // 11.cancelada: en una compu donde el navegador NO baja archivos (descarga cancelada o bloqueada), no hay archivo para
@@ -507,10 +543,10 @@ ok("11.vuelve", (await estado()).archivo?.hasta === anexo.hasta && !(await bloqu
   await q.goto(`${BASE}/club`); await q.waitForTimeout(800);
   await q.evaluate((t) => { localStorage.setItem("bp-modo", "real"); const poner = () => localStorage.setItem("bp-jornada-v1", t); poner(); addEventListener("pagehide", poner); document.addEventListener("visibilitychange", poner); }, txt);
   await q.reload(); await q.waitForTimeout(1200);
-  await q.fill("#bl-pin", "84"); await q.waitForTimeout(600);
+  await q.fill("#bl-pin", "8484"); await q.waitForTimeout(600);
   const antes2 = (await q.evaluate(() => localStorage.getItem("bp-jornada-v1"))).length;
   await q.click("#aviso-lleno"); await q.waitForTimeout(600);
-  await q.click("#btn-archivar"); await q.waitForTimeout(250); await q.fill("#cf-pin", "84");
+  await q.click("#btn-archivar"); await q.waitForTimeout(250); await q.fill("#cf-pin", "8484");
   await q.click('#dlg [data-a="bajarParaArchivar"]'); await q.waitForTimeout(1500);
   const fallas = await Promise.all(bajadas2.map(async (d) => (await d.failure()) ?? "ok"));
   await q.click('#dlg [data-a="confirmarArchivar"]'); await q.waitForTimeout(500);

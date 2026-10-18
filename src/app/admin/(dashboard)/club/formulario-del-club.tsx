@@ -8,6 +8,8 @@
 // copia local): etiqueta visible y asociada, control de 44 px, foco visible. El PIN no se muestra ni se autocompleta.
 
 import { useId } from "react";
+import { LARGO_PIN, largoPin } from "@/lib/club/motor.mjs";
+import type { Rol } from "@/lib/club/motor.mjs";
 import { Input } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
 
@@ -31,16 +33,52 @@ export function Campo({ label, ayuda, ...props }: { label: string; ayuda?: strin
   );
 }
 
-/** El PIN de quien opera: numérico, 2 dígitos, sin mostrarse. */
-export function CampoPin({ quien, value, onChange }: { quien: string | null; value: string; onChange: (pin: string) => void }) {
+/** El más largo de los PIN (el de dueño): lo que deja escribir el campo cuando no se sabe el rol de quien opera. */
+export const LARGO_PIN_MAX = Math.max(LARGO_PIN.duenio, LARGO_PIN.recepcion);
+
+/**
+ * El PIN de quien opera: numérico, del largo de su rol (dueño 4, recepción 2; un dueño con el viejo de 2 también entra,
+ * porque es más corto), sin mostrarse. Sin `rol`, deja escribir el más largo (como `campoPin` del vanilla): el motor
+ * verifica.
+ */
+export function CampoPin({ quien, rol, value, onChange }: { quien: string | null; rol?: Rol | null; value: string; onChange: (pin: string) => void }) {
   const id = useId();
+  const largo = rol ? largoPin(rol) : LARGO_PIN_MAX;
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor={id} className={etiquetaDelClub}>
         {quien ? `PIN de ${quien}` : "Tu PIN"}
       </label>
-      <Input id={id} type="password" inputMode="numeric" autoComplete="off" maxLength={2} value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))} className="sm:w-28" />
+      <Input
+        id={id}
+        type="password"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        autoComplete="off"
+        maxLength={largo}
+        placeholder={"•".repeat(largo)}
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, largo))}
+        className="sm:w-32"
+      />
     </div>
+  );
+}
+
+/** Un PIN NUEVO (inicial, «cambiar mi PIN»): `largo` números que no se ven ni se autocompletan. */
+export function CampoPinNuevo({ label, largo, value, onChange }: { label: string; largo: number; value: string; onChange: (v: string) => void }) {
+  return (
+    <Campo
+      label={label}
+      type="password"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      maxLength={largo}
+      placeholder={"•".repeat(largo)}
+      value={value}
+      onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, largo))}
+      className="sm:w-32"
+    />
   );
 }
 
