@@ -16,7 +16,8 @@
 //   · el historial de lo que se mandó, con «Seguir mandando»;
 //   · el calendario de redes del mes (`contenido`: Instagram post/reel/historia y WhatsApp; idea → programado →
 //     publicado), con alta, edición y borrado.
-// El STUDIO DE REDES (studio.mjs: imágenes con la marca del club) NO se porta: queda en el sistema de hoy (G6).
+// El STUDIO DE REDES (studio.mjs: la placa con la marca del club) queda en el sistema de hoy Y se hace también acá
+// (decisión del dueño, 18/10): studio-core.ts / studio-de-redes.tsx; lo que guarda entra por `guardarPublicacion`.
 // Las reglas son del motor; acá se arma lo que se ve y se traduce cada toque (novedades-core.test.ts).
 
 import {

@@ -44,7 +44,7 @@ export const SOLAPAS_DEL_CLUB: readonly SolapaDelClub[] = [
   { id: "proveedores", etiqueta: "Proveedores", cargar: () => import("./ProveedoresDelClub"), soloDuenos: true },
   // «stock» es el id al que lleva la bandeja «Para resolver ahora» (bandeja-core.ts): no se cambia.
   { id: "stock", etiqueta: "Stock", cargar: () => import("./StockDelClub"), soloDuenos: true },
-  // La pestaña «Novedades y redes» del vanilla (permiso `contenido`: sólo dueños). El Studio de redes queda allá (G6).
+  // La pestaña «Novedades y redes» del vanilla (permiso `contenido`: sólo dueños), con el Studio de redes adentro.
   { id: "novedades", etiqueta: "Novedades y redes", cargar: () => import("./NovedadesDelClub"), soloDuenos: true },
   // «configuracion» es el id al que lleva la cinta cuando lo guardado se llena (archivar días cerrados): no se cambia.
   { id: "configuracion", etiqueta: "Configuración", cargar: () => import("./ConfiguracionDelClub"), soloDuenos: true },

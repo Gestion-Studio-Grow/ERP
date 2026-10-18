@@ -33,8 +33,11 @@ diarias chicas pero críticas.
 | Transversal | Paleta Ctrl+K y atajos | 🟢 | club | — no está en el guion del sábado (sólo la L de bloquear: ✅) |
 | UAT | Guion del sábado de torneo adaptado a `/admin/club` | requisito del corte | club | ✅ escrito: `npm run test:club-paridad` → **123/131**, 8 brechas, 0 otras fallas, 0 errores de consola |
 
-No se portan (decisión a confirmar con el dueño): las cámaras simuladas, los 5 estilos visuales (el panel usa el
-tema del ERP) y el Studio de redes (queda en vanilla por ahora).
+No se portan: los 5 estilos visuales (el panel usa el tema del ERP). **Studio de redes y cámaras simuladas**
+(decisión del dueño, 18/10: «se quedan en el sistema de hoy pero se hace también en React»): el Studio va en
+Novedades y redes (desde la novedad que se arma y desde el calendario; `studio-de-redes.tsx` en su propio chunk,
+lo puro en `studio-core.ts`, el dibujo en `studio-placa.ts`); las cámaras van en el Tablero del dueño SÓLO en la
+demo, como el vanilla (`camaras-de-la-demo.tsx`, `camaras-core.ts`). Prueba en el navegador: `studio-pantalla.test.ts`.
 
 ## Lo que cambia por estar dentro del ERP
 
@@ -75,7 +78,7 @@ Total 18–24 días de trabajo; con dos sesiones en paralelo (terminales + club)
 | G3 | PIN de 2 dígitos (como hoy, recomendado para el corte) o 4 (después) |
 | G4 | La aprobación desde el celular del dueño sigue por el link de vanilla durante el corte |
 | G5 | El panel usa el tema del ERP, no los 5 estilos del vanilla |
-| G6 | Studio de redes y cámaras quedan en vanilla / no se portan |
+| G6 | ✅ Resuelta (18/10): Studio de redes y cámaras quedan en vanilla **y** se hacen también en React (cámaras sólo en la demo) |
 | G7 | Usuarios del ERP para el club (mail y clave; las claves las pega el dueño) |
 
 ## UAT de paridad — resultado (17/10)

@@ -7,12 +7,13 @@
 // Arriba, lo que pide una decisión: «Novedades para autorizar» (crédito con su monto, que el dueño puede cambiar;
 // pedidos de acceso, con el rol, y el PIN que genera el motor a la vista UNA sola vez, con «Listo, ya se lo di»).
 // Después, para mirar: los indicadores del día, las canchas ahora, la caja por medio, la ocupación de la semana
-// (mapa de calor, con su tabla), los platos más vendidos y «qué pasó hoy». Sin cámaras (no se portan, G6).
+// (mapa de calor, con su tabla), los platos más vendidos y «qué pasó hoy». En la DEMO, además, las cámaras simuladas
+// (camaras-de-la-demo.tsx, en su propio chunk), como el vanilla: en la jornada real no se ven.
 //
 // Es solapa `soloDuenos` (solapas-club.ts): esconderla no es seguridad; autorizar y dar accesos los vuelve a
 // controlar el motor con el usuario del club (operador-del-club.ts). Nada se anima: se mira muchas veces por día.
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { KpiTile } from "@/components/ui/KpiTile";
@@ -23,6 +24,9 @@ import { operadorActual } from "./operador-del-club";
 import type { PropsDeSolapa } from "./solapas-club";
 import { armarTablero, ejecutarTablero, type AccesoPedido, type AccionTablero, type DesenlaceTablero, type PedidoParaAutorizar, type VistaTablero } from "./tablero-core";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
+
+// Sólo en la demo: baja en su propio chunk (la jornada real ni lo pide).
+const CamarasDeLaDemo = lazy(() => import("./camaras-de-la-demo"));
 
 const seleccionarTablero = (e: EstadoClub, a: Ahora) => armarTablero(e, a);
 const tarjeta = "flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4";
@@ -264,6 +268,12 @@ export default function TableroDelDuenio({ almacen }: PropsDeSolapa) {
           ))}
         </ul>
       </section>
+
+      {almacen.modo() === "demo" && (
+        <Suspense fallback={null}>
+          <CamarasDeLaDemo almacen={almacen} />
+        </Suspense>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section aria-labelledby="club-canchas-ahora" className={tarjeta}>
