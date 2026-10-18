@@ -203,6 +203,28 @@ export function avisoDeCantidad(input: {
 }
 
 /**
+ * Cuánto se puede apartar el peso real de lo que pidió la clienta sin avisarle. PROVISIONAL A
+ * CONFIRMAR con Magra (EVENTUALIDADES.md, caso 2): ±15 %.
+ */
+export const TOLERANCIA_DEL_PESO = 0.15;
+
+/**
+ * El peso real se fue lejos de lo pedido (caso 2 de Magra). PURA. Pidió 0,5 kg y la pieza pesó
+ * 0,9 kg (+80 %): el pedido se guarda igual al precio del pedido, pero la clienta no aceptó pagar
+ * casi el doble, así que se avisa ANTES de cobrar. No frena: avisa. Sólo por kilo; sin pedido
+ * o sin peso (la línea se saca) no hay nada que comparar. `pedido` es la cantidad que tiene el
+ * pedido ahora (si ya se pesó una vez, la de esa pesada).
+ */
+export function desvioDelPeso(input: { pedido: number; real: number; saleUnit?: "UNIT" | "WEIGHT" }): string | null {
+  if (input.saleUnit && input.saleUnit !== "WEIGHT") return null;
+  if (!(input.pedido > 0) || !(input.real > 0)) return null;
+  const desvio = Math.abs(input.real - input.pedido) / input.pedido;
+  // Un margen de coma flotante sobre el borde: 0,575 contra 0,5 es justo 15 % y no avisa.
+  if (desvio <= TOLERANCIA_DEL_PESO + 0.0005) return null;
+  return `Pesó ${formatearCantidad(input.real)} kg y pidió ${formatearCantidad(input.pedido)}: avisale antes de cobrar.`;
+}
+
+/**
  * La pregunta que frena el cobro cuando el peso es implausible (UAT MAGRA 16/10). PURA.
  *
  * El aviso suave (`avisoDeCantidad`) se leía y se cobraba igual: «1500» quedaba como 1500 kg. Ahora

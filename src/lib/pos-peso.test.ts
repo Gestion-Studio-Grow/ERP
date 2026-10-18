@@ -24,6 +24,8 @@ import {
   KG_SOSPECHOSO,
   textosDelAjuste,
   hayLineaPorPeso,
+  desvioDelPeso,
+  TOLERANCIA_DEL_PESO,
 } from "./pos-peso";
 
 function valor(raw: string): number | null {
@@ -336,4 +338,20 @@ test("un peso normal, o algo que se vende por unidad, no pide confirmación", ()
 
 test("el botón de cobrar dice de qué producto falta confirmar el peso", () => {
   assert.equal(motivoDePesoSinConfirmar({ name: "Vacío" }), "Confirmá el peso de Vacío");
+});
+
+// ── Desvío del peso contra lo pedido (caso 2 de Magra) ───────────────────────
+
+test("desvío del peso: pidió 0,5 y pesó 0,9 → se avisa antes de cobrar (no frena)", () => {
+  assert.equal(desvioDelPeso({ pedido: 0.5, real: 0.9 }), "Pesó 0,9 kg y pidió 0,5: avisale antes de cobrar.");
+  assert.match(desvioDelPeso({ pedido: 1, real: 0.7, saleUnit: "WEIGHT" }) ?? "", /Pesó 0,7 kg y pidió 1/, "también para menos");
+  assert.equal(TOLERANCIA_DEL_PESO, 0.15, "provisional a confirmar con Magra");
+});
+
+test("desvío del peso: dentro del ±15 %, por unidad o sin peso, no dice nada", () => {
+  assert.equal(desvioDelPeso({ pedido: 0.5, real: 0.575 }), null, "justo en el borde");
+  assert.equal(desvioDelPeso({ pedido: 1, real: 1.1 }), null);
+  assert.equal(desvioDelPeso({ pedido: 2, real: 5, saleUnit: "UNIT" }), null, "por unidad no es un desvío de peso");
+  assert.equal(desvioDelPeso({ pedido: 0.5, real: 0 }), null, "la línea se saca");
+  assert.equal(desvioDelPeso({ pedido: 0, real: 0.5 }), null);
 });
