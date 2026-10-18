@@ -16,7 +16,8 @@ import Link from "next/link";
 import type { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { formatDayLabel, nextDayKey } from "@/lib/caja/cierre-diario";
-import type { CashMethod } from "@/lib/caja/cash-register";
+import { movementSign, type CashMethod } from "@/lib/caja/cash-register";
+import { textoDeAperturaQueNoSuma } from "./revisar-cierre";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
 import { DosColumnas, Franja, LineaDeEstado, Marca, Plata, Renglon, Rotulo, atributosBoton, fmtMoneyARS } from "@/components/ui";
 import { LineaDeCuenta } from "@/components/ui/LineaDeCuenta";
@@ -206,14 +207,15 @@ function ComoSeLlega({ d }: { d: Datos }) {
           </summary>
           <div>
             {d.movements.map((m) => {
-              const entra = m.type === "INGRESO" || m.type === "VENTA" || m.type === "APERTURA";
+              // Misma tabla de signos que el libro: la apertura es el conteo del cajón y no suma.
+              const signo = movementSign(m.type);
               return (
                 <Renglon
                   key={m.id}
                   folio={diaMes(m.day)}
                   titulo={<span className="font-normal">{m.detail || "(sin detalle)"}</span>}
-                  detalle={`${CASH_METHOD_LABEL[m.method]} · ${ORIGEN[m.origin] ?? m.origin}`}
-                  plata={<Plata valor={entra ? m.amount : -m.amount} />}
+                  detalle={`${CASH_METHOD_LABEL[m.method]} · ${ORIGEN[m.origin] ?? m.origin}${signo === 0 ? ` · ${textoDeAperturaQueNoSuma(m.amount)}` : ""}`}
+                  plata={signo === 0 ? null : <Plata valor={signo * m.amount} />}
                 />
               );
             })}

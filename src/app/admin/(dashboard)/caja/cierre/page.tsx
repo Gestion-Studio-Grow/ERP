@@ -20,6 +20,8 @@ import {
   totalOf,
 } from "@/lib/caja/libro-caja";
 import { formatDayLabel, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
+import { movementSign } from "@/lib/caja/cash-register";
+import { textoDeAperturaQueNoSuma } from "./revisar-cierre";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
 import {
   Card,
@@ -308,7 +310,11 @@ export default async function CierreCajaPage({
               </thead>
               <tbody className="block sm:table-row-group">
                 {movements.map((m) => {
-                  const entra = m.type === "INGRESO" || m.type === "VENTA" || m.type === "APERTURA";
+                  // La misma tabla de signos que suma el libro: la apertura del turno es el
+                  // conteo del cajón, no plata que entra. Pintarla en «Ingreso» hacía que la
+                  // columna no diera lo que dice el cuadro de arriba (UAT de MAGRA, 18/10).
+                  const signo = movementSign(m.type);
+                  const entra = signo > 0;
                   return (
                     <tr key={m.id} className={`${FILA_TARJETA} border-b border-line/60 sm:border-b`}>
                       <td className="block whitespace-nowrap text-xs font-medium uppercase tracking-wide tabular-nums text-faint sm:table-cell sm:px-4 sm:py-2 sm:text-sm sm:font-normal sm:normal-case sm:tracking-normal sm:text-muted">
@@ -319,6 +325,11 @@ export default async function CierreCajaPage({
                         {m.origin !== "manual" && (
                           <Badge className="ml-2" tone="neutral">
                             {m.origin === "turno" ? "Turno cobrado" : "Venta del mostrador"}
+                          </Badge>
+                        )}
+                        {signo === 0 && (
+                          <Badge className="ml-2" tone="neutral">
+                            {textoDeAperturaQueNoSuma(m.amount)}
                           </Badge>
                         )}
                       </td>
@@ -332,9 +343,9 @@ export default async function CierreCajaPage({
                         <span className={ROTULO_MOVIL}>Ingreso</span>
                         {entra ? fmtMoneyARS(m.amount) : ""}
                       </td>
-                      <td className={`${CELDA_TARJETA} tabular-nums text-body sm:px-4 sm:text-right ${entra ? "hidden" : ""}`}>
+                      <td className={`${CELDA_TARJETA} tabular-nums text-body sm:px-4 sm:text-right ${signo < 0 ? "" : "hidden"}`}>
                         <span className={ROTULO_MOVIL}>Egreso</span>
-                        {entra ? "" : fmtMoneyARS(m.amount)}
+                        {signo < 0 ? fmtMoneyARS(m.amount) : ""}
                       </td>
                     </tr>
                   );

@@ -15,6 +15,7 @@ import {
 } from "@/lib/datetime";
 import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { whereVentasCobradasConMedio } from "@/lib/order-anulacion";
 import { bookingTransaction, tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { recordMovement } from "@/lib/stock/ledger";
@@ -2145,17 +2146,21 @@ export async function getDashboardData() {
 // reversible por `MODULE_REGISTRY_ENABLED`). Read-only, sin schema nuevo.
 export async function getRetailDashboardData() {
   await requireCapability("dashboard:read");
+  const tenantId = await getCurrentTenantId();
   const todayStart = businessWallTimeToUtc(todayInBusinessTz(), "00:00");
   const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
   const weekStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
 
+  // "Ventas" e "Ingresos" son lo COBRADO, con medio: el mismo `where` del número de Vender y de
+  // Ventas del día. Antes entraba todo pedido no anulado, y el pedido de la tienda que todavía
+  // nadie cobró (ni pesó) aparecía como plata del día (UAT de MAGRA, 18/10).
   const [todayOrders, weekOrders, products, clientsCount, openCash] = await Promise.all([
     prisma.order.findMany({
-      where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: "CANCELLED" } },
+      where: whereVentasCobradasConMedio(tenantId, todayStart, todayEnd),
       select: { total: true },
     }),
     prisma.order.findMany({
-      where: { createdAt: { gte: weekStart }, status: { not: "CANCELLED" } },
+      where: whereVentasCobradasConMedio(tenantId, weekStart),
       select: { total: true },
     }),
     prisma.product.findMany({
