@@ -10,7 +10,8 @@
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
 import type { Almacen } from "./almacen";
-import { ejecutarConfiguracion, esDeshacible, type AccionConfig, type DesenlaceConfig } from "./configuracion-core";
+import { ejecutarConfiguracion, esDeshacible, llevaPinDeQuienOpera, type AccionConfig, type DesenlaceConfig } from "./configuracion-core";
+import { conTopeDePin, guardaDelPin, type DesenlaceConPin } from "./tope-de-pin";
 
 export const tarjeta = "flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4";
 export const subtarjeta = "flex min-w-0 flex-col gap-3 rounded-md border border-line-strong bg-surface p-3";
@@ -74,8 +75,28 @@ export async function textoElegido(campo: HTMLInputElement | null): Promise<stri
 export const despuesDePintar = () => new Promise<void>((listo) => requestAnimationFrame(() => setTimeout(listo, 0)));
 
 /** Corre una acción de la configuración por el almacén (aviso abajo; «Deshacer» sólo en lo que no lleva PIN). */
-export function useHacerConfig(almacen: Almacen) {
-  return useCallback((a: AccionConfig) => almacen.ejecutar((e, ahora, auth) => ejecutarConfiguracion(e, a, ahora, auth), { deshacible: esDeshacible(a) }) as DesenlaceConfig, [almacen]);
+/**
+ * Corre algo que pide el PIN de quien opera con EL tope del equipo (tope-de-pin.ts, el del bloqueo): trabado no corre
+ * y dice cuánto esperar; un PIN malo suma «(n de 5)»; sólo un acierto de un dueño lo vuelve a cero. `negocio`: el de
+ * la clave `gsg-club:<negocio>:intentos-bloqueo:v1`.
+ */
+export function conElTopeDelEquipo<D extends DesenlaceConPin>(almacen: Almacen, negocio: string | undefined, correr: () => D): D | DesenlaceConPin {
+  return conTopeDePin(guardaDelPin(almacen, negocio), Date.now(), correr).desenlace;
+}
+
+/** Corre una acción de la solapa por el almacén; lo que pide el PIN de quien opera, con el tope del equipo. */
+export function useHacerConfig(almacen: Almacen, negocio?: string) {
+  return useCallback(
+    (a: AccionConfig) =>
+      almacen.ejecutar(
+        (e, ahora, auth) => {
+          const correr = () => ejecutarConfiguracion(e, a, ahora, auth);
+          return llevaPinDeQuienOpera(a) ? conElTopeDelEquipo(almacen, negocio, correr) : correr();
+        },
+        { deshacible: esDeshacible(a) },
+      ) as DesenlaceConfig,
+    [almacen, negocio],
+  );
 }
 
 /** El PIN recién generado: a la vista hasta «Listo». No queda en el aviso ni en el registro. */

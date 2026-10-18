@@ -23,7 +23,9 @@
 //     el dueño eligió y el sistema verificó.
 //
 // Lo sensible (accesos, restaurar, limpiar, archivar) vuelve a pedir el PIN de quien opera, como el vanilla, y no
-// se deshace. Lo que el motor no valida (la política, las tarifas, el alias, los contactos) lo controla esta capa con
+// se deshace. Ese PIN cuenta en EL tope del equipo (el del bloqueo, SEC-5): cada operación dice qué pasó con él
+// (`pin: "bueno" | "malo" | null` y `duenio`, `evaluarPinDeQuienOpera`) y la pantalla la corre con `conTopeDePin`
+// (tope-de-pin.ts): trabado no corre; malo suma; sólo un acierto de un dueño lo vuelve a cero. Lo que el motor no valida (la política, las tarifas, el alias, los contactos) lo controla esta capa con
 // el permiso `configurar` del motor. Tests: configuracion-core.test.ts.
 //
 // PEDIDOS AL MOTOR / ALMACÉN (lo que acá se resuelve con lo que hay, sin inventar reglas nuevas):
@@ -70,7 +72,8 @@ import {
   pinValidoPara,
 } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, ConfigClub, EstadoClub, Fecha, ReglaEditable, Rol, Usuario } from "@/lib/club/motor.mjs";
-import type { Desenlace, EstadoDelGuardado, ResultadoDeRestaurar, ResultadoDelArchivo } from "./almacen";
+import type { Almacen, ArchivoPreparado, Desenlace, EstadoDelGuardado, ResultadoDeRestaurar, ResultadoDelArchivo } from "./almacen";
+import type { DesenlaceConPin, ResultadoDelPin } from "./tope-de-pin";
 import { leerMonto } from "./montos-core";
 import { NOTA_CELULAR_RARO, enlaceWhatsApp } from "./whatsapp-core";
 
@@ -86,6 +89,29 @@ const no = (mensaje: string): Desenlace => ({ ok: false, mensaje });
  */
 const rolDeQuienOpera = (estado: EstadoClub, auth: Auth): Rol => (auth.usuarioId ? usuarioDe(estado, auth.usuarioId)?.rol : null) ?? "duenio";
 const numerosDelPin = (rol: Rol) => `${largoPin(rol)} números`;
+
+/** Qué pasó con el PIN de quien opera, para el tope del equipo (`conTopeDePin`, tope-de-pin.ts). */
+export interface PinEvaluado {
+  /** "bueno" o "malo"; null = no se llegó a evaluar (vacío, a medias, nadie adentro, otro control antes): no cuenta. */
+  pin: ResultadoDelPin;
+  /** El acierto es de un dueño con su PIN de 4: sólo ése vuelve el contador a cero. */
+  duenio: boolean;
+}
+
+const SIN_EVALUAR: PinEvaluado = Object.freeze({ pin: null, duenio: false });
+
+/**
+ * El PIN de quien opera como FIRMA (`verificarFirma`), sin tocar nada. Lo que no tiene la forma de su rol no se evalúa.
+ * El PIN viejo de 2 de un dueño es SU PIN (no suma un fallo), pero no firma, así que tampoco limpia (como el vanilla).
+ */
+export function evaluarPinDeQuienOpera(estado: EstadoClub, auth: Auth, pin: string): PinEvaluado {
+  if (!auth.usuarioId) return SIN_EVALUAR;
+  const limpio = String(pin ?? "").trim();
+  if (!pinAceptadoPara(rolDeQuienOpera(estado, auth), limpio)) return SIN_EVALUAR;
+  const f = verificarFirma(estado, auth.usuarioId, limpio);
+  if (f.ok) return { pin: "bueno", duenio: f.usuario.rol === "duenio" };
+  return { pin: "pinViejo" in f ? "bueno" : "malo", duenio: false };
+}
 
 /** El permiso de configurar del motor (dueños). */
 const configura = (estado: EstadoClub, auth: Auth) => !!auth.usuarioId && puede(estado, auth.usuarioId, "configurar");
@@ -199,15 +225,27 @@ export function leerRespaldo(texto: string): { ok: true; respaldo: RespaldoParaR
  * ¿Quien opera es un dueño con ESTE PIN? (lo que el vanilla pedía en cada ventana sensible). Es una FIRMA
  * (`verificarFirma`): con el PIN viejo de 2 el dueño entra, pero no limpia ni empieza en blanco.
  */
-export function pinDeDuenio(estado: EstadoClub, auth: Auth, pin: string, quien: string): { ok: true; usuario: Usuario; auth: Auth } | { ok: false; mensaje: string } {
-  if (!auth.usuarioId) return { ok: false, mensaje: "Entrá con tu PIN para operar." };
+export function pinDeDuenio(estado: EstadoClub, auth: Auth, pin: string, quien: string): ({ ok: true; usuario: Usuario; auth: Auth } | { ok: false; mensaje: string }) & PinEvaluado {
+  const p = evaluarPinDeQuienOpera(estado, auth, pin);
+  if (!auth.usuarioId) return { ok: false, mensaje: "Entrá con tu PIN para operar.", ...p };
   const limpio = pin.trim();
   const rol = rolDeQuienOpera(estado, auth);
-  if (!pinAceptadoPara(rol, limpio)) return { ok: false, mensaje: `Poné tu PIN (${numerosDelPin(rol)}).` };
+  if (!pinAceptadoPara(rol, limpio)) return { ok: false, mensaje: `Poné tu PIN (${numerosDelPin(rol)}).`, ...p };
   const v = verificarFirma(estado, auth.usuarioId, limpio);
-  if (!v.ok) return { ok: false, mensaje: v.motivo };
-  if (v.usuario.rol !== "duenio") return { ok: false, mensaje: `${quien} lo hace un dueño.` };
-  return { ok: true, usuario: v.usuario, auth: { usuarioId: auth.usuarioId, pin: limpio } };
+  if (!v.ok) return { ok: false, mensaje: v.motivo, ...p };
+  if (v.usuario.rol !== "duenio") return { ok: false, mensaje: `${quien} lo hace un dueño.`, ...p };
+  return { ok: true, usuario: v.usuario, auth: { usuarioId: auth.usuarioId, pin: limpio }, ...p };
+}
+
+/**
+ * El paso 1 (descargar) de la limpieza y de empezar en blanco: un dueño con ESTE PIN (`pinDeDuenio`), como desenlace
+ * para correr con `conTopeDePin`; `usuarioId` es el dueño, si salió.
+ */
+export type DuenioConPin = DesenlaceConPin & { usuarioId?: string };
+
+export function duenioConPin(estado: EstadoClub, auth: Auth, pin: string, quien: string): DuenioConPin {
+  const p = pinDeDuenio(estado, auth, pin, quien);
+  return p.ok ? { ok: true, mensaje: "", pin: p.pin, duenio: p.duenio, usuarioId: p.usuario.id } : { ok: false, mensaje: p.mensaje, pin: p.pin, duenio: p.duenio };
 }
 
 /** Lo que se le dice al dueño si `almacen.restaurar` no restauró (por qué, en criollo). */
@@ -254,14 +292,39 @@ export function armarArchivo(estado: EstadoClub, ahora: Ahora): VistaArchivo {
  * de un dueño se frena acá (`verificarFirma`), porque el almacén, al archivar y restaurar, controla con `verificarPin`
  * (el motor no valida quién archiva). Un PIN mal sigue de largo: lo dice el que firma (almacén o motor).
  */
-export function authParaArchivar(estado: EstadoClub, auth: Auth, pin: string): { ok: true; auth: Auth } | { ok: false; mensaje: string } {
-  if (!auth.usuarioId) return { ok: false, mensaje: "Entrá con tu PIN para operar." };
+export function authParaArchivar(estado: EstadoClub, auth: Auth, pin: string): ({ ok: true; auth: Auth } | { ok: false; mensaje: string }) & PinEvaluado {
+  const p = evaluarPinDeQuienOpera(estado, auth, pin);
+  if (!auth.usuarioId) return { ok: false, mensaje: "Entrá con tu PIN para operar.", ...p };
   const rol = rolDeQuienOpera(estado, auth);
   const limpio = pin.trim();
-  if (!pinAceptadoPara(rol, limpio)) return { ok: false, mensaje: `Poné tu PIN (${numerosDelPin(rol)}).` };
+  if (!pinAceptadoPara(rol, limpio)) return { ok: false, mensaje: `Poné tu PIN (${numerosDelPin(rol)}).`, ...p };
   const f = verificarFirma(estado, auth.usuarioId, limpio);
-  if (!f.ok && "pinViejo" in f) return { ok: false, mensaje: f.motivo };
-  return { ok: true, auth: { usuarioId: auth.usuarioId, pin: limpio } };
+  if (!f.ok && "pinViejo" in f) return { ok: false, mensaje: f.motivo, ...p };
+  return { ok: true, auth: { usuarioId: auth.usuarioId, pin: limpio }, ...p };
+}
+
+/**
+ * Restaurar un respaldo con el PIN de quien opera, para correr con `conTopeDePin`: el formato y el PIN viejo se frenan
+ * acá (`authParaArchivar`); el resto lo controla `almacen.restaurar` (rol OWNER + PIN de un dueño). Dice qué pasó con
+ * el PIN aunque el almacén diga que no por otra cosa.
+ */
+export function restaurarConPin(almacen: Pick<Almacen, "estado" | "auth" | "restaurar">, respaldo: unknown, pin: string): DesenlaceConPin {
+  const a = authParaArchivar(almacen.estado(), almacen.auth(), pin);
+  const p = { pin: a.pin, duenio: a.duenio };
+  if (!a.ok) return { ok: false, mensaje: a.mensaje, ...p };
+  const r = almacen.restaurar(respaldo, { auth: a.auth });
+  return r.ok ? { ok: true, mensaje: "", ...p } : { ok: false, mensaje: motivoDeRestaurar(r), ...p };
+}
+
+/** El paso 1 del archivado con el PIN de quien opera (como `restaurarConPin`); `resultado` es lo de `prepararArchivo`. */
+export type ArchivoConPin = DesenlaceConPin & { resultado?: ResultadoDelArchivo | ArchivoPreparado };
+
+export function prepararArchivoConPin(almacen: Pick<Almacen, "estado" | "auth" | "prepararArchivo">, pin: string): ArchivoConPin {
+  const a = authParaArchivar(almacen.estado(), almacen.auth(), pin);
+  const p = { pin: a.pin, duenio: a.duenio };
+  if (!a.ok) return { ok: false, mensaje: a.mensaje, ...p };
+  const resultado = almacen.prepararArchivo({ auth: a.auth });
+  return resultado.ok ? { ok: true, mensaje: "", resultado, ...p } : { ok: false, mensaje: resultado.motivo, resultado, ...p };
 }
 
 /** Qué hace la pantalla con lo que devolvió `confirmar` (paso 2). */
@@ -558,13 +621,14 @@ type DosPasosListos = { ok: true; auth: Auth; descargado: Pick<RespaldoParaVerif
  * ESTE PIN y los dos pasos hechos (descargado y elegido). Que el archivo sea la jornada de ahora lo dice
  * `verificarRespaldoElegido`.
  */
-function duenioConLosDosPasos(estado: EstadoClub, pedido: RespaldoDeDosPasos, auth: Auth, rolPanel: string, para: ParaQue): DosPasosListos | { ok: false; mensaje: string } {
-  if (rolPanel !== "OWNER") return { ok: false, mensaje: para.soloDuenio };
+function duenioConLosDosPasos(estado: EstadoClub, pedido: RespaldoDeDosPasos, auth: Auth, rolPanel: string, para: ParaQue): (DosPasosListos | { ok: false; mensaje: string }) & PinEvaluado {
+  if (rolPanel !== "OWNER") return { ok: false, mensaje: para.soloDuenio, ...SIN_EVALUAR };
   const d = pinDeDuenio(estado, auth, pedido.pin, para.que);
-  if (!d.ok) return { ok: false, mensaje: d.mensaje };
-  if (!pedido.descargado) return { ok: false, mensaje: "Primero descargá el respaldo (paso 1)." };
-  if (pedido.textoElegido == null) return { ok: false, mensaje: `Elegí el respaldo que descargaste (paso 2): sin eso ${para.sinEso}.` };
-  return { ok: true, auth: d.auth, descargado: pedido.descargado, textoElegido: pedido.textoElegido };
+  const p = { pin: d.pin, duenio: d.duenio };
+  if (!d.ok) return { ok: false, mensaje: d.mensaje, ...p };
+  if (!pedido.descargado) return { ok: false, mensaje: "Primero descargá el respaldo (paso 1).", ...p };
+  if (pedido.textoElegido == null) return { ok: false, mensaje: `Elegí el respaldo que descargaste (paso 2): sin eso ${para.sinEso}.`, ...p };
+  return { ok: true, auth: d.auth, descargado: pedido.descargado, textoElegido: pedido.textoElegido, ...p };
 }
 
 export interface PedidoDeLimpieza extends RespaldoDeDosPasos {
@@ -572,20 +636,22 @@ export interface PedidoDeLimpieza extends RespaldoDeDosPasos {
   conservarStock: boolean;
 }
 
-export type DesenlaceLimpieza = Desenlace & { causa?: "otro" | "danado" | "cambio" };
+export type DesenlaceLimpieza = DesenlaceConPin & { causa?: "otro" | "danado" | "cambio" };
 
-/** Paso 2 de la limpieza: verifica el respaldo elegido contra el estado de ahora y recién ahí limpia. */
+/** Paso 2 de la limpieza: verifica el respaldo elegido contra el estado de ahora y recién ahí limpia. Dice qué pasó con el PIN. */
 export function limpiarConRespaldo(estado: EstadoClub, pedido: PedidoDeLimpieza, ahora: Ahora, auth: Auth, rolPanel: string): DesenlaceLimpieza {
   const d = duenioConLosDosPasos(estado, pedido, auth, rolPanel, PARA_LIMPIAR);
-  if (!d.ok) return no(d.mensaje);
+  const p = { pin: d.pin, duenio: d.duenio };
+  if (!d.ok) return { ...no(d.mensaje), ...p };
   const pendientes = pendientesGoLive(estado, ahora);
-  if (pendientes.length) return no(`Antes de limpiar hay que resolver: ${pendientes.join(" ")}`);
+  if (pendientes.length) return { ...no(`Antes de limpiar hay que resolver: ${pendientes.join(" ")}`), ...p };
   const v = verificarRespaldoElegido(estado, d.textoElegido, d.descargado.huella, PARA_LIMPIAR);
-  if (!v.ok) return { ok: false, mensaje: v.motivo, causa: v.causa };
+  if (!v.ok) return { ok: false, mensaje: v.motivo, causa: v.causa, ...p };
   const r = limpiarParaGoLive(estado, { conservarSaldos: pedido.conservarSaldos, conservarStock: pedido.conservarStock }, d.auth, ahora);
-  if (!r.ok) return no(r.motivo);
+  if (!r.ok) return { ...no(r.motivo), ...p };
   const b = r.borrado;
   return {
+    ...p,
     ok: true,
     mensaje: `Respaldo verificado: limpieza hecha. Se borraron ${b.turnos} turnos, ${b.cuentas} cuentas y ${b.movimientos} movimientos de caja; quedaron ${b.quedan} turnos por jugar (con su seña)${pedido.conservarSaldos ? "" : " y los saldos en cero"}. Guardá ${d.descargado.nombre} en un lugar privado.`,
   };
@@ -596,7 +662,7 @@ export function limpiarConRespaldo(estado: EstadoClub, pedido: PedidoDeLimpieza,
 /** Lo que dice la pantalla antes de empezar en blanco (qué pasa, en criollo). */
 export const QUE_PASA_EN_BLANCO = "Se empieza de cero: hay que volver a armar los PIN. Lo de ahora queda en el respaldo que bajaste y en una copia en esta compu.";
 
-export type AutorizacionEnBlanco = { ok: true; auth: Auth } | { ok: false; mensaje: string; causa?: "otro" | "danado" | "cambio" };
+export type AutorizacionEnBlanco = ({ ok: true; auth: Auth } | { ok: false; mensaje: string; causa?: "otro" | "danado" | "cambio" }) & PinEvaluado;
 
 /**
  * Paso 2 de «Empezar otra jornada en blanco»: un dueño (puesto y PIN) con el respaldo de AHORA descargado y elegido de
@@ -607,10 +673,23 @@ export type AutorizacionEnBlanco = { ok: true; auth: Auth } | { ok: false; mensa
 export function autorizarEnBlanco(estado: EstadoClub, pedido: RespaldoDeDosPasos, auth: Auth, rolPanel: string): AutorizacionEnBlanco {
   // Que sea la jornada real lo controla el almacén (por el reloj con el que se armó): la demo dice que no.
   const d = duenioConLosDosPasos(estado, pedido, auth, rolPanel, PARA_BLANCO);
-  if (!d.ok) return { ok: false, mensaje: d.mensaje };
+  const p = { pin: d.pin, duenio: d.duenio };
+  if (!d.ok) return { ok: false, mensaje: d.mensaje, ...p };
   const v = verificarRespaldoElegido(estado, d.textoElegido, d.descargado.huella, PARA_BLANCO);
-  if (!v.ok) return { ok: false, mensaje: v.motivo, causa: v.causa };
-  return { ok: true, auth: d.auth };
+  if (!v.ok) return { ok: false, mensaje: v.motivo, causa: v.causa, ...p };
+  return { ok: true, auth: d.auth, ...p };
+}
+
+/**
+ * Paso 2 de «Empezar en blanco» con el tope: autoriza (`autorizarEnBlanco`) y, en el mismo momento, `empezarEnBlanco`
+ * del almacén. Para correr con `conTopeDePin`; `causa: "cambio"` = volver al paso 1.
+ */
+export function empezarEnBlancoConPin(almacen: Pick<Almacen, "estado" | "auth" | "rol" | "empezarEnBlanco">, pedido: RespaldoDeDosPasos): DesenlaceConPin & { causa?: "otro" | "danado" | "cambio" } {
+  const v = autorizarEnBlanco(almacen.estado(), pedido, almacen.auth(), almacen.rol());
+  const p = { pin: v.pin, duenio: v.duenio };
+  if (!v.ok) return { ok: false, mensaje: v.mensaje, causa: v.causa, ...p };
+  const r = almacen.empezarEnBlanco({ auth: v.auth });
+  return r.ok ? { ok: true, mensaje: "", ...p } : { ok: false, mensaje: motivoDeEnBlanco(r), ...p };
 }
 
 /** Lo que se le dice al dueño si `almacen.empezarEnBlanco` no empezó (por qué, en criollo). */
@@ -635,20 +714,38 @@ export type AccionConfig =
   | ({ tipo: "reglas" } & ValoresReglas)
   | { tipo: "horarios"; dias: { dia: number; abre: number; cierra: number }[] };
 
-/** Con un PIN generado, va APARTE del mensaje (el aviso no lo muestra ni lo anuncia): la pantalla lo muestra una vez. */
-export interface DesenlaceConfig extends Desenlace {
+/**
+ * Con un PIN generado, va APARTE del mensaje (el aviso no lo muestra ni lo anuncia): la pantalla lo muestra una vez.
+ * `pin`/`duenio`: qué pasó con el PIN de quien opera (null en lo que no lo pide), para el tope del equipo.
+ */
+export type DesenlaceConfig = DesenlaceConPin & {
   pinNuevo?: { nombre: string; rol: string; pin: string };
-}
+};
 
 /** ¿La acción se deshace con el aviso? Lo de accesos y PIN, no (como el vanilla: lleva PIN). */
 export const esDeshacible = (a: AccionConfig) => a.tipo === "avisos" || a.tipo === "reglas" || a.tipo === "horarios";
+
+/**
+ * ¿La acción pide el PIN de quien opera? (alta, PIN nuevo, sacar acceso, cambiar mi PIN). Ésas corren con el tope del
+ * equipo; el PIN inicial de un dueño (lo arma, no lo prueba), los avisos, las reglas y los horarios, no: una espera
+ * por PIN mal no traba lo que no lleva PIN.
+ */
+export const llevaPinDeQuienOpera = (a: AccionConfig) => a.tipo === "alta" || a.tipo === "pinNuevo" || a.tipo === "sacarAcceso" || a.tipo === "cambiarMiPin";
 
 /** El auth con el PIN que tipeó quien opera (formato revisado antes de llamar al motor). */
 function conPin(estado: EstadoClub, auth: Auth, pin: string): { ok: true; auth: Auth } | { ok: false; mensaje: string } {
   return authParaArchivar(estado, auth, pin);
 }
 
+/** Corre una acción de la solapa. Lo que pide el PIN de quien opera dice qué pasó con él (`pin`, `duenio`). */
 export function ejecutarConfiguracion(estado: EstadoClub, accion: AccionConfig, ahora: Ahora, auth: Auth): DesenlaceConfig {
+  const d = ejecutar(estado, accion, ahora, auth);
+  return { ...d, pin: d.pin ?? null, duenio: d.duenio ?? false };
+}
+
+type DesenlaceSinTope = Desenlace & Partial<PinEvaluado> & Pick<DesenlaceConfig, "pinNuevo">;
+
+function ejecutar(estado: EstadoClub, accion: AccionConfig, ahora: Ahora, auth: Auth): DesenlaceSinTope {
   switch (accion.tipo) {
     case "pinInicial": {
       const u = usuarioDe(estado, accion.usuarioId);
@@ -663,11 +760,13 @@ export function ejecutarConfiguracion(estado: EstadoClub, accion: AccionConfig, 
       const nombre = accion.nombre.trim();
       if (!nombre) return no("Escribí el nombre de la persona.");
       if (!ROLES[accion.rol]) return no("Elegí qué puede hacer.");
+      const p = evaluarPinDeQuienOpera(estado, auth, accion.pin);
       const a = conPin(estado, auth, accion.pin);
-      if (!a.ok) return no(a.mensaje);
+      if (!a.ok) return { ...no(a.mensaje), ...p };
       const r = altaUsuario(estado, { nombre, rol: accion.rol }, a.auth, ahora);
-      if (!r.ok) return no(r.motivo);
+      if (!r.ok) return { ...no(r.motivo), ...p };
       return {
+        ...p,
         ok: true,
         mensaje: `${r.usuario.nombre} ya tiene acceso (${ROLES[r.usuario.rol]}). Su PIN está a la vista en Usuarios: se muestra una sola vez.`,
         pinNuevo: { nombre: r.usuario.nombre, rol: ROLES[r.usuario.rol], pin: r.pin },
@@ -675,19 +774,21 @@ export function ejecutarConfiguracion(estado: EstadoClub, accion: AccionConfig, 
     }
     case "pinNuevo": {
       const u = usuarioDe(estado, accion.usuarioId);
+      const p = evaluarPinDeQuienOpera(estado, auth, accion.pin);
       const a = conPin(estado, auth, accion.pin);
-      if (!a.ok) return no(a.mensaje);
+      if (!a.ok) return { ...no(a.mensaje), ...p };
       const r = regenerarPin(estado, accion.usuarioId, a.auth, ahora);
-      if (!r.ok) return no(r.motivo);
+      if (!r.ok) return { ...no(r.motivo), ...p };
       const nombre = u?.nombre ?? "";
-      return { ok: true, mensaje: `PIN nuevo para ${nombre}: está a la vista en Usuarios, se muestra una sola vez.`, pinNuevo: { nombre, rol: u ? ROLES[u.rol] : "", pin: r.pin } };
+      return { ...p, ok: true, mensaje: `PIN nuevo para ${nombre}: está a la vista en Usuarios, se muestra una sola vez.`, pinNuevo: { nombre, rol: u ? ROLES[u.rol] : "", pin: r.pin } };
     }
     case "sacarAcceso": {
       const u = usuarioDe(estado, accion.usuarioId);
+      const p = evaluarPinDeQuienOpera(estado, auth, accion.pin);
       const a = conPin(estado, auth, accion.pin);
-      if (!a.ok) return no(a.mensaje);
+      if (!a.ok) return { ...no(a.mensaje), ...p };
       const r = revocarAcceso(estado, accion.usuarioId, a.auth, ahora);
-      return r.ok ? { ok: true, mensaje: `Listo: ${u?.nombre ?? "esa persona"} ya no tiene acceso.` } : no(r.motivo);
+      return r.ok ? { ok: true, mensaje: `Listo: ${u?.nombre ?? "esa persona"} ya no tiene acceso.`, ...p } : { ...no(r.motivo), ...p };
     }
     case "cambiarMiPin": {
       if (!auth.usuarioId) return no("Entrá con tu PIN para operar.");
@@ -698,8 +799,10 @@ export function ejecutarConfiguracion(estado: EstadoClub, accion: AccionConfig, 
       if (!pinValidoPara(rol, nuevo)) return no(`El PIN nuevo son ${numerosDelPin(rol)}.`);
       if (nuevo !== accion.repetido.trim()) return no("Los dos PIN nuevos no coinciden: escribilo igual las dos veces.");
       if (nuevo === actual) return no("El PIN nuevo es igual al de ahora: elegí otro.");
+      // Antes del motor: después, el PIN de quien opera ya es el nuevo.
+      const p = evaluarPinDeQuienOpera(estado, auth, actual);
       const r = cambiarMiPin(estado, { usuarioId: auth.usuarioId, pin: actual }, nuevo, ahora);
-      return r.ok ? { ok: true, mensaje: "Tu PIN cambió. Desde ahora entrás con el nuevo." } : no(r.motivo);
+      return r.ok ? { ok: true, mensaje: "Tu PIN cambió. Desde ahora entrás con el nuevo.", ...p } : { ...no(r.motivo), ...p };
     }
     case "avisos": {
       if (!configura(estado, auth)) return no("Los avisos los carga un dueño.");

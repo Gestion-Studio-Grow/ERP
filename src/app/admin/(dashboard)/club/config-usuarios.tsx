@@ -172,14 +172,15 @@ function CambiarMiPin({ almacen, rol, hacer }: { almacen: Almacen; rol: Rol; hac
   );
 }
 
-export function UsuariosDelClub({ almacen, irASolapa }: { almacen: Almacen; irASolapa: (id: string) => void }) {
+/** `negocio`: los PIN de quien opera cuentan en el tope del equipo (el del bloqueo). */
+export function UsuariosDelClub({ almacen, irASolapa, negocio }: { almacen: Almacen; irASolapa: (id: string) => void; negocio?: string }) {
   const operador = useOperador(almacen);
   const opId = operador?.usuario.id ?? null;
   const quien = operador ? operador.usuario.nombre.split(" ")[0] : null;
   const rolDeQuien = operador?.usuario.rol ?? null;
   const seleccionar = useCallback((e: EstadoClub) => armarUsuarios(e, opId), [opId]);
   const v = useSeleccion(almacen, seleccionar, porFirma);
-  const hacer = useHacerConfig(almacen);
+  const hacer = useHacerConfig(almacen, negocio);
   const [abierta, setAbierta] = useState<Abierta>(null);
   const [pinNuevo, setPinNuevo] = useState<DesenlaceConfig["pinNuevo"] | null>(null);
   const listaId = useId();

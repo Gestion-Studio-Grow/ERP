@@ -9,57 +9,76 @@
 //   · El PIN se prueba CONTRA UNA PERSONA (`verificarPin`): la que estaba, o la que se elige de la lista. Así cada
 //     intento acierta 1 de 10.000 con un dueño (1 de 100 con recepción), no «cualquiera de los N usuarios» como con
 //     `usuarioPorPin`.
-//   · 5 PIN mal → espera; cada tanda espera más: 30 s, 2 min y después 10 min siempre. Un PIN bueno vuelve todo a cero.
+//   · 5 PIN mal → espera; cada tanda espera más: 30 s, 2 min y después 10 min siempre. La regla es LA DEL MOTOR
+//     (`anotarIntentoPin`, la misma del vanilla, SEC-5): un acierto de un DUEÑO vuelve todo a cero; uno de recepción
+//     no borra ni los fallos ni la tanda (si no, alguien prueba 4 PIN del dueño, pone el suyo y arranca de nuevo); a
+//     las 8 h sin fallos se olvida todo. Un dueño que entra con el PIN viejo de 2 tampoco limpia: es la credencial débil.
 //     En la jornada real queda guardado en el equipo por negocio (`gsg-club:<negocio>:intentos-bloqueo:v1`, el
-//     `bp-intentos` del vanilla), así que recargar no lo borra. Borrar lo guardado tampoco destraba ESTA pestaña.
+//     `bp-intentos` del vanilla), así que recargar no lo borra. Borrar lo guardado tampoco destraba ESTA pestaña. Es
+//     el mismo contador de la caja, el descuento y lo de Configuración (`conTopeDePin`, tope-de-pin.ts).
 //   · Lo que no tiene el largo del rol de esa persona no se llega a evaluar: no gasta un intento (y nunca vale: el motor
 //     lo rechaza igual). A un dueño se le acepta también el viejo de 2 (`pinAceptadoPara`): los PIN del piloto.
 //   · Dueño con el PIN viejo de 2 (`pinDesactualizado`): el PIN es bueno, pero antes de operar elige uno de 4 — es un
 //     paso de la pantalla bloqueada (`entrarConPinNuevo`), como `pedirPinNuevo` del vanilla. No toca nada de lo cargado.
 // El reloj se inyecta (`ahoraMs`) en todo: los tests no esperan.
 
-import { cambiarMiPin, largoPin, pinAceptadoPara, pinDesactualizado, pinFacil, pinValidoPara, textoLargoPin, usuario as usuarioDe, verificarPin } from "@/lib/club/motor.mjs";
+import { ESPERAS_PIN_S, TOPE_INTENTOS_PIN, anotarIntentoPin, cambiarMiPin, esperaPin, intentosPin, largoPin, pinAceptadoPara, pinDesactualizado, pinFacil, pinValidoPara, textoLargoPin, usuario as usuarioDe, verificarPin } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, Rol, Usuario } from "@/lib/club/motor.mjs";
 import type { Almacen, AlmacenamientoLocal, Desenlace } from "./almacen";
 
-export const INTENTOS_DEL_BLOQUEO = 5;
-/** La espera de cada tanda de 5 PIN mal: 30 s, 2 min y, de la tercera en adelante, 10 min. */
-export const ESPERAS_DEL_BLOQUEO_MS: readonly number[] = [30_000, 120_000, 600_000];
+export const INTENTOS_DEL_BLOQUEO: number = TOPE_INTENTOS_PIN;
+/** La espera de cada tanda de 5 PIN mal: 30 s, 2 min y, de la tercera en adelante, 10 min (`ESPERAS_PIN_S` del motor). */
+export const ESPERAS_DEL_BLOQUEO_MS: readonly number[] = Object.freeze(ESPERAS_PIN_S.map((s) => s * 1000));
+/** 8 h sin fallos: se olvidan los fallos y las tandas (lo que hace `anotarIntentoPin` del motor al anotar el próximo). */
+export const OLVIDO_DE_FALLOS_MS = 8 * 60 * 60 * 1000;
 /** Pantalla apagada o en otra app por 30 s o más: al volver, se pide el PIN. */
 export const OCULTA_MAX_MS = 30_000;
 /** Cada cuánto se mira si pasó el tiempo sin uso (como el vanilla). */
 export const REVISAR_INACTIVIDAD_MS = 15_000;
 
+/** El contador del equipo: el `IntentosPin` del motor (lo que se guarda en `gsg-club:<negocio>:intentos-bloqueo:v1`). */
 export interface IntentosDelBloqueo {
   /** PIN mal seguidos en esta tanda (0–5). */
   fallos: number;
   /** Hasta cuándo hay que esperar (ms); 0 = no hay espera. */
   esperaHasta: number;
-  /** Cuántas tandas de 5 mal van sin un PIN bueno (decide cuánto se espera). */
+  /** Cuántas tandas de 5 mal van sin un acierto de dueño (decide cuánto se espera). */
   tandas: number;
+  /** Cuándo fue el último PIN mal (ms); 0 = ninguno o no se sabe (lo guardado antes de esta versión). */
+  ultimoFallo: number;
 }
 
-export const SIN_INTENTOS_DEL_BLOQUEO: IntentosDelBloqueo = Object.freeze({ fallos: 0, esperaHasta: 0, tandas: 0 });
+export const SIN_INTENTOS_DEL_BLOQUEO: IntentosDelBloqueo = Object.freeze({ fallos: 0, esperaHasta: 0, tandas: 0, ultimoFallo: 0 });
 
 /** Cuántos segundos faltan para poder probar (0 = ya se puede). */
 export function segundosDeEspera(i: IntentosDelBloqueo, ahoraMs: number): number {
-  return i.esperaHasta > ahoraMs ? Math.ceil((i.esperaHasta - ahoraMs) / 1000) : 0;
+  return Math.ceil(esperaPin(i, ahoraMs) / 1000);
 }
 
-/** Si la espera ya pasó, la tanda arranca de cero (las tandas siguen contando hasta un PIN bueno). */
+/**
+ * Lo que vale AHORA: a las 8 h sin fallos (y sin espera), nada; si la espera ya pasó, la tanda arranca de cero (las
+ * tandas siguen contando hasta un acierto de dueño o las 8 h). Es lo mismo que haría `anotarIntentoPin` con el próximo
+ * intento, adelantado para mostrarlo (y para que un acierto de recepción guarde lo que de verdad vale).
+ */
 export function intentosVigentes(i: IntentosDelBloqueo, ahoraMs: number): IntentosDelBloqueo {
-  if (i.fallos >= INTENTOS_DEL_BLOQUEO && i.esperaHasta <= ahoraMs) return { fallos: 0, esperaHasta: 0, tandas: i.tandas };
-  return i;
+  const x = intentosPin(i);
+  if (x.ultimoFallo && ahoraMs - x.ultimoFallo >= OLVIDO_DE_FALLOS_MS && esperaPin(x, ahoraMs) === 0) return SIN_INTENTOS_DEL_BLOQUEO;
+  if (x.fallos >= INTENTOS_DEL_BLOQUEO && x.esperaHasta <= ahoraMs) return { ...x, fallos: 0, esperaHasta: 0 };
+  return x;
 }
 
-/** Anota un PIN malo: el quinto de la tanda traba (30 s, 2 min, 10 min…). Pura. */
+/**
+ * Anota un PIN que se llegó a evaluar (nunca durante la espera: antes se mira `segundosDeEspera`). Delega en el motor
+ * (`anotarIntentoPin`): malo suma (el quinto traba 30 s, 2 min, 10 min); bueno de un DUEÑO vuelve a cero; bueno de
+ * cualquier otro (recepción, o un dueño con el PIN viejo de 2) deja todo como está. Pura.
+ */
+export function anotarIntento(previo: IntentosDelBloqueo, intento: { ok: boolean; duenio?: boolean }, ahoraMs: number): IntentosDelBloqueo {
+  return anotarIntentoPin(intentosVigentes(previo, ahoraMs), { ok: intento.ok, duenio: intento.duenio === true }, ahoraMs);
+}
+
+/** Anota un PIN malo (`anotarIntento` con `ok: false`). Pura. */
 export function anotarFallo(previo: IntentosDelBloqueo, ahoraMs: number): IntentosDelBloqueo {
-  const i = intentosVigentes(previo, ahoraMs);
-  const fallos = i.fallos + 1;
-  if (fallos < INTENTOS_DEL_BLOQUEO) return { ...i, fallos };
-  const tandas = i.tandas + 1;
-  const espera = ESPERAS_DEL_BLOQUEO_MS[Math.min(tandas, ESPERAS_DEL_BLOQUEO_MS.length) - 1];
-  return { fallos, esperaHasta: ahoraMs + espera, tandas };
+  return anotarIntento(previo, { ok: false }, ahoraMs);
 }
 
 /** «esperá 30 segundos» · «esperá 2 minutos». Se arma UNA vez por espera (el lector no lo re-anuncia cada segundo). */
@@ -108,7 +127,8 @@ export function rolDelPin(estado: EstadoClub, usuarioId: string | null): Rol {
 
 /**
  * Prueba el PIN de UNA persona con el tope de intentos. Trabado → no se evalúa. Incompleto (vacío, 1 número, letras)
- * → no se evalúa ni cuenta. Malo (PIN equivocado, usuario inactivo o sin PIN) → cuenta. Bueno → todo a cero. Pura.
+ * → no se evalúa ni cuenta. Malo (PIN equivocado, usuario inactivo o sin PIN) → cuenta. Bueno → `anotarIntento`: a
+ * cero sólo si es un dueño con su PIN de 4; recepción (o un dueño con el viejo de 2) entra, pero los fallos quedan. Pura.
  */
 export function probarPin(estado: EstadoClub, usuarioId: string | null, pin: string, previo: IntentosDelBloqueo, ahoraMs: number): PruebaDePin {
   const i = intentosVigentes(previo, ahoraMs);
@@ -119,8 +139,12 @@ export function probarPin(estado: EstadoClub, usuarioId: string | null, pin: str
   const rol = rolDelPin(estado, usuarioId);
   if (!pinCompleto(limpio, rol)) return { tipo: "incompleto", mensaje: textoPinIncompleto(rol) };
   const r = verificarPin(estado, usuarioId, limpio);
-  if (r.ok) return { tipo: "bueno", usuario: r.usuario, pin: limpio, intentos: SIN_INTENTOS_DEL_BLOQUEO, pinViejo: pinDesactualizado(estado, r.usuario.id) };
-  const intentos = anotarFallo(i, ahoraMs);
+  if (r.ok) {
+    const pinViejo = pinDesactualizado(estado, r.usuario.id);
+    const intentos = anotarIntento(i, { ok: true, duenio: r.usuario.rol === "duenio" && !pinViejo }, ahoraMs);
+    return { tipo: "bueno", usuario: r.usuario, pin: limpio, intentos, pinViejo };
+  }
+  const intentos = anotarIntento(i, { ok: false }, ahoraMs);
   const s = segundosDeEspera(intentos, ahoraMs);
   // El motivo del motor dice si el usuario no tiene acceso o PIN; nunca muestra un PIN.
   const mensaje = s > 0 ? textoDeEspera(s) : `${r.motivo.replace(/\.$/, "")} (${intentos.fallos} de ${INTENTOS_DEL_BLOQUEO}).`;
@@ -144,6 +168,12 @@ export interface GuardaDelBloqueo {
   guardar(i: IntentosDelBloqueo): void;
 }
 
+/**
+ * Lo guardado en el equipo. Lee también el formato de antes (sin `ultimoFallo`): la espera vigente se respeta tal cual y,
+ * si había espera, el último fallo se toma como su fin (las 8 h corren desde ahí: nunca antes de lo que correspondía).
+ * Sin espera y sin fecha, los fallos quedan hasta el próximo (que pone la fecha) o un acierto de dueño: más estricto,
+ * nunca más flojo. Lo roto se ignora.
+ */
 function deTexto(crudo: string | null): IntentosDelBloqueo | null {
   if (!crudo) return null;
   try {
@@ -151,8 +181,15 @@ function deTexto(crudo: string | null): IntentosDelBloqueo | null {
     const fallos = Number(x?.fallos);
     const esperaHasta = Number(x?.esperaHasta);
     const tandas = Number(x?.tandas ?? 0);
-    if (![fallos, esperaHasta, tandas].every(Number.isFinite)) return null;
-    return { fallos: Math.min(INTENTOS_DEL_BLOQUEO, Math.max(0, Math.floor(fallos))), esperaHasta: Math.max(0, esperaHasta), tandas: Math.max(0, Math.floor(tandas)) };
+    const ultimo = x?.ultimoFallo === undefined ? null : Number(x.ultimoFallo);
+    if (![fallos, esperaHasta, tandas, ultimo ?? 0].every(Number.isFinite)) return null;
+    const espera = Math.max(0, esperaHasta);
+    return {
+      fallos: Math.min(INTENTOS_DEL_BLOQUEO, Math.max(0, Math.floor(fallos))),
+      esperaHasta: espera,
+      tandas: Math.max(0, Math.floor(tandas)),
+      ultimoFallo: ultimo === null ? espera : Math.max(0, ultimo),
+    };
   } catch {
     return null;
   }
@@ -161,7 +198,7 @@ function deTexto(crudo: string | null): IntentosDelBloqueo | null {
 /**
  * Los intentos en este equipo (localStorage con `clave`), o sólo en memoria (`clave` null: la demo; o sin
  * almacenamiento: incógnito, sin lugar). Nunca tira. Al leer, gana lo MÁS trabado entre lo guardado y lo de esta
- * pestaña: borrar lo guardado (o que otra pestaña escriba menos) no destraba. Un PIN bueno (`SIN_INTENTOS…`) sí limpia.
+ * pestaña: borrar lo guardado (o que otra pestaña escriba menos) no destraba. Un acierto de dueño (`SIN_INTENTOS…`) sí limpia.
  */
 export function guardaDelBloqueo(almacenamiento: AlmacenamientoLocal | null, clave: string | null): GuardaDelBloqueo {
   let enMemoria: IntentosDelBloqueo = SIN_INTENTOS_DEL_BLOQUEO;
@@ -175,6 +212,7 @@ export function guardaDelBloqueo(almacenamiento: AlmacenamientoLocal | null, cla
               fallos: g.tandas === enMemoria.tandas ? Math.max(g.fallos, enMemoria.fallos) : g.tandas > enMemoria.tandas ? g.fallos : enMemoria.fallos,
               esperaHasta: Math.max(g.esperaHasta, enMemoria.esperaHasta),
               tandas: Math.max(g.tandas, enMemoria.tandas),
+              ultimoFallo: Math.max(g.ultimoFallo, enMemoria.ultimoFallo),
             };
           }
         } catch {
@@ -187,7 +225,7 @@ export function guardaDelBloqueo(almacenamiento: AlmacenamientoLocal | null, cla
       enMemoria = i;
       if (!almacenamiento || !clave) return;
       try {
-        if (i.fallos === 0 && i.esperaHasta === 0 && i.tandas === 0) almacenamiento.removeItem(clave);
+        if (i.fallos === 0 && i.esperaHasta === 0 && i.tandas === 0 && i.ultimoFallo === 0) almacenamiento.removeItem(clave);
         else almacenamiento.setItem(clave, JSON.stringify(i));
       } catch {
         // sin lugar: queda en memoria

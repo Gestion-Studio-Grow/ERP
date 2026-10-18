@@ -27,6 +27,8 @@ export interface PropsDeSolapa {
   onVerTurno: (reservaId: string) => void;
   /** Lleva a otra solapa (p. ej. «proveedores», «stock»); si esa solapa no está para este rol, no hace nada. */
   irASolapa: (id: string) => void;
+  /** El negocio (claves `gsg-club:<negocio>:…`): lo que pide PIN cuenta en el tope del equipo (el del bloqueo). */
+  negocio?: string;
 }
 
 export interface SolapaDelClub {

@@ -29,14 +29,12 @@ import type { EstadoClub } from "@/lib/club/motor.mjs";
 import { Button } from "@/components/ui/Button";
 import { Hoja } from "@/components/ui/Hoja";
 import { cn } from "@/components/ui/cn";
-import type { Almacen, AlmacenamientoLocal, JornadaDelClub } from "./almacen";
+import type { Almacen, JornadaDelClub } from "./almacen";
 import {
   REVISAR_INACTIVIDAD_MS,
-  SIN_INTENTOS_DEL_BLOQUEO,
   anotarCambioDePin,
   bloquearElClub,
   cambioDePinPendiente,
-  claveDeIntentosDelBloqueo,
   entrarConPinNuevo,
   guardaDelBloqueo,
   intentosVigentes,
@@ -58,6 +56,7 @@ import {
   type MotivoDelBloqueo,
   type QuienEntra,
 } from "./bloqueo-core";
+import { guardaDelPin } from "./tope-de-pin";
 import type { PropsDePieza } from "./solapas-club";
 import { porFirma, useEstadoDelGuardado, useOperador, useSeleccion } from "./usar-almacen";
 
@@ -82,14 +81,6 @@ const leerDatos = (e: EstadoClub): DatosDelBloqueo => {
 
 /** El campo deja entrar el PIN más largo cuando no se sabe de quién es. */
 const LARGO_PIN_MAX = Math.max(LARGO_PIN.duenio, LARGO_PIN.recepcion);
-
-function almacenamientoDelNavegador(): AlmacenamientoLocal | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
 
 /** ¿El foco está en un campo donde se escribe? (ahí la L es una letra, no «Bloquear»). */
 function escribiendo(t: EventTarget | null): boolean {
@@ -269,7 +260,8 @@ function usePruebaDePin(almacen: Almacen, guarda: GuardaDelBloqueo) {
       const r = probarPin(almacen.estado(), usuarioId, pin, guarda.leer(), ya);
       setAhora(ya);
       if (r.tipo === "bueno") {
-        guarda.guardar(SIN_INTENTOS_DEL_BLOQUEO);
+        // A cero sólo con un dueño (y su PIN de 4); recepción entra, pero los fallos y la tanda quedan (SEC-5).
+        guarda.guardar(r.intentos);
         if (r.pinViejo && alPinViejo?.({ usuarioId: r.usuario.id, viejo: r.pin })) {
           setAnuncio("");
           setError(false);
@@ -653,8 +645,9 @@ export default function BloqueoDelClub({ almacen, negocio }: PropsDePieza) {
   const operador = useOperador(almacen);
   const datos = useSeleccion(almacen, leerDatos, porFirma);
   const { jornada } = useEstadoDelGuardado(almacen);
-  // En la jornada real, los intentos quedan en el equipo por negocio; en la demo, en memoria.
-  const [guarda] = useState(() => guardaDelBloqueo(real ? almacenamientoDelNavegador() : null, real ? claveDeIntentosDelBloqueo(negocio) : null));
+  // En la jornada real, los intentos quedan en el equipo por negocio y son LOS MISMOS de la caja, el descuento y
+  // Configuración (`guardaDelPin`: una guarda por almacén); en la demo, en memoria.
+  const [guarda] = useState(() => (real ? guardaDelPin(almacen, negocio) : guardaDelBloqueo(null, null)));
   const [cambiando, setCambiando] = useState(false);
   const bloqueado = real && !operador && datos.configurado;
   useVigilancia(almacen, real && !!operador);

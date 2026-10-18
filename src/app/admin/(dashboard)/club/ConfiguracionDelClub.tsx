@@ -18,7 +18,8 @@
 // En la demo nunca aparece (la demo está configurada).
 //
 // Es solapa `soloDuenos` (solapas-club.ts): esconderla no es seguridad. Lo sensible pide el PIN de quien opera y lo
-// vuelve a controlar el motor (o el almacén, en el archivado y al restaurar). Nada se anima: es una pantalla de trabajo.
+// vuelve a controlar el motor (o el almacén, en el archivado y al restaurar). Ese PIN cuenta en EL tope del equipo (el
+// del bloqueo, por `negocio`): trabado no corre, malo suma y sólo un acierto de un dueño lo vuelve a cero. Nada se anima: es una pantalla de trabajo.
 
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import type { PropsDeSolapa } from "./solapas-club";
@@ -34,7 +35,7 @@ import { useOperador, useSeleccion } from "./usar-almacen";
 const sinConfigurar = (e: EstadoClub) => e.config.configurado === false;
 const elNuevo = (_: boolean | undefined, nuevo: boolean) => nuevo;
 
-export default function ConfiguracionDelClub({ almacen, irASolapa }: PropsDeSolapa) {
+export default function ConfiguracionDelClub({ almacen, irASolapa, negocio }: PropsDeSolapa) {
   const operador = useOperador(almacen);
   const demo = almacen.modo() === "demo";
   const primeraVez = useSeleccion(almacen, sinConfigurar, elNuevo) && !demo;
@@ -46,7 +47,7 @@ export default function ConfiguracionDelClub({ almacen, irASolapa }: PropsDeSola
           <h2 className="text-lg font-semibold text-strong">Configuración</h2>
           <p className="text-sm text-body">El club todavía no está configurado en este equipo: falta la configuración inicial.</p>
         </div>
-        <PrimeraVez almacen={almacen} />
+        <PrimeraVez almacen={almacen} negocio={negocio} />
         <AvisosDelClub almacen={almacen} />
       </div>
     );
@@ -68,16 +69,16 @@ export default function ConfiguracionDelClub({ almacen, irASolapa }: PropsDeSola
           </p>
         )}
       </div>
-      {primeraVez && <PrimeraVez almacen={almacen} />}
-      <JornadaDelClub almacen={almacen} />
-      <UsuariosDelClub almacen={almacen} irASolapa={irASolapa} />
+      {primeraVez && <PrimeraVez almacen={almacen} negocio={negocio} />}
+      <JornadaDelClub almacen={almacen} negocio={negocio} />
+      <UsuariosDelClub almacen={almacen} irASolapa={irASolapa} negocio={negocio} />
       <AvisosPorWhatsApp almacen={almacen} />
       <ReglasDelClub almacen={almacen} />
       <HorariosDelClub almacen={almacen} />
       {!primeraVez && <LinkParaClientes almacen={almacen} />}
       {!primeraVez &&
         (puestoDeDuenio(almacen) ? (
-          <LimpiezaGoLive almacen={almacen} />
+          <LimpiezaGoLive almacen={almacen} negocio={negocio} />
         ) : (
           <Seccion id="club-config-golive" titulo="Limpieza para el go-live">
             <SoloEnElPuestoDelDuenio que="La limpieza para el go-live" />

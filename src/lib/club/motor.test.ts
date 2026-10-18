@@ -99,6 +99,8 @@ const FUNCIONES_OLA4_NOVEDADES = [
 ] as const satisfies readonly Funciones[];
 // PIN por rol (dueños 4, recepción 2): lo usan el bloqueo, Configuración y el aprobador.
 const FUNCIONES_PIN_POR_ROL = ["largoPin", "pinValidoPara", "pinAceptadoPara", "textoLargoPin", "pinDesactualizado", "verificarFirma", "pinFacil"] as const satisfies readonly Funciones[];
+// Tope de intentos de PIN, uno por compu (SEC-5): lo usan el bloqueo, Configuración, la caja y el descuento.
+const FUNCIONES_TOPE_PIN = ["intentosPin", "esperaPin", "anotarIntentoPin"] as const satisfies readonly Funciones[];
 type FuncionesListadas =
   | (typeof FUNCIONES)[number]
   | (typeof FUNCIONES_OLA1_CUENTA_Y_BUFFET)[number]
@@ -107,11 +109,13 @@ type FuncionesListadas =
   | (typeof FUNCIONES_OLA3_STOCK_Y_PROVEEDORES)[number]
   | (typeof FUNCIONES_OLA4_CONFIGURACION)[number]
   | (typeof FUNCIONES_OLA4_NOVEDADES)[number]
-  | (typeof FUNCIONES_PIN_POR_ROL)[number];
+  | (typeof FUNCIONES_PIN_POR_ROL)[number]
+  | (typeof FUNCIONES_TOPE_PIN)[number];
 const CONSTANTES = [
   "VERSION_ESTADO", "MEDIOS", "ESTADOS", "TIPOS", "ROLES", "PERMISOS", "NOMBRE_DIA",
   "CONFIG_DEMO", "CANCHAS_DEMO", "USUARIOS_DEMO", "USUARIOS_REALES", "PRODUCTOS_DEMO", "PROVEEDORES_DEMO", "DIAS_SIN_ARCHIVAR", "LIMITES_POLITICA", "LIMITES_BLOQUEO",
   "TIPOS_NOVEDAD", "AUDIENCIAS", "CANALES", "ESTADOS_CONTENIDO", "LARGO_PIN", "LARGO_PIN_VIEJO", "MOTIVO_PIN_VIEJO",
+  "TOPE_INTENTOS_PIN", "ESPERAS_PIN_S",
 ] as const satisfies readonly Exclude<keyof Motor, Funciones>[];
 
 // Comprobación de tipos en los dos sentidos: ninguna función ni constante tipada queda afuera de las listas.
@@ -139,7 +143,7 @@ const REQ_CLIENTE: readonly Requeridas<Cliente>[] = ["id", "nombre", "tel", "niv
 
 test("contrato de motor.d.mts: cada export tipado existe en la copia con su clase (función o constante)", () => {
   const motor = M as unknown as Record<string, unknown>;
-  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP, ...FUNCIONES_OLA3_STOCK_Y_PROVEEDORES, ...FUNCIONES_OLA4_CONFIGURACION, ...FUNCIONES_OLA4_NOVEDADES, ...FUNCIONES_PIN_POR_ROL]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
+  for (const n of [...FUNCIONES, ...FUNCIONES_OLA1_CUENTA_Y_BUFFET, ...FUNCIONES_OLA1_AGENDA_Y_TIENDA, ...FUNCIONES_OLA1_CAJA_Y_WHATSAPP, ...FUNCIONES_OLA3_STOCK_Y_PROVEEDORES, ...FUNCIONES_OLA4_CONFIGURACION, ...FUNCIONES_OLA4_NOVEDADES, ...FUNCIONES_PIN_POR_ROL, ...FUNCIONES_TOPE_PIN]) assert.equal(typeof motor[n], "function", `${n} no es una función exportada del motor`);
   for (const n of CONSTANTES) {
     assert.ok(n in motor, `${n} no está exportada`);
     assert.notEqual(typeof motor[n], "function", `${n} es una función: va en FUNCIONES`);
@@ -363,6 +367,25 @@ test("PIN viejo de 2 de un dueño: entra (verificarPin) y cambia el PIN, pero no
   assert.equal(M.verificarPin(e, "u-rober", "11").ok, false);
   // Recepción con su PIN de 2 no está desactualizada: firma lo que su rol permite.
   assert.equal(M.verificarFirma(e, "u-lu", "33").ok, true);
+});
+
+test("tope de PIN (uno por compu): 5 mal esperan 30 s; un acierto de recepción no borra nada; uno de dueño sí; 8 h sin fallos lo olvidan", () => {
+  assert.equal(M.TOPE_INTENTOS_PIN, 5);
+  assert.deepEqual([...M.ESPERAS_PIN_S], [30, 120, 600]);
+  const t0 = 1_000_000;
+  let t = M.intentosPin(null);
+  assert.deepEqual(t, { fallos: 0, esperaHasta: 0, tandas: 0, ultimoFallo: 0 });
+  for (let i = 0; i < 4; i++) t = M.anotarIntentoPin(t, { ok: false }, t0);
+  const antes = t;
+  t = M.anotarIntentoPin(t, { ok: true }, t0);
+  assert.deepEqual(t, antes, "el acierto de recepción deja los 4 fallos");
+  assert.notEqual(t, antes, "y devuelve otro objeto (no toca el que recibe)");
+  t = M.anotarIntentoPin(t, { ok: false }, t0);
+  assert.equal(M.esperaPin(t, t0), 30_000);
+  assert.deepEqual(M.anotarIntentoPin(t, { ok: true, duenio: true }, t0 + 30_000), M.intentosPin());
+  const ocho = 8 * 60 * 60 * 1000;
+  assert.equal(M.anotarIntentoPin(t, { ok: false }, t0 + ocho - 1).tandas, 1, "antes de las 8 h la tanda sigue");
+  assert.deepEqual(M.anotarIntentoPin(t, { ok: false }, t0 + ocho), { fallos: 1, esperaHasta: 0, tandas: 0, ultimoFallo: t0 + ocho }, "a las 8 h sin fallos arranca de cero");
 });
 
 test("PIN fáciles: los de ejemplo de la demo, todos iguales y escaleras de 4, en el armado, el cambio y los generados", () => {

@@ -65,7 +65,7 @@ const fallar = (i: IntentosDelBloqueo, n: number, t: number) => Array.from({ len
 test("5 PIN mal → 30 s; la tanda siguiente 2 min; después 10 min siempre", () => {
   assert.deepEqual(ESPERAS_DEL_BLOQUEO_MS, [30_000, 120_000, 600_000]);
   let i = fallar(SIN_INTENTOS_DEL_BLOQUEO, 4, T0);
-  assert.deepEqual(i, { fallos: 4, esperaHasta: 0, tandas: 0 }, "4 mal todavía no traban");
+  assert.deepEqual(i, { fallos: 4, esperaHasta: 0, tandas: 0, ultimoFallo: T0 }, "4 mal todavía no traban");
   i = anotarFallo(i, T0);
   assert.equal(segundosDeEspera(i, T0), 30);
   assert.equal(segundosDeEspera(i, T0 + 29_500), 1);
@@ -73,7 +73,7 @@ test("5 PIN mal → 30 s; la tanda siguiente 2 min; después 10 min siempre", ()
 
   // Pasada la espera, la tanda arranca de cero pero las tandas siguen contando.
   const t1 = T0 + 30_000;
-  assert.deepEqual(intentosVigentes(i, t1), { fallos: 0, esperaHasta: 0, tandas: 1 });
+  assert.deepEqual(intentosVigentes(i, t1), { fallos: 0, esperaHasta: 0, tandas: 1, ultimoFallo: T0 });
   i = fallar(i, INTENTOS_DEL_BLOQUEO, t1);
   assert.equal(segundosDeEspera(i, t1), 120);
 
@@ -86,7 +86,9 @@ test("5 PIN mal → 30 s; la tanda siguiente 2 min; después 10 min siempre", ()
   assert.equal(i.tandas, 4);
 });
 
-test("probar: trabado no evalúa (ni el PIN bueno entra); pasada la espera, el bueno entra y vuelve todo a cero", () => {
+// Antes: «pasada la espera, el bueno [de Lu, recepción] entra y vuelve todo a cero». Con SEC-5 el de recepción entra
+// pero NO vuelve a cero (la tanda queda: la próxima de 5 mal espera 2 min); a cero lo vuelve el de un dueño.
+test("probar: trabado no evalúa (ni el PIN bueno entra); pasada la espera, el bueno entra; a cero sólo con el de un dueño", () => {
   const e = demo();
   let i = SIN_INTENTOS_DEL_BLOQUEO;
   for (let n = 1; n <= 5; n++) {
@@ -105,7 +107,10 @@ test("probar: trabado no evalúa (ni el PIN bueno entra); pasada la espera, el b
   assert.equal(bueno.tipo, "bueno");
   if (bueno.tipo !== "bueno") return;
   assert.equal(bueno.usuario.id, "u-lu");
-  assert.deepEqual(bueno.intentos, SIN_INTENTOS_DEL_BLOQUEO);
+  assert.deepEqual(bueno.intentos, { fallos: 0, esperaHasta: 0, tandas: 1, ultimoFallo: T0 }, "recepción entra, pero la tanda queda");
+  const duenio = probarPin(e, "u-rober", u(e, "u-rober").pin, bueno.intentos, T0 + 31_000);
+  assert.equal(duenio.tipo, "bueno");
+  assert.deepEqual(duenio.tipo === "bueno" && duenio.intentos, SIN_INTENTOS_DEL_BLOQUEO, "el de un dueño vuelve todo a cero");
 });
 
 test("el PIN se prueba contra UNA persona: el PIN de otra no entra (y cuenta como malo)", () => {
@@ -156,7 +161,7 @@ test("quién puede entrar: activos y con PIN, y nunca viaja el PIN", () => {
   assert.doesNotMatch(JSON.stringify(q), /"pin"/);
 });
 
-test("lo guardado en el equipo: sobrevive a «recargar», por negocio, y un PIN bueno lo limpia", () => {
+test("lo guardado en el equipo: sobrevive a «recargar», por negocio, y un acierto de dueño lo limpia", () => {
   const ls = memoria();
   const clave = claveDeIntentosDelBloqueo("breakpoint");
   assert.equal(clave, "gsg-club:breakpoint:intentos-bloqueo:v1");
@@ -167,7 +172,7 @@ test("lo guardado en el equipo: sobrevive a «recargar», por negocio, y un PIN 
   assert.equal(segundosDeEspera(g2.leer(), T0 + 1000), 29);
   assert.deepEqual(guardaDelBloqueo(ls, claveDeIntentosDelBloqueo("otro-club")).leer(), SIN_INTENTOS_DEL_BLOQUEO, "otro negocio no hereda la espera");
   g2.guardar(SIN_INTENTOS_DEL_BLOQUEO);
-  assert.equal(ls.m.has(clave), false, "un PIN bueno no deja nada guardado");
+  assert.equal(ls.m.has(clave), false, "un acierto de dueño no deja nada guardado");
 });
 
 test("sin negocio, la clave es del equipo (más estricta), nunca vacía", () => {
@@ -199,9 +204,102 @@ test("lo guardado con números raros se acota (no se puede «deber» intentos ni
   const ls = memoria();
   const clave = claveDeIntentosDelBloqueo("bp");
   ls.m.set(clave, JSON.stringify({ fallos: -3, esperaHasta: -1, tandas: 2.7 }));
-  assert.deepEqual(guardaDelBloqueo(ls, clave).leer(), { fallos: 0, esperaHasta: 0, tandas: 2 });
+  assert.deepEqual(guardaDelBloqueo(ls, clave).leer(), { fallos: 0, esperaHasta: 0, tandas: 2, ultimoFallo: 0 });
   ls.m.set(clave, JSON.stringify({ fallos: 99, esperaHasta: T0 + 5000, tandas: 1 }));
-  assert.deepEqual(guardaDelBloqueo(ls, clave).leer(), { fallos: 5, esperaHasta: T0 + 5000, tandas: 1 });
+  assert.deepEqual(guardaDelBloqueo(ls, clave).leer(), { fallos: 5, esperaHasta: T0 + 5000, tandas: 1, ultimoFallo: T0 + 5000 });
+  ls.m.set(clave, JSON.stringify({ fallos: 1, esperaHasta: 0, tandas: 0, ultimoFallo: -7 }));
+  assert.deepEqual(guardaDelBloqueo(ls, clave).leer(), { fallos: 1, esperaHasta: 0, tandas: 0, ultimoFallo: 0 });
+  ls.m.set(clave, JSON.stringify({ fallos: 1, esperaHasta: 0, tandas: 0, ultimoFallo: "nada" }));
+  assert.deepEqual(guardaDelBloqueo(ls, clave).leer(), SIN_INTENTOS_DEL_BLOQUEO, "lo ilegible se ignora");
+});
+
+// ───────────── SEC-5: UNA regla para el tope, la del motor (igual que el vanilla) ─────────────
+
+test("SEC-5: 4 PIN del dueño mal → recepción entra con el suyo → el 5º del dueño traba (el acierto de recepción no borra)", () => {
+  const e = demo();
+  const ls = memoria();
+  const g = guardaDelBloqueo(ls, claveDeIntentosDelBloqueo("breakpoint"));
+  const probar = (usuarioId: string, pin: string, t: number) => {
+    const r = probarPin(e, usuarioId, pin, g.leer(), t);
+    if (r.tipo === "malo" || r.tipo === "bueno") g.guardar(r.intentos);
+    return r;
+  };
+  for (let n = 1; n <= 4; n++) assert.equal(probar("u-rober", "0000", T0).tipo, "malo");
+  const lu = probar("u-lu", u(e, "u-lu").pin, T0 + 1000);
+  assert.equal(lu.tipo, "bueno", "recepción entra con el suyo");
+  assert.equal(g.leer().fallos, 4, "pero los 4 fallos siguen");
+  assert.equal(guardaDelBloqueo(ls, claveDeIntentosDelBloqueo("breakpoint")).leer().fallos, 4, "también lo guardado (recargar no los borra)");
+  const quinto = probar("u-rober", "0000", T0 + 2000);
+  assert.equal(quinto.tipo, "malo");
+  assert.equal(quinto.tipo === "malo" && quinto.mensaje, "Demasiados PIN equivocados: esperá 30 segundos.");
+  assert.equal(probar("u-rober", u(e, "u-rober").pin, T0 + 3000).tipo, "espera", "trabado: ni el del dueño se evalúa");
+  // Pasada la espera, recepción entra otra vez y la tanda sigue: la próxima de 5 mal espera 2 minutos.
+  const t = T0 + 2000 + ESPERAS_DEL_BLOQUEO_MS[0];
+  assert.equal(probar("u-lu", u(e, "u-lu").pin, t).tipo, "bueno");
+  for (let n = 1; n <= INTENTOS_DEL_BLOQUEO; n++) probar("u-majo", "0000", t);
+  assert.equal(segundosDeEspera(g.leer(), t), 120);
+});
+
+test("SEC-5: un acierto de DUEÑO (con su PIN de 4) vuelve a cero; con el viejo de 2, entra pero no limpia", () => {
+  const e = demo();
+  const g = guardaDelBloqueo(memoria(), claveDeIntentosDelBloqueo("bp"));
+  g.guardar(fallar(SIN_INTENTOS_DEL_BLOQUEO, 3, T0));
+  u(e, "u-majo").pin = "22"; // Majo todavía con el del piloto
+  const viejo = probarPin(e, "u-majo", "22", g.leer(), T0 + 1000);
+  assert.equal(viejo.tipo === "bueno" && viejo.pinViejo, true);
+  assert.equal(viejo.tipo === "bueno" && viejo.intentos.fallos, 3, "el viejo de 2 es la credencial débil: no limpia");
+  const r = probarPin(e, "u-rober", u(e, "u-rober").pin, g.leer(), T0 + 1000);
+  assert.equal(r.tipo, "bueno");
+  assert.deepEqual(r.tipo === "bueno" && r.intentos, SIN_INTENTOS_DEL_BLOQUEO);
+  if (r.tipo === "bueno") g.guardar(r.intentos);
+  assert.deepEqual(g.leer(), SIN_INTENTOS_DEL_BLOQUEO);
+  // Después de 2 tandas, también: el de un dueño borra las tandas (la próxima vuelve a esperar 30 s).
+  let i = fallar(fallar(SIN_INTENTOS_DEL_BLOQUEO, 5, T0), 5, T0 + 30_000);
+  assert.equal(i.tandas, 2);
+  const limpio = probarPin(e, "u-rober", u(e, "u-rober").pin, i, T0 + 30_000 + 120_000);
+  i = limpio.tipo === "bueno" ? limpio.intentos : i;
+  assert.equal(segundosDeEspera(fallar(i, 5, T0 + 200_000), T0 + 200_000), 30);
+});
+
+test("SEC-5: 8 h sin fallos los olvidan (fallos y tandas); antes, no", () => {
+  const ocho = 8 * 60 * 60 * 1000;
+  const i = fallar(fallar(SIN_INTENTOS_DEL_BLOQUEO, 5, T0), 3, T0 + 30_000); // tanda 1 y 3 mal más
+  assert.deepEqual([i.fallos, i.tandas, i.ultimoFallo], [3, 1, T0 + 30_000]);
+  assert.deepEqual(intentosVigentes(i, T0 + 30_000 + ocho - 1), i, "un ms antes, todo sigue");
+  assert.deepEqual(intentosVigentes(i, T0 + 30_000 + ocho), SIN_INTENTOS_DEL_BLOQUEO, "a las 8 h, nada");
+  // El próximo fallo arranca de cero (como `anotarIntentoPin` del motor), y el 5º vuelve a esperar 30 s, no 2 min.
+  const despues = fallar(i, 1, T0 + 30_000 + ocho);
+  assert.deepEqual(despues, { fallos: 1, esperaHasta: 0, tandas: 0, ultimoFallo: T0 + 30_000 + ocho });
+  const t = T0 + 30_000 + ocho;
+  assert.equal(segundosDeEspera(fallar(i, 5, t), t), 30);
+  // Un acierto de recepción a las 8 h guarda lo que vale: nada.
+  const e = demo();
+  const lu = probarPin(e, "u-lu", u(e, "u-lu").pin, i, t);
+  assert.deepEqual(lu.tipo === "bueno" && lu.intentos, SIN_INTENTOS_DEL_BLOQUEO);
+});
+
+test("compatibilidad: lo guardado con el formato de antes (sin ultimoFallo) se lee sin perder la espera vigente", () => {
+  const ls = memoria();
+  const clave = claveDeIntentosDelBloqueo("breakpoint");
+  // Así lo dejaba la versión anterior: 5 mal, 2 tandas, esperando 2 minutos.
+  ls.m.set(clave, JSON.stringify({ fallos: 5, esperaHasta: T0 + 120_000, tandas: 2 }));
+  const g = guardaDelBloqueo(ls, clave);
+  assert.equal(segundosDeEspera(g.leer(), T0), 120, "la espera vigente sigue");
+  assert.equal(probarPin(demo(), "u-lu", "33", g.leer(), T0 + 60_000).tipo, "espera");
+  // Pasada la espera, la tanda sigue contando: la tercera espera 10 minutos.
+  const t = T0 + 120_000;
+  let i = g.leer();
+  for (let n = 0; n < INTENTOS_DEL_BLOQUEO; n++) i = anotarFallo(i, t);
+  assert.equal(segundosDeEspera(i, t), 600);
+  // Las 8 h corren desde el fin de esa espera (no se olvida antes de lo que correspondía).
+  assert.equal(g.leer().ultimoFallo, T0 + 120_000);
+  assert.equal(intentosVigentes(g.leer(), T0 + 120_000 + 8 * 60 * 60 * 1000 - 1).tandas, 2);
+  // Unos fallos viejos sin espera (y sin fecha) se leen tal cual: más estricto, nunca más flojo.
+  ls.m.set(clave, JSON.stringify({ fallos: 3, esperaHasta: 0, tandas: 0 }));
+  assert.deepEqual(guardaDelBloqueo(ls, clave).leer(), { fallos: 3, esperaHasta: 0, tandas: 0, ultimoFallo: 0 });
+  // Y al guardar de nuevo queda con el formato nuevo.
+  g.guardar(anotarFallo(guardaDelBloqueo(ls, clave).leer(), T0));
+  assert.equal(JSON.parse(ls.m.get(clave)!).ultimoFallo, T0);
 });
 
 test("tiempo sin uso: a los `bloqueoMin` minutos justos; 0 = nunca por tiempo", () => {

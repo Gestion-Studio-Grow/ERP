@@ -24,32 +24,34 @@ import type { Almacen, ArchivoPreparado } from "./almacen";
 import { CampoPin } from "./formulario-del-club";
 import {
   armarArchivo,
-  authParaArchivar,
   QUE_PASA_EN_BLANCO,
-  autorizarEnBlanco,
   avisoDeEnBlanco,
   avisoDeRestaurado,
   ddmm,
   despuesDeConfirmar,
+  duenioConPin,
+  empezarEnBlancoConPin,
   kb,
   leerRespaldo,
-  motivoDeEnBlanco,
-  motivoDeRestaurar,
   nombreDelArchivoParaArchivar,
   nombreDelRespaldo,
-  pinDeDuenio,
+  prepararArchivoConPin,
   respaldoAntesDeBlanco,
+  restaurarConPin,
   textoDelRespaldo,
   vistaDelGuardado,
+  type ArchivoConPin,
+  type DuenioConPin,
   type RespaldoParaRestaurar,
   type RespaldoParaVerificar,
 } from "./configuracion-core";
-import { ErrorDeSeccion, Seccion, campoArchivo, descargarTexto, despuesDePintar, sinDesborde, subtarjeta, textoElegido } from "./config-piezas";
+import { ErrorDeSeccion, Seccion, campoArchivo, conElTopeDelEquipo, descargarTexto, despuesDePintar, sinDesborde, subtarjeta, textoElegido } from "./config-piezas";
 import { porFirma, useEstadoDelGuardado, useOperador, useSeleccion } from "./usar-almacen";
 
 const seleccionarArchivo = (e: EstadoClub, a: Ahora) => armarArchivo(e, a);
 
-function Restaurar({ almacen, quien }: { almacen: Almacen; quien: string | null }) {
+/** `negocio` (en las tres): el PIN de quien opera cuenta en el tope del equipo (el del bloqueo). */
+function Restaurar({ almacen, quien, negocio }: { almacen: Almacen; quien: string | null; negocio?: string }) {
   const campo = useRef<HTMLInputElement>(null);
   const idCampo = useId();
   const [previa, setPrevia] = useState<RespaldoParaRestaurar | null>(null);
@@ -75,13 +77,11 @@ function Restaurar({ almacen, quien }: { almacen: Almacen; quien: string | null 
     if (!previa) return;
     setError("");
     // El dueño que opera, con el PIN que tipeó ahora: el almacén lo vuelve a controlar (rol OWNER + PIN de un dueño).
-    const a = authParaArchivar(almacen.estado(), almacen.auth(), pin);
+    // Copia lo de ahora al lado, reemplaza, apaga «Deshacer», guarda en el acto y revisa a quien opera: si ya no existe
+    // o cambió su PIN en lo restaurado, queda sin operador y el bloqueo pide el PIN solo. Con el tope del equipo.
+    const r = conElTopeDelEquipo(almacen, negocio, () => restaurarConPin(almacen, previa.foto, pin));
     setPin("");
-    if (!a.ok) return setError(a.mensaje);
-    // El almacén copia lo de ahora al lado, reemplaza, apaga «Deshacer», guarda en el acto y revisa a quien opera: si
-    // ya no existe o cambió su PIN en lo restaurado, queda sin operador y el bloqueo pide el PIN solo.
-    const r = almacen.restaurar(previa.foto, { auth: a.auth });
-    if (!r.ok) return setError(motivoDeRestaurar(r));
+    if (!r.ok) return setError(r.mensaje);
     const aviso = avisoDeRestaurado(previa.antesDeArchivar);
     if (aviso) almacen.informar({ ok: true, mensaje: aviso });
     cancelar();
@@ -136,7 +136,7 @@ function Restaurar({ almacen, quien }: { almacen: Almacen; quien: string | null 
 
 type Preparado = { p: ArchivoPreparado; nombre: string };
 
-function Archivar({ almacen, quien, bytes }: { almacen: Almacen; quien: string | null; bytes: number }) {
+function Archivar({ almacen, quien, bytes, negocio }: { almacen: Almacen; quien: string | null; bytes: number; negocio?: string }) {
   const v = useSeleccion(almacen, seleccionarArchivo, porFirma);
   const [abierto, setAbierto] = useState(false);
   const [pin, setPin] = useState("");
@@ -165,14 +165,14 @@ function Archivar({ almacen, quien, bytes }: { almacen: Almacen; quien: string |
   const descargar = async () => {
     if (ocupado) return;
     setError("");
-    const a = authParaArchivar(almacen.estado(), almacen.auth(), pin);
-    if (!a.ok) return setError(a.mensaje);
     setOcupado("preparando");
     await despuesDePintar();
     try {
-      const r = almacen.prepararArchivo({ auth: a.auth });
-      if (!r.ok) {
-        if (r.causa !== "repetido") setError(r.motivo);
+      // El PIN, con el tope del equipo; el almacén lo vuelve a controlar (rol OWNER + PIN de un dueño).
+      const d: ArchivoConPin = conElTopeDelEquipo(almacen, negocio, () => prepararArchivoConPin(almacen, pin));
+      const r = d.resultado;
+      if (!r || !r.ok) {
+        if (r?.causa !== "repetido") setError(d.mensaje);
         return;
       }
       if (!("confirmar" in r)) {
@@ -324,7 +324,7 @@ function Archivar({ almacen, quien, bytes }: { almacen: Almacen; quien: string |
 const configurado = (e: EstadoClub) => e.config.configurado !== false;
 const elNuevo = (_: boolean | undefined, nuevo: boolean) => nuevo;
 
-function EmpezarEnBlanco({ almacen, quien }: { almacen: Almacen; quien: string | null }) {
+function EmpezarEnBlanco({ almacen, quien, negocio }: { almacen: Almacen; quien: string | null; negocio?: string }) {
   const [abierto, setAbierto] = useState(false);
   const [pin, setPin] = useState("");
   const [bajado, setBajado] = useState<Pick<RespaldoParaVerificar, "huella" | "nombre"> | null>(null);
@@ -348,9 +348,10 @@ function EmpezarEnBlanco({ almacen, quien }: { almacen: Almacen; quien: string |
   const descargar = () => {
     setError("");
     if (almacen.rol() !== "OWNER") return setError("Empezar en blanco lo hace un dueño.");
-    const d = pinDeDuenio(almacen.estado(), almacen.auth(), pin, "Empezar en blanco");
-    if (!d.ok) return setError(d.mensaje);
-    const r = respaldoAntesDeBlanco(almacen.estado(), d.usuario.id, Date.now());
+    const d: DuenioConPin = conElTopeDelEquipo(almacen, negocio, () => duenioConPin(almacen.estado(), almacen.auth(), pin, "Empezar en blanco"));
+    const duenioId = d.usuarioId;
+    if (!d.ok || !duenioId) return setError(d.mensaje);
+    const r = respaldoAntesDeBlanco(almacen.estado(), duenioId, Date.now());
     descargarTexto(r.texto, r.nombre);
     setBajado({ huella: r.huella, nombre: r.nombre });
   };
@@ -362,20 +363,18 @@ function EmpezarEnBlanco({ almacen, quien }: { almacen: Almacen; quien: string |
     if (texto == null) return setError("Elegí el respaldo que descargaste (paso 2): sin eso no se empieza nada.");
     setOcupado(true);
     await despuesDePintar();
-    let v: ReturnType<typeof autorizarEnBlanco>;
-    let r: ReturnType<Almacen["empezarEnBlanco"]> | null = null;
+    let d: ReturnType<typeof empezarEnBlancoConPin>;
     try {
       // Verificar y empezar en el mismo momento (sin nada en el medio): la jornada no puede cambiar entre una y otra.
-      v = autorizarEnBlanco(almacen.estado(), { pin, descargado: bajado, textoElegido: texto }, almacen.auth(), almacen.rol());
-      if (v.ok) r = almacen.empezarEnBlanco({ auth: v.auth });
+      // Con el tope del equipo: trabado no se verifica ni se empieza.
+      d = conElTopeDelEquipo(almacen, negocio, () => empezarEnBlancoConPin(almacen, { pin, descargado: bajado, textoElegido: texto }));
     } finally {
       setOcupado(false);
     }
-    if (!v.ok) {
-      if (v.causa === "cambio") olvidar();
-      return setError(v.mensaje);
+    if (!d.ok) {
+      if (d.causa === "cambio") olvidar();
+      return setError(d.mensaje);
     }
-    if (!r?.ok) return setError(r ? motivoDeEnBlanco(r) : "No se pudo empezar en blanco.");
     // Sin operador y sin configurar: Configuración pasa a la consola de primera vez (esta pantalla se va).
     almacen.informar({ ok: true, mensaje: avisoDeEnBlanco(bajado?.nombre ?? "el respaldo que bajaste") });
   };
@@ -449,7 +448,8 @@ export function SoloEnElPuestoDelDuenio({ que }: { que: string }) {
   );
 }
 
-export function JornadaDelClub({ almacen }: { almacen: Almacen }) {
+/** `negocio`: lo que pide el PIN de quien opera cuenta en el tope del equipo (el del bloqueo). */
+export function JornadaDelClub({ almacen, negocio }: { almacen: Almacen; negocio?: string }) {
   const g = useEstadoDelGuardado(almacen);
   const operador = useOperador(almacen);
   const quien = operador ? operador.usuario.nombre.split(" ")[0] : null;
@@ -495,9 +495,9 @@ export function JornadaDelClub({ almacen }: { almacen: Almacen }) {
       </div>
       {puestoDeDuenio(almacen) ? (
         <>
-          <Restaurar almacen={almacen} quien={quien} />
-          <Archivar almacen={almacen} quien={quien} bytes={g.bytes} />
-          {enBlanco && <EmpezarEnBlanco almacen={almacen} quien={quien} />}
+          <Restaurar almacen={almacen} quien={quien} negocio={negocio} />
+          <Archivar almacen={almacen} quien={quien} bytes={g.bytes} negocio={negocio} />
+          {enBlanco && <EmpezarEnBlanco almacen={almacen} quien={quien} negocio={negocio} />}
         </>
       ) : (
         <SoloEnElPuestoDelDuenio que="Restaurar un respaldo, archivar los días cerrados y empezar en blanco" />

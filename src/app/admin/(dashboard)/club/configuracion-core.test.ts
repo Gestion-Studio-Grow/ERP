@@ -22,8 +22,12 @@ import {
   contactosDe,
   cuandoSeGuardo,
   despuesDeConfirmar,
+  duenioConPin,
   ejecutarConfiguracion,
+  empezarEnBlancoConPin,
   esDeshacible,
+  evaluarPinDeQuienOpera,
+  llevaPinDeQuienOpera,
   leerRespaldo,
   limpiarConRespaldo,
   linkParaClientes,
@@ -33,9 +37,11 @@ import {
   nombreDelRespaldo,
   nombreDelRespaldoAntesDeBlanco,
   notaDelCelular,
+  prepararArchivoConPin,
   QUE_PASA_EN_BLANCO,
   respaldoAntesDeBlanco,
   respaldoAntesDeLimpiar,
+  restaurarConPin,
   textoDelRespaldo,
   valoresDeReglas,
   verificarRespaldoElegido,
@@ -43,6 +49,8 @@ import {
   type AccionConfig,
 } from "./configuracion-core";
 import { PIN_VIEJO_CAJA, ejecutarCaja } from "./caja-core";
+import { ESPERAS_DEL_BLOQUEO_MS, INTENTOS_DEL_BLOQUEO, SIN_INTENTOS_DEL_BLOQUEO, claveDeIntentosDelBloqueo, guardaDelBloqueo, type GuardaDelBloqueo } from "./bloqueo-core";
+import { conTopeDePin } from "./tope-de-pin";
 
 const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
@@ -197,7 +205,8 @@ test("dueño con el PIN viejo de 2: no firma en Configuración (alta, PIN nuevo,
   assert.equal(JSON.stringify(e.usuarios), usuarios, "nadie ganó ni perdió acceso");
   // Archivar y restaurar: el almacén controla con verificarPin, así que el viejo se frena antes (authParaArchivar).
   const arch = authParaArchivar(e, viejo, "11");
-  assert.deepEqual(arch, { ok: false, mensaje: M.MOTIVO_PIN_VIEJO });
+  // Es SU PIN (no suma un fallo), pero no firma: tampoco limpia el tope (`pin: "bueno"`, `duenio: false`).
+  assert.deepEqual(arch, { ok: false, mensaje: M.MOTIVO_PIN_VIEJO, pin: "bueno", duenio: false });
   assert.equal(authParaArchivar(e, viejo, "12").ok, true, "uno mal sigue de largo: lo dice quien firma («PIN incorrecto.»)");
   // Limpieza y empezar en blanco (pinDeDuenio).
   const bajado = respaldoAntesDeLimpiar(e, "u-rober", 1);
@@ -205,9 +214,122 @@ test("dueño con el PIN viejo de 2: no firma en Configuración (alta, PIN nuevo,
   assert.equal(limpia.ok, false);
   assert.equal(limpia.mensaje, M.MOTIVO_PIN_VIEJO);
   const blanco = autorizarEnBlanco(e, { pin: "11", descargado: bajado, textoElegido: bajado.texto }, viejo, "OWNER");
-  assert.deepEqual(blanco, { ok: false, mensaje: M.MOTIVO_PIN_VIEJO });
+  assert.deepEqual(blanco, { ok: false, mensaje: M.MOTIVO_PIN_VIEJO, pin: "bueno", duenio: false });
   // Recepción con su PIN de 2 sigue igual: no es «viejo» (y lo de dueño se lo frena el permiso, no el largo).
   assert.equal(authParaArchivar(e, LU, "33").ok, true);
+});
+
+// ───────────── el PIN de Configuración cuenta en EL tope del equipo (SEC-5) ─────────────
+
+/** La guarda del tope del equipo, sobre un localStorage de mentira (la de `guardaDelPin`, sin navegador). */
+function guardaDeMentira(): GuardaDelBloqueo {
+  const datos = new Map<string, string>();
+  return guardaDelBloqueo({ getItem: (k) => datos.get(k) ?? null, setItem: (k, v) => void datos.set(k, v), removeItem: (k) => void datos.delete(k) }, claveDeIntentosDelBloqueo("breakpoint"));
+}
+
+test("qué acciones de Configuración llevan el PIN de quien opera (y corren con el tope): alta, PIN nuevo, sacar acceso y cambiar mi PIN", () => {
+  const conPin: AccionConfig[] = [
+    { tipo: "alta", nombre: "Nico", rol: "recepcion", pin: "1111" },
+    { tipo: "pinNuevo", usuarioId: "u-lu", pin: "1111" },
+    { tipo: "sacarAcceso", usuarioId: "u-lu", pin: "1111" },
+    { tipo: "cambiarMiPin", actual: "1111", nuevo: "4711", repetido: "4711" },
+  ];
+  for (const a of conPin) assert.equal(llevaPinDeQuienOpera(a), true, a.tipo);
+  const sinPin: AccionConfig[] = [
+    { tipo: "pinInicial", usuarioId: "u-rober", pin: "4711", repetido: "4711" },
+    { tipo: "avisos", celulares: {}, club: "", alias: "" },
+    { tipo: "horarios", dias: [] },
+  ];
+  for (const a of sinPin) assert.equal(llevaPinDeQuienOpera(a), false, `${a.tipo}: una espera por PIN mal no lo traba`);
+});
+
+test("evaluar el PIN de quien opera: bueno de dueño, bueno de recepción, malo, el viejo de 2 (bueno sin limpiar) y lo que no se evalúa", () => {
+  const e = demo();
+  assert.deepEqual(evaluarPinDeQuienOpera(e, ROBER, "1111"), { pin: "bueno", duenio: true });
+  assert.deepEqual(evaluarPinDeQuienOpera(e, LU, "33"), { pin: "bueno", duenio: false });
+  assert.deepEqual(evaluarPinDeQuienOpera(e, ROBER, "9999"), { pin: "malo", duenio: false });
+  assert.deepEqual(evaluarPinDeQuienOpera(e, ROBER, "2222"), { pin: "malo", duenio: false }, "el de otro dueño no es el de quien opera");
+  for (const pin of ["", "1", "111", "abcd"]) assert.deepEqual(evaluarPinDeQuienOpera(e, ROBER, pin), { pin: null, duenio: false }, `«${pin}»`);
+  assert.deepEqual(evaluarPinDeQuienOpera(e, {}, "1111"), { pin: null, duenio: false }, "sin nadie adentro");
+  M.usuario(e, "u-rober")!.pin = "11";
+  assert.deepEqual(evaluarPinDeQuienOpera(e, { usuarioId: "u-rober", pin: "11" }, "11"), { pin: "bueno", duenio: false }, "el viejo: su PIN, pero no firma");
+});
+
+test("SEC-5 en Configuración: alta, PIN nuevo, sacar acceso y cambiar mi PIN con el PIN mal suman al tope; el 5º traba y trabado no corre", () => {
+  const e = demo();
+  const g = guardaDeMentira();
+  const correr = (a: AccionConfig, t = 0, auth: Auth = ROBER) => conTopeDePin(g, t, () => hacer(e, a, auth));
+  const malas: AccionConfig[] = [
+    { tipo: "alta", nombre: "Nico", rol: "recepcion", pin: "9999" },
+    { tipo: "pinNuevo", usuarioId: "u-lu", pin: "9999" },
+    { tipo: "sacarAcceso", usuarioId: "u-lu", pin: "9999" },
+    { tipo: "cambiarMiPin", actual: "9999", nuevo: "4711", repetido: "4711" },
+  ];
+  malas.forEach((a, k) => assert.equal(correr(a).desenlace.mensaje, `PIN incorrecto (${k + 1} de ${INTENTOS_DEL_BLOQUEO}).`, a.tipo));
+  // Lo que no llegó a evaluar el PIN no cuenta (ni a medias, ni sin nombre, ni el nuevo mal repetido).
+  correr({ tipo: "alta", nombre: "Nico", rol: "recepcion", pin: "999" }); // (el de 2 sí se prueba: el viejo de un dueño)
+  correr({ tipo: "alta", nombre: " ", rol: "recepcion", pin: "9999" });
+  correr({ tipo: "cambiarMiPin", actual: "9999", nuevo: "4711", repetido: "4712" });
+  assert.equal(g.leer().fallos, 4);
+  // Recepción pone el suyo (bueno, pero no es dueño): los 4 siguen.
+  assert.match(correr({ tipo: "alta", nombre: "Nico", rol: "recepcion", pin: "33" }, 0, LU).desenlace.mensaje, /no tiene permiso/);
+  assert.equal(g.leer().fallos, 4, "un acierto de recepción no borra los fallos");
+  const usuarios = JSON.stringify(e.usuarios);
+  assert.equal(correr(malas[0]).desenlace.mensaje, "PIN incorrecto. Demasiados PIN equivocados: esperá 30 segundos.");
+  for (const a of [...malas, { tipo: "alta", nombre: "Nico", rol: "recepcion", pin: "1111" } as const]) {
+    const r = conTopeDePin(g, 1000, () => assert.fail(`trabado: ${a.tipo} no corre`));
+    assert.equal(r.trabado, true);
+    assert.equal(r.desenlace.mensaje, "Demasiados PIN equivocados: esperá 29 segundos.");
+  }
+  assert.equal(JSON.stringify(e.usuarios), usuarios, "trabado no se dio ni sacó ningún acceso");
+  // Las avisos, reglas y horarios no llevan PIN: no pasan por el tope (no se traban).
+  assert.equal(hacer(e, { tipo: "avisos", celulares: {}, club: "", alias: "" }).ok, true);
+});
+
+test("SEC-5 en Configuración: un acierto de DUEÑO vuelve a cero (alta, cambiar mi PIN); el de recepción no", () => {
+  const e = demo();
+  const g = guardaDeMentira();
+  for (let k = 0; k < 3; k++) conTopeDePin(g, 0, () => hacer(e, { tipo: "pinNuevo", usuarioId: "u-lu", pin: "9999" }));
+  assert.equal(g.leer().fallos, 3);
+  const alta = conTopeDePin(g, 0, () => hacer(e, { tipo: "alta", nombre: "Nico", rol: "recepcion", pin: "1111" }));
+  assert.equal(alta.desenlace.ok, true, alta.desenlace.mensaje);
+  assert.deepEqual(g.leer(), SIN_INTENTOS_DEL_BLOQUEO);
+  // Cambiar mi PIN: el actual se evalúa ANTES del motor (después el PIN ya es el nuevo) y, bueno de dueño, limpia.
+  for (let k = 0; k < 2; k++) conTopeDePin(g, 0, () => hacer(e, { tipo: "cambiarMiPin", actual: "9999", nuevo: "4711", repetido: "4711" }));
+  const cambio = conTopeDePin(g, 0, () => hacer(e, { tipo: "cambiarMiPin", actual: "1111", nuevo: "4711", repetido: "4711" }));
+  assert.equal(cambio.desenlace.ok, true, cambio.desenlace.mensaje);
+  assert.deepEqual(g.leer(), SIN_INTENTOS_DEL_BLOQUEO);
+  // Recepción cambia el suyo: bueno, pero los fallos de antes quedan.
+  conTopeDePin(g, 0, () => hacer(e, { tipo: "pinNuevo", usuarioId: "u-lu", pin: "0000" }, { usuarioId: "u-rober", pin: "4711" }));
+  const lu = conTopeDePin(g, 0, () => hacer(e, { tipo: "cambiarMiPin", actual: "33", nuevo: "58", repetido: "58" }, LU));
+  assert.equal(lu.desenlace.ok, true, lu.desenlace.mensaje);
+  assert.equal(g.leer().fallos, 1);
+});
+
+test("SEC-5 en Configuración: la limpieza y empezar en blanco (paso 1 y paso 2) suman al tope; desde un puesto de recepción no se evalúa", () => {
+  const e = demo();
+  const g = guardaDeMentira();
+  const bajado = respaldoAntesDeLimpiar(e, "u-rober", 1);
+  const pedido = (pin: string) => ({ conservarSaldos: true, conservarStock: true, pin, descargado: bajado, textoElegido: bajado.texto });
+  assert.equal(conTopeDePin(g, 0, () => duenioConPin(e, ROBER, "9999", "La limpieza")).desenlace.mensaje, "PIN incorrecto (1 de 5).");
+  assert.equal(conTopeDePin(g, 0, () => limpiarConRespaldo(e, pedido("9999"), AHORA, ROBER, "OWNER")).desenlace.mensaje, "PIN incorrecto (2 de 5).");
+  assert.equal(conTopeDePin(g, 0, () => duenioConPin(e, ROBER, "9999", "Empezar en blanco")).desenlace.mensaje, "PIN incorrecto (3 de 5).");
+  const blanco = autorizarEnBlanco(e, { pin: "9999", descargado: bajado, textoElegido: bajado.texto }, ROBER, "OWNER");
+  assert.deepEqual([blanco.ok, blanco.pin], [false, "malo"]);
+  conTopeDePin(g, 0, () => ({ ...blanco, mensaje: blanco.ok ? "" : blanco.mensaje }));
+  assert.equal(g.leer().fallos, 4);
+  // Desde el puesto de recepción (rol del ERP), ni se mira el PIN: no cuenta.
+  assert.equal(limpiarConRespaldo(e, pedido("9999"), AHORA, ROBER, "RECEPTION").pin, null);
+  // Recepción con su PIN (bueno, no es dueño): no limpia el tope.
+  const deLu = duenioConPin(e, LU, "33", "La limpieza");
+  assert.deepEqual([deLu.ok, deLu.pin, deLu.duenio], [false, "bueno", false]);
+  conTopeDePin(g, 0, () => deLu);
+  assert.equal(g.leer().fallos, 4);
+  // El quinto traba; pasada la espera, el dueño con su PIN descarga y vuelve a cero.
+  assert.match(conTopeDePin(g, 0, () => duenioConPin(e, ROBER, "9999", "La limpieza")).desenlace.mensaje, /esperá 30 segundos\.$/);
+  const ok = conTopeDePin(g, ESPERAS_DEL_BLOQUEO_MS[0], () => duenioConPin(e, ROBER, "1111", "La limpieza"));
+  assert.deepEqual([ok.desenlace.ok, "usuarioId" in ok.desenlace && ok.desenlace.usuarioId], [true, "u-rober"]);
+  assert.deepEqual(g.leer(), SIN_INTENTOS_DEL_BLOQUEO);
 });
 
 test("los pedidos de acceso se cuentan (se dan desde el Tablero)", () => {
@@ -524,6 +646,32 @@ test("limpieza para el go-live: respaldo descargado y elegido de vuelta; si camb
   assert.ok(vuelta.ok && vuelta.respaldo.turnos > 0);
 });
 
+test("SEC-5 con el almacén real: restaurar, archivar y empezar en blanco con el PIN mal suman al tope, trabado no corre, y el dueño lo limpia", async () => {
+  const { a } = await abrir();
+  const g = guardaDeMentira();
+  const antes = JSON.stringify(a.estado());
+  const bajado = respaldoAntesDeBlanco(a.estado(), "u-duenio-1", new Date(2026, 9, 17, 19, 0).getTime());
+  const blanco = (pin: string) => empezarEnBlancoConPin(a, { pin, descargado: bajado, textoElegido: bajado.texto });
+  const r1 = conTopeDePin(g, 0, () => restaurarConPin(a, MES, "9999"));
+  assert.match(r1.desenlace.mensaje, /\(1 de 5\)\.$/);
+  const r2 = conTopeDePin(g, 0, () => prepararArchivoConPin(a, "9999"));
+  assert.match(r2.desenlace.mensaje, /\(2 de 5\)\.$/);
+  const r3 = conTopeDePin(g, 0, () => blanco("9999"));
+  assert.match(r3.desenlace.mensaje, /\(3 de 5\)\.$/);
+  conTopeDePin(g, 0, () => restaurarConPin(a, MES, "9999"));
+  assert.match(conTopeDePin(g, 0, () => prepararArchivoConPin(a, "9999")).desenlace.mensaje, /esperá 30 segundos\.$/);
+  assert.equal(JSON.stringify(a.estado()), antes, "con el PIN mal no se tocó nada");
+  // Trabado: ni con el PIN bueno se restaura, archiva o empieza en blanco.
+  for (const correr of [() => restaurarConPin(a, MES, DUENIO.pin!), () => prepararArchivoConPin(a, DUENIO.pin!), () => blanco(DUENIO.pin!)]) {
+    assert.equal(conTopeDePin(g, 1000, () => (correr(), assert.fail("trabado: no corre"))).trabado, true);
+  }
+  // Pasada la espera, el dueño con su PIN prepara el archivo (el almacén lo vuelve a controlar) y el tope vuelve a cero.
+  const bien = conTopeDePin(g, ESPERAS_DEL_BLOQUEO_MS[0], () => prepararArchivoConPin(a, DUENIO.pin!));
+  assert.equal(bien.desenlace.ok, true, bien.desenlace.mensaje);
+  assert.ok("resultado" in bien.desenlace && bien.desenlace.resultado && "confirmar" in bien.desenlace.resultado, "salió el archivo para descargar");
+  assert.deepEqual(g.leer(), SIN_INTENTOS_DEL_BLOQUEO);
+});
+
 test("jornada real con el dueño todavía con el PIN viejo de 2: no archiva, no restaura, no limpia, no empieza en blanco ni saca plata", async () => {
   const { a } = await abrir({ pinViejo: true });
   assert.equal(M.pinDesactualizado(a.estado(), "u-duenio-1"), true);
@@ -531,7 +679,7 @@ test("jornada real con el dueño todavía con el PIN viejo de 2: no archiva, no 
   const turnos = a.estado().reservas.length;
   const movs = a.estado().caja.movimientos.length;
   // Archivar y restaurar (config-jornada.tsx: authParaArchivar antes de llamar al almacén).
-  assert.deepEqual(authParaArchivar(a.estado(), a.auth(), PIN_VIEJO), { ok: false, mensaje: M.MOTIVO_PIN_VIEJO });
+  assert.deepEqual(authParaArchivar(a.estado(), a.auth(), PIN_VIEJO), { ok: false, mensaje: M.MOTIVO_PIN_VIEJO, pin: "bueno", duenio: false });
   // La limpieza para el go-live (config-golive.tsx: pinDeDuenio; acá, por el almacén como la pantalla).
   const ms = new Date(2026, 9, 17, 19, 0).getTime();
   const bajado = respaldoAntesDeLimpiar(a.estado(), "u-duenio-1", ms);
@@ -542,7 +690,12 @@ test("jornada real con el dueño todavía con el PIN viejo de 2: no archiva, no 
   assert.equal(limpia.mensaje, M.MOTIVO_PIN_VIEJO);
   // Empezar en blanco.
   const blancoBajado = respaldoAntesDeBlanco(a.estado(), "u-duenio-1", ms);
-  assert.deepEqual(autorizarEnBlanco(a.estado(), { pin: PIN_VIEJO, descargado: blancoBajado, textoElegido: blancoBajado.texto }, a.auth(), "OWNER"), { ok: false, mensaje: M.MOTIVO_PIN_VIEJO });
+  assert.deepEqual(autorizarEnBlanco(a.estado(), { pin: PIN_VIEJO, descargado: blancoBajado, textoElegido: blancoBajado.texto }, a.auth(), "OWNER"), {
+    ok: false,
+    mensaje: M.MOTIVO_PIN_VIEJO,
+    pin: "bueno",
+    duenio: false,
+  });
   // Egreso y cierre de caja: lo frena la Caja (PIN_VIEJO_CAJA) y, debajo, el motor (verificarFirma). Cualquiera de las
   // dos capas vale; lo que no puede pasar es que salga plata.
   const rechazoDelViejo = new Set([PIN_VIEJO_CAJA, M.MOTIVO_PIN_VIEJO]);

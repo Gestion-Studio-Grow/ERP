@@ -6,7 +6,8 @@
 // `gsg-club:<negocio>:intentos-bloqueo:v1` y traba 30 s → 2 min → 10 min; si el descuento y la caja contaran aparte,
 // cada pantalla sería una puerta más para probar. Acá se usa ESE contador: un PIN mal en la caja suma al del bloqueo,
 // y la espera del bloqueo traba también la caja y el descuento. Un PIN bueno de un DUEÑO lo vuelve a cero; uno bueno
-// de recepción no (SEC-5: si no, alguien prueba 4 PIN del dueño, pone el suyo y arranca de nuevo).
+// de recepción no (SEC-5: si no, alguien prueba 4 PIN del dueño, pone el suyo y arranca de nuevo). La regla es una sola,
+// la del motor, por `anotarIntento` del bloqueo (con el olvido a las 8 h sin fallos).
 //
 // Cuenta SÓLO un PIN que se llegó a evaluar (`pin: "bueno" | "malo"`): un envío sin monto o sin concepto no es un
 // intento ni vuelve el contador a cero (hallazgo M2 del Gate).
@@ -14,8 +15,7 @@
 import type { Almacen, Desenlace } from "./almacen";
 import {
   INTENTOS_DEL_BLOQUEO,
-  SIN_INTENTOS_DEL_BLOQUEO,
-  anotarFallo,
+  anotarIntento,
   claveDeIntentosDelBloqueo,
   guardaDelBloqueo,
   intentosVigentes,
@@ -39,10 +39,10 @@ export function conTopeDePin<D extends DesenlaceConPin>(guarda: GuardaDelBloqueo
   const espera = segundosDeEspera(previo, ahoraMs);
   if (espera > 0) return { desenlace: { ok: false, mensaje: textoDeEspera(espera), pin: null }, trabado: true };
   const d = correr();
-  if (d.pin === "bueno" && d.duenio) guarda.guardar(SIN_INTENTOS_DEL_BLOQUEO);
-  if (d.pin !== "malo") return { desenlace: d, trabado: false };
-  const intentos = anotarFallo(previo, ahoraMs);
+  if (d.pin !== "bueno" && d.pin !== "malo") return { desenlace: d, trabado: false };
+  const intentos = anotarIntento(previo, { ok: d.pin === "bueno", duenio: d.duenio === true }, ahoraMs);
   guarda.guardar(intentos);
+  if (d.pin === "bueno") return { desenlace: d, trabado: false };
   const s = segundosDeEspera(intentos, ahoraMs);
   const mensaje = s > 0 ? `${d.mensaje} ${textoDeEspera(s)}` : `${d.mensaje.replace(/\.$/, "")} (${intentos.fallos} de ${INTENTOS_DEL_BLOQUEO}).`;
   return { desenlace: { ...d, mensaje }, trabado: false };

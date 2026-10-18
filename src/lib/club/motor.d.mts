@@ -603,6 +603,27 @@ export declare const MOTIVO_PIN_VIEJO: string;
  * (`pinViejo: true`): con ese PIN sólo entra y cambia el PIN. Lo usa `autorizar` (toda operación con PIN).
  */
 export declare function verificarFirma(estado: EstadoClub, usuarioId: string, pin: string): Resultado<{ usuario: Usuario }> | (Falla & { pinViejo: true });
+// Tope de intentos de PIN, UNO por compu (SEC-5): 5 mal → espera 30 s, 2 min y 10 min (por tanda). Un acierto de
+// recepción no borra los fallos; los borra uno de un dueño o 8 horas sin fallos.
+export interface IntentosPin {
+  /** PIN mal en esta tanda (0–5). */
+  fallos: number;
+  /** Hasta cuándo hay que esperar (ms); 0 = no hay espera. */
+  esperaHasta: number;
+  /** Tandas de 5 mal sin un acierto de dueño (decide cuánto se espera). */
+  tandas: number;
+  /** Cuándo fue el último PIN mal (ms); 0 = ninguno. A las 8 h sin fallos se olvida todo. */
+  ultimoFallo: number;
+}
+export declare const TOPE_INTENTOS_PIN: 5;
+/** La espera de cada tanda, en segundos: 30, 120 y, de la tercera en adelante, 600. */
+export declare const ESPERAS_PIN_S: readonly number[];
+/** Lo guardado, normalizado (lo que falta o no es un número positivo, 0). Sin nada: todo en cero. */
+export declare function intentosPin(guardado?: Partial<IntentosPin> | null): IntentosPin;
+/** Cuántos ms falta esperar para poder probar otro PIN (0 = se puede). */
+export declare function esperaPin(t: Partial<IntentosPin> | null | undefined, ahoraMs: number): number;
+/** Anota un intento ya hecho (no durante la espera). `duenio`: el que acertó es dueño. No toca el que recibe. */
+export declare function anotarIntentoPin(t: Partial<IntentosPin> | null | undefined, intento: { ok: boolean; duenio?: boolean }, ahoraMs: number): IntentosPin;
 /**
  * ¿Ese PIN nuevo se adivina fácil? El motivo en criollo, o "" si sirve: PIN de ejemplo de la demo (1111, 2222, 33,
  * 44), todos iguales y, con 4 números, escaleras de a uno (0123…, 9876…). Lo aplican `definirPinInicial`,

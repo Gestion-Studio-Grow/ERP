@@ -701,7 +701,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     await capturar(page, "config-restaurar-1024");
     await restaurar.getByLabel("PIN de Dueño").fill("12");
     await restaurar.getByRole("button", { name: "Restaurar este respaldo" }).click();
-    await alerta(page, "PIN incorrecto.");
+    await alerta(page, "PIN incorrecto (1 de 5)."); // cuenta en el tope del equipo (el del bloqueo, SEC-5)
     await restaurar.getByLabel("PIN de Dueño").fill("5757");
     await restaurar.getByRole("button", { name: "Restaurar este respaldo" }).click();
     await aviso(page, "Listo: se restauró la jornada de antes de archivar (lo de antes quedó copiado en este equipo). Si avisa que se llena, archivá de nuevo.");

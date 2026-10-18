@@ -230,7 +230,9 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await bloqueo(page).waitFor({ state: "detached" });
     await page.getByText("Hola, Lu.").waitFor();
     await page.locator('[data-ui="operador-del-club"]').getByText("Lu (recepción tarde)").waitFor();
-    assert.equal(await page.evaluate((k) => localStorage.getItem(k), claveDeIntentosDelBloqueo("demo-club")), null, "un PIN bueno limpia los intentos");
+    // Lu es recepción: entra, pero su acierto no borra la tanda (SEC-5: sólo un dueño vuelve a cero, o 8 h sin fallos).
+    const quedo = JSON.parse((await page.evaluate((k) => localStorage.getItem(k), claveDeIntentosDelBloqueo("demo-club"))) ?? "null");
+    assert.deepEqual([quedo?.fallos, quedo?.tandas], [0, 1], "el acierto de recepción deja la tanda: la próxima de 5 mal espera 2 minutos");
     await capturar(page, "1024-adentro");
 
     // 5 minutos sin uso (config.bloqueoMin de la demo): vuelve a bloquear, con quien estaba.

@@ -205,7 +205,7 @@ const igualQue = (_: boolean | undefined, nuevo: boolean) => nuevo;
 const sinTurno = () => undefined;
 const consola = extras.find((e) => e.id === "configuracion") ?? null;
 
-function SoloConOperador({ almacen, children }: { almacen: Almacen; children: React.ReactNode }) {
+function SoloConOperador({ almacen, negocio, children }: { almacen: Almacen; negocio: string; children: React.ReactNode }) {
   const operador = useOperador(almacen);
   const primerArranque = useSeleccion(almacen, sinConfigurar, igualQue);
   if (almacen.modo() === "real" && !operador && primerArranque) {
@@ -222,7 +222,7 @@ function SoloConOperador({ almacen, children }: { almacen: Almacen; children: Re
     return (
       <div role="region" aria-label="Configuración inicial del club">
         <Suspense fallback={<SolapaCargando />}>
-          <consola.diferida.Solapa almacen={almacen} dia={almacen.ahora().fecha} rol={almacen.rol()} onVerTurno={sinTurno} irASolapa={sinTurno} />
+          <consola.diferida.Solapa almacen={almacen} dia={almacen.ahora().fecha} rol={almacen.rol()} onVerTurno={sinTurno} irASolapa={sinTurno} negocio={negocio} />
         </Suspense>
       </div>
     );
@@ -400,7 +400,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
         onIrAArchivar={CON_DUENOS.some((s) => s.id === "configuracion") ? irAArchivar : undefined}
       />
 
-      <SoloConOperador almacen={almacen}>
+      <SoloConOperador almacen={almacen} negocio={negocio}>
 
       <TiraDeSolapas almacen={almacen} solapa={solapa} onCambiar={cambiarSolapa} botones={botones} />
 
@@ -446,7 +446,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
             {extras.map((e) =>
               solapa === e.id ? (
                 <SiSeVe key={e.id} almacen={almacen} id={e.id}>
-                  <e.diferida.Solapa almacen={almacen} dia={dia} rol={rol} onVerTurno={verTurno} irASolapa={irASolapa} />
+                  <e.diferida.Solapa almacen={almacen} dia={dia} rol={rol} onVerTurno={verTurno} irASolapa={irASolapa} negocio={negocio} />
                 </SiSeVe>
               ) : null,
             )}

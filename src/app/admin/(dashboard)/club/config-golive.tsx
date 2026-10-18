@@ -14,13 +14,14 @@ import { Button } from "@/components/ui/Button";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { CampoPin } from "./formulario-del-club";
-import { armarGoLive, limpiarConRespaldo, pinDeDuenio, respaldoAntesDeLimpiar, type RespaldoAntesDeLimpiar } from "./configuracion-core";
-import { Casilla, ErrorDeSeccion, Seccion, campoArchivo, descargarTexto, despuesDePintar, sinDesborde, textoElegido } from "./config-piezas";
+import { armarGoLive, duenioConPin, limpiarConRespaldo, respaldoAntesDeLimpiar, type DuenioConPin, type RespaldoAntesDeLimpiar } from "./configuracion-core";
+import { Casilla, ErrorDeSeccion, Seccion, campoArchivo, conElTopeDelEquipo, descargarTexto, despuesDePintar, sinDesborde, textoElegido } from "./config-piezas";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 
 const seleccionarGoLive = (e: EstadoClub, a: Ahora) => armarGoLive(e, a);
 
-export function LimpiezaGoLive({ almacen }: { almacen: Almacen }) {
+/** `negocio`: el PIN de la limpieza cuenta en el tope del equipo (el del bloqueo). */
+export function LimpiezaGoLive({ almacen, negocio }: { almacen: Almacen; negocio?: string }) {
   const v = useSeleccion(almacen, seleccionarGoLive, porFirma);
   const operador = useOperador(almacen);
   const quien = operador ? operador.usuario.nombre.split(" ")[0] : null;
@@ -48,9 +49,10 @@ export function LimpiezaGoLive({ almacen }: { almacen: Almacen }) {
   const descargar = () => {
     setError("");
     if (almacen.rol() !== "OWNER") return setError("La limpieza la hace un dueño.");
-    const d = pinDeDuenio(almacen.estado(), almacen.auth(), pin, "La limpieza");
-    if (!d.ok) return setError(d.mensaje);
-    const r = respaldoAntesDeLimpiar(almacen.estado(), d.usuario.id, Date.now());
+    const d: DuenioConPin = conElTopeDelEquipo(almacen, negocio, () => duenioConPin(almacen.estado(), almacen.auth(), pin, "La limpieza"));
+    const duenioId = d.usuarioId;
+    if (!d.ok || !duenioId) return setError(d.mensaje);
+    const r = respaldoAntesDeLimpiar(almacen.estado(), duenioId, Date.now());
     descargarTexto(r.texto, r.nombre);
     setBajado({ huella: r.huella, nombre: r.nombre });
   };
@@ -64,7 +66,9 @@ export function LimpiezaGoLive({ almacen }: { almacen: Almacen }) {
     await despuesDePintar();
     let r: ReturnType<typeof limpiarConRespaldo>;
     try {
-      r = almacen.ejecutar((e, ahora, auth) => limpiarConRespaldo(e, { conservarSaldos: saldos, conservarStock: stock, pin, descargado: bajado, textoElegido: texto }, ahora, auth, almacen.rol())) as ReturnType<typeof limpiarConRespaldo>;
+      r = almacen.ejecutar((e, ahora, auth) =>
+        conElTopeDelEquipo(almacen, negocio, () => limpiarConRespaldo(e, { conservarSaldos: saldos, conservarStock: stock, pin, descargado: bajado, textoElegido: texto }, ahora, auth, almacen.rol())),
+      ) as ReturnType<typeof limpiarConRespaldo>;
     } finally {
       setOcupado(false);
     }

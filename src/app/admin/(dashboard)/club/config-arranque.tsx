@@ -7,7 +7,8 @@
 //
 // Sólo en la jornada real con el club sin configurar (`config.configurado === false`). En el orden que exige el almacén:
 //   1. Cada dueño arma su PIN (4 números: `LARGO_PIN.duenio`; repetido, distintos entre sí): `almacen.arranque` (sin auth, como el motor).
-//   2. Con un dueño con PIN: «Entrar como <dueño>» con ese PIN (`probarPin` del bloqueo: 5 mal → espera) →
+//   2. Con un dueño con PIN: «Entrar como <dueño>» con ese PIN (`probarPin` del bloqueo, con EL tope del equipo:
+//      `guardaDelPin`, el mismo contador del bloqueo, la caja y Configuración; 5 mal → espera) →
 //      `cambiarOperador`. Desde ahí la consola es la solapa Configuración de siempre (ClubDemo muestra las solapas).
 //   3. Ya adentro, lo opcional con las secciones de siempre (`ejecutar`): avisos, recepción, precios y fondo.
 //   4. «Abrir el club» (`abrirElClub` → `terminarConfiguracion`): por `ejecutar` con quien entró, o por `arranque` si
@@ -20,10 +21,11 @@ import { cn } from "@/components/ui/cn";
 import { LARGO_PIN } from "@/lib/club/motor.mjs";
 import type { EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
-import { SIN_INTENTOS_DEL_BLOQUEO, bloquearElClub, probarPin, type IntentosDelBloqueo } from "./bloqueo-core";
+import { bloquearElClub, probarPin, type GuardaDelBloqueo } from "./bloqueo-core";
 import { abrirElClub, armarArranque, ejecutarConfiguracion, type DuenioDelArranque } from "./configuracion-core";
 import { subtarjeta, tarjeta } from "./config-piezas";
 import { CampoPinNuevo } from "./formulario-del-club";
+import { guardaDelPin } from "./tope-de-pin";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 
 const seleccionar = (e: EstadoClub) => armarArranque(e);
@@ -63,7 +65,7 @@ function ArmarPin({ almacen, d }: { almacen: Almacen; d: DuenioDelArranque }) {
   );
 }
 
-function Entrar({ almacen, d, intentos, onIntentos }: { almacen: Almacen; d: DuenioDelArranque; intentos: IntentosDelBloqueo; onIntentos: (i: IntentosDelBloqueo) => void }) {
+function Entrar({ almacen, d, guarda }: { almacen: Almacen; d: DuenioDelArranque; guarda: GuardaDelBloqueo }) {
   const [pin, setPin] = useState("");
   return (
     <form
@@ -71,16 +73,16 @@ function Entrar({ almacen, d, intentos, onIntentos }: { almacen: Almacen; d: Due
       className="flex flex-col gap-2 sm:flex-row sm:items-end"
       onSubmit={(e) => {
         e.preventDefault();
-        const p = probarPin(almacen.estado(), d.id, pin, intentos, Date.now());
+        const p = probarPin(almacen.estado(), d.id, pin, guarda.leer(), Date.now());
         setPin("");
         if (p.tipo === "bueno") {
-          onIntentos(p.intentos);
+          guarda.guardar(p.intentos);
           almacen.cambiarOperador(p.usuario, { usuarioId: p.usuario.id, pin: p.pin });
           almacen.informar({ ok: true, mensaje: `Hola, ${d.corto}. Cargá lo que quieras y, cuando esté, «Abrir el club».` });
           enfocarTitulo();
           return;
         }
-        if (p.tipo === "malo") onIntentos(p.intentos);
+        if (p.tipo === "malo") guarda.guardar(p.intentos);
         almacen.informar({ ok: false, mensaje: p.mensaje });
       }}
     >
@@ -115,9 +117,10 @@ function Titulo() {
 }
 
 /** Sin nadie adentro: armar los PIN, entrar y (si se quiere) abrir ya. */
-function Consola({ almacen }: { almacen: Almacen }) {
+function Consola({ almacen, negocio }: { almacen: Almacen; negocio?: string }) {
   const v = useSeleccion(almacen, seleccionar, porFirma);
-  const [intentos, setIntentos] = useState<IntentosDelBloqueo>(SIN_INTENTOS_DEL_BLOQUEO);
+  // El tope del equipo (una guarda por almacén): recargar no lo borra y es el mismo del bloqueo.
+  const guarda = guardaDelPin(almacen, negocio);
   const sinPin = v.duenos.filter((d) => !d.tienePin);
   const conPin = v.duenos.filter((d) => d.tienePin);
   return (
@@ -144,7 +147,7 @@ function Consola({ almacen }: { almacen: Almacen }) {
           {conPin.length === 0 ? (
             <p className="text-sm text-body">Cuando un dueño arme su PIN, entra acá con él.</p>
           ) : (
-            conPin.map((d) => <Entrar key={d.id} almacen={almacen} d={d} intentos={intentos} onIntentos={setIntentos} />)
+            conPin.map((d) => <Entrar key={d.id} almacen={almacen} d={d} guarda={guarda} />)
           )}
         </li>
         <li className={subtarjeta}>
@@ -194,7 +197,8 @@ function Checklist({ almacen, quien }: { almacen: Almacen; quien: string }) {
   );
 }
 
-export function PrimeraVez({ almacen }: { almacen: Almacen }) {
+/** `negocio`: entrar con el PIN cuenta en el tope del equipo (el del bloqueo). */
+export function PrimeraVez({ almacen, negocio }: { almacen: Almacen; negocio?: string }) {
   const operador = useOperador(almacen);
-  return operador ? <Checklist almacen={almacen} quien={operador.usuario.nombre.split(" ")[0]} /> : <Consola almacen={almacen} />;
+  return operador ? <Checklist almacen={almacen} quien={operador.usuario.nombre.split(" ")[0]} /> : <Consola almacen={almacen} negocio={negocio} />;
 }
