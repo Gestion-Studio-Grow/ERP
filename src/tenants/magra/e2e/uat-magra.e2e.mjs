@@ -169,6 +169,7 @@ try {
     const aviso = p.getByRole("status").getByText(`#${codigoWeb}`);
     await aviso.waitFor({ timeout: 20000 }).catch(() => {});
     ok("3.1", (await aviso.count()) > 0, `la bandeja abierta avisa sola el pedido nuevo de la tienda (#${codigoWeb})`);
+    ok("3.2", /1 de la tienda esperando/.test(await textoDe(p)), "la línea de estado dice cuántos pedidos de la tienda esperan y desde cuándo");
     await foto(p, "bandeja-aviso-1440");
   }
   // WhatsApp: con el número del local cargado (en esta base local; el real es dato del dueño).
@@ -240,7 +241,12 @@ try {
     await buscar.click();
     await buscar.fill("vac");
     await p.getByRole("option", { name: /Vac/ }).first().click();
-    await p.locator('input[id^="qty-"]:not([disabled])').first().fill("1,24");
+    const peso = p.locator('input[id^="qty-"]:not([disabled])').first();
+    await peso.fill("1500");
+    const pregunta = p.getByRole("alert").filter({ hasText: "¿Son 1.500 kg de verdad?" });
+    ok("6.0", await pregunta.waitFor({ timeout: 10000 }).then(() => true, () => false), "un peso imposible (1500) pregunta antes de cobrar");
+    await p.getByRole("button", { name: "No, es 1,5 kg" }).click();
+    await peso.fill("1,24");
     await p.getByRole("radio", { name: "Efectivo" }).first().click();
     ok("6.1", /15\.500/.test(await textoDe(p)), "1,24 kg de vacío a $12.500/kg = $15.500");
     await foto(p, "vender-390");
@@ -267,6 +273,30 @@ try {
     await t.p.goto(`${BASE}/tienda`);
     ok("8.2", /LOMO\s*\$ 19\.500\s*\/ kg/i.test((await t.p.locator("body").innerText()).replace(/ /g, " ")), "la tienda muestra el precio nuevo del lomo");
     await t.ctx.close();
+    // 8.3 El PLU del vacío, el número con el que lo imprime la balanza.
+    await p.goto(`${BASE}/admin/catalogo`);
+    await p.locator("tr", { hasText: "Vacío" }).first().getByRole("button", { name: "Editar" }).click();
+    const edicionVacio = p.locator('form:has([id^="edit-"][id$="-name"])');
+    await edicionVacio.getByLabel("Código / PLU").fill("123");
+    await edicionVacio.getByRole("button", { name: "Guardar" }).click();
+    await edicionVacio.waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
+    const vacioConPlu = await duenioDb.product.findFirstOrThrow({ where: { tenantId: magra.id, name: "Vacío" } });
+    ok("8.3", vacioConPlu.codigo === "123", "el dueño carga el Código / PLU del vacío desde el catálogo");
+  }
+  {
+    // 8.4 En Vender, la etiqueta de la balanza (formato de fábrica, provisional) carga el renglón con su peso.
+    const { FORMATO_BALANZA_POR_DEFECTO, armarEtiquetaDeBalanza } = await import("../../../lib/supermercado/balanza.ts");
+    const { p } = mostrador;
+    await p.goto(`${BASE}/admin/vender`);
+    const etiqueta = p.getByLabel("Etiqueta de la balanza o código");
+    await etiqueta.fill(armarEtiquetaDeBalanza(FORMATO_BALANZA_POR_DEFECTO, "123", 1.24));
+    await etiqueta.press("Enter");
+    const renglon = await p.locator('input[id^="qty-"]:not([disabled])').first().inputValue().catch(() => "");
+    ok("8.4", renglon === "1,24" && /15\.500/.test(await textoDe(p)), `la etiqueta de la balanza carga «Vacío» con ${renglon} kg al precio del sistema ($15.500)`);
+    await etiqueta.fill("2099999012345");
+    await etiqueta.press("Enter");
+    ok("8.5", (await p.getByRole("status").filter({ hasText: /./ }).count()) > 0 && (await etiqueta.isEnabled()), "un código que no está en el catálogo avisa sin frenar la venta");
+    await foto(p, "vender-balanza-390");
   }
 
   // ── 7b. Gasto, cierre del día con diferencia (dueño) ──

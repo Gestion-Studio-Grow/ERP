@@ -75,7 +75,8 @@ Caso de acceso:
 | # | Paso | Esperado |
 |---|---|---|
 | 3.1 | Dueño con `/admin/pedidos` abierto y a la vista; la clienta manda un pedido | En menos de un minuto, sin tocar nada: «Entró un pedido nuevo de la tienda: #N» y un sonido (se puede apagar con «Sonido del aviso»). |
-| 3.2 | Lo mismo con la bandeja en otra pestaña | No avisa hasta volver (límite conocido: ver la matriz de eventualidades, caso 1). |
+| 3.2 | Mirar la línea de estado de la bandeja | «N de la tienda esperando · el más viejo hace X min», en alerta pasados 15 min (provisional a confirmar). |
+| 3.3 | Lo mismo con la bandeja en otra pestaña | No suena hasta volver; al volver, la línea de estado dice cuánto hace que espera (matriz de eventualidades, caso 1). |
 
 ## 4. Preparar, pesar y ajustar, cobrar y entregar
 
@@ -99,7 +100,8 @@ Caso de acceso:
 
 | # | Paso | Esperado |
 |---|---|---|
-| 6.1 | Vender → buscar «vac» → Vacío → 1,24 kg → Efectivo | El total es 1,24 × el precio por kilo, sin pasos extra. Un peso imposible (1500) pregunta antes de cobrar. |
+| 6.0 | Vender → buscar «vac» → Vacío → peso «1500» | Pregunta «¿Son 1.500 kg de verdad?» antes de cobrar; «No, es 1,5 kg» lo corrige. |
+| 6.1 | Peso 1,24 kg → Efectivo | El total es 1,24 × el precio por kilo, sin pasos extra. |
 | 6.2 | **Cobrar** | «Venta #N cobrada» con el ticket a la vista (mandar por WhatsApp o imprimir 58 mm). |
 | 6.3 | Caja | El efectivo del día subió lo de la venta. |
 
@@ -120,7 +122,10 @@ Caso de acceso:
 |---|---|---|
 | 8.1 | Catálogo → un corte → Editar → Precio por kilo → Guardar | La tabla muestra el precio nuevo «/kg». |
 | 8.2 | Recargar `/tienda` | El corte se ve con el precio nuevo. |
-| 8.3 | Un pedido que ya estaba tomado | Conserva el precio con el que se pidió (pesar y ajustar recalcula a ese precio). |
+| 8.3 | Catálogo → Vacío → Editar → **Código / PLU** (el número con el que lo imprime la balanza) → Guardar | Queda guardado. Un código que ya tiene otro producto dice cuál. |
+| 8.4 | Mostrador: Vender → «Etiqueta de la balanza o código» → pasar la etiqueta de un paquete de vacío | Carga el renglón con el peso de la etiqueta, al precio por kilo **del sistema** (la pantalla lo dice). Formato de fábrica rotulado «provisional a confirmar con la balanza real»: **BLOQUEADO** hasta probarlo con una etiqueta de la balanza de MAGRA. |
+| 8.5 | Pasar un código que no está en el catálogo | Avisa y la venta sigue; se puede cargar a mano. |
+| 8.6 | Un pedido que ya estaba tomado | Conserva el precio con el que se pidió (pesar y ajustar recalcula a ese precio). Si el precio cambió mientras la clienta armaba la bolsa, la tienda se lo avisa en el renglón antes de mandar. |
 
 ## 9. Forma y celular
 
@@ -130,8 +135,9 @@ Caso de acceso:
 
 ## Resultado
 
-**Recorrido automático (base local, 18/10/2026):** `npm run test:magra-uat` → **39/39 OK**, cero errores de consola,
-capturas a 390 y 1440 px. Defectos que encontró y quedaron arreglados en la rama `claude/magra-nivel-bp`:
+**Recorrido automático (base local, 18/10/2026):** `npm run test:magra-uat` → **44/44 OK**, cero errores de consola,
+capturas a 390 y 1440 px (8 pantallas por ancho, sin desplazamiento horizontal). Defectos que encontró y quedaron
+arreglados en la rama `claude/magra-nivel-bp`:
 
 - **D1 · Ingresos inflados en el Inicio.** «Ventas hoy» e «Ingresos hoy» sumaban el pedido de la tienda recién entrado, sin
   pesar ni cobrar (y la venta a cuenta). Ahora cuentan lo cobrado con medio, con el mismo criterio que Vender y Ventas
