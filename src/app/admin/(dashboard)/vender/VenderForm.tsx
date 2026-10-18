@@ -56,6 +56,7 @@ import {
 import { textoDelFaltante, type Faltante } from "@/lib/reintento-de-venta";
 import { round2 } from "@/lib/round";
 import TicketVenta from "./TicketVenta";
+import CampoEtiqueta, { ID_CAMPO_ETIQUETA, type BalanzaDeVender } from "./CampoEtiqueta";
 import FacturarVenta from "../ventas/FacturarVenta";
 import { SIN_FACTURA } from "../ventas/factura";
 import { useCuponDePedido } from "@/app/tienda/pedido-online";
@@ -109,6 +110,8 @@ type SellableProduct = {
   price: number | null;
   pricePerKg: number | null;
   unit: string;
+  /** Código de barras o PLU de la balanza (Product.codigo), para el campo de la etiqueta. */
+  codigo?: string | null;
 };
 
 /** Una línea del ticket: el producto y lo TIPEADO (texto, no número: ver PosForm). */
@@ -257,6 +260,11 @@ type PropsDeVender = {
   vendedor?: string;
   /** Diseño nuevo: cómo llama el rubro a lo que vende («corte» en una carnicería), para el buscador. */
   sustantivo?: string;
+  /**
+   * El campo «Etiqueta de la balanza o código» y el formato de la balanza del negocio. Sólo lo
+   * manda la página en un negocio de mostrador; sin esto (CH), la pantalla de siempre.
+   */
+  balanza?: BalanzaDeVender | null;
 };
 
 const sinSuscripcion = () => () => {};
@@ -295,6 +303,7 @@ function FormularioVender({
   usuarioId = "",
   vendedor,
   sustantivo = "producto",
+  balanza = null,
   enNavegador,
 }: PropsDeVender & { enNavegador: boolean }) {
   // Diseño nuevo («Renglón»): la MISMA venta (estado, reglas, envío) dibujada como el ticket que
@@ -472,6 +481,21 @@ function FormularioVender({
     if (prefiereTeclado() && byId.get(productId)?.saleUnit === "WEIGHT") setTecladoDe(key);
     pedirFoco(`qty-${key}`);
   }
+
+  // El campo de la etiqueta: el renglón entra como con una tecla rápida, pero con el peso (o la
+  // cantidad) ya puesto. Completo, el foco vuelve al campo para la próxima etiqueta; si falta el
+  // peso (se tipeó el PLU de un corte por kilo), va a ese peso.
+  function cargarLectura(productId: string, qtyText: string) {
+    const vacia = lines.find((l) => !l.productId);
+    const key = vacia ? vacia.key : addLine(productId);
+    setLine(key, { productId, qtyText });
+    pedirFoco(qtyText ? ID_CAMPO_ETIQUETA : `qty-${key}`);
+  }
+  const productosConCodigo = useMemo(
+    () => products.map((p) => ({ id: p.id, name: p.name, codigo: p.codigo ?? null, saleUnit: p.saleUnit, price: p.price, pricePerKg: p.pricePerKg })),
+    [products],
+  );
+  const campoEtiqueta = balanza ? <CampoEtiqueta productos={productosConCodigo} balanza={balanza} alLeer={cargarLectura} /> : null;
 
   const leidas = useMemo(
     () =>
@@ -1574,6 +1598,7 @@ function FormularioVender({
               // encima de los más vendidos (un toque caía sobre otro corte).
               abrirAlEnfocar={false}
             />
+            {campoEtiqueta}
             {botonesRapidos.length > 0 && (
               <section data-vender="rapidos" aria-labelledby="vender-rapidos">
                 <div data-parte="cabeza" className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
@@ -1939,6 +1964,8 @@ function FormularioVender({
             </div>
           </div>
         )}
+
+        {campoEtiqueta}
 
         {/* Líneas con producto */}
         <div className="space-y-2">

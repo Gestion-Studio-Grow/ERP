@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, Page } from "playwright";
 import { TIEMPO_MAXIMO_DEL_COBRO_MS, claveDelAlmacen } from "./cobro-sin-conexion";
+import { armarEtiquetaDeBalanza, FORMATO_BALANZA_POR_DEFECTO } from "@/lib/supermercado/balanza";
 
 const RAIZ = fileURLToPath(new URL("../../../../../", import.meta.url));
 const ORIGEN = "http://localhost:3999/admin/vender";
@@ -2130,6 +2131,48 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     );
     assert.deepEqual(chicos, [], "ningún control del ticket de menos de 44 × 44 px");
     assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  // C1: la etiqueta que imprime la balanza, leída por el lector (tipea los dígitos y manda Enter).
+  for (const cual of ["vender", "vender-nuevo"] as const) {
+    test(`${cual === "vender" ? "vista de siempre" : "ticket"}: la etiqueta de la balanza carga el corte con su peso; un código desconocido avisa sin frenar`, async (t) => {
+      if (sinNavegador) return t.skip(sinNavegador);
+      const { page, errores } = await montar(cual, 10, {
+        products: [
+          { id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", price: null, pricePerKg: 12500, unit: "kg", codigo: "00201" },
+          { id: "p_entrana", name: "Entraña", saleUnit: "WEIGHT", price: null, pricePerKg: 17500, unit: "kg", codigo: null },
+        ],
+        balanza: { formato: FORMATO_BALANZA_POR_DEFECTO, porDefecto: true, configurar: null },
+      });
+      const campo = page.getByLabel("Etiqueta de la balanza o código");
+      await page.getByText(/provisional a confirmar con la balanza real/).waitFor();
+      // Un PLU que no está: se dice, no se carga nada y el campo sigue con lo leído para corregirlo.
+      await campo.fill(armarEtiquetaDeBalanza(FORMATO_BALANZA_POR_DEFECTO, "00999", 1));
+      await campo.press("Enter");
+      await page.getByRole("status").filter({ hasText: "00999" }).waitFor();
+      // La etiqueta buena: entra el Vacío con 1,25 kg, el campo queda vacío y con el foco.
+      await campo.fill(armarEtiquetaDeBalanza(FORMATO_BALANZA_POR_DEFECTO, "00201", 1.25));
+      await campo.press("Enter");
+      await page.getByRole("status").filter({ hasText: "otro precio cargado" }).waitFor();
+      assert.equal(await campo.inputValue(), "");
+      assert.equal(await page.evaluate(() => document.activeElement?.id), "vender-etiqueta");
+      await page.getByRole("radio", { name: "Efectivo" }).click();
+      await page.getByRole("button", { name: /^Cobrar \$15\.625,00/ }).click();
+      await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+      const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+      assert.deepEqual(envios[0].productId, ["p_vacio"]);
+      assert.deepEqual(envios[0].quantity, ["1.25"]);
+      assert.equal(envios[0].etiqueta, undefined, "el campo de la etiqueta no viaja al servidor");
+      assert.deepEqual(errores, []);
+      await page.close();
+    });
+  }
+
+  test("sin `balanza` (CH, un negocio de servicios) no aparece el campo de la etiqueta", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page } = await montar("vender");
+    assert.equal(await page.getByLabel("Etiqueta de la balanza o código").count(), 0);
     await page.close();
   });
 });

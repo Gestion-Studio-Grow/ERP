@@ -22,7 +22,8 @@ export async function cargarVender(tenantId: string, hoy: string) {
         OR: [{ price: { not: null } }, { pricePerKg: { not: null } }],
       },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, unit: true },
+      // `codigo`: el código de barras o el PLU de la balanza, para el campo de la etiqueta.
+      select: { id: true, name: true, saleUnit: true, price: true, pricePerKg: true, unit: true, codigo: true },
     }),
     // Cuántas veces se vendió cada producto. Las líneas con precio a mano (sin producto) no
     // cuentan: no hay botón posible para ellas.

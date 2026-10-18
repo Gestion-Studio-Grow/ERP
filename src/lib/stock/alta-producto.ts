@@ -33,6 +33,8 @@ export type AltaProducto = {
   stockInicial: number;
   /** Actor "user:<id>", lo resuelve la Server Action. */
   createdBy: string;
+  /** Código de barras o PLU (codigo-producto.ts). Ausente = el formulario no lo trae. */
+  codigo?: string | null;
 };
 
 export type PlanDeAlta = {
@@ -42,6 +44,7 @@ export type PlanDeAlta = {
     unit: string;
     lowStockAt: number;
     stock: 0;
+    codigo?: string | null;
   } & ProductSaleFields;
   movimiento: { type: "AJUSTE"; qty: number; reason: string; createdBy: string } | null;
 };
@@ -67,6 +70,7 @@ export function planDeAlta(a: AltaProducto): PlanDeAlta {
       unit: a.unit,
       lowStockAt: a.lowStockAt,
       ...a.venta,
+      ...(a.codigo !== undefined ? { codigo: a.codigo } : {}),
       // Nace en CERO siempre. Lo que haya lo pone el ledger, con su fila.
       stock: 0,
     },

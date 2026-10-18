@@ -15,10 +15,16 @@
 // nuevo. La categoría se deriva del nombre (clasificador puro `lib/carniceria/cortes`)
 // mientras no exista `Product.category` (Gate 2, ver backoffice-carniceria-spec.md).
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import { createProduct, updateProduct, toggleProductActive, deleteProduct } from "@/lib/catalog-actions";
-import { Badge, EmptyState, buttonClasses, fmtMoneyARS } from "@/components/ui";
+import {
+  crearProductoConAviso,
+  guardarProductoConAviso,
+  toggleProductActive,
+  deleteProduct,
+  type ResultadoDeProducto,
+} from "@/lib/catalog-actions";
+import { AvisoError, Badge, EmptyState, buttonClasses, fmtMoneyARS } from "@/components/ui";
 import { formatearCantidad } from "@/lib/pos-peso";
 // "Stock bajo" tiene UNA definición (la de Stock y la del número del Inicio): controla stock y
 // está en el mínimo o por debajo. Pura y sin Prisma: se puede usar en el cliente.
@@ -63,7 +69,58 @@ export type Corte = {
   category: string | null;
   /** Si true, cada venta descuenta stock con guarda anti-oversell (order-core). */
   trackStock: boolean;
+  /** Código de barras o PLU de la balanza (Product.codigo); null = sin código. */
+  codigo?: string | null;
 };
+
+/**
+ * El envío del alta y de la edición: la acción DEVUELVE el rechazo («Ese código lo tiene "Vacío"»)
+ * y queda escrito arriba del botón, con lo tipeado intacto. Con `<form action>`, React 19 vaciaba
+ * el formulario al terminar aunque no se hubiera guardado; acá sólo se vacía (el alta) si salió.
+ */
+function useEnvioConAviso(
+  accion: (fd: FormData) => Promise<ResultadoDeProducto>,
+  { vaciar, alSalirBien }: { vaciar: boolean; alSalirBien?: () => void },
+) {
+  const [error, setError] = useState<string | null>(null);
+  const [enviando, empezar] = useTransition();
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    empezar(async () => {
+      const r = await accion(fd);
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      setError(null);
+      if (vaciar) form.reset();
+      alSalirBien?.();
+    });
+  }
+  return { error, enviando, onSubmit };
+}
+
+/** «Código / PLU»: el número del producto en la balanza o su código de barras. */
+function CampoCodigo({ idPrefix, valor }: { idPrefix: string; valor: string | null }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={`${idPrefix}-codigo`} className="text-xs font-medium text-muted">
+        Código / PLU
+      </label>
+      <input
+        id={`${idPrefix}-codigo`}
+        name="codigo"
+        defaultValue={valor ?? ""}
+        autoComplete="off"
+        inputMode="numeric"
+        placeholder="El de la balanza o el de barras"
+        className={CAMPO}
+      />
+    </div>
+  );
+}
 
 /** Agrupa por categoría EFECTIVA (explícita si está, si no derivada del nombre). */
 function groupCortes(cortes: Corte[]): { categoria: (typeof CORTE_CATEGORIAS)[number]; items: Corte[] }[] {
@@ -295,14 +352,9 @@ export function FormularioEditarCorte({
   enCajon?: { conGondola: boolean };
 }) {
   const conGondola = enCajon ? enCajon.conGondola : true;
+  const envio = useEnvioConAviso(guardarProductoConAviso, { vaciar: false, alSalirBien: alTerminar });
   return (
-    <form
-      action={async (fd) => {
-        await updateProduct(fd);
-        alTerminar();
-      }}
-      className={className}
-    >
+    <form onSubmit={envio.onSubmit} className={className}>
       <input type="hidden" name="id" value={corte.id} />
       <div className="flex flex-col gap-1 sm:col-span-2">
         <label htmlFor={`edit-${corte.id}-name`} className="text-xs font-medium text-muted">
@@ -329,6 +381,7 @@ export function FormularioEditarCorte({
         idPrefix={`edit-${corte.id}`}
         conGondola={conGondola}
       />
+      <CampoCodigo idPrefix={`edit-${corte.id}`} valor={corte.codigo ?? null} />
       {/* El stock NO se edita acá: guardar el precio lo pisaba con el número de cuando se
           abrió la pantalla, borrando lo vendido en el medio sin dejar movimiento. Se
           muestra, y "Recontar" lleva al recuento con motivo (queda en el ledger). */}
@@ -349,8 +402,9 @@ export function FormularioEditarCorte({
           className={CAMPO}
         />
       </div>
+      {envio.error && <AvisoError className="sm:col-span-6" titulo="No se guardó" comoSeguir={envio.error} />}
       <div className="flex gap-3 sm:col-span-6 justify-end">
-        <button type="submit" className={enCajon ? buttonClasses("solid", "md") : "min-h-11 px-2 text-sm font-medium"}>Guardar</button>
+        <button type="submit" disabled={envio.enviando} className={enCajon ? buttonClasses("solid", "md") : "min-h-11 px-2 text-sm font-medium"}>Guardar</button>
         <button type="button" onClick={alTerminar} className={enCajon ? buttonClasses("ghost", "md") : "min-h-11 px-2 text-sm text-muted"}>
           Cancelar
         </button>
@@ -471,11 +525,9 @@ export function FormularioAltaCorte({
   // En el cajón del diseño nuevo (con `alTerminar`) la góndola es sólo de la carnicería; el alta de
   // siempre queda como estaba.
   const conGondola = alTerminar ? vocabulario.carniceria : true;
+  const envio = useEnvioConAviso(crearProductoConAviso, { vaciar: true, alSalirBien: alTerminar });
   return (
-    <form
-      action={alTerminar ? async (fd) => { await createProduct(fd); alTerminar(); } : createProduct}
-      className={className}
-    >
+    <form onSubmit={envio.onSubmit} className={className}>
       <div className="flex flex-col gap-1 sm:col-span-2">
         <label htmlFor="new-corte-name" className="text-xs font-medium text-muted">
           {Uno}
@@ -489,6 +541,7 @@ export function FormularioAltaCorte({
         />
       </div>
       <VentaFields saleUnit={vocabulario.porPeso ? "WEIGHT" : "UNIT"} price={null} pricePerKg={null} unit={vocabulario.porPeso ? "kg" : "unidad"} category={null} costoCargado={null} costoVigente={null} conCostos={conCostos} trackStock={true} idPrefix="new-corte" conGondola={conGondola} />
+      <CampoCodigo idPrefix="new-corte" valor={null} />
       <div className="flex flex-col gap-1">
         <label htmlFor="new-corte-stock" className="text-xs font-medium text-muted">
           Stock inicial
@@ -515,8 +568,9 @@ export function FormularioAltaCorte({
           className={CAMPO}
         />
       </div>
+      {envio.error && <AvisoError className="sm:col-span-6" titulo="No se guardó" comoSeguir={envio.error} />}
       <div className="sm:col-span-6">
-        <button type="submit" className={buttonClasses("solid", "md")}>
+        <button type="submit" disabled={envio.enviando} className={buttonClasses("solid", "md")}>
           Agregar {uno}
         </button>
       </div>

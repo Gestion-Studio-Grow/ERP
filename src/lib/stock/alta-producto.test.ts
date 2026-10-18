@@ -206,9 +206,15 @@ test("el catálogo ya no manda un campo `stock` en la edición", () => {
   // La edición de CH (ProductsSection) y la de MAGRA (CortesSection) mostraban el stock en un
   // input editable con el valor de cuando se abrió la pantalla. Aunque el server ya no lo lea,
   // un `name="stock"` en la edición vuelve a invitar a escribirlo.
-  for (const f of ["ProductsSection.tsx", "CortesSection.tsx"]) {
+  // CortesSection usa la variante que DEVUELVE el rechazo (guardarProductoConAviso, el mismo
+  // updateProduct por dentro): su formulario de edición arranca en ese envío.
+  for (const [f, ancla] of [
+    ["ProductsSection.tsx", "await updateProduct(fd)"],
+    ["CortesSection.tsx", "useEnvioConAviso(guardarProductoConAviso"],
+  ] as const) {
     const src = readFileSync(join(SRC, "app", "admin", "(dashboard)", "catalogo", f), "utf8");
-    const edicion = src.slice(src.indexOf("await updateProduct(fd)"));
+    assert.ok(src.includes(ancla), `${f}: no encontré ${ancla}`);
+    const edicion = src.slice(src.indexOf(ancla));
     const finForm = edicion.indexOf("</form>");
     assert.ok(finForm > 0, `${f}: no encontré el formulario de edición`);
     assert.doesNotMatch(edicion.slice(0, finForm), /name="stock"/, `${f}: la edición volvió a mandar stock`);
@@ -263,6 +269,11 @@ const guardar = (fd) => {
 };
 export async function createProduct(fd) { guardar(fd); }
 export async function updateProduct(fd) { guardar(fd); }
+export async function crearProductoConAviso(fd) {
+  guardar(fd);
+  return window.__rechazo ? { ok: false, error: window.__rechazo } : { ok: true };
+}
+export async function guardarProductoConAviso(fd) { guardar(fd); return { ok: true }; }
 export async function toggleProductActive() {}
 export async function deleteProduct() {}
 `;
@@ -455,6 +466,26 @@ describe("alta en el navegador: después de cada alta los números vuelven a su 
     const cuarto = await enviar(page, "Agregar corte", "new-corte-name", 4);
     assert.deepEqual([cuarto.saleUnit, cuarto.unit, cuarto.pricePerKg], [["WEIGHT"], ["kg"], [""]]);
     assert.equal(cuarto.price, undefined);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("cortes: si el código/PLU ya lo tiene otro, se dice cuál y lo tipeado queda para corregirlo", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("cortes");
+    await page.evaluate(() => ((window as unknown as { __rechazo?: string }).__rechazo = 'Ese código lo tiene "Vacío". Usá otro.'));
+    await page.fill("#new-corte-name", "Matambre");
+    await page.fill("#new-corte-codigo", "00201");
+    await page.getByRole("button", { name: "Agregar corte" }).click();
+    await page.getByRole("alert").filter({ hasText: 'lo tiene "Vacío"' }).waitFor();
+    assert.equal(await page.inputValue("#new-corte-name"), "Matambre");
+    assert.equal(await page.inputValue("#new-corte-codigo"), "00201");
+    // Corregido, sale: viaja el código nuevo y el formulario se vacía.
+    await page.evaluate(() => ((window as unknown as { __rechazo?: string }).__rechazo = ""));
+    await page.fill("#new-corte-codigo", "00202");
+    const envio = await enviar(page, "Agregar corte", "new-corte-name", 2);
+    assert.deepEqual(envio.codigo, ["00202"]);
+    assert.equal(await page.getByRole("alert").count(), 0);
     assert.deepEqual(errores, []);
     await page.close();
   });

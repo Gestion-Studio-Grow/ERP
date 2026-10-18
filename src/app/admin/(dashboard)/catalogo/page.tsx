@@ -71,6 +71,8 @@ export default async function CatalogoPage({ searchParams }: { searchParams: Pro
       // Góndola explícita (Product.category) si está; null → CortesSection deriva del nombre.
       category: gondolas.get(p.id) ?? null,
       trackStock: p.trackStock,
+      // Código de barras o PLU de la balanza: lo lee la etiqueta en Vender.
+      codigo: p.codigo ?? null,
     }));
     const heading = rubro.rubro?.wording.catalogHeading ?? "Catálogo de cortes";
     // Mismo resumen que el número del botón (src/apps/kpis/precios.server.ts): activos y no

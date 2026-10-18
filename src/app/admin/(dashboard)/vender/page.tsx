@@ -20,6 +20,32 @@ import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { cargarKpi } from "@/apps/kpis/index.server";
 import { LineaDeEstado } from "@/components/ui";
 import type { Role } from "@/lib/capabilities";
+import { prisma } from "@/lib/prisma";
+import { leerConfigCaja } from "@/lib/supermercado/config-repo";
+import { logger } from "@/lib/logger";
+import type { BalanzaDeVender } from "./CampoEtiqueta";
+
+/**
+ * El campo «Etiqueta de la balanza o código», sólo en un negocio de mostrador que vende por kilo o
+ * tiene códigos cargados (CH, de servicios, no lo ve). El formato es el mismo que lee la caja con
+ * lector (config-repo.ts); cambiarlo se ofrece sólo a quien puede abrir esa configuración.
+ */
+async function balanzaDeVender(
+  tenantId: string,
+  products: { saleUnit: string; codigo: string | null }[],
+  role: Role,
+): Promise<BalanzaDeVender | null> {
+  if (!products.some((p) => p.saleUnit === "WEIGHT" || p.codigo)) return null;
+  // Si la configuración no se puede leer, Vender sigue sin el campo: cobrar no depende de esto.
+  const config = await leerConfigCaja(prisma, tenantId).catch((e) => {
+    logger.error("vender.balanza", "no se pudo leer el formato de la balanza: Vender sigue sin el campo", e);
+    return null;
+  });
+  if (!config) return null;
+  const puedeCaja = await puedeAbrirApp("caja-rapida");
+  const configurar = puedeCaja && roleHasCapability(role, "catalog:manage") ? "/admin/caja-rapida/configuracion" : null;
+  return { formato: config.formato, porDefecto: config.porDefecto, configurar };
+}
 
 /**
  * Diseño nuevo: arriba del ticket, cómo está la caja y cuánto se vendió hoy (los mismos números del
@@ -75,6 +101,7 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
   // Los servicios se cobran creando un turno (ver MostradorTabs): sólo en un negocio de
   // servicios y sólo para quien puede dar turnos. En un comercio no hay solapa de Servicios.
   const conServicios = !identidad.isRetail;
+  const balanza = identidad.isRetail ? await balanzaDeVender(tenantId, datos.products, user.role) : null;
   const professionals =
     conServicios && roleHasCapability(user.role, "agenda:manage") ? await getProfessionalsWithServices() : [];
   // Sin ningún producto con precio, el aviso dice por qué y qué hacer, pero el formulario
@@ -125,6 +152,7 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
         negocioId={tenantId}
         // La duda guardada de otra persona no se restaura en esta pestaña.
         usuarioId={user.id}
+        balanza={balanza}
         {...(conVendedor ? { vendedor: user.name, sustantivo: rubro.rubro?.wording.itemNoun ?? "producto" } : {})}
       />
     </div>
