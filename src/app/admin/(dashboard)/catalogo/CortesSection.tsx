@@ -42,6 +42,7 @@ import {
 import { VOCABULARIO_CARNICERIA, type VocabularioDelCatalogo } from "./vocabulario";
 import { mayuscula } from "@/lib/texto";
 import { precioDeVenta } from "./lista-core";
+import { consecuenciasDeEliminar, preguntaDeEliminar } from "./eliminar-producto";
 
 export type Corte = {
   id: string;
@@ -487,20 +488,61 @@ function CorteRow({ corte, conCostos, nombre }: { corte: Corte; conCostos: boole
           <button onClick={() => setEditing(true)} className="chip-btn max-sm:min-h-11!">
             Editar
           </button>
-          <form
-            action={async (fd) => {
-              if (!confirm(`¿Eliminar "${corte.name}"?`)) return;
-              await deleteProduct(fd);
-            }}
-          >
-            <input type="hidden" name="id" value={corte.id} />
-            <button type="submit" className="chip-btn max-sm:min-h-11! chip-btn-danger">
-              Eliminar
-            </button>
-          </form>
+          <EliminarCorte corte={corte} />
         </div>
       </td>
     </tr>
+  );
+}
+
+/**
+ * «Eliminar» con un segundo toque que dice lo que pasa de verdad (eliminar-producto.ts): antes era
+ * un confirm() del navegador que sólo preguntaba el nombre. Mismo patrón que EliminarResena.
+ */
+function EliminarCorte({ corte }: { corte: Corte }) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [enviando, empezar] = useTransition();
+  if (!confirmando) {
+    return (
+      <button type="button" onClick={() => setConfirmando(true)} className="chip-btn max-sm:min-h-11! chip-btn-danger">
+        Eliminar
+      </button>
+    );
+  }
+  return (
+    <div
+      role="group"
+      aria-label={`Confirmar que se elimina ${corte.name}`}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") setConfirmando(false);
+      }}
+      className="flex basis-full flex-col items-stretch gap-1.5 whitespace-normal text-left sm:items-end sm:text-right"
+    >
+      <p className="text-sm font-medium text-strong">{preguntaDeEliminar(corte)}</p>
+      <ul className="text-xs text-muted">
+        {consecuenciasDeEliminar(corte).map((c) => (
+          <li key={c}>{c}</li>
+        ))}
+      </ul>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          autoFocus
+          disabled={enviando}
+          onClick={() => {
+            const fd = new FormData();
+            fd.set("id", corte.id);
+            empezar(() => deleteProduct(fd));
+          }}
+          className="chip-btn max-sm:min-h-11! chip-btn-danger"
+        >
+          {enviando ? "Eliminando…" : "Sí, eliminar"}
+        </button>
+        <button type="button" onClick={() => setConfirmando(false)} disabled={enviando} className="chip-btn max-sm:min-h-11!">
+          No, dejarlo
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -8,10 +8,11 @@
 // «Pausar» y «Eliminar» viven en «Más». Filtros, orden y página en la URL; los resuelve el
 // servidor (lista-core.ts). Sólo con «Diseño nuevo» prendido; apagado, el catálogo de siempre.
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Cajon, Marca, MenuMas, Plata, buttonClasses, chipLinkAtributos, type TipoMarca } from "@/components/ui";
+import { Cajon, Dialogo, Marca, MenuMas, Plata, buttonClasses, chipLinkAtributos, type TipoMarca } from "@/components/ui";
+import { consecuenciasDeEliminar, preguntaDeEliminar } from "./eliminar-producto";
 import { Tabla, type ColumnaTabla } from "@/components/ui/Tabla";
 import { hrefConParametros } from "@/components/ui/tabla-core";
 import { deleteProduct, toggleProductActive } from "@/lib/catalog-actions";
@@ -138,10 +139,15 @@ export default function CatalogoRenglon({
     fd.set("active", String(c.active));
     startTransition(() => toggleProductActive(fd));
   };
-  const eliminar = (c: Corte) => {
-    if (!confirm(`¿Eliminar «${c.name}»? Deja de verse en el mostrador y en la tienda.`)) return;
+  // «Eliminar» abre el diálogo con lo que pasa de verdad (eliminar-producto.ts); el borrado sale
+  // recién con «Sí, eliminar». Antes era un confirm() del navegador.
+  const [porEliminar, setPorEliminar] = useState<Corte | null>(null);
+  const eliminar = (c: Corte) => setPorEliminar(c);
+  const confirmarEliminar = () => {
+    if (!porEliminar) return;
     const fd = new FormData();
-    fd.set("id", c.id);
+    fd.set("id", porEliminar.id);
+    setPorEliminar(null);
     startTransition(() => deleteProduct(fd));
   };
 
@@ -386,6 +392,29 @@ export default function CatalogoRenglon({
         )}
       </Cajon>
 
+      <Dialogo
+        abierto={porEliminar !== null}
+        onCerrar={() => setPorEliminar(null)}
+        titulo={porEliminar ? preguntaDeEliminar(porEliminar) : ""}
+        pie={
+          <>
+            <button type="button" onClick={() => setPorEliminar(null)} className={buttonClasses("ghost", "md")}>
+              No, dejarlo
+            </button>
+            <button type="button" onClick={confirmarEliminar} className={buttonClasses("danger", "md")}>
+              Sí, eliminar
+            </button>
+          </>
+        }
+      >
+        {porEliminar && (
+          <ul className="list-disc space-y-1 pl-5 text-sm text-body">
+            {consecuenciasDeEliminar(porEliminar).map((c) => (
+              <li key={c}>{c}</li>
+            ))}
+          </ul>
+        )}
+      </Dialogo>
       <Cajon abierto={agregando} onCerrar={cerrarCajon} titulo={`Agregar ${vocabulario.carniceria ? "un corte" : uno}`}>
         {agregando && (
           <FormularioAltaCorte vocabulario={vocabulario} conCostos={conCostos} className="flex flex-col gap-3" alTerminar={cerrarCajon} />

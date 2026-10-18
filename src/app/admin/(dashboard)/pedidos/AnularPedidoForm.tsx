@@ -34,6 +34,7 @@ export default function AnularPedidoForm({
   total,
   motivoObligatorio,
   aCuenta = false,
+  conStock = false,
 }: {
   id: string;
   code: number;
@@ -42,6 +43,12 @@ export default function AnularPedidoForm({
   motivoObligatorio: boolean;
   /** La venta quedó a cuenta: no hay plata en la caja que devolver, sí una deuda que sacar. */
   aCuenta?: boolean;
+  /**
+   * Negocio de mostrador: se dice que la mercadería vuelve al stock. Es lo que hace la anulación
+   * (order-anulacion.ts, paso 3): repone lo de los productos con control de stock, salvo que se
+   * tilde «La mercadería no volvió». Sin esto (CH), el texto de siempre.
+   */
+  conStock?: boolean;
 }) {
   const router = useRouter();
   const { showError, showSuccess } = useToast();
@@ -110,6 +117,7 @@ export default function AnularPedidoForm({
           : paid
             ? `Se devuelven ${fmtMoneyARS(total)} en la caja del día en que se cobró.`
             : "No estaba cobrado: la caja no se toca."}
+        {conStock && " Lo que controla stock vuelve al stock, salvo que tildes «La mercadería no volvió»."}
       </p>
       <label htmlFor={motivoId} className="text-xs text-body">
         Motivo {motivoObligatorio ? "(obligatorio)" : "(queda en la auditoría)"}

@@ -77,3 +77,18 @@ test("la tecla de la entrega dice lo que va a pasar", () => {
   assert.equal(textoDeLaEntrega({ cobrado: false, medio: "EFECTIVO", quedaACobrar: false, total: "$52.340" }), "Cobrar $52.340 y entregar");
   assert.equal(textoDeLaEntrega({ cobrado: false, medio: "", quedaACobrar: true, total: "$1" }), "Entregar sin cobrar");
 });
+
+test("anular en un mostrador dice que la mercadería vuelve al stock, y es lo que hace la anulación", () => {
+  const form = readFileSync(new URL("./AnularPedidoForm.tsx", import.meta.url), "utf8");
+  // Sólo con `conStock` (el comercio): CH ve el texto de siempre.
+  assert.match(form, /\{conStock && " Lo que controla stock vuelve al stock, salvo que tildes «La mercadería no volvió»\."\}/);
+  assert.match(form, /conStock = false/);
+  const pagina = readFileSync(new URL("./page.tsx", import.meta.url), "utf8");
+  assert.equal(pagina.match(/conStock=\{comercio\}/g)?.length, 2);
+  // La anulación repone con recordMovement los productos con control de stock, salvo «no volvió».
+  const anulacion = readFileSync(new URL("../../../../lib/order-anulacion.ts", import.meta.url), "utf8");
+  assert.match(anulacion, /if \(args\.devuelveStock\) \{/);
+  assert.match(anulacion, /if \(!it\.productId \|\| !it\.product\?\.trackStock\) continue;/);
+  const acciones = readFileSync(new URL("../../../../lib/order-actions.ts", import.meta.url), "utf8");
+  assert.match(acciones, /const devuelveStock = String\(formData\.get\("stockNoVolvio"\) \|\| ""\) !== "on";/);
+});

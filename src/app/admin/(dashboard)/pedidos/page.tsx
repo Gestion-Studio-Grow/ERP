@@ -476,6 +476,7 @@ export default async function PedidosPage() {
                       paid={o.paid}
                       total={o.total}
                       motivoObligatorio={alcance.motivoObligatorio}
+                      conStock={comercio}
                     />
                   )}
                 </div>
@@ -532,6 +533,7 @@ export default async function PedidosPage() {
                           aCuenta={o.paid && !o.paymentMethod}
                           total={o.total}
                           motivoObligatorio={alcance.motivoObligatorio}
+                          conStock={comercio}
                         />
                       </div>
                     )}
