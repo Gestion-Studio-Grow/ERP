@@ -98,7 +98,7 @@ const FUNCIONES_OLA4_NOVEDADES = [
   "borrarContenido", "contenidoDelMes",
 ] as const satisfies readonly Funciones[];
 // PIN por rol (dueños 4, recepción 2): lo usan el bloqueo, Configuración y el aprobador.
-const FUNCIONES_PIN_POR_ROL = ["largoPin", "pinValidoPara", "pinAceptadoPara", "textoLargoPin", "pinDesactualizado"] as const satisfies readonly Funciones[];
+const FUNCIONES_PIN_POR_ROL = ["largoPin", "pinValidoPara", "pinAceptadoPara", "textoLargoPin", "pinDesactualizado", "verificarFirma", "pinFacil"] as const satisfies readonly Funciones[];
 type FuncionesListadas =
   | (typeof FUNCIONES)[number]
   | (typeof FUNCIONES_OLA1_CUENTA_Y_BUFFET)[number]
@@ -111,7 +111,7 @@ type FuncionesListadas =
 const CONSTANTES = [
   "VERSION_ESTADO", "MEDIOS", "ESTADOS", "TIPOS", "ROLES", "PERMISOS", "NOMBRE_DIA",
   "CONFIG_DEMO", "CANCHAS_DEMO", "USUARIOS_DEMO", "USUARIOS_REALES", "PRODUCTOS_DEMO", "PROVEEDORES_DEMO", "DIAS_SIN_ARCHIVAR", "LIMITES_POLITICA", "LIMITES_BLOQUEO",
-  "TIPOS_NOVEDAD", "AUDIENCIAS", "CANALES", "ESTADOS_CONTENIDO", "LARGO_PIN", "LARGO_PIN_VIEJO",
+  "TIPOS_NOVEDAD", "AUDIENCIAS", "CANALES", "ESTADOS_CONTENIDO", "LARGO_PIN", "LARGO_PIN_VIEJO", "MOTIVO_PIN_VIEJO",
 ] as const satisfies readonly Exclude<keyof Motor, Funciones>[];
 
 // Comprobación de tipos en los dos sentidos: ninguna función ni constante tipada queda afuera de las listas.
@@ -336,3 +336,60 @@ test("hidratarEstado rechaza un sobre de otra versión, incompleto o con ids rar
   idRaro.estado.canchas[0].id = '"><img src=x onerror=alert(1)>';
   assert.equal(M.hidratarEstado(idRaro).ok, false);
 });
+
+// ───────────── PIN por rol: el viejo de 2 entra, no firma; los fáciles afuera (Gate del 18/10, SEC-5) ─────────────
+
+test("PIN viejo de 2 de un dueño: entra (verificarPin) y cambia el PIN, pero no firma (verificarFirma, egreso, cierre)", () => {
+  const e = club();
+  M.usuario(e, "u-rober")!.pin = "11"; // el del piloto
+  assert.equal(M.pinDesactualizado(e, "u-rober"), true);
+  assert.equal(M.verificarPin(e, "u-rober", "11").ok, true, "con el viejo entra");
+  const f = M.verificarFirma(e, "u-rober", "11");
+  assert.ok(!f.ok && "pinViejo" in f && f.pinViejo === true);
+  assert.equal(f.motivo, M.MOTIVO_PIN_VIEJO);
+  assert.equal(M.MOTIVO_PIN_VIEJO, "Ese es tu PIN viejo: entrá a la compu con él y elegí uno de 4.");
+  assert.equal(M.verificarFirma(e, "u-rober", "12").ok, false, "uno mal tampoco firma");
+  assert.ok(!("pinViejo" in M.verificarFirma(e, "u-rober", "12")), "y no se confunde con el viejo");
+  const movs = e.caja.movimientos.length;
+  const egreso = M.egresoCaja(e, { monto: 1000, concepto: "Hielo", usuarioId: "u-rober", pin: "11" }, ahora(18));
+  assert.deepEqual(egreso, { ok: false, motivo: M.MOTIVO_PIN_VIEJO, pinViejo: true });
+  const cierre = M.cerrarCaja(e, { contado: 0, usuarioId: "u-rober", pin: "11" }, ahora(23));
+  assert.ok(!cierre.ok && cierre.motivo === M.MOTIVO_PIN_VIEJO);
+  assert.equal(e.caja.movimientos.length, movs, "no se movió la caja");
+  // Con el de 4 (lo elige entrando con el viejo) ya firma; el viejo deja de andar.
+  assert.equal(M.cambiarMiPin(e, { usuarioId: "u-rober", pin: "11" }, "5757", ahora(18)).ok, true);
+  assert.equal(M.verificarFirma(e, "u-rober", "5757").ok, true);
+  assert.equal(M.egresoCaja(e, { monto: 1000, concepto: "Hielo", usuarioId: "u-rober", pin: "5757" }, ahora(18)).ok, true);
+  assert.equal(M.verificarPin(e, "u-rober", "11").ok, false);
+  // Recepción con su PIN de 2 no está desactualizada: firma lo que su rol permite.
+  assert.equal(M.verificarFirma(e, "u-lu", "33").ok, true);
+});
+
+test("PIN fáciles: los de ejemplo de la demo, todos iguales y escaleras de 4, en el armado, el cambio y los generados", () => {
+  for (const p of ["1111", "2222", "33", "44"]) assert.match(M.pinFacil("duenio", p), /PIN de ejemplo de la demo/, p);
+  for (const p of ["0000", "9999", "5555"]) assert.match(M.pinFacil("duenio", p), /todos los números iguales/, p);
+  for (const p of ["00", "77"]) assert.match(M.pinFacil("recepcion", p), /todos los números iguales/, p);
+  for (const p of ["0123", "1234", "6789", "9876", "3210", "4321"]) assert.match(M.pinFacil("duenio", p), /escalera/, p);
+  for (const p of ["5757", "8484", "3851", "1235", "4747"]) assert.equal(M.pinFacil("duenio", p), "", p);
+  assert.equal(M.pinFacil("recepcion", "12"), "", "en 2 no se filtran escaleras (quedarían muy pocas)");
+  const real = M.crearClubReal(HOY);
+  assert.match(ok0(M.definirPinInicial(real, "u-rober", "1234", ahora(9))), /escalera/);
+  assert.match(ok0(M.definirPinInicial(real, "u-rober", "2222", ahora(9))), /PIN de ejemplo/);
+  assert.equal(M.usuario(real, "u-rober")!.pin, "", "no se guardó nada");
+  assert.equal(M.definirPinInicial(real, "u-rober", "3851", ahora(9)).ok, true);
+  const e = club();
+  assert.match(ok0(M.cambiarMiPin(e, { usuarioId: "u-rober", pin: "1111" }, "0000", ahora(9))), /todos los números iguales/);
+  assert.match(ok0(M.cambiarMiPin(e, { usuarioId: "u-rober", pin: "1111" }, "9876", ahora(9))), /escalera/);
+  assert.equal(M.usuario(e, "u-rober")!.pin, "1111");
+  for (let i = 0; i < 40; i++) {
+    const r = M.regenerarPin(e, "u-lu", { usuarioId: "u-rober", pin: "1111" }, ahora(9));
+    assert.ok(r.ok);
+    assert.equal(M.pinFacil("recepcion", r.pin), "", `generado ${r.pin}`);
+  }
+});
+
+/** El motivo de una falla (para afirmar sobre el texto). */
+function ok0(r: { ok: boolean; motivo?: string }): string {
+  assert.equal(r.ok, false);
+  return r.motivo ?? "";
+}

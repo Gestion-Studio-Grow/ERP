@@ -392,6 +392,16 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await rober.getByLabel("Repetilo").fill("4848");
     await rober.getByRole("button", { name: "Guardar el PIN de Roberto" }).click();
     await alertaDelClub(page, "Los dos PIN no coinciden: escribilo igual las dos veces.");
+    // Uno fácil no se guarda: se dice por qué, en criollo (pinFacil del motor).
+    for (const [p, motivo] of [
+      ["1234", "Una escalera (como 1234 o 4321) se adivina fácil: elegí otro."],
+      ["1111", "Ese es un PIN de ejemplo de la demo: elegí otro."],
+    ] as const) {
+      await rober.getByLabel("PIN (4 números)").fill(p);
+      await rober.getByLabel("Repetilo").fill(p);
+      await rober.getByRole("button", { name: "Guardar el PIN de Roberto" }).click();
+      await alertaDelClub(page, motivo);
+    }
     await rober.getByLabel("PIN (4 números)").fill("4747");
     await rober.getByLabel("Repetilo").fill("4747");
     await rober.getByRole("button", { name: "Guardar el PIN de Roberto" }).click();
@@ -613,9 +623,10 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await contexto.clock.install({ time: new Date(2026, 9, 17, 20, 0, 5) });
     await contexto.route(ORIGEN, (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html() }));
     const errores: string[] = [];
-    // La jornada de un dueño del piloto: Rober con el PIN viejo «11»; Majo ya con el de 4; recepción con 2.
+    // La jornada de un dueño del piloto: Rober con el PIN viejo «11»; Majo ya con uno suyo de 4; recepción con 2.
     const page = await abrir(contexto, errores, "real", "OWNER", (e) => {
       e.usuarios.find((u) => u.id === "u-rober")!.pin = "11";
+      e.usuarios.find((u) => u.id === "u-majo")!.pin = "8484";
     });
     const jornada = () => page.evaluate((k) => localStorage.getItem(k) ?? "", claveDeLaJornada("demo-club"));
     const quien = bloqueo(page).getByRole("group", { name: "¿Quién entra?" });
@@ -645,10 +656,22 @@ describe("El bloqueo del club en el navegador", { timeout: 240_000 }, () => {
     await bloqueo(page).getByLabel("Repetilo").fill("4748");
     await bloqueo(page).getByRole("button", { name: "Guardar y entrar" }).click();
     await bloqueo(page).getByRole("alert").filter({ hasText: "Los dos PIN no coinciden" }).waitFor();
-    await nuevo.fill("2222");
-    await bloqueo(page).getByLabel("Repetilo").fill("2222");
+    await nuevo.fill("8484");
+    await bloqueo(page).getByLabel("Repetilo").fill("8484");
     await bloqueo(page).getByRole("button", { name: "Guardar y entrar" }).click();
     await bloqueo(page).getByRole("alert").filter({ hasText: "Ese PIN ya lo usa otra persona" }).waitFor();
+    // Uno fácil (pinFacil del motor): se dice por qué, en criollo, y sigue bloqueada.
+    for (const [p, motivo] of [
+      ["1234", "Una escalera (como 1234 o 4321) se adivina fácil: elegí otro."],
+      ["0000", "Con todos los números iguales se adivina fácil: elegí otro."],
+      ["2222", "Ese es un PIN de ejemplo de la demo: elegí otro."],
+    ] as const) {
+      await nuevo.fill(p);
+      await bloqueo(page).getByLabel("Repetilo").fill(p);
+      await bloqueo(page).getByRole("button", { name: "Guardar y entrar" }).click();
+      await bloqueo(page).getByRole("alert").filter({ hasText: motivo }).waitFor();
+    }
+    await capturar(page, "1024-pin-nuevo-facil");
     assert.equal(await page.locator('[data-ui="operador-del-club"]').count(), 0, "nunca opera con el PIN viejo");
     // Bien: entra con el nuevo; lo cargado queda igual y el viejo deja de andar.
     await nuevo.fill("4747");

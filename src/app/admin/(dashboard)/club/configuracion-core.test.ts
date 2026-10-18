@@ -42,6 +42,7 @@ import {
   vistaDelGuardado,
   type AccionConfig,
 } from "./configuracion-core";
+import { PIN_VIEJO_CAJA, ejecutarCaja } from "./caja-core";
 
 const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
@@ -132,7 +133,11 @@ test("cambiar mi PIN: sabiendo el actual, el nuevo repetido, distinto y libre", 
   assert.equal(cambiar("1111", "4545", "4646").mensaje, "Los dos PIN nuevos no coinciden: escribilo igual las dos veces.");
   assert.equal(cambiar("1111", "1111").mensaje, "El PIN nuevo es igual al de ahora: elegí otro.");
   assert.equal(cambiar("1211", "4545").mensaje, "PIN incorrecto.");
-  assert.match(cambiar("1111", "2222").mensaje, /ya lo usa otra persona/);
+  // El de Majo (2222) es un PIN de ejemplo de la demo: lo frena eso antes. Con uno suyo de verdad, «ya lo usa».
+  assert.match(cambiar("1111", "2222").mensaje, /PIN de ejemplo de la demo/);
+  M.usuario(e, "u-majo")!.pin = "8484";
+  assert.match(cambiar("1111", "8484").mensaje, /ya lo usa otra persona/);
+  assert.equal(M.usuario(e, "u-rober")!.pin, "1111", "no cambió nada");
   assert.equal(cambiar("1111", "4545").ok, true);
   assert.equal(M.usuario(e, "u-rober")!.pin, "4545");
   assert.equal(hacer(e, { tipo: "cambiarMiPin", actual: "4545", nuevo: "4646", repetido: "4646" }, {}).mensaje, "Entrá con tu PIN para operar.");
@@ -152,6 +157,57 @@ test("dueño con el PIN viejo de 2: «cambiar mi PIN» lo acepta como actual y l
   assert.equal(M.usuario(e, "u-rober")!.pin, "4711");
   assert.equal(M.pinDesactualizado(e, "u-rober"), false);
   assert.equal(JSON.stringify({ ...e, usuarios: [], log: [] }), antes, "lo cargado queda igual");
+});
+
+test("cambiar mi PIN y armar el primero: uno fácil no pasa, con el motivo en criollo (pinFacil)", () => {
+  const e = demo();
+  const cambiar = (nuevo: string) => hacer(e, { tipo: "cambiarMiPin", actual: "1111", nuevo, repetido: nuevo });
+  assert.equal(cambiar("1234").mensaje, "Una escalera (como 1234 o 4321) se adivina fácil: elegí otro.");
+  assert.equal(cambiar("9876").mensaje, "Una escalera (como 1234 o 4321) se adivina fácil: elegí otro.");
+  assert.equal(cambiar("0000").mensaje, "Con todos los números iguales se adivina fácil: elegí otro.");
+  assert.equal(M.usuario(e, "u-rober")!.pin, "1111", "no cambió nada");
+  const lu = (nuevo: string) => hacer(e, { tipo: "cambiarMiPin", actual: "33", nuevo, repetido: nuevo }, LU);
+  assert.equal(lu("44").mensaje, "Ese es un PIN de ejemplo de la demo: elegí otro.");
+  assert.equal(lu("77").mensaje, "Con todos los números iguales se adivina fácil: elegí otro.");
+  assert.equal(M.usuario(e, "u-lu")!.pin, "33");
+  const real = M.crearClubReal(HOY);
+  const inicial = (pin: string) => hacer(real, { tipo: "pinInicial", usuarioId: "u-rober", pin, repetido: pin }, {});
+  assert.equal(inicial("0123").mensaje, "Una escalera (como 1234 o 4321) se adivina fácil: elegí otro.");
+  assert.equal(inicial("1111").mensaje, "Ese es un PIN de ejemplo de la demo: elegí otro.");
+  assert.equal(inicial("5555").mensaje, "Con todos los números iguales se adivina fácil: elegí otro.");
+  assert.equal(M.usuario(real, "u-rober")!.pin, "", "no se guardó nada");
+  assert.equal(inicial("3851").ok, true);
+});
+
+test("dueño con el PIN viejo de 2: no firma en Configuración (alta, PIN nuevo, sacar acceso, limpieza, archivar)", () => {
+  const e = demo();
+  M.usuario(e, "u-rober")!.pin = "11"; // el del piloto, todavía sin cambiar
+  const viejo: Auth = { usuarioId: "u-rober", pin: "11" };
+  const usuarios = JSON.stringify(e.usuarios);
+  for (const a of [
+    { tipo: "alta", nombre: "Nico", rol: "recepcion", pin: "11" },
+    { tipo: "pinNuevo", usuarioId: "u-lu", pin: "11" },
+    { tipo: "sacarAcceso", usuarioId: "u-lu", pin: "11" },
+  ] as const satisfies readonly AccionConfig[]) {
+    const r = hacer(e, a, viejo);
+    assert.equal(r.ok, false, a.tipo);
+    assert.equal(r.mensaje, M.MOTIVO_PIN_VIEJO, a.tipo);
+    assert.equal(r.pinNuevo, undefined, `${a.tipo}: no se generó ningún PIN`);
+  }
+  assert.equal(JSON.stringify(e.usuarios), usuarios, "nadie ganó ni perdió acceso");
+  // Archivar y restaurar: el almacén controla con verificarPin, así que el viejo se frena antes (authParaArchivar).
+  const arch = authParaArchivar(e, viejo, "11");
+  assert.deepEqual(arch, { ok: false, mensaje: M.MOTIVO_PIN_VIEJO });
+  assert.equal(authParaArchivar(e, viejo, "12").ok, true, "uno mal sigue de largo: lo dice quien firma («PIN incorrecto.»)");
+  // Limpieza y empezar en blanco (pinDeDuenio).
+  const bajado = respaldoAntesDeLimpiar(e, "u-rober", 1);
+  const limpia = limpiarConRespaldo(e, { conservarSaldos: true, conservarStock: true, pin: "11", descargado: bajado, textoElegido: bajado.texto }, AHORA, viejo, "OWNER");
+  assert.equal(limpia.ok, false);
+  assert.equal(limpia.mensaje, M.MOTIVO_PIN_VIEJO);
+  const blanco = autorizarEnBlanco(e, { pin: "11", descargado: bajado, textoElegido: bajado.texto }, viejo, "OWNER");
+  assert.deepEqual(blanco, { ok: false, mensaje: M.MOTIVO_PIN_VIEJO });
+  // Recepción con su PIN de 2 sigue igual: no es «viejo» (y lo de dueño se lo frena el permiso, no el largo).
+  assert.equal(authParaArchivar(e, LU, "33").ok, true);
 });
 
 test("los pedidos de acceso se cuentan (se dan desde el Tablero)", () => {
@@ -284,23 +340,31 @@ test("restaurar: el motivo según la causa del almacén (sin lugar, en criollo) 
 
 const temporizador: Temporizador = { despues: () => () => undefined, cada: () => () => undefined };
 const vaciar = () => new Promise<void>((r) => setImmediate(r));
-const DUENIO: Auth = { usuarioId: "u-duenio-1", pin: "11" };
+// El fixture deja a los dueños con el PIN viejo de 2 (como main): para firmar, el dueño 1 ya eligió uno de 4.
+const PIN_VIEJO = "11";
+const DUENIO: Auth = { usuarioId: "u-duenio-1", pin: "5757" };
 const CLAVE = claveDeLaJornada("demo-club");
-// 24 días cerrados: los 3 más viejos pasan las 3 semanas y se pueden archivar.
-const MES = JSON.stringify(armarMesCargado(HOY_TORNEO, 24));
+// 24 días cerrados: los 3 más viejos pasan las 3 semanas y se pueden archivar. MES: el dueño 1 ya con su PIN de 4;
+// MES_PIN_VIEJO: tal cual lo deja main (los dueños con el de 2).
+const MES_PIN_VIEJO = JSON.stringify(armarMesCargado(HOY_TORNEO, 24));
+const MES = (() => {
+  const sobre = JSON.parse(MES_PIN_VIEJO) as { estado: EstadoClub };
+  sobre.estado.usuarios.find((u) => u.id === DUENIO.usuarioId)!.pin = DUENIO.pin!;
+  return JSON.stringify(sobre);
+})();
 
-function memoria(): AlmacenamientoLocal & { datos: Map<string, string> } {
-  const datos = new Map<string, string>([[CLAVE, MES]]);
+function memoria(jornada = MES): AlmacenamientoLocal & { datos: Map<string, string> } {
+  const datos = new Map<string, string>([[CLAVE, jornada]]);
   return { datos, getItem: (k) => datos.get(k) ?? null, setItem: (k, v) => void datos.set(k, String(v)), removeItem: (k) => void datos.delete(k) };
 }
 
-async function abrir() {
-  const m = memoria();
+async function abrir({ pinViejo = false } = {}) {
+  const m = memoria(pinViejo ? MES_PIN_VIEJO : MES);
   const a = crearAlmacen({ reloj: "real", clave: CLAVE, almacenamiento: m, cerrojos: null, canal: null, temporizador, relojMs: () => new Date(2026, 9, 17, 19, 0).getTime(), demoraGuardadoMs: 0, enReposo: null, rol: "OWNER" });
   a.arrancar();
   await vaciar();
   // Quien opera: lo deja el bloqueo con PIN de la sesión del club (en la jornada real, sin operador no se opera).
-  a.cambiarOperador(M.usuario(a.estado(), DUENIO.usuarioId!)!, DUENIO);
+  a.cambiarOperador(M.usuario(a.estado(), DUENIO.usuarioId!)!, pinViejo ? { ...DUENIO, pin: PIN_VIEJO } : DUENIO);
   return { a, m };
 }
 
@@ -316,7 +380,7 @@ test("archivar en dos pasos: una descarga, elegir ESE archivo y recién ahí se 
   assert.deepEqual(v.dias, []);
   assert.equal(authParaArchivar(M.crearClubReal(HOY), {}, "11").ok, false);
   assert.equal(authParaArchivar(a.estado(), a.auth(), "1").ok, false);
-  const auth = authParaArchivar(a.estado(), a.auth(), "11");
+  const auth = authParaArchivar(a.estado(), a.auth(), DUENIO.pin!);
   assert.ok(auth.ok);
   const p = preparado(a.prepararArchivo({ auth: auth.auth }));
   assert.equal(p.guardaAnexo, false, "en este equipo hay que elegir el archivo");
@@ -375,7 +439,7 @@ test("restaurar con el almacén: el archivo para archivar devuelve la jornada de
   const r0 = a.restaurar(leido.respaldo.foto, { auth: mal.auth });
   assert.ok(!r0.ok && r0.causa === "permiso" && motivoDeRestaurar(r0) === "PIN incorrecto.");
   assert.ok(a.estado().reservas.length < antes, "nada cambió");
-  const bien = authParaArchivar(a.estado(), a.auth(), "11");
+  const bien = authParaArchivar(a.estado(), a.auth(), DUENIO.pin!);
   assert.ok(bien.ok);
   const bytesAntes = a.estadoDelGuardado().bytes;
   const r = a.restaurar(leido.respaldo.foto, { auth: bien.auth });
@@ -429,7 +493,7 @@ test("limpieza para el go-live: respaldo descargado y elegido de vuelta; si camb
     assert.equal(a.ejecutar((e, ahora) => { const r = M.cerrarCaja(e, { contado: M.resumenCaja(e, dia).efectivoEsperado, dia, ...DUENIO }, ahora); return { ok: r.ok, mensaje: r.ok ? "" : r.motivo }; }).ok, true);
   assert.deepEqual(armarGoLive(a.estado(), a.ahora()).pendientes, [], "con las cajas cerradas no hay nada pendiente");
   const ms = new Date(2026, 9, 17, 19, 0).getTime();
-  const pedido = (extra: Partial<Parameters<typeof limpiarConRespaldo>[1]>) => ({ conservarSaldos: true, conservarStock: true, pin: "11", descargado: null, textoElegido: null, ...extra });
+  const pedido = (extra: Partial<Parameters<typeof limpiarConRespaldo>[1]>) => ({ conservarSaldos: true, conservarStock: true, pin: DUENIO.pin!, descargado: null, textoElegido: null, ...extra });
   const limpiar = (extra: Partial<Parameters<typeof limpiarConRespaldo>[1]>, rol = "OWNER") => a.ejecutar((e, ahora, auth) => limpiarConRespaldo(e, pedido(extra), ahora, auth, rol));
   assert.equal(limpiar({}, "RECEPTION").mensaje, "La limpieza la hace un dueño.");
   assert.equal(limpiar({ pin: "99" }).mensaje, "PIN incorrecto.");
@@ -458,6 +522,46 @@ test("limpieza para el go-live: respaldo descargado y elegido de vuelta; si camb
   // Y el respaldo elegido sirve para volver atrás.
   const vuelta = leerRespaldo(otra.texto);
   assert.ok(vuelta.ok && vuelta.respaldo.turnos > 0);
+});
+
+test("jornada real con el dueño todavía con el PIN viejo de 2: no archiva, no restaura, no limpia, no empieza en blanco ni saca plata", async () => {
+  const { a } = await abrir({ pinViejo: true });
+  assert.equal(M.pinDesactualizado(a.estado(), "u-duenio-1"), true);
+  const antes = JSON.stringify(a.estado());
+  const turnos = a.estado().reservas.length;
+  const movs = a.estado().caja.movimientos.length;
+  // Archivar y restaurar (config-jornada.tsx: authParaArchivar antes de llamar al almacén).
+  assert.deepEqual(authParaArchivar(a.estado(), a.auth(), PIN_VIEJO), { ok: false, mensaje: M.MOTIVO_PIN_VIEJO });
+  // La limpieza para el go-live (config-golive.tsx: pinDeDuenio; acá, por el almacén como la pantalla).
+  const ms = new Date(2026, 9, 17, 19, 0).getTime();
+  const bajado = respaldoAntesDeLimpiar(a.estado(), "u-duenio-1", ms);
+  const limpia = a.ejecutar((e, ahora, auth) =>
+    limpiarConRespaldo(e, { conservarSaldos: true, conservarStock: true, pin: PIN_VIEJO, descargado: bajado, textoElegido: bajado.texto }, ahora, auth, "OWNER"),
+  );
+  assert.equal(limpia.ok, false);
+  assert.equal(limpia.mensaje, M.MOTIVO_PIN_VIEJO);
+  // Empezar en blanco.
+  const blancoBajado = respaldoAntesDeBlanco(a.estado(), "u-duenio-1", ms);
+  assert.deepEqual(autorizarEnBlanco(a.estado(), { pin: PIN_VIEJO, descargado: blancoBajado, textoElegido: blancoBajado.texto }, a.auth(), "OWNER"), { ok: false, mensaje: M.MOTIVO_PIN_VIEJO });
+  // Egreso y cierre de caja: lo frena la Caja (PIN_VIEJO_CAJA) y, debajo, el motor (verificarFirma). Cualquiera de las
+  // dos capas vale; lo que no puede pasar es que salga plata.
+  const rechazoDelViejo = new Set([PIN_VIEJO_CAJA, M.MOTIVO_PIN_VIEJO]);
+  const egreso = a.ejecutar((e, ahora, auth) => ejecutarCaja(e, { tipo: "egreso", monto: "500", concepto: "Hielo", pin: PIN_VIEJO }, ahora, auth));
+  assert.equal(egreso.ok, false);
+  assert.ok(rechazoDelViejo.has(egreso.mensaje), egreso.mensaje);
+  const enElMotor = a.ejecutar((e, ahora, auth) => {
+    const r = M.egresoCaja(e, { monto: 500, concepto: "Hielo", usuarioId: auth.usuarioId, pin: PIN_VIEJO }, ahora);
+    return r.ok ? { ok: true, mensaje: "" } : { ok: false, mensaje: r.motivo };
+  });
+  assert.deepEqual(enElMotor, { ok: false, mensaje: M.MOTIVO_PIN_VIEJO }, "el motor solo también lo frena");
+  const dia = M.cajaAbierta(a.estado(), a.ahora());
+  const cierre = a.ejecutar((e, ahora, auth) => ejecutarCaja(e, { tipo: "cerrar", contado: "0", dia, pin: PIN_VIEJO }, ahora, auth));
+  assert.equal(cierre.ok, false);
+  assert.ok(rechazoDelViejo.has(cierre.mensaje), cierre.mensaje);
+  // Nada cambió.
+  assert.equal(a.estado().reservas.length, turnos);
+  assert.equal(a.estado().caja.movimientos.length, movs, "no salió plata");
+  assert.ok(JSON.stringify(a.estado()) === antes, "la jornada sigue igual (ni el registro)");
 });
 
 test("la limpieza no corre con algo pendiente (lo lista el motor, en criollo)", () => {
@@ -581,11 +685,11 @@ test("empezar en blanco: sin el respaldo de AHORA descargado y elegido de vuelta
   const ms = new Date(2026, 9, 17, 19, 0).getTime();
   const turnos = a.estado().reservas.length;
   const pedir = (extra: Partial<Parameters<typeof autorizarEnBlanco>[1]>, rol = "OWNER") =>
-    autorizarEnBlanco(a.estado(), { pin: "11", descargado: null, textoElegido: null, ...extra }, a.auth(), rol);
+    autorizarEnBlanco(a.estado(), { pin: DUENIO.pin!, descargado: null, textoElegido: null, ...extra }, a.auth(), rol);
   const mensaje = (r: ReturnType<typeof autorizarEnBlanco>) => (r.ok ? "" : r.mensaje);
   assert.equal(mensaje(pedir({}, "RECEPTION")), "Empezar en blanco lo hace un dueño.");
   assert.equal(mensaje(pedir({ pin: "99" })), "PIN incorrecto.");
-  assert.equal(mensaje(pedir({ pin: "1" })), "Poné tu PIN (4 números).", "dueño (aunque tenga el viejo de 2 guardado, se le pide el largo de dueño)");
+  assert.equal(mensaje(pedir({ pin: "1" })), "Poné tu PIN (4 números).", "dueño: se le pide el largo de dueño");
   assert.equal(mensaje(pedir({})), "Primero descargá el respaldo (paso 1).");
   const bajado = respaldoAntesDeBlanco(a.estado(), "u-duenio-1", ms);
   assert.equal(bajado.nombre, "breakpoint-jornada-antes-de-blanco-2026-10-17-1900.json");
@@ -618,7 +722,7 @@ test("empezar en blanco: con el respaldo de ahora elegido → club sin configura
   const turnos = a.estado().reservas.length;
   assert.ok(turnos > 0);
   const bajado = respaldoAntesDeBlanco(a.estado(), "u-duenio-1", ms);
-  const v = autorizarEnBlanco(a.estado(), { pin: "11", descargado: bajado, textoElegido: bajado.texto }, a.auth(), "OWNER");
+  const v = autorizarEnBlanco(a.estado(), { pin: DUENIO.pin!, descargado: bajado, textoElegido: bajado.texto }, a.auth(), "OWNER");
   assert.ok(v.ok, JSON.stringify(v));
   assert.deepEqual(v.auth, DUENIO);
   const r = a.empezarEnBlanco({ auth: v.auth });
@@ -654,7 +758,7 @@ test("empezar en blanco sin lugar para la copia en este equipo: no hace nada y l
   a.cambiarOperador(M.usuario(a.estado(), DUENIO.usuarioId!)!, DUENIO);
   const turnos = a.estado().reservas.length;
   const bajado = respaldoAntesDeBlanco(a.estado(), "u-duenio-1", 1);
-  const v = autorizarEnBlanco(a.estado(), { pin: "11", descargado: bajado, textoElegido: bajado.texto }, a.auth(), "OWNER");
+  const v = autorizarEnBlanco(a.estado(), { pin: DUENIO.pin!, descargado: bajado, textoElegido: bajado.texto }, a.auth(), "OWNER");
   assert.ok(v.ok);
   const r = a.empezarEnBlanco({ auth: v.auth });
   assert.ok(!r.ok && r.causa === "sin-lugar", JSON.stringify(r));

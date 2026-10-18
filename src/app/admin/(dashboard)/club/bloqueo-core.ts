@@ -18,7 +18,7 @@
 //     paso de la pantalla bloqueada (`entrarConPinNuevo`), como `pedirPinNuevo` del vanilla. No toca nada de lo cargado.
 // El reloj se inyecta (`ahoraMs`) en todo: los tests no esperan.
 
-import { cambiarMiPin, largoPin, pinAceptadoPara, pinDesactualizado, pinValidoPara, textoLargoPin, usuario as usuarioDe, verificarPin } from "@/lib/club/motor.mjs";
+import { cambiarMiPin, largoPin, pinAceptadoPara, pinDesactualizado, pinFacil, pinValidoPara, textoLargoPin, usuario as usuarioDe, verificarPin } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub, Rol, Usuario } from "@/lib/club/motor.mjs";
 import type { Almacen, AlmacenamientoLocal, Desenlace } from "./almacen";
 
@@ -318,8 +318,9 @@ export function textoPinNuevoObligatorio(rol: Rol | null | undefined): string {
 }
 
 /**
- * Lo que se revisa ANTES de tocar nada (puro): los dos iguales, del largo del rol, distinto del viejo, y que el viejo
- * siga siendo el PIN de esa persona y siga desactualizado. El motor vuelve a controlar todo (y que nadie más lo use).
+ * Lo que se revisa ANTES de tocar nada (puro): que el viejo siga siendo el PIN de esa persona, el nuevo del largo del
+ * rol, los dos iguales y que no se adivine fácil (`pinFacil` del motor: ni los de ejemplo de la demo, ni todos iguales,
+ * ni escaleras como 1234). El motor vuelve a controlar todo (y que nadie más lo use).
  */
 export function revisarPinNuevo(estado: EstadoClub, cambio: CambioDePinPendiente, nuevo: string, repetido: string): { ok: true; usuario: Usuario; nuevo: string } | { ok: false; mensaje: string } {
   const v = verificarPin(estado, cambio.usuarioId, cambio.viejo);
@@ -327,6 +328,8 @@ export function revisarPinNuevo(estado: EstadoClub, cambio: CambioDePinPendiente
   const n = String(nuevo ?? "").trim();
   if (!pinValidoPara(v.usuario.rol, n)) return { ok: false, mensaje: textoLargoPin(v.usuario.rol, true) };
   if (n !== String(repetido ?? "").trim()) return { ok: false, mensaje: "Los dos PIN no coinciden: escribilo igual las dos veces." };
+  const facil = pinFacil(v.usuario.rol, n);
+  if (facil) return { ok: false, mensaje: facil };
   return { ok: true, usuario: v.usuario, nuevo: n };
 }
 

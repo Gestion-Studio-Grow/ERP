@@ -596,6 +596,19 @@ export declare function pinAceptadoPara(rol: Rol | string | null | undefined, pi
 export declare function textoLargoPin(rol: Rol | string | null | undefined, nuevo?: boolean): string;
 /** ¿Ese usuario (activo) tiene guardado un PIN de otro largo que el de su rol? (dueño del piloto con el de 2). */
 export declare function pinDesactualizado(estado: EstadoClub, usuarioId: string): boolean;
+/** Lo que se le dice a un dueño que FIRMA con el PIN viejo de 2 sin haberlo cambiado todavía. */
+export declare const MOTIVO_PIN_VIEJO: string;
+/**
+ * ¿Este PIN FIRMA? Como `verificarPin`, pero un dueño con el PIN viejo de 2 (`pinDesactualizado`) no firma nada
+ * (`pinViejo: true`): con ese PIN sólo entra y cambia el PIN. Lo usa `autorizar` (toda operación con PIN).
+ */
+export declare function verificarFirma(estado: EstadoClub, usuarioId: string, pin: string): Resultado<{ usuario: Usuario }> | (Falla & { pinViejo: true });
+/**
+ * ¿Ese PIN nuevo se adivina fácil? El motivo en criollo, o "" si sirve: PIN de ejemplo de la demo (1111, 2222, 33,
+ * 44), todos iguales y, con 4 números, escaleras de a uno (0123…, 9876…). Lo aplican `definirPinInicial`,
+ * `cambiarMiPin` y los PIN que genera el sistema.
+ */
+export declare function pinFacil(rol: Rol | string | null | undefined, pin: string | null | undefined): string;
 /** null si el PIN viene vacío. */
 export declare function usuarioPorPin(estado: EstadoClub, pin: string): Resultado<{ usuario: Usuario }> | null;
 /** Alguien nuevo pide acceso desde el mostrador: queda pendiente hasta que un dueño lo otorgue. */

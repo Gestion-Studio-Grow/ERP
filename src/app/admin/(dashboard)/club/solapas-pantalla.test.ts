@@ -653,7 +653,23 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     assert.equal(await archivar.getByRole("button", { name: "Ya lo guardé: achicar" }).isDisabled(), true, "sin descargar no se confirma");
     await archivar.getByRole("button", { name: "Descargar el respaldo para archivar" }).click();
     await alerta(page, "Poné tu PIN (4 números).");
+    // El ejemplo deja al dueño con el PIN viejo de 2 (como main): con ése entra, pero no archiva (no firma).
     await archivar.getByLabel("PIN de Dueño").fill("11");
+    await archivar.getByRole("button", { name: "Descargar el respaldo para archivar" }).click();
+    await alerta(page, "Ese es tu PIN viejo: entrá a la compu con él y elegí uno de 4.");
+    // «Cambiar mi PIN» acepta el viejo como actual; uno fácil no pasa.
+    const miPin = page.getByRole("form", { name: "Cambiar mi PIN" });
+    const cambiarMiPin = async (nuevo: string) => {
+      await miPin.getByLabel("Tu PIN actual").fill("11");
+      await miPin.getByLabel("PIN nuevo (4 números)").fill(nuevo);
+      await miPin.getByLabel("Repetí el nuevo").fill(nuevo);
+      await miPin.getByRole("button", { name: "Cambiar mi PIN" }).click();
+    };
+    await cambiarMiPin("1234");
+    await alerta(page, "Una escalera (como 1234 o 4321) se adivina fácil: elegí otro.");
+    await cambiarMiPin("5757");
+    await aviso(page, "Tu PIN cambió. Desde ahora entrás con el nuevo.");
+    await archivar.getByLabel("PIN de Dueño").fill("5757");
     const [paquete] = await Promise.all([page.waitForEvent("download"), archivar.getByRole("button", { name: "Descargar el respaldo para archivar" }).click()]);
     assert.match(paquete.suggestedFilename(), /^breakpoint-respaldo-y-archivo-\d{4}-\d{2}-\d{2}-\d{4}\.json$/);
     await archivar.getByText(`Se pidió la descarga de ${paquete.suggestedFilename()}`).waitFor();
@@ -686,7 +702,7 @@ describe("Clientes y Tablero del dueño en el navegador", { timeout: 240_000 }, 
     await restaurar.getByLabel("PIN de Dueño").fill("12");
     await restaurar.getByRole("button", { name: "Restaurar este respaldo" }).click();
     await alerta(page, "PIN incorrecto.");
-    await restaurar.getByLabel("PIN de Dueño").fill("11");
+    await restaurar.getByLabel("PIN de Dueño").fill("5757");
     await restaurar.getByRole("button", { name: "Restaurar este respaldo" }).click();
     await aviso(page, "Listo: se restauró la jornada de antes de archivar (lo de antes quedó copiado en este equipo). Si avisa que se llena, archivá de nuevo.");
     assert.equal(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.includes(":antes-de-restaurar:")).length), 1, "la copia de lo de antes quedó en el equipo");

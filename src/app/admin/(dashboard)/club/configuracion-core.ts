@@ -64,7 +64,7 @@ import {
   secuenciaIds,
   terminarConfiguracion,
   usuario as usuarioDe,
-  verificarPin,
+  verificarFirma,
   largoPin,
   pinAceptadoPara,
   pinValidoPara,
@@ -195,13 +195,16 @@ export function leerRespaldo(texto: string): { ok: true; respaldo: RespaldoParaR
   };
 }
 
-/** ¿Quien opera es un dueño con ESTE PIN? (lo que el vanilla pedía en cada ventana sensible). */
+/**
+ * ¿Quien opera es un dueño con ESTE PIN? (lo que el vanilla pedía en cada ventana sensible). Es una FIRMA
+ * (`verificarFirma`): con el PIN viejo de 2 el dueño entra, pero no limpia ni empieza en blanco.
+ */
 export function pinDeDuenio(estado: EstadoClub, auth: Auth, pin: string, quien: string): { ok: true; usuario: Usuario; auth: Auth } | { ok: false; mensaje: string } {
   if (!auth.usuarioId) return { ok: false, mensaje: "Entrá con tu PIN para operar." };
   const limpio = pin.trim();
   const rol = rolDeQuienOpera(estado, auth);
   if (!pinAceptadoPara(rol, limpio)) return { ok: false, mensaje: `Poné tu PIN (${numerosDelPin(rol)}).` };
-  const v = verificarPin(estado, auth.usuarioId, limpio);
+  const v = verificarFirma(estado, auth.usuarioId, limpio);
   if (!v.ok) return { ok: false, mensaje: v.motivo };
   if (v.usuario.rol !== "duenio") return { ok: false, mensaje: `${quien} lo hace un dueño.` };
   return { ok: true, usuario: v.usuario, auth: { usuarioId: auth.usuarioId, pin: limpio } };
@@ -246,12 +249,19 @@ export function armarArchivo(estado: EstadoClub, ahora: Ahora): VistaArchivo {
   return { hasta, dias, ultimo, firma: `${hasta}|${dias.length}|${ultimo ?? ""}|${dias[0]?.texto ?? ""}` };
 }
 
-/** El auth para archivar: quien opera con el PIN que tipeó (el almacén lo vuelve a controlar). */
+/**
+ * El auth para archivar, restaurar y lo de Usuarios: quien opera con el PIN que tipeó. Es una FIRMA: el PIN viejo de 2
+ * de un dueño se frena acá (`verificarFirma`), porque el almacén, al archivar y restaurar, controla con `verificarPin`
+ * (el motor no valida quién archiva). Un PIN mal sigue de largo: lo dice el que firma (almacén o motor).
+ */
 export function authParaArchivar(estado: EstadoClub, auth: Auth, pin: string): { ok: true; auth: Auth } | { ok: false; mensaje: string } {
   if (!auth.usuarioId) return { ok: false, mensaje: "Entrá con tu PIN para operar." };
   const rol = rolDeQuienOpera(estado, auth);
-  if (!pinAceptadoPara(rol, pin.trim())) return { ok: false, mensaje: `Poné tu PIN (${numerosDelPin(rol)}).` };
-  return { ok: true, auth: { usuarioId: auth.usuarioId, pin: pin.trim() } };
+  const limpio = pin.trim();
+  if (!pinAceptadoPara(rol, limpio)) return { ok: false, mensaje: `Poné tu PIN (${numerosDelPin(rol)}).` };
+  const f = verificarFirma(estado, auth.usuarioId, limpio);
+  if (!f.ok && "pinViejo" in f) return { ok: false, mensaje: f.motivo };
+  return { ok: true, auth: { usuarioId: auth.usuarioId, pin: limpio } };
 }
 
 /** Qué hace la pantalla con lo que devolvió `confirmar` (paso 2). */

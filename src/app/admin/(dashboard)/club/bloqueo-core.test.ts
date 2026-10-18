@@ -2,7 +2,7 @@
 // tiempo sin uso, el PIN vacío y el usuario dado de baja. El reloj se inyecta: nada espera de verdad.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { generarDemo, pinDesactualizado, verificarPin } from "@/lib/club/motor.mjs";
+import { MOTIVO_PIN_VIEJO, egresoCaja, generarDemo, pinDesactualizado, verificarPin } from "@/lib/club/motor.mjs";
 import type { EstadoClub, Usuario } from "@/lib/club/motor.mjs";
 import { armarMesCargado, HOY_TORNEO } from "@/lib/club/fixtures/armar-respaldo";
 import { claveDeLaJornada, crearAlmacen, type Temporizador } from "./almacen";
@@ -293,6 +293,18 @@ test("revisar el PIN nuevo (puro): del largo del rol, repetido, y con el viejo q
   assert.equal(u(e, "u-rober").pin, "11", "revisar no toca nada");
 });
 
+test("revisar el PIN nuevo (puro): uno fácil no pasa y se dice por qué, en criollo (pinFacil del motor)", () => {
+  const e = demo();
+  u(e, "u-rober").pin = "11";
+  const c = { usuarioId: "u-rober", viejo: "11" };
+  assert.deepEqual(revisarPinNuevo(e, c, "2222", "2222"), { ok: false, mensaje: "Ese es un PIN de ejemplo de la demo: elegí otro." });
+  assert.deepEqual(revisarPinNuevo(e, c, "0000", "0000"), { ok: false, mensaje: "Con todos los números iguales se adivina fácil: elegí otro." });
+  for (const p of ["1234", "6789", "4321"])
+    assert.deepEqual(revisarPinNuevo(e, c, p, p), { ok: false, mensaje: "Una escalera (como 1234 o 4321) se adivina fácil: elegí otro." }, p);
+  assert.equal(revisarPinNuevo(e, c, "3851", "3851").ok, true);
+  assert.equal(u(e, "u-rober").pin, "11", "revisar no toca nada");
+});
+
 const temporizador: Temporizador = { despues: () => () => undefined, cada: () => () => undefined };
 const CLAVE_PIN = claveDeLaJornada("demo-club");
 
@@ -340,6 +352,17 @@ test("jornada de main, dueño con PIN de 2: elige uno de 4 por el almacén y ent
   assert.equal(a.operador(), null, "nunca queda operando con el PIN viejo");
   assert.equal(a.estado().usuarios.find((x) => x.id === "u-duenio-1")!.pin, "11");
   a.estado().usuarios.find((x) => x.id === "u-duenio-2")!.pin = "22";
+  // Uno fácil (escalera, todos iguales, el de ejemplo de la demo): no entra nadie y se dice por qué.
+  for (const [p, motivo] of [["1234", /escalera/], ["7777", /todos los números iguales/], ["1111", /PIN de ejemplo de la demo/]] as const) {
+    const facil = entrarConPinNuevo(a, cambio, p, p);
+    assert.equal(facil.ok, false, p);
+    assert.match(facil.mensaje, motivo, p);
+  }
+  assert.equal(a.operador(), null);
+  assert.equal(a.estado().usuarios.find((x) => x.id === "u-duenio-1")!.pin, "11");
+  // Con el PIN viejo, mientras no lo cambie, no firma nada (el motor: `autorizar` → `verificarFirma`).
+  const egreso = egresoCaja(a.estado(), { monto: 500, concepto: "Hielo", usuarioId: "u-duenio-1", pin: "11" }, a.ahora());
+  assert.ok(!egreso.ok && egreso.motivo === MOTIVO_PIN_VIEJO, JSON.stringify(egreso));
 
   // Bien: entra con el nuevo, lo viejo deja de andar, lo cargado queda igual y se guarda.
   const d = entrarConPinNuevo(a, cambio, "4711", "4711");

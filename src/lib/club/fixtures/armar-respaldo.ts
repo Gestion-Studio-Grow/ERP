@@ -26,13 +26,26 @@ export const HOY_TORNEO = "2026-10-17";
 /** Cuándo se «guardó» el respaldo de ejemplo (ms epoch, fijo para que el archivo no cambie). */
 export const GUARDADO_TORNEO = Date.UTC(2026, 9, 18, 3, 40); // 00:40 del domingo en Argentina
 
-/** Usuarios ficticios del ejemplo (los PIN son de ejemplo y se usan en los tests). */
+/**
+ * Usuarios ficticios del ejemplo (los PIN son de ejemplo y se usan en los tests). Los dueños quedan con el PIN viejo
+ * de 2, como los dejó `main` en el mostrador del piloto.
+ */
 export const USUARIOS_EJEMPLO = [
   { id: "u-duenio-1", nombre: "Dueño Uno", rol: "duenio" as const, pin: "11", activo: true },
   { id: "u-duenio-2", nombre: "Dueña Dos", rol: "duenio" as const, pin: "22", activo: true },
   { id: "u-recep-1", nombre: "Recepción Tarde", rol: "recepcion" as const, pin: "33", activo: true },
 ];
-const DUENIO = { usuarioId: "u-duenio-1", pin: "11" };
+// Con el PIN viejo de 2 un dueño ya no FIRMA (verificarFirma): el ejemplo se arma con un PIN de 4 y al final se le
+// vuelve a poner el de 2 (`conPinesDelPiloto`). Lo cargado es exactamente lo mismo (igual que mes-cargado.fixture.ts).
+const PIN_ARMADO: Record<string, string> = { "u-duenio-1": "5821", "u-duenio-2": "6932" };
+const DUENIO = { usuarioId: "u-duenio-1", pin: PIN_ARMADO["u-duenio-1"] };
+function conPinesDelPiloto(e: EstadoClub): EstadoClub {
+  for (const u of e.usuarios) {
+    const viejo = USUARIOS_EJEMPLO.find((x) => x.id === u.id);
+    if (viejo) u.pin = viejo.pin;
+  }
+  return e;
+}
 
 const NOMBRES = ["Ana", "Beto", "Caro", "Dani", "Eli", "Fede", "Gabi", "Hugo", "Ine", "Juan", "Kari", "Leo", "Majo", "Nico", "Oli", "Pablo"];
 
@@ -63,7 +76,7 @@ function clubDeEjemplo(nClientes: number, stockInicial: number): EstadoClub {
       cc: i === 3 ? { habilitada: true, limite: 100000 } : undefined,
     })),
     productos: M.PRODUCTOS_DEMO.map((p) => (p.stock != null && !p.alquiler ? { ...p, stock: Math.max(p.stock, stockInicial) } : p)),
-    usuarios: USUARIOS_EJEMPLO,
+    usuarios: USUARIOS_EJEMPLO.map((u) => ({ ...u, pin: PIN_ARMADO[u.id] ?? u.pin })),
   });
   e.config.cobro = { ...e.config.cobro, alias: "club.ejemplo.ficticio" };
   e.caja.fondo = 30000;
@@ -163,7 +176,7 @@ export function armarDiaDeTorneo(): FotoEstado & { usuario: string; guardado: nu
   // El turno de mañana (reservado, sin cobrar).
   turnoDeCuatro(e, manana, "c2", 18 * 60, 5, "turno", en(hoy, 23 * 60));
 
-  return { v: M.VERSION_ESTADO, estado: e, secuencia: M.secuenciaIds(), usuario: "u-recep-1", guardado: GUARDADO_TORNEO };
+  return { v: M.VERSION_ESTADO, estado: conPinesDelPiloto(e), secuencia: M.secuenciaIds(), usuario: "u-recep-1", guardado: GUARDADO_TORNEO };
 }
 
 /**
@@ -196,5 +209,5 @@ export function armarMesCargado(hasta = HOY_TORNEO, dias = 30): FotoEstado & { u
     const dia = M.cajaAbierta(e, cierre);
     if (M.resumenCaja(e, dia).movimientos > 0) exigir(M.cerrarCaja(e, { contado: M.resumenCaja(e, dia).efectivoEsperado, ...DUENIO }, cierre), "cierre del día");
   }
-  return { v: M.VERSION_ESTADO, estado: e, secuencia: M.secuenciaIds(), usuario: "u-recep-1", guardado: Date.UTC(2026, 9, 17, 15) };
+  return { v: M.VERSION_ESTADO, estado: conPinesDelPiloto(e), secuencia: M.secuenciaIds(), usuario: "u-recep-1", guardado: Date.UTC(2026, 9, 17, 15) };
 }
