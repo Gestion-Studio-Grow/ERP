@@ -8,11 +8,13 @@
 // cuántos les llega. «Preparar el envío» abre los dos caminos: la lista de difusión de WhatsApp Business (copiar el
 // mensaje y descargar los contactos) o uno por uno (cada nombre abre WhatsApp con su mensaje y queda tildado). Nada se
 // manda solo: lo manda una persona desde el WhatsApp del club. Después, quién pidió la BAJA, el historial y el
-// calendario de redes del mes. El Studio de redes (imágenes con la marca) sigue en el sistema de hoy (G6).
+// calendario de redes del mes. El Studio de redes (la placa con la marca del club y el caption) se abre desde la
+// novedad que se está armando («Hacer la imagen en el Studio») y desde el calendario, como el vanilla; baja en su
+// propio chunk (`import()` dinámico) recién al tocarlo: studio-de-redes.tsx, lo puro en studio-core.ts.
 // Todo cambia con `almacen.ejecutar` (aviso abajo y «Deshacer» de lo que se puede deshacer). Las reglas están en
 // novedades-core.ts; quién opera, en operador-del-club.ts.
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ComponentType } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Input, Select, Textarea } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
@@ -45,6 +47,8 @@ import {
   type DiaDelCalendario,
 } from "./novedades-core";
 import type { PropsDeSolapa } from "./solapas-club";
+import type { PropsDelStudio } from "./studio-de-redes";
+import { piezaDeLaDifusion, type PiezaDelStudio } from "./studio-core";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 import { TextoWhatsApp } from "./WhatsAppDelClub";
 
@@ -61,7 +65,39 @@ function useHacer(almacen: Almacen): Hacer {
 
 // ───────────── armar la novedad ─────────────
 
-function ArmarNovedad({ almacen, hacer, onPreparada }: { almacen: Almacen; hacer: Hacer; onPreparada: (id: string) => void }) {
+type AbrirStudio = (pieza: PiezaDelStudio | null) => void;
+
+// ───────────── el Studio de redes (baja recién cuando se abre) ─────────────
+
+let moduloDelStudio: Promise<{ default: ComponentType<PropsDelStudio> }> | null = null;
+const cargarStudio = () => (moduloDelStudio ??= import("./studio-de-redes").catch((e) => ((moduloDelStudio = null), Promise.reject(e))));
+
+/** El Studio abierto (o nada) y cómo abrirlo. Guardar agenda la publicación con el motor, como «+ Publicación». */
+function useStudio(almacen: Almacen, hacer: Hacer): { abrir: AbrirStudio; abriendo: boolean; studio: React.ReactNode } {
+  const [abierto, setAbierto] = useState<{ Studio: ComponentType<PropsDelStudio>; pieza: PiezaDelStudio | null } | null>(null);
+  const [abriendo, setAbriendo] = useState(false);
+  const abrir = useCallback<AbrirStudio>(
+    (pieza) => {
+      setAbriendo(true);
+      cargarStudio()
+        .then((m) => setAbierto({ Studio: m.default, pieza }))
+        .catch(() => almacen.informar({ ok: false, mensaje: "No se pudo abrir el Studio. Revisá la conexión y probá de nuevo." }))
+        .finally(() => setAbriendo(false));
+    },
+    [almacen],
+  );
+  const studio = abierto && (
+    <abierto.Studio
+      pieza={abierto.pieza}
+      hoy={almacen.ahora().fecha}
+      onGuardar={(datos) => hacer({ tipo: "guardarPublicacion", id: null, datos })}
+      onCerrar={() => setAbierto(null)}
+    />
+  );
+  return { abrir, abriendo, studio };
+}
+
+function ArmarNovedad({ almacen, hacer, onPreparada, onStudio, abriendo }: { almacen: Almacen; hacer: Hacer; onPreparada: (id: string) => void; onStudio: AbrirStudio; abriendo: boolean }) {
   const [b, setB] = useState<Borrador>(BORRADOR_VACIO);
   const id = useId();
   // Sólo la audiencia cambia a cuántos les llega: tipear el título no recorre los turnos.
@@ -137,11 +173,10 @@ function ArmarNovedad({ almacen, hacer, onPreparada }: { almacen: Almacen; hacer
           <Button type="submit" variant="solid" size="md" disabled={cuantos === 0} className="max-sm:w-full">
             Preparar el envío
           </Button>
+          <Button type="button" variant="outline" size="md" aria-busy={abriendo || undefined} onClick={() => onStudio(piezaDeLaDifusion(b))} className="max-sm:w-full">
+            {abriendo ? "Abriendo el Studio…" : "Hacer la imagen en el Studio"}
+          </Button>
         </div>
-        <p className="text-sm text-body">
-          <strong className="text-strong">Studio de redes</strong> (la imagen con la marca del club para Instagram y WhatsApp): por ahora sigue en el
-          sistema de hoy, en su pestaña «Novedades y redes».
-        </p>
       </form>
     </section>
   );
@@ -455,7 +490,7 @@ function EditorDePublicacion({ almacen, editor, hacer, onCerrar }: { almacen: Al
   );
 }
 
-function CalendarioDeRedes({ almacen, hacer }: { almacen: Almacen; hacer: Hacer }) {
+function CalendarioDeRedes({ almacen, hacer, onStudio, abriendo }: { almacen: Almacen; hacer: Hacer; onStudio: AbrirStudio; abriendo: boolean }) {
   const hoy = almacen.ahora().fecha;
   const [mes, setMes] = useState(() => mesDe(hoy));
   const [editor, setEditor] = useState<Editor>(null);
@@ -550,6 +585,11 @@ function CalendarioDeRedes({ almacen, hacer }: { almacen: Almacen; hacer: Hacer 
           </span>
         ))}
       </p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="md" aria-busy={abriendo || undefined} onClick={() => onStudio(null)} className="max-sm:w-full">
+          {abriendo ? "Abriendo el Studio…" : "Abrir el Studio de redes (imágenes y textos)"}
+        </Button>
+      </div>
     </section>
   );
 }
@@ -560,15 +600,17 @@ export default function NovedadesDelClub({ almacen }: PropsDeSolapa) {
   useOperador(almacen); // repinta si cambia quién opera (PIN)
   const hacer = useHacer(almacen);
   const [abierta, setAbierta] = useState<string | null>(null);
+  const { abrir, abriendo, studio } = useStudio(almacen, hacer);
   return (
     <div className="flex flex-col gap-4">
-      <ArmarNovedad almacen={almacen} hacer={hacer} onPreparada={setAbierta} />
+      <ArmarNovedad almacen={almacen} hacer={hacer} onPreparada={setAbierta} onStudio={abrir} abriendo={abriendo} />
       {abierta && <EnvioDeLaNovedad key={abierta} almacen={almacen} difusionId={abierta} hacer={hacer} onListo={() => setAbierta(null)} />}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <HistorialDeNovedades almacen={almacen} abierta={abierta} onSeguir={setAbierta} />
         <BajasDeNovedades almacen={almacen} hacer={hacer} />
       </div>
-      <CalendarioDeRedes almacen={almacen} hacer={hacer} />
+      <CalendarioDeRedes almacen={almacen} hacer={hacer} onStudio={abrir} abriendo={abriendo} />
+      {studio}
     </div>
   );
 }
