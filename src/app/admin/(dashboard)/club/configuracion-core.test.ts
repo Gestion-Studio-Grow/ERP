@@ -447,6 +447,35 @@ test("leer para restaurar: el respaldo dice de cuándo es y qué trae; el anexo 
   assert.ok(!otro.ok && /otra versión/.test(otro.mensaje));
 });
 
+test("leer para restaurar con la jornada de ahora: un respaldo de otro club no se restaura; uno de este club, sí", () => {
+  const ahora = M.crearClubReal(HOY);
+  const e = structuredClone(ahora);
+  e.usuarios.forEach((u, i) => (u.pin = ["5757", "8484"][i]));
+  assert.ok(leerRespaldo(textoDelRespaldo(e, "u-rober", 1), ahora).ok, "mismo club: se puede restaurar");
+  const otro = structuredClone(e);
+  otro.config.nombre = "Club La Red Pádel";
+  const r = leerRespaldo(textoDelRespaldo(otro, "u-rober", 1), ahora);
+  assert.ok(!r.ok && r.mensaje === "Ese respaldo es de «Club La Red Pádel», no de «Break Point Pádel»: no se restaura. Elegí un respaldo de este club.");
+  // Sin la jornada de ahora (o sin nombre de un lado) se lee como siempre.
+  assert.ok(leerRespaldo(textoDelRespaldo(otro, "u-rober", 1)).ok);
+  const sinNombre = structuredClone(otro);
+  delete (sinNombre.config as { nombre?: string }).nombre;
+  assert.ok(leerRespaldo(textoDelRespaldo(sinNombre, "u-rober", 1), ahora).ok);
+});
+
+test("leer para restaurar con la jornada de ahora: la demo (PIN de ejemplo de los dueños) no se restaura sobre la jornada de verdad", () => {
+  const ahora = M.crearClubReal(HOY);
+  ahora.usuarios.forEach((u, i) => (u.pin = ["5757", "8484"][i]));
+  const r = leerRespaldo(textoDelRespaldo(demo(), "u-rober", 1), ahora);
+  assert.ok(!r.ok && /respaldo de la demo/.test(r.mensaje));
+  // Un respaldo de verdad (dueños con su PIN, o con el viejo de 2 del piloto) se restaura.
+  const deVerdad = structuredClone(ahora);
+  deVerdad.usuarios[0].pin = "57";
+  assert.ok(leerRespaldo(textoDelRespaldo(deVerdad, "u-rober", 1), ahora).ok);
+  // Si lo de ahora ya es la demo (una compu de prueba), la demo se puede volver a restaurar.
+  assert.ok(leerRespaldo(textoDelRespaldo(demo(), "u-rober", 1), demo()).ok);
+});
+
 test("restaurar: el motivo según la causa del almacén (sin lugar, en criollo) y el aviso de la jornada de antes de archivar", () => {
   assert.equal(motivoDeRestaurar({ ok: false, causa: "permiso", motivo: "PIN incorrecto." }), "PIN incorrecto.");
   assert.equal(motivoDeRestaurar({ ok: false, causa: "danado", motivo: "No se puede restaurar: x." }), "No se puede restaurar: x.");
