@@ -45,6 +45,17 @@ export const TIPOS = Object.freeze({
 export const ROLES = Object.freeze({ duenio: "Dueño/a", recepcion: "Recepción" });
 
 /**
+ * Largo del PIN por rol (decisión del dueño, 18/10/2026: «son 4 dígitos para los dueños y 2 para los empleados»).
+ * Lo nuevo (alta, PIN inicial, cambio, «PIN nuevo») se valida con este largo. Lo ya guardado se acepta tal cual:
+ * los dueños del piloto tienen PIN de 2 y siguen entrando; al entrar la app les pide elegir uno de 4
+ * (`pinDesactualizado`). Cualquier rol que no sea dueño usa el de recepción.
+ */
+export const LARGO_PIN = Object.freeze({ duenio: 4, recepcion: 2 });
+/** El largo que tenían todos los PIN antes (lo que puede haber guardado un dueño del piloto). */
+export const LARGO_PIN_VIEJO = 2;
+export const largoPin = (rol) => (rol === "duenio" ? LARGO_PIN.duenio : LARGO_PIN.recepcion);
+
+/**
  * Qué puede hacer cada rol. Recepción opera el día (agenda, cobros, buffet, remitos y egresos en efectivo);
  * el pago a proveedores, sus cuentas corrientes, la configuración y las autorizaciones son del dueño.
  */
@@ -203,11 +214,43 @@ export function hidratarEstado(foto) {
     estado.clima = esObjeto(estado.clima) ? estado.clima : { lluvia: null };
     for (const k of ["pedidos", "novedades", "difusiones", "solicitudesAcceso", "contenido"]) estado[k] = estado[k].filter((x) => esObjeto(x) && /^[\w-]{1,60}$/.test(String(x.id ?? "")));
     estado.clientes = estado.clientes.map(normalizarCliente);
+    // `archivo` (resumen de los días archivados) es opcional: un estado viejo no lo tiene y sigue igual.
+    if ("archivo" in estado) {
+      if (!esObjeto(estado.archivo)) delete estado.archivo;
+      else estado.archivo = normalizarArchivo(estado.archivo);
+    }
     retomarSecuencia(foto.secuencia);
     return { ok: true, estado };
   } catch {
     return { ok: false, motivo: "no se pudo leer" };
   }
+}
+
+const esFecha = (x) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
+const fechaONull = (x) => (esFecha(x) ? x : null);
+const entero = (x) => (Number.isFinite(x) ? Math.round(x) : 0);
+
+/**
+ * El resumen de lo archivado, sano: cada renglón que no se entiende se descarta (sin rechazar la foto) y los números
+ * que no son números quedan en 0. Así un `archivo` tocado a mano no rompe la Configuración ni la seña web.
+ */
+function normalizarArchivo(a) {
+  const dias = (esLista(a.dias) ? a.dias : []).filter((f) => esObjeto(f) && esFecha(f.dia))
+    .map((f) => ({ ...fila0(f.dia), ...Object.fromEntries(Object.keys(fila0(f.dia)).filter((k) => k !== "dia").map((k) => [k, entero(f[k])])) }));
+  const clientes = Object.fromEntries(Object.entries(esObjeto(a.clientes) ? a.clientes : {})
+    .filter(([id, x]) => /^[\w-]{1,60}$/.test(id) && esObjeto(x))
+    .map(([id, x]) => [id, { jugados: Math.max(0, entero(x.jugados)), ultima: esFecha(x.ultima) ? x.ultima : "" }]));
+  const anexos = (esLista(a.anexos) ? a.anexos : []).filter((x) => esObjeto(x) && esFecha(x.hasta)).map((x) => ({
+    desde: fechaONull(x.desde), hasta: x.hasta, fecha: fechaONull(x.fecha), min: Number.isFinite(x.min) ? x.min : null,
+    por: typeof x.por === "string" ? x.por.slice(0, 60) : null,
+    conteos: Object.fromEntries(Object.entries(esObjeto(x.conteos) ? x.conteos : {}).filter(([, n]) => Number.isFinite(n)).map(([k, n]) => [k, Math.max(0, Math.round(n))])),
+  }));
+  const codigos = (lista, re) => [...new Set((esLista(lista) ? lista : []).filter((c) => typeof c === "string" && re.test(c)))];
+  const c = esObjeto(a.codigos) ? a.codigos : {};
+  return {
+    ...a, hasta: fechaONull(a.hasta), dias, clientes, anexos,
+    codigos: { pedidos: codigos(c.pedidos, /^T-[A-Z0-9]{4}$/), refs: codigos(c.refs, /^BP-[A-Z0-9]{4}$/) },
+  };
 }
 
 function normalizarCliente(c) {
@@ -243,12 +286,26 @@ export function verificarPin(estado, usuarioId, pin) {
   return { ok: true, usuario: u };
 }
 
-/** Permiso + (si se pide) PIN. Lo usan todas las operaciones sensibles. */
+/** Lo que se le dice a un dueño que FIRMA con el PIN viejo de 2 sin haberlo cambiado todavía. */
+export const MOTIVO_PIN_VIEJO = `Ese es tu PIN viejo: entrá a la compu con él y elegí uno de ${LARGO_PIN.duenio}.`;
+
+/**
+ * ¿Este PIN FIRMA? Como `verificarPin`, pero un dueño con el PIN viejo de 2 (`pinDesactualizado`) no firma nada
+ * (descuentos, aprobaciones, caja, accesos): con ese PIN sólo entra, y al entrar se le pide el de 4. Entrar y cambiar
+ * el PIN siguen con `verificarPin` (si no, el dueño del piloto se quedaría afuera).
+ */
+export function verificarFirma(estado, usuarioId, pin) {
+  const v = verificarPin(estado, usuarioId, pin);
+  if (v.ok && pinDesactualizado(estado, usuarioId)) return { ok: false, motivo: MOTIVO_PIN_VIEJO, pinViejo: true };
+  return v;
+}
+
+/** Permiso + (si se pide) PIN. Lo usan todas las operaciones sensibles: el PIN tiene que FIRMAR (`verificarFirma`). */
 function autorizar(estado, { usuarioId, pin } = {}, accion, conPin) {
   const u = usuario(estado, usuarioId);
   if (!u || u.activo === false) return { ok: false, motivo: "Elegí quién está usando el sistema." };
   if (!puede(estado, usuarioId, accion)) return { ok: false, motivo: `${u.nombre} no tiene permiso para esto.` };
-  if (conPin) return verificarPin(estado, usuarioId, pin);
+  if (conPin) return verificarFirma(estado, usuarioId, pin);
   return { ok: true, usuario: u };
 }
 
@@ -259,10 +316,76 @@ export function usuarioPorPin(estado, pin) {
   return u ? { ok: true, usuario: u } : { ok: false, motivo: "PIN incorrecto." };
 }
 
-function pinLibre(estado) {
+/** Como `usuarioPorPin`, para FIRMAR (p. ej. el descuento): el PIN viejo de 2 de un dueño no firma. */
+export function firmaPorPin(estado, pin) {
+  const r = usuarioPorPin(estado, pin);
+  if (r?.ok && pinDesactualizado(estado, r.usuario.id)) return { ok: false, motivo: MOTIVO_PIN_VIEJO, pinViejo: true, usuario: r.usuario };
+  return r;
+}
+
+/**
+ * Tope de intentos de PIN, uno solo para toda la compu (decisión del Gate, 18/10/2026): la pantalla bloqueada,
+ * «¿Quién usa el sistema?», el descuento y la aprobación en la misma compu cuentan juntos. 5 PIN mal → espera, y cada
+ * tanda espera más (30 s, 2 min, 10 min). La app lo guarda en `bp-intentos`, así sobrevive a recargar.
+ * Un acierto de RECEPCIÓN no borra los fallos (si no, alguien de recepción probaría 4 PIN del dueño, pondría el suyo y
+ * volvería a empezar): los borra un acierto de un dueño, o 8 horas sin fallos.
+ */
+export const TOPE_INTENTOS_PIN = 5;
+export const ESPERAS_PIN_S = Object.freeze([30, 120, 600]);
+const OLVIDO_FALLOS_MS = 8 * 60 * 60 * 1000;
+export function intentosPin(guardado) {
+  const t = guardado && typeof guardado === "object" ? guardado : {};
+  const n = (x) => (Number.isFinite(Number(x)) && Number(x) > 0 ? Number(x) : 0);
+  return { fallos: n(t.fallos), esperaHasta: n(t.esperaHasta), tandas: n(t.tandas), ultimoFallo: n(t.ultimoFallo) };
+}
+/** Cuántos ms falta esperar para poder probar otro PIN (0 = se puede). */
+export const esperaPin = (t, ahoraMs) => Math.max(0, intentosPin(t).esperaHasta - ahoraMs);
+/**
+ * Anota un intento (ya hecho: no se llama durante la espera). `duenio`: si el que acertó es dueño. Devuelve el estado
+ * nuevo (no toca el que recibe).
+ */
+export function anotarIntentoPin(t, { ok, duenio = false }, ahoraMs) {
+  let x = intentosPin(t);
+  if (ok) return duenio ? intentosPin() : x;
+  if (x.ultimoFallo && ahoraMs - x.ultimoFallo >= OLVIDO_FALLOS_MS) x = intentosPin();
+  if (x.fallos >= TOPE_INTENTOS_PIN && ahoraMs >= x.esperaHasta) x.fallos = 0; // ya esperó: arranca otra tanda
+  x.fallos += 1;
+  x.ultimoFallo = ahoraMs;
+  if (x.fallos >= TOPE_INTENTOS_PIN) {
+    x.tandas += 1;
+    x.esperaHasta = ahoraMs + ESPERAS_PIN_S[Math.min(x.tandas, ESPERAS_PIN_S.length) - 1] * 1000;
+  }
+  return x;
+}
+
+/**
+ * ¿Ese PIN nuevo se adivina fácil? Devuelve el motivo, o "" si sirve. Vale para el que elige cada uno (consola,
+ * «Cambiar mi PIN», el paso del PIN viejo) y para el que genera el sistema.
+ *  - Nunca un PIN de ejemplo de la demo (1111, 2222, 33, 44: están a la vista en `?demo=1`).
+ *  - Nunca todos los números iguales (0000, 1111…; en 2: 00, 11…).
+ *  - Con 4 números (dueños), nunca una escalera de a uno: 0123, 1234…6789 y 9876…3210.
+ * Con 2 números (recepción) NO se filtran escaleras: hay sólo 100 combinaciones y sacando las 10 dobles quedan 90
+ * (81 sin cero adelante para las generadas); sacar también 12, 23, 21… dejaría muy pocas para un club con varios
+ * turnos de recepción, y un PIN de 2 se adivina igual en pocos intentos (lo que lo cuida es el tope de intentos).
+ */
+export function pinFacil(rol, pin) {
+  const p = String(pin ?? "").trim();
+  if (USUARIOS_DEMO.some((u) => u.pin === p)) return "Ese es un PIN de ejemplo de la demo: elegí otro.";
+  if (/^(\d)\1+$/.test(p)) return "Con todos los números iguales se adivina fácil: elegí otro.";
+  if (largoPin(rol) >= 4 && p.length >= 4) {
+    const d = [...p].map(Number);
+    const paso = d[1] - d[0];
+    if (Math.abs(paso) === 1 && d.every((x, i) => i === 0 || x - d[i - 1] === paso)) return "Una escalera (como 1234 o 4321) se adivina fácil: elegí otro.";
+  }
+  return "";
+}
+
+/** Un PIN al azar del largo del rol que no repite ningún otro activo ni es fácil (sin cero adelante: 10–99 o 1000–9999). */
+function pinLibre(estado, rol) {
   const usados = new Set(estado.usuarios.filter((u) => u.activo !== false).map((u) => u.pin));
+  const largo = largoPin(rol);
   const libres = [];
-  for (let n = 10; n <= 99; n++) if (!usados.has(String(n))) libres.push(String(n));
+  for (let n = 10 ** (largo - 1); n < 10 ** largo; n++) if (!usados.has(String(n)) && !pinFacil(rol, String(n))) libres.push(String(n));
   if (!libres.length) return null;
   const azarSeguro = globalThis.crypto?.getRandomValues ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] : Math.floor(Math.random() * 2 ** 32);
   return libres[azarSeguro % libres.length];
@@ -281,8 +404,8 @@ export function solicitarAcceso(estado, nombre, ahora) {
 }
 
 /**
- * El dueño otorga el acceso: elige el rol y el sistema genera un PIN de 2 dígitos que no repite ningún
- * otro activo. El PIN se muestra UNA vez para entregárselo a la persona (acceso dinámico: se revoca o se
+ * El dueño otorga el acceso: elige el rol y el sistema genera un PIN del largo del rol (dueño 4, recepción 2) que
+ * no repite ningún otro activo. El PIN se muestra UNA vez para entregárselo a la persona (acceso dinámico: se revoca o se
  * regenera cuando haga falta).
  */
 export function otorgarAcceso(estado, solicitudId, { rol }, auth, ahora) {
@@ -291,7 +414,7 @@ export function otorgarAcceso(estado, solicitudId, { rol }, auth, ahora) {
   const s = estado.solicitudesAcceso.find((x) => x.id === solicitudId && x.estado === "pendiente");
   if (!s) return { ok: false, motivo: "Ese pedido ya no está pendiente." };
   if (!ROLES[rol]) return { ok: false, motivo: "Elegí el rol." };
-  const pin = pinLibre(estado);
+  const pin = pinLibre(estado, rol);
   if (!pin) return { ok: false, motivo: "No quedan PIN libres: revocá accesos que no se usen." };
   const u = { id: nuevoId("u"), nombre: s.nombre, rol, pin, activo: true };
   estado.usuarios.push(u);
@@ -331,14 +454,30 @@ export function regenerarPin(estado, usuarioObjetivoId, auth, ahora) {
   if (!u || u.activo === false) return { ok: false, motivo: "Ese usuario no tiene acceso." };
   const viejo = u.pin;
   u.pin = "";
-  const pin = pinLibre(estado);
+  const pin = pinLibre(estado, u.rol);
   if (!pin) { u.pin = viejo; return { ok: false, motivo: "No quedan PIN libres." }; }
   u.pin = pin;
   registrar(estado, `${a.usuario.nombre} generó un PIN nuevo para ${u.nombre}.`, ahora);
   return { ok: true, pin };
 }
 
-const pinValido = (pin) => /^\d{2}$/.test(String(pin ?? "").trim());
+/** ¿El PIN tiene el largo de ese rol? (sólo números). Vale para todo PIN nuevo. */
+export const pinValidoPara = (rol, pin) => new RegExp(`^\\d{${largoPin(rol)}}$`).test(String(pin ?? "").trim());
+/**
+ * ¿Se puede intentar entrar con esto? El largo del rol o, para un dueño, el viejo de 2 (los PIN del piloto). Lo usa
+ * el celular del dueño, que no tiene la jornada y no sabe si ese dueño ya cambió el suyo.
+ */
+export const pinAceptadoPara = (rol, pin) => pinValidoPara(rol, pin) || (rol === "duenio" && new RegExp(`^\\d{${LARGO_PIN_VIEJO}}$`).test(String(pin ?? "").trim()));
+/** Qué se le dice a quien pone un PIN del largo equivocado. */
+export const textoLargoPin = (rol, nuevo = false) => (rol === "duenio" ? `El PIN ${nuevo ? "nuevo " : ""}de dueño son ${LARGO_PIN.duenio} números.` : `El PIN ${nuevo ? "nuevo " : ""}son ${LARGO_PIN.recepcion} números.`);
+/**
+ * ¿Ese usuario tiene guardado un PIN del largo viejo? (dueños del piloto con 2). Entra igual, nunca se lo deja
+ * afuera; la app le pide elegir uno de 4 antes de seguir. El PIN viejo no se muestra en ningún lado.
+ */
+export function pinDesactualizado(estado, usuarioId) {
+  const u = usuario(estado, usuarioId);
+  return !!u && u.activo !== false && !!u.pin && u.pin.length !== largoPin(u.rol);
+}
 const pinEnUso = (estado, pin, salvo) => estado.usuarios.some((u) => u.activo !== false && u.id !== salvo && u.pin === String(pin).trim());
 
 /** Un dueño da de alta a alguien directamente (sin pedido previo). El PIN lo genera el sistema y se ve una vez. */
@@ -349,7 +488,7 @@ export function altaUsuario(estado, { nombre, rol = "recepcion" }, auth, ahora) 
   if (!limpio) return { ok: false, motivo: "Escribí el nombre." };
   if (!ROLES[rol]) return { ok: false, motivo: "Elegí el rol." };
   if (estado.usuarios.some((u) => u.activo !== false && u.nombre.toLowerCase() === limpio.toLowerCase())) return { ok: false, motivo: `Ya hay un usuario ${limpio}.` };
-  const pin = pinLibre(estado);
+  const pin = pinLibre(estado, rol);
   if (!pin) return { ok: false, motivo: "No quedan PIN libres: sacá accesos que no se usen." };
   const u = { id: nuevoId("u"), nombre: limpio, rol, pin, activo: true };
   estado.usuarios.push(u);
@@ -365,22 +504,91 @@ export function definirPinInicial(estado, usuarioId, pin, ahora) {
   const u = usuario(estado, usuarioId);
   if (!u || u.activo === false) return { ok: false, motivo: "Ese usuario no tiene acceso." };
   if (u.pin) return { ok: false, motivo: `${u.nombre} ya tiene PIN.` };
-  if (!pinValido(pin)) return { ok: false, motivo: "El PIN son 2 números." };
+  if (!pinValidoPara(u.rol, pin)) return { ok: false, motivo: textoLargoPin(u.rol) };
+  if (pinFacil(u.rol, pin)) return { ok: false, motivo: pinFacil(u.rol, pin) };
   if (pinEnUso(estado, pin, u.id)) return { ok: false, motivo: "Ese PIN ya lo usa otra persona: elegí otro." };
   u.pin = String(pin).trim();
   registrar(estado, `${u.nombre} armó su PIN.`, ahora);
   return { ok: true };
 }
 
-/** Cada uno cambia su PIN sabiendo el actual. */
+/**
+ * Cada uno cambia su PIN sabiendo el actual. El nuevo va con el largo de su rol; el actual se acepta como esté
+ * guardado (así un dueño con el PIN viejo de 2 pasa al de 4 sin perder nada).
+ */
 export function cambiarMiPin(estado, { usuarioId, pin }, nuevo, ahora) {
   const v = verificarPin(estado, usuarioId, pin);
   if (!v.ok) return v;
-  if (!pinValido(nuevo)) return { ok: false, motivo: "El PIN nuevo son 2 números." };
+  if (!pinValidoPara(v.usuario.rol, nuevo)) return { ok: false, motivo: textoLargoPin(v.usuario.rol, true) };
+  if (pinFacil(v.usuario.rol, nuevo)) return { ok: false, motivo: pinFacil(v.usuario.rol, nuevo) };
   if (pinEnUso(estado, nuevo, usuarioId)) return { ok: false, motivo: "Ese PIN ya lo usa otra persona: elegí otro." };
   v.usuario.pin = String(nuevo).trim();
   registrar(estado, `${v.usuario.nombre} cambió su PIN.`, ahora);
   return { ok: true };
+}
+
+/**
+ * Limpieza para el go-live: después de la prueba, se borra lo TRANSACCIONAL ya resuelto (turnos jugados, cuentas de
+ * cargos cerradas, caja cerrada,
+ * pedidos, créditos pendientes, difusiones, registro) y se conserva lo MAESTRO y los turnos por jugar con su seña.
+ * Si hay plata o decisiones pendientes (pendientesGoLive), no limpia: dice qué resolver. Lo MAESTRO (canchas, horarios, precios, productos,
+ * usuarios y accesos, clientes, proveedores, turnos fijos, contenido). Los SALDOS (cuenta corriente, créditos, fiados
+ * y faltas de los clientes; remitos y pagos que forman la deuda con proveedores) se conservan si `conservarSaldos`
+ * (por defecto: es plata real).
+ * Sólo un dueño con su PIN. La app descarga un respaldo antes.
+ */
+/**
+ * Lo que tiene plata o una decisión pendiente y NO se puede borrar en la limpieza: hay que resolverlo antes (cobrar,
+ * pasar a cuenta corriente, devolver, marcar la falta, cerrar la caja). Lista en criollo, vacía si está todo en orden.
+ */
+export function pendientesGoLive(estado, ahora) {
+  const out = [];
+  const abiertas = estado.cuentas.filter((c) => c.estado === "abierta" && (saldoCuenta(c) > 0 || c.items.some((i) => i.alquiler && !i.devuelto)));
+  if (abiertas.length) out.push(`Cuentas de cargos abiertas: ${abiertas.map((c) => `${c.titular} (${pesos(Math.max(0, saldoCuenta(c)))})`).join(", ")}. Cobralas o pasalas a cuenta corriente.`);
+  const enJuego = estado.reservas.filter((r) => r.estado === "en_cancha");
+  if (enJuego.length) out.push(`Canchas en juego: ${enJuego.map((r) => `${r.titular} ${hhmm(r.inicio)}`).join(", ")}. Cerralas primero.`);
+  const sinResolver = estado.reservas.filter((r) => r.estado === "reservada" && ahora && minutosHasta(ahora, r.fecha, r.inicio) + r.duracion <= 0);
+  if (sinResolver.length) out.push(`Turnos que ya pasaron sin abrir ni marcar la falta: ${sinResolver.map((r) => `${r.titular} ${r.fecha.slice(8)}/${r.fecha.slice(5, 7)} ${hhmm(r.inicio)}`).join(", ")}.`);
+  const devolver = estado.reservas.filter((r) => r.devolucionPendiente > 0);
+  if (devolver.length) out.push(`Plata para devolver: ${devolver.map((r) => `${r.titular} ${pesos(r.devolucionPendiente)}`).join(", ")}.`);
+  const faltas = estado.reservas.filter((r) => r.deudaSinFicha > 0);
+  if (faltas.length) out.push(`Faltas sin cobrar (sin ficha): ${faltas.map((r) => `${r.titular} ${pesos(r.deudaSinFicha)}`).join(", ")}.`);
+  const cajas = cajasConMovimientosSinCerrar(estado);
+  if (cajas.length) out.push(`Cajas sin cerrar: ${cajas.map((d) => `${d.slice(8)}/${d.slice(5, 7)}`).join(", ")}. Cerralas antes de limpiar.`);
+  return out;
+}
+
+/** Lo que pasa al go-live: turnos que todavía no se jugaron (con su seña) y señas en suspenso de huecos por venir. */
+const quedaParaElGoLive = (r, ahora) => (ahora ? r.fecha >= ahora.fecha : true) && (r.estado === "reservada" || (r.estado === "cancelada" && r.senaEnSuspenso));
+
+export function limpiarParaGoLive(estado, { conservarSaldos = true, conservarStock = true } = {}, auth, ahora) {
+  const a = autorizar(estado, auth, "configurar", true);
+  if (!a.ok) return a;
+  const pendientes = pendientesGoLive(estado, ahora);
+  if (pendientes.length) return { ok: false, motivo: `Antes de limpiar hay que resolver: ${pendientes.join(" ")}`, pendientes };
+  const quedan = estado.reservas.filter((r) => quedaParaElGoLive(r, ahora));
+  const cuenta = { turnos: estado.reservas.length - quedan.length, cuentas: estado.cuentas.length, movimientos: estado.caja.movimientos.length, pedidos: (estado.pedidos ?? []).length, quedan: quedan.length };
+  estado.reservas = quedan;
+  estado.cuentas = [];
+  estado.caja = { fondo: estado.caja.fondo, movimientos: [], cierres: [] };
+  estado.novedades = [];
+  estado.pedidos = [];
+  estado.difusiones = [];
+  // Lo que se le debe a un proveedor sale de sus remitos y pagos: con los saldos se conservan.
+  if (!conservarSaldos) { estado.remitos = []; estado.pagosProveedor = []; }
+  estado.espera = [];
+  estado.solicitudesAcceso = (estado.solicitudesAcceso ?? []).filter((x) => x.estado === "pendiente");
+  estado.bloqueos = (estado.bloqueos ?? []).filter((b) => !ahora?.fecha || (b.fecha ?? "") >= ahora.fecha);
+  // «Esta semana no vienen» ya cargado para fechas por venir se respeta; lo viejo se limpia.
+  for (const f of estado.fijos ?? []) f.excepciones = (f.excepciones ?? []).filter((d) => !ahora?.fecha || d >= ahora.fecha);
+  for (const c of Object.keys(estado.luces)) estado.luces[c] = false;
+  for (const p of estado.productos) { p.prestados = 0; if (!conservarStock && !p.alquiler && !p.plato) p.stock = null; }
+  if (!conservarSaldos) for (const c of estado.clientes) { c.deuda = 0; c.movCC = []; c.monedero = 0; c.fiados = []; c.strikes = 0; }
+  estado.log = [];
+  delete estado.archivo; // el resumen de lo archivado era de la prueba: el día 1 arranca sin historia
+  estado.config.goLive = { fecha: ahora?.fecha ?? null, por: a.usuario.nombre, conservarSaldos };
+  registrar(estado, `${a.usuario.nombre} hizo la limpieza para el go-live: quedaron ${cuenta.quedan} turnos por jugar (con su seña); se borraron ${cuenta.turnos} turnos, ${cuenta.cuentas} cuentas, ${cuenta.movimientos} movimientos de caja y ${cuenta.pedidos} pedidos${conservarSaldos ? "; los saldos de los clientes se conservaron" : "; los saldos de los clientes quedaron en cero"}.`, ahora);
+  return { ok: true, borrado: cuenta };
 }
 
 /** Cierra la consola del primer arranque: hace falta al menos un dueño con PIN. */
@@ -629,7 +837,8 @@ function fnv1a(texto) {
 /**
  * Código de aprobación por WhatsApp (sin servidor): lo calcula el celular del dueño con SU PIN y los datos del
  * pedido, y la PC del club lo verifica con el PIN de cada dueño. Prueba que quien sabe el PIN de un dueño aprobó
- * ESTE pedido por ESTE monto. Es tan fuerte como el PIN (2 dígitos): por eso hay tope de intentos por pedido.
+ * ESTE pedido por ESTE monto. Es tan fuerte como el PIN del dueño (4 dígitos; 2 si todavía tiene el del piloto):
+ * por eso hay tope de intentos por pedido. Funciona igual con cualquier largo: el PIN entra como texto al hash.
  */
 export function codigoAprobacion({ pin, novedadId, clienteId, monto, fecha }) {
   const base = `${String(pin ?? "").trim()}|${novedadId}|${clienteId}|${Math.round(Number(monto))}|${fecha ?? ""}`;
@@ -730,7 +939,8 @@ export function requiereSenaWeb(estado, clienteId) {
   if (modo === "siempre") return true;
   const cl = clienteId ? cliente(estado, clienteId) : null;
   if (!cl || cl.strikes > 0) return true;
-  const jugados = estado.reservas.filter((r) => r.clienteId === cl.id && r.estado === "finalizada").length;
+  // Los turnos ya archivados también cuentan (archivarDiasCerrados deja cuántos jugó cada uno).
+  const jugados = estado.reservas.filter((r) => r.clienteId === cl.id && r.estado === "finalizada").length + (estado.archivo?.clientes?.[cl.id]?.jugados ?? 0);
   return jugados < (politica.turnosConfianza ?? 3);
 }
 
@@ -766,7 +976,7 @@ const LETRAS_REF = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sin 0/O ni 1/I: se dic
 export function nuevaRefPago(estado, azar = Math.random) {
   let s;
   do s = "BP-" + Array.from({ length: 4 }, () => LETRAS_REF[Math.floor(azar() * LETRAS_REF.length)]).join("");
-  while (estado.reservas.some((r) => r.ref === s));
+  while (estado.reservas.some((r) => r.ref === s) || codigoArchivado(estado, "refs", s));
   return s;
 }
 
@@ -1852,8 +2062,12 @@ export function resumenCaja(estado, dia) {
  */
 export function cajasSinCerrar(estado, ahora) {
   const hoy = diaDeCaja(estado, ahora.fecha, ahora.min);
+  return cajasConMovimientosSinCerrar(estado).filter((d) => d < hoy);
+}
+/** Toda caja con movimientos que nadie cerró (también la de hoy y la siguiente, si hoy ya se cerró). */
+export function cajasConMovimientosSinCerrar(estado) {
   const dias = new Set(estado.caja.movimientos.map((m) => m.caja ?? (m.fecha && diaDeCaja(estado, m.fecha, m.min ?? 0))).filter(Boolean));
-  return [...dias].filter((d) => d < hoy && !cajaCerrada(estado, d)).sort();
+  return [...dias].filter((d) => !cajaCerrada(estado, d)).sort();
 }
 
 export function cerrarCaja(estado, { contado, usuarioId, pin, dia: diaPedido = null }, ahora) {
@@ -1861,7 +2075,7 @@ export function cerrarCaja(estado, { contado, usuarioId, pin, dia: diaPedido = n
   if (!a.ok) return a;
   let dia = cajaAbierta(estado, ahora);
   if (diaPedido) {
-    if (!cajasSinCerrar(estado, ahora).includes(diaPedido)) return { ok: false, motivo: "Esa caja ya está cerrada o no tiene movimientos." };
+    if (!cajasConMovimientosSinCerrar(estado).includes(diaPedido)) return { ok: false, motivo: "Esa caja ya está cerrada o no tiene movimientos." };
     dia = diaPedido;
   } else if (dia !== diaDeCaja(estado, ahora.fecha, ahora.min)) return { ok: false, motivo: "Esta caja ya está cerrada. Lo que se cobre desde ahora entra en la caja siguiente." };
   const r = resumenCaja(estado, dia);
@@ -1871,6 +2085,304 @@ export function cerrarCaja(estado, { contado, usuarioId, pin, dia: diaPedido = n
   estado.caja.cierres.push(cierre);
   registrar(estado, `Cierre de caja del ${dia.slice(8)}/${dia.slice(5, 7)} por ${a.usuario.nombre}: diferencia ${pesos(cierre.diferencia)}.`, ahora);
   return { ok: true, cierre };
+}
+
+// ───────────────────────── archivo de días cerrados (la jornada real no se llena) ─────────────────────────
+//
+// Un mes de club lleno pesa ~2,9 MB y el navegador guarda ~5 MB: lo ya cerrado se pasa a un ANEXO (un archivo que el
+// dueño se queda) y en el estado queda un resumen chico por día. Lo vivo nunca se archiva.
+
+/** Lo que queda siempre a mano sin archivar: los últimos 21 días (el Tablero mira 7; las audiencias, 30 por el resumen). */
+export const DIAS_SIN_ARCHIVAR = 21;
+/** Nunca se archiva la última semana: el Tablero, el mapa de calor y la venta de 7 días la leen entera. */
+const DIAS_MINIMOS_SIN_ARCHIVAR = 7;
+
+/** Hasta qué día de caja se propone archivar: lo que tenga más de `dias` días (por defecto 21). */
+export function diaParaArchivar(estado, ahora, dias = DIAS_SIN_ARCHIVAR) {
+  const n = Math.max(DIAS_MINIMOS_SIN_ARCHIVAR, Math.round(Number(dias)) || DIAS_SIN_ARCHIVAR);
+  return sumarDias(diaDeCaja(estado, ahora.fecha, ahora.min), -n);
+}
+
+const fila0 = (dia) => ({ dia, turnos: 0, faltas: 0, cancelados: 0, vendidoCanchas: 0, cobradoCanchas: 0, cobradoCuentas: 0, monedero: 0, ingresosCaja: 0, egresosCaja: 0, movimientos: 0, cuentas: 0, pedidos: 0 });
+
+/**
+ * Suma al resumen por día lo de estas listas (las del estado o las de un anexo). Los turnos van por su fecha; lo
+ * cobrado, por el día de caja del cobro (`diaDeCaja`); los movimientos, por su caja.
+ */
+function sumarAlResumen(dias, { reservas = [], cuentas = [], movimientos = [], pedidos = [] }, corte) {
+  const conCorte = { config: { corteCaja: corte } };
+  const dia = (t) => (t?.fecha ? diaDeCaja(conCorte, t.fecha, t.min ?? 0) : "sin-fecha");
+  const fila = (d) => { if (!dias.has(d)) dias.set(d, fila0(d)); return dias.get(d); };
+  for (const r of reservas) {
+    const f = fila(r.fecha ?? "sin-fecha");
+    if (r.estado === "finalizada") { f.turnos++; f.vendidoCanchas += r.precio ?? 0; }
+    if (r.estado === "no_show") f.faltas++;
+    if (r.estado === "cancelada" || r.estado === "suspendida") f.cancelados++;
+    for (const p of r.pagos ?? []) { const x = fila(dia(p)); if (p.medio === "monedero") x.monedero += p.monto; else x.cobradoCanchas += p.monto; }
+  }
+  for (const c of cuentas) {
+    fila(dia(c.cerrada)).cuentas++;
+    for (const p of c.pagos ?? []) { const x = fila(dia(p)); if (p.medio === "monedero") x.monedero += p.monto; else x.cobradoCuentas += p.monto; }
+  }
+  for (const m of movimientos) {
+    const x = fila(m.caja ?? dia(m));
+    x.movimientos++;
+    if (m.tipo === "ingreso") x.ingresosCaja += m.monto; else x.egresosCaja += m.monto;
+  }
+  for (const pd of pedidos) fila(dia(pd.cobrado ?? pd)).pedidos++;
+  return dias;
+}
+
+/**
+ * La plata por día: lo cobrado de canchas y de cargos (sin créditos: es lo que entra a la caja), lo pagado con
+ * créditos y lo que entró y salió de la caja. Recibe el estado o un anexo (`anexo-jornada`): sirve para el resumen
+ * y para comprobar al centavo que archivar no pierde ni duplica plata (estado = podado + anexo, día por día).
+ */
+export function plataPorDia(datos) {
+  const corte = datos?.config?.corteCaja ?? datos?.corteCaja ?? 0;
+  const movimientos = datos?.caja?.movimientos ?? datos?.movimientos ?? [];
+  const dias = sumarAlResumen(new Map(), { reservas: datos?.reservas ?? [], cuentas: datos?.cuentas ?? [], movimientos }, corte);
+  return Object.fromEntries([...dias.values()].sort((a, b) => a.dia.localeCompare(b.dia)).map((f) => [f.dia, { canchas: f.cobradoCanchas, cuentas: f.cobradoCuentas, monedero: f.monedero, ingresos: f.ingresosCaja, egresos: f.egresosCaja }]));
+}
+
+/** ¿Ese código de pedido (T-XXXX) o de seña (BP-XXXX) ya salió en un archivo? */
+function codigoArchivado(estado, tipo, codigo) {
+  const lista = estado.archivo?.codigos?.[tipo];
+  return Array.isArray(lista) && lista.includes(codigo);
+}
+
+/**
+ * Huella del anexo (dos pasadas de FNV-1a, 16 caracteres hex): prueba que el archivo que el dueño eligió es el MISMO
+ * que se va a archivar. No entran `generado` ni `por` (cambian con el minuto y con quién lo hace).
+ */
+export function huellaAnexo(anexo) {
+  if (!esObjeto(anexo)) return "";
+  const resto = { ...anexo };
+  delete resto.generado;
+  delete resto.por;
+  const texto = JSON.stringify(resto);
+  return ["bp-anexo-a", "bp-anexo-b"].map((sal) => fnv1a(`${sal}|${texto}`).toString(16).padStart(8, "0")).join("");
+}
+
+/** Huella del respaldo completo que va en el archivo para archivar (un peso tocado o un turno de menos la cambian). */
+export function huellaRespaldo(respaldo) {
+  if (!esObjeto(respaldo)) return "";
+  const texto = JSON.stringify(respaldo);
+  return ["bp-resp-a", "bp-resp-b"].map((sal) => fnv1a(`${sal}|${texto}`).toString(16).padStart(8, "0")).join("");
+}
+
+/**
+ * El archivo único que se descarga para archivar (una sola descarga: el navegador suele bloquear la segunda del mismo
+ * clic): el respaldo completo de antes de archivar (`respaldo`, el sobre v1 de siempre) y el anexo de los días que
+ * salen (`anexo`), con su huella y sus conteos para verificarlo después.
+ */
+export function paqueteParaArchivar(respaldo, res) {
+  return {
+    v: 1, tipo: "respaldo-y-archivo", club: res.anexo.club ?? "", hasta: res.anexo.hasta, conteos: res.conteos,
+    huella: huellaAnexo(res.anexo), huellaRespaldo: huellaRespaldo(respaldo), respaldo, anexo: res.anexo,
+  };
+}
+
+/**
+ * Paso 2 de archivar: ¿el archivo que eligió el dueño es el que se descargó para ESTE archivado? Compara el día, los
+ * conteos y la huella del anexo con lo que se va a archivar ahora (`res`, recalculado). `huellaDescargada` es la del
+ * paso 1: sirve para decir si el archivo es el bueno pero algo cambió en el medio (hay que descargar de nuevo).
+ */
+export function verificarPaqueteArchivo(paquete, res, huellaDescargada = null) {
+  if (!esObjeto(paquete) || paquete.tipo !== "respaldo-y-archivo" || !esObjeto(paquete.anexo) || !esObjeto(paquete.respaldo))
+    return { ok: false, motivo: "Ese no es el archivo para archivar: elegí el «breakpoint-respaldo-y-archivo-….json» que se descargó.", causa: "otro" };
+  const huella = huellaAnexo(paquete.anexo);
+  if (huella !== paquete.huella || paquete.respaldo.v !== VERSION_ESTADO || !esObjeto(paquete.respaldo.estado))
+    return { ok: false, motivo: "Ese archivo está incompleto o dañado: descargalo de nuevo.", causa: "danado" };
+  // El respaldo de adentro también tiene que servir para «Restaurar»: intacto (su huella), se abre y, archivado hasta el
+  // mismo día, da exactamente el anexo del archivo (si alguien lo tocó o es de otra jornada, no coincide).
+  if (huellaRespaldo(paquete.respaldo) !== paquete.huellaRespaldo)
+    return { ok: false, motivo: "Ese archivo está incompleto o dañado (su respaldo no está entero): descargalo de nuevo.", causa: "danado" };
+  const h = hidratarEstado(paquete.respaldo);
+  const desdeRespaldo = h.ok ? archivarDiasCerrados(h.estado, paquete.anexo.hasta) : null;
+  if (!desdeRespaldo?.ok || desdeRespaldo.vacio || huellaAnexo(desdeRespaldo.anexo) !== huella)
+    return { ok: false, motivo: "Ese archivo está incompleto o dañado (su respaldo no coincide con los días archivados): descargalo de nuevo.", causa: "danado" };
+  const igual = res?.ok && !res.vacio && paquete.anexo.hasta === res.anexo.hasta && huella === huellaAnexo(res.anexo) &&
+    JSON.stringify(paquete.conteos) === JSON.stringify(res.conteos);
+  if (igual) return { ok: true, huella };
+  if (huellaDescargada && huella === huellaDescargada)
+    return { ok: false, motivo: "Cambió algo desde que descargaste (se cobró o se cerró algo de esos días): descargá el archivo de nuevo y elegí el nuevo.", causa: "cambio" };
+  return { ok: false, motivo: "Ese archivo es de otro archivado: elegí el último que descargaste.", causa: "otro" };
+}
+
+/**
+ * «Restaurar desde un archivo»: acepta el respaldo de siempre (sobre v1) o el archivo para archivar (restaura su
+ * `respaldo`, la jornada de antes de archivar). El anexo solo NO es un respaldo: se explica.
+ */
+export function respaldoDesdeArchivo(datos) {
+  if (esObjeto(datos) && datos.tipo === "anexo-jornada")
+    return { ok: false, motivo: "Ese es el archivo de los días archivados (la historia de esos días), no un respaldo de la jornada. Para restaurar elegí un «breakpoint-jornada-….json» o un «breakpoint-respaldo-y-archivo-….json»." };
+  if (esObjeto(datos) && datos.tipo === "respaldo-y-archivo") {
+    if (!esObjeto(datos.respaldo)) return { ok: false, motivo: "A ese archivo le falta el respaldo: elegí otro." };
+    return { ok: true, foto: datos.respaldo, antesDeArchivar: true };
+  }
+  return { ok: true, foto: datos, antesDeArchivar: false };
+}
+
+/**
+ * Archiva los días cerrados hasta `hastaDia` (inclusive). PURA: no toca `estado`; devuelve una copia podada y el
+ * anexo con todo lo que salió. Sólo sale lo TERMINADO de días cuya caja está CERRADA:
+ *   · turnos finalizados, cancelados o con falta (y suspendidos sin plata), sin devolución ni falta por cobrar, sin
+ *     seña en suspenso, con todos sus cobros en cajas cerradas y sin cuentas de cargos que se queden;
+ *   · cuentas de cargos cerradas, con todos sus pagos en cajas cerradas;
+ *   · los movimientos de las cajas cerradas (los `cierres` se quedan: son chicos y la conciliación los usa);
+ *   · pedidos de la tienda entregados, cancelados o a cuenta (con su cuenta archivada); pedidos de crédito ya
+ *     resueltos; difusiones viejas (la última se queda); el registro, la lista de espera y los bloqueos de esos días;
+ *   · de cada cliente, los movimientos viejos de la cuenta corriente (queda una línea «saldo anterior» con el mismo
+ *     saldo) y los fiados ya usados.
+ * NO toca lo maestro (clientes y sus saldos, productos, usuarios, canchas, proveedores con sus remitos y pagos,
+ * fijos, config, contenido) ni nada vivo. Un cobro hecho después de cerrar su caja entró en la caja siguiente
+ * (`cajaAbierta`): esa también tiene que estar cerrada.
+ * En el estado queda `archivo` = { hasta, dias: [resumen por día], clientes: { id: { jugados, ultima } }, anexos }:
+ * con eso la seña web («turnos de confianza») y las audiencias de las novedades siguen viendo lo archivado.
+ * Idempotente: archivar otra vez lo mismo no cambia nada (`vacio: true`). Con `ahora`, nunca archiva la última semana.
+ */
+export function archivarDiasCerrados(estado, hastaDia, { ahora = null, por = null } = {}) {
+  const hasta = String(hastaDia ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(hasta)) return { ok: false, motivo: "Elegí hasta qué día archivar." };
+  if (ahora && hasta > sumarDias(diaDeCaja(estado, ahora.fecha, ahora.min), -DIAS_MINIMOS_SIN_ARCHIVAR))
+    return { ok: false, motivo: "La última semana no se archiva: el Tablero y las ventas de 7 días la usan." };
+  const e = structuredClone(estado);
+  const corte = e.config.corteCaja ?? 0;
+  const dCaja = (t) => (t?.fecha ? diaDeCaja(e, t.fecha, t.min ?? 0) : null);
+  const cierres = new Map(e.caja.cierres.map((c) => [c.dia, c]));
+  const cerradaHasta = (d) => !!d && d <= hasta && cierres.has(d);
+  // La caja donde entró un cobro: la de su día o, si esa ya estaba cerrada cuando se cobró, la siguiente. En el
+  // mismo minuto del cierre no se sabe cuál: se piden las dos cerradas.
+  // Se sigue la cadena de cierres como `cajaAbierta`: si esa noche se cerró también la caja siguiente antes del cobro,
+  // el cobro entró en la otra (cierro D a las 22, vendo a las 23 → D+1, cierro D+1 a las 23:30, vendo a las 23:45 → D+2).
+  const cajasDe = (t) => {
+    let d = dCaja(t);
+    if (!d) return [null];
+    const tp = minutoAbsoluto(t);
+    const out = [];
+    for (let i = 0; i < 400; i++) {
+      const c = cierres.get(d);
+      if (!c) return [...out, d];
+      const tc = minutoAbsoluto(c);
+      if (tp < tc) return [...out, d];
+      if (tp === tc) out.push(d);
+      d = sumarDias(d, 1);
+    }
+    return [...out, d];
+  };
+  const pagoListo = (p) => (p.medio === "monedero" ? !!dCaja(p) && dCaja(p) <= hasta : cajasDe(p).every(cerradaHasta));
+  const movListo = (m) => cerradaHasta(m.caja ?? dCaja(m));
+  const hasta0 = (t) => !!t?.fecha && t.fecha <= hasta;
+
+  // Cuentas de cargos: cerradas, con la plata en cajas cerradas y sin un pedido de crédito esperando por ellas.
+  const pedidaPorCredito = new Set(e.novedades.filter((n) => n.estado === "pendiente" && n.cuentaId).map((n) => n.cuentaId));
+  const cuentaLista = (c) => c.estado === "cerrada" && !!dCaja(c.cerrada) && dCaja(c.cerrada) <= hasta && (c.pagos ?? []).every(pagoListo) && !pedidaPorCredito.has(c.id);
+  const ctaSale = new Set(e.cuentas.filter(cuentaLista).map((c) => c.id));
+  // Una cuenta que se queda ata a su turno (la mesa del turno la busca por `reservaId`).
+  const atadas = new Set(e.cuentas.filter((c) => !ctaSale.has(c.id) && c.reservaId).map((c) => c.reservaId));
+  const movsPorTurno = new Map();
+  for (const m of e.caja.movimientos) if (m.reservaId) movsPorTurno.set(m.reservaId, [...(movsPorTurno.get(m.reservaId) ?? []), m]);
+  // Nota del Gate (M9, a propósito sin cambiar): un turno suspendido CON plata nunca se archiva. Es conservador (la
+  // devolución o el crédito se resuelven a mano) y ocupa poco.
+  const terminado = (r) => ["finalizada", "cancelada", "no_show"].includes(r.estado) || (r.estado === "suspendida" && cobrado(r) === 0);
+  const turnoListo = (r) => terminado(r) && !!r.fecha && r.fecha <= hasta && !(r.devolucionPendiente > 0) && !(r.deudaSinFicha > 0) && !r.senaEnSuspenso &&
+    (r.pagos ?? []).every(pagoListo) && (movsPorTurno.get(r.id) ?? []).every(movListo) && !atadas.has(r.id) && (!r.cierre?.fecha || dCaja(r.cierre) <= hasta);
+  const pedidoListo = (pd) => (pd.estado === "cancelado" && hasta0(pd)) || (pd.estado === "entregado" && !!pd.cobrado && cajasDe(pd.cobrado).every(cerradaHasta)) || (pd.estado === "a_cuenta" && ctaSale.has(pd.cuentaId));
+  const ultimaDifusion = e.difusiones[0]?.id;
+
+  const partir = (lista, sale) => { const fuera = [], queda = []; for (const x of lista ?? []) (sale(x) ? fuera : queda).push(x); return [fuera, queda]; };
+  const [reservas, reservasQuedan] = partir(e.reservas, turnoListo);
+  const [cuentas, cuentasQuedan] = partir(e.cuentas, (c) => ctaSale.has(c.id));
+  const [movimientos, movsQuedan] = partir(e.caja.movimientos, movListo);
+  const [pedidos, pedidosQuedan] = partir(e.pedidos, pedidoListo);
+  const [novedades, novedadesQuedan] = partir(e.novedades, (n) => n.estado !== "pendiente" && hasta0(n));
+  const [difusiones, difusionesQuedan] = partir(e.difusiones, (d) => d.id !== ultimaDifusion && hasta0(d));
+  const [solicitudesAcceso, solicitudesQuedan] = partir(e.solicitudesAcceso, (s) => s.estado !== "pendiente" && hasta0(s));
+  const [espera, esperaQueda] = partir(e.espera, (x) => !!x.fecha && x.fecha <= hasta);
+  const [bloqueos, bloqueosQuedan] = partir(e.bloqueos, (b) => !!b.fecha && b.fecha <= hasta);
+  const [log, logQueda] = partir(e.log, hasta0);
+
+  // Cuenta corriente: los movimientos viejos (los primeros, hasta `hasta`) se resumen en un «saldo anterior» con la
+  // misma suma y el mismo saldo; los fiados ya usados salen. La deuda del cliente no se toca.
+  const movCC = [], fiados = [];
+  for (const c of e.clientes) {
+    const movs = c.movCC ?? [];
+    let k = 0;
+    while (k < movs.length && hasta0(movs[k])) k++;
+    const reales = movs.slice(0, k).filter((m) => !m.saldoAnterior);
+    if (reales.length) {
+      const importe = movs.slice(0, k).reduce((s, m) => s + m.importe, 0);
+      const saldoAl = movs[k - 1].saldo;
+      const linea = { fecha: hasta, min: null, concepto: `Saldo anterior (hasta el ${hasta.slice(8)}/${hasta.slice(5, 7)}, en el archivo)`, importe, saldo: saldoAl, saldoAnterior: true };
+      c.movCC = [...(importe !== 0 || saldoAl !== 0 ? [linea] : []), ...movs.slice(k)];
+      movCC.push({ clienteId: c.id, nombre: c.nombre, movimientos: reales });
+    }
+    const [usados, vivos] = partir(c.fiados, (f) => f.usado && hasta0(f));
+    if (usados.length) { c.fiados = vivos; fiados.push({ clienteId: c.id, nombre: c.nombre, fiados: usados }); }
+  }
+
+  const listas = { reservas, cuentas, movimientos, pedidos, novedades, difusiones, solicitudesAcceso, espera, bloqueos, log };
+  const conteos = Object.fromEntries(Object.entries(listas).map(([k, v]) => [k, v.length]));
+  conteos.movCC = movCC.reduce((s, x) => s + x.movimientos.length, 0);
+  conteos.fiados = fiados.reduce((s, x) => s + x.fiados.length, 0);
+  const vacio = Object.values(conteos).every((n) => n === 0);
+
+  const resumen = [...sumarAlResumen(new Map(), { reservas, cuentas, movimientos, pedidos }, corte).values()].filter((f) => f.dia !== "sin-fecha").sort((a, b) => a.dia.localeCompare(b.dia));
+  const desde = [resumen[0]?.dia, ...[...Object.values(listas).flat(), ...movCC.flatMap((x) => x.movimientos)].map((x) => x.fecha).filter(Boolean)].filter(Boolean).sort()[0] ?? null;
+  const idsClientes = new Set([...reservas.flatMap((r) => [r.clienteId, ...(r.jugadores ?? []).map((j) => j.clienteId)]), ...cuentas.map((c) => c.clienteId), ...novedades.map((n) => n.clienteId), ...movCC.map((x) => x.clienteId), ...fiados.map((x) => x.clienteId)].filter(Boolean));
+  const anexo = {
+    v: 1, tipo: "anexo-jornada", club: e.config.nombre ?? "", desde, hasta, generado: ahora ? sello(ahora) : null, por: por ?? null, corteCaja: corte,
+    resumen,
+    cierres: e.caja.cierres.filter((c) => resumen.some((f) => f.dia === c.dia)).map((c) => ({ ...c })),
+    clientes: e.clientes.filter((c) => idsClientes.has(c.id)).map((c) => ({ id: c.id, nombre: c.nombre })),
+    canchas: e.canchas.map((c) => ({ id: c.id, nombre: c.nombre })),
+    ...listas, movCC, fiados,
+  };
+  if (vacio) return { ok: true, vacio: true, estado: e, anexo, conteos };
+
+  e.reservas = reservasQuedan;
+  e.cuentas = cuentasQuedan;
+  e.caja.movimientos = movsQuedan;
+  e.pedidos = pedidosQuedan;
+  e.novedades = novedadesQuedan;
+  e.difusiones = difusionesQuedan;
+  e.solicitudesAcceso = solicitudesQuedan;
+  e.espera = esperaQueda;
+  e.bloqueos = bloqueosQuedan;
+  e.log = logQueda;
+
+  // El resumen que queda en el estado: por día (se suma si un día ya tenía algo archivado) y por cliente.
+  const previo = esObjeto(e.archivo) ? e.archivo : {};
+  const dias = new Map((esLista(previo.dias) ? previo.dias : []).map((f) => [f.dia, { ...fila0(f.dia), ...f }]));
+  for (const f of resumen) {
+    const x = dias.get(f.dia) ?? fila0(f.dia);
+    for (const k of Object.keys(f)) if (k !== "dia") x[k] = (x[k] ?? 0) + f[k];
+    dias.set(f.dia, x);
+  }
+  const clientes = { ...(esObjeto(previo.clientes) ? previo.clientes : {}) };
+  for (const r of reservas) {
+    if (r.estado !== "finalizada") continue;
+    if (r.clienteId) clientes[r.clienteId] = { jugados: (clientes[r.clienteId]?.jugados ?? 0) + 1, ultima: clientes[r.clienteId]?.ultima ?? "" };
+    for (const id of new Set([r.clienteId, ...(r.jugadores ?? []).map((j) => j.clienteId)].filter(Boolean))) {
+      const c = clientes[id] ?? { jugados: 0, ultima: "" };
+      if (r.fecha > (c.ultima ?? "")) c.ultima = r.fecha;
+      clientes[id] = c;
+    }
+  }
+  // Los códigos de los pedidos (T-XXXX) y de las señas (BP-XXXX) que se fueron: un código nuevo no los repite y un
+  // WhatsApp de un pedido ya entregado no se vuelve a cargar.
+  const codigosPrevios = esObjeto(previo.codigos) ? previo.codigos : {};
+  const juntar = (viejos, nuevos) => [...new Set([...(esLista(viejos) ? viejos : []), ...nuevos.filter(Boolean)])];
+  e.archivo = {
+    hasta: previo.hasta && previo.hasta > hasta ? previo.hasta : hasta,
+    dias: [...dias.values()].sort((a, b) => a.dia.localeCompare(b.dia)),
+    clientes,
+    anexos: [...(esLista(previo.anexos) ? previo.anexos : []), { desde, hasta, ...sello(ahora), por: por ?? null, conteos }],
+    codigos: { pedidos: juntar(codigosPrevios.pedidos, pedidos.map((x) => x.codigo)), refs: juntar(codigosPrevios.refs, reservas.map((r) => r.ref)) },
+  };
+  if (ahora) registrar(e, `${por ?? "Un dueño"} archivó lo cerrado hasta el ${hasta.slice(8)}/${hasta.slice(5, 7)}: ${conteos.reservas} turnos, ${conteos.cuentas} cuentas de cargos y ${conteos.movimientos} movimientos de caja (quedaron en el archivo descargado).`, ahora);
+  return { ok: true, vacio: false, estado: e, anexo, conteos };
 }
 
 // ───────────────────────── productos, stock y lector ─────────────────────────
@@ -2155,6 +2667,8 @@ function ultimaVez(estado) {
     const ids = new Set([r.clienteId, ...r.jugadores.map((j) => j.clienteId)].filter(Boolean));
     for (const id of ids) if (!out.has(id) || out.get(id) < r.fecha) out.set(id, r.fecha);
   }
+  // Lo archivado (archivarDiasCerrados) guarda el último día que jugó cada uno.
+  for (const [id, x] of Object.entries(estado.archivo?.clientes ?? {})) if (x?.ultima && (!out.has(id) || out.get(id) < x.ultima)) out.set(id, x.ultima);
   return out;
 }
 
@@ -2228,10 +2742,10 @@ export function catalogoTienda(estado) {
     .map((p) => ({ id: p.id, nombre: p.nombre, categoria: p.categoria, precio: p.precio, pocas: p.stock != null && p.stock <= Math.max(2, p.minimo ?? 0) }));
 }
 
-function nuevoCodigoPedido(estado, azar = Math.random) {
+export function nuevoCodigoPedido(estado, azar = Math.random) {
   let s;
   do s = "T-" + Array.from({ length: 4 }, () => LETRAS_REF[Math.floor(azar() * LETRAS_REF.length)]).join("");
-  while ((estado.pedidos ?? []).some((x) => x.codigo === s));
+  while ((estado.pedidos ?? []).some((x) => x.codigo === s) || codigoArchivado(estado, "pedidos", s));
   return s;
 }
 
@@ -2279,6 +2793,7 @@ export function pedidoDesdeWhatsApp(estado, texto, ahora) {
   const quien = t.match(/Soy ([^(.\n]+?)\s*(?:\(([^)]*)\))?\.\s/);
   const codigo = t.match(/Pedido (T-[A-Z0-9]{4})/)?.[1] ?? null;
   if (codigo && (estado.pedidos ?? []).some((x) => x.codigo === codigo)) return { ok: false, motivo: `El pedido ${codigo} ya está cargado.` };
+  if (codigo && codigoArchivado(estado, "pedidos", codigo)) return { ok: false, motivo: `El pedido ${codigo} ya se había cargado: está en los días archivados.` };
   const res = crearPedidoTienda(estado, { items, nombre: quien?.[1]?.trim() || "Cliente de WhatsApp", tel: quien?.[2] ?? "", origen: "whatsapp" }, ahora);
   if (res.ok && codigo) res.pedido.codigo = codigo;
   return res;
@@ -2657,8 +3172,8 @@ export const USUARIOS_REALES = Object.freeze([
 
 /** Usuarios de demo. Los PIN son de ejemplo y se muestran en pantalla a propósito (es una demo). */
 export const USUARIOS_DEMO = Object.freeze([
-  { id: "u-rober", nombre: "Rober", rol: "duenio", pin: "11", activo: true },
-  { id: "u-majo", nombre: "Majo", rol: "duenio", pin: "22", activo: true },
+  { id: "u-rober", nombre: "Rober", rol: "duenio", pin: "1111", activo: true },
+  { id: "u-majo", nombre: "Majo", rol: "duenio", pin: "2222", activo: true },
   { id: "u-lu", nombre: "Lu (recepción tarde)", rol: "recepcion", pin: "33", activo: true },
   { id: "u-caro", nombre: "Caro (recepción mañana)", rol: "recepcion", pin: "44", activo: true },
 ]);
@@ -2723,7 +3238,7 @@ export function generarDemo(hoy, ahoraMin = H(19, 10)) {
   const elegir = () => clientes[Math.floor(rnd() * clientes.length)];
   const medios = ["efectivo", "mercadopago", "transferencia", "debito"];
   const platos = PRODUCTOS_DEMO.filter((p) => p.plato);
-  const dueno = { usuarioId: "u-rober", pin: "11" };
+  const dueno = { usuarioId: "u-rober", pin: "1111" };
   const recep = { usuarioId: "u-lu" };
 
   crearFijo(e, { clienteId: "k1", canchaId: "c1", dia: diaSemana(hoy), inicio: H(20, 30) });
