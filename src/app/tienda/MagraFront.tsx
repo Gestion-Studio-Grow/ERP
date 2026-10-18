@@ -205,13 +205,17 @@ function MagraFrontContent({
                 <a className="mf-btn mf-btn-oro" href="#cortes">
                   Armar mi pedido&nbsp;&nbsp;→
                 </a>
-                <button
-                  type="button"
-                  className="mf-btn mf-btn-ghost"
-                  onClick={() => requestWhatsApp("¡Hola MAGRA! Quería hacer una consulta.")}
-                >
-                  Pedir por WhatsApp
-                </button>
+                {/* Sin el WhatsApp del local cargado, el botón no aparece: no se ofrece un canal
+                    que todavía no existe (ambiente real). */}
+                {local.whatsapp && (
+                  <button
+                    type="button"
+                    className="mf-btn mf-btn-ghost"
+                    onClick={() => requestWhatsApp("¡Hola MAGRA! Quería hacer una consulta.")}
+                  >
+                    Pedir por WhatsApp
+                  </button>
+                )}
               </div>
               {/* La promesa de reparto sale del LOCAL, no del copy: las zonas de Canning
                   publicadas en la vidriera de Lomas son una promesa que ese local no cumple,
@@ -260,13 +264,15 @@ function MagraFrontContent({
                   En un rato vas a poder comprar online. Mientras tanto, escribinos por WhatsApp y te tomamos el
                   pedido.
                 </p>
-                <button
-                  type="button"
-                  className="mf-btn mf-btn-wa"
-                  onClick={() => requestWhatsApp("¡Hola MAGRA! Quiero hacer un pedido.")}
-                >
-                  <WaIcon /> Pedir por WhatsApp
-                </button>
+                {local.whatsapp && (
+                  <button
+                    type="button"
+                    className="mf-btn mf-btn-wa"
+                    onClick={() => requestWhatsApp("¡Hola MAGRA! Quiero hacer un pedido.")}
+                  >
+                    <WaIcon /> Pedir por WhatsApp
+                  </button>
+                )}
               </div>
             ) : (
               <>
@@ -374,13 +380,19 @@ function MagraFrontContent({
                   <div className="mf-vcard-body">
                     <h3 className="mf-display mf-vcard-h3">{v.title}</h3>
                     <p className="mf-vcard-p">{v.text}</p>
-                    <button
-                      type="button"
-                      className="mf-linkcta"
-                      onClick={() => requestWhatsApp(`¡Hola MAGRA! Quiero hacer un pedido de ${v.title}.`)}
-                    >
-                      Hacer pedido →
-                    </button>
+                    {local.whatsapp ? (
+                      <button
+                        type="button"
+                        className="mf-linkcta"
+                        onClick={() => requestWhatsApp(`¡Hola MAGRA! Quiero hacer un pedido de ${v.title}.`)}
+                      >
+                        Hacer pedido →
+                      </button>
+                    ) : (
+                      <a className="mf-linkcta" href="#cortes">
+                        Hacer pedido →
+                      </a>
+                    )}
                   </div>
                 </div>
               ))}
@@ -438,9 +450,15 @@ function MagraFrontContent({
               <div className="mf-display mf-foot-big">
                 Probadas por<br />nosotros,<br /><span>elegidas para vos.</span>
               </div>
-              <button type="button" className="mf-btn mf-btn-oro" onClick={() => requestWhatsApp("¡Hola MAGRA! Quería hacer un pedido.")}>
-                Pedir por WhatsApp →
-              </button>
+              {local.whatsapp ? (
+                <button type="button" className="mf-btn mf-btn-oro" onClick={() => requestWhatsApp("¡Hola MAGRA! Quería hacer un pedido.")}>
+                  Pedir por WhatsApp →
+                </button>
+              ) : (
+                <a className="mf-btn mf-btn-oro" href="#cortes">
+                  Armar mi pedido →
+                </a>
+              )}
             </div>
             {/* Datos del LOCAL: salen de /admin/localizacion (BusinessSettings), no del copy.
                 El campo que el local no cargó no se muestra — nunca el dato de otro local, que
@@ -657,7 +675,7 @@ function MagraFrontContent({
                 >
                   <WaIcon /> Pedir por WhatsApp
                 </button>
-              ) : (
+              ) : local.whatsapp ? (
                 <button
                   type="button"
                   className="mf-btn mf-btn-wa mf-rail-wa"
@@ -665,7 +683,7 @@ function MagraFrontContent({
                 >
                   <WaIcon /> Pedir por WhatsApp
                 </button>
-              )}
+              ) : null}
             </div>
           </form>
         </aside>
