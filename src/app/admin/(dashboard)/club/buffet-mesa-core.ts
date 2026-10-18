@@ -10,10 +10,8 @@
 //     deja la cuenta por debajo de lo que ya se pagó (ni en negativo).
 //   · «Venta rápida» (`mostrador` + `cobrarMostrador`): un carrito que se cobra y se cierra en el acto
 //     (`ventaMostrador`), sin cuenta a nombre de nadie y sin créditos.
-//   · Un PIN corto se adivina probando (el de recepción, de 2, en 100 intentos): con 5 PIN mal seguidos se espera 30 s (el mismo tope que el
-//     vanilla usa para aprobar con PIN, `intentosPin`). Cuenta SÓLO un PIN que se llegó a evaluar (un envío sin monto
-//     no es un intento ni vuelve el contador a cero: hallazgo M2 del Gate) y queda guardado en el equipo por negocio
-//     (`gsg-club:<negocio>:intentos-pin:v1`, como el `bp-intentos` del vanilla): recargar no lo borra.
+//   · El PIN del descuento pasa por el tope compartido de TODO PIN del equipo (el del bloqueo: tope-de-pin.ts). Acá
+//     sólo se dice qué pasó con el PIN (`pin`: "bueno" | "malo" | null); contarlo es de la pantalla.
 //   · El PIN VIEJO de un dueño (el de 2 del piloto, antes de elegir el de 4: `pinDesactualizado`) no firma: se rechaza
 //     y cuenta como intento malo (hallazgo del Gate del vanilla, 18/10).
 // La plata la decide el motor; acá se traduce cada toque y se arma el aviso. Este archivo lo importa SÓLO el buffet
@@ -21,9 +19,10 @@
 
 import { cargoManual, cuenta as cuentaDe, pesos, pinDesactualizado, producto as productoDe, transferirCargo, usuarioPorPin, ventaMostrador } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub } from "@/lib/club/motor.mjs";
-import type { AlmacenamientoLocal, Desenlace } from "./almacen";
+import type { Desenlace } from "./almacen";
 import { productosParaCargar, type ProductoParaCargar } from "./buffet-core";
 import { ETIQUETA_MEDIO, MEDIOS_CAJA, type MedioCaja } from "./cuenta-core";
+import type { DesenlaceConPin } from "./tope-de-pin";
 
 // ───────────── mesa compleja ─────────────
 
@@ -41,7 +40,7 @@ export const DESHACIBLE_MESA: Readonly<Record<AccionMesa["tipo"], boolean>> = { 
  * El desenlace y qué pasó con el PIN de un descuento, para el tope de intentos: "bueno" (es de un dueño), "malo" (no
  * es de un dueño) o null (no se llegó a mirar: no era descuento, o faltaba el monto, el PIN o el concepto).
  */
-export type DesenlaceMesa = Desenlace & { pin: "bueno" | "malo" | null };
+export type DesenlaceMesa = DesenlaceConPin;
 
 /**
  * Quién firma un descuento (como `cargoManual` del vanilla): si el PIN es de un dueño, ese dueño; si no, quien opera
@@ -88,99 +87,6 @@ export function ejecutarMesa(estado: EstadoClub, accion: AccionMesa, ahora: Ahor
 /** SÓLO DEMO: los PIN de ejemplo de los dueños, para poder probar un descuento (en la jornada real no se muestran). */
 export function pinesDeEjemplo(estado: EstadoClub): { nombre: string; pin: string }[] {
   return estado.usuarios.filter((u) => u.rol === "duenio" && u.activo !== false && u.pin).map((u) => ({ nombre: u.nombre, pin: u.pin }));
-}
-
-// ───────────── tope de intentos del PIN ─────────────
-
-export const INTENTOS_DE_PIN = 5;
-export const ESPERA_DE_PIN_MS = 30_000;
-
-export interface IntentosDePin {
-  fallos: number;
-  /** Hasta cuándo no se puede probar otro PIN (ms del reloj de este equipo); 0 = se puede. */
-  hasta: number;
-}
-
-export const SIN_INTENTOS: IntentosDePin = { fallos: 0, hasta: 0 };
-
-/** Anota un intento: uno bueno vuelve a cero; el quinto malo traba 30 s. Pura. */
-export function anotarIntentoDePin(previo: IntentosDePin, bueno: boolean, ahoraMs: number): IntentosDePin {
-  if (bueno) return SIN_INTENTOS;
-  const fallos = previo.fallos + 1;
-  return fallos >= INTENTOS_DE_PIN ? { fallos: 0, hasta: ahoraMs + ESPERA_DE_PIN_MS } : { fallos, hasta: previo.hasta };
-}
-
-/** Cuántos segundos faltan para poder probar otro PIN (0 = ya se puede). Pura. */
-export function esperaDelPin(i: IntentosDePin, ahoraMs: number): number {
-  return i.hasta > ahoraMs ? Math.ceil((i.hasta - ahoraMs) / 1000) : 0;
-}
-
-/** La clave de los intentos de PIN en este equipo: del NEGOCIO (nunca «de todos»), como el `bp-intentos` del vanilla. */
-export function claveDeIntentosDePin(negocio: string): string {
-  if (!negocio.trim()) throw new Error("Los intentos de PIN del club necesitan el negocio.");
-  return `gsg-club:${negocio}:intentos-pin:v1`;
-}
-
-/** Dónde viven los intentos: `leer` y `guardar`. */
-export interface GuardaDeIntentos {
-  leer(): IntentosDePin;
-  guardar(i: IntentosDePin): void;
-}
-
-/**
- * Los intentos de PIN guardados en este equipo (localStorage, con `clave`). Tolera que no haya almacenamiento (null,
- * incógnito, sin lugar) o que lo guardado no se pueda leer: ahí quedan en memoria (lo que dure la pestaña). Nunca tira.
- */
-export function guardaDeIntentos(almacenamiento: AlmacenamientoLocal | null, clave: string | null): GuardaDeIntentos {
-  let enMemoria: IntentosDePin = SIN_INTENTOS;
-  const deTexto = (crudo: string | null): IntentosDePin | null => {
-    if (!crudo) return null;
-    try {
-      const x = JSON.parse(crudo) as Partial<IntentosDePin>;
-      const fallos = Number(x?.fallos);
-      const hasta = Number(x?.hasta);
-      return Number.isFinite(fallos) && Number.isFinite(hasta) ? { fallos: Math.max(0, Math.floor(fallos)), hasta: Math.max(0, hasta) } : null;
-    } catch {
-      return null;
-    }
-  };
-  return {
-    leer() {
-      if (almacenamiento && clave) {
-        try {
-          const guardado = deTexto(almacenamiento.getItem(clave));
-          // Lo más trabado entre lo guardado y lo de memoria: borrar lo guardado no destraba esta pestaña.
-          if (guardado) return { fallos: Math.max(guardado.fallos, enMemoria.fallos), hasta: Math.max(guardado.hasta, enMemoria.hasta) };
-        } catch {
-          // sin acceso al almacenamiento: lo de memoria
-        }
-      }
-      return enMemoria;
-    },
-    guardar(i) {
-      enMemoria = i;
-      if (!almacenamiento || !clave) return;
-      try {
-        almacenamiento.setItem(clave, JSON.stringify(i));
-      } catch {
-        // sin lugar: queda en memoria
-      }
-    },
-  };
-}
-
-/**
- * Un descuento con el tope de intentos: si está trabado, no corre y dice cuánto falta; si corre, anota el intento SÓLO
- * si el PIN se llegó a evaluar. `correr` es la acción (por el almacén, que deja su aviso). Si estaba trabado, `trabado`
- * y el aviso de la espera (lo muestra quien llama). Pura salvo por la guarda.
- */
-export function descuentoConTope(guarda: GuardaDeIntentos, ahoraMs: number, correr: () => DesenlaceMesa): { desenlace: DesenlaceMesa; trabado: boolean } {
-  const previo = guarda.leer();
-  const espera = esperaDelPin(previo, ahoraMs);
-  if (espera > 0) return { desenlace: { ok: false, mensaje: `Demasiados PIN equivocados: esperá ${espera} s y probá de nuevo.`, pin: null }, trabado: true };
-  const d = correr();
-  if (d.pin !== null) guarda.guardar(anotarIntentoDePin(previo, d.pin === "bueno", ahoraMs));
-  return { desenlace: d, trabado: false };
 }
 
 // ───────────── venta rápida de mostrador ─────────────

@@ -469,7 +469,8 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await page.getByRole("alert").filter({ hasText: /^Poné tu PIN/ }).waitFor();
     await pinEgreso.fill("99");
     await egreso.getByRole("button", { name: "Anotar el egreso" }).click();
-    await page.getByRole("alert").filter({ hasText: "PIN incorrecto." }).waitFor();
+    // Suma al tope compartido de todo PIN del equipo (el del bloqueo): el aviso dice cuántos van.
+    await page.getByRole("alert").filter({ hasText: "PIN incorrecto (1 de 5)." }).waitFor();
     assert.equal(await pinEgreso.inputValue(), "", "el PIN se borra después de cada intento");
     assert.equal(await efectivo(), antes, "sin el PIN no salió nada del cajón");
     await pinEgreso.fill("33");

@@ -22,6 +22,7 @@ import { pesos } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { MOVIMIENTOS_POR_PAGINA, armarCaja, ejecutarCaja, pinesDeEjemplo, puedeAjustarFondo, type AccionCaja, type CierreDeHoy, type VistaCaja } from "./caja-core";
+import { conTopeDePin, guardaDelPin } from "./tope-de-pin";
 import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
 import { operadorActual } from "./operador-del-club";
 import { permisosProveedores } from "./proveedores-core";
@@ -314,12 +315,21 @@ function RemitoDesdeLaCaja({ almacen }: { almacen: Almacen }) {
   );
 }
 
-export default function CajaDelClub({ almacen }: { almacen: Almacen }) {
+/** `negocio`: los PIN mal de la caja suman al tope del bloqueo de este equipo (tope-de-pin.ts). */
+export default function CajaDelClub({ almacen, negocio }: { almacen: Almacen; negocio?: string }) {
   const [cuantos, setCuantos] = useState(MOVIMIENTOS_POR_PAGINA);
   const seleccionar = useCallback((e: EstadoClub, a: Ahora) => armarCaja(e, a, cuantos), [cuantos]);
   const v = useSeleccion(almacen, seleccionar, porFirma);
   // Egreso, cierre y fondo NO se deshacen (como en vanilla: lo que pide PIN no tiene «Deshacer»).
-  const hacer = useCallback((a: AccionCaja) => almacen.ejecutar((e, ahora, auth) => ejecutarCaja(e, a, ahora, auth)).ok, [almacen]);
+  // El PIN de egreso y cierre pasa por el tope compartido del equipo: trabado, no se prueba (y el aviso dice cuánto
+  // esperar). El fondo no lleva PIN: no se traba.
+  const hacer = useCallback(
+    (a: AccionCaja) =>
+      almacen.ejecutar((e, ahora, auth) =>
+        a.tipo === "fondo" ? ejecutarCaja(e, a, ahora, auth) : conTopeDePin(guardaDelPin(almacen, negocio), Date.now(), () => ejecutarCaja(e, a, ahora, auth)).desenlace,
+      ).ok,
+    [almacen, negocio],
+  );
 
   return (
     <div className="flex flex-col gap-4">

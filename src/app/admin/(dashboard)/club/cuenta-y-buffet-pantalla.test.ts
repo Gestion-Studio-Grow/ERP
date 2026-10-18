@@ -246,7 +246,8 @@ describe("Cuenta y buffet (ola 1) en el navegador", { timeout: 180_000 }, () => 
     await manual.getByLabel("Monto").fill("1000");
     await manual.getByLabel("PIN del dueño").fill("33");
     await manual.getByRole("button", { name: "Aplicar el descuento" }).click();
-    await page.getByRole("alert").filter({ hasText: "Un descuento lo autoriza el dueño con su PIN." }).waitFor();
+    // El PIN mal suma al tope compartido del equipo (el del bloqueo) y el aviso dice cuántos van.
+    await page.getByRole("alert").filter({ hasText: "Un descuento lo autoriza el dueño con su PIN (1 de 5)." }).waitFor();
     assert.equal(await manual.getByLabel("PIN del dueño").inputValue(), "", "el PIN no queda escrito");
     await manual.getByLabel("PIN del dueño").fill("1111");
     await manual.getByRole("button", { name: "Aplicar el descuento" }).click();

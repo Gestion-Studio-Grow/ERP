@@ -17,42 +17,20 @@ import { Field, Input, Select } from "@/components/ui/Field";
 import { pesos } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import type { VistaCuentaBuffet } from "./buffet-core";
-import {
-  DESHACIBLE_MESA,
-  claveDeIntentosDePin,
-  descuentoConTope,
-  ejecutarMesa,
-  guardaDeIntentos,
-  pinesDeEjemplo,
-  type AccionMesa,
-  type DesenlaceMesa,
-  type GuardaDeIntentos,
-} from "./buffet-mesa-core";
+import { DESHACIBLE_MESA, ejecutarMesa, pinesDeEjemplo, type AccionMesa, type DesenlaceMesa } from "./buffet-mesa-core";
 import { leerMonto } from "./montos-core";
+import { conTopeDePin, guardaDelPin } from "./tope-de-pin";
 
-// Los intentos de PIN son del mostrador, no de la tarjeta: cerrar y abrir la cuenta no los borra, y con el negocio
-// quedan guardados en el equipo (recargar tampoco). Sin negocio o sin almacenamiento, en memoria.
-const guardas = new WeakMap<Almacen, GuardaDeIntentos>();
-function guardaDe(almacen: Almacen, negocio: string | undefined): GuardaDeIntentos {
-  let g = guardas.get(almacen);
-  if (!g) {
-    let almacenamiento: Storage | null = null;
-    try {
-      almacenamiento = typeof window !== "undefined" ? window.localStorage : null;
-    } catch {
-      almacenamiento = null;
-    }
-    g = guardaDeIntentos(almacenamiento, negocio?.trim() ? claveDeIntentosDePin(negocio) : null);
-    guardas.set(almacen, g);
-  }
-  return g;
-}
-
-function correr(almacen: Almacen, accion: AccionMesa): DesenlaceMesa {
+/**
+ * Corre la acción por el almacén. El PIN de un descuento pasa por el tope compartido de TODO PIN del equipo (el del
+ * bloqueo, tope-de-pin.ts): trabado, no se prueba y el aviso dice cuánto esperar. Lo que no lleva PIN no se traba.
+ */
+function correr(almacen: Almacen, accion: AccionMesa, negocio?: string): DesenlaceMesa {
+  const conPin = accion.tipo === "cargoManual" && accion.descuento;
   let d: DesenlaceMesa = { ok: false, mensaje: "", pin: null };
   almacen.ejecutar(
     (e, ahora, auth) => {
-      d = ejecutarMesa(e, accion, ahora, auth);
+      d = conPin ? conTopeDePin(guardaDelPin(almacen, negocio), Date.now(), () => ejecutarMesa(e, accion, ahora, auth)).desenlace : ejecutarMesa(e, accion, ahora, auth);
       return d;
     },
     { deshacible: DESHACIBLE_MESA[accion.tipo] },
@@ -132,14 +110,7 @@ function CargoManual({ almacen, cuenta, negocio }: { almacen: Almacen; cuenta: V
       onSubmit={(e) => {
         e.preventDefault();
         const accion: AccionMesa = { tipo: "cargoManual", cuentaId: cuenta.id, concepto, monto: leerMonto(monto), descuento, pin };
-        let d: DesenlaceMesa;
-        if (descuento) {
-          const r = descuentoConTope(guardaDe(almacen, negocio), Date.now(), () => correr(almacen, accion));
-          if (r.trabado) almacen.informar(r.desenlace);
-          d = r.desenlace;
-        } else {
-          d = correr(almacen, accion);
-        }
+        const d = correr(almacen, accion, negocio);
         // El PIN no queda escrito después de probarlo, salga bien o mal.
         setPin("");
         if (d.ok) {
@@ -180,7 +151,7 @@ function CargoManual({ almacen, cuenta, negocio }: { almacen: Almacen; cuenta: V
   );
 }
 
-/** `negocio`: para guardar los intentos de PIN en el equipo por negocio (sin él, quedan en memoria). */
+/** `negocio`: los PIN mal de un descuento suman al tope del bloqueo de este equipo (sin él, a la clave del equipo). */
 export default function MesaCompleja({ almacen, cuenta, negocio }: { almacen: Almacen; cuenta: VistaCuentaBuffet; negocio?: string }) {
   return (
     <details className="rounded-md border border-line">

@@ -256,8 +256,8 @@ test("un dueño con el PIN VIEJO (el de 2 del piloto) no hace egresos ni cierra 
   duenio.pin = "57";
   const auth: Auth = { usuarioId: duenio.id, pin: "57" };
   const antes = armarCaja(e, AHORA);
-  assert.deepEqual(ejecutarCaja(e, { tipo: "egreso", monto: "1000", concepto: "Hielo", pin: "57" }, AHORA, auth), { ok: false, mensaje: PIN_VIEJO_CAJA });
-  assert.deepEqual(ejecutarCaja(e, { tipo: "cerrar", contado: "0", dia: null, pin: "57" }, AHORA, auth), { ok: false, mensaje: PIN_VIEJO_CAJA });
+  assert.deepEqual(ejecutarCaja(e, { tipo: "egreso", monto: "1000", concepto: "Hielo", pin: "57" }, AHORA, auth), { ok: false, mensaje: PIN_VIEJO_CAJA, pin: "malo" });
+  assert.deepEqual(ejecutarCaja(e, { tipo: "cerrar", contado: "0", dia: null, pin: "57" }, AHORA, auth), { ok: false, mensaje: PIN_VIEJO_CAJA, pin: "malo" });
   assert.equal(armarCaja(e, AHORA).egresos, antes.egresos, "nada salió del cajón");
   const recepcion = operadorDeLaDemo(e, "RECEPTION")!.auth;
   assert.equal(recepcion.pin!.length, 2, "recepción sigue con 2 dígitos");

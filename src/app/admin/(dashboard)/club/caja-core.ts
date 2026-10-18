@@ -17,9 +17,9 @@
 //
 // Las reglas son del motor; acá se arma lo que se ve y se traduce cada toque (caja-core.test.ts).
 
-import { MEDIOS, ajustarFondo, cajaAbierta, cajaCerrada, cajasConMovimientosSinCerrar, cerrarCaja, diaDeCaja, egresoCaja, hhmm, pesos, pinDesactualizado, puede, resumenCaja } from "@/lib/club/motor.mjs";
+import { MEDIOS, ajustarFondo, cajaAbierta, cajaCerrada, cajasConMovimientosSinCerrar, cerrarCaja, diaDeCaja, egresoCaja, hhmm, pesos, pinDesactualizado, puede, resumenCaja, verificarPin } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub, Fecha } from "@/lib/club/motor.mjs";
-import type { Desenlace } from "./almacen";
+import type { DesenlaceConPin } from "./tope-de-pin";
 import { MEDIOS_CAJA } from "./cuenta-core";
 import { leerMonto } from "./montos-core";
 
@@ -154,25 +154,38 @@ export { leerMonto };
 /** Un dueño que todavía tiene el PIN viejo de 2 no opera la caja con él. */
 export const PIN_VIEJO_CAJA = "Ese es tu PIN viejo. Para la caja, elegí tu PIN nuevo de 4 dígitos: tocá «Cambiar de usuario» y entrá con el viejo una última vez.";
 
-export function ejecutarCaja(estado: EstadoClub, accion: AccionCaja, ahora: Ahora, auth: Auth): Desenlace {
+/**
+ * `pin` dice qué pasó con el PIN tipeado, para el tope compartido del equipo (tope-de-pin.ts): "malo" si no es el de
+ * quien opera (o es el viejo de un dueño), "bueno" si lo es (aunque después el motor diga que no por otra cosa), null
+ * si no se llegó a mirar (el fondo, o sin PIN).
+ */
+export function ejecutarCaja(estado: EstadoClub, accion: AccionCaja, ahora: Ahora, auth: Auth): DesenlaceConPin {
   if (accion.tipo === "fondo") {
     const n = accion.monto.trim() === "" ? null : leerMonto(accion.monto);
     const res = ajustarFondo(estado, n, auth, ahora);
-    return res.ok ? { ok: true, mensaje: `Fondo de caja: ${pesos(estado.caja.fondo)}.` } : { ok: false, mensaje: res.motivo };
+    return res.ok ? { ok: true, mensaje: `Fondo de caja: ${pesos(estado.caja.fondo)}.`, pin: null } : { ok: false, mensaje: res.motivo, pin: null };
   }
   const pin = accion.pin.trim();
-  if (pin && pinDesactualizado(estado, auth.usuarioId ?? "")) return { ok: false, mensaje: PIN_VIEJO_CAJA };
+  if (!pin) return { ok: false, mensaje: accion.tipo === "egreso" ? "Poné tu PIN: el egreso queda a tu nombre." : "Poné tu PIN: el cierre de caja queda a tu nombre.", pin: null };
+  // Sin quién opera (o sin acceso) no hay PIN que evaluar: lo dice el motor y no cuenta como intento.
+  const quien = auth.usuarioId ?? "";
+  const activo = estado.usuarios.some((u) => u.id === quien && u.activo !== false);
+  let resultado: DesenlaceConPin["pin"] = null;
+  if (activo) {
+    if (pinDesactualizado(estado, quien)) return { ok: false, mensaje: PIN_VIEJO_CAJA, pin: "malo" };
+    const v = verificarPin(estado, quien, pin);
+    if (!v.ok) return { ok: false, mensaje: v.motivo, pin: "malo" };
+    resultado = "bueno";
+  }
   if (accion.tipo === "egreso") {
-    if (!pin) return { ok: false, mensaje: "Poné tu PIN: el egreso queda a tu nombre." };
     const monto = leerMonto(accion.monto);
     const res = egresoCaja(estado, { monto, concepto: accion.concepto, usuarioId: auth.usuarioId, pin }, ahora);
-    return res.ok ? { ok: true, mensaje: `Egreso de ${pesos(monto)} (${accion.concepto.trim()}) anotado: sale del efectivo del cajón.` } : { ok: false, mensaje: res.motivo };
+    return res.ok ? { ok: true, mensaje: `Egreso de ${pesos(monto)} (${accion.concepto.trim()}) anotado: sale del efectivo del cajón.`, pin: resultado } : { ok: false, mensaje: res.motivo, pin: resultado };
   }
-  if (!pin) return { ok: false, mensaje: "Poné tu PIN: el cierre de caja queda a tu nombre." };
   const contado = accion.contado.trim() === "" ? null : leerMonto(accion.contado);
   const res = cerrarCaja(estado, { contado, usuarioId: auth.usuarioId, pin, dia: accion.dia }, ahora);
-  if (!res.ok) return { ok: false, mensaje: res.motivo };
+  if (!res.ok) return { ok: false, mensaje: res.motivo, pin: resultado };
   const d = res.cierre.diferencia;
   const dif = d === 0 ? "la caja cuadra" : d > 0 ? `sobran ${pesos(d)}` : `faltan ${pesos(-d)}`;
-  return { ok: true, mensaje: `Caja del ${ddmm(res.cierre.dia)} cerrada: ${dif}.` };
+  return { ok: true, mensaje: `Caja del ${ddmm(res.cierre.dia)} cerrada: ${dif}.`, pin: resultado };
 }
