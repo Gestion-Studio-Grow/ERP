@@ -22,7 +22,9 @@ import { separarVersion } from "./guardado-del-club";
 
 const NEGOCIO = "demo-club";
 const CLAVE = claveDeLaJornada(NEGOCIO);
-const DUENIO = { usuarioId: "u-duenio-1", pin: "11" };
+// El dueño ya eligió su PIN de 4 (el fixture lo trae con el viejo de 2 del piloto, que no firma: SEC-5).
+const DUENIO = { usuarioId: "u-duenio-1", pin: "5821" };
+const PIN_VIEJO_DEL_DUENIO = "11";
 const RECEPCION = { usuarioId: "u-recep-1", pin: "33" };
 const vaciar = () => new Promise<void>((r) => setImmediate(r));
 const temporizador: Temporizador = { despues: () => () => undefined, cada: () => () => undefined };
@@ -46,11 +48,17 @@ function memoria(fallaSi: (clave: string) => boolean = () => false) {
 }
 
 // Un mes de club lleno (fixture), guardado en este equipo como la jornada real. Se arma una vez (es grande).
-const MES = JSON.stringify(armarMesCargado(HOY_TORNEO, 30));
+const MES = (() => {
+  const mes = armarMesCargado(HOY_TORNEO, 30);
+  const u = mes.estado.usuarios.find((x) => x.id === DUENIO.usuarioId)!;
+  assert.equal(u.pin, PIN_VIEJO_DEL_DUENIO, "el fixture trae el PIN viejo del piloto");
+  u.pin = DUENIO.pin;
+  return JSON.stringify(mes);
+})();
 
-async function abrirMes(op: { m?: AlmacenamientoLocal; guardado?: GuardadoDelClub; rol?: "OWNER" | "RECEPTION" } = {}) {
+async function abrirMes(op: { m?: AlmacenamientoLocal; guardado?: GuardadoDelClub; rol?: "OWNER" | "RECEPTION"; pinDelDuenio?: string } = {}) {
   const m = op.m ?? memoria();
-  (m as ReturnType<typeof memoria>).datos?.set(CLAVE, MES);
+  (m as ReturnType<typeof memoria>).datos?.set(CLAVE, op.pinDelDuenio ? MES.replace(`"pin":"${DUENIO.pin}"`, `"pin":"${op.pinDelDuenio}"`) : MES);
   const a = crearAlmacen({
     reloj: "real",
     clave: CLAVE,
@@ -80,6 +88,11 @@ test("archivar lo hace un dueño: rol OWNER del ERP y PIN de un dueño del club 
   const { a } = await abrirMes();
   assert.deepEqual(a.prepararArchivo({ auth: RECEPCION }), { ok: false, causa: "permiso", motivo: "Archivar lo hace un dueño." });
   assert.deepEqual(a.prepararArchivo({ auth: { ...DUENIO, pin: "99" } }), { ok: false, causa: "permiso", motivo: "PIN incorrecto." });
+  // El PIN viejo de 2 de un dueño entra a la compu pero no FIRMA: tampoco archiva (SEC-5).
+  const { a: conElViejo } = await abrirMes({ pinDelDuenio: PIN_VIEJO_DEL_DUENIO });
+  const viejo = conElViejo.prepararArchivo({ auth: { ...DUENIO, pin: PIN_VIEJO_DEL_DUENIO } });
+  assert.equal(viejo.ok, false);
+  assert.ok(!viejo.ok && viejo.causa === "permiso" && /PIN viejo/.test(viejo.motivo), JSON.stringify(viejo));
   assert.equal(a.prepararArchivo().ok, false, "en la jornada real, sin operador no archiva nadie");
   // Con el operador del almacén (lo que deja el PIN de la sesión del club) alcanza.
   const duenio = a.estado().usuarios.find((u) => u.id === DUENIO.usuarioId)!;

@@ -17,7 +17,9 @@ import {
 
 const NEGOCIO = "demo-club";
 const CLAVE = claveDeLaJornada(NEGOCIO);
-const DUENIO = { usuarioId: "u-duenio-1", pin: "11" };
+// Los dueños ya eligieron su PIN de 4 (el fixture los trae con el viejo de 2 del piloto, que no firma: SEC-5).
+const DUENIO = { usuarioId: "u-duenio-1", pin: "5821" };
+const PIN_DUENIO_2 = "6932";
 const vaciar = () => new Promise<void>((r) => setImmediate(r));
 const temporizador: Temporizador = { despues: () => () => undefined, cada: () => () => undefined };
 
@@ -54,7 +56,11 @@ async function real(m: AlmacenamientoLocal, rol: "OWNER" | "RECEPTION" = "OWNER"
 }
 
 /** Un mes de club (fixture) ya guardado en este equipo, como jornada real configurada. */
-const MES = JSON.stringify(armarMesCargado(HOY_TORNEO, 30));
+const MES = (() => {
+  const mes = armarMesCargado(HOY_TORNEO, 30);
+  for (const [id, pin] of [[DUENIO.usuarioId, DUENIO.pin], ["u-duenio-2", PIN_DUENIO_2]]) mes.estado.usuarios.find((u) => u.id === id)!.pin = pin;
+  return JSON.stringify(mes);
+})();
 
 test("arranque: sin configurar y sin operador, corre con `auth: {}` (definir el primer PIN), avisa y guarda, sin «Deshacer»", async () => {
   const m = memoria();
@@ -111,17 +117,22 @@ test("restaurar: sólo un dueño con PIN; copia lo de antes, reemplaza, apaga «
   // El respaldo a restaurar: el mismo mes con una marca, y el PIN del dueño 2 cambiado.
   const foto = JSON.parse(MES) as M.FotoEstado;
   foto.estado.log.unshift({ fecha: null, min: null, texto: "del respaldo" });
-  foto.estado.usuarios.find((u) => u.id === "u-duenio-2")!.pin = "88";
+  foto.estado.usuarios.find((u) => u.id === "u-duenio-2")!.pin = "8848";
   const texto = JSON.stringify(foto);
 
   assert.equal(a.restaurar(texto).ok, false, "sin operador ni auth: nadie");
   assert.deepEqual(a.restaurar(texto, { auth: { usuarioId: "u-recep-1", pin: "33" } }), { ok: false, causa: "permiso", motivo: "Restaurar lo hace un dueño." });
   assert.equal((a.restaurar("{roto", { auth: DUENIO }) as { causa?: string }).causa, "danado");
   assert.equal((a.restaurar({ v: 99 }, { auth: DUENIO }) as { causa?: string }).causa, "danado");
+  // Con el PIN viejo de 2 un dueño entra a la compu pero no firma: tampoco restaura (SEC-5).
+  const mv = memoria();
+  mv.datos.set(CLAVE, MES.replace(`"pin":"${DUENIO.pin}"`, '"pin":"11"'));
+  const viejo = (await real(mv)).restaurar(texto, { auth: { ...DUENIO, pin: "11" } });
+  assert.ok(!viejo.ok && viejo.causa === "permiso" && /PIN viejo/.test(viejo.motivo), JSON.stringify(viejo));
 
-  // Opera el dueño 2 (PIN 22) y hay algo para deshacer.
+  // Opera el dueño 2 y hay algo para deshacer.
   const d2 = a.estado().usuarios.find((u) => u.id === "u-duenio-2")!;
-  a.cambiarOperador(d2, { usuarioId: d2.id, pin: "22" });
+  a.cambiarOperador(d2, { usuarioId: d2.id, pin: PIN_DUENIO_2 });
   a.ejecutar((e) => (e.log.unshift({ fecha: null, min: null, texto: "antes" }), { ok: true, mensaje: "x" }), { deshacible: true });
   assert.equal(a.puedeDeshacer(), true);
   const lo = m.datos.get(CLAVE)!;

@@ -25,14 +25,14 @@ function almacenamiento(): Storage {
 
 const malo = (mensaje = "PIN incorrecto."): DesenlaceConPin => ({ ok: false, mensaje, pin: "malo" });
 
-test("5 PIN mal traban 30 s (y el que traba lo dice); trabado no corre; a los 30 s se prueba de nuevo y uno bueno vuelve a cero", () => {
+test("5 PIN mal traban 30 s (y el que traba lo dice); trabado no corre; a los 30 s se prueba de nuevo y uno bueno de un dueño vuelve a cero", () => {
   const g = guardaDelBloqueo(almacenamiento(), claveDeIntentosDelBloqueo("breakpoint"));
   for (let k = 1; k < INTENTOS_DEL_BLOQUEO; k++) assert.equal(conTopeDePin(g, 1000, () => malo()).desenlace.mensaje, `PIN incorrecto (${k} de ${INTENTOS_DEL_BLOQUEO}).`);
   assert.equal(conTopeDePin(g, 1000, () => malo()).desenlace.mensaje, "PIN incorrecto. Demasiados PIN equivocados: esperá 30 segundos.");
   const trabado = conTopeDePin(g, 2000, () => assert.fail("trabado: no corre"));
   assert.equal(trabado.trabado, true);
   assert.deepEqual(trabado.desenlace, { ok: false, mensaje: "Demasiados PIN equivocados: esperá 29 segundos.", pin: null });
-  const bueno = conTopeDePin(g, 1000 + ESPERAS_DEL_BLOQUEO_MS[0], () => ({ ok: true, mensaje: "Listo.", pin: "bueno" as const }));
+  const bueno = conTopeDePin(g, 1000 + ESPERAS_DEL_BLOQUEO_MS[0], () => ({ ok: true, mensaje: "Listo.", pin: "bueno" as const, duenio: true }));
   assert.equal(bueno.desenlace.mensaje, "Listo.");
   assert.deepEqual(g.leer(), SIN_INTENTOS_DEL_BLOQUEO);
 });
@@ -65,11 +65,11 @@ test("es EL contador del bloqueo: lo que falla en la caja suma al del bloqueo, l
   assert.equal(egreso("00", 1000).desenlace.mensaje, `PIN incorrecto (4 de ${INTENTOS_DEL_BLOQUEO}).`);
   assert.match(egreso("00", 1000).desenlace.mensaje, /esperá 30 segundos/);
   assert.equal(probarPin(e, recepcion.usuarioId!, recepcion.pin!, guardaDelBloqueo(ls, clave).leer(), 2000).tipo, "espera", "el bloqueo también está trabado");
-  // Ni con el PIN bueno se prueba mientras dura la espera; después, sí, y vuelve a cero.
+  // Ni con el PIN bueno se prueba mientras dura la espera; después, sí, pero el de recepción NO borra la tanda (SEC-5).
   assert.equal(egreso(recepcion.pin!, 2000).trabado, true);
   const despues = egreso(recepcion.pin!, 1000 + ESPERAS_DEL_BLOQUEO_MS[0]);
   assert.equal(despues.desenlace.ok, true, despues.desenlace.mensaje);
-  assert.deepEqual(guardaDelBloqueo(ls, clave).leer(), SIN_INTENTOS_DEL_BLOQUEO);
+  assert.equal(guardaDelBloqueo(ls, clave).leer().tandas, 1, "la próxima tanda de 5 mal ya espera 2 minutos");
 });
 
 test("la segunda tanda de 5 mal traba 2 minutos, también si la cierra el descuento del buffet", () => {
@@ -96,4 +96,28 @@ test("ejecutarCaja dice qué pasó con el PIN: el fondo y el envío sin PIN no l
   assert.equal(ejecutarCaja(e, { tipo: "egreso", monto: "1000", concepto: "Hielo", pin: duenio.pin! }, AHORA, recepcion).pin, "malo", "el PIN de otro no es el de quien opera");
   const sinConcepto = ejecutarCaja(e, { tipo: "egreso", monto: "1000", concepto: " ", pin: recepcion.pin! }, AHORA, recepcion);
   assert.deepEqual([sinConcepto.ok, sinConcepto.pin], [false, "bueno"]);
+});
+
+test("SEC-5: un acierto de recepción NO borra los fallos (4 PIN del dueño mal + el propio no arranca de nuevo); uno del dueño sí", () => {
+  const ls = almacenamiento();
+  const g = guardaDelBloqueo(ls, claveDeIntentosDelBloqueo("breakpoint"));
+  const e = M.generarDemo(HOY, AHORA.min);
+  const recepcion = operadorDeLaDemo(e, "RECEPTION")!.auth;
+  const duenio = operadorDeLaDemo(e, "OWNER")!.auth;
+  const c = M.cuentasAbiertas(e)[0];
+  const descuento = (pin: string) =>
+    conTopeDePin(g, 0, () => ejecutarMesa(e, { tipo: "cargoManual", cuentaId: c.id, concepto: "Cumple", monto: 100, descuento: true, pin }, AHORA, recepcion));
+  for (let k = 0; k < INTENTOS_DEL_BLOQUEO - 1; k++) descuento("0000");
+  // Recepción pone el suyo en la caja (bueno, pero no es dueño): los 4 fallos siguen.
+  const egreso = conTopeDePin(g, 0, () => ejecutarCaja(e, { tipo: "egreso", monto: "100", concepto: "Hielo", pin: recepcion.pin! }, AHORA, recepcion));
+  assert.equal(egreso.desenlace.ok, true, egreso.desenlace.mensaje);
+  assert.equal(g.leer().fallos, INTENTOS_DEL_BLOQUEO - 1);
+  // El quinto traba.
+  assert.match(descuento("0000").desenlace.mensaje, /esperá 30 segundos/);
+  // Un dueño que firma bien (pasada la espera) sí vuelve a cero.
+  const firma = conTopeDePin(g, ESPERAS_DEL_BLOQUEO_MS[0], () =>
+    ejecutarMesa(e, { tipo: "cargoManual", cuentaId: c.id, concepto: "Cumple", monto: 100, descuento: true, pin: duenio.pin! }, AHORA, recepcion),
+  );
+  assert.equal(firma.desenlace.ok, true, firma.desenlace.mensaje);
+  assert.deepEqual(g.leer(), SIN_INTENTOS_DEL_BLOQUEO);
 });

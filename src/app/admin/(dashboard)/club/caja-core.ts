@@ -17,7 +17,7 @@
 //
 // Las reglas son del motor; acá se arma lo que se ve y se traduce cada toque (caja-core.test.ts).
 
-import { MEDIOS, ajustarFondo, cajaAbierta, cajaCerrada, cajasConMovimientosSinCerrar, cerrarCaja, diaDeCaja, egresoCaja, hhmm, pesos, pinDesactualizado, puede, resumenCaja, verificarPin } from "@/lib/club/motor.mjs";
+import { MEDIOS, ajustarFondo, cajaAbierta, cajaCerrada, cajasConMovimientosSinCerrar, cerrarCaja, diaDeCaja, egresoCaja, hhmm, pesos, pinDesactualizado, puede, resumenCaja, verificarFirma } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, EstadoClub, Fecha } from "@/lib/club/motor.mjs";
 import type { DesenlaceConPin } from "./tope-de-pin";
 import { MEDIOS_CAJA } from "./cuenta-core";
@@ -171,21 +171,23 @@ export function ejecutarCaja(estado: EstadoClub, accion: AccionCaja, ahora: Ahor
   const quien = auth.usuarioId ?? "";
   const activo = estado.usuarios.some((u) => u.id === quien && u.activo !== false);
   let resultado: DesenlaceConPin["pin"] = null;
+  let duenio = false;
   if (activo) {
     if (pinDesactualizado(estado, quien)) return { ok: false, mensaje: PIN_VIEJO_CAJA, pin: "malo" };
-    const v = verificarPin(estado, quien, pin);
+    const v = verificarFirma(estado, quien, pin);
     if (!v.ok) return { ok: false, mensaje: v.motivo, pin: "malo" };
     resultado = "bueno";
+    duenio = v.usuario.rol === "duenio";
   }
   if (accion.tipo === "egreso") {
     const monto = leerMonto(accion.monto);
     const res = egresoCaja(estado, { monto, concepto: accion.concepto, usuarioId: auth.usuarioId, pin }, ahora);
-    return res.ok ? { ok: true, mensaje: `Egreso de ${pesos(monto)} (${accion.concepto.trim()}) anotado: sale del efectivo del cajón.`, pin: resultado } : { ok: false, mensaje: res.motivo, pin: resultado };
+    return res.ok ? { ok: true, mensaje: `Egreso de ${pesos(monto)} (${accion.concepto.trim()}) anotado: sale del efectivo del cajón.`, pin: resultado, duenio } : { ok: false, mensaje: res.motivo, pin: resultado, duenio };
   }
   const contado = accion.contado.trim() === "" ? null : leerMonto(accion.contado);
   const res = cerrarCaja(estado, { contado, usuarioId: auth.usuarioId, pin, dia: accion.dia }, ahora);
-  if (!res.ok) return { ok: false, mensaje: res.motivo, pin: resultado };
+  if (!res.ok) return { ok: false, mensaje: res.motivo, pin: resultado, duenio };
   const d = res.cierre.diferencia;
   const dif = d === 0 ? "la caja cuadra" : d > 0 ? `sobran ${pesos(d)}` : `faltan ${pesos(-d)}`;
-  return { ok: true, mensaje: `Caja del ${ddmm(res.cierre.dia)} cerrada: ${dif}.`, pin: resultado };
+  return { ok: true, mensaje: `Caja del ${ddmm(res.cierre.dia)} cerrada: ${dif}.`, pin: resultado, duenio };
 }

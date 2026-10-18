@@ -5,7 +5,8 @@
 // Un PIN corto se adivina probando (el de recepción, de 2, en 100 intentos). El bloqueo ya cuenta los PIN mal en
 // `gsg-club:<negocio>:intentos-bloqueo:v1` y traba 30 s → 2 min → 10 min; si el descuento y la caja contaran aparte,
 // cada pantalla sería una puerta más para probar. Acá se usa ESE contador: un PIN mal en la caja suma al del bloqueo,
-// y la espera del bloqueo traba también la caja y el descuento. Un PIN bueno lo vuelve a cero, como en el bloqueo.
+// y la espera del bloqueo traba también la caja y el descuento. Un PIN bueno de un DUEÑO lo vuelve a cero; uno bueno
+// de recepción no (SEC-5: si no, alguien prueba 4 PIN del dueño, pone el suyo y arranca de nuevo).
 //
 // Cuenta SÓLO un PIN que se llegó a evaluar (`pin: "bueno" | "malo"`): un envío sin monto o sin concepto no es un
 // intento ni vuelve el contador a cero (hallazgo M2 del Gate).
@@ -25,18 +26,20 @@ import {
 
 /** Qué pasó con el PIN: "bueno", "malo" o null (no se llegó a mirar). */
 export type ResultadoDelPin = "bueno" | "malo" | null;
-export type DesenlaceConPin = Desenlace & { pin: ResultadoDelPin };
+/** `duenio`: el PIN bueno es de un dueño (sólo ése vuelve el contador a cero). */
+export type DesenlaceConPin = Desenlace & { pin: ResultadoDelPin; duenio?: boolean };
 
 /**
  * Corre `correr` si el equipo no está trabado y anota lo que pasó con el PIN. Trabado: no corre y dice cuánto
- * esperar. Un PIN malo suma «(3 de 5)» al motivo o, si fue el quinto, la espera. Pura salvo `guarda`.
+ * esperar. Un PIN malo suma «(3 de 5)» al motivo o, si fue el quinto, la espera; uno bueno de un dueño lo vuelve a
+ * cero. Pura salvo `guarda`.
  */
 export function conTopeDePin<D extends DesenlaceConPin>(guarda: GuardaDelBloqueo, ahoraMs: number, correr: () => D): { desenlace: D | DesenlaceConPin; trabado: boolean } {
   const previo = intentosVigentes(guarda.leer(), ahoraMs);
   const espera = segundosDeEspera(previo, ahoraMs);
   if (espera > 0) return { desenlace: { ok: false, mensaje: textoDeEspera(espera), pin: null }, trabado: true };
   const d = correr();
-  if (d.pin === "bueno") guarda.guardar(SIN_INTENTOS_DEL_BLOQUEO);
+  if (d.pin === "bueno" && d.duenio) guarda.guardar(SIN_INTENTOS_DEL_BLOQUEO);
   if (d.pin !== "malo") return { desenlace: d, trabado: false };
   const intentos = anotarFallo(previo, ahoraMs);
   guarda.guardar(intentos);

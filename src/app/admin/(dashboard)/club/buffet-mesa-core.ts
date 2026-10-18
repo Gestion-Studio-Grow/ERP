@@ -76,11 +76,14 @@ export function ejecutarMesa(estado: EstadoClub, accion: AccionMesa, ahora: Ahor
     pin = q.esDuenio ? "bueno" : "malo";
   }
   const res = cargoManual(estado, accion.cuentaId, { concepto: accion.concepto, monto }, firma, ahora);
-  if (!res.ok) return { ok: false, mensaje: res.motivo, pin };
+  // Un descuento lo firma un dueño: un PIN bueno acá siempre es de un dueño (vuelve el tope a cero, SEC-5).
+  const duenio = pin === "bueno";
+  if (!res.ok) return { ok: false, mensaje: res.motivo, pin, duenio };
   return {
     ok: true,
     mensaje: monto < 0 ? `Descuento de ${pesos(-monto)} aplicado (lo autorizó ${res.item.por ?? "el dueño"}).` : `Cargo manual sumado: ${res.item.nombre} ${pesos(monto)}.`,
     pin,
+    duenio,
   };
 }
 

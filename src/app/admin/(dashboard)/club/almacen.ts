@@ -66,7 +66,7 @@ import {
   materializarFijos,
   secuenciaIds,
   sumarDias,
-  verificarPin,
+  verificarFirma,
 } from "@/lib/club/motor.mjs";
 import type { Ahora, AnexoJornada, Auth, ConteosArchivo, EstadoClub, Fecha, FotoEstado, Usuario } from "@/lib/club/motor.mjs";
 import type { Role } from "@/lib/capabilities";
@@ -1135,7 +1135,8 @@ export function crearAlmacen(opciones: OpcionesAlmacen): Almacen {
   const quienArchiva = (auth: Auth | undefined): { ok: true; usuario: Usuario } | { ok: false; motivo: string } => {
     if (rol !== "OWNER") return { ok: false, motivo: "Archivar lo hace un dueño." };
     const a = auth ?? operadorActual()?.auth ?? {};
-    const v = verificarPin(estado, a.usuarioId ?? "", a.pin ?? "");
+    // Firma, no sólo entra: el PIN viejo de un dueño (el de 2 del piloto) no archiva ni restaura (SEC-5).
+    const v = verificarFirma(estado, a.usuarioId ?? "", a.pin ?? "");
     if (!v.ok) return { ok: false, motivo: v.motivo };
     if (v.usuario.rol !== "duenio") return { ok: false, motivo: "Archivar lo hace un dueño." };
     return { ok: true, usuario: v.usuario };
