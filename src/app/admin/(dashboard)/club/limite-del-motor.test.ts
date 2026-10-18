@@ -40,8 +40,11 @@ test("la pantalla pide la demo sólo con next/dynamic y ssr: false; la página d
 
   const pagina = sinComentarios(readFileSync(join(CLUB, "page.tsx"), "utf8"));
   const locales = [...pagina.matchAll(/from\s+["']\.\/([^"']+)["']/g)].map((m) => m[1]);
-  assert.deepEqual(locales, ["ClubCargador"], "la página sólo importa el cargador");
+  assert.deepEqual(locales, ["ClubCargador", "jornada-del-club-core"], "la página sólo importa el cargador y la llave real/demo");
   assert.doesNotMatch(pagina, MOTOR);
+  // La llave real/demo (relojDelClub) es pura y no importa nada: no arrastra el motor al servidor.
+  const llave = sinComentarios(readFileSync(join(CLUB, "jornada-del-club-core.ts"), "utf8"));
+  assert.doesNotMatch(llave, /\bimport\b|\bfrom\s+["']/);
 
   // Nadie más importa ClubDemo de forma estática (si no, el motor viajaría en otro chunk).
   // (Los tests no cuentan: no son parte de ningún chunk; el arnés del navegador la monta a propósito.)

@@ -9,24 +9,32 @@
 // conviene: es de toda la app) ni, con dos meses, en los 4,5 MB de respuesta de una función de Vercel.
 //   · subir: `FormData` con el gzip como archivo (`foto` o `respaldo`) — binario, sin base64;
 //   · bajar: el gzip en base64 (lo que serializa una respuesta de server action sin sorpresas).
-// Se descomprime con tope (`TOPE_TEXTO`): un gzip chico que se infla a gigas no tumba el servidor.
+// Se descomprime con tope (`TOPE_TEXTO`, 10 MB, estado-subida.ts): un gzip chico que se infla a gigas no tumba el
+// servidor.
 //
 // Guardia: `requireAppAccion("club")` (rol con agenda:manage, módulo `club` asignado al negocio). Restaurar y
 // revisar un respaldo son de un dueño. El negocio sale de la sesión (`getCurrentTenantId`), nunca del navegador.
 //
+// LO QUE ESTE SERVIDOR NO SABE (deuda, PARIDAD-REACT.md §«Lo que el servidor no controla»). En el «modo foto»
+// `guardarFotoDelClub` recibe el estado ENTERO de cualquier usuario con `agenda:manage`: no distingue un guardado
+// de un restaurar ni sabe qué cambió. La regla G8 (lo delicado —usuarios y PIN, precios, restaurar, limpiar— es
+// del dueño) la hace cumplir la PANTALLA (el motor y el almacén piden el PIN de un dueño), no esta acción. La
+// pantalla restaura con `almacen.restaurar` → `guardarYa()`, o sea por `guardarFotoDelClub`: `revisar…` y
+// `restaurarRespaldoDelClub` no las usa hoy ninguna pantalla (sí los tests). Se cierra con los comandos / el back
+// separado (G10).
+//
 // — Elaborado por GSG
 
-import { gunzipSync, gzipSync } from "node:zlib";
+import { gzipSync } from "node:zlib";
 import { requireAppAccion, AppNoDisponibleError } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import type { SessionUser } from "@/lib/session";
 import { guardar, leerVigente, restaurar, MENSAJE_CAMBIO_MIENTRAS_MIRABAS } from "@/lib/club/estado-repo";
 import { leerSobre, resumenDelRespaldo, type ResumenDelRespaldo } from "@/lib/club/foto";
+import { leerRespaldo } from "./configuracion-core";
+import { textoSubido } from "./estado-subida";
 
-/** Lo más que se acepta comprimido (deja aire bajo el 1 MB del cuerpo de la acción). */
-const TOPE_COMPRIMIDO = 900 * 1024;
-/** Lo más que se acepta descomprimido (dos meses de club lleno son ~6 MB). */
-const TOPE_TEXTO = 48 * 1024 * 1024;
+const SOLO_DUENIO = "Restaurar un respaldo lo hace un dueño.";
 
 export type RespuestaLeerFoto =
   | { ok: true; foto: null | { gzip: string; version: number; guardado: number | null; actualizada: string } }
@@ -49,17 +57,17 @@ async function quien(): Promise<{ user: SessionUser; tenantId: string } | { erro
   }
 }
 
-/** El texto de un gzip subido en `campo`, o por qué no. */
-async function textoSubido(datos: FormData, campo: string): Promise<{ texto: string } | { error: string }> {
-  const archivo = datos.get(campo);
-  if (!(archivo instanceof Blob)) return { error: "No llegó la foto del club." };
-  if (archivo.size > TOPE_COMPRIMIDO) return { error: "La foto del club es demasiado grande para guardarla de una vez." };
-  try {
-    const texto = gunzipSync(Buffer.from(await archivo.arrayBuffer()), { maxOutputLength: TOPE_TEXTO }).toString("utf8");
-    return { texto };
-  } catch {
-    return { error: "La foto del club llegó dañada: no se pudo leer." };
-  }
+/**
+ * Si el respaldo es de OTRO club o es la DEMO, por qué no se restaura (null si se puede). El MISMO control que la
+ * pantalla (`leerRespaldo(texto, actual)`, configuracion-core.ts), contra la foto vigente de ESTE negocio: el sobre
+ * v1 no dice de qué negocio es (FORMATO-RESPALDO.md), así que se compara el nombre del club y los PIN de ejemplo.
+ * Sin foto vigente no hay con qué comparar y se deja pasar, como la pantalla.
+ */
+async function motivoDeRespaldoAjeno(tenantId: string, texto: string): Promise<string | null> {
+  const vigente = await leerVigente(tenantId);
+  const actual = vigente ? leerSobre(vigente.texto) : null;
+  const l = leerRespaldo(texto, actual?.ok ? actual.estado : null);
+  return l.ok ? null : l.mensaje;
 }
 
 /** La foto vigente del club (null si todavía no se guardó ninguna). */
@@ -97,6 +105,8 @@ export async function revisarRespaldoDelClub(datos: FormData): Promise<Respuesta
   if ("error" in subido) return { ok: false, error: subido.error };
   const l = leerSobre(subido.texto);
   if (!l.ok) return { ok: false, error: l.motivo };
+  const ajeno = await motivoDeRespaldoAjeno(q.tenantId, subido.texto);
+  if (ajeno) return { ok: false, error: ajeno };
   return { ok: true, resumen: resumenDelRespaldo(l.estado) };
 }
 
@@ -104,8 +114,14 @@ export async function revisarRespaldoDelClub(datos: FormData): Promise<Respuesta
 export async function restaurarRespaldoDelClub(datos: FormData): Promise<RespuestaRespaldo> {
   const q = await quien();
   if ("error" in q) return { ok: false, error: q.error };
+  // El rol se mira primero (también lo mira el repositorio): a la recepción no se le dice nada del respaldo.
+  if (q.user.role !== "OWNER") return { ok: false, error: SOLO_DUENIO };
   const subido = await textoSubido(datos, "respaldo");
   if ("error" in subido) return { ok: false, error: subido.error };
+  if (leerSobre(subido.texto).ok) {
+    const ajeno = await motivoDeRespaldoAjeno(q.tenantId, subido.texto);
+    if (ajeno) return { ok: false, error: ajeno };
+  }
   const r = await restaurar(q.tenantId, subido.texto, { actor: `user:${q.user.id}`, rol: q.user.role });
   if (!r.ok) return { ok: false, error: r.detalle };
   return { ok: true, version: r.version, resumen: r.resumen };

@@ -173,4 +173,26 @@ Los medios de pago son `efectivo`, `mercadopago`, `transferencia`, `debito` y `m
 - Lo que se le debe a un cliente o lo que debe: `clientes[].deuda` con su detalle en `movCC`.
 - Los PIN (4 dígitos los dueños, 2 recepción) **no** se migran como credenciales: en el ERP cada usuario entra con login.
 
+## Propuesta: que el sobre diga de qué negocio es (no aplicada)
+
+El sobre v1 **no dice de qué negocio es**. Hoy «otro club» se reconoce por `estado.config.nombre` (lo pone el motor al
+armar el club y nadie lo cambia) y «la demo» por los PIN de ejemplo de los dueños: lo hacen la pantalla del ERP
+(`configuracion-core.ts` → `leerRespaldo`) y, desde el Gate del 18/10/2026, las acciones del servidor
+`revisarRespaldoDelClub` / `restaurarRespaldoDelClub` contra la foto vigente. Dos clubes con el mismo nombre, o un
+respaldo sin nombre, pasan.
+
+Propuesta para cuando terminales toque el almacén (no se cambia el formato del vanilla, que sigue generando v1):
+
+```jsonc
+{ "v": 1, "estado": { ... }, "secuencia": 123, "usuario": "u-rober", "guardado": 1760640000000,
+  "negocio": "breakpoint"   // OPCIONAL: el slug del negocio del ERP que lo descargó
+}
+```
+
+- Es un campo **opcional** del sobre: `hidratarEstado` no lo mira, así que un v1 sin él se sigue leyendo igual (no
+  sube `v`). Lo escribe sólo el almacén del ERP al descargar (el vanilla no sabe de negocios).
+- Al restaurar: si el respaldo trae `negocio` y no es el de la sesión, se rechaza («Ese respaldo es de otro negocio»);
+  si no lo trae (los del vanilla, los viejos), vale el control de hoy por nombre y PIN de ejemplo.
+- El servidor lo compara con el slug de la sesión (`getCurrentTenantSlug`), nunca con lo que diga el navegador.
+
 — Elaborado por GSG

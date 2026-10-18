@@ -12,8 +12,12 @@ import {
   leerFiltros,
   opcionesSobre,
   paginaValida,
+  ENTIDADES_FUERA_DE_LA_AUDITORIA,
   whereAuditoria,
+  whereAuditoriaDelPanel,
 } from "./filtros";
+import { ENTIDAD_CLUB_ESTADO } from "@/lib/club/marcas";
+import { ACCIONES_SOLO_SOPORTE } from "@/lib/soporte/avisos-a-la-contadora";
 import { businessWallTimeToUtc } from "@/lib/datetime";
 import { whereAnulacionesDelDia } from "@/lib/order-anulacion";
 import { ACCION_CAMBIO_DE_PRECIO } from "@/lib/catalogo/precios-auditoria";
@@ -90,6 +94,18 @@ test("sobre qué: la entidad, y sin agenda no se ofrece 'Turnos'", () => {
   assert.deepEqual(whereAuditoria(leerFiltros({ sobre: "ventas" }, USUARIOS)), { entity: { in: ["Order", "PaymentLink", "Coupon"] } });
   assert.ok(opcionesSobre(true).some((s) => s.id === "turnos"));
   assert.ok(!opcionesSobre(false).some((s) => s.id === "turnos"));
+});
+
+test("el panel nunca lee las fotos del club (Gate B1: PIN en claro y MB por fila), con o sin 'sobre qué'", () => {
+  assert.deepEqual([...ENTIDADES_FUERA_DE_LA_AUDITORIA], [ENTIDAD_CLUB_ESTADO]);
+  const fuera = { entity: { notIn: [ENTIDAD_CLUB_ESTADO] } };
+  const soporte = { action: { notIn: [...ACCIONES_SOLO_SOPORTE] } };
+  assert.deepEqual(whereAuditoriaDelPanel(SIN_FILTROS), { AND: [{}, soporte, fuera] });
+  // El filtro por entidad sigue valiendo: va como otra parte del AND, no se pisa con el de las fotos.
+  const ventas = leerFiltros({ sobre: "ventas" }, USUARIOS);
+  assert.deepEqual(whereAuditoriaDelPanel(ventas), { AND: [{ entity: { in: ["Order", "PaymentLink", "Coupon"] } }, soporte, fuera] });
+  // Ningún grupo de "sobre qué" ofrece la entidad de las fotos.
+  for (const o of opcionesSobre(true)) assert.ok(!(o.entidades as readonly string[]).includes(ENTIDAD_CLUB_ESTADO), o.id);
 });
 
 test("páginas: una de más muestra la última; los links conservan los filtros", () => {

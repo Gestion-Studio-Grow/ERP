@@ -485,6 +485,14 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Guardarraíl:** al cambiar el largo o la forma de una credencial, listar **cada lugar que la acepta** (entrar,
   firmar, aprobar remoto) y decidir uno por uno; el tope de intentos es **uno por dispositivo** y no lo
   resetea un acierto de quien tiene la credencial débil (acá, recepción): sólo uno de la fuerte (dueño) o el tiempo.
+- **Deuda abierta (Gate del club en la base, 18/10/2026):** con la jornada en la base (BP-3, «modo foto») los PIN en
+  claro del sobre v1 también quedan en `AuditLog.changes` (entidad `ClubEstado`) y vuelven en `leerFotoDelClub` a
+  cualquier puesto con `agenda:manage`. Y el servidor no hace cumplir G8: `guardarFotoDelClub` no distingue un
+  guardado de un restaurar ni sabe qué cambió; lo hace cumplir la pantalla. La Auditoría del panel las excluye (B1:
+  mostraba los PIN y cargaba decenas de MB). Hash/redacción y comandos: BP-4 / G10
+  (`docs/tenants/breakpoint/PARIDAD-REACT.md`, «Lo que el servidor no controla»).
+- **Guardarraíl (sumado):** una tabla de rastro que se usa como almacén (una foto en `AuditLog`) se **excluye de todo
+  lector genérico** el mismo día que se crea (`ENTIDADES_FUERA_DE_LA_AUDITORIA`), con test contra Postgres.
 - **Refs:** SEC-4; `public/previews/breakpoint/club/motor.mjs` (`verificarFirma`, `anotarIntentoPin`, `pinFacil`);
   `docs/tenants/breakpoint/REINGENIERIA.md §10`.
 

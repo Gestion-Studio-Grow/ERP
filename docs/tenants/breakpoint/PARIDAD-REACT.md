@@ -166,7 +166,36 @@ esto.»): esconder la solapa no es seguridad.
   cambió algo en el medio, no se toca nada. Lo de antes queda en el archivo elegido y en una copia en la compu; si no
   hay lugar para esa copia, tampoco se toca nada («archivá días cerrados antes»).
 
-**Llaves del corte (no son brechas, son decisiones del dueño):** `NEGOCIOS_CON_JORNADA_REAL` vacío en
-`club/page.tsx` (G1) y la base del ERP para la jornada (G2). El UAT monta la jornada real como quedaría ese día.
+**Llaves del corte (no son brechas, son decisiones del dueño):** `NEGOCIOS_CON_JORNADA_REAL` (G1; desde el 18/10 trae
+`breakpoint`, en `club/jornada-del-club-core.ts`, con su test) y la base del ERP para la jornada (G2, habilitada el
+18/10). El UAT monta la jornada real como quedaría ese día.
+
+## Lo que el servidor no controla (deuda del «modo foto», Gate del 18/10)
+
+Con la jornada en la base (BP-3) el servidor guarda una FOTO del estado entero; no tiene comandos. Eso deja tres
+deudas que se aceptan para el trial y se cierran con los comandos / el back separado (G10):
+
+1. **G8 lo hace cumplir la pantalla, no el servidor (M1).** `guardarFotoDelClub` (`club/estado-actions.ts`) acepta el
+   estado completo de cualquier usuario con `agenda:manage` (la recepción incluida): el servidor **no distingue un
+   guardado de un restaurar ni sabe qué cambió** (usuarios y PIN, precios, un restaurar entero). Que lo delicado sea
+   del dueño lo controlan el motor y el almacén en la pantalla (puesto OWNER + PIN de dueño). Alguien con el login de
+   recepción y las herramientas del navegador podría subir una foto con otros PIN.
+2. **La «época» de la poda no se usa (M1).** La pantalla restaura con `almacen.restaurar` → `guardarYa()` →
+   `guardarFotoDelClub`, o sea como un guardado más: la foto de antes del mismo día de caja se poda. La época que la
+   conserva (`estado-repo.ts`, `idsParaPodar`) sólo la abre `restaurarRespaldoDelClub`, que no usa ninguna pantalla
+   (sí los tests). La copia de antes queda en el navegador de esa compu (`antes-de-restaurar:<ms>`). **Propuesta
+   barata (no implementada: toca `almacen.ts`, de terminales):** que el próximo guardado después de
+   `almacen.restaurar` vaya marcado como restaurar (una acción `marcarRestauracionDelClub(version)` o un campo
+   `accion=restaurar` en el FormData de `guardarFotoDelClub`, permitido sólo a un OWNER), para que el repositorio
+   escriba la fila `restaurar:` y abra la época.
+3. **Los PIN viajan y quedan en claro (M2, se suma a SEC-5 / O1).** El sobre v1 trae los PIN de todos los usuarios
+   sin hash; ahora también quedan en `AuditLog.changes` (cada foto, hasta que la poda la borra; las 14 diarias
+   incluidas) y vuelven en `leerFotoDelClub` a cualquier puesto con `agenda:manage` (la recepción). La Auditoría del
+   panel **no** las muestra (filtro `ENTIDADES_FUERA_DE_LA_AUDITORIA`, Gate B1) y ningún otro lector de `AuditLog`
+   las trae. Hash o redacción de los PIN en el servidor: BP-4 / G10.
+
+El control de «otro club / la demo» al restaurar ahora lo repiten las acciones del servidor
+(`revisarRespaldoDelClub`, `restaurarRespaldoDelClub`, contra la foto vigente). El respaldo v1 sigue sin decir de qué
+negocio es: propuesta en `FORMATO-RESPALDO.md`.
 
 — Elaborado por GSG

@@ -19,8 +19,12 @@
 // SERIALIZABLE con reintentos (`tenantTransaction`), así dos guardados a la vez no sacan la misma versión.
 //
 // PODA (al guardar, en la misma transacción). Quedan: la vigente, y la última foto de cada DÍA DE CAJA (de 12 a 12)
-// de los últimos `DIAS_CON_FOTO` días. Una restauración abre una «época» nueva: la última foto de antes de
-// restaurar se conserva aunque sea del mismo día (si se restauró el archivo equivocado, se vuelve atrás). Sin la
+// de los últimos `DIAS_CON_FOTO` días. Una fila `restaurar` abre una «época» nueva: la última foto de antes se
+// conserva aunque sea del mismo día. OJO: esa fila sólo la escribe `restaurar` (la acción `restaurarRespaldoDelClub`),
+// que hoy no usa ninguna pantalla. La pantalla restaura con `almacen.restaurar` → `guardarYa()` → `guardar`: en la
+// base es un guardado más, no abre época y la foto de antes del mismo día de caja se poda (la copia de antes queda en
+// el navegador de esa compu). En el modo foto el servidor no distingue un guardado de un restaurar ni sabe qué cambió
+// (PARIDAD-REACT.md, «Lo que el servidor no controla»; se cierra con los comandos / el back separado, G10). Sin la
 // ventana, las fotos diarias crecerían con el cuadrado de los días (cada foto trae toda la historia) y el plan
 // gratuito de Neon (0,5 GB) se llenaría en meses: ver las medidas en el reporte de BP-3.
 //

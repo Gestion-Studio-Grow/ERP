@@ -8,9 +8,11 @@
 // de», «cobrar la cancha y cerrarla · la mesa sigue»). Las reglas de plata son las del motor del
 // club (src/lib/club/motor.mjs, copia controlada BP-1).
 //
-// kind: "capability" (nativo: src/lib/club + src/app/admin/(dashboard)/club). Hoy corre en MODO DEMO
-// en el navegador (estado en memoria y en el equipo, nada a la base): por eso `migraciones: []`. El
-// schema del plugin llega en BP-4 (Gate 2).
+// kind: "capability" (nativo: src/lib/club + src/app/admin/(dashboard)/club). El motor corre en el
+// navegador. Con jornada real (Break Point, desde el 18/10/2026) el estado se guarda en la base como
+// una FOTO en `AuditLog` (entidad `ClubEstado`, src/lib/club/estado-repo.ts, «modo foto» sin
+// migración): por eso `migraciones: []`. Los demás negocios, y `?demo=1`, corren la demo sin tocar
+// la base. El schema relacional del plugin llega en BP-4 (Gate 2).
 //
 // capability "agenda:manage": la pantalla opera la agenda y cobra (abrir la cancha, cobrar, «a
 // cargo de»), que es exactamente esa capability (src/lib/capabilities.ts: «crear/mover/cancelar

@@ -199,6 +199,74 @@ test("restaurar el respaldo de ejemplo reproduce la caja al centavo; la recepci�
   assert.ok(acciones.some((a) => a.startsWith("guardar:")), "lo de antes de restaurar no se borró");
 });
 
+test("restaurar en el servidor: el respaldo de otro club o de la demo no se restaura sobre la jornada de verdad", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { base, duenio } = p;
+  const { revisarRespaldoDelClub, restaurarRespaldoDelClub } = await import("@/app/admin/(dashboard)/club/estado-actions");
+  const duenia = { negocio: base.a, usuario: base.a.duenia };
+  const ejemplo = leerSobre(EJEMPLO);
+  assert.ok(ejemplo.ok);
+  // La vigente de A es el respaldo de ejemplo («Break Point Pádel», dueños con su PIN), del test anterior.
+  const filasAntes = await duenio.auditLog.count({ where: { tenantId: base.a.id, entity: ENTIDAD_CLUB_ESTADO } });
+
+  const otro = structuredClone(ejemplo.estado);
+  otro.config.nombre = "Club La Red Pádel";
+  const textoOtro = JSON.stringify({ v: 1, estado: otro, secuencia: 0 });
+  const motivoOtro = "Ese respaldo es de «Club La Red Pádel», no de «Break Point Pádel»: no se restaura. Elegí un respaldo de este club.";
+  const r1 = await ejecutarAccion(duenia, async () => restaurarRespaldoDelClub(await formRespaldo(textoOtro)));
+  assert.deepEqual(r1.tipo === "respuesta" && r1.valor, { ok: false, error: motivoOtro });
+  const v1 = await ejecutarAccion(duenia, async () => revisarRespaldoDelClub(await formRespaldo(textoOtro)));
+  assert.deepEqual(v1.tipo === "respuesta" && v1.valor, { ok: false, error: motivoOtro });
+
+  // La demo trae los PIN de ejemplo de los dueños (a la vista en la demo pública): restaurarla dejaría entrar a cualquiera.
+  const demo = M.generarDemo("2026-10-17", 19 * 60);
+  demo.config.nombre = ejemplo.estado.config.nombre;
+  const textoDemo = JSON.stringify({ v: 1, estado: demo, secuencia: 0 });
+  const r2 = await ejecutarAccion(duenia, async () => restaurarRespaldoDelClub(await formRespaldo(textoDemo)));
+  assert.ok(r2.tipo === "respuesta" && !r2.valor.ok && /respaldo de la demo/.test(r2.valor.error), JSON.stringify(r2));
+
+  assert.equal(await duenio.auditLog.count({ where: { tenantId: base.a.id, entity: ENTIDAD_CLUB_ESTADO } }), filasAntes, "no se escribió nada");
+  // El mismo club sí (lo de ahora es el ejemplo: se vuelve a poder revisar).
+  const mismo = await ejecutarAccion(duenia, async () => revisarRespaldoDelClub(await formRespaldo(EJEMPLO)));
+  assert.ok(mismo.tipo === "respuesta" && mismo.valor.ok, JSON.stringify(mismo));
+});
+
+test("la Auditoría del panel no trae las fotos del club ni sus PIN (Gate B1), y el resto sí", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { base, duenio } = p;
+  const { leerFotoDelClub, guardarFotoDelClub } = await import("@/app/admin/(dashboard)/club/estado-actions");
+  const { getAuditLog } = await import("@/lib/audit");
+  const duenia = { negocio: base.a, usuario: base.a.duenia };
+
+  // Una foto con PIN que se reconocen (y que no aparecen en ningún otro lado).
+  const e = M.crearClubReal("2026-10-17");
+  e.usuarios.forEach((u, i) => (u.pin = ["7391", "8264", "59", "48"][i] ?? u.pin));
+  const leida = await ejecutarAccion(duenia, () => leerFotoDelClub());
+  assert.ok(leida.tipo === "respuesta" && leida.valor.ok);
+  const version = leida.valor.foto?.version ?? 0;
+  const g = await ejecutarAccion(duenia, async () => guardarFotoDelClub(await formFoto(JSON.stringify({ v: 1, estado: e, secuencia: 0 }), version)));
+  assert.ok(g.tipo === "respuesta" && g.valor.ok, JSON.stringify(g));
+  // Y una fila común de la auditoría, que sí tiene que salir.
+  await duenio.auditLog.create({ data: { tenantId: base.a.id, actor: `user:${base.a.duenia.id}`, action: "update", entity: "Product", entityId: "prod-qa", changes: { precio: 100 }, channel: "admin" } });
+  const fotos = await duenio.auditLog.count({ where: { tenantId: base.a.id, entity: ENTIDAD_CLUB_ESTADO } });
+  assert.ok(fotos > 0, "A tiene fotos del club en la base");
+  const otras = await duenio.auditLog.count({ where: { tenantId: base.a.id, entity: { not: ENTIDAD_CLUB_ESTADO }, action: { not: "soporte.nota_interna" } } });
+
+  const r = await ejecutarAccion(duenia, () => getAuditLog({}));
+  assert.ok(r.tipo === "respuesta", JSON.stringify(r));
+  const { entradas, total } = r.valor;
+  assert.ok(entradas.some((x) => x.entity === "Product" && x.entityId === "prod-qa"), "la fila común sale");
+  assert.ok(!entradas.some((x) => x.entity === ENTIDAD_CLUB_ESTADO), "ninguna foto del club");
+  assert.equal(total, otras, "el total cuenta todo menos las fotos");
+  const json = JSON.stringify(r.valor);
+  for (const pin of ["7391", "8264"]) assert.ok(!json.includes(`"pin":"${pin}"`), `el PIN ${pin} no viaja a la Auditoría`);
+  // Con "sobre qué" puesto, tampoco.
+  const ventas = await ejecutarAccion(duenia, () => getAuditLog({ sobre: "ventas" }));
+  assert.ok(ventas.tipo === "respuesta" && !ventas.valor.entradas.some((x) => x.entity === ENTIDAD_CLUB_ESTADO));
+});
+
 test("un negocio sin el módulo `club` no lee ni guarda la foto", async (t) => {
   const p = await preparar(t);
   if (!p) return;

@@ -29,7 +29,7 @@ function Cargando() {
 
 const ClubDemo = dynamic(() => import("./ClubDemo"), { ssr: false, loading: Cargando });
 
-/** `reloj="real"` sólo lo pasa page.tsx detrás de una condición que hoy es siempre falsa (el día de corte). */
+/** `reloj="real"` lo pasa page.tsx para los negocios con jornada real (`relojDelClub`, jornada-del-club-core.ts). */
 // La base del ERP para la jornada real: las acciones del servidor (en el navegador son sólo la llamada; la foto viaja en
 // gzip). El adaptador que las usa (guardado-en-la-base.ts) importa el motor, así que lo arma ClubDemo, dentro de su chunk.
 const BASE = { leer: leerFotoDelClub, guardar: guardarFotoDelClub };

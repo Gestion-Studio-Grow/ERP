@@ -125,7 +125,13 @@ Elegí un momento con el club tranquilo (a la mañana, antes del primer turno). 
    sugiere: «Si venís del sistema de hoy, restaurá su respaldo en «Jornada»», `ConfiguracionDelClub.tsx:62`).
    Elegí el archivo del paso 2: la pantalla muestra de cuándo es y qué trae. Confirmá con el PIN del paso 6.
    - Sólo funciona en el puesto del dueño y con el PIN de un dueño (`almacen.ts:1135-1143` y `:1269-1300`).
-   - Antes de reemplazar, guarda una copia de lo que había (si no hay lugar, no toca nada).
+   - Antes de reemplazar, guarda una copia de lo que había **en esta compu** (en el navegador,
+     `antes-de-restaurar:<ms>`, `almacen.ts:1285`; si no hay lugar, no toca nada). **En la base no queda la foto de
+     antes:** la pantalla sube lo restaurado como un guardado más (`almacen.restaurar` → `guardarYa()` →
+     `guardarFotoDelClub`), así que la poda (`estado-repo.ts`, `idsParaPodar`) borra la foto anterior si es del mismo
+     día de caja. La «época» que conserva la foto de antes de restaurar sólo la abre la acción
+     `restaurarRespaldoDelClub`, que hoy no usa ninguna pantalla. Si te equivocaste de archivo, se vuelve atrás
+     restaurando el respaldo del paso 2 (o la copia de esta compu), no desde la base.
    - Si el archivo es de **otro club**, de **la demo**, está **cortado** o es el **anexo** de un archivado, lo dice y
      no deja restaurar (`configuracion-core.ts` → `leerRespaldo`).
 8. Quedan los usuarios y los PIN del respaldo: la pantalla se bloquea y se entra con **el PIN de siempre**. El PIN
@@ -238,10 +244,16 @@ están a la vista en la demo pública, así que cualquiera entraba como dueño. 
 **Lo que hay que saber:**
 
 - **El respaldo v1 no dice de qué negocio es.** «Otro club» se reconoce por el nombre del club (`config.nombre`, que
-  pone el motor y nadie cambia) y «la demo» por los PIN de ejemplo de los dueños. Es un control de la pantalla: ni
-  `almacen.restaurar` (`almacen.ts:1269-1282`) ni la acción del servidor `restaurarRespaldoDelClub`
-  (`estado-actions.ts:104-112` → `estado-repo.ts:211`) lo repiten. Pendiente para terminales: sumar el negocio al
-  sobre (FORMATO-RESPALDO.md) y el mismo control en el almacén.
+  pone el motor y nadie cambia) y «la demo» por los PIN de ejemplo de los dueños. Lo controla la pantalla
+  (`leerRespaldo`) y, desde el Gate del 18/10, también las acciones del servidor `revisarRespaldoDelClub` y
+  `restaurarRespaldoDelClub` contra la foto vigente del negocio (`estado-actions.ts`, `motivoDeRespaldoAjeno`; test en
+  `src/lib/club/estado-postgres.test.ts`). `almacen.restaurar` (`almacen.ts:1269-1282`) no lo repite. Pendiente
+  para terminales: sumar el negocio al sobre (propuesta en FORMATO-RESPALDO.md) y el mismo control en el almacén.
+- **El servidor no hace cumplir G8 en el modo foto.** `guardarFotoDelClub` acepta el estado entero de cualquier
+  usuario con `agenda:manage` (la recepción incluida): no distingue un guardado de un restaurar ni sabe qué cambió.
+  Que lo delicado (usuarios y PIN, precios, restaurar, limpiar) sea del dueño lo hace cumplir la pantalla (el motor y
+  el almacén piden el PIN de un dueño). Deuda anotada en PARIDAD-REACT.md; se cierra con los comandos / el back
+  separado (G10).
 - **Para verificar la caja (paso 9):** un cobro hecho después de cerrar la caja entra en la caja siguiente; por eso se
   compara la caja de cada día con la del club de hoy y, en total, Σ de lo cobrado (sin créditos) con los ingresos.
 - **La compu del mostrador** abre lo de la base y no guarda copia propia hasta el primer cambio (el ensayo lo mide:

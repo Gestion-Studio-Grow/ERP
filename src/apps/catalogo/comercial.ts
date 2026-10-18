@@ -218,8 +218,8 @@ export const APPS_COMERCIAL = [
   },
   {
     // La recepción de un club de pádel (plan BP-2): la agenda de canchas del día y la cuenta de cada
-    // turno, con el motor del club (src/lib/club). Hoy en MODO DEMO: corre en el navegador y no guarda
-    // nada en la base. Pide agenda:manage (abrir la cancha y cobrar), como su módulo. Módulo propio:
+    // turno, con el motor del club (src/lib/club). Corre en el navegador; con jornada real (Break
+    // Point) guarda la foto del club en la base, el resto corre la demo. Pide agenda:manage (abrir la cancha y cobrar), como su módulo. Módulo propio:
     // sin `club` asignado no se abre ni por URL; nadie lo recibe por defecto.
     id: "club",
     nombre: "Canchas del club",
