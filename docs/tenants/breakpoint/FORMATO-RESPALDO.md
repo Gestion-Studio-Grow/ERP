@@ -33,7 +33,7 @@ son `{ fecha, min }`.
 |---|---|---|
 | `config` | Reglas del club | `modo: "real"`, `configurado`, `horarios[0..6] {abre, cierra}`, `tarifas[] {nombre, desde, hasta, precioHora}`, `politica {senaPct, toleranciaMin, …}`, `cobro.alias`, `bloqueoMin`, `duracionTurno`, `paso`, `corteCaja` |
 | `canchas[]` | Canchas | `id, nombre, cubierta, panoramica, estado ("ok"\|"mantenimiento")` |
-| `usuarios[]` | Accesos | `id, nombre, rol ("duenio"\|"recepcion"), pin (2 dígitos), activo` — **el PIN va en el archivo: el respaldo se guarda como dato sensible** |
+| `usuarios[]` | Accesos | `id, nombre, rol ("duenio"\|"recepcion"), pin (dueño 4 dígitos, recepción 2; un dueño del piloto puede tener todavía uno de 2 y se lee igual), activo` — **el PIN va en el archivo: el respaldo se guarda como dato sensible** |
 | `clientes[]` | Fichas | `id, nombre, tel, nivel, strikes, monedero` (créditos), `deuda` (cuenta corriente), `cc {habilitada, limite}`, `movCC[] {fecha, min, concepto, importe, saldo}`, `fiados[] {monto, aprobo, usado}`, `aceptaNovedades`, `activo` |
 | `reservas[]` | Turnos (la cuenta de la CANCHA) | `id, canchaId, fecha, inicio, duracion, tipo, estado ("reservada"\|"en_cancha"\|"finalizada"\|"cancelada"\|"no_show"\|"suspendida"), clienteId, titular, precio, sena {monto, pagada}, pagos[] {medio, monto, jugador, fecha, min}, jugadores[] {nombre, clienteId, pagado, saldado, pagadoPor, aCargoDe}, origen, ref, checkIn, cierre, aCuentaCorriente` |
 | `cuentas[]` | Cuentas de cargos (buffet) | `id, clienteId, titular, reservaId, jugadorIdx, estado ("abierta"\|"cerrada"), items[] {productoId, nombre, cant, precioUnit, manual, alquiler, devuelto, transferidoDe}, pagos[] {medio, monto, pagadoPor?}, aCargoDe` (id de la cuenta que paga), `aCuentaCorriente` |
@@ -171,6 +171,6 @@ Los medios de pago son `efectivo`, `mercadopago`, `transferencia`, `debito` y `m
 - La caja es la suma de los dos sin `monedero`, más lo cobrado en la tienda y la venta rápida, que entran como
   cuentas (`reservaId` `tienda-…` o `mostrador-…`).
 - Lo que se le debe a un cliente o lo que debe: `clientes[].deuda` con su detalle en `movCC`.
-- Los PIN de 2 dígitos **no** se migran como credenciales: en el ERP cada usuario entra con login.
+- Los PIN (4 dígitos los dueños, 2 recepción) **no** se migran como credenciales: en el ERP cada usuario entra con login.
 
 — Elaborado por GSG

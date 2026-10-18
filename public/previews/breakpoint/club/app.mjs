@@ -821,10 +821,10 @@ function vistaConsola() {
     </section>
     <section class="card" aria-labelledby="t-c1">
       <div class="card-head"><h2 id="t-c1">1 · Los dueños arman su PIN</h2><span class="muted small">${listos} de ${duenios.length} listos</span></div>
-      <p class="small muted" style="margin:0 0 8px">2 números que sólo sepa cada uno. Con ese PIN se entra, se desbloquea la pantalla y se autorizan créditos, descuentos y accesos.</p>
+      <p class="small muted" style="margin:0 0 8px">${M.LARGO_PIN.duenio} números que sólo sepa cada uno. Con ese PIN se entra, se desbloquea la pantalla y se autorizan créditos, descuentos y accesos.</p>
       <div class="reglas">${duenios.map((u) => u.pin
         ? `<p style="margin:0"><b>${esc(u.nombre)}</b> · ✔ PIN armado</p>`
-        : `<div><p style="margin:0 0 4px"><b>${esc(u.nombre)}</b></p><div class="row"><label class="f" style="max-width:130px">PIN<input id="pi-${u.id}" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label><label class="f" style="max-width:130px">Repetilo<input id="pi2-${u.id}" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label><button type="button" class="btn sm primary" data-a="pinInicial" data-v="${u.id}" style="align-self:flex-end">Guardar PIN</button></div></div>`).join("")}</div>
+        : `<div><p style="margin:0 0 4px"><b>${esc(u.nombre)}</b></p><div class="row"><label class="f" style="max-width:130px">PIN (${M.LARGO_PIN.duenio} números)<input id="pi-${u.id}" type="password" inputmode="numeric" autocomplete="off" maxlength="${M.LARGO_PIN.duenio}" placeholder="${puntos("duenio")}"></label><label class="f" style="max-width:130px">Repetilo<input id="pi2-${u.id}" type="password" inputmode="numeric" autocomplete="off" maxlength="${M.LARGO_PIN.duenio}" placeholder="${puntos("duenio")}"></label><button type="button" class="btn sm primary" data-a="pinInicial" data-v="${u.id}" style="align-self:flex-end">Guardar PIN</button></div></div>`).join("")}</div>
     </section>
     <section class="card" aria-labelledby="t-c2">
       <div class="card-head"><h2 id="t-c2">2 · Avisos por WhatsApp</h2><span class="muted small">Opcional · se guarda en esta compu</span></div>
@@ -1010,8 +1010,8 @@ function vistaAjustes() {
       </tbody></table></div>
       ${E.solicitudesAcceso.filter((s) => s.estado === "pendiente").map((s) => `<div class="al media" style="margin-top:8px"><span class="lvl">Pidió acceso</span><p><b>${esc(s.nombre)}</b></p><div class="row"><button type="button" class="btn sm primary" data-a="otorgar" data-v="${s.id}">Dar acceso</button><button type="button" class="btn sm danger" data-a="rechazarAcceso" data-v="${s.id}">Rechazar</button></div></div>`).join("")}
       <div class="row" style="margin-top:10px"><label class="f" style="max-width:220px">Nombre<input id="nu-nombre" placeholder="Ej.: Caro (mañana)"></label><label class="f" style="max-width:170px">Rol<select id="nu-rol"><option value="recepcion">Recepción</option><option value="duenio">Dueño/a</option></select></label><button type="button" class="btn sm primary" data-a="altaUsuario" style="align-self:flex-end">Dar de alta</button></div>
-      <div class="row" style="margin-top:6px"><label class="f" style="max-width:150px">Tu PIN actual<input id="mp-viejo" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label><label class="f" style="max-width:150px">PIN nuevo<input id="mp-nuevo" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label><button type="button" class="btn sm" data-a="cambiarMiPin" style="align-self:flex-end">Cambiar mi PIN</button></div>
-      <p class="small muted" style="margin:10px 0 0">El acceso es con PIN de 2 dígitos. El de alta lo genera el sistema y se ve una sola vez; cada uno puede cambiar el suyo. Lo que mueve plata sensible (egresos, cierre de caja, pagos a proveedores, accesos) vuelve a pedir el PIN.</p>
+      <div class="row" style="margin-top:6px"><label class="f" style="max-width:150px">Tu PIN actual<input id="mp-viejo" type="password" inputmode="numeric" autocomplete="off" maxlength="${LARGO_PIN_MAX}" placeholder="${puntos(yo()?.rol)}"></label><label class="f" style="max-width:150px">PIN nuevo (${M.largoPin(yo()?.rol)} números)<input id="mp-nuevo" type="password" inputmode="numeric" autocomplete="off" maxlength="${M.largoPin(yo()?.rol)}" placeholder="${puntos(yo()?.rol)}"></label><button type="button" class="btn sm" data-a="cambiarMiPin" style="align-self:flex-end">Cambiar mi PIN</button></div>
+      <p class="small muted" style="margin:10px 0 0">El acceso es con PIN: ${M.LARGO_PIN.duenio} números los dueños, ${M.LARGO_PIN.recepcion} recepción. El de alta lo genera el sistema y se ve una sola vez; cada uno puede cambiar el suyo. Lo que mueve plata sensible (egresos, cierre de caja, pagos a proveedores, accesos) vuelve a pedir el PIN.</p>
     </section>
   </div>`;
 }
@@ -1020,7 +1020,11 @@ const regla = (k, l, v) => `<label class="f">${l}<input type="number" min="${M.L
 const opcionesHora = (sel, desde, hasta) => { let o = ""; for (let m = desde; m <= hasta; m += E.config.paso) o += `<option value="${m}" ${m === sel ? "selected" : ""}>${M.hhmm(m)}${m >= 1440 ? " (+1)" : ""}</option>`; return o; };
 const horasOpc = (sel, fecha = VISTA) => { const { abre, cierra } = M.horarioDe(E, fecha); let o = ""; for (let m = abre; m <= cierra; m += E.config.paso) o += `<option value="${m}" ${m === sel ? "selected" : ""}>${M.hhmm(m)}</option>`; return o; };
 const pickMedios = (incluirCreditos = false, cl = null, soloProveedor = false) => `<div class="medio-pick" role="group" aria-label="Medio de pago">${(soloProveedor ? ["efectivo", "transferencia"] : [...MEDIOS_CAJA, ...(incluirCreditos && cl?.monedero > 0 ? ["monedero"] : [])]).map((k) => `<button type="button" data-a="medio" data-v="${k}" aria-pressed="${ui.medio === k}">${M.MEDIOS[k]}${k === "monedero" ? ` (${M.pesos(cl.monedero)})` : ""}</button>`).join("")}</div>`;
-const campoPin = (id = "pin", etiqueta = "Tu PIN") => `<label class="f" style="max-width:160px">${etiqueta}<input id="${id}" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label>`;
+// PIN por rol: dueños 4 números, recepción 2 (M.LARGO_PIN). El campo deja entrar el más largo; los puntitos dicen
+// cuántos espera de quien está usando el sistema.
+const LARGO_PIN_MAX = Math.max(...Object.values(M.LARGO_PIN));
+const puntos = (rol) => "•".repeat(M.largoPin(rol));
+const campoPin = (id = "pin", etiqueta = "Tu PIN", rol = yo()?.rol) => `<label class="f" style="max-width:160px">${etiqueta}<input id="${id}" type="password" inputmode="numeric" autocomplete="off" maxlength="${LARGO_PIN_MAX}" placeholder="${puntos(rol)}"></label>`;
 
 // ───────────────────────────── Cámaras (simuladas) ─────────────────────────────
 
@@ -1280,14 +1284,14 @@ function buscadorProductos(clave, { soloVendibles = true } = {}) {
 // Los PIN de ejemplo no quedan a la vista de cualquiera que pase por el mostrador: se muestran sólo si se piden.
 // (Es una ayuda de la DEMO; con usuarios reales no existe.)
 const pinesDemo = (usuarios) => MODO_REAL ? "" : `<details class="demo-pins"><summary>¿Probando la demo? Ver los PIN de ejemplo</summary><p style="margin:6px 0 0">${usuarios.map((u) => `${esc(u.nombre.split(" ")[0])} ${esc(u.pin)}`).join(" · ")}</p></details>`;
-// Cambio de usuario: como el bloqueo, 5 PIN mal → 30 s de espera (2 dígitos se adivinan rápido si no hay tope).
+// Cambio de usuario: como el bloqueo, 5 PIN mal → 30 s de espera (un PIN corto se adivina rápido si no hay tope).
 const intentosPin = { fallos: 0, hasta: 0 };
 
 function cambiarUsuario() {
   let elegido = USUARIO;
   abrir({
     titulo: "¿Quién usa el sistema?",
-    sub: "Elegí tu usuario y poné tu PIN de 2 dígitos.",
+    sub: `Elegí tu usuario y poné tu PIN (dueños ${M.LARGO_PIN.duenio} números, recepción ${M.LARGO_PIN.recepcion}).`,
     cuerpo: `<div class="usuarios" role="group" aria-label="Usuarios">${E.usuarios.filter((u) => u.activo !== false).map((u) => `<button type="button" data-a="elegirUsuario" data-v="${u.id}" aria-pressed="${u.id === elegido}"><span><b>${esc(u.nombre)}</b></span><span class="small muted">${M.ROLES[u.rol]}</span></button>`).join("")}</div>
       ${campoPin("pin-usuario", "PIN")}
       ${pinesDemo(E.usuarios.filter((u) => u.activo !== false))}
@@ -1541,9 +1545,10 @@ function dialogoAprobar(d) {
     refrescar: pintar,
     cuerpo: codigo
       ? `<p style="margin:0">Mandale este código a ${esc(d.p)}:</p><p class="codigo-aprob num" aria-live="polite">${esc(codigo.codigo)}</p>
-         <p class="small muted" style="margin:0">Vale para ${esc(d.n)} por ${M.pesos(codigo.monto)}. Si el PIN que pusiste no es el tuyo, el código no va a servir.</p>`
+         <p class="small muted" style="margin:0">Vale para ${esc(d.n)} por ${M.pesos(codigo.monto)}. Si el PIN que pusiste no es el tuyo, el código no va a servir.</p>
+         ${codigo.pinViejo ? `<p class="small" style="margin:6px 0 0">Tu PIN de dueño ahora es de ${M.LARGO_PIN.duenio} números: la próxima vez que entres en la compu del club te va a pedir que elijas uno nuevo.</p>` : ""}`
       : `<div class="usuarios" role="group" aria-label="¿Quién aprueba?">${duenios.map((u) => `<button type="button" data-a="aprobQuien" data-v="${u.id}" aria-pressed="${u.id === elegido}"><b>${esc(u.nombre)}</b></button>`).join("")}</div>
-         <div class="row"><label class="f" style="max-width:160px">Tu PIN<input id="ap-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••"></label>
+         <div class="row"><label class="f" style="max-width:160px">Tu PIN (${M.LARGO_PIN.duenio} números)<input id="ap-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="${M.LARGO_PIN.duenio}" placeholder="${puntos("duenio")}"></label>
          <label class="f" style="max-width:160px">Monto que aprobás<input id="ap-monto" type="number" min="1" value="${esc(d.m)}"></label></div>`,
     pie: codigo
       ? `<a class="btn primary" target="_blank" rel="noopener" href="${esc(waA("club", M.mensajeWhatsApp("aprobado", { cliente: d.n, monto: M.pesos(codigo.monto), codigo: codigo.codigo })))}">Mandar el código por WhatsApp</a><button type="button" class="btn" data-a="cerrar">Listo</button>`
@@ -1555,7 +1560,9 @@ function dialogoAprobar(d) {
     const pin = val("#ap-pin");
     const monto = Math.round(Number(val("#ap-monto")));
     if (!(monto > 0)) return toast("Poné el monto.", { error: true });
-    if (!/^\d{2}$/.test(pin)) return toast("El PIN son 2 números.", { error: true });
+    // El celular no tiene la jornada: no sabe si este dueño ya pasó al PIN de 4. Acepta también el viejo de 2 (el
+    // código sale igual con cualquiera: lo verifica la compu del club contra el PIN guardado).
+    if (!M.pinAceptadoPara("duenio", pin)) return toast(M.textoLargoPin("duenio"), { error: true });
     if (local) {
       const espera = Math.ceil((intentosPin.hasta - Date.now()) / 1000);
       if (espera > 0) return toast(`Demasiados intentos: esperá ${espera} s.`, { error: true });
@@ -1564,7 +1571,7 @@ function dialogoAprobar(d) {
       intentosPin.fallos = 0;
       return cerrarSiSale(M.resolverCredito(E, d.id, { aprobar: true, monto }, { usuarioId: elegido, pin }, AHORA), `Aprobado: ${d.n} ${M.pesos(monto)}.`);
     }
-    codigo = { codigo: M.codigoAprobacion({ pin, novedadId: d.id, clienteId: d.c, monto, fecha: d.f }), monto };
+    codigo = { codigo: M.codigoAprobacion({ pin, novedadId: d.id, clienteId: d.c, monto, fecha: d.f }), monto, pinViejo: !M.pinValidoPara("duenio", pin) };
     pintar();
   };
   pintar();
@@ -1587,7 +1594,7 @@ function mesaCompleja(cta) {
         <div class="row"><label class="sr" for="cm-con">Concepto</label><input id="cm-con" placeholder="Concepto (ej.: torta de cumpleaños)" style="flex:2;min-width:180px" maxlength="60">
           <label class="sr" for="cm-tipo">Tipo</label><select id="cm-tipo" style="max-width:130px"><option value="cargo">Cargo</option><option value="descuento">Descuento</option></select>
           <label class="sr" for="cm-mon">Monto</label><input id="cm-mon" type="number" min="1" step="50" placeholder="$" style="max-width:130px">
-          <label class="sr" for="cm-pin">PIN del dueño (sólo descuentos)</label><input id="cm-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="PIN dueño" style="max-width:110px">
+          <label class="sr" for="cm-pin">PIN del dueño (sólo descuentos)</label><input id="cm-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="${LARGO_PIN_MAX}" placeholder="PIN dueño" style="max-width:110px">
           <button type="button" class="btn" data-a="cargoManual" data-v="${cta.id}">Cargar</button></div>
         <p class="small muted" style="margin:4px 0 0">El PIN del dueño sólo hace falta para un descuento.</p></div>
     </div></details>`;
@@ -1969,7 +1976,7 @@ function otorgarDialogo(solicitudId) {
   const s = E.solicitudesAcceso.find((x) => x.id === solicitudId);
   abrir({
     titulo: `Dar acceso a ${esc(s.nombre)}`,
-    sub: "El sistema genera un PIN de 2 dígitos que no repite ningún otro. Se muestra una sola vez para que se lo des.",
+    sub: `El sistema genera un PIN que no repite ningún otro (${M.LARGO_PIN.duenio} números si es dueño/a, ${M.LARGO_PIN.recepcion} si es recepción). Se muestra una sola vez para que se lo des.`,
     cuerpo: `<label class="f">Rol<select id="og-rol"><option value="recepcion">Recepción (agenda, cobros, buffet, remitos, egreso en efectivo)</option><option value="duenio">Dueño/a (todo)</option></select></label>${campoPin("og-pin")}`,
     pie: `<button type="button" class="btn" data-a="cerrar">Cancelar</button><button type="button" class="btn primary" data-a="confirmarOtorgar" data-v="${s.id}">Dar acceso</button>`,
   });
@@ -2065,6 +2072,8 @@ const acciones = {
   bloqueoOtro: () => { bloqueo.otro = true; bloqueo.elegido = null; pintarBloqueo(); },
   bloqueoVolver: () => { bloqueo.otro = false; pintarBloqueo(); },
   bloqueoUsuario: (b) => { bloqueo.elegido = b.dataset.v; pintarBloqueo(); },
+  guardarPinNuevo: () => guardarPinNuevo(),
+  pinNuevoDespues: () => { bloqueo.cambio = null; bloqueo.otro = false; pintarBloqueo(); $("#bl-pin")?.focus(); },
 
   // usuario y accesos
   usuario: () => cambiarUsuario(),
@@ -2078,6 +2087,7 @@ const acciones = {
       return toast(`${res.motivo} (${intentosPin.fallos} de 5)`, { error: true });
     }
     intentosPin.fallos = 0;
+    if (M.pinDesactualizado(E, res.usuario.id) && pedirPinNuevo(res.usuario.id, val("#pin-usuario"))) return;
     USUARIO = res.usuario.id;
     if (res.usuario.rol === "duenio" && matchMedia("(max-width: 640px)").matches) TAB = "tablero";
     cerrarSiSale(res, `Hola, ${res.usuario.nombre.split(" ")[0]}.`);
@@ -2923,6 +2933,9 @@ function pintarBloqueo() {
   const quien = bloqueo.otro ? (bloqueo.elegido ? M.usuario(E, bloqueo.elegido) : null) : u;
   const motivo = { inactividad: `Pasaron ${minutosBloqueo()} minutos sin uso.`, pantalla: "La pantalla se apagó o se cambió de app.", manual: "Se bloqueó a mano.", recarga: "Se volvió a abrir el sistema: poné tu PIN." }[bloqueo.motivo] ?? "";
   const activos = E.usuarios.filter((x) => x.activo !== false);
+  if (bloqueo.cambio) return pintarPinNuevo(d);
+  // Un dueño puede tener todavía el PIN viejo de 2: el campo espera 4 pero deja confirmar con «Desbloquear».
+  const viejos = quien?.rol === "duenio" && activos.some((x) => M.pinDesactualizado(E, x.id));
   morph(d, `<div class="bl-in">
     <p class="bl-marca">Break Point · Gestión del club</p>
     <h2 id="bl-titulo">Pantalla bloqueada</h2>
@@ -2932,7 +2945,8 @@ function pintarBloqueo() {
         <button type="button" class="btn ghost sm" data-a="bloqueoVolver">Volver</button>`
       : `<div class="bl-quien"><span class="avatar" aria-hidden="true">${esc(quien.nombre.slice(0, 1).toUpperCase())}</span><span><b>${esc(quien.nombre)}</b><br><span class="small muted">${M.ROLES[quien.rol]}</span></span></div>
         <label class="f bl-pin-l" for="bl-pin">${bloqueo.otro ? `PIN de ${esc(quien.nombre.split(" ")[0])}` : "Tu PIN para seguir"}</label>
-        <input id="bl-pin" class="pin-in num" type="password" inputmode="numeric" autocomplete="off" maxlength="2" placeholder="••" ${espera ? "disabled" : ""} aria-describedby="bl-aviso">
+        <input id="bl-pin" class="pin-in num" type="password" inputmode="numeric" autocomplete="off" maxlength="${M.largoPin(quien.rol)}" placeholder="${puntos(quien.rol)}" ${espera ? "disabled" : ""} aria-describedby="bl-aviso${viejos ? " bl-viejo" : ""}">
+        ${viejos ? `<p id="bl-viejo" class="small muted" style="margin:0">¿Todavía tenés el PIN viejo de ${M.LARGO_PIN_VIEJO}? Ponelo y tocá «Desbloquear».</p>` : ""}
         <p id="bl-aviso" class="${espera || bloqueo.fallos ? "err" : "small muted"}" role="status" style="margin:0;min-height:1.4em">${espera ? `Demasiados intentos: esperá ${espera > 60 ? `${Math.ceil(espera / 60)} minutos` : "un momento"}. <span aria-hidden="true">(${espera} s)</span>` : bloqueo.fallos ? `PIN incorrecto (${bloqueo.fallos} de 5).` : ""}</p>
         <button type="button" class="btn primary" data-a="desbloquear" ${espera ? "disabled" : ""}>Desbloquear</button>
         ${bloqueo.otro ? `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Elegir otro usuario</button>` : `<button type="button" class="btn ghost sm" data-a="bloqueoOtro">Entrar con otro usuario</button>`}`}
@@ -2944,7 +2958,8 @@ function pintarBloqueo() {
 function desbloquear() {
   if (Date.now() < bloqueo.esperaHasta) return pintarBloqueo();
   const quien = bloqueo.otro ? bloqueo.elegido : USUARIO;
-  const res = M.verificarPin(E, quien, $("#bl-pin")?.value);
+  const tipeado = $("#bl-pin")?.value;
+  const res = M.verificarPin(E, quien, tipeado);
   if (!res.ok) {
     bloqueo.fallos += 1;
     // 5 PIN mal → espera; cada tanda espera más (30 s, 2 min, 10 min). En la jornada real sobrevive a recargar.
@@ -2955,8 +2970,15 @@ function desbloquear() {
     if (pin && !pin.disabled) { pin.value = ""; pin.focus(); }
     return;
   }
-  const cambio = res.usuario.id !== USUARIO;
-  USUARIO = res.usuario.id;
+  bloqueo.fallos = 0;
+  bloqueo.tandas = 0;
+  guardarIntentos();
+  if (M.pinDesactualizado(E, res.usuario.id)) { pedirPinNuevo(res.usuario.id, tipeado); return; }
+  entrarDesbloqueado(res.usuario);
+}
+function entrarDesbloqueado(usuario, saludo = "") {
+  const cambio = usuario.id !== USUARIO;
+  USUARIO = usuario.id;
   bloqueo.activo = false;
   bloqueo.fallos = 0;
   bloqueo.tandas = 0;
@@ -2966,23 +2988,75 @@ function desbloquear() {
   $("#bloqueo").close();
   render();
   const pendientes = esDuenio() ? E.novedades.filter((x) => x.estado === "pendiente").length : 0;
-  toast(`${cambio ? `Hola, ${res.usuario.nombre.split(" ")[0]}.` : "Desbloqueado."}${pendientes ? ` Tenés ${pendientes === 1 ? "un pedido de crédito" : `${pendientes} pedidos de crédito`} para resolver.` : ""}`);
+  toast(`${saludo}${cambio ? `Hola, ${usuario.nombre.split(" ")[0]}.` : "Desbloqueado."}${pendientes ? ` Tenés ${pendientes === 1 ? "un pedido de crédito" : `${pendientes} pedidos de crédito`} para resolver.` : ""}`);
   const despues = bloqueo.despues;
   bloqueo.despues = null;
   despues?.();
+}
+// Dueño del piloto con el PIN viejo de 2 (decisión del 18/10: los dueños pasan a 4). Entró bien, pero antes de
+// operar elige uno de 4: es un paso de la pantalla bloqueada, no se cierra sin PIN y no toca nada de lo cargado.
+// Se fuerza en el momento (no «después»): con 2 números el código de aprobación y los descuentos valen poco.
+// El PIN viejo queda sólo en memoria hasta guardar el nuevo (nunca se muestra ni se guarda aparte).
+function pedirPinNuevo(usuarioId, viejo) {
+  bloqueo.cambio = { usuarioId, viejo: String(viejo ?? "").trim() };
+  bloqueo.avisoCambio = "";
+  if (!bloqueo.activo) { cerrarDialogo(); bloquear("pinViejo"); }
+  if (!bloqueo.activo) { bloqueo.cambio = null; return false; } // consola u otra pestaña: sigue como antes
+  pintarBloqueo();
+  $("#bl-nuevo")?.focus();
+  return true;
+}
+function pintarPinNuevo(d) {
+  const u = M.usuario(E, bloqueo.cambio.usuarioId);
+  const n = M.largoPin(u?.rol);
+  morph(d, `<div class="bl-in">
+    <p class="bl-marca">Break Point · Gestión del club</p>
+    <h2 id="bl-titulo">Elegí tu PIN nuevo</h2>
+    <div class="bl-quien"><span class="avatar" aria-hidden="true">${esc(u.nombre.slice(0, 1).toUpperCase())}</span><span><b>${esc(u.nombre)}</b><br><span class="small muted">${M.ROLES[u.rol]}</span></span></div>
+    <p style="margin:0">Tu PIN de dueño ahora es de ${n} números. Elegí uno nuevo: lo cargado queda todo igual.</p>
+    <label class="f bl-pin-l" for="bl-nuevo">PIN nuevo (${n} números)</label>
+    <input id="bl-nuevo" class="pin-in num" type="password" inputmode="numeric" autocomplete="off" maxlength="${n}" placeholder="${puntos(u.rol)}" aria-describedby="bl-aviso">
+    <label class="f bl-pin-l" for="bl-nuevo2">Repetilo</label>
+    <input id="bl-nuevo2" class="pin-in num" type="password" inputmode="numeric" autocomplete="off" maxlength="${n}" placeholder="${puntos(u.rol)}" aria-describedby="bl-aviso">
+    <p id="bl-aviso" class="${bloqueo.avisoCambio ? "err" : "small muted"}" role="${bloqueo.avisoCambio ? "alert" : "status"}" style="margin:0;min-height:1.4em">${esc(bloqueo.avisoCambio ?? "")}</p>
+    <button type="button" class="btn primary" data-a="guardarPinNuevo">Guardar y entrar</button>
+    <button type="button" class="btn ghost sm" data-a="pinNuevoDespues">Ahora no (queda bloqueada)</button>
+  </div>`);
+}
+function guardarPinNuevo() {
+  if (!bloqueo.cambio) return;
+  const { usuarioId, viejo } = bloqueo.cambio;
+  const a = String($("#bl-nuevo")?.value ?? "").trim(), b = String($("#bl-nuevo2")?.value ?? "").trim();
+  const res = a !== b ? { ok: false, motivo: "Los dos PIN no coinciden." } : M.cambiarMiPin(E, { usuarioId, pin: viejo }, a, AHORA);
+  if (!res.ok) {
+    bloqueo.avisoCambio = res.motivo;
+    for (const id of ["#bl-nuevo", "#bl-nuevo2"]) { const el = $(id); if (el) el.value = ""; }
+    pintarBloqueo();
+    $("#bl-nuevo")?.focus();
+    return;
+  }
+  bloqueo.cambio = null;
+  bloqueo.avisoCambio = "";
+  guardarJornada(true);
+  entrarDesbloqueado(M.usuario(E, usuarioId), "Tu PIN nuevo quedó guardado. ");
 }
 // Sin PIN no se cierra: Esc no hace nada y, si el navegador lo cierra igual, se vuelve a abrir.
 $("#bloqueo").addEventListener("cancel", (ev) => ev.preventDefault());
 $("#bloqueo").addEventListener("close", () => { if (bloqueo.activo) requestAnimationFrame(() => { if (bloqueo.activo && !$("#bloqueo").open) $("#bloqueo").showModal(); }); });
 $("#bloqueo").addEventListener("keydown", (ev) => {
   if (ev.key === "Enter" && ev.target.id === "bl-pin") { ev.preventDefault(); desbloquear(); }
+  if (ev.key === "Enter" && ev.target.id === "bl-nuevo") { ev.preventDefault(); $("#bl-nuevo2")?.focus(); }
+  if (ev.key === "Enter" && ev.target.id === "bl-nuevo2") { ev.preventDefault(); guardarPinNuevo(); }
 });
-// El PIN son 2 números: lo que no es número no entra (y no gasta un intento).
+// El PIN son números: lo que no es número no entra (y no gasta un intento). Se prueba solo al llegar al largo del
+// rol de quien entra (dueño 4, recepción 2); un PIN viejo más corto se confirma con Enter o «Desbloquear».
 $("#bloqueo").addEventListener("input", (ev) => {
-  if (ev.target.id !== "bl-pin") return;
+  if (!["bl-pin", "bl-nuevo", "bl-nuevo2"].includes(ev.target.id)) return;
   const t = ev.target, limpio = t.value.replace(/\D/g, "");
   if (limpio !== t.value) t.value = limpio;
-  if (limpio.length === 2) desbloquear();
+  if (t.id !== "bl-pin") return;
+  const quien = M.usuario(E, bloqueo.otro ? bloqueo.elegido : USUARIO);
+  if (limpio.length === M.largoPin(quien?.rol)) desbloquear();
 });
 const marcarUso = () => { if (!bloqueo.activo) bloqueo.ultimo = Date.now(); };
 for (const tipo of ["pointerdown", "keydown", "wheel", "touchstart"]) document.addEventListener(tipo, marcarUso, { capture: true, passive: true });

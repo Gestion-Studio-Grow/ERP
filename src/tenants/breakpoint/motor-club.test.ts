@@ -12,7 +12,7 @@ const M: any = motor;
 
 const HOY = "2026-10-14"; // miércoles
 const ahora = (hh: number, mm = 0) => ({ fecha: HOY, min: hh * 60 + mm });
-const DUENO = { usuarioId: "u-rober", pin: "11" };
+const DUENO = { usuarioId: "u-rober", pin: "1111" };
 const RECEP = { usuarioId: "u-lu", pin: "33" };
 
 function club() {
@@ -246,7 +246,7 @@ test("acceso dinámico: se pide, el dueño otorga con PIN de 2 dígitos único, 
   const res = M.otorgarAcceso(e, solicitud.id, { rol: "recepcion" }, DUENO, ahora(9));
   assert.ok(res.ok);
   assert.match(res.pin, /^\d{2}$/);
-  assert.ok(!["11", "22", "33", "44"].includes(res.pin));
+  assert.ok(!["1111", "2222", "33", "44"].includes(res.pin));
   assert.equal(M.usuarioPorPin(e, res.pin).usuario.nombre, "Juli");
   assert.ok(M.revocarAcceso(e, res.usuario.id, DUENO, ahora(10)).ok);
   assert.equal(M.usuarioPorPin(e, res.pin).ok, false);
@@ -289,7 +289,7 @@ test("remito: recepción lo carga (suma stock y deuda); pagar y ver la cuenta es
   assert.equal(M.pagarProveedor(e, { proveedorId: "pv1", medio: "efectivo", monto: 1000 }, RECEP, ahora(11)).ok, false);
   assert.match(M.pagarProveedor(e, { proveedorId: "pv1", medio: "debito", monto: 1000 }, DUENO, ahora(11)).motivo, /efectivo o por transferencia/);
   assert.match(M.pagarProveedor(e, { proveedorId: "pv1", medio: "efectivo", monto: 99999 }, DUENO, ahora(11)).motivo, /de más/);
-  assert.ok(M.pagarProveedor(e, { proveedorId: "pv1", medio: "efectivo", monto: 10000 }, { usuarioId: "u-majo", pin: "22" }, ahora(13)).ok);
+  assert.ok(M.pagarProveedor(e, { proveedorId: "pv1", medio: "efectivo", monto: 10000 }, { usuarioId: "u-majo", pin: "2222" }, ahora(13)).ok);
   assert.ok(M.pagarProveedor(e, { proveedorId: "pv1", medio: "transferencia", monto: 9200 }, DUENO, ahora(13)).ok);
   const cc = M.ccProveedor(e, "pv1", DUENO);
   assert.equal(cc.saldo, 0);
@@ -830,10 +830,10 @@ test("crédito: fiado puntual con código del dueño por WhatsApp (sin servidor)
   assert.equal(M.solicitarCredito(e, { clienteId: "a", tipo: "fiado", monto: 1 }, RECEP, ahora(21)).ok, false, "un pedido pendiente por cliente");
   const d = M.datosAprobacion(e, n.id);
   // El celular del dueño calcula el código sólo con el link y su PIN.
-  const deMajo = M.codigoAprobacion({ pin: "22", novedadId: d.id, clienteId: d.c, monto: d.m, fecha: d.f });
+  const deMajo = M.codigoAprobacion({ pin: "2222", novedadId: d.id, clienteId: d.c, monto: d.m, fecha: d.f });
   assert.match(deMajo, /^[A-Z2-9]{3}-[A-Z2-9]{3}$/);
-  assert.notEqual(deMajo, M.codigoAprobacion({ pin: "11", novedadId: d.id, clienteId: d.c, monto: d.m, fecha: d.f }));
-  assert.notEqual(deMajo, M.codigoAprobacion({ pin: "22", novedadId: d.id, clienteId: d.c, monto: d.m + 1, fecha: d.f }));
+  assert.notEqual(deMajo, M.codigoAprobacion({ pin: "1111", novedadId: d.id, clienteId: d.c, monto: d.m, fecha: d.f }));
+  assert.notEqual(deMajo, M.codigoAprobacion({ pin: "2222", novedadId: d.id, clienteId: d.c, monto: d.m + 1, fecha: d.f }));
   assert.match(M.aprobarPorCodigo(e, n.id, { codigo: "AAA-AAA", monto: 21000 }, RECEP, ahora(21, 5)).motivo, /1 de 5/);
   assert.equal(M.aprobarPorCodigo(e, n.id, { codigo: deMajo, monto: 30000 }, RECEP, ahora(21, 5)).ok, false, "con otro monto el código no sirve");
   const ok = M.aprobarPorCodigo(e, n.id, { codigo: deMajo.toLowerCase(), monto: 21000 }, RECEP, ahora(21, 6));
@@ -851,7 +851,7 @@ test("crédito: cinco códigos mal traban el pedido 30 minutos; el dueño en el 
   const { novedad: n } = M.solicitarCredito(e, { clienteId: "c", tipo: "cc", monto: 30000 }, RECEP, ahora(10));
   for (let i = 0; i < 4; i++) M.aprobarPorCodigo(e, n.id, { codigo: "ZZZ-ZZZ" }, RECEP, ahora(10));
   assert.match(M.aprobarPorCodigo(e, n.id, { codigo: "ZZZ-ZZZ" }, RECEP, ahora(10)).motivo, /30 minutos/);
-  const bueno = M.codigoAprobacion({ pin: "11", novedadId: n.id, clienteId: "c", monto: 30000, fecha: n.fecha });
+  const bueno = M.codigoAprobacion({ pin: "1111", novedadId: n.id, clienteId: "c", monto: 30000, fecha: n.fecha });
   assert.match(M.aprobarPorCodigo(e, n.id, { codigo: bueno }, RECEP, ahora(10, 10)).motivo, /Demasiados/);
   assert.ok(M.aprobarPorCodigo(e, n.id, { codigo: bueno }, RECEP, ahora(10, 31)).ok);
   assert.deepEqual(M.cliente(e, "c").cc, { habilitada: true, limite: 30000 });
@@ -940,21 +940,21 @@ test("tenant real: dueños Roberto Ronco y Majo Gimenez sin PIN, cada uno arma e
   assert.equal(e.proveedores.length, 0);
   assert.equal(M.verificarPin(e, "u-rober", "").ok, false, "sin PIN no se entra con el campo vacío");
   assert.match(M.terminarConfiguracion(e, ahora(9)).motivo, /al menos un dueño/);
-  assert.match(M.definirPinInicial(e, "u-rober", "1", ahora(9)).motivo, /2 números/);
-  assert.ok(M.definirPinInicial(e, "u-rober", "57", ahora(9)).ok);
-  assert.match(M.definirPinInicial(e, "u-majo", "57", ahora(9)).motivo, /otra persona/);
-  assert.ok(M.definirPinInicial(e, "u-majo", "84", ahora(9)).ok);
-  assert.equal(M.definirPinInicial(e, "u-rober", "12", ahora(9)).ok, false, "el PIN inicial se arma una sola vez");
+  assert.match(M.definirPinInicial(e, "u-rober", "12", ahora(9)).motivo, /4 números/);
+  assert.ok(M.definirPinInicial(e, "u-rober", "5757", ahora(9)).ok);
+  assert.match(M.definirPinInicial(e, "u-majo", "5757", ahora(9)).motivo, /otra persona/);
+  assert.ok(M.definirPinInicial(e, "u-majo", "8484", ahora(9)).ok);
+  assert.equal(M.definirPinInicial(e, "u-rober", "1212", ahora(9)).ok, false, "el PIN inicial se arma una sola vez");
   assert.ok(M.terminarConfiguracion(e, ahora(9)).ok);
   assert.equal(e.config.configurado, true);
   assert.equal(M.altaUsuario(e, { nombre: "Lu", rol: "recepcion" }, { usuarioId: "u-rober", pin: "00" }, ahora(9)).ok, false);
-  const lu = M.altaUsuario(e, { nombre: "Lu", rol: "recepcion" }, { usuarioId: "u-rober", pin: "57" }, ahora(9));
+  const lu = M.altaUsuario(e, { nombre: "Lu", rol: "recepcion" }, { usuarioId: "u-rober", pin: "5757" }, ahora(9));
   assert.ok(lu.ok);
   assert.match(lu.pin, /^\d{2}$/);
   assert.ok(M.verificarPin(e, lu.usuario.id, lu.pin).ok);
   assert.equal(M.altaUsuario(e, { nombre: "Caro" }, { usuarioId: lu.usuario.id, pin: lu.pin }, ahora(9)).ok, false, "recepción no da accesos");
   assert.ok(M.cambiarMiPin(e, { usuarioId: lu.usuario.id, pin: lu.pin }, "33", ahora(9)).ok || lu.pin === "33");
-  assert.ok(M.revocarAcceso(e, lu.usuario.id, { usuarioId: "u-majo", pin: "84" }, ahora(9)).ok);
+  assert.ok(M.revocarAcceso(e, lu.usuario.id, { usuarioId: "u-majo", pin: "8484" }, ahora(9)).ok);
   assert.equal(M.verificarPin(e, lu.usuario.id, "33").ok, false);
 });
 
@@ -1086,8 +1086,8 @@ test("Fable I2/I3/M4: fondo de caja, conteo de stock, baja de producto y fiado q
   const e = M.crearClubReal(HOY);
   assert.ok(e.productos.filter((p: any) => !p.plato && !p.alquiler).every((p: any) => p.stock === null && p.codigoExterno === ""), "arranca sin stock ni códigos de ejemplo");
   assert.equal(M.alertas(e, ahora(10)).filter((a: any) => a.tipo === "stock").length, 0, "sin alertas de stock falsas");
-  M.definirPinInicial(e, "u-rober", "57", ahora(9));
-  const R = { usuarioId: "u-rober", pin: "57" };
+  M.definirPinInicial(e, "u-rober", "5757", ahora(9));
+  const R = { usuarioId: "u-rober", pin: "5757" };
   assert.ok(M.ajustarFondo(e, 20000, R, ahora(9)).ok);
   assert.equal(M.resumenCaja(e, M.diaDeCaja(e, HOY, 15 * 60)).efectivoEsperado, 20000);
   assert.ok(M.ajustarStock(e, "p2", 42, R, ahora(9)).ok);
@@ -1105,8 +1105,8 @@ test("Fable I2/I3/M4: fondo de caja, conteo de stock, baja de producto y fiado q
 
 test("limpieza para el go-live: se borra lo transaccional, se conserva lo maestro y (por defecto) los saldos", () => {
   const e = M.crearClubReal(HOY);
-  M.definirPinInicial(e, "u-rober", "57", ahora(9));
-  const R = { usuarioId: "u-rober", pin: "57" };
+  M.definirPinInicial(e, "u-rober", "5757", ahora(9));
+  const R = { usuarioId: "u-rober", pin: "5757" };
   M.terminarConfiguracion(e, ahora(9));
   M.ajustarFondo(e, 20000, R, ahora(9));
   M.ajustarStock(e, "p2", 40, R, ahora(9));
@@ -1129,7 +1129,7 @@ test("limpieza para el go-live: se borra lo transaccional, se conserva lo maestr
   assert.equal(e.reservas.length + e.cuentas.length + e.caja.movimientos.length + e.caja.cierres.length, 0);
   assert.equal(e.caja.fondo, 20000, "el fondo queda");
   assert.equal(M.producto(e, "p2").stock, 38, "el stock contado queda");
-  assert.equal(e.usuarios.find((u: any) => u.id === "u-rober").pin, "57", "usuarios y PIN quedan");
+  assert.equal(e.usuarios.find((u: any) => u.id === "u-rober").pin, "5757", "usuarios y PIN quedan");
   assert.equal(e.clientes.length, 1, "los clientes quedan");
   assert.equal(juan.deuda, 5000);
   assert.equal(juan.monedero, 3000);
