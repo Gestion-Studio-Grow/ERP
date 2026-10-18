@@ -62,6 +62,7 @@ import {
   puede,
   regenerarPin,
   respaldoDesdeArchivo,
+  USUARIOS_DEMO,
   revocarAcceso,
   secuenciaIds,
   terminarConfiguracion,
@@ -183,11 +184,20 @@ export interface RespaldoParaRestaurar {
   usuarios: number;
 }
 
+/** PIN de ejemplo de los dueños de la demo (están a la vista en la demo pública). */
+const PINES_DE_DUENIO_DE_LA_DEMO = new Set(USUARIOS_DEMO.filter((u) => u.rol === "duenio").map((u) => u.pin));
+/** ¿Algún dueño activo tiene un PIN de ejemplo de la demo? (= es la demo, o algo armado con ella). */
+const conPinesDeLaDemo = (e: Pick<EstadoClub, "usuarios">) => e.usuarios.some((u) => u.rol === "duenio" && u.activo !== false && PINES_DE_DUENIO_DE_LA_DEMO.has(u.pin));
+
 /**
  * Lee el archivo elegido para restaurar (sin tocar nada): acepta el respaldo de siempre o el archivo para archivar;
  * el anexo solo no (lo explica el motor). Dice de cuándo es y qué trae.
+ *
+ * `actual` (la jornada de ahora): si el respaldo es de OTRO club (`config.nombre` distinto, y los dos lo dicen) o es la
+ * DEMO (dueños con los PIN de ejemplo, sobre una jornada que no los tiene), no se restaura. El nombre lo pone el motor al armar el club y nadie lo cambia: es lo único del sobre v1 que dice de qué
+ * negocio es (el formato no lleva el negocio; ver el ensayo del pase, PASE-AL-ERP.md).
  */
-export function leerRespaldo(texto: string): { ok: true; respaldo: RespaldoParaRestaurar } | { ok: false; mensaje: string } {
+export function leerRespaldo(texto: string, actual?: Pick<EstadoClub, "config" | "usuarios"> | null): { ok: true; respaldo: RespaldoParaRestaurar } | { ok: false; mensaje: string } {
   let datos: unknown;
   try {
     datos = JSON.parse(texto);
@@ -207,6 +217,13 @@ export function leerRespaldo(texto: string): { ok: true; respaldo: RespaldoParaR
     cuando = `${Number(f.slice(8))}/${Number(f.slice(5, 7))}/${f.slice(0, 4)}${typeof generado.min === "number" ? ` a las ${hhmm(generado.min)}` : ""} (cuando se preparó el archivado)`;
   }
   const e = h.estado;
+  const deEste = actual?.config.nombre?.trim() ?? "";
+  const deAhi = e.config.nombre?.trim() ?? "";
+  if (deEste && deAhi && deEste !== deAhi) return { ok: false, mensaje: `Ese respaldo es de «${deAhi}», no de «${deEste}»: no se restaura. Elegí un respaldo de este club.` };
+  // La demo: sus dueños tienen los PIN de ejemplo que están a la vista en la demo pública (un dueño real no puede
+  // elegirlos: `pinFacil`). Restaurarla sobre una jornada de verdad dejaría entrar a cualquiera con esos PIN.
+  if (actual && !conPinesDeLaDemo(actual) && conPinesDeLaDemo(e))
+    return { ok: false, mensaje: "Ese es un respaldo de la demo (datos y PIN de ejemplo): no se restaura sobre la jornada de verdad. Elegí un respaldo de este club." };
   return {
     ok: true,
     respaldo: {

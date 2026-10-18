@@ -64,7 +64,8 @@ function Restaurar({ almacen, quien, negocio }: { almacen: Almacen; quien: strin
     setPrevia(null);
     const texto = await textoElegido(campo.current);
     if (texto == null) return;
-    const r = leerRespaldo(texto);
+    // Con la jornada de ahora: un respaldo de otro club no se deja restaurar.
+    const r = leerRespaldo(texto, almacen.estado());
     if (!r.ok) return setError(r.mensaje);
     setPrevia(r.respaldo);
   };

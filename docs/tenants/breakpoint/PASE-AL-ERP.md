@@ -94,8 +94,8 @@ punto de venta (`src/modules/descriptors/club.ts:38-41`) y el script no los asig
 - Todo eso publicado: merge a `main` + deploy, **con tu OK** («deployá»). Un push a `main` hoy construye producción
   en Vercel, así que también cuenta como deploy.
 - Un **ensayo** con un respaldo de mentira (`npx tsx scripts/club/anonimizar-respaldo.ts <respaldo.json>`) en el
-  puesto del dueño, antes de hacerlo con el de verdad. El restaurar sobre una jornada nueva del ERP está armado
-  en el código (abajo) pero el UAT de paridad no lo recorre de punta a punta: el ensayo es eso.
+  puesto del dueño, antes de hacerlo con el de verdad. **Ensayo automático: 46/46** (`npm run test:club-pase`,
+  18/10): recorre este día del pase de punta a punta, ver «Ensayo del pase» al final.
 
 ---
 
@@ -126,7 +126,11 @@ Elegí un momento con el club tranquilo (a la mañana, antes del primer turno). 
    Elegí el archivo del paso 2: la pantalla muestra de cuándo es y qué trae. Confirmá con el PIN del paso 6.
    - Sólo funciona en el puesto del dueño y con el PIN de un dueño (`almacen.ts:1135-1143` y `:1269-1300`).
    - Antes de reemplazar, guarda una copia de lo que había (si no hay lugar, no toca nada).
-8. Quedan los usuarios y los PIN del respaldo: la pantalla se bloquea y se entra con **el PIN de siempre**.
+   - Si el archivo es de **otro club**, de **la demo**, está **cortado** o es el **anexo** de un archivado, lo dice y
+     no deja restaurar (`configuracion-core.ts` → `leerRespaldo`).
+8. Quedan los usuarios y los PIN del respaldo: la pantalla se bloquea y se entra con **el PIN de siempre**. El PIN
+   provisorio del paso 6 ya no sirve. Un dueño que todavía tenga el PIN viejo de 2 entra con ése y la pantalla le
+   pide **«Elegí tu PIN nuevo»** (4 números) antes de operar; recepción sigue con su PIN de 2.
 9. **Verificá:** Caja → que la caja sea igual a lo cobrado y al total del paso 3; Clientes → un par de cuentas
    corrientes y deudas conocidas; Configuración → usuarios y accesos (están todos y entran con su PIN).
 
@@ -209,7 +213,43 @@ siempre el dueño.
 
 ---
 
-## 7. Lo que tiene que hacer el dueño (resumen)
+## 7. Ensayo del pase (18/10/2026)
+
+**Ensayo: 46/46** — `npm run test:club-pase [carpeta de capturas]`
+(`src/app/admin/(dashboard)/club/ensayo-pase.e2e.ts`). Sin Next ni base real: el club de hoy es el `club.html`
+empaquetado servido por el mismo manejador que producción; el ERP es el ClubDemo real con el CSS de la app, enchufado
+a una base **falsa en memoria** con el mismo contrato que las acciones del servidor (gzip y versión), que sobrevive a
+recargar y a cambiar de compu. Reloj fijo: el club de hoy el sábado 17/10 desde las 14:50; el ERP el domingo 18/10 a
+las 08:30.
+
+| Tramo | Qué se recorre | Resultado |
+|---|---|---|
+| A. Club de hoy | Consola (Roberto y Majo con PIN de 4, Lu y Caro en recepción), conteo de stock, 3 turnos a las 15:00 con 4 jugadores, buffet, la mesa que sigue cobrada desde Buffet, cobro por jugador con 4 medios, un fiado que Majo aprueba desde el celular, cierre de caja y «Descargar respaldo» | ✅ 10/10 — caja $ 170.000 = lo cobrado |
+| B. ERP con ese respaldo | Jornada real nueva → PIN provisorio → «Entrá como dueño» → Configuración → Jornada → restaurar con el PIN; los PIN de siempre de Roberto, Majo, Lu y Caro; caja = cobrado día por día; mismos clientes, turnos, cuentas, fiados, usuarios, productos, configuración y caja (comparados tal cual); la cuenta corriente de Juan (deuda = Σ movimientos, y en su ficha); la foto en la base; la compu del mostrador (login de Recepción) abre lo de la base **bloqueado** y recepción entra con su PIN; recargar vuelve bloqueado | ✅ 19/19 |
+| C. Respaldo de `main` | Dueños con el PIN viejo de 2 (`mes-cargado.fixture.ts`, motor vanilla): «Elegí tu PIN nuevo» → 4 números → entra; recepción con su PIN de 2; caja por día con la seña del jueves y lo cobrado después del cierre (va a la caja del domingo); el monedero no entra a la caja. Y un **mes lleno** (1.082 turnos, ~3 MB): restaura, la caja cuadra en los 31 días y sube a la base | ✅ 11/11 |
+| D. Lo que no restaura | Respaldo de otro club · de la demo · cortado · el anexo suelto · sin lugar en la compu (`sin-lugar`: la jornada y la base quedan igual) · el puesto de Recepción no ve «Restaurar» aunque entre un dueño | ✅ 6/6 (+ cero errores de consola) |
+
+**Lo que el ensayo encontró y se arregló (18/10):** un respaldo de **otro club** y uno de **la demo** se dejaban
+restaurar sobre la jornada de verdad. La demo es lo grave: trae los PIN de ejemplo de los dueños (1111/2222), que
+están a la vista en la demo pública, así que cualquiera entraba como dueño. Ahora la pantalla los rechaza con el motivo
+(`configuracion-core.ts` → `leerRespaldo` con la jornada de ahora, desde `config-jornada.tsx:68`; tests en
+`configuracion-core.test.ts`).
+
+**Lo que hay que saber:**
+
+- **El respaldo v1 no dice de qué negocio es.** «Otro club» se reconoce por el nombre del club (`config.nombre`, que
+  pone el motor y nadie cambia) y «la demo» por los PIN de ejemplo de los dueños. Es un control de la pantalla: ni
+  `almacen.restaurar` (`almacen.ts:1269-1282`) ni la acción del servidor `restaurarRespaldoDelClub`
+  (`estado-actions.ts:104-112` → `estado-repo.ts:211`) lo repiten. Pendiente para terminales: sumar el negocio al
+  sobre (FORMATO-RESPALDO.md) y el mismo control en el almacén.
+- **Para verificar la caja (paso 9):** un cobro hecho después de cerrar la caja entra en la caja siguiente; por eso se
+  compara la caja de cada día con la del club de hoy y, en total, Σ de lo cobrado (sin créditos) con los ingresos.
+- **La compu del mostrador** abre lo de la base y no guarda copia propia hasta el primer cambio (el ensayo lo mide:
+  «copia … antes del primer cambio: no»; el almacén sólo escribe si hay cambios, `almacen.ts:1126`, y el adaptador de
+  la base va sin espejo propio, `ClubDemo.tsx:265`): si esa compu pierde internet y recarga antes de tocar nada, no
+  abre la jornada. Para terminales, con el modo sin internet (G9).
+
+## 8. Lo que tiene que hacer el dueño (resumen)
 
 1. Dar el OK al deploy de esta rama y la de terminales («deployá»).
 2. Asignar el módulo: correr `asignar-modulo-club.ts --slug breakpoint` (mirar) y después con `--apply`, con su
