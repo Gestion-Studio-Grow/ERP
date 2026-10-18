@@ -1,12 +1,16 @@
 "use client";
 
 // El formulario del formato de la balanza y de los encargados. La vista previa de la etiqueta
-// sale de la misma función que la lee en la caja (supermercado/balanza.ts).
+// sale de la misma función que la lee en la caja (supermercado/balanza.ts). "Mi balanza es…"
+// sólo rellena el formulario con un preset (balanza-presets.ts, provisionales a confirmar con
+// una etiqueta real); lo que se guarda sigue siendo el formato, por la misma acción de siempre.
 
 import { useActionState, useState } from "react";
 import { Button, Field, Select } from "@/components/ui";
 import { guardarConfigDeCaja, type EstadoConfigCaja } from "@/lib/supermercado/caja-actions";
 import { armarEtiquetaDeBalanza, describirFormato, problemaDelFormato, type FormatoBalanza } from "@/lib/supermercado/balanza";
+import { PRESETS_BALANZA, presetDelFormato, presetPorId } from "@/lib/supermercado/balanza-presets";
+import ProbadorEtiqueta from "./ProbadorEtiqueta";
 
 const PREFIJOS = ["20", "21", "22", "23", "24", "25", "26", "27", "28", "29"];
 
@@ -26,6 +30,11 @@ export default function ConfigCaja({
   const [estado, accion, enviando] = useActionState<EstadoConfigCaja, FormData>(guardarConfigDeCaja, null);
   const [f, setF] = useState<FormatoBalanza>(formato);
   const problema = problemaDelFormato(f);
+  const presetElegido = presetDelFormato(f);
+  const usarPreset = (id: string) => {
+    const preset = presetPorId(id);
+    if (preset) setF({ ...preset.formato, prefijos: [...preset.formato.prefijos] });
+  };
   let ejemplo: string | null = null;
   if (!problema) {
     try {
@@ -45,6 +54,25 @@ export default function ConfigCaja({
             Está el formato de fábrica, el más común. Si la caja no reconoce las etiquetas, pedile al técnico de la balanza estos datos y cargalos acá.
           </p>
         )}
+        <Field
+          label="Mi balanza es…"
+          htmlFor="presetBalanza"
+          hint={
+            presetElegido
+              ? `${presetPorId(presetElegido)!.descripcion} Es un punto de partida: confirmalo probando una etiqueta abajo.`
+              : "Los datos de abajo están cargados a mano."
+          }
+        >
+          {/* Sin `name`: la marca no se guarda, sólo rellena los campos de abajo. */}
+          <Select id="presetBalanza" value={presetElegido ?? ""} onChange={(e) => usarPreset(e.target.value)}>
+            {PRESETS_BALANZA.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.marca}
+              </option>
+            ))}
+            <option value="">Otra, la cargo a mano</option>
+          </Select>
+        </Field>
         <fieldset>
           <legend className="text-sm font-medium text-strong">Prefijos que imprime la balanza</legend>
           <div className="mt-2 grid grid-cols-5 gap-2">
@@ -115,6 +143,8 @@ export default function ConfigCaja({
           )}
         </div>
       </section>
+
+      <ProbadorEtiqueta formato={f} onUsarPreset={usarPreset} />
 
       <section className="space-y-3 rounded-md border border-line bg-surface-raised p-4">
         <h2 className="text-base font-semibold text-strong">Quién autoriza anular en la caja</h2>

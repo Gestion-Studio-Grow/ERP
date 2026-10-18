@@ -28,11 +28,24 @@ export function fmtMoneyARS(value: number | string | null | undefined, decimals 
   const n = typeof value === "string" ? Number(value) : value;
   if (n == null || !Number.isFinite(n)) return "—";
   const sign = n < 0 ? "-" : "";
-  const abs = Math.abs(n).toLocaleString("es-AR", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-  return `${sign}$${abs}`;
+  return `${sign}$${formateadorEsAR(decimals).format(Math.abs(n))}`;
+}
+
+// PERFORMANCE: `n.toLocaleString("es-AR", { …decimales })` arma un `Intl.NumberFormat` NUEVO en
+// cada llamada (~30 µs); una lista de 20.000 precios eran 580 ms de hilo bloqueado
+// (docs/producto/PERFORMANCE-TERMINALES.md, ronda 2). Por spec (ECMA-402, Number.prototype.
+// toLocaleString) es exactamente `new Intl.NumberFormat(locales, options).format(n)`: armarlo una
+// vez por cantidad de decimales da el MISMO texto en ~0,7 µs (format.test.ts lo compara contra
+// `toLocaleString` en decenas de miles de importes). Un `decimals` inválido tira el mismo
+// RangeError que antes y no se guarda.
+const FORMATEADORES_ES_AR = new Map<number, Intl.NumberFormat>();
+function formateadorEsAR(decimals: number): Intl.NumberFormat {
+  let f = FORMATEADORES_ES_AR.get(decimals);
+  if (!f) {
+    f = new Intl.NumberFormat("es-AR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    FORMATEADORES_ES_AR.set(decimals, f);
+  }
+  return f;
 }
 
 /**
@@ -56,8 +69,5 @@ export function fmtCuit(cuit: string | null | undefined): string {
 export function fmtNumberAR(value: number | string | null | undefined, decimals = 0): string {
   const n = typeof value === "string" ? Number(value) : value;
   if (n == null || !Number.isFinite(n)) return "—";
-  return n.toLocaleString("es-AR", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
+  return formateadorEsAR(decimals).format(n);
 }

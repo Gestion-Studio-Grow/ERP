@@ -11,7 +11,7 @@ test("una dirección sin negocio se reconoce; con negocio entra; otra falla se p
   const base = await baseEfimeraParaElTest(t);
   if (!base) return;
   apuntarLaAppA(base);
-  const { resolveTenantId, direccionConNegocio, DireccionSinNegocioError } = await import("./tenant");
+  const { resolveTenant, resolveTenantId, direccionConNegocio, DireccionSinNegocioError } = await import("./tenant");
 
   // Host que no está en el mapa ni es del dominio base (el caso de losandes-lab en el laboratorio).
   await assert.rejects(resolveTenantId("losandes-lab.localhost"), DireccionSinNegocioError);
@@ -22,6 +22,10 @@ test("una dirección sin negocio se reconoce; con negocio entra; otra falla se p
   // La dirección de un negocio real entra.
   assert.equal(await resolveTenantId(base.a.host), base.a.id);
   assert.equal(await direccionConNegocio(() => resolveTenantId(base.a.host)), true);
+  // Con el slug de la MISMA fila (la marca y el manifiesto no consultan dos veces), y de cada negocio el suyo.
+  assert.deepEqual(await resolveTenant(base.a.host), { id: base.a.id, slug: base.a.slug });
+  assert.deepEqual(await resolveTenant(base.b.host), { id: base.b.id, slug: base.b.slug });
+  await assert.rejects(resolveTenant("no-existe.erp.test"), DireccionSinNegocioError);
   // La base caída NO es «dirección no habilitada»: se propaga.
   await assert.rejects(direccionConNegocio(async () => { throw new Error("ECONNREFUSED"); }), /ECONNREFUSED/);
 });

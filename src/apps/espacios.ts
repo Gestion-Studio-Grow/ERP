@@ -56,7 +56,7 @@ export const ESPACIOS: readonly EspacioMeta[] = [
     nombre: "Mostrador",
     nombreEnServicios: "Recepción",
     enInicio: true,
-    apps: ["taller", "inmobiliaria", "vender", "caja-rapida", "pedidos", "ventas-del-dia", "agenda", "confirmar-manana", "lista-de-espera", "tienda-online", "devoluciones-y-cambios"],
+    apps: ["taller", "inmobiliaria", "club", "vender", "caja-rapida", "pedidos", "ventas-del-dia", "agenda", "confirmar-manana", "lista-de-espera", "tienda-online", "devoluciones-y-cambios"],
   },
   { id: "caja", nombre: "Caja", enInicio: true, apps: ["caja-del-dia", "cierre-del-dia", "libro-de-caja"] },
   {
@@ -94,7 +94,8 @@ export const ESPACIOS: readonly EspacioMeta[] = [
     id: "administracion",
     nombre: "Administración",
     enInicio: true,
-    apps: ["usuarios", "auditoria", "datos-del-negocio", "apariencia"],
+    // `terminal` («Este equipo», módulo terminal): el perfil de cada equipo del mostrador (plan T-1).
+    apps: ["usuarios", "auditoria", "datos-del-negocio", "apariencia", "terminal"],
   },
   // Sólo en la casa de una marca con varios locales: sus apps exigen el módulo
   // `multilocal` aun con el gate apagado (`moduloDuro`), así que en un negocio suelto
@@ -201,7 +202,7 @@ export const ESPACIOS_NAV: readonly EspacioNav[] = [
     nombreEnServicios: "Recepción",
     objetivo: "Atender y cobrar",
     apps: [
-      "taller", "inmobiliaria", "vender", "caja-rapida", "agenda", "pedidos", "ventas-del-dia", "confirmar-manana", "lista-de-espera", "vales-de-regalo",
+      "taller", "inmobiliaria", "club", "vender", "caja-rapida", "agenda", "pedidos", "ventas-del-dia", "confirmar-manana", "lista-de-espera", "vales-de-regalo",
       "paquetes-y-abonos", "devoluciones-y-cambios", "presupuestos", "envios-y-reparto", "tienda-online", "huecos-de-la-semana",
     ],
   },
@@ -268,7 +269,7 @@ export const ESPACIOS_NAV: readonly EspacioNav[] = [
     id: "administracion",
     nombre: "Configuración",
     objetivo: "Dejar el negocio andando",
-    apps: ["datos-del-negocio", "usuarios", "auditoria", "apariencia", "tu-plan", "integraciones", "traer-datos"],
+    apps: ["datos-del-negocio", "usuarios", "auditoria", "apariencia", "terminal", "tu-plan", "integraciones", "traer-datos"],
   },
 ];
 

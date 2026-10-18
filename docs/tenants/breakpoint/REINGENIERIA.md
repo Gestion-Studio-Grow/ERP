@@ -269,6 +269,9 @@ El club recorrió la demo y pidió cambios concretos. Todos están en el motor (
     y **sacar el PIN del dueño**. Sin servidor no hay secreto que no esté en la compu, así que se acepta para el
     piloto (el código no se presta y vale lo que vale el PIN). Con servidor: el código se firma con **HMAC con un
     secreto del servidor** (que no esté en la compu ni en el celular) o se reemplaza por aprobar con sesión.
+    **Sumado al Gate del club en la base (18/10):** los PIN en claro también quedan en `AuditLog.changes` (la foto
+    del club, `ClubEstado`) y vuelven en `leerFotoDelClub` a recepción; hash/redacción en BP-4 / G10
+    (`PARIDAD-REACT.md`, «Lo que el servidor no controla»).
 - **Cambiar el horario de un día** es del dueño; recepción lo ve pero no lo cambia.
 - **Falta repartida en el grupo:** se divide entre los cuatro jugadores del turno; la parte de los que no
   tienen ficha la absorbe el titular.

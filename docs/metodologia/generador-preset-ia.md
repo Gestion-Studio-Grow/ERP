@@ -237,6 +237,7 @@ Cualquier sprint que dé de alta un cliente nuevo **invoca este generador** como
 - [ ] **🛡️ GATE DE ENTREGA pasado (BLOQUEANTE):** Auditoría SAP (5 principios + a11y + consistencia) +
       Sello GSG + Arquitectura + Confiabilidad. **Sin esto NO se muestra al cliente.**
 - [ ] Receta de provisioning lista para FASE 2 (alta real la dispara el dueño con sus credenciales).
+- [ ] **Perfil de hardware recomendado** al cliente (caja kiosco · POS todo-en-uno · tablet de recepción · celular de mostrador) con `docs/producto/guia-hardware-mostrador.md` — sin compras antes de la venta.
 
 ---
 

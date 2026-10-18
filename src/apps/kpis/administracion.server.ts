@@ -4,7 +4,7 @@
 //
 // Mismas reglas que todos los loaders de esta carpeta (ver mostrador.server.ts).
 
-import { filtrosDeHoy, whereAuditoria } from "@/app/admin/(dashboard)/auditoria/filtros";
+import { filtrosDeHoy, whereAuditoriaDelPanel } from "@/app/admin/(dashboard)/auditoria/filtros";
 import { fmtNumberAR } from "@/components/ui/format";
 import { plural, type LoaderKpi } from "./nucleo.server";
 
@@ -18,12 +18,13 @@ export const usuarios: LoaderKpi = async ({ db, tenantId }) => {
 };
 
 /**
- * "24 acciones hoy": el MISMO `where` que la pantalla con el período "Hoy" (`whereAuditoria` de
- * auditoria/filtros.ts, del día del negocio de 00:00 a 00:00). El tile abre la Auditoría con ese
+ * "24 acciones hoy": el MISMO `where` que la pantalla con el período "Hoy" (`whereAuditoriaDelPanel`
+ * de auditoria/filtros.ts, del día del negocio de 00:00 a 00:00, sin las notas de Soporte ni las
+ * fotos del club, que la pantalla tampoco muestra). El tile abre la Auditoría con ese
  * filtro puesto (`hrefDelTile`, inicio/href-del-tile.ts), así el número y la lista coinciden.
  */
 export const auditoria: LoaderKpi = async ({ db, tenantId, hoy }) => {
-  const n = await db.auditLog.count({ where: { tenantId, ...whereAuditoria(filtrosDeHoy(hoy)) } });
+  const n = await db.auditLog.count({ where: { tenantId, ...whereAuditoriaDelPanel(filtrosDeHoy(hoy)) } });
   return { valor: fmtNumberAR(n), detalle: `${plural(n, "acción", "acciones")} hoy` };
 };
 

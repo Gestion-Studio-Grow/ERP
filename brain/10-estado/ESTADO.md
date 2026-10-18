@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-10-15 17:44 UTC
+generado_el: 2026-10-16 17:30 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-10-15 17:44 UTC sobre `e81638c`.**
+> ⏱️ **Foto tomada el 2026-10-16 17:30 UTC sobre `7db83f5`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -18,27 +18,27 @@ tags: [brain/estado, fase-0]
 
 | Campo | Valor |
 |---|---|
-| Rama actual | `ccr-breakpoint-turnero` |
-| HEAD | `e81638c` (2026-10-15) |
+| Rama actual | `ccr-f8859297-5ru6oe` |
+| HEAD | `7db83f5` (2026-10-16) |
 | Árbol | limpio _(sin contar `brain/`)_ |
-| Tip de `main` | 29d3e94 · 2026-10-15 · kit: arreglo de sintaxis del control de builds [sin-deploy] |
+| Tip de `main` | 7db83f5 · 2026-10-16 · docs(breakpoint): el UAT parte B da 42/42 con el caso de D41 [sin-deploy] |
 
-**Ramas locales (2, más reciente primero):** `ccr-breakpoint-turnero` · `ccr-63ed11dc-brcdpp`
+**Ramas locales (2, más reciente primero):** `ccr-f8859297-5ru6oe` · `main`
 
 **Últimos commits**
 
-- e81638c · 2026-10-15 · fix(breakpoint): Gate del sitio breakpointpadel — toma de posta sin perder la demo (M1) y ediciones en vuelo (M2)
-- b95fbfe · 2026-10-15 · chore(brain): sincroniza el mapa derivado del repo
-- 0632a56 · 2026-10-15 · feat(breakpoint): el turnero y la gestión del club dentro del ERP en breakpointpadel.gsgapp.com.ar
-- 9abb1c2 · 2026-10-15 · Merge remote-tracking branch 'origin/main' into ccr-breakpoint-turnero
-- 98b8176 · 2026-10-15 · feat(breakpoint): turnero — defectos del QA en Chrome (D21–D33) + demo pública estática con sync entre pestañas
-- 834d2f6 · 2026-10-15 · docs(breakpoint): QA del turnero en Chrome real — defectos D21–D34
-- eda888b · 2026-10-15 · fix(breakpoint): turnero — WCAG 2.5.3 «Label in Name» en días y turnos (D19) + .sr que ensanchaba el celu (D20)
-- 36659b9 · 2026-10-15 · chore(brain): sincroniza el mapa derivado del repo
-- 5ecbd94 · 2026-10-15 · fix(breakpoint): turnero — hallazgos del Gate de Excelencia (versión por reserva, modo real, ?api= seguro)
-- 814abd5 · 2026-10-15 · chore(brain): sincroniza el mapa derivado del repo (npm run brain)
-- 185bebd · 2026-10-15 · feat(breakpoint): turnero — demo pública sin servidor, logo oficial y defectos de la batería corregidos
-- be44cac · 2026-10-15 · Merge remote-tracking branch 'origin/ccr-63ed11dc-brcdpp' into ccr-breakpoint-turnero
+- 7db83f5 · 2026-10-16 · docs(breakpoint): el UAT parte B da 42/42 con el caso de D41 [sin-deploy]
+- 0baa078 · 2026-10-16 · fix(breakpoint): Gate de 60ec502f — el UAT parte B corre fuera de este entorno
+- 60ec502 · 2026-10-16 · fix(breakpoint): UAT parte B (accesos, bloqueo, pedidos) 41/41 + D40–D42
+- 6d906b6 · 2026-10-16 · docs(breakpoint): estado de los arreglos D35–D39 en el resultado del UAT
+- 850e4c4 · 2026-10-16 · fix(breakpoint): Gate S1 — un robo del lock mientras se espera la foto no deja dos servidores
+- 14d2a52 · 2026-10-16 · fix(breakpoint): Gate de D35–D39 — ids sin choques tras la toma de posta y robustez del bus
+- bf60835 · 2026-10-16 · fix(breakpoint): defectos del UAT en producción D35–D39
+- 786abed · 2026-10-16 · Merge remote-tracking branch 'origin/ccr-breakpoint-turnero' into ccr-63ed11dc-brcdpp
+- c00b920 · 2026-10-15 · docs(breakpoint): resultado del UAT en producción del 15/10 — D35–D39
+- 35c302f · 2026-10-15 · docs(breakpoint): guion de UAT en producción con matriz de acceso por usuario [sin-deploy]
+- 21cf0de · 2026-10-15 · fix(breakpoint): el cargo manual pide «Poné el monto» (ya hay selector Cargo/Descuento)
+- 91ca3fd · 2026-10-15 · fix(breakpoint): hallazgos del Gate — un descuento no se pasa de cuenta y el destino no queda bajo lo pagado
 
 ## Migraciones (Prisma)
 
@@ -56,8 +56,8 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 334 |
-| Palabras en `docs/` | 549.809 |
+| Documentos en `docs/` | 336 |
+| Palabras en `docs/` | 554.521 |
 | ADRs | 87 |
 | Nodos en el grafo | 93 _(los 87 ADR + 6 enmiendas)_ |
 

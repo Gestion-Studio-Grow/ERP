@@ -499,7 +499,16 @@ export function almacenDeSesion(): Storage | null {
 
 const PREFIJO_DEL_ALMACEN = "gsg:vender:cobro-sin-confirmar:";
 
-/** La clave del almacén, una por negocio (el mismo navegador puede atender dos). */
+/**
+ * La clave del almacén, una por negocio (el mismo navegador puede atender dos).
+ *
+ * A PROPÓSITO NO lleva el usuario (revisado en el plan de terminales, T-1, 2026-10-16). El plan
+ * proponía sumarlo para que la duda de un cajero no le aparezca a otro en un equipo compartido,
+ * pero eso ya pasa: `leerCobroSinConfirmar` compara el usuario guardado y, si es otra persona,
+ * devuelve sólo `de-otra-persona` con la fecha (ni el cliente ni lo cargado). Y ese aviso es una
+ * defensa de la plata: con la clave por usuario, quien entra después NO se enteraría de que quedó
+ * una venta quizá cobrada y podría cobrarla de nuevo. Lo fija cobro-sin-conexion.test.ts.
+ */
 export function claveDelAlmacen(negocio: string): string {
   return `${PREFIJO_DEL_ALMACEN}${negocio}`;
 }

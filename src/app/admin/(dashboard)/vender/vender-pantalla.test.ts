@@ -2132,4 +2132,46 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     assert.deepEqual(errores, []);
     await page.close();
   });
+
+  // PERFORMANCE-TERMINALES.md: el iframe del ticket se quedaba con el foco (y el lector "tipeaba"
+  // adentro): la primera lectura después de cada ticket impreso se perdía. Y había un iframe por ticket.
+  test("lector + «Imprimir solo al cobrar»: después del ticket impreso la próxima lectura entra sin tocar la pantalla, con un solo iframe", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const codigo = "7790895000997";
+    const crema = [{ id: "p_crema", name: "Crema", saleUnit: "UNIT", price: 9000, pricePerKg: null, unit: "u", codigo }];
+    const perfil = JSON.stringify({
+      v: 1, tipo: "kiosco-pc", anchoTicket: 80, impresionDirecta: true, sonido: false, vibracion: false,
+      lector: { prefijo: "", sufijo: "enter" }, pantallaInicio: "/admin/vender",
+    });
+    const { page, errores } = await montar(
+      "vender",
+      10,
+      { products: crema, stockById: {}, rapidos: ["p_crema"], terminal: { tenantSlug: "magra", userId: "u1" } },
+      undefined,
+      {
+        antes: async (p) => {
+          await p.addInitScript((v) => localStorage.setItem("gsg-terminal:magra:u1:v1", v), perfil);
+        },
+      },
+    );
+    await page.locator('[data-vender="lector"]').waitFor({ state: "attached" });
+    const pasarElLector = async () => {
+      await page.keyboard.type(codigo, { delay: 5 });
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(() => (document.querySelector('[id^="qty-"]') as HTMLInputElement | null)?.value === "1");
+    };
+    await pasarElLector();
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.getByRole("button", { name: "Cobrar $9.000,00" }).click();
+    await page.getByLabel("Ticket de la venta #42").waitFor();
+    // Salió solo: el documento del ticket cargó en el iframe (y su print() ya corrió).
+    await page.waitForFunction(() => (document.querySelector("iframe")?.contentDocument?.body?.textContent ?? "").includes("Crema"));
+    await page.waitForTimeout(50);
+    assert.notEqual(await page.evaluate(() => document.activeElement?.tagName), "IFRAME", "el foco vuelve a la página");
+    // El cajero pasa el próximo producto SIN tocar la pantalla: entra.
+    await pasarElLector();
+    assert.equal(await page.locator("iframe").count(), 1, "un solo iframe de impresión");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
 });

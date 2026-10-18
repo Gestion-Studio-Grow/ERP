@@ -27,6 +27,15 @@
 //
 // Todas las reglas de plata (descuento, tope, vuelto, precio a mano) son las de
 // reglas-venta.ts, las MISMAS que aplica el servidor: la pantalla avisa y el servidor decide.
+//
+// EL LECTOR (sólo con el módulo `terminal`, que decide el servidor y llega en `terminal`): una
+// ráfaga de teclas que termina como termina el lector de ESTE equipo (Enter, Tab o nada; perfil
+// en «Este equipo»), FUERA de un campo, es un código de barras: se busca en el catálogo que ya
+// está en la pantalla (`codigo` del producto) y se suma la línea, como si se la hubiera elegido
+// en el buscador. El tipeo de una persona nunca dispara (es mucho más lento que un lector, ver
+// src/lib/terminal/lector-core.ts) y dentro de un campo el teclado es de la persona. Si el código
+// no está, se dice y suena el error; el cobro no se toca. Precio y stock los decide el servidor
+// al cobrar, como siempre. Sin el módulo, nada de esto existe.
 // Sin imports de valor de Prisma: esto es un client component.
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -56,6 +65,11 @@ import {
 import { textoDelFaltante, type Faltante } from "@/lib/reintento-de-venta";
 import { round2 } from "@/lib/round";
 import TicketVenta from "./TicketVenta";
+import { usePerfilSiHayTerminal, type TerminalDelEquipo } from "@/lib/terminal/usar-perfil";
+import { enCampoDeTexto, enCampoEditable, esCampoDeCantidad, motivoParaNoSumar } from "@/lib/terminal/lector-core";
+import { useLectorDeRafaga, type OrigenDeLaLectura } from "@/lib/terminal/usar-lector";
+import { avisar } from "@/lib/terminal/senal";
+import { indexarPorCodigo, resolverCodigo } from "@/lib/supermercado/lectura";
 import FacturarVenta from "../ventas/FacturarVenta";
 import { SIN_FACTURA } from "../ventas/factura";
 import { useCuponDePedido } from "@/app/tienda/pedido-online";
@@ -109,6 +123,8 @@ type SellableProduct = {
   price: number | null;
   pricePerKg: number | null;
   unit: string;
+  /** El código de barras; sólo viaja con el módulo `terminal` (el lector en Vender). */
+  codigo?: string | null;
 };
 
 /** Una línea del ticket: el producto y lo TIPEADO (texto, no número: ver PosForm). */
@@ -257,6 +273,8 @@ type PropsDeVender = {
   vendedor?: string;
   /** Diseño nuevo: cómo llama el rubro a lo que vende («corte» en una carnicería), para el buscador. */
   sustantivo?: string;
+  /** El equipo y la persona, si el negocio tiene el módulo `terminal` (lo decide el servidor). */
+  terminal?: TerminalDelEquipo | null;
 };
 
 const sinSuscripcion = () => () => {};
@@ -295,8 +313,11 @@ function FormularioVender({
   usuarioId = "",
   vendedor,
   sustantivo = "producto",
+  terminal = null,
   enNavegador,
 }: PropsDeVender & { enNavegador: boolean }) {
+  // El perfil de este equipo, o `null` sin el módulo `terminal`: entonces todo es como siempre.
+  const perfil = usePerfilSiHayTerminal(terminal);
   // Diseño nuevo («Renglón»): la MISMA venta (estado, reglas, envío) dibujada como el ticket que
   // crece (vistaTicket, abajo). Apagado, la pantalla de siempre.
   const nuevo = useDiseno();
@@ -347,6 +368,8 @@ function FormularioVender({
     }
   }
   const ticketKey = useRef(arranque?.clave ?? "");
+  // El cobro está en vuelo (se mandó y no volvió): el lector no suma nada hasta que termine.
+  const cobrandoAhora = useRef(false);
 
   // Opcionales, cerrados hasta que alguien los abre (ninguno suma un paso al camino feliz).
   const [conCliente, setConCliente] = useState(k?.conCliente ?? false);
@@ -472,6 +495,109 @@ function FormularioVender({
     if (prefiereTeclado() && byId.get(productId)?.saleUnit === "WEIGHT") setTecladoDe(key);
     pedirFoco(`qty-${key}`);
   }
+
+  // EL LECTOR (módulo `terminal`): el catálogo de la pantalla indexado por código, y lo que dijo
+  // la última lectura. Sin el perfil no hay índice ni aviso.
+  const conLector = perfil !== null;
+  const indiceDeCodigos = useMemo(
+    () =>
+      conLector
+        ? indexarPorCodigo(
+            products.map((p) => ({
+              id: p.id,
+              name: p.name,
+              codigo: p.codigo ?? null,
+              saleUnit: p.saleUnit,
+              price: p.price,
+              pricePerKg: p.pricePerKg,
+              seccion: "",
+              presentacion: null,
+            })),
+          )
+        : null,
+    [products, conLector],
+  );
+  const [avisoLector, setAvisoLector] = useState<{ tono: "ok" | "error"; texto: string } | null>(null);
+  // Con el lector, el foco NO se lleva a un buscador después de cobrar o de cargar un peso: en un
+  // campo de texto el teclado es de la persona, y la lectura siguiente se escribía como texto en el
+  // buscador (la línea no entraba; docs/producto/PERFORMANCE-TERMINALES.md). Se suelta el campo y el
+  // foco queda en la página, donde el lector lee. Para buscar por nombre, se toca el buscador.
+  function soltarFocoParaElLector() {
+    const el = document.activeElement;
+    if (el instanceof HTMLElement && enCampoDeTexto(el)) el.blur();
+  }
+  function errorDelLector(texto: string) {
+    setAvisoLector({ tono: "error", texto });
+    avisar("error", perfil);
+  }
+
+  // Un código leído: se suma la línea como desde el buscador. Por unidad entra 1 (o suma 1 a la
+  // línea que ya tiene ese producto) y el foco NO se mueve, así el próximo código también se lee;
+  // por peso, el cursor va al peso (lo da la balanza, como con el buscador). Si el lector escribió
+  // adentro del peso o la cantidad de una línea (el foco había quedado ahí), ese campo vuelve a lo
+  // que tenía: eran los números del código, no un peso. Con el cobro en vuelo o en duda no se toca
+  // el ticket (`motivoParaNoSumar`): lo sumado se borraría al limpiar y se entregaría sin cobrar.
+  function agregarLeido(codigo: string, origen: OrigenDeLaLectura) {
+    if (!indiceDeCodigos) return;
+    let base = lines;
+    const campo = origen.objetivo;
+    if (campo instanceof HTMLInputElement && esCampoDeCantidad(campo) && /^qty-\d+$/.test(campo.id)) {
+      const key = Number(campo.id.slice(4));
+      const qtyText = origen.antes ?? "";
+      setLine(key, { qtyText });
+      base = lines.map((l) => (l.key === key ? { ...l, qtyText } : l));
+    }
+    const motivo = motivoParaNoSumar({ cobrando: cobrandoAhora.current, cobroEnDuda: sinRespuesta !== null || yaGrabada !== null });
+    if (motivo) {
+      errorDelLector(motivo);
+      return;
+    }
+    const r = resolverCodigo(codigo, indiceDeCodigos, null, null);
+    if (!r.ok) {
+      errorDelLector(r.mensaje);
+      return;
+    }
+    const p = r.producto;
+    if (p.saleUnit === "WEIGHT") {
+      elegirRapido(p.id);
+      setAvisoLector({ tono: "ok", texto: `Entró ${p.name}: cargá el peso.` });
+    } else {
+      const misma = base.find((l) => l.productId === p.id);
+      const actual = misma ? leerCantidad(misma.qtyText) : null;
+      if (misma && (actual?.estado === "vacio" || (actual?.estado === "ok" && Number.isInteger(actual.valor)))) {
+        setLine(misma.key, { qtyText: String((actual?.estado === "ok" ? actual.valor : 0) + 1) });
+      } else {
+        const vacia = base.find((l) => !l.productId);
+        if (vacia) setLine(vacia.key, { productId: p.id, qtyText: "1" });
+        else setLine(addLine(p.id), { qtyText: "1" });
+      }
+      setAvisoLector({ tono: "ok", texto: `Entró ${p.name}.` });
+    }
+    avisar("ok", perfil);
+  }
+
+  useLectorDeRafaga({
+    lector: perfil?.lector ?? null,
+    // Fuera de un campo de texto (una casilla o un medio de pago tocado no cuentan) o en el peso o
+    // la cantidad de una línea, y sin un diálogo abierto. En el buscador, el teclado es de la persona.
+    acepta: (e) => {
+      const t = e.target as HTMLElement | null;
+      return (!enCampoDeTexto(t) || esCampoDeCantidad(t)) && !document.querySelector("dialog[open]");
+    },
+    alLeer: agregarLeido,
+  });
+
+  // Lo que dijo la última lectura, al lado del buscador. Sólo con el lector (módulo `terminal`).
+  const bloqueLector = conLector ? (
+    <p
+      role={avisoLector?.tono === "error" ? "alert" : "status"}
+      aria-live="polite"
+      data-vender="lector"
+      className={cn("min-h-5 text-sm", avisoLector?.tono === "error" ? "font-medium text-danger" : "text-muted")}
+    >
+      {avisoLector?.texto ?? ""}
+    </p>
+  ) : null;
 
   const leidas = useMemo(
     () =>
@@ -634,8 +760,10 @@ function FormularioVender({
             : null;
 
   function limpiar() {
-    // El foco vuelve al buscador: el próximo cliente se atiende sin tocar el mouse.
-    pedirFoco(`prod-${nextKey}`);
+    // El foco vuelve al buscador: el próximo cliente se atiende sin tocar el mouse. Con el lector,
+    // el próximo cliente se atiende con el lector: el foco queda en la página (ver `soltarFoco…`).
+    if (conLector) soltarFocoParaElLector();
+    else pedirFoco(`prod-${nextKey}`);
     setLines([{ key: nextKey, productId: "", qtyText: "" }]);
     setManuales([]);
     setNextKey((k) => k + 1);
@@ -727,7 +855,18 @@ function FormularioVender({
     }
   }
 
+  // El cobro en vuelo se marca de punta a punta (también si falla o tira): mientras tanto, lo que
+  // pase el lector se rechaza en vez de sumarse a un ticket que `limpiar()` va a borrar.
   async function submit(fd: FormData) {
+    cobrandoAhora.current = true;
+    try {
+      await enviarCobro(fd);
+    } finally {
+      cobrandoAhora.current = false;
+    }
+  }
+
+  async function enviarCobro(fd: FormData) {
     // Sin señal no se manda: el envío quedaría colgado y el cajero no sabría qué pasó.
     if (antesDeCobrar(navigator.onLine)) {
       setFalla({ tipo: "sin-senal" });
@@ -903,7 +1042,7 @@ function FormularioVender({
             </button>
           </div>
           {puedeFacturar && <FacturarVenta key={ultima.venta.id} orderId={ultima.venta.id} inicial={SIN_FACTURA} />}
-          <TicketVenta venta={ultima.venta} negocio={negocio} pagoCon={ultima.pagoCon} />
+          <TicketVenta venta={ultima.venta} negocio={negocio} pagoCon={ultima.pagoCon} terminal={terminal} imprimirAlCobrar />
         </section>
       )}
     </>
@@ -925,7 +1064,7 @@ function FormularioVender({
               Cerrar
             </button>
           </div>
-          <TicketVenta venta={yaGrabada.ticket} negocio={negocio} />
+          <TicketVenta venta={yaGrabada.ticket} negocio={negocio} terminal={terminal} />
         </section>
       )}
     </>
@@ -1496,8 +1635,7 @@ function FormularioVender({
   useEffect(() => {
     if (!nuevo) return;
     const alPresionar = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      const enCampo = !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+      const enCampo = enCampoEditable(e.target as HTMLElement | null);
       if (document.querySelector("dialog[open]")) return;
       if (e.key === "F2" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
@@ -1574,6 +1712,7 @@ function FormularioVender({
               // encima de los más vendidos (un toque caía sobre otro corte).
               abrirAlEnfocar={false}
             />
+            {bloqueLector}
             {botonesRapidos.length > 0 && (
               <section data-vender="rapidos" aria-labelledby="vender-rapidos">
                 <div data-parte="cabeza" className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
@@ -1717,7 +1856,10 @@ function FormularioVender({
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
-                            if (l.qty > 0) document.getElementById("vender-buscar")?.focus();
+                            if (l.qty > 0) {
+                              if (conLector) soltarFocoParaElLector();
+                              else document.getElementById("vender-buscar")?.focus();
+                            }
                           }
                         }}
                         aria-invalid={falta || l.invalida ? true : undefined}
@@ -1940,6 +2082,8 @@ function FormularioVender({
           </div>
         )}
 
+        {bloqueLector}
+
         {/* Líneas con producto */}
         <div className="space-y-2">
           {leidas.map((l) => {
@@ -2007,11 +2151,17 @@ function FormularioVender({
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        if (l.qty > 0) pedirFoco(`prod-${addLine()}`);
+                        if (l.qty > 0) {
+                          if (conLector) soltarFocoParaElLector();
+                          else pedirFoco(`prod-${addLine()}`);
+                        }
                       }
                     }}
                     disabled={!p}
                     aria-invalid={falta || l.invalida ? true : undefined}
+                    // Con el lector (módulo `terminal`): marca el campo para que una ráfaga que cae
+                    // acá se lea como código y el campo vuelva a su valor. Sin el módulo, como siempre.
+                    data-tipo={conLector ? (esPeso ? "peso" : "cantidad") : undefined}
                     className="pr-8 text-right tabular-nums"
                   />
                   <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-faint">

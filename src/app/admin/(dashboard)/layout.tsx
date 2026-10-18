@@ -11,6 +11,7 @@ import { requireUser } from "@/lib/authz";
 import { mustChangePasswordFor } from "@/lib/must-change-password";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getProductoContexto } from "@/lib/producto";
+import { panelInstalable } from "@/lib/terminal/manifest-core";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { lotesYDespieceListos } from "@/lib/carniceria/schema-probe";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
@@ -44,10 +45,21 @@ function initialsOf(name: string): string {
 // Título neutro (antes heredaba "CH Estética…" del layout raíz → se filtraba la
 // marca de CH a la pestaña del panel de CUALQUIER tenant, p. ej. Magra). Y el
 // backoffice no debe indexarse.
-export const metadata: Metadata = {
-  title: "Panel de gestión",
-  robots: { index: false, follow: false },
-};
+// `manifest`: el panel se puede instalar ("Agregar a la pantalla de inicio") con el nombre y el
+// color de ESTE negocio, resuelto por host. Vive en /api porque el navegador lo baja sin cookies
+// y bajo /admin el portón de sesión lo mandaría al login (src/app/api/pwa/admin.webmanifest/route.ts).
+// Taller conserva el suyo en su página (la metadata más específica gana). Sin service worker.
+// SÓLO para los negocios con mostrador (módulo terminal o club, `panelInstalable`): al resto no se le
+// ofrece «Instalar» (CH no cambia). Los módulos salen de `getProductoContexto`, el mismo que usa el
+// layout: cacheado por pedido, no suma ninguna consulta.
+export async function generateMetadata(): Promise<Metadata> {
+  const { modules } = await getProductoContexto();
+  return {
+    title: "Panel de gestión",
+    robots: { index: false, follow: false },
+    ...(panelInstalable(modules) ? { manifest: "/api/pwa/admin.webmanifest" } : {}),
+  };
+}
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // El portón grueso (¿hay sesión?) lo hace `proxy.ts`; acá resolvemos el

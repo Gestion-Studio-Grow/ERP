@@ -15,6 +15,7 @@
 // Sin imports de valor de Prisma: sólo el tipo del `where`.
 
 import { ACCIONES_SOLO_SOPORTE } from "@/lib/soporte/avisos-a-la-contadora";
+import { ENTIDAD_CLUB_ESTADO } from "@/lib/club/marcas";
 import type { Prisma } from "@/generated/prisma/client";
 import { businessWallTimeToUtc } from "@/lib/datetime";
 
@@ -250,11 +251,27 @@ export function whereAuditoria(f: FiltrosAuditoria): Prisma.AuditLogWhereInput {
 }
 
 /**
- * Lo que lee la auditoría del panel del negocio: los filtros pedidos y NUNCA las notas internas de
- * Soporte GSG (QA 26/09, vuelta 4: una nota libre puede nombrar a otro negocio).
+ * Entidades de `AuditLog` que NO son un rastro para leer sino un almacén: no salen nunca en la
+ * Auditoría del panel. Hoy, la foto del club (BP-3, src/lib/club/estado-repo.ts): cada fila trae el
+ * estado entero (MB de texto) con los PIN de los usuarios del club en claro (Gate, B1).
+ */
+export const ENTIDADES_FUERA_DE_LA_AUDITORIA: readonly string[] = [ENTIDAD_CLUB_ESTADO];
+
+/**
+ * Lo que lee la auditoría del panel del negocio: los filtros pedidos, NUNCA las notas internas de
+ * Soporte GSG (QA 26/09, vuelta 4: una nota libre puede nombrar a otro negocio) y NUNCA las fotos
+ * del club (`ENTIDADES_FUERA_DE_LA_AUDITORIA`). Va como una parte más del AND: el filtro "sobre qué"
+ * (`entity in […]`) sigue valiendo igual. `entity` es NOT NULL: el `notIn` no deja afuera filas sin
+ * entidad.
  */
 export function whereAuditoriaDelPanel(f: FiltrosAuditoria): Prisma.AuditLogWhereInput {
-  return { AND: [whereAuditoria(f), { action: { notIn: [...ACCIONES_SOLO_SOPORTE] } }] };
+  return {
+    AND: [
+      whereAuditoria(f),
+      { action: { notIn: [...ACCIONES_SOLO_SOPORTE] } },
+      { entity: { notIn: [...ENTIDADES_FUERA_DE_LA_AUDITORIA] } },
+    ],
+  };
 }
 
 /** La página pedida dentro de las que hay (una página de más muestra la última, no un vacío). */
