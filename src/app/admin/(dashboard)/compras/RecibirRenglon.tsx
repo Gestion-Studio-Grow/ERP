@@ -47,6 +47,7 @@ export default function RecibirRenglon({
   proveedorInicial,
   cortos,
   palabra,
+  ultimo = null,
 }: {
   productos: ProductoRecibible[];
   proveedores: ProveedorElegible[];
@@ -59,6 +60,8 @@ export default function RecibirRenglon({
   cortos: string[];
   /** «corte» en la carnicería, «producto» en el resto. */
   palabra: string;
+  /** El proveedor de la última entrada (sólo en un mostrador): se ofrece como tecla. */
+  ultimo?: ProveedorElegible | null;
 }) {
   const [kind, setKind] = useState<"COMPRA" | "REPOSICION">("COMPRA");
   const [pago, setPago] = useState<MedioDeCompra>("");
@@ -169,6 +172,15 @@ export default function RecibirRenglon({
         placeholder="Buscá por nombre o CUIT…"
       />
       <input type="hidden" name="supplierId" value={supplierId} />
+      {!supplierId && ultimo && (
+        <button
+          type="button"
+          onClick={() => setSupplierId(ultimo.id)}
+          className="mt-1 min-h-11 text-sm font-medium text-accent-ink underline underline-offset-2"
+        >
+          {`El último: ${ultimo.name}`}
+        </button>
+      )}
       {supplierId && (
         <button
           type="button"

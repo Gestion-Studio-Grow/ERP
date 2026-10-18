@@ -14,7 +14,7 @@ import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { vocabularioDelRubro } from "../catalogo/vocabulario";
 import ComprasForm from "./ComprasForm";
 import RecibirRenglon from "./RecibirRenglon";
-import { cortosParaSumar, detalleDeEntrada, proveedorDeLaUrl } from "./recibir-core";
+import { cortosParaSumar, detalleDeEntrada, proveedorDeLaUrl, ultimoProveedor } from "./recibir-core";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +126,8 @@ export default async function ComprasPage({
             proveedorInicial={proveedorDeLaUrl(sp.proveedor, proveedores)}
             cortos={cortosParaSumar(products, esStockBajo).map((p) => p.id)}
             palabra={palabra}
+            // Sólo en un mostrador: el repartidor de siempre, de un toque.
+            ultimo={negocio.esMostrador ? ultimoProveedor(recent, proveedores) : null}
           />
         )}
 
