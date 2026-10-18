@@ -7,7 +7,7 @@ tags: [brain/indice]
 
 # 🛡️ Lecciones — índice de guardarraíles
 
-> 41 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
+> 43 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
 > — no el registro entero. Calibración obligatoria antes de tocar Prod/Deploy · Datos/DB ·
 > Multi-tenant · Seguridad (ADR-052).
 
@@ -44,6 +44,8 @@ tags: [brain/indice]
 - **[DX-6](DX-6-una-relacion-seedeada-uniforme-hace-que-el-front-mienta-por.md)** — (1) el provisioning/import de catálogo real captura y aplica la asignación por profesional (nunca `connect`-a-todo ni dejar vacío) — es parte del relevamiento, no un default; si el mapeo real no […]
 - **[DX-7](DX-7-fix-de-dato-de-prod-con-guardarrail-sin-seed-sin-deletemany.md)** — todo fix de dato de prod (no-migración) usa script versionado con dry-run default + `--apply` explícito; el diff se imprime campo por campo antes de escribir; scope por `tenantId` de un único tenant, […]
 - **[DX-8](DX-8-demo-publica-en-host-serverless-un-back-con-estado-y-tiempo.md)** — todo back de demo con estado o tiempo real se diseña con núcleo isomórfico + adaptador local desde el día 1; el servidor es sólo transporte (HTTP, firma, cookies). Se prueba el modo local en el E2E.
+- **[DX-9](DX-9-una-demo-sin-persistencia-no-aguanta-un-dia-real-recargar.md)** — - Toda demo que se vaya a usar de verdad tiene un modo real explícito: en blanco, guardado local, reloj real, bloqueo al recargar y respaldo. - El modo por defecto sigue siendo la demo, así los […]
+- **[DX-10](DX-10-los-tests-unitarios-estaban-verdes-y-el-inicio-igual.md)** — - Todo tenant que sale a producción tiene su guion de UAT con matriz por rol, y su recorrido E2E repetible contra `next start` y Postgres local, nunca Neon. Modelo: `test:club-uat` y […]
 
 ## MP — Metodología / Proceso
 

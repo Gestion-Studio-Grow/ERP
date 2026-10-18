@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-10-15 17:44 UTC
+generado_el: 2026-10-18 20:11 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-10-15 17:44 UTC sobre `e81638c`.**
+> ⏱️ **Foto tomada el 2026-10-18 20:11 UTC sobre `9885d44`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -18,27 +18,27 @@ tags: [brain/estado, fase-0]
 
 | Campo | Valor |
 |---|---|
-| Rama actual | `ccr-breakpoint-turnero` |
-| HEAD | `e81638c` (2026-10-15) |
-| Árbol | limpio _(sin contar `brain/`)_ |
-| Tip de `main` | 29d3e94 · 2026-10-15 · kit: arreglo de sintaxis del control de builds [sin-deploy] |
+| Rama actual | `claude/magra-nivel-bp` |
+| HEAD | `9885d44` (2026-10-18) |
+| Árbol | **4 archivo(s) sin commitear** _(sin contar `brain/`)_ |
+| Tip de `main` | _no disponible (este clon no trae `main` local)_ |
 
-**Ramas locales (2, más reciente primero):** `ccr-breakpoint-turnero` · `ccr-63ed11dc-brcdpp`
+**Ramas locales (4, más reciente primero):** `claude/magra-nivel-bp` · `claude/magra-practicidad` · `claude/magra-eventualidades` · `claude/sleepy-tesla-392rov`
 
 **Últimos commits**
 
-- e81638c · 2026-10-15 · fix(breakpoint): Gate del sitio breakpointpadel — toma de posta sin perder la demo (M1) y ediciones en vuelo (M2)
-- b95fbfe · 2026-10-15 · chore(brain): sincroniza el mapa derivado del repo
-- 0632a56 · 2026-10-15 · feat(breakpoint): el turnero y la gestión del club dentro del ERP en breakpointpadel.gsgapp.com.ar
-- 9abb1c2 · 2026-10-15 · Merge remote-tracking branch 'origin/main' into ccr-breakpoint-turnero
-- 98b8176 · 2026-10-15 · feat(breakpoint): turnero — defectos del QA en Chrome (D21–D33) + demo pública estática con sync entre pestañas
-- 834d2f6 · 2026-10-15 · docs(breakpoint): QA del turnero en Chrome real — defectos D21–D34
-- eda888b · 2026-10-15 · fix(breakpoint): turnero — WCAG 2.5.3 «Label in Name» en días y turnos (D19) + .sr que ensanchaba el celu (D20)
-- 36659b9 · 2026-10-15 · chore(brain): sincroniza el mapa derivado del repo
-- 5ecbd94 · 2026-10-15 · fix(breakpoint): turnero — hallazgos del Gate de Excelencia (versión por reserva, modo real, ?api= seguro)
-- 814abd5 · 2026-10-15 · chore(brain): sincroniza el mapa derivado del repo (npm run brain)
-- 185bebd · 2026-10-15 · feat(breakpoint): turnero — demo pública sin servidor, logo oficial y defectos de la batería corregidos
-- be44cac · 2026-10-15 · Merge remote-tracking branch 'origin/ccr-63ed11dc-brcdpp' into ccr-breakpoint-turnero
+- 9885d44 · 2026-10-18 · test(magra): el recorrido suma peso imposible, PLU, etiqueta de balanza y pedidos esperando (44/44)
+- 72242b7 · 2026-10-18 · pedidos: recordatorio por WhatsApp para la clienta que no vino a retirar
+- 40e0b19 · 2026-10-18 · pedidos: avisar cuando el peso real se aleja de lo que pidió la clienta
+- 08457fb · 2026-10-18 · pedidos: marcar a la clienta que tiene otro pedido abierto
+- 8b93457 · 2026-10-18 · pedidos: la línea de estado dice cuántos de la tienda esperan y desde cuándo
+- a8d8277 · 2026-10-18 · caja: cerrar el turno con diferencia pide la nota, como el cierre del día
+- f4a08c2 · 2026-10-18 · tienda: si el precio cambió mientras la clienta armaba la bolsa, se avisa en la línea
+- 9f186c6 · 2026-10-18 · feat(sugerido): la semana tipo ajusta el pedido a los días que vienen (sólo mostrador)
+- 88a900a · 2026-10-18 · feat(caja): reglas a la vista — una frase por pantalla, sacada del código, sólo en mostrador
+- d3b00a4 · 2026-10-18 · feat(recibir): «El último: …» elige al proveedor de siempre de un toque (sólo mostrador, diseño nuevo)
+- 34c5e90 · 2026-10-18 · feat(inicio): «Para arrancar» de un mostrador que vende — la lista del primer día
+- 63e85b7 · 2026-10-18 · feat(catalogo): eliminar un producto pide «Sí, eliminar» y dice lo que pasa de verdad
 
 ## Migraciones (Prisma)
 
@@ -56,8 +56,8 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 334 |
-| Palabras en `docs/` | 549.809 |
+| Documentos en `docs/` | 340 |
+| Palabras en `docs/` | 564.096 |
 | ADRs | 87 |
 | Nodos en el grafo | 93 _(los 87 ADR + 6 enmiendas)_ |
 

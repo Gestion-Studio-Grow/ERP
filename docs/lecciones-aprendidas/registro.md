@@ -17,7 +17,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **PD** — PD-1 build lento ≠ colgado · PD-2 gates humanos · PD-3 cron Hobby · PD-4 GitHub App en la org
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance · MT-6 hosts en código (variable sensible)
-- **DX** — DX-8 demo pública en host serverless: back con estado no corre → dominio isomórfico + adaptador local · DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
+- **DX** — DX-8 demo pública en host serverless: back con estado no corre → dominio isomórfico + adaptador local · DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify) · DX-10 suite verde ≠ pantalla bien: recorrido E2E contra next start + la cifra de plata sale de la regla compartida
 - **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir)
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit · SEC-4 superficie pública: límite por IP sólo con fallos + motivos del dominio que nombran a terceros
 
@@ -301,6 +301,28 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
   - Lo que no se puede sin servidor se dice en pantalla: sync entre equipos, reserva desde el celular del cliente y
     aprobación sin código.
 - **Refs:** `docs/tenants/breakpoint/DIA-DE-PRUEBA.md`; `npm run test:club-torneo`; DX-8.
+
+**[DX-10] Los tests unitarios estaban verdes y el Inicio igual mostraba como plata un pedido sin cobrar**
+- **Síntoma:** en el UAT de MAGRA del 18/10/2026, con la suite verde (4962 tests), el recorrido clic por clic encontró dos
+  cosas que se veían mal en pantalla. El Inicio sumaba en «Ingresos hoy» el pedido de la tienda recién entrado, sin pesar
+  ni cobrar. Y el cierre del día pintaba la apertura del turno en la columna «Ingreso», sin sumarla, así que la columna
+  no daba lo que decía el cuadro.
+- **Causa raíz:** cada pantalla armaba su propio criterio de «lo que entra», en vez de usar la regla que ya existía y
+  tenía test: `whereVentasCobradasConMedio` para las ventas y `movementSign` para la caja. Los tests probaban la regla,
+  no que la pantalla la usara.
+- **Fix:** las dos pantallas usan la regla compartida. Se sumó un test contra Postgres con RLS que falla con el código
+  viejo, y un test que verifica que el cierre usa `movementSign`. Además quedó un recorrido repetible
+  (`npm run test:magra-uat`), con la app de producción (`next start`) sobre una base local sembrada, que falla ante
+  cualquier error de consola.
+- **Lección:** antes de decir que algo está listo para producción, hay que recorrerlo como lo usa el cliente, sobre la
+  app compilada y con datos reales en forma (pedido web, venta, caja abierta y cierre), y no sólo correr la suite.
+  Cuando una pantalla muestra plata, el número sale de la misma función que usan las demás pantallas.
+- **Guardarraíl:**
+  - Todo tenant que sale a producción tiene su guion de UAT con matriz por rol, y su recorrido E2E repetible contra
+    `next start` y Postgres local, nunca Neon. Modelo: `test:club-uat` y `test:magra-uat`.
+  - Toda cifra de plata en una pantalla usa el `where` o la tabla de signos compartida. No se arma una lista propia de
+    tipos «que entran».
+- **Refs:** `docs/tenants/magra/UAT-PRODUCCION.md`; `src/tenants/magra/e2e/`; `src/lib/inicio-mostrador-postgres.test.ts`; DX-8.
 
 ## MP — Metodología / Proceso
 

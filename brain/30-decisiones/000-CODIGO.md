@@ -22,11 +22,11 @@ tags: [brain/indice, brain/codigo]
 
 | Métrica | Valor |
 |---|---:|
-| Archivos de `src/` que citan un ADR | 365 de 1781 |
+| Archivos de `src/` que citan un ADR | 366 de 1814 |
 | Archivos de `prisma/` que citan un ADR | 38 de 90 |
 | Archivos de `scripts/` que citan un ADR | 11 de 48 |
-| Archivos escaneados en total | 1919 |
-| Archivos que citan algún ADR | 414 |
+| Archivos escaneados en total | 1952 |
+| Archivos que citan algún ADR | 415 |
 | ADR con vínculo (cita desde código **o** ruta citada por el ADR) | 85 de 87 |
 
 ## 🕳️ Los agujeros (a la vista, no tapados)
@@ -133,7 +133,7 @@ tags: [brain/indice, brain/codigo]
 
 ### [ADR-019](ADR-019.md)
 
-- **cabecera (18):** `src/blueprints/families.ts` · `src/blueprints/generico.ts` · `src/blueprints/index.ts` · `src/blueprints/servicios.ts` · `src/blueprints/types.ts` · `src/lib/operator-provisioning-actions.ts` · `src/lib/provisioning/adapters.ts` · `src/lib/provisioning/index.ts` … y 10 más
+- **cabecera (17):** `src/blueprints/families.ts` · `src/blueprints/generico.ts` · `src/blueprints/index.ts` · `src/blueprints/servicios.ts` · `src/blueprints/types.ts` · `src/lib/operator-provisioning-actions.ts` · `src/lib/provisioning/adapters.ts` · `src/lib/provisioning/index.ts` … y 9 más
 - **inline (14):** `src/app/operador/(console)/solicitudes/configurador.server.ts` · `src/blueprints/agenda/index.ts` · `src/blueprints/agenda/rubros.ts` · `src/blueprints/gastronomia/index.ts` · `src/blueprints/oficios/index.ts` … y 9 más
 - **el ADR cita:** `prisma/seed.ts`
 
@@ -162,7 +162,7 @@ tags: [brain/indice, brain/codigo]
 
 ### [ADR-024](ADR-024.md)
 
-- **cabecera (18):** `src/app/api/webhooks/mercadopago/route.ts` · `src/lib/fiscal.ts` · `src/lib/invoice-from-appointment.ts` · `src/lib/invoice-from-order.ts` · `src/lib/mercadopago-actions.ts` · `src/lib/mercadopago-auto.ts` · `src/lib/mercadopago-dispatch.ts` · `src/lib/pagos-dispatch.ts` … y 10 más
+- **cabecera (19):** `src/app/api/webhooks/mercadopago/route.ts` · `src/lib/fiscal.ts` · `src/lib/invoice-from-appointment.ts` · `src/lib/invoice-from-order.ts` · `src/lib/mercadopago-actions.ts` · `src/lib/mercadopago-auto.ts` · `src/lib/mercadopago-dispatch.ts` · `src/lib/pagos-dispatch.ts` … y 11 más
 - **inline (6):** `src/lib/actions.ts` · `src/lib/fiscal/impuestos-por-alicuota.ts` · `src/lib/turnos/cobro-turno-repo.test.ts` · `src/lib/turnos/cobro-turno-repo.ts` · `src/plugins/mercadopago/http.ts` … y 1 más
 - **el ADR cita:** `src/lib/actions.ts` · `src/plugins/mercadopago/` · `src/lib/fiscal.ts`
 
@@ -309,8 +309,8 @@ tags: [brain/indice, brain/codigo]
 
 ### [ADR-055](ADR-055.md)
 
-- **cabecera (17):** `src/lib/cartera-actions.ts` · `src/lib/cartera-core.ts` · `src/lib/provisioning/adapters.ts` · `src/modules/activation.test.ts` · `src/modules/activation.ts` · `src/modules/catalog/asignacion.ts` · `src/modules/contract.ts` · `src/modules/descriptors/cartera.ts` … y 9 más
-- **inline (11):** `src/generated/prisma/internal/class.ts` · `src/lib/capabilities.ts` · `src/lib/catalog-actions.ts` · `src/lib/producto-identidad.test.ts` · `src/lib/producto-identidad.ts` … y 6 más
+- **cabecera (18):** `src/lib/cartera-actions.ts` · `src/lib/cartera-core.ts` · `src/lib/provisioning/adapters.ts` · `src/lib/reserva-publica-postgres.test.ts` · `src/modules/activation.test.ts` · `src/modules/activation.ts` · `src/modules/catalog/asignacion.ts` · `src/modules/contract.ts` … y 10 más
+- **inline (12):** `src/generated/prisma/internal/class.ts` · `src/lib/actions.ts` · `src/lib/capabilities.ts` · `src/lib/catalog-actions.ts` · `src/lib/producto-identidad.test.ts` … y 7 más
 - **el ADR cita:** `src/modules/`
 
 ### [ADR-056](ADR-056.md)

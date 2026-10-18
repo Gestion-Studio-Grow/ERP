@@ -132,5 +132,5 @@ export function factorDeLaVentana(perfil: PerfilSemanal, hoy: string, largo: num
   for (let i = 1; i <= largo; i++) suma += perfil.pesos[diaDeLaSemana(sumarDias(hoy, i))] ?? 1;
   const factor = suma / largo;
   if (!Number.isFinite(factor)) return 1;
-  return Math.min(FACTOR_MAXIMO, Math.max(FACTOR_MINIMO, Math.round(factor * 100) / 100));
+  return Math.min(FACTOR_MAXIMO, Math.max(FACTOR_MINIMO, Math.round(factor * 100) / 100)); // no-es-plata: un factor de demanda con dos decimales
 }
