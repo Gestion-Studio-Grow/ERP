@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-10-18 20:40 UTC
+generado_el: 2026-10-18 21:26 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-10-18 20:40 UTC sobre `c9bef4a`.**
+> ⏱️ **Foto tomada el 2026-10-18 21:26 UTC sobre `0dbb3ea6`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -18,27 +18,27 @@ tags: [brain/estado, fase-0]
 
 | Campo | Valor |
 |---|---|
-| Rama actual | `claude/magra-nivel-bp` |
-| HEAD | `c9bef4a` (2026-10-18) |
-| Árbol | **304 archivo(s) sin commitear** _(sin contar `brain/`)_ |
-| Tip de `main` | _no disponible (este clon no trae `main` local)_ |
+| Rama actual | `claude/sleepy-tesla-392rov` |
+| HEAD | `0dbb3ea6` (2026-10-18) |
+| Árbol | limpio _(sin contar `brain/`)_ |
+| Tip de `main` | 68b43fd4 · 2026-10-13 · chore(inmobiliaria): los cobros de muestra del seed llevan número de recibo |
 
-**Ramas locales (4, más reciente primero):** `claude/magra-nivel-bp` · `claude/magra-practicidad` · `claude/magra-eventualidades` · `claude/sleepy-tesla-392rov`
+**Ramas locales (4, más reciente primero):** `claude/sleepy-tesla-392rov` · `integra/matias` · `claude/reset-golive` · `main`
 
 **Últimos commits**
 
-- c9bef4a · 2026-10-18 · fix(seed-magra): MAGRA_SLUG sólo contra una base local (Gate B1) + menores del Gate
-- 2010106 · 2026-10-18 · test(magra): la tienda sin WhatsApp del local no ofrece botones de WhatsApp (46/46)
-- 0cba684 · 2026-10-18 · fix(tienda-magra): sin el WhatsApp del local, los botones de WhatsApp no aparecen (ambiente real)
-- 10a56c8 · 2026-10-18 · fix(tienda-magra): ambiente real — dirección, horario o WhatsApp sin cargar no se muestran (ni «a confirmar»)
-- 429887c · 2026-10-18 · fix(magra): ambiente real — sin formato de balanza guardado no hay campo de etiqueta, y el primer día no dice «de prueba»
-- fbc4fa7 · 2026-10-18 · Merge remote-tracking branch 'origin/claude/sleepy-tesla-392rov' into claude/magra-nivel-bp
-- d40a660 · 2026-10-18 · fix(sugerido): el factor de la semana tipo se marca como no-plata (guarda de redondeos) · lección DX-10 del UAT de MAGRA
-- 9885d44 · 2026-10-18 · test(magra): el recorrido suma peso imposible, PLU, etiqueta de balanza y pedidos esperando (44/44)
-- 72242b7 · 2026-10-18 · pedidos: recordatorio por WhatsApp para la clienta que no vino a retirar
-- 40e0b19 · 2026-10-18 · pedidos: avisar cuando el peso real se aleja de lo que pidió la clienta
-- 08457fb · 2026-10-18 · pedidos: marcar a la clienta que tiene otro pedido abierto
-- 8b93457 · 2026-10-18 · pedidos: la línea de estado dice cuántos de la tienda esperan y desde cuándo
+- 0dbb3ea6 · 2026-10-18 · fix(magra): menores del re-Gate — la vitrina vacía no nombra WhatsApp si no hay número; JSDoc de pasosParaArrancar pegado a su función
+- dd8a1e9f · 2026-10-18 · Merge remote-tracking branch 'origin/claude/sleepy-tesla-392rov' into claude/magra-nivel-bp
+- c9bef4a3 · 2026-10-18 · fix(seed-magra): MAGRA_SLUG sólo contra una base local (Gate B1) + menores del Gate
+- 98e7bcf7 · 2026-10-18 · merge: CH al nivel Break Point (guion, E2E, eventualidades, practicidad apagada)
+- fe316444 · 2026-10-18 · docs(brain): mapa regenerado con la lección DB-5 [sin-deploy]
+- 20101067 · 2026-10-18 · test(magra): la tienda sin WhatsApp del local no ofrece botones de WhatsApp (46/46)
+- 0cba6843 · 2026-10-18 · fix(tienda-magra): sin el WhatsApp del local, los botones de WhatsApp no aparecen (ambiente real)
+- 10a56c80 · 2026-10-18 · fix(tienda-magra): ambiente real — dirección, horario o WhatsApp sin cargar no se muestran (ni «a confirmar»)
+- 9478b460 · 2026-10-18 · merge: main al día antes de publicar CH y Magra
+- 16d96eb3 · 2026-10-18 · merge: script de reseteo del go-live (sólo transaccional, modo prueba por defecto)
+- 429887ca · 2026-10-18 · fix(magra): ambiente real — sin formato de balanza guardado no hay campo de etiqueta, y el primer día no dice «de prueba»
+- fbc4fa75 · 2026-10-18 · Merge remote-tracking branch 'origin/claude/sleepy-tesla-392rov' into claude/magra-nivel-bp
 
 ## Migraciones (Prisma)
 
