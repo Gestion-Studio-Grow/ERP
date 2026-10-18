@@ -2,13 +2,15 @@ import { getProfessionalsWithServices } from "@/lib/actions";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { agendaBookingCopyForSlug } from "@/blueprints/agenda";
 import BookingForm from "./BookingForm";
+import { reglaVigenteParaLaClienta } from "@/lib/turnos/practica.server";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReservaPage() {
-  const [professionals, slug] = await Promise.all([
+  const [professionals, slug, regla] = await Promise.all([
     getProfessionalsWithServices(),
     getCurrentTenantSlug(),
+    reglaVigenteParaLaClienta(),
   ]);
   // Copy rubro-aware: un club de pádel dice "cancha", una estética "profesional".
   // Cae al wording histórico para los tenants que no definen su propia voz.
@@ -19,9 +21,15 @@ export default async function ReservaPage() {
       <h1 className="font-serif text-3xl sm:text-4xl mb-2" style={{ color: "var(--text-strong)" }}>
         {copy.title}
       </h1>
-      <p className="mb-10" style={{ color: "var(--text-muted)" }}>
+      <p className={regla ? "mb-3" : "mb-10"} style={{ color: "var(--text-muted)" }}>
         {copy.subtitle}
       </p>
+      {/* Agenda práctica (T12): la regla de cancelación, a la vista antes de reservar. */}
+      {regla && (
+        <p className="mb-10 text-sm" style={{ color: "var(--text-muted)" }}>
+          {regla}
+        </p>
+      )}
       <BookingForm professionals={professionals} copy={copy} />
     </div>
   );

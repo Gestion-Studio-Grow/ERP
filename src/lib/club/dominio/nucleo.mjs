@@ -1,0 +1,621 @@
+// NÚCLEO DEL TURNERO — Break Point Pádel. Isomórfico: lo corre el back (src/tenants/breakpoint/turnero/back) y,
+// en la demo pública sin servidor, el adaptador local del front (../local.mjs). Sin `node:*`: sólo Web Crypto.
+//
+// El dominio es el motor del club (public/previews/breakpoint/club/motor.mjs): disponibilidad, precio, seña,
+// cancelación, lista de espera y vencimientos salen de ahí. Este archivo NO repite reglas: orquesta el canal
+// online (clientes con cuenta, límites anti-acaparamiento, código de seña), la conciliación de comprobantes por
+// WhatsApp y la sincronización en vivo con el backoffice.
+//
+// Doble reserva (lección DB-4): toda escritura sobre la agenda pasa por funciones SINCRÓNICAS de este módulo
+// (validar + insertar sin un `await` en el medio), y Node corre una sola a la vez: el event loop es el punto de
+// serialización. En producción, con base de datos, la exclusión la impone la base (constraint EXCLUDE o
+// transacción serializable — Gate 2), no la app.
+import * as M from "../../club/motor.mjs";
+import { leerComprobante, conciliar, enmascarar, mismoTel } from "./conciliacion.mjs";
+import { normalizarCelular, normalizarEmail, problemaDeClave, GOOGLE_DEMO, hashPbkdf2, verificarPbkdf2, azar } from "./identidad.mjs";
+
+const OFFSET_AR = -3 * 3600000; // Argentina no tiene horario de verano
+const pad = (n) => String(n).padStart(2, "0");
+
+/** Epoch (ms) → tiempo del motor { fecha, min } en hora argentina. */
+export function aMotor(ms) {
+  const d = new Date(ms + OFFSET_AR);
+  return { fecha: `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`, min: d.getUTCHours() * 60 + d.getUTCMinutes() };
+}
+/** Tiempo del motor → epoch (ms). min puede pasar de 1440 (después de medianoche). */
+export function aEpoch({ fecha, min }) {
+  const [a, m, d] = fecha.split("-").map(Number);
+  return Date.UTC(a, m - 1, d) + min * 60000 - OFFSET_AR;
+}
+
+const solapa = (a1, a2, b1, b2) => a1 < b2 && b1 < a2;
+
+/** Lo que llega por el sync es JSON del staff: nunca se copian `__proto__`/`constructor` (contaminar prototipos). */
+function sinClavesPeligrosas(o) {
+  const out = {};
+  for (const [k, v] of Object.entries(o)) if (k !== "__proto__" && k !== "constructor" && k !== "prototype") out[k] = v;
+  return out;
+}
+const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+/** Ficha de cliente del sync, sólo con los campos conocidos y con números de verdad (null si no sirve). */
+function fichaLimpia(c) {
+  if (!c || typeof c.id !== "string" || !/^[\w-]{1,40}$/.test(c.id) || typeof c.nombre !== "string") return null;
+  return {
+    id: c.id, nombre: c.nombre.slice(0, 80), tel: String(c.tel ?? "").slice(0, 30), nivel: String(c.nivel ?? "").slice(0, 20),
+    strikes: num(c.strikes), monedero: num(c.monedero), deuda: num(c.deuda), activo: c.activo !== false,
+    movCC: Array.isArray(c.movCC) ? c.movCC.slice(-200).map(sinClavesPeligrosas) : [],
+    cc: { habilitada: Boolean(c.cc?.habilitada), limite: num(c.cc?.limite) },
+    rev: num(c.rev),
+  };
+}
+const DURACIONES = [60, 90, 120];
+const LETRAS_REF = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sin 0/O ni 1/I: se dictan por teléfono sin confusión
+
+/**
+ * Crea el turnero. Todo inyectable para los tests: reloj, estado inicial, canal de WhatsApp, lector y cuentas
+ * del club. Sin persistencia: el estado vive en memoria (demo a costo cero).
+ */
+export function crearTurnero({
+  reloj = () => Date.now(),
+  estado,
+  canal,
+  lector,
+  cuentasClub = { alias: ["bp.demo.ficticio"], cbu: [], cvu: ["0000000000000000000000"] },
+  diasVista = 14,
+  limites = { pendientes: 2, activas: 4 },
+  urlTurnero = "",
+  claves = { hash: hashPbkdf2, verificar: verificarPbkdf2 }, // el back inyecta scrypt
+  // DEMO: un comprobante que coincide deja el turno firme solo. REAL: una captura o un texto se pueden inventar, así
+  // que todo va a la bandeja como "pre-conciliado" hasta verlo ACREDITADO en la cuenta del club (Mercado Pago/banco).
+  autoConfirmar = true,
+  // Demo entre pestañas: la pestaña que toma la posta arranca desde la última foto de la anterior (ver exportar()).
+  foto = null,
+} = {}) {
+  const ahora = () => aMotor(reloj());
+  // La demo del club arma "hoy" alrededor de las 19:10 (así cada eventualidad queda a la vista en el backoffice).
+  const E = foto?.estado ?? estado ?? M.generarDemo(ahora().fecha);
+  const usuarios = new Map(); // id → usuario
+  const revisiones = []; // bandeja "a revisar" de comprobantes
+  const usados = { operaciones: new Set(), huellas: new Set() };
+  const mensajesVistos = new Set(); // Meta reintenta webhooks: cada mensaje se procesa una sola vez
+  const ofertasEspera = new Map(); // tel → { esperaId, canchaId, inicio, vence }
+  const oyentes = new Set(); // { canal, enviar(tipo, datos) }
+  let version = 0;
+  let secUsuario = 0;
+  if (foto) {
+    for (const u of foto.usuarios ?? []) usuarios.set(u.id, u);
+    revisiones.push(...(foto.revisiones ?? []));
+    for (const x of foto.operaciones ?? []) usados.operaciones.add(x);
+    for (const x of foto.huellas ?? []) usados.huellas.add(x);
+    for (const x of foto.mensajesVistos ?? []) mensajesVistos.add(x);
+    for (const [tel, o] of foto.ofertasEspera ?? []) ofertasEspera.set(tel, o);
+    version = Number(foto.version) || 0;
+    secUsuario = Number(foto.secUsuario) || 0;
+    // El contador de ids del motor es de cada pestaña: se retoma desde la foto y, además, los ids que cree esta
+    // pestaña llevan su propia marca, así no chocan ni con los de la demo ni con los que la anterior creó después de
+    // su última foto (Gate B1 de D36).
+    M.retomarSecuencia(foto.secuenciaIds);
+    M.prefijoIds(`p${Math.random().toString(36).slice(2, 6)}-`);
+  }
+
+  // ───────────── eventos en vivo (SSE) ─────────────
+  function emitir(canal, tipo, datos) {
+    for (const o of oyentes) if (o.canal === canal) { try { o.enviar(tipo, datos); } catch { oyentes.delete(o); } }
+  }
+  // D21: fichas de clientes (altas web, créditos, deudas) en vivo para el backoffice. Se manda sólo lo que cambió.
+  const fotoClientes = new Map(E.clientes.map((c) => [c.id, JSON.stringify(c)]));
+  function avisarClientes() {
+    const cambiados = [];
+    for (const c of E.clientes) {
+      if (fotoClientes.get(c.id) === JSON.stringify(c)) continue;
+      c.rev = (c.rev ?? 0) + 1; // versión de la ficha: un puesto con una copia vieja no pisa un crédito o una deuda
+      fotoClientes.set(c.id, JSON.stringify(c));
+      cambiados.push(c);
+    }
+    if (cambiados.length) emitir("staff", "clientes", { clientes: cambiados });
+  }
+
+  function cambioReserva(r, motivo) {
+    version++;
+    r.rev = (r.rev ?? 0) + 1; // versión de la reserva: un puesto con una copia vieja no la puede pisar
+    emitir("publico", "disponibilidad", { fecha: r.fecha, canchaId: r.canchaId, version });
+    emitir("staff", "reserva", { reserva: r, motivo, version });
+    if (r.webUsuarioId) emitir(`usuario:${r.webUsuarioId}`, "mi-reserva", { reserva: publica(r), motivo });
+    avisarClientes();
+  }
+  const suscribir = (canal, enviar) => { const o = { canal, enviar }; oyentes.add(o); return () => oyentes.delete(o); };
+
+  // ───────────── usuarios del turnero ─────────────
+  const buscarUsuario = (pred) => { for (const u of usuarios.values()) if (pred(u)) return u; return null; };
+  const perfil = (u) => u && { id: u.id, nombre: u.nombre, email: u.email, tel: u.tel ? `••• ${u.tel.slice(-4)}` : null, tieneCelular: Boolean(u.tel), google: Boolean(u.googleSub), pideSena: u.clienteId ? M.requiereSenaWeb(E, u.clienteId) : true, credito: (u.clienteId && M.cliente(E, u.clienteId)?.monedero) || 0 };
+
+  /**
+   * Ficha de cliente del club para el usuario. Sólo se engancha a una ficha EXISTENTE si el celular está
+   * verificado (OTP por WhatsApp, post-venta): si no, cualquiera que tipee el número de otro heredaría su historial
+   * y su confianza (sin seña). Sin verificar, se le abre una ficha propia y el club las une si corresponde.
+   */
+  function vincularCliente(u) {
+    if (u.clienteId && M.cliente(E, u.clienteId)) return;
+    const existente = u.tel && u.telVerificado ? E.clientes.find((c) => c.activo !== false && mismoTel(c.tel, u.tel)) : null;
+    if (existente) { u.clienteId = existente.id; return; }
+    const telLibre = u.tel && !E.clientes.some((c) => c.activo !== false && mismoTel(c.tel, u.tel));
+    const r = M.altaCliente(E, { nombre: u.nombre, tel: telLibre ? u.tel : "" }, ahora());
+    if (r.ok) u.clienteId = r.cliente.id;
+    avisarClientes();
+  }
+
+  async function registrar({ nombre, tel, email, clave }) {
+    const n = String(nombre ?? "").trim().replace(/\s+/g, " ");
+    if (n.length < 2 || n.length > 60) return { ok: false, motivo: "Contanos tu nombre." };
+    const cel = normalizarCelular(tel);
+    if (!cel) return { ok: false, motivo: "Revisá el celular: código de área + número, sin 0 ni 15 (ej. 11 6187 0066)." };
+    const mail = email ? normalizarEmail(email) : null;
+    if (email && !mail) return { ok: false, motivo: "Revisá el mail." };
+    const p = problemaDeClave(clave);
+    if (p) return { ok: false, motivo: p };
+    if (buscarUsuario((u) => u.tel === cel || (mail && u.email === mail))) return { ok: false, motivo: "Ya hay una cuenta con ese celular o mail. Probá ingresar." };
+    const u = { id: `w${++secUsuario}`, nombre: n, tel: cel, email: mail, claveHash: await claves.hash(clave), googleSub: null, clienteId: null };
+    usuarios.set(u.id, u);
+    vincularCliente(u);
+    return { ok: true, usuario: u };
+  }
+
+  async function ingresar({ usuario, clave }) {
+    const cel = normalizarCelular(usuario), mail = normalizarEmail(usuario);
+    const u = buscarUsuario((x) => Boolean(x.claveHash) && ((cel && x.tel === cel) || (mail && x.email === mail)));
+    const ok = await claves.verificar(clave, u?.claveHash ?? null); // se verifica igual si no existe (mismo tiempo)
+    if (!ok) return { ok: false, motivo: "El usuario o la contraseña no coinciden." };
+    return { ok: true, usuario: u };
+  }
+
+  function ingresarConGoogle(perfilGoogle) {
+    // Se une a una cuenta con contraseña por el mail SÓLO si ese mail estaba verificado: si no, quien registró
+    // antes el mail de otro se quedaría con acceso a la cuenta de Google de la víctima (toma previa de cuentas).
+    let u = buscarUsuario((x) => x.googleSub === perfilGoogle.sub) ?? (perfilGoogle.email ? buscarUsuario((x) => x.email === perfilGoogle.email && x.emailVerificado) : null);
+    if (!u) {
+      u = { id: `w${++secUsuario}`, nombre: perfilGoogle.nombre, tel: null, email: perfilGoogle.email, emailVerificado: true, claveHash: null, googleSub: perfilGoogle.sub, clienteId: null };
+      usuarios.set(u.id, u);
+    } else u.googleSub ??= perfilGoogle.sub;
+    vincularCliente(u);
+    return { ok: true, usuario: u };
+  }
+  const ingresarGoogleDemo = (i = 0) => ingresarConGoogle(GOOGLE_DEMO[i] ?? GOOGLE_DEMO[0]);
+
+  /** El celular hace falta para conciliar por WhatsApp (Google no lo da). */
+  function cargarCelular(usuarioId, tel) {
+    const u = usuarios.get(usuarioId);
+    const cel = normalizarCelular(tel);
+    if (!u) return { ok: false, motivo: "Ingresá de nuevo." };
+    if (!cel) return { ok: false, motivo: "Revisá el celular: código de área + número (ej. 11 6187 0066)." };
+    if (buscarUsuario((x) => x.tel === cel && x.id !== u.id)) return { ok: false, motivo: "Ese celular ya está en otra cuenta." };
+    u.tel = cel;
+    const cl = u.clienteId ? M.cliente(E, u.clienteId) : null;
+    if (cl && !cl.tel && !E.clientes.some((c) => c !== cl && c.activo !== false && mismoTel(c.tel, cel))) cl.tel = cel;
+    avisarClientes();
+    return { ok: true, usuario: u };
+  }
+
+  // ───────────── disponibilidad (pública: nunca nombres ni datos de nadie) ─────────────
+  function dias() {
+    const hoy = ahora().fecha;
+    return Array.from({ length: diasVista }, (_, i) => {
+      const fecha = M.sumarDias(hoy, i);
+      const h = M.horarioDe(E, fecha);
+      return { fecha, dia: M.diaSemana(fecha), abre: h.abre, cierra: h.cierra, feriado: (E.config.feriados ?? []).includes(fecha) };
+    });
+  }
+
+  function validarConsulta({ fecha, duracion }) {
+    const hoy = ahora().fecha;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) return "Elegí un día.";
+    if (fecha < hoy || fecha > M.sumarDias(hoy, diasVista - 1)) return `Se reserva desde hoy y hasta ${diasVista} días.`;
+    if (!DURACIONES.includes(Number(duracion))) return "Elegí 1 h, 1 h 30 o 2 h.";
+    return null;
+  }
+
+  function disponibilidad({ fecha, duracion = 90, techadas = false }) {
+    const err = validarConsulta({ fecha, duracion });
+    if (err) return { ok: false, motivo: err };
+    const dur = Number(duracion);
+    M.materializarFijos(E, fecha); // los fijos ocupan aunque nadie haya abierto el backoffice ese día
+    const t = ahora();
+    const desde = fecha === t.fecha ? Math.ceil((t.min + 15) / E.config.paso) * E.config.paso : undefined; // 15' de margen para llegar
+    const slots = [];
+    for (const c of E.canchas) {
+      if (techadas && !c.cubierta) continue;
+      for (const inicio of M.huecosLibres(E, fecha, c.id, dur, desde)) {
+        slots.push({ inicio, fin: inicio + dur, canchaId: c.id, cancha: c.nombre, techada: Boolean(c.cubierta), pico: M.franjaDe(E, fecha, inicio) === "pico", precio: M.precioTurno(E, { fecha, inicio, duracion: dur, canchaId: c.id }) });
+      }
+    }
+    slots.sort((a, b) => a.inicio - b.inicio || a.canchaId.localeCompare(b.canchaId));
+    const lluvia = E.clima?.lluvia ? true : false;
+    return { ok: true, fecha, duracion: dur, slots, version, lluvia, mantenimiento: E.canchas.filter((c) => c.estado === "mantenimiento").map((c) => c.nombre) };
+  }
+
+  // ───────────── reservas del cliente ─────────────
+  const estadoPublico = (r) => (r.estado === "reservada" ? (r.sena.monto > 0 && !r.sena.pagada ? "pendiente" : "firme") : r.estado === "en_cancha" ? "en-cancha" : r.estado === "finalizada" ? "jugada" : r.estado === "no_show" ? "falta" : r.estado === "suspendida" ? "suspendida" : "cancelada");
+
+  function publica(r) {
+    const c = M.cancha(E, r.canchaId);
+    const pagado = M.cobrado(r);
+    const horasLibre = E.config.politica.horasCancelacionLibre;
+    return {
+      id: r.id, fecha: r.fecha, inicio: r.inicio, fin: r.inicio + r.duracion, duracion: r.duracion,
+      canchaId: r.canchaId, cancha: c?.nombre ?? r.canchaId, techada: Boolean(c?.cubierta),
+      precio: r.precio, pagado, saldo: M.saldo(r), estado: estadoPublico(r),
+      sena: { monto: r.sena.monto, pagada: r.sena.pagada, falta: Math.max(0, r.sena.monto - pagado) },
+      venceSena: r.venceSena && !r.sena.pagada ? aEpoch(r.venceSena) : null,
+      senaVencida: Boolean(r.senaVencida && !r.sena.pagada), liberarSinSena: E.config.politica.liberarSinSena ?? "manual",
+      ref: r.ref ?? null, jugadores: r.jugadores.map((j) => j.nombre),
+      cancelacionLibreHasta: aEpoch({ fecha: r.fecha, min: r.inicio - horasLibre * 60 }),
+      // El motivo del motor está escrito para el club; al jugador se le dice en su idioma.
+      motivoCancelacion: r.motivoCancelacion === "Cancela el cliente (online)" ? "La cancelaste vos" : r.motivoCancelacion ?? null,
+      conciliacion: r.conciliacion ? { nivel: r.conciliacion.nivel } : null,
+    };
+  }
+
+  const nuevaRef = () => { let s; do { s = "BP-" + Array.from({ length: 4 }, () => LETRAS_REF[azar(LETRAS_REF.length)]).join(""); } while (E.reservas.some((r) => r.ref === s)); return s; };
+
+  /** Alternativas cercanas cuando el turno elegido ya no está (dolor: "elegí, pagué y no había"). */
+  function alternativas(fecha, inicio, duracion) {
+    const d = disponibilidad({ fecha, duracion });
+    if (!d.ok) return [];
+    return d.slots.slice().sort((a, b) => Math.abs(a.inicio - inicio) - Math.abs(b.inicio - inicio)).slice(0, 3);
+  }
+
+  /** SINCRÓNICA a propósito (DB-4): validar e insertar sin ceder el event loop. */
+  function reservar(usuarioId, { fecha, inicio, canchaId, duracion = 90, jugadores = [] }) {
+    const u = usuarios.get(usuarioId);
+    if (!u) return { ok: false, codigo: 401, motivo: "Ingresá para reservar." };
+    const err = validarConsulta({ fecha, duracion });
+    if (err) return { ok: false, codigo: 400, motivo: err };
+    const ini = Number(inicio), dur = Number(duracion);
+    if (!Number.isInteger(ini)) return { ok: false, codigo: 400, motivo: "Elegí un horario." };
+    const t = ahora();
+    if (fecha === t.fecha && ini < t.min + 15) return { ok: false, codigo: 409, motivo: "Ese horario ya pasó o arranca en menos de 15 minutos. Llamanos y vemos.", alternativas: alternativas(fecha, ini, dur) };
+    vincularCliente(u);
+    const mias = E.reservas.filter((r) => r.webUsuarioId === u.id && r.estado === "reservada");
+    if (mias.filter((r) => r.sena.monto > 0 && !r.sena.pagada).length >= limites.pendientes) return { ok: false, codigo: 429, motivo: "Tenés turnos esperando la seña. Mandá esos comprobantes antes de reservar otro." };
+    if (mias.length >= limites.activas) return { ok: false, codigo: 429, motivo: `Podés tener hasta ${limites.activas} turnos por delante. Si necesitás más, escribinos.` };
+    // D34 (decisión del club, apagada por defecto): ¿un mismo jugador puede tener dos canchas a la misma hora?
+    if (E.config.politica.unaCanchaPorHorario && mias.some((r) => r.fecha === fecha && solapa(ini, ini + dur, r.inicio, r.inicio + r.duracion))) {
+      return { ok: false, codigo: 409, motivo: "Ya tenés una cancha a esa hora. Si son dos grupos, escribinos y lo armamos.", alternativas: [] };
+    }
+    M.materializarFijos(E, fecha);
+    const nombres = (Array.isArray(jugadores) ? jugadores : []).map((j) => String(j ?? "").trim().slice(0, 40)).filter(Boolean).slice(0, 3);
+    const res = M.crearReserva(E, {
+      canchaId, fecha, inicio: ini, duracion: dur, tipo: "turno", clienteId: u.clienteId, titular: u.nombre,
+      jugadores: [{ nombre: u.nombre, clienteId: u.clienteId }, ...nombres], origen: "web",
+      conSena: M.requiereSenaWeb(E, u.clienteId), plazoSenaMin: E.config.politica.minutosParaSenar ?? 60,
+    }, t);
+    // Nunca se devuelve el motivo del motor tal cual: "Se pisa con <nombre>" expondría a otro cliente.
+    if (!res.ok) return { ok: false, codigo: 409, motivo: /^Se pisa|bloqueada/.test(res.motivo) ? "Ese turno se acaba de ocupar 😕 Te dejamos los más cercanos." : res.motivo, alternativas: alternativas(fecha, ini, dur) };
+    const r = res.reserva;
+    r.webUsuarioId = u.id;
+    if (r.sena.monto > 0) r.ref = nuevaRef();
+    // Si tiene crédito a favor en el club (de una cancelación a tiempo), se usa solo para la seña.
+    const cl = M.cliente(E, u.clienteId);
+    let creditoUsado = 0;
+    if (r.sena.monto > 0 && cl?.monedero > 0) {
+      const monto = Math.min(cl.monedero, r.sena.monto);
+      if (M.registrarPago(E, r.id, { medio: "monedero", monto, concepto: `Seña ${r.titular} con crédito` }, t).ok) creditoUsado = monto;
+      if (r.sena.pagada) delete r.venceSena;
+    }
+    cambioReserva(r, "nueva");
+    return { ok: true, reserva: publica(r), creditoUsado };
+  }
+
+  const misReservas = (usuarioId) => E.reservas
+    .filter((r) => r.webUsuarioId === usuarioId && (r.fecha >= M.sumarDias(ahora().fecha, -7)))
+    .sort((a, b) => (a.fecha + pad(a.inicio)).localeCompare(b.fecha + pad(b.inicio)))
+    .map(publica);
+
+  function cancelarReserva(usuarioId, id) {
+    const r = M.reserva(E, id);
+    if (!r || r.webUsuarioId !== usuarioId) return { ok: false, codigo: 404, motivo: "No encontramos ese turno." };
+    const res = M.cancelar(E, id, { motivo: "Cancela el cliente (online)" }, ahora());
+    if (!res.ok) return { ok: false, codigo: 409, motivo: res.motivo };
+    cambioReserva(r, "cancelada");
+    avisarEspera(res.ofertas);
+    const credito = M.cliente(E, r.clienteId)?.monedero ?? 0;
+    return { ok: true, reserva: publica(r), aTiempo: res.aTiempo, devuelto: res.devuelto, enSuspenso: res.enSuspenso, credito };
+  }
+
+  function anotarEnEspera(usuarioId, { fecha, desde, hasta, duracion = 90, techadas = false }) {
+    const u = usuarios.get(usuarioId);
+    if (!u) return { ok: false, codigo: 401, motivo: "Ingresá para anotarte." };
+    const err = validarConsulta({ fecha, duracion });
+    if (err) return { ok: false, codigo: 400, motivo: err };
+    if (!u.tel) return { ok: false, codigo: 400, motivo: "Cargá tu celular: te avisamos por WhatsApp cuando se libere." };
+    const d = Number(desde), h = Number(hasta);
+    if (!(Number.isInteger(d) && Number.isInteger(h) && d <= h)) return { ok: false, codigo: 400, motivo: "Elegí desde qué hora y hasta qué hora te sirve." };
+    if (E.espera.filter((e) => e.webUsuarioId === u.id).length >= 3) return { ok: false, codigo: 429, motivo: "Ya estás en 3 listas de espera." };
+    vincularCliente(u);
+    const e = M.anotarEspera(E, { clienteId: u.clienteId, titular: u.nombre, tel: u.tel, fecha, desde: d, hasta: h, duracion: Number(duracion), soloCubierta: Boolean(techadas) }, ahora());
+    e.webUsuarioId = u.id;
+    emitir("staff", "espera", { espera: e });
+    return { ok: true };
+  }
+
+  /** Se liberó un hueco: WhatsApp a los de la lista de espera (el primero que dice SÍ se lo lleva). */
+  function avisarEspera(ofertas = []) {
+    const t = reloj();
+    for (const o of ofertas) {
+      if (!o.tel) continue;
+      ofertasEspera.set(o.tel, { esperaId: o.id, canchaId: o.canchaId, inicio: o.inicio, vence: t + 20 * 60000 });
+      canal.enviar(o.tel, `${o.mensaje}${urlTurnero ? ` También lo podés tomar acá: ${urlTurnero}` : ""}`);
+      if (o.webUsuarioId) emitir(`usuario:${o.webUsuarioId}`, "espera", { fecha: o.fecha, inicio: o.inicio, canchaId: o.canchaId });
+    }
+  }
+
+  // ───────────── seña por WhatsApp: comprobantes y conciliación ─────────────
+  function pendientesDeSena() {
+    return E.reservas.filter((r) => r.estado === "reservada" && r.sena.monto > 0 && !r.sena.pagada).map((r) => {
+      const u = r.webUsuarioId ? usuarios.get(r.webUsuarioId) : null;
+      const cl = r.clienteId ? M.cliente(E, r.clienteId) : null;
+      return { reservaId: r.id, ref: r.ref ?? null, senaPendiente: r.sena.monto - M.cobrado(r), saldo: M.saldo(r), tel: u?.tel ?? cl?.tel ?? "", creadaFecha: r.creada?.fecha ?? null };
+    });
+  }
+
+  function aplicarPago(reservaId, monto, comprobante) {
+    const r = M.reserva(E, reservaId);
+    if (!r) return { ok: false, motivo: "Ese turno ya no existe." };
+    if (r.estado !== "reservada") return { ok: false, motivo: "Ese turno ya no está reservado (se canceló o venció)." };
+    const res = M.registrarPago(E, reservaId, { medio: "transferencia", monto, concepto: `Seña ${r.titular} por WhatsApp (op. ${enmascarar(comprobante.operacion)})` }, ahora());
+    if (!res.ok) return res;
+    r.conciliacion = { nivel: "comprobante", operacion: enmascarar(comprobante.operacion), cuando: reloj() };
+    if (r.sena.pagada) delete r.venceSena;
+    cambioReserva(r, r.sena.pagada ? "sena-confirmada" : "sena-parcial");
+    return { ok: true, reserva: r };
+  }
+
+  function marcarUsado(c, firma) {
+    if (c.operacion) usados.operaciones.add(c.operacion);
+    usados.huellas.add(firma);
+  }
+
+  function aRevisar({ tel, comprobante, motivo, sugerida = null, reservaId = null, firma, tipo = "comprobante" }) {
+    const rev = {
+      id: `rv${revisiones.length + 1}`, tipo, cuando: reloj(), tel: tel ? `••• ${String(tel).slice(-4)}` : "•••", telCompleto: tel,
+      monto: comprobante?.monto ?? null, fecha: comprobante?.fecha ?? null, operacion: enmascarar(comprobante?.operacion),
+      ref: comprobante?.ref ?? null, motivo, sugerida, reservaId, estado: "pendiente", comprobante, firma,
+    };
+    revisiones.unshift(rev);
+    emitir("staff", "revision", { revision: revisionPublica(rev) });
+    return rev;
+  }
+  const revisionPublica = ({ telCompleto, comprobante, firma, ...r }) => r;
+
+  /** Un mensaje que entró por el webhook (ya con la firma verificada). */
+  async function procesarMensaje(m) {
+    if (!m.id || mensajesVistos.has(m.id)) return { ok: true, duplicado: true };
+    mensajesVistos.add(m.id);
+    if (mensajesVistos.size > 5000) mensajesVistos.delete(mensajesVistos.values().next().value);
+    try {
+      return await procesarMensajeNuevo(m);
+    } catch (e) {
+      mensajesVistos.delete(m.id); // si algo falló, el reintento de Meta tiene que poder entrar
+      throw e;
+    }
+  }
+
+  async function procesarMensajeNuevo(m) {
+    const tel = m.de;
+    if (m.ignorado) { await canal.enviar(tel, "¡Hola! Por acá recibimos los comprobantes de seña (foto o texto de la transferencia). Para reservar, entrá al turnero 🎾"); return { ok: true, decision: "ignorado" }; }
+
+    // ¿Responde "SÍ" a una oferta de la lista de espera?
+    const oferta = ofertasEspera.get(tel) ?? [...ofertasEspera.entries()].find(([k]) => mismoTel(k, tel))?.[1];
+    if (oferta && !m.mediaId && /^\s*s[ií](?![a-záéíóúñ])/i.test(m.texto ?? "")) {
+      for (const [k, v] of ofertasEspera) if (v === oferta) ofertasEspera.delete(k);
+      if (reloj() > oferta.vence) { await canal.enviar(tel, "Uh, esa oferta ya venció. Fijate en el turnero si queda algo 🙏"); return { ok: true, decision: "oferta-vencida" }; }
+      const res = M.asignarDesdeEspera(E, oferta.esperaId, { canchaId: oferta.canchaId, inicio: oferta.inicio }, ahora());
+      if (!res.ok) { await canal.enviar(tel, `Uh, se ocupó antes: ${res.motivo}`); return { ok: true, decision: "oferta-perdida" }; }
+      const u = buscarUsuario((x) => mismoTel(x.tel, tel));
+      if (u) res.reserva.webUsuarioId = u.id;
+      if (res.reserva.sena.monto > 0) res.reserva.ref = nuevaRef();
+      cambioReserva(res.reserva, "desde-espera");
+      await canal.enviar(tel, `¡Listo! Te reservamos ${M.cancha(E, res.reserva.canchaId).nombre} a las ${M.hhmm(res.reserva.inicio)}.${res.reserva.sena.monto ? ` Para dejarlo firme mandá la seña de ${M.pesos(res.reserva.sena.monto)} con el código ${res.reserva.ref}.` : ""}`);
+      return { ok: true, decision: "espera-asignada", reservaId: res.reserva.id };
+    }
+
+    const { texto, confianzaOcr } = await lector.leer(m);
+    const c = leerComprobante(texto, { confianzaOcr });
+    const d0 = conciliar({ comprobante: c, remitenteTel: tel, pendientes: pendientesDeSena(), club: cuentasClub, usados, hoy: ahora().fecha });
+    const d = !autoConfirmar && (d0.decision === "confirmar" || d0.decision === "parcial")
+      ? { ...d0, decision: "revisar", motivo: `Pre-conciliado (${d0.motivo.toLowerCase()}) Falta verlo acreditado en la cuenta del club.` }
+      : d0;
+    // Lo único que queda en el log: decisión, monto y operación enmascarada. Nunca el comprobante.
+    E.log.unshift({ ...ahora(), texto: `WhatsApp ${tel ? `••• ${String(tel).slice(-4)}` : ""}: comprobante ${c.monto != null ? M.pesos(c.monto) : "sin monto"} op. ${enmascarar(c.operacion)} → ${d.decision}.` });
+
+    if (d.decision === "confirmar" || d.decision === "parcial") {
+      const ap = aplicarPago(d.reservaId, d.aplicar, c);
+      if (!ap.ok) { aRevisar({ tel, comprobante: c, motivo: ap.motivo, reservaId: d.reservaId, firma: d.huella }); await canal.enviar(tel, "Recibimos tu comprobante. Lo revisa alguien del club y te confirmamos en un rato 🙌"); return { ok: true, decision: "revisar", motivo: ap.motivo }; }
+      marcarUsado(c, d.huella);
+      const r = ap.reserva, cn = M.cancha(E, r.canchaId).nombre;
+      if (d.excedente > 0) aRevisar({ tel, comprobante: c, motivo: `Pagó ${M.pesos(d.excedente)} de más: devolver o dejar como crédito.`, reservaId: r.id, firma: d.huella, tipo: "excedente" });
+      await canal.enviar(tel, d.decision === "confirmar"
+        ? `¡Listo, ${r.titular.split(" ")[0]}! Recibimos la seña y tu turno quedó firme: ${cn}, ${r.fecha.slice(8)}/${r.fecha.slice(5, 7)} a las ${M.hhmm(r.inicio)}. ¡Nos vemos en la cancha! 🎾`
+        : `Recibimos ${M.pesos(d.aplicar)}. Para dejar firme el turno faltan ${M.pesos(d.falta)}. Mandanos ese comprobante también 🙏`);
+      return { ok: true, decision: d.decision, reservaId: r.id };
+    }
+    if (d.decision === "revisar") {
+      aRevisar({ tel, comprobante: c, motivo: d.motivo, sugerida: d.sugerida, reservaId: d.reservaId ?? null, firma: d.huella });
+      await canal.enviar(tel, "Recibimos tu comprobante. Lo revisa alguien del club y te confirmamos en un rato 🙌");
+      return { ok: true, decision: "revisar", motivo: d.motivo };
+    }
+    await canal.enviar(tel, `No pudimos tomar ese comprobante: ${d.motivo} Si creés que es un error, escribinos y lo vemos.`);
+    emitir("staff", "comprobante-rechazado", { motivo: d.motivo, monto: c.monto, operacion: enmascarar(c.operacion) });
+    return { ok: true, decision: "rechazar", motivo: d.motivo };
+  }
+
+  /** El staff resuelve un comprobante de la bandeja: lo aplica a un turno o lo rechaza. */
+  async function resolverRevision(id, { aprobar, reservaId }) {
+    const rev = revisiones.find((x) => x.id === id);
+    if (!rev || rev.estado !== "pendiente") return { ok: false, codigo: 404, motivo: "Ese comprobante ya se resolvió." };
+    if (rev.tipo === "excedente") { rev.estado = aprobar ? "resuelta" : "descartada"; emitir("staff", "revision", { revision: revisionPublica(rev) }); return { ok: true }; }
+    if (!aprobar) {
+      rev.estado = "rechazada";
+      await canal.enviar(rev.telCompleto, "Revisamos tu comprobante y no lo pudimos tomar. Escribinos y lo vemos juntos 🙏");
+      emitir("staff", "revision", { revision: revisionPublica(rev) });
+      return { ok: true };
+    }
+    const destino = reservaId ?? rev.reservaId ?? rev.sugerida;
+    if (!destino || rev.monto == null) return { ok: false, codigo: 400, motivo: "Elegí a qué turno va." };
+    if ((rev.comprobante?.operacion && usados.operaciones.has(rev.comprobante.operacion)) || usados.huellas.has(rev.firma)) return { ok: false, codigo: 409, motivo: "Ese comprobante ya se usó." };
+    const r = M.reserva(E, destino);
+    const ap = aplicarPago(destino, Math.min(Math.round(rev.monto), r ? M.saldo(r) : 0), rev.comprobante ?? {});
+    if (!ap.ok) return { ok: false, codigo: 409, motivo: ap.motivo };
+    marcarUsado(rev.comprobante ?? {}, rev.firma);
+    rev.estado = "aprobada";
+    rev.reservaId = destino;
+    await canal.enviar(rev.telCompleto, ap.reserva.sena.pagada ? `¡Listo! Tu turno de las ${M.hhmm(ap.reserva.inicio)} quedó firme 🎾` : "Recibimos tu pago. Todavía falta una parte de la seña 🙏");
+    emitir("staff", "revision", { revision: revisionPublica(rev) });
+    return { ok: true };
+  }
+
+  /**
+   * DEMO: arma el comprobante que "manda" el jugador (texto con la forma de Mercado Pago, datos ficticios).
+   * Variantes para mostrar cada regla: ok · parcial · ajeno · imagen · sin-codigo.
+   */
+  function comprobanteDemo(usuarioId, reservaId, variante = "ok") {
+    const u = usuarios.get(usuarioId);
+    const r = u ? misReservas(u.id).find((x) => x.id === reservaId) : null;
+    if (!r) return { ok: false, codigo: 404, motivo: "No encontramos ese turno." };
+    const v = ["ok", "parcial", "ajeno", "imagen", "sin-codigo"].includes(variante) ? variante : "ok";
+    const monto = v === "parcial" ? Math.round(r.sena.falta / 2) : r.sena.falta || r.saldo;
+    const op = String(70000000000 + azar(2 ** 31));
+    const destino = v === "ajeno" ? "Alias destino: otro.club.demo" : `Alias destino: ${cuentasClub.alias[0]}`;
+    const texto = `Comprobante de transferencia\nMercado Pago\n${ahora().fecha.split("-").reverse().join("/")} 19:42\nMonto $ ${monto.toLocaleString("es-AR")},00\nDe: ${u.nombre}\n${destino}\nN° de operación ${op}${v === "sin-codigo" ? "" : `\nConcepto: ${r.ref ?? ""}`}`;
+    return { ok: true, texto, de: u.tel ?? "5491100009999", imagen: v === "imagen" };
+  }
+
+  // ───────────── reloj del club: vencimientos ─────────────
+  function tick() {
+    const t = reloj();
+    for (const [k, v] of ofertasEspera) if (t > v.vence) ofertasEspera.delete(k);
+    const vencidas = M.vencerSenas(E, ahora());
+    for (const { reserva: r, ofertas, liberada } of vencidas) {
+      cambioReserva(r, liberada ? "sena-vencida" : "sena-demorada");
+      const u = r.webUsuarioId ? usuarios.get(r.webUsuarioId) : null;
+      if (u?.tel) canal.enviar(u.tel, liberada
+        ? `Tu reserva de las ${M.hhmm(r.inicio)} se liberó porque no llegó la seña a tiempo. Si todavía la querés, fijate en el turnero 🙏`
+        : `¡Hola! Todavía no nos llegó la seña del turno de las ${M.hhmm(r.inicio)} (código ${r.ref}). Mandanos el comprobante por acá así no lo tenemos que liberar 🙏`);
+      avisarEspera(ofertas);
+    }
+    return vencidas.length;
+  }
+
+  // ───────────── tienda (encargos por la web: se retiran y se pagan en el club) ─────────────
+  // Las reglas son del motor (catalogoTienda / crearPedidoTienda: no descuenta stock ni mueve caja). Acá sólo se
+  // limpia lo que llega de la web y se le avisa al club en vivo (evento "pedido" del canal staff).
+  function pedirTienda({ items, nombre, tel } = {}) {
+    const celular = String(tel ?? "").trim();
+    const digitos = celular.replace(/\D/g, "").length;
+    if (celular && (digitos < 8 || digitos > 15)) return { ok: false, motivo: "Revisá el celular: con código de área, ej. 11 5555 1234." };
+    const lista = (Array.isArray(items) ? items : []).slice(0, 40).map((i) => ({ productoId: String(i?.productoId ?? ""), cant: Number(i?.cant) }));
+    const x = M.crearPedidoTienda(E, { items: lista, nombre: String(nombre ?? ""), tel: celular, origen: "web" }, ahora());
+    if (!x.ok) return x;
+    version++;
+    emitir("staff", "pedido", { pedido: x.pedido, version });
+    const { codigo, items: renglones, total, estado } = x.pedido;
+    return { ok: true, pedido: { codigo, items: renglones, total, nombre: x.pedido.nombre, estado }, mensaje: x.mensaje };
+  }
+
+  // ───────────── backoffice conectado (staff) ─────────────
+  /**
+   * Lo que cambió en el backoffice. Reservas: upsert por id, rechazando cualquier cosa que pise otro turno activo
+   * (puede haberse vendido online en el medio). Bloqueos, canchas, fijos y clima: los manda el backoffice entero.
+   */
+  function sincronizar({ reservas = [], bloqueos, canchas, fijos, clima, politica, clientes, puesto = null } = {}) {
+    const aplicadas = [], rechazadas = [];
+    const fechas = new Set();
+    if (Array.isArray(canchas) && canchas.every((c) => c && typeof c.id === "string")) E.canchas = canchas;
+    if (Array.isArray(bloqueos)) { E.bloqueos = bloqueos.filter((b) => b && typeof b.fecha === "string"); for (const b of E.bloqueos) fechas.add(b.fecha); }
+    if (Array.isArray(fijos)) E.fijos = fijos;
+    if (clima && typeof clima === "object") E.clima = clima;
+    if (politica && typeof politica === "object") for (const [k, v] of Object.entries(politica)) if (k in E.config.politica) E.config.politica[k] = v;
+    // Fichas que cambiaron en el mostrador (alta por teléfono, cobro de una deuda, crédito): upsert por id.
+    const clientesAplicados = [], clientesRechazados = [];
+    for (const crudo of Array.isArray(clientes) ? clientes.slice(0, 200) : []) {
+      const c = fichaLimpia(crudo);
+      if (!c) continue;
+      const previo = M.cliente(E, c.id);
+      // Concurrencia optimista también en las fichas: hay plata (crédito, deuda) y la web la puede haber movido.
+      if (previo && (previo.rev ?? 0) !== (c.rev ?? 0)) { clientesRechazados.push({ id: c.id, actual: previo }); continue; }
+      c.rev = (previo?.rev ?? 0) + 1;
+      if (previo) Object.assign(previo, c); else E.clientes.push(c);
+      fotoClientes.set(c.id, JSON.stringify(M.cliente(E, c.id)));
+      clientesAplicados.push(M.cliente(E, c.id));
+    }
+    for (const inc of Array.isArray(reservas) ? reservas.slice(0, 500) : []) {
+      if (!inc || typeof inc.id !== "string" || !/^[\w-]{1,40}$/.test(inc.id) || !/^\d{4}-\d{2}-\d{2}$/.test(String(inc.fecha)) || !Number.isFinite(inc.inicio) || !Number.isFinite(inc.duracion) || !M.cancha(E, inc.canchaId)) { rechazadas.push({ id: inc?.id ?? null, motivo: "Datos incompletos." }); continue; }
+      const previa = M.reserva(E, inc.id);
+      // Concurrencia optimista: si la reserva cambió desde que el puesto la bajó (p. ej. se confirmó la seña por
+      // WhatsApp), el puesto tiene una copia vieja y no la pisa: se le devuelve la actual.
+      if (previa && (previa.rev ?? 0) !== (inc.rev ?? 0)) { rechazadas.push({ id: inc.id, motivo: "Ese turno cambió recién (web o WhatsApp). Ya se actualizó en pantalla: revisalo.", actual: previa }); continue; }
+      const ocupa = ["reservada", "en_cancha", "finalizada"].includes(inc.estado);
+      if (ocupa) {
+        const choque = M.ocupantes(E, inc.fecha, inc.canchaId, inc.id).reservas.find((r) => solapa(inc.inicio, inc.inicio + inc.duracion, r.inicio, r.inicio + r.duracion));
+        if (choque) { rechazadas.push({ id: inc.id, motivo: `Se pisa con un turno de ${choque.origen === "web" ? "la web" : "otro puesto"} (${M.hhmm(choque.inicio)}).`, actual: previa ?? null }); continue; }
+      }
+      const r = previa ? Object.assign(previa, sinClavesPeligrosas(inc), { webUsuarioId: previa.webUsuarioId ?? inc.webUsuarioId, ref: previa.ref ?? inc.ref }) : { ...inc };
+      r.rev = (previa?.rev ?? 0) + 1;
+      // D28: el turno del mostrador con seña también lleva código (o se cambia si choca con el de otro turno).
+      if (r.sena?.monto > 0 && (!r.ref || E.reservas.some((x) => x !== r && x.ref === r.ref))) r.ref = nuevaRef();
+      if (r.sena?.pagada) delete r.venceSena;
+      if (!previa) E.reservas.push(r);
+      fechas.add(r.fecha);
+      aplicadas.push(r.id);
+      version++;
+      if (r.webUsuarioId) emitir(`usuario:${r.webUsuarioId}`, "mi-reserva", { reserva: publica(r), motivo: "club" });
+    }
+    if (aplicadas.length || fechas.size || clientesAplicados.length) {
+      for (const fecha of fechas) emitir("publico", "disponibilidad", { fecha, version });
+      // Los otros puestos del club (otra compu de recepción) reciben lo mismo; el que lo mandó lo ignora por `puesto`.
+      emitir("staff", "sync", {
+        puesto, version, reservas: aplicadas.map((id) => M.reserva(E, id)),
+        ...(Array.isArray(bloqueos) && { bloqueos: E.bloqueos }), ...(Array.isArray(canchas) && { canchas: E.canchas }),
+        ...(Array.isArray(fijos) && { fijos: E.fijos }), ...(clima && { clima: E.clima }), ...(politica && { politica: E.config.politica }),
+        ...(clientesAplicados.length && { clientes: clientesAplicados }),
+      });
+    }
+    // Las versiones nuevas vuelven al puesto que mandó el cambio: así su próxima edición no choca con su propio eco.
+    return {
+      ok: true, aplicadas, rechazadas, version,
+      revs: Object.fromEntries(aplicadas.map((id) => [id, M.reserva(E, id).rev])),
+      refs: Object.fromEntries(aplicadas.map((id) => [id, M.reserva(E, id).ref ?? null])),
+      revsClientes: Object.fromEntries(clientesAplicados.map((c) => [c.id, c.rev])),
+      clientesRechazados,
+    };
+  }
+
+  return {
+    estado: E, ahora, reloj, version: () => version,
+    // auth
+    registrar, ingresar, ingresarConGoogle, ingresarGoogleDemo, cargarCelular, usuario: (id) => usuarios.get(id) ?? null, perfil,
+    // cliente
+    dias, disponibilidad, reservar, misReservas, cancelarReserva, anotarEnEspera, publica,
+    // whatsapp
+    procesarMensaje, resolverRevision, revisiones: () => revisiones.map(revisionPublica), comprobanteDemo,
+    // tienda
+    catalogoTienda: () => M.catalogoTienda(E), pedirTienda,
+    // reloj
+    tick,
+    // staff
+    sincronizar, snapshot: () => structuredClone(E),
+    /** Todo el estado de la demo, para que otra pestaña siga desde acá (`crearTurnero({ foto })`). */
+    exportar: () => structuredClone({
+      estado: E, usuarios: [...usuarios.values()], revisiones, operaciones: [...usados.operaciones], huellas: [...usados.huellas],
+      mensajesVistos: [...mensajesVistos], ofertasEspera: [...ofertasEspera], version, secUsuario, secuenciaIds: M.secuenciaIds(),
+    }),
+    suscribir,
+    config: () => ({
+      club: E.config.nombre,
+      dias: dias(),
+      duraciones: DURACIONES,
+      politica: { horasCancelacionLibre: E.config.politica.horasCancelacionLibre, senaPct: E.config.politica.senaPct, minutosParaSenar: E.config.politica.minutosParaSenar ?? 60, liberarSinSena: E.config.politica.liberarSinSena ?? "manual" },
+      cuentas: { alias: cuentasClub.alias[0] ?? null, cvu: cuentasClub.cvu?.[0] ?? null, titular: "Break Point Pádel (DEMO — cuenta ficticia)" },
+      canchas: E.canchas.map((c) => ({ id: c.id, nombre: c.nombre, techada: Boolean(c.cubierta) })),
+    }),
+  };
+}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
+import { terminalDelEquipo } from "@/lib/terminal/terminal.server";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
@@ -89,7 +90,9 @@ export default async function VentasPage({
   const filtros = leerFiltros(await searchParams, { hoy, otrosDias: verPlata });
   // «Facturar» en cada fila: con la MISMA regla que exige su action (app Facturación: módulo arca
   // y billing:manage). Sin ella, la fila no muestra nada de facturas: como hasta hoy.
-  const [puedeFacturar, nuevo] = await Promise.all([puedeAbrirApp("facturacion"), disenoNuevo()]);
+  // El ticket sale en el ancho de ESTE equipo sólo si el negocio tiene el módulo `terminal`
+  // (terminal.server.ts); sin el módulo, `null` = 58 mm, como siempre.
+  const [puedeFacturar, nuevo, terminal] = await Promise.all([puedeAbrirApp("facturacion"), disenoNuevo(), terminalDelEquipo(user)]);
   const esHoy = filtros.dia === hoy;
 
   // Hoy: desde las 00:00 sin tope (el mismo corte que el número del Inicio). Otro día: ese día.
@@ -321,6 +324,7 @@ export default async function VentasPage({
         <TablaDeVentas
           filas={filas}
           negocio={negocio}
+          terminal={terminal}
           vacio={
             <span className="flex flex-wrap items-center gap-3">
               {vacio.titulo}. {vacio.descripcion}
@@ -463,6 +467,7 @@ export default async function VentasPage({
                   hora={fmtTime(o.createdAt)}
                   canal={o.channel}
                   negocio={negocio}
+                  terminal={terminal}
                   anular={venta.anulada ? null : anulaEsteDia}
                   notas={notasDe(o)}
                   factura={puedeFacturar && !venta.anulada ? (facturaDe.get(o.id) ?? SIN_FACTURA) : null}

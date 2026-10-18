@@ -9,8 +9,8 @@ import { fmtCuit } from "@/components/ui";
 
 const MODO_UI = {
   real: { texto: "ARCA · CAE en línea", dot: "bg-success-fill", pulsa: true },
-  homologacion: { texto: "ARCA · homologación (pruebas oficiales)", dot: "bg-warning-fill", pulsa: false },
-  stub: { texto: "ARCA · modo prueba (sin red)", dot: "bg-warning-fill", pulsa: false },
+  homologacion: { texto: "ARCA · homologación (sin validez fiscal)", dot: "bg-warning-fill", pulsa: false },
+  stub: { texto: "ARCA · sin conectar", dot: "bg-warning-fill", pulsa: false },
 } as const;
 
 export default function ArcaPill({ estado }: { estado: EstadoFiscal }) {

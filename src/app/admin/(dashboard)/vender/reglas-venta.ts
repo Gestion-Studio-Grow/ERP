@@ -19,6 +19,7 @@ import { leerImporte, formatearCantidad } from "@/lib/pos-peso";
 import { etiquetaDeMedio } from "@/lib/caja/medio-cobro";
 import { fmtDateTimeAr } from "@/lib/datetime";
 import { fmtMoneyARS } from "@/components/ui/format";
+import { anchoSeguro, documentoImprimible, MEDIDAS, type AnchoDeTicket } from "@/lib/impresion/ticket-css-core";
 
 // ── DESCUENTO y PRECIO A MANO: viven en src/lib/venta-reglas.ts ──────────────
 //
@@ -356,13 +357,14 @@ function escaparHtml(s: string): string {
 }
 
 /**
- * El ticket como página HTML de 58 mm, para imprimir en la térmica desde un iframe aparte.
- * Por qué un documento propio y no `window.print()` sobre la pantalla: con la pantalla, la
- * impresora de rollo imprime (en blanco) todo el alto de la página y tira papel de más. El
- * texto va escapado: el nombre del cliente o de una línea a mano lo tipeó una persona.
+ * El ticket como página HTML de 58 u 80 mm (58 si no se dice: el rollo de siempre), para
+ * imprimir en la térmica desde un iframe aparte. El papel (tamaño, márgenes, letra) es el
+ * compartido de src/lib/impresion/ticket-css-core.ts; acá sólo van los renglones. El texto va
+ * escapado: el nombre del cliente o de una línea a mano lo tipeó una persona.
  * Sin probar en una impresora térmica real.
  */
-export function htmlDelTicket(renglones: readonly RenglonTicket[]): string {
+export function htmlDelTicket(renglones: readonly RenglonTicket[], opts: { ancho?: AnchoDeTicket } = {}): string {
+  const ancho = anchoSeguro(opts.ancho);
   const filas = renglones
     .map((r) => {
       const clases = [r.fuerte ? "f" : "", r.chico ? "c" : ""].filter(Boolean).join(" ");
@@ -372,15 +374,12 @@ export function htmlDelTicket(renglones: readonly RenglonTicket[]): string {
         : `<div class="${clases}">${texto}</div>`;
     })
     .join("");
-  return (
-    "<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\"><title>Ticket</title><style>" +
-    "@page{size:58mm auto;margin:0}" +
-    "html,body{margin:0;padding:0;background:#fff;color:#000}" +
-    "body{width:58mm;box-sizing:border-box;padding:2mm 3mm 6mm;font:11px/1.35 ui-monospace,Menlo,Consolas,monospace}" +
-    ".r{display:flex;justify-content:space-between;gap:2mm}.r span:last-child{white-space:nowrap}" +
-    ".f{font-weight:700}.c{font-size:10px}div{margin:0 0 1px;overflow-wrap:anywhere}" +
-    "</style></head><body>" +
-    filas +
-    "</body></html>"
-  );
+  return documentoImprimible({
+    titulo: "Ticket",
+    ancho,
+    estilos:
+      ".r{display:flex;justify-content:space-between;gap:2mm}.r span:last-child{white-space:nowrap}" +
+      `.f{font-weight:700}.c{font-size:${MEDIDAS[ancho].fuenteChica}px}div{margin:0 0 1px;overflow-wrap:anywhere}`,
+    cuerpoHtml: filas,
+  });
 }

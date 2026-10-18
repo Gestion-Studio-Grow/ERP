@@ -85,7 +85,7 @@ export default function KpisBancos({ kpis }: { kpis: KpisFacturacionBancaria }) 
       <KpiTile
         label="Facturado del mes"
         value={fmtMoneyARS(kpis.montoFacturadoMes, 0)}
-        sub="Con CAE de ARCA, por la fecha del comprobante (en homologación es de prueba)."
+        sub="Con CAE de ARCA, por la fecha del comprobante (en homologación no tiene validez fiscal)."
         icon={<Icono path={<path d="M4 17l5-6 4 3 7-9" />} />}
       />
       <KpiTile

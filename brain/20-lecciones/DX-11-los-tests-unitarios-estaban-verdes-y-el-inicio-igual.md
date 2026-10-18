@@ -1,5 +1,5 @@
 ---
-id: DX-10
+id: DX-11
 categoria: DX
 tipo: leccion
 generado: true
@@ -7,7 +7,7 @@ tags: [brain/leccion, leccion/dx]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
-# [DX-10] Los tests unitarios estaban verdes y el Inicio igual mostraba como plata un pedido sin cobrar
+# [DX-11] Los tests unitarios estaban verdes y el Inicio igual mostraba como plata un pedido sin cobrar
 
 **Categoría:** Demo / UX
 

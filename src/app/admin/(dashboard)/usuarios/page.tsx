@@ -1,4 +1,5 @@
-import { getUsers, createUser, setUserActive, resetUserPassword } from "@/lib/user-actions";
+import { getUsers, createUser, setUserActive, resetUserPassword, getFichasDeProfesional } from "@/lib/user-actions";
+import VincularFicha from "./VincularFicha";
 import { requireApp } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
 import SubmitButton from "@/components/SubmitButton";
@@ -24,6 +25,10 @@ const STATUS_MESSAGES: Record<string, { text: string; ok: boolean }> = {
   error_self_deactivate: { text: "No podés dar de baja a tu propio usuario.", ok: false },
   error_last_owner: { text: "No se puede dar de baja al último dueño activo.", ok: false },
   error_not_found: { text: "No se encontró el usuario.", ok: false },
+  ok_vinculado: { text: "Listo: ya ve su agenda.", ok: true },
+  ok_desvinculado: { text: "Quedó sin ficha de profesional.", ok: true },
+  error_vinculo_rol: { text: "Sólo un usuario Profesional se vincula a una ficha.", ok: false },
+  error_vinculo_ocupado: { text: "Esa ficha ya la tiene otro usuario.", ok: false },
 };
 
 export default async function UsuariosPage({
@@ -33,13 +38,19 @@ export default async function UsuariosPage({
 }) {
   // Solo OWNER (users:manage, desde el registro de apps). El resto ve "App no disponible".
   const user = await requireApp("usuarios");
-  const [users, { status }, negocio, nuevo] = await Promise.all([getUsers(), searchParams, getNegocioApps(user.role), disenoNuevo()]);
+  const [users, { status }, negocio, nuevo, fichas] = await Promise.all([
+    getUsers(),
+    searchParams,
+    getNegocioApps(user.role),
+    disenoNuevo(),
+    getFichasDeProfesional(),
+  ]);
   const banner = status ? STATUS_MESSAGES[status] : undefined;
   // En un negocio sin agenda no se ofrece el rol Profesional (roles.ts).
   const { esMostrador } = negocio;
   const roles = rolesParaAlta(esMostrador);
   // Diseño nuevo («Renglón»): las mismas acciones y los mismos campos. Apagado, igual que siempre.
-  if (nuevo) return <UsuariosRenglon users={users} roles={roles} esMostrador={esMostrador} banner={banner} />;
+  if (nuevo) return <UsuariosRenglon users={users} roles={roles} esMostrador={esMostrador} banner={banner} fichas={fichas} />;
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
@@ -99,8 +110,8 @@ export default async function UsuariosPage({
         </form>
         {!esMostrador && (
           <p className="mt-3 text-xs text-muted">
-            Un usuario Profesional se vincula a su ficha de profesional (para ver su agenda) desde la
-            base por ahora — el alta acá crea el acceso.
+            Un usuario Profesional ve sólo su agenda: después de crearlo, elegí su ficha de profesional en
+            la lista de abajo.
           </p>
         )}
       </section>
@@ -156,6 +167,8 @@ export default async function UsuariosPage({
                       {u.active ? "Dar de baja" : "Reactivar"}
                     </SubmitButton>
                   </form>
+
+                  {u.role === "PROFESSIONAL" && !esMostrador && <VincularFicha usuario={u} fichas={fichas} />}
 
                   {/* Reset de contraseña */}
                   <form action={resetUserPassword} className="flex flex-wrap gap-2">

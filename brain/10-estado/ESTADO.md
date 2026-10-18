@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-10-18 20:11 UTC
+generado_el: 2026-10-18 20:40 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-10-18 20:11 UTC sobre `9885d44`.**
+> ⏱️ **Foto tomada el 2026-10-18 20:40 UTC sobre `c9bef4a`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -19,26 +19,26 @@ tags: [brain/estado, fase-0]
 | Campo | Valor |
 |---|---|
 | Rama actual | `claude/magra-nivel-bp` |
-| HEAD | `9885d44` (2026-10-18) |
-| Árbol | **4 archivo(s) sin commitear** _(sin contar `brain/`)_ |
+| HEAD | `c9bef4a` (2026-10-18) |
+| Árbol | **304 archivo(s) sin commitear** _(sin contar `brain/`)_ |
 | Tip de `main` | _no disponible (este clon no trae `main` local)_ |
 
 **Ramas locales (4, más reciente primero):** `claude/magra-nivel-bp` · `claude/magra-practicidad` · `claude/magra-eventualidades` · `claude/sleepy-tesla-392rov`
 
 **Últimos commits**
 
+- c9bef4a · 2026-10-18 · fix(seed-magra): MAGRA_SLUG sólo contra una base local (Gate B1) + menores del Gate
+- 2010106 · 2026-10-18 · test(magra): la tienda sin WhatsApp del local no ofrece botones de WhatsApp (46/46)
+- 0cba684 · 2026-10-18 · fix(tienda-magra): sin el WhatsApp del local, los botones de WhatsApp no aparecen (ambiente real)
+- 10a56c8 · 2026-10-18 · fix(tienda-magra): ambiente real — dirección, horario o WhatsApp sin cargar no se muestran (ni «a confirmar»)
+- 429887c · 2026-10-18 · fix(magra): ambiente real — sin formato de balanza guardado no hay campo de etiqueta, y el primer día no dice «de prueba»
+- fbc4fa7 · 2026-10-18 · Merge remote-tracking branch 'origin/claude/sleepy-tesla-392rov' into claude/magra-nivel-bp
+- d40a660 · 2026-10-18 · fix(sugerido): el factor de la semana tipo se marca como no-plata (guarda de redondeos) · lección DX-10 del UAT de MAGRA
 - 9885d44 · 2026-10-18 · test(magra): el recorrido suma peso imposible, PLU, etiqueta de balanza y pedidos esperando (44/44)
 - 72242b7 · 2026-10-18 · pedidos: recordatorio por WhatsApp para la clienta que no vino a retirar
 - 40e0b19 · 2026-10-18 · pedidos: avisar cuando el peso real se aleja de lo que pidió la clienta
 - 08457fb · 2026-10-18 · pedidos: marcar a la clienta que tiene otro pedido abierto
 - 8b93457 · 2026-10-18 · pedidos: la línea de estado dice cuántos de la tienda esperan y desde cuándo
-- a8d8277 · 2026-10-18 · caja: cerrar el turno con diferencia pide la nota, como el cierre del día
-- f4a08c2 · 2026-10-18 · tienda: si el precio cambió mientras la clienta armaba la bolsa, se avisa en la línea
-- 9f186c6 · 2026-10-18 · feat(sugerido): la semana tipo ajusta el pedido a los días que vienen (sólo mostrador)
-- 88a900a · 2026-10-18 · feat(caja): reglas a la vista — una frase por pantalla, sacada del código, sólo en mostrador
-- d3b00a4 · 2026-10-18 · feat(recibir): «El último: …» elige al proveedor de siempre de un toque (sólo mostrador, diseño nuevo)
-- 34c5e90 · 2026-10-18 · feat(inicio): «Para arrancar» de un mostrador que vende — la lista del primer día
-- 63e85b7 · 2026-10-18 · feat(catalogo): eliminar un producto pide «Sí, eliminar» y dice lo que pasa de verdad
 
 ## Migraciones (Prisma)
 
@@ -56,8 +56,8 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 340 |
-| Palabras en `docs/` | 564.096 |
+| Documentos en `docs/` | 352 |
+| Palabras en `docs/` | 602.977 |
 | ADRs | 87 |
 | Nodos en el grafo | 93 _(los 87 ADR + 6 enmiendas)_ |
 

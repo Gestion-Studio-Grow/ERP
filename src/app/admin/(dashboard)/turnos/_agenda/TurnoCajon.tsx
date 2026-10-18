@@ -160,11 +160,15 @@ function useAccionSimple() {
   ) =>
     empezar(async () => {
       try {
-        await accion(aFormData(camposDelTurno(turnoId)));
+        const r = await accion(aFormData(camposDelTurno(turnoId)));
+        // markNoShow devuelve el motivo ({ ok: false, error }); confirmar y cancelar no devuelven nada.
+        if (r && typeof r === "object" && "ok" in r && r.ok === false && "error" in r) {
+          showError(String(r.error));
+          return;
+        }
         showSuccess(ok);
         onListo?.();
       } catch (e) {
-        // markNoShow tira un Error con la frase del servidor; en producción llega sin mensaje.
         const m =
           e instanceof Error && e.message && e.message.length < 200
             ? e.message

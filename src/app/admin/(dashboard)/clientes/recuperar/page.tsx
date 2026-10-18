@@ -166,8 +166,7 @@ export default async function PorRecuperarPage() {
       <p className="mb-4 text-sm text-muted">
         {REGLA}, sin turno reservado. El ciclo es la mediana de los días entre
         sus visitas; si vino una sola vez, lo que tardan en volver las demás por
-        ese servicio; si no, {CRM_REGLAS.cicloPorDefectoDias} días
-        (provisional).
+        ese servicio; si no, {CRM_REGLAS.cicloPorDefectoDias} días.
       </p>
 
       {enRiesgo.length === 0 ? (

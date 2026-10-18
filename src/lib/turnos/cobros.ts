@@ -104,7 +104,8 @@ export function cobroSugerido(input: {
 export type MotivoCobroRechazado =
   | "turno-cerrado" // cancelado o no se presentó: no se cobra más
   | "monto-invalido" // ≤ 0 o no finito
-  | "excede-saldo"; // cobraría más de lo que falta
+  | "excede-saldo" // cobraría más de lo que falta
+  | "dia-cerrado"; // la caja de hoy ya se cerró: el cobro caería en un día congelado
 
 export type ValidacionCobro =
   | { ok: true; monto: number; saldoDespues: number; quedaSaldado: boolean }
@@ -163,6 +164,30 @@ export function puedeCompletarse(input: {
   if (input.status !== "CONFIRMED") return { ok: false, motivo: "no-confirmado" };
   if (input.startsAt.getTime() > input.ahora.getTime()) return { ok: false, motivo: "no-ocurrio" };
   return { ok: true };
+}
+
+export type MotivoNoVino =
+  | "no-vigente" // cancelado, completado o ya marcado
+  | "no-ocurrio"; // todavía no es la hora del turno
+
+// ¿Se puede marcar «no se presentó»? Un turno reservado o confirmado cuya hora ya llegó. Antes
+// sólo valía para CONFIRMADOS y sin mirar la hora: un Reservado de ayer no tenía salida (la lista
+// «Pasados sin cerrar» decía «marcá que no se presentó» sin ofrecer el botón) y uno de mañana se
+// podía marcar como faltazo (UAT de CH, 18/10).
+export function puedeMarcarseNoVino(input: {
+  status: EstadoTurno | string;
+  startsAt: Date;
+  ahora: Date;
+}): { ok: true } | { ok: false; motivo: MotivoNoVino } {
+  if (input.status !== "PENDING" && input.status !== "CONFIRMED") return { ok: false, motivo: "no-vigente" };
+  if (input.startsAt.getTime() > input.ahora.getTime()) return { ok: false, motivo: "no-ocurrio" };
+  return { ok: true };
+}
+
+export function mensajeNoVino(motivo: MotivoNoVino): string {
+  return motivo === "no-vigente"
+    ? "Ese turno ya no está reservado ni confirmado: no se puede marcar que no se presentó."
+    : "Todavía no es la hora del turno: «no se presentó» se marca recién a partir de su horario.";
 }
 
 export type PlanCompletar =

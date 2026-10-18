@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { fmtDateTime } from "@/lib/datetime";
+import { reglaVigenteParaLaClienta } from "@/lib/turnos/practica.server";
 
 export default async function ConfirmacionPage({
   params,
@@ -15,6 +16,7 @@ export default async function ConfirmacionPage({
   });
 
   if (!appointment) notFound();
+  const regla = await reglaVigenteParaLaClienta();
 
   return (
     <div className="mx-auto max-w-lg px-6 py-20 text-center">
@@ -54,7 +56,7 @@ export default async function ConfirmacionPage({
         Te vamos a escribir por WhatsApp para coordinar el pago y confirmar tu turno.
       </p>
       <p className="text-sm mb-8" style={{ color: "var(--text-muted)" }}>
-        Guardá este link para ver o cancelar tu turno cuando quieras:{" "}
+        {regla ? `${regla} Guardá este link para verlo:` : "Guardá este link para ver o cancelar tu turno cuando quieras:"}{" "}
         <Link href={`/reserva/turno/${appointment.id}`} className="underline font-medium">
           ver mi turno
         </Link>

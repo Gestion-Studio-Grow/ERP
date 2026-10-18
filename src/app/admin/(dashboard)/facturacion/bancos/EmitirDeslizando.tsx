@@ -50,7 +50,7 @@ export default function EmitirDeslizando({ cantidad, total, modoPrueba }: { cant
         <>
           <p className="text-sm text-body">
             {modoPrueba
-              ? "ARCA está en modo prueba: se arman los comprobantes, pero ninguno es una factura de verdad."
+              ? "ARCA todavía no factura con validez fiscal: se arman los comprobantes, pero ninguno es una factura válida."
               : "Una vez emitidas, se corrigen con nota de crédito: no se borran ni se editan."}
           </p>
           <DeslizarParaConfirmar

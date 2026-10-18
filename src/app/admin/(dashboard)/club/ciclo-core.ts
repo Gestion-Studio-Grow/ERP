@@ -1,0 +1,228 @@
+// ============================================================================
+// EL CICLO DEL TURNO — mover, extender, falta, cancelar, interrumpir y devolver. PURO.
+// ============================================================================
+//
+// Lo que le pasa a un turno después de darlo (REINGENIERIA.md §4, la matriz de eventualidades), con las reglas del
+// motor y lo que la recepción tiene que ver ANTES de tocar:
+//   · mover: sólo a huecos que el motor acepta (otra cancha u otra hora, misma duración);
+//   · extender: si el hueco siguiente está libre, con lo que cuesta de más;
+//   · no vino: pasada la tolerancia, se cobra el turno entero al titular o repartido en el grupo (va a la cuenta
+//     corriente: es deuda, no fiado); «sin cargo» lo decide un dueño;
+//   · cancelar: con tiempo (o si cancela el club) lo pagado vuelve como crédito —sin ficha, queda para devolver en
+//     mano y sale de la caja al devolverlo—; tarde, la seña queda en suspenso hasta que se vuelva a vender el hueco;
+//   · interrumpir (corte de luz, lesión, lluvia en juego): se reconoce sólo el tiempo no jugado;
+//   · devolver en mano lo pendiente y cobrar la falta de alguien sin ficha.
+// La plata la calcula el motor. Las previas se calculan sobre una COPIA del estado (lo que diría el motor si se
+// hiciera), así lo que se anuncia es exactamente lo que va a pasar.
+
+import {
+  ESTADOS,
+  cancelar,
+  cancha as canchaDe,
+  cliente as clienteDe,
+  cobrado,
+  cobrarFaltaSinFicha,
+  extender,
+  hhmm,
+  interrumpir,
+  liberarFijo,
+  marcarDevuelto,
+  marcarNoShow,
+  minutosHasta,
+  mover,
+  pesos,
+  precioTurno,
+  reserva as reservaDe,
+  validarHueco,
+  horarioDe,
+} from "@/lib/club/motor.mjs";
+import type { Ahora, Auth, EstadoClub, Fecha, Reserva } from "@/lib/club/motor.mjs";
+import type { Desenlace } from "./almacen";
+import { ETIQUETA_MEDIO, type MedioCaja } from "./cuenta-core";
+
+/** Los destinos posibles para mover el turno: cada cancha con sus horas libres (misma duración, sin pisarse). */
+export function destinosParaMover(estado: EstadoClub, reservaId: string, ahora: Ahora): { canchaId: string; nombre: string; horas: { min: number; texto: string }[] }[] {
+  const r = reservaDe(estado, reservaId);
+  if (!r || !["reservada", "en_cancha"].includes(r.estado)) return [];
+  const { paso } = estado.config;
+  const { abre, cierra } = horarioDe(estado, r.fecha);
+  return estado.canchas
+    .filter((c) => c.estado !== "mantenimiento")
+    .map((c) => {
+      const horas: { min: number; texto: string }[] = [];
+      // Jugando, sólo se cambia de cancha (misma hora); reservado, cualquier hora que todavía no terminó.
+      const inicios = r.estado === "en_cancha" ? [r.inicio] : Array.from({ length: Math.floor((cierra - abre) / paso) }, (_, i) => abre + i * paso);
+      for (const m of inicios) {
+        if (c.id === r.canchaId && m === r.inicio) continue;
+        if (r.estado !== "en_cancha" && minutosHasta(ahora, r.fecha, m) + r.duracion <= 0) continue;
+        if (validarHueco(estado, { canchaId: c.id, fecha: r.fecha, inicio: m, duracion: r.duracion }, r.id).ok) horas.push({ min: m, texto: `${hhmm(m)} a ${hhmm(m + r.duracion)}` });
+      }
+      return { canchaId: c.id, nombre: c.nombre, horas };
+    })
+    .filter((d) => d.horas.length > 0);
+}
+
+/** Lo que sale extender: el precio del tramo nuevo (valle/pico), o por qué no se puede. */
+export function previaExtender(estado: EstadoClub, reservaId: string, minutos: number): { ok: true; extra: number; hasta: string } | { ok: false; motivo: string } {
+  const r = reservaDe(estado, reservaId);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  const hueco = { canchaId: r.canchaId, fecha: r.fecha, inicio: r.inicio + r.duracion, duracion: minutos };
+  const v = validarHueco(estado, hueco);
+  if (!v.ok) return { ok: false, motivo: `No se puede extender: ${v.motivo}` };
+  return { ok: true, extra: precioTurno(estado, hueco), hasta: hhmm(r.inicio + r.duracion + minutos) };
+}
+
+/**
+ * Lo que va a pasar si se cancela: lo dice el motor sobre una copia. `copia` la puede dar quien llama (la pantalla
+ * usa `almacen.simular`, que la saca del texto del estado ya armado: PERFORMANCE-TERMINALES.md, ronda 3); si no,
+ * se copia el estado acá.
+ */
+export function previaCancelar(estado: EstadoClub, reservaId: string, porClub: boolean, ahora: Ahora, copia: EstadoClub = structuredClone(estado)): { ok: true; texto: string; pagado: number } | { ok: false; motivo: string } {
+  const r = reservaDe(copia, reservaId);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  const pagado = cobrado(r);
+  const res = cancelar(copia, reservaId, { porClub }, ahora);
+  if (!res.ok) return { ok: false, motivo: res.motivo };
+  const texto =
+    pagado === 0
+      ? "No pagó nada: se libera el hueco y listo."
+      : res.devuelto > 0
+        ? `Lo pagado (${pesos(res.devuelto)}) vuelve como crédito a ${r.titular}.`
+        : res.devolverEnMano > 0
+          ? `No tiene ficha: hay que devolverle ${pesos(res.devolverEnMano)} en mano (sale de la caja al devolverlo).`
+          : `Cancela con poco aviso: la seña (${pesos(pagado)}) queda en suspenso y vuelve sola si se vende el hueco.`;
+  return { ok: true, texto, pagado };
+}
+
+/** Lo que se le cobra si no vino: el turno entero menos lo pagado, a quién va, o por qué todavía no. */
+export function previaFalta(estado: EstadoClub, reservaId: string, cobrarA: "titular" | "grupo", ahora: Ahora, copia: EstadoClub = structuredClone(estado)): { ok: true; texto: string } | { ok: false; motivo: string } {
+  const res = marcarNoShow(copia, reservaId, { cobrarA }, ahora);
+  if (!res.ok) return { ok: false, motivo: res.motivo };
+  const texto = res.cargos.length
+    ? `Se cobra el turno: ${res.cargos.map((c) => `${c.nombre} ${pesos(c.monto)}${c.sinFicha ? " (sin ficha: queda anotado en el turno)" : ""}`).join(", ")}. Va a la cuenta corriente.`
+    : "Ya estaba pago: queda la falta anotada, sin cargo.";
+  return { ok: true, texto };
+}
+
+/** Cuánto se reconoce si se interrumpe ahora. */
+export function previaInterrumpir(estado: EstadoClub, reservaId: string, ahora: Ahora, copia: EstadoClub = structuredClone(estado)): { ok: true; texto: string } | { ok: false; motivo: string } {
+  const r = reservaDe(copia, reservaId);
+  if (!r) return { ok: false, motivo: "No encuentro el turno." };
+  const pagado = cobrado(r);
+  const res = interrumpir(copia, reservaId, "previa", ahora);
+  if (!res.ok) return { ok: false, motivo: res.motivo };
+  const excedente = Math.max(0, pagado - r.precio);
+  const tieneFicha = !!(r.clienteId && clienteDe(copia, r.clienteId));
+  const vuelta = excedente > 0 ? (tieneFicha ? ` Ya pagó de más: ${pesos(excedente)} vuelven como crédito.` : ` Ya pagó de más: hay que devolverle ${pesos(excedente)} en mano.`) : "";
+  return { ok: true, texto: `Se reconocen ${pesos(res.credito)} por ${res.noJugados} min sin jugar: la cancha queda en ${pesos(r.precio)}.${vuelta}` };
+}
+
+export type AccionCiclo =
+  | { tipo: "mover"; canchaId: string; inicio: number }
+  | { tipo: "extender"; minutos: number }
+  | { tipo: "falta"; cobrarA: "titular" | "grupo" | "nadie" }
+  | { tipo: "cancelar"; porClub: boolean; motivo: string }
+  | { tipo: "interrumpir"; motivo: string }
+  | { tipo: "liberarFijo" }
+  | { tipo: "devolver"; medio: MedioCaja }
+  | { tipo: "cobrarFalta"; medio: MedioCaja };
+
+export function ejecutarCiclo(estado: EstadoClub, reservaId: string, accion: AccionCiclo, ahora: Ahora, auth?: Auth): Desenlace {
+  const r = reservaDe(estado, reservaId);
+  if (!r) return { ok: false, mensaje: "No encuentro el turno." };
+  const nombre = r.titular;
+  const ofertas = (o: { titular: string }[]) => (o.length ? ` Le sirve a ${o.map((x) => x.titular).join(", ")} de la lista de espera.` : "");
+  switch (accion.tipo) {
+    case "mover": {
+      const res = mover(estado, reservaId, { canchaId: accion.canchaId, inicio: accion.inicio }, ahora);
+      return res.ok ? { ok: true, mensaje: `${nombre} pasó a ${canchaDe(estado, accion.canchaId)?.nombre ?? "la cancha"}, ${hhmm(accion.inicio)}.` } : { ok: false, mensaje: res.motivo };
+    }
+    case "extender": {
+      const res = extender(estado, reservaId, accion.minutos, ahora);
+      return res.ok ? { ok: true, mensaje: `Extendido ${accion.minutos} min hasta las ${hhmm(r.inicio + r.duracion)} (+${pesos(res.extra)}).` } : { ok: false, mensaje: res.motivo };
+    }
+    case "falta": {
+      const res = marcarNoShow(estado, reservaId, { cobrarA: accion.cobrarA, auth: auth ?? null }, ahora);
+      if (!res.ok) return { ok: false, mensaje: res.motivo };
+      const cargos = res.cargos.length ? res.cargos.map((c) => `${c.nombre} ${pesos(c.monto)}`).join(", ") : "sin cargo";
+      return { ok: true, mensaje: `Falta de ${nombre}: ${cargos}.${ofertas(res.ofertas as { titular: string }[])}` };
+    }
+    case "cancelar": {
+      const res = cancelar(estado, reservaId, { porClub: accion.porClub, motivo: accion.motivo.trim() }, ahora);
+      if (!res.ok) return { ok: false, mensaje: res.motivo };
+      const plata = res.devuelto ? ` ${pesos(res.devuelto)} vuelven como crédito.` : res.devolverEnMano ? ` Hay que devolverle ${pesos(res.devolverEnMano)} en mano.` : res.enSuspenso ? " La seña queda en suspenso." : "";
+      return { ok: true, mensaje: `Turno de ${nombre} cancelado.${plata}${ofertas(res.ofertas as { titular: string }[])}` };
+    }
+    case "interrumpir": {
+      const res = interrumpir(estado, reservaId, accion.motivo.trim() || "corte", ahora);
+      return res.ok ? { ok: true, mensaje: `Se reconocen ${pesos(res.credito)} a ${nombre} por ${res.noJugados} min sin jugar.` } : { ok: false, mensaje: res.motivo };
+    }
+    case "liberarFijo": {
+      if (!r.fijoId) return { ok: false, mensaje: "Ese turno no es fijo." };
+      const res = liberarFijo(estado, r.fijoId, r.fecha, ahora);
+      return res.ok ? { ok: true, mensaje: `${nombre} no viene esta semana: el hueco queda libre y el fijo sigue.` } : { ok: false, mensaje: res.motivo };
+    }
+    case "devolver": {
+      const res = marcarDevuelto(estado, reservaId, accion.medio, ahora);
+      return res.ok ? { ok: true, mensaje: `Devueltos ${pesos(res.monto)} a ${nombre} (${ETIQUETA_MEDIO[accion.medio]}): salen de la caja.` } : { ok: false, mensaje: res.motivo };
+    }
+    case "cobrarFalta": {
+      const res = cobrarFaltaSinFicha(estado, reservaId, accion.medio, ahora);
+      return res.ok ? { ok: true, mensaje: `Cobrada la falta de ${nombre}: ${pesos(res.monto)}.` } : { ok: false, mensaje: res.motivo };
+    }
+  }
+}
+
+/** Qué se ofrece del ciclo para este turno, según su estado. */
+export interface OpcionesCiclo {
+  mover: boolean;
+  extender: boolean;
+  falta: boolean;
+  cancelar: boolean;
+  interrumpir: boolean;
+  liberarFijo: boolean;
+}
+
+export function opcionesCiclo(r: Pick<Reserva, "estado" | "fijoId" | "interrumpido">): OpcionesCiclo {
+  const reservada = r.estado === "reservada";
+  const enCancha = r.estado === "en_cancha";
+  return {
+    mover: reservada || enCancha,
+    extender: reservada || enCancha,
+    falta: reservada,
+    cancelar: reservada,
+    interrumpir: enCancha && !r.interrumpido,
+    liberarFijo: reservada && !!r.fijoId,
+  };
+}
+
+/** Lo que no está en la grilla del día: cancelados, suspendidos y faltas, con lo que queda pendiente de plata. */
+export interface FueraDeGrilla {
+  id: string;
+  texto: string;
+  /** Hay que devolverle en mano (sin ficha). */
+  devolver: number;
+  /** Falta de alguien sin ficha, para cobrar cuando vuelva. */
+  cobrarFalta: number;
+}
+
+export function fueraDeGrilla(estado: EstadoClub, fecha: Fecha): FueraDeGrilla[] {
+  return estado.reservas
+    .filter((r) => r.fecha === fecha && ["cancelada", "no_show", "suspendida"].includes(r.estado))
+    .sort((a, b) => a.inicio - b.inicio)
+    .map((r) => {
+      const partes = [
+        `${hhmm(r.inicio)} · ${canchaDe(estado, r.canchaId)?.nombre ?? ""} · ${r.titular} — ${ESTADOS[r.estado]}`,
+        r.motivoCancelacion ? `(${r.motivoCancelacion})` : null,
+        r.faltaCobrada ? `se cobró ${pesos(r.faltaCobrada)}` : null,
+        r.senaEnSuspenso ? "seña en suspenso" : null,
+      ].filter(Boolean);
+      return { id: r.id, texto: partes.join(" "), devolver: r.devolucionPendiente ?? 0, cobrarFalta: r.deudaSinFicha ?? 0 };
+    });
+}
+
+/** Lo que se le debe devolver en mano a alguien, en cualquier turno (para no perderlo de vista). */
+export function devolucionesPendientes(estado: EstadoClub): { id: string; titular: string; monto: number }[] {
+  return estado.reservas.filter((r) => (r.devolucionPendiente ?? 0) > 0).map((r) => ({ id: r.id, titular: r.titular, monto: r.devolucionPendiente ?? 0 }));
+}
+

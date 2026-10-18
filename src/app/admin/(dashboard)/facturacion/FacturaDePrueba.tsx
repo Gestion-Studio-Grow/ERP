@@ -13,7 +13,7 @@ import { Button, fmtMoneyARS } from "@/components/ui";
 
 const OPCIONES: { valor: ReceptorDePrueba; texto: string }[] = [
   { valor: "consumidor-final", texto: "A un consumidor final" },
-  { valor: "responsable-inscripto", texto: "A un responsable inscripto (CUIT de prueba de ARCA)" },
+  { valor: "responsable-inscripto", texto: "A un responsable inscripto (CUIT genérico de ARCA)" },
 ];
 
 export default function FacturaDePrueba() {
@@ -31,7 +31,7 @@ export default function FacturaDePrueba() {
       setResultado(r);
       if (r.ok) router.refresh();
     } catch {
-      setResultado({ ok: false, error: "No se pudo emitir la factura de prueba. Probá de nuevo en un rato." });
+      setResultado({ ok: false, error: "No se pudo emitir el comprobante de verificación. Probá de nuevo en un rato." });
     } finally {
       setEmitiendo(false);
     }
@@ -40,8 +40,8 @@ export default function FacturaDePrueba() {
   return (
     <div className="flex w-full flex-col gap-2 rounded-md border border-line p-3 sm:w-auto">
       <p className="text-sm text-strong">
-        Factura de prueba: ARCA está en modo prueba, así que el CAE es simulado y no vale ante ARCA. La factura sí
-        queda guardada, con su letra y su número.
+        Comprobante de verificación: ARCA todavía no está conectada, así que el CAE no lo otorga ARCA y el
+        comprobante no tiene validez fiscal. Queda guardado con su letra y su número, para revisar cómo sale.
       </p>
       <div className="flex flex-wrap items-end gap-2">
         {/* min-w-0/max-w-full + select w-full: a 412 px la opción larga («…CUIT de prueba de ARCA») corría la
@@ -62,12 +62,12 @@ export default function FacturaDePrueba() {
           </select>
         </label>
         <Button type="button" variant="outline" onClick={emitir} disabled={emitiendo} estado={emitiendo ? "cargando" : undefined}>
-          {emitiendo ? "Emitiendo…" : "Emitir factura de prueba"}
+          {emitiendo ? "Emitiendo…" : "Emitir un comprobante de verificación (sin validez fiscal)"}
         </Button>
       </div>
       {resultado?.ok === true && (
         <p role="status" className="text-sm text-success">
-          Listo: {resultado.comprobante} a {resultado.receptor} por {fmtMoneyARS(resultado.total)}. CAE simulado{" "}
+          Listo: {resultado.comprobante} a {resultado.receptor} por {fmtMoneyARS(resultado.total)}. CAE sin validez fiscal{" "}
           <span className="font-mono">{resultado.cae}</span>. Ya está en la lista de comprobantes.
         </p>
       )}

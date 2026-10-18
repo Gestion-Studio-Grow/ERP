@@ -120,7 +120,7 @@ export default function MonitorBandeja({
           cuenta={fmtNumberAR(aAtender.length)}
           nota={
             aAtender.length > 0
-              ? `Primero lo más grave y lo que vence; a la derecha, lo ${hayFiscal ? "facturado" : "emitido en prueba"} este mes`
+              ? `Primero lo más grave y lo que vence; a la derecha, lo ${hayFiscal ? "facturado" : "emitido sin validez fiscal"} este mes`
               : undefined
           }
         >

@@ -18,6 +18,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { whereVentasCobradasConMedio } from "@/lib/order-anulacion";
 import { bookingTransaction, tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
+import { roleHasCapability } from "@/lib/capabilities";
 import { recordMovement } from "@/lib/stock/ledger";
 import { assertSlotAvailable, getWorkingWindow } from "@/lib/booking-core";
 import { generateSlotsForDays } from "@/lib/booking-slots";
@@ -41,15 +42,21 @@ import {
 import {
   claveCobroTurno,
   esMetodoDePago,
+  estadoCobroTurno,
   planCompletar,
   puedeCompletarse,
+  puedeMarcarseNoVino,
+  mensajeNoVino,
   type MetodoDePago,
 } from "@/lib/turnos/cobros";
 import { puedeCobrarEsteTurno } from "@/lib/turnos/cobro-mostrador";
+import { avisoDeEspera, motivoDeDevolucion, planSeniaAlCerrar } from "@/lib/turnos/practica";
+import { agendaPractica } from "@/lib/turnos/practica.server";
 import { precioCongeladoDeReserva } from "@/lib/turnos/precio-reserva";
 import { agruparIngresos, bordesDelPeriodo } from "@/lib/report-ingresos";
 import {
   anularCobroTurnoInTx,
+  cobrosAnulables,
   condonarSaldoTurnoInTx,
   cobrosDetalladosPorTurno,
   validarMotivo,
@@ -343,6 +350,8 @@ async function bookAppointment({
     throw new RechazoDeDominio("Ese profesional no trabaja en ese horario. Elegí otro día u horario.");
   }
 
+  // La frontera de la caja se lee sólo si hay plata en juego (un turno sin seña no la toca).
+  const cerradoHasta = cobroInicial && cobroInicial.monto > 0 ? await lastClosedDay(tenantId) : null;
   const run = (withSchema: boolean) => bookingTransaction(async (tx) => {
     // Re-chequea la disponibilidad DENTRO de la transacción para cerrar la
     // ventana de carrera entre "mostrar franjas libres" y "escribir la reserva":
@@ -405,6 +414,8 @@ async function bookAppointment({
         detail: cobroTurnoDetail({ serviceName: service.name, clientName: clientName ?? "" }),
         idempotencyKey: claveCobroTurno("senia", appointment.id),
         withSchema,
+        cerradoHasta,
+        camino: "reserva",
       });
     }
     return { appointment, cobro };
@@ -1142,6 +1153,7 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
   });
   if (!veredicto.ok) return { ok: false, error: veredicto.motivo };
 
+  const cerradoHasta = await lastClosedDay(tenantId);
   // Todo dentro de UNA tx Serializable: el estado del turno y el saldo se leen y se escriben
   // en la misma foto (dos cobros simultáneos no pueden sobre-cobrar: uno reintenta y ve el otro).
   const run = (withSchema: boolean) =>
@@ -1167,6 +1179,8 @@ export async function registrarCobroTurno(formData: FormData): Promise<Resultado
           detail: cobroTurnoDetail({ serviceName: appointment.service.name, clientName: appointment.client.name }),
           idempotencyKey,
           withSchema,
+          cerradoHasta,
+          camino: "cobro",
         });
       },
       { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -1671,25 +1685,178 @@ export async function cancelAppointment(formData: FormData) {
   revalidatePath("/admin/espera");
 }
 
-export async function markNoShow(formData: FormData) {
+export async function markNoShow(formData: FormData): Promise<ResultadoAccion> {
   const user = await requireCapability("agenda:complete");
-  if (isDemoSandbox()) return; // modo demo: no persiste
-  const appointmentId = String(formData.get("appointmentId"));
-  const appointment = await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
+  if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
+  const appointmentId = String(formData.get("appointmentId") ?? "");
+  const tenantId = await getCurrentTenantId();
+  const appointment = await prisma.appointment.findFirst({
+    where: { id: appointmentId, tenantId },
+    select: { status: true, startsAt: true, professionalId: true },
+  });
+  if (!appointment) return { ok: false, error: "Ese turno ya no existe. Recargá la agenda." };
   // Un PROFESSIONAL solo puede operar sobre su propia agenda (ADR-017 §2.b).
   if (user.role === "PROFESSIONAL" && appointment.professionalId !== user.professionalId) {
-    throw new Error("No autorizado: solo podés operar sobre tu propia agenda.");
+    return { ok: false, error: "Ese turno es de otra profesional: sólo podés marcar los tuyos." };
   }
-  if (appointment.status !== "CONFIRMED") {
-    throw new Error('Solo se puede marcar "no se presentó" un turno confirmado.');
-  }
-  await prisma.appointment.update({
-    where: { id: appointmentId },
+  const puede = puedeMarcarseNoVino({ status: appointment.status, startsAt: appointment.startsAt, ahora: new Date() });
+  if (!puede.ok) return { ok: false, error: mensajeNoVino(puede.motivo) };
+  // La condición va en el `where`: si otra persona lo completó o canceló un segundo antes, no se pisa.
+  const { count } = await prisma.appointment.updateMany({
+    where: { id: appointmentId, tenantId, status: { in: ["PENDING", "CONFIRMED"] } },
     data: { status: "NO_SHOW" },
   });
+  if (count === 0) return { ok: false, error: "Ese turno cambió recién. Recargá la agenda." };
   await auditAdmin({ action: "no_show", entity: "Appointment", entityId: appointmentId });
   revalidatePath("/admin");
   revalidatePath("/admin/turnos");
+  return { ok: true };
+}
+
+// AGENDA PRÁCTICA (interruptor «agenda-practica», src/lib/turnos/practica.ts) — cancelar o marcar
+// «no vino» DESPUÉS de confirmar la consecuencia, decidiendo qué pasa con la seña (T10 + E3):
+//   · «retener»: el negocio se la queda; la plata no se toca y la decisión queda en la auditoría
+//     (antes la seña quedaba igual, pero en silencio: nadie sabía si se había hablado);
+//   · «devolver»: cada cobro del turno se ANULA (contrapartida + egreso en el libro, la misma
+//     operación que «Anular» de la fila), en la MISMA transacción que el cambio de estado: o pasan
+//     las dos cosas o ninguna. Si un cobro no se puede anular (facturado, de un día ya cerrado), no
+//     se cambia nada y se dice por qué.
+// Con el interruptor apagado la pantalla usa `cancelAppointment` y `markNoShow`, como siempre.
+export async function cerrarTurnoSinPrestar(formData: FormData): Promise<ResultadoAccion> {
+  const accion = formData.get("accion") === "no-vino" ? "no-vino" : "cancelar";
+  const user = await requireCapability(accion === "cancelar" ? "agenda:manage" : "agenda:complete");
+  if (isDemoSandbox()) return { ok: true }; // modo demo: no persiste
+  // Apagado el interruptor, esta acción no existe para el negocio (aunque alguien la llame a mano).
+  if (!(await agendaPractica())) return { ok: false, error: "Esta opción no está activa en tu negocio." };
+  const appointmentId = String(formData.get("appointmentId") ?? "");
+  const destinoPedido = String(formData.get("senia") ?? "");
+  const tenantId = await getCurrentTenantId();
+  const actor = `user:${user.id}`;
+
+  const turno = await prisma.appointment.findFirst({
+    where: { id: appointmentId, tenantId },
+    select: {
+      status: true,
+      startsAt: true,
+      professionalId: true,
+      serviceId: true,
+      priceAtBooking: true,
+      service: { select: { name: true, price: true } },
+      professional: { select: { name: true, cobraEnMostrador: true } },
+      payment: { select: { status: true, amount: true } },
+    },
+  });
+  if (!turno) return { ok: false, error: "Ese turno ya no existe. Recargá la agenda." };
+  if (user.role === "PROFESSIONAL" && turno.professionalId !== user.professionalId) {
+    return { ok: false, error: "Ese turno es de otra profesional: sólo podés marcar los tuyos." };
+  }
+  if (accion === "no-vino") {
+    const puede = puedeMarcarseNoVino({ status: turno.status, startsAt: turno.startsAt, ahora: new Date() });
+    if (!puede.ok) return { ok: false, error: mensajeNoVino(puede.motivo) };
+  } else if (turno.status !== "PENDING" && turno.status !== "CONFIRMED") {
+    return { ok: false, error: "Ese turno ya no está reservado ni confirmado: no se puede cancelar." };
+  }
+
+  // Primera lectura de la plata, para contestar rápido (y sin abrir la transacción) si falta
+  // elegir qué pasa con la seña. La que vale es la de adentro de la transacción (abajo).
+  const precio = turno.priceAtBooking ?? turno.service.price;
+  const cobradoDe = (cobros: Parameters<typeof estadoCobroTurno>[0]["cobros"]) =>
+    estadoCobroTurno({ precio, cobros, pagoLegado: turno.payment }).cobrado;
+  const cobrosAntes = (await cobrosDetalladosPorTurno(prisma, tenantId, [appointmentId])).get(appointmentId) ?? [];
+  const plan = planSeniaAlCerrar({ cobrado: cobradoDe(cobrosAntes), destino: destinoPedido });
+  if (!plan.ok) return { ok: false, error: plan.error };
+
+  // Devolver es plata que sale: el mismo permiso que anular un cobro.
+  if (plan.destino === "devolver") {
+    if (!roleHasCapability(user.role, "agenda:collect")) return { ok: false, error: "Devolver una seña lo hace quien cobra los turnos." };
+    const veredicto = puedeCobrarEsteTurno({
+      rol: user.role,
+      professionalIdDelUsuario: user.professionalId,
+      professionalIdDelTurno: turno.professionalId,
+      nombreProfesional: turno.professional.name,
+      cobraEnMostrador: turno.professional.cobraEnMostrador,
+    });
+    if (!veredicto.ok) return { ok: false, error: veredicto.motivo };
+  }
+  const diaCerradoHasta = plan.destino === "devolver" ? await lastClosedDay(tenantId) : null;
+  const estadoNuevo = accion === "cancelar" ? "CANCELLED" : "NO_SHOW";
+
+  const run = (withSchema: boolean) =>
+    tenantTransaction(
+      async (tx) => {
+        // La plata se vuelve a leer ADENTRO: si entró un cobro entre la pantalla y acá, la decisión
+        // que tomó la recepción ya no es sobre la misma plata, y no se aplica a ciegas.
+        const cobros = (await cobrosDetalladosPorTurno(tx, tenantId, [appointmentId])).get(appointmentId) ?? [];
+        const cobrado = cobradoDe(cobros);
+        const ahora = planSeniaAlCerrar({ cobrado, destino: destinoPedido });
+        if (!ahora.ok || ahora.destino !== plan.destino || cobrado !== cobradoDe(cobrosAntes)) {
+          throw new RechazoDeDominio("Entró un cobro recién en este turno. Recargá la agenda y volvé a elegir.");
+        }
+        const { count } = await tx.appointment.updateMany({
+          where: { id: appointmentId, tenantId, status: { in: ["PENDING", "CONFIRMED"] } },
+          data: { status: estadoNuevo },
+        });
+        if (count === 0) throw new RechazoDeDominio("Ese turno cambió recién. Recargá la agenda.");
+        let devuelto = 0;
+        if (plan.destino === "devolver") {
+          for (const c of cobrosAnulables(cobros)) {
+            const r = await anularCobroTurnoInTx(tx, tenantId, {
+              collectionId: c.id!,
+              appointmentId,
+              precio,
+              motivo: motivoDeDevolucion(accion),
+              actor,
+              diaCerradoHasta,
+              esDiaCerrado: (dia, hasta) => isFrozenDay(dia as DayKey, hasta as DayKey),
+              diaDe: dateStrInBusinessTz,
+              withSchema,
+            });
+            if (r.applied) devuelto += r.monto;
+          }
+        }
+        return { devuelto, cobrado };
+      },
+      { tenantId, isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+  let settled: SettleOutcome<{ devuelto: number; cobrado: number }>;
+  try {
+    settled = await settleAppointmentPaymentGuarded({ runWithBridge: () => run(true), runWithoutBridge: () => run(false) });
+  } catch (e) {
+    if (e instanceof AnulacionRechazada) return { ok: false, error: `No se pudo devolver la seña: ${e.message} El turno no se cambió.` };
+    if (e instanceof RechazoDeDominio) return { ok: false, error: e.message };
+    throw e;
+  }
+  // Una carrera revierte la transacción ENTERA (cambio de estado incluido): no pasó nada.
+  if (settled.outcome === "race") return { ok: false, error: "Ese turno cambió recién. Recargá la agenda." };
+  const { devuelto, cobrado } = settled.value;
+
+  await auditAdmin({
+    action: accion === "cancelar" ? "cancel" : "no_show",
+    entity: "Appointment",
+    entityId: appointmentId,
+    changes: { senia: plan.destino ?? "sin-seña", cobrado, devuelto },
+  });
+  revalidatePath("/admin");
+  revalidatePath("/admin/turnos");
+  revalidatePath("/admin/turnos/lista");
+  revalidatePath("/admin/caja");
+  revalidatePath("/admin/espera");
+
+  // E6: un hueco que todavía no pasó le puede servir a alguien de la lista de espera.
+  if (accion === "cancelar" && turno.startsAt.getTime() > Date.now()) {
+    const anotadas = await prisma.waitlistEntry.count({
+      where: {
+        tenantId,
+        status: "WAITING",
+        serviceId: turno.serviceId,
+        OR: [{ professionalId: null }, { professionalId: turno.professionalId }],
+      },
+    });
+    const aviso = avisoDeEspera({ anotadas, servicio: turno.service.name });
+    if (aviso) return { ok: true, aviso };
+  }
+  return { ok: true };
 }
 
 // Realizado → Completado: el servicio se prestó Y se cobró el resto. Exige que el turno haya
@@ -1709,6 +1876,7 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
   const dejarSaldoACobrar = formData.get("saldo") === "a-cobrar";
   const tenantId = await getCurrentTenantId();
   const actor = `user:${user.id}`;
+  const cerradoHasta = dejarSaldoACobrar ? null : await lastClosedDay(tenantId);
 
   const run = (withSchema: boolean) =>
     tenantTransaction(
@@ -1768,6 +1936,8 @@ export async function completeAppointment(formData: FormData): Promise<Resultado
             detail: cobroTurnoDetail({ serviceName: appointment.service.name, clientName: appointment.client.name }),
             idempotencyKey: claveCobroTurno("saldo", appointmentId),
             withSchema,
+            cerradoHasta,
+            camino: "completar",
           });
         }
 

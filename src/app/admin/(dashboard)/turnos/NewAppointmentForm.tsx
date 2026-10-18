@@ -41,6 +41,7 @@ export default function NewAppointmentForm({
   abierto = false,
   fechaInicial = "",
   clienteInicial = "",
+  profesionalInicial = "",
 }: {
   professionals: Professional[];
   origen?: OrigenAlta;
@@ -74,9 +75,11 @@ export default function NewAppointmentForm({
    * `alElegirFicha`. Si no está entre `fichas` (otro negocio, borrada), el alta arranca vacía.
    */
   clienteInicial?: string;
+  /** Agenda práctica (T4): si hay una sola profesional, viene elegida. Siempre editable. */
+  profesionalInicial?: string;
 }) {
   const [open, setOpen] = useState(origen === "mostrador" || abierto);
-  const [professionalId, setProfessionalId] = useState("");
+  const [professionalId, setProfessionalId] = useState(profesionalInicial);
   const [serviceId, setServiceId] = useState("");
   const [date, setDate] = useState(fechaInicial);
   const [slots, setSlots] = useState<string[]>([]);

@@ -121,7 +121,7 @@ export default async function SugeridoPage() {
               <summary className="inline-flex min-h-11 cursor-pointer items-center font-medium text-body">¿Cómo se calcula cuánto pedir?</summary>
               <p className="pb-2">
                 Lo que se vende por día en los últimos {DIAS_DE_VENTA} días × {DEMORA_DIAS + CICLO_DIAS} días ({DEMORA_DIAS} de entrega y{" "}
-                {CICLO_DIAS} hasta el próximo pedido, provisorios a confirmar con cada proveedor) más un colchón (el mínimo cargado o{" "}
+                {CICLO_DIAS} hasta el próximo pedido, valores estándar del sistema) más un colchón (el mínimo cargado o{" "}
                 {DIAS_DE_SEGURIDAD} días de venta, lo que sea mayor), menos lo que hay. Se agrupa por el proveedor al que se lo compraste la
                 última vez. Revisá las cantidades en el chat antes de mandar.
               </p>
@@ -187,7 +187,7 @@ export default async function SugeridoPage() {
           </div>
           <p className="text-xs text-muted">
             La cuenta: lo que se vende por día × {DEMORA_DIAS + CICLO_DIAS} días ({DEMORA_DIAS} de entrega y {CICLO_DIAS} hasta el
-            próximo pedido, provisorios a confirmar con cada proveedor) más un colchón (el mínimo cargado o {DIAS_DE_SEGURIDAD} días de
+            próximo pedido, valores estándar del sistema) más un colchón (el mínimo cargado o {DIAS_DE_SEGURIDAD} días de
             venta, lo que sea mayor), menos lo que hay. Revisá las cantidades en el chat antes de mandar.
           </p>
           {!datos.conProveedores && (

@@ -22,10 +22,13 @@ function normalize(s: string) {
 export default function AppointmentsHistoryList({
   appointments,
   statusLabel,
+  practica = false,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   appointments: any[];
   statusLabel: Record<string, string>;
+  /** Agenda práctica: un completado del historial ofrece «Reservar el próximo». */
+  practica?: boolean;
 }) {
   const [query, setQuery] = useState("");
 
@@ -58,7 +61,7 @@ export default function AppointmentsHistoryList({
           <p className="text-sm text-muted">Todavía no hay turnos en el historial.</p>
         )}
         {filtered.map((a) => (
-          <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} />
+          <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} practica={practica} />
         ))}
       </div>
     </div>

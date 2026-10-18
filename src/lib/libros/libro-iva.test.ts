@@ -241,7 +241,7 @@ test("QA vuelta 6 · el CAE simulado del modo prueba (STUB) no es un CAE: queda 
   assert.equal(libro.resumen.ivaDebito, 0);
   assert.equal(libro.resumen.dePruebaCount, 1);
   const hoja = armarExportLibroIva(libro, { mes: "2026-09" });
-  assert.match(hoja, /^FACTURAS DE PRUEBA \(CAE simulado del modo prueba: no se declaran ni cuentan para los topes\)\r?$/m);
+  assert.match(hoja, /^COMPROBANTES SIN VALIDEZ FISCAL \(CAE que no otorgó ARCA: no se declaran ni cuentan para los topes\)\r?$/m);
   assert.match(hoja, /^IVA débito \(comprobantes emitidos\);0,00\r?$/m);
 });
 
@@ -266,5 +266,5 @@ test("QA vuelta 6 · un CUIT con dos locales: suma los comprobantes de los dos y
 test("QA vuelta 6 · sin locales, sin facturas de prueba y sin facturas de proveedor, la hoja no agrega nada (CH igual que siempre)", () => {
   const libro = armarLibroIva({ comprobantes: [], ventasSinComprobante: [], compras: [], condicion: "sin-comprobantes" });
   const hoja = armarExportLibroIva(libro, { mes: "2026-08" });
-  assert.doesNotMatch(hoja, /FACTURAS DE PRUEBA|Locales del mismo CUIT|Percepciones y otros tributos|Facturas de prueba/);
+  assert.doesNotMatch(hoja, /COMPROBANTES SIN VALIDEZ FISCAL|Locales del mismo CUIT|Percepciones y otros tributos|Comprobantes sin validez fiscal/);
 });

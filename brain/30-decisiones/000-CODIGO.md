@@ -22,11 +22,11 @@ tags: [brain/indice, brain/codigo]
 
 | Métrica | Valor |
 |---|---:|
-| Archivos de `src/` que citan un ADR | 366 de 1814 |
+| Archivos de `src/` que citan un ADR | 374 de 1997 |
 | Archivos de `prisma/` que citan un ADR | 38 de 90 |
-| Archivos de `scripts/` que citan un ADR | 11 de 48 |
-| Archivos escaneados en total | 1952 |
-| Archivos que citan algún ADR | 415 |
+| Archivos de `scripts/` que citan un ADR | 12 de 54 |
+| Archivos escaneados en total | 2141 |
+| Archivos que citan algún ADR | 424 |
 | ADR con vínculo (cita desde código **o** ruta citada por el ADR) | 85 de 87 |
 
 ## 🕳️ Los agujeros (a la vista, no tapados)
@@ -185,11 +185,12 @@ tags: [brain/indice, brain/codigo]
 
 ### [ADR-028](ADR-028.md)
 
+- **cabecera (1):** `src/lib/club/motor.mjs`
 - **inline (1):** `scripts/adr-graph.mjs`
 
 ### [ADR-029](ADR-029.md)
 
-- **inline (2):** `src/lib/provisioning/types.ts` · `scripts/adr-graph.mjs`
+- **inline (3):** `src/app/api/pwa/admin.webmanifest/route.ts` · `src/lib/provisioning/types.ts` · `scripts/adr-graph.mjs`
 - **el ADR cita:** `src/lib/tenant.ts` · `src/lib/tenant.test.ts`
 
 ### [ADR-030](ADR-030.md)
@@ -303,14 +304,14 @@ tags: [brain/indice, brain/codigo]
 
 ### [ADR-054](ADR-054.md)
 
-- **cabecera (19):** `src/blueprints/facturita.ts` · `src/integraciones/contrato.ts` · `src/lib/admin-nav-items.ts` · `src/lib/module-gating.ts` · `src/lib/producto-identidad.ts` · `src/modules/catalog/index.ts` · `src/modules/catalog.ts` · `src/modules/contract.ts` … y 11 más
-- **inline (10):** `src/lib/cartera-core.ts` · `src/lib/cockpit/plan.ts` · `src/lib/dashboard-mode.ts` · `src/lib/operator-config.ts` · `src/modules/descriptors/nativos.ts` … y 5 más
+- **cabecera (20):** `src/blueprints/facturita.ts` · `src/integraciones/contrato.ts` · `src/lib/admin-nav-items.ts` · `src/lib/module-gating.ts` · `src/lib/producto-identidad.ts` · `src/lib/terminal/terminal.server.ts` · `src/modules/catalog/index.ts` · `src/modules/catalog.ts` … y 12 más
+- **inline (12):** `src/lib/cartera-core.ts` · `src/lib/cockpit/plan.ts` · `src/lib/dashboard-mode.ts` · `src/lib/operator-config.ts` · `src/modules/descriptors/club.ts` … y 7 más
 - **el ADR cita:** `src/modules/` · `src/plugins/arca/module.ts` · `src/plugins/arca` · `src/plugins/mercadopago` · `src/plugins/`
 
 ### [ADR-055](ADR-055.md)
 
-- **cabecera (18):** `src/lib/cartera-actions.ts` · `src/lib/cartera-core.ts` · `src/lib/provisioning/adapters.ts` · `src/lib/reserva-publica-postgres.test.ts` · `src/modules/activation.test.ts` · `src/modules/activation.ts` · `src/modules/catalog/asignacion.ts` · `src/modules/contract.ts` … y 10 más
-- **inline (12):** `src/generated/prisma/internal/class.ts` · `src/lib/actions.ts` · `src/lib/capabilities.ts` · `src/lib/catalog-actions.ts` · `src/lib/producto-identidad.test.ts` … y 7 más
+- **cabecera (21):** `src/lib/cartera-actions.ts` · `src/lib/cartera-core.ts` · `src/lib/provisioning/adapters.ts` · `src/lib/reserva-publica-postgres.test.ts` · `src/lib/terminal/perfil-core.ts` · `src/modules/activation.test.ts` · `src/modules/activation.ts` · `src/modules/catalog/asignacion.ts` … y 13 más
+- **inline (13):** `src/generated/prisma/internal/class.ts` · `src/lib/actions.ts` · `src/lib/capabilities.ts` · `src/lib/catalog-actions.ts` · `src/lib/producto-identidad.test.ts` … y 8 más
 - **el ADR cita:** `src/modules/`
 
 ### [ADR-056](ADR-056.md)

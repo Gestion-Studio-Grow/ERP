@@ -13,6 +13,7 @@ import { ButtonLink, PageContainer, PageHeader, buttonClasses } from "@/componen
 import MostradorTabs from "../pedidos/MostradorTabs";
 import VenderForm from "./VenderForm";
 import { cargarVender } from "./datos";
+import { terminalDelEquipo } from "@/lib/terminal/terminal.server";
 import { teclasDelMostrador, topeDeDescuento, topeDePrecioAMano } from "./reglas-venta";
 import { Suspense } from "react";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
@@ -92,7 +93,7 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
   const user = await requireApp("vender");
   const { modo } = await searchParams;
   const tenantId = await getCurrentTenantId();
-  const [datos, stockSnap, identidad, puedeCuentas, puedeFacturar, nuevo, rubro] = await Promise.all([
+  const [datos, stockSnap, identidad, puedeCuentas, puedeFacturar, nuevo, rubro, terminal] = await Promise.all([
     cargarVender(tenantId, todayInBusinessTz()),
     getPosStockSnapshot(),
     getTenantIdentity(),
@@ -104,11 +105,22 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
     // largado en la tanda del layout) para las palabras del buscador («corte» en una carnicería).
     disenoNuevo(),
     getCurrentTenantRubro(),
+    // El perfil de este equipo (ticket 58/80, imprimir solo, avisos, lector) vale sólo si el negocio
+    // tiene el módulo `terminal`: lo decide el servidor con la regla de «Este equipo».
+    terminalDelEquipo(user),
   ]);
   // Los servicios se cobran creando un turno (ver MostradorTabs): sólo en un negocio de
   // servicios y sólo para quien puede dar turnos. En un comercio no hay solapa de Servicios.
   const conServicios = !identidad.isRetail;
   const balanza = identidad.isRetail ? await balanzaDeVender(tenantId, datos.products, user.role) : null;
+  // Sin el módulo ni la balanza configurada, los códigos no viajan al navegador: la lista es la de
+  // siempre. Con la balanza, el campo de la etiqueta necesita el PLU de cada producto.
+  const productos = terminal || balanza
+    ? datos.products
+    : datos.products.map(({ codigo: _codigo, ...p }) => {
+        void _codigo;
+        return p;
+      });
   const professionals =
     conServicios && roleHasCapability(user.role, "agenda:manage") ? await getProfessionalsWithServices() : [];
   // Sin ningún producto con precio, el aviso dice por qué y qué hacer, pero el formulario
@@ -141,7 +153,7 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
         </div>
       )}
       <VenderForm
-        products={datos.products}
+        products={productos}
         stockById={stockSnap.stockById}
         // Diseño nuevo: el primer día (sin ventas) las teclas se completan con el catálogo.
         // Apagado, igual que hoy: sólo los más vendidos.
@@ -160,6 +172,7 @@ export default async function VenderPage({ searchParams }: { searchParams: Promi
         // La duda guardada de otra persona no se restaura en esta pestaña.
         usuarioId={user.id}
         balanza={balanza}
+        terminal={terminal}
         {...(conVendedor ? { vendedor: user.name, sustantivo: rubro.rubro?.wording.itemNoun ?? "producto" } : {})}
       />
     </div>

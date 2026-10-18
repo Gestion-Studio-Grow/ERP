@@ -154,7 +154,7 @@ export default async function ContadorPage({ searchParams }: { searchParams: Pro
         <b key="t">{titular.texto}</b>,
         `${fmtNumberAR(resumen.clientes)} ${resumen.clientes === 1 ? "cliente" : "clientes"}`,
         <span key="m">
-          {hayFiscal ? "Facturado este mes " : "Emitido en prueba este mes "}
+          {hayFiscal ? "Facturado este mes " : "Emitido sin validez fiscal este mes "}
           <b>{fmtMoneyARS(hayFiscal ? resumen.montoFiscalMes : resumen.montoPruebaMes, 0)}</b>
         </span>,
         `${fmtNumberAR(resumen.facturasMes)} facturas automáticas`,
@@ -221,16 +221,16 @@ export default async function ContadorPage({ searchParams }: { searchParams: Pro
             value={fmtMoneyARS(resumen.montoFiscalMes, 0)}
             sub={
               resumen.montoPruebaMes > 0
-                ? `Aparte, ${fmtMoneyARS(resumen.montoPruebaMes, 0)} emitido en prueba (sin validez fiscal).`
+                ? `Aparte, ${fmtMoneyARS(resumen.montoPruebaMes, 0)} emitido sin validez fiscal.`
                 : "Con CAE de ARCA, por la fecha del comprobante."
             }
             icon={<Icono path={<path d="M4 17l5-6 4 3 7-9" />} />}
           />
         ) : (
           <KpiTile
-            label="Emitido en prueba (sin validez fiscal)"
+            label="Emitido sin validez fiscal"
             value={fmtMoneyARS(resumen.montoPruebaMes, 0)}
-            sub="Tiene CAE de prueba: todavía no es facturación."
+            sub="El CAE no lo otorgó ARCA en producción: todavía no es facturación."
             icon={<Icono path={<path d="M4 17l5-6 4 3 7-9" />} />}
           />
         )}

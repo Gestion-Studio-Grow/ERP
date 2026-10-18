@@ -4,6 +4,7 @@ import { useState } from "react";
 import AppointmentRow from "./AppointmentRow";
 import { wallHourMinuteInBusinessTz, fmtTime } from "@/lib/datetime";
 import PasoVacio from "./PasoVacio";
+import { horasDeLaGrilla } from "./grilla";
 import type { PasoVacio as Paso } from "./pasos";
 
 type Professional = { id: string; name: string; box: { name: string } | null };
@@ -44,16 +45,12 @@ const statusStyles: Record<string, string> = {
   NO_SHOW: "bg-danger-soft text-danger border-danger/40",
 };
 
-const DAY_START_HOUR = 9;
-const DAY_END_HOUR = 19;
 const SLOT_MIN = 30;
-const SLOT_COUNT = ((DAY_END_HOUR - DAY_START_HOUR) * 60) / SLOT_MIN;
 
-function slotIndex(date: Date) {
-  // Hora de pared en la zona del negocio, no la del navegador de quien mira.
+// Hora de pared en la zona del negocio, no la del navegador de quien mira.
+function minutosDelDia(date: Date) {
   const { hour, minute } = wallHourMinuteInBusinessTz(date);
-  const minutesFromStart = (hour - DAY_START_HOUR) * 60 + minute;
-  return Math.round(minutesFromStart / SLOT_MIN);
+  return hour * 60 + minute;
 }
 
 export default function CalendarGrid({
@@ -64,6 +61,7 @@ export default function CalendarGrid({
   viewer,
   sinProfesionales,
   diaVacio,
+  practica = false,
 }: {
   professionals: Professional[];
   appointments: Appointment[];
@@ -78,12 +76,19 @@ export default function CalendarGrid({
    */
   sinProfesionales?: Paso;
   diaVacio?: Paso;
+  /** Agenda práctica (interruptor «agenda-practica»): se pasa tal cual a cada fila. */
+  practica?: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = appointments.find((a) => a.id === selectedId) ?? null;
 
-  const timeLabels = Array.from({ length: SLOT_COUNT }, (_, i) => {
-    const totalMin = DAY_START_HOUR * 60 + i * SLOT_MIN;
+  // La grilla cubre todos los turnos del día (grilla.ts): de 9 a 19, o más si hace falta.
+  const horas = horasDeLaGrilla(
+    appointments.map((a) => ({ desde: minutosDelDia(new Date(a.startsAt)), hasta: minutosDelDia(new Date(a.endsAt)) })),
+  );
+  const slotIndex = (date: Date) => Math.round((minutosDelDia(date) - horas.desde * 60) / SLOT_MIN);
+  const timeLabels = Array.from({ length: ((horas.hasta - horas.desde) * 60) / SLOT_MIN }, (_, i) => {
+    const totalMin = horas.desde * 60 + i * SLOT_MIN;
     const h = Math.floor(totalMin / 60);
     const m = totalMin % 60;
     return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
@@ -114,7 +119,7 @@ export default function CalendarGrid({
             <p className="text-xs font-medium text-faint mb-1">
               {fmtTime(appt.startsAt)} · {appt.professional.name}
             </p>
-            <AppointmentRow appointment={appt} statusLabel={statusLabel} canManage={canManage} canCollect={canCollect} viewer={viewer} />
+            <AppointmentRow appointment={appt} statusLabel={statusLabel} canManage={canManage} canCollect={canCollect} viewer={viewer} practica={practica} />
           </div>
         ))}
       </div>
@@ -205,7 +210,7 @@ export default function CalendarGrid({
       {selected && (
         <div className="hidden lg:block mt-6">
           <h2 className="text-sm font-medium text-strong mb-2">Turno seleccionado</h2>
-          <AppointmentRow appointment={selected} statusLabel={statusLabel} canManage={canManage} canCollect={canCollect} viewer={viewer} />
+          <AppointmentRow appointment={selected} statusLabel={statusLabel} canManage={canManage} canCollect={canCollect} viewer={viewer} practica={practica} />
         </div>
       )}
     </div>

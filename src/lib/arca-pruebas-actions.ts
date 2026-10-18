@@ -76,7 +76,7 @@ async function datosFiscalesDelTenant(
     });
     return {
       ok: false,
-      error: "No pudimos leer los datos fiscales del negocio, así que no se hizo la prueba. Probá de nuevo en un rato.",
+      error: "No pudimos leer los datos fiscales del negocio, así que no se hizo la verificación. Probá de nuevo en un rato.",
     };
   }
   const puntoVenta = tenant?.arcaPuntoVenta ?? null;
@@ -84,7 +84,7 @@ async function datosFiscalesDelTenant(
     return {
       ok: false,
       error:
-        "Falta el punto de venta de ARCA de este negocio, así que la prueba no corre: sin él, " +
+        "Falta el punto de venta de ARCA de este negocio, así que la verificación no corre: sin él, " +
         "tampoco sale la factura real. Pedile a Gestión Studio Grow que cargue el punto de venta " +
         "que ARCA habilitó para tu CUIT.",
     };
@@ -107,8 +107,7 @@ export async function emitirFacturaDePruebaAction(): Promise<ResultadoBancoPrueb
       ok: false,
       modo,
       error:
-        "El banco de pruebas no corre en modo real (evita facturar de verdad). " +
-        "Usá ARCA_MODO=stub o ARCA_MODO=homologacion para probar.",
+        "Con ARCA conectada en producción no se hacen verificaciones: cada comprobante es una factura válida.",
     };
   }
 
@@ -146,7 +145,7 @@ export async function emitirFacturaDePruebaAction(): Promise<ResultadoBancoPrueb
 
     const error =
       resultado.motivo === "rechazo"
-        ? `ARCA rechazó el comprobante de prueba: ${resultado.observaciones
+        ? `ARCA rechazó el comprobante de verificación: ${resultado.observaciones
             .map((o) => `[${o.codigo}] ${o.mensaje}`)
             .join("; ")}`
         : resultado.mensaje;
@@ -159,7 +158,7 @@ export async function emitirFacturaDePruebaAction(): Promise<ResultadoBancoPrueb
     });
     return { ok: false, modo, error };
   } catch (e) {
-    const mensaje = e instanceof Error ? e.message : "No se pudo emitir la factura de prueba.";
+    const mensaje = e instanceof Error ? e.message : "No se pudo emitir el comprobante de verificación.";
     logger.error("arca.prueba", "Error al emitir factura de prueba", e, { tenantId, modo, puntoVenta });
     return { ok: false, modo, error: mensaje };
   }
@@ -185,10 +184,10 @@ export async function emitirFacturaDePruebaGuardadaAction(receptorRaw: unknown):
   await requireCapability("billing:manage");
   const tenantId = await getCurrentTenantId();
   if (modoDesdeEnv() !== "stub") {
-    return { ok: false, error: "La factura de prueba sólo se emite con ARCA en modo prueba (simulado)." };
+    return { ok: false, error: "El comprobante de verificación sólo se emite mientras ARCA no está conectada." };
   }
   if (!esReceptorDePrueba(receptorRaw)) {
-    return { ok: false, error: "Elegí a quién va la factura de prueba: a un consumidor final o a un responsable inscripto." };
+    return { ok: false, error: "Elegí a quién va el comprobante de verificación: a un consumidor final o a un responsable inscripto." };
   }
   const negocio = await tenantTransaction(
     (tx) => tx.tenant.findUnique({ where: { id: tenantId }, select: { modules: true } }),
@@ -207,7 +206,7 @@ export async function emitirFacturaDePruebaGuardadaAction(receptorRaw: unknown):
         ok: false,
         error:
           "Faltan los datos fiscales del negocio (CUIT, punto de venta o condición frente al IVA), así que no sale " +
-          "ninguna factura, tampoco la de prueba. Los carga Gestión Studio Grow.",
+          "ninguna factura, tampoco la de verificación. Los carga Gestión Studio Grow.",
       };
     }
     throw e;
@@ -252,11 +251,11 @@ export async function emitirFacturaDePruebaGuardadaAction(receptorRaw: unknown):
     numero: f?.numero ?? null,
   });
   if (f?.status === "REJECTED") {
-    return { ok: false, error: `La factura de prueba no se autorizó: ${f.rechazoMotivo ?? "sin motivo informado"}. Quedó en la lista como rechazada.` };
+    return { ok: false, error: `El comprobante de verificación no se autorizó: ${f.rechazoMotivo ?? "sin motivo informado"}. Quedó en la lista como rechazada.` };
   }
   const comprobante = nombreDelComprobante(f?.tipoComprobante, f?.puntoVenta ?? null, f?.numero ?? null);
   if (!f || f.status !== "AUTHORIZED" || !comprobante || !f.cae) {
-    return { ok: false, error: "La factura de prueba quedó guardada pero todavía sin CAE: tocá «Procesar pendientes»." };
+    return { ok: false, error: "El comprobante de verificación quedó guardado pero todavía sin CAE: tocá «Procesar pendientes»." };
   }
   return {
     ok: true,

@@ -702,7 +702,7 @@ function Editorial(c: Ctx) {
   return null;
 }
 
-// ── El pie: los datos del local, o "a confirmar" (nunca los de otro local) ───
+// ── El pie: los datos del local; lo que el local no cargó no se muestra (nunca los de otro local) ───
 
 function Pie({ marca, e, copy, whatsapp, local }: Ctx) {
   const b = e.branding;
@@ -711,7 +711,9 @@ function Pie({ marca, e, copy, whatsapp, local }: Ctx) {
   const horario = local ? local.hours : b?.hoursLabel;
   const instagram = local?.instagram ?? b?.instagram ?? null;
   const email = local?.email ?? b?.email ?? null;
-  const falta = (t: string) => <p className={s.aConfirmar}>{t} a confirmar</p>;
+  const instagramOk = instagram && !/a-confirmar/.test(instagram) ? instagram : null;
+  const zonasMagra = marca === "magra" && local && esElLocalDelCopy(local);
+  const zonasCopy = marca !== "magra" && copy && copy.deliveryZones.length > 0;
   return (
     <footer id="contacto" className={s.pie}>
       <div className={s.env}>
@@ -722,44 +724,51 @@ function Pie({ marca, e, copy, whatsapp, local }: Ctx) {
             </p>
             <p className={s.pieLema}>{marca === "magra" ? MAGRA.aboutTitle : (copy?.pitch ?? b?.contactNote ?? "")}</p>
           </div>
+          {(direccion || ciudad) && (
+            <div>
+              <h3>Dónde estamos</h3>
+              {direccion && <p>{direccion}</p>}
+              {ciudad && <p>{ciudad}</p>}
+            </div>
+          )}
+          {(horario || zonasMagra || zonasCopy) && (
           <div>
-            <h3>Dónde estamos</h3>
-            {direccion ? <p>{direccion}</p> : falta("Dirección")}
-            {ciudad && <p>{ciudad}</p>}
-          </div>
-          <div>
-            <h3>Horarios</h3>
-            {horario ? <p>{horario}</p> : falta("Horarios")}
-            {marca === "magra" && local && esElLocalDelCopy(local) && (
+            {horario && (
+              <>
+                <h3>Horarios</h3>
+                <p>{horario}</p>
+              </>
+            )}
+            {zonasMagra && (
               <>
                 <h3 className={s.pieSub}>Llegamos a</h3>
                 <p>{MAGRA.deliveryZones.join(" · ")}</p>
               </>
             )}
-            {marca !== "magra" && copy && copy.deliveryZones.length > 0 && (
+            {zonasCopy && copy && (
               <>
                 <h3 className={s.pieSub}>Envíos</h3>
                 <p>{copy.deliveryZones.join(" · ")}</p>
               </>
             )}
           </div>
+          )}
+          {(whatsapp || instagramOk || email) && (
           <div>
             <h3>Contacto</h3>
-            {whatsapp ? (
+            {whatsapp && (
               <WaLink numero={whatsapp} texto={`¡Hola ${e.nombre}!`}>
                 WhatsApp {local?.whatsappLabel ?? ""}
               </WaLink>
-            ) : (
-              falta("WhatsApp")
             )}
-            {instagram && !/a-confirmar/.test(instagram) && (
+            {instagramOk && (
               <p>
                 <a
-                  href={`https://www.instagram.com/${instagram.replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "")}`}
+                  href={`https://www.instagram.com/${instagramOk.replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "")}`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  Instagram {instagram.startsWith("@") ? instagram : `@${instagram}`}
+                  Instagram {instagramOk.startsWith("@") ? instagramOk : `@${instagramOk}`}
                 </a>
               </p>
             )}
@@ -769,6 +778,7 @@ function Pie({ marca, e, copy, whatsapp, local }: Ctx) {
               </p>
             )}
           </div>
+          )}
         </div>
         <p className={s.legal}>
           <span>{marca === "magra" ? MAGRA.copyright : `© ${ANIO} ${e.nombre}`}</span>

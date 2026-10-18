@@ -35,8 +35,7 @@ export async function generarCobroDePruebaAction(): Promise<ResultadoBancoPrueba
       ok: false,
       modo,
       error:
-        "El banco de pruebas no corre en modo real (evita cobrar de verdad). " +
-        "Usá MP_MODO=stub o MP_MODO=test para probar.",
+        "Con Mercado Pago conectado no se hacen verificaciones: cada link cobra de verdad.",
     };
   }
 

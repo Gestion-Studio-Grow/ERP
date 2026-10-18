@@ -216,4 +216,21 @@ export const APPS_COMERCIAL = [
     estado: "lista",
     palabras: ["propiedades", "casas", "departamentos", "alquileres", "inquilinos", "propietarios", "consultas", "contratos", "liquidaciones", "tasacion", "visitas"],
   },
+  {
+    // La recepción de un club de pádel (plan BP-2): la agenda de canchas del día y la cuenta de cada
+    // turno, con el motor del club (src/lib/club). Corre en el navegador; con jornada real (Break
+    // Point) guarda la foto del club en la base, el resto corre la demo. Pide agenda:manage (abrir la cancha y cobrar), como su módulo. Módulo propio:
+    // sin `club` asignado no se abre ni por URL; nadie lo recibe por defecto.
+    id: "club",
+    nombre: "Canchas del club",
+    descripcion: "Las canchas de hoy y la cuenta de cada turno: cobrar todo, cobrar a un jugador y «a cargo de».",
+    icono: "agenda",
+    ruta: "/admin/club",
+    espacio: "mostrador",
+    capability: "agenda:manage",
+    modulo: "club",
+    moduloDuro: true,
+    estado: "lista",
+    palabras: ["padel", "pádel", "canchas", "club", "turnos de cancha", "jugadores", "a cargo de", "cuenta del turno", "buffet"],
+  },
 ] as const satisfies readonly AppDescriptor[];

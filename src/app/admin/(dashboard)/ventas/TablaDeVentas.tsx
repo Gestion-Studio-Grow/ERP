@@ -18,6 +18,7 @@ import { Cajon } from "@/components/ui/Cajon";
 import { Button, Marca, Plata, Rotulo, hrefConParametros } from "@/components/ui";
 import { etiquetaDeMedio } from "@/lib/caja/medio-cobro";
 import TicketVenta from "../vender/TicketVenta";
+import type { TerminalDelEquipo } from "@/lib/terminal/usar-perfil";
 import type { VentaTicket } from "../vender/reglas-venta";
 import AnularDelPedido from "../pedidos/AnularDelPedido";
 import FacturarVenta from "./FacturarVenta";
@@ -42,7 +43,18 @@ function comoSePago(v: VentaTicket): string {
   return v.aCuenta ? "A cuenta" : etiquetaDeMedio(v.medio);
 }
 
-export default function TablaDeVentas({ filas, negocio, vacio }: { filas: FilaDeVenta[]; negocio: string; vacio: React.ReactNode }) {
+export default function TablaDeVentas({
+  filas,
+  negocio,
+  vacio,
+  terminal = null,
+}: {
+  filas: FilaDeVenta[];
+  negocio: string;
+  vacio: React.ReactNode;
+  /** El equipo, si el negocio tiene el módulo `terminal`: el ticket sale en su ancho. */
+  terminal?: TerminalDelEquipo | null;
+}) {
   const params = useSearchParams();
   const ruta = usePathname();
   const empujado = useRef(false);
@@ -200,7 +212,7 @@ export default function TablaDeVentas({ filas, negocio, vacio }: { filas: FilaDe
           descripcion={`${abierta.hora} · ${abierta.canal === "ONLINE" ? "pedido" : "mostrador"} · ${abierta.venta.anulada ? "anulada" : comoSePago(abierta.venta)}`}
         >
           <div className="flex flex-col gap-6">
-            <TicketVenta venta={abierta.venta} negocio={negocio} />
+            <TicketVenta venta={abierta.venta} negocio={negocio} terminal={terminal} />
             {abierta.notas.length > 0 && (
               <section aria-label="Lo que hay que saber de esta venta">
                 <Rotulo as="h3" className="mb-1">

@@ -68,9 +68,9 @@ test("sin plan del catálogo no hay topes: se ofrece escribir", () => {
   assert.equal(v.tipo, "sin-plan");
 });
 
-test("el precio va marcado como provisional a confirmar", () => {
+test("mientras el precio del plan es provisional, no se muestra", () => {
   const v = vistaDeTuPlan({ limites: micro(), uso: {} });
-  assert.ok(v.tipo === "plan" && /^\$ [\d.]+ por mes \(provisional a confirmar\)$/.test(v.precio), v.tipo === "plan" ? v.precio : v.tipo);
+  assert.ok(v.tipo === "plan" && v.precio === null, v.tipo === "plan" ? String(v.precio) : v.tipo);
 });
 
 test("«Quiero más» abre WhatsApp: directo a GSG si hay número; si no, para elegir contacto, nunca roto", () => {

@@ -9,6 +9,12 @@ FINAL (Backup)** (ver `docs/METODOLOGIA-SPRINT.md`). **Si abrís una sesión nue
 este documento es la fuente de verdad para continuar exactamente desde acá.** Si algo no coincide con
 el repo/prod, gana el repo y este doc se corrige en el acto.
 
+> **🧪 CH al nivel de Break Point (2026-10-18, rama `claude/ch-nivel-bp`, SIN publicar).** Guion de UAT en producción
+> con matriz por rol (`docs/tenants/ch/UAT-PRODUCCION.md`), recorrido E2E `npm run test:ch-uat` contra Postgres local
+> (40/40), matriz de eventualidades (`docs/tenants/ch/EVENTUALIDADES.md`) y practicidad detrás del interruptor nuevo
+> **«agenda-practica», APAGADO en CH**. Arregla un bug de plata: el cobro de turno después del cierre caía en el día
+> congelado (lección DB-5). Decisiones del dueño pendientes en `docs/tenants/ch/NIVEL-BP.md`.
+
 > **🔁 Reconciliación 2026-07-12 (consolidación multi-rama + productos + rediseño Shine, la más reciente — gana sobre lo de abajo).**
 > - **`main` real = `49c695c`** (donde abajo se lea `93eae5f`/`7ccee77`/`0a279cf`, léase esto). Prod: **8 superficies en 200**
 >   (4 apps `*-erp` + consola `gsg-erp` + 3 productos `comerciante/contador/facturita-gsg`).

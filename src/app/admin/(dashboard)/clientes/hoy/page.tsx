@@ -180,8 +180,7 @@ export default async function ParaContactarHoyPage() {
               recibir mensajes.
             </li>
             <li>
-              Hasta {CRM_REGLAS.topeBandejaPorDia} por día. Los números son
-              provisionales y se ajustan con la dueña.
+              Hasta {CRM_REGLAS.topeBandejaPorDia} por día.
             </li>
           </ul>
         </details>
@@ -268,8 +267,7 @@ export default async function ParaContactarHoyPage() {
             mensajes.
           </li>
           <li>
-            Hasta {CRM_REGLAS.topeBandejaPorDia} por día. Los números son
-            provisionales y se ajustan con la dueña.
+            Hasta {CRM_REGLAS.topeBandejaPorDia} por día.
           </li>
         </ul>
       </details>

@@ -298,7 +298,7 @@ export default function CarteraPanel({
   // mismas acciones y los mismos textos que la de siempre; cambia sólo la forma.
   if (nuevo) {
     const hayFiscal = filas.some((f) => f.validezFiscal);
-    const rotuloPlata = hayFiscal ? "Facturado" : "Emitido en prueba";
+    const rotuloPlata = hayFiscal ? "Facturado" : "Emitido sin validez fiscal";
     const totalPlata = filas.reduce((a, f) => a + f.montoFacturadoMes, 0);
     const totalFacturas = filas.reduce((a, f) => a + f.facturasMes, 0);
     const totalRevisar = filas.reduce((a, f) => a + f.pendientesRevision, 0);
@@ -342,7 +342,7 @@ export default function CarteraPanel({
           <span className="block">
             <Plata valor={f.montoFacturadoMes} sinCentavos />
             {hayFiscal && !f.validezFiscal && f.montoFacturadoMes > 0 && (
-              <span className="block text-[12px] text-warning">en prueba</span>
+              <span className="block text-[12px] text-warning">sin validez fiscal</span>
             )}
           </span>
         ),
@@ -448,7 +448,7 @@ export default function CarteraPanel({
               id="cartera"
               titulo="La cartera este mes"
               cuenta={`${fmtNumberAR(filas.length)} ${filas.length === 1 ? "cliente" : "clientes"}`}
-              nota={hayFiscal ? "Facturado: con CAE de ARCA, por la fecha del comprobante" : "Emitido en prueba: con CAE de prueba, todavía no es facturación"}
+              nota={hayFiscal ? "Facturado: con CAE de ARCA, por la fecha del comprobante" : "Emitido sin validez fiscal: el CAE no lo otorgó ARCA en producción, todavía no es facturación"}
             >
               <Tabla
                 titulo="Clientes de la cartera con su resumen fiscal del mes"
@@ -484,7 +484,7 @@ export default function CarteraPanel({
                 >
                   {seleccion.nombre !== seleccion.alias && <p className="pt-2 text-[13px] text-muted">{seleccion.nombre}</p>}
                   <Cifra
-                    titulo={seleccion.validezFiscal ? "Facturado este mes" : "Emitido en prueba este mes"}
+                    titulo={seleccion.validezFiscal ? "Facturado este mes" : "Emitido sin validez fiscal este mes"}
                     detalle={seleccion.validezFiscal ? "Con CAE de ARCA" : "Sin validez fiscal"}
                     valor={<Plata valor={seleccion.montoFacturadoMes} sinCentavos />}
                   />
@@ -697,7 +697,7 @@ export default function CarteraPanel({
                       {/* Con CAE de prueba no es facturación: se dice en la misma celda. */}
                       {!f.validezFiscal && f.montoFacturadoMes > 0 && (
                         <span className="mt-0.5 block text-xs font-normal text-warning">
-                          en prueba, sin validez fiscal
+                          sin validez fiscal
                         </span>
                       )}
                     </td>
@@ -762,7 +762,7 @@ export default function CarteraPanel({
               <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <dt className="text-xs text-muted">
-                    {seleccion.validezFiscal ? "Facturado con validez fiscal" : "Emitido en prueba (sin validez fiscal)"}
+                    {seleccion.validezFiscal ? "Facturado con validez fiscal" : "Emitido sin validez fiscal"}
                   </dt>
                   <dd className="tabular-nums font-medium text-strong">
                     {fmtMoneyARS(seleccion.montoFacturadoMes)}

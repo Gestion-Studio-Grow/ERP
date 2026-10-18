@@ -122,7 +122,7 @@ export default async function MonitorMonotributo() {
           {diaLegible(r.tabla.vigenciaHasta)}.
           {r.tabla.provisional && (
             <strong className="font-medium text-strong">
-              {" "}Provisional a confirmar: cotejalos con el cuadro de categorías de ARCA.
+              {" "}Antes de recategorizar, cotejalos con el cuadro de categorías publicado por ARCA.
             </strong>
           )}
           {!r.tabla.vigenteHoy && (

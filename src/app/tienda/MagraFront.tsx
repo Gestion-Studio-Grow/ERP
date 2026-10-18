@@ -461,9 +461,8 @@ function MagraFrontContent({
               )}
             </div>
             {/* Datos del LOCAL: salen de /admin/localizacion (BusinessSettings), no del copy.
-                El campo que el local no cargó no se muestra — nunca el dato de otro local, que
-                con 5 locales es mandar al cliente a otra ciudad, ni un «a confirmar» a la vista
-                de la clienta en un negocio en marcha. */}
+                El campo que el local no cargó NO se muestra — nunca el dato de otro local,
+                que con 5 locales es mandar al cliente a otra ciudad. */}
             <div className="mf-foot-cols">
               {(local.addressLine || local.city) && (
                 <div>
@@ -488,20 +487,20 @@ function MagraFrontContent({
                 </div>
               )}
               {(local.whatsapp || local.instagramUrl || local.email) && (
-              <div>
-                <h4>Contacto</h4>
-                {local.whatsapp && (
-                  // Texto y href salen de los MISMOS dígitos (whatsappLabel deriva de
-                  // local.whatsapp): no se pueden volver a separar.
-                  <a href={`https://wa.me/${local.whatsapp}`} target="_blank" rel="noopener noreferrer">
-                    WhatsApp {local.whatsappLabel}
-                  </a>
-                )}
-                {local.instagramUrl && (
-                  <a href={local.instagramUrl} target="_blank" rel="noopener noreferrer">Instagram {local.instagram}</a>
-                )}
-                {local.email && <a href={`mailto:${local.email}`}>{local.email}</a>}
-              </div>
+                <div>
+                  <h4>Contacto</h4>
+                  {local.whatsapp && (
+                    // Texto y href salen de los MISMOS dígitos (whatsappLabel deriva de
+                    // local.whatsapp): no se pueden volver a separar.
+                    <a href={`https://wa.me/${local.whatsapp}`} target="_blank" rel="noopener noreferrer">
+                      WhatsApp {local.whatsappLabel}
+                    </a>
+                  )}
+                  {local.instagramUrl && (
+                    <a href={local.instagramUrl} target="_blank" rel="noopener noreferrer">Instagram {local.instagram}</a>
+                  )}
+                  {local.email && <a href={`mailto:${local.email}`}>{local.email}</a>}
+                </div>
               )}
             </div>
             <div className="mf-foot-legal">
