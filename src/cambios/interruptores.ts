@@ -75,6 +75,18 @@ export const INTERRUPTORES = [
     enAuditoria: "el diseño nuevo",
     cambiaLasApps: false,
   },
+  {
+    // La practicidad de la agenda (plan de practicidad RAE, ítems T4 · T10 · T12 · E2 · E3 · E5 ·
+    // E6): defaults en el alta, confirmación con la consecuencia al cancelar y en «no vino», qué
+    // pasa con la seña, «reservar el próximo» al completar, el hueco a la lista de espera y la regla
+    // de cancelación de la clienta a la vista y aplicada. Apagado, la agenda de siempre.
+    id: "agenda-practica",
+    nombre: "Agenda práctica",
+    queCambia:
+      "La agenda pregunta qué pasa con la seña al cancelar o marcar que no vino, propone mañana en el alta, ofrece reservar el próximo y avisa a la lista de espera. La clienta cancela online sólo con la anticipación del negocio. Apagado, la agenda de siempre.",
+    enAuditoria: "la agenda práctica",
+    cambiaLasApps: false,
+  },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
@@ -83,6 +95,9 @@ export const INICIO_POR_APPS: InterruptorId = "inicio-por-apps";
 
 /** La piel «Renglón», por negocio (src/lib/diseno/diseno.server.ts la lee en cada pedido). */
 export const DISENO_NUEVO: InterruptorId = "diseno-nuevo";
+
+/** La agenda práctica (src/lib/turnos/practica.server.ts la lee en cada pedido). */
+export const AGENDA_PRACTICA: InterruptorId = "agenda-practica";
 
 export function esInterruptorId(id: unknown): id is InterruptorId {
   return typeof id === "string" && INTERRUPTORES.some((i) => i.id === id);

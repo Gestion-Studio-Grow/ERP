@@ -110,12 +110,18 @@ function elegirDia(fecha) {
 }
 
 // ───────────── grilla ─────────────
+// «Techada» sólo dice algo si el club tiene techadas y descubiertas (Break Point: las 4 techadas). Sin la lista, se muestra.
+function techoMixto() {
+  const cs = S.config?.canchas;
+  return !Array.isArray(cs) || (cs.some((c) => c.techada) && cs.some((c) => !c.techada));
+}
+const conTecho = (x) => Boolean(x?.techada) && techoMixto();
 const clave = () => `${S.fecha}|${S.duracion}|${S.techadas ? 1 : 0}`;
 const FRANJAS = [["manana", "Mañana", 0, 720], ["tarde", "Tarde", 720, 1080], ["noche", "Noche", 1080, 2000]];
 
 function htmlSlot(s) {
   // Mismo criterio (WCAG 2.5.3): el nombre es el texto visible; el fin del turno y las pausas van ocultos para la vista.
-  return `<button type="button" class="slot" data-inicio="${s.inicio}" data-cancha="${esc(s.canchaId)}" data-pico="${s.pico ? 1 : 0}"><span class="slot-hora">${hhmm(s.inicio)}</span><span class="sr"> a ${hhmm(s.fin)}, </span><span class="slot-cancha">${esc(s.cancha)}</span><span class="slot-tags">${s.techada ? '<span class="sr">, </span><span class="tag tag-techada">Techada</span>' : ""}${s.pico ? '<span class="sr">, </span><span class="tag tag-pico">Pico</span>' : ""}</span><span class="sr">, </span>${SIN_PRECIOS ? "" : `<span class="slot-precio">${s.desde ? "desde " : ""}${pesos(s.precio)}</span>`}</button>`;
+  return `<button type="button" class="slot" data-inicio="${s.inicio}" data-cancha="${esc(s.canchaId)}" data-pico="${s.pico ? 1 : 0}"><span class="slot-hora">${hhmm(s.inicio)}</span><span class="sr"> a ${hhmm(s.fin)}, </span><span class="slot-cancha">${esc(s.cancha)}</span><span class="slot-tags">${conTecho(s) ? '<span class="sr">, </span><span class="tag tag-techada">Techada</span>' : ""}${s.pico ? '<span class="sr">, </span><span class="tag tag-pico">Pico</span>' : ""}</span><span class="sr">, </span>${SIN_PRECIOS ? "" : `<span class="slot-precio">${s.desde ? "desde " : ""}${pesos(s.precio)}</span>`}</button>`;
 }
 
 /** El turno con foco de teclado (si hay): al repintar se le devuelve el foco a él o al vecino más cercano (D23). */
@@ -174,7 +180,7 @@ async function cargarSlots({ animar = false, forzar = false } = {}) {
   if (k !== clave()) return; // el usuario ya cambió de día
   if (!r.ok) { if (!enCache) $("#grilla").innerHTML = `<p class="vacio" role="alert">${esc(r.motivo)}</p>`; return; }
   S.cache.set(k, r.slots);
-  if (r.lluvia || r.mantenimiento?.length) $("#subtitulo").textContent = r.lluvia ? "Hoy llueve: las techadas siguen jugando ☔" : `En mantenimiento: ${r.mantenimiento.join(", ")}.`;
+  if (r.lluvia || r.mantenimiento?.length) $("#subtitulo").textContent = r.lluvia ? (techoMixto() ? "Hoy llueve: las techadas siguen jugando ☔" : "Hoy llueve: todas las canchas son techadas, se juega igual ☔") : `En mantenimiento: ${r.mantenimiento.join(", ")}.`;
   pintarGrilla(r.slots, { animar: animar || Boolean(enCache) });
 }
 
@@ -197,7 +203,7 @@ function abrirReserva(slot) {
   // D25: la política se dice ANTES de reservar, y bien: si ya estamos dentro del plazo, no se promete lo que no hay.
   const h = S.config.politica.horasCancelacionLibre;
   const tarde = Date.now() > inicioEpoch(S.fecha, slot.inicio) - h * 3600000;
-  $("#res-resumen").innerHTML = `<strong>${esc(slot.cancha)}</strong>${slot.techada ? " · techada" : ""}<br>${fechaLarga(S.fecha)} · ${hhmm(slot.inicio)} a ${hhmm(slot.fin)}<br><small>${tarde ? `Arranca en menos de ${h} h: si lo cancelás, la seña queda retenida (vuelve como crédito sólo si alguien toma el turno).` : `Cancelás sin costo hasta ${h} h antes.`}</small>`;
+  $("#res-resumen").innerHTML = `<strong>${esc(slot.cancha)}</strong>${conTecho(slot) ? " · techada" : ""}<br>${fechaLarga(S.fecha)} · ${hhmm(slot.inicio)} a ${hhmm(slot.fin)}<br><small>${tarde ? `Arranca en menos de ${h} h: si lo cancelás, la seña queda retenida (vuelve como crédito sólo si alguien toma el turno).` : `Cancelás sin costo hasta ${h} h antes.`}</small>`;
   $("#res-precio").textContent = pesos(slot.precio);
   const pct = S.config.politica.senaPct;
   const monto = pesos(Math.round((slot.precio * pct) / 10000) * 100);
@@ -312,7 +318,7 @@ function pintarReservas() {
     const activa = r.estado === "pendiente" || r.estado === "firme";
     return `<li class="reserva" tabindex="-1" data-id="${esc(r.id)}" data-estado="${esc(r.estado)}">
       <span class="reserva-cuando">${fechaLarga(r.fecha)} · ${hhmm(r.inicio)}–${hhmm(r.fin)}</span>
-      <span class="reserva-cancha">${esc(r.cancha)}${r.techada ? " · techada" : ""} · ${pesos(r.precio)}</span>
+      <span class="reserva-cancha">${esc(r.cancha)}${conTecho(r) ? " · techada" : ""} · ${pesos(r.precio)}</span>
       <span class="badge">${ETIQUETA[r.estado] ?? r.estado}</span>
       ${r.estado === "cancelada" && r.motivoCancelacion ? `<small>${esc(r.motivoCancelacion)}</small>` : ""}
       ${r.estado === "pendiente" ? `<button type="button" class="btn-pagar">Pagar seña</button>` : ""}
@@ -563,7 +569,7 @@ function porHorario(slots) {
 function abrirPedido(slot) {
   S.elegido = slot;
   const ops = slot.opciones ?? [slot];
-  $("#ped-cancha").innerHTML = (ops.length > 1 ? `<option value="">Cualquier cancha</option>` : "") + ops.map((o) => `<option value="${esc(o.canchaId)}">${esc(o.cancha)}${o.techada ? " · techada" : ""} · ${pesos(o.precio)}</option>`).join("");
+  $("#ped-cancha").innerHTML = (ops.length > 1 ? `<option value="">Cualquier cancha</option>` : "") + ops.map((o) => `<option value="${esc(o.canchaId)}">${esc(o.cancha)}${conTecho(o) ? " · techada" : ""} · ${pesos(o.precio)}</option>`).join("");
   $("#ped-error").textContent = "";
   $("#ped-nombre").removeAttribute("aria-invalid");
   $("#ped-sin-wa").hidden = Boolean(WA);
@@ -581,8 +587,8 @@ function armarPedido({ validar = false } = {}) {
   const precios = (elegida ? [elegida] : ops).map((x) => x.precio);
   const min = Math.min(...precios), max = Math.max(...precios);
   const precio = SIN_PRECIOS ? "te lo confirma el club" : min === max ? pesos(min) : `${pesos(min)} a ${pesos(max)}`;
-  const cancha = elegida ? `la ${elegida.cancha}${elegida.techada ? " (techada)" : ""}` : "cualquier cancha";
-  $("#ped-resumen").innerHTML = `<strong>${elegida ? esc(elegida.cancha) : "Cualquier cancha"}</strong>${elegida?.techada ? " · techada" : ""}<br>${fechaLarga(S.fecha)} · ${hhmm(s.inicio)} a ${hhmm(s.fin)} (${durTexto(S.duracion)})`;
+  const cancha = elegida ? `la ${elegida.cancha}${conTecho(elegida) ? " (techada)" : ""}` : "cualquier cancha";
+  $("#ped-resumen").innerHTML = `<strong>${elegida ? esc(elegida.cancha) : "Cualquier cancha"}</strong>${conTecho(elegida) ? " · techada" : ""}<br>${fechaLarga(S.fecha)} · ${hhmm(s.inicio)} a ${hhmm(s.fin)} (${durTexto(S.duracion)})`;
   $("#ped-precio").textContent = precio;
   const nombre = $("#ped-nombre").value.trim();
   $("#ped-wa").href = linkWa(`Hola Break Point, quiero el turno del ${fechaLarga(S.fecha)} a las ${hhmm(s.inicio)} (${durTexto(S.duracion)}) en ${cancha}.${SIN_PRECIOS ? "" : ` Precio de referencia: ${precio}.`}${nombre ? ` Soy ${nombre}.` : ""}`);
@@ -655,6 +661,8 @@ async function iniciar() {
     return;
   }
   S.config = cfg;
+  // Sin descubiertas, «Sólo techadas» no filtra nada: no se muestra (la lógica queda para otro club).
+  $("#techadas").closest("label").hidden = !techoMixto();
   S.usuario = yo.usuario ?? null;
   S.fecha = qs.get("fecha") && cfg.dias.some((d) => d.fecha === qs.get("fecha")) ? qs.get("fecha") : cfg.dias[0].fecha;
   S.duracion = Number($('#duracion input:checked')?.value ?? 90);

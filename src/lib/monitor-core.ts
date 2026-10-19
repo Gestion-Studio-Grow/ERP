@@ -320,7 +320,7 @@ export function evaluarCliente(
         severidad: "critico",
         titulo: "Sin certificado",
         detalle: "No hay certificado de ARCA cargado para este cliente.",
-        accion: "Pedíselo a Gestión Studio Grow: el certificado del emisor lo cargan ellos.",
+        accion: "Pedíselo a Gestión Studio Grow desde la ficha del cliente («Pedir a Soporte GSG»): el certificado del emisor lo cargan ellos.",
         resuelve: gsg,
       });
     } else if (h.certVenceAt !== null) {

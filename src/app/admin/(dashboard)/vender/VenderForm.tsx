@@ -27,6 +27,15 @@
 //
 // Todas las reglas de plata (descuento, tope, vuelto, precio a mano) son las de
 // reglas-venta.ts, las MISMAS que aplica el servidor: la pantalla avisa y el servidor decide.
+//
+// EL LECTOR (sólo con el módulo `terminal`, que decide el servidor y llega en `terminal`): una
+// ráfaga de teclas que termina como termina el lector de ESTE equipo (Enter, Tab o nada; perfil
+// en «Este equipo»), FUERA de un campo, es un código de barras: se busca en el catálogo que ya
+// está en la pantalla (`codigo` del producto) y se suma la línea, como si se la hubiera elegido
+// en el buscador. El tipeo de una persona nunca dispara (es mucho más lento que un lector, ver
+// src/lib/terminal/lector-core.ts) y dentro de un campo el teclado es de la persona. Si el código
+// no está, se dice y suena el error; el cobro no se toca. Precio y stock los decide el servidor
+// al cobrar, como siempre. Sin el módulo, nada de esto existe.
 // Sin imports de valor de Prisma: esto es un client component.
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -37,6 +46,7 @@ import { Atajos } from "@/components/ui/Renglon";
 import { Kbd } from "@/components/ui/Kbd";
 import { Plata } from "@/components/ui/Plata";
 import { Icono, iconoDelMedio } from "@/components/ui/Icono";
+import { TecladoNumerico } from "@/components/ui/Teclado";
 import { useDiseno } from "@/lib/diseno/DisenoProvider";
 import { faltanteDeLinea, type PosStockInfo } from "@/lib/stock/pos-stock-rules";
 import { MEDIOS_DE_COBRO, leerMedioDeCobro, type MedioDeCobro } from "@/lib/caja/medio-cobro";
@@ -44,7 +54,9 @@ import type { VentaYaGrabada } from "@/lib/reintento-de-venta";
 import {
   leerCantidad,
   cantidadParaFormulario,
-  avisoDeCantidad,
+  confirmacionDePeso,
+  pesoPorConfirmar,
+  motivoDePesoSinConfirmar,
   formatearCantidad,
   importeOCero,
   importeParaFormulario,
@@ -53,6 +65,12 @@ import {
 import { textoDelFaltante, type Faltante } from "@/lib/reintento-de-venta";
 import { round2 } from "@/lib/round";
 import TicketVenta from "./TicketVenta";
+import CampoEtiqueta, { ID_CAMPO_ETIQUETA, type BalanzaDeVender } from "./CampoEtiqueta";
+import { usePerfilSiHayTerminal, type TerminalDelEquipo } from "@/lib/terminal/usar-perfil";
+import { enCampoDeTexto, enCampoEditable, esCampoDeCantidad, motivoParaNoSumar } from "@/lib/terminal/lector-core";
+import { useLectorDeRafaga, type OrigenDeLaLectura } from "@/lib/terminal/usar-lector";
+import { avisar } from "@/lib/terminal/senal";
+import { indexarPorCodigo, resolverCodigo } from "@/lib/supermercado/lectura";
 import FacturarVenta from "../ventas/FacturarVenta";
 import { SIN_FACTURA } from "../ventas/factura";
 import { useCuponDePedido } from "@/app/tienda/pedido-online";
@@ -106,10 +124,68 @@ type SellableProduct = {
   price: number | null;
   pricePerKg: number | null;
   unit: string;
+  /** Código de barras o PLU de la balanza; sólo viaja con el módulo `terminal` o la balanza configurada. */
+  codigo?: string | null;
 };
 
 /** Una línea del ticket: el producto y lo TIPEADO (texto, no número: ver PosForm). */
 type Line = { key: number; productId: string; qtyText: string };
+
+/** La preferencia del teclado grande en este navegador (sólo comodidad: si falta, cerrado). */
+const PREF_TECLADO = "vender:teclado-grande";
+function prefiereTeclado(): boolean {
+  try {
+    return window.localStorage.getItem(PREF_TECLADO) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * La pregunta del peso implausible, con sus dos respuestas (UAT MAGRA 16/10). Mientras está
+ * `pendiente`, el cobro está frenado; respondida, queda la constancia de lo confirmado.
+ */
+function ConfirmarPeso({
+  confirmacion,
+  pendiente,
+  alConfirmar,
+  alCorregir,
+  className,
+  "data-parte": parte,
+}: {
+  confirmacion: { pregunta: string; confirmar: string; corregir: string };
+  pendiente: boolean;
+  alConfirmar: () => void;
+  alCorregir: () => void;
+  className?: string;
+  "data-parte"?: string;
+}) {
+  if (!pendiente) {
+    return (
+      <p data-parte={parte} data-vender="peso-confirmado" className={cn("text-xs text-muted", className)}>
+        {confirmacion.confirmar}: confirmado.
+      </p>
+    );
+  }
+  return (
+    <div
+      role="alert"
+      data-parte={parte}
+      data-vender="confirmar-peso"
+      className={cn("grid gap-2 rounded-md border border-warning bg-warning-soft p-2 text-sm text-strong", className)}
+    >
+      <p className="font-semibold">{confirmacion.pregunta}</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className={buttonClasses("solid", "md")} onClick={alCorregir}>
+          {confirmacion.corregir}
+        </button>
+        <button type="button" className={buttonClasses("outline", "md")} onClick={alConfirmar}>
+          {confirmacion.confirmar}
+        </button>
+      </div>
+    </div>
+  );
+}
 /** Una línea con precio a mano: nombre, importe tipeado y motivo. */
 type LineaManual = { key: number; nombre: string; importeText: string; motivo: string };
 
@@ -198,6 +274,13 @@ type PropsDeVender = {
   vendedor?: string;
   /** Diseño nuevo: cómo llama el rubro a lo que vende («corte» en una carnicería), para el buscador. */
   sustantivo?: string;
+  /**
+   * El campo «Etiqueta de la balanza o código» y el formato de la balanza del negocio. Sólo lo
+   * manda la página en un negocio de mostrador; sin esto (CH), la pantalla de siempre.
+   */
+  balanza?: BalanzaDeVender | null;
+  /** El equipo y la persona, si el negocio tiene el módulo `terminal` (lo decide el servidor). */
+  terminal?: TerminalDelEquipo | null;
 };
 
 const sinSuscripcion = () => () => {};
@@ -236,8 +319,12 @@ function FormularioVender({
   usuarioId = "",
   vendedor,
   sustantivo = "producto",
+  balanza = null,
+  terminal = null,
   enNavegador,
 }: PropsDeVender & { enNavegador: boolean }) {
+  // El perfil de este equipo, o `null` sin el módulo `terminal`: entonces todo es como siempre.
+  const perfil = usePerfilSiHayTerminal(terminal);
   // Diseño nuevo («Renglón»): la MISMA venta (estado, reglas, envío) dibujada como el ticket que
   // crece (vistaTicket, abajo). Apagado, la pantalla de siempre.
   const nuevo = useDiseno();
@@ -272,7 +359,24 @@ function FormularioVender({
   const [lines, setLines] = useState<Line[]>(inicial.lines);
   const [manuales, setManuales] = useState<LineaManual[]>(inicial.manuales);
   const [nextKey, setNextKey] = useState(inicial.nextKey);
+  // El peso implausible que la persona confirmó, por línea («Sí, son 1.500 kg»): si cambia el
+  // peso, la pregunta vuelve (pesoPorConfirmar, pos-peso.ts).
+  const [pesosConfirmados, setPesosConfirmados] = useState<Record<number, number>>({});
+  // El teclado grande (guantes, etiqueta de la balanza en la mano): en qué línea está abierto.
+  // Quien lo abre una vez lo encuentra abierto en el próximo corte por kilo (preferencia de este
+  // navegador; si el almacenamiento no anda, arranca cerrado y nada más).
+  const [tecladoDe, setTecladoDe] = useState<number | null>(null);
+  function usarTeclado(key: number | null) {
+    setTecladoDe(key);
+    try {
+      window.localStorage.setItem(PREF_TECLADO, key !== null ? "1" : "0");
+    } catch {
+      // sin almacenamiento: vale para esta pantalla
+    }
+  }
   const ticketKey = useRef(arranque?.clave ?? "");
+  // El cobro está en vuelo (se mandó y no volvió): el lector no suma nada hasta que termine.
+  const cobrandoAhora = useRef(false);
 
   // Opcionales, cerrados hasta que alguien los abre (ninguno suma un paso al camino feliz).
   const [conCliente, setConCliente] = useState(k?.conCliente ?? false);
@@ -392,15 +496,129 @@ function FormularioVender({
   function elegirRapido(productId: string) {
     const qtyText = nuevo && byId.get(productId)?.saleUnit === "UNIT" ? "1" : "";
     const vacia = lines.find((l) => !l.productId);
-    if (vacia) {
-      setLine(vacia.key, { productId, qtyText });
-      pedirFoco(`qty-${vacia.key}`);
-    } else {
-      const key = addLine(productId);
-      if (qtyText) setLine(key, { qtyText });
-      pedirFoco(`qty-${key}`);
-    }
+    const key = vacia ? vacia.key : addLine(productId);
+    if (vacia) setLine(key, { productId, qtyText });
+    else if (qtyText) setLine(key, { qtyText });
+    if (prefiereTeclado() && byId.get(productId)?.saleUnit === "WEIGHT") setTecladoDe(key);
+    pedirFoco(`qty-${key}`);
   }
+
+  // El campo de la etiqueta: el renglón entra como con una tecla rápida, pero con el peso (o la
+  // cantidad) ya puesto. Completo, el foco vuelve al campo para la próxima etiqueta; si falta el
+  // peso (se tipeó el PLU de un corte por kilo), va a ese peso.
+  function cargarLectura(productId: string, qtyText: string) {
+    const vacia = lines.find((l) => !l.productId);
+    const key = vacia ? vacia.key : addLine(productId);
+    setLine(key, { productId, qtyText });
+    pedirFoco(qtyText ? ID_CAMPO_ETIQUETA : `qty-${key}`);
+  }
+  const productosConCodigo = useMemo(
+    () => products.map((p) => ({ id: p.id, name: p.name, codigo: p.codigo ?? null, saleUnit: p.saleUnit, price: p.price, pricePerKg: p.pricePerKg })),
+    [products],
+  );
+  const campoEtiqueta = balanza ? <CampoEtiqueta productos={productosConCodigo} balanza={balanza} alLeer={cargarLectura} /> : null;
+  // EL LECTOR (módulo `terminal`): el catálogo de la pantalla indexado por código, y lo que dijo
+  // la última lectura. Sin el perfil no hay índice ni aviso.
+  const conLector = perfil !== null;
+  const indiceDeCodigos = useMemo(
+    () =>
+      conLector
+        ? indexarPorCodigo(
+            products.map((p) => ({
+              id: p.id,
+              name: p.name,
+              codigo: p.codigo ?? null,
+              saleUnit: p.saleUnit,
+              price: p.price,
+              pricePerKg: p.pricePerKg,
+              seccion: "",
+              presentacion: null,
+            })),
+          )
+        : null,
+    [products, conLector],
+  );
+  const [avisoLector, setAvisoLector] = useState<{ tono: "ok" | "error"; texto: string } | null>(null);
+  // Con el lector, el foco NO se lleva a un buscador después de cobrar o de cargar un peso: en un
+  // campo de texto el teclado es de la persona, y la lectura siguiente se escribía como texto en el
+  // buscador (la línea no entraba; docs/producto/PERFORMANCE-TERMINALES.md). Se suelta el campo y el
+  // foco queda en la página, donde el lector lee. Para buscar por nombre, se toca el buscador.
+  function soltarFocoParaElLector() {
+    const el = document.activeElement;
+    if (el instanceof HTMLElement && enCampoDeTexto(el)) el.blur();
+  }
+  function errorDelLector(texto: string) {
+    setAvisoLector({ tono: "error", texto });
+    avisar("error", perfil);
+  }
+
+  // Un código leído: se suma la línea como desde el buscador. Por unidad entra 1 (o suma 1 a la
+  // línea que ya tiene ese producto) y el foco NO se mueve, así el próximo código también se lee;
+  // por peso, el cursor va al peso (lo da la balanza, como con el buscador). Si el lector escribió
+  // adentro del peso o la cantidad de una línea (el foco había quedado ahí), ese campo vuelve a lo
+  // que tenía: eran los números del código, no un peso. Con el cobro en vuelo o en duda no se toca
+  // el ticket (`motivoParaNoSumar`): lo sumado se borraría al limpiar y se entregaría sin cobrar.
+  function agregarLeido(codigo: string, origen: OrigenDeLaLectura) {
+    if (!indiceDeCodigos) return;
+    let base = lines;
+    const campo = origen.objetivo;
+    if (campo instanceof HTMLInputElement && esCampoDeCantidad(campo) && /^qty-\d+$/.test(campo.id)) {
+      const key = Number(campo.id.slice(4));
+      const qtyText = origen.antes ?? "";
+      setLine(key, { qtyText });
+      base = lines.map((l) => (l.key === key ? { ...l, qtyText } : l));
+    }
+    const motivo = motivoParaNoSumar({ cobrando: cobrandoAhora.current, cobroEnDuda: sinRespuesta !== null || yaGrabada !== null });
+    if (motivo) {
+      errorDelLector(motivo);
+      return;
+    }
+    const r = resolverCodigo(codigo, indiceDeCodigos, null, null);
+    if (!r.ok) {
+      errorDelLector(r.mensaje);
+      return;
+    }
+    const p = r.producto;
+    if (p.saleUnit === "WEIGHT") {
+      elegirRapido(p.id);
+      setAvisoLector({ tono: "ok", texto: `Entró ${p.name}: cargá el peso.` });
+    } else {
+      const misma = base.find((l) => l.productId === p.id);
+      const actual = misma ? leerCantidad(misma.qtyText) : null;
+      if (misma && (actual?.estado === "vacio" || (actual?.estado === "ok" && Number.isInteger(actual.valor)))) {
+        setLine(misma.key, { qtyText: String((actual?.estado === "ok" ? actual.valor : 0) + 1) });
+      } else {
+        const vacia = base.find((l) => !l.productId);
+        if (vacia) setLine(vacia.key, { productId: p.id, qtyText: "1" });
+        else setLine(addLine(p.id), { qtyText: "1" });
+      }
+      setAvisoLector({ tono: "ok", texto: `Entró ${p.name}.` });
+    }
+    avisar("ok", perfil);
+  }
+
+  useLectorDeRafaga({
+    lector: perfil?.lector ?? null,
+    // Fuera de un campo de texto (una casilla o un medio de pago tocado no cuentan) o en el peso o
+    // la cantidad de una línea, y sin un diálogo abierto. En el buscador, el teclado es de la persona.
+    acepta: (e) => {
+      const t = e.target as HTMLElement | null;
+      return (!enCampoDeTexto(t) || esCampoDeCantidad(t)) && !document.querySelector("dialog[open]");
+    },
+    alLeer: agregarLeido,
+  });
+
+  // Lo que dijo la última lectura, al lado del buscador. Sólo con el lector (módulo `terminal`).
+  const bloqueLector = conLector ? (
+    <p
+      role={avisoLector?.tono === "error" ? "alert" : "status"}
+      aria-live="polite"
+      data-vender="lector"
+      className={cn("min-h-5 text-sm", avisoLector?.tono === "error" ? "font-medium text-danger" : "text-muted")}
+    >
+      {avisoLector?.texto ?? ""}
+    </p>
+  ) : null;
 
   const leidas = useMemo(
     () =>
@@ -466,6 +684,16 @@ function FormularioVender({
   // «Diseño nuevo»; en la de siempre esa línea no viajaba —no es `enviable`— y el ticket salía
   // sin ella, cobrado de menos). La regla es una sola: `lineaSinCantidad` (reglas-venta.ts).
   const lineaSinCantidad = primeraLineaSinCantidad(leidas);
+  // Un peso implausible («1500» por 1,500) frena el cobro hasta que se confirma o se corrige.
+  const confirmacionDe = (l: { productId: string; qty: number; invalida: boolean }) => {
+    const p = byId.get(l.productId);
+    return p && !l.invalida ? confirmacionDePeso({ valor: l.qty, saleUnit: p.saleUnit }) : null;
+  };
+  const sinConfirmar = (l: { key: number; productId: string; qty: number; invalida: boolean }) => {
+    const p = byId.get(l.productId);
+    return !!p && !l.invalida && pesoPorConfirmar({ valor: l.qty, saleUnit: p.saleUnit, confirmado: pesosConfirmados[l.key] });
+  };
+  const lineaConPesoSinConfirmar = leidas.find(sinConfirmar);
   // Una línea a mano abierta y a medio llenar frena el cobro: si se dejara pasar, se cobraría
   // de menos sin que nadie se entere. Vacía del todo, se ignora.
   const hayManualInvalida = manualesLeidas.some((m) => m.error !== null);
@@ -540,6 +768,8 @@ function FormularioVender({
         : "Revisá la venta cortada"
       : lineaSinCantidad
       ? motivoDeLineaSinCantidad(byId.get(lineaSinCantidad.productId))
+      : lineaConPesoSinConfirmar
+      ? motivoDePesoSinConfirmar(byId.get(lineaConPesoSinConfirmar.productId))
       : !descuento.ok
       ? "Revisá el descuento"
       : cuponSinAplicar
@@ -551,8 +781,10 @@ function FormularioVender({
             : null;
 
   function limpiar() {
-    // El foco vuelve al buscador: el próximo cliente se atiende sin tocar el mouse.
-    pedirFoco(`prod-${nextKey}`);
+    // El foco vuelve al buscador: el próximo cliente se atiende sin tocar el mouse. Con el lector,
+    // el próximo cliente se atiende con el lector: el foco queda en la página (ver `soltarFoco…`).
+    if (conLector) soltarFocoParaElLector();
+    else pedirFoco(`prod-${nextKey}`);
     setLines([{ key: nextKey, productId: "", qtyText: "" }]);
     setManuales([]);
     setNextKey((k) => k + 1);
@@ -644,7 +876,18 @@ function FormularioVender({
     }
   }
 
+  // El cobro en vuelo se marca de punta a punta (también si falla o tira): mientras tanto, lo que
+  // pase el lector se rechaza en vez de sumarse a un ticket que `limpiar()` va a borrar.
   async function submit(fd: FormData) {
+    cobrandoAhora.current = true;
+    try {
+      await enviarCobro(fd);
+    } finally {
+      cobrandoAhora.current = false;
+    }
+  }
+
+  async function enviarCobro(fd: FormData) {
     // Sin señal no se manda: el envío quedaría colgado y el cajero no sabría qué pasó.
     if (antesDeCobrar(navigator.onLine)) {
       setFalla({ tipo: "sin-senal" });
@@ -820,7 +1063,7 @@ function FormularioVender({
             </button>
           </div>
           {puedeFacturar && <FacturarVenta key={ultima.venta.id} orderId={ultima.venta.id} inicial={SIN_FACTURA} />}
-          <TicketVenta venta={ultima.venta} negocio={negocio} pagoCon={ultima.pagoCon} />
+          <TicketVenta venta={ultima.venta} negocio={negocio} pagoCon={ultima.pagoCon} terminal={terminal} imprimirAlCobrar />
         </section>
       )}
     </>
@@ -842,7 +1085,7 @@ function FormularioVender({
               Cerrar
             </button>
           </div>
-          <TicketVenta venta={yaGrabada.ticket} negocio={negocio} />
+          <TicketVenta venta={yaGrabada.ticket} negocio={negocio} terminal={terminal} />
         </section>
       )}
     </>
@@ -1398,6 +1641,7 @@ function FormularioVender({
     (hayFaltante && !reintentoDeLaMisma) ||
     hayCantidadInvalida ||
     lineaSinCantidad !== undefined ||
+    lineaConPesoSinConfirmar !== undefined ||
     hayManualInvalida ||
     faltaMedio ||
     !descuento.ok ||
@@ -1412,8 +1656,7 @@ function FormularioVender({
   useEffect(() => {
     if (!nuevo) return;
     const alPresionar = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      const enCampo = !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+      const enCampo = enCampoEditable(e.target as HTMLElement | null);
       if (document.querySelector("dialog[open]")) return;
       if (e.key === "F2" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
@@ -1490,6 +1733,8 @@ function FormularioVender({
               // encima de los más vendidos (un toque caía sobre otro corte).
               abrirAlEnfocar={false}
             />
+            {campoEtiqueta}
+            {bloqueLector}
             {botonesRapidos.length > 0 && (
               <section data-vender="rapidos" aria-labelledby="vender-rapidos">
                 <div data-parte="cabeza" className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
@@ -1606,7 +1851,7 @@ function FormularioVender({
                 const falta = faltante?.bloquea && !reintentoDeLaMisma ? faltante : null;
                 const faltaEnDuda = faltante?.bloquea && reintentoDeLaMisma ? faltante : null;
                 const avisoStock = faltante && !faltante.bloquea ? faltante.aviso : null;
-                const avisoCant = !l.invalida ? avisoDeCantidad({ valor: l.qty, saleUnit: p.saleUnit }) : null;
+                const confirmar = confirmacionDe(l);
                 return (
                   <li key={l.key} data-vender="linea" data-sin-cantidad={l.qty > 0 ? undefined : ""}>
                     <div data-parte="que">
@@ -1633,7 +1878,10 @@ function FormularioVender({
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
-                            if (l.qty > 0) document.getElementById("vender-buscar")?.focus();
+                            if (l.qty > 0) {
+                              if (conLector) soltarFocoParaElLector();
+                              else document.getElementById("vender-buscar")?.focus();
+                            }
                           }
                         }}
                         aria-invalid={falta || l.invalida ? true : undefined}
@@ -1652,6 +1900,15 @@ function FormularioVender({
                       <Icono nombre="cerrar" />
                       <span data-parte="palabra">Quitar</span>
                     </button>
+                    {confirmar && (
+                      <ConfirmarPeso
+                        data-parte="nota"
+                        confirmacion={confirmar}
+                        pendiente={sinConfirmar(l)}
+                        alConfirmar={() => setPesosConfirmados((c) => ({ ...c, [l.key]: l.qty }))}
+                        alCorregir={() => setLine(l.key, { qtyText: formatearCantidad(confirmar.corregido) })}
+                      />
+                    )}
                     {l.invalida && (
                       <p role="alert" data-parte="nota" className="text-xs text-danger">
                         Eso no es una cantidad. Escribí el {esPeso ? "peso" : "número"}, con coma si
@@ -1674,10 +1931,27 @@ function FormularioVender({
                         {avisoStock}
                       </p>
                     )}
-                    {avisoCant && (
-                      <p data-parte="nota" className="text-xs text-warning">
-                        {avisoCant}
-                      </p>
+                    {esPeso && (
+                      <div data-parte="nota" data-vender="teclado-de-peso" className="grid gap-2">
+                        <button
+                          type="button"
+                          className="chip-btn h-11 justify-self-start text-sm"
+                          aria-expanded={tecladoDe === l.key}
+                          onClick={() => usarTeclado(tecladoDe === l.key ? null : l.key)}
+                        >
+                          {tecladoDe === l.key ? "Cerrar el teclado grande" : "Teclado grande"}
+                        </button>
+                        {tecladoDe === l.key && (
+                          <TecladoNumerico
+                            key={l.key}
+                            modo="peso"
+                            etiqueta={`Peso de ${p.name}`}
+                            ayuda="Los números de la etiqueta de la balanza: la coma la ponemos nosotros."
+                            inicial={l.qty > 0 ? String(Math.round(l.qty * 1000)) : ""}
+                            onCambio={(valor) => setLine(l.key, { qtyText: valor > 0 ? formatearCantidad(valor) : "" })}
+                          />
+                        )}
+                      </div>
                     )}
                     {l.qty > 0 && (
                       <>
@@ -1830,6 +2104,9 @@ function FormularioVender({
           </div>
         )}
 
+        {campoEtiqueta}
+        {bloqueLector}
+
         {/* Líneas con producto */}
         <div className="space-y-2">
           {leidas.map((l) => {
@@ -1869,7 +2146,7 @@ function FormularioVender({
             const falta = faltante?.bloquea && !reintentoDeLaMisma ? faltante : null;
             const faltaEnDuda = faltante?.bloquea && reintentoDeLaMisma ? faltante : null;
             const avisoStock = faltante && !faltante.bloquea ? faltante.aviso : null;
-            const aviso = p && !l.invalida ? avisoDeCantidad({ valor: l.qty, saleUnit: p.saleUnit }) : null;
+            const confirmar = confirmacionDe(l);
             return (
               <div key={l.key} className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_128px_auto]">
                 <BuscadorCombo
@@ -1897,11 +2174,17 @@ function FormularioVender({
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        if (l.qty > 0) pedirFoco(`prod-${addLine()}`);
+                        if (l.qty > 0) {
+                          if (conLector) soltarFocoParaElLector();
+                          else pedirFoco(`prod-${addLine()}`);
+                        }
                       }
                     }}
                     disabled={!p}
                     aria-invalid={falta || l.invalida ? true : undefined}
+                    // Con el lector (módulo `terminal`): marca el campo para que una ráfaga que cae
+                    // acá se lea como código y el campo vuelva a su valor. Sin el módulo, como siempre.
+                    data-tipo={conLector ? (esPeso ? "peso" : "cantidad") : undefined}
                     className="pr-8 text-right tabular-nums"
                   />
                   <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-faint">
@@ -1921,6 +2204,15 @@ function FormularioVender({
                     ×
                   </button>
                 </div>
+                {confirmar && (
+                  <ConfirmarPeso
+                    className="col-span-2 sm:col-span-3"
+                    confirmacion={confirmar}
+                    pendiente={sinConfirmar(l)}
+                    alConfirmar={() => setPesosConfirmados((c) => ({ ...c, [l.key]: l.qty }))}
+                    alCorregir={() => setLine(l.key, { qtyText: formatearCantidad(confirmar.corregido) })}
+                  />
+                )}
                 {l.invalida && (
                   <p role="alert" className="col-span-2 sm:col-span-3 text-xs text-danger">
                     Eso no es una cantidad. Escribí el {esPeso ? "peso" : "número"}, con coma si
@@ -1943,7 +2235,29 @@ function FormularioVender({
                     {avisoStock}
                   </p>
                 )}
-                {aviso && <p className="col-span-2 sm:col-span-3 text-xs text-warning">{aviso}</p>}
+                {esPeso && p && (
+                  <div data-vender="teclado-de-peso" className="col-span-2 sm:col-span-3 grid gap-2">
+                    <button
+                      type="button"
+                      className="chip-btn h-11 justify-self-start text-sm"
+                      aria-expanded={tecladoDe === l.key}
+                      onClick={() => usarTeclado(tecladoDe === l.key ? null : l.key)}
+                    >
+                      {tecladoDe === l.key ? "Cerrar el teclado grande" : "Teclado grande"}
+                    </button>
+                    {tecladoDe === l.key && (
+                      <TecladoNumerico
+                        key={l.key}
+                        modo="peso"
+                        etiqueta={`Peso de ${p.name}`}
+                        ayuda="Los números de la etiqueta de la balanza: la coma la ponemos nosotros."
+                        inicial={l.qty > 0 ? String(Math.round(l.qty * 1000)) : ""}
+                        onCambio={(valor) => setLine(l.key, { qtyText: valor > 0 ? formatearCantidad(valor) : "" })}
+                        className="max-w-sm"
+                      />
+                    )}
+                  </div>
+                )}
                 {p && l.qty > 0 && (
                   <>
                     <input type="hidden" name="productId" value={l.productId} />

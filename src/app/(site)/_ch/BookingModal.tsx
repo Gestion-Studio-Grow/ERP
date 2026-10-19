@@ -232,11 +232,17 @@ export default function BookingModal({
         isResident,
         couponCode: couponApplied?.code,
       });
+      if (!res.ok) {
+        // El motivo viene escrito para la clienta (horario ocupado, ya pasado…).
+        setError(res.error);
+        return;
+      }
       setCode(res.id.slice(-6).toUpperCase());
       setConfirmedStartsAt(res.startsAt);
       setStep(5);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo confirmar el turno.");
+    } catch {
+      // Sin red o el servidor no contestó: el mensaje del navegador no le sirve a nadie.
+      setError("No pudimos confirmar tu turno: revisá la conexión y probá de nuevo.");
     } finally {
       setSubmitting(false);
     }
@@ -621,7 +627,7 @@ export default function BookingModal({
                 </div>
               )}
 
-              {error && <p style={{ marginTop: 14, fontSize: 13, color: "var(--danger)" }}>{error}</p>}
+              {error && <p role="alert" style={{ marginTop: 14, fontSize: 13, color: "var(--danger)" }}>{error}</p>}
             </>
           )}
 

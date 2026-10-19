@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
+import { terminalDelEquipo } from "@/lib/terminal/terminal.server";
 import { isInvoicingEnabled } from "@/lib/fiscal";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
@@ -32,6 +33,8 @@ import { estadoDeFactura, SIN_FACTURA, type FacturaDeVenta } from "./factura";
 import { puedeAbrirApp } from "../vender/puede-abrir";
 import { ventaDeOrden } from "../vender/reglas-venta";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
+import { reglaALaVista } from "@/lib/caja/reglas-a-la-vista";
 import { LineaDeEstado, Marca, Plata, Renglon, atributosBoton, chipLinkAtributos, hrefConParametros } from "@/components/ui";
 import { PasoDePeriodo } from "@/components/ui/PasoDePeriodo";
 import { diaAnterior, diaLargo, diaMes } from "../caja/_renglon/fechas";
@@ -87,7 +90,9 @@ export default async function VentasPage({
   const filtros = leerFiltros(await searchParams, { hoy, otrosDias: verPlata });
   // «Facturar» en cada fila: con la MISMA regla que exige su action (app Facturación: módulo arca
   // y billing:manage). Sin ella, la fila no muestra nada de facturas: como hasta hoy.
-  const [puedeFacturar, nuevo] = await Promise.all([puedeAbrirApp("facturacion"), disenoNuevo()]);
+  // El ticket sale en el ancho de ESTE equipo sólo si el negocio tiene el módulo `terminal`
+  // (terminal.server.ts); sin el módulo, `null` = 58 mm, como siempre.
+  const [puedeFacturar, nuevo, terminal] = await Promise.all([puedeAbrirApp("facturacion"), disenoNuevo(), terminalDelEquipo(user)]);
   const esHoy = filtros.dia === hoy;
 
   // Hoy: desde las 00:00 sin tope (el mismo corte que el número del Inicio). Otro día: ese día.
@@ -218,6 +223,8 @@ export default async function VentasPage({
   // venta entera en un cajón. Apagado, lo de abajo tal cual.
   if (nuevo) {
     const RUTA = "/admin/ventas";
+    // La regla que más sorprende de esta pantalla, sólo en un mostrador (reglas-a-la-vista.ts).
+    const regla = reglaALaVista("ventas", (await getCurrentTenantRubro()).isRetail);
     const filas: FilaDeVenta[] = lista.map((o) => {
       const venta = ventaConPromos(o);
       return {
@@ -251,6 +258,7 @@ export default async function VentasPage({
                     {anulacionesLeidas.length === 1 ? "1 anulación" : `${anulacionesLeidas.length} anulaciones`} {porQuien(anulacionesLeidas.map((a) => a.quien))}
                   </Marca>
                 ) : null,
+                regla,
               ]}
             />
           </div>
@@ -316,6 +324,7 @@ export default async function VentasPage({
         <TablaDeVentas
           filas={filas}
           negocio={negocio}
+          terminal={terminal}
           vacio={
             <span className="flex flex-wrap items-center gap-3">
               {vacio.titulo}. {vacio.descripcion}
@@ -458,6 +467,7 @@ export default async function VentasPage({
                   hora={fmtTime(o.createdAt)}
                   canal={o.channel}
                   negocio={negocio}
+                  terminal={terminal}
                   anular={venta.anulada ? null : anulaEsteDia}
                   notas={notasDe(o)}
                   factura={puedeFacturar && !venta.anulada ? (facturaDe.get(o.id) ?? SIN_FACTURA) : null}

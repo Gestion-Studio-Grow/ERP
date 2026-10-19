@@ -58,8 +58,9 @@ function currentLabel(pathname: string, items: NavItem[]) {
 }
 
 // Logo del tenant: monograma sobre el acento (contraste AA garantizado por el
-// par accent/on-accent del preset) + nombre. Reemplazable por un asset SVG real.
-function Brand({ monogram, name }: { monogram: string; name: string }) {
+// par accent/on-accent del preset) + nombre. Con la estética de su front, el logo del cliente (LogoDelNegocio).
+function Brand({ monogram, name, logo }: { monogram: string; name: string; logo?: React.ReactNode }) {
+  if (logo) return <div className="flex min-w-0 items-center">{logo}</div>;
   return (
     <div className="flex items-center gap-2.5">
       <span className="grid place-items-center w-8 h-8 rounded-lg bg-accent text-on-accent text-[13px] font-bold shadow-xs">{monogram}</span>
@@ -447,6 +448,7 @@ function ArmazonDeSiempre({
   userName,
   brandName,
   monogram,
+  logo,
   menu,
   apps = [],
   modoApps = false,
@@ -460,6 +462,8 @@ function ArmazonDeSiempre({
   userName: string;
   brandName: string;
   monogram: string;
+  // El logo del cliente (estética de su front); sin él, el monograma de siempre.
+  logo?: React.ReactNode;
   // La barra, YA decidida en el layout (server) desde el registro de apps: sólo lo que esta
   // persona puede abrir en este negocio, con el rótulo, ícono, grupo y orden de hoy.
   menu: ItemMenuDeHoy[];
@@ -545,7 +549,7 @@ function ArmazonDeSiempre({
           barra misma y en una página larga, abajo de su alto, se veía el gris de la página. */}
       <div className="hidden lg:block w-[236px] shrink-0 border-r border-line bg-surface-raised">
         <nav aria-label="Menú" className="flex flex-col px-3 py-5 h-screen sticky top-0">
-          <div className="shrink-0 px-2 mb-6"><Brand monogram={monogram} name={brandName} /></div>
+          <div className="shrink-0 px-2 mb-6"><Brand monogram={monogram} name={brandName} logo={logo} /></div>
           {/* Fuera del piloto, el Ctrl/⌘K de siempre: enfoca el buscador de la barra. En el
               piloto lo atiende la paleta de apps (efecto de arriba). */}
           <NavBuscable
@@ -568,7 +572,7 @@ function ArmazonDeSiempre({
           />
           <nav aria-label="Menú" className="relative w-64 max-w-[80%] bg-surface-raised h-full max-h-[100dvh] px-3 py-5 flex flex-col shadow-overlay">
             <div className="shrink-0 px-2 mb-6 flex items-center justify-between">
-              <Brand monogram={monogram} name={brandName} />
+              <Brand monogram={monogram} name={brandName} logo={logo} />
               <button
                 onClick={() => setDrawerOpen(false)}
                 aria-label="Cerrar menú"

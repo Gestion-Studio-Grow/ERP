@@ -9,6 +9,7 @@ import { ButtonLink, PageContainer, PageHeader } from "@/components/ui";
 import { gondolasEnTx, productosDeCaja } from "@/lib/supermercado/caja-lectura";
 import { leerConfigCaja, leerPromociones } from "@/lib/supermercado/config-repo";
 import { diaDeLaSemana, vigenteEn } from "@/lib/supermercado/promociones";
+import { terminalDelEquipo } from "@/lib/terminal/terminal.server";
 import CajaRapida from "./CajaRapida";
 
 export const dynamic = "force-dynamic";
@@ -24,12 +25,15 @@ export default async function CajaRapidaPage() {
   const user = await requireApp("caja-rapida");
   const tenantId = await getCurrentTenantId();
   const hoy = todayInBusinessTz();
-  const [productos, promos, config, turno, tenant] = await Promise.all([
+  const [productos, promos, config, turno, tenant, terminal] = await Promise.all([
     tenantTransaction(async (tx) => productosDeCaja(tx, tenantId, await gondolasEnTx(tx, tenantId)), { tenantId }),
     leerPromociones(prisma, tenantId),
     leerConfigCaja(prisma, tenantId),
     prisma.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { openedAt: true } }),
     prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+    // El perfil de este equipo vale sólo si el negocio tiene el módulo `terminal` (lo decide acá
+    // el servidor, con la misma regla que «Este equipo»); sin el módulo, `null` = como siempre.
+    terminalDelEquipo(user),
   ]);
   const diaSemana = diaDeLaSemana(hoy);
   // A la pantalla van sólo las promos que pueden valer hoy (el día y la fecha); el medio de pago
@@ -87,6 +91,7 @@ export default async function CajaRapidaPage() {
           negocio={tenant?.name ?? "Mi negocio"}
           cajero={user.name}
           anulaSolo={anulaSolo}
+          terminal={terminal}
         />
       )}
     </PageContainer>

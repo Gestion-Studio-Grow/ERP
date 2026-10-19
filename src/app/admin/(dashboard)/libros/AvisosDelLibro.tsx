@@ -35,7 +35,7 @@ export default function AvisosDelLibro({
       {dePrueba.length > 0 && (
         <section aria-labelledby="libro-facturas-de-prueba" className="rounded-lg border border-line px-4 py-3">
           <h2 id="libro-facturas-de-prueba" className="text-base font-semibold text-strong">
-            Facturas de prueba ({dePrueba.length})
+            Comprobantes sin validez fiscal ({dePrueba.length})
           </h2>
           <p className="mb-2 text-sm text-muted">{EXPLICACION_FACTURAS_DE_PRUEBA}. No están en los totales de abajo.</p>
           <ul className="divide-y divide-line text-sm">

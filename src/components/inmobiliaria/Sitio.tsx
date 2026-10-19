@@ -96,8 +96,8 @@ export function Marco({
             </div>
             <div>
               <h2>Dónde estamos</h2>
-              <p>{negocio.direccion || "Dirección a confirmar"}</p>
-              <p>{negocio.horario}</p>
+              {negocio.direccion && <p>{negocio.direccion}</p>}
+              {negocio.horario && <p>{negocio.horario}</p>}
               {negocio.mapsUrl && (
                 <a
                   href={negocio.mapsUrl}

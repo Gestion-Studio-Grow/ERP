@@ -15,6 +15,8 @@ import { cantidadDelFormulario, importeDelFormulario } from "@/lib/pos-peso";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
 import { cambioDePrecioDeUnProducto, registrarCambiosDePrecio } from "@/lib/catalogo/precios-auditoria";
 import { importeONaN } from "@/lib/dinero/leer";
+import { codigoDelFormulario, esChoqueDeUnico, mensajeCodigoOcupado } from "@/lib/catalogo/codigo-producto";
+import { RechazoDeDominio, rechazoDeDominio } from "@/lib/rechazo-de-dominio";
 import {
   clearCommissionOverride,
   setCommissionOverride,
@@ -340,6 +342,7 @@ export async function createProduct(formData: FormData) {
   const lowStockAt = parseLowStockAt(formData) ?? 5;
   const venta = parseSaleFields(formData);
   const extras = parseCarniceriaExtras(formData);
+  const codigo = codigoDelFormulario(formData);
   const { isRetail } = await getCurrentTenantRubro();
   const created = await tenantTransaction(
     async (tx) => {
@@ -351,13 +354,14 @@ export async function createProduct(formData: FormData) {
         venta,
         stockInicial,
         createdBy: `user:${user.id}`,
+        codigo,
       });
       // Un corte que nace con precio necesita su etiqueta: queda anotado en la misma tx.
       if (isRetail) await registrarPrecioDeUnProducto(tx, tenantId, `user:${user.id}`, "alta", creado.id, name, null, venta);
       return creado;
     },
     { tenantId },
-  );
+  ).catch((e) => rechazarCodigoOcupado(e, tenantId, codigo, null));
   await writeProductExtras(created.id, extras);
   revalidatePath(CATALOG_PATH);
   // El stock inicial es un movimiento del ledger: aparece en ajustes, compras y el POS.
@@ -395,6 +399,7 @@ export async function updateProduct(formData: FormData) {
   const lowStockAt = parseLowStockAt(formData);
   const venta = parseSaleFields(formData);
   const extras = parseCarniceriaExtras(formData);
+  const codigo = codigoDelFormulario(formData);
   const where = { id, tenantId, deletedAt: null };
   const data = {
     name,
@@ -402,6 +407,8 @@ export async function updateProduct(formData: FormData) {
     // Vacío = no se toca (antes `Number("")` guardaba 0, y el aviso sólo saltaba en cero).
     ...(lowStockAt != null ? { lowStockAt } : {}),
     ...venta,
+    // El código/PLU sólo lo manda el catálogo de mostrador: sin el campo, no se toca.
+    ...(codigo !== undefined ? { codigo } : {}),
   };
   const { isRetail } = await getCurrentTenantRubro();
   if (!isRetail) {
@@ -419,10 +426,48 @@ export async function updateProduct(formData: FormData) {
         await registrarPrecioDeUnProducto(tx, tenantId, `user:${user.id}`, "catalogo", id, name, previo, venta);
       },
       { tenantId },
-    );
+    ).catch((e) => rechazarCodigoOcupado(e, tenantId, codigo, id));
   }
   await writeProductExtras(id, extras);
   revalidatePath(CATALOG_PATH);
+}
+
+// Sin export: no es endpoint. Si el guardado chocó con el código de OTRO producto del negocio
+// (eliminados incluidos: el borrado es lógico y conserva el código), lo dice con su nombre como
+// RechazoDeDominio. Cualquier otra falla sigue de largo tal cual.
+async function rechazarCodigoOcupado(e: unknown, tenantId: string, codigo: string | null | undefined, propioId: string | null): Promise<never> {
+  if (codigo && esChoqueDeUnico(e)) {
+    const dueno = await prisma.product.findFirst({
+      where: { tenantId, codigo, ...(propioId ? { NOT: { id: propioId } } : {}) },
+      select: { name: true, deletedAt: true },
+    });
+    if (dueno) throw new RechazoDeDominio(mensajeCodigoOcupado(codigo, { name: dueno.name, eliminado: dueno.deletedAt != null }));
+  }
+  throw e;
+}
+
+export type ResultadoDeProducto = { ok: true } | { ok: false; error: string };
+const NO_SE_GUARDO = "No se pudo guardar el producto. Probá de nuevo; si sigue, avisale a quien administra el sistema.";
+
+// Las mismas `createProduct` / `updateProduct`, pero DEVUELVEN el rechazo en vez de lanzarlo: en
+// producción Next reemplaza el mensaje de un error lanzado por un texto en inglés, y «Ese código lo
+// tiene "Vacío"» tiene que llegar entero. Las usa el catálogo de mostrador (CortesSection).
+export async function crearProductoConAviso(formData: FormData): Promise<ResultadoDeProducto> {
+  try {
+    await createProduct(formData);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: rechazoDeDominio(e, NO_SE_GUARDO, "catalogo.alta") };
+  }
+}
+
+export async function guardarProductoConAviso(formData: FormData): Promise<ResultadoDeProducto> {
+  try {
+    await updateProduct(formData);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: rechazoDeDominio(e, NO_SE_GUARDO, "catalogo.edicion") };
+  }
 }
 
 // Sin export: no es endpoint. Anota el cambio de precio de un producto si lo hubo.
@@ -440,23 +485,39 @@ async function registrarPrecioDeUnProducto(
   if (cambio) await registrarCambiosDePrecio(tx, { tenantId, actor, origen, cambios: [cambio] });
 }
 
+// Activar/desactivar y borrar llevan `tenantId` en el `where`, además del id (mismo criterio que
+// `updateProduct` y 75c1204): RLS ya acota la escritura al negocio de la sesión, pero un id de
+// OTRO negocio no puede depender sólo de esa capa. Con `updateMany` un id ajeno no toca nada
+// (count 0) y se contesta lo mismo que si no existiera: no se confirma que el producto exista.
+const PRODUCTO_NO_ENCONTRADO = "No se encontró el producto.";
+
 export async function toggleProductActive(formData: FormData) {
   await requireCapability("catalog:manage");
-  const id = String(formData.get("id"));
+  const tenantId = await getCurrentTenantId();
+  const id = String(formData.get("id") || "");
   const active = String(formData.get("active")) === "true";
-  await prisma.product.update({ where: { id }, data: { active: !active } });
+  if (!id) throw new Error(PRODUCTO_NO_ENCONTRADO);
+  const res = await prisma.product.updateMany({ where: { id, tenantId, deletedAt: null }, data: { active: !active } });
+  if (res.count === 0) throw new Error(PRODUCTO_NO_ENCONTRADO);
   revalidatePath(CATALOG_PATH);
 }
 
 export async function deleteProduct(formData: FormData) {
   await requireCapability("catalog:manage");
-  const id = String(formData.get("id"));
+  const tenantId = await getCurrentTenantId();
+  const id = String(formData.get("id") || "");
+  if (!id) throw new Error(PRODUCTO_NO_ENCONTRADO);
   // Soft-delete + desvincular de los servicios que lo consumían (para que no
-  // se siga descontando stock de un producto eliminado).
-  await tenantTransaction(async (tx) => {
-    await tx.serviceProduct.deleteMany({ where: { productId: id } });
-    await tx.product.update({ where: { id }, data: { deletedAt: new Date() } });
-  });
+  // se siga descontando stock de un producto eliminado). Primero el producto: si no es de este
+  // negocio (o ya estaba borrado), la transacción se corta antes de tocar ningún vínculo.
+  await tenantTransaction(
+    async (tx) => {
+      const res = await tx.product.updateMany({ where: { id, tenantId, deletedAt: null }, data: { deletedAt: new Date() } });
+      if (res.count === 0) throw new Error(PRODUCTO_NO_ENCONTRADO);
+      await tx.serviceProduct.deleteMany({ where: { productId: id, tenantId } });
+    },
+    { tenantId },
+  );
   await auditAdmin({ action: "delete", entity: "Product", entityId: id });
   revalidatePath(CATALOG_PATH);
 }

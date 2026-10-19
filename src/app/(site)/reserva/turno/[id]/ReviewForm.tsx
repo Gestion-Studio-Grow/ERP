@@ -72,10 +72,14 @@ export default function ReviewForm({ appointmentId }: { appointmentId: string })
         action={async (fd) => {
           setError("");
           try {
-            await createReview(fd);
+            const r = await createReview(fd);
+            if (!r.ok) {
+              setError(r.error);
+              return;
+            }
             setSent(true);
-          } catch (err) {
-            setError(err instanceof Error ? err.message : "No se pudo enviar la reseña.");
+          } catch {
+            setError("No pudimos conectarnos: revisá la conexión y probá de nuevo.");
           }
         }}
       >
@@ -103,7 +107,7 @@ export default function ReviewForm({ appointmentId }: { appointmentId: string })
           style={{ borderColor: "var(--line-strong)", background: "var(--surface-raised)" }}
         />
 
-        {error && <p className="text-sm text-danger mb-2">{error}</p>}
+        {error && <p role="alert" className="text-sm text-danger mb-2">{error}</p>}
 
         <SendButton disabled={rating === 0} />
       </form>

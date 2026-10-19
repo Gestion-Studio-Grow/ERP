@@ -59,6 +59,11 @@ type Props = {
    * la propuesta "Todos los medios de pago" del copy editorial, que promete crédito y débito.
    */
   mediosDePago?: readonly string[] | null;
+  /**
+   * La aclaración del rubro para lo que se vende por kilo (rubros.ts `wording.weightNote`, la misma
+   * que muestra la vidriera nueva): el total de la bolsa es estimado hasta que se pesa cada pieza.
+   */
+  notaDePeso?: string | null;
 };
 
 const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -73,7 +78,7 @@ const unitLabel = (p: Product) => (p.saleUnit === "WEIGHT" ? "/ kg" : "/ u");
 // cambia un corte y reenvía está pidiendo OTRA cosa, y con la clave vieja recibiría el pedido
 // viejo sin enterarse. La genera `nuevaClaveDePedido` (reglas-tienda.ts), la misma en todas las vidrieras.
 
-export default function MagraFront({ products, branding, tenantKey, content = MAGRA, envio = null, mediosDePago = null }: Props) {
+export default function MagraFront({ products, branding, tenantKey, content = MAGRA, envio = null, mediosDePago = null, notaDePeso = null }: Props) {
   // UN SOLO número, el del LOCAL (BusinessSettings.whatsapp): el mismo que abren los botones
   // y el mismo que se muestra escrito en el pie. Antes había dos fuentes —el CTA usaba el
   // branding del tenant con caída a un número del archivo de copy, y el pie pintaba un tercer
@@ -83,7 +88,7 @@ export default function MagraFront({ products, branding, tenantKey, content = MA
   const local = resolveMagraLocal(branding);
   return (
     <WhatsAppCtaProvider tenantKey={tenantKey} configuredNumber={local.whatsapp}>
-      <MagraFrontContent products={products} content={content} local={local} envio={envio} mediosDePago={mediosDePago} />
+      <MagraFrontContent products={products} content={content} local={local} envio={envio} mediosDePago={mediosDePago} notaDePeso={notaDePeso} />
     </WhatsAppCtaProvider>
   );
 }
@@ -94,12 +99,14 @@ function MagraFrontContent({
   local,
   envio,
   mediosDePago,
+  notaDePeso,
 }: {
   products: Product[];
   content: MagraContent;
   local: MagraLocal;
   envio: ShippingConfig | null;
   mediosDePago: readonly string[] | null;
+  notaDePeso: string | null;
 }) {
   const { requestWhatsApp } = useWhatsAppCta();
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -132,6 +139,8 @@ function MagraFrontContent({
     .filter((l): l is { p: Product; q: number; t: number } => l !== null);
   const subtotal = lines.reduce((s, l) => s + l.t, 0);
   const hasItems = lines.length > 0;
+  // Con algo por kilo en la bolsa, el total no es cerrado: cada pieza se pesa al envasar.
+  const hayPeso = lines.some((l) => l.p.saleUnit === "WEIGHT");
   const count = lines.reduce((s, l) => s + (l.p.saleUnit === "WEIGHT" ? 1 : l.q), 0);
 
   // El envío, con la MISMA regla y tarifa que usa el servidor para sumarlo al pedido. Sin tarifa
@@ -158,7 +167,7 @@ function MagraFrontContent({
   const grid = products.slice(2);
 
   return (
-    <div className="magra">
+    <div className={hasItems ? "magra con-minibar" : "magra"}>
       <style>{CSS}</style>
 
       {/* ── TOP BAR ── */}
@@ -196,13 +205,17 @@ function MagraFrontContent({
                 <a className="mf-btn mf-btn-oro" href="#cortes">
                   Armar mi pedido&nbsp;&nbsp;→
                 </a>
-                <button
-                  type="button"
-                  className="mf-btn mf-btn-ghost"
-                  onClick={() => requestWhatsApp("¡Hola MAGRA! Quería hacer una consulta.")}
-                >
-                  Pedir por WhatsApp
-                </button>
+                {/* Sin el WhatsApp del local cargado, el botón no aparece: no se ofrece un canal
+                    que todavía no existe (ambiente real). */}
+                {local.whatsapp && (
+                  <button
+                    type="button"
+                    className="mf-btn mf-btn-ghost"
+                    onClick={() => requestWhatsApp("¡Hola MAGRA! Quería hacer una consulta.")}
+                  >
+                    Pedir por WhatsApp
+                  </button>
+                )}
               </div>
               {/* La promesa de reparto sale del LOCAL, no del copy: las zonas de Canning
                   publicadas en la vidriera de Lomas son una promesa que ese local no cumple,
@@ -248,16 +261,18 @@ function MagraFrontContent({
               <div className="mf-empty">
                 <p className="mf-empty-t">Estamos preparando la vidriera</p>
                 <p className="mf-empty-s">
-                  En un rato vas a poder comprar online. Mientras tanto, escribinos por WhatsApp y te tomamos el
-                  pedido.
+                  En un rato vas a poder comprar online.
+                  {local.whatsapp && " Mientras tanto, escribinos por WhatsApp y te tomamos el pedido."}
                 </p>
-                <button
-                  type="button"
-                  className="mf-btn mf-btn-wa"
-                  onClick={() => requestWhatsApp("¡Hola MAGRA! Quiero hacer un pedido.")}
-                >
-                  <WaIcon /> Pedir por WhatsApp
-                </button>
+                {local.whatsapp && (
+                  <button
+                    type="button"
+                    className="mf-btn mf-btn-wa"
+                    onClick={() => requestWhatsApp("¡Hola MAGRA! Quiero hacer un pedido.")}
+                  >
+                    <WaIcon /> Pedir por WhatsApp
+                  </button>
+                )}
               </div>
             ) : (
               <>
@@ -339,7 +354,7 @@ function MagraFrontContent({
                               </span>
                               <div className="mf-stepper mf-stepper-sm" role="group" aria-label={`Cantidad de ${p.name}`}>
                                 <button type="button" onClick={() => bump(p, -1)} disabled={q === 0} aria-label={`Quitar ${p.name}`}>−</button>
-                                <span className="mf-q mf-display" aria-live="polite">{q > 0 ? q : "0"}</span>
+                                <span className="mf-q mf-display" aria-live="polite">{q > 0 ? `${formatearCantidad(q)} ${p.saleUnit === "WEIGHT" ? "kg" : "u"}` : "0"}</span>
                                 <button type="button" onClick={() => bump(p, 1)} disabled={p.disponibilidad === "sin-stock"} aria-label={`Agregar ${p.name}`}>+</button>
                               </div>
                             </div>
@@ -365,13 +380,19 @@ function MagraFrontContent({
                   <div className="mf-vcard-body">
                     <h3 className="mf-display mf-vcard-h3">{v.title}</h3>
                     <p className="mf-vcard-p">{v.text}</p>
-                    <button
-                      type="button"
-                      className="mf-linkcta"
-                      onClick={() => requestWhatsApp(`¡Hola MAGRA! Quiero hacer un pedido de ${v.title}.`)}
-                    >
-                      Hacer pedido →
-                    </button>
+                    {local.whatsapp ? (
+                      <button
+                        type="button"
+                        className="mf-linkcta"
+                        onClick={() => requestWhatsApp(`¡Hola MAGRA! Quiero hacer un pedido de ${v.title}.`)}
+                      >
+                        Hacer pedido →
+                      </button>
+                    ) : (
+                      <a className="mf-linkcta" href="#cortes">
+                        Hacer pedido →
+                      </a>
+                    )}
                   </div>
                 </div>
               ))}
@@ -429,23 +450,33 @@ function MagraFrontContent({
               <div className="mf-display mf-foot-big">
                 Probadas por<br />nosotros,<br /><span>elegidas para vos.</span>
               </div>
-              <button type="button" className="mf-btn mf-btn-oro" onClick={() => requestWhatsApp("¡Hola MAGRA! Quería hacer un pedido.")}>
-                Pedir por WhatsApp →
-              </button>
+              {local.whatsapp ? (
+                <button type="button" className="mf-btn mf-btn-oro" onClick={() => requestWhatsApp("¡Hola MAGRA! Quería hacer un pedido.")}>
+                  Pedir por WhatsApp →
+                </button>
+              ) : (
+                <a className="mf-btn mf-btn-oro" href="#cortes">
+                  Armar mi pedido →
+                </a>
+              )}
             </div>
             {/* Datos del LOCAL: salen de /admin/localizacion (BusinessSettings), no del copy.
-                El campo que el local no cargó se muestra como "a confirmar" — nunca el dato
-                de otro local, que con 5 locales es mandar al cliente a otra ciudad. */}
+                El campo que el local no cargó NO se muestra — nunca el dato de otro local,
+                que con 5 locales es mandar al cliente a otra ciudad. */}
             <div className="mf-foot-cols">
-              <div>
-                <h4>Dónde estamos</h4>
-                {local.addressLine ? <p>{local.addressLine}</p> : <p className="mf-todo">Dirección a confirmar</p>}
-                {local.city && <p>{local.city}</p>}
-              </div>
-              <div>
-                <h4>Horarios</h4>
-                {local.hours ? <p>{local.hours}</p> : <p className="mf-todo">Horarios a confirmar</p>}
-              </div>
+              {(local.addressLine || local.city) && (
+                <div>
+                  <h4>Dónde estamos</h4>
+                  {local.addressLine && <p>{local.addressLine}</p>}
+                  {local.city && <p>{local.city}</p>}
+                </div>
+              )}
+              {local.hours && (
+                <div>
+                  <h4>Horarios</h4>
+                  <p>{local.hours}</p>
+                </div>
+              )}
               {/* Las zonas de reparto son de Canning y no hay columna donde guardar las de
                   cada local: se muestran SÓLO en el local que las tiene. En el resto, el
                   bloque no aparece — mejor que prometer un reparto de 30 km de distancia. */}
@@ -455,22 +486,22 @@ function MagraFrontContent({
                   <p>{c.deliveryZones.join(" · ")}</p>
                 </div>
               )}
-              <div>
-                <h4>Contacto</h4>
-                {local.whatsapp ? (
-                  // Texto y href salen de los MISMOS dígitos (whatsappLabel deriva de
-                  // local.whatsapp): no se pueden volver a separar.
-                  <a href={`https://wa.me/${local.whatsapp}`} target="_blank" rel="noopener noreferrer">
-                    WhatsApp {local.whatsappLabel}
-                  </a>
-                ) : (
-                  <p className="mf-todo">WhatsApp a confirmar</p>
-                )}
-                {local.instagramUrl && (
-                  <a href={local.instagramUrl} target="_blank" rel="noopener noreferrer">Instagram {local.instagram}</a>
-                )}
-                {local.email && <a href={`mailto:${local.email}`}>{local.email}</a>}
-              </div>
+              {(local.whatsapp || local.instagramUrl || local.email) && (
+                <div>
+                  <h4>Contacto</h4>
+                  {local.whatsapp && (
+                    // Texto y href salen de los MISMOS dígitos (whatsappLabel deriva de
+                    // local.whatsapp): no se pueden volver a separar.
+                    <a href={`https://wa.me/${local.whatsapp}`} target="_blank" rel="noopener noreferrer">
+                      WhatsApp {local.whatsappLabel}
+                    </a>
+                  )}
+                  {local.instagramUrl && (
+                    <a href={local.instagramUrl} target="_blank" rel="noopener noreferrer">Instagram {local.instagram}</a>
+                  )}
+                  {local.email && <a href={`mailto:${local.email}`}>{local.email}</a>}
+                </div>
+              )}
             </div>
             <div className="mf-foot-legal">
               <span>{c.copyright}</span>
@@ -505,6 +536,8 @@ function MagraFrontContent({
                   <div className="mf-ri-amt mf-display mf-num">{money.format(l.t)}</div>
                   <input type="hidden" name="productId" value={l.p.id} />
                   <input type="hidden" name="quantity" value={l.q} />
+                  {/* El precio que vio: si cambió mientras armaba, el servidor avisa en esta línea (reglas-tienda.ts). */}
+                  <input type="hidden" name="unitPrice" value={unitPrice(l.p)} />
                   {pedido.avisoDe(l.p.id) && (
                     <p role="alert" className="mf-aviso">
                       {pedido.avisoDe(l.p.id)}
@@ -534,9 +567,10 @@ function MagraFrontContent({
                 )}
               </div>
               <div className="mf-totrow mf-big">
-                <span className="mf-k">Total</span>
+                <span className="mf-k">{hayPeso ? "Total estimado" : "Total"}</span>
                 <span className="mf-v mf-display mf-num" aria-live="polite">{money2.format(total)}</span>
               </div>
+              {hayPeso && notaDePeso && <p className="mf-nota-peso">{notaDePeso}</p>}
 
               {hasItems && (
                 <div className="mf-checkout">
@@ -640,7 +674,7 @@ function MagraFrontContent({
                 >
                   <WaIcon /> Pedir por WhatsApp
                 </button>
-              ) : (
+              ) : local.whatsapp ? (
                 <button
                   type="button"
                   className="mf-btn mf-btn-wa mf-rail-wa"
@@ -648,7 +682,7 @@ function MagraFrontContent({
                 >
                   <WaIcon /> Pedir por WhatsApp
                 </button>
-              )}
+              ) : null}
             </div>
           </form>
         </aside>
@@ -658,7 +692,10 @@ function MagraFrontContent({
       {hasItems && (
         <a href="#pedido" className="mf-minibar">
           <span className="mf-minibar-cnt">{count} {count === 1 ? "corte" : "cortes"}</span>
-          <span className="mf-minibar-total mf-display mf-num">{money2.format(total)}</span>
+          <span className="mf-minibar-total mf-display mf-num">
+            {hayPeso && <small className="mf-minibar-est">aprox. </small>}
+            {money2.format(total)}
+          </span>
           <span className="mf-minibar-go">Finalizar pedido →</span>
         </a>
       )}
@@ -907,6 +944,7 @@ const CSS = `
 .magra .mf-totrow .mf-v{font-size:20px;color:var(--crema)}
 .magra .mf-totrow.mf-big .mf-v{font-size:34px;color:var(--oro)}
 .magra .mf-free{color:var(--oro)}
+.magra .mf-nota-peso{margin:2px 0 4px;font-size:12px;line-height:1.45;color:var(--acero)}
 .magra .mf-checkout{display:grid;gap:10px;margin:16px 0 4px}
 .magra .mf-field{display:grid;gap:5px;font-size:12px;color:var(--acero)}
 .magra .mf-field span{letter-spacing:.02em}
@@ -931,10 +969,15 @@ const CSS = `
   .magra .mf-rail-items{max-height:none}
 }
 
-/* MINI-BAR (móvil) */
+/* MINI-BAR (móvil). Alto FIJO (--minibar + la zona segura del iPhone) para que el riel le pueda
+   dejar exactamente ese lugar abajo: antes la barra tapaba ~45 de los 51 px de «Pedir por
+   WhatsApp», el último botón de la página (UAT MAGRA 16/10). */
 .magra .mf-minibar{display:none}
+.magra{--minibar:60px}
 @media(max-width:1080px){
-  .magra .mf-minibar{position:fixed;left:0;right:0;bottom:0;z-index:70;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;background:var(--oro);color:var(--carbon);box-shadow:0 -8px 24px rgba(0,0,0,.4)}
+  .magra .mf-minibar{position:fixed;left:0;right:0;bottom:0;z-index:70;display:flex;align-items:center;justify-content:space-between;gap:12px;height:calc(var(--minibar) + env(safe-area-inset-bottom));padding:0 18px env(safe-area-inset-bottom);background:var(--oro);color:var(--carbon);box-shadow:0 -8px 24px rgba(0,0,0,.4)}
+  .magra.con-minibar .mf-rail-foot{padding-bottom:calc(22px + var(--minibar) + env(safe-area-inset-bottom))}
+  .magra .mf-minibar-est{font-family:var(--f-body);font-size:11px;font-weight:700;letter-spacing:.04em}
   .magra .mf-minibar-cnt{font-size:13px;font-weight:700}
   .magra .mf-minibar-total{font-size:24px}
   .magra .mf-minibar-go{margin-left:auto;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}

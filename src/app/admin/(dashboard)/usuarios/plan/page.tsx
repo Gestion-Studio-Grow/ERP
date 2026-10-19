@@ -31,7 +31,7 @@ export default async function TuPlanPage({ searchParams }: { searchParams: Promi
     <PageContainer>
       <PageHeader
         title="Tu plan"
-        estado={vista.tipo === "plan" ? [vista.nombrePlan, vista.precio] : ["Sin plan asignado"]}
+        estado={vista.tipo === "plan" ? (vista.precio ? [vista.nombrePlan, vista.precio] : [vista.nombrePlan]) : ["Sin plan asignado"]}
         actions={
           <>
             <ButtonLink href={quieroMas} target="_blank" rel="noopener noreferrer">

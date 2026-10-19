@@ -59,3 +59,17 @@ test("las diferencias se redondean como el servidor y lo vacío es 'sin contar'"
   assert.equal(d.MP, null);
   assert.equal(d.TARJETA, 0);
 });
+
+test("la apertura del turno se ve en la lista del cierre como conteo del cajón y no suma en ninguna columna", async () => {
+  const { movementSign } = await import("@/lib/caja/cash-register");
+  const { readFileSync } = await import("node:fs");
+  const { textoDeAperturaQueNoSuma } = await import("./revisar-cierre");
+  assert.equal(movementSign("APERTURA"), 0);
+  assert.match(textoDeAperturaQueNoSuma(10000), /conteo del cajón de \$\s?10\.000,00, no suma/);
+  // Las dos vistas del cierre usan la tabla de signos del libro, no una lista propia de "lo que entra".
+  for (const archivo of ["page.tsx", "CierreRenglon.tsx"]) {
+    const fuente = readFileSync(new URL(`./${archivo}`, import.meta.url), "utf8");
+    assert.doesNotMatch(fuente, /m\.type === "APERTURA"/, `${archivo} vuelve a contar la apertura como ingreso`);
+    assert.match(fuente, /movementSign\(m\.type\)/, archivo);
+  }
+});

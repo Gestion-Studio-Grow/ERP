@@ -12,6 +12,8 @@ import { seccionDeLista } from "@/lib/turnos/turno-abierto";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { leerClienteDelAlta, leerNuevoTurno } from "../pasos";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { agendaPractica } from "@/lib/turnos/practica.server";
+import { fechaPropuestaDelAlta, profesionalPropuesta } from "@/lib/turnos/practica";
 import AgendaRenglon from "../AgendaRenglon";
 import DarTurnoCajon from "../_agenda/DarTurnoCajon";
 
@@ -113,10 +115,11 @@ export default async function TurnosListaPage({
   // que el cajón no usa. Apagado el interruptor (CH hoy), la lista de siempre.
   if (nuevo.abrir && (await disenoNuevo())) {
     const hoy = todayInBusinessTz();
-    const [profesionales, fichasAlta, faltazosAlta] = await Promise.all([
+    const [profesionales, fichasAlta, faltazosAlta, practicaAlta] = await Promise.all([
       getProfessionalsWithServices(),
       getFichasParaAlta(),
       enInicioPorApps().then((piloto) => (piloto ? cargarFaltazosPorFicha() : undefined)),
+      agendaPractica(),
     ]);
     return (
       <AgendaRenglon
@@ -129,7 +132,7 @@ export default async function TurnosListaPage({
             fichas={fichasAlta}
             faltazos={faltazosAlta}
             hoy={hoy}
-            fechaInicial={nuevo.fecha || hoy}
+            fechaInicial={nuevo.fecha || (practicaAlta ? fechaPropuestaDelAlta(hoy) : hoy)}
             clienteInicial={clienteInicial || undefined}
             viewer={viewer}
           />
@@ -137,12 +140,13 @@ export default async function TurnosListaPage({
       />
     );
   }
-  const [appointments, professionals, fichas, faltazos] = await Promise.all([
+  const [appointments, professionals, fichas, faltazos, practica] = await Promise.all([
     getAppointments(),
     getProfessionalsWithServices(),
     getFichasParaAlta(),
     // Inicio por apps: el aviso de faltazos al dar el turno. CH, fuera del piloto, sin cambios.
     enInicioPorApps().then((piloto) => (piloto ? cargarFaltazosPorFicha() : undefined)),
+    agendaPractica(),
   ]);
   // Único punto donde se lee el resultado crudo del loader: de acá para abajo se trabaja
   // siempre con `turnos`, que es lo que el navegador va a recibir.
@@ -191,8 +195,10 @@ export default async function TurnosListaPage({
         fichas={fichas}
         faltazos={faltazos}
         abierto={nuevo.abrir}
-        fechaInicial={nuevo.fecha}
+        // Agenda práctica (T4): sin fecha en la URL propone mañana; con una sola profesional, la elige.
+        fechaInicial={nuevo.fecha || (practica ? fechaPropuestaDelAlta(todayInBusinessTz()) : "")}
         clienteInicial={clienteInicial}
+        profesionalInicial={practica ? profesionalPropuesta(professionals) : ""}
       />
 
       {sinCerrar.length > 0 && (
@@ -204,7 +210,7 @@ export default async function TurnosListaPage({
           </p>
           <div className="space-y-3">
             {sinCerrar.map((a) => (
-              <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} viewer={viewer} ancla />
+              <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} viewer={viewer} practica={practica} ancla />
             ))}
           </div>
         </section>
@@ -219,7 +225,7 @@ export default async function TurnosListaPage({
         )}
         <div className="space-y-3">
           {pending.map((a) => (
-            <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} viewer={viewer} ancla />
+            <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} viewer={viewer} practica={practica} ancla />
           ))}
         </div>
       </section>
@@ -230,7 +236,7 @@ export default async function TurnosListaPage({
           <p className="text-sm text-muted mb-3">Turnos ya realizados con plata pendiente.</p>
           <div className="space-y-3">
             {aCobrar.map((a) => (
-              <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} viewer={viewer} />
+              <AppointmentRow key={a.id} appointment={a} statusLabel={statusLabel} viewer={viewer} practica={practica} />
             ))}
           </div>
         </section>
@@ -238,7 +244,7 @@ export default async function TurnosListaPage({
 
       <section>
         <h2 className="text-lg font-medium text-strong mb-3">Historial</h2>
-        <AppointmentsHistoryList appointments={rest} statusLabel={statusLabel} />
+        <AppointmentsHistoryList appointments={rest} statusLabel={statusLabel} practica={practica} />
       </section>
     </main>
   );

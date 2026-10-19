@@ -1,0 +1,29 @@
+26/27 pasos OK (2026-10-16T05:03:52.021Z)
+OK  A1 grilla con unidad y coma «0,25 kg» (Bondiola de cerdo)
+OK  A2 la mini-barra no tapa «Pedir por WhatsApp» botón termina 762 · barra empieza 784 · alto barra 60
+OK  A3 total estimado + aclaración (si el corte es por kilo) estimado=1 nota=1
+OK  A4 teléfono «hola» rechazado con texto claro 
+OK  A5 sin errores de consola en la tienda 
+OK  B1 1440: sin mini-barra 
+OK  B2 sin errores de consola 
+OK  C1 1440: la bandeja de MAGRA tiene el aviso 
+OK  C2 1440: pedido web tomado #502
+OK  C3 1440: la bandeja abierta avisa el pedido nuevo en 44 s
+OK  C4 1440: sin errores de consola 
+OK  C1 390: la bandeja de MAGRA tiene el aviso 
+OK  C2 390: pedido web tomado #503
+OK  C3 390: la bandeja abierta avisa el pedido nuevo en 44 s
+OK  C4 390: sin errores de consola 
+OK  D1 390: «1500» pregunta antes de cobrar 
+OK  D2 390: el cobro queda frenado y dice qué falta 
+OK  D3 390: corregir deja 1,5 
+OK  D4 390: el teclado grande carga 1,28 valor «1,28»
+OK  D5 390: sin errores de consola 
+OK  D1 1440: «1500» pregunta antes de cobrar 
+OK  D2 1440: el cobro queda frenado y dice qué falta 
+OK  D3 1440: corregir deja 1,5 
+OK  D4 1440: el teclado grande carga 1,28 valor «1,28»
+OK  D5 1440: sin errores de consola 
+OK  E1 CH: su bandeja no monta el aviso 
+MAL E2 CH: sin errores de consola %c%s%c (node:1629) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+    at Client.query (/tmp/claude-0/-home-user-Factory-GSG/5ef2c56d-72e0-5f85-b4

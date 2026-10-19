@@ -7,7 +7,8 @@
 // fail-closed ADR-015) y cada read filtra por él, igual que el resto del Core.
 
 import { prisma } from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
+import { errorDelTelefonoDelPedido } from "@/lib/contact-validation";
+import { refresh, revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auditAdmin, auditPublic, requestIp } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -44,8 +45,10 @@ import {
   disponibilidadDe,
   mensajeWhatsAppDelPedido,
   problemasDeLaBolsa,
-  MENSAJE_BOLSA_CON_PROBLEMAS,
+  mensajeDeLaBolsa,
+  preciosVistos,
   MENSAJE_NO_SE_PUDO,
+  type LineaDeLaBolsa,
   type EstadoPedidoOnline,
 } from "@/app/tienda/reglas-tienda";
 import {
@@ -545,6 +548,10 @@ export async function placeOnlineOrder(
   if (!customerName || !customerPhone) {
     return { ok: false, error: "Necesitamos tu nombre y un teléfono de contacto para tomar el pedido.", campo: "datos" };
   }
+  // El teléfono se valida en el borde (contact-validation.ts): con uno que no es teléfono el local
+  // no puede confirmar el pedido ni avisar el peso real. Se mira lo tipeado, antes del recorte.
+  const errorDelTelefono = errorDelTelefonoDelPedido(String(formData.get("customerPhone") || ""));
+  if (errorDelTelefono) return { ok: false, error: errorDelTelefono, campo: "datos" };
   const address = String(formData.get("address") || "").trim().slice(0, 300) || null;
   if (fulfillment === "DELIVERY" && !address) {
     return { ok: false, error: "Para el envío a domicilio necesitamos la dirección.", campo: "datos" };
@@ -558,7 +565,15 @@ export async function placeOnlineOrder(
   // (`claveDeLaVidriera`); si no, el pedido se toma igual, sin clave.
   const idempotencyKey = claveDeLaVidriera(formData.get("idempotencyKey"));
 
-  const items = parseItems(formData).filter((l) => l.productId && l.qty > 0);
+  // El precio que la vidriera mostró en cada línea (sólo MAGRA lo manda): se empareja ANTES de
+  // filtrar, porque viaja en el mismo orden que `productId`. Sólo sirve para avisar; el alta
+  // cobra siempre el precio de la base.
+  const crudas = parseItems(formData);
+  const vistos = preciosVistos(formData.getAll("unitPrice"), crudas.length);
+  const lineasDeLaBolsa: LineaDeLaBolsa[] = crudas
+    .map((l, i) => ({ ...l, precioVisto: vistos[i] }))
+    .filter((l) => l.productId && l.qty > 0);
+  const items = crudas.filter((l) => l.productId && l.qty > 0);
   if (items.length === 0) {
     return { ok: false, error: "Tu pedido está vacío: sumá algún producto con el botón +." };
   }
@@ -581,7 +596,7 @@ export async function placeOnlineOrder(
   const toma = await tomarPedidoOnlineGuarded({
     idempotencyKey,
     buscarPorClave: (key) => pedidoConClave(tenantId, key),
-    revisarBolsa: () => problemasDeLaBolsaEnBase(tenantId, items),
+    revisarBolsa: () => problemasDeLaBolsaEnBase(tenantId, lineasDeLaBolsa),
     insertar: () =>
       insertOrder(tenantId, {
         channel: "ONLINE",
@@ -600,7 +615,13 @@ export async function placeOnlineOrder(
     // Hacia afuera, el texto único ("venció el…" diría que el código existe) y suma al freno.
     return { ok: false, error: rechazoPublicoDelCupon(toma, frenoDeCupones, tenantId, ip, CUPON_NO_VALE), campo: "cupon" };
   }
-  if (toma.tipo === "bolsa") return { ok: false, error: MENSAJE_BOLSA_CON_PROBLEMAS, porLinea: toma.porLinea };
+  if (toma.tipo === "bolsa") {
+    // Un aviso por línea (precio que cambió, se agotó) dice que lo que muestra la vidriera ya no
+    // es lo de la base: `refresh` le vuelve a mandar los productos con esta misma respuesta. La
+    // bolsa es estado de React y sobrevive; el próximo envío viaja con el precio nuevo.
+    refresh();
+    return { ok: false, error: mensajeDeLaBolsa(toma.porLinea), porLinea: toma.porLinea };
+  }
   if (toma.tipo === "rechazo") return { ok: false, error: toma.error };
   if (toma.tipo === "error") {
     logger.error("tienda", "no se pudo tomar el pedido online", toma.err, { tenantId });
@@ -645,7 +666,7 @@ export async function placeOnlineOrder(
 /** La bolsa contra la base: qué línea no se puede pedir y por qué (`problemasDeLaBolsa`). */
 async function problemasDeLaBolsaEnBase(
   tenantId: string,
-  items: readonly { productId: string; qty: number }[],
+  items: readonly LineaDeLaBolsa[],
 ): Promise<Record<string, string>> {
   const productos = await prisma.product.findMany({
     where: { tenantId, id: { in: items.map((l) => l.productId) } },
@@ -1122,7 +1143,10 @@ export async function buscarClienteParaVenta(telefono: string): Promise<{ nombre
 // el sistema no manda nada solo. Lo que sí hace es dejar CONSTANCIA de que se avisó, en la
 // auditoría del pedido, para que "¿le avisaron?" tenga respuesta. Se llama al tocar el botón,
 // sin esperar: si la constancia falla, el aviso igual sale.
-export async function registrarAvisoWhatsApp(orderId: string, tipo: "pedido-listo" | "ticket"): Promise<void> {
+export async function registrarAvisoWhatsApp(
+  orderId: string,
+  tipo: "pedido-listo" | "ticket" | "recordatorio-retiro",
+): Promise<void> {
   await requireCapability("orders:read");
   const tenantId = await getCurrentTenantId();
   const id = String(orderId ?? "").trim();
@@ -1133,7 +1157,9 @@ export async function registrarAvisoWhatsApp(orderId: string, tipo: "pedido-list
     action: "whatsapp",
     entity: "Order",
     entityId: id,
-    changes: { tipo: tipo === "ticket" ? "ticket" : "pedido-listo", code: o.code },
+    // El recordatorio de retiro queda con su tipo: no cuenta como «avisado» (`leerAvisados` lee
+    // sólo «pedido-listo»).
+    changes: { tipo: tipo === "ticket" || tipo === "recordatorio-retiro" ? tipo : "pedido-listo", code: o.code },
   });
 }
 

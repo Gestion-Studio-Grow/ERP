@@ -175,6 +175,23 @@ export default function PedidoCajon({
               {pedido.avisado ? `Avisar de nuevo por WhatsApp (avisado ${pedido.avisado})` : "Avisar por WhatsApp que está listo"}
             </a>
           )}
+          {/* Listo desde ayer y nadie lo retiró (caso 4): el recordatorio armado, 1 a 1 como el aviso. */}
+          {extra?.recordatorio && (
+            <a
+              href={extra.recordatorio}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-ui="button"
+              data-variant="outline"
+              data-size="md"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-line-strong px-4 text-sm font-medium"
+              onClick={() => {
+                void registrarAvisoWhatsApp(pedido.id, "recordatorio-retiro").catch(() => undefined);
+              }}
+            >
+              Recordarle por WhatsApp que lo pase a buscar
+            </a>
+          )}
           <CobroDelPedido id={pedido.id} code={pedido.code} total={pedido.total} cobrado={pedido.cobrado} modo="entregar" />
         </div>
       );

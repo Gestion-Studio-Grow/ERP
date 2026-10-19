@@ -180,6 +180,7 @@ export default async function TiendaPage({
         tenantKey={slug ?? "magra"}
         envio={data.copy?.shipping ?? null}
         mediosDePago={data.copy?.paymentMethods ?? null}
+        notaDePeso={(identity.rubro?.wording ?? data.wording)?.weightNote ?? null}
       />
     );
   }

@@ -291,9 +291,9 @@ test("un tipo de comprobante que no sabe imprimir (Factura de Crédito MiPyME) n
 
 test("en modo de prueba de ARCA la hoja advierte que no tiene validez fiscal", async () => {
   const texto = await textoDelPdf((await pdfDe(factura({ ambiente: "prueba" }))).bytes);
-  assert.ok(texto.includes("MODO DE PRUEBA DE ARCA: ESTE COMPROBANTE NO TIENE VALIDEZ FISCAL"));
+  assert.ok(texto.includes("SIN AUTORIZACIÓN DE ARCA EN PRODUCCIÓN: ESTE COMPROBANTE NO TIENE VALIDEZ FISCAL"));
   const real = await textoDelPdf((await pdfDe(factura())).bytes);
-  assert.ok(!real.includes("MODO DE PRUEBA"));
+  assert.ok(!real.includes("SIN AUTORIZACIÓN DE ARCA"));
 });
 
 test("con muchos renglones sigue en otra hoja sin perder ninguno, y el QR va en la última", async () => {

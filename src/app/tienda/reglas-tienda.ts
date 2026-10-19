@@ -55,21 +55,41 @@ export type ProductoParaBolsa = {
 };
 
 /**
+ * Una línea de la bolsa tal como llega del formulario. `precioVisto`: el precio unitario (el kilo
+ * o la unidad) que la vidriera le MOSTRÓ a la clienta; sólo lo manda MAGRA. Sin él no se compara
+ * nada (las otras vidrieras siguen como siempre).
+ */
+export type LineaDeLaBolsa = { productId: string; qty: number; precioVisto?: number | null };
+
+/** Medio centavo: lo que se lee de un `<input hidden>` vuelve como texto y puede traer decimales. */
+const TOLERANCIA_PRECIO = 0.005;
+
+const AVISO_PRECIO = "El precio cambió";
+
+/**
  * Qué línea de la bolsa no se puede pedir, y por qué, en palabras del cliente. PURA.
  *
  * Es el MISMO criterio que la guarda del alta (el stock tiene que alcanzar; nada de ventas
  * parciales), dicho por línea y antes de abrir la transacción, para que el mensaje quede al
  * lado del producto y la bolsa no se toque. Nunca dice cuánto hay: "no nos alcanza".
+ *
+ * PRECIO VIEJO: el alta cobra el precio de la base (bien), pero si la dueña lo subió con la
+ * pestaña abierta la clienta se enteraba al pagar. Si la línea trae el precio que vio y no es el
+ * de hoy, se frena ESA línea con el precio nuevo («ahora $X el kilo»): la bolsa sigue, la vidriera
+ * se refresca (`placeOnlineOrder` llama a `refresh`) y al volver a mandar ya viaja el precio nuevo. Va después de
+ * los otros avisos: si además se agotó, decir el precio nuevo no sirve.
  */
 export function problemasDeLaBolsa(
   productos: readonly ProductoParaBolsa[],
-  pedidas: readonly { productId: string; qty: number }[],
+  pedidas: readonly LineaDeLaBolsa[],
 ): Record<string, string> {
   const porId = new Map(productos.map((p) => [p.id, p]));
   const cantidades = new Map<string, number>();
+  const vistos = new Map<string, number>();
   for (const l of pedidas) {
     if (!l.productId || !(l.qty > 0)) continue;
     cantidades.set(l.productId, (cantidades.get(l.productId) ?? 0) + l.qty);
+    if (l.precioVisto != null && Number.isFinite(l.precioVisto)) vistos.set(l.productId, l.precioVisto);
   }
   const out: Record<string, string> = {};
   for (const [id, qty] of cantidades) {
@@ -79,18 +99,54 @@ export function problemasDeLaBolsa(
       out[id] = "Ya no está a la venta: sacalo de tu pedido.";
       continue;
     }
-    if (!p.trackStock) continue;
-    if (!(p.stock > TOLERANCIA)) {
-      out[id] = "Se agotó: sacalo de tu pedido o escribinos.";
-      continue;
+    if (p.trackStock) {
+      if (!(p.stock > TOLERANCIA)) {
+        out[id] = "Se agotó: sacalo de tu pedido o escribinos.";
+        continue;
+      }
+      if (p.stock + TOLERANCIA < qty) {
+        out[id] = "No nos alcanza para esa cantidad: probá con menos.";
+        continue;
+      }
     }
-    if (p.stock + TOLERANCIA < qty) out[id] = "No nos alcanza para esa cantidad: probá con menos.";
+    const visto = vistos.get(id);
+    if (visto != null && Math.abs(visto - precio) > TOLERANCIA_PRECIO) {
+      out[id] = `${AVISO_PRECIO}: ahora ${fmtMoneyARS(precio)} ${p.saleUnit === "WEIGHT" ? "el kilo" : "la unidad"}. Revisá y mandalo de nuevo.`;
+    }
   }
   return out;
 }
 
 export const MENSAJE_BOLSA_CON_PROBLEMAS =
   "Hay productos de tu pedido que no podemos preparar: mirá el aviso en cada uno. Tu pedido sigue acá.";
+
+export const MENSAJE_BOLSA_PRECIO_CAMBIO =
+  "Cambió el precio de algún producto de tu pedido: mirá el aviso en cada uno. Tu pedido sigue acá.";
+
+/**
+ * El aviso general de una bolsa frenada. Si lo único que pasó es que cambió un precio, decir
+ * «no podemos preparar» asusta de más: se dice que cambió el precio. PURA.
+ */
+export function mensajeDeLaBolsa(porLinea: Readonly<Record<string, string>>): string {
+  const avisos = Object.values(porLinea);
+  return avisos.length > 0 && avisos.every((a) => a.startsWith(AVISO_PRECIO))
+    ? MENSAJE_BOLSA_PRECIO_CAMBIO
+    : MENSAJE_BOLSA_CON_PROBLEMAS;
+}
+
+/**
+ * Los precios que la vidriera mostró, uno por línea, en el MISMO orden que `productId`. Si no
+ * vienen todos (una vidriera que no los manda, o un formulario armado a mano) no se usa
+ * ninguno: emparejar a medias compararía el precio de un producto con el de otro. PURA.
+ */
+export function preciosVistos(crudos: readonly unknown[], lineas: number): (number | null)[] {
+  if (crudos.length !== lineas) return Array.from({ length: lineas }, () => null);
+  return crudos.map((c) => {
+    const t = typeof c === "string" ? c.trim() : "";
+    const n = t === "" ? NaN : Number(t);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  });
+}
 
 export const MENSAJE_NO_SE_PUDO =
   "No pudimos tomar el pedido. Tu pedido sigue acá: probá de nuevo en un rato o escribinos por WhatsApp.";

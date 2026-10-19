@@ -35,6 +35,8 @@ export async function getComprasData() {
         code: true,
         kind: true,
         supplier: true,
+        // El proveedor del maestro: el más reciente se ofrece en Recibir (`ultimoProveedor`).
+        supplierId: true,
         notes: true,
         totalCost: true,
         createdAt: true,

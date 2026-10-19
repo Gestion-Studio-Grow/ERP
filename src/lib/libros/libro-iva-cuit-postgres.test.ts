@@ -87,9 +87,9 @@ test("QA vuelta 6 · el libro y el paquete de la casa suman el local del mismo C
   });
 
   await t.test("3 · la factura con CAE simulado queda aparte, de prueba, y no suma", () => {
-    assert.match(paquete, /^FACTURAS DE PRUEBA \(CAE simulado/m);
+    assert.match(paquete, /^COMPROBANTES SIN VALIDEZ FISCAL \(CAE que no otorgó ARCA/m);
     assert.match(paquete, /^2026-08-15;Factura A;00003-00000001;Consumidor final;Consumidor final;1210,00\r?$/m);
-    assert.match(paquete, /^Facturas de prueba;1 con CAE simulado/m);
+    assert.match(paquete, /^Comprobantes sin validez fiscal;1 con CAE que no otorgó ARCA/m);
   });
 
   await t.test("4 · la pantalla del Libro IVA de la casa dice lo mismo; el local solo ve lo suyo; RLS intacto", async () => {

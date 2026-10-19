@@ -23,7 +23,7 @@
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateOrderItems } from "@/lib/order-actions";
-import { leerCantidad, cantidadParaFormulario, formatearCantidad, avisoDeCantidad, textosDelAjuste } from "@/lib/pos-peso";
+import { leerCantidad, cantidadParaFormulario, formatearCantidad, avisoDeCantidad, desvioDelPeso, textosDelAjuste } from "@/lib/pos-peso";
 import { fmtMoneyARS } from "@/components/ui/format";
 import { round2 } from "@/lib/round";
 import {
@@ -155,7 +155,11 @@ export default function AjustarPedidoForm({
       </p>
       {leidas.map((l, i) => {
         const esPeso = l.saleUnit === "WEIGHT";
-        const aviso = !l.invalida ? avisoDeCantidad({ valor: l.qty, saleUnit: l.saleUnit }) : null;
+        // El peso implausible (gramos tipeados como kilos) manda; si no, el desvío contra lo pedido.
+        const aviso = !l.invalida
+          ? (avisoDeCantidad({ valor: l.qty, saleUnit: l.saleUnit }) ??
+            desvioDelPeso({ pedido: l.quantity, real: l.qty, saleUnit: l.saleUnit }))
+          : null;
         const inputId = `${uid}-q-${i}`;
         return (
           <div key={`${l.productId}-${i}`} className="space-y-1">

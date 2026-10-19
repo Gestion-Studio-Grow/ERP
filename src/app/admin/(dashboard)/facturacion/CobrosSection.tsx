@@ -15,8 +15,8 @@ import { useToast } from "../ToastProvider";
 import { Button, Input } from "@/components/ui";
 
 const ETIQUETA_MODO: Record<ModoCobros, string> = {
-  stub: "modo prueba — el link no cobra de verdad",
-  test: "modo prueba (credenciales de prueba) — Checkout Pro real, no cobra de verdad",
+  stub: "Mercado Pago sin conectar — el link todavía no cobra",
+  test: "Mercado Pago en su ambiente de verificación — Checkout Pro real, sin cobrar plata",
   real: "",
 };
 
@@ -34,7 +34,7 @@ export default function CobrosSection({ modo }: { modo: ModoCobros }) {
       const r = await generarCobroDePruebaAction();
       if (r.ok) {
         setLink({ ok: true, preferenceId: r.preferenceId, initPoint: r.initPoint, sandboxInitPoint: r.sandboxInitPoint, modo: r.modo });
-        showSuccess("Cobro de prueba generado (banco de pruebas).");
+        showSuccess("Link de verificación generado: no cobra.");
       } else {
         showError(r.error);
       }
@@ -103,7 +103,7 @@ export default function CobrosSection({ modo }: { modo: ModoCobros }) {
       {modo !== "real" && (
         <div className="mt-3">
           <Button type="button" variant="outline" size="sm" disabled={probando} onClick={probarCobro}>
-            {probando ? "Probando…" : "Modo prueba: generar cobro de prueba"}
+            {probando ? "Generando…" : "Verificar el circuito de cobro (no cobra)"}
           </Button>
         </div>
       )}
@@ -143,7 +143,7 @@ export default function CobrosSection({ modo }: { modo: ModoCobros }) {
             </a>
             {link.modo !== "real" && (
               <span className="text-xs text-muted">
-                (link de prueba — se activa de verdad al cargar las credenciales)
+                (todavía no cobra: se activa al cargar las credenciales de Mercado Pago)
               </span>
             )}
           </div>

@@ -34,6 +34,10 @@ import {
   etiquetaDeDisponibilidad,
   mensajeWhatsAppDelPedido,
   problemasDeLaBolsa,
+  mensajeDeLaBolsa,
+  preciosVistos,
+  MENSAJE_BOLSA_CON_PROBLEMAS,
+  MENSAJE_BOLSA_PRECIO_CAMBIO,
   propuestasConMediosDeLaMarca,
   textoDeMediosDePago,
   type ProductoParaBolsa,
@@ -74,6 +78,42 @@ test("sin stock, dado de baja o sin precio: cada línea dice lo suyo; sin contro
   assert.match(p.c, /Ya no está a la venta/);
   assert.equal(p.d, undefined, "un producto sin control de stock no se frena");
   assert.match(p.e, /Ya no está a la venta/, "un id que no es del negocio");
+});
+
+test("precio viejo: si la dueña subió el kilo con la pestaña abierta, la línea avisa el precio nuevo", () => {
+  const p = problemasDeLaBolsa([VACIO], [{ productId: "p_vacio", qty: 1, precioVisto: 11000 }]);
+  assert.deepEqual(Object.keys(p), ["p_vacio"]);
+  assert.match(p.p_vacio, /^El precio cambió: ahora \$\s?12\.500(,00)? el kilo\. Revisá y mandalo de nuevo\.$/);
+  // El mismo precio que vio (aunque venga con decimales del input), pasa.
+  assert.deepEqual(problemasDeLaBolsa([VACIO], [{ productId: "p_vacio", qty: 1, precioVisto: 12500.001 }]), {});
+  // Por unidad dice "la unidad".
+  const chori = { ...VACIO, id: "p_chori", saleUnit: "UNIT", price: 900, pricePerKg: null };
+  assert.match(problemasDeLaBolsa([chori], [{ productId: "p_chori", qty: 2, precioVisto: 800 }]).p_chori, /la unidad/);
+});
+
+test("precio viejo: sin el precio visto (las otras vidrieras) no se compara, y un agotado manda sobre el precio", () => {
+  assert.deepEqual(problemasDeLaBolsa([VACIO], [{ productId: "p_vacio", qty: 1 }]), {});
+  assert.deepEqual(problemasDeLaBolsa([VACIO], [{ productId: "p_vacio", qty: 1, precioVisto: null }]), {});
+  const agotado = problemasDeLaBolsa([{ ...VACIO, stock: 0 }], [{ productId: "p_vacio", qty: 1, precioVisto: 11000 }]);
+  assert.match(agotado.p_vacio, /Se agotó/);
+});
+
+test("precio viejo: el aviso general dice que cambió el precio sólo si es lo único que pasó", () => {
+  assert.equal(mensajeDeLaBolsa({ a: "El precio cambió: ahora $ 1 el kilo. Revisá y mandalo de nuevo." }), MENSAJE_BOLSA_PRECIO_CAMBIO);
+  assert.equal(mensajeDeLaBolsa({ a: "El precio cambió: …", b: "Se agotó: sacalo de tu pedido o escribinos." }), MENSAJE_BOLSA_CON_PROBLEMAS);
+  assert.equal(mensajeDeLaBolsa({}), MENSAJE_BOLSA_CON_PROBLEMAS);
+});
+
+test("precio viejo: los precios del formulario se emparejan con las líneas sólo si vienen todos", () => {
+  assert.deepEqual(preciosVistos(["12500", "900.5"], 2), [12500, 900.5]);
+  assert.deepEqual(preciosVistos(["12500"], 2), [null, null], "a medias no se empareja");
+  assert.deepEqual(preciosVistos([], 1), [null]);
+  assert.deepEqual(preciosVistos(["", "abc", "-3"], 3), [null, null, null]);
+});
+
+test("la vidriera de MAGRA manda el precio que mostró en cada línea", () => {
+  const front = readFileSync(new URL("./MagraFront.tsx", import.meta.url), "utf8");
+  assert.match(front, /name="unitPrice" value=\{unitPrice\(l\.p\)\}/);
 });
 
 test("la vidriera dice 'Sin stock' o 'Últimas unidades', nunca el número", () => {

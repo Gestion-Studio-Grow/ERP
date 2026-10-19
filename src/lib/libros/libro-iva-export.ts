@@ -26,7 +26,7 @@ export function listaDeLocalesDelLibro(negocios: LibroIva["negocios"]): string |
 }
 
 /** Por qué las facturas de prueba van aparte. El mismo texto en el CSV y en la pantalla. */
-export const EXPLICACION_FACTURAS_DE_PRUEBA = "CAE simulado del modo prueba: no se declaran ni cuentan para los topes";
+export const EXPLICACION_FACTURAS_DE_PRUEBA = "CAE que no otorgó ARCA: no se declaran ni cuentan para los topes";
 
 export const TITULO_DESPUES_DEL_CONGELADO =
   "AUTORIZADOS POR ARCA DESPUÉS DEL CONGELADO (tienen fecha de este mes y no están en los totales: para sumarlos, reabrí el mes y volvé a congelar)";
@@ -84,7 +84,7 @@ export function lineasLibroIva(libro: LibroIva): string[] {
   const dePrueba = libro.comprobantesDePrueba ?? [];
   if (dePrueba.length > 0) {
     // QA vuelta 6: con CAE simulado entraban como reales. Aparte, a la vista y sin sumar.
-    L.push(filaCsv(`FACTURAS DE PRUEBA (${EXPLICACION_FACTURAS_DE_PRUEBA})`));
+    L.push(filaCsv(`COMPROBANTES SIN VALIDEZ FISCAL (${EXPLICACION_FACTURAS_DE_PRUEBA})`));
     L.push(filaCsv("Fecha", "Tipo", "Número", "Cliente", "Documento", "Total"));
     for (const c of dePrueba) L.push(filaCsv(c.fecha, c.tipo, c.numero, c.cliente, c.doc, pesosCsv(c.total)));
     L.push("");
@@ -161,7 +161,7 @@ export function lineasLibroIva(libro: LibroIva): string[] {
     );
   }
   if (resumen.dePruebaCount > 0) {
-    L.push(filaCsv("Facturas de prueba", `${resumen.dePruebaCount} con CAE simulado: no se declaran y no suman al débito.`));
+    L.push(filaCsv("Comprobantes sin validez fiscal", `${resumen.dePruebaCount} con CAE que no otorgó ARCA: no se declaran y no suman al débito.`));
   }
   if (resumen.anuladasSinNotaDeCredito > 0) {
     L.push(

@@ -41,7 +41,12 @@ test("contra Postgres: los días cerrados no se tocan; la diferencia real al abr
   });
 
   // Al cerrar cuenta $3.300: el libro espera $3.800 ⇒ faltante real de $500, asentado una vez.
-  assert.deepEqual(await c.cerrarTurno(a, "3300"), { ok: true });
+  // Sin nota, con diferencia, no cierra (el mismo texto que el cierre del día) y no asienta nada.
+  const sinNota = await c.cerrarTurno(a, "3300");
+  assert.equal(sinNota?.ok, false);
+  assert.match((sinNota as { error: string }).error, /Anotá por qué/);
+  assert.equal((await c.conMarca(a.id, c.marcas.ARQUEO_TURNO_ACTOR_PREFIX)).length, 0, "sin nota no se asienta el faltante");
+  assert.deepEqual(await c.cerrarTurno(a, "3300", undefined, "faltante de prueba"), { ok: true });
   const cerrado = await c.duenio.cashSession.findUniqueOrThrow({ where: { id: turno.id } });
   assert.equal(cerrado.closingExpected, 3_800);
   assert.equal(cerrado.closingCounted, 3_300);

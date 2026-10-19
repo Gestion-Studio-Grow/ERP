@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { appPorId } from "@/apps/registro";
 import { hrefDelTile } from "./href-del-tile";
-import { leerFiltros, whereAuditoria } from "../auditoria/filtros";
+import { leerFiltros, whereAuditoriaDelPanel } from "../auditoria/filtros";
 import { auditoria } from "@/apps/kpis/administracion.server";
 import type { ContextoLoader, DbKpi } from "@/apps/kpis/nucleo.server";
 
@@ -23,5 +23,5 @@ test("el número de Auditoría cuenta con el MISMO where que la pantalla abierta
   // La pantalla, abierta con la URL del tile, lee estos filtros de la URL y arma este where.
   const url = new URL(hrefDelTile(appPorId("auditoria"), hoy, true), "http://x");
   const filtros = leerFiltros(Object.fromEntries(url.searchParams), new Set());
-  assert.deepEqual(where, { tenantId: "t-qa", ...whereAuditoria(filtros) });
+  assert.deepEqual(where, { tenantId: "t-qa", ...whereAuditoriaDelPanel(filtros) });
 });

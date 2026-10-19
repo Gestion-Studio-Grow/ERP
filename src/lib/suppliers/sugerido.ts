@@ -23,11 +23,19 @@
 // que lo recibe es una REPOSICION: no es demanda.
 // Las mermas NO: son pérdida, no pedido, y sumarlas empujaría a comprar lo que se tira.
 //
+// LA SEMANA TIPO (sólo en un mostrador). La venta diaria es pareja, pero la semana no: si los días
+// que cubre el pedido (mañana y los demora + ciclo siguientes) son los que más venden, la parte
+// de la venta se multiplica por `factorDeLaSemana` (entre 0,5 y 2; 1 con menos de 14 días con
+// venta). El perfil sale de los MISMOS movimientos que la venta diaria: cuántos renglones se
+// vendieron cada día del negocio (lib/reports/semana-tipo.ts). El colchón no se ajusta.
+//
 // Sin imports de servidor: lo usan la pantalla, el loader, el número del Inicio y los tests.
 
 import { ANULACION_VENTA_ACTOR_PREFIX, EDICION_ACTOR_PREFIX } from "@/lib/order-anulacion";
 import { esDeKilo, esMovimientoDeDespiece } from "@/lib/carniceria/despiece";
 import { TRASLADO_ACTOR_PREFIX } from "@/lib/multilocal/traslado-core";
+import { factorDeLaVentana, perfilSemanal } from "@/lib/reports/semana-tipo";
+import type { FilaPorDia } from "@/lib/reports/ventas-mostrador";
 
 /** Días de venta que se promedian. */
 export const DIAS_DE_VENTA = 28;
@@ -52,6 +60,8 @@ export type MovimientoDeDemanda = {
   qty: number;
   reason: string | null;
   createdBy: string;
+  /** Cuándo (para la semana tipo). Lo trae `selectDemanda`; sin él, el movimiento no cuenta para el perfil. */
+  createdAt?: Date;
 };
 
 /**
@@ -102,12 +112,15 @@ export function cantidadSugerida(p: {
   kilo: boolean;
   demora?: number;
   ciclo?: number;
+  /** El de la semana tipo (`factorDeLaSemana`): multiplica la venta de los días a cubrir. Default 1. */
+  factor?: number;
 }): number {
   const vd = Number.isFinite(p.ventaDiaria) && p.ventaDiaria > 0 ? p.ventaDiaria : 0;
   const minimo = Number.isFinite(p.minimo) && p.minimo > 0 ? p.minimo : 0;
   const stock = Number.isFinite(p.stock) ? p.stock : 0;
+  const factor = p.factor != null && Number.isFinite(p.factor) && p.factor > 0 ? p.factor : 1;
   const seguridad = Math.max(minimo, vd * DIAS_DE_SEGURIDAD);
-  const bruto = vd * ((p.demora ?? DEMORA_DIAS) + (p.ciclo ?? CICLO_DIAS)) + seguridad - stock;
+  const bruto = vd * factor * ((p.demora ?? DEMORA_DIAS) + (p.ciclo ?? CICLO_DIAS)) + seguridad - stock;
   // Se redondea sobre un valor apenas limpiado de coma flotante: 17,0000000001 no son 17,1 kg.
   const limpio = redondear3(bruto);
   if (!(limpio > 0)) return 0;
@@ -129,7 +142,7 @@ export function whereSugerido(tenantId: string) {
 export function selectDemanda(desde: Date) {
   return {
     where: { type: { in: ["VENTA" as const, "CONSUMO" as const, "AJUSTE" as const] }, createdAt: { gte: desde } },
-    select: { type: true, qty: true, reason: true, createdBy: true },
+    select: { type: true, qty: true, reason: true, createdBy: true, createdAt: true },
   };
 }
 
@@ -156,12 +169,12 @@ export type LineaSugerida = {
 };
 
 /** Cada producto con su sugerido; sólo los que hay que pedir (sugerido > 0). PURA. */
-export function lineasSugeridas(productos: readonly ProductoParaSugerir[]): LineaSugerida[] {
+export function lineasSugeridas(productos: readonly ProductoParaSugerir[], factor = 1): LineaSugerida[] {
   const out: LineaSugerida[] = [];
   for (const p of productos) {
     const kilo = esDeKilo(p);
     const vd = ventaDiaria(p.stockMovements);
-    const sugerido = cantidadSugerida({ ventaDiaria: vd, stock: p.stock, minimo: p.lowStockAt, kilo });
+    const sugerido = cantidadSugerida({ ventaDiaria: vd, stock: p.stock, minimo: p.lowStockAt, kilo, factor });
     if (sugerido > 0) {
       out.push({ productId: p.id, nombre: p.name, unidad: p.unit, kilo, stock: p.stock, minimo: p.lowStockAt, ventaDiaria: vd, sugerido });
     }
@@ -170,8 +183,33 @@ export function lineasSugeridas(productos: readonly ProductoParaSugerir[]): Line
 }
 
 /** Cuántos productos hay que pedir hoy: el número del Inicio. PURA. */
-export function cuantosParaPedir(productos: readonly ProductoParaSugerir[]): number {
-  return lineasSugeridas(productos).length;
+export function cuantosParaPedir(productos: readonly ProductoParaSugerir[], factor = 1): number {
+  return lineasSugeridas(productos, factor).length;
+}
+
+/**
+ * El factor de la semana tipo para el pedido de hoy, con los movimientos ya leídos: cada VENTA o
+ * CONSUMO es un renglón vendido ese día del negocio (`diaDe`, inyectado: `dateStrInBusinessTz`).
+ * Cubre los `demora + ciclo` días desde mañana. 1 si no hay perfil todavía. PURA.
+ */
+export function factorDeLaSemana(
+  productos: readonly Pick<ProductoParaSugerir, "stockMovements">[],
+  hoy: string,
+  diaDe: (instante: Date) => string,
+  dias = DIAS_DE_VENTA,
+): number {
+  const porDia = new Map<string, FilaPorDia>();
+  for (const p of productos) {
+    for (const m of p.stockMovements) {
+      if ((m.type !== "VENTA" && m.type !== "CONSUMO") || !m.createdAt) continue;
+      const dia = diaDe(m.createdAt);
+      const f = porDia.get(dia) ?? { dia, total: 0, cantidad: 0 };
+      f.total += 1;
+      f.cantidad += 1;
+      porDia.set(dia, f);
+    }
+  }
+  return factorDeLaVentana(perfilSemanal([...porDia.values()], hoy, dias), hoy, DEMORA_DIAS + CICLO_DIAS);
 }
 
 // ── Por proveedor, con el texto para WhatsApp ────────────────────────────────

@@ -7,7 +7,7 @@ tags: [brain/indice]
 
 # 🛡️ Lecciones — índice de guardarraíles
 
-> 41 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
+> 46 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
 > — no el registro entero. Calibración obligatoria antes de tocar Prod/Deploy · Datos/DB ·
 > Multi-tenant · Seguridad (ADR-052).
 
@@ -24,6 +24,7 @@ tags: [brain/indice]
 - **[DB-2](DB-2-contador-de-modulos-en-0-op-2.md)** — el alta/preset valida `modules` no vacío; el probador falla ruidoso si faltan.
 - **[DB-3](DB-3-migrate-deploy-aplica-todas-las-pendientes.md)** — verificar pendientes con `predeploy-check`; Gate 2 (owner) antes de `migrate deploy`.
 - **[DB-4](DB-4-doble-reserva-overbooking-toctou.md)** — invariantes de unicidad/exclusión en la BD (constraint/serializable), no en la app.
+- **[DB-5](DB-5-un-camino-de-plata-sin-la-frontera-del-cierre-el-cobro-de.md)** — todo camino que escribe en el libro de caja recibe la frontera del cierre como parámetro obligatorio y su test incluye «con el día ya cerrado». Un negocio vivo sale a producción con su recorrido E2E […]
 
 ## MT — Multi-tenant
 
@@ -44,6 +45,9 @@ tags: [brain/indice]
 - **[DX-6](DX-6-una-relacion-seedeada-uniforme-hace-que-el-front-mienta-por.md)** — (1) el provisioning/import de catálogo real captura y aplica la asignación por profesional (nunca `connect`-a-todo ni dejar vacío) — es parte del relevamiento, no un default; si el mapeo real no […]
 - **[DX-7](DX-7-fix-de-dato-de-prod-con-guardarrail-sin-seed-sin-deletemany.md)** — todo fix de dato de prod (no-migración) usa script versionado con dry-run default + `--apply` explícito; el diff se imprime campo por campo antes de escribir; scope por `tenantId` de un único tenant, […]
 - **[DX-8](DX-8-demo-publica-en-host-serverless-un-back-con-estado-y-tiempo.md)** — todo back de demo con estado o tiempo real se diseña con núcleo isomórfico + adaptador local desde el día 1; el servidor es sólo transporte (HTTP, firma, cookies). Se prueba el modo local en el E2E.
+- **[DX-9](DX-9-una-demo-sin-persistencia-no-aguanta-un-dia-real-recargar.md)** — - Toda demo que se vaya a usar de verdad tiene un modo real explícito: en blanco, guardado local, reloj real, bloqueo al recargar y respaldo. - El modo por defecto sigue siendo la demo, así los […]
+- **[DX-10](DX-10-un-lector-que-tipea-mientras-el-cobro-anterior-todavia-no.md)** — toda entrada automática al ticket pasa por una función pura que recibe el estado del cobro (`en vuelo | en duda | libre`) y se testea el caso "leer durante el cobro" antes de integrarla.
+- **[DX-11](DX-11-los-tests-unitarios-estaban-verdes-y-el-inicio-igual.md)** — - Todo tenant que sale a producción tiene su guion de UAT con matriz por rol, y su recorrido E2E repetible contra `next start` y Postgres local, nunca Neon. Modelo: `test:club-uat` y […]
 
 ## MP — Metodología / Proceso
 
@@ -69,6 +73,7 @@ tags: [brain/indice]
 - **[SEC-2](SEC-2-un-rol-de-app-que-evade-rls.md)** — la app conecta siempre con un rol sin `BYPASSRLS`; verificar aislamiento antes del go-live.
 - **[SEC-3](SEC-3-webhooks-y-logins-sin-defensa.md)** — verificar firma de todo webhook; rate-limit en endpoints de auth y API pública.
 - **[SEC-4](SEC-4-superficie-publica-un-limite-por-ip-que-bloquea-al-club-y.md)** — en superficies públicas, rate-limit por usuario (fallos) + por IP sólo fallos y con techo generoso; nunca devolver el `motivo` del motor a un tercero sin pasarlo por un filtro de "qué puede ver este […]
+- **[SEC-5](SEC-5-un-pin-mas-largo-que-no-se-usaba-el-viejo-firmaba-y-el-tope.md)** — una tabla de rastro que se usa como almacén (una foto en `AuditLog`) se excluye de todo lector genérico el mismo día que se crea (`ENTIDADES_FUERA_DE_LA_AUDITORIA`), con test contra Postgres.
 
 ---
 

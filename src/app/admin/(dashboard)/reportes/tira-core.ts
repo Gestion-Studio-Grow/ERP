@@ -13,6 +13,11 @@
 //     carnicera para saber cuánto preparar el viernes para el sábado.
 
 import type { FilaPorDia } from "@/lib/reports/ventas-mostrador";
+import { diaDeLaSemana, diasDelPeriodo } from "@/lib/reports/semana-tipo";
+
+// La semana tipo vive en lib/reports/semana-tipo.ts (la usa también el sugerido de compra); acá se
+// re-exporta para Reportes, que la importaba de este archivo.
+export { armarSemanaTipo, diaDeLaSemana, diasDelPeriodo, type DiaTipo, type SemanaTipo } from "@/lib/reports/semana-tipo";
 
 export type Unidad = "dia" | "semana" | "mes";
 
@@ -42,29 +47,7 @@ export interface Tira {
   mejor: Tramo | null;
 }
 
-export interface DiaTipo {
-  nombre: string;
-  /** Cuántos de esos días hubo en el período (desde el primero con ventas, sin hoy). */
-  ocurrencias: number;
-  /** Lo vendido en promedio ese día de la semana. */
-  promedio: number;
-  /** Ventas en promedio ese día de la semana. */
-  ventasPromedio: number;
-  /** Largo de la raya, de 0 a 1 contra el día que más vende. */
-  proporcion: number;
-}
-
-export interface SemanaTipo {
-  /** De lunes a domingo. */
-  dias: DiaTipo[];
-  /** Índice (0 = lunes) del día que más vende en promedio, o null si no hubo ventas. */
-  mejor: number | null;
-  /** Primer día contado (el primero con ventas del período), o null si no hubo ventas. */
-  desde: string | null;
-}
-
 const DIA_MS = 86_400_000;
-const NOMBRES_DIA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"] as const;
 const DIA_CORTO = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"] as const;
 const MES_CORTO = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"] as const;
 const MES_LARGO = [
@@ -81,21 +64,8 @@ function aDia(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-/** 0 = lunes … 6 = domingo. */
-export function diaDeLaSemana(dia: string): number {
-  return (new Date(aMs(dia)).getUTCDay() + 6) % 7;
-}
-
 function ddmm(dia: string): string {
   return `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
-}
-
-/** Los días del período, del más viejo a hoy: `dias` días contando hoy (como `bordesDelPeriodo`). */
-export function diasDelPeriodo(hoy: string, dias: number): string[] {
-  const fin = aMs(hoy);
-  const out: string[] = [];
-  for (let i = dias - 1; i >= 0; i--) out.push(aDia(fin - i * DIA_MS));
-  return out;
 }
 
 /** Día para 30 días; semana para 90 y 180; mes para un año. */
@@ -174,33 +144,6 @@ export function armarTira(porDia: readonly FilaPorDia[], hoy: string, dias: numb
   const candidatos = tramos.some((t) => !t.parcial && t.total > 0) ? tramos.filter((t) => !t.parcial) : tramos;
   const mejor = candidatos.reduce<Tramo | null>((m, t) => (t.total > 0 && (!m || t.total > m.total) ? t : m), null);
   return { unidad, tramos, mejor };
-}
-
-/** El promedio de cada día de la semana, desde el primer día con ventas del período y sin hoy. */
-export function armarSemanaTipo(porDia: readonly FilaPorDia[], hoy: string, dias: number): SemanaTipo {
-  const delDia = new Map(porDia.map((f) => [f.dia, f]));
-  const periodo = diasDelPeriodo(hoy, dias).filter((d) => d !== hoy);
-  const primero = periodo.findIndex((d) => (delDia.get(d)?.total ?? 0) > 0 || (delDia.get(d)?.cantidad ?? 0) > 0);
-  const contados = primero === -1 ? [] : periodo.slice(primero);
-
-  const acum = NOMBRES_DIA.map(() => ({ ocurrencias: 0, total: 0, cantidad: 0 }));
-  for (const d of contados) {
-    const a = acum[diaDeLaSemana(d)];
-    a.ocurrencias += 1;
-    a.total += delDia.get(d)?.total ?? 0;
-    a.cantidad += delDia.get(d)?.cantidad ?? 0;
-  }
-  const promedios = acum.map((a) => (a.ocurrencias > 0 ? a.total / a.ocurrencias : 0));
-  const max = Math.max(0, ...promedios);
-  const dias7: DiaTipo[] = acum.map((a, i) => ({
-    nombre: NOMBRES_DIA[i],
-    ocurrencias: a.ocurrencias,
-    promedio: promedios[i],
-    ventasPromedio: a.ocurrencias > 0 ? a.cantidad / a.ocurrencias : 0,
-    proporcion: max > 0 ? promedios[i] / max : 0,
-  }));
-  const mejor = max > 0 ? promedios.indexOf(max) : null;
-  return { dias: dias7, mejor, desde: contados[0] ?? null };
 }
 
 /** «62 %», «<1 %» (hubo algo, pero redondea a cero) o «0 %». */

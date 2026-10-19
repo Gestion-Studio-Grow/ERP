@@ -154,3 +154,51 @@ test("el texto para WhatsApp: saludo, un renglón por producto con su cantidad, 
   assert.equal(cantidadParaPedir({ sugerido: 3.5, kilo: true, unidad: "kg" }), "3,5 kg");
   assert.equal(textoDelPedido("", null, []).split("\n")[0], "Hola, te paso el pedido:");
 });
+
+// ── C2: la semana tipo ───────────────────────────────────────────────────────
+
+test("el factor multiplica sólo la venta de los días a cubrir (no el colchón); default 1", () => {
+  // 2 kg/día × 9 días × 1,5 + máx(4, 4) − 5 = 26.
+  assert.equal(cantidadSugerida({ ventaDiaria: 2, stock: 5, minimo: 4, kilo: true, factor: 1.5 }), 26);
+  assert.equal(cantidadSugerida({ ventaDiaria: 2, stock: 5, minimo: 4, kilo: true, factor: 1 }), 17);
+  // Un factor que no es un número válido no rompe la cuenta: vale 1.
+  assert.equal(cantidadSugerida({ ventaDiaria: 2, stock: 5, minimo: 4, kilo: true, factor: Number.NaN }), 17);
+  assert.equal(cantidadSugerida({ ventaDiaria: 2, stock: 5, minimo: 4, kilo: true, factor: 0 }), 17);
+});
+
+test("factorDeLaSemana usa el día DEL NEGOCIO: la venta del viernes a las 23 h es del viernes, no del sábado UTC", async () => {
+  const { factorDeLaSemana } = await import("./sugerido");
+  const { dateStrInBusinessTz } = await import("@/lib/datetime");
+  const { diasDelPeriodo, diaDeLaSemana } = await import("@/lib/reports/semana-tipo");
+  const hoy = "2026-10-14"; // miércoles: los 9 días desde mañana tienen dos viernes y un sábado
+  const movs: MovimientoDeDemanda[] = [];
+  for (const dia of diasDelPeriodo(hoy, 28).filter((d) => d !== hoy)) {
+    // Una venta al mediodía todos los días (15 h UTC = 12 h en Buenos Aires)…
+    movs.push({ ...venta(1), createdAt: new Date(`${dia}T15:00:00.000Z`) });
+    // …y los viernes dos más a las 23 h del negocio, que en UTC ya son las 2 del sábado.
+    if (diaDeLaSemana(dia) === 4) {
+      const sabadoUtc = new Date(new Date(`${dia}T00:00:00.000Z`).getTime() + 26 * 3_600_000);
+      movs.push({ ...venta(1), createdAt: sabadoUtc }, { ...venta(1), createdAt: sabadoUtc });
+    }
+  }
+  const productos = [{ stockMovements: movs }];
+  // Viernes pesa 21/9 y el resto 7/9: (7 × 7/9 + 2 × 21/9) / 9 = 1,12.
+  assert.equal(factorDeLaSemana(productos, hoy, dateStrInBusinessTz), 1.12);
+  // Agrupado en UTC el pico caería el sábado (uno solo en la ventana) y daría menos de 1.
+  const utc = (d: Date) => d.toISOString().slice(0, 10);
+  assert.ok(factorDeLaSemana(productos, hoy, utc) < 1);
+  // Sin `createdAt` (movimientos viejos de los tests) no hay perfil: factor 1.
+  assert.equal(factorDeLaSemana([{ stockMovements: [venta(1), venta(2)] }], hoy, dateStrInBusinessTz), 1);
+});
+
+test("con factor, lineasSugeridas y cuantosParaPedir cuentan lo mismo (la pantalla y el número del Inicio)", () => {
+  const productos: ProductoParaSugerir[] = [
+    // 1 kg/día, stock 10, mínimo 1: con factor 1 pide 1 kg (9 + 2 − 10); con 0,8 no pide nada.
+    { id: "a", name: "Matambre", unit: "kg", saleUnit: "WEIGHT", stock: 10, lowStockAt: 1, stockMovements: Array.from({ length: 28 }, () => venta(1)) },
+  ];
+  assert.equal(lineasSugeridas(productos)[0]?.sugerido, 1);
+  assert.equal(cuantosParaPedir(productos), 1);
+  assert.deepEqual(lineasSugeridas(productos, 0.8), []);
+  assert.equal(cuantosParaPedir(productos, 0.8), 0);
+  assert.equal(lineasSugeridas(productos, 1.5)[0]?.sugerido, 5.5);
+});

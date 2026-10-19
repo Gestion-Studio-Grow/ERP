@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, Page } from "playwright";
 import { TIEMPO_MAXIMO_DEL_COBRO_MS, claveDelAlmacen } from "./cobro-sin-conexion";
+import { armarEtiquetaDeBalanza, FORMATO_BALANZA_POR_DEFECTO } from "@/lib/supermercado/balanza";
 
 const RAIZ = fileURLToPath(new URL("../../../../../", import.meta.url));
 const ORIGEN = "http://localhost:3999/admin/vender";
@@ -1811,7 +1812,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.getByRole("option", { name: /Vacío/ }).first().click();
     await page.locator("#qty-1").fill("2");
     await page.getByPlaceholder("Nombre y apellido").fill("María Pérez");
-    await page.getByPlaceholder("Ej.: cortar en milanesas, sin grasa").fill("en bifes");
+    await page.locator("input[name=notes]").fill("en bifes");
     await page.evaluate(() => {
       (window as unknown as Ventana).__respuestaPerdida = true;
     });
@@ -1819,7 +1820,7 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
     await page.getByText("No se pudo registrar el pedido. Revisá la conexión").first().waitFor();
     assert.equal(await page.getByPlaceholder("Nombre y apellido").inputValue(), "María Pérez");
-    assert.equal(await page.getByPlaceholder("Ej.: cortar en milanesas, sin grasa").inputValue(), "en bifes");
+    assert.equal(await page.locator("input[name=notes]").inputValue(), "en bifes");
     assert.equal(await page.inputValue("#qty-1"), "2");
     assert.match(await page.inputValue("#prod-1"), /Vacío/);
     assert.deepEqual(errores, []);
@@ -2001,6 +2002,93 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
     await page.close();
   });
 
+  // UAT MAGRA 16/10: «1500» en el peso se leía como 1500 kg con un aviso que no frenaba nada.
+  const MUCHO_VACIO = {
+    products: [{ id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", price: null, pricePerKg: 12500, unit: "kg" }],
+    stockById: { p_vacio: { stock: 5000, trackStock: true } },
+    rapidos: ["p_vacio"],
+  };
+
+  test("ticket: «1500» de peso frena el cobro y pregunta; «No, es 1,5 kg» lo corrige y se cobra 1,5 kg", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender-nuevo", 10, MUCHO_VACIO);
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1500");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    const pregunta = page.getByRole("alert").filter({ hasText: "¿Son 1.500 kg de verdad?" });
+    await pregunta.waitFor();
+    const frenado = page.getByRole("button", { name: "Confirmá el peso de Vacío" });
+    assert.equal(await frenado.isDisabled(), true, "no se cobra 1.500 kg sin responder");
+    await page.keyboard.press("F2");
+    await page.getByRole("button", { name: "No, es 1,5 kg" }).click();
+    assert.equal(await page.inputValue("#qty-1"), "1,5");
+    assert.equal(await pregunta.count(), 0);
+    await page.getByRole("button", { name: /^Cobrar \$18\.750,00/ }).click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.equal(envios.length, 1, "el F2 con la pregunta abierta no mandó nada");
+    assert.deepEqual(envios[0].quantity, ["1.5"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("ticket: «Sí, son 1.500 kg» lo deja cobrar; si después cambia a otro peso implausible, vuelve a preguntar", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender-nuevo", 10, MUCHO_VACIO);
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.keyboard.type("1500");
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.getByRole("button", { name: "Sí, son 1.500 kg" }).click();
+    const cobrar = page.getByRole("button", { name: /^Cobrar \$18\.750\.000,00/ });
+    await cobrar.waitFor();
+    assert.equal(await cobrar.isEnabled(), true);
+    await page.fill("#qty-1", "1300");
+    await page.getByRole("button", { name: "Confirmá el peso de Vacío" }).waitFor();
+    await page.getByRole("button", { name: "Sí, son 1.300 kg" }).click();
+    await page.getByRole("button", { name: /^Cobrar \$16\.250\.000,00/ }).click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.deepEqual(envios[0].quantity, ["1300"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("ticket: el teclado grande carga el peso con los números de la etiqueta («1280» → 1,28 kg)", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender-nuevo", 10, MUCHO_VACIO);
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.getByRole("button", { name: "Teclado grande" }).click();
+    const teclado = page.getByRole("group", { name: "Peso de Vacío" });
+    for (const d of ["1", "2", "8", "0"]) await teclado.getByRole("button", { name: d, exact: true }).click();
+    assert.equal(await page.inputValue("#qty-1"), "1,28");
+    await teclado.locator('[data-parte="visor"] .sr-only').filter({ hasText: "1,280 kg" }).waitFor({ state: "attached" });
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.getByRole("button", { name: /^Cobrar \$16\.000,00/ }).click();
+    await page.getByText("Venta #42 cobrada").waitFor();
+    const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+    assert.deepEqual(envios[0].quantity, ["1.28"]);
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  test("vista de siempre: el teclado grande también carga el peso y «1500» también pregunta", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar("vender", 10, MUCHO_VACIO);
+    await page.getByRole("button", { name: "Vacío" }).click();
+    await page.getByRole("button", { name: "Teclado grande" }).click();
+    const teclado = page.getByRole("group", { name: "Peso de Vacío" });
+    for (const d of ["1", "5", "0", "0", "0"]) await teclado.getByRole("button", { name: d, exact: true }).click();
+    assert.equal(await page.inputValue("#qty-1"), "15", "5 dígitos: 15,000 kg");
+    await page.fill("#qty-1", "1500");
+    await page.getByRole("alert").filter({ hasText: "¿Son 1.500 kg de verdad?" }).waitFor();
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    assert.equal(await page.getByRole("button", { name: "Confirmá el peso de Vacío" }).isDisabled(), true);
+    await page.getByRole("button", { name: "No, es 1,5 kg" }).click();
+    await page.getByRole("button", { name: /^Cobrar \$18\.750,00/ }).waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
   test("ticket en el celular (412 px) con la piel: el botón de cobrar a la vista, arriba de la cápsula, sin scroll de costado", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     if (!css) return t.skip("no se pudo compilar el CSS de la app");
@@ -2042,6 +2130,92 @@ describe("Vender en el navegador", { timeout: 120_000 }, () => {
         .map(({ q, r }) => `${q} ${Math.round(r.width)}×${Math.round(r.height)}`),
     );
     assert.deepEqual(chicos, [], "ningún control del ticket de menos de 44 × 44 px");
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
+  // C1: la etiqueta que imprime la balanza, leída por el lector (tipea los dígitos y manda Enter).
+  for (const cual of ["vender", "vender-nuevo"] as const) {
+    test(`${cual === "vender" ? "vista de siempre" : "ticket"}: la etiqueta de la balanza carga el corte con su peso; un código desconocido avisa sin frenar`, async (t) => {
+      if (sinNavegador) return t.skip(sinNavegador);
+      const { page, errores } = await montar(cual, 10, {
+        products: [
+          { id: "p_vacio", name: "Vacío", saleUnit: "WEIGHT", price: null, pricePerKg: 12500, unit: "kg", codigo: "00201" },
+          { id: "p_entrana", name: "Entraña", saleUnit: "WEIGHT", price: null, pricePerKg: 17500, unit: "kg", codigo: null },
+        ],
+        // Configurado por el negocio: sin formato guardado, la página no monta el campo (vender/page.tsx).
+        balanza: { formato: FORMATO_BALANZA_POR_DEFECTO, porDefecto: false, configurar: null },
+      });
+      const campo = page.getByLabel("Etiqueta de la balanza o código");
+      await page.getByText(/Formato:/).waitFor();
+      assert.equal(await page.getByText(/provisional|a confirmar/).count(), 0, "en un negocio en marcha no se muestra nada a medio confirmar");
+      // Un PLU que no está: se dice, no se carga nada y el campo sigue con lo leído para corregirlo.
+      await campo.fill(armarEtiquetaDeBalanza(FORMATO_BALANZA_POR_DEFECTO, "00999", 1));
+      await campo.press("Enter");
+      await page.getByRole("status").filter({ hasText: "00999" }).waitFor();
+      // La etiqueta buena: entra el Vacío con 1,25 kg, el campo queda vacío y con el foco.
+      await campo.fill(armarEtiquetaDeBalanza(FORMATO_BALANZA_POR_DEFECTO, "00201", 1.25));
+      await campo.press("Enter");
+      await page.getByRole("status").filter({ hasText: "otro precio cargado" }).waitFor();
+      assert.equal(await campo.inputValue(), "");
+      assert.equal(await page.evaluate(() => document.activeElement?.id), "vender-etiqueta");
+      await page.getByRole("radio", { name: "Efectivo" }).click();
+      await page.getByRole("button", { name: /^Cobrar \$15\.625,00/ }).click();
+      await page.waitForFunction(() => (window as unknown as Ventana).__envios.length === 1);
+      const envios = await page.evaluate(() => (window as unknown as Ventana).__envios);
+      assert.deepEqual(envios[0].productId, ["p_vacio"]);
+      assert.deepEqual(envios[0].quantity, ["1.25"]);
+      assert.equal(envios[0].etiqueta, undefined, "el campo de la etiqueta no viaja al servidor");
+      assert.deepEqual(errores, []);
+      await page.close();
+    });
+  }
+
+  test("sin `balanza` (CH, un negocio de servicios) no aparece el campo de la etiqueta", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page } = await montar("vender");
+    assert.equal(await page.getByLabel("Etiqueta de la balanza o código").count(), 0);
+    await page.close();
+  });
+
+  // PERFORMANCE-TERMINALES.md: el iframe del ticket se quedaba con el foco (y el lector "tipeaba"
+  // adentro): la primera lectura después de cada ticket impreso se perdía. Y había un iframe por ticket.
+  test("lector + «Imprimir solo al cobrar»: después del ticket impreso la próxima lectura entra sin tocar la pantalla, con un solo iframe", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const codigo = "7790895000997";
+    const crema = [{ id: "p_crema", name: "Crema", saleUnit: "UNIT", price: 9000, pricePerKg: null, unit: "u", codigo }];
+    const perfil = JSON.stringify({
+      v: 1, tipo: "kiosco-pc", anchoTicket: 80, impresionDirecta: true, sonido: false, vibracion: false,
+      lector: { prefijo: "", sufijo: "enter" }, pantallaInicio: "/admin/vender",
+    });
+    const { page, errores } = await montar(
+      "vender",
+      10,
+      { products: crema, stockById: {}, rapidos: ["p_crema"], terminal: { tenantSlug: "magra", userId: "u1" } },
+      undefined,
+      {
+        antes: async (p) => {
+          await p.addInitScript((v) => localStorage.setItem("gsg-terminal:magra:u1:v1", v), perfil);
+        },
+      },
+    );
+    await page.locator('[data-vender="lector"]').waitFor({ state: "attached" });
+    const pasarElLector = async () => {
+      await page.keyboard.type(codigo, { delay: 5 });
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(() => (document.querySelector('[id^="qty-"]') as HTMLInputElement | null)?.value === "1");
+    };
+    await pasarElLector();
+    await page.getByRole("radio", { name: "Efectivo" }).click();
+    await page.getByRole("button", { name: "Cobrar $9.000,00" }).click();
+    await page.getByLabel("Ticket de la venta #42").waitFor();
+    // Salió solo: el documento del ticket cargó en el iframe (y su print() ya corrió).
+    await page.waitForFunction(() => (document.querySelector("iframe")?.contentDocument?.body?.textContent ?? "").includes("Crema"));
+    await page.waitForTimeout(50);
+    assert.notEqual(await page.evaluate(() => document.activeElement?.tagName), "IFRAME", "el foco vuelve a la página");
+    // El cajero pasa el próximo producto SIN tocar la pantalla: entra.
+    await pasarElLector();
+    assert.equal(await page.locator("iframe").count(), 1, "un solo iframe de impresión");
     assert.deepEqual(errores, []);
     await page.close();
   });

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import PremiumLanding from "@/components/premium/PremiumLanding";
+import { notFound } from "next/navigation";
 import { MAGRA_PREMIUM } from "@/lib/premium-brand";
+import { isDemoSandbox } from "@/lib/demo-flag";
 
 // TIER "Front Premium Animado" — ruta de demostración del template.
 // Aislada del core (no importa DB/RLS): se puede renderizar y buildear sola.
@@ -18,5 +20,8 @@ export const metadata: Metadata = {
 };
 
 export default function PremiumPage() {
+  // La muestra del template trae cifras de ejemplo (años, reseñas, localidad) que no son del
+  // negocio real: sólo existe en el deploy de demo. En un deploy de cliente, 404.
+  if (!isDemoSandbox()) notFound();
   return <PremiumLanding config={brand} />;
 }

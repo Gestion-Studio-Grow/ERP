@@ -107,7 +107,7 @@ export default async function MonitorMonotributo() {
             {!r.cuadroRecategorizacion.cargado && (
               <strong className="font-medium text-danger">
                 {" "}Ese cuadro todavía no está cargado: no te damos la letra de cada cliente hasta que lo esté.
-                Pedíselo a Soporte GSG.
+                Pedíselo a Soporte GSG desde la ficha de un cliente monotributista («Pedir a Soporte GSG»).
               </strong>
             )}
           </p>
@@ -122,7 +122,7 @@ export default async function MonitorMonotributo() {
           {diaLegible(r.tabla.vigenciaHasta)}.
           {r.tabla.provisional && (
             <strong className="font-medium text-strong">
-              {" "}Provisional a confirmar: cotejalos con el cuadro de categorías de ARCA.
+              {" "}Antes de recategorizar, cotejalos con el cuadro de categorías publicado por ARCA.
             </strong>
           )}
           {!r.tabla.vigenteHoy && (
@@ -132,8 +132,8 @@ export default async function MonitorMonotributo() {
         {r.sinCondicionIva > 0 && (
           <p>
             {r.sinCondicionIva === 1
-              ? "1 cliente de la cartera no tiene cargada su condición frente al IVA: si es monotributista, no aparece acá."
-              : `${r.sinCondicionIva} clientes de la cartera no tienen cargada su condición frente al IVA: si son monotributistas, no aparecen acá.`}
+              ? "1 cliente de la cartera no tiene cargada su condición frente al IVA: si es monotributista, no aparece acá. Pedí que la carguen desde su ficha («Pedir a Soporte GSG»)."
+              : `${r.sinCondicionIva} clientes de la cartera no tienen cargada su condición frente al IVA: si son monotributistas, no aparecen acá. Pedí que la carguen desde la ficha de cada uno («Pedir a Soporte GSG»).`}
           </p>
         )}
       </div>

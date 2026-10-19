@@ -22,6 +22,12 @@ import { fechaFiscalDelDia } from '@/lib/libros/fecha-fiscal';
 
 const CORTE_MS = 40; // en los tests el transporte corta rápido; el valor real se prueba abajo
 
+
+// ARCA acepta comprobantes con fecha de hasta 5 días alrededor del envío: el fixture usa el día
+// fiscal de HOY (mismo criterio que `fechaFiscalDelDia()`), no una fecha fija que envejece.
+const HOY = fechaFiscalDelDia();
+const MANIANA = fechaFiscalDelDia(new Date(Date.now() + 24 * 60 * 60 * 1000));
+
 function clienteContra(sim: SimuladorArca): SoapAfipClient {
   return new SoapAfipClient(
     { cuit: 20111111112, homologacion: true },
@@ -37,14 +43,14 @@ function evento(over: Partial<InvoiceCreatedEvent> = {}): InvoiceCreatedEvent {
     invoiceId: 'inv-1',
     tenantId: 't-1',
     concepto: 1,
-    fecha: '20260924',
+    fecha: HOY,
     emisor: { cuit: 20111111112, condicionIva: CondicionIva.ResponsableInscripto, puntoVenta: 1 },
     receptor: { docTipo: 99, docNro: 0, condicionIva: CondicionIva.ConsumidorFinal },
     neto: 1000,
     iva: [{ alicuotaId: 5, base: 1000, importe: 210 }],
     total: 1210,
     ivaPorProducto: true, // ENG-024: IVA de cada producto; sin esto un inscripto no emite.
-    vencimientoPago: '20260924',
+    vencimientoPago: HOY,
     ...over,
   };
 }
@@ -95,7 +101,7 @@ test('contrato · autoriza: CAE y número 1, y FECompConsultar devuelve ese mism
   assert.equal(consultado.caeVencimiento, r.caeVencimiento);
   assert.equal(consultado.totalCentavos, 121000);
   assert.equal(consultado.docTipo, 99);
-  assert.equal(consultado.fecha, '20260924');
+  assert.equal(consultado.fecha, HOY);
 });
 
 test('contrato · rechaza (Resultado R con una observación del comprobante): ArcaRechazoError, 0 CAE', async () => {
@@ -450,7 +456,7 @@ test('ENG-020 · esElMismoComprobante: cada dato que viaja a ARCA, si difiere, h
     numero: 1,
     cae: '12345678901234',
     caeVencimiento: '20261004',
-    fecha: '20260924',
+    fecha: HOY,
     docTipo: 99,
     docNro: 0,
     concepto: 1,
@@ -462,7 +468,7 @@ test('ENG-020 · esElMismoComprobante: cada dato que viaja a ARCA, si difiere, h
   const distintos: [string, Partial<typeof igual>][] = [
     ['punto de venta', { puntoVenta: 2 }],
     ['tipo', { tipo: TipoComprobante.FacturaA }],
-    ['fecha', { fecha: '20260925' }],
+    ['fecha', { fecha: MANIANA }],
     ['tipo de documento', { docTipo: 96 }],
     ['número de documento', { docNro: 30111222 }],
     ['concepto', { concepto: 2 }],

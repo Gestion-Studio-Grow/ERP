@@ -29,7 +29,7 @@ test("sin motivo guardado lo dice; del banco lleva a Facturación automática; s
 test("autorizado: el texto de siempre; en modo de prueba, el aviso de que no tiene validez fiscal", () => {
   const prueba = estadoDelDetalle({ estado: "AUTHORIZED", ambiente: "prueba", rechazoMotivo: null, origen: venta });
   assert.equal(prueba.descripcion, "Lo que dice el comprobante autorizado por ARCA. El PDF es el que le das al cliente.");
-  assert.match(prueba.prueba ?? "", /modo de prueba: no tiene validez fiscal/);
+  assert.match(prueba.prueba ?? "", /no se autorizó con ARCA en producción: no tiene validez fiscal/);
   assert.equal(prueba.rechazo, null);
   assert.equal(estadoDelDetalle({ estado: "AUTHORIZED", ambiente: "real", rechazoMotivo: null, origen: venta }).prueba, null);
 });

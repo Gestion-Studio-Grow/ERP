@@ -151,7 +151,7 @@ export default async function FacturacionBancosPage() {
                 `${fmtNumberAR(kpis.facturasMes)} de ${fmtNumberAR(kpis.capFacturasMes)} facturas del plan este mes`,
                 kpis.montoFacturadoMes > 0 ? (
                   <span key="f">
-                    <Plata valor={kpis.montoFacturadoMes} sinCentavos /> con CAE{estado.modo !== "real" ? " (de prueba)" : ""}
+                    <Plata valor={kpis.montoFacturadoMes} sinCentavos /> con CAE{estado.modo !== "real" ? " (sin validez fiscal)" : ""}
                   </span>
                 ) : null,
                 enRevision.length > 0 ? <Marca key="r" tipo="atencion">{`${fmtNumberAR(enRevision.length)} para revisar`}</Marca> : "nada para revisar",

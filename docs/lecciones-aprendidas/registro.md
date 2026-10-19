@@ -15,9 +15,9 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 
 ## Índice
 - **PD** — PD-1 build lento ≠ colgado · PD-2 gates humanos · PD-3 cron Hobby · PD-4 GitHub App en la org
-- **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU
+- **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU · DB-5 un camino de plata sin la frontera del cierre (cobro de turno en el día congelado)
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance · MT-6 hosts en código (variable sensible)
-- **DX** — DX-8 demo pública en host serverless: back con estado no corre → dominio isomórfico + adaptador local · DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify)
+- **DX** — DX-8 demo pública en host serverless: back con estado no corre → dominio isomórfico + adaptador local · DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify) · DX-10 lector que suma durante el cobro en vuelo · DX-11 suite verde ≠ pantalla bien: recorrido E2E contra next start + la cifra de plata sale de la regla compartida
 - **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir)
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit · SEC-4 superficie pública: límite por IP sólo con fallos + motivos del dominio que nombran a terceros
 
@@ -90,6 +90,23 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Lección:** "chequear y después insertar" **no** es atómico; la BD debe imponer la exclusión.
 - **Guardarraíl:** invariantes de unicidad/exclusión **en la BD** (constraint/serializable), no en la app.
 - **Refs:** ADR-004, ADR-023.
+
+**[DB-5] Un camino de plata sin la frontera del cierre: el cobro de turno caía en el día congelado**
+- **Síntoma:** en el UAT de CH (18/10), después de cerrar la caja del día, un cobro de turno (seña, parcial o
+  saldo al completar) entraba igual al libro **fechado en el día ya cerrado**: el arqueo congelado dejaba de ser
+  reproducible. Las ventas del mostrador y las cuentas corrientes sí lo frenaban; los turnos no.
+- **Causa raíz:** la regla «el día cerrado no se toca» vivía en cada escritor del libro por separado
+  (`fronteraDeVenta`, `decidirAsiento`, `planAnulacion`) y el cobro de turno nunca la incorporó. Nadie lo vio
+  porque ningún test recorría «cerrar → cobrar».
+- **Fix:** `aplicarCobroTurnoInTx` exige `cerradoHasta` (obligatorio en el tipo: un llamador nuevo no la puede
+  olvidar) y rechaza antes de escribir, diciendo qué día registrarlo; los tres llamadores la leen, y un test de
+  forma falla si alguno no la pasa. Lo encontró el recorrido E2E (`npm run test:ch-uat`, paso 10.1).
+- **Lección:** una invariante de plata repartida en N escritores se rompe en el escritor N+1. Un E2E que recorre
+  el día completo (cobrar → cerrar → cobrar de nuevo) encuentra lo que los tests por función no.
+- **Guardarraíl:** todo camino que escribe en el libro de caja recibe la frontera del cierre como **parámetro
+  obligatorio** y su test incluye «con el día ya cerrado». Un negocio vivo sale a producción con su recorrido E2E
+  del día completo (modelo: `test:club-uat`, `test:ch-uat`).
+- **Refs:** `src/lib/turnos/cobro-turno-repo.ts`, `docs/tenants/ch/EVENTUALIDADES.md` fila 12, ADR-047.
 
 ## MT — Multi-tenant
 
@@ -302,6 +319,42 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
     aprobación sin código.
 - **Refs:** `docs/tenants/breakpoint/DIA-DE-PRUEBA.md`; `npm run test:club-torneo`; DX-8.
 
+**[DX-10] Un lector que "tipea" mientras el cobro anterior todavía no volvió**
+- **Síntoma:** el Gate de las terminales de mostrador (16/10/2026) encontró que en `/vender`, con la ráfaga del lector
+  activa, un código leído mientras el cobro anterior esperaba respuesta sonaba "ok", se sumaba al ticket y `limpiar()`
+  lo borraba al volver el cobro: el producto se entregaba sin cobrar.
+- **Causa raíz:** el guardarraíl miraba sólo los estados de cobro "en duda" (sin respuesta / ya grabada), no el envío
+  **en vuelo**. La caja con lector no lo tenía porque bloquea con `cobrando`.
+- **Fix:** `motivoParaNoSumar` (puro, testeado, `src/lib/terminal/lector-core.ts`) y una marca de punta a punta con
+  `try/finally` en el submit: durante el cobro, lo que pasa el lector se rechaza con «Esperá que termine el cobro».
+- **Lección:** una entrada de datos que no espera al usuario (lector, balanza, ráfaga) tiene que conocer **todos** los
+  estados de la pantalla, incluido el envío en vuelo; si no, el próximo cliente entra al ticket del anterior.
+- **Guardarraíl:** toda entrada automática al ticket pasa por una función pura que recibe el estado del cobro
+  (`en vuelo | en duda | libre`) y se testea el caso "leer durante el cobro" antes de integrarla.
+- **Refs:** `docs/producto/PLAN-TERMINALES-MOSTRADOR.md` (T-2); commit `222ad87c`.
+
+**[DX-11] Los tests unitarios estaban verdes y el Inicio igual mostraba como plata un pedido sin cobrar**
+- **Síntoma:** en el UAT de MAGRA del 18/10/2026, con la suite verde (4962 tests), el recorrido clic por clic encontró dos
+  cosas que se veían mal en pantalla. El Inicio sumaba en «Ingresos hoy» el pedido de la tienda recién entrado, sin pesar
+  ni cobrar. Y el cierre del día pintaba la apertura del turno en la columna «Ingreso», sin sumarla, así que la columna
+  no daba lo que decía el cuadro.
+- **Causa raíz:** cada pantalla armaba su propio criterio de «lo que entra», en vez de usar la regla que ya existía y
+  tenía test: `whereVentasCobradasConMedio` para las ventas y `movementSign` para la caja. Los tests probaban la regla,
+  no que la pantalla la usara.
+- **Fix:** las dos pantallas usan la regla compartida. Se sumó un test contra Postgres con RLS que falla con el código
+  viejo, y un test que verifica que el cierre usa `movementSign`. Además quedó un recorrido repetible
+  (`npm run test:magra-uat`), con la app de producción (`next start`) sobre una base local sembrada, que falla ante
+  cualquier error de consola.
+- **Lección:** antes de decir que algo está listo para producción, hay que recorrerlo como lo usa el cliente, sobre la
+  app compilada y con datos reales en forma (pedido web, venta, caja abierta y cierre), y no sólo correr la suite.
+  Cuando una pantalla muestra plata, el número sale de la misma función que usan las demás pantallas.
+- **Guardarraíl:**
+  - Todo tenant que sale a producción tiene su guion de UAT con matriz por rol, y su recorrido E2E repetible contra
+    `next start` y Postgres local, nunca Neon. Modelo: `test:club-uat` y `test:magra-uat`.
+  - Toda cifra de plata en una pantalla usa el `where` o la tabla de signos compartida. No se arma una lista propia de
+    tipos «que entran».
+- **Refs:** `docs/tenants/magra/UAT-PRODUCCION.md`; `src/tenants/magra/e2e/`; `src/lib/inicio-mostrador-postgres.test.ts`; DX-8.
+
 ## MP — Metodología / Proceso
 
 **[MP-1] Archivos corrompidos al editar**
@@ -456,6 +509,31 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **Guardarraíl:** en superficies públicas, rate-limit **por usuario** (fallos) + por IP **sólo fallos** y con techo
   generoso; nunca devolver el `motivo` del motor a un tercero sin pasarlo por un filtro de "qué puede ver este rol".
 - **Refs:** SEC-3; `src/tenants/breakpoint/turnero/back/servidor.mjs`; `docs/tenants/breakpoint/TURNERO-QA.md` (D1, D3).
+
+**[SEC-5] Un PIN más largo que no se usaba: el viejo firmaba y el tope se reseteaba con otro PIN**
+- **Síntoma:** al pasar los PIN de los dueños de Break Point de 2 a 4 dígitos (18/10/2026), el Gate encontró que el
+  PIN viejo de 2 seguía **firmando** descuentos y aprobaciones (sólo la entrada pedía el cambio), que el descuento no
+  tenía tope de intentos y que cada pantalla tenía su propio contador (y cualquier acierto lo ponía en cero).
+- **Causa raíz:** la migración se pensó desde la ENTRADA (no dejar afuera a nadie) y no desde la FIRMA; y el tope se
+  copió por pantalla en vez de ser uno de la compu.
+- **Fix:** `verificarFirma` en el motor (el PIN viejo entra, no firma) dentro de `autorizar`; un solo contador
+  persistente (`anotarIntentoPin`, `bp-intentos`) para bloqueo, cambio de usuario, descuento y aprobación; un acierto
+  de recepción no borra los fallos; filtro de PIN fáciles (`pinFacil`).
+- **Lección:** endurecer una credencial es cambiar **qué firma**, no sólo qué entra; y un rate-limit que se resetea
+  con *cualquier* acierto se esquiva intercalando una credencial propia.
+- **Guardarraíl:** al cambiar el largo o la forma de una credencial, listar **cada lugar que la acepta** (entrar,
+  firmar, aprobar remoto) y decidir uno por uno; el tope de intentos es **uno por dispositivo** y no lo
+  resetea un acierto de quien tiene la credencial débil (acá, recepción): sólo uno de la fuerte (dueño) o el tiempo.
+- **Deuda abierta (Gate del club en la base, 18/10/2026):** con la jornada en la base (BP-3, «modo foto») los PIN en
+  claro del sobre v1 también quedan en `AuditLog.changes` (entidad `ClubEstado`) y vuelven en `leerFotoDelClub` a
+  cualquier puesto con `agenda:manage`. Y el servidor no hace cumplir G8: `guardarFotoDelClub` no distingue un
+  guardado de un restaurar ni sabe qué cambió; lo hace cumplir la pantalla. La Auditoría del panel las excluye (B1:
+  mostraba los PIN y cargaba decenas de MB). Hash/redacción y comandos: BP-4 / G10
+  (`docs/tenants/breakpoint/PARIDAD-REACT.md`, «Lo que el servidor no controla»).
+- **Guardarraíl (sumado):** una tabla de rastro que se usa como almacén (una foto en `AuditLog`) se **excluye de todo
+  lector genérico** el mismo día que se crea (`ENTIDADES_FUERA_DE_LA_AUDITORIA`), con test contra Postgres.
+- **Refs:** SEC-4; `public/previews/breakpoint/club/motor.mjs` (`verificarFirma`, `anotarIntentoPin`, `pinFacil`);
+  `docs/tenants/breakpoint/REINGENIERIA.md §10`.
 
 **[MP-15] Deviación de una decisión de ADR citando una autoridad no trazable en el repo**
 - **Síntoma:** en el Gate de PR-2/M2, S4 renombró los 5 grupos de nav de las etiquetas **criollas** que fija

@@ -342,7 +342,7 @@ function TurnoDeCajero({ caja, className = "mt-8" }: { caja: Turno; className?: 
   );
 }
 
-export default function CajaRenglon({ dia, caja }: { dia: Dia; caja: Turno | null }) {
+export default function CajaRenglon({ dia, caja, regla = null }: { dia: Dia; caja: Turno | null; regla?: string | null }) {
   const deHoy = dia.movements.filter((m) => m.day === dia.day).length;
   return (
     <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
@@ -355,6 +355,7 @@ export default function CajaRenglon({ dia, caja }: { dia: Dia; caja: Turno | nul
               dia.yaCerrado ? "día cerrado" : "día abierto",
               caja ? (caja.open ? `turno abierto desde las ${fmtTime(caja.open.openedAt)}` : "sin turno de cajero abierto") : null,
               !dia.yaCerrado ? `${deHoy} ${deHoy === 1 ? "movimiento" : "movimientos"} hoy` : null,
+              regla,
             ]}
           />
         </div>

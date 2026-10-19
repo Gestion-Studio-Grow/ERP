@@ -127,6 +127,23 @@ export function proveedorDeLaUrl(
   return id && proveedores.some((p) => p.id === id) ? id : "";
 }
 
+/**
+ * El proveedor de la última entrada que tenía uno del maestro, si sigue en la lista (activo). Es la
+ * tecla «El último: …» de Recibir: el repartidor de siempre se elige de un toque. `recientes` viene
+ * ordenado del más nuevo al más viejo (compras-loader). PURA.
+ */
+export function ultimoProveedor(
+  recientes: readonly { supplierId: string | null }[],
+  proveedores: readonly ProveedorElegible[],
+): ProveedorElegible | null {
+  const porId = new Map(proveedores.map((p) => [p.id, p]));
+  for (const r of recientes) {
+    const p = r.supplierId ? porId.get(r.supplierId) : undefined;
+    if (p) return p;
+  }
+  return null;
+}
+
 /** «Estaba corto»: los que están bajo el mínimo, primero los que más lejos quedaron, hasta `max`. */
 export function cortosParaSumar<T extends ProductoRecibible>(
   productos: readonly T[],

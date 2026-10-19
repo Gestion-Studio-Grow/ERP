@@ -11,10 +11,12 @@
 // Sin costos: el sugerido son cantidades. El encargado (RECEPTION) lo usa sin ver un peso.
 
 import { prisma } from "@/lib/prisma";
+import { dateStrInBusinessTz } from "@/lib/datetime";
 import type { Prisma } from "@/generated/prisma/client";
 import {
   agruparPorProveedor,
   desdeVentaReciente,
+  factorDeLaSemana,
   lineasSugeridas,
   selectDemanda,
   textoDelPedido,
@@ -31,6 +33,8 @@ export type DatosDelSugerido = {
   productos: number;
   /** ¿Se pudo leer el proveedor habitual? Si la tabla de proveedores no está, todo va sin proveedor. */
   conProveedores: boolean;
+  /** El ajuste de la semana tipo que se aplicó (1 = ninguno). */
+  factor: number;
 };
 
 const CAMPOS = { id: true, name: true, unit: true, saleUnit: true, stock: true, lowStockAt: true } satisfies Prisma.ProductSelect;
@@ -45,19 +49,25 @@ const HABITUAL = {
   },
 } satisfies Prisma.ProductSelect;
 
-export async function getSugeridoData(tenantId: string, ahora: Date): Promise<DatosDelSugerido> {
+/**
+ * `semanaTipo`: ajustar por los días que cubre el pedido (sólo un mostrador; CH, con servicios, no:
+ * su cuenta queda como estaba). Sale de los mismos movimientos, sin otra consulta.
+ */
+export async function getSugeridoData(tenantId: string, ahora: Date, { semanaTipo = false }: { semanaTipo?: boolean } = {}): Promise<DatosDelSugerido> {
   const desde = desdeVentaReciente(ahora);
   const [tenant, leidos] = await Promise.all([
     prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
     leerProductos(tenantId, desde),
   ]);
 
-  const grupos = agruparPorProveedor(lineasSugeridas(leidos.productos), leidos.habitual);
+  const factor = semanaTipo ? factorDeLaSemana(leidos.productos, dateStrInBusinessTz(ahora), dateStrInBusinessTz) : 1;
+  const grupos = agruparPorProveedor(lineasSugeridas(leidos.productos, factor), leidos.habitual);
   const negocio = tenant?.name ?? "";
   return {
     pedidos: grupos.map((g) => ({ ...g, texto: textoDelPedido(negocio, g.proveedor?.nombre ?? null, g.lineas) })),
     productos: leidos.productos.length,
     conProveedores: leidos.conProveedores,
+    factor,
   };
 }
 

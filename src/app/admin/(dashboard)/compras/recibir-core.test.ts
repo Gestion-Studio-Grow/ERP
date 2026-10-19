@@ -12,6 +12,7 @@ import {
   renglonVacio,
   renglonesQueEntran,
   totalDelRemito,
+  ultimoProveedor,
   type EstadoDelRemito,
   type ProductoRecibible,
 } from "./recibir-core";
@@ -158,4 +159,15 @@ test("el detalle de una entrada nombra dos productos y cuenta el resto", () => {
     "Vacío 12 kg · Matambre 8,5 kg y 1 más",
   );
   assert.equal(detalleDeEntrada([{ name: "Vela de soja", quantity: 24, unit: "unidad" }]), "Vela de soja 24 u");
+});
+
+test("el último proveedor: el de la entrada más nueva que tenía uno, si sigue activo en la lista", () => {
+  const norte = { id: "s1", name: "Distribuidora Norte", taxId: null };
+  const frigo = { id: "s2", name: "Frigorífico Sur", taxId: "30712345678" };
+  const recientes = [{ supplierId: null }, { supplierId: "baja" }, { supplierId: "s2" }, { supplierId: "s1" }];
+  // La más nueva sin proveedor no cuenta; uno dado de baja (no está en la lista) tampoco.
+  assert.equal(ultimoProveedor(recientes, [norte, frigo]), frigo);
+  assert.equal(ultimoProveedor([{ supplierId: null }], [norte]), null);
+  assert.equal(ultimoProveedor([], [norte]), null);
+  assert.equal(ultimoProveedor([{ supplierId: "s1" }], []), null);
 });

@@ -272,6 +272,11 @@ describe("Caja en el navegador", { timeout: 120_000 }, () => {
     await page.focus("#counted");
     await page.keyboard.type("9.500");
     await page.keyboard.press("Enter");
+    // Con diferencia y sin nota no se llega a confirmar: se pide el porqué y el foco va a la nota.
+    await page.getByText(/Hay diferencia entre lo que dice el libro y lo que contaste/).waitFor();
+    assert.equal(await page.evaluate(() => document.activeElement?.id), "close-note");
+    await page.keyboard.type("faltó cambio");
+    await page.keyboard.press("Enter");
     const pregunta = page.getByText(/¿Cerrar el turno\? Contaste \$\s?9\.500,00 y se esperaba \$\s?10\.000,00: faltante \$\s?500,00\./);
     await pregunta.waitFor();
     assert.equal(await foco(page), "Sí, cerrar caja");
@@ -279,7 +284,7 @@ describe("Caja en el navegador", { timeout: 120_000 }, () => {
     await page.keyboard.press("Enter");
     await page.waitForFunction(() => (window as unknown as Ventana).__envios.length >= 1);
     // Con el esperado que se mostró y se confirmó: el servidor no cierra si el libro ya dice otro (ADR-101).
-    assert.deepEqual((await envios(page))[0], { counted: ["9.500"], note: [""], esperadoConfirmado: ["10000"] });
+    assert.deepEqual((await envios(page))[0], { counted: ["9.500"], note: ["faltó cambio"], esperadoConfirmado: ["10000"] });
     assert.deepEqual(errores, []);
     await page.close();
   });

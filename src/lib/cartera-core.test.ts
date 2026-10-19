@@ -302,3 +302,18 @@ test("crearClienteProvisioning: envuelve $transaction y le da a provisionTenant 
   assert.equal(resultado, "tenant-nuevo");
   assert.deepEqual(llamadas.map((l) => l.tipo), ["tenant.upsert", "set_config"]);
 });
+
+test("la fila de la cartera dice si al cliente le falta la condición frente al IVA y si es monotributista (sólo si se leyó)", async () => {
+  const { armarFilaCartera } = await import("@/lib/cartera-core");
+  const fila = { id: "f1", clienteTenantId: "c1", alias: "Kiosco", estado: "activa" as const };
+  const info = { nombre: "Kiosco", slug: "kiosco", subdomain: null, arcaCuit: "20111111112", arcaHomologacion: true };
+  const resumen = { facturasMes: 0, capFacturasMes: 159, montoFacturadoMes: 0, pendientesRevision: 0, listasParaEmitir: 0, ultimaImportacion: null };
+  const sinDato = armarFilaCartera(fila, info, resumen);
+  assert.equal("sinCondicionIva" in sinDato, false, "sin el dato no se inventa");
+  const sinCargar = armarFilaCartera(fila, { ...info, arcaCondicionIva: null }, resumen);
+  assert.equal(sinCargar.sinCondicionIva, true);
+  assert.equal(sinCargar.monotributista, false);
+  const mono = armarFilaCartera(fila, { ...info, arcaCondicionIva: "MONOTRIBUTO" }, resumen);
+  assert.equal(mono.sinCondicionIva, false);
+  assert.equal(mono.monotributista, true);
+});

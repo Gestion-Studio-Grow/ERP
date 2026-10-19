@@ -16,7 +16,8 @@ import Link from "next/link";
 import type { getCierreDiarioData } from "@/lib/cierre-diario-actions";
 import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
 import { formatDayLabel, nextDayKey } from "@/lib/caja/cierre-diario";
-import type { CashMethod } from "@/lib/caja/cash-register";
+import { movementSign, type CashMethod } from "@/lib/caja/cash-register";
+import { textoDeAperturaQueNoSuma } from "./revisar-cierre";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
 import { DosColumnas, Franja, LineaDeEstado, Marca, Plata, Renglon, Rotulo, atributosBoton, fmtMoneyARS } from "@/components/ui";
 import { LineaDeCuenta } from "@/components/ui/LineaDeCuenta";
@@ -38,7 +39,7 @@ const AYUDA: Record<CashMethod, string> = {
 
 const ORIGEN: Record<string, string> = { pos: "venta del mostrador", turno: "turno cobrado", manual: "cargado a mano" };
 
-function Encabezado({ d }: { d: Datos }) {
+function Encabezado({ d, regla }: { d: Datos; regla: string | null }) {
   const { day, today, since, preview, yaCerrado } = d;
   const sinCerrar = !yaCerrado && since && since < day ? diasEntre(since, day) : 0;
   return (
@@ -50,6 +51,7 @@ function Encabezado({ d }: { d: Datos }) {
             <strong key="d">{diaLargo(day)}</strong>,
             yaCerrado ? "cerrado" : since ? (sinCerrar > 0 ? `abarca desde el ${diaMes(since)}: ${sinCerrar === 1 ? "1 día" : `${sinCerrar} días`} sin cerrar` : null) : "todavía no hubo ningún cierre",
             yaCerrado ? null : `${preview.movementCount} ${preview.movementCount === 1 ? "movimiento" : "movimientos"}`,
+            regla,
           ]}
         />
       </div>
@@ -206,14 +208,15 @@ function ComoSeLlega({ d }: { d: Datos }) {
           </summary>
           <div>
             {d.movements.map((m) => {
-              const entra = m.type === "INGRESO" || m.type === "VENTA" || m.type === "APERTURA";
+              // Misma tabla de signos que el libro: la apertura es el conteo del cajón y no suma.
+              const signo = movementSign(m.type);
               return (
                 <Renglon
                   key={m.id}
                   folio={diaMes(m.day)}
                   titulo={<span className="font-normal">{m.detail || "(sin detalle)"}</span>}
-                  detalle={`${CASH_METHOD_LABEL[m.method]} · ${ORIGEN[m.origin] ?? m.origin}`}
-                  plata={<Plata valor={entra ? m.amount : -m.amount} />}
+                  detalle={`${CASH_METHOD_LABEL[m.method]} · ${ORIGEN[m.origin] ?? m.origin}${signo === 0 ? ` · ${textoDeAperturaQueNoSuma(m.amount)}` : ""}`}
+                  plata={signo === 0 ? null : <Plata valor={signo * m.amount} />}
                 />
               );
             })}
@@ -256,7 +259,7 @@ function TurnosSinCerrar({ d }: { d: Datos }) {
   );
 }
 
-export default async function CierreRenglon({ d }: { d: Datos }) {
+export default async function CierreRenglon({ d, regla = null }: { d: Datos; regla?: string | null }) {
   const { day, yaCerrado, enElFuturo, registro, lastClosedDay, preview } = d;
   const medios: MedioAContar[] = CASH_METHODS.map((m) => {
     const x = preview.porMedio[m];
@@ -272,7 +275,7 @@ export default async function CierreRenglon({ d }: { d: Datos }) {
   const mediosCerrados = yaCerrado && registro ? await leerMediosDelComprobante(day) : null;
   return (
     <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
-      <Encabezado d={d} />
+      <Encabezado d={d} regla={regla} />
       {yaCerrado && registro && <Comprobante d={d} medios={mediosCerrados} />}
       {yaCerrado && !registro && (
         <Franja tono="info">

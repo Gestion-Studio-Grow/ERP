@@ -20,6 +20,11 @@ import assert from "node:assert/strict";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { runInTenantContext } from "@/lib/tenant-context";
+import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
+
+// ARCA acepta comprobantes con fecha de hasta 5 días alrededor del envío: el día fiscal de HOY,
+// no una fecha fija que envejece (con el 24/09 fijo, desde el 30/09 todo se rechazaba).
+const HOY = fechaFiscalDelDia();
 
 const laBase = baseEfimeraDelArchivo();
 
@@ -113,7 +118,7 @@ const cobroMP = (id: string, externalReference: string, monto = 18000) => ({
   estado: "approved" as const,
   monto,
   externalReference,
-  fechaAcreditacion: "20260924",
+  fechaAcreditacion: HOY,
   descripcion: `Cobro ${id}`,
 });
 

@@ -34,8 +34,8 @@ test("con dos locales del mismo CUIT y una factura de prueba: la pantalla dice q
   });
   const h = html(libro);
   assert.match(h, /Este libro suma los locales del mismo CUIT: Supermercados Río Chico SA \(punto de venta 3\) y Río Chico Bernal \(punto de venta 4\)/);
-  assert.match(h, /Facturas de prueba \(1\)/);
-  assert.match(h, /CAE simulado del modo prueba: no se declaran ni cuentan para los topes\. No están en los totales de abajo\./);
+  assert.match(h, /Comprobantes sin validez fiscal \(1\)/);
+  assert.match(h, /CAE que no otorgó ARCA: no se declaran ni cuentan para los topes\. No están en los totales de abajo\./);
   assert.match(h, /00003-00000002 · 26\/09\/2026/, "la de prueba, con su número y su fecha");
   assert.doesNotMatch(h, /00004-00000001/, "las reales no van en el aviso: van en la tabla de siempre");
   assert.match(h, /min-h-11/, "cada renglón mide 44 px o más");

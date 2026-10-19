@@ -59,7 +59,7 @@ test("ninguna app declara scopeItems ni campos fuera del contrato", () => {
   // alguien castea un objeto a AppDescriptor.
   const CAMPOS = new Set<keyof AppDescriptor>([
     "id", "nombre", "descripcion", "icono", "ruta", "exacta", "espacio", "capability", "capabilityEnMostrador", "modulo",
-    "moduloDuro", "rubro", "perfilMin", "estado", "kpi", "palabras", "menuDeHoy", "enLanzador",
+    "moduloDuro", "casa", "rubro", "perfilMin", "estado", "kpi", "palabras", "menuDeHoy", "enLanzador",
   ]);
   for (const app of REGISTRO_APPS) {
     for (const campo of Object.keys(app)) {
@@ -178,4 +178,13 @@ test("buscarApp no confía en lo que llega de afuera", () => {
   assert.equal(buscarApp("__proto__"), undefined);
   assert.equal(buscarApp("../facturacion"), undefined);
   assert.throws(() => appPorId("no-existe" as never));
+});
+
+test("club: app de su módulo, que sólo abre quien opera la agenda y nunca sin el módulo asignado", () => {
+  const club = appPorId("club");
+  assert.equal(club.ruta, "/admin/club");
+  assert.equal(club.modulo, "club");
+  assert.equal(club.moduloDuro, true, "sin `club` en Tenant.modules no se abre ni por URL (CH incluida)");
+  assert.equal(club.capability, "agenda:manage");
+  assert.equal(club.menuDeHoy, undefined, "no estaba en la barra de hoy: la barra de CH no cambia");
 });

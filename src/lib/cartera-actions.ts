@@ -189,6 +189,7 @@ async function metadataClientesDb(ids: string[]): Promise<Map<string, MetaClient
       arcaCuit: true,
       arcaPuntoVenta: true,
       arcaHomologacion: true,
+      arcaCondicionIva: true,
       bancosCapFacturasMes: true,
     },
   });
@@ -202,6 +203,7 @@ async function metadataClientesDb(ids: string[]): Promise<Map<string, MetaClient
         arcaCuit: t.arcaCuit,
         arcaPuntoVenta: t.arcaPuntoVenta,
         arcaHomologacion: t.arcaHomologacion,
+        arcaCondicionIva: t.arcaCondicionIva,
         capFacturasMes: t.bancosCapFacturasMes,
       },
     ]),

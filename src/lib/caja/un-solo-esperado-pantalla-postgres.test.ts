@@ -49,7 +49,7 @@ test("contra Postgres: lo que la pantalla muestra como esperado es lo que el cie
   // Con la pantalla de hoy: cuenta $3.300, confirma «faltante $500» y eso es lo que queda.
   const confirmado = round2(3_300 - pantalla.esperado);
   assert.equal(confirmado, -500);
-  assert.deepEqual(await c.cerrarTurno(a, "3300", pantalla.esperado), { ok: true });
+  assert.deepEqual(await c.cerrarTurno(a, "3300", pantalla.esperado, "faltante de prueba"), { ok: true });
   const cerrado = await c.duenio.cashSession.findUniqueOrThrow({ where: { id: turno.id } });
   assert.equal(cerrado.closingExpected, pantalla.esperado, "el esperado asentado es el que se mostró");
   assert.equal(cerrado.closingDiff, confirmado, "la diferencia asentada es la que se confirmó");

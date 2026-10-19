@@ -291,6 +291,8 @@ describe("Caja del día abierta, en el navegador", { timeout: 180_000 }, () => {
     await page.getByRole("button", { name: "Cerrar el turno" }).click();
     const dialogo = page.locator("dialog[open]");
     await dialogo.getByLabel("Efectivo contado").fill("61.365");
+    // Con diferencia, la nota es obligatoria (como en el cierre del día).
+    await dialogo.getByLabel("Nota").fill("sin explicación por ahora");
     await dialogo.getByRole("button", { name: "Cerrar caja" }).click();
     const pregunta = (await dialogo.locator("#cerrar-caja-titulo").innerText()).replace(/\s+/g, " ");
     assert.match(pregunta, /Contaste \$ ?61\.365,00 y se esperaba \$ ?61\.865,00: faltante \$ ?500,00\./);
@@ -298,7 +300,7 @@ describe("Caja del día abierta, en el navegador", { timeout: 180_000 }, () => {
     // …y manda ESE esperado: el servidor arquea contra él o no cierra (un-solo-esperado-pantalla-postgres.test.ts).
     await page.waitForFunction(() => ((window as unknown as Ventana).__enviado ?? []).length > 0);
     const enviado = await page.evaluate(() => (window as unknown as Ventana).__enviado);
-    assert.deepEqual(enviado, [{ accion: "cerrar", counted: "61.365", note: "", esperadoConfirmado: "61865" }]);
+    assert.deepEqual(enviado, [{ accion: "cerrar", counted: "61.365", note: "sin explicación por ahora", esperadoConfirmado: "61865" }]);
     assert.deepEqual(errores, []);
     await page.close();
   });

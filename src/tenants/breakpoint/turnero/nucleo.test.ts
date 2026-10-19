@@ -281,6 +281,17 @@ test("backoffice → turnero: mantenimiento y bloqueos sacan la cancha del turne
   assert.deepEqual(d.mantenimiento, ["Cancha 4"]);
 });
 
+test("«sólo techadas»: en Break Point (4 techadas) no filtra nada; con una descubierta (otro club), la saca", () => {
+  const { tn } = armar();
+  const todas = tn.disponibilidad({ fecha: MANIANA, duracion: 90 }).slots.length;
+  assert.equal(tn.disponibilidad({ fecha: MANIANA, duracion: 90, techadas: true }).slots.length, todas);
+  assert.ok(tn.config().canchas.every((c: any) => c.techada));
+  tn.sincronizar({ canchas: tn.estado.canchas.map((c: any) => (c.id === "c4" ? { ...c, cubierta: false } : c)) });
+  const techadas = tn.disponibilidad({ fecha: MANIANA, duracion: 90, techadas: true }).slots;
+  assert.ok(techadas.length > 0 && !techadas.some((s: any) => s.canchaId === "c4"));
+  assert.ok(tn.disponibilidad({ fecha: MANIANA, duracion: 90 }).slots.some((s: any) => s.canchaId === "c4"));
+});
+
 test("registro: celular inválido, clave débil o cuenta repetida → motivo claro", async () => {
   const { tn } = armar();
   assert.match((await tn.registrar({ nombre: "Ana", tel: "123", clave: "canchaazul9" })).motivo, /celular/);

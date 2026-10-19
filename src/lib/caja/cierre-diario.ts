@@ -166,6 +166,26 @@ export type CierreTotal = {
   diff: number;
 };
 
+/**
+ * El texto cuando el arqueo no cuadra y no se anotó por qué. UNO solo para el cierre del día y el
+ * cierre del turno de cajero (`notaFaltanteDelArqueo`, abajo): la persona lee lo mismo.
+ */
+export const NOTA_OBLIGATORIA_CON_DIFERENCIA =
+  "Hay diferencia entre lo que dice el libro y lo que contaste. Anotá por qué (o " +
+  "“sin explicación por ahora”): la diferencia se asienta igual, pero tiene que quedar dicho.";
+
+/**
+ * ¿Falta la nota del cierre del turno? PURA. Con diferencia (`diff` ≠ 0, ya redondeada por
+ * `arqueoContraElLibro`, saldo-cajon.ts) y sin nota, devuelve el MISMO texto que el cierre del
+ * día: el faltante se asienta igual, pero sin un porqué no se cierra. Cuadrando, la nota sigue
+ * siendo opcional.
+ * Lo usan el servidor (`closeCashSession`) y el formulario del turno (CajaForms.tsx).
+ */
+export function notaFaltanteDelArqueo(diff: number, nota: string | null | undefined): string | null {
+  if (diff === 0) return null;
+  return String(nota ?? "").trim() ? null : NOTA_OBLIGATORIA_CON_DIFERENCIA;
+}
+
 export type CierreEstado =
   | "SIN_DECLARAR" // no se declaró ningún medio: todavía no es un cierre
   | "CUADRA" // todo medio declarado da diferencia 0
@@ -390,10 +410,7 @@ export function validateCierre(
   if (cierre.estado !== "SIN_DECLARAR" && cierre.estado !== "CUADRA") {
     const note = String(ctx.note ?? "").trim();
     if (!note) {
-      errors.push(
-        "Hay diferencia entre lo que dice el libro y lo que contaste. Anotá por qué (o " +
-          "“sin explicación por ahora”): la diferencia se asienta igual, pero tiene que quedar dicho.",
-      );
+      errors.push(NOTA_OBLIGATORIA_CON_DIFERENCIA);
     }
   }
 

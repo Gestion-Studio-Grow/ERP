@@ -166,6 +166,12 @@ export interface AppDescriptor {
    * OWNER las vería. Además, su página y sus actions llaman a `exigirCasa()`.
    */
   moduloDuro?: true;
+  /**
+   * Panel dedicado: si el negocio tiene ESTE módulo asignado, su backoffice es sólo esta app (más Usuarios y
+   * cerrar sesión), sin el menú general del ERP. Mismo motor e infraestructura, pantalla propia: Break Point con
+   * el club. Va siempre con `moduloDuro` (`appCasa`, layout del admin).
+   */
+  casa?: true;
   rubro?: RubroApp;
   /**
    * Pantalla de la edición por perfiles (Comercio/Empresa). Presente = sólo se ofrece con

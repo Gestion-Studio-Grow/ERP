@@ -142,6 +142,10 @@ export interface FilaCartera extends ResumenFiscalCliente {
    * `armarFilaCartera` no lo conoce; lo agrega `recorrerCartera` desde la misma pasada.
    */
   cierreMes?: CierreMesCliente | null;
+  /** `true` si no tiene cargada su condición frente al IVA; sin el dato, no viene. */
+  sinCondicionIva?: boolean;
+  /** `true` si es monotributista (condición frente al IVA «MONOTRIBUTO»); sin el dato, no viene. */
+  monotributista?: boolean;
 }
 
 /** KPIs de cabecera del panel (conserva el contrato del scaffold, ahora real). */
@@ -182,6 +186,11 @@ export interface ClienteInfo {
   subdomain: string | null;
   arcaCuit: string | null;
   arcaHomologacion: boolean;
+  /**
+   * `Tenant.arcaCondicionIva` (null = sin cargar). Opcional: los recolectores que no la leen no la
+   * traen, y entonces la ficha no ofrece el pedido de la condición.
+   */
+  arcaCondicionIva?: string | null;
 }
 
 export interface CarteraPorts {
@@ -224,6 +233,10 @@ export function armarFilaCartera(
     validezFiscal: modoArca ? emiteConValidezFiscal(info.arcaHomologacion, modoArca) : false,
     ...resumen,
     pctCap: resumen.facturasMes / cap,
+    // Sólo si el recolector leyó la condición (las claves no aparecen si no: igualdad estricta).
+    ...(info.arcaCondicionIva !== undefined
+      ? { sinCondicionIva: !info.arcaCondicionIva, monotributista: info.arcaCondicionIva === "MONOTRIBUTO" }
+      : {}),
   };
 }
 

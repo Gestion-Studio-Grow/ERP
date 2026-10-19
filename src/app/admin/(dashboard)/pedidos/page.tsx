@@ -36,14 +36,15 @@ import { vocabularioDelNegocio } from "@/lib/vocabulario-negocio";
 import { prisma } from "@/lib/prisma";
 import { formatearCantidad } from "@/lib/pos-peso";
 import { waLinkClienta } from "@/lib/whatsapp-cta";
-import { verboDelPaso, etiquetaDeHorario, avisoPedidoListo, ESTADOS_EN_CURSO } from "@/lib/order-anulacion";
+import { verboDelPaso, etiquetaDeHorario, avisoPedidoListo, recordatorioDeRetiro, ESTADOS_EN_CURSO } from "@/lib/order-anulacion";
 import { enInicioPorApps } from "../inicio/piloto";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { roleHasCapability } from "@/lib/capabilities";
 import TableroPedidos from "./TableroPedidos";
+import AvisoDePedidosNuevos from "./AvisoDePedidosNuevos";
 import { armarTablero, leerAvisados } from "./tablero.server";
 import { LineaDeEstado, Plata } from "@/components/ui";
-import { lineaDelTablero } from "./pedidos-core";
+import { lineaDelTablero, listoDesdeAyer, otrosPedidosDeLaClienta, textoDeLaTiendaEsperando, textoDeOtrosPedidos } from "./pedidos-core";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +97,11 @@ export default async function PedidosPage() {
   // entrega en un punto de encuentro (rubros.ts `entrega`). Lo mismo que ve el tablero nuevo.
   const entrega = entregaDelRubro(identidad.rubro);
   const vocab = vocabularioDelNegocio(identidad.rubro);
+  // El aviso de pedido nuevo (refresco solo + «bip»), sólo en el negocio que vende por kilo
+  // (UAT MAGRA 16/10). La bandeja de CH, y la de todo comercio que no pesa, queda como estaba.
+  const avisoDePedidos = comercio && vocab.porPeso
+    ? <AvisoDePedidosNuevos pedidosWeb={abiertos.filter((o) => o.channel === "ONLINE").map((o) => ({ id: o.id, code: o.code }))} />
+    : null;
 
   // Los servicios del mostrador crean un TURNO, así que se ofrecen sólo a quien puede
   // gestionar agenda (OWNER y RECEPCIÓN), y sólo en un negocio de servicios: en un comercio la
@@ -183,7 +189,9 @@ export default async function PedidosPage() {
       alcance,
     });
     const verPlata = roleHasCapability(user.role, "reports:read");
-    const linea = lineaDelTablero(tablero.abiertos, verPlata);
+    // El reloj sólo en comercio: los de la tienda esperando y los listos sin retirar (CH no tiene
+    // tienda ni retiros, y su línea queda como estaba).
+    const linea = lineaDelTablero(tablero.abiertos, verPlata, comercio ? { ahora: new Date(), hoy } : undefined);
     const puedeTomar = modeloNuevo && roleHasCapability(user.role, "orders:manage");
     return (
       <main data-ui="pagina" className="mx-auto w-full px-4 py-6">
@@ -195,8 +203,18 @@ export default async function PedidosPage() {
             <LineaDeEstado
               datos={[
                 <strong key="a">{linea.abiertos === 1 ? "1 abierto" : `${linea.abiertos} abiertos`}</strong>,
+                linea.tienda ? (
+                  <span key="t" className={linea.tienda.alerta ? "font-medium text-danger" : undefined}>
+                    {textoDeLaTiendaEsperando(linea.tienda)}
+                  </span>
+                ) : null,
                 linea.paraHoy > 0 ? `${linea.paraHoy} para entregar hoy` : null,
                 linea.sinAvisar > 0 ? `${linea.sinAvisar} ${linea.sinAvisar === 1 ? "listo" : "listos"} sin avisar` : null,
+                linea.listosDeAyer > 0 ? (
+                  <span key="r" className="text-warning">
+                    {linea.listosDeAyer === 1 ? "1 listo desde ayer sin retirar" : `${linea.listosDeAyer} listos desde ayer sin retirar`}
+                  </span>
+                ) : null,
                 linea.porCobrar ? (
                   <span key="p">
                     <Plata valor={linea.porCobrar} sinCentavos /> por cobrar
@@ -238,6 +256,7 @@ export default async function PedidosPage() {
           )}
         </header>
 
+        {avisoDePedidos}
         <TableroPedidos
           abiertos={tablero.abiertos}
           cerrados={tablero.cerrados}
@@ -251,6 +270,29 @@ export default async function PedidosPage() {
       </main>
     );
   }
+
+  // La bandeja de siempre también dice cuántos de la tienda esperan y cuántos listos no se
+  // retiraron (sólo comercio), con la misma cuenta que el tablero nuevo.
+  const lineaVieja = comercio
+    ? lineaDelTablero(
+        abiertos.map((o) => ({
+          status: o.status,
+          cobrado: o.paid,
+          horario: null,
+          total: o.total,
+          avisoWa: null,
+          avisado: null,
+          canal: o.channel === "ONLINE" ? ("ONLINE" as const) : ("COUNTER" as const),
+          creado: o.createdAt.toISOString(),
+        })),
+        false,
+        { ahora: new Date(), hoy },
+      )
+    : null;
+  // La misma clienta con otro pedido abierto (caso 8), también en la bandeja de siempre.
+  const otrosDeLaClienta = comercio
+    ? otrosPedidosDeLaClienta(abiertos.map((o) => ({ id: o.id, code: o.code, telefono: o.customerPhone, status: o.status })))
+    : new Map<string, number[]>();
 
   return (
     <main className={modeloNuevo ? "mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8" : "mx-auto max-w-4xl px-6 py-8"}>
@@ -315,9 +357,28 @@ export default async function PedidosPage() {
         </>
       )}
 
+      {avisoDePedidos && <div className="mt-10">{avisoDePedidos}</div>}
       <h2 className="text-lg font-medium mt-10 mb-3">
         Bandeja de pedidos{abiertos.length > 0 && ` (${abiertos.length} abierto${abiertos.length !== 1 ? "s" : ""})`}
       </h2>
+
+      {lineaVieja && (lineaVieja.tienda || lineaVieja.listosDeAyer > 0) && (
+        <LineaDeEstado
+          className="-mt-2 mb-3"
+          datos={[
+            lineaVieja.tienda ? (
+              <span key="t" className={lineaVieja.tienda.alerta ? "font-medium text-danger" : undefined}>
+                {textoDeLaTiendaEsperando(lineaVieja.tienda)}
+              </span>
+            ) : null,
+            lineaVieja.listosDeAyer > 0 ? (
+              <span key="r" className="text-warning">
+                {lineaVieja.listosDeAyer === 1 ? "1 listo desde ayer sin retirar" : `${lineaVieja.listosDeAyer} listos desde ayer sin retirar`}
+              </span>
+            ) : null,
+          ]}
+        />
+      )}
 
       <div className="space-y-3">
         {abiertos.map((o) => {
@@ -345,6 +406,20 @@ export default async function PedidosPage() {
                     direccionLocal: local.direccion,
                     horarioLocal: local.horario,
                     listoPara: entrega.listoPara,
+                  }),
+                )
+              : null;
+          // Listo desde un día anterior y para retirar: el recordatorio armado (caso 4).
+          const recordatorio =
+            local && o.fulfillment !== "DELIVERY" && listoDesdeAyer({ status: o.status, creado: o.createdAt.toISOString() }, hoy)
+              ? waLinkClienta(
+                  o.customerPhone,
+                  recordatorioDeRetiro({
+                    cliente: o.customerName,
+                    code: o.code,
+                    negocio: local.negocio,
+                    direccionLocal: local.direccion,
+                    horarioLocal: local.horario,
                   }),
                 )
               : null;
@@ -386,6 +461,9 @@ export default async function PedidosPage() {
                     {o.customerName}
                     {o.customerPhone && <span className="text-faint"> · {o.customerPhone}</span>}
                   </p>
+                  {otrosDeLaClienta.has(o.id) && (
+                    <p className="text-xs font-medium text-warning mt-0.5">{textoDeOtrosPedidos(otrosDeLaClienta.get(o.id) ?? [])}</p>
+                  )}
                   <ul className="text-xs text-muted mt-1 space-y-0.5">
                     {o.items.map((it) => (
                       <li key={it.id}>
@@ -435,6 +513,7 @@ export default async function PedidosPage() {
                     />
                   )}
                   {avisoWa && <AvisarPorWhatsApp orderId={o.id} href={avisoWa} />}
+                  {recordatorio && <AvisarPorWhatsApp orderId={o.id} href={recordatorio} tipo="recordatorio-retiro" />}
                   {/* Listo: entregar pide el cobro o «Queda a cobrar» (EntregarPedidoForm). */}
                   {o.status === "READY" && <EntregarPedidoForm id={o.id} code={o.code} paid={o.paid} />}
                   {/* Cobrar sin entregar sigue estando, también en Listo: el que pagó por
@@ -468,6 +547,7 @@ export default async function PedidosPage() {
                       paid={o.paid}
                       total={o.total}
                       motivoObligatorio={alcance.motivoObligatorio}
+                      conStock={comercio}
                     />
                   )}
                 </div>
@@ -524,6 +604,7 @@ export default async function PedidosPage() {
                           aCuenta={o.paid && !o.paymentMethod}
                           total={o.total}
                           motivoObligatorio={alcance.motivoObligatorio}
+                          conStock={comercio}
                         />
                       </div>
                     )}

@@ -94,7 +94,7 @@ export default async function RecordatoriosPage() {
         <header data-ui="page-header" className="mb-6">
           <h1 className="text-2xl font-bold text-strong">Recordatorios</h1>
           <p className="mt-1 text-sm text-muted">
-            Cuándo se le avisa a cada clienta y qué dice el mensaje. El envío por WhatsApp y email todavía no está conectado: hoy queda simulado.
+            Cuándo se le avisa a cada clienta y qué dice el mensaje. El envío automático por WhatsApp y email todavía no está conectado: por ahora no sale ningún mensaje solo.
           </p>
         </header>
         {piloto && <CoberturaDeManana renglon />}
@@ -146,14 +146,14 @@ export default async function RecordatoriosPage() {
                   detalle={
                     // No dice "difundida": el envío es simulado y no salió ningún mensaje.
                     `${fmtDateTime(n.createdAt)} · en la web` +
-                    (n.broadcastAt ? ` · difusión simulada el ${fmtDateTime(n.broadcastAt)}: no salió ningún mensaje` : "")
+                    (n.broadcastAt ? ` · marcada para difundir el ${fmtDateTime(n.broadcastAt)}: no salió ningún mensaje (el envío no está conectado)` : "")
                   }
                   tecla={
                     !n.broadcastAt ? (
                       <form action={broadcastProfessionalNewsAction}>
                         <input type="hidden" name="id" value={n.id} />
                         <SubmitButton pendingText="Registrando…" className={buttonClasses("outline", "md", "min-h-11 whitespace-nowrap")}>
-                          Difundir (simulado)
+                          Difundir (sin envío todavía)
                         </SubmitButton>
                       </form>
                     ) : undefined
@@ -173,8 +173,8 @@ export default async function RecordatoriosPage() {
         <h1 className="text-2xl font-semibold mb-1">Recordatorios</h1>
         <p className="text-muted">
           Configurá cuándo se avisa a cada cliente, qué dice el mensaje, y difundí novedades de los
-          profesionales. El envío real de email/WhatsApp se activa conectando un proveedor (hoy queda
-          simulado en el log del servidor).
+          profesionales. El envío automático por email o WhatsApp se activa al conectar un proveedor; mientras
+          tanto no sale ningún mensaje solo.
         </p>
       </div>
 
@@ -239,7 +239,7 @@ export default async function RecordatoriosPage() {
                 <p className="text-xs text-faint">
                   {fmtDateTime(n.createdAt)} · publicada en la web
                   {/* No dice "difundida": el envío es simulado y no salió ningún mensaje. */}
-                  {n.broadcastAt && ` · difusión simulada el ${fmtDateTime(n.broadcastAt)}: no salió ningún mensaje`}
+                  {n.broadcastAt && ` · marcada para difundir el ${fmtDateTime(n.broadcastAt)}: no salió ningún mensaje (el envío no está conectado)`}
                 </p>
               </div>
               {!n.broadcastAt && (
@@ -249,7 +249,7 @@ export default async function RecordatoriosPage() {
                     pendingText="Registrando…"
                     className={buttonClasses("outline", "sm", "whitespace-nowrap")}
                   >
-                    Difundir (simulado)
+                    Difundir (sin envío todavía)
                   </SubmitButton>
                 </form>
               )}

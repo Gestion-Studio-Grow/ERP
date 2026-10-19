@@ -231,6 +231,32 @@ export function appsVisibles(
     .map(({ app }) => app);
 }
 
+// ── Panel dedicado (`casa`) ─────────────────────────────────────────────────
+
+/** Lo que acompaña a una casa: dar de alta a quien usa el panel. */
+const APPS_DE_CUENTA: ReadonlySet<string> = new Set(["usuarios"]);
+
+/**
+ * La app que es TODO el panel de este negocio (`casa`), si tiene su módulo asignado; `null` para el resto
+ * (CH, Magra, …: el backoffice de siempre). PURA. Mira la asignación, no el rol: quien no puede abrir la casa
+ * igual cae en ella y su guardia (`requireApp`) lo manda a «no disponible», nunca al menú general.
+ */
+export function appCasa(n: NegocioApps, apps: readonly AppDescriptor[] = REGISTRO_APPS): AppDescriptor | null {
+  const asignados = n.contexto ? n.contexto.modulos : new Set(n.modulosAsignados);
+  return apps.find((a) => a.casa && a.modulo !== null && asignados.has(a.modulo)) ?? null;
+}
+
+/** Con casa, lo que se ve: la casa y las apps de cuenta que esta persona puede abrir. PURA. */
+export function appsDeLaCasa(casa: AppDescriptor, visibles: readonly AppDescriptor[]): AppDescriptor[] {
+  return visibles.filter((a) => a.id === casa.id || APPS_DE_CUENTA.has(a.id));
+}
+
+/** ¿`path` es de la casa o de una app de cuenta? Lo demás del backoffice rebota a la casa. PURA. */
+export function rutaDeLaCasa(path: string, casa: AppDescriptor, apps: readonly AppDescriptor[] = REGISTRO_APPS): boolean {
+  const app = appDeRuta(path, apps);
+  return !!app && (app.id === casa.id || APPS_DE_CUENTA.has(app.id));
+}
+
 // ── El número del botón: qué parte ve cada rol ───────────────────────────────
 
 /**

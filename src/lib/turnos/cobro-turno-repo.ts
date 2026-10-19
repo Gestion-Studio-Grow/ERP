@@ -28,6 +28,8 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { recordCobroTurnoInTx, type RecordCobroTurnoResult } from "@/lib/caja/cobro-turno";
+import { formatDayLabel, isFrozenDay, nextDayKey, type DayKey } from "@/lib/caja/cierre-diario";
+import { dateStrInBusinessTz } from "@/lib/datetime";
 import { round2 } from "@/lib/round";
 import {
   estadoCobroTurno,
@@ -65,7 +67,15 @@ export type AplicarCobroArgs = {
   idempotencyKey: string | null;
   // true = escribir `idempotencyKey` y asentar en el libro (columnas migradas).
   withSchema: boolean;
+  // El último día CERRADO de la caja (`lastClosedDay`), o null si nunca se cerró. Obligatorio a
+  // propósito: un cobro de turno es plata que entra HOY, y si hoy ya se cerró caería en un día
+  // congelado (UAT de CH, 18/10). Mismo criterio que el cobro de un pedido (`fronteraDeVenta`).
+  cerradoHasta: DayKey | null;
+  /** Desde dónde se cobra: cambia la SALIDA que ofrece el mensaje del día cerrado, no la regla. */
+  camino: CaminoDeCobro;
 };
+
+export type CaminoDeCobro = "reserva" | "cobro" | "completar";
 
 export type AplicarCobroResult =
   | {
@@ -81,16 +91,30 @@ export type AplicarCobroResult =
 export class CobroTurnoRechazado extends Error {
   readonly motivo: MotivoCobroRechazado;
   readonly saldo: number;
-  constructor(motivo: MotivoCobroRechazado, saldo: number) {
-    super(mensajeRechazo(motivo, saldo));
+  constructor(motivo: MotivoCobroRechazado, saldo: number, mensaje?: string) {
+    super(mensaje ?? mensajeRechazo(motivo, saldo));
     this.name = "CobroTurnoRechazado";
     this.motivo = motivo;
     this.saldo = saldo;
   }
 }
 
+/**
+ * El cobro de un turno con la caja de hoy ya cerrada: el día en que sí se puede y la salida que
+ * existe HOY desde la pantalla en la que se está (reservar sin seña, o dejar el saldo a cobrar).
+ */
+export function mensajeCobroEnDiaCerrado(hoy: DayKey, cerradoHasta: DayKey, camino: CaminoDeCobro): string {
+  const abierto = formatDayLabel(nextDayKey(cerradoHasta));
+  const base = `La caja del ${formatDayLabel(hoy)} ya está cerrada: este cobro no se puede asentar hoy. `;
+  if (camino === "reserva") return `${base}Reservá el turno sin cobrar la seña y registrala el ${abierto}.`;
+  if (camino === "completar") return `${base}Tildá «Dejar saldo a cobrar» y registralo el ${abierto}.`;
+  return `${base}Registralo el ${abierto}.`;
+}
+
 export function mensajeRechazo(motivo: MotivoCobroRechazado, saldo: number): string {
   switch (motivo) {
+    case "dia-cerrado":
+      return "La caja de hoy ya está cerrada: este cobro no se puede asentar hoy.";
     case "turno-cerrado":
       return "Este turno está cancelado o marcado como no se presentó: no admite más cobros.";
     case "monto-invalido":
@@ -178,6 +202,11 @@ export async function aplicarCobroTurnoInTx(
       select: { id: true },
     });
     if (prior) return { applied: false, reason: "duplicate", collectionId: prior.id };
+  }
+
+  const hoy = dateStrInBusinessTz(new Date());
+  if (args.cerradoHasta && isFrozenDay(hoy, args.cerradoHasta)) {
+    throw new CobroTurnoRechazado("dia-cerrado", 0, mensajeCobroEnDiaCerrado(hoy, args.cerradoHasta, args.camino));
   }
 
   const [cobros, pagoLegado] = await Promise.all([

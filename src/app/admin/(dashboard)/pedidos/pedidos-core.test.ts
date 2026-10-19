@@ -13,6 +13,12 @@ import {
   teclaDelPedido,
   cuandoDelPedido,
   quedoElPedido,
+  listoDesdeAyer,
+  otrosPedidosDeLaClienta,
+  textoDeOtrosPedidos,
+  pedidosDeLaTiendaEsperando,
+  textoDeLaTiendaEsperando,
+  ESPERA_DE_LA_TIENDA_MIN,
   type PedidoDelTablero,
 } from "./pedidos-core";
 
@@ -164,7 +170,7 @@ test("la línea del tablero: la plata por cobrar sólo para quien ve los número
     pedido({ id: "p1", status: "READY", avisoWa: "https://wa.me/x", horario: { texto: "Retira hoy 18:00", esHoy: true }, total: 1000 }),
     pedido({ id: "p2", status: "PENDING", cobrado: true, total: 500 }),
   ];
-  assert.deepEqual(lineaDelTablero(lista, true), { abiertos: 2, paraHoy: 1, sinAvisar: 1, porCobrar: 1000 });
+  assert.deepEqual(lineaDelTablero(lista, true), { abiertos: 2, paraHoy: 1, sinAvisar: 1, porCobrar: 1000, tienda: null, listosDeAyer: 0 });
   assert.equal(lineaDelTablero(lista, false).porCobrar, null);
 });
 
@@ -177,4 +183,115 @@ test("cuándo se tomó: la hora si es de hoy, «ayer», o el día corto", () => 
 test("el aviso de un paso dice cómo quedó el pedido", () => {
   assert.equal(quedoElPedido("Preparar", 478), "El pedido #478 quedó en preparación.");
   assert.equal(quedoElPedido("Marcar listo", 477), "El pedido #477 quedó listo.");
+});
+
+// ── Aviso de pedido nuevo (UAT MAGRA 16/10) ─────────────────────────────────
+
+import { pedidosWebNuevos, textoDePedidosWebNuevos, puedeRefrescarLaBandeja, REFRESCO_DE_LA_BANDEJA_MS } from "./pedidos-core";
+
+test("al abrir la bandeja lo que ya estaba no es «nuevo»: no avisa ni suena al entrar", () => {
+  assert.deepEqual(pedidosWebNuevos(null, [{ id: "a", code: 10 }]), []);
+});
+
+test("en la vuelta siguiente avisa sólo los pedidos de la tienda que no estaban, por número", () => {
+  const vistos = new Set(["a"]);
+  assert.deepEqual(pedidosWebNuevos(vistos, [{ id: "c", code: 12 }, { id: "a", code: 10 }, { id: "b", code: 11 }]), [
+    { id: "b", code: 11 },
+    { id: "c", code: 12 },
+  ]);
+  assert.deepEqual(pedidosWebNuevos(new Set(["a", "b"]), [{ id: "a", code: 10 }]), [], "uno que se cerró no es nuevo");
+});
+
+test("el aviso dice el número del pedido nuevo, o cuántos y cuáles", () => {
+  assert.equal(textoDePedidosWebNuevos([]), null);
+  assert.equal(textoDePedidosWebNuevos([{ id: "b", code: 128 }]), "Entró un pedido nuevo de la tienda: #128");
+  assert.equal(
+    textoDePedidosWebNuevos([{ id: "b", code: 128 }, { id: "c", code: 129 }, { id: "d", code: 130 }]),
+    "Entraron 3 pedidos nuevos de la tienda: #128, #129 y #130",
+  );
+});
+
+test("la bandeja se refresca entre 30 y 60 s, sólo a la vista y sin interrumpir a quien escribe o tiene un diálogo", () => {
+  assert.ok(REFRESCO_DE_LA_BANDEJA_MS >= 30_000 && REFRESCO_DE_LA_BANDEJA_MS <= 60_000);
+  assert.equal(puedeRefrescarLaBandeja({ visible: true, escribiendo: false, dialogoAbierto: false }), true);
+  assert.equal(puedeRefrescarLaBandeja({ visible: false, escribiendo: false, dialogoAbierto: false }), false, "pestaña escondida: no se le pega a la base");
+  assert.equal(puedeRefrescarLaBandeja({ visible: true, escribiendo: true, dialogoAbierto: false }), false);
+  assert.equal(puedeRefrescarLaBandeja({ visible: true, escribiendo: false, dialogoAbierto: true }), false);
+});
+
+// ── Pedido web que nadie vio (caso 1) y clienta que no retira (caso 4) ─────────────────────────
+// Sábado 26/09 a las 10:25 (13:25 UTC): tres pedidos de la tienda sin tocar, el más viejo de las 10:00.
+const SABADO = new Date("2026-09-26T13:25:00.000Z");
+
+test("pedido web que nadie vio: cuántos de la tienda esperan y hace cuánto el más viejo", () => {
+  const lista = [
+    pedido({ id: "p1", status: "PENDING", creado: "2026-09-26T13:00:00.000Z" }),
+    pedido({ id: "p2", status: "PENDING", creado: "2026-09-26T13:10:00.000Z" }),
+    pedido({ id: "p3", status: "PENDING", creado: "2026-09-26T13:20:00.000Z" }),
+    pedido({ id: "p4", status: "PREPARING", creado: "2026-09-26T12:00:00.000Z" }), // ya lo tocaron
+    pedido({ id: "p5", status: "PENDING", canal: "COUNTER", creado: "2026-09-26T11:00:00.000Z" }), // del mostrador
+  ];
+  const t = pedidosDeLaTiendaEsperando(lista, SABADO);
+  assert.deepEqual(t, { esperando: 3, minutos: 25, alerta: true });
+  assert.equal(textoDeLaTiendaEsperando(t!), "3 de la tienda esperando · el más viejo hace 25 min");
+  // La línea del tablero lo trae sólo con reloj (comercio).
+  assert.deepEqual(lineaDelTablero(lista, false, { ahora: SABADO, hoy: "2026-09-26" }).tienda, t);
+  assert.equal(lineaDelTablero(lista, false).tienda, null, "sin reloj (CH) no se cuenta");
+});
+
+test("pedido web que nadie vio: recién entrado no alarma; pasado el umbral provisional, sí", () => {
+  const uno = [pedido({ id: "p1", status: "PENDING", creado: "2026-09-26T13:20:30.000Z" })];
+  const t = pedidosDeLaTiendaEsperando(uno, SABADO)!;
+  assert.equal(t.alerta, false);
+  assert.equal(textoDeLaTiendaEsperando(t), "1 de la tienda esperando · hace 4 min");
+  assert.equal(ESPERA_DE_LA_TIENDA_MIN, 15, "provisional a confirmar con Magra");
+  const justo = pedidosDeLaTiendaEsperando([pedido({ id: "p1", status: "PENDING", creado: "2026-09-26T13:10:00.000Z" })], SABADO)!;
+  assert.equal(justo.alerta, true, "a los 15 min ya es alerta");
+  assert.equal(textoDeLaTiendaEsperando({ esperando: 2, minutos: 95 }), "2 de la tienda esperando · el más viejo hace 1 h 35 min");
+  assert.equal(textoDeLaTiendaEsperando({ esperando: 1, minutos: 0 }), "1 de la tienda esperando · hace menos de 1 min");
+  assert.equal(pedidosDeLaTiendaEsperando([], SABADO), null, "sin pedidos esperando no se dice nada");
+});
+
+test("clienta que no retira: listo desde un día anterior (en la zona del negocio), no el de hoy", () => {
+  // Viernes 25/09 a las 22:30 de Argentina = sábado 01:30 UTC: es de AYER para el local.
+  assert.equal(listoDesdeAyer({ status: "READY", creado: "2026-09-26T01:30:00.000Z" }, "2026-09-26"), true);
+  assert.equal(listoDesdeAyer({ status: "READY", creado: "2026-09-26T12:00:00.000Z" }, "2026-09-26"), false, "listo de hoy");
+  assert.equal(listoDesdeAyer({ status: "PREPARING", creado: "2026-09-20T12:00:00.000Z" }, "2026-09-26"), false, "sólo Listo");
+  const lista = [
+    pedido({ id: "p1", status: "READY", creado: "2026-09-24T15:00:00.000Z" }),
+    pedido({ id: "p2", status: "READY", creado: "2026-09-25T15:00:00.000Z" }),
+    pedido({ id: "p3", status: "READY", creado: "2026-09-26T12:00:00.000Z" }),
+  ];
+  assert.equal(lineaDelTablero(lista, false, { ahora: SABADO, hoy: "2026-09-26" }).listosDeAyer, 2);
+  assert.equal(lineaDelTablero(lista, false).listosDeAyer, 0, "sin reloj no se cuenta");
+});
+
+// ── Doble pedido de la misma clienta (caso 8) ─────────────────────────────────
+
+test("doble pedido: la misma clienta escrita distinto se marca en los dos pedidos", () => {
+  const lista = [
+    pedido({ id: "p127", status: "PENDING", telefono: "11 5555-0101" }),
+    pedido({ id: "p131", status: "PREPARING", telefono: "+54 9 11 5555 0101", canal: "COUNTER" }),
+    pedido({ id: "p132", status: "PENDING", telefono: "11 4444-0202" }),
+  ];
+  const otros = otrosPedidosDeLaClienta(lista);
+  assert.deepEqual(otros.get("p127"), [131]);
+  assert.deepEqual(otros.get("p131"), [127]);
+  assert.equal(otros.has("p132"), false, "una clienta con un solo pedido no se marca");
+  assert.equal(textoDeOtrosPedidos([127]), "Tiene otro pedido abierto (#127)");
+  assert.equal(textoDeOtrosPedidos([127, 130]), "Tiene otros 2 pedidos abiertos (#127 y #130)");
+  assert.equal(textoDeOtrosPedidos([]), null);
+});
+
+test("doble pedido: entregados, anulados y teléfonos a medias no cuentan", () => {
+  const lista = [
+    pedido({ id: "p1", status: "PENDING", telefono: "11 5555-0101" }),
+    pedido({ id: "p2", status: "DELIVERED", telefono: "1155550101" }),
+    pedido({ id: "p3", status: "CANCELLED", telefono: "1155550101" }),
+    pedido({ id: "p4", status: "PENDING", telefono: "123" }),
+    pedido({ id: "p5", status: "PENDING", telefono: "123" }),
+    pedido({ id: "p6", status: "PENDING", telefono: null }),
+    pedido({ id: "p7", status: "READY", telefono: null }),
+  ];
+  assert.equal(otrosPedidosDeLaClienta(lista).size, 0);
 });

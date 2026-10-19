@@ -226,3 +226,33 @@ test("generateSlotsForDays: día sin ventana no aparece; equivale a correr gener
   assert.deepEqual(batch[D1], singleD1);
   assert.deepEqual(batch[D2], singleD2);
 });
+
+// UAT 16/10 (B5): a las 14:10 de hoy la web ofrecía 9:00, 9:30… Con `notBefore` = ahora, la
+// primera franja es la siguiente que todavía no empezó; la que empieza justo ahora sí se ofrece.
+test("generateSlots: con notBefore no ofrece franjas que ya empezaron", () => {
+  const base = { dayStart: at("12:00"), dayEnd: at("16:00"), durationMin: 60, stepMin: 30, busy: [] };
+  assert.deepEqual(generateSlots({ ...base, notBefore: at("14:10") }), [at("14:30").toISOString(), at("15:00").toISOString()]);
+  assert.equal(generateSlots({ ...base, notBefore: at("14:00") })[0], at("14:00").toISOString());
+  // Sin notBefore, como antes (el motor puro no lee el reloj).
+  assert.equal(generateSlots(base)[0], at("12:00").toISOString());
+});
+
+test("generateSlotsForDays: notBefore sólo vacía lo pasado; los días siguientes quedan enteros", () => {
+  const r = generateSlotsForDays({
+    windows: [
+      { date: "2026-07-10", dayStart: on("2026-07-10", "12:00"), dayEnd: on("2026-07-10", "14:00") },
+      { date: "2026-07-11", dayStart: on("2026-07-11", "12:00"), dayEnd: on("2026-07-11", "14:00") },
+    ],
+    durationMin: 60,
+    stepMin: 60,
+    bufferMin: 0,
+    busyAppointments: [],
+    boxBlocks: [],
+    professionalBlocks: [],
+    resourceUsage: [],
+    requiredResources: [],
+    notBefore: on("2026-07-10", "13:30"),
+  });
+  assert.deepEqual(r["2026-07-10"], []);
+  assert.deepEqual(r["2026-07-11"], [on("2026-07-11", "12:00").toISOString(), on("2026-07-11", "13:00").toISOString()]);
+});

@@ -19,6 +19,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
 import { SimuladorArca } from "@/plugins/arca/afip/simulador";
+import { fechaFiscalDelDia } from "@/lib/libros/fecha-fiscal";
+
+// ARCA acepta comprobantes con fecha de hasta 5 días alrededor del envío: el día fiscal de HOY,
+// no una fecha fija que envejece (con el 24/09 fijo, desde el 30/09 todo se rechazaba).
+const HOY = fechaFiscalDelDia();
 
 const laBase = baseEfimeraDelArchivo();
 const simuladores = new Map<string, SimuladorArca>();
@@ -60,14 +65,14 @@ async function preparar(t: import("node:test").TestContext) {
     invoiceCore.createInvoice({
       tenantId,
       concepto: 1,
-      fecha: "20260924",
+      fecha: HOY,
       emisor: { cuit: 20111111112, condicionIva: "RESPONSABLE_INSCRIPTO", puntoVenta: 1 },
       receptor: { docTipo: 99, docNro: 0, condicionIva: "CONSUMIDOR_FINAL" },
       neto: total === 1210 ? 1000 : 2000,
       iva: [{ alicuotaId: 5, base: total === 1210 ? 1000 : 2000, importe: total === 1210 ? 210 : 420 }],
       total,
       ivaPorProducto: true,
-      vencimientoPago: "20260924",
+      vencimientoPago: HOY,
       origin: { type: "MP_PAYMENT" as const, id: mpPaymentId },
       ...(reabrirSiRechazada ? { reabrirSiRechazada } : {}),
     });
@@ -219,14 +224,14 @@ test("aislamiento · el negocio A no puede volver a facturar la venta rechazada 
   const idB = await p.invoiceCore.createInvoice({
     tenantId: b.id,
     concepto: 1,
-    fecha: "20260924",
+    fecha: HOY,
     emisor: { cuit: 20111111112, condicionIva: "RESPONSABLE_INSCRIPTO", puntoVenta: 1 },
     receptor: { docTipo: 99, docNro: 0, condicionIva: "CONSUMIDOR_FINAL" },
     neto: 1000,
     iva: [{ alicuotaId: 5, base: 1000, importe: 210 }],
     total: 1210,
     ivaPorProducto: true,
-    vencimientoPago: "20260924",
+    vencimientoPago: HOY,
     origin: { type: "ORDER", id: pedidoB },
   });
   assert.equal((await p.despachar()).rechazados, 1);
@@ -236,14 +241,14 @@ test("aislamiento · el negocio A no puede volver a facturar la venta rechazada 
     p.invoiceCore.createInvoice({
       tenantId: a.id,
       concepto: 1,
-      fecha: "20260924",
+      fecha: HOY,
       emisor: { cuit: 20111111112, condicionIva: "RESPONSABLE_INSCRIPTO", puntoVenta: 1 },
       receptor: { docTipo: 99, docNro: 0, condicionIva: "CONSUMIDOR_FINAL" },
       neto: 2000,
       iva: [{ alicuotaId: 5, base: 2000, importe: 420 }],
       total: 2420,
       ivaPorProducto: true,
-      vencimientoPago: "20260924",
+      vencimientoPago: HOY,
       origin: { type: "ORDER", id: pedidoB },
       reabrirSiRechazada: true,
     }),

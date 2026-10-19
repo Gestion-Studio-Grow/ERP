@@ -6,7 +6,8 @@
 // usuario a la dueña. Es lectura CRUZADA entre negocios, así que va con las mismas reglas de
 // la cartera (cartera-core.ts, cartera-actions.ts):
 //   1. la persona tiene `cartera:manage` y su negocio tiene el módulo `cartera` ASIGNADO
-//      (lectura directa de Tenant.modules, independiente de cualquier flag);
+//      (lectura directa de Tenant.modules, independiente de cualquier flag) y pasa `decidirAcceso`
+//      (sin `multilocal` al lado), la misma regla que el resto del panel;
 //   2. el cliente pedido es de la cartera de SU estudio (`exigirClienteDeCartera`, leyendo
 //      CarteraCliente con el GUC del estudio). Fila inexistente o de baja: el mismo "no está
 //      en tu cartera", sin decir si el negocio existe;
@@ -23,6 +24,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { MODULO_CARTERA, exigirClienteDeCartera, type EstadoCartera, type FilaCarteraDb } from "@/lib/cartera-core";
+import { decidirAcceso } from "@/lib/multilocal/multilocal-core";
 import { esMesKey, etiquetaDelMes } from "@/lib/libros/fecha-fiscal";
 import { mesCerrable } from "./cierre-mes";
 import { armarPaquete, nombreDelPaquete } from "./paquete";
@@ -60,6 +62,10 @@ export async function paqueteDelClienteParaElEstudio(
   if (!estudio?.modules?.includes(MODULO_CARTERA)) {
     return { ok: false, status: 404, error: "Tu negocio no tiene la cartera del estudio contable." };
   }
+  // La misma regla que el resto del panel (cartera-actions.ts, `exigirEstudio`): con `multilocal`
+  // al lado no se abre la cartera (UAT 16/10, punto 11). Antes de mirar el cliente: no filtra nada.
+  const acceso = decidirAcceso(estudio.modules, "estudio");
+  if (!acceso.ok) return { ok: false, status: 403, error: acceso.error };
   if (!esMesKey(mesRaw)) return { ok: false, status: 400, error: "El mes pedido no es válido. Volvé a la cartera y elegilo de nuevo." };
   if (!mesCerrable(mesRaw, ahora)) {
     // QA vuelta 6: el mes en curso no es un error del pedido: se explica, sin 400.

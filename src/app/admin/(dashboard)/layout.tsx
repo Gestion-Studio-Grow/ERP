@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import AdminShell from "./AdminShell";
+import PanelDeCasa from "./PanelDeCasa";
+import LogoDelNegocio from "@/components/marca/LogoDelNegocio";
+import { cn } from "@/components/ui/cn";
 import ToastProvider from "./ToastProvider";
 import GlobalLoadingProvider from "./GlobalLoadingProvider";
 import { VocabularioDelNegocio } from "./VocabularioDelNegocio";
@@ -11,6 +14,7 @@ import { requireUser } from "@/lib/authz";
 import { mustChangePasswordFor } from "@/lib/must-change-password";
 import { roleHasCapability } from "@/lib/capabilities";
 import { getProductoContexto } from "@/lib/producto";
+import { panelInstalable } from "@/lib/terminal/manifest-core";
 import { getActiveProfile } from "@/lib/profile-gating";
 import { lotesYDespieceListos } from "@/lib/carniceria/schema-probe";
 import { getCurrentTenantRubro } from "@/lib/carniceria/rubro";
@@ -19,7 +23,10 @@ import { navGroupingEnabled } from "@/modules";
 import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
 import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
-import { appsVisibles, conCierreDelMesEnLaBarra, proyectarMenuDeHoy } from "@/apps/visibles";
+import { appCasa, appsDeLaCasa, appsVisibles, conCierreDelMesEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa } from "@/apps/visibles";
+import { esteticaBackoffice } from "@/lib/estetica-backoffice";
+import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { rutaDeAppDelNegocio } from "@/apps/rutas";
 import { enInicioPorApps } from "./inicio/piloto";
 import { getTenantBrand, resolveAccent, marcaDelNegocio } from "@/lib/branding";
@@ -44,10 +51,21 @@ function initialsOf(name: string): string {
 // Título neutro (antes heredaba "CH Estética…" del layout raíz → se filtraba la
 // marca de CH a la pestaña del panel de CUALQUIER tenant, p. ej. Magra). Y el
 // backoffice no debe indexarse.
-export const metadata: Metadata = {
-  title: "Panel de gestión",
-  robots: { index: false, follow: false },
-};
+// `manifest`: el panel se puede instalar ("Agregar a la pantalla de inicio") con el nombre y el
+// color de ESTE negocio, resuelto por host. Vive en /api porque el navegador lo baja sin cookies
+// y bajo /admin el portón de sesión lo mandaría al login (src/app/api/pwa/admin.webmanifest/route.ts).
+// Taller conserva el suyo en su página (la metadata más específica gana). Sin service worker.
+// SÓLO para los negocios con mostrador (módulo terminal o club, `panelInstalable`): al resto no se le
+// ofrece «Instalar» (CH no cambia). Los módulos salen de `getProductoContexto`, el mismo que usa el
+// layout: cacheado por pedido, no suma ninguna consulta.
+export async function generateMetadata(): Promise<Metadata> {
+  const { modules } = await getProductoContexto();
+  return {
+    title: "Panel de gestión",
+    robots: { index: false, follow: false },
+    ...(panelInstalable(modules) ? { manifest: "/api/pwa/admin.webmanifest" } : {}),
+  };
+}
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // El portón grueso (¿hay sesión?) lo hace `proxy.ts`; acá resolvemos el
@@ -207,8 +225,22 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // `proyectarMenuDeHoy` deja sólo las pantallas que ya estaban en la barra, con su rótulo,
   // ícono, grupo y orden de hoy. Que dé EXACTAMENTE la barra de antes (`menuItemsParaTenant`)
   // lo prueba src/apps/paridad-menu.test.ts en todos los casos: CH no ve un cambio.
+  // ESTÉTICA DEL BACKOFFICE: cada cliente ve su panel con la estética de su front y su marca (src/lib/estetica-
+  // backoffice.ts); sin entrada, la del ERP. Va en la raíz (`data-estetica`) para que la tomen todas las pantallas.
+  const estetica = esteticaBackoffice(await getCurrentTenantSlug());
+  // Su logo (de la marca que ya tiene; el de Matías, provisional). Sin estética no viaja: CH… recibe lo de siempre.
+  const logo = estetica ? <LogoDelNegocio estetica={estetica} nombre={brandName} /> : null;
   const negocioApps = await getNegocioApps(user.role);
   const visibles = appsVisibles(negocioApps);
+  // PANEL DE CASA: un negocio cuyo backoffice es UNA app (Break Point → el club) no ve el menú del ERP. Cualquier
+  // otra pantalla de /admin (el Inicio incluido) rebota a su casa; quedan Usuarios y «Salir». Sin módulo con
+  // `casa` asignado (CH, Magra, …) es `null` y todo sigue como siempre. Fail-open sin el header, como el gate de
+  // arriba: el Inicio también redirige por su cuenta (page.tsx).
+  const casa = appCasa(negocioApps);
+  if (casa) {
+    const pathname = (await headers()).get("x-pathname");
+    if (pathname && !rutaDeLaCasa(pathname, casa)) redirect(casa.ruta);
+  }
   // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
   const menu = conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto));
   // DISEÑO NUEVO: la navegación del armazón nuevo (espacios, comandos de ⌘K, tecla del rubro), con
@@ -236,6 +268,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       suppressHydrationWarning
       data-density={density}
       data-brand={dataBrand}
+      data-estetica={estetica ?? undefined}
       style={
         {
           "--tenant-accent-light": accentLight.accent,
@@ -253,14 +286,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       // el de la barra entera: botones h-14 + 1px de borde de arriba + la zona segura del celular.
       // Por eso un pie pegado NO vuelve a sumar la zona segura si hay barra: deja
       // `max(0.75rem, zona segura − --alto-barra-inferior)` (pie-pegado-zona-segura.test.ts).
-      className={
-        modoApps
-          ? "min-h-screen bg-surface text-body [--alto-barra-inferior:calc(3.5rem_+_1px_+_env(safe-area-inset-bottom))] lg:[--alto-barra-inferior:0px]"
-          : "min-h-screen bg-surface text-body"
-      }
+      className={cn(
+        "min-h-screen bg-surface text-body",
+        modoApps && "[--alto-barra-inferior:calc(3.5rem_+_1px_+_env(safe-area-inset-bottom))] lg:[--alto-barra-inferior:0px]",
+        claseDeFuentes(estetica),
+      )}
     >
-      {/* Corrige el data-theme ANTES del primer paint (sistema/localStorage). */}
-      <AdminThemeScript nuevo={nuevo} />
+      {/* Corrige el data-theme ANTES del primer paint (sistema/localStorage). Con «Trabaja por
+          apps» también sale por ScriptDelTema: la bandeja de un negocio que pesa se refresca sola
+          (AvisoDePedidosNuevos, router.refresh) y el <script> de siempre, redibujado en el
+          navegador, dispara el aviso de React por consola. El HTML del servidor es el mismo
+          (AdminThemeScript.test.ts); CH no trabaja por apps y queda con el de siempre. */}
+      <AdminThemeScript nuevo={nuevo || modoApps} />
       {/* Banda de "modo demo" — solo aparece en el deploy de demo; null en real. */}
       <DemoBanner />
       {/* Diseño nuevo: sus hojas y `useDiseno()` para el shell y las pantallas. Apagado devuelve su
@@ -270,11 +307,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <ToastProvider>
             {/* `apps` (para el buscador de Ctrl/⌘K y la barra de espacios del celular) sólo viaja
                 en el piloto: fuera de él la barra busca en su propio menú, como siempre. */}
-            <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})}>
-              {/* Cómo se llama el retiro y qué ejemplo lleva la nota, según el rubro (una perfumería
-                  entrega en un punto de encuentro, no en un local): sale del rubro ya leído arriba. */}
-              <VocabularioDelNegocio valor={vocabularioDelNegocio(rubroDelNegocio.rubro)}>{children}</VocabularioDelNegocio>
-            </AdminShell>
+            {casa ? (
+              <PanelDeCasa apps={appsDeLaCasa(casa, visibles)} brandName={brandName} monogram={monogram} logo={logo} userName={user.name}>
+                {children}
+              </PanelDeCasa>
+            ) : (
+              <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} {...(logo ? { logo } : {})} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})}>
+                {/* Cómo se llama el retiro y qué ejemplo lleva la nota, según el rubro (una perfumería
+                    entrega en un punto de encuentro, no en un local): sale del rubro ya leído arriba. */}
+                <VocabularioDelNegocio valor={vocabularioDelNegocio(rubroDelNegocio.rubro)}>{children}</VocabularioDelNegocio>
+              </AdminShell>
+            )}
           </ToastProvider>
         </GlobalLoadingProvider>
       </ConDiseno>

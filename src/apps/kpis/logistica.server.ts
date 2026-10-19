@@ -28,7 +28,7 @@
 // la dueña o de una profesional no cuenta); la venta del mes, del mismo `where` que Ventas del
 // día (`whereVentasCobradas`), y sólo se lee con `monto`, porque el porcentaje es plata.
 
-import { businessWallTimeToUtc } from "@/lib/datetime";
+import { businessWallTimeToUtc, dateStrInBusinessTz } from "@/lib/datetime";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { computeStockValuation, whereEnNegativo, whereProductosDeStock } from "@/lib/inventory/valuation";
 import { SELECT_INGRESOS, costosVigentesDe } from "@/lib/stock/costo";
@@ -36,7 +36,7 @@ import { clasificarAjuste, whereAjustesDelPeriodo } from "@/lib/stock/merma-core
 import { whereCompras } from "@/lib/stock/purchase-core";
 import { whereDevoluciones } from "@/lib/stock/supplier-return";
 import { whereProveedoresActivos } from "@/lib/suppliers/supplier";
-import { cuantosParaPedir, desdeVentaReciente, selectDemanda, whereSugerido } from "@/lib/suppliers/sugerido";
+import { cuantosParaPedir, desdeVentaReciente, factorDeLaSemana, selectDemanda, whereSugerido } from "@/lib/suppliers/sugerido";
 import { desdeRecuentoReciente, whereSinContarDesde } from "@/lib/inventario/recuento";
 import { whereVentasCobradas } from "@/lib/order-anulacion";
 import { fmtMoneyARS, fmtNumberAR } from "@/components/ui/format";
@@ -202,12 +202,14 @@ export const proveedores: LoaderKpi = async ({ db, tenantId }) => {
  * días, en UNA consulta (el producto con sus movimientos), contados con la fórmula de la
  * pantalla. Sin plata: son cantidades. No es alerta: es la agenda de compras del día.
  */
-export const sugeridoDeCompra: LoaderKpi = async ({ db, tenantId, ahora, sustantivo }) => {
+export const sugeridoDeCompra: LoaderKpi = async ({ db, tenantId, ahora, hoy, sustantivo, esMostrador }) => {
   const productos = await db.product.findMany({
     where: whereSugerido(tenantId),
     select: { id: true, name: true, unit: true, saleUnit: true, stock: true, lowStockAt: true, stockMovements: selectDemanda(desdeVentaReciente(ahora)) },
   });
-  const n = cuantosParaPedir(productos);
+  // La semana tipo, como en la pantalla (sugerido-loader.ts): sólo en un mostrador, con los mismos
+  // movimientos (ninguna consulta más).
+  const n = cuantosParaPedir(productos, esMostrador ? factorDeLaSemana(productos, hoy, dateStrInBusinessTz) : 1);
   return { valor: fmtNumberAR(n), detalle: `${plural(n, sustantivo.uno, sustantivo.varios)} para pedir hoy` };
 };
 

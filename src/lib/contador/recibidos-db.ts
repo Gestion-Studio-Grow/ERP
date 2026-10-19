@@ -26,6 +26,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { requireCapability } from "@/lib/authz";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { MODULO_CARTERA, exigirClienteDeCartera, type EstadoCartera, type FilaCarteraDb } from "@/lib/cartera-core";
+import { decidirAcceso } from "@/lib/multilocal/multilocal-core";
 import { esMesKey, type MesKey } from "@/lib/libros/fecha-fiscal";
 import { sumarAlCentavo, textoAlCentavo } from "@/lib/dinero/redondeo";
 import {
@@ -90,6 +91,10 @@ export async function accesoAClienteDeCartera(clienteRaw: unknown, paraEscribir:
   if (!estudio?.modules?.includes(MODULO_CARTERA)) {
     return { ok: false, error: "Tu negocio no tiene la cartera del estudio contable." };
   }
+  // La misma regla que el resto del panel (cartera-actions.ts, `exigirEstudio`): con `multilocal`
+  // al lado no se abre la cartera (UAT 16/10, punto 11). Antes de mirar el cliente: no filtra nada.
+  const acceso = decidirAcceso(estudio.modules, "estudio");
+  if (!acceso.ok) return acceso;
   const clienteTenantId = typeof clienteRaw === "string" ? clienteRaw.trim() : "";
   if (!clienteTenantId || clienteTenantId === estudioTenantId) return { ok: false, error: NO_ESTA };
   const pertenencia = await exigirClienteDeCartera(filaDeCartera, estudioTenantId, clienteTenantId, {

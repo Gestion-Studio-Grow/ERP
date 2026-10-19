@@ -202,6 +202,71 @@ export function avisoDeCantidad(input: {
   )} kg, escribilo con coma.`;
 }
 
+/**
+ * Cuánto se puede apartar el peso real de lo que pidió la clienta sin avisarle. PROVISIONAL A
+ * CONFIRMAR con Magra (EVENTUALIDADES.md, caso 2): ±15 %.
+ */
+export const TOLERANCIA_DEL_PESO = 0.15;
+
+/**
+ * El peso real se fue lejos de lo pedido (caso 2 de Magra). PURA. Pidió 0,5 kg y la pieza pesó
+ * 0,9 kg (+80 %): el pedido se guarda igual al precio del pedido, pero la clienta no aceptó pagar
+ * casi el doble, así que se avisa ANTES de cobrar. No frena: avisa. Sólo por kilo; sin pedido
+ * o sin peso (la línea se saca) no hay nada que comparar. `pedido` es la cantidad que tiene el
+ * pedido ahora (si ya se pesó una vez, la de esa pesada).
+ */
+export function desvioDelPeso(input: { pedido: number; real: number; saleUnit?: "UNIT" | "WEIGHT" }): string | null {
+  if (input.saleUnit && input.saleUnit !== "WEIGHT") return null;
+  if (!(input.pedido > 0) || !(input.real > 0)) return null;
+  const desvio = Math.abs(input.real - input.pedido) / input.pedido;
+  // Un margen de coma flotante sobre el borde: 0,575 contra 0,5 es justo 15 % y no avisa.
+  if (desvio <= TOLERANCIA_DEL_PESO + 0.0005) return null;
+  return `Pesó ${formatearCantidad(input.real)} kg y pidió ${formatearCantidad(input.pedido)}: avisale antes de cobrar.`;
+}
+
+/**
+ * La pregunta que frena el cobro cuando el peso es implausible (UAT MAGRA 16/10). PURA.
+ *
+ * El aviso suave (`avisoDeCantidad`) se leía y se cobraba igual: «1500» quedaba como 1500 kg. Ahora
+ * la línea pide una respuesta explícita antes de cobrar: «Sí, son 1500 kg» (el mayorista existe,
+ * no hay techo) o «No, es 1,5 kg», que corrige el peso. `corregido` es el valor de ese botón:
+ * lo tipeado en gramos (÷ 1000). Null si el peso no es sospechoso.
+ */
+const KG_LEGIBLE = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 3 });
+
+export function confirmacionDePeso(input: { valor: number; saleUnit: "UNIT" | "WEIGHT" }): {
+  pregunta: string;
+  confirmar: string;
+  corregir: string;
+  corregido: number;
+} | null {
+  if (avisoDeCantidad(input) === null) return null;
+  // Con punto de miles (es-AR): «1.500 kg» se lee como mil quinientos, que es lo que se pregunta.
+  const kg = KG_LEGIBLE.format(redondearCantidad(input.valor));
+  const corregido = redondearCantidad(input.valor / 1000);
+  const bien = formatearCantidad(corregido);
+  return {
+    pregunta: `¿Son ${kg} kg de verdad? Si la balanza marca ${bien}, el peso es ${bien} kg.`,
+    confirmar: `Sí, son ${kg} kg`,
+    corregir: `No, es ${bien} kg`,
+    corregido,
+  };
+}
+
+/**
+ * ¿La línea todavía espera esa respuesta? PURA. `confirmado` es el peso que la persona confirmó
+ * para esa línea (o null): si después lo cambia por otro también sospechoso, se vuelve a preguntar.
+ */
+export function pesoPorConfirmar(input: { valor: number; saleUnit: "UNIT" | "WEIGHT"; confirmado: number | null | undefined }): boolean {
+  if (confirmacionDePeso(input) === null) return false;
+  return input.confirmado == null || redondearCantidad(input.confirmado) !== redondearCantidad(input.valor);
+}
+
+/** Lo que dice el botón de cobrar mientras falta esa respuesta («Confirmá el peso de Vacío»). */
+export function motivoDePesoSinConfirmar(producto: { name: string } | undefined): string {
+  return `Confirmá el peso de ${producto?.name ?? "un producto"}`;
+}
+
 /** La cantidad como la lee la persona: coma decimal, sin ceros de relleno. */
 export function formatearCantidad(valor: number): string {
   return redondearCantidad(valor).toString().replace(".", ",");

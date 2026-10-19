@@ -476,6 +476,156 @@
   --shadow-lg: 0 32px 100px rgba(0, 0, 0, 0.7); /* --shadow-pal */
 }
 
+/* ═════════ PANEL DE CASA (PanelDeCasa.tsx) ═════════
+   Un negocio cuyo backoffice es UNA app (Break Point → el club) tiene cabecera propia, no el menú del ERP.
+   Sin estética propia, la cabecera es neutra (la del ERP). */
+[data-casa="cabecera"] {
+  background: var(--casa-cabecera, var(--surface-raised));
+  color: var(--casa-cabecera-tinta, var(--text-strong));
+  border-bottom: 1px solid var(--line);
+}
+[data-casa="monograma"] { background: var(--casa-monograma, var(--accent-soft)); color: var(--casa-monograma-tinta, var(--accent)); }
+[data-casa="enlace"] { color: inherit; }
+[data-casa="enlace"]:hover { background: var(--casa-enlace-hover, var(--surface-sunken)); }
+
+/* ═════════ ESTÉTICA DEL BACKOFFICE POR CLIENTE (src/lib/estetica-backoffice.ts) ═════════
+   Cada cliente ve su panel con la estética de su front y su marca. `data-estetica` va en la MISMA raíz que
+   `data-skin="fable"`: 2 atributos (3 en oscuro) le ganan al skin Fable, que pinta a quien no tiene entrada.
+
+   — Break Point «chapa» —
+   Los valores son los del club de hoy (public/previews/breakpoint/club/index.html, `data-estilo="chapa"`),
+   pasados a los tokens del ERP: así cada pantalla del club los toma sin tocar componentes. Más específicos que el
+   skin Fable (2–3 atributos), que pinta el resto del backoffice. Opcional y cobrado: el club sin estética usa la del ERP. */
+[data-skin="fable"][data-estetica="breakpoint"] {
+  --surface-sunken: #e9ecef; --surface: #eef0f2; --surface-raised: #ffffff; --surface-inverted: #101418;
+  --text-strong: #101418; --text: #2b3138; --text-muted: #5b6570; --text-faint: #5b6570;
+  --line: #d5dae0; --line-strong: #7d8893;
+  --accent: #035ba8; --accent-hover: #084a8a; --accent-soft: #e4eef8; --accent-ink: #084a8a; --text-on-accent: #ffffff;
+  --success: #1e7a3c; --success-soft: #ddf3e3; --success-fill: #1e7a3c;
+  --warning: #8a5200; --warning-soft: #fff0cc; --warning-fill: #dc6e22;
+  --danger: #b3261e; --danger-soft: #fbe2e0; --danger-fill: #b3261e;
+  --info: var(--accent-ink); --info-soft: var(--accent-soft); --focus-ring: var(--accent);
+  --club-naranja: #dc6e22; --club-naranja-ui: #bf5a00;
+  --radius-sm: 2px; --radius: 3px; --radius-lg: 3px; --radius-xl: 3px;
+  --shadow-xs: none; --shadow-sm: none;
+  --font-display: var(--font-archivo); --font-body: var(--font-archivo);
+  --casa-cabecera: #035ba8; --casa-cabecera-tinta: #ffffff; --casa-enlace-hover: rgba(255, 255, 255, 0.12);
+  --casa-monograma: #dc6e22; --casa-monograma-tinta: #1d1003;
+  font-family: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  color-scheme: light;
+}
+[data-skin="fable"][data-theme="dark"][data-estetica="breakpoint"] {
+  --surface-sunken: #121a24; --surface: #0a1119; --surface-raised: #121c28; --surface-inverted: #eef2f6;
+  --text-strong: #eef2f6; --text: #cbd3dc; --text-muted: #9aa7b5; --text-faint: #9aa7b5;
+  --line: #26323f; --line-strong: #5a6b7e;
+  --accent: #5fa8f0; --accent-hover: #9cc8f6; --accent-soft: #15304d; --accent-ink: #9cc8f6; --text-on-accent: #0b1a2a;
+  --success: #62cf8e; --success-soft: #10311f; --success-fill: #62cf8e;
+  --warning: #f2b35a; --warning-soft: #3a2a0e; --warning-fill: #ff9a3d;
+  --danger: #ff8c82; --danger-soft: #44191a; --danger-fill: #ff8c82;
+  --club-naranja: #ff9a3d; --club-naranja-ui: #ff9a3d;
+  color-scheme: dark;
+}
+/* — CH Estética (beauty-spa): su front es el papel cálido de :root con petróleo, Fraunces + Hanken, esquinas casi
+   rectas (2px) y filetes en vez de sombras (src/app/(site)/_ch/, globals.css :root). El front no tiene oscuro: en
+   oscuro queda el grafito del ERP con su petróleo y su letra. — */
+[data-skin="fable"][data-estetica="beauty-spa"] {
+  --font-display: var(--font-fraunces); --font-body: var(--font-hanken);
+  --radius-sm: 2px; --radius: 2px; --radius-lg: 4px; --radius-xl: 4px;
+  --shadow-xs: none; --shadow-sm: none;
+  font-family: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+}
+[data-skin="fable"][data-estetica="beauty-spa"]:not([data-theme="dark"]) {
+  --surface-sunken: #ece7db; --surface: #f6f3ec; --surface-raised: #ffffff; --surface-inverted: #1b1a14;
+  --text-strong: #1f1b14; --text: #413b31; --text-muted: #675e4e; --text-faint: #6b6251; /* AA ≥4.5 también sobre sunken (Gate 19/10) */
+  --line: #e6dfd0; --line-strong: #d2c9b5;
+  --accent: #2c6e77; --text-on-accent: #ffffff;
+  --success: #4e6b4a; --success-soft: #e7eee4; --warning: #7a5d14; --warning-soft: #f5ebd7; --danger: #b23b2b; --danger-soft: #f6e3de;
+}
+[data-estetica="beauty-spa"] :is(h1, h2) { font-family: var(--font-fraunces), serif; font-weight: 500; letter-spacing: -0.01em; }
+
+/* — Magra: su front es negro carbón con hueso y oro, Bebas Neue + Open Sans, sin claro (MagraFront.tsx:733-750,
+   ADR-072 §8). El panel es carbón en los dos temas; el oro va de relleno con texto carbón (AA), nunca de texto
+   chico sobre claro. — */
+[data-skin="fable"][data-estetica="magra"],
+[data-skin="fable"][data-theme="dark"][data-estetica="magra"] {
+  --surface-sunken: #0e0e0c; --surface: #1d1d1b; --surface-raised: #000000; --surface-inverted: #f2e6d7;
+  --text-strong: #f2e6d7; --text: #ccd6df; --text-muted: #9ba2aa; --text-faint: #9ba2aa;
+  --line: rgba(242, 230, 215, 0.12); --line-strong: rgba(242, 230, 215, 0.22);
+  --accent: #c5ae86; --accent-hover: #d8c39c; --accent-soft: rgba(197, 174, 134, 0.14); --accent-ink: #d8c39c; --text-on-accent: #1d1d1b;
+  --success: #62cf8e; --success-soft: rgba(11, 122, 59, 0.22); --success-fill: #0b7a3b;
+  --warning: #f2b35a; --warning-soft: rgba(242, 179, 90, 0.16); --warning-fill: #f2b35a;
+  --danger: #f2b8a8; --danger-soft: rgba(122, 31, 25, 0.35); --danger-fill: #7a1f19;
+  --info: var(--accent-ink); --info-soft: var(--accent-soft); --focus-ring: var(--accent);
+  --bar-track: #2a2925;
+  --font-display: var(--font-bebas); --font-body: var(--font-open-sans);
+  --radius-sm: 5px; --radius: 5px; --radius-lg: 8px; --radius-xl: 8px;
+  --shadow-xs: none; --shadow-sm: none;
+  font-family: var(--font-open-sans), ui-sans-serif, system-ui, sans-serif;
+  color-scheme: dark;
+}
+[data-estetica="magra"] h1 { font-family: var(--font-bebas), sans-serif; font-weight: 400; text-transform: uppercase; letter-spacing: 0.01em; line-height: 0.95; }
+
+/* — Matías Consoli, profe de pádel: su turnero (/clases, src/lib/padel/marca.ts NEUTRA) es papel claro, verde
+   cancha #197934, Hanken, esquinas de 12–16px y bordes sin sombra. Su logo y su paleta propia están «a confirmar»:
+   cuando lleguen, se cambian acá. — */
+[data-skin="fable"][data-estetica="matiasconsoli"] {
+  --font-display: var(--font-hanken); --font-body: var(--font-hanken);
+  --radius-sm: 0.75rem; --radius: 0.75rem; --radius-lg: 1rem; --radius-xl: 1rem;
+  --shadow-xs: none; --shadow-sm: none;
+  font-family: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+}
+[data-skin="fable"][data-estetica="matiasconsoli"]:not([data-theme="dark"]) {
+  --surface-sunken: #f5f5f7; --surface: #f5f5f7; --surface-raised: #ffffff; --surface-inverted: #101619;
+  --text-strong: #1d1d1f; --text-muted: #6e6e73; --line: #e4e4e9;
+  --accent: #197934; --accent-hover: #145f29; --accent-soft: rgba(25, 121, 52, 0.1); --accent-ink: #145f29; --text-on-accent: #ffffff;
+}
+[data-skin="fable"][data-theme="dark"][data-estetica="matiasconsoli"] {
+  --accent: #30d158; --accent-hover: #5cdc7d; --accent-soft: rgba(48, 209, 88, 0.16); --accent-ink: #5cdc7d; --text-on-accent: #0b1f10;
+}
+
+/* ═════════ LOGO DEL CLIENTE en su backoffice (src/components/marca/LogoDelNegocio.tsx) ═════════ */
+[data-logo="breakpoint"] [data-logo-parte="loseta"] { background: #035ba8; color: #ffffff; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.55); }
+[data-logo="breakpoint"] [data-logo-parte="pelota"] { stroke: var(--club-naranja, #dc6e22); }
+[data-logo="breakpoint"] [data-logo-parte="nombre"] { font-stretch: 75%; font-weight: 800; font-size: 1.125rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-strong); }
+[data-casa="cabecera"] [data-logo="breakpoint"] [data-logo-parte="nombre"] { color: inherit; }
+[data-logo="beauty-spa"] { font-family: var(--font-fraunces), Georgia, serif; font-size: 1.375rem; font-weight: 480; line-height: 1; letter-spacing: -0.01em; color: var(--accent); }
+[data-logo="magra"] { font-family: var(--font-bebas), sans-serif; font-size: 1.875rem; letter-spacing: 0.16em; line-height: 1; color: var(--text-strong); }
+[data-logo="magra"] b { font-weight: 400; color: var(--accent); }
+[data-logo="matiasconsoli"] [data-logo-parte="loseta"] { color: var(--accent); }
+[data-logo="matiasconsoli"] [data-logo-parte="lineas"],
+[data-logo="matiasconsoli"] [data-logo-parte="red"] { stroke: var(--text-on-accent); }
+[data-logo="matiasconsoli"] [data-logo-parte="pelota"] { fill: #d4f03c; }
+[data-logo="matiasconsoli"] [data-logo-parte="nombre"] { font-weight: 700; font-size: 0.9375rem; letter-spacing: -0.02em; color: var(--text-strong); }
+[data-logo="matiasconsoli"] [data-logo-parte="bajada"] { font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; color: var(--text-muted); }
+
+/* ═════════ DETALLES DE CADA ESTÉTICA (los gestos propios de cada front) ═════════ */
+/* CH: los rótulos chicos espaciados («kicker» de InicioCH) y los enlaces dentro de un párrafo, subrayados. */
+[data-estetica="beauty-spa"] nav p.uppercase { letter-spacing: 0.2em; }
+[data-estetica="beauty-spa"] main p a:not([class]) { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+/* Lo elegido en el menú (NavLinks: `bg-surface-sunken font-semibold`) lleva la raya del color de cada marca. */
+[data-estetica] nav a.font-semibold.bg-surface-sunken { box-shadow: inset 3px 0 0 var(--marca-elegido, var(--accent)); }
+[data-estetica="breakpoint"] { --marca-elegido: var(--club-naranja-ui); }
+/* Magra: la regla de oro debajo de cada título de pantalla (.mf-oro-rule). */
+[data-estetica="magra"] h1::after { content: ""; display: block; width: 48px; height: 3px; margin-top: 10px; background: var(--accent); }
+/* Matías: títulos firmes y compactos como el turnero. */
+[data-estetica="matiasconsoli"] h1 { letter-spacing: -0.02em; font-weight: 700; }
+
+/* La barra: azul royal con la doble línea naranja de la chapa. */
+[data-estetica="breakpoint"] [data-casa="cabecera"] { border-bottom: 0; }
+[data-estetica="breakpoint"] [data-casa="cabecera"]::after {
+  content: ""; display: block; height: 4px;
+  background: linear-gradient(var(--club-naranja) 0 2px, transparent 2px 3px, var(--club-naranja) 3px);
+}
+[data-estetica="breakpoint"] [data-casa="cabecera"] :focus-visible { outline-color: #ffffff; }
+[data-estetica="breakpoint"] [data-casa="marca"] { font-stretch: 75%; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+/* Títulos de pantalla en la angosta en mayúscula, como «h2.pantalla» de la chapa. */
+[data-estetica="breakpoint"] h1 { font-stretch: 75%; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+/* Solapas: la elegida con la raya y el punto naranja. */
+[data-estetica="breakpoint"] [role="tab"][aria-selected="true"] { border-bottom-color: var(--club-naranja-ui); }
+[data-estetica="breakpoint"] [role="tab"][aria-selected="true"]::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--club-naranja); margin-right: 7px;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

@@ -84,3 +84,13 @@ export function revisarCierre(o: {
   });
   return { listo: true, renglones, hayDiferencia };
 }
+
+/**
+ * El rótulo de la apertura del turno en la lista de movimientos del cierre. La apertura es el
+ * CONTEO del cajón (signo 0 en `movementSign`): se ve, pero no entra en Ingresos ni en Egresos,
+ * igual que en el libro. Antes se pintaba en la columna «Ingreso» y la columna no daba lo que
+ * dice el cuadro de arriba (UAT de MAGRA, 18/10).
+ */
+export function textoDeAperturaQueNoSuma(monto: number): string {
+  return `Apertura del turno: conteo del cajón de ${fmtMoneyARS(monto)}, no suma`;
+}

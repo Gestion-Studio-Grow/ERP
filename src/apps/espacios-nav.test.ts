@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { REGISTRO_APPS } from "./registro";
-import { APPS_DE_UN_RUBRO, ESPACIOS, ESPACIOS_NAV, MODULOS_AR, espacioNavDeApp, nombreDeEspacioNav, type EspacioNavId } from "./espacios";
+import { ESPACIOS, ESPACIOS_NAV, MODULOS_AR, espacioNavDeApp, nombreDeEspacioNav, type EspacioNavId } from "./espacios";
 
 const enNav = REGISTRO_APPS.filter((a) => espacioNavDeApp(a) !== null);
 
@@ -49,17 +49,28 @@ test("«Facturas e impuestos» tiene exactamente las apps de los módulos argent
   }
 });
 
+// Los circuitos verticales (taller, inmobiliaria, club de pádel, clases del profe) son excluyentes: un negocio tiene uno
+// solo, con su módulo propio y `moduloDuro`. En un espacio ocupan UN lugar, no uno cada uno.
+const VERTICALES: ReadonlySet<string> = new Set(["taller", "inmobiliaria", "club", "padel-clases"]);
+
 test("ningún espacio pasa de 8 apps por rubro con el registro de hoy", () => {
   for (const rubro of ["mostrador", "servicios"] as const) {
     for (const e of ESPACIOS_NAV) {
-      const delEspacio = enNav.filter(
+      const delRubro = enNav.filter(
         (a) => espacioNavDeApp(a) === e.id && (!a.rubro || a.rubro === rubro || (rubro === "mostrador" && a.rubro === "carniceria")),
       );
-      // Las apps del circuito de un rubro son excluyentes (un negocio ve a lo sumo una): un lugar.
-      const deRubro = delEspacio.filter((a) => APPS_DE_UN_RUBRO.includes(a.id)).length;
-      const n = delEspacio.length - deRubro + Math.min(1, deRubro);
+      const verticales = delRubro.filter((a) => a.moduloDuro && a.modulo !== null && VERTICALES.has(a.modulo)).length;
+      const n = delRubro.length - verticales + Math.min(1, verticales);
       assert.ok(n <= 8, `${e.nombre} en ${rubro}: ${n} apps`);
     }
+  }
+});
+
+test("los verticales que cuentan como un lugar son de verdad excluyentes: módulo propio y moduloDuro", () => {
+  for (const id of VERTICALES) {
+    const app = REGISTRO_APPS.find((a) => a.modulo === id);
+    assert.ok(app, `no hay app del vertical ${id}`);
+    assert.equal(app.moduloDuro, true, `${app.id} no exige su módulo: no es excluyente`);
   }
 });
 
