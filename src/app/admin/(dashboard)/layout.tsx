@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import AdminShell from "./AdminShell";
 import PanelDeCasa from "./PanelDeCasa";
+import LogoDelNegocio from "@/components/marca/LogoDelNegocio";
 import { cn } from "@/components/ui/cn";
 import ToastProvider from "./ToastProvider";
 import GlobalLoadingProvider from "./GlobalLoadingProvider";
@@ -227,6 +228,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // ESTÉTICA DEL BACKOFFICE: cada cliente ve su panel con la estética de su front y su marca (src/lib/estetica-
   // backoffice.ts); sin entrada, la del ERP. Va en la raíz (`data-estetica`) para que la tomen todas las pantallas.
   const estetica = esteticaBackoffice(await getCurrentTenantSlug());
+  // Su logo (de la marca que ya tiene; el de Matías, provisional). Sin estética no viaja: CH… recibe lo de siempre.
+  const logo = estetica ? <LogoDelNegocio estetica={estetica} nombre={brandName} /> : null;
   const negocioApps = await getNegocioApps(user.role);
   const visibles = appsVisibles(negocioApps);
   // PANEL DE CASA: un negocio cuyo backoffice es UNA app (Break Point → el club) no ve el menú del ERP. Cualquier
@@ -305,11 +308,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             {/* `apps` (para el buscador de Ctrl/⌘K y la barra de espacios del celular) sólo viaja
                 en el piloto: fuera de él la barra busca en su propio menú, como siempre. */}
             {casa ? (
-              <PanelDeCasa apps={appsDeLaCasa(casa, visibles)} brandName={brandName} monogram={monogram} userName={user.name}>
+              <PanelDeCasa apps={appsDeLaCasa(casa, visibles)} brandName={brandName} monogram={monogram} logo={logo} userName={user.name}>
                 {children}
               </PanelDeCasa>
             ) : (
-              <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})}>
+              <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} {...(logo ? { logo } : {})} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})}>
                 {/* Cómo se llama el retiro y qué ejemplo lleva la nota, según el rubro (una perfumería
                     entrega en un punto de encuentro, no en un local): sale del rubro ya leído arriba. */}
                 <VocabularioDelNegocio valor={vocabularioDelNegocio(rubroDelNegocio.rubro)}>{children}</VocabularioDelNegocio>

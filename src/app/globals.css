@@ -583,6 +583,33 @@
   --accent: #30d158; --accent-hover: #5cdc7d; --accent-soft: rgba(48, 209, 88, 0.16); --accent-ink: #5cdc7d; --text-on-accent: #0b1f10;
 }
 
+/* ═════════ LOGO DEL CLIENTE en su backoffice (src/components/marca/LogoDelNegocio.tsx) ═════════ */
+[data-logo="breakpoint"] [data-logo-parte="loseta"] { background: #035ba8; color: #ffffff; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.55); }
+[data-logo="breakpoint"] [data-logo-parte="pelota"] { stroke: var(--club-naranja, #dc6e22); }
+[data-logo="breakpoint"] [data-logo-parte="nombre"] { font-stretch: 75%; font-weight: 800; font-size: 1.125rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-strong); }
+[data-casa="cabecera"] [data-logo="breakpoint"] [data-logo-parte="nombre"] { color: inherit; }
+[data-logo="beauty-spa"] { font-family: var(--font-fraunces), Georgia, serif; font-size: 1.375rem; font-weight: 480; line-height: 1; letter-spacing: -0.01em; color: var(--accent); }
+[data-logo="magra"] { font-family: var(--font-bebas), sans-serif; font-size: 1.875rem; letter-spacing: 0.16em; line-height: 1; color: var(--text-strong); }
+[data-logo="magra"] b { font-weight: 400; color: var(--accent); }
+[data-logo="matiasconsoli"] [data-logo-parte="loseta"] { color: var(--accent); }
+[data-logo="matiasconsoli"] [data-logo-parte="lineas"],
+[data-logo="matiasconsoli"] [data-logo-parte="red"] { stroke: var(--text-on-accent); }
+[data-logo="matiasconsoli"] [data-logo-parte="pelota"] { fill: #d4f03c; }
+[data-logo="matiasconsoli"] [data-logo-parte="nombre"] { font-weight: 700; font-size: 0.9375rem; letter-spacing: -0.02em; color: var(--text-strong); }
+[data-logo="matiasconsoli"] [data-logo-parte="bajada"] { font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; color: var(--text-muted); }
+
+/* ═════════ DETALLES DE CADA ESTÉTICA (los gestos propios de cada front) ═════════ */
+/* CH: los rótulos chicos en versalitas espaciadas («kicker» de InicioCH) y los enlaces de texto subrayados. */
+[data-estetica="beauty-spa"] nav p.uppercase { letter-spacing: 0.2em; }
+[data-estetica="beauty-spa"] main a:not([class*="bg-"]):not([role]) { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+/* Lo elegido en el menú (NavLinks: `bg-surface-sunken font-semibold`) lleva la raya del color de cada marca. */
+[data-estetica] nav a.font-semibold.bg-surface-sunken { box-shadow: inset 3px 0 0 var(--marca-elegido, var(--accent)); }
+[data-estetica="breakpoint"] { --marca-elegido: var(--club-naranja-ui); }
+/* Magra: la regla de oro debajo de cada título de pantalla (.mf-oro-rule). */
+[data-estetica="magra"] h1::after { content: ""; display: block; width: 48px; height: 3px; margin-top: 10px; background: var(--accent); }
+/* Matías: títulos firmes y compactos como el turnero. */
+[data-estetica="matiasconsoli"] h1 { letter-spacing: -0.02em; font-weight: 700; }
+
 /* La barra: azul royal con la doble línea naranja de la chapa. */
 [data-estetica="breakpoint"] [data-casa="cabecera"] { border-bottom: 0; }
 [data-estetica="breakpoint"] [data-casa="cabecera"]::after {

@@ -12,6 +12,7 @@ export default function PanelDeCasa({
   apps,
   brandName,
   monogram,
+  logo,
   userName,
   children,
 }: {
@@ -19,6 +20,8 @@ export default function PanelDeCasa({
   apps: readonly AppDescriptor[];
   brandName: string;
   monogram: string;
+  /** El logo del cliente (LogoDelNegocio); sin él, monograma y nombre. */
+  logo?: ReactNode;
   userName: string;
   children: ReactNode;
 }) {
@@ -27,10 +30,14 @@ export default function PanelDeCasa({
       <header data-casa="cabecera" className="sticky top-0 z-30">
         <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-3 px-4 py-2.5">
           <span className="mr-auto flex min-w-0 items-center gap-2.5">
-            <span aria-hidden="true" data-casa="monograma" className="grid size-9 shrink-0 place-items-center rounded-md text-sm font-bold">
-              {monogram}
-            </span>
-            <span data-casa="marca" className="truncate text-lg font-bold">{brandName}</span>
+            {logo ?? (
+              <>
+                <span aria-hidden="true" data-casa="monograma" className="grid size-9 shrink-0 place-items-center rounded-md text-sm font-bold">
+                  {monogram}
+                </span>
+                <span data-casa="marca" className="truncate text-lg font-bold">{brandName}</span>
+              </>
+            )}
           </span>
           {apps.length > 1 && (
             <nav aria-label="Panel" className="flex items-center gap-1">
