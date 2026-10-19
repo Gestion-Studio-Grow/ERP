@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import AdminShell from "./AdminShell";
 import PanelDeCasa from "./PanelDeCasa";
+import { cn } from "@/components/ui/cn";
 import ToastProvider from "./ToastProvider";
 import GlobalLoadingProvider from "./GlobalLoadingProvider";
 import { VocabularioDelNegocio } from "./VocabularioDelNegocio";
@@ -22,7 +23,8 @@ import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
 import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
 import { appCasa, appsDeLaCasa, appsVisibles, conCierreDelMesEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa } from "@/apps/visibles";
-import { esteticaDelClub } from "@/lib/club/estetica";
+import { esteticaBackoffice } from "@/lib/estetica-backoffice";
+import { claseDeFuentes } from "@/lib/estetica-backoffice-fuentes";
 import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { rutaDeAppDelNegocio } from "@/apps/rutas";
 import { enInicioPorApps } from "./inicio/piloto";
@@ -222,6 +224,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // `proyectarMenuDeHoy` deja sólo las pantallas que ya estaban en la barra, con su rótulo,
   // ícono, grupo y orden de hoy. Que dé EXACTAMENTE la barra de antes (`menuItemsParaTenant`)
   // lo prueba src/apps/paridad-menu.test.ts en todos los casos: CH no ve un cambio.
+  // ESTÉTICA DEL BACKOFFICE: cada cliente ve su panel con la estética de su front y su marca (src/lib/estetica-
+  // backoffice.ts); sin entrada, la del ERP. Va en la raíz (`data-estetica`) para que la tomen todas las pantallas.
+  const estetica = esteticaBackoffice(await getCurrentTenantSlug());
   const negocioApps = await getNegocioApps(user.role);
   const visibles = appsVisibles(negocioApps);
   // PANEL DE CASA: un negocio cuyo backoffice es UNA app (Break Point → el club) no ve el menú del ERP. Cualquier
@@ -233,8 +238,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     const pathname = (await headers()).get("x-pathname");
     if (pathname && !rutaDeLaCasa(pathname, casa)) redirect(casa.ruta);
   }
-  // Estética propia (Break Point «chapa»): opcional y cobrada; sin ella, la del ERP.
-  const estetica = casa ? esteticaDelClub(await getCurrentTenantSlug()) : null;
   // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
   const menu = conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto));
   // DISEÑO NUEVO: la navegación del armazón nuevo (espacios, comandos de ⌘K, tecla del rubro), con
@@ -262,6 +265,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       suppressHydrationWarning
       data-density={density}
       data-brand={dataBrand}
+      data-estetica={estetica ?? undefined}
       style={
         {
           "--tenant-accent-light": accentLight.accent,
@@ -279,11 +283,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       // el de la barra entera: botones h-14 + 1px de borde de arriba + la zona segura del celular.
       // Por eso un pie pegado NO vuelve a sumar la zona segura si hay barra: deja
       // `max(0.75rem, zona segura − --alto-barra-inferior)` (pie-pegado-zona-segura.test.ts).
-      className={
-        modoApps
-          ? "min-h-screen bg-surface text-body [--alto-barra-inferior:calc(3.5rem_+_1px_+_env(safe-area-inset-bottom))] lg:[--alto-barra-inferior:0px]"
-          : "min-h-screen bg-surface text-body"
-      }
+      className={cn(
+        "min-h-screen bg-surface text-body",
+        modoApps && "[--alto-barra-inferior:calc(3.5rem_+_1px_+_env(safe-area-inset-bottom))] lg:[--alto-barra-inferior:0px]",
+        claseDeFuentes(estetica),
+      )}
     >
       {/* Corrige el data-theme ANTES del primer paint (sistema/localStorage). Con «Trabaja por
           apps» también sale por ScriptDelTema: la bandeja de un negocio que pesa se refresca sola
@@ -301,7 +305,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             {/* `apps` (para el buscador de Ctrl/⌘K y la barra de espacios del celular) sólo viaja
                 en el piloto: fuera de él la barra busca en su propio menú, como siempre. */}
             {casa ? (
-              <PanelDeCasa apps={appsDeLaCasa(casa, visibles)} brandName={brandName} monogram={monogram} userName={user.name} estetica={estetica}>
+              <PanelDeCasa apps={appsDeLaCasa(casa, visibles)} brandName={brandName} monogram={monogram} userName={user.name}>
                 {children}
               </PanelDeCasa>
             ) : (

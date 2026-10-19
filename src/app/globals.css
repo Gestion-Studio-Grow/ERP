@@ -488,11 +488,15 @@
 [data-casa="enlace"] { color: inherit; }
 [data-casa="enlace"]:hover { background: var(--casa-enlace-hover, var(--surface-sunken)); }
 
-/* ═════════ ESTÉTICA PROPIA DEL CLUB — Break Point «chapa» (src/lib/club/estetica.ts) ═════════
+/* ═════════ ESTÉTICA DEL BACKOFFICE POR CLIENTE (src/lib/estetica-backoffice.ts) ═════════
+   Cada cliente ve su panel con la estética de su front y su marca. `data-estetica` va en la MISMA raíz que
+   `data-skin="fable"`: 2 atributos (3 en oscuro) le ganan al skin Fable, que pinta a quien no tiene entrada.
+
+   — Break Point «chapa» —
    Los valores son los del club de hoy (public/previews/breakpoint/club/index.html, `data-estilo="chapa"`),
    pasados a los tokens del ERP: así cada pantalla del club los toma sin tocar componentes. Más específicos que el
    skin Fable (2–3 atributos), que pinta el resto del backoffice. Opcional y cobrado: el club sin estética usa la del ERP. */
-[data-skin="fable"] [data-estetica-club="breakpoint"] {
+[data-skin="fable"][data-estetica="breakpoint"] {
   --surface-sunken: #e9ecef; --surface: #eef0f2; --surface-raised: #ffffff; --surface-inverted: #101418;
   --text-strong: #101418; --text: #2b3138; --text-muted: #5b6570; --text-faint: #5b6570;
   --line: #d5dae0; --line-strong: #7d8893;
@@ -510,7 +514,7 @@
   font-family: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
   color-scheme: light;
 }
-[data-skin="fable"][data-theme="dark"] [data-estetica-club="breakpoint"] {
+[data-skin="fable"][data-theme="dark"][data-estetica="breakpoint"] {
   --surface-sunken: #121a24; --surface: #0a1119; --surface-raised: #121c28; --surface-inverted: #eef2f6;
   --text-strong: #eef2f6; --text: #cbd3dc; --text-muted: #9aa7b5; --text-faint: #9aa7b5;
   --line: #26323f; --line-strong: #5a6b7e;
@@ -522,18 +526,18 @@
   color-scheme: dark;
 }
 /* La barra: azul royal con la doble línea naranja de la chapa. */
-[data-estetica-club="breakpoint"] [data-casa="cabecera"] { border-bottom: 0; }
-[data-estetica-club="breakpoint"] [data-casa="cabecera"]::after {
+[data-estetica="breakpoint"] [data-casa="cabecera"] { border-bottom: 0; }
+[data-estetica="breakpoint"] [data-casa="cabecera"]::after {
   content: ""; display: block; height: 4px;
   background: linear-gradient(var(--club-naranja) 0 2px, transparent 2px 3px, var(--club-naranja) 3px);
 }
-[data-estetica-club="breakpoint"] [data-casa="cabecera"] :focus-visible { outline-color: #ffffff; }
-[data-estetica-club="breakpoint"] [data-casa="marca"] { font-stretch: 75%; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+[data-estetica="breakpoint"] [data-casa="cabecera"] :focus-visible { outline-color: #ffffff; }
+[data-estetica="breakpoint"] [data-casa="marca"] { font-stretch: 75%; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
 /* Títulos de pantalla en la angosta en mayúscula, como «h2.pantalla» de la chapa. */
-[data-estetica-club="breakpoint"] h1 { font-stretch: 75%; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+[data-estetica="breakpoint"] h1 { font-stretch: 75%; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
 /* Solapas: la elegida con la raya y el punto naranja. */
-[data-estetica-club="breakpoint"] [role="tab"][aria-selected="true"] { border-bottom-color: var(--club-naranja-ui); }
-[data-estetica-club="breakpoint"] [role="tab"][aria-selected="true"]::before {
+[data-estetica="breakpoint"] [role="tab"][aria-selected="true"] { border-bottom-color: var(--club-naranja-ui); }
+[data-estetica="breakpoint"] [role="tab"][aria-selected="true"]::before {
   content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--club-naranja); margin-right: 7px;
 }
 
