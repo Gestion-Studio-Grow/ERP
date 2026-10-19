@@ -1,9 +1,9 @@
 {
-  "commit": "01059681c3fe7f95de7d4ab74c1c2be61ebdeb6a",
+  "commit": "93ac9c09b46c8e021da54498a4c989f52ed99ff0",
   "archivos": {
     "src/lib/club/motor.mjs": {
       "fuente": "public/previews/breakpoint/club/motor.mjs",
-      "sha256": "d1ba9146b7791629484dc4d8778908de6bf08f638441eb0d951d39ac81a335cf"
+      "sha256": "56f1a229dc255253be00c262422180a17717f89337913d464d026f2b2fd7dc31"
     },
     "src/lib/club/dominio/nucleo.mjs": {
       "fuente": "public/previews/breakpoint/turnero/dominio/nucleo.mjs",

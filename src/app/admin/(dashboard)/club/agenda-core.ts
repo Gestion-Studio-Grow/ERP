@@ -138,9 +138,10 @@ export function marcaDelTurno(r: Reserva, senal: string | null): { tipo: TipoMar
   }
 }
 
-function detalleCancha(c: { cubierta: boolean; estado: string }): string {
-  const tipo = c.cubierta ? "Techada" : "Descubierta";
-  return c.estado === "mantenimiento" ? `${tipo} · en mantenimiento` : tipo;
+/** «Techada» / «Descubierta» sólo si el club tiene de las dos (Break Point: las 4 techadas). */
+function detalleCancha(c: { cubierta: boolean; estado: string }, techoMixto: boolean): string {
+  const partes = [techoMixto ? (c.cubierta ? "Techada" : "Descubierta") : "", c.estado === "mantenimiento" ? "en mantenimiento" : ""];
+  return partes.filter(Boolean).join(" · ");
 }
 
 /** Arma la grilla del día `fecha` con el reloj `ahora`. */
@@ -148,7 +149,8 @@ export function armarAgenda(estado: EstadoClub, fecha: Fecha, ahora: Ahora): Vis
   const { paso } = estado.config;
   const { abre, cierra } = horarioDe(estado, fecha);
   const filas = Math.max(1, Math.ceil((cierra - abre) / paso));
-  const canchas: ColumnaCancha[] = estado.canchas.map((c) => ({ id: c.id, nombre: c.nombre, detalle: detalleCancha(c) }));
+  const techoMixto = estado.canchas.some((c) => c.cubierta) && estado.canchas.some((c) => !c.cubierta);
+  const canchas: ColumnaCancha[] = estado.canchas.map((c) => ({ id: c.id, nombre: c.nombre, detalle: detalleCancha(c, techoMixto) }));
   const columnaDe = new Map(canchas.map((c, i) => [c.id, i]));
 
   const horas: FilaHora[] = [];

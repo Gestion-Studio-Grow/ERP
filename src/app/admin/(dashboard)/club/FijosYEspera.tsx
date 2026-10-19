@@ -15,7 +15,7 @@ import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Field";
 import { cn } from "@/components/ui/cn";
-import { NOMBRE_DIA, diaSemana, sumarDias } from "@/lib/club/motor.mjs";
+import { NOMBRE_DIA, diaSemana, hayDescubiertas, sumarDias } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
 import { clientesQueCoinciden, DURACIONES } from "./alta-core";
@@ -253,10 +253,12 @@ function Anotar({ almacen, hacer }: { almacen: Almacen; hacer: (a: AccionEspera)
             </Select>
           </div>
         </div>
-        <label htmlFor={ids.cub} className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-strong">
-          <input id={ids.cub} type="checkbox" checked={soloCubierta} onChange={(e) => setSoloCubierta(e.target.checked)} className="size-5 accent-[var(--accent)]" />
-          Sólo techada
-        </label>
+        {hayDescubiertas(almacen.estado()) && (
+          <label htmlFor={ids.cub} className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-strong">
+            <input id={ids.cub} type="checkbox" checked={soloCubierta} onChange={(e) => setSoloCubierta(e.target.checked)} className="size-5 accent-[var(--accent)]" />
+            Sólo techada
+          </label>
+        )}
         <Button type="submit" variant="outline" size="md" disabled={!titular.trim()}>
           Anotar
         </Button>

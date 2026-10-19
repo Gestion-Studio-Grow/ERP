@@ -102,7 +102,7 @@
    {
     "id": "c4",
     "nombre": "Cancha 4",
-    "cubierta": false,
+    "cubierta": true,
     "panoramica": true,
     "estado": "ok",
     "camara": "cam-c4"

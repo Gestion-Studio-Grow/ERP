@@ -60,7 +60,7 @@ const FUNCIONES = [
   "puede", "verificarPin", "usuarioPorPin",
   "horarioDe", "precioTurno", "franjaDe", "requiereSena", "ocupantes", "validarHueco", "huecosLibres", "crearReserva", "checkIn", "finalizar",
   "marcarNoShow", "cancelar", "mover", "extender", "bloquear", "quitarBloqueo", "materializarFijos",
-  "interrumpir", "marcarDevuelto", "cobrarFaltaSinFicha", "configurarMantenimiento", "planLluvia", "crearFijo", "liberarFijo",
+  "interrumpir", "marcarDevuelto", "cobrarFaltaSinFicha", "configurarMantenimiento", "configurarTecho", "hayDescubiertas", "planLluvia", "crearFijo", "liberarFijo",
   "anotarEspera", "ofertasEspera", "asignarDesdeEspera",
   "cobrado", "totalReserva", "saldo", "registrarPago", "partesCancha", "asignarCargoCancha", "cobrarParte",
   "totalCuenta", "cobradoCuenta", "saldoCuenta", "abrirCuenta", "cargarEnCuenta", "pagarCuenta", "consumoJugador", "ajustarCargo",

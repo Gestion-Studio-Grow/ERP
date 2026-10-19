@@ -8,7 +8,8 @@
 //   1. Plan lluvia: el horario de la lluvia y, ANTES de aplicarlo, qué pasa con cada turno de la descubierta (pasa a
 //      techada, se corta con crédito por lo no jugado, o se suspende devolviendo lo pagado). DESPUÉS, como el club
 //      vanilla («Plan lluvia aplicado»), el aviso por WhatsApp de cada turno, listo para mandar uno por uno.
-//   2. Cada cancha: en mantenimiento (con motivo) o habilitada.
+//   2. Cada cancha: en mantenimiento (con motivo) o habilitada; el dueño la marca techada o descubierta. Con todas
+//      techadas (Break Point) no hay plan lluvia que mostrar.
 //   3. Bloquear un horario (torneo, evento): no pisa turnos; si hay, avisa cuáles mover.
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -58,7 +59,8 @@ function AvisosDeLluvia({ almacen, avisos, onListo }: { almacen: Almacen; avisos
     </div>
   );
 }
-import { porFirma, useSeleccion } from "./usar-almacen";
+import { porFirma, useOperador, useSeleccion } from "./usar-almacen";
+import { esDuenoQuienMira } from "./operador-del-club";
 
 function PlanLluvia({ almacen, dia }: { almacen: Almacen; dia: string }) {
   const horas = horasDelDia(almacen.estado(), dia);
@@ -185,6 +187,29 @@ function Mantenimiento({ canchaId, nombre, motivoActual, turnosHoy, hacer }: { c
   );
 }
 
+/** Techada o descubierta: dato del club que cambia el dueño (el plan lluvia sólo mueve lo descubierto). */
+function Techos({ canchas, hacer }: { canchas: { id: string; nombre: string; cubierta: boolean }[]; hacer: (a: AccionCanchas) => boolean }) {
+  return (
+    <section aria-labelledby="club-techos" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
+      <h2 id="club-techos" className="font-semibold text-strong">
+        Techo de las canchas
+      </h2>
+      <ul>
+        {canchas.map((c) => (
+          <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-2 first:border-t-0">
+            <span className="text-sm text-strong">
+              <strong>{c.nombre}</strong> · {c.cubierta ? "techada" : "descubierta"}
+            </span>
+            <Button variant="ghost" size="md" onClick={() => hacer({ tipo: "techo", canchaId: c.id, cubierta: !c.cubierta })}>
+              Marcar {c.nombre} {c.cubierta ? "descubierta" : "techada"}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function Bloquear({ almacen, dia, canchas, hacer }: { almacen: Almacen; dia: string; canchas: { id: string; nombre: string }[]; hacer: (a: AccionCanchas) => boolean }) {
   const horas = horasDelDia(almacen.estado(), dia);
   const [canchaId, setCanchaId] = useState(canchas[0]?.id ?? "*");
@@ -263,11 +288,13 @@ export default function CanchasDelClub({ almacen, dia }: { almacen: Almacen; dia
   // Como en el club vanilla, lluvia, mantenimiento y bloqueos NO se deshacen: tienen su acción inversa a la vista
   // (habilitar la cancha, quitar el bloqueo) y la lluvia muestra su previa antes de aplicarse.
   const hacer = useCallback((a: AccionCanchas) => almacen.ejecutar((e, ahora) => ejecutarCanchas(e, a, ahora), { deshacible: SE_DESHACE[a.tipo] }).ok, [almacen]);
+  useOperador(almacen);
+  const esDuenio = esDuenoQuienMira(almacen);
   const fecha = `${Number(dia.slice(8))}/${Number(dia.slice(5, 7))}`;
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted">Día elegido en la agenda: {fecha}.</p>
-      {v.descubiertas > 0 && <PlanLluvia key={dia} almacen={almacen} dia={dia} />}
+      {v.descubiertas > 0 ? <PlanLluvia key={dia} almacen={almacen} dia={dia} /> : <p className="text-sm text-muted">Todas las canchas son techadas: la lluvia no mueve turnos.</p>}
       <section aria-labelledby="club-mant" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
         <h2 id="club-mant" className="font-semibold text-strong">
           Mantenimiento de las canchas
@@ -278,6 +305,7 @@ export default function CanchasDelClub({ almacen, dia }: { almacen: Almacen; dia
           ))}
         </ul>
       </section>
+      {esDuenio && <Techos canchas={v.canchas} hacer={hacer} />}
       <Bloquear key={dia} almacen={almacen} dia={dia} canchas={v.canchas} hacer={hacer} />
       {v.bloqueos.length > 0 && (
         <section aria-labelledby="club-bloqueos" className="flex flex-col gap-2">

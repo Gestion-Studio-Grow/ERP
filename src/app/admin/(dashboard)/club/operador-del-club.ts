@@ -31,3 +31,8 @@ export function operadorActual(almacen: Pick<Almacen, "estado" | "operador">): O
   const op = almacen.operador();
   return operadorDesdeAuth(almacen.estado(), op?.auth ?? {});
 }
+
+/** ¿Mira un dueño? En la demo, el rol del ERP; en la jornada real, quien entró con su PIN. */
+export function esDuenoQuienMira(almacen: Pick<Almacen, "modo" | "rol" | "operador">): boolean {
+  return almacen.modo() === "demo" ? almacen.rol() === "OWNER" : almacen.operador()?.usuario.rol === "duenio";
+}

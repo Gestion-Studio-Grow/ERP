@@ -210,7 +210,10 @@ reglas sin topes; reglas de negocio que mutaban estado desde la pantalla; cámar
 - **Logo vectorial oficial** (el club lo tiene): reemplaza la recreación CSS en `index.html`.
 - **Autorización registrada** para usar la marca frente al club (ADR-034): no consta en el registro de caso;
   bloqueante **antes de mostrar**, no para construir.
-- Cuántas canchas son techadas (la demo asume 3 techadas + 1 descubierta para mostrar el plan lluvia).
+- ~~Cuántas canchas son techadas~~ **Confirmado por el dueño (19/10/2026): las 4 son techadas.** Con todas techadas
+  no se ven el plan lluvia, «Sólo techadas» (turnero y lista de espera) ni la etiqueta «Techada»; la lógica queda para
+  otro club. El dueño marca cada cancha techada o descubierta en «Mantenimiento y lluvia» (`configurarTecho`), porque
+  la jornada real guarda sus canchas aparte: el día del pase, revisar que la Cancha 4 diga «techada».
 - Horario real, duración de turno (90′), precios valle/pico, descuento socio, % de seña, horas de cancelación.
 - Cámaras existentes (marca/modelo de la grabadora, cuántas, qué cubren).
 - Productos, precios y stock del bar y del shop; proveedores para el pedido por WhatsApp.

@@ -20,7 +20,9 @@ test("columnas por cancha y franjas del horario del día; cada turno en su canch
   assert.equal(v.desde, abre);
   assert.equal(v.filas, (cierra - abre) / e.config.paso, "una fila por franja, hasta el cierre (la madrugada incluida)");
   assert.equal(v.horas[0].texto, M.hhmm(abre));
-  assert.ok(v.canchas.some((c) => c.detalle.startsWith("Descubierta")), "se ve cuál es la descubierta");
+  assert.ok(v.canchas.every((c) => !/Techada|Descubierta/.test(c.detalle)), "con las 4 techadas el techo no se repite en cada columna");
+  M.configurarTecho(e, "c4", false, AHORA);
+  assert.ok(armarAgenda(e, HOY, AHORA).canchas.some((c) => c.detalle.startsWith("Descubierta")), "en un club mixto se ve cuál es la descubierta");
 
   const delDia = e.reservas.filter((r) => r.fecha === HOY && ["reservada", "en_cancha", "finalizada"].includes(r.estado));
   assert.equal(v.turnos.length, delDia.length);

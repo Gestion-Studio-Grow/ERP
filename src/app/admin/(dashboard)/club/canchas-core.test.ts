@@ -10,6 +10,12 @@ import { avisosLluvia } from "./whatsapp-core";
 const HOY = "2026-10-17";
 const AHORA: Ahora = { fecha: HOY, min: 19 * 60 + 10 };
 const demo = (): EstadoClub => M.generarDemo(HOY, AHORA.min);
+// Break Point tiene las 4 techadas; la lluvia se prueba con la Cancha 4 descubierta (otro club).
+const conDescubierta = (): EstadoClub => {
+  const e = demo();
+  M.configurarTecho(e, "c4", false, AHORA);
+  return e;
+};
 
 test("mantenimiento: con motivo; la cancha deja de ofrecer huecos y vuelve al habilitarla", () => {
   const e = demo();
@@ -106,8 +112,18 @@ test("dar de baja un fijo (la inversa de crearlo): libera sus turnos sin jugar c
   assert.equal(bajaFijo(e, f.id, AHORA).ok, false);
 });
 
-test("plan lluvia: devuelve lo que pasó con cada turno y los avisos por WhatsApp salen de eso", () => {
+test("techo: Break Point con las 4 techadas no tiene descubiertas; el dueño marca una y vuelve", () => {
   const e = demo();
+  assert.equal(armarCanchas(e, HOY).descubiertas, 0);
+  const d = ejecutarCanchas(e, { tipo: "techo", canchaId: "c4", cubierta: false }, AHORA);
+  assert.deepEqual(d, { ok: true, mensaje: "Cancha 4: descubierta." });
+  assert.equal(armarCanchas(e, HOY).descubiertas, 1);
+  assert.equal(ejecutarCanchas(e, { tipo: "techo", canchaId: "nada", cubierta: true }, AHORA).ok, false);
+  assert.equal(SE_DESHACE.techo, false);
+});
+
+test("plan lluvia: devuelve lo que pasó con cada turno y los avisos por WhatsApp salen de eso", () => {
+  const e = conDescubierta();
   const d = ejecutarCanchas(e, { tipo: "lluvia", fecha: HOY, desde: 19 * 60 + 30, hasta: 23 * 60 }, AHORA);
   assert.equal(d.ok, true, d.mensaje);
   assert.ok(d.lluvia && d.lluvia.length > 0, "la demo tiene turnos en la descubierta a la noche");

@@ -49,6 +49,7 @@ import CuentaDelTurno from "./CuentaDelTurno";
 import { Esqueleto } from "@/components/ui/Esqueleto";
 import { AvisosDelClub } from "./piezas";
 import { NegocioDelClub } from "./negocio-del-club";
+import { esDuenoQuienMira } from "./operador-del-club";
 import { PIEZAS_GLOBALES_DEL_CLUB, SOLAPAS_DEL_CLUB, type PropsDePieza, type PropsDeSolapa } from "./solapas-club";
 
 // PERFORMANCE (docs/producto/PERFORMANCE-TERMINALES.md, ronda 3): la Agenda (con la cuenta del turno y «Dar un
@@ -130,9 +131,6 @@ const SOLAPAS_DE_FABRICA: readonly { id: Solapa; etiqueta: string }[] = [
 type SolapaVisible = { id: Solapa; etiqueta: string };
 const CON_DUENOS: readonly SolapaVisible[] = [...SOLAPAS_DE_FABRICA, ...extras];
 const SIN_DUENOS: readonly SolapaVisible[] = extras.some((e) => e.soloDuenos) ? [...SOLAPAS_DE_FABRICA, ...extras.filter((e) => !e.soloDuenos)] : CON_DUENOS;
-function esDuenoQuienMira(almacen: Almacen): boolean {
-  return almacen.modo() === "demo" ? almacen.rol() === "OWNER" : almacen.operador()?.usuario.rol === "duenio";
-}
 const solapasVisibles = (almacen: Almacen) => (esDuenoQuienMira(almacen) ? CON_DUENOS : SIN_DUENOS);
 /** Las solapas que ve quien opera ahora. Repinta sólo a quien la usa, y sólo cuando cambia «es dueño». */
 function useSolapasVisibles(almacen: Almacen): readonly SolapaVisible[] {

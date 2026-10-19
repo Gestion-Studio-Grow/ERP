@@ -367,7 +367,7 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await page.getByRole("button", { name: "+ Turno" }).click();
     const alta = page.getByRole("region", { name: "Dar un turno" });
     await alta.waitFor();
-    await alta.getByLabel("Cancha").selectOption({ label: "Cancha 4 (descubierta)" });
+    await alta.getByLabel("Cancha").selectOption({ label: "Cancha 4" });
     await alta.getByLabel("Cuánto juegan").selectOption({ label: "1 hora" });
     await alta.getByLabel("A nombre de").fill("Turno de prueba");
     await alta.getByRole("status").filter({ hasText: /\$ [\d.]+ · horario (pico|valle) · pide seña \(\d+ %\)/ }).waitFor();
@@ -526,13 +526,12 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await page.getByRole("status").filter({ hasText: /^Turno de Agustina Romero cancelado\./ }).waitFor();
     await page.getByText(/Cancelados, suspendidos y faltas de este día \(1\)/).waitFor();
 
-    // Plan lluvia: la previa y aplicarlo.
+    // Break Point tiene las 4 techadas: no hay plan lluvia (el flujo de lluvia se prueba en canchas-core y ciclo-core
+    // con una descubierta). Marcar el techo es del dueño: recepción no lo ve.
     await page.getByRole("tab", { name: "Mantenimiento y lluvia" }).click();
-    await page.getByLabel("Llueve desde").selectOption({ label: "19:30" });
-    await page.getByRole("button", { name: "Ver qué pasa con cada turno" }).click();
-    await page.getByRole("list", { name: "Qué pasa con cada turno" }).getByText(/Grupo de Bruno/).waitFor();
-    await page.getByRole("button", { name: "Aplicar el plan lluvia" }).click();
-    await page.getByRole("status").filter({ hasText: /^Plan lluvia: \d+ movidos a techada/ }).waitFor();
+    await page.getByText("Todas las canchas son techadas: la lluvia no mueve turnos.").waitFor();
+    assert.equal(await page.getByLabel("Llueve desde").count(), 0);
+    assert.equal(await page.getByRole("button", { name: /^Marcar Cancha/ }).count(), 0, "recepción no cambia el techo");
 
     // Turno fijo nuevo y lista de espera.
     await page.getByRole("tab", { name: "Fijos y espera" }).click();

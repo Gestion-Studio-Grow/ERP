@@ -708,6 +708,8 @@ export declare function marcarDevuelto(estado: EstadoClub, reservaId: string, me
 /** La falta de alguien sin ficha, cuando vuelve y paga: entra a la caja. */
 export declare function cobrarFaltaSinFicha(estado: EstadoClub, reservaId: string, medio: Medio, ahora?: Ahora): Resultado<{ monto: number }>;
 export declare function configurarMantenimiento(estado: EstadoClub, canchaId: string, opciones: { activo: boolean; motivo?: string }, ahora?: Ahora): Resultado;
+export declare function configurarTecho(estado: EstadoClub, canchaId: string, cubierta: boolean, ahora?: Ahora): Resultado;
+export declare function hayDescubiertas(estado: EstadoClub): boolean;
 export interface ResultadoLluvia {
   reservaId: string;
   titular: string;

@@ -26,7 +26,8 @@ const A_LAS_8 = { fecha: HOY, min: 8 * 60 };
 function club(): EstadoClub {
   return M.crearEstado({
     config: M.CONFIG_DEMO,
-    canchas: M.CANCHAS_DEMO,
+    // Break Point tiene las 4 techadas; para la lluvia, la Cancha 4 descubierta (otro club).
+    canchas: M.CANCHAS_DEMO.map((c) => (c.id === "c4" ? { ...c, cubierta: false } : c)),
     clientes: [
       { id: "a", nombre: "Ana Pérez", tel: "011 15-4000-7919" },
       { id: "b", nombre: "Beto Gómez", tel: "" },

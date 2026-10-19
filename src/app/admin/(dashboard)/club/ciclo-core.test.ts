@@ -99,6 +99,7 @@ test("interrumpir: se reconoce sólo lo no jugado y lo pagado de más vuelve; lo
 
 test("plan lluvia: la previa es lo que hace; mueve a techada lo que entra y suspende el resto devolviendo lo cobrado, nunca más", () => {
   const { e } = demo();
+  M.configurarTecho(e, "c4", false); // Break Point tiene las 4 techadas; la lluvia se prueba con una descubierta (otro club).
   const desde = 20 * 60;
   const hasta = 23 * 60 + 30;
   // Pagamos la seña de uno de la descubierta para que haya plata en juego.

@@ -19,6 +19,7 @@ import {
   bloquear,
   cancha as canchaDe,
   configurarMantenimiento,
+  configurarTecho,
   crearFijo,
   diaSemana,
   hhmm,
@@ -92,6 +93,7 @@ export function lineaLluvia(x: ResultadoLluvia): string {
 
 export type AccionCanchas =
   | { tipo: "mantenimiento"; canchaId: string; activo: boolean; motivo: string }
+  | { tipo: "techo"; canchaId: string; cubierta: boolean }
   | { tipo: "bloquear"; canchaId: string; fecha: Fecha; desde: number; hasta: number; motivo: string }
   | { tipo: "quitarBloqueo"; bloqueoId: string }
   | { tipo: "lluvia"; fecha: Fecha; desde: number; hasta: number };
@@ -103,6 +105,7 @@ export type AccionCanchas =
  */
 export const SE_DESHACE = {
   mantenimiento: false,
+  techo: false,
   bloquear: false,
   quitarBloqueo: false,
   lluvia: false,
@@ -123,6 +126,11 @@ export function ejecutarCanchas(estado: EstadoClub, a: AccionCanchas, ahora: Aho
       const res = configurarMantenimiento(estado, a.canchaId, { activo: a.activo, motivo: a.motivo }, ahora);
       const c = canchaDe(estado, a.canchaId)?.nombre ?? "La cancha";
       return res.ok ? { ok: true, mensaje: a.activo ? `${c} en mantenimiento: no se dan turnos ahí.` : `${c} habilitada otra vez.` } : { ok: false, mensaje: res.motivo };
+    }
+    case "techo": {
+      const res = configurarTecho(estado, a.canchaId, a.cubierta, ahora);
+      const c = canchaDe(estado, a.canchaId)?.nombre ?? "La cancha";
+      return res.ok ? { ok: true, mensaje: `${c}: ${a.cubierta ? "techada" : "descubierta"}.` } : { ok: false, mensaje: res.motivo };
     }
     case "bloquear": {
       if (!a.motivo.trim()) return { ok: false, mensaje: "Poné el motivo del bloqueo (torneo, mantenimiento, evento)." };

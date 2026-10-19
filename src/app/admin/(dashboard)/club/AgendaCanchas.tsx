@@ -309,7 +309,7 @@ export default function AgendaCanchas({
             <ul
               key={cancha.id}
               role="list"
-              aria-label={`${cancha.nombre}, ${cancha.detalle}: ${deLaCancha.length === 1 ? "1 turno" : `${deLaCancha.length} turnos`}, ${libresDeLaCancha.length} huecos libres`}
+              aria-label={`${cancha.nombre}${cancha.detalle ? `, ${cancha.detalle}` : ""}: ${deLaCancha.length === 1 ? "1 turno" : `${deLaCancha.length} turnos`}, ${libresDeLaCancha.length} huecos libres`}
               className="contents"
             >
               {deLaCancha.map((t) => (
