@@ -525,6 +525,64 @@
   --club-naranja: #ff9a3d; --club-naranja-ui: #ff9a3d;
   color-scheme: dark;
 }
+/* — CH Estética (beauty-spa): su front es el papel cálido de :root con petróleo, Fraunces + Hanken, esquinas casi
+   rectas (2px) y filetes en vez de sombras (src/app/(site)/_ch/, globals.css :root). El front no tiene oscuro: en
+   oscuro queda el grafito del ERP con su petróleo y su letra. — */
+[data-skin="fable"][data-estetica="beauty-spa"] {
+  --font-display: var(--font-fraunces); --font-body: var(--font-hanken);
+  --radius-sm: 2px; --radius: 2px; --radius-lg: 4px; --radius-xl: 4px;
+  --shadow-xs: none; --shadow-sm: none;
+  font-family: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+}
+[data-skin="fable"][data-estetica="beauty-spa"]:not([data-theme="dark"]) {
+  --surface-sunken: #ece7db; --surface: #f6f3ec; --surface-raised: #ffffff; --surface-inverted: #1b1a14;
+  --text-strong: #1f1b14; --text: #413b31; --text-muted: #736a58; --text-faint: #766d5f;
+  --line: #e6dfd0; --line-strong: #d2c9b5;
+  --accent: #2c6e77; --text-on-accent: #ffffff;
+  --success: #4e6b4a; --success-soft: #e7eee4; --warning: #8a6a1f; --warning-soft: #f5ebd7; --danger: #b23b2b; --danger-soft: #f6e3de;
+}
+[data-estetica="beauty-spa"] :is(h1, h2) { font-family: var(--font-fraunces), serif; font-weight: 500; letter-spacing: -0.01em; }
+
+/* — Magra: su front es negro carbón con hueso y oro, Bebas Neue + Open Sans, sin claro (MagraFront.tsx:733-750,
+   ADR-072 §8). El panel es carbón en los dos temas; el oro va de relleno con texto carbón (AA), nunca de texto
+   chico sobre claro. — */
+[data-skin="fable"][data-estetica="magra"],
+[data-skin="fable"][data-theme="dark"][data-estetica="magra"] {
+  --surface-sunken: #0e0e0c; --surface: #1d1d1b; --surface-raised: #000000; --surface-inverted: #f2e6d7;
+  --text-strong: #f2e6d7; --text: #ccd6df; --text-muted: #9ba2aa; --text-faint: #9ba2aa;
+  --line: rgba(242, 230, 215, 0.12); --line-strong: rgba(242, 230, 215, 0.22);
+  --accent: #c5ae86; --accent-hover: #d8c39c; --accent-soft: rgba(197, 174, 134, 0.14); --accent-ink: #d8c39c; --text-on-accent: #1d1d1b;
+  --success: #62cf8e; --success-soft: rgba(11, 122, 59, 0.22); --success-fill: #0b7a3b;
+  --warning: #f2b35a; --warning-soft: rgba(242, 179, 90, 0.16); --warning-fill: #f2b35a;
+  --danger: #f2b8a8; --danger-soft: rgba(122, 31, 25, 0.35); --danger-fill: #7a1f19;
+  --info: var(--accent-ink); --info-soft: var(--accent-soft); --focus-ring: var(--accent);
+  --bar-track: #2a2925;
+  --font-display: var(--font-bebas); --font-body: var(--font-open-sans);
+  --radius-sm: 5px; --radius: 5px; --radius-lg: 8px; --radius-xl: 8px;
+  --shadow-xs: none; --shadow-sm: none;
+  font-family: var(--font-open-sans), ui-sans-serif, system-ui, sans-serif;
+  color-scheme: dark;
+}
+[data-estetica="magra"] h1 { font-family: var(--font-bebas), sans-serif; font-weight: 400; text-transform: uppercase; letter-spacing: 0.01em; line-height: 0.95; }
+
+/* — Matías Consoli, profe de pádel: su turnero (/clases, src/lib/padel/marca.ts NEUTRA) es papel claro, verde
+   cancha #197934, Hanken, esquinas de 12–16px y bordes sin sombra. Su logo y su paleta propia están «a confirmar»:
+   cuando lleguen, se cambian acá. — */
+[data-skin="fable"][data-estetica="matiasconsoli"] {
+  --font-display: var(--font-hanken); --font-body: var(--font-hanken);
+  --radius-sm: 0.75rem; --radius: 0.75rem; --radius-lg: 1rem; --radius-xl: 1rem;
+  --shadow-xs: none; --shadow-sm: none;
+  font-family: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+}
+[data-skin="fable"][data-estetica="matiasconsoli"]:not([data-theme="dark"]) {
+  --surface-sunken: #f5f5f7; --surface: #f5f5f7; --surface-raised: #ffffff; --surface-inverted: #101619;
+  --text-strong: #1d1d1f; --text-muted: #6e6e73; --line: #e4e4e9;
+  --accent: #197934; --accent-hover: #145f29; --accent-soft: rgba(25, 121, 52, 0.1); --accent-ink: #145f29; --text-on-accent: #ffffff;
+}
+[data-skin="fable"][data-theme="dark"][data-estetica="matiasconsoli"] {
+  --accent: #30d158; --accent-hover: #5cdc7d; --accent-soft: rgba(48, 209, 88, 0.16); --accent-ink: #5cdc7d; --text-on-accent: #0b1f10;
+}
+
 /* La barra: azul royal con la doble línea naranja de la chapa. */
 [data-estetica="breakpoint"] [data-casa="cabecera"] { border-bottom: 0; }
 [data-estetica="breakpoint"] [data-casa="cabecera"]::after {
