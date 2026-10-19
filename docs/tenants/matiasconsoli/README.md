@@ -1,6 +1,6 @@
 # Profe Matías Consoli — módulo `padel-clases`
 
-Rama `claude/beautiful-keller-5tykrg`, nacida de `origin/main` (`29d3e94`) el 15/10/2026. **Integrada a `main`** el 17/10/2026 con OK del dueño (gate 1). Migración declarada en
+Rama `claude/beautiful-keller-5tykrg`, nacida de `origin/main` (`29d3e94`) el 15/10/2026. **Lista para integrar a `main`** (OK del dueño del 17/10, gate 1): se integra cuando esté cargada `MIGRATE_DATABASE_URL`, porque sin las tablas el build de producción frena. Migración declarada en
 `prisma/lote-deploy.txt` con OK del dueño (gate 2): se aplica en el build de producción cuando está cargada
 `MIGRATE_DATABASE_URL`, o a mano en Neon.
 
