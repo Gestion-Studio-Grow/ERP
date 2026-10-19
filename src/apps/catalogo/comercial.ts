@@ -230,6 +230,7 @@ export const APPS_COMERCIAL = [
     capability: "agenda:manage",
     modulo: "club",
     moduloDuro: true,
+    casa: true,
     estado: "lista",
     palabras: ["padel", "pádel", "canchas", "club", "turnos de cancha", "jugadores", "a cargo de", "cuenta del turno", "buffet"],
   },

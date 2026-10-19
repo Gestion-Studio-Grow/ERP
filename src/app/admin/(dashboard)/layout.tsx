@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import AdminShell from "./AdminShell";
+import PanelDeCasa from "./PanelDeCasa";
 import ToastProvider from "./ToastProvider";
 import GlobalLoadingProvider from "./GlobalLoadingProvider";
 import { VocabularioDelNegocio } from "./VocabularioDelNegocio";
@@ -20,7 +21,9 @@ import { navGroupingEnabled } from "@/modules";
 import { rutaPermitidaParaModulos } from "@/lib/admin-nav-items";
 import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
-import { appsVisibles, conCierreDelMesEnLaBarra, proyectarMenuDeHoy } from "@/apps/visibles";
+import { appCasa, appsDeLaCasa, appsVisibles, conCierreDelMesEnLaBarra, proyectarMenuDeHoy, rutaDeLaCasa } from "@/apps/visibles";
+import { esteticaDelClub } from "@/lib/club/estetica";
+import { getCurrentTenantSlug } from "@/lib/tenant-site";
 import { rutaDeAppDelNegocio } from "@/apps/rutas";
 import { enInicioPorApps } from "./inicio/piloto";
 import { getTenantBrand, resolveAccent, marcaDelNegocio } from "@/lib/branding";
@@ -221,6 +224,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // lo prueba src/apps/paridad-menu.test.ts en todos los casos: CH no ve un cambio.
   const negocioApps = await getNegocioApps(user.role);
   const visibles = appsVisibles(negocioApps);
+  // PANEL DE CASA: un negocio cuyo backoffice es UNA app (Break Point → el club) no ve el menú del ERP. Cualquier
+  // otra pantalla de /admin (el Inicio incluido) rebota a su casa; quedan Usuarios y «Salir». Sin módulo con
+  // `casa` asignado (CH, Magra, …) es `null` y todo sigue como siempre. Fail-open sin el header, como el gate de
+  // arriba: el Inicio también redirige por su cuenta (page.tsx).
+  const casa = appCasa(negocioApps);
+  if (casa) {
+    const pathname = (await headers()).get("x-pathname");
+    if (pathname && !rutaDeLaCasa(pathname, casa)) redirect(casa.ruta);
+  }
+  // Estética propia (Break Point «chapa»): opcional y cobrada; sin ella, la del ERP.
+  const estetica = casa ? esteticaDelClub(await getCurrentTenantSlug()) : null;
   // Con tienda (Comerciante), «Cierre del mes» entra a la barra detrás de «Cierre del día»; CH no cambia.
   const menu = conCierreDelMesEnLaBarra(proyectarMenuDeHoy(visibles), visibles, productoUsaTienda(productoCtx.producto));
   // DISEÑO NUEVO: la navegación del armazón nuevo (espacios, comandos de ⌘K, tecla del rubro), con
@@ -286,11 +300,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <ToastProvider>
             {/* `apps` (para el buscador de Ctrl/⌘K y la barra de espacios del celular) sólo viaja
                 en el piloto: fuera de él la barra busca en su propio menú, como siempre. */}
-            <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})}>
-              {/* Cómo se llama el retiro y qué ejemplo lleva la nota, según el rubro (una perfumería
-                  entrega en un punto de encuentro, no en un local): sale del rubro ya leído arriba. */}
-              <VocabularioDelNegocio valor={vocabularioDelNegocio(rubroDelNegocio.rubro)}>{children}</VocabularioDelNegocio>
-            </AdminShell>
+            {casa ? (
+              <PanelDeCasa apps={appsDeLaCasa(casa, visibles)} brandName={brandName} monogram={monogram} userName={user.name} estetica={estetica}>
+                {children}
+              </PanelDeCasa>
+            ) : (
+              <AdminShell role={user.role} userName={user.name} brandName={brandName} monogram={monogram} menu={menu} apps={modoApps ? visibles : []} modoApps={modoApps} esMostrador={negocioApps.esMostrador} navGrouping={navGroupingEnabled()} activeProfile={activeProfile} showPublicSite={productoCtx.producto === "vertical"} {...(nav ? { nav } : {})}>
+                {/* Cómo se llama el retiro y qué ejemplo lleva la nota, según el rubro (una perfumería
+                    entrega en un punto de encuentro, no en un local): sale del rubro ya leído arriba. */}
+                <VocabularioDelNegocio valor={vocabularioDelNegocio(rubroDelNegocio.rubro)}>{children}</VocabularioDelNegocio>
+              </AdminShell>
+            )}
           </ToastProvider>
         </GlobalLoadingProvider>
       </ConDiseno>

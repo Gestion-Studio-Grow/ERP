@@ -476,6 +476,67 @@
   --shadow-lg: 0 32px 100px rgba(0, 0, 0, 0.7); /* --shadow-pal */
 }
 
+/* ═════════ PANEL DE CASA (PanelDeCasa.tsx) ═════════
+   Un negocio cuyo backoffice es UNA app (Break Point → el club) tiene cabecera propia, no el menú del ERP.
+   Sin estética propia, la cabecera es neutra (la del ERP). */
+[data-casa="cabecera"] {
+  background: var(--casa-cabecera, var(--surface-raised));
+  color: var(--casa-cabecera-tinta, var(--text-strong));
+  border-bottom: 1px solid var(--line);
+}
+[data-casa="monograma"] { background: var(--casa-monograma, var(--accent-soft)); color: var(--casa-monograma-tinta, var(--accent)); }
+[data-casa="enlace"] { color: inherit; }
+[data-casa="enlace"]:hover { background: var(--casa-enlace-hover, var(--surface-sunken)); }
+
+/* ═════════ ESTÉTICA PROPIA DEL CLUB — Break Point «chapa» (src/lib/club/estetica.ts) ═════════
+   Los valores son los del club de hoy (public/previews/breakpoint/club/index.html, `data-estilo="chapa"`),
+   pasados a los tokens del ERP: así cada pantalla del club los toma sin tocar componentes. Más específicos que el
+   skin Fable (2–3 atributos), que pinta el resto del backoffice. Opcional y cobrado: el club sin estética usa la del ERP. */
+[data-skin="fable"] [data-estetica-club="breakpoint"] {
+  --surface-sunken: #e9ecef; --surface: #eef0f2; --surface-raised: #ffffff; --surface-inverted: #101418;
+  --text-strong: #101418; --text: #2b3138; --text-muted: #5b6570; --text-faint: #5b6570;
+  --line: #d5dae0; --line-strong: #7d8893;
+  --accent: #035ba8; --accent-hover: #084a8a; --accent-soft: #e4eef8; --accent-ink: #084a8a; --text-on-accent: #ffffff;
+  --success: #1e7a3c; --success-soft: #ddf3e3; --success-fill: #1e7a3c;
+  --warning: #8a5200; --warning-soft: #fff0cc; --warning-fill: #dc6e22;
+  --danger: #b3261e; --danger-soft: #fbe2e0; --danger-fill: #b3261e;
+  --info: var(--accent-ink); --info-soft: var(--accent-soft); --focus-ring: var(--accent);
+  --club-naranja: #dc6e22; --club-naranja-ui: #bf5a00;
+  --radius-sm: 2px; --radius: 3px; --radius-lg: 3px; --radius-xl: 3px;
+  --shadow-xs: none; --shadow-sm: none;
+  --font-display: var(--font-archivo); --font-body: var(--font-archivo);
+  --casa-cabecera: #035ba8; --casa-cabecera-tinta: #ffffff; --casa-enlace-hover: rgba(255, 255, 255, 0.12);
+  --casa-monograma: #dc6e22; --casa-monograma-tinta: #1d1003;
+  font-family: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  color-scheme: light;
+}
+[data-skin="fable"][data-theme="dark"] [data-estetica-club="breakpoint"] {
+  --surface-sunken: #121a24; --surface: #0a1119; --surface-raised: #121c28; --surface-inverted: #eef2f6;
+  --text-strong: #eef2f6; --text: #cbd3dc; --text-muted: #9aa7b5; --text-faint: #9aa7b5;
+  --line: #26323f; --line-strong: #5a6b7e;
+  --accent: #5fa8f0; --accent-hover: #9cc8f6; --accent-soft: #15304d; --accent-ink: #9cc8f6; --text-on-accent: #0b1a2a;
+  --success: #62cf8e; --success-soft: #10311f; --success-fill: #62cf8e;
+  --warning: #f2b35a; --warning-soft: #3a2a0e; --warning-fill: #ff9a3d;
+  --danger: #ff8c82; --danger-soft: #44191a; --danger-fill: #ff8c82;
+  --club-naranja: #ff9a3d; --club-naranja-ui: #ff9a3d;
+  color-scheme: dark;
+}
+/* La barra: azul royal con la doble línea naranja de la chapa. */
+[data-estetica-club="breakpoint"] [data-casa="cabecera"] { border-bottom: 0; }
+[data-estetica-club="breakpoint"] [data-casa="cabecera"]::after {
+  content: ""; display: block; height: 4px;
+  background: linear-gradient(var(--club-naranja) 0 2px, transparent 2px 3px, var(--club-naranja) 3px);
+}
+[data-estetica-club="breakpoint"] [data-casa="cabecera"] :focus-visible { outline-color: #ffffff; }
+[data-estetica-club="breakpoint"] [data-casa="marca"] { font-stretch: 75%; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+/* Títulos de pantalla en la angosta en mayúscula, como «h2.pantalla» de la chapa. */
+[data-estetica-club="breakpoint"] h1 { font-stretch: 75%; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+/* Solapas: la elegida con la raya y el punto naranja. */
+[data-estetica-club="breakpoint"] [role="tab"][aria-selected="true"] { border-bottom-color: var(--club-naranja-ui); }
+[data-estetica-club="breakpoint"] [role="tab"][aria-selected="true"]::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--club-naranja); margin-right: 7px;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
