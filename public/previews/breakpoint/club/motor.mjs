@@ -1901,6 +1901,19 @@ export function configurarMantenimiento(estado, canchaId, { activo, motivo = "" 
   return { ok: true };
 }
 
+/** Techada o descubierta: es dato del club (lo cambia el dueño). Con todas techadas no hay plan lluvia que mostrar. */
+export function configurarTecho(estado, canchaId, cubierta, ahora) {
+  const c = cancha(estado, canchaId);
+  if (!c) return { ok: false, motivo: "Esa cancha no existe." };
+  if (Boolean(c.cubierta) === Boolean(cubierta)) return { ok: true };
+  c.cubierta = Boolean(cubierta);
+  registrar(estado, `${c.nombre}: ${c.cubierta ? "techada" : "descubierta"}.`, ahora);
+  return { ok: true };
+}
+
+/** ¿El club tiene alguna cancha descubierta? Si no, el plan lluvia y el filtro «sólo techadas» sobran. */
+export const hayDescubiertas = (estado) => estado.canchas.some((c) => !c.cubierta);
+
 /**
  * Plan lluvia: cada turno en cancha descubierta dentro de la ventana pasa a una techada libre en el mismo
  * horario; si no hay, se suspende (antes de empezar: lo pagado vuelve como crédito o queda para devolver;
@@ -3158,7 +3171,7 @@ export const CANCHAS_DEMO = Object.freeze([
   { id: "c1", nombre: "Cancha 1", cubierta: true, panoramica: true, estado: "ok", camara: "cam-c1" },
   { id: "c2", nombre: "Cancha 2", cubierta: true, panoramica: true, estado: "ok", camara: "cam-c2" },
   { id: "c3", nombre: "Cancha 3", cubierta: true, panoramica: true, estado: "ok", camara: "cam-c3" },
-  { id: "c4", nombre: "Cancha 4", cubierta: false, panoramica: true, estado: "ok", camara: "cam-c4" },
+  { id: "c4", nombre: "Cancha 4", cubierta: true, panoramica: true, estado: "ok", camara: "cam-c4" },
 ]);
 
 /**

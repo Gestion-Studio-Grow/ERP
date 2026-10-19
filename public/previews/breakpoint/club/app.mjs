@@ -74,6 +74,8 @@ const minutosBloqueo = () => E?.config?.bloqueoMin ?? 5;
 const puedo = (accion) => M.puede(E, USUARIO, accion);
 const auth = (pin) => ({ usuarioId: USUARIO, pin });
 const esDuenio = () => yo()?.rol === "duenio";
+// «Techada» / «Descubierta» sólo dice algo si el club tiene de las dos (Break Point: las 4 techadas).
+const techoMixto = () => M.hayDescubiertas(E) && E.canchas.some((c) => c.cubierta);
 
 // ───── jornada real: se guarda en ESTE dispositivo (sin servidor) ─────
 // Por defecto /club es la demo. La jornada real se activa a propósito (Ajustes, con PIN de dueño, o /club?modo=real):
@@ -450,7 +452,7 @@ function grilla() {
   const n = E.canchas.length;
   const cabecera = `<div class="gh" style="grid-column:1;grid-row:1"><span class="tag">Hora</span></div>` + E.canchas.map((c, i) => `
     <div class="gh" style="grid-column:${i + 2};grid-row:1">
-      <div><div class="n">${esc(c.nombre)}</div><div class="tag">${c.cubierta ? "Techada" : "Descubierta"}${c.estado === "mantenimiento" ? ` · <b class="rojo">en mantenimiento</b>` : ""}</div></div>
+      <div><div class="n">${esc(c.nombre)}</div><div class="tag">${[techoMixto() ? (c.cubierta ? "Techada" : "Descubierta") : "", c.estado === "mantenimiento" ? `<b class="rojo">en mantenimiento</b>` : ""].filter(Boolean).join(" · ")}</div></div>
       <button type="button" class="luz" data-a="luz" data-v="${c.id}" aria-pressed="${!!E.luces[c.id]}" aria-label="Luz de ${esc(c.nombre)}: ${E.luces[c.id] ? "prendida, tocar para apagar" : "apagada, tocar para prender"}">💡</button>
     </div>`).join("");
   let horas = "";
@@ -1948,7 +1950,7 @@ function mantenimientoDialogo() {
       refrescar: pintar,
       cuerpo: `
         <div class="seccion"><h3>Canchas</h3>
-          ${E.canchas.map((c) => `<div class="row" style="justify-content:space-between;border-bottom:1px solid var(--line-2);padding:6px 0"><span><b>${esc(c.nombre)}</b> · ${c.cubierta ? "techada" : "descubierta"} · ${c.estado === "mantenimiento" ? `<span class="rojo">en mantenimiento (${esc(c.motivoMantenimiento)})</span>` : "habilitada"}</span>
+          ${E.canchas.map((c) => `<div class="row" style="justify-content:space-between;border-bottom:1px solid var(--line-2);padding:6px 0"><span><b>${esc(c.nombre)}</b> · ${c.cubierta ? "techada" : "descubierta"}${esDuenio() ? ` <button type="button" class="btn sm ghost" data-a="techo" data-v="${c.id}" data-m="${c.cubierta ? "no" : "si"}">Marcar ${c.cubierta ? "descubierta" : "techada"}</button>` : ""} · ${c.estado === "mantenimiento" ? `<span class="rojo">en mantenimiento (${esc(c.motivoMantenimiento)})</span>` : "habilitada"}</span>
             ${c.estado === "mantenimiento" ? `<button type="button" class="btn sm" data-a="mantOff" data-v="${c.id}">Habilitar</button>` : `<span class="row"><label class="sr" for="mm-${c.id}">Motivo</label><input id="mm-${c.id}" placeholder="Motivo" style="max-width:180px"><button type="button" class="btn sm" data-a="mantOn" data-v="${c.id}">Poner en mantenimiento</button></span>`}</div>`).join("")}
         </div>
         <div class="seccion"><h3>Bloquear un horario (${esc(fechaCorta(VISTA))})</h3>
@@ -1956,12 +1958,12 @@ function mantenimientoDialogo() {
           <div class="row"><button type="button" class="btn sm primary" data-a="aplicarBloqueo">Bloquear</button></div>
           ${E.bloqueos.filter((b) => b.fecha >= HOY).map((b) => `<div class="row small">${esc(fechaCorta(b.fecha))} ${M.hhmm(b.desde)}–${M.hhmm(b.hasta)} · ${b.canchaId === "*" ? "todo el club" : esc(M.cancha(E, b.canchaId).nombre)} · ${esc(b.motivo)} <button type="button" class="btn sm ghost" data-a="quitarBloqueo" data-v="${b.id}">Quitar</button></div>`).join("")}
         </div>
-        <div class="seccion"><h3>Plan lluvia (hoy)</h3>
+        ${M.hayDescubiertas(E) ? `<div class="seccion"><h3>Plan lluvia (hoy)</h3>
           ${E.clima.pronostico?.fecha === HOY ? `<p class="small" style="margin:0">🌧️ Pronóstico de ejemplo: lluvia de ${M.hhmm(p.desde)} a ${M.hhmm(p.hasta)}.</p>` : ""}
           <p class="small muted" style="margin:0">Pasa cada turno de la descubierta a una techada libre; si no hay, lo suspende (lo pagado vuelve como crédito; si ya estaban jugando, se reconoce sólo el tiempo no jugado).</p>
           <div class="grid2"><label class="f">Desde<select id="l-desde">${horasOpc(p.desde - (p.desde % 30), HOY)}</select></label><label class="f">Hasta<select id="l-hasta">${horasOpc(Math.min(M.horarioDe(E, HOY).cierra, p.hasta - (p.hasta % 30)), HOY)}</select></label></div>
           <div class="row"><button type="button" class="btn sm primary" data-a="aplicarLluvia">Aplicar plan lluvia</button></div>
-        </div>`,
+        </div>` : `<p class="small muted">Todas las canchas son techadas: la lluvia no mueve turnos.</p>`}`,
       pie: `<button type="button" class="btn" data-a="cerrar">Listo</button>`,
     });
   };
@@ -1977,11 +1979,11 @@ function listaEspera() {
       refrescar: pintar,
       cuerpo: `${lista.length ? `<table><thead><tr><th>Quién</th><th>Día</th><th>Desde–hasta</th><th></th></tr></thead><tbody>${lista.map((e) => {
           const oferta = E.canchas.map((c) => ({ c, m: M.huecosLibres(E, e.fecha, c.id, e.duracion, Math.max(e.desde, e.fecha === HOY ? AHORA.min : 0)).find((m) => m <= e.hasta) })).find((x) => x.m != null && (!e.soloCubierta || x.c.cubierta));
-          return `<tr><td>${esc(e.titular)}${e.soloCubierta ? ` <span class="chip">techada</span>` : ""}</td><td>${esc(fechaCorta(e.fecha))}</td><td class="num">${M.hhmm(e.desde)}–${M.hhmm(e.hasta)}</td><td>${oferta ? `<button type="button" class="btn sm primary" data-a="asignarEspera" data-v="${e.id}" data-c="${oferta.c.id}" data-m="${oferta.m}">Dar ${esc(oferta.c.nombre)} ${M.hhmm(oferta.m)}</button>` : `<span class="small muted">Sin hueco</span>`} <button type="button" class="btn sm ghost" data-a="sacarEspera" data-v="${e.id}">Sacar</button></td></tr>`;
+          return `<tr><td>${esc(e.titular)}${e.soloCubierta && techoMixto() ? ` <span class="chip">techada</span>` : ""}</td><td>${esc(fechaCorta(e.fecha))}</td><td class="num">${M.hhmm(e.desde)}–${M.hhmm(e.hasta)}</td><td>${oferta ? `<button type="button" class="btn sm primary" data-a="asignarEspera" data-v="${e.id}" data-c="${oferta.c.id}" data-m="${oferta.m}">Dar ${esc(oferta.c.nombre)} ${M.hhmm(oferta.m)}</button>` : `<span class="small muted">Sin hueco</span>`} <button type="button" class="btn sm ghost" data-a="sacarEspera" data-v="${e.id}">Sacar</button></td></tr>`;
         }).join("")}</tbody></table>` : `<p class="empty">Nadie esperando.</p>`}
         <h3>Anotar</h3>
         <div class="grid2"><label class="f">Nombre<input id="e-nom"></label><label class="f">Día<select id="e-dia">${[0, 1, 2, 3].map((d) => M.sumarDias(HOY, d)).map((f) => `<option value="${f}">${esc(fechaCorta(f))}</option>`).join("")}</select></label><label class="f">Desde<select id="e-desde">${horasOpc(18 * 60, HOY)}</select></label><label class="f">Hasta<select id="e-hasta">${horasOpc(23 * 60, HOY)}</select></label></div>
-        <label class="row small"><input type="checkbox" id="e-techo"> Sólo cancha techada</label>`,
+        ${techoMixto() ? `<label class="row small"><input type="checkbox" id="e-techo"> Sólo cancha techada</label>` : ""}`,
       pie: `<button type="button" class="btn" data-a="cerrar">Cerrar</button><button type="button" class="btn primary" data-a="anotarEspera">Anotar</button>`,
     });
   };
@@ -2636,6 +2638,7 @@ const acciones = {
   // mantenimiento y lluvia
   mantOn: (b) => hecho(M.configurarMantenimiento(E, b.dataset.v, { activo: true, motivo: val(`#mm-${b.dataset.v}`) }, AHORA), "Cancha en mantenimiento."),
   mantOff: (b) => hecho(M.configurarMantenimiento(E, b.dataset.v, { activo: false }, AHORA), "Cancha habilitada."),
+  techo: (b) => esDuenio() && hecho(M.configurarTecho(E, b.dataset.v, b.dataset.m === "si", AHORA), b.dataset.m === "si" ? "Cancha marcada techada." : "Cancha marcada descubierta."),
   aplicarBloqueo: () => hecho(M.bloquear(E, { canchaId: val("#b-c"), fecha: VISTA, desde: Number(val("#b-d")), hasta: Number(val("#b-h")), motivo: val("#b-m").trim() || "Bloqueo" }, AHORA), "Horario bloqueado."),
   quitarBloqueo: (b) => hecho(M.quitarBloqueo(E, b.dataset.v, AHORA), "Bloqueo quitado."),
   aplicarLluvia: () => {
@@ -2664,7 +2667,7 @@ const acciones = {
     if (!nombre) return toast("Falta el nombre.", { error: true });
     const desde = Number(val("#e-desde")), hasta = Number(val("#e-hasta"));
     if (hasta < desde) return toast("El 'hasta' tiene que ser después del 'desde'.", { error: true });
-    M.anotarEspera(E, { titular: nombre, fecha: val("#e-dia"), desde, hasta, soloCubierta: $("#e-techo").checked }, AHORA);
+    M.anotarEspera(E, { titular: nombre, fecha: val("#e-dia"), desde, hasta, soloCubierta: !!$("#e-techo")?.checked }, AHORA);
     render(); toast(`${nombre} quedó en la lista de espera.`);
   },
   asignarEspera: (b) => {

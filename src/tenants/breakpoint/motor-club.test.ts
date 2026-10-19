@@ -15,10 +15,14 @@ const ahora = (hh: number, mm = 0) => ({ fecha: HOY, min: hh * 60 + mm });
 const DUENO = { usuarioId: "u-rober", pin: "1111" };
 const RECEP = { usuarioId: "u-lu", pin: "33" };
 
-function club() {
+// Break Point tiene las 4 canchas techadas (dato del dueño, 19/10). La lógica de lluvia se prueba en un club de
+// prueba con la Cancha 4 descubierta, para que siga cubierta aunque este club no la use.
+const CON_DESCUBIERTA = M.CANCHAS_DEMO.map((c: any) => (c.id === "c4" ? { ...c, cubierta: false } : c));
+
+function club(canchas = M.CANCHAS_DEMO) {
   return M.crearEstado({
     config: M.CONFIG_DEMO,
-    canchas: M.CANCHAS_DEMO,
+    canchas,
     clientes: [
       { id: "a", nombre: "Ana", tel: "5491100000001" },
       { id: "b", nombre: "Beto", tel: "5491100000002", monedero: 10000 },
@@ -319,8 +323,19 @@ test("plataforma de contenido: alta, edición y vista del mes; sólo dueños", (
   assert.ok(M.borrarContenido(e, contenido.id, DUENO).ok);
 });
 
-test("mantenimiento con motivo y plan lluvia: mueve a techada o suspende con crédito", () => {
+test("Break Point: las 4 canchas son techadas; el dueño puede marcar una descubierta (otro club)", () => {
   const e = club();
+  assert.ok(M.CANCHAS_DEMO.every((c: any) => c.cubierta), "las 4 techadas");
+  assert.equal(M.hayDescubiertas(e), false);
+  assert.equal(M.planLluvia(e, HOY, 19 * 60, 24 * 60, ahora(19)).resultado.length, 0, "sin descubiertas la lluvia no mueve nada");
+  assert.ok(M.configurarTecho(e, "c4", false, ahora(9)).ok);
+  assert.equal(M.hayDescubiertas(e), true);
+  assert.match(e.log[0].texto, /Cancha 4: descubierta/);
+  assert.equal(M.configurarTecho(e, "zz", true, ahora(9)).ok, false);
+});
+
+test("mantenimiento con motivo y plan lluvia: mueve a techada o suspende con crédito", () => {
+  const e = club(CON_DESCUBIERTA);
   assert.match(M.configurarMantenimiento(e, "c3", { activo: true }).motivo, /motivo/);
   assert.ok(M.configurarMantenimiento(e, "c3", { activo: true, motivo: "Cambio de césped" }).ok);
   assert.match(M.crearReserva(e, { canchaId: "c3", fecha: HOY, inicio: 20 * 60, titular: "X" }, ahora(10)).motivo, /césped/);
@@ -359,7 +374,11 @@ test("cancelación tardía: seña en suspenso que se libera si el hueco se vuelv
 test("demo: cada eventualidad a la vista, nada se pisa, nada viejo queda abierto", () => {
   const e = M.generarDemo(HOY);
   const tipos = new Set(M.alertas(e, ahora(19, 10)).map((a: any) => a.tipo));
-  for (const t of ["cerrar", "no_show", "sena", "lluvia", "luz", "espera", "stock", "autorizacion", "acceso"]) assert.ok(tipos.has(t), `falta la alerta ${t}`);
+  for (const t of ["cerrar", "no_show", "sena", "luz", "espera", "stock", "autorizacion", "acceso"]) assert.ok(tipos.has(t), `falta la alerta ${t}`);
+  assert.ok(!tipos.has("lluvia"), "con las 4 techadas la lluvia no avisa nada");
+  // En un club con una descubierta, el pronóstico de la demo sí avisa.
+  M.configurarTecho(e, "c4", false, ahora(19, 10));
+  assert.ok(M.alertas(e, ahora(19, 10)).some((a: any) => a.tipo === "lluvia"), "falta la alerta lluvia con una descubierta");
   const activos = e.reservas.filter((r: any) => ["reservada", "en_cancha", "finalizada"].includes(r.estado));
   for (const a of activos)
     for (const b of activos)
