@@ -56,6 +56,8 @@ export default function PanelDeCasa({
         </div>
       </header>
       {children}
+      {/* Sello GSG: crédito discreto en el backoffice (estándar de marca), nunca en la vidriera del cliente. */}
+      <p className="px-4 py-6 text-center text-xs text-faint">Con tecnología de Gestión Studio Grow</p>
     </div>
   );
 }

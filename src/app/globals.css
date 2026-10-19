@@ -536,10 +536,10 @@
 }
 [data-skin="fable"][data-estetica="beauty-spa"]:not([data-theme="dark"]) {
   --surface-sunken: #ece7db; --surface: #f6f3ec; --surface-raised: #ffffff; --surface-inverted: #1b1a14;
-  --text-strong: #1f1b14; --text: #413b31; --text-muted: #736a58; --text-faint: #766d5f;
+  --text-strong: #1f1b14; --text: #413b31; --text-muted: #675e4e; --text-faint: #6b6251; /* AA ≥4.5 también sobre sunken (Gate 19/10) */
   --line: #e6dfd0; --line-strong: #d2c9b5;
   --accent: #2c6e77; --text-on-accent: #ffffff;
-  --success: #4e6b4a; --success-soft: #e7eee4; --warning: #8a6a1f; --warning-soft: #f5ebd7; --danger: #b23b2b; --danger-soft: #f6e3de;
+  --success: #4e6b4a; --success-soft: #e7eee4; --warning: #7a5d14; --warning-soft: #f5ebd7; --danger: #b23b2b; --danger-soft: #f6e3de;
 }
 [data-estetica="beauty-spa"] :is(h1, h2) { font-family: var(--font-fraunces), serif; font-weight: 500; letter-spacing: -0.01em; }
 
@@ -599,9 +599,9 @@
 [data-logo="matiasconsoli"] [data-logo-parte="bajada"] { font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.18em; color: var(--text-muted); }
 
 /* ═════════ DETALLES DE CADA ESTÉTICA (los gestos propios de cada front) ═════════ */
-/* CH: los rótulos chicos en versalitas espaciadas («kicker» de InicioCH) y los enlaces de texto subrayados. */
+/* CH: los rótulos chicos espaciados («kicker» de InicioCH) y los enlaces dentro de un párrafo, subrayados. */
 [data-estetica="beauty-spa"] nav p.uppercase { letter-spacing: 0.2em; }
-[data-estetica="beauty-spa"] main a:not([class*="bg-"]):not([role]) { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+[data-estetica="beauty-spa"] main p a:not([class]) { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
 /* Lo elegido en el menú (NavLinks: `bg-surface-sunken font-semibold`) lleva la raya del color de cada marca. */
 [data-estetica] nav a.font-semibold.bg-surface-sunken { box-shadow: inset 3px 0 0 var(--marca-elegido, var(--accent)); }
 [data-estetica="breakpoint"] { --marca-elegido: var(--club-naranja-ui); }

@@ -40,7 +40,8 @@ export default function LogoDelNegocio({ estetica, nombre }: { estetica: Estetic
       );
     case "magra":
       return (
-        <span data-logo="magra" aria-label={nombre} className="truncate">
+        <span data-logo="magra" className="truncate">
+          <span className="sr-only">{nombre}</span>
           <span aria-hidden="true">
             MA<b>G</b>RA
           </span>
