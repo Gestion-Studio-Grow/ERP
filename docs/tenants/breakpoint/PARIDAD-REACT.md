@@ -199,3 +199,17 @@ El control de «otro club / la demo» al restaurar ahora lo repiten las acciones
 negocio es: propuesta en `FORMATO-RESPALDO.md`.
 
 — Elaborado por GSG
+
+## Deuda anotada por el Gate del 19/10/2026 (panel de casa + estética por cliente)
+
+- **Acento fijo por estética:** con `data-estetica`, el color elegido en /admin/apariencia no manda en claro (sí en
+  oscuro, salvo Magra). Avisado al dueño; a futuro la estética pasa a ser dato del tenant (ficha de marca, ADR-055),
+  no un mapa por slug en `src/lib/estetica-backoffice.ts`.
+- **«Diseño nuevo» + estética:** `public/diseno/renglon.css` pisa en oscuro una estética de 2 atributos (Magra).
+  Hoy ningún negocio con estética tiene «Diseño nuevo» prendido.
+- **Panel de casa:** sin `<main>`/«Saltar al contenido» propio en la pantalla del club; sin `aria-current` en su nav.
+  PROFESSIONAL en un negocio con casa queda en «no disponible» (callejón: sumar «pedile acceso al dueño»).
+  Un enlace interno del club a otra pantalla del ERP la mostraría dentro del panel (estética, no seguridad).
+- **`configurarTecho`** se protege sólo en la UI (dueño); queda registrado en el log del club.
+
+— Elaborado por GSG
