@@ -21,10 +21,11 @@
 // (`LuzDeCancha`): prender o apagar repinta sólo ese botón. La grilla no lee las luces, así que su firma no
 // cambia y ni la agenda ni los turnos se vuelven a pintar.
 
-import { memo, useCallback, useEffect, useRef, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Marca } from "@/components/ui/Marca";
 import { cn } from "@/components/ui/cn";
-import { armarAgenda, compartirAgenda, ponerLuz, vecino, type CeldaTurno, type Direccion, type FranjaLibre, type VistaAgenda } from "./agenda-core";
+import { armarAgenda, compartirAgenda, opcionesDelMenu, ponerLuz, vecino, type CeldaTurno, type Direccion, type FranjaLibre, type OpcionDelMenu, type VistaAgenda } from "./agenda-core";
+import { DESHACIBLE, ejecutar } from "./cuenta-core";
 import { Button } from "@/components/ui/Button";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import type { Almacen } from "./almacen";
@@ -52,7 +53,25 @@ const TONO: Record<CeldaTurno["estado"], string> = {
   suspendida: "bg-surface-sunken border-line",
 };
 
-const BloqueTurno = memo(function BloqueTurno({ celda, activo, onAbrir }: { celda: CeldaTurno; activo: boolean; onAbrir: (id: string) => void }) {
+/** Mantener apretado en la tablet abre el menú rápido (como el club de hoy); el toque que lo abrió no abre la cuenta. */
+const MANTENER_MS = 550;
+
+const BloqueTurno = memo(function BloqueTurno({
+  celda,
+  activo,
+  onAbrir,
+  onMenu,
+}: {
+  celda: CeldaTurno;
+  activo: boolean;
+  onAbrir: (id: string) => void;
+  onMenu: (id: string, x: number, y: number) => void;
+}) {
+  const largo = useRef<{ timer: ReturnType<typeof setTimeout> | null; abrio: boolean }>({ timer: null, abrio: false });
+  const soltar = () => {
+    if (largo.current.timer) clearTimeout(largo.current.timer);
+    largo.current.timer = null;
+  };
   return (
     <li className="relative z-[1] m-0.5 flex min-w-0" style={{ gridColumn: celda.columna + 2, gridRow: `${celda.fila + 2} / span ${celda.alto}` }}>
       <button
@@ -61,8 +80,34 @@ const BloqueTurno = memo(function BloqueTurno({ celda, activo, onAbrir }: { celd
         data-celda={celda.id}
         data-turno={celda.estado}
         data-turno-tipo={celda.tipo === "Turno fijo" ? "fijo" : undefined}
-        onClick={() => onAbrir(celda.id)}
-        aria-label={`${celda.etiqueta}. Abrir la cuenta del turno`}
+        onClick={() => {
+          if (largo.current.abrio) {
+            largo.current.abrio = false;
+            return;
+          }
+          onAbrir(celda.id);
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          soltar();
+          // Desde el teclado (tecla de menú) no hay puntero: se abre arriba del turno.
+          const r = e.currentTarget.getBoundingClientRect();
+          const teclado = e.clientX === 0 && e.clientY === 0;
+          onMenu(celda.id, teclado ? r.left + 8 : e.clientX, teclado ? r.top + 24 : e.clientY);
+        }}
+        onPointerDown={(e) => {
+          if (e.pointerType !== "touch") return;
+          const { clientX: x, clientY: y } = e;
+          largo.current.timer = setTimeout(() => {
+            largo.current.abrio = true;
+            onMenu(celda.id, x, y);
+          }, MANTENER_MS);
+        }}
+        onPointerUp={soltar}
+        onPointerLeave={soltar}
+        onPointerCancel={soltar}
+        aria-haspopup="menu"
+        aria-label={`${celda.etiqueta}. Abrir la cuenta del turno (clic derecho: acciones rápidas)`}
         aria-current={activo ? "true" : undefined}
         className={cn(
           "flex min-h-11 w-full min-w-0 flex-col items-start gap-0.5 overflow-hidden rounded-md border px-2 py-1 text-left",
@@ -125,6 +170,53 @@ const Franja = memo(function Franja({
     </li>
   );
 });
+
+/** El menú rápido del turno: lo de todos los días a un toque. Escape o tocar afuera lo cierran (el foco vuelve al turno). */
+function MenuDelTurno({ id, x, y, opciones, onElegir, onCerrar }: { id: string; x: number; y: number; opciones: OpcionDelMenu[]; onElegir: (o: OpcionDelMenu) => void; onCerrar: () => void }) {
+  const caja = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const m = caja.current;
+    if (!m) return;
+    m.style.left = `${Math.max(8, Math.min(x, window.innerWidth - m.offsetWidth - 8))}px`;
+    m.style.top = `${Math.max(8, Math.min(y, window.innerHeight - m.offsetHeight - 8))}px`;
+    m.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus();
+    const afuera = (e: PointerEvent) => {
+      if (!m.contains(e.target as Node)) onCerrar();
+    };
+    document.addEventListener("pointerdown", afuera);
+    return () => document.removeEventListener("pointerdown", afuera);
+  }, [x, y, onCerrar]);
+  const cerrar = () => {
+    onCerrar();
+    document.getElementById(`turno-${id}`)?.focus();
+  };
+  return (
+    <div
+      ref={caja}
+      role="menu"
+      aria-label="Acciones rápidas del turno"
+      data-ui="menu-del-turno"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          cerrar();
+        } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          e.preventDefault();
+          const items = [...(caja.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? [])];
+          const i = items.indexOf(document.activeElement as HTMLButtonElement);
+          items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+        }
+      }}
+      className="fixed z-50 flex min-w-52 flex-col rounded-lg border border-line bg-surface-raised p-1 shadow-overlay"
+    >
+      {opciones.map((o) => (
+        <button key={o.accion} type="button" role="menuitem" onClick={() => onElegir(o)} className="min-h-11 rounded-md px-3 text-left text-sm text-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-focus">
+          {o.texto}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /** El id del DOM de una celda (turno o hueco libre), para mover el foco con las flechas. */
 function idDeCelda(id: string): string {
@@ -244,6 +336,20 @@ export default function AgendaCanchas({
 
   const turnos = vista.turnos;
   const libres = vista.libres;
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const abrirMenu = useCallback((id: string, x: number, y: number) => setMenu({ id, x, y }), []);
+  const cerrarMenu = useCallback(() => setMenu(null), []);
+  const elegirDelMenu = useCallback(
+    (o: OpcionDelMenu) => {
+      const id = menu?.id;
+      setMenu(null);
+      if (!id) return;
+      const accion = o.accion;
+      if (accion === "ver") return onAbrir(id);
+      almacen.ejecutar((e, ahora, auth) => ejecutar(e, id, { tipo: accion }, ahora, auth), { deshacible: DESHACIBLE[accion] });
+    },
+    [almacen, menu, onAbrir],
+  );
   const alTeclear = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       const dir = FLECHAS[e.key];
@@ -325,7 +431,7 @@ export default function AgendaCanchas({
               className="contents"
             >
               {deLaCancha.map((t) => (
-                <BloqueTurno key={t.id} celda={t} activo={t.id === abierto} onAbrir={onAbrir} />
+                <BloqueTurno key={t.id} celda={t} activo={t.id === abierto} onAbrir={onAbrir} onMenu={abrirMenu} />
               ))}
               {libresDeLaCancha.map((f) => (
                 <Franja key={f.id} franja={f} enTab={f.id === primerLibreEnTab} onReservar={onReservar} />
@@ -334,6 +440,9 @@ export default function AgendaCanchas({
           ))}
         </div>
       </div>
+      {menu && (
+        <MenuDelTurno id={menu.id} x={menu.x} y={menu.y} opciones={opcionesDelMenu(almacen.estado(), menu.id, almacen.ahora().fecha)} onElegir={elegirDelMenu} onCerrar={cerrarMenu} />
+      )}
     </section>
   );
 }

@@ -323,6 +323,22 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await page.close();
   });
 
+  test("menú rápido del turno: clic derecho sobre Martín (debe) → «Cobrar · $…» abre su cuenta; Escape cierra el menú", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar();
+    await turnoDeMartin(page).click({ button: "right" });
+    const menu = page.getByRole("menu", { name: "Acciones rápidas del turno" });
+    await menu.waitFor();
+    assert.equal(await menu.getByRole("menuitem", { name: "Cerrar cancha" }).count(), 0, "debe plata: no se cierra");
+    await page.keyboard.press("Escape");
+    await menu.waitFor({ state: "detached" });
+    await turnoDeMartin(page).click({ button: "right" });
+    await menu.getByRole("menuitem", { name: /^Cobrar · \$/ }).click();
+    await page.getByRole("region", { name: "Martín Ríos" }).first().waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
   test("teclado: las flechas recorren la grilla (misma cancha arriba/abajo, la de al lado con ←/→) y Enter abre la cuenta", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
