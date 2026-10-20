@@ -1214,3 +1214,17 @@ test("«la mesa sigue» con todos al día: la mesa queda en Buffet en cero, se l
   assert.equal(M.mesasAbiertas(e).length, 0);
   assert.equal(M.cerrarCargosDelTurno(e, r2.id, { medio: "efectivo" }, ahora(13, 6)).ok, false, "dos veces no");
 });
+
+test("la mesa que sigue no pierde su marca si el cierre se rechaza (Gate 20/10)", () => {
+  const e = club();
+  const r = turno(e, "c1", 11, { clienteId: "a" }, 30);
+  M.checkIn(e, r.id, ahora(11, 30));
+  M.registrarPago(e, r.id, { medio: "efectivo", monto: r.precio }, ahora(11, 30));
+  assert.ok(M.cerrarCanchaYSeguir(e, r.id, { medio: "efectivo" }, ahora(13)).ok);
+  const agua = M.PRODUCTOS_DEMO.find((p: any) => !p.alquiler && p.stock !== 0).id;
+  assert.ok(M.consumoJugador(e, r.id, 0, agua, 1, { modo: "cuenta" }, ahora(13, 10)).ok);
+  // Ana no tiene cuenta corriente: pasarlo a cuenta se rechaza y la mesa sigue marcada y a la vista.
+  assert.equal(M.cerrarCargosDelTurno(e, r.id, { aCuenta: true }, ahora(13, 20)).ok, false);
+  assert.equal(M.reserva(e, r.id).mesaSigue, true);
+  assert.equal(M.mesasAbiertas(e).length, 1);
+});
