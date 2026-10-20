@@ -4,14 +4,20 @@
 // Con el panel de casa (PanelDeCasa.tsx) se dibuja en su lugar (`#casa-herramientas`); sin él (el club dentro del
 // armazón del ERP, o las pruebas), queda donde está. Es la misma pieza: cambia dónde se ve, no qué hace.
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 export const ID_HERRAMIENTAS = "casa-herramientas";
 
-export default function EnLaCabecera({ children, fuera = null }: { children: ReactNode; fuera?: ReactNode }) {
-  const [lugar, setLugar] = useState<HTMLElement | null>(null);
-  useEffect(() => setLugar(document.getElementById(ID_HERRAMIENTAS)), []);
-  if (lugar) return createPortal(children, lugar);
+/** `fuera`: lo que se ve sin barra (en vez de `children`); `ademas`: lo que se ve abajo cuando sí va en la barra. */
+export default function EnLaCabecera({ children, fuera = null, ademas = null }: { children: ReactNode; fuera?: ReactNode; ademas?: ReactNode }) {
+  // El club corre sólo en el navegador (ClubCargador, ssr: false): el lugar ya está en el DOM al montar.
+  const [lugar] = useState<HTMLElement | null>(() => (typeof document === "undefined" ? null : document.getElementById(ID_HERRAMIENTAS)));
+  if (lugar) return (
+    <>
+      {createPortal(children, lugar)}
+      {ademas}
+    </>
+  );
   return fuera ?? children;
 }

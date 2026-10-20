@@ -235,7 +235,7 @@ function AbrirCuenta({ almacen, onAccion }: { almacen: Almacen; onAccion: (a: Ac
   const id = useId();
   const fichas = clienteId ? [] : clientesQueCoinciden(almacen.estado(), titular);
   return (
-    <section aria-labelledby={`${id}-t`} className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-3">
+    <section aria-labelledby={`${id}-t`} data-ui="abrir-cuenta" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-3">
       <h2 id={`${id}-t`} className="font-semibold text-strong">
         Abrir una cuenta
       </h2>
@@ -333,7 +333,7 @@ export default function BuffetDelClub({ almacen, onVerTurno, negocio }: { almace
               <li key={m.reservaId} className="flex items-center justify-between gap-2 rounded-lg border border-line bg-surface-raised p-3">
                 <span className="min-w-0">
                   <span className="block truncate font-semibold text-strong">{m.titulo}</span>
-                  <span className="text-sm tabular-nums text-muted">Deben {pesos(m.saldo)}</span>
+                  <span className="text-sm tabular-nums text-muted">{m.saldo > 0 ? `Deben ${pesos(m.saldo)}` : "Sin cargos todavía"}</span>
                 </span>
                 <Button variant="outline" size="md" onClick={() => onVerTurno(m.reservaId)}>
                   Ver la cuenta

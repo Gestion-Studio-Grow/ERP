@@ -490,6 +490,21 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     if (!irASolapaSiEsta("configuracion")) almacen.informar({ ok: false, mensaje: "Archivar los días cerrados lo hace un dueño: avisale para que entre con su PIN." });
   }, [almacen, irASolapaSiEsta]);
 
+  // «Abrir cuenta» (acceso de la agenda o tecla C): a Buffet y directo al formulario, que está al final (la solapa se
+  // carga diferida: se espera a que aparezca, unos cuadros).
+  const abrirCuenta = useCallback(() => {
+    cambiarSolapa("buffet");
+    let vueltas = 0;
+    const buscar = () => {
+      const f = document.querySelector<HTMLElement>('[data-ui="abrir-cuenta"]');
+      if (f) {
+        f.scrollIntoView({ block: "center" });
+        f.querySelector<HTMLElement>("input, select, button")?.focus();
+      } else if (vueltas++ < 30) requestAnimationFrame(buscar);
+    };
+    requestAnimationFrame(buscar);
+  }, [cambiarSolapa]);
+
   // Los atajos del club de hoy (app.mjs, «atajos de teclado»): N turno nuevo, C abrir cuenta (Buffet), T volver a
   // hoy, ←/→ día anterior o siguiente en la agenda, 1–9 las solapas en su orden. Nunca mientras se escribe, con una
   // ventana abierta, con Ctrl/⌘/Alt, ni con la pantalla bloqueada (L, bloquear, ya lo atiende el bloqueo).
@@ -498,7 +513,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       const t = ev.target as HTMLElement | null;
       if (ev.defaultPrevented || ev.metaKey || ev.ctrlKey || ev.altKey) return;
       if (t && (t.matches("input, select, textarea") || t.isContentEditable)) return;
-      if (document.querySelector("dialog[open], [role=dialog], [role=alertdialog], [role=menu]")) return;
+      if (document.querySelector("dialog[open], [role=dialog]:not([popover]), [popover]:popover-open, [role=alertdialog], [role=menu]")) return;
       if (almacen.modo() === "real" && !almacen.operador()) return;
       const k = ev.key;
       const visibles = solapasVisibles(almacen);
@@ -512,7 +527,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
         if (!libre) return;
         cambiarSolapa("agenda");
         setPanel({ tipo: "alta", canchaId: libre.id, inicio: null });
-      } else if ((k === "c" || k === "C") && visibles.some((s) => s.id === "buffet")) cambiarSolapa("buffet");
+      } else if ((k === "c" || k === "C") && visibles.some((s) => s.id === "buffet")) abrirCuenta();
       else if (k === "t" || k === "T") {
         cambiarSolapa("agenda");
         elegirDia(hoy);
@@ -526,7 +541,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     };
     document.addEventListener("keydown", alTeclear);
     return () => document.removeEventListener("keydown", alTeclear);
-  }, [almacen, cambiarSolapa, elegirDia, hoy, dia, solapa]);
+  }, [almacen, abrirCuenta, cambiarSolapa, elegirDia, hoy, dia, solapa]);
 
   // Al cambiar quien opera, la cuenta (o el alta) que tenía abierta la persona anterior se cierra (como el vanilla).
   // Sin suscribir a ClubDemo al operador: si no había nada abierto, `setPanel(null)` no repinta.
@@ -563,7 +578,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
                 onAbrir={onAbrir}
                 onReservar={onReservar}
                 dias={<DiasDeLaAgenda hoy={hoy} dia={dia} onDia={elegirDia} />}
-                accesos={<AccesosDeLaAgenda almacen={almacen} onIr={irASolapa} />}
+                accesos={<AccesosDeLaAgenda almacen={almacen} onIr={(s) => (s === "buffet" ? abrirCuenta() : irASolapa(s))} />}
               />
               <FueraDeLaGrilla almacen={almacen} dia={dia} />
             </div>

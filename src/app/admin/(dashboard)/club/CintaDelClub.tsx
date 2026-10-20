@@ -121,15 +121,14 @@ export default function CintaDelClub({
     </>
   );
   const sinAvisos = !mal && g.jornada !== "sin-bloqueo" && g.jornada !== "abriendo";
-  if (sinAvisos) return <EnLaCabecera fuera={cintaEnLinea()}>{barra}</EnLaCabecera>;
+  // Con avisos y con barra, el aviso queda abajo SIN su candado (el de la barra alcanza: una sola tecla L).
   return (
-    <>
-      <EnLaCabecera fuera={null}>{barra}</EnLaCabecera>
-      {cintaEnLinea()}
-    </>
+    <EnLaCabecera fuera={cintaEnLinea(true)} ademas={sinAvisos ? null : cintaEnLinea(false)}>
+      {barra}
+    </EnLaCabecera>
   );
 
-  function cintaEnLinea() {
+  function cintaEnLinea(conCandado: boolean) {
   return (
     <div className={cn("flex flex-col gap-1 rounded-lg border px-4 py-3 text-sm", mal ? "border-danger/40 bg-danger-soft" : "border-line bg-surface-raised")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -137,7 +136,7 @@ export default function CintaDelClub({
           <span className="font-semibold">Jornada real</span> · Hora: <span className="tabular-nums">{hhmm(min)}</span> ·{" "}
           <span role="status">{g.jornada === "abriendo" ? "Abriendo lo guardado…" : g.jornada === "ilegible" ? "Sin guardar — lo guardado no se pudo leer" : g.jornada === "sin-base" ? "No hay conexión con la base — reintentando" : textoDelGuardado(g)}</span>
         </p>
-        <BloquearDesdeLaCinta almacen={almacen} />
+        {conCandado && <BloquearDesdeLaCinta almacen={almacen} />}
       </div>
       {g.jornada === "sin-base" && (
         <p className="text-body">Hasta que la base conteste no se puede operar: así no se arranca un club vacío encima de lo guardado. Revisá el wifi; no hace falta recargar.</p>

@@ -1644,7 +1644,6 @@ export function cerrarCargosDelTurno(estado, reservaId, { medio, auth = null, aC
     registrar(estado, `Mesa de ${r.titular} cerrada (sin cargos).`, ahora);
     return { ok: true, cobrado: 0, aCuentaCorriente: 0, cerradas: 0 };
   }
-  delete r.mesaSigue;
   // Las cuentas que paga alguien de otra mesa quedan abiertas: se cobran con la cuenta del que paga.
   const pagadoras = mesa.filter((x) => !pagadorDe(estado, x));
   const deEstaMesa = mesa.filter((x) => !pagadorDe(estado, x) || mesa.includes(pagadorDe(estado, x)));
@@ -1659,6 +1658,7 @@ export function cerrarCargosDelTurno(estado, reservaId, { medio, auth = null, aC
       const res = cerrarCuenta(estado, c.id, { aCuenta: true }, ahora);
       if (!res.ok) return res;
     }
+    delete r.mesaSigue; // recién cuando el cierre salió: si falla, la mesa sigue marcada
     return { ok: true, cobrado: 0, aCuentaCorriente: aCC, cerradas: mesa.length };
   }
   const v = validarMedio(medio, { monedero: false });
@@ -1669,6 +1669,7 @@ export function cerrarCargosDelTurno(estado, reservaId, { medio, auth = null, aC
     if (total > 0) { const res = cobrarCuentaYSusCargos(estado, c.id, { medio }, ahora); if (!res.ok) return res; cobrado += res.monto; }
   }
   for (const c of deEstaMesa) if (c.estado === "abierta") { devolverAlquileresDeCuenta(estado, c); const res = cerrarCuenta(estado, c.id, {}, ahora); if (!res.ok) return res; }
+  delete r.mesaSigue;
   return { ok: true, cobrado, aCuentaCorriente: 0, cerradas: deEstaMesa.length };
 }
 

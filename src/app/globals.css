@@ -520,7 +520,7 @@
   --shadow-xs: none; --shadow-sm: none;
   --font-display: var(--font-archivo); --font-body: var(--font-archivo);
   --casa-cabecera: #035ba8; --casa-cabecera-tinta: #ffffff; --casa-enlace-hover: rgba(255, 255, 255, 0.12);
-  --casa-cabecera-tenue: #c9ddf3; --casa-cabecera-borde: rgba(255, 255, 255, 0.45);
+  --casa-cabecera-tenue: #e8f1fb; /* AA 4,62:1 sobre la ficha (Gate 20/10) */ --casa-cabecera-borde: rgba(255, 255, 255, 0.45);
   --casa-monograma: #dc6e22; --casa-monograma-tinta: #1d1003;
   font-family: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
   color-scheme: light;
@@ -632,7 +632,7 @@
 /* Cada pantalla en su tarjeta, con el título en la angosta y la doble raya (tinta + naranja). */
 [data-estetica="breakpoint"] [data-pantalla-tarjeta] { background: var(--surface-raised); border: 1px solid var(--line); padding: 1rem; }
 [data-estetica="breakpoint"] h2[data-pantalla] { font-stretch: 75%; font-weight: 800; font-size: 1.5625rem; letter-spacing: 0.03em; text-transform: uppercase; }
-[data-estetica="breakpoint"] :has(> h2[data-pantalla]) { border-bottom: 2px solid var(--text-strong); box-shadow: 0 1px 0 var(--club-naranja); padding-bottom: 0.625rem; margin-bottom: 0.875rem; }
+[data-estetica="breakpoint"] :has(> h2[data-pantalla]):not([data-pantalla-tarjeta]) { border-bottom: 2px solid var(--text-strong); box-shadow: 0 1px 0 var(--club-naranja); padding-bottom: 0.625rem; margin-bottom: 0.875rem; }
 /* Los días: limpios; el elegido, recuadrado. */
 [data-estetica="breakpoint"] [data-agenda="dias"] button { border-color: transparent; background: transparent; }
 [data-estetica="breakpoint"] [data-agenda="dias"] button[aria-pressed="true"], [data-estetica="breakpoint"] [data-agenda="dias"] button[aria-current] { border-color: var(--line-strong); background: var(--accent-soft); color: var(--accent-ink); }
