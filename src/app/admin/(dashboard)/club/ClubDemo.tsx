@@ -35,7 +35,7 @@
 import { Suspense, createElement, lazy, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
 import { cn } from "@/components/ui/cn";
 import { Button } from "@/components/ui/Button";
-import { reserva as reservaDe, sumarDias } from "@/lib/club/motor.mjs";
+import { pesos, reserva as reservaDe, resumenCaja, sumarDias } from "@/lib/club/motor.mjs";
 import type { Ahora, EstadoClub } from "@/lib/club/motor.mjs";
 import { candadoDeLaJornada, claveDeLaDemo, claveDeLaJornada, crearAlmacen, type Almacen, type AlmacenamientoLocal, type GuardadoDelClub, type RolDelPanel } from "./almacen";
 import CintaDelClub from "./CintaDelClub";
@@ -292,6 +292,40 @@ function AccesosDeLaAgenda({ almacen, onIr }: { almacen: Almacen; onIr: (s: Sola
         </Button>
       ))}
     </div>
+  );
+}
+
+/**
+ * «Caja del día» al lado de la agenda, como el club de hoy: el efectivo en el cajón y lo que entró, sin ir a Caja.
+ * Sólo para quien ve la Caja. Se suscribe a dos números: no repinta la agenda.
+ */
+const losDosDeLaCaja = (e: EstadoClub) => {
+  const c = resumenCaja(e);
+  return `${c.efectivoEsperado}|${c.ingresos}`;
+};
+const igualTexto = (_: string | undefined, nuevo: string) => nuevo;
+function CajaDelDia({ almacen, onVer }: { almacen: Almacen; onVer: () => void }) {
+  const visibles = useSolapasVisibles(almacen);
+  const [efectivo, ingresos] = useSeleccion(almacen, losDosDeLaCaja, igualTexto).split("|").map(Number);
+  if (!visibles.some((s) => s.id === "caja")) return null;
+  return (
+    <section aria-labelledby="club-mini-caja" data-ui="caja-del-dia" className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-4">
+      <div className="flex items-center justify-between gap-2">
+        <h2 id="club-mini-caja" className="font-semibold text-strong">
+          Caja del día
+        </h2>
+        <Button variant="outline" size="md" onClick={onVer}>
+          Ver caja
+        </Button>
+      </div>
+      <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm tabular-nums">
+        <dt className="text-body">Efectivo en el cajón</dt>
+        <dd className="text-right font-semibold text-strong">{pesos(efectivo)}</dd>
+        <dt className="text-body">Ingresos</dt>
+        <dd className="text-right font-semibold text-strong">{pesos(ingresos)}</dd>
+      </dl>
+      <p className="text-xs text-muted">La caja corre de 12:00 a 12:00.</p>
+    </section>
   );
 }
 
@@ -633,6 +667,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
               ) : (
                 <div className="flex flex-col gap-3">
                   <BandejaDelClub almacen={almacen} onVerTurno={verTurno} irASolapa={irASolapaSiEsta} />
+                  <CajaDelDia almacen={almacen} onVer={() => irASolapa("caja")} />
                   <p className="rounded-lg border border-dashed border-line-strong p-4 text-sm text-muted">
                     Tocá un turno de la agenda para ver su cuenta: la cancha y los cargos de cada jugador, y cobrar. Tocá un hueco libre o «+ Turno» para dar un turno.
                   </p>
