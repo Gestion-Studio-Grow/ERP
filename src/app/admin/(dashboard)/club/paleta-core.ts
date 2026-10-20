@@ -14,11 +14,12 @@ export type AccionPaleta =
   | { tipo: "nuevoTurno" }
   | { tipo: "abrirCuenta" }
   | { tipo: "turno"; id: string }
-  | { tipo: "cliente"; id: string };
+  | { tipo: "cliente"; id: string }
+  | { tipo: "atajos"; prender: boolean };
 
 export interface ItemPaleta {
   clave: string;
-  grupo: "Hacer" | "Ir a" | "Turno" | "Cliente" | "Buffet";
+  grupo: "Hacer" | "Ir a" | "Turno" | "Cliente" | "Buffet" | "Ajustes";
   titulo: string;
   detalle: string;
   /** Debe plata: el detalle va en rojo. */
@@ -33,7 +34,7 @@ const MAXIMO = 14;
 
 export function armarPaleta(
   estado: EstadoClub,
-  { texto, hoy, dia, solapas }: { texto: string; hoy: string; dia: string; solapas: readonly { id: string; etiqueta: string }[] },
+  { texto, hoy, dia, solapas, atajos = true }: { texto: string; hoy: string; dia: string; solapas: readonly { id: string; etiqueta: string }[]; atajos?: boolean },
 ): ItemPaleta[] {
   const q = normalizar(texto);
   const coincide = (...t: string[]) => !q || t.some((x) => normalizar(x).includes(q));
@@ -42,10 +43,12 @@ export function armarPaleta(
     clave, grupo, titulo, detalle: "", rojo: false, atajo: "", accion, ...extra,
   });
   const hacer: ItemPaleta[] = [
-    ...(ve("agenda") ? [item("a-nuevo", "Hacer", "Nuevo turno", { tipo: "nuevoTurno" }, { atajo: "N" })] : []),
-    ...(ve("buffet") ? [item("a-cuenta", "Hacer", "Abrir cuenta del buffet", { tipo: "abrirCuenta" }, { atajo: "C" })] : []),
-    ...(ve("agenda") ? [item("a-hoy", "Ir a", "Agenda de hoy", { tipo: "hoy" }, { atajo: "T" })] : []),
-    ...solapas.map((s, i) => item(`t-${s.id}`, "Ir a", s.etiqueta, { tipo: "solapa", id: s.id }, { atajo: i < 9 ? String(i + 1) : "" })),
+    ...(ve("agenda") ? [item("a-nuevo", "Hacer", "Nuevo turno", { tipo: "nuevoTurno" }, { atajo: atajos ? "N" : "" })] : []),
+    ...(ve("buffet") ? [item("a-cuenta", "Hacer", "Abrir cuenta del buffet", { tipo: "abrirCuenta" }, { atajo: atajos ? "C" : "" })] : []),
+    ...(ve("agenda") ? [item("a-hoy", "Ir a", "Agenda de hoy", { tipo: "hoy" }, { atajo: atajos ? "T" : "" })] : []),
+    ...solapas.map((s, i) => item(`t-${s.id}`, "Ir a", s.etiqueta, { tipo: "solapa", id: s.id }, { atajo: atajos && i < 9 ? String(i + 1) : "" })),
+    // WCAG 2.1.4: los atajos de una tecla se pueden apagar (quedan Ctrl/⌘+K y la L de bloquear, que es de seguridad).
+    item("a-atajos", "Ajustes", atajos ? "Apagar los atajos de una tecla" : "Prender los atajos de una tecla", { tipo: "atajos", prender: !atajos }),
   ].filter((a) => coincide(a.titulo, a.grupo));
   if (!q) return hacer;
 

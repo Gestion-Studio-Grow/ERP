@@ -306,7 +306,10 @@ export default function AgendaCanchas({
   onReservar,
   dias = null,
   accesos = null,
+  atajoTurno = false,
 }: {
+  /** «+ Turno» anuncia su tecla (N) si los atajos de una tecla están prendidos. */
+  atajoTurno?: boolean;
   almacen: Almacen;
   /** Los días (debajo del título, como el club de hoy) y los accesos de la agenda (lista de espera, mantenimiento). */
   dias?: ReactNode;
@@ -380,7 +383,7 @@ export default function AgendaCanchas({
         </h2>
         <div className="flex items-center gap-3">
           <p className="text-sm text-muted">{vista.resumen}</p>
-          <Button variant="solid" size="md" onClick={() => onReservar(vista.canchas.find((c) => !c.detalle.includes("mantenimiento"))?.id ?? vista.canchas[0]?.id ?? "", null)}>
+          <Button variant="solid" size="md" aria-keyshortcuts={atajoTurno ? "N" : undefined} onClick={() => onReservar(vista.canchas.find((c) => !c.detalle.includes("mantenimiento"))?.id ?? vista.canchas[0]?.id ?? "", null)}>
             + Turno
           </Button>
         </div>

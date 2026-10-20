@@ -14,6 +14,7 @@ export default function PaletaDelClub({
   hoy,
   dia,
   solapas,
+  atajos,
   onElegir,
   onCerrar,
 }: {
@@ -21,6 +22,7 @@ export default function PaletaDelClub({
   hoy: string;
   dia: string;
   solapas: readonly { id: string; etiqueta: string }[];
+  atajos: boolean;
   onElegir: (a: AccionPaleta) => void;
   onCerrar: () => void;
 }) {
@@ -29,7 +31,7 @@ export default function PaletaDelClub({
   const [activo, setActivo] = useState(0);
   const id = useId();
   // Se lee el estado al escribir: la paleta vive segundos y no necesita repintarse con el latido del reloj.
-  const items = useMemo(() => armarPaleta(almacen.estado(), { texto, hoy, dia, solapas }), [almacen, texto, hoy, dia, solapas]);
+  const items = useMemo(() => armarPaleta(almacen.estado(), { texto, hoy, dia, solapas, atajos }), [almacen, texto, hoy, dia, solapas, atajos]);
   const i = Math.min(activo, Math.max(0, items.length - 1));
 
   useEffect(() => {

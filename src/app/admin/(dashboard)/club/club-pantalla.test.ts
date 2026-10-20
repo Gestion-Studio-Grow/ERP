@@ -339,6 +339,24 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await page.close();
   });
 
+  test("atajos apagados desde la paleta: la tecla 2 ya no cambia de solapa; Ctrl+K sigue", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar();
+    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("Control+k");
+    const paleta = page.getByRole("dialog", { name: "Buscar o hacer" });
+    await paleta.getByRole("combobox").fill("atajos");
+    await paleta.getByRole("option", { name: /Apagar los atajos de una tecla/ }).click();
+    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("2");
+    assert.equal(await page.getByRole("tab", { name: "Agenda" }).getAttribute("aria-selected"), "true");
+    assert.equal(await page.getByRole("tab", { name: "Agenda" }).getAttribute("aria-keyshortcuts"), null);
+    await page.keyboard.press("Control+k");
+    await paleta.waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
   test("teclado: las flechas recorren la grilla (misma cancha arriba/abajo, la de al lado con ←/→) y Enter abre la cuenta", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();

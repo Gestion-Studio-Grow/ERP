@@ -149,7 +149,9 @@ function TiraDeSolapas({
   solapa,
   onCambiar,
   botones,
+  atajos,
 }: {
+  atajos: boolean;
   almacen: Almacen;
   solapa: Solapa;
   onCambiar: (s: Solapa) => void;
@@ -164,6 +166,7 @@ function TiraDeSolapas({
   // Hasta 5 a la vista y el resto en «Más», como el club de hoy (tira-de-solapas-core.ts).
   const tira = armarTira(visibles, solapa);
   const enFila = tira.elegidaDeMas ? [...tira.principales, tira.elegidaDeMas] : tira.principales;
+  const orden = [...tira.principales, ...(tira.elegidaDeMas ? [tira.elegidaDeMas] : []), ...tira.mas];
   // Solapas con flechas (patrón de tablist): ←/→ cambian y llevan el foco (entre las que están a la vista).
   const alTeclear = (e: React.KeyboardEvent) => {
     const i = enFila.findIndex((s) => s.id === solapa);
@@ -190,6 +193,7 @@ function TiraDeSolapas({
             // Sólo el panel de la solapa elegida está montado: las otras no apuntan a un id que no existe.
             aria-controls={solapa === s.id ? `club-panel-${s.id}` : undefined}
             tabIndex={solapa === s.id ? 0 : -1}
+            aria-keyshortcuts={atajos && orden.indexOf(s) < 9 ? String(orden.indexOf(s) + 1) : undefined}
             onClick={() => onCambiar(s.id)}
             className={cn(
               "-mb-px inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-4 text-sm focus-visible:outline-2 focus-visible:outline-focus",
@@ -528,6 +532,26 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
   }, [almacen, irASolapaSiEsta]);
 
   const [paleta, setPaleta] = useState(false);
+  // Los atajos de una tecla se pueden apagar desde la paleta (WCAG 2.1.4); se recuerda en el equipo.
+  const [atajos, setAtajos] = useState(() => {
+    try {
+      return window.localStorage.getItem("club-atajos") !== "no";
+    } catch {
+      return true;
+    }
+  });
+  const cambiarAtajos = useCallback(
+    (prender: boolean) => {
+      setAtajos(prender);
+      try {
+        window.localStorage.setItem("club-atajos", prender ? "si" : "no");
+      } catch {
+        // sin almacenamiento: vale para esta visita
+      }
+      almacen.informar({ ok: true, mensaje: prender ? "Atajos de una tecla prendidos." : "Atajos de una tecla apagados: quedan Ctrl+K y la L para bloquear." });
+    },
+    [almacen],
+  );
   // Nuevo turno (tecla N o la paleta): el alta en la primera cancha habilitada, desde la primera hora libre.
   const nuevoTurno = useCallback(() => {
     const canchas = almacen.estado().canchas;
@@ -566,7 +590,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
         setPaleta((p) => !p);
         return;
       }
-      if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+      if (ev.metaKey || ev.ctrlKey || ev.altKey || !atajos) return;
       if (t && (t.matches("input, select, textarea") || t.isContentEditable)) return;
       if (document.querySelector("dialog[open], [role=dialog]:not([popover]), [popover]:popover-open, [role=alertdialog], [role=menu]")) return;
       if (almacen.modo() === "real" && !almacen.operador()) return;
@@ -592,7 +616,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     };
     document.addEventListener("keydown", alTeclear);
     return () => document.removeEventListener("keydown", alTeclear);
-  }, [almacen, abrirCuenta, nuevoTurno, cambiarSolapa, elegirDia, hoy, dia, solapa]);
+  }, [almacen, abrirCuenta, atajos, nuevoTurno, cambiarSolapa, elegirDia, hoy, dia, solapa]);
 
   // Lo elegido en la paleta.
   const hacerDeLaPaleta = useCallback(
@@ -604,12 +628,13 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       } else if (a.tipo === "nuevoTurno") nuevoTurno();
       else if (a.tipo === "abrirCuenta") abrirCuenta();
       else if (a.tipo === "turno") verTurno(a.id);
+      else if (a.tipo === "atajos") cambiarAtajos(a.prender);
       else if (a.tipo === "cliente") {
         pedirFichaDeCliente(a.id);
         irASolapa("clientes");
       }
     },
-    [abrirCuenta, cambiarSolapa, elegirDia, hoy, irASolapa, nuevoTurno, verTurno],
+    [abrirCuenta, cambiarAtajos, cambiarSolapa, elegirDia, hoy, irASolapa, nuevoTurno, verTurno],
   );
 
   // Al cambiar quien opera, la cuenta (o el alta) que tenía abierta la persona anterior se cierra (como el vanilla).
@@ -634,7 +659,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
 
       <SoloConOperador almacen={almacen} negocio={negocio}>
 
-      <TiraDeSolapas almacen={almacen} solapa={solapa} onCambiar={cambiarSolapa} botones={botones} />
+      <TiraDeSolapas almacen={almacen} solapa={solapa} onCambiar={cambiarSolapa} botones={botones} atajos={atajos} />
 
       <div role="tabpanel" id={`club-panel-${solapa}`} aria-labelledby={`club-solapa-${solapa}`}>
         {solapa === "agenda" && (
@@ -646,6 +671,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
                 abierto={abiertoId}
                 onAbrir={onAbrir}
                 onReservar={onReservar}
+                atajoTurno={atajos}
                 dias={<DiasDeLaAgenda hoy={hoy} dia={dia} onDia={elegirDia} />}
                 accesos={<AccesosDeLaAgenda almacen={almacen} onIr={(s) => (s === "buffet" ? abrirCuenta() : irASolapa(s))} />}
               />
@@ -700,6 +726,7 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
           almacen={almacen}
           hoy={hoy}
           dia={dia}
+          atajos={atajos}
           solapas={(() => {
             const tira = armarTira(solapasVisibles(almacen), "");
             return [...tira.principales, ...tira.mas];

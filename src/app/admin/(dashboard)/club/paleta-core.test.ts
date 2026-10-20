@@ -35,3 +35,12 @@ test("sólo lo que quien opera ve: sin Clientes no se buscan clientes", () => {
   const items = armarPaleta(e, { texto: deudor.nombre, hoy: HOY, dia: HOY, solapas: TODAS.filter((s) => s.id !== "clientes") });
   assert.equal(items.some((i) => i.grupo === "Cliente"), false);
 });
+
+test("los atajos de una tecla se apagan desde la paleta (WCAG 2.1.4): sin teclas a la vista y la opción de prenderlos", () => {
+  const e = M.generarDemo(HOY, 19 * 60);
+  const prendidos = armarPaleta(e, { texto: "", hoy: HOY, dia: HOY, solapas: TODAS });
+  assert.ok(prendidos.some((i) => i.accion.tipo === "atajos" && i.accion.prender === false));
+  const apagados = armarPaleta(e, { texto: "", hoy: HOY, dia: HOY, solapas: TODAS, atajos: false });
+  assert.ok(apagados.every((i) => i.atajo === ""));
+  assert.ok(apagados.some((i) => i.accion.tipo === "atajos" && i.accion.prender === true));
+});
