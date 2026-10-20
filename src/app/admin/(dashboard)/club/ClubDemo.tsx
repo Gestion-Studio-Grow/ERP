@@ -46,6 +46,9 @@ import AgendaCanchas from "./AgendaCanchas";
 import AltaDeTurno from "./AltaDeTurno";
 import { DiasDeLaAgenda, FueraDeLaGrilla } from "./AgendaExtras";
 import { armarTira } from "./tira-de-solapas-core";
+import PaletaDelClub from "./PaletaDelClub";
+import type { AccionPaleta } from "./paleta-core";
+import { pedirFichaDeCliente } from "./ficha-pedida";
 import BandejaDelClub from "./BandejaDelClub";
 import CuentaDelTurno from "./CuentaDelTurno";
 import { Esqueleto } from "@/components/ui/Esqueleto";
@@ -490,6 +493,16 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     if (!irASolapaSiEsta("configuracion")) almacen.informar({ ok: false, mensaje: "Archivar los días cerrados lo hace un dueño: avisale para que entre con su PIN." });
   }, [almacen, irASolapaSiEsta]);
 
+  const [paleta, setPaleta] = useState(false);
+  // Nuevo turno (tecla N o la paleta): el alta en la primera cancha habilitada, desde la primera hora libre.
+  const nuevoTurno = useCallback(() => {
+    const canchas = almacen.estado().canchas;
+    const libre = canchas.find((c) => c.estado !== "mantenimiento") ?? canchas[0];
+    if (!libre) return;
+    cambiarSolapa("agenda");
+    setPanel({ tipo: "alta", canchaId: libre.id, inicio: null });
+  }, [almacen, cambiarSolapa]);
+
   // «Abrir cuenta» (acceso de la agenda o tecla C): a Buffet y directo al formulario, que está al final (la solapa se
   // carga diferida: se espera a que aparezca, unos cuadros).
   const abrirCuenta = useCallback(() => {
@@ -511,7 +524,15 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
   useEffect(() => {
     const alTeclear = (ev: KeyboardEvent) => {
       const t = ev.target as HTMLElement | null;
-      if (ev.defaultPrevented || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+      if (ev.defaultPrevented) return;
+      // Ctrl/⌘+K abre o cierra la paleta desde cualquier lado (también escribiendo), salvo con el club bloqueado.
+      if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && ev.key.toLowerCase() === "k") {
+        if (almacen.modo() === "real" && !almacen.operador()) return;
+        ev.preventDefault();
+        setPaleta((p) => !p);
+        return;
+      }
+      if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
       if (t && (t.matches("input, select, textarea") || t.isContentEditable)) return;
       if (document.querySelector("dialog[open], [role=dialog]:not([popover]), [popover]:popover-open, [role=alertdialog], [role=menu]")) return;
       if (almacen.modo() === "real" && !almacen.operador()) return;
@@ -522,12 +543,8 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
         return [...tira.principales, ...tira.mas];
       })();
       let hizo = true;
-      if (k === "n" || k === "N") {
-        const libre = almacen.estado().canchas.find((c) => c.estado !== "mantenimiento") ?? almacen.estado().canchas[0];
-        if (!libre) return;
-        cambiarSolapa("agenda");
-        setPanel({ tipo: "alta", canchaId: libre.id, inicio: null });
-      } else if ((k === "c" || k === "C") && visibles.some((s) => s.id === "buffet")) abrirCuenta();
+      if (k === "/") setPaleta(true);
+      else if (k === "n" || k === "N") nuevoTurno(); else if ((k === "c" || k === "C") && visibles.some((s) => s.id === "buffet")) abrirCuenta();
       else if (k === "t" || k === "T") {
         cambiarSolapa("agenda");
         elegirDia(hoy);
@@ -541,7 +558,25 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
     };
     document.addEventListener("keydown", alTeclear);
     return () => document.removeEventListener("keydown", alTeclear);
-  }, [almacen, abrirCuenta, cambiarSolapa, elegirDia, hoy, dia, solapa]);
+  }, [almacen, abrirCuenta, nuevoTurno, cambiarSolapa, elegirDia, hoy, dia, solapa]);
+
+  // Lo elegido en la paleta.
+  const hacerDeLaPaleta = useCallback(
+    (a: AccionPaleta) => {
+      if (a.tipo === "solapa") irASolapa(a.id);
+      else if (a.tipo === "hoy") {
+        cambiarSolapa("agenda");
+        elegirDia(hoy);
+      } else if (a.tipo === "nuevoTurno") nuevoTurno();
+      else if (a.tipo === "abrirCuenta") abrirCuenta();
+      else if (a.tipo === "turno") verTurno(a.id);
+      else if (a.tipo === "cliente") {
+        pedirFichaDeCliente(a.id);
+        irASolapa("clientes");
+      }
+    },
+    [abrirCuenta, cambiarSolapa, elegirDia, hoy, irASolapa, nuevoTurno, verTurno],
+  );
 
   // Al cambiar quien opera, la cuenta (o el alta) que tenía abierta la persona anterior se cierra (como el vanilla).
   // Sin suscribir a ClubDemo al operador: si no había nada abierto, `setPanel(null)` no repinta.
@@ -625,6 +660,19 @@ export default function ClubDemo({ negocio, usuario, rol, reloj = "demo", guarda
       </div>
 
       <AvisosDelClub almacen={almacen} />
+      {paleta && (
+        <PaletaDelClub
+          almacen={almacen}
+          hoy={hoy}
+          dia={dia}
+          solapas={(() => {
+            const tira = armarTira(solapasVisibles(almacen), "");
+            return [...tira.principales, ...tira.mas];
+          })()}
+          onElegir={hacerDeLaPaleta}
+          onCerrar={() => setPaleta(false)}
+        />
+      )}
       </SoloConOperador>
     </div>
     </NegocioDelClub>

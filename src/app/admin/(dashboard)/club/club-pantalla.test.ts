@@ -297,6 +297,32 @@ describe("Canchas del club en el navegador", { timeout: 180_000 }, () => {
     await page.close();
   });
 
+  test("paleta (Ctrl+K): buscar un cliente que debe, verlo en rojo y abrir su ficha; Escape la cierra", async (t) => {
+    if (sinNavegador) return t.skip(sinNavegador);
+    const { page, errores } = await montar();
+    const deudor = await page.evaluate(() => {
+      const e = (window as unknown as { __estado?: () => { clientes: { nombre: string; deuda: number }[] } }).__estado?.();
+      return e?.clientes.find((c) => c.deuda > 0)?.nombre ?? "Agustina Romero";
+    });
+    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("Control+k");
+    const paleta = page.getByRole("dialog", { name: "Buscar o hacer" });
+    await paleta.waitFor();
+    await paleta.getByRole("combobox").fill(deudor.split(" ")[0]);
+    const opcion = paleta.getByRole("option").filter({ hasText: deudor }).filter({ hasText: /^Cliente/i }).first();
+    await opcion.waitFor();
+    assert.match(await opcion.innerText(), /debe \$/);
+    await page.keyboard.press("Escape");
+    await paleta.waitFor({ state: "detached" });
+    await page.keyboard.press("/");
+    await paleta.getByRole("combobox").fill(deudor.split(" ")[0]);
+    await paleta.getByRole("option").filter({ hasText: deudor }).filter({ hasText: /^Cliente/i }).first().click();
+    assert.equal(await page.getByRole("tab", { name: "Clientes" }).getAttribute("aria-selected"), "true");
+    await page.getByRole("region", { name: deudor }).first().waitFor();
+    assert.deepEqual(errores, []);
+    await page.close();
+  });
+
   test("teclado: las flechas recorren la grilla (misma cancha arriba/abajo, la de al lado con ←/→) y Enter abre la cuenta", async (t) => {
     if (sinNavegador) return t.skip(sinNavegador);
     const { page, errores } = await montar();
