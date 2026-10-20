@@ -6,13 +6,12 @@
 // una etiqueta real); lo que se guarda sigue siendo el formato, por la misma acción de siempre.
 
 import { useActionState, useState } from "react";
-import { Button, Field, Select } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { guardarConfigDeCaja, type EstadoConfigCaja } from "@/lib/supermercado/caja-actions";
-import { armarEtiquetaDeBalanza, describirFormato, problemaDelFormato, type FormatoBalanza } from "@/lib/supermercado/balanza";
-import { PRESETS_BALANZA, presetDelFormato, presetPorId } from "@/lib/supermercado/balanza-presets";
+import { problemaDelFormato, type FormatoBalanza } from "@/lib/supermercado/balanza";
+import { presetPorId } from "@/lib/supermercado/balanza-presets";
+import CamposDelFormato from "@/components/balanza/CamposDelFormato";
 import ProbadorEtiqueta from "./ProbadorEtiqueta";
-
-const PREFIJOS = ["20", "21", "22", "23", "24", "25", "26", "27", "28", "29"];
 
 export default function ConfigCaja({
   formato,
@@ -30,19 +29,10 @@ export default function ConfigCaja({
   const [estado, accion, enviando] = useActionState<EstadoConfigCaja, FormData>(guardarConfigDeCaja, null);
   const [f, setF] = useState<FormatoBalanza>(formato);
   const problema = problemaDelFormato(f);
-  const presetElegido = presetDelFormato(f);
   const usarPreset = (id: string) => {
     const preset = presetPorId(id);
     if (preset) setF({ ...preset.formato, prefijos: [...preset.formato.prefijos] });
   };
-  let ejemplo: string | null = null;
-  if (!problema) {
-    try {
-      ejemplo = armarEtiquetaDeBalanza(f, "123", f.contenido === "peso" ? 1.25 : 4520);
-    } catch {
-      ejemplo = null;
-    }
-  }
 
   return (
     <form action={accion} className="space-y-6">
@@ -54,94 +44,7 @@ export default function ConfigCaja({
             Está el formato de fábrica, el más común. Si la caja no reconoce las etiquetas, pedile al técnico de la balanza estos datos y cargalos acá.
           </p>
         )}
-        <Field
-          label="Mi balanza es…"
-          htmlFor="presetBalanza"
-          hint={
-            presetElegido
-              ? `${presetPorId(presetElegido)!.descripcion} Es un punto de partida: confirmalo probando una etiqueta abajo.`
-              : "Los datos de abajo están cargados a mano."
-          }
-        >
-          {/* Sin `name`: la marca no se guarda, sólo rellena los campos de abajo. */}
-          <Select id="presetBalanza" value={presetElegido ?? ""} onChange={(e) => usarPreset(e.target.value)}>
-            {PRESETS_BALANZA.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.marca}
-              </option>
-            ))}
-            <option value="">Otra, la cargo a mano</option>
-          </Select>
-        </Field>
-        <fieldset>
-          <legend className="text-sm font-medium text-strong">Prefijos que imprime la balanza</legend>
-          <div className="mt-2 grid grid-cols-5 gap-2">
-            {PREFIJOS.map((p) => (
-              <label key={p} className="flex min-h-11 items-center gap-2 rounded-md border border-line px-2 text-sm">
-                <input
-                  type="checkbox"
-                  name="prefijos"
-                  value={p}
-                  checked={f.prefijos.includes(p)}
-                  onChange={(e) => setF({ ...f, prefijos: e.target.checked ? [...f.prefijos, p].sort() : f.prefijos.filter((x) => x !== p) })}
-                  className="h-5 w-5"
-                />
-                {p}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        <Field label="Dígitos del código del producto" htmlFor="digitosProducto">
-          <Select id="digitosProducto" name="digitosProducto" value={f.digitosProducto} onChange={(e) => setF({ ...f, digitosProducto: Number(e.target.value) as 4 | 5 | 6 })}>
-            <option value={4}>4</option>
-            <option value={5}>5</option>
-            <option value={6}>6</option>
-          </Select>
-        </Field>
-        <Field label="La etiqueta trae" htmlFor="contenido">
-          <Select
-            id="contenido"
-            name="contenido"
-            value={f.contenido}
-            onChange={(e) => {
-              const contenido = e.target.value as "peso" | "importe";
-              setF({ ...f, contenido, decimales: contenido === "peso" ? 3 : 0 });
-            }}
-          >
-            <option value="peso">El peso</option>
-            <option value="importe">El importe</option>
-          </Select>
-        </Field>
-        <Field label={f.contenido === "peso" ? "El peso viene en" : "El importe viene en"} htmlFor="decimales">
-          <Select id="decimales" name="decimales" value={f.decimales} onChange={(e) => setF({ ...f, decimales: Number(e.target.value) })}>
-            {f.contenido === "peso" ? (
-              <>
-                <option value={3}>Gramos (3 decimales)</option>
-                <option value={2}>Decenas de gramos (2 decimales)</option>
-              </>
-            ) : (
-              <>
-                <option value={0}>Pesos, sin centavos</option>
-                <option value={1}>Pesos con décimos</option>
-                <option value={2}>Pesos con centavos</option>
-              </>
-            )}
-          </Select>
-        </Field>
-        <div className="rounded-md bg-surface-sunken p-3 text-sm">
-          {problema ? (
-            <p className="text-danger">{problema}</p>
-          ) : (
-            <>
-              <p className="text-body">{describirFormato(f)}</p>
-              {ejemplo && (
-                <p className="mt-1 text-muted">
-                  Ejemplo: el producto 123 con {f.contenido === "peso" ? "1,250 kg" : "$4.520"} sale como <span className="font-mono text-strong">{ejemplo}</span>.
-                </p>
-              )}
-            </>
-          )}
-        </div>
+        <CamposDelFormato f={f} setF={setF} />
       </section>
 
       <ProbadorEtiqueta formato={f} onUsarPreset={usarPreset} />

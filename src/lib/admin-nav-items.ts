@@ -119,6 +119,9 @@ export const ALL_ITEMS: ShellItem[] = [
   { href: "/admin/lotes", label: "Lotes / Vacío", icon: "lotes", cap: "catalog:manage", module: "catalog", carniceriaOnly: true, alias: ["vencimientos", "envasado al vacio", "trazabilidad"] },
   { href: "/admin/despiece", label: "Despiece", icon: "despiece", cap: "catalog:manage", module: "catalog", carniceriaOnly: true, alias: ["cortes", "media res", "rendimiento"] },
   { href: "/admin/ajustes", label: "Ajustes", icon: "ajustes", cap: "catalog:manage", module: "catalog", alias: ["mermas", "rotura", "recuento", "vencidos"] },
+  // La balanza (etiqueta o cable) y el lector del mostrador. Sólo en un local que vende (pos):
+  // un negocio de servicios no tiene qué pesar (CH no lo ve).
+  { href: "/admin/balanza", label: "Balanza y lector", icon: "ajustes", cap: "catalog:manage", module: "pos", retailOnly: true, alias: ["balanza", "etiqueta", "plu", "lector", "codigo de barras", "peso", "cable", "usb"] },
   { href: "/admin/resenas", label: "Reseñas", icon: "resenas", cap: "reviews:manage", module: "reviews", agendaOnly: true, alias: ["opiniones", "comentarios", "estrellas"] },
   { href: "/admin/recordatorios", label: "Recordatorios", icon: "recordatorios", cap: "reminders:manage", module: "reminders", agendaOnly: true, alias: ["whatsapp", "avisos", "mensajes"] },
   { href: "/admin/facturacion", label: "Facturación", icon: "facturacion", cap: "billing:manage", module: "arca", alias: ["arca", "afip", "comprobantes", "iva", "factura"] },

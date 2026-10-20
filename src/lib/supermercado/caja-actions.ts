@@ -39,7 +39,7 @@ import { seccionDe } from "./secciones";
 import { cobroDesdeAfuera, pagosParaElTotal } from "./ticket-caja";
 import { medioPrincipal, repartirPagos, textoDelPago } from "./pago-mixto";
 import { diaDeLaSemana } from "./promociones";
-import { formatoDesdeAfuera, problemaDelFormato } from "./balanza";
+import { formatoDelFormulario, formatoDesdeAfuera, problemaDelFormato } from "./balanza";
 import { ACCION_ANULAR_RENGLON, ENTIDAD_RENGLON_DE_CAJA } from "./marcas";
 
 const RUTAS = ["/admin/caja-rapida", "/admin/ventas", "/admin/pedidos", "/admin/caja"];
@@ -261,12 +261,7 @@ export async function guardarConfigDeCaja(_prev: EstadoConfigCaja, formData: For
   }
   // La configuración la toca quien administra el catálogo (el dueño): cambia cómo se cobra.
   if (!roleHasCapability(user.role, "catalog:manage")) return { ok: false, error: "La configuración de la caja la cambia el dueño del negocio." };
-  const formato = {
-    prefijos: formData.getAll("prefijos").map(String),
-    digitosProducto: Number(formData.get("digitosProducto")),
-    contenido: String(formData.get("contenido") ?? ""),
-    decimales: Number(formData.get("decimales")),
-  };
+  const formato = formatoDelFormulario(formData);
   const problema = problemaDelFormato(formato);
   if (problema) return { ok: false, error: problema };
   const valido = formatoDesdeAfuera(formato)!;

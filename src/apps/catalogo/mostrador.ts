@@ -38,6 +38,25 @@ export const APPS_MOSTRADOR = [
     palabras: ["cobrar", "venta", "mostrador", "ticket", "vuelto", "descuento", "pos"],
   },
   {
+    // Cómo entra el peso al mostrador: la etiqueta que imprime la balanza (con el lector), o el
+    // peso en vivo por cable en una computadora. Y qué PLU de la balanza es cada producto.
+    id: "balanza",
+    nombre: "Balanza y lector",
+    descripcion: "Conectar la balanza por etiqueta o por cable, probarla y decir qué producto es cada PLU.",
+    icono: "ajustes",
+    ruta: "/admin/balanza",
+    espacio: "mostrador",
+    // Cambia cómo se cobra: lo configura quien administra el catálogo (el dueño).
+    capability: "catalog:manage",
+    // Sin `moduloDuro`: la barra de hoy la muestra con `retailOnly` (admin-nav-items.ts) y el
+    // rubro de mostrador ya deja afuera a CH, también por URL.
+    modulo: "pos",
+    rubro: "mostrador",
+    estado: "lista",
+    palabras: ["balanza", "etiqueta", "plu", "lector", "codigo de barras", "peso", "cable", "usb"],
+    menuDeHoy: { etiqueta: "Balanza y lector", orden: 145 },
+  },
+  {
     id: "pedidos",
     nombre: "Pedidos para preparar",
     descripcion: "Los pedidos abiertos: preparar, pesar, avisar, entregar y cobrar.",
