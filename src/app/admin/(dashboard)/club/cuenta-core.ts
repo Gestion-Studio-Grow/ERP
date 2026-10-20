@@ -58,9 +58,13 @@ import {
   pesos,
   reserva as reservaDe,
   saldo,
+  crearFijo,
+  diaSemana,
+  NOMBRE_DIA,
 } from "@/lib/club/motor.mjs";
 import type { Ahora, Auth, Cliente, Cuenta, EstadoClub, EstadoReserva, Medio, Resultado } from "@/lib/club/motor.mjs";
 import type { Desenlace } from "./almacen";
+import { bajarFijos } from "./canchas-core";
 
 export type { Desenlace };
 
@@ -163,6 +167,8 @@ export interface VistaCuenta {
     cobrarSena: number | null;
     /** «Abrir la cancha»: el turno está reservado y llega la gente. */
     abrirCancha: boolean;
+    /** «Hacer fijo»: el mismo día de la semana, hora y cancha, desde la semana que viene (o null si no corresponde). */
+    hacerFijo: string | null;
     /** «Cerrar la cancha», como el club de hoy: en juego y sin nada pendiente (sin dejar una mesa en Buffet). */
     cerrarCancha: boolean;
     /** «Cobrar la cancha $X y cerrarla · la mesa sigue» (monto 0 = «Cerrar la cancha · la mesa sigue»). */
@@ -276,6 +282,7 @@ export function armarCuenta(estado: EstadoClub, reservaId: string): VistaCuenta 
       cobrarSena: senaPendiente(r),
       abrirCancha: r.estado === "reservada",
       cerrarCancha: abierto && r.estado === "en_cancha" && T.pendiente === 0,
+      hacerFijo: r.tipo === "turno" && !r.fijoId && abierto ? `${NOMBRE_DIA[diaSemana(r.fecha)].toLowerCase()} ${hhmm(r.inicio)}` : null,
       cerrarYSeguir,
       cerrarCargos,
       cargosACuenta: cerrarCargos !== null && T.cargos > 0,
@@ -314,6 +321,7 @@ export type AccionCuenta =
   | { tipo: "cobrarSena"; medio: MedioCobro }
   | { tipo: "cerrarYSeguir"; medio: MedioCaja }
   | { tipo: "cerrarCancha" }
+  | { tipo: "hacerFijo" }
   | { tipo: "cerrarCargos"; medio: MedioCaja }
   | { tipo: "cargosACuenta" }
   | { tipo: "abrirCancha" }
@@ -336,6 +344,7 @@ export const EN_EL_VANILLA: Readonly<Record<AccionCuenta["tipo"], string>> = {
   cobrarSena: "pagar",
   cerrarYSeguir: "cerrarYSeguir",
   cerrarCancha: "finalizar",
+  hacerFijo: "nuevoFijo",
   cerrarCargos: "cerrarCargos",
   cargosACuenta: "cerrarCargosCC",
   abrirCancha: "checkin",
@@ -360,6 +369,7 @@ export const DESHACIBLE: Readonly<Record<AccionCuenta["tipo"], boolean>> = {
   cobrarSena: true,
   cerrarYSeguir: true,
   cerrarCancha: true,
+  hacerFijo: false,
   cerrarCargos: true,
   cargosACuenta: true,
   abrirCancha: true,
@@ -414,6 +424,16 @@ export function ejecutar(estado: EstadoClub, reservaId: string, accion: AccionCu
       if (!res.ok) return falla(res);
       const n = res.cuentasAbiertas.length;
       return { ok: true, mensaje: `Cancha cerrada.${n ? ` Quedan ${n} cuenta${n > 1 ? "s" : ""} de buffet abierta${n > 1 ? "s" : ""}.` : ""}` };
+    }
+    case "hacerFijo": {
+      // El turno pasa a ser el primero del fijo (así no se baja dos veces) y los próximos se bajan a la agenda.
+      const r = reservaDe(estado, reservaId);
+      if (!r || r.tipo !== "turno" || r.fijoId) return { ok: false, mensaje: "Ese turno no se puede hacer fijo." };
+      const f = crearFijo(estado, { clienteId: r.clienteId ?? null, canchaId: r.canchaId, dia: diaSemana(r.fecha), inicio: r.inicio, duracion: r.duracion, titular: r.titular });
+      r.tipo = "fijo";
+      r.fijoId = f.id;
+      const bajada = bajarFijos(estado, ahora.fecha);
+      return { ok: true, mensaje: `Turno fijo de ${r.titular} los ${NOMBRE_DIA[f.dia].toLowerCase()} a las ${hhmm(r.inicio)}. ${bajada.mensaje}` };
     }
     case "cerrarCargos": {
       const res = cerrarCargosDelTurno(estado, reservaId, { medio: accion.medio, ...conAuth }, ahora);

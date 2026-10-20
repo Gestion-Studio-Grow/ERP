@@ -507,6 +507,11 @@ export default function CuentaDelTurno({ almacen, reservaId, onVolver }: { almac
             {textoCierre("cerrarCargos", cierres.cerrarCargos)}
           </Button>
         )}
+        {cierres.hacerFijo && (
+          <Button variant="ghost" size="md" onClick={() => onAccion({ tipo: "hacerFijo" })}>
+            Hacer fijo (todos los {cierres.hacerFijo})
+          </Button>
+        )}
         {cierres.cargosACuenta && (
           <Button variant="outline" size="md" onClick={() => onAccion({ tipo: "cargosACuenta" })}>
             Cargos a cuenta corriente

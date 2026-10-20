@@ -591,3 +591,20 @@ test("«Cobrar todo» y «Cerrar la cancha»: 3 toques como el club de hoy, sin 
   assert.equal(DESHACIBLE.cerrarCancha, true);
   assert.equal(EN_EL_VANILLA.cerrarCancha, "finalizar");
 });
+
+test("«Hacer fijo» desde el turno: un toque, el mismo día, hora y cancha; no se duplica el de hoy", () => {
+  const e = demo();
+  const r = e.reservas.find((x) => x.fecha === HOY && x.tipo === "turno" && x.estado === "reservada" && !x.fijoId)!;
+  assert.ok(r, "la demo trae un turno común reservado hoy");
+  const v = cuenta(e, r.id);
+  assert.ok(v.cierres.hacerFijo, "se ofrece");
+  const fijosAntes = e.fijos.length;
+  const res = ejecutar(e, r.id, { tipo: "hacerFijo" }, AHORA);
+  assert.ok(res.ok, res.mensaje);
+  assert.equal(e.fijos.length, fijosAntes + 1);
+  const f = e.fijos.at(-1)!;
+  assert.equal(r.fijoId, f.id);
+  assert.equal(e.reservas.filter((x) => x.fijoId === f.id && x.fecha === HOY).length, 1, "hoy queda uno solo");
+  assert.equal(cuenta(e, r.id).cierres.hacerFijo, null, "ya es fijo: no se ofrece de nuevo");
+  assert.equal(DESHACIBLE.hacerFijo, false);
+});
