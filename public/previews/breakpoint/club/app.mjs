@@ -1394,7 +1394,7 @@ function resumenTurno(r, t, cl) {
     <div class="row">
       ${hayAlgo ? `<button type="button" class="btn primary" data-a="cobrarTodo" data-v="${r.id}">Cobrar todo ${M.pesos(T.pendiente)}</button>` : ""}
       ${abierto && r.estado === "en_cancha" ? `<button type="button" class="btn" data-a="cerrarYSeguir" data-v="${r.id}">${T.cancha > 0 ? `Cobrar la cancha ${M.pesos(T.cancha)} y cerrarla` : "Cerrar la cancha"} · la mesa sigue</button>` : ""}
-      ${!abierto && t.mesa.length ? `<button type="button" class="btn" data-a="cerrarCargos" data-v="${r.id}">${T.cargos > 0 ? `Cobrar y cerrar los cargos ${M.pesos(T.cargos)}` : "Cerrar los cargos"}</button>` : ""}
+      ${t.mesaAbierta ? `<button type="button" class="btn" data-a="cerrarCargos" data-v="${r.id}">${T.cargos > 0 ? `Cobrar y cerrar los cargos ${M.pesos(T.cargos)}` : t.mesa.length ? "Cerrar los cargos" : "Cerrar la mesa"}</button>` : ""}
       ${!abierto && T.cargos > 0 ? `<button type="button" class="btn" data-a="cerrarCargosCC" data-v="${r.id}">Cargos a cuenta corriente</button>` : ""}
     </div>
     ${abierto && r.estado === "en_cancha" ? `<p class="small muted" style="margin:0">«La mesa sigue»: se cobra la cancha y queda libre para el turno siguiente; los cargos siguen abiertos (Buffet → Mesas) y se cobran cuando se van.</p>` : ""}
@@ -2208,7 +2208,7 @@ const acciones = {
     if (!res.ok && res.cobrado) render(); // se cobró una parte: que la pantalla muestre lo que quedó
     hecho(res, (r) => `Cobrado todo el turno: ${M.pesos(r.total)}.`);
   },
-  cerrarYSeguir: (b) => cerrarSiSale(M.cerrarCanchaYSeguir(E, b.dataset.v, { medio: ultimoMedio(), auth: auth() }, AHORA), (r) => `Cancha cerrada y libre${r.cobradoCancha ? ` (cobrados ${M.pesos(r.cobradoCancha)})` : ""}.${r.cuentasAbiertas.length ? " La mesa sigue en Buffet → Mesas." : ""}`),
+  cerrarYSeguir: (b) => cerrarSiSale(M.cerrarCanchaYSeguir(E, b.dataset.v, { medio: ultimoMedio(), auth: auth() }, AHORA), (r) => `Cancha cerrada y libre${r.cobradoCancha ? ` (cobrados ${M.pesos(r.cobradoCancha)})` : ""}. La mesa sigue en Buffet → Mesas.`),
   cerrarCargos: (b) => hecho(M.cerrarCargosDelTurno(E, b.dataset.v, { medio: ultimoMedio(), auth: auth() }, AHORA), (r) => `Cargos cerrados${r.cobrado ? `: cobrados ${M.pesos(r.cobrado)}` : ""}.`),
   cerrarCargosCC: (b) => hecho(M.cerrarCargosDelTurno(E, b.dataset.v, { aCuenta: true, auth: auth() }, AHORA), (r) => `${M.pesos(r.aCuentaCorriente)} a cuenta corriente. Mesa cerrada.`),
   verMesa: (b) => verReserva(b.dataset.v),

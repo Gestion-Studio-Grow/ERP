@@ -1187,3 +1187,30 @@ test("go-live (Gate B2): la plata pendiente no se borra — bloquea con motivo, 
   assert.equal(M.cobrado(e.reservas[0]), 21000, "con su seña");
   assert.equal(M.producto(e, "p6").stock, 8);
 });
+
+test("«la mesa sigue» con todos al día: la mesa queda en Buffet en cero, se le carga y se cierra (bug 20/10)", () => {
+  const e = club();
+  const r = turno(e, "c1", 11, { clienteId: "a" }, 30);
+  M.checkIn(e, r.id, ahora(11, 30));
+  M.registrarPago(e, r.id, { medio: "efectivo", monto: r.precio }, ahora(11, 30));
+  const res = M.cerrarCanchaYSeguir(e, r.id, { medio: "efectivo" }, ahora(13));
+  assert.ok(res.ok, res.motivo);
+  assert.equal(res.cuentasAbiertas.length, 0, "nadie debía nada");
+  assert.equal(M.mesasAbiertas(e).length, 1, "la mesa figura aunque esté en cero");
+  assert.equal(M.mesasAbiertas(e)[0].saldo, 0);
+  assert.equal(M.cuentaDelTurno(e, r.id).mesaAbierta, true);
+  // Se le sigue cargando y la mesa muestra lo que debe.
+  const agua = M.PRODUCTOS_DEMO.find((p: any) => !p.alquiler && p.stock !== 0).id;
+  assert.ok(M.consumoJugador(e, r.id, 0, agua, 1, { modo: "cuenta" }, ahora(13, 10)).ok);
+  assert.ok(M.mesasAbiertas(e)[0].saldo > 0);
+  assert.ok(M.cerrarCargosDelTurno(e, r.id, { medio: "efectivo" }, ahora(13, 40)).ok);
+  assert.equal(M.mesasAbiertas(e).length, 0, "cobrada y cerrada, ya no figura");
+  // Otra mesa que se va sin pedir nada: «Cerrar la mesa» la saca sin cobrar.
+  const r2 = turno(e, "c2", 11, { clienteId: "b" }, 30);
+  M.checkIn(e, r2.id, ahora(11, 30));
+  M.registrarPago(e, r2.id, { medio: "efectivo", monto: r2.precio }, ahora(11, 30));
+  assert.ok(M.cerrarCanchaYSeguir(e, r2.id, { medio: "efectivo" }, ahora(13)).ok);
+  assert.deepEqual(M.cerrarCargosDelTurno(e, r2.id, { medio: "efectivo" }, ahora(13, 5)), { ok: true, cobrado: 0, aCuentaCorriente: 0, cerradas: 0 });
+  assert.equal(M.mesasAbiertas(e).length, 0);
+  assert.equal(M.cerrarCargosDelTurno(e, r2.id, { medio: "efectivo" }, ahora(13, 6)).ok, false, "dos veces no");
+});

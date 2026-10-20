@@ -1503,7 +1503,7 @@ export function cuentaDelTurno(estado, reservaId) {
   return {
     ok: true, reserva: r, abierto, jugadores, mesa, deOtraMesa,
     totales: { cancha: saldoCancha, cargos, pendiente: saldoCancha + cargos, totalCargos: mesa.reduce((s, c) => s + totalCuenta(c), 0) },
-    mesaAbierta: !abierto && mesa.length > 0,
+    mesaAbierta: !abierto && (mesa.length > 0 || Boolean(r.mesaSigue)),
   };
 }
 
@@ -1626,6 +1626,9 @@ export function cerrarCanchaYSeguir(estado, reservaId, { medio, auth = null } = 
   }
   const fin = finalizar(estado, reservaId, {}, ahora);
   if (!fin.ok) return fin;
+  // La mesa sigue AUNQUE esté en cero (todos al día): es para seguir cargando lo que pidan. Queda en Buffet → Mesas
+  // hasta que alguien la cierre (cerrarCargosDelTurno).
+  r.mesaSigue = true;
   return { ok: true, cobradoCancha: cobrado, cuentasAbiertas: cuentasDeLaMesa(estado, r) };
 }
 
@@ -1635,7 +1638,13 @@ export function cerrarCargosDelTurno(estado, reservaId, { medio, auth = null, aC
   const r = reserva(estado, reservaId);
   if (!r) return { ok: false, motivo: "No encuentro el turno." };
   const mesa = cuentasDeLaMesa(estado, r);
-  if (!mesa.length) return { ok: false, motivo: "La mesa no tiene cargos abiertos." };
+  if (!mesa.length) {
+    if (!r.mesaSigue) return { ok: false, motivo: "La mesa no tiene cargos abiertos." };
+    delete r.mesaSigue;
+    registrar(estado, `Mesa de ${r.titular} cerrada (sin cargos).`, ahora);
+    return { ok: true, cobrado: 0, aCuentaCorriente: 0, cerradas: 0 };
+  }
+  delete r.mesaSigue;
   // Las cuentas que paga alguien de otra mesa quedan abiertas: se cobran con la cuenta del que paga.
   const pagadoras = mesa.filter((x) => !pagadorDe(estado, x));
   const deEstaMesa = mesa.filter((x) => !pagadorDe(estado, x) || mesa.includes(pagadorDe(estado, x)));
@@ -1669,7 +1678,7 @@ export function mesasAbiertas(estado) {
   for (const r of estado.reservas) {
     if (turnoAbierto(r)) continue;
     const mesa = cuentasDeLaMesa(estado, r);
-    if (!mesa.length) continue;
+    if (!mesa.length && !r.mesaSigue) continue;
     out.push({ reserva: r, cuentas: mesa, saldo: mesa.reduce((s, c) => s + Math.max(0, saldoCuenta(c)), 0) });
   }
   return out.sort((a, b) => (a.reserva.fecha + String(a.reserva.inicio).padStart(5, "0")).localeCompare(b.reserva.fecha + String(b.reserva.inicio).padStart(5, "0")));
