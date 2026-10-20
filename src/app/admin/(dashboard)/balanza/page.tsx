@@ -9,6 +9,7 @@ import PluDeProductos from "./PluDeProductos";
 import BalanzaPorCable from "./BalanzaPorCable";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Balanza y lector", generator: "Gestión Studio Grow" };
 
 // BALANZA Y LECTOR — cómo entra el peso al mostrador, sin saber marca ni modelo de la balanza:
 //   · la ETIQUETA que imprime la balanza, leída con el lector (formato detectado con una

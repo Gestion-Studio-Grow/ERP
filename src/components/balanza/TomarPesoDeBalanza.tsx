@@ -30,6 +30,8 @@ export type TomarPesoDeBalanzaProps = {
   alTomar: (kg: number) => void;
   modo?: "compacto" | "completo";
   className?: string;
+  /** ¿Recordar la balanza en esta PC al conectar? Por defecto sí. */
+  recordar?: boolean;
 };
 
 export const MENSAJE_SIN_WEB_SERIAL =
@@ -53,8 +55,8 @@ export function textoDelEstado(b: Pick<BalanzaSerie, "estable" | "motivo">): str
   return b.estable ? "Peso quieto: listo para tomar" : TEXTO_DEL_MOTIVO[b.motivo ?? "sin-lecturas"];
 }
 
-export function TomarPesoDeBalanza({ negocio, alTomar, modo = "compacto", className }: TomarPesoDeBalanzaProps) {
-  const balanza = useBalanzaSerie({ negocio });
+export function TomarPesoDeBalanza({ negocio, alTomar, modo = "compacto", className, recordar = true }: TomarPesoDeBalanzaProps) {
+  const balanza = useBalanzaSerie({ negocio, recordarAlConectar: recordar });
   if (!balanza.soportado) {
     if (modo === "compacto") return null;
     return (

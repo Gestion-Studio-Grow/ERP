@@ -44,9 +44,9 @@ export default function DetectarConEtiqueta({ alElegir }: { alElegir: (f: Format
 
   return (
     <section aria-labelledby={tituloId} className="space-y-4 rounded-md border border-line bg-surface-raised p-4">
-      <h2 id={tituloId} className="text-base font-semibold text-strong">
+      <h3 id={tituloId} className="text-base font-semibold text-strong">
         Detectar con una etiqueta
-      </h2>
+      </h3>
       <p className="text-sm text-muted">
         No hace falta saber la marca. Pesá algo en tu balanza, imprimí la etiqueta y anotá el peso que mostró la pantalla
         de la balanza (o el importe impreso). Después pasá la etiqueta por el lector acá abajo.

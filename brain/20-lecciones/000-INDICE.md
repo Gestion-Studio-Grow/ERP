@@ -7,7 +7,7 @@ tags: [brain/indice]
 
 # 🛡️ Lecciones — índice de guardarraíles
 
-> 46 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
+> 47 lecciones, una nota por lección. **Leé este índice y abrí solo la que aplica**
 > — no el registro entero. Calibración obligatoria antes de tocar Prod/Deploy · Datos/DB ·
 > Multi-tenant · Seguridad (ADR-052).
 
@@ -48,6 +48,7 @@ tags: [brain/indice]
 - **[DX-9](DX-9-una-demo-sin-persistencia-no-aguanta-un-dia-real-recargar.md)** — - Toda demo que se vaya a usar de verdad tiene un modo real explícito: en blanco, guardado local, reloj real, bloqueo al recargar y respaldo. - El modo por defecto sigue siendo la demo, así los […]
 - **[DX-10](DX-10-un-lector-que-tipea-mientras-el-cobro-anterior-todavia-no.md)** — toda entrada automática al ticket pasa por una función pura que recibe el estado del cobro (`en vuelo | en duda | libre`) y se testea el caso "leer durante el cobro" antes de integrarla.
 - **[DX-11](DX-11-los-tests-unitarios-estaban-verdes-y-el-inicio-igual.md)** — - Todo tenant que sale a producción tiene su guion de UAT con matriz por rol, y su recorrido E2E repetible contra `next start` y Postgres local, nunca Neon. Modelo: `test:club-uat` y […]
+- **[DX-12](DX-12-una-etiqueta-de-balanza-se-puede-leer-bien-de-dos-maneras-y.md)** — - La detección pide una segunda etiqueta, o el número del producto, cuando hay empate. - El peso por cable se recuerda en la PC recién cuando la persona confirma en el asistente que coincide con la […]
 
 ## MP — Metodología / Proceso
 

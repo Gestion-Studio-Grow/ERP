@@ -22,11 +22,11 @@ tags: [brain/indice, brain/codigo]
 
 | Métrica | Valor |
 |---|---:|
-| Archivos de `src/` que citan un ADR | 374 de 1997 |
-| Archivos de `prisma/` que citan un ADR | 38 de 90 |
-| Archivos de `scripts/` que citan un ADR | 12 de 54 |
-| Archivos escaneados en total | 2141 |
-| Archivos que citan algún ADR | 424 |
+| Archivos de `src/` que citan un ADR | 378 de 2062 |
+| Archivos de `prisma/` que citan un ADR | 39 de 92 |
+| Archivos de `scripts/` que citan un ADR | 12 de 55 |
+| Archivos escaneados en total | 2209 |
+| Archivos que citan algún ADR | 429 |
 | ADR con vínculo (cita desde código **o** ruta citada por el ADR) | 85 de 87 |
 
 ## 🕳️ Los agujeros (a la vista, no tapados)
@@ -55,7 +55,7 @@ tags: [brain/indice, brain/codigo]
 ### [ADR-004](ADR-004.md)
 
 - **cabecera (1):** `src/lib/caja/caja-open-concurrency.test.ts`
-- **inline (3):** `src/lib/caja-actions.ts` · `src/lib/rls.ts` · `scripts/adr-graph.mjs`
+- **inline (4):** `src/lib/caja-actions.ts` · `src/lib/padel/acciones.ts` · `src/lib/rls.ts` · `scripts/adr-graph.mjs`
 - **el ADR cita:** `src/lib/rls.ts`
 
 ### [ADR-005](ADR-005.md)
@@ -213,6 +213,7 @@ tags: [brain/indice, brain/codigo]
 
 ### [ADR-034](ADR-034.md)
 
+- **cabecera (1):** `src/lib/padel/marca.ts`
 - **inline (2):** `scripts/adr-graph.mjs` · `scripts/brain-sync.mjs`
 - **el ADR cita:** `src/preset/extraction/`
 
@@ -304,13 +305,13 @@ tags: [brain/indice, brain/codigo]
 
 ### [ADR-054](ADR-054.md)
 
-- **cabecera (20):** `src/blueprints/facturita.ts` · `src/integraciones/contrato.ts` · `src/lib/admin-nav-items.ts` · `src/lib/module-gating.ts` · `src/lib/producto-identidad.ts` · `src/lib/terminal/terminal.server.ts` · `src/modules/catalog/index.ts` · `src/modules/catalog.ts` … y 12 más
+- **cabecera (21):** `src/blueprints/facturita.ts` · `src/integraciones/contrato.ts` · `src/lib/admin-nav-items.ts` · `src/lib/module-gating.ts` · `src/lib/producto-identidad.ts` · `src/lib/terminal/terminal.server.ts` · `src/modules/catalog/index.ts` · `src/modules/catalog.ts` … y 13 más
 - **inline (12):** `src/lib/cartera-core.ts` · `src/lib/cockpit/plan.ts` · `src/lib/dashboard-mode.ts` · `src/lib/operator-config.ts` · `src/modules/descriptors/club.ts` … y 7 más
 - **el ADR cita:** `src/modules/` · `src/plugins/arca/module.ts` · `src/plugins/arca` · `src/plugins/mercadopago` · `src/plugins/`
 
 ### [ADR-055](ADR-055.md)
 
-- **cabecera (21):** `src/lib/cartera-actions.ts` · `src/lib/cartera-core.ts` · `src/lib/provisioning/adapters.ts` · `src/lib/reserva-publica-postgres.test.ts` · `src/lib/terminal/perfil-core.ts` · `src/modules/activation.test.ts` · `src/modules/activation.ts` · `src/modules/catalog/asignacion.ts` … y 13 más
+- **cabecera (22):** `src/lib/cartera-actions.ts` · `src/lib/cartera-core.ts` · `src/lib/provisioning/adapters.ts` · `src/lib/reserva-publica-postgres.test.ts` · `src/lib/terminal/perfil-core.ts` · `src/modules/activation.test.ts` · `src/modules/activation.ts` · `src/modules/catalog/asignacion.ts` … y 14 más
 - **inline (13):** `src/generated/prisma/internal/class.ts` · `src/lib/actions.ts` · `src/lib/capabilities.ts` · `src/lib/catalog-actions.ts` · `src/lib/producto-identidad.test.ts` … y 8 más
 - **el ADR cita:** `src/modules/`
 
@@ -390,6 +391,7 @@ tags: [brain/indice, brain/codigo]
 
 ### [ADR-072](ADR-072.md)
 
+- **cabecera (1):** `src/lib/estetica-backoffice.ts`
 - **inline (4):** `src/tenants/magra-content.ts` · `src/app/layout.tsx` · `src/app/tienda/MagraFront.tsx` · `src/app/tienda/page.tsx`
 
 ### [ADR-073](ADR-073.md)
@@ -438,7 +440,7 @@ tags: [brain/indice, brain/codigo]
 
 ### [ADR-100](ADR-100.md)
 
-- **cabecera (5):** `src/lib/dinero/redondeo.ts` · `src/lib/inmobiliaria/acciones.ts` · `src/lib/inmobiliaria/datos.server.ts` · `src/lib/round.ts` · `prisma/migrations/20261013120000_modulo_inmobiliaria/migration.sql`
+- **cabecera (6):** `src/lib/dinero/redondeo.ts` · `src/lib/inmobiliaria/acciones.ts` · `src/lib/inmobiliaria/datos.server.ts` · `src/lib/round.ts` · `prisma/migrations/20261013120000_modulo_inmobiliaria/migration.sql` · `prisma/migrations/20261015120000_modulo_padel_clases/migration.sql`
 - **inline (6):** `src/generated/prisma/internal/class.ts` · `src/lib/dinero/redondeo.test.ts` · `src/lib/invoice-core.ts` · `src/plugins/arca/afip/soap.ts` · `src/plugins/arca/domain/validacion.ts` … y 1 más
 - **el ADR cita:** `src/lib/stock/supplier-return.ts` · `prisma/schema.prisma` · `prisma/pending-gate2/CarniceriaRubro.sql` · `src/lib/round.ts` · `src/plugins/arca/afip/soap.ts`
 

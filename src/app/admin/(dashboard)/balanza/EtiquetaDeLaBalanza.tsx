@@ -29,9 +29,9 @@ export default function EtiquetaDeLaBalanza({ formato, version, guardado }: { fo
       <form action={accion} className="space-y-4">
         <input type="hidden" name="version" value={version ?? ""} />
         <section className="space-y-4 rounded-md border border-line bg-surface-raised p-4" aria-labelledby="formato-titulo">
-          <h2 id="formato-titulo" className="text-base font-semibold text-strong">
+          <h3 id="formato-titulo" className="text-base font-semibold text-strong">
             El formato de tu etiqueta
-          </h2>
+          </h3>
           <p className="text-sm text-muted">
             {elegido
               ? "Lo completamos con lo que detectaste. Probalo abajo con otra etiqueta antes de guardar."
@@ -41,7 +41,7 @@ export default function EtiquetaDeLaBalanza({ formato, version, guardado }: { fo
           </p>
           <CamposDelFormato f={f} setF={setF} />
         </section>
-        <ProbadorEtiqueta formato={f} onUsarPreset={(id) => usar(presetPorId(id)!.formato)} />
+        <ProbadorEtiqueta nivel={3} formato={f} onUsarPreset={(id) => usar(presetPorId(id)!.formato)} />
         <p role={estado && !estado.ok ? "alert" : "status"} className={estado && !estado.ok ? "text-sm font-medium text-danger" : "text-sm text-success"}>
           {estado ? (estado.ok ? estado.mensaje : estado.error) : ""}
         </p>

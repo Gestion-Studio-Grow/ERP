@@ -24,10 +24,14 @@ function valorLeido(l: Leida, decimales: number): string {
 export default function ProbadorEtiqueta({
   formato,
   onUsarPreset,
+  nivel = 2,
 }: {
   formato: FormatoBalanza;
   onUsarPreset: (id: IdPresetBalanza) => void;
+  /** Nivel del título: 2 en Caja con lector, 3 adentro de una sección de Balanza y lector. */
+  nivel?: 2 | 3;
 }) {
+  const Titulo = nivel === 3 ? "h3" : "h2";
   const [texto, setTexto] = useState("");
   const tituloId = useId();
   const resultado = probarEtiqueta(texto, formato);
@@ -44,9 +48,9 @@ export default function ProbadorEtiqueta({
 
   return (
     <section aria-labelledby={tituloId} className="space-y-3 rounded-md border border-line bg-surface-raised p-4">
-      <h2 id={tituloId} className="text-base font-semibold text-strong">
+      <Titulo id={tituloId} className="text-base font-semibold text-strong">
         Probá una etiqueta
-      </h2>
+      </Titulo>
       <p className="text-sm text-muted">
         Pasá por el lector una etiqueta que haya impreso tu balanza, o tipeá los números de abajo del código de barras. Te
         mostramos cómo la lee la caja con lo que elegiste arriba. No se guarda nada.

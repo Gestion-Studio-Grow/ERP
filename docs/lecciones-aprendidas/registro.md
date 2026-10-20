@@ -17,7 +17,7 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
 - **PD** — PD-1 build lento ≠ colgado · PD-2 gates humanos · PD-3 cron Hobby · PD-4 GitHub App en la org
 - **DB** — DB-1 seed/deleteMany contra prod · DB-2 `modules:[]` · DB-3 `migrate deploy` aplica todas · DB-4 overbooking TOCTOU · DB-5 un camino de plata sin la frontera del cierre (cobro de turno en el día congelado)
 - **MT** — MT-1 `findFirst` sin `where` · MT-2 home con acción admin-gated · MT-3 resolución fail-closed · MT-4 ruteo por hostname · MT-5 RLS = aislamiento + performance · MT-6 hosts en código (variable sensible)
-- **DX** — DX-8 demo pública en host serverless: back con estado no corre → dominio isomórfico + adaptador local · DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify) · DX-10 lector que suma durante el cobro en vuelo · DX-11 suite verde ≠ pantalla bien: recorrido E2E contra next start + la cifra de plata sale de la regla compartida
+- **DX** — DX-8 demo pública en host serverless: back con estado no corre → dominio isomórfico + adaptador local · DX-1 backoffice-demo sin password · DX-2 falta sello GSG · DX-3 previews estáticos · DX-4 CTA WhatsApp roto · DX-5 réplica exacta a ojo vs. relevada · DX-6 relación seedeada uniforme = front miente por entidad · DX-7 fix de dato de prod sin seed/deleteMany (dry-run→apply→verify) · DX-10 lector que suma durante el cobro en vuelo · DX-11 suite verde ≠ pantalla bien: recorrido E2E contra next start + la cifra de plata sale de la regla compartida · DX-12 una etiqueta de balanza se lee de dos maneras: detectar con dos etiquetas o el PLU
 - **MP** — MP-1 sync file-tool↔bash · MP-2 tree compartido / commit-race · MP-3 congestión ≤4 · MP-4 subagentes en Opus · MP-5 FASE 0 · MP-6 `npm install` por worktree · MP-7 higiene de contexto · MP-8 sin tests · MP-9 modelo mal etiquetado · MP-10 reconciliar rama vieja = selectivo (no `git merge`) · MP-11 conflicto en tabla de irreversibles = dividir la fila (no pisar) · MP-12 drift INTERNO de ESTADO-ACTUAL (HANDOFF al día, §1/§8 stale) → reconciliar contra git, no contra el doc · MP-13 fundación gateada sin consumidor real = % engañoso (construido ≠ consumido) · MP-14 gating por redirect = riesgo de loop si el destino se gatea (esconder > redirigir)
 - **SEC** — SEC-1 secretos nunca en chat + rotación · SEC-2 rol con BYPASSRLS · SEC-3 firma de webhook + rate-limit · SEC-4 superficie pública: límite por IP sólo con fallos + motivos del dominio que nombran a terceros
 
@@ -354,6 +354,24 @@ Un guardarraíl es una **regla concreta y verificable**, no un consejo. Categor�
   - Toda cifra de plata en una pantalla usa el `where` o la tabla de signos compartida. No se arma una lista propia de
     tipos «que entran».
 - **Refs:** `docs/tenants/magra/UAT-PRODUCCION.md`; `src/tenants/magra/e2e/`; `src/lib/inicio-mostrador-postgres.test.ts`; DX-8.
+
+**[DX-12] Una etiqueta de balanza se puede leer bien de dos maneras, y la equivocada cobra otro producto**
+- **Síntoma:** en el recorrido de «Balanza y lector» (20/10/2026), el detector propuso primero un formato sin control
+  del precio para una etiqueta que sí lo traía. La etiqueta se leía «bien» (el importe cerraba), pero el dígito de
+  control quedaba pegado al número del producto. Con ese formato guardado, el lector no encontraba el producto.
+- **Causa raíz:** con una sola etiqueta, los dos formatos dan el mismo importe. El orden «el más común primero» elegía
+  el que no era.
+- **Fix:** con dos etiquetas o más, si el control cierra en todas, gana el formato con control (que coincida por azar
+  es 1 en 100). Además hay un campo opcional, «número del producto en la balanza», que desempata del todo.
+- **Lección:** cuando no se conoce la marca, el dato que manda es el del local: una etiqueta real, el peso que marcó y
+  el número del producto. Un formato «más común» es una suposición.
+- **Guardarraíl:**
+  - La detección pide una segunda etiqueta, o el número del producto, cuando hay empate.
+  - El peso por cable se recuerda en la PC recién cuando la persona confirma en el asistente que coincide con la
+    balanza. Una lectura en gramos tomada como kilos cobra diez veces de más.
+  - Un ítem nuevo del menú (`ALL_ITEMS`) necesita su grupo en `nav-groups.ts`. Los recorridos E2E no lo detectan;
+    la suite completa sí.
+- **Refs:** `src/lib/supermercado/balanza-deteccion.ts`; `npm run test:balanza-e2e`; `docs/producto/balanzas-relevamiento.md`.
 
 ## MP — Metodología / Proceso
 

@@ -35,9 +35,13 @@ export default function TomarPesoParaElTicket({
     <div data-vender="balanza-cable" className="space-y-1">
       <TomarPesoDeBalanza
         negocio={negocio}
+        // Desde el ticket no se recuerda: una lectura mal interpretada (gramos por kilos) cobraría
+        // diez veces de más. Se recuerda en el asistente de Balanza y lector, después de ver que el
+        // peso coincide con el de la balanza.
+        recordar={false}
         alTomar={(kg) => {
           if (!destino) {
-            setAviso("Elegí primero el corte que vas a pesar.");
+            setAviso("Elegí primero lo que vas a pesar.");
             return;
           }
           alPoner(destino.key, formatearCantidad(kg));

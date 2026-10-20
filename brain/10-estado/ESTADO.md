@@ -1,14 +1,14 @@
 ---
 tipo: estado
 generado: true
-generado_el: 2026-10-18 21:26 UTC
+generado_el: 2026-10-20 03:38 UTC
 tags: [brain/estado, fase-0]
 ---
 <!-- GENERADO por scripts/brain-sync.mjs — NO editar a mano -->
 
 # 🧠 Estado — la foto derivada del repo
 
-> ⏱️ **Foto tomada el 2026-10-18 21:26 UTC sobre `0dbb3ea6`.**
+> ⏱️ **Foto tomada el 2026-10-20 03:38 UTC sobre `afb3413`.**
 > No se escribe a mano: sale de `git` + `prisma/migrations/` + `docs/`, así que **al momento
 > de generarla no puede estar desactualizada** (es la causa de la lección **MP-12**). Pero una
 > vez commiteada envejece como cualquier archivo: **si la estás leyendo en GitHub o en el celular,
@@ -18,32 +18,32 @@ tags: [brain/estado, fase-0]
 
 | Campo | Valor |
 |---|---|
-| Rama actual | `claude/sleepy-tesla-392rov` |
-| HEAD | `0dbb3ea6` (2026-10-18) |
-| Árbol | limpio _(sin contar `brain/`)_ |
-| Tip de `main` | 68b43fd4 · 2026-10-13 · chore(inmobiliaria): los cobros de muestra del seed llevan número de recibo |
+| Rama actual | `claude/balanza-universal` |
+| HEAD | `afb3413` (2026-10-20) |
+| Árbol | **12 archivo(s) sin commitear** _(sin contar `brain/`)_ |
+| Tip de `main` | 5f0cac8 · 2026-10-19 · feat(consola): dar de alta a una persona desde la ficha del negocio |
 
-**Ramas locales (4, más reciente primero):** `claude/sleepy-tesla-392rov` · `integra/matias` · `claude/reset-golive` · `main`
+**Ramas locales (6, más reciente primero):** `claude/balanza-universal` · `claude/balanza-serie` · `claude/magra-nivel-bp` · `claude/magra-practicidad` · `claude/magra-eventualidades` · `claude/sleepy-tesla-392rov`
 
 **Últimos commits**
 
-- 0dbb3ea6 · 2026-10-18 · fix(magra): menores del re-Gate — la vitrina vacía no nombra WhatsApp si no hay número; JSDoc de pasosParaArrancar pegado a su función
-- dd8a1e9f · 2026-10-18 · Merge remote-tracking branch 'origin/claude/sleepy-tesla-392rov' into claude/magra-nivel-bp
-- c9bef4a3 · 2026-10-18 · fix(seed-magra): MAGRA_SLUG sólo contra una base local (Gate B1) + menores del Gate
-- 98e7bcf7 · 2026-10-18 · merge: CH al nivel Break Point (guion, E2E, eventualidades, practicidad apagada)
-- fe316444 · 2026-10-18 · docs(brain): mapa regenerado con la lección DB-5 [sin-deploy]
-- 20101067 · 2026-10-18 · test(magra): la tienda sin WhatsApp del local no ofrece botones de WhatsApp (46/46)
-- 0cba6843 · 2026-10-18 · fix(tienda-magra): sin el WhatsApp del local, los botones de WhatsApp no aparecen (ambiente real)
-- 10a56c80 · 2026-10-18 · fix(tienda-magra): ambiente real — dirección, horario o WhatsApp sin cargar no se muestran (ni «a confirmar»)
-- 9478b460 · 2026-10-18 · merge: main al día antes de publicar CH y Magra
-- 16d96eb3 · 2026-10-18 · merge: script de reseteo del go-live (sólo transaccional, modo prueba por defecto)
-- 429887ca · 2026-10-18 · fix(magra): ambiente real — sin formato de balanza guardado no hay campo de etiqueta, y el primer día no dice «de prueba»
-- fbc4fa75 · 2026-10-18 · Merge remote-tracking branch 'origin/claude/sleepy-tesla-392rov' into claude/magra-nivel-bp
+- afb3413 · 2026-10-20 · feat(balanza): «Tomar peso» en Vender y Pedidos, asistente por cable en Balanza y lector, y recorrido E2E (test:balanza-e2e, 24/24)
+- 962de48 · 2026-10-20 · feat(balanza): «Tomar peso» y el asistente de la balanza por cable
+- 318e872 · 2026-10-20 · feat(balanza): leer el peso de la balanza por cable (Web Serial) — protocolos, detector, hook y simulador
+- 27eb20f · 2026-10-20 · feat(pedidos): el campo de la etiqueta de la balanza también en Pedidos (el POS que usa MAGRA desde el celular)
+- f4d99c3 · 2026-10-20 · feat(balanza): pantalla «Balanza y lector» en el menú del mostrador — detectar, probar, guardar el formato y el PLU de cada producto
+- 91f6621 · 2026-10-20 · feat(balanza): etiquetas de cualquier balanza — prefijo de 1 dígito, control del precio GS1, UPC-A, presets por marca y «detectar con una etiqueta»
+- 5f0cac8 · 2026-10-19 · feat(consola): dar de alta a una persona desde la ficha del negocio
+- 740867f · 2026-10-19 · fix(alta): «Profe de pádel» escrito a mano ya no cae en la tienda de pádel
+- 3e2a5d6 · 2026-10-19 · fix(build): el control de [sin-deploy] no adivina la base y construye si no la tiene
+- 35cb452 · 2026-10-19 · chore(lote): ensayo y pase de Neon regenerados con la migración del profe [sin-deploy]
+- ead6a00 · 2026-10-19 · merge: main al día en la rama del profe Matías
+- 9063bae · 2026-10-19 · docs(breakpoint): deuda anotada por el Gate del panel de casa y la estética por cliente
 
 ## Migraciones (Prisma)
 
-- **Total en el repo:** 52
-- **Últimas 5:** `20261008120000_modulo_taller` · `20261009120000_taller_caja` · `20261013120000_modulo_inmobiliaria` · `20261013180000_inmobiliaria_ajustes` · `20261013210000_inmobiliaria_recibos`
+- **Total en el repo:** 53
+- **Últimas 5:** `20261009120000_taller_caja` · `20261013120000_modulo_inmobiliaria` · `20261013180000_inmobiliaria_ajustes` · `20261013210000_inmobiliaria_recibos` · `20261015120000_modulo_padel_clases`
 
 > ⚠️ **Colisión de timestamp** — dos migraciones comparten prefijo, así que el orden de
 > aplicación depende del desempate alfabético. Revisar antes de cualquier Gate 2:
@@ -56,8 +56,8 @@ tags: [brain/estado, fase-0]
 
 | Fuente | Volumen |
 |---|---:|
-| Documentos en `docs/` | 352 |
-| Palabras en `docs/` | 602.977 |
+| Documentos en `docs/` | 355 |
+| Palabras en `docs/` | 612.144 |
 | ADRs | 87 |
 | Nodos en el grafo | 93 _(los 87 ADR + 6 enmiendas)_ |
 

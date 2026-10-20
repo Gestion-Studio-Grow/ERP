@@ -136,6 +136,7 @@ export const NAV_ITEM_GROUPS: Readonly<Record<string, NavGroupId>> = {
   "/admin/caja": "operacion",
   "/admin/caja/libro": "operacion",
   "/admin/caja/cierre": "operacion",
+  "/admin/balanza": "operacion",
   // Clientes — base de clientes + comunicación con ellos.
   "/admin/clientes": "clientes",
   "/admin/recordatorios": "clientes",

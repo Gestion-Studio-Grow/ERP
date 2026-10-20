@@ -95,9 +95,9 @@ export function ProbarBalanzaPorCable({ negocio, alGuardar, className }: ProbarB
   return (
     <section data-ui="asistente-balanza-por-cable" aria-labelledby="titulo-balanza-por-cable" className={cn("flex flex-col gap-4", className)}>
       <div className="flex flex-col gap-1">
-        <h2 id="titulo-balanza-por-cable" className="text-lg font-medium text-strong">
+        <h3 id="titulo-balanza-por-cable" className="text-lg font-medium text-strong">
           Balanza por cable
-        </h2>
+        </h3>
         <p className="text-sm text-muted">
           Para leer el peso directo de la balanza, sin tipearlo. Se configura una vez en cada computadora.
         </p>
