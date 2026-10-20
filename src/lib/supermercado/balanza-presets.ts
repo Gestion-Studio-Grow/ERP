@@ -6,7 +6,7 @@
 // presets le dan un punto de partida por marca, y el probador de la pantalla de configuración
 // le muestra cómo se lee una etiqueta real ANTES de guardar.
 //
-// ⚠ PROVISIONALES A CONFIRMAR con una etiqueta real de cada marca. El formato no lo fija la
+// ⚠ A CONFIRMAR con una etiqueta real de cada marca (ver `fuente` en cada preset). El formato no lo fija la
 // marca sino el técnico que programa la balanza: la misma Systel puede salir de fábrica con
 // peso y quedar configurada con importe. Por eso (a) cada preset es sólo un punto de partida,
 // (b) la pantalla dice "si tu etiqueta no se lee, probá otra opción o pedinos ayuda" y
@@ -19,55 +19,97 @@
 
 import {
   FORMATO_BALANZA_POR_DEFECTO,
+  codigoParaElFormato,
   formatoDesdeAfuera,
+  largoDeEtiqueta,
+  largoDelPrefijo,
   leerEtiquetaDeBalanza,
   type FormatoBalanza,
   type LecturaBalanza,
 } from "./balanza";
 import { limpiarCodigoLeido } from "./ean";
 
-export type IdPresetBalanza = "systel" | "kretz" | "moretti" | "gs1-peso" | "gs1-importe";
+export type IdPresetBalanza = "systel" | "kretz-peso" | "kretz-importe" | "cas" | "moretti" | "gs1-peso" | "gs1-importe";
+
+/**
+ * De dónde sale cada preset (docs/producto/balanzas-relevamiento.md, 20/10/2026). Ninguno sale
+ * de abrir el manual oficial: el proxy de la sesión bloqueó los sitios de los fabricantes.
+ *   · "extracto": el manual oficial existe y está citado; el dato sale del extracto del buscador.
+ *   · "sin-fuente": no se encontró el formato de fábrica; es el uso más común. A CONFIRMAR.
+ * En pantalla no se dice «provisional» (ambiente real): se dice «confirmalo con una etiqueta», que
+ * vale para todos porque el formato lo deja el técnico que programa la balanza.
+ */
+export type FuentePreset = "extracto" | "sin-fuente";
 
 export interface PresetBalanza {
   id: IdPresetBalanza;
   marca: string;
   descripcion: string;
   formato: FormatoBalanza;
+  fuente: FuentePreset;
 }
 
 const TODOS_LOS_PREFIJOS = ["20", "21", "22", "23", "24", "25", "26", "27", "28", "29"];
 
-/** Los presets, en el orden en que se muestran. PROVISIONALES A CONFIRMAR (ver arriba). */
+/**
+ * Los presets, en el orden en que se muestran. Toledo (Prix), Dibal y Digi no tienen preset: son
+ * configurables y no se encontró su formato de fábrica; para esas (y cualquier otra) está
+ * «Detectar con una etiqueta» (balanza-deteccion.ts).
+ */
 export const PRESETS_BALANZA: readonly PresetBalanza[] = [
   {
     id: "systel",
-    marca: "Systel",
-    descripcion: "Prefijo 20, producto de 5 dígitos y el peso en gramos.",
-    formato: { prefijos: ["20"], digitosProducto: 5, contenido: "peso", decimales: 3 },
+    marca: "Systel (Cuora)",
+    // Manual Cuora: cabecera 20 (21 para lo que se vende por unidad), PLU de 4 e importe de 6.
+    // Los decimales del importe no figuran en el extracto: pesos enteros, a confirmar.
+    descripcion: "Prefijo 20 o 21, producto de 4 dígitos y el importe en pesos (6 dígitos).",
+    formato: { prefijos: ["20", "21"], digitosProducto: 4, contenido: "importe", decimales: 0 },
+    fuente: "extracto",
   },
   {
-    id: "kretz",
-    marca: "Kretz",
-    descripcion: "Prefijo 20 o 21, producto de 5 dígitos y el importe en pesos (hasta $99.999).",
-    formato: { prefijos: ["20", "21"], digitosProducto: 5, contenido: "importe", decimales: 0 },
+    id: "kretz-peso",
+    marca: "Kretz (Report), con peso",
+    // Manual Report NX/LT/Pro: cabecera 20, formato 2-5-5 con peso o importe según el menú.
+    descripcion: "Prefijo 20, producto de 5 dígitos y el peso en gramos.",
+    formato: { prefijos: ["20"], digitosProducto: 5, contenido: "peso", decimales: 3 },
+    fuente: "extracto",
+  },
+  {
+    id: "kretz-importe",
+    marca: "Kretz (Report), con importe",
+    descripcion: "Prefijo 20, producto de 5 dígitos y el importe en pesos (hasta $99.999).",
+    formato: { prefijos: ["20"], digitosProducto: 5, contenido: "importe", decimales: 0 },
+    fuente: "extracto",
+  },
+  {
+    id: "cas",
+    marca: "CAS (CL5000, LP)",
+    // Manual CAS: "02-IIIII-PPPPP-C", o sea un UPC-A "2 IIIII PPPPP C" que el lector manda con un 0
+    // adelante. Decimales del importe a confirmar (el de fábrica es de dólares, con centavos).
+    descripcion: "Etiqueta de 12 dígitos: 2, producto de 5 dígitos y el importe (5 dígitos).",
+    formato: { prefijos: ["2"], digitosProducto: 5, contenido: "importe", decimales: 0, largo: 12 },
+    fuente: "extracto",
   },
   {
     id: "moretti",
     marca: "Moretti",
     descripcion: "Prefijo del 20 al 29, producto de 4 dígitos y el importe en pesos (hasta $999.999).",
     formato: { prefijos: TODOS_LOS_PREFIJOS, digitosProducto: 4, contenido: "importe", decimales: 0 },
+    fuente: "sin-fuente",
   },
   {
     id: "gs1-peso",
     marca: "Otra marca, etiqueta con peso",
     descripcion: "El formato más común: prefijo del 20 al 29, producto de 5 dígitos y el peso en gramos.",
     formato: FORMATO_BALANZA_POR_DEFECTO,
+    fuente: "sin-fuente",
   },
   {
     id: "gs1-importe",
     marca: "Otra marca, etiqueta con importe",
     descripcion: "Prefijo del 20 al 29, producto de 5 dígitos y el importe en pesos (hasta $99.999).",
     formato: { prefijos: TODOS_LOS_PREFIJOS, digitosProducto: 5, contenido: "importe", decimales: 0 },
+    fuente: "sin-fuente",
   },
 ];
 
@@ -79,7 +121,9 @@ function mismoFormato(a: FormatoBalanza, b: FormatoBalanza): boolean {
     na.digitosProducto === nb.digitosProducto &&
     na.contenido === nb.contenido &&
     na.decimales === nb.decimales &&
-    na.prefijos.join(",") === nb.prefijos.join(",")
+    na.prefijos.join(",") === nb.prefijos.join(",") &&
+    (na.largo ?? 13) === (nb.largo ?? 13) &&
+    Boolean(na.verificadorDePrecio) === Boolean(nb.verificadorDePrecio)
   );
 }
 
@@ -115,26 +159,29 @@ export type ResultadoDelProbador =
  * el prefijo no es de esta balanza o si el verificador no cierra.
  */
 export function probarEtiqueta(texto: string, f: FormatoBalanza): ResultadoDelProbador {
-  const codigo = limpiarCodigoLeido(texto);
-  if (!codigo) return { estado: "vacio" };
-  if (!/^\d+$/.test(codigo)) {
-    return { estado: "aviso", codigo, mensaje: "La etiqueta de la balanza son sólo números. Pasala de nuevo por el lector." };
+  const leido = limpiarCodigoLeido(texto);
+  if (!leido) return { estado: "vacio" };
+  if (!/^\d+$/.test(leido)) {
+    return { estado: "aviso", codigo: leido, mensaje: "La etiqueta de la balanza son sólo números. Pasala de nuevo por el lector." };
   }
-  if (codigo.length !== 13) {
+  const codigo = codigoParaElFormato(leido, f);
+  const largo = largoDeEtiqueta(f);
+  if (codigo.length !== largo) {
     return {
       estado: "aviso",
-      codigo,
-      mensaje: `La etiqueta tiene 13 dígitos y acá hay ${codigo.length}. Pasala de nuevo por el lector o revisá lo que pegaste.`,
+      codigo: leido,
+      mensaje: `La etiqueta tiene ${largo} dígitos y acá hay ${leido.length}. Pasala de nuevo por el lector o revisá lo que pegaste.`,
     };
   }
-  if (!f.prefijos.includes(codigo.slice(0, 2))) {
+  const prefijo = codigo.slice(0, largoDelPrefijo(f));
+  if (!f.prefijos.includes(prefijo)) {
     return {
       estado: "aviso",
-      codigo,
-      mensaje: `Empieza con ${codigo.slice(0, 2)} y ese prefijo no está marcado arriba. Si es de tu balanza, marcalo o probá otra opción.`,
+      codigo: leido,
+      mensaje: `Empieza con ${prefijo} y ese prefijo no está marcado arriba. Si es de tu balanza, marcalo o probá otra opción.`,
     };
   }
   const lectura = leerEtiquetaDeBalanza(codigo, f);
-  if (!lectura.ok) return { estado: "aviso", codigo, mensaje: lectura.mensaje };
-  return { estado: "leida", codigo, lectura };
+  if (!lectura.ok) return { estado: "aviso", codigo: leido, mensaje: lectura.mensaje };
+  return { estado: "leida", codigo: leido, lectura };
 }

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   FORMATO_BALANZA_POR_DEFECTO,
   MENSAJE_VERIFICADOR_BALANZA,
+  MENSAJE_VERIFICADOR_DE_PRECIO,
   armarEtiquetaDeBalanza,
   describirFormato,
   digitosDeValor,
@@ -12,9 +13,10 @@ import {
   pesoDeUnImporte,
   problemaDelFormato,
   renglonDeBalanza,
+  verificadorDePrecio,
   type FormatoBalanza,
 } from "./balanza";
-import { esEan13Valido } from "./ean";
+import { conVerificador, esEan13Valido } from "./ean";
 
 const PESO_5: FormatoBalanza = FORMATO_BALANZA_POR_DEFECTO;
 const IMPORTE_4_PESOS: FormatoBalanza = { prefijos: ["20"], digitosProducto: 4, contenido: "importe", decimales: 0 };
@@ -112,4 +114,62 @@ test("la configuración se valida campo por campo", () => {
   assert.equal(formatoDesdeAfuera(null), null);
   assert.equal(digitosDeValor(PESO_5), 5);
   assert.match(describirFormato(PESO_5), /del 20 al 29, 5 dígitos del producto y 5 para el peso en gramos/);
+});
+
+// ── Formatos que antes no entraban: prefijo de 1 dígito, control del precio y UPC-A ─────────
+
+test("el control del precio GS1 da los ejemplos de GS1: 2875 → 9 (4 dígitos) y 14685 → 6 (5 dígitos)", () => {
+  assert.equal(verificadorDePrecio("2875"), 9);
+  assert.equal(verificadorDePrecio("14685"), 6);
+  assert.throws(() => verificadorDePrecio("123"));
+});
+
+test("prefijo de un dígito: 2 + producto de 5 + peso de 6 en gramos, ida y vuelta", () => {
+  const f: FormatoBalanza = { prefijos: ["2"], digitosProducto: 5, contenido: "peso", decimales: 3 };
+  assert.equal(problemaDelFormato(f), null);
+  const etiqueta = armarEtiquetaDeBalanza(f, "00123", 1.25);
+  assert.equal(etiqueta.length, 13);
+  assert.equal(etiqueta.slice(0, 7), "2001230");
+  assert.deepEqual(leerEtiquetaDeBalanza(etiqueta, f), { ok: true, plu: "00123", contenido: "peso", peso: 1.25 });
+});
+
+test("el 2 solo no se mezcla con prefijos de dos dígitos", () => {
+  assert.match(problemaDelFormato({ prefijos: ["2", "20"], digitosProducto: 5, contenido: "peso", decimales: 3 }) ?? "", /no se mezcla/);
+});
+
+test("con control del precio: la etiqueta buena se lee; si el lector cambia un dígito del importe y se recalcula el verificador final, el control lo frena", () => {
+  const f: FormatoBalanza = { prefijos: ["20"], digitosProducto: 5, contenido: "importe", decimales: 0, verificadorDePrecio: true };
+  assert.equal(problemaDelFormato(f), null);
+  assert.equal(digitosDeValor(f), 4);
+  const etiqueta = armarEtiquetaDeBalanza(f, "00123", 2875);
+  assert.equal(etiqueta.slice(7, 8), "9", "el control va antes del valor");
+  assert.deepEqual(leerEtiquetaDeBalanza(etiqueta, f), { ok: true, plu: "00123", contenido: "importe", importe: 2875 });
+  // Mismo código con otro importe y un verificador final que SÍ cierra: sólo el control lo nota.
+  const trucha = conVerificador(`${etiqueta.slice(0, 8)}2876`);
+  const r = leerEtiquetaDeBalanza(trucha, f);
+  assert.equal(r.ok, false);
+  assert.equal(!r.ok && r.mensaje, MENSAJE_VERIFICADOR_DE_PRECIO);
+});
+
+test("el control del precio sólo vale con 4 o 5 dígitos de valor", () => {
+  assert.match(
+    problemaDelFormato({ prefijos: ["20"], digitosProducto: 6, contenido: "importe", decimales: 0, verificadorDePrecio: true }) ?? "",
+    /4 o 5 dígitos/,
+  );
+});
+
+test("UPC-A de 12 dígitos (2 + producto de 5 + control + importe de 4), también si el lector lo manda con un 0 adelante", () => {
+  const f: FormatoBalanza = { prefijos: ["2"], digitosProducto: 5, contenido: "importe", decimales: 2, largo: 12, verificadorDePrecio: true };
+  assert.equal(problemaDelFormato(f), null);
+  const etiqueta = armarEtiquetaDeBalanza(f, "01234", 12.5);
+  assert.equal(etiqueta.length, 12);
+  const esperado = { ok: true, plu: "01234", contenido: "importe", importe: 12.5 };
+  assert.deepEqual(leerEtiquetaDeBalanza(etiqueta, f), esperado);
+  assert.deepEqual(leerEtiquetaDeBalanza(`0${etiqueta}`, f), esperado);
+  assert.equal(esCodigoDeBalanza(`0${etiqueta}`, f), true);
+});
+
+test("un formato guardado antes (sin largo ni control) se normaliza igual que siempre", () => {
+  const viejo = { prefijos: ["21", "20"], digitosProducto: 5, contenido: "peso", decimales: 3 };
+  assert.deepEqual(formatoDesdeAfuera(viejo), { prefijos: ["20", "21"], digitosProducto: 5, contenido: "peso", decimales: 3 });
 });

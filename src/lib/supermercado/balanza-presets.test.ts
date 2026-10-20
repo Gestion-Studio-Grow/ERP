@@ -27,16 +27,28 @@ test("una etiqueta de ejemplo por preset se lee bien con su formato", () => {
 });
 
 test("presetQueCalza: el prefijo descarta a los que no lo imprimen", () => {
-  const kretz = presetPorId("kretz")!;
-  // Prefijo 21: Systel (sólo 20) no la lee; Kretz y las de 20 a 29 sí.
-  const codigo = armarEtiquetaDeBalanza(kretz.formato, "123", 4520, "21");
+  const systel = presetPorId("systel")!;
+  // Prefijo 21 (Systel, venta por unidad): Kretz (sólo 20) no la lee; Systel y las de 20 a 29 sí.
+  const codigo = armarEtiquetaDeBalanza(systel.formato, "123", 4520, "21");
   const calzan = presetQueCalza(codigo);
-  assert.ok(!calzan.includes("systel"));
-  assert.ok(calzan.includes("kretz"));
+  assert.ok(!calzan.includes("kretz-importe"));
+  assert.ok(calzan.includes("systel"));
   // Prefijo 25: sólo los presets "del 20 al 29".
   const moretti = presetPorId("moretti")!;
   const otro = armarEtiquetaDeBalanza(moretti.formato, "77", 123456, "25");
   assert.deepEqual(presetQueCalza(otro).sort(), ["gs1-importe", "gs1-peso", "moretti"]);
+});
+
+test("las etiquetas del relevamiento (docs/producto/balanzas-relevamiento.md) se leen con su preset", () => {
+  // Systel Cuora: 20 · 0123 · 004550 → producto 0123, $4.550.
+  assert.deepEqual(leerEtiquetaDeBalanza("2001230045500", presetPorId("systel")!.formato), { ok: true, plu: "0123", contenido: "importe", importe: 4550 });
+  // Kretz 2-5-5: 20 · 00123 · 01250 → 1,250 kg.
+  assert.deepEqual(leerEtiquetaDeBalanza("2000123012506", presetPorId("kretz-peso")!.formato), { ok: true, plu: "00123", contenido: "peso", peso: 1.25 });
+  // CAS: el UPC-A llega con un 0 adelante, como "02-IIIII-PPPPP-C".
+  const cas = presetPorId("cas")!.formato;
+  const upc = armarEtiquetaDeBalanza(cas, "1234", 4520);
+  assert.deepEqual(leerEtiquetaDeBalanza(`0${upc}`, cas), { ok: true, plu: "01234", contenido: "importe", importe: 4520 });
+  assert.ok(presetQueCalza(`0${upc}`).includes("cas"));
 });
 
 test("presetQueCalza: un código roto o que no es de balanza no calza con ninguno", () => {
@@ -52,13 +64,13 @@ test("presetQueCalza: un código roto o que no es de balanza no calza con ningun
 test("presetDelFormato: el formato de fábrica es el preset genérico de peso; uno a mano no es ninguno", () => {
   assert.equal(presetDelFormato(FORMATO_BALANZA_POR_DEFECTO), "gs1-peso");
   // Los prefijos desordenados o repetidos no cambian el formato.
-  assert.equal(presetDelFormato({ prefijos: ["21", "20", "20"], digitosProducto: 5, contenido: "importe", decimales: 0 }), "kretz");
+  assert.equal(presetDelFormato({ prefijos: ["21", "20", "20"], digitosProducto: 4, contenido: "importe", decimales: 0 }), "systel");
   assert.equal(presetDelFormato({ prefijos: ["28"], digitosProducto: 6, contenido: "peso", decimales: 2 }), null);
   assert.equal(presetPorId("no-existe"), null);
 });
 
 test("probarEtiqueta: vacío, letras, largo, prefijo, verificador y lectura correcta", () => {
-  const f = presetPorId("systel")!.formato;
+  const f = presetPorId("kretz-peso")!.formato;
   assert.deepEqual(probarEtiqueta("   ", f), { estado: "vacio" });
   assert.equal(probarEtiqueta("20ABC", f).estado, "aviso");
 
