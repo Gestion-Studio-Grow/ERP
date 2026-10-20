@@ -107,6 +107,8 @@ export interface VistaBuffet {
   mesas: { reservaId: string; titulo: string; saldo: number; cuentas: string[] }[];
   cuentas: VistaCuentaBuffet[];
   totalAbierto: number;
+  /** «+ Plato» en cada cuenta, como el club de hoy: los primeros 6 platos activos, con el nombre corto. */
+  platos: { id: string; nombre: string }[];
   firma: string;
 }
 
@@ -189,8 +191,12 @@ export function armarBuffet(estado: EstadoClub, ahora: Ahora): VistaBuffet {
   }));
   const cuentas = cuentasAbiertas(estado).map((c) => armarCuentaBuffet(estado, c, ahora));
   const totalAbierto = cuentas.reduce((s, c) => s + c.saldo, 0);
-  const vista: Omit<VistaBuffet, "firma"> = { mesas, cuentas, totalAbierto };
-  return { ...vista, firma: [JSON.stringify(mesas), totalAbierto, cuentas.map((c) => c.firma).join("|")].join("#") };
+  const platos = estado.productos
+    .filter((p) => p.plato && p.activo !== false)
+    .slice(0, 6)
+    .map((p) => ({ id: p.id, nombre: p.nombre.split(" con ")[0] }));
+  const vista: Omit<VistaBuffet, "firma"> = { mesas, cuentas, totalAbierto, platos };
+  return { ...vista, firma: [JSON.stringify(mesas), totalAbierto, JSON.stringify(platos), cuentas.map((c) => c.firma).join("|")].join("#") };
 }
 
 /** Reusa las cuentas que no cambiaron (el memo de cada tarjeta no se repinta). */
@@ -198,7 +204,9 @@ export function compartirBuffet(previa: VistaBuffet | undefined, nueva: VistaBuf
   if (!previa) return nueva;
   if (previa.firma === nueva.firma) return previa;
   const viejas = new Map(previa.cuentas.map((c) => [c.id, c]));
-  return { ...nueva, cuentas: nueva.cuentas.map((c) => (viejas.get(c.id)?.firma === c.firma ? viejas.get(c.id)! : c)) };
+  // Los platos casi nunca cambian: la misma lista mantiene la memo de cada tarjeta.
+  const platos = JSON.stringify(previa.platos) === JSON.stringify(nueva.platos) ? previa.platos : nueva.platos;
+  return { ...nueva, platos, cuentas: nueva.cuentas.map((c) => (viejas.get(c.id)?.firma === c.firma ? viejas.get(c.id)! : c)) };
 }
 
 export type AccionBuffet =
